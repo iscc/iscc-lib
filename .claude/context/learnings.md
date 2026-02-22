@@ -93,3 +93,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     only
 - Python module name is `iscc_lib` (matching PyPI package name `iscc-lib`), not `iscc` — maturin
     `module-name` must be `iscc_lib._lowlevel`
+- Criterion 0.5.x is the target version (not 0.8.x which has a different API). Use
+    `criterion_group!`/`criterion_main!` macros with `harness = false` in `[[bench]]` section.
+    `group.throughput()` sets throughput for subsequent benches in the group — call it before each
+    `bench_with_input` when sizes differ

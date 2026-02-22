@@ -1,42 +1,25 @@
-## 2026-02-22 — Add Rust criterion benchmarks for all gen functions
+## 2026-02-22 — Review of: Add Rust criterion benchmarks for all gen functions
 
-**Done:** Added criterion benchmarks covering all 9 `gen_*_v0` functions. Each function has at least
-one benchmark with representative inputs (conformance-derived strings, synthetic data, gradient
-pixels). Streaming functions (data_code, instance_code) include 64KB and 1MB variants to show
-throughput scaling.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Criterion benchmarks for all 9 `gen_*_v0` functions were added cleanly. The benchmark
+file is well-structured with proper benchmark groups, descriptive names, `black_box` usage, and
+throughput metrics for streaming operations. All verification criteria from next.md pass: 143 tests
+green, clippy clean (including bench code), fmt clean, no `unsafe`, and all benchmarks produce
+timing output.
 
-- `Cargo.toml`: Added `criterion = { version = "0.5", features = ["html_reports"] }` to
-    `[workspace.dependencies]`
-- `crates/iscc-lib/Cargo.toml`: Added criterion dev-dependency and `[[bench]]` section
-- `crates/iscc-lib/benches/benchmarks.rs`: New file — criterion benchmarks for all 9 gen functions
+**Issues found:**
 
-**Verification:** All checks pass:
+- (none)
 
-- `cargo bench -p iscc-lib --bench benchmarks` completes with timing output for all 9 functions
-- `cargo test -p iscc-lib` — 143 tests pass (benchmarks don't interfere)
-- `cargo clippy -p iscc-lib --benches -- -D warnings` — clean
-- `cargo fmt -p iscc-lib -- --check` — clean
-- No `unsafe` code in the benchmark file
+**Next:** Python reference benchmarks via pytest-benchmark (Phase 0 second half per
+`notes/09-performance-benchmarks.md`). This would benchmark the same 9 operations using `iscc-core`
+to establish the Python baseline, enabling speedup factor computation. Alternatively, Node.js
+bindings (`@iscc/lib` via napi-rs) could be started as the next major deliverable from the target.
 
-Sample benchmark results (containerized environment, not representative of bare-metal):
-
-- gen_meta_code_v0: 22-41 µs
-- gen_text_code_v0: 137 µs (1000 chars)
-- gen_image_code_v0: 317 µs
-- gen_audio_code_v0: 47 µs
-- gen_video_code_v0: 1.9 µs
-- gen_mixed_code_v0: 1.6 µs
-- gen_data_code_v0: 1.2-1.5 GiB/s throughput
-- gen_instance_code_v0: 3.7-4.2 GiB/s throughput
-- gen_iscc_code_v0: 2.7 µs
-
-**Next:** Phase 0 benchmarks are complete for Rust. Next logical steps: Python reference benchmarks
-via pytest-benchmark (to compute speedup factors), or Node.js bindings (`@iscc/lib` via napi-rs) as
-defined in the target.
-
-**Notes:** criterion 0.5.1 was used (not 0.8.x which would require different API). The `--quick`
-flag only works with `--bench benchmarks` (not bare `cargo bench`) since the built-in test harness
-doesn't recognize criterion flags. Benchmark names follow the pattern `gen_*_code_v0/description`
-for easy identification.
+**Notes:** Criterion 0.5.1 is used (not 0.8.x). The `--quick` flag only works with
+`--bench benchmarks` (not bare `cargo bench`). Benchmark throughput numbers in containerized
+environment: Data-Code ~1.3 GiB/s, Instance-Code ~3.6-4.1 GiB/s. These will differ significantly on
+bare metal. Phase 0 Rust benchmarks are now complete; the benchmark infrastructure per `notes/09`
+envisions additional phases (Python reference, bindings, Node.js, WASM, report generation, CI
+tracking) that can be tackled incrementally.
