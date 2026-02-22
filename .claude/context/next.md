@@ -1,134 +1,234 @@
 # Next Work Package
 
-## Step: Implement gen_instance_code_v0 with conformance tests
+## Step: Implement gen_meta_code_v0 for name/description inputs
 
 ## Goal
 
-Implement the first real `gen_*_v0` function — `gen_instance_code_v0` — and vendor the official
-conformance test vectors to verify correctness against `iscc-core`. This unblocks all subsequent
-function implementations by establishing the conformance testing pattern.
+Implement `gen_meta_code_v0` with SimHash-based similarity hashing and text normalization, covering
+name-only and name+description input modes. This introduces the SimHash algorithm and text utilities
+that are reused by 6+ other gen functions, and verifies against 13 of 16 conformance vectors (the 3
+requiring JSON/Data-URL meta objects are deferred).
 
 ## Scope
 
-- **Create**: `crates/iscc-lib/tests/data.json` (vendored from iscc-core)
-- **Modify**: `Cargo.toml` (root — add `blake3` to workspace.dependencies, add `serde`/`serde_json`
-    as workspace dev-dependencies), `crates/iscc-lib/Cargo.toml` (add `blake3` dep + dev-deps for
-    test parsing), `crates/iscc-lib/src/lib.rs` (implement `gen_instance_code_v0`)
-- **Reference**: `crates/iscc-lib/src/codec.rs` (for `encode_component`, `MainType`, `SubType`,
-    `Version`), `iscc-core` Python reference via deepwiki
+- **Create**: `crates/iscc-lib/src/simhash.rs`, `crates/iscc-lib/src/utils.rs`
+- **Modify**: `crates/iscc-lib/src/lib.rs`, `Cargo.toml` (root — add workspace deps),
+    `crates/iscc-lib/Cargo.toml` (add crate deps)
+- **Reference**: `crates/iscc-lib/src/codec.rs` (for `encode_component`, `MainType::Meta`,
+    `SubType::None`), `crates/iscc-lib/tests/data.json` (conformance vectors), iscc-core
+    `code_meta.py` / `simhash.py` / `utils.py` via deepwiki
 
 ## Implementation Notes
 
-### Algorithm (from iscc-core `code_instance.py`)
-
-`gen_instance_code_v0(data, bits)` does:
-
-1. Hash the entire input `data` with BLAKE3 → 32-byte digest
-2. Call `encode_component(MainType::Instance, SubType::None, Version::V0, bits, &digest)`
-3. Prefix the result with `"ISCC:"` and return
-
-That's it — 3-5 lines of real logic. The function currently takes `&[u8]` (not a stream) which is
-fine for the Rust API; streaming can be added later via a separate `InstanceHasher` struct.
-
-### Dependency setup
+### New dependencies
 
 Add to root `Cargo.toml` `[workspace.dependencies]`:
 
 ```toml
-blake3 = "1"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+unicode-normalization = "0.1"
+unicode-general-category = "1"
 ```
 
-Add to `crates/iscc-lib/Cargo.toml`:
+Add to `crates/iscc-lib/Cargo.toml` `[dependencies]`:
 
 ```toml
-[dependencies]
-blake3.workspace = true
-
-[dev-dependencies]
-serde = { workspace = true }
-serde_json = { workspace = true }
+unicode-normalization.workspace = true
+unicode-general-category.workspace = true
 ```
 
-### Function implementation
+### Module: `simhash.rs` — `pub(crate)`
 
-Replace the stub in `src/lib.rs`:
+**`alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> Vec<u8>`**
+
+Port of iscc-core `simhash.py::alg_simhash`. Algorithm:
+
+1. Determine `n_bytes` from first digest length, `n_bits = n_bytes * 8`
+2. Create `vector: Vec<u32>` of length `n_bits`, all zeros
+3. For each digest, for each bit position `i`: if bit `i` is set, increment `vector[i]`
+4. Threshold: `min_features = hash_digests.len()` (integer, NOT divided by 2 yet)
+5. For each bit `i`: if `vector[i] * 2 >= min_features`, set bit `i` in output (this matches
+    Python's `vector[i] >= len(hash_digests) / 2` with float division)
+6. Bit numbering: MSB first — bit 0 is the highest bit of byte 0. Python uses
+    `shash |= 1 << (n_bits - 1 - i)` then `.to_bytes(n_bytes, "big")`
+7. Return `Vec<u8>` of `n_bytes` length
+8. If input is empty, return zero bytes (32 zero bytes for BLAKE3 digests)
+
+**`sliding_window(seq: &str, width: usize) -> Vec<String>`**
+
+Port of iscc-core `utils.py::sliding_window`. Works on Unicode characters (not bytes):
+
+1. Assert `width >= 2`
+2. Collect chars, compute `len = chars.len()`
+3. Generate windows: `for i in 0..max(len - width + 1, 1)` yield `chars[i..i+width]`
+4. If input is shorter than `width`, return one element containing the full input
+5. Return `Vec<String>`
+
+Also provide a bytes variant for future use:
+
+**`sliding_window_bytes(data: &[u8], width: usize) -> Vec<Vec<u8>>`**
+
+Same logic but operates on byte slices.
+
+### Module: `utils.rs` — `pub(crate)`
+
+**`text_clean(text: &str) -> String`**
+
+Port of iscc-core `code_meta.py::text_clean`:
+
+1. NFKC normalize the text (use `unicode_normalization::UnicodeNormalization::nfkc()`)
+2. Remove control characters (Unicode General Category starting with "C") EXCEPT these newline
+    characters: `\u{000A}`, `\u{000B}`, `\u{000C}`, `\u{000D}`, `\u{0085}`, `\u{2028}`, `\u{2029}`
+3. Process lines: split on newlines, allow at most one consecutive empty/whitespace-only line
+4. Join with `\n`, strip leading/trailing whitespace
+
+Use `unicode_general_category::get_general_category()` and check if category name starts with 'C'
+(i.e., is in the `GeneralCategory::*Control*|*Format*|*Surrogate*|*PrivateUse*|*Unassigned*` set).
+The simplest check: match on categories `Cc`, `Cf`, `Cn`, `Co`, `Cs`.
+
+**`text_remove_newlines(text: &str) -> String`**
+
+Port of iscc-core `code_meta.py::text_remove_newlines`:
 
 ```rust
-pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
-    let digest = blake3::hash(data);
-    let component = codec::encode_component(
-        codec::MainType::Instance,
-        codec::SubType::None,
-        codec::Version::V0,
-        bits,
-        digest.as_bytes(),
-    )?;
-    Ok(format!("ISCC:{component}"))
-}
+text.split_whitespace().collect::<Vec<_>>().join(" ")
 ```
 
-### Conformance test vectors
+**`text_trim(text: &str, nbytes: usize) -> String`**
 
-Download `data.json` from:
-`https://raw.githubusercontent.com/iscc/iscc-core/master/iscc_core/data.json`
+Port of iscc-core `code_meta.py::text_trim`:
 
-Place it at `crates/iscc-lib/tests/data.json`.
+Truncate UTF-8 bytes to `nbytes`, then decode back to str ignoring incomplete chars at the boundary,
+then trim whitespace. In Rust: find the largest valid UTF-8 prefix of `&text.as_bytes()[..nbytes]`
+using `std::str::from_utf8()` or scanning backward to find a char boundary.
 
-The file structure for `gen_instance_code_v0` entries:
+**`text_collapse(text: &str) -> String`**
 
-```json
-{
-  "gen_instance_code_v0": {
-    "test_0000_empty_64": {
-      "inputs": [
-        "stream:",
-        64
-      ],
-      "outputs": {
-        "iscc": "ISCC:IAA26E2JXH27TING",
-        "datahash": "...",
-        "filesize": 0
-      }
-    }
-  }
-}
+Port of iscc-core `code_meta.py::text_collapse`:
+
+1. NFD normalize
+2. Lowercase (`.to_lowercase()` after NFD — operates on the decomposed form)
+3. Filter in one pass: keep chars that are NOT whitespace AND whose Unicode General Category does
+    NOT start with "C", "M", or "P"
+4. NFKC normalize the filtered result
+
+**`multi_hash_blake3(data: &[u8]) -> String`**
+
+Port of iscc-core `utils.py::multi_hash_blake3`:
+
+```rust
+let digest = blake3::hash(data);
+let mut result = Vec::with_capacity(34);
+result.push(0x1e); // BLAKE3 multicodec
+result.push(0x20); // 32 bytes length
+result.extend_from_slice(digest.as_bytes());
+hex::encode(result)
 ```
 
-- `"stream:"` prefix means hex-encoded bytes (empty string after `stream:` = empty bytes)
-- `"stream:abcd"` means `hex::decode("abcd")`
-- First input is the data, second is bits
-- Only verify the `iscc` output field (datahash/filesize are secondary metadata)
+Note: this uses `hex` which is currently a dev-dependency. Either promote `hex` to a regular
+dependency or inline a hex-encoding function (prefer promoting `hex` since it's tiny).
 
-### Conformance test pattern
+### Modifications to `lib.rs`
 
-Write a test in `src/lib.rs` (or a separate integration test file) that:
+**Add module declarations:**
 
-1. Loads `data.json` via `include_str!("../tests/data.json")` for portability
-2. Parses the JSON and extracts the `gen_instance_code_v0` section
-3. For each test case: strips the `"stream:"` prefix, decodes hex to bytes, calls
-    `gen_instance_code_v0(data, bits)`, asserts the `iscc` field matches
-4. Use `serde_json::Value` for flexible parsing — no need for full struct deserialization
+```rust
+pub(crate) mod simhash;
+pub(crate) mod utils;
+```
 
-Update the existing `test_gen_instance_code_v0_stub` to verify real output instead of
-`NotImplemented`.
+**Implement `soft_hash_meta_v0` as a private helper:**
 
-### Known test vector (for quick sanity check)
+```rust
+fn soft_hash_meta_v0(name: &str, extra: Option<&str>) -> Vec<u8>
+```
 
-Empty input with 64 bits → `"ISCC:IAA26E2JXH27TING"`
+Algorithm:
+
+1. `collapsed_name = utils::text_collapse(name)`
+2. `name_ngrams = simhash::sliding_window(&collapsed_name, 3)` (meta_ngram_size_text = 3)
+3. `name_hashes: Vec<[u8; 32]>` — BLAKE3 hash each n-gram's UTF-8 bytes
+4. `simhash_digest = simhash::alg_simhash(&name_hashes)`
+5. If `extra` is `None` or empty string, return `simhash_digest`
+6. Otherwise (extra is a non-empty string):
+    - `collapsed_extra = utils::text_collapse(extra)`
+    - `extra_ngrams = simhash::sliding_window(&collapsed_extra, 3)` (same width for text)
+    - `extra_hashes` — BLAKE3 hash each n-gram
+    - `extra_simhash = simhash::alg_simhash(&extra_hashes)`
+    - Interleave first 16 bytes of each simhash in 4-byte chunks:
+        ```
+        result[0..4]   = name_simhash[0..4]
+        result[4..8]   = extra_simhash[0..4]
+        result[8..12]  = name_simhash[4..8]
+        result[12..16] = extra_simhash[4..8]
+        result[16..20] = name_simhash[8..12]
+        result[20..24] = extra_simhash[8..12]
+        result[24..28] = name_simhash[12..16]
+        result[28..32] = extra_simhash[12..16]
+        ```
+    - Return 32-byte interleaved digest
+
+**Replace gen_meta_code_v0 stub:**
+
+```rust
+pub fn gen_meta_code_v0(
+    name: &str,
+    description: Option<&str>,
+    meta: Option<&str>,
+    bits: u32,
+) -> IsccResult<String>
+```
+
+Algorithm (name/description only — return `Err(NotImplemented)` if `meta` is `Some`):
+
+1. Normalize name: `text_clean → text_remove_newlines → text_trim(128)`
+2. If name is empty after normalization, return `Err(InvalidInput("..."))"`
+3. Normalize description: `text_clean → text_trim(4096)` (description is "" if None)
+4. Compute payload for metahash:
+    - `payload = format!("{} {}", name, description).trim().as_bytes()` (space-join, then trim)
+    - Handle edge case: if description is empty, payload is just `name.as_bytes()`
+    - Actually match Python: `" ".join((name, description)).strip().encode("utf-8")`
+5. `meta_code_digest = soft_hash_meta_v0(name, if description.is_empty() { None } else { Some(description) })`
+6. `metahash = utils::multi_hash_blake3(payload_bytes)`
+7. `meta_code = codec::encode_component(MainType::Meta, SubType::None, Version::V0, bits, &meta_code_digest)?`
+8. Return `Ok(format!("ISCC:{meta_code}"))`
+
+**Important edge case**: The `description` parameter is `Option<&str>` in the Rust API but Python
+treats `None` and `""` the same way (both become `""`). After normalization, use empty string check
+to decide whether to pass extra to `soft_hash_meta_v0`.
+
+### Conformance test
+
+Add a conformance test similar to `test_gen_instance_code_v0_conformance`:
+
+1. Parse `gen_meta_code_v0` section from `data.json`
+2. Input format: `[name: str, description: str, meta: str|dict|null, bits: int]`
+3. For test cases where `meta` (inputs[2]) is `null`: run the test
+4. For test cases where `meta` is non-null: skip with a message (deferred to next step)
+5. Assert `iscc` output field matches
+6. Also assert `metahash` output field matches (verifies the BLAKE3 payload logic)
+
+Replace the `test_gen_meta_code_v0_stub` with the conformance test.
+
+### Known test vectors for sanity checking
+
+- `gen_meta_code_v0("Die Unendliche Geschichte", None, None, 64)` → `"ISCC:AAAZXZ6OU74YAZIM"`
+- `gen_meta_code_v0("Die Unendliche Geschichte", Some("Von Michael Ende"), None, 64)` →
+    `"ISCC:AAAZXZ6OU4E45RB5"`
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing tests + new conformance tests)
-- `gen_instance_code_v0(b"", 64)` returns `Ok("ISCC:IAA26E2JXH27TING")`
-- All `gen_instance_code_v0` test vectors from `data.json` pass
+- `cargo test -p iscc-lib` passes (all existing 43 tests + new conformance tests)
+- All 13 `gen_meta_code_v0` conformance vectors with `meta=null` pass (both `iscc` and `metahash`)
+- 3 test vectors with `meta` objects are explicitly skipped (not failing)
+- `gen_meta_code_v0("Die Unendliche Geschichte", None, None, 64)` returns
+    `Ok("ISCC:AAAZXZ6OU74YAZIM")`
+- `gen_meta_code_v0` with `meta=Some(...)` returns `Err(NotImplemented)`
 - `cargo clippy -p iscc-lib -- -D warnings` clean
 - `cargo fmt -p iscc-lib --check` clean
 - No `unsafe` code added
 
 ## Done When
 
-All verification criteria pass — `gen_instance_code_v0` produces correct ISCC Instance-Codes for
-every conformance vector, and the conformance test infrastructure is in place for subsequent
-functions.
+All verification criteria pass — `gen_meta_code_v0` produces correct ISCC Meta-Codes and metahashes
+for all 13 name/description conformance vectors, and the SimHash + text utility modules are in place
+for reuse by subsequent gen functions.
