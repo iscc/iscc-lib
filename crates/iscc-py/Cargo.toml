@@ -1,0 +1,13 @@
+[package]
+name = "iscc-py"
+version.workspace = true
+edition.workspace = true
+publish = false          # Published via PyPI, not crates.io
+
+[lib]
+name = "_lowlevel"
+crate-type = ["cdylib"]
+
+[dependencies]
+iscc-lib = { path = "../iscc-lib" }
+pyo3 = { workspace = true, features = ["extension-module"] }

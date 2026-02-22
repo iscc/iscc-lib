@@ -15,9 +15,6 @@ pub(crate) mod wtahash;
 /// Error type for ISCC operations.
 #[derive(Debug, thiserror::Error)]
 pub enum IsccError {
-    /// Operation is not yet implemented.
-    #[error("not implemented")]
-    NotImplemented,
     /// Input data is invalid.
     #[error("invalid input: {0}")]
     InvalidInput(String),
