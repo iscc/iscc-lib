@@ -38,14 +38,11 @@ The container provides all development tools pre-installed:
 | Claude Code | AI agent loop |
 | gh | GitHub CLI |
 
-### 3. Trust mise config and install pre-commit hooks
+The `postCreateCommand` runs automatically on container creation: trusts the mise config, installs
+Python dev dependencies (`uv sync`), and sets up pre-commit hooks. Git identity is mounted
+read-only from the host `~/.gitconfig`.
 
-```bash
-mise trust
-uv run prek install --hook-type pre-commit --hook-type pre-push
-```
-
-### 4. Configure git identity (if not inherited from host)
+**Note:** If git identity is not inherited from the host mount, configure it manually:
 
 ```bash
 git config user.name "Your Name"

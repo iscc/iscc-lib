@@ -1,0 +1,19 @@
+[project]
+name = "iscc-lib"
+version = "0.0.1"
+requires-python = ">=3.10"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "prek",
+    "ruff",
+    "taplo",
+    "yamlfix",
+    "ty",
+    "pytest",
+    "pytest-cov",
+    "pytest-timeout",
+    "mdformat",
+    "mdformat-mkdocs[recommended]",
+]

@@ -11,15 +11,19 @@
   "mounts": [
     "source=${localEnv:USERPROFILE}/.claude,target=/home/dev/.claude,type=bind",
     "source=${localEnv:USERPROFILE}/.claude.json,target=/home/dev/.claude.json,type=bind",
+    "source=${localEnv:USERPROFILE}/.gitconfig,target=/home/dev/.gitconfig,type=bind,readonly",
     "source=iscc-lib-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
     "source=iscc-lib-cargo-registry-${devcontainerId},target=/home/dev/.cargo/registry,type=volume",
     "source=iscc-lib-cargo-git-${devcontainerId},target=/home/dev/.cargo/git,type=volume",
-    "source=iscc-lib-uv-cache-${devcontainerId},target=/home/dev/.cache/uv,type=volume"
+    "source=iscc-lib-uv-cache-${devcontainerId},target=/home/dev/.cache/uv,type=volume",
+    "source=iscc-lib-venv-${devcontainerId},target=/home/dev/.venvs/iscc-lib,type=volume"
   ],
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
-    "GH_TOKEN": "${localEnv:GH_TOKEN}"
+    "GH_TOKEN": "${localEnv:GH_TOKEN}",
+    "UV_PROJECT_ENVIRONMENT": "/home/dev/.venvs/iscc-lib"
   },
+  "postCreateCommand": "mise trust && uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/iscc-lib,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace/iscc-lib"
 }
