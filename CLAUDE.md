@@ -50,9 +50,9 @@ design decisions — don't guess.
 
 - **Sync core, streaming interface**: Rust core is synchronous. Each binding adapts async
   idiomatically. Pattern: `new() -> update(&[u8]) -> finalize() -> Result<T>`
-- **Tiered API surface**: Only `iscc::api` (Tier 1) is bound to foreign languages. Internal
+- **Tiered API surface**: Only `iscc_lib::api` (Tier 1) is bound to foreign languages. Internal
   modules use `pub(crate)` and are never exposed across FFI.
-- **Hub-and-spoke crate model**: All binding crates depend on the pure-Rust `iscc` core crate.
+- **Hub-and-spoke crate model**: All binding crates depend on the pure-Rust `iscc-lib` core crate.
 
 ## Design Constraints
 
@@ -71,7 +71,7 @@ Tool versions and tasks managed by **mise** (`mise.toml`). Python environment us
 mise run test             # Run all tests
 mise run lint             # Format checks + clippy + ruff
 mise run format           # Apply formatting
-cargo test -p iscc        # Rust tests only
+cargo test -p iscc-lib    # Rust tests only
 pytest                    # Python tests only
 ```
 
