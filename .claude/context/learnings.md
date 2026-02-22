@@ -62,3 +62,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     ISCC-CODE unit sort order, so derived ordering is correct
 - `encode_units` uses bitfield (bit0=Content, bit1=Semantic, bit2=Meta) to encode optional unit
     combination as index 0–7 for the ISCC-CODE header length field
+- `iscc-core/dct.py` uses Nayuki's fast recursive DCT (not naive O(n²) DCT-II). The Nayuki algorithm
+    produces exact 0.0 for uniform inputs (via integer subtraction), which is critical for
+    conformance. The Cython-compiled version returns raw f64 (no `int(round())` truncation)
+- Image-Code 8×8 block extraction uses offset-by-1 positions `(0,0),(1,0),(0,1),(1,1)` (heavily
+    overlapping), not offset-by-8. Always verify pseudocode against actual Python reference
