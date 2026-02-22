@@ -69,5 +69,11 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     overlapping), not offset-by-8. Always verify pseudocode against actual Python reference
 - `serde_json` without `preserve_order` feature uses `BTreeMap` for sorted-key JSON serialization —
     sufficient for ASCII-key metadata (matching iscc-core) but not full RFC 8785 (JCS) compliance
-- `IsccError::NotImplemented` variant is now unused (all 9 gen functions implemented) — candidate
-    for removal before 1.0 or when adding Python bindings (clean public API surface)
+- `IsccError::NotImplemented` variant was removed — all 9 gen functions are implemented
+- PyO3 bindings: `maturin develop` needs `VIRTUAL_ENV` set to the project venv when the CID agent
+    env differs (e.g., `VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop ...`)
+- maturin `pyproject.toml` requires `dynamic = ["version"]` when version comes from Cargo.toml —
+    omitting this causes maturin to refuse building
+- PyO3 `#[pyo3(signature = (data, bits=64))]` syntax provides Python-side default arguments cleanly
+- `ty` type checker (pre-push hook) cannot resolve native extension module imports — PyO3/maturin
+    modules need `.pyi` type stubs (e.g., `_lowlevel.pyi`) alongside `py.typed` for `ty` to pass

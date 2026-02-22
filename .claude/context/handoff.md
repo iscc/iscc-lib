@@ -1,43 +1,49 @@
-## 2026-02-22 — Scaffold iscc-py crate with PyO3/maturin and expose gen_instance_code_v0
+## 2026-02-22 — Review of: Scaffold iscc-py crate with PyO3/maturin and expose gen_instance_code_v0
 
-**Done:** Created the `crates/iscc-py/` Python binding crate with PyO3/maturin, exposing
-`gen_instance_code_v0` as the first function. The full build pipeline works end-to-end: Rust →
-native module → Python import → correct conformance output. Also removed the unused
-`IsccError::NotImplemented` variant from iscc-lib.
+**Verdict:** NEEDS_WORK
 
-**Files changed:**
+**Summary:** The iscc-py crate is correctly scaffolded following the `_lowlevel` pattern from
+notes/02-language-bindings.md. `gen_instance_code_v0` is exposed through PyO3 with proper default
+arguments, the full pipeline works end-to-end (Rust → native module → Python import → correct
+conformance output), and the `IsccError::NotImplemented` variant was cleanly removed. All local
+verification passes (cargo build, test, clippy, fmt, maturin develop, pytest). However, the pre-push
+hook fails on `ty` type checking because `iscc._lowlevel` is a native module with no type stub.
 
-- `Cargo.toml`: Added `crates/iscc-py` to workspace members, added `pyo3` to workspace.dependencies
-- `crates/iscc-lib/src/lib.rs`: Removed unused `IsccError::NotImplemented` variant
-- `crates/iscc-py/Cargo.toml`: New crate — cdylib with iscc-lib + pyo3 dependencies
-- `crates/iscc-py/src/lib.rs`: PyO3 module exposing `gen_instance_code_v0` with `bits` defaulting to
-    64
-- `crates/iscc-py/pyproject.toml`: Maturin build config with abi3-py310, `iscc._lowlevel` module
-- `crates/iscc-py/python/iscc/__init__.py`: Pure Python wrapper re-exporting from `_lowlevel`
-- `crates/iscc-py/python/iscc/py.typed`: PEP 561 type marker
-- `tests/test_smoke.py`: Updated with 3 conformance tests for `gen_instance_code_v0`
+**Issues found:**
 
-**Verification:**
+- **Pre-push `ty` type checker failure**:
+    `error[unresolved-import]: Cannot resolve imported module   iscc._lowlevel` in
+    `crates/iscc-py/python/iscc/__init__.py:3`. The `_lowlevel` module is a native extension built
+    by maturin — it doesn't exist as Python source, so `ty` can't resolve the import. Fix: add a
+    `_lowlevel.pyi` type stub in `crates/iscc-py/python/iscc/` declaring the function signatures.
+    This is the correct approach since the package already has `py.typed`.
 
-- `cargo build -p iscc-py` — compiles successfully
-- `cargo test -p iscc-lib` — all 143 tests pass (NotImplemented removal is clean)
-- `cargo clippy -p iscc-py -- -D warnings` — clean
-- `cargo clippy -p iscc-lib -- -D warnings` — clean
-- `cargo fmt --check` — clean
-- `maturin develop --manifest-path crates/iscc-py/Cargo.toml` — builds and installs
-- `python -c "from iscc import gen_instance_code_v0; print(gen_instance_code_v0(b'', 64))"` — prints
-    `ISCC:IAA26E2JXH27TING`
-- `uv run pytest tests/test_smoke.py -v` — 3/3 tests pass
+**Push failure:**
 
-**Next:** Expose the remaining 8 `gen_*_v0` functions through the Python bindings. The pattern is
-established — each function needs a `#[pyfunction]` wrapper in `crates/iscc-py/src/lib.rs` that
-converts `IsccError` to `PyValueError`, plus a re-export in `__init__.py`. Functions with complex
-parameter types (e.g., `gen_video_code_v0` with `&[Vec<i32>]`, `gen_mixed_code_v0` with `&[&str]`)
-will need PyO3 type conversion consideration.
+```
+Python type checking.....................................................Failed
+- hook id: ty
+- exit code: 1
 
-**Notes:** The `pyproject.toml` needed `dynamic = ["version"]` added — the next.md template omitted
-this and maturin refused to build without a version. The `VIRTUAL_ENV` mismatch between the CID
-agent env and the project env (`/home/dev/.venvs/iscc-lib`) means `maturin develop` must target the
-project venv explicitly (`VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop ...`) for
-`uv run pytest` to find the module. The abi3-py310 build produces a single wheel usable across
-Python 3.10+.
+  error[unresolved-import]: Cannot resolve imported module `iscc._lowlevel`
+   --> crates/iscc-py/python/iscc/__init__.py:3:6
+    |
+  3 | from iscc._lowlevel import gen_instance_code_v0
+    |      ^^^^^^^^^^^^^^
+```
+
+**Next:** Add a `_lowlevel.pyi` type stub file at `crates/iscc-py/python/iscc/_lowlevel.pyi` that
+declares the function signatures for the native module. This will satisfy the `ty` type checker. The
+stub should declare:
+
+```python
+def gen_instance_code_v0(data: bytes, bits: int = 64) -> str: ...
+```
+
+This is a small, focused fix. After this, proceed to expose the remaining 8 `gen_*_v0` functions
+(adding their stubs to the `.pyi` file at the same time).
+
+**Notes:** The `ty` type checker runs in the pre-push hook and checks all Python files in the
+project. Native extension modules (built by maturin/PyO3) need `.pyi` type stubs for `ty` to resolve
+imports. This will be needed for every function added to `_lowlevel`. The advance agent should
+create the stub file as part of the next work package.
