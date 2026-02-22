@@ -2,56 +2,51 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: Rust core complete with 100% conformance — pre-binding
+## Phase: Python bindings scaffolded — 1/9 functions exposed, type stub missing
 
-All nine `gen_*_v0` functions are implemented in pure Rust with full conformance (all 16 meta
-vectors now pass, including meta object and Data-URL support added in the last iteration). The core
-crate is clean and ready to serve as the foundation for language bindings.
+The Rust core crate is complete with all 9 `gen_*_v0` functions passing 143 conformance tests. The
+Python bindings crate (`iscc-py`) has been scaffolded with PyO3/maturin, exposing only
+`gen_instance_code_v0` so far. The pre-push `ty` type checker fails because a `.pyi` stub is missing
+for the native `_lowlevel` module.
 
 ## What Exists
 
-- **47 git commits** — bootstrap through meta object support (100% conformance)
-- **Root `Cargo.toml`**: virtual workspace, `workspace.dependencies`, release profile configured
-- **`crates/iscc-lib/`**: pure Rust crate — zero binding dependencies (blake3, data-encoding, hex,
-    serde_json, thiserror, unicode-normalization, unicode-general-category, xxhash-rust)
-- **8 source modules**: lib.rs, codec.rs, simhash.rs, minhash.rs, cdc.rs, dct.rs, wtahash.rs,
-    utils.rs
-- **All 9 gen functions** with 100% conformance vector coverage:
-    - `gen_meta_code_v0`: 16/16 vectors (including meta object + Data-URL)
-    - `gen_text_code_v0`: 5/5 vectors
-    - `gen_image_code_v0`: 3/3 vectors
-    - `gen_audio_code_v0`: 5/5 vectors
-    - `gen_video_code_v0`: 3/3 vectors
-    - `gen_mixed_code_v0`: 2/2 vectors
-    - `gen_data_code_v0`: 4/4 vectors
-    - `gen_instance_code_v0`: all vectors pass
-    - `gen_iscc_code_v0`: 5/5 vectors
-- **Conformance vectors**: `tests/data.json` vendored from iscc-core
-- **143 tests total** — all pass, 0 ignored
-- **`cargo clippy`** clean, **`cargo fmt`** clean, **no `unsafe`**
-- **Architecture docs**: `notes/` (00-09) covering all design decisions
+- **Rust core (`crates/iscc-lib/`)**: 8 modules, all 9 gen functions, 143 tests passing, clippy/fmt
+    clean
+- **Python bindings (`crates/iscc-py/`)**: scaffolded with PyO3 `_lowlevel` module pattern
+    - Only `gen_instance_code_v0` exposed (1 of 9 functions)
+    - `python/iscc/__init__.py` re-exports from `_lowlevel`
+    - `py.typed` marker present, but no `.pyi` type stub (causes `ty` failure)
+    - `cargo build -p iscc-py` succeeds, 3 Python smoke tests pass
+- **Workspace**: root `Cargo.toml` with centralized deps, release profile, 2 workspace members
 - **Dev tooling**: mise.toml, pyproject.toml, pre-commit hooks, devcontainer, CID agents
+- **Architecture docs**: `notes/` (00-09)
+- **50 commits** of iterative development
 
 ## What's Missing
 
-- **`crates/iscc-py/`** — PyO3/maturin Python bindings (highest priority)
-- **`crates/iscc-node/`** — napi-rs Node.js bindings
-- **`crates/iscc-wasm/`** — wasm-bindgen WASM bindings
-- **`crates/iscc-cffi/`** — C FFI with cbindgen
-- **CI/CD workflows** — no `.github/workflows/`
-- **Benchmarks** — no criterion or pytest-benchmark
-- **Documentation site** — no lib.iscc.codes content
+- **Python bindings**: 8 remaining `gen_*_v0` functions not yet exposed through PyO3
+- **`_lowlevel.pyi` type stub**: blocks pre-push hook (`ty` type checker fails)
+- **Python conformance tests**: only 3 smoke tests exist, no full vector coverage from Python
+- **`crates/iscc-node/`**: napi-rs Node.js bindings — not started
+- **`crates/iscc-wasm/`**: wasm-bindgen WASM bindings — not started
+- **`crates/iscc-cffi/`**: C FFI with cbindgen — not started
+- **CI/CD workflows**: no `.github/workflows/`
+- **Benchmarks**: no criterion or pytest-benchmark
+- **Documentation site**: no lib.iscc.codes content
 
 ## Verification
 
-- `cargo test -p iscc-lib`: **143 tests pass** (0 failures, 0 ignored)
+- `cargo test -p iscc-lib`: **143 passed**, 0 failed, 0 ignored
 - `cargo clippy -p iscc-lib -- -D warnings`: **clean**
+- `cargo clippy -p iscc-py -- -D warnings`: **clean**
 - `cargo fmt -p iscc-lib --check`: **clean**
-- No `unsafe` code present
-- Conformance: all 9 gen functions pass all vectors (meta 16/16, text 5/5, image 3/3, audio 5/5,
-    video 3/3, mixed 2/2, data 4/4, instance ✅, iscc_code 5/5)
+- `cargo build -p iscc-py`: **succeeds**
+- `pytest tests/`: **3 passed** (smoke tests for `gen_instance_code_v0`)
+- Pre-push `ty` hook: **FAILS** — `unresolved-import: iscc._lowlevel` (needs `.pyi` stub)
 
 ## Next Milestone
 
-Begin Python bindings (`crates/iscc-py/`) with PyO3/maturin exposing all 9 `gen_*_v0` functions,
-using abi3-py310 for single wheel per platform. This is the highest-value binding target.
+Add `_lowlevel.pyi` type stub to fix the `ty` pre-push hook failure, then expose the remaining 8
+`gen_*_v0` functions in `iscc-py` with corresponding Python conformance tests. This completes the
+Python bindings target.
