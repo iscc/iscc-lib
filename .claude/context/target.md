@@ -22,9 +22,9 @@ A pure Rust library (no binding dependencies) publishable to crates.io as
 - No `unsafe` without documented justification
 - Crate has zero binding dependencies (no PyO3, napi, wasm-bindgen)
 
-## Python Bindings — `iscc-lib` on PyPI
+## Python Bindings — `iscc_lib` on PyPI
 
-A Python package installable from PyPI as [`iscc-lib`](https://pypi.org/project/iscc-lib/), a
+A Python package installable from PyPI as [`iscc_lib`](https://pypi.org/project/iscc-lib/), a
 drop-in replacement for `iscc-core`. Name is available. (You already own `iscc` and `iscc-core` on
 PyPI.)
 

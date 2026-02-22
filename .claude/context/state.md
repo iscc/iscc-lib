@@ -40,8 +40,14 @@ bindings, CI/CD, benchmarks, or documentation exist yet.
 - `ruff check` / `ruff format --check`: **clean**
 - No `unsafe` in core crate
 
+## Issues
+
+- **Python package name is wrong**: The module is currently `iscc` (`import iscc`) but must be
+    `iscc_lib` (`import iscc_lib`) to match the PyPI package name `iscc-lib`. Requires renaming
+    `crates/iscc-py/python/iscc/` → `crates/iscc-py/python/iscc_lib/`, updating `module-name` in
+    `crates/iscc-py/pyproject.toml` from `iscc._lowlevel` to `iscc_lib._lowlevel`, and fixing all
+    imports in `__init__.py` and tests. This must be fixed before any new work.
+
 ## Next Milestone
 
-The Rust core and Python bindings are fully verified. The next logical step is Node.js bindings
-(`crates/iscc-napi/`) via napi-rs, which would bring the second language binding online and validate
-the hub-and-spoke crate model with a non-Python binding.
+Fix the Python package module name (`iscc` → `iscc_lib`), then proceed to Node.js bindings.
