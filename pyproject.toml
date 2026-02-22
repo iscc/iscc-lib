@@ -8,6 +8,9 @@ dependencies = []
 testpaths = ["tests"]
 timeout = 120
 
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
 

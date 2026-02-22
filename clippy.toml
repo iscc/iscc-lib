@@ -1,0 +1,3 @@
+# Workspace-wide Clippy configuration
+# Enforces max cognitive complexity of 15 (Radon grade C) across all crates.
+cognitive-complexity-threshold = 15

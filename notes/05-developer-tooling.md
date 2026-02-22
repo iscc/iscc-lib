@@ -208,24 +208,22 @@ Consider adding a small set of "always on" Rust checks as the project grows:
 
 ## Complexity Gates (enforce simplicity)
 
-Enforce a maximum cognitive complexity of **C** (≤ 15) across all languages. Functions above this
+Maximum cognitive complexity is **15** (Radon grade C) across all languages. Functions above this
 threshold must be refactored before merging.
 
 **Rust:**
 
-- `cargo clippy` includes `cognitive_complexity` (default threshold 25). Lower it:
+- `cargo clippy` uses the `cognitive_complexity` lint. Threshold is set in `clippy.toml` at the
+    workspace root:
     ```toml
-    # clippy.toml (workspace root)
+    # clippy.toml
     cognitive-complexity-threshold = 15
     ```
 
 **Python:**
 
-- ruff enforces cognitive complexity via the `C901` rule. Configure in `pyproject.toml`:
+- Ruff enforces complexity via the `C901` rule. Threshold is set in `pyproject.toml`:
     ```toml
-    [tool.ruff.lint]
-    select = ["E", "F", "I", "C901"]
-
     [tool.ruff.lint.mccabe]
     max-complexity = 15
     ```
