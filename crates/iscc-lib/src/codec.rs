@@ -12,7 +12,7 @@ use crate::{IsccError, IsccResult};
 ///
 /// Integer values match the `iscc-core` Python reference (MT enum).
 #[repr(u8)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MainType {
     Meta = 0,
     Semantic = 1,
@@ -348,6 +348,31 @@ pub fn decode_length(mtype: MainType, length: u32, stype: SubType) -> u32 {
         }
         MainType::Id => length * 8 + 64,
     }
+}
+
+// ---- Unit Encoding ----
+
+/// Encode optional ISCC-UNIT MainTypes as a unit combination index (0–7).
+///
+/// Maps the optional units (Meta, Semantic, Content) present in a composite
+/// ISCC-CODE to a bitfield index. Data and Instance are mandatory and must
+/// not be included. The bitfield pattern is:
+/// bit 0 = Content, bit 1 = Semantic, bit 2 = Meta.
+pub fn encode_units(main_types: &[MainType]) -> IsccResult<u32> {
+    let mut result = 0u32;
+    for &mt in main_types {
+        match mt {
+            MainType::Content => result |= 1,
+            MainType::Semantic => result |= 2,
+            MainType::Meta => result |= 4,
+            _ => {
+                return Err(IsccError::InvalidInput(format!(
+                    "{mt:?} is not a valid optional unit type"
+                )));
+            }
+        }
+    }
+    Ok(result)
 }
 
 // ---- Base32 Encoding ----
@@ -793,5 +818,74 @@ mod tests {
         assert_eq!(bits.len(), 32);
         let bytes = bits_to_bytes(&bits);
         assert_eq!(bytes, data);
+    }
+
+    // ---- encode_units tests ----
+
+    #[test]
+    fn test_encode_units_empty() {
+        assert_eq!(encode_units(&[]).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_encode_units_content_only() {
+        assert_eq!(encode_units(&[MainType::Content]).unwrap(), 1);
+    }
+
+    #[test]
+    fn test_encode_units_semantic_only() {
+        assert_eq!(encode_units(&[MainType::Semantic]).unwrap(), 2);
+    }
+
+    #[test]
+    fn test_encode_units_semantic_content() {
+        assert_eq!(
+            encode_units(&[MainType::Semantic, MainType::Content]).unwrap(),
+            3
+        );
+    }
+
+    #[test]
+    fn test_encode_units_meta_only() {
+        assert_eq!(encode_units(&[MainType::Meta]).unwrap(), 4);
+    }
+
+    #[test]
+    fn test_encode_units_meta_content() {
+        assert_eq!(
+            encode_units(&[MainType::Meta, MainType::Content]).unwrap(),
+            5
+        );
+    }
+
+    #[test]
+    fn test_encode_units_meta_semantic() {
+        assert_eq!(
+            encode_units(&[MainType::Meta, MainType::Semantic]).unwrap(),
+            6
+        );
+    }
+
+    #[test]
+    fn test_encode_units_all_optional() {
+        assert_eq!(
+            encode_units(&[MainType::Meta, MainType::Semantic, MainType::Content]).unwrap(),
+            7
+        );
+    }
+
+    #[test]
+    fn test_encode_units_rejects_data() {
+        assert!(encode_units(&[MainType::Data]).is_err());
+    }
+
+    #[test]
+    fn test_encode_units_rejects_instance() {
+        assert!(encode_units(&[MainType::Instance]).is_err());
+    }
+
+    #[test]
+    fn test_encode_units_rejects_iscc() {
+        assert!(encode_units(&[MainType::Iscc]).is_err());
     }
 }

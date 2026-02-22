@@ -341,10 +341,125 @@ pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
 /// Generate a composite ISCC-CODE from individual ISCC unit codes.
 ///
 /// Combines multiple ISCC unit codes (Meta-Code, Content-Code, Data-Code,
-/// Instance-Code) into a single composite ISCC-CODE. When `wide` is true,
-/// produces a 256-bit code instead of the standard 128-bit.
-pub fn gen_iscc_code_v0(_codes: &[&str], _wide: bool) -> IsccResult<String> {
-    Err(IsccError::NotImplemented)
+/// Instance-Code) into a single composite ISCC-CODE. Input codes may
+/// optionally include the "ISCC:" prefix. At least Data-Code and
+/// Instance-Code are required. When `wide` is true and exactly two
+/// 128-bit+ codes (Data + Instance) are provided, produces a 256-bit
+/// wide-mode code.
+pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<String> {
+    // Step 1: Clean inputs — strip "ISCC:" prefix
+    let cleaned: Vec<&str> = codes
+        .iter()
+        .map(|c| c.strip_prefix("ISCC:").unwrap_or(c))
+        .collect();
+
+    // Step 2: Validate minimum count
+    if cleaned.len() < 2 {
+        return Err(IsccError::InvalidInput(
+            "at least 2 ISCC unit codes required".into(),
+        ));
+    }
+
+    // Step 3: Validate minimum length (16 base32 chars = 64-bit minimum)
+    for code in &cleaned {
+        if code.len() < 16 {
+            return Err(IsccError::InvalidInput(format!(
+                "ISCC unit code too short (min 16 chars): {}",
+                code
+            )));
+        }
+    }
+
+    // Step 4: Decode each code
+    let mut decoded: Vec<(
+        codec::MainType,
+        codec::SubType,
+        codec::Version,
+        u32,
+        Vec<u8>,
+    )> = Vec::with_capacity(cleaned.len());
+    for code in &cleaned {
+        let raw = codec::decode_base32(code)?;
+        let header = codec::decode_header(&raw)?;
+        decoded.push(header);
+    }
+
+    // Step 5: Sort by MainType (ascending)
+    decoded.sort_by_key(|&(mt, ..)| mt);
+
+    // Step 6: Extract main_types
+    let main_types: Vec<codec::MainType> = decoded.iter().map(|&(mt, ..)| mt).collect();
+
+    // Step 7: Validate last two are Data + Instance (mandatory)
+    let n = main_types.len();
+    if main_types[n - 2] != codec::MainType::Data || main_types[n - 1] != codec::MainType::Instance
+    {
+        return Err(IsccError::InvalidInput(
+            "Data-Code and Instance-Code are mandatory".into(),
+        ));
+    }
+
+    // Step 8: Determine wide composite
+    let is_wide = wide
+        && decoded.len() == 2
+        && main_types == [codec::MainType::Data, codec::MainType::Instance]
+        && decoded
+            .iter()
+            .all(|&(mt, st, _, len, _)| codec::decode_length(mt, len, st) >= 128);
+
+    // Step 9: Determine SubType
+    let st = if is_wide {
+        codec::SubType::Wide
+    } else {
+        // Collect SubTypes of Semantic/Content units
+        let sc_subtypes: Vec<codec::SubType> = decoded
+            .iter()
+            .filter(|&&(mt, ..)| mt == codec::MainType::Semantic || mt == codec::MainType::Content)
+            .map(|&(_, st, ..)| st)
+            .collect();
+
+        if !sc_subtypes.is_empty() {
+            // All must be the same
+            let first = sc_subtypes[0];
+            if sc_subtypes.iter().all(|&s| s == first) {
+                first
+            } else {
+                return Err(IsccError::InvalidInput(
+                    "mixed SubTypes among Content/Semantic units".into(),
+                ));
+            }
+        } else if decoded.len() == 2 {
+            codec::SubType::Sum
+        } else {
+            codec::SubType::IsccNone
+        }
+    };
+
+    // Step 10–11: Get optional MainTypes and encode
+    let optional_types = &main_types[..n - 2];
+    let encoded_length = codec::encode_units(optional_types)?;
+
+    // Step 12: Build digest body
+    let bytes_per_unit = if is_wide { 16 } else { 8 };
+    let mut digest = Vec::with_capacity(decoded.len() * bytes_per_unit);
+    for (_, _, _, _, tail) in &decoded {
+        let take = bytes_per_unit.min(tail.len());
+        digest.extend_from_slice(&tail[..take]);
+    }
+
+    // Step 13–14: Encode header + digest as base32
+    let header = codec::encode_header(
+        codec::MainType::Iscc,
+        st,
+        codec::Version::V0,
+        encoded_length,
+    )?;
+    let mut code_bytes = header;
+    code_bytes.extend_from_slice(&digest);
+    let code = codec::encode_base32(&code_bytes);
+
+    // Step 15: Return with prefix
+    Ok(format!("ISCC:{code}"))
 }
 
 #[cfg(test)]
@@ -699,10 +814,57 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_iscc_code_v0_stub() {
+    fn test_gen_iscc_code_v0_conformance() {
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let section = &data["gen_iscc_code_v0"];
+        let cases = section.as_object().unwrap();
+
+        let mut tested = 0;
+
+        for (tc_name, tc) in cases {
+            let inputs = tc["inputs"].as_array().unwrap();
+            let codes_json = inputs[0].as_array().unwrap();
+            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+
+            let codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
+
+            let result = gen_iscc_code_v0(&codes, false)
+                .unwrap_or_else(|e| panic!("gen_iscc_code_v0 failed for {tc_name}: {e}"));
+            assert_eq!(
+                result, expected_iscc,
+                "ISCC mismatch in test case {tc_name}"
+            );
+
+            tested += 1;
+        }
+
+        assert_eq!(tested, 5, "expected 5 conformance tests to run");
+    }
+
+    #[test]
+    fn test_gen_iscc_code_v0_too_few_codes() {
         assert!(matches!(
-            gen_iscc_code_v0(&["ISCC:AAA"], false),
-            Err(IsccError::NotImplemented)
+            gen_iscc_code_v0(&["AAAWKLHFPV6OPKDG"], false),
+            Err(IsccError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn test_gen_iscc_code_v0_missing_instance() {
+        // Two Meta codes — missing Data and Instance
+        assert!(matches!(
+            gen_iscc_code_v0(&["AAAWKLHFPV6OPKDG", "AAAWKLHFPV6OPKDG"], false),
+            Err(IsccError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn test_gen_iscc_code_v0_short_code() {
+        // Code too short (< 16 chars)
+        assert!(matches!(
+            gen_iscc_code_v0(&["AAAWKLHFPV6", "AAAWKLHFPV6OPKDG"], false),
+            Err(IsccError::InvalidInput(_))
         ));
     }
 }
