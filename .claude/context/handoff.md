@@ -1,49 +1,40 @@
-## 2026-02-22 — Review of: Scaffold iscc-py crate with PyO3/maturin and expose gen_instance_code_v0
+## 2026-02-22 — Expose all 9 gen\_\*\_v0 functions in PyO3 bindings with type stub
 
-**Verdict:** NEEDS_WORK
+**Done:** Added PyO3 wrappers for all 8 remaining `gen_*_v0` functions (meta, text, image, audio,
+video, mixed, data, iscc-code), created `_lowlevel.pyi` type stubs for the native module, and
+updated `__init__.py` to re-export all 9 functions.
 
-**Summary:** The iscc-py crate is correctly scaffolded following the `_lowlevel` pattern from
-notes/02-language-bindings.md. `gen_instance_code_v0` is exposed through PyO3 with proper default
-arguments, the full pipeline works end-to-end (Rust → native module → Python import → correct
-conformance output), and the `IsccError::NotImplemented` variant was cleanly removed. All local
-verification passes (cargo build, test, clippy, fmt, maturin develop, pytest). However, the pre-push
-hook fails on `ty` type checking because `iscc._lowlevel` is a native module with no type stub.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-py/src/lib.rs`: Added 8 `#[pyfunction]` wrappers matching the existing
+    `gen_instance_code_v0` pattern. Type conversions: `Vec<i32>` for `&[i32]`, `Vec<Vec<i32>>` for
+    `&[Vec<i32>]`, `Vec<String>` → `Vec<&str>` for `&[&str]` parameters. All 9 functions registered
+    in the `iscc_lowlevel` module.
+- `crates/iscc-py/python/iscc/_lowlevel.pyi`: Created type stub with all 9 function signatures using
+    Python type annotations (`bytes`, `list[int]`, `str | None`, etc.).
+- `crates/iscc-py/python/iscc/__init__.py`: Updated to import and re-export all 9 functions in
+    `__all__` (alphabetically sorted).
 
-- **Pre-push `ty` type checker failure**:
-    `error[unresolved-import]: Cannot resolve imported module   iscc._lowlevel` in
-    `crates/iscc-py/python/iscc/__init__.py:3`. The `_lowlevel` module is a native extension built
-    by maturin — it doesn't exist as Python source, so `ty` can't resolve the import. Fix: add a
-    `_lowlevel.pyi` type stub in `crates/iscc-py/python/iscc/` declaring the function signatures.
-    This is the correct approach since the package already has `py.typed`.
+**Verification:**
 
-**Push failure:**
+- `cargo build -p iscc-py` ✓
+- `cargo clippy -p iscc-py -- -D warnings` ✓ (clean)
+- `cargo fmt --check` ✓ (clean)
+- `maturin develop` ✓ (built and installed)
+- All 9 functions importable from Python ✓
+- `uv run ty check` ✓ ("All checks passed!")
+- `uv run pytest tests/` ✓ (3 passed)
+- `cargo test -p iscc-lib` ✓ (143 passed, all conformance vectors match)
 
-```
-Python type checking.....................................................Failed
-- hook id: ty
-- exit code: 1
+**Next:** The Python bindings are now complete. Next steps could include:
 
-  error[unresolved-import]: Cannot resolve imported module `iscc._lowlevel`
-   --> crates/iscc-py/python/iscc/__init__.py:3:6
-    |
-  3 | from iscc._lowlevel import gen_instance_code_v0
-    |      ^^^^^^^^^^^^^^
-```
+1. Adding Python-level conformance tests (pytest tests that exercise all 9 functions against
+    data.json vectors)
+2. Setting up CI/CD pipeline (GitHub Actions)
+3. Adding benchmarks comparing Rust vs Python reference performance
 
-**Next:** Add a `_lowlevel.pyi` type stub file at `crates/iscc-py/python/iscc/_lowlevel.pyi` that
-declares the function signatures for the native module. This will satisfy the `ty` type checker. The
-stub should declare:
-
-```python
-def gen_instance_code_v0(data: bytes, bits: int = 64) -> str: ...
-```
-
-This is a small, focused fix. After this, proceed to expose the remaining 8 `gen_*_v0` functions
-(adding their stubs to the `.pyi` file at the same time).
-
-**Notes:** The `ty` type checker runs in the pre-push hook and checks all Python files in the
-project. Native extension modules (built by maturin/PyO3) need `.pyi` type stubs for `ty` to resolve
-imports. This will be needed for every function added to `_lowlevel`. The advance agent should
-create the stub file as part of the next work package.
+**Notes:** The next.md verification section expected `gen_meta_code_v0('Hello')` to return
+`ISCC:AAAWKLHFPV6OPKDG` but the actual output is `ISCC:AAAWKLHFXM75OAMK`. This is NOT a bug — all 16
+gen_meta_code_v0 conformance test vectors pass correctly against the official data.json. The
+expected value in next.md appears to have been incorrect (possibly from a different iscc-core
+version or not verified against the reference).
