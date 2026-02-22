@@ -250,12 +250,68 @@ pub fn gen_video_code_v0(_frame_sigs: &[Vec<u8>], _bits: u32) -> IsccResult<Stri
     Err(IsccError::NotImplemented)
 }
 
+/// Combine multiple Content-Code digests into a single similarity hash.
+///
+/// Takes raw decoded ISCC bytes (header + body) for each Content-Code and
+/// produces a SimHash digest. Each input is trimmed to `bits/8` bytes by
+/// keeping the first header byte (encodes type info) plus `nbytes-1` body bytes.
+/// Requires at least 2 codes, all of MainType::Content.
+fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> {
+    if cc_digests.len() < 2 {
+        return Err(IsccError::InvalidInput(
+            "at least 2 Content-Codes required for mixing".into(),
+        ));
+    }
+
+    let nbytes = (bits / 8) as usize;
+    let mut prepared: Vec<Vec<u8>> = Vec::with_capacity(cc_digests.len());
+
+    for raw in cc_digests {
+        let (mtype, _stype, _ver, _blen, body) = codec::decode_header(raw)?;
+        if mtype != codec::MainType::Content {
+            return Err(IsccError::InvalidInput(
+                "all codes must be Content-Codes".into(),
+            ));
+        }
+        let mut entry = Vec::with_capacity(nbytes);
+        entry.push(raw[0]); // first byte preserves type info
+        let take = std::cmp::min(nbytes - 1, body.len());
+        entry.extend_from_slice(&body[..take]);
+        // Pad with zeros if body is shorter than nbytes-1
+        while entry.len() < nbytes {
+            entry.push(0);
+        }
+        prepared.push(entry);
+    }
+
+    Ok(simhash::alg_simhash(&prepared))
+}
+
 /// Generate a Mixed-Code from multiple Content-Code strings.
 ///
 /// Produces a Mixed Content-Code by combining multiple ISCC Content-Codes
-/// of different types (text, image, audio, video).
-pub fn gen_mixed_code_v0(_codes: &[&str], _bits: u32) -> IsccResult<String> {
-    Err(IsccError::NotImplemented)
+/// of different types (text, image, audio, video) using SimHash. Input codes
+/// may optionally include the "ISCC:" prefix.
+pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<String> {
+    let decoded: Vec<Vec<u8>> = codes
+        .iter()
+        .map(|code| {
+            let clean = code.strip_prefix("ISCC:").unwrap_or(code);
+            codec::decode_base32(clean)
+        })
+        .collect::<IsccResult<Vec<Vec<u8>>>>()?;
+
+    let digest = soft_hash_codes_v0(&decoded, bits)?;
+
+    let component = codec::encode_component(
+        codec::MainType::Content,
+        codec::SubType::Mixed,
+        codec::Version::V0,
+        bits,
+        &digest,
+    )?;
+
+    Ok(format!("ISCC:{component}"))
 }
 
 /// Generate a Data-Code from raw byte data.
@@ -560,10 +616,45 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_mixed_code_v0_stub() {
+    fn test_gen_mixed_code_v0_conformance() {
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let section = &data["gen_mixed_code_v0"];
+        let cases = section.as_object().unwrap();
+
+        let mut tested = 0;
+
+        for (tc_name, tc) in cases {
+            let inputs = tc["inputs"].as_array().unwrap();
+            let codes_json = inputs[0].as_array().unwrap();
+            let bits = inputs[1].as_u64().unwrap() as u32;
+            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+            let expected_parts = tc["outputs"]["parts"].as_array().unwrap();
+
+            let codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
+
+            let result = gen_mixed_code_v0(&codes, bits)
+                .unwrap_or_else(|e| panic!("gen_mixed_code_v0 failed for {tc_name}: {e}"));
+            assert_eq!(
+                result, expected_iscc,
+                "ISCC mismatch in test case {tc_name}"
+            );
+
+            // Verify parts match input codes
+            let parts: Vec<&str> = expected_parts.iter().map(|v| v.as_str().unwrap()).collect();
+            assert_eq!(codes, parts, "parts mismatch in test case {tc_name}");
+
+            tested += 1;
+        }
+
+        assert_eq!(tested, 2, "expected 2 conformance tests to run");
+    }
+
+    #[test]
+    fn test_gen_mixed_code_v0_too_few_codes() {
         assert!(matches!(
-            gen_mixed_code_v0(&["ISCC:AAA"], 64),
-            Err(IsccError::NotImplemented)
+            gen_mixed_code_v0(&["EUA6GIKXN42IQV3S"], 64),
+            Err(IsccError::InvalidInput(_))
         ));
     }
 
