@@ -88,3 +88,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - CI workflow: do NOT use `mise` in GitHub Actions — call `cargo`, `uv`, and tools directly. Use
     `dtolnay/rust-toolchain@stable` + `Swatinem/rust-cache@v2` + `astral-sh/setup-uv@v4` +
     `actions/setup-python@v5` as the standard action set
+- maturin must be in root `pyproject.toml` dev dependencies (not just
+    `crates/iscc-py/pyproject.toml` build-requires) because CI runs `uv sync --group dev` from root
+    only
+- Python module name is `iscc_lib` (matching PyPI package name `iscc-lib`), not `iscc` — maturin
+    `module-name` must be `iscc_lib._lowlevel`
