@@ -41,3 +41,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     empty bytes); `hex` crate decodes test vector data
 - `gen_instance_code_v0` is the simplest gen function: BLAKE3 hash → `encode_component` → "ISCC:"
     prefix. Good first implementation to establish patterns before tackling CDC/MinHash complexity
+- `soft_hash_meta_v0` interleaves name/description SimHash digests in 4-byte chunks (8 chunks total
+    = 32 bytes); `gen_text_code_v0` uses the same `text_collapse` → `sliding_window(3)` →
+    BLAKE3-per-ngram → `alg_simhash` pipeline but without the name/extra interleaving
+- `gen_meta_code_v0` normalizes name with `text_clean → text_remove_newlines → text_trim(128)` and
+    description with `text_clean → text_trim(4096)` (no newline removal for description)
