@@ -1,65 +1,70 @@
 # Next Work Package
 
-## Step: Fix CI — add maturin dependency and rename Python module to iscc_lib
+## Step: Add Rust criterion benchmarks for all gen functions
 
 ## Goal
 
-Fix the failing Python CI job by adding `maturin` to root dev dependencies and renaming the Python
-module from `iscc` to `iscc_lib` to match the PyPI package name. After this step, both CI jobs (Rust
-and Python) should pass.
+Establish Rust-side performance benchmarks using criterion for all 9 `gen_*_v0` functions. This is
+Phase 0 of the benchmark plan and provides the first quantitative performance data for the Rust
+core, which is a key deliverable of the project.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `pyproject.toml` — add `maturin` to `[dependency-groups] dev`
-    - `crates/iscc-py/pyproject.toml` — change `module-name` from `iscc._lowlevel` to
-        `iscc_lib._lowlevel`
-    - `crates/iscc-py/python/iscc/` → rename directory to `crates/iscc-py/python/iscc_lib/` (includes
-        `__init__.py`, `_lowlevel.pyi`, `py.typed`; delete the old `iscc/` directory including
-        `__pycache__` and stale `.so`)
-    - `crates/iscc-py/python/iscc_lib/__init__.py` — update import: `from iscc._lowlevel` →
-        `from iscc_lib._lowlevel`
-    - `tests/test_conformance.py` — update import: `from iscc import` → `from iscc_lib import`
-    - `tests/test_smoke.py` — update import: `from iscc import` → `from iscc_lib import`
-- **Reference**: `crates/iscc-py/Cargo.toml` (no changes needed — crate name `_lowlevel` stays)
+- **Create**: `crates/iscc-lib/benches/benchmarks.rs` — criterion benchmark file covering all 9 gen
+    functions
+- **Modify**: `Cargo.toml` (workspace root) — add `criterion` to `[workspace.dependencies]`
+- **Modify**: `crates/iscc-lib/Cargo.toml` — add `criterion` dev-dependency and `[[bench]]` section
+- **Reference**: `notes/09-performance-benchmarks.md`, `crates/iscc-lib/src/lib.rs`,
+    `crates/iscc-lib/tests/data.json`
 
 ## Implementation Notes
 
-1. **Add maturin to root pyproject.toml**: Add `"maturin"` to the `dev` dependency group list. This
-    is the root cause of the CI failure — `uv sync --group dev` doesn't install maturin because
-    it's only in `crates/iscc-py/pyproject.toml` build-requires, which CI doesn't process.
+1. **Add criterion dependency**: Add `criterion = { version = "0.5", features = ["html_reports"] }`
+    to `[workspace.dependencies]` in root `Cargo.toml`. In `crates/iscc-lib/Cargo.toml`, add
+    `criterion = { workspace = true }` to `[dev-dependencies]` and add:
 
-2. **Rename Python module directory**: Use
-    `git mv crates/iscc-py/python/iscc  crates/iscc-py/python/iscc_lib` to rename the directory.
-    Then clean up any stale artifacts (`__pycache__`, `.so` files) that shouldn't be tracked. The
-    `_lowlevel.pyi` type stub and `py.typed` marker move with the directory.
+    ```toml
+    [[bench]]
+    name = "benchmarks"
+    harness = false
+    ```
 
-3. **Update module-name in maturin config**: In `crates/iscc-py/pyproject.toml`, change
-    `module-name = "iscc._lowlevel"` to `module-name = "iscc_lib._lowlevel"`. This tells maturin
-    where to place the compiled `.so`/`.pyd` file.
+2. **Benchmark file structure**: Create a single `benchmarks.rs` file using `criterion_group!` and
+    `criterion_main!`. Group benchmarks by operation type. Use representative inputs extracted from
+    the conformance vectors (`data.json`) or simple synthetic data.
 
-4. **Update Python imports**: In `__init__.py`, change `from iscc._lowlevel import ...` to
-    `from iscc_lib._lowlevel import ...`. In both test files, change `from iscc import ...` to
-    `from iscc_lib import ...`.
+3. **Benchmark inputs** (use inline/const data — no external files needed):
 
-5. **Verify locally**: Run `maturin develop --manifest-path crates/iscc-py/Cargo.toml` then `pytest`
-    to confirm all 49 tests still pass with the new module name.
+    - `gen_meta_code_v0`: name="Die Unendliche Geschichte", description="Von Michael Ende", bits=64
+    - `gen_text_code_v0`: a ~1000-char synthetic text string, bits=64
+    - `gen_image_code_v0`: 1024-byte pixel array (gradient pattern), bits=64
+    - `gen_audio_code_v0`: 300-element i32 vector (sequential values), bits=64
+    - `gen_video_code_v0`: 10 frames of 380-element i32 vectors, bits=64
+    - `gen_mixed_code_v0`: 2 Content-Code strings from conformance tests, bits=64
+    - `gen_data_code_v0`: 64KB deterministic byte buffer, bits=64
+    - `gen_instance_code_v0`: 64KB deterministic byte buffer, bits=64
+    - `gen_iscc_code_v0`: array of 4 ISCC unit strings from conformance tests, wide=false
 
-6. **Clean stale files**: Remove `crates/iscc-py/python/iscc/_lowlevel.abi3.so` and `__pycache__`
-    from git tracking if they were accidentally committed. These are build artifacts.
+4. **For streaming operations** (data/instance): also add a 1MB variant to show throughput scaling.
+    Generate the buffer deterministically (e.g., repeating byte pattern).
+
+5. **Use `criterion::black_box`** on inputs to prevent compiler optimization of benchmark inputs.
+
+6. **Import paths**: `use iscc_lib::{gen_meta_code_v0, gen_text_code_v0, ...}` — all gen functions
+    are pub exports from the crate root.
+
+7. **Do NOT add benchmark data files** — use inline data for this step. The `benchmarks/data/`
+    directory structure from notes/09 can come later.
 
 ## Verification
 
-- `uv sync --group dev` installs maturin (verify with `uv run maturin --version`)
-- `uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml` builds successfully
-- `uv run pytest` passes all 49 tests (46 conformance + 3 smoke)
-- `python -c "import iscc_lib"` succeeds (new module name)
-- `python -c "import iscc"` fails with ImportError (old module name no longer exists)
-- `cargo test -p iscc-lib` still passes (143 tests — Rust unaffected)
-- No stale `.so` or `__pycache__` files tracked in git
+- `cargo bench -p iscc-lib` runs successfully and produces timing output for all 9 gen functions
+- `cargo test -p iscc-lib` still passes (143 tests — benchmarks don't interfere with tests)
+- `cargo clippy -p iscc-lib -- -D warnings` still clean (including bench code)
+- No `unsafe` code in the benchmark file
+- Benchmark names are descriptive (e.g., `gen_meta_code_v0/name+desc`, `gen_data_code_v0/64KB`)
 
 ## Done When
 
-Both `maturin develop` and `pytest` succeed using the `iscc_lib` module name, all 49 Python and 143
-Rust tests pass, and no stale build artifacts remain in the repository.
+`cargo bench -p iscc-lib` completes without errors, reporting timing results for all 9 `gen_*_v0`
+functions, and all existing tests and quality gates continue to pass.
