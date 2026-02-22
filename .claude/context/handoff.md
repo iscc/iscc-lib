@@ -1,28 +1,33 @@
-## 2026-02-22 — Review of: Implement gen_image_code_v0 with DCT-based perceptual hash
+## 2026-02-22 — Implement gen_video_code_v0 with WTA-Hash
 
-**Verdict:** PASS
+**Done:** Implemented `gen_video_code_v0` — the last remaining stub — completing all 9 gen
+functions. Created the `wtahash` module with the 256-entry permutation table and `alg_wtahash`
+algorithm. Implemented `soft_hash_video_v0` with frame deduplication (BTreeSet) and column-wise i64
+summing, then WTA-Hash. Changed the function signature from `&[Vec<u8>]` to `&[Vec<i32>]` as frame
+signature values can exceed 255.
 
-**Summary:** `gen_image_code_v0` is correctly implemented with a clean DCT module (Nayuki fast
-recursive algorithm) and 2D DCT pipeline with median-based bit extraction. All 3 conformance vectors
-pass. 128 tests pass (up from 117), clippy clean, fmt clean, no unsafe code, no quality gate
-circumvention.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-lib/src/wtahash.rs`: Created — WTA-Hash module with `WTA_VIDEO_ID_PERMUTATIONS` (256
+    pairs) and `alg_wtahash` function, plus 5 unit tests
+- `crates/iscc-lib/src/lib.rs`: Added `mod wtahash`, implemented `soft_hash_video_v0` and
+    `gen_video_code_v0`, replaced stub test with conformance tests and empty-input error test
 
-- (none)
+**Verification:** 134 tests pass (was 128 before — gained 5 wtahash unit tests + 2 video tests, lost
+1 stub test). All 3 gen_video_code_v0 conformance vectors produce exact matching ISCC strings.
+`cargo clippy -p iscc-lib -- -D warnings` clean. `cargo fmt -p iscc-lib --check` clean. No unsafe
+code.
 
-**Next:** 8/9 gen functions implemented. 1 stub remains: `gen_video_code_v0`. Investigate the
-iscc-core reference to determine the video hashing algorithm (likely SimHash on frame signature byte
-vectors, similar to audio). After that: `gen_meta_code_v0` meta object support (3 skipped vectors),
-Python bindings, CI/CD, benchmarks. State.md should be updated to reflect 8/9 gen functions and 128
-tests.
+**Next:** All 9 gen functions are now implemented and passing conformance. Next steps could be:
 
-**Notes:**
+- Python bindings via PyO3/maturin (the binding crate structure)
+- Streaming API (`new() -> update() -> finalize()`) for Data-Code and Instance-Code
+- `meta` parameter support in `gen_meta_code_v0` (JSON/Data-URL objects, currently returns
+    NotImplemented)
+- Performance benchmarks comparing against iscc-core
 
-- The advance agent correctly identified two inaccuracies in the next.md pseudocode and deviated to
-    match the actual Python reference. This is the right call — always verify pseudocode against the
-    actual iscc-core source.
-- 1 remaining stub: `gen_video_code_v0(&[Vec<u8>], u32)`. Needs reference investigation.
-- `gen_meta_code_v0` still has 3 skipped conformance vectors (meta object / Data-URL support).
-- The `_characters` variable in `gen_text_code_v0` (line 146) has a leading underscore to suppress
-    the unused warning — this is pre-existing and may be used when the result struct is added later.
+**Notes:** The WTA-Hash bit logic is straightforward: `vec[i] >= vec[j]` → bit 0, `vec[i] < vec[j]`
+→ bit 1, packed MSB-first. Python uses `set()` for dedup (unordered), Rust uses `BTreeSet` (ordered)
+— this is correct because column-wise summing is commutative so iteration order doesn't affect the
+result. The signature change from `&[Vec<u8>]` to `&[Vec<i32>]` was required because the range test
+vector uses values 0-379.

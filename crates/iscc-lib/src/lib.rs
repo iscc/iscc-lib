@@ -10,6 +10,7 @@ pub(crate) mod dct;
 pub(crate) mod minhash;
 pub(crate) mod simhash;
 pub(crate) mod utils;
+pub(crate) mod wtahash;
 
 /// Error type for ISCC operations.
 #[derive(Debug, thiserror::Error)]
@@ -372,12 +373,46 @@ pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<String> {
     Ok(format!("ISCC:{component}"))
 }
 
+/// Compute a similarity-preserving hash from video frame signatures.
+///
+/// Deduplicates frame signatures, computes column-wise sums across all
+/// unique frames, then applies WTA-Hash to produce a digest of `bits/8` bytes.
+fn soft_hash_video_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<Vec<u8>> {
+    if frame_sigs.is_empty() {
+        return Err(IsccError::InvalidInput(
+            "frame_sigs must not be empty".into(),
+        ));
+    }
+
+    // Deduplicate using BTreeSet (Vec<i32> implements Ord)
+    let unique: std::collections::BTreeSet<&Vec<i32>> = frame_sigs.iter().collect();
+
+    // Column-wise sum into i64 to avoid overflow
+    let cols = frame_sigs[0].len();
+    let mut vecsum = vec![0i64; cols];
+    for sig in &unique {
+        for (c, &val) in sig.iter().enumerate() {
+            vecsum[c] += val as i64;
+        }
+    }
+
+    Ok(wtahash::alg_wtahash(&vecsum, bits))
+}
+
 /// Generate a Video-Code from frame signature data.
 ///
-/// Produces an ISCC Content-Code for video from a sequence of frame
-/// signatures (each frame signature is a byte vector).
-pub fn gen_video_code_v0(_frame_sigs: &[Vec<u8>], _bits: u32) -> IsccResult<String> {
-    Err(IsccError::NotImplemented)
+/// Produces an ISCC Content-Code for video from a sequence of MPEG-7 frame
+/// signatures. Each frame signature is a 380-element integer vector.
+pub fn gen_video_code_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<String> {
+    let digest = soft_hash_video_v0(frame_sigs, bits)?;
+    let component = codec::encode_component(
+        codec::MainType::Content,
+        codec::SubType::Video,
+        codec::Version::V0,
+        bits,
+        &digest,
+    )?;
+    Ok(format!("ISCC:{component}"))
 }
 
 /// Combine multiple Content-Code digests into a single similarity hash.
@@ -917,12 +952,52 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_video_code_v0_stub() {
-        let frames: Vec<Vec<u8>> = vec![vec![0; 10]];
+    fn test_gen_video_code_v0_empty_frames() {
+        let frames: Vec<Vec<i32>> = vec![];
         assert!(matches!(
             gen_video_code_v0(&frames, 64),
-            Err(IsccError::NotImplemented)
+            Err(IsccError::InvalidInput(_))
         ));
+    }
+
+    #[test]
+    fn test_gen_video_code_v0_conformance() {
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let section = &data["gen_video_code_v0"];
+        let cases = section.as_object().unwrap();
+
+        let mut tested = 0;
+
+        for (tc_name, tc) in cases {
+            let inputs = tc["inputs"].as_array().unwrap();
+            let frames_json = inputs[0].as_array().unwrap();
+            let bits = inputs[1].as_u64().unwrap() as u32;
+            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+
+            let frame_sigs: Vec<Vec<i32>> = frames_json
+                .iter()
+                .map(|frame| {
+                    frame
+                        .as_array()
+                        .unwrap()
+                        .iter()
+                        .map(|v| v.as_i64().unwrap() as i32)
+                        .collect()
+                })
+                .collect();
+
+            let result = gen_video_code_v0(&frame_sigs, bits)
+                .unwrap_or_else(|e| panic!("gen_video_code_v0 failed for {tc_name}: {e}"));
+            assert_eq!(
+                result, expected_iscc,
+                "ISCC mismatch in test case {tc_name}"
+            );
+
+            tested += 1;
+        }
+
+        assert_eq!(tested, 3, "expected 3 conformance tests to run");
     }
 
     #[test]
