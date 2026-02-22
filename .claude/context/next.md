@@ -1,126 +1,138 @@
 # Next Work Package
 
-## Step: Implement gen_text_code_v0 with MinHash
+## Step: Implement gen_audio_code_v0 with multi-stage SimHash
 
 ## Goal
 
-Implement `gen_text_code_v0` — the Text Content-Code generator — which uses MinHash (not SimHash) to
-produce a similarity-preserving hash from plain text. This is the third gen function and unblocks
-`gen_data_code_v0` which also uses MinHash.
+Implement `gen_audio_code_v0` — the Audio Content-Code generator — which applies a multi-stage
+SimHash algorithm to Chromaprint feature vectors. This is the fourth gen function (4/9) and
+exercises the existing `simhash` module with a different input type (4-byte digests instead of
+32-byte BLAKE3 hashes).
 
 ## Scope
 
-- **Create**: `crates/iscc-lib/src/minhash.rs` — MinHash module ported from `bio-codes/iscc-sum`
-- **Modify**: `crates/iscc-lib/src/lib.rs` — add `pub(crate) mod minhash`, implement
-    `soft_hash_text_v0` and `gen_text_code_v0`, replace stub test with conformance tests
-- **Modify**: `Cargo.toml` (root) — add `xxhash-rust` to `[workspace.dependencies]`
-- **Modify**: `crates/iscc-lib/Cargo.toml` — add `xxhash-rust` to `[dependencies]`
+- **Create**: none
+- **Modify**: `crates/iscc-lib/src/lib.rs` — implement `soft_hash_audio_v0` helper and
+    `gen_audio_code_v0`, fix signature from `&[u32]` to `&[i32]`, add conformance tests
 - **Reference**:
-    - `bio-codes/iscc-sum` via deepwiki — `src/minhash.rs` (minhash, minhash_compress, minhash_256,
-        MPA/MPB constants) and `Cargo.toml` (xxhash-rust dependency)
-    - `iscc/iscc-core` via deepwiki — `code_content_text.py` (gen_text_code_v0, soft_hash_text_v0)
-    - `crates/iscc-lib/src/simhash.rs` — reuse `sliding_window` function
-    - `crates/iscc-lib/src/utils.rs` — reuse `text_collapse` function
-    - `crates/iscc-lib/tests/data.json` — conformance vectors under `gen_text_code_v0`
+    - `iscc/iscc-core` via deepwiki — `code_content_audio.py` (`gen_audio_code_v0`,
+        `soft_hash_audio_v0`)
+    - `crates/iscc-lib/src/simhash.rs` — reuse `alg_simhash` (already generic over byte length)
+    - `crates/iscc-lib/src/codec.rs` — `SubType::Audio` (value 2), `encode_component`
+    - `crates/iscc-lib/tests/data.json` — conformance vectors under `gen_audio_code_v0`
 
 ## Implementation Notes
 
-### CRITICAL: This is MinHash, NOT SimHash
+### CRITICAL: Signature must change from `&[u32]` to `&[i32]`
 
-The learnings file incorrectly states `gen_text_code_v0` uses SimHash. It actually uses **MinHash
-with xxhash**. The pipeline is:
+The current stub uses `&[u32]` but conformance test vectors include negative values (e.g.,
+`[-1, 0, 1]`). Chromaprint produces signed 32-bit integers. The Python reference uses
+`int.to_bytes(4, 'big', signed=True)`. Change the parameter type to `&[i32]` and update the stub
+test accordingly.
 
-```
-text_collapse(text) → sliding_window(collapsed, 13) → xxh32(ngram.as_bytes()) per ngram → alg_minhash_256(features)
-```
+### soft_hash_audio_v0 — Multi-stage SimHash algorithm
 
-### minhash.rs — Port from bio-codes/iscc-sum
+The algorithm builds a hash digest in stages, concatenating 4-byte SimHash chunks:
 
-Port the following from `bio-codes/iscc-sum/src/minhash.rs`:
-
-1. **Constants** — `MPA` and `MPB`: arrays of 64 `u64` values (from `src/constants.rs` in iscc-sum).
-    Include them directly in `minhash.rs` to keep file count down.
-
-2. **`minhash(features: &[u32]) -> Vec<u64>`** — 64-dimensional MinHash using universal hash
-    functions. For each (a, b) pair from MPA/MPB, compute:
-    `min over all features f: ((a.wrapping_mul(f as u64).wrapping_add(b)) & MAXI64) % MPRIME) & MAXH`
-    Constants: `MAXI64 = u64::MAX`, `MPRIME = (1 << 61) - 1`, `MAXH = (1 << 32) - 1`. Empty
-    features → return `vec![MAXH; 64]`. **Do NOT use rayon** — keep the core crate
-    dependency-light. Sequential iteration is fine.
-
-3. **`minhash_compress(mhash: &[u64], lsb: u32) -> Vec<u8>`** — Extract `lsb` least-significant bits
-    from each hash value, interleave them (iterate bitpos 0..lsb, then over all hash values), pack
-    into bytes (MSB-first bit packing within each byte).
-
-4. **`alg_minhash_256(features: &[u32]) -> Vec<u8>`** — Public function: calls `minhash` then
-    `minhash_compress` with `lsb=4`. Returns 32 bytes (64 × 4 bits = 256 bits).
-
-### gen_text_code_v0 in lib.rs
+**Stage 1 — Convert inputs to 4-byte digests:**
 
 ```
-fn soft_hash_text_v0(text: &str) -> Vec<u8>:
-    ngrams = sliding_window(text, 13)
-    features = ngrams.iter().map(|ng| xxhash_rust::xxh32::xxh32(ng.as_bytes(), 0)).collect()
-    alg_minhash_256(&features)
-
-pub fn gen_text_code_v0(text: &str, bits: u32) -> IsccResult<String>:
-    collapsed = text_collapse(text)
-    characters = collapsed.chars().count()
-    hash_digest = soft_hash_text_v0(&collapsed)
-    component = encode_component(MainType::Content, SubType::Text, Version::V0, bits, &hash_digest)
-    return Ok(format!("ISCC:{component}"))
+For each i32 in cv: convert to 4-byte big-endian bytes → Vec<[u8; 4]>
+If cv is empty: return vec![0u8; 32]
 ```
 
-- **SubType::Text** maps to value 0 in ST_CC enum — verify this exists in `codec.rs`
-- `characters` is computed but not returned yet (no result struct). For now, compute it for the
-    conformance test to verify, but only return the ISCC string. The conformance test should verify
-    both the ISCC and the character count independently.
-- Empty text is valid: `text_collapse("")` → `""`, `sliding_window("", 13)` → `[""]`, xxh32 of empty
-    bytes → a specific u32, minhash_256 of that → a specific digest.
+**Stage 2 — Overall SimHash (4 bytes):**
 
-### xxhash-rust dependency
-
-Add to root `Cargo.toml`:
-
-```toml
-xxhash-rust = { version = "0.8", features = ["xxh32"] }
+```
+parts = vec![alg_simhash(&all_digests)]   // 4-byte SimHash of all digests
 ```
 
-Add to crate `Cargo.toml`:
+**Stage 3 — Quarter-based SimHashes (4 × 4 = 16 bytes):**
 
-```toml
-xxhash-rust.workspace = true
+```
+Divide digests into 4 equal-length quarters (integer division, remainder to last)
+For each quarter:
+    if empty → push [0u8; 4]
+    else → push alg_simhash(&quarter)
+```
+
+**Stage 4 — Sorted-third-based SimHashes (3 × 4 = 12 bytes):**
+
+```
+Sort the ORIGINAL i32 values by numeric value
+Convert sorted values to big-endian 4-byte digests
+Divide into 3 equal-length thirds (integer division, remainder to last)
+For each third:
+    if empty → push [0u8; 4]
+    else → push alg_simhash(&third)
+```
+
+**Concatenate all parts:** stages 2+3+4 = 4 + 16 + 12 = 32 bytes max. The function returns all 32
+bytes. The `bits` parameter in `gen_audio_code_v0` controls how many bytes are used via
+`encode_component` (which truncates the digest to `bits / 8` bytes).
+
+### Partitioning helper
+
+Python uses `numpy.array_split` which distributes remainder across first chunks. Implement a small
+helper `array_split(slice, n) -> Vec<&[T]>` that divides a slice into `n` parts where:
+
+- Each part has `len / n` elements
+- The first `len % n` parts get one extra element
+- If `n > len`, excess parts are empty slices
+
+This can be a local function in `lib.rs` or a closure inside `soft_hash_audio_v0`.
+
+### Key details
+
+- `alg_simhash` already accepts `&[impl AsRef<[u8]>]` so it works with 4-byte digests. The output
+    length matches input digest length (4 bytes in, 4 bytes out).
+- **Empty input edge case:** `alg_simhash(&[])` returns `vec![0u8; 32]` (hardcoded), but for audio
+    the empty case is handled before calling simhash (return 32 zero bytes directly). Individual
+    empty quarters/thirds push `[0u8; 4]` directly instead of calling `alg_simhash`.
+- **Sorting:** Sort the original `i32` values, not the byte representations. Then convert sorted
+    values to big-endian bytes for SimHash.
+- Big-endian encoding of signed i32: Rust `i32::to_be_bytes()` produces the same bytes as Python's
+    `int.to_bytes(4, 'big', signed=True)`.
+
+### gen_audio_code_v0 function
+
+```
+pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<String>:
+    hash_digest = soft_hash_audio_v0(cv)
+    component = encode_component(
+        MainType::Content, SubType::Audio, Version::V0, bits, &hash_digest
+    )
+    Ok(format!("ISCC:{component}"))
 ```
 
 ### Conformance vectors (5 test cases)
 
-| Name                           | Input          | Bits | Expected ISCC                                                | Chars |
-| ------------------------------ | -------------- | ---- | ------------------------------------------------------------ | ----- |
-| test_0000_empty_str            | ""             | 64   | ISCC:EAASL4F2WZY7KBXB                                        | 0     |
-| test_0001_hello_world          | "Hello World"  | 64   | ISCC:EAASKDNZNYGUUF5A                                        | 10    |
-| test_0002_hello_world_256_bits | "Hello World"  | 256  | ISCC:EADSKDNZNYGUUF5AMFEJLZ5P66CP5YKCOA3X7F36RWE4CIRCBTUWXYY | 10    |
-| test_0003_i18n                 | unicode text   | 256  | ISCC:EADTJCW2DT555KK6...                                     | 42    |
-| test_0004_more                 | long paragraph | 128  | ISCC:EABZHFKU6PNI7UVWYEEIQLOYHYLX6                           | 249   |
+| Name                   | Input CV            | Bits | Expected ISCC                                                |
+| ---------------------- | ------------------- | ---- | ------------------------------------------------------------ |
+| test_0000_empty_64     | []                  | 64   | ISCC:EIAQAAAAAAAAAAAA                                        |
+| test_0001_one_128      | [1]                 | 128  | ISCC:EIBQAAAAAEAAAAABAAAAAAAAAAAAA                           |
+| test_0002_two_256      | [1, 2]              | 256  | ISCC:EIDQAAAAAMAAAAABAAAAAAQAAAAAAAAAAAAAAAAAAEAAAAACAAAAAAA |
+| test_0003_test_neg_256 | [-1, 0, 1]          | 256  | ISCC:EIDQAAAAAH777777AAAAAAAAAAAACAAAAAAP777774AAAAAAAAAAAAI |
+| test_0004_cv_256       | 112-element real CV | 256  | ISCC:EIDWUJFCEZZOJYVDHJHIRB3KQSQCM2REUITDUTVAQNRGJIRENCCCULY |
 
-### Learnings correction
+The test vectors use JSON arrays of integers directly (no "stream:" prefix). Parse as
+`serde_json::Value` and extract `as_i64() as i32` for each element.
 
-The learnings file states `gen_text_code_v0` uses
-`text_collapse → sliding_window(3) → BLAKE3 → alg_simhash`. This is **wrong**. The correct pipeline
-is `text_collapse → sliding_window(13) → xxh32 → alg_minhash_256`. The advance agent should note
-this for the review agent to correct.
+### Learning to correct
+
+The learnings file says `gen_audio_code_v0` takes `&[u32]`. It should take `&[i32]` because
+Chromaprint features are signed integers and conformance vectors include negative values.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing 76 tests + new text code tests)
-- All 5 `gen_text_code_v0` conformance vectors produce matching ISCC codes
-- Character counts match for all 5 test vectors
+- `cargo test -p iscc-lib` passes (all existing 85 tests + new audio code tests)
+- All 5 `gen_audio_code_v0` conformance vectors produce matching ISCC codes
 - `cargo clippy -p iscc-lib -- -D warnings` clean
 - `cargo fmt -p iscc-lib --check` clean
 - No `unsafe` code
-- minhash module has unit tests for `alg_minhash_256` (at minimum: empty features, single feature,
-    known output)
+- The `gen_audio_code_v0` stub test is replaced/updated for the new `&[i32]` signature
 
 ## Done When
 
-The advance agent is done when all 5 `gen_text_code_v0` conformance vectors pass, the minhash module
-has unit tests, and all quality gates (clippy, fmt, existing tests) remain green.
+The advance agent is done when all 5 `gen_audio_code_v0` conformance vectors pass and all quality
+gates (clippy, fmt, existing tests) remain green.
