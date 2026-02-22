@@ -1,30 +1,35 @@
-## 2026-02-22 — Review of: Implement gen_iscc_code_v0 composite code assembly
+## 2026-02-22 — Implement CDC module and gen_data_code_v0
 
-**Verdict:** PASS
+**Done:** Created `cdc.rs` module with the CDC_GEAR lookup table, `alg_cdc_params`,
+`alg_cdc_offset`, and `alg_cdc_chunks` functions. Implemented `gen_data_code_v0` in `lib.rs` using
+CDC chunking + xxh32 hashing + MinHash to produce similarity-preserving Data-Codes. All 4
+conformance vectors pass.
 
-**Summary:** `gen_iscc_code_v0` is correctly implemented with clean code, proper validation, and all
-5 conformance vectors passing. The `encode_units` helper and `Ord`/`PartialOrd` derive on `MainType`
-are well-justified additions. All 107 tests pass, clippy clean, fmt clean, no unsafe code, no
-quality gate circumvention.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-lib/src/cdc.rs`: New module with CDC algorithm — gear rolling hash table (256 u32
+    values from iscc-core), parameter calculation, two-phase cut point detection (strict then
+    relaxed mask), and content-defined chunk splitting. Includes 10 unit tests.
+- `crates/iscc-lib/src/lib.rs`: Registered `cdc` module, replaced `gen_data_code_v0` stub with
+    implementation (CDC chunks → xxh32 features → MinHash → encode_component), replaced stub test
+    with conformance test covering all 4 vectors.
 
-- (none)
+**Verification:** 117 tests pass (up from 107 — added 10 CDC unit tests, replaced 1 stub test with 1
+conformance test). `cargo clippy -p iscc-lib -- -D warnings` clean. `cargo fmt -p iscc-lib --check`
+clean. No `unsafe` code. All 4 gen_data_code_v0 conformance vectors pass (empty, 2-byte, 1-byte,
+8192-byte inputs at 64/128/256 bit lengths).
 
-**Next:** 6/9 gen functions implemented. 3 stubs remain: `gen_image_code_v0`, `gen_video_code_v0`,
-`gen_data_code_v0`. The most impactful next step is `gen_data_code_v0` which requires a new `cdc`
-(content-defined chunking) module plus the existing `minhash` module. Prior Rust CDC implementation
-in `bio-codes/iscc-sum` should be adapted. Alternatively, `gen_image_code_v0` or `gen_video_code_v0`
-could be tackled — they likely use SimHash on feature vectors similar to audio. State.md should be
-updated to reflect 6/9 gen functions and 107 tests.
+**Next:** 7/9 gen functions implemented. 2 stubs remain: `gen_image_code_v0` and
+`gen_video_code_v0`. These likely use SimHash on feature vectors similar to `gen_audio_code_v0`.
+State.md should be updated to reflect 7/9 gen functions and 117 tests.
 
 **Notes:**
 
-- `_characters` in `gen_text_code_v0` and `_metahash` in `gen_meta_code_v0` are computed but not
-    returned — a result struct will be needed eventually to surface these additional outputs.
-- The `wide` code path in `gen_iscc_code_v0` is implemented but not exercised by conformance vectors
-    (all use `wide=false`). Consider adding a manual test once there's a way to generate wide
-    inputs.
-- 3 remaining stubs: gen_image_code_v0, gen_video_code_v0, gen_data_code_v0.
-- `gen_data_code_v0` is the most complex remaining function (CDC + MinHash). Prior Rust CDC exists
-    in `bio-codes/iscc-sum` to adapt from.
+- The CDC implementation is non-streaming (takes all data at once), matching the `gen_data_code_v0`
+    API. A streaming `DataHasher` pattern (like Python's `DataHasherV0`) could be added later for
+    the Tier 2 API if needed.
+- `wrapping_add` is used for the gear hash accumulator to handle u32 overflow. This matches the
+    iscc-sum Rust implementation and passes all conformance vectors.
+- The `utf32` parameter in `alg_cdc_chunks` is wired but unused by `gen_data_code_v0` (always
+    false). It will be needed for `gen_text_code_v0` streaming variant if text CDC is ever
+    implemented.

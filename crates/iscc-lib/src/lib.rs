@@ -4,6 +4,7 @@
 //! functions are the public Tier 1 API surface, designed to be compatible with
 //! the `iscc-core` Python reference implementation.
 
+pub(crate) mod cdc;
 pub mod codec;
 pub(crate) mod minhash;
 pub(crate) mod simhash;
@@ -316,10 +317,31 @@ pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<String> {
 
 /// Generate a Data-Code from raw byte data.
 ///
-/// Produces an ISCC Data-Code by content-defined chunking and MinHash
-/// fingerprinting of the input byte stream.
-pub fn gen_data_code_v0(_data: &[u8], _bits: u32) -> IsccResult<String> {
-    Err(IsccError::NotImplemented)
+/// Produces an ISCC Data-Code by splitting data into content-defined chunks,
+/// hashing each chunk with xxh32, and applying MinHash to create a
+/// similarity-preserving fingerprint.
+pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
+    let chunks = cdc::alg_cdc_chunks(data, false, cdc::DATA_AVG_CHUNK_SIZE);
+    let mut features: Vec<u32> = chunks
+        .iter()
+        .map(|chunk| xxhash_rust::xxh32::xxh32(chunk, 0))
+        .collect();
+
+    // Defensive: ensure at least one feature (alg_cdc_chunks guarantees >= 1 chunk)
+    if features.is_empty() {
+        features.push(xxhash_rust::xxh32::xxh32(b"", 0));
+    }
+
+    let digest = minhash::alg_minhash_256(&features);
+    let component = codec::encode_component(
+        codec::MainType::Data,
+        codec::SubType::None,
+        codec::Version::V0,
+        bits,
+        &digest,
+    )?;
+
+    Ok(format!("ISCC:{component}"))
 }
 
 /// Generate an Instance-Code from raw byte data.
@@ -774,11 +796,38 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_data_code_v0_stub() {
-        assert!(matches!(
-            gen_data_code_v0(&[1, 2, 3], 64),
-            Err(IsccError::NotImplemented)
-        ));
+    fn test_gen_data_code_v0_conformance() {
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let section = &data["gen_data_code_v0"];
+        let cases = section.as_object().unwrap();
+
+        let mut tested = 0;
+
+        for (tc_name, tc) in cases {
+            let inputs = tc["inputs"].as_array().unwrap();
+            let stream_str = inputs[0].as_str().unwrap();
+            let bits = inputs[1].as_u64().unwrap() as u32;
+            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+
+            // Parse "stream:" prefix — remainder is hex-encoded bytes
+            let hex_data = stream_str
+                .strip_prefix("stream:")
+                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {tc_name}"));
+            let input_bytes = hex::decode(hex_data)
+                .unwrap_or_else(|e| panic!("invalid hex in test case {tc_name}: {e}"));
+
+            let result = gen_data_code_v0(&input_bytes, bits)
+                .unwrap_or_else(|e| panic!("gen_data_code_v0 failed for {tc_name}: {e}"));
+            assert_eq!(
+                result, expected_iscc,
+                "ISCC mismatch in test case {tc_name}"
+            );
+
+            tested += 1;
+        }
+
+        assert_eq!(tested, 4, "expected 4 conformance tests to run");
     }
 
     #[test]
