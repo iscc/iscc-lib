@@ -4,6 +4,8 @@
 //! functions are the public Tier 1 API surface, designed to be compatible with
 //! the `iscc-core` Python reference implementation.
 
+pub mod codec;
+
 /// Error type for ISCC operations.
 #[derive(Debug, thiserror::Error)]
 pub enum IsccError {

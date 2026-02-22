@@ -12,4 +12,5 @@ keywords = ["iscc", "content-id", "media", "fingerprint", "iso"]
 categories = ["multimedia", "encoding", "cryptography"]
 
 [dependencies]
+data-encoding.workspace = true
 thiserror.workspace = true

@@ -13,6 +13,7 @@ homepage = "https://lib.iscc.codes"
 description = "High-performance Rust implementation of ISO 24138:2024 (ISCC)"
 
 [workspace.dependencies]
+data-encoding = "2"
 thiserror = "2"
 
 [profile.release]
