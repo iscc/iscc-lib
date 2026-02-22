@@ -1,81 +1,65 @@
 # Next Work Package
 
-## Step: Add GitHub Actions CI workflow
+## Step: Fix CI — add maturin dependency and rename Python module to iscc_lib
 
 ## Goal
 
-Create a CI workflow that runs all existing quality gates on push/PR, protecting the Rust core and
-Python bindings from regressions. This is the first CI/CD deliverable from the target and the
-highest-impact next step per the review agent handoff.
+Fix the failing Python CI job by adding `maturin` to root dev dependencies and renaming the Python
+module from `iscc` to `iscc_lib` to match the PyPI package name. After this step, both CI jobs (Rust
+and Python) should pass.
 
 ## Scope
 
-- **Create**: `.github/workflows/ci.yml`
-- **Modify**: (none)
-- **Reference**:
-    - `notes/06-build-cicd-publishing.md` — CI matrix patterns, maturin action usage
-    - `mise.toml` — the `test` and `lint` task definitions (commands to mirror in CI)
-    - `Cargo.toml` — workspace structure, Rust version (`1.85`), workspace members
-    - `pyproject.toml` — Python version requirement (`>=3.10`), dev dependencies, pytest config
+- **Create**: (none)
+- **Modify**:
+    - `pyproject.toml` — add `maturin` to `[dependency-groups] dev`
+    - `crates/iscc-py/pyproject.toml` — change `module-name` from `iscc._lowlevel` to
+        `iscc_lib._lowlevel`
+    - `crates/iscc-py/python/iscc/` → rename directory to `crates/iscc-py/python/iscc_lib/` (includes
+        `__init__.py`, `_lowlevel.pyi`, `py.typed`; delete the old `iscc/` directory including
+        `__pycache__` and stale `.so`)
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — update import: `from iscc._lowlevel` →
+        `from iscc_lib._lowlevel`
+    - `tests/test_conformance.py` — update import: `from iscc import` → `from iscc_lib import`
+    - `tests/test_smoke.py` — update import: `from iscc import` → `from iscc_lib import`
+- **Reference**: `crates/iscc-py/Cargo.toml` (no changes needed — crate name `_lowlevel` stays)
 
 ## Implementation Notes
 
-Create `.github/workflows/ci.yml` with the following structure:
+1. **Add maturin to root pyproject.toml**: Add `"maturin"` to the `dev` dependency group list. This
+    is the root cause of the CI failure — `uv sync --group dev` doesn't install maturin because
+    it's only in `crates/iscc-py/pyproject.toml` build-requires, which CI doesn't process.
 
-### Trigger
+2. **Rename Python module directory**: Use
+    `git mv crates/iscc-py/python/iscc  crates/iscc-py/python/iscc_lib` to rename the directory.
+    Then clean up any stale artifacts (`__pycache__`, `.so` files) that shouldn't be tracked. The
+    `_lowlevel.pyi` type stub and `py.typed` marker move with the directory.
 
-```yaml
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-```
+3. **Update module-name in maturin config**: In `crates/iscc-py/pyproject.toml`, change
+    `module-name = "iscc._lowlevel"` to `module-name = "iscc_lib._lowlevel"`. This tells maturin
+    where to place the compiled `.so`/`.pyd` file.
 
-### Jobs
+4. **Update Python imports**: In `__init__.py`, change `from iscc._lowlevel import ...` to
+    `from iscc_lib._lowlevel import ...`. In both test files, change `from iscc import ...` to
+    `from iscc_lib import ...`.
 
-**1. `rust` job** (ubuntu-latest):
+5. **Verify locally**: Run `maturin develop --manifest-path crates/iscc-py/Cargo.toml` then `pytest`
+    to confirm all 49 tests still pass with the new module name.
 
-- Checkout with `actions/checkout@v4`
-- Install Rust stable toolchain (`dtolnay/rust-toolchain@stable`)
-- Cache cargo registry/target (`Swatinem/rust-cache@v2`)
-- Run `cargo fmt --all --check`
-- Run `cargo clippy --workspace --all-targets -- -D warnings`
-- Run `cargo test --workspace`
-
-**2. `python` job** (ubuntu-latest, needs: rust is NOT required — run in parallel):
-
-- Checkout with `actions/checkout@v4`
-- Install Rust stable toolchain (`dtolnay/rust-toolchain@stable`)
-- Install Python 3.10 (`actions/setup-python@v5` with `python-version: "3.10"`)
-- Install uv (`astral-sh/setup-uv@v4`)
-- Install dev dependencies: `uv sync --group dev`
-- Build Python bindings: `uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml`
-- Run ruff: `uv run ruff check && uv run ruff format --check`
-- Run pytest: `uv run pytest`
-
-### Key details
-
-- Use `concurrency` with `cancel-in-progress: true` to avoid redundant runs on rapid pushes
-- Both jobs run on `ubuntu-latest` only for now (cross-platform matrix is a future step)
-- Pin Python to `3.10` (the minimum from `abi3-py310`)
-- The `python` job needs Rust toolchain because `maturin develop` compiles the PyO3 crate
-- Do NOT use `mise` in CI — call `cargo`, `uv`, and tools directly for transparency and reliability
-- Use `Swatinem/rust-cache@v2` for cargo caching (also benefits the python job)
+6. **Clean stale files**: Remove `crates/iscc-py/python/iscc/_lowlevel.abi3.so` and `__pycache__`
+    from git tracking if they were accidentally committed. These are build artifacts.
 
 ## Verification
 
-- `.github/workflows/ci.yml` is valid YAML (no syntax errors)
-- Workflow defines two jobs (`rust` and `python`) that mirror the local quality gates
-- `cargo fmt --all --check` runs in CI
-- `cargo clippy --workspace --all-targets -- -D warnings` runs in CI
-- `cargo test --workspace` runs in CI
-- `uv run ruff check` and `uv run ruff format --check` run in CI
-- `uv run maturin develop` + `uv run pytest` run in CI
-- All pre-commit hooks still pass locally (`uv run prek run --all-files`)
+- `uv sync --group dev` installs maturin (verify with `uv run maturin --version`)
+- `uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml` builds successfully
+- `uv run pytest` passes all 49 tests (46 conformance + 3 smoke)
+- `python -c "import iscc_lib"` succeeds (new module name)
+- `python -c "import iscc"` fails with ImportError (old module name no longer exists)
+- `cargo test -p iscc-lib` still passes (143 tests — Rust unaffected)
+- No stale `.so` or `__pycache__` files tracked in git
 
 ## Done When
 
-The CI workflow file exists, is valid YAML, and mirrors all local quality gates (Rust
-fmt/clippy/test and Python ruff/pytest) so that pushing to GitHub will automatically validate the
-codebase.
+Both `maturin develop` and `pytest` succeed using the `iscc_lib` module name, all 49 Python and 143
+Rust tests pass, and no stale build artifacts remain in the repository.
