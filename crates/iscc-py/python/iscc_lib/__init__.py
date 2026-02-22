@@ -1,6 +1,6 @@
 """High-performance ISCC (ISO 24138:2024) implementation backed by Rust."""
 
-from iscc._lowlevel import (
+from iscc_lib._lowlevel import (
     gen_audio_code_v0,
     gen_data_code_v0,
     gen_image_code_v0,

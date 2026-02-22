@@ -14,4 +14,4 @@ classifiers = [
 [tool.maturin]
 features = ["pyo3/extension-module"]
 python-source = "python"
-module-name = "iscc._lowlevel"
+module-name = "iscc_lib._lowlevel"

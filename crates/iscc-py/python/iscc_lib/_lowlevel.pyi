@@ -1,4 +1,4 @@
-"""Type stubs for the native Rust extension module `iscc._lowlevel`."""
+"""Type stubs for the native Rust extension module `iscc_lib._lowlevel`."""
 
 def gen_meta_code_v0(
     name: str,

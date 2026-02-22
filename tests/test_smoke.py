@@ -1,6 +1,6 @@
 """Smoke tests for the iscc Python package."""
 
-from iscc import gen_instance_code_v0
+from iscc_lib import gen_instance_code_v0
 
 
 def test_gen_instance_code_v0_empty():

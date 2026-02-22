@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from iscc import (
+from iscc_lib import (
     gen_audio_code_v0,
     gen_data_code_v0,
     gen_image_code_v0,

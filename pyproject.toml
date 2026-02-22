@@ -16,6 +16,7 @@ max-complexity = 15
 
 [dependency-groups]
 dev = [
+  "maturin",
   "prek",
   "ruff",
   "taplo",
