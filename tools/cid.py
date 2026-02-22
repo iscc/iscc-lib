@@ -306,8 +306,8 @@ def main():
     run_p.add_argument(
         "--pause",
         type=int,
-        default=5,
-        help="Seconds to pause between iterations (default: 5)",
+        default=600,
+        help="Seconds to pause between iterations (default: 600)",
     )
     run_p.set_defaults(func=cmd_run)
 

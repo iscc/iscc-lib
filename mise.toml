@@ -6,7 +6,7 @@
 
 [tasks."cid:run"]
 description = "Run CID loop until done or max iterations (default: 20)"
-run = "uv run tools/cid.py --skip-permissions run --max-iterations {{arg(name='n', i=0, default='20')}}"
+run = "uv run tools/cid.py --skip-permissions run --max-iterations {{arg(name='n', i=0, default='20')}} --pause {{arg(name='pause', i=1, default='600')}}"
 
 [tasks."cid:step"]
 description = "Run one full CID iteration (update-state → define-next → advance → review)"
