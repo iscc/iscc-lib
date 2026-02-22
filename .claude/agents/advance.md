@@ -93,3 +93,7 @@ technical debt introduced>
   or `.claude/context/learnings.md`. You only write to handoff.md and source/test files.
 - Every function you write must have a docstring.
 - Do not introduce `unsafe` code without documenting why it's necessary.
+- NEVER weaken quality gates to make checks pass. Do not add lint suppressions (`#[allow(...)]`,
+  `# noqa`, `# type: ignore`), skip tests (`#[ignore]`, `@pytest.mark.skip`), lower coverage
+  thresholds, remove hooks, or exclude files from checks. Fix the root cause instead. If a
+  suppression is genuinely necessary (e.g., FFI boundary), add a comment explaining why.
