@@ -40,6 +40,9 @@ RUN mkdir -p /usr/local/share/npm-global \
 
 ENV DEVCONTAINER=true
 
+# System-level git config survives the bind-mounted ~/.gitconfig from the host
+RUN git config --system --add safe.directory /workspace/iscc-lib
+
 WORKDIR /workspace
 
 # Switch to non-root user for remaining installs
@@ -48,6 +51,9 @@ ENV HOME=/home/$USERNAME
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
 ENV PATH="$HOME/.cargo/bin:$HOME/.local/bin:/usr/local/share/npm-global/bin:$PATH"
 ENV SHELL=/bin/zsh
+
+# Pre-create volume mount-point directories so named volumes inherit dev ownership
+RUN mkdir -p $HOME/.venvs/iscc-lib $HOME/.cargo/registry $HOME/.cargo/git
 
 # Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
@@ -70,6 +76,7 @@ RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master
     && echo 'export HISTFILE=/commandhistory/.zsh_history' >> $HOME/.zshrc \
     && echo 'eval "$(mise activate zsh)"' >> $HOME/.zshrc
 
-# Git defaults (can be overridden by workspace .gitconfig)
+# Git defaults (overridden at runtime by bind-mounted ~/.gitconfig from host,
+# but useful when the container runs without the bind mount)
 RUN git config --global init.defaultBranch main \
     && git config --global core.autocrlf input

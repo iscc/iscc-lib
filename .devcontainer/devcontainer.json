@@ -23,7 +23,7 @@
     "GH_TOKEN": "${localEnv:GH_TOKEN}",
     "UV_PROJECT_ENVIRONMENT": "/home/dev/.venvs/iscc-lib"
   },
-  "postCreateCommand": "mise trust && uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push",
+  "postCreateCommand": "sudo chown -R dev:dev /home/dev/.venvs /home/dev/.cargo/registry /home/dev/.cargo/git && mise trust && uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/iscc-lib,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace/iscc-lib"
 }
