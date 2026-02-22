@@ -2,41 +2,47 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: Tooling bootstrap complete — Rust workspace not yet started
+## Phase: Workspace bootstrapped — stub functions only, no implementations
 
-The CID infrastructure, dev tooling, and project scaffolding are fully in place (14 commits).
-`mise.toml` defines all task runner targets and `pyproject.toml` defines Python dev dependencies,
-but no Rust workspace, no source code, and no tests exist yet.
+The Rust workspace is set up with a virtual workspace root and one crate (`iscc-lib`). All 9
+`gen_*_v0` function signatures are defined with correct parameter types, but every function returns
+`Err(NotImplemented)`. No conformance vectors are vendored yet. No binding crates exist.
 
 ## What Exists
 
-- **14 git commits** — CID infrastructure, devcontainer, pre-commit hooks, mise tasks, gitattributes
-- **Architecture docs**: `notes/` (00-09) covering all design decisions and tooling stack
-- **`mise.toml`**: task runner with `test`, `lint`, `format`, `check`, and all `cid:*` commands
-- **`pyproject.toml`**: Python dev deps (prek, ruff, pytest, taplo, yamlfix, ty, mdformat, etc.)
-- **`uv.lock`**: Python lockfile committed
-- **Pre-commit hooks installed**: `.pre-commit-config.yaml` + prek hooks active (pre-commit +
-    pre-push)
-- **Dev container**: `.devcontainer/` with Dockerfile, devcontainer.json, run-agent.sh
-- **CID agents**: `.claude/agents/` with 4 agent definitions; `tools/cid.py` orchestrator
-- **Target/learnings/state context files**: all present and initialized
+- **20 git commits** — tooling bootstrap + workspace skeleton
+- **Root `Cargo.toml`**: virtual workspace, `workspace.dependencies`, release profile configured
+- **`crates/iscc-lib/`**: pure Rust crate with `thiserror` dependency
+- **All 9 `gen_*_v0` function stubs** in `src/lib.rs` with correct signatures
+- **9 stub tests** that verify each function returns `NotImplemented` — all pass
+- **`cargo clippy`** clean (no warnings)
+- **`cargo fmt`** clean
+- **Architecture docs**: `notes/` (00-09) covering all design decisions
+- **Dev tooling**: mise.toml, pyproject.toml, pre-commit hooks, devcontainer, CID agents
 
 ## What's Missing
 
-- `Cargo.toml` workspace root (virtual workspace with `[workspace]`)
-- `crates/iscc-lib/` — pure Rust core with all 9 `gen_*_v0` entrypoints
-- `crates/iscc-py/` — PyO3/maturin Python bindings crate
-- Conformance test vectors vendored from `iscc-core/data.json`
-- Any Rust source code or tests
-- CI/CD workflows (`.github/workflows/`)
-- `crates/iscc-node/`, `crates/iscc-wasm/`, `crates/iscc-cffi/` (Node.js, WASM, C FFI)
+- **Conformance test vectors** — `iscc-core/data.json` not yet vendored
+- **All 9 function implementations** — every `gen_*_v0` is a stub returning `NotImplemented`
+- **Internal modules** — no `codec`, `cdc`, `minhash`, `simhash`, `blake3`, `utils` modules
+- **`crates/iscc-py/`** — PyO3/maturin Python bindings
+- **`crates/iscc-node/`** — napi-rs Node.js bindings
+- **`crates/iscc-wasm/`** — wasm-bindgen WASM bindings
+- **`crates/iscc-cffi/`** — C FFI with cbindgen
+- **CI/CD workflows** — no `.github/workflows/`
+- **Benchmarks** — no criterion or pytest-benchmark
+- **Documentation site** — no lib.iscc.codes content
 
 ## Verification
 
-No tests exist. `cargo test --workspace` cannot run (no `Cargo.toml`). Nothing to verify.
+- `cargo test -p iscc-lib`: **9 tests pass** (all stub tests, no conformance tests)
+- `cargo clippy -p iscc-lib -- -D warnings`: **clean**
+- `cargo fmt -p iscc-lib --check`: **clean**
+- No `unsafe` code present
+- No conformance vector testing yet — zero real correctness verification
 
 ## Next Milestone
 
-Bootstrap the Rust workspace: create `Cargo.toml` (virtual workspace), `crates/iscc-lib/` skeleton
-(`Cargo.toml` + `src/lib.rs` + module stubs for all 9 `gen_*_v0` functions), and vendor the
-conformance test vectors so that `cargo test -p iscc-lib` compiles and runs.
+Vendor conformance test vectors (`iscc-core/data.json`) and implement the first `gen_*_v0` function
+end-to-end (likely `gen_instance_code_v0` or `gen_data_code_v0`, leveraging existing Rust from
+`bio-codes/iscc-sum`), with conformance tests verifying output matches `iscc-core`.
