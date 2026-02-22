@@ -2,15 +2,16 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: 3 of 9 gen\_\*\_v0 implemented — MinHash module added
+## Phase: 4 of 9 gen\_\*\_v0 implemented — audio code added
 
-The Rust workspace has `iscc-lib` with codec, simhash, minhash, and utils internal modules. Three
-gen functions (`gen_instance_code_v0`, `gen_meta_code_v0`, `gen_text_code_v0`) pass all conformance
-vectors. 6 gen functions remain stubs. No binding crates, CI, benchmarks, or docs exist.
+The Rust workspace has `iscc-lib` with codec, simhash, minhash, and utils internal modules. Four gen
+functions (`gen_instance_code_v0`, `gen_meta_code_v0`, `gen_text_code_v0`, `gen_audio_code_v0`) pass
+all conformance vectors. 5 gen functions remain stubs. No binding crates, CI, benchmarks, or docs
+exist.
 
 ## What Exists
 
-- **30 git commits** — bootstrap + codec + gen_instance + gen_meta + gen_text
+- **34 git commits** — bootstrap + codec + gen_instance + gen_meta + gen_text + gen_audio
 - **Root `Cargo.toml`**: virtual workspace, `workspace.dependencies`, release profile configured
 - **`crates/iscc-lib/`**: pure Rust crate with `blake3`, `data-encoding`, `thiserror`, `hex`,
     `serde_json`, `unicode-normalization`, `xxhash-rust` dependencies
@@ -25,17 +26,18 @@ vectors. 6 gen functions remain stubs. No binding crates, CI, benchmarks, or doc
     meta object/Data-URL inputs not yet supported)
 - **`gen_text_code_v0`**: MinHash-based text code using xxh32 + sliding_window(13), all 5
     conformance vectors pass
-- **6 remaining `gen_*_v0` stubs** returning `Err(NotImplemented)`
+- **`gen_audio_code_v0`**: multi-stage SimHash (overall + quarters + sorted thirds), all 5
+    conformance vectors pass
+- **5 remaining `gen_*_v0` stubs** returning `Err(NotImplemented)`
 - **Conformance vectors**: `tests/data.json` vendored from iscc-core
-- **85 tests total** — all pass (33 codec + 9 simhash + 7 minhash + 15 utils + 21 gen function
-    tests)
+- **92 tests total** — all pass (33 codec + 9 simhash + 7 minhash + 15 utils + 28 gen tests)
 - **`cargo clippy`** clean, **`cargo fmt`** clean, **no `unsafe`**
 - **Architecture docs**: `notes/` (00-09) covering all design decisions
 - **Dev tooling**: mise.toml, pyproject.toml, pre-commit hooks, devcontainer, CID agents
 
 ## What's Missing
 
-- **6 function implementations** — gen_image/audio/video/mixed/data/iscc_code_v0
+- **5 function implementations** — gen_image/video/mixed/data/iscc_code_v0
 - **`gen_meta_code_v0` meta object support** — 3 conformance vectors skipped (Data-URL/JSON meta)
 - **Internal modules** — `cdc` (needed for gen_data_code_v0)
 - **`crates/iscc-py/`** — PyO3/maturin Python bindings
@@ -48,14 +50,15 @@ vectors. 6 gen functions remain stubs. No binding crates, CI, benchmarks, or doc
 
 ## Verification
 
-- `cargo test -p iscc-lib`: **85 tests pass** (33 codec + 9 simhash + 7 minhash + 15 utils + 21 gen)
+- `cargo test -p iscc-lib`: **92 tests pass** (33 codec + 9 simhash + 7 minhash + 15 utils + 28 gen)
 - `cargo clippy -p iscc-lib -- -D warnings`: **clean**
 - `cargo fmt -p iscc-lib --check`: **clean**
 - No `unsafe` code present
 - `gen_instance_code_v0` conformance: **PASS** (all vectors)
 - `gen_meta_code_v0` conformance: **PASS** (13/16 vectors; 3 skipped for meta object inputs)
 - `gen_text_code_v0` conformance: **PASS** (all 5 vectors)
-- 6 remaining gen functions: **stubs only**
+- `gen_audio_code_v0` conformance: **PASS** (all 5 vectors)
+- 5 remaining gen functions: **stubs only**
 
 ## Next Milestone
 
