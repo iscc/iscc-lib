@@ -1,0 +1,22 @@
+[workspace]
+resolver = "2"
+members = ["crates/iscc-lib"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+authors = ["Titusz Pan <tp@py7.de>"]
+license = "Apache-2.0"
+repository = "https://github.com/iscc/iscc-lib"
+homepage = "https://lib.iscc.codes"
+description = "High-performance Rust implementation of ISO 24138:2024 (ISCC)"
+
+[workspace.dependencies]
+thiserror = "2"
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

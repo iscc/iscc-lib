@@ -1,0 +1,15 @@
+[package]
+name = "iscc-lib"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description.workspace = true
+keywords = ["iscc", "content-id", "media", "fingerprint", "iso"]
+categories = ["multimedia", "encoding", "cryptography"]
+
+[dependencies]
+thiserror.workspace = true
