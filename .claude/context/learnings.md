@@ -55,3 +55,6 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     identical (first `len % n` parts get one extra element)
 - `alg_simhash` output length matches input digest length — 4-byte digests in → 4-byte SimHash out.
     This makes it reusable for audio (4B digests) vs text/meta (32B BLAKE3 digests)
+- `gen_mixed_code_v0` takes `&[&str]` (ISCC code strings, optional "ISCC:" prefix). The
+    `soft_hash_codes_v0` helper prepares nbytes-length entries from `raw[0]` (header first byte) +
+    body truncated to `nbytes-1`, then feeds to `alg_simhash`. Zero-padding handles short bodies
