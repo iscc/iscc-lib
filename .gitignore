@@ -221,3 +221,6 @@ cauldron/
 
 # Agent loop logs
 .devcontainer/agent-logs/
+
+# Claude Code ephemeral plan files
+.claude/plans/
