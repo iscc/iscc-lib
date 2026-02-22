@@ -17,7 +17,8 @@
     "source=iscc-lib-uv-cache-${devcontainerId},target=/home/dev/.cache/uv,type=volume"
   ],
   "containerEnv": {
-    "NODE_OPTIONS": "--max-old-space-size=4096"
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "GH_TOKEN": "${localEnv:GH_TOKEN}"
   },
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/iscc-lib,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace/iscc-lib"
