@@ -36,3 +36,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     with ST_CC, making a unified Rust SubType enum with values 0-7 correct for header encoding
 - `codec` module is Tier 2 (`pub mod codec`) per notes/04, not `pub(crate)` — Tier 2 items are
     public Rust API but not exposed through FFI bindings
+- Conformance test pattern: `include_str!("../tests/data.json")` + `serde_json::Value` for flexible
+    parsing; `"stream:"` prefix in test vectors denotes hex-encoded byte data (empty after prefix =
+    empty bytes); `hex` crate decodes test vector data
+- `gen_instance_code_v0` is the simplest gen function: BLAKE3 hash → `encode_component` → "ISCC:"
+    prefix. Good first implementation to establish patterns before tackling CDC/MinHash complexity
