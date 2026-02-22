@@ -1,0 +1,58 @@
+# mise.toml — task runner and tool versions for iscc-lib
+#
+# Usage: mise run <task>
+
+[tasks."cid:loop"]
+description = "Run one full CID iteration (update-state → define-next → advance → review)"
+run = """
+echo "=== CID: update-state ===" && claude --agent update-state -p "Assess the current project state." --dangerously-skip-permissions &&
+echo "=== CID: define-next ===" && claude --agent define-next -p "Define the next work package." --dangerously-skip-permissions &&
+echo "=== CID: advance ===" && claude --agent advance -p "Implement the work package defined in next.md." --dangerously-skip-permissions &&
+echo "=== CID: review ===" && claude --agent review -p "Review the advance agent's work, then push if PASS." --dangerously-skip-permissions
+"""
+
+[tasks."cid:state"]
+description = "Run update-state agent only"
+run = "claude --agent update-state -p 'Assess the current project state.' --dangerously-skip-permissions"
+
+[tasks."cid:next"]
+description = "Run define-next agent only"
+run = "claude --agent define-next -p 'Define the next work package.' --dangerously-skip-permissions"
+
+[tasks."cid:advance"]
+description = "Run advance agent only"
+run = "claude --agent advance -p 'Implement the work package defined in next.md.' --dangerously-skip-permissions"
+
+[tasks."cid:review"]
+description = "Run review agent only"
+run = "claude --agent review -p \"Review the advance agent's work, then push if PASS.\" --dangerously-skip-permissions"
+
+[tasks.check]
+description = "Run all pre-commit hooks on all files"
+run = "uv run prek run --all-files"
+
+[tasks.lint]
+description = "Run format checks, clippy, and ruff"
+run = """
+cargo fmt --all --check &&
+cargo clippy --workspace --all-targets -- -D warnings &&
+uv run ruff check &&
+uv run ruff format --check
+"""
+
+[tasks.format]
+description = "Apply all formatting"
+run = """
+cargo fmt --all &&
+uv run ruff check --fix &&
+uv run ruff format &&
+uv run taplo fmt &&
+uv run yamlfix .
+"""
+
+[tasks.test]
+description = "Run all tests"
+run = """
+cargo test --workspace &&
+uv run pytest
+"""
