@@ -2,21 +2,24 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: Workspace bootstrapped — stub functions only, no implementations
+## Phase: Codec module implemented — gen\_\*\_v0 stubs remain unimplemented
 
-The Rust workspace is set up with a virtual workspace root and one crate (`iscc-lib`). All 9
-`gen_*_v0` function signatures are defined with correct parameter types, but every function returns
-`Err(NotImplemented)`. No conformance vectors are vendored yet. No binding crates exist.
+The Rust workspace has one crate (`iscc-lib`) with all 9 `gen_*_v0` function stubs and a fully
+implemented `codec` module (type enums, header encoding/decoding, base32, varnibble). All 42 tests
+pass. No conformance vectors vendored yet. No binding crates exist.
 
 ## What Exists
 
-- **20 git commits** — tooling bootstrap + workspace skeleton
+- **22 git commits** — tooling bootstrap + workspace skeleton + codec module
 - **Root `Cargo.toml`**: virtual workspace, `workspace.dependencies`, release profile configured
 - **`crates/iscc-lib/`**: pure Rust crate with `thiserror` dependency
-- **All 9 `gen_*_v0` function stubs** in `src/lib.rs` with correct signatures
-- **9 stub tests** that verify each function returns `NotImplemented` — all pass
-- **`cargo clippy`** clean (no warnings)
-- **`cargo fmt`** clean
+- **`src/codec.rs`**: complete codec module — `MainType`, `SubType`, `Version` enums, header
+    encode/decode, `encode_component`, base32 encode/decode, varnibble encode/decode, length
+    encoding (33 codec tests)
+- **All 9 `gen_*_v0` function stubs** in `src/lib.rs` with correct signatures (returning
+    `Err(NotImplemented)`)
+- **42 tests total** — 33 codec tests + 9 stub tests — all pass
+- **`cargo clippy`** clean, **`cargo fmt`** clean, **no `unsafe`**
 - **Architecture docs**: `notes/` (00-09) covering all design decisions
 - **Dev tooling**: mise.toml, pyproject.toml, pre-commit hooks, devcontainer, CID agents
 
@@ -24,7 +27,7 @@ The Rust workspace is set up with a virtual workspace root and one crate (`iscc-
 
 - **Conformance test vectors** — `iscc-core/data.json` not yet vendored
 - **All 9 function implementations** — every `gen_*_v0` is a stub returning `NotImplemented`
-- **Internal modules** — no `codec`, `cdc`, `minhash`, `simhash`, `blake3`, `utils` modules
+- **Internal modules** — no `cdc`, `minhash`, `simhash`, `blake3`, `utils` modules yet
 - **`crates/iscc-py/`** — PyO3/maturin Python bindings
 - **`crates/iscc-node/`** — napi-rs Node.js bindings
 - **`crates/iscc-wasm/`** — wasm-bindgen WASM bindings
@@ -35,7 +38,7 @@ The Rust workspace is set up with a virtual workspace root and one crate (`iscc-
 
 ## Verification
 
-- `cargo test -p iscc-lib`: **9 tests pass** (all stub tests, no conformance tests)
+- `cargo test -p iscc-lib`: **42 tests pass** (33 codec + 9 stubs, no conformance tests)
 - `cargo clippy -p iscc-lib -- -D warnings`: **clean**
 - `cargo fmt -p iscc-lib --check`: **clean**
 - No `unsafe` code present
