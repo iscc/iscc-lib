@@ -58,3 +58,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - `gen_mixed_code_v0` takes `&[&str]` (ISCC code strings, optional "ISCC:" prefix). The
     `soft_hash_codes_v0` helper prepares nbytes-length entries from `raw[0]` (header first byte) +
     body truncated to `nbytes-1`, then feeds to `alg_simhash`. Zero-padding handles short bodies
+- `MainType` derives `Ord`/`PartialOrd` — discriminant order (Meta=0..Instance=4) matches required
+    ISCC-CODE unit sort order, so derived ordering is correct
+- `encode_units` uses bitfield (bit0=Content, bit1=Semantic, bit2=Meta) to encode optional unit
+    combination as index 0–7 for the ISCC-CODE header length field
