@@ -1,7 +1,7 @@
 ---
 name: update-state
 description: Assess and document the current project state accurately
-model: sonnet
+model: opus
 tools: Read, Grep, Glob, Bash, Write
 memory: project
 ---

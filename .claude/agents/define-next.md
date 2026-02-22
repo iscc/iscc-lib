@@ -1,7 +1,7 @@
 ---
 name: define-next
 description: Define the next small work package toward the target state
-model: sonnet
+model: opus
 tools: Read, Grep, Glob, Bash, Write
 memory: project
 ---
