@@ -1,129 +1,134 @@
 # Next Work Package
 
-## Step: Implement ISCC codec module with type enums and encoding primitives
+## Step: Implement gen_instance_code_v0 with conformance tests
 
 ## Goal
 
-Create the codec module containing ISCC type enums, varnibble encoding, header encoding/decoding,
-base32 encoding/decoding, and `encode_component` — the foundational primitive that all 9 `gen_*_v0`
-functions depend on to produce ISCC-encoded output strings.
+Implement the first real `gen_*_v0` function — `gen_instance_code_v0` — and vendor the official
+conformance test vectors to verify correctness against `iscc-core`. This unblocks all subsequent
+function implementations by establishing the conformance testing pattern.
 
 ## Scope
 
-- **Create**: `crates/iscc-lib/src/codec.rs`
-- **Modify**: `crates/iscc-lib/src/lib.rs` (add `mod codec;` declaration)
-- **Modify**: `crates/iscc-lib/Cargo.toml` and root `Cargo.toml` (add `data-encoding` dependency via
-    workspace.dependencies)
-- **Reference**:
-    - `iscc/iscc-core` codec module via deepwiki (encode_component, encode_header, encode_varnibble,
-        decode_varnibble, encode_length, decode_length, encode_base32, decode_base32, decode_header)
-    - `iscc/iscc-core` type enums via deepwiki (MT, ST, ST_CC, ST_ISCC, Version)
-    - `notes/04-api-compatibility-safety.md` (tiered API — codec is internal, use `pub(crate)`)
+- **Create**: `crates/iscc-lib/tests/data.json` (vendored from iscc-core)
+- **Modify**: `Cargo.toml` (root — add `blake3` to workspace.dependencies, add `serde`/`serde_json`
+    as workspace dev-dependencies), `crates/iscc-lib/Cargo.toml` (add `blake3` dep + dev-deps for
+    test parsing), `crates/iscc-lib/src/lib.rs` (implement `gen_instance_code_v0`)
+- **Reference**: `crates/iscc-lib/src/codec.rs` (for `encode_component`, `MainType`, `SubType`,
+    `Version`), `iscc-core` Python reference via deepwiki
 
 ## Implementation Notes
 
-### Type Enums (define at top of codec.rs)
+### Algorithm (from iscc-core `code_instance.py`)
 
-Define as `#[repr(u8)]` enums with integer values matching iscc-core:
+`gen_instance_code_v0(data, bits)` does:
 
+1. Hash the entire input `data` with BLAKE3 → 32-byte digest
+2. Call `encode_component(MainType::Instance, SubType::None, Version::V0, bits, &digest)`
+3. Prefix the result with `"ISCC:"` and return
+
+That's it — 3-5 lines of real logic. The function currently takes `&[u8]` (not a stream) which is
+fine for the Rust API; streaming can be added later via a separate `InstanceHasher` struct.
+
+### Dependency setup
+
+Add to root `Cargo.toml` `[workspace.dependencies]`:
+
+```toml
+blake3 = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 ```
-MainType: META=0, SEMANTIC=1, CONTENT=2, DATA=3, INSTANCE=4, ISCC=5, ID=6, FLAKE=7
-SubType:  NONE=0 (general), TEXT=0, IMAGE=1, AUDIO=2, VIDEO=3, MIXED=4 (for ST_CC)
-          SUM=0, WIDE=1 (for ST_ISCC)
-Version:  V0=0
+
+Add to `crates/iscc-lib/Cargo.toml`:
+
+```toml
+[dependencies]
+blake3.workspace = true
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
 ```
 
-Consider using a single `SubType` enum that covers all cases (values 0-5) rather than multiple enums
-like Python does. The numeric values are what matter for header encoding.
+### Function implementation
 
-### Varnibble Encoding (port from iscc-core)
+Replace the stub in `src/lib.rs`:
 
-Variable-length 4-bit chunk encoding scheme:
+```rust
+pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
+    let digest = blake3::hash(data);
+    let component = codec::encode_component(
+        codec::MainType::Instance,
+        codec::SubType::None,
+        codec::Version::V0,
+        bits,
+        digest.as_bytes(),
+    )?;
+    Ok(format!("ISCC:{component}"))
+}
+```
 
-- `0xxx` (1 nibble, 3 data bits) → range 0-7
-- `10xxxxxx` (2 nibbles, 6 data bits) → range 8-71
-- `110xxxxxxxxx` (3 nibbles, 9 data bits) → range 72-583
-- `1110xxxxxxxxxxxx` (4 nibbles, 12 data bits) → range 584-4679
+### Conformance test vectors
 
-Implement as bit manipulation on `u64` or use a small `BitVec`-like approach. Since values are small
-(max 4 nibbles = 16 bits), a simple `u64` accumulator with bit count tracking works well. No
-external bitarray dependency needed — use plain bit shifts.
+Download `data.json` from:
+`https://raw.githubusercontent.com/iscc/iscc-core/master/iscc_core/data.json`
 
-### Header Encoding
+Place it at `crates/iscc-lib/tests/data.json`.
 
-`encode_header(mtype, stype, version, length) -> Vec<u8>`:
+The file structure for `gen_instance_code_v0` entries:
 
-- Concatenate varnibble-encoded values of all 4 fields into a bit stream
-- Pad to byte boundary with zero bits on the right
-- Result is 2 bytes minimum (typical case for small enum values), up to 8 bytes max
+```json
+{
+  "gen_instance_code_v0": {
+    "test_0000_empty_64": {
+      "inputs": [
+        "stream:",
+        64
+      ],
+      "outputs": {
+        "iscc": "ISCC:IAA26E2JXH27TING",
+        "datahash": "...",
+        "filesize": 0
+      }
+    }
+  }
+}
+```
 
-`decode_header(data: &[u8]) -> (MainType, SubType, Version, u32, &[u8])`:
+- `"stream:"` prefix means hex-encoded bytes (empty string after `stream:` = empty bytes)
+- `"stream:abcd"` means `hex::decode("abcd")`
+- First input is the data, second is bits
+- Only verify the `iscc` output field (datahash/filesize are secondary metadata)
 
-- Parse 4 varnibble values from byte stream
-- Strip 4-bit zero padding if total nibble count is odd
-- Return decoded fields plus remaining tail bytes
+### Conformance test pattern
 
-### Length Encoding
+Write a test in `src/lib.rs` (or a separate integration test file) that:
 
-`encode_length(mtype, bit_length) -> u32`:
+1. Loads `data.json` via `include_str!("../tests/data.json")` for portability
+2. Parses the JSON and extracts the `gen_instance_code_v0` section
+3. For each test case: strips the `"stream:"` prefix, decodes hex to bytes, calls
+    `gen_instance_code_v0(data, bits)`, asserts the `iscc` field matches
+4. Use `serde_json::Value` for flexible parsing — no need for full struct deserialization
 
-- For META/SEMANTIC/CONTENT/DATA/INSTANCE/FLAKE: `(bit_length / 32) - 1`
-- For ISCC: pass-through (0-7, represents unit composition flags)
-- For ID: `(bit_length - 64) / 8`
+Update the existing `test_gen_instance_code_v0_stub` to verify real output instead of
+`NotImplemented`.
 
-`decode_length(mtype, length, subtype) -> u32`:
+### Known test vector (for quick sanity check)
 
-- Inverse of encode_length, returns bit count
-
-### Base32 Encoding
-
-Use the `data-encoding` crate (mature, no-std compatible, fast). It provides RFC4648 base32.
-
-- `encode_base32(data: &[u8]) -> String`: BASE32 encode, strip `=` padding, return uppercase
-- `decode_base32(code: &str) -> Vec<u8>`: re-pad with `=` to multiple of 8 chars, decode with case
-    folding
-
-Do NOT implement base32hex yet — it's not needed for the core encode_component path. Add it later
-when needed.
-
-### encode_component (the key function)
-
-`encode_component(mtype, stype, version, bit_length, digest: &[u8]) -> String`:
-
-1. Call `encode_length(mtype, bit_length)` to get the encoded length value
-2. Compute `nbytes = bit_length / 8`
-3. Call `encode_header(mtype, stype, version, encoded_length)` to get header bytes
-4. Concatenate header bytes + digest truncated to `nbytes`
-5. Call `encode_base32(...)` on the concatenated bytes
-6. Return the base32 string (without "ISCC:" prefix — callers add that)
-
-### Module Visibility
-
-All functions and types in codec.rs should be `pub(crate)` — this is an internal module, not part of
-the Tier 1 API surface. Only `gen_*_v0` functions in lib.rs are public.
-
-### Error Handling
-
-Add an `IsccError::Codec(String)` variant for codec-specific errors (invalid MainType, length out of
-range, etc.). Or reuse `IsccError::InvalidInput` which already exists.
+Empty input with 64 bits → `"ISCC:IAA26E2JXH27TING"`
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes — all existing stub tests still pass, plus new codec tests
-- `encode_varnibble` / `decode_varnibble` roundtrip correctly for values 0, 7, 8, 71, 72, 583, 584,
-    4679
-- `encode_header(0, 0, 0, 1)` produces the expected 2 bytes (META, NONE, V0, length=1)
-- `encode_base32` / `decode_base32` roundtrip correctly for arbitrary byte data
-- `encode_component(MT::META, 0, 0, 64, &digest)` produces a valid ISCC unit string that matches
-    iscc-core output for a known test case (e.g., from data.json example:
-    `gen_meta_code_v0("Hello World")` → `"ISCC:AAAWKLHFPV6OPKDG"` — verify the base32 body portion
-    matches after stripping "ISCC:" prefix)
-- `decode_header` correctly round-trips with `encode_header` for all MainType values
+- `cargo test -p iscc-lib` passes (all existing tests + new conformance tests)
+- `gen_instance_code_v0(b"", 64)` returns `Ok("ISCC:IAA26E2JXH27TING")`
+- All `gen_instance_code_v0` test vectors from `data.json` pass
 - `cargo clippy -p iscc-lib -- -D warnings` clean
 - `cargo fmt -p iscc-lib --check` clean
+- No `unsafe` code added
 
 ## Done When
 
-The advance agent is done when `cargo test -p iscc-lib` passes with comprehensive codec unit tests
-covering varnibble, header, base32, length encoding, and encode_component, and both clippy and fmt
-checks are clean.
+All verification criteria pass — `gen_instance_code_v0` produces correct ISCC Instance-Codes for
+every conformance vector, and the conformance test infrastructure is in place for subsequent
+functions.
