@@ -38,9 +38,10 @@ The container provides all development tools pre-installed:
 | Claude Code | AI agent loop |
 | gh | GitHub CLI |
 
-### 3. Install pre-commit hooks
+### 3. Trust mise config and install pre-commit hooks
 
 ```bash
+mise trust
 uv run prek install --hook-type pre-commit --hook-type pre-push
 ```
 
