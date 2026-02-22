@@ -85,8 +85,16 @@ pub fn gen_data_code_v0(_data: &[u8], _bits: u32) -> IsccResult<String> {
 ///
 /// Produces an ISCC Instance-Code by hashing the complete byte stream
 /// with BLAKE3. Captures the exact binary identity of the data.
-pub fn gen_instance_code_v0(_data: &[u8], _bits: u32) -> IsccResult<String> {
-    Err(IsccError::NotImplemented)
+pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
+    let digest = blake3::hash(data);
+    let component = codec::encode_component(
+        codec::MainType::Instance,
+        codec::SubType::None,
+        codec::Version::V0,
+        bits,
+        digest.as_bytes(),
+    )?;
+    Ok(format!("ISCC:{component}"))
 }
 
 /// Generate a composite ISCC-CODE from individual ISCC unit codes.
@@ -160,11 +168,35 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_instance_code_v0_stub() {
-        assert!(matches!(
-            gen_instance_code_v0(&[1, 2, 3], 64),
-            Err(IsccError::NotImplemented)
-        ));
+    fn test_gen_instance_code_v0_empty() {
+        let result = gen_instance_code_v0(b"", 64).unwrap();
+        assert_eq!(result, "ISCC:IAA26E2JXH27TING");
+    }
+
+    #[test]
+    fn test_gen_instance_code_v0_conformance() {
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let section = &data["gen_instance_code_v0"];
+        let cases = section.as_object().unwrap();
+
+        for (name, tc) in cases {
+            let inputs = tc["inputs"].as_array().unwrap();
+            let stream_str = inputs[0].as_str().unwrap();
+            let bits = inputs[1].as_u64().unwrap() as u32;
+            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+
+            // Parse "stream:" prefix — remainder is hex-encoded bytes
+            let hex_data = stream_str
+                .strip_prefix("stream:")
+                .unwrap_or_else(|| panic!("expected 'stream:' prefix in test case {name}"));
+            let input_bytes = hex::decode(hex_data)
+                .unwrap_or_else(|e| panic!("invalid hex in test case {name}: {e}"));
+
+            let result = gen_instance_code_v0(&input_bytes, bits)
+                .unwrap_or_else(|e| panic!("gen_instance_code_v0 failed for {name}: {e}"));
+            assert_eq!(result, expected_iscc, "mismatch in test case {name}");
+        }
     }
 
     #[test]
