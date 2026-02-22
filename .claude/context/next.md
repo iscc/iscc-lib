@@ -1,109 +1,139 @@
 # Next Work Package
 
-## Step: Implement gen_meta_code_v0 meta object support
+## Step: Scaffold iscc-py crate with PyO3/maturin and expose gen_instance_code_v0
 
 ## Goal
 
-Complete the 3 remaining conformance vectors for `gen_meta_code_v0` by handling JSON object and
-Data-URL meta inputs. This finalizes the core crate at 100% conformance before starting bindings.
+Create the Python binding crate (`crates/iscc-py/`) with the maturin/PyO3 toolchain and expose
+`gen_instance_code_v0` as the first function. This validates the entire build pipeline end-to-end
+(Rust → native module → Python import → correct output) and establishes the pattern for all 9
+functions.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: `crates/iscc-lib/Cargo.toml`, `crates/iscc-lib/src/simhash.rs`,
-    `crates/iscc-lib/src/lib.rs`
-- **Reference**: iscc-core `code_meta.py` via deepwiki, `crates/iscc-lib/tests/data.json`
+- **Create**: `crates/iscc-py/Cargo.toml`, `crates/iscc-py/src/lib.rs`,
+    `crates/iscc-py/pyproject.toml`, `crates/iscc-py/python/iscc/__init__.py`,
+    `crates/iscc-py/python/iscc/py.typed`
+- **Modify**: root `Cargo.toml` (add `iscc-py` to workspace members, add `pyo3` to
+    workspace.dependencies), `crates/iscc-lib/src/lib.rs` (remove unused `NotImplemented` variant)
+- **Reference**: `notes/02-language-bindings.md` (PyO3 patterns, `_lowlevel` module, abi3-py310),
+    `notes/03-async-and-streaming.md` (sync core principle), root `pyproject.toml` (dev tooling
+    config), `crates/iscc-lib/src/lib.rs` (function signatures)
 
 ## Implementation Notes
 
-### 1. Add `serde_json` as regular dependency
+### Crate structure
 
-Move `serde_json` from `[dev-dependencies]` to `[dependencies]` in `crates/iscc-lib/Cargo.toml`.
-Keep `serde` as dev-dependency only (`serde_json::Value` parsing and serialization works without
-`#[derive(Serialize)]`). `serde_json` is already in `[workspace.dependencies]` in root `Cargo.toml`.
+Follow the `_lowlevel` pattern from `notes/02-language-bindings.md`:
 
-### 2. Add `sliding_window_bytes` to `simhash.rs`
-
-Add a bytes-oriented sliding window function:
-
-```rust
-pub(crate) fn sliding_window_bytes(data: &[u8], width: usize) -> Vec<&[u8]>
+```
+crates/iscc-py/
+├── Cargo.toml              # cdylib, depends on iscc-lib + pyo3
+├── pyproject.toml           # maturin build backend
+├── src/
+│   └── lib.rs              # #[pymodule] → iscc._lowlevel
+└── python/iscc/            # Pure Python wrapper
+    ├── __init__.py          # Re-exports from _lowlevel
+    └── py.typed             # PEP 561 marker
 ```
 
-Same logic as the string `sliding_window` but operates on raw bytes, returning byte slices. Width
-must be ≥ 2. If input is shorter than width, return a single slice of the full input. Add unit
-tests.
+### Root Cargo.toml changes
 
-### 3. Update meta hashing in `lib.rs`
+- Add `"crates/iscc-py"` to `workspace.members`
+- Add `pyo3 = { version = "0.23", features = ["abi3-py310"] }` to `workspace.dependencies`
 
-The existing `soft_hash_meta_v0(name: &str, extra: Option<&str>)` handles text descriptions. Add a
-new internal function for the bytes path:
+### crates/iscc-py/Cargo.toml
 
-```rust
-fn soft_hash_meta_v0_with_bytes(name: &str, extra: &[u8]) -> Vec<u8>
+```toml
+[package]
+name = "iscc-py"
+version.workspace = true
+edition.workspace = true
+publish = false          # Published via PyPI, not crates.io
+
+[lib]
+name = "_lowlevel"
+crate-type = ["cdylib"]
+
+[dependencies]
+iscc-lib = { path = "../iscc-lib" }
+pyo3 = { workspace = true, features = ["extension-module"] }
 ```
 
-- Name processing: same as existing (`text_collapse` → `sliding_window(name, 3)` → BLAKE3 → SimHash)
-- Bytes extra processing: `sliding_window_bytes(extra, 4)` → BLAKE3 each n-gram → SimHash
-- **Key difference from text path**: n-gram width is **4** (not 3), and NO `text_collapse` on bytes
-- Interleave first 16 bytes of name SimHash and extra SimHash in 4-byte chunks (same interleaving
-    logic as existing text path)
-- Extract the interleaving logic into a shared helper to avoid duplication
+### crates/iscc-py/pyproject.toml
 
-### 4. Update `gen_meta_code_v0` to handle meta parameter
+```toml
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
 
-Remove the `NotImplemented` early return for `meta.is_some()`. When `meta` is `Some(meta_str)`:
+[project]
+name = "iscc-lib"
+requires-python = ">=3.10"
+classifiers = [
+  "Programming Language :: Rust",
+  "Programming Language :: Python :: Implementation :: CPython",
+]
 
-**Data-URL path** (`meta_str` starts with `"data:"`):
+[tool.maturin]
+features = ["pyo3/extension-module"]
+python-source = "python"
+module-name = "iscc._lowlevel"
+```
 
-- Parse the Data-URL: split on the first `,`, take everything after it
-- Decode with `data_encoding::BASE64` → `payload: Vec<u8>`
-- `data_encoding` is already a dependency (used for base32 in codec.rs)
+### crates/iscc-py/src/lib.rs
 
-**JSON path** (`meta_str` does NOT start with `"data:"`):
+- Use `#[pymodule(name = "_lowlevel")]` (PyO3 0.23+ syntax)
+- Expose `gen_instance_code_v0(data: &[u8], bits: Option<u32>) -> PyResult<String>` with `bits`
+    defaulting to 64 (matching iscc-core Python API defaults)
+- Convert `IsccError` to `PyErr` using `pyo3::exceptions::PyValueError`
+- Keep it minimal — one function to validate the pipeline
 
-- Parse with `serde_json::from_str::<serde_json::Value>(meta_str)`
-- Re-serialize with `serde_json::to_vec(&parsed)` → `payload: Vec<u8>`
-- Without `preserve_order` feature, `serde_json::Map` uses `BTreeMap` (sorted keys) — this produces
-    JCS-compatible output for ASCII keys
-- Add a code comment noting this is sufficient for ASCII keys but not full RFC 8785 compliance
+### crates/iscc-py/python/iscc/__init__.py
 
-**Both paths** then:
+- Import and re-export `gen_instance_code_v0` from `iscc._lowlevel`
+- Use `__all__` to declare public API
+- Add module docstring
 
-- Call `soft_hash_meta_v0_with_bytes(&name, &payload)` for the similarity digest
-- Call `multi_hash_blake3(&payload)` for the metahash
-- Continue with existing `encode_component` + return logic
+### crates/iscc-py/python/iscc/py.typed
 
-**When meta is None**: existing behavior unchanged (use description text path via
-`soft_hash_meta_v0`)
+- Empty file (PEP 561 marker for type checkers)
 
-### 5. Update conformance tests
+### Test update
 
-Remove the skip logic for the 3 meta object test cases. Handle `meta_val` type dispatch:
+Update `tests/test_smoke.py` to test the exposed function via
+`from iscc import gen_instance_code_v0`. Verify the result matches the known conformance value:
+`gen_instance_code_v0(b"", 64)` should return `"ISCC:IAA26E2JXH27TING"`.
 
-- `serde_json::Value::Null` → pass `None` (existing path)
-- `serde_json::Value::String(s)` → pass `Some(s.as_str())` (Data-URL case)
-- `serde_json::Value::Object(_)` → serialize to string with `serde_json::to_string(&meta_val)`, pass
-    `Some(&json_string)` (JSON object case)
+### Cleanup
 
-Update assertion from `tested == 13` to `tested == 16`. Remove the `skipped` counter and skip logic
-entirely.
+Also remove the unused `IsccError::NotImplemented` variant from `crates/iscc-lib/src/lib.rs` as
+noted in the handoff — all 9 gen functions are implemented, so this variant is dead code.
 
-### Edge cases
+### Build pipeline
 
-- Empty bytes payload after Data-URL decode: treat same as `meta: None` (use description path)
-- Invalid base64 in Data-URL: return `InvalidInput` error
-- Invalid JSON in meta string: return `InvalidInput` error
+The advance agent must install maturin into the dev environment. Check if it's already available via
+`uv pip install maturin` or add it to pyproject.toml dev dependencies. Build with
+`maturin develop --manifest-path crates/iscc-py/Cargo.toml` to install the module into the active
+Python environment.
+
+### Important: maturin manifest-path
+
+When running `maturin develop`, point it at the iscc-py crate specifically:
+`maturin develop --manifest-path crates/iscc-py/Cargo.toml`
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes with **all 16** `gen_meta_code_v0` conformance vectors (0 skipped)
-- Total test count ≥ 134 (may increase with new unit tests for `sliding_window_bytes`)
-- `cargo clippy -p iscc-lib -- -D warnings` clean
-- `cargo fmt -p iscc-lib --check` clean
-- No `unsafe` code
+- `cargo build -p iscc-py` compiles successfully
+- `maturin develop --manifest-path crates/iscc-py/Cargo.toml` installs the module
+- `python -c "from iscc import gen_instance_code_v0; print(gen_instance_code_v0(b'', 64))"` prints
+    `ISCC:IAA26E2JXH27TING`
+- `pytest tests/test_smoke.py` passes with the new conformance test
+- `cargo clippy -p iscc-py -- -D warnings` is clean
+- `cargo test -p iscc-lib` still passes all 143 tests (after `NotImplemented` removal)
+- `IsccError::NotImplemented` variant is removed from iscc-lib
 
 ## Done When
 
-All 16 `gen_meta_code_v0` conformance vectors pass and the full test suite is green with clippy
-clean.
+The advance agent is done when `maturin develop` builds successfully, the Python import works, the
+conformance value is correct, and pytest passes.
