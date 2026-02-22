@@ -6,6 +6,7 @@
 
 pub(crate) mod cdc;
 pub mod codec;
+pub(crate) mod dct;
 pub(crate) mod minhash;
 pub(crate) mod simhash;
 pub(crate) mod utils;
@@ -154,12 +155,140 @@ pub fn gen_text_code_v0(text: &str, bits: u32) -> IsccResult<String> {
     Ok(format!("ISCC:{component}"))
 }
 
+/// Transpose a matrix represented as a Vec of Vecs.
+fn transpose_matrix(matrix: &[Vec<f64>]) -> Vec<Vec<f64>> {
+    let rows = matrix.len();
+    if rows == 0 {
+        return vec![];
+    }
+    let cols = matrix[0].len();
+    let mut result = vec![vec![0.0f64; rows]; cols];
+    for (r, row) in matrix.iter().enumerate() {
+        for (c, &val) in row.iter().enumerate() {
+            result[c][r] = val;
+        }
+    }
+    result
+}
+
+/// Extract an 8×8 block from a matrix and flatten to 64 values.
+///
+/// Block position `(col, row)` means the block starts at
+/// `matrix[row][col]` and spans 8 rows and 8 columns.
+fn flatten_8x8(matrix: &[Vec<f64>], col: usize, row: usize) -> Vec<f64> {
+    let mut flat = Vec::with_capacity(64);
+    for matrix_row in matrix.iter().skip(row).take(8) {
+        for &val in matrix_row.iter().skip(col).take(8) {
+            flat.push(val);
+        }
+    }
+    flat
+}
+
+/// Compute the median of a slice of f64 values.
+///
+/// For even-length slices, returns the average of the two middle values
+/// (matching Python `statistics.median` behavior).
+fn compute_median(values: &[f64]) -> f64 {
+    let mut sorted: Vec<f64> = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    let n = sorted.len();
+    if n % 2 == 1 {
+        sorted[n / 2]
+    } else {
+        (sorted[n / 2 - 1] + sorted[n / 2]) / 2.0
+    }
+}
+
+/// Convert a slice of bools to a byte vector (MSB first per byte).
+fn bits_to_bytes(bits: &[bool]) -> Vec<u8> {
+    bits.chunks(8)
+        .map(|chunk| {
+            let mut byte = 0u8;
+            for (i, &bit) in chunk.iter().enumerate() {
+                if bit {
+                    byte |= 1 << (7 - i);
+                }
+            }
+            byte
+        })
+        .collect()
+}
+
+/// Compute a DCT-based perceptual hash from 32×32 grayscale pixels.
+///
+/// Applies a 2D DCT to the pixel matrix, extracts four 8×8 low-frequency
+/// blocks, and generates a bitstring by comparing each coefficient against
+/// the block median. Returns up to `bits` bits as a byte vector.
+fn soft_hash_image_v0(pixels: &[u8], bits: u32) -> IsccResult<Vec<u8>> {
+    if pixels.len() != 1024 {
+        return Err(IsccError::InvalidInput(format!(
+            "expected 1024 pixels, got {}",
+            pixels.len()
+        )));
+    }
+    if bits > 256 {
+        return Err(IsccError::InvalidInput(format!(
+            "bits must be <= 256, got {}",
+            bits
+        )));
+    }
+
+    // Step 1: Row-wise DCT (32 rows of 32 pixels)
+    let rows: Vec<Vec<f64>> = pixels
+        .chunks(32)
+        .map(|row| {
+            let row_f64: Vec<f64> = row.iter().map(|&p| p as f64).collect();
+            dct::alg_dct(&row_f64)
+        })
+        .collect::<IsccResult<Vec<Vec<f64>>>>()?;
+
+    // Step 2: Transpose
+    let transposed = transpose_matrix(&rows);
+
+    // Step 3: Column-wise DCT
+    let dct_cols: Vec<Vec<f64>> = transposed
+        .iter()
+        .map(|col| dct::alg_dct(col))
+        .collect::<IsccResult<Vec<Vec<f64>>>>()?;
+
+    // Step 4: Transpose back → dct_matrix
+    let dct_matrix = transpose_matrix(&dct_cols);
+
+    // Step 5: Extract 8×8 blocks at positions (0,0), (1,0), (0,1), (1,1)
+    let positions = [(0, 0), (1, 0), (0, 1), (1, 1)];
+    let mut bitstring = Vec::<bool>::with_capacity(256);
+
+    for (col, row) in positions {
+        let flat = flatten_8x8(&dct_matrix, col, row);
+        let median = compute_median(&flat);
+        for val in &flat {
+            bitstring.push(*val > median);
+        }
+        if bitstring.len() >= bits as usize {
+            break;
+        }
+    }
+
+    // Step 6: Convert first `bits` bools to bytes
+    Ok(bits_to_bytes(&bitstring[..bits as usize]))
+}
+
 /// Generate an Image-Code from pixel data.
 ///
-/// Produces an ISCC Content-Code for images from a sequence of pixel
-/// values (grayscale, 0-255).
-pub fn gen_image_code_v0(_pixels: &[u8], _bits: u32) -> IsccResult<String> {
-    Err(IsccError::NotImplemented)
+/// Produces an ISCC Content-Code for images from a sequence of 1024
+/// grayscale pixel values (32×32, values 0-255) using a DCT-based
+/// perceptual hash.
+pub fn gen_image_code_v0(pixels: &[u8], bits: u32) -> IsccResult<String> {
+    let hash_digest = soft_hash_image_v0(pixels, bits)?;
+    let component = codec::encode_component(
+        codec::MainType::Content,
+        codec::SubType::Image,
+        codec::Version::V0,
+        bits,
+        &hash_digest,
+    )?;
+    Ok(format!("ISCC:{component}"))
 }
 
 /// Split a slice into `n` parts, distributing remainder across first chunks.
@@ -651,11 +780,55 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_image_code_v0_stub() {
-        assert!(matches!(
-            gen_image_code_v0(&[0u8; 100], 64),
-            Err(IsccError::NotImplemented)
-        ));
+    fn test_gen_image_code_v0_all_black() {
+        let pixels = vec![0u8; 1024];
+        let result = gen_image_code_v0(&pixels, 64).unwrap();
+        assert_eq!(result, "ISCC:EEAQAAAAAAAAAAAA");
+    }
+
+    #[test]
+    fn test_gen_image_code_v0_all_white() {
+        let pixels = vec![255u8; 1024];
+        let result = gen_image_code_v0(&pixels, 128).unwrap();
+        assert_eq!(result, "ISCC:EEBYAAAAAAAAAAAAAAAAAAAAAAAAA");
+    }
+
+    #[test]
+    fn test_gen_image_code_v0_invalid_pixel_count() {
+        assert!(gen_image_code_v0(&[0u8; 100], 64).is_err());
+    }
+
+    #[test]
+    fn test_gen_image_code_v0_conformance() {
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let section = &data["gen_image_code_v0"];
+        let cases = section.as_object().unwrap();
+
+        let mut tested = 0;
+
+        for (tc_name, tc) in cases {
+            let inputs = tc["inputs"].as_array().unwrap();
+            let pixels_json = inputs[0].as_array().unwrap();
+            let bits = inputs[1].as_u64().unwrap() as u32;
+            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+
+            let pixels: Vec<u8> = pixels_json
+                .iter()
+                .map(|v| v.as_u64().unwrap() as u8)
+                .collect();
+
+            let result = gen_image_code_v0(&pixels, bits)
+                .unwrap_or_else(|e| panic!("gen_image_code_v0 failed for {tc_name}: {e}"));
+            assert_eq!(
+                result, expected_iscc,
+                "ISCC mismatch in test case {tc_name}"
+            );
+
+            tested += 1;
+        }
+
+        assert_eq!(tested, 3, "expected 3 conformance tests to run");
     }
 
     #[test]
