@@ -21,7 +21,10 @@
   "containerEnv": {
     "NODE_OPTIONS": "--max-old-space-size=4096",
     "GH_TOKEN": "${localEnv:GH_TOKEN}",
-    "UV_PROJECT_ENVIRONMENT": "/home/dev/.venvs/iscc-lib"
+    "UV_PROJECT_ENVIRONMENT": "/home/dev/.venvs/iscc-lib",
+    "GIT_CONFIG_COUNT": "1",
+    "GIT_CONFIG_KEY_0": "commit.gpgsign",
+    "GIT_CONFIG_VALUE_0": "false"
   },
   "postCreateCommand": "sudo chown -R dev:dev /home/dev/.venvs /home/dev/.cargo/registry /home/dev/.cargo/git && mise trust && uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/iscc-lib,type=bind,consistency=delegated",
