@@ -67,3 +67,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     conformance. The Cython-compiled version returns raw f64 (no `int(round())` truncation)
 - Image-Code 8×8 block extraction uses offset-by-1 positions `(0,0),(1,0),(0,1),(1,1)` (heavily
     overlapping), not offset-by-8. Always verify pseudocode against actual Python reference
+- `serde_json` without `preserve_order` feature uses `BTreeMap` for sorted-key JSON serialization —
+    sufficient for ASCII-key metadata (matching iscc-core) but not full RFC 8785 (JCS) compliance
+- `IsccError::NotImplemented` variant is now unused (all 9 gen functions implemented) — candidate
+    for removal before 1.0 or when adding Python bindings (clean public API surface)

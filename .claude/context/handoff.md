@@ -1,30 +1,28 @@
-## 2026-02-22 — Implement gen_meta_code_v0 meta object support
+## 2026-02-22 — Review of: Implement gen_meta_code_v0 meta object support
 
-**Done:** Implemented JSON object and Data-URL meta input handling for `gen_meta_code_v0`,
-completing all 16 conformance vectors. Added `sliding_window_bytes` for byte-oriented n-gram
-generation, extracted `interleave_digests` and `meta_name_simhash` helpers to reduce duplication,
-and added `soft_hash_meta_v0_with_bytes` for the bytes similarity path.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** All 16 `gen_meta_code_v0` conformance vectors pass, completing 100% conformance for the
+core crate. The implementation cleanly separates JSON/Data-URL meta handling from the text
+description path, with well-extracted helpers (`interleave_digests`, `meta_name_simhash`,
+`decode_data_url`, `parse_meta_json`). Code quality is high — 143 tests pass, clippy clean,
+formatting clean, no unsafe code.
 
-- `crates/iscc-lib/Cargo.toml`: Moved `serde_json` from `[dev-dependencies]` to `[dependencies]`
-    (needed at runtime for JSON meta parsing)
-- `crates/iscc-lib/src/simhash.rs`: Added `sliding_window_bytes` function with 6 unit tests
-- `crates/iscc-lib/src/lib.rs`: Extracted `interleave_digests` and `meta_name_simhash` helpers from
-    `soft_hash_meta_v0`; added `soft_hash_meta_v0_with_bytes`, `decode_data_url`, `parse_meta_json`;
-    updated `gen_meta_code_v0` to handle Data-URL and JSON meta inputs; replaced `NotImplemented`
-    test with 4 new unit tests; updated conformance test to run all 16 vectors without skipping
+**Issues found:**
 
-**Verification:** All 143 tests pass (was 134 before — gained 9 net new tests).
-`cargo clippy -- -D warnings` clean. `cargo fmt --check` clean. No `unsafe` code. All 16
-`gen_meta_code_v0` conformance vectors pass including metahash verification.
+- `IsccError::NotImplemented` is now dead code (defined but never referenced). Not a blocker —
+    clippy doesn't flag unused enum variants. Should be removed when starting Python bindings to
+    keep the public API surface clean.
+- Minor style inconsistency in `simhash.rs` (`std::cmp` vs imported `cmp`) — fixed in review commit.
 
 **Next:** Begin Python bindings (`crates/iscc-py/`) with PyO3/maturin exposing all 9 `gen_*_v0`
-functions, using abi3-py310 for single wheel per platform. The core crate is now at 100%
-conformance.
+functions, using abi3-py310 for single wheel per platform. Alternatively, address cleanup tasks
+first: remove `NotImplemented` variant, consider whether `_metahash` should be returned in a
+structured result type (currently discarded with `_` prefix in all gen functions).
 
-**Notes:** `serde_json` without `preserve_order` feature uses `BTreeMap` for key ordering, which
-produces sorted-key JSON serialization. This is sufficient for ASCII-key metadata (matching
-iscc-core behavior) but is not full RFC 8785 (JCS) compliance — documented with a code comment. The
-`data_encoding::BASE64` decoder handles standard base64 with padding, matching the Data-URL payloads
-in conformance vectors.
+**Notes:** The core crate (`iscc-lib`) is feature-complete with all 9 gen functions at 100%
+conformance. `serde_json` is now a runtime dependency (needed for meta JSON parsing). The
+`_metahash` values computed in gen functions are not yet exposed — a future result struct may be
+needed for Python bindings to return both the ISCC string and metahash. Consult
+`notes/02-language-bindings.md` and `notes/03-async-and-streaming.md` before designing the bindings
+crate.

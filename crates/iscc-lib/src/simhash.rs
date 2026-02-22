@@ -70,10 +70,10 @@ pub(crate) fn sliding_window(seq: &str, width: usize) -> Vec<String> {
 pub(crate) fn sliding_window_bytes(data: &[u8], width: usize) -> Vec<&[u8]> {
     assert!(width >= 2, "Sliding window width must be 2 or bigger.");
     let len = data.len();
-    let range = std::cmp::max(len.saturating_sub(width).saturating_add(1), 1);
+    let range = cmp::max(len.saturating_sub(width).saturating_add(1), 1);
     (0..range)
         .map(|i| {
-            let end = std::cmp::min(i + width, len);
+            let end = cmp::min(i + width, len);
             &data[i..end]
         })
         .collect()
