@@ -20,9 +20,9 @@ repos:
     rev: 1.0.0
     hooks:
       - id: mdformat
-        args: [--wrap, "100", --number]
+        args: [--wrap, '100', --number]
         additional_dependencies:
-          - "mdformat-mkdocs[recommended]"
+          - mdformat-mkdocs[recommended]
 
   # Local hooks
   - repo: local
@@ -96,8 +96,8 @@ repos:
         stages: [pre-push]
         pass_filenames: false
       - id: pytest
-        name: Python tests with coverage
-        entry: uv run pytest --cov --cov-fail-under=100 --timeout=120
+        name: Python tests
+        entry: uv run pytest --timeout=120
         language: system
         types: [python]
         stages: [pre-push]

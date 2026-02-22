@@ -63,6 +63,41 @@ def sanitize_env():
 # --- Agent invocation ---
 
 
+def _process_output(stdout, role):
+    """Process streaming JSON output from claude CLI.
+
+    Returns (cost, turns, is_error) tuple.
+    """
+    cost = 0.0
+    turns = 0
+    is_error = False
+
+    for line in iter(stdout.readline, ""):
+        line = line.rstrip("\n")
+        if not line:
+            continue
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        msg_type = data.get("type")
+
+        if msg_type == "assistant":
+            for item in data.get("message", {}).get("content", []):
+                if item.get("type") == "text":
+                    text = item.get("text", "").strip()
+                    if text:
+                        preview = text[:200] + ("..." if len(text) > 200 else "")
+                        print(f"  [{role}] {preview}")
+        elif msg_type == "result":
+            cost = data.get("total_cost_usd", 0)
+            turns = data.get("num_turns", 0)
+            is_error = data.get("is_error", False)
+
+    return cost, turns, is_error
+
+
 def run_agent(claude_cmd, role, iteration, cwd, skip_permissions=False):
     """Invoke a CID agent role via claude CLI.
 
@@ -72,9 +107,12 @@ def run_agent(claude_cmd, role, iteration, cwd, skip_permissions=False):
 
     cmd = [
         claude_cmd,
-        "-p", prompt,
-        "--agent", role,
-        "--output-format", "stream-json",
+        "-p",
+        prompt,
+        "--agent",
+        role,
+        "--output-format",
+        "stream-json",
         "--verbose",
     ]
     if skip_permissions:
@@ -84,8 +122,10 @@ def run_agent(claude_cmd, role, iteration, cwd, skip_permissions=False):
     print(f"  Starting {role}...")
 
     try:
-        flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
-        process = subprocess.Popen(
+        flags = (
+            getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
+        )
+        process = subprocess.Popen(  # noqa: S603
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -99,37 +139,10 @@ def run_agent(claude_cmd, role, iteration, cwd, skip_permissions=False):
         print(f"  ERROR: Failed to start claude: {e}")
         return False
 
-    cost = 0.0
-    turns = 0
-    is_error = False
-
-    for line in iter(process.stdout.readline, ""):
-        line = line.rstrip("\n")
-        if not line:
-            continue
-        try:
-            data = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-
-        msg_type = data.get("type")
-
-        # Log assistant text output
-        if msg_type == "assistant":
-            for item in data.get("message", {}).get("content", []):
-                if item.get("type") == "text":
-                    text = item.get("text", "").strip()
-                    if text:
-                        # Show first 200 chars of each text block
-                        preview = text[:200] + ("..." if len(text) > 200 else "")
-                        print(f"  [{role}] {preview}")
-
-        # Log final result
-        elif msg_type == "result":
-            cost = data.get("total_cost_usd", 0)
-            turns = data.get("num_turns", 0)
-            is_error = data.get("is_error", False)
-
+    stdout = process.stdout  # guaranteed non-None by stdout=PIPE
+    if stdout is None:  # pragma: no cover
+        return False
+    cost, turns, is_error = _process_output(stdout, role)
     process.wait()
     elapsed = time.time() - start
 
@@ -180,7 +193,7 @@ def run_iteration(claude_cmd, iteration, cwd, skip_permissions=False):
 
         # Check for DONE after update-state
         if role == "update-state" and is_done(cwd):
-            print(f"\n  *** Target state reached! Project is DONE. ***")
+            print("\n  *** Target state reached! Project is DONE. ***")
             return "done"
 
     return "ok"
@@ -251,7 +264,9 @@ def cmd_role(args):
         sys.exit(1)
 
     cwd = Path(args.workdir).resolve()
-    success = run_agent(claude_cmd, args.role, args.iteration, cwd, args.skip_permissions)
+    success = run_agent(
+        claude_cmd, args.role, args.iteration, cwd, args.skip_permissions
+    )
 
     if not success:
         sys.exit(1)
@@ -267,11 +282,14 @@ def main():
         description="CID — Continuous Iterative Development orchestrator",
     )
     parser.add_argument(
-        "--workdir", default=".",
+        "--workdir",
+        default=".",
         help="Project working directory (default: current directory)",
     )
     parser.add_argument(
-        "--skip-permissions", action="store_true", default=False,
+        "--skip-permissions",
+        action="store_true",
+        default=False,
         help="Pass --dangerously-skip-permissions to claude",
     )
 
@@ -279,13 +297,25 @@ def main():
 
     # run
     run_p = sub.add_parser("run", help="Full CID loop until done or max iterations")
-    run_p.add_argument("--max-iterations", type=int, default=20, help="Maximum iterations (default: 20)")
-    run_p.add_argument("--pause", type=int, default=5, help="Seconds to pause between iterations (default: 5)")
+    run_p.add_argument(
+        "--max-iterations",
+        type=int,
+        default=20,
+        help="Maximum iterations (default: 20)",
+    )
+    run_p.add_argument(
+        "--pause",
+        type=int,
+        default=5,
+        help="Seconds to pause between iterations (default: 5)",
+    )
     run_p.set_defaults(func=cmd_run)
 
     # step
     step_p = sub.add_parser("step", help="Run a single CID iteration (all 4 roles)")
-    step_p.add_argument("--iteration", type=int, default=1, help="Iteration number (default: 1)")
+    step_p.add_argument(
+        "--iteration", type=int, default=1, help="Iteration number (default: 1)"
+    )
     step_p.set_defaults(func=cmd_step)
 
     # status
@@ -293,9 +323,13 @@ def main():
     status_p.set_defaults(func=cmd_status)
 
     # role (for testing individual agents)
-    role_p = sub.add_parser("role", help="Run a single CID role (for testing/debugging)")
+    role_p = sub.add_parser(
+        "role", help="Run a single CID role (for testing/debugging)"
+    )
     role_p.add_argument("role", choices=ROLES, help="Which role to run")
-    role_p.add_argument("--iteration", type=int, default=1, help="Iteration number (default: 1)")
+    role_p.add_argument(
+        "--iteration", type=int, default=1, help="Iteration number (default: 1)"
+    )
     role_p.set_defaults(func=cmd_role)
 
     args = parser.parse_args()

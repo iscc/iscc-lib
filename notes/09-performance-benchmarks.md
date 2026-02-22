@@ -270,10 +270,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - run: uv sync
-      - run: uv run maturin develop --release --manifest-path 
-          crates/iscc-py/Cargo.toml
+      - run: >-
+          uv run maturin develop --release
+          --manifest-path crates/iscc-py/Cargo.toml
       - run: python benchmarks/generate_data.py
-      - run: uv run pytest benchmarks/python/ 
+      - run: >-
+          uv run pytest benchmarks/python/
           --benchmark-json=benchmarks/results/python.json
       - uses: actions/upload-artifact@v4
         with:

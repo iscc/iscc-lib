@@ -4,16 +4,23 @@ version = "0.0.1"
 requires-python = ">=3.10"
 dependencies = []
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+timeout = 120
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
 [dependency-groups]
 dev = [
-    "prek",
-    "ruff",
-    "taplo",
-    "yamlfix",
-    "ty",
-    "pytest",
-    "pytest-cov",
-    "pytest-timeout",
-    "mdformat",
-    "mdformat-mkdocs[recommended]",
+  "prek",
+  "ruff",
+  "taplo",
+  "yamlfix",
+  "ty",
+  "pytest",
+  "pytest-cov",
+  "pytest-timeout",
+  "mdformat",
+  "mdformat-mkdocs[recommended]",
 ]
