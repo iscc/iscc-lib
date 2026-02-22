@@ -71,9 +71,29 @@ Tool versions and tasks managed by **mise** (`mise.toml`). Python environment us
 mise run test             # Run all tests
 mise run lint             # Format checks + clippy + ruff
 mise run format           # Apply formatting
+mise run check            # Run all pre-commit hooks
 cargo test -p iscc-lib    # Rust tests only
 pytest                    # Python tests only
 ```
+
+## Pre-commit Hooks
+
+Git hooks are managed by **prek** (Rust-based drop-in replacement for `pre-commit`), configured in
+`.pre-commit-config.yaml`. prek is a Python dev dependency — all hook tools run via `uv run` (Python)
+or `cargo` (Rust), both provided by mise.
+
+```bash
+uv run prek install --hook-type pre-commit --hook-type pre-push  # Install git hooks
+uv run prek run --all-files                                      # Run all hooks manually
+```
+
+**Pre-commit stage** (fast, auto-fix on every commit):
+file hygiene (line endings, trailing whitespace, YAML/JSON/TOML validation),
+`cargo fmt`, `ruff check --fix`, `ruff format`, `taplo fmt`, `yamlfix`, `mdformat`.
+
+**Pre-push stage** (thorough quality gates):
+`cargo clippy`, `cargo test`, `ty check`, Ruff security scan (`S` rules),
+Ruff complexity check (`C901`), `pytest` with coverage enforcement.
 
 ## Conformance
 
