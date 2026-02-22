@@ -119,12 +119,14 @@ kreuzberg/
 ### Pattern Comparison
 
 **minijinja pattern** (flat crates):
+
 - Each binding is a Cargo workspace member at the top level
 - Simpler to navigate, lower cognitive overhead
 - Works well with up to ~8 crates
 - Python package files live inside the crate directory
 
 **kreuzberg pattern** (crates/ + packages/):
+
 - Rust crates in `crates/`, language packages in `packages/`
 - Clear separation between Rust compilation units and distribution packages
 - Scales to many languages without cluttering the root
@@ -146,12 +148,12 @@ dependency management; minijinja manages versions per-crate.
 [workspace]
 resolver = "2"
 members = [
-    "crates/iscc",
-    "crates/iscc-py",
-    "crates/iscc-node",
-    "crates/iscc-wasm",
-    "crates/iscc-ffi",
-    "crates/iscc-cli",
+  "crates/iscc",
+  "crates/iscc-py",
+  "crates/iscc-node",
+  "crates/iscc-wasm",
+  "crates/iscc-ffi",
+  "crates/iscc-cli",
 ]
 
 [workspace.package]
@@ -179,7 +181,7 @@ name = "iscc-py"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-publish = false  # Python package published to PyPI, not crates.io
+publish = false               # Python package published to PyPI, not crates.io
 
 [lib]
 name = "iscc"
@@ -215,7 +217,8 @@ serde_json.workspace = true
 ```
 
 The core crate (`iscc`) is a pure Rust library with no FFI concerns. Each binding crate depends on
-the core and translates its API to the target language. This keeps the core crate clean and testable.
+the core and translates its API to the target language. This keeps the core crate clean and
+testable.
 
 ### Phase 1 Directory Layout
 

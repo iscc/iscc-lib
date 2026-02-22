@@ -14,11 +14,11 @@ iscc-sum already uses these settings — they should be standard for all iscc-li
 ```toml
 # Cargo.toml (workspace root)
 [profile.release]
-opt-level = 3       # Maximum optimization
-lto = true           # Link-time optimization (or "thin" for faster builds)
-codegen-units = 1    # Better optimization at cost of compile time
-strip = true         # Strip debug symbols
-panic = "abort"      # Smaller binary, no unwinding overhead
+opt-level = 3     # Maximum optimization
+lto = true        # Link-time optimization (or "thin" for faster builds)
+codegen-units = 1 # Better optimization at cost of compile time
+strip = true      # Strip debug symbols
+panic = "abort"   # Smaller binary, no unwinding overhead
 ```
 
 **Trade-off**: `lto = true` + `codegen-units = 1` significantly increases compile time. Use
@@ -27,29 +27,33 @@ panic = "abort"      # Smaller binary, no unwinding overhead
 ### Per-Target Guidance
 
 **Python wheels:**
+
 - Use `abi3-py310` to publish one wheel per platform instead of one per Python version
 - Avoid pulling in `openssl`, `reqwest`, or `tokio` — each adds hundreds of KB
 - The `strip = true` setting removes debug symbols automatically
 
 **Node.js native addons:**
+
 - Disable default features in the core crate dependency to avoid pulling unused code
 - Use `#[napi]` on the minimal surface only — each exported function increases binding overhead
 
 **WASM bundles:**
+
 - Add `wasm-opt` optimization in the build:
-  ```toml
-  [package.metadata.wasm-pack.profile.release]
-  wasm-opt = ["-Os"]  # Optimize for size
-  ```
-- Avoid `serde_json` in WASM code paths — it adds ~50KB. Use `serde-wasm-bindgen` instead for
-  direct JsValue conversion.
+    ```toml
+    [package.metadata.wasm-pack.profile.release]
+    wasm-opt = ["-Os"] # Optimize for size
+    ```
+- Avoid `serde_json` in WASM code paths — it adds ~50KB. Use `serde-wasm-bindgen` instead for direct
+    JsValue conversion.
 - Consider `#[cfg(target_arch = "wasm32")]` to gate WASM-specific code and exclude desktop-only
-  dependencies.
+    dependencies.
 
 **CLI binaries:**
+
 - Use `cargo-dist` which applies `strip` and UPX compression automatically
 - Consider `opt-level = "s"` (optimize for size) instead of `3` if binary size matters more than
-  peak throughput
+    peak throughput
 
 ## CI/CD Testing Matrix
 
@@ -126,11 +130,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: macos-14,       target: aarch64-apple-darwin }
-          - { runner: macos-13,       target: x86_64-apple-darwin }
-          - { runner: ubuntu-22.04,   target: x86_64-unknown-linux-gnu }
-          - { runner: ubuntu-22.04,   target: aarch64-unknown-linux-gnu }
-          - { runner: windows-2022,   target: x86_64-pc-windows-msvc }
+          - {runner: macos-14, target: aarch64-apple-darwin}
+          - {runner: macos-13, target: x86_64-apple-darwin}
+          - {runner: ubuntu-22.04, target: x86_64-unknown-linux-gnu}
+          - {runner: ubuntu-22.04, target: aarch64-unknown-linux-gnu}
+          - {runner: windows-2022, target: x86_64-pc-windows-msvc}
     steps:
       - uses: actions/checkout@v4
       - uses: axodotdev/cargo-dist-action@v0
@@ -228,14 +232,14 @@ workflow_dispatch / GitHub Release published
 
 ## Authentication Methods by Registry
 
-| Registry | Auth Method | Details |
-|----------|-------------|---------|
-| **crates.io** | OIDC trusted publishing | `rust-lang/crates-io-auth-action@v1`, no API key needed |
-| **PyPI** | OIDC trusted publishing | `pypa/gh-action-pypi-publish@release/v1`, no API key needed |
-| **npm** | Token (secret) | `NODE_AUTH_TOKEN` repository secret |
-| **RubyGems** | OIDC trusted publishing | `rubygems/configure-rubygems-credentials@v1` |
-| **Maven** | GPG + credentials | Traditional signing and upload |
-| **NuGet** | API key (secret) | `NUGET_API_KEY` repository secret |
+| Registry      | Auth Method             | Details                                                     |
+| ------------- | ----------------------- | ----------------------------------------------------------- |
+| **crates.io** | OIDC trusted publishing | `rust-lang/crates-io-auth-action@v1`, no API key needed     |
+| **PyPI**      | OIDC trusted publishing | `pypa/gh-action-pypi-publish@release/v1`, no API key needed |
+| **npm**       | Token (secret)          | `NODE_AUTH_TOKEN` repository secret                         |
+| **RubyGems**  | OIDC trusted publishing | `rubygems/configure-rubygems-credentials@v1`                |
+| **Maven**     | GPG + credentials       | Traditional signing and upload                              |
+| **NuGet**     | API key (secret)        | `NUGET_API_KEY` repository secret                           |
 
 **Trusted publishing (OIDC)** is preferred where available — it eliminates long-lived API keys and
 ties authentication to the GitHub Actions workflow identity. crates.io, PyPI, and RubyGems all
@@ -282,6 +286,6 @@ jobs:
       - run: npm publish --access public
 ```
 
-Each platform produces a `.node` file that gets packaged into a platform-specific npm package
-(e.g., `@iscc/lib-darwin-arm64`). The main `@iscc/lib` package uses `optionalDependencies` to
-pull in only the matching platform binary at install time.
+Each platform produces a `.node` file that gets packaged into a platform-specific npm package (e.g.,
+`@iscc/lib-darwin-arm64`). The main `@iscc/lib` package uses `optionalDependencies` to pull in only
+the matching platform binary at install time.

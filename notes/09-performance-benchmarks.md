@@ -1,26 +1,27 @@
 # Performance Benchmarks
 
 A core deliverable of iscc-lib is demonstrable, reproducible speedup over the Python reference
-implementation (`iscc-core`). The benchmark suite measures every ISCC unit and key internal operation
-across all available language targets, generates a report page, and publishes it to the project
-documentation at `lib.iscc.codes/benchmarks/`.
+implementation (`iscc-core`). The benchmark suite measures every ISCC unit and key internal
+operation across all available language targets, generates a report page, and publishes it to the
+project documentation at `lib.iscc.codes/benchmarks/`.
 
 ## Design Principles
 
 1. **Python reference is the baseline** — every result is expressed as both absolute numbers (time,
-   throughput) and as a speedup factor vs `iscc-core`. This makes the value proposition immediately
-   legible to adopters.
+    throughput) and as a speedup factor vs `iscc-core`. This makes the value proposition
+    immediately legible to adopters.
 2. **Same inputs, same outputs** — benchmarks use the vendored conformance vectors and a set of
-   synthetic payloads (see [Input Corpus](#input-corpus)). Every language target processes identical
-   data so results are directly comparable.
+    synthetic payloads (see [Input Corpus](#input-corpus)). Every language target processes
+    identical data so results are directly comparable.
 3. **Streaming and single-shot** — stream-oriented operations (Data-Code, Instance-Code) are
-   benchmarked at multiple input sizes to show throughput scaling. Single-shot operations (Meta-Code,
-   Content-Codes, codec) are benchmarked with representative inputs at fixed sizes.
+    benchmarked at multiple input sizes to show throughput scaling. Single-shot operations
+    (Meta-Code, Content-Codes, codec) are benchmarked with representative inputs at fixed sizes.
 4. **No network, no disk I/O in the hot path** — benchmark inputs are pre-loaded into memory. The
-   measured path is pure computation, matching how the core library is designed (bytes in, code out).
+    measured path is pure computation, matching how the core library is designed (bytes in, code
+    out).
 5. **Reproducible** — benchmarks run on fixed CI hardware (GitHub Actions runner class) with pinned
-   tool versions. Results include runner specs (CPU model, OS, memory) so readers can contextualize
-   absolute numbers.
+    tool versions. Results include runner specs (CPU model, OS, memory) so readers can
+    contextualize absolute numbers.
 
 ## Benchmark Matrix
 
@@ -28,33 +29,33 @@ The report covers three dimensions: **operation** × **language target** × **in
 
 ### Operations
 
-| Category | Operation | Input Type | Key Metric |
-|----------|-----------|------------|------------|
-| **Meta-Code** | `gen_meta_code_v0` | `(name, description)` strings | Latency (μs) |
-| **Content-Code: Text** | `gen_text_code_v0` | Plain text (various lengths) | Latency (μs) |
-| **Content-Code: Image** | `gen_image_code_v0` | 1024 grayscale pixels (32×32) | Latency (μs) |
-| **Content-Code: Audio** | `gen_audio_code_v0` | Chromaprint integer vector | Latency (μs) |
-| **Content-Code: Video** | `gen_video_code_v0` | MPEG-7 frame signature sequence | Latency (μs) |
-| **Content-Code: Mixed** | `gen_mixed_code_v0` | Sequence of Content-Code strings | Latency (μs) |
-| **Data-Code** | `gen_data_code_v0` | Byte stream (1 KB – 100 MB) | Throughput (MB/s) |
-| **Instance-Code** | `gen_instance_code_v0` | Byte stream (1 KB – 100 MB) | Throughput (MB/s) |
-| **ISCC-CODE** | `gen_iscc_code_v0` | Sequence of ISCC-UNIT strings | Latency (μs) |
-| **Codec: encode** | `encode_component` | Raw header + digest bytes | Latency (ns) |
-| **Codec: decode** | `iscc_decode` | ISCC string | Latency (ns) |
-| **Similarity** | `iscc_distance` / `iscc_similarity` | Two ISCC strings | Latency (ns) |
-| **Internal: CDC** | `alg_cdc_chunks` | Byte stream (1 KB – 100 MB) | Throughput (MB/s) |
-| **Internal: MinHash** | `alg_minhash_256` | Feature hash integer sequence | Latency (μs) |
-| **Internal: SimHash** | `alg_simhash` | Sequence of hash digests | Latency (μs) |
+| Category                | Operation                           | Input Type                       | Key Metric        |
+| ----------------------- | ----------------------------------- | -------------------------------- | ----------------- |
+| **Meta-Code**           | `gen_meta_code_v0`                  | `(name, description)` strings    | Latency (μs)      |
+| **Content-Code: Text**  | `gen_text_code_v0`                  | Plain text (various lengths)     | Latency (μs)      |
+| **Content-Code: Image** | `gen_image_code_v0`                 | 1024 grayscale pixels (32×32)    | Latency (μs)      |
+| **Content-Code: Audio** | `gen_audio_code_v0`                 | Chromaprint integer vector       | Latency (μs)      |
+| **Content-Code: Video** | `gen_video_code_v0`                 | MPEG-7 frame signature sequence  | Latency (μs)      |
+| **Content-Code: Mixed** | `gen_mixed_code_v0`                 | Sequence of Content-Code strings | Latency (μs)      |
+| **Data-Code**           | `gen_data_code_v0`                  | Byte stream (1 KB – 100 MB)      | Throughput (MB/s) |
+| **Instance-Code**       | `gen_instance_code_v0`              | Byte stream (1 KB – 100 MB)      | Throughput (MB/s) |
+| **ISCC-CODE**           | `gen_iscc_code_v0`                  | Sequence of ISCC-UNIT strings    | Latency (μs)      |
+| **Codec: encode**       | `encode_component`                  | Raw header + digest bytes        | Latency (ns)      |
+| **Codec: decode**       | `iscc_decode`                       | ISCC string                      | Latency (ns)      |
+| **Similarity**          | `iscc_distance` / `iscc_similarity` | Two ISCC strings                 | Latency (ns)      |
+| **Internal: CDC**       | `alg_cdc_chunks`                    | Byte stream (1 KB – 100 MB)      | Throughput (MB/s) |
+| **Internal: MinHash**   | `alg_minhash_256`                   | Feature hash integer sequence    | Latency (μs)      |
+| **Internal: SimHash**   | `alg_simhash`                       | Sequence of hash digests         | Latency (μs)      |
 
 ### Language Targets
 
-| Target | Label in Report | Tooling | Available From |
-|--------|-----------------|---------|----------------|
-| Python reference (`iscc-core`) | **Python ref** | pytest-benchmark | Phase 0 |
-| Rust core (`crates/iscc`) | **Rust** | criterion | Phase 0 |
-| Python bindings (`crates/iscc-py`) | **Python (Rust)** | pytest-benchmark | Phase 1 |
-| Node.js bindings (`crates/iscc-node`) | **Node.js** | vitest bench | Phase 2 |
-| WASM (`crates/iscc-wasm`) | **WASM** | vitest bench (browser-like) | Phase 2 |
+| Target                                | Label in Report   | Tooling                     | Available From |
+| ------------------------------------- | ----------------- | --------------------------- | -------------- |
+| Python reference (`iscc-core`)        | **Python ref**    | pytest-benchmark            | Phase 0        |
+| Rust core (`crates/iscc`)             | **Rust**          | criterion                   | Phase 0        |
+| Python bindings (`crates/iscc-py`)    | **Python (Rust)** | pytest-benchmark            | Phase 1        |
+| Node.js bindings (`crates/iscc-node`) | **Node.js**       | vitest bench                | Phase 2        |
+| WASM (`crates/iscc-wasm`)             | **WASM**          | vitest bench (browser-like) | Phase 2        |
 
 Not all operations apply to all targets (e.g., internal algorithms like CDC and MinHash are only
 benchmarked in Rust and Python ref, not through bindings). The report omits cells that don't apply
@@ -62,17 +63,17 @@ rather than showing N/A.
 
 ## Input Corpus
 
-Benchmarks use a fixed set of inputs committed to the repository under `benchmarks/data/`. No
-inputs are generated at runtime (deterministic, no RNG seeds to manage).
+Benchmarks use a fixed set of inputs committed to the repository under `benchmarks/data/`. No inputs
+are generated at runtime (deterministic, no RNG seeds to manage).
 
 **Streaming inputs** (Data-Code, Instance-Code, CDC):
 
-| Label | Size | Content |
-|-------|------|---------|
-| `tiny` | 1 KB | Deterministic byte pattern |
-| `small` | 64 KB | Deterministic byte pattern |
-| `medium` | 1 MB | Deterministic byte pattern |
-| `large` | 10 MB | Deterministic byte pattern |
+| Label    | Size   | Content                                                      |
+| -------- | ------ | ------------------------------------------------------------ |
+| `tiny`   | 1 KB   | Deterministic byte pattern                                   |
+| `small`  | 64 KB  | Deterministic byte pattern                                   |
+| `medium` | 1 MB   | Deterministic byte pattern                                   |
+| `large`  | 10 MB  | Deterministic byte pattern                                   |
 | `xlarge` | 100 MB | Deterministic byte pattern (generated by script, gitignored) |
 
 The `xlarge` input is generated by a deterministic script (`benchmarks/generate_data.py`) and
@@ -81,16 +82,16 @@ committed directly.
 
 **Non-streaming inputs** (Meta-Code, Content-Codes, codec):
 
-| Operation | Input Description |
-|-----------|-------------------|
-| Meta-Code | Title string (50 chars) + description (500 chars) from conformance vectors |
-| Text-Code | Plain text at 100, 1K, 10K, and 100K characters |
-| Image-Code | 1024-element pixel array from conformance vectors |
-| Audio-Code | 300-element Chromaprint vector from conformance vectors |
-| Video-Code | 100-frame MPEG-7 signature sequence from conformance vectors |
-| Mixed-Code | 4 Content-Code strings |
-| ISCC-CODE | Full set of 4 ISCC-UNIT strings |
-| Codec | 10 representative ISCC strings (various types and lengths) |
+| Operation  | Input Description                                                          |
+| ---------- | -------------------------------------------------------------------------- |
+| Meta-Code  | Title string (50 chars) + description (500 chars) from conformance vectors |
+| Text-Code  | Plain text at 100, 1K, 10K, and 100K characters                            |
+| Image-Code | 1024-element pixel array from conformance vectors                          |
+| Audio-Code | 300-element Chromaprint vector from conformance vectors                    |
+| Video-Code | 100-frame MPEG-7 signature sequence from conformance vectors               |
+| Mixed-Code | 4 Content-Code strings                                                     |
+| ISCC-CODE  | Full set of 4 ISCC-UNIT strings                                            |
+| Codec      | 10 representative ISCC strings (various types and lengths)                 |
 
 ## Report Format
 
@@ -127,8 +128,8 @@ ISCC unit type. This is the first thing readers see.
 
 **2. Throughput Charts (streaming operations)**
 
-For Data-Code, Instance-Code, and CDC: a chart showing throughput (MB/s) across input sizes for
-each language target. This visualizes scaling behavior — a flat line means the operation is
+For Data-Code, Instance-Code, and CDC: a chart showing throughput (MB/s) across input sizes for each
+language target. This visualizes scaling behavior — a flat line means the operation is
 throughput-bound (good); a declining curve suggests per-chunk overhead dominates at small sizes.
 
 ```
@@ -171,6 +172,7 @@ contributors optimizing internals.
 **5. Environment**
 
 Runner specs and tool versions, recorded automatically:
+
 - CPU model and core count
 - OS and architecture
 - Rust version
@@ -185,15 +187,15 @@ performance over time. Catches regressions and documents improvements across rel
 
 ## Tooling
 
-| Concern | Tool | Notes |
-|---------|------|-------|
-| Rust benchmarks | [criterion](https://github.com/bheisler/criterion.rs) | Statistical microbenchmarks with warm-up, outlier detection, and JSON output. Lives in `crates/iscc/benches/`. |
-| Python benchmarks | [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) | pytest plugin with statistical analysis and JSON output. Benchmarks `iscc-core` and `iscc-lib` Python bindings side by side. Lives in `benchmarks/python/`. |
-| Node.js benchmarks | [vitest bench](https://vitest.dev/guide/features.html#benchmarking) | Vitest's built-in benchmarking (uses tinybench). Lives in `benchmarks/node/`. |
-| WASM benchmarks | vitest bench (browser mode) | Same runner as Node.js but targeting WASM. |
-| Report generation | Custom Python script | `scripts/generate_benchmark_report.py` reads JSON outputs from all runners, computes speedup factors, and writes `docs/benchmarks/index.md` as Markdown with tables. |
-| CI tracking | [CodSpeed](https://codspeed.io/) or [Bencher](https://bencher.dev/) | Tracks performance over time in CI. Flags regressions on PRs. CodSpeed has native criterion + pytest-benchmark support. |
-| Large test data | `benchmarks/generate_data.py` | Generates deterministic `xlarge` (100 MB) input. Gitignored; CI runs this before benchmarks. |
+| Concern            | Tool                                                                | Notes                                                                                                                                                                |
+| ------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust benchmarks    | [criterion](https://github.com/bheisler/criterion.rs)               | Statistical microbenchmarks with warm-up, outlier detection, and JSON output. Lives in `crates/iscc/benches/`.                                                       |
+| Python benchmarks  | [pytest-benchmark](https://pytest-benchmark.readthedocs.io/)        | pytest plugin with statistical analysis and JSON output. Benchmarks `iscc-core` and `iscc-lib` Python bindings side by side. Lives in `benchmarks/python/`.          |
+| Node.js benchmarks | [vitest bench](https://vitest.dev/guide/features.html#benchmarking) | Vitest's built-in benchmarking (uses tinybench). Lives in `benchmarks/node/`.                                                                                        |
+| WASM benchmarks    | vitest bench (browser mode)                                         | Same runner as Node.js but targeting WASM.                                                                                                                           |
+| Report generation  | Custom Python script                                                | `scripts/generate_benchmark_report.py` reads JSON outputs from all runners, computes speedup factors, and writes `docs/benchmarks/index.md` as Markdown with tables. |
+| CI tracking        | [CodSpeed](https://codspeed.io/) or [Bencher](https://bencher.dev/) | Tracks performance over time in CI. Flags regressions on PRs. CodSpeed has native criterion + pytest-benchmark support.                                              |
+| Large test data    | `benchmarks/generate_data.py`                                       | Generates deterministic `xlarge` (100 MB) input. Gitignored; CI runs this before benchmarks.                                                                         |
 
 ## Directory Structure
 
@@ -230,13 +232,13 @@ iscc-lib/
 
 Benchmarks run in CI on two triggers:
 
-1. **On merge to main** — full benchmark suite runs on a fixed runner type. Results are committed
-   as JSON artifacts, the report is regenerated, and the docs are republished. CodSpeed/Bencher
-   records the data point for trend tracking.
+1. **On merge to main** — full benchmark suite runs on a fixed runner type. Results are committed as
+    JSON artifacts, the report is regenerated, and the docs are republished. CodSpeed/Bencher
+    records the data point for trend tracking.
 
-2. **On pull request** (limited) — runs only the Rust criterion benchmarks with `--quick` mode
-   to detect regressions without consuming excessive CI time. CodSpeed/Bencher posts a comment
-   on the PR if any benchmark regresses beyond a configurable threshold (e.g., >5%).
+2. **On pull request** (limited) — runs only the Rust criterion benchmarks with `--quick` mode to
+    detect regressions without consuming excessive CI time. CodSpeed/Bencher posts a comment on the
+    PR if any benchmark regresses beyond a configurable threshold (e.g., >5%).
 
 **Workflow sketch:**
 
@@ -268,9 +270,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: jdx/mise-action@v2
       - run: uv sync
-      - run: uv run maturin develop --release --manifest-path crates/iscc-py/Cargo.toml
+      - run: uv run maturin develop --release --manifest-path 
+          crates/iscc-py/Cargo.toml
       - run: python benchmarks/generate_data.py
-      - run: uv run pytest benchmarks/python/ --benchmark-json=benchmarks/results/python.json
+      - run: uv run pytest benchmarks/python/ 
+          --benchmark-json=benchmarks/results/python.json
       - uses: actions/upload-artifact@v4
         with:
           name: bench-python
@@ -290,20 +294,20 @@ jobs:
 ## Reporting Conventions
 
 - **Speedup factors** are computed as `python_ref_median / target_median` and displayed as `N×`.
-  Values below 1× (slower than Python ref) are flagged visually.
-- **Absolute numbers** use SI-appropriate units: ns for sub-microsecond, μs for microseconds, ms
-  for milliseconds, MB/s for throughput.
-- **Statistical rigor**: report median and p95 latency (not mean — it hides outliers). Criterion
-  and pytest-benchmark both provide these natively.
+    Values below 1× (slower than Python ref) are flagged visually.
+- **Absolute numbers** use SI-appropriate units: ns for sub-microsecond, μs for microseconds, ms for
+    milliseconds, MB/s for throughput.
+- **Statistical rigor**: report median and p95 latency (not mean — it hides outliers). Criterion and
+    pytest-benchmark both provide these natively.
 - **"Python (Rust)" vs "Python ref"** — the report always includes both, making clear how much
-  speedup users get just by switching `pip install iscc-core` to `pip install iscc-lib` with zero
-  code changes.
+    speedup users get just by switching `pip install iscc-core` to `pip install iscc-lib` with zero
+    code changes.
 
 ## Phased Rollout
 
-| Phase | Scope |
-|-------|-------|
+| Phase       | Scope                                                                                                                                                      |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Phase 0** | Rust criterion benchmarks for implemented operations + Python reference benchmarks for the same operations via pytest-benchmark. Manual report generation. |
-| **Phase 1** | Add Python bindings benchmarks. Automate report generation in CI. Publish to docs. |
-| **Phase 2** | Add Node.js and WASM benchmarks. Enable CodSpeed/Bencher for historical tracking. Add throughput charts. |
-| **Phase 3** | Add regression detection on PRs. Complete all operation coverage. |
+| **Phase 1** | Add Python bindings benchmarks. Automate report generation in CI. Publish to docs.                                                                         |
+| **Phase 2** | Add Node.js and WASM benchmarks. Enable CodSpeed/Bencher for historical tracking. Add throughput charts.                                                   |
+| **Phase 3** | Add regression detection on PRs. Complete all operation coverage.                                                                                          |

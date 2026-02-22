@@ -11,8 +11,8 @@ Built in Rust with bindings for Python, Node.js, WASM, and C. Compatible with th
 
 - [Docker](https://docs.docker.com/get-docker/) with Dev Containers support
 - [VS Code](https://code.visualstudio.com/) with the
-  [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers),
-  or any Dev Containers-compatible IDE
+    [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers),
+    or any Dev Containers-compatible IDE
 - A GitHub personal access token (`GH_TOKEN`) for repo operations
 - Claude Code credentials (`~/.claude/.credentials.json`)
 
@@ -29,18 +29,18 @@ export GH_TOKEN="ghp_your_token_here"
 Open the repository in VS Code and select **Reopen in Container** (or use the Dev Containers CLI).
 The container provides all development tools pre-installed:
 
-| Tool | Purpose |
-|------|---------|
-| Rust (stable) | Core library |
-| Python 3.12 + uv | Python bindings, dev tools |
-| Node.js 20 | Node.js bindings, Claude Code |
-| mise | Tool versions + task runner |
-| Claude Code | AI agent loop |
-| gh | GitHub CLI |
+| Tool             | Purpose                       |
+| ---------------- | ----------------------------- |
+| Rust (stable)    | Core library                  |
+| Python 3.12 + uv | Python bindings, dev tools    |
+| Node.js 20       | Node.js bindings, Claude Code |
+| mise             | Tool versions + task runner   |
+| Claude Code      | AI agent loop                 |
+| gh               | GitHub CLI                    |
 
 The `postCreateCommand` runs automatically on container creation: trusts the mise config, installs
-Python dev dependencies (`uv sync`), and sets up pre-commit hooks. Git identity is mounted
-read-only from the host `~/.gitconfig`.
+Python dev dependencies (`uv sync`), and sets up pre-commit hooks. Git identity is mounted read-only
+from the host `~/.gitconfig`.
 
 **Note:** If git identity is not inherited from the host mount, configure it manually:
 
@@ -58,15 +58,15 @@ advances the codebase in small, verified increments. Four specialized agents cyc
 update-state → define-next → advance → review (+ push on PASS)
 ```
 
-| Agent | Role |
-|-------|------|
-| `update-state` | Assess where the project stands |
-| `define-next` | Scope one small, verifiable work package |
-| `advance` | Implement the work package with tests |
-| `review` | Verify quality, update learnings, push on PASS |
+| Agent          | Role                                           |
+| -------------- | ---------------------------------------------- |
+| `update-state` | Assess where the project stands                |
+| `define-next`  | Scope one small, verifiable work package       |
+| `advance`      | Implement the work package with tests          |
+| `review`       | Verify quality, update learnings, push on PASS |
 
-The CID orchestrator (`tools/cid.py`) streams agent progress to the terminal in real-time —
-you'll see tool calls, text output, turn counts, and cost per agent.
+The CID orchestrator (`tools/cid.py`) streams agent progress to the terminal in real-time — you'll
+see tool calls, text output, turn counts, and cost per agent.
 
 ### Run the autonomous loop
 
@@ -95,12 +95,11 @@ mise run cid:review    # Run review agent (pushes on PASS)
 
 Two-stage git hook setup via [prek](https://github.com/feltroidprime/prek):
 
-**Pre-commit** (fast, auto-fix on every commit):
-file hygiene, `cargo fmt`, `ruff check --fix`, `ruff format`, `taplo fmt`, `yamlfix`, `mdformat`
+**Pre-commit** (fast, auto-fix on every commit): file hygiene, `cargo fmt`, `ruff check --fix`,
+`ruff format`, `taplo fmt`, `yamlfix`, `mdformat`
 
-**Pre-push** (thorough, run before code leaves the machine):
-`cargo clippy`, `cargo test`, `ty check`, Ruff security scan, Ruff complexity check,
-`pytest` with 100% coverage enforcement
+**Pre-push** (thorough, run before code leaves the machine): `cargo clippy`, `cargo test`,
+`ty check`, Ruff security scan, Ruff complexity check, `pytest` with 100% coverage enforcement
 
 ### Manual quality checks
 

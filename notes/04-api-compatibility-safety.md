@@ -6,17 +6,17 @@ for FFI boundaries. Treat all three as part of the public API.
 
 ## API Surface Policy
 
-The Rust core API is **not automatically public API**. Polyglot projects fail when the Rust core grows
-organically, bindings expose "just a bit more", and the public surface explodes unevenly across
-languages.
+The Rust core API is **not automatically public API**. Polyglot projects fail when the Rust core
+grows organically, bindings expose "just a bit more", and the public surface explodes unevenly
+across languages.
 
 **Tiered API model (recommended):**
 
-| Tier | Scope | Rule |
-|------|-------|------|
-| **Tier 1** (`iscc::api`) | Stable entrypoints, bound in all languages | SemVer-governed, changes require MAJOR bump |
-| **Tier 2** (`pub` but not in `api`) | Rust-only or opt-in bindings | May change in MINOR releases |
-| **Internal** (`pub(crate)` or private) | Never exposed to bindings | Free to change |
+| Tier                                   | Scope                                      | Rule                                        |
+| -------------------------------------- | ------------------------------------------ | ------------------------------------------- |
+| **Tier 1** (`iscc::api`)               | Stable entrypoints, bound in all languages | SemVer-governed, changes require MAJOR bump |
+| **Tier 2** (`pub` but not in `api`)    | Rust-only or opt-in bindings               | May change in MINOR releases                |
+| **Internal** (`pub(crate)` or private) | Never exposed to bindings                  | Free to change                              |
 
 **Concrete pattern:**
 
@@ -32,6 +32,7 @@ Bindings import **only from `iscc::api`**. This prevents accidental exposure of 
 keeps the binding surface predictable.
 
 **Discipline rules:**
+
 - Adding to Tier 1 is a deliberate act requiring review
 - Bindings must not define semantics — they translate the core API to the target language's idiom
 - Don't expose Rust enums directly in bindings (they break when variants are added)
@@ -41,13 +42,13 @@ keeps the binding surface predictable.
 
 Define and document stability guarantees per layer early. Without this, every release is risky.
 
-| Layer | Stability | Breaking Change Policy |
-|-------|-----------|----------------------|
-| Rust core API (`iscc::api`) | Stable | SemVer MAJOR bump |
-| Python API | Stable | SemVer MAJOR bump, no class renames in MINOR |
-| Node.js API | Stable | SemVer MAJOR bump |
-| C ABI | Pinned | Only additive changes unless ABI version bump |
-| WASM exports | Best-effort | Versioned by package version |
+| Layer                       | Stability   | Breaking Change Policy                        |
+| --------------------------- | ----------- | --------------------------------------------- |
+| Rust core API (`iscc::api`) | Stable      | SemVer MAJOR bump                             |
+| Python API                  | Stable      | SemVer MAJOR bump, no class renames in MINOR  |
+| Node.js API                 | Stable      | SemVer MAJOR bump                             |
+| C ABI                       | Pinned      | Only additive changes unless ABI version bump |
+| WASM exports                | Best-effort | Versioned by package version                  |
 
 **C ABI versioning (recommended):**
 
@@ -62,6 +63,7 @@ This allows downstream languages (Go via cgo, Java via Panama, C# via P/Invoke) 
 linked against a compatible version at runtime.
 
 **Versioning semantics:**
+
 - `0.x`: API may change, but C ABI remains additive
 - `1.0`: Rust + Python APIs stabilized
 - Pre-releases (`-alpha`, `-beta`): Rust + Python only, no guarantees for other bindings
@@ -74,7 +76,7 @@ Decide and document, in-repo, what you support:
 - **Python**: minimum Python (e.g., `>=3.10`) and whether you publish `abi3` wheels.
 - **Node.js**: minimum Node LTS version(s) and whether you ship native-only, WASM-only, or both.
 - **WASM**: which targets you support (`wasm32-unknown-unknown` for browsers; optionally WASI for
-  server runtimes).
+    server runtimes).
 - **C ABI**: whether the C surface is stable/semver'd, and what stability guarantees you offer.
 
 Practical recommendation: keep dev tooling current (via `mise.toml`), but keep runtime compatibility
@@ -85,39 +87,39 @@ explicit (via `rust-version`, `requires-python`, and CI matrices that enforce wh
 Feature flags are the main lever to keep bindings small and predictable:
 
 - Make the core crate (`iscc`) the "truth" and keep its default feature set lean.
-- Put language/runtime specifics behind features (`python`, `node`, `wasm`, `ffi`) in *binding crates*,
-  not in the core crate when possible.
-- Avoid enabling "convenience features" by default in bindings (e.g., `serde_json`, `tokio`) unless the
-  public API truly requires them.
+- Put language/runtime specifics behind features (`python`, `node`, `wasm`, `ffi`) in *binding
+    crates*, not in the core crate when possible.
+- Avoid enabling "convenience features" by default in bindings (e.g., `serde_json`, `tokio`) unless
+    the public API truly requires them.
 
 ## FFI Safety Checklist (Python/Node/C/WASM)
 
 At every boundary, standardize these rules:
 
 - **No panics across FFI**: never let a Rust panic unwind into Python/Node/C; convert to an error or
-  abort deterministically.
+    abort deterministically.
 - **Ownership and lifetimes**: never hand foreign runtimes pointers to Rust stack data; use owned
-  allocations and clear "who frees what" rules.
-- **Opaque handles over structs**: prefer `*mut T` handles with constructor/destructor functions over
-  exposing Rust struct layouts.
-- **String and buffer conventions**: explicitly define encoding (`UTF-8`), null-termination rules (C),
-  and whether buffers are length-prefixed.
+    allocations and clear "who frees what" rules.
+- **Opaque handles over structs**: prefer `*mut T` handles with constructor/destructor functions
+    over exposing Rust struct layouts.
+- **String and buffer conventions**: explicitly define encoding (`UTF-8`), null-termination rules
+    (C), and whether buffers are length-prefixed.
 - **Threading**: document thread-safety for each exported type/function (especially for Node and
-  Python GIL interactions).
+    Python GIL interactions).
 
-For C specifically, use `#[repr(C)]` only for *C-facing* types, keep them minimal, and avoid exposing
-`Vec<T>`/`String>` directly.
+For C specifically, use `#[repr(C)]` only for *C-facing* types, keep them minimal, and avoid
+exposing `Vec<T>`/`String>` directly.
 
 ### Memory Ownership Table
 
-| Resource | Owner | Freed By | Notes |
-|----------|-------|----------|-------|
-| Rust struct | Rust | Rust | Exposed via opaque handle (`*mut T`) |
-| Byte buffer (output) | Rust | Rust | Access via `(ptr, len)` pair |
-| String (output) | Rust | Rust | UTF-8, null-terminated for C |
-| Error message | Rust | Rust | Thread-local last-error pattern |
-| Foreign string (input) | Foreign | Foreign | Copied to Rust-owned on ingress |
-| Foreign buffer (input) | Foreign | Foreign | Borrowed for duration of call |
+| Resource               | Owner   | Freed By | Notes                                |
+| ---------------------- | ------- | -------- | ------------------------------------ |
+| Rust struct            | Rust    | Rust     | Exposed via opaque handle (`*mut T`) |
+| Byte buffer (output)   | Rust    | Rust     | Access via `(ptr, len)` pair         |
+| String (output)        | Rust    | Rust     | UTF-8, null-terminated for C         |
+| Error message          | Rust    | Rust     | Thread-local last-error pattern      |
+| Foreign string (input) | Foreign | Foreign  | Copied to Rust-owned on ingress      |
+| Foreign buffer (input) | Foreign | Foreign  | Borrowed for duration of call        |
 
 **Hard rule**: The side that allocates memory is the side that frees it.
 
@@ -127,18 +129,21 @@ Polyglot projects get brittle when each binding invents its own error taxonomy. 
 error model in the core crate and map it consistently to every runtime.
 
 **Recommended Rust shape (core crate):**
+
 - One public error type: `iscc::Error` (e.g., `thiserror` enum)
 - Stable, machine-readable codes (e.g., `ErrorCode` enum) separate from human messages
 - A clear split between:
-  - `InvalidInput` (bad caller data)
-  - `Unsupported` / `NotImplemented` (feature gating / optional algorithms)
-  - `External` (I/O, model, codec, optional dependencies)
-  - `Internal` (bugs; should be rare)
+    - `InvalidInput` (bad caller data)
+    - `Unsupported` / `NotImplemented` (feature gating / optional algorithms)
+    - `External` (I/O, model, codec, optional dependencies)
+    - `Internal` (bugs; should be rare)
 
 **Binding mappings (keep predictable):**
+
 - **Python (PyO3)**: raise custom exceptions (e.g., `IsccError` base + subclasses by code)
 - **Node (napi-rs)**: throw JS `Error` with a stable `code` string (and message)
-- **WASM (wasm-bindgen)**: return `Result<T, JsValue>` where error is a structured object `{ code, message }`
+- **WASM (wasm-bindgen)**: return `Result<T, JsValue>` where error is a structured object
+    `{ code, message }`
 - **C FFI**: return an `int` status code + expose `iscc_last_error_message()` for the message
 
 Practical rule: never stringify errors too early. Preserve `code` until the outermost layer where it
@@ -154,26 +159,28 @@ every binding can run the same canonical test vectors.
 [`iscc_core/data.json`](https://raw.githubusercontent.com/iscc/iscc-core/master/iscc_core/data.json).
 
 **Data model (what to expect):**
+
 - Top-level keys are function names (e.g., `gen_data_code_v0`)
 - Each function contains named test cases with `inputs` and `outputs`
 - Some suites mark whether a function is required vs optional for conformance
 - Raw byte inputs/outputs are embedded as hex strings with a prefix (documented as `stream:` /
-  `bytes` for byte streams, and `hex:` for byte outputs).
+    `bytes` for byte streams, and `hex:` for byte outputs).
 
 **Recommended approach for iscc-lib:**
+
 1. **Vendor a pinned snapshot** of the JSON into the repo (avoid network in tests) and update it via
-   a small script when you intentionally bump conformance data.
+    a small script when you intentionally bump conformance data.
 2. Build a tiny **decoder** for vector inputs:
-   - If value is a string with `stream:` / `bytes` / `hex:` prefix, decode hex → bytes
-   - Otherwise treat it as normal JSON (string/number/bool/object)
+    - If value is a string with `stream:` / `bytes` / `hex:` prefix, decode hex → bytes
+    - Otherwise treat it as normal JSON (string/number/bool/object)
 3. Create a single **Rust conformance test harness** that:
-   - Iterates all required functions
-   - Calls your Rust API with decoded inputs
-   - Compares outputs in a normalized way (e.g., ISCC strings, hex for bytes)
+    - Iterates all required functions
+    - Calls your Rust API with decoded inputs
+    - Compares outputs in a normalized way (e.g., ISCC strings, hex for bytes)
 4. Make every binding run the *same* vectors by reusing the vendored JSON:
-   - Python: `pytest` parametrized over vectors
-   - Node: `vitest`/`jest` parametrized over vectors
-   - WASM: run vectors under a JS test runner (and/or `wasmtime` for WASI if you support it)
+    - Python: `pytest` parametrized over vectors
+    - Node: `vitest`/`jest` parametrized over vectors
+    - WASM: run vectors under a JS test runner (and/or `wasmtime` for WASI if you support it)
 
 This gives you a regression net that catches subtle cross-language drift (encoding, rounding, option
 defaults) immediately.
@@ -184,12 +191,13 @@ Conformance vectors verify that each binding matches the ISO reference. Parity t
 **all bindings match each other** — a subtly different and equally important guarantee.
 
 **What parity tests catch that conformance vectors miss:**
+
 - UTF-8 normalization differences between runtimes
 - Float/rounding behavior (JavaScript `Number` vs Python `float` vs Rust `f64`)
 - Default parameter mismatches (a binding accidentally defaults `wide=True` while another defaults
-  `wide=False`)
-- Error code mapping inconsistencies (Rust returns `InvalidInput`, Python raises `ValueError`,
-  Node throws `TypeError`)
+    `wide=False`)
+- Error code mapping inconsistencies (Rust returns `InvalidInput`, Python raises `ValueError`, Node
+    throws `TypeError`)
 
 **Recommended structure:**
 

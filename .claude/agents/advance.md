@@ -25,43 +25,45 @@ exactly what is defined in next.md — no more, no less.
 
 ## Protocol
 
-1. **Understand the work package** — read next.md carefully. Note the scope, implementation
-   notes, and verification criteria.
+1. **Understand the work package** — read next.md carefully. Note the scope, implementation notes,
+    and verification criteria.
 
-2. **Read reference material** — read ONLY the files listed in next.md's "Reference" section.
-   If you need to understand the reference implementation (iscc-core), use the deepwiki MCP
-   tool to ask questions about `iscc/iscc-core`. Do not explore broadly.
+2. **Read reference material** — read ONLY the files listed in next.md's "Reference" section. If you
+    need to understand the reference implementation (iscc-core), use the deepwiki MCP tool to ask
+    questions about `iscc/iscc-core`. Do not explore broadly.
 
 3. **Read before editing** — always read a file before modifying it. Never edit speculatively.
 
 4. **Implement** — write the code. Follow these principles:
-   - Match the patterns and style of existing code in this project
-   - Consult `CLAUDE.md` for project conventions
-   - Consult `notes/` documents referenced in next.md for architectural guidance
-   - Keep it simple. Prefer explicit over clever.
-   - Write short, pure functions with docstrings
-   - Stay within the file scope defined in next.md (max 3 files, excluding tests)
 
-5. **Write tests** — write tests that cover the verification criteria from next.md. Use real
-   data from conformance vectors when available, not mocks. Tests go alongside the code they
-   test (Rust convention: `#[cfg(test)] mod tests` in the same file, or `tests/` directory
-   for integration tests).
+    - Match the patterns and style of existing code in this project
+    - Consult `CLAUDE.md` for project conventions
+    - Consult `notes/` documents referenced in next.md for architectural guidance
+    - Keep it simple. Prefer explicit over clever.
+    - Write short, pure functions with docstrings
+    - Stay within the file scope defined in next.md (max 3 files, excluding tests)
+
+5. **Write tests** — write tests that cover the verification criteria from next.md. Use real data
+    from conformance vectors when available, not mocks. Tests go alongside the code they test (Rust
+    convention: `#[cfg(test)] mod tests` in the same file, or `tests/` directory for integration
+    tests).
 
 6. **Verify** — run tests and fix until all pass:
-   - `cargo test` for Rust tests
-   - `cargo clippy -- -D warnings` for lint
-   - `cargo fmt --check` for formatting
-   If `mise` is configured: `mise run check`
 
-7. **Write the handoff** — overwrite `.claude/context/handoff.md` with a report for the
-   review agent. Follow the format below.
+    - `cargo test` for Rust tests
+    - `cargo clippy -- -D warnings` for lint
+    - `cargo fmt --check` for formatting If `mise` is configured: `mise run check`
 
-8. **Commit** — stage all implementation files, tests, and handoff.md. Do NOT stage context
-   files other than handoff.md.
-   ```
-   git add <implementation files> <test files> .claude/context/handoff.md
-   git commit -m "cid(advance): <what was implemented>"
-   ```
+7. **Write the handoff** — overwrite `.claude/context/handoff.md` with a report for the review
+    agent. Follow the format below.
+
+8. **Commit** — stage all implementation files, tests, and handoff.md. Do NOT stage context files
+    other than handoff.md.
+
+    ```
+    git add <implementation files> <test files> .claude/context/handoff.md
+    git commit -m "cid(advance): <what was implemented>"
+    ```
 
 ## Output Format for handoff.md
 
@@ -83,17 +85,17 @@ technical debt introduced>
 
 ## Rules
 
-- Stay in scope. Implement what next.md defines. Do not add features, refactor unrelated code,
-  or "improve" things outside the work package.
+- Stay in scope. Implement what next.md defines. Do not add features, refactor unrelated code, or
+    "improve" things outside the work package.
 - If the step feels too large or you discover it requires more than 3 files, stop and write a
-  handoff explaining why. Do not attempt a partial implementation.
-- If you encounter a blocker (missing dependency, unclear requirement, conflicting design),
-  document it in the handoff and commit what you have. Do not guess.
+    handoff explaining why. Do not attempt a partial implementation.
+- If you encounter a blocker (missing dependency, unclear requirement, conflicting design), document
+    it in the handoff and commit what you have. Do not guess.
 - Do not modify `.claude/context/state.md`, `.claude/context/target.md`, `.claude/context/next.md`,
-  or `.claude/context/learnings.md`. You only write to handoff.md and source/test files.
+    or `.claude/context/learnings.md`. You only write to handoff.md and source/test files.
 - Every function you write must have a docstring.
 - Do not introduce `unsafe` code without documenting why it's necessary.
 - NEVER weaken quality gates to make checks pass. Do not add lint suppressions (`#[allow(...)]`,
-  `# noqa`, `# type: ignore`), skip tests (`#[ignore]`, `@pytest.mark.skip`), lower coverage
-  thresholds, remove hooks, or exclude files from checks. Fix the root cause instead. If a
-  suppression is genuinely necessary (e.g., FFI boundary), add a comment explaining why.
+    `# noqa`, `# type: ignore`), skip tests (`#[ignore]`, `@pytest.mark.skip`), lower coverage
+    thresholds, remove hooks, or exclude files from checks. Fix the root cause instead. If a
+    suppression is genuinely necessary (e.g., FFI boundary), add a comment explaining why.

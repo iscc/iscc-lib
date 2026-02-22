@@ -4,12 +4,12 @@ Task runners, tool version management, linting, quality gates, documentation, an
 
 ## Task Runners
 
-| Tool | Used By | Pros | Cons |
-|------|---------|------|------|
-| **Make** | minijinja | Universal, zero install | No Windows support, limited DAG |
-| **go-task** | kreuzberg | YAML-based, includes, cross-platform | Requires Go or binary install |
-| **mise tasks** | (recommended) | Integrated with tool manager, TOML | Newer ecosystem |
-| **just** | (common in Rust) | Make-like but cross-platform, simple | No dependency DAG |
+| Tool           | Used By          | Pros                                 | Cons                            |
+| -------------- | ---------------- | ------------------------------------ | ------------------------------- |
+| **Make**       | minijinja        | Universal, zero install              | No Windows support, limited DAG |
+| **go-task**    | kreuzberg        | YAML-based, includes, cross-platform | Requires Go or binary install   |
+| **mise tasks** | (recommended)    | Integrated with tool manager, TOML   | Newer ecosystem                 |
+| **just**       | (common in Rust) | Make-like but cross-platform, simple | No dependency DAG               |
 
 **minijinja uses Make** with straightforward targets:
 
@@ -59,17 +59,17 @@ tasks:
 
 Neither minijinja nor kreuzberg uses [mise](https://mise.jdx.dev/) (minijinja uses manual rustup,
 kreuzberg uses sdkman). However, mise is the strongest option for a new polyglot project because it
-unifies tool version management, environment variables, and task running in a single tool — replacing
-sdkman, nvm, pyenv, and the task runner in one go.
+unifies tool version management, environment variables, and task running in a single tool —
+replacing sdkman, nvm, pyenv, and the task runner in one go.
 
 **Why mise over alternatives:**
 
-| Tool | Scope | Cross-platform | Speed | Config |
-|------|-------|----------------|-------|--------|
-| **mise** | Tools + env + tasks | Yes (Rust binary) | Fast | TOML |
-| sdkman | JVM-focused tools | Unix only | Medium | .sdkmanrc |
-| asdf | Tools | Unix only | Slow (shell) | .tool-versions |
-| nvm/pyenv/rbenv | Single language each | Varies | Medium | Various |
+| Tool            | Scope                | Cross-platform    | Speed        | Config         |
+| --------------- | -------------------- | ----------------- | ------------ | -------------- |
+| **mise**        | Tools + env + tasks  | Yes (Rust binary) | Fast         | TOML           |
+| sdkman          | JVM-focused tools    | Unix only         | Medium       | .sdkmanrc      |
+| asdf            | Tools                | Unix only         | Slow (shell) | .tool-versions |
+| nvm/pyenv/rbenv | Single language each | Varies            | Medium       | Various        |
 
 **Example `mise.toml` for a polyglot Rust project:**
 
@@ -157,9 +157,9 @@ run = "uv run zensical build"
 **CI integration** — mise provides a GitHub Action:
 
 ```yaml
-- uses: jdx/mise-action@v2
-  with:
-    install: true
+  - uses: jdx/mise-action@v2
+    with:
+      install: true
 ```
 
 This installs all tools defined in `mise.toml` with a single step, replacing multiple
@@ -168,31 +168,32 @@ This installs all tools defined in `mise.toml` with a single step, replacing mul
 ## Linting and Formatting
 
 **minijinja** — minimal, Rust-focused:
+
 - `cargo fmt` (rustfmt)
 - `cargo clippy`
 - `pyright` for Python type checking
 
 **kreuzberg** — comprehensive, per-language via pre-commit:
 
-| Language | Formatter | Linter |
-|----------|-----------|--------|
-| Rust | cargo fmt | clippy + cargo-deny |
-| Python | ruff format | ruff check + mypy |
-| TypeScript | biome | biome + tsc --noEmit |
-| Go | go fmt | golangci-lint |
-| Shell | shfmt | shellcheck |
-| TOML | taplo | taplo |
-| GitHub Actions | — | actionlint |
-| Ruby | rubocop | rubocop |
-| Java | spotless | checkstyle + pmd |
-| C# | dotnet format | dotnet format |
+| Language       | Formatter     | Linter               |
+| -------------- | ------------- | -------------------- |
+| Rust           | cargo fmt     | clippy + cargo-deny  |
+| Python         | ruff format   | ruff check + mypy    |
+| TypeScript     | biome         | biome + tsc --noEmit |
+| Go             | go fmt        | golangci-lint        |
+| Shell          | shfmt         | shellcheck           |
+| TOML           | taplo         | taplo                |
+| GitHub Actions | —             | actionlint           |
+| Ruby           | rubocop       | rubocop              |
+| Java           | spotless      | checkstyle + pmd     |
+| C#             | dotnet format | dotnet format        |
 
 **Recommended for iscc-lib**: Start with cargo fmt + clippy + ruff (Python) + ty (Python type
 checking) + biome (TypeScript). Use prek to run them consistently.
 
-> **Note**: iscc-sum uses mypy for type checking and bandit for security scanning — both should carry
-> forward to iscc-lib. For iscc-lib, prefer **ty** (astral-sh/ty) over mypy — it's 10-100x faster,
-> written in Rust, and integrates naturally with the ruff/uv toolchain from Astral.
+> **Note**: iscc-sum uses mypy for type checking and bandit for security scanning — both should
+> carry forward to iscc-lib. For iscc-lib, prefer **ty** (astral-sh/ty) over mypy — it's 10-100x
+> faster, written in Rust, and integrates naturally with the ruff/uv toolchain from Astral.
 
 ## Rust Quality Gates (high leverage)
 
@@ -202,8 +203,8 @@ Consider adding a small set of "always on" Rust checks as the project grows:
 - `cargo clippy --workspace -- -D warnings`
 - `cargo fmt --all --check`
 - `cargo deny check` (licenses/advisories/sources) and/or `cargo audit` (RustSec advisories)
-- `cargo semver-checks` (lint public API for unintentional breaking changes — especially valuable when
-  the core crate's API stability affects all downstream bindings)
+- `cargo semver-checks` (lint public API for unintentional breaking changes — especially valuable
+    when the core crate's API stability affects all downstream bindings)
 
 ## Complexity Gates (enforce simplicity)
 
@@ -211,38 +212,46 @@ Enforce a maximum cognitive complexity of **C** (≤ 15) across all languages. F
 threshold must be refactored before merging.
 
 **Rust:**
+
 - `cargo clippy` includes `cognitive_complexity` (default threshold 25). Lower it:
-  ```toml
-  # clippy.toml (workspace root)
-  cognitive-complexity-threshold = 15
-  ```
+    ```toml
+    # clippy.toml (workspace root)
+    cognitive-complexity-threshold = 15
+    ```
 
 **Python:**
-- ruff enforces cognitive complexity via the `C901` rule. Configure in `pyproject.toml`:
-  ```toml
-  [tool.ruff.lint]
-  select = ["E", "F", "I", "C901"]
 
-  [tool.ruff.lint.mccabe]
-  max-complexity = 15
-  ```
+- ruff enforces cognitive complexity via the `C901` rule. Configure in `pyproject.toml`:
+    ```toml
+    [tool.ruff.lint]
+    select = ["E", "F", "I", "C901"]
+
+    [tool.ruff.lint.mccabe]
+    max-complexity = 15
+    ```
 
 **TypeScript/JavaScript:**
+
 - biome includes a `noExcessiveCognitiveComplexity` rule:
-  ```json
-  {
-    "linter": {
-      "rules": {
-        "complexity": {
-          "noExcessiveCognitiveComplexity": { "level": "error", "options": { "maxAllowedComplexity": 15 } }
+    ```json
+    {
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 15
+              }
+            }
+          }
         }
       }
     }
-  }
-  ```
+    ```
 
-**CI enforcement**: All complexity checks run in CI as blocking gates. No exceptions without explicit
-review approval and a tracking issue for refactoring.
+**CI enforcement**: All complexity checks run in CI as blocking gates. No exceptions without
+explicit review approval and a tracking issue for refactoring.
 
 ## Documentation (zensical)
 
@@ -277,12 +286,14 @@ iscc-lib/
 ```
 
 **Key configuration (from iscc-usearch template):**
+
 - Dual-palette theme (light/dark) with ISCC brand colors
 - mkdocstrings with Python handler for API reference
 - Custom CSS for header/footer branding
 - OG/Twitter meta tag overrides for social sharing
 
 **CI workflow** (`.github/workflows/docs.yml`):
+
 ```yaml
 on:
   push:
@@ -299,11 +310,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - uses: actions/setup-python@v5
-        with: { python-version: "3.12" }
+        with: {python-version: '3.12'}
       - run: uv sync --group dev
       - run: uv run zensical build
       - uses: actions/upload-pages-artifact@v3
-        with: { path: site }
+        with: {path: site}
       - uses: actions/deploy-pages@v4
 ```
 
@@ -351,22 +362,25 @@ repos:
 ```
 
 **CI integration** (GitHub Actions):
+
 ```yaml
-- uses: j178/prek-action@v1
+  - uses: j178/prek-action@v1
 ```
 
-**Install** (via mise): `prek = "latest"` in `mise.toml`, or standalone via
-`cargo binstall prek` / `uv tool install prek`.
+**Install** (via mise): `prek = "latest"` in `mise.toml`, or standalone via `cargo binstall prek` /
+`uv tool install prek`.
 
 ## Python-Specific Tooling
 
 Both projects use:
+
 - **uv** — Fast Python package manager (replaces pip/virtualenv)
 - **maturin** — Build backend for PyO3 extensions
 - **ruff** — Linter and formatter (replaces black + flake8 + isort)
 - **ty** — Fast Rust-based type checker from Astral (replaces mypy/pyright, 10-100x faster)
 
 Development workflow:
+
 ```bash
 # Create venv and install deps
 uv sync
@@ -384,6 +398,7 @@ uv run ty check
 ## Node.js-Specific Tooling
 
 kreuzberg uses:
+
 - **pnpm** — Fast, disk-efficient package manager
 - **napi-rs** + `@napi-rs/cli` — Native addon build system
 - **biome** — Formatter and linter (replaces eslint + prettier)

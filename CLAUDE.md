@@ -4,20 +4,20 @@ Guidance for Claude Code agents working on this repository.
 
 ## Project
 
-**iscc-lib** — high-performance polyglot (Rust + language bindings) implementation of
-ISO 24138:2024 International Standard Content Code (ISCC). Must be compatible with the
-official `iscc/iscc-core` Python reference implementation.
+**iscc-lib** — high-performance polyglot (Rust + language bindings) implementation of ISO 24138:2024
+International Standard Content Code (ISCC). Must be compatible with the official `iscc/iscc-core`
+Python reference implementation.
 
 ## CID Context Files
 
 This project uses Continuous Iterative Development. Read these before doing anything:
 
-| File | Purpose |
-|------|---------|
-| `.claude/context/state.md` | Where the project stands right now |
-| `.claude/context/target.md` | Desired outcome with verification criteria |
-| `.claude/context/handoff.md` | Work order from the last agent |
-| `.claude/context/next.md` | Scoped work package for the current step |
+| File                           | Purpose                                     |
+| ------------------------------ | ------------------------------------------- |
+| `.claude/context/state.md`     | Where the project stands right now          |
+| `.claude/context/target.md`    | Desired outcome with verification criteria  |
+| `.claude/context/handoff.md`   | Work order from the last agent              |
+| `.claude/context/next.md`      | Scoped work package for the current step    |
 | `.claude/context/learnings.md` | Accumulated knowledge from prior iterations |
 
 ## Prior Art
@@ -34,24 +34,24 @@ MCP to query it.
 Detailed design is in `notes/00-overview.md` and sub-documents (01-09). Consult these when making
 design decisions — don't guess.
 
-| Document | When to consult |
-|----------|----------------|
-| `notes/00-overview.md` | Starting point, key decisions, tooling |
-| `notes/01-workspace-structure.md` | Creating crates, workspace config |
-| `notes/02-language-bindings.md` | Adding or modifying binding crates |
-| `notes/03-async-and-streaming.md` | Core API design, streaming processors |
+| Document                               | When to consult                        |
+| -------------------------------------- | -------------------------------------- |
+| `notes/00-overview.md`                 | Starting point, key decisions, tooling |
+| `notes/01-workspace-structure.md`      | Creating crates, workspace config      |
+| `notes/02-language-bindings.md`        | Adding or modifying binding crates     |
+| `notes/03-async-and-streaming.md`      | Core API design, streaming processors  |
 | `notes/04-api-compatibility-safety.md` | API tiers, error handling, conformance |
-| `notes/05-developer-tooling.md` | Dev environment, quality gates |
-| `notes/06-build-cicd-publishing.md` | CI config, release workflows |
-| `notes/07-security-versioning.md` | Security setup, release flow |
-| `notes/09-performance-benchmarks.md` | Benchmark strategy |
+| `notes/05-developer-tooling.md`        | Dev environment, quality gates         |
+| `notes/06-build-cicd-publishing.md`    | CI config, release workflows           |
+| `notes/07-security-versioning.md`      | Security setup, release flow           |
+| `notes/09-performance-benchmarks.md`   | Benchmark strategy                     |
 
 ## Core Principles
 
 - **Sync core, streaming interface**: Rust core is synchronous. Each binding adapts async
-  idiomatically. Pattern: `new() -> update(&[u8]) -> finalize() -> Result<T>`
+    idiomatically. Pattern: `new() -> update(&[u8]) -> finalize() -> Result<T>`
 - **Tiered API surface**: Only `iscc_lib::api` (Tier 1) is bound to foreign languages. Internal
-  modules use `pub(crate)` and are never exposed across FFI.
+    modules use `pub(crate)` and are never exposed across FFI.
 - **Hub-and-spoke crate model**: All binding crates depend on the pure-Rust `iscc-lib` core crate.
 
 ## Design Constraints
@@ -82,21 +82,20 @@ mise run cid:status       # Show current project state
 ## Pre-commit Hooks
 
 Git hooks are managed by **prek** (Rust-based drop-in replacement for `pre-commit`), configured in
-`.pre-commit-config.yaml`. prek is a Python dev dependency — all hook tools run via `uv run` (Python)
-or `cargo` (Rust), both provided by mise.
+`.pre-commit-config.yaml`. prek is a Python dev dependency — all hook tools run via `uv run`
+(Python) or `cargo` (Rust), both provided by mise.
 
 ```bash
 uv run prek install --hook-type pre-commit --hook-type pre-push  # Install git hooks
 uv run prek run --all-files                                      # Run all hooks manually
 ```
 
-**Pre-commit stage** (fast, auto-fix on every commit):
-file hygiene (line endings, trailing whitespace, YAML/JSON/TOML validation),
-`cargo fmt`, `ruff check --fix`, `ruff format`, `taplo fmt`, `yamlfix`, `mdformat`.
+**Pre-commit stage** (fast, auto-fix on every commit): file hygiene (line endings, trailing
+whitespace, YAML/JSON/TOML validation), `cargo fmt`, `ruff check --fix`, `ruff format`, `taplo fmt`,
+`yamlfix`, `mdformat`.
 
-**Pre-push stage** (thorough quality gates):
-`cargo clippy`, `cargo test`, `ty check`, Ruff security scan (`S` rules),
-Ruff complexity check (`C901`), `pytest` with coverage enforcement.
+**Pre-push stage** (thorough quality gates): `cargo clippy`, `cargo test`, `ty check`, Ruff security
+scan (`S` rules), Ruff complexity check (`C901`), `pytest` with coverage enforcement.
 
 ## Conformance
 

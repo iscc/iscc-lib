@@ -1,20 +1,20 @@
 # Security, Supply Chain, and Version Management
 
-For a cryptographic identifier library targeting ISO standardization, supply-chain hygiene is
-table stakes, not optional.
+For a cryptographic identifier library targeting ISO standardization, supply-chain hygiene is table
+stakes, not optional.
 
 ## Rust Dependencies
 
-- **`cargo deny check`** — Run in CI. Checks licenses (deny copyleft in transitive deps),
-  RustSec advisories, and duplicate versions. Configure via `deny.toml` at workspace root.
+- **`cargo deny check`** — Run in CI. Checks licenses (deny copyleft in transitive deps), RustSec
+    advisories, and duplicate versions. Configure via `deny.toml` at workspace root.
 - **`cargo audit`** — Alternative/complement to `cargo deny` for RustSec advisory checks.
 - **Dependabot** — Enable for Cargo, pip, and npm manifests. Configure weekly updates.
 
 ## Python Dependencies
 
 - **`bandit`** — Static security scanner for Python code. Already used in iscc-sum.
-- **`pip-audit`** or `uv audit` — Check Python dependencies against known vulnerabilities.
-  Run in CI (non-blocking initially, then enforce).
+- **`pip-audit`** or `uv audit` — Check Python dependencies against known vulnerabilities. Run in CI
+    (non-blocking initially, then enforce).
 
 ## Node.js Dependencies
 
@@ -23,12 +23,12 @@ table stakes, not optional.
 ## Build and Release Integrity
 
 - **Signed git tags** for releases (`git tag -s`). Required for reproducible provenance.
-- **OIDC trusted publishing** for crates.io and PyPI (already covered in CI/CD section) —
-  eliminates long-lived API keys.
-- **`SOURCE_DATE_EPOCH`** — Set in release builds for reproducible timestamps. maturin respects
-  this automatically.
-- **SLSA provenance** — GitHub Actions can generate SLSA level 2+ provenance attestations.
-  Consider adding `actions/attest-build-provenance@v2` to release workflows.
+- **OIDC trusted publishing** for crates.io and PyPI (already covered in CI/CD section) — eliminates
+    long-lived API keys.
+- **`SOURCE_DATE_EPOCH`** — Set in release builds for reproducible timestamps. maturin respects this
+    automatically.
+- **SLSA provenance** — GitHub Actions can generate SLSA level 2+ provenance attestations. Consider
+    adding `actions/attest-build-provenance@v2` to release workflows.
 
 ## Recommended CI Configuration
 
@@ -52,16 +52,16 @@ version: 2
 updates:
   - package-ecosystem: cargo
     directory: /
-    schedule: { interval: weekly }
+    schedule: {interval: weekly}
   - package-ecosystem: pip
     directory: /
-    schedule: { interval: weekly }
+    schedule: {interval: weekly}
   - package-ecosystem: npm
     directory: /crates/iscc-node
-    schedule: { interval: weekly }
+    schedule: {interval: weekly}
   - package-ecosystem: github-actions
     directory: /
-    schedule: { interval: weekly }
+    schedule: {interval: weekly}
 ```
 
 ## No Network in Tests
@@ -85,6 +85,7 @@ service. This prevents flaky CI and ensures tests work in air-gapped environment
 ```
 
 Release flow:
+
 1. Run `scripts/bump-version.sh 2.13.0`
 2. Commit: `git commit -m "Release 2.13.0"`
 3. Tag: `git tag 2.13.0`
@@ -115,6 +116,7 @@ Additionally, a validation script runs in CI before publishing:
 ### Recommended Approach
 
 Use a version sync script (Python or Rust) that:
+
 1. Reads the canonical version from `Cargo.toml` workspace
 2. Updates all language-specific manifests
 3. Is called by the task runner (`mise run version:sync`)
