@@ -11,9 +11,11 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 
 ## Reference Implementation
 
-- Official conformance vectors: `https://raw.githubusercontent.com/iscc/iscc-core/master/iscc_core/data.json`
+- Official conformance vectors:
+    `https://raw.githubusercontent.com/iscc/iscc-core/master/iscc_core/data.json`
 - Reference Python package: `iscc/iscc-core` on GitHub
-- Prior Rust work in `bio-codes/iscc-sum`: CDC, BLAKE3, streaming pattern, 50-130x speedup over Python
+- Prior Rust work in `bio-codes/iscc-sum`: CDC, BLAKE3, streaming pattern, 50-130x speedup over
+    Python
 
 ## Tooling
 
@@ -24,4 +26,9 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 
 ## Process
 
-- (none yet — will be populated during iterations)
+- `gen_meta_code_v0` in iscc-core has no `extra` parameter — only `name, description, meta, bits`
+- Chromaprint feature vectors are `u32` (integer sequences), not `f32` — `gen_audio_code_v0` takes
+    `&[u32]`
+- `gen_instance_code_v0` accepts a `bits` parameter in the Python reference (default 64)
+- `gen_iscc_code_v0` takes `(codes, wide: bool)` — Python uses `wide=False` for 128-bit vs 256-bit
+    output
