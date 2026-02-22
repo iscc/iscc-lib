@@ -1,138 +1,147 @@
 # Next Work Package
 
-## Step: Implement gen_audio_code_v0 with multi-stage SimHash
+## Step: Implement gen_mixed_code_v0 with SimHash code mixing
 
 ## Goal
 
-Implement `gen_audio_code_v0` — the Audio Content-Code generator — which applies a multi-stage
-SimHash algorithm to Chromaprint feature vectors. This is the fourth gen function (4/9) and
-exercises the existing `simhash` module with a different input type (4-byte digests instead of
-32-byte BLAKE3 hashes).
+Implement `gen_mixed_code_v0` — the Mixed Content-Code generator — which combines multiple ISCC
+Content-Codes into a single similarity-preserving code using SimHash. This is the 5th of 9 gen
+functions and exercises existing codec decode + SimHash infrastructure on a compositional function
+(no new internal modules needed).
 
 ## Scope
 
 - **Create**: none
-- **Modify**: `crates/iscc-lib/src/lib.rs` — implement `soft_hash_audio_v0` helper and
-    `gen_audio_code_v0`, fix signature from `&[u32]` to `&[i32]`, add conformance tests
+- **Modify**: `crates/iscc-lib/src/lib.rs` — implement `soft_hash_codes_v0` helper and
+    `gen_mixed_code_v0`, replace stub test with conformance tests
 - **Reference**:
-    - `iscc/iscc-core` via deepwiki — `code_content_audio.py` (`gen_audio_code_v0`,
-        `soft_hash_audio_v0`)
-    - `crates/iscc-lib/src/simhash.rs` — reuse `alg_simhash` (already generic over byte length)
-    - `crates/iscc-lib/src/codec.rs` — `SubType::Audio` (value 2), `encode_component`
-    - `crates/iscc-lib/tests/data.json` — conformance vectors under `gen_audio_code_v0`
+    - `iscc/iscc-core` via deepwiki — `code_content_mixed.py` (`gen_mixed_code_v0`,
+        `soft_hash_codes_v0`)
+    - `crates/iscc-lib/src/codec.rs` — `decode_base32`, `decode_header`, `encode_component`,
+        `MainType::Content`, `SubType::MIXED`
+    - `crates/iscc-lib/src/simhash.rs` — `alg_simhash` (accepts `&[impl AsRef<[u8]>]`)
+    - `crates/iscc-lib/tests/data.json` — conformance vectors under `gen_mixed_code_v0`
 
 ## Implementation Notes
 
-### CRITICAL: Signature must change from `&[u32]` to `&[i32]`
-
-The current stub uses `&[u32]` but conformance test vectors include negative values (e.g.,
-`[-1, 0, 1]`). Chromaprint produces signed 32-bit integers. The Python reference uses
-`int.to_bytes(4, 'big', signed=True)`. Change the parameter type to `&[i32]` and update the stub
-test accordingly.
-
-### soft_hash_audio_v0 — Multi-stage SimHash algorithm
-
-The algorithm builds a hash digest in stages, concatenating 4-byte SimHash chunks:
-
-**Stage 1 — Convert inputs to 4-byte digests:**
+### gen_mixed_code_v0 function
 
 ```
-For each i32 in cv: convert to 4-byte big-endian bytes → Vec<[u8; 4]>
-If cv is empty: return vec![0u8; 32]
+pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<String>:
+    1. For each code string:
+       - Strip "ISCC:" prefix if present
+       - decode_base32(code) → raw bytes
+       - Store raw bytes in a Vec
+    2. Call soft_hash_codes_v0(&decoded_bytes, bits) → digest
+    3. encode_component(MainType::Content, SubType::MIXED, Version::V0, bits, &digest)
+    4. Return Ok(format!("ISCC:{component}"))
+    5. Return parts in output (for now, just the ISCC string — parts tracking deferred)
 ```
 
-**Stage 2 — Overall SimHash (4 bytes):**
+### soft_hash_codes_v0 — Core mixing algorithm
+
+This is the internal helper that performs the actual code combination:
 
 ```
-parts = vec![alg_simhash(&all_digests)]   // 4-byte SimHash of all digests
+fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>>:
+    1. Validate: at least 2 codes required (return InvalidInput otherwise)
+    2. For each digest, decode_header to verify MainType::Content
+       (reject non-Content codes with InvalidInput error)
+    3. nbytes = bits / 8  (e.g., 64 bits → 8 bytes)
+    4. Prepare byte sequences for SimHash:
+       For each raw_bytes (full decoded ISCC unit):
+         - Take raw_bytes[0] (first byte of header — 1 byte)
+         - Take body bytes (after header) truncated to nbytes-1 bytes
+         - Concatenate: [header_byte_0] + body[:nbytes-1] = nbytes total
+    5. Call alg_simhash(&prepared_sequences) → Vec<u8> of length nbytes
+    6. Return the SimHash result
 ```
 
-**Stage 3 — Quarter-based SimHashes (4 × 4 = 16 bytes):**
+### Key detail: header byte extraction
 
-```
-Divide digests into 4 equal-length quarters (integer division, remainder to last)
-For each quarter:
-    if empty → push [0u8; 4]
-    else → push alg_simhash(&quarter)
-```
+The raw bytes from `decode_base32` contain: `[header_bytes...][body_bytes...]`. The header is
+variable-length (varnibble encoded). However, the algorithm takes ONLY `raw_bytes[0]` (the very
+first byte of the entire encoded unit). This first byte encodes MainType + SubType and preserves
+content type information in the mixed hash.
 
-**Stage 4 — Sorted-third-based SimHashes (3 × 4 = 12 bytes):**
+The body starts after the full header. Use `decode_header()` which returns
+`(MainType, SubType, Version, bit_length, body)` — the `body` is what follows the header. However,
+the prepared bytes need `raw_bytes[0]` (not derived from decoded fields), so keep both the raw bytes
+and the decoded body.
 
-```
-Sort the ORIGINAL i32 values by numeric value
-Convert sorted values to big-endian 4-byte digests
-Divide into 3 equal-length thirds (integer division, remainder to last)
-For each third:
-    if empty → push [0u8; 4]
-    else → push alg_simhash(&third)
-```
+Implementation approach:
 
-**Concatenate all parts:** stages 2+3+4 = 4 + 16 + 12 = 32 bytes max. The function returns all 32
-bytes. The `bits` parameter in `gen_audio_code_v0` controls how many bytes are used via
-`encode_component` (which truncates the digest to `bits / 8` bytes).
-
-### Partitioning helper
-
-Python uses `numpy.array_split` which distributes remainder across first chunks. Implement a small
-helper `array_split(slice, n) -> Vec<&[T]>` that divides a slice into `n` parts where:
-
-- Each part has `len / n` elements
-- The first `len % n` parts get one extra element
-- If `n > len`, excess parts are empty slices
-
-This can be a local function in `lib.rs` or a closure inside `soft_hash_audio_v0`.
-
-### Key details
-
-- `alg_simhash` already accepts `&[impl AsRef<[u8]>]` so it works with 4-byte digests. The output
-    length matches input digest length (4 bytes in, 4 bytes out).
-- **Empty input edge case:** `alg_simhash(&[])` returns `vec![0u8; 32]` (hardcoded), but for audio
-    the empty case is handled before calling simhash (return 32 zero bytes directly). Individual
-    empty quarters/thirds push `[0u8; 4]` directly instead of calling `alg_simhash`.
-- **Sorting:** Sort the original `i32` values, not the byte representations. Then convert sorted
-    values to big-endian bytes for SimHash.
-- Big-endian encoding of signed i32: Rust `i32::to_be_bytes()` produces the same bytes as Python's
-    `int.to_bytes(4, 'big', signed=True)`.
-
-### gen_audio_code_v0 function
-
-```
-pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<String>:
-    hash_digest = soft_hash_audio_v0(cv)
-    component = encode_component(
-        MainType::Content, SubType::Audio, Version::V0, bits, &hash_digest
-    )
-    Ok(format!("ISCC:{component}"))
+```rust
+let nbytes = (bits / 8) as usize;
+let mut prepared: Vec<Vec<u8>> = Vec::with_capacity(cc_digests.len());
+for raw in cc_digests {
+    let (mtype, _stype, _ver, _blen, body) = codec::decode_header(raw)?;
+    if mtype != codec::MainType::Content {
+        return Err(InvalidInput("all codes must be Content-Codes"));
+    }
+    let mut entry = Vec::with_capacity(nbytes);
+    entry.push(raw[0]); // first byte of header preserves type info
+    let take = std::cmp::min(nbytes - 1, body.len());
+    entry.extend_from_slice(&body[..take]);
+    // Pad with zeros if body is shorter than nbytes-1
+    while entry.len() < nbytes {
+        entry.push(0);
+    }
+    prepared.push(entry);
+}
+let digest = simhash::alg_simhash(&prepared);
 ```
 
-### Conformance vectors (5 test cases)
+### alg_simhash compatibility
 
-| Name                   | Input CV            | Bits | Expected ISCC                                                |
-| ---------------------- | ------------------- | ---- | ------------------------------------------------------------ |
-| test_0000_empty_64     | []                  | 64   | ISCC:EIAQAAAAAAAAAAAA                                        |
-| test_0001_one_128      | [1]                 | 128  | ISCC:EIBQAAAAAEAAAAABAAAAAAAAAAAAA                           |
-| test_0002_two_256      | [1, 2]              | 256  | ISCC:EIDQAAAAAMAAAAABAAAAAAQAAAAAAAAAAAAAAAAAAEAAAAACAAAAAAA |
-| test_0003_test_neg_256 | [-1, 0, 1]          | 256  | ISCC:EIDQAAAAAH777777AAAAAAAAAAAACAAAAAAP777774AAAAAAAAAAAAI |
-| test_0004_cv_256       | 112-element real CV | 256  | ISCC:EIDWUJFCEZZOJYVDHJHIRB3KQSQCM2REUITDUTVAQNRGJIRENCCCULY |
+`alg_simhash` accepts `&[impl AsRef<[u8]>]` and infers output length from the first element. With
+`Vec<Vec<u8>>` where each inner vec is `nbytes` long, it will produce an `nbytes`-length output.
+This is correct — the final `encode_component` will use the first `bits/8` bytes of this digest.
 
-The test vectors use JSON arrays of integers directly (no "stream:" prefix). Parse as
-`serde_json::Value` and extract `as_i64() as i32` for each element.
+### ISCC prefix handling
 
-### Learning to correct
+The conformance test vectors provide input codes WITHOUT the "ISCC:" prefix (e.g.,
+"EUA6GIKXN42IQV3S"). But in real usage, codes may have the prefix. Strip it if present:
 
-The learnings file says `gen_audio_code_v0` takes `&[u32]`. It should take `&[i32]` because
-Chromaprint features are signed integers and conformance vectors include negative values.
+```rust
+let clean = code.strip_prefix("ISCC:").unwrap_or(code);
+```
+
+### Conformance vectors (2 test cases)
+
+| Name                    | Input codes (count) | Bits | Expected ISCC                      |
+| ----------------------- | ------------------- | ---- | ---------------------------------- |
+| test_0000_std_64        | 4 Content-Codes     | 64   | ISCC:EQASNZJ36ZT33AL7              |
+| test_0001_128_truncated | 4 Content-Codes     | 128  | ISCC:EQBSBXXOMP6SZ2VX6DXG332JFUX76 |
+
+Test 0000 uses 64-bit codes:
+`["EUA6GIKXN42IQV3S", "EIAUKMOUIOYZCKA5", "EQA6JK5IEKO6E732", "EIAU2XRWOT4AKMTZ"]`
+
+Test 0001 uses 128-bit codes:
+`["EQCR2VTB6AUI2J6A5AOYMRA2BNPNTBQS2GGNFQ2DUU", "EAC7ULQD5WEKFMNQUZWWYK5NHTATG4OV62AMIUWLYI", "EACQRBYECQSWFDC5JYDLCCJNF72Q4IYOXV3POUHRNI", "EEC453X23MWGUEZQC3SG7UJMY65HQYFQDJMO4CAL5A"]`
+
+### Test structure
+
+Replace the existing `test_gen_mixed_code_v0_stub` with:
+
+1. A conformance test that iterates all vectors from data.json `gen_mixed_code_v0` section
+2. Parse inputs[0] as an array of code strings, inputs[1] as bits
+3. Compare output ISCC against expected
+4. Also verify output `parts` matches input codes
+5. Count tested vectors (assert 2 total)
+
+Also add a unit test verifying error on fewer than 2 codes.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing 85 tests + new audio code tests)
-- All 5 `gen_audio_code_v0` conformance vectors produce matching ISCC codes
+- `cargo test -p iscc-lib` passes (all existing 92 tests + new mixed code tests, minus removed stub)
+- Both `gen_mixed_code_v0` conformance vectors produce matching ISCC codes
+- Invalid input (fewer than 2 codes) returns `Err(InvalidInput(...))`
 - `cargo clippy -p iscc-lib -- -D warnings` clean
 - `cargo fmt -p iscc-lib --check` clean
 - No `unsafe` code
-- The `gen_audio_code_v0` stub test is replaced/updated for the new `&[i32]` signature
 
 ## Done When
 
-The advance agent is done when all 5 `gen_audio_code_v0` conformance vectors pass and all quality
+The advance agent is done when both `gen_mixed_code_v0` conformance vectors pass and all quality
 gates (clippy, fmt, existing tests) remain green.
