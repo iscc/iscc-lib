@@ -1,0 +1,24 @@
+{
+  "name": "iscc-lib",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": {
+      "TZ": "${localEnv:TZ:UTC}",
+      "CLAUDE_CODE_VERSION": "latest"
+    }
+  },
+  "remoteUser": "dev",
+  "mounts": [
+    "source=${localEnv:USERPROFILE}/.claude,target=/home/dev/.claude,type=bind",
+    "source=${localEnv:USERPROFILE}/.claude.json,target=/home/dev/.claude.json,type=bind",
+    "source=iscc-lib-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
+    "source=iscc-lib-cargo-registry-${devcontainerId},target=/home/dev/.cargo/registry,type=volume",
+    "source=iscc-lib-cargo-git-${devcontainerId},target=/home/dev/.cargo/git,type=volume",
+    "source=iscc-lib-uv-cache-${devcontainerId},target=/home/dev/.cache/uv,type=volume"
+  ],
+  "containerEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/iscc-lib,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace/iscc-lib"
+}
