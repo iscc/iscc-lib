@@ -70,6 +70,24 @@ for the next iteration.
    git commit -m "cid(review): <summary of findings>"
    ```
 
+9. **Push (on PASS or PASS_WITH_NOTES)** — if the verdict is PASS or PASS_WITH_NOTES, push all
+   unpushed commits to the remote. This sends the full batch (define-next + advance + review)
+   as one logical unit of progress. Pre-push hooks run automatically and provide defense in depth.
+
+   ```
+   git push
+   ```
+
+   **If the push succeeds** — done. The cycle is complete.
+
+   **If the push fails** (pre-push hook rejection) — do NOT retry. Instead:
+   1. Downgrade the verdict to NEEDS_WORK
+   2. Capture the hook output in handoff.md under **Push failure:**
+   3. Re-commit the updated handoff.md (amend the review commit)
+   4. The next define-next → advance cycle will fix the issues
+
+   **If the verdict is NEEDS_WORK** — do not push. The next cycle will address the issues first.
+
 ## Output Format for handoff.md
 
 ```markdown
