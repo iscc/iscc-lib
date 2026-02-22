@@ -18,6 +18,7 @@ hex.workspace = true
 thiserror.workspace = true
 unicode-normalization.workspace = true
 unicode-general-category.workspace = true
+xxhash-rust.workspace = true
 
 [dev-dependencies]
 serde = { workspace = true }

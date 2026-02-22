@@ -89,6 +89,7 @@ dependencies = [
  "thiserror",
  "unicode-general-category",
  "unicode-normalization",
+ "xxhash-rust",
 ]
 
 [[package]]
@@ -242,6 +243,12 @@ checksum = "5fd4f6878c9cb28d874b009da9e8d183b5abc80117c40bbd187a1fde336be6e8"
 dependencies = [
  "tinyvec",
 ]
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
 
 [[package]]
 name = "zmij"

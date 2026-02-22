@@ -5,6 +5,7 @@
 //! the `iscc-core` Python reference implementation.
 
 pub mod codec;
+pub(crate) mod minhash;
 pub(crate) mod simhash;
 pub(crate) mod utils;
 
@@ -120,12 +121,36 @@ pub fn gen_meta_code_v0(
     Ok(format!("ISCC:{meta_code}"))
 }
 
+/// Compute a 256-bit similarity-preserving hash from collapsed text.
+///
+/// Generates character n-grams with a sliding window of width 13,
+/// hashes each with xxh32, then applies MinHash to produce a 32-byte digest.
+fn soft_hash_text_v0(text: &str) -> Vec<u8> {
+    let ngrams = simhash::sliding_window(text, 13);
+    let features: Vec<u32> = ngrams
+        .iter()
+        .map(|ng| xxhash_rust::xxh32::xxh32(ng.as_bytes(), 0))
+        .collect();
+    minhash::alg_minhash_256(&features)
+}
+
 /// Generate a Text-Code from plain text content.
 ///
-/// Produces an ISCC Content-Code for text by extracting and hashing
-/// text features using the SimHash algorithm.
-pub fn gen_text_code_v0(_text: &str, _bits: u32) -> IsccResult<String> {
-    Err(IsccError::NotImplemented)
+/// Produces an ISCC Content-Code for text by collapsing the input,
+/// extracting character n-gram features, and applying MinHash to
+/// create a similarity-preserving fingerprint.
+pub fn gen_text_code_v0(text: &str, bits: u32) -> IsccResult<String> {
+    let collapsed = utils::text_collapse(text);
+    let _characters = collapsed.chars().count();
+    let hash_digest = soft_hash_text_v0(&collapsed);
+    let component = codec::encode_component(
+        codec::MainType::Content,
+        codec::SubType::TEXT,
+        codec::Version::V0,
+        bits,
+        &hash_digest,
+    )?;
+    Ok(format!("ISCC:{component}"))
 }
 
 /// Generate an Image-Code from pixel data.
@@ -309,11 +334,54 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_text_code_v0_stub() {
-        assert!(matches!(
-            gen_text_code_v0("hello world", 64),
-            Err(IsccError::NotImplemented)
-        ));
+    fn test_gen_text_code_v0_empty() {
+        let result = gen_text_code_v0("", 64).unwrap();
+        assert_eq!(result, "ISCC:EAASL4F2WZY7KBXB");
+    }
+
+    #[test]
+    fn test_gen_text_code_v0_hello_world() {
+        let result = gen_text_code_v0("Hello World", 64).unwrap();
+        assert_eq!(result, "ISCC:EAASKDNZNYGUUF5A");
+    }
+
+    #[test]
+    fn test_gen_text_code_v0_conformance() {
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let section = &data["gen_text_code_v0"];
+        let cases = section.as_object().unwrap();
+
+        let mut tested = 0;
+
+        for (tc_name, tc) in cases {
+            let inputs = tc["inputs"].as_array().unwrap();
+            let input_text = inputs[0].as_str().unwrap();
+            let bits = inputs[1].as_u64().unwrap() as u32;
+
+            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+            let expected_chars = tc["outputs"]["characters"].as_u64().unwrap() as usize;
+
+            // Verify ISCC output
+            let result = gen_text_code_v0(input_text, bits)
+                .unwrap_or_else(|e| panic!("gen_text_code_v0 failed for {tc_name}: {e}"));
+            assert_eq!(
+                result, expected_iscc,
+                "ISCC mismatch in test case {tc_name}"
+            );
+
+            // Verify character count independently
+            let collapsed = utils::text_collapse(input_text);
+            let characters = collapsed.chars().count();
+            assert_eq!(
+                characters, expected_chars,
+                "character count mismatch in test case {tc_name}"
+            );
+
+            tested += 1;
+        }
+
+        assert_eq!(tested, 5, "expected 5 conformance tests to run");
     }
 
     #[test]
