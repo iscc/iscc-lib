@@ -82,3 +82,6 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `&[u8]` and `&str` can be received directly by reference
 - All 9 `gen_*_v0` PyO3 bindings follow identical thin-wrapper pattern: `#[pyfunction]` +
     `#[pyo3(signature)]` + `map_err(PyValueError)`. No logic in the binding layer
+- Python conformance tests share `data.json` with Rust tests via relative path
+    (`Path(__file__).parent.parent / "crates/iscc-lib/tests/data.json"`). Use
+    `pytest.param(...,   id=name)` for readable test IDs that match the JSON keys
