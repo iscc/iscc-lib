@@ -1,29 +1,31 @@
-## 2026-02-22 — Review of: Add Python conformance tests for all 9 gen\_\*\_v0 functions
+## 2026-02-22 — Add GitHub Actions CI workflow
 
-**Verdict:** PASS
+**Done:** Created `.github/workflows/ci.yml` with two parallel jobs (`rust` and `python`) that
+mirror all local quality gates. The `rust` job runs fmt, clippy, and tests. The `python` job builds
+PyO3 bindings via maturin and runs ruff + pytest. Concurrency control cancels redundant runs.
 
-**Summary:** All 46 Python conformance tests pass cleanly, covering all 9 `gen_*_v0` functions
-against the vendored `data.json` vectors. The test code is well-structured with DRY helpers, proper
-type conversions, and clear parametrized IDs. All quality gates pass: 143 Rust tests, 49 Python
-tests (3 smoke + 46 conformance), clippy clean, fmt clean, ruff clean.
+**Files changed:**
 
-**Issues found:**
+- `.github/workflows/ci.yml`: New CI workflow with `rust` and `python` jobs on ubuntu-latest
 
-- (none)
+**Verification:** All local quality gates pass:
 
-**Next:** The Python bindings target is fully met (all 9 functions exposed, all 46 conformance
-vectors pass end-to-end from Python). The highest-impact next steps are:
+- `cargo test --workspace`: 143 tests passed
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean
+- `cargo fmt --all --check`: clean
+- `uv run prek run --all-files`: all 14 hooks passed (including `check yaml` and `YAML formatting`)
 
-1. **CI/CD workflows** — GitHub Actions for automated testing, clippy, fmt, and Python tests on
-    Linux/macOS/Windows. This protects the quality gates in CI and enables trusted publishing.
-2. **State.md update** — the current state.md is stale (says "conformance tests needed"). Should be
-    updated to reflect completion.
-3. **Benchmarks** — criterion for Rust, pytest-benchmark for Python (per notes/09).
-4. **Additional binding crates** — Node.js (napi-rs), WASM (wasm-bindgen), or C FFI (cbindgen).
+**Next:** The CI workflow is ready to validate on push to GitHub. Suggested next steps:
 
-**Notes:** The Python conformance tests now provide full regression protection for the PyO3 binding
-layer. The `description or None` pattern in `test_gen_meta_code_v0` is semantically correct — Rust
-treats `Some("")` identically to `None` via `unwrap_or("")`. The `load_vectors` helper reparses
-`data.json` per test function (9 times at collection), which is negligible for 46 tests. The project
-has now reached a solid milestone: complete Rust core + complete Python bindings + comprehensive
-conformance coverage on both sides.
+1. **Cross-platform CI matrix** — extend the workflow with macOS and Windows runners
+2. **State.md update** — reflect CI addition and overall project completion status
+3. **Benchmarks** — criterion for Rust, pytest-benchmark for Python (per notes/09)
+4. **Release/publish workflows** — tag-triggered workflows for crates.io and PyPI publishing
+
+**Notes:** The workflow deliberately does NOT use `mise` in CI — it calls `cargo`, `uv`, and tools
+directly for transparency and reliability, as specified in the work package. Python is pinned to
+3.10 (the minimum from abi3-py310). Both jobs use `Swatinem/rust-cache@v2` since the python job also
+needs Rust compilation for `maturin develop`. The workflow uses `dtolnay/rust-toolchain@stable`
+rather than pinning a specific Rust version — this is intentional for CI (stable tracks the latest
+release, and the workspace `rust-version = "1.85"` in Cargo.toml provides MSRV enforcement
+separately).
