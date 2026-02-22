@@ -23,6 +23,7 @@ unicode-normalization = "0.1"
 unicode-general-category = "1"
 xxhash-rust = { version = "0.8", features = ["xxh32"] }
 pyo3 = { version = "0.23", features = ["abi3-py310"] }
+criterion = { version = "0.5", features = ["html_reports"] }
 
 [profile.release]
 lto = true

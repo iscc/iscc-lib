@@ -23,3 +23,8 @@ xxhash-rust.workspace = true
 
 [dev-dependencies]
 serde = { workspace = true }
+criterion = { workspace = true }
+
+[[bench]]
+name = "benchmarks"
+harness = false
