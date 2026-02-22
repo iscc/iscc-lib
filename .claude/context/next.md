@@ -1,147 +1,147 @@
 # Next Work Package
 
-## Step: Implement gen_mixed_code_v0 with SimHash code mixing
+## Step: Implement gen_iscc_code_v0 composite code assembly
 
 ## Goal
 
-Implement `gen_mixed_code_v0` — the Mixed Content-Code generator — which combines multiple ISCC
-Content-Codes into a single similarity-preserving code using SimHash. This is the 5th of 9 gen
-functions and exercises existing codec decode + SimHash infrastructure on a compositional function
-(no new internal modules needed).
+Implement `gen_iscc_code_v0` — the composite ISCC-CODE generator — which combines multiple ISCC unit
+codes (Meta, Content, Data, Instance) into a single ISCC-CODE. This is the 6th of 9 gen functions.
+It is purely compositional (no new hashing/algorithms), exercises codec decode/encode roundtripping,
+and uses only existing infrastructure.
 
 ## Scope
 
 - **Create**: none
-- **Modify**: `crates/iscc-lib/src/lib.rs` — implement `soft_hash_codes_v0` helper and
-    `gen_mixed_code_v0`, replace stub test with conformance tests
+- **Modify**:
+    - `crates/iscc-lib/src/codec.rs` — add `encode_units` helper function
+    - `crates/iscc-lib/src/lib.rs` — implement `gen_iscc_code_v0`, replace stub test with conformance
+        tests
 - **Reference**:
-    - `iscc/iscc-core` via deepwiki — `code_content_mixed.py` (`gen_mixed_code_v0`,
-        `soft_hash_codes_v0`)
-    - `crates/iscc-lib/src/codec.rs` — `decode_base32`, `decode_header`, `encode_component`,
-        `MainType::Content`, `SubType::MIXED`
-    - `crates/iscc-lib/src/simhash.rs` — `alg_simhash` (accepts `&[impl AsRef<[u8]>]`)
-    - `crates/iscc-lib/tests/data.json` — conformance vectors under `gen_mixed_code_v0`
+    - `crates/iscc-lib/src/codec.rs` — `decode_base32`, `encode_base32`, `decode_header`,
+        `encode_header`, `MainType`, `SubType`, `Version`, `decode_length`
+    - `crates/iscc-lib/tests/data.json` — 5 conformance vectors under `gen_iscc_code_v0`
+    - `iscc/iscc-core` via deepwiki — `iscc_code.py` for reference algorithm
 
 ## Implementation Notes
 
-### gen_mixed_code_v0 function
+### encode_units — new codec helper
 
-```
-pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<String>:
-    1. For each code string:
-       - Strip "ISCC:" prefix if present
-       - decode_base32(code) → raw bytes
-       - Store raw bytes in a Vec
-    2. Call soft_hash_codes_v0(&decoded_bytes, bits) → digest
-    3. encode_component(MainType::Content, SubType::MIXED, Version::V0, bits, &digest)
-    4. Return Ok(format!("ISCC:{component}"))
-    5. Return parts in output (for now, just the ISCC string — parts tracking deferred)
-```
+Add `pub fn encode_units(main_types: &[MainType]) -> IsccResult<u32>` to `codec.rs`. Maps the
+**optional** MainTypes (sorted, excluding mandatory Data + Instance) to an index 0–7.
 
-### soft_hash_codes_v0 — Core mixing algorithm
+The UNITS lookup table (from iscc-core):
 
-This is the internal helper that performs the actual code combination:
+| Index | Optional MainTypes present  |
+| ----- | --------------------------- |
+| 0     | (none — only Data+Instance) |
+| 1     | Content                     |
+| 2     | Semantic                    |
+| 3     | Semantic, Content           |
+| 4     | Meta                        |
+| 5     | Meta, Content               |
+| 6     | Meta, Semantic              |
+| 7     | Meta, Semantic, Content     |
 
-```
-fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>>:
-    1. Validate: at least 2 codes required (return InvalidInput otherwise)
-    2. For each digest, decode_header to verify MainType::Content
-       (reject non-Content codes with InvalidInput error)
-    3. nbytes = bits / 8  (e.g., 64 bits → 8 bytes)
-    4. Prepare byte sequences for SimHash:
-       For each raw_bytes (full decoded ISCC unit):
-         - Take raw_bytes[0] (first byte of header — 1 byte)
-         - Take body bytes (after header) truncated to nbytes-1 bytes
-         - Concatenate: [header_byte_0] + body[:nbytes-1] = nbytes total
-    5. Call alg_simhash(&prepared_sequences) → Vec<u8> of length nbytes
-    6. Return the SimHash result
-```
-
-### Key detail: header byte extraction
-
-The raw bytes from `decode_base32` contain: `[header_bytes...][body_bytes...]`. The header is
-variable-length (varnibble encoded). However, the algorithm takes ONLY `raw_bytes[0]` (the very
-first byte of the entire encoded unit). This first byte encodes MainType + SubType and preserves
-content type information in the mixed hash.
-
-The body starts after the full header. Use `decode_header()` which returns
-`(MainType, SubType, Version, bit_length, body)` — the `body` is what follows the header. However,
-the prepared bytes need `raw_bytes[0]` (not derived from decoded fields), so keep both the raw bytes
-and the decoded body.
-
-Implementation approach:
+This is a bitfield pattern: bit 0 = Content present, bit 1 = Semantic present, bit 2 = Meta present.
+So the implementation is:
 
 ```rust
-let nbytes = (bits / 8) as usize;
-let mut prepared: Vec<Vec<u8>> = Vec::with_capacity(cc_digests.len());
-for raw in cc_digests {
-    let (mtype, _stype, _ver, _blen, body) = codec::decode_header(raw)?;
-    if mtype != codec::MainType::Content {
-        return Err(InvalidInput("all codes must be Content-Codes"));
+pub fn encode_units(main_types: &[MainType]) -> IsccResult<u32> {
+    let mut result = 0u32;
+    for &mt in main_types {
+        match mt {
+            MainType::Content => result |= 1,
+            MainType::Semantic => result |= 2,
+            MainType::Meta => result |= 4,
+            _ => return Err(IsccError::InvalidInput(
+                format!("{mt:?} is not a valid optional unit type")
+            )),
+        }
     }
-    let mut entry = Vec::with_capacity(nbytes);
-    entry.push(raw[0]); // first byte of header preserves type info
-    let take = std::cmp::min(nbytes - 1, body.len());
-    entry.extend_from_slice(&body[..take]);
-    // Pad with zeros if body is shorter than nbytes-1
-    while entry.len() < nbytes {
-        entry.push(0);
-    }
-    prepared.push(entry);
+    Ok(result)
 }
-let digest = simhash::alg_simhash(&prepared);
 ```
 
-### alg_simhash compatibility
+Add a corresponding `decode_units` if needed, but it's not required for this step.
 
-`alg_simhash` accepts `&[impl AsRef<[u8]>]` and infers output length from the first element. With
-`Vec<Vec<u8>>` where each inner vec is `nbytes` long, it will produce an `nbytes`-length output.
-This is correct — the final `encode_component` will use the first `bits/8` bytes of this digest.
+Also add unit tests for `encode_units` covering all 8 combinations.
 
-### ISCC prefix handling
+### gen_iscc_code_v0 algorithm
 
-The conformance test vectors provide input codes WITHOUT the "ISCC:" prefix (e.g.,
-"EUA6GIKXN42IQV3S"). But in real usage, codes may have the prefix. Strip it if present:
-
-```rust
-let clean = code.strip_prefix("ISCC:").unwrap_or(code);
+```
+pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<String>:
+    1. Clean inputs: strip "ISCC:" prefix from each code
+    2. Validate: at least 2 codes required
+    3. Validate: every code must be >= 16 base32 characters (64-bit minimum)
+    4. Decode each code: decode_base32(clean) → raw, then decode_header(raw) →
+       (MainType, SubType, Version, length, tail)
+    5. Sort decoded units by MainType (ascending: Meta=0, Semantic=1, Content=2, Data=3, Instance=4)
+    6. Extract main_types tuple from sorted order
+    7. Validate: last two must be (Data, Instance) — these are mandatory
+    8. Determine wide composite:
+       - wide param is true AND exactly 2 codes AND main_types == (Data, Instance)
+         AND both units have decode_length >= 128 bits
+    9. Determine SubType:
+       - If wide composite → SubType::Wide (7)
+       - Else collect SubTypes of all Semantic/Content units:
+         - If any exist and all same → use that SubType
+         - If multiple different → error
+         - If none and exactly 2 codes → SubType::Sum (5)
+         - If none and 3+ codes → SubType::IsccNone (6)
+   10. Get optional MainTypes = main_types[..len-2] (everything except last two Data+Instance)
+   11. encoded_length = encode_units(optional_main_types)
+   12. Build digest body:
+       - Wide: first 16 bytes of each unit's tail (body), concatenated
+       - Standard: first 8 bytes of each unit's tail (body), concatenated
+   13. header = encode_header(MainType::Iscc, st, Version::V0, encoded_length)
+   14. code = encode_base32(header + digest)
+   15. Return Ok(format!("ISCC:{code}"))
 ```
 
-### Conformance vectors (2 test cases)
+### Conformance vectors (5 test cases)
 
-| Name                    | Input codes (count) | Bits | Expected ISCC                      |
-| ----------------------- | ------------------- | ---- | ---------------------------------- |
-| test_0000_std_64        | 4 Content-Codes     | 64   | ISCC:EQASNZJ36ZT33AL7              |
-| test_0001_128_truncated | 4 Content-Codes     | 128  | ISCC:EQBSBXXOMP6SZ2VX6DXG332JFUX76 |
+| Test                          | Input codes                                                             | Expected ISCC                                                  |
+| ----------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------- |
+| test_0000_standard            | 4 codes: Meta + Content-Text + Data + Instance                          | `ISCC:KACYPXW445FTYNJ3CYSXHAFJMA2HUWULUNRFE3BLHRSCXYH2M5AEGQY` |
+| test_0001_no_meta             | 3 codes: Content-Text + Data + Instance                                 | `ISCC:KAARMJLTQCUWAND2LKF2GYSSNQVTYZBL4D5GOQCDIM`              |
+| test_0002_no_meta_content_256 | 2 codes: Data(256-bit) + Instance(256-bit) → Content present in header? | `ISCC:KUAFVC5DMJJGYKZ4MQV6B6THIBBUG`                           |
+| test_0003_no_meta_content_128 | 2 codes: Content(64-bit) + Instance(256-bit)                            | `ISCC:KUAAQICFKJYKY4KUMQV6B6THIBBUG`                           |
+| test_0004_ordering            | Same as test_0000 but scrambled order                                   | Same output as test_0000                                       |
 
-Test 0000 uses 64-bit codes:
-`["EUA6GIKXN42IQV3S", "EIAUKMOUIOYZCKA5", "EQA6JK5IEKO6E732", "EIAU2XRWOT4AKMTZ"]`
+Note: test_0004 verifies that sorting by MainType normalizes input order.
 
-Test 0001 uses 128-bit codes:
-`["EQCR2VTB6AUI2J6A5AOYMRA2BNPNTBQS2GGNFQ2DUU", "EAC7ULQD5WEKFMNQUZWWYK5NHTATG4OV62AMIUWLYI", "EACQRBYECQSWFDC5JYDLCCJNF72Q4IYOXV3POUHRNI", "EEC453X23MWGUEZQC3SG7UJMY65HQYFQDJMO4CAL5A"]`
+Input codes in the test vectors do NOT have "ISCC:" prefix. The test should parse `inputs[0]` as an
+array of code strings. There is no `bits` or `wide` parameter in the test vectors — use `wide=false`
+as default.
+
+### Edge cases
+
+- Fewer than 2 codes → `Err(InvalidInput)`
+- Codes shorter than 16 base32 chars → `Err(InvalidInput)`
+- Missing Data or Instance → `Err(InvalidInput)`
+- Mixed SubTypes among Content/Semantic units → `Err(InvalidInput)`
+- Duplicate MainTypes should still work (sort puts them adjacent)
 
 ### Test structure
 
-Replace the existing `test_gen_mixed_code_v0_stub` with:
+Replace `test_gen_iscc_code_v0_stub` with:
 
-1. A conformance test that iterates all vectors from data.json `gen_mixed_code_v0` section
-2. Parse inputs[0] as an array of code strings, inputs[1] as bits
-3. Compare output ISCC against expected
-4. Also verify output `parts` matches input codes
-5. Count tested vectors (assert 2 total)
-
-Also add a unit test verifying error on fewer than 2 codes.
+1. A conformance test iterating all 5 vectors from data.json `gen_iscc_code_v0` section
+2. Parse `inputs[0]` as array of code strings; no other input parameters (wide defaults to false)
+3. Compare output against `outputs.iscc`
+4. Assert 5 vectors tested
+5. Add error case tests: fewer than 2 codes, missing Data/Instance
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing 92 tests + new mixed code tests, minus removed stub)
-- Both `gen_mixed_code_v0` conformance vectors produce matching ISCC codes
-- Invalid input (fewer than 2 codes) returns `Err(InvalidInput(...))`
+- `cargo test -p iscc-lib` passes (all existing 93 tests + new iscc_code tests, minus removed stub)
+- All 5 `gen_iscc_code_v0` conformance vectors produce matching ISCC codes
+- Invalid inputs (fewer than 2 codes, missing mandatory units) return appropriate errors
 - `cargo clippy -p iscc-lib -- -D warnings` clean
 - `cargo fmt -p iscc-lib --check` clean
 - No `unsafe` code
 
 ## Done When
 
-The advance agent is done when both `gen_mixed_code_v0` conformance vectors pass and all quality
+The advance agent is done when all 5 `gen_iscc_code_v0` conformance vectors pass and all quality
 gates (clippy, fmt, existing tests) remain green.
