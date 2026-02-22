@@ -67,26 +67,30 @@ update-state → define-next → advance → review (+ push on PASS)
 | `advance` | Implement the work package with tests |
 | `review` | Verify quality, update learnings, push on PASS |
 
+The CID orchestrator (`tools/cid.py`) streams agent progress to the terminal in real-time —
+you'll see tool calls, text output, turn counts, and cost per agent.
+
+### Run the autonomous loop
+
+```bash
+mise run cid:run        # Run up to 20 iterations (stops on DONE or failure)
+mise run cid:run 5      # Run up to 5 iterations
+```
+
 ### Run one full iteration
 
 ```bash
-mise run cid:loop
+mise run cid:step
 ```
 
 ### Run individual agents
 
 ```bash
-mise run cid:state     # Assess current project state
-mise run cid:next      # Define next work package
-mise run cid:advance   # Implement work package
-mise run cid:review    # Review and push if passing
-```
-
-### Run multiple iterations
-
-```bash
-# Run 5 consecutive CID iterations
-for i in $(seq 1 5); do echo "=== Iteration $i ===" && mise run cid:loop; done
+mise run cid:status    # Show current project state (no agent invocation)
+mise run cid:state     # Run update-state agent
+mise run cid:next      # Run define-next agent
+mise run cid:advance   # Run advance agent
+mise run cid:review    # Run review agent (pushes on PASS)
 ```
 
 ## Quality Gates

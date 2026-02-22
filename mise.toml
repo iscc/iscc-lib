@@ -2,30 +2,37 @@
 #
 # Usage: mise run <task>
 
-[tasks."cid:loop"]
+# --- CID (Continuous Iterative Development) ---
+
+[tasks."cid:run"]
+description = "Run CID loop until done or max iterations (default: 20)"
+run = "uv run tools/cid.py --skip-permissions run --max-iterations {{arg(name='n', i=0, default='20')}}"
+
+[tasks."cid:step"]
 description = "Run one full CID iteration (update-state → define-next → advance → review)"
-run = """
-echo "=== CID: update-state ===" && claude --agent update-state -p "Assess the current project state." --dangerously-skip-permissions &&
-echo "=== CID: define-next ===" && claude --agent define-next -p "Define the next work package." --dangerously-skip-permissions &&
-echo "=== CID: advance ===" && claude --agent advance -p "Implement the work package defined in next.md." --dangerously-skip-permissions &&
-echo "=== CID: review ===" && claude --agent review -p "Review the advance agent's work, then push if PASS." --dangerously-skip-permissions
-"""
+run = "uv run tools/cid.py --skip-permissions step"
+
+[tasks."cid:status"]
+description = "Show current project state from state.md"
+run = "uv run tools/cid.py status"
 
 [tasks."cid:state"]
 description = "Run update-state agent only"
-run = "claude --agent update-state -p 'Assess the current project state.' --dangerously-skip-permissions"
+run = "uv run tools/cid.py --skip-permissions role update-state"
 
 [tasks."cid:next"]
 description = "Run define-next agent only"
-run = "claude --agent define-next -p 'Define the next work package.' --dangerously-skip-permissions"
+run = "uv run tools/cid.py --skip-permissions role define-next"
 
 [tasks."cid:advance"]
 description = "Run advance agent only"
-run = "claude --agent advance -p 'Implement the work package defined in next.md.' --dangerously-skip-permissions"
+run = "uv run tools/cid.py --skip-permissions role advance"
 
 [tasks."cid:review"]
 description = "Run review agent only"
-run = "claude --agent review -p \"Review the advance agent's work, then push if PASS.\" --dangerously-skip-permissions"
+run = "uv run tools/cid.py --skip-permissions role review"
+
+# --- Quality ---
 
 [tasks.check]
 description = "Run all pre-commit hooks on all files"
