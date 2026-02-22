@@ -15,6 +15,7 @@ categories = ["multimedia", "encoding", "cryptography"]
 blake3.workspace = true
 data-encoding.workspace = true
 hex.workspace = true
+serde_json.workspace = true
 thiserror.workspace = true
 unicode-normalization.workspace = true
 unicode-general-category.workspace = true
@@ -22,4 +23,3 @@ xxhash-rust.workspace = true
 
 [dev-dependencies]
 serde = { workspace = true }
-serde_json = { workspace = true }

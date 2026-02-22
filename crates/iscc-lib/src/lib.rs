@@ -26,18 +26,43 @@ pub enum IsccError {
 /// Result type alias for ISCC operations.
 pub type IsccResult<T> = Result<T, IsccError>;
 
-/// Compute a similarity-preserving 256-bit hash from metadata text.
+/// Interleave two 32-byte SimHash digests in 4-byte chunks.
 ///
-/// Produces a SimHash digest from `name` n-grams. When `extra` is provided,
-/// interleaves the name and extra SimHash digests in 4-byte chunks.
-fn soft_hash_meta_v0(name: &str, extra: Option<&str>) -> Vec<u8> {
+/// Takes the first 16 bytes of each digest and interleaves them into
+/// a 32-byte result: 4 bytes from `a`, 4 bytes from `b`, alternating
+/// for 4 rounds (8 chunks total).
+fn interleave_digests(a: &[u8], b: &[u8]) -> Vec<u8> {
+    let mut result = vec![0u8; 32];
+    for chunk in 0..4 {
+        let src = chunk * 4;
+        let dst_a = chunk * 8;
+        let dst_b = chunk * 8 + 4;
+        result[dst_a..dst_a + 4].copy_from_slice(&a[src..src + 4]);
+        result[dst_b..dst_b + 4].copy_from_slice(&b[src..src + 4]);
+    }
+    result
+}
+
+/// Compute a SimHash digest from the name text for meta hashing.
+///
+/// Applies `text_collapse`, generates width-3 sliding window n-grams,
+/// hashes each with BLAKE3, and produces a SimHash.
+fn meta_name_simhash(name: &str) -> Vec<u8> {
     let collapsed_name = utils::text_collapse(name);
     let name_ngrams = simhash::sliding_window(&collapsed_name, 3);
     let name_hashes: Vec<[u8; 32]> = name_ngrams
         .iter()
         .map(|ng| *blake3::hash(ng.as_bytes()).as_bytes())
         .collect();
-    let name_simhash = simhash::alg_simhash(&name_hashes);
+    simhash::alg_simhash(&name_hashes)
+}
+
+/// Compute a similarity-preserving 256-bit hash from metadata text.
+///
+/// Produces a SimHash digest from `name` n-grams. When `extra` is provided,
+/// interleaves the name and extra SimHash digests in 4-byte chunks.
+fn soft_hash_meta_v0(name: &str, extra: Option<&str>) -> Vec<u8> {
+    let name_simhash = meta_name_simhash(name);
 
     match extra {
         None | Some("") => name_simhash,
@@ -50,35 +75,69 @@ fn soft_hash_meta_v0(name: &str, extra: Option<&str>) -> Vec<u8> {
                 .collect();
             let extra_simhash = simhash::alg_simhash(&extra_hashes);
 
-            // Interleave first 16 bytes of each simhash in 4-byte chunks
-            let mut result = vec![0u8; 32];
-            for chunk in 0..4 {
-                let src = chunk * 4;
-                let dst_name = chunk * 8;
-                let dst_extra = chunk * 8 + 4;
-                result[dst_name..dst_name + 4].copy_from_slice(&name_simhash[src..src + 4]);
-                result[dst_extra..dst_extra + 4].copy_from_slice(&extra_simhash[src..src + 4]);
-            }
-            result
+            interleave_digests(&name_simhash, &extra_simhash)
         }
     }
+}
+
+/// Compute a similarity-preserving 256-bit hash from name text and raw bytes.
+///
+/// Like `soft_hash_meta_v0` but the extra data is raw bytes instead of text.
+/// Uses width-4 byte n-grams (no `text_collapse`) for the bytes path,
+/// and interleaves name/bytes SimHash digests in 4-byte chunks.
+fn soft_hash_meta_v0_with_bytes(name: &str, extra: &[u8]) -> Vec<u8> {
+    let name_simhash = meta_name_simhash(name);
+
+    let byte_ngrams = simhash::sliding_window_bytes(extra, 4);
+    let byte_hashes: Vec<[u8; 32]> = byte_ngrams
+        .iter()
+        .map(|ng| *blake3::hash(ng).as_bytes())
+        .collect();
+    let byte_simhash = simhash::alg_simhash(&byte_hashes);
+
+    interleave_digests(&name_simhash, &byte_simhash)
+}
+
+/// Decode a Data-URL's base64 payload.
+///
+/// Expects a string starting with `"data:"`. Splits on the first `,` and
+/// decodes the remainder as standard base64. Returns `InvalidInput` on
+/// missing comma or invalid base64.
+fn decode_data_url(data_url: &str) -> IsccResult<Vec<u8>> {
+    let payload_b64 = data_url
+        .split_once(',')
+        .map(|(_, b64)| b64)
+        .ok_or_else(|| IsccError::InvalidInput("Data-URL missing comma separator".into()))?;
+    data_encoding::BASE64
+        .decode(payload_b64.as_bytes())
+        .map_err(|e| IsccError::InvalidInput(format!("invalid base64 in Data-URL: {e}")))
+}
+
+/// Parse a meta string as JSON and re-serialize to canonical bytes.
+///
+/// Uses `serde_json` default `BTreeMap`-based key ordering, which produces
+/// sorted-key output sufficient for ASCII keys. This is NOT full RFC 8785
+/// (JCS) compliance but matches iscc-core behavior for typical metadata.
+fn parse_meta_json(meta_str: &str) -> IsccResult<Vec<u8>> {
+    let parsed: serde_json::Value = serde_json::from_str(meta_str)
+        .map_err(|e| IsccError::InvalidInput(format!("invalid JSON in meta: {e}")))?;
+    serde_json::to_vec(&parsed)
+        .map_err(|e| IsccError::InvalidInput(format!("JSON serialization failed: {e}")))
 }
 
 /// Generate a Meta-Code from name and optional metadata.
 ///
 /// Produces an ISCC Meta-Code by hashing the provided name, description,
-/// and metadata fields using the SimHash algorithm. Returns `NotImplemented`
-/// if `meta` is provided (JSON/Data-URL meta objects are not yet supported).
+/// and metadata fields using the SimHash algorithm. When `meta` is provided,
+/// it is treated as either a Data-URL (if starting with `"data:"`) or a JSON
+/// string, and the decoded/serialized bytes are used for similarity hashing
+/// and metahash computation.
 pub fn gen_meta_code_v0(
     name: &str,
     description: Option<&str>,
     meta: Option<&str>,
     bits: u32,
 ) -> IsccResult<String> {
-    if meta.is_some() {
-        return Err(IsccError::NotImplemented);
-    }
-
     // Normalize name: clean → remove newlines → trim to 128 bytes
     let name = utils::text_clean(name);
     let name = utils::text_remove_newlines(&name);
@@ -90,38 +149,67 @@ pub fn gen_meta_code_v0(
         ));
     }
 
-    // Normalize description: clean → trim to 4096 bytes
-    let desc_str = description.unwrap_or("");
-    let desc_clean = utils::text_clean(desc_str);
-    let desc_clean = utils::text_trim(&desc_clean, 4096);
-
-    // Compute metahash from normalized payload (stored for future result struct)
-    let payload = if desc_clean.is_empty() {
-        name.clone()
-    } else {
-        format!("{} {}", name, desc_clean)
+    // Resolve meta payload bytes (if meta is provided)
+    let meta_payload: Option<Vec<u8>> = match meta {
+        Some(meta_str) if meta_str.starts_with("data:") => {
+            let decoded = decode_data_url(meta_str)?;
+            if decoded.is_empty() {
+                None
+            } else {
+                Some(decoded)
+            }
+        }
+        Some(meta_str) => Some(parse_meta_json(meta_str)?),
+        None => None,
     };
-    let payload = payload.trim().to_string();
-    let _metahash = utils::multi_hash_blake3(payload.as_bytes());
 
-    // Compute similarity digest
-    let extra = if desc_clean.is_empty() {
-        None
+    // Branch: meta bytes path vs. description text path
+    if let Some(ref payload) = meta_payload {
+        let meta_code_digest = soft_hash_meta_v0_with_bytes(&name, payload);
+        let _metahash = utils::multi_hash_blake3(payload);
+
+        let meta_code = codec::encode_component(
+            codec::MainType::Meta,
+            codec::SubType::None,
+            codec::Version::V0,
+            bits,
+            &meta_code_digest,
+        )?;
+
+        Ok(format!("ISCC:{meta_code}"))
     } else {
-        Some(desc_clean.as_str())
-    };
-    let meta_code_digest = soft_hash_meta_v0(&name, extra);
+        // Normalize description: clean → trim to 4096 bytes
+        let desc_str = description.unwrap_or("");
+        let desc_clean = utils::text_clean(desc_str);
+        let desc_clean = utils::text_trim(&desc_clean, 4096);
 
-    // Encode as ISCC component
-    let meta_code = codec::encode_component(
-        codec::MainType::Meta,
-        codec::SubType::None,
-        codec::Version::V0,
-        bits,
-        &meta_code_digest,
-    )?;
+        // Compute metahash from normalized text payload
+        let payload = if desc_clean.is_empty() {
+            name.clone()
+        } else {
+            format!("{} {}", name, desc_clean)
+        };
+        let payload = payload.trim().to_string();
+        let _metahash = utils::multi_hash_blake3(payload.as_bytes());
 
-    Ok(format!("ISCC:{meta_code}"))
+        // Compute similarity digest
+        let extra = if desc_clean.is_empty() {
+            None
+        } else {
+            Some(desc_clean.as_str())
+        };
+        let meta_code_digest = soft_hash_meta_v0(&name, extra);
+
+        let meta_code = codec::encode_component(
+            codec::MainType::Meta,
+            codec::SubType::None,
+            codec::Version::V0,
+            bits,
+            &meta_code_digest,
+        )?;
+
+        Ok(format!("ISCC:{meta_code}"))
+    }
 }
 
 /// Compute a 256-bit similarity-preserving hash from collapsed text.
@@ -671,10 +759,36 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_meta_code_v0_meta_not_implemented() {
+    fn test_gen_meta_code_v0_json_meta() {
+        let result = gen_meta_code_v0("Hello", None, Some(r#"{"some":"object"}"#), 64).unwrap();
+        assert_eq!(result, "ISCC:AAAWKLHFXN63LHL2");
+    }
+
+    #[test]
+    fn test_gen_meta_code_v0_data_url_meta() {
+        let result = gen_meta_code_v0(
+            "Hello",
+            None,
+            Some("data:application/json;charset=utf-8;base64,eyJzb21lIjogIm9iamVjdCJ9"),
+            64,
+        )
+        .unwrap();
+        assert_eq!(result, "ISCC:AAAWKLHFXN43ICP2");
+    }
+
+    #[test]
+    fn test_gen_meta_code_v0_invalid_json() {
         assert!(matches!(
-            gen_meta_code_v0("test", None, Some("{}"), 64),
-            Err(IsccError::NotImplemented)
+            gen_meta_code_v0("test", None, Some("not json"), 64),
+            Err(IsccError::InvalidInput(_))
+        ));
+    }
+
+    #[test]
+    fn test_gen_meta_code_v0_invalid_data_url() {
+        assert!(matches!(
+            gen_meta_code_v0("test", None, Some("data:no-comma-here"), 64),
+            Err(IsccError::InvalidInput(_))
         ));
     }
 
@@ -686,7 +800,6 @@ mod tests {
         let cases = section.as_object().unwrap();
 
         let mut tested = 0;
-        let mut skipped = 0;
 
         for (tc_name, tc) in cases {
             let inputs = tc["inputs"].as_array().unwrap();
@@ -698,12 +811,13 @@ mod tests {
             let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
             let expected_metahash = tc["outputs"]["metahash"].as_str().unwrap();
 
-            // Skip test cases with meta objects (deferred)
-            if !meta_val.is_null() {
-                eprintln!("Skipping {tc_name}: meta object support deferred");
-                skipped += 1;
-                continue;
-            }
+            // Dispatch meta parameter based on JSON value type
+            let meta_arg: Option<String> = match meta_val {
+                serde_json::Value::Null => None,
+                serde_json::Value::String(s) => Some(s.clone()),
+                serde_json::Value::Object(_) => Some(serde_json::to_string(meta_val).unwrap()),
+                other => panic!("unexpected meta type in {tc_name}: {other:?}"),
+            };
 
             let desc = if input_desc.is_empty() {
                 None
@@ -712,55 +826,74 @@ mod tests {
             };
 
             // Verify ISCC output
-            let result = gen_meta_code_v0(input_name, desc, None, bits)
+            let result = gen_meta_code_v0(input_name, desc, meta_arg.as_deref(), bits)
                 .unwrap_or_else(|e| panic!("gen_meta_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
                 result, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
             );
 
-            // Verify metahash by re-computing from normalized inputs
-            let clean_name = utils::text_clean(input_name);
-            let clean_name = utils::text_remove_newlines(&clean_name);
-            let clean_name = utils::text_trim(&clean_name, 128);
-            let clean_desc = utils::text_clean(input_desc);
-            let clean_desc = utils::text_trim(&clean_desc, 4096);
-
-            let payload = if clean_desc.is_empty() {
-                clean_name.clone()
+            // Verify metahash
+            if meta_arg.is_some() {
+                // For meta object/data-url cases, metahash is computed from the
+                // decoded/serialized payload bytes — verified implicitly via ISCC match.
+                // We can still verify by recomputing from the meta payload.
+                let meta_str = meta_arg.as_deref().unwrap();
+                let payload_bytes = if meta_str.starts_with("data:") {
+                    let b64 = meta_str.split_once(',').unwrap().1;
+                    data_encoding::BASE64.decode(b64.as_bytes()).unwrap()
+                } else {
+                    let parsed: serde_json::Value = serde_json::from_str(meta_str).unwrap();
+                    serde_json::to_vec(&parsed).unwrap()
+                };
+                let metahash = utils::multi_hash_blake3(&payload_bytes);
+                assert_eq!(
+                    metahash, expected_metahash,
+                    "metahash mismatch in test case {tc_name}"
+                );
             } else {
-                format!("{} {}", clean_name, clean_desc)
-            };
-            let payload = payload.trim().to_string();
-            let metahash = utils::multi_hash_blake3(payload.as_bytes());
-            assert_eq!(
-                metahash, expected_metahash,
-                "metahash mismatch in test case {tc_name}"
-            );
+                // Text path: metahash from normalized name + description
+                let clean_name = utils::text_clean(input_name);
+                let clean_name = utils::text_remove_newlines(&clean_name);
+                let clean_name = utils::text_trim(&clean_name, 128);
+                let clean_desc = utils::text_clean(input_desc);
+                let clean_desc = utils::text_trim(&clean_desc, 4096);
 
-            // Verify normalized name output
-            if let Some(expected_name) = tc["outputs"].get("name") {
-                let expected_name = expected_name.as_str().unwrap();
+                let payload = if clean_desc.is_empty() {
+                    clean_name.clone()
+                } else {
+                    format!("{} {}", clean_name, clean_desc)
+                };
+                let payload = payload.trim().to_string();
+                let metahash = utils::multi_hash_blake3(payload.as_bytes());
                 assert_eq!(
-                    clean_name, expected_name,
-                    "name mismatch in test case {tc_name}"
+                    metahash, expected_metahash,
+                    "metahash mismatch in test case {tc_name}"
                 );
-            }
 
-            // Verify normalized description output
-            if let Some(expected_desc) = tc["outputs"].get("description") {
-                let expected_desc = expected_desc.as_str().unwrap();
-                assert_eq!(
-                    clean_desc, expected_desc,
-                    "description mismatch in test case {tc_name}"
-                );
+                // Verify normalized name output
+                if let Some(expected_name) = tc["outputs"].get("name") {
+                    let expected_name = expected_name.as_str().unwrap();
+                    assert_eq!(
+                        clean_name, expected_name,
+                        "name mismatch in test case {tc_name}"
+                    );
+                }
+
+                // Verify normalized description output
+                if let Some(expected_desc) = tc["outputs"].get("description") {
+                    let expected_desc = expected_desc.as_str().unwrap();
+                    assert_eq!(
+                        clean_desc, expected_desc,
+                        "description mismatch in test case {tc_name}"
+                    );
+                }
             }
 
             tested += 1;
         }
 
-        assert_eq!(tested, 13, "expected 13 conformance tests to run");
-        assert_eq!(skipped, 3, "expected 3 tests to be skipped (meta objects)");
+        assert_eq!(tested, 16, "expected 16 conformance tests to run");
     }
 
     #[test]

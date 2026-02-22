@@ -62,6 +62,23 @@ pub(crate) fn sliding_window(seq: &str, width: usize) -> Vec<String> {
         .collect()
 }
 
+/// Generate sliding window n-grams from a byte slice.
+///
+/// Returns overlapping sub-slices of `width` bytes, advancing by one byte
+/// at a time. If the input is shorter than `width`, returns a single slice
+/// of the full input.
+pub(crate) fn sliding_window_bytes(data: &[u8], width: usize) -> Vec<&[u8]> {
+    assert!(width >= 2, "Sliding window width must be 2 or bigger.");
+    let len = data.len();
+    let range = std::cmp::max(len.saturating_sub(width).saturating_add(1), 1);
+    (0..range)
+        .map(|i| {
+            let end = std::cmp::min(i + width, len);
+            &data[i..end]
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -133,5 +150,44 @@ mod tests {
     #[should_panic(expected = "width must be 2")]
     fn test_sliding_window_width_too_small() {
         sliding_window("test", 1);
+    }
+
+    // ---- sliding_window_bytes tests ----
+
+    #[test]
+    fn test_sliding_window_bytes_basic() {
+        assert_eq!(
+            sliding_window_bytes(b"Hello", 4),
+            vec![&b"Hell"[..], &b"ello"[..]]
+        );
+    }
+
+    #[test]
+    fn test_sliding_window_bytes_shorter_than_width() {
+        assert_eq!(sliding_window_bytes(b"ab", 3), vec![&b"ab"[..]]);
+    }
+
+    #[test]
+    fn test_sliding_window_bytes_exact_width() {
+        assert_eq!(sliding_window_bytes(b"abc", 3), vec![&b"abc"[..]]);
+    }
+
+    #[test]
+    fn test_sliding_window_bytes_empty() {
+        assert_eq!(sliding_window_bytes(b"", 3), vec![&b""[..]]);
+    }
+
+    #[test]
+    fn test_sliding_window_bytes_width_4() {
+        assert_eq!(
+            sliding_window_bytes(b"abcdef", 4),
+            vec![&b"abcd"[..], &b"bcde"[..], &b"cdef"[..]]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "width must be 2")]
+    fn test_sliding_window_bytes_width_too_small() {
+        sliding_window_bytes(b"test", 1);
     }
 }

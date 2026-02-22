@@ -1,33 +1,30 @@
-## 2026-02-22 — Implement gen_video_code_v0 with WTA-Hash
+## 2026-02-22 — Implement gen_meta_code_v0 meta object support
 
-**Done:** Implemented `gen_video_code_v0` — the last remaining stub — completing all 9 gen
-functions. Created the `wtahash` module with the 256-entry permutation table and `alg_wtahash`
-algorithm. Implemented `soft_hash_video_v0` with frame deduplication (BTreeSet) and column-wise i64
-summing, then WTA-Hash. Changed the function signature from `&[Vec<u8>]` to `&[Vec<i32>]` as frame
-signature values can exceed 255.
+**Done:** Implemented JSON object and Data-URL meta input handling for `gen_meta_code_v0`,
+completing all 16 conformance vectors. Added `sliding_window_bytes` for byte-oriented n-gram
+generation, extracted `interleave_digests` and `meta_name_simhash` helpers to reduce duplication,
+and added `soft_hash_meta_v0_with_bytes` for the bytes similarity path.
 
 **Files changed:**
 
-- `crates/iscc-lib/src/wtahash.rs`: Created — WTA-Hash module with `WTA_VIDEO_ID_PERMUTATIONS` (256
-    pairs) and `alg_wtahash` function, plus 5 unit tests
-- `crates/iscc-lib/src/lib.rs`: Added `mod wtahash`, implemented `soft_hash_video_v0` and
-    `gen_video_code_v0`, replaced stub test with conformance tests and empty-input error test
+- `crates/iscc-lib/Cargo.toml`: Moved `serde_json` from `[dev-dependencies]` to `[dependencies]`
+    (needed at runtime for JSON meta parsing)
+- `crates/iscc-lib/src/simhash.rs`: Added `sliding_window_bytes` function with 6 unit tests
+- `crates/iscc-lib/src/lib.rs`: Extracted `interleave_digests` and `meta_name_simhash` helpers from
+    `soft_hash_meta_v0`; added `soft_hash_meta_v0_with_bytes`, `decode_data_url`, `parse_meta_json`;
+    updated `gen_meta_code_v0` to handle Data-URL and JSON meta inputs; replaced `NotImplemented`
+    test with 4 new unit tests; updated conformance test to run all 16 vectors without skipping
 
-**Verification:** 134 tests pass (was 128 before — gained 5 wtahash unit tests + 2 video tests, lost
-1 stub test). All 3 gen_video_code_v0 conformance vectors produce exact matching ISCC strings.
-`cargo clippy -p iscc-lib -- -D warnings` clean. `cargo fmt -p iscc-lib --check` clean. No unsafe
-code.
+**Verification:** All 143 tests pass (was 134 before — gained 9 net new tests).
+`cargo clippy -- -D warnings` clean. `cargo fmt --check` clean. No `unsafe` code. All 16
+`gen_meta_code_v0` conformance vectors pass including metahash verification.
 
-**Next:** All 9 gen functions are now implemented and passing conformance. Next steps could be:
+**Next:** Begin Python bindings (`crates/iscc-py/`) with PyO3/maturin exposing all 9 `gen_*_v0`
+functions, using abi3-py310 for single wheel per platform. The core crate is now at 100%
+conformance.
 
-- Python bindings via PyO3/maturin (the binding crate structure)
-- Streaming API (`new() -> update() -> finalize()`) for Data-Code and Instance-Code
-- `meta` parameter support in `gen_meta_code_v0` (JSON/Data-URL objects, currently returns
-    NotImplemented)
-- Performance benchmarks comparing against iscc-core
-
-**Notes:** The WTA-Hash bit logic is straightforward: `vec[i] >= vec[j]` → bit 0, `vec[i] < vec[j]`
-→ bit 1, packed MSB-first. Python uses `set()` for dedup (unordered), Rust uses `BTreeSet` (ordered)
-— this is correct because column-wise summing is commutative so iteration order doesn't affect the
-result. The signature change from `&[Vec<u8>]` to `&[Vec<i32>]` was required because the range test
-vector uses values 0-379.
+**Notes:** `serde_json` without `preserve_order` feature uses `BTreeMap` for key ordering, which
+produces sorted-key JSON serialization. This is sufficient for ASCII-key metadata (matching
+iscc-core behavior) but is not full RFC 8785 (JCS) compliance — documented with a code comment. The
+`data_encoding::BASE64` decoder handles standard base64 with padding, matching the Data-URL payloads
+in conformance vectors.
