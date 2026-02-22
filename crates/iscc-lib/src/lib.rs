@@ -161,12 +161,85 @@ pub fn gen_image_code_v0(_pixels: &[u8], _bits: u32) -> IsccResult<String> {
     Err(IsccError::NotImplemented)
 }
 
+/// Split a slice into `n` parts, distributing remainder across first chunks.
+///
+/// Equivalent to `numpy.array_split` / `more_itertools.divide`:
+/// each part gets `len / n` elements, and the first `len % n` parts
+/// get one extra element. Returns empty slices for excess parts.
+fn array_split<T>(slice: &[T], n: usize) -> Vec<&[T]> {
+    if n == 0 {
+        return vec![];
+    }
+    let len = slice.len();
+    let base = len / n;
+    let remainder = len % n;
+    let mut parts = Vec::with_capacity(n);
+    let mut offset = 0;
+    for i in 0..n {
+        let size = base + if i < remainder { 1 } else { 0 };
+        parts.push(&slice[offset..offset + size]);
+        offset += size;
+    }
+    parts
+}
+
+/// Compute a multi-stage SimHash digest from Chromaprint features.
+///
+/// Builds a 32-byte digest by concatenating 4-byte SimHash chunks:
+/// - Stage 1: overall SimHash of all features (4 bytes)
+/// - Stage 2: SimHash of each quarter of features (4 × 4 = 16 bytes)
+/// - Stage 3: SimHash of each third of sorted features (3 × 4 = 12 bytes)
+fn soft_hash_audio_v0(cv: &[i32]) -> Vec<u8> {
+    // Convert each i32 to 4-byte big-endian digest
+    let digests: Vec<[u8; 4]> = cv.iter().map(|&v| v.to_be_bytes()).collect();
+
+    if digests.is_empty() {
+        return vec![0u8; 32];
+    }
+
+    // Stage 1: overall SimHash (4 bytes)
+    let mut parts: Vec<u8> = simhash::alg_simhash(&digests);
+
+    // Stage 2: quarter-based SimHashes (4 × 4 = 16 bytes)
+    let quarters = array_split(&digests, 4);
+    for quarter in &quarters {
+        if quarter.is_empty() {
+            parts.extend_from_slice(&[0u8; 4]);
+        } else {
+            parts.extend_from_slice(&simhash::alg_simhash(quarter));
+        }
+    }
+
+    // Stage 3: sorted-third-based SimHashes (3 × 4 = 12 bytes)
+    let mut sorted_values: Vec<i32> = cv.to_vec();
+    sorted_values.sort();
+    let sorted_digests: Vec<[u8; 4]> = sorted_values.iter().map(|&v| v.to_be_bytes()).collect();
+    let thirds = array_split(&sorted_digests, 3);
+    for third in &thirds {
+        if third.is_empty() {
+            parts.extend_from_slice(&[0u8; 4]);
+        } else {
+            parts.extend_from_slice(&simhash::alg_simhash(third));
+        }
+    }
+
+    parts
+}
+
 /// Generate an Audio-Code from a Chromaprint feature vector.
 ///
-/// Produces an ISCC Content-Code for audio from a Chromaprint integer
-/// fingerprint vector.
-pub fn gen_audio_code_v0(_cv: &[u32], _bits: u32) -> IsccResult<String> {
-    Err(IsccError::NotImplemented)
+/// Produces an ISCC Content-Code for audio from a Chromaprint signed
+/// integer fingerprint vector using multi-stage SimHash.
+pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<String> {
+    let hash_digest = soft_hash_audio_v0(cv);
+    let component = codec::encode_component(
+        codec::MainType::Content,
+        codec::SubType::Audio,
+        codec::Version::V0,
+        bits,
+        &hash_digest,
+    )?;
+    Ok(format!("ISCC:{component}"))
 }
 
 /// Generate a Video-Code from frame signature data.
@@ -393,11 +466,88 @@ mod tests {
     }
 
     #[test]
-    fn test_gen_audio_code_v0_stub() {
-        assert!(matches!(
-            gen_audio_code_v0(&[0u32; 10], 64),
-            Err(IsccError::NotImplemented)
-        ));
+    fn test_gen_audio_code_v0_empty() {
+        let result = gen_audio_code_v0(&[], 64).unwrap();
+        assert_eq!(result, "ISCC:EIAQAAAAAAAAAAAA");
+    }
+
+    #[test]
+    fn test_gen_audio_code_v0_single() {
+        let result = gen_audio_code_v0(&[1], 128).unwrap();
+        assert_eq!(result, "ISCC:EIBQAAAAAEAAAAABAAAAAAAAAAAAA");
+    }
+
+    #[test]
+    fn test_gen_audio_code_v0_negative() {
+        let result = gen_audio_code_v0(&[-1, 0, 1], 256).unwrap();
+        assert_eq!(
+            result,
+            "ISCC:EIDQAAAAAH777777AAAAAAAAAAAACAAAAAAP777774AAAAAAAAAAAAI"
+        );
+    }
+
+    #[test]
+    fn test_gen_audio_code_v0_conformance() {
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let section = &data["gen_audio_code_v0"];
+        let cases = section.as_object().unwrap();
+
+        let mut tested = 0;
+
+        for (tc_name, tc) in cases {
+            let inputs = tc["inputs"].as_array().unwrap();
+            let cv_json = inputs[0].as_array().unwrap();
+            let bits = inputs[1].as_u64().unwrap() as u32;
+            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+
+            let cv: Vec<i32> = cv_json.iter().map(|v| v.as_i64().unwrap() as i32).collect();
+
+            let result = gen_audio_code_v0(&cv, bits)
+                .unwrap_or_else(|e| panic!("gen_audio_code_v0 failed for {tc_name}: {e}"));
+            assert_eq!(
+                result, expected_iscc,
+                "ISCC mismatch in test case {tc_name}"
+            );
+
+            tested += 1;
+        }
+
+        assert_eq!(tested, 5, "expected 5 conformance tests to run");
+    }
+
+    #[test]
+    fn test_array_split_even() {
+        let data = vec![1, 2, 3, 4];
+        let parts = array_split(&data, 4);
+        assert_eq!(parts, vec![&[1][..], &[2][..], &[3][..], &[4][..]]);
+    }
+
+    #[test]
+    fn test_array_split_remainder() {
+        let data = vec![1, 2, 3, 4, 5];
+        let parts = array_split(&data, 3);
+        assert_eq!(parts, vec![&[1, 2][..], &[3, 4][..], &[5][..]]);
+    }
+
+    #[test]
+    fn test_array_split_more_parts_than_elements() {
+        let data = vec![1, 2];
+        let parts = array_split(&data, 4);
+        assert_eq!(
+            parts,
+            vec![&[1][..], &[2][..], &[][..] as &[i32], &[][..] as &[i32]]
+        );
+    }
+
+    #[test]
+    fn test_array_split_empty() {
+        let data: Vec<i32> = vec![];
+        let parts = array_split(&data, 3);
+        assert_eq!(
+            parts,
+            vec![&[][..] as &[i32], &[][..] as &[i32], &[][..] as &[i32]]
+        );
     }
 
     #[test]
