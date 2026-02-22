@@ -1,31 +1,27 @@
-## 2026-02-22 — Add GitHub Actions CI workflow
+## 2026-02-22 — Review of: Add GitHub Actions CI workflow
 
-**Done:** Created `.github/workflows/ci.yml` with two parallel jobs (`rust` and `python`) that
-mirror all local quality gates. The `rust` job runs fmt, clippy, and tests. The `python` job builds
-PyO3 bindings via maturin and runs ruff + pytest. Concurrency control cancels redundant runs.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** The CI workflow is clean, minimal, and correctly mirrors all local quality gates. Two
+parallel jobs (rust: fmt/clippy/test, python: ruff/maturin/pytest) on ubuntu-latest with concurrency
+control and Rust caching. All 143 Rust tests pass, all 14 pre-commit hooks pass, no quality gate
+circumvention.
 
-- `.github/workflows/ci.yml`: New CI workflow with `rust` and `python` jobs on ubuntu-latest
+**Issues found:**
 
-**Verification:** All local quality gates pass:
+- (none)
 
-- `cargo test --workspace`: 143 tests passed
-- `cargo clippy --workspace --all-targets -- -D warnings`: clean
-- `cargo fmt --all --check`: clean
-- `uv run prek run --all-files`: all 14 hooks passed (including `check yaml` and `YAML formatting`)
+**Next:** The CI/CD foundation is in place. Suggested next steps in priority order:
 
-**Next:** The CI workflow is ready to validate on push to GitHub. Suggested next steps:
-
-1. **Cross-platform CI matrix** — extend the workflow with macOS and Windows runners
-2. **State.md update** — reflect CI addition and overall project completion status
+1. **Update state.md** — reflect CI addition and overall project completion status (Rust core
+    complete, Python bindings complete, CI in place). The current state.md is stale.
+2. **Cross-platform CI matrix** — extend ci.yml with macOS and Windows runners for full coverage
 3. **Benchmarks** — criterion for Rust, pytest-benchmark for Python (per notes/09)
-4. **Release/publish workflows** — tag-triggered workflows for crates.io and PyPI publishing
+4. **Release/publish workflows** — tag-triggered workflows for crates.io and PyPI publishing (per
+    notes/06 patterns)
 
-**Notes:** The workflow deliberately does NOT use `mise` in CI — it calls `cargo`, `uv`, and tools
-directly for transparency and reliability, as specified in the work package. Python is pinned to
-3.10 (the minimum from abi3-py310). Both jobs use `Swatinem/rust-cache@v2` since the python job also
-needs Rust compilation for `maturin develop`. The workflow uses `dtolnay/rust-toolchain@stable`
-rather than pinning a specific Rust version — this is intentional for CI (stable tracks the latest
-release, and the workspace `rust-version = "1.85"` in Cargo.toml provides MSRV enforcement
-separately).
+**Notes:** The workflow uses `dtolnay/rust-toolchain@stable` (not pinned MSRV) which is intentional
+— MSRV is enforced via `rust-version = "1.85"` in Cargo.toml. The python job includes
+`Swatinem/rust-cache@v2` because maturin compiles the PyO3 crate. The workflow will be validated
+when pushed to GitHub — if the CI fails remotely (e.g., due to uv/maturin environment differences),
+that should be the immediate next fix.

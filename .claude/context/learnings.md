@@ -85,3 +85,6 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - Python conformance tests share `data.json` with Rust tests via relative path
     (`Path(__file__).parent.parent / "crates/iscc-lib/tests/data.json"`). Use
     `pytest.param(...,   id=name)` for readable test IDs that match the JSON keys
+- CI workflow: do NOT use `mise` in GitHub Actions — call `cargo`, `uv`, and tools directly. Use
+    `dtolnay/rust-toolchain@stable` + `Swatinem/rust-cache@v2` + `astral-sh/setup-uv@v4` +
+    `actions/setup-python@v5` as the standard action set
