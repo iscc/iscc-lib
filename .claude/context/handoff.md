@@ -1,40 +1,25 @@
-## 2026-02-22 — Expose all 9 gen\_\*\_v0 functions in PyO3 bindings with type stub
+## 2026-02-22 — Review of: Expose all 9 gen\_\*\_v0 functions in PyO3 bindings with type stub
 
-**Done:** Added PyO3 wrappers for all 8 remaining `gen_*_v0` functions (meta, text, image, audio,
-video, mixed, data, iscc-code), created `_lowlevel.pyi` type stubs for the native module, and
-updated `__init__.py` to re-export all 9 functions.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** All 8 remaining `gen_*_v0` functions are correctly exposed through PyO3 with proper
+type mappings, default arguments, and docstrings. The `_lowlevel.pyi` type stub and `__init__.py`
+re-exports complete the Python bindings. All quality gates pass: 143 Rust tests, clippy clean, fmt
+clean, ty type checking, pytest (3 smoke tests), and all pre-commit/pre-push hooks green.
 
-- `crates/iscc-py/src/lib.rs`: Added 8 `#[pyfunction]` wrappers matching the existing
-    `gen_instance_code_v0` pattern. Type conversions: `Vec<i32>` for `&[i32]`, `Vec<Vec<i32>>` for
-    `&[Vec<i32>]`, `Vec<String>` → `Vec<&str>` for `&[&str]` parameters. All 9 functions registered
-    in the `iscc_lowlevel` module.
-- `crates/iscc-py/python/iscc/_lowlevel.pyi`: Created type stub with all 9 function signatures using
-    Python type annotations (`bytes`, `list[int]`, `str | None`, etc.).
-- `crates/iscc-py/python/iscc/__init__.py`: Updated to import and re-export all 9 functions in
-    `__all__` (alphabetically sorted).
+**Issues found:**
 
-**Verification:**
+- (none)
 
-- `cargo build -p iscc-py` ✓
-- `cargo clippy -p iscc-py -- -D warnings` ✓ (clean)
-- `cargo fmt --check` ✓ (clean)
-- `maturin develop` ✓ (built and installed)
-- All 9 functions importable from Python ✓
-- `uv run ty check` ✓ ("All checks passed!")
-- `uv run pytest tests/` ✓ (3 passed)
-- `cargo test -p iscc-lib` ✓ (143 passed, all conformance vectors match)
+**Next:** The Python bindings are functionally complete (all 9 `gen_*_v0` functions exposed). The
+most impactful next step is adding Python-level conformance tests that exercise all 9 functions
+against the vendored `data.json` vectors via pytest. This validates the full pipeline (Python → PyO3
+→ Rust → result) and catches any type conversion bugs. After that, consider CI/CD setup (GitHub
+Actions) or benchmarks.
 
-**Next:** The Python bindings are now complete. Next steps could include:
-
-1. Adding Python-level conformance tests (pytest tests that exercise all 9 functions against
-    data.json vectors)
-2. Setting up CI/CD pipeline (GitHub Actions)
-3. Adding benchmarks comparing Rust vs Python reference performance
-
-**Notes:** The next.md verification section expected `gen_meta_code_v0('Hello')` to return
-`ISCC:AAAWKLHFPV6OPKDG` but the actual output is `ISCC:AAAWKLHFXM75OAMK`. This is NOT a bug — all 16
-gen_meta_code_v0 conformance test vectors pass correctly against the official data.json. The
-expected value in next.md appears to have been incorrect (possibly from a different iscc-core
-version or not verified against the reference).
+**Notes:** The `next.md` had an incorrect expected value for `gen_meta_code_v0('Hello')` — it
+expected `ISCC:AAAWKLHFPV6OPKDG` but the correct output (verified against all 16 conformance
+vectors) is `ISCC:AAAWKLHFXM75OAMK`. This is not a code issue; the expected value in next.md was
+wrong. State.md should be updated to reflect that Python bindings are now complete (all 9 functions
+exposed, ty passes). Only 3 smoke tests exist on the Python side — conformance test coverage from
+Python is the main gap.

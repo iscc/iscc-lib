@@ -77,3 +77,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - PyO3 `#[pyo3(signature = (data, bits=64))]` syntax provides Python-side default arguments cleanly
 - `ty` type checker (pre-push hook) cannot resolve native extension module imports — PyO3/maturin
     modules need `.pyi` type stubs (e.g., `_lowlevel.pyi`) alongside `py.typed` for `ty` to pass
+- PyO3 type mappings for slices: `&[&str]` → accept `Vec<String>` then convert via
+    `codes.iter().map(|s| s.as_str()).collect()`. `&[i32]` → accept `Vec<i32>` then pass `&cv`.
+    `&[u8]` and `&str` can be received directly by reference
+- All 9 `gen_*_v0` PyO3 bindings follow identical thin-wrapper pattern: `#[pyfunction]` +
+    `#[pyo3(signature)]` + `map_err(PyValueError)`. No logic in the binding layer
