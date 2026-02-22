@@ -32,3 +32,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - `gen_instance_code_v0` accepts a `bits` parameter in the Python reference (default 64)
 - `gen_iscc_code_v0` takes `(codes, wide: bool)` — Python uses `wide=False` for 128-bit vs 256-bit
     output
+- ST_ISCC SubType values are 0-7 (TEXT=0..MIXED=4, SUM=5, NONE=6, WIDE=7) — they share values 0-4
+    with ST_CC, making a unified Rust SubType enum with values 0-7 correct for header encoding
+- `codec` module is Tier 2 (`pub mod codec`) per notes/04, not `pub(crate)` — Tier 2 items are
+    public Rust API but not exposed through FFI bindings
