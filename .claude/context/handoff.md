@@ -1,25 +1,31 @@
-## 2026-02-22 — Review of: Expose all 9 gen\_\*\_v0 functions in PyO3 bindings with type stub
+## 2026-02-22 — Add Python conformance tests for all 9 gen\_\*\_v0 functions
 
-**Verdict:** PASS
+**Done:** Created `tests/test_conformance.py` with parametrized tests for all 9 `gen_*_v0` functions
+against the 46 conformance vectors from `data.json`. Each function's test cases handle the correct
+input type conversions (hex-decoded bytes for stream data, `json.dumps` for meta dicts, `bytes()`
+for pixel arrays, etc.). All 46 tests pass, validating the full Python → PyO3 → Rust → result
+pipeline.
 
-**Summary:** All 8 remaining `gen_*_v0` functions are correctly exposed through PyO3 with proper
-type mappings, default arguments, and docstrings. The `_lowlevel.pyi` type stub and `__init__.py`
-re-exports complete the Python bindings. All quality gates pass: 143 Rust tests, clippy clean, fmt
-clean, ty type checking, pytest (3 smoke tests), and all pre-commit/pre-push hooks green.
+**Files changed:**
 
-**Issues found:**
+- `tests/test_conformance.py`: new file with 9 parametrized test functions covering all 46
+    conformance vectors. Uses `load_vectors` helper for DRY data loading, `_prepare_meta_arg` for
+    meta type dispatch, and `_decode_stream` for hex stream parsing.
 
-- (none)
+**Verification:**
 
-**Next:** The Python bindings are functionally complete (all 9 `gen_*_v0` functions exposed). The
-most impactful next step is adding Python-level conformance tests that exercise all 9 functions
-against the vendored `data.json` vectors via pytest. This validates the full pipeline (Python → PyO3
-→ Rust → result) and catches any type conversion bugs. After that, consider CI/CD setup (GitHub
-Actions) or benchmarks.
+- `pytest tests/test_conformance.py -v`: 46 passed
+- `pytest tests/`: 49 passed (3 smoke + 46 conformance)
+- `ruff check tests/test_conformance.py`: clean
+- `ruff format --check tests/test_conformance.py`: clean
+- `uv run prek run --all-files`: all 14 hooks passed
 
-**Notes:** The `next.md` had an incorrect expected value for `gen_meta_code_v0('Hello')` — it
-expected `ISCC:AAAWKLHFPV6OPKDG` but the correct output (verified against all 16 conformance
-vectors) is `ISCC:AAAWKLHFXM75OAMK`. This is not a code issue; the expected value in next.md was
-wrong. State.md should be updated to reflect that Python bindings are now complete (all 9 functions
-exposed, ty passes). Only 3 smoke tests exist on the Python side — conformance test coverage from
-Python is the main gap.
+**Next:** The Python bindings target criteria are now fully met (all 9 functions exposed via PyO3,
+all 46 conformance vectors pass from Python). Consider CI/CD setup (GitHub Actions workflows),
+benchmarks (criterion for Rust, pytest-benchmark for Python), or starting the next binding crate
+(Node.js via napi-rs, WASM via wasm-bindgen, or C FFI via cbindgen).
+
+**Notes:** The `description` parameter for `gen_meta_code_v0` uses `description or None` to map
+empty string to `None`, matching the Rust conformance test behavior (the Rust `gen_meta_code_v0`
+treats `Some("")` identically to `None` via `unwrap_or("")`, so both approaches produce the same
+result). No surprises or shortcuts taken.
