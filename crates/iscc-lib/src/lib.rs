@@ -9,6 +9,7 @@ pub mod codec;
 pub(crate) mod dct;
 pub mod minhash;
 pub mod simhash;
+pub mod streaming;
 pub mod types;
 pub mod utils;
 pub(crate) mod wtahash;
@@ -18,6 +19,7 @@ pub use codec::encode_base64;
 pub use codec::iscc_decompose;
 pub use minhash::alg_minhash_256;
 pub use simhash::{alg_simhash, sliding_window};
+pub use streaming::{DataHasher, InstanceHasher};
 pub use types::*;
 pub use utils::{text_clean, text_collapse, text_remove_newlines, text_trim};
 
