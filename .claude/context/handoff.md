@@ -1,37 +1,27 @@
-## 2026-02-23 — Implement DataHasher and InstanceHasher streaming types
+## 2026-02-23 — Review of: Implement DataHasher and InstanceHasher streaming types
 
-**Done:** Implemented `DataHasher` and `InstanceHasher` streaming types in
-`crates/iscc-lib/src/streaming.rs`, completing the last two functional Tier 1 symbols (21 and 22 of
-22). Both types follow the `new() → update(&[u8]) → finalize()` pattern and produce output identical
-to their one-shot counterparts (`gen_data_code_v0` and `gen_instance_code_v0`).
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, well-structured implementation of `DataHasher` and `InstanceHasher` streaming
+types. Both follow the `new() → update(&[u8]) → finalize()` pattern specified in
+`notes/03-async-and-streaming.md` and produce output identical to their one-shot counterparts across
+all conformance vectors and edge cases. 15 new tests added (7 InstanceHasher + 8 DataHasher)
+covering empty input, small data, multi-chunk, byte-at-a-time, default, various bit widths, and
+conformance vectors. All 229 Rust tests pass (179 unit + 28 algo + 22 text), 63 Python tests pass,
+clippy clean workspace-wide, all pre-commit hooks pass.
 
-- `crates/iscc-lib/src/streaming.rs`: New file with `InstanceHasher` (BLAKE3 streaming) and
-    `DataHasher` (CDC + xxh32 + MinHash streaming), both with `Default` impls and comprehensive
-    tests
-- `crates/iscc-lib/src/lib.rs`: Added `pub mod streaming;` and
-    `pub use streaming::{DataHasher, InstanceHasher};` re-exports
+**Issues found:**
 
-**Verification:** All 179 Rust tests pass (15 new streaming tests added). Clippy clean
-workspace-wide. All pre-commit hooks pass. Specifically:
+- (none)
 
-- `InstanceHasher` matches `gen_instance_code_v0` for all conformance vectors (iscc, datahash,
-    filesize)
-- `DataHasher` matches `gen_data_code_v0` for all conformance vectors
-- Multi-chunk streaming (256-byte, 1024-byte, byte-at-a-time) produces identical results to one-shot
-    for both hashers
-- Empty input handling works correctly for both hashers
-- Various bit widths (64, 128, 256) tested
-- Both types importable as `iscc_lib::DataHasher` / `iscc_lib::InstanceHasher`
+**Next:** All 22 functional Tier 1 symbols are now implemented. The remaining Tier 1 work is
+`conformance_selftest` — a diagnostic function that runs all conformance vectors from `data.json`
+and returns pass/fail. After that, `state.md` should be updated to reflect 22/22 Tier 1 symbols
+complete. The binding crates (Python, Node.js, WASM, C FFI) also need wrappers for the streaming
+types — these could be scoped as a separate work package.
 
-**Next:** All 22 Tier 1 symbols are now implemented. The remaining work is `conformance_selftest` (a
-function that runs all conformance vectors and returns pass/fail). After that, state.md should be
-updated to reflect 22/22 Tier 1 symbols complete.
-
-**Notes:** The `DataHasher` faithfully ports the Python `DataHasherV0.push()` method's `prev_chunk`
-pattern — all chunks except the last get hashed, with the last becoming the tail for the next
-`update()` call. This correctly handles CDC boundary cases across multiple `update()` calls. The
-`InstanceHasher` constructs the multihash string directly from the BLAKE3 digest
-(`format!("1e20{}", hex::encode(...))`) rather than calling `multi_hash_blake3`, avoiding a
-redundant rehash of the same data.
+**Notes:** The `DataHasher` faithfully ports the Python `DataHasherV0.push()` `prev_chunk` pattern
+for CDC tail handling across `update()` boundaries. The `InstanceHasher` avoids redundant rehashing
+by constructing the multihash directly from the BLAKE3 digest (`format!("1e20{}", hex::encode(...))`
+) instead of calling `multi_hash_blake3`. Both types are re-exported at crate root for flat imports
+(`iscc_lib::DataHasher` / `iscc_lib::InstanceHasher`).

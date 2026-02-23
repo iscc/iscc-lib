@@ -174,3 +174,11 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     validation typically uses `cargo clippy -p iscc-lib`. Newer clippy lints (e.g.,
     `cloned_ref_to_slice_refs` in Rust 1.93+) may only surface in `--all-targets` mode which
     includes integration tests. Always verify with workspace-wide clippy before pushing
+- `DataHasher` streaming CDC: the `prev_chunk` pattern (hash all chunks except last, carry last as
+    tail) is critical for correctness across `update()` boundaries. Byte-at-a-time streaming
+    produces identical results to one-shot because CDC handles sub-minimum-size input by returning
+    the entire buffer as one chunk
+- `InstanceHasher` constructs multihash directly from BLAKE3 digest
+    (`format!("1e20{}", hex::encode(...))`) — avoids calling `multi_hash_blake3` which would
+    redundantly rehash the same data. The `1e20` prefix is the BLAKE3 multihash header (codec 0x1e,
+    length 0x20=32 bytes)
