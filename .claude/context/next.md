@@ -1,90 +1,120 @@
 # Next Work Package
 
-## Step: Set up zensical documentation scaffold
+## Step: Add Python API reference page with docstrings
 
 ## Goal
 
-Create the documentation build infrastructure using zensical (the tool specified in
-notes/05-developer-tooling.md and used by iscc-usearch). This establishes the foundation for the
-documentation site at lib.iscc.codes — the largest remaining gap before the project is complete.
+Create the Python API reference documentation page using mkdocstrings, with descriptive docstrings
+for all 9 `gen_*_v0` functions. This directly addresses the target requirement "Covers Rust API,
+Python API" and is the highest-value documentation content page.
 
 ## Scope
 
-- **Create**: `zensical.toml`, `docs/index.md`
-- **Modify**: `pyproject.toml` (add zensical + mkdocstrings dependencies to dev group)
-- **Reference**: `notes/05-developer-tooling.md` (documentation section), `iscc/iscc-usearch`
-    `zensical.toml` (via deepwiki MCP), `pyproject.toml` (current dev deps)
+- **Create**: `docs/api.md`
+- **Modify**: `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (add docstrings), `zensical.toml` (add
+    api.md to nav)
+- **Reference**: `crates/iscc-lib/src/api.rs` (Rust function signatures and doc comments),
+    `crates/iscc-py/python/iscc_lib/__init__.py` (re-export structure), iscc-usearch API reference
+    page style (https://usearch.iscc.codes/)
 
 ## Implementation Notes
 
-### 1. Add zensical to pyproject.toml dev dependencies
+### 1. Add docstrings to `_lowlevel.pyi`
 
-Add these packages to `[dependency-groups] dev`:
+Each of the 9 functions needs a concise docstring describing:
 
-- `zensical` — the static site generator (Material for MkDocs successor)
-- `mkdocstrings[python]` — for auto-generating API reference from Python docstrings
+- What the function generates (which ISCC code type)
+- Parameter descriptions with types already visible from annotations
+- Return value description (JSON string with `iscc` field)
 
-### 2. Create `zensical.toml`
+Example pattern:
 
-Adapt the iscc-usearch configuration for iscc-lib. Key differences from iscc-usearch:
+```python
+def gen_meta_code_v0(
+    name: str,
+    description: str | None = None,
+    meta: str | None = None,
+    bits: int = 64,
+) -> str:
+    """Generate an ISCC Meta-Code from content metadata.
 
-- `site_name = "iscc-lib"`
-- `site_description` = description about high-performance polyglot ISCC implementation
-- `site_url = "https://lib.iscc.codes/"`
-- `repo_url = "https://github.com/iscc/iscc-lib"`
-- `repo_name = "iscc/iscc-lib"`
-- `copyright = "Copyright &copy; 2025-2026 ISCC Foundation"`
+    :param name: Title or name of the content (max 128 chars after normalization).
+    :param description: Optional text description (max 4096 chars after normalization).
+    :param meta: Optional JSON metadata for deterministic encoding.
+    :param bits: Bit length of the code body (default 64).
+    :return: JSON string containing ``iscc`` and ``metahash`` fields.
+    """
+    ...
+```
 
-**Keep it minimal for this first step** — do NOT reference `extra_css`, `custom_dir` (overrides),
-`extra_javascript`, logo, or favicon yet. Those will be added in a follow-up step. The default
-Material theme works without custom assets.
+Use Sphinx-style docstrings (`:param:`, `:return:`) matching the `docstring_style = "sphinx"`
+setting in `zensical.toml`.
 
-**Navigation** — start with a minimal nav. Only `index.md` for now:
+Reference `crates/iscc-lib/src/api.rs` for accurate parameter descriptions. Key details from
+learnings:
+
+- All functions return JSON strings (not parsed objects)
+- `gen_audio_code_v0` takes `list[int]` (Chromaprint signed i32 features)
+- `gen_video_code_v0` takes `list[list[int]]` (list of Chromaprint frame signatures)
+- `gen_mixed_code_v0` takes `list[str]` (ISCC code strings, optional "ISCC:" prefix)
+- `gen_data_code_v0` and `gen_instance_code_v0` take `bytes` (raw binary data)
+- `gen_iscc_code_v0` takes `list[str]` codes + `bool` wide flag
+
+### 2. Create `docs/api.md`
+
+Create an API reference page that uses mkdocstrings to auto-generate documentation from the Python
+module. Structure:
+
+```markdown
+# API Reference
+
+Brief intro explaining these are the Python bindings and all functions return JSON strings.
+
+## Functions
+
+::: iscc_lib
+    options:
+      show_root_heading: false
+      members_order: source
+```
+
+The `:::iscc_lib` directive tells mkdocstrings to document the `iscc_lib` module. Since
+`__init__.py` re-exports all 9 functions, mkdocstrings will document them all. The handler is
+already configured in `zensical.toml` with `paths = ["crates/iscc-py/python/iscc_lib"]`.
+
+griffe (mkdocstrings' backend) uses static analysis, not import, so it should resolve the
+`_lowlevel.pyi` stubs without needing the native module installed.
+
+If griffe fails to resolve the re-exports from `_lowlevel`, fall back to documenting
+`iscc_lib._lowlevel` directly:
+
+```markdown
+::: iscc_lib._lowlevel
+```
+
+### 3. Update `zensical.toml` nav
+
+Change the nav from:
 
 ```toml
 nav = ["index.md"]
 ```
 
-**Theme** — include basic features (code copy, navigation, search) but NO `custom_dir`, NO
-`logo`/`favicon` (use defaults). Include both light/dark palette toggles.
+to:
 
-**Plugins** — enable `mkdocstrings` with Python handler pointing to `crates/iscc-py/python/iscc_lib`
-(where the Python stubs live).
-
-**Markdown extensions** — copy the full set from iscc-usearch (admonition, pymdownx.\*, toc with
-permalink, etc.). These are standard and don't require extra files.
-
-**DO NOT** include the `pymdownx.snippets` `auto_append` for `abbreviations.md` since that file
-doesn't exist yet.
-
-**DO NOT** include the `pymdownx.emoji` extension with `zensical.extensions.emoji` references — only
-include it if zensical supports it out of the box (it should, since it's a zensical built-in).
-
-### 3. Create `docs/index.md`
-
-Write a landing page for iscc-lib. Content should cover:
-
-- Project title and one-line description
-- What iscc-lib is (high-performance Rust implementation of ISO 24138:2024)
-- Key features: 9 `gen_*_v0` functions, conformance with iscc-core, multi-language bindings
-- Available bindings: Rust (crates.io), Python (PyPI), Node.js (npm), WASM (npm), C FFI
-- Quick install examples for Rust (`cargo add iscc-lib`) and Python (`pip install iscc-lib`)
-- Link to ISO 24138 and ISCC Foundation
-
-Use Material for MkDocs admonitions, tabs, and code blocks to make it visually appealing.
-
-### 4. Run `uv sync --group dev` after modifying pyproject.toml
-
-This installs zensical. Then verify with `uv run zensical build`.
+```toml
+nav = ["index.md", "api.md"]
+```
 
 ## Verification
 
-- `uv sync --group dev` succeeds (zensical installs without errors)
-- `uv run zensical build` succeeds and produces a `site/` directory
-- `site/index.html` exists and contains the iscc-lib landing page content
-- No pre-existing tests are broken (`cargo test -p iscc-lib` still passes)
+- `uv run zensical build` succeeds without errors
+- `site/api/index.html` exists and contains documentation for all 9 `gen_*_v0` functions
+- Each function shows its signature with type annotations
+- Each function shows its docstring description
+- All existing tests still pass (`cargo test -p iscc-lib` — 143 tests)
 
 ## Done When
 
-The advance agent is done when `uv run zensical build` produces a working documentation site in
-`site/` with the landing page content, and all existing tests still pass.
+The advance agent is done when `uv run zensical build` produces a site with an API reference page
+showing all 9 documented `gen_*_v0` functions with signatures and descriptions.
