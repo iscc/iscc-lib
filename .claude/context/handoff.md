@@ -26,3 +26,30 @@ package has the highest impact next.
     iscc-core behavior where absent fields simply don't appear in the returned dict.
 - Conformance tests now verify ALL output fields (not just `iscc`), providing strong regression
     coverage for any future changes to result struct population.
+
+---
+
+## 2026-02-23 — Spec update: hybrid IsccResult objects for Python bindings
+
+**Action:** Updated `.claude/context/specs/python-bindings.md`
+
+**What was added:** A new "Hybrid Result Objects — Dict + Attribute Access" section specifying that
+all 9 `gen_*_v0` Python functions should return typed `IsccResult(dict)` subclasses instead of plain
+dicts. This gives users both `result['iscc']` (dict) and `result.iscc` (attribute) access with full
+IDE code completion, while remaining a drop-in replacement for iscc-core.
+
+**Key design decisions:**
+
+- Implementation lives entirely in `crates/iscc-py/python/iscc_lib/__init__.py` (pure Python
+    wrapper)
+- Rust/PyO3 `_lowlevel` module unchanged — continues returning plain `PyDict`
+- One `IsccResult(dict)` base class with `__getattr__` delegation
+- 9 typed subclasses (`MetaCodeResult`, `TextCodeResult`, etc.) with class-level annotations
+- Wrapper functions in `__init__.py` call `_lowlevel` and wrap the result
+- No `.pyi` stubs needed for public API — annotations are inline in pure Python source
+
+**Verification criteria added:** 7 new checklist items covering attribute access, dict
+compatibility, `isinstance` checks, IDE completion, JSON serialization, and exports.
+
+**Next:** Implement the hybrid result objects per the spec. This is a pure Python change in
+`__init__.py` — no Rust modifications needed. Then update tests to verify both access patterns.

@@ -46,10 +46,102 @@ documentation reflects the structured return types.
 with a `.read()` method), matching iscc-core's `Stream` type
 (`Union[BinaryIO, mmap.mmap, BytesIO, BufferedReader]`).
 
+## Hybrid Result Objects — Dict + Attribute Access
+
+All `gen_*_v0` functions return `IsccResult` subclass instances that support both dict-style
+(`result['iscc']`) and attribute-style (`result.iscc`) access. This provides IDE code completion
+while remaining a drop-in replacement for code expecting plain dicts.
+
+### Architecture
+
+The implementation lives entirely in the Python wrapper layer (`__init__.py`). The Rust/PyO3
+`_lowlevel` module continues to return plain `PyDict` objects — no Rust changes required.
+
+**Base class** — a single `IsccResult(dict)` with `__getattr__` delegation:
+
+```python
+class IsccResult(dict):
+    """ISCC result with both dict-style and attribute-style access."""
+
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name) from None
+```
+
+**Typed subclasses** — one per result shape, with class-level type annotations for IDE completion:
+
+```python
+class MetaCodeResult(IsccResult):
+    """Result of gen_meta_code_v0."""
+
+    iscc: str
+    name: str
+    metahash: str
+    description: str | None
+    meta: str | None
+
+
+class TextCodeResult(IsccResult):
+    """Result of gen_text_code_v0."""
+
+    iscc: str
+    characters: int
+```
+
+Result type classes:
+
+| Class                | Annotated attributes                                                                       |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `MetaCodeResult`     | `iscc: str`, `name: str`, `metahash: str`, `description: str \| None`, `meta: str \| None` |
+| `TextCodeResult`     | `iscc: str`, `characters: int`                                                             |
+| `ImageCodeResult`    | `iscc: str`                                                                                |
+| `AudioCodeResult`    | `iscc: str`                                                                                |
+| `VideoCodeResult`    | `iscc: str`                                                                                |
+| `MixedCodeResult`    | `iscc: str`, `parts: list[str]`                                                            |
+| `DataCodeResult`     | `iscc: str`                                                                                |
+| `InstanceCodeResult` | `iscc: str`, `datahash: str`, `filesize: int`                                              |
+| `IsccCodeResult`     | `iscc: str`                                                                                |
+
+**Wrapper functions** in `__init__.py` call `_lowlevel` and wrap the returned dict:
+
+```python
+def gen_meta_code_v0(name, description=None, meta=None, bits=64) -> MetaCodeResult:
+    """Generate an ISCC Meta-Code from content metadata."""
+    return MetaCodeResult(_gen_meta_code_v0(name, description, meta, bits))
+```
+
+### Capabilities
+
+| Capability                    | Supported | Mechanism                     |
+| ----------------------------- | --------- | ----------------------------- |
+| `result['iscc']`              | yes       | inherited from `dict`         |
+| `result.iscc`                 | yes       | `__getattr__` → `__getitem__` |
+| IDE code completion           | yes       | class-level type annotations  |
+| `isinstance(result, dict)`    | yes       | inherits from `dict`          |
+| `json.dumps(result)`          | yes       | `dict` serialization          |
+| `**result` unpacking          | yes       | `dict` protocol               |
+| `for k in result` iteration   | yes       | `dict` iteration              |
+| `result == {'iscc': '...'}`   | yes       | `dict.__eq__`                 |
+| iscc-core drop-in replacement | yes       | passes all dict-based checks  |
+
+### What does NOT change
+
+- Rust core crate — structured `*CodeResult` types stay as-is
+- PyO3 `_lowlevel` module — continues returning plain `PyDict`
+- `_lowlevel.pyi` — stays as internal stubs with `-> dict[str, Any]`
+
+### Exports
+
+`__init__.py` exports the 9 `gen_*_v0` wrapper functions, `IsccResult`, and the 9 typed result
+classes. All are listed in `__all__`.
+
 ## Type Stubs
 
-The `.pyi` type stubs reflect the actual return types (`dict[str, Any]`) and input types
-(`Union[bytes, BinaryIO]` for streaming functions).
+The `_lowlevel.pyi` type stubs reflect the internal return types (`dict[str, Any]`) and input types
+(`Union[bytes, BinaryIO]` for streaming functions). The public API types are defined inline in
+`__init__.py` — no separate `.pyi` needed since it is pure Python.
 
 ## Verification Criteria
 
@@ -65,3 +157,10 @@ The `.pyi` type stubs reflect the actual return types (`dict[str, Any]`) and inp
 - [ ] Type stubs reflect `dict` return types and `Union[bytes, BinaryIO]` input types
 - [ ] `ruff check` and `ruff format --check` clean
 - [ ] Rust core API returns structured types with the additional fields
+- [ ] All `gen_*_v0` return `IsccResult` subclass instances (not plain dicts)
+- [ ] `result.iscc` attribute access works for all result types
+- [ ] `result['iscc']` dict access still works (backward compatible)
+- [ ] `isinstance(result, dict)` is `True`
+- [ ] IDE code completion works via class-level type annotations (pyright/mypy clean)
+- [ ] `json.dumps(result)` works without custom serializer
+- [ ] `IsccResult` and all 9 typed result classes exported in `__all__`
