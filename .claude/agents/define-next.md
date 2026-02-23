@@ -97,6 +97,17 @@ edge cases to handle, reference code to port from>
 <single sentence: the advance agent is done when all verification criteria pass>
 ```
 
+## Available Skills
+
+The advance agent can invoke these skills on demand. When a step involves their domain, mention the
+skill by name in Implementation Notes so the advance agent knows to use it.
+
+- **`docs-for-agents`** — Create or update a "For Coding Agents" reference page in project docs. Use
+    for steps that involve generating agent-oriented documentation.
+- **`zensical-customizer`** — Customize Zensical documentation sites (custom templates, JS widgets,
+    CSS, interactive pages). Use for steps that involve docs site customization beyond markdown
+    content.
+
 ## Rules
 
 - ONE step only. Not a plan. Not multiple steps. One clearly scoped advancement.
