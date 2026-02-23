@@ -203,3 +203,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - napi-rs build artifacts (`index.js`, `index.d.ts`, `*.node`, `node_modules/`) belong in the crate
     directory (napi-rs convention) — gitignore them via `crates/iscc-napi/.gitignore`, don't
     redirect `--output-dir` since it breaks CI artifact paths and `napi prepublish`
+- napi-rs streaming class pattern: `#[napi(js_name = "ClassName")]` struct + `#[napi(constructor)]`
+    \+ `#[napi(js_name = "finalize")] pub fn finalize_code(...)` (avoids conflict with napi-rs
+    `ObjectFinalize` trait). `pub` visibility + `Default` impl resolve clippy
+    dead_code/new_without_default lints that arise because napi macro glue is only generated for
+    cdylib targets, not `--all-targets`
