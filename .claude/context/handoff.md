@@ -1,30 +1,33 @@
-## 2026-02-23 — Review of: Add Rust API documentation page
+## 2026-02-23 — Add benchmark results documentation page
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Created `docs/benchmarks.md` with measured speedup factors for all 9 `gen_*_v0` functions,
+derived from actual pytest-benchmark and Criterion runs. Updated `zensical.toml` nav to include the
+benchmarks page. Documentation site builds successfully.
 
-**Summary:** The advance agent created a comprehensive Rust API reference page (`docs/rust-api.md`)
-covering all 9 `gen_*_v0` functions with correct signatures, parameter tables, descriptions, and
-usage examples, plus codec types documentation. The zensical nav was updated correctly. All function
-signatures verified as matching `lib.rs` exactly. Docs build succeeds and the page is included in
-the site.
+**Files changed:**
 
-**Issues found:**
+- `docs/benchmarks.md`: Created benchmark documentation page with methodology, inputs table, Python
+    comparison results (iscc-core vs iscc-lib), native Rust Criterion results with throughput, key
+    findings, and reproduction commands
+- `zensical.toml`: Added `"benchmarks.md"` to nav array after `"api.md"`
 
-- The doc intro incorrectly stated functions return "a JSON string with the generated ISCC code and
-    metadata" — in fact all `gen_*_v0` functions return ISCC code strings directly (e.g.
-    `"ISCC:AAAZXZ6OU74YAZIM"`), not JSON. Fixed in three places (intro paragraph, intro example
-    comment, gen_iscc_code_v0 example comment). Also corrected the corresponding wrong learning in
-    learnings.md.
+**Verification:**
 
-**Next:** The documentation site now covers Rust API, Python API, and architecture — completing the
-target's documentation requirement. Remaining gaps from state.md: (1) GitHub Pages enablement (admin
-action, not code), (2) benchmark results page (optional content), (3) npm publishing workflow
-(requires `@iscc` org setup on npm). The most impactful remaining work is updating state.md to
-reflect completion of the Rust API docs, then assessing whether the target state has been fully
-reached.
+- `docs/benchmarks.md` exists with measured speedup factors for all 9 functions ✓
+- `zensical.toml` nav includes `benchmarks.md` ✓
+- `uv run zensical build` succeeds without errors ✓
+- `site/benchmarks/index.html` exists in built output (29,834 bytes) ✓
+- Comparison table contains iscc-core vs iscc-lib timings from actual benchmark runs ✓
+- Speedup factors range from 1.3× (Video-Code) to 158× (Data-Code) ✓
+- `cargo test`, `cargo clippy -- -D warnings`, `cargo fmt --check` all pass ✓
 
-**Notes:** The hand-written approach was the right call since zensical/mkdocstrings only supports
-Python. The `gen_iscc_code_v0` example uses `data_code.as_str()` and `instance_code.as_str()` which
-is correct for the actual return type (String). The existing learning that claimed JSON return
-values was incorrect — likely a misunderstanding from early iterations when the return format was
-still being designed.
+**Next:** The target criterion "Speedup factors published in documentation" is now fulfilled. The
+project state should be updated to reflect that all target criteria are met. Consider reviewing
+whether any remaining target items need attention, or if the project is ready for an initial
+release.
+
+**Notes:** The Python venv is at `/home/dev/.venvs/iscc-lib` (not `.venv` in the project root) —
+used `VIRTUAL_ENV=/home/dev/.venvs/iscc-lib` for maturin. Video-Code shows only 1.3× speedup via
+Python bindings because PyO3 overhead dominates the 2 µs native Rust execution time (converting
+nested Python lists to Rust vectors is expensive relative to the fast computation). Instance-Code
+shows a moderate 4× because iscc-core already uses a C-backed BLAKE3 hasher.
