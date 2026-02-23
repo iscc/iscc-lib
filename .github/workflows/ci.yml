@@ -64,3 +64,14 @@ jobs:
       - name: Run tests
         run: npm test
         working-directory: crates/iscc-napi
+  wasm:
+    name: WASM (wasm-pack test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Run tests
+        run: wasm-pack test --node crates/iscc-wasm

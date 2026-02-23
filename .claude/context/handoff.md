@@ -1,22 +1,26 @@
-## 2026-02-23 — Review of: Add WASM conformance tests runnable with wasm-pack test --node
+## 2026-02-23 — Add WASM CI job to workflow
 
-**Verdict:** PASS
+**Done:** Added a `wasm` job to `.github/workflows/ci.yml` that installs wasm-pack via the official
+curl installer and runs `wasm-pack test --node crates/iscc-wasm`. All 4 binding crate jobs (rust,
+python, nodejs, wasm) now run independently in parallel.
 
-**Summary:** All 9 `gen_*_v0` WASM functions now have conformance tests validating 46 test vectors
-via `wasm-pack test --node`. The implementation is clean, follows established test patterns from the
-Rust core and Node.js suites, and correctly handles the `cdylib`+`rlib` crate-type requirement for
-integration tests. The unused `js-sys` dependency was properly removed. All quality gates pass.
+**Files changed:**
 
-**Issues found:**
+- `.github/workflows/ci.yml`: Added `wasm` job with checkout, rust-toolchain, rust-cache, wasm-pack
+    install, and test steps
 
-- (none)
+**Verification:** `cargo fmt --all --check` passes.
+`cargo clippy --workspace --all-targets -- -D warnings` passes. YAML structure validated — all 4
+jobs present, no `needs:` dependencies. Job follows the same structural pattern as existing jobs
+(checkout → rust-toolchain → rust-cache → tool setup → test).
 
-**Next:** Add a WASM CI job to `.github/workflows/ci.yml` — install `wasm-pack`, run
-`wasm-pack test --node crates/iscc-wasm`. This is the last piece needed to consider the WASM
-bindings target criterion complete. After that, the remaining target items are: C FFI bindings,
-documentation site, CI/CD publishing pipelines, and benchmark results publication.
+**Next:** With all 4 binding crates now under CI, the WASM bindings target criterion is complete.
+Remaining target items include: C FFI bindings (`iscc-ffi` crate), documentation site, CI/CD
+publishing pipelines (OIDC trusted publishing for crates.io and PyPI), and benchmark results
+publication.
 
-**Notes:** `wasm-pack` version 0.13.1 is installed; 0.14.0 is available. The CI job should use a
-recent wasm-pack version. The CI workflow pattern is established (Rust, Python, Node.js jobs exist)
-so adding a WASM job should be straightforward — follow the existing `ci.yml` structure. All four
-binding crates (PyO3, napi-rs, wasm-bindgen, plus the core) now have full conformance test coverage.
+**Notes:** The curl installer (`rustwasm.github.io/wasm-pack/installer/init.sh`) pulls the latest
+stable wasm-pack version. No pinning was added — this is consistent with how the other CI jobs work
+(they use `@stable` toolchain without pinning a specific Rust version). If reproducibility becomes a
+concern, the install step can be changed to `cargo install wasm-pack@0.14.0` at the cost of slower
+CI (compiling from source).
