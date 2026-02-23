@@ -1,131 +1,140 @@
 # Next Work Package
 
-## Step: Scaffold napi-rs crate with all 9 gen functions
+## Step: Add Node.js conformance tests for the napi crate
 
 ## Goal
 
-Create the `crates/iscc-napi/` crate exposing all 9 `gen_*_v0` functions as a native Node.js addon
-via napi-rs. This is the first step toward the `@iscc/lib` npm package target and establishes the
-Node.js binding layer following the same thin-wrapper pattern used by the PyO3 bindings.
+Verify that all 9 `gen_*_v0` napi-rs bindings produce correct ISCC codes by running the vendored
+`data.json` conformance vectors from JavaScript. This bridges the gap between "napi crate compiles"
+and "napi bindings are proven correct."
 
 ## Scope
 
-- **Create**: `crates/iscc-napi/Cargo.toml`, `crates/iscc-napi/build.rs`,
-    `crates/iscc-napi/src/lib.rs`, `crates/iscc-napi/package.json`
-- **Modify**: root `Cargo.toml` (add workspace member + napi dependencies)
-- **Reference**: `crates/iscc-py/src/lib.rs` (binding wrapper pattern), `crates/iscc-py/Cargo.toml`
-    (crate structure), `notes/02-language-bindings.md` (napi-rs architecture)
+- **Create**: `crates/iscc-napi/__tests__/conformance.test.mjs`
+- **Modify**: `crates/iscc-napi/package.json` (add `test` script, no extra test framework)
+- **Reference**: `tests/test_conformance.py` (Python test structure to mirror),
+    `crates/iscc-lib/tests/data.json` (conformance vectors), `crates/iscc-napi/src/lib.rs` (function
+    signatures)
 
 ## Implementation Notes
 
-1. **Root `Cargo.toml`** — add `"crates/iscc-napi"` to `workspace.members` and add napi workspace
-    dependencies:
+### Test Runner
 
-    ```toml
-    napi = { version = "3", default-features = false, features = ["napi6"] }
-    napi-derive = "3"
-    napi-build = "2"
-    ```
+Use Node.js built-in `node:test` + `node:assert/strict` (available since v20, zero extra
+dependencies). No vitest/jest needed.
 
-2. **`crates/iscc-napi/Cargo.toml`** — follow the iscc-py pattern:
+### Build the Native Addon First
 
-    ```toml
-    [package]
-    name = "iscc-napi"
-    version.workspace = true
-    edition.workspace = true
-    publish = false          # Published via npm, not crates.io
+Before tests can run, the native addon must be built:
 
-    [lib]
-    crate-type = ["cdylib"]
+```bash
+cd crates/iscc-napi && npm install && npx napi build --platform
+```
 
-    [dependencies]
-    iscc-lib = { path = "../iscc-lib" }
-    napi = { workspace = true }
-    napi-derive = { workspace = true }
+This generates `iscc-lib.*.node`, `index.js`, and `index.d.ts` in the crate root.
 
-    [build-dependencies]
-    napi-build = { workspace = true }
-    ```
+### package.json Changes
 
-3. **`crates/iscc-napi/build.rs`** — minimal napi build script:
+Add a `test` script:
 
-    ```rust
-    fn main() {
-        napi_build::setup();
+```json
+"scripts": {
+  "build": "napi build --platform --release",
+  "build:debug": "napi build --platform",
+  "test": "node --test __tests__/conformance.test.mjs"
+}
+```
+
+### Test File Structure
+
+Mirror the Python conformance tests (`tests/test_conformance.py`). Load `data.json`, iterate each
+function's test vectors, call the binding, assert output matches expected ISCC string.
+
+```javascript
+import {
+    readFileSync
+} from 'node:fs';
+import {
+    join,
+    dirname
+} from 'node:path';
+import {
+    fileURLToPath
+} from 'node:url';
+import {
+    describe,
+    it
+} from 'node:test';
+import {
+    strictEqual
+} from 'node:assert';
+```
+
+Import all 9 functions from the built package:
+
+```javascript
+import {
+    gen_meta_code_v0,
+    gen_text_code_v0,
+    ...
+} from '../index.js';
+```
+
+### Input Parsing (mirror Python test patterns)
+
+- **`stream:` prefix** (for `gen_data_code_v0`, `gen_instance_code_v0`): strip `"stream:"` prefix,
+    hex-decode remainder to `Buffer`. Empty after prefix → empty `Buffer.alloc(0)`.
+- **`gen_meta_code_v0`**: inputs are `[name, description, meta, bits]`. If `meta` is an object
+    (dict), `JSON.stringify` it with sorted keys. If `null`, pass `undefined`. Description: pass
+    `null`/`undefined` if empty/null.
+- **`gen_image_code_v0`**: inputs `[pixels_array, bits]` → `Buffer.from(pixels_array)` for the pixel
+    data.
+- **`gen_audio_code_v0`**: inputs `[cv_array, bits]` → pass the plain JS array of signed integers
+    directly.
+- **`gen_video_code_v0`**: inputs `[frame_sigs_array, bits]` → array of arrays of signed integers.
+- **`gen_mixed_code_v0`**: inputs `[codes_array, bits]` → array of ISCC code strings.
+- **`gen_iscc_code_v0`**: inputs `[codes_array]` → array of ISCC code strings. Note: no `wide`
+    parameter in test vectors (default false).
+
+### JSON Sorted Keys
+
+For `meta` dict → string conversion, use a sort-keys approach:
+
+```javascript
+function jsonSortedStringify(obj) {
+    return JSON.stringify(obj, Object.keys(obj).sort());
+}
+```
+
+### Data Path
+
+`data.json` is at `../../iscc-lib/tests/data.json` relative to the `__tests__/` directory. Use
+`join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'iscc-lib', 'tests', 'data.json')`.
+
+### Test Organization
+
+One `describe` block per gen function (9 total). Inside each, one `it` per test vector. Use the
+vector key name as the test name for traceability:
+
+```javascript
+describe('gen_meta_code_v0', () => {
+    for (const [name, tc] of Object.entries(data.gen_meta_code_v0)) {
+        it(name, () => {
+            ...
+        });
     }
-    ```
-
-4. **`crates/iscc-napi/src/lib.rs`** — expose all 9 functions using `#[napi]` attribute macro.
-    Follow the same thin-wrapper pattern as the PyO3 bindings. Key type mappings from Rust to napi:
-
-    - `&str` → `String` (napi uses owned strings)
-    - `&[u8]` → `napi::bindgen_prelude::Buffer` for byte data
-    - `Vec<i32>` → `Vec<i32>` (napi supports this directly)
-    - `Vec<Vec<i32>>` → `Vec<Vec<i32>>`
-    - `Vec<String>` → `Vec<String>`
-    - `Option<String>` → `Option<String>`
-    - Return type: `napi::Result<String>` for error propagation
-
-    Error handling: convert `iscc_lib::IsccError` to `napi::Error` via
-    `map_err(|e| napi::Error::from_reason(e.to_string()))`.
-
-    Function naming: use `#[napi]` which auto-converts Rust snake_case to JS camelCase. To keep the
-    Python-compatible snake_case names, use `#[napi(js_name = "gen_meta_code_v0")]`.
-
-    For `gen_data_code_v0` and `gen_instance_code_v0`: accept `Buffer` and call `.as_ref()` to get
-    `&[u8]`.
-
-    For `gen_image_code_v0`: accept `Buffer` (pixels as raw bytes) and call `.as_ref()`.
-
-    For `gen_audio_code_v0`: accept `Vec<i32>` and pass `&cv`.
-
-    For `gen_video_code_v0`: accept `Vec<Vec<i32>>` and convert to `&[Vec<i32>]` for the Rust API
-    (check if the Rust API takes `&[Vec<i32>]` or `&[&[i32]]` — match what the Rust core expects).
-
-    For `gen_mixed_code_v0` and `gen_iscc_code_v0`: accept `Vec<String>`, convert to `Vec<&str>` via
-    `.iter().map(|s| s.as_str()).collect()`, same as PyO3 bindings.
-
-    Default parameter values: napi-rs does not support default parameters natively like PyO3. Use
-    `Option<u32>` for `bits` with `.unwrap_or(64)` in the function body. Similarly, use
-    `Option<bool>` for `wide` with `.unwrap_or(false)`.
-
-5. **`crates/iscc-napi/package.json`** — minimal npm package config:
-
-    ```json
-    {
-      "name": "@iscc/lib",
-      "version": "0.1.0",
-      "license": "Apache-2.0",
-      "main": "index.js",
-      "types": "index.d.ts",
-      "napi": {
-        "name": "iscc-lib",
-        "triples": {}
-      },
-      "scripts": {
-        "build": "napi build --platform --release",
-        "build:debug": "napi build --platform"
-      },
-      "devDependencies": {
-        "@napi-rs/cli": "^3"
-      }
-    }
-    ```
-
-6. **Check the Rust API for `gen_video_code_v0`** — read `crates/iscc-lib/src/lib.rs` to verify the
-    exact Rust type signature before implementing the napi wrapper.
+});
+```
 
 ## Verification
 
-- `cargo build -p iscc-napi` compiles without errors
-- `cargo clippy -p iscc-napi -- -D warnings` is clean
-- `cargo fmt --all --check` passes
-- `cargo test -p iscc-lib` still passes (143 tests — core unaffected)
-- `uv run pytest tests/` still passes (49 tests — Python bindings unaffected)
-- All 9 `gen_*_v0` functions are present in `src/lib.rs` with `#[napi]` attributes
+- `cd crates/iscc-napi && npm install && npx napi build --platform` succeeds without errors
+- `cd crates/iscc-napi && npm test` runs all conformance vectors and all tests pass
+- All 9 gen functions are tested (same vector count as Python: ~143 total across all functions)
+- `cargo test -p iscc-lib` still passes (143 tests — no Rust regression)
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean
 
 ## Done When
 
-`cargo build -p iscc-napi` compiles successfully with all 9 `gen_*_v0` functions exposed via
-`#[napi]`, clippy is clean, and existing Rust + Python tests still pass.
+`npm test` in `crates/iscc-napi/` passes all conformance vectors for all 9 gen functions, matching
+the Python test count, and existing Rust tests and clippy remain green.
