@@ -1,116 +1,82 @@
 # Next Work Package
 
-## Step: Promote text utilities to Tier 1 public API
+## Step: Promote simhash and minhash modules to Tier 1
 
 ## Goal
 
-Make the 4 text utility functions (`text_clean`, `text_remove_newlines`, `text_trim`,
-`text_collapse`) publicly accessible from the `iscc_lib` crate, with re-exports at the crate root
-for a flat API. These are the first batch of Tier 1 symbols beyond the 9 `gen_*_v0` functions.
+Make `sliding_window`, `alg_simhash` (from `simhash` module), and `alg_minhash_256` (from `minhash`
+module) publicly accessible as Tier 1 API, following the same promotion pattern established for text
+utilities. This exposes 3 of the 4 target algorithm primitives.
 
 ## Scope
 
-- **Create**: `crates/iscc-lib/tests/test_text_utils.rs` — dedicated unit tests
-- **Modify**:
-    - `crates/iscc-lib/src/utils.rs` — change 4 functions from `pub(crate)` to `pub`
-    - `crates/iscc-lib/src/lib.rs` — change `pub(crate) mod utils` to `pub mod utils`, add re-exports
-- **Reference**:
-    - `reference/iscc-core/iscc_core/code_meta.py` lines 173–228 (`text_trim`, `text_remove_newlines`,
-        `text_clean`)
-    - `reference/iscc-core/iscc_core/code_content_text.py` lines 108–135 (`text_collapse`)
-    - `crates/iscc-lib/src/utils.rs` — current implementation
-    - `crates/iscc-lib/src/lib.rs` — current module structure and re-exports
+- **Create**: `crates/iscc-lib/tests/test_algorithm_primitives.rs` — integration tests
+- **Modify**: `crates/iscc-lib/src/lib.rs` — change module visibility + add `pub use` re-exports
+- **Modify**: `crates/iscc-lib/src/simhash.rs` — change `alg_simhash` and `sliding_window` from
+    `pub(crate)` to `pub`
+- **Modify**: `crates/iscc-lib/src/minhash.rs` — change `alg_minhash_256` from `pub(crate)` to `pub`
+- **Reference**: `crates/iscc-lib/tests/test_text_utils.rs` — established integration test pattern
+- **Reference**: `reference/iscc-core/iscc_core/simhash.py` — Python reference for `sliding_window`
+    and `alg_simhash`
+- **Reference**: `reference/iscc-core/iscc_core/minhash.py` — Python reference for `alg_minhash_256`
 
 ## Implementation Notes
 
-### Visibility changes
+Follow the exact promotion pattern from the text utils step (see learnings):
 
-In `utils.rs`, change these 4 function signatures:
+1. **lib.rs module visibility** — change these two lines:
 
-- `pub(crate) fn text_clean(text: &str) -> String` → `pub fn text_clean(text: &str) -> String`
-- `pub(crate) fn text_remove_newlines(text: &str) -> String` →
-    `pub fn text_remove_newlines(text: &str) -> String`
-- `pub(crate) fn text_trim(text: &str, nbytes: usize) -> String` →
-    `pub fn text_trim(text: &str, nbytes: usize) -> String`
-- `pub(crate) fn text_collapse(text: &str) -> String` → `pub fn text_collapse(text: &str) -> String`
+    - `pub(crate) mod simhash;` → `pub mod simhash;`
+    - `pub(crate) mod minhash;` → `pub mod minhash;`
 
-Keep all other functions in `utils.rs` (like `multi_hash_blake3`, `is_c_category`,
-`is_cmp_category`) at their current visibility — they are internal helpers not part of Tier 1.
+2. **lib.rs re-exports** — add flat crate-root re-exports after the existing `pub use utils::...`
+    line:
 
-### Module and re-exports in lib.rs
+    ```rust
+    pub use minhash::alg_minhash_256;
+    pub use simhash::{alg_simhash, sliding_window};
+    ```
 
-Change `pub(crate) mod utils;` to `pub mod utils;` so the module is accessible from outside the
-crate. Add flat re-exports at the crate root so users can do `iscc_lib::text_clean(...)` without
-navigating into the module:
+3. **simhash.rs** — change visibility on exactly two functions:
 
-```rust
-pub use utils::{text_clean, text_collapse, text_remove_newlines, text_trim};
-```
+    - `pub(crate) fn alg_simhash(...)` → `pub fn alg_simhash(...)`
+    - `pub(crate) fn sliding_window(...)` → `pub fn sliding_window(...)`
+    - Keep `sliding_window_bytes` as `pub(crate)` — it's not a Tier 1 target
 
-Place this near the existing `pub use types::*;` line.
+4. **minhash.rs** — change visibility on exactly one function:
 
-### Docstrings
+    - `pub(crate) fn alg_minhash_256(...)` → `pub fn alg_minhash_256(...)`
+    - Keep `minhash()` and `minhash_compress()` as private — they're internal helpers
 
-Each function already has doc comments. Enhance them slightly to match the Python reference
-docstrings in tone and content:
+5. **Integration tests** — create `test_algorithm_primitives.rs` with tests verifying:
 
-- `text_clean`: "Clean and normalize text for display" — NFKC normalize, remove control chars except
-    newlines, collapse consecutive empty lines, strip whitespace
-- `text_remove_newlines`: "Remove newlines and collapse whitespace to single spaces" — converts
-    multi-line text to a single normalized line
-- `text_trim`: "Trim text so its UTF-8 encoded size does not exceed `nbytes`" — truncates at valid
-    UTF-8 boundary, strips whitespace
-- `text_collapse`: "Normalize and simplify text for similarity hashing" — NFD → lowercase → filter
-    whitespace/control/mark/punctuation → NFKC
-
-### Tests
-
-Create `crates/iscc-lib/tests/test_text_utils.rs` with tests covering:
-
-1. **text_clean**:
-
-    - Basic NFKC normalization (e.g., fullwidth chars → ASCII)
-    - Control character removal (keeps newlines)
-    - Consecutive empty line collapse (max 1 empty line between content)
-    - `\r\n` → `\n` normalization
-    - Leading/trailing whitespace stripping
-    - Empty input → empty output
-
-2. **text_remove_newlines**:
-
-    - Multi-line text → single line
-    - Multiple consecutive spaces → single space
-    - Leading/trailing whitespace removed
-    - Empty input → empty output
-
-3. **text_trim**:
-
-    - Text shorter than nbytes → unchanged (but trimmed)
-    - Text exactly at nbytes → unchanged
-    - Truncation at valid UTF-8 boundary (e.g., multi-byte chars)
-    - Result is whitespace-stripped
-
-4. **text_collapse**:
-
-    - Lowercasing
-    - Whitespace removal
-    - Punctuation removal
-    - Diacritics removal (NFD decompose + filter marks)
-    - Empty input → empty output
-
-5. **Public API access**: Verify all 4 functions are callable via `iscc_lib::text_clean(...)` etc.
-    (flat crate root import)
+    - **`sliding_window`**: basic n-grams ("hello" width 3 → ["hel", "ell", "llo"]), input shorter
+        than width (returns single element), Unicode correctness (CJK characters work), width=2
+        minimum
+    - **`alg_simhash`**: empty input returns 32 zero bytes, single digest returns itself, multiple
+        identical digests return same digest, different digests produce meaningful hash
+    - **`alg_minhash_256`**: empty features produces 32 bytes, single feature produces 32 bytes,
+        deterministic (same input → same output), different features produce different digests
+    - Both import paths work: `iscc_lib::sliding_window` (flat) and
+        `iscc_lib::simhash::sliding_window` (module path)
+    - Verify `sliding_window_bytes` is NOT accessible via `iscc_lib::simhash::sliding_window_bytes` —
+        this would be a compile-time check but since we can't do negative compile tests easily, just
+        note it for manual verification
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing 143 tests + new text utility tests)
-- `cargo clippy -p iscc-lib -- -D warnings` clean
-- `cargo doc -p iscc-lib --no-deps` succeeds (doc comments render)
-- All 4 functions are importable from crate root: `iscc_lib::text_clean`,
-    `iscc_lib::text_remove_newlines`, `iscc_lib::text_trim`, `iscc_lib::text_collapse`
-- No changes to existing gen function behavior (internal usage unchanged)
+- `cargo test -p iscc-lib` passes with all existing 165 tests + new integration tests (expect ~180+
+    total)
+- `cargo clippy -p iscc-lib -- -D warnings` is clean
+- `iscc_lib::sliding_window`, `iscc_lib::alg_simhash`, and `iscc_lib::alg_minhash_256` are
+    importable from crate root in integration tests
+- `iscc_lib::simhash::sliding_window` and `iscc_lib::simhash::alg_simhash` are importable via module
+    path
+- `iscc_lib::minhash::alg_minhash_256` is importable via module path
+- Internal helpers (`minhash`, `minhash_compress`, `sliding_window_bytes`) remain invisible outside
+    the crate
 
 ## Done When
 
-All verification criteria pass — the 4 text utilities are public Tier 1 API with dedicated tests,
-accessible via flat imports from the crate root.
+All verification criteria pass — the 3 algorithm functions are publicly accessible via both flat and
+module-path imports, integration tests confirm correct behavior, and all existing tests still pass.
