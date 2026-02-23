@@ -375,6 +375,31 @@ pub fn encode_units(main_types: &[MainType]) -> IsccResult<u32> {
     Ok(result)
 }
 
+/// Decode a unit combination index (0–7) to a sorted list of optional MainTypes.
+///
+/// Inverse of `encode_units`. Decodes the 3-bit bitfield:
+/// bit 0 = Content, bit 1 = Semantic, bit 2 = Meta. Results are returned
+/// in MainType discriminant order (Meta, Semantic, Content) so they are
+/// automatically sorted.
+pub fn decode_units(unit_id: u32) -> IsccResult<Vec<MainType>> {
+    if unit_id > 7 {
+        return Err(IsccError::InvalidInput(format!(
+            "invalid unit_id: {unit_id} (must be 0-7)"
+        )));
+    }
+    let mut result = Vec::new();
+    if unit_id & 4 != 0 {
+        result.push(MainType::Meta);
+    }
+    if unit_id & 2 != 0 {
+        result.push(MainType::Semantic);
+    }
+    if unit_id & 1 != 0 {
+        result.push(MainType::Content);
+    }
+    Ok(result)
+}
+
 // ---- Base32 Encoding ----
 
 /// Encode bytes as base32 (RFC 4648, uppercase, no padding).
@@ -428,6 +453,76 @@ pub fn encode_component(
     component.extend_from_slice(body);
 
     Ok(encode_base32(&component))
+}
+
+/// Decompose a composite ISCC-CODE or ISCC sequence into individual ISCC-UNITs.
+///
+/// Accepts a normalized ISCC-CODE or a concatenated sequence of ISCC-UNITs.
+/// The optional "ISCC:" prefix is stripped before decoding. Returns a list
+/// of base32-encoded ISCC-UNIT strings (without "ISCC:" prefix).
+pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
+    let clean = iscc_code.strip_prefix("ISCC:").unwrap_or(iscc_code);
+    let mut raw_code = decode_base32(clean)?;
+    let mut components = Vec::new();
+
+    while !raw_code.is_empty() {
+        let (mt, st, vs, ln, body) = decode_header(&raw_code)?;
+
+        // Standard ISCC-UNIT with tail continuation
+        if mt != MainType::Iscc {
+            let ln_bits = decode_length(mt, ln, st);
+            let nbytes = (ln_bits / 8) as usize;
+            let code = encode_component(mt, st, vs, ln_bits, &body[..nbytes])?;
+            components.push(code);
+            raw_code = body[nbytes..].to_vec();
+            continue;
+        }
+
+        // ISCC-CODE: decode into constituent units
+        let main_types = decode_units(ln)?;
+
+        // Wide mode: 128-bit Data-Code + 128-bit Instance-Code
+        if st == SubType::Wide {
+            let data_code = encode_component(MainType::Data, SubType::None, vs, 128, &body[..16])?;
+            let instance_code =
+                encode_component(MainType::Instance, SubType::None, vs, 128, &body[16..32])?;
+            components.push(data_code);
+            components.push(instance_code);
+            break;
+        }
+
+        // Rebuild dynamic units (Meta, Semantic, Content)
+        for (idx, &mtype) in main_types.iter().enumerate() {
+            let stype = if mtype == MainType::Meta {
+                SubType::None
+            } else {
+                st
+            };
+            let code = encode_component(mtype, stype, vs, 64, &body[idx * 8..])?;
+            components.push(code);
+        }
+
+        // Rebuild static units (Data-Code, Instance-Code)
+        let data_code = encode_component(
+            MainType::Data,
+            SubType::None,
+            vs,
+            64,
+            &body[body.len() - 16..body.len() - 8],
+        )?;
+        let instance_code = encode_component(
+            MainType::Instance,
+            SubType::None,
+            vs,
+            64,
+            &body[body.len() - 8..],
+        )?;
+        components.push(data_code);
+        components.push(instance_code);
+        break;
+    }
+
+    Ok(components)
 }
 
 #[cfg(test)]
@@ -938,5 +1033,262 @@ mod tests {
     #[test]
     fn test_encode_units_rejects_iscc() {
         assert!(encode_units(&[MainType::Iscc]).is_err());
+    }
+
+    // ---- decode_units tests ----
+
+    #[test]
+    fn test_decode_units_empty() {
+        assert_eq!(decode_units(0).unwrap(), vec![]);
+    }
+
+    #[test]
+    fn test_decode_units_content() {
+        assert_eq!(decode_units(1).unwrap(), vec![MainType::Content]);
+    }
+
+    #[test]
+    fn test_decode_units_semantic() {
+        assert_eq!(decode_units(2).unwrap(), vec![MainType::Semantic]);
+    }
+
+    #[test]
+    fn test_decode_units_semantic_content() {
+        assert_eq!(
+            decode_units(3).unwrap(),
+            vec![MainType::Semantic, MainType::Content]
+        );
+    }
+
+    #[test]
+    fn test_decode_units_meta() {
+        assert_eq!(decode_units(4).unwrap(), vec![MainType::Meta]);
+    }
+
+    #[test]
+    fn test_decode_units_meta_content() {
+        assert_eq!(
+            decode_units(5).unwrap(),
+            vec![MainType::Meta, MainType::Content]
+        );
+    }
+
+    #[test]
+    fn test_decode_units_meta_semantic() {
+        assert_eq!(
+            decode_units(6).unwrap(),
+            vec![MainType::Meta, MainType::Semantic]
+        );
+    }
+
+    #[test]
+    fn test_decode_units_all() {
+        assert_eq!(
+            decode_units(7).unwrap(),
+            vec![MainType::Meta, MainType::Semantic, MainType::Content]
+        );
+    }
+
+    #[test]
+    fn test_decode_units_invalid() {
+        assert!(decode_units(8).is_err());
+        assert!(decode_units(255).is_err());
+    }
+
+    #[test]
+    fn test_decode_units_roundtrip_with_encode_units() {
+        for unit_id in 0..=7u32 {
+            let types = decode_units(unit_id).unwrap();
+            let encoded = encode_units(&types).unwrap();
+            assert_eq!(encoded, unit_id, "roundtrip failed for unit_id={unit_id}");
+        }
+    }
+
+    // ---- iscc_decompose tests ----
+
+    #[test]
+    fn test_decompose_single_meta_unit() {
+        // A single Meta-Code unit passes through unchanged
+        let result = iscc_decompose("AAAYPXW445FTYNJ3").unwrap();
+        assert_eq!(result, vec!["AAAYPXW445FTYNJ3"]);
+    }
+
+    #[test]
+    fn test_decompose_single_unit_with_prefix() {
+        // Accepts "ISCC:" prefix and returns without prefix
+        let result = iscc_decompose("ISCC:AAAYPXW445FTYNJ3").unwrap();
+        assert_eq!(result, vec!["AAAYPXW445FTYNJ3"]);
+    }
+
+    #[test]
+    fn test_decompose_single_unit_maintype() {
+        // Verify the decomposed unit decodes to the expected MainType
+        let result = iscc_decompose("AAAYPXW445FTYNJ3").unwrap();
+        assert_eq!(result.len(), 1);
+        let raw = decode_base32(&result[0]).unwrap();
+        let (mt, _, _, _, _) = decode_header(&raw).unwrap();
+        assert_eq!(mt, MainType::Meta);
+    }
+
+    #[test]
+    fn test_decompose_standard_iscc_code() {
+        // test_0000_standard: Meta + Content(Text) + Data + Instance → composite
+        let codes = [
+            "AAAYPXW445FTYNJ3",
+            "EAARMJLTQCUWAND2",
+            "GABVVC5DMJJGYKZ4ZBYVNYABFFYXG",
+            "IADWIK7A7JTUAQ2D6QARX7OBEIK3OOUAM42LOBLCZ4ZOGDLRHMDL6TQ",
+        ];
+        let composite = crate::gen_iscc_code_v0(
+            &codes.iter().map(|s| *s as &str).collect::<Vec<&str>>(),
+            false,
+        )
+        .unwrap();
+
+        let decomposed = iscc_decompose(&composite.iscc).unwrap();
+
+        // Should produce 4 units: Meta, Content, Data, Instance
+        assert_eq!(decomposed.len(), 4);
+
+        // Verify MainTypes in order
+        let main_types: Vec<MainType> = decomposed
+            .iter()
+            .map(|code| {
+                let raw = decode_base32(code).unwrap();
+                let (mt, _, _, _, _) = decode_header(&raw).unwrap();
+                mt
+            })
+            .collect();
+        assert_eq!(
+            main_types,
+            vec![
+                MainType::Meta,
+                MainType::Content,
+                MainType::Data,
+                MainType::Instance
+            ]
+        );
+
+        // Data and Instance are always the last two
+        let raw_data = decode_base32(&decomposed[2]).unwrap();
+        let (mt_d, _, _, _, _) = decode_header(&raw_data).unwrap();
+        assert_eq!(mt_d, MainType::Data);
+
+        let raw_inst = decode_base32(&decomposed[3]).unwrap();
+        let (mt_i, _, _, _, _) = decode_header(&raw_inst).unwrap();
+        assert_eq!(mt_i, MainType::Instance);
+    }
+
+    #[test]
+    fn test_decompose_no_meta() {
+        // test_0001_no_meta: Content(Text) + Data + Instance → composite (no Meta)
+        let codes = [
+            "EAARMJLTQCUWAND2",
+            "GABVVC5DMJJGYKZ4ZBYVNYABFFYXG",
+            "IADWIK7A7JTUAQ2D6QARX7OBEIK3OOUAM42LOBLCZ4ZOGDLRHMDL6TQ",
+        ];
+        let composite = crate::gen_iscc_code_v0(
+            &codes.iter().map(|s| *s as &str).collect::<Vec<&str>>(),
+            false,
+        )
+        .unwrap();
+
+        let decomposed = iscc_decompose(&composite.iscc).unwrap();
+
+        // Should produce 3 units: Content, Data, Instance (no Meta)
+        assert_eq!(decomposed.len(), 3);
+
+        let main_types: Vec<MainType> = decomposed
+            .iter()
+            .map(|code| {
+                let raw = decode_base32(code).unwrap();
+                let (mt, _, _, _, _) = decode_header(&raw).unwrap();
+                mt
+            })
+            .collect();
+        assert_eq!(
+            main_types,
+            vec![MainType::Content, MainType::Data, MainType::Instance]
+        );
+    }
+
+    #[test]
+    fn test_decompose_sum_only() {
+        // test_0002: Data + Instance only (Sum SubType)
+        let codes = [
+            "GABVVC5DMJJGYKZ4ZBYVNYABFFYXG",
+            "IADWIK7A7JTUAQ2D6QARX7OBEIK3OOUAM42LOBLCZ4ZOGDLRHMDL6TQ",
+        ];
+        let composite = crate::gen_iscc_code_v0(
+            &codes.iter().map(|s| *s as &str).collect::<Vec<&str>>(),
+            false,
+        )
+        .unwrap();
+
+        let decomposed = iscc_decompose(&composite.iscc).unwrap();
+
+        // Should produce 2 units: Data, Instance
+        assert_eq!(decomposed.len(), 2);
+
+        let main_types: Vec<MainType> = decomposed
+            .iter()
+            .map(|code| {
+                let raw = decode_base32(code).unwrap();
+                let (mt, _, _, _, _) = decode_header(&raw).unwrap();
+                mt
+            })
+            .collect();
+        assert_eq!(main_types, vec![MainType::Data, MainType::Instance]);
+    }
+
+    #[test]
+    fn test_decompose_conformance_roundtrip() {
+        // Use gen_iscc_code_v0 conformance vectors to verify decompose
+        let json_str = include_str!("../tests/data.json");
+        let data: serde_json::Value = serde_json::from_str(json_str).unwrap();
+        let section = &data["gen_iscc_code_v0"];
+        let cases = section.as_object().unwrap();
+
+        for (tc_name, tc) in cases {
+            let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
+            let inputs = tc["inputs"].as_array().unwrap();
+            let codes_json = inputs[0].as_array().unwrap();
+            let input_codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
+
+            let decomposed = iscc_decompose(expected_iscc).unwrap();
+
+            // Each decomposed code decodes to a valid MainType
+            for code in &decomposed {
+                let raw = decode_base32(code).unwrap();
+                let (mt, _, _, _, _) = decode_header(&raw).unwrap();
+                assert_ne!(
+                    mt,
+                    MainType::Iscc,
+                    "decomposed unit should not be ISCC in {tc_name}"
+                );
+            }
+
+            // Data and Instance are always the last two units
+            let last_two: Vec<MainType> = decomposed[decomposed.len() - 2..]
+                .iter()
+                .map(|code| {
+                    let raw = decode_base32(code).unwrap();
+                    let (mt, _, _, _, _) = decode_header(&raw).unwrap();
+                    mt
+                })
+                .collect();
+            assert_eq!(
+                last_two,
+                vec![MainType::Data, MainType::Instance],
+                "last two units must be Data+Instance in {tc_name}"
+            );
+
+            // Number of decomposed units matches number of input codes
+            assert_eq!(
+                decomposed.len(),
+                input_codes.len(),
+                "decomposed unit count mismatch in {tc_name}"
+            );
+        }
     }
 }

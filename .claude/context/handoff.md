@@ -1,25 +1,34 @@
-## 2026-02-23 — Review of: Implement encode_base64 Tier 1 function
+## 2026-02-23 — Implement iscc_decompose and decode_units codec functions
 
-**Verdict:** PASS
+**Done:** Implemented `decode_units` (inverse of `encode_units`, maps unit_id 0-7 to sorted
+`Vec<MainType>` via 3-bit bitfield decoding) and `iscc_decompose` (Tier 1 function that splits a
+composite ISCC-CODE or concatenated ISCC sequence into individual ISCC-UNIT base32 strings). Added
+`pub use codec::iscc_decompose` re-export in `lib.rs` for flat crate-root access.
 
-**Summary:** Clean, minimal implementation of `encode_base64` as a one-line wrapper around
-`data_encoding::BASE64URL_NOPAD.encode()`. Follows the exact `encode_base32` pattern — public
-function, one-line body, concise docstring. 4 well-structured tests covering empty input, known
-value (verified against Python), roundtrip, and no-padding assertion. All 197 Rust tests pass (147
-unit + 28 algorithm primitives + 22 text utils), clippy clean workspace-wide, all pre-commit hooks
-pass.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-lib/src/codec.rs`: Added `decode_units` (pub, Tier 2) and `iscc_decompose` (pub, Tier
+    1\) functions with 17 new tests covering all 8 unit_id mappings, roundtrip with `encode_units`,
+    single-unit pass-through, prefix stripping, and conformance-based decomposition of all 5
+    `gen_iscc_code_v0` test vectors
+- `crates/iscc-lib/src/lib.rs`: Added `pub use codec::iscc_decompose;` re-export
 
-- (none)
+**Verification:** All 164 Rust tests pass (147 existing + 17 new). Clippy clean. All pre-commit
+hooks pass. Tests verify: all 8 `decode_units` mappings (0→[] through 7→[Meta,Semantic,Content]),
+error for unit_id > 7, roundtrip with `encode_units`, single-unit decompose with and without "ISCC:"
+prefix, MainType verification of decomposed units, 4-unit standard composite (Meta + Content + Data
+\+ Instance), 3-unit no-meta composite, 2-unit sum-only composite, and all 5 `gen_iscc_code_v0`
+conformance vectors decomposed with structural validation (correct count, Data + Instance always
+last two, no ISCC MainType in output).
 
-**Next:** 19 of 22 Tier 1 symbols implemented. Remaining 3: `iscc_decompose` (codec utility that
-splits a composite ISCC code into constituent unit codes), `DataHasher`/`InstanceHasher` (streaming
-types), and `conformance_selftest`. `iscc_decompose` is the next simplest — it's a pure codec
-function with no new dependencies. After that, the streaming types and selftest are the final
-stretch.
+**Next:** 20 of 22 Tier 1 symbols implemented. Remaining 2: `DataHasher`/`InstanceHasher` (streaming
+types that implement the `new() → update(&[u8]) → finalize()` pattern) and `conformance_selftest`.
+The streaming types are the next logical step since they enable the streaming API pattern that is
+central to the library's design.
 
-**Notes:** The advance agent correctly identified that next.md's suggested expected value `AAECAT`
-for `encode_base64(&[0,1,2,3])` was wrong — the correct base64url encoding is `AAECAw` (verified
-against Python). Future next.md authors should double-check expected values against the reference
-implementation rather than guessing. `state.md` should be updated to reflect 19/22 Tier 1 symbols.
+**Notes:** `iscc_decompose` returns ISCC-UNIT strings WITHOUT "ISCC:" prefix, matching the Python
+reference implementation's behavior (`encode_component` returns bare base32). This differs from the
+`gen_*_v0` functions which all return with "ISCC:" prefix. The function accepts input both with and
+without prefix. `decode_units` uses direct bitfield decoding (bit0=Content, bit1=Semantic,
+bit2=Meta) rather than a lookup table — equivalent to Python's `UNITS` table but more idiomatic in
+Rust.
