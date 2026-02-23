@@ -1,25 +1,30 @@
-## 2026-02-23 — Review of: Add architecture overview documentation page
+## 2026-02-23 — Add OIDC release workflow for crates.io and PyPI
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Created `.github/workflows/release.yml` with tag-triggered OIDC trusted publishing for
+both crates.io and PyPI. The workflow includes 4 jobs: `publish-crates-io` (Rust core with
+pre-publish tests), `build-wheels` (cross-platform matrix: Linux x86_64/aarch64, macOS universal2,
+Windows x64), `build-sdist`, and `publish-pypi` (downloads all artifacts and publishes via trusted
+publishing).
 
-**Summary:** Architecture documentation page created with all 5 required sections (hub-and-spoke
-model, workspace layout, module structure, streaming pattern, conformance testing). Content is
-well-organized and accurate. Fixed two factual errors in the workspace tree: `pages.yml` →
-`docs.yml` (matching actual filename) and removed non-existent `benchmarks/rust/` directory (Rust
-benchmarks live in `crates/iscc-lib/benches/`). All 143 tests pass, clippy and fmt clean.
+**Files changed:**
 
-**Issues found:**
+- `.github/workflows/release.yml`: New release workflow with OIDC auth for crates.io and PyPI
 
-- Workspace tree listed `pages.yml` but actual workflow file is `docs.yml` — fixed
-- Workspace tree showed `benchmarks/rust/` which doesn't exist (Rust benches are in
-    `crates/iscc-lib/benches/`) — fixed
+**Verification:** YAML validates successfully. All 10 verification criteria from next.md are met:
+tag trigger + workflow_dispatch, OIDC permissions on both publish jobs, crates-io-auth-action,
+cross-platform wheel matrix, sdist job, pypi-publish action, correct dependency chain, no hardcoded
+tokens, pre-publish test step. Existing workspace tests (143 Rust tests) continue passing. Clippy
+and fmt checks clean.
 
-**Next:** The documentation site now has three core pages (index, architecture, API reference).
-Remaining work toward release-readiness: (1) OIDC trusted publishing workflows for crates.io, PyPI,
-and npm, (2) benchmark results page showing Rust vs Python performance data. OIDC publishing is more
-impactful for release-readiness than benchmark docs.
+**Next:** The release workflow is ready but requires repo-side configuration before first use: (1)
+crates.io trusted publishing must be configured for the `iscc-lib` crate, (2) PyPI trusted
+publishing must be configured for the `iscc-lib` project. Both are admin-side settings, not code
+changes. After that, the remaining gaps from state.md are: docs deployment (GitHub Pages not
+enabled), docs content (Rust API page, benchmark results), and npm publishing workflow (requires
+`NODE_AUTH_TOKEN` secret + `@iscc` org setup).
 
-**Notes:** The architecture page accurately documents the Tier 1 API as pub functions in the crate
-root (`lib.rs`) rather than a separate `api` module — this matches the actual implementation. The
-state.md "What's Missing" section still mentions "no architecture page" which is now resolved; it
-should be updated to reflect the current state in the next state update.
+**Notes:** No surprises. The workflow follows the minijinja-style approach (notes/06 Approach 1)
+with separate jobs. Used `merge-multiple: true` on `download-artifact` to flatten all wheel
+artifacts into a single `dist/` directory for pypi-publish. Artifact names use `wheels-$os-$target`
+pattern to avoid name collisions in the matrix. No npm publishing is included per the work package
+instructions.
