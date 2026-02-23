@@ -2,11 +2,11 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: All non-Python bindings at 17/23 Tier 1 symbols, Python complete (23/23)
+## Phase: Node.js at 21/23, WASM and C FFI at 17/23, Python complete (23/23)
 
 All 23 Tier 1 API symbols are implemented in the Rust core crate with 268 tests. Python bindings are
-feature-complete (23/23). Node.js, WASM, and C FFI are now all at parity: 17/23 Tier 1 symbols each.
-The same 6 complex symbols remain across all three non-Python bindings. CI green.
+feature-complete (23/23). Node.js advanced to 21/23 (4 algorithm primitives added). WASM and C FFI
+remain at 17/23 Tier 1 symbols each. CI green, all tests passing.
 
 ## What Exists
 
@@ -14,10 +14,11 @@ The same 6 complex symbols remain across all three non-Python bindings. CI green
     clippy clean workspace-wide
 - **Python bindings (`crates/iscc-py/`)**: 23/23 Tier 1 symbols with `IsccResult(dict)` returns,
     `DataHasher`/`InstanceHasher` streaming classes, BinaryIO support, 147 tests, `ty` clean
-- **Node.js bindings (`crates/iscc-napi/`)**: 17/23 Tier 1 symbols (9 gen + 8 utils/helpers), 73
-    tests (46 conformance + 27 unit)
-- **WASM bindings (`crates/iscc-wasm/`)**: 17/23 Tier 1 symbols (9 gen + 8 utils/helpers), 29 tests
-    (9 conformance + 20 unit)
+- **Node.js bindings (`crates/iscc-napi/`)**: 21/23 Tier 1 symbols (9 gen + 4 text + 4 algo
+    primitives + `encode_base64` + `iscc_decompose` + `sliding_window` + `conformance_selftest`), 89
+    tests (46 conformance + 43 function)
+- **WASM bindings (`crates/iscc-wasm/`)**: 17/23 Tier 1 symbols (9 gen + 4 text + 4 simple utils),
+    20 tests (9 conformance + 11 unit)
 - **C FFI (`crates/iscc-ffi/`)**: 20 exported symbols (17 Tier 1 + 3 infrastructure), cbindgen, C
     test program, 38 tests
 - **Benchmarks**: Criterion (Rust) + pytest-benchmark (Python), 1.3x–158x speedups
@@ -26,8 +27,10 @@ The same 6 complex symbols remain across all three non-Python bindings. CI green
 
 ## What's Missing
 
-- **6 complex Tier 1 symbols in Node.js, WASM, C FFI**: `alg_simhash`, `alg_minhash_256`,
-    `alg_cdc_chunks`, `soft_hash_video_v0`, `DataHasher`, `InstanceHasher`
+- **2 Tier 1 symbols in Node.js**: `DataHasher`, `InstanceHasher` (streaming classes)
+- **6 Tier 1 symbols in WASM**: `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+    `soft_hash_video_v0`, `DataHasher`, `InstanceHasher`
+- **6 Tier 1 symbols in C FFI**: same 6 as WASM
 - **Binding structured returns**: Node.js, WASM, C FFI return plain `.iscc` strings (not full result
     dicts/objects like Python)
 - **Documentation branding**: ISCC CSS, logo/favicon, copy-page, llms.txt, Diátaxis nav, tabbed code
@@ -36,21 +39,20 @@ The same 6 complex symbols remain across all three non-Python bindings. CI green
 
 ## CI
 
-- **Latest run: PASSING** — [Run](https://github.com/iscc/iscc-lib/actions/runs/22316954830) —
+- **Latest run: PASSING** — [Run](https://github.com/iscc/iscc-lib/actions/runs/22318059051) —
     conclusion: success
 
 ## Verification
 
 - `cargo test --workspace`: **268 passed** (38 FFI + 180 core + 28 integration + 22 text utils)
-- `wasm-pack test --node`: **29 passed** (9 conformance + 20 unit)
-- `pytest tests/`: **147 passed** in 1.06s
-- `node --test`: **73 passed** (17 suites, 0 failures)
+- `wasm-pack test --node`: **20 passed** (9 conformance + 11 unit)
+- `pytest tests/`: **147 passed** in 1.27s
+- `node --test`: **89 passed** (21 suites, 0 failures)
 - `cargo clippy --workspace --all-targets -- -D warnings`: clean (CI-verified)
 
 ## Next Milestone
 
 Add the 4 algorithm primitives (`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
-`soft_hash_video_v0`) to one binding crate (Node.js or WASM first, then replicate). These have
-complex type signatures (slice inputs/outputs) requiring careful FFI design per binding. After
-algorithm primitives, add `DataHasher`/`InstanceHasher` streaming classes to reach 23/23 across all
-bindings.
+`soft_hash_video_v0`) to WASM or C FFI bindings (replicating Node.js patterns). Then add
+`DataHasher`/`InstanceHasher` streaming classes across all three non-Python bindings to reach 23/23
+parity. WASM and C FFI are the furthest behind (6 symbols each).
