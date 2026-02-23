@@ -10,10 +10,11 @@ pub(crate) mod dct;
 pub(crate) mod minhash;
 pub(crate) mod simhash;
 pub mod types;
-pub(crate) mod utils;
+pub mod utils;
 pub(crate) mod wtahash;
 
 pub use types::*;
+pub use utils::{text_clean, text_collapse, text_remove_newlines, text_trim};
 
 /// Error type for ISCC operations.
 #[derive(Debug, thiserror::Error)]

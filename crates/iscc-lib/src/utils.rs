@@ -57,8 +57,9 @@ fn is_cmp_category(c: char) -> bool {
 /// Clean and normalize text for display.
 ///
 /// Applies NFKC normalization, removes control characters (except newlines),
-/// collapses consecutive empty lines to at most one, and strips whitespace.
-pub(crate) fn text_clean(text: &str) -> String {
+/// normalizes `\r\n` to `\n`, collapses consecutive empty lines to at most
+/// one, and strips leading/trailing whitespace.
+pub fn text_clean(text: &str) -> String {
     // 1. NFKC normalize
     let text: String = text.nfkc().collect();
 
@@ -101,17 +102,18 @@ pub(crate) fn text_clean(text: &str) -> String {
 
 /// Remove newlines and collapse whitespace to single spaces.
 ///
-/// Splits on whitespace boundaries and joins with a single space, effectively
-/// converting multi-line text into a single normalized line.
-pub(crate) fn text_remove_newlines(text: &str) -> String {
+/// Converts multi-line text into a single normalized line by splitting on
+/// whitespace boundaries and joining with a single space.
+pub fn text_remove_newlines(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// Truncate text to a maximum number of UTF-8 bytes.
+/// Trim text so its UTF-8 encoded size does not exceed `nbytes`.
 ///
-/// Finds the largest valid UTF-8 prefix within `nbytes`, then trims
-/// leading/trailing whitespace from the result.
-pub(crate) fn text_trim(text: &str, nbytes: usize) -> String {
+/// Finds the largest valid UTF-8 prefix within `nbytes`, then strips
+/// leading/trailing whitespace from the result. Multi-byte characters
+/// that would be split are dropped entirely.
+pub fn text_trim(text: &str, nbytes: usize) -> String {
     if text.len() <= nbytes {
         return text.trim().to_string();
     }
@@ -123,12 +125,12 @@ pub(crate) fn text_trim(text: &str, nbytes: usize) -> String {
     s.trim().to_string()
 }
 
-/// Collapse text for similarity hashing.
+/// Normalize and simplify text for similarity hashing.
 ///
 /// Applies NFD normalization, lowercasing, removes whitespace and characters
 /// in Unicode categories C (control), M (mark), and P (punctuation), then
 /// recombines with NFKC normalization.
-pub(crate) fn text_collapse(text: &str) -> String {
+pub fn text_collapse(text: &str) -> String {
     // 1. NFD normalize and lowercase
     let nfd_lower: String = text.nfd().collect::<String>().to_lowercase();
 

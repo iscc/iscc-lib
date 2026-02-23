@@ -1,32 +1,30 @@
-## 2026-02-23 — Review of: Fix `ty` type checker error in Python streaming functions
+## 2026-02-23 — Promote text utilities to Tier 1 public API
 
-**Verdict:** PASS
+**Done:** Changed 4 text utility functions (`text_clean`, `text_remove_newlines`, `text_trim`,
+`text_collapse`) from `pub(crate)` to `pub` in `utils.rs`, made the `utils` module public in
+`lib.rs`, and added flat re-exports at the crate root. Created 22 dedicated integration tests
+verifying behavior and public accessibility.
 
-**Summary:** Surgical 2-line fix replacing `hasattr(data, "read")` with
-`not isinstance(data, bytes)` in both streaming wrapper functions. All quality gates pass: 14
-pre-commit hooks, 15 pre-push hooks (including the previously failing `ty` check), 143 Rust tests,
-63 Python tests, ruff clean. No gate circumvention, no dead code, no behavioral change.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-lib/src/utils.rs`: Changed visibility of 4 functions from `pub(crate)` to `pub`,
+    enhanced docstrings to better match Python reference descriptions
+- `crates/iscc-lib/src/lib.rs`: Changed `pub(crate) mod utils` to `pub mod utils`, added
+    `pub use utils::{text_clean, text_collapse, text_remove_newlines, text_trim}`
+- `crates/iscc-lib/tests/test_text_utils.rs`: New file with 22 integration tests covering all 4
+    functions plus crate-root and module-path import verification
 
-- (none)
+**Verification:** All 165 tests pass (143 existing + 22 new). `cargo clippy -D warnings` clean.
+`cargo doc --no-deps` succeeds. All 4 functions are importable via both `iscc_lib::text_clean` and
+`iscc_lib::utils::text_clean`. All pre-commit hooks pass. No existing behavior changed.
 
-**Next:** All quality gates now pass. The project has all 9 `gen_*_v0` functions implemented with
-conformance-tested bindings across Python, Node.js, WASM, and C FFI. The remaining work from
-target.md includes:
+**Next:** Continue Tier 1 API expansion — promote algorithm primitives (`sliding_window`,
+`alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`), then `encode_base64`, `iscc_decompose`,
+streaming types (`DataHasher`, `InstanceHasher`), and `conformance_selftest`. The `simhash` and
+`minhash` modules follow the same `pub(crate)` → `pub` promotion pattern used here.
 
-1. **Tier 1 API expansion (13 symbols)**: text utilities (`text_clean`, `text_remove_newlines`,
-    `text_trim`, `text_collapse`), algorithm primitives (`sliding_window`, `alg_minhash_256`,
-    `alg_cdc_chunks`, `alg_simhash`), `soft_hash_video_v0`, `encode_base64`, `iscc_decompose`,
-    streaming types (`DataHasher`, `InstanceHasher`), `conformance_selftest`
-2. **Binding structured returns**: Node.js, WASM, C FFI still return plain strings (not
-    dicts/objects matching Python's `IsccResult` pattern)
-3. **Documentation branding**: ISCC CSS, logo/favicon, copy-page, llms.txt, Diátaxis nav, tabbed
-    code examples
-
-Suggest starting with Tier 1 API expansion — the text utilities and algorithm primitives are already
-implemented internally as `pub(crate)` functions and just need to be promoted to `pub` with proper
-documentation and binding wrappers.
-
-**Notes:** The `state.md` still references the `ty` error as blocking — the next `update-state` will
-reflect the fix. Pre-push hooks are now fully green, so future pushes will succeed without issues.
+**Notes:** The `utils` module also contains `multi_hash_blake3`, `is_c_category`, and
+`is_cmp_category` which remain at their original visibility (private or `pub(crate)`). Only the 4
+text utility functions were promoted per the work package scope. The `multi_hash_blake3` function is
+`pub(crate)` and the helper functions `is_c_category`/`is_cmp_category` are private — these should
+be evaluated in a future step if they belong in the public API.
