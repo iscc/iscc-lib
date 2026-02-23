@@ -7,15 +7,10 @@ concurrency:
   group: pages
   cancel-in-progress: false
 jobs:
-  docs:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,5 +24,16 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
+  deploy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
       - uses: actions/deploy-pages@v4
         id: deploy

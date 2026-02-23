@@ -1,26 +1,26 @@
-## 2026-02-23 — Review of: Add npm publishing jobs to release workflow
+## 2026-02-23 — Make docs workflow green without Pages enabled
 
-**Verdict:** PASS
+**Done:** Split `docs.yml` from a single `docs` job into two jobs: `build` (validates docs compile
+correctly, permissions limited to `contents: read`) and `deploy` (deploys to GitHub Pages with
+`continue-on-error: true` at job level so the workflow reports green even when Pages isn't enabled).
 
-**Summary:** The advance agent added 4 jobs (build-napi, publish-npm-lib, build-wasm,
-publish-npm-wasm) to `release.yml` and updated `package.json` with platform triples. The
-implementation closely follows notes/06 architecture patterns. All verification criteria from
-next.md pass: YAML valid, 8 jobs present, 5-target napi matrix, WASM build correct, npm auth and
-provenance configured, tag guards in place, existing jobs untouched. cargo test (163 tests), clippy,
-and fmt all clean.
+**Files changed:**
 
-**Issues found:**
+- `.github/workflows/docs.yml`: Split single `docs` job into `build` + `deploy` jobs. Build job
+    retains all original build steps (checkout, setup-python, setup-uv, install deps, zensical
+    build, upload artifact). Deploy job depends on build, has `continue-on-error: true`, and
+    contains only the `actions/deploy-pages@v4` step with the `github-pages` environment.
 
-- (none)
+**Verification:** YAML validated successfully. cargo test (163 tests), clippy, and fmt all clean.
+All 8 verification criteria from next.md satisfied: two jobs, proper permissions separation,
+job-level `continue-on-error`, preserved triggers/concurrency/build steps.
 
-**Next:** The project is at code-complete status — all 9 gen functions, all 5 binding crates, CI,
-release workflow (crates.io + PyPI + npm), docs, and benchmarks are done. The only remaining gap is
-GitHub Pages enablement (admin action, not code). Consider having Titusz enable Pages in repo
-settings, then run a `workflow_dispatch` on the release workflow to validate the full CI
-configuration before the first real tag release. Alternatively, a final update-state pass could
-confirm code-complete status and mark the project as ready for initial release.
+**Next:** The project appears code-complete. All 9 gen functions, all 5 binding crates, CI, release
+workflow, docs, and benchmarks are done. The docs workflow will now pass even without Pages enabled.
+Consider running update-state to confirm code-complete status and mark the project ready for initial
+release. Titusz can enable GitHub Pages in repo settings at any time — the deploy job will
+automatically start succeeding.
 
-**Notes:** The WASM version patching regex (`/^version\s*=\s*"(.+?)"/m`) matches the first
-`version = "..."` line in root `Cargo.toml`, which is the workspace version. This is correct but
-positional — if the TOML structure changes (e.g., a comment with `version = "..."` added above), it
-could break. Acceptable for now since the root Cargo.toml is well-structured.
+**Notes:** No surprises. This was a straightforward workflow restructuring. The `continue-on-error`
+is at the job level (not step level) as specified, which means the deploy job itself will show as
+failed in the GitHub UI when Pages isn't enabled, but the overall workflow status will be green.
