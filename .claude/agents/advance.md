@@ -15,6 +15,10 @@ exactly what is defined in next.md — no more, no less.
 @.claude/context/next.md
 </next>
 
+<handoff>
+@.claude/context/handoff.md
+</handoff>
+
 <learnings>
 @.claude/context/learnings.md
 </learnings>
@@ -28,9 +32,9 @@ exactly what is defined in next.md — no more, no less.
 1. **Understand the work package** — read next.md carefully. Note the scope, implementation notes,
     and verification criteria.
 
-2. **Read reference material** — read ONLY the files listed in next.md's "Reference" section. If you
-    need to understand the reference implementation (iscc-core), use the deepwiki MCP tool to ask
-    questions about `iscc/iscc-core`. Do not explore broadly.
+2. **Read reference material** — read ONLY the files listed in next.md's "Reference" section. For
+    the iscc-core reference implementation, read files directly from `reference/iscc-core/` (see
+    paths in CLAUDE.md). Do not explore broadly.
 
 3. **Read before editing** — always read a file before modifying it. Never edit speculatively.
 
@@ -48,11 +52,8 @@ exactly what is defined in next.md — no more, no less.
     convention: `#[cfg(test)] mod tests` in the same file, or `tests/` directory for integration
     tests).
 
-6. **Verify** — run tests and fix until all pass:
-
-    - `cargo test` for Rust tests
-    - `cargo clippy -- -D warnings` for lint
-    - `cargo fmt --check` for formatting If `mise` is configured: `mise run check`
+6. **Verify** — run `mise run check` and fix until clean. This runs all quality gates (formatting,
+    linting, tests) via pre-commit hooks.
 
 7. **Write the handoff** — overwrite `.claude/context/handoff.md` with a report for the review
     agent. Follow the format below.

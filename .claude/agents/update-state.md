@@ -15,6 +15,10 @@ produce an honest, accurate snapshot of where the project stands right now and c
 @.claude/context/target.md
 </target>
 
+<handoff>
+@.claude/context/handoff.md
+</handoff>
+
 <learnings>
 @.claude/context/learnings.md
 </learnings>
@@ -31,9 +35,9 @@ produce an honest, accurate snapshot of where the project stands right now and c
     `gh run view <run-id> --json jobs --jq '.jobs[] | select(.conclusion != "success") | .name'` to
     identify which jobs failed.
 
-2. **Survey the codebase** — check what files and directories exist. Look at `Cargo.toml`,
-    `crates/`, `mise.toml`, `pyproject.toml`, test files, CI workflows. Use Glob and Read, not
-    broad exploration.
+2. **Check what changed** — read the handoff and recent git log. Only survey files and directories
+    if the handoff indicates structural changes (new crates, new CI jobs, new file types). Do not
+    re-explore the entire codebase on every run.
 
 3. **Run verification** — if tests exist, run them (`cargo test` or `mise run test:rust`). If no
     tests exist, note that.

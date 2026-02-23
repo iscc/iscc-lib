@@ -49,11 +49,15 @@ exactly ONE small, verifiable step that advances the project toward its target s
     - Builds on what already exists (don't skip ahead)
 
 5. **Research if needed** — if unsure about APIs, patterns, or reference implementation details,
-    read the relevant `notes/` documents or use the deepwiki MCP to check `iscc/iscc-core`.
+    read the relevant `notes/` documents or files from `reference/iscc-core/` (see paths in
+    CLAUDE.md).
 
-6. **Write `.claude/context/next.md`** — overwrite completely. Follow the format below.
+6. **Verify feasibility** — confirm that all files listed in "Reference" and "Modify" actually
+    exist. If a file is missing or the code structure doesn't match expectations, adjust the scope.
 
-7. **Commit** — stage and commit only next.md:
+7. **Write `.claude/context/next.md`** — overwrite completely. Follow the format below.
+
+8. **Commit** — stage and commit only next.md:
 
     ```
     git add .claude/context/next.md

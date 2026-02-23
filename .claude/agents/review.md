@@ -25,22 +25,19 @@ next iteration.
 </next>
 
 <recent-diff>
-!`git diff HEAD~1 --stat 2>/dev/null || echo "(no previous commit)"`
+!`git diff HEAD~2..HEAD~1 --stat 2>/dev/null || echo "(no advance commit)"`
 </recent-diff>
 
 ## Protocol
 
 1. **Read the handoff** — understand what the advance agent claims to have done.
 
-2. **Inspect the changes** — run `git diff HEAD~1` to see the actual diff. Read the modified files
-    in full. Compare against what next.md asked for.
+2. **Inspect the changes** — run `git diff HEAD~2..HEAD~1` to see the advance agent's diff (HEAD~1
+    is the advance commit, HEAD~2 is the define-next commit). Read the modified files in full.
+    Compare against what next.md asked for.
 
-3. **Run verification** — execute the verification criteria from next.md:
-
-    - Run `cargo test` (or `mise run test:rust` if configured)
-    - Run `cargo clippy -- -D warnings`
-    - Run `cargo fmt --check`
-    - Run any specific checks mentioned in next.md's verification section
+3. **Run verification** — run `mise run check` (runs all quality gates via pre-commit hooks). Then
+    execute any specific checks mentioned in next.md's verification section.
 
 4. **Assess quality** — check the implementation for:
 
@@ -121,8 +118,8 @@ system. The review agent is responsible for both **protecting** and **maintainin
 
 ### Protection — check every diff for gate circumvention
 
-Scan `git diff HEAD~1` for any of these patterns. If found, verdict is **NEEDS_WORK** — the advance
-agent must fix the root cause instead:
+Scan `git diff HEAD~2..HEAD~1` for any of these patterns. If found, verdict is **NEEDS_WORK** — the
+advance agent must fix the root cause instead:
 
 - **Lint suppression to silence warnings**: `#[allow(...)]`, `# noqa`, `# type: ignore`,
     `// eslint-disable`, `#[cfg_attr(..., allow(...))]` — unless the suppression is technically
