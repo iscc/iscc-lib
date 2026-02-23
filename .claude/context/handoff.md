@@ -1,28 +1,32 @@
-## 2026-02-23 — Fix `ty` type checker error in Python streaming functions
+## 2026-02-23 — Review of: Fix `ty` type checker error in Python streaming functions
 
-**Done:** Replaced `hasattr(data, "read")` with `not isinstance(data, bytes)` in both
-`gen_data_code_v0` and `gen_instance_code_v0` wrapper functions. This gives `ty` proper type
-narrowing (`BinaryIO` in the `if` body) while preserving identical runtime behavior.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Surgical 2-line fix replacing `hasattr(data, "read")` with
+`not isinstance(data, bytes)` in both streaming wrapper functions. All quality gates pass: 14
+pre-commit hooks, 15 pre-push hooks (including the previously failing `ty` check), 143 Rust tests,
+63 Python tests, ruff clean. No gate circumvention, no dead code, no behavioral change.
 
-- `crates/iscc-py/python/iscc_lib/__init__.py`: Changed type-narrowing guard on lines 135 and 142
-    from `if hasattr(data, "read")` to `if not isinstance(data, bytes)`
+**Issues found:**
 
-**Verification:**
+- (none)
 
-- `uv run ty check crates/iscc-py/python/iscc_lib/__init__.py` → "All checks passed!" (0 errors)
-- `pytest tests/` → 63 passed (including all streaming tests)
-- `ruff check` → clean
-- `cargo test -p iscc-lib` → 143 passed
-- `mise run check` → all 14 pre-commit hooks passed
+**Next:** All quality gates now pass. The project has all 9 `gen_*_v0` functions implemented with
+conformance-tested bindings across Python, Node.js, WASM, and C FFI. The remaining work from
+target.md includes:
 
-**Next:** All quality gates now pass (pre-commit and pre-push). The project is feature-complete with
-all 9 `gen_*_v0` functions, bindings for Python/Node.js/WASM/C, documentation, benchmarks, and CI.
-Consider working on any remaining documentation, release preparation, or performance optimization
-tasks from the target state.
+1. **Tier 1 API expansion (13 symbols)**: text utilities (`text_clean`, `text_remove_newlines`,
+    `text_trim`, `text_collapse`), algorithm primitives (`sliding_window`, `alg_minhash_256`,
+    `alg_cdc_chunks`, `alg_simhash`), `soft_hash_video_v0`, `encode_base64`, `iscc_decompose`,
+    streaming types (`DataHasher`, `InstanceHasher`), `conformance_selftest`
+2. **Binding structured returns**: Node.js, WASM, C FFI still return plain strings (not
+    dicts/objects matching Python's `IsccResult` pattern)
+3. **Documentation branding**: ISCC CSS, logo/favicon, copy-page, llms.txt, Diátaxis nav, tabbed
+    code examples
 
-**Notes:** Minimal, surgical fix — two lines changed, no new code, no behavioral change. The
-`isinstance` inversion is semantically equivalent: anything that isn't `bytes` in the
-`bytes | BinaryIO` union is `BinaryIO`, so `.read()` is valid for both the type checker and at
-runtime.
+Suggest starting with Tier 1 API expansion — the text utilities and algorithm primitives are already
+implemented internally as `pub(crate)` functions and just need to be promoted to `pub` with proper
+documentation and binding wrappers.
+
+**Notes:** The `state.md` still references the `ty` error as blocking — the next `update-state` will
+reflect the fix. Pre-push hooks are now fully green, so future pushes will succeed without issues.
