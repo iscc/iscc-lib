@@ -1,52 +1,118 @@
 # Next Work Package
 
-## Step: Add WASM CI job to workflow
+## Step: Create C FFI crate with extern "C" wrappers and cbindgen
 
 ## Goal
 
-Add a WASM job to `.github/workflows/ci.yml` that runs `wasm-pack test --node` against the
-`crates/iscc-wasm` crate. This is the last piece needed to consider the WASM bindings target
-criterion complete — all 4 binding crates will then be under CI.
+Create the `iscc-ffi` crate exposing all 9 `gen_*_v0` functions as `extern "C"` symbols with a
+cbindgen-generated C header. This enables integration from C, Go, Java, C#, and any other language
+with C interop.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: `.github/workflows/ci.yml` — add a `wasm` job
-- **Reference**: existing `rust`, `python`, `nodejs` jobs in `ci.yml` for structural patterns;
-    `crates/iscc-wasm/Cargo.toml` for crate config; learnings about CI tooling
+- **Create**: `crates/iscc-ffi/Cargo.toml`, `crates/iscc-ffi/src/lib.rs`,
+    `crates/iscc-ffi/cbindgen.toml`
+- **Modify**: `Cargo.toml` (root — add `crates/iscc-ffi` to workspace members)
+- **Reference**: `crates/iscc-py/src/lib.rs` (binding pattern), `crates/iscc-lib/src/lib.rs` (public
+    API signatures), `notes/02-language-bindings.md` (C FFI architecture)
 
 ## Implementation Notes
 
-Follow the existing job structure pattern (checkout → rust-toolchain → rust-cache → tool setup →
-build → test). Specifically:
+### Crate setup (`Cargo.toml`)
 
-1. Add a new job named `wasm` with display name `WASM (wasm-pack test)`.
-2. Use `ubuntu-latest` runner (consistent with other jobs).
-3. Steps:
-    - `actions/checkout@v4`
-    - `dtolnay/rust-toolchain@stable`
-    - `Swatinem/rust-cache@v2`
-    - Install wasm-pack via `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
-        (this is the official installer and avoids needing a dedicated action). Alternatively, use
-        `cargo install wasm-pack` but the curl installer is faster.
-    - Run tests: `wasm-pack test --node crates/iscc-wasm`
-4. No `needs:` dependency on other jobs — all 4 jobs should run in parallel.
-5. Do NOT use `mise` in CI (per learnings).
+- `crate-type = ["cdylib", "staticlib"]` — shared library for dynamic linking, static for embedding
+- `publish = false` (distributed as compiled binaries, not via crates.io)
+- Depends on `iscc-lib = { path = "../iscc-lib" }`
+- No other dependencies needed (pure C ABI, no serde, no libc)
 
-The handoff notes that wasm-pack 0.13.1 is locally installed and 0.14.0 is available. The curl
-installer will pull the latest stable version, which is fine for CI.
+### C API design (`src/lib.rs`)
+
+**Memory model**: Functions return heap-allocated C strings (`*mut c_char`) via `CString`. The
+caller must free them with `iscc_free_string()`. On error, functions return `NULL` and the caller
+retrieves the error message via `iscc_last_error()`. Use a thread-local `RefCell<Option<CString>>`
+for the error message.
+
+**Function signatures** — all functions are `#[unsafe(no_mangle)] pub unsafe extern "C"`:
+
+1. `iscc_gen_meta_code_v0(name: *const c_char, description: *const c_char, meta: *const c_char,  bits: u32) -> *mut c_char`
+    — `NULL` description/meta means "not provided"
+2. `iscc_gen_text_code_v0(text: *const c_char, bits: u32) -> *mut c_char`
+3. `iscc_gen_image_code_v0(pixels: *const u8, pixels_len: usize, bits: u32) -> *mut c_char`
+4. `iscc_gen_audio_code_v0(cv: *const i32, cv_len: usize, bits: u32) -> *mut c_char`
+5. `iscc_gen_video_code_v0(frame_sigs: *const *const i32, frame_lens: *const usize, num_frames:  usize, bits: u32) -> *mut c_char`
+    — each frame is a pointer+length pair
+6. `iscc_gen_mixed_code_v0(codes: *const *const c_char, num_codes: usize, bits: u32) -> *mut c_char`
+7. `iscc_gen_data_code_v0(data: *const u8, data_len: usize, bits: u32) -> *mut c_char`
+8. `iscc_gen_instance_code_v0(data: *const u8, data_len: usize, bits: u32) -> *mut c_char`
+9. `iscc_gen_iscc_code_v0(codes: *const *const c_char, num_codes: usize, wide: bool) -> *mut c_char`
+
+**Utility functions**:
+
+- `iscc_free_string(ptr: *mut c_char)` — frees a string returned by any gen function
+- `iscc_last_error() -> *const c_char` — returns the last error message (static lifetime within the
+    thread, valid until the next gen call). Returns `NULL` if no error.
+
+**Error handling pattern** (each gen function):
+
+```rust
+thread_local! {
+    static LAST_ERROR: RefCell<Option<CString>> = const { RefCell::new(None) };
+}
+
+fn set_last_error(msg: &str) {
+    LAST_ERROR.with(|e| *e.borrow_mut() = CString::new(msg).ok());
+}
+
+fn clear_last_error() {
+    LAST_ERROR.with(|e| *e.borrow_mut() = None);
+}
+```
+
+Each wrapper: validate pointers (null → set error + return NULL), convert C types to Rust types,
+call `iscc_lib::gen_*_v0`, convert result to CString, return `.into_raw()`. On `Err`, call
+`set_last_error()` and return `NULL`.
+
+**Null pointer safety**: Every function must check that required pointer arguments are non-null
+before dereferencing. Use `CStr::from_ptr()` for string conversion. For slices, use
+`std::slice::from_raw_parts()`.
+
+### cbindgen config (`cbindgen.toml`)
+
+```toml
+language = "C"
+include_guard = "ISCC_H"
+no_includes = true
+sys_includes = ["stdint.h", "stdbool.h", "stddef.h"]
+
+[export]
+prefix = "iscc_"
+
+[fn]
+prefix = ""
+```
+
+### Unsafe justification
+
+The `unsafe` in this crate is justified because C FFI inherently requires:
+
+- Dereferencing raw pointers from the caller
+- `no_mangle` for symbol export
+- `extern "C"` ABI
+
+All unsafe operations are confined to pointer validation at the FFI boundary. The core `iscc_lib`
+crate remains 100% safe Rust.
 
 ## Verification
 
-- `ci.yml` has a `wasm` job that installs wasm-pack and runs
-    `wasm-pack test --node crates/iscc-wasm`
-- YAML is valid (no syntax errors)
-- Job follows the same structural pattern as existing jobs (checkout, rust-toolchain, rust-cache)
-- The 4 jobs (rust, python, nodejs, wasm) all run independently (no `needs:` dependencies)
-- `cargo clippy --workspace --all-targets -- -D warnings` still passes (no Rust changes)
-- `cargo fmt --all --check` still passes (no Rust changes)
+- `cargo build -p iscc-ffi` succeeds (both cdylib and staticlib targets)
+- `cargo clippy -p iscc-ffi -- -D warnings` is clean
+- `cargo fmt -p iscc-ffi --check` is clean
+- `cbindgen --crate iscc-ffi --output /dev/null` generates valid C header without errors
+- All 9 `iscc_gen_*_v0` functions + `iscc_free_string` + `iscc_last_error` appear in the generated
+    header
+- Existing tests still pass: `cargo test -p iscc-lib` (143 tests)
 
 ## Done When
 
-The advance agent is done when `ci.yml` contains a valid WASM job following the established CI
-patterns, and all existing quality gates (`cargo clippy`, `cargo fmt`) still pass.
+The advance agent is done when `cargo build -p iscc-ffi` compiles successfully, cbindgen generates a
+valid C header containing all 11 exported symbols, and all existing tests still pass.
