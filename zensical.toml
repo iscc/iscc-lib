@@ -15,6 +15,7 @@ nav = ["index.md", "architecture.md", "rust-api.md", "api.md", "benchmarks.md"]
 language = "en"
 logo = "assets/logo_light.png"
 favicon = "assets/favicon.png"
+custom_dir = "overrides"
 features = [
   "content.code.annotate",
   "content.code.copy",

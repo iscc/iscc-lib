@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  {% if page.meta and page.meta.title %}
+    {% set title = page.meta.title %}
+  {% elif page.title %}
+    {% set title = page.title %}
+  {% else %}
+    {% set title = config.site_name %}
+  {% endif %}
+  {% if page.meta and page.meta.description %}
+    {% set description = page.meta.description %}
+  {% else %}
+    {% set description = config.site_description %}
+  {% endif %}
+  {% set url = page.canonical_url or config.site_url %}
+  {% set image = config.site_url ~ "assets/logo_light.png" %}
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="{{ title }}">
+  <meta property="og:description" content="{{ description }}">
+  <meta property="og:url" content="{{ url }}">
+  <meta property="og:image" content="{{ image }}">
+  <meta property="og:site_name" content="{{ config.site_name }}">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{{ title }}">
+  <meta name="twitter:description" content="{{ description }}">
+  <meta name="twitter:image" content="{{ image }}">
+{% endblock %}

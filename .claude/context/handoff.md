@@ -1,45 +1,46 @@
-## 2026-02-23 — Review of: Add copy-page split-button and llms-full.txt generation
+## 2026-02-23 — Add Open Graph and Twitter Card social meta tags
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Created `overrides/main.html` Jinja2 template override that injects Open Graph and Twitter
+Card meta tags into every documentation page via the `extrahead` block. Added
+`custom_dir = "overrides"` to `zensical.toml` to enable template overrides. Tags use page-specific
+titles and canonical URLs with fallbacks to site-level defaults, and reference the ISCC logo as the
+social preview image.
 
-**Summary:** The advance agent correctly implemented the copy-page split-button dropdown and
-llms-full.txt generation pipeline. All scoped files were created/modified exactly as specified. The
-JS, CSS, and Python script are clean and well-structured. One minor content error was found and
-fixed in this review: `docs/llms.txt` had the wrong npm package name (`@aspect-build/iscc-lib`
-instead of `@iscc/lib`).
+**Files changed:**
+
+- `overrides/main.html`: Created Jinja2 template extending `base.html`, overriding `extrahead` block
+    with 6 OG tags (`og:type`, `og:title`, `og:description`, `og:url`, `og:image`, `og:site_name`)
+    and 4 Twitter Card tags (`twitter:card`, `twitter:title`, `twitter:description`,
+    `twitter:image`)
+- `zensical.toml`: Added `custom_dir = "overrides"` to `[project.theme]` section
 
 **Verification:**
 
-- [x] `uv run zensical build && uv run python scripts/gen_llms_full.py` exits 0 — 5 pages, 29573
-    bytes
-- [x] `test -f docs/javascripts/copypage.js` exits 0 — JS file exists (200 lines)
-- [x] `test -f docs/llms.txt` exits 0 — llms.txt metadata file exists
-- [x] `test -f scripts/gen_llms_full.py` exits 0 — generation script exists (72 lines)
-- [x] `test -f site/llms-full.txt` exits 0 — generated llms-full.txt exists (744 lines)
-- [x] `test -f site/index.md` exits 0 — per-page .md file generated
-- [x] `test -f site/architecture.md` exits 0 — per-page .md file generated
-- [x] `grep -q 'copy-page' docs/stylesheets/extra.css` exits 0 — copy-page CSS present
-- [x] `grep -q 'copy-page-heading' docs/stylesheets/extra.css` exits 0 — heading wrapper CSS present
-- [x] `grep -q 'copypage.js' zensical.toml` exits 0 — extra_javascript configured
-- [x] `grep -q 'iscc/iscc-lib' docs/javascripts/copypage.js` exits 0 — REPO_URL set to iscc-lib
-- [x] `grep -q 'gen_llms_full' .github/workflows/docs.yml` exits 0 — docs workflow includes step
-- [x] `grep -q 'llms-full.txt' docs/llms.txt` exits 0 — llms.txt references full text file
+- [x] `uv run zensical build` exits 0 (site builds with the override)
+- [x] `test -f overrides/main.html` exits 0 (override file exists)
+- [x] `grep -q 'custom_dir' zensical.toml` exits 0 (custom_dir configured)
+- [x] `grep -q 'overrides' zensical.toml` exits 0 (points to overrides directory)
+- [x] `grep -q 'og:title' overrides/main.html` exits 0 (Open Graph title tag present)
+- [x] `grep -q 'og:description' overrides/main.html` exits 0 (Open Graph description tag present)
+- [x] `grep -q 'og:image' overrides/main.html` exits 0 (Open Graph image tag present)
+- [x] `grep -q 'og:url' overrides/main.html` exits 0 (Open Graph URL tag present)
+- [x] `grep -q 'twitter:card' overrides/main.html` exits 0 (Twitter Card tag present)
+- [x] `grep -q 'twitter:title' overrides/main.html` exits 0 (Twitter Card title present)
+- [x] `grep -q 'og:title' site/index.html` exits 0 (OG tags rendered in built HTML)
+- [x] `grep -q 'og:title' site/architecture/index.html` exits 0 (OG tags on non-index page)
+- [x] `grep -q 'twitter:card' site/index.html` exits 0 (Twitter Card rendered in built HTML)
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean (no Rust changes)
-- [x] `mise run check` — all 14 pre-commit hooks pass
-
-**Issues found:**
-
-- `docs/llms.txt` line 9 had incorrect npm package name `@aspect-build/iscc-lib` — corrected to
-    `@iscc/lib` (the actual package name per `crates/iscc-napi/package.json`). Fixed in this review.
+- [x] `uv run prek run --all-files` — all 14 pre-commit hooks pass
 
 **Next:** Continue documentation enhancements. Candidates: Diataxis navigation restructuring
-(reorganize site nav into tutorials/howto/explanation/reference sections), social sharing meta tags
-(`overrides/main.html`), abbreviations file (`docs/includes/abbreviations.md`), or shift to OIDC
-trusted publishing pipeline configuration since all binding targets are at full Tier 1 parity and CI
-is green.
+(reorganize site nav into tutorials/howto/explanation/reference sections), abbreviations file
+(`docs/includes/abbreviations.md`), per-language how-to guides, or shift to OIDC trusted publishing
+pipeline configuration.
 
-**Notes:** The copy-page JS uses `getDocPath()` which derives the `.md` file path from the URL
-pathname. This depends on `gen_llms_full.py` writing per-page `.md` files to `site/` with matching
-names. The CI workflow correctly runs `gen_llms_full.py` after `zensical build` and before artifact
-upload, so the generated files are included in the deployed site. No Rust code was touched — this is
-a pure documentation/tooling change.
+**Notes:** The next.md template used `{% extends "main.html" %}` which causes a template inheritance
+cycle because the override file *is* `main.html` (zensical resolves `main.html` to the override
+first). Fixed by extending `base.html` instead, which is the actual parent template (`main.html` in
+zensical is just `{% extends "base.html" %}` with no additional content). Also, `page.meta.title`
+caused an "undefined value" error because `page.meta` can be `None` on pages without YAML front
+matter — switched from `or`-chain expressions to explicit `if/elif/else` blocks matching the pattern
+used in zensical's own `base.html`. No Rust code was touched — this is a pure documentation change.
