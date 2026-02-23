@@ -7,7 +7,6 @@
 
 #include "iscc.h"
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
 static int tests_passed = 0;

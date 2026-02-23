@@ -127,3 +127,6 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - C FFI type mappings: `&[u8]` → `*const u8` + `usize` len, `&[i32]` → `*const i32` + `usize` len,
     `&[&str]` → `*const *const c_char` + `usize` count, `Option<&str>` → nullable `*const c_char`.
     Helper functions `ptr_to_str`/`ptr_to_optional_str` centralize validation
+- C test program links against cdylib (`.so`) with `LD_LIBRARY_PATH` at runtime. gcc needs
+    `-lpthread -ldl -lm` for Rust runtime deps. For empty-data tests, pass `&single_byte` with
+    `len=0` (not NULL) to satisfy Rust's non-null slice pointer requirement
