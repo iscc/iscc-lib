@@ -1,59 +1,60 @@
 # Next Work Package
 
-## Step: Promote alg_cdc_chunks to Tier 1 public API
+## Step: Promote soft_hash_video_v0 to Tier 1 public API
 
 ## Goal
 
-Promote `alg_cdc_chunks` from `pub(crate)` to `pub` as the last of the 4 algorithm primitives in the
-Tier 1 API. This brings the promoted symbol count from 16 to 17 of 22 and completes the algorithm
-primitives group.
+Promote `soft_hash_video_v0` from private `fn` to `pub fn` as a Tier 1 public API symbol. This
+brings the promoted symbol count from 17 to 18 of 22 and exposes the video similarity hashing
+primitive that downstream consumers need for building custom video fingerprinting pipelines.
 
 ## Scope
 
 - **Create**: none
-- **Modify**: `crates/iscc-lib/src/lib.rs` (change `pub(crate) mod cdc` → `pub mod cdc`, add
-    `pub use cdc::alg_cdc_chunks` re-export), `crates/iscc-lib/src/cdc.rs` (change `alg_cdc_chunks`
-    from `pub(crate) fn` → `pub fn`), `crates/iscc-lib/tests/test_algorithm_primitives.rs` (add CDC
-    integration tests)
-- **Reference**: `crates/iscc-lib/src/cdc.rs` (current implementation),
+- **Modify**: `crates/iscc-lib/src/lib.rs` (change `fn soft_hash_video_v0` →
+    `pub fn   soft_hash_video_v0`), `crates/iscc-lib/tests/test_algorithm_primitives.rs` (add
+    `soft_hash_video_v0` integration tests)
+- **Reference**: `crates/iscc-lib/src/lib.rs` (lines 520-544, current implementation),
     `crates/iscc-lib/tests/test_algorithm_primitives.rs` (existing test pattern),
-    `crates/iscc-lib/src/lib.rs` (re-export pattern)
+    `reference/iscc-core/iscc_core/code_content_video.py` (Python reference for behavior)
 
 ## Implementation Notes
 
-Apply the established Tier 1 promotion pattern (used 3 times already for utils, simhash, minhash):
+This is simpler than prior promotions because `soft_hash_video_v0` is defined directly in `lib.rs`
+(not in a submodule), so no module visibility change or re-export is needed — just the function
+visibility.
 
-1. In `lib.rs`: change `pub(crate) mod cdc;` → `pub mod cdc;`
-2. In `lib.rs`: add `pub use cdc::alg_cdc_chunks;` to the re-exports block
-3. In `cdc.rs`: change `pub(crate) fn alg_cdc_chunks` → `pub fn alg_cdc_chunks`
-4. Keep `alg_cdc_params`, `alg_cdc_offset`, and `DATA_AVG_CHUNK_SIZE` as `pub(crate)` — these are
-    internal helpers, not part of the Tier 1 API. Since `cdc` becomes a `pub` module, `pub(crate)`
-    items remain invisible outside the crate (no leakage risk — confirmed in learnings).
+1. In `lib.rs` line 524: change `fn soft_hash_video_v0` → `pub fn soft_hash_video_v0`
+2. Add a doc-comment line noting this is a Tier 1 public API function (the existing docstring is
+    fine, just ensure it's `///` not `//`)
+3. No `pub use` re-export needed — the function is already at crate root scope
 
-Add integration tests to `test_algorithm_primitives.rs` following the existing pattern:
+Add integration tests to `test_algorithm_primitives.rs`:
 
-- **Basic chunking**: verify `alg_cdc_chunks` returns expected chunk count for known data
-- **Empty input**: verify it returns a single empty chunk (matches existing unit test, but via
-    public API path)
-- **Reassembly**: verify chunks concatenate back to original data
-- **UTF-32 alignment**: verify `utf32=true` produces 4-byte-aligned chunk boundaries
-- **Different avg sizes**: verify smaller avg_chunk_size produces more chunks
-- **Flat import path**: verify `iscc_lib::alg_cdc_chunks` works
-- **Module path import**: verify `iscc_lib::cdc::alg_cdc_chunks` works
+- **Basic hashing**: call `soft_hash_video_v0` with known frame signatures, verify it returns a
+    digest of `bits/8` bytes length
+- **Default 64-bit output**: verify `bits=64` returns 8-byte digest
+- **256-bit output**: verify `bits=256` returns 32-byte digest
+- **Deduplication**: verify that duplicate frame signatures don't change the result (pass same sigs
+    twice, compare with single copy)
+- **Empty input error**: verify empty `frame_sigs` slice returns `IsccError::InvalidInput`
+- **Consistency with gen_video_code_v0**: verify that calling `soft_hash_video_v0` with the same
+    inputs used by `gen_video_code_v0` conformance vectors produces a digest that matches the body
+    portion of the encoded video code (extract body via `codec::decode_header`)
+- **Flat import path**: verify `iscc_lib::soft_hash_video_v0` compiles
 
 Run workspace-wide clippy (`cargo clippy --workspace --all-targets -- -D warnings`) before
 finishing, per learnings about newer lints only surfacing in `--all-targets` mode.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing 182 tests + new CDC integration tests)
+- `cargo test -p iscc-lib` passes (all existing 188 tests + new soft_hash_video integration tests)
 - `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- `iscc_lib::alg_cdc_chunks` is callable from integration tests (flat import)
-- `iscc_lib::cdc::alg_cdc_chunks` is callable from integration tests (module path)
-- Internal helpers (`alg_cdc_params`, `alg_cdc_offset`, `DATA_AVG_CHUNK_SIZE`) remain invisible
-    outside the crate
+- `iscc_lib::soft_hash_video_v0` is callable from integration tests
+- Function returns correct-length digest (8 bytes for bits=64, 32 bytes for bits=256)
+- Empty input returns appropriate error
 
 ## Done When
 
-All verification criteria pass: tests green, clippy clean, `alg_cdc_chunks` accessible via both
-import paths, and internal helpers remain properly encapsulated.
+All verification criteria pass: tests green, clippy clean, `soft_hash_video_v0` accessible as a
+public function from integration tests, and output matches expected digest lengths.
