@@ -143,3 +143,10 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - mdformat-mkdocs mangles mkdocstrings `:::` directives with inline options (collapses indentation,
     escapes underscores). Workaround: move all mkdocstrings options to `zensical.toml` global config
     and keep the `:::` directive minimal (e.g., `::: iscc_lib` with no inline options)
+- napi-rs cross-compilation for aarch64-linux: install `gcc-aarch64-linux-gnu` via apt-get and set
+    `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc` env var. The env var is
+    harmlessly ignored on non-arm64 matrix entries
+- WASM npm package version patching: wasm-pack generates `pkg/package.json` with the Cargo crate
+    name — use a Node.js script to read workspace version from root `Cargo.toml` and set both `name`
+    and `version` fields. The regex `/^version\s*=\s*"(.+?)"/m` matches the first version line in
+    the TOML (workspace version)
