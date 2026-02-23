@@ -521,7 +521,7 @@ pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<AudioCodeResult> {
 ///
 /// Deduplicates frame signatures, computes column-wise sums across all
 /// unique frames, then applies WTA-Hash to produce a digest of `bits/8` bytes.
-fn soft_hash_video_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<Vec<u8>> {
+pub fn soft_hash_video_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<Vec<u8>> {
     if frame_sigs.is_empty() {
         return Err(IsccError::InvalidInput(
             "frame_sigs must not be empty".into(),

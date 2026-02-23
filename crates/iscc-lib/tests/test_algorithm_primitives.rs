@@ -1,8 +1,8 @@
 //! Integration tests for the public algorithm primitive API.
 //!
-//! Verifies that `sliding_window`, `alg_simhash`, `alg_minhash_256`, and
-//! `alg_cdc_chunks` are accessible from both the crate root and their
-//! respective module paths, and produce correct results for a variety of inputs.
+//! Verifies that `sliding_window`, `alg_simhash`, `alg_minhash_256`,
+//! `alg_cdc_chunks`, and `soft_hash_video_v0` are accessible from the crate
+//! root and produce correct results for a variety of inputs.
 
 // ---- sliding_window tests ----
 
@@ -194,16 +194,74 @@ fn test_alg_cdc_chunks_smaller_avg_more_chunks() {
     );
 }
 
+// ---- soft_hash_video_v0 tests ----
+
+#[test]
+fn test_soft_hash_video_v0_basic_64bit() {
+    // Single all-zero 380-element frame with bits=64 → 8-byte digest
+    let frame = vec![0i32; 380];
+    let result = iscc_lib::soft_hash_video_v0(&[frame], 64).unwrap();
+    assert_eq!(result.len(), 8, "bits=64 should produce 8-byte digest");
+}
+
+#[test]
+fn test_soft_hash_video_v0_256bit() {
+    // Single frame with bits=256 → 32-byte digest
+    let frame: Vec<i32> = (0..380).collect();
+    let result = iscc_lib::soft_hash_video_v0(&[frame], 256).unwrap();
+    assert_eq!(result.len(), 32, "bits=256 should produce 32-byte digest");
+}
+
+#[test]
+fn test_soft_hash_video_v0_deduplication() {
+    // Duplicate frame signatures should not change the result
+    let frame: Vec<i32> = (0..380).map(|i| i % 3).collect();
+    let single = iscc_lib::soft_hash_video_v0(std::slice::from_ref(&frame), 64).unwrap();
+    let doubled = iscc_lib::soft_hash_video_v0(&[frame.clone(), frame], 64).unwrap();
+    assert_eq!(single, doubled, "duplicates should be deduplicated");
+}
+
+#[test]
+fn test_soft_hash_video_v0_empty_input_error() {
+    // Empty frame_sigs slice returns InvalidInput error
+    let empty: &[Vec<i32>] = &[];
+    let err = iscc_lib::soft_hash_video_v0(empty, 64).unwrap_err();
+    assert!(
+        err.to_string().contains("must not be empty"),
+        "expected 'must not be empty' error, got: {err}"
+    );
+}
+
+#[test]
+fn test_soft_hash_video_v0_consistency_with_gen_video_code() {
+    // soft_hash_video_v0 digest should match the body of the gen_video_code_v0 output
+    // Using conformance vector test_0000: single all-zero 380-element frame, bits=64
+    let frame = vec![0i32; 380];
+    let digest = iscc_lib::soft_hash_video_v0(std::slice::from_ref(&frame), 64).unwrap();
+    let code_result = iscc_lib::gen_video_code_v0(std::slice::from_ref(&frame), 64).unwrap();
+    // Strip "ISCC:" prefix and decode base32 to get raw bytes
+    let component = code_result.iscc.strip_prefix("ISCC:").unwrap();
+    let raw = iscc_lib::codec::decode_base32(component).unwrap();
+    // decode_header returns (mtype, stype, version, bits, body)
+    let (_mt, _st, _v, _bits, body) = iscc_lib::codec::decode_header(&raw).unwrap();
+    assert_eq!(
+        digest, body,
+        "soft_hash_video_v0 digest should match gen_video_code_v0 body"
+    );
+}
+
 // ---- Import path verification ----
 
 #[test]
 fn test_flat_crate_root_imports() {
-    // Verify all 4 algorithm primitives are callable via iscc_lib::<fn>
+    // Verify all 5 algorithm primitives are callable via iscc_lib::<fn>
     let _ = iscc_lib::sliding_window("test", 2);
     let empty: &[Vec<u8>] = &[];
     let _ = iscc_lib::alg_simhash(empty);
     let _ = iscc_lib::alg_minhash_256(&[]);
     let _ = iscc_lib::alg_cdc_chunks(b"", false, 1024);
+    let frame = vec![0i32; 380];
+    let _ = iscc_lib::soft_hash_video_v0(&[frame], 64);
 }
 
 #[test]
