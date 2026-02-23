@@ -1,28 +1,24 @@
-## 2026-02-23 — Promote alg_cdc_chunks to Tier 1 public API
+## 2026-02-23 — Review of: Promote alg_cdc_chunks to Tier 1 public API
 
-**Done:** Promoted `alg_cdc_chunks` from `pub(crate)` to `pub` as the last of the 4 algorithm
-primitives in the Tier 1 API. Added 7 integration tests covering basic chunking, empty input,
-reassembly, UTF-32 alignment, different average sizes, and both import paths. This brings the
-promoted symbol count from 16 to 17 of 22.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean mechanical promotion of `alg_cdc_chunks` from `pub(crate)` to `pub`, completing
+all 4 algorithm primitives in the Tier 1 API. 6 new integration tests added (basic chunking, empty
+input, reassembly, UTF-32 alignment, different avg sizes, module path import) plus 1 existing test
+updated to include the new import. All 188 tests pass (143 unit + 23 algorithm primitives + 22 text
+utils), clippy clean, no gate circumvention.
 
-- `crates/iscc-lib/src/lib.rs`: changed `pub(crate) mod cdc` → `pub mod cdc`, added
-    `pub use cdc::alg_cdc_chunks` re-export
-- `crates/iscc-lib/src/cdc.rs`: changed `alg_cdc_chunks` from `pub(crate) fn` → `pub fn`
-- `crates/iscc-lib/tests/test_algorithm_primitives.rs`: added 5 CDC behavior tests + 2 import path
-    tests (flat and module path), updated module docstring and existing flat import test
+**Issues found:**
 
-**Verification:** All 188 tests pass (143 unit + 23 algorithm primitives + 22 text utils).
-`cargo clippy --workspace --all-targets -- -D warnings` clean. `mise run check` clean (all
-pre-commit hooks pass). Both `iscc_lib::alg_cdc_chunks` and `iscc_lib::cdc::alg_cdc_chunks` import
-paths verified. Internal helpers (`alg_cdc_params`, `alg_cdc_offset`, `DATA_AVG_CHUNK_SIZE`) remain
-`pub(crate)` and are not accessible from integration tests.
+- (none)
 
-**Next:** The remaining Tier 1 symbols to promote are: `encode_base64`, `iscc_decompose`,
-`DataHasher`/`InstanceHasher` streaming types, and `conformance_selftest`. The codec utilities
-(`encode_base64`, `iscc_decompose`) are likely the next straightforward promotion targets.
+**Next:** The remaining Tier 1 symbols to promote are: `encode_base64` (not implemented),
+`iscc_decompose` (not implemented), `DataHasher`/`InstanceHasher` streaming types (not implemented),
+`soft_hash_video_v0` (exists as private fn), and `conformance_selftest` (not implemented). The codec
+utilities (`encode_base64`, `iscc_decompose`) are likely the next straightforward targets since they
+involve implementing new public functions in the codec module rather than complex streaming types.
 
-**Notes:** Mechanical application of the established promotion pattern — no surprises or decisions
-needed. All 4 algorithm primitives (sliding_window, alg_simhash, alg_minhash_256, alg_cdc_chunks)
-are now part of the Tier 1 public API.
+**Notes:** Promoted symbol count is now 17 of 22 Tier 1 targets. The remaining 5 symbols require new
+implementation rather than simple visibility promotion. `state.md` should be updated to reflect the
+new count. The promotion pattern is fully proven (4 successful applications: utils, simhash,
+minhash, cdc) and requires no further iteration.
