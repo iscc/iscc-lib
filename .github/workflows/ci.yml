@@ -75,3 +75,26 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Run tests
         run: wasm-pack test --node crates/iscc-wasm
+  c-ffi:
+    name: C FFI (cbindgen, gcc, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cbindgen
+        run: cargo install cbindgen
+      - name: Build FFI crate
+        run: cargo build -p iscc-ffi
+      - name: Generate C header
+        run: cbindgen --crate iscc-ffi -o crates/iscc-ffi/tests/iscc.h
+      - name: Compile C test program
+        run: >
+          gcc -o test_iscc
+          crates/iscc-ffi/tests/test_iscc.c
+          -I crates/iscc-ffi/tests
+          -L target/debug
+          -liscc_ffi
+          -lpthread -ldl -lm
+      - name: Run C test program
+        run: LD_LIBRARY_PATH=target/debug ./test_iscc
