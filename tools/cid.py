@@ -18,6 +18,7 @@ Usage:
 import argparse
 import json
 import os
+import select
 import shutil
 import subprocess
 import sys
@@ -259,6 +260,27 @@ def run_iteration(claude_cmd, iteration, cwd, skip_permissions=False):
     return "ok"
 
 
+def wait_with_skip(seconds):
+    """Sleep for the given duration, but return early if Enter is pressed.
+
+    Uses select() on stdin for cross-platform support (Linux/macOS).
+    Falls back to plain sleep on Windows where select() on stdin is unavailable.
+    """
+    if sys.platform == "win32":
+        import msvcrt  # noqa: PLC0415
+
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline:
+            if msvcrt.kbhit():
+                msvcrt.getwch()
+                return
+            time.sleep(0.25)
+    else:
+        ready, _, _ = select.select([sys.stdin], [], [], seconds)
+        if ready:
+            sys.stdin.readline()
+
+
 # --- CLI commands ---
 
 
@@ -293,8 +315,10 @@ def cmd_run(args):
             sys.exit(1)
 
         if i < max_iter and pause:
-            print(f"\nPausing {pause}s before next iteration...")
-            time.sleep(pause)
+            print(
+                f"\nPausing {pause}s before next iteration (press Enter to continue)..."
+            )
+            wait_with_skip(pause)
     else:
         print(f"\nReached max iterations ({max_iter}).")
 
@@ -462,8 +486,8 @@ def main():
     run_p.add_argument(
         "--pause",
         type=int,
-        default=600,
-        help="Seconds to pause between iterations (default: 600)",
+        default=1200,
+        help="Seconds to pause between iterations (default: 1200)",
     )
     run_p.set_defaults(func=cmd_run)
 
