@@ -1,134 +1,122 @@
 # Next Work Package
 
-## Step: Python dict returns for all 9 gen functions
+## Step: Implement hybrid IsccResult(dict) objects in Python
 
 ## Goal
 
-Convert all 9 `gen_*_v0` PyO3 bindings from returning plain `String` to returning `PyDict` with all
-fields from the Rust `*CodeResult` structs, making `iscc_lib` a drop-in replacement for `iscc-core`.
+Replace direct `_lowlevel` re-exports with typed `IsccResult(dict)` subclass wrappers so all 9
+`gen_*_v0` Python functions return objects supporting both dict-style (`result['iscc']`) and
+attribute-style (`result.iscc`) access with IDE completion.
 
 ## Scope
 
-- **Modify**: `crates/iscc-py/src/lib.rs` — convert each function to return `PyResult<PyObject>`
-    building a Python dict from the result struct fields
-- **Modify**: `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — change return types from `str` to
-    `dict[str, Any]`
-- **Reference**: `crates/iscc-lib/src/types.rs` (result struct fields),
-    `.claude/context/specs/python-bindings.md` (field listing and optional-field rules),
-    `crates/iscc-lib/tests/data.json` (conformance output fields)
+- **Modify**: `crates/iscc-py/python/iscc_lib/__init__.py` — add `IsccResult` base class, 9 typed
+    subclasses, and 9 wrapper functions replacing the direct re-exports
+- **Reference**: `.claude/context/specs/python-bindings.md` (full spec with class definitions, field
+    annotations, wrapper function signatures, and export list)
+- **Reference**: `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (current `_lowlevel` signatures)
 
-Tests to update (excluded from 3-file limit):
+Tests to update/add (excluded from 3-file limit):
 
-- `tests/test_conformance.py` — verify all dict fields (not just `iscc` string)
-- `tests/test_smoke.py` — update assertions for dict access
+- `tests/test_smoke.py` — add assertions for attribute access and `isinstance` checks
+- `tests/test_conformance.py` — no changes needed (already uses `result["iscc"]` dict access which
+    still works)
 
 ## Implementation Notes
 
-### PyO3 Dict Construction Pattern
+### Base Class
 
-Each function changes from `.map(|r| r.iscc)` to building a `PyDict`. Use PyO3's `Python::with_gil`
-and `PyDict::new_bound`. Pattern for each function:
+```python
+class IsccResult(dict):
+    """ISCC result with both dict-style and attribute-style access."""
 
-```rust
-use pyo3::types::PyDict;
-
-fn gen_meta_code_v0(py: Python<'_>, ...) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_meta_code_v0(name, description, meta, bits)
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
-    let dict = PyDict::new(py);
-    dict.set_item("iscc", r.iscc)?;
-    dict.set_item("name", r.name)?;
-    dict.set_item("metahash", r.metahash)?;
-    if let Some(desc) = r.description {
-        dict.set_item("description", desc)?;
-    }
-    if let Some(meta) = r.meta {
-        dict.set_item("meta", meta)?;
-    }
-    Ok(dict.into())
-}
+    def __getattr__(self, name):
+        try:
+            return self[name]
+        except KeyError:
+            raise AttributeError(name) from None
 ```
 
-### Per-Function Dict Fields
+### Typed Subclasses
 
-Follow the spec in `.claude/context/specs/python-bindings.md`:
+Create exactly 9 subclasses with class-level type annotations per the spec table in
+`python-bindings.md`:
 
-| Function               | Always present                 | Conditionally present                             |
-| ---------------------- | ------------------------------ | ------------------------------------------------- |
-| `gen_meta_code_v0`     | `iscc`, `name`, `metahash`     | `description` (if provided), `meta` (if provided) |
-| `gen_text_code_v0`     | `iscc`, `characters`           | —                                                 |
-| `gen_image_code_v0`    | `iscc`                         | —                                                 |
-| `gen_audio_code_v0`    | `iscc`                         | —                                                 |
-| `gen_video_code_v0`    | `iscc`                         | —                                                 |
-| `gen_mixed_code_v0`    | `iscc`, `parts`                | —                                                 |
-| `gen_data_code_v0`     | `iscc`                         | —                                                 |
-| `gen_instance_code_v0` | `iscc`, `datahash`, `filesize` | —                                                 |
-| `gen_iscc_code_v0`     | `iscc`                         | —                                                 |
+- `MetaCodeResult`: `iscc: str`, `name: str`, `metahash: str`, `description: str | None`,
+    `meta: str | None`
+- `TextCodeResult`: `iscc: str`, `characters: int`
+- `ImageCodeResult`: `iscc: str`
+- `AudioCodeResult`: `iscc: str`
+- `VideoCodeResult`: `iscc: str`
+- `MixedCodeResult`: `iscc: str`, `parts: list[str]`
+- `DataCodeResult`: `iscc: str`
+- `InstanceCodeResult`: `iscc: str`, `datahash: str`, `filesize: int`
+- `IsccCodeResult`: `iscc: str`
 
-Key details:
+**Important:** The type annotations are for IDE/type-checker documentation only. Do NOT define
+`__init__` or `__init_subclass__` — the `dict.__init__` handles data storage, and `__getattr__`
+handles attribute access delegation.
 
-- `description` and `meta` are **omitted** from the dict when `None` (matching iscc-core behavior
-    where optional fields are simply absent from the returned dict)
-- `characters` is `int` (Python), `parts` is `list[str]`, `filesize` is `int`
-- `datahash` and `metahash` are hex strings with `1e20` prefix
+### Wrapper Functions
 
-### PyO3 Function Signature
+Each wrapper calls the `_lowlevel` function and wraps the result in the typed subclass. Import
+`_lowlevel` functions with a prefix to avoid name conflicts:
 
-Each function needs `py: Python<'_>` as first parameter (PyO3 automatically injects it). The return
-type changes to `PyResult<PyObject>`. The `#[pyo3(signature = ...)]` stays the same.
+```python
+from iscc_lib._lowlevel import (
+    gen_meta_code_v0 as _gen_meta_code_v0,
+    ...
+)
 
-Example signature change:
-
-```rust
-// Before:
-fn gen_meta_code_v0(name: &str, ...) -> PyResult<String>
-// After:
-fn gen_meta_code_v0(py: Python<'_>, name: &str, ...) -> PyResult<PyObject>
+def gen_meta_code_v0(name, description=None, meta=None, bits=64) -> MetaCodeResult:
+    """Generate an ISCC Meta-Code from content metadata."""
+    return MetaCodeResult(_gen_meta_code_v0(name, description, meta, bits))
 ```
 
-### Type Stub Updates
+The wrapper function signatures MUST match `_lowlevel.pyi` exactly (same parameter names and
+defaults). Check `_lowlevel.pyi` for each function's signature.
 
-Change `_lowlevel.pyi` return types from `-> str` to `-> dict[str, Any]`. Add
-`from typing import Any` at the top. Update docstring `:return:` lines to describe the dict keys.
+### Exports
+
+Update `__all__` to include all 9 wrapper functions, `IsccResult`, and the 9 typed result classes
+(19 total symbols).
 
 ### Test Updates
 
-**`tests/test_conformance.py`**: Change all assertions to verify dict fields:
+In `tests/test_smoke.py`, add tests verifying:
 
-- `assert result == tc["outputs"]["iscc"]` → `assert result["iscc"] == tc["outputs"]["iscc"]`
-- For meta tests: also assert `result["name"]`, `result["metahash"]`, and conditionally
-    `result.get("description")` and `result.get("meta")` against `tc["outputs"]`
-- For text tests: assert `result["characters"] == tc["outputs"]["characters"]`
-- For mixed tests: assert `result["parts"] == tc["outputs"]["parts"]`
-- For instance tests: assert `result["datahash"]`, `result["filesize"]` against outputs
+- `result.iscc` attribute access works
+- `isinstance(result, dict)` is `True`
+- `isinstance(result, IsccResult)` is `True`
+- `isinstance(result, InstanceCodeResult)` is `True` (for the specific subclass)
+- `json.dumps(result)` works without error
 
-**`tests/test_smoke.py`**: Change `assert result == "ISCC:..."` to
-`assert result["iscc"] == "ISCC:..."`
+Existing conformance tests should pass unchanged since `result["iscc"]` still works.
 
-### Edge Case: PyDict::new API
+### Edge Cases
 
-In PyO3 0.22+, the API is `PyDict::new(py)` returning `Bound<'_, PyDict>`. Call `.into()` to convert
-to `PyObject`. Check the PyO3 version in `Cargo.toml` to confirm the exact API.
+- `IsccResult.__getattr__` must raise `AttributeError` (not `KeyError`) for missing attributes —
+    this is required for `hasattr()`, `getattr()`, and pickling to work correctly
+- The `from None` in `raise AttributeError(name) from None` suppresses the `KeyError` chain
+- Do NOT add `__setattr__` or `__delattr__` — keep it simple, dict mutation through dict methods
 
 ## Verification
 
-- `cargo test -p iscc-py` passes (Rust-side compilation check)
-- `VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop -m crates/iscc-py/Cargo.toml` succeeds
-- `pytest tests/test_conformance.py` — all 49 tests pass with dict access
-- `pytest tests/test_smoke.py` — all 3 smoke tests pass with dict access
-- `gen_meta_code_v0("Test")["iscc"]` returns a valid ISCC string
-- `gen_meta_code_v0("Test")["name"]` returns `"Test"`
-- `gen_meta_code_v0("Test")["metahash"]` starts with `"1e20"`
-- `gen_text_code_v0("Hello world")["characters"]` returns an int
-- `gen_instance_code_v0(b"")["datahash"]` starts with `"1e20"`
-- `gen_instance_code_v0(b"")["filesize"]` returns `0`
-- `gen_mixed_code_v0(codes)["parts"]` returns a list of strings
-- `ruff check tests/` clean
-- All conformance vector additional fields (name, metahash, characters, parts, datahash, filesize)
-    match between `result[field]` and `tc["outputs"][field]`
+- `pytest tests/test_conformance.py` — all 49 tests pass (dict access still works)
+- `pytest tests/test_smoke.py` — all tests pass including new attribute access tests
+- `gen_meta_code_v0("Test").iscc` returns a valid ISCC string (attribute access)
+- `gen_meta_code_v0("Test")["iscc"]` returns the same string (dict access)
+- `isinstance(gen_meta_code_v0("Test"), dict)` is `True`
+- `isinstance(gen_meta_code_v0("Test"), IsccResult)` is `True`
+- `isinstance(gen_meta_code_v0("Test"), MetaCodeResult)` is `True`
+- `json.dumps(gen_meta_code_v0("Test"))` succeeds
+- `gen_instance_code_v0(b"").datahash` starts with `"1e20"` (attribute on subclass)
+- `gen_text_code_v0("test").characters` returns an `int` (attribute on subclass)
+- `ruff check crates/iscc-py/python/ tests/` clean
+- `IsccResult` and all 9 typed result classes appear in `iscc_lib.__all__`
 
 ## Done When
 
-The advance agent is done when all 9 `gen_*_v0` Python functions return `dict` objects with all
-fields matching iscc-core, all conformance tests verify every output field (not just `iscc`), and
-`pytest` passes cleanly.
+The advance agent is done when all 9 `gen_*_v0` Python functions return typed `IsccResult(dict)`
+subclass instances, both dict and attribute access work, all existing conformance tests pass
+unchanged, and new smoke tests verify the hybrid behavior.
