@@ -1,35 +1,27 @@
-## 2026-02-23 — Set up zensical documentation scaffold
+## 2026-02-23 — Review of: Set up zensical documentation scaffold
 
-**Done:** Created the documentation build infrastructure using zensical. Added `zensical` and
-`mkdocstrings[python]` to pyproject.toml dev dependencies, created `zensical.toml` configuration
-adapted from iscc-usearch (minimal: no custom assets, no overrides, no snippets auto_append), and
-wrote `docs/index.md` landing page covering project description, features, code types table, quick
-start examples (Rust + Python tabs), bindings table, and links.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
+**Summary:** Documentation build infrastructure is correctly set up with zensical. The
+`zensical.toml` configuration, `docs/index.md` landing page, and dev dependencies were all created
+as specified in next.md. The documentation builds successfully in 0.3s, producing a complete site.
+All 143 Rust tests pass, clippy and fmt are clean.
 
-- `pyproject.toml`: Added `zensical` and `mkdocstrings[python]` to dev dependency group
-- `zensical.toml`: New file — documentation configuration with theme (light/dark palettes),
-    mkdocstrings plugin pointing to `crates/iscc-py/python/iscc_lib`, and full markdown extension
-    set
-- `docs/index.md`: New file — landing page with project overview, feature list, code types table,
-    tabbed quick start, bindings table, and external links
+**Issues found:**
 
-**Verification:**
+- Quick start code examples in `docs/index.md` had incorrect API usage — Rust example used `None`
+    for `bits` parameter (actual type is `u32`, not `Option`) and showed `result["iscc"]` indexing
+    on a `String` return type. Python example also showed dict indexing on what is actually a JSON
+    string return. Fixed both examples to reflect the actual API signatures.
 
-- `uv sync --group dev` — succeeded, installed zensical 0.0.23 + 18 related packages
-- `uv run zensical build` — succeeded in 0.31s, produced `site/` directory
-- `site/index.html` — exists (696 lines), contains all landing page content (ISO 24138, gen
-    functions, Quick Start, Available Bindings)
-- `cargo test -p iscc-lib` — 143 passed, 0 failed (no regressions)
-- `site/` directory already in `.gitignore`
+**Next:** Follow-up documentation work or OIDC publishing pipelines. Options:
 
-**Next:** Follow-up documentation work: add custom ISCC branding (logo, favicon, extra.css), create
-API reference page using mkdocstrings auto-generation, add GitHub Pages deployment workflow
-(`.github/workflows/docs.yml`). Alternatively, tackle OIDC publishing pipelines as an independent
-workstream.
+1. Add API reference page using mkdocstrings auto-generation from Python stubs
+2. Add GitHub Pages deployment workflow (`.github/workflows/docs.yml`)
+3. Add ISCC branding (logo, favicon, extra.css) to the documentation site
+4. Tackle OIDC trusted publishing pipelines (crates.io, PyPI, npm) — independent workstream
 
-**Notes:** The `pymdownx.smartsymbols` extension doesn't convert `---` to em dashes in this zensical
-version — used actual Unicode em dash characters (`—`) instead. The `pymdownx.emoji` extension with
-`zensical.extensions.emoji` references works correctly (zensical built-in). The `uv.lock` will need
-to be committed as well since new dependencies were added.
+**Notes:** The `gen_*_v0` functions all return JSON strings (not parsed objects) across all
+bindings. Future documentation should be aware of this API shape when writing examples. Consider
+whether the Python `__init__.py` wrapper should parse JSON and return dicts for a more Pythonic API
+— but that would be a design decision, not a documentation fix.

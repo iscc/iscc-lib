@@ -130,3 +130,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - C test program links against cdylib (`.so`) with `LD_LIBRARY_PATH` at runtime. gcc needs
     `-lpthread -ldl -lm` for Rust runtime deps. For empty-data tests, pass `&single_byte` with
     `len=0` (not NULL) to satisfy Rust's non-null slice pointer requirement
+- zensical documentation: `uv run zensical build` produces `site/` directory (already in
+    `.gitignore`). Config lives in `zensical.toml`, docs in `docs/`. The `pymdownx.smartsymbols`
+    extension doesn't convert `---` to em dashes — use Unicode `—` directly
+- All `gen_*_v0` functions return JSON strings across all bindings (Rust `String`, Python `str`,
+    etc.) — documentation examples must use `json.loads()` or similar before indexing fields

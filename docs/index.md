@@ -49,8 +49,8 @@ decentralized, content-based identification without a central registry.
     ```rust
     use iscc_lib::gen_text_code_v0;
 
-    let result = gen_text_code_v0("Hello World", None)?;
-    println!("{}", result["iscc"]);
+    let result = gen_text_code_v0("Hello World", 64)?;
+    println!("{result}"); // JSON string
     ```
 
 === "Python"
@@ -60,9 +60,10 @@ decentralized, content-based identification without a central registry.
     ```
 
     ```python
+    import json
     from iscc_lib import gen_text_code_v0
 
-    result = gen_text_code_v0("Hello World")
+    result = json.loads(gen_text_code_v0("Hello World"))
     print(result["iscc"])
     ```
 
