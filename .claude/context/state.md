@@ -2,11 +2,11 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: Node.js at 21/23, WASM and C FFI at 17/23, Python complete (23/23)
+## Phase: Binding parity — WASM and Node.js at 21/23, C FFI at 17/23, Python complete
 
 All 23 Tier 1 API symbols are implemented in the Rust core crate with 268 tests. Python bindings are
-feature-complete (23/23). Node.js advanced to 21/23 (4 algorithm primitives added). WASM and C FFI
-remain at 17/23 Tier 1 symbols each. CI green, all tests passing.
+feature-complete (23/23). Node.js and WASM both advanced to 21/23 (4 algorithm primitives added in
+latest iterations). C FFI remains at 17/23 Tier 1 symbols. CI green, all tests passing.
 
 ## What Exists
 
@@ -16,9 +16,9 @@ remain at 17/23 Tier 1 symbols each. CI green, all tests passing.
     `DataHasher`/`InstanceHasher` streaming classes, BinaryIO support, 147 tests, `ty` clean
 - **Node.js bindings (`crates/iscc-napi/`)**: 21/23 Tier 1 symbols (9 gen + 4 text + 4 algo
     primitives + `encode_base64` + `iscc_decompose` + `sliding_window` + `conformance_selftest`), 89
-    tests (46 conformance + 43 function)
-- **WASM bindings (`crates/iscc-wasm/`)**: 17/23 Tier 1 symbols (9 gen + 4 text + 4 simple utils),
-    20 tests (9 conformance + 11 unit)
+    tests (21 suites, 0 failures)
+- **WASM bindings (`crates/iscc-wasm/`)**: 21/23 Tier 1 symbols (same 21 as Node.js), 40 tests (9
+    conformance + 31 unit)
 - **C FFI (`crates/iscc-ffi/`)**: 20 exported symbols (17 Tier 1 + 3 infrastructure), cbindgen, C
     test program, 38 tests
 - **Benchmarks**: Criterion (Rust) + pytest-benchmark (Python), 1.3x–158x speedups
@@ -28,9 +28,8 @@ remain at 17/23 Tier 1 symbols each. CI green, all tests passing.
 ## What's Missing
 
 - **2 Tier 1 symbols in Node.js**: `DataHasher`, `InstanceHasher` (streaming classes)
-- **6 Tier 1 symbols in WASM**: `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
-    `soft_hash_video_v0`, `DataHasher`, `InstanceHasher`
-- **6 Tier 1 symbols in C FFI**: same 6 as WASM
+- **2 Tier 1 symbols in WASM**: `DataHasher`, `InstanceHasher` (streaming classes)
+- **6 Tier 1 symbols in C FFI**: 4 algorithm primitives + `DataHasher`, `InstanceHasher`
 - **Binding structured returns**: Node.js, WASM, C FFI return plain `.iscc` strings (not full result
     dicts/objects like Python)
 - **Documentation branding**: ISCC CSS, logo/favicon, copy-page, llms.txt, Diátaxis nav, tabbed code
@@ -39,20 +38,19 @@ remain at 17/23 Tier 1 symbols each. CI green, all tests passing.
 
 ## CI
 
-- **Latest run: PASSING** — [Run](https://github.com/iscc/iscc-lib/actions/runs/22318059051) —
+- **Latest run: PASSING** — [Run](https://github.com/iscc/iscc-lib/actions/runs/22319105493) —
     conclusion: success
 
 ## Verification
 
 - `cargo test --workspace`: **268 passed** (38 FFI + 180 core + 28 integration + 22 text utils)
-- `wasm-pack test --node`: **20 passed** (9 conformance + 11 unit)
-- `pytest tests/`: **147 passed** in 1.27s
+- `wasm-pack test --node`: **40 passed** (9 conformance + 31 unit)
+- `pytest tests/`: **147 passed** in 0.77s
 - `node --test`: **89 passed** (21 suites, 0 failures)
 - `cargo clippy --workspace --all-targets -- -D warnings`: clean (CI-verified)
 
 ## Next Milestone
 
-Add the 4 algorithm primitives (`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
-`soft_hash_video_v0`) to WASM or C FFI bindings (replicating Node.js patterns). Then add
-`DataHasher`/`InstanceHasher` streaming classes across all three non-Python bindings to reach 23/23
-parity. WASM and C FFI are the furthest behind (6 symbols each).
+Add the 4 algorithm primitives to C FFI bindings (bringing it from 17/23 to 21/23, matching Node.js
+and WASM). Then add `DataHasher`/`InstanceHasher` streaming classes across all three non-Python
+bindings to reach 23/23 parity.
