@@ -1,79 +1,92 @@
 # Next Work Package
 
-## Step: Add Rust API documentation page
+## Step: Add benchmark results documentation page
 
 ## Goal
 
-Create a Rust API reference page for the documentation site, covering all 9 public `gen_*_v0`
-functions and the Tier 2 `codec` module. This fills the last content gap in the target's
-documentation requirement ("Covers Rust API, Python API, and architecture").
+Create a documentation page showing performance comparison between iscc-lib (Rust) and iscc-core
+(Python reference), with actual measured speedup factors. This fulfills the target criterion
+"Speedup factors published in documentation."
 
 ## Scope
 
-- **Create**: `docs/rust-api.md`
-- **Modify**: `zensical.toml` (add `rust-api.md` to `nav` array)
-- **Reference**: `crates/iscc-lib/src/lib.rs` (function signatures, doc comments),
-    `crates/iscc-lib/src/codec.rs` (public types: `MainType`, `SubType`, `encode_component`,
-    `decode_header`), `docs/api.md` (Python API page — match the style/structure), `docs/index.md`
-    (quick start Rust example to stay consistent)
+- **Create**: `docs/benchmarks.md`
+- **Modify**: `zensical.toml` (add `benchmarks.md` to nav array)
+- **Reference**: `benchmarks/python/bench_iscc_core.py`, `benchmarks/python/bench_iscc_lib.py`,
+    `crates/iscc-lib/benches/benchmarks.rs`, `docs/index.md` (style reference),
+    `benchmarks/python/conftest.py`
 
 ## Implementation Notes
 
-Create `docs/rust-api.md` as a hand-written reference page (no auto-generation — Rust doc comments
-are the source, but zensical/mkdocstrings only supports Python). Structure:
+### 1. Run comparative benchmarks
 
-1. **Intro paragraph** — explain this is the pure Rust crate (`cargo add iscc-lib`), all functions
-    return `IsccResult<String>` containing JSON, link to docs.rs for full rustdoc.
+First ensure iscc-lib Python bindings are built in release mode:
 
-2. **Functions section** — document all 9 `gen_*_v0` functions with:
+```bash
+VIRTUAL_ENV=/workspace/iscc-lib/.venv maturin develop \
+    --manifest-path crates/iscc-py/Cargo.toml --release
+```
 
-    - Function signature (Rust syntax-highlighted code block)
-    - Brief description (from the doc comments in lib.rs)
-    - Parameter table (name, type, description, default where applicable)
-    - Return value description
-    - Short usage example
+Then run the comparative pytest-benchmark suite:
 
-    Function signatures to document (from lib.rs):
+```bash
+pytest benchmarks/python/ --benchmark-only --benchmark-columns=mean,stddev,rounds
+```
 
-    - `gen_meta_code_v0(name: &str, description: Option<&str>, meta: Option<&str>, bits: u32) -> IsccResult<String>`
-    - `gen_text_code_v0(text: &str, bits: u32) -> IsccResult<String>`
-    - `gen_image_code_v0(pixels: &[u8], bits: u32) -> IsccResult<String>`
-    - `gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<String>`
-    - `gen_video_code_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<String>`
-    - `gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<String>`
-    - `gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<String>`
-    - `gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<String>`
-    - `gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<String>`
+This will run both `bench_iscc_core.py` (Python reference) and `bench_iscc_lib.py` (Rust bindings)
+with matching group names, enabling direct comparison. Capture the output for the docs page.
 
-3. **Types section** — document the public types from `codec` module:
+Also run `cargo bench -p iscc-lib` to get absolute Rust-native criterion numbers (these are faster
+than the Python-binding numbers since they skip PyO3 overhead).
 
-    - `IsccError` enum (and `IsccResult<T>` alias)
-    - `MainType` and `SubType` enums (brief table of variants)
-    - Note that `codec` is Tier 2 — available to Rust users but not exposed via FFI
+### 2. Create docs/benchmarks.md
 
-4. **Error handling** — brief section explaining `IsccResult` pattern and `IsccError::InvalidInput`
+Structure the page as:
 
-Style guidelines:
+- **Title**: "Benchmarks"
+- **Intro**: Brief explanation — Rust core vs Python reference, what's measured
+- **Methodology section**: Note the devcontainer environment, inputs used (summarize from bench
+    files: text sizes, byte sizes, feature vector lengths, etc.), measurement tools (criterion for
+    Rust, pytest-benchmark for Python comparison)
+- **Results table**: One main table showing all 9 functions with columns:
+    - Function name
+    - Input description
+    - iscc-core (Python) mean time
+    - iscc-lib (Rust via Python) mean time
+    - Speedup factor (X×)
+- **Key findings**: Brief summary of speedup range (e.g., "10–200× across functions")
+- **How to reproduce**: Commands to run benchmarks locally
 
-- Match the tone of `docs/api.md` (concise, practical)
-- Use `===` tabbed examples only if showing multi-language — here just use plain Rust code blocks
-- Use admonitions (`!!! note`, `!!! tip`) sparingly for important callouts
-- Keep each function's documentation to ~10-15 lines (signature + description + params + example)
+Style guidelines (match existing docs):
 
-For `zensical.toml`, insert `"rust-api.md"` into the nav array after `"architecture.md"` and before
-`"api.md"`, so the order is: index → architecture → rust-api → api (general → specific, Rust before
-Python).
+- Use Material for MkDocs features (admonitions, tables)
+- Keep it factual — report measured numbers, note that results vary by hardware
+- Use `!!! info` or `!!! tip` for important callouts
+- No JSON return value assumptions — functions return ISCC code strings
+
+### 3. Update zensical.toml nav
+
+Add `"benchmarks.md"` to the nav array after `"api.md"`:
+
+```toml
+nav = ["index.md", "architecture.md", "rust-api.md", "api.md", "benchmarks.md"]
+```
+
+### 4. Verify docs build
+
+Run `uv run zensical build` to confirm the new page renders and the site builds successfully. Check
+that `site/benchmarks/index.html` exists in the output.
 
 ## Verification
 
-- `docs/rust-api.md` exists and contains documentation for all 9 `gen_*_v0` functions
-- `zensical.toml` nav includes `"rust-api.md"`
-- All function signatures in the docs match the actual signatures in `lib.rs`
+- `docs/benchmarks.md` exists with measured speedup factors for all 9 `gen_*_v0` functions
+- `zensical.toml` nav includes `benchmarks.md`
 - `uv run zensical build` succeeds without errors
-- The built site contains the Rust API page (check `site/rust-api/index.html` exists)
-- No broken internal links in the docs
+- `site/benchmarks/index.html` exists in built output
+- The benchmarks page contains a comparison table with iscc-core vs iscc-lib timings
+- Speedup factors are derived from actual benchmark runs (not placeholder values)
 
 ## Done When
 
-The Rust API documentation page builds successfully with zensical, covers all 9 `gen_*_v0` functions
-with correct signatures, and is linked in the site navigation.
+The advance agent is done when all verification criteria pass — the benchmarks page contains real
+measured speedup factors for all 9 functions and the documentation site builds successfully.
