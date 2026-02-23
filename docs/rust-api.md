@@ -1,7 +1,7 @@
 # Rust API Reference
 
 Pure Rust crate for ISCC (ISO 24138:2024) code generation. All 9 `gen_*_v0` functions return
-`IsccResult<String>` containing a JSON string with the generated ISCC code and metadata.
+`IsccResult<String>` containing the ISCC code string (prefixed with `ISCC:`).
 
 ```bash
 cargo add iscc-lib
@@ -11,7 +11,7 @@ cargo add iscc-lib
 use iscc_lib::gen_text_code_v0;
 
 let result = gen_text_code_v0("Hello World", 64)?;
-println!("{result}"); // JSON string containing "iscc" field
+println!("{result}"); // e.g. "ISCC:EAASKDNZNYGUUF5A"
 ```
 
 For full rustdoc documentation, see [docs.rs/iscc-lib](https://docs.rs/iscc-lib).
@@ -255,8 +255,8 @@ let data = b"Hello World";
 let data_code = gen_data_code_v0(data, 64)?;
 let instance_code = gen_instance_code_v0(data, 64)?;
 
-// Extract ISCC strings from JSON results, then combine:
-let codes = &[data_code_str, instance_code_str];
+// Combine the ISCC code strings:
+let codes = &[data_code.as_str(), instance_code.as_str()];
 let iscc_code = gen_iscc_code_v0(codes, false)?;
 ```
 

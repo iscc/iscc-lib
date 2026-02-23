@@ -133,8 +133,9 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - zensical documentation: `uv run zensical build` produces `site/` directory (already in
     `.gitignore`). Config lives in `zensical.toml`, docs in `docs/`. The `pymdownx.smartsymbols`
     extension doesn't convert `---` to em dashes — use Unicode `—` directly
-- All `gen_*_v0` functions return JSON strings across all bindings (Rust `String`, Python `str`,
-    etc.) — documentation examples must use `json.loads()` or similar before indexing fields
+- All `gen_*_v0` functions return ISCC code strings (e.g. `"ISCC:AAAZXZ6OU74YAZIM"`) across all
+    bindings — NOT JSON. This differs from iscc-core Python which returns dicts with additional
+    fields like `metahash`, `name`, `characters`. The Rust API returns only the ISCC code string
 - mkdocstrings + griffe: set `paths` to the parent directory containing the package (e.g.,
     `crates/iscc-py/python` not `crates/iscc-py/python/iscc_lib`) so griffe resolves imports
     correctly. Use `allow_inspection = false` to force static analysis from `.pyi` stubs when PyO3

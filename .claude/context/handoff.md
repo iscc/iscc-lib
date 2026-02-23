@@ -1,30 +1,30 @@
-## 2026-02-23 — Add Rust API documentation page
+## 2026-02-23 — Review of: Add Rust API documentation page
 
-**Done:** Created `docs/rust-api.md` with documentation for all 9 `gen_*_v0` functions (signatures,
-parameter tables, descriptions, usage examples) plus the Tier 2 `codec` module types (`IsccError`,
-`MainType`, `SubType`) and error handling section. Updated `zensical.toml` nav to include the page
-between architecture and Python API.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
+**Summary:** The advance agent created a comprehensive Rust API reference page (`docs/rust-api.md`)
+covering all 9 `gen_*_v0` functions with correct signatures, parameter tables, descriptions, and
+usage examples, plus codec types documentation. The zensical nav was updated correctly. All function
+signatures verified as matching `lib.rs` exactly. Docs build succeeds and the page is included in
+the site.
 
-- `docs/rust-api.md`: Hand-written Rust API reference page covering all 9 public functions with
-    correct signatures, parameter tables, return value descriptions, and code examples; plus codec
-    types documentation and error handling guide
-- `zensical.toml`: Added `"rust-api.md"` to nav array after `"architecture.md"` and before
-    `"api.md"`
+**Issues found:**
 
-**Verification:** `uv run zensical build` succeeds — `site/rust-api/index.html` exists. All 9
-function signatures verified against actual `lib.rs` source. `cargo fmt --check` clean,
-`cargo clippy -- -D warnings` clean. No broken links (build produced no warnings).
+- The doc intro incorrectly stated functions return "a JSON string with the generated ISCC code and
+    metadata" — in fact all `gen_*_v0` functions return ISCC code strings directly (e.g.
+    `"ISCC:AAAZXZ6OU74YAZIM"`), not JSON. Fixed in three places (intro paragraph, intro example
+    comment, gen_iscc_code_v0 example comment). Also corrected the corresponding wrong learning in
+    learnings.md.
 
 **Next:** The documentation site now covers Rust API, Python API, and architecture — completing the
 target's documentation requirement. Remaining gaps from state.md: (1) GitHub Pages enablement (admin
-task, not code), (2) benchmark results page (optional content), (3) npm publishing workflow
-(requires `@iscc` org setup on npm). The most impactful remaining code work would be updating
-state.md to reflect completion of the Rust API docs and release workflow, then assessing whether the
-target state has been reached.
+action, not code), (2) benchmark results page (optional content), (3) npm publishing workflow
+(requires `@iscc` org setup on npm). The most impactful remaining work is updating state.md to
+reflect completion of the Rust API docs, then assessing whether the target state has been fully
+reached.
 
-**Notes:** The page is hand-written rather than auto-generated because zensical/mkdocstrings only
-supports Python. Function signatures were cross-checked against lib.rs source to ensure accuracy.
-The style matches the Python API page (concise, practical, parameter tables). Codec types are
-documented as Tier 2 with a note about FFI unavailability.
+**Notes:** The hand-written approach was the right call since zensical/mkdocstrings only supports
+Python. The `gen_iscc_code_v0` example uses `data_code.as_str()` and `instance_code.as_str()` which
+is correct for the actual return type (String). The existing learning that claimed JSON return
+values was incorrect — likely a misunderstanding from early iterations when the return format was
+still being designed.
