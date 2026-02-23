@@ -6,7 +6,7 @@ iscc-lib is a Rust library with Python, Node.js, WASM, and C FFI bindings implem
 standard for content identification. It provides all 9 gen_*_v0 functions, streaming hashers,
 text utilities, and algorithm primitives for generating ISCC codes from digital content.
 
-Install: `pip install iscc-lib` (Python), `npm install @aspect-build/iscc-lib` (Node.js)
+Install: `pip install iscc-lib` (Python), `npm install @iscc/lib` (Node.js)
 
 - [Source code](https://github.com/iscc/iscc-lib)
 - [Full documentation](https://lib.iscc.codes/llms-full.txt)

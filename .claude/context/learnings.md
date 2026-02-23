@@ -208,3 +208,5 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `ObjectFinalize` trait). `pub` visibility + `Default` impl resolve clippy
     dead_code/new_without_default lints that arise because napi macro glue is only generated for
     cdylib targets, not `--all-targets`
+- npm package name is `@iscc/lib` (scoped under `@iscc` org), not `@aspect-build/iscc-lib` — verify
+    package names against `crates/iscc-napi/package.json` when writing documentation metadata
