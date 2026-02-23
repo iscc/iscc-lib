@@ -1,33 +1,27 @@
-## 2026-02-23 — Implement conformance_selftest diagnostic function
+## 2026-02-23 — Review of: Implement conformance_selftest diagnostic function
 
-**Done:** Implemented `conformance_selftest()` as a public Tier 1 API function in a dedicated
-`conformance.rs` module. The function runs all 9 gen functions against every vendored conformance
-vector from `data.json` and returns `true` if all produce correct output. This completes the Rust
-core Tier 1 API (23/23 symbols).
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean implementation of `conformance_selftest()` as the 23rd and final Tier 1 API
+symbol. The function runs all 9 gen functions against every vendored conformance vector from
+`data.json` and returns `true` when all pass. All 230 Rust tests pass (180 unit + 28 algo + 22
+text), 63 Python tests pass, clippy clean workspace-wide, all pre-commit hooks pass. No lint
+suppressions, no quality gate circumvention.
 
-- `crates/iscc-lib/src/conformance.rs`: Created module with `conformance_selftest()` public function
-    and 9 private helper functions (`run_meta_tests`, `run_text_tests`, etc.), one per gen function.
-    Each helper parses inputs from JSON, calls the gen function, compares `.iscc` output, and
-    returns `false` on mismatch or error (with `eprintln!` diagnostics). Includes a unit test
-    asserting the selftest passes. Uses `Option`-based error handling (closures returning
-    `Option<bool>`) to avoid panics — any parse failure or gen function error counts as failure.
-- `crates/iscc-lib/src/lib.rs`: Added `pub mod conformance;` and
-    `pub use conformance::conformance_selftest;` re-export for flat crate-root imports.
+**Issues found:**
 
-**Verification:** All 230 tests pass (180 unit + 28 algo + 22 text), including the new
-`conformance::tests::test_conformance_selftest_passes`. Clippy clean workspace-wide
-(`--workspace --all-targets`). All pre-commit hooks pass. `iscc_lib::conformance_selftest` is
-accessible as a public API symbol via the crate root re-export.
+- (none)
 
-**Next:** All 23 Tier 1 symbols are implemented. `state.md` should be updated to reflect this
-milestone. Remaining work includes adding `conformance_selftest` wrappers to all binding crates
-(Python, Node.js, WASM, C FFI) and updating documentation. The streaming types (`DataHasher`,
-`InstanceHasher`) also need binding wrappers.
+**Next:** The Rust core Tier 1 API is now complete (23/23 symbols). `state.md` should be updated to
+reflect this milestone. Next logical steps are: (1) update `state.md` to mark Tier 1 complete, (2)
+add `conformance_selftest` wrappers to binding crates (Python, Node.js, WASM, C FFI), (3) add
+binding wrappers for the other promoted Tier 1 symbols beyond the 9 gen functions (text utils, algo
+primitives, streaming types, `iscc_decompose`, `encode_base64`), (4) structured return objects for
+Node.js/WASM/C FFI bindings.
 
-**Notes:** The implementation uses per-function helpers rather than a generic dispatch approach
-because each gen function has a unique signature and input decoding logic. The `gen_iscc_code_v0`
-conformance vectors only include the codes array (no `wide` parameter), so `false` is passed for
-wide mode (matching the existing test pattern). A `decode_stream` helper centralizes the
-`"stream:<hex>"` parsing shared by data and instance tests.
+**Notes:** The implementation uses per-function helpers with closure-based `Option` error handling
+to avoid panics — any parse failure or gen function error counts as failure without stopping
+execution. The `&=` operator ensures all 9 sections run even if earlier ones fail, providing
+complete diagnostic output. The `conformance` module is `pub mod` but only `conformance_selftest` is
+declared `pub fn` — internal helpers remain private. Code is repetitive across 9 helpers but each
+has unique signature/decoding logic, making the approach appropriate.

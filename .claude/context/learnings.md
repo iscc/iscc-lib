@@ -182,3 +182,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     (`format!("1e20{}", hex::encode(...))`) — avoids calling `multi_hash_blake3` which would
     redundantly rehash the same data. The `1e20` prefix is the BLAKE3 multihash header (codec 0x1e,
     length 0x20=32 bytes)
+- `conformance_selftest()` uses `passed &= run_*_tests()` (bitwise AND-assign on `bool`) to
+    accumulate pass/fail without short-circuiting — all 9 sections always execute, providing
+    complete diagnostic output. Each helper uses closure-returning-`Option<bool>` pattern to catch
+    parse errors without panicking
