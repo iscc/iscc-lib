@@ -1,14 +1,14 @@
-<!-- assessed-at: 98f2238896944ced6785fec248913e9817a9213f -->
+<!-- assessed-at: 9b06e53e8dfc20dd02b90c7f4c47e063e96b578d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Binding parity — WASM at 23/23, C FFI at 21/23
+## Phase: Full binding parity — all four binding targets at 23/23 Tier 1
 
-All 23 Tier 1 API symbols are implemented in the Rust core. Python (23/23), Node.js (23/23), and
-WASM (23/23) bindings are feature-complete including DataHasher/InstanceHasher streaming classes. C
-FFI remains at 21/23, missing the two streaming hasher types. CI is fully green across all 5 jobs.
+All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
+Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). CI is fully green across all 5
+jobs. Remaining gaps are in documentation branding and publishing pipeline configuration.
 
 ## Rust Core Crate
 
@@ -20,7 +20,7 @@ FFI remains at 21/23, missing the two streaming hasher types. CI is fully green 
     `iscc_decompose`, `DataHasher`, `InstanceHasher`, `conformance_selftest`
 - Tier 2 codec module (`codec.rs`) with `MainType`/`SubType`/`Version` enums and all encode/decode
     helpers — correctly Rust-only, not bound to foreign languages
-- 180 `#[test]` functions in `lib.rs` alone; 280 total across workspace Rust crates
+- 180 `#[test]` functions in `lib.rs` alone; 280+ total across workspace Rust crates
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
 - `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified)
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified)
@@ -59,7 +59,7 @@ FFI remains at 21/23, missing the two streaming hasher types. CI is fully green 
 **Status**: met
 
 - 23/23 Tier 1 symbols exported via wasm-bindgen in `crates/iscc-wasm/src/lib.rs`
-- `DataHasher` and `InstanceHasher` added as `#[wasm_bindgen]` structs (added in iteration 8)
+- `DataHasher` and `InstanceHasher` added as `#[wasm_bindgen]` structs
 - 56 tests: 10 in `conformance.rs` + 46 in `unit.rs` (all run via wasm-pack test --node)
 - `wasm-pack test --node crates/iscc-wasm` passes all 56 tests (CI-verified)
 - Structured results not returned — gen functions return only the `.iscc` string field
@@ -67,15 +67,19 @@ FFI remains at 21/23, missing the two streaming hasher types. CI is fully green 
 
 ## C FFI
 
-**Status**: partially met
+**Status**: met
 
-- 21/23 Tier 1 symbols as `extern "C"` functions in `crates/iscc-ffi/src/lib.rs` (1,495 lines)
-- Missing: `DataHasher` and `InstanceHasher` streaming classes (no opaque pointer lifecycle
-    functions: `iscc_data_hasher_new`, `iscc_data_hasher_update`, `iscc_data_hasher_finalize`,
-    `iscc_data_hasher_free` and equivalents for InstanceHasher)
+- 23/23 Tier 1 symbols as `extern "C"` functions in `crates/iscc-ffi/src/lib.rs` (1,880 lines)
+- All streaming hasher types fully implemented: `FfiDataHasher` and `FfiInstanceHasher` opaque
+    pointer types with complete `new/update/finalize/free` lifecycle functions (8 new exported
+    symbols: `iscc_data_hasher_new`, `iscc_data_hasher_update`, `iscc_data_hasher_finalize`,
+    `iscc_data_hasher_free`, `iscc_instance_hasher_new`, `iscc_instance_hasher_update`,
+    `iscc_instance_hasher_finalize`, `iscc_instance_hasher_free`)
+- Finalize-once semantics enforced via `Option<Inner>` in the opaque wrapper struct
 - Infrastructure in place: `IsccByteBuffer`/`IsccByteBufferArray` `#[repr(C)]` types, cbindgen
     config, C test program (`tests/test_iscc.c`), thread-local last-error pattern
-- 50 `#[test]` Rust unit tests
+- 62 `#[test]` Rust unit tests including 11 streaming hasher tests
+- C test program covers streaming hasher lifecycle (tests 14–17 in `test_iscc.c`)
 - cbindgen generates valid C headers (CI-verified)
 - C test program compiles with gcc and runs correctly (CI-verified)
 
@@ -113,10 +117,10 @@ FFI remains at 21/23, missing the two streaming hasher types. CI is fully green 
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
 - Latest CI run: **PASSING** —
-    [Run 22322401441](https://github.com/iscc/iscc-lib/actions/runs/22322401441) — all 5 jobs
-    success
+    [Run 22322848137](https://github.com/iscc/iscc-lib/actions/runs/22322848137) — all 5 jobs
+    success (Rust, Node.js, WASM, Python, C FFI)
 - Latest Docs run: **PASSING** —
-    [Run 22322405183](https://github.com/iscc/iscc-lib/actions/runs/22322405183)
+    [Run 22322848154](https://github.com/iscc/iscc-lib/actions/runs/22322848154)
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
 - Missing: npm publishing pipeline not fully wired (npm does not support OIDC; `NODE_AUTH_TOKEN`
     secret setup not documented as complete)
@@ -124,9 +128,11 @@ FFI remains at 21/23, missing the two streaming hasher types. CI is fully green 
 
 ## Next Milestone
 
-Add `DataHasher` and `InstanceHasher` streaming classes to C FFI using the opaque pointer lifecycle
-pattern (`*mut T` + create/update/finalize/free functions). This is the last remaining binding gap
-before all four binding targets reach 23/23 Tier 1 parity. The pattern: allocate on heap via
-`Box::into_raw`, accept the raw pointer in update/finalize functions, free via `Box::from_raw` in a
-dedicated `iscc_data_hasher_free` function. After C FFI reaches 23/23, the next priorities are
-documentation branding (ISCC colors, logo, favicon) and OIDC publishing configuration.
+With all four binding targets at 23/23 Tier 1 parity and CI fully green, the highest-value next
+priorities are:
+
+1. **Documentation branding** — add ISCC custom CSS (primary/accent colors), logo, and favicon
+    matching iscc-usearch at `usearch.iscc.codes`; add copy-page feature and `llms-full.txt`
+    generation; restructure navigation to follow Diátaxis framework with per-language how-to guides
+2. **OIDC publishing configuration** — configure crates.io and PyPI trusted publishing in
+    `release.yml` so releases require no long-lived API keys
