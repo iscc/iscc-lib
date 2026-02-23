@@ -1,92 +1,106 @@
 # Next Work Package
 
-## Step: Add benchmark results documentation page
+## Step: Add npm publishing jobs to release workflow
 
 ## Goal
 
-Create a documentation page showing performance comparison between iscc-lib (Rust) and iscc-core
-(Python reference), with actual measured speedup factors. This fulfills the target criterion
-"Speedup factors published in documentation."
+Add CI jobs to `.github/workflows/release.yml` that build and publish `@iscc/lib` (napi-rs native
+addon) and `@iscc/wasm` (wasm-bindgen package) to npm when a version tag is pushed. This closes the
+last code-level gap in the target state — everything else remaining is admin action (GitHub Pages
+enablement).
 
 ## Scope
 
-- **Create**: `docs/benchmarks.md`
-- **Modify**: `zensical.toml` (add `benchmarks.md` to nav array)
-- **Reference**: `benchmarks/python/bench_iscc_core.py`, `benchmarks/python/bench_iscc_lib.py`,
-    `crates/iscc-lib/benches/benchmarks.rs`, `docs/index.md` (style reference),
-    `benchmarks/python/conftest.py`
+- **Modify**: `.github/workflows/release.yml` — add `build-napi`, `publish-npm-lib`, `build-wasm`,
+    `publish-npm-wasm` jobs
+- **Modify**: `crates/iscc-napi/package.json` — add platform triples for napi-rs cross-platform
+    support
+- **Reference**: `.github/workflows/ci.yml` (existing Node.js/WASM build patterns),
+    `crates/iscc-napi/package.json` (current config), `notes/06-build-cicd-publishing.md`
 
 ## Implementation Notes
 
-### 1. Run comparative benchmarks
+### napi-rs (`@iscc/lib`) publishing
 
-First ensure iscc-lib Python bindings are built in release mode:
+Use the standard napi-rs cross-platform build matrix pattern:
 
-```bash
-VIRTUAL_ENV=/workspace/iscc-lib/.venv maturin develop \
-    --manifest-path crates/iscc-py/Cargo.toml --release
-```
+1. **Build matrix job (`build-napi`)**: Build native `.node` binaries on each platform:
 
-Then run the comparative pytest-benchmark suite:
+    - `ubuntu-latest` for `x86_64-unknown-linux-gnu`
+    - `ubuntu-latest` + cross for `aarch64-unknown-linux-gnu`
+    - `macos-14` for `aarch64-apple-darwin` (Apple Silicon)
+    - `macos-13` for `x86_64-apple-darwin`
+    - `windows-latest` for `x86_64-pc-windows-msvc`
 
-```bash
-pytest benchmarks/python/ --benchmark-only --benchmark-columns=mean,stddev,rounds
-```
+    Each matrix entry: checkout → setup Node 20 → setup Rust → `npm install` →
+    `npx napi build --platform --release` (from `crates/iscc-napi/`) → upload `*.node` as artifact.
 
-This will run both `bench_iscc_core.py` (Python reference) and `bench_iscc_lib.py` (Rust bindings)
-with matching group names, enabling direct comparison. Capture the output for the docs page.
+2. **Update `crates/iscc-napi/package.json`**: Add platform triples configuration:
 
-Also run `cargo bench -p iscc-lib` to get absolute Rust-native criterion numbers (these are faster
-than the Python-binding numbers since they skip PyO3 overhead).
+    ```json
+    "napi": {
+      "name": "iscc-lib",
+      "triples": {
+        "defaults": true,
+        "additional": ["aarch64-unknown-linux-gnu"]
+      }
+    }
+    ```
 
-### 2. Create docs/benchmarks.md
+3. **Publish job (`publish-npm-lib`)**: Depends on `build-napi`. Download all `.node` artifacts into
+    the `crates/iscc-napi/` directory → `npx napi prepublish -t npm` →
+    `npm publish --provenance --access public`. Use `NPM_TOKEN` secret for authentication (npm OIDC
+    provenance via `--provenance` flag requires `id-token: write` permission).
 
-Structure the page as:
+### wasm-bindgen (`@iscc/wasm`) publishing
 
-- **Title**: "Benchmarks"
-- **Intro**: Brief explanation — Rust core vs Python reference, what's measured
-- **Methodology section**: Note the devcontainer environment, inputs used (summarize from bench
-    files: text sizes, byte sizes, feature vector lengths, etc.), measurement tools (criterion for
-    Rust, pytest-benchmark for Python comparison)
-- **Results table**: One main table showing all 9 functions with columns:
-    - Function name
-    - Input description
-    - iscc-core (Python) mean time
-    - iscc-lib (Rust via Python) mean time
-    - Speedup factor (X×)
-- **Key findings**: Brief summary of speedup range (e.g., "10–200× across functions")
-- **How to reproduce**: Commands to run benchmarks locally
+1. **Build job (`build-wasm`)**: Install wasm-pack →
+    `wasm-pack build --target web --release crates/iscc-wasm` → post-process
+    `crates/iscc-wasm/pkg/package.json` to set `"name": "@iscc/wasm"` and correct version → upload
+    `crates/iscc-wasm/pkg/` as artifact.
 
-Style guidelines (match existing docs):
+    wasm-pack generates `pkg/` with `package.json`, `.wasm`, `.js`, `.d.ts` files. The generated
+    `package.json` uses the Cargo crate name (`iscc-wasm`) — we need to patch it to the scoped npm
+    name (`@iscc/wasm`). Use `node -e` or `sed` to update the name field after build.
 
-- Use Material for MkDocs features (admonitions, tables)
-- Keep it factual — report measured numbers, note that results vary by hardware
-- Use `!!! info` or `!!! tip` for important callouts
-- No JSON return value assumptions — functions return ISCC code strings
+2. **Publish job (`publish-npm-wasm`)**: Depends on `build-wasm`. Download `pkg/` artifact →
+    `cd pkg && npm publish --provenance --access public`. Same `NPM_TOKEN` secret.
 
-### 3. Update zensical.toml nav
+### Authentication
 
-Add `"benchmarks.md"` to the nav array after `"api.md"`:
+- npm publishing uses `NPM_TOKEN` repository secret (standard pattern for npm)
+- Add `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` env var to publish steps
+- Use `actions/setup-node@v4` with `registry-url: https://registry.npmjs.org` to configure `.npmrc`
+    automatically
+- Add `permissions: id-token: write` for npm provenance attestation
 
-```toml
-nav = ["index.md", "architecture.md", "rust-api.md", "api.md", "benchmarks.md"]
-```
+### Important details
 
-### 4. Verify docs build
-
-Run `uv run zensical build` to confirm the new page renders and the site builds successfully. Check
-that `site/benchmarks/index.html` exists in the output.
+- All npm publish jobs should have `needs:` dependency on their respective build jobs
+- All npm jobs should be independent of the crates.io/PyPI jobs (parallel execution)
+- Use `if: startsWith(github.ref, 'refs/tags/v')` on publish jobs to prevent accidental publishing
+    from `workflow_dispatch` (build-only for testing)
+- The `concurrency` group already prevents overlapping releases
+- For the linux-arm64 cross-compilation, use `uraimo/run-on-arch-action@v2` or QEMU +
+    `--target aarch64-unknown-linux-gnu`. Alternatively, use the napi-rs docker cross-compile
+    pattern with `ghcr.io/napi-rs/napi-rs/nodejs-rust:lts-debian-aarch64`
+- Existing crates.io and PyPI jobs must remain unchanged
 
 ## Verification
 
-- `docs/benchmarks.md` exists with measured speedup factors for all 9 `gen_*_v0` functions
-- `zensical.toml` nav includes `benchmarks.md`
-- `uv run zensical build` succeeds without errors
-- `site/benchmarks/index.html` exists in built output
-- The benchmarks page contains a comparison table with iscc-core vs iscc-lib timings
-- Speedup factors are derived from actual benchmark runs (not placeholder values)
+- `release.yml` is valid YAML (no syntax errors)
+- The workflow has jobs for: `publish-crates-io`, `build-wheels`, `build-sdist`, `publish-pypi`,
+    `build-napi`, `publish-npm-lib`, `build-wasm`, `publish-npm-wasm`
+- napi-rs build matrix covers at least: linux-x64, linux-arm64, macos-arm64, windows-x64
+- WASM build uses `wasm-pack build` with appropriate target
+- npm publish steps use `--access public` (required for scoped packages)
+- `NPM_TOKEN` secret is referenced for authentication
+- `id-token: write` permission present on publish jobs (for provenance)
+- `crates/iscc-napi/package.json` has platform triples configured
+- Existing crates.io and PyPI jobs are unchanged
 
 ## Done When
 
-The advance agent is done when all verification criteria pass — the benchmarks page contains real
-measured speedup factors for all 9 functions and the documentation site builds successfully.
+The advance agent is done when `release.yml` contains complete npm publishing jobs for both
+`@iscc/lib` and `@iscc/wasm`, the napi package.json has cross-platform triples, and all verification
+criteria above pass.
