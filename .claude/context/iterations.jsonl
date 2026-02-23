@@ -83,3 +83,8 @@
 {"ts":"2026-02-23T17:42:58.627164+00:00","iteration":4,"role":"define-next","status":"OK","turns":21,"cost_usd":0.706768,"duration_s":164.7}
 {"ts":"2026-02-23T17:47:25.172243+00:00","iteration":4,"role":"advance","status":"OK","turns":36,"cost_usd":1.218346,"duration_s":266.5}
 {"iteration":85,"step":"Add 4 algorithm primitives to Node.js bindings","verdict":"PASS","date":"2026-02-23","changes":["crates/iscc-napi/src/lib.rs","crates/iscc-napi/__tests__/functions.test.mjs"],"tests_passed":{"rust":268,"node":89},"notes":"Node.js 21/23 Tier 1 symbols. 4 algorithm primitives added with 16 new tests."}
+{"ts":"2026-02-23T17:50:06.388791+00:00","iteration":4,"role":"review","status":"OK","turns":32,"cost_usd":0.904166,"duration_s":161.2}
+{"ts":"2026-02-23T18:10:58.078010+00:00","iteration":5,"role":"update-state","status":"OK","turns":22,"cost_usd":0.522393,"duration_s":129.0}
+{"ts":"2026-02-23T18:13:04.445267+00:00","iteration":5,"role":"define-next","status":"OK","turns":19,"cost_usd":0.555376,"duration_s":126.4}
+{"ts":"2026-02-23T18:16:59.295333+00:00","iteration":5,"role":"advance","status":"OK","turns":26,"cost_usd":0.99805,"duration_s":234.8}
+{"step":"Add 4 algorithm primitives to WASM bindings","agent":"review","verdict":"PASS","timestamp":"2026-02-23T18:19:00Z","tests_passed":308,"tests_failed":0,"notes":"WASM at 21/23 Tier 1, all 40 wasm-pack tests pass (9 conformance + 31 unit), 268 workspace tests pass, clippy clean, 14 pre-commit hooks pass"}

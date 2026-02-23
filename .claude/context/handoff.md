@@ -1,38 +1,34 @@
-## 2026-02-23 — Add 4 algorithm primitives to WASM bindings
+## 2026-02-23 — Review of: Add 4 algorithm primitives to WASM bindings
 
-**Done:** Added `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, and `soft_hash_video_v0` as
-wasm-bindgen functions in `crates/iscc-wasm/src/lib.rs`, expanding WASM bindings from 17/23 to 21/23
-Tier 1 symbols. Each function follows the established thin-wrapper pattern with appropriate type
-mappings (JsValue + serde_wasm_bindgen for nested arrays, direct types for simple inputs).
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Four algorithm primitives (`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+`soft_hash_video_v0`) added to WASM bindings, expanding from 17/23 to 21/23 Tier 1 symbols. The
+implementation follows existing wasm-bindgen patterns exactly and mirrors the Node.js equivalents.
+All tests pass, clippy is clean, no scope violations.
 
-- `crates/iscc-wasm/src/lib.rs`: Added 4 wasm-bindgen functions under
-    `// ── Algorithm primitives ──` section after `sliding_window`. Type mappings: `alg_simhash`
-    uses JsValue→Vec\<Vec<u8>>, `alg_minhash_256` uses Vec<u32> directly, `alg_cdc_chunks` returns
-    JsValue via serde_wasm_bindgen, `soft_hash_video_v0` uses same JsValue pattern as
-    gen_video_code_v0.
-- `crates/iscc-wasm/tests/unit.rs`: Added 11 new wasm_bindgen_test functions covering all 4
-    primitives (simhash: 3 tests, minhash: 2 tests, cdc_chunks: 3 tests, soft_hash_video: 3 tests).
+**Verification:**
 
-**Verification:** All checks pass:
+- [x] `cargo build -p iscc-wasm` compiles without errors
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` is clean
+- [x] `wasm-pack test --node crates/iscc-wasm` passes all 40 tests (9 conformance + 31 unit)
+- [x] `cargo test --workspace` passes with 268 tests (no regressions)
+- [x] All 14 pre-commit hooks pass (`mise run check`)
 
-- `cargo build -p iscc-wasm` compiles cleanly
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- `wasm-pack test --node crates/iscc-wasm` passes all 40 tests (9 conformance + 31 unit)
-- `cargo test --workspace` passes 268 tests (no regressions)
-- All 14 pre-commit hooks pass (`mise run check`)
+**Issues found:**
 
-**Next:** WASM is now at 21/23 Tier 1 symbols (matching Node.js). Remaining 2 are
-`DataHasher`/`InstanceHasher` streaming classes. Good candidates for next work:
+- (none)
 
-1. **Add 4 algorithm primitives to C FFI bindings** — WASM and Node.js are at 21/23, C FFI is still
-    at 17/23. Replicate the same 4 functions with C type mappings (`*const u8` + `usize`, output
-    buffer management for CDC chunks)
-2. **Streaming hashers for any binding** — `DataHasher`/`InstanceHasher` classes to reach 23/23
+**Next:** WASM and Node.js are now both at 21/23 Tier 1 symbols. C FFI is still at 17/23. Good
+candidates for the next step:
 
-**Notes:** The `soft_hash_video_v0` tests initially failed because WTA-Hash requires frame signature
-vectors with at least 380 elements (matching conformance vector structure). Fixed by using
-`vec![0i32; 380]` test data, consistent with the napi test pattern. The `alg_cdc_chunks` return type
-uses `serde_wasm_bindgen::to_value()` with `.unwrap_or(JsValue::NULL)` as a safety fallback, though
-in practice the serialization of `Vec<Vec<u8>>` cannot fail.
+1. **Add 4 algorithm primitives to C FFI bindings** — bring C FFI from 17/23 to 21/23. Requires C
+    type mappings (`*const u8` + `usize`, pointer-to-array output for `alg_cdc_chunks`). This would
+    bring all three non-Python bindings to parity at 21/23
+2. **Streaming hashers for any binding** — `DataHasher`/`InstanceHasher` to reach 23/23. Could start
+    with Node.js (napi-rs class support) or WASM (wasm-bindgen class support)
+
+**Notes:** All three non-Python bindings now follow the same progression: 9 gen + 4 text + encoding
+
+- codec + conformance + sliding_window first (17), then 4 algorithm primitives (21), then 2
+    streaming hashers (23). C FFI is one step behind at 17/23.
