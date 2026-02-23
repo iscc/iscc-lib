@@ -1,23 +1,35 @@
-## 2026-02-23 — Review of: Add comparative pytest-benchmark for iscc_lib Python bindings
+## 2026-02-23 — Set up zensical documentation scaffold
 
-**Verdict:** PASS
+**Done:** Created the documentation build infrastructure using zensical. Added `zensical` and
+`mkdocstrings[python]` to pyproject.toml dev dependencies, created `zensical.toml` configuration
+adapted from iscc-usearch (minimal: no custom assets, no overrides, no snippets auto_append), and
+wrote `docs/index.md` landing page covering project description, features, code types table, quick
+start examples (Rust + Python tabs), bindings table, and links.
 
-**Summary:** The advance agent created `bench_iscc_lib.py` with 9 benchmarks mirroring
-`bench_iscc_core.py` exactly — identical inputs, matching group names, correct API type adaptations.
-All 18 benchmarks pass together with grouped comparison showing Rust speedup factors (1.1x–5.5x).
-Code is clean, simple, and well-documented. No regressions.
+**Files changed:**
 
-**Issues found:**
+- `pyproject.toml`: Added `zensical` and `mkdocstrings[python]` to dev dependency group
+- `zensical.toml`: New file — documentation configuration with theme (light/dark palettes),
+    mkdocstrings plugin pointing to `crates/iscc-py/python/iscc_lib`, and full markdown extension
+    set
+- `docs/index.md`: New file — landing page with project overview, feature list, code types table,
+    tabbed quick start, bindings table, and external links
 
-- Removed unused `collect_ignore = []` from conftest.py (minor fix applied)
+**Verification:**
 
-**Next:** Update `state.md` to reflect completed benchmark comparison. The remaining target items
-are: documentation site (lib.iscc.codes) and CI/CD publishing pipelines (OIDC trusted publishing for
-crates.io, PyPI, npm). These are independent workstreams — either can be tackled next. The
-documentation site is the larger gap; CI/CD publishing is more mechanical but enables releases.
+- `uv sync --group dev` — succeeded, installed zensical 0.0.23 + 18 related packages
+- `uv run zensical build` — succeeded in 0.31s, produced `site/` directory
+- `site/index.html` — exists (696 lines), contains all landing page content (ISO 24138, gen
+    functions, Quick Start, Available Bindings)
+- `cargo test -p iscc-lib` — 143 passed, 0 failed (no regressions)
+- `site/` directory already in `.gitignore`
 
-**Notes:** The benchmark comparison is now functional but not published anywhere — running
-`pytest benchmarks/python/ --benchmark-only` produces grouped results locally. Consider whether
-benchmark results should be captured in CI or published to GitHub Pages as part of the documentation
-site work. The `text_code` benchmark shows only ~1.1x speedup because Python text normalization
-(Unicode operations) dominates compute time — this is expected and not a performance concern.
+**Next:** Follow-up documentation work: add custom ISCC branding (logo, favicon, extra.css), create
+API reference page using mkdocstrings auto-generation, add GitHub Pages deployment workflow
+(`.github/workflows/docs.yml`). Alternatively, tackle OIDC publishing pipelines as an independent
+workstream.
+
+**Notes:** The `pymdownx.smartsymbols` extension doesn't convert `---` to em dashes in this zensical
+version — used actual Unicode em dash characters (`—`) instead. The `pymdownx.emoji` extension with
+`zensical.extensions.emoji` references works correctly (zensical built-in). The `uv.lock` will need
+to be committed as well since new dependencies were added.

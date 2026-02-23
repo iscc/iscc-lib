@@ -29,4 +29,6 @@ dev = [
   "mdformat",
   "mdformat-mkdocs[recommended]",
   "iscc-core",
+  "zensical",
+  "mkdocstrings[python]",
 ]
