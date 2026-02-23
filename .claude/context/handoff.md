@@ -1,24 +1,47 @@
-## 2026-02-23 — Python streaming support for gen_data_code_v0 and gen_instance_code_v0
+## 2026-02-23 — Review of: Python streaming support for gen_data_code_v0 and gen_instance_code_v0
 
-**Done:** Added `BinaryIO` (file-like stream) support to `gen_data_code_v0` and
-`gen_instance_code_v0` in the Python wrapper layer. Both functions now accept `bytes | BinaryIO`
-using duck typing (`hasattr(data, "read")`), matching the iscc-core API. No Rust changes needed.
+**Verdict:** NEEDS_WORK
 
-**Files changed:**
+**Summary:** Implementation is functionally correct — all tests pass, pre-commit hooks clean.
+However the pre-push `ty` type checker rejects the `hasattr(data, "read")` duck-typing pattern
+because `ty` doesn't narrow `bytes | BinaryIO` after `hasattr()` — it still sees `data.read()` as
+calling on `object` (the union's common base). The fix is straightforward: invert the check to
+`if isinstance(data, bytes): ... else: data = data.read()`, or use an explicit `cast()`.
 
-- `crates/iscc-py/python/iscc_lib/__init__.py`: Added `BinaryIO` import from `typing`, updated
-    `gen_data_code_v0` and `gen_instance_code_v0` signatures to accept `bytes | BinaryIO`, added
-    `hasattr(data, "read")` duck-type check to read stream contents before passing to Rust
-- `tests/test_smoke.py`: Added 6 streaming tests — BytesIO-vs-bytes equality for both functions,
-    empty stream handling for both, and plain bytes regression tests for both
+**Issues found:**
 
-**Verification:** All quality gates pass. 143 Rust tests pass, 63 Python tests pass (46 conformance,
-17 smoke). Pre-commit hooks clean. No regressions.
+- `ty` pre-push hook fails with `call-non-callable: Object of type 'object' is not callable` on
+    lines 136 and 143 of `__init__.py` — `data.read()` after `hasattr(data, "read")` guard
 
-**Next:** The Python drop-in compatibility story is now complete (hybrid dict+attribute results,
-BinaryIO streaming). Consult `target.md` for highest-impact next step. Candidates: structured
-returns for Node.js/WASM/FFI bindings, remaining Tier 1 API symbols, or documentation improvements.
+**Push failure:**
 
-**Notes:** The implementation is minimal — 2 lines added per function (duck-type check + read). The
-`from __future__ import annotations` already present enables the `bytes | BinaryIO` union syntax. No
-surprises or technical debt introduced.
+```
+error[call-non-callable]: Object of type `object` is not callable
+   --> crates/iscc-py/python/iscc_lib/__init__.py:136:16
+    |
+134 |     """Generate an ISCC Data-Code from raw byte data or a file-like stream."""
+135 |     if hasattr(data, "read"):
+136 |         data = data.read()
+    |                ^^^^^^^^^^^
+
+error[call-non-callable]: Object of type `object` is not callable
+   --> crates/iscc-py/python/iscc_lib/__init__.py:143:16
+    |
+141 |     """Generate an ISCC Instance-Code from raw byte data or a file-like stream."""
+142 |     if hasattr(data, "read"):
+143 |         data = data.read()
+    |                ^^^^^^^^^^^
+```
+
+**Next:** Fix the `ty` type checker error in both functions. Recommended approach: replace
+`if hasattr(data, "read"): data = data.read()` with
+`if not isinstance(data, bytes): data = data.read()` — this gives `ty` proper type narrowing (in the
+`else` branch, `data` is `BinaryIO` which has `.read()`). Alternatively, use
+`isinstance(data, (io.RawIOBase, io.BufferedIOBase, io.IOBase))` or `typing.cast`. The
+`isinstance(data, bytes)` inversion is simplest and still duck-type compatible since anything that
+isn't `bytes` will be treated as a stream.
+
+**Notes:** The `ty` type checker is stricter than mypy/pyright about `hasattr()` type narrowing.
+This is a known limitation — `ty` doesn't support `hasattr()`-based narrowing (it's a relatively new
+type checker). The `isinstance` approach is equally correct at runtime and satisfies the type
+checker. All other quality gates pass — this is the only blocking issue.

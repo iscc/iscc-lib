@@ -162,3 +162,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     pure Python `__init__.py`, wrapping `_lowlevel` PyO3 dicts. 9 typed subclasses with class-level
     annotations provide IDE completion. No Rust changes needed — the wrapper layer is entirely
     Python
+- `ty` type checker does NOT support `hasattr()`-based type narrowing —
+    `if hasattr(data, "read"):   data.read()` fails with `call-non-callable`. Use `isinstance`
+    inversion instead: `if not isinstance(data, bytes): data = data.read()`. This gives `ty` proper
+    narrowing while preserving duck-typing behavior at runtime
