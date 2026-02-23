@@ -1,22 +1,26 @@
-## 2026-02-23 — Review of: Add Node.js conformance tests for the napi crate
+## 2026-02-23 — Add Node.js CI job to workflow
 
-**Verdict:** PASS
+**Done:** Added a `nodejs` job to `.github/workflows/ci.yml` that builds the napi native addon and
+runs the 46 JavaScript conformance tests. The job runs in parallel with the existing `rust` and
+`python` jobs.
 
-**Summary:** All 46 Node.js conformance tests pass across all 9 `gen_*_v0` functions, matching the
-Python test count exactly. The test file is well-structured, mirrors the Python conformance tests
-cleanly, and uses zero extra dependencies (Node.js built-in `node:test` only). All Rust verification
-criteria also pass: 143 tests, clippy clean, fmt clean.
+**Files changed:**
 
-**Issues found:**
+- `.github/workflows/ci.yml`: Added `nodejs` job with checkout, Rust toolchain + cache, Node.js 20
+    setup, npm install, `npx napi build --platform`, and `npm test` steps
 
-- (none)
+**Verification:**
 
-**Next:** Add a Node.js CI job to `.github/workflows/ci.yml` that installs Node.js, builds the
-native addon via `npm install && npx napi build --platform`, and runs `npm test`. This completes the
-napi crate's integration into the quality gates. After CI, the next high-impact deliverables are:
-WASM bindings (`crates/iscc-wasm/`) or updating `state.md` to reflect napi test coverage.
+- `cargo test -p iscc-lib`: 143 passed, 0 failed
+- `cargo clippy -p iscc-lib -- -D warnings`: clean
+- `cargo fmt --all --check`: clean
+- YAML structure validated: 3 jobs (rust, python, nodejs), correct actions, no `needs:` dependency,
+    `working-directory` used for all napi steps
 
-**Notes:** The napi build artifacts (`iscc-lib.*.node`, `index.js`, `index.d.ts`, `node_modules/`)
-are gitignored and must be built before tests can run. The CI job will need `actions/setup-node@v4`
-and a build step before the test step. The `@napi-rs/cli` deprecation warning about `napi.name` vs
-`napi.binaryName` is cosmetic only.
+**Next:** The CI workflow now covers all three language targets. Next steps could be: WASM bindings
+(`@iscc/wasm` via wasm-bindgen), C FFI (cbindgen headers), documentation site, or CI/CD publishing
+pipelines.
+
+**Notes:** Used `npx napi build --platform` (debug mode) rather than `npm run build` (which uses
+`--release`) for faster CI builds. The debug build is sufficient for conformance test verification.
+The `working-directory` approach keeps the YAML clean per GitHub Actions best practices.

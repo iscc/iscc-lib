@@ -45,3 +45,22 @@ jobs:
         run: uv run ruff format --check
       - name: Run pytest
         run: uv run pytest
+  nodejs:
+    name: Node.js (napi build, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install npm dependencies
+        run: npm install
+        working-directory: crates/iscc-napi
+      - name: Build native addon
+        run: npx napi build --platform
+        working-directory: crates/iscc-napi
+      - name: Run tests
+        run: npm test
+        working-directory: crates/iscc-napi
