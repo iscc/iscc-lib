@@ -47,32 +47,53 @@ The streaming pattern is the same across all layers, adapted to each language's 
 
 **Rust core:**
 
-```rust
-pub struct DataCodeProcessor { /* ... */ }
+Two streaming types matching iscc-core naming: `DataHasher` (for Data-Code) and `InstanceHasher`
+(for Instance-Code).
 
-impl DataCodeProcessor {
+```rust
+pub struct DataHasher { /* ... */ }
+
+impl DataHasher {
     pub fn new() -> Self { /* ... */ }
     pub fn update(&mut self, data: &[u8]) { /* ... */ }
-    pub fn finalize(self) -> Result<DataCode, Error> { /* ... */ }
+    pub fn finalize(self, bits: u32) -> Result<DataCodeResult, IsccError> { /* ... */ }
+}
+
+pub struct InstanceHasher { /* ... */ }
+
+impl InstanceHasher {
+    pub fn new() -> Self { /* ... */ }
+    pub fn update(&mut self, data: &[u8]) { /* ... */ }
+    pub fn finalize(self, bits: u32) -> Result<InstanceCodeResult, IsccError> { /* ... */ }
 }
 ```
 
 **C FFI:**
 
 ```c
-iscc_data_ctx_t* iscc_data_ctx_new(void);
-int              iscc_data_ctx_update(iscc_data_ctx_t* ctx, const uint8_t* data, size_t len);
-int              iscc_data_ctx_finalize(iscc_data_ctx_t* ctx, iscc_data_code_t* out);
-void             iscc_data_ctx_free(iscc_data_ctx_t* ctx);
+iscc_data_hasher_t*     iscc_data_hasher_new(void);
+int                     iscc_data_hasher_update(iscc_data_hasher_t* ctx, const uint8_t* data, size_t len);
+int                     iscc_data_hasher_finalize(iscc_data_hasher_t* ctx, uint32_t bits, /* out params */);
+void                    iscc_data_hasher_free(iscc_data_hasher_t* ctx);
+
+iscc_instance_hasher_t* iscc_instance_hasher_new(void);
+int                     iscc_instance_hasher_update(iscc_instance_hasher_t* ctx, const uint8_t* data, size_t len);
+int                     iscc_instance_hasher_finalize(iscc_instance_hasher_t* ctx, uint32_t bits, /* out params */);
+void                    iscc_instance_hasher_free(iscc_instance_hasher_t* ctx);
 ```
 
 **Python (via PyO3):**
 
 ```python
-proc = DataCodeProcessor()
-proc.update(chunk1)
-proc.update(chunk2)
-result = proc.finalize()
+dh = DataHasher()
+dh.update(chunk1)
+dh.update(chunk2)
+result = dh.finalize(bits=64)
+
+ih = InstanceHasher()
+ih.update(chunk1)
+ih.update(chunk2)
+result = ih.finalize(bits=64)
 ```
 
 **Node.js (via napi-rs):**
@@ -80,10 +101,10 @@ result = proc.finalize()
 ```typescript
 const result = await generateDataCode(buffer);  // AsyncTask wraps sync core
 // Or streaming:
-const proc = new DataCodeProcessor();
-proc.update(chunk1);
-proc.update(chunk2);
-const result = proc.finalize();
+const dh = new DataHasher();
+dh.update(chunk1);
+dh.update(chunk2);
+const result = dh.finalize(64);
 ```
 
 ## Why NOT Async in the Core

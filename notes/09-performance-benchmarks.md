@@ -52,13 +52,13 @@ The report covers three dimensions: **operation** × **language target** × **in
 | Target                                | Label in Report   | Tooling                     | Available From |
 | ------------------------------------- | ----------------- | --------------------------- | -------------- |
 | Python reference (`iscc-core`)        | **Python ref**    | pytest-benchmark            | Phase 0        |
-| Rust core (`crates/iscc`)             | **Rust**          | criterion                   | Phase 0        |
+| Rust core (`crates/iscc-lib`)         | **Rust**          | criterion                   | Phase 0        |
 | Python bindings (`crates/iscc-py`)    | **Python (Rust)** | pytest-benchmark            | Phase 1        |
-| Node.js bindings (`crates/iscc-node`) | **Node.js**       | vitest bench                | Phase 2        |
+| Node.js bindings (`crates/iscc-napi`) | **Node.js**       | vitest bench                | Phase 2        |
 | WASM (`crates/iscc-wasm`)             | **WASM**          | vitest bench (browser-like) | Phase 2        |
 
-Not all operations apply to all targets (e.g., internal algorithms like CDC and MinHash are only
-benchmarked in Rust and Python ref, not through bindings). The report omits cells that don't apply
+Algorithm primitives (CDC, MinHash, SimHash, sliding_window) are now Tier 1 and available through
+all bindings, so they can be benchmarked across all targets. The report omits cells that don't apply
 rather than showing N/A.
 
 ## Input Corpus
@@ -189,7 +189,7 @@ performance over time. Catches regressions and documents improvements across rel
 
 | Concern            | Tool                                                                | Notes                                                                                                                                                                |
 | ------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rust benchmarks    | [criterion](https://github.com/bheisler/criterion.rs)               | Statistical microbenchmarks with warm-up, outlier detection, and JSON output. Lives in `crates/iscc/benches/`.                                                       |
+| Rust benchmarks    | [criterion](https://github.com/bheisler/criterion.rs)               | Statistical microbenchmarks with warm-up, outlier detection, and JSON output. Lives in `crates/iscc-lib/benches/`.                                                   |
 | Python benchmarks  | [pytest-benchmark](https://pytest-benchmark.readthedocs.io/)        | pytest plugin with statistical analysis and JSON output. Benchmarks `iscc-core` and `iscc-lib` Python bindings side by side. Lives in `benchmarks/python/`.          |
 | Node.js benchmarks | [vitest bench](https://vitest.dev/guide/features.html#benchmarking) | Vitest's built-in benchmarking (uses tinybench). Lives in `benchmarks/node/`.                                                                                        |
 | WASM benchmarks    | vitest bench (browser mode)                                         | Same runner as Node.js but targeting WASM.                                                                                                                           |
@@ -201,7 +201,7 @@ performance over time. Catches regressions and documents improvements across rel
 
 ```
 iscc-lib/
-├── crates/iscc/benches/          # Rust criterion benchmarks
+├── crates/iscc-lib/benches/          # Rust criterion benchmarks
 │   ├── data_code.rs               # Data-Code streaming throughput
 │   ├── instance_code.rs           # Instance-Code streaming throughput
 │   ├── content_codes.rs           # All Content-Code variants

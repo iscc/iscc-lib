@@ -57,19 +57,19 @@ Establish correctness before adding bindings:
 
 ### Phase 1: Core + Python
 
-Minimum viable polyglot setup — pure Rust core (`crates/iscc/`) + Python bindings
+Minimum viable polyglot setup — pure Rust core (`crates/iscc-lib/`) + Python bindings
 (`crates/iscc-py/`) via PyO3 + maturin. See [01-workspace-structure.md](01-workspace-structure.md)
 for the full directory layout.
 
 ### Phase 2: Node.js + WASM
 
-Add `crates/iscc-node/` (napi-rs native addon) and `crates/iscc-wasm/` (browser WASM via
+Add `crates/iscc-napi/` (napi-rs native addon) and `crates/iscc-wasm/` (browser WASM via
 wasm-bindgen). See [02-language-bindings.md](02-language-bindings.md).
 
-### Phase 3: C FFI + CLI
+### Phase 3: C FFI
 
-Add `crates/iscc-ffi/` (C FFI via cbindgen, enables Go/Java/C#) and `crates/iscc-cli/` (command-line
-tool). See [02-language-bindings.md](02-language-bindings.md).
+Add `crates/iscc-ffi/` (C FFI via cbindgen, enables Go/Java/C#). See
+[02-language-bindings.md](02-language-bindings.md).
 
 ### Migration from iscc-sum
 
@@ -78,22 +78,22 @@ profile settings, CI matrix, Python tooling (uv, ruff, bandit, pytest) — repla
 
 **Restructure**:
 
-| iscc-sum (current)                           | iscc-lib (target)                              | Why                                                  |
-| -------------------------------------------- | ---------------------------------------------- | ---------------------------------------------------- |
-| Single crate with `[lib]` + `[[bin]]` + PyO3 | Workspace with separate crates                 | Core must be usable without PyO3 dependency          |
-| `Cargo.toml` at root                         | `crates/iscc/Cargo.toml`                       | Workspace pattern for multiple binding crates        |
-| PyO3 in same crate as core                   | `crates/iscc-py/` separate from `crates/iscc/` | Core crate stays pure Rust, publishable to crates.io |
-| `poethepoet` for tasks                       | `mise tasks`                                   | Unifies tool versions + tasks in one tool            |
-| `src/main.rs` CLI in same crate              | `crates/iscc-cli/`                             | CLI is a consumer of the core API, not part of it    |
-| `clap`, `walkdir`, `globset` in core deps    | Move to CLI crate only                         | Core crate should not depend on CLI libraries        |
+| iscc-sum (current)                           | iscc-lib (target)                                  | Why                                                  |
+| -------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------- |
+| Single crate with `[lib]` + `[[bin]]` + PyO3 | Workspace with separate crates                     | Core must be usable without PyO3 dependency          |
+| `Cargo.toml` at root                         | `crates/iscc-lib/Cargo.toml`                       | Workspace pattern for multiple binding crates        |
+| PyO3 in same crate as core                   | `crates/iscc-py/` separate from `crates/iscc-lib/` | Core crate stays pure Rust, publishable to crates.io |
+| `poethepoet` for tasks                       | `mise tasks`                                       | Unifies tool versions + tasks in one tool            |
+| `src/main.rs` CLI in same crate              | `crates/iscc-cli/`                                 | CLI is a consumer of the core API, not part of it    |
+| `clap`, `walkdir`, `globset` in core deps    | Move to CLI crate only                             | Core crate should not depend on CLI libraries        |
 
 **Extraction steps**:
 
 1. Create workspace root `Cargo.toml` with `workspace.dependencies`
-2. Move core algorithms (CDC, MinHash, BLAKE3 hashing, codec) to `crates/iscc/`
+2. Move core algorithms (CDC, MinHash, BLAKE3 hashing, codec) to `crates/iscc-lib/`
 3. Remove PyO3 dependency from core — it becomes a pure Rust library
-4. Create `crates/iscc-py/` that depends on `crates/iscc/` and adds PyO3 bindings
-5. Move CLI to `crates/iscc-cli/` with `clap`, `walkdir`, `globset` as its own dependencies
+4. Create `crates/iscc-py/` that depends on `crates/iscc-lib/` and adds PyO3 bindings
+5. Move CLI to a separate crate with `clap`, `walkdir`, `globset` as its own dependencies
 6. Expand core to implement remaining ISCC units (Content-Code, Meta-Code, ISCC-CODE)
 
 ## Tooling Stack
@@ -150,8 +150,9 @@ profile settings, CI matrix, Python tooling (uv, ruff, bandit, pytest) — repla
     streaming. Each binding adapts to its runtime's async model. Never expose Rust async across
     FFI. → [03-async-and-streaming.md](03-async-and-streaming.md)
 
-8. **Tiered API surface** — only `iscc::api` is bound. Internal modules are not exposed. This
-    prevents accidental ABI/API drift across languages. →
+8. **Tiered API surface** — Tier 1 public functions (22 symbols at crate root) are bound in all
+    languages. Internal modules (`pub(crate)`) are not exposed. The `codec` module is Tier 2
+    (Rust-only). See `specs/rust-core.md` for the complete Tier 1 listing. →
     [04-api-compatibility-safety.md](04-api-compatibility-safety.md)
 
 9. **Supply-chain hygiene from day one** — `cargo deny`, `bandit`, dependabot, signed tags, OIDC

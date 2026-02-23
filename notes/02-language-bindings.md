@@ -60,7 +60,7 @@ CSS, Rspack, and Oxc all use.
 **Key pattern**: platform-specific npm packages with a main package that selects the right binary.
 
 ```
-crates/iscc-node/
+crates/iscc-napi/
 ├── Cargo.toml              # napi + napi-derive dependencies
 ├── src/
 │   ├── lib.rs              # #[napi] exported functions
@@ -106,7 +106,7 @@ crates/iscc-wasm/
 crate-type = ["cdylib"]
 
 [dependencies]
-iscc = { path = "../iscc", default-features = false }
+iscc-lib = { path = "../iscc-lib", default-features = false }
 wasm-bindgen = "0.2"
 serde-wasm-bindgen = "0.6"
 

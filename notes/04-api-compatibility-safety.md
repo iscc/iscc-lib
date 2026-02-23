@@ -10,26 +10,41 @@ The Rust core API is **not automatically public API**. Polyglot projects fail wh
 grows organically, bindings expose "just a bit more", and the public surface explodes unevenly
 across languages.
 
-**Tiered API model (recommended):**
+**Tiered API model:**
 
 | Tier                                   | Scope                                      | Rule                                        |
 | -------------------------------------- | ------------------------------------------ | ------------------------------------------- |
-| **Tier 1** (`iscc::api`)               | Stable entrypoints, bound in all languages | SemVer-governed, changes require MAJOR bump |
-| **Tier 2** (`pub` but not in `api`)    | Rust-only or opt-in bindings               | May change in MINOR releases                |
+| **Tier 1** (crate root `pub` fns)      | Stable entrypoints, bound in all languages | SemVer-governed, changes require MAJOR bump |
+| **Tier 2** (`pub mod codec`)           | Rust-only (enums, header encode/decode)    | May change in MINOR releases                |
 | **Internal** (`pub(crate)` or private) | Never exposed to bindings                  | Free to change                              |
+
+Tier 1 includes 22 public symbols: 9 gen functions, 4 text utilities, 4 algorithm primitives, 1 soft
+hash, 1 encoding utility, 1 codec operation, 2 streaming types, and 1 diagnostic function. See
+`specs/rust-core.md` for the complete listing.
 
 **Concrete pattern:**
 
 ```rust
-// crates/iscc/src/lib.rs
-pub mod api;       // Tier 1: stable, bound everywhere
-pub mod codec;     // Tier 2: Rust-only utilities
-mod cdc;           // Internal: never exposed
-mod minhash;       // Internal: never exposed
+// crates/iscc-lib/src/lib.rs
+
+// Tier 1 public API — bound in all languages:
+// - 9 gen_*_v0 functions (code generation)
+// - text_clean, text_remove_newlines, text_trim, text_collapse (text utils)
+// - sliding_window, alg_minhash_256, alg_cdc_chunks, alg_simhash (algorithms)
+// - soft_hash_video_v0 (soft hash)
+// - encode_base64, iscc_decompose (encoding/codec)
+// - DataHasher, InstanceHasher (streaming)
+// - conformance_selftest (diagnostics)
+
+pub mod codec;     // Tier 2: Rust-only (MainType, SubType, encode/decode_header, etc.)
+pub(crate) mod cdc;           // Internal module (alg_cdc_chunks re-exported at crate root)
+pub(crate) mod minhash;       // Internal module (alg_minhash_256 re-exported at crate root)
+pub(crate) mod simhash;       // Internal module (alg_simhash, sliding_window re-exported)
 ```
 
-Bindings import **only from `iscc::api`**. This prevents accidental exposure of internal types and
-keeps the binding surface predictable.
+Tier 1 functions are public at the crate root (`iscc_lib::text_clean`, `iscc_lib::gen_meta_code_v0`,
+etc.). Bindings wrap these crate-root functions. Internal modules remain `pub(crate)` — only
+selected functions are re-exported as public API.
 
 **Discipline rules:**
 

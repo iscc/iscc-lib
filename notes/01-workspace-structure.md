@@ -148,12 +148,11 @@ dependency management; minijinja manages versions per-crate.
 [workspace]
 resolver = "2"
 members = [
-  "crates/iscc",
+  "crates/iscc-lib",
   "crates/iscc-py",
-  "crates/iscc-node",
+  "crates/iscc-napi",
   "crates/iscc-wasm",
   "crates/iscc-ffi",
-  "crates/iscc-cli",
 ]
 
 [workspace.package]
@@ -169,7 +168,6 @@ blake3 = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
-tokio = { version = "1", features = ["rt", "macros"] }
 ```
 
 ### Member Crate Referencing Workspace Dependencies
@@ -184,11 +182,11 @@ rust-version.workspace = true
 publish = false               # Python package published to PyPI, not crates.io
 
 [lib]
-name = "iscc"
+name = "iscc_py"
 crate-type = ["cdylib"]
 
 [dependencies]
-iscc = { path = "../iscc" }
+iscc-lib = { path = "../iscc-lib" }
 pyo3 = { version = "0.23", features = ["abi3-py310"] }
 
 # Shared deps from workspace
@@ -199,14 +197,10 @@ serde_json.workspace = true
 ### Crate Architecture (Hub-and-Spoke)
 
 ```
-                    ┌──────────┐
-                    │ iscc-cli │
-                    └────┬─────┘
-                         │
-  ┌──────────┐    ┌──────┴──────┐    ┌───────────┐
-  │ iscc-py  │───→│    iscc     │←───│ iscc-node │
-  │  (PyO3)  │    │   (core)   │    │ (napi-rs) │
-  └──────────┘    └──────┬──────┘    └───────────┘
+  ┌──────────┐    ┌──────────────┐    ┌───────────┐
+  │ iscc-py  │───→│   iscc-lib   │←───│ iscc-napi │
+  │  (PyO3)  │    │    (core)    │    │ (napi-rs) │
+  └──────────┘    └──────┬───────┘    └───────────┘
                          │
                ┌─────────┼─────────┐
                │         │         │
@@ -216,11 +210,11 @@ serde_json.workspace = true
           └────────┘ └────────┘ └──────────┘
 ```
 
-The core crate (`iscc`) is a pure Rust library with no FFI concerns. Each binding crate depends on
-the core and translates its API to the target language. This keeps the core crate clean and
+The core crate (`iscc-lib`) is a pure Rust library with no FFI concerns. Each binding crate depends
+on the core and translates its API to the target language. This keeps the core crate clean and
 testable.
 
-### Phase 1 Directory Layout
+### Directory Layout
 
 ```
 iscc-lib/
@@ -230,38 +224,34 @@ iscc-lib/
 ├── pyproject.toml            # Python project (uv)
 ├── zensical.toml             # Documentation config
 ├── .pre-commit-config.yaml   # prek hooks
-├── deny.toml                 # cargo-deny config
-├── scripts/
-│   └── sync_versions.py
 ├── overrides/
 │   └── main.html             # Doc template overrides
 ├── docs/                     # Documentation (zensical → lib.iscc.codes)
 │   ├── index.md
 │   ├── stylesheets/extra.css
 │   ├── assets/
-│   ├── reference/api.md
-│   └── development/contributing.md
+│   └── reference/
 ├── crates/
-│   ├── iscc/                 # Core Rust library
+│   ├── iscc-lib/             # Core Rust library (Tier 1 + Tier 2 API)
 │   │   ├── Cargo.toml
-│   │   └── src/
-│   │       ├── lib.rs
-│   │       ├── meta.rs       # Meta-Code
-│   │       ├── semantic.rs   # Semantic-Code
-│   │       ├── content.rs    # Content-Code
-│   │       ├── data.rs       # Data-Code
-│   │       ├── instance.rs   # Instance-Code
-│   │       └── codec.rs      # Base32 encoding
-│   └── iscc-py/              # Python bindings
-│       ├── Cargo.toml
-│       ├── pyproject.toml
-│       ├── src/lib.rs
-│       └── python/iscc_lib/
-│           ├── __init__.py
-│           └── py.typed
+│   │   ├── src/
+│   │   │   ├── lib.rs        # Public API re-exports
+│   │   │   ├── api.rs        # 9 gen_*_v0 functions
+│   │   │   ├── codec.rs      # Tier 2: header/base32 encode/decode
+│   │   │   ├── utils.rs      # text_clean, text_trim, etc.
+│   │   │   ├── simhash.rs    # alg_simhash, sliding_window
+│   │   │   ├── minhash.rs    # alg_minhash_256
+│   │   │   ├── cdc.rs        # alg_cdc_chunks
+│   │   │   ├── dct.rs        # DCT for image hashing
+│   │   │   └── wtahash.rs    # WTA-Hash for video
+│   │   └── tests/
+│   │       └── data.json     # Vendored conformance vectors
+│   ├── iscc-py/              # Python bindings (PyO3)
+│   ├── iscc-napi/            # Node.js bindings (napi-rs)
+│   ├── iscc-wasm/            # WASM bindings (wasm-bindgen)
+│   └── iscc-ffi/             # C FFI (cbindgen)
 └── .github/workflows/
-    ├── ci.yml                # Test Rust + Python
-    ├── release.yml           # cargo-dist → crates.io
-    ├── wheels.yml            # maturin → PyPI
+    ├── ci.yml                # Test all crates + Python + Node.js
+    ├── release.yml           # crates.io + PyPI + npm
     └── docs.yml              # zensical → GitHub Pages
 ```

@@ -57,7 +57,7 @@ updates:
     directory: /
     schedule: {interval: weekly}
   - package-ecosystem: npm
-    directory: /crates/iscc-node
+    directory: /crates/iscc-napi
     schedule: {interval: weekly}
   - package-ecosystem: github-actions
     directory: /
