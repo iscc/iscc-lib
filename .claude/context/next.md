@@ -1,119 +1,52 @@
 # Next Work Package
 
-## Step: Add WASM conformance tests runnable with wasm-pack test --node
+## Step: Add WASM CI job to workflow
 
 ## Goal
 
-Add conformance tests for the `iscc-wasm` crate that validate all 9 `gen_*_v0` WASM-exported
-functions against the vendored `data.json` test vectors, running in a Node.js WASM runtime via
-`wasm-pack test --node`. This closes the "WASM has no tests" gap identified in state.md.
+Add a WASM job to `.github/workflows/ci.yml` that runs `wasm-pack test --node` against the
+`crates/iscc-wasm` crate. This is the last piece needed to consider the WASM bindings target
+criterion complete — all 4 binding crates will then be under CI.
 
 ## Scope
 
-- **Create**: `crates/iscc-wasm/tests/conformance.rs`
-- **Modify**: `crates/iscc-wasm/Cargo.toml` (add dev-dependencies), root `Cargo.toml` (add
-    `wasm-bindgen-test` to workspace dependencies)
-- **Reference**: `crates/iscc-napi/__tests__/conformance.test.mjs` (JS test structure),
-    `crates/iscc-lib/src/lib.rs` lines 793+ (Rust conformance test pattern with `include_str!` and
-    `serde_json::Value`), `crates/iscc-wasm/src/lib.rs` (WASM function signatures)
+- **Create**: (none)
+- **Modify**: `.github/workflows/ci.yml` — add a `wasm` job
+- **Reference**: existing `rust`, `python`, `nodejs` jobs in `ci.yml` for structural patterns;
+    `crates/iscc-wasm/Cargo.toml` for crate config; learnings about CI tooling
 
 ## Implementation Notes
 
-### Dev-dependencies setup
+Follow the existing job structure pattern (checkout → rust-toolchain → rust-cache → tool setup →
+build → test). Specifically:
 
-Add `wasm-bindgen-test` to root `Cargo.toml` workspace dependencies:
+1. Add a new job named `wasm` with display name `WASM (wasm-pack test)`.
+2. Use `ubuntu-latest` runner (consistent with other jobs).
+3. Steps:
+    - `actions/checkout@v4`
+    - `dtolnay/rust-toolchain@stable`
+    - `Swatinem/rust-cache@v2`
+    - Install wasm-pack via `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
+        (this is the official installer and avoids needing a dedicated action). Alternatively, use
+        `cargo install wasm-pack` but the curl installer is faster.
+    - Run tests: `wasm-pack test --node crates/iscc-wasm`
+4. No `needs:` dependency on other jobs — all 4 jobs should run in parallel.
+5. Do NOT use `mise` in CI (per learnings).
 
-```toml
-wasm-bindgen-test = "0.3"
-```
-
-Add dev-dependencies to `crates/iscc-wasm/Cargo.toml`:
-
-```toml
-[dev-dependencies]
-wasm-bindgen-test = { workspace = true }
-serde_json = { workspace = true }
-serde-wasm-bindgen = { workspace = true }
-hex = { workspace = true }
-```
-
-Note: `serde-wasm-bindgen` is already in `[dependencies]` but also needed in dev-dependencies
-context for creating `JsValue` test inputs. Actually, since it's already a regular dependency, tests
-can use it — no need to duplicate. Only add `wasm-bindgen-test`, `serde_json`, and `hex` as
-dev-dependencies.
-
-### Test file pattern (`crates/iscc-wasm/tests/conformance.rs`)
-
-Use `wasm_bindgen_test` crate with `#[wasm_bindgen_test]` attribute on each test function. Load test
-data with `include_str!` (compile-time embedding — works in WASM, no filesystem access needed):
-
-```rust
-use wasm_bindgen::JsValue;
-use wasm_bindgen_test::*;
-
-// Load data.json at compile time — path is relative to the test file
-const DATA_JSON: &str = include_str!("../../iscc-lib/tests/data.json");
-```
-
-The path from `crates/iscc-wasm/tests/conformance.rs` to `crates/iscc-lib/tests/data.json` is
-`../../iscc-lib/tests/data.json`.
-
-### Testing functions with JsValue parameters
-
-Three functions accept `JsValue` for complex array types: `gen_video_code_v0`, `gen_mixed_code_v0`,
-`gen_iscc_code_v0`. In tests, create `JsValue` from Rust data using
-`serde_wasm_bindgen::to_value()`:
-
-```rust
-let codes_js: JsValue = serde_wasm_bindgen::to_value(&codes_vec).unwrap();
-let result = iscc_wasm::gen_mixed_code_v0(codes_js, Some(bits)).unwrap();
-```
-
-### Test structure
-
-Write one `#[wasm_bindgen_test]` function per gen function (9 total), each iterating over all test
-cases in the corresponding `data.json` section. Follow the same parsing patterns as the Rust core
-tests:
-
-- `"stream:"` prefix → hex-decode to `Vec<u8>`, pass as `&[u8]`
-- Null/empty string inputs → `None` for `Option<String>` parameters
-- JSON object meta → `serde_json::to_string()` then pass as `Some(String)`
-- Image pixels → `inputs[0]` is array of u8 values → collect to `Vec<u8>`, pass as `&[u8]`
-- Audio cv → `inputs[0]` is array of i32 values → collect to `Vec<i32>`, pass directly
-- Video frame_sigs → `inputs[0]` is array of arrays → convert to `JsValue` via serde
-- Compare only `outputs.iscc` (the ISCC string output) — same as Node.js tests
-
-### Running tests
-
-Install wasm-pack if needed: `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
-
-Then: `wasm-pack test --node crates/iscc-wasm`
-
-### Important edge cases
-
-- `gen_image_code_v0` test vectors have pixels as JSON array of integers — must be converted to
-    `Vec<u8>` then passed as `&[u8]` (wasm-bindgen accepts `&[u8]` directly)
-- `gen_iscc_code_v0` has an implicit `wide=false` default (not present in test vector inputs) — pass
-    `None` for wide parameter
-- Empty description (`""`) should be passed as `None`, matching the Node.js/Python test behavior
-- The `include_str!` path must work relative to the test file location within the workspace
-
-### Also: remove unused `js-sys` dependency
-
-The review noted `js-sys` is declared but unused. Since the tests don't need it either, remove it
-from `crates/iscc-wasm/Cargo.toml` dependencies and from `[workspace.dependencies]` in root
-`Cargo.toml`.
+The handoff notes that wasm-pack 0.13.1 is locally installed and 0.14.0 is available. The curl
+installer will pull the latest stable version, which is fine for CI.
 
 ## Verification
 
-- `wasm-pack test --node crates/iscc-wasm` passes with 46 conformance tests (same count as Node.js)
-- `cargo test -p iscc-lib` still passes (143 tests — no regression)
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- `cargo fmt --all --check` is clean
-- `js-sys` dependency removed from both `crates/iscc-wasm/Cargo.toml` and root `Cargo.toml`
-- No test uses mocks — all tests validate against real `data.json` conformance vectors
+- `ci.yml` has a `wasm` job that installs wasm-pack and runs
+    `wasm-pack test --node crates/iscc-wasm`
+- YAML is valid (no syntax errors)
+- Job follows the same structural pattern as existing jobs (checkout, rust-toolchain, rust-cache)
+- The 4 jobs (rust, python, nodejs, wasm) all run independently (no `needs:` dependencies)
+- `cargo clippy --workspace --all-targets -- -D warnings` still passes (no Rust changes)
+- `cargo fmt --all --check` still passes (no Rust changes)
 
 ## Done When
 
-All 9 `gen_*_v0` WASM functions pass conformance tests via `wasm-pack test --node`, the unused
-`js-sys` dependency is removed, and all existing quality gates pass without regression.
+The advance agent is done when `ci.yml` contains a valid WASM job following the established CI
+patterns, and all existing quality gates (`cargo clippy`, `cargo fmt`) still pass.
