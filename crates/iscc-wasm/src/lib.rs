@@ -212,3 +212,53 @@ pub fn sliding_window(seq: &str, width: u32) -> Result<Vec<String>, JsError> {
     }
     Ok(iscc_lib::sliding_window(seq, width as usize))
 }
+
+// ── Algorithm primitives ─────────────────────────────────────────────────────
+
+/// Compute a SimHash from a sequence of equal-length hash digests.
+///
+/// Accepts a JS array of `Uint8Array` values. Returns a similarity-preserving
+/// hash whose length matches the input digest length. Returns 32 zero bytes
+/// for empty input.
+#[wasm_bindgen]
+pub fn alg_simhash(hash_digests: JsValue) -> Result<Vec<u8>, JsError> {
+    let digests: Vec<Vec<u8>> =
+        serde_wasm_bindgen::from_value(hash_digests).map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(iscc_lib::alg_simhash(&digests))
+}
+
+/// Compute a 256-bit MinHash digest from 32-bit integer features.
+///
+/// Uses 64 universal hash functions with bit-interleaved compression to
+/// produce a 32-byte similarity-preserving digest.
+#[wasm_bindgen]
+pub fn alg_minhash_256(features: Vec<u32>) -> Vec<u8> {
+    iscc_lib::alg_minhash_256(&features)
+}
+
+/// Split data into content-defined chunks using gear rolling hash.
+///
+/// Returns a JS array of `Uint8Array` chunks. At least one chunk is always
+/// returned (empty bytes for empty input). When `utf32` is true, aligns cut
+/// points to 4-byte boundaries. Default `avg_chunk_size` is 1024.
+#[wasm_bindgen]
+pub fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: Option<u32>) -> JsValue {
+    let avg = avg_chunk_size.unwrap_or(1024);
+    let chunks: Vec<Vec<u8>> = iscc_lib::alg_cdc_chunks(data, utf32, avg)
+        .iter()
+        .map(|c| c.to_vec())
+        .collect();
+    serde_wasm_bindgen::to_value(&chunks).unwrap_or(JsValue::NULL)
+}
+
+/// Compute a similarity-preserving hash from video frame signatures.
+///
+/// Accepts a JS array of arrays of `i32`. Returns raw bytes of length
+/// `bits / 8`. Default `bits` is 64. Throws if `frame_sigs` is empty.
+#[wasm_bindgen]
+pub fn soft_hash_video_v0(frame_sigs: JsValue, bits: Option<u32>) -> Result<Vec<u8>, JsError> {
+    let bits = bits.unwrap_or(64);
+    let frame_sigs: Vec<Vec<i32>> =
+        serde_wasm_bindgen::from_value(frame_sigs).map_err(|e| JsError::new(&e.to_string()))?;
+    iscc_lib::soft_hash_video_v0(&frame_sigs, bits).map_err(|e| JsError::new(&e.to_string()))
+}

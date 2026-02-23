@@ -153,3 +153,114 @@ fn test_sliding_window_error_on_width_one() {
     let result = iscc_wasm::sliding_window("hello", 1);
     assert!(result.is_err(), "width 1 should error");
 }
+
+// ── alg_simhash ────────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_alg_simhash_known_input() {
+    // Two 4-byte digests — output should also be 4 bytes
+    let digests: Vec<Vec<u8>> = vec![vec![0xFF, 0x00, 0xFF, 0x00], vec![0xFF, 0x00, 0x00, 0xFF]];
+    let input = serde_wasm_bindgen::to_value(&digests).unwrap();
+    let result = iscc_wasm::alg_simhash(input).unwrap();
+    assert_eq!(
+        result.len(),
+        4,
+        "output length should match input digest length"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_alg_simhash_empty_returns_32_zero_bytes() {
+    let digests: Vec<Vec<u8>> = vec![];
+    let input = serde_wasm_bindgen::to_value(&digests).unwrap();
+    let result = iscc_wasm::alg_simhash(input).unwrap();
+    assert_eq!(result.len(), 32);
+    assert!(
+        result.iter().all(|&b| b == 0),
+        "empty input should return all zeros"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_alg_simhash_single_digest_identity() {
+    // A single digest should be returned as-is
+    let digest = vec![0xAB, 0xCD, 0xEF, 0x01];
+    let digests: Vec<Vec<u8>> = vec![digest.clone()];
+    let input = serde_wasm_bindgen::to_value(&digests).unwrap();
+    let result = iscc_wasm::alg_simhash(input).unwrap();
+    assert_eq!(result, digest);
+}
+
+// ── alg_minhash_256 ────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_alg_minhash_256_output_length() {
+    let features = vec![1u32, 2, 3, 4, 5];
+    let result = iscc_wasm::alg_minhash_256(features);
+    assert_eq!(result.len(), 32, "minhash output should be 32 bytes");
+}
+
+#[wasm_bindgen_test]
+fn test_alg_minhash_256_deterministic() {
+    let features = vec![100u32, 200, 300];
+    let r1 = iscc_wasm::alg_minhash_256(features.clone());
+    let r2 = iscc_wasm::alg_minhash_256(features);
+    assert_eq!(r1, r2, "same input should produce same output");
+}
+
+// ── alg_cdc_chunks ─────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_alg_cdc_chunks_concatenation() {
+    let data = b"Hello, this is some test data for CDC chunking purposes.";
+    let result_js = iscc_wasm::alg_cdc_chunks(data, false, None);
+    let chunks: Vec<Vec<u8>> = serde_wasm_bindgen::from_value(result_js).unwrap();
+    let concatenated: Vec<u8> = chunks.iter().flatten().copied().collect();
+    assert_eq!(
+        concatenated, data,
+        "chunks should concatenate to original data"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_alg_cdc_chunks_empty_input() {
+    let result_js = iscc_wasm::alg_cdc_chunks(&[], false, None);
+    let chunks: Vec<Vec<u8>> = serde_wasm_bindgen::from_value(result_js).unwrap();
+    assert_eq!(chunks.len(), 1, "empty input should return one chunk");
+    assert!(chunks[0].is_empty(), "the single chunk should be empty");
+}
+
+#[wasm_bindgen_test]
+fn test_alg_cdc_chunks_at_least_one_chunk() {
+    let data = vec![0u8; 100];
+    let result_js = iscc_wasm::alg_cdc_chunks(&data, false, Some(1024));
+    let chunks: Vec<Vec<u8>> = serde_wasm_bindgen::from_value(result_js).unwrap();
+    assert!(!chunks.is_empty(), "should return at least one chunk");
+}
+
+// ── soft_hash_video_v0 ─────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_soft_hash_video_v0_output_length() {
+    // WTA-Hash requires frame vectors with at least 380 elements
+    let frame_sigs: Vec<Vec<i32>> = vec![vec![0i32; 380]];
+    let input = serde_wasm_bindgen::to_value(&frame_sigs).unwrap();
+    let result = iscc_wasm::soft_hash_video_v0(input, None).unwrap();
+    assert_eq!(result.len(), 8, "default 64 bits = 8 bytes");
+}
+
+#[wasm_bindgen_test]
+fn test_soft_hash_video_v0_custom_bits() {
+    let frame_sigs: Vec<Vec<i32>> = vec![vec![0i32; 380], vec![1i32; 380]];
+    let input = serde_wasm_bindgen::to_value(&frame_sigs).unwrap();
+    let result = iscc_wasm::soft_hash_video_v0(input, Some(128)).unwrap();
+    assert_eq!(result.len(), 16, "128 bits = 16 bytes");
+}
+
+#[wasm_bindgen_test]
+fn test_soft_hash_video_v0_empty_errors() {
+    let frame_sigs: Vec<Vec<i32>> = vec![];
+    let input = serde_wasm_bindgen::to_value(&frame_sigs).unwrap();
+    let result = iscc_wasm::soft_hash_video_v0(input, None);
+    assert!(result.is_err(), "empty frame_sigs should error");
+}
