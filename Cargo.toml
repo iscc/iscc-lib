@@ -1,6 +1,11 @@
 [workspace]
 resolver = "2"
-members = ["crates/iscc-lib", "crates/iscc-py", "crates/iscc-napi"]
+members = [
+  "crates/iscc-lib",
+  "crates/iscc-py",
+  "crates/iscc-napi",
+  "crates/iscc-wasm",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -26,6 +31,9 @@ pyo3 = { version = "0.23", features = ["abi3-py310"] }
 napi = { version = "3", default-features = false, features = ["napi6"] }
 napi-derive = "3"
 napi-build = "2"
+wasm-bindgen = "0.2"
+serde-wasm-bindgen = "0.6"
+js-sys = "0.3"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [profile.release]

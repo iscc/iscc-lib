@@ -1,0 +1,15 @@
+[package]
+name = "iscc-wasm"
+version.workspace = true
+edition.workspace = true
+publish = false          # Published via npm, not crates.io
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+iscc-lib = { path = "../iscc-lib" }
+wasm-bindgen = { workspace = true }
+serde-wasm-bindgen = { workspace = true }
+serde = { workspace = true }
+js-sys = { workspace = true }
