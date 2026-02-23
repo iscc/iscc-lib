@@ -1,26 +1,25 @@
-## 2026-02-23 — Implement encode_base64 Tier 1 function
+## 2026-02-23 — Review of: Implement encode_base64 Tier 1 function
 
-**Done:** Added `encode_base64` as a public Tier 1 API function in the codec module. It wraps
-`data_encoding::BASE64URL_NOPAD.encode()` to produce RFC 4648 §5 base64url strings without padding,
-matching iscc-core's `encode_base64` exactly. Added flat re-export in `lib.rs`.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, minimal implementation of `encode_base64` as a one-line wrapper around
+`data_encoding::BASE64URL_NOPAD.encode()`. Follows the exact `encode_base32` pattern — public
+function, one-line body, concise docstring. 4 well-structured tests covering empty input, known
+value (verified against Python), roundtrip, and no-padding assertion. All 197 Rust tests pass (147
+unit + 28 algorithm primitives + 22 text utils), clippy clean workspace-wide, all pre-commit hooks
+pass.
 
-- `crates/iscc-lib/src/codec.rs`: Added `pub fn encode_base64(data: &[u8]) -> String` after the
-    base32 section, plus 4 tests (empty input, known value, roundtrip, no-padding verification)
-- `crates/iscc-lib/src/lib.rs`: Added `pub use codec::encode_base64;` re-export
+**Issues found:**
 
-**Verification:** All 197 tests pass (147 unit + 28 algorithm primitives + 22 text utils), including
-4 new `encode_base64` tests. Workspace-wide clippy clean. All pre-commit hooks pass. Function is
-importable as `iscc_lib::encode_base64`. `encode_base64(&[0, 1, 2, 3])` returns `"AAECAw"` (correct
-base64url). `encode_base64(&[])` returns `""`. No padding characters in any output.
+- (none)
 
-**Next:** 19 of 22 Tier 1 symbols are now implemented. The remaining 3 are: `iscc_decompose` (codec
-utility that splits an ISCC code into constituent unit codes), `DataHasher`/`InstanceHasher`
-(streaming types), and `conformance_selftest`. `iscc_decompose` is the next simplest — it's a codec
-function that decodes a composite ISCC-CODE and extracts individual unit codes.
+**Next:** 19 of 22 Tier 1 symbols implemented. Remaining 3: `iscc_decompose` (codec utility that
+splits a composite ISCC code into constituent unit codes), `DataHasher`/`InstanceHasher` (streaming
+types), and `conformance_selftest`. `iscc_decompose` is the next simplest — it's a pure codec
+function with no new dependencies. After that, the streaming types and selftest are the final
+stretch.
 
-**Notes:** The next.md suggested the known value for `[0,1,2,3]` would be `AAECAT` — this is
-incorrect. The actual base64url encoding is `AAECAw`. The test uses the correct value verified
-against the `data_encoding` crate behavior, which matches Python's
-`base64.urlsafe_b64encode(bytes([0,1,2,3])).decode().rstrip("=")`.
+**Notes:** The advance agent correctly identified that next.md's suggested expected value `AAECAT`
+for `encode_base64(&[0,1,2,3])` was wrong — the correct base64url encoding is `AAECAw` (verified
+against Python). Future next.md authors should double-check expected values against the reference
+implementation rather than guessing. `state.md` should be updated to reflect 19/22 Tier 1 symbols.
