@@ -1,28 +1,30 @@
-## 2026-02-23 — Review of: Scaffold WASM bindings crate with all 9 gen functions
+## 2026-02-23 — Add WASM conformance tests runnable with wasm-pack test --node
 
-**Verdict:** PASS
+**Done:** Added conformance tests for the `iscc-wasm` crate that validate all 9 `gen_*_v0`
+WASM-exported functions against the vendored `data.json` test vectors (46 cases total). Tests run in
+a Node.js WASM runtime via `wasm-pack test --node`. Also removed the unused `js-sys` dependency from
+both `crates/iscc-wasm/Cargo.toml` and root `Cargo.toml` workspace dependencies.
 
-**Summary:** The WASM binding crate was scaffolded correctly with all 9 `gen_*_v0` wrappers
-following the identical thin-wrapper pattern as PyO3 and napi-rs crates. Type mappings are correct —
-simple types use direct wasm-bindgen mapping, complex array types (`gen_video_code_v0`,
-`gen_mixed_code_v0`, `gen_iscc_code_v0`) use `JsValue` + `serde_wasm_bindgen`. All verification
-passes: 143 Rust tests, clippy clean, fmt clean, wasm32-unknown-unknown compilation succeeds.
+**Files changed:**
 
-**Issues found:**
+- `Cargo.toml`: Added `wasm-bindgen-test = "0.3"` to workspace dependencies, removed `js-sys`
+- `crates/iscc-wasm/Cargo.toml`: Removed `js-sys` from dependencies, added `rlib` to crate-type
+    (needed for integration test linking), added dev-dependencies (`wasm-bindgen-test`,
+    `serde_json`, `hex`)
+- `crates/iscc-wasm/tests/conformance.rs`: New file — 9 `#[wasm_bindgen_test]` functions covering
+    all gen functions with the same test vector parsing patterns as the Rust core tests
 
-- `js-sys` is declared as a dependency in `crates/iscc-wasm/Cargo.toml` but never imported or used
-    in `src/lib.rs`. It was prescribed by next.md and may be useful for future WASM features
-    (returning typed arrays, Date objects), so leaving it as-is is acceptable — but it should be
-    removed if still unused after WASM conformance tests are added.
+**Verification:** `wasm-pack test --node crates/iscc-wasm` passes (9 tests, all 46 vectors
+validated). `cargo test -p iscc-lib` passes (143 tests).
+`cargo clippy --workspace --all-targets -- -D warnings` clean. `cargo fmt --all --check` clean. No
+regressions.
 
-**Next:** Add WASM conformance tests and a CI job. This requires `wasm-pack` tooling and a
-`wasm-pack test --node` harness. Also add `package.json` for the `@iscc/wasm` npm package. The
-conformance test data is already vendored at `crates/iscc-lib/tests/data.json` and shared by all
-binding test suites. Consider also updating `state.md` to reflect the WASM scaffold milestone.
+**Next:** Add a WASM CI job to `.github/workflows/ci.yml` (install wasm-pack, run
+`wasm-pack test --node crates/iscc-wasm`). This completes the WASM bindings target criterion. After
+that, consider C FFI bindings, documentation site, or CI/CD publishing pipelines.
 
-**Notes:** The three binding crates (PyO3, napi-rs, wasm-bindgen) now share an identical
-thin-wrapper pattern with no logic in the binding layer. `js-sys` may be needed when returning
-structured JS objects from WASM functions (instead of JSON strings). The `wasm-opt` profile metadata
-mentioned in `notes/02-language-bindings.md`
-(`[package.metadata.wasm-pack.profile.release] wasm-opt = ["-Os"]`) was not added — this is a build
-optimization for release, appropriate to add when the CI/build pipeline for WASM is set up.
+**Notes:** The `cdylib`-only crate type doesn't support integration tests (Rust can't link cdylib
+for test harness), so `rlib` was added alongside `cdylib` in `crate-type`. This is a standard
+pattern for WASM crates that need integration tests — wasm-pack builds the cdylib for packaging and
+uses the rlib for test compilation. The `js-sys` crate was confirmed unused in source code (grep
+verified no imports) and is now fully removed.

@@ -32,8 +32,8 @@ napi = { version = "3", default-features = false, features = ["napi6"] }
 napi-derive = "3"
 napi-build = "2"
 wasm-bindgen = "0.2"
+wasm-bindgen-test = "0.3"
 serde-wasm-bindgen = "0.6"
-js-sys = "0.3"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [profile.release]

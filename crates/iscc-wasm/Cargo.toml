@@ -5,11 +5,15 @@ edition.workspace = true
 publish = false          # Published via npm, not crates.io
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 iscc-lib = { path = "../iscc-lib" }
 wasm-bindgen = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 serde = { workspace = true }
-js-sys = { workspace = true }
+
+[dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+serde_json = { workspace = true }
+hex = { workspace = true }
