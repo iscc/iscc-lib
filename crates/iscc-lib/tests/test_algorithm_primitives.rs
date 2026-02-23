@@ -1,8 +1,8 @@
 //! Integration tests for the public algorithm primitive API.
 //!
-//! Verifies that `sliding_window`, `alg_simhash`, and `alg_minhash_256` are
-//! accessible from both the crate root and their respective module paths,
-//! and produce correct results for a variety of inputs.
+//! Verifies that `sliding_window`, `alg_simhash`, `alg_minhash_256`, and
+//! `alg_cdc_chunks` are accessible from both the crate root and their
+//! respective module paths, and produce correct results for a variety of inputs.
 
 // ---- sliding_window tests ----
 
@@ -133,15 +133,77 @@ fn test_alg_minhash_256_different_features_different_digests() {
     assert_ne!(result_a, result_b);
 }
 
+// ---- alg_cdc_chunks tests ----
+
+#[test]
+fn test_alg_cdc_chunks_basic_chunking() {
+    // Known data of sufficient size produces multiple chunks
+    let data: Vec<u8> = (0..=255).cycle().take(8192).collect();
+    let chunks = iscc_lib::alg_cdc_chunks(&data, false, 1024);
+    assert!(
+        chunks.len() > 1,
+        "expected multiple chunks, got {}",
+        chunks.len()
+    );
+}
+
+#[test]
+fn test_alg_cdc_chunks_empty_input() {
+    // Empty input returns a single empty chunk
+    let chunks = iscc_lib::alg_cdc_chunks(b"", false, 1024);
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].len(), 0);
+}
+
+#[test]
+fn test_alg_cdc_chunks_reassembly() {
+    // Concatenating chunks must reproduce the original data
+    let data: Vec<u8> = (0..=255).cycle().take(4096).collect();
+    let chunks = iscc_lib::alg_cdc_chunks(&data, false, 1024);
+    let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
+    assert_eq!(reassembled, data);
+}
+
+#[test]
+fn test_alg_cdc_chunks_utf32_alignment() {
+    // With utf32=true, all chunk boundaries must be 4-byte aligned
+    let data: Vec<u8> = (0..=255).cycle().take(8192).collect();
+    let chunks = iscc_lib::alg_cdc_chunks(&data, true, 1024);
+    let mut offset = 0;
+    for chunk in &chunks {
+        offset += chunk.len();
+        assert_eq!(
+            offset % 4,
+            0,
+            "chunk boundary at offset {offset} is not 4-byte aligned"
+        );
+    }
+}
+
+#[test]
+fn test_alg_cdc_chunks_smaller_avg_more_chunks() {
+    // Smaller avg_chunk_size produces more chunks for the same data
+    let data: Vec<u8> = (0..=255).cycle().take(16384).collect();
+    let chunks_large = iscc_lib::alg_cdc_chunks(&data, false, 2048);
+    let chunks_small = iscc_lib::alg_cdc_chunks(&data, false, 512);
+    assert!(
+        chunks_small.len() > chunks_large.len(),
+        "smaller avg_chunk_size ({}) should produce more chunks than larger ({})",
+        chunks_small.len(),
+        chunks_large.len()
+    );
+}
+
 // ---- Import path verification ----
 
 #[test]
 fn test_flat_crate_root_imports() {
-    // Verify all 3 functions are callable via iscc_lib::<fn>
+    // Verify all 4 algorithm primitives are callable via iscc_lib::<fn>
     let _ = iscc_lib::sliding_window("test", 2);
     let empty: &[Vec<u8>] = &[];
     let _ = iscc_lib::alg_simhash(empty);
     let _ = iscc_lib::alg_minhash_256(&[]);
+    let _ = iscc_lib::alg_cdc_chunks(b"", false, 1024);
 }
 
 #[test]
@@ -156,4 +218,10 @@ fn test_module_path_imports_simhash() {
 fn test_module_path_imports_minhash() {
     // Verify function is accessible via iscc_lib::minhash::<fn>
     let _ = iscc_lib::minhash::alg_minhash_256(&[]);
+}
+
+#[test]
+fn test_module_path_imports_cdc() {
+    // Verify function is accessible via iscc_lib::cdc::<fn>
+    let _ = iscc_lib::cdc::alg_cdc_chunks(b"", false, 1024);
 }

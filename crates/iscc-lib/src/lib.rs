@@ -4,7 +4,7 @@
 //! functions are the public Tier 1 API surface, designed to be compatible with
 //! the `iscc-core` Python reference implementation.
 
-pub(crate) mod cdc;
+pub mod cdc;
 pub mod codec;
 pub(crate) mod dct;
 pub mod minhash;
@@ -13,6 +13,7 @@ pub mod types;
 pub mod utils;
 pub(crate) mod wtahash;
 
+pub use cdc::alg_cdc_chunks;
 pub use minhash::alg_minhash_256;
 pub use simhash::{alg_simhash, sliding_window};
 pub use types::*;

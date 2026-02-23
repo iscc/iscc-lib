@@ -113,7 +113,7 @@ pub(crate) fn alg_cdc_offset(
 /// Uses the gear rolling hash CDC algorithm to find content-dependent
 /// boundaries. Returns at least one chunk (empty slice for empty input).
 /// When `utf32` is true, aligns cut points to 4-byte boundaries.
-pub(crate) fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<&[u8]> {
+pub fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<&[u8]> {
     if data.is_empty() {
         return vec![&data[0..0]];
     }
