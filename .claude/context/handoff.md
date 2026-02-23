@@ -1,47 +1,38 @@
-## 2026-02-23 — Add 4 algorithm primitives to Node.js bindings
+## 2026-02-23 — Review of: Add 4 algorithm primitives to Node.js bindings
 
-**Done:** Added `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, and `soft_hash_video_v0` as napi
-functions in `crates/iscc-napi/src/lib.rs`, expanding Node.js bindings from 17/23 to 21/23 Tier 1
-symbols. All 4 functions follow the existing thin-wrapper pattern with appropriate napi-rs type
-conversions (Buffer for byte data, Vec<Buffer> for chunk output, Option for defaults).
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-napi/src/lib.rs`: Added 4 napi functions under `// ── Algorithm primitives ──`
-    section after `sliding_window`. Type mappings: `Vec<Buffer>` input for simhash (Buffer
-    implements `AsRef<[u8]>`), `Vec<u32>` for minhash, `Buffer` + `Option<u32>` for cdc,
-    `Vec<Vec<i32>>` + `Option<u32>` for soft_hash_video.
-- `crates/iscc-napi/__tests__/functions.test.mjs`: Added 16 tests in 4 new `describe` blocks
-    (alg_simhash: 4 tests, alg_minhash_256: 3 tests, alg_cdc_chunks: 5 tests, soft_hash_video_v0: 4
-    tests). Tests cover empty input, determinism, output length, error throwing, and data integrity
-    (chunks reassemble to original).
+**Summary:** Clean implementation of 4 algorithm primitive napi-rs bindings (`alg_simhash`,
+`alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`), expanding Node.js from 17/23 to 21/23
+Tier 1 symbols. Code follows the established thin-wrapper pattern exactly, with correct type
+mappings and 16 well-structured tests. No issues found.
 
 **Verification:**
 
-- `cargo build -p iscc-napi` compiles cleanly
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- `node --test crates/iscc-napi/__tests__/functions.test.mjs` passes all 43 tests (27 existing + 16
-    new)
-- `node --test crates/iscc-napi/__tests__/` passes all 89 tests (73 existing + 16 new)
-- `cargo test --workspace` passes 268 tests (no regressions)
-- All 14 pre-commit hooks pass (`mise run check`)
-- All 4 functions callable from JavaScript: `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
-    `soft_hash_video_v0`
+- [x] `cargo build -p iscc-napi` compiles without errors
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` is clean
+- [x] `node --test crates/iscc-napi/__tests__/functions.test.mjs` passes all 43 tests (27 + 16 new)
+- [x] `node --test crates/iscc-napi/__tests__/` passes all 89 tests (46 conformance + 43 function)
+- [x] `cargo test --workspace` passes 268 tests (no regressions)
+- [x] All 4 new functions callable from JavaScript — verified via test imports and execution
+- [x] All 14 pre-commit hooks pass (`mise run check`)
 
-**Next:** Node.js is now at 21/23 Tier 1 symbols. The remaining 2 are `DataHasher` and
-`InstanceHasher` streaming classes — these require a different design pattern (napi-rs class with
-state) and should be a separate step. Good candidates for next work:
+**Issues found:**
+
+- (none)
+
+**Next:** Node.js is at 21/23 Tier 1 symbols. Remaining 2 are `DataHasher`/`InstanceHasher`
+streaming classes. Good candidates for next work:
 
 1. **Add 4 algorithm primitives to WASM bindings** — replicate the same 4 functions in
-    `crates/iscc-wasm/src/lib.rs` (WASM type mappings differ: `&[u8]`/`JsValue` with
-    `serde_wasm_bindgen`)
+    `crates/iscc-wasm/src/lib.rs` (WASM type mappings differ: `&[u8]` directly, `JsValue` +
+    `serde_wasm_bindgen` for nested arrays). Include wasm-pack tests
 2. **Add 4 algorithm primitives to C FFI bindings** — replicate in `crates/iscc-ffi/src/lib.rs` (C
-    type mappings: `*const u8` + `usize`, output buffers with caller-provided allocation)
-3. **Streaming hashers for Node.js** — `DataHasher`/`InstanceHasher` napi-rs classes with
+    type mappings: `*const u8` + `usize` for byte slices, output buffer management for chunks)
+3. **Streaming hashers for Node.js** — `DataHasher`/`InstanceHasher` napi-rs `#[napi]` classes with
     `new() -> update(Buffer) -> finalize() -> Result` pattern
 
-**Notes:** The `alg_simhash` binding works cleanly because napi-rs `Buffer` implements
-`AsRef<[u8]>`, so `&Vec<Buffer>` coerces to `&[Buffer]` which satisfies `&[impl AsRef<[u8]>]` — no
-manual conversion needed. The `alg_cdc_chunks` return type requires `.to_vec()` on each chunk slice
-since the returned `Vec<&[u8]>` borrows from the input data. The `cargo fmt` hook auto-fixed the
-`soft_hash_video_v0` signature formatting (collapsed multiline parameters to single line).
+**Notes:** The advance agent's handoff count says "73 existing + 16 new = 89" for the full test
+suite — this is correct (46 conformance + 27 existing function + 16 new = 89). The type mapping
+patterns established here (especially `Vec<Buffer>` → `&[impl AsRef<[u8]>]` for simhash, and
+`Vec<Buffer>` return with `.to_vec()` for CDC chunks) will inform the WASM and C FFI follow-ups.

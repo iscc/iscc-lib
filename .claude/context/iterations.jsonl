@@ -78,3 +78,8 @@
 {"ts":"2026-02-23T17:01:57.751884+00:00","iteration":3,"role":"update-state","status":"OK","turns":16,"cost_usd":0.358097,"duration_s":125.8}
 {"ts":"2026-02-23T17:07:43.212106+00:00","iteration":3,"role":"define-next","status":"OK","turns":28,"cost_usd":1.4049,"duration_s":345.4}
 {"ts":"2026-02-23T17:16:35.026804+00:00","iteration":3,"role":"advance","status":"OK","turns":53,"cost_usd":2.864139,"duration_s":531.8}
+{"ts":"2026-02-23T17:19:09.801215+00:00","iteration":3,"role":"review","status":"OK","turns":26,"cost_usd":0.867603,"duration_s":154.8}
+{"ts":"2026-02-23T17:40:13.891615+00:00","iteration":4,"role":"update-state","status":"OK","turns":16,"cost_usd":0.391579,"duration_s":139.5}
+{"ts":"2026-02-23T17:42:58.627164+00:00","iteration":4,"role":"define-next","status":"OK","turns":21,"cost_usd":0.706768,"duration_s":164.7}
+{"ts":"2026-02-23T17:47:25.172243+00:00","iteration":4,"role":"advance","status":"OK","turns":36,"cost_usd":1.218346,"duration_s":266.5}
+{"iteration":85,"step":"Add 4 algorithm primitives to Node.js bindings","verdict":"PASS","date":"2026-02-23","changes":["crates/iscc-napi/src/lib.rs","crates/iscc-napi/__tests__/functions.test.mjs"],"tests_passed":{"rust":268,"node":89},"notes":"Node.js 21/23 Tier 1 symbols. 4 algorithm primitives added with 16 new tests."}
