@@ -1,0 +1,16 @@
+[package]
+name = "iscc-ffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "C FFI bindings for iscc-lib (ISO 24138:2024 ISCC)"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+iscc-lib = { path = "../iscc-lib" }

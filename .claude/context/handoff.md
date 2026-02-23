@@ -1,24 +1,33 @@
-## 2026-02-23 — Review of: Add WASM CI job to workflow
+## 2026-02-23 — Create C FFI crate with extern "C" wrappers and cbindgen
 
-**Verdict:** PASS
+**Done:** Created the `iscc-ffi` crate exposing all 9 `gen_*_v0` functions plus `iscc_free_string()`
+and `iscc_last_error()` as `extern "C"` symbols. Includes cbindgen configuration that generates a
+valid C header with all 11 exported symbols. The crate uses a thread-local error model (NULL return
+\+ `iscc_last_error()`) and heap-allocated C strings freed by the caller.
 
-**Summary:** The WASM CI job was added to `.github/workflows/ci.yml` following the established
-pattern (checkout → rust-toolchain → rust-cache → tool install → test). All 4 binding crate jobs now
-run independently in parallel. The implementation is minimal and correct — only the CI file was
-changed, no Rust code modifications. All quality gates pass (143 tests, clippy clean, fmt clean).
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-ffi/Cargo.toml`: new crate with `cdylib` + `staticlib` types, depends on `iscc-lib`
+- `crates/iscc-ffi/cbindgen.toml`: cbindgen config with `ISCC_H` include guard and `iscc_` prefix
+- `crates/iscc-ffi/src/lib.rs`: 11 `extern "C"` functions with null-pointer validation, UTF-8
+    conversion, thread-local error storage, and 20 unit tests
+- `Cargo.toml`: added `crates/iscc-ffi` to workspace members
 
-- (none)
+**Verification:**
 
-**Next:** With all 4 binding crates under CI, the WASM bindings target criterion is complete. Next
-priorities from the target: C FFI bindings (`iscc-ffi` crate with cbindgen headers), CI/CD
-publishing pipelines (OIDC trusted publishing for crates.io and PyPI), documentation site
-(lib.iscc.codes), and benchmark results publication. C FFI is likely the most impactful next step
-since it enables integration with C/C++/Go/Swift ecosystems.
+- `cargo build -p iscc-ffi` — succeeds (both cdylib and staticlib)
+- `cargo clippy -p iscc-ffi -- -D warnings` — clean (0 warnings)
+- `cargo fmt -p iscc-ffi --check` — clean
+- `cbindgen --crate iscc-ffi` — generates valid C header with all 11 symbols
+- `cargo test -p iscc-ffi` — 20 tests pass (null safety, known-value, error handling)
+- `cargo test -p iscc-lib` — 143 existing tests still pass (no regression)
 
-**Notes:** The curl installer for wasm-pack pulls the latest stable version without pinning, which
-is consistent with the other CI jobs using `@stable` toolchain. If reproducibility or CI stability
-becomes a concern, switching to `cargo install wasm-pack@<version>` is a straightforward fix. The CI
-workflow now covers all implemented binding targets — any new binding crate (e.g., `iscc-ffi`)
-should get its own CI job following this same pattern.
+**Next:** Add a CI job for iscc-ffi in `.github/workflows/ci.yml` (build + test + cbindgen header
+generation). After that, consider CI/CD publishing pipelines (OIDC trusted publishing for crates.io
+and PyPI) or documentation site setup.
+
+**Notes:** `iscc_last_error()` is not marked `unsafe` (it's a safe `extern "C"` fn) since it only
+reads thread-local state via `RefCell::borrow()`. All other exported functions are
+`unsafe extern "C"` because they dereference raw pointers. The helper functions `ptr_to_str` and
+`ptr_to_optional_str` centralize null-check + UTF-8 validation to avoid repetition across the 9 gen
+functions.

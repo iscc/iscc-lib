@@ -430,6 +430,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "iscc-ffi"
+version = "0.1.0"
+dependencies = [
+ "iscc-lib",
+]
+
+[[package]]
 name = "iscc-lib"
 version = "0.1.0"
 dependencies = [

@@ -5,6 +5,7 @@ members = [
   "crates/iscc-py",
   "crates/iscc-napi",
   "crates/iscc-wasm",
+  "crates/iscc-ffi",
 ]
 
 [workspace.package]
