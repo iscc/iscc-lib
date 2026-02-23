@@ -1,16 +1,16 @@
-<!-- assessed-at: e9ea36eade2b5be4b8a2f857c32b841d2a8eeee6 -->
+<!-- assessed-at: 15b62fe408d3ea393467173dc03b5f73846bad87 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Copy-page and llms-full.txt complete — Diátaxis nav and OIDC publishing remaining
+## Phase: Social meta tags complete — Diátaxis nav, abbreviations, CNAME, and OIDC publishing remaining
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
 Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). CI is fully green across all 5
-jobs. Documentation now has ISCC branding, copy-page split-button, and llms-full.txt generation.
-Remaining gaps are Diátaxis navigation restructuring (nav is still flat, no per-language how-to
-guides) and publishing pipeline configuration (OIDC trusted publishing not configured).
+jobs. Documentation now has ISCC branding, copy-page split-button, llms-full.txt generation, and
+Open Graph/Twitter Card social meta tags. Remaining documentation gaps are Diátaxis navigation
+restructuring, abbreviations file, and CNAME. Publishing pipeline (OIDC) is not yet configured.
 
 ## Rust Core Crate
 
@@ -91,24 +91,26 @@ guides) and publishing pipeline configuration (OIDC trusted publishing not confi
 - Site builds and deploys via GitHub Pages (CI-verified, latest Docs run: success)
 - Uses `zensical` build tool with `zensical.toml` config
 - Tabbed code examples configured via `pymdownx.tabbed` with `alternate_style = true`
-- ISCC branding in place: `docs/stylesheets/extra.css` (288 lines) with ISCC Blue (#0054b2)
-    primary/accent colors, deep navy (#123663) header/footer, dark mode inversion for logo
-- `docs/assets/logo_light.png` present and referenced in `zensical.toml`
-- `docs/assets/favicon.png` present and referenced in `zensical.toml`
-- Copy-page split-button now implemented: `docs/javascripts/copypage.js` (200 lines) with full
+- ISCC branding in place: `docs/stylesheets/extra.css` with ISCC Blue (#0054b2) primary/accent
+    colors, deep navy (#123663) header/footer, dark mode inversion for logo
+- `docs/assets/logo_light.png` and `docs/assets/favicon.png` present and referenced in
+    `zensical.toml`
+- Copy-page split-button implemented: `docs/javascripts/copypage.js` (200 lines) with full
     split-button UI (copy action, chevron dropdown, "View as Markdown", "Edit on GitHub" items)
-- Copy-page CSS rules added to `docs/stylesheets/extra.css` (lines 133–288): `.copy-page-heading`,
-    `.copy-page__split`, `.copy-page__action`, `.copy-page__toggle`, `.copy-page__menu`,
-    `.copy-page__item`
 - `extra_javascript = ["javascripts/copypage.js"]` configured in `zensical.toml`
-- `scripts/gen_llms_full.py` (72 lines) generates `site/llms-full.txt` and per-page `.md` files for
-    all 5 doc pages; called in docs workflow after `zensical build`
+- `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files; called in docs
+    workflow after `zensical build`
 - `docs/llms.txt` (20 lines) metadata file with links to `llms-full.txt` and per-page `.md` files
-- Docs workflow runs `gen_llms_full.py` before artifact upload — generated files included in
-    deployed site
+- Open Graph and Twitter Card social meta tags implemented via `overrides/main.html` (32 lines):
+    `og:type`, `og:title`, `og:description`, `og:url`, `og:image`, `og:site_name`, `twitter:card`,
+    `twitter:title`, `twitter:description`, `twitter:image` — rendered correctly in all 5 built
+    pages
+- `custom_dir = "overrides"` configured in `zensical.toml`
 - Missing: Diátaxis navigation restructuring (nav still flat: index, architecture, rust-api, api,
-    benchmarks — no tutorials/howto/explanation/reference sections)
-- Missing: per-language how-to guides (Node.js, WASM guides not present in nav)
+    benchmarks — no tutorials/howto/explanation/reference sections, no per-language how-to guides)
+- Missing: `docs/includes/abbreviations.md` with ISCC-specific abbreviations; `pymdownx.snippets`
+    extension not configured in `zensical.toml`
+- Missing: `docs/CNAME` file with `lib.iscc.codes` (CNAME not present)
 
 ## Benchmarks
 
@@ -129,10 +131,10 @@ guides) and publishing pipeline configuration (OIDC trusted publishing not confi
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
 - Latest CI run: **PASSING** —
-    [Run 22324289105](https://github.com/iscc/iscc-lib/actions/runs/22324289105) — all 5 jobs
-    success (Rust, Python, Node.js, WASM, C FFI)
+    [Run 22324845560](https://github.com/iscc/iscc-lib/actions/runs/22324845560) — all 5 jobs
+    success (Python, C FFI, Rust, Node.js, WASM)
 - Latest Docs run: **PASSING** —
-    [Run 22324295968](https://github.com/iscc/iscc-lib/actions/runs/22324295968) — build + deploy
+    [Run 22324844023](https://github.com/iscc/iscc-lib/actions/runs/22324844023) — build + deploy
     success
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
 - Missing: npm publishing pipeline not fully wired (npm does not support OIDC; `NODE_AUTH_TOKEN`
@@ -141,12 +143,14 @@ guides) and publishing pipeline configuration (OIDC trusted publishing not confi
 
 ## Next Milestone
 
-With copy-page and llms-full.txt now implemented and CI fully green, the highest-value next
-priorities are:
+With social meta tags now complete and CI fully green, the highest-value remaining documentation
+work is:
 
 1. **Diátaxis navigation restructuring** — reorganize site navigation into tutorials, howto,
-    explanation, and reference sections with per-language how-to guides (Node.js, WASM)
-2. **OIDC publishing configuration** — configure crates.io and PyPI trusted publishing in
+    explanation, and reference sections with per-language how-to guides (Python, Rust, Node.js,
+    WASM); this is the largest remaining documentation gap
+2. **Abbreviations file** — add `docs/includes/abbreviations.md` with ISCC-specific terms and
+    configure `pymdownx.snippets` auto-append in `zensical.toml`
+3. **CNAME file** — add `docs/CNAME` containing `lib.iscc.codes`
+4. **OIDC publishing configuration** — configure crates.io and PyPI trusted publishing in
     `release.yml` so releases require no long-lived API keys
-3. **Social meta tags** — add `overrides/main.html` with Open Graph / Twitter card meta tags to
-    match iscc-usearch
