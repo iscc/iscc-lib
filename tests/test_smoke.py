@@ -1,12 +1,15 @@
 """Smoke tests for the iscc_lib Python package."""
 
+import io
 import json
 
 from iscc_lib import (
+    DataCodeResult,
     IsccResult,
     InstanceCodeResult,
     MetaCodeResult,
     TextCodeResult,
+    gen_data_code_v0,
     gen_instance_code_v0,
     gen_meta_code_v0,
     gen_text_code_v0,
@@ -98,3 +101,57 @@ def test_dict_and_attribute_equal():
     assert result["iscc"] == result.iscc
     assert result["name"] == result.name
     assert result["metahash"] == result.metahash
+
+
+# ── Streaming (BinaryIO) tests ─────────────────────────────────────────────
+
+
+def test_gen_data_code_v0_stream_matches_bytes():
+    """Verify gen_data_code_v0 with BytesIO produces same result as bytes."""
+    data = b"Hello World"
+    result_bytes = gen_data_code_v0(data)
+    result_stream = gen_data_code_v0(io.BytesIO(data))
+    assert result_stream["iscc"] == result_bytes["iscc"]
+    assert isinstance(result_stream, DataCodeResult)
+
+
+def test_gen_instance_code_v0_stream_matches_bytes():
+    """Verify gen_instance_code_v0 with BytesIO produces same result as bytes."""
+    data = b"Hello World"
+    result_bytes = gen_instance_code_v0(data)
+    result_stream = gen_instance_code_v0(io.BytesIO(data))
+    assert result_stream["iscc"] == result_bytes["iscc"]
+    assert result_stream["datahash"] == result_bytes["datahash"]
+    assert result_stream["filesize"] == result_bytes["filesize"]
+    assert isinstance(result_stream, InstanceCodeResult)
+
+
+def test_gen_data_code_v0_empty_stream():
+    """Verify gen_data_code_v0 handles empty BytesIO correctly."""
+    result_bytes = gen_data_code_v0(b"")
+    result_stream = gen_data_code_v0(io.BytesIO(b""))
+    assert result_stream["iscc"] == result_bytes["iscc"]
+
+
+def test_gen_instance_code_v0_empty_stream():
+    """Verify gen_instance_code_v0 handles empty BytesIO correctly."""
+    result_bytes = gen_instance_code_v0(b"")
+    result_stream = gen_instance_code_v0(io.BytesIO(b""))
+    assert result_stream["iscc"] == result_bytes["iscc"]
+    assert result_stream["datahash"] == result_bytes["datahash"]
+    assert result_stream["filesize"] == result_bytes["filesize"]
+
+
+def test_gen_data_code_v0_bytes_still_works():
+    """Verify gen_data_code_v0 still accepts plain bytes after adding stream support."""
+    result = gen_data_code_v0(b"test data")
+    assert result["iscc"].startswith("ISCC:")
+    assert isinstance(result, DataCodeResult)
+
+
+def test_gen_instance_code_v0_bytes_still_works():
+    """Verify gen_instance_code_v0 still accepts plain bytes after adding stream support."""
+    result = gen_instance_code_v0(b"test data")
+    assert result["iscc"].startswith("ISCC:")
+    assert result["filesize"] == 9
+    assert isinstance(result, InstanceCodeResult)

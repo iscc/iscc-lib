@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import BinaryIO
+
 from iscc_lib._lowlevel import (
     gen_audio_code_v0 as _gen_audio_code_v0,
     gen_data_code_v0 as _gen_data_code_v0,
@@ -128,13 +130,17 @@ def gen_mixed_code_v0(codes: list[str], bits: int = 64) -> MixedCodeResult:
     return MixedCodeResult(_gen_mixed_code_v0(codes, bits))
 
 
-def gen_data_code_v0(data: bytes, bits: int = 64) -> DataCodeResult:
-    """Generate an ISCC Data-Code from raw byte data."""
+def gen_data_code_v0(data: bytes | BinaryIO, bits: int = 64) -> DataCodeResult:
+    """Generate an ISCC Data-Code from raw byte data or a file-like stream."""
+    if hasattr(data, "read"):
+        data = data.read()
     return DataCodeResult(_gen_data_code_v0(data, bits))
 
 
-def gen_instance_code_v0(data: bytes, bits: int = 64) -> InstanceCodeResult:
-    """Generate an ISCC Instance-Code from raw byte data."""
+def gen_instance_code_v0(data: bytes | BinaryIO, bits: int = 64) -> InstanceCodeResult:
+    """Generate an ISCC Instance-Code from raw byte data or a file-like stream."""
+    if hasattr(data, "read"):
+        data = data.read()
     return InstanceCodeResult(_gen_instance_code_v0(data, bits))
 
 

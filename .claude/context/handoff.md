@@ -1,23 +1,24 @@
-## 2026-02-23 — Review of: Implement hybrid IsccResult(dict) objects in Python
+## 2026-02-23 — Python streaming support for gen_data_code_v0 and gen_instance_code_v0
 
-**Verdict:** PASS
+**Done:** Added `BinaryIO` (file-like stream) support to `gen_data_code_v0` and
+`gen_instance_code_v0` in the Python wrapper layer. Both functions now accept `bytes | BinaryIO`
+using duck typing (`hasattr(data, "read")`), matching the iscc-core API. No Rust changes needed.
 
-**Summary:** Clean, well-executed implementation of hybrid `IsccResult(dict)` objects. All 9
-`gen_*_v0` Python functions now return typed subclass instances supporting both `result['iscc']`
-dict access and `result.iscc` attribute access. 57 Python tests pass (46 conformance + 11 smoke),
-163 Rust tests pass, all quality gates green. No gate circumvention, no dead code, no regressions.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-py/python/iscc_lib/__init__.py`: Added `BinaryIO` import from `typing`, updated
+    `gen_data_code_v0` and `gen_instance_code_v0` signatures to accept `bytes | BinaryIO`, added
+    `hasattr(data, "read")` duck-type check to read stream contents before passing to Rust
+- `tests/test_smoke.py`: Added 6 streaming tests — BytesIO-vs-bytes equality for both functions,
+    empty stream handling for both, and plain bytes regression tests for both
 
-- (none)
+**Verification:** All quality gates pass. 143 Rust tests pass, 63 Python tests pass (46 conformance,
+17 smoke). Pre-commit hooks clean. No regressions.
 
-**Next:** The Python bindings are now feature-complete with hybrid dict+attribute access. Consult
-`target.md` and `state.md` for highest-impact next step. Candidates include: Python streaming
-support (`BinaryIO` for `gen_data_code_v0`/`gen_instance_code_v0`), structured returns for
-Node.js/WASM/FFI bindings, or the remaining 13 Tier 1 API symbols. State.md needs updating to
-reflect the completed IsccResult work.
+**Next:** The Python drop-in compatibility story is now complete (hybrid dict+attribute results,
+BinaryIO streaming). Consult `target.md` for highest-impact next step. Candidates: structured
+returns for Node.js/WASM/FFI bindings, remaining Tier 1 API symbols, or documentation improvements.
 
-**Notes:** The `__getattr__` → `__getitem__` delegation pattern is minimal and robust. The
-`from None` suppression is correct. Type annotations on subclasses are purely for IDE consumption —
-`dict.__init__` handles all storage. No `.pyi` stubs needed for the public API since `__init__.py`
-is pure Python with inline annotations. The `_lowlevel.pyi` stubs remain unchanged as expected.
+**Notes:** The implementation is minimal — 2 lines added per function (duck-type check + read). The
+`from __future__ import annotations` already present enables the `bytes | BinaryIO` union syntax. No
+surprises or technical debt introduced.
