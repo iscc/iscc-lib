@@ -37,10 +37,14 @@ next iteration.
     Compare against what next.md asked for.
 
 3. **Run verification** — run `mise run check` (runs all quality gates via pre-commit hooks). Then
-    execute any specific checks mentioned in next.md's verification section.
+    execute each specific check from next.md's `## Verification` section individually and record
+    pass/fail for each criterion. Every criterion from next.md must appear in the handoff's
+    `**Verification:**` grid with `[x]` or `[ ]`.
 
 4. **Assess quality** — check the implementation for:
 
+    - **Scope discipline**: Does the diff touch only what next.md asked for? Check the
+        `## Not In Scope` section — if the advance agent did something explicitly excluded, flag it.
     - **Correctness**: Does it do what next.md asked? Are edge cases handled?
     - **Conformance**: If applicable, do outputs match iscc-core reference?
     - **Simplicity**: Is the code as simple as it can be? No over-engineering?
@@ -99,6 +103,11 @@ next iteration.
 **Verdict:** <PASS, PASS_WITH_NOTES, or NEEDS_WORK>
 
 **Summary:** <2-3 sentences on what was done and its quality>
+
+**Verification:**
+- [x] <criterion from next.md> — <result or observation>
+- [x] <criterion from next.md>
+- [ ] <criterion from next.md> — <what failed and why>
 
 **Issues found:**
 - <issue 1, if any>

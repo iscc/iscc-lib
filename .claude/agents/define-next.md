@@ -45,7 +45,8 @@ exactly ONE small, verifiable step that advances the project toward its target s
 
     - Advances toward the target
     - Can be implemented by modifying at most 3 files (excluding tests)
-    - Has clear, testable verification criteria
+    - Has clear, testable verification criteria (prefer boolean-testable: a command that exits 0 or
+        an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)
 
 5. **Research if needed** — if unsure about APIs, patterns, or reference implementation details,
@@ -81,6 +82,11 @@ exactly ONE small, verifiable step that advances the project toward its target s
 - **Modify**: <files to modify, if any>
 - **Reference**: <files to read for context, including notes/ docs or iscc-core sources>
 
+## Not In Scope
+
+- <thing the advance agent might be tempted to do but shouldn't>
+- <related work that should wait for a future step>
+
 ## Implementation Notes
 
 <specific guidance for the advance agent — algorithms to use, patterns to follow,
@@ -88,9 +94,9 @@ edge cases to handle, reference code to port from>
 
 ## Verification
 
-- <concrete criterion 1: e.g., "cargo test passes">
-- <concrete criterion 2: e.g., "gen_meta_code_v0 returns correct ISCC for test input X">
-- <criterion N>
+- <runnable check 1: e.g., "`cargo test -p iscc-lib` passes (143 existing + N new tests)">
+- <runnable check 2: e.g., "`cargo clippy -p iscc-lib -- -D warnings` clean">
+- <assertion N: e.g., "`iscc_lib::text_clean` is importable from crate root">
 
 ## Done When
 
@@ -117,5 +123,14 @@ skill by name in Implementation Notes so the advance agent knows to use it.
 - Prefer steps that produce runnable, testable code over infrastructure-only steps.
 - When starting from scratch, prefer: workspace setup → core types → codec → first algorithm →
     tests.
+- Every verification criterion should ideally be a command or assertion that returns pass/fail.
+    Prefer "`cargo test -p iscc-lib` passes" over "tests work". When a criterion can't be expressed
+    as a runnable check (e.g., "doc comment matches reference wording"), that's acceptable but the
+    exception — not the norm.
+- The `## Not In Scope` section must have at least one entry. Think about what the advance agent
+    might be tempted to do beyond the goal — adjacent refactors, extra features, premature
+    optimization — and call it out explicitly.
+- For non-code steps (docs, branding, config), include at least one automated verification criterion
+    when feasible (e.g., "`uv run zensical build` exits 0", "file X contains string Y").
 - Do not implement anything. Do not write source code. You only scope and define.
 - Do not modify any file other than `.claude/context/next.md`.
