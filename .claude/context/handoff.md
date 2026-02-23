@@ -1,58 +1,30 @@
-## 2026-02-23 — Review of: Complete Python bindings to 23/23 Tier 1 symbols
+## 2026-02-23 — Add text utils and simple functions to Node.js bindings
 
-**Verdict:** PASS
+**Done:** Added 8 new `#[napi]` function wrappers to the Node.js bindings: `text_clean`,
+`text_remove_newlines`, `text_trim`, `text_collapse`, `encode_base64`, `iscc_decompose`,
+`conformance_selftest`, and `sliding_window`. Node.js bindings now expose 17 Tier 1 symbols (9
+existing gen functions + 8 new). Created comprehensive unit tests and updated the test script to
+glob all test files.
 
-**Summary:** Clean, high-quality implementation of the final 3 Tier 1 Python binding symbols
-(`soft_hash_video_v0`, `DataHasher`, `InstanceHasher`). All 147 Python tests pass (116 existing + 31
-new), 250 Rust tests pass, clippy clean workspace-wide, all 14 pre-commit hooks pass. The
-`#[pyclass]` `Option<Inner>` pattern for streaming hashers is well-implemented with proper error
-handling on double-finalize. Conformance vectors validated for both streaming hashers. The 23/23
-Tier 1 Python binding milestone is complete.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-napi/src/lib.rs`: Added 8 `#[napi]` function wrappers following existing thin-wrapper
+    pattern
+- `crates/iscc-napi/__tests__/functions.test.mjs`: Created 27 unit tests covering all 8 new
+    functions
+- `crates/iscc-napi/package.json`: Updated test script from single file to glob pattern
+    `__tests__/*.test.mjs`
 
-- (none)
+**Verification:** All 73 Node.js tests pass (46 conformance + 27 new unit tests).
+`cargo clippy --workspace --all-targets -- -D warnings` is clean. All 14 pre-commit hooks pass. All
+Rust tests pass. `conformance_selftest()` returns `true` from Node.js. All 8 new functions are
+importable.
 
-**Next:** The Python bindings are now feature-complete at 23/23 Tier 1 symbols with 147 tests.
-State.md needs updating to reflect this milestone. Suggested next directions (in priority order):
-(1) update state.md to reflect 23/23 Python milestone and 147 tests, (2) expand Node.js bindings
-beyond the 9 gen functions (add text utils, algo primitives, streaming hashers — same pattern as
-Python), (3) expand WASM bindings similarly, (4) documentation updates to reflect the complete
-Python API, or (5) performance benchmarks for streaming vs one-shot.
+**Next:** The remaining Tier 1 symbols for Node.js bindings are the algorithm primitives with
+complex types (`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`) which need
+`Buffer`/`Vec<Buffer>` mappings, and the streaming hashers (`DataHasher`, `InstanceHasher`) which
+need `#[napi]` class support. Alternatively, expand WASM bindings with the same 8 simple functions.
 
-**Notes:** The `__all__` list now contains 33 symbols (23 Tier 1 API functions/classes + 10 result
-type classes). The Python wrapper classes for `DataHasher`/`InstanceHasher` cleanly delegate to
-underscore-prefixed lowlevel imports (`_DataHasher`/`_InstanceHasher`) to avoid name collision. The
-`Option<Inner>` pattern in Rust + pure-Python wrapper with `BinaryIO` support is a reusable template
-for any future streaming types.
-
----
-
-## 2026-02-23 — Manual session: CID workflow improvements
-
-**What changed** (commits `bae0fe3`, `9a5f727`, `95c65cd`):
-
-1. **CID agent prompts sharpened** (`define-next.md`, `review.md`):
-
-    - `next.md` template now includes `## Not In Scope` section (required, at least one entry) to
-        prevent advance agent drift
-    - Verification criteria guidance changed to prefer boolean-testable checks (runnable commands
-        that exit 0 or fail)
-    - Review handoff format now includes structured `[x]`/`[ ]` verification grid mapping 1:1 to
-        next.md criteria
-    - Review quality assessment starts with scope discipline check against Not In Scope
-    - Non-code steps should include at least one automated verification criterion when feasible
-
-2. **CID iteration log now tracked in git** — review agent commits `iterations.jsonl` alongside
-    other context files. Existing 17-iteration log (68 agent runs) committed.
-
-3. **napi-rs build artifacts gitignored** — `crates/iscc-napi/.gitignore` covers `index.js`,
-    `index.d.ts`, `*.node`, `node_modules/`, `package-lock.json`.
-
-4. **CID run pause increased to 20 minutes** (was 10 min). Pause is now interruptible — press Enter
-    to continue immediately. Cross-platform (`select.select` on Linux/macOS, `msvcrt` on Windows).
-
-**State.md updated** to reflect 23/23 Python bindings milestone.
-
-**Next:** Continue with the suggestions from the review above — Node.js binding expansion is the
-natural next step (same Tier 1 symbols already done in Python).
+**Notes:** The `sliding_window` function returns the full string as a single-element array when the
+input is shorter than the width (matching the reference implementation behavior), not an empty array
+as one might expect. Test was adjusted accordingly.

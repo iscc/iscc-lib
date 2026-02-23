@@ -121,3 +121,80 @@ pub fn gen_iscc_code_v0(codes: Vec<String>, wide: Option<bool>) -> napi::Result<
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
+
+/// Clean and normalize text for display.
+///
+/// Applies NFKC normalization, removes control characters (except newlines),
+/// normalizes `\r\n` to `\n`, collapses consecutive empty lines, and strips
+/// leading/trailing whitespace.
+#[napi(js_name = "text_clean")]
+pub fn text_clean(text: String) -> String {
+    iscc_lib::text_clean(&text)
+}
+
+/// Remove newlines and collapse whitespace to single spaces.
+///
+/// Converts multi-line text into a single normalized line.
+#[napi(js_name = "text_remove_newlines")]
+pub fn text_remove_newlines(text: String) -> String {
+    iscc_lib::text_remove_newlines(&text)
+}
+
+/// Trim text so its UTF-8 encoded size does not exceed `nbytes`.
+///
+/// Multi-byte characters that would be split are dropped entirely.
+/// Leading/trailing whitespace is stripped from the result.
+#[napi(js_name = "text_trim")]
+pub fn text_trim(text: String, nbytes: u32) -> String {
+    iscc_lib::text_trim(&text, nbytes as usize)
+}
+
+/// Normalize and simplify text for similarity hashing.
+///
+/// Applies NFD normalization, lowercasing, removes whitespace and characters
+/// in Unicode categories C (control), M (mark), and P (punctuation), then
+/// recombines with NFKC normalization.
+#[napi(js_name = "text_collapse")]
+pub fn text_collapse(text: String) -> String {
+    iscc_lib::text_collapse(&text)
+}
+
+/// Encode bytes as base64url (RFC 4648 §5, no padding).
+///
+/// Returns a URL-safe base64 encoded string without padding characters.
+#[napi(js_name = "encode_base64")]
+pub fn encode_base64(data: Buffer) -> String {
+    iscc_lib::encode_base64(data.as_ref())
+}
+
+/// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
+///
+/// Accepts a normalized ISCC-CODE or concatenated ISCC-UNIT sequence.
+/// The optional "ISCC:" prefix is stripped before decoding.
+/// Returns an array of base32-encoded ISCC-UNIT strings (without prefix).
+#[napi(js_name = "iscc_decompose")]
+pub fn iscc_decompose(iscc_code: String) -> napi::Result<Vec<String>> {
+    iscc_lib::iscc_decompose(&iscc_code).map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
+/// Run all conformance tests against vendored test vectors.
+///
+/// Returns `true` if all tests pass, `false` if any fail.
+#[napi(js_name = "conformance_selftest")]
+pub fn conformance_selftest() -> bool {
+    iscc_lib::conformance_selftest()
+}
+
+/// Generate sliding window n-grams from a string.
+///
+/// Returns overlapping substrings of `width` Unicode characters, advancing
+/// by one character at a time. Throws if width is less than 2.
+#[napi(js_name = "sliding_window")]
+pub fn sliding_window(seq: String, width: u32) -> napi::Result<Vec<String>> {
+    if width < 2 {
+        return Err(napi::Error::from_reason(
+            "Sliding window width must be 2 or bigger.",
+        ));
+    }
+    Ok(iscc_lib::sliding_window(&seq, width as usize))
+}
