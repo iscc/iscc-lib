@@ -1,112 +1,104 @@
 # Next Work Package
 
-## Step: Add 8 simple functions to C FFI bindings
+## Step: Add 4 algorithm primitives to Node.js bindings
 
 ## Goal
 
-Expand C FFI from 11 to 20 exported symbols by adding the same 8 Tier 1 functions already in Node.js
-and WASM: 4 text utilities, `encode_base64`, `iscc_decompose`, `conformance_selftest`, and
-`sliding_window`. This brings C FFI to parity with Node.js/WASM on Tier 1 coverage (15 Tier 1 + 3
-infrastructure + `iscc_free_string_array` for array returns = 20 total).
+Expand Node.js bindings from 17/23 to 21/23 Tier 1 symbols by adding `alg_simhash`,
+`alg_minhash_256`, `alg_cdc_chunks`, and `soft_hash_video_v0`. These are the complex-type-signature
+functions that require careful napi-rs type mapping (byte buffers, nested arrays, owned vs borrowed
+data). Node.js goes first as the design template; WASM and C FFI will replicate in follow-up steps.
 
 ## Scope
 
-- **Modify**: `crates/iscc-ffi/src/lib.rs` — add 8 `extern "C"` functions + `vec_to_c_string_array`
-    helper + `iscc_free_string_array` export + inline tests
-- **Reference**: `crates/iscc-wasm/src/lib.rs` (the 8 functions just added in WASM),
-    `crates/iscc-napi/src/lib.rs` (Node.js equivalents), `crates/iscc-lib/src/utils.rs` (text util
-    signatures), `crates/iscc-lib/src/codec.rs` (`encode_base64`, `iscc_decompose`),
-    `crates/iscc-lib/src/conformance.rs` (`conformance_selftest`), `crates/iscc-lib/src/simhash.rs`
-    (`sliding_window`)
+- **Modify**: `crates/iscc-napi/src/lib.rs` — add 4 napi functions
+- **Modify**: `crates/iscc-napi/__tests__/functions.test.mjs` — add unit tests for all 4 functions
+- **Reference**: `crates/iscc-py/src/lib.rs` (PyO3 equivalents — lines 238–273),
+    `crates/iscc-lib/src/simhash.rs` (`alg_simhash` signature), `crates/iscc-lib/src/minhash.rs`
+    (`alg_minhash_256` signature), `crates/iscc-lib/src/cdc.rs` (`alg_cdc_chunks` signature),
+    `crates/iscc-lib/src/lib.rs` (`soft_hash_video_v0` at line 530)
 
 ## Not In Scope
 
-- Algorithm primitives (`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`) —
-    these have complex type signatures requiring separate design work
-- `DataHasher`/`InstanceHasher` streaming classes — C FFI opaque struct patterns are a distinct step
-- Structured return types for gen functions (returning objects instead of ISCC strings)
-- Changes to the C test program (`tests/test_ffi.c`) — that can be expanded in a future step
-- Changes to any other binding crate (Node.js, WASM, Python)
-- cbindgen configuration changes — it should auto-generate headers for the new exports
+- Adding these 4 functions to WASM or C FFI bindings — those are separate follow-up steps
+- `DataHasher`/`InstanceHasher` streaming classes — separate step with different design pattern
+- Structured return types for gen functions (returning objects instead of plain `.iscc` strings)
+- Changes to the Rust core crate — all 4 functions are already exported and tested
+- Conformance test additions — the existing conformance tests cover gen functions; algorithm
+    primitive tests are unit tests
 
 ## Implementation Notes
 
-### Group 1: Scalar-returning functions (6 functions)
+### Type mappings
 
-These follow the existing C FFI pattern exactly. Convert string results via `CString::new` then
-`into_raw`, using `set_last_error` plus `ptr::null_mut()` on failure.
+Each function wraps the corresponding `iscc_lib` function with napi-rs type conversions:
 
-Create a small `string_to_c` helper to avoid repeating the CString conversion match block. It takes
-a `String`, converts to `CString`, and returns a raw char pointer (or sets error and returns null).
+1. **`alg_simhash`** — `(hash_digests: Vec<Buffer>) -> Buffer`
 
-1. `iscc_text_clean`: takes a C string pointer, returns heap-allocated C string. Use `ptr_to_str`
-    then `string_to_c(iscc_lib::text_clean(text))`
-2. `iscc_text_remove_newlines`: same pattern as `iscc_text_clean`
-3. `iscc_text_trim`: takes a C string pointer and `nbytes: usize`, returns heap-allocated C string
-4. `iscc_text_collapse`: same pattern as `iscc_text_clean`
-5. `iscc_encode_base64`: takes a byte pointer and length, returns heap-allocated C string. Follows
-    the byte-buffer pattern from `iscc_gen_data_code_v0`. Check for null pointer on data
-6. `iscc_conformance_selftest`: takes no parameters, returns `bool`. Trivial, no unsafe needed. Just
-    call `iscc_lib::conformance_selftest()` directly
+    - Rust signature: `alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> Vec<u8>`
+    - napi-rs `Buffer` implements `AsRef<[u8]>`, so `iscc_lib::alg_simhash(&hash_digests)` works
+        directly (pass `&Vec<Buffer>` which coerces to `&[Buffer]`)
+    - Convert `Vec<u8>` result to `Buffer` via `.into()`
+    - Infallible — no error mapping needed
 
-### Group 2: Array-returning functions (2 functions)
+2. **`alg_minhash_256`** — `(features: Vec<u32>) -> Buffer`
 
-`iscc_decompose` and `sliding_window` return `Vec<String>`. For C FFI, use a NULL-terminated string
-array — the standard C pattern (like `argv`).
+    - Rust signature: `alg_minhash_256(features: &[u32]) -> Vec<u8>`
+    - Pass `&features` directly
+    - Convert `Vec<u8>` result to `Buffer` via `.into()`
+    - Infallible — no error mapping needed
 
-Infrastructure needed:
+3. **`alg_cdc_chunks`** — `(data: Buffer, utf32: bool, avg_chunk_size: Option<u32>) -> Vec<Buffer>`
 
-- `vec_to_c_string_array`: converts `Vec<String>` to a heap-allocated NULL-terminated array of C
-    strings. Converts each String to CString, collects raw pointers, appends a NULL terminator, then
-    `shrink_to_fit` plus `as_mut_ptr` plus `mem::forget` to hand ownership to the caller
-- `iscc_free_string_array`: exported `extern "C"` function. Walks the array freeing each CString via
-    `CString::from_raw`, counts elements, then reconstructs the Vec with `Vec::from_raw_parts` using
-    `count + 1` (including NULL terminator) for both len and capacity (safe because `shrink_to_fit`
-    ensures capacity equals length)
+    - Rust signature: `alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<&[u8]>`
+    - Default `avg_chunk_size` to 1024 via `.unwrap_or(1024)`
+    - The return type `Vec<&[u8]>` borrows from `data` — convert each chunk to owned `Buffer` via
+        `.iter().map(|c| Buffer::from(c.to_vec())).collect()`
+    - Infallible — no error mapping needed
 
-Functions:
+4. **`soft_hash_video_v0`** —
+    `(frame_sigs: Vec<Vec<i32>>, bits: Option<u32>) -> napi::Result<Buffer>`
 
-- `iscc_decompose`: takes a C string pointer, returns NULL-terminated array of C strings on success,
-    NULL on error (check `iscc_last_error()`)
-- `iscc_sliding_window`: takes a C string pointer and `width: u32`, returns NULL-terminated array of
-    C strings. Pre-validate width less than 2 to avoid Rust panic across FFI boundary (same pattern
-    as WASM/Python bindings). Use `u32` for width (not `usize`) for C interop
+    - Rust signature: `soft_hash_video_v0(&[Vec<i32>], u32) -> IsccResult<Vec<u8>>`
+    - This follows the exact same pattern as `gen_video_code_v0` (which already takes
+        `Vec<Vec<i32>>`)
+    - Default `bits` to 64 via `.unwrap_or(64)`
+    - Map error with `.map_err(|e| napi::Error::from_reason(e.to_string()))`
+    - Convert `Vec<u8>` result to `Buffer` via `.into()`
 
-### Naming convention
+### Naming and placement
 
-All new symbols use `iscc_` prefix matching existing convention: `iscc_text_clean`,
-`iscc_text_remove_newlines`, `iscc_text_trim`, `iscc_text_collapse`, `iscc_encode_base64`,
-`iscc_conformance_selftest`, `iscc_decompose`, `iscc_sliding_window`, `iscc_free_string_array`.
+Use `#[napi(js_name = "...")]` for all 4 functions to preserve snake_case naming (matching the
+existing pattern). Place them after the existing `sliding_window` function at the end of the file,
+grouped under an `// ── Algorithm primitives ──` section comment.
 
 ### Tests
 
-Add inline tests in the existing `#[cfg(test)] mod tests` block. Reuse the `c_ptr_to_string` helper.
-Add a new `c_ptr_to_string_vec` helper for array returns that walks the NULL-terminated array. Test
-cases per function:
+Add to `__tests__/functions.test.mjs` in a new `describe('algorithm primitives', ...)` section:
 
-- text_clean: known NFKC normalization, NULL input returns NULL
-- text_remove_newlines: multi-line to single line, NULL returns NULL
-- text_trim: truncation, NULL returns NULL
-- text_collapse: lowercased and stripped, NULL returns NULL
-- encode_base64: known byte input to known base64url output, NULL returns NULL
-- conformance_selftest: returns true
-- iscc_decompose: decompose known ISCC-CODE, invalid input returns NULL, NULL returns NULL
-- sliding_window: known n-grams, width less than 2 returns NULL, NULL returns NULL
-- free_string_array: NULL is no-op (like free_string)
+- **`alg_simhash`**: Feed known byte buffers, verify output is a Buffer of expected length. Test
+    empty input returns 32 zero bytes. Test with single digest returns same bytes back
+- **`alg_minhash_256`**: Feed a `[u32]` array, verify output is a 32-byte Buffer. Test with known
+    feature values
+- **`alg_cdc_chunks`**: Feed known data, verify chunks concatenate back to original. Test empty
+    input returns one empty chunk. Test with `utf32=true`
+- **`soft_hash_video_v0`**: Feed frame signatures (reuse from conformance test vectors), verify
+    output is a Buffer of length `bits/8`. Test empty input throws error
+
+Use Node.js built-in `node:test` + `node:assert` (zero extra dependencies), matching existing test
+patterns.
 
 ## Verification
 
-- `cargo build -p iscc-ffi` compiles without errors
+- `cargo build -p iscc-napi` compiles without errors
 - `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- `cargo test -p iscc-ffi` passes all existing 20 tests plus new tests (expect 32+ total)
-- `cargo test --workspace` passes with 250+ tests (no regressions)
-- All 8 new functions present as `#[unsafe(no_mangle)] pub ... extern "C"` in `lib.rs`
-- `iscc_conformance_selftest` returns true in tests
-- `iscc_free_string_array(ptr::null_mut())` does not crash
-- `iscc_decompose` returns valid NULL-terminated array for a known ISCC-CODE
+- `node --test crates/iscc-napi/__tests__/functions.test.mjs` passes all existing + new tests
+- `node --test crates/iscc-napi/__tests__/` passes all tests (both conformance and function suites)
+- `cargo test --workspace` passes with 268+ tests (no regressions in other crates)
+- All 4 new functions callable from JavaScript: `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+    `soft_hash_video_v0`
 
 ## Done When
 
-All verification criteria pass: 8 new `extern "C"` functions plus `iscc_free_string_array` compile,
-clippy is clean workspace-wide, and all C FFI tests (existing plus new) pass via
-`cargo test -p iscc-ffi`.
+All verification criteria pass: 4 new napi functions compile, clippy is clean workspace-wide, and
+all Node.js tests (existing 73 + new algorithm primitive tests) pass via `node --test`.
