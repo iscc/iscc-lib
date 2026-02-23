@@ -106,3 +106,6 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `#[napi(js_name = "snake_case")]` to prevent auto-conversion to camelCase
 - All 9 `gen_*_v0` napi bindings follow identical thin-wrapper pattern: `#[napi(js_name)]` +
     `napi::Error::from_reason()` for error mapping. Mirrors the PyO3 pattern exactly
+- Node.js conformance tests share `data.json` via relative path from `__tests__/` directory. Use
+    Node.js built-in `node:test` + `node:assert` (zero extra dependencies).
+    `Buffer.from(hex, 'hex')` replaces the `hex` crate for decoding stream test vectors
