@@ -452,6 +452,132 @@ def cmd_role(args):
         sys.exit(1)
 
 
+def run_orchestrator(claude_cmd, iteration, cwd, skip_permissions=False):
+    """Run one CID iteration via the orchestrator agent (subagent delegation).
+
+    Returns a dict with keys: ok, role, iteration, turns, cost_usd, duration_s, status.
+    """
+    prompt = f"CID iteration {iteration}. Execute the protocol."
+
+    cmd = [
+        claude_cmd,
+        "-p",
+        prompt,
+        "--agent",
+        "orchestrator",
+        "--output-format",
+        "stream-json",
+        "--verbose",
+    ]
+    if skip_permissions:
+        cmd.append("--dangerously-skip-permissions")
+
+    start = time.time()
+    print(f"  Starting orchestrator (iteration {iteration})...")
+
+    try:
+        flags = (
+            getattr(subprocess, "CREATE_NO_WINDOW", 0) if sys.platform == "win32" else 0
+        )
+        process = subprocess.Popen(  # noqa: S603
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=cwd,
+            env=sanitize_env(),
+            bufsize=1,
+            creationflags=flags,
+        )
+    except OSError as e:
+        print(f"  ERROR: Failed to start claude: {e}")
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "iteration": iteration,
+            "role": "orchestrator",
+            "status": "ERROR",
+            "turns": 0,
+            "cost_usd": 0.0,
+            "duration_s": 0.0,
+            "error": str(e),
+        }
+        log_entry(cwd, entry)
+        return {**entry, "ok": False}
+
+    stdout = process.stdout
+    if stdout is None:  # pragma: no cover
+        return {"ok": False, "role": "orchestrator", "iteration": iteration}
+    cost, turns, is_error = _process_output(stdout, "orchestrator")
+    process.wait()
+    elapsed = time.time() - start
+
+    status = "FAIL" if (process.returncode != 0 or is_error) else "OK"
+    print(f"  orchestrator {status} ({turns} turns, ${cost:.4f}, {elapsed:.0f}s)")
+
+    entry = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "iteration": iteration,
+        "role": "orchestrator",
+        "status": status,
+        "turns": turns,
+        "cost_usd": round(cost, 6),
+        "duration_s": round(elapsed, 1),
+    }
+    log_entry(cwd, entry)
+
+    return {**entry, "ok": status == "OK"}
+
+
+def cmd_orchestrate(args):
+    """CID loop using orchestrator agent: one session per iteration."""
+    claude_cmd = find_claude()
+    if not claude_cmd:
+        print("ERROR: claude not found in PATH")
+        sys.exit(1)
+
+    cwd = Path(args.workdir).resolve()
+    max_iter = args.max_iterations
+    pause = args.pause
+
+    print(f"CID orchestrator — max {max_iter} iterations")
+    print(f"Working directory: {cwd}")
+    if pause:
+        print(f"Pause between iterations: {pause}s")
+    print()
+
+    for i in range(1, max_iter + 1):
+        print(f"\n{'─' * 60}")
+        print(f"  CID Iteration {i} (orchestrator mode)")
+        print(f"{'─' * 60}")
+
+        result = run_orchestrator(claude_cmd, i, cwd, args.skip_permissions)
+
+        if not result["ok"]:
+            print(f"\n  *** Orchestrator failed on iteration {i}. Stopping. ***")
+            sys.exit(1)
+
+        # Check for DONE after iteration
+        if is_done(cwd):
+            print("\n  *** Target state reached! Project is DONE. ***")
+            print(f"\nProject complete after {i} iteration(s).")
+            break
+
+        # Check for human review request
+        reason = check_human_review(cwd)
+        if reason:
+            print(f"\n  *** HUMAN REVIEW REQUESTED: {reason} ***")
+            print("  Pausing CID loop. Review handoff.md, then resume.")
+            break
+
+        if i < max_iter and pause:
+            print(
+                f"\nPausing {pause}s before next iteration (press Enter to continue)..."
+            )
+            wait_with_skip(pause)
+    else:
+        print(f"\nReached max iterations ({max_iter}).")
+
+
 # --- Entry point ---
 
 
@@ -505,6 +631,25 @@ def main():
     # stats
     stats_p = sub.add_parser("stats", help="Show iteration log summary statistics")
     stats_p.set_defaults(func=cmd_stats)
+
+    # orchestrate
+    orch_p = sub.add_parser(
+        "orchestrate",
+        help="CID loop using orchestrator agent (one session per iteration)",
+    )
+    orch_p.add_argument(
+        "--max-iterations",
+        type=int,
+        default=20,
+        help="Maximum iterations (default: 20)",
+    )
+    orch_p.add_argument(
+        "--pause",
+        type=int,
+        default=1200,
+        help="Seconds to pause between iterations (default: 1200)",
+    )
+    orch_p.set_defaults(func=cmd_orchestrate)
 
     # role (for testing individual agents)
     role_p = sub.add_parser(

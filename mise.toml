@@ -20,6 +20,10 @@ run = "uv run tools/cid.py status"
 description = "Show iteration log summary statistics"
 run = "uv run tools/cid.py stats"
 
+[tasks."cid:orchestrate"]
+description = "CID loop using orchestrator agent (one session per iteration)"
+run = "uv run tools/cid.py --skip-permissions orchestrate --max-iterations {{arg(name='n', i=0, default='20')}} --pause {{arg(name='pause', i=1, default='1200')}}"
+
 [tasks."cid:state"]
 description = "Run update-state agent only"
 run = "uv run tools/cid.py --skip-permissions role update-state"
