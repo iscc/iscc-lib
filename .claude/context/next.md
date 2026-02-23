@@ -1,112 +1,155 @@
 # Next Work Package
 
-## Step: Add ISCC brand colors, logo, and favicon to documentation site
+## Step: Add copy-page split-button and llms-full.txt generation
 
 ## Goal
 
-Add ISCC Foundation visual branding to the documentation site at lib.iscc.codes, matching the
-branding used by iscc-usearch at usearch.iscc.codes. This is the foundational branding step that
-establishes the visual identity before adding interactive features (copy-page, llms-full.txt) in
-subsequent steps.
+Add the copy-page split-button dropdown (copies page as Markdown, view as Markdown, edit on GitHub)
+and the `llms-full.txt` generation pipeline to the documentation site, matching the iscc-usearch
+implementation. This enables LLM-friendly documentation consumption and completes a key
+documentation spec requirement.
 
 ## Scope
 
-- **Create**: `docs/stylesheets/extra.css` — ISCC brand color overrides for light/dark mode
-- **Create**: `docs/assets/logo_light.png` — ISCC logo (download from iscc-usearch repo)
-- **Create**: `docs/assets/favicon.png` — ISCC favicon (download from iscc-usearch repo)
-- **Modify**: `zensical.toml` — add `extra_css`, `logo`, and `favicon` configuration
-- **Reference**: iscc-usearch `docs/stylesheets/extra.css` (fetch via
-    `gh api   repos/iscc/iscc-usearch/contents/docs/stylesheets/extra.css`), iscc-usearch
-    `zensical.toml` (fetch via `gh api repos/iscc/iscc-usearch/contents/zensical.toml`)
+- **Create**: `docs/javascripts/copypage.js` — split-button dropdown UI (port from iscc-usearch)
+- **Create**: `scripts/gen_llms_full.py` — generates per-page `.md` files in `site/` and
+    concatenated `site/llms-full.txt`
+- **Create**: `docs/llms.txt` — static metadata file with site description and links to all doc
+    pages
+- **Modify**: `docs/stylesheets/extra.css` — append copy-page split-button CSS rules (lines 132+
+    from iscc-usearch)
+- **Modify**: `zensical.toml` — add `extra_javascript = ["javascripts/copypage.js"]`
+- **Modify**: `.github/workflows/docs.yml` — add `uv run python scripts/gen_llms_full.py` step after
+    `zensical build`
+- **Reference**: iscc-usearch `docs/javascripts/copypage.js` (fetch from GitHub raw), iscc-usearch
+    `docs/stylesheets/extra.css` lines 132+ (copy-page CSS), iscc-usearch `scripts/gen_llms_full.py`
+    (simplified — no griffe API generation needed), iscc-usearch `docs/llms.txt` (format reference)
 
 ## Not In Scope
 
-- Copy-page split-button dropdown (`copypage.js`) — separate step after branding is in place
-- `llms-full.txt` generation script (`gen_llms_full.py`) — separate step
 - Social sharing meta tags (`overrides/main.html`) — separate step
 - Abbreviations file (`docs/includes/abbreviations.md`) and `pymdownx.snippets` config — separate
     step
-- `docs/llms.txt` metadata file — separate step
-- Diataxis navigation restructuring — separate step (requires creating new page files)
-- Any changes to documentation content or page structure
-- `docs/stylesheets/copilot.css` or `docs/javascripts/copilot.js` — the ISCC AI copilot widget is
-    project-specific and should not be added without explicit instruction
+- Diataxis navigation restructuring — separate step (requires creating new page files and
+    reorganizing nav)
+- Per-language how-to guides (Node.js, WASM) — separate step
+- API reference generation via griffe in `gen_llms_full.py` — iscc-usearch uses griffe to generate
+    the API page dynamically, but iscc-lib already has a static `api.md` page; keep it simple
+- ISCC AI copilot widget — project-specific, not part of this feature
+- Any changes to Rust source code or binding crates
 
 ## Implementation Notes
 
-### CSS: `docs/stylesheets/extra.css`
+### `docs/javascripts/copypage.js`
 
-Port the ISCC brand color CSS from iscc-usearch verbatim. The file contains:
+Port verbatim from iscc-usearch with two changes:
 
-- Light mode primary/accent color overrides (`#0054b2`, `#4596f5`, `#123663`)
-- Dark mode primary/accent color overrides (inverted lighter/darker values)
-- Link color customization for both schemes
-- Light mode header styling (ISCC Blue `#0054b2` background, white text)
-- Dark mode header styling (Deep Navy `#123663` background)
-- Footer styling (Deep Navy `#123663` background for light mode)
-- Logo inversion via CSS `filter: invert(1)` for dark mode nav and light mode header
-- Mermaid edge color softening for dark mode
+1. Update `REPO_URL` from `"https://github.com/iscc/iscc-usearch"` to
+    `"https://github.com/iscc/iscc-lib"`
+2. Keep `EDIT_BRANCH = "main"`
 
-**Important**: Do NOT include the copy-page split-button CSS rules (`.copy-page-heading`,
-`.copy-page`, `.copy-page__split`, etc.) — those belong in a future step when `copypage.js` is
-added. Only include the brand color and layout rules.
+Everything else (DOM construction, fetch/clipboard logic, Lucide SVG icons, event handlers) is
+identical. The script is an IIFE that injects itself after `DOMContentLoaded`.
 
-The CSS uses `[data-md-color-primary="indigo"]` and `[data-md-color-accent="indigo"]` attribute
-selectors. The current `zensical.toml` palette sections do not specify `primary` or `accent` keys,
-so Zensical uses its default (which is `indigo`). Do NOT add explicit `primary = "indigo"` /
-`accent = "indigo"` to the palette config — the CSS selectors already match the default.
+The JS fetches per-page `.md` files from the site root (e.g., `/architecture.md`) which are
+generated by `gen_llms_full.py`. Without those files, "Copy page" and "View as Markdown" would 404.
 
-### Logo and Favicon Assets
+### `docs/stylesheets/extra.css` — Append copy-page CSS
 
-Download the ISCC assets from the iscc-usearch repository. These are shared ISCC Foundation branding
-assets:
+Append the copy-page split-button CSS rules from iscc-usearch `extra.css` (everything after line
+131). These rules style:
 
-```bash
-mkdir -p docs/assets
-curl -sL https://raw.githubusercontent.com/iscc/iscc-usearch/main/docs/assets/logo_light.png -o docs/assets/logo_light.png
-curl -sL https://raw.githubusercontent.com/iscc/iscc-usearch/main/docs/assets/favicon.png -o docs/assets/favicon.png
+- `.copy-page-heading` — flex wrapper pairing h1 and button
+- `.copy-page__split` — shared border wrapping both halves
+- `.copy-page__action` — left half (direct copy action)
+- `.copy-page__toggle` — right half (chevron dropdown toggle)
+- `.copy-page__menu` — dropdown menu container
+- `.copy-page__item` — individual menu items
+- Dark mode shadow adjustment
+- `@media` hide on small screens
+
+Port these CSS rules verbatim from the iscc-usearch reference.
+
+### `scripts/gen_llms_full.py`
+
+Create a simplified version of the iscc-usearch script. Key differences:
+
+- `PAGES` list matches the current `nav` in `zensical.toml`:
+    `["index.md", "architecture.md",   "rust-api.md", "api.md", "benchmarks.md"]`
+- No `API_PAGE` dynamic generation (no griffe dependency) — all pages are static `.md` files
+- Keep the `strip_frontmatter`, `strip_snippets`, and `clean_content` functions
+- Keep the main loop: read each page, clean it, write individual `.md` to `site/`, then concatenate
+    all into `site/llms-full.txt`
+- Use `DOCS_DIR` and `SITE_DIR` relative to `__file__` parent (same as iscc-usearch pattern)
+
+### `docs/llms.txt`
+
+Create a static metadata file following the iscc-usearch format:
+
+```
+# iscc-lib
+
+> High-performance polyglot implementation of ISO 24138:2024 International Standard Content Code (ISCC).
+
+iscc-lib is a Rust library with Python, Node.js, WASM, and C FFI bindings implementing the ISCC
+standard for content identification. ...
+
+- [Source code](https://github.com/iscc/iscc-lib)
+- [Full documentation](https://lib.iscc.codes/llms-full.txt)
+
+## Reference
+
+- [Home](https://lib.iscc.codes/index.md): Overview and quick start
+- [Architecture](https://lib.iscc.codes/architecture.md): Hub-and-spoke model and internal modules
+- [Rust API](https://lib.iscc.codes/rust-api.md): Rust API reference
+- [Python API](https://lib.iscc.codes/api.md): Python API reference
+- [Benchmarks](https://lib.iscc.codes/benchmarks.md): Performance comparisons
 ```
 
-### `zensical.toml` Changes
+### `zensical.toml`
 
-Add three lines to the `[project]` section:
+Add `extra_javascript` to the `[project]` section:
 
 ```toml
-extra_css = ["stylesheets/extra.css"]
+extra_javascript = ["javascripts/copypage.js"]
 ```
 
-Add two lines to the `[project.theme]` section:
+### `.github/workflows/docs.yml`
 
-```toml
-logo = "assets/logo_light.png"
-favicon = "assets/favicon.png"
+Add a step after "Build documentation" and before "Upload pages artifact":
+
+```yaml
+  - name: Generate LLM-friendly docs
+    run: uv run python scripts/gen_llms_full.py
 ```
 
-Do NOT add `custom_dir` yet — that is needed only when the `overrides/main.html` template is added
-in a future step.
+This runs after `zensical build` so the `site/` directory exists, and the generated `.md` files and
+`llms-full.txt` are included in the uploaded artifact.
 
-Use the **`zensical-customizer`** skill for guidance on custom CSS and theme configuration if
-needed.
+Use the **`zensical-customizer`** skill for guidance on custom JavaScript and CSS integration.
 
 ## Verification
 
-- `uv run zensical build` exits 0 (site builds successfully with new CSS/assets)
-- `test -f docs/stylesheets/extra.css` exits 0 (CSS file exists)
-- `test -f docs/assets/logo_light.png` exits 0 (logo file exists)
-- `test -f docs/assets/favicon.png` exits 0 (favicon file exists)
-- `grep -q 'extra_css' zensical.toml` exits 0 (extra_css configured)
-- `grep -q 'logo.*=.*logo_light.png' zensical.toml` exits 0 (logo configured)
-- `grep -q 'favicon.*=.*favicon.png' zensical.toml` exits 0 (favicon configured)
-- `grep -q '#0054b2' docs/stylesheets/extra.css` exits 0 (ISCC Blue primary color present)
-- `grep -q 'filter: invert(1)' docs/stylesheets/extra.css` exits 0 (dark mode logo inversion
-    present)
-- `grep -q 'copy-page' docs/stylesheets/extra.css; test $? -ne 0` exits 0 (copy-page CSS NOT
-    present)
-- `cargo clippy --workspace --all-targets -- -D warnings` still clean (no Rust changes, sanity
-    check)
+- `uv run zensical build && uv run python scripts/gen_llms_full.py` exits 0 (both build steps
+    succeed)
+- `test -f docs/javascripts/copypage.js` exits 0 (JS file exists)
+- `test -f docs/llms.txt` exits 0 (llms.txt metadata file exists)
+- `test -f scripts/gen_llms_full.py` exits 0 (generation script exists)
+- `test -f site/llms-full.txt` exits 0 (generated llms-full.txt exists after build)
+- `test -f site/index.md` exits 0 (per-page .md file generated)
+- `test -f site/architecture.md` exits 0 (per-page .md file generated)
+- `grep -q 'copy-page' docs/stylesheets/extra.css` exits 0 (copy-page CSS now present)
+- `grep -q 'copy-page-heading' docs/stylesheets/extra.css` exits 0 (heading wrapper CSS present)
+- `grep -q 'copypage.js' zensical.toml` exits 0 (extra_javascript configured)
+- `grep -q 'iscc/iscc-lib' docs/javascripts/copypage.js` exits 0 (REPO_URL updated to iscc-lib)
+- `grep -q 'gen_llms_full' .github/workflows/docs.yml` exits 0 (docs workflow runs generation)
+- `grep -q 'llms-full.txt' docs/llms.txt` exits 0 (llms.txt references the full text file)
+- `cargo clippy --workspace --all-targets -- -D warnings` still clean (no Rust changes)
+- `uv run prek run --all-files` passes (pre-commit hooks clean)
 
 ## Done When
 
-All verification criteria pass: the documentation site builds with ISCC brand colors (blue header,
-navy footer, correct link colors in both light and dark modes), the ISCC logo appears in the header
-with proper dark mode inversion, and the favicon is configured.
+All verification criteria pass: the documentation site builds with a copy-page split-button visible
+on each page (styled correctly in light and dark modes), per-page `.md` files and `llms-full.txt`
+are generated in `site/`, the docs workflow includes the generation step, and `docs/llms.txt`
+provides agent-friendly metadata with links to all pages.
