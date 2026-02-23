@@ -170,3 +170,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     functions from `pub(crate) fn` → `pub fn`, add `pub use X::{fn1, fn2}` re-exports at crate root
     for flat imports. `pub(crate)` items in a `pub` module remain invisible outside the crate — no
     leakage risk
+- Pre-push hook runs `cargo clippy --workspace --all-targets` (workspace-wide), while local
+    validation typically uses `cargo clippy -p iscc-lib`. Newer clippy lints (e.g.,
+    `cloned_ref_to_slice_refs` in Rust 1.93+) may only surface in `--all-targets` mode which
+    includes integration tests. Always verify with workspace-wide clippy before pushing

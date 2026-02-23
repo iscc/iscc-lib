@@ -67,7 +67,7 @@ fn test_alg_simhash_empty_input() {
 #[test]
 fn test_alg_simhash_single_digest_returns_itself() {
     let digest = vec![0xAB, 0xCD, 0xEF, 0x01];
-    let result = iscc_lib::alg_simhash(&[digest.clone()]);
+    let result = iscc_lib::alg_simhash(std::slice::from_ref(&digest));
     assert_eq!(result, digest);
 }
 
