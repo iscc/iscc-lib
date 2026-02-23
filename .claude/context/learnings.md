@@ -196,3 +196,10 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     parameter. Import lowlevel class with underscore prefix (`_DataHasher`) to avoid name collision
     with the wrapper class. All 23 Tier 1 Python symbols: 33 total in `__all__` (23 API + 10 result
     type classes)
+- CID workflow: `next.md` now requires a `## Not In Scope` section and the review handoff uses a
+    structured `[x]`/`[ ]` verification grid. Verification criteria should be boolean-testable
+    (runnable commands) whenever possible. Review agent commits `iterations.jsonl` alongside other
+    context files
+- napi-rs build artifacts (`index.js`, `index.d.ts`, `*.node`, `node_modules/`) belong in the crate
+    directory (napi-rs convention) — gitignore them via `crates/iscc-napi/.gitignore`, don't
+    redirect `--output-dir` since it breaks CI artifact paths and `napi prepublish`

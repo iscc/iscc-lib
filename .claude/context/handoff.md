@@ -25,3 +25,34 @@ type classes). The Python wrapper classes for `DataHasher`/`InstanceHasher` clea
 underscore-prefixed lowlevel imports (`_DataHasher`/`_InstanceHasher`) to avoid name collision. The
 `Option<Inner>` pattern in Rust + pure-Python wrapper with `BinaryIO` support is a reusable template
 for any future streaming types.
+
+---
+
+## 2026-02-23 — Manual session: CID workflow improvements
+
+**What changed** (commits `bae0fe3`, `9a5f727`, `95c65cd`):
+
+1. **CID agent prompts sharpened** (`define-next.md`, `review.md`):
+
+    - `next.md` template now includes `## Not In Scope` section (required, at least one entry) to
+        prevent advance agent drift
+    - Verification criteria guidance changed to prefer boolean-testable checks (runnable commands
+        that exit 0 or fail)
+    - Review handoff format now includes structured `[x]`/`[ ]` verification grid mapping 1:1 to
+        next.md criteria
+    - Review quality assessment starts with scope discipline check against Not In Scope
+    - Non-code steps should include at least one automated verification criterion when feasible
+
+2. **CID iteration log now tracked in git** — review agent commits `iterations.jsonl` alongside
+    other context files. Existing 17-iteration log (68 agent runs) committed.
+
+3. **napi-rs build artifacts gitignored** — `crates/iscc-napi/.gitignore` covers `index.js`,
+    `index.d.ts`, `*.node`, `node_modules/`, `package-lock.json`.
+
+4. **CID run pause increased to 20 minutes** (was 10 min). Pause is now interruptible — press Enter
+    to continue immediately. Cross-platform (`select.select` on Linux/macOS, `msvcrt` on Windows).
+
+**State.md updated** to reflect 23/23 Python bindings milestone.
+
+**Next:** Continue with the suggestions from the review above — Node.js binding expansion is the
+natural next step (same Tier 1 symbols already done in Python).
