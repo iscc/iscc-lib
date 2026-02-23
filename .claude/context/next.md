@@ -1,62 +1,90 @@
 # Next Work Package
 
-## Step: Add comparative pytest-benchmark for iscc_lib Python bindings
+## Step: Set up zensical documentation scaffold
 
 ## Goal
 
-Create `benchmarks/python/bench_iscc_lib.py` — a pytest-benchmark suite for the Rust-backed
-`iscc_lib` Python package that mirrors the existing `bench_iscc_core.py`. This enables direct
-speedup factor comparison between the Rust bindings and the Python reference, completing the
-target's benchmark verification criterion: "pytest-benchmark compares Python bindings vs iscc-core".
+Create the documentation build infrastructure using zensical (the tool specified in
+notes/05-developer-tooling.md and used by iscc-usearch). This establishes the foundation for the
+documentation site at lib.iscc.codes — the largest remaining gap before the project is complete.
 
 ## Scope
 
-- **Create**: `benchmarks/python/bench_iscc_lib.py`
-- **Modify**: none
-- **Reference**:
-    - `benchmarks/python/bench_iscc_core.py` — mirror this structure exactly
-    - `crates/iscc-py/src/lib.rs` — Python binding API signatures
-    - `crates/iscc-py/python/iscc_lib/__init__.py` — import path
-    - `notes/09-performance-benchmarks.md` — benchmark conventions
+- **Create**: `zensical.toml`, `docs/index.md`
+- **Modify**: `pyproject.toml` (add zensical + mkdocstrings dependencies to dev group)
+- **Reference**: `notes/05-developer-tooling.md` (documentation section), `iscc/iscc-usearch`
+    `zensical.toml` (via deepwiki MCP), `pyproject.toml` (current dev deps)
 
 ## Implementation Notes
 
-Create `bench_iscc_lib.py` that imports all 9 `gen_*_v0` functions from `iscc_lib` and benchmarks
-them with **identical inputs** to `bench_iscc_core.py`. This is critical: same inputs → same
-benchmark groups → pytest-benchmark can compute speedup factors when both files run together.
+### 1. Add zensical to pyproject.toml dev dependencies
 
-Key API differences from `iscc-core` (the `iscc_lib` bindings take different types):
+Add these packages to `[dependency-groups] dev`:
 
-- **`gen_data_code_v0`** and **`gen_instance_code_v0`**: `iscc_lib` takes `bytes` directly (not
-    `io.BytesIO`). No lambda wrapper needed — just pass `DATA_64K` bytes directly
-- **`gen_image_code_v0`**: `iscc_lib` takes `bytes` (not `list[int]`). Convert `PIXELS_1024` to
-    `bytes(PIXELS_1024)`
-- **`gen_audio_code_v0`**: `iscc_lib` takes `list[int]` — same as iscc-core
-- **`gen_video_code_v0`**: `iscc_lib` takes `list[list[int]]` — same structure as iscc-core's
-    `list[tuple[int, ...]]`; pass as `list[list[int]]` (convert tuples to lists)
-- **`gen_mixed_code_v0`**: `iscc_lib` takes `list[str]` — same as iscc-core
-- **`gen_iscc_code_v0`**: `iscc_lib` takes `(codes: list[str], wide: bool)` — same as iscc-core
+- `zensical` — the static site generator (Material for MkDocs successor)
+- `mkdocstrings[python]` — for auto-generating API reference from Python docstrings
 
-Use the same `@pytest.mark.benchmark(group="gen_<name>_v0")` group names so that `pytest-benchmark`
-groups the iscc-core and iscc-lib results together for automatic comparison.
+### 2. Create `zensical.toml`
 
-Use the same pre-computed inputs. Copy them (since the file is small and constants are trivial) —
-this matches KISS and avoids shared fixture complexity.
+Adapt the iscc-usearch configuration for iscc-lib. Key differences from iscc-usearch:
 
-Verify that running `pytest benchmarks/python/ --benchmark-only` executes both files and shows
-grouped results.
+- `site_name = "iscc-lib"`
+- `site_description` = description about high-performance polyglot ISCC implementation
+- `site_url = "https://lib.iscc.codes/"`
+- `repo_url = "https://github.com/iscc/iscc-lib"`
+- `repo_name = "iscc/iscc-lib"`
+- `copyright = "Copyright &copy; 2025-2026 ISCC Foundation"`
+
+**Keep it minimal for this first step** — do NOT reference `extra_css`, `custom_dir` (overrides),
+`extra_javascript`, logo, or favicon yet. Those will be added in a follow-up step. The default
+Material theme works without custom assets.
+
+**Navigation** — start with a minimal nav. Only `index.md` for now:
+
+```toml
+nav = ["index.md"]
+```
+
+**Theme** — include basic features (code copy, navigation, search) but NO `custom_dir`, NO
+`logo`/`favicon` (use defaults). Include both light/dark palette toggles.
+
+**Plugins** — enable `mkdocstrings` with Python handler pointing to `crates/iscc-py/python/iscc_lib`
+(where the Python stubs live).
+
+**Markdown extensions** — copy the full set from iscc-usearch (admonition, pymdownx.\*, toc with
+permalink, etc.). These are standard and don't require extra files.
+
+**DO NOT** include the `pymdownx.snippets` `auto_append` for `abbreviations.md` since that file
+doesn't exist yet.
+
+**DO NOT** include the `pymdownx.emoji` extension with `zensical.extensions.emoji` references — only
+include it if zensical supports it out of the box (it should, since it's a zensical built-in).
+
+### 3. Create `docs/index.md`
+
+Write a landing page for iscc-lib. Content should cover:
+
+- Project title and one-line description
+- What iscc-lib is (high-performance Rust implementation of ISO 24138:2024)
+- Key features: 9 `gen_*_v0` functions, conformance with iscc-core, multi-language bindings
+- Available bindings: Rust (crates.io), Python (PyPI), Node.js (npm), WASM (npm), C FFI
+- Quick install examples for Rust (`cargo add iscc-lib`) and Python (`pip install iscc-lib`)
+- Link to ISO 24138 and ISCC Foundation
+
+Use Material for MkDocs admonitions, tabs, and code blocks to make it visually appealing.
+
+### 4. Run `uv sync --group dev` after modifying pyproject.toml
+
+This installs zensical. Then verify with `uv run zensical build`.
 
 ## Verification
 
-- `benchmarks/python/bench_iscc_lib.py` exists with 9 benchmark functions
-- `pytest benchmarks/python/bench_iscc_lib.py --benchmark-only` runs without errors
-- All 9 benchmarks produce valid ISCC results (no exceptions)
-- Benchmark group names match `bench_iscc_core.py` exactly (enabling comparison)
-- `pytest benchmarks/python/ --benchmark-only` shows both iscc-core and iscc-lib results grouped
-    together with speedup comparison
+- `uv sync --group dev` succeeds (zensical installs without errors)
+- `uv run zensical build` succeeds and produces a `site/` directory
+- `site/index.html` exists and contains the iscc-lib landing page content
+- No pre-existing tests are broken (`cargo test -p iscc-lib` still passes)
 
 ## Done When
 
-The advance agent is done when `pytest benchmarks/python/ --benchmark-only` runs both
-`bench_iscc_core.py` and `bench_iscc_lib.py` together, all 18 benchmarks pass, and results are
-grouped by function name showing iscc-lib vs iscc-core comparison.
+The advance agent is done when `uv run zensical build` produces a working documentation site in
+`site/` with the landing page content, and all existing tests still pass.
