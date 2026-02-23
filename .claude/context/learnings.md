@@ -210,3 +210,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     cdylib targets, not `--all-targets`
 - npm package name is `@iscc/lib` (scoped under `@iscc` org), not `@aspect-build/iscc-lib` — verify
     package names against `crates/iscc-napi/package.json` when writing documentation metadata
+- zensical template overrides: `overrides/main.html` must extend `base.html` (not `main.html`)
+    because zensical resolves `main.html` to the override first, creating a cycle. Also, `page.meta`
+    can be `None` on pages without YAML front matter — use `{% if page.meta and   page.meta.X %}`
+    guards instead of `page.meta.X or fallback` chains
