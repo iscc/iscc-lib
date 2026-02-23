@@ -1,25 +1,24 @@
-## 2026-02-23 — Add GitHub Pages deployment workflow
+## 2026-02-23 — Review of: Add GitHub Pages deployment workflow
 
-**Done:** Created `.github/workflows/docs.yml` that builds documentation with zensical and deploys
-to GitHub Pages on push to main. The workflow uses Python 3.12 + uv to install dev dependencies and
-build the docs site, then uploads and deploys via GitHub Pages actions.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** GitHub Pages deployment workflow was created exactly as specified in next.md. All 7
+steps are present in correct order, permissions and concurrency are properly configured, action
+versions match ci.yml (setup-uv@v4), and no Rust toolchain steps are included. YAML validates
+cleanly. All 143 Rust tests pass, clippy and fmt are clean.
 
-- `.github/workflows/docs.yml`: New workflow file with docs build-upload-deploy pipeline
+**Issues found:**
 
-**Verification:** YAML syntax validated with `yaml.safe_load()`. All 143 Rust tests pass. Clippy and
-fmt checks clean. Workflow matches all requirements: push-to-main only trigger, correct permissions
-(contents: read, pages: write, id-token: write), concurrency group (pages, cancel-in-progress:
-false), environment (github-pages with URL output), action versions matching ci.yml (setup-uv@v4),
-no Rust toolchain steps.
+- (none)
 
-**Next:** OIDC trusted publishing workflows (crates.io, PyPI, npm) would complete the CI/CD
-pipeline. Alternatively, adding an architecture overview page (`docs/architecture.md`) would enrich
-the documentation site before it goes live.
+**Next:** The documentation site is now deployable. The remaining gaps are: (1) architecture
+overview page (`docs/architecture.md`) to document the hub-and-spoke crate model and design
+decisions, (2) benchmark results page showing Rust vs Python performance, (3) OIDC trusted
+publishing workflows for crates.io, PyPI, and npm. An architecture page would add the most value to
+the docs site before it goes live, but OIDC publishing would move the project closer to
+release-readiness.
 
-**Notes:** This was a straightforward single-file creation. The notes/05 template used `setup-uv@v5`
-but next.md correctly specified `v4` to match the existing ci.yml — followed the next.md
-instruction. The GitHub Pages environment and deployment settings (repository Settings > Pages >
-Source: GitHub Actions) will need to be configured in the GitHub repository for the workflow to
-succeed on first push.
+**Notes:** The GitHub Pages environment must be configured in the repository settings (Settings >
+Pages > Source: GitHub Actions) for the workflow to succeed on first push. The `state.md` should be
+updated to reflect that the GitHub Pages workflow now exists — "GitHub Pages deployment" can be
+moved from "What's Missing" to "What Exists."
