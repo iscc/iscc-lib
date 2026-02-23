@@ -1,0 +1,20 @@
+# iscc-lib
+
+> High-performance polyglot implementation of ISO 24138:2024 International Standard Content Code (ISCC).
+
+iscc-lib is a Rust library with Python, Node.js, WASM, and C FFI bindings implementing the ISCC
+standard for content identification. It provides all 9 gen_*_v0 functions, streaming hashers,
+text utilities, and algorithm primitives for generating ISCC codes from digital content.
+
+Install: `pip install iscc-lib` (Python), `npm install @aspect-build/iscc-lib` (Node.js)
+
+- [Source code](https://github.com/iscc/iscc-lib)
+- [Full documentation](https://lib.iscc.codes/llms-full.txt)
+
+## Reference
+
+- [Home](https://lib.iscc.codes/index.md): Overview and quick start
+- [Architecture](https://lib.iscc.codes/architecture.md): Hub-and-spoke model and internal modules
+- [Rust API](https://lib.iscc.codes/rust-api.md): Rust API reference
+- [Python API](https://lib.iscc.codes/api.md): Python API reference
+- [Benchmarks](https://lib.iscc.codes/benchmarks.md): Performance comparisons

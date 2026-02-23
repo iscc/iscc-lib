@@ -21,6 +21,8 @@ jobs:
         run: uv sync --group dev
       - name: Build documentation
         run: uv run zensical build
+      - name: Generate LLM-friendly docs
+        run: uv run python scripts/gen_llms_full.py
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

@@ -1,40 +1,52 @@
-## 2026-02-23 — Review of: Add ISCC brand colors, logo, and favicon to documentation site
+## 2026-02-23 — Add copy-page split-button and llms-full.txt generation
 
-**Verdict:** PASS
+**Done:** Added the copy-page split-button dropdown (copies page as Markdown, view as Markdown, edit
+on GitHub) and the `llms-full.txt` generation pipeline to the documentation site. Ported
+`copypage.js` and copy-page CSS rules verbatim from iscc-usearch (with `REPO_URL` updated to
+`iscc/iscc-lib`). Created a simplified `gen_llms_full.py` (no griffe dependency) that reads the 5
+nav pages, cleans them, writes individual `.md` files to `site/`, and concatenates into
+`site/llms-full.txt`. Added `docs/llms.txt` metadata file and wired the generation step into the
+docs CI workflow.
 
-**Summary:** The advance agent added ISCC Foundation visual branding to the documentation site
-exactly as specified. The CSS was ported verbatim from iscc-usearch (verified by fetching the
-reference file), with the copy-page split-button section correctly excluded. Logo and favicon are
-valid PNGs with expected dimensions. The `zensical.toml` config changes are minimal and correct. All
-11 verification criteria pass, all 14 pre-commit hooks pass, and clippy is clean.
+**Files changed:**
 
-**Verification:**
+- `docs/javascripts/copypage.js`: Created — split-button dropdown UI ported from iscc-usearch with
+    REPO_URL updated
+- `docs/stylesheets/extra.css`: Appended copy-page split-button CSS rules (heading wrapper, split
+    button, dropdown menu, dark mode shadow, responsive hide)
+- `scripts/gen_llms_full.py`: Created — generates per-page `.md` files and concatenated
+    `llms-full.txt` in `site/`
+- `docs/llms.txt`: Created — static metadata file with site description and links to all doc pages
+- `zensical.toml`: Added `extra_javascript = ["javascripts/copypage.js"]`
+- `.github/workflows/docs.yml`: Added "Generate LLM-friendly docs" step after zensical build
 
-- [x] `uv run zensical build` exits 0 — site builds successfully (0.13s, 5 pages)
-- [x] `test -f docs/stylesheets/extra.css` exits 0 — CSS file exists (131 lines)
-- [x] `test -f docs/assets/logo_light.png` exits 0 — logo exists (5000x1906, gray+alpha, 113KB)
-- [x] `test -f docs/assets/favicon.png` exits 0 — favicon exists (300x300, RGBA, 13KB)
-- [x] `grep -q 'extra_css' zensical.toml` exits 0 — extra_css configured
-- [x] `grep -q 'logo.*=.*logo_light.png' zensical.toml` exits 0 — logo configured
-- [x] `grep -q 'favicon.*=.*favicon.png' zensical.toml` exits 0 — favicon configured
-- [x] `grep -q '#0054b2' docs/stylesheets/extra.css` exits 0 — ISCC Blue primary color present
-- [x] `grep -q 'filter: invert(1)' docs/stylesheets/extra.css` exits 0 — dark mode logo inversion
-- [x] `grep -q 'copy-page' docs/stylesheets/extra.css; test $? -ne 0` exits 0 — copy-page CSS absent
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
+**Verification:** All 14 verification criteria pass:
 
-**Issues found:**
+- `uv run zensical build && uv run python scripts/gen_llms_full.py` exits 0 (5 pages, 29573 bytes)
+- `test -f docs/javascripts/copypage.js` — PASS
+- `test -f docs/llms.txt` — PASS
+- `test -f scripts/gen_llms_full.py` — PASS
+- `test -f site/llms-full.txt` — PASS
+- `test -f site/index.md` — PASS
+- `test -f site/architecture.md` — PASS
+- `grep -q 'copy-page' docs/stylesheets/extra.css` — PASS
+- `grep -q 'copy-page-heading' docs/stylesheets/extra.css` — PASS
+- `grep -q 'copypage.js' zensical.toml` — PASS
+- `grep -q 'iscc/iscc-lib' docs/javascripts/copypage.js` — PASS
+- `grep -q 'gen_llms_full' .github/workflows/docs.yml` — PASS
+- `grep -q 'llms-full.txt' docs/llms.txt` — PASS
+- `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- `uv run prek run --all-files` — all 14 hooks pass
 
-- (none)
+**Next:** Continue with remaining documentation enhancements. Candidates: Diataxis navigation
+restructuring (reorganize site nav into tutorials/howto/explanation/reference sections), social
+sharing meta tags (`overrides/main.html`), or abbreviations file (`docs/includes/abbreviations.md`).
+Alternatively, shift to OIDC publishing pipeline configuration since all binding targets are at full
+Tier 1 parity and CI is green.
 
-**Next:** Continue documentation enhancements. The copy-page split-button dropdown (`copypage.js` +
-corresponding CSS rules) is the natural next step since the branding CSS is now in place. Other
-candidates: `llms-full.txt` generation, social sharing meta tags, or Diataxis navigation
-restructuring. Alternatively, shift to the OIDC publishing pipeline configuration since all binding
-targets are at full Tier 1 parity and CI is green.
-
-**Notes:** The CSS was verified to match the iscc-usearch reference file exactly (lines 1-131), with
-only the copy-page split-button section (lines 132+) omitted. No `primary = "indigo"` or
-`accent = "indigo"` palette keys were added since the CSS selectors already match zensical defaults.
-No Rust code was touched. The documentation site now has proper ISCC Foundation branding (blue
-header, navy footer, correct link colors in both light/dark modes, logo with dark mode inversion,
-favicon).
+**Notes:** The `copypage.js` was ported verbatim from iscc-usearch with only the `REPO_URL` constant
+changed. The comment "Item 2" (duplicated in the reference) was fixed to "Item 3" for the Edit on
+GitHub entry. The `gen_llms_full.py` script is substantially simpler than the iscc-usearch version —
+no `API_PAGE` dynamic generation, no griffe dependency, no `_API_CLASSES` list, no
+`generate_api_reference()` function. All pages are static `.md` files read directly from `docs/`. No
+Rust code was modified.

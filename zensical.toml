@@ -7,6 +7,7 @@ repo_url = "https://github.com/iscc/iscc-lib"
 repo_name = "iscc/iscc-lib"
 copyright = "Copyright &copy; 2025-2026 ISCC Foundation"
 extra_css = ["stylesheets/extra.css"]
+extra_javascript = ["javascripts/copypage.js"]
 
 nav = ["index.md", "architecture.md", "rust-api.md", "api.md", "benchmarks.md"]
 
