@@ -2,15 +2,16 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: Binding parity — WASM and Node.js at 21/23, C FFI at 17/23, Python complete
+## Phase: Binding parity — all non-Python bindings at 21/23, streaming hashers next
 
-All 23 Tier 1 API symbols are implemented in the Rust core crate with 268 tests. Python bindings are
-feature-complete (23/23). Node.js and WASM both advanced to 21/23 (4 algorithm primitives added in
-latest iterations). C FFI remains at 17/23 Tier 1 symbols. CI green, all tests passing.
+All 23 Tier 1 API symbols are implemented in the Rust core crate with 280 tests. Python bindings are
+feature-complete (23/23). Node.js, WASM, and C FFI all reached 21/23 parity (C FFI caught up with 4
+algorithm primitives in latest iteration). Remaining gap: `DataHasher`/`InstanceHasher` streaming
+classes across all three non-Python bindings. CI green, all tests passing.
 
 ## What Exists
 
-- **Rust core (`crates/iscc-lib/`)**: all 23 Tier 1 symbols, codec module (Tier 2), 268 tests,
+- **Rust core (`crates/iscc-lib/`)**: all 23 Tier 1 symbols, codec module (Tier 2), 280 tests,
     clippy clean workspace-wide
 - **Python bindings (`crates/iscc-py/`)**: 23/23 Tier 1 symbols with `IsccResult(dict)` returns,
     `DataHasher`/`InstanceHasher` streaming classes, BinaryIO support, 147 tests, `ty` clean
@@ -19,8 +20,8 @@ latest iterations). C FFI remains at 17/23 Tier 1 symbols. CI green, all tests p
     tests (21 suites, 0 failures)
 - **WASM bindings (`crates/iscc-wasm/`)**: 21/23 Tier 1 symbols (same 21 as Node.js), 40 tests (9
     conformance + 31 unit)
-- **C FFI (`crates/iscc-ffi/`)**: 20 exported symbols (17 Tier 1 + 3 infrastructure), cbindgen, C
-    test program, 38 tests
+- **C FFI (`crates/iscc-ffi/`)**: 21/23 Tier 1 symbols + infrastructure (cbindgen, C test program,
+    `IsccByteBuffer`/`IsccByteBufferArray` types), 50 tests
 - **Benchmarks**: Criterion (Rust) + pytest-benchmark (Python), 1.3x–158x speedups
 - **Documentation**: 5 pages at lib.iscc.codes (stock theme, no ISCC branding)
 - **CI**: 3 workflows (ci, docs, release), all green
@@ -29,7 +30,7 @@ latest iterations). C FFI remains at 17/23 Tier 1 symbols. CI green, all tests p
 
 - **2 Tier 1 symbols in Node.js**: `DataHasher`, `InstanceHasher` (streaming classes)
 - **2 Tier 1 symbols in WASM**: `DataHasher`, `InstanceHasher` (streaming classes)
-- **6 Tier 1 symbols in C FFI**: 4 algorithm primitives + `DataHasher`, `InstanceHasher`
+- **2 Tier 1 symbols in C FFI**: `DataHasher`, `InstanceHasher` (streaming classes)
 - **Binding structured returns**: Node.js, WASM, C FFI return plain `.iscc` strings (not full result
     dicts/objects like Python)
 - **Documentation branding**: ISCC CSS, logo/favicon, copy-page, llms.txt, Diátaxis nav, tabbed code
@@ -38,19 +39,19 @@ latest iterations). C FFI remains at 17/23 Tier 1 symbols. CI green, all tests p
 
 ## CI
 
-- **Latest run: PASSING** — [Run](https://github.com/iscc/iscc-lib/actions/runs/22319105493) —
+- **Latest run: PASSING** — [Run](https://github.com/iscc/iscc-lib/actions/runs/22320215892) —
     conclusion: success
 
 ## Verification
 
-- `cargo test --workspace`: **268 passed** (38 FFI + 180 core + 28 integration + 22 text utils)
+- `cargo test --workspace`: **280 passed** (50 FFI + 180 core + 28 integration + 22 text utils)
 - `wasm-pack test --node`: **40 passed** (9 conformance + 31 unit)
-- `pytest tests/`: **147 passed** in 0.77s
+- `pytest tests/`: **147 passed** in 0.74s
 - `node --test`: **89 passed** (21 suites, 0 failures)
 - `cargo clippy --workspace --all-targets -- -D warnings`: clean (CI-verified)
 
 ## Next Milestone
 
-Add the 4 algorithm primitives to C FFI bindings (bringing it from 17/23 to 21/23, matching Node.js
-and WASM). Then add `DataHasher`/`InstanceHasher` streaming classes across all three non-Python
-bindings to reach 23/23 parity.
+Add `DataHasher`/`InstanceHasher` streaming classes to all three non-Python bindings (Node.js, WASM,
+C FFI) to reach 23/23 Tier 1 parity. Node.js is the easiest starting point (napi-rs has `#[napi]`
+class support with methods).
