@@ -1,103 +1,62 @@
 # Next Work Package
 
-## Step: Add C test program and CI job for iscc-ffi
+## Step: Add comparative pytest-benchmark for iscc_lib Python bindings
 
 ## Goal
 
-Create a minimal C test program that links against `iscc-ffi` and validates correctness of the FFI
-entrypoints. This satisfies the target criterion "A C test program can call the entrypoints and get
-correct results" and adds a dedicated CI job to verify the C FFI on every push.
+Create `benchmarks/python/bench_iscc_lib.py` — a pytest-benchmark suite for the Rust-backed
+`iscc_lib` Python package that mirrors the existing `bench_iscc_core.py`. This enables direct
+speedup factor comparison between the Rust bindings and the Python reference, completing the
+target's benchmark verification criterion: "pytest-benchmark compares Python bindings vs iscc-core".
 
 ## Scope
 
-- **Create**: `crates/iscc-ffi/tests/test_iscc.c` (C test program)
-- **Modify**: `.github/workflows/ci.yml` (add C FFI CI job)
-- **Reference**: `crates/iscc-ffi/src/lib.rs` (function signatures and expected values from unit
-    tests), `crates/iscc-ffi/cbindgen.toml` (header generation config), `crates/iscc-ffi/Cargo.toml`
-    (crate-type: cdylib + staticlib)
+- **Create**: `benchmarks/python/bench_iscc_lib.py`
+- **Modify**: none
+- **Reference**:
+    - `benchmarks/python/bench_iscc_core.py` — mirror this structure exactly
+    - `crates/iscc-py/src/lib.rs` — Python binding API signatures
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — import path
+    - `notes/09-performance-benchmarks.md` — benchmark conventions
 
 ## Implementation Notes
 
-### C test program (`crates/iscc-ffi/tests/test_iscc.c`)
+Create `bench_iscc_lib.py` that imports all 9 `gen_*_v0` functions from `iscc_lib` and benchmarks
+them with **identical inputs** to `bench_iscc_core.py`. This is critical: same inputs → same
+benchmark groups → pytest-benchmark can compute speedup factors when both files run together.
 
-A self-contained C program that tests the FFI entrypoints against known expected values. Uses the
-same expected values already validated in the Rust unit tests in `lib.rs`.
+Key API differences from `iscc-core` (the `iscc_lib` bindings take different types):
 
-**Test cases to include** (values taken from the Rust unit tests):
+- **`gen_data_code_v0`** and **`gen_instance_code_v0`**: `iscc_lib` takes `bytes` directly (not
+    `io.BytesIO`). No lambda wrapper needed — just pass `DATA_64K` bytes directly
+- **`gen_image_code_v0`**: `iscc_lib` takes `bytes` (not `list[int]`). Convert `PIXELS_1024` to
+    `bytes(PIXELS_1024)`
+- **`gen_audio_code_v0`**: `iscc_lib` takes `list[int]` — same as iscc-core
+- **`gen_video_code_v0`**: `iscc_lib` takes `list[list[int]]` — same structure as iscc-core's
+    `list[tuple[int, ...]]`; pass as `list[list[int]]` (convert tuples to lists)
+- **`gen_mixed_code_v0`**: `iscc_lib` takes `list[str]` — same as iscc-core
+- **`gen_iscc_code_v0`**: `iscc_lib` takes `(codes: list[str], wide: bool)` — same as iscc-core
 
-1. `iscc_gen_meta_code_v0("Die Unendliche Geschichte", NULL, NULL, 64)` → `"ISCC:AAAZXZ6OU74YAZIM"`
-2. `iscc_gen_meta_code_v0("Die Unendliche Geschichte", "Von Michael Ende", NULL, 64)` →
-    `"ISCC:AAAZXZ6OU4E45RB5"`
-3. `iscc_gen_text_code_v0("Hello World", 64)` → `"ISCC:EAASKDNZNYGUUF5A"`
-4. `iscc_gen_image_code_v0(<1024 zero bytes>, 1024, 64)` → `"ISCC:EEAQAAAAAAAAAAAA"`
-5. `iscc_gen_instance_code_v0(<empty bytes>, 0, 64)` → `"ISCC:IAA26E2JXH27TING"`
-6. `iscc_gen_data_code_v0("Hello World", 11, 64)` → starts with `"ISCC:"`
-7. Error handling: `iscc_gen_text_code_v0(NULL, 64)` returns `NULL`, `iscc_last_error()` returns
-    non-NULL
-8. Error cleared on success: after an error, a successful call makes `iscc_last_error()` return
-    `NULL`
-9. `iscc_free_string(NULL)` does not crash (no-op test)
+Use the same `@pytest.mark.benchmark(group="gen_<name>_v0")` group names so that `pytest-benchmark`
+groups the iscc-core and iscc-lib results together for automatic comparison.
 
-**Structure pattern:**
+Use the same pre-computed inputs. Copy them (since the file is small and constants are trivial) —
+this matches KISS and avoids shared fixture complexity.
 
-```c
-#include "iscc.h"
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
-static int tests_passed = 0;
-static int tests_failed = 0;
-
-#define ASSERT_STR_EQ(actual, expected, test_name) ...
-#define ASSERT_NULL(ptr, test_name) ...
-#define ASSERT_NOT_NULL(ptr, test_name) ...
-
-int main(void) {
-    // ... test cases ...
-    printf("%d passed, %d failed\n", tests_passed, tests_failed);
-    return tests_failed > 0 ? 1 : 0;
-}
-```
-
-Each test should call `iscc_free_string()` on every non-NULL result. The program exits with 0 on all
-tests passing, non-zero on any failure.
-
-### CI job (`.github/workflows/ci.yml`)
-
-Add a new `c-ffi` job (after the existing `wasm` job) that:
-
-1. Checks out the code
-2. Sets up Rust toolchain (stable) + cache
-3. Installs cbindgen: `cargo install cbindgen`
-4. Builds the FFI crate: `cargo build -p iscc-ffi` (builds both cdylib and staticlib)
-5. Generates the C header: `cbindgen --crate iscc-ffi -o crates/iscc-ffi/tests/iscc.h`
-6. Compiles the test program:
-    `gcc -o test_iscc crates/iscc-ffi/tests/test_iscc.c -I crates/iscc-ffi/tests -L target/debug -liscc_ffi -lpthread -ldl -lm`
-7. Runs it: `LD_LIBRARY_PATH=target/debug ./test_iscc`
-
-**Library naming note:** On Linux, `cargo build -p iscc-ffi` produces `target/debug/libiscc_ffi.so`
-(cdylib) and `target/debug/libiscc_ffi.a` (staticlib). The linker flag is `-liscc_ffi`. The cdylib
-name uses underscores (Cargo converts hyphens to underscores in library names).
-
-**System libraries:** The Rust runtime requires `-lpthread -ldl -lm` when statically linking. For
-dynamic linking (cdylib), these may not be needed but including them ensures portability.
-
-### Header generation approach
-
-Do NOT commit the generated header. Generate it in CI via `cbindgen`. This avoids staleness issues
-and is the standard approach for cbindgen-based projects. The test program includes the generated
-header from the same directory.
+Verify that running `pytest benchmarks/python/ --benchmark-only` executes both files and shows
+grouped results.
 
 ## Verification
 
-- The C test program compiles with gcc against the cbindgen-generated header
-- The C test program runs successfully (exit code 0) and prints all tests passing
-- All existing CI jobs remain green (no regression)
-- The new `c-ffi` CI job passes
-- At least 7 test cases cover: meta, text, image, instance, data, error handling, and memory freeing
+- `benchmarks/python/bench_iscc_lib.py` exists with 9 benchmark functions
+- `pytest benchmarks/python/bench_iscc_lib.py --benchmark-only` runs without errors
+- All 9 benchmarks produce valid ISCC results (no exceptions)
+- Benchmark group names match `bench_iscc_core.py` exactly (enabling comparison)
+- `pytest benchmarks/python/ --benchmark-only` shows both iscc-core and iscc-lib results grouped
+    together with speedup comparison
 
 ## Done When
 
-The advance agent is done when the C test program exists, compiles, runs with all tests passing
-locally, and the CI workflow includes a `c-ffi` job that builds, compiles, and runs the C test.
+The advance agent is done when `pytest benchmarks/python/ --benchmark-only` runs both
+`bench_iscc_core.py` and `bench_iscc_lib.py` together, all 18 benchmarks pass, and results are
+grouped by function name showing iscc-lib vs iscc-core comparison.
