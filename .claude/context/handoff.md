@@ -1,35 +1,25 @@
-## 2026-02-23 — Scaffold napi-rs crate with all 9 gen functions
+## 2026-02-23 — Review of: Scaffold napi-rs crate with all 9 gen functions
 
-**Done:** Created the `crates/iscc-napi/` crate exposing all 9 `gen_*_v0` functions as a native
-Node.js addon via napi-rs. Follows the same thin-wrapper pattern as the PyO3 bindings — no logic in
-the binding layer, just type conversion and error mapping.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** The `crates/iscc-napi/` crate was scaffolded correctly with all 9 `gen_*_v0` functions
+exposed via napi-rs `#[napi]` attributes. The implementation follows the same thin-wrapper pattern
+as the PyO3 bindings — type conversion and error mapping only, no logic in the binding layer. All
+verification criteria pass: build, clippy, fmt, 143 Rust tests, 49 Python tests.
 
-- `Cargo.toml`: Added `crates/iscc-napi` to workspace members; added `napi`, `napi-derive`, and
-    `napi-build` workspace dependencies
-- `crates/iscc-napi/Cargo.toml`: New crate config with cdylib output, iscc-lib + napi dependencies
-- `crates/iscc-napi/build.rs`: Minimal napi build script (`napi_build::setup()`)
-- `crates/iscc-napi/src/lib.rs`: All 9 gen functions with `#[napi(js_name = "...")]` attributes,
-    `Buffer` for byte data, `Option<u32>`/`Option<bool>` for default parameters, `napi::Error` for
-    error propagation
-- `crates/iscc-napi/package.json`: Minimal `@iscc/lib` npm package config with napi-rs build scripts
+**Issues found:**
 
-**Verification:**
+- (none)
 
-- `cargo build -p iscc-napi` — compiles successfully
-- `cargo clippy -p iscc-napi -- -D warnings` — clean, no warnings
-- `cargo fmt --all --check` — passes
-- `cargo test -p iscc-lib` — 143 tests pass (core unaffected)
-- `uv run pytest tests/` — 49 tests pass (Python bindings unaffected)
+**Next:** The napi crate compiles but has no runtime tests yet (requires Node.js + `npm install` +
+`@napi-rs/cli`). The next logical steps are: (1) **WASM bindings** (`crates/iscc-wasm/` via
+wasm-bindgen) to complete the binding layer scaffold, or (2) **CI workflow update** to include the
+napi crate in the build matrix (at minimum `cargo build -p iscc-napi` + clippy), or (3) **Node.js
+integration tests** if Node.js tooling is available. WASM scaffold would be the most impactful next
+step as it completes another target deliverable and follows the same pattern.
 
-**Next:** Consider adding Node.js integration tests (requires `npm install` + `@napi-rs/cli` to
-build the `.node` binary and a JS test runner). Alternatively, proceed with CI workflow updates to
-include the napi crate in the build matrix, or move on to the WASM binding crate scaffold.
-
-**Notes:** napi-rs type mappings differ slightly from PyO3 — napi uses owned `String` (not `&str`)
-and `Buffer` (not `&[u8]`) for function parameters. Default parameter values are handled via
-`Option<T>` with `.unwrap_or()` since napi-rs doesn't support Python-style default args. The
-`#[napi(js_name = "gen_meta_code_v0")]` attribute preserves snake_case naming for JS consumers
-(napi-rs default would auto-convert to camelCase). The `gen_video_code_v0` function takes
-`Vec<Vec<i32>>` which maps directly to the Rust core's `&[Vec<i32>]` signature.
+**Notes:** The design doc (`notes/02-language-bindings.md`) uses `crates/iscc-node/` as the crate
+directory name, but `crates/iscc-napi/` was chosen instead — this is fine and more descriptive. The
+design doc also shows per-platform npm packages under `npm/` and a `__tests__/` directory — these
+are for later when platform selection and CI publishing are set up. napi-rs type mappings: owned
+`String` (not `&str`), `Buffer` (not `&[u8]`), `Option<T>` with `.unwrap_or()` for defaults.

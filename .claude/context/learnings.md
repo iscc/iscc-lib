@@ -101,3 +101,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     wrappers with `io.BytesIO` to create fresh stream objects per iteration — iscc-core consumes the
     stream. Run benchmarks explicitly via `pytest benchmarks/python/ --benchmark-only` (not included
     in default testpaths)
+- napi-rs type mappings differ from PyO3: owned `String` (not `&str`), `Buffer` (not `&[u8]`),
+    `Option<T>` with `.unwrap_or()` for defaults (no native default parameter support). Use
+    `#[napi(js_name = "snake_case")]` to prevent auto-conversion to camelCase
+- All 9 `gen_*_v0` napi bindings follow identical thin-wrapper pattern: `#[napi(js_name)]` +
+    `napi::Error::from_reason()` for error mapping. Mirrors the PyO3 pattern exactly
