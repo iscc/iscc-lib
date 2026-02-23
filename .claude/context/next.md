@@ -1,118 +1,119 @@
 # Next Work Package
 
-## Step: Scaffold WASM bindings crate with all 9 gen functions
+## Step: Add WASM conformance tests runnable with wasm-pack test --node
 
 ## Goal
 
-Create the `crates/iscc-wasm/` binding crate with wasm-bindgen wrappers for all 9 `gen_*_v0`
-functions, following the same thin-wrapper pattern as the napi and PyO3 crates. This is the first
-step toward browser-compatible ISCC support.
+Add conformance tests for the `iscc-wasm` crate that validate all 9 `gen_*_v0` WASM-exported
+functions against the vendored `data.json` test vectors, running in a Node.js WASM runtime via
+`wasm-pack test --node`. This closes the "WASM has no tests" gap identified in state.md.
 
 ## Scope
 
-- **Create**: `crates/iscc-wasm/Cargo.toml`, `crates/iscc-wasm/src/lib.rs`
-- **Modify**: `Cargo.toml` (root — add `crates/iscc-wasm` to workspace members, add `wasm-bindgen`
-    and `serde-wasm-bindgen` to workspace dependencies)
-- **Reference**: `crates/iscc-napi/src/lib.rs` (thin-wrapper pattern), `crates/iscc-napi/Cargo.toml`
-    (crate config pattern), `notes/02-language-bindings.md` (WASM architecture),
-    `crates/iscc-lib/src/lib.rs` (core API signatures)
+- **Create**: `crates/iscc-wasm/tests/conformance.rs`
+- **Modify**: `crates/iscc-wasm/Cargo.toml` (add dev-dependencies), root `Cargo.toml` (add
+    `wasm-bindgen-test` to workspace dependencies)
+- **Reference**: `crates/iscc-napi/__tests__/conformance.test.mjs` (JS test structure),
+    `crates/iscc-lib/src/lib.rs` lines 793+ (Rust conformance test pattern with `include_str!` and
+    `serde_json::Value`), `crates/iscc-wasm/src/lib.rs` (WASM function signatures)
 
 ## Implementation Notes
 
-### Crate setup (`crates/iscc-wasm/Cargo.toml`)
+### Dev-dependencies setup
+
+Add `wasm-bindgen-test` to root `Cargo.toml` workspace dependencies:
 
 ```toml
-[package]
-name = "iscc-wasm"
-version.workspace = true
-edition.workspace = true
-publish = false          # Published via npm, not crates.io
+wasm-bindgen-test = "0.3"
+```
 
-[lib]
-crate-type = ["cdylib"]
+Add dev-dependencies to `crates/iscc-wasm/Cargo.toml`:
 
-[dependencies]
-iscc-lib = { path = "../iscc-lib" }
-wasm-bindgen = { workspace = true }
+```toml
+[dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+serde_json = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
-serde = { workspace = true }
-js-sys = { workspace = true }
+hex = { workspace = true }
 ```
 
-### Root `Cargo.toml` changes
+Note: `serde-wasm-bindgen` is already in `[dependencies]` but also needed in dev-dependencies
+context for creating `JsValue` test inputs. Actually, since it's already a regular dependency, tests
+can use it — no need to duplicate. Only add `wasm-bindgen-test`, `serde_json`, and `hex` as
+dev-dependencies.
 
-Add to `[workspace]` members: `"crates/iscc-wasm"`
+### Test file pattern (`crates/iscc-wasm/tests/conformance.rs`)
 
-Add to `[workspace.dependencies]`:
+Use `wasm_bindgen_test` crate with `#[wasm_bindgen_test]` attribute on each test function. Load test
+data with `include_str!` (compile-time embedding — works in WASM, no filesystem access needed):
 
-```toml
-wasm-bindgen = "0.2"
-serde-wasm-bindgen = "0.6"
-js-sys = "0.3"
+```rust
+use wasm_bindgen::JsValue;
+use wasm_bindgen_test::*;
+
+// Load data.json at compile time — path is relative to the test file
+const DATA_JSON: &str = include_str!("../../iscc-lib/tests/data.json");
 ```
 
-### Binding wrappers (`crates/iscc-wasm/src/lib.rs`)
+The path from `crates/iscc-wasm/tests/conformance.rs` to `crates/iscc-lib/tests/data.json` is
+`../../iscc-lib/tests/data.json`.
 
-Follow the identical thin-wrapper pattern from the napi crate. Each function:
+### Testing functions with JsValue parameters
 
-1. Accepts wasm-bindgen-compatible types
-2. Converts to Rust core types
-3. Calls `iscc_lib::gen_*_v0`
-4. Maps errors via `JsValue` (use `JsError::new(&e.to_string())`)
+Three functions accept `JsValue` for complex array types: `gen_video_code_v0`, `gen_mixed_code_v0`,
+`gen_iscc_code_v0`. In tests, create `JsValue` from Rust data using
+`serde_wasm_bindgen::to_value()`:
 
-**Type mappings for wasm-bindgen:**
+```rust
+let codes_js: JsValue = serde_wasm_bindgen::to_value(&codes_vec).unwrap();
+let result = iscc_wasm::gen_mixed_code_v0(codes_js, Some(bits)).unwrap();
+```
 
-| Core Rust type | WASM binding type | Conversion                                                     |
-| -------------- | ----------------- | -------------------------------------------------------------- |
-| `&str`         | `&str`            | Direct — wasm-bindgen handles this                             |
-| `Option<&str>` | `Option<String>`  | `.as_deref()`                                                  |
-| `&[u8]`        | `&[u8]`           | Direct — wasm-bindgen handles this                             |
-| `&[i32]`       | `Vec<i32>`        | Pass `&cv`                                                     |
-| `u32`          | `Option<u32>`     | `.unwrap_or(64)` for bits, `.unwrap_or(false)` for wide        |
-| `&[&str]`      | `JsValue`         | `serde_wasm_bindgen::from_value::<Vec<String>>()` then convert |
-| `&[Vec<i32>]`  | `JsValue`         | `serde_wasm_bindgen::from_value::<Vec<Vec<i32>>>()`            |
+### Test structure
 
-**Functions requiring `JsValue` for complex types:**
+Write one `#[wasm_bindgen_test]` function per gen function (9 total), each iterating over all test
+cases in the corresponding `data.json` section. Follow the same parsing patterns as the Rust core
+tests:
 
-- `gen_video_code_v0` — `frame_sigs: JsValue` (array of arrays of i32)
-- `gen_mixed_code_v0` — `codes: JsValue` (array of strings)
-- `gen_iscc_code_v0` — `codes: JsValue` (array of strings)
+- `"stream:"` prefix → hex-decode to `Vec<u8>`, pass as `&[u8]`
+- Null/empty string inputs → `None` for `Option<String>` parameters
+- JSON object meta → `serde_json::to_string()` then pass as `Some(String)`
+- Image pixels → `inputs[0]` is array of u8 values → collect to `Vec<u8>`, pass as `&[u8]`
+- Audio cv → `inputs[0]` is array of i32 values → collect to `Vec<i32>`, pass directly
+- Video frame_sigs → `inputs[0]` is array of arrays → convert to `JsValue` via serde
+- Compare only `outputs.iscc` (the ISCC string output) — same as Node.js tests
 
-**Functions with simple wasm-bindgen types (no JsValue needed):**
+### Running tests
 
-- `gen_meta_code_v0(name, description, meta, bits)`
-- `gen_text_code_v0(text, bits)`
-- `gen_image_code_v0(pixels, bits)`
-- `gen_audio_code_v0(cv, bits)`
-- `gen_data_code_v0(data, bits)`
-- `gen_instance_code_v0(data, bits)`
+Install wasm-pack if needed: `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh`
 
-Use `wasm_bindgen::JsError` for error returns (provides `impl From<JsError> for JsValue`), so the
-return type is `Result<String, JsError>`.
+Then: `wasm-pack test --node crates/iscc-wasm`
 
-For `JsValue` parameters, deserialize and map deserialization errors to `JsError` as well.
+### Important edge cases
 
-### Important: wasm32 target
+- `gen_image_code_v0` test vectors have pixels as JSON array of integers — must be converted to
+    `Vec<u8>` then passed as `&[u8]` (wasm-bindgen accepts `&[u8]` directly)
+- `gen_iscc_code_v0` has an implicit `wide=false` default (not present in test vector inputs) — pass
+    `None` for wide parameter
+- Empty description (`""`) should be passed as `None`, matching the Node.js/Python test behavior
+- The `include_str!` path must work relative to the test file location within the workspace
 
-Before verifying, install the wasm32 target: `rustup target add wasm32-unknown-unknown`
+### Also: remove unused `js-sys` dependency
 
-The crate must compile with: `cargo check -p iscc-wasm --target wasm32-unknown-unknown`
-
-Note: `cargo check -p iscc-wasm` (without `--target`) will also work for basic Rust type checking,
-but the definitive check requires the wasm32 target.
+The review noted `js-sys` is declared but unused. Since the tests don't need it either, remove it
+from `crates/iscc-wasm/Cargo.toml` dependencies and from `[workspace.dependencies]` in root
+`Cargo.toml`.
 
 ## Verification
 
-- `crates/iscc-wasm/Cargo.toml` exists with correct dependencies
-- `crates/iscc-wasm/src/lib.rs` contains all 9 `gen_*_v0` wasm-bindgen wrappers
-- Root `Cargo.toml` lists `crates/iscc-wasm` in workspace members
-- `wasm-bindgen`, `serde-wasm-bindgen`, and `js-sys` are in `[workspace.dependencies]`
-- `cargo check -p iscc-wasm --target wasm32-unknown-unknown` succeeds (after `rustup target add`)
+- `wasm-pack test --node crates/iscc-wasm` passes with 46 conformance tests (same count as Node.js)
 - `cargo test -p iscc-lib` still passes (143 tests — no regression)
-- `cargo clippy -p iscc-lib -- -D warnings` is clean
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean
 - `cargo fmt --all --check` is clean
+- `js-sys` dependency removed from both `crates/iscc-wasm/Cargo.toml` and root `Cargo.toml`
+- No test uses mocks — all tests validate against real `data.json` conformance vectors
 
 ## Done When
 
-The `crates/iscc-wasm/` crate exists with all 9 wasm-bindgen function wrappers, compiles for the
-wasm32-unknown-unknown target, and all existing Rust verification criteria pass without regression.
+All 9 `gen_*_v0` WASM functions pass conformance tests via `wasm-pack test --node`, the unused
+`js-sys` dependency is removed, and all existing quality gates pass without regression.
