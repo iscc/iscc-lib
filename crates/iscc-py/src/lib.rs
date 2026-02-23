@@ -9,7 +9,7 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyBytes, PyDict};
 
 /// Generate a Meta-Code from name and optional metadata.
 ///
@@ -261,6 +261,107 @@ fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<Vec<u8>>
         .collect()
 }
 
+/// Compute a similarity-preserving hash from video frame signatures.
+///
+/// Returns raw bytes of length `bits / 8`.
+#[pyfunction]
+#[pyo3(signature = (frame_sigs, bits=64))]
+fn soft_hash_video_v0(py: Python<'_>, frame_sigs: Vec<Vec<i32>>, bits: u32) -> PyResult<PyObject> {
+    let result = iscc_lib::soft_hash_video_v0(&frame_sigs, bits)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &result).into())
+}
+
+/// Streaming Data-Code generator.
+///
+/// Incrementally processes data with content-defined chunking and MinHash
+/// to produce results identical to `gen_data_code_v0`.
+#[pyclass(name = "DataHasher")]
+struct PyDataHasher {
+    inner: Option<iscc_lib::DataHasher>,
+}
+
+#[pymethods]
+impl PyDataHasher {
+    /// Create a new `DataHasher`.
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: Some(iscc_lib::DataHasher::new()),
+        }
+    }
+
+    /// Push data into the hasher.
+    fn update(&mut self, data: &[u8]) -> PyResult<()> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?
+            .update(data);
+        Ok(())
+    }
+
+    /// Consume the hasher and produce a Data-Code result dict.
+    #[pyo3(signature = (bits=64))]
+    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<PyObject> {
+        let hasher = self
+            .inner
+            .take()
+            .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?;
+        let r = hasher
+            .finalize(bits)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let dict = PyDict::new(py);
+        dict.set_item("iscc", r.iscc)?;
+        Ok(dict.into())
+    }
+}
+
+/// Streaming Instance-Code generator.
+///
+/// Incrementally hashes data with BLAKE3 to produce results identical
+/// to `gen_instance_code_v0`.
+#[pyclass(name = "InstanceHasher")]
+struct PyInstanceHasher {
+    inner: Option<iscc_lib::InstanceHasher>,
+}
+
+#[pymethods]
+impl PyInstanceHasher {
+    /// Create a new `InstanceHasher`.
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: Some(iscc_lib::InstanceHasher::new()),
+        }
+    }
+
+    /// Push data into the hasher.
+    fn update(&mut self, data: &[u8]) -> PyResult<()> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("InstanceHasher already finalized"))?
+            .update(data);
+        Ok(())
+    }
+
+    /// Consume the hasher and produce an Instance-Code result dict.
+    #[pyo3(signature = (bits=64))]
+    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<PyObject> {
+        let hasher = self
+            .inner
+            .take()
+            .ok_or_else(|| PyValueError::new_err("InstanceHasher already finalized"))?;
+        let r = hasher
+            .finalize(bits)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let dict = PyDict::new(py);
+        dict.set_item("iscc", r.iscc)?;
+        dict.set_item("datahash", r.datahash)?;
+        dict.set_item("filesize", r.filesize)?;
+        Ok(dict.into())
+    }
+}
+
 /// Python module `iscc._lowlevel` backed by Rust.
 #[pymodule(name = "_lowlevel")]
 fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -284,5 +385,8 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(alg_simhash, m)?)?;
     m.add_function(wrap_pyfunction!(alg_minhash_256, m)?)?;
     m.add_function(wrap_pyfunction!(alg_cdc_chunks, m)?)?;
+    m.add_function(wrap_pyfunction!(soft_hash_video_v0, m)?)?;
+    m.add_class::<PyDataHasher>()?;
+    m.add_class::<PyInstanceHasher>()?;
     Ok(())
 }

@@ -258,3 +258,72 @@ def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> dict[str, Any]:
     :return: Dict with ``iscc`` key.
     """
     ...
+
+def soft_hash_video_v0(frame_sigs: list[list[int]], bits: int = 64) -> bytes:
+    """Compute a similarity-preserving hash from video frame signatures.
+
+    Deduplicates frame signatures, computes column-wise sums across all
+    unique frames, then applies WTA-Hash to produce a digest.
+
+    :param frame_sigs: List of frame signatures, each a list of signed integers.
+    :param bits: Bit length of the output hash (default 64).
+    :return: Raw hash bytes of length ``bits / 8``.
+    :raises ValueError: If ``frame_sigs`` is empty.
+    """
+    ...
+
+class DataHasher:
+    """Streaming Data-Code generator backed by Rust.
+
+    Incrementally processes data with content-defined chunking and MinHash
+    to produce results identical to ``gen_data_code_v0``.
+    """
+
+    def __init__(self) -> None:
+        """Create a new DataHasher."""
+        ...
+
+    def update(self, data: bytes) -> None:
+        """Push data into the hasher.
+
+        :param data: Raw binary data to process.
+        :raises ValueError: If the hasher has already been finalized.
+        """
+        ...
+
+    def finalize(self, bits: int = 64) -> dict[str, Any]:
+        """Consume the hasher and produce a Data-Code result dict.
+
+        :param bits: Bit length of the code body (default 64).
+        :return: Dict with ``iscc`` key.
+        :raises ValueError: If the hasher has already been finalized.
+        """
+        ...
+
+class InstanceHasher:
+    """Streaming Instance-Code generator backed by Rust.
+
+    Incrementally hashes data with BLAKE3 to produce results identical
+    to ``gen_instance_code_v0``.
+    """
+
+    def __init__(self) -> None:
+        """Create a new InstanceHasher."""
+        ...
+
+    def update(self, data: bytes) -> None:
+        """Push data into the hasher.
+
+        :param data: Raw binary data to process.
+        :raises ValueError: If the hasher has already been finalized.
+        """
+        ...
+
+    def finalize(self, bits: int = 64) -> dict[str, Any]:
+        """Consume the hasher and produce an Instance-Code result dict.
+
+        :param bits: Bit length of the code body (default 64).
+        :return: Dict with ``iscc``, ``datahash``, and ``filesize`` keys.
+        :raises ValueError: If the hasher has already been finalized.
+        """
+        ...

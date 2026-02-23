@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import BinaryIO
 
 from iscc_lib._lowlevel import (
+    DataHasher as _DataHasher,
+    InstanceHasher as _InstanceHasher,
     alg_cdc_chunks as alg_cdc_chunks,
     alg_minhash_256 as alg_minhash_256,
     alg_simhash as alg_simhash,
@@ -21,6 +23,7 @@ from iscc_lib._lowlevel import (
     gen_video_code_v0 as _gen_video_code_v0,
     iscc_decompose as iscc_decompose,
     sliding_window as sliding_window,
+    soft_hash_video_v0 as soft_hash_video_v0,
     text_clean as text_clean,
     text_collapse as text_collapse,
     text_remove_newlines as text_remove_newlines,
@@ -160,12 +163,65 @@ def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> IsccCodeResult:
     return IsccCodeResult(_gen_iscc_code_v0(codes, wide))
 
 
+# ── Streaming hashers ──────────────────────────────────────────────────────
+
+
+class DataHasher:
+    """Streaming Data-Code generator.
+
+    Incrementally processes data with content-defined chunking and MinHash
+    to produce results identical to ``gen_data_code_v0``.
+    """
+
+    def __init__(self, data: bytes | BinaryIO | None = None) -> None:
+        """Create a new DataHasher with optional initial data."""
+        self._inner = _DataHasher()
+        if data is not None:
+            self.update(data)
+
+    def update(self, data: bytes | BinaryIO) -> None:
+        """Push data into the hasher."""
+        if not isinstance(data, bytes):
+            data = data.read()
+        self._inner.update(data)
+
+    def finalize(self, bits: int = 64) -> DataCodeResult:
+        """Consume the hasher and return a Data-Code result."""
+        return DataCodeResult(self._inner.finalize(bits))
+
+
+class InstanceHasher:
+    """Streaming Instance-Code generator.
+
+    Incrementally hashes data with BLAKE3 to produce results identical
+    to ``gen_instance_code_v0``.
+    """
+
+    def __init__(self, data: bytes | BinaryIO | None = None) -> None:
+        """Create a new InstanceHasher with optional initial data."""
+        self._inner = _InstanceHasher()
+        if data is not None:
+            self.update(data)
+
+    def update(self, data: bytes | BinaryIO) -> None:
+        """Push data into the hasher."""
+        if not isinstance(data, bytes):
+            data = data.read()
+        self._inner.update(data)
+
+    def finalize(self, bits: int = 64) -> InstanceCodeResult:
+        """Consume the hasher and return an Instance-Code result."""
+        return InstanceCodeResult(self._inner.finalize(bits))
+
+
 __all__ = [
     "IsccResult",
     "AudioCodeResult",
     "DataCodeResult",
+    "DataHasher",
     "ImageCodeResult",
     "InstanceCodeResult",
+    "InstanceHasher",
     "IsccCodeResult",
     "MetaCodeResult",
     "MixedCodeResult",
@@ -187,6 +243,7 @@ __all__ = [
     "gen_video_code_v0",
     "iscc_decompose",
     "sliding_window",
+    "soft_hash_video_v0",
     "text_clean",
     "text_collapse",
     "text_remove_newlines",
