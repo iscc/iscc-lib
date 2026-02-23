@@ -109,3 +109,9 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - Node.js conformance tests share `data.json` via relative path from `__tests__/` directory. Use
     Node.js built-in `node:test` + `node:assert` (zero extra dependencies).
     `Buffer.from(hex, 'hex')` replaces the `hex` crate for decoding stream test vectors
+- wasm-bindgen type mappings: `&str` and `&[u8]` work directly (like PyO3, unlike napi-rs which
+    needs owned `String`/`Buffer`). For `&[&str]` and `&[Vec<i32>]`, use `JsValue` +
+    `serde_wasm_bindgen::from_value()` — wasm-bindgen cannot express nested JS arrays natively.
+    Error mapping uses `JsError::new(&e.to_string())`
+- WASM crate uses `cdylib` crate-type and `publish = false` (published via npm, not crates.io) —
+    same pattern as the notes/02 architecture document specifies
