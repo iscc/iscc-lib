@@ -13,6 +13,10 @@ A pure Rust library (no binding dependencies) publishable to crates.io as
 `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`,
 `gen_iscc_code_v0`
 
+All `gen_*_v0` functions return structured result types that carry the same additional fields as
+iscc-core dicts (e.g., `metahash`, `name`, `characters`, `datahash`, `filesize`, `parts`). This
+enables all binding crates to expose these fields idiomatically.
+
 **Verified when:**
 
 - `cargo test -p iscc-lib` passes with all conformance vectors from `iscc-core/data.json`
@@ -28,9 +32,13 @@ A Python package installable from PyPI as [`iscc_lib`](https://pypi.org/project/
 drop-in replacement for `iscc-core`. Name is available. (You already own `iscc` and `iscc-core` on
 PyPI.)
 
+Detailed spec: `.claude/context/specs/python-bindings.md`
+
 **Verified when:**
 
 - `pip install .` succeeds and exposes all 9 `gen_*_v0` functions
+- All functions return `dict` with the same keys and values as iscc-core
+- Streaming functions accept both `bytes` and file-like objects
 - `pytest` passes the same conformance vectors from Python
 - `ruff check` and `ruff format --check` clean
 - Single wheel per platform (abi3-py310)
@@ -38,8 +46,7 @@ PyPI.)
 ## Node.js Bindings — `@iscc/lib` on npm
 
 An npm package [`@iscc/lib`](https://www.npmjs.com/package/@iscc/lib) exposing all 9 entrypoints as
-native addon via napi-rs. Requires creating the `@iscc` npm org (scope does not exist yet). Name is
-available.
+native addon via napi-rs. Published under the `@iscc` npm org.
 
 **Verified when:**
 
@@ -49,7 +56,7 @@ available.
 ## WASM Bindings — `@iscc/wasm` on npm
 
 A browser-compatible WASM package [`@iscc/wasm`](https://www.npmjs.com/package/@iscc/wasm) exposing
-all 9 entrypoints via wasm-bindgen. Published under the same `@iscc` npm scope. Name is available.
+all 9 entrypoints via wasm-bindgen. Published under the same `@iscc` npm scope.
 
 **Verified when:**
 
@@ -67,13 +74,19 @@ A C-compatible shared library with generated headers, enabling Go/Java/C# bindin
 
 ## Documentation
 
-Project documentation hosted at lib.iscc.codes.
+Project documentation hosted at lib.iscc.codes with ISCC branding and agent-friendly features
+matching `iscc/iscc-usearch` at `usearch.iscc.codes`.
+
+Detailed spec: `.claude/context/specs/documentation.md`
 
 **Verified when:**
 
 - Site builds and deploys via GitHub Pages
-- Covers Rust API, Python API, and architecture
-- Same style and features as `iscc/iscc-usearch` documentation (zensical)
+- ISCC branding (colors, logo, favicon, dark mode) matches iscc-usearch
+- Covers Rust API, Python API, architecture, and per-language how-to guides
+- All code examples use tabbed multi-language format (Python, Rust, Node.js, WASM)
+- Copy-page feature and `llms-full.txt` generation for agent consumption
+- Navigation follows Diátaxis framework (tutorials, howto, explanation, reference)
 
 ## Benchmarks
 

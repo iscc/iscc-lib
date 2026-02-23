@@ -1,13 +1,22 @@
 # Project State
 
-## Status: DONE
+## Status: IN_PROGRESS
 
-## Phase: Feature-complete — preparing for first release
+## Phase: Polish — Python API compatibility and documentation refinement
 
 All 9 `gen_*_v0` functions implemented in Rust core with 143 conformance tests passing. All 4
-binding crates (Python, Node.js, WASM, C FFI) complete with conformance tests. CI workflow (5 jobs)
-and Docs workflow (build + deploy) all green. Release workflow covers crates.io, PyPI, and npm.
-Documentation site deploys via GitHub Pages.
+binding crates (Python, Node.js, WASM, C FFI) complete with conformance tests. CI (5 jobs) and Docs
+workflows green. Release workflow covers crates.io, PyPI, and npm.
+
+Two areas need work before first release:
+
+1. **Python bindings are not drop-in compatible with iscc-core** — functions return plain strings
+    instead of dicts with structured fields (`metahash`, `name`, `characters`, `datahash`,
+    `filesize`, `parts`). Streaming functions accept only `bytes` instead of file-like objects. The
+    Rust core API also needs structured return types to support this.
+2. **Documentation lacks ISCC branding and features** — missing custom CSS, logo/favicon, copy-page
+    feature, llms.txt generation, abbreviations, Diátaxis navigation structure, per-language tabbed
+    code examples, and Open Graph meta tags. Reference: iscc-usearch at usearch.iscc.codes.
 
 ## What Exists
 
@@ -20,35 +29,29 @@ Documentation site deploys via GitHub Pages.
 - **WASM bindings (`crates/iscc-wasm/`)**: all 9 functions via wasm-bindgen, conformance tests
 - **C FFI (`crates/iscc-ffi/`)**: 11 extern "C" symbols, cbindgen.toml, 20 unit tests, C test
 - **Criterion benchmarks**: all 9 gen functions benchmarked
-- **Comparative pytest-benchmark**: iscc-core vs iscc_lib (1.3×–158× speedups measured)
-- **Documentation**: 5 pages (landing, Python API, Rust API, architecture, benchmarks)
-- **CI workflow**: `.github/workflows/ci.yml` — 5 jobs (Rust, Python, Node.js, WASM, C FFI), green
+- **Comparative pytest-benchmark**: iscc-core vs iscc_lib (1.3x-158x speedups measured)
+- **Documentation**: 5 pages (landing, Python API, Rust API, architecture, benchmarks) — stock
+    theme, no ISCC branding
+- **CI workflow**: `.github/workflows/ci.yml` — 5 jobs, green
 - **Release workflow**: `.github/workflows/release.yml` — OIDC for crates.io + PyPI, NPM_TOKEN for
-    npm (first release), Node 22 ready for npm trusted publishing after first release
-- **Docs workflow**: `.github/workflows/docs.yml` — build + deploy, both jobs green
-- **Workspace**: root `Cargo.toml` with centralized deps, release profile, 5 crate members
-- **Dev tooling**: mise.toml, pyproject.toml, pre-commit hooks (prek), devcontainer
-
-## Infrastructure Setup (done by Titusz)
-
-- **GitHub Pages**: enabled with custom domain `lib.iscc.codes`
-- **`@iscc` npm org**: created on npmjs.com
-- **`NPM_TOKEN` repo secret**: configured (granular token for first release)
+    npm (first release), Node 22
+- **Docs workflow**: `.github/workflows/docs.yml` — build + deploy, green
+- **Infrastructure**: GitHub Pages enabled (lib.iscc.codes), `@iscc` npm org created, `NPM_TOKEN`
+    repo secret configured
 
 ## What's Missing
 
-- **npm trusted publishing**: after the first release creates `@iscc/lib` and `@iscc/wasm` on npm,
-    configure trusted publishing on npmjs.com for both packages, then remove `NODE_AUTH_TOKEN` from
-    `release.yml` and delete the `NPM_TOKEN` repo secret
-- **Untracked napi build artifacts**: `crates/iscc-napi/` has local build artifacts (index.d.ts,
-    index.js, .node binary, node_modules/, package-lock.json) that should be gitignored or cleaned
+- **Python API compatibility**: see `.claude/context/specs/python-bindings.md`
+- **Rust structured return types**: core API returns plain strings, needs structured result types to
+    carry additional fields (metahash, characters, datahash, filesize, etc.)
+- **Documentation refinement**: see `.claude/context/specs/documentation.md`
+- **Untracked napi build artifacts**: `crates/iscc-napi/` has local build artifacts that should be
+    gitignored
 
 ## CI
 
 - **CI workflow (ci.yml): PASSING** — all 5 jobs green
-    (https://github.com/iscc/iscc-lib/actions/runs/22297413350)
 - **Docs workflow (docs.yml): PASSING** — build + deploy both green
-    (https://github.com/iscc/iscc-lib/actions/runs/22297413346)
 
 ## Verification
 
@@ -63,5 +66,5 @@ Documentation site deploys via GitHub Pages.
 
 ## Next Milestone
 
-First v0.1.0 release. After release, switch npm publish jobs from NPM_TOKEN to OIDC trusted
-publishing.
+Python API drop-in compatibility with iscc-core (structured return types in Rust core, dict returns
+in Python bindings, stream input support). Then documentation refinement.
