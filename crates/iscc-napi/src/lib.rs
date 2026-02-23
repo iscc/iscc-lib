@@ -198,3 +198,50 @@ pub fn sliding_window(seq: String, width: u32) -> napi::Result<Vec<String>> {
     }
     Ok(iscc_lib::sliding_window(&seq, width as usize))
 }
+
+// ── Algorithm primitives ─────────────────────────────────────────────────────
+
+/// Compute a SimHash from a sequence of equal-length hash digests.
+///
+/// Returns a similarity-preserving hash as a Buffer. Each output bit is set
+/// when its frequency meets or exceeds half the input count. Returns 32
+/// zero bytes for empty input.
+#[napi(js_name = "alg_simhash")]
+pub fn alg_simhash(hash_digests: Vec<Buffer>) -> Buffer {
+    iscc_lib::alg_simhash(&hash_digests).into()
+}
+
+/// Compute a 256-bit MinHash digest from 32-bit integer features.
+///
+/// Uses 64 universal hash functions with bit-interleaved compression to
+/// produce a 32-byte similarity-preserving digest.
+#[napi(js_name = "alg_minhash_256")]
+pub fn alg_minhash_256(features: Vec<u32>) -> Buffer {
+    iscc_lib::alg_minhash_256(&features).into()
+}
+
+/// Split data into content-defined chunks using gear rolling hash.
+///
+/// Returns at least one chunk (empty bytes for empty input). When `utf32`
+/// is true, aligns cut points to 4-byte boundaries. Default
+/// `avg_chunk_size` is 1024.
+#[napi(js_name = "alg_cdc_chunks")]
+pub fn alg_cdc_chunks(data: Buffer, utf32: bool, avg_chunk_size: Option<u32>) -> Vec<Buffer> {
+    let avg = avg_chunk_size.unwrap_or(1024);
+    iscc_lib::alg_cdc_chunks(data.as_ref(), utf32, avg)
+        .iter()
+        .map(|c| Buffer::from(c.to_vec()))
+        .collect()
+}
+
+/// Compute a similarity-preserving hash from video frame signatures.
+///
+/// Returns raw bytes of length `bits / 8`. Default `bits` is 64.
+/// Throws if `frame_sigs` is empty.
+#[napi(js_name = "soft_hash_video_v0")]
+pub fn soft_hash_video_v0(frame_sigs: Vec<Vec<i32>>, bits: Option<u32>) -> napi::Result<Buffer> {
+    let bits = bits.unwrap_or(64);
+    iscc_lib::soft_hash_video_v0(&frame_sigs, bits)
+        .map(|r| r.into())
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
+}

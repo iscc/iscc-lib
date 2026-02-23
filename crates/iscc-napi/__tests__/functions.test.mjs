@@ -1,13 +1,14 @@
 /**
- * Unit tests for text utility and helper napi-rs bindings.
+ * Unit tests for text utility, helper, and algorithm primitive napi-rs bindings.
  *
- * Tests the 8 non-gen functions: text_clean, text_remove_newlines, text_trim,
+ * Tests the 12 non-gen functions: text_clean, text_remove_newlines, text_trim,
  * text_collapse, encode_base64, iscc_decompose, conformance_selftest,
- * sliding_window.
+ * sliding_window, alg_simhash, alg_minhash_256, alg_cdc_chunks,
+ * soft_hash_video_v0.
  */
 
 import { describe, it } from 'node:test';
-import { strictEqual, deepStrictEqual, throws } from 'node:assert';
+import { strictEqual, deepStrictEqual, throws, ok } from 'node:assert';
 
 import {
     text_clean,
@@ -18,6 +19,10 @@ import {
     iscc_decompose,
     conformance_selftest,
     sliding_window,
+    alg_simhash,
+    alg_minhash_256,
+    alg_cdc_chunks,
+    soft_hash_video_v0,
 } from '../index.js';
 
 describe('text_clean', () => {
@@ -160,5 +165,128 @@ describe('sliding_window', () => {
 
     it('throws on width 0', () => {
         throws(() => sliding_window('hello', 0), /width must be 2 or bigger/);
+    });
+});
+
+// ── Algorithm primitives ─────────────────────────────────────────────────────
+
+describe('alg_simhash', () => {
+    it('returns 32 zero bytes for empty input', () => {
+        const result = alg_simhash([]);
+        strictEqual(Buffer.isBuffer(result), true);
+        strictEqual(result.length, 32);
+        ok(result.every((b) => b === 0));
+    });
+
+    it('returns the same bytes for a single digest', () => {
+        const digest = Buffer.from([0xaa, 0xbb, 0xcc, 0xdd]);
+        const result = alg_simhash([digest]);
+        strictEqual(Buffer.isBuffer(result), true);
+        deepStrictEqual([...result], [0xaa, 0xbb, 0xcc, 0xdd]);
+    });
+
+    it('returns output length matching input digest length', () => {
+        const d1 = Buffer.alloc(8, 0xff);
+        const d2 = Buffer.alloc(8, 0x00);
+        const result = alg_simhash([d1, d2]);
+        strictEqual(result.length, 8);
+    });
+
+    it('produces expected result for two complementary digests', () => {
+        // All-ones and all-zeros: half frequency → all-ones (tie breaks to 1)
+        const d1 = Buffer.alloc(4, 0xff);
+        const d2 = Buffer.alloc(4, 0x00);
+        const result = alg_simhash([d1, d2]);
+        // With 2 inputs, threshold is 1; bit set when count >= 1, so ties go to 1
+        deepStrictEqual([...result], [0xff, 0xff, 0xff, 0xff]);
+    });
+});
+
+describe('alg_minhash_256', () => {
+    it('returns a 32-byte Buffer', () => {
+        const result = alg_minhash_256([1, 2, 3, 4, 5]);
+        strictEqual(Buffer.isBuffer(result), true);
+        strictEqual(result.length, 32);
+    });
+
+    it('produces deterministic output', () => {
+        const features = [100, 200, 300, 400, 500];
+        const r1 = alg_minhash_256(features);
+        const r2 = alg_minhash_256(features);
+        deepStrictEqual([...r1], [...r2]);
+    });
+
+    it('produces different output for different features', () => {
+        const r1 = alg_minhash_256([1, 2, 3]);
+        const r2 = alg_minhash_256([100, 200, 300]);
+        // Extremely unlikely to be equal
+        ok(!r1.equals(r2));
+    });
+});
+
+describe('alg_cdc_chunks', () => {
+    it('returns one empty chunk for empty input', () => {
+        const result = alg_cdc_chunks(Buffer.alloc(0), false);
+        strictEqual(result.length, 1);
+        strictEqual(result[0].length, 0);
+    });
+
+    it('chunks concatenate back to original', () => {
+        const data = Buffer.from('The quick brown fox jumps over the lazy dog. '.repeat(100));
+        const chunks = alg_cdc_chunks(data, false);
+        const reassembled = Buffer.concat(chunks);
+        ok(data.equals(reassembled));
+    });
+
+    it('returns at least one chunk for small input', () => {
+        const data = Buffer.from('hello');
+        const chunks = alg_cdc_chunks(data, false);
+        ok(chunks.length >= 1);
+        ok(Buffer.concat(chunks).equals(data));
+    });
+
+    it('respects utf32 mode', () => {
+        // utf32=true aligns cut points to 4-byte boundaries
+        const data = Buffer.alloc(4096, 0x41); // 4096 'A' bytes
+        const chunks = alg_cdc_chunks(data, true);
+        for (const chunk of chunks) {
+            strictEqual(chunk.length % 4, 0, 'chunk length should be 4-byte aligned');
+        }
+    });
+
+    it('accepts custom avg_chunk_size', () => {
+        const data = Buffer.from('x'.repeat(8192));
+        const chunks = alg_cdc_chunks(data, false, 512);
+        ok(Buffer.concat(chunks).equals(data));
+    });
+});
+
+describe('soft_hash_video_v0', () => {
+    it('returns a Buffer of length bits/8 for default bits', () => {
+        // Single frame of 380 zeros (matching conformance vector structure)
+        const frame = new Array(380).fill(0);
+        const result = soft_hash_video_v0([frame]);
+        strictEqual(Buffer.isBuffer(result), true);
+        strictEqual(result.length, 8); // 64 bits / 8
+    });
+
+    it('returns correct length for custom bits', () => {
+        const frame = new Array(380).fill(0);
+        const result = soft_hash_video_v0([frame], 128);
+        strictEqual(result.length, 16); // 128 bits / 8
+    });
+
+    it('throws on empty frame_sigs', () => {
+        throws(() => soft_hash_video_v0([]), /must not be empty/);
+    });
+
+    it('produces deterministic output', () => {
+        const frames = [
+            new Array(380).fill(1),
+            new Array(380).fill(2),
+        ];
+        const r1 = soft_hash_video_v0(frames);
+        const r2 = soft_hash_video_v0(frames);
+        deepStrictEqual([...r1], [...r2]);
     });
 });

@@ -1,41 +1,47 @@
-## 2026-02-23 — Review of: Add 8 simple functions to C FFI bindings
+## 2026-02-23 — Add 4 algorithm primitives to Node.js bindings
 
-**Verdict:** PASS
+**Done:** Added `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, and `soft_hash_video_v0` as napi
+functions in `crates/iscc-napi/src/lib.rs`, expanding Node.js bindings from 17/23 to 21/23 Tier 1
+symbols. All 4 functions follow the existing thin-wrapper pattern with appropriate napi-rs type
+conversions (Buffer for byte data, Vec<Buffer> for chunk output, Option for defaults).
 
-**Summary:** All 8 Tier 1 functions plus `iscc_free_string_array` were added to the C FFI crate,
-bringing it from 11 to 20 exported symbols (parity with Node.js/WASM on simple functions). Code is
-clean, well-documented, follows existing patterns exactly, and all 38 tests pass. No quality gate
-circumvention detected.
+**Files changed:**
+
+- `crates/iscc-napi/src/lib.rs`: Added 4 napi functions under `// ── Algorithm primitives ──`
+    section after `sliding_window`. Type mappings: `Vec<Buffer>` input for simhash (Buffer
+    implements `AsRef<[u8]>`), `Vec<u32>` for minhash, `Buffer` + `Option<u32>` for cdc,
+    `Vec<Vec<i32>>` + `Option<u32>` for soft_hash_video.
+- `crates/iscc-napi/__tests__/functions.test.mjs`: Added 16 tests in 4 new `describe` blocks
+    (alg_simhash: 4 tests, alg_minhash_256: 3 tests, alg_cdc_chunks: 5 tests, soft_hash_video_v0: 4
+    tests). Tests cover empty input, determinism, output length, error throwing, and data integrity
+    (chunks reassemble to original).
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi` compiles without errors
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- [x] `cargo test -p iscc-ffi` passes all 38 tests (20 existing + 18 new, exceeds 32+ target)
-- [x] `cargo test --workspace` passes with 268 tests (no regressions)
-- [x] All 8 new functions present as `#[unsafe(no_mangle)] pub ... extern "C"` in `lib.rs`
-- [x] `iscc_conformance_selftest` returns true in tests
-- [x] `iscc_free_string_array(ptr::null_mut())` does not crash
-- [x] `iscc_decompose` returns valid NULL-terminated array for `ISCC:AAAYPXW445FTYNJ3`
-- [x] All 14 pre-commit hooks pass (`mise run check`)
+- `cargo build -p iscc-napi` compiles cleanly
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean
+- `node --test crates/iscc-napi/__tests__/functions.test.mjs` passes all 43 tests (27 existing + 16
+    new)
+- `node --test crates/iscc-napi/__tests__/` passes all 89 tests (73 existing + 16 new)
+- `cargo test --workspace` passes 268 tests (no regressions)
+- All 14 pre-commit hooks pass (`mise run check`)
+- All 4 functions callable from JavaScript: `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+    `soft_hash_video_v0`
 
-**Issues found:**
+**Next:** Node.js is now at 21/23 Tier 1 symbols. The remaining 2 are `DataHasher` and
+`InstanceHasher` streaming classes — these require a different design pattern (napi-rs class with
+state) and should be a separate step. Good candidates for next work:
 
-- (none)
+1. **Add 4 algorithm primitives to WASM bindings** — replicate the same 4 functions in
+    `crates/iscc-wasm/src/lib.rs` (WASM type mappings differ: `&[u8]`/`JsValue` with
+    `serde_wasm_bindgen`)
+2. **Add 4 algorithm primitives to C FFI bindings** — replicate in `crates/iscc-ffi/src/lib.rs` (C
+    type mappings: `*const u8` + `usize`, output buffers with caller-provided allocation)
+3. **Streaming hashers for Node.js** — `DataHasher`/`InstanceHasher` napi-rs classes with
+    `new() -> update(Buffer) -> finalize() -> Result` pattern
 
-**Next:** All three non-Python binding crates now have the same 8 simple Tier 1 functions (20
-symbols each). Good candidates for the next step:
-
-1. **Algorithm primitives** — `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
-    `soft_hash_video_v0` across all binding crates (complex type signatures requiring design work)
-2. **Streaming hashers** — `DataHasher`/`InstanceHasher` classes in C FFI (opaque struct pattern),
-    Node.js, and WASM
-3. **Structured result types** — return full result objects/dicts from gen functions (currently all
-    non-Python bindings only extract `.iscc` string)
-4. **Update state.md** — state.md still says C FFI is at 11/23; it should reflect 20/23 (or
-    equivalently 17 Tier 1 symbols + 3 infrastructure)
-
-**Notes:** The `string_to_c` helper nicely reduces duplication vs the existing `result_to_c_string`
-(which handles `Result<String, IsccError>` while `string_to_c` handles infallible `String`). The
-`vec_to_c_string_array` + `iscc_free_string_array` pair is a clean, standard C pattern with proper
-cleanup on partial allocation failure.
+**Notes:** The `alg_simhash` binding works cleanly because napi-rs `Buffer` implements
+`AsRef<[u8]>`, so `&Vec<Buffer>` coerces to `&[Buffer]` which satisfies `&[impl AsRef<[u8]>]` — no
+manual conversion needed. The `alg_cdc_chunks` return type requires `.to_vec()` on each chunk slice
+since the returned `Vec<&[u8]>` borrows from the input data. The `cargo fmt` hook auto-fixed the
+`soft_hash_video_v0` signature formatting (collapsed multiline parameters to single line).
