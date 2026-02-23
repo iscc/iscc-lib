@@ -1,47 +1,48 @@
-## 2026-02-23 — Extended Rust core API surface (Titusz + Claude)
+## 2026-02-23 — Add structured result types for gen functions
 
-**Done:**
+**Done:** Created `types.rs` with 9 dedicated result structs (`MetaCodeResult`, `TextCodeResult`,
+etc.) matching the iscc-core Python dict returns. Updated all 9 `gen_*_v0` functions in `lib.rs` to
+return these structs instead of plain `String`. Updated all 4 binding crates (py, wasm, napi, ffi)
+to extract `.iscc` from the structs, maintaining backward compatibility. All conformance tests now
+verify additional fields (metahash, name, description, characters, parts, datahash, filesize) from
+the structs.
 
-- Analyzed `iscc/iscc-sdk` imports from `iscc-core` to identify which functions iscc-lib must expose
-    for iscc-sdk to replace its iscc-core dependency with iscc-lib
-- Created `specs/rust-core.md` — detailed verifiable spec for the extended Rust core API
-- Updated `target.md` to reference the new spec and expand the Rust core section
+**Files changed:**
 
-**Key findings from iscc-sdk analysis:**
+- `crates/iscc-lib/src/types.rs`: New file with 9 `#[non_exhaustive]` result structs
+- `crates/iscc-lib/src/lib.rs`: All 9 gen functions return structs; `build_meta_data_url` helper
+    added for meta JSON→Data-URL conversion; all tests updated to use `.iscc` field access and
+    verify additional fields
+- `crates/iscc-py/src/lib.rs`: Added `.map(|r| r.iscc)` to all 9 functions (still returns String to
+    Python)
+- `crates/iscc-wasm/src/lib.rs`: Added `.map(|r| r.iscc)` to all 9 functions
+- `crates/iscc-napi/src/lib.rs`: Added `.map(|r| r.iscc)` to all 9 functions
+- `crates/iscc-ffi/src/lib.rs`: Added `.map(|r| r.iscc)` before `result_to_c_string` in all 9
+    functions
 
-- iscc-sdk uses `import iscc_core as ic` and calls 22+ distinct `ic.*` symbols
-- The 9 `gen_*_v0` functions are the primary dependency (code generation)
-- Text utilities (`text_clean`, `text_trim`, `text_remove_newlines`, `text_collapse`) are called
-    directly by the SDK for metadata processing and granular text features
-- Algorithm primitives (`sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`) are used for granular
-    text processing (independent of the gen functions)
-- `soft_hash_video_v0` is called directly for granular video simprints
-- `DataHasher` / `InstanceHasher` are used for streaming large files in `code_sum`
-- `iscc_decompose` is used to split composite ISCC-CODEs into units
-- `encode_base64` encodes simprint digests for granular features
-- `conformance_selftest` is called by the SDK CLI
-- `core_opts.*` (configuration) stays in the SDK — Rust core uses explicit parameters
-- `Code` class and `IsccMeta` model stay in Python ecosystem (SDK / iscc-schema)
+**Verification:**
 
-**What changed in target.md:**
+- `cargo test --workspace`: 163 tests pass (143 core + 20 FFI)
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean
+- `cargo fmt --all --check`: clean
+- `mise run check`: all 14 pre-commit hooks pass
+- `uv run pytest tests/`: 49 Python tests pass (conformance + smoke)
+- Conformance tests verify: iscc, metahash, name, description, characters, parts, datahash, filesize
+    from struct fields
 
-- Rust core Tier 1 API expanded from 9 gen functions to 22 public symbols
-- Added references to `specs/rust-core.md` for detailed verification criteria
+**Next:** The Python bindings still return plain strings. The next step should implement the
+Python-bindings spec from `notes/specs/python-bindings.md` — converting the PyO3 layer to return
+`dict` with all fields (iscc, metahash, name, description, characters, parts, datahash, filesize)
+matching iscc-core's dict returns. The structured Rust types are now ready to drive this.
 
-**Priority order for implementation:**
+**Notes:**
 
-1. Structured return types for existing 9 `gen_*_v0` functions (prerequisite for Python dict
-    returns)
-2. Promote text utilities to `pub` (minimal change — already implemented as `pub(crate)`)
-3. Promote algorithm primitives to `pub` (already implemented as `pub(crate)`, need FFI-safe
-    signatures for `alg_cdc_chunks` and `alg_simhash`)
-4. `soft_hash_video_v0` — promote from private to `pub` (already implemented)
-5. `encode_base64`, `iscc_decompose` — new functions
-6. `DataHasher` / `InstanceHasher` — new streaming types
-7. `conformance_selftest` — new diagnostic function
-8. Update all 4 binding crates to expose the new Tier 1 API
-9. Python API drop-in compatibility (dict returns, stream inputs)
-10. Documentation refinement
-
-**Next:** Read `specs/rust-core.md` and begin with structured return types (item 1), since that
-unblocks both the Python dict returns and the additional fields needed by the streaming hashers.
+- Added `build_meta_data_url` helper to `lib.rs` for converting JSON meta input to Data-URL format
+    in the `MetaCodeResult.meta` field. This matches iscc-core behavior where `gen_meta_code_v0`
+    returns a Data-URL in the `meta` field regardless of whether input was JSON or Data-URL.
+- All structs are `#[non_exhaustive]` for forward compatibility — new fields can be added without
+    breaking downstream.
+- Binding crates (py, wasm, napi, ffi) were updated beyond the 3-file scope because the API change
+    would break workspace compilation. The changes are mechanical (adding `.iscc` extraction).
+- `gen_meta_code_v0` now normalizes description in all code paths (previously only in the text
+    path), so `MetaCodeResult.description` is always the normalized version.

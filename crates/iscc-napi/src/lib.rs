@@ -20,6 +20,7 @@ pub fn gen_meta_code_v0(
 ) -> napi::Result<String> {
     let bits = bits.unwrap_or(64);
     iscc_lib::gen_meta_code_v0(&name, description.as_deref(), meta.as_deref(), bits)
+        .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
@@ -30,7 +31,9 @@ pub fn gen_meta_code_v0(
 #[napi(js_name = "gen_text_code_v0")]
 pub fn gen_text_code_v0(text: String, bits: Option<u32>) -> napi::Result<String> {
     let bits = bits.unwrap_or(64);
-    iscc_lib::gen_text_code_v0(&text, bits).map_err(|e| napi::Error::from_reason(e.to_string()))
+    iscc_lib::gen_text_code_v0(&text, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
 /// Generate an Image-Code from pixel data.
@@ -41,6 +44,7 @@ pub fn gen_text_code_v0(text: String, bits: Option<u32>) -> napi::Result<String>
 pub fn gen_image_code_v0(pixels: Buffer, bits: Option<u32>) -> napi::Result<String> {
     let bits = bits.unwrap_or(64);
     iscc_lib::gen_image_code_v0(pixels.as_ref(), bits)
+        .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
@@ -51,7 +55,9 @@ pub fn gen_image_code_v0(pixels: Buffer, bits: Option<u32>) -> napi::Result<Stri
 #[napi(js_name = "gen_audio_code_v0")]
 pub fn gen_audio_code_v0(cv: Vec<i32>, bits: Option<u32>) -> napi::Result<String> {
     let bits = bits.unwrap_or(64);
-    iscc_lib::gen_audio_code_v0(&cv, bits).map_err(|e| napi::Error::from_reason(e.to_string()))
+    iscc_lib::gen_audio_code_v0(&cv, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
 /// Generate a Video-Code from frame signature data.
@@ -62,6 +68,7 @@ pub fn gen_audio_code_v0(cv: Vec<i32>, bits: Option<u32>) -> napi::Result<String
 pub fn gen_video_code_v0(frame_sigs: Vec<Vec<i32>>, bits: Option<u32>) -> napi::Result<String> {
     let bits = bits.unwrap_or(64);
     iscc_lib::gen_video_code_v0(&frame_sigs, bits)
+        .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
@@ -73,7 +80,9 @@ pub fn gen_video_code_v0(frame_sigs: Vec<Vec<i32>>, bits: Option<u32>) -> napi::
 pub fn gen_mixed_code_v0(codes: Vec<String>, bits: Option<u32>) -> napi::Result<String> {
     let bits = bits.unwrap_or(64);
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
-    iscc_lib::gen_mixed_code_v0(&refs, bits).map_err(|e| napi::Error::from_reason(e.to_string()))
+    iscc_lib::gen_mixed_code_v0(&refs, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
 /// Generate a Data-Code from raw byte data.
@@ -84,6 +93,7 @@ pub fn gen_mixed_code_v0(codes: Vec<String>, bits: Option<u32>) -> napi::Result<
 pub fn gen_data_code_v0(data: Buffer, bits: Option<u32>) -> napi::Result<String> {
     let bits = bits.unwrap_or(64);
     iscc_lib::gen_data_code_v0(data.as_ref(), bits)
+        .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
@@ -95,6 +105,7 @@ pub fn gen_data_code_v0(data: Buffer, bits: Option<u32>) -> napi::Result<String>
 pub fn gen_instance_code_v0(data: Buffer, bits: Option<u32>) -> napi::Result<String> {
     let bits = bits.unwrap_or(64);
     iscc_lib::gen_instance_code_v0(data.as_ref(), bits)
+        .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
@@ -106,5 +117,7 @@ pub fn gen_instance_code_v0(data: Buffer, bits: Option<u32>) -> napi::Result<Str
 pub fn gen_iscc_code_v0(codes: Vec<String>, wide: Option<bool>) -> napi::Result<String> {
     let wide = wide.unwrap_or(false);
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
-    iscc_lib::gen_iscc_code_v0(&refs, wide).map_err(|e| napi::Error::from_reason(e.to_string()))
+    iscc_lib::gen_iscc_code_v0(&refs, wide)
+        .map(|r| r.iscc)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
 }

@@ -9,8 +9,11 @@ pub mod codec;
 pub(crate) mod dct;
 pub(crate) mod minhash;
 pub(crate) mod simhash;
+pub mod types;
 pub(crate) mod utils;
 pub(crate) mod wtahash;
+
+pub use types::*;
 
 /// Error type for ISCC operations.
 #[derive(Debug, thiserror::Error)]
@@ -122,6 +125,20 @@ fn parse_meta_json(meta_str: &str) -> IsccResult<Vec<u8>> {
         .map_err(|e| IsccError::InvalidInput(format!("JSON serialization failed: {e}")))
 }
 
+/// Build a Data-URL from canonical JSON bytes.
+///
+/// Uses `application/ld+json` media type if the JSON has an `@context` key,
+/// otherwise `application/json`. Encodes payload as standard base64 with padding.
+fn build_meta_data_url(json_bytes: &[u8], json_value: &serde_json::Value) -> String {
+    let media_type = if json_value.get("@context").is_some() {
+        "application/ld+json"
+    } else {
+        "application/json"
+    };
+    let b64 = data_encoding::BASE64.encode(json_bytes);
+    format!("data:{media_type};base64,{b64}")
+}
+
 /// Generate a Meta-Code from name and optional metadata.
 ///
 /// Produces an ISCC Meta-Code by hashing the provided name, description,
@@ -134,7 +151,7 @@ pub fn gen_meta_code_v0(
     description: Option<&str>,
     meta: Option<&str>,
     bits: u32,
-) -> IsccResult<String> {
+) -> IsccResult<MetaCodeResult> {
     // Normalize name: clean → remove newlines → trim to 128 bytes
     let name = utils::text_clean(name);
     let name = utils::text_remove_newlines(&name);
@@ -145,6 +162,11 @@ pub fn gen_meta_code_v0(
             "name is empty after normalization".into(),
         ));
     }
+
+    // Normalize description: clean → trim to 4096 bytes
+    let desc_str = description.unwrap_or("");
+    let desc_clean = utils::text_clean(desc_str);
+    let desc_clean = utils::text_trim(&desc_clean, 4096);
 
     // Resolve meta payload bytes (if meta is provided)
     let meta_payload: Option<Vec<u8>> = match meta {
@@ -163,7 +185,7 @@ pub fn gen_meta_code_v0(
     // Branch: meta bytes path vs. description text path
     if let Some(ref payload) = meta_payload {
         let meta_code_digest = soft_hash_meta_v0_with_bytes(&name, payload);
-        let _metahash = utils::multi_hash_blake3(payload);
+        let metahash = utils::multi_hash_blake3(payload);
 
         let meta_code = codec::encode_component(
             codec::MainType::Meta,
@@ -173,13 +195,29 @@ pub fn gen_meta_code_v0(
             &meta_code_digest,
         )?;
 
-        Ok(format!("ISCC:{meta_code}"))
-    } else {
-        // Normalize description: clean → trim to 4096 bytes
-        let desc_str = description.unwrap_or("");
-        let desc_clean = utils::text_clean(desc_str);
-        let desc_clean = utils::text_trim(&desc_clean, 4096);
+        // Build the meta Data-URL for the result
+        let meta_value = match meta {
+            Some(meta_str) if meta_str.starts_with("data:") => meta_str.to_string(),
+            Some(meta_str) => {
+                let parsed: serde_json::Value = serde_json::from_str(meta_str)
+                    .map_err(|e| IsccError::InvalidInput(format!("invalid JSON: {e}")))?;
+                build_meta_data_url(payload, &parsed)
+            }
+            None => unreachable!(),
+        };
 
+        Ok(MetaCodeResult {
+            iscc: format!("ISCC:{meta_code}"),
+            name: name.clone(),
+            description: if desc_clean.is_empty() {
+                None
+            } else {
+                Some(desc_clean)
+            },
+            meta: Some(meta_value),
+            metahash,
+        })
+    } else {
         // Compute metahash from normalized text payload
         let payload = if desc_clean.is_empty() {
             name.clone()
@@ -187,7 +225,7 @@ pub fn gen_meta_code_v0(
             format!("{} {}", name, desc_clean)
         };
         let payload = payload.trim().to_string();
-        let _metahash = utils::multi_hash_blake3(payload.as_bytes());
+        let metahash = utils::multi_hash_blake3(payload.as_bytes());
 
         // Compute similarity digest
         let extra = if desc_clean.is_empty() {
@@ -205,7 +243,17 @@ pub fn gen_meta_code_v0(
             &meta_code_digest,
         )?;
 
-        Ok(format!("ISCC:{meta_code}"))
+        Ok(MetaCodeResult {
+            iscc: format!("ISCC:{meta_code}"),
+            name: name.clone(),
+            description: if desc_clean.is_empty() {
+                None
+            } else {
+                Some(desc_clean)
+            },
+            meta: None,
+            metahash,
+        })
     }
 }
 
@@ -227,9 +275,9 @@ fn soft_hash_text_v0(text: &str) -> Vec<u8> {
 /// Produces an ISCC Content-Code for text by collapsing the input,
 /// extracting character n-gram features, and applying MinHash to
 /// create a similarity-preserving fingerprint.
-pub fn gen_text_code_v0(text: &str, bits: u32) -> IsccResult<String> {
+pub fn gen_text_code_v0(text: &str, bits: u32) -> IsccResult<TextCodeResult> {
     let collapsed = utils::text_collapse(text);
-    let _characters = collapsed.chars().count();
+    let characters = collapsed.chars().count();
     let hash_digest = soft_hash_text_v0(&collapsed);
     let component = codec::encode_component(
         codec::MainType::Content,
@@ -238,7 +286,10 @@ pub fn gen_text_code_v0(text: &str, bits: u32) -> IsccResult<String> {
         bits,
         &hash_digest,
     )?;
-    Ok(format!("ISCC:{component}"))
+    Ok(TextCodeResult {
+        iscc: format!("ISCC:{component}"),
+        characters,
+    })
 }
 
 /// Transpose a matrix represented as a Vec of Vecs.
@@ -365,7 +416,7 @@ fn soft_hash_image_v0(pixels: &[u8], bits: u32) -> IsccResult<Vec<u8>> {
 /// Produces an ISCC Content-Code for images from a sequence of 1024
 /// grayscale pixel values (32×32, values 0-255) using a DCT-based
 /// perceptual hash.
-pub fn gen_image_code_v0(pixels: &[u8], bits: u32) -> IsccResult<String> {
+pub fn gen_image_code_v0(pixels: &[u8], bits: u32) -> IsccResult<ImageCodeResult> {
     let hash_digest = soft_hash_image_v0(pixels, bits)?;
     let component = codec::encode_component(
         codec::MainType::Content,
@@ -374,7 +425,9 @@ pub fn gen_image_code_v0(pixels: &[u8], bits: u32) -> IsccResult<String> {
         bits,
         &hash_digest,
     )?;
-    Ok(format!("ISCC:{component}"))
+    Ok(ImageCodeResult {
+        iscc: format!("ISCC:{component}"),
+    })
 }
 
 /// Split a slice into `n` parts, distributing remainder across first chunks.
@@ -446,7 +499,7 @@ fn soft_hash_audio_v0(cv: &[i32]) -> Vec<u8> {
 ///
 /// Produces an ISCC Content-Code for audio from a Chromaprint signed
 /// integer fingerprint vector using multi-stage SimHash.
-pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<String> {
+pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<AudioCodeResult> {
     let hash_digest = soft_hash_audio_v0(cv);
     let component = codec::encode_component(
         codec::MainType::Content,
@@ -455,7 +508,9 @@ pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<String> {
         bits,
         &hash_digest,
     )?;
-    Ok(format!("ISCC:{component}"))
+    Ok(AudioCodeResult {
+        iscc: format!("ISCC:{component}"),
+    })
 }
 
 /// Compute a similarity-preserving hash from video frame signatures.
@@ -488,7 +543,7 @@ fn soft_hash_video_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<Vec<u8>>
 ///
 /// Produces an ISCC Content-Code for video from a sequence of MPEG-7 frame
 /// signatures. Each frame signature is a 380-element integer vector.
-pub fn gen_video_code_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<String> {
+pub fn gen_video_code_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<VideoCodeResult> {
     let digest = soft_hash_video_v0(frame_sigs, bits)?;
     let component = codec::encode_component(
         codec::MainType::Content,
@@ -497,7 +552,9 @@ pub fn gen_video_code_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<Strin
         bits,
         &digest,
     )?;
-    Ok(format!("ISCC:{component}"))
+    Ok(VideoCodeResult {
+        iscc: format!("ISCC:{component}"),
+    })
 }
 
 /// Combine multiple Content-Code digests into a single similarity hash.
@@ -542,7 +599,7 @@ fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> 
 /// Produces a Mixed Content-Code by combining multiple ISCC Content-Codes
 /// of different types (text, image, audio, video) using SimHash. Input codes
 /// may optionally include the "ISCC:" prefix.
-pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<String> {
+pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<MixedCodeResult> {
     let decoded: Vec<Vec<u8>> = codes
         .iter()
         .map(|code| {
@@ -561,7 +618,10 @@ pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<String> {
         &digest,
     )?;
 
-    Ok(format!("ISCC:{component}"))
+    Ok(MixedCodeResult {
+        iscc: format!("ISCC:{component}"),
+        parts: codes.iter().map(|s| s.to_string()).collect(),
+    })
 }
 
 /// Generate a Data-Code from raw byte data.
@@ -569,7 +629,7 @@ pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<String> {
 /// Produces an ISCC Data-Code by splitting data into content-defined chunks,
 /// hashing each chunk with xxh32, and applying MinHash to create a
 /// similarity-preserving fingerprint.
-pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
+pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<DataCodeResult> {
     let chunks = cdc::alg_cdc_chunks(data, false, cdc::DATA_AVG_CHUNK_SIZE);
     let mut features: Vec<u32> = chunks
         .iter()
@@ -590,15 +650,19 @@ pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
         &digest,
     )?;
 
-    Ok(format!("ISCC:{component}"))
+    Ok(DataCodeResult {
+        iscc: format!("ISCC:{component}"),
+    })
 }
 
 /// Generate an Instance-Code from raw byte data.
 ///
 /// Produces an ISCC Instance-Code by hashing the complete byte stream
 /// with BLAKE3. Captures the exact binary identity of the data.
-pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
+pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<InstanceCodeResult> {
     let digest = blake3::hash(data);
+    let datahash = utils::multi_hash_blake3(data);
+    let filesize = data.len() as u64;
     let component = codec::encode_component(
         codec::MainType::Instance,
         codec::SubType::None,
@@ -606,7 +670,11 @@ pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
         bits,
         digest.as_bytes(),
     )?;
-    Ok(format!("ISCC:{component}"))
+    Ok(InstanceCodeResult {
+        iscc: format!("ISCC:{component}"),
+        datahash,
+        filesize,
+    })
 }
 
 /// Generate a composite ISCC-CODE from individual ISCC unit codes.
@@ -617,7 +685,7 @@ pub fn gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<String> {
 /// Instance-Code are required. When `wide` is true and exactly two
 /// 128-bit+ codes (Data + Instance) are provided, produces a 256-bit
 /// wide-mode code.
-pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<String> {
+pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult> {
     // Step 1: Clean inputs — strip "ISCC:" prefix
     let cleaned: Vec<&str> = codes
         .iter()
@@ -730,7 +798,9 @@ pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<String> {
     let code = codec::encode_base32(&code_bytes);
 
     // Step 15: Return with prefix
-    Ok(format!("ISCC:{code}"))
+    Ok(IsccCodeResult {
+        iscc: format!("ISCC:{code}"),
+    })
 }
 
 #[cfg(test)]
@@ -740,7 +810,10 @@ mod tests {
     #[test]
     fn test_gen_meta_code_v0_title_only() {
         let result = gen_meta_code_v0("Die Unendliche Geschichte", None, None, 64).unwrap();
-        assert_eq!(result, "ISCC:AAAZXZ6OU74YAZIM");
+        assert_eq!(result.iscc, "ISCC:AAAZXZ6OU74YAZIM");
+        assert_eq!(result.name, "Die Unendliche Geschichte");
+        assert_eq!(result.description, None);
+        assert_eq!(result.meta, None);
     }
 
     #[test]
@@ -752,13 +825,23 @@ mod tests {
             64,
         )
         .unwrap();
-        assert_eq!(result, "ISCC:AAAZXZ6OU4E45RB5");
+        assert_eq!(result.iscc, "ISCC:AAAZXZ6OU4E45RB5");
+        assert_eq!(result.name, "Die Unendliche Geschichte");
+        assert_eq!(result.description, Some("Von Michael Ende".to_string()));
+        assert_eq!(result.meta, None);
     }
 
     #[test]
     fn test_gen_meta_code_v0_json_meta() {
         let result = gen_meta_code_v0("Hello", None, Some(r#"{"some":"object"}"#), 64).unwrap();
-        assert_eq!(result, "ISCC:AAAWKLHFXN63LHL2");
+        assert_eq!(result.iscc, "ISCC:AAAWKLHFXN63LHL2");
+        assert!(result.meta.is_some());
+        assert!(
+            result
+                .meta
+                .unwrap()
+                .starts_with("data:application/json;base64,")
+        );
     }
 
     #[test]
@@ -770,7 +853,12 @@ mod tests {
             64,
         )
         .unwrap();
-        assert_eq!(result, "ISCC:AAAWKLHFXN43ICP2");
+        assert_eq!(result.iscc, "ISCC:AAAWKLHFXN43ICP2");
+        // Data-URL is passed through as-is
+        assert_eq!(
+            result.meta,
+            Some("data:application/json;charset=utf-8;base64,eyJzb21lIjogIm9iamVjdCJ9".to_string())
+        );
     }
 
     #[test]
@@ -822,69 +910,50 @@ mod tests {
                 Some(input_desc)
             };
 
-            // Verify ISCC output
+            // Verify ISCC output from struct
             let result = gen_meta_code_v0(input_name, desc, meta_arg.as_deref(), bits)
                 .unwrap_or_else(|e| panic!("gen_meta_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
-                result, expected_iscc,
+                result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
             );
 
-            // Verify metahash
-            if meta_arg.is_some() {
-                // For meta object/data-url cases, metahash is computed from the
-                // decoded/serialized payload bytes — verified implicitly via ISCC match.
-                // We can still verify by recomputing from the meta payload.
-                let meta_str = meta_arg.as_deref().unwrap();
-                let payload_bytes = if meta_str.starts_with("data:") {
-                    let b64 = meta_str.split_once(',').unwrap().1;
-                    data_encoding::BASE64.decode(b64.as_bytes()).unwrap()
-                } else {
-                    let parsed: serde_json::Value = serde_json::from_str(meta_str).unwrap();
-                    serde_json::to_vec(&parsed).unwrap()
-                };
-                let metahash = utils::multi_hash_blake3(&payload_bytes);
+            // Verify metahash from struct
+            assert_eq!(
+                result.metahash, expected_metahash,
+                "metahash mismatch in test case {tc_name}"
+            );
+
+            // Verify name from struct
+            if let Some(expected_name) = tc["outputs"].get("name") {
+                let expected_name = expected_name.as_str().unwrap();
                 assert_eq!(
-                    metahash, expected_metahash,
-                    "metahash mismatch in test case {tc_name}"
+                    result.name, expected_name,
+                    "name mismatch in test case {tc_name}"
+                );
+            }
+
+            // Verify description from struct
+            if let Some(expected_desc) = tc["outputs"].get("description") {
+                let expected_desc = expected_desc.as_str().unwrap();
+                assert_eq!(
+                    result.description.as_deref(),
+                    Some(expected_desc),
+                    "description mismatch in test case {tc_name}"
+                );
+            }
+
+            // Verify meta from struct
+            if meta_arg.is_some() {
+                assert!(
+                    result.meta.is_some(),
+                    "meta should be present in test case {tc_name}"
                 );
             } else {
-                // Text path: metahash from normalized name + description
-                let clean_name = utils::text_clean(input_name);
-                let clean_name = utils::text_remove_newlines(&clean_name);
-                let clean_name = utils::text_trim(&clean_name, 128);
-                let clean_desc = utils::text_clean(input_desc);
-                let clean_desc = utils::text_trim(&clean_desc, 4096);
-
-                let payload = if clean_desc.is_empty() {
-                    clean_name.clone()
-                } else {
-                    format!("{} {}", clean_name, clean_desc)
-                };
-                let payload = payload.trim().to_string();
-                let metahash = utils::multi_hash_blake3(payload.as_bytes());
-                assert_eq!(
-                    metahash, expected_metahash,
-                    "metahash mismatch in test case {tc_name}"
+                assert!(
+                    result.meta.is_none(),
+                    "meta should be absent in test case {tc_name}"
                 );
-
-                // Verify normalized name output
-                if let Some(expected_name) = tc["outputs"].get("name") {
-                    let expected_name = expected_name.as_str().unwrap();
-                    assert_eq!(
-                        clean_name, expected_name,
-                        "name mismatch in test case {tc_name}"
-                    );
-                }
-
-                // Verify normalized description output
-                if let Some(expected_desc) = tc["outputs"].get("description") {
-                    let expected_desc = expected_desc.as_str().unwrap();
-                    assert_eq!(
-                        clean_desc, expected_desc,
-                        "description mismatch in test case {tc_name}"
-                    );
-                }
             }
 
             tested += 1;
@@ -896,13 +965,15 @@ mod tests {
     #[test]
     fn test_gen_text_code_v0_empty() {
         let result = gen_text_code_v0("", 64).unwrap();
-        assert_eq!(result, "ISCC:EAASL4F2WZY7KBXB");
+        assert_eq!(result.iscc, "ISCC:EAASL4F2WZY7KBXB");
+        assert_eq!(result.characters, 0);
     }
 
     #[test]
     fn test_gen_text_code_v0_hello_world() {
         let result = gen_text_code_v0("Hello World", 64).unwrap();
-        assert_eq!(result, "ISCC:EAASKDNZNYGUUF5A");
+        assert_eq!(result.iscc, "ISCC:EAASKDNZNYGUUF5A");
+        assert_eq!(result.characters, 10); // "helloworld" after collapse
     }
 
     #[test]
@@ -922,19 +993,17 @@ mod tests {
             let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
             let expected_chars = tc["outputs"]["characters"].as_u64().unwrap() as usize;
 
-            // Verify ISCC output
+            // Verify ISCC output from struct
             let result = gen_text_code_v0(input_text, bits)
                 .unwrap_or_else(|e| panic!("gen_text_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
-                result, expected_iscc,
+                result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
             );
 
-            // Verify character count independently
-            let collapsed = utils::text_collapse(input_text);
-            let characters = collapsed.chars().count();
+            // Verify character count from struct
             assert_eq!(
-                characters, expected_chars,
+                result.characters, expected_chars,
                 "character count mismatch in test case {tc_name}"
             );
 
@@ -948,14 +1017,14 @@ mod tests {
     fn test_gen_image_code_v0_all_black() {
         let pixels = vec![0u8; 1024];
         let result = gen_image_code_v0(&pixels, 64).unwrap();
-        assert_eq!(result, "ISCC:EEAQAAAAAAAAAAAA");
+        assert_eq!(result.iscc, "ISCC:EEAQAAAAAAAAAAAA");
     }
 
     #[test]
     fn test_gen_image_code_v0_all_white() {
         let pixels = vec![255u8; 1024];
         let result = gen_image_code_v0(&pixels, 128).unwrap();
-        assert_eq!(result, "ISCC:EEBYAAAAAAAAAAAAAAAAAAAAAAAAA");
+        assert_eq!(result.iscc, "ISCC:EEBYAAAAAAAAAAAAAAAAAAAAAAAAA");
     }
 
     #[test]
@@ -986,7 +1055,7 @@ mod tests {
             let result = gen_image_code_v0(&pixels, bits)
                 .unwrap_or_else(|e| panic!("gen_image_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
-                result, expected_iscc,
+                result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
             );
 
@@ -999,20 +1068,20 @@ mod tests {
     #[test]
     fn test_gen_audio_code_v0_empty() {
         let result = gen_audio_code_v0(&[], 64).unwrap();
-        assert_eq!(result, "ISCC:EIAQAAAAAAAAAAAA");
+        assert_eq!(result.iscc, "ISCC:EIAQAAAAAAAAAAAA");
     }
 
     #[test]
     fn test_gen_audio_code_v0_single() {
         let result = gen_audio_code_v0(&[1], 128).unwrap();
-        assert_eq!(result, "ISCC:EIBQAAAAAEAAAAABAAAAAAAAAAAAA");
+        assert_eq!(result.iscc, "ISCC:EIBQAAAAAEAAAAABAAAAAAAAAAAAA");
     }
 
     #[test]
     fn test_gen_audio_code_v0_negative() {
         let result = gen_audio_code_v0(&[-1, 0, 1], 256).unwrap();
         assert_eq!(
-            result,
+            result.iscc,
             "ISCC:EIDQAAAAAH777777AAAAAAAAAAAACAAAAAAP777774AAAAAAAAAAAAI"
         );
     }
@@ -1037,7 +1106,7 @@ mod tests {
             let result = gen_audio_code_v0(&cv, bits)
                 .unwrap_or_else(|e| panic!("gen_audio_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
-                result, expected_iscc,
+                result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
             );
 
@@ -1120,7 +1189,7 @@ mod tests {
             let result = gen_video_code_v0(&frame_sigs, bits)
                 .unwrap_or_else(|e| panic!("gen_video_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
-                result, expected_iscc,
+                result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
             );
 
@@ -1144,20 +1213,28 @@ mod tests {
             let codes_json = inputs[0].as_array().unwrap();
             let bits = inputs[1].as_u64().unwrap() as u32;
             let expected_iscc = tc["outputs"]["iscc"].as_str().unwrap();
-            let expected_parts = tc["outputs"]["parts"].as_array().unwrap();
+            let expected_parts: Vec<&str> = tc["outputs"]["parts"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v.as_str().unwrap())
+                .collect();
 
             let codes: Vec<&str> = codes_json.iter().map(|v| v.as_str().unwrap()).collect();
 
             let result = gen_mixed_code_v0(&codes, bits)
                 .unwrap_or_else(|e| panic!("gen_mixed_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
-                result, expected_iscc,
+                result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
             );
 
-            // Verify parts match input codes
-            let parts: Vec<&str> = expected_parts.iter().map(|v| v.as_str().unwrap()).collect();
-            assert_eq!(codes, parts, "parts mismatch in test case {tc_name}");
+            // Verify parts from struct match expected
+            let result_parts: Vec<&str> = result.parts.iter().map(|s| s.as_str()).collect();
+            assert_eq!(
+                result_parts, expected_parts,
+                "parts mismatch in test case {tc_name}"
+            );
 
             tested += 1;
         }
@@ -1198,7 +1275,7 @@ mod tests {
             let result = gen_data_code_v0(&input_bytes, bits)
                 .unwrap_or_else(|e| panic!("gen_data_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
-                result, expected_iscc,
+                result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
             );
 
@@ -1211,7 +1288,12 @@ mod tests {
     #[test]
     fn test_gen_instance_code_v0_empty() {
         let result = gen_instance_code_v0(b"", 64).unwrap();
-        assert_eq!(result, "ISCC:IAA26E2JXH27TING");
+        assert_eq!(result.iscc, "ISCC:IAA26E2JXH27TING");
+        assert_eq!(result.filesize, 0);
+        assert_eq!(
+            result.datahash,
+            "1e20af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9adc112b7cc9a93cae41f3262"
+        );
     }
 
     #[test]
@@ -1236,7 +1318,35 @@ mod tests {
 
             let result = gen_instance_code_v0(&input_bytes, bits)
                 .unwrap_or_else(|e| panic!("gen_instance_code_v0 failed for {name}: {e}"));
-            assert_eq!(result, expected_iscc, "mismatch in test case {name}");
+            assert_eq!(
+                result.iscc, expected_iscc,
+                "ISCC mismatch in test case {name}"
+            );
+
+            // Verify datahash from struct
+            if let Some(expected_datahash) = tc["outputs"].get("datahash") {
+                let expected_datahash = expected_datahash.as_str().unwrap();
+                assert_eq!(
+                    result.datahash, expected_datahash,
+                    "datahash mismatch in test case {name}"
+                );
+            }
+
+            // Verify filesize from struct
+            if let Some(expected_filesize) = tc["outputs"].get("filesize") {
+                let expected_filesize = expected_filesize.as_u64().unwrap();
+                assert_eq!(
+                    result.filesize, expected_filesize,
+                    "filesize mismatch in test case {name}"
+                );
+            }
+
+            // Also verify filesize matches input data length
+            assert_eq!(
+                result.filesize,
+                input_bytes.len() as u64,
+                "filesize should match input length in test case {name}"
+            );
         }
     }
 
@@ -1259,7 +1369,7 @@ mod tests {
             let result = gen_iscc_code_v0(&codes, false)
                 .unwrap_or_else(|e| panic!("gen_iscc_code_v0 failed for {tc_name}: {e}"));
             assert_eq!(
-                result, expected_iscc,
+                result.iscc, expected_iscc,
                 "ISCC mismatch in test case {tc_name}"
             );
 

@@ -20,6 +20,7 @@ fn gen_meta_code_v0(
     bits: u32,
 ) -> PyResult<String> {
     iscc_lib::gen_meta_code_v0(name, description, meta, bits)
+        .map(|r| r.iscc)
         .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
@@ -30,7 +31,9 @@ fn gen_meta_code_v0(
 #[pyfunction]
 #[pyo3(signature = (text, bits=64))]
 fn gen_text_code_v0(text: &str, bits: u32) -> PyResult<String> {
-    iscc_lib::gen_text_code_v0(text, bits).map_err(|e| PyValueError::new_err(e.to_string()))
+    iscc_lib::gen_text_code_v0(text, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Generate an Image-Code from pixel data.
@@ -40,7 +43,9 @@ fn gen_text_code_v0(text: &str, bits: u32) -> PyResult<String> {
 #[pyfunction]
 #[pyo3(signature = (pixels, bits=64))]
 fn gen_image_code_v0(pixels: &[u8], bits: u32) -> PyResult<String> {
-    iscc_lib::gen_image_code_v0(pixels, bits).map_err(|e| PyValueError::new_err(e.to_string()))
+    iscc_lib::gen_image_code_v0(pixels, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Generate an Audio-Code from a Chromaprint feature vector.
@@ -50,7 +55,9 @@ fn gen_image_code_v0(pixels: &[u8], bits: u32) -> PyResult<String> {
 #[pyfunction]
 #[pyo3(signature = (cv, bits=64))]
 fn gen_audio_code_v0(cv: Vec<i32>, bits: u32) -> PyResult<String> {
-    iscc_lib::gen_audio_code_v0(&cv, bits).map_err(|e| PyValueError::new_err(e.to_string()))
+    iscc_lib::gen_audio_code_v0(&cv, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Generate a Video-Code from frame signature data.
@@ -60,7 +67,9 @@ fn gen_audio_code_v0(cv: Vec<i32>, bits: u32) -> PyResult<String> {
 #[pyfunction]
 #[pyo3(signature = (frame_sigs, bits=64))]
 fn gen_video_code_v0(frame_sigs: Vec<Vec<i32>>, bits: u32) -> PyResult<String> {
-    iscc_lib::gen_video_code_v0(&frame_sigs, bits).map_err(|e| PyValueError::new_err(e.to_string()))
+    iscc_lib::gen_video_code_v0(&frame_sigs, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Generate a Mixed-Code from multiple Content-Code strings.
@@ -71,7 +80,9 @@ fn gen_video_code_v0(frame_sigs: Vec<Vec<i32>>, bits: u32) -> PyResult<String> {
 #[pyo3(signature = (codes, bits=64))]
 fn gen_mixed_code_v0(codes: Vec<String>, bits: u32) -> PyResult<String> {
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
-    iscc_lib::gen_mixed_code_v0(&refs, bits).map_err(|e| PyValueError::new_err(e.to_string()))
+    iscc_lib::gen_mixed_code_v0(&refs, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Generate a Data-Code from raw byte data.
@@ -81,7 +92,9 @@ fn gen_mixed_code_v0(codes: Vec<String>, bits: u32) -> PyResult<String> {
 #[pyfunction]
 #[pyo3(signature = (data, bits=64))]
 fn gen_data_code_v0(data: &[u8], bits: u32) -> PyResult<String> {
-    iscc_lib::gen_data_code_v0(data, bits).map_err(|e| PyValueError::new_err(e.to_string()))
+    iscc_lib::gen_data_code_v0(data, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Generate an Instance-Code from raw byte data.
@@ -91,7 +104,9 @@ fn gen_data_code_v0(data: &[u8], bits: u32) -> PyResult<String> {
 #[pyfunction]
 #[pyo3(signature = (data, bits=64))]
 fn gen_instance_code_v0(data: &[u8], bits: u32) -> PyResult<String> {
-    iscc_lib::gen_instance_code_v0(data, bits).map_err(|e| PyValueError::new_err(e.to_string()))
+    iscc_lib::gen_instance_code_v0(data, bits)
+        .map(|r| r.iscc)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Generate a composite ISCC-CODE from individual unit codes.
@@ -102,7 +117,9 @@ fn gen_instance_code_v0(data: &[u8], bits: u32) -> PyResult<String> {
 #[pyo3(signature = (codes, wide=false))]
 fn gen_iscc_code_v0(codes: Vec<String>, wide: bool) -> PyResult<String> {
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
-    iscc_lib::gen_iscc_code_v0(&refs, wide).map_err(|e| PyValueError::new_err(e.to_string()))
+    iscc_lib::gen_iscc_code_v0(&refs, wide)
+        .map(|r| r.iscc)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Python module `iscc._lowlevel` backed by Rust.

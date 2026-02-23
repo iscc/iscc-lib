@@ -133,7 +133,7 @@ pub unsafe extern "C" fn iscc_gen_meta_code_v0(
     let Some(meta) = (unsafe { ptr_to_optional_str(meta, "meta") }) else {
         return ptr::null_mut();
     };
-    result_to_c_string(iscc_lib::gen_meta_code_v0(name, description, meta, bits))
+    result_to_c_string(iscc_lib::gen_meta_code_v0(name, description, meta, bits).map(|r| r.iscc))
 }
 
 /// Generate a Text-Code from plain text content.
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn iscc_gen_text_code_v0(text: *const c_char, bits: u32) -
     let Some(text) = (unsafe { ptr_to_str(text, "text") }) else {
         return ptr::null_mut();
     };
-    result_to_c_string(iscc_lib::gen_text_code_v0(text, bits))
+    result_to_c_string(iscc_lib::gen_text_code_v0(text, bits).map(|r| r.iscc))
 }
 
 /// Generate an Image-Code from pixel data.
@@ -189,7 +189,7 @@ pub unsafe extern "C" fn iscc_gen_image_code_v0(
     }
     // SAFETY: caller guarantees pixels is valid for pixels_len bytes
     let pixels = unsafe { std::slice::from_raw_parts(pixels, pixels_len) };
-    result_to_c_string(iscc_lib::gen_image_code_v0(pixels, bits))
+    result_to_c_string(iscc_lib::gen_image_code_v0(pixels, bits).map(|r| r.iscc))
 }
 
 /// Generate an Audio-Code from a Chromaprint feature vector.
@@ -221,7 +221,7 @@ pub unsafe extern "C" fn iscc_gen_audio_code_v0(
     }
     // SAFETY: caller guarantees cv is valid for cv_len elements
     let cv = unsafe { std::slice::from_raw_parts(cv, cv_len) };
-    result_to_c_string(iscc_lib::gen_audio_code_v0(cv, bits))
+    result_to_c_string(iscc_lib::gen_audio_code_v0(cv, bits).map(|r| r.iscc))
 }
 
 /// Generate a Video-Code from frame signature data.
@@ -272,7 +272,7 @@ pub unsafe extern "C" fn iscc_gen_video_code_v0(
         })
         .collect();
 
-    result_to_c_string(iscc_lib::gen_video_code_v0(&frames, bits))
+    result_to_c_string(iscc_lib::gen_video_code_v0(&frames, bits).map(|r| r.iscc))
 }
 
 /// Generate a Mixed-Code from multiple Content-Code strings.
@@ -313,7 +313,7 @@ pub unsafe extern "C" fn iscc_gen_mixed_code_v0(
         code_strs.push(s);
     }
 
-    result_to_c_string(iscc_lib::gen_mixed_code_v0(&code_strs, bits))
+    result_to_c_string(iscc_lib::gen_mixed_code_v0(&code_strs, bits).map(|r| r.iscc))
 }
 
 /// Generate a Data-Code from raw byte data.
@@ -345,7 +345,7 @@ pub unsafe extern "C" fn iscc_gen_data_code_v0(
     }
     // SAFETY: caller guarantees data is valid for data_len bytes
     let data = unsafe { std::slice::from_raw_parts(data, data_len) };
-    result_to_c_string(iscc_lib::gen_data_code_v0(data, bits))
+    result_to_c_string(iscc_lib::gen_data_code_v0(data, bits).map(|r| r.iscc))
 }
 
 /// Generate an Instance-Code from raw byte data.
@@ -377,7 +377,7 @@ pub unsafe extern "C" fn iscc_gen_instance_code_v0(
     }
     // SAFETY: caller guarantees data is valid for data_len bytes
     let data = unsafe { std::slice::from_raw_parts(data, data_len) };
-    result_to_c_string(iscc_lib::gen_instance_code_v0(data, bits))
+    result_to_c_string(iscc_lib::gen_instance_code_v0(data, bits).map(|r| r.iscc))
 }
 
 /// Generate a composite ISCC-CODE from individual unit codes.
@@ -418,7 +418,7 @@ pub unsafe extern "C" fn iscc_gen_iscc_code_v0(
         code_strs.push(s);
     }
 
-    result_to_c_string(iscc_lib::gen_iscc_code_v0(&code_strs, wide))
+    result_to_c_string(iscc_lib::gen_iscc_code_v0(&code_strs, wide).map(|r| r.iscc))
 }
 
 /// Free a string previously returned by any `iscc_gen_*` function.
