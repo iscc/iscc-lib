@@ -132,14 +132,14 @@ def gen_mixed_code_v0(codes: list[str], bits: int = 64) -> MixedCodeResult:
 
 def gen_data_code_v0(data: bytes | BinaryIO, bits: int = 64) -> DataCodeResult:
     """Generate an ISCC Data-Code from raw byte data or a file-like stream."""
-    if hasattr(data, "read"):
+    if not isinstance(data, bytes):
         data = data.read()
     return DataCodeResult(_gen_data_code_v0(data, bits))
 
 
 def gen_instance_code_v0(data: bytes | BinaryIO, bits: int = 64) -> InstanceCodeResult:
     """Generate an ISCC Instance-Code from raw byte data or a file-like stream."""
-    if hasattr(data, "read"):
+    if not isinstance(data, bytes):
         data = data.read()
     return InstanceCodeResult(_gen_instance_code_v0(data, bits))
 
