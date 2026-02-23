@@ -1,35 +1,43 @@
-## 2026-02-23 — Review of: Add DataHasher/InstanceHasher opaque pointer FFI to C bindings
+## 2026-02-23 — Add ISCC brand colors, logo, and favicon to documentation site
 
-**Verdict:** PASS
+**Done:** Added ISCC Foundation visual branding to the documentation site. Created
+`docs/stylesheets/extra.css` with brand color overrides for light/dark mode (ISCC Blue header, Deep
+Navy footer, link colors, logo inversion, mermaid edge softening). Downloaded `logo_light.png` and
+`favicon.png` from the iscc-usearch repository. Updated `zensical.toml` with `extra_css`, `logo`,
+and `favicon` configuration.
 
-**Summary:** DataHasher and InstanceHasher streaming types added to C FFI bindings via the opaque
-pointer lifecycle pattern (new/update/finalize/free), bringing C FFI from 21/23 to 23/23 Tier 1
-parity. All four binding targets (Python, Node.js, WASM, C FFI) now have complete Tier 1 coverage.
-Implementation is clean, follows the exact spec from next.md, and all quality gates pass.
+**Files changed:**
 
-**Verification:**
+- `docs/stylesheets/extra.css`: ISCC brand color CSS ported from iscc-usearch, excluding copy-page
+    split-button rules
+- `docs/assets/logo_light.png`: ISCC Foundation logo (5000x1906 gray+alpha PNG, downloaded from
+    iscc-usearch)
+- `docs/assets/favicon.png`: ISCC Foundation favicon (300x300 RGBA PNG, downloaded from
+    iscc-usearch)
+- `zensical.toml`: Added `extra_css = ["stylesheets/extra.css"]` to `[project]` section, added
+    `logo` and `favicon` to `[project.theme]` section
 
-- [x] `cargo test -p iscc-ffi` passes — 62 tests (50 existing + 12 new), all OK
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` is clean — no warnings
-- [x] `cargo test --workspace` passes — 292 tests across all crates, no regressions
-- [x] C test program compiles and passes — 30/30 assertions (20 existing + 10 new), exit 0
-- [x] `mise run check` passes — all 14 pre-commit hooks green
+**Verification:** All 11 verification criteria from next.md pass:
 
-**Issues found:**
+- `uv run zensical build` exits 0 (site builds successfully)
+- `test -f docs/stylesheets/extra.css` exits 0
+- `test -f docs/assets/logo_light.png` exits 0
+- `test -f docs/assets/favicon.png` exits 0
+- `grep -q 'extra_css' zensical.toml` exits 0
+- `grep -q 'logo.*=.*logo_light.png' zensical.toml` exits 0
+- `grep -q 'favicon.*=.*favicon.png' zensical.toml` exits 0
+- `grep -q '#0054b2' docs/stylesheets/extra.css` exits 0
+- `grep -q 'filter: invert(1)' docs/stylesheets/extra.css` exits 0
+- `grep -q 'copy-page' docs/stylesheets/extra.css; test $? -ne 0` exits 0 (copy-page CSS absent)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean
+- `mise run check` all 14 hooks pass
 
-- (none)
+**Next:** Consider adding the copy-page split-button dropdown (`copypage.js` + corresponding CSS
+rules) as the next documentation enhancement step. Alternatively, add `llms-full.txt` generation,
+social sharing meta tags, or the Diataxis navigation restructuring.
 
-**Next:** All four binding targets now have 23/23 Tier 1 parity. Consider these next priorities in
-order: (1) updating state.md to reflect C FFI at 23/23, (2) structured return types for gen
-functions across non-Python bindings (Node.js, WASM, C FFI currently return only `.iscc` strings
-while Python returns full result dicts), (3) splitting `iscc-ffi/src/lib.rs` into submodules (now
-~1,880 lines, exceeding the ~1,500 line guidance in the crate's CLAUDE.md), (4) documentation
-branding (ISCC colors, logo, favicon), or (5) OIDC publishing configuration.
-
-**Notes:** The implementation uses the `Option<Inner>` wrapper pattern consistently across all
-binding targets (Python `#[pyclass]`, napi-rs `#[napi]`, wasm-bindgen `#[wasm_bindgen]`, and now C
-FFI opaque pointers). The C FFI variant is the most involved because it requires manual
-`Box::into_raw`/`Box::from_raw` lifecycle management, but the advance agent handled this correctly
-with comprehensive NULL checks, error reporting via thread-local last-error, and proper memory
-management. The `iscc-ffi/src/lib.rs` file is now ~1,880 lines, which exceeds the crate's CLAUDE.md
-guidance of ~1,500 lines — the file should be split into submodules in a future iteration.
+**Notes:** The CSS was ported verbatim from iscc-usearch's `docs/stylesheets/extra.css`, with the
+copy-page split-button section removed as specified. No `primary = "indigo"` / `accent = "indigo"`
+palette keys were added to `zensical.toml` since the CSS selectors already match the default. No
+`custom_dir` was added since that is only needed when `overrides/main.html` is introduced later. No
+Rust code changes were made in this step.
