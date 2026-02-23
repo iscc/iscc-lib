@@ -7,12 +7,14 @@
 pub(crate) mod cdc;
 pub mod codec;
 pub(crate) mod dct;
-pub(crate) mod minhash;
-pub(crate) mod simhash;
+pub mod minhash;
+pub mod simhash;
 pub mod types;
 pub mod utils;
 pub(crate) mod wtahash;
 
+pub use minhash::alg_minhash_256;
+pub use simhash::{alg_simhash, sliding_window};
 pub use types::*;
 pub use utils::{text_clean, text_collapse, text_remove_newlines, text_trim};
 

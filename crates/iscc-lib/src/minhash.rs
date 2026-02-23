@@ -197,7 +197,7 @@ fn minhash_compress(mhash: &[u64], lsb: u32) -> Vec<u8> {
 ///
 /// Calls `minhash` to get 64-dimensional hash vector, then compresses
 /// with `lsb=4` to produce 32 bytes (64 × 4 bits = 256 bits).
-pub(crate) fn alg_minhash_256(features: &[u32]) -> Vec<u8> {
+pub fn alg_minhash_256(features: &[u32]) -> Vec<u8> {
     let mhash = minhash(features);
     minhash_compress(&mhash, 4)
 }

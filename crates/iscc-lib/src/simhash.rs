@@ -10,7 +10,7 @@ use std::cmp;
 /// Produces a similarity-preserving hash by counting bit frequencies across
 /// all input digests. Each output bit is set when its frequency meets or
 /// exceeds half the input count. Returns 32 zero bytes for empty input.
-pub(crate) fn alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> Vec<u8> {
+pub fn alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> Vec<u8> {
     if hash_digests.is_empty() {
         return vec![0u8; 32];
     }
@@ -49,7 +49,7 @@ pub(crate) fn alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> Vec<u8> {
 /// Returns overlapping substrings of `width` Unicode characters, advancing
 /// by one character at a time. If the input is shorter than `width`, returns
 /// a single element containing the full input.
-pub(crate) fn sliding_window(seq: &str, width: usize) -> Vec<String> {
+pub fn sliding_window(seq: &str, width: usize) -> Vec<String> {
     assert!(width >= 2, "Sliding window width must be 2 or bigger.");
     let chars: Vec<char> = seq.chars().collect();
     let len = chars.len();
