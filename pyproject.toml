@@ -23,8 +23,10 @@ dev = [
   "yamlfix",
   "ty",
   "pytest",
+  "pytest-benchmark",
   "pytest-cov",
   "pytest-timeout",
   "mdformat",
   "mdformat-mkdocs[recommended]",
+  "iscc-core",
 ]
