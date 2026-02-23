@@ -2,12 +2,12 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: All 5 crates complete (core + 4 bindings + C FFI) — docs, benchmark comparison, publishing remain
+## Phase: All 5 crates + C test program complete — docs, benchmark publishing, CI/CD publishing remain
 
-Rust core is fully implemented with all 9 `gen_*_v0` functions passing 143 conformance tests. All 4
-binding crates (Python/PyO3, Node.js/napi-rs, WASM/wasm-bindgen, C FFI/cbindgen) are complete with
-tests passing. CI has 4 jobs (Rust, Python, Node.js, WASM) all green. Remaining work is
-documentation site, benchmark comparison publishing, and CI/CD publishing pipelines.
+All 9 `gen_*_v0` functions are implemented in the Rust core with 143 conformance tests passing. All
+4 binding crates (Python, Node.js, WASM, C FFI) are complete with tests. A C test program verifies
+FFI correctness. CI has 5 jobs all green. Remaining work: documentation site, benchmark comparison
+publishing, and OIDC publishing pipelines.
 
 ## What Exists
 
@@ -17,44 +17,41 @@ documentation site, benchmark comparison publishing, and CI/CD publishing pipeli
     `py.typed`, module name `iscc_lib`
 - **Python tests (`tests/`)**: 46 conformance + 3 smoke tests (49 total), all passing
 - **Node.js bindings (`crates/iscc-napi/`)**: all 9 gen functions via napi-rs, `@iscc/lib` package
-- **Node.js tests (`crates/iscc-napi/__tests__/`)**: 46 conformance tests, passing in CI
+- **Node.js tests**: 46 conformance tests, passing in CI
 - **WASM bindings (`crates/iscc-wasm/`)**: all 9 gen functions via wasm-bindgen, conformance tests
-    passing in CI
-- **C FFI (`crates/iscc-ffi/`)**: all 9 gen functions as `extern "C"`, `iscc_free_string()`,
-    `iscc_last_error()`, cbindgen.toml, 20 unit tests
-- **Criterion benchmarks (`crates/iscc-lib/benches/`)**: all 9 gen functions
+- **C FFI (`crates/iscc-ffi/`)**: 11 extern "C" symbols, cbindgen.toml, 20 unit tests
+- **C test program (`crates/iscc-ffi/tests/test_iscc.c`)**: links and runs in CI
+- **Criterion benchmarks (`crates/iscc-lib/benches/`)**: all 9 gen functions benchmarked
 - **pytest-benchmark (`benchmarks/python/`)**: iscc-core baseline for all 9 gen functions
-- **Conformance vectors**: `crates/iscc-lib/tests/data.json` vendored, shared by Rust/Python/JS/WASM
+- **Conformance vectors**: `data.json` vendored, shared by Rust/Python/JS/WASM
 - **Workspace**: root `Cargo.toml` with centralized deps, release profile, 5 crate members
-- **CI workflow**: `.github/workflows/ci.yml` with 4 jobs — all green
+- **CI workflow**: 5 jobs (Rust, Python, Node.js, WASM, C FFI) — all green
 - **Dev tooling**: mise.toml, pyproject.toml, pre-commit hooks (prek), devcontainer, CID agents
 
 ## What's Missing
 
-- **C test program**: target requires a C test program calling entrypoints — not yet created
-- **pytest-benchmark for Rust bindings**: iscc_lib vs iscc-core comparison — not started
-- **Documentation site**: no lib.iscc.codes content or build setup
-- **CI/CD publishing**: no OIDC trusted publishing pipelines for crates.io, PyPI, or npm
-- **Benchmark results in docs**: speedup factors not yet published
+- **Documentation site**: no lib.iscc.codes content, no build setup (target: GitHub Pages)
+- **Benchmark comparison publishing**: speedup factors not yet documented; comparative
+    pytest-benchmark (iscc_lib vs iscc-core) not implemented
+- **CI/CD publishing pipelines**: no OIDC trusted publishing for crates.io, PyPI, or npm
 
 ## CI
 
-- **Status: PASSING** — all 4 jobs green (Rust, Python, Node.js, WASM)
-- **Run**: https://github.com/iscc/iscc-lib/actions/runs/22290628493
+- **Status: PASSING** — all 5 jobs green (Rust, Python, Node.js, WASM, C FFI)
+- **Run**: https://github.com/iscc/iscc-lib/actions/runs/22290956499
 
 ## Verification
 
 - `cargo test --workspace`: **163 passed** (143 core + 20 FFI), 0 failed
-- `cargo clippy --workspace -- -D warnings`: clean (core and FFI)
-- `cargo fmt --all --check`: clean
+- `cargo clippy -p iscc-lib -- -D warnings`: clean
 - `uv run pytest`: **49 passed**, 0 failed
-- Node.js CI job: **passing** (46 conformance tests)
-- WASM CI job: **passing** (conformance tests via wasm-pack)
-- cbindgen generates valid C header from `iscc-ffi`
-- No `unsafe` in core crate; FFI `unsafe` confined to boundary
+- Node.js CI: **passing** (46 conformance tests)
+- WASM CI: **passing** (conformance tests via wasm-pack)
+- C FFI CI: **passing** (cbindgen + gcc compile + test execution)
 
 ## Next Milestone
 
-**C test program**: Create a minimal C program that links `iscc-ffi` and calls the entrypoints to
-verify correctness, completing the C FFI target criterion. Alternatively, the documentation site
-(lib.iscc.codes) or benchmark comparison could be tackled next — all are independent workstreams.
+**Documentation site** (lib.iscc.codes): Set up a documentation build (e.g., mdBook or zola) with
+GitHub Pages deployment covering Rust API, Python API, and architecture. This is the largest
+remaining gap. Alternatively, benchmark comparison or OIDC publishing pipelines could be tackled —
+all are independent workstreams.
