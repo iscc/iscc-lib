@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 # CID agent roles executed in order per iteration
@@ -29,6 +30,7 @@ ROLES = ("update-state", "define-next", "advance", "review")
 
 CONTEXT_DIR = Path(".claude/context")
 STATE_FILE = CONTEXT_DIR / "state.md"
+LOG_FILE = CONTEXT_DIR / "iterations.jsonl"
 DONE_MARKER = "## Status: DONE"
 
 
@@ -98,10 +100,18 @@ def _process_output(stdout, role):
     return cost, turns, is_error
 
 
+def log_entry(cwd, entry):
+    """Append a single JSON line to the iteration log."""
+    log_path = cwd / LOG_FILE
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, separators=(",", ":")) + "\n")
+
+
 def run_agent(claude_cmd, role, iteration, cwd, skip_permissions=False):
     """Invoke a CID agent role via claude CLI.
 
-    Returns True if the agent completed successfully, False otherwise.
+    Returns a dict with keys: ok, role, iteration, turns, cost_usd, duration_s, status.
     """
     prompt = f"CID iteration {iteration}. Execute your protocol."
 
@@ -137,11 +147,22 @@ def run_agent(claude_cmd, role, iteration, cwd, skip_permissions=False):
         )
     except OSError as e:
         print(f"  ERROR: Failed to start claude: {e}")
-        return False
+        entry = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "iteration": iteration,
+            "role": role,
+            "status": "ERROR",
+            "turns": 0,
+            "cost_usd": 0.0,
+            "duration_s": 0.0,
+            "error": str(e),
+        }
+        log_entry(cwd, entry)
+        return {**entry, "ok": False}
 
     stdout = process.stdout  # guaranteed non-None by stdout=PIPE
     if stdout is None:  # pragma: no cover
-        return False
+        return {"ok": False, "role": role, "iteration": iteration}
     cost, turns, is_error = _process_output(stdout, role)
     process.wait()
     elapsed = time.time() - start
@@ -149,7 +170,18 @@ def run_agent(claude_cmd, role, iteration, cwd, skip_permissions=False):
     status = "FAIL" if (process.returncode != 0 or is_error) else "OK"
     print(f"  {role} {status} ({turns} turns, ${cost:.4f}, {elapsed:.0f}s)")
 
-    return status == "OK"
+    entry = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "iteration": iteration,
+        "role": role,
+        "status": status,
+        "turns": turns,
+        "cost_usd": round(cost, 6),
+        "duration_s": round(elapsed, 1),
+    }
+    log_entry(cwd, entry)
+
+    return {**entry, "ok": status == "OK"}
 
 
 # --- State inspection ---
@@ -185,9 +217,9 @@ def run_iteration(claude_cmd, iteration, cwd, skip_permissions=False):
         print(f"  CID Iteration {iteration} — {role}")
         print(f"{'─' * 60}")
 
-        success = run_agent(claude_cmd, role, iteration, cwd, skip_permissions)
+        result = run_agent(claude_cmd, role, iteration, cwd, skip_permissions)
 
-        if not success:
+        if not result["ok"]:
             print(f"\n  *** {role} failed. Stopping iteration. ***")
             return "fail"
 
@@ -256,6 +288,99 @@ def cmd_status(args):
     print(read_state_summary(cwd))
 
 
+def cmd_stats(args):
+    """Show summary statistics from the iteration log."""
+    cwd = Path(args.workdir).resolve()
+    log_path = cwd / LOG_FILE
+
+    if not log_path.exists():
+        print("(no iteration log found — run a CID iteration first)")
+        return
+
+    entries = []
+    for line in log_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+    if not entries:
+        print("(iteration log is empty)")
+        return
+
+    total_cost = sum(e.get("cost_usd", 0) for e in entries)
+    total_duration = sum(e.get("duration_s", 0) for e in entries)
+    total_turns = sum(e.get("turns", 0) for e in entries)
+    ok_count = sum(1 for e in entries if e.get("status") == "OK")
+    fail_count = len(entries) - ok_count
+    iterations = {e.get("iteration") for e in entries}
+
+    print(
+        f"CID Iteration Log — {len(entries)} agent runs across {len(iterations)} iterations"
+    )
+    print(f"{'─' * 60}")
+    print(f"  Total cost:     ${total_cost:.4f}")
+    print(f"  Total duration: {total_duration:.0f}s ({total_duration / 3600:.1f}h)")
+    print(f"  Total turns:    {total_turns}")
+    print(f"  Success/Fail:   {ok_count}/{fail_count}")
+    print()
+
+    # Per-role breakdown
+    role_stats = {}
+    for e in entries:
+        role = e.get("role", "unknown")
+        if role not in role_stats:
+            role_stats[role] = {
+                "cost": 0.0,
+                "duration": 0.0,
+                "turns": 0,
+                "runs": 0,
+                "fails": 0,
+            }
+        rs = role_stats[role]
+        rs["cost"] += e.get("cost_usd", 0)
+        rs["duration"] += e.get("duration_s", 0)
+        rs["turns"] += e.get("turns", 0)
+        rs["runs"] += 1
+        if e.get("status") != "OK":
+            rs["fails"] += 1
+
+    print(
+        f"  {'Role':<14} {'Runs':>5} {'Fails':>6} {'Cost':>9} {'Duration':>10} {'Turns':>6}"
+    )
+    print(f"  {'─' * 14} {'─' * 5} {'─' * 6} {'─' * 9} {'─' * 10} {'─' * 6}")
+    for role in ROLES:
+        rs = role_stats.get(role)
+        if not rs:
+            continue
+        print(
+            f"  {role:<14} {rs['runs']:>5} {rs['fails']:>6} "
+            f"${rs['cost']:>8.4f} {rs['duration']:>9.0f}s {rs['turns']:>6}"
+        )
+    # Show any roles not in ROLES (e.g., maintenance agents)
+    for role, rs in role_stats.items():
+        if role not in ROLES:
+            print(
+                f"  {role:<14} {rs['runs']:>5} {rs['fails']:>6} "
+                f"${rs['cost']:>8.4f} {rs['duration']:>9.0f}s {rs['turns']:>6}"
+            )
+
+    # Last 5 entries
+    print()
+    print("  Recent entries:")
+    for e in entries[-5:]:
+        ts = e.get("ts", "?")[:19]
+        role = e.get("role", "?")
+        status = e.get("status", "?")
+        cost = e.get("cost_usd", 0)
+        duration = e.get("duration_s", 0)
+        print(
+            f"    {ts}  iter={e.get('iteration', '?')}  {role:<14} {status}  ${cost:.4f}  {duration:.0f}s"
+        )
+
+
 def cmd_role(args):
     """Run a single CID role (for testing/debugging)."""
     claude_cmd = find_claude()
@@ -264,11 +389,11 @@ def cmd_role(args):
         sys.exit(1)
 
     cwd = Path(args.workdir).resolve()
-    success = run_agent(
+    result = run_agent(
         claude_cmd, args.role, args.iteration, cwd, args.skip_permissions
     )
 
-    if not success:
+    if not result["ok"]:
         sys.exit(1)
 
 
@@ -321,6 +446,10 @@ def main():
     # status
     status_p = sub.add_parser("status", help="Show current project state from state.md")
     status_p.set_defaults(func=cmd_status)
+
+    # stats
+    stats_p = sub.add_parser("stats", help="Show iteration log summary statistics")
+    stats_p.set_defaults(func=cmd_stats)
 
     # role (for testing individual agents)
     role_p = sub.add_parser(

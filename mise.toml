@@ -16,6 +16,10 @@ run = "uv run tools/cid.py --skip-permissions step"
 description = "Show current project state from state.md"
 run = "uv run tools/cid.py status"
 
+[tasks."cid:stats"]
+description = "Show iteration log summary statistics"
+run = "uv run tools/cid.py stats"
+
 [tasks."cid:state"]
 description = "Run update-state agent only"
 run = "uv run tools/cid.py --skip-permissions role update-state"
