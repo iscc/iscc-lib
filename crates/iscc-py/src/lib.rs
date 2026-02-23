@@ -3,123 +3,150 @@
 //! This module provides the low-level Rust-backed functions for the `iscc`
 //! Python package. The pure-Python wrapper in `python/iscc/__init__.py`
 //! re-exports these for a Pythonic API.
+//!
+//! All `gen_*_v0` functions return Python `dict` objects with the same keys
+//! and value types as the iscc-core reference implementation.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 
 /// Generate a Meta-Code from name and optional metadata.
 ///
-/// Produces an ISCC Meta-Code by hashing the provided name, description,
-/// and metadata fields using the SimHash algorithm.
+/// Returns a dict with keys: `iscc`, `name`, `metahash`, and optionally
+/// `description` and `meta`.
 #[pyfunction]
 #[pyo3(signature = (name, description=None, meta=None, bits=64))]
 fn gen_meta_code_v0(
+    py: Python<'_>,
     name: &str,
     description: Option<&str>,
     meta: Option<&str>,
     bits: u32,
-) -> PyResult<String> {
-    iscc_lib::gen_meta_code_v0(name, description, meta, bits)
-        .map(|r| r.iscc)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+) -> PyResult<PyObject> {
+    let r = iscc_lib::gen_meta_code_v0(name, description, meta, bits)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    dict.set_item("name", r.name)?;
+    dict.set_item("metahash", r.metahash)?;
+    if let Some(desc) = r.description {
+        dict.set_item("description", desc)?;
+    }
+    if let Some(meta) = r.meta {
+        dict.set_item("meta", meta)?;
+    }
+    Ok(dict.into())
 }
 
 /// Generate a Text-Code from plain text content.
 ///
-/// Produces an ISCC Content-Code for text using MinHash-based
-/// similarity hashing.
+/// Returns a dict with keys: `iscc`, `characters`.
 #[pyfunction]
 #[pyo3(signature = (text, bits=64))]
-fn gen_text_code_v0(text: &str, bits: u32) -> PyResult<String> {
-    iscc_lib::gen_text_code_v0(text, bits)
-        .map(|r| r.iscc)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+fn gen_text_code_v0(py: Python<'_>, text: &str, bits: u32) -> PyResult<PyObject> {
+    let r =
+        iscc_lib::gen_text_code_v0(text, bits).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    dict.set_item("characters", r.characters)?;
+    Ok(dict.into())
 }
 
 /// Generate an Image-Code from pixel data.
 ///
-/// Produces an ISCC Content-Code for images from 1024 grayscale pixels
-/// (32×32) using a DCT-based perceptual hash.
+/// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (pixels, bits=64))]
-fn gen_image_code_v0(pixels: &[u8], bits: u32) -> PyResult<String> {
-    iscc_lib::gen_image_code_v0(pixels, bits)
-        .map(|r| r.iscc)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+fn gen_image_code_v0(py: Python<'_>, pixels: &[u8], bits: u32) -> PyResult<PyObject> {
+    let r = iscc_lib::gen_image_code_v0(pixels, bits)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    Ok(dict.into())
 }
 
 /// Generate an Audio-Code from a Chromaprint feature vector.
 ///
-/// Produces an ISCC Content-Code for audio from signed integer
-/// Chromaprint fingerprint features using multi-stage SimHash.
+/// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (cv, bits=64))]
-fn gen_audio_code_v0(cv: Vec<i32>, bits: u32) -> PyResult<String> {
-    iscc_lib::gen_audio_code_v0(&cv, bits)
-        .map(|r| r.iscc)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+fn gen_audio_code_v0(py: Python<'_>, cv: Vec<i32>, bits: u32) -> PyResult<PyObject> {
+    let r =
+        iscc_lib::gen_audio_code_v0(&cv, bits).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    Ok(dict.into())
 }
 
 /// Generate a Video-Code from frame signature data.
 ///
-/// Produces an ISCC Content-Code for video from MPEG-7 frame
-/// signature vectors using WTA-Hash.
+/// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (frame_sigs, bits=64))]
-fn gen_video_code_v0(frame_sigs: Vec<Vec<i32>>, bits: u32) -> PyResult<String> {
-    iscc_lib::gen_video_code_v0(&frame_sigs, bits)
-        .map(|r| r.iscc)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+fn gen_video_code_v0(py: Python<'_>, frame_sigs: Vec<Vec<i32>>, bits: u32) -> PyResult<PyObject> {
+    let r = iscc_lib::gen_video_code_v0(&frame_sigs, bits)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    Ok(dict.into())
 }
 
 /// Generate a Mixed-Code from multiple Content-Code strings.
 ///
-/// Produces a Mixed Content-Code by combining multiple ISCC Content-Codes
-/// of different types using SimHash.
+/// Returns a dict with keys: `iscc`, `parts`.
 #[pyfunction]
 #[pyo3(signature = (codes, bits=64))]
-fn gen_mixed_code_v0(codes: Vec<String>, bits: u32) -> PyResult<String> {
+fn gen_mixed_code_v0(py: Python<'_>, codes: Vec<String>, bits: u32) -> PyResult<PyObject> {
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
-    iscc_lib::gen_mixed_code_v0(&refs, bits)
-        .map(|r| r.iscc)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+    let r = iscc_lib::gen_mixed_code_v0(&refs, bits)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    dict.set_item("parts", r.parts)?;
+    Ok(dict.into())
 }
 
 /// Generate a Data-Code from raw byte data.
 ///
-/// Produces an ISCC Data-Code by splitting data into content-defined
-/// chunks and applying MinHash for similarity hashing.
+/// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (data, bits=64))]
-fn gen_data_code_v0(data: &[u8], bits: u32) -> PyResult<String> {
-    iscc_lib::gen_data_code_v0(data, bits)
-        .map(|r| r.iscc)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+fn gen_data_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<PyObject> {
+    let r =
+        iscc_lib::gen_data_code_v0(data, bits).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    Ok(dict.into())
 }
 
 /// Generate an Instance-Code from raw byte data.
 ///
-/// Produces an ISCC Instance-Code by hashing the complete byte stream
-/// with BLAKE3. Returns the ISCC string with "ISCC:" prefix.
+/// Returns a dict with keys: `iscc`, `datahash`, `filesize`.
 #[pyfunction]
 #[pyo3(signature = (data, bits=64))]
-fn gen_instance_code_v0(data: &[u8], bits: u32) -> PyResult<String> {
-    iscc_lib::gen_instance_code_v0(data, bits)
-        .map(|r| r.iscc)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+fn gen_instance_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<PyObject> {
+    let r = iscc_lib::gen_instance_code_v0(data, bits)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    dict.set_item("datahash", r.datahash)?;
+    dict.set_item("filesize", r.filesize)?;
+    Ok(dict.into())
 }
 
 /// Generate a composite ISCC-CODE from individual unit codes.
 ///
-/// Combines multiple ISCC unit codes into a single composite ISCC-CODE.
-/// Requires at least Data-Code and Instance-Code.
+/// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (codes, wide=false))]
-fn gen_iscc_code_v0(codes: Vec<String>, wide: bool) -> PyResult<String> {
+fn gen_iscc_code_v0(py: Python<'_>, codes: Vec<String>, wide: bool) -> PyResult<PyObject> {
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
-    iscc_lib::gen_iscc_code_v0(&refs, wide)
-        .map(|r| r.iscc)
-        .map_err(|e| PyValueError::new_err(e.to_string()))
+    let r = iscc_lib::gen_iscc_code_v0(&refs, wide)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    Ok(dict.into())
 }
 
 /// Python module `iscc._lowlevel` backed by Rust.

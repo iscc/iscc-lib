@@ -1,11 +1,13 @@
 """Type stubs for the native Rust extension module `iscc_lib._lowlevel`."""
 
+from typing import Any
+
 def gen_meta_code_v0(
     name: str,
     description: str | None = None,
     meta: str | None = None,
     bits: int = 64,
-) -> str:
+) -> dict[str, Any]:
     """Generate an ISCC Meta-Code from content metadata.
 
     Produces a similarity-preserving fingerprint by hashing the provided name,
@@ -16,11 +18,12 @@ def gen_meta_code_v0(
     :param description: Optional text description (max 4096 chars after normalization).
     :param meta: Optional Data-URL or JSON metadata for deterministic encoding.
     :param bits: Bit length of the code body (default 64).
-    :return: JSON string containing ``iscc`` and ``metahash`` fields.
+    :return: Dict with ``iscc``, ``name``, ``metahash``, and optionally
+        ``description`` and ``meta`` keys.
     """
     ...
 
-def gen_text_code_v0(text: str, bits: int = 64) -> str:
+def gen_text_code_v0(text: str, bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Text-Code from plain text content.
 
     Produces a Content-Code for text by collapsing the input, extracting
@@ -29,11 +32,11 @@ def gen_text_code_v0(text: str, bits: int = 64) -> str:
 
     :param text: Plain text content to fingerprint.
     :param bits: Bit length of the code body (default 64).
-    :return: JSON string containing the ``iscc`` field.
+    :return: Dict with ``iscc`` and ``characters`` keys.
     """
     ...
 
-def gen_image_code_v0(pixels: bytes, bits: int = 64) -> str:
+def gen_image_code_v0(pixels: bytes, bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Image-Code from pixel data.
 
     Produces a Content-Code for images from a sequence of 1024 grayscale
@@ -41,11 +44,11 @@ def gen_image_code_v0(pixels: bytes, bits: int = 64) -> str:
 
     :param pixels: Raw grayscale pixel bytes (exactly 1024 bytes for 32x32).
     :param bits: Bit length of the code body (default 64).
-    :return: JSON string containing the ``iscc`` field.
+    :return: Dict with ``iscc`` key.
     """
     ...
 
-def gen_audio_code_v0(cv: list[int], bits: int = 64) -> str:
+def gen_audio_code_v0(cv: list[int], bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Audio-Code from a Chromaprint feature vector.
 
     Produces a Content-Code for audio from a Chromaprint signed integer
@@ -53,11 +56,11 @@ def gen_audio_code_v0(cv: list[int], bits: int = 64) -> str:
 
     :param cv: Chromaprint signed integer (i32) feature vector.
     :param bits: Bit length of the code body (default 64).
-    :return: JSON string containing the ``iscc`` field.
+    :return: Dict with ``iscc`` key.
     """
     ...
 
-def gen_video_code_v0(frame_sigs: list[list[int]], bits: int = 64) -> str:
+def gen_video_code_v0(frame_sigs: list[list[int]], bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Video-Code from frame signature data.
 
     Produces a Content-Code for video from a sequence of frame signatures.
@@ -66,11 +69,11 @@ def gen_video_code_v0(frame_sigs: list[list[int]], bits: int = 64) -> str:
 
     :param frame_sigs: List of frame signatures, each a list of signed integers.
     :param bits: Bit length of the code body (default 64).
-    :return: JSON string containing the ``iscc`` field.
+    :return: Dict with ``iscc`` key.
     """
     ...
 
-def gen_mixed_code_v0(codes: list[str], bits: int = 64) -> str:
+def gen_mixed_code_v0(codes: list[str], bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Mixed-Code from multiple Content-Code strings.
 
     Produces a Mixed Content-Code by combining multiple ISCC Content-Codes of
@@ -79,11 +82,11 @@ def gen_mixed_code_v0(codes: list[str], bits: int = 64) -> str:
 
     :param codes: List of ISCC Content-Code strings to combine.
     :param bits: Bit length of the code body (default 64).
-    :return: JSON string containing the ``iscc`` field.
+    :return: Dict with ``iscc`` and ``parts`` keys.
     """
     ...
 
-def gen_data_code_v0(data: bytes, bits: int = 64) -> str:
+def gen_data_code_v0(data: bytes, bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Data-Code from raw byte data.
 
     Produces a Data-Code by splitting data into content-defined chunks,
@@ -92,11 +95,11 @@ def gen_data_code_v0(data: bytes, bits: int = 64) -> str:
 
     :param data: Raw binary data to fingerprint.
     :param bits: Bit length of the code body (default 64).
-    :return: JSON string containing the ``iscc`` field.
+    :return: Dict with ``iscc`` key.
     """
     ...
 
-def gen_instance_code_v0(data: bytes, bits: int = 64) -> str:
+def gen_instance_code_v0(data: bytes, bits: int = 64) -> dict[str, Any]:
     """Generate an ISCC Instance-Code from raw byte data.
 
     Produces an Instance-Code by hashing the complete byte stream with BLAKE3.
@@ -104,11 +107,11 @@ def gen_instance_code_v0(data: bytes, bits: int = 64) -> str:
 
     :param data: Raw binary data to hash.
     :param bits: Bit length of the code body (default 64).
-    :return: JSON string containing the ``iscc`` field.
+    :return: Dict with ``iscc``, ``datahash``, and ``filesize`` keys.
     """
     ...
 
-def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> str:
+def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> dict[str, Any]:
     """Generate a composite ISCC-CODE from individual ISCC unit codes.
 
     Combines multiple ISCC unit codes (Meta-Code, Content-Code, Data-Code,
@@ -119,6 +122,6 @@ def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> str:
 
     :param codes: List of ISCC unit code strings to combine.
     :param wide: Whether to produce a wide (256-bit) code (default False).
-    :return: JSON string containing the ``iscc`` field.
+    :return: Dict with ``iscc`` key.
     """
     ...
