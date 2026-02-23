@@ -1,111 +1,154 @@
 # Next Work Package
 
-## Step: Add Open Graph and Twitter Card social meta tags
+## Step: Restructure documentation navigation into Diataxis categories
 
 ## Goal
 
-Add social sharing meta tags (Open Graph and Twitter Card) to the documentation site via a template
-override, so that links to lib.iscc.codes render rich previews on social platforms and messaging
-apps. This is an explicit verification criterion in the documentation spec ("Open Graph meta tags
-are present in built HTML").
+Reorganize the flat site navigation into Diataxis framework sections (How-to Guides, Explanation,
+Reference) and create per-language how-to guide pages for Python, Node.js, and WASM. This is the
+largest remaining documentation gap per state.md and is an explicit verification criterion in the
+documentation spec ("Navigation follows Diataxis framework").
 
 ## Scope
 
-- **Create**: `overrides/main.html` — Jinja2 template override extending zensical's `main.html`,
-    injecting OG and Twitter Card meta tags into the `{% block extrahead %}` block
-- **Modify**: `zensical.toml` — add `custom_dir = "overrides"` under `[project.theme]`
+- **Create**:
+    - `docs/howto/python.md` -- Python usage guide (installation, code generation, streaming,
+        structured results)
+    - `docs/howto/nodejs.md` -- Node.js usage guide (installation, code generation, streaming)
+    - `docs/howto/wasm.md` -- WASM usage guide (installation, browser/Node.js setup, code generation)
+- **Modify**:
+    - `zensical.toml` -- restructure `nav` from flat list into Diataxis sections
 - **Reference**:
-    `/home/dev/.venvs/iscc-lib/lib/python3.12/site-packages/zensical/templates/base.html` (lines
-    8-38 for `site_meta` block, line 89 for `extrahead` block), `/workspace/iscc-lib/zensical.toml`
-    (current config), `/workspace/iscc-lib/.claude/context/specs/documentation.md` (social sharing
-    requirement)
+    - `/workspace/iscc-lib/.claude/context/specs/documentation.md` (Diataxis nav requirements)
+    - `/workspace/iscc-lib/docs/index.md` (existing landing page)
+    - `/workspace/iscc-lib/docs/architecture.md` (existing explanation page)
+    - `/workspace/iscc-lib/docs/rust-api.md` (existing Rust reference)
+    - `/workspace/iscc-lib/docs/api.md` (existing Python API reference)
+    - `/workspace/iscc-lib/docs/benchmarks.md` (existing benchmarks page)
+    - `/workspace/iscc-lib/zensical.toml` (current config)
+    - `/workspace/iscc-lib/crates/iscc-py/python/iscc_lib/__init__.py` (Python API surface)
+    - `/workspace/iscc-lib/crates/iscc-napi/package.json` (npm package name)
+    - `/workspace/iscc-lib/crates/iscc-wasm/src/lib.rs` (WASM API surface)
 
 ## Not In Scope
 
-- Diataxis navigation restructuring — separate step requiring new content pages and nav
-    reorganization
-- Per-language how-to guides (Node.js, WASM) — separate step
-- Abbreviations file (`docs/includes/abbreviations.md`) — separate step
-- OIDC publishing configuration — separate step
-- Creating a social preview image (og:image) — the meta tags should reference the existing logo
-    (`assets/logo_light.png`) but do NOT create a dedicated social card image or use the
-    mkdocs-material social plugin
-- Any changes to Rust source code or binding crates
+- Creating a "Tutorials / Getting Started" page -- the existing `index.md` already serves as a
+    landing page with a quick start section; a dedicated tutorial can be added in a future step
+- Moving existing markdown files into subdirectories (e.g., `docs/explanation/architecture.md`) --
+    MkDocs Material supports section labels in nav without requiring files to match directory
+    structure; keep existing files in place to avoid breaking links and llms.txt references
+- Abbreviations file (`docs/includes/abbreviations.md`) -- separate step
+- CNAME file (`docs/CNAME`) -- separate step
+- OIDC publishing configuration -- separate step
+- Changes to Rust source code or binding crates
+- Updating `docs/llms.txt` or `scripts/gen_llms_full.py` for new pages -- the generation script
+    auto-discovers all built pages, so new pages will be included automatically
 
 ## Implementation Notes
 
-### `overrides/main.html`
+### Navigation structure in `zensical.toml`
 
-Create a Jinja2 template that extends `main.html` and overrides the `{% block extrahead %}` block.
-The pattern is standard MkDocs Material:
+Replace the flat `nav` list with Diataxis-organized sections. The zensical.toml `nav` uses TOML
+inline table syntax (since zensical wraps MkDocs Material). The format is:
 
-```jinja2
-{% extends "main.html" %}
-
-{% block extrahead %}
-  {% set title = page.meta.title or page.title or config.site_name %}
-  {% set description = page.meta.description or config.site_description %}
-  {% set url = page.canonical_url or config.site_url %}
-  {% set image = config.site_url ~ "assets/logo_light.png" %}
-
-  <!-- Open Graph -->
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="{{ title }}">
-  <meta property="og:description" content="{{ description }}">
-  <meta property="og:url" content="{{ url }}">
-  <meta property="og:image" content="{{ image }}">
-  <meta property="og:site_name" content="{{ config.site_name }}">
-
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="{{ title }}">
-  <meta name="twitter:description" content="{{ description }}">
-  <meta name="twitter:image" content="{{ image }}">
-{% endblock %}
+```toml
+nav = [
+  "index.md",
+  { "How-to Guides" = [
+    { "Python" = "howto/python.md" },
+    { "Node.js" = "howto/nodejs.md" },
+    { "WebAssembly" = "howto/wasm.md" },
+  ] },
+  { "Explanation" = [
+    { "Architecture" = "architecture.md" },
+  ] },
+  { "Reference" = [
+    { "Rust API" = "rust-api.md" },
+    { "Python API" = "api.md" },
+  ] },
+  { "Benchmarks" = "benchmarks.md" },
+]
 ```
 
-Key details:
+Key decisions:
 
-1. Use `page.meta.title` (from YAML front matter) with fallback to `page.title` (auto-derived from
-    H1), then `config.site_name` as final fallback
-2. Use `page.meta.description` with fallback to `config.site_description` (defined in zensical.toml)
-3. The `og:image` should use the absolute URL to `assets/logo_light.png` (already hosted)
-4. Use `twitter:card` type `summary` (not `summary_large_image`) since we have a logo, not a
-    dedicated social card image
-5. Ensure no trailing slash issues in URLs by using Jinja2 `~` concatenation
+- `index.md` stays at top level (landing page, not inside a section)
+- `architecture.md` maps to Explanation (it explains *how* the system works)
+- `rust-api.md` and `api.md` map to Reference (technical API docs)
+- `benchmarks.md` stays at top level (doesn't fit neatly into any Diataxis quadrant)
+- Existing files stay in their current locations -- no file moves required
+- How-to guide files go in `docs/howto/` subdirectory (new pages)
 
-### `zensical.toml`
+### How-to guide content (`docs/howto/python.md`)
 
-Add `custom_dir = "overrides"` inside the existing `[project.theme]` section. This tells zensical
-(MkDocs Material) to look in the `overrides/` directory for template overrides. Place it right after
-the `favicon` line for readability.
+This is the most detailed guide since Python has the richest API surface (structured results via
+`IsccResult` subclasses, `BinaryIO` support for streaming). Content should cover:
 
-### Build verification
+1. Installation (`pip install iscc-lib`)
+2. Basic code generation (all 9 `gen_*_v0` functions with examples)
+3. Structured results (accessing `.iscc`, `.characters`, `.datahash` etc. as attributes)
+4. Streaming with `DataHasher` and `InstanceHasher` (file-like objects)
+5. Text utilities (`text_clean`, `text_collapse`, etc.)
 
-After making changes, `uv run zensical build` must succeed, and the built HTML files in `site/` must
-contain the Open Graph meta tags. Check by grepping any built HTML file (e.g., `site/index.html`)
-for `og:title`.
+Use tabbed code blocks only where showing cross-language comparison adds value. In per-language
+how-to guides, focus on the target language exclusively.
+
+### How-to guide content (`docs/howto/nodejs.md`)
+
+Cover:
+
+1. Installation (`npm install @iscc/lib`)
+2. Import pattern (`import { gen_text_code_v0 } from "@iscc/lib"`)
+3. Basic code generation examples
+4. Streaming with `DataHasher` and `InstanceHasher` (Buffer input)
+
+### How-to guide content (`docs/howto/wasm.md`)
+
+Cover:
+
+1. Installation (`npm install @iscc/iscc-wasm`)
+2. Browser setup (import from bundler vs CDN)
+3. Node.js setup
+4. Basic code generation examples
+5. Note about `Uint8Array` for binary data (WASM does not have `Buffer`)
+
+### General guidance
+
+- Each how-to guide should be self-contained with working code examples
+- Use level 1 heading (`#`) for the page title
+- Include install instructions at the top of each guide
+- Show realistic examples (not just "Hello World" -- include metadata, streaming, etc.)
+- Reference the existing Quick Start in `index.md` for consistency in example patterns
+- The Python quick start in `index.md` shows `json.loads()` usage but the Python bindings actually
+    return dict-like `IsccResult` objects directly -- the how-to guide should show the idiomatic
+    pattern with attribute access
 
 ## Verification
 
-- `uv run zensical build` exits 0 (site builds with the override)
-- `test -f overrides/main.html` exits 0 (override file exists)
-- `grep -q 'custom_dir' zensical.toml` exits 0 (custom_dir configured)
-- `grep -q 'overrides' zensical.toml` exits 0 (points to overrides directory)
-- `grep -q 'og:title' overrides/main.html` exits 0 (Open Graph title tag present)
-- `grep -q 'og:description' overrides/main.html` exits 0 (Open Graph description tag present)
-- `grep -q 'og:image' overrides/main.html` exits 0 (Open Graph image tag present)
-- `grep -q 'og:url' overrides/main.html` exits 0 (Open Graph URL tag present)
-- `grep -q 'twitter:card' overrides/main.html` exits 0 (Twitter Card tag present)
-- `grep -q 'twitter:title' overrides/main.html` exits 0 (Twitter Card title present)
-- `grep -q 'og:title' site/index.html` exits 0 (OG tags rendered in built HTML)
-- `grep -q 'og:title' site/architecture/index.html` exits 0 (OG tags rendered on non-index page)
-- `grep -q 'twitter:card' site/index.html` exits 0 (Twitter Card rendered in built HTML)
-- `cargo clippy --workspace --all-targets -- -D warnings` still clean (no Rust changes)
+- `uv run zensical build` exits 0 (site builds with restructured nav)
+- `test -f docs/howto/python.md` exits 0 (Python how-to guide exists)
+- `test -f docs/howto/nodejs.md` exits 0 (Node.js how-to guide exists)
+- `test -f docs/howto/wasm.md` exits 0 (WASM how-to guide exists)
+- `grep -q 'How-to Guides' zensical.toml` exits 0 (Diataxis section in nav)
+- `grep -q 'Explanation' zensical.toml` exits 0 (Diataxis section in nav)
+- `grep -q 'Reference' zensical.toml` exits 0 (Diataxis section in nav)
+- `grep -q 'howto/python' zensical.toml` exits 0 (Python guide in nav)
+- `grep -q 'howto/nodejs' zensical.toml` exits 0 (Node.js guide in nav)
+- `grep -q 'howto/wasm' zensical.toml` exits 0 (WASM guide in nav)
+- `grep -c '^#' docs/howto/python.md` outputs at least 1 (has heading)
+- `grep -c '^#' docs/howto/nodejs.md` outputs at least 1 (has heading)
+- `grep -c '^#' docs/howto/wasm.md` outputs at least 1 (has heading)
+- `grep -q 'pip install' docs/howto/python.md` exits 0 (has install instructions)
+- `grep -q 'npm install' docs/howto/nodejs.md` exits 0 (has install instructions)
+- `grep -q 'npm install' docs/howto/wasm.md` exits 0 (has install instructions)
+- `grep -q 'gen_text_code_v0' docs/howto/python.md` exits 0 (has code generation example)
+- `grep -q 'DataHasher' docs/howto/python.md` exits 0 (covers streaming)
 - `uv run prek run --all-files` passes (pre-commit hooks clean)
+- `cargo clippy --workspace --all-targets -- -D warnings` still clean (no Rust changes)
 
 ## Done When
 
-All verification criteria pass: the documentation site builds with Open Graph and Twitter Card meta
-tags present in every built HTML page, using page-specific titles/descriptions with proper
-fallbacks, and referencing the ISCC logo as the social preview image.
+All verification criteria pass: the documentation site builds with Diataxis-organized navigation
+showing How-to Guides (Python, Node.js, WASM), Explanation (Architecture), and Reference (Rust API,
+Python API) sections, with substantive per-language how-to guide pages containing installation
+instructions, code examples, and streaming usage patterns.
