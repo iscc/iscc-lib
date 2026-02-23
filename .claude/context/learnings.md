@@ -135,3 +135,10 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     extension doesn't convert `---` to em dashes — use Unicode `—` directly
 - All `gen_*_v0` functions return JSON strings across all bindings (Rust `String`, Python `str`,
     etc.) — documentation examples must use `json.loads()` or similar before indexing fields
+- mkdocstrings + griffe: set `paths` to the parent directory containing the package (e.g.,
+    `crates/iscc-py/python` not `crates/iscc-py/python/iscc_lib`) so griffe resolves imports
+    correctly. Use `allow_inspection = false` to force static analysis from `.pyi` stubs when PyO3
+    embedded docstrings lack parameter annotations
+- mdformat-mkdocs mangles mkdocstrings `:::` directives with inline options (collapses indentation,
+    escapes underscores). Workaround: move all mkdocstrings options to `zensical.toml` global config
+    and keep the `:::` directive minimal (e.g., `::: iscc_lib` with no inline options)
