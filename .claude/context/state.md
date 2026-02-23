@@ -1,14 +1,16 @@
-<!-- assessed-at: 9b06e53e8dfc20dd02b90c7f4c47e063e96b578d -->
+<!-- assessed-at: 183c8e12791fa4b53ff3e45f8807bc3d63396c17 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Full binding parity — all four binding targets at 23/23 Tier 1
+## Phase: Documentation branding complete — copy-page, llms-full.txt, and Diátaxis nav remaining
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
 Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). CI is fully green across all 5
-jobs. Remaining gaps are in documentation branding and publishing pipeline configuration.
+jobs. ISCC Foundation branding (colors, logo, favicon) has been added to the documentation site.
+Remaining gaps are in documentation features (copy-page, llms-full.txt, Diátaxis navigation) and
+publishing pipeline configuration (OIDC trusted publishing).
 
 ## Rust Core Crate
 
@@ -92,9 +94,13 @@ jobs. Remaining gaps are in documentation branding and publishing pipeline confi
 - Site builds and deploys via GitHub Pages (CI-verified, Docs workflow: success)
 - Uses `zensical` build tool with `zensical.toml` config
 - Tabbed code examples configured via `pymdownx.tabbed` with `alternate_style = true`
-- Missing: ISCC branding — no custom CSS, no ISCC logo/favicon, no primary/accent color
-    customization matching iscc-usearch
-- Missing: copy-page feature and `llms-full.txt` generation
+- ISCC branding now in place: `docs/stylesheets/extra.css` (131 lines) with ISCC Blue (#0054b2)
+    primary/accent colors, deep navy (#123663) header/footer, dark mode inversion for logo
+- `docs/assets/logo_light.png` present (5000x1906 px, 113KB) and referenced in `zensical.toml`
+- `docs/assets/favicon.png` present (300x300 px, 13KB) and referenced in `zensical.toml`
+- `extra_css = ["stylesheets/extra.css"]` configured in `zensical.toml`
+- Missing: copy-page split-button feature (`copypage.js` + corresponding CSS rules)
+- Missing: `llms-full.txt` generation for agent consumption
 - Missing: Diátaxis navigation framework (tutorials, howto, explanation, reference sections)
 - Missing: per-language how-to guides (Node.js, WASM guides not present in nav)
 
@@ -117,10 +123,11 @@ jobs. Remaining gaps are in documentation branding and publishing pipeline confi
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
 - Latest CI run: **PASSING** —
-    [Run 22322848137](https://github.com/iscc/iscc-lib/actions/runs/22322848137) — all 5 jobs
-    success (Rust, Node.js, WASM, Python, C FFI)
+    [Run 22323271928](https://github.com/iscc/iscc-lib/actions/runs/22323271928) — all 5 jobs
+    success (Rust, Python, Node.js, WASM, C FFI)
 - Latest Docs run: **PASSING** —
-    [Run 22322848154](https://github.com/iscc/iscc-lib/actions/runs/22322848154)
+    [Run 22323271900](https://github.com/iscc/iscc-lib/actions/runs/22323271900) — build + deploy
+    success
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
 - Missing: npm publishing pipeline not fully wired (npm does not support OIDC; `NODE_AUTH_TOKEN`
     secret setup not documented as complete)
@@ -128,11 +135,14 @@ jobs. Remaining gaps are in documentation branding and publishing pipeline confi
 
 ## Next Milestone
 
-With all four binding targets at 23/23 Tier 1 parity and CI fully green, the highest-value next
-priorities are:
+With ISCC branding complete and all four binding targets at 23/23 Tier 1 parity with CI fully green,
+the highest-value next priorities are:
 
-1. **Documentation branding** — add ISCC custom CSS (primary/accent colors), logo, and favicon
-    matching iscc-usearch at `usearch.iscc.codes`; add copy-page feature and `llms-full.txt`
-    generation; restructure navigation to follow Diátaxis framework with per-language how-to guides
-2. **OIDC publishing configuration** — configure crates.io and PyPI trusted publishing in
+1. **Copy-page feature** — add `copypage.js` script and corresponding CSS rules (split-button
+    dropdown) to the documentation site, matching the iscc-usearch implementation
+2. **`llms-full.txt` generation** — configure zensical/mkdocs to generate an agent-friendly
+    concatenated text file of all documentation pages
+3. **OIDC publishing configuration** — configure crates.io and PyPI trusted publishing in
     `release.yml` so releases require no long-lived API keys
+4. **Diátaxis navigation restructuring** — reorganize site navigation into tutorials, howto,
+    explanation, and reference sections with per-language how-to guides
