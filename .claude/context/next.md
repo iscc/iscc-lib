@@ -1,60 +1,53 @@
 # Next Work Package
 
-## Step: Promote soft_hash_video_v0 to Tier 1 public API
+## Step: Implement encode_base64 Tier 1 function
 
 ## Goal
 
-Promote `soft_hash_video_v0` from private `fn` to `pub fn` as a Tier 1 public API symbol. This
-brings the promoted symbol count from 17 to 18 of 22 and exposes the video similarity hashing
-primitive that downstream consumers need for building custom video fingerprinting pipelines.
+Add `encode_base64` as a public Tier 1 API function in the codec module. This is the simplest of the
+4 remaining Tier 1 symbols — a one-line wrapper around `data_encoding::BASE64URL_NOPAD` matching
+iscc-core's `encode_base64` (RFC 4648 base64url, no padding).
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `crates/iscc-lib/src/lib.rs` (change `fn soft_hash_video_v0` →
-    `pub fn   soft_hash_video_v0`), `crates/iscc-lib/tests/test_algorithm_primitives.rs` (add
-    `soft_hash_video_v0` integration tests)
-- **Reference**: `crates/iscc-lib/src/lib.rs` (lines 520-544, current implementation),
-    `crates/iscc-lib/tests/test_algorithm_primitives.rs` (existing test pattern),
-    `reference/iscc-core/iscc_core/code_content_video.py` (Python reference for behavior)
+- **Create**: (none)
+- **Modify**: `crates/iscc-lib/src/codec.rs` (add function + tests), `crates/iscc-lib/src/lib.rs`
+    (add re-export)
+- **Reference**: `reference/iscc-core/iscc_core/codec.py` (lines 307-313: `encode_base64`),
+    `crates/iscc-lib/src/codec.rs` (lines 378-391: existing `encode_base32`/`decode_base32` pattern)
 
 ## Implementation Notes
 
-This is simpler than prior promotions because `soft_hash_video_v0` is defined directly in `lib.rs`
-(not in a submodule), so no module visibility change or re-export is needed — just the function
-visibility.
+1. **Function**: Add `pub fn encode_base64(data: &[u8]) -> String` in `codec.rs`, right after the
+    existing base32 section (after line 391). Use `data_encoding::BASE64URL_NOPAD.encode(data)` —
+    this matches Python's `base64.urlsafe_b64encode(data).decode("ascii").rstrip("=")` exactly. Add
+    a short docstring: "Encode bytes as base64url (RFC 4648 §5, no padding)."
 
-1. In `lib.rs` line 524: change `fn soft_hash_video_v0` → `pub fn soft_hash_video_v0`
-2. Add a doc-comment line noting this is a Tier 1 public API function (the existing docstring is
-    fine, just ensure it's `///` not `//`)
-3. No `pub use` re-export needed — the function is already at crate root scope
+2. **Re-export**: In `lib.rs`, add `codec::encode_base64` to the module's public surface. The codec
+    module is already `pub mod codec`, so the function just needs to be `pub fn`. Also add a flat
+    re-export: `pub use codec::encode_base64;` alongside the existing `pub use` lines.
 
-Add integration tests to `test_algorithm_primitives.rs`:
+3. **Tests**: Add tests in the `codec.rs` `#[cfg(test)] mod tests` section:
 
-- **Basic hashing**: call `soft_hash_video_v0` with known frame signatures, verify it returns a
-    digest of `bits/8` bytes length
-- **Default 64-bit output**: verify `bits=64` returns 8-byte digest
-- **256-bit output**: verify `bits=256` returns 32-byte digest
-- **Deduplication**: verify that duplicate frame signatures don't change the result (pass same sigs
-    twice, compare with single copy)
-- **Empty input error**: verify empty `frame_sigs` slice returns `IsccError::InvalidInput`
-- **Consistency with gen_video_code_v0**: verify that calling `soft_hash_video_v0` with the same
-    inputs used by `gen_video_code_v0` conformance vectors produces a digest that matches the body
-    portion of the encoded video code (extract body via `codec::decode_header`)
-- **Flat import path**: verify `iscc_lib::soft_hash_video_v0` compiles
+    - Empty input: `encode_base64(&[])` → `""`
+    - Known value: `encode_base64(&[0, 1, 2, 3])` → verify against Python (`AAECAT` — run
+        `base64.urlsafe_b64encode(bytes([0,1,2,3])).decode().rstrip("=")` to confirm)
+    - Roundtrip with `data_encoding::BASE64URL_NOPAD.decode()` for random-ish data
+    - Padding-free: verify output contains no `=` characters
 
-Run workspace-wide clippy (`cargo clippy --workspace --all-targets -- -D warnings`) before
-finishing, per learnings about newer lints only surfacing in `--all-targets` mode.
+4. **Pattern**: Follow the exact pattern of `encode_base32` — public function, one-line body,
+    concise docstring. No error return needed (encoding always succeeds).
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing 188 tests + new soft_hash_video integration tests)
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- `iscc_lib::soft_hash_video_v0` is callable from integration tests
-- Function returns correct-length digest (8 bytes for bits=64, 32 bytes for bits=256)
-- Empty input returns appropriate error
+- `cargo test -p iscc-lib` passes (all 193+ tests including new encode_base64 tests)
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `iscc_lib::encode_base64(&[0, 1, 2, 3])` returns the correct base64url string
+- `iscc_lib::encode_base64(&[])` returns `""`
+- Output matches iscc-core `encode_base64` for identical inputs (base64url, no padding)
+- Function is importable as `iscc_lib::encode_base64` (flat re-export)
 
 ## Done When
 
-All verification criteria pass: tests green, clippy clean, `soft_hash_video_v0` accessible as a
-public function from integration tests, and output matches expected digest lengths.
+All verification criteria pass — `encode_base64` is a public Tier 1 function producing base64url
+output matching iscc-core, with tests proving correctness.
