@@ -190,3 +190,9 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     wrapper and return `PyValueError` before calling the Rust function. Example: `sliding_window`
     checks `width < 2` to avoid a Rust panic propagating across FFI. Use `map_err(PyValueError)` for
     functions that return `Result`; use pre-validation for functions that use `assert!`
+- PyO3 `#[pyclass]` streaming hasher pattern: use `Option<Inner>` where `update()` calls
+    `inner.as_mut().ok_or(already finalized)?` and `finalize()` calls `inner.take().ok_or(...)`.
+    Python wrapper class in `__init__.py` adds `BinaryIO` support and optional constructor `data`
+    parameter. Import lowlevel class with underscore prefix (`_DataHasher`) to avoid name collision
+    with the wrapper class. All 23 Tier 1 Python symbols: 33 total in `__all__` (23 API + 10 result
+    type classes)
