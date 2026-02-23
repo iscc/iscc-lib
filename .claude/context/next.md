@@ -1,117 +1,137 @@
 # Next Work Package
 
-## Step: Implement iscc_decompose and decode_units codec functions
+## Step: Implement DataHasher and InstanceHasher streaming types
 
 ## Goal
 
-Add `iscc_decompose` (Tier 1) and its helper `decode_units` to the codec module. This is the 20th of
-22 Tier 1 symbols — a pure codec function that splits a composite ISCC-CODE or concatenated ISCC
-sequence into individual ISCC-UNIT strings. It depends entirely on existing codec primitives.
+Add `DataHasher` and `InstanceHasher` — the two remaining functional Tier 1 symbols (21 and 22 of
+22). These provide the streaming `new() → update(&[u8]) → finalize()` API pattern central to the
+library's design, enabling incremental processing of large files without loading entire contents
+into memory.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: `crates/iscc-lib/src/codec.rs` (add `decode_units` + `iscc_decompose` + tests),
-    `crates/iscc-lib/src/lib.rs` (add `pub use codec::iscc_decompose;` re-export)
-- **Reference**: `reference/iscc-core/iscc_core/codec.py` (lines 193-200: `decode_units`, lines
-    376-421: `iscc_decompose`), `reference/iscc-core/iscc_core/constants.py` (lines 216-228: `UNITS`
-    table), `crates/iscc-lib/src/codec.rs` (existing `encode_units`, `decode_header`,
-    `decode_length`, `encode_component`, `decode_base32`)
+- **Create**: `crates/iscc-lib/src/streaming.rs` (both structs, impls, and tests)
+- **Modify**: `crates/iscc-lib/src/lib.rs` (add `pub mod streaming;` +
+    `pub use   streaming::{DataHasher, InstanceHasher};` re-exports)
+- **Reference**: `reference/iscc-core/iscc_core/code_data.py` (DataHasherV0 class, lines 70-136),
+    `reference/iscc-core/iscc_core/code_instance.py` (InstanceHasherV0 class, lines 73-135),
+    `notes/03-async-and-streaming.md` (API shape specification), `crates/iscc-lib/src/lib.rs`
+    (existing `gen_data_code_v0` and `gen_instance_code_v0` for algorithm reference),
+    `crates/iscc-lib/src/cdc.rs` (`alg_cdc_chunks`, `DATA_AVG_CHUNK_SIZE`),
+    `crates/iscc-lib/src/minhash.rs` (`alg_minhash_256`), `crates/iscc-lib/src/utils.rs`
+    (`multi_hash_blake3`)
 
 ## Implementation Notes
 
-1. **`decode_units` helper** — inverse of `encode_units`. Takes a `u32` unit_id (0-7), returns a
-    sorted `Vec<MainType>` of optional units present. The mapping is a 3-bit bitfield:
+### InstanceHasher (simpler — implement first)
 
-    ```
-    0 → []
-    1 → [Content]
-    2 → [Semantic]
-    3 → [Semantic, Content]
-    4 → [Meta]
-    5 → [Meta, Content]
-    6 → [Meta, Semantic]
-    7 → [Meta, Semantic, Content]
-    ```
+Port from Python `InstanceHasherV0` (code_instance.py lines 73-135).
 
-    The Python reference uses a `UNITS` lookup table and sorts the result. In Rust, decode the 3 bits
-    directly: bit0=Content, bit1=Semantic, bit2=Meta. Append in `MainType` discriminant order
-    (Meta=0, Semantic=1, Content=2) so the result is automatically sorted. Signature:
-    `pub fn decode_units(unit_id: u32) -> IsccResult<Vec<MainType>>`. Error if `unit_id > 7`.
+Fields: `hasher: blake3::Hasher` and `filesize: u64`.
 
-2. **`iscc_decompose` function** — port from Python `iscc_decompose` (codec.py lines 376-421).
-    Signature: `pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>>`.
+- `new()` — initialize `blake3::Hasher::new()` and `filesize: 0`
+- `update(&mut self, data: &[u8])` — increment filesize by data.len(), call hasher.update(data)
+- `finalize(self, bits: u32) -> IsccResult<InstanceCodeResult>` — call `self.hasher.finalize()` to
+    get the digest, then replicate the logic from `gen_instance_code_v0`. Format the multihash
+    manually from the digest: `format!("1e20{}", hex::encode(digest.as_bytes()))`. Then call
+    `encode_component` and prefix with "ISCC:".
 
-    Algorithm:
+**Important**: The existing `gen_instance_code_v0` calls both `blake3::hash(data)` (for
+encode_component) and `multi_hash_blake3(data)` (for datahash). Both produce the same BLAKE3 hash.
+In streaming mode, we only have one `blake3::Hasher`, which gives us one digest — use it for both.
 
-    - Strip "ISCC:" prefix if present (use the same `iscc_clean` pattern from `decode_base32` — it
-        already strips "ISCC:" prefix)
-    - Call `decode_base32(iscc_code)` to get raw bytes
-    - Loop while `raw_code` is not empty:
-        - `decode_header(raw_code)` → `(mt, st, vs, ln, body)`
-        - **If `mt != MainType::Iscc`** (standard unit): decode `ln_bits = decode_length(mt, ln, st)`,
-            extract body `[..ln_bits/8]`, `encode_component(mt, st, vs, ln_bits, &body[..ln_bits/8])`,
-            push to result, advance `raw_code = body[ln_bits/8..]`, continue
-        - **If `mt == MainType::Iscc`** (composite ISCC-CODE):
-            - `main_types = decode_units(ln)`
-            - **WIDE subtype** (`st == SubType::Wide`): extract Data-Code 128-bit from `body[..16]`,
-                Instance-Code 128-bit from `body[16..32]`, push both, break
-            - **Standard**: for each `(idx, mtype)` in `main_types`, set `stype = SubType::None` if
-                `mtype == MainType::Meta` else `st`, encode 64-bit component from `body[idx*8..]`. Then
-                Data-Code 64-bit from `body[body.len()-16..body.len()-8]`, Instance-Code 64-bit from
-                `body[body.len()-8..]`. Push all, break
+Also implement `Default` for `InstanceHasher` (delegates to `new()`).
 
-    **Skip `normalize_multiformat`** for now — it handles alternative multibase encodings (base16,
-    base58, base64url). Standard ISCC strings are always base32. Can be added later if needed. The
-    `decode_base32` function already strips "ISCC:" prefix.
+### DataHasher (more complex — CDC tail handling)
 
-3. **Re-export**: Add `pub use codec::iscc_decompose;` in `lib.rs` alongside existing re-exports.
-    `decode_units` stays `pub` in codec module (Tier 2, like other codec functions) but does NOT
-    get a flat re-export.
+Port from Python `DataHasherV0` (code_data.py lines 70-136).
 
-4. **Tests**: Add to `codec.rs` `#[cfg(test)] mod tests`:
+Fields: `chunk_features: Vec<u32>` and `tail: Vec<u8>`.
 
-    - `decode_units` tests: verify all 8 mappings (0→empty, 1→[Content], ... 7→\[Meta, Semantic,
-        Content\]). Verify error for `unit_id > 7`. Verify roundtrip with `encode_units`.
-    - `iscc_decompose` roundtrip tests using `gen_iscc_code_v0` conformance vectors:
-        - test_0000_standard: compose
-            `["AAAYPXW445FTYNJ3", "EAARMJLTQCUWAND2", "GABVVC5DMJJGYKZ4ZBYVNYABFFYXG", "IADWIK7A7JTUAQ2D..."]`
-            → get composite ISCC → decompose → verify output contains the original 64-bit units for
-            Meta, Semantic, Data, Instance (Content-Code is 256-bit input truncated to 64-bit in the
-            composite, so the decomposed Content-Code will be 64-bit)
-        - test_0001_no_meta: compose without Meta → decompose → verify 4 units (Semantic, Content,
-            Data, Instance — no Meta)
-        - Single unit: `iscc_decompose("AAAYPXW445FTYNJ3")` → `["AAAYPXW445FTYNJ3"]` (pass-through)
-        - Also verify by generating a known composite with `gen_iscc_code_v0`, decomposing it, and
-            checking the number of result units matches expectations
+- `new()` — initialize empty `chunk_features` and empty `tail`
 
-    **NOTE on verification**: There are no explicit `iscc_decompose` test vectors in `data.json`.
-    Tests must compose ISCCs first, then decompose and verify structural properties (correct number
-    of units, each unit decodes to the expected MainType, Data+Instance always present as last
-    two).
+- `update(&mut self, data: &[u8])` — port from Python `push()`:
 
-5. **Edge cases**:
+    1. Prepend tail: `let combined = [self.tail.as_slice(), data].concat();` (if tail is empty, this
+        is just data)
+    2. Run CDC: `let chunks = cdc::alg_cdc_chunks(&combined, false, cdc::DATA_AVG_CHUNK_SIZE);`
+    3. Process all chunks except the last — hash each with `xxhash_rust::xxh32::xxh32(chunk, 0)` and
+        push to `self.chunk_features`
+    4. The last chunk becomes the new tail:
+        `self.tail = chunks.last().unwrap_or(&b"".as_slice()).to_vec();`
+    5. If chunks is empty (shouldn't happen with CDC, but defensive), set tail to combined
 
-    - The `decode_length` Rust signature is
-        `decode_length(mtype: MainType, length: u32, stype: SubType)` — note it takes stype as 3rd
-        param (unlike Python which doesn't)
-    - `encode_component` takes `bit_length: u32` and `digest: &[u8]` — it will only consume the
-        needed bytes from the digest slice
-    - The body slice from `decode_header` already excludes the header bytes, so `body[idx*8..]` works
-        directly
+    **Critical detail from Python**: In `push()`, iterate chunks and only process `prev_chunk` (the
+    chunk *before* the current one). This means all chunks except the last get hashed. The last
+    chunk becomes the tail. This handles the boundary case where CDC splits right at the boundary of
+    two `update()` calls — the tail carries over to the next call.
+
+- `finalize(self, bits: u32) -> IsccResult<DataCodeResult>` — port from Python `_finalize()` and
+    `code()`:
+
+    1. If `self.tail` is not empty, hash it and append to features:
+        `self.chunk_features.push(xxhash_rust::xxh32::xxh32(&self.tail, 0));`
+    2. If tail is empty AND features is empty (empty input case), push hash of empty bytes:
+        `self.chunk_features.push(xxhash_rust::xxh32::xxh32(b"", 0));`
+    3. Compute digest: `minhash::alg_minhash_256(&self.chunk_features)`
+    4. Encode: `codec::encode_component(MainType::Data, SubType::None, Version::V0, bits, &digest)`
+    5. Return `DataCodeResult { iscc: format!("ISCC:{component}") }`
+
+Also implement `Default` for `DataHasher` (delegates to `new()`).
+
+### Module setup
+
+In `streaming.rs`, add the file-level docstring:
+`//! Streaming hash types for incremental ISCC code generation.`
+
+Use `use crate::{...}` imports to access `cdc`, `codec`, `minhash`, `utils`, types, and errors.
+
+In `lib.rs`:
+
+- Add `pub mod streaming;` alongside other module declarations
+- Add `pub use streaming::{DataHasher, InstanceHasher};` alongside other re-exports
+
+### Tests
+
+Add `#[cfg(test)] mod tests` in `streaming.rs`:
+
+1. **InstanceHasher equivalence tests**: Feed the same data through `InstanceHasher` (streaming) and
+    `gen_instance_code_v0` (one-shot). Verify identical `iscc`, `datahash`, and `filesize` fields.
+    Test cases:
+
+    - Empty data: single `finalize()` with no `update()`
+    - Small data: single `update()` call
+    - Multi-chunk: split data across 3+ `update()` calls
+    - Conformance vectors: use the `gen_instance_code_v0` test vectors from `data.json`
+
+2. **DataHasher equivalence tests**: Feed the same data through `DataHasher` (streaming) and
+    `gen_data_code_v0` (one-shot). Verify identical `iscc` field. Test cases:
+
+    - Empty data: single `finalize()` with no `update()`
+    - Small data: single `update()` call
+    - Multi-chunk: split data into varying chunk sizes (1-byte, 256-byte, 1024-byte chunks)
+    - Conformance vectors: use the `gen_data_code_v0` test vectors from `data.json`
+
+3. **Edge cases**:
+
+    - `DataHasher::new()` followed immediately by `finalize(64)` (empty input)
+    - `InstanceHasher::new()` followed immediately by `finalize(64)` (empty input)
+    - Various `bits` values (64, 128, 256)
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all 197+ existing tests plus new decompose/decode_units tests)
+- `cargo test -p iscc-lib` passes (all 214 existing tests + new streaming tests)
 - `cargo clippy -p iscc-lib -- -D warnings` clean
-- `decode_units` correctly maps all 8 unit_ids (0-7) and roundtrips with `encode_units`
-- `iscc_decompose` on a composite ISCC from `gen_iscc_code_v0` returns the correct number of units
-- `iscc_decompose` on a single ISCC-UNIT returns a 1-element vec with the same code
-- Each decomposed unit decodes to the expected `MainType` via `decode_header`
-- `iscc_decompose` is importable as `iscc_lib::iscc_decompose` (flat re-export)
+- `DataHasher` produces identical output to `gen_data_code_v0` for all conformance vectors
+- `InstanceHasher` produces identical output to `gen_instance_code_v0` for all conformance vectors
+- Multi-chunk streaming produces same results as single-shot for both hashers
+- Empty input handling works for both hashers
+- `DataHasher` and `InstanceHasher` are importable as `iscc_lib::DataHasher` /
+    `iscc_lib::InstanceHasher`
 
 ## Done When
 
-All verification criteria pass — `iscc_decompose` and `decode_units` are implemented with tests
-proving correctness against the gen_iscc_code_v0 conformance vectors, and the function is publicly
-accessible as Tier 1 API.
+All verification criteria pass — both streaming types produce output identical to their one-shot
+counterparts across all conformance vectors and edge cases, and are publicly accessible as Tier 1
+API.
