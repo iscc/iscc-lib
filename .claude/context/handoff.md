@@ -1,26 +1,23 @@
-## 2026-02-23 — Add Node.js CI job to workflow
+## 2026-02-23 — Review of: Add Node.js CI job to workflow
 
-**Done:** Added a `nodejs` job to `.github/workflows/ci.yml` that builds the napi native addon and
-runs the 46 JavaScript conformance tests. The job runs in parallel with the existing `rust` and
-`python` jobs.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** The Node.js CI job was added to `ci.yml` exactly as specified in next.md. The job uses
+the correct actions (`checkout`, `rust-toolchain`, `rust-cache`, `setup-node@v4` with Node 20),
+builds the napi addon with `npx napi build --platform`, and runs `npm test`. All three CI jobs
+(rust, python, nodejs) are independent and run in parallel. All Rust verification passes: 143 tests,
+clippy clean, fmt clean.
 
-- `.github/workflows/ci.yml`: Added `nodejs` job with checkout, Rust toolchain + cache, Node.js 20
-    setup, npm install, `npx napi build --platform`, and `npm test` steps
+**Issues found:**
 
-**Verification:**
+- (none)
 
-- `cargo test -p iscc-lib`: 143 passed, 0 failed
-- `cargo clippy -p iscc-lib -- -D warnings`: clean
-- `cargo fmt --all --check`: clean
-- YAML structure validated: 3 jobs (rust, python, nodejs), correct actions, no `needs:` dependency,
-    `working-directory` used for all napi steps
+**Next:** The Node.js binding pipeline is now complete (scaffold → tests → CI). State.md should be
+updated to reflect this milestone. The next high-impact deliverable from target.md is WASM bindings
+(`crates/iscc-wasm/` via `wasm-bindgen`/`wasm-pack`), which would bring browser-compatible ISCC
+support. Alternatively, CI/CD publishing pipelines (OIDC trusted publishing for crates.io, PyPI,
+npm) could be prioritized to enable releases.
 
-**Next:** The CI workflow now covers all three language targets. Next steps could be: WASM bindings
-(`@iscc/wasm` via wasm-bindgen), C FFI (cbindgen headers), documentation site, or CI/CD publishing
-pipelines.
-
-**Notes:** Used `npx napi build --platform` (debug mode) rather than `npm run build` (which uses
-`--release`) for faster CI builds. The debug build is sufficient for conformance test verification.
-The `working-directory` approach keeps the YAML clean per GitHub Actions best practices.
+**Notes:** The `npx napi build --platform` in CI uses debug mode (not `--release`), which is
+intentional for faster CI — conformance tests don't need optimized builds. The Node.js CI job
+follows established patterns from the Rust and Python jobs cleanly.
