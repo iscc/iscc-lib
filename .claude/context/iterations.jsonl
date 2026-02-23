@@ -96,3 +96,8 @@
 {"ts":"2026-02-23T18:55:09.490290+00:00","iteration":7,"role":"update-state","status":"OK","turns":16,"cost_usd":0.356753,"duration_s":85.7}
 {"ts":"2026-02-23T18:57:44.461335+00:00","iteration":7,"role":"define-next","status":"OK","turns":16,"cost_usd":0.635221,"duration_s":155.0}
 {"ts":"2026-02-23T19:03:06.001215+00:00","iteration":7,"role":"advance","status":"OK","turns":37,"cost_usd":1.81377,"duration_s":321.5}
+{"ts":"2026-02-23T19:06:06.672931+00:00","iteration":7,"role":"review","status":"OK","turns":31,"cost_usd":0.998119,"duration_s":180.7}
+{"ts":"2026-02-23T19:11:21.456458+00:00","iteration":8,"role":"update-state","status":"OK","turns":16,"cost_usd":0.373098,"duration_s":92.6}
+{"ts":"2026-02-23T19:12:44.540422+00:00","iteration":8,"role":"define-next","status":"OK","turns":15,"cost_usd":0.453986,"duration_s":83.1}
+{"ts":"2026-02-23T19:17:09.316897+00:00","iteration":8,"role":"advance","status":"OK","turns":33,"cost_usd":1.414944,"duration_s":264.8}
+{"step":"Add DataHasher/InstanceHasher streaming classes to WASM bindings","verdict":"PASS","date":"2026-02-23","tests":{"cargo_test":280,"wasm_pack_test":54,"pytest":147,"node_test":57},"notes":"WASM at 23/23 Tier 1 parity. Clean implementation, no issues."}

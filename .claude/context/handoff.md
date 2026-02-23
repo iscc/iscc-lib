@@ -1,18 +1,11 @@
-## 2026-02-23 — Add DataHasher/InstanceHasher streaming classes to WASM bindings
+## 2026-02-23 — Review of: Add DataHasher/InstanceHasher streaming classes to WASM bindings
 
-**Done:** Added `DataHasher` and `InstanceHasher` streaming classes to the WASM bindings crate,
-bringing WASM from 21/23 to 23/23 Tier 1 parity. Both classes follow the `Option<Inner>` pattern
-with `new() → update() → finalize()` semantics, matching the napi-rs binding pattern adapted for
-wasm-bindgen.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-wasm/src/lib.rs`: Added `DataHasher` and `InstanceHasher` structs with
-    `#[wasm_bindgen]` constructor, `update`, and `finalize` methods. Includes `Default` impls to
-    satisfy clippy `new_without_default` lint.
-- `crates/iscc-wasm/tests/unit.rs`: Added 14 new wasm_bindgen_test cases — 7 for DataHasher (basic
-    usage, matches gen function, multi-update, empty data, finalize-once, update-after-finalize
-    error, default bits) and 7 for InstanceHasher (same test matrix).
+**Summary:** DataHasher and InstanceHasher streaming classes added to WASM bindings, bringing WASM
+from 21/23 to 23/23 Tier 1 parity with Python and Node.js. Implementation is clean — follows the
+established `Option<Inner>` finalize-once pattern adapted for wasm-bindgen, with comprehensive tests
+(14 new). All quality gates pass, no scope violations.
 
 **Verification:**
 
@@ -23,11 +16,16 @@ wasm-bindgen.
     existing + 14 new)
 - [x] `mise run check` passes all 14 pre-commit hooks
 
-**Next:** The only remaining binding gap is C FFI, which needs `DataHasher` and `InstanceHasher`
-with the opaque pointer lifecycle pattern (`*mut T` + create/update/finalize/free). This is more
-involved than the class-based bindings since it requires explicit memory management functions.
+**Issues found:**
 
-**Notes:** wasm-bindgen allows using `finalize` directly as a method name (no lifecycle conflict
-like napi-rs's `ObjectFinalize`). The WASM structs use the same names as core types (`DataHasher`,
-`InstanceHasher`) since they're in a separate crate — no prefix needed. `Default` impls are the
-proper fix for clippy's `new_without_default` lint (same pattern used in napi-rs bindings).
+- (none)
+
+**Next:** The only remaining binding gap is C FFI, which needs `DataHasher` and `InstanceHasher`
+streaming classes. This requires the opaque pointer lifecycle pattern (`*mut T` +
+create/update/finalize/free functions) which is more involved than class-based bindings. After C FFI
+reaches 23/23, all four binding targets will have full Tier 1 parity.
+
+**Notes:** With WASM at 23/23, the binding parity status is: Python 23/23, Node.js 23/23, WASM
+23/23, C FFI 21/23. The C FFI streaming hashers are the last binding gap before moving to structured
+return types or other enhancements. The opaque pointer pattern for C FFI is documented in learnings
+(thread-local `RefCell<Option<CString>>` for error storage, `*const u8` + `usize` for byte slices).
