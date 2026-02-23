@@ -1,26 +1,39 @@
-## 2026-02-23 — Review of: Add conformance_selftest and text utilities to Python bindings
+## 2026-02-23 — Add encode_base64, iscc_decompose, and sliding_window to Python bindings
 
-**Verdict:** PASS
+**Done:** Added 3 new Tier 1 functions (`encode_base64`, `iscc_decompose`, `sliding_window`) to the
+Python bindings, bringing the count from 14/23 to 17/23. All three follow the simple direct
+pass-through pattern (no `Python<'_>` param, no `PyDict`). The `sliding_window` binding catches the
+Rust `assert!` panic by validating `width < 2` before calling the Rust function, raising
+`ValueError` instead.
 
-**Summary:** Clean implementation of 5 new Python binding functions (`conformance_selftest`,
-`text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`). All 85 Python tests pass (63
-existing + 22 new), 230 Rust tests pass, clippy clean workspace-wide, all pre-commit hooks pass. No
-quality gate circumvention, no dead code, no over-engineering.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-py/src/lib.rs`: Added 3 `#[pyfunction]` wrappers and registered them in the module
+- `crates/iscc-py/python/iscc_lib/__init__.py`: Re-exported 3 functions from `_lowlevel`, added to
+    `__all__`
+- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: Added type stubs with docstrings for all 3
+    functions
+- `tests/test_text_utils.py`: Added 13 new tests covering all 3 functions (4 encode_base64, 4
+    iscc_decompose, 5 sliding_window)
 
-- (none)
+**Verification:** All quality gates pass:
 
-**Next:** Continue expanding binding API surface. Priority options: (1) add algo primitives
-(`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `sliding_window`) to Python bindings, (2) add
-codec functions (`encode_base64`, `iscc_decompose`) to Python bindings, (3) add streaming types
-(`DataHasher`, `InstanceHasher`) to Python bindings, or (4) add the same 5 simple functions
-(`conformance_selftest` + 4 text utils) to Node.js, WASM, and C FFI bindings. Option (4) is the
-broadest horizontal coverage; options (1-3) deepen Python first. Also pending: structured return
-objects for Node.js/WASM/C FFI, and documentation branding.
+- 98 Python tests pass (63 existing + 35 in test_text_utils)
+- 230 Rust tests pass (180 unit + 28 algo integration + 22 text utils integration)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean
+- All pre-commit hooks pass (`mise run check`)
+- Python imports work: `from iscc_lib import encode_base64, iscc_decompose, sliding_window`
+- `encode_base64(b"Hello")` returns `"SGVsbG8"` ✓
+- `iscc_decompose("AAAYPXW445FTYNJ3")` returns `["AAAYPXW445FTYNJ3"]` ✓
+- `sliding_window("hello", 3)` returns `["hel", "ell", "llo"]` ✓
 
-**Notes:** The text utils and `conformance_selftest` use the simpler direct pass-through pattern (no
-`Python<'_>` param, no `map_err`, no `PyDict` — just forwarding to `iscc_lib::*`). This is
-appropriate since they return `String`/`bool` rather than `Result<*CodeResult>`. The `__init__.py`
-imports them directly from `_lowlevel` (no `IsccResult` wrapper needed). State.md should be updated
-to reflect 85 Python tests (was 63).
+**Next:** Continue expanding binding API surface. Remaining 6 functions to add to Python bindings:
+`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `DataHasher`, `InstanceHasher`. The streaming
+types (`DataHasher`, `InstanceHasher`) require PyO3 class wrappers (not simple pass-throughs) and
+are the most complex remaining items. Alternatively, continue horizontal expansion by adding the
+same utility functions to Node.js, WASM, and C FFI bindings.
+
+**Notes:** The `sliding_window` Rust function uses `assert!` for width < 2 (which would cause a
+panic across FFI). The PyO3 wrapper validates width before calling Rust, converting to `ValueError`.
+This is a better pattern than letting the panic propagate. The `iscc_decompose` function naturally
+returns `Result` and uses the standard `map_err(PyValueError)` pattern.

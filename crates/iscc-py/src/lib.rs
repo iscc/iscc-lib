@@ -195,6 +195,40 @@ fn text_collapse(text: &str) -> String {
     iscc_lib::text_collapse(text)
 }
 
+/// Encode bytes as base64url (RFC 4648 §5, no padding).
+///
+/// Returns a URL-safe base64 encoded string without padding characters.
+#[pyfunction]
+fn encode_base64(data: &[u8]) -> String {
+    iscc_lib::encode_base64(data)
+}
+
+/// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
+///
+/// Accepts a normalized ISCC-CODE or concatenated ISCC-UNIT sequence.
+/// The optional "ISCC:" prefix is stripped before decoding.
+/// Returns a list of base32-encoded ISCC-UNIT strings (without prefix).
+#[pyfunction]
+#[pyo3(signature = (iscc_code))]
+fn iscc_decompose(iscc_code: &str) -> PyResult<Vec<String>> {
+    iscc_lib::iscc_decompose(iscc_code).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+/// Generate sliding window n-grams from a string.
+///
+/// Returns overlapping substrings of `width` Unicode characters, advancing
+/// by one character at a time. Raises `ValueError` if width is less than 2.
+#[pyfunction]
+#[pyo3(signature = (seq, width))]
+fn sliding_window(seq: &str, width: usize) -> PyResult<Vec<String>> {
+    if width < 2 {
+        return Err(PyValueError::new_err(
+            "Sliding window width must be 2 or bigger.",
+        ));
+    }
+    Ok(iscc_lib::sliding_window(seq, width))
+}
+
 /// Python module `iscc._lowlevel` backed by Rust.
 #[pymodule(name = "_lowlevel")]
 fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -212,5 +246,8 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(text_remove_newlines, m)?)?;
     m.add_function(wrap_pyfunction!(text_trim, m)?)?;
     m.add_function(wrap_pyfunction!(text_collapse, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_base64, m)?)?;
+    m.add_function(wrap_pyfunction!(iscc_decompose, m)?)?;
+    m.add_function(wrap_pyfunction!(sliding_window, m)?)?;
     Ok(())
 }

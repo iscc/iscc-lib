@@ -61,6 +61,43 @@ def text_collapse(text: str) -> str:
     """
     ...
 
+def encode_base64(data: bytes) -> str:
+    """Encode bytes as base64url (RFC 4648 §5, no padding).
+
+    Returns a URL-safe base64 encoded string without padding characters.
+
+    :param data: Raw bytes to encode.
+    :return: Base64url encoded string without padding.
+    """
+    ...
+
+def iscc_decompose(iscc_code: str) -> list[str]:
+    """Decompose a composite ISCC-CODE into individual ISCC-UNITs.
+
+    Accepts a normalized ISCC-CODE or concatenated ISCC-UNIT sequence.
+    The optional ``"ISCC:"`` prefix is stripped before decoding. Returns
+    a list of base32-encoded ISCC-UNIT strings (without prefix).
+
+    :param iscc_code: ISCC-CODE or ISCC-UNIT sequence string.
+    :return: List of base32-encoded ISCC-UNIT strings.
+    :raises ValueError: If the input is not a valid ISCC string.
+    """
+    ...
+
+def sliding_window(seq: str, width: int) -> list[str]:
+    """Generate sliding window n-grams from a string.
+
+    Returns overlapping substrings of ``width`` Unicode characters,
+    advancing by one character at a time. If the input is shorter than
+    ``width``, returns a single element containing the full input.
+
+    :param seq: Input string to slide over.
+    :param width: Width of sliding window (must be >= 2).
+    :return: List of window-sized substrings.
+    :raises ValueError: If ``width`` is less than 2.
+    """
+    ...
+
 def gen_meta_code_v0(
     name: str,
     description: str | None = None,

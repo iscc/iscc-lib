@@ -6,6 +6,7 @@ from typing import BinaryIO
 
 from iscc_lib._lowlevel import (
     conformance_selftest as conformance_selftest,
+    encode_base64 as encode_base64,
     gen_audio_code_v0 as _gen_audio_code_v0,
     gen_data_code_v0 as _gen_data_code_v0,
     gen_image_code_v0 as _gen_image_code_v0,
@@ -15,6 +16,8 @@ from iscc_lib._lowlevel import (
     gen_mixed_code_v0 as _gen_mixed_code_v0,
     gen_text_code_v0 as _gen_text_code_v0,
     gen_video_code_v0 as _gen_video_code_v0,
+    iscc_decompose as iscc_decompose,
+    sliding_window as sliding_window,
     text_clean as text_clean,
     text_collapse as text_collapse,
     text_remove_newlines as text_remove_newlines,
@@ -166,6 +169,7 @@ __all__ = [
     "TextCodeResult",
     "VideoCodeResult",
     "conformance_selftest",
+    "encode_base64",
     "gen_audio_code_v0",
     "gen_data_code_v0",
     "gen_image_code_v0",
@@ -175,6 +179,8 @@ __all__ = [
     "gen_mixed_code_v0",
     "gen_text_code_v0",
     "gen_video_code_v0",
+    "iscc_decompose",
+    "sliding_window",
     "text_clean",
     "text_collapse",
     "text_remove_newlines",
