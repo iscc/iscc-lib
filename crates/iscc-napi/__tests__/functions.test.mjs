@@ -1,14 +1,16 @@
 /**
- * Unit tests for text utility, helper, and algorithm primitive napi-rs bindings.
+ * Unit tests for text utility, helper, algorithm primitive, and streaming
+ * hasher napi-rs bindings.
  *
- * Tests the 12 non-gen functions: text_clean, text_remove_newlines, text_trim,
- * text_collapse, encode_base64, iscc_decompose, conformance_selftest,
- * sliding_window, alg_simhash, alg_minhash_256, alg_cdc_chunks,
- * soft_hash_video_v0.
+ * Tests the 12 non-gen functions plus 2 streaming hasher classes:
+ * text_clean, text_remove_newlines, text_trim, text_collapse, encode_base64,
+ * iscc_decompose, conformance_selftest, sliding_window, alg_simhash,
+ * alg_minhash_256, alg_cdc_chunks, soft_hash_video_v0, DataHasher,
+ * InstanceHasher.
  */
 
 import { describe, it } from 'node:test';
-import { strictEqual, deepStrictEqual, throws, ok } from 'node:assert';
+import { strictEqual, deepStrictEqual, throws, ok, match as assertMatch } from 'node:assert';
 
 import {
     text_clean,
@@ -23,6 +25,10 @@ import {
     alg_minhash_256,
     alg_cdc_chunks,
     soft_hash_video_v0,
+    gen_data_code_v0,
+    gen_instance_code_v0,
+    DataHasher,
+    InstanceHasher,
 } from '../index.js';
 
 describe('text_clean', () => {
@@ -288,5 +294,128 @@ describe('soft_hash_video_v0', () => {
         const r1 = soft_hash_video_v0(frames);
         const r2 = soft_hash_video_v0(frames);
         deepStrictEqual([...r1], [...r2]);
+    });
+});
+
+// ── Streaming hashers ─────────────────────────────────────────────────────────
+
+describe('DataHasher', () => {
+    it('basic usage returns valid ISCC string', () => {
+        const dh = new DataHasher();
+        dh.update(Buffer.from('hello world'));
+        const result = dh.finalize();
+        assertMatch(result, /^ISCC:/);
+    });
+
+    it('matches gen_data_code_v0 for same input', () => {
+        const data = Buffer.from('Hello, ISCC World!');
+        const dh = new DataHasher();
+        dh.update(data);
+        const streaming = dh.finalize();
+        const oneshot = gen_data_code_v0(data);
+        strictEqual(streaming, oneshot);
+    });
+
+    it('multi-update produces same result as one-shot', () => {
+        const data = Buffer.from('The quick brown fox jumps over the lazy dog');
+        const dh = new DataHasher();
+        dh.update(data.subarray(0, 10));
+        dh.update(data.subarray(10, 25));
+        dh.update(data.subarray(25));
+        const streaming = dh.finalize();
+        const oneshot = gen_data_code_v0(data);
+        strictEqual(streaming, oneshot);
+    });
+
+    it('empty data produces valid ISCC', () => {
+        const dh = new DataHasher();
+        const result = dh.finalize();
+        assertMatch(result, /^ISCC:/);
+        // Should match one-shot with empty data
+        const oneshot = gen_data_code_v0(Buffer.alloc(0));
+        strictEqual(result, oneshot);
+    });
+
+    it('throws on update after finalize', () => {
+        const dh = new DataHasher();
+        dh.finalize();
+        throws(() => dh.update(Buffer.from('data')), /already finalized/);
+    });
+
+    it('throws on double finalize', () => {
+        const dh = new DataHasher();
+        dh.finalize();
+        throws(() => dh.finalize(), /already finalized/);
+    });
+
+    it('default bits is 64', () => {
+        const data = Buffer.from('test default bits');
+        const dh = new DataHasher();
+        dh.update(data);
+        const defaultResult = dh.finalize();
+        const dh2 = new DataHasher();
+        dh2.update(data);
+        const explicit64 = dh2.finalize(64);
+        strictEqual(defaultResult, explicit64);
+    });
+});
+
+describe('InstanceHasher', () => {
+    it('basic usage returns valid ISCC string', () => {
+        const ih = new InstanceHasher();
+        ih.update(Buffer.from('hello world'));
+        const result = ih.finalize();
+        assertMatch(result, /^ISCC:/);
+    });
+
+    it('matches gen_instance_code_v0 for same input', () => {
+        const data = Buffer.from('Hello, ISCC World!');
+        const ih = new InstanceHasher();
+        ih.update(data);
+        const streaming = ih.finalize();
+        const oneshot = gen_instance_code_v0(data);
+        strictEqual(streaming, oneshot);
+    });
+
+    it('multi-update produces same result as one-shot', () => {
+        const data = Buffer.from('The quick brown fox jumps over the lazy dog');
+        const ih = new InstanceHasher();
+        ih.update(data.subarray(0, 10));
+        ih.update(data.subarray(10, 25));
+        ih.update(data.subarray(25));
+        const streaming = ih.finalize();
+        const oneshot = gen_instance_code_v0(data);
+        strictEqual(streaming, oneshot);
+    });
+
+    it('empty data produces valid ISCC', () => {
+        const ih = new InstanceHasher();
+        const result = ih.finalize();
+        assertMatch(result, /^ISCC:/);
+        const oneshot = gen_instance_code_v0(Buffer.alloc(0));
+        strictEqual(result, oneshot);
+    });
+
+    it('throws on update after finalize', () => {
+        const ih = new InstanceHasher();
+        ih.finalize();
+        throws(() => ih.update(Buffer.from('data')), /already finalized/);
+    });
+
+    it('throws on double finalize', () => {
+        const ih = new InstanceHasher();
+        ih.finalize();
+        throws(() => ih.finalize(), /already finalized/);
+    });
+
+    it('default bits is 64', () => {
+        const data = Buffer.from('test default bits');
+        const ih = new InstanceHasher();
+        ih.update(data);
+        const defaultResult = ih.finalize();
+        const ih2 = new InstanceHasher();
+        ih2.update(data);
+        const explicit64 = ih2.finalize(64);
+        strictEqual(defaultResult, explicit64);
     });
 });

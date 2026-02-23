@@ -1,38 +1,41 @@
-## 2026-02-23 — Review of: Add 4 algorithm primitives to C FFI bindings
+## 2026-02-23 — Add DataHasher/InstanceHasher streaming classes to Node.js bindings
 
-**Verdict:** PASS
+**Done:** Added `DataHasher` and `InstanceHasher` streaming classes to the napi-rs Node.js bindings,
+bringing Tier 1 parity from 21/23 to 23/23 (full parity with Python). Both classes follow the
+`new() → update() → finalize()` pattern with finalize-once semantics using `Option<Inner>`.
 
-**Summary:** Four algorithm primitives (`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
-`soft_hash_video_v0`) added to C FFI bindings, expanding from 17/23 to 21/23 Tier 1 symbols. The
-implementation introduces two well-designed `#[repr(C)]` types (`IsccByteBuffer`,
-`IsccByteBufferArray`) with corresponding free functions. All three non-Python bindings are now at
-parity (21/23). Code quality is high — follows existing FFI patterns exactly, with proper
-null-pointer validation and edge case handling.
+**Files changed:**
+
+- `crates/iscc-napi/src/lib.rs`: Added `NapiDataHasher` and `NapiInstanceHasher` structs with
+    `#[napi]` constructor, `update`, and `finalize` methods. Both wrap the core Rust types in
+    `Option<T>` for finalize-once enforcement. Added `Default` impls to satisfy clippy, and made
+    structs `pub` to avoid dead_code warnings in test targets (napi macro glue only references
+    methods in cdylib builds).
+- `crates/iscc-napi/__tests__/functions.test.mjs`: Added 14 new tests across
+    `describe('DataHasher')` (7 tests) and `describe('InstanceHasher')` (7 tests) — basic usage, gen
+    function matching, multi-update, empty data, finalize-once errors, and default bits.
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi` compiles without errors
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- [x] `cargo test -p iscc-ffi` passes all 50 tests (38 existing + 12 new)
-- [x] `cargo test --workspace` passes with 280 tests (no regressions)
-- [x] `cbindgen --crate iscc-ffi` generates valid C header containing `IsccByteBuffer`,
-    `IsccByteBufferArray`, and all 4 new function declarations
-- [x] C test program compiles with gcc and all 20 tests pass (11 existing + 9 new)
-- [x] `mise run check` passes all 14 pre-commit hooks
+- `cargo build -p iscc-napi` compiles without errors
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean
+- `cargo test --workspace` passes all 280 tests (no regressions)
+- `node --test crates/iscc-napi/__tests__/functions.test.mjs` passes all 57 tests (43 existing + 14
+    new)
+- Smoke test: `node -e "..."` with both `DataHasher` and `InstanceHasher` prints valid ISCC strings
+- `mise run check` passes all 14 pre-commit hooks
 
-**Issues found:**
+**Next:** Node.js bindings are now at full 23/23 Tier 1 parity. Next candidates:
 
-- (none)
-
-**Next:** All three non-Python bindings (Node.js, WASM, C FFI) are at 21/23 Tier 1 symbols. The
-remaining 2 symbols are `DataHasher` and `InstanceHasher` streaming classes. Good candidates:
-
-1. **Add streaming hashers to Node.js bindings** — napi-rs has `#[napi]` class support with methods,
-    making it the easiest binding for streaming classes
-2. **Add streaming hashers to WASM bindings** — wasm-bindgen has `#[wasm_bindgen]` class support
-3. **Add streaming hashers to C FFI bindings** — requires opaque pointer pattern (`*mut DataHasher`
+1. **Add streaming hashers to WASM bindings** — wasm-bindgen has `#[wasm_bindgen]` class support;
+    similar pattern to napi-rs
+2. **Add streaming hashers to C FFI bindings** — requires opaque pointer pattern (`*mut DataHasher`
     \+ create/update/finalize/free lifecycle)
+3. **Structured return types for gen functions** — returning full result objects instead of just
+    `.iscc` strings across all bindings
 
-**Notes:** C FFI byte buffer pattern (`IsccByteBuffer` + `vec_to_byte_buffer` +
-`iscc_free_byte_buffer`) mirrors the existing string pattern. The double-prefix
-`iscc_IsccByteBuffer` in the generated C header is consistent with cbindgen.toml export config.
+**Notes:** napi-rs classes with `#[napi]` attribute generate N-API glue code only for cdylib
+targets, not test targets. This causes dead_code warnings when building with `--all-targets`
+(clippy). Making the structs `pub` resolves this by marking them as externally reachable. The
+`Default` impl requirement is a standard clippy lint for any `pub` type with a `new() -> Self`
+method.

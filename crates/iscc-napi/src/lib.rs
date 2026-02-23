@@ -245,3 +245,111 @@ pub fn soft_hash_video_v0(frame_sigs: Vec<Vec<i32>>, bits: Option<u32>) -> napi:
         .map(|r| r.into())
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
+
+// ── Streaming hashers ─────────────────────────────────────────────────────────
+
+/// Streaming Data-Code generator.
+///
+/// Incrementally processes data with content-defined chunking and MinHash
+/// to produce results identical to `gen_data_code_v0`. Follows the
+/// `new() → update() → finalize()` pattern.
+#[napi(js_name = "DataHasher")]
+pub struct NapiDataHasher {
+    inner: Option<iscc_lib::DataHasher>,
+}
+
+impl Default for NapiDataHasher {
+    /// Create a new `NapiDataHasher` (delegates to `new()`).
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[napi]
+impl NapiDataHasher {
+    /// Create a new `DataHasher`.
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self {
+            inner: Some(iscc_lib::DataHasher::new()),
+        }
+    }
+
+    /// Push data into the hasher.
+    #[napi]
+    pub fn update(&mut self, data: Buffer) -> napi::Result<()> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| napi::Error::from_reason("DataHasher already finalized"))
+            .map(|h| h.update(&data))
+    }
+
+    /// Consume the hasher and produce a Data-Code ISCC string.
+    ///
+    /// After calling `finalize`, subsequent calls to `update` or `finalize`
+    /// will throw. Default `bits` is 64.
+    #[napi(js_name = "finalize")]
+    pub fn finalize_code(&mut self, bits: Option<u32>) -> napi::Result<String> {
+        let hasher = self
+            .inner
+            .take()
+            .ok_or_else(|| napi::Error::from_reason("DataHasher already finalized"))?;
+        hasher
+            .finalize(bits.unwrap_or(64))
+            .map(|r| r.iscc)
+            .map_err(|e| napi::Error::from_reason(e.to_string()))
+    }
+}
+
+/// Streaming Instance-Code generator.
+///
+/// Incrementally hashes data with BLAKE3 to produce results identical
+/// to `gen_instance_code_v0`. Follows the
+/// `new() → update() → finalize()` pattern.
+#[napi(js_name = "InstanceHasher")]
+pub struct NapiInstanceHasher {
+    inner: Option<iscc_lib::InstanceHasher>,
+}
+
+impl Default for NapiInstanceHasher {
+    /// Create a new `NapiInstanceHasher` (delegates to `new()`).
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[napi]
+impl NapiInstanceHasher {
+    /// Create a new `InstanceHasher`.
+    #[napi(constructor)]
+    pub fn new() -> Self {
+        Self {
+            inner: Some(iscc_lib::InstanceHasher::new()),
+        }
+    }
+
+    /// Push data into the hasher.
+    #[napi]
+    pub fn update(&mut self, data: Buffer) -> napi::Result<()> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| napi::Error::from_reason("InstanceHasher already finalized"))
+            .map(|h| h.update(&data))
+    }
+
+    /// Consume the hasher and produce an Instance-Code ISCC string.
+    ///
+    /// After calling `finalize`, subsequent calls to `update` or `finalize`
+    /// will throw. Default `bits` is 64.
+    #[napi(js_name = "finalize")]
+    pub fn finalize_code(&mut self, bits: Option<u32>) -> napi::Result<String> {
+        let hasher = self
+            .inner
+            .take()
+            .ok_or_else(|| napi::Error::from_reason("InstanceHasher already finalized"))?;
+        hasher
+            .finalize(bits.unwrap_or(64))
+            .map(|r| r.iscc)
+            .map_err(|e| napi::Error::from_reason(e.to_string()))
+    }
+}
