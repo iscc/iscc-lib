@@ -149,6 +149,52 @@ fn gen_iscc_code_v0(py: Python<'_>, codes: Vec<String>, wide: bool) -> PyResult<
     Ok(dict.into())
 }
 
+/// Run all conformance tests against vendored test vectors.
+///
+/// Returns `True` if all tests pass, `False` if any fail.
+#[pyfunction]
+fn conformance_selftest() -> bool {
+    iscc_lib::conformance_selftest()
+}
+
+/// Clean and normalize text for display.
+///
+/// Applies NFKC normalization, removes control characters (except newlines),
+/// normalizes `\r\n` to `\n`, collapses consecutive empty lines, and strips
+/// leading/trailing whitespace.
+#[pyfunction]
+fn text_clean(text: &str) -> String {
+    iscc_lib::text_clean(text)
+}
+
+/// Remove newlines and collapse whitespace to single spaces.
+///
+/// Converts multi-line text into a single normalized line.
+#[pyfunction]
+fn text_remove_newlines(text: &str) -> String {
+    iscc_lib::text_remove_newlines(text)
+}
+
+/// Trim text so its UTF-8 encoded size does not exceed `nbytes`.
+///
+/// Multi-byte characters that would be split are dropped entirely.
+/// Leading/trailing whitespace is stripped from the result.
+#[pyfunction]
+#[pyo3(signature = (text, nbytes))]
+fn text_trim(text: &str, nbytes: usize) -> String {
+    iscc_lib::text_trim(text, nbytes)
+}
+
+/// Normalize and simplify text for similarity hashing.
+///
+/// Applies NFD normalization, lowercasing, removes whitespace and characters
+/// in Unicode categories C (control), M (mark), and P (punctuation), then
+/// recombines with NFKC normalization.
+#[pyfunction]
+fn text_collapse(text: &str) -> String {
+    iscc_lib::text_collapse(text)
+}
+
 /// Python module `iscc._lowlevel` backed by Rust.
 #[pymodule(name = "_lowlevel")]
 fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -161,5 +207,10 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(gen_data_code_v0, m)?)?;
     m.add_function(wrap_pyfunction!(gen_instance_code_v0, m)?)?;
     m.add_function(wrap_pyfunction!(gen_iscc_code_v0, m)?)?;
+    m.add_function(wrap_pyfunction!(conformance_selftest, m)?)?;
+    m.add_function(wrap_pyfunction!(text_clean, m)?)?;
+    m.add_function(wrap_pyfunction!(text_remove_newlines, m)?)?;
+    m.add_function(wrap_pyfunction!(text_trim, m)?)?;
+    m.add_function(wrap_pyfunction!(text_collapse, m)?)?;
     Ok(())
 }

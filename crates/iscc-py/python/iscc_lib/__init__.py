@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import BinaryIO
 
 from iscc_lib._lowlevel import (
+    conformance_selftest as conformance_selftest,
     gen_audio_code_v0 as _gen_audio_code_v0,
     gen_data_code_v0 as _gen_data_code_v0,
     gen_image_code_v0 as _gen_image_code_v0,
@@ -14,6 +15,10 @@ from iscc_lib._lowlevel import (
     gen_mixed_code_v0 as _gen_mixed_code_v0,
     gen_text_code_v0 as _gen_text_code_v0,
     gen_video_code_v0 as _gen_video_code_v0,
+    text_clean as text_clean,
+    text_collapse as text_collapse,
+    text_remove_newlines as text_remove_newlines,
+    text_trim as text_trim,
 )
 
 
@@ -160,6 +165,7 @@ __all__ = [
     "MixedCodeResult",
     "TextCodeResult",
     "VideoCodeResult",
+    "conformance_selftest",
     "gen_audio_code_v0",
     "gen_data_code_v0",
     "gen_image_code_v0",
@@ -169,4 +175,8 @@ __all__ = [
     "gen_mixed_code_v0",
     "gen_text_code_v0",
     "gen_video_code_v0",
+    "text_clean",
+    "text_collapse",
+    "text_remove_newlines",
+    "text_trim",
 ]

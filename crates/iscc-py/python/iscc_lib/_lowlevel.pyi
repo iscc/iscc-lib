@@ -2,6 +2,65 @@
 
 from typing import Any
 
+def conformance_selftest() -> bool:
+    """Run all conformance tests against vendored test vectors.
+
+    Iterates through all 9 ``gen_*_v0`` function sections in the conformance
+    data, calls each function with the specified inputs, and compares results
+    against expected output. Returns ``True`` if all tests pass.
+
+    :return: ``True`` if all conformance tests pass, ``False`` otherwise.
+    """
+    ...
+
+def text_clean(text: str) -> str:
+    """Clean and normalize text for display.
+
+    Applies NFKC normalization, removes control characters (except newlines),
+    normalizes ``\\r\\n`` to ``\\n``, collapses consecutive empty lines to at
+    most one, and strips leading/trailing whitespace.
+
+    :param text: Input text to clean.
+    :return: Cleaned text.
+    """
+    ...
+
+def text_remove_newlines(text: str) -> str:
+    """Remove newlines and collapse whitespace to single spaces.
+
+    Converts multi-line text into a single normalized line by splitting on
+    whitespace boundaries and joining with a single space.
+
+    :param text: Input text with newlines.
+    :return: Single-line text with collapsed whitespace.
+    """
+    ...
+
+def text_trim(text: str, nbytes: int) -> str:
+    """Trim text so its UTF-8 encoded size does not exceed ``nbytes``.
+
+    Finds the largest valid UTF-8 prefix within ``nbytes``, then strips
+    leading/trailing whitespace from the result. Multi-byte characters that
+    would be split are dropped entirely.
+
+    :param text: Input text to trim.
+    :param nbytes: Maximum byte length of the result.
+    :return: Trimmed text.
+    """
+    ...
+
+def text_collapse(text: str) -> str:
+    """Normalize and simplify text for similarity hashing.
+
+    Applies NFD normalization, lowercasing, removes whitespace and characters
+    in Unicode categories C (control), M (mark), and P (punctuation), then
+    recombines with NFKC normalization.
+
+    :param text: Input text to collapse.
+    :return: Collapsed text suitable for similarity hashing.
+    """
+    ...
+
 def gen_meta_code_v0(
     name: str,
     description: str | None = None,
