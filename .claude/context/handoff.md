@@ -1,25 +1,32 @@
-## 2026-02-23 — Review of: Scaffold napi-rs crate with all 9 gen functions
+## 2026-02-23 — Add Node.js conformance tests for the napi crate
 
-**Verdict:** PASS
+**Done:** Created JavaScript conformance tests for all 9 `gen_*_v0` napi-rs bindings using Node.js
+built-in `node:test` runner. All 46 conformance vectors pass, matching the Python test count. Added
+`test` script to `package.json`.
 
-**Summary:** The `crates/iscc-napi/` crate was scaffolded correctly with all 9 `gen_*_v0` functions
-exposed via napi-rs `#[napi]` attributes. The implementation follows the same thin-wrapper pattern
-as the PyO3 bindings — type conversion and error mapping only, no logic in the binding layer. All
-verification criteria pass: build, clippy, fmt, 143 Rust tests, 49 Python tests.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-napi/__tests__/conformance.test.mjs`: Conformance test file covering all 9 gen
+    functions (16+5+3+5+3+2+4+3+5 = 46 vectors). Mirrors Python test structure with `describe`/`it`
+    blocks per function. Includes `decodeStream` for hex-encoded buffer inputs and
+    `jsonSortedStringify` for meta dict conversion.
+- `crates/iscc-napi/package.json`: Added `"test": "node --test __tests__/conformance.test.mjs"`
+    script.
 
-- (none)
+**Verification:**
 
-**Next:** The napi crate compiles but has no runtime tests yet (requires Node.js + `npm install` +
-`@napi-rs/cli`). The next logical steps are: (1) **WASM bindings** (`crates/iscc-wasm/` via
-wasm-bindgen) to complete the binding layer scaffold, or (2) **CI workflow update** to include the
-napi crate in the build matrix (at minimum `cargo build -p iscc-napi` + clippy), or (3) **Node.js
-integration tests** if Node.js tooling is available. WASM scaffold would be the most impactful next
-step as it completes another target deliverable and follows the same pattern.
+- `npm test` in `crates/iscc-napi/`: 46 passed, 0 failed (9 suites, 46 tests)
+- `cargo test -p iscc-lib`: 143 passed, 0 failed (no regression)
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean
+- `cargo fmt --all --check`: clean
 
-**Notes:** The design doc (`notes/02-language-bindings.md`) uses `crates/iscc-node/` as the crate
-directory name, but `crates/iscc-napi/` was chosen instead — this is fine and more descriptive. The
-design doc also shows per-platform npm packages under `npm/` and a `__tests__/` directory — these
-are for later when platform selection and CI publishing are set up. napi-rs type mappings: owned
-`String` (not `&str`), `Buffer` (not `&[u8]`), `Option<T>` with `.unwrap_or()` for defaults.
+**Next:** Add a Node.js CI job to `.github/workflows/ci.yml` that builds the native addon and runs
+`npm test`. This would complete the napi crate integration. After that, WASM bindings
+(`crates/iscc-wasm/`) or Phase 1 pytest-benchmark (iscc_lib vs iscc-core comparison) would be the
+next deliverables.
+
+**Notes:** The napi build generates `iscc-lib.linux-x64-gnu.node`, `index.js`, and `index.d.ts` in
+the crate root — these are gitignored build artifacts. The `node_modules/` directory from
+`npm install` is also a build artifact. The test file uses zero extra dependencies (only Node.js
+built-in `node:test` and `node:assert`). The `@napi-rs/cli` prints a deprecation warning about
+`napi.name` vs `napi.binaryName` — cosmetic only, doesn't affect functionality.
