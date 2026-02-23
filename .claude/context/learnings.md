@@ -121,3 +121,9 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - WASM conformance tests use `include_str!` for compile-time data embedding (WASM has no filesystem
     access at runtime). Path from `crates/iscc-wasm/tests/` to data is
     `../../iscc-lib/tests/data.json`
+- C FFI crate uses thread-local `RefCell<Option<CString>>` for error storage — `iscc_last_error()`
+    returns a pointer valid until the next gen call on the same thread. No extra dependencies needed
+    beyond `iscc-lib` (pure C ABI using only `std::ffi`)
+- C FFI type mappings: `&[u8]` → `*const u8` + `usize` len, `&[i32]` → `*const i32` + `usize` len,
+    `&[&str]` → `*const *const c_char` + `usize` count, `Option<&str>` → nullable `*const c_char`.
+    Helper functions `ptr_to_str`/`ptr_to_optional_str` centralize validation
