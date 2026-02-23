@@ -127,3 +127,88 @@ pub fn gen_iscc_code_v0(codes: JsValue, wide: Option<bool>) -> Result<String, Js
         .map(|r| r.iscc)
         .map_err(|e| JsError::new(&e.to_string()))
 }
+
+// ── Text utilities ──────────────────────────────────────────────────────────
+
+/// Clean and normalize text for display.
+///
+/// Applies NFKC normalization, removes control characters (except newlines),
+/// normalizes `\r\n` to `\n`, collapses consecutive empty lines, and strips
+/// leading/trailing whitespace.
+#[wasm_bindgen]
+pub fn text_clean(text: &str) -> String {
+    iscc_lib::text_clean(text)
+}
+
+/// Remove newlines and collapse whitespace to single spaces.
+///
+/// Converts multi-line text into a single normalized line.
+#[wasm_bindgen]
+pub fn text_remove_newlines(text: &str) -> String {
+    iscc_lib::text_remove_newlines(text)
+}
+
+/// Trim text so its UTF-8 encoded size does not exceed `nbytes`.
+///
+/// Multi-byte characters that would be split are dropped entirely.
+/// Leading/trailing whitespace is stripped from the result.
+#[wasm_bindgen]
+pub fn text_trim(text: &str, nbytes: u32) -> String {
+    iscc_lib::text_trim(text, nbytes as usize)
+}
+
+/// Normalize and simplify text for similarity hashing.
+///
+/// Applies NFD normalization, lowercasing, removes whitespace and characters
+/// in Unicode categories C (control), M (mark), and P (punctuation), then
+/// recombines with NFKC normalization.
+#[wasm_bindgen]
+pub fn text_collapse(text: &str) -> String {
+    iscc_lib::text_collapse(text)
+}
+
+// ── Encoding ────────────────────────────────────────────────────────────────
+
+/// Encode bytes as base64url (RFC 4648 §5, no padding).
+///
+/// Returns a URL-safe base64 encoded string without padding characters.
+#[wasm_bindgen]
+pub fn encode_base64(data: &[u8]) -> String {
+    iscc_lib::encode_base64(data)
+}
+
+// ── Codec ───────────────────────────────────────────────────────────────────
+
+/// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
+///
+/// Accepts a normalized ISCC-CODE or concatenated ISCC-UNIT sequence.
+/// The optional "ISCC:" prefix is stripped before decoding.
+/// Returns an array of base32-encoded ISCC-UNIT strings (without prefix).
+#[wasm_bindgen]
+pub fn iscc_decompose(iscc_code: &str) -> Result<Vec<String>, JsError> {
+    iscc_lib::iscc_decompose(iscc_code).map_err(|e| JsError::new(&e.to_string()))
+}
+
+// ── Conformance ─────────────────────────────────────────────────────────────
+
+/// Run all conformance tests against vendored test vectors.
+///
+/// Returns `true` if all tests pass, `false` if any fail.
+#[wasm_bindgen]
+pub fn conformance_selftest() -> bool {
+    iscc_lib::conformance_selftest()
+}
+
+// ── Sliding window ──────────────────────────────────────────────────────────
+
+/// Generate sliding window n-grams from a string.
+///
+/// Returns overlapping substrings of `width` Unicode characters, advancing
+/// by one character at a time. Throws if width is less than 2.
+#[wasm_bindgen]
+pub fn sliding_window(seq: &str, width: u32) -> Result<Vec<String>, JsError> {
+    if width < 2 {
+        return Err(JsError::new("Sliding window width must be 2 or bigger."));
+    }
+    Ok(iscc_lib::sliding_window(seq, width as usize))
+}
