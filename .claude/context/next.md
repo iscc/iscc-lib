@@ -1,92 +1,88 @@
 # Next Work Package
 
-## Step: Add DataHasher/InstanceHasher streaming classes to Node.js bindings
+## Step: Add DataHasher/InstanceHasher streaming classes to WASM bindings
 
 ## Goal
 
-Add the final 2 Tier 1 symbols (`DataHasher`, `InstanceHasher`) to the Node.js bindings, bringing
-them from 21/23 to 23/23 — full Tier 1 parity with Python. Node.js is the easiest starting point for
-streaming classes because napi-rs has native `#[napi]` class support with methods.
+Add the final 2 Tier 1 symbols (`DataHasher`, `InstanceHasher`) to the WASM bindings, bringing them
+from 21/23 to 23/23 — full Tier 1 parity with Python and Node.js. WASM is the natural next target
+because `#[wasm_bindgen]` supports class methods similarly to napi-rs.
 
 ## Scope
 
-- **Modify**: `crates/iscc-napi/src/lib.rs` — add `NapiDataHasher` and `NapiInstanceHasher` classes
-    with `#[napi]` constructor, `update`, and `finalize` methods
-- **Modify**: `crates/iscc-napi/__tests__/functions.test.mjs` — add test cases for both streaming
-    classes
+- **Modify**: `crates/iscc-wasm/src/lib.rs` — add `WasmDataHasher` and `WasmInstanceHasher` structs
+    with `#[wasm_bindgen]` constructor, `update`, and `finalize` methods
+- **Modify**: `crates/iscc-wasm/tests/unit.rs` — add test cases for both streaming classes
 - **Reference**: `crates/iscc-lib/src/streaming.rs` (Rust core `DataHasher`/`InstanceHasher` API),
-    `crates/iscc-py/src/lib.rs` (Python binding pattern with `Option<Inner>` for finalize-once
-    semantics), `crates/iscc-napi/__tests__/conformance.test.mjs` (test data loading pattern)
+    `crates/iscc-napi/src/lib.rs` (Node.js binding pattern — structurally identical to what WASM
+    needs), `crates/iscc-wasm/tests/conformance.rs` (existing WASM test patterns)
 
 ## Not In Scope
 
-- Adding streaming hashers to WASM or C FFI bindings — separate steps after Node.js
+- Adding streaming hashers to C FFI bindings — separate step (requires opaque pointer lifecycle
+    pattern which is more involved)
 - Structured return types for gen functions (returning full result objects instead of `.iscc`
     strings) — tracked separately
-- Streaming conformance tests in the Node.js conformance test file — unit tests in
-    `functions.test.mjs` are sufficient for this step (conformance is already verified in Rust core)
 - Changes to the Rust core crate — `DataHasher`/`InstanceHasher` are already fully implemented and
     tested
+- Adding per-crate CLAUDE.md files or other documentation — stay within defined scope
 
 ## Implementation Notes
 
 ### Class pattern
 
-Follow the PyO3 `Option<Inner>` pattern adapted for napi-rs. Each class wraps the core Rust type in
-`Option<T>` to enforce finalize-once semantics:
+Follow the napi-rs `Option<Inner>` pattern adapted for wasm-bindgen. Each class wraps the core Rust
+type in `Option<T>` to enforce finalize-once semantics:
 
 ```rust
-#[napi(js_name = "DataHasher")]
-struct NapiDataHasher {
+#[wasm_bindgen]
+pub struct DataHasher {
     inner: Option<iscc_lib::DataHasher>,
 }
 
-#[napi]
-impl NapiDataHasher {
-    #[napi(constructor)]
+#[wasm_bindgen]
+impl DataHasher {
+    #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self { inner: Some(iscc_lib::DataHasher::new()) }
     }
 
-    #[napi]
-    pub fn update(&mut self, data: Buffer) -> napi::Result<()> {
+    pub fn update(&mut self, data: &[u8]) -> Result<(), JsError> {
         self.inner
             .as_mut()
-            .ok_or_else(|| napi::Error::from_reason("DataHasher already finalized"))
-            .map(|h| h.update(&data))
+            .ok_or_else(|| JsError::new("DataHasher already finalized"))
+            .map(|h| h.update(data))
     }
 
-    #[napi(js_name = "finalize")]
-    pub fn finalize_code(&mut self, bits: Option<u32>) -> napi::Result<String> {
+    pub fn finalize(&mut self, bits: Option<u32>) -> Result<String, JsError> {
         let hasher = self.inner
             .take()
-            .ok_or_else(|| napi::Error::from_reason("DataHasher already finalized"))?;
+            .ok_or_else(|| JsError::new("DataHasher already finalized"))?;
         hasher.finalize(bits.unwrap_or(64))
             .map(|r| r.iscc)
-            .map_err(|e| napi::Error::from_reason(e.to_string()))
+            .map_err(|e| JsError::new(&e.to_string()))
     }
 }
 ```
 
-Key napi-rs class notes:
+Key wasm-bindgen differences from napi-rs:
 
-- Use `#[napi(constructor)]` (not `#[new]` like PyO3) for the JS constructor
-- The `finalize` name may conflict with napi-rs `ObjectFinalize` trait — name the Rust method
-    `finalize_code` with `#[napi(js_name = "finalize")]` to expose it as `finalize` in JS
-- `Buffer` input for `update()` (napi-rs type, accepts both `Buffer` and `Uint8Array` from JS)
-- Return `String` (just the `.iscc` field) from `finalize`, matching the existing gen function
-    pattern in Node.js bindings
-- `bits` parameter as `Option<u32>` with `.unwrap_or(64)` default — napi-rs doesn't support native
-    defaults
+- Use `#[wasm_bindgen(constructor)]` for the JS constructor (not `#[napi(constructor)]`)
+- Unlike napi-rs, wasm-bindgen has no `ObjectFinalize` trait conflict — the method can be named
+    `finalize` directly without `js_name` renaming
+- `&[u8]` for `update()` input (wasm-bindgen supports references directly, unlike napi-rs `Buffer`)
+- Error type is `JsError` (not `napi::Error`)
+- WASM structs can use the same name as the core types (`DataHasher` not `WasmDataHasher`) since
+    they're in a separate crate. But if clippy or naming conflict arises, prefix with `Wasm`
 
 ### InstanceHasher
 
-Same pattern as DataHasher. `finalize` returns just the `.iscc` string (not `datahash`/`filesize`),
-consistent with how `gen_instance_code_v0` is bound in the current Node.js bindings.
+Same pattern as DataHasher. `finalize` returns just the `.iscc` string, consistent with how
+`gen_instance_code_v0` is bound in the current WASM bindings.
 
-### Test cases (functions.test.mjs)
+### Test cases (unit.rs)
 
-Add a `describe('DataHasher')` and `describe('InstanceHasher')` block with these tests:
+Add tests using `wasm_bindgen_test` macro matching the existing test style in `unit.rs`:
 
 1. **basic usage** — construct, update with data, finalize → returns valid ISCC string starting with
     `"ISCC:"`
@@ -94,26 +90,30 @@ Add a `describe('DataHasher')` and `describe('InstanceHasher')` block with these
     `gen_instance_code_v0` for same input
 3. **multi-update** — split data across multiple `update()` calls, verify same result as one-shot
 4. **empty data** — construct and immediately finalize → produces valid ISCC
-5. **finalize-once** — calling `update()` after `finalize()` throws; calling `finalize()` twice
-    throws
-6. **default bits** — `finalize()` without argument uses 64-bit default
+5. **finalize-once** — calling `finalize()` twice should error (wasm-bindgen test panics can be
+    checked with `std::panic::catch_unwind` or by testing the `Result` return)
+6. **default bits** — `finalize()` with `None` uses 64-bit default
 
-### Import
+Note: WASM tests use `wasm_bindgen_test` and run via `wasm-pack test --node`. The tests import from
+`iscc_wasm::` (the crate) directly, not through JS imports. The `finalize()` method returns
+`Result<String, JsError>` so error cases can be checked via `.is_err()` in Rust tests.
 
-The test file needs to import `DataHasher` and `InstanceHasher` alongside existing function imports.
-napi-rs classes are exported as constructors from the native module.
+### Important: wasm-bindgen finalize naming
+
+Check whether `finalize` conflicts with JavaScript's `FinalizationRegistry` or any wasm-bindgen
+internal. It should be fine because `finalize` is just a regular method name in wasm-bindgen (not a
+lifecycle hook like in napi-rs). If there IS a conflict, use `#[wasm_bindgen(js_name = "finalize")]`
+on a differently-named Rust method.
 
 ## Verification
 
-- `cargo build -p iscc-napi` compiles without errors
+- `cargo build -p iscc-wasm --target wasm32-unknown-unknown` compiles without errors
 - `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- `cargo test --workspace` passes with 280+ tests (no regressions)
-- `node --test crates/iscc-napi/__tests__/functions.test.mjs` passes all tests (existing + ~12 new)
-- `node -e "const m = require('./crates/iscc-napi'); const d = new m.DataHasher(); d.update(Buffer.from('hello')); console.log(d.finalize())"`
-    prints an ISCC string
+- `cargo test --workspace` passes with 280+ tests (no regressions to non-WASM crates)
+- `wasm-pack test --node crates/iscc-wasm` passes all tests (31 existing + ~10 new)
 
 ## Done When
 
-All verification criteria pass: both `DataHasher` and `InstanceHasher` classes are importable from
-the Node.js native module, work correctly with the `new() → update() → finalize()` pattern, and all
-existing + new tests pass.
+All verification criteria pass: both `DataHasher` and `InstanceHasher` classes are exported from the
+WASM module, work correctly with the `new() → update() → finalize()` pattern, produce results
+matching the one-shot gen functions, and all existing + new tests pass.
