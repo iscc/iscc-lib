@@ -1,30 +1,42 @@
-## 2026-02-23 — Add text utils and simple functions to Node.js bindings
+## 2026-02-23 — Review of: Add text utils and simple functions to Node.js bindings
 
-**Done:** Added 8 new `#[napi]` function wrappers to the Node.js bindings: `text_clean`,
-`text_remove_newlines`, `text_trim`, `text_collapse`, `encode_base64`, `iscc_decompose`,
-`conformance_selftest`, and `sliding_window`. Node.js bindings now expose 17 Tier 1 symbols (9
-existing gen functions + 8 new). Created comprehensive unit tests and updated the test script to
-glob all test files.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** The advance agent added 8 non-gen Tier 1 functions to Node.js napi bindings, expanding
+from 9 to 17 symbols. Implementation follows the established thin-wrapper pattern exactly, with
+clean docstrings and correct type mappings. 27 well-structured unit tests cover all new functions
+including edge cases and error paths.
 
-- `crates/iscc-napi/src/lib.rs`: Added 8 `#[napi]` function wrappers following existing thin-wrapper
-    pattern
-- `crates/iscc-napi/__tests__/functions.test.mjs`: Created 27 unit tests covering all 8 new
-    functions
-- `crates/iscc-napi/package.json`: Updated test script from single file to glob pattern
-    `__tests__/*.test.mjs`
+**Verification:**
 
-**Verification:** All 73 Node.js tests pass (46 conformance + 27 new unit tests).
-`cargo clippy --workspace --all-targets -- -D warnings` is clean. All 14 pre-commit hooks pass. All
-Rust tests pass. `conformance_selftest()` returns `true` from Node.js. All 8 new functions are
-importable.
+- [x] `cargo build -p iscc-napi` compiles without errors
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` is clean
+- [x] `node --test crates/iscc-napi/__tests__/*.test.mjs` passes — 73 tests (46 conformance + 27
+    new)
+- [x] All 8 new functions importable from `../index.js`
+- [x] `conformance_selftest()` returns `true` from Node.js
+- [x] All 14 pre-commit hooks pass (`mise run check`)
+- [x] 250 Rust workspace tests pass (no regressions)
 
-**Next:** The remaining Tier 1 symbols for Node.js bindings are the algorithm primitives with
-complex types (`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`) which need
-`Buffer`/`Vec<Buffer>` mappings, and the streaming hashers (`DataHasher`, `InstanceHasher`) which
-need `#[napi]` class support. Alternatively, expand WASM bindings with the same 8 simple functions.
+**Issues found:**
 
-**Notes:** The `sliding_window` function returns the full string as a single-element array when the
-input is shorter than the width (matching the reference implementation behavior), not an empty array
-as one might expect. Test was adjusted accordingly.
+- (none)
+
+**Next:** Continue expanding non-Python bindings. Good candidates for the next step:
+
+1. **WASM bindings** — add the same 8 simple functions (`text_clean`, `text_remove_newlines`,
+    `text_trim`, `text_collapse`, `encode_base64`, `iscc_decompose`, `conformance_selftest`,
+    `sliding_window`) to mirror the Node.js expansion. The wasm-bindgen pattern is documented in
+    learnings.
+2. **Node.js algorithm primitives** — `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+    `soft_hash_video_v0` with `Buffer`/`Vec<Buffer>` mappings.
+3. **Node.js streaming hashers** — `DataHasher`, `InstanceHasher` via `#[napi]` class support.
+
+Option 1 (WASM simple functions) is the lowest-risk next step since it reuses the same 8 functions
+with the already-documented wasm-bindgen pattern.
+
+**Notes:** The `package.json` test script was updated to a glob pattern (`__tests__/*.test.mjs`)
+which was within scope (next.md said "update only if needed"). Node.js bindings now at 17/23 Tier 1
+symbols — remaining are 4 algorithm primitives and 2 streaming hasher classes. The napi deprecation
+warnings (`napi.name` → `binaryName`, `napi.triples` → `targets`) are cosmetic and can be addressed
+in a future cleanup pass.
