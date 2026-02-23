@@ -1,82 +1,59 @@
 # Next Work Package
 
-## Step: Promote simhash and minhash modules to Tier 1
+## Step: Promote alg_cdc_chunks to Tier 1 public API
 
 ## Goal
 
-Make `sliding_window`, `alg_simhash` (from `simhash` module), and `alg_minhash_256` (from `minhash`
-module) publicly accessible as Tier 1 API, following the same promotion pattern established for text
-utilities. This exposes 3 of the 4 target algorithm primitives.
+Promote `alg_cdc_chunks` from `pub(crate)` to `pub` as the last of the 4 algorithm primitives in the
+Tier 1 API. This brings the promoted symbol count from 16 to 17 of 22 and completes the algorithm
+primitives group.
 
 ## Scope
 
-- **Create**: `crates/iscc-lib/tests/test_algorithm_primitives.rs` — integration tests
-- **Modify**: `crates/iscc-lib/src/lib.rs` — change module visibility + add `pub use` re-exports
-- **Modify**: `crates/iscc-lib/src/simhash.rs` — change `alg_simhash` and `sliding_window` from
-    `pub(crate)` to `pub`
-- **Modify**: `crates/iscc-lib/src/minhash.rs` — change `alg_minhash_256` from `pub(crate)` to `pub`
-- **Reference**: `crates/iscc-lib/tests/test_text_utils.rs` — established integration test pattern
-- **Reference**: `reference/iscc-core/iscc_core/simhash.py` — Python reference for `sliding_window`
-    and `alg_simhash`
-- **Reference**: `reference/iscc-core/iscc_core/minhash.py` — Python reference for `alg_minhash_256`
+- **Create**: none
+- **Modify**: `crates/iscc-lib/src/lib.rs` (change `pub(crate) mod cdc` → `pub mod cdc`, add
+    `pub use cdc::alg_cdc_chunks` re-export), `crates/iscc-lib/src/cdc.rs` (change `alg_cdc_chunks`
+    from `pub(crate) fn` → `pub fn`), `crates/iscc-lib/tests/test_algorithm_primitives.rs` (add CDC
+    integration tests)
+- **Reference**: `crates/iscc-lib/src/cdc.rs` (current implementation),
+    `crates/iscc-lib/tests/test_algorithm_primitives.rs` (existing test pattern),
+    `crates/iscc-lib/src/lib.rs` (re-export pattern)
 
 ## Implementation Notes
 
-Follow the exact promotion pattern from the text utils step (see learnings):
+Apply the established Tier 1 promotion pattern (used 3 times already for utils, simhash, minhash):
 
-1. **lib.rs module visibility** — change these two lines:
+1. In `lib.rs`: change `pub(crate) mod cdc;` → `pub mod cdc;`
+2. In `lib.rs`: add `pub use cdc::alg_cdc_chunks;` to the re-exports block
+3. In `cdc.rs`: change `pub(crate) fn alg_cdc_chunks` → `pub fn alg_cdc_chunks`
+4. Keep `alg_cdc_params`, `alg_cdc_offset`, and `DATA_AVG_CHUNK_SIZE` as `pub(crate)` — these are
+    internal helpers, not part of the Tier 1 API. Since `cdc` becomes a `pub` module, `pub(crate)`
+    items remain invisible outside the crate (no leakage risk — confirmed in learnings).
 
-    - `pub(crate) mod simhash;` → `pub mod simhash;`
-    - `pub(crate) mod minhash;` → `pub mod minhash;`
+Add integration tests to `test_algorithm_primitives.rs` following the existing pattern:
 
-2. **lib.rs re-exports** — add flat crate-root re-exports after the existing `pub use utils::...`
-    line:
+- **Basic chunking**: verify `alg_cdc_chunks` returns expected chunk count for known data
+- **Empty input**: verify it returns a single empty chunk (matches existing unit test, but via
+    public API path)
+- **Reassembly**: verify chunks concatenate back to original data
+- **UTF-32 alignment**: verify `utf32=true` produces 4-byte-aligned chunk boundaries
+- **Different avg sizes**: verify smaller avg_chunk_size produces more chunks
+- **Flat import path**: verify `iscc_lib::alg_cdc_chunks` works
+- **Module path import**: verify `iscc_lib::cdc::alg_cdc_chunks` works
 
-    ```rust
-    pub use minhash::alg_minhash_256;
-    pub use simhash::{alg_simhash, sliding_window};
-    ```
-
-3. **simhash.rs** — change visibility on exactly two functions:
-
-    - `pub(crate) fn alg_simhash(...)` → `pub fn alg_simhash(...)`
-    - `pub(crate) fn sliding_window(...)` → `pub fn sliding_window(...)`
-    - Keep `sliding_window_bytes` as `pub(crate)` — it's not a Tier 1 target
-
-4. **minhash.rs** — change visibility on exactly one function:
-
-    - `pub(crate) fn alg_minhash_256(...)` → `pub fn alg_minhash_256(...)`
-    - Keep `minhash()` and `minhash_compress()` as private — they're internal helpers
-
-5. **Integration tests** — create `test_algorithm_primitives.rs` with tests verifying:
-
-    - **`sliding_window`**: basic n-grams ("hello" width 3 → ["hel", "ell", "llo"]), input shorter
-        than width (returns single element), Unicode correctness (CJK characters work), width=2
-        minimum
-    - **`alg_simhash`**: empty input returns 32 zero bytes, single digest returns itself, multiple
-        identical digests return same digest, different digests produce meaningful hash
-    - **`alg_minhash_256`**: empty features produces 32 bytes, single feature produces 32 bytes,
-        deterministic (same input → same output), different features produce different digests
-    - Both import paths work: `iscc_lib::sliding_window` (flat) and
-        `iscc_lib::simhash::sliding_window` (module path)
-    - Verify `sliding_window_bytes` is NOT accessible via `iscc_lib::simhash::sliding_window_bytes` —
-        this would be a compile-time check but since we can't do negative compile tests easily, just
-        note it for manual verification
+Run workspace-wide clippy (`cargo clippy --workspace --all-targets -- -D warnings`) before
+finishing, per learnings about newer lints only surfacing in `--all-targets` mode.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes with all existing 165 tests + new integration tests (expect ~180+
-    total)
-- `cargo clippy -p iscc-lib -- -D warnings` is clean
-- `iscc_lib::sliding_window`, `iscc_lib::alg_simhash`, and `iscc_lib::alg_minhash_256` are
-    importable from crate root in integration tests
-- `iscc_lib::simhash::sliding_window` and `iscc_lib::simhash::alg_simhash` are importable via module
-    path
-- `iscc_lib::minhash::alg_minhash_256` is importable via module path
-- Internal helpers (`minhash`, `minhash_compress`, `sliding_window_bytes`) remain invisible outside
-    the crate
+- `cargo test -p iscc-lib` passes (all existing 182 tests + new CDC integration tests)
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean
+- `iscc_lib::alg_cdc_chunks` is callable from integration tests (flat import)
+- `iscc_lib::cdc::alg_cdc_chunks` is callable from integration tests (module path)
+- Internal helpers (`alg_cdc_params`, `alg_cdc_offset`, `DATA_AVG_CHUNK_SIZE`) remain invisible
+    outside the crate
 
 ## Done When
 
-All verification criteria pass — the 3 algorithm functions are publicly accessible via both flat and
-module-path imports, integration tests confirm correct behavior, and all existing tests still pass.
+All verification criteria pass: tests green, clippy clean, `alg_cdc_chunks` accessible via both
+import paths, and internal helpers remain properly encapsulated.
