@@ -1,27 +1,33 @@
-## 2026-02-23 — Review of: Implement DataHasher and InstanceHasher streaming types
+## 2026-02-23 — Implement conformance_selftest diagnostic function
 
-**Verdict:** PASS
+**Done:** Implemented `conformance_selftest()` as a public Tier 1 API function in a dedicated
+`conformance.rs` module. The function runs all 9 gen functions against every vendored conformance
+vector from `data.json` and returns `true` if all produce correct output. This completes the Rust
+core Tier 1 API (23/23 symbols).
 
-**Summary:** Clean, well-structured implementation of `DataHasher` and `InstanceHasher` streaming
-types. Both follow the `new() → update(&[u8]) → finalize()` pattern specified in
-`notes/03-async-and-streaming.md` and produce output identical to their one-shot counterparts across
-all conformance vectors and edge cases. 15 new tests added (7 InstanceHasher + 8 DataHasher)
-covering empty input, small data, multi-chunk, byte-at-a-time, default, various bit widths, and
-conformance vectors. All 229 Rust tests pass (179 unit + 28 algo + 22 text), 63 Python tests pass,
-clippy clean workspace-wide, all pre-commit hooks pass.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-lib/src/conformance.rs`: Created module with `conformance_selftest()` public function
+    and 9 private helper functions (`run_meta_tests`, `run_text_tests`, etc.), one per gen function.
+    Each helper parses inputs from JSON, calls the gen function, compares `.iscc` output, and
+    returns `false` on mismatch or error (with `eprintln!` diagnostics). Includes a unit test
+    asserting the selftest passes. Uses `Option`-based error handling (closures returning
+    `Option<bool>`) to avoid panics — any parse failure or gen function error counts as failure.
+- `crates/iscc-lib/src/lib.rs`: Added `pub mod conformance;` and
+    `pub use conformance::conformance_selftest;` re-export for flat crate-root imports.
 
-- (none)
+**Verification:** All 230 tests pass (180 unit + 28 algo + 22 text), including the new
+`conformance::tests::test_conformance_selftest_passes`. Clippy clean workspace-wide
+(`--workspace --all-targets`). All pre-commit hooks pass. `iscc_lib::conformance_selftest` is
+accessible as a public API symbol via the crate root re-export.
 
-**Next:** All 22 functional Tier 1 symbols are now implemented. The remaining Tier 1 work is
-`conformance_selftest` — a diagnostic function that runs all conformance vectors from `data.json`
-and returns pass/fail. After that, `state.md` should be updated to reflect 22/22 Tier 1 symbols
-complete. The binding crates (Python, Node.js, WASM, C FFI) also need wrappers for the streaming
-types — these could be scoped as a separate work package.
+**Next:** All 23 Tier 1 symbols are implemented. `state.md` should be updated to reflect this
+milestone. Remaining work includes adding `conformance_selftest` wrappers to all binding crates
+(Python, Node.js, WASM, C FFI) and updating documentation. The streaming types (`DataHasher`,
+`InstanceHasher`) also need binding wrappers.
 
-**Notes:** The `DataHasher` faithfully ports the Python `DataHasherV0.push()` `prev_chunk` pattern
-for CDC tail handling across `update()` boundaries. The `InstanceHasher` avoids redundant rehashing
-by constructing the multihash directly from the BLAKE3 digest (`format!("1e20{}", hex::encode(...))`
-) instead of calling `multi_hash_blake3`. Both types are re-exported at crate root for flat imports
-(`iscc_lib::DataHasher` / `iscc_lib::InstanceHasher`).
+**Notes:** The implementation uses per-function helpers rather than a generic dispatch approach
+because each gen function has a unique signature and input decoding logic. The `gen_iscc_code_v0`
+conformance vectors only include the codes array (no `wide` parameter), so `false` is passed for
+wide mode (matching the existing test pattern). A `decode_stream` helper centralizes the
+`"stream:<hex>"` parsing shared by data and instance tests.
