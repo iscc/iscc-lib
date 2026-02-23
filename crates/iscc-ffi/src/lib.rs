@@ -18,7 +18,7 @@
 
 use std::cell::RefCell;
 use std::ffi::{CStr, CString, c_char};
-use std::ptr;
+use std::{mem, ptr};
 
 thread_local! {
     /// Thread-local storage for the last error message.
@@ -53,6 +53,49 @@ fn result_to_c_string(result: Result<String, iscc_lib::IsccError>) -> *mut c_cha
             ptr::null_mut()
         }
     }
+}
+
+/// Convert a Rust `String` to a heap-allocated C string.
+///
+/// On success, returns `CString::into_raw()`. On failure (interior NUL byte),
+/// sets the thread-local error and returns `NULL`.
+fn string_to_c(s: String) -> *mut c_char {
+    match CString::new(s) {
+        Ok(cs) => cs.into_raw(),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
+/// Convert a `Vec<String>` to a heap-allocated NULL-terminated array of C strings.
+///
+/// Each element is converted to a `CString` and its raw pointer placed in the
+/// array. A NULL terminator is appended. The caller must free the result with
+/// `iscc_free_string_array()`. Returns `NULL` if any element contains an
+/// interior NUL byte.
+fn vec_to_c_string_array(v: Vec<String>) -> *mut *mut c_char {
+    let mut ptrs: Vec<*mut c_char> = Vec::with_capacity(v.len() + 1);
+    for s in v {
+        match CString::new(s) {
+            Ok(cs) => ptrs.push(cs.into_raw()),
+            Err(e) => {
+                // Free already-allocated strings on failure
+                for &ptr in &ptrs {
+                    // SAFETY: each ptr was produced by CString::into_raw() above
+                    drop(unsafe { CString::from_raw(ptr) });
+                }
+                set_last_error(&e.to_string());
+                return ptr::null_mut();
+            }
+        }
+    }
+    ptrs.push(ptr::null_mut()); // NULL terminator
+    ptrs.shrink_to_fit();
+    let ptr = ptrs.as_mut_ptr();
+    mem::forget(ptrs);
+    ptr
 }
 
 /// Convert a `*const c_char` to a `&str`, returning `NULL` on failure.
@@ -98,6 +141,8 @@ unsafe fn ptr_to_optional_str<'a>(ptr: *const c_char, param_name: &str) -> Optio
         }
     }
 }
+
+// ── Gen functions ───────────────────────────────────────────────────────────
 
 /// Generate a Meta-Code from name and optional metadata.
 ///
@@ -421,6 +466,197 @@ pub unsafe extern "C" fn iscc_gen_iscc_code_v0(
     result_to_c_string(iscc_lib::gen_iscc_code_v0(&code_strs, wide).map(|r| r.iscc))
 }
 
+// ── Text utilities ──────────────────────────────────────────────────────────
+
+/// Clean and normalize text for display.
+///
+/// Applies NFKC normalization, removes control characters (except newlines),
+/// normalizes `\r\n` to `\n`, collapses consecutive empty lines, and strips
+/// leading/trailing whitespace.
+///
+/// # Returns
+///
+/// Heap-allocated C string on success, `NULL` on error.
+/// Caller must free with `iscc_free_string()`.
+///
+/// # Safety
+///
+/// `text` must point to a valid null-terminated UTF-8 string, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_text_clean(text: *const c_char) -> *mut c_char {
+    clear_last_error();
+    let Some(text) = (unsafe { ptr_to_str(text, "text") }) else {
+        return ptr::null_mut();
+    };
+    string_to_c(iscc_lib::text_clean(text))
+}
+
+/// Remove newlines and collapse whitespace to single spaces.
+///
+/// Converts multi-line text into a single normalized line.
+///
+/// # Returns
+///
+/// Heap-allocated C string on success, `NULL` on error.
+/// Caller must free with `iscc_free_string()`.
+///
+/// # Safety
+///
+/// `text` must point to a valid null-terminated UTF-8 string, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_text_remove_newlines(text: *const c_char) -> *mut c_char {
+    clear_last_error();
+    let Some(text) = (unsafe { ptr_to_str(text, "text") }) else {
+        return ptr::null_mut();
+    };
+    string_to_c(iscc_lib::text_remove_newlines(text))
+}
+
+/// Trim text so its UTF-8 encoded size does not exceed `nbytes`.
+///
+/// Multi-byte characters that would be split are dropped entirely.
+/// Leading/trailing whitespace is stripped from the result.
+///
+/// # Returns
+///
+/// Heap-allocated C string on success, `NULL` on error.
+/// Caller must free with `iscc_free_string()`.
+///
+/// # Safety
+///
+/// `text` must point to a valid null-terminated UTF-8 string, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_text_trim(text: *const c_char, nbytes: usize) -> *mut c_char {
+    clear_last_error();
+    let Some(text) = (unsafe { ptr_to_str(text, "text") }) else {
+        return ptr::null_mut();
+    };
+    string_to_c(iscc_lib::text_trim(text, nbytes))
+}
+
+/// Normalize and simplify text for similarity hashing.
+///
+/// Applies NFD normalization, lowercasing, removes whitespace and characters
+/// in Unicode categories C (control), M (mark), and P (punctuation), then
+/// recombines with NFKC normalization.
+///
+/// # Returns
+///
+/// Heap-allocated C string on success, `NULL` on error.
+/// Caller must free with `iscc_free_string()`.
+///
+/// # Safety
+///
+/// `text` must point to a valid null-terminated UTF-8 string, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_text_collapse(text: *const c_char) -> *mut c_char {
+    clear_last_error();
+    let Some(text) = (unsafe { ptr_to_str(text, "text") }) else {
+        return ptr::null_mut();
+    };
+    string_to_c(iscc_lib::text_collapse(text))
+}
+
+// ── Encoding ────────────────────────────────────────────────────────────────
+
+/// Encode bytes as base64url (RFC 4648 section 5, no padding).
+///
+/// # Parameters
+///
+/// - `data`: pointer to raw byte data
+/// - `data_len`: number of bytes
+///
+/// # Returns
+///
+/// Heap-allocated C string on success, `NULL` on error.
+/// Caller must free with `iscc_free_string()`.
+///
+/// # Safety
+///
+/// `data` must point to a valid buffer of at least `data_len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_encode_base64(data: *const u8, data_len: usize) -> *mut c_char {
+    clear_last_error();
+    if data.is_null() {
+        set_last_error("data must not be NULL");
+        return ptr::null_mut();
+    }
+    // SAFETY: caller guarantees data is valid for data_len bytes
+    let data = unsafe { std::slice::from_raw_parts(data, data_len) };
+    string_to_c(iscc_lib::encode_base64(data))
+}
+
+// ── Conformance ─────────────────────────────────────────────────────────────
+
+/// Run all conformance tests against vendored test vectors.
+///
+/// Returns `true` if all tests pass, `false` if any fail.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_conformance_selftest() -> bool {
+    iscc_lib::conformance_selftest()
+}
+
+// ── Codec ───────────────────────────────────────────────────────────────────
+
+/// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
+///
+/// Accepts a normalized ISCC-CODE or concatenated ISCC-UNIT sequence.
+/// The optional "ISCC:" prefix is stripped before decoding.
+/// Returns a NULL-terminated array of heap-allocated C strings.
+///
+/// # Returns
+///
+/// NULL-terminated array on success, `NULL` on error (check `iscc_last_error()`).
+/// Caller must free with `iscc_free_string_array()`.
+///
+/// # Safety
+///
+/// `iscc_code` must point to a valid null-terminated UTF-8 string, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_decompose(iscc_code: *const c_char) -> *mut *mut c_char {
+    clear_last_error();
+    let Some(iscc_code) = (unsafe { ptr_to_str(iscc_code, "iscc_code") }) else {
+        return ptr::null_mut();
+    };
+    match iscc_lib::iscc_decompose(iscc_code) {
+        Ok(units) => vec_to_c_string_array(units),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            ptr::null_mut()
+        }
+    }
+}
+
+// ── Sliding window ──────────────────────────────────────────────────────────
+
+/// Generate sliding window n-grams from a string.
+///
+/// Returns a NULL-terminated array of overlapping substrings of `width`
+/// Unicode characters, advancing by one character at a time.
+///
+/// # Returns
+///
+/// NULL-terminated array on success, `NULL` on error (check `iscc_last_error()`).
+/// Caller must free with `iscc_free_string_array()`.
+///
+/// # Safety
+///
+/// `seq` must point to a valid null-terminated UTF-8 string, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_sliding_window(seq: *const c_char, width: u32) -> *mut *mut c_char {
+    clear_last_error();
+    if width < 2 {
+        set_last_error("Sliding window width must be 2 or bigger.");
+        return ptr::null_mut();
+    }
+    let Some(seq) = (unsafe { ptr_to_str(seq, "seq") }) else {
+        return ptr::null_mut();
+    };
+    vec_to_c_string_array(iscc_lib::sliding_window(seq, width as usize))
+}
+
+// ── Memory management ───────────────────────────────────────────────────────
+
 /// Free a string previously returned by any `iscc_gen_*` function.
 ///
 /// # Safety
@@ -433,6 +669,35 @@ pub unsafe extern "C" fn iscc_free_string(ptr: *mut c_char) {
         // SAFETY: ptr was produced by CString::into_raw() in this crate
         drop(unsafe { CString::from_raw(ptr) });
     }
+}
+
+/// Free a NULL-terminated string array returned by `iscc_decompose` or
+/// `iscc_sliding_window`.
+///
+/// Walks the array, freeing each string via `CString::from_raw`, then frees
+/// the array itself. `NULL` is a no-op.
+///
+/// # Safety
+///
+/// `arr` must be a pointer returned by `iscc_decompose` or `iscc_sliding_window`,
+/// or `NULL`. Each array must only be freed once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
+    if arr.is_null() {
+        return;
+    }
+    // Count elements (excluding NULL terminator)
+    let mut count = 0usize;
+    // SAFETY: arr was produced by vec_to_c_string_array() and is NULL-terminated
+    while !unsafe { *arr.add(count) }.is_null() {
+        // SAFETY: each element was produced by CString::into_raw()
+        drop(unsafe { CString::from_raw(*arr.add(count)) });
+        count += 1;
+    }
+    // Reconstruct the Vec to free the array itself.
+    // shrink_to_fit guarantees capacity == len, and len == count + 1 (including NULL terminator)
+    // SAFETY: arr was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget
+    drop(unsafe { Vec::from_raw_parts(arr, count + 1, count + 1) });
 }
 
 /// Return the last error message from the current thread.
@@ -467,6 +732,25 @@ mod tests {
         let s = unsafe { CStr::from_ptr(ptr) }.to_str().unwrap().to_owned();
         unsafe { iscc_free_string(ptr) };
         Some(s)
+    }
+
+    /// Walk a NULL-terminated C string array and collect into a Vec<String>.
+    unsafe fn c_ptr_to_string_vec(arr: *mut *mut c_char) -> Option<Vec<String>> {
+        if arr.is_null() {
+            return None;
+        }
+        let mut result = Vec::new();
+        let mut i = 0;
+        while !unsafe { *arr.add(i) }.is_null() {
+            let s = unsafe { CStr::from_ptr(*arr.add(i)) }
+                .to_str()
+                .unwrap()
+                .to_owned();
+            result.push(s);
+            i += 1;
+        }
+        unsafe { iscc_free_string_array(arr) };
+        Some(result)
     }
 
     #[test]
@@ -624,5 +908,152 @@ mod tests {
         assert!(!result.is_null());
         assert!(iscc_last_error().is_null());
         unsafe { iscc_free_string(result) };
+    }
+
+    // ── text_clean tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_text_clean_nfkc() {
+        // NFKC normalizes fi ligature (U+FB01) to "fi"
+        let text = CString::new("Hel\u{FB01}").unwrap();
+        let result = unsafe { iscc_text_clean(text.as_ptr()) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert_eq!(s, "Helfi");
+    }
+
+    #[test]
+    fn test_text_clean_null() {
+        let result = unsafe { iscc_text_clean(ptr::null()) };
+        assert!(result.is_null());
+    }
+
+    // ── text_remove_newlines tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_text_remove_newlines_basic() {
+        let text = CString::new("line1\nline2\nline3").unwrap();
+        let result = unsafe { iscc_text_remove_newlines(text.as_ptr()) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert_eq!(s, "line1 line2 line3");
+    }
+
+    #[test]
+    fn test_text_remove_newlines_null() {
+        let result = unsafe { iscc_text_remove_newlines(ptr::null()) };
+        assert!(result.is_null());
+    }
+
+    // ── text_trim tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn test_text_trim_truncation() {
+        let text = CString::new("Hello World").unwrap();
+        let result = unsafe { iscc_text_trim(text.as_ptr(), 5) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert_eq!(s, "Hello");
+    }
+
+    #[test]
+    fn test_text_trim_null() {
+        let result = unsafe { iscc_text_trim(ptr::null(), 10) };
+        assert!(result.is_null());
+    }
+
+    // ── text_collapse tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_text_collapse_basic() {
+        let text = CString::new("Hello World!").unwrap();
+        let result = unsafe { iscc_text_collapse(text.as_ptr()) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert_eq!(s, "helloworld");
+    }
+
+    #[test]
+    fn test_text_collapse_null() {
+        let result = unsafe { iscc_text_collapse(ptr::null()) };
+        assert!(result.is_null());
+    }
+
+    // ── encode_base64 tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_encode_base64_known() {
+        let data = b"\x00\x01\x02";
+        let result = unsafe { iscc_encode_base64(data.as_ptr(), data.len()) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert_eq!(s, "AAEC");
+    }
+
+    #[test]
+    fn test_encode_base64_null() {
+        let result = unsafe { iscc_encode_base64(ptr::null(), 0) };
+        assert!(result.is_null());
+    }
+
+    // ── conformance_selftest test ───────────────────────────────────────────
+
+    #[test]
+    fn test_conformance_selftest() {
+        assert!(iscc_conformance_selftest());
+    }
+
+    // ── iscc_decompose tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_decompose_known() {
+        // Decompose a known ISCC-CODE (single Meta-Code unit)
+        let code = CString::new("ISCC:AAAYPXW445FTYNJ3").unwrap();
+        let arr = unsafe { iscc_decompose(code.as_ptr()) };
+        let units = unsafe { c_ptr_to_string_vec(arr) }.unwrap();
+        assert_eq!(units.len(), 1);
+    }
+
+    #[test]
+    fn test_decompose_invalid() {
+        let code = CString::new("INVALID").unwrap();
+        let arr = unsafe { iscc_decompose(code.as_ptr()) };
+        assert!(arr.is_null());
+    }
+
+    #[test]
+    fn test_decompose_null() {
+        let arr = unsafe { iscc_decompose(ptr::null()) };
+        assert!(arr.is_null());
+    }
+
+    // ── iscc_sliding_window tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_sliding_window_basic() {
+        let seq = CString::new("Hello").unwrap();
+        let arr = unsafe { iscc_sliding_window(seq.as_ptr(), 2) };
+        let ngrams = unsafe { c_ptr_to_string_vec(arr) }.unwrap();
+        assert_eq!(ngrams, vec!["He", "el", "ll", "lo"]);
+    }
+
+    #[test]
+    fn test_sliding_window_width_too_small() {
+        let seq = CString::new("Hello").unwrap();
+        let arr = unsafe { iscc_sliding_window(seq.as_ptr(), 1) };
+        assert!(arr.is_null());
+        let err = iscc_last_error();
+        assert!(!err.is_null());
+        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
+        assert!(msg.contains("width"));
+    }
+
+    #[test]
+    fn test_sliding_window_null() {
+        let arr = unsafe { iscc_sliding_window(ptr::null(), 3) };
+        assert!(arr.is_null());
+    }
+
+    // ── free_string_array null safety ───────────────────────────────────────
+
+    #[test]
+    fn test_free_string_array_null() {
+        // Should be a no-op, not crash
+        unsafe { iscc_free_string_array(ptr::null_mut()) };
     }
 }
