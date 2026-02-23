@@ -1,118 +1,103 @@
 # Next Work Package
 
-## Step: Create C FFI crate with extern "C" wrappers and cbindgen
+## Step: Add C test program and CI job for iscc-ffi
 
 ## Goal
 
-Create the `iscc-ffi` crate exposing all 9 `gen_*_v0` functions as `extern "C"` symbols with a
-cbindgen-generated C header. This enables integration from C, Go, Java, C#, and any other language
-with C interop.
+Create a minimal C test program that links against `iscc-ffi` and validates correctness of the FFI
+entrypoints. This satisfies the target criterion "A C test program can call the entrypoints and get
+correct results" and adds a dedicated CI job to verify the C FFI on every push.
 
 ## Scope
 
-- **Create**: `crates/iscc-ffi/Cargo.toml`, `crates/iscc-ffi/src/lib.rs`,
-    `crates/iscc-ffi/cbindgen.toml`
-- **Modify**: `Cargo.toml` (root — add `crates/iscc-ffi` to workspace members)
-- **Reference**: `crates/iscc-py/src/lib.rs` (binding pattern), `crates/iscc-lib/src/lib.rs` (public
-    API signatures), `notes/02-language-bindings.md` (C FFI architecture)
+- **Create**: `crates/iscc-ffi/tests/test_iscc.c` (C test program)
+- **Modify**: `.github/workflows/ci.yml` (add C FFI CI job)
+- **Reference**: `crates/iscc-ffi/src/lib.rs` (function signatures and expected values from unit
+    tests), `crates/iscc-ffi/cbindgen.toml` (header generation config), `crates/iscc-ffi/Cargo.toml`
+    (crate-type: cdylib + staticlib)
 
 ## Implementation Notes
 
-### Crate setup (`Cargo.toml`)
+### C test program (`crates/iscc-ffi/tests/test_iscc.c`)
 
-- `crate-type = ["cdylib", "staticlib"]` — shared library for dynamic linking, static for embedding
-- `publish = false` (distributed as compiled binaries, not via crates.io)
-- Depends on `iscc-lib = { path = "../iscc-lib" }`
-- No other dependencies needed (pure C ABI, no serde, no libc)
+A self-contained C program that tests the FFI entrypoints against known expected values. Uses the
+same expected values already validated in the Rust unit tests in `lib.rs`.
 
-### C API design (`src/lib.rs`)
+**Test cases to include** (values taken from the Rust unit tests):
 
-**Memory model**: Functions return heap-allocated C strings (`*mut c_char`) via `CString`. The
-caller must free them with `iscc_free_string()`. On error, functions return `NULL` and the caller
-retrieves the error message via `iscc_last_error()`. Use a thread-local `RefCell<Option<CString>>`
-for the error message.
+1. `iscc_gen_meta_code_v0("Die Unendliche Geschichte", NULL, NULL, 64)` → `"ISCC:AAAZXZ6OU74YAZIM"`
+2. `iscc_gen_meta_code_v0("Die Unendliche Geschichte", "Von Michael Ende", NULL, 64)` →
+    `"ISCC:AAAZXZ6OU4E45RB5"`
+3. `iscc_gen_text_code_v0("Hello World", 64)` → `"ISCC:EAASKDNZNYGUUF5A"`
+4. `iscc_gen_image_code_v0(<1024 zero bytes>, 1024, 64)` → `"ISCC:EEAQAAAAAAAAAAAA"`
+5. `iscc_gen_instance_code_v0(<empty bytes>, 0, 64)` → `"ISCC:IAA26E2JXH27TING"`
+6. `iscc_gen_data_code_v0("Hello World", 11, 64)` → starts with `"ISCC:"`
+7. Error handling: `iscc_gen_text_code_v0(NULL, 64)` returns `NULL`, `iscc_last_error()` returns
+    non-NULL
+8. Error cleared on success: after an error, a successful call makes `iscc_last_error()` return
+    `NULL`
+9. `iscc_free_string(NULL)` does not crash (no-op test)
 
-**Function signatures** — all functions are `#[unsafe(no_mangle)] pub unsafe extern "C"`:
+**Structure pattern:**
 
-1. `iscc_gen_meta_code_v0(name: *const c_char, description: *const c_char, meta: *const c_char,  bits: u32) -> *mut c_char`
-    — `NULL` description/meta means "not provided"
-2. `iscc_gen_text_code_v0(text: *const c_char, bits: u32) -> *mut c_char`
-3. `iscc_gen_image_code_v0(pixels: *const u8, pixels_len: usize, bits: u32) -> *mut c_char`
-4. `iscc_gen_audio_code_v0(cv: *const i32, cv_len: usize, bits: u32) -> *mut c_char`
-5. `iscc_gen_video_code_v0(frame_sigs: *const *const i32, frame_lens: *const usize, num_frames:  usize, bits: u32) -> *mut c_char`
-    — each frame is a pointer+length pair
-6. `iscc_gen_mixed_code_v0(codes: *const *const c_char, num_codes: usize, bits: u32) -> *mut c_char`
-7. `iscc_gen_data_code_v0(data: *const u8, data_len: usize, bits: u32) -> *mut c_char`
-8. `iscc_gen_instance_code_v0(data: *const u8, data_len: usize, bits: u32) -> *mut c_char`
-9. `iscc_gen_iscc_code_v0(codes: *const *const c_char, num_codes: usize, wide: bool) -> *mut c_char`
+```c
+#include "iscc.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 
-**Utility functions**:
+static int tests_passed = 0;
+static int tests_failed = 0;
 
-- `iscc_free_string(ptr: *mut c_char)` — frees a string returned by any gen function
-- `iscc_last_error() -> *const c_char` — returns the last error message (static lifetime within the
-    thread, valid until the next gen call). Returns `NULL` if no error.
+#define ASSERT_STR_EQ(actual, expected, test_name) ...
+#define ASSERT_NULL(ptr, test_name) ...
+#define ASSERT_NOT_NULL(ptr, test_name) ...
 
-**Error handling pattern** (each gen function):
-
-```rust
-thread_local! {
-    static LAST_ERROR: RefCell<Option<CString>> = const { RefCell::new(None) };
-}
-
-fn set_last_error(msg: &str) {
-    LAST_ERROR.with(|e| *e.borrow_mut() = CString::new(msg).ok());
-}
-
-fn clear_last_error() {
-    LAST_ERROR.with(|e| *e.borrow_mut() = None);
+int main(void) {
+    // ... test cases ...
+    printf("%d passed, %d failed\n", tests_passed, tests_failed);
+    return tests_failed > 0 ? 1 : 0;
 }
 ```
 
-Each wrapper: validate pointers (null → set error + return NULL), convert C types to Rust types,
-call `iscc_lib::gen_*_v0`, convert result to CString, return `.into_raw()`. On `Err`, call
-`set_last_error()` and return `NULL`.
+Each test should call `iscc_free_string()` on every non-NULL result. The program exits with 0 on all
+tests passing, non-zero on any failure.
 
-**Null pointer safety**: Every function must check that required pointer arguments are non-null
-before dereferencing. Use `CStr::from_ptr()` for string conversion. For slices, use
-`std::slice::from_raw_parts()`.
+### CI job (`.github/workflows/ci.yml`)
 
-### cbindgen config (`cbindgen.toml`)
+Add a new `c-ffi` job (after the existing `wasm` job) that:
 
-```toml
-language = "C"
-include_guard = "ISCC_H"
-no_includes = true
-sys_includes = ["stdint.h", "stdbool.h", "stddef.h"]
+1. Checks out the code
+2. Sets up Rust toolchain (stable) + cache
+3. Installs cbindgen: `cargo install cbindgen`
+4. Builds the FFI crate: `cargo build -p iscc-ffi` (builds both cdylib and staticlib)
+5. Generates the C header: `cbindgen --crate iscc-ffi -o crates/iscc-ffi/tests/iscc.h`
+6. Compiles the test program:
+    `gcc -o test_iscc crates/iscc-ffi/tests/test_iscc.c -I crates/iscc-ffi/tests -L target/debug -liscc_ffi -lpthread -ldl -lm`
+7. Runs it: `LD_LIBRARY_PATH=target/debug ./test_iscc`
 
-[export]
-prefix = "iscc_"
+**Library naming note:** On Linux, `cargo build -p iscc-ffi` produces `target/debug/libiscc_ffi.so`
+(cdylib) and `target/debug/libiscc_ffi.a` (staticlib). The linker flag is `-liscc_ffi`. The cdylib
+name uses underscores (Cargo converts hyphens to underscores in library names).
 
-[fn]
-prefix = ""
-```
+**System libraries:** The Rust runtime requires `-lpthread -ldl -lm` when statically linking. For
+dynamic linking (cdylib), these may not be needed but including them ensures portability.
 
-### Unsafe justification
+### Header generation approach
 
-The `unsafe` in this crate is justified because C FFI inherently requires:
-
-- Dereferencing raw pointers from the caller
-- `no_mangle` for symbol export
-- `extern "C"` ABI
-
-All unsafe operations are confined to pointer validation at the FFI boundary. The core `iscc_lib`
-crate remains 100% safe Rust.
+Do NOT commit the generated header. Generate it in CI via `cbindgen`. This avoids staleness issues
+and is the standard approach for cbindgen-based projects. The test program includes the generated
+header from the same directory.
 
 ## Verification
 
-- `cargo build -p iscc-ffi` succeeds (both cdylib and staticlib targets)
-- `cargo clippy -p iscc-ffi -- -D warnings` is clean
-- `cargo fmt -p iscc-ffi --check` is clean
-- `cbindgen --crate iscc-ffi --output /dev/null` generates valid C header without errors
-- All 9 `iscc_gen_*_v0` functions + `iscc_free_string` + `iscc_last_error` appear in the generated
-    header
-- Existing tests still pass: `cargo test -p iscc-lib` (143 tests)
+- The C test program compiles with gcc against the cbindgen-generated header
+- The C test program runs successfully (exit code 0) and prints all tests passing
+- All existing CI jobs remain green (no regression)
+- The new `c-ffi` CI job passes
+- At least 7 test cases cover: meta, text, image, instance, data, error handling, and memory freeing
 
 ## Done When
 
-The advance agent is done when `cargo build -p iscc-ffi` compiles successfully, cbindgen generates a
-valid C header containing all 11 exported symbols, and all existing tests still pass.
+The advance agent is done when the C test program exists, compiles, runs with all tests passing
+locally, and the CI workflow includes a `c-ffi` job that builds, compiles, and runs the C test.
