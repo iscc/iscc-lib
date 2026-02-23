@@ -1,31 +1,37 @@
-## 2026-02-23 — Review of: Add DataHasher/InstanceHasher streaming classes to WASM bindings
+## 2026-02-23 — Add DataHasher/InstanceHasher opaque pointer FFI to C bindings
 
-**Verdict:** PASS
+**Done:** Added 8 `extern "C"` functions exposing `DataHasher` and `InstanceHasher` streaming types
+via the opaque pointer lifecycle pattern (new/update/finalize/free). This brings C FFI from 21/23 to
+23/23 Tier 1 parity, completing full parity across all four binding targets (Python, Node.js, WASM,
+C FFI).
 
-**Summary:** DataHasher and InstanceHasher streaming classes added to WASM bindings, bringing WASM
-from 21/23 to 23/23 Tier 1 parity with Python and Node.js. Implementation is clean — follows the
-established `Option<Inner>` finalize-once pattern adapted for wasm-bindgen, with comprehensive tests
-(14 new). All quality gates pass, no scope violations.
+**Files changed:**
+
+- `crates/iscc-ffi/src/lib.rs`: Added `FfiDataHasher` and `FfiInstanceHasher` wrapper structs with
+    `Option<Inner>` for finalize-once semantics. Added 8 `extern "C"` functions
+    (`iscc_data_hasher_new/update/finalize/free` and
+    `iscc_instance_hasher_new/update/finalize/free`). Added 12 Rust unit tests covering basic
+    lifecycle, gen-function equivalence, multi-update, empty-data, finalize-twice error, and
+    free-NULL safety for both hasher types.
+- `crates/iscc-ffi/tests/test_iscc.c`: Added 4 C test sections (7 new assertions): DataHasher basic
+    lifecycle, InstanceHasher empty-data finalize, DataHasher multi-update consistency, and
+    free-NULL safety for both types.
 
 **Verification:**
 
-- [x] `cargo build -p iscc-wasm --target wasm32-unknown-unknown` compiles without errors
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- [x] `cargo test --workspace` passes with 280 tests (no regressions)
-- [x] `wasm-pack test --node crates/iscc-wasm` passes all 54 tests (9 conformance + 45 unit — 31
-    existing + 14 new)
-- [x] `mise run check` passes all 14 pre-commit hooks
+- `cargo test -p iscc-ffi` passes: 62 tests (50 existing + 12 new)
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean
+- `cargo test --workspace` passes: 292 tests across all crates (no regressions)
+- C test program compiles and passes: 30/30 (20 existing + 10 new assertions)
+- `mise run check` passes all 14 pre-commit hooks
 
-**Issues found:**
+**Next:** All four binding targets now have 23/23 Tier 1 parity. The natural next steps are:
+structured return types for gen functions (returning full result objects beyond just the `.iscc`
+string), or splitting `iscc-ffi/src/lib.rs` into submodules (now ~1,700 lines).
 
-- (none)
-
-**Next:** The only remaining binding gap is C FFI, which needs `DataHasher` and `InstanceHasher`
-streaming classes. This requires the opaque pointer lifecycle pattern (`*mut T` +
-create/update/finalize/free functions) which is more involved than class-based bindings. After C FFI
-reaches 23/23, all four binding targets will have full Tier 1 parity.
-
-**Notes:** With WASM at 23/23, the binding parity status is: Python 23/23, Node.js 23/23, WASM
-23/23, C FFI 21/23. The C FFI streaming hashers are the last binding gap before moving to structured
-return types or other enhancements. The opaque pointer pattern for C FFI is documented in learnings
-(thread-local `RefCell<Option<CString>>` for error storage, `*const u8` + `usize` for byte slices).
+**Notes:** The implementation follows the exact pattern specified in next.md: `Option<Inner>`
+wrapper structs (not `#[repr(C)]`), `Box::into_raw`/`Box::from_raw` lifecycle, bool returns for
+update, `*mut c_char` for finalize. All FFI functions call `clear_last_error()` at entry. NULL
+pointer checks on the hasher parameter use `set_last_error` and return appropriate error values. The
+`update` functions handle zero-length data with empty slices (matching the existing pattern in
+`iscc_alg_cdc_chunks`). No surprises or deviations from the work package.

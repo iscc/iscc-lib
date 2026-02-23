@@ -920,6 +920,218 @@ pub unsafe extern "C" fn iscc_soft_hash_video_v0(
     }
 }
 
+// ── Streaming hashers ────────────────────────────────────────────────────────
+
+/// Opaque FFI wrapper around `iscc_lib::DataHasher`.
+///
+/// Enforces finalize-once semantics via `Option<Inner>`. Not `#[repr(C)]` —
+/// C callers interact only through function pointers.
+pub struct FfiDataHasher {
+    inner: Option<iscc_lib::DataHasher>,
+}
+
+/// Opaque FFI wrapper around `iscc_lib::InstanceHasher`.
+///
+/// Enforces finalize-once semantics via `Option<Inner>`. Not `#[repr(C)]` —
+/// C callers interact only through function pointers.
+pub struct FfiInstanceHasher {
+    inner: Option<iscc_lib::InstanceHasher>,
+}
+
+/// Create a new streaming Data-Code hasher.
+///
+/// Returns an opaque pointer. The caller must eventually call
+/// `iscc_data_hasher_free()` to release the memory.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_data_hasher_new() -> *mut FfiDataHasher {
+    clear_last_error();
+    Box::into_raw(Box::new(FfiDataHasher {
+        inner: Some(iscc_lib::DataHasher::new()),
+    }))
+}
+
+/// Push data into a streaming DataHasher.
+///
+/// Returns `true` on success, `false` on error (e.g., already finalized
+/// or NULL pointer). Check `iscc_last_error()` for the error message.
+///
+/// # Safety
+///
+/// - `hasher` must be a valid pointer from `iscc_data_hasher_new()`, or NULL.
+/// - `data` must point to at least `data_len` valid bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_data_hasher_update(
+    hasher: *mut FfiDataHasher,
+    data: *const u8,
+    data_len: usize,
+) -> bool {
+    clear_last_error();
+    if hasher.is_null() {
+        set_last_error("hasher must not be NULL");
+        return false;
+    }
+    // SAFETY: caller guarantees hasher is a valid pointer from iscc_data_hasher_new()
+    let wrapper = unsafe { &mut *hasher };
+    let Some(inner) = wrapper.inner.as_mut() else {
+        set_last_error("DataHasher already finalized");
+        return false;
+    };
+    // SAFETY: caller guarantees data is valid for data_len bytes
+    let slice = if data_len == 0 {
+        &[]
+    } else {
+        if data.is_null() {
+            set_last_error("data must not be NULL");
+            return false;
+        }
+        unsafe { std::slice::from_raw_parts(data, data_len) }
+    };
+    inner.update(slice);
+    true
+}
+
+/// Finalize a streaming DataHasher and return an ISCC string.
+///
+/// Consumes the inner hasher state. After this call, subsequent `update`
+/// or `finalize` calls will fail. The caller must still call
+/// `iscc_data_hasher_free()` to release the wrapper, and `iscc_free_string()`
+/// to release the returned string.
+///
+/// # Safety
+///
+/// `hasher` must be a valid pointer from `iscc_data_hasher_new()`, or NULL.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_data_hasher_finalize(
+    hasher: *mut FfiDataHasher,
+    bits: u32,
+) -> *mut c_char {
+    clear_last_error();
+    if hasher.is_null() {
+        set_last_error("hasher must not be NULL");
+        return ptr::null_mut();
+    }
+    // SAFETY: caller guarantees hasher is a valid pointer from iscc_data_hasher_new()
+    let wrapper = unsafe { &mut *hasher };
+    let Some(inner) = wrapper.inner.take() else {
+        set_last_error("DataHasher already finalized");
+        return ptr::null_mut();
+    };
+    result_to_c_string(inner.finalize(bits).map(|r| r.iscc))
+}
+
+/// Free a DataHasher previously created by `iscc_data_hasher_new()`.
+///
+/// NULL is a no-op. Each pointer must be freed exactly once.
+///
+/// # Safety
+///
+/// `hasher` must be a valid pointer from `iscc_data_hasher_new()`, or NULL.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_data_hasher_free(hasher: *mut FfiDataHasher) {
+    clear_last_error();
+    if !hasher.is_null() {
+        // SAFETY: hasher was produced by Box::into_raw() in iscc_data_hasher_new()
+        drop(unsafe { Box::from_raw(hasher) });
+    }
+}
+
+/// Create a new streaming Instance-Code hasher.
+///
+/// Returns an opaque pointer. The caller must eventually call
+/// `iscc_instance_hasher_free()` to release the memory.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_instance_hasher_new() -> *mut FfiInstanceHasher {
+    clear_last_error();
+    Box::into_raw(Box::new(FfiInstanceHasher {
+        inner: Some(iscc_lib::InstanceHasher::new()),
+    }))
+}
+
+/// Push data into a streaming InstanceHasher.
+///
+/// Returns `true` on success, `false` on error (e.g., already finalized
+/// or NULL pointer). Check `iscc_last_error()` for the error message.
+///
+/// # Safety
+///
+/// - `hasher` must be a valid pointer from `iscc_instance_hasher_new()`, or NULL.
+/// - `data` must point to at least `data_len` valid bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_instance_hasher_update(
+    hasher: *mut FfiInstanceHasher,
+    data: *const u8,
+    data_len: usize,
+) -> bool {
+    clear_last_error();
+    if hasher.is_null() {
+        set_last_error("hasher must not be NULL");
+        return false;
+    }
+    // SAFETY: caller guarantees hasher is a valid pointer from iscc_instance_hasher_new()
+    let wrapper = unsafe { &mut *hasher };
+    let Some(inner) = wrapper.inner.as_mut() else {
+        set_last_error("InstanceHasher already finalized");
+        return false;
+    };
+    // SAFETY: caller guarantees data is valid for data_len bytes
+    let slice = if data_len == 0 {
+        &[]
+    } else {
+        if data.is_null() {
+            set_last_error("data must not be NULL");
+            return false;
+        }
+        unsafe { std::slice::from_raw_parts(data, data_len) }
+    };
+    inner.update(slice);
+    true
+}
+
+/// Finalize a streaming InstanceHasher and return an ISCC string.
+///
+/// Consumes the inner hasher state. After this call, subsequent `update`
+/// or `finalize` calls will fail. The caller must still call
+/// `iscc_instance_hasher_free()` to release the wrapper, and
+/// `iscc_free_string()` to release the returned string.
+///
+/// # Safety
+///
+/// `hasher` must be a valid pointer from `iscc_instance_hasher_new()`, or NULL.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_instance_hasher_finalize(
+    hasher: *mut FfiInstanceHasher,
+    bits: u32,
+) -> *mut c_char {
+    clear_last_error();
+    if hasher.is_null() {
+        set_last_error("hasher must not be NULL");
+        return ptr::null_mut();
+    }
+    // SAFETY: caller guarantees hasher is a valid pointer from iscc_instance_hasher_new()
+    let wrapper = unsafe { &mut *hasher };
+    let Some(inner) = wrapper.inner.take() else {
+        set_last_error("InstanceHasher already finalized");
+        return ptr::null_mut();
+    };
+    result_to_c_string(inner.finalize(bits).map(|r| r.iscc))
+}
+
+/// Free an InstanceHasher previously created by `iscc_instance_hasher_new()`.
+///
+/// NULL is a no-op. Each pointer must be freed exactly once.
+///
+/// # Safety
+///
+/// `hasher` must be a valid pointer from `iscc_instance_hasher_new()`, or NULL.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_instance_hasher_free(hasher: *mut FfiInstanceHasher) {
+    clear_last_error();
+    if !hasher.is_null() {
+        // SAFETY: hasher was produced by Box::into_raw() in iscc_instance_hasher_new()
+        drop(unsafe { Box::from_raw(hasher) });
+    }
+}
+
 // ── Memory management ───────────────────────────────────────────────────────
 
 /// Free a string previously returned by any `iscc_gen_*` function.
@@ -1491,5 +1703,178 @@ mod tests {
     fn test_free_byte_buffer_array_null() {
         // Should be a no-op, not crash
         unsafe { iscc_free_byte_buffer_array(null_byte_buffer_array()) };
+    }
+
+    // ── DataHasher streaming tests ───────────────────────────────────────
+
+    #[test]
+    fn test_data_hasher_basic() {
+        let hasher = iscc_data_hasher_new();
+        assert!(!hasher.is_null());
+        let data = b"Hello World";
+        let ok = unsafe { iscc_data_hasher_update(hasher, data.as_ptr(), data.len()) };
+        assert!(ok);
+        let result = unsafe { iscc_data_hasher_finalize(hasher, 64) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert!(s.starts_with("ISCC:"));
+        unsafe { iscc_data_hasher_free(hasher) };
+    }
+
+    #[test]
+    fn test_data_hasher_matches_gen() {
+        // Streaming result must match one-shot gen_data_code_v0
+        let data = b"Hello World";
+        let oneshot = unsafe { iscc_gen_data_code_v0(data.as_ptr(), data.len(), 64) };
+        let oneshot_str = unsafe { c_ptr_to_string(oneshot) }.unwrap();
+
+        let hasher = iscc_data_hasher_new();
+        let ok = unsafe { iscc_data_hasher_update(hasher, data.as_ptr(), data.len()) };
+        assert!(ok);
+        let result = unsafe { iscc_data_hasher_finalize(hasher, 64) };
+        let streaming_str = unsafe { c_ptr_to_string(result) }.unwrap();
+        unsafe { iscc_data_hasher_free(hasher) };
+
+        assert_eq!(streaming_str, oneshot_str);
+    }
+
+    #[test]
+    fn test_data_hasher_multi_update() {
+        let data = b"Hello World";
+        // Single update reference
+        let hasher1 = iscc_data_hasher_new();
+        unsafe { iscc_data_hasher_update(hasher1, data.as_ptr(), data.len()) };
+        let result1 = unsafe { iscc_data_hasher_finalize(hasher1, 64) };
+        let s1 = unsafe { c_ptr_to_string(result1) }.unwrap();
+        unsafe { iscc_data_hasher_free(hasher1) };
+
+        // Split across two updates
+        let hasher2 = iscc_data_hasher_new();
+        unsafe { iscc_data_hasher_update(hasher2, data[..5].as_ptr(), 5) };
+        unsafe { iscc_data_hasher_update(hasher2, data[5..].as_ptr(), data.len() - 5) };
+        let result2 = unsafe { iscc_data_hasher_finalize(hasher2, 64) };
+        let s2 = unsafe { c_ptr_to_string(result2) }.unwrap();
+        unsafe { iscc_data_hasher_free(hasher2) };
+
+        assert_eq!(s1, s2);
+    }
+
+    #[test]
+    fn test_data_hasher_empty() {
+        let hasher = iscc_data_hasher_new();
+        let result = unsafe { iscc_data_hasher_finalize(hasher, 64) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert!(s.starts_with("ISCC:"));
+        unsafe { iscc_data_hasher_free(hasher) };
+    }
+
+    #[test]
+    fn test_data_hasher_finalize_twice() {
+        let hasher = iscc_data_hasher_new();
+        let result1 = unsafe { iscc_data_hasher_finalize(hasher, 64) };
+        assert!(!result1.is_null());
+        unsafe { iscc_free_string(result1) };
+
+        // Second finalize should return NULL with error
+        let result2 = unsafe { iscc_data_hasher_finalize(hasher, 64) };
+        assert!(result2.is_null());
+        let err = iscc_last_error();
+        assert!(!err.is_null());
+        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
+        assert!(msg.contains("already finalized"));
+
+        unsafe { iscc_data_hasher_free(hasher) };
+    }
+
+    #[test]
+    fn test_data_hasher_free_null() {
+        // Should be a no-op, not crash
+        unsafe { iscc_data_hasher_free(ptr::null_mut()) };
+    }
+
+    // ── InstanceHasher streaming tests ───────────────────────────────────
+
+    #[test]
+    fn test_instance_hasher_basic() {
+        let hasher = iscc_instance_hasher_new();
+        assert!(!hasher.is_null());
+        let data = b"Hello World";
+        let ok = unsafe { iscc_instance_hasher_update(hasher, data.as_ptr(), data.len()) };
+        assert!(ok);
+        let result = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert!(s.starts_with("ISCC:"));
+        unsafe { iscc_instance_hasher_free(hasher) };
+    }
+
+    #[test]
+    fn test_instance_hasher_matches_gen() {
+        // Streaming result must match one-shot gen_instance_code_v0
+        let data = b"Hello World";
+        let oneshot = unsafe { iscc_gen_instance_code_v0(data.as_ptr(), data.len(), 64) };
+        let oneshot_str = unsafe { c_ptr_to_string(oneshot) }.unwrap();
+
+        let hasher = iscc_instance_hasher_new();
+        let ok = unsafe { iscc_instance_hasher_update(hasher, data.as_ptr(), data.len()) };
+        assert!(ok);
+        let result = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
+        let streaming_str = unsafe { c_ptr_to_string(result) }.unwrap();
+        unsafe { iscc_instance_hasher_free(hasher) };
+
+        assert_eq!(streaming_str, oneshot_str);
+    }
+
+    #[test]
+    fn test_instance_hasher_multi_update() {
+        let data = b"Hello World";
+        // Single update reference
+        let hasher1 = iscc_instance_hasher_new();
+        unsafe { iscc_instance_hasher_update(hasher1, data.as_ptr(), data.len()) };
+        let result1 = unsafe { iscc_instance_hasher_finalize(hasher1, 64) };
+        let s1 = unsafe { c_ptr_to_string(result1) }.unwrap();
+        unsafe { iscc_instance_hasher_free(hasher1) };
+
+        // Split across two updates
+        let hasher2 = iscc_instance_hasher_new();
+        unsafe { iscc_instance_hasher_update(hasher2, data[..5].as_ptr(), 5) };
+        unsafe { iscc_instance_hasher_update(hasher2, data[5..].as_ptr(), data.len() - 5) };
+        let result2 = unsafe { iscc_instance_hasher_finalize(hasher2, 64) };
+        let s2 = unsafe { c_ptr_to_string(result2) }.unwrap();
+        unsafe { iscc_instance_hasher_free(hasher2) };
+
+        assert_eq!(s1, s2);
+    }
+
+    #[test]
+    fn test_instance_hasher_empty() {
+        // Finalize immediately with no data — matches gen_instance_code_v0(empty)
+        let hasher = iscc_instance_hasher_new();
+        let result = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert_eq!(s, "ISCC:IAA26E2JXH27TING");
+        unsafe { iscc_instance_hasher_free(hasher) };
+    }
+
+    #[test]
+    fn test_instance_hasher_finalize_twice() {
+        let hasher = iscc_instance_hasher_new();
+        let result1 = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
+        assert!(!result1.is_null());
+        unsafe { iscc_free_string(result1) };
+
+        // Second finalize should return NULL with error
+        let result2 = unsafe { iscc_instance_hasher_finalize(hasher, 64) };
+        assert!(result2.is_null());
+        let err = iscc_last_error();
+        assert!(!err.is_null());
+        let msg = unsafe { CStr::from_ptr(err) }.to_str().unwrap();
+        assert!(msg.contains("already finalized"));
+
+        unsafe { iscc_instance_hasher_free(hasher) };
+    }
+
+    #[test]
+    fn test_instance_hasher_free_null() {
+        // Should be a no-op, not crash
+        unsafe { iscc_instance_hasher_free(ptr::null_mut()) };
     }
 }

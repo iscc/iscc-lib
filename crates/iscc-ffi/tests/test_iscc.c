@@ -196,6 +196,73 @@ int main(void) {
         iscc_free_byte_buffer(buf);
     }
 
+    /* 14. DataHasher basic lifecycle */
+    {
+        struct iscc_FfiDataHasher *dh = iscc_data_hasher_new();
+        ASSERT_NOT_NULL(dh, "data_hasher_new returns non-NULL");
+        bool ok = iscc_data_hasher_update(dh, (const uint8_t *)"Hello World", 11);
+        if (ok) {
+            printf("PASS: data_hasher_update returns true\n");
+            tests_passed++;
+        } else {
+            printf("FAIL: data_hasher_update returned false\n");
+            tests_failed++;
+        }
+        result = iscc_data_hasher_finalize(dh, 64);
+        ASSERT_STR_STARTS_WITH(result, "ISCC:", "data_hasher_finalize starts with ISCC:");
+        iscc_free_string(result);
+        iscc_data_hasher_free(dh);
+    }
+
+    /* 15. InstanceHasher empty data — finalize immediately */
+    {
+        struct iscc_FfiInstanceHasher *ih = iscc_instance_hasher_new();
+        ASSERT_NOT_NULL(ih, "instance_hasher_new returns non-NULL");
+        result = iscc_instance_hasher_finalize(ih, 64);
+        ASSERT_STR_EQ(result, "ISCC:IAA26E2JXH27TING", "instance_hasher_finalize(empty)");
+        iscc_free_string(result);
+        iscc_instance_hasher_free(ih);
+    }
+
+    /* 16. DataHasher multi-update matches single update */
+    {
+        /* Single update */
+        struct iscc_FfiDataHasher *dh1 = iscc_data_hasher_new();
+        iscc_data_hasher_update(dh1, (const uint8_t *)"Hello World", 11);
+        char *r1 = iscc_data_hasher_finalize(dh1, 64);
+        iscc_data_hasher_free(dh1);
+
+        /* Split update */
+        struct iscc_FfiDataHasher *dh2 = iscc_data_hasher_new();
+        iscc_data_hasher_update(dh2, (const uint8_t *)"Hello", 5);
+        iscc_data_hasher_update(dh2, (const uint8_t *)" World", 6);
+        char *r2 = iscc_data_hasher_finalize(dh2, 64);
+        iscc_data_hasher_free(dh2);
+
+        ASSERT_NOT_NULL(r1, "data_hasher multi-update r1 not NULL");
+        ASSERT_NOT_NULL(r2, "data_hasher multi-update r2 not NULL");
+        if (r1 != NULL && r2 != NULL) {
+            if (strcmp(r1, r2) == 0) {
+                printf("PASS: data_hasher multi-update matches single update\n");
+                tests_passed++;
+            } else {
+                printf("FAIL: data_hasher multi-update mismatch: \"%s\" vs \"%s\"\n", r1, r2);
+                tests_failed++;
+            }
+        }
+        iscc_free_string(r1);
+        iscc_free_string(r2);
+    }
+
+    /* 17. Free NULL safety for both hasher types */
+    iscc_data_hasher_free(NULL);
+    printf("PASS: iscc_data_hasher_free(NULL) no-op\n");
+    tests_passed++;
+
+    iscc_instance_hasher_free(NULL);
+    printf("PASS: iscc_instance_hasher_free(NULL) no-op\n");
+    tests_passed++;
+
     /* Summary */
     printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
