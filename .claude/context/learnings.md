@@ -186,3 +186,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     accumulate pass/fail without short-circuiting — all 9 sections always execute, providing
     complete diagnostic output. Each helper uses closure-returning-`Option<bool>` pattern to catch
     parse errors without panicking
+- PyO3 FFI boundary pattern for Rust `assert!`/`panic!`: pre-validate inputs in the `#[pyfunction]`
+    wrapper and return `PyValueError` before calling the Rust function. Example: `sliding_window`
+    checks `width < 2` to avoid a Rust panic propagating across FFI. Use `map_err(PyValueError)` for
+    functions that return `Result`; use pre-validation for functions that use `assert!`
