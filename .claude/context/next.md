@@ -1,140 +1,69 @@
 # Next Work Package
 
-## Step: Add Node.js conformance tests for the napi crate
+## Step: Add Node.js CI job to workflow
 
 ## Goal
 
-Verify that all 9 `gen_*_v0` napi-rs bindings produce correct ISCC codes by running the vendored
-`data.json` conformance vectors from JavaScript. This bridges the gap between "napi crate compiles"
-and "napi bindings are proven correct."
+Add a Node.js job to `.github/workflows/ci.yml` that builds the napi native addon and runs the 46
+JavaScript conformance tests, bringing Node.js to the same CI verification level as Rust and Python.
 
 ## Scope
 
-- **Create**: `crates/iscc-napi/__tests__/conformance.test.mjs`
-- **Modify**: `crates/iscc-napi/package.json` (add `test` script, no extra test framework)
-- **Reference**: `tests/test_conformance.py` (Python test structure to mirror),
-    `crates/iscc-lib/tests/data.json` (conformance vectors), `crates/iscc-napi/src/lib.rs` (function
-    signatures)
+- **Create**: (none)
+- **Modify**: `.github/workflows/ci.yml` — add a `nodejs` job
+- **Reference**: `crates/iscc-napi/package.json` (build/test scripts), existing Rust and Python jobs
+    in `ci.yml` (patterns to follow), learnings.md (CI action conventions)
 
 ## Implementation Notes
 
-### Test Runner
+Add a new job named `nodejs` (display name: `Node.js (napi build, test)`) to the existing CI
+workflow. Follow the established patterns from the Rust and Python jobs:
 
-Use Node.js built-in `node:test` + `node:assert/strict` (available since v20, zero extra
-dependencies). No vitest/jest needed.
+1. **Standard actions**: `actions/checkout@v4`, `dtolnay/rust-toolchain@stable`,
+    `Swatinem/rust-cache@v2`, `actions/setup-node@v4` (Node.js 20.x LTS)
+2. **Build step**: `cd crates/iscc-napi && npm install` — this installs `@napi-rs/cli` and the napi
+    build runs during install via napi-rs conventions. If npm install alone doesn't trigger the
+    build, add an explicit `npm run build` step after install.
+3. **Test step**: `cd crates/iscc-napi && npm test` — runs
+    `node --test __tests__/conformance.test.mjs`
+4. Do NOT use `mise` — call tools directly (per learnings)
+5. The Rust toolchain + cache are needed because napi builds the native Rust addon
+6. The job should be independent (no `needs:` dependency on the rust job) — all three jobs run in
+    parallel
 
-### Build the Native Addon First
+**Important**: The `napi build --platform` command (used in `npm run build`) compiles the Rust crate
+into a `.node` native addon. The `package.json` scripts already have the correct build commands.
+Check whether `npm install` alone triggers the napi build — if not, add `npm run build` explicitly
+before `npm test`.
 
-Before tests can run, the native addon must be built:
+Typical napi-rs projects do NOT auto-build on `npm install` — the build must be triggered
+explicitly. So the CI steps should be:
 
-```bash
-cd crates/iscc-napi && npm install && npx napi build --platform
+```yaml
+  - name: Install npm dependencies
+    run: npm install
+    working-directory: crates/iscc-napi
+  - name: Build native addon
+    run: npx napi build --platform
+    working-directory: crates/iscc-napi
+  - name: Run tests
+    run: npm test
+    working-directory: crates/iscc-napi
 ```
 
-This generates `iscc-lib.*.node`, `index.js`, and `index.d.ts` in the crate root.
-
-### package.json Changes
-
-Add a `test` script:
-
-```json
-"scripts": {
-  "build": "napi build --platform --release",
-  "build:debug": "napi build --platform",
-  "test": "node --test __tests__/conformance.test.mjs"
-}
-```
-
-### Test File Structure
-
-Mirror the Python conformance tests (`tests/test_conformance.py`). Load `data.json`, iterate each
-function's test vectors, call the binding, assert output matches expected ISCC string.
-
-```javascript
-import {
-    readFileSync
-} from 'node:fs';
-import {
-    join,
-    dirname
-} from 'node:path';
-import {
-    fileURLToPath
-} from 'node:url';
-import {
-    describe,
-    it
-} from 'node:test';
-import {
-    strictEqual
-} from 'node:assert';
-```
-
-Import all 9 functions from the built package:
-
-```javascript
-import {
-    gen_meta_code_v0,
-    gen_text_code_v0,
-    ...
-} from '../index.js';
-```
-
-### Input Parsing (mirror Python test patterns)
-
-- **`stream:` prefix** (for `gen_data_code_v0`, `gen_instance_code_v0`): strip `"stream:"` prefix,
-    hex-decode remainder to `Buffer`. Empty after prefix → empty `Buffer.alloc(0)`.
-- **`gen_meta_code_v0`**: inputs are `[name, description, meta, bits]`. If `meta` is an object
-    (dict), `JSON.stringify` it with sorted keys. If `null`, pass `undefined`. Description: pass
-    `null`/`undefined` if empty/null.
-- **`gen_image_code_v0`**: inputs `[pixels_array, bits]` → `Buffer.from(pixels_array)` for the pixel
-    data.
-- **`gen_audio_code_v0`**: inputs `[cv_array, bits]` → pass the plain JS array of signed integers
-    directly.
-- **`gen_video_code_v0`**: inputs `[frame_sigs_array, bits]` → array of arrays of signed integers.
-- **`gen_mixed_code_v0`**: inputs `[codes_array, bits]` → array of ISCC code strings.
-- **`gen_iscc_code_v0`**: inputs `[codes_array]` → array of ISCC code strings. Note: no `wide`
-    parameter in test vectors (default false).
-
-### JSON Sorted Keys
-
-For `meta` dict → string conversion, use a sort-keys approach:
-
-```javascript
-function jsonSortedStringify(obj) {
-    return JSON.stringify(obj, Object.keys(obj).sort());
-}
-```
-
-### Data Path
-
-`data.json` is at `../../iscc-lib/tests/data.json` relative to the `__tests__/` directory. Use
-`join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'iscc-lib', 'tests', 'data.json')`.
-
-### Test Organization
-
-One `describe` block per gen function (9 total). Inside each, one `it` per test vector. Use the
-vector key name as the test name for traceability:
-
-```javascript
-describe('gen_meta_code_v0', () => {
-    for (const [name, tc] of Object.entries(data.gen_meta_code_v0)) {
-        it(name, () => {
-            ...
-        });
-    }
-});
-```
+Use `working-directory` instead of `cd` for cleaner YAML (matches GitHub Actions best practices).
 
 ## Verification
 
-- `cd crates/iscc-napi && npm install && npx napi build --platform` succeeds without errors
-- `cd crates/iscc-napi && npm test` runs all conformance vectors and all tests pass
-- All 9 gen functions are tested (same vector count as Python: ~143 total across all functions)
-- `cargo test -p iscc-lib` still passes (143 tests — no Rust regression)
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean
+- `ci.yml` contains three jobs: `rust`, `python`, `nodejs`
+- The `nodejs` job uses `actions/setup-node@v4` with Node.js 20
+- The `nodejs` job builds the native addon and runs `npm test`
+- The workflow YAML is valid (no syntax errors)
+- `cargo test -p iscc-lib` still passes (143 tests)
+- `cargo clippy -p iscc-lib -- -D warnings` is clean
+- `cargo fmt --all --check` is clean
 
 ## Done When
 
-`npm test` in `crates/iscc-napi/` passes all conformance vectors for all 9 gen functions, matching
-the Python test count, and existing Rust tests and clippy remain green.
+The `ci.yml` file contains a working Node.js job that builds the napi crate and runs the conformance
+tests, and all existing verification criteria (Rust tests, clippy, fmt) continue to pass.
