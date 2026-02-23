@@ -1,121 +1,112 @@
 # Next Work Package
 
-## Step: Add DataHasher/InstanceHasher opaque pointer FFI to C bindings
+## Step: Add ISCC brand colors, logo, and favicon to documentation site
 
 ## Goal
 
-Add the final 2 Tier 1 symbols (`DataHasher`, `InstanceHasher`) to the C FFI bindings using the
-opaque pointer lifecycle pattern, bringing C FFI from 21/23 to 23/23 — completing Tier 1 parity
-across all four binding targets (Python, Node.js, WASM, C FFI).
+Add ISCC Foundation visual branding to the documentation site at lib.iscc.codes, matching the
+branding used by iscc-usearch at usearch.iscc.codes. This is the foundational branding step that
+establishes the visual identity before adding interactive features (copy-page, llms-full.txt) in
+subsequent steps.
 
 ## Scope
 
-- **Modify**: `crates/iscc-ffi/src/lib.rs` — add 8 `extern "C"` functions: `iscc_data_hasher_new`,
-    `iscc_data_hasher_update`, `iscc_data_hasher_finalize`, `iscc_data_hasher_free`, and the
-    equivalent 4 for InstanceHasher. Add Rust `#[test]` functions for the new symbols.
-- **Modify**: `crates/iscc-ffi/tests/test_iscc.c` — add C test cases exercising both streaming
-    hashers (basic usage, multi-update, empty data, finalize-once error, free-NULL safety).
-- **Reference**: `crates/iscc-lib/src/streaming.rs` (core API), `crates/iscc-wasm/src/lib.rs` (WASM
-    `Option<Inner>` pattern — adapt to opaque pointers), `crates/iscc-napi/src/lib.rs` (Node.js
-    streaming pattern for comparison), `crates/iscc-ffi/CLAUDE.md` (FFI conventions)
+- **Create**: `docs/stylesheets/extra.css` — ISCC brand color overrides for light/dark mode
+- **Create**: `docs/assets/logo_light.png` — ISCC logo (download from iscc-usearch repo)
+- **Create**: `docs/assets/favicon.png` — ISCC favicon (download from iscc-usearch repo)
+- **Modify**: `zensical.toml` — add `extra_css`, `logo`, and `favicon` configuration
+- **Reference**: iscc-usearch `docs/stylesheets/extra.css` (fetch via
+    `gh api   repos/iscc/iscc-usearch/contents/docs/stylesheets/extra.css`), iscc-usearch
+    `zensical.toml` (fetch via `gh api repos/iscc/iscc-usearch/contents/zensical.toml`)
 
 ## Not In Scope
 
-- Splitting `lib.rs` into submodules — the file will be ~1,700 lines, but restructuring is a
-    separate step
-- Updating cbindgen.toml or regenerating the header as a committed artifact — cbindgen generates the
-    header on demand during CI; no header file is committed to the repo
-- Structured return types for gen functions (returning full result objects beyond `.iscc` strings)
-- Documentation updates (state.md, CLAUDE.md for iscc-ffi) — the review agent handles state updates
-- Changes to the Rust core crate — `DataHasher`/`InstanceHasher` are already fully implemented
+- Copy-page split-button dropdown (`copypage.js`) — separate step after branding is in place
+- `llms-full.txt` generation script (`gen_llms_full.py`) — separate step
+- Social sharing meta tags (`overrides/main.html`) — separate step
+- Abbreviations file (`docs/includes/abbreviations.md`) and `pymdownx.snippets` config — separate
+    step
+- `docs/llms.txt` metadata file — separate step
+- Diataxis navigation restructuring — separate step (requires creating new page files)
+- Any changes to documentation content or page structure
+- `docs/stylesheets/copilot.css` or `docs/javascripts/copilot.js` — the ISCC AI copilot widget is
+    project-specific and should not be added without explicit instruction
 
 ## Implementation Notes
 
-### Opaque pointer lifecycle
+### CSS: `docs/stylesheets/extra.css`
 
-Each hasher is exposed as an opaque `*mut T` pointer. The C caller manages the lifecycle:
+Port the ISCC brand color CSS from iscc-usearch verbatim. The file contains:
 
-1. **Create**: `iscc_data_hasher_new()` returns `*mut DataHasher` (a `Box::into_raw`)
-2. **Update**: `iscc_data_hasher_update(ptr, data, data_len)` feeds data (can be called many times)
-3. **Finalize**: `iscc_data_hasher_finalize(ptr, bits)` consumes the inner hasher and returns
-    `*mut c_char` (ISCC string). After finalize, the handle is NOT freed — the caller must still
-    call `free`.
-4. **Free**: `iscc_data_hasher_free(ptr)` drops the `Box` via `Box::from_raw`. NULL is a no-op.
+- Light mode primary/accent color overrides (`#0054b2`, `#4596f5`, `#123663`)
+- Dark mode primary/accent color overrides (inverted lighter/darker values)
+- Link color customization for both schemes
+- Light mode header styling (ISCC Blue `#0054b2` background, white text)
+- Dark mode header styling (Deep Navy `#123663` background)
+- Footer styling (Deep Navy `#123663` background for light mode)
+- Logo inversion via CSS `filter: invert(1)` for dark mode nav and light mode header
+- Mermaid edge color softening for dark mode
 
-### Internal wrapping with Option
+**Important**: Do NOT include the copy-page split-button CSS rules (`.copy-page-heading`,
+`.copy-page`, `.copy-page__split`, etc.) — those belong in a future step when `copypage.js` is
+added. Only include the brand color and layout rules.
 
-Internally, use a wrapper struct to enforce finalize-once semantics (matching the WASM/napi
-pattern):
+The CSS uses `[data-md-color-primary="indigo"]` and `[data-md-color-accent="indigo"]` attribute
+selectors. The current `zensical.toml` palette sections do not specify `primary` or `accent` keys,
+so Zensical uses its default (which is `indigo`). Do NOT add explicit `primary = "indigo"` /
+`accent = "indigo"` to the palette config — the CSS selectors already match the default.
 
-```rust
-struct FfiDataHasher {
-    inner: Option<iscc_lib::DataHasher>,
-}
+### Logo and Favicon Assets
+
+Download the ISCC assets from the iscc-usearch repository. These are shared ISCC Foundation branding
+assets:
+
+```bash
+mkdir -p docs/assets
+curl -sL https://raw.githubusercontent.com/iscc/iscc-usearch/main/docs/assets/logo_light.png -o docs/assets/logo_light.png
+curl -sL https://raw.githubusercontent.com/iscc/iscc-usearch/main/docs/assets/favicon.png -o docs/assets/favicon.png
 ```
 
-- `new()` creates `Box::new(FfiDataHasher { inner: Some(DataHasher::new()) })` then
-    `Box::into_raw()`
-- `update()` calls `inner.as_mut()` — if `None`, sets last error and returns `false`
-- `finalize()` calls `inner.take()` — if already `None`, sets last error and returns `NULL`
-- `free()` reconstitutes the `Box` via `Box::from_raw()` and drops it
+### `zensical.toml` Changes
 
-### Function signatures
+Add three lines to the `[project]` section:
 
-```c
-// DataHasher
-FfiDataHasher *iscc_data_hasher_new(void);
-bool iscc_data_hasher_update(FfiDataHasher *hasher, const uint8_t *data, size_t data_len);
-char *iscc_data_hasher_finalize(FfiDataHasher *hasher, uint32_t bits);
-void iscc_data_hasher_free(FfiDataHasher *hasher);
-
-// InstanceHasher
-FfiInstanceHasher *iscc_instance_hasher_new(void);
-bool iscc_instance_hasher_update(FfiInstanceHasher *hasher, const uint8_t *data, size_t data_len);
-char *iscc_instance_hasher_finalize(FfiInstanceHasher *hasher, uint32_t bits);
-void iscc_instance_hasher_free(FfiInstanceHasher *hasher);
+```toml
+extra_css = ["stylesheets/extra.css"]
 ```
 
-Key design decisions:
+Add two lines to the `[project.theme]` section:
 
-- `update()` returns `bool` (true on success, false on error — e.g., already finalized). This is
-    more natural for C than returning a pointer or void.
-- `finalize()` returns `*mut c_char` like all gen functions. Caller frees with `iscc_free_string()`.
-- `free()` accepts NULL as a no-op (consistent with `iscc_free_string`).
-- The wrapper structs (`FfiDataHasher`, `FfiInstanceHasher`) are NOT `#[repr(C)]` — they are opaque
-    to C callers (cbindgen will emit them as opaque `typedef struct`).
-- All functions call `clear_last_error()` at entry, consistent with existing conventions.
-- NULL pointer checks on `hasher` parameter in update/finalize/free, with error set via
-    `set_last_error`.
+```toml
+logo = "assets/logo_light.png"
+favicon = "assets/favicon.png"
+```
 
-### Rust tests to add (~12 new tests)
+Do NOT add `custom_dir` yet — that is needed only when the `overrides/main.html` template is added
+in a future step.
 
-For each hasher type (DataHasher and InstanceHasher):
-
-1. `test_*_hasher_basic` — new, update, finalize, free lifecycle
-2. `test_*_hasher_matches_gen` — verify streaming result matches one-shot `iscc_gen_*_code_v0`
-3. `test_*_hasher_multi_update` — split data across multiple updates
-4. `test_*_hasher_empty` — finalize immediately with no data
-5. `test_*_hasher_finalize_twice` — second finalize returns NULL with error
-6. `test_*_hasher_free_null` — free with NULL is a no-op
-
-### C tests to add (~4 new tests in test_iscc.c)
-
-1. DataHasher basic lifecycle (new, update "Hello World", finalize, check starts with "ISCC:", free)
-2. InstanceHasher empty data (new, finalize immediately, check exact ISCC string, free)
-3. DataHasher multi-update (split data, verify matches single update)
-4. Free NULL safety for both hasher types
+Use the **`zensical-customizer`** skill for guidance on custom CSS and theme configuration if
+needed.
 
 ## Verification
 
-- `cargo test -p iscc-ffi` passes (50 existing + ~12 new tests)
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- `cargo test --workspace` passes with 280+ tests (no regressions)
-- C test program compiles and passes:
-    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output /tmp/iscc.h && cc -o /tmp/test_iscc crates/iscc-ffi/tests/test_iscc.c -I/tmp -Ltarget/debug -liscc_ffi -lpthread -ldl -lm && LD_LIBRARY_PATH=target/debug /tmp/test_iscc`
-    exits 0
+- `uv run zensical build` exits 0 (site builds successfully with new CSS/assets)
+- `test -f docs/stylesheets/extra.css` exits 0 (CSS file exists)
+- `test -f docs/assets/logo_light.png` exits 0 (logo file exists)
+- `test -f docs/assets/favicon.png` exits 0 (favicon file exists)
+- `grep -q 'extra_css' zensical.toml` exits 0 (extra_css configured)
+- `grep -q 'logo.*=.*logo_light.png' zensical.toml` exits 0 (logo configured)
+- `grep -q 'favicon.*=.*favicon.png' zensical.toml` exits 0 (favicon configured)
+- `grep -q '#0054b2' docs/stylesheets/extra.css` exits 0 (ISCC Blue primary color present)
+- `grep -q 'filter: invert(1)' docs/stylesheets/extra.css` exits 0 (dark mode logo inversion
+    present)
+- `grep -q 'copy-page' docs/stylesheets/extra.css; test $? -ne 0` exits 0 (copy-page CSS NOT
+    present)
+- `cargo clippy --workspace --all-targets -- -D warnings` still clean (no Rust changes, sanity
+    check)
 
 ## Done When
 
-All verification criteria pass: both `DataHasher` and `InstanceHasher` are exposed via 8 new
-`extern "C"` functions using the opaque pointer lifecycle pattern, Rust unit tests and C integration
-tests confirm correct behavior, and all existing tests continue to pass.
+All verification criteria pass: the documentation site builds with ISCC brand colors (blue header,
+navy footer, correct link colors in both light and dark modes), the ISCC logo appears in the header
+with proper dark mode inversion, and the favicon is configured.
