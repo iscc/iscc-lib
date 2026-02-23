@@ -1,23 +1,34 @@
-## 2026-02-23 — Review of: Add encode_base64, iscc_decompose, and sliding_window to Python bindings
+## 2026-02-23 — Add alg_simhash, alg_minhash_256, and alg_cdc_chunks to Python bindings
 
-**Verdict:** PASS
+**Done:** Added three algorithm primitive functions (`alg_simhash`, `alg_minhash_256`,
+`alg_cdc_chunks`) to the Python bindings, bringing the count from 17/23 to 20/23 Tier 1 symbols. All
+three are thin PyO3 wrappers following the established pattern, with direct re-exports in
+`__init__.py` (no `IsccResult` wrapping needed since they return raw `bytes`/`list[bytes]`).
 
-**Summary:** Clean implementation of 3 new Python binding functions (`encode_base64`,
-`iscc_decompose`, `sliding_window`) bringing the count from 14/23 to 17/23 Tier 1 symbols in Python.
-All 98 Python tests pass, 230 Rust tests pass, clippy clean workspace-wide, all pre-commit hooks
-pass. No quality gate circumvention, no dead code, no over-engineering.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-py/src/lib.rs`: Added 3 `#[pyfunction]` wrappers + registered in module
+- `crates/iscc-py/python/iscc_lib/__init__.py`: Added 3 re-exports + 3 entries in `__all__`
+- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: Added type stubs with docstrings for 3 functions
+- `tests/test_algo.py`: New test file with 18 tests covering all three functions
 
-- (none)
+**Verification:** All gates pass:
 
-**Next:** Continue expanding Python binding API surface. Remaining 6 Tier 1 symbols: `alg_simhash`,
-`alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`, `DataHasher`, `InstanceHasher`. The algo
-primitives (`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`) are the next-simplest batch (return
-`Vec<u8>` or `Vec<Vec<u8>>`). The streaming types (`DataHasher`, `InstanceHasher`) require PyO3
-`#[pyclass]` wrappers with `update()`/`finalize()` methods — more complex but high-value for large
-file processing. Alternatively, horizontal expansion to Node.js, WASM, and C FFI bindings.
+- `maturin develop` builds successfully
+- `cargo test -p iscc-lib`: 230 tests pass (180 unit + 28 + 22 integration), no regressions
+- `cargo clippy --workspace --all-targets -- -D warnings`: clean
+- `pytest tests/`: 116 tests pass (18 new + 98 existing)
+- All three functions importable from Python and return correct types
+- Cross-validation against iscc-core passes for all three functions (byte-for-byte match)
+- `mise run check`: all 14 pre-commit hooks pass
 
-**Notes:** State.md needs updating to reflect 98 Python tests (was 85) and 17/23 Tier 1 symbols (was
-14/23). The `sliding_window` FFI boundary panic-prevention pattern (pre-validate before calling Rust
-`assert!`) is now established alongside the `map_err(PyValueError)` pattern for `Result` types.
+**Next:** Remaining 3 Tier 1 symbols: `soft_hash_video_v0`, `DataHasher`, `InstanceHasher`. The
+streaming types (`DataHasher`, `InstanceHasher`) require PyO3 `#[pyclass]` wrappers with
+`update()`/`finalize()` methods — more complex than the function wrappers done so far.
+`soft_hash_video_v0` is a pure function but may not be commonly needed externally. Alternatively,
+expand horizontally to other binding crates (Node.js, WASM, C FFI algo primitives).
+
+**Notes:** No surprises. The `alg_cdc_chunks` wrapper converts borrowed `Vec<&[u8]>` to owned
+`Vec<Vec<u8>>` for Python, matching the established pattern. The `alg_simhash` wrapper accepts
+`Vec<Vec<u8>>` which satisfies Rust's `&[impl AsRef<[u8]>]` requirement. Default parameter for
+`avg_chunk_size=1024` uses `#[pyo3(signature)]` attribute.

@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import BinaryIO
 
 from iscc_lib._lowlevel import (
+    alg_cdc_chunks as alg_cdc_chunks,
+    alg_minhash_256 as alg_minhash_256,
+    alg_simhash as alg_simhash,
     conformance_selftest as conformance_selftest,
     encode_base64 as encode_base64,
     gen_audio_code_v0 as _gen_audio_code_v0,
@@ -168,6 +171,9 @@ __all__ = [
     "MixedCodeResult",
     "TextCodeResult",
     "VideoCodeResult",
+    "alg_cdc_chunks",
+    "alg_minhash_256",
+    "alg_simhash",
     "conformance_selftest",
     "encode_base64",
     "gen_audio_code_v0",

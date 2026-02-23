@@ -207,6 +207,43 @@ def gen_instance_code_v0(data: bytes, bits: int = 64) -> dict[str, Any]:
     """
     ...
 
+def alg_simhash(hash_digests: list[bytes]) -> bytes:
+    """Compute a SimHash from a sequence of equal-length hash digests.
+
+    Produces a similarity-preserving hash by counting bit frequencies across
+    all input digests. Each output bit is set when its frequency meets or
+    exceeds half the input count. Returns 32 zero bytes for empty input.
+
+    :param hash_digests: List of equal-length byte hash digests.
+    :return: Similarity-preserving hash as bytes (same length as input digests).
+    """
+    ...
+
+def alg_minhash_256(features: list[int]) -> bytes:
+    """Compute a 256-bit MinHash digest from 32-bit integer features.
+
+    Uses 64 universal hash functions with bit-interleaved compression to
+    produce a 32-byte similarity-preserving digest.
+
+    :param features: List of 32-bit unsigned integer features.
+    :return: 32-byte MinHash digest.
+    """
+    ...
+
+def alg_cdc_chunks(data: bytes, utf32: bool, avg_chunk_size: int = 1024) -> list[bytes]:
+    """Split data into content-defined chunks using gear rolling hash.
+
+    Uses a FastCDC-inspired algorithm to find content-dependent boundaries.
+    Returns at least one chunk (empty bytes for empty input). When ``utf32``
+    is true, aligns cut points to 4-byte boundaries.
+
+    :param data: Raw binary data to chunk.
+    :param utf32: Whether to align cut points to 4-byte boundaries.
+    :param avg_chunk_size: Target average chunk size in bytes (default 1024).
+    :return: List of byte chunks that concatenate to the original data.
+    """
+    ...
+
 def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> dict[str, Any]:
     """Generate a composite ISCC-CODE from individual ISCC unit codes.
 

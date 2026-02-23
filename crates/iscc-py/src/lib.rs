@@ -229,6 +229,38 @@ fn sliding_window(seq: &str, width: usize) -> PyResult<Vec<String>> {
     Ok(iscc_lib::sliding_window(seq, width))
 }
 
+/// Compute a SimHash from a sequence of equal-length hash digests.
+///
+/// Returns a similarity-preserving hash as bytes. Each output bit is set
+/// when its frequency meets or exceeds half the input count. Returns 32
+/// zero bytes for empty input.
+#[pyfunction]
+fn alg_simhash(hash_digests: Vec<Vec<u8>>) -> Vec<u8> {
+    iscc_lib::alg_simhash(&hash_digests)
+}
+
+/// Compute a 256-bit MinHash digest from 32-bit integer features.
+///
+/// Uses 64 universal hash functions with bit-interleaved compression to
+/// produce a 32-byte similarity-preserving digest.
+#[pyfunction]
+fn alg_minhash_256(features: Vec<u32>) -> Vec<u8> {
+    iscc_lib::alg_minhash_256(&features)
+}
+
+/// Split data into content-defined chunks using gear rolling hash.
+///
+/// Returns at least one chunk (empty bytes for empty input). When `utf32`
+/// is true, aligns cut points to 4-byte boundaries.
+#[pyfunction]
+#[pyo3(signature = (data, utf32, avg_chunk_size=1024))]
+fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<Vec<u8>> {
+    iscc_lib::alg_cdc_chunks(data, utf32, avg_chunk_size)
+        .into_iter()
+        .map(|c| c.to_vec())
+        .collect()
+}
+
 /// Python module `iscc._lowlevel` backed by Rust.
 #[pymodule(name = "_lowlevel")]
 fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -249,5 +281,8 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(encode_base64, m)?)?;
     m.add_function(wrap_pyfunction!(iscc_decompose, m)?)?;
     m.add_function(wrap_pyfunction!(sliding_window, m)?)?;
+    m.add_function(wrap_pyfunction!(alg_simhash, m)?)?;
+    m.add_function(wrap_pyfunction!(alg_minhash_256, m)?)?;
+    m.add_function(wrap_pyfunction!(alg_cdc_chunks, m)?)?;
     Ok(())
 }
