@@ -97,3 +97,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `criterion_group!`/`criterion_main!` macros with `harness = false` in `[[bench]]` section.
     `group.throughput()` sets throughput for subsequent benches in the group — call it before each
     `bench_with_input` when sizes differ
+- pytest-benchmark: streaming functions (`gen_data_code_v0`, `gen_instance_code_v0`) need lambda
+    wrappers with `io.BytesIO` to create fresh stream objects per iteration — iscc-core consumes the
+    stream. Run benchmarks explicitly via `pytest benchmarks/python/ --benchmark-only` (not included
+    in default testpaths)
