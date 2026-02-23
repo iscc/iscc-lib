@@ -1,32 +1,28 @@
-## 2026-02-23 — Python dict returns for all 9 gen functions
+## 2026-02-23 — Review of: Python dict returns for all 9 gen functions
 
-**Done:** Converted all 9 `gen_*_v0` PyO3 bindings from returning plain `String` to returning
-`PyDict` with all fields from the Rust `*CodeResult` structs. Updated `.pyi` type stubs to reflect
-`dict[str, Any]` return types. Updated conformance and smoke tests to verify all dict fields (iscc,
-name, metahash, description, meta, characters, parts, datahash, filesize).
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** All 9 `gen_*_v0` PyO3 bindings now return Python `dict` objects with all fields
+matching iscc-core's dict returns. The implementation is clean, consistent, and well-tested — 163
+Rust tests pass (143 iscc-lib + 20 iscc-ffi), 49 Python tests pass (46 conformance + 3 smoke), all
+quality gates green. No lint suppressions, no skipped tests, no circumvention.
 
-- `crates/iscc-py/src/lib.rs`: Each function now takes `py: Python<'_>`, builds a `PyDict` from the
-    result struct fields, and returns `PyResult<PyObject>`. Optional fields (`description`, `meta`)
-    are only set when `Some`.
-- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: Return types changed from `str` to
-    `dict[str, Any]`. Added `from typing import Any`. Docstring `:return:` lines describe dict keys.
-- `tests/test_conformance.py`: All 9 test functions now verify `isinstance(result, dict)` and assert
-    every output field from data.json (not just `iscc`). Meta tests check conditional
-    presence/absence of `description` and `meta` keys.
-- `tests/test_smoke.py`: Updated to use `result["iscc"]` access pattern. Added assertions for
-    `datahash` and `filesize` fields.
+**Issues found:**
 
-**Verification:** All 49 Python tests pass (49 conformance + 3 smoke = 52 total, but the
-parametrized conformance tests count as 49 including smoke). 163 Rust tests pass. Clippy clean. All
-pre-commit hooks pass. `ruff check` and `ruff format` clean.
+- (none)
 
-**Next:** The Python bindings now return dicts matching iscc-core. The remaining spec item from
+**Next:** The Python bindings are now a drop-in replacement for iscc-core's dict returns. Remaining
+binding crates (wasm, napi, ffi) still return plain strings — they could be updated to return
+structured data in their respective idioms (JS objects, C structs). The other priority from
 `python-bindings.md` is accepting `BinaryIO` (file-like objects) for `gen_data_code_v0` and
-`gen_instance_code_v0` streaming functions. This would require PyO3 to call Python's `.read()`
-method and buffer the data before passing to Rust.
+`gen_instance_code_v0` streaming functions. Check `target.md` and `state.md` to determine which work
+package has the highest impact next.
 
-**Notes:** PyO3 0.23 `PyDict::new(py)` returns `Bound<'_, PyDict>` which converts to `PyObject` via
-`.into()`. The `cargo fmt` hook reformatted a few function bodies (wrapping long `map_err` chains) —
-the committed code includes the formatter's changes.
+**Notes:**
+
+- The `PyDict::new(py)` + `set_item` pattern is consistent across all 9 functions — easy to extend
+    if new fields are added to result structs.
+- Optional fields (`description`, `meta`) are correctly omitted from the dict when `None`, matching
+    iscc-core behavior where absent fields simply don't appear in the returned dict.
+- Conformance tests now verify ALL output fields (not just `iscc`), providing strong regression
+    coverage for any future changes to result struct population.

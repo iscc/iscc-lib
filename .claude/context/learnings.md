@@ -81,7 +81,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `codes.iter().map(|s| s.as_str()).collect()`. `&[i32]` → accept `Vec<i32>` then pass `&cv`.
     `&[u8]` and `&str` can be received directly by reference
 - All 9 `gen_*_v0` PyO3 bindings follow identical thin-wrapper pattern: `#[pyfunction]` +
-    `#[pyo3(signature)]` + `map_err(PyValueError)`. No logic in the binding layer
+    `#[pyo3(signature)]` + `map_err(PyValueError)` + `PyDict::new(py)` with `set_item` per field.
+    Optional fields use `if let Some(v)` to omit absent keys (matching iscc-core dict behavior)
 - Python conformance tests share `data.json` with Rust tests via relative path
     (`Path(__file__).parent.parent / "crates/iscc-lib/tests/data.json"`). Use
     `pytest.param(...,   id=name)` for readable test IDs that match the JSON keys
@@ -134,9 +135,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `.gitignore`). Config lives in `zensical.toml`, docs in `docs/`. The `pymdownx.smartsymbols`
     extension doesn't convert `---` to em dashes — use Unicode `—` directly
 - Rust `gen_*_v0` functions return dedicated `*CodeResult` structs (e.g., `MetaCodeResult`,
-    `TextCodeResult`) with `.iscc` plus additional fields matching iscc-core dict returns. Binding
-    crates (py, wasm, napi, ffi) currently extract `.iscc` and return plain strings — next step is
-    exposing full struct fields through bindings
+    `TextCodeResult`) with `.iscc` plus additional fields matching iscc-core dict returns. Python
+    bindings return `PyDict` with all fields; wasm/napi/ffi bindings still extract `.iscc` only
 - mkdocstrings + griffe: set `paths` to the parent directory containing the package (e.g.,
     `crates/iscc-py/python` not `crates/iscc-py/python/iscc_lib`) so griffe resolves imports
     correctly. Use `allow_inspection = false` to force static analysis from `.pyi` stubs when PyO3
