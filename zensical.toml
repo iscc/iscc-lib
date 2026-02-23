@@ -7,7 +7,7 @@ repo_url = "https://github.com/iscc/iscc-lib"
 repo_name = "iscc/iscc-lib"
 copyright = "Copyright &copy; 2025-2026 ISCC Foundation"
 
-nav = ["index.md"]
+nav = ["index.md", "api.md"]
 
 [project.theme]
 language = "en"
@@ -39,12 +39,13 @@ toggle = { icon = "lucide/moon", name = "Switch to light mode" }
 enabled = true
 
 [project.plugins.mkdocstrings.handlers.python]
-paths = ["crates/iscc-py/python/iscc_lib"]
+paths = ["crates/iscc-py/python"]
 
 [project.plugins.mkdocstrings.handlers.python.options]
+allow_inspection = false
 docstring_style = "sphinx"
 show_source = false
-show_root_heading = true
+show_root_heading = false
 show_root_full_path = false
 members_order = "source"
 heading_level = 2

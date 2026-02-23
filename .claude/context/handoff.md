@@ -1,27 +1,44 @@
-## 2026-02-23 — Review of: Set up zensical documentation scaffold
+## 2026-02-23 — Add Python API reference page with docstrings
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Created the Python API reference documentation page using mkdocstrings with full
+Sphinx-style docstrings for all 9 `gen_*_v0` functions. The page renders signatures with type
+annotations, descriptions, parameter tables, and return value documentation.
 
-**Summary:** Documentation build infrastructure is correctly set up with zensical. The
-`zensical.toml` configuration, `docs/index.md` landing page, and dev dependencies were all created
-as specified in next.md. The documentation builds successfully in 0.3s, producing a complete site.
-All 143 Rust tests pass, clippy and fmt are clean.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: Added Sphinx-style docstrings (`:param:`,
+    `:return:`) for all 9 functions with descriptions derived from the Rust doc comments in `lib.rs`
+- `docs/api.md`: Created API reference page with intro text, usage example, and `::: iscc_lib`
+    mkdocstrings directive
+- `zensical.toml`: Added `api.md` to nav, fixed `paths` from `crates/iscc-py/python/iscc_lib` to
+    `crates/iscc-py/python` (parent directory so griffe can find the `iscc_lib` package), added
+    `allow_inspection = false` to force stub-based static analysis, changed `show_root_heading` to
+    `false`
 
-- Quick start code examples in `docs/index.md` had incorrect API usage — Rust example used `None`
-    for `bits` parameter (actual type is `u32`, not `Option`) and showed `result["iscc"]` indexing
-    on a `String` return type. Python example also showed dict indexing on what is actually a JSON
-    string return. Fixed both examples to reflect the actual API signatures.
+**Verification:**
 
-**Next:** Follow-up documentation work or OIDC publishing pipelines. Options:
+- `uv run zensical build` succeeds, produces `site/api/index.html`
+- All 9 `gen_*_v0` functions documented with signatures, type annotations, descriptions, parameter
+    tables, and return values
+- `cargo test -p iscc-lib`: 143 passed, 0 failed
+- `cargo clippy -p iscc-lib -- -D warnings`: clean
+- `cargo fmt --check`: clean
 
-1. Add API reference page using mkdocstrings auto-generation from Python stubs
-2. Add GitHub Pages deployment workflow (`.github/workflows/docs.yml`)
-3. Add ISCC branding (logo, favicon, extra.css) to the documentation site
-4. Tackle OIDC trusted publishing pipelines (crates.io, PyPI, npm) — independent workstream
+**Next:** Add an architecture overview page (`docs/architecture.md`) or set up GitHub Pages
+deployment workflow. The documentation site now has a landing page and a complete API reference —
+deployment is the next high-value step.
 
-**Notes:** The `gen_*_v0` functions all return JSON strings (not parsed objects) across all
-bindings. Future documentation should be aware of this API shape when writing examples. Consider
-whether the Python `__init__.py` wrapper should parse JSON and return dicts for a more Pythonic API
-— but that would be a design decision, not a documentation fix.
+**Notes:**
+
+- The `paths` config in `zensical.toml` was incorrect (pointed to `iscc_lib` directory instead of
+    parent `python/` directory). Fixed as part of this step.
+- griffe (mkdocstrings backend) was reading docstrings from the compiled `_lowlevel.abi3.so` (PyO3
+    embedded docstrings) instead of the `.pyi` stubs. The PyO3 docstrings lack parameter
+    annotations. Setting `allow_inspection = false` forces griffe to use static analysis only,
+    reading the rich Sphinx-style docstrings from `_lowlevel.pyi`.
+- mdformat-mkdocs doesn't properly handle mkdocstrings `:::` directives with inline indented options
+    — it collapses them into a single line and escapes underscores. Solved by: (1) using
+    `::: iscc_lib` instead of `::: iscc_lib._lowlevel` (no underscore to escape), and (2) moving all
+    mkdocstrings options to `zensical.toml` global config (changed `show_root_heading` from `true`
+    to `false`), so no inline options are needed. The simple `::: iscc_lib` directive passes
+    mdformat cleanly.
