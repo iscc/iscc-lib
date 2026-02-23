@@ -6,7 +6,10 @@
   "types": "index.d.ts",
   "napi": {
     "name": "iscc-lib",
-    "triples": {}
+    "triples": {
+      "defaults": true,
+      "additional": ["aarch64-unknown-linux-gnu"]
+    }
   },
   "scripts": {
     "build": "napi build --platform --release",

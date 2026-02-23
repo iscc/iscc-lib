@@ -1,26 +1,41 @@
-## 2026-02-23 — Review of: Add benchmark results documentation page
+## 2026-02-23 — Add npm publishing jobs to release workflow
 
-**Verdict:** PASS
+**Done:** Added 4 new jobs to `release.yml` for building and publishing `@iscc/lib` (napi-rs native
+addon) and `@iscc/wasm` (wasm-bindgen package) to npm. Updated `package.json` with cross-platform
+triples configuration.
 
-**Summary:** The advance agent created a well-structured `docs/benchmarks.md` page with measured
-speedup factors for all 9 `gen_*_v0` functions from actual pytest-benchmark and Criterion runs. The
-`zensical.toml` nav was updated correctly. All verification criteria pass — 143 Rust tests green,
-clippy clean, fmt clean, docs build succeeds, `site/benchmarks/index.html` exists. No quality gate
-circumvention detected.
+**Files changed:**
 
-**Issues found:**
+- `.github/workflows/release.yml`: Added `build-napi` (5-target matrix: linux-x64, linux-arm64,
+    macos-arm64, macos-x64, windows-x64), `publish-npm-lib` (downloads artifacts, runs napi
+    prepublish, npm publish), `build-wasm` (wasm-pack build + package.json name/version patching),
+    `publish-npm-wasm` (downloads WASM pkg artifact, npm publish). All publish jobs gated with
+    `startsWith(github.ref, 'refs/tags/v')`, use `NPM_TOKEN` secret, and have `id-token: write`
+    permission for provenance attestation.
+- `crates/iscc-napi/package.json`: Added `"defaults": true` and
+    `"additional": ["aarch64-unknown-linux-gnu"]` to napi triples configuration.
 
-- (none)
+**Verification:** All verification criteria from next.md pass:
 
-**Next:** With the benchmarks page complete, nearly all target criteria are fulfilled. The remaining
-gaps from `state.md` are operational/admin items rather than code: (1) GitHub Pages enablement
-requires Titusz to enable in repo settings — not a code fix, (2) npm publishing jobs for `@iscc/lib`
-and `@iscc/wasm` in the release workflow, (3) the docs workflow (`docs.yml`) will start working once
-Pages is enabled. The most impactful remaining code work is adding npm publishing jobs to
-`.github/workflows/release.yml`. Alternatively, the project may be ready for an initial release —
-Titusz should decide whether to add npm publishing first or do an initial crates.io + PyPI release.
+- YAML valid, all 8 jobs present (4 existing + 4 new)
+- napi build matrix covers linux-x64, linux-arm64, macos-arm64, macos-x64, windows-x64
+- WASM build uses `wasm-pack build --target web --release`
+- npm publish uses `--access public` and `--provenance`
+- `NPM_TOKEN` secret referenced, `id-token: write` on publish jobs
+- Publish jobs have tag guard (`startsWith(github.ref, 'refs/tags/v')`)
+- Existing crates.io and PyPI jobs unchanged
+- npm jobs independent of crates.io/PyPI (parallel execution)
+- package.json has platform triples configured
+- `cargo clippy`, `cargo fmt --check`, `cargo test` all pass
 
-**Notes:** The speedup factors are impressive — 1.3× to 158× across all functions. The Video-Code
-1.3× is expected due to PyO3 overhead on the 2 µs native computation. The Data-Code 158× is the
-standout result. The documentation is factual and includes proper reproduction commands. The target
-state's "Speedup factors published in documentation" criterion is now met.
+**Next:** The target state notes that the only remaining gap after this step is GitHub Pages
+enablement (admin action, not code). The project is at code-complete status. Consider running the
+full release workflow via `workflow_dispatch` (build-only, publish jobs skipped) to validate the CI
+configuration end-to-end before the first real release.
+
+**Notes:** The aarch64-linux cross-compilation uses `gcc-aarch64-linux-gnu` installed via apt-get,
+with `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER` env var set on the build step (harmlessly
+ignored on non-arm64 targets). The WASM version patching uses a Node.js heredoc script to read the
+workspace version from root `Cargo.toml` and set it in the wasm-pack generated `package.json`. The
+`napi prepublish -t npm` command in the publish job organizes platform-specific `.node` binaries
+into npm packages before publishing.

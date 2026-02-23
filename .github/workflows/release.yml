@@ -96,3 +96,135 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
+
+  # Build napi-rs native addons for cross-platform npm publishing
+  build-napi:
+    name: Build napi (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+          - os: macos-14
+            target: aarch64-apple-darwin
+          - os: macos-13
+            target: x86_64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install npm dependencies
+        run: npm install
+        working-directory: crates/iscc-napi
+      - name: Install cross-compiler
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build native addon
+        run: npx napi build --platform --release --target ${{ matrix.target }}
+        working-directory: crates/iscc-napi
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: napi-${{ matrix.target }}
+          path: crates/iscc-napi/*.node
+
+  # Publish @iscc/lib to npm
+  publish-npm-lib:
+    name: Publish @iscc/lib to npm
+    needs: [build-napi]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: https://registry.npmjs.org
+      - name: Install npm dependencies
+        run: npm install
+        working-directory: crates/iscc-napi
+      - name: Download all napi artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: napi-*
+          path: crates/iscc-napi
+          merge-multiple: true
+      - name: Prepare npm packages
+        run: npx napi prepublish -t npm
+        working-directory: crates/iscc-napi
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        working-directory: crates/iscc-napi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Build WASM package for npm publishing
+  build-wasm:
+    name: Build WASM package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Build WASM package
+        run: wasm-pack build --target web --release crates/iscc-wasm
+      - name: Set npm package name and version
+        run: |
+          node <<'SCRIPT'
+          const fs = require('fs');
+          const pkg = JSON.parse(fs.readFileSync('crates/iscc-wasm/pkg/package.json', 'utf8'));
+          pkg.name = '@iscc/wasm';
+          const toml = fs.readFileSync('Cargo.toml', 'utf8');
+          const m = toml.match(/^version\s*=\s*"(.+?)"/m);
+          if (m) pkg.version = m[1];
+          fs.writeFileSync('crates/iscc-wasm/pkg/package.json', JSON.stringify(pkg, null, 2) + '\n');
+          SCRIPT
+      - name: Upload WASM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-pkg
+          path: crates/iscc-wasm/pkg/
+
+  # Publish @iscc/wasm to npm
+  publish-npm-wasm:
+    name: Publish @iscc/wasm to npm
+    needs: [build-wasm]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: https://registry.npmjs.org
+      - name: Download WASM package
+        uses: actions/download-artifact@v4
+        with:
+          name: wasm-pkg
+          path: pkg
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        working-directory: pkg
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
