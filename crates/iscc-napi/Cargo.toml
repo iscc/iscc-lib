@@ -1,0 +1,16 @@
+[package]
+name = "iscc-napi"
+version.workspace = true
+edition.workspace = true
+publish = false          # Published via npm, not crates.io
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+iscc-lib = { path = "../iscc-lib" }
+napi = { workspace = true }
+napi-derive = { workspace = true }
+
+[build-dependencies]
+napi-build = { workspace = true }
