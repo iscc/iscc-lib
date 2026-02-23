@@ -2,12 +2,13 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: Documentation scaffold created — content pages, GitHub Pages deploy, and OIDC publishing remain
+## Phase: Documentation content in progress — Pages deploy, architecture page, and OIDC publishing remain
 
 All 9 `gen_*_v0` functions are implemented in the Rust core with 143 conformance tests passing. All
 4 binding crates (Python, Node.js, WASM, C FFI) are complete with tests. CI has 5 jobs all green.
-Benchmarks exist. Zensical documentation scaffold (`zensical.toml`, `docs/index.md`) was added but
-only has a landing page — no API reference, architecture, or GitHub Pages deployment yet.
+Criterion and pytest benchmarks exist. Zensical docs now have a landing page and a Python API
+reference page (`docs/api.md` with mkdocstrings). Still missing: architecture page, benchmark
+results in docs, GitHub Pages deployment workflow, and OIDC publishing pipelines.
 
 ## What Exists
 
@@ -22,8 +23,9 @@ only has a landing page — no API reference, architecture, or GitHub Pages depl
 - **C FFI (`crates/iscc-ffi/`)**: 11 extern "C" symbols, cbindgen.toml, 20 unit tests, C test
     program
 - **Criterion benchmarks (`crates/iscc-lib/benches/`)**: all 9 gen functions
-- **Comparative pytest-benchmark (`benchmarks/python/`)**: iscc-core baseline and iscc_lib bindings
-- **Documentation scaffold**: `zensical.toml` config + `docs/index.md` landing page (builds locally)
+- **Comparative pytest-benchmark (`benchmarks/python/`)**: iscc-core vs iscc_lib bindings
+- **Documentation**: `zensical.toml`, `docs/index.md` (landing), `docs/api.md` (Python API ref via
+    mkdocstrings)
 - **Conformance vectors**: `data.json` vendored, shared by Rust/Python/JS/WASM
 - **Workspace**: root `Cargo.toml` with centralized deps, release profile, 5 crate members
 - **CI workflow**: 5 jobs (Rust, Python, Node.js, WASM, C FFI) — all green
@@ -31,21 +33,21 @@ only has a landing page — no API reference, architecture, or GitHub Pages depl
 
 ## What's Missing
 
-- **Documentation content**: only landing page exists — no API reference pages (Rust, Python), no
-    architecture page, no benchmark results published
+- **Documentation content**: no architecture page, no benchmark results published in docs
 - **GitHub Pages deployment**: no workflow to build/deploy docs to lib.iscc.codes
 - **CI/CD publishing pipelines**: no OIDC trusted publishing for crates.io, PyPI, or npm
 
 ## CI
 
 - **Status: PASSING** — all 5 jobs green (Rust, Python, Node.js, WASM, C FFI)
-- **Run**: https://github.com/iscc/iscc-lib/actions/runs/22291677768
+- **Run**: https://github.com/iscc/iscc-lib/actions/runs/22292101252
 
 ## Verification
 
 - `cargo test -p iscc-lib`: **143 passed**, 0 failed
 - `cargo test -p iscc-ffi`: **20 passed**, 0 failed
 - `cargo clippy -p iscc-lib -- -D warnings`: clean
+- `cargo fmt -p iscc-lib --check`: clean
 - Python tests: **49 passed** in CI (local requires `maturin develop` first)
 - Node.js CI: **passing** (46 conformance tests)
 - WASM CI: **passing** (conformance tests via wasm-pack)
@@ -53,7 +55,7 @@ only has a landing page — no API reference, architecture, or GitHub Pages depl
 
 ## Next Milestone
 
-**Expand documentation**: Add API reference pages (Python via mkdocstrings, Rust via rustdoc link),
-architecture overview, and benchmark results to the zensical site. Then add a GitHub Pages
-deployment workflow. OIDC publishing pipelines are an independent workstream that could proceed in
-parallel.
+**Add GitHub Pages deployment workflow**: The docs site has content (landing + API ref) and can be
+built locally. The highest-value next step is adding a GitHub Actions workflow to deploy to
+lib.iscc.codes via GitHub Pages, making the documentation publicly accessible. After that: add
+architecture and benchmark pages, then OIDC publishing pipelines.
