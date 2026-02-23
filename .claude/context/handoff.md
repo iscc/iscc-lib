@@ -1,30 +1,22 @@
-## 2026-02-23 — Add WASM conformance tests runnable with wasm-pack test --node
+## 2026-02-23 — Review of: Add WASM conformance tests runnable with wasm-pack test --node
 
-**Done:** Added conformance tests for the `iscc-wasm` crate that validate all 9 `gen_*_v0`
-WASM-exported functions against the vendored `data.json` test vectors (46 cases total). Tests run in
-a Node.js WASM runtime via `wasm-pack test --node`. Also removed the unused `js-sys` dependency from
-both `crates/iscc-wasm/Cargo.toml` and root `Cargo.toml` workspace dependencies.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** All 9 `gen_*_v0` WASM functions now have conformance tests validating 46 test vectors
+via `wasm-pack test --node`. The implementation is clean, follows established test patterns from the
+Rust core and Node.js suites, and correctly handles the `cdylib`+`rlib` crate-type requirement for
+integration tests. The unused `js-sys` dependency was properly removed. All quality gates pass.
 
-- `Cargo.toml`: Added `wasm-bindgen-test = "0.3"` to workspace dependencies, removed `js-sys`
-- `crates/iscc-wasm/Cargo.toml`: Removed `js-sys` from dependencies, added `rlib` to crate-type
-    (needed for integration test linking), added dev-dependencies (`wasm-bindgen-test`,
-    `serde_json`, `hex`)
-- `crates/iscc-wasm/tests/conformance.rs`: New file — 9 `#[wasm_bindgen_test]` functions covering
-    all gen functions with the same test vector parsing patterns as the Rust core tests
+**Issues found:**
 
-**Verification:** `wasm-pack test --node crates/iscc-wasm` passes (9 tests, all 46 vectors
-validated). `cargo test -p iscc-lib` passes (143 tests).
-`cargo clippy --workspace --all-targets -- -D warnings` clean. `cargo fmt --all --check` clean. No
-regressions.
+- (none)
 
-**Next:** Add a WASM CI job to `.github/workflows/ci.yml` (install wasm-pack, run
-`wasm-pack test --node crates/iscc-wasm`). This completes the WASM bindings target criterion. After
-that, consider C FFI bindings, documentation site, or CI/CD publishing pipelines.
+**Next:** Add a WASM CI job to `.github/workflows/ci.yml` — install `wasm-pack`, run
+`wasm-pack test --node crates/iscc-wasm`. This is the last piece needed to consider the WASM
+bindings target criterion complete. After that, the remaining target items are: C FFI bindings,
+documentation site, CI/CD publishing pipelines, and benchmark results publication.
 
-**Notes:** The `cdylib`-only crate type doesn't support integration tests (Rust can't link cdylib
-for test harness), so `rlib` was added alongside `cdylib` in `crate-type`. This is a standard
-pattern for WASM crates that need integration tests — wasm-pack builds the cdylib for packaging and
-uses the rlib for test compilation. The `js-sys` crate was confirmed unused in source code (grep
-verified no imports) and is now fully removed.
+**Notes:** `wasm-pack` version 0.13.1 is installed; 0.14.0 is available. The CI job should use a
+recent wasm-pack version. The CI workflow pattern is established (Rust, Python, Node.js jobs exist)
+so adding a WASM job should be straightforward — follow the existing `ci.yml` structure. All four
+binding crates (PyO3, napi-rs, wasm-bindgen, plus the core) now have full conformance test coverage.

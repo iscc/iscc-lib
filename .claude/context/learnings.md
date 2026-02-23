@@ -115,3 +115,9 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     Error mapping uses `JsError::new(&e.to_string())`
 - WASM crate uses `cdylib` crate-type and `publish = false` (published via npm, not crates.io) —
     same pattern as the notes/02 architecture document specifies
+- WASM crate needs `crate-type = ["cdylib", "rlib"]` (not just `cdylib`) to support integration
+    tests — Rust can't link `cdylib` for the test harness. wasm-pack uses `cdylib` for packaging and
+    `rlib` for test compilation. This is the standard pattern for WASM crates with tests
+- WASM conformance tests use `include_str!` for compile-time data embedding (WASM has no filesystem
+    access at runtime). Path from `crates/iscc-wasm/tests/` to data is
+    `../../iscc-lib/tests/data.json`
