@@ -1,113 +1,82 @@
 # Next Work Package
 
-## Step: Add conformance_selftest and text utilities to Python bindings
+## Step: Add encode_base64, iscc_decompose, and sliding_window to Python bindings
 
 ## Goal
 
-Expose `conformance_selftest` and the 4 text utility functions (`text_clean`,
-`text_remove_newlines`, `text_trim`, `text_collapse`) through the Python bindings. This begins the
-process of completing the Python Tier 1 API surface beyond the 9 gen functions, starting with the
-simplest symbols.
+Expose 3 more Tier 1 symbols (`encode_base64`, `iscc_decompose`, `sliding_window`) in the Python
+bindings, bringing the count from 14/23 to 17/23. All three are simple pass-through wrappers with no
+complex types, matching the established text-utils pattern.
 
 ## Scope
 
-- **Modify**: `crates/iscc-py/src/lib.rs` — add 5 `#[pyfunction]` wrappers and register them in the
-    `#[pymodule]`
-- **Modify**: `crates/iscc-py/python/iscc_lib/__init__.py` — add imports from `_lowlevel` and
-    re-exports in `__all__`
-- **Modify**: `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — add type stubs for the 5 functions
+- **Create**: (none)
+- **Modify**:
+    - `crates/iscc-py/src/lib.rs` — add 3 `#[pyfunction]` wrappers
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — re-export from `_lowlevel`, add to `__all__`
+    - `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — add type stubs
 - **Reference**:
-    - `crates/iscc-lib/src/utils.rs` — Rust signatures for `text_clean`, `text_remove_newlines`,
-        `text_trim`, `text_collapse`
-    - `crates/iscc-lib/src/conformance.rs` — Rust signature for `conformance_selftest`
-    - `crates/iscc-lib/src/lib.rs` lines 18–26 — public re-exports confirming API surface
+    - `crates/iscc-lib/src/codec.rs` — `encode_base64` and `iscc_decompose` signatures
+    - `crates/iscc-lib/src/simhash.rs` — `sliding_window` signature
+    - `reference/iscc-core/iscc_core/codec.py` — Python reference for `encode_base64`,
+        `iscc_decompose`
+    - `reference/iscc-core/iscc_core/utils.py` — Python reference for `sliding_window`
+    - `tests/test_text_utils.py` — established test pattern for simple binding tests
 
 ## Implementation Notes
 
-**PyO3 wrappers in `lib.rs`:**
+All 3 functions follow the simple direct pass-through pattern (like `text_clean` — no `Python<'_>`
+param, no `PyDict`):
 
-All 5 functions have trivial signatures that map directly to PyO3 types:
+1. **`encode_base64`**: `fn encode_base64(data: &[u8]) -> String` — direct passthrough. PyO3
+    receives `&[u8]` directly from Python `bytes`.
 
-```rust
-#[pyfunction]
-fn conformance_selftest() -> bool {
-    iscc_lib::conformance_selftest()
-}
+2. **`iscc_decompose`**: `fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>>` — needs
+    `map_err(PyValueError)` since it returns `Result`. Use `-> PyResult<Vec<String>>`. Returns
+    `Vec<String>` which PyO3 auto-converts to Python `list[str]`.
 
-#[pyfunction]
-fn text_clean(text: &str) -> String {
-    iscc_lib::text_clean(text)
-}
+3. **`sliding_window`**: `fn sliding_window(seq: &str, width: usize) -> Vec<String>` — direct
+    passthrough. Add `#[pyo3(signature = (seq, width))]` for explicit parameter names. Returns
+    `Vec<String>` → Python `list[str]`. Note: the Rust function uses `assert!` for width < 2, so it
+    will panic. Wrap in a catch or convert to PyValueError if width < 2 before calling.
 
-#[pyfunction]
-fn text_remove_newlines(text: &str) -> String {
-    iscc_lib::text_remove_newlines(text)
-}
+For each function:
 
-#[pyfunction]
-#[pyo3(signature = (text, nbytes))]
-fn text_trim(text: &str, nbytes: usize) -> String {
-    iscc_lib::text_trim(text, nbytes)
-}
+- Add `#[pyfunction]` in `lib.rs` with docstring
+- Register with `m.add_function(wrap_pyfunction!(...))` in `iscc_lowlevel`
+- Re-export in `__init__.py` with `as X` for explicit re-export (not wrapped, since they return
+    simple types)
+- Add to `__all__`
+- Add type stub in `_lowlevel.pyi` with docstring and type annotations
 
-#[pyfunction]
-fn text_collapse(text: &str) -> String {
-    iscc_lib::text_collapse(text)
-}
-```
+**Tests** — add to `tests/test_text_utils.py` (it already covers non-gen utility functions) or
+create a new `tests/test_utils.py`. Test cases:
 
-Register all 5 in the `iscc_lowlevel` module function with `m.add_function(wrap_pyfunction!(...))`.
-
-**Python `__init__.py`:**
-
-Add imports from `_lowlevel` (these are pass-through, no wrapper class needed since they return
-simple types):
-
-```python
-from iscc_lib._lowlevel import (
-    conformance_selftest as conformance_selftest,
-    text_clean as text_clean,
-    text_collapse as text_collapse,
-    text_remove_newlines as text_remove_newlines,
-    text_trim as text_trim,
-)
-```
-
-Add all 5 names to `__all__`.
-
-**Type stubs in `_lowlevel.pyi`:**
-
-Add stubs with docstrings matching the Rust source. `conformance_selftest() -> bool`,
-`text_clean(text: str) -> str`, `text_remove_newlines(text: str) -> str`,
-`text_trim(text: str, nbytes: int) -> str`, `text_collapse(text: str) -> str`.
-
-**Tests:**
-
-Add a test file `tests/test_text_utils.py` (or add to existing test file) that:
-
-1. Calls `conformance_selftest()` and asserts it returns `True`
-2. Tests `text_clean` with control chars, newlines, whitespace
-3. Tests `text_remove_newlines` with multi-line input
-4. Tests `text_trim` with truncation and Unicode boundary handling
-5. Tests `text_collapse` with accents, punctuation, whitespace
+- `encode_base64(b"")` returns `""`
+- `encode_base64(b"Hello")` returns the expected base64url-no-pad string (`"SGVsbG8"`)
+- `encode_base64(b"\xff\xfe")` returns `"__4"` (base64url encoding)
+- `iscc_decompose` on a known ISCC-CODE returns the expected list of unit strings — pick any
+    `gen_iscc_code_v0` result from conformance vectors and verify it decomposes back
+- `iscc_decompose` with invalid input raises `ValueError`
+- `sliding_window("hello", 3)` returns `["hel", "ell", "llo"]`
+- `sliding_window("ab", 3)` returns `[]` (input shorter than width)
+- `sliding_window` with width < 2 raises an error
 
 Build with: `VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop -m crates/iscc-py/Cargo.toml`
 
 ## Verification
 
-- `VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop -m crates/iscc-py/Cargo.toml` succeeds
-- `pytest tests/` passes (existing 63 tests + new text utility tests)
-- `from iscc_lib import conformance_selftest, text_clean, text_remove_newlines, text_trim, text_collapse`
-    works
-- `conformance_selftest()` returns `True`
-- `text_clean("hello\tworld")` returns `"helloworld"`
-- `text_collapse("Hello World")` returns `"helloworld"`
-- `text_trim("hello world", 5)` returns `"hello"`
-- `text_remove_newlines("hello\nworld")` returns `"hello world"`
+- `maturin develop` builds successfully
+- `pytest tests/` passes with new tests covering all 3 functions
 - `cargo clippy --workspace --all-targets -- -D warnings` clean
-- `uv run prek run --all-files` passes (or at minimum no regressions)
+- `cargo test -p iscc-lib` still passes (230 tests)
+- `ty` check passes (stubs present in `_lowlevel.pyi`)
+- Python `from iscc_lib import encode_base64, iscc_decompose, sliding_window` works
+- `encode_base64(b"Hello")` returns `"SGVsbG8"`
+- `iscc_decompose` roundtrips with gen functions
+- `sliding_window("hello", 3)` returns `["hel", "ell", "llo"]`
 
 ## Done When
 
-All verification criteria pass — the 5 functions are importable from `iscc_lib`, return correct
-results, all existing and new tests pass, and clippy is clean.
+All verification criteria pass and the 3 new functions are callable from Python with correct
+results.
