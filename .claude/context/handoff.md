@@ -1,31 +1,23 @@
-## 2026-02-23 — Implement hybrid IsccResult(dict) objects in Python
+## 2026-02-23 — Review of: Implement hybrid IsccResult(dict) objects in Python
 
-**Done:** Replaced direct `_lowlevel` re-exports in `__init__.py` with an `IsccResult(dict)` base
-class, 9 typed subclasses (`MetaCodeResult`, `TextCodeResult`, etc.), and 9 wrapper functions. All
-`gen_*_v0` Python functions now return typed result objects supporting both `result['iscc']` dict
-access and `result.iscc` attribute access with IDE code completion.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, well-executed implementation of hybrid `IsccResult(dict)` objects. All 9
+`gen_*_v0` Python functions now return typed subclass instances supporting both `result['iscc']`
+dict access and `result.iscc` attribute access. 57 Python tests pass (46 conformance + 11 smoke),
+163 Rust tests pass, all quality gates green. No gate circumvention, no dead code, no regressions.
 
-- `crates/iscc-py/python/iscc_lib/__init__.py`: Replaced direct re-exports with `IsccResult` base
-    class, 9 typed subclasses with class-level annotations, 9 wrapper functions calling `_lowlevel`
-    prefixed imports, and expanded `__all__` to 19 symbols
-- `tests/test_smoke.py`: Added 8 new tests for attribute access, `isinstance` checks, `json.dumps`
-    serialization, `AttributeError` on missing keys, and dict/attribute equality
+**Issues found:**
 
-**Verification:** All quality gates pass clean. 163 Rust tests pass, 57 Python tests pass (46
-conformance + 11 smoke). `ruff check` and `ruff format` clean. Conformance tests unchanged and still
-pass — dict access backward compatible. Specific verifications: `gen_meta_code_v0("Test").iscc`
-returns valid ISCC string, `isinstance` checks pass for `dict`, `IsccResult`, and specific
-subclasses, `json.dumps` works, `AttributeError` raised for missing attributes.
+- (none)
 
-**Next:** The Python bindings are now feature-complete with hybrid dict+attribute access. Next
-priorities from `target.md` could include: accepting `BinaryIO` (file-like objects) for streaming
-functions (`gen_data_code_v0`, `gen_instance_code_v0`), updating napi/wasm/ffi bindings to return
-structured data, or documentation improvements.
+**Next:** The Python bindings are now feature-complete with hybrid dict+attribute access. Consult
+`target.md` and `state.md` for highest-impact next step. Candidates include: Python streaming
+support (`BinaryIO` for `gen_data_code_v0`/`gen_instance_code_v0`), structured returns for
+Node.js/WASM/FFI bindings, or the remaining 13 Tier 1 API symbols. State.md needs updating to
+reflect the completed IsccResult work.
 
-**Notes:** No Rust changes required — this was a pure Python wrapper implementation. The
-`__getattr__` → `__getitem__` delegation pattern is minimal and robust. The `from None` in the
-`AttributeError` raise correctly suppresses the `KeyError` chain for clean tracebacks. The
-`__annotations__` on subclasses are purely for IDE/type-checker consumption — `dict.__init__`
-handles all data storage.
+**Notes:** The `__getattr__` → `__getitem__` delegation pattern is minimal and robust. The
+`from None` suppression is correct. Type annotations on subclasses are purely for IDE consumption —
+`dict.__init__` handles all storage. No `.pyi` stubs needed for the public API since `__init__.py`
+is pure Python with inline annotations. The `_lowlevel.pyi` stubs remain unchanged as expected.

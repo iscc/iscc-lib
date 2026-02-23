@@ -158,3 +158,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `DataURL.from_byte_data()`. `@context` key → `application/ld+json`, otherwise `application/json`
 - Result struct pattern: `#[non_exhaustive]` + `pub use types::*` at crate root. Binding crates use
     `.map(|r| r.iscc)` for backward-compatible string extraction until dict returns are implemented
+- Python hybrid result pattern: `IsccResult(dict)` with `__getattr__` → `__getitem__` delegation in
+    pure Python `__init__.py`, wrapping `_lowlevel` PyO3 dicts. 9 typed subclasses with class-level
+    annotations provide IDE completion. No Rust changes needed — the wrapper layer is entirely
+    Python
