@@ -264,3 +264,175 @@ fn test_soft_hash_video_v0_empty_errors() {
     let result = iscc_wasm::soft_hash_video_v0(input, None);
     assert!(result.is_err(), "empty frame_sigs should error");
 }
+
+// ── DataHasher ─────────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_data_hasher_basic_usage() {
+    let mut dh = iscc_wasm::DataHasher::new();
+    dh.update(b"Hello, ISCC World!").unwrap();
+    let result = dh.finalize(None).unwrap();
+    assert!(
+        result.starts_with("ISCC:"),
+        "should return valid ISCC string"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_data_hasher_matches_gen_function() {
+    let data = b"Hello, ISCC World!";
+    let mut dh = iscc_wasm::DataHasher::new();
+    dh.update(data).unwrap();
+    let streaming = dh.finalize(Some(64)).unwrap();
+    let oneshot = iscc_wasm::gen_data_code_v0(data, Some(64)).unwrap();
+    assert_eq!(streaming, oneshot, "streaming should match one-shot");
+}
+
+#[wasm_bindgen_test]
+fn test_data_hasher_multi_update() {
+    let data = b"The quick brown fox jumps over the lazy dog";
+    let mut dh = iscc_wasm::DataHasher::new();
+    dh.update(&data[..10]).unwrap();
+    dh.update(&data[10..25]).unwrap();
+    dh.update(&data[25..]).unwrap();
+    let streaming = dh.finalize(Some(64)).unwrap();
+    let oneshot = iscc_wasm::gen_data_code_v0(data, Some(64)).unwrap();
+    assert_eq!(streaming, oneshot, "multi-update should match one-shot");
+}
+
+#[wasm_bindgen_test]
+fn test_data_hasher_empty_data() {
+    let mut dh = iscc_wasm::DataHasher::new();
+    let result = dh.finalize(None).unwrap();
+    assert!(
+        result.starts_with("ISCC:"),
+        "empty data should produce valid ISCC"
+    );
+    let oneshot = iscc_wasm::gen_data_code_v0(&[], Some(64)).unwrap();
+    assert_eq!(
+        result, oneshot,
+        "empty streaming should match empty one-shot"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_data_hasher_finalize_once() {
+    let mut dh = iscc_wasm::DataHasher::new();
+    dh.update(b"test data").unwrap();
+    let _result = dh.finalize(None).unwrap();
+    // Second finalize should error
+    let err = dh.finalize(None);
+    assert!(err.is_err(), "second finalize should error");
+}
+
+#[wasm_bindgen_test]
+fn test_data_hasher_update_after_finalize_errors() {
+    let mut dh = iscc_wasm::DataHasher::new();
+    dh.update(b"test data").unwrap();
+    let _result = dh.finalize(None).unwrap();
+    // Update after finalize should error
+    let err = dh.update(b"more data");
+    assert!(err.is_err(), "update after finalize should error");
+}
+
+#[wasm_bindgen_test]
+fn test_data_hasher_default_bits() {
+    // finalize(None) should use 64-bit default — same as finalize(Some(64))
+    let data = b"default bits test";
+
+    let mut dh1 = iscc_wasm::DataHasher::new();
+    dh1.update(data).unwrap();
+    let result_none = dh1.finalize(None).unwrap();
+
+    let mut dh2 = iscc_wasm::DataHasher::new();
+    dh2.update(data).unwrap();
+    let result_64 = dh2.finalize(Some(64)).unwrap();
+
+    assert_eq!(result_none, result_64, "None bits should equal explicit 64");
+}
+
+// ── InstanceHasher ──────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_basic_usage() {
+    let mut ih = iscc_wasm::InstanceHasher::new();
+    ih.update(b"Hello, ISCC World!").unwrap();
+    let result = ih.finalize(None).unwrap();
+    assert!(
+        result.starts_with("ISCC:"),
+        "should return valid ISCC string"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_matches_gen_function() {
+    let data = b"Hello, ISCC World!";
+    let mut ih = iscc_wasm::InstanceHasher::new();
+    ih.update(data).unwrap();
+    let streaming = ih.finalize(Some(64)).unwrap();
+    let oneshot = iscc_wasm::gen_instance_code_v0(data, Some(64)).unwrap();
+    assert_eq!(streaming, oneshot, "streaming should match one-shot");
+}
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_multi_update() {
+    let data = b"The quick brown fox jumps over the lazy dog";
+    let mut ih = iscc_wasm::InstanceHasher::new();
+    ih.update(&data[..10]).unwrap();
+    ih.update(&data[10..25]).unwrap();
+    ih.update(&data[25..]).unwrap();
+    let streaming = ih.finalize(Some(64)).unwrap();
+    let oneshot = iscc_wasm::gen_instance_code_v0(data, Some(64)).unwrap();
+    assert_eq!(streaming, oneshot, "multi-update should match one-shot");
+}
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_empty_data() {
+    let mut ih = iscc_wasm::InstanceHasher::new();
+    let result = ih.finalize(None).unwrap();
+    assert!(
+        result.starts_with("ISCC:"),
+        "empty data should produce valid ISCC"
+    );
+    let oneshot = iscc_wasm::gen_instance_code_v0(&[], Some(64)).unwrap();
+    assert_eq!(
+        result, oneshot,
+        "empty streaming should match empty one-shot"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_finalize_once() {
+    let mut ih = iscc_wasm::InstanceHasher::new();
+    ih.update(b"test data").unwrap();
+    let _result = ih.finalize(None).unwrap();
+    // Second finalize should error
+    let err = ih.finalize(None);
+    assert!(err.is_err(), "second finalize should error");
+}
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_update_after_finalize_errors() {
+    let mut ih = iscc_wasm::InstanceHasher::new();
+    ih.update(b"test data").unwrap();
+    let _result = ih.finalize(None).unwrap();
+    // Update after finalize should error
+    let err = ih.update(b"more data");
+    assert!(err.is_err(), "update after finalize should error");
+}
+
+#[wasm_bindgen_test]
+fn test_instance_hasher_default_bits() {
+    // finalize(None) should use 64-bit default — same as finalize(Some(64))
+    let data = b"default bits test";
+
+    let mut ih1 = iscc_wasm::InstanceHasher::new();
+    ih1.update(data).unwrap();
+    let result_none = ih1.finalize(None).unwrap();
+
+    let mut ih2 = iscc_wasm::InstanceHasher::new();
+    ih2.update(data).unwrap();
+    let result_64 = ih2.finalize(Some(64)).unwrap();
+
+    assert_eq!(result_none, result_64, "None bits should equal explicit 64");
+}

@@ -262,3 +262,107 @@ pub fn soft_hash_video_v0(frame_sigs: JsValue, bits: Option<u32>) -> Result<Vec<
         serde_wasm_bindgen::from_value(frame_sigs).map_err(|e| JsError::new(&e.to_string()))?;
     iscc_lib::soft_hash_video_v0(&frame_sigs, bits).map_err(|e| JsError::new(&e.to_string()))
 }
+
+// ── Streaming hashers ─────────────────────────────────────────────────────────
+
+/// Streaming Data-Code generator.
+///
+/// Incrementally processes data with content-defined chunking and MinHash
+/// to produce results identical to `gen_data_code_v0`. Follows the
+/// `new() → update() → finalize()` pattern.
+#[wasm_bindgen]
+pub struct DataHasher {
+    inner: Option<iscc_lib::DataHasher>,
+}
+
+impl Default for DataHasher {
+    /// Create a new `DataHasher` (delegates to `new()`).
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl DataHasher {
+    /// Create a new `DataHasher`.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self {
+            inner: Some(iscc_lib::DataHasher::new()),
+        }
+    }
+
+    /// Push data into the hasher.
+    pub fn update(&mut self, data: &[u8]) -> Result<(), JsError> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| JsError::new("DataHasher already finalized"))
+            .map(|h| h.update(data))
+    }
+
+    /// Consume the hasher and produce a Data-Code ISCC string.
+    ///
+    /// After calling `finalize`, subsequent calls to `update` or `finalize`
+    /// will throw. Default `bits` is 64.
+    pub fn finalize(&mut self, bits: Option<u32>) -> Result<String, JsError> {
+        let hasher = self
+            .inner
+            .take()
+            .ok_or_else(|| JsError::new("DataHasher already finalized"))?;
+        hasher
+            .finalize(bits.unwrap_or(64))
+            .map(|r| r.iscc)
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+}
+
+/// Streaming Instance-Code generator.
+///
+/// Incrementally hashes data with BLAKE3 to produce results identical
+/// to `gen_instance_code_v0`. Follows the
+/// `new() → update() → finalize()` pattern.
+#[wasm_bindgen]
+pub struct InstanceHasher {
+    inner: Option<iscc_lib::InstanceHasher>,
+}
+
+impl Default for InstanceHasher {
+    /// Create a new `InstanceHasher` (delegates to `new()`).
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl InstanceHasher {
+    /// Create a new `InstanceHasher`.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self {
+            inner: Some(iscc_lib::InstanceHasher::new()),
+        }
+    }
+
+    /// Push data into the hasher.
+    pub fn update(&mut self, data: &[u8]) -> Result<(), JsError> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| JsError::new("InstanceHasher already finalized"))
+            .map(|h| h.update(data))
+    }
+
+    /// Consume the hasher and produce an Instance-Code ISCC string.
+    ///
+    /// After calling `finalize`, subsequent calls to `update` or `finalize`
+    /// will throw. Default `bits` is 64.
+    pub fn finalize(&mut self, bits: Option<u32>) -> Result<String, JsError> {
+        let hasher = self
+            .inner
+            .take()
+            .ok_or_else(|| JsError::new("InstanceHasher already finalized"))?;
+        hasher
+            .finalize(bits.unwrap_or(64))
+            .map(|r| r.iscc)
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+}
