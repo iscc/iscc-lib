@@ -2,21 +2,25 @@
 
 ## Status: IN_PROGRESS
 
-## Phase: Polish — Python API compatibility and documentation refinement
+## Phase: API expansion — extended Rust core + Python drop-in compatibility + documentation
 
 All 9 `gen_*_v0` functions implemented in Rust core with 143 conformance tests passing. All 4
 binding crates (Python, Node.js, WASM, C FFI) complete with conformance tests. CI (5 jobs) and Docs
 workflows green. Release workflow covers crates.io, PyPI, and npm.
 
-Two areas need work before first release:
+Three areas need work before first release:
 
-1. **Python bindings are not drop-in compatible with iscc-core** — functions return plain strings
+1. **Rust core API expansion** — the Tier 1 API needs to grow from 9 gen functions to 22 public
+    symbols (text utils, algorithm primitives, soft hashes, streaming hashers, codec ops, encoding,
+    diagnostics). See `specs/rust-core.md` for the full spec. The gen functions also need
+    structured return types instead of plain strings.
+2. **Python bindings are not drop-in compatible with iscc-core** — functions return plain strings
     instead of dicts with structured fields (`metahash`, `name`, `characters`, `datahash`,
     `filesize`, `parts`). Streaming functions accept only `bytes` instead of file-like objects. The
-    Rust core API also needs structured return types to support this.
-2. **Documentation lacks ISCC branding and features** — missing custom CSS, logo/favicon, copy-page
+    new Tier 1 functions must also be bound. See `specs/python-bindings.md`.
+3. **Documentation lacks ISCC branding and features** — missing custom CSS, logo/favicon, copy-page
     feature, llms.txt generation, abbreviations, Diátaxis navigation structure, per-language tabbed
-    code examples, and Open Graph meta tags. Reference: iscc-usearch at usearch.iscc.codes.
+    code examples, and Open Graph meta tags. See `specs/documentation.md`.
 
 ## What Exists
 
@@ -41,10 +45,12 @@ Two areas need work before first release:
 
 ## What's Missing
 
-- **Python API compatibility**: see `.claude/context/specs/python-bindings.md`
-- **Rust structured return types**: core API returns plain strings, needs structured result types to
-    carry additional fields (metahash, characters, datahash, filesize, etc.)
-- **Documentation refinement**: see `.claude/context/specs/documentation.md`
+- **Rust core API expansion**: 13 new Tier 1 symbols (text utils, algorithm primitives, soft hash,
+    encoding, codec, streaming hashers, diagnostics) plus structured return types for existing gen
+    functions. See `specs/rust-core.md`
+- **Python API compatibility**: see `specs/python-bindings.md`
+- **Binding updates**: all 4 binding crates need to expose the new Tier 1 functions
+- **Documentation refinement**: see `specs/documentation.md`
 - **Untracked napi build artifacts**: `crates/iscc-napi/` has local build artifacts that should be
     gitignored
 
@@ -66,5 +72,5 @@ Two areas need work before first release:
 
 ## Next Milestone
 
-Python API drop-in compatibility with iscc-core (structured return types in Rust core, dict returns
-in Python bindings, stream input support). Then documentation refinement.
+Rust core API expansion (structured return types + 13 new Tier 1 symbols), then Python API drop-in
+compatibility (dict returns, stream inputs, new function bindings), then documentation refinement.

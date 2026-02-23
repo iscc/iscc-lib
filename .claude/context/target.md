@@ -8,19 +8,30 @@ by concrete criteria that agents can check.
 A pure Rust library (no binding dependencies) publishable to crates.io as
 [`iscc-lib`](https://crates.io/crates/iscc-lib). Name is available.
 
-**Entrypoints** — nine `gen_*_v0` functions matching `iscc/iscc-core` Python reference:
-`gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`,
-`gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`,
-`gen_iscc_code_v0`
+Detailed spec: `.claude/context/specs/rust-core.md`
 
-All `gen_*_v0` functions return structured result types that carry the same additional fields as
-iscc-core dicts (e.g., `metahash`, `name`, `characters`, `datahash`, `filesize`, `parts`). This
-enables all binding crates to expose these fields idiomatically.
+**Tier 1 API** — 22 public symbols bound in all languages:
+
+- 9 `gen_*_v0` functions with structured return types (matching iscc-core dict fields)
+- 4 text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
+- 4 algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
+- 1 soft hash: `soft_hash_video_v0`
+- 1 encoding utility: `encode_base64`
+- 1 codec operation: `iscc_decompose`
+- 2 streaming types: `DataHasher`, `InstanceHasher`
+- 1 diagnostic: `conformance_selftest`
+
+**Tier 2 API** — `codec` module (Rust-only, not bound): `MainType`, `SubType`, `Version` enums,
+`encode_header`, `decode_header`, `encode_base32`, `decode_base32`, `encode_component`,
+`encode_length`, `decode_length`, `encode_units`.
 
 **Verified when:**
 
 - `cargo test -p iscc-lib` passes with all conformance vectors from `iscc-core/data.json`
-- Output of every function matches `iscc-core` reference for every test vector
+- Output of every `gen_*_v0` function matches `iscc-core` reference for every test vector
+- All Tier 1 functions produce output matching their iscc-core counterparts
+- `DataHasher` / `InstanceHasher` produce identical results to `gen_data_code_v0` /
+    `gen_instance_code_v0` for the same input
 - `cargo clippy -p iscc-lib -- -D warnings` clean
 - `cargo fmt -p iscc-lib --check` clean
 - No `unsafe` without documented justification

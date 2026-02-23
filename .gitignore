@@ -224,3 +224,6 @@ cauldron/
 
 # Claude Code ephemeral plan files
 .claude/plans/
+
+# Reference implementations (shallow-cloned for agent use)
+/reference/

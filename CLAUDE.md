@@ -20,14 +20,28 @@ This project uses Continuous Iterative Development. Read these before doing anyt
 | `.claude/context/next.md`      | Scoped work package for the current step    |
 | `.claude/context/learnings.md` | Accumulated knowledge from prior iterations |
 
-## Prior Art
+## Reference Code
+
+**`reference/iscc-core/`** — shallow clone of the Python reference implementation (gitignored,
+auto-cloned by devcontainer). Read source files directly instead of using deepwiki MCP. Key paths:
+
+- `reference/iscc-core/iscc_core/code_meta.py` — `gen_meta_code_v0` and helpers
+- `reference/iscc-core/iscc_core/code_content_text.py` — `gen_text_code_v0`
+- `reference/iscc-core/iscc_core/code_content_image.py` — `gen_image_code_v0`
+- `reference/iscc-core/iscc_core/code_content_audio.py` — `gen_audio_code_v0`
+- `reference/iscc-core/iscc_core/code_content_video.py` — `gen_video_code_v0`
+- `reference/iscc-core/iscc_core/code_content_mixed.py` — `gen_mixed_code_v0`
+- `reference/iscc-core/iscc_core/code_data.py` — `gen_data_code_v0`
+- `reference/iscc-core/iscc_core/code_instance.py` — `gen_instance_code_v0`
+- `reference/iscc-core/iscc_core/code_iscc.py` — `gen_iscc_code_v0`
+- `reference/iscc-core/iscc_core/iscc_code.py` — codec functions
+
+If the directory is missing, clone it:
+`git clone --depth 1 https://github.com/iscc/iscc-core.git reference/iscc-core`
 
 **`bio-codes/iscc-sum`** contains production-quality, optimized Rust for Data-Code and Instance-Code
 (CDC, MinHash, BLAKE3, streaming). Achieved 50-130x speedup over Python. Use this code as the
 foundation — adapt and extend rather than rewriting from Python. Available via deepwiki MCP.
-
-**`iscc/iscc-core`** is the Python reference implementation and conformance baseline. Use deepwiki
-MCP to query it.
 
 ## Architecture
 

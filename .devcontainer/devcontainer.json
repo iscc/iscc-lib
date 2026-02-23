@@ -26,7 +26,7 @@
     "GIT_CONFIG_KEY_0": "commit.gpgsign",
     "GIT_CONFIG_VALUE_0": "false"
   },
-  "postCreateCommand": "sudo chown -R dev:dev /home/dev/.venvs /home/dev/.cargo/registry /home/dev/.cargo/git && .devcontainer/setup-gitconfig.sh && mise trust && uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push",
+  "postCreateCommand": "sudo chown -R dev:dev /home/dev/.venvs /home/dev/.cargo/registry /home/dev/.cargo/git && .devcontainer/setup-gitconfig.sh && mise trust && uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push && [ -d reference/iscc-core ] || git clone --depth 1 https://github.com/iscc/iscc-core.git reference/iscc-core",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/iscc-lib,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace/iscc-lib"
 }
