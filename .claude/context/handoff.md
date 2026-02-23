@@ -1,43 +1,40 @@
-## 2026-02-23 — Add ISCC brand colors, logo, and favicon to documentation site
+## 2026-02-23 — Review of: Add ISCC brand colors, logo, and favicon to documentation site
 
-**Done:** Added ISCC Foundation visual branding to the documentation site. Created
-`docs/stylesheets/extra.css` with brand color overrides for light/dark mode (ISCC Blue header, Deep
-Navy footer, link colors, logo inversion, mermaid edge softening). Downloaded `logo_light.png` and
-`favicon.png` from the iscc-usearch repository. Updated `zensical.toml` with `extra_css`, `logo`,
-and `favicon` configuration.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** The advance agent added ISCC Foundation visual branding to the documentation site
+exactly as specified. The CSS was ported verbatim from iscc-usearch (verified by fetching the
+reference file), with the copy-page split-button section correctly excluded. Logo and favicon are
+valid PNGs with expected dimensions. The `zensical.toml` config changes are minimal and correct. All
+11 verification criteria pass, all 14 pre-commit hooks pass, and clippy is clean.
 
-- `docs/stylesheets/extra.css`: ISCC brand color CSS ported from iscc-usearch, excluding copy-page
-    split-button rules
-- `docs/assets/logo_light.png`: ISCC Foundation logo (5000x1906 gray+alpha PNG, downloaded from
-    iscc-usearch)
-- `docs/assets/favicon.png`: ISCC Foundation favicon (300x300 RGBA PNG, downloaded from
-    iscc-usearch)
-- `zensical.toml`: Added `extra_css = ["stylesheets/extra.css"]` to `[project]` section, added
-    `logo` and `favicon` to `[project.theme]` section
+**Verification:**
 
-**Verification:** All 11 verification criteria from next.md pass:
+- [x] `uv run zensical build` exits 0 — site builds successfully (0.13s, 5 pages)
+- [x] `test -f docs/stylesheets/extra.css` exits 0 — CSS file exists (131 lines)
+- [x] `test -f docs/assets/logo_light.png` exits 0 — logo exists (5000x1906, gray+alpha, 113KB)
+- [x] `test -f docs/assets/favicon.png` exits 0 — favicon exists (300x300, RGBA, 13KB)
+- [x] `grep -q 'extra_css' zensical.toml` exits 0 — extra_css configured
+- [x] `grep -q 'logo.*=.*logo_light.png' zensical.toml` exits 0 — logo configured
+- [x] `grep -q 'favicon.*=.*favicon.png' zensical.toml` exits 0 — favicon configured
+- [x] `grep -q '#0054b2' docs/stylesheets/extra.css` exits 0 — ISCC Blue primary color present
+- [x] `grep -q 'filter: invert(1)' docs/stylesheets/extra.css` exits 0 — dark mode logo inversion
+- [x] `grep -q 'copy-page' docs/stylesheets/extra.css; test $? -ne 0` exits 0 — copy-page CSS absent
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
 
-- `uv run zensical build` exits 0 (site builds successfully)
-- `test -f docs/stylesheets/extra.css` exits 0
-- `test -f docs/assets/logo_light.png` exits 0
-- `test -f docs/assets/favicon.png` exits 0
-- `grep -q 'extra_css' zensical.toml` exits 0
-- `grep -q 'logo.*=.*logo_light.png' zensical.toml` exits 0
-- `grep -q 'favicon.*=.*favicon.png' zensical.toml` exits 0
-- `grep -q '#0054b2' docs/stylesheets/extra.css` exits 0
-- `grep -q 'filter: invert(1)' docs/stylesheets/extra.css` exits 0
-- `grep -q 'copy-page' docs/stylesheets/extra.css; test $? -ne 0` exits 0 (copy-page CSS absent)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean
-- `mise run check` all 14 hooks pass
+**Issues found:**
 
-**Next:** Consider adding the copy-page split-button dropdown (`copypage.js` + corresponding CSS
-rules) as the next documentation enhancement step. Alternatively, add `llms-full.txt` generation,
-social sharing meta tags, or the Diataxis navigation restructuring.
+- (none)
 
-**Notes:** The CSS was ported verbatim from iscc-usearch's `docs/stylesheets/extra.css`, with the
-copy-page split-button section removed as specified. No `primary = "indigo"` / `accent = "indigo"`
-palette keys were added to `zensical.toml` since the CSS selectors already match the default. No
-`custom_dir` was added since that is only needed when `overrides/main.html` is introduced later. No
-Rust code changes were made in this step.
+**Next:** Continue documentation enhancements. The copy-page split-button dropdown (`copypage.js` +
+corresponding CSS rules) is the natural next step since the branding CSS is now in place. Other
+candidates: `llms-full.txt` generation, social sharing meta tags, or Diataxis navigation
+restructuring. Alternatively, shift to the OIDC publishing pipeline configuration since all binding
+targets are at full Tier 1 parity and CI is green.
+
+**Notes:** The CSS was verified to match the iscc-usearch reference file exactly (lines 1-131), with
+only the copy-page split-button section (lines 132+) omitted. No `primary = "indigo"` or
+`accent = "indigo"` palette keys were added since the CSS selectors already match zensical defaults.
+No Rust code was touched. The documentation site now has proper ISCC Foundation branding (blue
+header, navy footer, correct link colors in both light/dark modes, logo with dark mode inversion,
+favicon).
