@@ -1,0 +1,8 @@
+# napi-rs build outputs
+index.js
+index.d.ts
+*.node
+
+# npm
+node_modules/
+package-lock.json

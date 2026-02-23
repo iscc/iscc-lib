@@ -69,10 +69,10 @@ next iteration.
 7. **Fix minor issues** — if you find minor problems (formatting, missing docstring, unused import),
     fix them directly. Do not fix anything that would change behavior or architecture.
 
-8. **Commit** — stage learnings.md, handoff.md, and any minor fixes:
+8. **Commit** — stage learnings.md, handoff.md, the iteration log, and any minor fixes:
 
     ```
-    git add .claude/context/learnings.md .claude/context/handoff.md <any fixed files>
+    git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/iterations.jsonl <any fixed files>
     git commit -m "cid(review): <summary of findings>"
     ```
 
