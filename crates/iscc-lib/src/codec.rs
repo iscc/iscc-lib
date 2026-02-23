@@ -390,6 +390,13 @@ pub fn decode_base32(code: &str) -> IsccResult<Vec<u8>> {
         .map_err(|e| IsccError::InvalidInput(format!("base32 decode error: {e}")))
 }
 
+// ---- Base64 Encoding ----
+
+/// Encode bytes as base64url (RFC 4648 §5, no padding).
+pub fn encode_base64(data: &[u8]) -> String {
+    data_encoding::BASE64URL_NOPAD.encode(data)
+}
+
 // ---- Component Encoding ----
 
 /// Encode an ISCC-UNIT with header and body as a base32 string.
@@ -707,6 +714,50 @@ mod tests {
         let lower = encoded.to_lowercase();
         let decoded = decode_base32(&lower).unwrap();
         assert_eq!(decoded, data);
+    }
+
+    // ---- Base64 encoding tests ----
+
+    #[test]
+    fn test_encode_base64_empty() {
+        assert_eq!(encode_base64(&[]), "");
+    }
+
+    #[test]
+    fn test_encode_base64_known_value() {
+        // Python: base64.urlsafe_b64encode(bytes([0,1,2,3])).decode().rstrip("=") == "AAECAw"
+        assert_eq!(encode_base64(&[0, 1, 2, 3]), "AAECAw");
+    }
+
+    #[test]
+    fn test_encode_base64_roundtrip() {
+        let data: &[&[u8]] = &[
+            &[0xFF],
+            &[0xDE, 0xAD, 0xBE, 0xEF],
+            &[0; 10],
+            &[0xFF; 10],
+            b"Hello World",
+        ];
+        for input in data {
+            let encoded = encode_base64(input);
+            let decoded = data_encoding::BASE64URL_NOPAD
+                .decode(encoded.as_bytes())
+                .unwrap();
+            assert_eq!(&decoded, input, "base64 roundtrip failed for {input:?}");
+        }
+    }
+
+    #[test]
+    fn test_encode_base64_no_padding() {
+        // Various lengths that would normally produce padding
+        for len in 1..=10 {
+            let data = vec![0xABu8; len];
+            let encoded = encode_base64(&data);
+            assert!(
+                !encoded.contains('='),
+                "base64 output must not contain padding for len={len}"
+            );
+        }
     }
 
     // ---- encode_component tests ----

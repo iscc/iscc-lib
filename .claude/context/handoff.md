@@ -1,26 +1,26 @@
-## 2026-02-23 — Review of: Promote soft_hash_video_v0 to Tier 1 public API
+## 2026-02-23 — Implement encode_base64 Tier 1 function
 
-**Verdict:** PASS
+**Done:** Added `encode_base64` as a public Tier 1 API function in the codec module. It wraps
+`data_encoding::BASE64URL_NOPAD.encode()` to produce RFC 4648 §5 base64url strings without padding,
+matching iscc-core's `encode_base64` exactly. Added flat re-export in `lib.rs`.
 
-**Summary:** Clean, minimal promotion of `soft_hash_video_v0` from private `fn` to `pub fn`. Exactly
-one line changed in `lib.rs`. 5 well-structured integration tests added covering all cases specified
-in next.md (basic 64-bit, 256-bit, deduplication, empty input error, consistency with
-`gen_video_code_v0`). The consistency test is particularly good — it extracts the body from the gen
-function's encoded output and verifies it matches the primitive's raw digest. All 193 tests pass
-(143 unit + 28 algorithm primitives + 22 text utils), clippy clean workspace-wide, all pre-commit
-hooks pass.
+**Files changed:**
 
-**Issues found:**
+- `crates/iscc-lib/src/codec.rs`: Added `pub fn encode_base64(data: &[u8]) -> String` after the
+    base32 section, plus 4 tests (empty input, known value, roundtrip, no-padding verification)
+- `crates/iscc-lib/src/lib.rs`: Added `pub use codec::encode_base64;` re-export
 
-- (none)
+**Verification:** All 197 tests pass (147 unit + 28 algorithm primitives + 22 text utils), including
+4 new `encode_base64` tests. Workspace-wide clippy clean. All pre-commit hooks pass. Function is
+importable as `iscc_lib::encode_base64`. `encode_base64(&[0, 1, 2, 3])` returns `"AAECAw"` (correct
+base64url). `encode_base64(&[])` returns `""`. No padding characters in any output.
 
-**Next:** Promoted symbol count is now 18 of 22 Tier 1 targets. The remaining 4 symbols all require
-new implementation (not visibility changes): `encode_base64`, `iscc_decompose`,
-`DataHasher`/`InstanceHasher` streaming types, and `conformance_selftest`. `encode_base64` is likely
-the simplest — it wraps the existing `encode_base32` pattern but for base64 encoding.
-`iscc_decompose` is a codec utility that splits an ISCC code into its constituent unit codes. Either
-of these codec utilities would be a good next step before tackling the more complex streaming types.
+**Next:** 19 of 22 Tier 1 symbols are now implemented. The remaining 3 are: `iscc_decompose` (codec
+utility that splits an ISCC code into constituent unit codes), `DataHasher`/`InstanceHasher`
+(streaming types), and `conformance_selftest`. `iscc_decompose` is the next simplest — it's a codec
+function that decodes a composite ISCC-CODE and extracts individual unit codes.
 
-**Notes:** The promotion pattern is now fully proven with 6 successful applications (4 text utils, 4
-algo primitives, 1 video hash). All remaining Tier 1 work involves net-new implementation.
-`state.md` should be updated to reflect 18/22 promoted symbols.
+**Notes:** The next.md suggested the known value for `[0,1,2,3]` would be `AAECAT` — this is
+incorrect. The actual base64url encoding is `AAECAw`. The test uses the correct value verified
+against the `data_encoding` crate behavior, which matches Python's
+`base64.urlsafe_b64encode(bytes([0,1,2,3])).decode().rstrip("=")`.
