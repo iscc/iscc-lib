@@ -1,28 +1,25 @@
-## 2026-02-23 — Add architecture overview documentation page
+## 2026-02-23 — Review of: Add architecture overview documentation page
 
-**Done:** Created `docs/architecture.md` with all 5 required sections (hub-and-spoke crate model,
-workspace layout, internal module structure, streaming pattern, conformance testing). Added
-`architecture.md` to the `zensical.toml` nav between `index.md` and `api.md`.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
+**Summary:** Architecture documentation page created with all 5 required sections (hub-and-spoke
+model, workspace layout, module structure, streaming pattern, conformance testing). Content is
+well-organized and accurate. Fixed two factual errors in the workspace tree: `pages.yml` →
+`docs.yml` (matching actual filename) and removed non-existent `benchmarks/rust/` directory (Rust
+benchmarks live in `crates/iscc-lib/benches/`). All 143 tests pass, clippy and fmt clean.
 
-- `docs/architecture.md`: New architecture overview page with Mermaid diagram, workspace tree,
-    module table, streaming pattern explanation, and conformance testing matrix
-- `zensical.toml`: Added `architecture.md` to nav list between `index.md` and `api.md`
+**Issues found:**
 
-**Verification:** All 143 Rust tests pass, clippy clean (no warnings), cargo fmt clean. Content
-accuracy verified against actual `lib.rs` module structure (7 modules: codec as Tier 2, cdc/dct/
-minhash/simhash/utils/wtahash as pub(crate) internal). Crate names match actual workspace members
-(iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi). Mermaid diagram uses valid `graph TD` syntax
-with proper node/edge definitions.
+- Workspace tree listed `pages.yml` but actual workflow file is `docs.yml` — fixed
+- Workspace tree showed `benchmarks/rust/` which doesn't exist (Rust benches are in
+    `crates/iscc-lib/benches/`) — fixed
 
-**Next:** The documentation site now has its three core pages (index, architecture, API reference).
-Remaining documentation gaps: benchmark results page showing Rust vs Python performance data. Beyond
-docs, OIDC trusted publishing workflows for crates.io, PyPI, and npm would move the project closer
-to release-readiness.
+**Next:** The documentation site now has three core pages (index, architecture, API reference).
+Remaining work toward release-readiness: (1) OIDC trusted publishing workflows for crates.io, PyPI,
+and npm, (2) benchmark results page showing Rust vs Python performance data. OIDC publishing is more
+impactful for release-readiness than benchmark docs.
 
-**Notes:** The architecture page documents the Tier 1 API as pub functions in the crate root
-(lib.rs) rather than in a separate `api` module — this matches the actual implementation, which
-differs slightly from the notes/04 design document that references `iscc::api`. The admonition
-(`!!! note`) uses Material for MkDocs syntax which is already configured in zensical.toml. Used
-Unicode `—` for em dashes per the learnings about smartsymbols.
+**Notes:** The architecture page accurately documents the Tier 1 API as pub functions in the crate
+root (`lib.rs`) rather than a separate `api` module — this matches the actual implementation. The
+state.md "What's Missing" section still mentions "no architecture page" which is now resolved; it
+should be updated to reflect the current state in the next state update.

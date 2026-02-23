@@ -36,9 +36,8 @@ iscc-lib/
 ├── .pre-commit-config.yaml     # prek hooks
 ├── docs/                       # Documentation site
 ├── notes/                      # Architecture notes
-├── benchmarks/                 # Rust + Python benchmarks
-│   ├── rust/
-│   └── python/
+├── benchmarks/
+│   └── python/                 # Comparative Python benchmarks
 ├── crates/
 │   ├── iscc-lib/               # Core Rust library
 │   │   ├── Cargo.toml
@@ -65,7 +64,7 @@ iscc-lib/
 │       └── tests/              # C test program
 └── .github/workflows/
     ├── ci.yml                  # Test + lint
-    └── pages.yml               # Documentation deployment
+    └── docs.yml                # Documentation deployment
 ```
 
 ### Crate Summary
