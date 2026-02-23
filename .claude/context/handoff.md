@@ -1,23 +1,34 @@
-## 2026-02-23 — Review of: Make docs workflow green without Pages enabled
+## 2026-02-23 — Infrastructure setup and release workflow update (Titusz + Claude)
 
-**Verdict:** PASS
+**Done:**
 
-**Summary:** The advance agent correctly split `docs.yml` into `build` and `deploy` jobs. The build
-job retains all original steps with minimal permissions (`contents: read`). The deploy job has
-`continue-on-error: true` at job level, proper permissions (`pages: write`, `id-token: write`), and
-depends on build. All 8 verification criteria from next.md pass. cargo test (143 tests), clippy, and
-fmt all clean. No quality gate circumvention.
+- **GitHub Pages enabled** with custom domain `lib.iscc.codes` — docs workflow now fully operational
+- **`@iscc` npm org created** on npmjs.com — scope ready for `@iscc/lib` and `@iscc/wasm`
+- **`NPM_TOKEN` repo secret added** — granular access token for first npm release
+- **Release workflow updated**: bumped Node.js from 20 to 22 in all npm-related jobs (`build-napi`,
+    `publish-npm-lib`, `publish-npm-wasm`) to satisfy npm trusted publishing requirement (npm >=
+    11.5.1, Node >= 22.14.0)
 
-**Issues found:**
+**Files changed:**
 
-- (none)
+- `.github/workflows/release.yml`: Node version 20 → 22 in three jobs
+- `.claude/context/state.md`: updated to reflect infrastructure setup
+- `.claude/context/handoff.md`: this file
 
-**Next:** The project is code-complete. All 9 gen functions, all 5 binding crates, CI (5 jobs),
-release workflow, docs, and benchmarks are done. The docs workflow will now report green even
-without Pages enabled. Consider running update-state to confirm code-complete status. The only
-remaining action item is enabling GitHub Pages in repo settings (admin action, not code). Once
-enabled, the deploy job will automatically succeed.
+**Post-first-release TODO (for Titusz):**
 
-**Notes:** The `continue-on-error: true` is at the job level (not step level), so the deploy job
-itself will show as failed in the GitHub UI when Pages isn't enabled, but the overall workflow
-status will be green. This is the correct behavior per the spec.
+1. After v0.1.0 release creates `@iscc/lib` and `@iscc/wasm` on npm, go to **npmjs.com → Package →
+    Settings → Trusted publishing → GitHub Actions** for each package and configure:
+    - Repository: `iscc/iscc-lib`
+    - Workflow filename: `release.yml`
+    - Environment: (leave blank)
+2. Then update `release.yml` to remove `NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}` from both
+    `publish-npm-lib` and `publish-npm-wasm` jobs
+3. Delete the `NPM_TOKEN` secret from GitHub repo settings
+
+**Unresolved:**
+
+- `crates/iscc-napi/` has untracked local build artifacts (index.d.ts, index.js, .node binary,
+    node_modules/, package-lock.json) — consider adding to `.gitignore`
+
+**Next:** Project is ready for first release. Clean up napi build artifacts, then tag v0.1.0.

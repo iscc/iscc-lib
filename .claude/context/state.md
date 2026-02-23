@@ -2,7 +2,7 @@
 
 ## Status: DONE
 
-## Phase: Feature-complete — all CI green, all criteria met
+## Phase: Feature-complete — preparing for first release
 
 All 9 `gen_*_v0` functions implemented in Rust core with 143 conformance tests passing. All 4
 binding crates (Python, Node.js, WASM, C FFI) complete with conformance tests. CI workflow (5 jobs)
@@ -23,14 +23,25 @@ Documentation site deploys via GitHub Pages.
 - **Comparative pytest-benchmark**: iscc-core vs iscc_lib (1.3×–158× speedups measured)
 - **Documentation**: 5 pages (landing, Python API, Rust API, architecture, benchmarks)
 - **CI workflow**: `.github/workflows/ci.yml` — 5 jobs (Rust, Python, Node.js, WASM, C FFI), green
-- **Release workflow**: `.github/workflows/release.yml` — OIDC for crates.io + PyPI + npm
+- **Release workflow**: `.github/workflows/release.yml` — OIDC for crates.io + PyPI, NPM_TOKEN for
+    npm (first release), Node 22 ready for npm trusted publishing after first release
 - **Docs workflow**: `.github/workflows/docs.yml` — build + deploy, both jobs green
 - **Workspace**: root `Cargo.toml` with centralized deps, release profile, 5 crate members
 - **Dev tooling**: mise.toml, pyproject.toml, pre-commit hooks (prek), devcontainer
 
+## Infrastructure Setup (done by Titusz)
+
+- **GitHub Pages**: enabled with custom domain `lib.iscc.codes`
+- **`@iscc` npm org**: created on npmjs.com
+- **`NPM_TOKEN` repo secret**: configured (granular token for first release)
+
 ## What's Missing
 
-Nothing. All target criteria are met at the code level. The project is ready for first release.
+- **npm trusted publishing**: after the first release creates `@iscc/lib` and `@iscc/wasm` on npm,
+    configure trusted publishing on npmjs.com for both packages, then remove `NODE_AUTH_TOKEN` from
+    `release.yml` and delete the `NPM_TOKEN` repo secret
+- **Untracked napi build artifacts**: `crates/iscc-napi/` has local build artifacts (index.d.ts,
+    index.js, .node binary, node_modules/, package-lock.json) that should be gitignored or cleaned
 
 ## CI
 
@@ -52,4 +63,5 @@ Nothing. All target criteria are met at the code level. The project is ready for
 
 ## Next Milestone
 
-Project is complete. Ready for v0.1.0 release — tag and publish via the release workflow.
+First v0.1.0 release. After release, switch npm publish jobs from NPM_TOKEN to OIDC trusted
+publishing.
