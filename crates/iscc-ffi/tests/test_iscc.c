@@ -62,6 +62,17 @@ static int tests_failed = 0;
         } \
     } while (0)
 
+#define ASSERT_EQ(actual, expected, test_name) \
+    do { \
+        if ((actual) != (expected)) { \
+            printf("FAIL: %s — got %zu, expected %zu\n", (test_name), (size_t)(actual), (size_t)(expected)); \
+            tests_failed++; \
+        } else { \
+            printf("PASS: %s\n", (test_name)); \
+            tests_passed++; \
+        } \
+    } while (0)
+
 int main(void) {
     char *result;
 
@@ -123,6 +134,67 @@ int main(void) {
     iscc_free_string(NULL);
     printf("PASS: iscc_free_string(NULL) no-op\n");
     tests_passed++;
+
+    /* 10. alg_minhash_256 — feed known features, check 32 bytes output */
+    {
+        uint32_t features[] = {1, 2, 3, 4, 5};
+        struct iscc_IsccByteBuffer buf = iscc_alg_minhash_256(features, 5);
+        ASSERT_NOT_NULL(buf.data, "alg_minhash_256 data not NULL");
+        ASSERT_EQ(buf.len, 32, "alg_minhash_256 len == 32");
+        iscc_free_byte_buffer(buf);
+    }
+
+    /* 11. alg_simhash — feed single 4-byte digest, check output length matches */
+    {
+        uint8_t digest[] = {0xFF, 0x00, 0xFF, 0x00};
+        const uint8_t *digests[] = {digest};
+        size_t lens[] = {4};
+        struct iscc_IsccByteBuffer buf = iscc_alg_simhash(digests, lens, 1);
+        ASSERT_NOT_NULL(buf.data, "alg_simhash data not NULL");
+        ASSERT_EQ(buf.len, 4, "alg_simhash len == 4");
+        iscc_free_byte_buffer(buf);
+    }
+
+    /* 12. alg_cdc_chunks — feed "Hello World", check at least 1 chunk */
+    {
+        const uint8_t *data = (const uint8_t *)"Hello World";
+        struct iscc_IsccByteBufferArray arr = iscc_alg_cdc_chunks(data, 11, false, 1024);
+        ASSERT_NOT_NULL(arr.buffers, "alg_cdc_chunks buffers not NULL");
+        if (arr.count >= 1) {
+            printf("PASS: alg_cdc_chunks count >= 1 (got %zu)\n", arr.count);
+            tests_passed++;
+        } else {
+            printf("FAIL: alg_cdc_chunks count >= 1 (got %zu)\n", arr.count);
+            tests_failed++;
+        }
+        /* Verify chunk data concatenates to original */
+        {
+            size_t total = 0;
+            size_t i;
+            for (i = 0; i < arr.count; i++) {
+                total += arr.buffers[i].len;
+            }
+            ASSERT_EQ(total, 11, "alg_cdc_chunks total bytes == 11");
+        }
+        iscc_free_byte_buffer_array(arr);
+    }
+
+    /* 13. soft_hash_video_v0 — feed frame sigs, check output len == 8 */
+    {
+        int32_t frame1[380];
+        int32_t frame2[380];
+        int i;
+        for (i = 0; i < 380; i++) {
+            frame1[i] = i;
+            frame2[i] = i + 1;
+        }
+        const int32_t *sigs[] = {frame1, frame2};
+        size_t lens[] = {380, 380};
+        struct iscc_IsccByteBuffer buf = iscc_soft_hash_video_v0(sigs, lens, 2, 64);
+        ASSERT_NOT_NULL(buf.data, "soft_hash_video_v0 data not NULL");
+        ASSERT_EQ(buf.len, 8, "soft_hash_video_v0 len == 8 (64 bits)");
+        iscc_free_byte_buffer(buf);
+    }
 
     /* Summary */
     printf("\n%d passed, %d failed\n", tests_passed, tests_failed);

@@ -1,14 +1,17 @@
 //! C FFI bindings for iscc-lib.
 //!
-//! Exposes all 9 `gen_*_v0` functions as `extern "C"` symbols for integration
-//! from C, Go, Java, C#, and any other language with C interop.
+//! Exposes all 9 `gen_*_v0` functions and 4 algorithm primitives as
+//! `extern "C"` symbols for integration from C, Go, Java, C#, and any
+//! other language with C interop.
 //!
 //! ## Memory model
 //!
 //! Functions return heap-allocated C strings (`*mut c_char`) via `CString`.
-//! The caller must free them with `iscc_free_string()`. On error, functions
-//! return `NULL` and the caller retrieves the error message via
-//! `iscc_last_error()`.
+//! The caller must free them with `iscc_free_string()`. Algorithm primitives
+//! return `IsccByteBuffer` or `IsccByteBufferArray` — callers must free these
+//! with `iscc_free_byte_buffer()` or `iscc_free_byte_buffer_array()`. On
+//! error, functions return `NULL` and the caller retrieves the error message
+//! via `iscc_last_error()`.
 //!
 //! ## Safety
 //!
@@ -96,6 +99,61 @@ fn vec_to_c_string_array(v: Vec<String>) -> *mut *mut c_char {
     let ptr = ptrs.as_mut_ptr();
     mem::forget(ptrs);
     ptr
+}
+
+// ── Byte buffer types ────────────────────────────────────────────────────
+
+/// Heap-allocated byte buffer returned to C callers.
+///
+/// On success, `data` points to a contiguous byte array of `len` bytes.
+/// On error, `data` is `NULL` and `len` is 0. Callers must free with
+/// `iscc_free_byte_buffer()`.
+#[repr(C)]
+pub struct IsccByteBuffer {
+    /// Pointer to the byte data (`NULL` if error).
+    pub data: *mut u8,
+    /// Number of bytes.
+    pub len: usize,
+}
+
+/// Array of byte buffers (for `iscc_alg_cdc_chunks`).
+///
+/// Contains `count` elements pointed to by `buffers`. Callers must free
+/// with `iscc_free_byte_buffer_array()`.
+#[repr(C)]
+pub struct IsccByteBufferArray {
+    /// Pointer to array of `IsccByteBuffer` elements.
+    pub buffers: *mut IsccByteBuffer,
+    /// Number of buffers.
+    pub count: usize,
+}
+
+/// Return a null/error `IsccByteBuffer`.
+fn null_byte_buffer() -> IsccByteBuffer {
+    IsccByteBuffer {
+        data: ptr::null_mut(),
+        len: 0,
+    }
+}
+
+/// Return a null/error `IsccByteBufferArray`.
+fn null_byte_buffer_array() -> IsccByteBufferArray {
+    IsccByteBufferArray {
+        buffers: ptr::null_mut(),
+        count: 0,
+    }
+}
+
+/// Convert an owned `Vec<u8>` to a C-compatible `IsccByteBuffer`.
+///
+/// Uses `shrink_to_fit` + `as_mut_ptr` + `mem::forget` so the caller
+/// can reconstruct with `Vec::from_raw_parts(data, len, len)`.
+fn vec_to_byte_buffer(mut v: Vec<u8>) -> IsccByteBuffer {
+    v.shrink_to_fit();
+    let len = v.len();
+    let data = v.as_mut_ptr();
+    mem::forget(v);
+    IsccByteBuffer { data, len }
 }
 
 /// Convert a `*const c_char` to a `&str`, returning `NULL` on failure.
@@ -655,6 +713,213 @@ pub unsafe extern "C" fn iscc_sliding_window(seq: *const c_char, width: u32) -> 
     vec_to_c_string_array(iscc_lib::sliding_window(seq, width as usize))
 }
 
+// ── Algorithm primitives ─────────────────────────────────────────────────
+
+/// Compute a SimHash digest from an array of byte digests.
+///
+/// The output length matches the input digest length (e.g., 4-byte digests
+/// produce a 4-byte SimHash). Returns an empty 32-byte buffer for empty input.
+///
+/// # Parameters
+///
+/// - `digests`: array of pointers to digest byte arrays
+/// - `digest_lens`: array of lengths for each digest
+/// - `num_digests`: number of digests
+///
+/// # Returns
+///
+/// `IsccByteBuffer` with the SimHash result. On error, `.data` is `NULL`.
+/// Caller must free with `iscc_free_byte_buffer()`.
+///
+/// # Safety
+///
+/// - `digests` must point to an array of `num_digests` valid byte pointers
+/// - `digest_lens` must point to an array of `num_digests` lengths
+/// - Each `digests[i]` must be valid for `digest_lens[i]` bytes
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_alg_simhash(
+    digests: *const *const u8,
+    digest_lens: *const usize,
+    num_digests: usize,
+) -> IsccByteBuffer {
+    clear_last_error();
+    if num_digests == 0 {
+        let empty: &[&[u8]] = &[];
+        return vec_to_byte_buffer(iscc_lib::alg_simhash(empty));
+    }
+    if digests.is_null() {
+        set_last_error("digests must not be NULL");
+        return null_byte_buffer();
+    }
+    if digest_lens.is_null() {
+        set_last_error("digest_lens must not be NULL");
+        return null_byte_buffer();
+    }
+    // SAFETY: caller guarantees pointers are valid for num_digests elements
+    let ptrs = unsafe { std::slice::from_raw_parts(digests, num_digests) };
+    let lens = unsafe { std::slice::from_raw_parts(digest_lens, num_digests) };
+
+    let slices: Vec<&[u8]> = ptrs
+        .iter()
+        .zip(lens.iter())
+        .map(|(&ptr, &len)| {
+            // SAFETY: caller guarantees each ptr is valid for its length
+            unsafe { std::slice::from_raw_parts(ptr, len) }
+        })
+        .collect();
+
+    vec_to_byte_buffer(iscc_lib::alg_simhash(&slices))
+}
+
+/// Compute a 256-bit MinHash digest from 32-bit integer features.
+///
+/// Uses 64 universal hash functions with bit-interleaved compression to
+/// produce a 32-byte similarity-preserving digest.
+///
+/// # Parameters
+///
+/// - `features`: pointer to `u32` feature values
+/// - `features_len`: number of features
+///
+/// # Returns
+///
+/// `IsccByteBuffer` with 32 bytes. On error, `.data` is `NULL`.
+/// Caller must free with `iscc_free_byte_buffer()`.
+///
+/// # Safety
+///
+/// `features` must point to a valid buffer of at least `features_len` `u32` elements.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_alg_minhash_256(
+    features: *const u32,
+    features_len: usize,
+) -> IsccByteBuffer {
+    clear_last_error();
+    let slice = if features_len == 0 {
+        &[]
+    } else {
+        if features.is_null() {
+            set_last_error("features must not be NULL");
+            return null_byte_buffer();
+        }
+        // SAFETY: caller guarantees features is valid for features_len elements
+        unsafe { std::slice::from_raw_parts(features, features_len) }
+    };
+    vec_to_byte_buffer(iscc_lib::alg_minhash_256(slice))
+}
+
+/// Split data into content-defined chunks using gear rolling hash.
+///
+/// Returns at least one chunk (empty bytes for empty input). When `utf32`
+/// is true, aligns cut points to 4-byte boundaries.
+///
+/// # Parameters
+///
+/// - `data`: pointer to raw byte data
+/// - `data_len`: number of bytes
+/// - `utf32`: if true, align cuts to 4-byte boundaries
+/// - `avg_chunk_size`: target average chunk size in bytes
+///
+/// # Returns
+///
+/// `IsccByteBufferArray` with chunks. On error, `.buffers` is `NULL`.
+/// Caller must free with `iscc_free_byte_buffer_array()`.
+///
+/// # Safety
+///
+/// `data` must point to a valid buffer of at least `data_len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_alg_cdc_chunks(
+    data: *const u8,
+    data_len: usize,
+    utf32: bool,
+    avg_chunk_size: u32,
+) -> IsccByteBufferArray {
+    clear_last_error();
+    let slice = if data_len == 0 {
+        &[]
+    } else {
+        if data.is_null() {
+            set_last_error("data must not be NULL");
+            return null_byte_buffer_array();
+        }
+        // SAFETY: caller guarantees data is valid for data_len bytes
+        unsafe { std::slice::from_raw_parts(data, data_len) }
+    };
+    let chunks = iscc_lib::alg_cdc_chunks(slice, utf32, avg_chunk_size);
+    let mut buffers: Vec<IsccByteBuffer> = chunks
+        .iter()
+        .map(|chunk| vec_to_byte_buffer(chunk.to_vec()))
+        .collect();
+    buffers.shrink_to_fit();
+    let count = buffers.len();
+    let ptr = buffers.as_mut_ptr();
+    mem::forget(buffers);
+    IsccByteBufferArray {
+        buffers: ptr,
+        count,
+    }
+}
+
+/// Compute a similarity-preserving hash from video frame signatures.
+///
+/// Returns raw bytes of length `bits / 8`. Errors if `frame_sigs` is empty.
+///
+/// # Parameters
+///
+/// - `frame_sigs`: array of pointers to frame signature arrays (`i32`)
+/// - `frame_lens`: array of lengths for each frame signature
+/// - `num_frames`: number of frames
+/// - `bits`: hash bit length (typically 64)
+///
+/// # Returns
+///
+/// `IsccByteBuffer` with the hash result. On error, `.data` is `NULL`.
+/// Caller must free with `iscc_free_byte_buffer()`.
+///
+/// # Safety
+///
+/// - `frame_sigs` must point to an array of `num_frames` valid pointers
+/// - `frame_lens` must point to an array of `num_frames` lengths
+/// - Each `frame_sigs[i]` must be valid for `frame_lens[i]` `i32` elements
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_soft_hash_video_v0(
+    frame_sigs: *const *const i32,
+    frame_lens: *const usize,
+    num_frames: usize,
+    bits: u32,
+) -> IsccByteBuffer {
+    clear_last_error();
+    if frame_sigs.is_null() {
+        set_last_error("frame_sigs must not be NULL");
+        return null_byte_buffer();
+    }
+    if frame_lens.is_null() {
+        set_last_error("frame_lens must not be NULL");
+        return null_byte_buffer();
+    }
+    // SAFETY: caller guarantees pointers are valid for num_frames elements
+    let sig_ptrs = unsafe { std::slice::from_raw_parts(frame_sigs, num_frames) };
+    let lens = unsafe { std::slice::from_raw_parts(frame_lens, num_frames) };
+
+    let frames: Vec<Vec<i32>> = sig_ptrs
+        .iter()
+        .zip(lens.iter())
+        .map(|(&ptr, &len)| {
+            // SAFETY: caller guarantees each ptr is valid for its length
+            unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec()
+        })
+        .collect();
+
+    match iscc_lib::soft_hash_video_v0(&frames, bits) {
+        Ok(result) => vec_to_byte_buffer(result),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            null_byte_buffer()
+        }
+    }
+}
+
 // ── Memory management ───────────────────────────────────────────────────────
 
 /// Free a string previously returned by any `iscc_gen_*` function.
@@ -698,6 +963,48 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
     // shrink_to_fit guarantees capacity == len, and len == count + 1 (including NULL terminator)
     // SAFETY: arr was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget
     drop(unsafe { Vec::from_raw_parts(arr, count + 1, count + 1) });
+}
+
+/// Free a byte buffer returned by `iscc_alg_simhash`, `iscc_alg_minhash_256`,
+/// or `iscc_soft_hash_video_v0`.
+///
+/// No-op if `buf.data` is `NULL`.
+///
+/// # Safety
+///
+/// `buf` must be a value returned by one of the algorithm primitive functions.
+/// Each buffer must only be freed once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_free_byte_buffer(buf: IsccByteBuffer) {
+    if !buf.data.is_null() {
+        // SAFETY: buf.data was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget.
+        // Capacity equals len because of shrink_to_fit.
+        drop(unsafe { Vec::from_raw_parts(buf.data, buf.len, buf.len) });
+    }
+}
+
+/// Free a byte buffer array returned by `iscc_alg_cdc_chunks`.
+///
+/// Frees each buffer's data, then the array itself. No-op if `arr.buffers`
+/// is `NULL`.
+///
+/// # Safety
+///
+/// `arr` must be a value returned by `iscc_alg_cdc_chunks`.
+/// Each array must only be freed once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_free_byte_buffer_array(arr: IsccByteBufferArray) {
+    if arr.buffers.is_null() {
+        return;
+    }
+    // SAFETY: arr.buffers was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget
+    let buffers = unsafe { Vec::from_raw_parts(arr.buffers, arr.count, arr.count) };
+    for buf in buffers {
+        if !buf.data.is_null() {
+            // SAFETY: each buf.data was produced by vec_to_byte_buffer
+            drop(unsafe { Vec::from_raw_parts(buf.data, buf.len, buf.len) });
+        }
+    }
 }
 
 /// Return the last error message from the current thread.
@@ -1055,5 +1362,134 @@ mod tests {
     fn test_free_string_array_null() {
         // Should be a no-op, not crash
         unsafe { iscc_free_string_array(ptr::null_mut()) };
+    }
+
+    // ── alg_simhash tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_alg_simhash_basic() {
+        // Feed two 4-byte digests, output should be 4 bytes
+        let d1: [u8; 4] = [0xFF, 0x00, 0xFF, 0x00];
+        let d2: [u8; 4] = [0xFF, 0xFF, 0x00, 0x00];
+        let digests = [d1.as_ptr(), d2.as_ptr()];
+        let lens = [d1.len(), d2.len()];
+        let buf = unsafe { iscc_alg_simhash(digests.as_ptr(), lens.as_ptr(), 2) };
+        assert!(!buf.data.is_null());
+        assert_eq!(buf.len, 4);
+        unsafe { iscc_free_byte_buffer(buf) };
+    }
+
+    #[test]
+    fn test_alg_simhash_null() {
+        // NULL digests with count > 0 returns null buffer
+        let lens = [4usize];
+        let buf = unsafe { iscc_alg_simhash(ptr::null(), lens.as_ptr(), 1) };
+        assert!(buf.data.is_null());
+        assert_eq!(buf.len, 0);
+    }
+
+    #[test]
+    fn test_alg_simhash_empty() {
+        // Zero digests yields 32-byte default output
+        let buf = unsafe { iscc_alg_simhash(ptr::null(), ptr::null(), 0) };
+        assert!(!buf.data.is_null());
+        assert_eq!(buf.len, 32);
+        unsafe { iscc_free_byte_buffer(buf) };
+    }
+
+    // ── alg_minhash_256 tests ──────────────────────────────────────────────
+
+    #[test]
+    fn test_alg_minhash_256_basic() {
+        let features: Vec<u32> = vec![1, 2, 3, 4, 5];
+        let buf = unsafe { iscc_alg_minhash_256(features.as_ptr(), features.len()) };
+        assert!(!buf.data.is_null());
+        assert_eq!(buf.len, 32);
+        unsafe { iscc_free_byte_buffer(buf) };
+    }
+
+    #[test]
+    fn test_alg_minhash_256_null() {
+        // NULL features with len > 0 returns null buffer
+        let buf = unsafe { iscc_alg_minhash_256(ptr::null(), 5) };
+        assert!(buf.data.is_null());
+        assert_eq!(buf.len, 0);
+    }
+
+    // ── alg_cdc_chunks tests ───────────────────────────────────────────────
+
+    #[test]
+    fn test_alg_cdc_chunks_basic() {
+        let data = b"Hello World";
+        let arr = unsafe { iscc_alg_cdc_chunks(data.as_ptr(), data.len(), false, 1024) };
+        assert!(!arr.buffers.is_null());
+        assert!(arr.count >= 1);
+
+        // Concatenate all chunks and verify they equal the original data
+        let mut concatenated = Vec::new();
+        for i in 0..arr.count {
+            let buf = unsafe { &*arr.buffers.add(i) };
+            let chunk = unsafe { std::slice::from_raw_parts(buf.data, buf.len) };
+            concatenated.extend_from_slice(chunk);
+        }
+        assert_eq!(concatenated, data);
+
+        unsafe { iscc_free_byte_buffer_array(arr) };
+    }
+
+    #[test]
+    fn test_alg_cdc_chunks_null() {
+        // NULL data with len > 0 returns null array
+        let arr = unsafe { iscc_alg_cdc_chunks(ptr::null(), 10, false, 1024) };
+        assert!(arr.buffers.is_null());
+        assert_eq!(arr.count, 0);
+    }
+
+    #[test]
+    fn test_alg_cdc_chunks_empty() {
+        // Empty data returns at least one chunk
+        let arr = unsafe { iscc_alg_cdc_chunks(ptr::null(), 0, false, 1024) };
+        assert!(!arr.buffers.is_null());
+        assert_eq!(arr.count, 1);
+        let buf = unsafe { &*arr.buffers };
+        assert_eq!(buf.len, 0);
+        unsafe { iscc_free_byte_buffer_array(arr) };
+    }
+
+    // ── soft_hash_video_v0 tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_soft_hash_video_v0_basic() {
+        // WTA hash requires frames with at least 380 elements
+        let f1: Vec<i32> = (0..380).collect();
+        let f2: Vec<i32> = (1..381).collect();
+        let ptrs = [f1.as_ptr(), f2.as_ptr()];
+        let lens = [f1.len(), f2.len()];
+        let buf = unsafe { iscc_soft_hash_video_v0(ptrs.as_ptr(), lens.as_ptr(), 2, 64) };
+        assert!(!buf.data.is_null());
+        assert_eq!(buf.len, 8); // 64 bits / 8 = 8 bytes
+        unsafe { iscc_free_byte_buffer(buf) };
+    }
+
+    #[test]
+    fn test_soft_hash_video_v0_null() {
+        // NULL frame_sigs returns null buffer
+        let buf = unsafe { iscc_soft_hash_video_v0(ptr::null(), ptr::null(), 0, 64) };
+        assert!(buf.data.is_null());
+        assert_eq!(buf.len, 0);
+    }
+
+    // ── free byte buffer null safety ───────────────────────────────────────
+
+    #[test]
+    fn test_free_byte_buffer_null() {
+        // Should be a no-op, not crash
+        unsafe { iscc_free_byte_buffer(null_byte_buffer()) };
+    }
+
+    #[test]
+    fn test_free_byte_buffer_array_null() {
+        // Should be a no-op, not crash
+        unsafe { iscc_free_byte_buffer_array(null_byte_buffer_array()) };
     }
 }
