@@ -1,35 +1,23 @@
-## 2026-02-23 — Add comparative pytest-benchmark for iscc_lib Python bindings
+## 2026-02-23 — Review of: Add comparative pytest-benchmark for iscc_lib Python bindings
 
-**Done:** Created `benchmarks/python/bench_iscc_lib.py` with 9 benchmark functions mirroring
-`bench_iscc_core.py`, using identical inputs and benchmark group names. Added
-`benchmarks/python/conftest.py` to configure pytest to discover `bench_*.py` files when running
-`pytest benchmarks/python/`.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** The advance agent created `bench_iscc_lib.py` with 9 benchmarks mirroring
+`bench_iscc_core.py` exactly — identical inputs, matching group names, correct API type adaptations.
+All 18 benchmarks pass together with grouped comparison showing Rust speedup factors (1.1x–5.5x).
+Code is clean, simple, and well-documented. No regressions.
 
-- `benchmarks/python/bench_iscc_lib.py`: 9 benchmark functions for all `gen_*_v0` functions from
-    `iscc_lib`, with API-appropriate input types (bytes instead of io.BytesIO for data/instance,
-    bytes instead of list[int] for image, list\[list[int]\] instead of list[tuple] for video)
-- `benchmarks/python/conftest.py`: `pytest_configure` hook that adds `bench_*.py` to `python_files`
-    collection pattern, enabling `pytest benchmarks/python/` directory discovery
+**Issues found:**
 
-**Verification:** All 18 benchmarks pass (9 iscc-core + 9 iscc-lib). Results are grouped by function
-name showing direct speedup comparison. Notable speedups observed: gen_data_code_v0 ~5.5x,
-gen_instance_code_v0 ~2.6-3.2x, gen_video_code_v0 ~3.4-3.8x, gen_mixed_code_v0 ~2.8x,
-gen_meta_code_v0 ~2.6x, gen_audio_code_v0 ~2.5x, gen_image_code_v0 ~3.1x, gen_iscc_code_v0 ~1.7x,
-gen_text_code_v0 ~1.1x. All existing tests (49 Python conformance + Rust tests) continue to pass.
-Clippy and fmt checks pass.
+- Removed unused `collect_ignore = []` from conftest.py (minor fix applied)
 
-**Next:** Update `state.md` to reflect the completed Python bindings benchmark. The remaining target
-items are: documentation site (lib.iscc.codes) and CI/CD publishing pipelines. The text_code
-benchmark shows minimal speedup (~1.1x) which suggests the Python overhead is small relative to
-compute time for text processing — this is expected since text normalization dominates. The
-streaming functions (data/instance) show significant but lower speedup than native Rust criterion
-benchmarks because the PyO3 binding receives the full `bytes` at once rather than streaming from
-io.BytesIO, so the comparison measures different I/O patterns.
+**Next:** Update `state.md` to reflect completed benchmark comparison. The remaining target items
+are: documentation site (lib.iscc.codes) and CI/CD publishing pipelines (OIDC trusted publishing for
+crates.io, PyPI, npm). These are independent workstreams — either can be tackled next. The
+documentation site is the larger gap; CI/CD publishing is more mechanical but enables releases.
 
-**Notes:** The `conftest.py` uses `pytest_configure` hook to dynamically add `bench_*.py` to
-`python_files` — this is needed because the project's `pyproject.toml` doesn't set `python_files`
-(using pytest default of `test_*.py`), and the benchmark files use `bench_` prefix per the
-established convention. The conftest only affects collection when pytest runs from the
-`benchmarks/python/` directory.
+**Notes:** The benchmark comparison is now functional but not published anywhere — running
+`pytest benchmarks/python/ --benchmark-only` produces grouped results locally. Consider whether
+benchmark results should be captured in CI or published to GitHub Pages as part of the documentation
+site work. The `text_code` benchmark shows only ~1.1x speedup because Python text normalization
+(Unicode operations) dominates compute time — this is expected and not a performance concern.

@@ -4,8 +4,6 @@ Adds bench_*.py to the collection pattern so `pytest benchmarks/python/`
 discovers benchmark modules alongside the default test_*.py pattern.
 """
 
-collect_ignore = []
-
 
 def pytest_configure(config):
     """Add bench_*.py to python_files collection pattern."""
