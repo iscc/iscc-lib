@@ -1,106 +1,79 @@
 # Next Work Package
 
-## Step: Add OIDC release workflow for crates.io and PyPI
+## Step: Add Rust API documentation page
 
 ## Goal
 
-Create a tag-triggered GitHub Actions release workflow that publishes the Rust core crate to
-crates.io and cross-platform Python wheels to PyPI, both using OIDC trusted publishing (no API
-keys). This is the highest-impact remaining work for release-readiness.
+Create a Rust API reference page for the documentation site, covering all 9 public `gen_*_v0`
+functions and the Tier 2 `codec` module. This fills the last content gap in the target's
+documentation requirement ("Covers Rust API, Python API, and architecture").
 
 ## Scope
 
-- **Create**: `.github/workflows/release.yml`
-- **Modify**: none
-- **Reference**: `notes/06-build-cicd-publishing.md` (publishing patterns, auth methods, build
-    matrices), `.github/workflows/ci.yml` (existing CI patterns), `crates/iscc-py/pyproject.toml`
-    (maturin config), `crates/iscc-py/Cargo.toml` (cdylib config), `crates/iscc-lib/Cargo.toml`
-    (publishable core crate), root `Cargo.toml` (workspace metadata)
+- **Create**: `docs/rust-api.md`
+- **Modify**: `zensical.toml` (add `rust-api.md` to `nav` array)
+- **Reference**: `crates/iscc-lib/src/lib.rs` (function signatures, doc comments),
+    `crates/iscc-lib/src/codec.rs` (public types: `MainType`, `SubType`, `encode_component`,
+    `decode_header`), `docs/api.md` (Python API page — match the style/structure), `docs/index.md`
+    (quick start Rust example to stay consistent)
 
 ## Implementation Notes
 
-Create a single `.github/workflows/release.yml` triggered on version tag push (`v*.*.*`). Use the
-minijinja-style approach (notes/06 Approach 1) with separate jobs for crates.io and PyPI. The
-workflow must have these jobs:
+Create `docs/rust-api.md` as a hand-written reference page (no auto-generation — Rust doc comments
+are the source, but zensical/mkdocstrings only supports Python). Structure:
 
-### 1. `publish-crates-io` — Rust core crate
+1. **Intro paragraph** — explain this is the pure Rust crate (`cargo add iscc-lib`), all functions
+    return `IsccResult<String>` containing JSON, link to docs.rs for full rustdoc.
 
-- Triggered only when tag matches `v*.*.*`
-- Uses `dtolnay/rust-toolchain@stable` + `Swatinem/rust-cache@v2`
-- Runs `cargo test --workspace` as a pre-publish sanity check
-- Publishes `iscc-lib` (the core crate, which has `publish` not set to `false`)
-- OIDC auth: `permissions: id-token: write` + `rust-lang/crates-io-auth-action@v1`
-- Then `cargo publish -p iscc-lib`
+2. **Functions section** — document all 9 `gen_*_v0` functions with:
 
-### 2. `build-wheels` — Cross-platform Python wheels
+    - Function signature (Rust syntax-highlighted code block)
+    - Brief description (from the doc comments in lib.rs)
+    - Parameter table (name, type, description, default where applicable)
+    - Return value description
+    - Short usage example
 
-- Matrix build using `PyO3/maturin-action@v1`:
-    - Linux: `x86_64`, `aarch64` targets on `ubuntu-latest`
-    - macOS: `universal2-apple-darwin` on `macos-14`
-    - Windows: `x64` on `windows-latest`
-- maturin args: `--release --out dist --manifest-path crates/iscc-py/Cargo.toml`
-- Upload artifacts via `actions/upload-artifact@v4`
-- Also build sdist (source distribution) as a separate job/step
+    Function signatures to document (from lib.rs):
 
-### 3. `publish-pypi` — Upload wheels to PyPI
+    - `gen_meta_code_v0(name: &str, description: Option<&str>, meta: Option<&str>, bits: u32) -> IsccResult<String>`
+    - `gen_text_code_v0(text: &str, bits: u32) -> IsccResult<String>`
+    - `gen_image_code_v0(pixels: &[u8], bits: u32) -> IsccResult<String>`
+    - `gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<String>`
+    - `gen_video_code_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<String>`
+    - `gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<String>`
+    - `gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<String>`
+    - `gen_instance_code_v0(data: &[u8], bits: u32) -> IsccResult<String>`
+    - `gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<String>`
 
-- Depends on `build-wheels`
-- Runs on `ubuntu-latest`
-- Downloads all wheel artifacts via `actions/download-artifact@v4`
-- OIDC auth: `permissions: id-token: write` + `pypa/gh-action-pypi-publish@release/v1`
-- No API key needed — trusted publishing is configured in PyPI project settings
+3. **Types section** — document the public types from `codec` module:
 
-### Key design decisions:
+    - `IsccError` enum (and `IsccResult<T>` alias)
+    - `MainType` and `SubType` enums (brief table of variants)
+    - Note that `codec` is Tier 2 — available to Rust users but not exposed via FFI
 
-- Use `workflow_dispatch` as an additional trigger (allows manual re-runs if publishing partially
-    fails)
-- Top-level `permissions: contents: read` with job-level `id-token: write` only where needed
-    (principle of least privilege)
-- Use `concurrency` group to prevent simultaneous releases
-- The `abi3-py310` flag is already configured in workspace dependencies
-    (`pyo3 = { features =   ["abi3-py310"] }`) so maturin will automatically produce abi3 wheels
-- Do NOT include npm publishing — npm requires `NODE_AUTH_TOKEN` secret (not OIDC) and the `@iscc`
-    org doesn't exist yet. That's a separate step
-- Keep the build matrix minimal (3 platforms × 1-2 targets each) — match the patterns in notes/06
+4. **Error handling** — brief section explaining `IsccResult` pattern and `IsccError::InvalidInput`
 
-### Workflow structure:
+Style guidelines:
 
-```yaml
-name: Release
-on:
-  push:
-    tags: ['v*.*.*']
-  workflow_dispatch:
-permissions:
-  contents: read
-concurrency:
-  group: release
-  cancel-in-progress: false  # Never cancel a release in progress
-jobs:
-  publish-crates-io: ...
-  build-wheels: ...
-  build-sdist: ...
-  publish-pypi:
-    needs: [build-wheels, build-sdist]
-    ...
-```
+- Match the tone of `docs/api.md` (concise, practical)
+- Use `===` tabbed examples only if showing multi-language — here just use plain Rust code blocks
+- Use admonitions (`!!! note`, `!!! tip`) sparingly for important callouts
+- Keep each function's documentation to ~10-15 lines (signature + description + params + example)
+
+For `zensical.toml`, insert `"rust-api.md"` into the nav array after `"architecture.md"` and before
+`"api.md"`, so the order is: index → architecture → rust-api → api (general → specific, Rust before
+Python).
 
 ## Verification
 
-- `.github/workflows/release.yml` exists and is valid YAML
-- Workflow triggers on `push: tags: ['v*.*.*']` and `workflow_dispatch`
-- `publish-crates-io` job has `permissions: id-token: write` and uses
-    `rust-lang/crates-io-auth-action@v1`
-- `build-wheels` job has matrix covering Linux (x86_64, aarch64), macOS (universal2), Windows (x64)
-- `build-sdist` job or step exists
-- `publish-pypi` job uses `pypa/gh-action-pypi-publish@release/v1` with
-    `permissions: id-token: write`
-- `publish-pypi` depends on `build-wheels` and `build-sdist`
-- No hardcoded API keys or tokens — all auth is OIDC
-- `cargo test --workspace` or `cargo test -p iscc-lib` runs as pre-publish check
-- YAML parses without errors (validate with `python -c "import yaml; yaml.safe_load(open(...))"`)
+- `docs/rust-api.md` exists and contains documentation for all 9 `gen_*_v0` functions
+- `zensical.toml` nav includes `"rust-api.md"`
+- All function signatures in the docs match the actual signatures in `lib.rs`
+- `uv run zensical build` succeeds without errors
+- The built site contains the Rust API page (check `site/rust-api/index.html` exists)
+- No broken internal links in the docs
 
 ## Done When
 
-The release workflow exists at `.github/workflows/release.yml`, passes YAML validation, and
-implements OIDC trusted publishing for both crates.io and PyPI with cross-platform wheel builds.
+The Rust API documentation page builds successfully with zensical, covers all 9 `gen_*_v0` functions
+with correct signatures, and is linked in the site navigation.
