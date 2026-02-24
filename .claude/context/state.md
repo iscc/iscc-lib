@@ -22,10 +22,12 @@ restructuring, abbreviations file, and CNAME. Publishing pipeline (OIDC) is not 
     `iscc_decompose`, `DataHasher`, `InstanceHasher`, `conformance_selftest`
 - Tier 2 codec module (`codec.rs`) with `MainType`/`SubType`/`Version` enums and all encode/decode
     helpers — correctly Rust-only, not bound to foreign languages
-- 180 `#[test]` functions in `lib.rs` alone; 280+ total across workspace Rust crates
+- 182 `#[test]` functions in `lib.rs` alone; 280+ total across workspace Rust crates
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
 - `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified)
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified)
+- JSON metadata canonicalization uses `serde_json_canonicalizer` for RFC 8785 (JCS) compliance,
+    matching iscc-core's `jcs.canonicalize()` behavior for numeric values in metadata
 - Note: target.md header says "22 public symbols" but the enumerated list totals 23; the crate
     implements 23
 

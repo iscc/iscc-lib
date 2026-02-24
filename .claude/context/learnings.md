@@ -67,8 +67,11 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     conformance. The Cython-compiled version returns raw f64 (no `int(round())` truncation)
 - Image-Code 8×8 block extraction uses offset-by-1 positions `(0,0),(1,0),(0,1),(1,1)` (heavily
     overlapping), not offset-by-8. Always verify pseudocode against actual Python reference
-- `serde_json` without `preserve_order` feature uses `BTreeMap` for sorted-key JSON serialization —
-    sufficient for ASCII-key metadata (matching iscc-core) but not full RFC 8785 (JCS) compliance
+- JSON metadata canonicalization requires RFC 8785 (JCS) — `serde_json` sorted-key serialization is
+    insufficient because JCS has specific number formatting rules (`1.0` → `1`, `1e20` →
+    `100000000000000000000`). The `serde_json_canonicalizer` crate provides full JCS compliance.
+    Existing iscc-core test vectors only use string-valued JSON objects, so the divergence was not
+    caught until float-valued metadata was tested (issue iscc/iscc-core#131)
 - `IsccError::NotImplemented` variant was removed — all 9 gen functions are implemented
 - PyO3 bindings: `maturin develop` needs `VIRTUAL_ENV` set to the project venv when the CID agent
     env differs (e.g., `VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop ...`)

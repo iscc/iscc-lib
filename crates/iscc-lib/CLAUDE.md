@@ -142,6 +142,5 @@ cargo bench -p iscc-lib                     # Criterion benchmarks
 - **Text normalization order matters** -- `text_clean` applies NFKC first, then control-char
     removal, then line collapsing. `text_collapse` applies NFD, lowercase, filter C/M/P categories,
     then NFKC. Do not reorder these steps.
-- **`serde_json::Value` key ordering** -- the crate relies on `BTreeMap`-based sorted-key
-    serialization for canonical JSON. This is not full RFC 8785 (JCS) but matches iscc-core
-    behavior.
+- **JSON canonicalization** -- the crate uses `serde_json_canonicalizer` for RFC 8785 (JCS)
+    compliant serialization of JSON metadata, matching iscc-core's `jcs.canonicalize()` behavior.
