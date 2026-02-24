@@ -36,9 +36,13 @@ iterations.
     4 call sites, same file, interrelated fix logic. Good scope for a single iteration — one
     production file + one test file, clear verification via grep + pytest. The handoff and state.md
     both recommended this as the highest-priority next step after the JNI safety fix.
-- After Python fixes: remaining candidates (priority order): (1) Java docs + native loader, (2) JNI
-    jint validation, (3) JNI local reference overflow, (4) napi version skew + packaging, (5) Go
-    bindings.
+- JNI jint validation + local reference overflow are a natural pair: same file, both robustness
+    fixes, no behavioral change for valid inputs. Combined scope is ~40 lines of Rust changes + ~15
+    lines of Java tests. 2 files modified (1 Rust + 1 Java test), well within 3-file limit.
+- After JNI robustness: remaining candidates (priority order): (1) napi version skew + packaging,
+    (2) napi unnecessary clone, (3) wasm silent null, (4) Java native loader + docs, (5) Go
+    bindings. Normal issues across bindings should be cleared before starting Go (largest unstarted
+    feature).
 
 ## Architecture Decisions
 
