@@ -98,6 +98,10 @@ fn soft_hash_meta_v0(name: &str, extra: Option<&str>) -> Vec<u8> {
 fn soft_hash_meta_v0_with_bytes(name: &str, extra: &[u8]) -> Vec<u8> {
     let name_simhash = meta_name_simhash(name);
 
+    if extra.is_empty() {
+        return name_simhash;
+    }
+
     let byte_ngrams = simhash::sliding_window_bytes(extra, 4);
     let byte_hashes: Vec<[u8; 32]> = byte_ngrams
         .iter()
@@ -178,14 +182,7 @@ pub fn gen_meta_code_v0(
 
     // Resolve meta payload bytes (if meta is provided)
     let meta_payload: Option<Vec<u8>> = match meta {
-        Some(meta_str) if meta_str.starts_with("data:") => {
-            let decoded = decode_data_url(meta_str)?;
-            if decoded.is_empty() {
-                None
-            } else {
-                Some(decoded)
-            }
-        }
+        Some(meta_str) if meta_str.starts_with("data:") => Some(decode_data_url(meta_str)?),
         Some(meta_str) => Some(parse_meta_json(meta_str)?),
         None => None,
     };
@@ -1515,5 +1512,49 @@ mod tests {
             gen_iscc_code_v0(&["AAAWKLHFPV6", "AAAWKLHFPV6OPKDG"], false),
             Err(IsccError::InvalidInput(_))
         ));
+    }
+
+    /// Verify that a Data-URL with empty base64 payload enters the meta bytes path.
+    ///
+    /// Python reference: `if meta:` is truthy for `"data:application/json;base64,"` (non-empty
+    /// string), so it enters the meta branch with `payload = b""`. The result must have
+    /// `meta = Some(...)` containing the original Data-URL and `metahash` equal to
+    /// `multi_hash_blake3(&[])` (BLAKE3 of empty bytes).
+    #[test]
+    fn test_gen_meta_code_empty_data_url_enters_meta_branch() {
+        let result =
+            gen_meta_code_v0("Test", None, Some("data:application/json;base64,"), 64).unwrap();
+
+        // Result should be Ok
+        assert_eq!(result.name, "Test");
+
+        // meta should contain the original Data-URL string (not None)
+        assert_eq!(
+            result.meta,
+            Some("data:application/json;base64,".to_string()),
+            "empty Data-URL payload should still enter meta branch"
+        );
+
+        // metahash should be BLAKE3 of empty bytes
+        let expected_metahash = utils::multi_hash_blake3(&[]);
+        assert_eq!(
+            result.metahash, expected_metahash,
+            "metahash should be BLAKE3 of empty bytes"
+        );
+    }
+
+    /// Verify that `soft_hash_meta_v0_with_bytes` with empty bytes produces the same
+    /// digest as `soft_hash_meta_v0` with no extra text.
+    ///
+    /// Python reference (`code_meta.py:142`): `if extra in {None, "", b""}:` returns
+    /// name-only simhash without interleaving for all empty-like values.
+    #[test]
+    fn test_soft_hash_meta_v0_with_bytes_empty_equals_name_only() {
+        let name_only = soft_hash_meta_v0("test", None);
+        let empty_bytes = soft_hash_meta_v0_with_bytes("test", &[]);
+        assert_eq!(
+            name_only, empty_bytes,
+            "empty bytes should produce same digest as name-only (no interleaving)"
+        );
     }
 }

@@ -1,33 +1,31 @@
-## 2026-02-24 — Review of: Validate Content-Code length in `soft_hash_codes_v0`
+## 2026-02-24 — Fix `gen_meta_code_v0` empty Data-URL payload routing
 
-**Verdict:** PASS
+**Done:** Fixed two bugs in `gen_meta_code_v0` that caused incorrect routing when a Data-URL with an
+empty base64 payload was provided. Change 1: removed the `if decoded.is_empty() { None }` branch in
+`gen_meta_code_v0` so that `Some(vec![])` flows through to the meta bytes path (matching Python's
+truthy `if meta:` behavior). Change 2: added an early return guard in `soft_hash_meta_v0_with_bytes`
+for empty bytes, returning the name-only SimHash without interleaving (matching Python's
+`if extra in {None, "", b""}:` guard).
 
-**Summary:** Clean, minimal fix adding length validation to `soft_hash_codes_v0` that matches the
-Python reference behavior exactly (`code_content_mixed.py:88-90`). Three well-structured tests cover
-rejection, exact-length acceptance, and longer-code acceptance. The `make_content_code_raw` helper
-constructs test data via a full encode/decode roundtrip, ensuring realistic inputs.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-lib/src/lib.rs`: Removed empty-payload-to-None mapping in `gen_meta_code_v0` (line
+    185), added `if extra.is_empty() { return name_simhash; }` guard in
+    `soft_hash_meta_v0_with_bytes` (lines 102-104), added two new test functions at end of test
+    module
 
-- [x] `cargo test -p iscc-lib` passes — 196 unit + 28 algo + 22 text = 246 total, 0 failures
-- [x] `cargo clippy -p iscc-lib -- -D warnings` clean — no warnings
-- [x] `cargo test -p iscc-lib -- test_soft_hash_codes` passes — 3 new validation tests pass
-- [x] The rejection test asserts `Err(IsccError::InvalidInput(_))` containing "too short" — verified
-    in source (line 1342)
-- [x] `mise run check` passes — all 14 pre-commit hooks green
+**Verification:** `cargo test -p iscc-lib` passes — 198 unit + 28 algorithm + 22 text = 248 total, 0
+failures. `cargo clippy -p iscc-lib -- -D warnings` clean. Both new tests pass:
+`test_gen_meta_code_empty_data_url_enters_meta_branch` and
+`test_soft_hash_meta_v0_with_bytes_empty_equals_name_only`. All 16 existing Meta-Code conformance
+tests still pass. `mise run check` passes — all 14 pre-commit hooks green.
 
-**Issues found:**
-
-- (none)
-
-**Next:** The `soft_hash_codes_v0` too-short issue is resolved and deleted from issues.md. The next
+**Next:** The empty Data-URL issue in issues.md is now resolved and can be deleted. The next
 highest-impact work should target one of the remaining normal-priority robustness issues:
-`gen_meta_code_v0` empty Data-URL handling, `alg_simhash` panic on mismatched digests, or
-`sliding_window` panic on width < 2. All are straightforward defensive fixes similar in scope to
-this iteration.
+`alg_simhash` panic on mismatched digest sizes or `sliding_window` panic on width < 2. Both are
+straightforward defensive fixes similar in scope to this iteration.
 
-**Notes:** The zero-padding logic (lines 601-604 in lib.rs) is now dead code for valid inputs since
-validation rejects short codes before they reach it. The `next.md` explicitly scoped this as "not in
-scope" to remove, which is fine — it's a cosmetic cleanup. The `decode_length` call correctly passes
-`stype` which the Rust version requires (Python infers it differently but the result is identical
-for Content-Codes).
+**Notes:** No surprises. The `rustfmt` auto-formatter collapsed the multi-line match arm into a
+single line, which is cleaner. The empty Data-URL edge case has no conformance test vector in
+`data.json`, so the two new unit tests are the only coverage for this behavior. The fix ensures
+parity with Python's `code_meta.py` lines 62 and 142.
