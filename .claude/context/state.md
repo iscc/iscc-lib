@@ -1,16 +1,15 @@
-<!-- assessed-at: 1ce864654ea0a10de325a6622229965ec76a4ebf -->
+<!-- assessed-at: 8012a7f8432094c967a0b65a60fa0e13ed944334 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Per-crate READMEs complete — Java native loader and Go bindings pending
+## Phase: Java sections added to root README — Java docs, native loader, Go bindings pending
 
-Batch 2 per-crate READMEs landed: `crates/iscc-wasm/README.md` and `crates/iscc-jni/README.md` both
-complete with all required sections. All 5 publishable crates now have READMEs (only
-`crates/iscc-ffi` remains, which is not published separately). CI remains green on all 6 jobs.
-Remaining gaps: Java native loader class (enables JAR self-containment), Go bindings, and
-documentation/README updates for Java and Go.
+Java installation and quick start sections have been added to the root README, and the Key Features
+bullet now lists Java. CI remains green on all 6 jobs (Rust, Python, Node.js, WASM, C FFI, Java).
+Remaining gaps: native library loader class for JAR self-containment, `docs/howto/java.md`, Maven
+Central publishing, and Go bindings (not started).
 
 ## Rust Core Crate
 
@@ -116,7 +115,6 @@ complete; native loader/publishing/docs absent)
 - Missing: native library loader class (extracts platform `.so`/`.dll`/`.dylib` from
     `META-INF/native/` to temp dir at runtime)
 - Missing: platform-specific native library bundling inside JAR
-- Missing: README Java/Maven installation section and quick start
 - Missing: `docs/howto/java.md`
 - Missing: Maven Central publishing configuration
 
@@ -135,17 +133,17 @@ complete; native loader/publishing/docs absent)
 
 **Status**: partially met
 
-- Rewritten as public-facing polyglot developer README (179 lines)
+- Rewritten as public-facing polyglot developer README (200 lines)
 - ✅ CI badge; crate/PyPI/npm version badges present
 - ✅ Experimental notice, tagline, Key Features (6 bullets), ISCC Architecture diagram, MainTypes
     table
 - ✅ "What is the ISCC" and "What is iscc-lib" sections
-- ✅ Installation: Rust, Python, Node.js, WASM sections present
-- ✅ Quick Start: Rust, Python, Node.js, WASM examples
+- ✅ **Key Features** line now reads "Python, Java, Node.js, WASM, and C FFI" — Java added
+- ✅ Installation: Rust, Python, Node.js, Java, WASM sections present
+- ✅ Quick Start: Rust, Python, Node.js, Java, WASM examples
 - ✅ Implementors Guide, Documentation link, Contributing, Apache-2.0 license, Maintainers
-- ❌ **Key Features** line still reads "Python, Node.js, WASM, and C FFI" — Java and Go missing
-- ❌ **Java/Maven installation section** not present
-- ❌ **Java quick start code example** not present
+- ❌ **"What is iscc-lib" body text** still says "Python, Node.js, WebAssembly, and C" — Java not
+    mentioned (line 47)
 - ❌ **Go installation section** not present
 - ❌ **Go quick start code example** not present
 - ❌ Maven Central and Go badges not present
@@ -183,7 +181,7 @@ complete; native loader/publishing/docs absent)
     Development
 - All 11 pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22365974995](https://github.com/iscc/iscc-lib/actions/runs/22365974995))
+    [Run 22366874034](https://github.com/iscc/iscc-lib/actions/runs/22366874034))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
@@ -216,10 +214,10 @@ complete; native loader/publishing/docs absent)
     (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn
     test)
 - Latest CI run: **PASSING** —
-    [Run 22365974948](https://github.com/iscc/iscc-lib/actions/runs/22365974948) — all 6 jobs
+    [Run 22366874021](https://github.com/iscc/iscc-lib/actions/runs/22366874021) — all 6 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java)
 - Latest Docs run: **PASSING** —
-    [Run 22365974995](https://github.com/iscc/iscc-lib/actions/runs/22365974995) — build + deploy
+    [Run 22366874034](https://github.com/iscc/iscc-lib/actions/runs/22366874034) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: Go CI job (Go bindings not started)
@@ -229,12 +227,12 @@ complete; native loader/publishing/docs absent)
 
 ## Next Milestone
 
-CI is green on all 6 jobs. All 5 publishable-crate READMEs are complete (only non-published
-`iscc-ffi` remains, lower priority). The natural next step is the Java native loader class, which
-unblocks JAR self-containment and Maven Central publishing:
+CI is green on all 6 jobs. Root README now includes Java installation and quick start sections. The
+natural next step is adding the Java how-to documentation page and native loader class:
 
-1. Add native library loader class to `IsccLib.java` (extracts platform `.so`/`.dll`/`.dylib` from
+1. Add `docs/howto/java.md` documentation page (parallels existing `howto/python.md` /
+    `howto/nodejs.md`)
+2. Add native library loader class to `IsccLib.java` (extracts platform `.so`/`.dll`/`.dylib` from
     `META-INF/native/` to a temp dir at runtime) — enables JAR self-containment
-2. Update root README with Java/Maven installation section and quick start example
-3. Add `docs/howto/java.md` documentation page
+3. Fix minor README gap: update "What is iscc-lib" body text (line 47) to include Java
 4. Begin Go bindings (`packages/go/`) — `wasm32-wasip1` WASM target for wazero consumption

@@ -36,7 +36,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     affected sections. Always carry forward sections where no relevant files changed.
 - **Tier 1 symbol count**: target says "22" but implementation has 23 (target.md counting error)
 - **CI now has 6 jobs**: Rust, Python, Node.js, WASM, C FFI, Java. All 6 pass at HEAD (run
-    22365974948). Go job pending.
+    22366874021). Go job pending.
 - **Registry readme metadata**: `Cargo.toml` `readme = "README.md"` in iscc-lib; `pyproject.toml`
     `readme = "README.md"` in iscc-py; npm auto-detects README.md (no explicit field needed in
     package.json)
@@ -49,6 +49,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - Per-crate READMEs: batches 1+2 complete (iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni).
     iscc-ffi not published separately (lower priority). Go README blocked by Go bindings not
     started.
+- Root README now has Java sections (installation + quick start) as of iteration 6 (commit 8012a7f).
+    "What is iscc-lib" body text (line 47) still says "Python, Node.js, WebAssembly, and C" — minor
+    gap. Go sections and Maven Central/Go badges still missing.
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` needs `--repo iscc/iscc-lib` to avoid GraphQL projects error; also needs `--json`
