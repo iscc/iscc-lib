@@ -176,7 +176,7 @@ Fix: add `if vec.len() < 380 { return error }` guard at function entry.
 
 **Source:** [human]
 
-## [low] `sliding_window` allocates O(n) Strings for n-gram generation
+## [normal] `sliding_window` allocates O(n) Strings for n-gram generation
 
 In `crates/iscc-lib/src/simhash.rs:52-63`, `sliding_window` returns `Vec<String>`, allocating a new
 `String` for every n-gram. For large text inputs this means O(n) heap allocations and O(n × width)
@@ -193,7 +193,7 @@ baseline to validate the improvement.
 
 **Source:** [human]
 
-## [low] Codec header parsing expands bytes to `Vec<bool>`
+## [normal] Codec header parsing expands bytes to `Vec<bool>`
 
 In `crates/iscc-lib/src/codec.rs:121-127`, `bytes_to_bits` expands every byte into 8 `bool` values
 and returns `Vec<bool>`. This is used in `decode_header` (line 245) which is called on every codec
@@ -209,7 +209,7 @@ the byte slice. After fixing, re-run `cargo bench -p iscc-lib` and compare `gen_
 
 **Source:** [human]
 
-## [low] `DataHasher::update` copies input data on every call
+## [normal] `DataHasher::update` copies input data on every call
 
 In `crates/iscc-lib/src/streaming.rs:88-93`, every `update()` call either copies the input via
 `data.to_vec()` or concatenates tail + data via `[self.tail.as_slice(), data].concat()`. The tail is
