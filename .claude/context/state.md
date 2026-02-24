@@ -1,15 +1,15 @@
-<!-- assessed-at: b1a610b -->
+<!-- assessed-at: df618f7 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Python bytes-like/streaming fixed — JNI validation, napi packaging, Go bindings pending
+## Phase: JNI robustness closed — napi packaging, WASM silent-null, Go bindings pending
 
-Python binding correctness issues resolved: `bytearray`/`memoryview` inputs now handled correctly
-and file-like streams use chunked 64 KiB reads via `DataHasher`/`InstanceHasher`. CI is green on all
-6 jobs. Remaining gaps: JNI `jint` validation and local-reference overflow, napi version skew and
-packaging, WASM silent null, Java native loader/docs, and Go bindings (not started).
+Both JNI correctness issues are now resolved: negative `jint` validation guards added at 3 call
+sites and `push_local_frame`/`pop_local_frame` safety wrappers at all 5 loops. CI is green on all 6
+jobs. Remaining normal-priority issues are distributed across napi (version skew, packaging, clone
+overhead), WASM (silent null), and FFI (video allocation); Go bindings remain unstarted.
 
 ## Rust Core Crate
 
@@ -112,18 +112,23 @@ complete; native loader/publishing/docs absent)
 
 - `crates/iscc-jni/` crate: `Cargo.toml` with `crate-type = ["cdylib"]`, `publish = false`,
     `iscc-lib` and `jni = "0.21"` workspace dependencies; workspace member in root `Cargo.toml`
-- `crates/iscc-jni/src/lib.rs` (824 lines): all 23 Tier 1 symbols implemented as 29
+- `crates/iscc-jni/src/lib.rs` (866 lines): all 23 Tier 1 symbols implemented as 29
     `extern "system"` JNI functions (streaming hashers expand to 4 JNI functions each)
 - `throw_and_default` helper implemented and used consistently at 72 call sites; zero `unwrap()`
-    calls remain — all error paths now throw Java exceptions instead of aborting the JVM
+    calls — all error paths throw Java exceptions instead of aborting the JVM
+- **Negative `jint` validation**: 3 guards added — `textTrim` (`nbytes < 0`), `slidingWindow`
+    (`width < 0`), `algCdcChunks` (`avg_chunk_size < 0`) — all throw `IllegalArgumentException`
+- **Local reference frame safety**: `push_local_frame(16)`/`pop_local_frame` added to all 5 loops
+    (`extract_int_array_2d`, `extract_string_array`, `build_string_array`, `algSimhash`,
+    `algCdcChunks`) — prevents JVM local reference table overflow on large arrays
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (331 lines): 29 `native` method
     declarations matching all Rust JNI bridge function signatures, Javadoc coverage, static
     `System.loadLibrary("iscc_jni")` initializer, private constructor
 - `crates/iscc-jni/java/pom.xml`: Maven build config, JDK 17 target, JUnit 5 + Gson test
     dependencies, Surefire 3.5.2 plugin with `java.library.path=target/debug`
-- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (338 lines): 9
-    `@TestFactory` / `DynamicTest` methods, one per `gen_*_v0` function, covering all 46 official
-    conformance vectors
+- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (362 lines): 9
+    `@TestFactory` / `DynamicTest` conformance methods (46 vectors) + 3 `@Test` negative-value
+    validation methods — 49 total tests, all passing
 - Java CI job (`Java (JNI build, mvn test)`) in `.github/workflows/ci.yml`: passing on all runs
 - `.devcontainer/Dockerfile`: `openjdk-17-jdk-headless` and `maven` added
 - `cargo clippy -p iscc-jni -- -D warnings` passes (CI-verified at HEAD)
@@ -132,9 +137,8 @@ complete; native loader/publishing/docs absent)
 - Missing: platform-specific native library bundling inside JAR
 - Missing: `docs/howto/java.md`
 - Missing: Maven Central publishing configuration
-- **Open issues** (normal): `jint` negative value validation missing in 3 functions; JNI local
-    reference table overflow risk in 5 loops; \[low\]: all exceptions map to
-    `IllegalArgumentException` (state errors should use `IllegalStateException`)
+- **Open issues** \[low\]: all exceptions map to `IllegalArgumentException` (state errors should use
+    `IllegalStateException`)
 
 ## Go Bindings
 
@@ -232,7 +236,7 @@ complete; native loader/publishing/docs absent)
     (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn
     test)
 - Latest CI run: **PASSING** —
-    [Run 22368527588](https://github.com/iscc/iscc-lib/actions/runs/22368527588) — all 6 jobs
+    [Run 22369761980](https://github.com/iscc/iscc-lib/actions/runs/22369761980) — all 6 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java)
 - Latest Docs run: **PASSING** —
     [Run 22368527593](https://github.com/iscc/iscc-lib/actions/runs/22368527593) — build + deploy
@@ -245,16 +249,16 @@ complete; native loader/publishing/docs absent)
 
 ## Next Milestone
 
-CI is green on all 6 jobs. Python bytes-like input and chunked streaming are now fixed. The
-remaining normal-priority correctness issues are distributed across bindings. Recommended next work
-(in priority order):
+CI is green on all 6 jobs. Both JNI robustness issues (jint validation + local ref safety) are
+closed. Recommended next work (in priority order):
 
-1. **JNI `jint` negative value validation** — 3 JNI functions accept `int bits` but do not reject
-    negative values before passing to Rust; should throw `IllegalArgumentException`
-2. **JNI local reference overflow** — 5 loops in `lib.rs` create unbounded JNI local refs; wrap with
-    `push_local_frame`/`pop_local_frame` to prevent JVM crash on large arrays
-3. **napi version skew** — `index.js` hardcodes `0.1.0` while `package.json` says `0.0.1`; fix
-    version and add `"files"` field to prevent npm publish from excluding entrypoints
+1. **napi version skew** — `index.js` hardcodes `0.1.0` while `package.json` says `0.0.1`; fix
+    version mismatch and add `"files"` allowlist in `package.json` to prevent npm publish from
+    excluding entrypoints
+2. **napi `alg_cdc_chunks` unnecessary clone** — replace `.iter().map(|c| Buffer::from(c.to_vec()))`
+    with `.into_iter().map(Buffer::from)` to avoid per-chunk allocation overhead
+3. **WASM silent null** — change `alg_cdc_chunks` to return `Result<JsValue, JsError>` and propagate
+    the serde error instead of swallowing it with `unwrap_or(JsValue::NULL)`
 
-Issues 1–2 are a natural pair (both JNI correctness, same file). After those, napi packaging and
-WASM silent-null follow. Go bindings remain the largest unstarted feature.
+Items 1–2 are a natural pair (both napi, same crate). After those, WASM silent null is a
+one-function fix. Go bindings remain the largest unstarted feature.

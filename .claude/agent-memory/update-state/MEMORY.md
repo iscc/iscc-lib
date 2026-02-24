@@ -18,14 +18,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Codebase Landmarks
 
-- `crates/iscc-jni/src/lib.rs` — 824-line Rust JNI bridge, 29 `extern "system"` functions, 0
-    unwrap(), 72 throw_and_default call sites
+- `crates/iscc-jni/src/lib.rs` — 866-line Rust JNI bridge, 29 `extern "system"` functions, 0
+    unwrap(), 72 throw_and_default call sites, 3 jint negative guards, 5 push/pop_local_frame loops
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — 331-line Java wrapper, 29
     native methods
 - `crates/iscc-jni/java/pom.xml` — Maven build config, JDK 17, JUnit 5 + Gson, Surefire 3.5.2 with
     `java.library.path=target/debug`
-- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — 338-line JUnit 5 test
-    class, 9 `@TestFactory` methods, 46 conformance vectors (CI-verified at HEAD)
+- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — 362-line JUnit 5 test
+    class, 9 `@TestFactory` conformance methods (46 vectors) + 3 `@Test` negative-value methods = 49
+    total tests (CI-verified at HEAD)
 - `.devcontainer/Dockerfile` — includes `openjdk-17-jdk-headless` and `maven`
 - `.github/workflows/ci.yml` — 6 jobs: Rust, Python, Node.js, WASM, C FFI, Java (no Go yet)
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
@@ -60,10 +61,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `isinstance(data, (bytes,   bytearray, memoryview))`, chunked 64 KiB reads via
     `_DataHasher`/`_InstanceHasher`, 10 new tests in `tests/test_streaming.py`. Total pytest count:
     157 tests, 115 test functions (up from 105).
-- Next normal-priority: JNI jint validation (3 sites), JNI local-ref overflow (5 loops), napi
-    version skew + packaging, WASM silent null on alg_cdc_chunks serialization failure.
+- JNI jint validation (3 sites) and local-ref overflow (5 loops) both resolved in iteration 3
+    (commit df618f7). Both removed from issues.md.
+- Next normal-priority: napi version skew + packaging (index.js hardcodes 0.1.0), napi
+    alg_cdc_chunks unnecessary clone, WASM silent null on alg_cdc_chunks serialization failure.
+- Latest CI run IDs (iteration 3): tests = 22369761980 (6/6 pass), docs = 22368527593 (pass)
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` needs `--repo iscc/iscc-lib` to avoid GraphQL projects error; also needs `--json`
     fields
-- Latest CI run IDs (iteration 2): tests = 22368527588 (6/6 pass), docs = 22368527593 (pass)
