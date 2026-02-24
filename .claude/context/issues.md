@@ -64,24 +64,6 @@ action that requires review regardless of source:
 
 <!-- Add issues below this line -->
 
-## [normal] `gen_meta_code_v0` treats empty Data-URL payload as "no meta"
-
-In `crates/iscc-lib/src/lib.rs:183-184`, when a Data-URL is provided but its decoded payload is
-empty (`b""`), the Rust code maps it to `None`, routing into the "no meta" branch (name/description
-path).
-
-Reference behavior (`reference/iscc-core/iscc_core/code_meta.py:62-68`): Python's `if meta:` is True
-for any non-empty string (including a Data-URL with empty payload), so it enters the meta branch,
-computes `soft_hash_meta_v0(name, b"")` and `multi_hash_blake3(b"")`, and returns the `meta` field
-with the Data-URL.
-
-This produces different `metahash` values and different output fields for the same input.
-
-Fix: treat "meta string present" as a distinct case even when the decoded payload is empty bytes. An
-empty `Vec<u8>` should still be `Some(vec![])`, not `None`.
-
-**Source:** [human]
-
 ## [normal] `alg_simhash` panics on mismatched digest sizes
 
 In `crates/iscc-lib/src/simhash.rs:13-31`, `alg_simhash` uses the first digest's length
