@@ -1,154 +1,84 @@
 # Next Work Package
 
-## Step: Restructure documentation navigation into Diataxis categories
+## Step: Fix `alg_cdc_chunks` infinite loop when `utf32=true`
 
 ## Goal
 
-Reorganize the flat site navigation into Diataxis framework sections (How-to Guides, Explanation,
-Reference) and create per-language how-to guide pages for Python, Node.js, and WASM. This is the
-largest remaining documentation gap per state.md and is an explicit verification criterion in the
-documentation spec ("Navigation follows Diataxis framework").
+Fix a critical bug where `alg_cdc_chunks` enters an infinite loop when `utf32=true` and the
+remaining buffer is smaller than 4 bytes. This is a Tier 1 public API and any external caller using
+`utf32=true` with certain inputs will hang the process.
 
 ## Scope
 
-- **Create**:
-    - `docs/howto/python.md` -- Python usage guide (installation, code generation, streaming,
-        structured results)
-    - `docs/howto/nodejs.md` -- Node.js usage guide (installation, code generation, streaming)
-    - `docs/howto/wasm.md` -- WASM usage guide (installation, browser/Node.js setup, code generation)
-- **Modify**:
-    - `zensical.toml` -- restructure `nav` from flat list into Diataxis sections
-- **Reference**:
-    - `/workspace/iscc-lib/.claude/context/specs/documentation.md` (Diataxis nav requirements)
-    - `/workspace/iscc-lib/docs/index.md` (existing landing page)
-    - `/workspace/iscc-lib/docs/architecture.md` (existing explanation page)
-    - `/workspace/iscc-lib/docs/rust-api.md` (existing Rust reference)
-    - `/workspace/iscc-lib/docs/api.md` (existing Python API reference)
-    - `/workspace/iscc-lib/docs/benchmarks.md` (existing benchmarks page)
-    - `/workspace/iscc-lib/zensical.toml` (current config)
-    - `/workspace/iscc-lib/crates/iscc-py/python/iscc_lib/__init__.py` (Python API surface)
-    - `/workspace/iscc-lib/crates/iscc-napi/package.json` (npm package name)
-    - `/workspace/iscc-lib/crates/iscc-wasm/src/lib.rs` (WASM API surface)
+- **Create**: none
+- **Modify**: `crates/iscc-lib/src/cdc.rs` (fix alignment logic + add tests)
+- **Reference**: `reference/iscc-core/iscc_core/cdc.py` (lines 45-50),
+    `reference/iscc-core/tests/test_cdc.py` (lines 83-98, `test_data_chunks_utf32`)
 
 ## Not In Scope
 
-- Creating a "Tutorials / Getting Started" page -- the existing `index.md` already serves as a
-    landing page with a quick start section; a dedicated tutorial can be added in a future step
-- Moving existing markdown files into subdirectories (e.g., `docs/explanation/architecture.md`) --
-    MkDocs Material supports section labels in nav without requiring files to match directory
-    structure; keep existing files in place to avoid breaking links and llms.txt references
-- Abbreviations file (`docs/includes/abbreviations.md`) -- separate step
-- CNAME file (`docs/CNAME`) -- separate step
-- OIDC publishing configuration -- separate step
-- Changes to Rust source code or binding crates
-- Updating `docs/llms.txt` or `scripts/gen_llms_full.py` for new pages -- the generation script
-    auto-discovers all built pages, so new pages will be included automatically
+- Fixing the same bug upstream in iscc-core (the Python reference has the identical issue at
+    `cdc.py:47` — `cut_point -= cut_point % 4` can also produce 0 in Python, but that's a separate
+    upstream issue to file later)
+- Porting the reference `test_data_chunks_utf32` conformance test with `static_bytes` and BLAKE3
+    hash verification — that's a separate step requiring the `static_bytes` helper
+- Fixing other issues from issues.md (the normal/low priority issues wait)
+- Changing the function signature or return type
+- Refactoring the CDC module beyond the minimal fix
 
 ## Implementation Notes
 
-### Navigation structure in `zensical.toml`
+The bug is at `cdc.rs:130-132`:
 
-Replace the flat `nav` list with Diataxis-organized sections. The zensical.toml `nav` uses TOML
-inline table syntax (since zensical wraps MkDocs Material). The format is:
-
-```toml
-nav = [
-  "index.md",
-  { "How-to Guides" = [
-    { "Python" = "howto/python.md" },
-    { "Node.js" = "howto/nodejs.md" },
-    { "WebAssembly" = "howto/wasm.md" },
-  ] },
-  { "Explanation" = [
-    { "Architecture" = "architecture.md" },
-  ] },
-  { "Reference" = [
-    { "Rust API" = "rust-api.md" },
-    { "Python API" = "api.md" },
-  ] },
-  { "Benchmarks" = "benchmarks.md" },
-]
+```rust
+if utf32 {
+    cut_point -= cut_point % 4;
+}
 ```
 
-Key decisions:
+When `cut_point < 4` (e.g., the remaining buffer is 1-3 bytes), `cut_point % 4 == cut_point`, so
+`cut_point` becomes 0. This means `pos` never advances and the loop at line 125 runs forever.
 
-- `index.md` stays at top level (landing page, not inside a section)
-- `architecture.md` maps to Explanation (it explains *how* the system works)
-- `rust-api.md` and `api.md` map to Reference (technical API docs)
-- `benchmarks.md` stays at top level (doesn't fit neatly into any Diataxis quadrant)
-- Existing files stay in their current locations -- no file moves required
-- How-to guide files go in `docs/howto/` subdirectory (new pages)
+**Fix**: After the UTF-32 alignment subtraction, if `cut_point` is 0, set it to the minimum of 4 and
+the remaining data length. This guarantees forward progress while maintaining 4-byte alignment when
+possible:
 
-### How-to guide content (`docs/howto/python.md`)
+```rust
+if utf32 {
+    cut_point -= cut_point % 4;
+    if cut_point == 0 {
+        cut_point = remaining.len().min(4);
+    }
+}
+```
 
-This is the most detailed guide since Python has the richest API surface (structured results via
-`IsccResult` subclasses, `BinaryIO` support for streaming). Content should cover:
+Using `remaining.len()` (which equals `data.len() - pos`) handles the edge case where fewer than 4
+bytes remain — we consume whatever is left rather than trying to align.
 
-1. Installation (`pip install iscc-lib`)
-2. Basic code generation (all 9 `gen_*_v0` functions with examples)
-3. Structured results (accessing `.iscc`, `.characters`, `.datahash` etc. as attributes)
-4. Streaming with `DataHasher` and `InstanceHasher` (file-like objects)
-5. Text utilities (`text_clean`, `text_collapse`, etc.)
+**Tests to add** (inside the existing `mod tests` block in `cdc.rs`):
 
-Use tabbed code blocks only where showing cross-language comparison adds value. In per-language
-how-to guides, focus on the target language exclusively.
+1. `test_alg_cdc_chunks_utf32_small_buffer` — input of 3 bytes (not 4-byte aligned) with
+    `utf32=true`. Must terminate and return chunks that reassemble to the original data.
+2. `test_alg_cdc_chunks_utf32_exact_4_bytes` — input of exactly 4 bytes with `utf32=true`. Must
+    return one chunk of 4 bytes.
+3. `test_alg_cdc_chunks_utf32_7_bytes` — input of 7 bytes (4+3) with `utf32=true`. Verifies handling
+    of a non-aligned tail.
+4. `test_alg_cdc_chunks_utf32_reassembly` — larger input (~4096 bytes, 4-byte aligned) with
+    `utf32=true`. Chunks must reassemble to original data.
+5. `test_alg_cdc_chunks_utf32_empty` — empty input with `utf32=true`. Must not loop.
 
-### How-to guide content (`docs/howto/nodejs.md`)
-
-Cover:
-
-1. Installation (`npm install @iscc/lib`)
-2. Import pattern (`import { gen_text_code_v0 } from "@iscc/lib"`)
-3. Basic code generation examples
-4. Streaming with `DataHasher` and `InstanceHasher` (Buffer input)
-
-### How-to guide content (`docs/howto/wasm.md`)
-
-Cover:
-
-1. Installation (`npm install @iscc/iscc-wasm`)
-2. Browser setup (import from bundler vs CDN)
-3. Node.js setup
-4. Basic code generation examples
-5. Note about `Uint8Array` for binary data (WASM does not have `Buffer`)
-
-### General guidance
-
-- Each how-to guide should be self-contained with working code examples
-- Use level 1 heading (`#`) for the page title
-- Include install instructions at the top of each guide
-- Show realistic examples (not just "Hello World" -- include metadata, streaming, etc.)
-- Reference the existing Quick Start in `index.md` for consistency in example patterns
-- The Python quick start in `index.md` shows `json.loads()` usage but the Python bindings actually
-    return dict-like `IsccResult` objects directly -- the how-to guide should show the idiomatic
-    pattern with attribute access
+All tests should verify: (a) the function terminates, (b) chunks reassemble to original input, (c)
+for 4-byte-aligned inputs, all chunks except possibly the last are 4-byte aligned.
 
 ## Verification
 
-- `uv run zensical build` exits 0 (site builds with restructured nav)
-- `test -f docs/howto/python.md` exits 0 (Python how-to guide exists)
-- `test -f docs/howto/nodejs.md` exits 0 (Node.js how-to guide exists)
-- `test -f docs/howto/wasm.md` exits 0 (WASM how-to guide exists)
-- `grep -q 'How-to Guides' zensical.toml` exits 0 (Diataxis section in nav)
-- `grep -q 'Explanation' zensical.toml` exits 0 (Diataxis section in nav)
-- `grep -q 'Reference' zensical.toml` exits 0 (Diataxis section in nav)
-- `grep -q 'howto/python' zensical.toml` exits 0 (Python guide in nav)
-- `grep -q 'howto/nodejs' zensical.toml` exits 0 (Node.js guide in nav)
-- `grep -q 'howto/wasm' zensical.toml` exits 0 (WASM guide in nav)
-- `grep -c '^#' docs/howto/python.md` outputs at least 1 (has heading)
-- `grep -c '^#' docs/howto/nodejs.md` outputs at least 1 (has heading)
-- `grep -c '^#' docs/howto/wasm.md` outputs at least 1 (has heading)
-- `grep -q 'pip install' docs/howto/python.md` exits 0 (has install instructions)
-- `grep -q 'npm install' docs/howto/nodejs.md` exits 0 (has install instructions)
-- `grep -q 'npm install' docs/howto/wasm.md` exits 0 (has install instructions)
-- `grep -q 'gen_text_code_v0' docs/howto/python.md` exits 0 (has code generation example)
-- `grep -q 'DataHasher' docs/howto/python.md` exits 0 (covers streaming)
-- `uv run prek run --all-files` passes (pre-commit hooks clean)
-- `cargo clippy --workspace --all-targets -- -D warnings` still clean (no Rust changes)
+- `cargo test -p iscc-lib` passes (all 184+ existing tests + 5 new utf32 tests)
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `cargo test -p iscc-lib -- test_alg_cdc_chunks_utf32` passes (the 5 new tests specifically)
+- The 3-byte input test proves the infinite loop is fixed (it would hang/timeout if the bug
+    remained)
 
 ## Done When
 
-All verification criteria pass: the documentation site builds with Diataxis-organized navigation
-showing How-to Guides (Python, Node.js, WASM), Explanation (Architecture), and Reference (Rust API,
-Python API) sections, with substantive per-language how-to guide pages containing installation
-instructions, code examples, and streaming usage patterns.
+All verification criteria pass, confirming `alg_cdc_chunks` with `utf32=true` no longer loops on
+small or non-aligned inputs.
