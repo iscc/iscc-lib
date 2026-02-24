@@ -98,3 +98,18 @@ jobs:
           -lpthread -ldl -lm
       - name: Run C test program
         run: LD_LIBRARY_PATH=target/debug ./test_iscc
+  java:
+    name: Java (JNI build, mvn test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build JNI native library
+        run: cargo build -p iscc-jni
+      - name: Run Maven tests
+        run: mvn test -f crates/iscc-jni/java/pom.xml

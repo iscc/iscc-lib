@@ -1,32 +1,27 @@
-## 2026-02-24 — Review of: Create Java conformance tests
+## 2026-02-24 — Add Java CI job
 
-**Verdict:** PASS
+**Done:** Added a `java` job to `.github/workflows/ci.yml` that builds the JNI native library with
+`cargo build -p iscc-jni` and runs Maven conformance tests with
+`mvn test -f crates/iscc-jni/java/pom.xml`. The job follows the exact same pattern as the existing 5
+CI jobs (checkout, Rust toolchain, Rust cache) plus `actions/setup-java@v4` with Temurin JDK 17.
 
-**Summary:** Clean, well-structured JUnit 5 conformance test suite covering all 9 `gen_*_v0` JNI
-functions against 46 official test vectors. The implementation mirrors the Node.js conformance tests
-closely, uses `@TestFactory` + `DynamicTest` for readable data-driven output, and the pom.xml
-changes are minimal and correct. All tests pass, clippy is clean, all 14 pre-commit hooks pass.
+**Files changed:**
+
+- `.github/workflows/ci.yml`: Added `java` job (lines 101-115) with 6 steps: checkout,
+    rust-toolchain, rust-cache, setup-java, cargo build, mvn test
 
 **Verification:**
 
-- [x] `cargo build -p iscc-jni` exits 0 — native library built successfully
-- [x] `mvn test -f crates/iscc-jni/java/pom.xml` passes all conformance tests — 46 tests, 0
-    failures, BUILD SUCCESS
-- [x] Test output shows all 9 `gen_*_v0` function groups with individual test vectors passing
+- [x] `cargo build -p iscc-jni` exits 0
+- [x] `mvn test -f crates/iscc-jni/java/pom.xml` passes all 46 conformance tests (0 failures, BUILD
+    SUCCESS)
+- [x] YAML is valid (`python3 -c "import yaml; yaml.safe_load(...)"` exits 0)
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` remains clean
 - [x] `mise run check` — all 14 pre-commit hooks pass
 
-**Issues found:**
+**Next:** Address performance issues from issues.md (DataHasher buffer allocation, codec header
+parsing), the native library loader class for JAR distribution, or Go bindings.
 
-- Minor: unused `import com.google.gson.JsonNull` — fixed by review agent (removed the import;
-    `meta.isJsonNull()` is a method on `JsonElement`, not on `JsonNull`)
-
-**Next:** Java CI job in `.github/workflows/ci.yml` to run `cargo build -p iscc-jni` followed by
-`mvn test -f crates/iscc-jni/java/pom.xml`. Alternatively, address performance issues from issues.md
-(DataHasher buffer allocation, codec header parsing), or the native library loader class for JAR
-distribution.
-
-**Notes:** The Java conformance test structure is consistent with all other binding conformance
-tests (Python, Node.js, WASM, C). The `description` empty→null mapping in meta tests matches the JNI
-bridge behavior. All 46 vectors accounted for: 16 meta + 5 text + 3 image + 5 audio + 3 video + 2
-mixed + 4 data + 3 instance + 5 iscc.
+**Notes:** Straightforward single-file change. The `pom.xml` Surefire `argLine` with
+`${project.basedir}/../../../target/debug` resolves correctly for both local and CI — no special
+library path configuration needed in the CI job itself.

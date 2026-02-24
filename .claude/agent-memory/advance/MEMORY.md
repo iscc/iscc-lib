@@ -29,6 +29,10 @@ iterations.
 - Maven runs from `crates/iscc-jni/java/` as working directory
 - JDK 17 and Maven are pre-installed in devcontainer
 - Gson 2.11.0 used as test-scope dependency for JSON parsing
+- CI workflow at `.github/workflows/ci.yml` has 6 jobs: rust, python, nodejs, wasm, c-ffi, java
+- Java CI uses `actions/setup-java@v4` with `distribution: temurin` + `java-version: '17'` (provides
+    both JDK and Maven — no separate Maven setup needed)
+- All CI jobs share the same action triple: checkout@v4, rust-toolchain@stable, rust-cache@v2
 
 ## Gotchas
 
