@@ -138,39 +138,6 @@ acknowledging community implementations builds goodwill and helps adopters find 
 
 **Source:** [human]
 
-## [normal] iscc-jni: `jint` parameters cast without negative value validation
-
-In `crates/iscc-jni/src/lib.rs`, three functions cast signed Java `jint` to unsigned Rust types
-without bounds checking:
-
-- `textTrim`: `nbytes as usize` (line 391) — negative becomes huge usize
-- `slidingWindow`: `width as usize` (line 476) — negative becomes huge usize
-- `algCdcChunks`: `avg_chunk_size as u32` (line 557) — negative silently truncated
-
-Fix: validate `jint >= 0` (and appropriate upper bounds) before casting; throw
-`IllegalArgumentException` for invalid values.
-
-**Source:** [human]
-
-## [normal] iscc-jni: JNI local reference table overflow risk in loops
-
-In `crates/iscc-jni/src/lib.rs`, five loops create JNI local references per iteration without using
-`push_local_frame`/`pop_local_frame` or `AutoLocal`:
-
-- `extract_int_array_2d` (line 68): `get_object_array_element` per frame
-- `extract_string_array` (line 85): `get_object_array_element` + `get_string` per element
-- `build_string_array` (line 104): `new_string` per element
-- `algSimhash` (line 503): `get_object_array_element` per digest
-- `algCdcChunks` (line 566): `byte_array_from_slice` + `set_object_array_element` per chunk
-
-Most JVMs allow ~512 local refs per frame. Large arrays (e.g., video with many frames) could
-overflow the table and crash.
-
-Fix: wrap each loop body in `push_local_frame`/`pop_local_frame` or use `AutoLocal` to release refs
-per iteration.
-
-**Source:** [human]
-
 ## [normal] iscc-napi: Version skew between package.json and generated index.js
 
 In `crates/iscc-napi/package.json` the version is `0.0.1`, but `crates/iscc-napi/index.js`

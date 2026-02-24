@@ -200,3 +200,8 @@
 {"ts":"2026-02-24T20:12:03.122986+00:00","iteration":1,"role":"define-next","status":"OK","turns":20,"cost_usd":1.019545,"duration_s":192.8}
 {"ts":"2026-02-24T20:17:30.141036+00:00","iteration":1,"role":"advance","status":"OK","turns":39,"cost_usd":1.643949,"duration_s":327.0}
 {"iteration":1,"timestamp":"2026-02-24T20:20:00Z","step":"Fix Python bytes-like input handling and chunked streaming","verdict":"PASS","summary":"All 4 call sites fixed for bytearray/memoryview support and chunked streaming. 10 new tests. 157 tests pass. Two issues resolved and deleted from issues.md."}
+{"ts":"2026-02-24T20:21:34.183915+00:00","iteration":1,"role":"review","status":"OK","turns":38,"cost_usd":1.329493,"duration_s":244.0}
+{"ts":"2026-02-24T20:45:32.620350+00:00","iteration":2,"role":"update-state","status":"OK","turns":20,"cost_usd":0.831714,"duration_s":242.0}
+{"ts":"2026-02-24T20:48:36.255387+00:00","iteration":2,"role":"define-next","status":"OK","turns":23,"cost_usd":0.920566,"duration_s":183.6}
+{"ts":"2026-02-24T20:53:47.469902+00:00","iteration":2,"role":"advance","status":"OK","turns":47,"cost_usd":1.948567,"duration_s":311.2}
+{"iteration":2,"timestamp":"2026-02-24T20:55:00Z","step":"JNI jint validation and local reference frame safety","verdict":"PASS","summary":"3 negative jint guards + 5 push/pop local frame wrappers + 3 JUnit tests. 49 Java tests pass, clippy clean, 14 hooks pass. 2 issues resolved."}
