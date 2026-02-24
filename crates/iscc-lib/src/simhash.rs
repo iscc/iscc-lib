@@ -62,6 +62,32 @@ pub fn sliding_window(seq: &str, width: usize) -> Vec<String> {
         .collect()
 }
 
+/// Generate sliding window n-grams as borrowed string slices.
+///
+/// Returns overlapping substrings of `width` Unicode characters as `&str`
+/// slices borrowing from the input, avoiding per-n-gram `String` allocation.
+/// If the input is shorter than `width`, returns a single slice of the full input.
+pub(crate) fn sliding_window_strs(seq: &str, width: usize) -> Vec<&str> {
+    assert!(width >= 2, "Sliding window width must be 2 or bigger.");
+    let char_indices: Vec<usize> = seq.char_indices().map(|(i, _)| i).collect();
+    let len = char_indices.len();
+    if len == 0 {
+        return vec![seq]; // empty string → single empty slice
+    }
+    let range = cmp::max(len.saturating_sub(width).saturating_add(1), 1);
+    (0..range)
+        .map(|i| {
+            let start = char_indices[i];
+            let end = if i + width >= len {
+                seq.len()
+            } else {
+                char_indices[i + width]
+            };
+            &seq[start..end]
+        })
+        .collect()
+}
+
 /// Generate sliding window n-grams from a byte slice.
 ///
 /// Returns overlapping sub-slices of `width` bytes, advancing by one byte
@@ -150,6 +176,69 @@ mod tests {
     #[should_panic(expected = "width must be 2")]
     fn test_sliding_window_width_too_small() {
         sliding_window("test", 1);
+    }
+
+    // ---- sliding_window_strs tests ----
+
+    #[test]
+    fn test_sliding_window_strs_basic() {
+        assert_eq!(sliding_window_strs("Hello", 4), vec!["Hell", "ello"]);
+    }
+
+    #[test]
+    fn test_sliding_window_strs_shorter_than_width() {
+        assert_eq!(sliding_window_strs("ab", 3), vec!["ab"]);
+    }
+
+    #[test]
+    fn test_sliding_window_strs_exact_width() {
+        assert_eq!(sliding_window_strs("abc", 3), vec!["abc"]);
+    }
+
+    #[test]
+    fn test_sliding_window_strs_empty() {
+        assert_eq!(sliding_window_strs("", 3), vec![""]);
+    }
+
+    #[test]
+    fn test_sliding_window_strs_unicode() {
+        assert_eq!(sliding_window_strs("äöü", 2), vec!["äö", "öü"]);
+    }
+
+    #[test]
+    #[should_panic(expected = "width must be 2")]
+    fn test_sliding_window_strs_width_too_small() {
+        sliding_window_strs("test", 1);
+    }
+
+    #[test]
+    fn test_sliding_window_strs_matches_sliding_window() {
+        // Verify that sliding_window_strs produces identical content to sliding_window
+        let cases = vec![
+            ("Hello World", 4),
+            ("ab", 3),
+            ("abc", 3),
+            ("", 3),
+            ("äöü", 2),
+            ("Hello", 13),
+            ("a longer test string for n-grams", 5),
+        ];
+        for (input, width) in cases {
+            let strings = sliding_window(input, width);
+            let strs = sliding_window_strs(input, width);
+            assert_eq!(
+                strings.len(),
+                strs.len(),
+                "length mismatch for input={input:?} width={width}"
+            );
+            for (s, sr) in strings.iter().zip(strs.iter()) {
+                assert_eq!(
+                    s.as_str(),
+                    *sr,
+                    "content mismatch for input={input:?} width={width}"
+                );
+            }
+        }
     }
 
     // ---- sliding_window_bytes tests ----

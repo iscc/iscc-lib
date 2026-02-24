@@ -59,7 +59,7 @@ fn interleave_digests(a: &[u8], b: &[u8]) -> Vec<u8> {
 /// hashes each with BLAKE3, and produces a SimHash.
 fn meta_name_simhash(name: &str) -> Vec<u8> {
     let collapsed_name = utils::text_collapse(name);
-    let name_ngrams = simhash::sliding_window(&collapsed_name, 3);
+    let name_ngrams = simhash::sliding_window_strs(&collapsed_name, 3);
     let name_hashes: Vec<[u8; 32]> = name_ngrams
         .iter()
         .map(|ng| *blake3::hash(ng.as_bytes()).as_bytes())
@@ -78,7 +78,7 @@ fn soft_hash_meta_v0(name: &str, extra: Option<&str>) -> Vec<u8> {
         None | Some("") => name_simhash,
         Some(extra_str) => {
             let collapsed_extra = utils::text_collapse(extra_str);
-            let extra_ngrams = simhash::sliding_window(&collapsed_extra, 3);
+            let extra_ngrams = simhash::sliding_window_strs(&collapsed_extra, 3);
             let extra_hashes: Vec<[u8; 32]> = extra_ngrams
                 .iter()
                 .map(|ng| *blake3::hash(ng.as_bytes()).as_bytes())
@@ -267,7 +267,7 @@ pub fn gen_meta_code_v0(
 /// Generates character n-grams with a sliding window of width 13,
 /// hashes each with xxh32, then applies MinHash to produce a 32-byte digest.
 fn soft_hash_text_v0(text: &str) -> Vec<u8> {
-    let ngrams = simhash::sliding_window(text, 13);
+    let ngrams = simhash::sliding_window_strs(text, 13);
     let features: Vec<u32> = ngrams
         .iter()
         .map(|ng| xxhash_rust::xxh32::xxh32(ng.as_bytes(), 0))
