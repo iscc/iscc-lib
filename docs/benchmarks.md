@@ -1,3 +1,8 @@
+---
+icon: lucide/gauge
+description: Performance comparison between iscc-lib and the Python reference implementation.
+---
+
 # Benchmarks
 
 Performance comparison between **iscc-lib** (Rust) and the

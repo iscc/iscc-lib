@@ -1,3 +1,8 @@
+---
+icon: lucide/book-open
+description: Python API reference for ISCC code generation functions and result types.
+---
+
 # API Reference
 
 Python bindings for the ISCC (ISO 24138:2024) code generation functions. All functions accept typed

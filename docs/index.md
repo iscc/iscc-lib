@@ -1,3 +1,8 @@
+---
+icon: lucide/house
+description: High-performance polyglot implementation of ISO 24138 International Standard Content Code.
+---
+
 # iscc-lib
 
 **High-performance polyglot implementation of

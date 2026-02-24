@@ -1,3 +1,8 @@
+---
+icon: lucide/book-open
+description: Rust API reference for all ISCC code generation functions and types.
+---
+
 # Rust API Reference
 
 Pure Rust crate for ISCC (ISO 24138:2024) code generation. All 9 `gen_*_v0` functions return

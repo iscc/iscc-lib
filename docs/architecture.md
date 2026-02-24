@@ -1,3 +1,8 @@
+---
+icon: lucide/blocks
+description: Crate model, module layout, streaming pattern, and conformance testing approach.
+---
+
 # Architecture
 
 An overview of how iscc-lib is structured — the crate model, module layout, streaming pattern, and

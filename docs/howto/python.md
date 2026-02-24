@@ -1,3 +1,8 @@
+---
+icon: lucide/terminal
+description: Guide to using iscc-lib from Python — code generation, streaming, and text utilities.
+---
+
 # Python
 
 A guide to using iscc-lib from Python. Covers installation, code generation, structured results,

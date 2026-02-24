@@ -1,3 +1,8 @@
+---
+icon: lucide/hexagon
+description: Guide to using iscc-lib from Node.js via the native addon.
+---
+
 # Node.js
 
 A guide to using iscc-lib from Node.js via the `@iscc/lib` native addon. Covers installation, code

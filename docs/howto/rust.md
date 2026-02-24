@@ -1,3 +1,8 @@
+---
+icon: lucide/cog
+description: Guide to using iscc-lib from Rust — code generation, streaming, and text utilities.
+---
+
 # Rust
 
 A guide to using iscc-lib from Rust. Covers installation, code generation, structured results,

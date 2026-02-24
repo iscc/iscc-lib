@@ -1,3 +1,8 @@
+---
+icon: lucide/git-pull-request
+description: Setting up the development environment, quality gates, and the autonomous CID workflow.
+---
+
 # Development
 
 A guide for contributors — setting up the development environment, running the autonomous CID

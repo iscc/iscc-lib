@@ -1,3 +1,8 @@
+---
+icon: lucide/globe
+description: Guide to using iscc-lib from the browser or Node.js via WebAssembly.
+---
+
 # WebAssembly
 
 A guide to using iscc-lib from the browser or Node.js via the `@iscc/iscc-wasm` WebAssembly package.
