@@ -703,14 +703,16 @@ pub unsafe extern "C" fn iscc_decompose(iscc_code: *const c_char) -> *mut *mut c
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_sliding_window(seq: *const c_char, width: u32) -> *mut *mut c_char {
     clear_last_error();
-    if width < 2 {
-        set_last_error("Sliding window width must be 2 or bigger.");
-        return ptr::null_mut();
-    }
     let Some(seq) = (unsafe { ptr_to_str(seq, "seq") }) else {
         return ptr::null_mut();
     };
-    vec_to_c_string_array(iscc_lib::sliding_window(seq, width as usize))
+    match iscc_lib::sliding_window(seq, width as usize) {
+        Ok(v) => vec_to_c_string_array(v),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            ptr::null_mut()
+        }
+    }
 }
 
 // ── Algorithm primitives ─────────────────────────────────────────────────

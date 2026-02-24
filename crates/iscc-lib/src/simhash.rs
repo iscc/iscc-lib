@@ -71,17 +71,23 @@ pub(crate) fn alg_simhash_inner(hash_digests: &[impl AsRef<[u8]>]) -> Vec<u8> {
 /// Returns overlapping substrings of `width` Unicode characters, advancing
 /// by one character at a time. If the input is shorter than `width`, returns
 /// a single element containing the full input.
-pub fn sliding_window(seq: &str, width: usize) -> Vec<String> {
-    assert!(width >= 2, "Sliding window width must be 2 or bigger.");
+///
+/// Returns `Err(IsccError::InvalidInput)` if `width < 2`.
+pub fn sliding_window(seq: &str, width: usize) -> IsccResult<Vec<String>> {
+    if width < 2 {
+        return Err(IsccError::InvalidInput(
+            "Sliding window width must be 2 or bigger.".into(),
+        ));
+    }
     let chars: Vec<char> = seq.chars().collect();
     let len = chars.len();
     let range = cmp::max(len.saturating_sub(width).saturating_add(1), 1);
-    (0..range)
+    Ok((0..range)
         .map(|i| {
             let end = cmp::min(i + width, len);
             chars[i..end].iter().collect()
         })
-        .collect()
+        .collect())
 }
 
 /// Generate sliding window n-grams as borrowed string slices.
@@ -90,7 +96,7 @@ pub fn sliding_window(seq: &str, width: usize) -> Vec<String> {
 /// slices borrowing from the input, avoiding per-n-gram `String` allocation.
 /// If the input is shorter than `width`, returns a single slice of the full input.
 pub(crate) fn sliding_window_strs(seq: &str, width: usize) -> Vec<&str> {
-    assert!(width >= 2, "Sliding window width must be 2 or bigger.");
+    debug_assert!(width >= 2, "Sliding window width must be 2 or bigger.");
     let char_indices: Vec<usize> = seq.char_indices().map(|(i, _)| i).collect();
     let len = char_indices.len();
     if len == 0 {
@@ -116,7 +122,7 @@ pub(crate) fn sliding_window_strs(seq: &str, width: usize) -> Vec<&str> {
 /// at a time. If the input is shorter than `width`, returns a single slice
 /// of the full input.
 pub(crate) fn sliding_window_bytes(data: &[u8], width: usize) -> Vec<&[u8]> {
-    assert!(width >= 2, "Sliding window width must be 2 or bigger.");
+    debug_assert!(width >= 2, "Sliding window width must be 2 or bigger.");
     let len = data.len();
     let range = cmp::max(len.saturating_sub(width).saturating_add(1), 1);
     (0..range)
@@ -134,30 +140,30 @@ mod tests {
     #[test]
     fn test_sliding_window_basic() {
         assert_eq!(
-            sliding_window("Hello", 4),
+            sliding_window("Hello", 4).unwrap(),
             vec!["Hell".to_string(), "ello".to_string()]
         );
     }
 
     #[test]
     fn test_sliding_window_shorter_than_width() {
-        assert_eq!(sliding_window("ab", 3), vec!["ab".to_string()]);
+        assert_eq!(sliding_window("ab", 3).unwrap(), vec!["ab".to_string()]);
     }
 
     #[test]
     fn test_sliding_window_exact_width() {
-        assert_eq!(sliding_window("abc", 3), vec!["abc".to_string()]);
+        assert_eq!(sliding_window("abc", 3).unwrap(), vec!["abc".to_string()]);
     }
 
     #[test]
     fn test_sliding_window_empty() {
-        assert_eq!(sliding_window("", 3), vec!["".to_string()]);
+        assert_eq!(sliding_window("", 3).unwrap(), vec!["".to_string()]);
     }
 
     #[test]
     fn test_sliding_window_unicode() {
         assert_eq!(
-            sliding_window("äöü", 2),
+            sliding_window("äöü", 2).unwrap(),
             vec!["äö".to_string(), "öü".to_string()]
         );
     }
@@ -207,9 +213,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "width must be 2")]
     fn test_sliding_window_width_too_small() {
-        sliding_window("test", 1);
+        let result = sliding_window("test", 1);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("width must be 2"),
+            "error message should mention width constraint, got: {msg}"
+        );
     }
 
     // ---- sliding_window_strs tests ----
@@ -239,6 +250,7 @@ mod tests {
         assert_eq!(sliding_window_strs("äöü", 2), vec!["äö", "öü"]);
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "width must be 2")]
     fn test_sliding_window_strs_width_too_small() {
@@ -258,7 +270,7 @@ mod tests {
             ("a longer test string for n-grams", 5),
         ];
         for (input, width) in cases {
-            let strings = sliding_window(input, width);
+            let strings = sliding_window(input, width).unwrap();
             let strs = sliding_window_strs(input, width);
             assert_eq!(
                 strings.len(),
@@ -308,6 +320,7 @@ mod tests {
         );
     }
 
+    #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "width must be 2")]
     fn test_sliding_window_bytes_width_too_small() {

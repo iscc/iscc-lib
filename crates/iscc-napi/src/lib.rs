@@ -191,12 +191,8 @@ pub fn conformance_selftest() -> bool {
 /// by one character at a time. Throws if width is less than 2.
 #[napi(js_name = "sliding_window")]
 pub fn sliding_window(seq: String, width: u32) -> napi::Result<Vec<String>> {
-    if width < 2 {
-        return Err(napi::Error::from_reason(
-            "Sliding window width must be 2 or bigger.",
-        ));
-    }
-    Ok(iscc_lib::sliding_window(&seq, width as usize))
+    iscc_lib::sliding_window(&seq, width as usize)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
 // ── Algorithm primitives ─────────────────────────────────────────────────────

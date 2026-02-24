@@ -9,7 +9,7 @@
 #[test]
 fn test_sliding_window_basic_ngrams() {
     // "hello" with width 3 → ["hel", "ell", "llo"]
-    let result = iscc_lib::sliding_window("hello", 3);
+    let result = iscc_lib::sliding_window("hello", 3).unwrap();
     assert_eq!(
         result,
         vec!["hel".to_string(), "ell".to_string(), "llo".to_string()]
@@ -19,14 +19,14 @@ fn test_sliding_window_basic_ngrams() {
 #[test]
 fn test_sliding_window_input_shorter_than_width() {
     // Input shorter than width returns a single element with the full input
-    let result = iscc_lib::sliding_window("ab", 5);
+    let result = iscc_lib::sliding_window("ab", 5).unwrap();
     assert_eq!(result, vec!["ab".to_string()]);
 }
 
 #[test]
 fn test_sliding_window_unicode_cjk() {
     // CJK characters are single Unicode code points, width 2
-    let result = iscc_lib::sliding_window("你好世界", 2);
+    let result = iscc_lib::sliding_window("你好世界", 2).unwrap();
     assert_eq!(
         result,
         vec!["你好".to_string(), "好世".to_string(), "世界".to_string()]
@@ -35,7 +35,7 @@ fn test_sliding_window_unicode_cjk() {
 
 #[test]
 fn test_sliding_window_width_2_minimum() {
-    let result = iscc_lib::sliding_window("abcde", 2);
+    let result = iscc_lib::sliding_window("abcde", 2).unwrap();
     assert_eq!(
         result,
         vec![
@@ -50,8 +50,20 @@ fn test_sliding_window_width_2_minimum() {
 #[test]
 fn test_sliding_window_empty_input() {
     // Empty input returns a single empty string element
-    let result = iscc_lib::sliding_window("", 3);
+    let result = iscc_lib::sliding_window("", 3).unwrap();
     assert_eq!(result, vec!["".to_string()]);
+}
+
+#[test]
+fn test_sliding_window_width_too_small_returns_error() {
+    // width < 2 should return Err, not panic
+    let result = iscc_lib::sliding_window("test", 1);
+    assert!(result.is_err(), "expected error for width < 2");
+    let msg = result.unwrap_err().to_string();
+    assert!(
+        msg.contains("width must be 2"),
+        "error should mention width constraint, got: {msg}"
+    );
 }
 
 // ---- alg_simhash tests ----
@@ -277,7 +289,7 @@ fn test_soft_hash_video_v0_consistency_with_gen_video_code() {
 #[test]
 fn test_flat_crate_root_imports() {
     // Verify all 5 algorithm primitives are callable via iscc_lib::<fn>
-    let _ = iscc_lib::sliding_window("test", 2);
+    let _ = iscc_lib::sliding_window("test", 2).unwrap();
     let empty: &[Vec<u8>] = &[];
     let _ = iscc_lib::alg_simhash(empty).unwrap();
     let _ = iscc_lib::alg_minhash_256(&[]);
@@ -289,7 +301,7 @@ fn test_flat_crate_root_imports() {
 #[test]
 fn test_module_path_imports_simhash() {
     // Verify functions are accessible via iscc_lib::simhash::<fn>
-    let _ = iscc_lib::simhash::sliding_window("test", 2);
+    let _ = iscc_lib::simhash::sliding_window("test", 2).unwrap();
     let empty: &[Vec<u8>] = &[];
     let _ = iscc_lib::simhash::alg_simhash(empty).unwrap();
 }

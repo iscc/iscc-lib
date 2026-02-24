@@ -207,10 +207,7 @@ pub fn conformance_selftest() -> bool {
 /// by one character at a time. Throws if width is less than 2.
 #[wasm_bindgen]
 pub fn sliding_window(seq: &str, width: u32) -> Result<Vec<String>, JsError> {
-    if width < 2 {
-        return Err(JsError::new("Sliding window width must be 2 or bigger."));
-    }
-    Ok(iscc_lib::sliding_window(seq, width as usize))
+    iscc_lib::sliding_window(seq, width as usize).map_err(|e| JsError::new(&e.to_string()))
 }
 
 // ── Algorithm primitives ─────────────────────────────────────────────────────

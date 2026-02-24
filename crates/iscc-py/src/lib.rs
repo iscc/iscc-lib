@@ -221,12 +221,7 @@ fn iscc_decompose(iscc_code: &str) -> PyResult<Vec<String>> {
 #[pyfunction]
 #[pyo3(signature = (seq, width))]
 fn sliding_window(seq: &str, width: usize) -> PyResult<Vec<String>> {
-    if width < 2 {
-        return Err(PyValueError::new_err(
-            "Sliding window width must be 2 or bigger.",
-        ));
-    }
-    Ok(iscc_lib::sliding_window(seq, width))
+    iscc_lib::sliding_window(seq, width).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
 /// Compute a SimHash from a sequence of equal-length hash digests.
