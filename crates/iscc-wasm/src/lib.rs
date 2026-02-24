@@ -239,13 +239,17 @@ pub fn alg_minhash_256(features: Vec<u32>) -> Vec<u8> {
 /// returned (empty bytes for empty input). When `utf32` is true, aligns cut
 /// points to 4-byte boundaries. Default `avg_chunk_size` is 1024.
 #[wasm_bindgen]
-pub fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: Option<u32>) -> JsValue {
+pub fn alg_cdc_chunks(
+    data: &[u8],
+    utf32: bool,
+    avg_chunk_size: Option<u32>,
+) -> Result<JsValue, JsError> {
     let avg = avg_chunk_size.unwrap_or(1024);
     let chunks: Vec<Vec<u8>> = iscc_lib::alg_cdc_chunks(data, utf32, avg)
         .iter()
         .map(|c| c.to_vec())
         .collect();
-    serde_wasm_bindgen::to_value(&chunks).unwrap_or(JsValue::NULL)
+    serde_wasm_bindgen::to_value(&chunks).map_err(|e| JsError::new(&e.to_string()))
 }
 
 /// Compute a similarity-preserving hash from video frame signatures.

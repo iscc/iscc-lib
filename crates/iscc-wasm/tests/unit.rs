@@ -213,7 +213,7 @@ fn test_alg_minhash_256_deterministic() {
 #[wasm_bindgen_test]
 fn test_alg_cdc_chunks_concatenation() {
     let data = b"Hello, this is some test data for CDC chunking purposes.";
-    let result_js = iscc_wasm::alg_cdc_chunks(data, false, None);
+    let result_js = iscc_wasm::alg_cdc_chunks(data, false, None).unwrap();
     let chunks: Vec<Vec<u8>> = serde_wasm_bindgen::from_value(result_js).unwrap();
     let concatenated: Vec<u8> = chunks.iter().flatten().copied().collect();
     assert_eq!(
@@ -224,7 +224,7 @@ fn test_alg_cdc_chunks_concatenation() {
 
 #[wasm_bindgen_test]
 fn test_alg_cdc_chunks_empty_input() {
-    let result_js = iscc_wasm::alg_cdc_chunks(&[], false, None);
+    let result_js = iscc_wasm::alg_cdc_chunks(&[], false, None).unwrap();
     let chunks: Vec<Vec<u8>> = serde_wasm_bindgen::from_value(result_js).unwrap();
     assert_eq!(chunks.len(), 1, "empty input should return one chunk");
     assert!(chunks[0].is_empty(), "the single chunk should be empty");
@@ -233,7 +233,7 @@ fn test_alg_cdc_chunks_empty_input() {
 #[wasm_bindgen_test]
 fn test_alg_cdc_chunks_at_least_one_chunk() {
     let data = vec![0u8; 100];
-    let result_js = iscc_wasm::alg_cdc_chunks(&data, false, Some(1024));
+    let result_js = iscc_wasm::alg_cdc_chunks(&data, false, Some(1024)).unwrap();
     let chunks: Vec<Vec<u8>> = serde_wasm_bindgen::from_value(result_js).unwrap();
     assert!(!chunks.is_empty(), "should return at least one chunk");
 }
