@@ -44,9 +44,14 @@ iterations.
     quick fixes. The version skew requires a `napi build` regeneration step (not a code change)
     which the advance agent must run. Gitignored generated files (`index.js`) don't count toward the
     3-file limit since they're build artifacts.
-- After napi cleanup: WASM silent-null is the next single-crate fix (1 file, same pattern as napi
-    clone fix). Then remaining candidates: Java native loader, docs/howto pages, Go bindings. Normal
-    issues should be cleared before starting Go (largest unstarted feature).
+- After napi cleanup: WASM silent-null is the next single-crate fix (2 files: lib.rs + unit.rs).
+    Mechanical: change return type to `Result<JsValue, JsError>`, swap `.unwrap_or(JsValue::NULL)`
+    to `.map_err(...)`, add `.unwrap()` in tests. Every other WASM function already uses this
+    pattern so consistency is the primary motivation.
+- After WASM silent-null: remaining normal-priority candidates are FFI video frame copy, codec
+    header parsing optimization, DataHasher allocation overhead. Low-priority issues can be batched
+    (e.g., WASM stale CLAUDE.md + conformance_selftest gate, or Python __version__ + docstring).
+    Normal issues should be cleared before starting Go (largest unstarted feature).
 
 ## Architecture Decisions
 
