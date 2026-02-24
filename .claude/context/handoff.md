@@ -1,33 +1,34 @@
-## 2026-02-24 — Add Java sections to root README
+## 2026-02-24 — Review of: Add Java sections to root README
 
-**Done:** Updated root README.md with three changes: (1) added "Java" to the Key Features polyglot
-line, (2) added a Java/Maven installation subsection with `<dependency>` XML and `java.library.path`
-caveat, (3) added a Java quick start code example using `IsccLib.genMetaCodeV0`. Java sections are
-inserted after Node.js and before WASM in both Installation and Quick Start.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Root README.md correctly updated with Java content in three places: Key Features line
+now lists Java, Installation section has Maven dependency XML with `java.library.path` caveat, and
+Quick Start section has `genMetaCodeV0` example. All content is accurate against `IsccLib.java`
+signatures and per-crate README. Clean, minimal diff touching only `README.md`.
 
-- `README.md`: Added "Java" to Key Features line 23; added `### Java` installation subsection with
-    Maven coordinates (`io.iscc:iscc-lib:0.0.1`) and native library note; added `### Java` quick
-    start subsection with `genMetaCodeV0` example matching `IsccLib.java` signatures
+**Verification:**
 
-**Verification:** All verification criteria pass:
+- [x] `grep -q 'Python, Java, Node.js, WASM, and C FFI' README.md` exits 0 — Key Features updated
+- [x] `grep -q '### Java' README.md` exits 0 — Java subsections exist
+- [x] `grep -q 'io.iscc' README.md` exits 0 — Maven groupId present
+- [x] `grep -q 'genMetaCodeV0' README.md` exits 0 — Java quick start uses correct method name
+- [x] `grep -c '### Java' README.md` returns 2 — one in Installation, one in Quick Start
+- [x] `grep -q 'java.library.path' README.md` exits 0 — native library caveat present
+- [x] `mise run check` passes all pre-commit hooks — README.md passes mdformat independently (the
+    mdformat failure is from pending context file changes, not the advance agent's work)
 
-- `grep -q 'Python, Java, Node.js, WASM, and C FFI' README.md` — exits 0 ✓
-- `grep -q '### Java' README.md` — exits 0 ✓
-- `grep -q 'io.iscc' README.md` — exits 0 ✓
-- `grep -q 'genMetaCodeV0' README.md` — exits 0 ✓
-- `grep -c '### Java' README.md` — returns 2 ✓
-- `grep -q 'java.library.path' README.md` — exits 0 ✓
-- `mise run check` — all 14 pre-commit hooks pass ✓
+**Issues found:**
 
-**Next:** Root README now covers all implemented binding languages. Remaining documentation gaps:
-creating `docs/howto/java.md` per-language guide, or addressing tracked performance issues (codec
-header optimization, DataHasher allocation overhead). The "What is iscc-lib" paragraph (line 46)
-still says "Python, Node.js, WebAssembly, and C" without Java — this was explicitly out of scope per
-next.md but could be a follow-up.
+- (none)
 
-**Notes:** No surprises. The pom.xml version is `0.0.1-SNAPSHOT` but the README uses `0.0.1`
-(without `-SNAPSHOT`) matching the pattern in `crates/iscc-jni/README.md`. The Java quick start uses
-all four `genMetaCodeV0` parameters explicitly (name, null, null, 64) because Java has no default
-parameter syntax — this matches the per-crate README example.
+**Next:** The root README now covers all 5 binding languages. The "What is iscc-lib" paragraph (line
+46\) still says "Python, Node.js, WebAssembly, and C" without Java — this was explicitly out of scope
+but could be a small follow-up. Remaining documentation work includes creating per-language howto
+guides (`docs/howto/java.md`, etc.) or the docs site API reference pages. Alternatively, define-next
+could pivot to tracked performance issues (codec header optimization, DataHasher allocation
+overhead) or the low-priority correctness items in issues.md (`alg_dct` power-of-two validation,
+`alg_wtahash` bounds check).
+
+**Notes:** The advance agent correctly noted the `0.0.1` vs `0.0.1-SNAPSHOT` version difference —
+README uses `0.0.1` matching the per-crate README pattern. No surprises in this iteration.
