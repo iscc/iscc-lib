@@ -40,7 +40,11 @@ file to all pages. Abbreviations expand on hover throughout the site.
 
 ## Navigation and Structure
 
-Content follows the Diátaxis framework with clear categories in navigation:
+Content follows the Diátaxis framework with clear categories in navigation. Each top-level nav
+section has a Material for MkDocs icon, matching the style of `iscc/iscc-usearch` at
+`usearch.iscc.codes`. Icons are set via the `nav` section in `zensical.toml` (or equivalent config)
+using the `icon` attribute. Query `iscc/iscc-usearch` via deepwiki MCP for exact icon names and
+config format.
 
 - **Landing page** (`index.md`): overview, quick start, supported code types
 - **Tutorials**: getting started guide (installation, first ISCC code generation)
@@ -73,6 +77,7 @@ are included. The landing page quick start and all how-to guides use this patter
 - [ ] Open Graph meta tags are present in built HTML
 - [ ] All code examples use tabbed multi-language format
 - [ ] Navigation has Diátaxis categories (tutorials, howto, explanation, reference)
+- [ ] Each top-level nav section has an icon (matching iscc-usearch style)
 - [ ] Abbreviations expand on hover
 - [ ] `docs/CNAME` contains `lib.iscc.codes`
 - [ ] Docs workflow generates `llms-full.txt` during build
