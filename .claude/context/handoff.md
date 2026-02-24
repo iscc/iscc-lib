@@ -1,37 +1,40 @@
-## 2026-02-24 — Review of: Harden `sliding_window` — return `IsccResult` on `width < 2`
+## 2026-02-24 — Create `iscc-jni` JNI bridge crate scaffold
 
-**Verdict:** PASS
+**Done:** Bootstrapped the `iscc-jni` crate with workspace integration, JNI dependency, and a
+working `conformanceSelftest` JNI bridge function. The error handling pattern (`throw_and_default`)
+is documented in the module docstring with a ready-to-use code template for future gen function
+bindings.
 
-**Summary:** Clean, well-scoped implementation. Changed `sliding_window` from panicking to returning
-`IsccResult<Vec<String>>` on `width < 2`. Used `debug_assert!` for `pub(crate)` variants (correct
-since internal callers always use hardcoded valid widths). All 4 binding crates properly propagate
-the `Result` through their native error conventions. Test updates are correct —
-`#[cfg(debug_assertions)]` gating for `#[should_panic]` tests on `debug_assert!` functions is the
-right approach.
+**Files changed:**
+
+- `crates/iscc-jni/Cargo.toml`: New crate — cdylib, publish=false, depends on iscc-lib + jni
+    (workspace)
+- `crates/iscc-jni/src/lib.rs`: JNI bridge with `conformanceSelftest` extern "system" function,
+    module docstring documenting naming convention, error handling pattern, and binding recipe
+- `Cargo.toml`: Added `"crates/iscc-jni"` to workspace members, added `jni = "0.21"` to workspace
+    dependencies
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` passes — 206 unit + 31 integration + 22 conformance tests
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
-- [x] `cargo test --workspace` passes — all crates compile and tests pass
-- [x] `pytest` passes — 147 Python tests (including `test_sliding_window_width_too_small`)
-- [x] `npm test --prefix crates/iscc-napi` passes — 103 Node.js tests
-- [x] `iscc_lib::sliding_window("test", 1)` returns `Err(IsccError::InvalidInput(_))` — verified in
-    both unit and integration error-case tests
-- [x] `iscc_lib::sliding_window("hello", 3)` returns `Ok(vec!["hel", "ell", "llo"])` — verified in
-    integration tests
+- `cargo check -p iscc-jni` — exits 0 (clean compile)
+- `cargo clippy -p iscc-jni -- -D warnings` — exits 0 (no warnings)
+- `cargo clippy --workspace --all-targets -- -D warnings` — exits 0 (workspace-wide clean)
+- `cargo test -p iscc-lib` — 206 unit + 31 integration + 22 text util tests pass (no regressions)
+- `mise run check` — all 14 pre-commit hooks pass
+- Cargo.toml: `crate-type = ["cdylib"]`, `publish = false` confirmed
+- lib.rs: `extern "system"` function with `#[unsafe(no_mangle)]` confirmed
+- Root Cargo.toml: workspace members includes `"crates/iscc-jni"`, workspace deps includes `jni`
 
-**Issues found:**
+**Next:** Implement the remaining 22 Tier 1 JNI bindings (gen functions, text utilities, codec,
+streaming hashers, algorithm primitives). The `throw_and_default` helper documented in the module
+docstring should be added as a real function when the first gen function binding is implemented — it
+was deferred because Rust's dead_code lint rejects unused functions and no JVM is available in the
+devcontainer for testing.
 
-- (none)
-
-**Next:** The `sliding_window` issue is resolved and removed from issues.md. Remaining work options:
-the two `[normal]` performance issues (codec header parsing `Vec<bool>` elimination, `DataHasher`
-buffer allocation) offer measurable improvement with benchmark validation. The two `[low]`
-robustness issues (`alg_dct` power-of-two enforcement, `alg_wtahash` short-input guard) are
-straightforward hardening of `pub(crate)` functions.
-
-**Notes:** No inner/outer split was needed — unlike `alg_simhash`, no internal code calls the public
-`sliding_window`; internal callers use `sliding_window_strs`/`sliding_window_bytes` directly. The
-`debug_assert!` approach is appropriate for `pub(crate)` functions with hardcoded valid callers. All
-Tier 1 public API functions that take external input now return `Result` instead of panicking.
+**Notes:** The `throw_and_default` error handling helper is documented as a code template in the
+module docstring rather than implemented as a function. This was a deliberate choice: (1) clippy
+with `-D warnings` rejects unused functions, (2) we cannot reference it from tests without a JVM,
+and (3) adding `#[allow(dead_code)]` is prohibited by project rules. The pattern is fully documented
+and ready to be instantiated when the first gen function binding is added. The `jni` crate (v0.21.1)
+compiled as pure Rust without needing a JDK — only runtime JVM loading requires JDK installation.
+Rust 2024 edition requires `#[unsafe(no_mangle)]` (not `#[no_mangle]`), which was applied correctly.
