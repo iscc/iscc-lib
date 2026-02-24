@@ -123,3 +123,7 @@
 {"ts":"2026-02-24T11:10:07.719137+00:00","iteration":4,"role":"update-state","status":"OK","turns":15,"cost_usd":0.476129,"duration_s":172.1}
 {"ts":"2026-02-24T11:13:09.524261+00:00","iteration":4,"role":"define-next","status":"OK","turns":27,"cost_usd":0.870676,"duration_s":181.8}
 {"ts":"2026-02-24T11:16:02.185292+00:00","iteration":4,"role":"advance","status":"OK","turns":26,"cost_usd":1.153421,"duration_s":172.7}
+{"ts":"2026-02-24T11:19:41.680597+00:00","iteration":4,"role":"review","status":"OK","turns":32,"cost_usd":0.934999,"duration_s":219.5}
+{"ts":"2026-02-24T11:27:55.705966+00:00","iteration":1,"role":"update-state","status":"OK","turns":22,"cost_usd":0.689596,"duration_s":191.3}
+{"ts":"2026-02-24T11:30:14.246172+00:00","iteration":1,"role":"define-next","status":"OK","turns":16,"cost_usd":0.562956,"duration_s":138.5}
+{"ts":"2026-02-24T11:33:41.129776+00:00","iteration":1,"role":"advance","status":"OK","turns":33,"cost_usd":0.967982,"duration_s":206.9}

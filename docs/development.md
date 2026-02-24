@@ -193,7 +193,8 @@ iscc-lib/
 │   └── context/                # CID state files
 └── .github/workflows/
     ├── ci.yml                  # Test + lint
-    └── docs.yml                # Documentation deployment
+    ├── docs.yml                # Documentation deployment
+    └── release.yml             # Publish to crates.io, PyPI, npm
 ```
 
 ### Crate Summary
