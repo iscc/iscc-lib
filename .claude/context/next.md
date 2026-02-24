@@ -1,99 +1,135 @@
 # Next Work Package
 
-## Step: Create `iscc-jni` JNI bridge crate scaffold
+## Step: Implement all 22 remaining JNI bridge functions
 
 ## Goal
 
-Bootstrap the JNI bridge crate that will expose all 23 Tier 1 ISCC symbols to Java. This establishes
-the crate skeleton, workspace integration, and the JNI function-mapping pattern by implementing the
-simplest function (`conformance_selftest`) as a working proof-of-concept.
+Complete the JNI bridge crate by implementing the remaining 22 Tier 1 symbols as `extern "system"`
+JNI functions, bringing `iscc-jni` from 1/23 to 23/23 coverage. This unblocks the subsequent Java
+wrapper class, Maven build, and CI steps.
 
 ## Scope
 
-- **Create**: `crates/iscc-jni/Cargo.toml`, `crates/iscc-jni/src/lib.rs`
-- **Modify**: root `Cargo.toml` (add `iscc-jni` to workspace members, add `jni` to workspace
-    dependencies)
-- **Reference**: `crates/iscc-ffi/Cargo.toml` (crate structure pattern),
-    `crates/iscc-ffi/src/lib.rs` (error handling pattern), `notes/02-language-bindings.md` (binding
-    architecture), `crates/iscc-lib/src/lib.rs` (Tier 1 API surface)
+- **Create**: (none)
+- **Modify**: `crates/iscc-jni/src/lib.rs`
+- **Reference**:
+    - `crates/iscc-napi/src/lib.rs` — pattern reference for all 23 symbols (type mappings, error
+        handling, streaming hasher lifecycle)
+    - `crates/iscc-ffi/src/lib.rs` — opaque pointer pattern for streaming hashers
+        (`Box::into_raw`/`Box::from_raw`, finalize-once via `Option<Inner>`)
+    - `crates/iscc-lib/src/lib.rs` — Tier 1 API signatures and types
 
 ## Not In Scope
 
-- Java wrapper classes (`IsccLib.java`, loader class) — these come in a later step
-- Maven/Gradle build configuration — needs Java-side structure first
-- Implementing all 23 Tier 1 symbols — only `conformance_selftest` in this step to establish pattern
-- Devcontainer Dockerfile changes (JDK/Maven) — separate step
-- CI workflow for Java — needs full Java stack first
-- README/docs Java content — needs working bindings first
-- `notes/02-language-bindings.md` Java section — can be added alongside the Java wrapper step
+- Java source tree (`io.iscc.iscc_lib.IsccLib` class, Maven/Gradle build) — separate step
+- Java tests (requires JVM in devcontainer) — separate step
+- CI job for Java — requires Java tests first
+- Native library bundling (`META-INF/native/`) — separate step
+- Returning structured results (all gen functions return `.iscc` string only, matching napi/wasm
+    pattern)
+- README or documentation updates for Java
 
 ## Implementation Notes
 
-**Crate structure** follows the hub-and-spoke model from `notes/02`:
+### Error handling helper
 
-```
-crates/iscc-jni/
-├── Cargo.toml          # cdylib, depends on iscc-lib + jni
-└── src/
-    └── lib.rs          # JNI bridge functions
-```
-
-**Cargo.toml**:
-
-- `crate-type = ["cdylib"]` — produces a shared library loadable by JVM
-- `publish = false` — published via Maven Central JAR, not crates.io
-- Dependencies: `iscc-lib = { path = "../iscc-lib" }` and `jni = { workspace = true }`
-- Use `workspace.package` fields (version, edition, rust-version, authors, license, repository)
-
-**Root Cargo.toml**:
-
-- Add `"crates/iscc-jni"` to workspace members list
-- Add `jni = "0.21"` to `[workspace.dependencies]`
-
-**JNI function naming convention**: JNI requires specific mangled names for native methods. For a
-Java class `io.iscc.iscc_lib.IsccLib` with native method `conformanceSelftest`, the Rust function
-must be named `Java_io_iscc_iscc_1lib_IsccLib_conformanceSelftest` (underscores in package names
-become `_1` in JNI). Use `#[no_mangle]` and `extern "system"` calling convention.
-
-**Pattern to establish** (using `conformance_selftest` as the exemplar):
+Implement `throw_and_default` as a real function (currently documented as a code template):
 
 ```rust
-use jni::JNIEnv;
-use jni::objects::JClass;
-use jni::sys::jboolean;
-
-#[no_mangle]
-pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_conformanceSelftest(
-    _env: JNIEnv,
-    _class: JClass,
-) -> jboolean {
-    let result = iscc_lib::conformance_selftest();
-    result as jboolean
+fn throw_and_default<T: Default>(env: &mut JNIEnv, msg: &str) -> T {
+    let _ = env.throw_new("java/lang/IllegalArgumentException", msg);
+    T::default()
 }
 ```
 
-**Error handling pattern**: For functions that return `IsccResult<T>`, catch the error and throw a
-Java exception via `env.throw_new("java/lang/IllegalArgumentException", &msg)`, then return a
-default value. Document this pattern in a module-level docstring for future implementors. Add a
-helper function (e.g., `throw_and_default`) to centralize this — similar to the C FFI crate's
-`set_last_error` + `result_to_c_string` helpers.
+Use this in all fallible functions (gen\_\*\_v0, iscc_decompose, sliding_window, alg_simhash,
+soft_hash_video_v0, streaming hasher update/finalize).
 
-**Important**: The `jni` crate compiles as pure Rust — no JDK needed at compile time. The advance
-agent can verify compilation with `cargo check -p iscc-jni` and `cargo clippy` without having JDK
-installed. Runtime testing with Java will come in a later step.
+### JNI type mappings
+
+Follow these conversions consistently:
+
+| Rust type                              | JNI parameter                               | Conversion                                              |
+| -------------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
+| `&str`                                 | `JString`                                   | `env.get_string(&input)` → `.into()`                    |
+| `Option<&str>`                         | `JString`                                   | check `.is_null()` before extracting                    |
+| `&[u8]`                                | `jbyteArray`                                | `env.convert_byte_array(input)`                         |
+| `&[i32]`                               | `jintArray`                                 | `env.get_array_length()` + `env.get_int_array_region()` |
+| `&[&str]`                              | `JObjectArray`                              | loop + `get_object_array_element` + `get_string`        |
+| `Vec<Vec<i32>>`                        | `JObjectArray` of `jintArray`               | nested extraction                                       |
+| Return `String` → `jstring`            | `env.new_string(result)` → `.into_raw()`    |                                                         |
+| Return `Vec<String>` → `jobjectArray`  | build `JObjectArray` via `new_object_array` |                                                         |
+| Return `Vec<u8>` → `jbyteArray`        | `env.byte_array_from_slice(&result)`        |                                                         |
+| Return `Vec<Vec<u8>>` → `jobjectArray` | array of `jbyteArray`                       |                                                         |
+
+### Function groups
+
+**9 gen\_\*\_v0 functions** — each takes JNI params, converts, calls `iscc_lib::gen_*_v0`, returns
+`jstring` of the `.iscc` field. Use `throw_and_default` on error, returning
+`JObject::null().into_raw()`.
+
+**4 text utilities** (`text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`) —
+infallible, take `JString`, return `jstring`.
+
+**`sliding_window`** — takes `JString` + `jint`, returns `jobjectArray`. Throws on `width < 2`.
+
+**`alg_simhash`** — takes `jobjectArray` of `jbyteArray`, returns `jbyteArray`. Throws on error.
+
+**`alg_minhash_256`** — takes `jintArray` (u32 features as int), returns `jbyteArray`. Infallible.
+Note: Java has no unsigned int — cast `jint` to `u32` with `as u32`.
+
+**`alg_cdc_chunks`** — takes `jbyteArray` + `jboolean` + `jint`, returns `jobjectArray` of
+`jbyteArray`.
+
+**`soft_hash_video_v0`** — takes `jobjectArray` of `jintArray` + `jint`, returns `jbyteArray`.
+Throws on error.
+
+**`encode_base64`** — takes `jbyteArray`, returns `jstring`.
+
+**`iscc_decompose`** — takes `JString`, returns `jobjectArray` of `jstring`. Throws on error.
+
+### Streaming hashers
+
+Use the opaque-pointer-as-jlong pattern (same as C FFI but with `jlong` instead of raw pointer):
+
+- `dataHasherNew()` → creates `Box<DataHasherWrapper>`, returns `jlong` via
+    `Box::into_raw() as jlong`
+- `dataHasherUpdate(jlong ptr, jbyteArray data)` → casts back to `&mut`, calls `inner.update()`
+- `dataHasherFinalize(jlong ptr, jint bits)` → takes ownership via `Box::from_raw()`, calls
+    `inner.take().finalize()`, returns `jstring`
+- `dataHasherFree(jlong ptr)` → drops via `Box::from_raw()` if non-zero
+
+Same pattern for `InstanceHasher`. Use a wrapper struct with `Option<Inner>` for finalize-once
+semantics (matching the C FFI `FfiDataHasher` pattern).
+
+### JNI naming convention
+
+All functions use the prefix `Java_io_iscc_iscc_1lib_IsccLib_` (the `_1` encodes the underscore in
+`iscc_lib`). Use `#[unsafe(no_mangle)]` per Rust 2024 edition. Use `extern "system"` calling
+convention.
+
+### Import management
+
+Add needed JNI types to the `use` declarations: `JString`, `JObject`, `JObjectArray`, `jstring`,
+`jobjectArray`, `jbyteArray`, `jintArray`, `jint`, `jlong`, etc.
 
 ## Verification
 
-- `cargo check -p iscc-jni` exits 0 (crate compiles)
-- `cargo clippy -p iscc-jni -- -D warnings` exits 0 (no warnings)
-- `cargo clippy --workspace --all-targets -- -D warnings` exits 0 (workspace-wide clean)
-- `crates/iscc-jni/Cargo.toml` contains `crate-type = ["cdylib"]` and `publish = false`
-- `crates/iscc-jni/src/lib.rs` contains `extern "system"` JNI function for `conformance_selftest`
-- Root `Cargo.toml` lists `"crates/iscc-jni"` in workspace members
-- Root `Cargo.toml` has `jni` in `[workspace.dependencies]`
-- Existing tests unaffected: `cargo test -p iscc-lib` still passes all tests
+- `cargo check -p iscc-jni` exits 0
+- `cargo clippy -p iscc-jni -- -D warnings` exits 0
+- `cargo clippy --workspace --all-targets -- -D warnings` exits 0
+- `crates/iscc-jni/src/lib.rs` contains 23 `extern "system"` functions (1 existing + 22 new)
+- All 9 gen function JNI names are present: `genMetaCodeV0`, `genTextCodeV0`, `genImageCodeV0`,
+    `genAudioCodeV0`, `genVideoCodeV0`, `genMixedCodeV0`, `genDataCodeV0`, `genInstanceCodeV0`,
+    `genIsccCodeV0`
+- All 4 text utility JNI names are present: `textClean`, `textRemoveNewlines`, `textTrim`,
+    `textCollapse`
+- Streaming hasher JNI functions are present: `dataHasherNew`, `dataHasherUpdate`,
+    `dataHasherFinalize`, `dataHasherFree`, `instanceHasherNew`, `instanceHasherUpdate`,
+    `instanceHasherFinalize`, `instanceHasherFree`
+- `throw_and_default` helper function exists (not just a doc template)
 
 ## Done When
 
-All verification criteria pass — the `iscc-jni` crate compiles cleanly within the workspace, exports
-a JNI-compatible `conformance_selftest` function, and introduces no regressions.
+All verification criteria pass — `iscc-jni` compiles cleanly with 23 Tier 1 symbols as JNI bridge
+functions, workspace clippy is clean, and `throw_and_default` is a real function.
