@@ -1,15 +1,16 @@
-<!-- assessed-at: 0983881a71d71a28028a21826e0079b831fabc28 -->
+<!-- assessed-at: 0a10f73ed5f974db54fa50aca9751df48237ad41 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: JNI bridge 23/23 complete — Java wrapper, build config, and tests pending
+## Phase: Java wrapper + Maven in place — tests, loader, CI job, Go bindings, and per-crate READMEs pending
 
-The `iscc-jni` crate now exposes all 23 Tier 1 symbols via 29 `extern "system"` JNI functions
-(streaming hashers expand to 4 JNI functions each). The Rust side of the Java bindings is complete.
-The Java side — wrapper class, Maven/Gradle build, native library bundling, loader, devcontainer
-JDK, CI job, and tests — does not exist yet. Both CI and Docs workflows are green on the latest run.
+The Java-side of the JNI bridge now has an `IsccLib.java` wrapper class (331 lines, 29 native
+methods) and a `pom.xml` Maven build config. The devcontainer includes JDK 17 and Maven. Target.md
+was extended with a Go bindings spec (WASM/wazero) and a per-crate README section — neither exists
+yet. CI is green on all 5 existing jobs. Still missing: Java conformance tests, native library
+loader, Java CI job, Go bindings, and per-crate READMEs.
 
 ## Rust Core Crate
 
@@ -93,25 +94,40 @@ JDK, CI job, and tests — does not exist yet. Both CI and Docs workflows are gr
 
 ## Java Bindings
 
-**Status**: partially met (JNI bridge complete; Java-side absent)
+**Status**: partially met (JNI bridge + Java wrapper + Maven config complete; tests/loader/CI
+absent)
 
 - `crates/iscc-jni/` crate: `Cargo.toml` with `crate-type = ["cdylib"]`, `publish = false`,
     `iscc-lib` and `jni = "0.21"` workspace dependencies; workspace member in root `Cargo.toml`
-- `crates/iscc-jni/src/lib.rs` (763 lines): **all 23 Tier 1 symbols** implemented as 29
-    `extern "system"` JNI functions (streaming hashers expand to 4 JNI functions each: new, update,
-    finalize, free)
-- `throw_and_default` helper implemented and used consistently (51 call sites)
-- Helper functions: `extract_int_array`, `extract_byte_array`, `extract_int_array_2d`,
-    `extract_string_array`, `build_string_array` keep the bridge DRY
-- `#[unsafe(no_mangle)]` correctly used per Rust 2024 edition requirements
+- `crates/iscc-jni/src/lib.rs` (763 lines): all 23 Tier 1 symbols implemented as 29
+    `extern "system"` JNI functions (streaming hashers expand to 4 JNI functions each)
+- `throw_and_default` helper implemented and used consistently at 51 call sites
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (331 lines): 29 `native` method
+    declarations matching all Rust JNI bridge function signatures, Javadoc coverage, static
+    `System.loadLibrary("iscc_jni")` initializer, private constructor
+- `crates/iscc-jni/java/pom.xml`: Maven build config, JDK 17 target, JUnit 5 test dependency
+- `.devcontainer/Dockerfile`: `openjdk-17-jdk-headless` and `maven` added
+- `mvn compile -f crates/iscc-jni/java/pom.xml` exits 0 (verified by review agent)
 - `cargo clippy -p iscc-jni -- -D warnings` passes (CI-verified at HEAD)
-- Missing: Java source tree (`io.iscc.iscc_lib.IsccLib` class with native method declarations)
-- Missing: Maven or Gradle build configuration
-- Missing: platform-specific native library bundling (`META-INF/native/`)
-- Missing: runtime native library loader class
-- Missing: devcontainer JDK 17+ and Maven/Gradle
-- Missing: Java CI job in `ci.yml`
-- Missing: Java tests
+- Missing: native library loader class (extracts platform `.so`/`.dll`/`.dylib` from
+    `META-INF/native/` to temp dir at runtime)
+- Missing: platform-specific native library bundling inside JAR
+- Missing: Java conformance tests (`src/test/java/io/iscc/iscc_lib/IsccLibTest.java`)
+- Missing: Java CI job in `.github/workflows/ci.yml`
+- Missing: README Java/Maven installation section and quick start
+- Missing: `docs/howto/java.md`
+- Missing: Maven Central publishing configuration
+
+## Go Bindings
+
+**Status**: not started
+
+- No `packages/go/` directory exists
+- No WASM WASI target built for Go consumption
+- Target spec calls for WASM/wazero approach (pure Go, no cgo), Go module under `packages/go/`
+- Requires: `wasm32-wasip1` build of `iscc-ffi` with `iscc_alloc`/`iscc_dealloc` helpers, pre-built
+    `.wasm` embedded via `//go:embed`, idiomatic Go wrapper with `error` returns and `io.Reader`
+    support, Go conformance tests, CI job, README and docs pages
 
 ## README
 
@@ -125,11 +141,24 @@ JDK, CI job, and tests — does not exist yet. Both CI and Docs workflows are gr
 - ✅ Installation: Rust, Python, Node.js, WASM sections present
 - ✅ Quick Start: Rust, Python, Node.js, WASM examples
 - ✅ Implementors Guide, Documentation link, Contributing, Apache-2.0 license, Maintainers
-- ❌ **Key Features line reads** "Polyglot: Rust core with bindings for Python, Node.js, WASM, and C
-    FFI" — Java is missing
+- ❌ **Key Features** line still reads "Python, Node.js, WASM, and C FFI" — Java and Go missing
 - ❌ **Java/Maven installation section** not present
 - ❌ **Java quick start code example** not present
-- ❌ Maven Central badge not present
+- ❌ **Go installation section** not present
+- ❌ **Go quick start code example** not present
+- ❌ Maven Central and Go badges not present
+
+## Per-Crate READMEs
+
+**Status**: not started
+
+- Target requires a `README.md` in every publishable crate directory (`crates/iscc-lib`,
+    `crates/iscc-py`, `crates/iscc-napi`, `crates/iscc-wasm`, `crates/iscc-ffi`, `crates/iscc-jni`,
+    `packages/go`)
+- No per-crate README files exist in any crate directory (only the root `README.md` exists)
+- Verified: `find crates/ -name "README.md"` returns no results
+- `Cargo.toml` `readme` field and `pyproject.toml` `readme` field not yet pointing to crate-local
+    READMEs
 
 ## Documentation
 
@@ -143,7 +172,7 @@ JDK, CI job, and tests — does not exist yet. Both CI and Docs workflows are gr
     Development
 - All 11 pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22354707416](https://github.com/iscc/iscc-lib/actions/runs/22354707416))
+    [Run 22355221094](https://github.com/iscc/iscc-lib/actions/runs/22355221094))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
@@ -152,9 +181,9 @@ JDK, CI job, and tests — does not exist yet. Both CI and Docs workflows are gr
 - ✅ `docs/CNAME` contains `lib.iscc.codes`
 - ✅ `docs/includes/abbreviations.md` with 19 ISCC-specific abbreviations
 - Missing: `howto/java.md` how-to guide for Java
-- Missing: Java API reference page
-- Missing: Java code examples in existing tabbed code blocks (target requires Python, Rust, Java,
-    Node.js, WASM tabs)
+- Missing: `howto/go.md` how-to guide for Go
+- Missing: Java and Go code examples in existing tabbed code blocks (target requires Python, Rust,
+    Java, Go, Node.js, WASM tabs)
 
 ## Benchmarks
 
@@ -175,30 +204,29 @@ JDK, CI job, and tests — does not exist yet. Both CI and Docs workflows are gr
 - `ci.yml` covers all 5 existing binding targets: Rust (fmt, clippy, test), Python (ruff, pytest),
     Node.js (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
 - Latest CI run: **PASSING** —
-    [Run 22354707450](https://github.com/iscc/iscc-lib/actions/runs/22354707450) — all 5 jobs
+    [Run 22355221089](https://github.com/iscc/iscc-lib/actions/runs/22355221089) — all 5 jobs
     success (Rust, Python, Node.js, WASM, C FFI)
 - Latest Docs run: **PASSING** —
-    [Run 22354707416](https://github.com/iscc/iscc-lib/actions/runs/22354707416) — build + deploy
+    [Run 22355221094](https://github.com/iscc/iscc-lib/actions/runs/22355221094) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
+- Missing: Java CI job (blocked on conformance tests existing)
+- Missing: Go CI job (Go bindings not started)
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
 - Missing: npm publishing pipeline not fully wired
 - Missing: version sync automation across workspace not verified as release-ready
-- Missing: Java CI job (not applicable until Java wrapper class and tests exist)
 
 ## Next Milestone
 
-CI is green. The JNI bridge in `crates/iscc-jni/src/lib.rs` is fully complete (23/23 Tier 1 symbols
-via 29 `extern "system"` functions). The next goal is to create the Java-side of the bindings:
+CI is green. Java wrapper class and Maven pom.xml are in place. The most impactful next step is Java
+conformance tests — they are what unlocks the Java CI job and validates the entire JNI bridge
+end-to-end:
 
-1. Create `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class with
-    `native` method declarations matching all 29 JNI signatures, a static `System.loadLibrary()`
-    block, and idiomatic Java API
-2. Create a native library loader class (`NativeLoader.java`) that extracts the platform-specific
-    `.so`/`.dll`/`.dylib` from `META-INF/native/` to a temp directory and loads it
-3. Add Maven `pom.xml` (or `build.gradle`) in `crates/iscc-jni/java/` with build and test config
-4. Add conformance and smoke tests in Java (`src/test/java/`)
-5. Add JDK 17+ to `.devcontainer/Dockerfile` and Maven/Gradle to mise.toml
-6. Add Java CI job to `.github/workflows/ci.yml`
-7. Update README with Java/Maven installation section and quick start example
-8. Add `howto/java.md` documentation page
+1. Create `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — JUnit 5 test
+    class that builds the Rust cdylib, sets `java.library.path`, and runs conformance vectors from
+    `data.json` for all `gen*` functions
+2. Add Surefire plugin to `pom.xml` for test execution (`mvn test`)
+3. Add Java CI job to `.github/workflows/ci.yml` (`cargo build -p iscc-jni`, `mvn test`)
+4. Update README with Java/Maven installation section and quick start example
+5. Add `docs/howto/java.md` documentation page
+6. Create per-crate `README.md` files (target requirement added in latest commits)
