@@ -217,3 +217,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     because zensical resolves `main.html` to the override first, creating a cycle. Also, `page.meta`
     can be `None` on pages without YAML front matter — use `{% if page.meta and   page.meta.X %}`
     guards instead of `page.meta.X or fallback` chains
+- API hardening pattern for Tier 1 functions: split into validated `pub fn foo() -> IsccResult<T>`
+    and unchecked `pub(crate) fn foo_inner() -> T`. Internal callers use `_inner` to skip redundant
+    validation. Binding crates use `map_err` to convert `IsccError` to their native error type
+    (PyValueError, napi::Error, JsError, FFI last_error). This avoids cascading return-type changes
+    to internal helpers

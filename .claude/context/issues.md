@@ -64,18 +64,6 @@ action that requires review regardless of source:
 
 <!-- Add issues below this line -->
 
-## [normal] `alg_simhash` panics on mismatched digest sizes
-
-In `crates/iscc-lib/src/simhash.rs:13-31`, `alg_simhash` uses the first digest's length
-(`hash_digests[0].as_ref().len()`) for iteration bounds without validating that all digests have the
-same length. If a later digest is shorter, line 27 (`bytes[byte_idx]`) panics with an out-of-bounds
-index. This is a Tier 1 public API (`pub fn alg_simhash`).
-
-Fix: validate all digests have equal length, or use each digest's own length with min-clamping.
-Return `IsccError` (requires changing the return type to `IsccResult<Vec<u8>>`).
-
-**Source:** [human]
-
 ## [normal] `sliding_window` panics on `width < 2` via `assert!`
 
 In `crates/iscc-lib/src/simhash.rs:53`, `sliding_window` uses `assert!(width >= 2, ...)` which

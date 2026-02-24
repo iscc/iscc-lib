@@ -1,45 +1,33 @@
-## 2026-02-24 — Harden alg_simhash with length validation
+## 2026-02-24 — Review of: Harden `alg_simhash` — return `IsccResult` on mismatched digest sizes
 
-**Done:** Split `alg_simhash` into a validated public API (`alg_simhash` → `IsccResult<Vec<u8>>`)
-and an unchecked internal variant (`alg_simhash_inner`). The public function validates equal-length
-digests before delegating. All 7 internal call sites in `lib.rs` switched to `alg_simhash_inner`.
-All 4 binding crates updated to propagate the `Result` through their error conventions
-(PyValueError, napi::Error, JsError, FFI null+last_error).
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, well-scoped implementation. Split `alg_simhash` into a validated public API and
+an unchecked `pub(crate)` inner variant. All 7 internal call sites use the inner variant to skip
+redundant validation. All 4 binding crates properly propagate the `Result` through their respective
+error conventions. Two new error-case tests added at both unit and integration levels.
 
-- `crates/iscc-lib/src/simhash.rs`: Added `alg_simhash` wrapper returning `IsccResult<Vec<u8>>` with
-    digest-length validation; renamed original to `pub(crate) alg_simhash_inner`
-- `crates/iscc-lib/src/lib.rs`: Changed 7 internal call sites (`meta_name_simhash`,
-    `soft_hash_meta_v0`, `soft_hash_meta_v0_with_bytes`, `soft_hash_audio_v0` ×4,
-    `soft_hash_codes_v0`) from `alg_simhash` to `alg_simhash_inner`
-- `crates/iscc-py/src/lib.rs`: Changed `alg_simhash` binding to return `PyResult<Vec<u8>>`, mapping
-    errors to `PyValueError`
-- `crates/iscc-napi/src/lib.rs`: Changed `alg_simhash` binding to return `napi::Result<Buffer>`,
-    mapping errors via `napi::Error::from_reason`
-- `crates/iscc-wasm/src/lib.rs`: Changed `alg_simhash` binding to propagate `Result` via `JsError`
-- `crates/iscc-ffi/src/lib.rs`: Changed `iscc_alg_simhash` to match on `Result`, setting last_error
-    on `Err`
-- `crates/iscc-lib/tests/test_algorithm_primitives.rs`: Updated 6 existing tests to `.unwrap()` the
-    Result; added 2 new error-case tests (`mismatched_lengths_returns_error`,
-    `mismatched_three_digests`)
+**Verification:**
 
-**Verification:** All quality gates pass:
+- [x] `cargo test -p iscc-lib` passes — 206 tests (including new error-case tests)
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- [x] `cargo test --workspace` passes — all crates compile and tests pass
+- [x] `pytest` passes — 147 Python tests
+- [x] `npm test --prefix crates/iscc-napi` passes — 103 Node.js tests
+- [x] `alg_simhash` with `vec![vec![1u8, 2], vec![1u8, 2, 3]]` returns `Err` — confirmed by both
+    unit and integration tests
+- [x] `mise run check` — all 14 pre-commit hooks pass
 
-- 206 iscc-lib unit tests pass (including new `test_alg_simhash_mismatched_lengths_returns_error`)
-- 30 integration tests pass (including 2 new mismatched-length tests)
-- 62 iscc-ffi tests pass
-- 147 Python tests pass
-- 103 Node.js tests pass
-- `mise run check` (all pre-commit hooks) clean
+**Issues found:**
 
-**Next:** The next candidate from the original plan is hardening `soft_hash_video_v0` (validate
-frame_sigs non-empty, validate elements have ≥380 features) or hardening `soft_hash_codes_v0`
-(validate code count ≥2). Alternatively, could tackle `alg_minhash_256` hardening or
-`alg_cdc_chunks` parameter validation.
+- (none)
 
-**Notes:** The work package listed 6 files (excluding tests), which exceeds the general 3-file
-guideline, but each binding change was a true 1-line change as predicted by the define-next agent.
-No shortcuts taken, no technical debt introduced. The inner/outer split pattern is clean and
-idiomatic — internal callers skip validation (they construct digests themselves), while external API
-callers get safety.
+**Next:** Continue with the remaining robustness issues from issues.md. The `sliding_window` panic
+on `width < 2` is the next [normal] priority. Then the [low] issues (`alg_dct` power-of-two
+enforcement, `alg_wtahash` short-input guard). Alternatively, the [normal] performance issues (codec
+header parsing, DataHasher buffer allocation) could be tackled if the team prefers optimization over
+hardening.
+
+**Notes:** The inner/outer split pattern (`alg_simhash` / `alg_simhash_inner`) is established and
+can be reused for other hardening work (e.g., `sliding_window`). The `alg_simhash` issue has been
+resolved and removed from issues.md.
