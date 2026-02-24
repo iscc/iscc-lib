@@ -1,30 +1,38 @@
-## 2026-02-24 — Review of: Add Java CI job
+## 2026-02-24 — Create per-crate READMEs for iscc-lib, iscc-py, and iscc-napi
 
-**Verdict:** PASS
+**Done:** Created three registry-facing README.md files for the primary publishable crates
+(crates.io, PyPI, npm) with all required sections. Updated `crates/iscc-lib/Cargo.toml` to point
+`readme` to the local `README.md` and added `readme = "README.md"` to
+`crates/iscc-py/pyproject.toml`.
 
-**Summary:** Clean, minimal addition of a `java` CI job to `.github/workflows/ci.yml`. The 15-line
-job follows the exact same pattern as the existing 5 CI jobs (checkout, Rust toolchain, Rust cache)
-plus `actions/setup-java@v4` with Temurin JDK 17. All verification criteria pass — build, tests,
-YAML validation, clippy, and pre-commit hooks.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-lib/README.md`: Created with Rust-specific content — badges (CI, crate, license),
+    experimental notice, ISCC explanation, `cargo add` installation, Rust quick start example, API
+    overview table with all 9 gen functions plus utilities/codec/streaming
+- `crates/iscc-py/README.md`: Created with Python-specific content — badges (CI, PyPI, license),
+    experimental notice, `pip install` installation, Python quick start with dict-style access,
+    notes on BinaryIO support for streaming functions
+- `crates/iscc-napi/README.md`: Created with Node.js-specific content — badges (CI, npm, license),
+    package name `@iscc/lib`, `npm install` installation, quick start showing string return type
+    (napi bindings return strings directly, not objects), note about Buffer inputs
+- `crates/iscc-lib/Cargo.toml`: Changed `readme` from `"../../README.md"` to `"README.md"`
+- `crates/iscc-py/pyproject.toml`: Added `readme = "README.md"` under `[project]`
 
-- [x] `cargo build -p iscc-jni` exits 0 — native library built successfully
-- [x] `mvn test -f crates/iscc-jni/java/pom.xml` passes all 46 conformance tests (0 failures, BUILD
-    SUCCESS)
-- [x] The new `java` job appears in `.github/workflows/ci.yml` with correct structure (6 steps)
-- [x] YAML is valid (`uv run python -c "import yaml; yaml.safe_load(...)"` exits 0)
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` remains clean
-- [x] `mise run check` — all 14 pre-commit hooks pass
+**Verification:** All checks pass:
 
-**Issues found:**
+- All three README files exist (verified with `test -f`)
+- Each README has 6 H2 sections (What is ISCC, Installation, Quick Start, API Overview, Links,
+    License)
+- `Cargo.toml` and `pyproject.toml` both contain `readme = "README.md"`
+- `mise run check` passes all 14 pre-commit hooks
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean
 
-- (none)
+**Next:** Create per-crate READMEs for batch 2 (iscc-wasm, iscc-ffi, iscc-jni), address performance
+issues from issues.md (DataHasher buffer allocation, codec header parsing), or start Go bindings.
 
-**Next:** Address performance issues from issues.md (DataHasher buffer allocation [normal], codec
-header parsing [normal]), the native library loader class for JAR distribution, per-crate READMEs,
-or Go bindings.
-
-**Notes:** All 6 binding targets now have CI jobs (Rust, Python, Node.js, WASM, C FFI, Java). The
-Java CI job is the last binding target to get CI coverage. Go bindings are not yet started so no Go
-CI job is needed yet.
+**Notes:** The napi Node.js quick start correctly reflects that `gen_meta_code_v0` returns a string
+directly (not an object), matching the actual napi binding implementation which uses
+`.map(|r| r.iscc)`. All three READMEs use consistent section ordering and formatting. No
+`package.json` change was needed for npm (auto-detects README.md). Each README is concise (65-80
+lines) and tailored to its registry audience.
