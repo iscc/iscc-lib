@@ -217,6 +217,11 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     because zensical resolves `main.html` to the override first, creating a cycle. Also, `page.meta`
     can be `None` on pages without YAML front matter — use `{% if page.meta and   page.meta.X %}`
     guards instead of `page.meta.X or fallback` chains
+- JNI crate pattern: `cdylib` only (no `staticlib` — JVM loads shared libs), `publish = false`
+    (published via Maven, not crates.io), `extern "system"` calling convention. Rust 2024 edition
+    requires `#[unsafe(no_mangle)]` instead of `#[no_mangle]`. JNI function names encode package
+    underscores as `_1` (e.g., `iscc_lib` → `iscc_1lib`). The `jni` crate v0.21 compiles as pure
+    Rust — no JDK needed at build time
 - API hardening pattern for Tier 1 functions: split into validated `pub fn foo() -> IsccResult<T>`
     and unchecked `pub(crate) fn foo_inner() -> T`. Internal callers use `_inner` to skip redundant
     validation. Binding crates use `map_err` to convert `IsccError` to their native error type
