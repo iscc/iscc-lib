@@ -1,16 +1,16 @@
-<!-- assessed-at: a0acb3aa55a7a9951841dda0ac794b9a6d40db39 -->
+<!-- assessed-at: 58183aa52315e09a9f65cb0bf6d73b8548932e24 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Rust how-to guide complete — nav icons remain
+## Phase: Documentation complete — robustness issues remain
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
-Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration added
-`docs/howto/rust.md` (352 lines) and wired it as the first entry in the How-to Guides nav section.
-CI is green. One documentation gap remains: top-level nav sections have no Material for MkDocs
-`icon` attributes.
+Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). All 11 documentation pages now
+have `icon: lucide/...` and `description:` front matter (page-level, matching iscc-usearch pattern),
+completing the Documentation target. CI is green across all 5 jobs. Remaining work is robustness
+fixes for two [normal] public API panic issues and the partially-met Benchmarks/CI-CD sections.
 
 ## Rust Core Crate
 
@@ -113,7 +113,7 @@ CI is green. One documentation gap remains: top-level nav sections have no Mater
 
 ## Documentation
 
-**Status**: partially met
+**Status**: met
 
 - 11 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
     `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `howto/rust.md`,
@@ -121,11 +121,12 @@ CI is green. One documentation gap remains: top-level nav sections have no Mater
 - Navigation in `zensical.toml` has: Tutorials (Getting Started), How-to Guides (Rust, Python,
     Node.js, WebAssembly), Explanation (Architecture), Reference (Rust API, Python API), Benchmarks,
     Development
-- `docs/howto/rust.md` added (352 lines): covers Installation, Code generation for all 9 `gen_*_v0`
-    functions, Structured results table, Streaming (DataHasher/InstanceHasher), Text utilities
-    (text_clean, text_collapse, text_remove_newlines, text_trim), Algorithm primitives, Conformance
-    testing, Error handling
-- Site builds and deploys via GitHub Pages (Docs CI: PASSING at HEAD)
+- All 11 pages have `icon: lucide/...` and `description:` YAML front matter (page-level, matching
+    iscc-usearch pattern); icon assignments: house (index), rocket (getting-started), cog (rust
+    howto), terminal (python howto), hexagon (nodejs howto), globe (wasm howto), blocks
+    (architecture), book-open (rust-api, api), gauge (benchmarks), git-pull-request (development)
+- Site builds and deploys via GitHub Pages (Docs CI: PASSING —
+    [Run 22351784303](https://github.com/iscc/iscc-lib/actions/runs/22351784303))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
@@ -136,11 +137,7 @@ CI is green. One documentation gap remains: top-level nav sections have no Mater
     auto-appended to all pages
 - ✅ `docs/tutorials/getting-started.md` (154 lines): covers installation, conformance self-test,
     Meta-Code, Text-Code, Instance-Code, streaming, next steps
-- ✅ Rust how-to guide complete and wired as first How-to Guides nav entry
-- **Missing**: Nav icons — `zensical.toml` top-level nav sections (`Tutorials`, `How-to Guides`,
-    `Explanation`, `Reference`, `Benchmarks`, `Development`) have no `icon` attribute; the docs spec
-    requires "Each top-level nav section has a Material for MkDocs icon, matching the style of
-    iscc/iscc-usearch at usearch.iscc.codes"
+- ✅ All 4 language how-to guides complete (Rust, Python, Node.js, WASM)
 
 ## Benchmarks
 
@@ -161,9 +158,10 @@ CI is green. One documentation gap remains: top-level nav sections have no Mater
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
 - Latest CI run: **PASSING** —
-    [Run 22351423734](https://github.com/iscc/iscc-lib/actions/runs/22351423734) — all jobs success
+    [Run 22351784323](https://github.com/iscc/iscc-lib/actions/runs/22351784323) — all 5 jobs
+    success (Rust, Python, Node.js, WASM, C FFI)
 - Latest Docs run: **PASSING** —
-    [Run 22351423738](https://github.com/iscc/iscc-lib/actions/runs/22351423738) — build + deploy
+    [Run 22351784303](https://github.com/iscc/iscc-lib/actions/runs/22351784303) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
@@ -172,9 +170,14 @@ CI is green. One documentation gap remains: top-level nav sections have no Mater
 
 ## Next Milestone
 
-CI is green; all commits are pushed. One documentation gap remains:
+CI is green; documentation target is now fully met. Focus on the two [normal] public API robustness
+issues tracked in `issues.md`:
 
-1. **Nav icons** — add Material for MkDocs icon attributes to each top-level nav section in
-    `zensical.toml` (`Tutorials`, `How-to Guides`, `Explanation`, `Reference`, `Benchmarks`,
-    `Development`); query `iscc/iscc-usearch` via deepwiki MCP for exact icon names and config
-    format used by that reference site
+1. **`alg_simhash` panics on mismatched digest sizes** — Tier 1 public API; fix by validating all
+    digest lengths are equal and returning `IsccError` (requires changing return type to
+    `IsccResult<Vec<u8>>`)
+2. **`sliding_window` panics on `width < 2`** — Tier 1 public API bound to all languages; fix by
+    returning `IsccResult<Vec<String>>` for the public function (DoS vector for untrusted input)
+
+These two correctness hardening tasks should be addressed before performance optimizations
+(`DataHasher::update` buffer allocation, codec `bytes_to_bits` allocation).
