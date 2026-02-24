@@ -13,9 +13,10 @@ iterations.
     swap language-specific setup action and build/test commands.
 - After CI job: the next logical Java steps are native library loader (for JAR distribution), then
     README/docs updates. Go bindings are a separate track that can start in parallel.
-- Per-crate READMEs: batch into groups of 3 to stay within scope limits. Batch 1 = iscc-lib,
-    iscc-py, iscc-napi (primary publishable crates). Batch 2 = iscc-wasm, iscc-ffi, iscc-jni
-    (secondary). Batch 3 = packages/go (after Go bindings exist).
+- Per-crate READMEs: batch into groups of 2-3 to stay within scope limits. Batch 1 = iscc-lib,
+    iscc-py, iscc-napi (primary publishable crates) — done. Batch 2 = iscc-wasm, iscc-jni (two
+    remaining publishable crates). iscc-ffi is not published to any registry, so its README is lower
+    priority. Batch 3 = packages/go (after Go bindings exist).
 - README files are "create" operations (greenfield), not "modify" — they're less risky than code
     changes. Manifest updates are trivial one-liners. Combined, 3 creates + 2 modifies is a
     reasonable single step for documentation work.
@@ -35,12 +36,27 @@ iterations.
 
 - napi-rs `gen_*_v0` functions return `String` (not structured objects) — Node.js quick start
     examples must show string return, not `result.iscc` pattern.
+
 - Python bindings return `dict` (via PyO3 `PyDict`) — quick start uses `result['iscc']`.
+
 - Rust core returns typed `*CodeResult` structs with `.iscc` field.
+
 - `crates/iscc-lib/Cargo.toml` currently has `readme = "../../README.md"` — must change to
     `"README.md"` when per-crate README is created.
+
 - `crates/iscc-py/pyproject.toml` has no `readme` field — needs `readme = "README.md"` added.
+
 - npm auto-detects `README.md` in the package directory — no `package.json` change needed.
+
+- WASM binding (`iscc-wasm`) also returns strings from gen functions (same as napi-rs). It publishes
+    to npm as `@iscc/wasm` via wasm-pack, not to crates.io (Cargo.toml has `publish = false`).
+
+- JNI binding (`iscc-jni`) publishes to Maven Central as `io.iscc:iscc-lib`, not crates.io
+    (Cargo.toml has `publish = false`). Java method names use camelCase (e.g., `genMetaCodeV0`).
+
+- Batch 1 READMEs landed at 70-75 lines each — slightly under the originally suggested 80-120 range
+    but the review agent confirmed they were "complete and well-structured." Target 70-80 lines for
+    batch 2.
 
 ## CI Workflow Patterns
 

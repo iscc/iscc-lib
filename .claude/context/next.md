@@ -1,103 +1,96 @@
 # Next Work Package
 
-## Step: Create per-crate READMEs for iscc-lib, iscc-py, and iscc-napi
+## Step: Create per-crate READMEs (batch 2: iscc-wasm, iscc-jni)
 
 ## Goal
 
-Create registry-facing README.md files for the three primary publishable crates so that developers
-on crates.io, PyPI, and npm see complete, standalone documentation without needing to visit the
-GitHub repository.
+Create registry-facing README.md files for the two remaining publishable crates (`iscc-wasm` for npm
+as `@iscc/wasm`, `iscc-jni` for Maven Central as `io.iscc:iscc-lib`). This completes per-crate
+README coverage for all binding crates that publish to a package registry.
 
 ## Scope
 
-- **Create**: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`, `crates/iscc-napi/README.md`
-- **Modify**: `crates/iscc-lib/Cargo.toml` (change `readme` from `"../../README.md"` to
-    `"README.md"`), `crates/iscc-py/pyproject.toml` (add `readme = "README.md"` under `[project]`)
-- **Reference**: `README.md` (root — reuse "What is ISCC" text, quick start examples, MainTypes
-    table), `.claude/context/target.md` § Per-Crate READMEs (required sections),
-    `crates/iscc-napi/package.json` (npm auto-detects README.md, no change needed)
+- **Create**: `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`
+- **Modify**: (none — iscc-wasm has `publish = false` in Cargo.toml and publishes via npm/wasm-pack,
+    so no Cargo.toml readme field needed; iscc-jni publishes via Maven, not crates.io)
+- **Reference**:
+    - `crates/iscc-lib/README.md` — batch 1 template (70 lines, 6 H2 sections)
+    - `crates/iscc-napi/README.md` — batch 1 JS-ecosystem template
+    - `crates/iscc-py/README.md` — batch 1 Python template (for streaming note pattern)
+    - `crates/iscc-wasm/src/lib.rs` — WASM binding signatures
+    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java API surface
 
 ## Not In Scope
 
-- READMEs for iscc-wasm, iscc-ffi, iscc-jni, or packages/go — those are batch 2
-- Root README updates (Java/Go sections) — separate step
-- Documentation site changes (howto pages) — separate step
-- Publishing configuration or CI changes
-- Performance optimizations from issues.md
+- `crates/iscc-ffi/README.md` — iscc-ffi is not published to any registry (target spec says "not
+    published separately"); lower priority, tackle only if all other README work is done
+- Wiring `readme` fields in `Cargo.toml` — both crates have `publish = false` (they publish through
+    npm and Maven respectively, not crates.io)
+- Updating the root `README.md` with Java/Go sections — separate step
+- Creating `docs/howto/java.md` — separate step
+- Java native loader class — separate step
+- Go bindings — not started yet, separate track
 
 ## Implementation Notes
 
-Each README follows the template from target.md § Per-Crate READMEs. Required sections:
+Follow the exact template established by batch 1 (see `crates/iscc-lib/README.md` as the canonical
+reference):
 
-1. **Package name + tagline** — one-line description. Use the package's registry name (e.g.,
-    `iscc-lib` for crates.io, `iscc-lib` for PyPI, `@iscc/lib` for npm).
+**Required H2 sections (6 total):** What is ISCC, Installation, Quick Start, API Overview, Links,
+License.
 
-2. **Badges** — registry version badge, CI status badge, license badge. Badge URLs:
+**iscc-wasm README specifics:**
 
-    - CI: `https://github.com/iscc/iscc-lib/actions/workflows/ci.yml/badge.svg`
-    - Crate: `https://img.shields.io/crates/v/iscc-lib.svg`
-    - PyPI: `https://img.shields.io/pypi/v/iscc-lib.svg`
-    - npm: `https://img.shields.io/npm/v/@iscc/lib.svg`
-    - License: `https://img.shields.io/badge/License-Apache_2.0-blue.svg`
+- Title: `@iscc/wasm`
+- Badges: CI, npm (`@iscc/wasm`), License
+- npm badge URL: `https://img.shields.io/npm/v/@iscc/wasm.svg`
+- Experimental notice: same text as batch 1
+- Tagline: mention browser-compatible WASM, built with Rust and wasm-bindgen
+- Installation: `npm install @iscc/wasm`
+- Quick start: ESM import pattern for WASM (not CommonJS `require()` — WASM typically uses async
+    init). Show `gen_meta_code_v0` usage. Check `crates/iscc-wasm/src/lib.rs` for the exact export
+    names
+- Note that all code generators return ISCC strings directly (same pattern as iscc-napi)
+- Note that both browser and Node.js targets are supported
 
-3. **Experimental notice** — same text as root README (v0.0.x, APIs may change)
+**iscc-jni README specifics:**
 
-4. **What is ISCC** — reuse the 2-sentence version from root README (the ISCC is a
-    similarity-preserving fingerprint…)
+- Title: `iscc-lib` (Java)
+- Badges: CI, License (no Maven Central badge yet — package not yet published)
+- Experimental notice: same text as batch 1
+- Tagline: mention Java/JVM bindings via JNI, built with Rust
+- Installation: Maven `<dependency>` XML snippet with `io.iscc` groupId, `iscc-lib` artifactId,
+    version `0.0.1`
+- Quick start: Java code showing `IsccLib.genMetaCodeV0("ISCC Test Document!")` — use the camelCase
+    method names from `IsccLib.java`
+- Note that the native library must currently be on `java.library.path` (no auto-loader yet)
+- API Overview: list the 9 gen functions using Java camelCase names from IsccLib.java
 
-5. **Installation** — registry-specific command only:
+**Shared "What is ISCC" text:** Reuse the exact paragraph from the batch 1 READMEs (all three use
+identical text).
 
-    - Rust: `cargo add iscc-lib`
-    - Python: `pip install iscc-lib`
-    - Node.js: `npm install @iscc/lib`
-
-6. **Quick start** — minimal code example. Use the examples from root README as a base but verify
-    correctness:
-
-    - **Rust**: `iscc_lib::gen_meta_code_v0(...)` returns `MetaCodeResult` struct with `.iscc` field
-    - **Python**: `iscc_lib.gen_meta_code_v0(...)` returns dict with `['iscc']` key
-    - **Node.js**: `ic.gen_meta_code_v0(...)` returns a **string** (not an object) — the napi binding
-        returns `String` directly. The example must reflect this:
-        `const iscc = gen_meta_code_v0("title");`
-
-7. **API overview** — list the 9 `gen_*_v0` functions plus key utilities available in this binding
-    (text utils, algorithm primitives, streaming hashers, etc.)
-
-8. **Links** — documentation site (`https://lib.iscc.codes`), repository
-    (`https://github.com/iscc/iscc-lib`), ISCC specification
-    (`https://www.iso.org/standard/77899.html`), ISCC Foundation (`https://iscc.io`)
-
-9. **License** — Apache-2.0
-
-**Manifest updates:**
-
-- `crates/iscc-lib/Cargo.toml`: change line `readme = "../../README.md"` → `readme = "README.md"`
-- `crates/iscc-py/pyproject.toml`: add `readme = "README.md"` under `[project]` section (after
-    `dynamic = ["version"]`)
-- `crates/iscc-napi/package.json`: no change needed — npm auto-detects `README.md` in the package
-    directory
+**Shared Links section:** Same 4 links as batch 1 (Documentation, Repository, ISCC Specification,
+ISCC Foundation).
 
 **Style notes:**
 
-- Keep READMEs concise (80-120 lines each). These are registry pages, not full documentation.
-- Use consistent formatting across all three READMEs — same section order, similar lengths.
-- No emojis. Use standard markdown headings and code blocks.
-- Use ISCC Foundation URL `https://iscc.io` (not other variants).
+- Keep READMEs concise (70-80 lines each, matching batch 1). These are registry pages, not full docs
+- Use consistent formatting across both READMEs — same section order, similar lengths
+- No emojis. Use standard markdown headings and code blocks
+- Use ISCC Foundation URL `https://iscc.io` (not other variants)
 
 ## Verification
 
-- `test -f crates/iscc-lib/README.md && echo OK` exits 0
-- `test -f crates/iscc-py/README.md && echo OK` exits 0
-- `test -f crates/iscc-napi/README.md && echo OK` exits 0
-- `grep -q 'readme = "README.md"' crates/iscc-lib/Cargo.toml && echo OK` exits 0
-- `grep -q 'readme = "README.md"' crates/iscc-py/pyproject.toml && echo OK` exits 0
-- Each README contains all required sections: `grep -c '^## ' crates/iscc-lib/README.md` returns at
-    least 6 (Installation, Quick Start, API, Links, License, plus intro sections)
-- `cargo clippy --workspace --all-targets -- -D warnings` remains clean (no code changes, but verify
-    manifest change doesn't break anything)
-- `mise run check` passes (formatting hooks validate markdown)
+- `test -f crates/iscc-wasm/README.md` exits 0
+- `test -f crates/iscc-jni/README.md` exits 0
+- `grep -c '^## ' crates/iscc-wasm/README.md` returns 6 (6 H2 sections)
+- `grep -c '^## ' crates/iscc-jni/README.md` returns 6 (6 H2 sections)
+- `grep -q '@iscc/wasm' crates/iscc-wasm/README.md` exits 0 (correct npm package name)
+- `grep -q 'io.iscc' crates/iscc-jni/README.md` exits 0 (correct Maven groupId)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean (no code changes, sanity check)
 
 ## Done When
 
-All three per-crate README files exist with registry-specific content, manifest files point to local
-READMEs, and all verification commands pass.
+Both `crates/iscc-wasm/README.md` and `crates/iscc-jni/README.md` exist with 6 H2 sections each,
+correct registry-specific installation instructions, quick start code examples, and all verification
+commands pass.
