@@ -138,18 +138,6 @@ acknowledging community implementations builds goodwill and helps adopters find 
 
 **Source:** [human]
 
-## [normal] iscc-wasm: `alg_cdc_chunks` silently returns null on serialization failure
-
-In `crates/iscc-wasm/src/lib.rs:249`, `alg_cdc_chunks` uses
-`serde_wasm_bindgen::to_value(&chunks).unwrap_or(JsValue::NULL)` which silently swallows
-serialization errors and returns `null`. This is inconsistent with the crate's general "throw on
-error" approach and makes failures invisible to callers.
-
-Fix: change the return type to `Result<JsValue, JsError>` and propagate the serde error, or build a
-`js_sys::Array` explicitly.
-
-**Source:** [human]
-
 ## [normal] iscc-ffi: Video functions allocate/copy every frame signature
 
 In `crates/iscc-ffi/src/lib.rs`, both `iscc_gen_video_code_v0` (lines 369-376) and

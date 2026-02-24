@@ -210,3 +210,8 @@
 {"ts":"2026-02-24T21:26:01.903267+00:00","iteration":3,"role":"define-next","status":"OK","turns":31,"cost_usd":1.304421,"duration_s":264.3}
 {"ts":"2026-02-24T21:29:39.008605+00:00","iteration":3,"role":"advance","status":"OK","turns":35,"cost_usd":1.163843,"duration_s":217.1}
 {"iteration":3,"timestamp":"2026-02-24T21:31:22Z","step":"Fix napi packaging, version skew, and unnecessary clone","verdict":"PASS","files_changed":["crates/iscc-napi/package.json","crates/iscc-napi/src/lib.rs"],"issues_resolved":["iscc-napi: Version skew","iscc-napi: npm packaging","iscc-napi: alg_cdc_chunks clone"]}
+{"ts":"2026-02-24T21:32:29.896955+00:00","iteration":3,"role":"review","status":"OK","turns":27,"cost_usd":0.881394,"duration_s":170.9}
+{"ts":"2026-02-24T21:57:11.550331+00:00","iteration":4,"role":"update-state","status":"OK","turns":22,"cost_usd":0.813225,"duration_s":286.2}
+{"ts":"2026-02-24T21:59:23.806600+00:00","iteration":4,"role":"define-next","status":"OK","turns":20,"cost_usd":0.748408,"duration_s":132.2}
+{"ts":"2026-02-24T22:02:11.872785+00:00","iteration":4,"role":"advance","status":"OK","turns":23,"cost_usd":0.88859,"duration_s":168.1}
+{"iteration":4,"timestamp":"2026-02-24T22:05:00Z","step":"Fix WASM alg_cdc_chunks silent null return","verdict":"PASS","files_changed":["crates/iscc-wasm/src/lib.rs","crates/iscc-wasm/tests/unit.rs"],"issues_resolved":["iscc-wasm: alg_cdc_chunks silently returns null on serialization failure"]}
