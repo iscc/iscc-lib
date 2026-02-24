@@ -1,15 +1,16 @@
-<!-- assessed-at: 2ebca172d85f997b6170004fe1deaf2b85e7ba35 -->
+<!-- assessed-at: 060d1bc1185b687c9fee69a287f71f34a7638ea8 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: FFI alloc/dealloc helpers added — Go bindings scaffold is next
+## Phase: Go bindings scaffold started — gen\_\*\_v0 wrappers are next
 
-`iscc_alloc` and `iscc_dealloc` memory-management helpers are now exported from `crates/iscc-ffi`
-and the crate compiles to a `wasm32-wasip1` WASM module (~10.5 MB debug). CI is green on all 6 jobs.
-The next step is creating `packages/go/` with the Go module scaffold, wazero bridge, and embedded
-`.wasm` binary.
+`packages/go/` now exists with a wazero-based WASM runtime scaffold: `Runtime` type, memory
+management helpers (alloc/dealloc, writeString/readString, freeString, lastError),
+`ConformanceSelftest`, and `TextClean`. The full Go→WASM→Rust bridge is verified working (5 tests
+pass including an end-to-end conformance selftest). CI is green on all 6 existing jobs. The next
+step is adding the 9 `gen_*_v0` Go wrappers to complete the Go binding surface.
 
 ## Rust Core Crate
 
@@ -147,15 +148,29 @@ complete; native loader/publishing/docs absent)
 
 ## Go Bindings
 
-**Status**: not started
+**Status**: partially met (WASM runtime scaffold + memory helpers + 2 functions; 9 gen\_\*\_v0
+wrappers, conformance tests, CI job, and README absent)
 
-- No `packages/go/` directory exists
-- `iscc-ffi` now compiles to `wasm32-wasip1` (~10.5 MB debug) and exports
-    `iscc_alloc`/`iscc_dealloc` — the foundational step for Go/wazero consumption is done
-- Target spec calls for WASM/wazero approach (pure Go, no cgo), Go module under `packages/go/`
-- Requires: Go module scaffold (`go.mod`, `go.sum`), wazero runtime init, embedded `.wasm` binary
-    via `//go:embed`, idiomatic Go wrapper with `error` returns and `io.Reader` support, Go
-    conformance tests, CI job, README and docs pages
+- `packages/go/go.mod` — module `github.com/iscc/iscc-lib/packages/go`, Go 1.24.0, wazero v1.11.0
+- `packages/go/iscc.go` (198 lines): `Runtime` struct, `NewRuntime`, `Close`, unexported
+    `alloc`/`dealloc`/`writeString`/`readString`/`freeString`/`lastError` helpers, plus 2 exported
+    functions — `ConformanceSelftest` and `TextClean`
+- `packages/go/iscc_test.go` (143 lines): 5 tests (`TestRuntimeInit`, `TestConformanceSelftest`,
+    `TestAllocDealloc`, `TestWriteReadString`, `TestTextClean`) — all passing
+- `TestMain` skips gracefully if `iscc_ffi.wasm` is not present (binary is gitignored)
+- End-to-end conformance selftest verified: full Rust ISCC core runs correctly inside WASM via
+    wazero
+- `CGO_ENABLED=0 go test ./...` passes — pure Go, no cgo required
+- Go installed via mise (`go = "latest"` in `mise.toml`)
+- `packages/go/*.wasm` added to `.gitignore`
+- Missing: all 9 `gen_*_v0` Go wrappers (`GenMetaCodeV0`, `GenTextCodeV0`, `GenImageCodeV0`,
+    `GenAudioCodeV0`, `GenVideoCodeV0`, `GenMixedCodeV0`, `GenDataCodeV0`, `GenInstanceCodeV0`,
+    `GenIsccCodeV0`) with PascalCase naming and `error` returns
+- Missing: remaining 21 Tier 1 function wrappers (text utilities, algorithm primitives, streaming
+    hashers with `io.Reader` support)
+- Missing: conformance test vectors in Go (must pass `go test ./...` against `data.json`)
+- Missing: Go CI job in `.github/workflows/ci.yml`
+- Missing: `packages/go/README.md`
 
 ## README
 
@@ -178,7 +193,7 @@ complete; native loader/publishing/docs absent)
 
 ## Per-Crate READMEs
 
-**Status**: partially met (5 of 6 publishable crates done; only iscc-ffi remains, lower priority)
+**Status**: partially met (5 of 6 publishable crates done; iscc-ffi and packages/go remain)
 
 - ✅ `crates/iscc-lib/README.md` — complete
 - ✅ `crates/iscc-py/README.md` — complete
@@ -186,7 +201,7 @@ complete; native loader/publishing/docs absent)
 - ✅ `crates/iscc-wasm/README.md` — complete
 - ✅ `crates/iscc-jni/README.md` — complete
 - ❌ `crates/iscc-ffi/README.md` — not created (not published to a registry; lower priority)
-- ❌ `packages/go/README.md` — not applicable (Go bindings not started)
+- ❌ `packages/go/README.md` — not yet created (Go bindings partially started)
 
 ## Documentation
 
@@ -224,33 +239,33 @@ complete; native loader/publishing/docs absent)
 **Status**: partially met
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
-- `ci.yml` covers all 6 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js
-    (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn
-    test)
+- `ci.yml` covers 6 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
+    build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test) —
+    **Go not yet in CI**
 - Latest CI run: **PASSING** —
-    [Run 22373370725](https://github.com/iscc/iscc-lib/actions/runs/22373370725) — all 6 jobs
+    [Run 22374554257](https://github.com/iscc/iscc-lib/actions/runs/22374554257) — all 6 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java)
 - Latest Docs run: **PASSING** —
-    [Run 22373370777](https://github.com/iscc/iscc-lib/actions/runs/22373370777) — build + deploy
+    [Run 22374554268](https://github.com/iscc/iscc-lib/actions/runs/22374554268) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
-- Missing: Go CI job (Go bindings not started)
+- Missing: Go CI job (no `go test` in `ci.yml`)
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
 - Missing: npm publishing pipeline not fully wired
 - Missing: version sync automation across workspace not verified as release-ready
 
 ## Next Milestone
 
-CI is green on all 6 jobs. FFI `iscc_alloc`/`iscc_dealloc` helpers are in place and `iscc-ffi`
-compiles to `wasm32-wasip1`. Recommended next work (in priority order):
+CI is green on all 6 jobs. Go runtime scaffold is proven end-to-end. Recommended next work (in
+priority order):
 
-1. **Go bindings scaffold** — create `packages/go/` with `go.mod`, embed the debug `.wasm` binary
-    via `//go:embed`, initialize wazero runtime, implement memory helpers that call
-    `iscc_alloc`/`iscc_dealloc`; this is the largest unstarted feature
-2. **FFI video allocation** [normal] — `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0` in
-    `crates/iscc-ffi/src/lib.rs` allocate/copy every frame signature via `.to_vec()`; consider
-    changing the `iscc_lib` video API to accept `&[&[i32]]` to avoid per-frame copies
-3. **Codec header parsing** [normal] — `bytes_to_bits` in `crates/iscc-lib/src/codec.rs:121-127`
-    expands bytes to `Vec<bool>` on every codec operation; replace with bit-level indexing
-4. **DataHasher allocation** [normal] — `streaming.rs:88-93` copies input data on every `update()`
-    call; rework the tail-buffering logic to avoid redundant allocations
+1. **Go gen\_\*\_v0 wrappers** — implement all 9 `GenMetaCodeV0` / `GenTextCodeV0` / etc. functions
+    in `packages/go/iscc.go` following the established
+    `writeString → call → readString → freeString` pattern; return `(string, error)` with the ISCC
+    string from the result JSON; add conformance tests against `data.json` vectors
+2. **Go CI job** — add a `Go (go test)` job to `ci.yml` that builds `iscc-ffi` to `wasm32-wasip1`,
+    copies the `.wasm` into `packages/go/`, and runs `CGO_ENABLED=0 go test ./...`
+3. **Go README** — create `packages/go/README.md` for the Go module proxy audience
+4. **FFI video allocation** [normal] — `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0`
+    allocate/copy every frame signature; consider changing `iscc_lib` video API to accept
+    `&[&[i32]]` to avoid per-frame copies
