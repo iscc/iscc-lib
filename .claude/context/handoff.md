@@ -1,38 +1,33 @@
-## 2026-02-24 — Review of: Create per-crate READMEs (batch 2: iscc-wasm, iscc-jni)
+## 2026-02-24 — Add Java sections to root README
 
-**Verdict:** PASS
+**Done:** Updated root README.md with three changes: (1) added "Java" to the Key Features polyglot
+line, (2) added a Java/Maven installation subsection with `<dependency>` XML and `java.library.path`
+caveat, (3) added a Java quick start code example using `IsccLib.genMetaCodeV0`. Java sections are
+inserted after Node.js and before WASM in both Installation and Quick Start.
 
-**Summary:** Two registry-facing README.md files created for the remaining publishable binding
-crates (npm WASM and Maven JNI). Both follow the exact 6-section template from batch 1 with correct
-registry-specific content, accurate API surfaces verified against source code, and identical shared
-sections across all 5 crate READMEs. Documentation-only change, no code modifications.
+**Files changed:**
 
-**Verification:**
+- `README.md`: Added "Java" to Key Features line 23; added `### Java` installation subsection with
+    Maven coordinates (`io.iscc:iscc-lib:0.0.1`) and native library note; added `### Java` quick
+    start subsection with `genMetaCodeV0` example matching `IsccLib.java` signatures
 
-- [x] `test -f crates/iscc-wasm/README.md` exits 0
-- [x] `test -f crates/iscc-jni/README.md` exits 0
-- [x] `grep -c '^## ' crates/iscc-wasm/README.md` returns 6
-- [x] `grep -c '^## ' crates/iscc-jni/README.md` returns 6
-- [x] `grep -q '@iscc/wasm' crates/iscc-wasm/README.md` exits 0
-- [x] `grep -q 'io.iscc' crates/iscc-jni/README.md` exits 0
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
-- [x] `mise run check` passes all 14 pre-commit hooks
-- [x] "What is ISCC" paragraph md5 identical across all 5 READMEs
-- [x] WASM API surface (9 gen + utilities + streaming) matches `crates/iscc-wasm/src/lib.rs`
-- [x] JNI API surface (9 gen + utilities + streaming) matches `IsccLib.java` with camelCase names
+**Verification:** All verification criteria pass:
 
-**Issues found:**
+- `grep -q 'Python, Java, Node.js, WASM, and C FFI' README.md` — exits 0 ✓
+- `grep -q '### Java' README.md` — exits 0 ✓
+- `grep -q 'io.iscc' README.md` — exits 0 ✓
+- `grep -q 'genMetaCodeV0' README.md` — exits 0 ✓
+- `grep -c '### Java' README.md` — returns 2 ✓
+- `grep -q 'java.library.path' README.md` — exits 0 ✓
+- `mise run check` — all 14 pre-commit hooks pass ✓
 
-- (none)
+**Next:** Root README now covers all implemented binding languages. Remaining documentation gaps:
+creating `docs/howto/java.md` per-language guide, or addressing tracked performance issues (codec
+header optimization, DataHasher allocation overhead). The "What is iscc-lib" paragraph (line 46)
+still says "Python, Node.js, WebAssembly, and C" without Java — this was explicitly out of scope per
+next.md but could be a follow-up.
 
-**Next:** All per-crate READMEs for publishable crates are complete (iscc-lib, iscc-py, iscc-napi,
-iscc-wasm, iscc-jni). The `iscc-ffi` crate has no registry README since it's not published
-separately. Next work could focus on: (1) updating root README.md with Java/WASM sections, (2)
-creating `docs/howto/java.md`, (3) addressing tracked performance issues (codec header optimization,
-DataHasher allocation overhead), or (4) the low-priority input validation issues (DCT power-of-two,
-wtahash minimum length).
-
-**Notes:** The WASM README correctly uses ESM `import`/`await init()` (not CommonJS) since
-wasm-bindgen requires async initialization. The JNI README properly documents the handle-based
-streaming API with explicit `*Free` calls (opaque `long` handles) since Java lacks RAII. Both crates
-have `publish = false` in Cargo.toml so no `readme` field wiring was needed.
+**Notes:** No surprises. The pom.xml version is `0.0.1-SNAPSHOT` but the README uses `0.0.1`
+(without `-SNAPSHOT`) matching the pattern in `crates/iscc-jni/README.md`. The Java quick start uses
+all four `genMetaCodeV0` parameters explicitly (name, null, null, 64) because Java has no default
+parameter syntax — this matches the per-crate README example.

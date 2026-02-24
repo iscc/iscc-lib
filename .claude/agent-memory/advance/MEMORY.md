@@ -13,6 +13,7 @@ iterations.
 - Node.js conformance tests: `crates/iscc-napi/__tests__/conformance.test.mjs`
 - Per-crate READMEs: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`,
     `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`
+- Root README: `README.md` — covers all languages (Rust, Python, Node.js, Java, WASM)
 
 ## Implementation Patterns
 
@@ -50,6 +51,7 @@ iterations.
     `@iscc/wasm` (npm/WASM), `io.iscc:iscc-lib` (Maven Central)
 - iscc-wasm and iscc-jni both have `publish = false` in Cargo.toml -- no `readme` field needed (they
     publish via npm and Maven respectively, not crates.io)
+- Maven coordinates: `io.iscc:iscc-lib:0.0.1` (pom.xml has `0.0.1-SNAPSHOT`, README uses `0.0.1`)
 
 ## Gotchas
 
@@ -63,3 +65,7 @@ iterations.
 - README template: 6 H2 sections (What is ISCC, Installation, Quick Start, API Overview, Links,
     License), 70-80 lines each, identical "What is ISCC" paragraph and Links section across all
     crates. All 5 publishable crates now have READMEs; iscc-ffi is not published and has no README
+- Root README "What is iscc-lib" paragraph (line ~46) still says "Python, Node.js, WebAssembly, and
+    C" without Java -- Key Features line was updated but this paragraph was out of scope
+- Java quick start must pass all parameters explicitly (no default arguments in Java) --
+    `genMetaCodeV0("...", null, null, 64)` not `genMetaCodeV0("...")`

@@ -20,7 +20,7 @@
     levels
 - **Self-Describing**: Each component contains its own type and version information
 - **ISO Standardized**: Implements the official ISO 24138:2024 specification
-- **Polyglot**: Rust core with bindings for Python, Node.js, WASM, and C FFI
+- **Polyglot**: Rust core with bindings for Python, Java, Node.js, WASM, and C FFI
 - **Conformance-Tested**: Validated against the official
     [iscc-core](https://github.com/iscc/iscc-core) reference implementation
 
@@ -90,6 +90,18 @@ pip install iscc-lib
 npm install @iscc/lib
 ```
 
+### Java
+
+```xml
+<dependency>
+  <groupId>io.iscc</groupId>
+  <artifactId>iscc-lib</artifactId>
+  <version>0.0.1</version>
+</dependency>
+```
+
+The native library must be available on `java.library.path` at runtime.
+
 ### WASM
 
 ```bash
@@ -123,6 +135,15 @@ const ic = require("@iscc/lib");
 
 const result = ic.gen_meta_code_v0("ISCC Test Document!");
 console.log(`Meta-Code: ${result.iscc}`);
+```
+
+### Java
+
+```java
+import io.iscc.iscc_lib.IsccLib;
+
+String result = IsccLib.genMetaCodeV0("ISCC Test Document!", null, null, 64);
+System.out.println("Meta-Code: " + result);
 ```
 
 ### WASM
