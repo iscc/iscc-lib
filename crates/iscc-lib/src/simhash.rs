@@ -3,14 +3,36 @@
 //! Implements the SimHash similarity-preserving hash and sliding window
 //! n-gram generation, ported from `iscc-core` `simhash.py` and `utils.py`.
 
+use crate::{IsccError, IsccResult};
 use std::cmp;
 
 /// Compute a SimHash from a sequence of equal-length hash digests.
 ///
-/// Produces a similarity-preserving hash by counting bit frequencies across
-/// all input digests. Each output bit is set when its frequency meets or
-/// exceeds half the input count. Returns 32 zero bytes for empty input.
-pub fn alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> Vec<u8> {
+/// Validates that all digests have equal length, then delegates to
+/// `alg_simhash_inner`. Returns `Err(IsccError::InvalidInput)` if
+/// digest lengths are mismatched.
+pub fn alg_simhash(hash_digests: &[impl AsRef<[u8]>]) -> IsccResult<Vec<u8>> {
+    if hash_digests.len() >= 2 {
+        let expected_len = hash_digests[0].as_ref().len();
+        for (i, digest) in hash_digests.iter().enumerate().skip(1) {
+            if digest.as_ref().len() != expected_len {
+                return Err(IsccError::InvalidInput(format!(
+                    "All hash digests must have equal length (expected {}, got {} at index {})",
+                    expected_len,
+                    digest.as_ref().len(),
+                    i
+                )));
+            }
+        }
+    }
+    Ok(alg_simhash_inner(hash_digests))
+}
+
+/// Compute a SimHash from a sequence of equal-length hash digests (unchecked).
+///
+/// Internal variant that skips length validation. Callers must guarantee
+/// all digests have equal length. Returns 32 zero bytes for empty input.
+pub(crate) fn alg_simhash_inner(hash_digests: &[impl AsRef<[u8]>]) -> Vec<u8> {
     if hash_digests.is_empty() {
         return vec![0u8; 32];
     }
@@ -143,21 +165,21 @@ mod tests {
     #[test]
     fn test_alg_simhash_single_digest() {
         let digest = blake3::hash(b"test");
-        let result = alg_simhash(&[digest.as_bytes().to_vec()]);
+        let result = alg_simhash(&[digest.as_bytes().to_vec()]).unwrap();
         assert_eq!(result, digest.as_bytes().to_vec());
     }
 
     #[test]
     fn test_alg_simhash_empty() {
         let empty: Vec<Vec<u8>> = vec![];
-        let result = alg_simhash(&empty);
+        let result = alg_simhash(&empty).unwrap();
         assert_eq!(result, vec![0u8; 32]);
     }
 
     #[test]
     fn test_alg_simhash_identical_digests() {
         let digest = vec![0xFFu8; 32];
-        let result = alg_simhash(&[digest.clone(), digest.clone(), digest]);
+        let result = alg_simhash(&[digest.clone(), digest.clone(), digest]).unwrap();
         assert_eq!(result, vec![0xFFu8; 32]);
     }
 
@@ -168,8 +190,20 @@ mod tests {
         // vector[i] * 2 >= 2 → vector[i] >= 1. Bits from all-ones survive.
         let ones = vec![0xFFu8; 32];
         let zeros = vec![0x00u8; 32];
-        let result = alg_simhash(&[ones, zeros]);
+        let result = alg_simhash(&[ones, zeros]).unwrap();
         assert_eq!(result, vec![0xFFu8; 32]);
+    }
+
+    #[test]
+    fn test_alg_simhash_mismatched_lengths_returns_error() {
+        // Mismatched digest lengths should return Err, not panic
+        let result = alg_simhash(&[vec![1u8, 2], vec![1u8, 2, 3]]);
+        assert!(result.is_err());
+        let msg = result.unwrap_err().to_string();
+        assert!(
+            msg.contains("equal length"),
+            "error message should mention equal length, got: {msg}"
+        );
     }
 
     #[test]

@@ -60,14 +60,14 @@ fn test_sliding_window_empty_input() {
 fn test_alg_simhash_empty_input() {
     // Empty input returns 32 zero bytes
     let empty: Vec<Vec<u8>> = vec![];
-    let result = iscc_lib::alg_simhash(&empty);
+    let result = iscc_lib::alg_simhash(&empty).unwrap();
     assert_eq!(result, vec![0u8; 32]);
 }
 
 #[test]
 fn test_alg_simhash_single_digest_returns_itself() {
     let digest = vec![0xAB, 0xCD, 0xEF, 0x01];
-    let result = iscc_lib::alg_simhash(std::slice::from_ref(&digest));
+    let result = iscc_lib::alg_simhash(std::slice::from_ref(&digest)).unwrap();
     assert_eq!(result, digest);
 }
 
@@ -75,7 +75,7 @@ fn test_alg_simhash_single_digest_returns_itself() {
 fn test_alg_simhash_identical_digests() {
     // Multiple identical digests should return the same digest
     let digest = vec![0x42u8; 16];
-    let result = iscc_lib::alg_simhash(&[digest.clone(), digest.clone(), digest.clone()]);
+    let result = iscc_lib::alg_simhash(&[digest.clone(), digest.clone(), digest.clone()]).unwrap();
     assert_eq!(result, digest);
 }
 
@@ -85,7 +85,7 @@ fn test_alg_simhash_different_digests_meaningful_hash() {
     // For n=2, bits present in either digest survive (OR behavior)
     let d1 = vec![0xF0, 0x0F, 0xF0, 0x0F];
     let d2 = vec![0x0F, 0xF0, 0x0F, 0xF0];
-    let result = iscc_lib::alg_simhash(&[d1, d2]);
+    let result = iscc_lib::alg_simhash(&[d1, d2]).unwrap();
     assert_eq!(result.len(), 4);
     // With 2 digests, threshold is count >= 1, so all set bits from
     // both survive → all 0xFF
@@ -97,8 +97,30 @@ fn test_alg_simhash_4byte_digests() {
     // alg_simhash output length matches input digest length
     // 4-byte digests in → 4-byte SimHash out (used by audio code)
     let digests: Vec<[u8; 4]> = vec![[1, 2, 3, 4], [5, 6, 7, 8]];
-    let result = iscc_lib::alg_simhash(&digests);
+    let result = iscc_lib::alg_simhash(&digests).unwrap();
     assert_eq!(result.len(), 4);
+}
+
+#[test]
+fn test_alg_simhash_mismatched_lengths_returns_error() {
+    // Mismatched digest lengths should return Err, not panic
+    let result = iscc_lib::alg_simhash(&[vec![1u8, 2], vec![1u8, 2, 3]]);
+    assert!(
+        result.is_err(),
+        "expected error for mismatched digest lengths"
+    );
+    let msg = result.unwrap_err().to_string();
+    assert!(
+        msg.contains("equal length"),
+        "error should mention equal length, got: {msg}"
+    );
+}
+
+#[test]
+fn test_alg_simhash_mismatched_three_digests() {
+    // First and second match, third is different length
+    let result = iscc_lib::alg_simhash(&[vec![0u8; 4], vec![0u8; 4], vec![0u8; 8]]);
+    assert!(result.is_err());
 }
 
 // ---- alg_minhash_256 tests ----
@@ -257,7 +279,7 @@ fn test_flat_crate_root_imports() {
     // Verify all 5 algorithm primitives are callable via iscc_lib::<fn>
     let _ = iscc_lib::sliding_window("test", 2);
     let empty: &[Vec<u8>] = &[];
-    let _ = iscc_lib::alg_simhash(empty);
+    let _ = iscc_lib::alg_simhash(empty).unwrap();
     let _ = iscc_lib::alg_minhash_256(&[]);
     let _ = iscc_lib::alg_cdc_chunks(b"", false, 1024);
     let frame = vec![0i32; 380];
@@ -269,7 +291,7 @@ fn test_module_path_imports_simhash() {
     // Verify functions are accessible via iscc_lib::simhash::<fn>
     let _ = iscc_lib::simhash::sliding_window("test", 2);
     let empty: &[Vec<u8>] = &[];
-    let _ = iscc_lib::simhash::alg_simhash(empty);
+    let _ = iscc_lib::simhash::alg_simhash(empty).unwrap();
 }
 
 #[test]

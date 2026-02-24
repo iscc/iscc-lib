@@ -1,31 +1,45 @@
-## 2026-02-24 — Review of: Add nav icons to all docs pages
+## 2026-02-24 — Harden alg_simhash with length validation
 
-**Verdict:** PASS
+**Done:** Split `alg_simhash` into a validated public API (`alg_simhash` → `IsccResult<Vec<u8>>`)
+and an unchecked internal variant (`alg_simhash_inner`). The public function validates equal-length
+digests before delegating. All 7 internal call sites in `lib.rs` switched to `alg_simhash_inner`.
+All 4 binding crates updated to propagate the `Result` through their error conventions
+(PyValueError, napi::Error, JsError, FFI null+last_error).
 
-**Summary:** Clean, scope-disciplined implementation. Added `icon: lucide/...` and `description:`
-YAML front matter to all 10 docs pages that were missing it, matching the iscc-usearch pattern
-exactly. No content was modified — only front matter insertions. All 14 pre-commit hooks pass, site
-builds successfully, all 11 pages have complete front matter.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-lib/src/simhash.rs`: Added `alg_simhash` wrapper returning `IsccResult<Vec<u8>>` with
+    digest-length validation; renamed original to `pub(crate) alg_simhash_inner`
+- `crates/iscc-lib/src/lib.rs`: Changed 7 internal call sites (`meta_name_simhash`,
+    `soft_hash_meta_v0`, `soft_hash_meta_v0_with_bytes`, `soft_hash_audio_v0` ×4,
+    `soft_hash_codes_v0`) from `alg_simhash` to `alg_simhash_inner`
+- `crates/iscc-py/src/lib.rs`: Changed `alg_simhash` binding to return `PyResult<Vec<u8>>`, mapping
+    errors to `PyValueError`
+- `crates/iscc-napi/src/lib.rs`: Changed `alg_simhash` binding to return `napi::Result<Buffer>`,
+    mapping errors via `napi::Error::from_reason`
+- `crates/iscc-wasm/src/lib.rs`: Changed `alg_simhash` binding to propagate `Result` via `JsError`
+- `crates/iscc-ffi/src/lib.rs`: Changed `iscc_alg_simhash` to match on `Result`, setting last_error
+    on `Err`
+- `crates/iscc-lib/tests/test_algorithm_primitives.rs`: Updated 6 existing tests to `.unwrap()` the
+    Result; added 2 new error-case tests (`mismatched_lengths_returns_error`,
+    `mismatched_three_digests`)
 
-- [x] `uv run zensical build` exits 0 — site builds with all 12 pages rendered
-- [x] `grep -c '^icon: lucide/' ...` — 11 files with matches (all 11 pages)
-- [x] `grep -c '^description:' ...` — 11 files with matches (all 11 pages)
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean, no regressions
-- [x] `mise run check` — all 14 pre-commit hooks pass
+**Verification:** All quality gates pass:
 
-**Issues found:**
+- 206 iscc-lib unit tests pass (including new `test_alg_simhash_mismatched_lengths_returns_error`)
+- 30 integration tests pass (including 2 new mismatched-length tests)
+- 62 iscc-ffi tests pass
+- 147 Python tests pass
+- 103 Node.js tests pass
+- `mise run check` (all pre-commit hooks) clean
 
-- (none)
+**Next:** The next candidate from the original plan is hardening `soft_hash_video_v0` (validate
+frame_sigs non-empty, validate elements have ≥380 features) or hardening `soft_hash_codes_v0`
+(validate code count ≥2). Alternatively, could tackle `alg_minhash_256` hardening or
+`alg_cdc_chunks` parameter validation.
 
-**Next:** Documentation section is now complete. The highest-value remaining work is the correctness
-issues from issues.md: `alg_simhash` panics on mismatched digest sizes [normal] and `sliding_window`
-panics on width < 2 [normal]. These are Tier 1 public API robustness issues that should be addressed
-before the performance optimization items (codec header parsing, DataHasher buffer allocation).
-Alternatively, the `docs/rust-api.md` content is outdated (still shows `IsccResult<String>` return
-types instead of dedicated result structs) — a lower-effort fix.
-
-**Notes:** Icon assignments match the next.md recommendation table exactly. The documentation target
-is now fully met. Future CID iterations should focus on the 6 open issues in issues.md, prioritizing
-the two [normal] correctness issues (`alg_simhash`, `sliding_window`).
+**Notes:** The work package listed 6 files (excluding tests), which exceeds the general 3-file
+guideline, but each binding change was a true 1-line change as predicted by the define-next agent.
+No shortcuts taken, no technical debt introduced. The inner/outer split pattern is clean and
+idiomatic — internal callers skip validation (they construct digests themselves), while external API
+callers get safety.

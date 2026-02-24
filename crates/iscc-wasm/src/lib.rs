@@ -219,12 +219,12 @@ pub fn sliding_window(seq: &str, width: u32) -> Result<Vec<String>, JsError> {
 ///
 /// Accepts a JS array of `Uint8Array` values. Returns a similarity-preserving
 /// hash whose length matches the input digest length. Returns 32 zero bytes
-/// for empty input.
+/// for empty input. Throws on mismatched digest lengths.
 #[wasm_bindgen]
 pub fn alg_simhash(hash_digests: JsValue) -> Result<Vec<u8>, JsError> {
     let digests: Vec<Vec<u8>> =
         serde_wasm_bindgen::from_value(hash_digests).map_err(|e| JsError::new(&e.to_string()))?;
-    Ok(iscc_lib::alg_simhash(&digests))
+    iscc_lib::alg_simhash(&digests).map_err(|e| JsError::new(&e.to_string()))
 }
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.

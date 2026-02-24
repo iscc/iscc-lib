@@ -745,7 +745,13 @@ pub unsafe extern "C" fn iscc_alg_simhash(
     clear_last_error();
     if num_digests == 0 {
         let empty: &[&[u8]] = &[];
-        return vec_to_byte_buffer(iscc_lib::alg_simhash(empty));
+        return match iscc_lib::alg_simhash(empty) {
+            Ok(v) => vec_to_byte_buffer(v),
+            Err(e) => {
+                set_last_error(&e.to_string());
+                null_byte_buffer()
+            }
+        };
     }
     if digests.is_null() {
         set_last_error("digests must not be NULL");
@@ -768,7 +774,13 @@ pub unsafe extern "C" fn iscc_alg_simhash(
         })
         .collect();
 
-    vec_to_byte_buffer(iscc_lib::alg_simhash(&slices))
+    match iscc_lib::alg_simhash(&slices) {
+        Ok(v) => vec_to_byte_buffer(v),
+        Err(e) => {
+            set_last_error(&e.to_string());
+            null_byte_buffer()
+        }
+    }
 }
 
 /// Compute a 256-bit MinHash digest from 32-bit integer features.

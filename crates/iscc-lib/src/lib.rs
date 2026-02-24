@@ -64,7 +64,7 @@ fn meta_name_simhash(name: &str) -> Vec<u8> {
         .iter()
         .map(|ng| *blake3::hash(ng.as_bytes()).as_bytes())
         .collect();
-    simhash::alg_simhash(&name_hashes)
+    simhash::alg_simhash_inner(&name_hashes)
 }
 
 /// Compute a similarity-preserving 256-bit hash from metadata text.
@@ -83,7 +83,7 @@ fn soft_hash_meta_v0(name: &str, extra: Option<&str>) -> Vec<u8> {
                 .iter()
                 .map(|ng| *blake3::hash(ng.as_bytes()).as_bytes())
                 .collect();
-            let extra_simhash = simhash::alg_simhash(&extra_hashes);
+            let extra_simhash = simhash::alg_simhash_inner(&extra_hashes);
 
             interleave_digests(&name_simhash, &extra_simhash)
         }
@@ -107,7 +107,7 @@ fn soft_hash_meta_v0_with_bytes(name: &str, extra: &[u8]) -> Vec<u8> {
         .iter()
         .map(|ng| *blake3::hash(ng).as_bytes())
         .collect();
-    let byte_simhash = simhash::alg_simhash(&byte_hashes);
+    let byte_simhash = simhash::alg_simhash_inner(&byte_hashes);
 
     interleave_digests(&name_simhash, &byte_simhash)
 }
@@ -472,7 +472,7 @@ fn soft_hash_audio_v0(cv: &[i32]) -> Vec<u8> {
     }
 
     // Stage 1: overall SimHash (4 bytes)
-    let mut parts: Vec<u8> = simhash::alg_simhash(&digests);
+    let mut parts: Vec<u8> = simhash::alg_simhash_inner(&digests);
 
     // Stage 2: quarter-based SimHashes (4 × 4 = 16 bytes)
     let quarters = array_split(&digests, 4);
@@ -480,7 +480,7 @@ fn soft_hash_audio_v0(cv: &[i32]) -> Vec<u8> {
         if quarter.is_empty() {
             parts.extend_from_slice(&[0u8; 4]);
         } else {
-            parts.extend_from_slice(&simhash::alg_simhash(quarter));
+            parts.extend_from_slice(&simhash::alg_simhash_inner(quarter));
         }
     }
 
@@ -493,7 +493,7 @@ fn soft_hash_audio_v0(cv: &[i32]) -> Vec<u8> {
         if third.is_empty() {
             parts.extend_from_slice(&[0u8; 4]);
         } else {
-            parts.extend_from_slice(&simhash::alg_simhash(third));
+            parts.extend_from_slice(&simhash::alg_simhash_inner(third));
         }
     }
 
@@ -602,7 +602,7 @@ fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> 
         prepared.push(entry);
     }
 
-    Ok(simhash::alg_simhash(&prepared))
+    Ok(simhash::alg_simhash_inner(&prepared))
 }
 
 /// Generate a Mixed-Code from multiple Content-Code strings.
