@@ -1,33 +1,37 @@
-## 2026-02-24 — Review of: Create per-crate READMEs for iscc-lib, iscc-py, and iscc-napi
+## 2026-02-24 — Create per-crate READMEs (batch 2: iscc-wasm, iscc-jni)
 
-**Verdict:** PASS
+**Done:** Created registry-facing README.md files for the two remaining publishable binding crates.
+`crates/iscc-wasm/README.md` targets npm as `@iscc/wasm` with ESM/async init quick start.
+`crates/iscc-jni/README.md` targets Maven Central as `io.iscc:iscc-lib` with Java camelCase API
+examples and native library path note.
 
-**Summary:** Three registry-facing README.md files created for the primary publishable crates
-(crates.io, PyPI, npm). Each README has all required sections with registry-specific content,
-correct API examples, and proper manifest integration. Clean documentation-only change with no code
-modifications.
+**Files changed:**
+
+- `crates/iscc-wasm/README.md`: Created (77 lines). 6 H2 sections, npm badge, ESM import pattern
+    with `await init()`, notes on browser + Node.js support, string return pattern documented.
+- `crates/iscc-jni/README.md`: Created (80 lines). 6 H2 sections, Maven dependency XML, Java quick
+    start with `IsccLib.genMetaCodeV0()`, native library path caveat, streaming hasher handle-based
+    API listed.
 
 **Verification:**
 
-- [x] `test -f crates/iscc-lib/README.md` exits 0
-- [x] `test -f crates/iscc-py/README.md` exits 0
-- [x] `test -f crates/iscc-napi/README.md` exits 0
-- [x] `grep -q 'readme = "README.md"' crates/iscc-lib/Cargo.toml` exits 0
-- [x] `grep -q 'readme = "README.md"' crates/iscc-py/pyproject.toml` exits 0
-- [x] Each README has 6 H2 sections (all return 6)
+- [x] `test -f crates/iscc-wasm/README.md` exits 0
+- [x] `test -f crates/iscc-jni/README.md` exits 0
+- [x] `grep -c '^## ' crates/iscc-wasm/README.md` returns 6
+- [x] `grep -c '^## ' crates/iscc-jni/README.md` returns 6
+- [x] `grep -q '@iscc/wasm' crates/iscc-wasm/README.md` exits 0
+- [x] `grep -q 'io.iscc' crates/iscc-jni/README.md` exits 0
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
 - [x] `mise run check` passes all 14 pre-commit hooks
 
-**Issues found:**
+**Next:** All per-crate READMEs for publishable crates are complete (iscc-lib, iscc-py, iscc-napi,
+iscc-wasm, iscc-jni). The remaining crate `iscc-ffi` is not published to any registry and was
+explicitly excluded from scope. Next work could focus on updating the root README.md with Java/WASM
+sections, creating `docs/howto/java.md`, or addressing tracked issues (codec header optimization,
+DataHasher allocation overhead, DCT input validation).
 
-- (none)
-
-**Next:** Create per-crate READMEs for batch 2 (iscc-wasm, iscc-ffi, iscc-jni). These are the
-secondary crates — iscc-wasm publishes to npm as `@iscc/wasm`, iscc-ffi is not published separately
-(no registry metadata needed), iscc-jni targets Maven Central. Follow the same template and section
-structure established in batch 1.
-
-**Notes:** All three READMEs are 70-75 lines, slightly under the 80-120 range suggested in next.md,
-but they're complete and well-structured for registry pages. The Node.js quick start correctly uses
-CommonJS `require()` and shows the string return pattern. Python README includes the BinaryIO note
-for streaming functions. Rust README mentions the Tier 2 codec module appropriately.
+**Notes:** Both READMEs follow the exact 6-section template from batch 1. The WASM quick start uses
+ESM `import`/`await init()` pattern (not CommonJS `require()`) since wasm-bindgen requires async
+initialization. The JNI README documents the handle-based streaming API (opaque `long` pointers with
+explicit `*Free` calls) since Java lacks RAII. No Cargo.toml `readme` field changes needed since
+both crates have `publish = false` (they publish via npm and Maven respectively).

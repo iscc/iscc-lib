@@ -12,7 +12,7 @@ iterations.
 - Conformance vectors: `crates/iscc-lib/tests/data.json` (46 total: 16+5+3+5+3+2+4+3+5)
 - Node.js conformance tests: `crates/iscc-napi/__tests__/conformance.test.mjs`
 - Per-crate READMEs: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`,
-    `crates/iscc-napi/README.md`
+    `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`
 
 ## Implementation Patterns
 
@@ -46,7 +46,10 @@ iterations.
 - Cargo.toml `readme` field in `crates/iscc-lib/` points to `"README.md"` (crate-local)
 - pyproject.toml `readme` field in `crates/iscc-py/` set to `"README.md"`
 - npm auto-detects `README.md` in package directory -- no package.json change needed
-- Package names on registries: `iscc-lib` (crates.io), `iscc-lib` (PyPI), `@iscc/lib` (npm)
+- Package names on registries: `iscc-lib` (crates.io), `iscc-lib` (PyPI), `@iscc/lib` (npm),
+    `@iscc/wasm` (npm/WASM), `io.iscc:iscc-lib` (Maven Central)
+- iscc-wasm and iscc-jni both have `publish = false` in Cargo.toml -- no `readme` field needed (they
+    publish via npm and Maven respectively, not crates.io)
 
 ## Gotchas
 
@@ -55,3 +58,8 @@ iterations.
 - HexFormat requires Java 17+ (already set as Maven compiler target)
 - mdformat auto-formats markdown files in pre-commit -- write READMEs with compatible formatting (no
     smart dashes, use `--` not em-dashes in markdown text)
+- WASM quick start must use ESM `import`/`await init()` (not CommonJS `require()`) -- wasm-bindgen
+    requires async WASM initialization
+- README template: 6 H2 sections (What is ISCC, Installation, Quick Start, API Overview, Links,
+    License), 70-80 lines each, identical "What is ISCC" paragraph and Links section across all
+    crates. All 5 publishable crates now have READMEs; iscc-ffi is not published and has no README
