@@ -1,84 +1,132 @@
 # Next Work Package
 
-## Step: Replace unwrap() calls in JNI entrypoints with fallible error handling
+## Step: Fix Python bytes-like input handling and chunked streaming
 
 ## Goal
 
-Eliminate all 21 `unwrap()` calls in `extern "system"` JNI functions that can panic across the FFI
-boundary and abort the JVM process. Replace each with `throw_and_default` error handling that throws
-a Java exception and returns a safe default value. This addresses the critical issue "iscc-jni:
-`unwrap()` calls in JNI entrypoints can panic across FFI boundary" from issues.md.
+Fix two related Python binding issues: (1) `bytearray`/`memoryview` inputs are misclassified as
+streams and crash with `AttributeError`, and (2) file-like stream inputs are read entirely into
+memory via unbounded `.read()`, defeating the purpose of streaming. Both issues affect the same 4
+call sites in `__init__.py` and should be fixed together.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `crates/iscc-jni/src/lib.rs`
-- **Reference**: issues.md (critical issue description),
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (existing conformance
-    tests)
+- **Modify**: `crates/iscc-py/python/iscc_lib/__init__.py` (fix 4 stream-handling call sites),
+    `tests/test_streaming.py` (add tests for bytearray, memoryview, and chunked streaming)
+- **Reference**: `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (Rust-layer type signatures),
+    `.claude/context/learnings.md` (ty type checker constraints on `hasattr`)
 
 ## Not In Scope
 
-- Adding `std::panic::catch_unwind` as a safety net — that's a separate hardening step
-- Adding `push_local_frame`/`pop_local_frame` for local reference management (separate issue)
-- Validating `jint` negative values before casting (separate normal-priority issue)
-- Changing exception types (e.g., `IllegalStateException` for finalized hashers) — separate low
-    issue
-- Adding new Java-side tests that deliberately trigger JNI allocation failures (difficult to test
-    from Java; the Rust-side fix is mechanically verifiable)
+- Updating `_lowlevel.pyi` type stubs — the Rust layer correctly accepts `bytes`; the Python wrapper
+    widens the accepted types
+- Adding `__version__` attribute (separate low-priority issue)
+- Fixing the module docstring in `lib.rs` (separate low-priority issue)
+- Performance benchmarking of the chunked streaming — correctness is the goal here
+- Changing the chunk size constant (64 KiB is a standard choice; tuning is premature)
 
 ## Implementation Notes
 
-There are exactly 21 `unwrap()` calls to replace, falling into three patterns:
+### Issue 1: Bytes-like input misclassification
 
-**Pattern A — `env.new_string(...).unwrap().into_raw()`** (16 occurrences): Lines 167, 187, 207,
-228, 249, 271, 291, 311, 333, 356, 373, 392, 411, 430, 665, 744. Replace with:
+The current code uses `if not isinstance(data, bytes)` to detect streams, but `bytearray` and
+`memoryview` are not `bytes` instances and lack `.read()`.
 
-```rust
-match env.new_string(result.iscc) {
-    Ok(s) => s.into_raw(),
-    Err(e) => throw_and_default(&mut env, &e.to_string()),
-}
+**Fix pattern** — use tuple isinstance check to accept all bytes-like types:
+
+```python
+if not isinstance(data, (bytes, bytearray, memoryview)):
+    # This is a stream (BinaryIO)
+    ...
+elif not isinstance(data, bytes):
+    data = bytes(data)  # bytearray/memoryview → bytes for Rust FFI
 ```
 
-**Pattern B — `env.byte_array_from_slice(...).unwrap().into_raw()`** (3 occurrences): Lines 516,
-538, 589. Replace with:
+**Important**: Do NOT use `hasattr(data, "read")` — the `ty` type checker does not support
+`hasattr()`-based type narrowing (see learnings.md). The `isinstance` inversion pattern gives `ty`
+proper narrowing: after `not isinstance(data, (bytes, bytearray, memoryview))`, the remaining type
+is `BinaryIO`, which has `.read()`.
 
-```rust
-match env.byte_array_from_slice(&result) {
-    Ok(a) => a.into_raw(),
-    Err(e) => throw_and_default(&mut env, &e.to_string()),
-}
+### Issue 2: Unbounded `.read()` defeats streaming
+
+**For `gen_data_code_v0` and `gen_instance_code_v0`** — when given a stream, use the Rust streaming
+hashers (`_DataHasher`/`_InstanceHasher`) with chunked reads instead of `.read()` + one-shot:
+
+```python
+_CHUNK_SIZE = 65536  # 64 KiB read chunks
+
+
+def gen_data_code_v0(data, bits=64):
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        hasher = _DataHasher()
+        while chunk := data.read(_CHUNK_SIZE):
+            hasher.update(chunk)
+        return DataCodeResult(hasher.finalize(bits))
+    if not isinstance(data, bytes):
+        data = bytes(data)
+    return DataCodeResult(_gen_data_code_v0(data, bits))
 ```
 
-**Pattern C — `unwrap()` in loop body** (2 occurrences in `algCdcChunks`, lines 567-568):
+Same pattern for `gen_instance_code_v0` using `_InstanceHasher`.
 
-```rust
-// Before:
-let barr = env.byte_array_from_slice(chunk).unwrap();
-env.set_object_array_element(&arr, i as i32, &barr).unwrap();
+**For `DataHasher.update` and `InstanceHasher.update`** — when given a stream, read in chunks and
+feed each chunk to the inner Rust hasher:
 
-// After:
-let barr = match env.byte_array_from_slice(chunk) {
-    Ok(a) => a,
-    Err(e) => return throw_and_default(&mut env, &e.to_string()),
-};
-if let Err(e) = env.set_object_array_element(&arr, i as i32, &barr) {
-    return throw_and_default(&mut env, &e.to_string());
-}
+```python
+def update(self, data):
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        while chunk := data.read(_CHUNK_SIZE):
+            self._inner.update(chunk)
+    else:
+        if not isinstance(data, bytes):
+            data = bytes(data)
+        self._inner.update(data)
 ```
 
-All replacements use the existing `throw_and_default` helper — no new error-handling infrastructure
-needed. The fix is mechanical and uniform.
+### Type annotations
+
+Widen the type annotation for all 4 sites plus the constructor parameters:
+
+```python
+from typing import BinaryIO, Union
+
+# Use bytes | bytearray | memoryview | BinaryIO for all data parameters
+```
+
+### Affected call sites (6 total, but constructors delegate to update)
+
+1. `gen_data_code_v0` (line 149-150)
+2. `gen_instance_code_v0` (line 156-157)
+3. `DataHasher.update` (line 184-185)
+4. `InstanceHasher.update` (line 208-209)
+5. `DataHasher.__init__` — delegates to `self.update()`, no direct fix needed
+6. `InstanceHasher.__init__` — delegates to `self.update()`, no direct fix needed
+
+### New tests to add in `tests/test_streaming.py`
+
+- `test_gen_data_code_v0_bytearray` — `bytearray` input matches `bytes` input
+- `test_gen_data_code_v0_memoryview` — `memoryview` input matches `bytes` input
+- `test_gen_instance_code_v0_bytearray` — same for instance code
+- `test_gen_instance_code_v0_memoryview` — same for instance code
+- `test_data_hasher_bytearray` — `DataHasher.update(bytearray(...))` works
+- `test_data_hasher_memoryview` — `DataHasher.update(memoryview(...))` works
+- `test_instance_hasher_bytearray` — `InstanceHasher.update(bytearray(...))` works
+- `test_instance_hasher_memoryview` — `InstanceHasher.update(memoryview(...))` works
+- `test_gen_data_code_v0_stream_chunked` — verify a large `BytesIO` stream produces the same result
+    as one-shot bytes (proves chunked streaming works)
+- `test_gen_instance_code_v0_stream_chunked` — same for instance code
 
 ## Verification
 
-- `grep -c 'unwrap()' crates/iscc-jni/src/lib.rs` returns `0` (all unwrap calls eliminated)
-- `cargo clippy -p iscc-jni -- -D warnings` passes
-- `cargo build -p iscc-jni` succeeds
-- `cd crates/iscc-jni/java && mvn test` passes all 46 conformance vectors (no behavioral change)
+- `pytest tests/test_streaming.py` passes (existing 28 tests + ~10 new tests)
+- `pytest` passes all 105+ tests
+- `ruff check crates/iscc-py/python/ tests/` clean
+- `ruff format --check crates/iscc-py/python/ tests/` clean
+- `grep -c 'isinstance(data, bytes)' crates/iscc-py/python/iscc_lib/__init__.py` returns 0 (old
+    pattern eliminated)
 
 ## Done When
 
-All four verification commands pass — zero `unwrap()` calls remain in the JNI crate, clippy is
-clean, and all conformance tests still pass.
+All verification criteria pass: no `isinstance(data, bytes)` remains, bytearray/memoryview inputs
+produce correct results, stream inputs use chunked reads, and all existing + new tests pass.

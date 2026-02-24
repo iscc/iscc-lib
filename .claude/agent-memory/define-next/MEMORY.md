@@ -32,9 +32,13 @@ iterations.
 - Critical issues always take priority regardless of feature trajectory. The JNI unwrap() issue is a
     safety fix — pure mechanical replacement (21 calls, 3 patterns, 1 file). Good scope: small,
     well-defined, zero behavioral change, easy to verify with `grep -c 'unwrap()'`.
-- After JNI safety fix: resume the documentation/feature track. Next candidates: (1) fix "What is
-    iscc-lib" body text to mention Java (tiny), (2) docs/howto/java.md, (3) Java native loader, (4)
-    Go bindings. Could bundle the tiny README text fix with another step.
+- Python binding issues (bytes-like misclassification + unbounded .read()) are a natural pair: same
+    4 call sites, same file, interrelated fix logic. Good scope for a single iteration — one
+    production file + one test file, clear verification via grep + pytest. The handoff and state.md
+    both recommended this as the highest-priority next step after the JNI safety fix.
+- After Python fixes: remaining candidates (priority order): (1) Java docs + native loader, (2) JNI
+    jint validation, (3) JNI local reference overflow, (4) napi version skew + packaging, (5) Go
+    bindings.
 
 ## Architecture Decisions
 
@@ -91,6 +95,17 @@ iterations.
     Python default).
 - `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data for `gen_data_code_v0` and
     `gen_instance_code_v0`. Empty after prefix = empty bytes.
+
+## Python Binding Patterns
+
+- `ty` type checker does NOT support `hasattr()` narrowing — must use `isinstance` inversion for
+    stream detection. Pattern: `if not isinstance(data, (bytes, bytearray, memoryview))` narrows to
+    BinaryIO; `elif not isinstance(data, bytes)` narrows to bytearray|memoryview.
+- For stream inputs in `gen_data_code_v0`/`gen_instance_code_v0`: use \_DataHasher/\_InstanceHasher
+    with chunked reads (64 KiB) instead of unbounded `.read()`. This avoids memory exhaustion and
+    exercises the streaming Rust code path.
+- For `DataHasher.update`/`InstanceHasher.update` stream inputs: chunked read loop feeding the inner
+    Rust hasher. The constructor delegates to update(), so only update() needs the fix.
 
 ## JNI Safety Patterns
 
