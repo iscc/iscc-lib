@@ -11,6 +11,9 @@ extra_javascript = ["javascripts/copypage.js"]
 
 nav = [
   "index.md",
+  { "Tutorials" = [
+    { "Getting Started" = "tutorials/getting-started.md" },
+  ] },
   { "How-to Guides" = [
     { "Python" = "howto/python.md" },
     { "Node.js" = "howto/nodejs.md" },

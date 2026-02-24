@@ -1,32 +1,34 @@
-## 2026-02-24 — Review of: Add abbreviations file, CNAME, and snippets config
+## 2026-02-24 — Add tutorials getting-started guide
 
-**Verdict:** PASS
+**Done:** Created `docs/tutorials/getting-started.md` with YAML front matter (`icon: lucide/rocket`)
+and 7 progressive sections (intro, prerequisites, install, first ISCC code, structure explanation,
+other code types, next steps). Added "Tutorials" nav section to `zensical.toml` before "How-to
+Guides" following Diataxis ordering.
 
-**Summary:** Clean, minimal docs infrastructure change that adds exactly what was scoped: CNAME for
-GitHub Pages custom domain, abbreviations file with 19 terms (all 10 spec-required + 9 additional),
-and pymdownx.snippets config in zensical.toml. No out-of-scope changes, no quality gate issues.
+**Files changed:**
+
+- `docs/tutorials/getting-started.md`: Tutorial page — install, gen_meta_code_v0, iscc_decompose,
+    gen_text_code_v0, gen_instance_code_v0 with streaming example, and next steps links
+- `zensical.toml`: Added 3-line "Tutorials" nav section with "Getting Started" entry before "How-to
+    Guides"
 
 **Verification:**
 
-- [x] `cat docs/CNAME` outputs `lib.iscc.codes` — correct (15 bytes with trailing newline added by
-    `fix end of files` hook, which is fine)
-- [x] `test -f docs/includes/abbreviations.md` exits 0 — file exists
-- [x] `grep -c '^\*\[' docs/includes/abbreviations.md` returns 19 (>= 10) — all spec terms plus
-    additional relevant terms
-- [x] `grep 'pymdownx.snippets' zensical.toml` — found at line 112
-- [x] `grep 'auto_append' zensical.toml` — found at line 113
-- [x] `uv run zensical build` — succeeded (exit 0)
-- [x] `mise run check` — all 14 pre-commit hooks passed
+- `test -f docs/tutorials/getting-started.md` — PASS (file exists)
+- `head -5` shows YAML front matter with `icon: lucide/rocket` — PASS
+- `grep -c 'gen_meta_code_v0'` returns 5 (>= 1) — PASS
+- `grep -c 'iscc_decompose'` returns 3 (>= 1) — PASS
+- `grep 'Tutorials' zensical.toml` finds nav entry — PASS
+- `grep 'getting-started' zensical.toml` finds page reference — PASS
+- `uv run zensical build` exits 0 (site builds, `/tutorials/getting-started/` in output) — PASS
+- `mise run check` exits 0 (all 14 pre-commit hooks pass) — PASS
 
-**Issues found:**
+**Next:** The documentation spec still has gaps: nav icons on top-level sections and the Rust how-to
+guide. The tracked issues in issues.md (simhash panics, sliding_window panics, performance
+improvements) remain as normal-priority items. The define-next agent should weigh remaining doc
+polish against correctness fixes.
 
-- (none)
-
-**Next:** The remaining documentation spec gaps are nav icons on top-level sections and the
-tutorials section. However, the tracked issues in issues.md (`alg_simhash` panics, `sliding_window`
-panics, performance issues) are normal-priority correctness items that likely deliver more value.
-The define-next agent should weigh documentation polish against these correctness fixes.
-
-**Notes:** The docs build produces an `abbreviations.md` page at `/includes/abbreviations/` (visible
-in build output). It's not in navigation and harmless, but could be excluded later with `not_in_nav`
-config. The abbreviations file is alphabetically sorted and uses concise, accurate definitions.
+**Notes:** The tutorial uses Python-only code blocks (no tabbed multi-language format) as specified
+in next.md — this differentiates it from the how-to guides which use tabbed format. The tutorial
+content is distinct from the landing page quick start: it goes deeper with iscc_decompose, explains
+the ISCC structure, and shows streaming with InstanceHasher.
