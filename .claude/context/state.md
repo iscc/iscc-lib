@@ -1,16 +1,16 @@
-<!-- assessed-at: 14614fabafc36456f1ae25055cf1dfd21de2225c -->
+<!-- assessed-at: 99f9c30365aa032563ffbb1aeb111360d3e9513b -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Tutorials page added — nav icons and Rust how-to remain
+## Phase: sliding_window zero-copy optimization complete — nav icons and Rust how-to remain
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
-Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration added
-`docs/tutorials/getting-started.md` (154 lines) and wired it into the Tutorials nav section in
-`zensical.toml`. CI is green. Two documentation gaps remain: nav icons for top-level nav sections
-and the Rust how-to guide.
+Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration added the
+`sliding_window_strs` zero-copy optimization (pub(crate)) and removed the
+`sliding_window O(n) String allocations` issue from the tracker. CI is green. Two documentation gaps
+remain: nav icons for top-level nav sections and the Rust how-to guide.
 
 ## Rust Core Crate
 
@@ -22,12 +22,15 @@ and the Rust how-to guide.
     `iscc_decompose`, `DataHasher`, `InstanceHasher`, `conformance_selftest`
 - Tier 2 codec module (`codec.rs`) with `MainType`/`SubType`/`Version` enums and all encode/decode
     helpers — correctly Rust-only, not bound to foreign languages
-- 198 `#[test]` functions across `src/` (lib.rs: 40, cdc.rs: 15, codec.rs: 71, simhash.rs: 16,
+- 205 `#[test]` functions across `src/` (lib.rs: 40, cdc.rs: 15, codec.rs: 71, simhash.rs: 23,
     streaming.rs: 15, utils.rs: 20, conformance.rs: 1, dct.rs: 8, minhash.rs: 7, wtahash.rs: 5)
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
 - All prior correctness fixes in place: empty Data-URL payload routing, `soft_hash_codes_v0`
     bit-length validation, `iscc_decompose` truncated input guards, `alg_cdc_chunks` infinite loop
     guard
+- `sliding_window_strs` added as `pub(crate)` in `simhash.rs` — zero-copy slice variant used by
+    `soft_hash_meta_v0` (name and extra) and `soft_hash_text_v0`; eliminates per-n-gram `String`
+    allocation while keeping the public `sliding_window` API unchanged
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
 - JSON metadata canonicalization uses `serde_json_canonicalizer::to_writer` for RFC 8785 (JCS)
     compliance
@@ -35,10 +38,9 @@ and the Rust how-to guide.
 - Note: target.md header says "22 public symbols" but the enumerated list totals 23; the crate
     implements 23
 - **Open issues** (tracked in `issues.md`): `alg_simhash` panics on mismatched digest sizes
-    [normal]; `sliding_window` panics on width < 2 [normal]; `sliding_window` O(n) String
-    allocations [normal]; codec header parsing expands bytes to `Vec<bool>` [normal];
-    `DataHasher::update` copies input on every call [normal]; `alg_dct` allows non-power-of-two even
-    lengths [low]; `alg_wtahash` panics on short vectors [low]
+    [normal]; `sliding_window` panics on width < 2 [normal]; codec header parsing expands bytes to
+    `Vec<bool>` [normal]; `DataHasher::update` copies input on every call [normal]; `alg_dct` allows
+    non-power-of-two even lengths [low]; `alg_wtahash` panics on short vectors [low]
 
 ## Python Bindings
 
@@ -156,11 +158,11 @@ and the Rust how-to guide.
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
-- Latest CI run (HEAD `14614fa`): **PASSING** —
-    [Run 22350327306](https://github.com/iscc/iscc-lib/actions/runs/22350327306) — all 5 jobs
+- Latest CI run (HEAD `99f9c30`): **PASSING** —
+    [Run 22350921308](https://github.com/iscc/iscc-lib/actions/runs/22350921308) — all 5 jobs
     success
 - Latest Docs run: **PASSING** —
-    [Run 22350327315](https://github.com/iscc/iscc-lib/actions/runs/22350327315) — build + deploy
+    [Run 22350921319](https://github.com/iscc/iscc-lib/actions/runs/22350921319) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
