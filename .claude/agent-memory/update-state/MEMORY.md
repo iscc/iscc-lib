@@ -19,7 +19,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `crates/iscc-jni/src/lib.rs` — 763-line Rust JNI bridge, 29 `extern "system"` functions
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — 331-line Java wrapper, 29
     native methods
-- `crates/iscc-jni/java/pom.xml` — Maven build config, JDK 17, JUnit 5
+- `crates/iscc-jni/java/pom.xml` — Maven build config, JDK 17, JUnit 5 + Gson, Surefire 3.5.2 with
+    `java.library.path=target/debug`
+- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — 338-line JUnit 5 test
+    class, 9 `@TestFactory` methods, 46 conformance vectors (passes locally, not yet in CI)
 - `.devcontainer/Dockerfile` — includes `openjdk-17-jdk-headless` and `maven`
 - `.github/workflows/ci.yml` — 5 jobs: Rust, Python, Node.js, WASM, C FFI (no Java or Go yet)
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
@@ -30,7 +33,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Incremental review**: compare `assessed-at` hash vs HEAD `--stat` first, then re-verify only
     affected sections. Always carry forward sections where no relevant files changed.
 - **Tier 1 symbol count**: target says "22" but implementation has 23 (target.md counting error)
-- **CI always has 5 jobs**: Rust, Python, Node.js, WASM, C FFI. Java job blocked on tests existing.
+- **CI always has 5 jobs**: Rust, Python, Node.js, WASM, C FFI. Java job not yet added despite tests
+    now existing — CI job is the next missing piece for Java.
 - **Java `target/` directory**: Maven compile output in `crates/iscc-jni/java/target/` — covered by
     root `.gitignore`'s `target/` pattern, not committed
 
