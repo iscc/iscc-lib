@@ -64,21 +64,6 @@ action that requires review regardless of source:
 
 <!-- Add issues below this line -->
 
-## [critical] `alg_cdc_chunks` infinite loop when `utf32=true`
-
-In `crates/iscc-lib/src/cdc.rs:130-132`, when `utf32` is true, `cut_point -= cut_point % 4` can
-reduce `cut_point` to 0 for small remaining buffers (`cut_point < 4`). This pushes an empty chunk
-and never advances `pos`, causing an infinite loop. `alg_cdc_chunks` is a Tier 1 public API
-(`pub mod cdc`).
-
-Current internal callers always pass `utf32=false`, so this is not triggered in normal use, but the
-parameter is exposed and any external caller using `utf32=true` with certain inputs will hang.
-
-Fix: when `utf32` alignment reduces `cut_point` to 0, set `cut_point = 4` (or the remaining length,
-whichever is smaller) to guarantee forward progress.
-
-**Source:** [human]
-
 ## [normal] `iscc_decompose` panics on malformed/truncated input
 
 In `crates/iscc-lib/src/codec.rs:463-526`, the `iscc_decompose` function uses unchecked slicing in

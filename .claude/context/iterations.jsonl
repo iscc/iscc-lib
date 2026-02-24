@@ -108,3 +108,6 @@
 {"ts":"2026-02-23T20:50:47.463592+00:00","iteration":3,"role":"orchestrator","status":"OK","turns":13,"cost_usd":3.562678,"duration_s":703.4}
 {"ts":"2026-02-23T21:07:09.930503+00:00","iteration":4,"role":"orchestrator","status":"OK","turns":13,"cost_usd":3.42627,"duration_s":709.7}
 {"ts":"2026-02-23T21:32:35.099299+00:00","iteration":5,"role":"orchestrator","status":"FAIL","turns":12,"cost_usd":3.636736,"duration_s":578.0}
+{"ts":"2026-02-24T10:00:41.045988+00:00","iteration":1,"role":"update-state","status":"OK","turns":30,"cost_usd":0.93191,"duration_s":250.9}
+{"ts":"2026-02-24T10:02:33.780204+00:00","iteration":1,"role":"define-next","status":"OK","turns":18,"cost_usd":0.719551,"duration_s":112.7}
+{"ts":"2026-02-24T10:04:49.856973+00:00","iteration":1,"role":"advance","status":"OK","turns":18,"cost_usd":0.630469,"duration_s":136.1}
