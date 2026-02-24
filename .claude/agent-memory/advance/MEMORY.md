@@ -30,6 +30,9 @@ iterations.
     string assignment, not object property access
 - Python bindings return dict-like objects -- quick start uses `result['iscc']` (dict access) or
     `result.iscc` (attribute access via `__getattr__`)
+- JNI error handling: all `unwrap()` calls replaced with `throw_and_default` pattern. Three forms:
+    (1) nested match for `env.new_string().into_raw()`, (2) nested match for
+    `env.byte_array_from_slice().into_raw()`, (3) early-return match + `if let Err` for loop bodies
 
 ## Build and Tooling
 

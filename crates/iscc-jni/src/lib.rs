@@ -164,7 +164,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genMetaCodeV0(
         meta_opt.as_deref(),
         bits as u32,
     ) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -184,7 +187,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genTextCodeV0(
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
     };
     match iscc_lib::gen_text_code_v0(&text_str, bits as u32) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -204,7 +210,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genImageCodeV0(
         Err(e) => return throw_and_default(&mut env, &e),
     };
     match iscc_lib::gen_image_code_v0(&pixel_bytes, bits as u32) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -225,7 +234,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genAudioCodeV0(
         Err(e) => return throw_and_default(&mut env, &e),
     };
     match iscc_lib::gen_audio_code_v0(&buf, bits as u32) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -246,7 +258,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genVideoCodeV0(
         Err(e) => return throw_and_default(&mut env, &e),
     };
     match iscc_lib::gen_video_code_v0(&frames, bits as u32) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -268,7 +283,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genMixedCodeV0(
     };
     let refs: Vec<&str> = code_strs.iter().map(|s| s.as_str()).collect();
     match iscc_lib::gen_mixed_code_v0(&refs, bits as u32) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -288,7 +306,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genDataCodeV0(
         Err(e) => return throw_and_default(&mut env, &e),
     };
     match iscc_lib::gen_data_code_v0(&bytes, bits as u32) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -308,7 +329,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genInstanceCodeV0(
         Err(e) => return throw_and_default(&mut env, &e),
     };
     match iscc_lib::gen_instance_code_v0(&bytes, bits as u32) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -330,7 +354,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genIsccCodeV0(
     };
     let refs: Vec<&str> = code_strs.iter().map(|s| s.as_str()).collect();
     match iscc_lib::gen_iscc_code_v0(&refs, wide != 0) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -353,7 +380,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_textClean(
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
     };
     let result = iscc_lib::text_clean(&text_str);
-    env.new_string(result).unwrap().into_raw()
+    match env.new_string(result) {
+        Ok(s) => s.into_raw(),
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
 }
 
 /// Remove newlines and collapse whitespace to single spaces.
@@ -370,7 +400,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_textRemoveNewlines(
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
     };
     let result = iscc_lib::text_remove_newlines(&text_str);
-    env.new_string(result).unwrap().into_raw()
+    match env.new_string(result) {
+        Ok(s) => s.into_raw(),
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
 }
 
 /// Trim text so its UTF-8 encoded size does not exceed `nbytes`.
@@ -389,7 +422,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_textTrim(
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
     };
     let result = iscc_lib::text_trim(&text_str, nbytes as usize);
-    env.new_string(result).unwrap().into_raw()
+    match env.new_string(result) {
+        Ok(s) => s.into_raw(),
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
 }
 
 /// Normalize and simplify text for similarity hashing.
@@ -408,7 +444,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_textCollapse(
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
     };
     let result = iscc_lib::text_collapse(&text_str);
-    env.new_string(result).unwrap().into_raw()
+    match env.new_string(result) {
+        Ok(s) => s.into_raw(),
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
 }
 
 // ── Encoding ────────────────────────────────────────────────────────────────
@@ -427,7 +466,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_encodeBase64(
         Err(e) => return throw_and_default(&mut env, &e),
     };
     let result = iscc_lib::encode_base64(&bytes);
-    env.new_string(result).unwrap().into_raw()
+    match env.new_string(result) {
+        Ok(s) => s.into_raw(),
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
 }
 
 // ── Codec ───────────────────────────────────────────────────────────────────
@@ -513,7 +555,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algSimhash(
     }
     let refs: Vec<&[u8]> = digests.iter().map(|d| d.as_slice()).collect();
     match iscc_lib::alg_simhash(&refs) {
-        Ok(result) => env.byte_array_from_slice(&result).unwrap().into_raw(),
+        Ok(result) => match env.byte_array_from_slice(&result) {
+            Ok(a) => a.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -535,7 +580,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algMinhash256(
     // Java has no unsigned int — cast jint (i32) to u32
     let u32_features: Vec<u32> = buf.iter().map(|&v| v as u32).collect();
     let result = iscc_lib::alg_minhash_256(&u32_features);
-    env.byte_array_from_slice(&result).unwrap().into_raw()
+    match env.byte_array_from_slice(&result) {
+        Ok(a) => a.into_raw(),
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
 }
 
 /// Split data into content-defined chunks using gear rolling hash.
@@ -564,8 +612,13 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algCdcChunks(
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
     };
     for (i, chunk) in chunks.iter().enumerate() {
-        let barr = env.byte_array_from_slice(chunk).unwrap();
-        env.set_object_array_element(&arr, i as i32, &barr).unwrap();
+        let barr = match env.byte_array_from_slice(chunk) {
+            Ok(a) => a,
+            Err(e) => return throw_and_default(&mut env, &e.to_string()),
+        };
+        if let Err(e) = env.set_object_array_element(&arr, i as i32, &barr) {
+            return throw_and_default(&mut env, &e.to_string());
+        }
     }
     arr.into_raw()
 }
@@ -586,7 +639,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_softHashVideoV0(
         Err(e) => return throw_and_default(&mut env, &e),
     };
     match iscc_lib::soft_hash_video_v0(&frames, bits as u32) {
-        Ok(result) => env.byte_array_from_slice(&result).unwrap().into_raw(),
+        Ok(result) => match env.byte_array_from_slice(&result) {
+            Ok(a) => a.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -662,7 +718,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherFinalize(
         return throw_and_default(&mut env, "DataHasher already finalized");
     };
     match inner.finalize(bits as u32) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }
@@ -741,7 +800,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherFinalize(
         return throw_and_default(&mut env, "InstanceHasher already finalized");
     };
     match inner.finalize(bits as u32) {
-        Ok(result) => env.new_string(result.iscc).unwrap().into_raw(),
+        Ok(result) => match env.new_string(result.iscc) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
         Err(e) => throw_and_default(&mut env, &e.to_string()),
     }
 }

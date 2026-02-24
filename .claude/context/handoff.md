@@ -1,34 +1,32 @@
-## 2026-02-24 — Review of: Add Java sections to root README
+## 2026-02-24 — Replace unwrap() calls in JNI entrypoints with fallible error handling
 
-**Verdict:** PASS
+**Done:** Replaced all 21 `unwrap()` calls in `extern "system"` JNI functions with
+`throw_and_default` error handling. Three patterns were addressed: Pattern A (16
+`env.new_string(...).unwrap()` → nested match), Pattern B (3
+`env.byte_array_from_slice(...).unwrap()` → nested match), and Pattern C (2 unwraps in
+`algCdcChunks` loop → early-return match + `if let Err`).
 
-**Summary:** Root README.md correctly updated with Java content in three places: Key Features line
-now lists Java, Installation section has Maven dependency XML with `java.library.path` caveat, and
-Quick Start section has `genMetaCodeV0` example. All content is accurate against `IsccLib.java`
-signatures and per-crate README. Clean, minimal diff touching only `README.md`.
+**Files changed:**
+
+- `crates/iscc-jni/src/lib.rs`: Replaced all 21 `unwrap()` calls with fallible error handling that
+    throws `IllegalArgumentException` via `throw_and_default` and returns a type-appropriate default
+    value
 
 **Verification:**
 
-- [x] `grep -q 'Python, Java, Node.js, WASM, and C FFI' README.md` exits 0 — Key Features updated
-- [x] `grep -q '### Java' README.md` exits 0 — Java subsections exist
-- [x] `grep -q 'io.iscc' README.md` exits 0 — Maven groupId present
-- [x] `grep -q 'genMetaCodeV0' README.md` exits 0 — Java quick start uses correct method name
-- [x] `grep -c '### Java' README.md` returns 2 — one in Installation, one in Quick Start
-- [x] `grep -q 'java.library.path' README.md` exits 0 — native library caveat present
-- [x] `mise run check` passes all pre-commit hooks — README.md passes mdformat independently (the
-    mdformat failure is from pending context file changes, not the advance agent's work)
+- `grep -c 'unwrap()' crates/iscc-jni/src/lib.rs` returns 0 — all unwrap calls eliminated
+- `cargo clippy -p iscc-jni -- -D warnings` passes clean
+- `cargo build -p iscc-jni` succeeds
+- `cd crates/iscc-jni/java && mvn test` passes all 46 conformance vectors
+- `mise run check` passes all pre-commit hooks
 
-**Issues found:**
+**Next:** The critical JNI unwrap issue is resolved. Remaining JNI hardening items from issues.md
+are normal/low priority: `jint` negative value validation (normal), local reference table overflow
+in loops (normal), and exception type differentiation (low). The define-next agent could also
+address the Python binding issues (bytes-like input misclassification, unbounded `.read()`) or the
+performance-related issues (codec header parsing, DataHasher allocation overhead).
 
-- (none)
-
-**Next:** The root README now covers all 5 binding languages. The "What is iscc-lib" paragraph (line
-46\) still says "Python, Node.js, WebAssembly, and C" without Java — this was explicitly out of scope
-but could be a small follow-up. Remaining documentation work includes creating per-language howto
-guides (`docs/howto/java.md`, etc.) or the docs site API reference pages. Alternatively, define-next
-could pivot to tracked performance issues (codec header optimization, DataHasher allocation
-overhead) or the low-priority correctness items in issues.md (`alg_dct` power-of-two validation,
-`alg_wtahash` bounds check).
-
-**Notes:** The advance agent correctly noted the `0.0.1` vs `0.0.1-SNAPSHOT` version difference —
-README uses `0.0.1` matching the per-crate README pattern. No surprises in this iteration.
+**Notes:** Pure mechanical replacement — no behavioral change for happy-path execution. The error
+paths now throw Java exceptions instead of panicking/aborting. No new tests added because JNI
+allocation failures are extremely difficult to trigger from Java-side tests; the fix is mechanically
+verifiable by the zero-unwrap grep count and passing conformance tests.
