@@ -23,6 +23,10 @@ exactly what is defined in next.md — no more, no less.
 @.claude/context/learnings.md
 </learnings>
 
+<issues>
+@.claude/context/issues.md
+</issues>
+
 <git-state>
 !`git status --short 2>/dev/null`
 </git-state>
@@ -63,6 +67,8 @@ exactly what is defined in next.md — no more, no less.
 
     ```
     git add <implementation files> <test files> .claude/context/handoff.md
+    # If issues were added:
+    git add .claude/context/issues.md
     git commit -m "cid(advance): <what was implemented>"
     ```
 
@@ -92,8 +98,12 @@ technical debt introduced>
     handoff explaining why. Do not attempt a partial implementation.
 - If you encounter a blocker (missing dependency, unclear requirement, conflicting design), document
     it in the handoff and commit what you have. Do not guess.
+- If you discover a problem that is out of scope for the current work package but should be tracked,
+    add it to `.claude/context/issues.md` following the file's format. Use source tag `[advance]`
+    and `normal` priority. Do not fix out-of-scope problems — only document them.
 - Do not modify `.claude/context/state.md`, `.claude/context/target.md`, `.claude/context/next.md`,
-    or `.claude/context/learnings.md`. You only write to handoff.md and source/test files.
+    or `.claude/context/learnings.md`. You only write to handoff.md, issues.md (append-only), and
+    source/test files.
 - Every function you write must have a docstring.
 - Do not introduce `unsafe` code without documenting why it's necessary.
 - NEVER weaken quality gates to make checks pass. Do not add lint suppressions (`#[allow(...)]`,

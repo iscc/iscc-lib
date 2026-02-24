@@ -31,6 +31,7 @@ steps.
 | `.claude/context/next.md`      | Current work package                |
 | `.claude/context/handoff.md`   | Inter-role communication + verdicts |
 | `.claude/context/learnings.md` | Accumulated knowledge               |
+| `.claude/context/issues.md`    | Tracked issues and feature requests |
 
 ## Protocol
 
@@ -39,6 +40,7 @@ steps.
 1. Read `.claude/context/state.md` and `.claude/context/target.md`
 2. If state.md contains `## Status: DONE`, stop immediately — project is complete. Report this.
 3. Read `.claude/context/handoff.md` for context from the last cycle.
+4. Read `.claude/context/issues.md` to note any critical issues.
 
 ### Step 1: update-state
 
@@ -54,7 +56,8 @@ project is complete. Report this. Otherwise, note key findings for context.
 ### Step 2: define-next
 
 Delegate to the **define-next** subagent. If update-state revealed notable findings (CI failures,
-structural changes), mention them briefly in the prompt.
+structural changes), mention them briefly in the prompt. If issues.md has critical issues, mention
+them when delegating so define-next can prioritize accordingly.
 
 After it completes, read `.claude/context/next.md` to understand the planned step.
 

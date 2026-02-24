@@ -24,6 +24,10 @@ next iteration.
 @.claude/context/next.md
 </next>
 
+<issues>
+@.claude/context/issues.md
+</issues>
+
 <recent-diff>
 !`git diff HEAD~2..HEAD~1 --stat 2>/dev/null || echo "(no advance commit)"`
 </recent-diff>
@@ -53,30 +57,39 @@ next iteration.
     - **Dead code**: Any unused functions, imports, or commented-out code?
     - **Technical debt**: Any shortcuts that should be addressed soon?
     - **Quality gate integrity**: See dedicated section below.
+    - **Issue resolution**: If this iteration addressed an issue from issues.md, verify the fix
+        resolves it. If resolved, delete the issue entry from issues.md in the commit step.
 
 5. **Update learnings** — append new findings to `.claude/context/learnings.md`. Add entries under
     the appropriate section (Architecture, Reference Implementation, Tooling, Process). Only add
     genuinely useful learnings — things that will help future iterations. Examples:
 
     - "The XYZ algorithm requires input to be normalized first — learned from conformance failure"
-    - "Cargo workspace members must be listed explicitly; glob patterns don't work for nested crates"
+    - "Cargo workspace members must be listed explicitly; glob patterns don't work for nested
+        crates"
     - "iscc-core uses little-endian byte order for hash truncation"
 
-6. **Update handoff** — rewrite `.claude/context/handoff.md` to prepare the define-next agent for
+6. **Manage issues** — If the review uncovered a problem that should be tracked (design flaw,
+    technical debt, recurring bug pattern, missing test coverage), add it to issues.md following
+    the file's format. Use source tag `[review]`. Use `normal` priority unless the issue blocks
+    progress (then `critical`). If this iteration resolved an issue from issues.md, delete that
+    issue entry.
+
+7. **Update handoff** — rewrite `.claude/context/handoff.md` to prepare the define-next agent for
     the next iteration. Include what was accomplished, what issues remain, and a concrete
     suggestion for the next step.
 
-7. **Fix minor issues** — if you find minor problems (formatting, missing docstring, unused import),
-    fix them directly. Do not fix anything that would change behavior or architecture.
+8. **Fix minor issues** — if you find minor problems (formatting, missing docstring, unused
+    import), fix them directly. Do not fix anything that would change behavior or architecture.
 
-8. **Commit** — stage learnings.md, handoff.md, the iteration log, and any minor fixes:
+9. **Commit** — stage learnings.md, handoff.md, issues.md, the iteration log, and any minor fixes:
 
     ```
-    git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/iterations.jsonl <any fixed files>
+    git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/iterations.jsonl .claude/context/issues.md <any fixed files>
     git commit -m "cid(review): <summary of findings>"
     ```
 
-9. **Push (on PASS or PASS_WITH_NOTES)** — if the verdict is PASS or PASS_WITH_NOTES, push all
+10. **Push (on PASS or PASS_WITH_NOTES)** — if the verdict is PASS or PASS_WITH_NOTES, push all
     unpushed commits to the remote. This sends the full batch (define-next + advance + review) as
     one logical unit of progress. Pre-push hooks run automatically and provide defense in depth.
 
@@ -172,6 +185,8 @@ Use this when:
 
 ## Rules
 
+- Do not add issues for style preferences or minor nits — only for problems that affect correctness,
+    architecture, or maintainability.
 - Be critical but constructive. Flag real problems, not style preferences.
 - Do not rewrite the advance agent's code (unless fixing minor issues per step 7).
 - Do not modify `.claude/context/state.md`, `.claude/context/target.md`, or

@@ -27,6 +27,10 @@ exactly ONE small, verifiable step that advances the project toward its target s
 @.claude/context/handoff.md
 </handoff>
 
+<issues>
+@.claude/context/issues.md
+</issues>
+
 <git-log>
 !`git log --oneline -10 2>/dev/null || echo "(no commits yet)"`
 </git-log>
@@ -38,10 +42,15 @@ exactly ONE small, verifiable step that advances the project toward its target s
 2. **Check the handoff** — if handoff.md has a "Next" section from the review agent, start there.
     The review agent has context from the last implementation cycle.
 
-3. **Consult learnings** — check learnings.md for pitfalls, failed approaches, or architectural
+3. **Check issues** — scan issues.md for open issues. If any `critical` issue exists, it takes
+    priority over the handoff suggestion and normal gap analysis. For `normal` issues, weigh them
+    against the state→target gap — prefer finishing a coherent feature set before switching to a
+    normal issue. `low` issues are picked up only when no other work remains.
+
+4. **Consult learnings** — check learnings.md for pitfalls, failed approaches, or architectural
     constraints that affect your choice.
 
-4. **Choose ONE step** — pick the single highest-value step that:
+5. **Choose ONE step** — pick the single highest-value step that:
 
     - Advances toward the target
     - Can be implemented by modifying at most 3 files (excluding tests)
@@ -49,16 +58,17 @@ exactly ONE small, verifiable step that advances the project toward its target s
         an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)
 
-5. **Research if needed** — if unsure about APIs, patterns, or reference implementation details,
+6. **Research if needed** — if unsure about APIs, patterns, or reference implementation details,
     read the relevant `notes/` documents or files from `reference/iscc-core/` (see paths in
     CLAUDE.md).
 
-6. **Verify feasibility** — confirm that all files listed in "Reference" and "Modify" actually
+7. **Verify feasibility** — confirm that all files listed in "Reference" and "Modify" actually
     exist. If a file is missing or the code structure doesn't match expectations, adjust the scope.
 
-7. **Write `.claude/context/next.md`** — overwrite completely. Follow the format below.
+8. **Write `.claude/context/next.md`** — overwrite completely. Follow the format below. If picking
+    up an issue from issues.md, reference its title in the Goal section.
 
-8. **Commit** — stage and commit only next.md:
+9. **Commit** — stage and commit only next.md:
 
     ```
     git add .claude/context/next.md
@@ -132,5 +142,7 @@ skill by name in Implementation Notes so the advance agent knows to use it.
     optimization — and call it out explicitly.
 - For non-code steps (docs, branding, config), include at least one automated verification criterion
     when feasible (e.g., "`uv run zensical build` exits 0", "file X contains string Y").
+- When picking up an issue, do NOT delete it from issues.md. The review agent handles issue
+    resolution after verifying the fix.
 - Do not implement anything. Do not write source code. You only scope and define.
 - Do not modify any file other than `.claude/context/next.md`.
