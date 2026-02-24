@@ -325,3 +325,107 @@ def test_instance_hasher_conformance(tc):
     assert result2["iscc"] == outputs["iscc"]
     assert result2["datahash"] == outputs["datahash"]
     assert result2["filesize"] == outputs["filesize"]
+
+
+# ── Bytes-like input tests ─────────────────────────────────────────────────
+
+
+def test_gen_data_code_v0_bytearray():
+    """Verify bytearray input matches bytes input for gen_data_code_v0."""
+    data = b"Hello, ISCC bytearray test!"
+    expected = gen_data_code_v0(data)
+    result = gen_data_code_v0(bytearray(data))
+    assert result["iscc"] == expected["iscc"]
+
+
+def test_gen_data_code_v0_memoryview():
+    """Verify memoryview input matches bytes input for gen_data_code_v0."""
+    data = b"Hello, ISCC memoryview test!"
+    expected = gen_data_code_v0(data)
+    result = gen_data_code_v0(memoryview(data))
+    assert result["iscc"] == expected["iscc"]
+
+
+def test_gen_instance_code_v0_bytearray():
+    """Verify bytearray input matches bytes input for gen_instance_code_v0."""
+    data = b"Hello, ISCC bytearray instance test!"
+    expected = gen_instance_code_v0(data)
+    result = gen_instance_code_v0(bytearray(data))
+    assert result["iscc"] == expected["iscc"]
+    assert result["datahash"] == expected["datahash"]
+    assert result["filesize"] == expected["filesize"]
+
+
+def test_gen_instance_code_v0_memoryview():
+    """Verify memoryview input matches bytes input for gen_instance_code_v0."""
+    data = b"Hello, ISCC memoryview instance test!"
+    expected = gen_instance_code_v0(data)
+    result = gen_instance_code_v0(memoryview(data))
+    assert result["iscc"] == expected["iscc"]
+    assert result["datahash"] == expected["datahash"]
+    assert result["filesize"] == expected["filesize"]
+
+
+def test_data_hasher_bytearray():
+    """Verify DataHasher.update(bytearray(...)) works correctly."""
+    data = b"DataHasher bytearray test"
+    expected = gen_data_code_v0(data)
+    dh = DataHasher()
+    dh.update(bytearray(data))
+    result = dh.finalize()
+    assert result["iscc"] == expected["iscc"]
+
+
+def test_data_hasher_memoryview():
+    """Verify DataHasher.update(memoryview(...)) works correctly."""
+    data = b"DataHasher memoryview test"
+    expected = gen_data_code_v0(data)
+    dh = DataHasher()
+    dh.update(memoryview(data))
+    result = dh.finalize()
+    assert result["iscc"] == expected["iscc"]
+
+
+def test_instance_hasher_bytearray():
+    """Verify InstanceHasher.update(bytearray(...)) works correctly."""
+    data = b"InstanceHasher bytearray test"
+    expected = gen_instance_code_v0(data)
+    ih = InstanceHasher()
+    ih.update(bytearray(data))
+    result = ih.finalize()
+    assert result["iscc"] == expected["iscc"]
+    assert result["datahash"] == expected["datahash"]
+    assert result["filesize"] == expected["filesize"]
+
+
+def test_instance_hasher_memoryview():
+    """Verify InstanceHasher.update(memoryview(...)) works correctly."""
+    data = b"InstanceHasher memoryview test"
+    expected = gen_instance_code_v0(data)
+    ih = InstanceHasher()
+    ih.update(memoryview(data))
+    result = ih.finalize()
+    assert result["iscc"] == expected["iscc"]
+    assert result["datahash"] == expected["datahash"]
+    assert result["filesize"] == expected["filesize"]
+
+
+# ── Chunked streaming tests ───────────────────────────────────────────────
+
+
+def test_gen_data_code_v0_stream_chunked():
+    """Verify a large BytesIO stream produces the same result as one-shot bytes."""
+    data = b"The quick brown fox jumps over the lazy dog" * 5000
+    expected = gen_data_code_v0(data)
+    result = gen_data_code_v0(io.BytesIO(data))
+    assert result["iscc"] == expected["iscc"]
+
+
+def test_gen_instance_code_v0_stream_chunked():
+    """Verify a large BytesIO stream produces the same result as one-shot bytes."""
+    data = b"The quick brown fox jumps over the lazy dog" * 5000
+    expected = gen_instance_code_v0(data)
+    result = gen_instance_code_v0(io.BytesIO(data))
+    assert result["iscc"] == expected["iscc"]
+    assert result["datahash"] == expected["datahash"]
+    assert result["filesize"] == expected["filesize"]

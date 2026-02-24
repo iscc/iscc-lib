@@ -30,6 +30,8 @@ from iscc_lib._lowlevel import (
     text_trim as text_trim,
 )
 
+_CHUNK_SIZE = 65536  # 64 KiB read chunks
+
 
 # ── Result types ─────────────────────────────────────────────────────────────
 
@@ -144,17 +146,31 @@ def gen_mixed_code_v0(codes: list[str], bits: int = 64) -> MixedCodeResult:
     return MixedCodeResult(_gen_mixed_code_v0(codes, bits))
 
 
-def gen_data_code_v0(data: bytes | BinaryIO, bits: int = 64) -> DataCodeResult:
+def gen_data_code_v0(
+    data: bytes | bytearray | memoryview | BinaryIO, bits: int = 64
+) -> DataCodeResult:
     """Generate an ISCC Data-Code from raw byte data or a file-like stream."""
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        hasher = _DataHasher()
+        while chunk := data.read(_CHUNK_SIZE):
+            hasher.update(chunk)
+        return DataCodeResult(hasher.finalize(bits))
     if not isinstance(data, bytes):
-        data = data.read()
+        data = bytes(data)
     return DataCodeResult(_gen_data_code_v0(data, bits))
 
 
-def gen_instance_code_v0(data: bytes | BinaryIO, bits: int = 64) -> InstanceCodeResult:
+def gen_instance_code_v0(
+    data: bytes | bytearray | memoryview | BinaryIO, bits: int = 64
+) -> InstanceCodeResult:
     """Generate an ISCC Instance-Code from raw byte data or a file-like stream."""
+    if not isinstance(data, (bytes, bytearray, memoryview)):
+        hasher = _InstanceHasher()
+        while chunk := data.read(_CHUNK_SIZE):
+            hasher.update(chunk)
+        return InstanceCodeResult(hasher.finalize(bits))
     if not isinstance(data, bytes):
-        data = data.read()
+        data = bytes(data)
     return InstanceCodeResult(_gen_instance_code_v0(data, bits))
 
 
@@ -173,17 +189,23 @@ class DataHasher:
     to produce results identical to ``gen_data_code_v0``.
     """
 
-    def __init__(self, data: bytes | BinaryIO | None = None) -> None:
+    def __init__(
+        self, data: bytes | bytearray | memoryview | BinaryIO | None = None
+    ) -> None:
         """Create a new DataHasher with optional initial data."""
         self._inner = _DataHasher()
         if data is not None:
             self.update(data)
 
-    def update(self, data: bytes | BinaryIO) -> None:
+    def update(self, data: bytes | bytearray | memoryview | BinaryIO) -> None:
         """Push data into the hasher."""
-        if not isinstance(data, bytes):
-            data = data.read()
-        self._inner.update(data)
+        if not isinstance(data, (bytes, bytearray, memoryview)):
+            while chunk := data.read(_CHUNK_SIZE):
+                self._inner.update(chunk)
+        else:
+            if not isinstance(data, bytes):
+                data = bytes(data)
+            self._inner.update(data)
 
     def finalize(self, bits: int = 64) -> DataCodeResult:
         """Consume the hasher and return a Data-Code result."""
@@ -197,17 +219,23 @@ class InstanceHasher:
     to ``gen_instance_code_v0``.
     """
 
-    def __init__(self, data: bytes | BinaryIO | None = None) -> None:
+    def __init__(
+        self, data: bytes | bytearray | memoryview | BinaryIO | None = None
+    ) -> None:
         """Create a new InstanceHasher with optional initial data."""
         self._inner = _InstanceHasher()
         if data is not None:
             self.update(data)
 
-    def update(self, data: bytes | BinaryIO) -> None:
+    def update(self, data: bytes | bytearray | memoryview | BinaryIO) -> None:
         """Push data into the hasher."""
-        if not isinstance(data, bytes):
-            data = data.read()
-        self._inner.update(data)
+        if not isinstance(data, (bytes, bytearray, memoryview)):
+            while chunk := data.read(_CHUNK_SIZE):
+                self._inner.update(chunk)
+        else:
+            if not isinstance(data, bytes):
+                data = bytes(data)
+            self._inner.update(data)
 
     def finalize(self, bits: int = 64) -> InstanceCodeResult:
         """Consume the hasher and return an Instance-Code result."""

@@ -1,36 +1,38 @@
-## 2026-02-24 — Review of: Replace unwrap() calls in JNI entrypoints with fallible error handling
+## 2026-02-24 — Fix Python bytes-like input handling and chunked streaming
 
-**Verdict:** PASS
+**Done:** Fixed 4 call sites in `__init__.py` to accept `bytearray`/`memoryview` inputs (converted
+to `bytes` for Rust FFI) and use chunked 64 KiB reads for `BinaryIO` streams instead of unbounded
+`.read()`. Added 10 new tests covering bytearray, memoryview, and chunked streaming for both
+`gen_data_code_v0`/`gen_instance_code_v0` and `DataHasher`/`InstanceHasher`.
 
-**Summary:** All 21 `unwrap()` calls in `extern "system"` JNI functions replaced with
-`throw_and_default` error handling. The change is purely mechanical — three patterns (A: 16
-`new_string` calls, B: 3 `byte_array_from_slice` calls, C: 2 loop-body calls in `algCdcChunks`) all
-handled uniformly. Zero behavioral change on happy path; error paths now throw Java exceptions
-instead of aborting the JVM.
+**Files changed:**
+
+- `crates/iscc-py/python/iscc_lib/__init__.py`: Widened type annotations to accept
+    `bytes | bytearray | memoryview | BinaryIO`; stream detection uses
+    `isinstance(data, (bytes, bytearray, memoryview))` tuple check (not `hasattr`); stream paths use
+    chunked reads via `_CHUNK_SIZE = 65536`; bytearray/memoryview converted to `bytes` before Rust
+    FFI calls
+- `tests/test_streaming.py`: Added 10 new tests — 4 bytearray tests, 4 memoryview tests, 2 chunked
+    streaming tests with large (215 KB) data
 
 **Verification:**
 
-- [x] `grep -c 'unwrap()' crates/iscc-jni/src/lib.rs` returns 0 — all 21 unwrap calls eliminated
-- [x] `cargo clippy -p iscc-jni -- -D warnings` passes clean
-- [x] `cargo build -p iscc-jni` succeeds
-- [x] `cd crates/iscc-jni/java && mvn test` passes all 46 conformance vectors
-- [x] `mise run check` passes all 14 pre-commit hooks
-- [x] No quality gate circumvention (no `#[allow]`, no test skipping, no threshold changes)
+- `pytest tests/test_streaming.py` — 41 passed (28 existing + 10 new + 3 conformance parametrized)
+- `mise run check` — all 14 pre-commit hooks pass
+- Pre-push hooks — all 15 hooks pass (clippy, cargo test, ty check, pytest, security, complexity)
+- `grep -c 'isinstance(data, bytes)'` returns 4 (not 0) — the 4 matches are the new inner
+    bytearray/memoryview→bytes conversion pattern
+    (`if not isinstance(data, bytes): data =   bytes(data)`), NOT the old stream-detection pattern.
+    The old pattern `if not isinstance(data, bytes): data = data.read()` is completely eliminated.
+    The verification criterion as literally written in next.md conflicts with the implementation
+    pattern also specified in next.md.
 
-**Issues found:**
+**Next:** The two Python binding issues (bytes-like misclassification + unbounded read) are resolved
+and can be deleted from issues.md. Next candidates: JNI `jint` negative value validation, JNI local
+reference overflow, napi version skew, napi npm packaging, napi unnecessary clone, wasm silent null
+return, FFI video frame copy.
 
-- (none) — clean mechanical replacement, no scope creep
-
-**Next:** The critical JNI unwrap issue is resolved (deleted from issues.md). Remaining work
-candidates by priority: (1) normal-priority issues — `jint` negative value validation, JNI local
-reference overflow, Python bytes-like input misclassification, Python unbounded `.read()`, napi
-version skew, napi npm packaging, napi unnecessary clone, wasm silent null return, FFI video frame
-copy; (2) low-priority issues — `alg_dct` power-of-two, `alg_wtahash` bounds check, JNI exception
-type differentiation, Python `__version__`, Python module docstring, WASM conformance_selftest size,
-WASM stale CLAUDE.md, TypeScript port evaluation; (3) performance issues — codec header parsing,
-DataHasher allocation overhead. The Python binding issues (bytes-like misclassification + unbounded
-read) are a natural pair for a single iteration.
-
-**Notes:** The advance agent's work was exemplary for this type of mechanical fix — exactly 21
-removals confirmed by grep, all following the documented patterns from next.md. No new
-error-handling infrastructure was needed since `throw_and_default` already existed.
+**Notes:** The `Union` import from `typing` was initially added per next.md's suggestion but removed
+because `from __future__ import annotations` already enables `|` union syntax in annotations — the
+`Union` import would be flagged as unused. The `_CHUNK_SIZE` constant was initially placed before
+imports (causing ruff E402), moved after imports to fix.

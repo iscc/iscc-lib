@@ -30,6 +30,13 @@ iterations.
     string assignment, not object property access
 - Python bindings return dict-like objects -- quick start uses `result['iscc']` (dict access) or
     `result.iscc` (attribute access via `__getattr__`)
+- Python `__init__.py` bytes-like input pattern: `isinstance(data, (bytes, bytearray, memoryview))`
+    for stream detection (NOT `hasattr(data, "read")` — ty type checker doesn't support it). Inner
+    `isinstance(data, bytes)` check converts bytearray/memoryview to `bytes` for Rust FFI
+- Python streaming: `_CHUNK_SIZE = 65536` (64 KiB) for chunked reads from BinaryIO, uses Rust-layer
+    `_DataHasher`/`_InstanceHasher` for true streaming (no unbounded `.read()`)
+- `from __future__ import annotations` is active in `__init__.py` — use `|` union syntax in type
+    annotations, do NOT import `Union` from typing (ruff flags it as unused)
 - JNI error handling: all `unwrap()` calls replaced with `throw_and_default` pattern. Three forms:
     (1) nested match for `env.new_string().into_raw()`, (2) nested match for
     `env.byte_array_from_slice().into_raw()`, (3) early-return match + `if let Err` for loop bodies
@@ -72,3 +79,5 @@ iterations.
     C" without Java -- Key Features line was updated but this paragraph was out of scope
 - Java quick start must pass all parameters explicitly (no default arguments in Java) --
     `genMetaCodeV0("...", null, null, 64)` not `genMetaCodeV0("...")`
+- Python `__init__.py` module-level constants must go AFTER imports -- ruff E402 (module level
+    import not at top of file) fires if a constant is placed between import groups
