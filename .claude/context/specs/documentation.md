@@ -48,9 +48,9 @@ config format.
 
 - **Landing page** (`index.md`): overview, quick start, supported code types
 - **Tutorials**: getting started guide (installation, first ISCC code generation)
-- **How-to guides**: per-language usage guides (Python, Rust, Node.js, WASM)
+- **How-to guides**: per-language usage guides (Python, Rust, Java, Node.js, WASM)
 - **Explanation**: architecture (hub-and-spoke model, internal modules, streaming pattern)
-- **Reference**: Python API (mkdocstrings autodoc), Rust API, C FFI reference
+- **Reference**: Python API (mkdocstrings autodoc), Rust API, Java API, C FFI reference
 - **Benchmarks**: performance comparisons
 - **Development**: contributor-facing content (dev container setup, CID autonomous workflow, quality
     gates and pre-commit hooks, project structure, mise task runner)
@@ -58,8 +58,8 @@ config format.
 ## Per-Language Code Examples
 
 All code examples use tabbed format (`pymdownx.tabbed`) showing equivalent code in multiple
-languages. Standard tab order: Python, Rust, Node.js, WASM. Only languages relevant to the example
-are included. The landing page quick start and all how-to guides use this pattern.
+languages. Standard tab order: Python, Rust, Java, Node.js, WASM. Only languages relevant to the
+example are included. The landing page quick start and all how-to guides use this pattern.
 
 ## Custom Domain
 

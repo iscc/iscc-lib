@@ -76,18 +76,44 @@ all 9 entrypoints via wasm-bindgen. Published under the same `@iscc` npm scope.
 
 ## C FFI
 
-A C-compatible shared library with generated headers, enabling Go/Java/C# bindings.
+A C-compatible shared library with generated headers, enabling Go/C# and other language bindings.
 
 **Verified when:**
 
 - cbindgen generates valid C headers
 - A C test program can call the entrypoints and get correct results
 
+## Java Bindings — Maven Central
+
+A Java library published to Maven Central (e.g., `io.iscc:iscc-lib`) with bundled native libraries
+for all supported platforms. Java/JVM developers add a single dependency to their `pom.xml` or
+`build.gradle` and get idiomatic Java access to all ISCC functions — no manual native library
+management required.
+
+**Architecture:**
+
+- JNI bridge crate (`iscc-jni`) generates the native interface from the Rust core
+- Java wrapper provides idiomatic API (e.g., `IsccLib.genMetaCodeV0("title")`)
+- Platform-specific native libraries (linux-x64, linux-aarch64, macos-x64, macos-aarch64,
+    windows-x64) bundled inside the JAR under `META-INF/native/`
+- Loader class extracts and loads the correct native library at runtime
+
+**Dev environment:** Requires JDK 17+ and Maven (or Gradle) in the devcontainer. Add to
+`.devcontainer/Dockerfile` when work on Java bindings begins.
+
+**Verified when:**
+
+- `mvn test` (or `gradle test`) passes conformance vectors from Java
+- JAR installs cleanly via Maven/Gradle dependency declaration
+- Native libraries load correctly on Linux, macOS, and Windows
+- All 9 `gen_*_v0` functions are accessible with idiomatic Java types
+- Devcontainer includes JDK and build tool for Java development
+
 ## README
 
 The repository README (`README.md`) is the project's public-facing entry point, written for
 developers who want to adopt ISCC in their ecosystem. It follows the same structural pattern as the
-`iscc/iscc-core` README but targets a polyglot audience — Rust, Python, Node.js, WASM, and C
+`iscc/iscc-core` README but targets a polyglot audience — Rust, Python, Java, Node.js, WASM, and C
 developers.
 
 **Structure** (modeled after iscc-core README):
@@ -95,14 +121,14 @@ developers.
 - **Badges**: CI status, crate/package version badges for all published packages
 - **Tagline**: one-line description emphasizing polyglot, high-performance, ISO 24138
 - **Key Features**: similarity-preserving, multi-level identification, self-describing, ISO
-    standardized, polyglot (Rust + Python + Node.js + WASM + C FFI), conformance-tested
+    standardized, polyglot (Rust + Python + Java + Node.js + WASM + C FFI), conformance-tested
 - **What is the ISCC**: brief explanation of ISCC purpose and capabilities (reuse iscc-core text)
 - **What is iscc-lib**: explains this is a high-performance polyglot implementation, relationship to
     `iscc-core` reference, and which ecosystems it serves
 - **ISCC Architecture**: architecture diagram (reuse iscc-core diagram or link to docs site)
 - **ISCC MainTypes**: table of main types (reuse from iscc-core)
-- **Installation**: per-language install instructions (Rust/cargo, Python/pip, Node.js/npm,
-    WASM/npm) — use tabbed or sectioned format
+- **Installation**: per-language install instructions (Rust/cargo, Python/pip, Java/Maven,
+    Node.js/npm, WASM/npm) — use tabbed or sectioned format
 - **Quick Start**: minimal code examples showing `gen_meta_code_v0` in each language
 - **Implementors Guide**: link to conformance test vectors and the 9 `gen_*_v0` entry points (same
     list as iscc-core), link to documentation site for detailed per-language guides
@@ -117,7 +143,7 @@ setup, quality gates). Those belong in the documentation site under a Developmen
 **Verified when:**
 
 - README exists and renders correctly on GitHub
-- Contains per-language installation instructions (Rust, Python, Node.js, WASM)
+- Contains per-language installation instructions (Rust, Python, Java, Node.js, WASM)
 - Contains per-language quick start code examples
 - Links to documentation site (`lib.iscc.codes`)
 - Does not contain development workflow content (CID loop, dev container, pre-commit hooks)
@@ -136,7 +162,7 @@ Detailed spec: `.claude/context/specs/documentation.md`
 - Site builds and deploys via GitHub Pages
 - ISCC branding (colors, logo, favicon, dark mode) matches iscc-usearch
 - Covers Rust API, Python API, architecture, and per-language how-to guides
-- All code examples use tabbed multi-language format (Python, Rust, Node.js, WASM)
+- All code examples use tabbed multi-language format (Python, Rust, Java, Node.js, WASM)
 - Copy-page feature and `llms-full.txt` generation for agent consumption
 - Navigation follows Diátaxis framework (tutorials, howto, explanation, reference)
 - Development section covers: dev container setup, CID workflow, quality gates, project structure
