@@ -129,6 +129,9 @@ pub fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<&[u8
         // Align cut points to 4-byte boundaries for UTF-32 encoded text
         if utf32 {
             cut_point -= cut_point % 4;
+            if cut_point == 0 {
+                cut_point = remaining.len().min(4);
+            }
         }
 
         chunks.push(&data[pos..pos + cut_point]);
@@ -228,5 +231,66 @@ mod tests {
             "expected multiple chunks, got {}",
             chunks.len()
         );
+    }
+
+    #[test]
+    fn test_alg_cdc_chunks_utf32_small_buffer() {
+        // 3 bytes with utf32=true must terminate and reassemble to original.
+        // Primary regression test for the infinite loop bug where
+        // cut_point % 4 == cut_point reduced cut_point to 0.
+        let data = [0xAA, 0xBB, 0xCC];
+        let chunks = alg_cdc_chunks(&data, true, 1024);
+        assert!(!chunks.is_empty(), "must return at least one chunk");
+        let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
+        assert_eq!(reassembled, data);
+    }
+
+    #[test]
+    fn test_alg_cdc_chunks_utf32_exact_4_bytes() {
+        // Exactly 4 bytes with utf32=true must return one 4-byte chunk.
+        let data = [0x01, 0x02, 0x03, 0x04];
+        let chunks = alg_cdc_chunks(&data, true, 1024);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0], &data[..]);
+    }
+
+    #[test]
+    fn test_alg_cdc_chunks_utf32_7_bytes() {
+        // 7 bytes (4+3) with utf32=true verifies non-aligned tail handling.
+        let data = [0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70];
+        let chunks = alg_cdc_chunks(&data, true, 1024);
+        assert!(!chunks.is_empty(), "must return at least one chunk");
+        let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
+        assert_eq!(reassembled, data);
+    }
+
+    #[test]
+    fn test_alg_cdc_chunks_utf32_reassembly() {
+        // Larger 4-byte-aligned input with utf32=true must reassemble correctly,
+        // and all chunks except possibly the last must be 4-byte aligned.
+        let data: Vec<u8> = (0..=255).cycle().take(4096).collect();
+        assert_eq!(data.len() % 4, 0, "test data must be 4-byte aligned");
+        let chunks = alg_cdc_chunks(&data, true, 1024);
+        let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
+        assert_eq!(reassembled, data);
+        // All chunks except the last must be 4-byte aligned
+        if chunks.len() > 1 {
+            for (i, chunk) in chunks[..chunks.len() - 1].iter().enumerate() {
+                assert_eq!(
+                    chunk.len() % 4,
+                    0,
+                    "chunk {i} has length {} which is not 4-byte aligned",
+                    chunk.len()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_alg_cdc_chunks_utf32_empty() {
+        // Empty input with utf32=true must not loop and must return one empty chunk.
+        let chunks = alg_cdc_chunks(b"", true, 1024);
+        assert_eq!(chunks.len(), 1);
+        assert_eq!(chunks[0].len(), 0);
     }
 }

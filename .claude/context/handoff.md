@@ -1,30 +1,28 @@
-## 2026-02-24 — Fix JSON metadata canonicalization (RFC 8785 / JCS)
+## 2026-02-24 — Fix `alg_cdc_chunks` infinite loop when `utf32=true`
 
-**Done:** Replaced `serde_json::to_vec` with `serde_json_canonicalizer::to_writer` in
-`parse_meta_json()` for RFC 8785 (JCS) compliant JSON canonicalization. The previous implementation
-used `serde_json` sorted-key serialization, which diverges from iscc-core's `jcs.canonicalize()` on
-numeric values (e.g., JCS serializes `1.0` as `1`, `1e20` as `100000000000000000000`). Added two
-failing-then-passing tests with expected values generated from iscc-core. Filed iscc/iscc-core#131
-requesting upstream add float-valued JSON metadata test vectors.
+**Done:** Fixed the infinite loop in `alg_cdc_chunks` when `utf32=true` and the remaining buffer is
+smaller than 4 bytes. The bug was at `cdc.rs:130-132` where `cut_point -= cut_point % 4` reduced
+`cut_point` to 0 for small remainders, preventing `pos` from advancing. The fix adds a guard: when
+UTF-32 alignment reduces `cut_point` to 0, it is set to `min(4, remaining.len())` to guarantee
+forward progress.
 
 **Files changed:**
 
-- `Cargo.toml`: Added `serde_json_canonicalizer = "0.3.2"` to workspace dependencies
-- `crates/iscc-lib/Cargo.toml`: Added `serde_json_canonicalizer.workspace = true`
-- `crates/iscc-lib/src/lib.rs`: Replaced `serde_json::to_vec` with
-    `serde_json_canonicalizer::to_writer` in `parse_meta_json()`; added two JCS conformance tests
-    (`test_gen_meta_code_v0_jcs_float_canonicalization`,
-    `test_gen_meta_code_v0_jcs_large_float_canonicalization`)
-- `crates/iscc-lib/CLAUDE.md`: Updated pitfall note to reflect JCS compliance
+- `crates/iscc-lib/src/cdc.rs`: Added 3-line guard after UTF-32 alignment subtraction + 5 new tests
 
 **Verification:**
 
-- `cargo test -p iscc-lib` passes all 182 tests (including 2 new JCS tests)
-- All 28 integration tests pass, all 22 text utils tests pass
-- Existing conformance vectors unaffected (string-only JSON produces identical output under JCS)
+- `cargo test -p iscc-lib` passes all 187 tests (182 existing + 5 new utf32 tests)
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `cargo test -p iscc-lib -- test_alg_cdc_chunks_utf32` passes (5 new + 1 existing utf32 test)
+- 3-byte input test (`test_alg_cdc_chunks_utf32_small_buffer`) proves the infinite loop is fixed
+- `mise run check` passes all pre-commit hooks
 
-**Next:** The remaining documentation gaps are: (1) abbreviations file
-(`docs/includes/abbreviations.md`) with ISCC-specific terms and `pymdownx.snippets` auto-append
-configuration, (2) CNAME file (`docs/CNAME` with `lib.iscc.codes`), (3) OIDC trusted publishing
-configuration in `release.yml`. The abbreviations and CNAME items are small and could be combined
-into a single step.
+**Next:** The critical issue is resolved. Remaining issues from issues.md are all normal/low
+priority. The `iscc_decompose` panics on malformed input (normal priority) is the highest-impact
+remaining robustness issue.
+
+**Notes:** The Python reference (`cdc.py:47`) has the identical bug — `cut_point -= cut_point % 4`
+can produce 0 in Python too, but Python's generator-based approach might mask it differently (the
+`while buffer:` loop would exit if `buffer` becomes empty). This upstream issue was already noted in
+next.md as out of scope.
