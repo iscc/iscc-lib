@@ -1,85 +1,84 @@
 # Next Work Package
 
-## Step: Add Java sections to root README
+## Step: Replace unwrap() calls in JNI entrypoints with fallible error handling
 
 ## Goal
 
-Update the root README.md to include Java/Maven installation instructions, a Java quick start code
-example, and fix the Key Features line to mention Java. This addresses three target gaps in one
-coherent change: the Key Features inaccuracy ("Python, Node.js, WASM, and C FFI" — Java missing),
-the missing Java installation section, and the missing Java quick start example.
+Eliminate all 21 `unwrap()` calls in `extern "system"` JNI functions that can panic across the FFI
+boundary and abort the JVM process. Replace each with `throw_and_default` error handling that throws
+a Java exception and returns a safe default value. This addresses the critical issue "iscc-jni:
+`unwrap()` calls in JNI entrypoints can panic across FFI boundary" from issues.md.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `README.md`
-- **Reference**:
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java API surface and method
-        signatures (camelCase names, parameter types)
-    - `crates/iscc-jni/java/pom.xml` — Maven coordinates (`io.iscc`, `iscc-lib`, version)
-    - `crates/iscc-jni/README.md` — per-crate README with Java quick start example for consistency
+- **Modify**: `crates/iscc-jni/src/lib.rs`
+- **Reference**: issues.md (critical issue description),
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (existing conformance
+    tests)
 
 ## Not In Scope
 
-- Adding Go sections to the README — Go bindings are not started; adding placeholder sections for
-    non-existent functionality would mislead developers
-- Creating `docs/howto/java.md` — separate step, different file and nav config
-- Java native loader class — code task, separate from documentation
-- Updating the "What is iscc-lib" paragraph to mention Java — the current text says "Python,
-    Node.js, WebAssembly, and C" which could be updated, but scoping to the three specific target
-    gaps keeps this focused
-- Adding Maven Central badge — package is not yet published to Maven Central, so no version badge
-    exists
+- Adding `std::panic::catch_unwind` as a safety net — that's a separate hardening step
+- Adding `push_local_frame`/`pop_local_frame` for local reference management (separate issue)
+- Validating `jint` negative values before casting (separate normal-priority issue)
+- Changing exception types (e.g., `IllegalStateException` for finalized hashers) — separate low
+    issue
+- Adding new Java-side tests that deliberately trigger JNI allocation failures (difficult to test
+    from Java; the Rust-side fix is mechanically verifiable)
 
 ## Implementation Notes
 
-**Key Features line (line 23):** Change "Python, Node.js, WASM, and C FFI" to "Python, Java,
-Node.js, WASM, and C FFI" — add Java after Python (following the order used in target.md: "Rust +
-Python + Java + Node.js + WASM + C FFI").
+There are exactly 21 `unwrap()` calls to replace, falling into three patterns:
 
-**Installation section:** Add a `### Java` subsection after Node.js (line 91) and before WASM. Use a
-Maven `<dependency>` XML snippet:
+**Pattern A — `env.new_string(...).unwrap().into_raw()`** (16 occurrences): Lines 167, 187, 207,
+228, 249, 271, 291, 311, 333, 356, 373, 392, 411, 430, 665, 744. Replace with:
 
-```xml
-<dependency>
-  <groupId>io.iscc</groupId>
-  <artifactId>iscc-lib</artifactId>
-  <version>0.0.1</version>
-</dependency>
+```rust
+match env.new_string(result.iscc) {
+    Ok(s) => s.into_raw(),
+    Err(e) => throw_and_default(&mut env, &e.to_string()),
+}
 ```
 
-Add a note that the native library must be on `java.library.path` (since the native loader class is
-not yet implemented). This matches the caveat in `crates/iscc-jni/README.md`.
+**Pattern B — `env.byte_array_from_slice(...).unwrap().into_raw()`** (3 occurrences): Lines 516,
+538, 589. Replace with:
 
-**Quick Start section:** Add a `### Java` subsection after Node.js and before WASM. Show
-`genMetaCodeV0` usage with camelCase Java method names from `IsccLib.java`:
-
-```java
-import io.iscc.iscc_lib.IsccLib;
-
-String result = IsccLib.genMetaCodeV0("ISCC Test Document!", null, null, 64);
-System.out.println("Meta-Code: " + result);
+```rust
+match env.byte_array_from_slice(&result) {
+    Ok(a) => a.into_raw(),
+    Err(e) => throw_and_default(&mut env, &e.to_string()),
+}
 ```
 
-**Section ordering:** Insert Java after Node.js and before WASM in both Installation and Quick Start
-sections. This keeps the language-specific sections in logical order: native languages first (Rust,
-Python, Node.js, Java), then WASM.
+**Pattern C — `unwrap()` in loop body** (2 occurrences in `algCdcChunks`, lines 567-568):
 
-**Style:** Match the existing README tone and formatting. No emojis. Keep subsections concise — the
-Installation subsection is 3-5 lines like the existing ones, the Quick Start subsection is a short
-code block like the existing ones.
+```rust
+// Before:
+let barr = env.byte_array_from_slice(chunk).unwrap();
+env.set_object_array_element(&arr, i as i32, &barr).unwrap();
+
+// After:
+let barr = match env.byte_array_from_slice(chunk) {
+    Ok(a) => a,
+    Err(e) => return throw_and_default(&mut env, &e.to_string()),
+};
+if let Err(e) = env.set_object_array_element(&arr, i as i32, &barr) {
+    return throw_and_default(&mut env, &e.to_string());
+}
+```
+
+All replacements use the existing `throw_and_default` helper — no new error-handling infrastructure
+needed. The fix is mechanical and uniform.
 
 ## Verification
 
-- `grep -q 'Python, Java, Node.js, WASM, and C FFI' README.md` exits 0 (Key Features updated)
-- `grep -q '### Java' README.md` exits 0 (Java subsections exist)
-- `grep -q 'io.iscc' README.md` exits 0 (Maven groupId present)
-- `grep -q 'genMetaCodeV0' README.md` exits 0 (Java quick start uses correct method name)
-- `grep -c '### Java' README.md` returns 2 (one in Installation, one in Quick Start)
-- `grep -q 'java.library.path' README.md` exits 0 (native library caveat present)
-- `mise run check` passes all pre-commit hooks (formatting, linting)
+- `grep -c 'unwrap()' crates/iscc-jni/src/lib.rs` returns `0` (all unwrap calls eliminated)
+- `cargo clippy -p iscc-jni -- -D warnings` passes
+- `cargo build -p iscc-jni` succeeds
+- `cd crates/iscc-jni/java && mvn test` passes all 46 conformance vectors (no behavioral change)
 
 ## Done When
 
-README.md contains Java installation (Maven dependency XML), Java quick start (genMetaCodeV0
-example), updated Key Features line mentioning Java, and all verification commands pass.
+All four verification commands pass — zero `unwrap()` calls remain in the JNI crate, clippy is
+clean, and all conformance tests still pass.

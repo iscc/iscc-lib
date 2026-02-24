@@ -29,6 +29,12 @@ iterations.
 - After root README Java: next candidates are (1) docs/howto/java.md (create + zensical.toml nav
     update), (2) Java native loader class, (3) Go bindings. The howto guide is a natural follow-up
     since it continues the documentation story.
+- Critical issues always take priority regardless of feature trajectory. The JNI unwrap() issue is a
+    safety fix — pure mechanical replacement (21 calls, 3 patterns, 1 file). Good scope: small,
+    well-defined, zero behavioral change, easy to verify with `grep -c 'unwrap()'`.
+- After JNI safety fix: resume the documentation/feature track. Next candidates: (1) fix "What is
+    iscc-lib" body text to mention Java (tiny), (2) docs/howto/java.md, (3) Java native loader, (4)
+    Go bindings. Could bundle the tiny README text fix with another step.
 
 ## Architecture Decisions
 
@@ -85,6 +91,17 @@ iterations.
     Python default).
 - `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data for `gen_data_code_v0` and
     `gen_instance_code_v0`. Empty after prefix = empty bytes.
+
+## JNI Safety Patterns
+
+- JNI `extern "system"` functions must never panic — with `panic = "abort"` in release, a panic
+    aborts the entire JVM. All JNI env operations (`new_string`, `byte_array_from_slice`,
+    `set_object_array_element`, etc.) return `jni::errors::Result` and must be handled.
+- The `throw_and_default` helper is the standard error-handling pattern: throws a Java exception and
+    returns `T::default()` (null for pointer types, 0 for primitives, false for booleans).
+- There are 3 unwrap patterns in the JNI crate: (A) `env.new_string().unwrap().into_raw()` for
+    string returns, (B) `env.byte_array_from_slice().unwrap().into_raw()` for byte array returns,
+    (C) loop-body unwraps in `algCdcChunks`. All follow the same fix: match + throw_and_default.
 
 ## Gotchas
 
