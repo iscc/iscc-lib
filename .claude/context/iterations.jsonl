@@ -205,3 +205,8 @@
 {"ts":"2026-02-24T20:48:36.255387+00:00","iteration":2,"role":"define-next","status":"OK","turns":23,"cost_usd":0.920566,"duration_s":183.6}
 {"ts":"2026-02-24T20:53:47.469902+00:00","iteration":2,"role":"advance","status":"OK","turns":47,"cost_usd":1.948567,"duration_s":311.2}
 {"iteration":2,"timestamp":"2026-02-24T20:55:00Z","step":"JNI jint validation and local reference frame safety","verdict":"PASS","summary":"3 negative jint guards + 5 push/pop local frame wrappers + 3 JUnit tests. 49 Java tests pass, clippy clean, 14 hooks pass. 2 issues resolved."}
+{"ts":"2026-02-24T20:57:38.256172+00:00","iteration":2,"role":"review","status":"OK","turns":32,"cost_usd":1.093151,"duration_s":230.8}
+{"ts":"2026-02-24T21:21:37.575842+00:00","iteration":3,"role":"update-state","status":"OK","turns":19,"cost_usd":0.835669,"duration_s":243.5}
+{"ts":"2026-02-24T21:26:01.903267+00:00","iteration":3,"role":"define-next","status":"OK","turns":31,"cost_usd":1.304421,"duration_s":264.3}
+{"ts":"2026-02-24T21:29:39.008605+00:00","iteration":3,"role":"advance","status":"OK","turns":35,"cost_usd":1.163843,"duration_s":217.1}
+{"iteration":3,"timestamp":"2026-02-24T21:31:22Z","step":"Fix napi packaging, version skew, and unnecessary clone","verdict":"PASS","files_changed":["crates/iscc-napi/package.json","crates/iscc-napi/src/lib.rs"],"issues_resolved":["iscc-napi: Version skew","iscc-napi: npm packaging","iscc-napi: alg_cdc_chunks clone"]}
