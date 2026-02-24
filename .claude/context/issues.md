@@ -138,20 +138,6 @@ acknowledging community implementations builds goodwill and helps adopters find 
 
 **Source:** [human]
 
-## [critical] iscc-jni: `unwrap()` calls in JNI entrypoints can panic across FFI boundary
-
-In `crates/iscc-jni/src/lib.rs`, 21 `unwrap()` calls exist in `extern "system"` JNI functions —
-including `env.new_string(...).unwrap()` (lines 167, 187, 207, etc.),
-`env.byte_array_from_slice(...).unwrap()` (lines 516, 538), and array operations in `algCdcChunks`
-(lines 567-568). JNI functions that fail (OOM, VM error) will panic, and since `panic = "abort"` is
-set for release, this aborts the entire JVM process instead of throwing a Java exception.
-
-Fix: replace all `unwrap()` calls with fallible handling that throws a Java exception and returns a
-default value, using the existing `throw_and_default` pattern. Consider wrapping function bodies in
-`std::panic::catch_unwind` as an additional safety net.
-
-**Source:** [human]
-
 ## [normal] iscc-jni: `jint` parameters cast without negative value validation
 
 In `crates/iscc-jni/src/lib.rs`, three functions cast signed Java `jint` to unsigned Rust types

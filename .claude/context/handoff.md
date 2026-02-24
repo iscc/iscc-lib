@@ -1,32 +1,36 @@
-## 2026-02-24 — Replace unwrap() calls in JNI entrypoints with fallible error handling
+## 2026-02-24 — Review of: Replace unwrap() calls in JNI entrypoints with fallible error handling
 
-**Done:** Replaced all 21 `unwrap()` calls in `extern "system"` JNI functions with
-`throw_and_default` error handling. Three patterns were addressed: Pattern A (16
-`env.new_string(...).unwrap()` → nested match), Pattern B (3
-`env.byte_array_from_slice(...).unwrap()` → nested match), and Pattern C (2 unwraps in
-`algCdcChunks` loop → early-return match + `if let Err`).
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-jni/src/lib.rs`: Replaced all 21 `unwrap()` calls with fallible error handling that
-    throws `IllegalArgumentException` via `throw_and_default` and returns a type-appropriate default
-    value
+**Summary:** All 21 `unwrap()` calls in `extern "system"` JNI functions replaced with
+`throw_and_default` error handling. The change is purely mechanical — three patterns (A: 16
+`new_string` calls, B: 3 `byte_array_from_slice` calls, C: 2 loop-body calls in `algCdcChunks`) all
+handled uniformly. Zero behavioral change on happy path; error paths now throw Java exceptions
+instead of aborting the JVM.
 
 **Verification:**
 
-- `grep -c 'unwrap()' crates/iscc-jni/src/lib.rs` returns 0 — all unwrap calls eliminated
-- `cargo clippy -p iscc-jni -- -D warnings` passes clean
-- `cargo build -p iscc-jni` succeeds
-- `cd crates/iscc-jni/java && mvn test` passes all 46 conformance vectors
-- `mise run check` passes all pre-commit hooks
+- [x] `grep -c 'unwrap()' crates/iscc-jni/src/lib.rs` returns 0 — all 21 unwrap calls eliminated
+- [x] `cargo clippy -p iscc-jni -- -D warnings` passes clean
+- [x] `cargo build -p iscc-jni` succeeds
+- [x] `cd crates/iscc-jni/java && mvn test` passes all 46 conformance vectors
+- [x] `mise run check` passes all 14 pre-commit hooks
+- [x] No quality gate circumvention (no `#[allow]`, no test skipping, no threshold changes)
 
-**Next:** The critical JNI unwrap issue is resolved. Remaining JNI hardening items from issues.md
-are normal/low priority: `jint` negative value validation (normal), local reference table overflow
-in loops (normal), and exception type differentiation (low). The define-next agent could also
-address the Python binding issues (bytes-like input misclassification, unbounded `.read()`) or the
-performance-related issues (codec header parsing, DataHasher allocation overhead).
+**Issues found:**
 
-**Notes:** Pure mechanical replacement — no behavioral change for happy-path execution. The error
-paths now throw Java exceptions instead of panicking/aborting. No new tests added because JNI
-allocation failures are extremely difficult to trigger from Java-side tests; the fix is mechanically
-verifiable by the zero-unwrap grep count and passing conformance tests.
+- (none) — clean mechanical replacement, no scope creep
+
+**Next:** The critical JNI unwrap issue is resolved (deleted from issues.md). Remaining work
+candidates by priority: (1) normal-priority issues — `jint` negative value validation, JNI local
+reference overflow, Python bytes-like input misclassification, Python unbounded `.read()`, napi
+version skew, napi npm packaging, napi unnecessary clone, wasm silent null return, FFI video frame
+copy; (2) low-priority issues — `alg_dct` power-of-two, `alg_wtahash` bounds check, JNI exception
+type differentiation, Python `__version__`, Python module docstring, WASM conformance_selftest size,
+WASM stale CLAUDE.md, TypeScript port evaluation; (3) performance issues — codec header parsing,
+DataHasher allocation overhead. The Python binding issues (bytes-like misclassification + unbounded
+read) are a natural pair for a single iteration.
+
+**Notes:** The advance agent's work was exemplary for this type of mechanical fix — exactly 21
+removals confirmed by grep, all following the documented patterns from next.md. No new
+error-handling infrastructure was needed since `throw_and_default` already existed.
