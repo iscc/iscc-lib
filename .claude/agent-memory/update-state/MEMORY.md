@@ -18,7 +18,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Codebase Landmarks
 
-- `crates/iscc-jni/src/lib.rs` — 763-line Rust JNI bridge, 29 `extern "system"` functions
+- `crates/iscc-jni/src/lib.rs` — 824-line Rust JNI bridge, 29 `extern "system"` functions, 0
+    unwrap(), 72 throw_and_default call sites
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — 331-line Java wrapper, 29
     native methods
 - `crates/iscc-jni/java/pom.xml` — Maven build config, JDK 17, JUnit 5 + Gson, Surefire 3.5.2 with
@@ -36,7 +37,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     affected sections. Always carry forward sections where no relevant files changed.
 - **Tier 1 symbol count**: target says "22" but implementation has 23 (target.md counting error)
 - **CI now has 6 jobs**: Rust, Python, Node.js, WASM, C FFI, Java. All 6 pass at HEAD (run
-    22366874021). Go job pending.
+    22367877569). Go job pending.
 - **Registry readme metadata**: `Cargo.toml` `readme = "README.md"` in iscc-lib; `pyproject.toml`
     `readme = "README.md"` in iscc-py; npm auto-detects README.md (no explicit field needed in
     package.json)
@@ -52,6 +53,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - Root README now has Java sections (installation + quick start) as of iteration 6 (commit 8012a7f).
     "What is iscc-lib" body text (line 47) still says "Python, Node.js, WebAssembly, and C" — minor
     gap. Go sections and Maven Central/Go badges still missing.
+- JNI unwrap() issue resolved in iteration 7 (commit a573475). All 21 unwrap() calls replaced with
+    throw_and_default. No critical issues remain in issues.md as of f24a31f.
+- Python bytes-like + unbounded read issues are normal priority, designated next iteration target.
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` needs `--repo iscc/iscc-lib` to avoid GraphQL projects error; also needs `--json`

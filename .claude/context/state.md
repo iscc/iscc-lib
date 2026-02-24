@@ -1,15 +1,15 @@
-<!-- assessed-at: 8012a7f8432094c967a0b65a60fa0e13ed944334 -->
+<!-- assessed-at: f24a31f37d5f4500e64334f63c70ca6ffa6806dc -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Java sections added to root README — Java docs, native loader, Go bindings pending
+## Phase: JNI unwrap() eliminated — Java docs, native loader, Go bindings pending
 
-Java installation and quick start sections have been added to the root README, and the Key Features
-bullet now lists Java. CI remains green on all 6 jobs (Rust, Python, Node.js, WASM, C FFI, Java).
-Remaining gaps: native library loader class for JAR self-containment, `docs/howto/java.md`, Maven
-Central publishing, and Go bindings (not started).
+All 21 `unwrap()` calls in the JNI bridge have been replaced with `throw_and_default` error
+handling. CI is green on all 6 jobs. Remaining gaps: native library loader class for JAR
+self-containment, `docs/howto/java.md`, Maven Central publishing, and Go bindings (not started).
+Several normal-priority correctness issues remain in Python, Node.js, and WASM bindings.
 
 ## Rust Core Crate
 
@@ -50,6 +50,9 @@ Central publishing, and Go bindings (not started).
 - abi3-py310 wheel configuration in place
 - `ty` type checking configured
 - OIDC trusted publishing not yet configured
+- **Open issues** (normal): bytes-like inputs (`bytearray`, `memoryview`) misclassified as streams;
+    unbounded `.read()` on file-like inputs defeats streaming; missing `__version__` [low]; module
+    docstring references wrong package name [low]
 
 ## Node.js Bindings
 
@@ -62,6 +65,9 @@ Central publishing, and Go bindings (not started).
 - 66 tests: 9 in `conformance.test.mjs` + 57 in `functions.test.mjs`
 - `npm test` passes all conformance vectors (CI-verified at HEAD)
 - Structured results not returned — all gen functions return only the `.iscc` string field
+- **Open issues** (normal): napi version skew (`index.js` hardcodes `0.1.0`, `package.json` says
+    `0.0.1`); npm packaging may exclude entrypoints (no `"files"` field or `.npmignore`);
+    `alg_cdc_chunks` clones chunks unnecessarily
 
 ## WASM Bindings
 
@@ -74,6 +80,9 @@ Central publishing, and Go bindings (not started).
 - `wasm-pack test --node crates/iscc-wasm` passes all 56 tests (CI-verified at HEAD)
 - Structured results not returned — gen functions return only the `.iscc` string field
 - Browser and Node.js build targets supported
+- **Open issues** (normal): `alg_cdc_chunks` silently returns null on serialization failure;
+    \[low\]: `conformance_selftest` exported without feature gate increases binary size; stale
+    CLAUDE.md
 
 ## C FFI
 
@@ -90,6 +99,7 @@ Central publishing, and Go bindings (not started).
 - C test program covers streaming hasher lifecycle (tests 14–17 in `test_iscc.c`)
 - cbindgen generates valid C headers (CI-verified at HEAD)
 - C test program compiles with gcc and runs correctly (CI-verified at HEAD)
+- **Open issues** (normal): video functions allocate/copy every frame signature
 
 ## Java Bindings
 
@@ -98,9 +108,10 @@ complete; native loader/publishing/docs absent)
 
 - `crates/iscc-jni/` crate: `Cargo.toml` with `crate-type = ["cdylib"]`, `publish = false`,
     `iscc-lib` and `jni = "0.21"` workspace dependencies; workspace member in root `Cargo.toml`
-- `crates/iscc-jni/src/lib.rs` (763 lines): all 23 Tier 1 symbols implemented as 29
+- `crates/iscc-jni/src/lib.rs` (824 lines): all 23 Tier 1 symbols implemented as 29
     `extern "system"` JNI functions (streaming hashers expand to 4 JNI functions each)
-- `throw_and_default` helper implemented and used consistently at 51 call sites
+- `throw_and_default` helper implemented and used consistently at 72 call sites; zero `unwrap()`
+    calls remain — all error paths now throw Java exceptions instead of aborting the JVM
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (331 lines): 29 `native` method
     declarations matching all Rust JNI bridge function signatures, Javadoc coverage, static
     `System.loadLibrary("iscc_jni")` initializer, private constructor
@@ -117,6 +128,9 @@ complete; native loader/publishing/docs absent)
 - Missing: platform-specific native library bundling inside JAR
 - Missing: `docs/howto/java.md`
 - Missing: Maven Central publishing configuration
+- **Open issues** (normal): `jint` negative value validation missing in 3 functions; JNI local
+    reference table overflow risk in 5 loops; \[low\]: all exceptions map to
+    `IllegalArgumentException` (state errors should use `IllegalStateException`)
 
 ## Go Bindings
 
@@ -138,7 +152,7 @@ complete; native loader/publishing/docs absent)
 - ✅ Experimental notice, tagline, Key Features (6 bullets), ISCC Architecture diagram, MainTypes
     table
 - ✅ "What is the ISCC" and "What is iscc-lib" sections
-- ✅ **Key Features** line now reads "Python, Java, Node.js, WASM, and C FFI" — Java added
+- ✅ **Key Features** line reads "Python, Java, Node.js, WASM, and C FFI" — Java present
 - ✅ Installation: Rust, Python, Node.js, Java, WASM sections present
 - ✅ Quick Start: Rust, Python, Node.js, Java, WASM examples
 - ✅ Implementors Guide, Documentation link, Contributing, Apache-2.0 license, Maintainers
@@ -181,7 +195,7 @@ complete; native loader/publishing/docs absent)
     Development
 - All 11 pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22366874034](https://github.com/iscc/iscc-lib/actions/runs/22366874034))
+    [Run 22367877560](https://github.com/iscc/iscc-lib/actions/runs/22367877560))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
@@ -214,10 +228,10 @@ complete; native loader/publishing/docs absent)
     (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn
     test)
 - Latest CI run: **PASSING** —
-    [Run 22366874021](https://github.com/iscc/iscc-lib/actions/runs/22366874021) — all 6 jobs
+    [Run 22367877569](https://github.com/iscc/iscc-lib/actions/runs/22367877569) — all 6 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java)
 - Latest Docs run: **PASSING** —
-    [Run 22366874034](https://github.com/iscc/iscc-lib/actions/runs/22366874034) — build + deploy
+    [Run 22367877560](https://github.com/iscc/iscc-lib/actions/runs/22367877560) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: Go CI job (Go bindings not started)
@@ -227,12 +241,16 @@ complete; native loader/publishing/docs absent)
 
 ## Next Milestone
 
-CI is green on all 6 jobs. Root README now includes Java installation and quick start sections. The
-natural next step is adding the Java how-to documentation page and native loader class:
+CI is green on all 6 jobs. The critical JNI `unwrap()` issue is resolved. The most impactful next
+work is fixing the Python binding correctness issues, which affect any caller passing `bytearray` or
+`memoryview` inputs:
 
-1. Add `docs/howto/java.md` documentation page (parallels existing `howto/python.md` /
-    `howto/nodejs.md`)
-2. Add native library loader class to `IsccLib.java` (extracts platform `.so`/`.dll`/`.dylib` from
-    `META-INF/native/` to a temp dir at runtime) — enables JAR self-containment
-3. Fix minor README gap: update "What is iscc-lib" body text (line 47) to include Java
-4. Begin Go bindings (`packages/go/`) — `wasm32-wasip1` WASM target for wazero consumption
+1. Fix `iscc-py` bytes-like input misclassification: replace `isinstance(data, bytes)` with
+    `hasattr(data, "read")` for stream detection (`gen_data_code_v0`, `gen_instance_code_v0`,
+    `DataHasher.update`, `InstanceHasher.update`)
+2. Fix `iscc-py` unbounded `.read()`: implement chunked streaming via `DataHasher`/`InstanceHasher`
+    to avoid memory exhaustion on large files
+
+These two issues form a natural pair and can be addressed in a single iteration. After Python fixes,
+remaining candidates (in priority order): (3) Java docs + native loader; (4) JNI `jint` validation;
+(5) JNI local reference overflow; (6) napi version skew + packaging; (7) Go bindings.
