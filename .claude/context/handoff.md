@@ -1,37 +1,32 @@
-## 2026-02-24 — Add abbreviations file, CNAME, and snippets config
+## 2026-02-24 — Review of: Add abbreviations file, CNAME, and snippets config
 
-**Done:** Created `docs/CNAME` for GitHub Pages custom domain, created
-`docs/includes/abbreviations.md` with 19 ISCC-specific term definitions, and added the
-`pymdownx.snippets` extension config to `zensical.toml` with `auto_append` pointing to the
-abbreviations file.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `docs/CNAME`: new file containing `lib.iscc.codes` (no trailing newline)
-- `docs/includes/abbreviations.md`: new file with 19 abbreviation entries covering all terms from
-    the spec (ISCC, CDC, DCT, MinHash, SimHash, WTA-Hash, BLAKE3, FFI, WASM, PyPI) plus additional
-    relevant terms (ISO, NAPI, PyO3, API, JCS, OIDC, CI/CD, ABI, CDN)
-- `zensical.toml`: added `[project.markdown_extensions.pymdownx.snippets]` section with
-    `auto_append = ["docs/includes/abbreviations.md"]`
+**Summary:** Clean, minimal docs infrastructure change that adds exactly what was scoped: CNAME for
+GitHub Pages custom domain, abbreviations file with 19 terms (all 10 spec-required + 9 additional),
+and pymdownx.snippets config in zensical.toml. No out-of-scope changes, no quality gate issues.
 
 **Verification:**
 
-- `cat docs/CNAME` → `lib.iscc.codes` ✓
-- `test -f docs/includes/abbreviations.md` → exits 0 ✓
-- `grep -c '^\*\[' docs/includes/abbreviations.md` → 19 (>= 10) ✓
-- `grep 'pymdownx.snippets' zensical.toml` → found ✓
-- `grep 'auto_append' zensical.toml` → found ✓
-- `uv run zensical build` → succeeded (exit 0) ✓
-- `mise run check` → all 14 pre-commit hooks passed ✓
+- [x] `cat docs/CNAME` outputs `lib.iscc.codes` — correct (15 bytes with trailing newline added by
+    `fix end of files` hook, which is fine)
+- [x] `test -f docs/includes/abbreviations.md` exits 0 — file exists
+- [x] `grep -c '^\*\[' docs/includes/abbreviations.md` returns 19 (>= 10) — all spec terms plus
+    additional relevant terms
+- [x] `grep 'pymdownx.snippets' zensical.toml` — found at line 112
+- [x] `grep 'auto_append' zensical.toml` — found at line 113
+- [x] `uv run zensical build` — succeeded (exit 0)
+- [x] `mise run check` — all 14 pre-commit hooks passed
 
-**Next:** The docs site build includes `abbreviations.md` as a standalone page at
-`/includes/abbreviations/` (visible in build output). This is harmless — it's not in navigation —
-but could be excluded with a zensical/mkdocs `not_in_nav` config or by moving the file outside
-`docs/`. Consider this a low-priority cleanup. The remaining documentation spec gaps are nav icons
-on top-level sections and the tutorials section. Alternatively, the tracked issues in issues.md
-(`alg_simhash` panics, `sliding_window` panics) are normal-priority correctness items.
+**Issues found:**
 
-**Notes:** The `pymdownx.snippets` path `docs/includes/abbreviations.md` is project-root-relative,
-matching the iscc-usearch reference pattern. The `abbr` extension was already enabled at line 78 of
-`zensical.toml`, so abbreviation hover expansion works automatically once snippets auto-appends the
-definitions to every page.
+- (none)
+
+**Next:** The remaining documentation spec gaps are nav icons on top-level sections and the
+tutorials section. However, the tracked issues in issues.md (`alg_simhash` panics, `sliding_window`
+panics, performance issues) are normal-priority correctness items that likely deliver more value.
+The define-next agent should weigh documentation polish against these correctness fixes.
+
+**Notes:** The docs build produces an `abbreviations.md` page at `/includes/abbreviations/` (visible
+in build output). It's not in navigation and harmless, but could be excluded later with `not_in_nav`
+config. The abbreviations file is alphabetically sorted and uses concise, accurate definitions.
