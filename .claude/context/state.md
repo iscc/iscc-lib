@@ -1,16 +1,16 @@
-<!-- assessed-at: 38eccefba2417cc2eb71bc5b6ef649a834a8afaa -->
+<!-- assessed-at: d4c162013734e52f0bb9e58e969531100bb34f73 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: README rewrite complete — documentation gaps (tutorials, Rust howto, abbreviations, CNAME, nav icons) remain
+## Phase: Abbreviations/CNAME/snippets complete — nav icons, tutorials, Rust howto remain
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
-Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration completed the
-README rewrite — the public-facing polyglot developer README now meets all target criteria. CI is
-green. Remaining gaps are all in documentation: Tutorials section, Rust how-to guide, abbreviations
-file + snippets config, CNAME, and nav icons for top-level nav sections.
+Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration added `docs/CNAME`,
+`docs/includes/abbreviations.md`, and `pymdownx.snippets` auto-append config to `zensical.toml`. CI
+is green. Remaining documentation gaps: nav icons for top-level nav sections, Tutorials section
+(getting-started guide), and Rust how-to guide.
 
 ## Rust Core Crate
 
@@ -97,24 +97,16 @@ file + snippets config, CNAME, and nav icons for top-level nav sections.
 
 **Status**: met
 
-- Rewritten as public-facing polyglot developer README (215 lines after advance + minor em dash fix)
+- Rewritten as public-facing polyglot developer README (215 lines)
 - ✅ CI badge; version badges commented out with TODO (packages not yet published — correct behavior)
 - ✅ Tagline: "High-performance polyglot implementation of ISO 24138:2024 — International Standard
     Content Code (ISCC)"
-- ✅ Key Features: 6 bullet points (similarity-preserving, multi-level, self-describing, ISO
-    standardized, polyglot, conformance-tested)
-- ✅ "What is the ISCC" section with explanation of ISCC purpose and algorithmic design
-- ✅ "What is iscc-lib" section with relationship to iscc-core and target ecosystems
-- ✅ ISCC Architecture diagram (image from iscc-core repo)
-- ✅ ISCC MainTypes table (6 rows: META, SEMANTIC, CONTENT, DATA, INSTANCE, ISCC)
+- ✅ Key Features: 6 bullet points
+- ✅ "What is the ISCC" and "What is iscc-lib" sections
+- ✅ ISCC Architecture diagram, MainTypes table
 - ✅ Installation per-language (Rust/cargo, Python/pip, Node.js/npm, WASM/npm)
-- ✅ Quick Start code examples for all 4 languages (gen_meta_code_v0)
-- ✅ Implementors Guide listing all 9 `gen_*_v0` entry points and conformance vector link
-- ✅ Documentation link to lib.iscc.codes
-- ✅ Contributing section with Telegram developer chat link
-- ✅ Apache-2.0 license
-- ✅ Maintainers: @titusz
-- ✅ No development workflow content (CID loop, dev container, pre-commit hooks absent)
+- ✅ Quick Start code examples for all 4 languages
+- ✅ Implementors Guide, Documentation link, Contributing section, Apache-2.0 license, Maintainers
 - All 7 target.md verification criteria met
 
 ## Documentation
@@ -122,8 +114,7 @@ file + snippets config, CNAME, and nav icons for top-level nav sections.
 **Status**: partially met
 
 - 9 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
-    `benchmarks.md`, `howto/python.md` (348 lines), `howto/nodejs.md` (276 lines), `howto/wasm.md`
-    (333 lines), `development.md` (235 lines)
+    `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `development.md`
 - Navigation in `zensical.toml` has: How-to Guides (Python, Node.js, WebAssembly), Explanation
     (Architecture), Reference (Rust API, Python API), Benchmarks, Development
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING at HEAD)
@@ -132,18 +123,20 @@ file + snippets config, CNAME, and nav icons for top-level nav sections.
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
 - `docs/llms.txt` exists with site metadata
 - Open Graph and Twitter Card social meta tags implemented via `overrides/main.html`
+- ✅ `docs/CNAME` added with content `lib.iscc.codes`
+- ✅ `docs/includes/abbreviations.md` added with 19 ISCC-specific abbreviations (ABI, API, BLAKE3,
+    CDC, CDN, CI/CD, DCT, FFI, ISO, ISCC, JCS, MinHash, NAPI, OIDC, PyO3, PyPI, SimHash, WASM,
+    WTA-Hash)
+- ✅ `pymdownx.snippets` configured in `zensical.toml` with
+    `auto_append = ["docs/includes/abbreviations.md"]`
 - **Missing**: Nav icons — `zensical.toml` nav sections have no `icon` attribute; the docs spec
-    (updated in commit `270bf18`) requires "Each top-level nav section has a Material for MkDocs
-    icon, matching the style of iscc/iscc-usearch at usearch.iscc.codes"; verification criteria
-    explicitly checks for icons
+    requires "Each top-level nav section has a Material for MkDocs icon, matching the style of
+    iscc/iscc-usearch at usearch.iscc.codes"; verification criteria explicitly checks for icons
 - **Missing**: Tutorials section — no `docs/tutorials/` directory, no Tutorials nav group in
     `zensical.toml`; spec requires "getting started guide (installation, first ISCC code
     generation)"
 - **Missing**: Rust how-to guide — `docs/howto/rust.md` does not exist; spec lists "per-language
-    usage guides (Python, Rust, Node.js, WASM)"
-- **Missing**: `docs/includes/abbreviations.md` with ISCC-specific abbreviations;
-    `pymdownx.snippets` extension not configured in `zensical.toml`
-- **Missing**: `docs/CNAME` file with `lib.iscc.codes`
+    usage guides (Python, Rust, Node.js, WASM)"; no Rust entry in howto nav
 
 ## Benchmarks
 
@@ -163,11 +156,11 @@ file + snippets config, CNAME, and nav icons for top-level nav sections.
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
-- Latest CI run (HEAD `38eccef`): **PASSING** —
-    [Run 22349439644](https://github.com/iscc/iscc-lib/actions/runs/22349439644) — all 5 jobs
+- Latest CI run (HEAD `d4c1620`): **PASSING** —
+    [Run 22349853564](https://github.com/iscc/iscc-lib/actions/runs/22349853564) — all 5 jobs
     success
 - Latest Docs run: **PASSING** —
-    [Run 22349439653](https://github.com/iscc/iscc-lib/actions/runs/22349439653) — build + deploy
+    [Run 22349853645](https://github.com/iscc/iscc-lib/actions/runs/22349853645) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
@@ -176,18 +169,11 @@ file + snippets config, CNAME, and nav icons for top-level nav sections.
 
 ## Next Milestone
 
-CI is green; all commits are pushed. The README rewrite is now complete and meets all target
-criteria. All remaining gaps are in the documentation section. Priority order:
+CI is green; all commits are pushed. Three documentation gaps remain. Priority order:
 
 1. **Nav icons** — add Material for MkDocs icon attributes to each top-level nav section in
-    `zensical.toml` (newly required by docs spec added in `270bf18`); query iscc/iscc-usearch via
-    deepwiki MCP for exact icon names and config format
-2. **Abbreviations file + snippets config** — add `docs/includes/abbreviations.md` with
-    ISCC-specific terms and configure `pymdownx.snippets` auto-append in `zensical.toml` (small,
-    self-contained)
-3. **CNAME file** — add `docs/CNAME` containing `lib.iscc.codes` (trivial)
-4. **Tutorials section** — create `docs/tutorials/getting-started.md` covering installation and
+    `zensical.toml`; query iscc/iscc-usearch via deepwiki MCP for exact icon names and config
+    format
+2. **Tutorials section** — create `docs/tutorials/getting-started.md` covering installation and
     first ISCC code generation across languages; add Tutorials nav group to `zensical.toml`
-5. **Rust how-to guide** — create `docs/howto/rust.md` covering Rust crate usage; add to nav
-6. **OIDC publishing configuration** — configure crates.io and PyPI trusted publishing in
-    `release.yml` so releases require no long-lived API keys
+3. **Rust how-to guide** — create `docs/howto/rust.md` covering Rust crate usage; add to nav
