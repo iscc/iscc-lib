@@ -1,16 +1,16 @@
-<!-- assessed-at: d4c162013734e52f0bb9e58e969531100bb34f73 -->
+<!-- assessed-at: 14614fabafc36456f1ae25055cf1dfd21de2225c -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Abbreviations/CNAME/snippets complete — nav icons, tutorials, Rust howto remain
+## Phase: Tutorials page added — nav icons and Rust how-to remain
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
-Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration added `docs/CNAME`,
-`docs/includes/abbreviations.md`, and `pymdownx.snippets` auto-append config to `zensical.toml`. CI
-is green. Remaining documentation gaps: nav icons for top-level nav sections, Tutorials section
-(getting-started guide), and Rust how-to guide.
+Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration added
+`docs/tutorials/getting-started.md` (154 lines) and wired it into the Tutorials nav section in
+`zensical.toml`. CI is green. Two documentation gaps remain: nav icons for top-level nav sections
+and the Rust how-to guide.
 
 ## Rust Core Crate
 
@@ -113,29 +113,29 @@ is green. Remaining documentation gaps: nav icons for top-level nav sections, Tu
 
 **Status**: partially met
 
-- 9 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
-    `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `development.md`
-- Navigation in `zensical.toml` has: How-to Guides (Python, Node.js, WebAssembly), Explanation
-    (Architecture), Reference (Rust API, Python API), Benchmarks, Development
+- 10 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
+    `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `development.md`,
+    `tutorials/getting-started.md`
+- Navigation in `zensical.toml` has: Tutorials (Getting Started), How-to Guides (Python, Node.js,
+    WebAssembly), Explanation (Architecture), Reference (Rust API, Python API), Benchmarks,
+    Development
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING at HEAD)
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
 - `docs/llms.txt` exists with site metadata
 - Open Graph and Twitter Card social meta tags implemented via `overrides/main.html`
-- ✅ `docs/CNAME` added with content `lib.iscc.codes`
-- ✅ `docs/includes/abbreviations.md` added with 19 ISCC-specific abbreviations (ABI, API, BLAKE3,
-    CDC, CDN, CI/CD, DCT, FFI, ISO, ISCC, JCS, MinHash, NAPI, OIDC, PyO3, PyPI, SimHash, WASM,
-    WTA-Hash)
-- ✅ `pymdownx.snippets` configured in `zensical.toml` with
-    `auto_append = ["docs/includes/abbreviations.md"]`
-- **Missing**: Nav icons — `zensical.toml` nav sections have no `icon` attribute; the docs spec
+- ✅ `docs/CNAME` contains `lib.iscc.codes`
+- ✅ `docs/includes/abbreviations.md` with 19 ISCC-specific abbreviations; `pymdownx.snippets`
+    auto-appended to all pages
+- ✅ `docs/tutorials/getting-started.md` added (154 lines): covers installation, conformance
+    self-test, Meta-Code, Text-Code, Instance-Code, streaming with `InstanceHasher`, next steps
+- ✅ Tutorials nav section added to `zensical.toml`
+- **Missing**: Nav icons — `zensical.toml` nav sections (`Tutorials`, `How-to Guides`,
+    `Explanation`, `Reference`, `Benchmarks`, `Development`) have no `icon` attribute; the docs spec
     requires "Each top-level nav section has a Material for MkDocs icon, matching the style of
-    iscc/iscc-usearch at usearch.iscc.codes"; verification criteria explicitly checks for icons
-- **Missing**: Tutorials section — no `docs/tutorials/` directory, no Tutorials nav group in
-    `zensical.toml`; spec requires "getting started guide (installation, first ISCC code
-    generation)"
-- **Missing**: Rust how-to guide — `docs/howto/rust.md` does not exist; spec lists "per-language
+    iscc/iscc-usearch at usearch.iscc.codes"
+- **Missing**: Rust how-to guide — `docs/howto/rust.md` does not exist; spec requires "per-language
     usage guides (Python, Rust, Node.js, WASM)"; no Rust entry in howto nav
 
 ## Benchmarks
@@ -156,11 +156,11 @@ is green. Remaining documentation gaps: nav icons for top-level nav sections, Tu
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
-- Latest CI run (HEAD `d4c1620`): **PASSING** —
-    [Run 22349853564](https://github.com/iscc/iscc-lib/actions/runs/22349853564) — all 5 jobs
+- Latest CI run (HEAD `14614fa`): **PASSING** —
+    [Run 22350327306](https://github.com/iscc/iscc-lib/actions/runs/22350327306) — all 5 jobs
     success
 - Latest Docs run: **PASSING** —
-    [Run 22349853645](https://github.com/iscc/iscc-lib/actions/runs/22349853645) — build + deploy
+    [Run 22350327315](https://github.com/iscc/iscc-lib/actions/runs/22350327315) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
@@ -169,11 +169,11 @@ is green. Remaining documentation gaps: nav icons for top-level nav sections, Tu
 
 ## Next Milestone
 
-CI is green; all commits are pushed. Three documentation gaps remain. Priority order:
+CI is green; all commits are pushed. Two documentation gaps remain. Priority order:
 
 1. **Nav icons** — add Material for MkDocs icon attributes to each top-level nav section in
     `zensical.toml`; query iscc/iscc-usearch via deepwiki MCP for exact icon names and config
-    format
-2. **Tutorials section** — create `docs/tutorials/getting-started.md` covering installation and
-    first ISCC code generation across languages; add Tutorials nav group to `zensical.toml`
-3. **Rust how-to guide** — create `docs/howto/rust.md` covering Rust crate usage; add to nav
+    format used by that reference site
+2. **Rust how-to guide** — create `docs/howto/rust.md` covering Rust crate usage (adding dependency,
+    9 code types, streaming with `DataHasher`/`InstanceHasher`, codec utilities); add Rust entry to
+    the How-to Guides nav section in `zensical.toml`
