@@ -15,6 +15,7 @@ nav = [
     { "Getting Started" = "tutorials/getting-started.md" },
   ] },
   { "How-to Guides" = [
+    { "Rust" = "howto/rust.md" },
     { "Python" = "howto/python.md" },
     { "Node.js" = "howto/nodejs.md" },
     { "WebAssembly" = "howto/wasm.md" },
