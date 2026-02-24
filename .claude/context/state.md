@@ -1,14 +1,14 @@
-<!-- assessed-at: 587e97bf47130c2bdc3a77b46e26a64a204f8f92 -->
+<!-- assessed-at: c79ba4c3486fb6efe5e28f7213096e75910400cf -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: iscc_decompose truncation hardened — doc gaps, open correctness issues, and OIDC remain
+## Phase: soft_hash_codes_v0 length validation landed — doc gaps and open correctness issues remain
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
-Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). The `iscc_decompose` function has
-been hardened against truncated input (returns `IsccError::InvalidInput` instead of panicking).
+Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). `soft_hash_codes_v0` now rejects
+Content-Codes shorter than the requested bit length (divergence from reference resolved).
 Documentation remains the primary gap: Tutorials section, Rust how-to guide, abbreviations file, and
 CNAME are all missing. OIDC publishing pipeline is not yet configured.
 
@@ -22,12 +22,15 @@ CNAME are all missing. OIDC publishing pipeline is not yet configured.
     `iscc_decompose`, `DataHasher`, `InstanceHasher`, `conformance_selftest`
 - Tier 2 codec module (`codec.rs`) with `MainType`/`SubType`/`Version` enums and all encode/decode
     helpers — correctly Rust-only, not bound to foreign languages
-- 193 `#[test]` functions across `src/` (cdc.rs: 15, codec.rs: 71, lib.rs: 35, simhash.rs: 16,
-    streaming.rs: 15, utils.rs: 20, conformance.rs: 1, dct.rs: 8, minhash.rs: 7, wtahash.rs: 5); 244
-    total in the `iscc-lib` crate including integration tests; 307 across the full workspace
-- `iscc_decompose` hardened against truncated input in `codec.rs`: three new guards return
+- 196 `#[test]` functions across `src/` (lib.rs: 38, cdc.rs: 15, codec.rs: 71, simhash.rs: 16,
+    streaming.rs: 15, utils.rs: 20, conformance.rs: 1, dct.rs: 8, minhash.rs: 7, wtahash.rs: 5); 247
+    total in the `iscc-lib` crate including integration tests; 310 across the full workspace
+- `soft_hash_codes_v0` now validates each Content-Code's bit length against the requested `bits`
+    parameter via `codec::decode_length` and returns `IsccError::InvalidInput` if the code is too
+    short; 3 regression tests added (reject-short, accept-exact, accept-longer)
+- `iscc_decompose` hardened against truncated input in `codec.rs`: three guards return
     `IsccError::InvalidInput` when body bytes are fewer than expected — (1) standard unit path, (2)
-    Wide ISCC-CODE path (< 32 bytes), (3) non-wide ISCC-CODE path; 6 regression tests added
+    Wide ISCC-CODE path (< 32 bytes), (3) non-wide ISCC-CODE path; 6 regression tests in place
 - `alg_cdc_chunks` infinite loop bug fixed in `cdc.rs`: guard prevents zero-cut stall when remaining
     buffer < 4 bytes and `utf32=true`; 5 targeted regression tests in place
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
@@ -38,12 +41,12 @@ CNAME are all missing. OIDC publishing pipeline is not yet configured.
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified)
 - Note: target.md header says "22 public symbols" but the enumerated list totals 23; the crate
     implements 23
-- **Open issues** (tracked in `issues.md`): `soft_hash_codes_v0` over-short content-code acceptance
-    diverges from reference [normal]; `gen_meta_code_v0` empty Data-URL payload routing [normal];
-    `alg_simhash` panics on mismatched digest sizes [normal]; `sliding_window` panics on width < 2
-    [normal]; `sliding_window` O(n) String allocations [normal]; codec header parsing expands bytes
-    to `Vec<bool>` [normal]; `DataHasher::update` copies input on every call [normal]; several [low]
-    issues around dct validation, wtahash bounds
+- **Open issues** (tracked in `issues.md`): `gen_meta_code_v0` empty Data-URL payload routing
+    [normal]; `alg_simhash` panics on mismatched digest sizes [normal]; `sliding_window` panics on
+    width < 2 [normal]; `sliding_window` O(n) String allocations [normal]; codec header parsing
+    expands bytes to `Vec<bool>` [normal]; `DataHasher::update` copies input on every call [normal];
+    `alg_dct` allows non-power-of-two even lengths [low]; `alg_wtahash` panics on short vectors
+    [low]
 
 ## Python Bindings
 
@@ -141,11 +144,10 @@ CNAME are all missing. OIDC publishing pipeline is not yet configured.
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
-- Latest CI run (HEAD `587e97b`): **PASSING** —
-    [Run 22347263528](https://github.com/iscc/iscc-lib/actions/runs/22347263528) — all 5 jobs
-    success (Rust, Python, Node.js, WASM, C FFI)
-- Latest Docs run (HEAD `587e97b`): **PASSING** —
-    [Run 22347263520](https://github.com/iscc/iscc-lib/actions/runs/22347263520) — build + deploy
+- Latest CI run (HEAD `c79ba4c`): **PASSING** —
+    [Run 22347832289](https://github.com/iscc/iscc-lib/actions/runs/22347832289) — all jobs success
+- Latest Docs run: **PASSING** —
+    [Run 22347832275](https://github.com/iscc/iscc-lib/actions/runs/22347832275) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
@@ -163,8 +165,8 @@ CI is green; all commits are pushed. Documentation is the primary remaining gap.
     covering installation and first ISCC code generation across languages; add Tutorials nav group
     to `zensical.toml`
 4. **Rust how-to guide** — create `docs/howto/rust.md` covering Rust crate usage, add to nav
-5. **Correctness hardening** — fix `soft_hash_codes_v0` divergence from reference (rejects too-short
-    Content-Codes), `gen_meta_code_v0` empty Data-URL payload routing, and `alg_simhash` panic on
-    mismatched digest sizes [normal issues in issues.md]
+5. **Correctness hardening** — fix `gen_meta_code_v0` empty Data-URL payload routing, `alg_simhash`
+    panic on mismatched digest sizes, and `sliding_window` panic on width < 2 \[normal issues in
+    issues.md\]
 6. **OIDC publishing configuration** — configure crates.io and PyPI trusted publishing in
     `release.yml` so releases require no long-lived API keys
