@@ -1,106 +1,99 @@
 # Next Work Package
 
-## Step: Harden `sliding_window` — return `IsccResult` on `width < 2`
+## Step: Create `iscc-jni` JNI bridge crate scaffold
 
 ## Goal
 
-Change `sliding_window` from panicking on `width < 2` to returning `IsccResult<Vec<String>>`. This
-fixes the remaining [normal] public API robustness issue where a Tier 1 function bound to all
-languages can panic (DoS vector) on invalid input.
+Bootstrap the JNI bridge crate that will expose all 23 Tier 1 ISCC symbols to Java. This establishes
+the crate skeleton, workspace integration, and the JNI function-mapping pattern by implementing the
+simplest function (`conformance_selftest`) as a working proof-of-concept.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `crates/iscc-lib/src/simhash.rs` — change `pub fn sliding_window` to return
-        `IsccResult<Vec<String>>` with validation; convert `assert!` to `debug_assert!` in
-        `pub(crate) fn sliding_window_strs` and `pub(crate) fn sliding_window_bytes`
-    - `crates/iscc-py/src/lib.rs` — replace pre-validation with `map_err(PyValueError)` on the
-        `Result` (1-2 line change)
-    - `crates/iscc-napi/src/lib.rs` — replace pre-validation with `map_err` to `napi::Error` (1-2 line
-        change)
-    - `crates/iscc-wasm/src/lib.rs` — replace pre-validation with `map_err` to `JsError` (1-2 line
-        change)
-    - `crates/iscc-ffi/src/lib.rs` — replace pre-validation with `match` on the `Result` +
-        `set_last_error` on `Err` (2-3 line change)
-- **Reference**:
-    - `crates/iscc-lib/src/simhash.rs` lines 69-130 (current `sliding_window`, `sliding_window_strs`,
-        `sliding_window_bytes`)
-    - Previous `alg_simhash` hardening commit `5adcc5c` (same pattern)
-    - `.claude/context/issues.md` — issue: "`sliding_window` panics on `width < 2` via `assert!`"
-    - `.claude/context/learnings.md` — "API hardening pattern" entry
+- **Create**: `crates/iscc-jni/Cargo.toml`, `crates/iscc-jni/src/lib.rs`
+- **Modify**: root `Cargo.toml` (add `iscc-jni` to workspace members, add `jni` to workspace
+    dependencies)
+- **Reference**: `crates/iscc-ffi/Cargo.toml` (crate structure pattern),
+    `crates/iscc-ffi/src/lib.rs` (error handling pattern), `notes/02-language-bindings.md` (binding
+    architecture), `crates/iscc-lib/src/lib.rs` (Tier 1 API surface)
 
 ## Not In Scope
 
-- Creating a `sliding_window_inner` function — unlike `alg_simhash`, no internal code calls the
-    public `sliding_window`; internal callers use `sliding_window_strs` / `sliding_window_bytes`
-    which are already `pub(crate)` and always called with hardcoded valid widths (3, 4, 13)
-- Changing return types of `sliding_window_strs` or `sliding_window_bytes` to `IsccResult` — they
-    are `pub(crate)` with trusted callers; `debug_assert!` is sufficient
-- Updating `_lowlevel.pyi` — the stub already declares `-> list[str]` and `PyResult` is transparent
-    (raises ValueError on error, which is already the behavior callers test for)
-- Fixing other issues in issues.md (`alg_dct`, `alg_wtahash`, codec header parsing, DataHasher
-    allocation)
-- Performance optimizations or documentation changes
+- Java wrapper classes (`IsccLib.java`, loader class) — these come in a later step
+- Maven/Gradle build configuration — needs Java-side structure first
+- Implementing all 23 Tier 1 symbols — only `conformance_selftest` in this step to establish pattern
+- Devcontainer Dockerfile changes (JDK/Maven) — separate step
+- CI workflow for Java — needs full Java stack first
+- README/docs Java content — needs working bindings first
+- `notes/02-language-bindings.md` Java section — can be added alongside the Java wrapper step
 
 ## Implementation Notes
 
-**Core change in `simhash.rs`:**
+**Crate structure** follows the hub-and-spoke model from `notes/02`:
 
-1. Change `pub fn sliding_window(seq: &str, width: usize) -> Vec<String>` to return
-    `IsccResult<Vec<String>>`:
+```
+crates/iscc-jni/
+├── Cargo.toml          # cdylib, depends on iscc-lib + jni
+└── src/
+    └── lib.rs          # JNI bridge functions
+```
 
-    - Replace `assert!(width >= 2, ...)` with:
-        `if width < 2 { return Err(IsccError::InvalidInput("...".into())); }`
-    - Wrap the existing return value in `Ok(...)`
-    - Error message: `"Sliding window width must be 2 or bigger."`
+**Cargo.toml**:
 
-2. In `sliding_window_strs` and `sliding_window_bytes`: replace `assert!(width >= 2, ...)` with
-    `debug_assert!(width >= 2, ...)`. These are `pub(crate)` functions called only with hardcoded
-    widths (3, 4, 13) — debug asserts catch programming errors during development while eliminating
-    panic risk in release builds.
+- `crate-type = ["cdylib"]` — produces a shared library loadable by JVM
+- `publish = false` — published via Maven Central JAR, not crates.io
+- Dependencies: `iscc-lib = { path = "../iscc-lib" }` and `jni = { workspace = true }`
+- Use `workspace.package` fields (version, edition, rust-version, authors, license, repository)
 
-**Binding updates (all mechanical — remove pre-validation, use `map_err`):**
+**Root Cargo.toml**:
 
-- **Python** (`iscc-py/src/lib.rs`): Remove the `if width < 2` block. Change the call to:
-    `iscc_lib::sliding_window(seq, width).map_err(|e| PyValueError::new_err(e.to_string()))?` Return
-    `Ok(result)`.
+- Add `"crates/iscc-jni"` to workspace members list
+- Add `jni = "0.21"` to `[workspace.dependencies]`
 
-- **Node.js** (`iscc-napi/src/lib.rs`): Remove the `if width < 2` block. Change the call to:
-    `iscc_lib::sliding_window(&seq, width as usize).map_err(|e| napi::Error::from_reason(e.to_string()))?`
+**JNI function naming convention**: JNI requires specific mangled names for native methods. For a
+Java class `io.iscc.iscc_lib.IsccLib` with native method `conformanceSelftest`, the Rust function
+must be named `Java_io_iscc_iscc_1lib_IsccLib_conformanceSelftest` (underscores in package names
+become `_1` in JNI). Use `#[no_mangle]` and `extern "system"` calling convention.
 
-- **WASM** (`iscc-wasm/src/lib.rs`): Remove the `if width < 2` block. Change the call to:
-    `iscc_lib::sliding_window(seq, width as usize).map_err(|e| JsError::new(&e.to_string()))?`
+**Pattern to establish** (using `conformance_selftest` as the exemplar):
 
-- **C FFI** (`iscc-ffi/src/lib.rs`): Remove the `if width < 2` block. Use `match` on the result:
-    `Ok(v) => vec_to_c_string_array(v)`,
-    `Err(e) => { set_last_error(&e.to_string()); ptr::null_mut() }`
+```rust
+use jni::JNIEnv;
+use jni::objects::JClass;
+use jni::sys::jboolean;
 
-**Test updates:**
+#[no_mangle]
+pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_conformanceSelftest(
+    _env: JNIEnv,
+    _class: JClass,
+) -> jboolean {
+    let result = iscc_lib::conformance_selftest();
+    result as jboolean
+}
+```
 
-- In `simhash.rs` unit tests: existing `#[should_panic]` test for `sliding_window("test", 1)` must
-    change to assert `is_err()` instead. Similarly for `sliding_window_strs` and
-    `sliding_window_bytes` panic tests — convert to `#[cfg(debug_assertions)]` `#[should_panic]`
-    tests.
-- In `test_algorithm_primitives.rs`: all `iscc_lib::sliding_window(...)` calls now return `Result` —
-    add `.unwrap()` to happy-path calls. Add a new test verifying
-    `sliding_window("test", 1).is_err()`.
-- Binding tests: existing error-case tests (`test_sliding_window_width_too_small` in Python,
-    `test_sliding_window_width_too_small` in FFI, etc.) should continue to pass unchanged since the
-    error behavior is preserved.
+**Error handling pattern**: For functions that return `IsccResult<T>`, catch the error and throw a
+Java exception via `env.throw_new("java/lang/IllegalArgumentException", &msg)`, then return a
+default value. Document this pattern in a module-level docstring for future implementors. Add a
+helper function (e.g., `throw_and_default`) to centralize this — similar to the C FFI crate's
+`set_last_error` + `result_to_c_string` helpers.
+
+**Important**: The `jni` crate compiles as pure Rust — no JDK needed at compile time. The advance
+agent can verify compilation with `cargo check -p iscc-jni` and `cargo clippy` without having JDK
+installed. Runtime testing with Java will come in a later step.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing tests + updated/new error-case tests)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean
-- `cargo test --workspace` passes (all crates compile and tests pass)
-- `pytest` passes (all Python tests including `test_sliding_window_width_too_small`)
-- `npm test --prefix crates/iscc-napi` passes (all Node.js tests)
-- `iscc_lib::sliding_window("test", 1)` returns `Err(IsccError::InvalidInput(_))` (not panic)
-- `iscc_lib::sliding_window("hello", 3)` returns `Ok(vec!["hel", "ell", "llo"])`
+- `cargo check -p iscc-jni` exits 0 (crate compiles)
+- `cargo clippy -p iscc-jni -- -D warnings` exits 0 (no warnings)
+- `cargo clippy --workspace --all-targets -- -D warnings` exits 0 (workspace-wide clean)
+- `crates/iscc-jni/Cargo.toml` contains `crate-type = ["cdylib"]` and `publish = false`
+- `crates/iscc-jni/src/lib.rs` contains `extern "system"` JNI function for `conformance_selftest`
+- Root `Cargo.toml` lists `"crates/iscc-jni"` in workspace members
+- Root `Cargo.toml` has `jni` in `[workspace.dependencies]`
+- Existing tests unaffected: `cargo test -p iscc-lib` still passes all tests
 
 ## Done When
 
-All verification criteria pass — `sliding_window` returns `IsccResult` instead of panicking, all
-four binding crates propagate the error through their native error conventions, and existing tests
-(including error-case tests) continue to pass.
+All verification criteria pass — the `iscc-jni` crate compiles cleanly within the workspace, exports
+a JNI-compatible `conformance_selftest` function, and introduces no regressions.
