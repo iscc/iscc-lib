@@ -9,6 +9,11 @@ description: High-performance polyglot implementation of ISO 24138 International
 [ISO 24138:2024](https://www.iso.org/standard/77899.html) International Standard Content Code
 (ISCC).**
 
+!!! warning "Experimental"
+
+    This library is in early development (v0.0.x). APIs may change without notice. Not recommended for
+    production use yet.
+
 ---
 
 ## What is iscc-lib?
@@ -74,17 +79,17 @@ decentralized, content-based identification without a central registry.
 
 ## Available Bindings
 
-| Platform    | Package                                              | Install                       |
-| ----------- | ---------------------------------------------------- | ----------------------------- |
-| Rust        | [crates.io](https://crates.io/crates/iscc-lib)       | `cargo add iscc-lib`          |
-| Python      | [PyPI](https://pypi.org/project/iscc-lib/)           | `pip install iscc-lib`        |
-| Node.js     | [npm](https://www.npmjs.com/package/@iscc/lib)       | `npm install @iscc/lib`       |
-| WebAssembly | [npm](https://www.npmjs.com/package/@iscc/iscc-wasm) | `npm install @iscc/iscc-wasm` |
-| C / C++     | Source                                               | Via C FFI header (`iscc.h`)   |
+| Platform    | Package                                         | Install                     |
+| ----------- | ----------------------------------------------- | --------------------------- |
+| Rust        | [crates.io](https://crates.io/crates/iscc-lib)  | `cargo add iscc-lib`        |
+| Python      | [PyPI](https://pypi.org/project/iscc-lib/)      | `pip install iscc-lib`      |
+| Node.js     | [npm](https://www.npmjs.com/package/@iscc/lib)  | `npm install @iscc/lib`     |
+| WebAssembly | [npm](https://www.npmjs.com/package/@iscc/wasm) | `npm install @iscc/wasm`    |
+| C / C++     | Source                                          | Via C FFI header (`iscc.h`) |
 
 ## Links
 
 - [ISO 24138:2024](https://www.iso.org/standard/77899.html) — the ISCC international standard
-- [ISCC Foundation](https://iscc.foundation) — stewards of the ISCC standard
+- [ISCC Foundation](https://iscc.io) — stewards of the ISCC standard
 - [iscc-core](https://github.com/iscc/iscc-core) — Python reference implementation
 - [Source Code](https://github.com/iscc/iscc-lib) — iscc-lib on GitHub

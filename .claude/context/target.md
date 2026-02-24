@@ -6,7 +6,8 @@ by concrete criteria that agents can check.
 ## Rust Core Crate — `iscc-lib` on crates.io
 
 A pure Rust library (no binding dependencies) publishable to crates.io as
-[`iscc-lib`](https://crates.io/crates/iscc-lib). Name is available.
+[`iscc-lib`](https://crates.io/crates/iscc-lib). Initial experimental version `0.0.1` is being
+published to all registries.
 
 Detailed spec: `.claude/context/specs/rust-core.md`
 
@@ -118,6 +119,7 @@ developers.
 
 **Structure** (modeled after iscc-core README):
 
+- **Experimental notice**: prominent warning that the library is v0.0.x and APIs may change
 - **Badges**: CI status, crate/package version badges for all published packages
 - **Tagline**: one-line description emphasizing polyglot, high-performance, ISO 24138
 - **Key Features**: similarity-preserving, multi-level identification, self-describing, ISO
@@ -185,7 +187,9 @@ Automated quality gates and publishing pipelines.
 
 - All quality gates run automatically on push/PR
 - crates.io and PyPI publishing via OIDC trusted publishing (no API keys)
+- npm publishing via NPM_TOKEN secret for `@iscc/lib` and `@iscc/wasm`
 - All CI workflows green
+- All packages versioned at `0.0.1` (experimental) with coordinated version across manifests
 
 ## Key Resources
 

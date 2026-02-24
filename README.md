@@ -2,13 +2,12 @@
 
 [![CI](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml/badge.svg)](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml)
 
-<!-- TODO: Add version badges once packages are published -->
+[![Crate](https://img.shields.io/crates/v/iscc-lib.svg)](https://crates.io/crates/iscc-lib)
+[![PyPI](https://img.shields.io/pypi/v/iscc-lib.svg)](https://pypi.org/project/iscc-lib/)
+[![npm](https://img.shields.io/npm/v/@iscc/lib.svg)](https://www.npmjs.com/package/@iscc/lib)
 
-<!-- [![Crate](https://img.shields.io/crates/v/iscc-lib.svg)](https://crates.io/crates/iscc-lib) -->
-
-<!-- [![PyPI](https://img.shields.io/pypi/v/iscc-lib.svg)](https://pypi.org/project/iscc-lib/) -->
-
-<!-- [![npm](https://img.shields.io/npm/v/@iscc/lib.svg)](https://www.npmjs.com/package/@iscc/lib) -->
+> **Experimental:** This library is in early development (v0.0.x). APIs may change without notice.
+> Not recommended for production use yet.
 
 **High-performance polyglot implementation of
 [ISO 24138:2024](https://www.iso.org/standard/77899.html) — International Standard Content Code
@@ -72,9 +71,6 @@ content identification.
 | 5   | ISCC     | 0101 | Composite of two or more components with common header |
 
 ## Installation
-
-Packages are not yet published. The install commands below will work once the initial release is
-available.
 
 ### Rust
 

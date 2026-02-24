@@ -227,3 +227,22 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     validation. Binding crates use `map_err` to convert `IsccError` to their native error type
     (PyValueError, napi::Error, JsError, FFI last_error). This avoids cascading return-type changes
     to internal helpers
+
+## Publishing
+
+- Workspace version is `0.0.1` (experimental). Version is defined once in root `Cargo.toml`
+    `[workspace.package]` and inherited by all crates. napi `package.json` version must be kept in
+    sync manually
+- ISCC Foundation URL is `https://iscc.io` (not `iscc.foundation` or other variants) — use this in
+    all documentation, README, and docs site links
+- WASM npm package name is `@iscc/wasm` (not `@iscc/iscc-wasm`) — the release workflow patches
+    `pkg/package.json` after `wasm-pack build`
+- crates.io OIDC trusted publishing requires the crate to exist first (no "pending publisher" like
+    PyPI). First publish uses a one-time API token, then configure trusted publishing on the crate's
+    settings page
+- PyPI supports pending trusted publishers — can configure OIDC before first publish at pypi.org
+    Account Settings → Publishing
+- npm does not support OIDC — uses `NPM_TOKEN` repository secret. Packages are scoped under `@iscc`
+    org
+- Maven Central (for Java JNI bindings) requires GPG signing + Sonatype credentials. Namespace
+    verification needed for `io.iscc`. Deferred until Java bindings are functional
