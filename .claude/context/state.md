@@ -1,16 +1,18 @@
-<!-- assessed-at: 15b62fe408d3ea393467173dc03b5f73846bad87 -->
+<!-- assessed-at: 371a808622b28455d2ab6c388b3a9c891e41ea20 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Social meta tags complete — Diátaxis nav, abbreviations, CNAME, and OIDC publishing remaining
+## Phase: Diátaxis nav and howto guides added — abbreviations, CNAME, Rust howto, Tutorials, and OIDC remaining
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
-Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). CI is fully green across all 5
-jobs. Documentation now has ISCC branding, copy-page split-button, llms-full.txt generation, and
-Open Graph/Twitter Card social meta tags. Remaining documentation gaps are Diátaxis navigation
-restructuring, abbreviations file, and CNAME. Publishing pipeline (OIDC) is not yet configured.
+Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). JSON metadata canonicalization now
+properly uses RFC 8785 (JCS) via `serde_json_canonicalizer`. Navigation has been restructured into
+Diátaxis categories, and per-language how-to guides for Python, Node.js, and WASM have been added.
+Remaining documentation gaps: Tutorials section, Rust how-to guide, abbreviations file (with
+pymdownx.snippets), and CNAME. OIDC publishing pipeline not yet configured. 8 local commits are
+ahead of remote; CI has not yet run on the JCS fix or Diátaxis restructuring.
 
 ## Rust Core Crate
 
@@ -22,12 +24,15 @@ restructuring, abbreviations file, and CNAME. Publishing pipeline (OIDC) is not 
     `iscc_decompose`, `DataHasher`, `InstanceHasher`, `conformance_selftest`
 - Tier 2 codec module (`codec.rs`) with `MainType`/`SubType`/`Version` enums and all encode/decode
     helpers — correctly Rust-only, not bound to foreign languages
-- 182 `#[test]` functions in `lib.rs` alone; 280+ total across workspace Rust crates
+- 184 `#[test]` functions in `lib.rs` (2 new JCS tests added in commit `9f9bfdd`); 280+ total across
+    workspace Rust crates
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified)
+- JSON metadata canonicalization uses `serde_json_canonicalizer::to_writer` for RFC 8785 (JCS)
+    compliance — `parse_meta_json()` correctly serializes `1.0` as `1` and `1e20` as
+    `100000000000000000000`, matching iscc-core's `jcs.canonicalize()` behavior (fixed in `9f9bfdd`,
+    previously only claimed but not implemented)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified on remote HEAD)
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified)
-- JSON metadata canonicalization uses `serde_json_canonicalizer` for RFC 8785 (JCS) compliance,
-    matching iscc-core's `jcs.canonicalize()` behavior for numeric values in metadata
 - Note: target.md header says "22 public symbols" but the enumerated list totals 23; the crate
     implements 23
 
@@ -88,31 +93,27 @@ restructuring, abbreviations file, and CNAME. Publishing pipeline (OIDC) is not 
 
 **Status**: partially met
 
-- 5 pages deployed to lib.iscc.codes via GitHub Pages: `index.md`, `architecture.md`, `rust-api.md`,
-    `api.md`, `benchmarks.md`
-- Site builds and deploys via GitHub Pages (CI-verified, latest Docs run: success)
-- Uses `zensical` build tool with `zensical.toml` config
-- Tabbed code examples configured via `pymdownx.tabbed` with `alternate_style = true`
-- ISCC branding in place: `docs/stylesheets/extra.css` with ISCC Blue (#0054b2) primary/accent
-    colors, deep navy (#123663) header/footer, dark mode inversion for logo
-- `docs/assets/logo_light.png` and `docs/assets/favicon.png` present and referenced in
-    `zensical.toml`
-- Copy-page split-button implemented: `docs/javascripts/copypage.js` (200 lines) with full
-    split-button UI (copy action, chevron dropdown, "View as Markdown", "Edit on GitHub" items)
-- `extra_javascript = ["javascripts/copypage.js"]` configured in `zensical.toml`
-- `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files; called in docs
-    workflow after `zensical build`
-- `docs/llms.txt` (20 lines) metadata file with links to `llms-full.txt` and per-page `.md` files
-- Open Graph and Twitter Card social meta tags implemented via `overrides/main.html` (32 lines):
-    `og:type`, `og:title`, `og:description`, `og:url`, `og:image`, `og:site_name`, `twitter:card`,
-    `twitter:title`, `twitter:description`, `twitter:image` — rendered correctly in all 5 built
-    pages
-- `custom_dir = "overrides"` configured in `zensical.toml`
-- Missing: Diátaxis navigation restructuring (nav still flat: index, architecture, rust-api, api,
-    benchmarks — no tutorials/howto/explanation/reference sections, no per-language how-to guides)
-- Missing: `docs/includes/abbreviations.md` with ISCC-specific abbreviations; `pymdownx.snippets`
-    extension not configured in `zensical.toml`
-- Missing: `docs/CNAME` file with `lib.iscc.codes` (CNAME not present)
+- 8 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
+    `benchmarks.md`, `howto/python.md` (348 lines), `howto/nodejs.md` (276 lines), `howto/wasm.md`
+    (333 lines) — last 3 added in commit `486c539` (local, not yet deployed)
+- Navigation restructured into Diátaxis categories in `zensical.toml` (commit `486c539`): How-to
+    Guides (Python, Node.js, WebAssembly), Explanation (Architecture), Reference (Rust API, Python
+    API), Benchmarks
+- Site builds and deploys via GitHub Pages (CI-verified, latest Docs run: success on remote HEAD)
+- ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
+- Copy-page split-button implemented: `docs/javascripts/copypage.js`
+- `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
+- `docs/llms.txt` exists with site metadata
+- Open Graph and Twitter Card social meta tags implemented via `overrides/main.html`
+- **Missing**: Tutorials section — no tutorials page exists, no `Tutorials` nav group in
+    `zensical.toml`; target.md requires "getting started guide (installation, first ISCC code
+    generation)" per `specs/documentation.md`
+- **Missing**: Rust how-to guide — `docs/howto/rust.md` does not exist; `specs/documentation.md`
+    lists "per-language usage guides (Python, Rust, Node.js, WASM)"
+- **Missing**: `docs/includes/abbreviations.md` with ISCC-specific abbreviations (ISCC, CDC, DCT,
+    MinHash, SimHash, WTA-Hash, BLAKE3, FFI, WASM, PyPI, etc.); `pymdownx.snippets` extension not
+    configured in `zensical.toml`
+- **Missing**: `docs/CNAME` file with `lib.iscc.codes`
 
 ## Benchmarks
 
@@ -132,27 +133,30 @@ restructuring, abbreviations file, and CNAME. Publishing pipeline (OIDC) is not 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
-- Latest CI run: **PASSING** —
+- Latest CI run (against remote HEAD `ef62d13`): **PASSING** —
     [Run 22324845560](https://github.com/iscc/iscc-lib/actions/runs/22324845560) — all 5 jobs
     success (Python, C FFI, Rust, Node.js, WASM)
 - Latest Docs run: **PASSING** —
     [Run 22324844023](https://github.com/iscc/iscc-lib/actions/runs/22324844023) — build + deploy
     success
+- **8 local commits not yet pushed to remote** — CI has not run on JCS fix (`9f9bfdd`), Diátaxis nav
+    restructuring (`486c539`), or subsequent CID workflow commits
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
-- Missing: npm publishing pipeline not fully wired (npm does not support OIDC; `NODE_AUTH_TOKEN`
-    secret setup not documented as complete)
+- Missing: npm publishing pipeline not fully wired
 - Missing: version sync automation across workspace not verified as release-ready
 
 ## Next Milestone
 
-With social meta tags now complete and CI fully green, the highest-value remaining documentation
-work is:
+Documentation is the primary remaining gap. Priority order:
 
-1. **Diátaxis navigation restructuring** — reorganize site navigation into tutorials, howto,
-    explanation, and reference sections with per-language how-to guides (Python, Rust, Node.js,
-    WASM); this is the largest remaining documentation gap
+1. **Push local commits to remote** — 8 commits are ahead of `origin/main`; CI must run against the
+    JCS fix and Diátaxis nav restructuring to confirm they pass
 2. **Abbreviations file** — add `docs/includes/abbreviations.md` with ISCC-specific terms and
-    configure `pymdownx.snippets` auto-append in `zensical.toml`
-3. **CNAME file** — add `docs/CNAME` containing `lib.iscc.codes`
-4. **OIDC publishing configuration** — configure crates.io and PyPI trusted publishing in
+    configure `pymdownx.snippets` auto-append in `zensical.toml` (small, self-contained)
+3. **CNAME file** — add `docs/CNAME` containing `lib.iscc.codes` (trivial)
+4. **Tutorials section** — create a getting started guide (`docs/tutorials/getting-started.md`)
+    covering installation and first ISCC code generation across languages; add Tutorials nav group
+    to `zensical.toml`
+5. **Rust how-to guide** — create `docs/howto/rust.md` covering Rust crate usage, add to nav
+6. **OIDC publishing configuration** — configure crates.io and PyPI trusted publishing in
     `release.yml` so releases require no long-lived API keys
