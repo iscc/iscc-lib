@@ -1,0 +1,213 @@
+# Spec: CI/CD, Dev Tooling, and Release Publishing
+
+Continuous integration, quality gates, developer tooling, and selective package publishing.
+
+## Workflow Files
+
+| Workflow    | File          | Trigger                             | Purpose                       |
+| ----------- | ------------- | ----------------------------------- | ----------------------------- |
+| **CI**      | `ci.yml`      | push/PR to `main`                   | Quality gates for all targets |
+| **Release** | `release.yml` | `v*.*.*` tag or `workflow_dispatch` | Build and publish packages    |
+| **Docs**    | `docs.yml`    | push to `main`                      | Build and deploy docs site    |
+
+## CI Workflow — Quality Gates
+
+Runs on every push to `main` and every PR. All jobs must pass before merge.
+
+| Job         | What it checks                                                                        |
+| ----------- | ------------------------------------------------------------------------------------- |
+| **Rust**    | `cargo fmt --check`, `cargo clippy --workspace -D warnings`, `cargo test --workspace` |
+| **Python**  | `ruff check`, `ruff format --check`, `pytest`                                         |
+| **Node.js** | napi build, `npm test`                                                                |
+| **WASM**    | `wasm-pack test --node`                                                               |
+| **C FFI**   | cbindgen header generation, gcc compile, C test run                                   |
+| **Java**    | (deferred until JNI bindings have tests)                                              |
+
+CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
+`dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, `astral-sh/setup-uv@v4`,
+`actions/setup-python@v5`, `actions/setup-node@v4`.
+
+## Release Workflow — Selective Publishing
+
+Single workflow supporting both coordinated full releases and selective per-registry publishing.
+
+### Design Principles
+
+- **One workflow file** — all release logic lives in `release.yml`
+- **`workflow_dispatch` is the primary release mechanism** — manual trigger from the GitHub Actions
+    UI with checkboxes to select which registries to publish to
+- **Tag trigger as convenience** — pushing a `v*.*.*` tag publishes all registries (equivalent to
+    checking all boxes)
+- **Shared version** — all packages share the workspace version from root `Cargo.toml`; version is
+    bumped once in a single commit before releasing
+- **Independent jobs** — each registry's build+publish pipeline is a self-contained job chain; one
+    registry failing does not block others
+- **Idempotent** — publishing a version that already exists on a registry skips gracefully (not
+    fails the workflow)
+
+### Trigger Configuration
+
+```yaml
+on:
+  push:
+    tags: [v*.*.*]
+  workflow_dispatch:
+    inputs:
+      crates-io:
+        description: Publish iscc-lib to crates.io
+        type: boolean
+        default: false
+      pypi:
+        description: Publish iscc-lib to PyPI
+        type: boolean
+        default: false
+      npm:
+        description: Publish @iscc/lib and @iscc/wasm to npm
+        type: boolean
+        default: false
+```
+
+### Job Conditions
+
+Each job chain activates on either a tag push or its corresponding checkbox:
+
+- **crates.io jobs**: `if: startsWith(github.ref, 'refs/tags/v') || inputs.crates-io`
+- **PyPI jobs** (build-wheels, build-sdist, publish-pypi):
+    `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
+- **npm jobs** (build-napi, build-wasm, publish-npm-lib, publish-npm-wasm):
+    `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
+
+Tag pushes activate all jobs (no inputs are set, but the tag condition passes for all).
+
+### Authentication
+
+| Registry      | Method                     | Secret/Action                            |
+| ------------- | -------------------------- | ---------------------------------------- |
+| **crates.io** | OIDC trusted publishing    | `rust-lang/crates-io-auth-action@v1`     |
+| **PyPI**      | OIDC trusted publishing    | `pypa/gh-action-pypi-publish@release/v1` |
+| **npm**       | Token (`NPM_TOKEN` secret) | `NODE_AUTH_TOKEN` env var                |
+
+All jobs that use OIDC require `permissions: id-token: write`.
+
+### Idempotency
+
+Each publish job handles "already published" gracefully:
+
+- **crates.io**: check version with `cargo info iscc-lib` before publishing; skip if matches
+- **PyPI**: check version via PyPI JSON API before publishing; skip if exists
+- **npm**: check version with `npm view` before publishing; skip if exists
+
+## Build Matrices
+
+### Python wheels (maturin)
+
+| OS             | Target                  | Python     |
+| -------------- | ----------------------- | ---------- |
+| ubuntu-latest  | x86_64                  | abi3-py310 |
+| ubuntu-latest  | aarch64                 | abi3-py310 |
+| macos-14       | universal2-apple-darwin | abi3-py310 |
+| windows-latest | x64                     | abi3-py310 |
+
+One wheel per platform covers Python 3.10 through 3.14+ (abi3 stable ABI).
+
+### Node.js native addons (napi-rs)
+
+| OS             | Target                    |
+| -------------- | ------------------------- |
+| ubuntu-latest  | x86_64-unknown-linux-gnu  |
+| ubuntu-latest  | aarch64-unknown-linux-gnu |
+| macos-14       | aarch64-apple-darwin      |
+| macos-13       | x86_64-apple-darwin       |
+| windows-latest | x86_64-pc-windows-msvc    |
+
+### WASM (wasm-pack)
+
+Single build on ubuntu-latest, platform-independent.
+
+## Package Names and Registries
+
+| Package   | Registry      | Name                          |
+| --------- | ------------- | ----------------------------- |
+| Rust core | crates.io     | `iscc-lib`                    |
+| Python    | PyPI          | `iscc-lib`                    |
+| Node.js   | npm           | `@iscc/lib`                   |
+| WASM      | npm           | `@iscc/wasm`                  |
+| Java      | Maven Central | `io.iscc:iscc-lib` (deferred) |
+
+## Version Management
+
+- Version is defined once in root `Cargo.toml` under `[workspace.package]`
+- All Cargo crates inherit via `version.workspace = true`
+- `crates/iscc-napi/package.json` version must be updated manually (or via sync script)
+- `pyproject.toml` root version must be updated manually (or via sync script)
+- Before a release: bump version in all manifests in a single commit, then trigger the workflow
+- All packages share the same version number; some registries may skip versions (acceptable)
+
+## Dev Tooling
+
+### Tool Management
+
+**mise** (`mise.toml`) manages tool versions and task definitions. **uv** manages the Python
+environment. Neither is used in CI — CI installs tools via GitHub Actions.
+
+### Task Runner (mise tasks)
+
+```bash
+mise run test      # Run all tests (cargo test + pytest)
+mise run lint      # Format checks + clippy + ruff
+mise run format    # Apply formatting (pre-commit auto-fix hooks)
+mise run check     # Run all pre-commit hooks
+```
+
+### Pre-commit Hooks (prek)
+
+Git hooks managed by **prek** (Rust-based drop-in for `pre-commit`), configured in
+`.pre-commit-config.yaml`.
+
+**Pre-commit stage** (fast, auto-fix on every commit): file hygiene (line endings, trailing
+whitespace, YAML/JSON/TOML validation), `cargo fmt`, `ruff check --fix`, `ruff format`, `taplo fmt`,
+`yamlfix`, `mdformat`.
+
+**Pre-push stage** (thorough quality gates): `cargo clippy`, `cargo test`, `ty check`, Ruff security
+scan (`S` rules), Ruff complexity check (`C901`), `pytest` with coverage enforcement.
+
+**Pre-format before committing:** Run `mise run format` before `git add` and `git commit` to prevent
+commit failures from hook-applied formatting changes.
+
+### Docs Site
+
+**zensical** builds and deploys documentation to `lib.iscc.codes` via GitHub Pages. `docs.yml`
+workflow triggers on push to `main`.
+
+## Verification Criteria
+
+### CI
+
+- [ ] All quality gate jobs run on push to `main` and on PRs
+- [ ] Rust job checks fmt, clippy (workspace-wide), and tests
+- [ ] Python job checks ruff and runs pytest
+- [ ] Node.js job builds napi addon and runs tests
+- [ ] WASM job runs wasm-pack tests
+- [ ] C FFI job generates headers, compiles, and runs C test program
+- [ ] CI does not use `mise` — calls tools directly
+
+### Release
+
+- [ ] `workflow_dispatch` trigger with boolean inputs for each registry
+- [ ] Tag push `v*.*.*` triggers all publish jobs
+- [ ] `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
+- [ ] `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
+- [ ] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
+- [ ] Each registry's jobs are independent — failure in one does not block others
+- [ ] crates.io uses OIDC trusted publishing (no API key secret)
+- [ ] PyPI uses OIDC trusted publishing (no API key secret)
+- [ ] npm uses `NPM_TOKEN` repository secret
+- [ ] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
+- [ ] Publishing an existing version skips gracefully instead of failing
+- [ ] All build artifacts uploaded via `actions/upload-artifact@v4`
+
+### Version Sync
+
+- [ ] Version defined once in root `Cargo.toml` `[workspace.package]`
+- [ ] All Cargo crates inherit version via `version.workspace = true`
+- [ ] `package.json` and `pyproject.toml` versions match workspace version before release

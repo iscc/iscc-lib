@@ -3,6 +3,28 @@
 High-performance polyglot implementation of ISO 24138:2024 (ISCC). Every component below is verified
 by concrete criteria that agents can check.
 
+## Core Principle — Developer Experience First
+
+Developer experience is the highest priority for every language binding. Each binding must feel
+**idiomatic to its target language** — not like a thin FFI wrapper or a mechanical port. Developers
+should be able to install with their language's standard package manager and use the API with
+patterns natural to their ecosystem.
+
+**Guiding rules:**
+
+- **Zero-friction install**: `cargo add`, `pip install`, `npm install`, `go get`, Maven dependency —
+    one command, no external toolchains or manual library management required
+- **Idiomatic API surface**: naming conventions, error handling, types, and patterns follow each
+    language's conventions (e.g., `snake_case` in Python/Rust, `camelCase` in JS, `PascalCase` in
+    Go/Java, `Result<T>` in Rust, exceptions in Python/Java, `error` returns in Go)
+- **No cgo, no JNI manual setup, no DLL hell**: prefer pure-language packaging (WASM via wazero for
+    Go, bundled native libs in JARs for Java, abi3 wheels for Python) over approaches that leak C
+    toolchain requirements to the consumer
+- **Self-contained packages**: all platform-specific native code is embedded or bundled — the
+    developer never downloads or configures shared libraries separately
+- **Conformance parity**: every binding passes the same conformance test vectors, so developers can
+    trust that switching languages doesn't change behavior
+
 ## Rust Core Crate — `iscc-lib` on crates.io
 
 A pure Rust library (no binding dependencies) publishable to crates.io as
@@ -110,12 +132,49 @@ management required.
 - All 9 `gen_*_v0` functions are accessible with idiomatic Java types
 - Devcontainer includes JDK and build tool for Java development
 
+## Go Bindings — Go module
+
+A Go module consumable via `go get` (e.g., `go get github.com/iscc/iscc-lib/packages/go`) providing
+idiomatic Go access to all ISCC functions. Uses WASM via [wazero](https://wazero.io/) (pure Go,
+zero-dependency WebAssembly runtime) to avoid cgo and deliver the best possible developer
+experience.
+
+**Architecture:**
+
+- WASM module compiled from Rust core targeting `wasm32-wasip1` (WASI), exporting C-style functions
+    (same signatures as `iscc-ffi`) plus memory allocation helpers (`iscc_alloc`/`iscc_dealloc`)
+- Pre-built `.wasm` binary embedded in the Go package via `//go:embed` — no build-time compilation
+    needed by consumers
+- Go wrapper provides idiomatic API with Go naming conventions, `error` returns, `[]byte` slices,
+    and `io.Reader` support for streaming
+- Lives in this repository under `packages/go/` as a Go sub-module
+
+**Why WASM instead of cgo:**
+
+- **Pure Go** — no C toolchain required, `go get` is all a developer needs
+- **Cross-compilation works** — `GOOS=linux GOARCH=arm64 go build` just works, unlike cgo
+- **Self-contained** — the `.wasm` binary is compiled into the Go binary, no shared library
+    management
+- **Performance** — Rust-compiled-to-WASM via wazero is faster than a pure Go implementation and
+    acceptable for ISCC operations (hashing, text normalization, CDC chunking)
+
+**Verified when:**
+
+- `go test ./...` passes conformance vectors from Go
+- Package installs cleanly via `go get` with no external dependencies
+- No cgo required (`CGO_ENABLED=0` works)
+- Cross-compilation works (`GOOS`/`GOARCH` combinations)
+- All 9 `gen_*_v0` functions are accessible with idiomatic Go types and error handling
+- API uses Go conventions: `GenMetaCodeV0`, `GenTextCodeV0`, exported types with PascalCase, `error`
+    return values
+- Embedded `.wasm` binary is up to date with the Rust core
+
 ## README
 
 The repository README (`README.md`) is the project's public-facing entry point, written for
 developers who want to adopt ISCC in their ecosystem. It follows the same structural pattern as the
-`iscc/iscc-core` README but targets a polyglot audience — Rust, Python, Java, Node.js, WASM, and C
-developers.
+`iscc/iscc-core` README but targets a polyglot audience — Rust, Python, Java, Go, Node.js, WASM, and
+C developers.
 
 **Structure** (modeled after iscc-core README):
 
@@ -129,8 +188,8 @@ developers.
     `iscc-core` reference, and which ecosystems it serves
 - **ISCC Architecture**: architecture diagram (reuse iscc-core diagram or link to docs site)
 - **ISCC MainTypes**: table of main types (reuse from iscc-core)
-- **Installation**: per-language install instructions (Rust/cargo, Python/pip, Java/Maven,
-    Node.js/npm, WASM/npm) — use tabbed or sectioned format
+- **Installation**: per-language install instructions (Rust/cargo, Python/pip, Java/Maven, Go/go
+    get, Node.js/npm, WASM/npm) — use tabbed or sectioned format
 - **Quick Start**: minimal code examples showing `gen_meta_code_v0` in each language
 - **Implementors Guide**: link to conformance test vectors and the 9 `gen_*_v0` entry points (same
     list as iscc-core), link to documentation site for detailed per-language guides
@@ -145,12 +204,58 @@ setup, quality gates). Those belong in the documentation site under a Developmen
 **Verified when:**
 
 - README exists and renders correctly on GitHub
-- Contains per-language installation instructions (Rust, Python, Java, Node.js, WASM)
+- Contains per-language installation instructions (Rust, Python, Java, Go, Node.js, WASM)
 - Contains per-language quick start code examples
 - Links to documentation site (`lib.iscc.codes`)
 - Does not contain development workflow content (CID loop, dev container, pre-commit hooks)
 - Lists the 9 `gen_*_v0` conformance entry points
 - Includes ISCC architecture diagram and MainTypes table
+
+## Per-Crate READMEs
+
+Each publishable crate and binding package has its own `README.md` tailored to its registry
+audience. These READMEs are what developers see on crates.io, PyPI, npm, and Maven Central — they
+must stand alone without requiring the reader to visit the repository.
+
+**Crates and their registries:**
+
+| Crate / Package    | Registry                   | Audience                |
+| ------------------ | -------------------------- | ----------------------- |
+| `crates/iscc-lib`  | crates.io                  | Rust developers         |
+| `crates/iscc-py`   | PyPI                       | Python developers       |
+| `crates/iscc-napi` | npm                        | Node.js developers      |
+| `crates/iscc-wasm` | npm                        | Browser/WASM developers |
+| `crates/iscc-ffi`  | (not published separately) | C/C# integrators        |
+| `crates/iscc-jni`  | Maven Central              | Java/JVM developers     |
+| `packages/go`      | Go module proxy            | Go developers           |
+
+**Each per-crate README contains:**
+
+- **Package name and tagline**: what this package is, one line
+- **Badges**: registry version, CI status, license
+- **What is ISCC**: brief explanation (2-3 sentences, can be shared text)
+- **Installation**: registry-specific install command (e.g., `cargo add iscc-lib`,
+    `pip install   iscc-lib`, `npm install @iscc/lib`)
+- **Quick start**: minimal code example in the crate's target language showing `gen_meta_code_v0`
+- **API overview**: list of the 9 `gen_*_v0` functions and key utilities available in this binding
+- **Links**: link to documentation site (`lib.iscc.codes`), repository, and the ISCC specification
+- **License**: Apache-2.0
+
+**Registry integration:**
+
+- Rust: `Cargo.toml` `readme` field points to crate-local `README.md`
+- Python: `pyproject.toml` `readme` field points to crate-local `README.md`
+- Node.js/WASM: `package.json` `readme` field (npm auto-detects `README.md` in package root)
+- Java: Maven Central does not render READMEs, but the file serves as the crate's documentation
+    entry point and is linked from the POM's `<description>` and `<url>` fields
+
+**Verified when:**
+
+- Every publishable crate directory contains a `README.md`
+- Each README has installation instructions specific to its registry
+- Each README has a quick start code example in the target language
+- Registry metadata (`Cargo.toml`, `pyproject.toml`, `package.json`) references the local README
+- READMEs render correctly on their respective registry pages
 
 ## Documentation
 
@@ -164,7 +269,7 @@ Detailed spec: `.claude/context/specs/documentation.md`
 - Site builds and deploys via GitHub Pages
 - ISCC branding (colors, logo, favicon, dark mode) matches iscc-usearch
 - Covers Rust API, Python API, architecture, and per-language how-to guides
-- All code examples use tabbed multi-language format (Python, Rust, Java, Node.js, WASM)
+- All code examples use tabbed multi-language format (Python, Rust, Java, Go, Node.js, WASM)
 - Copy-page feature and `llms-full.txt` generation for agent consumption
 - Navigation follows Diátaxis framework (tutorials, howto, explanation, reference)
 - Development section covers: dev container setup, CID workflow, quality gates, project structure
@@ -179,15 +284,20 @@ Performance comparisons against the Python reference implementation.
 - pytest-benchmark compares Python bindings vs `iscc-core`
 - Speedup factors published in documentation
 
-## CI/CD and Publishing
+## CI/CD, Dev Tooling, and Publishing
 
-Automated quality gates and publishing pipelines.
+Automated quality gates, developer tooling, and selective publishing pipelines.
+
+Detailed spec: `.claude/context/specs/ci-cd.md`
 
 **Verified when:**
 
-- All quality gates run automatically on push/PR
+- All quality gates run automatically on push/PR (Rust, Python, Node.js, WASM, C FFI)
+- `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm) works
+- Tag push `v*.*.*` triggers all publish jobs
 - crates.io and PyPI publishing via OIDC trusted publishing (no API keys)
-- npm publishing via NPM_TOKEN secret for `@iscc/lib` and `@iscc/wasm`
+- npm publishing via `NPM_TOKEN` secret for `@iscc/lib` and `@iscc/wasm`
+- Publishing an already-published version skips gracefully
 - All CI workflows green
 - All packages versioned at `0.0.1` (experimental) with coordinated version across manifests
 
