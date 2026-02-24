@@ -1,15 +1,15 @@
-<!-- assessed-at: f24a31f37d5f4500e64334f63c70ca6ffa6806dc -->
+<!-- assessed-at: b1a610b -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: JNI unwrap() eliminated — Java docs, native loader, Go bindings pending
+## Phase: Python bytes-like/streaming fixed — JNI validation, napi packaging, Go bindings pending
 
-All 21 `unwrap()` calls in the JNI bridge have been replaced with `throw_and_default` error
-handling. CI is green on all 6 jobs. Remaining gaps: native library loader class for JAR
-self-containment, `docs/howto/java.md`, Maven Central publishing, and Go bindings (not started).
-Several normal-priority correctness issues remain in Python, Node.js, and WASM bindings.
+Python binding correctness issues resolved: `bytearray`/`memoryview` inputs now handled correctly
+and file-like streams use chunked 64 KiB reads via `DataHasher`/`InstanceHasher`. CI is green on all
+6 jobs. Remaining gaps: JNI `jint` validation and local-reference overflow, napi version skew and
+packaging, WASM silent null, Java native loader/docs, and Go bindings (not started).
 
 ## Rust Core Crate
 
@@ -41,18 +41,22 @@ Several normal-priority correctness issues remain in Python, Node.js, and WASM b
 - 23/23 Tier 1 symbols exposed via PyO3 in `crates/iscc-py/src/lib.rs`
 - All `gen_*_v0` functions return `PyDict` (translated to typed `IsccResult` subclasses in Python)
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with `Option<inner>` finalize-once pattern
-- `gen_data_code_v0` and `gen_instance_code_v0` accept `bytes | BinaryIO` in the Python layer
+- `gen_data_code_v0` and `gen_instance_code_v0` accept `bytes | bytearray | memoryview | BinaryIO`
+    in the Python layer; `bytearray`/`memoryview` correctly converted to `bytes` before Rust FFI
+- File-like stream inputs use 64 KiB chunked reads via `_DataHasher`/`_InstanceHasher` (no more
+    unbounded `.read()` memory exhaustion) — `_CHUNK_SIZE = 65536` constant in `__init__.py`
+- `DataHasher.update` and `InstanceHasher.update` accept `bytes | bytearray | memoryview | BinaryIO`
+    with same chunked-read logic
 - `sliding_window` returns `PyResult<Vec<String>>` and raises `ValueError` on `width < 2`
-- 105 test functions across 5 files (`test_conformance.py`, `test_smoke.py`, `test_text_utils.py`,
-    `test_algo.py`, `test_streaming.py`)
+- 115 test functions across 5 files (`test_conformance.py`, `test_smoke.py`, `test_text_utils.py`,
+    `test_algo.py`, `test_streaming.py`); 157 total pytest tests pass (10 new bytes-like tests
+    added)
 - `ruff check` and `ruff format --check` clean (CI-verified at HEAD)
-- `pytest` passes all conformance vectors (CI-verified at HEAD)
+- `pytest` passes all conformance vectors and new bytes-like input tests (CI-verified at HEAD)
 - abi3-py310 wheel configuration in place
 - `ty` type checking configured
 - OIDC trusted publishing not yet configured
-- **Open issues** (normal): bytes-like inputs (`bytearray`, `memoryview`) misclassified as streams;
-    unbounded `.read()` on file-like inputs defeats streaming; missing `__version__` [low]; module
-    docstring references wrong package name [low]
+- **Open issues** \[low\]: missing `__version__`; module docstring references wrong package name
 
 ## Node.js Bindings
 
@@ -195,7 +199,7 @@ complete; native loader/publishing/docs absent)
     Development
 - All 11 pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22367877560](https://github.com/iscc/iscc-lib/actions/runs/22367877560))
+    [Run 22368527593](https://github.com/iscc/iscc-lib/actions/runs/22368527593))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
@@ -228,10 +232,10 @@ complete; native loader/publishing/docs absent)
     (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn
     test)
 - Latest CI run: **PASSING** —
-    [Run 22367877569](https://github.com/iscc/iscc-lib/actions/runs/22367877569) — all 6 jobs
+    [Run 22368527588](https://github.com/iscc/iscc-lib/actions/runs/22368527588) — all 6 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java)
 - Latest Docs run: **PASSING** —
-    [Run 22367877560](https://github.com/iscc/iscc-lib/actions/runs/22367877560) — build + deploy
+    [Run 22368527593](https://github.com/iscc/iscc-lib/actions/runs/22368527593) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: Go CI job (Go bindings not started)
@@ -241,16 +245,16 @@ complete; native loader/publishing/docs absent)
 
 ## Next Milestone
 
-CI is green on all 6 jobs. The critical JNI `unwrap()` issue is resolved. The most impactful next
-work is fixing the Python binding correctness issues, which affect any caller passing `bytearray` or
-`memoryview` inputs:
+CI is green on all 6 jobs. Python bytes-like input and chunked streaming are now fixed. The
+remaining normal-priority correctness issues are distributed across bindings. Recommended next work
+(in priority order):
 
-1. Fix `iscc-py` bytes-like input misclassification: replace `isinstance(data, bytes)` with
-    `hasattr(data, "read")` for stream detection (`gen_data_code_v0`, `gen_instance_code_v0`,
-    `DataHasher.update`, `InstanceHasher.update`)
-2. Fix `iscc-py` unbounded `.read()`: implement chunked streaming via `DataHasher`/`InstanceHasher`
-    to avoid memory exhaustion on large files
+1. **JNI `jint` negative value validation** — 3 JNI functions accept `int bits` but do not reject
+    negative values before passing to Rust; should throw `IllegalArgumentException`
+2. **JNI local reference overflow** — 5 loops in `lib.rs` create unbounded JNI local refs; wrap with
+    `push_local_frame`/`pop_local_frame` to prevent JVM crash on large arrays
+3. **napi version skew** — `index.js` hardcodes `0.1.0` while `package.json` says `0.0.1`; fix
+    version and add `"files"` field to prevent npm publish from excluding entrypoints
 
-These two issues form a natural pair and can be addressed in a single iteration. After Python fixes,
-remaining candidates (in priority order): (3) Java docs + native loader; (4) JNI `jint` validation;
-(5) JNI local reference overflow; (6) napi version skew + packaging; (7) Go bindings.
+Issues 1–2 are a natural pair (both JNI correctness, same file). After those, napi packaging and
+WASM silent-null follow. Go bindings remain the largest unstarted feature.

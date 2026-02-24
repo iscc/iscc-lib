@@ -55,8 +55,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     gap. Go sections and Maven Central/Go badges still missing.
 - JNI unwrap() issue resolved in iteration 7 (commit a573475). All 21 unwrap() calls replaced with
     throw_and_default. No critical issues remain in issues.md as of f24a31f.
-- Python bytes-like + unbounded read issues are normal priority, designated next iteration target.
+- Python bytes-like + unbounded read issues resolved in iteration 2 (commit 29fb142). Fixed in
+    `crates/iscc-py/python/iscc_lib/__init__.py`: stream detection via
+    `isinstance(data, (bytes,   bytearray, memoryview))`, chunked 64 KiB reads via
+    `_DataHasher`/`_InstanceHasher`, 10 new tests in `tests/test_streaming.py`. Total pytest count:
+    157 tests, 115 test functions (up from 105).
+- Next normal-priority: JNI jint validation (3 sites), JNI local-ref overflow (5 loops), napi
+    version skew + packaging, WASM silent null on alg_cdc_chunks serialization failure.
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` needs `--repo iscc/iscc-lib` to avoid GraphQL projects error; also needs `--json`
     fields
+- Latest CI run IDs (iteration 2): tests = 22368527588 (6/6 pass), docs = 22368527593 (pass)
