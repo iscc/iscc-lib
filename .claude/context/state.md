@@ -1,15 +1,15 @@
-<!-- assessed-at: a908f95 -->
+<!-- assessed-at: 2ebca172d85f997b6170004fe1deaf2b85e7ba35 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: WASM silent-null closed — FFI video allocation and Go bindings pending
+## Phase: FFI alloc/dealloc helpers added — Go bindings scaffold is next
 
-WASM `alg_cdc_chunks` silent null return is resolved: function now returns
-`Result<JsValue, JsError>` and propagates serialization errors instead of swallowing them as
-`JsValue::NULL`. CI is green on all 6 jobs. Remaining normal-priority issues are FFI video frame
-allocation and codec header parsing; Go bindings remain unstarted.
+`iscc_alloc` and `iscc_dealloc` memory-management helpers are now exported from `crates/iscc-ffi`
+and the crate compiles to a `wasm32-wasip1` WASM module (~10.5 MB debug). CI is green on all 6 jobs.
+The next step is creating `packages/go/` with the Go module scaffold, wazero bridge, and embedded
+`.wasm` binary.
 
 ## Rust Core Crate
 
@@ -94,7 +94,12 @@ allocation and codec header parsing; Go bindings remain unstarted.
 
 **Status**: met
 
-- 23/23 Tier 1 symbols as `extern "C"` functions in `crates/iscc-ffi/src/lib.rs` (1,880+ lines)
+- 25 exported `extern "C"` functions in `crates/iscc-ffi/src/lib.rs` (1,934 lines): 23 Tier 1
+    symbols as FFI wrappers + `iscc_alloc` and `iscc_dealloc` memory-management helpers
+- `iscc_alloc(size: usize) -> *mut u8` — allocates WASM-side memory for host use; handles
+    `size == 0` by returning a dangling non-null pointer
+- `iscc_dealloc(ptr: *mut u8, size: usize)` — frees memory previously allocated by `iscc_alloc`;
+    no-op on null or zero-size; `iscc-ffi` now compiles to `wasm32-wasip1` (~10.5 MB debug binary)
 - All streaming hasher types fully implemented: `FfiDataHasher` and `FfiInstanceHasher` opaque
     pointer types with complete `new/update/finalize/free` lifecycle functions
 - Finalize-once semantics enforced via `Option<Inner>` in the opaque wrapper struct
@@ -145,11 +150,12 @@ complete; native loader/publishing/docs absent)
 **Status**: not started
 
 - No `packages/go/` directory exists
-- No WASM WASI target built for Go consumption
+- `iscc-ffi` now compiles to `wasm32-wasip1` (~10.5 MB debug) and exports
+    `iscc_alloc`/`iscc_dealloc` — the foundational step for Go/wazero consumption is done
 - Target spec calls for WASM/wazero approach (pure Go, no cgo), Go module under `packages/go/`
-- Requires: `wasm32-wasip1` build of `iscc-ffi` with `iscc_alloc`/`iscc_dealloc` helpers, pre-built
-    `.wasm` embedded via `//go:embed`, idiomatic Go wrapper with `error` returns and `io.Reader`
-    support, Go conformance tests, CI job, README and docs pages
+- Requires: Go module scaffold (`go.mod`, `go.sum`), wazero runtime init, embedded `.wasm` binary
+    via `//go:embed`, idiomatic Go wrapper with `error` returns and `io.Reader` support, Go
+    conformance tests, CI job, README and docs pages
 
 ## README
 
@@ -222,10 +228,10 @@ complete; native loader/publishing/docs absent)
     (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn
     test)
 - Latest CI run: **PASSING** —
-    [Run 22372060652](https://github.com/iscc/iscc-lib/actions/runs/22372060652) — all 6 jobs
+    [Run 22373370725](https://github.com/iscc/iscc-lib/actions/runs/22373370725) — all 6 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java)
 - Latest Docs run: **PASSING** —
-    [Run 22372060644](https://github.com/iscc/iscc-lib/actions/runs/22372060644) — build + deploy
+    [Run 22373370777](https://github.com/iscc/iscc-lib/actions/runs/22373370777) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: Go CI job (Go bindings not started)
@@ -235,15 +241,16 @@ complete; native loader/publishing/docs absent)
 
 ## Next Milestone
 
-CI is green on all 6 jobs. WASM silent-null issue is closed. Recommended next work (in priority
-order):
+CI is green on all 6 jobs. FFI `iscc_alloc`/`iscc_dealloc` helpers are in place and `iscc-ffi`
+compiles to `wasm32-wasip1`. Recommended next work (in priority order):
 
-1. **FFI video allocation** [normal] — `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0` in
+1. **Go bindings scaffold** — create `packages/go/` with `go.mod`, embed the debug `.wasm` binary
+    via `//go:embed`, initialize wazero runtime, implement memory helpers that call
+    `iscc_alloc`/`iscc_dealloc`; this is the largest unstarted feature
+2. **FFI video allocation** [normal] — `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0` in
     `crates/iscc-ffi/src/lib.rs` allocate/copy every frame signature via `.to_vec()`; consider
     changing the `iscc_lib` video API to accept `&[&[i32]]` to avoid per-frame copies
-2. **Codec header parsing** [normal] — `bytes_to_bits` in `crates/iscc-lib/src/codec.rs:121-127`
+3. **Codec header parsing** [normal] — `bytes_to_bits` in `crates/iscc-lib/src/codec.rs:121-127`
     expands bytes to `Vec<bool>` on every codec operation; replace with bit-level indexing
-3. **DataHasher allocation** [normal] — `streaming.rs:88-93` copies input data on every `update()`
+4. **DataHasher allocation** [normal] — `streaming.rs:88-93` copies input data on every `update()`
     call; rework the tail-buffering logic to avoid redundant allocations
-4. **Go bindings** — largest unstarted feature; requires WASM/wazero approach, `wasm32-wasip1` build
-    of `iscc-ffi`, Go module under `packages/go/`, conformance tests, CI job

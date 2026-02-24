@@ -75,7 +75,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 5): tests = 22372060652 (6/6 pass), docs = 22372060644 (pass)
+- Latest CI run IDs (iteration 6): tests = 22373370725 (6/6 pass), docs = 22373370777 (pass)
+- `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
+    compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
+    alloc helpers). File is now 1,934 lines.
+- Next priority: Go bindings scaffold in `packages/go/` (wazero, embed `.wasm`, idiomatic Go wrap)
 - Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
     DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
