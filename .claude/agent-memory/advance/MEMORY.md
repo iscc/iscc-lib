@@ -59,6 +59,26 @@ iterations.
 - Build: `cargo build -p iscc-ffi --target wasm32-wasip1`
 - Output: `target/wasm32-wasip1/debug/iscc_ffi.wasm`
 
+## Go/wazero Bridge
+
+- Go module: `packages/go/` with package name `iscc`, module path
+    `github.com/iscc/iscc-lib/packages/go`
+- wazero v1.11.0 is the pure-Go WASM runtime — no CGO required
+- WASM binary embedded via `//go:embed iscc_ffi.wasm` — must be pre-built and copied to
+    `packages/go/iscc_ffi.wasm` before `go test`
+- wazero function calls return `[]uint64` — cast to `uint32` for WASM32 pointers
+- String marshaling pattern: `writeString` allocs + writes UTF-8 + null terminator, `readString`
+    reads byte-by-byte until null, `freeString` calls `iscc_free_string`
+- `iscc_last_error` returns borrowed pointer — do NOT free it
+- Each `NewRuntime()` call compiles the ~11MB WASM module (~0.6s). For test suites with many tests,
+    consider `CompileModule` once + `InstantiateModule` per test
+- `wazero.NewModuleConfig().WithStdout(io.Discard).WithStderr(io.Discard)` suppresses WASI noise
+- Use `r.InstantiateWithConfig(ctx, wasmModule, cfg)` (not separate compile+instantiate) for simpler
+    single-module loading
+- `text_clean` does NOT collapse double spaces within a line — it does NFKC normalization, control
+    char removal, newline normalization, consecutive empty line collapse, and leading/trailing
+    whitespace stripping. Use NFKC test cases (e.g., fi ligature U+FB01) for testing
+
 ## Build and Tooling
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)

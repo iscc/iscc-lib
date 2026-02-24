@@ -2,6 +2,9 @@
 #
 # Usage: mise run <task>
 
+[tools]
+go = "latest"
+
 # --- CID (Continuous Iterative Development) ---
 
 [tasks."cid:run"]

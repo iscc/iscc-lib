@@ -1,33 +1,41 @@
-## 2026-02-24 — Review of: Build iscc-ffi as wasm32-wasip1 module with alloc/dealloc helpers
+## 2026-02-24 — Go module scaffold with wazero runtime and memory helpers
 
-**Verdict:** PASS
+**Done:** Created the `packages/go/` Go module with wazero-based WASM runtime initialization, memory
+management helpers (alloc/dealloc, writeString/readString, freeString), error retrieval
+(`lastError`), and two public functions (`ConformanceSelftest`, `TextClean`). All 5 tests pass
+including `iscc_conformance_selftest()` proving the end-to-end Go→wazero→WASM→Rust bridge works.
 
-**Summary:** The advance agent added `iscc_alloc` and `iscc_dealloc` helper functions to the FFI
-crate, enabling WASM host memory management for Go/wazero bindings. The implementation is clean,
-well-documented, correctly handles edge cases (null pointers, zero-size allocations), and compiles
-to a ~10.5MB wasm32-wasip1 module. All existing tests pass unchanged.
+**Files changed:**
 
-**Verification:**
+- `packages/go/go.mod`: Go module definition with wazero v1.11.0 dependency
+- `packages/go/go.sum`: Auto-generated dependency checksums
+- `packages/go/iscc.go`: Runtime type with NewRuntime/Close, memory helpers (alloc, dealloc,
+    writeString, readString, freeString, lastError), and two public methods (ConformanceSelftest,
+    TextClean)
+- `packages/go/iscc_test.go`: 5 tests — TestRuntimeInit, TestConformanceSelftest, TestAllocDealloc,
+    TestWriteReadString, TestTextClean
+- `mise.toml`: Added `[tools]` section with `go = "latest"` (installs Go 1.26.0)
+- `.gitignore`: Added `packages/go/*.wasm` pattern for the debug WASM binary
 
-- [x] `rustup target add wasm32-wasip1` succeeds (idempotent)
-- [x] `cargo build -p iscc-ffi --target wasm32-wasip1` compiles without errors
-- [x] `ls target/wasm32-wasip1/debug/iscc_ffi.wasm` — file exists (10,992,662 bytes)
-- [x] `cargo test -p iscc-ffi` passes all 62 existing tests
-- [x] `cargo clippy -p iscc-ffi -- -D warnings` clean
-- [x] `grep 'fn iscc_alloc'` returns exactly 1 match
-- [x] `grep 'fn iscc_dealloc'` returns exactly 1 match
-- [x] `mise run check` passes all 14 pre-commit hooks
-- [x] No quality gate circumvention in diff
+**Verification:** All 5 Go tests pass (3.4s total, ~0.6s each due to WASM compilation). Verified
+with both `go test -v ./...` and `CGO_ENABLED=0 go test ./...` (proves no cgo dependency). All 14
+pre-commit hooks pass via `mise run check`.
 
-**Issues found:**
+**Next:** Add Go wrappers for the 9 `gen_*_v0` functions. The memory helpers and string marshaling
+pattern established here (writeString → call → readString → freeString) can be reused directly for
+all gen functions. The `lastError` helper already handles error retrieval from NULL returns.
 
-- (none)
+**Notes:**
 
-**Next:** Create the `packages/go/` directory with the Go module scaffold and wazero bridge. This is
-step 2 of the Go bindings multi-step plan: set up `go.mod`, embed the `.wasm` binary, and implement
-the wazero runtime initialization + basic memory helpers that call `iscc_alloc`/`iscc_dealloc`.
-
-**Notes:** The existing `crate-type = ["cdylib", "staticlib"]` works without modification for WASM
-targets. The `thread_local!` macro in the FFI crate (for error storage) compiles for wasm32-wasip1
-since WASM is single-threaded. Debug binary is ~10.5MB; release + wasm-opt optimization is a
-separate future step.
+- The next.md test spec for `TestTextClean` expected `"Hello  World"` → `"Hello World"` (double
+    space collapsed to single), but `text_clean` doesn't collapse spaces within a line — it does
+    NFKC normalization, control character removal, newline normalization, and leading/trailing
+    whitespace stripping. Adjusted the test to use NFKC ligature normalization
+    (`"  Hel\uFB01 World  "` → `"Helfi World"`) which exercises both NFKC and whitespace stripping.
+- wazero v1.11.0 was resolved (latest at time of `go mod tidy`), not v1.9.0 as specified in the
+    initial `go.mod` — Go resolved to the latest available version.
+- Each test takes ~0.6s because wazero compiles the ~11MB WASM module on every `NewRuntime()` call.
+    A shared runtime per test suite would be faster but the per-test isolation is preferred for the
+    scaffold. Future optimization: use `CompileModule` once and `InstantiateModule` per test.
+- The WASM binary must be pre-built and copied to `packages/go/` before tests run. `TestMain` checks
+    for the binary and skips gracefully with instructions if missing.
