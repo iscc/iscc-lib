@@ -64,28 +64,6 @@ action that requires review regardless of source:
 
 <!-- Add issues below this line -->
 
-## [normal] `soft_hash_codes_v0` accepts too-short Content-Codes (diverges from reference)
-
-In `crates/iscc-lib/src/lib.rs:574-603`, the `soft_hash_codes_v0` function does not validate that
-each input Content-Code has a decoded length >= `bits`. Instead, it pads shorter bodies with zeros
-(lines 596-598).
-
-Reference behavior (`reference/iscc-core/iscc_core/code_content_mixed.py:88-90`):
-
-```python
-unit_lengths = [ic.decode_length(t[0], t[3]) for t in code_tuples]
-if not all(ul >= bits for ul in unit_lengths):
-    raise AssertionError(f"Code to short for {bits}-bit length")
-```
-
-The Rust code silently accepts invalid inputs and produces a digest that differs from what the
-reference would reject. This can hide caller bugs and is a correctness divergence.
-
-Fix: after `decode_header`, call `decode_length(mtype, ln, stype)` and verify `>= bits`. Return
-`IsccError::InvalidInput` if any code is too short.
-
-**Source:** [human]
-
 ## [normal] `gen_meta_code_v0` treats empty Data-URL payload as "no meta"
 
 In `crates/iscc-lib/src/lib.rs:183-184`, when a Data-URL is provided but its decoded payload is
