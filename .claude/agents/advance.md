@@ -100,7 +100,9 @@ technical debt introduced>
     it in the handoff and commit what you have. Do not guess.
 - If you discover a problem that is out of scope for the current work package but should be tracked,
     add it to `.claude/context/issues.md` following the file's format. Use source tag `[advance]`
-    and `normal` priority. Do not fix out-of-scope problems — only document them.
+    and `normal` priority. Do not fix out-of-scope problems — only document them. If the problem is
+    in the iscc-core reference implementation (not our code), include `**Upstream:** iscc/iscc-core`
+    and provide concrete evidence (failing vector, expected vs actual, file/function reference).
 - Do not modify `.claude/context/state.md`, `.claude/context/target.md`, `.claude/context/next.md`,
     or `.claude/context/learnings.md`. You only write to handoff.md, issues.md (append-only), and
     source/test files.

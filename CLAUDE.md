@@ -47,7 +47,13 @@ changes automatically.
 
 **Filing issues:** If the human identifies a bug, missing feature, or spec problem that should be
 tracked for the CID loop, add it to `issues.md` following the file's format. Use source tag
-`[human]`. Include a `**Spec:**` field if the issue is rooted in a target specification gap.
+`[human]`. Include a `**Spec:**` field if the issue is rooted in a target specification gap. Include
+an `**Upstream:** iscc/iscc-core` field if the problem belongs in the upstream reference
+implementation.
+
+**Filing upstream issues:** When the human asks to file a GitHub issue for an upstream entry in
+issues.md, use `gh issue create -R iscc/iscc-core` with the evidence from the issue description.
+After filing, note the GitHub issue URL in issues.md, then delete the local entry.
 
 **Adding learnings:** If the interactive session uncovers knowledge that would help CID agents
 (e.g., a tricky API behavior, a conformance detail), append it to `learnings.md` under the

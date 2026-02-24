@@ -80,7 +80,12 @@ next iteration.
     issue entry. **Spec-rooted issues:** if you identify that a problem stems from an under- or
     miss-specification in target.md (or a sub-spec), include a `**Spec:**` field pointing to the
     affected section. Since this is an agent-sourced issue, add `HUMAN REVIEW REQUESTED` and
-    describe the proposed spec change — do not modify target.md yourself.
+    describe the proposed spec change — do not modify target.md yourself. **Upstream issues:** if
+    conformance checking reveals a bug or inconsistency in the iscc-core reference implementation
+    (not in our code), add an issue with `**Upstream:** iscc/iscc-core`. Include concrete
+    evidence: failing vectors, expected vs actual output, and specific file/function references in
+    `reference/iscc-core/`. Always add `HUMAN REVIEW REQUESTED` for upstream issues — do not file
+    GitHub issues yourself.
 
 7. **Update handoff** — rewrite `.claude/context/handoff.md` to prepare the define-next agent for
     the next iteration. Include what was accomplished, what issues remain, and a concrete

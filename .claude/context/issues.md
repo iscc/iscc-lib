@@ -19,6 +19,7 @@ Description of the problem, including context and any relevant file paths or err
 
 **Source:** [human|review|advance]
 **Spec:** .claude/context/target.md#section-name (optional — only if rooted in a spec gap)
+**Upstream:** iscc/iscc-core (optional — only if the fix belongs in the upstream reference)
 ```
 
 ### Spec field
@@ -31,6 +32,19 @@ that needs updating. Source determines what happens:
 - **`[review]`/`[advance]` + `Spec:`** — the review agent flags with `HUMAN REVIEW REQUESTED` and
     describes the proposed spec change in the issue description. It does NOT modify target.md. The
     human must approve and make the change.
+
+### Upstream field
+
+The optional `**Upstream:**` field marks an issue as belonging to an external repository (e.g.,
+`iscc/iscc-core`). Upstream issues are always human-gated — filing on GitHub is a visible public
+action that requires review regardless of source:
+
+- Any issue with `**Upstream:**` triggers `HUMAN REVIEW REQUESTED` in the CID loop
+- The issue description should include concrete evidence: failing conformance vectors, expected vs
+    actual output, specific code references in the upstream repo
+- The issue stays in issues.md as a draft until the human reviews it and either asks an interactive
+    session to file it via `gh issue create -R <repo>` or files it manually
+- After filing, update the issue description with the GitHub issue URL and delete it from issues.md
 
 ## Priority Levels
 
