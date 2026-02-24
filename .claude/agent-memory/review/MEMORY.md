@@ -8,6 +8,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Pre-push hooks (clippy, cargo test, pytest, etc.) are not run by `mise run check` — verify clippy
     separately with `cargo clippy --workspace --all-targets -- -D warnings`
 - Java tests are NOT part of `mise run check` or pre-push hooks — must run `mvn test` explicitly
+- Go tests are NOT part of `mise run check` or pre-push hooks — must run
+    `cd packages/go && mise exec -- go test ./...` explicitly
 - The advance commit is at HEAD (not HEAD~1) when review runs — use `git diff HEAD~1..HEAD` for the
     advance diff, not `HEAD~2..HEAD~1` (that's the define-next diff)
 
@@ -18,6 +20,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Verification criteria in next.md that use generic `grep` patterns may false-positive on the
     replacement code — always verify grep criteria match the actual problematic pattern, not just a
     substring
+- next.md test case specifications may have incorrect expected values (e.g., text_clean double-space
+    collapsing) — when the advance agent adjusts test expectations, verify against the actual Rust
+    implementation behavior rather than just accepting the spec
 
 ## Review Shortcuts
 
@@ -29,9 +34,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     to run full test suites since no code was modified
 - Python-only changes: `mise run check` + `pytest` is sufficient; skip `cargo test` and `mvn test`
     unless Rust/Java code was also modified
+- Go-only changes: `mise run check` + `mise exec -- go test ./...` is sufficient
 - Full test suite (157 tests) runs in \<1s — always run it for Python changes
 
 ## Gotchas
 
 - Git log shows iteration numbering resets when a new CID run starts (iteration 12 → iteration 1) —
     this is normal, each `mise run cid:run` starts a new run
+- Go via mise requires `mise exec --` prefix — `go` is not on PATH in all environments

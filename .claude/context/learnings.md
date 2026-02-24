@@ -232,6 +232,19 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     (PyValueError, napi::Error, JsError, FFI last_error). This avoids cascading return-type changes
     to internal helpers
 
+## Go/wazero Bridge
+
+- Go module path is `github.com/iscc/iscc-lib/packages/go`, package name `iscc`. Go is installed via
+    mise (`go = "latest"` in `[tools]`) — requires `mise exec --` prefix to run Go commands
+- wazero v1.11.0 (pure-Go WASM runtime, no CGO). WASM binary embedded via `//go:embed iscc_ffi.wasm`
+    — must be pre-built and copied to `packages/go/` before tests. TestMain skips gracefully if
+    missing
+- `iscc_last_error()` returns a borrowed pointer — Go bridge must NOT call `iscc_free_string` on it.
+    Other string-returning FFI functions (like `iscc_text_clean`) return owned strings that must be
+    freed
+- `text_clean` does NOT collapse double spaces within a line — use NFKC ligature normalization
+    (e.g., fi ligature U+FB01 → "fi") for test cases instead of space-collapsing expectations
+
 ## Publishing
 
 - Workspace version is `0.0.1` (experimental). Version is defined once in root `Cargo.toml`
