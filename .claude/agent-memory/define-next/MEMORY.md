@@ -50,14 +50,19 @@ iterations.
     to `.map_err(...)`, add `.unwrap()` in tests. Every other WASM function already uses this
     pattern so consistency is the primary motivation.
 - Go bindings multi-step plan: (1) WASI build + alloc/dealloc ✅ → (2) Go module scaffold + wazero
-    bridge + memory helpers (current step) → (3) gen function wrappers → (4) streaming wrappers
-    (DataHasher/InstanceHasher) → (5) conformance tests → (6) CI job → (7) README/docs. Each step is
-    independently verifiable. Step 2 creates 3 files (go.mod, iscc.go, iscc_test.go) + modifies
-    mise.toml. Verification: `CGO_ENABLED=0 go test ./...` passes with conformance_selftest.
-- Go scaffold scoping: the WASM binary (~10.5 MB debug) should NOT be checked into git. Use
-    `//go:embed` with a gitignored binary that's built by
-    `cargo build -p iscc-ffi --target   wasm32-wasip1`. Tests should skip gracefully if binary is
-    missing.
+    bridge + memory helpers ✅ → (3) gen\_\*\_v0 wrappers + conformance tests (current step) → (4)
+    remaining Tier 1 wrappers (text utils, algo primitives, streaming hashers) → (5) CI job → (6)
+    README/docs. Combining gen wrappers with conformance tests in one step is feasible because both
+    modify only 2 files (iscc.go, iscc_test.go) and the conformance test pattern (read data.json,
+    iterate vectors, compare ISCC strings) is well-established across all bindings.
+- Go scaffold scoping: the WASM binary (~10.5 MB debug) is NOT checked into git. Uses `//go:embed`
+    with a gitignored binary built by `cargo build -p iscc-ffi --target wasm32-wasip1`. TestMain
+    skips gracefully if binary is missing.
+- Go gen\_\*\_v0 wrappers need 4 memory helper categories: (1) writeString (existing), (2)
+    writeBytes for raw byte data (image/data/instance), (3) writeI32Slice for int32 arrays (audio),
+    (4) writeStringArray + writeI32ArrayOfArrays for pointer-to-pointer patterns (mixed/iscc/video).
+    WASM32 is little-endian for all integer writes. Pointer arrays use uint32 elements (4 bytes
+    each).
 - Go module path is `github.com/iscc/iscc-lib/packages/go` with package name `iscc`. This matches
     the `go get` path in target.md.
 - Go/wazero requires WASI instantiation (`wasi_snapshot_preview1.MustInstantiate`) because iscc-ffi
