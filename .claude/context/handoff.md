@@ -1,31 +1,33 @@
-## 2026-02-24 — Review of: Fix WASM `alg_cdc_chunks` silent null return
+## 2026-02-24 — Build iscc-ffi as wasm32-wasip1 module with alloc/dealloc helpers
 
-**Verdict:** PASS
+**Done:** Added `iscc_alloc` and `iscc_dealloc` extern "C" functions to the FFI crate for WASM host
+memory management. The crate now compiles as a wasm32-wasip1 module, producing a ~10.5MB debug
+`.wasm` binary from the existing `cdylib` crate type.
 
-**Summary:** Mechanical fix aligning `alg_cdc_chunks` with the crate's consistent error-handling
-pattern. Changed return type from `JsValue` to `Result<JsValue, JsError>`, replaced
-`.unwrap_or(JsValue::NULL)` with `.map_err(...)`, and added `.unwrap()` to 3 test call sites. All 54
-WASM tests pass, clippy clean, no quality gate issues.
+**Files changed:**
+
+- `crates/iscc-ffi/src/lib.rs`: Added `iscc_alloc(size) -> *mut u8` and `iscc_dealloc(ptr, size)`
+    under a `// --- Memory allocation helpers (for WASM host) ---` section, placed between
+    `clear_last_error` and `result_to_c_string`. Both use `#[unsafe(no_mangle)]` matching the
+    crate's edition 2024 style. `iscc_alloc` returns a dangling non-null pointer for `size == 0`.
+    `iscc_dealloc` guards against both null pointers and zero-size frees.
 
 **Verification:**
 
-- [x] `wasm-pack test --node crates/iscc-wasm` passes all 54 tests (9 conformance + 45 unit)
-- [x] `cargo clippy -p iscc-wasm -- -D warnings` clean
-- [x] `grep 'unwrap_or(JsValue::NULL)' crates/iscc-wasm/src/lib.rs` returns 0 matches
-- [x] `grep 'Result<JsValue, JsError>' crates/iscc-wasm/src/lib.rs` returns 1 match
+- [x] `rustup target add wasm32-wasip1` succeeds
+- [x] `cargo build -p iscc-ffi --target wasm32-wasip1` compiles without errors
+- [x] `target/wasm32-wasip1/debug/iscc_ffi.wasm` exists (10,992,662 bytes)
+- [x] `cargo test -p iscc-ffi` passes all 62 existing tests
+- [x] `cargo clippy -p iscc-ffi -- -D warnings` clean
+- [x] `grep 'fn iscc_alloc'` returns exactly 1 match
+- [x] `grep 'fn iscc_dealloc'` returns exactly 1 match
 - [x] `mise run check` passes all 14 pre-commit hooks
-- [x] No quality gate circumvention in diff
 
-**Issues found:**
+**Next:** The WASM module is ready for Go/wazero integration. The next step would be creating the
+`packages/go/` directory with the Go wrapper code that loads this `.wasm` module and calls the
+exported FFI functions through wazero.
 
-- (none)
-
-**Next:** WASM silent-null issue resolved and deleted from issues.md. Remaining normal-priority
-candidates: FFI video frame copy, codec header parsing optimization, DataHasher allocation overhead.
-Low priority: alg_dct power-of-two, alg_wtahash bounds check, JNI exception types, Python
-__version__, Python module docstring, WASM conformance_selftest size, WASM stale CLAUDE.md,
-TypeScript port evaluation.
-
-**Notes:** Test count is 54 (9 conformance + 45 unit), not 56 as next.md estimated — the difference
-is likely doc-tests being counted separately. The fix is fully mechanical with no behavioral change
-for successful serialization paths.
+**Notes:** No surprises. The existing `crate-type = ["cdylib", "staticlib"]` in Cargo.toml works
+without modification for WASM — cargo produces the `.wasm` from the `cdylib` target automatically.
+The debug binary is ~10.5MB; release + wasm-opt would reduce this significantly but is explicitly
+out of scope for this step.

@@ -38,6 +38,46 @@ fn clear_last_error() {
     LAST_ERROR.with(|e| *e.borrow_mut() = None);
 }
 
+// --- Memory allocation helpers (for WASM host) ---
+
+/// Allocate `size` bytes of WASM-side memory.
+///
+/// Returns a pointer the host can write into. The host must call
+/// `iscc_dealloc` to free this memory. Returns a dangling (non-null)
+/// pointer for `size == 0`.
+///
+/// # Safety
+///
+/// The caller must ensure `size` bytes are actually needed and must free
+/// the allocation with `iscc_dealloc(ptr, size)`.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_alloc(size: usize) -> *mut u8 {
+    if size == 0 {
+        return std::ptr::NonNull::dangling().as_ptr();
+    }
+    let layout = std::alloc::Layout::from_size_align(size, 1).unwrap();
+    unsafe { std::alloc::alloc(layout) }
+}
+
+/// Free `size` bytes of WASM-side memory at `ptr`, previously allocated
+/// by `iscc_alloc`.
+///
+/// No-op if `ptr` is null. Passing `size == 0` is a no-op because
+/// `iscc_alloc(0)` returns a dangling pointer that was never allocated.
+///
+/// # Safety
+///
+/// - `ptr` must have been returned by `iscc_alloc(size)` with the same `size`.
+/// - Each allocation must be freed exactly once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_dealloc(ptr: *mut u8, size: usize) {
+    if ptr.is_null() || size == 0 {
+        return;
+    }
+    let layout = std::alloc::Layout::from_size_align(size, 1).unwrap();
+    unsafe { std::alloc::dealloc(ptr, layout) };
+}
+
 /// Convert a Rust `String` result to a heap-allocated C string.
 ///
 /// On success, returns `CString::into_raw()`. On error, sets the

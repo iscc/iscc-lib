@@ -48,6 +48,17 @@ iterations.
     (1) nested match for `env.new_string().into_raw()`, (2) nested match for
     `env.byte_array_from_slice().into_raw()`, (3) early-return match + `if let Err` for loop bodies
 
+## WASM/WASI
+
+- `iscc-ffi` compiles as wasm32-wasip1 from existing `crate-type = ["cdylib", "staticlib"]` — no
+    Cargo.toml changes needed. The cdylib target produces the `.wasm` file
+- `iscc_alloc`/`iscc_dealloc` are the WASM host memory management pair — host allocates via
+    `iscc_alloc`, writes data, calls FFI functions, then frees via `iscc_dealloc`
+- Debug WASM binary is ~10.5MB; release + wasm-opt would reduce significantly
+- Install target: `rustup target add wasm32-wasip1`
+- Build: `cargo build -p iscc-ffi --target wasm32-wasip1`
+- Output: `target/wasm32-wasip1/debug/iscc_ffi.wasm`
+
 ## Build and Tooling
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
