@@ -225,5 +225,8 @@ cauldron/
 # Claude Code ephemeral plan files
 .claude/plans/
 
+# Claude Code local settings
+.claude/settings.local.json
+
 # Reference implementations (shallow-cloned for agent use)
 /reference/
