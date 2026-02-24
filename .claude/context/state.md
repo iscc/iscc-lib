@@ -1,15 +1,15 @@
-<!-- assessed-at: 75ff07e -->
+<!-- assessed-at: a908f95 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: napi packaging closed — WASM silent-null and Go bindings pending
+## Phase: WASM silent-null closed — FFI video allocation and Go bindings pending
 
-All three napi normal-priority issues are resolved: version skew fixed (`index.js` regenerated with
-`0.0.1`), `"files"` allowlist added to `package.json`, and `alg_cdc_chunks` clone eliminated. CI is
-green on all 6 jobs. Remaining normal-priority issues are WASM (silent null on serialization
-failure) and FFI (video allocation); Go bindings remain unstarted.
+WASM `alg_cdc_chunks` silent null return is resolved: function now returns
+`Result<JsValue, JsError>` and propagates serialization errors instead of swallowing them as
+`JsValue::NULL`. CI is green on all 6 jobs. Remaining normal-priority issues are FFI video frame
+allocation and codec header parsing; Go bindings remain unstarted.
 
 ## Rust Core Crate
 
@@ -49,10 +49,9 @@ failure) and FFI (video allocation); Go bindings remain unstarted.
     with same chunked-read logic
 - `sliding_window` returns `PyResult<Vec<String>>` and raises `ValueError` on `width < 2`
 - 115 test functions across 5 files (`test_conformance.py`, `test_smoke.py`, `test_text_utils.py`,
-    `test_algo.py`, `test_streaming.py`); 157 total pytest tests pass (10 new bytes-like tests
-    added)
+    `test_algo.py`, `test_streaming.py`); 157 total pytest tests pass
 - `ruff check` and `ruff format --check` clean (CI-verified at HEAD)
-- `pytest` passes all conformance vectors and new bytes-like input tests (CI-verified at HEAD)
+- `pytest` passes all conformance vectors and bytes-like input tests (CI-verified at HEAD)
 - abi3-py310 wheel configuration in place
 - `ty` type checking configured
 - OIDC trusted publishing not yet configured
@@ -82,13 +81,14 @@ failure) and FFI (video allocation); Go bindings remain unstarted.
 - 23/23 Tier 1 symbols exported via wasm-bindgen in `crates/iscc-wasm/src/lib.rs`
 - `DataHasher` and `InstanceHasher` added as `#[wasm_bindgen]` structs
 - `sliding_window` propagates `IsccError` as `JsError` on `width < 2`
-- 56 tests: 10 in `conformance.rs` + 46 in `unit.rs` (all run via wasm-pack test --node)
-- `wasm-pack test --node crates/iscc-wasm` passes all 56 tests (CI-verified at HEAD)
+- 54 tests: 9 in `conformance.rs` + 45 in `unit.rs` (all run via wasm-pack test --node)
+- `wasm-pack test --node crates/iscc-wasm` passes all 54 tests (CI-verified at HEAD)
+- `alg_cdc_chunks` fixed: now returns `Result<JsValue, JsError>` and propagates serialization errors
+    via `.map_err(|e| JsError::new(&e.to_string()))` — no more silent null on failure
 - Structured results not returned — gen functions return only the `.iscc` string field
 - Browser and Node.js build targets supported
-- **Open issues** (normal): `alg_cdc_chunks` silently returns null on serialization failure;
-    \[low\]: `conformance_selftest` exported without feature gate increases binary size; stale
-    CLAUDE.md
+- **Open issues** \[low\]: `conformance_selftest` exported without feature gate increases binary
+    size; stale CLAUDE.md says DataHasher/InstanceHasher not yet bound
 
 ## C FFI
 
@@ -105,7 +105,7 @@ failure) and FFI (video allocation); Go bindings remain unstarted.
 - C test program covers streaming hasher lifecycle (tests 14–17 in `test_iscc.c`)
 - cbindgen generates valid C headers (CI-verified at HEAD)
 - C test program compiles with gcc and runs correctly (CI-verified at HEAD)
-- **Open issues** (normal): video functions allocate/copy every frame signature
+- **Open issues** \[normal\]: video functions allocate/copy every frame signature
 
 ## Java Bindings
 
@@ -120,12 +120,10 @@ complete; native loader/publishing/docs absent)
     calls — all error paths throw Java exceptions instead of aborting the JVM
 - **Negative `jint` validation**: 3 guards added — `textTrim` (`nbytes < 0`), `slidingWindow`
     (`width < 0`), `algCdcChunks` (`avg_chunk_size < 0`) — all throw `IllegalArgumentException`
-- **Local reference frame safety**: `push_local_frame(16)`/`pop_local_frame` added to all 5 loops
-    (`extract_int_array_2d`, `extract_string_array`, `build_string_array`, `algSimhash`,
-    `algCdcChunks`) — prevents JVM local reference table overflow on large arrays
+- **Local reference frame safety**: `push_local_frame(16)`/`pop_local_frame` added to all 5 loops —
+    prevents JVM local reference table overflow on large arrays
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (331 lines): 29 `native` method
-    declarations matching all Rust JNI bridge function signatures, Javadoc coverage, static
-    `System.loadLibrary("iscc_jni")` initializer, private constructor
+    declarations, Javadoc coverage, static `System.loadLibrary("iscc_jni")` initializer
 - `crates/iscc-jni/java/pom.xml`: Maven build config, JDK 17 target, JUnit 5 + Gson test
     dependencies, Surefire 3.5.2 plugin with `java.library.path=target/debug`
 - `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (362 lines): 9
@@ -176,20 +174,11 @@ complete; native loader/publishing/docs absent)
 
 **Status**: partially met (5 of 6 publishable crates done; only iscc-ffi remains, lower priority)
 
-- ✅ `crates/iscc-lib/README.md` — complete (70 lines, all 6 required sections, CI/Crate/License
-    badges, `cargo add iscc-lib`, Rust quick start, full API overview, links block, Apache-2.0)
-- ✅ `crates/iscc-py/README.md` — complete (74 lines, PyPI badge, `pip install iscc-lib`, Python
-    quick start, BinaryIO note for streaming, all API overview sections)
-- ✅ `crates/iscc-napi/README.md` — complete (75 lines, npm badge, `npm install @iscc/lib`, JS quick
-    start with `require()`, all API overview sections, string-return note)
-- ✅ `crates/iscc-wasm/README.md` — complete (80 lines, npm badge, `npm install @iscc/wasm`, WASM
-    quick start with `await init()`, browser + Node.js note, API overview table, all required
-    sections)
-- ✅ `crates/iscc-jni/README.md` — complete (81 lines, CI + License badges, Maven pom.xml snippet,
-    Java quick start, API overview table, honest caveat that native loader is not yet included)
-- ✅ `crates/iscc-lib/Cargo.toml` `readme = "README.md"` field present
-- ✅ `crates/iscc-py/pyproject.toml` `readme = "README.md"` field present
-- ✅ `crates/iscc-napi/README.md` — npm auto-detects `README.md` in package root
+- ✅ `crates/iscc-lib/README.md` — complete
+- ✅ `crates/iscc-py/README.md` — complete
+- ✅ `crates/iscc-napi/README.md` — complete
+- ✅ `crates/iscc-wasm/README.md` — complete
+- ✅ `crates/iscc-jni/README.md` — complete
 - ❌ `crates/iscc-ffi/README.md` — not created (not published to a registry; lower priority)
 - ❌ `packages/go/README.md` — not applicable (Go bindings not started)
 
@@ -204,19 +193,14 @@ complete; native loader/publishing/docs absent)
     Node.js, WebAssembly), Explanation (Architecture), Reference (Rust API, Python API), Benchmarks,
     Development
 - All 11 pages have `icon: lucide/...` and `description:` YAML front matter
-- Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22370973655](https://github.com/iscc/iscc-lib/actions/runs/22370973655))
+- Site builds and deploys via GitHub Pages (Docs CI: PASSING)
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
-- Copy-page split-button implemented: `docs/javascripts/copypage.js`
-- `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
-- `docs/llms.txt` exists with site metadata
-- Open Graph and Twitter Card social meta tags implemented via `overrides/main.html`
+- Copy-page split-button, `scripts/gen_llms_full.py`, Open Graph meta tags all in place
 - ✅ `docs/CNAME` contains `lib.iscc.codes`
 - ✅ `docs/includes/abbreviations.md` with 19 ISCC-specific abbreviations
 - Missing: `howto/java.md` how-to guide for Java
 - Missing: `howto/go.md` how-to guide for Go
-- Missing: Java and Go code examples in existing tabbed code blocks (target requires Python, Rust,
-    Java, Go, Node.js, WASM tabs)
+- Missing: Java and Go code examples in existing tabbed code blocks
 
 ## Benchmarks
 
@@ -238,27 +222,28 @@ complete; native loader/publishing/docs absent)
     (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn
     test)
 - Latest CI run: **PASSING** —
-    [Run 22370973644](https://github.com/iscc/iscc-lib/actions/runs/22370973644) — all 6 jobs
+    [Run 22372060652](https://github.com/iscc/iscc-lib/actions/runs/22372060652) — all 6 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java)
 - Latest Docs run: **PASSING** —
-    [Run 22370973655](https://github.com/iscc/iscc-lib/actions/runs/22370973655) — build + deploy
+    [Run 22372060644](https://github.com/iscc/iscc-lib/actions/runs/22372060644) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: Go CI job (Go bindings not started)
-- Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
+- Missing: OIDC trusted publishing for crates.io and PyPI not configured
 - Missing: npm publishing pipeline not fully wired
 - Missing: version sync automation across workspace not verified as release-ready
 
 ## Next Milestone
 
-CI is green on all 6 jobs. All three napi normal-priority issues are closed. Recommended next work
-(in priority order):
+CI is green on all 6 jobs. WASM silent-null issue is closed. Recommended next work (in priority
+order):
 
-1. **WASM silent null** — `alg_cdc_chunks` in `crates/iscc-wasm/src/lib.rs:249` uses
-    `serde_wasm_bindgen::to_value(&chunks).unwrap_or(JsValue::NULL)` which silently swallows
-    serialization errors; change return type to `Result<JsValue, JsError>` and propagate the error
-2. **FFI video allocation** — `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0` in
-    `crates/iscc-ffi/src/lib.rs` allocate/copy every frame signature; consider changing `iscc_lib`
-    video API to accept `&[&[i32]]` to avoid per-frame copies
-3. **Go bindings** — largest unstarted feature; requires WASM/wazero approach, `wasm32-wasip1` build
+1. **FFI video allocation** [normal] — `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0` in
+    `crates/iscc-ffi/src/lib.rs` allocate/copy every frame signature via `.to_vec()`; consider
+    changing the `iscc_lib` video API to accept `&[&[i32]]` to avoid per-frame copies
+2. **Codec header parsing** [normal] — `bytes_to_bits` in `crates/iscc-lib/src/codec.rs:121-127`
+    expands bytes to `Vec<bool>` on every codec operation; replace with bit-level indexing
+3. **DataHasher allocation** [normal] — `streaming.rs:88-93` copies input data on every `update()`
+    call; rework the tail-buffering logic to avoid redundant allocations
+4. **Go bindings** — largest unstarted feature; requires WASM/wazero approach, `wasm32-wasip1` build
     of `iscc-ffi`, Go module under `packages/go/`, conformance tests, CI job

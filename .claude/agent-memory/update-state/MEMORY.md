@@ -31,8 +31,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `README.md`; version `0.0.1`; `index.js` generated with matching `0.0.1` (gitignored, rebuilt at
     CI)
 - `crates/iscc-napi/src/lib.rs` — `alg_cdc_chunks` uses `.into_iter().map(Buffer::from)` (no clone)
-- `crates/iscc-wasm/src/lib.rs:249` — `alg_cdc_chunks` still uses
-    `serde_wasm_bindgen::to_value(&chunks).unwrap_or(JsValue::NULL)` — OPEN ISSUE (silent null)
+- `crates/iscc-wasm/src/lib.rs` — `alg_cdc_chunks` now returns `Result<JsValue, JsError>` with
+    `.map_err(|e| JsError::new(&e.to_string()))` — silent null issue RESOLVED in iteration 5
 - `.devcontainer/Dockerfile` — includes `openjdk-17-jdk-headless` and `maven`
 - `.github/workflows/ci.yml` — 6 jobs: Rust, Python, Node.js, WASM, C FFI, Java (no Go yet)
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
@@ -72,9 +72,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - Three napi normal-priority issues resolved in iteration 4 (commit 75ff07e): version skew (index.js
     regenerated with 0.0.1), npm packaging (`"files"` allowlist added), alg_cdc_chunks clone
     (`.into_iter().map(Buffer::from)`). All removed from issues.md.
-- Next normal-priority: WASM silent null on alg_cdc_chunks serialization failure
-    (`crates/iscc-wasm/src/lib.rs:249`).
-- Latest CI run IDs (iteration 4): tests = 22370973644 (6/6 pass), docs = 22370973655 (pass)
+- WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
+    to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
+    conformance + 45 unit), NOT 56 (previous state.md overcounted).
+- Latest CI run IDs (iteration 5): tests = 22372060652 (6/6 pass), docs = 22372060644 (pass)
+- Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
+    DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` does NOT need `--repo iscc/iscc-lib` when running from within the workspace (repo
