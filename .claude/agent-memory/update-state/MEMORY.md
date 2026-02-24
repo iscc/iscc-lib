@@ -8,13 +8,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Per-crate READMEs**:
     `ls crates/iscc-lib/README.md crates/iscc-py/README.md crates/iscc-napi/README.md crates/iscc-wasm/README.md crates/iscc-ffi/README.md crates/iscc-jni/README.md 2>&1`
     — check existence (batches 1+2 done: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni)
-- **CI jobs in a run**:
-    `gh run view <id> --repo iscc/iscc-lib --json jobs --jq '.jobs[] | {name, conclusion}'`
-- **Latest CI runs**:
-    `gh run list --repo iscc/iscc-lib --branch main --limit 3 --json status,conclusion,url,workflowName,databaseId`
+- **CI jobs in a run**: `gh run view <id> --json jobs --jq '.jobs[] | {name, conclusion}'`
+- **Latest CI runs**: `gh run list --branch main --limit 3 --json status,conclusion,url,databaseId`
 - **Java native method count**:
     `grep -c 'native ' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`
 - **Incremental diff**: `git diff <assessed-at-hash>..HEAD --stat`
+- **napi test count**: node:test runner counts sub-tests separately; 57+9 `it()` calls = 103
+    reported by runner (conformance.test.mjs generates sub-tests from loop)
 
 ## Codebase Landmarks
 
@@ -27,6 +27,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — 362-line JUnit 5 test
     class, 9 `@TestFactory` conformance methods (46 vectors) + 3 `@Test` negative-value methods = 49
     total tests (CI-verified at HEAD)
+- `crates/iscc-napi/package.json` — has `"files"` allowlist: `index.js`, `index.d.ts`, `*.node`,
+    `README.md`; version `0.0.1`; `index.js` generated with matching `0.0.1` (gitignored, rebuilt at
+    CI)
+- `crates/iscc-napi/src/lib.rs` — `alg_cdc_chunks` uses `.into_iter().map(Buffer::from)` (no clone)
+- `crates/iscc-wasm/src/lib.rs:249` — `alg_cdc_chunks` still uses
+    `serde_wasm_bindgen::to_value(&chunks).unwrap_or(JsValue::NULL)` — OPEN ISSUE (silent null)
 - `.devcontainer/Dockerfile` — includes `openjdk-17-jdk-headless` and `maven`
 - `.github/workflows/ci.yml` — 6 jobs: Rust, Python, Node.js, WASM, C FFI, Java (no Go yet)
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
@@ -38,7 +44,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     affected sections. Always carry forward sections where no relevant files changed.
 - **Tier 1 symbol count**: target says "22" but implementation has 23 (target.md counting error)
 - **CI now has 6 jobs**: Rust, Python, Node.js, WASM, C FFI, Java. All 6 pass at HEAD (run
-    22367877569). Go job pending.
+    22370973644). Go job pending.
 - **Registry readme metadata**: `Cargo.toml` `readme = "README.md"` in iscc-lib; `pyproject.toml`
     `readme = "README.md"` in iscc-py; npm auto-detects README.md (no explicit field needed in
     package.json)
@@ -58,15 +64,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     throw_and_default. No critical issues remain in issues.md as of f24a31f.
 - Python bytes-like + unbounded read issues resolved in iteration 2 (commit 29fb142). Fixed in
     `crates/iscc-py/python/iscc_lib/__init__.py`: stream detection via
-    `isinstance(data, (bytes,   bytearray, memoryview))`, chunked 64 KiB reads via
+    `isinstance(data, (bytes, bytearray, memoryview))`, chunked 64 KiB reads via
     `_DataHasher`/`_InstanceHasher`, 10 new tests in `tests/test_streaming.py`. Total pytest count:
     157 tests, 115 test functions (up from 105).
 - JNI jint validation (3 sites) and local-ref overflow (5 loops) both resolved in iteration 3
     (commit df618f7). Both removed from issues.md.
-- Next normal-priority: napi version skew + packaging (index.js hardcodes 0.1.0), napi
-    alg_cdc_chunks unnecessary clone, WASM silent null on alg_cdc_chunks serialization failure.
-- Latest CI run IDs (iteration 3): tests = 22369761980 (6/6 pass), docs = 22368527593 (pass)
+- Three napi normal-priority issues resolved in iteration 4 (commit 75ff07e): version skew (index.js
+    regenerated with 0.0.1), npm packaging (`"files"` allowlist added), alg_cdc_chunks clone
+    (`.into_iter().map(Buffer::from)`). All removed from issues.md.
+- Next normal-priority: WASM silent null on alg_cdc_chunks serialization failure
+    (`crates/iscc-wasm/src/lib.rs:249`).
+- Latest CI run IDs (iteration 4): tests = 22370973644 (6/6 pass), docs = 22370973655 (pass)
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
-- `gh run list` needs `--repo iscc/iscc-lib` to avoid GraphQL projects error; also needs `--json`
-    fields
+- `gh run list` does NOT need `--repo iscc/iscc-lib` when running from within the workspace (repo
+    auto-detected); but `--json` fields are needed to avoid GraphQL deprecation error

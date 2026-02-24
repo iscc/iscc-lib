@@ -1,15 +1,15 @@
-<!-- assessed-at: df618f7 -->
+<!-- assessed-at: 75ff07e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: JNI robustness closed — napi packaging, WASM silent-null, Go bindings pending
+## Phase: napi packaging closed — WASM silent-null and Go bindings pending
 
-Both JNI correctness issues are now resolved: negative `jint` validation guards added at 3 call
-sites and `push_local_frame`/`pop_local_frame` safety wrappers at all 5 loops. CI is green on all 6
-jobs. Remaining normal-priority issues are distributed across napi (version skew, packaging, clone
-overhead), WASM (silent null), and FFI (video allocation); Go bindings remain unstarted.
+All three napi normal-priority issues are resolved: version skew fixed (`index.js` regenerated with
+`0.0.1`), `"files"` allowlist added to `package.json`, and `alg_cdc_chunks` clone eliminated. CI is
+green on all 6 jobs. Remaining normal-priority issues are WASM (silent null on serialization
+failure) and FFI (video allocation); Go bindings remain unstarted.
 
 ## Rust Core Crate
 
@@ -66,12 +66,14 @@ overhead), WASM (silent null), and FFI (video allocation); Go bindings remain un
 - `DataHasher` and `InstanceHasher` implemented as `#[napi(js_name)]` structs with constructor/
     update/finalize methods
 - `sliding_window` returns `napi::Result<Vec<String>>` and throws on `width < 2`
-- 66 tests: 9 in `conformance.test.mjs` + 57 in `functions.test.mjs`
+- 103 tests: 9 in `conformance.test.mjs` + 57 in `functions.test.mjs` (103 as counted by node:test
+    runner including sub-tests; CI-verified at HEAD)
 - `npm test` passes all conformance vectors (CI-verified at HEAD)
+- Version skew resolved: `index.js` regenerated with `0.0.1` matching `package.json`
+- npm packaging fixed: `"files"` allowlist in `package.json` ensures `index.js`, `index.d.ts`,
+    `*.node`, `README.md` are included in published tarball
+- `alg_cdc_chunks` clone eliminated: `.into_iter().map(Buffer::from)` avoids per-chunk allocation
 - Structured results not returned — all gen functions return only the `.iscc` string field
-- **Open issues** (normal): napi version skew (`index.js` hardcodes `0.1.0`, `package.json` says
-    `0.0.1`); npm packaging may exclude entrypoints (no `"files"` field or `.npmignore`);
-    `alg_cdc_chunks` clones chunks unnecessarily
 
 ## WASM Bindings
 
@@ -203,7 +205,7 @@ complete; native loader/publishing/docs absent)
     Development
 - All 11 pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22368527593](https://github.com/iscc/iscc-lib/actions/runs/22368527593))
+    [Run 22370973655](https://github.com/iscc/iscc-lib/actions/runs/22370973655))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
@@ -236,10 +238,10 @@ complete; native loader/publishing/docs absent)
     (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn
     test)
 - Latest CI run: **PASSING** —
-    [Run 22369761980](https://github.com/iscc/iscc-lib/actions/runs/22369761980) — all 6 jobs
+    [Run 22370973644](https://github.com/iscc/iscc-lib/actions/runs/22370973644) — all 6 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java)
 - Latest Docs run: **PASSING** —
-    [Run 22368527593](https://github.com/iscc/iscc-lib/actions/runs/22368527593) — build + deploy
+    [Run 22370973655](https://github.com/iscc/iscc-lib/actions/runs/22370973655) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: Go CI job (Go bindings not started)
@@ -249,16 +251,14 @@ complete; native loader/publishing/docs absent)
 
 ## Next Milestone
 
-CI is green on all 6 jobs. Both JNI robustness issues (jint validation + local ref safety) are
-closed. Recommended next work (in priority order):
+CI is green on all 6 jobs. All three napi normal-priority issues are closed. Recommended next work
+(in priority order):
 
-1. **napi version skew** — `index.js` hardcodes `0.1.0` while `package.json` says `0.0.1`; fix
-    version mismatch and add `"files"` allowlist in `package.json` to prevent npm publish from
-    excluding entrypoints
-2. **napi `alg_cdc_chunks` unnecessary clone** — replace `.iter().map(|c| Buffer::from(c.to_vec()))`
-    with `.into_iter().map(Buffer::from)` to avoid per-chunk allocation overhead
-3. **WASM silent null** — change `alg_cdc_chunks` to return `Result<JsValue, JsError>` and propagate
-    the serde error instead of swallowing it with `unwrap_or(JsValue::NULL)`
-
-Items 1–2 are a natural pair (both napi, same crate). After those, WASM silent null is a
-one-function fix. Go bindings remain the largest unstarted feature.
+1. **WASM silent null** — `alg_cdc_chunks` in `crates/iscc-wasm/src/lib.rs:249` uses
+    `serde_wasm_bindgen::to_value(&chunks).unwrap_or(JsValue::NULL)` which silently swallows
+    serialization errors; change return type to `Result<JsValue, JsError>` and propagate the error
+2. **FFI video allocation** — `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0` in
+    `crates/iscc-ffi/src/lib.rs` allocate/copy every frame signature; consider changing `iscc_lib`
+    video API to accept `&[&[i32]]` to avoid per-frame copies
+3. **Go bindings** — largest unstarted feature; requires WASM/wazero approach, `wasm32-wasip1` build
+    of `iscc-ffi`, Go module under `packages/go/`, conformance tests, CI job
