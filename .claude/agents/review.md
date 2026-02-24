@@ -58,7 +58,11 @@ next iteration.
     - **Technical debt**: Any shortcuts that should be addressed soon?
     - **Quality gate integrity**: See dedicated section below.
     - **Issue resolution**: If this iteration addressed an issue from issues.md, verify the fix
-        resolves it. If resolved, delete the issue entry from issues.md in the commit step.
+        resolves it. If resolved, delete the issue entry from issues.md in the commit step. If the
+        resolved issue has a `**Spec:**` field and source `[human]`, update the referenced spec
+        (target.md or sub-spec) as part of the resolution — the human authorized this by creating
+        the issue. If the source is `[review]` or `[advance]`, do NOT update the spec without
+        `HUMAN REVIEW REQUESTED` approval.
 
 5. **Update learnings** — append new findings to `.claude/context/learnings.md`. Add entries under
     the appropriate section (Architecture, Reference Implementation, Tooling, Process). Only add
@@ -73,7 +77,10 @@ next iteration.
     technical debt, recurring bug pattern, missing test coverage), add it to issues.md following
     the file's format. Use source tag `[review]`. Use `normal` priority unless the issue blocks
     progress (then `critical`). If this iteration resolved an issue from issues.md, delete that
-    issue entry.
+    issue entry. **Spec-rooted issues:** if you identify that a problem stems from an under- or
+    miss-specification in target.md (or a sub-spec), include a `**Spec:**` field pointing to the
+    affected section. Since this is an agent-sourced issue, add `HUMAN REVIEW REQUESTED` and
+    describe the proposed spec change — do not modify target.md yourself.
 
 7. **Update handoff** — rewrite `.claude/context/handoff.md` to prepare the define-next agent for
     the next iteration. Include what was accomplished, what issues remain, and a concrete
@@ -86,6 +93,8 @@ next iteration.
 
     ```
     git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/iterations.jsonl .claude/context/issues.md <any fixed files>
+    # If a human-sourced spec issue was resolved:
+    git add .claude/context/target.md  # or affected sub-spec file
     git commit -m "cid(review): <summary of findings>"
     ```
 
@@ -189,8 +198,10 @@ Use this when:
     architecture, or maintainability.
 - Be critical but constructive. Flag real problems, not style preferences.
 - Do not rewrite the advance agent's code (unless fixing minor issues per step 7).
-- Do not modify `.claude/context/state.md`, `.claude/context/target.md`, or
-    `.claude/context/next.md`.
+- Do not modify `.claude/context/state.md` or `.claude/context/next.md`.
+- Do not modify `.claude/context/target.md` (or sub-specs) UNLESS resolving a `[human]`-sourced
+    issue that has a `**Spec:**` field — in that case, the human authorized the spec change by
+    creating the issue.
 - If tests fail, do NOT mark the handoff as PASS. Be honest about failures.
 - Keep learnings.md concise — max 5 new bullet points per review. Remove duplicates.
 - Every learning should be actionable and specific, not vague advice.

@@ -18,7 +18,19 @@ Each issue is an H2 heading with a priority tag, description, and source attribu
 Description of the problem, including context and any relevant file paths or error messages.
 
 **Source:** [human|review|advance]
+**Spec:** .claude/context/target.md#section-name (optional — only if rooted in a spec gap)
 ```
+
+### Spec field
+
+The optional `**Spec:**` field links an issue to a specific section in target.md or a sub-spec file
+that needs updating. Source determines what happens:
+
+- **`[human]` + `Spec:`** — the review agent updates the referenced spec directly when resolving the
+    issue. The human created the issue, so the spec change is implicitly authorized.
+- **`[review]`/`[advance]` + `Spec:`** — the review agent flags with `HUMAN REVIEW REQUESTED` and
+    describes the proposed spec change in the issue description. It does NOT modify target.md. The
+    human must approve and make the change.
 
 ## Priority Levels
 
