@@ -49,10 +49,23 @@ iterations.
     Mechanical: change return type to `Result<JsValue, JsError>`, swap `.unwrap_or(JsValue::NULL)`
     to `.map_err(...)`, add `.unwrap()` in tests. Every other WASM function already uses this
     pattern so consistency is the primary motivation.
-- Go bindings multi-step plan: (1) WASI build + alloc/dealloc → (2) Go module scaffold + wazero
-    bridge → (3) gen function wrappers → (4) streaming wrappers (DataHasher/InstanceHasher) → (5)
-    conformance tests → (6) CI job → (7) README/docs. Each step is independently verifiable. Step 1
-    modifies only 1 file and has clear pass/fail criteria (cargo build succeeds).
+- Go bindings multi-step plan: (1) WASI build + alloc/dealloc ✅ → (2) Go module scaffold + wazero
+    bridge + memory helpers (current step) → (3) gen function wrappers → (4) streaming wrappers
+    (DataHasher/InstanceHasher) → (5) conformance tests → (6) CI job → (7) README/docs. Each step is
+    independently verifiable. Step 2 creates 3 files (go.mod, iscc.go, iscc_test.go) + modifies
+    mise.toml. Verification: `CGO_ENABLED=0 go test ./...` passes with conformance_selftest.
+- Go scaffold scoping: the WASM binary (~10.5 MB debug) should NOT be checked into git. Use
+    `//go:embed` with a gitignored binary that's built by
+    `cargo build -p iscc-ffi --target   wasm32-wasip1`. Tests should skip gracefully if binary is
+    missing.
+- Go module path is `github.com/iscc/iscc-lib/packages/go` with package name `iscc`. This matches
+    the `go get` path in target.md.
+- Go/wazero requires WASI instantiation (`wasi_snapshot_preview1.MustInstantiate`) because iscc-ffi
+    targets `wasm32-wasip1`. Without WASI, the module won't instantiate.
+- `iscc_last_error()` returns a borrowed pointer (not owned) — the Go bridge must NOT call
+    `iscc_free_string` on it. This differs from `iscc_text_clean` etc. which return owned strings.
+- Go installation via mise is the cleanest approach — add `go = "latest"` to `[tools]` section in
+    `mise.toml`. This avoids Dockerfile changes and works in both devcontainer and CI contexts.
 
 ## Architecture Decisions
 
