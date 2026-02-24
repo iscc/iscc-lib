@@ -1,16 +1,16 @@
-<!-- assessed-at: b3728ea130186ede4fa4029bf2a662a77e9e2a03 -->
+<!-- assessed-at: 38eccefba2417cc2eb71bc5b6ef649a834a8afaa -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Development docs page added — README rewrite and remaining doc gaps are the blockers
+## Phase: README rewrite complete — documentation gaps (tutorials, Rust howto, abbreviations, CNAME, nav icons) remain
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
-Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration added
-`docs/development.md` (235 lines) and its nav entry in `zensical.toml`, closing the Development
-section requirement. CI is green. Remaining gaps are the README rewrite and minor docs items:
-Tutorials section, Rust how-to guide, abbreviations file, CNAME, and `pymdownx.snippets` config.
+Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration completed the
+README rewrite — the public-facing polyglot developer README now meets all target criteria. CI is
+green. Remaining gaps are all in documentation: Tutorials section, Rust how-to guide, abbreviations
+file + snippets config, CNAME, and nav icons for top-level nav sections.
 
 ## Rust Core Crate
 
@@ -95,22 +95,27 @@ Tutorials section, Rust how-to guide, abbreviations file, CNAME, and `pymdownx.s
 
 ## README
 
-**Status**: not started
+**Status**: met
 
-- `README.md` exists (125 lines) but contains development workflow content only (dev container
-    setup, bootstrap instructions, quality gates, project structure) — the opposite of what the
-    target spec requires
-- **Missing**: badges (CI status, crate/package version badges for all published packages)
-- **Missing**: tagline, Key Features section, "What is the ISCC" and "What is iscc-lib" sections
-- **Missing**: ISCC Architecture diagram and MainTypes table
-- **Missing**: per-language installation instructions (Rust/cargo, Python/pip, Node.js/npm,
-    WASM/npm)
-- **Missing**: per-language Quick Start code examples (gen_meta_code_v0 in each language)
-- **Missing**: Implementors Guide section with list of 9 `gen_*_v0` entry points
-- **Missing**: link to `lib.iscc.codes` documentation site
-- **Missing**: Contributing section, Apache-2.0 license declaration, @titusz maintainer credit
-- Current README content (dev container, bootstrap, quality gates) now has a home in the
-    `docs/development.md` page; the README should be replaced, not extended
+- Rewritten as public-facing polyglot developer README (215 lines after advance + minor em dash fix)
+- ✅ CI badge; version badges commented out with TODO (packages not yet published — correct behavior)
+- ✅ Tagline: "High-performance polyglot implementation of ISO 24138:2024 — International Standard
+    Content Code (ISCC)"
+- ✅ Key Features: 6 bullet points (similarity-preserving, multi-level, self-describing, ISO
+    standardized, polyglot, conformance-tested)
+- ✅ "What is the ISCC" section with explanation of ISCC purpose and algorithmic design
+- ✅ "What is iscc-lib" section with relationship to iscc-core and target ecosystems
+- ✅ ISCC Architecture diagram (image from iscc-core repo)
+- ✅ ISCC MainTypes table (6 rows: META, SEMANTIC, CONTENT, DATA, INSTANCE, ISCC)
+- ✅ Installation per-language (Rust/cargo, Python/pip, Node.js/npm, WASM/npm)
+- ✅ Quick Start code examples for all 4 languages (gen_meta_code_v0)
+- ✅ Implementors Guide listing all 9 `gen_*_v0` entry points and conformance vector link
+- ✅ Documentation link to lib.iscc.codes
+- ✅ Contributing section with Telegram developer chat link
+- ✅ Apache-2.0 license
+- ✅ Maintainers: @titusz
+- ✅ No development workflow content (CID loop, dev container, pre-commit hooks absent)
+- All 7 target.md verification criteria met
 
 ## Documentation
 
@@ -118,19 +123,19 @@ Tutorials section, Rust how-to guide, abbreviations file, CNAME, and `pymdownx.s
 
 - 9 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
     `benchmarks.md`, `howto/python.md` (348 lines), `howto/nodejs.md` (276 lines), `howto/wasm.md`
-    (333 lines), `development.md` (235 lines, added this iteration)
+    (333 lines), `development.md` (235 lines)
 - Navigation in `zensical.toml` has: How-to Guides (Python, Node.js, WebAssembly), Explanation
-    (Architecture), Reference (Rust API, Python API), Benchmarks, Development — Development nav
-    entry added this iteration
-- `docs/development.md` covers: dev container setup, CID autonomous workflow, quality gates (pre-
-    commit and pre-push), project structure tree, crate summary table, mise task runner tables — all
-    content required by the Development section spec
+    (Architecture), Reference (Rust API, Python API), Benchmarks, Development
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING at HEAD)
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
 - `docs/llms.txt` exists with site metadata
 - Open Graph and Twitter Card social meta tags implemented via `overrides/main.html`
+- **Missing**: Nav icons — `zensical.toml` nav sections have no `icon` attribute; the docs spec
+    (updated in commit `270bf18`) requires "Each top-level nav section has a Material for MkDocs
+    icon, matching the style of iscc/iscc-usearch at usearch.iscc.codes"; verification criteria
+    explicitly checks for icons
 - **Missing**: Tutorials section — no `docs/tutorials/` directory, no Tutorials nav group in
     `zensical.toml`; spec requires "getting started guide (installation, first ISCC code
     generation)"
@@ -158,10 +163,11 @@ Tutorials section, Rust how-to guide, abbreviations file, CNAME, and `pymdownx.s
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
-- Latest CI run (HEAD `b3728ea`): **PASSING** —
-    [Run 22349114642](https://github.com/iscc/iscc-lib/actions/runs/22349114642) — all jobs success
+- Latest CI run (HEAD `38eccef`): **PASSING** —
+    [Run 22349439644](https://github.com/iscc/iscc-lib/actions/runs/22349439644) — all 5 jobs
+    success
 - Latest Docs run: **PASSING** —
-    [Run 22349114637](https://github.com/iscc/iscc-lib/actions/runs/22349114637) — build + deploy
+    [Run 22349439653](https://github.com/iscc/iscc-lib/actions/runs/22349439653) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
@@ -170,14 +176,12 @@ Tutorials section, Rust how-to guide, abbreviations file, CNAME, and `pymdownx.s
 
 ## Next Milestone
 
-CI is green; all commits are pushed. The Development section gap is now closed. The README rewrite
-remains the largest outstanding gap — the current README is a dev-only document that needs to be
-replaced with a public-facing polyglot developer README. Priority order:
+CI is green; all commits are pushed. The README rewrite is now complete and meets all target
+criteria. All remaining gaps are in the documentation section. Priority order:
 
-1. **README rewrite** — replace `README.md` with a public-facing developer README (badges, tagline,
-    key features, "What is ISCC / iscc-lib", architecture diagram, MainTypes table, per-language
-    installation, per-language quick start, implementors guide, documentation link, contributing,
-    license, maintainer) — no dev workflow content
+1. **Nav icons** — add Material for MkDocs icon attributes to each top-level nav section in
+    `zensical.toml` (newly required by docs spec added in `270bf18`); query iscc/iscc-usearch via
+    deepwiki MCP for exact icon names and config format
 2. **Abbreviations file + snippets config** — add `docs/includes/abbreviations.md` with
     ISCC-specific terms and configure `pymdownx.snippets` auto-append in `zensical.toml` (small,
     self-contained)
