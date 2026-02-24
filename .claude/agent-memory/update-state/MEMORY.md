@@ -5,7 +5,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Exploration Shortcuts
 
 - **Java files**: `find crates/iscc-jni -type f | sort` — lists all JNI bridge files
-- **Per-crate READMEs**: `find crates/ -name "README.md"` — currently returns nothing (none exist)
+- **Per-crate READMEs**:
+    `ls crates/iscc-lib/README.md crates/iscc-py/README.md crates/iscc-napi/README.md crates/iscc-wasm/README.md crates/iscc-ffi/README.md crates/iscc-jni/README.md 2>&1`
+    — check existence (batch 1 done: iscc-lib, iscc-py, iscc-napi)
 - **CI jobs in a run**:
     `gh run view <id> --repo iscc/iscc-lib --json jobs --jq '.jobs[] | {name, conclusion}'`
 - **Latest CI runs**:
@@ -33,15 +35,20 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Incremental review**: compare `assessed-at` hash vs HEAD `--stat` first, then re-verify only
     affected sections. Always carry forward sections where no relevant files changed.
 - **Tier 1 symbol count**: target says "22" but implementation has 23 (target.md counting error)
-- **CI now has 6 jobs**: Rust, Python, Node.js, WASM, C FFI, Java. All 6 pass at HEAD. Go job
-    pending.
+- **CI now has 6 jobs**: Rust, Python, Node.js, WASM, C FFI, Java. All 6 pass at HEAD (run
+    22365017864). Go job pending.
+- **Registry readme metadata**: `Cargo.toml` `readme = "README.md"` in iscc-lib; `pyproject.toml`
+    `readme = "README.md"` in iscc-py; npm auto-detects README.md (no explicit field needed in
+    package.json)
 - **Java `target/` directory**: Maven compile output in `crates/iscc-jni/java/target/` — covered by
     root `.gitignore`'s `target/` pattern, not committed
 
 ## Gotchas
 
 - `packages/go/` does not exist — Go bindings are not started (new target section as of 0a10f73)
-- No per-crate `README.md` files exist anywhere — new target section added but work not started
+- Per-crate READMEs: batch 1 done (iscc-lib, iscc-py, iscc-napi). Batch 2 pending (iscc-wasm,
+    iscc-jni). iscc-ffi not published separately (lower priority). Go README blocked by Go bindings
+    not started.
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` needs `--repo iscc/iscc-lib` to avoid GraphQL projects error; also needs `--json`
