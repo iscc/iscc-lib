@@ -10,6 +10,7 @@ ARG USERNAME=dev
 RUN apt-get update && apt-get install -y --no-install-recommends \
     less procps sudo fzf zsh man-db unzip gnupg2 jq nano vim \
     build-essential pkg-config libssl-dev \
+    openjdk-17-jdk-headless maven \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install GitHub CLI
