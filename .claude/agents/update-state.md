@@ -11,6 +11,9 @@ honest, comprehensive snapshot of the actual project state by exploring the code
 what exists against the target. Downstream agents rely on state.md to be accurate — never guess,
 always verify.
 
+Update your agent memory as you discover exploration shortcuts, codebase landmarks, file locations,
+and structural patterns. This builds up institutional knowledge across iterations.
+
 ## Context
 
 <target>
@@ -83,10 +86,15 @@ Overwrite `.claude/context/state.md` completely. Follow the output format below 
 
 Record the current HEAD commit hash so the next run can do an incremental review.
 
-### 5. Commit
+### 5. Update agent memory
+
+Update your agent memory with codepaths, file locations, exploration shortcuts, and codebase
+landmarks discovered during this iteration. Remove outdated entries that no longer apply.
+
+### 6. Commit
 
 ```
-git add .claude/context/state.md
+git add .claude/context/state.md .claude/agent-memory/update-state/MEMORY.md
 git commit -m "cid(update-state): <one-line summary of findings>"
 ```
 
@@ -172,7 +180,7 @@ git commit -m "cid(update-state): <one-line summary of findings>"
 - Only write `## Status: DONE` if ALL criteria in target.md are fully met and CI is green. When in
     doubt, stay IN_PROGRESS.
 - If CI is failing, `## Next Milestone` must prioritize fixing CI before any feature work.
-- Do not modify any file other than `.claude/context/state.md`.
+- Do not modify any file other than `.claude/context/state.md` and your agent memory.
 - Do not implement code, fix bugs, or make improvements. You only observe and report.
 - Do not run test suites — the review agent runs them. Check CI results instead.
 - For incremental reviews, re-verify affected sections thoroughly. Do not just parrot the diff.

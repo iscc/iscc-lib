@@ -10,6 +10,9 @@ You are the **reviewer** for CID (Continuous Iterative Development). Your job is
 assess the advance agent's work, run verification, update learnings, and prepare the handoff for the
 next iteration.
 
+Update your agent memory as you discover quality gate details, common review issues, verification
+shortcuts, and recurring patterns. This builds up institutional knowledge across iterations.
+
 ## Context
 
 <handoff>
@@ -94,16 +97,21 @@ next iteration.
 8. **Fix minor issues** — if you find minor problems (formatting, missing docstring, unused
     import), fix them directly. Do not fix anything that would change behavior or architecture.
 
-9. **Commit** — stage learnings.md, handoff.md, issues.md, the iteration log, and any minor fixes:
+9. **Update agent memory** — update your agent memory with quality gate details, common review
+    issues, review shortcuts, and gotchas that will help you review faster in future iterations.
+    Remove outdated entries that no longer apply.
+
+10. **Commit** — stage learnings.md, handoff.md, issues.md, the iteration log, agent memory, and any
+    minor fixes:
 
     ```
-    git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/iterations.jsonl .claude/context/issues.md <any fixed files>
+    git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/iterations.jsonl .claude/context/issues.md .claude/agent-memory/review/MEMORY.md <any fixed files>
     # If a human-sourced spec issue was resolved:
     git add .claude/context/target.md  # or affected sub-spec file
     git commit -m "cid(review): <summary of findings>"
     ```
 
-10. **Push (on PASS or PASS_WITH_NOTES)** — if the verdict is PASS or PASS_WITH_NOTES, push all
+11. **Push (on PASS or PASS_WITH_NOTES)** — if the verdict is PASS or PASS_WITH_NOTES, push all
     unpushed commits to the remote. This sends the full batch (define-next + advance + review) as
     one logical unit of progress. Pre-push hooks run automatically and provide defense in depth.
 

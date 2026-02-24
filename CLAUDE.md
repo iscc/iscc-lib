@@ -37,6 +37,7 @@ selectively based on the task at hand (e.g., read `state.md` to understand proje
 | `.claude/context/learnings.md`     | Accumulated knowledge from prior iterations | Read and append    |
 | `.claude/context/issues.md`        | Tracked issues and feature requests         | Read and append    |
 | `.claude/context/iterations.jsonl` | CID iteration log                           | Read only          |
+| `.claude/agent-memory/<agent>/`    | Per-agent persistent memory across sessions | Read only          |
 
 **Read only** files are managed by CID agents and overwritten each cycle — interactive edits would
 be lost. **Read and write/append** files are safe to modify from interactive sessions.

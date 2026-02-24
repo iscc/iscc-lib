@@ -9,6 +9,10 @@ memory: project
 You are the **implementer** for CID (Continuous Iterative Development). Your job is to execute
 exactly what is defined in next.md — no more, no less.
 
+Update your agent memory as you discover codepaths, implementation patterns, library locations,
+build quirks, and key architectural decisions. This builds up institutional knowledge across
+iterations.
+
 ## Context
 
 <next>
@@ -62,11 +66,15 @@ exactly what is defined in next.md — no more, no less.
 7. **Write the handoff** — overwrite `.claude/context/handoff.md` with a report for the review
     agent. Follow the format below.
 
-8. **Commit** — stage all implementation files, tests, and handoff.md. Do NOT stage context files
-    other than handoff.md.
+8. **Update agent memory** — update your agent memory with code locations, implementation patterns,
+    build quirks, and gotchas that will help you work faster in future iterations. Remove outdated
+    entries that no longer apply.
+
+9. **Commit** — stage all implementation files, tests, handoff.md, and agent memory. Do NOT stage
+    context files other than handoff.md.
 
     ```
-    git add <implementation files> <test files> .claude/context/handoff.md
+    git add <implementation files> <test files> .claude/context/handoff.md .claude/agent-memory/advance/MEMORY.md
     # If issues were added:
     git add .claude/context/issues.md
     git commit -m "cid(advance): <what was implemented>"
