@@ -79,7 +79,7 @@ Create `overrides/interactive.html`:
 
 Create a markdown file (e.g., `docs/demos/my-demo.md`):
 
-```yaml
+```markdown
 ---
 template: interactive.html
 icon: lucide/play
@@ -98,7 +98,7 @@ Place `docs/javascripts/my-app.js` with initialization logic.
 
 Add to `nav` in `zensical.toml`:
 
-```toml
+```text
 { "Demos" = ["demos/my-demo.md"] },
 ```
 

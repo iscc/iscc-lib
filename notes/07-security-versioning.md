@@ -32,7 +32,7 @@ stakes, not optional.
 
 ## Recommended CI Configuration
 
-```yaml
+```toml
 # deny.toml (workspace root)
 [advisories]
 vulnerability = "deny"
@@ -40,7 +40,14 @@ unmaintained = "warn"
 
 [licenses]
 unlicensed = "deny"
-allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC", "Unicode-3.0"]
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+]
 
 [bans]
 multiple-versions = "warn"

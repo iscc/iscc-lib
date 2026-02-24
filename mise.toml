@@ -56,14 +56,8 @@ uv run ruff format --check
 """
 
 [tasks.format]
-description = "Apply all formatting"
-run = """
-cargo fmt --all &&
-uv run ruff check --fix &&
-uv run ruff format &&
-uv run taplo fmt &&
-uv run yamlfix .
-"""
+description = "Run pre-commit auto-fix hooks (quiet, filtered output)"
+run = "uv run prek run --stage pre-commit --all-files -q 2>&1 || true"
 
 [tasks.test]
 description = "Run all tests"

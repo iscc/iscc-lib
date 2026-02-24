@@ -58,7 +58,7 @@ Use `{{ super() }}` to preserve original content and append/prepend:
 
 Assign a unique template to a specific page via frontmatter:
 
-```yaml
+```markdown
 ---
 template: custom_landing.html
 ---

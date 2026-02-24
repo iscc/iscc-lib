@@ -180,7 +180,7 @@ Create `overrides/interactive_page.html`:
 
 Page frontmatter:
 
-```yaml
+```markdown
 ---
 template: interactive_page.html
 ---

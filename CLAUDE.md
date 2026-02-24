@@ -155,6 +155,11 @@ whitespace, YAML/JSON/TOML validation), `cargo fmt`, `ruff check --fix`, `ruff f
 **Pre-push stage** (thorough quality gates): `cargo clippy`, `cargo test`, `ty check`, Ruff security
 scan (`S` rules), Ruff complexity check (`C901`), `pytest` with coverage enforcement.
 
+**Pre-format before committing:** Run `mise run format` before `git add` and `git commit`. This runs
+the same pre-commit auto-fix hooks (formatting, whitespace, line endings) that would fire during
+commit. Applying fixes beforehand prevents the commit from failing due to hook modifications, which
+would require re-staging.
+
 ## Conformance
 
 Official test vectors from `iscc-core/data.json` are the correctness baseline. All 9 `gen_*_v0`

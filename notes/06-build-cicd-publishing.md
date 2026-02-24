@@ -75,7 +75,7 @@ jobs:
 
 **kreuzberg** uses per-language CI workflows:
 
-```yaml
+```text
 # Separate workflow files
 ci-validate.yaml   # General validation
 ci-python.yaml     # Python-specific
