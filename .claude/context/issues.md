@@ -64,26 +64,6 @@ action that requires review regardless of source:
 
 <!-- Add issues below this line -->
 
-## [normal] `iscc_decompose` panics on malformed/truncated input
-
-In `crates/iscc-lib/src/codec.rs:463-526`, the `iscc_decompose` function uses unchecked slicing in
-multiple locations:
-
-- Line 475: `&body[..nbytes]` — no check that `body.len() >= nbytes`
-- Line 486: `&body[..16]` — no check that `body.len() >= 16` (wide mode)
-- Line 488: `&body[16..32]` — no check that `body.len() >= 32` (wide mode)
-- Line 501: `&body[idx * 8..]` — no check for dynamic unit indexing
-- Lines 511/518: `&body[body.len() - 16..]` / `&body[body.len() - 8..]` — panics if
-    `body.len() < 16`
-
-This is a Tier 1 public API. Malformed base32 input can produce truncated bodies that trigger panics
-instead of returning `IsccError::InvalidInput`.
-
-Fix: add bounds checks before each slice operation and return `IsccError::InvalidInput` for
-truncated bodies.
-
-**Source:** [human]
-
 ## [normal] `soft_hash_codes_v0` accepts too-short Content-Codes (diverges from reference)
 
 In `crates/iscc-lib/src/lib.rs:574-603`, the `soft_hash_codes_v0` function does not validate that

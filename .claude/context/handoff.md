@@ -1,28 +1,31 @@
-## 2026-02-24 — Harden `iscc_decompose` against truncated input
+## 2026-02-24 — Review of: Harden `iscc_decompose` against truncated input
 
-**Done:** Added bounds checks to all five unchecked slice operations in `iscc_decompose` so that
-malformed or truncated base32 input returns `IsccError::InvalidInput` instead of panicking. Three
-guards cover the three code paths: standard unit (body < nbytes), wide mode ISCC-CODE (body < 32),
-and non-wide ISCC-CODE (body < main_types.len() * 8 + 16). The non-wide path uses a single upfront
-check that covers both dynamic units and static Data+Instance slicing.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, minimal fix adding 3 bounds checks to `iscc_decompose` that cover all 5
+unchecked slice operations. Six well-crafted tests exercise every truncation path plus a regression
+guard. The `make_truncated_iscc` helper cleanly constructs test inputs using real codec operations.
 
-- `crates/iscc-lib/src/codec.rs`: Added 3 bounds checks with descriptive error messages in
-    `iscc_decompose` (standard unit path, wide mode path, non-wide ISCC-CODE path). Added 6 new test
-    functions and a `make_truncated_iscc` test helper that builds valid headers with insufficient
-    body bytes.
+**Verification:**
 
-**Verification:** `cargo test -p iscc-lib` passes — 193 total (187 existing + 6 new), 0 failures.
-`cargo clippy -p iscc-lib -- -D warnings` clean. `mise run check` passes all pre-commit hooks. All 6
-new tests assert `Err(IsccError::InvalidInput(_))` — none trigger panics.
+- [x] `cargo test -p iscc-lib` passes — 193 unit + 28 algo + 22 text = 243 total, 0 failures
+- [x] `cargo clippy -p iscc-lib -- -D warnings` clean — no warnings
+- [x] `cargo test -p iscc-lib -- test_decompose_truncated` passes — 4 truncated-prefix tests pass
+- [x] Every new test asserts `Err(IsccError::InvalidInput(_))`, not a panic — verified in source
+- [x] `mise run check` passes — all 14 pre-commit hooks green
 
-**Next:** The `iscc_decompose` issue in issues.md can be resolved. The next highest-impact remaining
-issues are `soft_hash_codes_v0` accepting too-short Content-Codes, `gen_meta_code_v0` empty Data-URL
-handling, `alg_simhash` panic on mismatched digests, and `sliding_window` panic on width < 2 — all
-normal-priority robustness fixes.
+**Issues found:**
 
-**Notes:** The Python reference doesn't crash on truncated input because Python slicing silently
-truncates — but it produces silently wrong output. The Rust implementation is strictly better: it
-rejects invalid input early with a clear error message. No architectural decisions were needed; this
-was a straightforward defensive coding fix.
+- (none)
+
+**Next:** The `iscc_decompose` issue is resolved and deleted from issues.md. The next highest-impact
+work should target one of the remaining normal-priority robustness issues: `soft_hash_codes_v0`
+too-short Content-Code validation, `gen_meta_code_v0` empty Data-URL handling, `alg_simhash` panic
+on mismatched digests, or `sliding_window` panic on width < 2. All are straightforward defensive
+fixes similar in scope to this iteration.
+
+**Notes:** The three guards are well-structured: (1) standard unit path checks
+`body.len() < nbytes`, (2) wide mode checks `body.len() < 32`, (3) non-wide ISCC-CODE checks
+`body.len() < main_types.len() * 8 + 16`. The single upfront check for path (3) elegantly covers
+both dynamic unit slicing and the static Data+Instance tail slicing. Error messages are descriptive
+and consistent (`"truncated ISCC body: expected N bytes, got M"`).
