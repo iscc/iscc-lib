@@ -11,7 +11,7 @@
 <!-- [![npm](https://img.shields.io/npm/v/@iscc/lib.svg)](https://www.npmjs.com/package/@iscc/lib) -->
 
 **High-performance polyglot implementation of
-[ISO 24138:2024](https://www.iso.org/standard/77899.html) --- International Standard Content Code
+[ISO 24138:2024](https://www.iso.org/standard/77899.html) — International Standard Content Code
 (ISCC)**
 
 ## Key Features
