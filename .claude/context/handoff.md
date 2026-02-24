@@ -1,34 +1,36 @@
-## 2026-02-24 — Review of: JNI jint validation and local reference frame safety
+## 2026-02-24 — Fix napi packaging, version skew, and unnecessary clone
 
-**Verdict:** PASS
+**Done:** Resolved all three open normal-priority napi issues: added `"files"` allowlist to
+`package.json` so `npm publish` includes entrypoints, replaced
+`.iter().map(|c| Buffer::from(c.to_vec()))` with `.into_iter().map(Buffer::from)` in
+`alg_cdc_chunks` to eliminate per-chunk Vec allocation, and regenerated `index.js`/`index.d.ts` with
+the correct `0.0.1` version.
 
-**Summary:** Added negative `jint` validation guards at 3 call sites and
-`push_local_frame`/`pop_local_frame` safety wrappers at 5 loops — exactly as specified. 3 new JUnit
-5 tests verify the exceptions. All 49 Java tests (46 conformance + 3 negative-value) pass, clippy
-clean, all 14 pre-commit hooks pass.
+**Files changed:**
+
+- `crates/iscc-napi/package.json`: Added `"files"` allowlist (`index.js`, `index.d.ts`, `*.node`,
+    `README.md`) between `"types"` and `"napi"` fields
+- `crates/iscc-napi/src/lib.rs`: Changed `alg_cdc_chunks` wrapper from
+    `.iter().map(|c| Buffer::from(c.to_vec()))` to `.into_iter().map(Buffer::from)` — napi-rs
+    `Buffer` implements `From<&[u8]>` directly, so no intermediate `Vec<u8>` allocation needed
 
 **Verification:**
 
-- [x] `cargo test -p iscc-jni` passes — 0 Rust unit tests (expected, JNI tested via Java)
-- [x] `cargo clippy -p iscc-jni -- -D warnings` clean
-- [x] `cd crates/iscc-jni/java && mvn test` passes — 49 tests, 0 failures
-- [x] `grep -c 'push_local_frame' crates/iscc-jni/src/lib.rs` returns 5
-- [x] `grep -c 'pop_local_frame' crates/iscc-jni/src/lib.rs` returns 5
-- [x] `grep -cP 'nbytes < 0|width < 0|avg_chunk_size < 0' crates/iscc-jni/src/lib.rs` returns 3
+- [x] `cargo clippy -p iscc-napi -- -D warnings` clean
+- [x] `npm test` passes in `crates/iscc-napi/` — all 103 tests (23 suites), 0 failures
+- [x] `grep '"files"' crates/iscc-napi/package.json` returns a match
+- [x] `grep 'c\.to_vec()' crates/iscc-napi/src/lib.rs` returns 0 matches
+- [x] `grep -c 'expected 0.0.1' crates/iscc-napi/index.js` returns 26
 - [x] `mise run check` passes all 14 pre-commit hooks
 
-**Issues found:**
+**Next:** All three napi normal-priority issues resolved. Remaining normal-priority candidates: wasm
+silent null return (`alg_cdc_chunks`), FFI video frame copy, codec header parsing optimization,
+DataHasher allocation overhead. Low priority: alg_dct power-of-two, alg_wtahash bounds check, JNI
+exception types, Python __version__, Python module docstring, WASM conformance_selftest size, WASM
+stale CLAUDE.md, TypeScript port evaluation.
 
-- (none)
-
-**Next:** Both JNI robustness issues resolved and deleted from issues.md. Remaining normal-priority
-candidates: napi version skew, napi npm packaging, napi unnecessary clone, wasm silent null return,
-FFI video frame copy, codec header parsing optimization, DataHasher allocation overhead. Low
-priority: alg_dct power-of-two, alg_wtahash bounds check, JNI exception types, Python __version__,
-Python module docstring, WASM conformance_selftest size, WASM stale CLAUDE.md, TypeScript port
-evaluation.
-
-**Notes:** `pop_local_frame` is `unsafe` in jni crate v0.21 (Rust 2024 edition). Each `unsafe` block
-has a SAFETY comment. Helper functions propagate frame errors via `?`. The `algSimhash` and
-`algCdcChunks` functions use `let _ =` for the pop result (JVM cleans up on native return). On early
-error paths after `push_local_frame`, the JVM handles cleanup automatically.
+**Notes:** `Buffer::from(&[u8])` works in napi-rs v3 — the fallback path with `to_vec()` mentioned
+in next.md was not needed. The test count increased from 66 (noted in issues) to 103 since the
+original issue was filed (streaming hasher tests and additional function tests were added). The
+regenerated `index.js`/`index.d.ts` remain gitignored per convention — CI regenerates them during
+build.

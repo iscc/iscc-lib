@@ -28,6 +28,13 @@ iterations.
 - data.json relative path from Maven test CWD: `../../iscc-lib/tests/data.json`
 - napi bindings return strings directly (`.map(|r| r.iscc)`) -- Node.js quick start uses plain
     string assignment, not object property access
+- napi-rs `Buffer` implements `From<&[u8]>` directly — no need for `.to_vec()` intermediate
+    allocation when converting borrowed slices to JS Buffer objects
+- napi-rs `package.json` needs a `"files"` allowlist because `.gitignore` excludes `index.js` and
+    `index.d.ts` — without `"files"`, `npm publish` uses `.gitignore` as fallback and omits
+    entrypoints
+- `npx napi build --platform` regenerates `index.js`/`index.d.ts` with version from `package.json` —
+    use this to fix version skew when `package.json` version changes
 - Python bindings return dict-like objects -- quick start uses `result['iscc']` (dict access) or
     `result.iscc` (attribute access via `__getattr__`)
 - Python `__init__.py` bytes-like input pattern: `isinstance(data, (bytes, bytearray, memoryview))`

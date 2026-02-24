@@ -227,8 +227,8 @@ pub fn alg_minhash_256(features: Vec<u32>) -> Buffer {
 pub fn alg_cdc_chunks(data: Buffer, utf32: bool, avg_chunk_size: Option<u32>) -> Vec<Buffer> {
     let avg = avg_chunk_size.unwrap_or(1024);
     iscc_lib::alg_cdc_chunks(data.as_ref(), utf32, avg)
-        .iter()
-        .map(|c| Buffer::from(c.to_vec()))
+        .into_iter()
+        .map(Buffer::from)
         .collect()
 }
 
