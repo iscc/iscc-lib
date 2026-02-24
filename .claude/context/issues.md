@@ -64,19 +64,6 @@ action that requires review regardless of source:
 
 <!-- Add issues below this line -->
 
-## [normal] `sliding_window` panics on `width < 2` via `assert!`
-
-In `crates/iscc-lib/src/simhash.rs:53`, `sliding_window` uses `assert!(width >= 2, ...)` which
-panics on invalid input. This is a Tier 1 public API bound to all languages. Panics in library code
-are DoS vectors when inputs come from untrusted sources.
-
-The internal `sliding_window_bytes` at line 71 has the same issue.
-
-Fix: return `IsccResult<Vec<String>>` for the public function (or handle gracefully). For the
-`pub(crate)` variant, a `debug_assert!` or early return may suffice.
-
-**Source:** [human]
-
 ## [low] `alg_dct` allows non-power-of-two even lengths
 
 In `crates/iscc-lib/src/dct.rs:19`, the input validation checks for non-empty and even length but
