@@ -472,6 +472,12 @@ pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
         if mt != MainType::Iscc {
             let ln_bits = decode_length(mt, ln, st);
             let nbytes = (ln_bits / 8) as usize;
+            if body.len() < nbytes {
+                return Err(IsccError::InvalidInput(format!(
+                    "truncated ISCC body: expected {nbytes} bytes, got {}",
+                    body.len()
+                )));
+            }
             let code = encode_component(mt, st, vs, ln_bits, &body[..nbytes])?;
             components.push(code);
             raw_code = body[nbytes..].to_vec();
@@ -483,12 +489,27 @@ pub fn iscc_decompose(iscc_code: &str) -> IsccResult<Vec<String>> {
 
         // Wide mode: 128-bit Data-Code + 128-bit Instance-Code
         if st == SubType::Wide {
+            if body.len() < 32 {
+                return Err(IsccError::InvalidInput(format!(
+                    "truncated ISCC body: expected 32 bytes, got {}",
+                    body.len()
+                )));
+            }
             let data_code = encode_component(MainType::Data, SubType::None, vs, 128, &body[..16])?;
             let instance_code =
                 encode_component(MainType::Instance, SubType::None, vs, 128, &body[16..32])?;
             components.push(data_code);
             components.push(instance_code);
             break;
+        }
+
+        // Non-wide ISCC-CODE: total body = dynamic units × 8 + Data 8 + Instance 8
+        let expected_body = main_types.len() * 8 + 16;
+        if body.len() < expected_body {
+            return Err(IsccError::InvalidInput(format!(
+                "truncated ISCC body: expected {expected_body} bytes, got {}",
+                body.len()
+            )));
         }
 
         // Rebuild dynamic units (Meta, Semantic, Content)
@@ -1290,5 +1311,148 @@ mod tests {
                 "decomposed unit count mismatch in {tc_name}"
             );
         }
+    }
+
+    // ---- iscc_decompose truncation tests ----
+
+    /// Build a truncated ISCC string: valid header for given params, but fewer body bytes than needed.
+    ///
+    /// For ISCC MainType, `length_field` is the raw unit_id (0-7).
+    /// For other MainTypes, `length_field` is the raw header length field value.
+    fn make_truncated_iscc(
+        mtype: MainType,
+        stype: SubType,
+        length_field: u32,
+        body_len: usize,
+    ) -> String {
+        let header = encode_header(mtype, stype, Version::V0, length_field).unwrap();
+        let mut raw = header;
+        raw.extend(vec![0xABu8; body_len]);
+        encode_base32(&raw)
+    }
+
+    #[test]
+    fn test_decompose_truncated_standard_unit() {
+        // Meta-Code header for 64 bits (8 bytes expected), but only 4 body bytes provided.
+        // encode_length(Meta, 64) = 64/32 - 1 = 1
+        let length_field = encode_length(MainType::Meta, 64).unwrap();
+        let iscc = make_truncated_iscc(MainType::Meta, SubType::None, length_field, 4);
+        let result = iscc_decompose(&iscc);
+        assert!(
+            result.is_err(),
+            "expected error for truncated standard unit"
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("truncated ISCC body"),
+            "error should mention truncation: {err}"
+        );
+    }
+
+    #[test]
+    fn test_decompose_truncated_wide_mode() {
+        // ISCC-CODE Wide header expects 32 body bytes, provide only 16.
+        // For Wide ISCC-CODE, length field is unit_id (0 = no optional units)
+        let iscc = make_truncated_iscc(MainType::Iscc, SubType::Wide, 0, 16);
+        let result = iscc_decompose(&iscc);
+        assert!(result.is_err(), "expected error for truncated wide mode");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("truncated ISCC body"),
+            "error should mention truncation: {err}"
+        );
+    }
+
+    #[test]
+    fn test_decompose_truncated_dynamic_units() {
+        // ISCC-CODE with Meta+Content (unit_id=5, bit0=Content+bit2=Meta)
+        // Dynamic units: 2 × 8 = 16 bytes, static: 16 bytes, total: 32 bytes needed
+        // Provide only 8 body bytes (enough for 1 dynamic unit, not all)
+        let unit_id = 5; // Meta + Content
+        let iscc = make_truncated_iscc(MainType::Iscc, SubType::None, unit_id, 8);
+        let result = iscc_decompose(&iscc);
+        assert!(
+            result.is_err(),
+            "expected error for truncated dynamic units"
+        );
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("truncated ISCC body"),
+            "error should mention truncation: {err}"
+        );
+    }
+
+    #[test]
+    fn test_decompose_truncated_static_units() {
+        // ISCC-CODE with Content only (unit_id=1)
+        // Dynamic: 1 × 8 = 8, static: 16, total: 24 bytes needed
+        // Provide only 16 body bytes (dynamic ok, but static Data+Instance missing)
+        let unit_id = 1; // Content only
+        let iscc = make_truncated_iscc(MainType::Iscc, SubType::None, unit_id, 16);
+        let result = iscc_decompose(&iscc);
+        assert!(result.is_err(), "expected error for truncated static units");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("truncated ISCC body"),
+            "error should mention truncation: {err}"
+        );
+    }
+
+    #[test]
+    fn test_decompose_empty_body() {
+        // Meta-Code header for 64 bits but zero body bytes
+        let length_field = encode_length(MainType::Meta, 64).unwrap();
+        let iscc = make_truncated_iscc(MainType::Meta, SubType::None, length_field, 0);
+        let result = iscc_decompose(&iscc);
+        assert!(result.is_err(), "expected error for empty body");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("truncated ISCC body"),
+            "error should mention truncation: {err}"
+        );
+    }
+
+    #[test]
+    fn test_decompose_valid_still_works() {
+        // A valid ISCC-CODE should still decompose correctly (regression guard)
+        // Build: Meta(64) + Content-Text(64) + Data(64) + Instance(64)
+        let meta_body = [0x11u8; 8];
+        let content_body = [0x22u8; 8];
+        let data_body = [0x33u8; 8];
+        let instance_body = [0x44u8; 8];
+
+        let meta_code =
+            encode_component(MainType::Meta, SubType::None, Version::V0, 64, &meta_body).unwrap();
+        let content_code = encode_component(
+            MainType::Content,
+            SubType::None,
+            Version::V0,
+            64,
+            &content_body,
+        )
+        .unwrap();
+        let data_code =
+            encode_component(MainType::Data, SubType::None, Version::V0, 64, &data_body).unwrap();
+        let instance_code = encode_component(
+            MainType::Instance,
+            SubType::None,
+            Version::V0,
+            64,
+            &instance_body,
+        )
+        .unwrap();
+
+        // Concatenate as a sequence of ISCC-UNITs (not a single ISCC-CODE)
+        let sequence = format!("{meta_code}{content_code}{data_code}{instance_code}");
+        let raw = decode_base32(&sequence).unwrap();
+        let full_iscc = encode_base32(&raw);
+
+        let result = iscc_decompose(&full_iscc);
+        assert!(
+            result.is_ok(),
+            "valid ISCC sequence should decompose: {result:?}"
+        );
+        let units = result.unwrap();
+        assert_eq!(units.len(), 4, "should decompose into 4 units");
     }
 }
