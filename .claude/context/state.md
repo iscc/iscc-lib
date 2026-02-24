@@ -1,16 +1,16 @@
-<!-- assessed-at: 99f9c30365aa032563ffbb1aeb111360d3e9513b -->
+<!-- assessed-at: a0acb3aa55a7a9951841dda0ac794b9a6d40db39 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: sliding_window zero-copy optimization complete — nav icons and Rust how-to remain
+## Phase: Rust how-to guide complete — nav icons remain
 
 All 23 Tier 1 API symbols are implemented in the Rust core and exposed in all four binding targets:
-Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration added the
-`sliding_window_strs` zero-copy optimization (pub(crate)) and removed the
-`sliding_window O(n) String allocations` issue from the tracker. CI is green. Two documentation gaps
-remain: nav icons for top-level nav sections and the Rust how-to guide.
+Python (23/23), Node.js (23/23), WASM (23/23), and C FFI (23/23). This iteration added
+`docs/howto/rust.md` (352 lines) and wired it as the first entry in the How-to Guides nav section.
+CI is green. One documentation gap remains: top-level nav sections have no Material for MkDocs
+`icon` attributes.
 
 ## Rust Core Crate
 
@@ -115,12 +115,16 @@ remain: nav icons for top-level nav sections and the Rust how-to guide.
 
 **Status**: partially met
 
-- 10 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
-    `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `development.md`,
-    `tutorials/getting-started.md`
-- Navigation in `zensical.toml` has: Tutorials (Getting Started), How-to Guides (Python, Node.js,
-    WebAssembly), Explanation (Architecture), Reference (Rust API, Python API), Benchmarks,
+- 11 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
+    `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `howto/rust.md`,
+    `development.md`, `tutorials/getting-started.md`
+- Navigation in `zensical.toml` has: Tutorials (Getting Started), How-to Guides (Rust, Python,
+    Node.js, WebAssembly), Explanation (Architecture), Reference (Rust API, Python API), Benchmarks,
     Development
+- `docs/howto/rust.md` added (352 lines): covers Installation, Code generation for all 9 `gen_*_v0`
+    functions, Structured results table, Streaming (DataHasher/InstanceHasher), Text utilities
+    (text_clean, text_collapse, text_remove_newlines, text_trim), Algorithm primitives, Conformance
+    testing, Error handling
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING at HEAD)
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
@@ -130,15 +134,13 @@ remain: nav icons for top-level nav sections and the Rust how-to guide.
 - ✅ `docs/CNAME` contains `lib.iscc.codes`
 - ✅ `docs/includes/abbreviations.md` with 19 ISCC-specific abbreviations; `pymdownx.snippets`
     auto-appended to all pages
-- ✅ `docs/tutorials/getting-started.md` added (154 lines): covers installation, conformance
-    self-test, Meta-Code, Text-Code, Instance-Code, streaming with `InstanceHasher`, next steps
-- ✅ Tutorials nav section added to `zensical.toml`
-- **Missing**: Nav icons — `zensical.toml` nav sections (`Tutorials`, `How-to Guides`,
+- ✅ `docs/tutorials/getting-started.md` (154 lines): covers installation, conformance self-test,
+    Meta-Code, Text-Code, Instance-Code, streaming, next steps
+- ✅ Rust how-to guide complete and wired as first How-to Guides nav entry
+- **Missing**: Nav icons — `zensical.toml` top-level nav sections (`Tutorials`, `How-to Guides`,
     `Explanation`, `Reference`, `Benchmarks`, `Development`) have no `icon` attribute; the docs spec
     requires "Each top-level nav section has a Material for MkDocs icon, matching the style of
     iscc/iscc-usearch at usearch.iscc.codes"
-- **Missing**: Rust how-to guide — `docs/howto/rust.md` does not exist; spec requires "per-language
-    usage guides (Python, Rust, Node.js, WASM)"; no Rust entry in howto nav
 
 ## Benchmarks
 
@@ -158,11 +160,10 @@ remain: nav icons for top-level nav sections and the Rust how-to guide.
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers all 5 targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
-- Latest CI run (HEAD `99f9c30`): **PASSING** —
-    [Run 22350921308](https://github.com/iscc/iscc-lib/actions/runs/22350921308) — all 5 jobs
-    success
+- Latest CI run: **PASSING** —
+    [Run 22351423734](https://github.com/iscc/iscc-lib/actions/runs/22351423734) — all jobs success
 - Latest Docs run: **PASSING** —
-    [Run 22350921319](https://github.com/iscc/iscc-lib/actions/runs/22350921319) — build + deploy
+    [Run 22351423738](https://github.com/iscc/iscc-lib/actions/runs/22351423738) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
@@ -171,11 +172,9 @@ remain: nav icons for top-level nav sections and the Rust how-to guide.
 
 ## Next Milestone
 
-CI is green; all commits are pushed. Two documentation gaps remain. Priority order:
+CI is green; all commits are pushed. One documentation gap remains:
 
 1. **Nav icons** — add Material for MkDocs icon attributes to each top-level nav section in
-    `zensical.toml`; query iscc/iscc-usearch via deepwiki MCP for exact icon names and config
+    `zensical.toml` (`Tutorials`, `How-to Guides`, `Explanation`, `Reference`, `Benchmarks`,
+    `Development`); query `iscc/iscc-usearch` via deepwiki MCP for exact icon names and config
     format used by that reference site
-2. **Rust how-to guide** — create `docs/howto/rust.md` covering Rust crate usage (adding dependency,
-    9 code types, streaming with `DataHasher`/`InstanceHasher`, codec utilities); add Rust entry to
-    the How-to Guides nav section in `zensical.toml`
