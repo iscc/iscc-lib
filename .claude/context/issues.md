@@ -116,23 +116,6 @@ Fix: add `if vec.len() < 380 { return error }` guard at function entry.
 
 **Source:** [human]
 
-## [normal] `sliding_window` allocates O(n) Strings for n-gram generation
-
-In `crates/iscc-lib/src/simhash.rs:52-63`, `sliding_window` returns `Vec<String>`, allocating a new
-`String` for every n-gram. For large text inputs this means O(n) heap allocations and O(n × width)
-total copied characters. This impacts `gen_text_code_v0` and metadata simhash computation — two of
-the most frequently called functions.
-
-The reference Python implementation uses generators. Rust could hash n-grams on the fly without
-materializing all substrings, or at minimum use `&str` slices into the original char buffer.
-
-Fix: refactor to either (a) an iterator that yields slices and feeds directly into the hash
-computation, or (b) a pre-allocated buffer reused across n-grams. After fixing, re-run
-`cargo bench -p iscc-lib` and compare `gen_text_code_v0` and `gen_meta_code_v0` timings against the
-baseline to validate the improvement.
-
-**Source:** [human]
-
 ## [normal] Codec header parsing expands bytes to `Vec<bool>`
 
 In `crates/iscc-lib/src/codec.rs:121-127`, `bytes_to_bits` expands every byte into 8 `bool` values
