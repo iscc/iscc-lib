@@ -1,84 +1,77 @@
 # Next Work Package
 
-## Step: Fix `alg_cdc_chunks` infinite loop when `utf32=true`
+## Step: Harden `iscc_decompose` against truncated input
 
 ## Goal
 
-Fix a critical bug where `alg_cdc_chunks` enters an infinite loop when `utf32=true` and the
-remaining buffer is smaller than 4 bytes. This is a Tier 1 public API and any external caller using
-`utf32=true` with certain inputs will hang the process.
+Add bounds checks to `iscc_decompose` so that malformed or truncated base32 input returns
+`IsccError::InvalidInput` instead of panicking. This is the highest-impact open code correctness
+issue — it affects a Tier 1 public API bound to all four languages.
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `crates/iscc-lib/src/cdc.rs` (fix alignment logic + add tests)
-- **Reference**: `reference/iscc-core/iscc_core/cdc.py` (lines 45-50),
-    `reference/iscc-core/tests/test_cdc.py` (lines 83-98, `test_data_chunks_utf32`)
+- **Modify**: `crates/iscc-lib/src/codec.rs` (add bounds checks in `iscc_decompose`, add tests)
+- **Reference**: `reference/iscc-core/iscc_core/codec.py` lines 376–421 (Python `iscc_decompose`)
 
 ## Not In Scope
 
-- Fixing the same bug upstream in iscc-core (the Python reference has the identical issue at
-    `cdc.py:47` — `cut_point -= cut_point % 4` can also produce 0 in Python, but that's a separate
-    upstream issue to file later)
-- Porting the reference `test_data_chunks_utf32` conformance test with `static_bytes` and BLAKE3
-    hash verification — that's a separate step requiring the `static_bytes` helper
-- Fixing other issues from issues.md (the normal/low priority issues wait)
-- Changing the function signature or return type
-- Refactoring the CDC module beyond the minimal fix
+- Fixing the other normal-priority robustness issues (`soft_hash_codes_v0`, `gen_meta_code_v0`,
+    `alg_simhash`, `sliding_window`) — each is a separate step
+- Changing `decode_header` or `decode_length` internals — only validate `body` length after they
+    return
+- Adding fuzz testing infrastructure — a future step
+- Removing the issue from `issues.md` — the review agent handles that after verifying
 
 ## Implementation Notes
 
-The bug is at `cdc.rs:130-132`:
+The function at `codec.rs:463–526` has five unchecked slice operations that panic on truncated
+`body` vectors returned by `decode_header`:
+
+1. **Line 475**: `&body[..nbytes]` — standard unit path. Guard: `body.len() >= nbytes`.
+2. **Line 486**: `&body[..16]` — wide mode Data-Code. Guard: `body.len() >= 16`.
+3. **Line 488**: `&body[16..32]` — wide mode Instance-Code. Guard: `body.len() >= 32`.
+4. **Line 501**: `&body[idx * 8..]` — dynamic unit loop. Guard: `body.len() >= (idx + 1) * 8` (each
+    unit needs 8 bytes).
+5. **Lines 511/518**: `&body[body.len() - 16..]` and `&body[body.len() - 8..]` — static units.
+    Guard: `body.len() >= main_types.len() * 8 + 16` (dynamic units + Data + Instance = total
+    body).
+
+For each failing guard, return:
 
 ```rust
-if utf32 {
-    cut_point -= cut_point % 4;
-}
+Err(IsccError::InvalidInput("truncated ISCC body: expected N bytes, got M".into()))
 ```
 
-When `cut_point < 4` (e.g., the remaining buffer is 1-3 bytes), `cut_point % 4 == cut_point`, so
-`cut_point` becomes 0. This means `pos` never advances and the loop at line 125 runs forever.
+The wide-mode path (items 2+3) can use a single check: `body.len() >= 32`. The non-wide ISCC-CODE
+path (items 4+5) can use a single upfront check: total expected body size is
+`main_types.len() * 8 + 16` bytes (dynamic units × 8 + Data 8 + Instance 8).
 
-**Fix**: After the UTF-32 alignment subtraction, if `cut_point` is 0, set it to the minimum of 4 and
-the remaining data length. This guarantees forward progress while maintaining 4-byte alignment when
-possible:
+**Python comparison**: Python slicing silently truncates on out-of-bounds (`body[16:32]` returns
+fewer bytes if body is short), so the reference doesn't crash — it produces wrong output. The Rust
+fix is strictly better: reject invalid input early.
 
-```rust
-if utf32 {
-    cut_point -= cut_point % 4;
-    if cut_point == 0 {
-        cut_point = remaining.len().min(4);
-    }
-}
-```
+**Tests to add** (≥5 new test functions):
 
-Using `remaining.len()` (which equals `data.len() - pos`) handles the edge case where fewer than 4
-bytes remain — we consume whatever is left rather than trying to align.
+- `test_decompose_truncated_standard_unit` — single unit with body shorter than `nbytes`
+- `test_decompose_truncated_wide_mode` — ISCC-CODE with Wide subtype and body < 32 bytes
+- `test_decompose_truncated_dynamic_units` — ISCC-CODE with body too short for dynamic units
+- `test_decompose_truncated_static_units` — ISCC-CODE with body too short for trailing Data+Instance
+- `test_decompose_empty_body` — valid header but zero body bytes
+- `test_decompose_valid_still_works` — ensure at least one existing valid decompose still passes
+    (regression guard; existing tests already cover this, but an explicit one is nice)
 
-**Tests to add** (inside the existing `mod tests` block in `cdc.rs`):
-
-1. `test_alg_cdc_chunks_utf32_small_buffer` — input of 3 bytes (not 4-byte aligned) with
-    `utf32=true`. Must terminate and return chunks that reassemble to the original data.
-2. `test_alg_cdc_chunks_utf32_exact_4_bytes` — input of exactly 4 bytes with `utf32=true`. Must
-    return one chunk of 4 bytes.
-3. `test_alg_cdc_chunks_utf32_7_bytes` — input of 7 bytes (4+3) with `utf32=true`. Verifies handling
-    of a non-aligned tail.
-4. `test_alg_cdc_chunks_utf32_reassembly` — larger input (~4096 bytes, 4-byte aligned) with
-    `utf32=true`. Chunks must reassemble to original data.
-5. `test_alg_cdc_chunks_utf32_empty` — empty input with `utf32=true`. Must not loop.
-
-All tests should verify: (a) the function terminates, (b) chunks reassemble to original input, (c)
-for 4-byte-aligned inputs, all chunks except possibly the last are 4-byte aligned.
+To craft truncated inputs: use `encode_header` to produce a valid header, append fewer body bytes
+than expected, then `encode_base32` the result. Alternatively, take a known-valid base32 ISCC string
+and truncate characters from the end.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all 184+ existing tests + 5 new utf32 tests)
+- `cargo test -p iscc-lib` passes (all 237+ existing tests + ≥5 new tests, 0 failures)
 - `cargo clippy -p iscc-lib -- -D warnings` clean
-- `cargo test -p iscc-lib -- test_alg_cdc_chunks_utf32` passes (the 5 new tests specifically)
-- The 3-byte input test proves the infinite loop is fixed (it would hang/timeout if the bug
-    remained)
+- `cargo test -p iscc-lib -- test_decompose_truncated` passes (new truncation tests)
+- Every new test asserts that the result is `Err(IsccError::InvalidInput(_))`, not a panic
 
 ## Done When
 
-All verification criteria pass, confirming `alg_cdc_chunks` with `utf32=true` no longer loops on
-small or non-aligned inputs.
+All verification criteria pass — `iscc_decompose` returns `Err` instead of panicking for every
+truncated-body scenario, with test coverage for each guard.
