@@ -8,6 +8,7 @@
 package io.iscc.iscc_lib;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DynamicTest;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;
 
 class IsccLibTest {
@@ -334,5 +336,27 @@ class IsccLibTest {
             }));
         }
         return tests;
+    }
+
+    // ── Negative jint validation ─────────────────────────────────────────────
+
+    /** Verify textTrim throws IllegalArgumentException for negative nbytes. */
+    @Test
+    void textTrimNegativeNbytes() {
+        assertThrows(IllegalArgumentException.class, () -> IsccLib.textTrim("hello", -1));
+    }
+
+    /** Verify slidingWindow throws IllegalArgumentException for negative width. */
+    @Test
+    void slidingWindowNegativeWidth() {
+        assertThrows(IllegalArgumentException.class, () -> IsccLib.slidingWindow("hello", -1));
+    }
+
+    /** Verify algCdcChunks throws IllegalArgumentException for negative avg_chunk_size. */
+    @Test
+    void algCdcChunksNegativeAvgChunkSize() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> IsccLib.algCdcChunks(new byte[] {1, 2, 3}, false, -1));
     }
 }

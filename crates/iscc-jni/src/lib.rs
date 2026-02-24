@@ -66,12 +66,19 @@ fn extract_int_array_2d(env: &mut JNIEnv, obj_arr: &JObjectArray) -> Result<Vec<
     let num = env.get_array_length(obj_arr).map_err(|e| e.to_string())? as usize;
     let mut result: Vec<Vec<i32>> = Vec::with_capacity(num);
     for i in 0..num {
+        env.push_local_frame(16).map_err(|e| e.to_string())?;
         let obj = env
             .get_object_array_element(obj_arr, i as i32)
             .map_err(|e| e.to_string())?;
         let int_arr: jintArray = obj.as_raw();
         let ints = extract_int_array(env, int_arr)?;
         result.push(ints);
+        // SAFETY: frame was pushed at the start of this iteration; all local
+        // refs created within the iteration are copies in Rust-owned Vec.
+        unsafe {
+            env.pop_local_frame(&JObject::null())
+                .map_err(|e| e.to_string())?;
+        }
     }
     Ok(result)
 }
@@ -83,12 +90,19 @@ fn extract_string_array(env: &mut JNIEnv, obj_arr: &JObjectArray) -> Result<Vec<
     let num = env.get_array_length(obj_arr).map_err(|e| e.to_string())? as usize;
     let mut result: Vec<String> = Vec::with_capacity(num);
     for i in 0..num {
+        env.push_local_frame(16).map_err(|e| e.to_string())?;
         let obj = env
             .get_object_array_element(obj_arr, i as i32)
             .map_err(|e| e.to_string())?;
         let jstr = JString::from(obj);
         let s: String = env.get_string(&jstr).map_err(|e| e.to_string())?.into();
         result.push(s);
+        // SAFETY: frame was pushed at the start of this iteration; the String
+        // data has been copied into Rust-owned `result`.
+        unsafe {
+            env.pop_local_frame(&JObject::null())
+                .map_err(|e| e.to_string())?;
+        }
     }
     Ok(result)
 }
@@ -102,9 +116,16 @@ fn build_string_array(env: &mut JNIEnv, strings: &[String]) -> Result<jobjectArr
         .new_object_array(strings.len() as i32, &string_class, JObject::null())
         .map_err(|e| e.to_string())?;
     for (i, s) in strings.iter().enumerate() {
+        env.push_local_frame(16).map_err(|e| e.to_string())?;
         let jstr = env.new_string(s).map_err(|e| e.to_string())?;
         env.set_object_array_element(&arr, i as i32, jstr)
             .map_err(|e| e.to_string())?;
+        // SAFETY: frame was pushed at the start of this iteration; the string
+        // has been set into the result array before popping.
+        unsafe {
+            env.pop_local_frame(&JObject::null())
+                .map_err(|e| e.to_string())?;
+        }
     }
     Ok(arr.into_raw())
 }
@@ -417,6 +438,9 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_textTrim(
     text: JString,
     nbytes: jint,
 ) -> jstring {
+    if nbytes < 0 {
+        return throw_and_default(&mut env, "nbytes must be non-negative");
+    }
     let text_str: String = match env.get_string(&text) {
         Ok(s) => s.into(),
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
@@ -511,6 +535,9 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_slidingWindow(
     seq: JString,
     width: jint,
 ) -> jobjectArray {
+    if width < 0 {
+        return throw_and_default(&mut env, "width must be non-negative");
+    }
     let seq_str: String = match env.get_string(&seq) {
         Ok(s) => s.into(),
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
@@ -543,6 +570,9 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algSimhash(
     };
     let mut digests: Vec<Vec<u8>> = Vec::with_capacity(num);
     for i in 0..num {
+        if env.push_local_frame(16).is_err() {
+            return throw_and_default(&mut env, "failed to push local frame");
+        }
         let obj = match env.get_object_array_element(&hash_digests, i as i32) {
             Ok(o) => o,
             Err(e) => return throw_and_default(&mut env, &e.to_string()),
@@ -552,6 +582,9 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algSimhash(
             Err(e) => return throw_and_default(&mut env, &e),
         };
         digests.push(bytes);
+        // SAFETY: frame was pushed at the start of this iteration; byte data
+        // has been copied into Rust-owned Vec.
+        let _ = unsafe { env.pop_local_frame(&JObject::null()) };
     }
     let refs: Vec<&[u8]> = digests.iter().map(|d| d.as_slice()).collect();
     match iscc_lib::alg_simhash(&refs) {
@@ -598,6 +631,9 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algCdcChunks(
     utf32: jboolean,
     avg_chunk_size: jint,
 ) -> jobjectArray {
+    if avg_chunk_size < 0 {
+        return throw_and_default(&mut env, "avg_chunk_size must be non-negative");
+    }
     let bytes = match extract_byte_array(&env, data) {
         Ok(b) => b,
         Err(e) => return throw_and_default(&mut env, &e),
@@ -612,6 +648,9 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algCdcChunks(
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
     };
     for (i, chunk) in chunks.iter().enumerate() {
+        if env.push_local_frame(16).is_err() {
+            return throw_and_default(&mut env, "failed to push local frame");
+        }
         let barr = match env.byte_array_from_slice(chunk) {
             Ok(a) => a,
             Err(e) => return throw_and_default(&mut env, &e.to_string()),
@@ -619,6 +658,9 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algCdcChunks(
         if let Err(e) = env.set_object_array_element(&arr, i as i32, &barr) {
             return throw_and_default(&mut env, &e.to_string());
         }
+        // SAFETY: frame was pushed at the start of this iteration; the byte
+        // array has been set into the result array before popping.
+        let _ = unsafe { env.pop_local_frame(&JObject::null()) };
     }
     arr.into_raw()
 }

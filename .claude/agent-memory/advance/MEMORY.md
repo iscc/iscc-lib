@@ -65,6 +65,10 @@ iterations.
 
 ## Gotchas
 
+- `pop_local_frame` is `unsafe` in jni crate v0.21 (Rust 2024 edition) — must wrap in `unsafe {}`
+    with SAFETY comment. For helper functions returning `Result`, use `?` after the unsafe block.
+    For `throw_and_default` error paths, use `let _ =` to discard the pop result (JVM cleans up on
+    native return)
 - JNI package underscore encoding: `iscc_lib` -> `iscc_1lib` in function names
 - Java `byte` is signed -- casting int (0-255) to byte works correctly for pixel data
 - HexFormat requires Java 17+ (already set as Maven compiler target)
