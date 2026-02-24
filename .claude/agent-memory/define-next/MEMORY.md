@@ -20,8 +20,9 @@ iterations.
 - README files are "create" operations (greenfield), not "modify" — they're less risky than code
     changes. Manifest updates are trivial one-liners. Combined, 3 creates + 2 modifies is a
     reasonable single step for documentation work.
-- Normal performance issues (codec Vec<bool>, DataHasher copying) should wait until feature work is
-    done. They don't block publishing or new bindings.
+- Normal performance issues (codec Vec<bool>, DataHasher copying, FFI video frame allocation) are
+    non-blocking optimizations. They don't affect correctness or user-facing functionality. Starting
+    Go bindings (largest feature gap) takes priority over clearing optimization issues.
 - Root README updates: single-file modifications with clear verification. Java sections follow
     established patterns (Rust/Python/Node.js/WASM already present). Section ordering should match
     target.md: Rust, Python, Java, Node.js, WASM. Insert Java after Node.js and before WASM in both
@@ -48,10 +49,10 @@ iterations.
     Mechanical: change return type to `Result<JsValue, JsError>`, swap `.unwrap_or(JsValue::NULL)`
     to `.map_err(...)`, add `.unwrap()` in tests. Every other WASM function already uses this
     pattern so consistency is the primary motivation.
-- After WASM silent-null: remaining normal-priority candidates are FFI video frame copy, codec
-    header parsing optimization, DataHasher allocation overhead. Low-priority issues can be batched
-    (e.g., WASM stale CLAUDE.md + conformance_selftest gate, or Python __version__ + docstring).
-    Normal issues should be cleared before starting Go (largest unstarted feature).
+- Go bindings multi-step plan: (1) WASI build + alloc/dealloc → (2) Go module scaffold + wazero
+    bridge → (3) gen function wrappers → (4) streaming wrappers (DataHasher/InstanceHasher) → (5)
+    conformance tests → (6) CI job → (7) README/docs. Each step is independently verifiable. Step 1
+    modifies only 1 file and has clear pass/fail criteria (cargo build succeeds).
 
 ## Architecture Decisions
 
@@ -61,6 +62,15 @@ iterations.
     This means `cargo build -p iscc-jni` must run before `mvn test`.
 - Gson chosen as JSON parsing library for Java tests — handles nested arrays (`int[][]` for video
     frame sigs) cleanly and is a well-known, lightweight test dependency.
+- Go bindings use WASM/wazero (pure Go, no cgo) per target spec. The WASM module is built from
+    iscc-ffi targeting `wasm32-wasip1`. The Go wrapper embeds the `.wasm` binary via `//go:embed`.
+    Alloc/dealloc helpers are needed because the WASM host must allocate memory inside the module to
+    pass strings and byte buffers. `iscc_alloc(size) -> *mut u8` and `iscc_dealloc(ptr, size)` are
+    the standard pattern for WASM FFI memory management.
+- The FFI crate's existing `crate-type = ["cdylib", "staticlib"]` works for wasm32-wasip1 — cargo
+    produces a `.wasm` from the cdylib target. No Cargo.toml changes needed for the build.
+- `thread_local!` in the FFI crate (for error storage) should work on wasm32-wasip1 since WASM is
+    single-threaded. The macro compiles but degenerates to a simple static.
 
 ## Registry README Patterns
 
