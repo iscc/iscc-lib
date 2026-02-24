@@ -1,16 +1,15 @@
-<!-- assessed-at: 80dbfa67507eb48185709184e2edabb60a2046f5 -->
+<!-- assessed-at: 4ed4611eed884282154563f5e6313f4c97af87e4 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: sliding_window hardened — Java bindings not started
+## Phase: iscc-jni scaffold created — 22 of 23 JNI symbols pending
 
-All 23 Tier 1 API symbols remain implemented and exposed in all four existing binding targets
-(Python, Node.js, WASM, C FFI). The `sliding_window` panic on `width < 2` has been resolved in this
-iteration — all four binding crates now propagate the error idiomatically. Java/Maven Central
-bindings were added to the target by Titusz; no Java crate exists yet. The README and documentation
-site are now **partially met** because both require Java content that is not yet written.
+The `iscc-jni` crate scaffold was created this iteration: workspace member, `cdylib` crate type,
+`jni = "0.21"` workspace dependency, and one JNI function (`conformanceSelftest`). 22 of 23 Tier 1
+symbols remain unbound. No Java source code, Maven build, or native-library loader exists yet. All 5
+CI jobs pass on the latest run.
 
 ## Rust Core Crate
 
@@ -29,11 +28,8 @@ site are now **partially met** because both require Java content that is not yet
 - All prior correctness fixes in place: empty Data-URL payload routing, `soft_hash_codes_v0`
     bit-length validation, `iscc_decompose` truncated input guards, `alg_cdc_chunks` infinite loop
     guard, `alg_simhash` digest-length validation
-- **`sliding_window` hardened** (this iteration): `pub fn sliding_window` now returns
-    `IsccResult<Vec<String>>`; returns
-    `Err(IsccError::InvalidInput("Sliding window width must be 2   or bigger."))` for `width < 2`
-    instead of panicking. Internal `sliding_window_strs` and `sliding_window_bytes` retain
-    `debug_assert!` (called only from validated paths).
+- `sliding_window` hardened: returns `IsccResult<Vec<String>>`; propagates `IsccError::InvalidInput`
+    for `width < 2` instead of panicking
 - `sliding_window_strs` is `pub(crate)` in `simhash.rs` — zero-copy slice variant used by
     `soft_hash_meta_v0` and `soft_hash_text_v0`; eliminates per-n-gram `String` allocation
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
@@ -55,8 +51,7 @@ site are now **partially met** because both require Java content that is not yet
 - All `gen_*_v0` functions return `PyDict` (translated to typed `IsccResult` subclasses in Python)
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with `Option<inner>` finalize-once pattern
 - `gen_data_code_v0` and `gen_instance_code_v0` accept `bytes | BinaryIO` in the Python layer
-- **`sliding_window` updated** (this iteration): returns `PyResult<Vec<String>>` and raises
-    `ValueError` on `width < 2`
+- `sliding_window` returns `PyResult<Vec<String>>` and raises `ValueError` on `width < 2`
 - 105 test functions across 5 files (`test_conformance.py`, `test_smoke.py`, `test_text_utils.py`,
     `test_algo.py`, `test_streaming.py`)
 - `ruff check` and `ruff format --check` clean (CI-verified at HEAD)
@@ -72,8 +67,7 @@ site are now **partially met** because both require Java content that is not yet
 - 23/23 Tier 1 symbols exported via napi-rs in `crates/iscc-napi/src/lib.rs`
 - `DataHasher` and `InstanceHasher` implemented as `#[napi(js_name)]` structs with constructor/
     update/finalize methods
-- **`sliding_window` updated** (this iteration): returns `napi::Result<Vec<String>>` and throws on
-    `width < 2`
+- `sliding_window` returns `napi::Result<Vec<String>>` and throws on `width < 2`
 - 66 tests: 9 in `conformance.test.mjs` + 57 in `functions.test.mjs`
 - `npm test` passes all conformance vectors (CI-verified at HEAD)
 - Structured results not returned — all gen functions return only the `.iscc` string field
@@ -84,7 +78,7 @@ site are now **partially met** because both require Java content that is not yet
 
 - 23/23 Tier 1 symbols exported via wasm-bindgen in `crates/iscc-wasm/src/lib.rs`
 - `DataHasher` and `InstanceHasher` added as `#[wasm_bindgen]` structs
-- **`sliding_window` updated** (this iteration): propagates `IsccError` as `JsError` on `width < 2`
+- `sliding_window` propagates `IsccError` as `JsError` on `width < 2`
 - 56 tests: 10 in `conformance.rs` + 46 in `unit.rs` (all run via wasm-pack test --node)
 - `wasm-pack test --node crates/iscc-wasm` passes all 56 tests (CI-verified at HEAD)
 - Structured results not returned — gen functions return only the `.iscc` string field
@@ -98,8 +92,7 @@ site are now **partially met** because both require Java content that is not yet
 - All streaming hasher types fully implemented: `FfiDataHasher` and `FfiInstanceHasher` opaque
     pointer types with complete `new/update/finalize/free` lifecycle functions
 - Finalize-once semantics enforced via `Option<Inner>` in the opaque wrapper struct
-- **`iscc_sliding_window` updated** (this iteration): propagates error via thread-local last-error
-    and returns null on `width < 2`; verified in new test `test_sliding_window_width_too_small`
+- `iscc_sliding_window` propagates error via thread-local last-error and returns null on `width < 2`
 - Infrastructure in place: `IsccByteBuffer`/`IsccByteBufferArray` `#[repr(C)]` types, cbindgen
     config, C test program (`tests/test_iscc.c`), thread-local last-error pattern
 - 62 `#[test]` Rust unit tests including 11 streaming hasher tests
@@ -109,14 +102,27 @@ site are now **partially met** because both require Java content that is not yet
 
 ## Java Bindings
 
-**Status**: not started
+**Status**: partially met (scaffold only)
 
-- Target added by Titusz (commit 9ca94f2): JNI bridge crate (`iscc-jni`), Java wrapper with
-    idiomatic API, platform-specific native libraries bundled in JAR under `META-INF/native/`,
-    loader class extracts correct native library at runtime
-- No `crates/iscc-jni/` exists; no Java source tree exists; no Maven/Gradle configuration exists
-- Devcontainer does not yet include JDK 17+ or Maven/Gradle
-- Requires JDK 17+ and Maven (or Gradle) in the devcontainer before any implementation begins
+- `crates/iscc-jni/` crate exists: `Cargo.toml` with `crate-type = ["cdylib"]`, `publish = false`,
+    `iscc-lib` and `jni = "0.21"` dependencies; `jni = "0.21"` added to workspace dependencies
+- `crates/iscc-jni` is a workspace member in root `Cargo.toml`
+- `crates/iscc-jni/src/lib.rs` (56 lines): 1 of 23 Tier 1 symbols implemented as JNI function —
+    `conformanceSelftest` (`Java_io_iscc_iscc_1lib_IsccLib_conformanceSelftest`)
+- Module docstring documents the JNI naming convention, `throw_and_default` error handling pattern
+    (as a code template, not implemented), and the recipe for adding new bindings
+- `#[unsafe(no_mangle)]` correctly used per Rust 2024 edition requirements
+- Compiles cleanly without a JDK; `cargo clippy -p iscc-jni -- -D warnings` passes
+- Missing: 22 of 23 Tier 1 JNI bridge functions (all `gen_*_v0`, text utilities, algorithm
+    primitives, streaming hasher classes, etc.)
+- Missing: `throw_and_default` helper (documented but deliberately not implemented yet)
+- Missing: Java source tree (`io.iscc.iscc_lib.IsccLib` class and idiomatic API wrapper)
+- Missing: Maven or Gradle build configuration
+- Missing: platform-specific native library bundling (`META-INF/native/`)
+- Missing: runtime native library loader class
+- Missing: devcontainer JDK 17+ and Maven/Gradle
+- Missing: Java CI job in `ci.yml`
+- Missing: Java tests
 
 ## README
 
@@ -147,7 +153,7 @@ site are now **partially met** because both require Java content that is not yet
     Development
 - All 11 pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22353146329](https://github.com/iscc/iscc-lib/actions/runs/22353146329))
+    [Run 22353719338](https://github.com/iscc/iscc-lib/actions/runs/22353719338))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button implemented: `docs/javascripts/copypage.js`
 - `scripts/gen_llms_full.py` generates `site/llms-full.txt` and per-page `.md` files
@@ -179,31 +185,30 @@ site are now **partially met** because both require Java content that is not yet
 - `ci.yml` covers all 5 existing targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js
     (napi build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test)
 - Latest CI run: **PASSING** —
-    [Run 22353146351](https://github.com/iscc/iscc-lib/actions/runs/22353146351) — all 5 jobs
+    [Run 22353719359](https://github.com/iscc/iscc-lib/actions/runs/22353719359) — all 5 jobs
     success (Rust, Python, Node.js, WASM, C FFI)
 - Latest Docs run: **PASSING** —
-    [Run 22353146329](https://github.com/iscc/iscc-lib/actions/runs/22353146329) — build + deploy
+    [Run 22353719338](https://github.com/iscc/iscc-lib/actions/runs/22353719338) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured (no publish step in CI)
 - Missing: npm publishing pipeline not fully wired
 - Missing: version sync automation across workspace not verified as release-ready
-- Missing: Java CI job (not applicable until Java bindings exist)
+- Missing: Java CI job (not applicable until Java JNI bindings have tests)
 
 ## Next Milestone
 
-CI is green. `sliding_window` robustness is fully resolved. Java bindings are the next major feature
-addition per the updated target. Before implementing, the devcontainer needs JDK 17+ and Maven (or
-Gradle). The implementation order is:
+CI is green. The `iscc-jni` scaffold is in place with 1 of 23 JNI symbols implemented. The immediate
+next goal is to implement the remaining 22 Tier 1 JNI bridge functions in
+`crates/iscc-jni/src/lib.rs`:
 
-1. **Devcontainer setup**: add JDK 17+ and Maven to `.devcontainer/Dockerfile`; update
-    `notes/02-language-bindings.md` with Java/JNI binding architecture
-2. **`crates/iscc-jni`**: JNI bridge crate using `jni` crate, exposing all 23 Tier 1 symbols as
-    Java-callable native methods
-3. **Java wrapper library**: idiomatic Java API (`IsccLib.genMetaCodeV0("title")`), native library
-    loader class, `META-INF/native/` bundling for all platforms
-4. **README + docs**: add Java installation (Maven/Gradle), quick start example, howto guide, Java
-    API reference, Java tabs in existing code examples
+1. Implement `throw_and_default` helper (once first gen binding needs it)
+2. Bind all 9 `gen_*_v0` functions (returning the `.iscc` string via JNI `jstring`)
+3. Bind 4 text utilities (`text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`)
+4. Bind 4 algorithm primitives (`sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`,
+    `alg_simhash`)
+5. Bind `soft_hash_video_v0`, `encode_base64`, `iscc_decompose`
+6. Bind `DataHasher` and `InstanceHasher` as JNI opaque-pointer types
 
-The existing [normal] allocation issues (`DataHasher::update` copies, codec `bytes_to_bits`
-intermediate allocation) are lower priority than the Java bindings milestone.
+Java wrapper classes, Maven build configuration, devcontainer JDK setup, and CI job are subsequent
+steps after JNI bridge functions are complete.
