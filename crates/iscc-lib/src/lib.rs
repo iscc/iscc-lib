@@ -582,11 +582,17 @@ fn soft_hash_codes_v0(cc_digests: &[Vec<u8>], bits: u32) -> IsccResult<Vec<u8>> 
     let mut prepared: Vec<Vec<u8>> = Vec::with_capacity(cc_digests.len());
 
     for raw in cc_digests {
-        let (mtype, _stype, _ver, _blen, body) = codec::decode_header(raw)?;
+        let (mtype, stype, _ver, blen, body) = codec::decode_header(raw)?;
         if mtype != codec::MainType::Content {
             return Err(IsccError::InvalidInput(
                 "all codes must be Content-Codes".into(),
             ));
+        }
+        let unit_bits = codec::decode_length(mtype, blen, stype);
+        if unit_bits < bits {
+            return Err(IsccError::InvalidInput(format!(
+                "Content-Code too short for {bits}-bit length (has {unit_bits} bits)"
+            )));
         }
         let mut entry = Vec::with_capacity(nbytes);
         entry.push(raw[0]); // first byte preserves type info
@@ -1309,6 +1315,51 @@ mod tests {
             gen_mixed_code_v0(&["EUA6GIKXN42IQV3S"], 64),
             Err(IsccError::InvalidInput(_))
         ));
+    }
+
+    /// Build raw Content-Code bytes (header + body) for a given bit length.
+    fn make_content_code_raw(stype: codec::SubType, bit_length: u32) -> Vec<u8> {
+        let nbytes = (bit_length / 8) as usize;
+        let body: Vec<u8> = (0..nbytes).map(|i| (i & 0xFF) as u8).collect();
+        let base32 = codec::encode_component(
+            codec::MainType::Content,
+            stype,
+            codec::Version::V0,
+            bit_length,
+            &body,
+        )
+        .unwrap();
+        codec::decode_base32(&base32).unwrap()
+    }
+
+    #[test]
+    fn test_soft_hash_codes_v0_rejects_short_code() {
+        // One code with 64 bits, one with only 32 bits — should reject when requesting 64
+        let code_64 = make_content_code_raw(codec::SubType::None, 64);
+        let code_32 = make_content_code_raw(codec::SubType::Image, 32);
+        let result = soft_hash_codes_v0(&[code_64, code_32], 64);
+        assert!(
+            matches!(&result, Err(IsccError::InvalidInput(msg)) if msg.contains("too short")),
+            "expected InvalidInput with 'too short', got {result:?}"
+        );
+    }
+
+    #[test]
+    fn test_soft_hash_codes_v0_accepts_exact_length() {
+        // Two codes with exactly 64 bits each — should succeed when requesting 64
+        let code_a = make_content_code_raw(codec::SubType::None, 64);
+        let code_b = make_content_code_raw(codec::SubType::Image, 64);
+        let result = soft_hash_codes_v0(&[code_a, code_b], 64);
+        assert!(result.is_ok(), "expected Ok, got {result:?}");
+    }
+
+    #[test]
+    fn test_soft_hash_codes_v0_accepts_longer_codes() {
+        // Two codes with 128 bits each — should succeed when requesting 64
+        let code_a = make_content_code_raw(codec::SubType::None, 128);
+        let code_b = make_content_code_raw(codec::SubType::Audio, 128);
+        let result = soft_hash_codes_v0(&[code_a, code_b], 64);
+        assert!(result.is_ok(), "expected Ok, got {result:?}");
     }
 
     #[test]
