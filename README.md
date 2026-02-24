@@ -1,125 +1,182 @@
 # iscc-lib
 
-High-performance polyglot implementation of
-[ISO 24138:2024](https://www.iso.org/standard/77899.html) — International Standard Content Code
-(ISCC).
+[![CI](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml/badge.svg)](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml)
 
-Built in Rust with bindings for Python, Node.js, WASM, and C. Compatible with the official
-[iscc-core](https://github.com/iscc/iscc-core) Python reference implementation.
+<!-- TODO: Add version badges once packages are published -->
 
-## Prerequisites
+<!-- [![Crate](https://img.shields.io/crates/v/iscc-lib.svg)](https://crates.io/crates/iscc-lib) -->
 
-- [Docker](https://docs.docker.com/get-docker/) with Dev Containers support
-- [VS Code](https://code.visualstudio.com/) with the
-    [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers),
-    or any Dev Containers-compatible IDE
-- A GitHub personal access token (`GH_TOKEN`) for repo operations
-- Claude Code credentials (`~/.claude/.credentials.json`)
+<!-- [![PyPI](https://img.shields.io/pypi/v/iscc-lib.svg)](https://pypi.org/project/iscc-lib/) -->
 
-## Bootstrap
+<!-- [![npm](https://img.shields.io/npm/v/@iscc/lib.svg)](https://www.npmjs.com/package/@iscc/lib) -->
 
-### 1. Set environment variables on your host
+**High-performance polyglot implementation of
+[ISO 24138:2024](https://www.iso.org/standard/77899.html) --- International Standard Content Code
+(ISCC)**
 
-```bash
-export GH_TOKEN="ghp_your_token_here"
-```
+## Key Features
 
-### 2. Open in Dev Container
+- **Similarity-Preserving**: Detect similar content even after modifications
+- **Multi-Level Identification**: Identify content at metadata, semantic, perceptual, and data
+    levels
+- **Self-Describing**: Each component contains its own type and version information
+- **ISO Standardized**: Implements the official ISO 24138:2024 specification
+- **Polyglot**: Rust core with bindings for Python, Node.js, WASM, and C FFI
+- **Conformance-Tested**: Validated against the official
+    [iscc-core](https://github.com/iscc/iscc-core) reference implementation
 
-Open the repository in VS Code and select **Reopen in Container** (or use the Dev Containers CLI).
-The container provides all development tools pre-installed:
+## What is the ISCC
 
-| Tool             | Purpose                       |
-| ---------------- | ----------------------------- |
-| Rust (stable)    | Core library                  |
-| Python 3.12 + uv | Python bindings, dev tools    |
-| Node.js 20       | Node.js bindings, Claude Code |
-| mise             | Tool versions + task runner   |
-| Claude Code      | AI agent loop                 |
-| gh               | GitHub CLI                    |
+The ISCC is a similarity-preserving fingerprint and identifier for digital media assets.
 
-The `postCreateCommand` runs automatically on container creation: trusts the mise config, installs
-Python dev dependencies (`uv sync`), and sets up pre-commit hooks. Git identity is mounted read-only
-from the host `~/.gitconfig`.
+ISCCs are generated algorithmically from digital content, just like cryptographic hashes. However,
+instead of using a single cryptographic hash function to identify data only, the ISCC uses various
+algorithms to create a composite identifier that exhibits similarity-preserving properties (soft
+hash).
 
-**Note:** If git identity is not inherited from the host mount, configure it manually:
+The component-based structure of the ISCC identifies content at multiple levels of abstraction. Each
+component is self-describing, modular, and can be used separately or with others to aid in various
+content identification tasks. The algorithmic design supports content deduplication, database
+synchronization, indexing, integrity verification, timestamping, versioning, data provenance,
+similarity clustering, anomaly detection, usage tracking, allocation of royalties, fact-checking,
+and general digital asset management use-cases.
 
-```bash
-git config user.name "Your Name"
-git config user.email "your@email.com"
-```
+## What is iscc-lib
 
-## Running the CID Loop
+`iscc-lib` is a high-performance polyglot implementation of the ISCC core algorithms as defined by
+[ISO 24138](https://www.iso.org/standard/77899.html). Built in Rust with bindings for Python,
+Node.js, WebAssembly, and C, it serves developers across multiple ecosystems who need fast, reliable
+content identification.
 
-This project uses **Continuous Iterative Development (CID)** — an autonomous agent loop that
-advances the codebase in small, verified increments. Four specialized agents cycle through:
+`iscc-lib` is conformance-tested against the official Python reference implementation
+[iscc-core](https://github.com/iscc/iscc-core) and produces identical results for all test vectors.
 
-```
-update-state → define-next → advance → review (+ push on PASS)
-```
+> **Note:** This is a low-level codec and algorithm library. It does not include features like
+> media-type detection, metadata extraction, or file-format-specific content extraction. For
+> higher-level features, see [iscc-sdk](https://github.com/iscc/iscc-sdk) which builds on top of the
+> core algorithms.
 
-| Agent          | Role                                           |
-| -------------- | ---------------------------------------------- |
-| `update-state` | Assess where the project stands                |
-| `define-next`  | Scope one small, verifiable work package       |
-| `advance`      | Implement the work package with tests          |
-| `review`       | Verify quality, update learnings, push on PASS |
+## ISCC Architecture
 
-The CID orchestrator (`tools/cid.py`) streams agent progress to the terminal in real-time — you'll
-see tool calls, text output, turn counts, and cost per agent.
+![ISCC Architecture](https://raw.githubusercontent.com/iscc/iscc-core/master/docs/images/iscc-codec-light.png)
 
-### Run the autonomous loop
+## ISCC MainTypes
 
-```bash
-mise run cid:run        # Run up to 20 iterations (stops on DONE or failure)
-mise run cid:run 5      # Run up to 5 iterations
-```
+| Idx | Slug     | Bits | Purpose                                                |
+| --- | :------- | ---- | ------------------------------------------------------ |
+| 0   | META     | 0000 | Match on metadata similarity                           |
+| 1   | SEMANTIC | 0001 | Match on semantic content similarity                   |
+| 2   | CONTENT  | 0010 | Match on perceptual content similarity                 |
+| 3   | DATA     | 0011 | Match on data similarity                               |
+| 4   | INSTANCE | 0100 | Match on data identity                                 |
+| 5   | ISCC     | 0101 | Composite of two or more components with common header |
 
-### Run one full iteration
+## Installation
 
-```bash
-mise run cid:step
-```
+Packages are not yet published. The install commands below will work once the initial release is
+available.
 
-### Run individual agents
+### Rust
 
 ```bash
-mise run cid:status    # Show current project state (no agent invocation)
-mise run cid:state     # Run update-state agent
-mise run cid:next      # Run define-next agent
-mise run cid:advance   # Run advance agent
-mise run cid:review    # Run review agent (pushes on PASS)
+cargo add iscc-lib
 ```
 
-## Quality Gates
-
-Two-stage git hook setup via [prek](https://github.com/feltroidprime/prek):
-
-**Pre-commit** (fast, auto-fix on every commit): file hygiene, `cargo fmt`, `ruff check --fix`,
-`ruff format`, `taplo fmt`, `yamlfix`, `mdformat`
-
-**Pre-push** (thorough, run before code leaves the machine): `cargo clippy`, `cargo test`,
-`ty check`, Ruff security scan, Ruff complexity check, `pytest` with 100% coverage enforcement
-
-### Manual quality checks
+### Python
 
 ```bash
-mise run check          # Run all pre-commit hooks
-mise run lint           # Format checks + clippy + ruff
-mise run format         # Apply all formatting
-mise run test           # Run all tests (Rust + Python)
+pip install iscc-lib
 ```
 
-## Project Structure
+### Node.js
+
+```bash
+npm install @iscc/lib
+```
+
+### WASM
+
+```bash
+npm install @iscc/wasm
+```
+
+## Quick Start
+
+### Rust
+
+```rust
+use iscc_lib::gen_meta_code_v0;
+
+let result = gen_meta_code_v0("ISCC Test Document!", None, None, 64).unwrap();
+println!("Meta-Code: {}", result.iscc);
+```
+
+### Python
+
+```python
+import iscc_lib as ic
+
+result = ic.gen_meta_code_v0("ISCC Test Document!")
+print(f"Meta-Code: {result['iscc']}")
+```
+
+### Node.js
+
+```javascript
+const ic = require("@iscc/lib");
+
+const result = ic.gen_meta_code_v0("ISCC Test Document!");
+console.log(`Meta-Code: ${result.iscc}`);
+```
+
+### WASM
+
+```javascript
+import {
+    gen_meta_code_v0
+} from "@iscc/wasm";
+
+const result = gen_meta_code_v0("ISCC Test Document!");
+console.log(`Meta-Code: ${result.iscc}`);
+```
+
+## Implementors Guide
+
+To build a conformant ISCC implementation, work through the following top-level entry-point
+functions:
 
 ```
-.claude/
-  agents/               # CID agent definitions
-  context/              # CID state files (state.md, target.md, next.md, handoff.md, learnings.md)
-.devcontainer/          # Dev container config
-notes/                  # Architecture documents (00-09)
+gen_meta_code_v0
+gen_text_code_v0
+gen_image_code_v0
+gen_audio_code_v0
+gen_video_code_v0
+gen_mixed_code_v0
+gen_data_code_v0
+gen_instance_code_v0
+gen_iscc_code_v0
 ```
+
+The corresponding conformance test vectors can be found in
+[`iscc_core/data.json`](https://github.com/iscc/iscc-core/blob/master/iscc_core/data.json).
+
+For detailed per-language API guides, see the [documentation site](https://lib.iscc.codes).
+
+## Documentation
+
+Documentation is published at <https://lib.iscc.codes>
+
+## Contributing
+
+Pull requests are welcome. For significant changes, please open an issue first to discuss your
+plans. Please make sure to update tests as appropriate.
+
+You may also want to join our developer chat on Telegram at <https://t.me/iscc_dev>.
 
 ## License
 
-TBD
+Apache-2.0
+
+## Maintainers
+
+[@titusz](https://github.com/titusz)

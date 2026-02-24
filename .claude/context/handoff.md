@@ -1,33 +1,36 @@
-## 2026-02-24 — Review of: Create Development documentation page
+## 2026-02-24 — Rewrite README as public-facing polyglot introduction
 
-**Verdict:** PASS
+**Done:** Replaced the development-workflow README with a public-facing polyglot developer
+introduction following the iscc-core README structure. The new README includes CI badge, tagline,
+key features, ISCC explanation, architecture diagram, MainTypes table, per-language installation
+instructions, per-language quick start examples, implementors guide with all 9 `gen_*_v0` entry
+points, documentation link, contributing section, Apache-2.0 license, and maintainer credit.
 
-**Summary:** Clean, well-structured Development documentation page covering all 5 required sections.
-Content is adapted from the README (not copy-pasted), uses admonitions and tables appropriately, and
-includes the expanded project structure tree and comprehensive mise task tables. One minor fix
-applied: added missing `release.yml` to the workflows tree.
+**Files changed:**
+
+- `README.md`: Complete rewrite — replaced dev container/CID workflow content with public-facing
+    polyglot introduction modeled after iscc-core README
 
 **Verification:**
 
-- [x] `uv run zensical build` exits 0 — site builds with `/development/` page in output
-- [x] `docs/development.md` exists with sections for dev container, CID workflow, quality gates,
-    project structure, mise tasks — all 5 H2 sections present
-- [x] `zensical.toml` nav includes Development entry — `grep -c "Development" zensical.toml` returns
-    1
-- [x] `grep -c "## " docs/development.md` returns 5 (meets ≥5 threshold)
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` clean (no Rust changes)
-- [x] `mise run check` passes — all 14 pre-commit hooks green
-- [x] No quality gate circumvention — no lint suppressions, no test skipping, no threshold changes
+- `wc -l README.md` = 183 lines (>= 80 threshold) — PASS
+- All 9 `gen_*_v0` entry points listed (grep count: 15, >= 9) — PASS
+- `lib.iscc.codes` documentation link present (count: 2) — PASS
+- Multi-language install instructions present (cargo add, pip install, npm install; count: 4) — PASS
+- Apache-2.0 license declared (count: 1) — PASS
+- @titusz maintainer credited (count: 1) — PASS
+- Zero dev workflow terms (Dev Container, CID Loop, pre-commit, Quality Gates, mise run; count: 0) —
+    PASS
+- ISCC Architecture section present (count: 2) — PASS
+- MainTypes table present (count: 1) — PASS
+- `mise run check` passes — all 14 pre-commit hooks green
 
-**Issues found:**
+**Next:** All documentation-related target items (docs site, development page, README) are now
+complete. The next step should address one of the tracked issues in issues.md (e.g., the
+`alg_simhash` panic on mismatched digest sizes, or the `sliding_window` panic on `width < 2`), or
+continue with any remaining target gaps identified by update-state.
 
-- (none — minor tree completeness fix applied directly)
-
-**Next:** The Development page is in place, which unblocks the README rewrite. The next step should
-rewrite `README.md` to be a concise project introduction that links to the docs site for development
-workflow details, as specified in the documentation spec (`.claude/context/specs/documentation.md`).
-
-**Notes:** Factual claims verified: tool versions (Python 3.12, Node.js 20), `tools/cid.py` exists,
-prek link matches README source. The `release.yml` workflow was missing from the project structure
-tree and was added during review. Content quality is high — polished documentation suitable for
-contributors.
+**Notes:** mdformat reformatted the WASM import example to multi-line
+(`import { gen_meta_code_v0 } from "@iscc/wasm"` became multi-line with the import on its own line).
+This is valid JavaScript and renders correctly on GitHub. The HTML comments for future version
+badges are preserved by mdformat with blank lines between them — slightly verbose but harmless.
