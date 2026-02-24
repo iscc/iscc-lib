@@ -8,13 +8,16 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Pre-push hooks (clippy, cargo test, pytest, etc.) are not run by `mise run check` — verify clippy
     separately with `cargo clippy --workspace --all-targets -- -D warnings`
 - Java tests are NOT part of `mise run check` or pre-push hooks — must run `mvn test` explicitly
-- The advance commit is at HEAD (not HEAD~1) when iterating — use `git diff HEAD~1..HEAD` for the
+- The advance commit is at HEAD (not HEAD~1) when review runs — use `git diff HEAD~1..HEAD` for the
     advance diff, not `HEAD~2..HEAD~1` (that's the define-next diff)
 
 ## Common Issues
 
 - Unused imports in Java code (e.g., `JsonNull` imported but only `isJsonNull()` method on
     `JsonElement` is used) — quick fix, remove the import
+- Verification criteria in next.md that use generic `grep` patterns may false-positive on the
+    replacement code — always verify grep criteria match the actual problematic pattern, not just a
+    substring
 
 ## Review Shortcuts
 
@@ -24,6 +27,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Clippy workspace check is fast (~2s) after initial build — always run it
 - Documentation-only changes (READMEs, markdown): `mise run check` + clippy is sufficient — no need
     to run full test suites since no code was modified
+- Python-only changes: `mise run check` + `pytest` is sufficient; skip `cargo test` and `mvn test`
+    unless Rust/Java code was also modified
+- Full test suite (157 tests) runs in \<1s — always run it for Python changes
 
 ## Gotchas
 

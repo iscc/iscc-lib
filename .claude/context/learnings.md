@@ -203,6 +203,10 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     structured `[x]`/`[ ]` verification grid. Verification criteria should be boolean-testable
     (runnable commands) whenever possible. Review agent commits `iterations.jsonl` alongside other
     context files
+- CID workflow: verification `grep` criteria must match the specific problematic pattern, not a
+    generic substring that also matches the replacement code. E.g., `grep 'data = data\.read()'` to
+    detect unbounded reads, not `grep 'isinstance(data, bytes)'` which also matches the new inner
+    bytearray→bytes conversion
 - napi-rs build artifacts (`index.js`, `index.d.ts`, `*.node`, `node_modules/`) belong in the crate
     directory (napi-rs convention) — gitignore them via `crates/iscc-napi/.gitignore`, don't
     redirect `--output-dir` since it breaks CI artifact paths and `napi prepublish`

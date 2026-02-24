@@ -195,3 +195,8 @@
 {"ts":"2026-02-24T19:52:55.944156+00:00","iteration":6,"role":"update-state","status":"OK","turns":19,"cost_usd":0.652451,"duration_s":200.8}
 {"ts":"2026-02-24T19:55:25.137564+00:00","iteration":6,"role":"define-next","status":"OK","turns":19,"cost_usd":0.999588,"duration_s":149.2}
 {"ts":"2026-02-24T20:00:02.100434+00:00","iteration":6,"role":"advance","status":"OK","turns":45,"cost_usd":1.90374,"duration_s":277.0}
+{"ts":"2026-02-24T20:02:45.040146+00:00","iteration":6,"role":"review","status":"OK","turns":25,"cost_usd":0.800681,"duration_s":162.9}
+{"ts":"2026-02-24T20:08:50.354304+00:00","iteration":1,"role":"update-state","status":"OK","turns":19,"cost_usd":0.710993,"duration_s":244.9}
+{"ts":"2026-02-24T20:12:03.122986+00:00","iteration":1,"role":"define-next","status":"OK","turns":20,"cost_usd":1.019545,"duration_s":192.8}
+{"ts":"2026-02-24T20:17:30.141036+00:00","iteration":1,"role":"advance","status":"OK","turns":39,"cost_usd":1.643949,"duration_s":327.0}
+{"iteration":1,"timestamp":"2026-02-24T20:20:00Z","step":"Fix Python bytes-like input handling and chunked streaming","verdict":"PASS","summary":"All 4 call sites fixed for bytearray/memoryview support and chunked streaming. 10 new tests. 157 tests pass. Two issues resolved and deleted from issues.md."}

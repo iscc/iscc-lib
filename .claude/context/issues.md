@@ -171,36 +171,6 @@ per iteration.
 
 **Source:** [human]
 
-## [normal] iscc-py: Bytes-like inputs misclassified as streams
-
-In `crates/iscc-py/python/iscc_lib/__init__.py`, the functions `gen_data_code_v0` (line 149),
-`gen_instance_code_v0` (line 156), `DataHasher.update` (line 184), and `InstanceHasher.update` (line
-208\) use `isinstance(data, bytes)` to distinguish binary data from file-like streams.
-
-This breaks for `bytearray`, `memoryview`, and other bytes-like types — they are not `bytes`
-instances, so they fall through to the stream path and trigger `AttributeError` when `.read()` is
-called.
-
-Fix: use `hasattr(data, "read")` to detect streams instead of `not isinstance(data, bytes)`.
-
-**Source:** [human]
-
-## [normal] iscc-py: Unbounded `.read()` on file-like inputs defeats streaming
-
-In `crates/iscc-py/python/iscc_lib/__init__.py`, the wrapper functions `gen_data_code_v0` (line
-150), `gen_instance_code_v0` (line 157), `DataHasher.update` (line 185), and `InstanceHasher.update`
-(line 209) call `.read()` without a size limit on file-like inputs, reading the entire stream into
-memory at once.
-
-This defeats the purpose of having streaming `DataHasher`/`InstanceHasher` APIs and risks memory
-exhaustion on large files. The Python reference (`iscc-core`) processes streams incrementally.
-
-Fix: read in chunks and feed the Rust streaming hashers via `_DataHasher.update()` /
-`_InstanceHasher.update()`. After fixing, benchmark `gen_data_code_v0` with large file inputs to
-verify streaming performance.
-
-**Source:** [human]
-
 ## [normal] iscc-napi: Version skew between package.json and generated index.js
 
 In `crates/iscc-napi/package.json` the version is `0.0.1`, but `crates/iscc-napi/index.js`
