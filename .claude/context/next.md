@@ -1,94 +1,106 @@
 # Next Work Package
 
-## Step: Harden `alg_simhash` — return `IsccResult` on mismatched digest sizes
+## Step: Harden `sliding_window` — return `IsccResult` on `width < 2`
 
 ## Goal
 
-Change `alg_simhash` from panicking on mismatched digest lengths to returning `IsccResult<Vec<u8>>`.
-This fixes a [normal] public API robustness issue where Tier 1 callers (including all language
-bindings) can trigger an index-out-of-bounds panic with adversarial input.
+Change `sliding_window` from panicking on `width < 2` to returning `IsccResult<Vec<String>>`. This
+fixes the remaining [normal] public API robustness issue where a Tier 1 function bound to all
+languages can panic (DoS vector) on invalid input.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-lib/src/simhash.rs` — rename existing impl to `pub(crate) fn alg_simhash_inner`,
-        add new validated `pub fn alg_simhash` returning `IsccResult<Vec<u8>>`
-    - `crates/iscc-lib/src/lib.rs` — update 7 internal call sites from `simhash::alg_simhash` to
-        `simhash::alg_simhash_inner` (avoids cascading return-type changes to internal helpers)
-    - `crates/iscc-py/src/lib.rs` — handle `Result` from `iscc_lib::alg_simhash` (1-line change)
-    - `crates/iscc-napi/src/lib.rs` — handle `Result` (1-line change)
-    - `crates/iscc-wasm/src/lib.rs` — handle `Result` (1-line change)
-    - `crates/iscc-ffi/src/lib.rs` — handle `Result` via existing error-setting pattern (1-2 lines)
+    - `crates/iscc-lib/src/simhash.rs` — change `pub fn sliding_window` to return
+        `IsccResult<Vec<String>>` with validation; convert `assert!` to `debug_assert!` in
+        `pub(crate) fn sliding_window_strs` and `pub(crate) fn sliding_window_bytes`
+    - `crates/iscc-py/src/lib.rs` — replace pre-validation with `map_err(PyValueError)` on the
+        `Result` (1-2 line change)
+    - `crates/iscc-napi/src/lib.rs` — replace pre-validation with `map_err` to `napi::Error` (1-2 line
+        change)
+    - `crates/iscc-wasm/src/lib.rs` — replace pre-validation with `map_err` to `JsError` (1-2 line
+        change)
+    - `crates/iscc-ffi/src/lib.rs` — replace pre-validation with `match` on the `Result` +
+        `set_last_error` on `Err` (2-3 line change)
 - **Reference**:
-    - `crates/iscc-lib/src/simhash.rs` (current implementation, lines 8-45)
-    - `crates/iscc-lib/src/lib.rs` (call sites at lines 67, 86, 110, 475, 483, 496, 605)
-    - `.claude/context/issues.md` (issue description)
+    - `crates/iscc-lib/src/simhash.rs` lines 69-130 (current `sliding_window`, `sliding_window_strs`,
+        `sliding_window_bytes`)
+    - Previous `alg_simhash` hardening commit `5adcc5c` (same pattern)
+    - `.claude/context/issues.md` — issue: "`sliding_window` panics on `width < 2` via `assert!`"
+    - `.claude/context/learnings.md` — "API hardening pattern" entry
 
 ## Not In Scope
 
-- Fixing `sliding_window` panic — that's a separate issue with its own return-type change; tackle in
-    a follow-up step
-- Changing return types of internal helper functions (`meta_name_simhash`, `soft_hash_meta_v0`,
-    `soft_hash_text_v0`, `soft_hash_audio_v0`) — the `_inner` split avoids this cascade
-- Updating documentation pages or README
-- Performance optimizations to `alg_simhash` itself (e.g., SIMD bit counting)
-- Updating the `.pyi` type stub for the Python binding — keep return type as `list[int]` for now;
-    the PyO3 `map_err` wrapper handles the `Result` transparently
+- Creating a `sliding_window_inner` function — unlike `alg_simhash`, no internal code calls the
+    public `sliding_window`; internal callers use `sliding_window_strs` / `sliding_window_bytes`
+    which are already `pub(crate)` and always called with hardcoded valid widths (3, 4, 13)
+- Changing return types of `sliding_window_strs` or `sliding_window_bytes` to `IsccResult` — they
+    are `pub(crate)` with trusted callers; `debug_assert!` is sufficient
+- Updating `_lowlevel.pyi` — the stub already declares `-> list[str]` and `PyResult` is transparent
+    (raises ValueError on error, which is already the behavior callers test for)
+- Fixing other issues in issues.md (`alg_dct`, `alg_wtahash`, codec header parsing, DataHasher
+    allocation)
+- Performance optimizations or documentation changes
 
 ## Implementation Notes
 
-**Core pattern — validated public + unchecked internal:**
+**Core change in `simhash.rs`:**
 
-1. In `simhash.rs`, extract the current `alg_simhash` body into `pub(crate) fn alg_simhash_inner`
-    with the same signature (`-> Vec<u8>`). Internal callers always pass equal-length digests
-    (blake3 32-byte or audio 4-byte), so no validation needed.
+1. Change `pub fn sliding_window(seq: &str, width: usize) -> Vec<String>` to return
+    `IsccResult<Vec<String>>`:
 
-2. Add a new `pub fn alg_simhash` that:
+    - Replace `assert!(width >= 2, ...)` with:
+        `if width < 2 { return Err(IsccError::InvalidInput("...".into())); }`
+    - Wrap the existing return value in `Ok(...)`
+    - Error message: `"Sliding window width must be 2 or bigger."`
 
-    - Keeps the same generic signature: `(hash_digests: &[impl AsRef<[u8]>]) -> IsccResult<Vec<u8>>`
-    - Validates: if `hash_digests` has 2+ elements, check all digest lengths equal the first's
-        length. On mismatch, return `Err(IsccError::ValueError("..."))` with a message like "All hash
-        digests must have equal length"
-    - Delegates to `alg_simhash_inner` for the computation
-    - Returns `Ok(result)`
+2. In `sliding_window_strs` and `sliding_window_bytes`: replace `assert!(width >= 2, ...)` with
+    `debug_assert!(width >= 2, ...)`. These are `pub(crate)` functions called only with hardcoded
+    widths (3, 4, 13) — debug asserts catch programming errors during development while eliminating
+    panic risk in release builds.
 
-3. In `lib.rs`, change the re-export line (`pub use simhash::alg_simhash;`) — this stays the same
-    since the public function name is unchanged. Update 7 internal call sites from
-    `simhash::alg_simhash(...)` to `simhash::alg_simhash_inner(...)`.
+**Binding updates (all mechanical — remove pre-validation, use `map_err`):**
 
-**Binding updates (all mechanical):**
+- **Python** (`iscc-py/src/lib.rs`): Remove the `if width < 2` block. Change the call to:
+    `iscc_lib::sliding_window(seq, width).map_err(|e| PyValueError::new_err(e.to_string()))?` Return
+    `Ok(result)`.
 
-- **Python** (`iscc-py`): change `iscc_lib::alg_simhash(&hash_digests)` to
-    `iscc_lib::alg_simhash(&hash_digests).map_err(|e| PyValueError::new_err(e.to_string()))?`
-    (function already returns `PyResult` or needs to)
-- **Node.js** (`iscc-napi`): change to
-    `iscc_lib::alg_simhash(&hash_digests).map_err(|e| napi::Error::from_reason(e.to_string()))?.into()`
-    and update return type to `napi::Result<Buffer>`
-- **WASM** (`iscc-wasm`): change `Ok(iscc_lib::alg_simhash(&digests))` to
-    `Ok(iscc_lib::alg_simhash(&digests).map_err(|e| JsError::new(&e.to_string()))?)` (already
-    returns `Result`)
-- **C FFI** (`iscc-ffi`): wrap with existing `set_last_error` + return null buffer on error pattern
+- **Node.js** (`iscc-napi/src/lib.rs`): Remove the `if width < 2` block. Change the call to:
+    `iscc_lib::sliding_window(&seq, width as usize).map_err(|e| napi::Error::from_reason(e.to_string()))?`
 
-**Tests to add/update:**
+- **WASM** (`iscc-wasm/src/lib.rs`): Remove the `if width < 2` block. Change the call to:
+    `iscc_lib::sliding_window(seq, width as usize).map_err(|e| JsError::new(&e.to_string()))?`
 
-- In `simhash.rs` inline tests: add a test that `alg_simhash` with mismatched-length digests returns
-    `Err` (not panic). Keep existing tests but update to unwrap the `Ok(...)`.
-- In `crates/iscc-lib/tests/test_algorithm_primitives.rs`: add an integration test for the error
-    case.
-- Existing conformance tests should continue passing unchanged (they always use valid inputs).
+- **C FFI** (`iscc-ffi/src/lib.rs`): Remove the `if width < 2` block. Use `match` on the result:
+    `Ok(v) => vec_to_c_string_array(v)`,
+    `Err(e) => { set_last_error(&e.to_string()); ptr::null_mut() }`
+
+**Test updates:**
+
+- In `simhash.rs` unit tests: existing `#[should_panic]` test for `sliding_window("test", 1)` must
+    change to assert `is_err()` instead. Similarly for `sliding_window_strs` and
+    `sliding_window_bytes` panic tests — convert to `#[cfg(debug_assertions)]` `#[should_panic]`
+    tests.
+- In `test_algorithm_primitives.rs`: all `iscc_lib::sliding_window(...)` calls now return `Result` —
+    add `.unwrap()` to happy-path calls. Add a new test verifying
+    `sliding_window("test", 1).is_err()`.
+- Binding tests: existing error-case tests (`test_sliding_window_width_too_small` in Python,
+    `test_sliding_window_width_too_small` in FFI, etc.) should continue to pass unchanged since the
+    error behavior is preserved.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all 205+ existing tests + new error-case tests)
+- `cargo test -p iscc-lib` passes (all existing tests + updated/new error-case tests)
 - `cargo clippy --workspace --all-targets -- -D warnings` clean
 - `cargo test --workspace` passes (all crates compile and tests pass)
-- `pytest` passes all Python tests
-- `npm test --prefix crates/iscc-napi` passes all Node.js tests
-- Calling `alg_simhash` with `vec![vec![1u8, 2], vec![1u8, 2, 3]]` returns `Err` (not panic)
+- `pytest` passes (all Python tests including `test_sliding_window_width_too_small`)
+- `npm test --prefix crates/iscc-napi` passes (all Node.js tests)
+- `iscc_lib::sliding_window("test", 1)` returns `Err(IsccError::InvalidInput(_))` (not panic)
+- `iscc_lib::sliding_window("hello", 3)` returns `Ok(vec!["hel", "ell", "llo"])`
 
 ## Done When
 
-All verification criteria pass: `alg_simhash` returns `IsccResult` with proper validation, all
-existing tests still pass across the workspace, and a new test confirms mismatched digests produce
-an error instead of a panic.
+All verification criteria pass — `sliding_window` returns `IsccResult` instead of panicking, all
+four binding crates propagate the error through their native error conventions, and existing tests
+(including error-case tests) continue to pass.
