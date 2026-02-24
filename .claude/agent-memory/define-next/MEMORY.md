@@ -13,6 +13,14 @@ iterations.
     swap language-specific setup action and build/test commands.
 - After CI job: the next logical Java steps are native library loader (for JAR distribution), then
     README/docs updates. Go bindings are a separate track that can start in parallel.
+- Per-crate READMEs: batch into groups of 3 to stay within scope limits. Batch 1 = iscc-lib,
+    iscc-py, iscc-napi (primary publishable crates). Batch 2 = iscc-wasm, iscc-ffi, iscc-jni
+    (secondary). Batch 3 = packages/go (after Go bindings exist).
+- README files are "create" operations (greenfield), not "modify" — they're less risky than code
+    changes. Manifest updates are trivial one-liners. Combined, 3 creates + 2 modifies is a
+    reasonable single step for documentation work.
+- Normal performance issues (codec Vec<bool>, DataHasher copying) should wait until feature work is
+    done. They don't block publishing or new bindings.
 
 ## Architecture Decisions
 
@@ -22,6 +30,17 @@ iterations.
     This means `cargo build -p iscc-jni` must run before `mvn test`.
 - Gson chosen as JSON parsing library for Java tests — handles nested arrays (`int[][]` for video
     frame sigs) cleanly and is a well-known, lightweight test dependency.
+
+## Registry README Patterns
+
+- napi-rs `gen_*_v0` functions return `String` (not structured objects) — Node.js quick start
+    examples must show string return, not `result.iscc` pattern.
+- Python bindings return `dict` (via PyO3 `PyDict`) — quick start uses `result['iscc']`.
+- Rust core returns typed `*CodeResult` structs with `.iscc` field.
+- `crates/iscc-lib/Cargo.toml` currently has `readme = "../../README.md"` — must change to
+    `"README.md"` when per-crate README is created.
+- `crates/iscc-py/pyproject.toml` has no `readme` field — needs `readme = "README.md"` added.
+- npm auto-detects `README.md` in the package directory — no `package.json` change needed.
 
 ## CI Workflow Patterns
 
@@ -53,3 +72,4 @@ iterations.
     because the JNI bridge handles the conversion correctly.
 - Maven's working directory is the pom.xml parent directory, not the workspace root. All relative
     paths in Java tests must be calculated from `crates/iscc-jni/java/`.
+- ISCC Foundation URL is `https://iscc.io` — not iscc.foundation or other variants.
