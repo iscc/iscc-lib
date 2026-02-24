@@ -1,33 +1,32 @@
-## 2026-02-24 — Review of: Fix `gen_meta_code_v0` empty Data-URL payload routing
+## 2026-02-24 — Create Development documentation page
 
-**Verdict:** PASS
+**Done:** Created `docs/development.md` — a single consolidated Development page for contributors
+covering dev container setup, CID autonomous workflow, quality gates, project structure, and mise
+task runner. Added "Development" nav entry in `zensical.toml` after Benchmarks.
 
-**Summary:** Clean, minimal two-part fix that corrects empty Data-URL payload routing in
-`gen_meta_code_v0`. Change 1 stops discarding empty decoded payloads as `None`, Change 2 adds an
-empty-bytes early return in `soft_hash_meta_v0_with_bytes`. Both changes precisely match the Python
-reference (`code_meta.py` lines 62 and 142). Two well-structured unit tests with docstrings verify
-the new behavior.
+**Files changed:**
+
+- `docs/development.md`: New file with 5 major sections (Dev Container Setup, CID Autonomous
+    Workflow, Quality Gates, Project Structure, Mise Task Runner) adapted from README content and
+    polished for the docs site audience. Uses admonitions for tips, tables for tool/task reference,
+    and tree diagram for project structure.
+- `zensical.toml`: Added `{ "Development" = "development.md" }` to the nav array after Benchmarks.
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` passes — 198 unit + 28 algo + 22 text = 248 total, 0 failures
-- [x] `cargo clippy -p iscc-lib -- -D warnings` clean — no warnings
-- [x] `cargo test -p iscc-lib -- test_gen_meta_code_empty_data_url` passes (new test)
-- [x] `cargo test -p iscc-lib -- test_soft_hash_meta_v0_with_bytes_empty` passes (new test)
-- [x] `mise run check` passes — all 14 pre-commit hooks green
-- [x] No quality gate circumvention — no lint suppressions, no test skipping, no threshold changes
+- `uv run zensical build` exits 0 — site builds with `/development/` page in output
+- `grep -c "Development" zensical.toml` returns 1
+- `grep -c "## " docs/development.md` returns 19 (well above the ≥5 threshold)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean (no Rust changes)
+- `mise run check` passes — all 14 pre-commit hooks green
 
-**Issues found:**
+**Next:** The Development page is in place, which unblocks the README rewrite. The next step should
+rewrite `README.md` to be a concise project introduction that links to the docs site for development
+workflow details, as specified in the documentation spec.
 
-- (none)
-
-**Next:** The empty Data-URL issue is resolved and deleted from issues.md. The next highest-impact
-work should target one of the remaining normal-priority robustness issues: `alg_simhash` panic on
-mismatched digest sizes or `sliding_window` panic on width < 2. Both are straightforward defensive
-fixes similar in scope to this iteration. Alternatively, the performance issues (`sliding_window`
-allocation, codec `bytes_to_bits`, `DataHasher::update` copies) could be tackled.
-
-**Notes:** The empty Data-URL edge case has no conformance test vector in `data.json`, so the two
-new unit tests are the only coverage. The `rustfmt` auto-formatter collapsed the multi-line match
-arm into a single line, which is appropriate. All 16 existing Meta-Code conformance tests remain
-passing.
+**Notes:** Content was adapted from README sections, not copy-pasted. The project structure tree was
+expanded to include all 5 crates, `docs/`, `benchmarks/`, `reference/`, and `.github/workflows/`
+directories with brief descriptions. The CID context files table was added to the CID section since
+it is contributor-relevant information not present in the README. The `cid:orchestrate` and
+`cid:stats` tasks were included in the Mise Tasks table since they exist in `mise.toml` but were not
+mentioned in the README.
