@@ -6,11 +6,13 @@ iterations.
 ## Scope Calibration
 
 - Java bindings follow the established multi-step pattern: JNI bridge → wrapper class → tests → CI
-    job → docs. Each step is independently verifiable. The review agent confirmed this progression
-    works well (two PASS verdicts for JNI bridge and Java wrapper).
-- Conformance tests are the highest-value Java step because they validate the entire JNI bridge
-    end-to-end before adding CI or docs. This matches the pattern used for all other bindings
-    (Python, Node.js, WASM all had conformance tests as the first validation step).
+    job → loader → docs. Each step is independently verifiable. The review agent confirmed this
+    progression works well (three PASS verdicts so far).
+- CI job additions are small, single-file changes that provide high value (makes existing local
+    tests CI-verified). Good candidate for quick iterations. Pattern: copy existing job structure,
+    swap language-specific setup action and build/test commands.
+- After CI job: the next logical Java steps are native library loader (for JAR distribution), then
+    README/docs updates. Go bindings are a separate track that can start in parallel.
 
 ## Architecture Decisions
 
@@ -20,6 +22,16 @@ iterations.
     This means `cargo build -p iscc-jni` must run before `mvn test`.
 - Gson chosen as JSON parsing library for Java tests — handles nested arrays (`int[][]` for video
     frame sigs) cleanly and is a well-known, lightweight test dependency.
+
+## CI Workflow Patterns
+
+- All CI jobs share a common preamble: `actions/checkout@v4` → `dtolnay/rust-toolchain@stable` →
+    `Swatinem/rust-cache@v2`, then language-specific setup and build/test steps.
+- Language-specific setup actions: `actions/setup-python@v5`, `actions/setup-node@v4`,
+    `actions/setup-java@v4` (with `distribution: 'temurin'`).
+- Never use `mise` in CI — call tools directly per learnings.
+- Maven Surefire's `${project.basedir}` resolves to the pom.xml directory, so
+    `${project.basedir}/../../../target/debug` reaches the workspace root's build output.
 
 ## Recurring Patterns
 
