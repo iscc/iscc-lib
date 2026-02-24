@@ -48,6 +48,8 @@ Content follows the Diátaxis framework with clear categories in navigation:
 - **Explanation**: architecture (hub-and-spoke model, internal modules, streaming pattern)
 - **Reference**: Python API (mkdocstrings autodoc), Rust API, C FFI reference
 - **Benchmarks**: performance comparisons
+- **Development**: contributor-facing content (dev container setup, CID autonomous workflow, quality
+    gates and pre-commit hooks, project structure, mise task runner)
 
 ## Per-Language Code Examples
 

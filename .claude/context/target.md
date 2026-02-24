@@ -83,6 +83,47 @@ A C-compatible shared library with generated headers, enabling Go/Java/C# bindin
 - cbindgen generates valid C headers
 - A C test program can call the entrypoints and get correct results
 
+## README
+
+The repository README (`README.md`) is the project's public-facing entry point, written for
+developers who want to adopt ISCC in their ecosystem. It follows the same structural pattern as the
+`iscc/iscc-core` README but targets a polyglot audience — Rust, Python, Node.js, WASM, and C
+developers.
+
+**Structure** (modeled after iscc-core README):
+
+- **Badges**: CI status, crate/package version badges for all published packages
+- **Tagline**: one-line description emphasizing polyglot, high-performance, ISO 24138
+- **Key Features**: similarity-preserving, multi-level identification, self-describing, ISO
+    standardized, polyglot (Rust + Python + Node.js + WASM + C FFI), conformance-tested
+- **What is the ISCC**: brief explanation of ISCC purpose and capabilities (reuse iscc-core text)
+- **What is iscc-lib**: explains this is a high-performance polyglot implementation, relationship to
+    `iscc-core` reference, and which ecosystems it serves
+- **ISCC Architecture**: architecture diagram (reuse iscc-core diagram or link to docs site)
+- **ISCC MainTypes**: table of main types (reuse from iscc-core)
+- **Installation**: per-language install instructions (Rust/cargo, Python/pip, Node.js/npm,
+    WASM/npm) — use tabbed or sectioned format
+- **Quick Start**: minimal code examples showing `gen_meta_code_v0` in each language
+- **Implementors Guide**: link to conformance test vectors and the 9 `gen_*_v0` entry points (same
+    list as iscc-core), link to documentation site for detailed per-language guides
+- **Documentation**: link to `lib.iscc.codes`
+- **Contributing**: contribution guidelines, link to developer chat
+- **License**: Apache-2.0
+- **Maintainers**: @titusz
+
+**Audience**: The README does NOT describe internal development workflows (CID loop, dev container
+setup, quality gates). Those belong in the documentation site under a Development section.
+
+**Verified when:**
+
+- README exists and renders correctly on GitHub
+- Contains per-language installation instructions (Rust, Python, Node.js, WASM)
+- Contains per-language quick start code examples
+- Links to documentation site (`lib.iscc.codes`)
+- Does not contain development workflow content (CID loop, dev container, pre-commit hooks)
+- Lists the 9 `gen_*_v0` conformance entry points
+- Includes ISCC architecture diagram and MainTypes table
+
 ## Documentation
 
 Project documentation hosted at lib.iscc.codes with ISCC branding and agent-friendly features
@@ -98,6 +139,7 @@ Detailed spec: `.claude/context/specs/documentation.md`
 - All code examples use tabbed multi-language format (Python, Rust, Node.js, WASM)
 - Copy-page feature and `llms-full.txt` generation for agent consumption
 - Navigation follows Diátaxis framework (tutorials, howto, explanation, reference)
+- Development section covers: dev container setup, CID workflow, quality gates, project structure
 
 ## Benchmarks
 
