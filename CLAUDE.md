@@ -8,17 +8,55 @@ Guidance for Claude Code agents working on this repository.
 International Standard Content Code (ISCC). Must be compatible with the official `iscc/iscc-core`
 Python reference implementation.
 
-## CID Context Files
+## Working Modes
 
-This project uses Continuous Iterative Development. Read these before doing anything:
+This project uses two development modes that share the same codebase and context files:
 
-| File                           | Purpose                                     |
-| ------------------------------ | ------------------------------------------- |
-| `.claude/context/state.md`     | Where the project stands right now          |
-| `.claude/context/target.md`    | Desired outcome with verification criteria  |
-| `.claude/context/handoff.md`   | Work order from the last agent              |
-| `.claude/context/next.md`      | Scoped work package for the current step    |
-| `.claude/context/learnings.md` | Accumulated knowledge from prior iterations |
+- **Interactive session** — a human working with Claude Code directly. Used for ad-hoc tasks:
+    debugging, feature requests, code exploration, and targeted changes. You are in this mode if you
+    were NOT invoked with `--agent`.
+- **CID loop** — autonomous Continuous Iterative Development via `mise run cid:run`. Four
+    specialized agents (update-state, define-next, advance, review) cycle through
+    `.claude/agents/*.md` protocols. CID agents get their context through `@` references in their
+    agent definitions — they do not rely on this section.
+
+### Interactive session guidelines
+
+In an interactive session, be aware of the CID context files but do not read them all upfront. Read
+selectively based on the task at hand (e.g., read `state.md` to understand project status, read
+`target.md` to understand goals).
+
+**Context files and permissions:**
+
+| File                               | Purpose                                     | Interactive access |
+| ---------------------------------- | ------------------------------------------- | ------------------ |
+| `.claude/context/state.md`         | Where the project stands right now          | Read only          |
+| `.claude/context/target.md`        | Desired outcome with verification criteria  | Read and write     |
+| `.claude/context/next.md`          | Scoped work package for the current step    | Read only          |
+| `.claude/context/handoff.md`       | Inter-agent communication and verdicts      | Read only          |
+| `.claude/context/learnings.md`     | Accumulated knowledge from prior iterations | Read and append    |
+| `.claude/context/issues.md`        | Tracked issues and feature requests         | Read and append    |
+| `.claude/context/iterations.jsonl` | CID iteration log                           | Read only          |
+
+**Read only** files are managed by CID agents and overwritten each cycle — interactive edits would
+be lost. **Read and write/append** files are safe to modify from interactive sessions.
+
+**Updating the target:** If the human asks to change project goals, acceptance criteria, or
+specifications, update `target.md` (or its sub-specs) directly. The next CID iteration picks up
+changes automatically.
+
+**Filing issues:** If the human identifies a bug, missing feature, or spec problem that should be
+tracked for the CID loop, add it to `issues.md` following the file's format. Use source tag
+`[human]`. Include a `**Spec:**` field if the issue is rooted in a target specification gap.
+
+**Adding learnings:** If the interactive session uncovers knowledge that would help CID agents
+(e.g., a tricky API behavior, a conformance detail), append it to `learnings.md` under the
+appropriate section.
+
+**Concurrency:** A CID loop may be running in the background. Before modifying context files, check
+`git log --oneline -5` — if recent commits have `cid(...)` prefixes from the last few minutes, a
+loop is likely active. When in doubt, ask the human. Filing issues is always safe (append-only by
+design).
 
 ## Reference Code
 
