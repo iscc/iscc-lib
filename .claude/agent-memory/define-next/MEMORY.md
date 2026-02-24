@@ -15,13 +15,20 @@ iterations.
     README/docs updates. Go bindings are a separate track that can start in parallel.
 - Per-crate READMEs: batch into groups of 2-3 to stay within scope limits. Batch 1 = iscc-lib,
     iscc-py, iscc-napi (primary publishable crates) — done. Batch 2 = iscc-wasm, iscc-jni (two
-    remaining publishable crates). iscc-ffi is not published to any registry, so its README is lower
-    priority. Batch 3 = packages/go (after Go bindings exist).
+    remaining publishable crates) — done. iscc-ffi is not published to any registry, so its README
+    is lower priority. Batch 3 = packages/go (after Go bindings exist).
 - README files are "create" operations (greenfield), not "modify" — they're less risky than code
     changes. Manifest updates are trivial one-liners. Combined, 3 creates + 2 modifies is a
     reasonable single step for documentation work.
 - Normal performance issues (codec Vec<bool>, DataHasher copying) should wait until feature work is
     done. They don't block publishing or new bindings.
+- Root README updates: single-file modifications with clear verification. Java sections follow
+    established patterns (Rust/Python/Node.js/WASM already present). Section ordering should match
+    target.md: Rust, Python, Java, Node.js, WASM. Insert Java after Node.js and before WASM in both
+    Installation and Quick Start sections.
+- After root README Java: next candidates are (1) docs/howto/java.md (create + zensical.toml nav
+    update), (2) Java native loader class, (3) Go bindings. The howto guide is a natural follow-up
+    since it continues the documentation story.
 
 ## Architecture Decisions
 
@@ -53,6 +60,7 @@ iterations.
 
 - JNI binding (`iscc-jni`) publishes to Maven Central as `io.iscc:iscc-lib`, not crates.io
     (Cargo.toml has `publish = false`). Java method names use camelCase (e.g., `genMetaCodeV0`).
+    Java gen functions return `String` (ISCC code string) — quick start shows direct string result.
 
 - Batch 1 READMEs landed at 70-75 lines each — slightly under the originally suggested 80-120 range
     but the review agent confirmed they were "complete and well-structured." Target 70-80 lines for

@@ -1,96 +1,85 @@
 # Next Work Package
 
-## Step: Create per-crate READMEs (batch 2: iscc-wasm, iscc-jni)
+## Step: Add Java sections to root README
 
 ## Goal
 
-Create registry-facing README.md files for the two remaining publishable crates (`iscc-wasm` for npm
-as `@iscc/wasm`, `iscc-jni` for Maven Central as `io.iscc:iscc-lib`). This completes per-crate
-README coverage for all binding crates that publish to a package registry.
+Update the root README.md to include Java/Maven installation instructions, a Java quick start code
+example, and fix the Key Features line to mention Java. This addresses three target gaps in one
+coherent change: the Key Features inaccuracy ("Python, Node.js, WASM, and C FFI" — Java missing),
+the missing Java installation section, and the missing Java quick start example.
 
 ## Scope
 
-- **Create**: `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`
-- **Modify**: (none — iscc-wasm has `publish = false` in Cargo.toml and publishes via npm/wasm-pack,
-    so no Cargo.toml readme field needed; iscc-jni publishes via Maven, not crates.io)
+- **Create**: (none)
+- **Modify**: `README.md`
 - **Reference**:
-    - `crates/iscc-lib/README.md` — batch 1 template (70 lines, 6 H2 sections)
-    - `crates/iscc-napi/README.md` — batch 1 JS-ecosystem template
-    - `crates/iscc-py/README.md` — batch 1 Python template (for streaming note pattern)
-    - `crates/iscc-wasm/src/lib.rs` — WASM binding signatures
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java API surface
+    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java API surface and method
+        signatures (camelCase names, parameter types)
+    - `crates/iscc-jni/java/pom.xml` — Maven coordinates (`io.iscc`, `iscc-lib`, version)
+    - `crates/iscc-jni/README.md` — per-crate README with Java quick start example for consistency
 
 ## Not In Scope
 
-- `crates/iscc-ffi/README.md` — iscc-ffi is not published to any registry (target spec says "not
-    published separately"); lower priority, tackle only if all other README work is done
-- Wiring `readme` fields in `Cargo.toml` — both crates have `publish = false` (they publish through
-    npm and Maven respectively, not crates.io)
-- Updating the root `README.md` with Java/Go sections — separate step
-- Creating `docs/howto/java.md` — separate step
-- Java native loader class — separate step
-- Go bindings — not started yet, separate track
+- Adding Go sections to the README — Go bindings are not started; adding placeholder sections for
+    non-existent functionality would mislead developers
+- Creating `docs/howto/java.md` — separate step, different file and nav config
+- Java native loader class — code task, separate from documentation
+- Updating the "What is iscc-lib" paragraph to mention Java — the current text says "Python,
+    Node.js, WebAssembly, and C" which could be updated, but scoping to the three specific target
+    gaps keeps this focused
+- Adding Maven Central badge — package is not yet published to Maven Central, so no version badge
+    exists
 
 ## Implementation Notes
 
-Follow the exact template established by batch 1 (see `crates/iscc-lib/README.md` as the canonical
-reference):
+**Key Features line (line 23):** Change "Python, Node.js, WASM, and C FFI" to "Python, Java,
+Node.js, WASM, and C FFI" — add Java after Python (following the order used in target.md: "Rust +
+Python + Java + Node.js + WASM + C FFI").
 
-**Required H2 sections (6 total):** What is ISCC, Installation, Quick Start, API Overview, Links,
-License.
+**Installation section:** Add a `### Java` subsection after Node.js (line 91) and before WASM. Use a
+Maven `<dependency>` XML snippet:
 
-**iscc-wasm README specifics:**
+```xml
+<dependency>
+  <groupId>io.iscc</groupId>
+  <artifactId>iscc-lib</artifactId>
+  <version>0.0.1</version>
+</dependency>
+```
 
-- Title: `@iscc/wasm`
-- Badges: CI, npm (`@iscc/wasm`), License
-- npm badge URL: `https://img.shields.io/npm/v/@iscc/wasm.svg`
-- Experimental notice: same text as batch 1
-- Tagline: mention browser-compatible WASM, built with Rust and wasm-bindgen
-- Installation: `npm install @iscc/wasm`
-- Quick start: ESM import pattern for WASM (not CommonJS `require()` — WASM typically uses async
-    init). Show `gen_meta_code_v0` usage. Check `crates/iscc-wasm/src/lib.rs` for the exact export
-    names
-- Note that all code generators return ISCC strings directly (same pattern as iscc-napi)
-- Note that both browser and Node.js targets are supported
+Add a note that the native library must be on `java.library.path` (since the native loader class is
+not yet implemented). This matches the caveat in `crates/iscc-jni/README.md`.
 
-**iscc-jni README specifics:**
+**Quick Start section:** Add a `### Java` subsection after Node.js and before WASM. Show
+`genMetaCodeV0` usage with camelCase Java method names from `IsccLib.java`:
 
-- Title: `iscc-lib` (Java)
-- Badges: CI, License (no Maven Central badge yet — package not yet published)
-- Experimental notice: same text as batch 1
-- Tagline: mention Java/JVM bindings via JNI, built with Rust
-- Installation: Maven `<dependency>` XML snippet with `io.iscc` groupId, `iscc-lib` artifactId,
-    version `0.0.1`
-- Quick start: Java code showing `IsccLib.genMetaCodeV0("ISCC Test Document!")` — use the camelCase
-    method names from `IsccLib.java`
-- Note that the native library must currently be on `java.library.path` (no auto-loader yet)
-- API Overview: list the 9 gen functions using Java camelCase names from IsccLib.java
+```java
+import io.iscc.iscc_lib.IsccLib;
 
-**Shared "What is ISCC" text:** Reuse the exact paragraph from the batch 1 READMEs (all three use
-identical text).
+String result = IsccLib.genMetaCodeV0("ISCC Test Document!", null, null, 64);
+System.out.println("Meta-Code: " + result);
+```
 
-**Shared Links section:** Same 4 links as batch 1 (Documentation, Repository, ISCC Specification,
-ISCC Foundation).
+**Section ordering:** Insert Java after Node.js and before WASM in both Installation and Quick Start
+sections. This keeps the language-specific sections in logical order: native languages first (Rust,
+Python, Node.js, Java), then WASM.
 
-**Style notes:**
-
-- Keep READMEs concise (70-80 lines each, matching batch 1). These are registry pages, not full docs
-- Use consistent formatting across both READMEs — same section order, similar lengths
-- No emojis. Use standard markdown headings and code blocks
-- Use ISCC Foundation URL `https://iscc.io` (not other variants)
+**Style:** Match the existing README tone and formatting. No emojis. Keep subsections concise — the
+Installation subsection is 3-5 lines like the existing ones, the Quick Start subsection is a short
+code block like the existing ones.
 
 ## Verification
 
-- `test -f crates/iscc-wasm/README.md` exits 0
-- `test -f crates/iscc-jni/README.md` exits 0
-- `grep -c '^## ' crates/iscc-wasm/README.md` returns 6 (6 H2 sections)
-- `grep -c '^## ' crates/iscc-jni/README.md` returns 6 (6 H2 sections)
-- `grep -q '@iscc/wasm' crates/iscc-wasm/README.md` exits 0 (correct npm package name)
-- `grep -q 'io.iscc' crates/iscc-jni/README.md` exits 0 (correct Maven groupId)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean (no code changes, sanity check)
+- `grep -q 'Python, Java, Node.js, WASM, and C FFI' README.md` exits 0 (Key Features updated)
+- `grep -q '### Java' README.md` exits 0 (Java subsections exist)
+- `grep -q 'io.iscc' README.md` exits 0 (Maven groupId present)
+- `grep -q 'genMetaCodeV0' README.md` exits 0 (Java quick start uses correct method name)
+- `grep -c '### Java' README.md` returns 2 (one in Installation, one in Quick Start)
+- `grep -q 'java.library.path' README.md` exits 0 (native library caveat present)
+- `mise run check` passes all pre-commit hooks (formatting, linting)
 
 ## Done When
 
-Both `crates/iscc-wasm/README.md` and `crates/iscc-jni/README.md` exist with 6 H2 sections each,
-correct registry-specific installation instructions, quick start code examples, and all verification
-commands pass.
+README.md contains Java installation (Maven dependency XML), Java quick start (genMetaCodeV0
+example), updated Key Features line mentioning Java, and all verification commands pass.
