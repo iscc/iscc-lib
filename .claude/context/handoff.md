@@ -1,38 +1,33 @@
-## 2026-02-24 — Create per-crate READMEs for iscc-lib, iscc-py, and iscc-napi
+## 2026-02-24 — Review of: Create per-crate READMEs for iscc-lib, iscc-py, and iscc-napi
 
-**Done:** Created three registry-facing README.md files for the primary publishable crates
-(crates.io, PyPI, npm) with all required sections. Updated `crates/iscc-lib/Cargo.toml` to point
-`readme` to the local `README.md` and added `readme = "README.md"` to
-`crates/iscc-py/pyproject.toml`.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Three registry-facing README.md files created for the primary publishable crates
+(crates.io, PyPI, npm). Each README has all required sections with registry-specific content,
+correct API examples, and proper manifest integration. Clean documentation-only change with no code
+modifications.
 
-- `crates/iscc-lib/README.md`: Created with Rust-specific content — badges (CI, crate, license),
-    experimental notice, ISCC explanation, `cargo add` installation, Rust quick start example, API
-    overview table with all 9 gen functions plus utilities/codec/streaming
-- `crates/iscc-py/README.md`: Created with Python-specific content — badges (CI, PyPI, license),
-    experimental notice, `pip install` installation, Python quick start with dict-style access,
-    notes on BinaryIO support for streaming functions
-- `crates/iscc-napi/README.md`: Created with Node.js-specific content — badges (CI, npm, license),
-    package name `@iscc/lib`, `npm install` installation, quick start showing string return type
-    (napi bindings return strings directly, not objects), note about Buffer inputs
-- `crates/iscc-lib/Cargo.toml`: Changed `readme` from `"../../README.md"` to `"README.md"`
-- `crates/iscc-py/pyproject.toml`: Added `readme = "README.md"` under `[project]`
+**Verification:**
 
-**Verification:** All checks pass:
+- [x] `test -f crates/iscc-lib/README.md` exits 0
+- [x] `test -f crates/iscc-py/README.md` exits 0
+- [x] `test -f crates/iscc-napi/README.md` exits 0
+- [x] `grep -q 'readme = "README.md"' crates/iscc-lib/Cargo.toml` exits 0
+- [x] `grep -q 'readme = "README.md"' crates/iscc-py/pyproject.toml` exits 0
+- [x] Each README has 6 H2 sections (all return 6)
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` clean
+- [x] `mise run check` passes all 14 pre-commit hooks
 
-- All three README files exist (verified with `test -f`)
-- Each README has 6 H2 sections (What is ISCC, Installation, Quick Start, API Overview, Links,
-    License)
-- `Cargo.toml` and `pyproject.toml` both contain `readme = "README.md"`
-- `mise run check` passes all 14 pre-commit hooks
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean
+**Issues found:**
 
-**Next:** Create per-crate READMEs for batch 2 (iscc-wasm, iscc-ffi, iscc-jni), address performance
-issues from issues.md (DataHasher buffer allocation, codec header parsing), or start Go bindings.
+- (none)
 
-**Notes:** The napi Node.js quick start correctly reflects that `gen_meta_code_v0` returns a string
-directly (not an object), matching the actual napi binding implementation which uses
-`.map(|r| r.iscc)`. All three READMEs use consistent section ordering and formatting. No
-`package.json` change was needed for npm (auto-detects README.md). Each README is concise (65-80
-lines) and tailored to its registry audience.
+**Next:** Create per-crate READMEs for batch 2 (iscc-wasm, iscc-ffi, iscc-jni). These are the
+secondary crates — iscc-wasm publishes to npm as `@iscc/wasm`, iscc-ffi is not published separately
+(no registry metadata needed), iscc-jni targets Maven Central. Follow the same template and section
+structure established in batch 1.
+
+**Notes:** All three READMEs are 70-75 lines, slightly under the 80-120 range suggested in next.md,
+but they're complete and well-structured for registry pages. The Node.js quick start correctly uses
+CommonJS `require()` and shows the string return pattern. Python README includes the BinaryIO note
+for streaming functions. Rust README mentions the Tier 2 codec module appropriately.

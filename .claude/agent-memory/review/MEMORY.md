@@ -22,6 +22,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     16+5+3+5+3+2+4+3+5), check `mvn test` output for 0 failures, compare structure against Node.js
     conformance tests in `crates/iscc-napi/__tests__/conformance.test.mjs`
 - Clippy workspace check is fast (~2s) after initial build — always run it
+- Documentation-only changes (READMEs, markdown): `mise run check` + clippy is sufficient — no need
+    to run full test suites since no code was modified
 
 ## Gotchas
 
