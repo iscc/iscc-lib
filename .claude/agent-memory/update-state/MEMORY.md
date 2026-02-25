@@ -40,7 +40,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     iteration 9, commit eb5085d); Go job builds iscc-ffi → wasm32-wasip1, copies .wasm, runs go test
     \+ go vet
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
-- `docs/howto/` — 4 files: rust.md, python.md, nodejs.md, wasm.md (no java.md or go.md yet)
+- `docs/howto/` — 5 files: rust.md, python.md, nodejs.md, wasm.md, go.md (no java.md yet)
 
 ## Recurring Patterns
 
@@ -84,13 +84,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 14): tests = 22380967314 (7/7 pass), docs = 22380967299 (pass)
+- Latest CI run IDs (iteration 15): tests = 22381698650 (7/7 pass), docs = 22381698658 (pass)
 - `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
     compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
     alloc helpers). File is now 1,934 lines.
 - Go bindings 23/23 Tier 1 COMPLETE (iteration 13, commit c22fa53). Root README Go section DONE
-    (iteration 14, commit 200ffb1). Next: howto/go.md + howto/java.md + zensical.toml nav entries.
-    io.Reader wrapper is optional per verified-when criteria.
+    (iteration 14, commit 200ffb1). `docs/howto/go.md` DONE (iteration 15, commit 9af5e54, 388
+    lines). Go entry in zensical.toml DONE. io.Reader wrapper is optional per verified-when
+    criteria. Remaining: howto/java.md + Java zensical.toml nav entry.
 - Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
     DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added

@@ -1,16 +1,14 @@
-<!-- assessed-at: 200ffb1d5f5393cb713aa9a3fdf0d793c1e94090 -->
+<!-- assessed-at: 6562623eb36df5776948a86bbd42101133e5c6b3 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: README complete — documentation how-to guides (Go + Java) remaining
+## Phase: Go how-to guide complete — Java how-to guide remaining
 
-The root README is now fully complete: Go Reference badge, Go installation section, Go quick-start
-example, updated Key Features bullet, and corrected "What is iscc-lib" body text listing all six
-binding ecosystems are all in place. All 7 CI jobs remain green. The primary remaining gaps are the
-two missing how-to guide pages (`docs/howto/go.md` and `docs/howto/java.md`) and the absence of
-Java/Go entries in the `zensical.toml` navigation.
+The Go how-to guide (`docs/howto/go.md`, 388 lines) was added and the Go navigation entry is now
+live in `zensical.toml`. All 7 CI jobs remain green. The sole remaining documentation gap is the
+Java how-to guide (`docs/howto/java.md`) and its navigation entry.
 
 ## Rust Core Crate
 
@@ -149,7 +147,7 @@ complete; native loader/publishing/docs absent)
 ## Go Bindings
 
 **Status**: partially met (23/23 Tier 1 symbols + 35 test functions + Go CI job passing + README
-done; io.Reader streaming interface absent)
+done + howto/go.md done; io.Reader streaming interface absent)
 
 - `packages/go/go.mod` — module `github.com/iscc/iscc-lib/packages/go`, Go 1.24.0, wazero v1.11.0
 - `packages/go/iscc.go` (1,165 lines): `Runtime` struct with `NewRuntime`/`Close` plus internal
@@ -172,9 +170,12 @@ done; io.Reader streaming interface absent)
 - **Go CI job** (`Go (go test, go vet)`) in `.github/workflows/ci.yml` — passes (CI-verified at
     HEAD)
 - `packages/go/README.md` (104 lines): complete
+- `docs/howto/go.md` (388 lines): complete — covers installation, runtime setup, all 9 Gen\*CodeV0
+    functions with examples, streaming (DataHasher + InstanceHasher), text utilities, algorithm
+    primitives, conformance testing, error handling
+- Go entry in `zensical.toml` How-to Guides navigation: `{ "Go" = "howto/go.md" }` ✅
 - Missing: `io.Reader` interface for `Update` methods (architecture describes it; current
     implementation accepts `[]byte` only — callers must chunk themselves)
-- Missing: `docs/howto/go.md`
 - Note: target.md `verified-when` criteria do not explicitly require `io.Reader`; the gap is in the
     architecture description
 
@@ -214,23 +215,22 @@ separately)
 
 **Status**: partially met
 
-- 11 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
+- 12 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
     `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `howto/rust.md`,
-    `development.md`, `tutorials/getting-started.md`
+    `howto/go.md`, `development.md`, `tutorials/getting-started.md`
 - Navigation in `zensical.toml` has: Tutorials (Getting Started), How-to Guides (Rust, Python,
-    Node.js, WebAssembly), Explanation (Architecture), Reference (Rust API, Python API), Benchmarks,
-    Development
-- All 11 pages have `icon: lucide/...` and `description:` YAML front matter
+    Node.js, WebAssembly, **Go**), Explanation (Architecture), Reference (Rust API, Python API),
+    Benchmarks, Development
+- All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING)
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button, `scripts/gen_llms_full.py`, Open Graph meta tags all in place
 - ✅ `docs/CNAME` contains `lib.iscc.codes`
 - ✅ `docs/includes/abbreviations.md` with 19 ISCC-specific abbreviations
+- ✅ `docs/howto/go.md` — complete (388 lines; runtime setup, all 9 gen functions, streaming,
+    utilities, algorithm primitives, conformance, error handling)
 - Missing: `howto/java.md` how-to guide for Java
-- Missing: `howto/go.md` how-to guide for Go
-- Missing: Java and Go entries in `zensical.toml` How-to Guides navigation
-- Missing: Java and Go code examples in existing tabbed code blocks (spec requires tabbed
-    multi-language format for all examples)
+- Missing: Java entry in `zensical.toml` How-to Guides navigation
 
 ## Benchmarks
 
@@ -252,10 +252,10 @@ separately)
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
     (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22380967314](https://github.com/iscc/iscc-lib/actions/runs/22380967314) — all 7 jobs
+    [Run 22381698650](https://github.com/iscc/iscc-lib/actions/runs/22381698650) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22380967299](https://github.com/iscc/iscc-lib/actions/runs/22380967299) — build + deploy
+    [Run 22381698658](https://github.com/iscc/iscc-lib/actions/runs/22381698658) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -264,12 +264,12 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs. README is now fully complete. Recommended next work (in priority order):
+CI is green on all 7 jobs. Go how-to guide is complete. Recommended next work (in priority order):
 
-1. **Documentation how-to guides** — create `docs/howto/go.md` (Go how-to: install via `go get`,
-    WASM runtime setup, `NewRuntime`, all gen functions, streaming hashers) and
-    `docs/howto/java.md` (Java how-to: pom.xml snippet, `System.loadLibrary`, all gen functions,
-    streaming hashers); add both to `zensical.toml` navigation under How-to Guides
+1. **Java how-to guide** — create `docs/howto/java.md` covering: Maven/Gradle dependency snippet,
+    `System.loadLibrary` setup, all 9 gen functions with Java examples, streaming hashers
+    (`DataHasher`/`InstanceHasher` lifecycle), error handling, conformance selftest; add Java entry
+    to `zensical.toml` How-to Guides navigation
 2. **Fix `iscc-ffi/README.md`** — low-priority but completes the per-crate README set
 3. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper to `DataHasher.Update` and
     `InstanceHasher.Update` for idiomatic Go streaming (architecture description mentions it;
