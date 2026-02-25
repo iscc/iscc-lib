@@ -152,9 +152,15 @@ iterations.
 - Go how-to emphasizes the `Runtime` lifecycle pattern (NewRuntime/Close) since it's unique to Go
 - Go `bits` parameter is `uint32` (not `int32`) — verified in `packages/go/iscc.go`
 - `GenIsccCodeV0` in Go does not expose a `bits` parameter (wide is hardcoded to false)
-- zensical.toml nav: How-to Guides order is Rust → Python → Node.js → WebAssembly → Go
-- `docs/howto/go.md` includes algorithm primitives section (SlidingWindow, AlgMinhash256,
+- Java uses `icon: lucide/coffee`
+- zensical.toml nav: How-to Guides order is Rust → Python → Node.js → WebAssembly → Go → Java
+- Go and Java guides include algorithm primitives section (SlidingWindow, AlgMinhash256,
     AlgCdcChunks, AlgSimhash) not present in Python/Node.js guides
+- All 6 how-to guides complete: Rust (356 lines), Python (353), Node.js (281), WASM (338), Go (388),
+    Java (321)
+- Java guide key differences from Go: no runtime object (static methods), "Setup" section replaces
+    "Runtime setup", streaming uses opaque `long` handles with try-finally (not defer),
+    `genIsccCodeV0` exposes `boolean wide` parameter (Go hardcodes to false)
 
 ## Gotchas
 

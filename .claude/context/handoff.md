@@ -1,37 +1,40 @@
-## 2026-02-25 — Review of: Create Go how-to guide and add to navigation
+## 2026-02-25 — Create Java how-to guide and add to navigation
 
-**Verdict:** PASS
+**Done:** Created `docs/howto/java.md` (321 lines) — the last remaining how-to guide — covering all
+10 required sections: front matter, intro, installation (Maven + build-from-source), setup
+(System.loadLibrary + java.library.path), code generation (all 9 gen\*V0 methods), streaming
+(DataHasher/InstanceHasher with try-finally memory management), text utilities, algorithm
+primitives, conformance testing, and error handling. Added Java navigation entry to `zensical.toml`
+after the Go entry.
 
-**Summary:** Created `docs/howto/go.md` with comprehensive Go how-to content covering all 10
-sections specified in next.md. Added the Go nav entry to `zensical.toml`. All API signatures
-verified against `packages/go/iscc.go` — the advance agent correctly used `uint32` for `bits`
-(next.md incorrectly said `int32`) and omitted the `bits` parameter from `GenIsccCodeV0` (hardcoded
-to `wide=false` in Go).
+**Files changed:**
 
-**Verification:**
+- `docs/howto/java.md`: Created complete Java how-to guide following the Go guide structural
+    template, adapted for Java's static API (no runtime object), JNI setup, camelCase method names,
+    opaque `long` handles for streaming, and `byte[]`/`int[]`/`int[][]` types
+- `zensical.toml`: Added `{ "Java" = "howto/java.md" }` entry after Go in How-to Guides nav
 
-- [x] `test -f docs/howto/go.md` exits 0 — file exists
-- [x] `grep 'go get github.com/iscc/iscc-lib/packages/go' docs/howto/go.md` exits 0 — install
-    command present
-- [x] `grep 'NewRuntime' docs/howto/go.md` exits 0 — runtime setup documented
-- [x] `grep 'GenMetaCodeV0' docs/howto/go.md` exits 0 — code generation documented
-- [x] `grep 'DataHasher' docs/howto/go.md` exits 0 — streaming documented
-- [x] `grep 'TextClean' docs/howto/go.md` exits 0 — text utilities documented
-- [x] `grep 'ConformanceSelftest' docs/howto/go.md` exits 0 — conformance testing documented
-- [x] `grep '"Go"' zensical.toml` exits 0 — nav entry present
-- [x] `grep 'howto/go.md' zensical.toml` exits 0 — nav path correct
-- [x] `uv run zensical build` exits 0 — site builds with `/howto/go/` in output
-- [x] All 14 pre-commit hooks pass
-- [x] No quality gate circumvention in diff
+**Verification:** All 10 verification criteria pass:
 
-**Issues found:**
+- `test -f docs/howto/java.md` — file exists
+- `grep 'io.iscc'` — Maven coordinates present (groupId and import)
+- `grep 'System.loadLibrary'` — native library setup documented
+- `grep 'genMetaCodeV0'` — code generation documented (3 matches)
+- `grep 'dataHasherNew'` — streaming documented (2 matches)
+- `grep 'textClean'` — text utilities documented
+- `grep 'conformanceSelftest'` — conformance testing documented
+- `grep '"Java"' zensical.toml` — nav entry present
+- `grep 'howto/java.md' zensical.toml` — nav path correct
+- `uv run zensical build` — site builds with `/howto/java/` in output
+- All 14 pre-commit hooks pass
 
-- (none)
+**Next:** All 6 how-to guides are complete (Rust, Python, Node.js, WASM, Go, Java). Consider
+addressing tracked issues from issues.md: codec optimization, DataHasher buffer allocation,
+`__version__` attribute, or the TypeScript port evaluation.
 
-**Next:** Create `docs/howto/java.md` — the last remaining how-to guide gap. Or address tracked
-issues from issues.md (codec optimization, DataHasher buffer allocation, etc.).
-
-**Notes:** The Go guide includes an "Algorithm primitives" section that Python and Node.js guides
-lack — this matches what next.md requested and aligns with the Rust guide. The Go guide is ~388
-lines, consistent with the ~280-350 line range of existing guides. The advance agent's memory
-correctly recorded that `bits` is `uint32` in Go (not `int32` as next.md stated).
+**Notes:** The Java guide is 321 lines, within the target range of 300-400 (Go: 388, Rust: 356,
+Python: 353, WASM: 338, Node.js: 281). Key Java-specific adaptations vs Go guide: no "Runtime setup"
+section (static methods), replaced with "Setup" section explaining `System.loadLibrary` and
+`java.library.path`; streaming uses opaque `long` handles with explicit try-finally instead of Go's
+`defer`; `genIsccCodeV0` exposes `boolean wide` parameter (Go hardcodes to false). All API
+signatures verified against `IsccLib.java`. Used `icon: lucide/coffee` (Java's coffee cup).

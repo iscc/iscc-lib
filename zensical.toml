@@ -20,6 +20,7 @@ nav = [
     { "Node.js" = "howto/nodejs.md" },
     { "WebAssembly" = "howto/wasm.md" },
     { "Go" = "howto/go.md" },
+    { "Java" = "howto/java.md" },
   ] },
   { "Explanation" = [
     { "Architecture" = "architecture.md" },
