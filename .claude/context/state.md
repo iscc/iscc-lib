@@ -1,16 +1,14 @@
-<!-- assessed-at: 208328732828ad8dea341a5141dd97d8fe208d12 -->
+<!-- assessed-at: 53b02893f5fe312466f9e8e529c0aa98f9116d92 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Release readiness — only [low] housekeeping issues remain
+## Phase: Release readiness — one [low] housekeeping issue remains
 
-All core bindings are complete, CI is green on all 7 jobs, and the `[low]` JNI exception mapping
-issue was resolved in iteration 27. `throw_state_error` was added alongside `throw_and_default` and
-4 call sites updated; 2 new Java tests verify `IllegalStateException` for finalized-hasher errors.
-Two `[low]` issues remain (TypeScript evaluation, WASM CLAUDE.md staleness). PR #1 (develop → main)
-is open and CI is passing.
+All core bindings are complete, CI is green on all 7 jobs, and the `[low]` stale WASM CLAUDE.md
+issue was resolved in iteration 28. Only one `[low]` issue remains (TypeScript port evaluation). PR
+#1 (develop → main) is open and CI is passing.
 
 ## Rust Core Crate
 
@@ -38,8 +36,6 @@ is open and CI is passing.
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
 - `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD)
-- Note: target.md header says "22 public symbols" but the enumerated list totals 23; the crate
-    implements 23
 - **Open issues**: none
 
 ## Python Bindings
@@ -86,7 +82,9 @@ is open and CI is passing.
 - 54 tests: 9 in `conformance.rs` + 45 in `unit.rs`; all pass (CI-verified at HEAD)
 - `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
 - Browser and Node.js build targets supported
-- **Open issues** \[low\]: stale CLAUDE.md says DataHasher/InstanceHasher not yet bound
+- `crates/iscc-wasm/CLAUDE.md` updated to reflect all 23 Tier 1 symbols + 2 streaming types bound
+    (stale "not yet bound" text removed in iteration 28)
+- **Open issues**: none
 
 ## C FFI
 
@@ -197,8 +195,8 @@ separately)
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
 - **Latest CI run: PASSING** —
-    [Run 22392431920](https://github.com/iscc/iscc-lib/actions/runs/22392431920) — all 7 jobs
-    success (Rust, Python, Node.js, WASM, C FFI, Java, Go); triggered by PR #1 (develop → main)
+    [Run 22393043406](https://github.com/iscc/iscc-lib/actions/runs/22393043406) — all 7 jobs
+    success (Rust, Python, Node.js, WASM, C FFI, Java, Go); triggered by push to develop
 - Latest Docs run: **PASSING** —
     [Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757)
 - ✅ `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
@@ -217,14 +215,11 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs and all `[normal]` and `[critical]` issues are resolved. Only `[low]`
-housekeeping issues remain. PR #1 (develop → main) is open and ready to merge. Recommended priority
-order:
+CI is green on all 7 jobs. All `[normal]` and `[critical]` issues are resolved. Only one `[low]`
+issue remains. PR #1 (develop → main) is open and ready to merge. Recommended priority order:
 
-1. **[low] iscc-wasm stale CLAUDE.md** — update `crates/iscc-wasm/CLAUDE.md:130-131` to reflect
-    DataHasher/InstanceHasher are now fully bound (trivial one-line edit)
-2. **[low] TypeScript evaluation** — evaluate `branciard/iscc-core-ts` conformance against
-    `data.json` vectors; document result in `docs/` if relevant
-3. **[low] `crates/iscc-ffi/README.md`** — completes the per-crate README set
-4. **Consider release** — PR #1 (develop → main) is open and all CI passes; merging and tagging
+1. **[low] Evaluate unofficial TypeScript port** — check whether `branciard/iscc-core-ts` passes
+    `data.json` conformance vectors; document result or mention in docs if conformant
+2. **[low] `crates/iscc-ffi/README.md`** — completes the per-crate README set
+3. **Consider release** — PR #1 (develop → main) is open and all CI passes; merging and tagging
     `v0.0.1` is the logical next step

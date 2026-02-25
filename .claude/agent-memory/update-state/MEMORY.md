@@ -185,3 +185,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     from issues.md. Only 2 `[low]` issues remain: TypeScript evaluation + WASM CLAUDE.md staleness.
 - **PR #1 open** (develop → main): CI passes on all 7 jobs; ready to merge for v0.0.1 release.
 - `throw_and_default` call sites: now 68 (was 72); `throw_state_error` call sites: 4 (new).
+- **WASM CLAUDE.md stale docs resolved (iteration 28, commit 53b0289)**: Updated
+    `crates/iscc-wasm/CLAUDE.md` to say "23 Tier 1 symbols plus 2 streaming types"; removed "not yet
+    bound" text for DataHasher/InstanceHasher; added "2 streaming types: DataHasher, InstanceHasher"
+    to export list. Issue deleted from issues.md. Only 1 `[low]` issue remains: TypeScript port
+    evaluation. Latest CI run: 22393043406 (all 7 jobs success). PR #1 still open.
