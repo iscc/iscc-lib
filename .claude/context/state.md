@@ -1,14 +1,14 @@
-<!-- assessed-at: 0699ea1d96fc0d95ebe6b6fd2acdb7b7e90e2fc4 -->
+<!-- assessed-at: b4a31aa -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Release readiness — one [low] housekeeping issue remains
+## Phase: CI fix required — Python ruff format check failing after interactive CPython optimisation
 
-All core bindings are complete, CI is green on all 7 jobs, and `docs/index.md` Quick Start tabs were
-expanded to all 6 languages in iteration 30. PR #1 (develop → main) was merged. Only one `[low]`
-issue remains (TypeScript port evaluation).
+All core bindings are functionally complete and an interactive session added CPython C API
+optimisations to the Python video functions. However, the `ruff format --check` step now fails in CI
+on every push to `develop`, blocking pytest from running. Fixing this is the immediate priority.
 
 ## Rust Core Crate
 
@@ -35,12 +35,13 @@ issue remains (TypeScript port evaluation).
     constraints; 4 unit tests; `soft_hash_video_v0` propagates error directly
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD — Rust job
+    passes)
 - **Open issues**: none
 
 ## Python Bindings
 
-**Status**: met
+**Status**: partially met (functional; ruff format CI gate broken)
 
 - 23/23 Tier 1 symbols exposed via PyO3 in `crates/iscc-py/src/lib.rs`
 - All `gen_*_v0` functions return `PyDict` (translated to typed `IsccResult` subclasses in Python)
@@ -52,12 +53,20 @@ issue remains (TypeScript port evaluation).
 - `sliding_window` returns `PyResult<Vec<String>>` and raises `ValueError` on `width < 2`
 - `__version__ = version("iscc-lib")` via `importlib.metadata` — present in `__init__.py`
 - Module docstring in `crates/iscc-py/src/lib.rs` corrected to `iscc_lib._lowlevel`
+- `gen_video_code_v0` and `soft_hash_video_v0` now use direct CPython C API (`PyList_GetItem`,
+    `PyLong_AsLong`) for fast extraction from any nested Python sequence (commit `5461a65`)
+- Two Python-specific flat-buffer variants added: `gen_video_code_v0_flat` and
+    `soft_hash_video_v0_flat` (accept pre-flattened native-endian i32 byte buffers; for
+    numpy/array.array callers); stubs added to `_lowlevel.pyi`
+- Type signatures for `gen_video_code_v0` / `soft_hash_video_v0` updated from `list[list[int]]` to
+    `Sequence[Sequence[int]]` in both `__init__.py` and `_lowlevel.pyi`
 - 117 test functions across 5 files; 159 total pytest tests
-- `ruff check` and `ruff format --check` clean (CI-verified at HEAD)
-- `pytest` passes all conformance vectors (CI-verified at HEAD)
+- `ruff check` passes in CI; **`ruff format --check` FAILS** in CI (both runs 22401304896 and
+    22401336439\) — pytest is skipped as a result
 - abi3-py310 wheel configuration in place; `ty` type checking configured
 - OIDC trusted publishing not yet configured (registry-side setup required)
-- **Open issues**: none
+- **Missing**: Python CI gate broken; must fix ruff format issue before pytest can be confirmed
+    green
 
 ## Node.js Bindings
 
@@ -190,18 +199,22 @@ done + howto/go.md done; io.Reader streaming interface absent)
 
 ## CI/CD and Publishing
 
-**Status**: partially met
+**Status**: partially met — **CI FAILING**
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
-- **Latest CI run on develop: PASSING** —
-    [Run 22395380785](https://github.com/iscc/iscc-lib/actions/runs/22395380785) — all 7 jobs
-    success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
-- **Latest CI run on main: PASSING** —
-    [Run 22395922655](https://github.com/iscc/iscc-lib/actions/runs/22395922655) — all jobs success
+- **Latest CI run on develop: FAILING** —
+    [Run 22401336439](https://github.com/iscc/iscc-lib/actions/runs/22401336439) — **Python (ruff,
+    pytest) FAILING** (ruff format check step fails; pytest skipped); 6 other jobs (Rust, Node.js,
+    WASM, C FFI, Java, Go) passing
+- Previous completed run on develop: FAILING —
+    [Run 22401304896](https://github.com/iscc/iscc-lib/actions/runs/22401304896) — same failure
+- Earlier passing run on develop:
+    [Run 22396424642](https://github.com/iscc/iscc-lib/actions/runs/22396424642) — all 7 jobs
+    success (before interactive session commits)
 - Latest Docs run: **PASSING** —
     [Run 22395922643](https://github.com/iscc/iscc-lib/actions/runs/22395922643)
 - `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
@@ -210,7 +223,7 @@ done + howto/go.md done; io.Reader streaming interface absent)
 - `scripts/version_sync.py` created (120 lines, stdlib only); reads workspace version from root
     `Cargo.toml`, updates `package.json` and `pom.xml`; `--check` mode exits 1 on mismatch;
     `mise run version:sync` and `mise run version:check` tasks registered in `mise.toml`
-- **PR #1 merged**: develop → main, all CI passing; `v0.0.1` release is ready
+- **PR #1 merged**: develop → main; `v0.0.1` release is ready once CI is green again
 - Missing: OIDC trusted publishing for crates.io and PyPI not yet configured in registry settings
     (workflow code is correct; registry-side setup is outside CI scope)
 - Missing: npm publishing pipeline not fully wired
@@ -219,11 +232,20 @@ done + howto/go.md done; io.Reader streaming interface absent)
 
 ## Next Milestone
 
-CI is green on all 7 jobs on both `develop` and `main`. PR #1 (develop → main) was merged. All
-`[normal]` and `[critical]` issues are resolved. The docs landing page now shows all 6 language
-tabs. Only one `[low]` issue remains. Recommended priority order:
+**CI is FAILING — fix Python ruff format check first.**
 
-1. **[low] Evaluate unofficial TypeScript port** — check whether `branciard/iscc-core-ts` passes
+The interactive session commit `5461a65` introduced CPython C API optimisations to
+`crates/iscc-py/src/lib.rs` and updated `_lowlevel.pyi` / `__init__.py`. The `ruff format --check`
+step now fails in CI (confirmed on two consecutive runs: 22401304896 and 22401336439). The handoff
+claims `mise run check` passes locally, but the global `uv run ruff format --check` used in CI
+fails.
+
+Priority order:
+
+1. **[critical] Fix Python ruff format check** — run `uv run ruff format` on the Python files
+    (`crates/iscc-py/python/iscc_lib/`) to apply canonical formatting, then verify
+    `ruff format  --check` passes. Commit the fix so CI goes green.
+2. **[low] Evaluate unofficial TypeScript port** — check whether `branciard/iscc-core-ts` passes
     `data.json` conformance vectors; document result or mention in docs if conformant
-2. **Consider tagging v0.0.1** — main branch is stable with all CI passing; tagging `v0.0.1` and
-    triggering the release workflow is the logical next step for a first experimental release
+3. **Consider tagging v0.0.1** — main branch is stable; tagging and triggering the release workflow
+    is the logical next step once CI is green

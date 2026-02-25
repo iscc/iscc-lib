@@ -51,7 +51,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Tier 1 symbol count**: target.md and specs/rust-core.md previously said "22" but had uncommitted
     edits correcting to "23" (the actual implementation count). Working-tree-only edits visible in
     `git diff` (HEAD is clean at 23 in both files as of iteration 30).
-- **CI now has 7 jobs**: Rust, Python, Node.js, WASM, C FFI, Java, Go. All 7 pass at HEAD.
+- **CI now has 7 jobs**: Rust, Python, Node.js, WASM, C FFI, Java, Go. All 7 pass at HEAD when
+    Python formatting is clean. Post-interactive-session: Python ruff format check can fail even if
+    local `mise run check` passes (CI uses global `uv run ruff format --check`, pre-commit may only
+    check staged files).
 - **Registry readme metadata**: `Cargo.toml` `readme = "README.md"` in iscc-lib; `pyproject.toml`
     `readme = "README.md"` in iscc-py; npm auto-detects README.md (no explicit field needed in
     package.json)
@@ -203,3 +206,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     examples use tabbed multi-language format" now met for landing page. PR #1 MERGED (develop →
     main). Latest CI: develop run 22395380785 (7/7 pass), main run 22395922655 (all pass), Docs run
     22395922643 (pass). Only 1 `[low]` issue remains. v0.0.1 tag is the logical next step.
+- **Interactive session (post-iteration-30, commits 52d1c88+3bed859+5461a65+69bb36c+c4e3657)**:
+    Pre-push hooks changed to `always_run: true`; Rust style fixes (inline format args); CPython C
+    API optimisation for video code extraction in `crates/iscc-py/src/lib.rs`; 2 new Python-specific
+    flat-buffer functions `gen_video_code_v0_flat` + `soft_hash_video_v0_flat`; type signatures
+    updated to `Sequence[Sequence[int]]`; API symbol count in target.md and specs/rust-core.md
+    updated 22→23 (correcting a pre-existing under-count). **RESULT: CI FAILING** — Python ruff
+    format check fails (runs 22401304896 + 22401336439). Fix by running
+    `uv run ruff format crates/iscc-py/python/` and committing.
