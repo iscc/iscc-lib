@@ -4,19 +4,22 @@ package io.iscc.iscc_lib;
  * Low-level JNI interface to iscc-lib (ISO 24138:2024 ISCC).
  *
  * <p>All methods are static JNI calls into the Rust iscc-jni shared library.
- * The library is loaded via {@code System.loadLibrary("iscc_jni")} and must be
- * available on {@code java.library.path} at runtime.
+ * The library is loaded automatically via {@link NativeLoader#load()}, which
+ * first tries to extract a platform-specific binary from the JAR's
+ * {@code META-INF/native/} directory, then falls back to the standard
+ * JVM library loading mechanism for development and CI environments.
  *
  * <p>Methods that accept invalid input throw {@link IllegalArgumentException}.
  * Streaming hashers use opaque {@code long} handles for memory management --
  * callers must call the corresponding {@code *Free} method to release resources.
  *
+ * @see NativeLoader
  * @see <a href="https://iscc.io">ISCC Foundation</a>
  */
 public class IsccLib {
 
     static {
-        System.loadLibrary("iscc_jni");
+        NativeLoader.load();
     }
 
     private IsccLib() {

@@ -6,6 +6,7 @@ iterations.
 ## Code Locations
 
 - JNI Java wrapper: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`
+- JNI NativeLoader: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`
 - JNI Rust bridge: `crates/iscc-jni/src/lib.rs`
 - JNI Java tests: `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
 - JNI Maven config: `crates/iscc-jni/java/pom.xml`
@@ -184,5 +185,9 @@ iterations.
     rewording — mdformat rewrapping can split the list across lines
 - Java quick start must pass all parameters explicitly (no default arguments in Java) --
     `genMetaCodeV0("...", null, null, 64)` not `genMetaCodeV0("...")`
+- NativeLoader pattern: JAR extraction from `META-INF/native/{os}-{arch}/{libname}` → temp dir →
+    `System.load()`, with `System.loadLibrary("iscc_jni")` fallback. `synchronized` + `volatile`
+    guard. Uses `NativeLoader.class.getResourceAsStream()` (not ClassLoader) for fat JAR/OSGi
+    compatibility. CI uses the fallback path via Surefire `-Djava.library.path`
 - Python `__init__.py` module-level constants must go AFTER imports -- ruff E402 (module level
     import not at top of file) fires if a constant is placed between import groups
