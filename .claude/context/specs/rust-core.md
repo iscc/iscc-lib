@@ -192,7 +192,7 @@ The full public API surface bound in all languages:
 
 Total: 9 gen functions + 4 text utils + 4 algorithm primitives + 1 soft hash + 1 encoding + 1 codec
 
-- 2 streaming types + 1 diagnostic = **22 public symbols** (+ the `codec` module remains Tier 2
+- 2 streaming types + 1 diagnostic = **23 public symbols** (+ the `codec` module remains Tier 2
     Rust-only).
 
 ## Quality Gates
