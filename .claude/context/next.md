@@ -1,81 +1,81 @@
 # Next Work Package
 
-## Step: Add io.Reader support to Go streaming hashers
+## Step: Evaluate TypeScript port and add ecosystem docs page
 
 ## Goal
 
-Add `UpdateFrom(ctx, io.Reader)` methods to Go `DataHasher` and `InstanceHasher`, making the
-streaming API idiomatic for Go developers who work with files, network streams, and other
-`io.Reader` sources. The target architecture describes "io.Reader support for streaming" as part of
-the Go wrapper design.
+Research the community TypeScript implementation `branciard/iscc-core-ts`, assess its conformance
+status against official `data.json` test vectors, and add an "Ecosystem" documentation page
+mentioning community implementations. This closes the only remaining CID-actionable issue and
+improves discoverability for developers exploring the ISCC ecosystem.
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `packages/go/iscc.go`, `packages/go/iscc_test.go`
-- **Reference**: `packages/go/iscc.go` (current hasher API),
-    `crates/iscc-py/python/iscc_lib/__init__.py` (Python BinaryIO chunked-read pattern for
-    reference)
+- **Create**: `docs/ecosystem.md` — new documentation page covering community implementations
+- **Modify**: `zensical.toml` — add navigation entry for the ecosystem page
+- **Reference**: `branciard/iscc-core-ts` GitHub repository (use WebFetch or deepwiki MCP to
+    examine), `docs/architecture.md` (for consistent formatting), `zensical.toml` (for nav pattern)
 
 ## Not In Scope
 
-- Adding `io.Reader` overloads to `GenDataCodeV0`/`GenInstanceCodeV0` one-shot functions (users
-    wanting streaming from io.Reader should use the hasher + UpdateFrom)
-- Implementing `io.Writer` or `io.WriterTo` interfaces
-- Changing the existing `Update(ctx, []byte)` method signature
-- Adding convenience constructors that accept `io.Reader` directly
+- Running the TypeScript test suite locally or in CI — we only assess by examining the repo
+- Adding `iscc-core-ts` as a dependency or submodule
+- Contributing to or forking the TypeScript repo
+- Creating conformance test infrastructure for third-party implementations
+- Modifying the root README to mention community implementations (future step if warranted)
+- Adding links from other docs pages to the ecosystem page
 
 ## Implementation Notes
 
-Add two `UpdateFrom` methods with identical structure:
+1. **Research phase**: Use WebFetch to examine the `branciard/iscc-core-ts` GitHub repo:
 
-```go
-// UpdateFrom reads all data from r and feeds it into the hasher in chunks.
-// Uses 64 KiB internal buffer. Returns any read or update error.
-func (h *DataHasher) UpdateFrom(ctx context.Context, r io.Reader) error {
-    buf := make([]byte, 64*1024)
-    for {
-        n, err := r.Read(buf)
-        if n > 0 {
-            if updateErr := h.Update(ctx, buf[:n]); updateErr != nil {
-                return updateErr
-            }
-        }
-        if err == io.EOF {
-            return nil
-        }
-        if err != nil {
-            return fmt.Errorf("iscc: read: %w", err)
-        }
-    }
-}
-```
+    - Read the README for feature coverage claims
+    - Check if it has conformance tests against the official `data.json` vectors
+    - Look at the test files to see which `gen_*_v0` functions are implemented
+    - Check the package's npm status (published? version?)
+    - Note the license
 
-Same pattern for `InstanceHasher.UpdateFrom`.
+2. **Create `docs/ecosystem.md`**:
 
-The 64 KiB buffer size matches the Python binding's chunked-read pattern. The method delegates to
-the existing `Update` method, so all WASM memory management is handled by the existing code path.
+    - Add YAML front matter with `icon: lucide/globe` and a `description:` field
+    - Start with a brief intro explaining that ISCC is an open standard (ISO 24138:2024) and
+        community implementations are welcome
+    - Add a "Community Implementations" section with a subsection for `iscc-core-ts`:
+        - Repository link, author, license
+        - Language/platform
+        - Conformance status (based on research findings — be factual and neutral)
+        - Brief description of what it covers
+    - Add an "Official Implementations" section listing:
+        - `iscc-core` (Python reference implementation)
+        - `iscc-lib` (this project — Rust + polyglot bindings)
+    - Add a note encouraging contributions and linking to the ISCC specification
+    - Use admonition boxes for important notes (e.g., "Community implementations are independently
+        maintained and may not track the latest specification changes")
 
-For tests, use `bytes.NewReader` to create `io.Reader` instances from conformance test data:
+3. **Update `zensical.toml`**: Add the ecosystem page to the nav. Place it after "Explanation" and
+    before "Reference" as a top-level entry:
 
-1. `TestDataHasherUpdateFrom` — feed a conformance vector via `UpdateFrom(bytes.NewReader(data))`,
-    verify result matches `GenDataCodeV0` one-shot result
-2. `TestInstanceHasherUpdateFrom` — same pattern for InstanceHasher
-3. `TestDataHasherUpdateFromMultiChunk` — use `io.LimitedReader` or a custom small-buffer reader to
-    force multiple `Read` calls, verify identical result to one-shot
+    ```
+    { "Ecosystem" = "ecosystem.md" },
+    ```
 
-Add `"bytes"` to the import block in the test file if not already present.
+4. **Formatting**: Follow the established pattern from other docs pages — YAML front matter with
+    `icon` and `description`, consistent heading levels, use of Material for MkDocs features
+    (admonition boxes, external links).
 
 ## Verification
 
-- `mise exec -- go test ./packages/go/ -v -run TestDataHasherUpdateFrom` passes
-- `mise exec -- go test ./packages/go/ -v -run TestInstanceHasherUpdateFrom` passes
-- `mise exec -- go test ./packages/go/ -v` passes all tests (36 existing + new tests)
-- `grep -c 'func.*UpdateFrom' packages/go/iscc.go` returns 2
-- `grep 'io.Reader' packages/go/iscc.go` finds the method signatures
-- `cargo clippy --workspace --all-targets -- -D warnings` remains clean
+- `uv run zensical build` exits 0 (site builds successfully with the new page)
+- `test -f docs/ecosystem.md` exits 0 (ecosystem page exists)
+- `grep -q 'ecosystem.md' zensical.toml` exits 0 (navigation entry present)
+- `grep -q 'iscc-core-ts' docs/ecosystem.md` exits 0 (TypeScript port mentioned)
+- `grep -q 'branciard' docs/ecosystem.md` exits 0 (author/repo attributed)
+- `grep -q 'iscc-core' docs/ecosystem.md` exits 0 (reference implementation mentioned)
+- `grep -q 'icon:' docs/ecosystem.md` exits 0 (YAML front matter with icon present)
+- `cargo clippy --workspace --all-targets -- -D warnings` remains clean (no Rust changes)
 
 ## Done When
 
-All verification criteria pass — both `UpdateFrom` methods exist, new tests pass, and all 36+
-existing Go tests continue to pass.
+All verification criteria pass — the documentation site builds with a new Ecosystem page that
+accurately describes the `branciard/iscc-core-ts` community implementation alongside the official
+ISCC implementations.

@@ -213,6 +213,12 @@ iterations.
     methods + 3 tests, well under the 3-file limit. It delegates to existing `Update`, so no WASM
     changes. Prefer concrete code improvements over research tasks (TypeScript evaluation) even when
     the handoff suggests the latter.
+- **Research + docs hybrid steps** (iteration 8, second loop): When the only remaining CID-
+    actionable item is a research task (evaluating an external repo), combine it with a concrete
+    deliverable (a new docs page) so the step is verifiable. The advance agent uses
+    WebFetch/deepwiki to examine the external repo, then creates a documentation page with findings.
+    Scope: 1 create (docs page) + 1 modify (nav config) = well under the 3-file limit. Key: be
+    factual and neutral about third-party conformance — state what was observed, not assumptions.
 - **Java native bundling in release workflow** (iteration 5, second loop): The `build-jni` +
     `assemble-jar` pattern mirrors the existing `build-napi` + `publish-npm-lib` pattern. Key
     differences: (1) NativeLoader expects `META-INF/native/{os}-{arch}/{libname}` directory
