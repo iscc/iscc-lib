@@ -104,6 +104,12 @@ iterations.
     (completing 7/7 per-crate READMEs) is more verifiable and closes a target gap, while the
     TypeScript port evaluation is research with uncertain outcomes. Registry-side publishing setup
     (OIDC, Maven Central) is out of CID scope — it requires human action on external services.
+- **Pre-release docs polish** (iteration 30): When all code and READMEs are complete, look for
+    concrete docs/index.md gaps against target.md. The target says "All code examples use tabbed
+    multi-language format (Python, Rust, Java, Go, Node.js, WASM)" — if tabs are missing, that's a
+    concrete verifiable gap. Single-file doc modifications are safe, quick steps. Use howto guides
+    as reference for idiomatic code examples per language. Prefer state→target gap closure over
+    [low] research issues.
 
 ## Architecture Decisions
 
@@ -167,3 +173,5 @@ iterations.
     because the JNI bridge handles the conversion correctly.
 - Maven's working directory is the pom.xml parent directory, not the workspace root.
 - ISCC Foundation URL is `https://iscc.io` — not iscc.foundation or other variants.
+- WASM howto guide at `docs/howto/wasm.md` has wrong package name `@iscc/iscc-wasm` — correct name
+    is `@iscc/wasm` per learnings. Pre-existing issue not yet fixed.
