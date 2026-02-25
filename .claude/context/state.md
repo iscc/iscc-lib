@@ -1,15 +1,15 @@
-<!-- assessed-at: 69bfb2d49c0fcac14eb60281fcf3d4be7713f370 -->
+<!-- assessed-at: 98fa278681030616b830ce5695a4ce310c645943 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Release readiness — [normal] version sync tooling + [low] housekeeping remain
+## Phase: Release readiness — only [low] housekeeping issues remain
 
-All core bindings are complete and CI is green on all 7 jobs. The last `[critical]` issue (release
-idempotency) was resolved in iteration 25 — all 4 publish jobs now have pre-publish
-version-existence checks that skip gracefully when the version already exists on the target
-registry. One `[normal]` issue (version sync tooling) and three `[low]` issues remain.
+All core bindings are complete, CI is green on all 7 jobs, and the `[normal]` version sync tooling
+issue was resolved in iteration 26. `scripts/version_sync.py` and `mise run version:sync` /
+`mise run version:check` are fully implemented and verified. Three `[low]` issues remain (TypeScript
+evaluation, JNI exception mapping, WASM CLAUDE.md staleness).
 
 ## Rust Core Crate
 
@@ -30,14 +30,11 @@ registry. One `[normal]` issue (version sync tooling) and three `[low]` issues r
 - `bench_data_hasher_streaming` Criterion benchmark added: 1 MB input, 64 KiB chunks, ~1.0 GiB/s
 - `soft_hash_video_v0` and `gen_video_code_v0` now generic: `S: AsRef<[i32]> + Ord` — accepts both
     `&[Vec<i32>]` (owned) and `&[&[i32]]` (borrowed); backward-compatible with all binding crates
-- `alg_dct`: validation now strictly enforces `n.is_power_of_two()` (lengths like 6, 10, 12 are now
-    rejected); error message updated; 4 unit tests covering non-power-of-two cases
-- `alg_wtahash`: return type changed from `Vec<u8>` to `IsccResult<Vec<u8>>`; validates
-    `vec.len() >= 380` and `bits > 0 && bits % 8 == 0 && bits <= 256`; 4 unit tests covering short
-    input and invalid bit values; `soft_hash_video_v0` propagates error directly
+- `alg_dct`: validation strictly enforces `n.is_power_of_two()` (lengths like 6, 10, 12 rejected); 4
+    unit tests covering non-power-of-two cases
+- `alg_wtahash`: return type `IsccResult<Vec<u8>>`; validates `vec.len() >= 380` and bit
+    constraints; 4 unit tests; `soft_hash_video_v0` propagates error directly
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
-- All prior correctness and robustness fixes in place; `sliding_window` returns `IsccResult` on
-    `width < 2`; `alg_simhash` validated on digest length
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
 - `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD)
 - Note: target.md header says "22 public symbols" but the enumerated list totals 23; the crate
@@ -52,23 +49,17 @@ registry. One `[normal]` issue (version sync tooling) and three `[low]` issues r
 - All `gen_*_v0` functions return `PyDict` (translated to typed `IsccResult` subclasses in Python)
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with `Option<inner>` finalize-once pattern
 - `gen_data_code_v0` and `gen_instance_code_v0` accept `bytes | bytearray | memoryview | BinaryIO`
-    in the Python layer; `bytearray`/`memoryview` correctly converted to `bytes` before Rust FFI
-- File-like stream inputs use 64 KiB chunked reads via `_DataHasher`/`_InstanceHasher` (no more
-    unbounded `.read()` memory exhaustion) — `_CHUNK_SIZE = 65536` constant in `__init__.py`
+    in the Python layer; file-like stream inputs use 64 KiB chunked reads
 - `DataHasher.update` and `InstanceHasher.update` accept `bytes | bytearray | memoryview | BinaryIO`
     with same chunked-read logic
 - `sliding_window` returns `PyResult<Vec<String>>` and raises `ValueError` on `width < 2`
-- `__version__ = version("iscc-lib")` via `importlib.metadata` — present in `__init__.py` and
-    included in `__all__`
-- Module docstring in `crates/iscc-py/src/lib.rs` corrected to `iscc_lib._lowlevel` (was
-    `iscc._lowlevel`)
-- 117 test functions across 5 files (`test_conformance.py`, `test_smoke.py`, `test_text_utils.py`,
-    `test_algo.py`, `test_streaming.py`); 159 total pytest tests (2 new `__version__` tests added)
+- `__version__ = version("iscc-lib")` via `importlib.metadata` — present in `__init__.py`
+- Module docstring in `crates/iscc-py/src/lib.rs` corrected to `iscc_lib._lowlevel`
+- 117 test functions across 5 files; 159 total pytest tests
 - `ruff check` and `ruff format --check` clean (CI-verified at HEAD)
-- `pytest` passes all conformance vectors and bytes-like input tests (CI-verified at HEAD)
-- abi3-py310 wheel configuration in place
-- `ty` type checking configured
-- OIDC trusted publishing not yet configured
+- `pytest` passes all conformance vectors (CI-verified at HEAD)
+- abi3-py310 wheel configuration in place; `ty` type checking configured
+- OIDC trusted publishing not yet configured (registry-side setup required)
 - **Open issues**: none
 
 ## Node.js Bindings
@@ -76,17 +67,13 @@ registry. One `[normal]` issue (version sync tooling) and three `[low]` issues r
 **Status**: met
 
 - 23/23 Tier 1 symbols exported via napi-rs in `crates/iscc-napi/src/lib.rs`
-- `DataHasher` and `InstanceHasher` implemented as `#[napi(js_name)]` structs with constructor/
-    update/finalize methods
+- `DataHasher` and `InstanceHasher` implemented as `#[napi(js_name)]` structs
 - `sliding_window` returns `napi::Result<Vec<String>>` and throws on `width < 2`
-- 103 tests: 9 in `conformance.test.mjs` + 57 in `functions.test.mjs` (103 as counted by node:test
-    runner including sub-tests; CI-verified at HEAD)
-- `npm test` passes all conformance vectors (CI-verified at HEAD)
-- Version skew resolved: `index.js` regenerated with `0.0.1` matching `package.json`
-- npm packaging fixed: `"files"` allowlist in `package.json` ensures `index.js`, `index.d.ts`,
-    `*.node`, `README.md` are included in published tarball
-- `alg_cdc_chunks` clone eliminated: `.into_iter().map(Buffer::from)` avoids per-chunk allocation
-- Structured results not returned — all gen functions return only the `.iscc` string field
+- 103 tests (CI-verified at HEAD); all conformance vectors pass
+- Version sync resolved: `package.json` version `0.0.1` matches workspace version; `version:sync`
+    script now handles future updates automatically
+- npm packaging fixed: `"files"` allowlist ensures correct tarball contents
+- **Open issues**: none
 
 ## WASM Bindings
 
@@ -95,41 +82,22 @@ registry. One `[normal]` issue (version sync tooling) and three `[low]` issues r
 - 23/23 Tier 1 symbols exported via wasm-bindgen in `crates/iscc-wasm/src/lib.rs`
 - `DataHasher` and `InstanceHasher` added as `#[wasm_bindgen]` structs
 - `sliding_window` propagates `IsccError` as `JsError` on `width < 2`
-- 54 tests: 9 in `conformance.rs` + 45 in `unit.rs` (all run via wasm-pack test --node)
-- `wasm-pack test --node crates/iscc-wasm --features conformance` passes all 54 tests (CI-verified
-    at HEAD)
-- `alg_cdc_chunks` fixed: now returns `Result<JsValue, JsError>` and propagates serialization errors
-    via `.map_err(|e| JsError::new(&e.to_string()))` — no more silent null on failure
-- Structured results not returned — gen functions return only the `.iscc` string field
+- 54 tests: 9 in `conformance.rs` + 45 in `unit.rs`; all pass (CI-verified at HEAD)
+- `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
 - Browser and Node.js build targets supported
-- `conformance_selftest` is now gated behind `#[cfg(feature = "conformance")]` — production builds
-    omit the function and embedded test vectors; `Cargo.toml` has `[features] conformance = []`; CI
-    tests with `--features conformance`
 - **Open issues** \[low\]: stale CLAUDE.md says DataHasher/InstanceHasher not yet bound
 
 ## C FFI
 
 **Status**: met
 
-- 25 exported `extern "C"` functions in `crates/iscc-ffi/src/lib.rs` (1,934 lines): 23 Tier 1
-    symbols as FFI wrappers + `iscc_alloc` and `iscc_dealloc` memory-management helpers
-- `iscc_alloc(size: usize) -> *mut u8` — allocates WASM-side memory for host use; handles
-    `size == 0` by returning a dangling non-null pointer
-- `iscc_dealloc(ptr: *mut u8, size: usize)` — frees memory previously allocated by `iscc_alloc`;
-    no-op on null or zero-size; `iscc-ffi` now compiles to `wasm32-wasip1` (~10.5 MB debug binary)
-- All streaming hasher types fully implemented: `FfiDataHasher` and `FfiInstanceHasher` opaque
-    pointer types with complete `new/update/finalize/free` lifecycle functions
-- Finalize-once semantics enforced via `Option<Inner>` in the opaque wrapper struct
-- `iscc_sliding_window` propagates error via thread-local last-error and returns null on `width < 2`
-- Infrastructure in place: `IsccByteBuffer`/`IsccByteBufferArray` `#[repr(C)]` types, cbindgen
-    config, C test program (`tests/test_iscc.c`), thread-local last-error pattern
-- 62 `#[test]` Rust unit tests including 11 streaming hasher tests
-- C test program covers streaming hasher lifecycle (tests 14–17 in `test_iscc.c`)
-- cbindgen generates valid C headers (CI-verified at HEAD)
-- C test program compiles with gcc and runs correctly (CI-verified at HEAD)
-- **Video frame allocation eliminated**: `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0` now
-    pass `Vec<&[i32]>` (zero-copy borrows) into the Rust core; no `to_vec()` call remains in the
-    video path; only 1 `.to_vec()` remains in the entire iscc-ffi crate (in `alg_cdc_chunks`)
+- 25 exported `extern "C"` functions: 23 Tier 1 symbols + `iscc_alloc` / `iscc_dealloc`
+- All streaming hasher types: `FfiDataHasher` and `FfiInstanceHasher` with complete lifecycle
+- Finalize-once semantics via `Option<Inner>`; `iscc_sliding_window` propagates error via
+    thread-local last-error
+- 62 `#[test]` Rust unit tests; C test program covers full lifecycle (tests 14–17)
+- cbindgen generates valid C headers; C test program compiles and runs (CI-verified at HEAD)
+- Video frame allocation eliminated: `iscc_gen_video_code_v0` uses zero-copy borrows
 - **Open issues**: none
 
 ## Java Bindings
@@ -138,36 +106,19 @@ registry. One `[normal]` issue (version sync tooling) and three `[low]` issues r
 tests + CI job + how-to guide complete; platform native bundling inside JAR and Maven Central
 publishing absent)
 
-- `crates/iscc-jni/` crate: `Cargo.toml` with `crate-type = ["cdylib"]`, `publish = false`,
-    `iscc-lib` and `jni = "0.21"` workspace dependencies; workspace member in root `Cargo.toml`
-- `crates/iscc-jni/src/lib.rs` (866 lines): all 23 Tier 1 symbols implemented as 29
-    `extern "system"` JNI functions (streaming hashers expand to 4 JNI functions each)
-- `throw_and_default` helper implemented and used consistently at 72 call sites; zero `unwrap()`
-    calls — all error paths throw Java exceptions instead of aborting the JVM
-- Negative `jint` validation: 3 guards — `textTrim`, `slidingWindow`, `algCdcChunks` — throw
-    `IllegalArgumentException`
-- Local reference frame safety: `push_local_frame(16)`/`pop_local_frame` in all 5 array loops
-- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (331 lines): 29 `native` method
-    declarations, Javadoc coverage, static initializer now delegates to `NativeLoader.load()`
-- **`NativeLoader.java`** (169 lines): detects OS (`linux`/`macos`/`windows`) and arch
-    (`x86_64`/`aarch64`), extracts `META-INF/native/{os}-{arch}/{libname}` from JAR to temp dir,
-    falls back to `System.loadLibrary("iscc_jni")`; thread-safe via `synchronized` + `volatile`
-    guard; package-private helpers (`detectOs`, `detectArch`, `libraryFileName`) are testable
-    without reflection; extraction path currently inactive (no native binaries bundled yet)
-- `crates/iscc-jni/java/pom.xml`: Maven build config, JDK 17 target, JUnit 5 + Gson test
-    dependencies, Surefire 3.5.2 plugin with `java.library.path=target/debug`
-- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (362 lines): 9
-    `@TestFactory` / `DynamicTest` conformance methods (46 vectors) + 3 `@Test` negative-value
-    validation methods — 49 total tests, all passing
-- Java CI job (`Java (JNI build, mvn test)`) in `.github/workflows/ci.yml`: passing on all runs
-- `.devcontainer/Dockerfile`: `openjdk-17-jdk-headless` and `maven` added
-- `cargo clippy -p iscc-jni -- -D warnings` passes (CI-verified at HEAD)
-- `docs/howto/java.md` (319 lines): complete
-- Java entry in `zensical.toml` How-to Guides navigation: `{ "Java" = "howto/java.md" }` ✅
-- Missing: platform-specific native library bundling inside JAR (`META-INF/native/` population
-    requires multi-platform CI matrix to produce `.so`/`.dll`/`.dylib` per target)
-- Missing: Maven Central publishing configuration (sonatype staging plugin, POM metadata, GPG
-    signing, release.yml wiring)
+- `crates/iscc-jni/` crate: 866-line `lib.rs` with all 23 Tier 1 symbols as 29 `extern "system"` JNI
+    functions; `throw_and_default` at 72 call sites, zero `unwrap()` calls
+- Negative `jint` validation in 3 guards; local reference frame safety in 5 array loops
+- `IsccLib.java` (331 lines): 29 `native` declarations, `NativeLoader.load()` static initializer
+- `NativeLoader.java` (169 lines): OS/arch detection, JAR extraction to temp, `System.loadLibrary`
+    fallback; extraction path inactive (no native binaries bundled yet)
+- `IsccLibTest.java` (362 lines): 9 `@TestFactory` conformance methods (46 vectors) + 3 negative
+    tests — 49 total; all passing
+- Java CI job (`Java (JNI build, mvn test)`) passing (CI-verified at HEAD)
+- `docs/howto/java.md` (319 lines): complete; navigation entry in `zensical.toml` ✅
+- Version: `pom.xml` now at `0.0.1` (synced from workspace via `version:sync` in iteration 26)
+- Missing: platform-specific native library bundling inside JAR (`META-INF/native/`)
+- Missing: Maven Central publishing configuration
 - **Open issues** \[low\]: all exceptions map to `IllegalArgumentException` (state errors should use
     `IllegalStateException`)
 
@@ -176,50 +127,27 @@ publishing absent)
 **Status**: partially met (23/23 Tier 1 symbols + 35 test functions + Go CI job passing + README
 done + howto/go.md done; io.Reader streaming interface absent)
 
-- `packages/go/go.mod` — module `github.com/iscc/iscc-lib/packages/go`, Go 1.24.0, wazero v1.11.0
-- `packages/go/iscc.go` (1,165 lines): `Runtime` struct with `NewRuntime`/`Close` plus internal
-    memory helpers and 23 Tier 1 exported symbols: all 9 `Gen*CodeV0` wrappers, 4 text utilities
-    (`TextClean`, `TextRemoveNewlines`, `TextTrim`, `TextCollapse`), `SlidingWindow`,
-    `IsccDecompose`, `EncodeBase64`, `ConformanceSelftest`, `AlgSimhash`, `AlgMinhash256`,
-    `AlgCdcChunks`, `SoftHashVideoV0`, `GenIsccCodeV0`, `NewDataHasher` → `DataHasher` type,
-    `NewInstanceHasher` → `InstanceHasher` type
-- `DataHasher` / `InstanceHasher` structs with `New*/Update/Finalize/Close` lifecycle methods
-    wrapping `FfiDataHasher`/`FfiInstanceHasher` WASM opaque pointers via `writeBytes`/`lastError`
-    pattern; finalize-once semantics enforced
-- `packages/go/iscc_test.go` (1,069 lines): 36 function declarations including TestMain + 35 actual
-    test functions covering all 46 conformance vectors, 8 streaming hasher tests, error paths, and
-    edge cases
-- `TestMain` skips gracefully if `iscc_ffi.wasm` is not present (binary is gitignored)
-- `CGO_ENABLED=0 go test ./...` passes all 35 tests (CI-verified at HEAD)
-- `packages/go/*.wasm` added to `.gitignore`
-- **Go CI job** (`Go (go test, go vet)`) in `.github/workflows/ci.yml` — passes (CI-verified at
-    HEAD)
-- `packages/go/README.md` (104 lines): complete
-- `docs/howto/go.md` (388 lines): complete
-- Go entry in `zensical.toml` How-to Guides navigation: `{ "Go" = "howto/go.md" }` ✅
-- Missing: `io.Reader` interface for `Update` methods (architecture describes it; current
-    implementation accepts `[]byte` only — callers must chunk themselves)
-- Note: target.md `verified-when` criteria do not explicitly require `io.Reader`; the gap is in the
-    architecture description
+- `packages/go/iscc.go` (1,165 lines): `Runtime` struct + 23 Tier 1 exported symbols
+- `DataHasher` / `InstanceHasher` structs with `New*/Update/Finalize/Close` lifecycle
+- `packages/go/iscc_test.go` (1,069 lines): 36 function declarations, 35 actual tests covering 46
+    conformance vectors, 8 streaming hasher tests, error paths
+- `TestMain` skips gracefully if `iscc_ffi.wasm` is not present
+- `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD)
+- `docs/howto/go.md` (388 lines): complete; navigation entry in `zensical.toml` ✅
+- Missing: `io.Reader` interface for `Update` methods (target.md verified-when criteria do not
+    explicitly require it)
 
 ## README
 
 **Status**: met
 
 - ✅ Rewritten as public-facing polyglot developer README (238 lines)
-- ✅ CI badge; DeepWiki badge added (iteration 22); Crate (crates.io), PyPI, npm, and Go Reference
-    (`pkg.go.dev`) version badges present
-- ✅ Experimental notice, tagline, Key Features (6 bullets with "Python, Java, Go, Node.js, WASM, and
-    C FFI")
-- ✅ ISCC Architecture diagram and MainTypes table
-- ✅ "What is the ISCC" section
-- ✅ "What is iscc-lib" body text — "Python, Java, Go, Node.js, WebAssembly, and C" (fixed)
-- ✅ Installation: Rust, Python, Node.js, Java, Go, WASM sections all present
-- ✅ Quick Start: Rust, Python, Node.js, Java, Go, WASM examples all present
+- ✅ CI badge, DeepWiki badge, Crate, PyPI, npm, and Go Reference version badges
+- ✅ Experimental notice, tagline, Key Features, ISCC Architecture diagram, MainTypes table
+- ✅ "What is the ISCC" and "What is iscc-lib" sections; all 6 language bindings mentioned
+- ✅ Installation and Quick Start for Rust, Python, Node.js, Java, Go, WASM
 - ✅ Implementors Guide with all 9 `gen_*_v0` entry points listed
-- ✅ Documentation link to `lib.iscc.codes`
-- ✅ Contributing, Apache-2.0 license, Maintainers
-- ✅ No development workflow content (CID loop, dev container, pre-commit hooks absent)
+- ✅ Documentation link, Contributing, Apache-2.0 license, Maintainers
 - Maven Central badge not added (Java not yet published to Maven Central; not blocking)
 
 ## Per-Crate READMEs
@@ -227,36 +155,21 @@ done + howto/go.md done; io.Reader streaming interface absent)
 **Status**: partially met (6 of 6 publishable crates/packages done; iscc-ffi not published
 separately)
 
-- ✅ `crates/iscc-lib/README.md` — complete
-- ✅ `crates/iscc-py/README.md` — complete
-- ✅ `crates/iscc-napi/README.md` — complete
-- ✅ `crates/iscc-wasm/README.md` — complete
-- ✅ `crates/iscc-jni/README.md` — complete
-- ✅ `packages/go/README.md` — complete
+- ✅ `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`, `crates/iscc-napi/README.md` — done
+- ✅ `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`, `packages/go/README.md` — done
 - ❌ `crates/iscc-ffi/README.md` — not created (not published to a registry; lower priority)
 
 ## Documentation
 
 **Status**: met
 
-- 13 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
-    `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `howto/rust.md`,
-    `howto/go.md`, `howto/java.md`, `development.md`, `tutorials/getting-started.md`
-- Navigation in `zensical.toml` has: Tutorials (Getting Started), How-to Guides (Rust, Python,
-    Node.js, WebAssembly, Go, Java), Explanation (Architecture), Reference (Rust API, Python API),
-    Benchmarks, Development — all entries present ✅
+- 13 pages deployed to lib.iscc.codes: all navigation sections complete (Tutorials, How-to Guides,
+    Explanation, Reference, Benchmarks, Development)
 - All pages have `icon: lucide/...` and `description:` YAML front matter
-- Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757))
-- ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
-- Copy-page split-button (`docs/javascripts/copypage.js`), `scripts/gen_llms_full.py`, Open Graph
-    meta tags all in place
-- ✅ `docs/CNAME` contains `lib.iscc.codes`
-- ✅ `docs/includes/abbreviations.md` with 19 ISCC-specific abbreviations
-- ✅ `docs/howto/java.md` (319 lines): complete
-- ✅ `docs/howto/go.md` (388 lines): complete
-- ✅ `docs/development.md`: covers dev container setup, CID workflow, quality gates, project
-    structure
+- Site builds and deploys via GitHub Pages; latest Docs run: **PASSING**
+    ([Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757))
+- ISCC branding, copy-page split-button, `gen_llms_full.py`, Open Graph meta tags in place
+- ✅ `docs/CNAME` contains `lib.iscc.codes`; ✅ `docs/includes/abbreviations.md` (19 abbreviations)
 - Note: `docs/index.md` quick-start tabs show only Rust and Python (not all 6 languages); not
     flagged as blocking
 
@@ -264,10 +177,8 @@ separately)
 
 **Status**: partially met
 
-- Criterion benchmarks exist for all 9 `gen_*_v0` functions in
-    `crates/iscc-lib/benches/benchmarks.rs`
-- `bench_data_hasher_streaming` Criterion benchmark added: 1 MB input, 64 KiB chunks, ~1.0 GiB/s
-- pytest-benchmark comparison files exist: `benchmarks/python/bench_iscc_lib.py` and
+- Criterion benchmarks exist for all 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
+- pytest-benchmark comparison files: `benchmarks/python/bench_iscc_lib.py` and
     `benchmarks/python/bench_iscc_core.py` (101 lines each) plus `conftest.py`
 - Speedup factors documented in `docs/benchmarks.md`
 - Missing: CI does not run benchmarks automatically; no published benchmark results in CI artifacts
@@ -280,39 +191,37 @@ separately)
 - `ci.yml` covers 7 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
-- `ci.yml` triggers on push to `main` and `develop` branches (and PRs to `main`) — added in
-    iteration 25
-- Latest CI run: **PASSING** —
-    [Run 22391282792](https://github.com/iscc/iscc-lib/actions/runs/22391282792) — all 7 jobs
+- `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
+- **Latest CI run: PASSING** —
+    [Run 22391904404](https://github.com/iscc/iscc-lib/actions/runs/22391904404) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757) — build + deploy
-    success
-- All local commits are pushed; remote HEAD matches local HEAD
-- ✅ **Resolved (iteration 24)**: `release.yml` `workflow_dispatch` now has `inputs:` block with
-    three boolean checkboxes (`crates-io`, `pypi`, `npm`) and `if:` conditions on all 8 jobs
-- ✅ **Resolved (iteration 25)**: Idempotency checks — all 4 publish jobs now have pre-publish
-    version-existence checks: crates.io uses `cargo info iscc-lib`, PyPI uses PyPI JSON API
-    (`https://pypi.org/pypi/iscc-lib/$VERSION/json`), npm lib/wasm use
-    `npm view "@iscc/lib@$VERSION"` / `npm view "@iscc/wasm@$VERSION"`; each sets `skip=true/false`
-    output; all publish/auth/test steps conditioned on `steps.check.outputs.skip != 'true'`
-- **[normal]** Missing: `mise run version:sync` / `mise run version:check` tooling —
-    `scripts/version_sync.py` not yet created; `package.json` and `pom.xml` must be updated by hand
-    before version bumps; spec in `.claude/context/specs/ci-cd.md#sync-tooling`
+    [Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757)
+- ✅ `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
+    conditions on all 8 jobs
+- ✅ **Idempotency checks** on all 4 publish jobs (crates.io, PyPI, npm lib/wasm)
+- ✅ **[normal] RESOLVED (iteration 26)**: `scripts/version_sync.py` created (120 lines, stdlib
+    only); reads workspace version from root `Cargo.toml`, updates `package.json` and `pom.xml`;
+    `--check` mode exits 1 on mismatch; `mise run version:sync` and `mise run version:check` tasks
+    registered in `mise.toml`; all 8 verification criteria passed in review
 - Missing: OIDC trusted publishing for crates.io and PyPI not yet configured in registry settings
-    (workflow code is correct but registry-side trusted publisher setup is outside CI scope)
+    (workflow code is correct; registry-side setup is outside CI scope)
 - Missing: npm publishing pipeline not fully wired
-- Missing: Java platform native bundling in CI matrix (needed to populate `META-INF/native/`)
+- Missing: Java platform native bundling in CI matrix
 - Missing: Maven Central publishing configuration
 
 ## Next Milestone
 
-CI is green on all 7 jobs and all `[critical]` blockers are resolved. Recommended priority order:
+CI is green on all 7 jobs and all `[normal]` and `[critical]` issues are resolved. Only `[low]`
+housekeeping issues remain. Recommended priority order:
 
-1. **[normal] Version sync tooling** — create `scripts/version_sync.py` and add
-    `mise run  version:sync` / `mise run version:check` tasks to `mise.toml`; cross-platform
-    Python, stdlib only; updates `crates/iscc-napi/package.json` and `crates/iscc-jni/java/pom.xml`
-    from root `Cargo.toml` workspace version; spec in `.claude/context/specs/ci-cd.md#sync-tooling`
-2. **Low-priority code quality fixes** (any order): iscc-wasm stale CLAUDE.md update, iscc-jni
-    `IllegalStateException` for state errors, TypeScript port evaluation
-3. **`crates/iscc-ffi/README.md`** — completes the per-crate README set
+1. **[low] iscc-wasm stale CLAUDE.md** — update `crates/iscc-wasm/CLAUDE.md:130-131` to reflect
+    DataHasher/InstanceHasher are now fully bound (trivial one-line edit)
+2. **[low] iscc-jni exception mapping** — add `throw_state_error` variant for
+    `IllegalStateException` in `crates/iscc-jni/src/lib.rs:34`; use for finalized-hasher state
+    errors
+3. **[low] TypeScript evaluation** — evaluate `branciard/iscc-core-ts` conformance against
+    `data.json` vectors; document result in `docs/` if relevant
+4. **[low] `crates/iscc-ffi/README.md`** — completes the per-crate README set
+5. **Consider release** — the handoff note from iteration 26 suggests the project is ready for a
+    `v0.0.1` release; create PR from `develop` → `main` via `mise run pr:main`

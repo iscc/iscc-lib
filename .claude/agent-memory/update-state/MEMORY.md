@@ -166,3 +166,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     (6/7 done, all success, Go still running)
 - **No [critical] issues remain**. Only `[normal]` (version sync tooling) + 3 `[low]` items remain.
     Next target: implement `scripts/version_sync.py` + `mise run version:sync` / `version:check`.
+- **Version sync tooling resolved (iteration 26, commits dc985d2+98fa278)**:
+    `scripts/version_sync.py` created (120 lines, stdlib only — `json`, `re`, `pathlib`). Reads
+    workspace version from root `Cargo.toml` via regex, updates `crates/iscc-napi/package.json`
+    (json loads/dumps with `indent=2`) and `crates/iscc-jni/java/pom.xml` (regex replacement scoped
+    to `groupId io.iscc` + `artifactId iscc-lib`). `--check` mode prints OK/MISMATCH and exits 1 on
+    mismatch. `mise run version:sync` and `mise run version:check` tasks in `mise.toml` (lines 77,
+    81). `pom.xml` version updated from `0.0.1-SNAPSHOT` → `0.0.1`. All 8 review criteria passed.
+    `[normal]` issue deleted from issues.md. **All remaining issues are `[low]`**.
+- Latest CI run IDs (iteration 26): tests = 22391904404 (7/7 pass); docs = 22390109757 (pass)
+- Handoff from review (iteration 26): project ready for `v0.0.1` release — consider PR develop →
+    main via `mise run pr:main` before next iteration.
