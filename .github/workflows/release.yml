@@ -59,10 +59,13 @@ jobs:
         run: cargo test --workspace
       - name: Authenticate with crates.io
         if: steps.check.outputs.skip != 'true'
+        id: crates-auth
         uses: rust-lang/crates-io-auth-action@v1
       - name: Publish iscc-lib
         if: steps.check.outputs.skip != 'true'
         run: cargo publish -p iscc-lib
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.crates-auth.outputs.token }}
 
   # Build cross-platform Python wheels using maturin
   build-wheels:
@@ -168,7 +171,7 @@ jobs:
             target: aarch64-unknown-linux-gnu
           - os: macos-14
             target: aarch64-apple-darwin
-          - os: macos-13
+          - os: macos-14
             target: x86_64-apple-darwin
           - os: windows-latest
             target: x86_64-pc-windows-msvc
@@ -268,6 +271,7 @@ jobs:
           const fs = require('fs');
           const pkg = JSON.parse(fs.readFileSync('crates/iscc-wasm/pkg/package.json', 'utf8'));
           pkg.name = '@iscc/wasm';
+          pkg.repository = { type: 'git', url: 'https://github.com/iscc/iscc-lib' };
           const toml = fs.readFileSync('Cargo.toml', 'utf8');
           const m = toml.match(/^version\s*=\s*"(.+?)"/m);
           if (m) pkg.version = m[1];
@@ -340,7 +344,7 @@ jobs:
             target: aarch64-apple-darwin
             native-dir: macos-aarch64
             lib-name: libiscc_jni.dylib
-          - os: macos-13
+          - os: macos-14
             target: x86_64-apple-darwin
             native-dir: macos-x86_64
             lib-name: libiscc_jni.dylib
