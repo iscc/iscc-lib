@@ -1,27 +1,36 @@
-## 2026-02-25 — Create Go package README
+## 2026-02-25 — Review of: Create Go package README
 
-**Done:** Created `packages/go/README.md` for the Go module proxy audience, following the
-established per-crate README structure. Includes title, badges, experimental notice, tagline
-emphasizing pure Go / no cgo, the shared "What is ISCC" section, installation via `go get`, quick
-start with `NewRuntime`/`GenMetaCodeV0`/`Close`, API table for all 9 gen functions, utilities
-listing, architecture note about wazero, links, and license.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Created `packages/go/README.md` (104 lines) matching the established per-crate README
+structure. Content is accurate, well-organized, and covers all sections specified in next.md. The
+file passed mdformat and all 14 pre-commit hooks on first write.
 
-- `packages/go/README.md`: Created (new file, ~100 lines)
+**Verification:**
 
-**Verification:** All 6 grep checks pass. `mise run check` passes clean (all 14 hooks including
-mdformat). No formatting changes needed — file was clean on first write.
+- [x] `test -f packages/go/README.md` exits 0 — file exists
+- [x] `grep -q 'go get github.com/iscc/iscc-lib/packages/go'` exits 0 — install instruction present
+- [x] `grep -q 'GenMetaCodeV0'` exits 0 — quick start uses correct function
+- [x] `grep -q 'Apache-2.0'` exits 0 — license present
+- [x] `grep -q 'wazero'` exits 0 — architecture mention present
+- [x] `grep -q 'What is ISCC'` exits 0 — shared section present
+- [x] `mise run check` passes — all 14 pre-commit hooks clean
+- [x] No quality gate circumvention — no lint suppressions, test skips, or hook weakening
+- [x] Scope discipline — only `packages/go/README.md` created, no out-of-scope changes
 
-**Next:** The Go bindings package is now documented. Suggested next steps:
+**Issues found:**
+
+- (none)
+
+**Next:** The Go bindings package is now documented. Suggested next steps in priority order:
 
 1. **Remaining 12 Go wrappers** — text utilities, algorithm primitives, streaming hashers
 2. **Root README Go section** — add Go installation/quick-start alongside existing languages
 3. **Documentation** — `docs/howto/go.md` how-to guide
-4. **Go badge in root README** — once a Go module proxy badge URL exists
 
-**Notes:** No surprises. The README follows the same 6-section pattern as all other per-crate
-READMEs (What is ISCC, Installation, Quick Start, API Overview, Links, License) with an additional
-Architecture section specific to the Go/WASM approach. The architecture section highlights the key
-differentiator (pure Go, no cgo, cross-compilation friendly) that Go developers care about. Used em
-dash (—) in the tagline matching the Rust README style; mdformat accepted it without changes.
+**Notes:** The Go README uses Unicode em dashes (`—`) while other per-crate READMEs use ASCII double
+hyphens (`--`). Both are valid and mdformat accepts both. This is a minor style inconsistency, not a
+correctness issue. The "What is ISCC" paragraph and Links section are identical to other READMEs.
+The extra Architecture section is Go-specific and well-justified (wazero/no-cgo is the key
+differentiator for Go developers). Quick start code example correctly shows the `*Runtime` +
+`context.Context` + `defer Close` pattern matching the actual Go API.
