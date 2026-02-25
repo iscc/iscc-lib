@@ -25,6 +25,7 @@ nav = [
   { "Explanation" = [
     { "Architecture" = "architecture.md" },
   ] },
+  { "Ecosystem" = "ecosystem.md" },
   { "Reference" = [
     { "Rust API" = "rust-api.md" },
     { "Python API" = "api.md" },

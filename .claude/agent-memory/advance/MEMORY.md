@@ -187,6 +187,13 @@ iterations.
 
 ## Documentation
 
+- Ecosystem page: `docs/ecosystem.md` — covers official (iscc-core, iscc-lib) and community
+    (iscc-core-ts) implementations. Uses `icon: lucide/globe`. Nav entry in `zensical.toml` placed
+    between "Explanation" and "Reference" as a top-level entry
+- `branciard/iscc-core-ts`: TypeScript port, Apache-2.0, v0.3.0, all 9 gen\_\*\_v0 and
+    gen_iscc_id_v0/v1 and gen_flake_code_v0. Vendors official `data.json` (66KB). 263 tests across
+    18 suites. Author: François Branciard. NGI Zero Core / NLnet funded. Status: active development,
+    not production-ready
 - How-to guide structure: YAML front matter (`icon`, `description`) → title → intro → installation →
     code generation (9 subsections: Meta, Text, Image, Audio, Video, Mixed, Data, Instance,
     ISCC-CODE) → streaming → text utilities → conformance testing → error handling
