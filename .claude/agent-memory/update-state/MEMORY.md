@@ -257,3 +257,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     **MET** (was partially met). CI all 7 jobs pass on develop (runs 22404891331 + 22404890215, HEAD
     `4c942dd`). **All 7 binding sections now "met"**. Loop is in maintenance mode. PR #3 still open.
     Next CID-actionable step: await new target.md goals.
+- **Ecosystem docs page added (iteration 8, commits daf2831+de0b17a)**: `docs/ecosystem.md` (100
+    lines) created with Official Implementations section (iscc-core Python reference, iscc-lib Rust
+    polyglot) and Community Implementations section (iscc-core-ts TypeScript port by François
+    Branciard, NGI Zero Core funded, 263 tests, 9 gen\_\*\_v0 functions, not yet production-ready).
+    "Contributing an Implementation" section with 3-step guide. `icon: lucide/globe` front matter.
+    `zensical.toml` updated with `{ "Ecosystem" = "ecosystem.md" }` between Explanation and
+    Reference. Documentation page count: 14 (was 13). CI all 7 jobs pass on develop (runs
+    22405571444 + 22405570077, HEAD `de0b17a`). PR #3 still open (now includes ecosystem page too).

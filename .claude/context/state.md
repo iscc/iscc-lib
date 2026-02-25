@@ -1,16 +1,16 @@
-<!-- assessed-at: 4c942dd -->
+<!-- assessed-at: de0b17a -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All bindings met — PR #3 open (develop → main), maintenance mode
+## Phase: All bindings met — ecosystem docs added, PR #3 open (develop → main), maintenance mode
 
-All 7 binding sections are now "met". Iteration 7 added `UpdateFrom(ctx, io.Reader)` to both
-`DataHasher` and `InstanceHasher` in the Go package, completing the last functional gap. CI on
-`develop` at HEAD `4c942dd` is fully green (all 7 jobs passing on runs 22404891331 and 22404890215).
-PR #3 (develop → main) is still open, awaiting human merge and re-release. No CID-actionable code
-work remains.
+All 7 binding sections are "met". Iteration 8 added `docs/ecosystem.md` (100 lines: official and
+community ISCC implementations documented, including TypeScript port) and a nav entry in
+`zensical.toml`. CI on `develop` at HEAD `de0b17a` is fully green (all 7 jobs passing on runs
+22405571444 and 22405570077). PR #3 (develop → main) is still open. No CID-actionable code work
+remains.
 
 ## Rust Core Crate
 
@@ -189,8 +189,13 @@ absent; native bundling not yet exercised via an actual release)
 
 **Status**: met
 
-- 13 pages deployed to lib.iscc.codes: all navigation sections complete (Tutorials, How-to Guides,
-    Explanation, Reference, Benchmarks, Development)
+- **14 pages** deployed to lib.iscc.codes: all navigation sections complete (Tutorials, How-to
+    Guides, Explanation, Reference, Benchmarks, Development) plus new **Ecosystem** top-level page
+- `docs/ecosystem.md` (100 lines): Official Implementations section (iscc-core, iscc-lib) +
+    Community Implementations section (iscc-core-ts TypeScript port by François Branciard) +
+    Contributing an Implementation guide
+- Ecosystem page has `icon: lucide/globe` and `description:` YAML front matter; nav entry added to
+    `zensical.toml` between "Explanation" and "Reference"
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages; latest Docs run on main: **PASSING**
     ([Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413))
@@ -223,9 +228,8 @@ absent; native bundling not yet exercised via an actual release)
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
 - **Latest completed CI runs on develop: PASSING** —
-    [Run 22404891331](https://github.com/iscc/iscc-lib/actions/runs/22404891331) and
-    [Run 22404890215](https://github.com/iscc/iscc-lib/actions/runs/22404890215) — all 7 jobs
-    SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go all green) — triggered by HEAD `4c942dd`
+    [Run 22405570077](https://github.com/iscc/iscc-lib/actions/runs/22405570077) — all 7 jobs
+    SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go all green) — triggered by HEAD `de0b17a`
 - **Latest CI run on main: PASSING** —
     [Run 22402167393](https://github.com/iscc/iscc-lib/actions/runs/22402167393) — all jobs SUCCESS
 - Latest Docs run: **PASSING** —
@@ -242,8 +246,8 @@ absent; native bundling not yet exercised via an actual release)
 - `scripts/version_sync.py` created; reads workspace version, updates `package.json` and `pom.xml`;
     `mise run version:sync` and `mise run version:check` tasks registered
 - **PR #2 merged** (develop → main, commit `4bdc899`); v0.0.1 tag pushed to remote
-- **PR #3 open** (develop → main) — contains wasm-opt fix + `docs/howto/wasm.md` package name fix;
-    CI passing at head `4c942dd`
+- **PR #3 open** (develop → main) — contains wasm-opt fix + `docs/howto/wasm.md` package name fix +
+    ecosystem docs page; CI passing at head `de0b17a`
 - **Release workflow run 22402189532 — PARTIAL FAILURE**:
     - `Publish to PyPI: success` ✅ — iscc-lib 0.0.1 published to PyPI
     - All 4 wheel platforms + sdist built successfully ✅
@@ -262,10 +266,10 @@ absent; native bundling not yet exercised via an actual release)
 
 ## Next Milestone
 
-**No CID-actionable code work remains.** All 7 binding sections are "met" and CI is green on
-`develop`. The loop is in maintenance mode until new target.md goals are added. Human-gated tasks
-remaining: (1) merge PR #3 (develop → main) — CI is passing at head `4c942dd`; (2) configure
-crates.io OIDC trusted publishing (registry-side); (3) trigger a new release to publish `@iscc/wasm`
-and `@iscc/lib` to npm and exercise the `build-jni` + `assemble-jar` pipeline; (4) configure Maven
-Central publishing (GPG signing, Sonatype) when ready. If new CID goals are desired, update
-`target.md`.
+**No CID-actionable code work remains.** All 7 binding sections are "met", CI is green on `develop`
+at HEAD `de0b17a`, and the ecosystem docs page has been added. The loop is in maintenance mode until
+new target.md goals are added. Human-gated tasks remaining: (1) merge PR #3 (develop → main) — CI is
+passing at head `de0b17a`; (2) configure crates.io OIDC trusted publishing (registry-side); (3)
+trigger a new release to publish `@iscc/wasm` and `@iscc/lib` to npm and exercise the `build-jni` +
+`assemble-jar` pipeline; (4) configure Maven Central publishing (GPG signing, Sonatype) when ready.
+If new CID goals are desired, update `target.md`.
