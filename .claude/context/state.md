@@ -1,15 +1,15 @@
-<!-- assessed-at: 291ed184e6efff45ce6d6631d102223c36d83a7f -->
+<!-- assessed-at: f02c47b9f99ba004851574c733ee2679456c1425 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: 17 of 23 Go Tier 1 wrappers done — 6 remaining + root README Go section
+## Phase: 21 of 23 Go Tier 1 wrappers done — 2 remaining (streaming types)
 
-6 new Go wrappers were added this iteration (`TextRemoveNewlines`, `TextTrim`, `TextCollapse`,
-`SlidingWindow`, `EncodeBase64`, `IsccDecompose`), bringing the total exported Go functions to 17/23
-Tier 1 symbols. All 8 CI jobs remain green. The highest-priority gaps are the 6 remaining Go
-wrappers and the root README Go section.
+4 byte-buffer Go wrappers were added this iteration (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`,
+`SoftHashVideoV0`), bringing the total exported Go functions to 21/23 Tier 1 symbols. All 7 CI jobs
+remain green. The remaining gaps are the 2 Go streaming types (`DataHasher`/`InstanceHasher` with
+`io.Reader` support), the root README Go section, and the Go/Java how-to guides.
 
 ## Rust Core Crate
 
@@ -147,16 +147,19 @@ complete; native loader/publishing/docs absent)
 
 ## Go Bindings
 
-**Status**: partially met (17 exported functions + 22 test functions + Go CI job passing + README
-done; 6 remaining Tier 1 wrappers absent)
+**Status**: partially met (21 exported functions + 28 test functions + Go CI job passing + README
+done; 2 remaining Tier 1 streaming types absent)
 
 - `packages/go/go.mod` — module `github.com/iscc/iscc-lib/packages/go`, Go 1.24.0, wazero v1.11.0
-- `packages/go/iscc.go` (715 lines): `Runtime` struct with `NewRuntime`/`Close` plus 14 internal
-    memory helpers and 17 exported Tier 1 functions: all 9 `Gen*CodeV0` wrappers, 4 text utilities
+- `packages/go/iscc.go` (1,034 lines): `Runtime` struct with `NewRuntime`/`Close` plus internal
+    memory helpers and 21 exported Tier 1 functions: all 9 `Gen*CodeV0` wrappers, 4 text utilities
     (`TextClean`, `TextRemoveNewlines`, `TextTrim`, `TextCollapse`), `SlidingWindow`,
-    `IsccDecompose`, `EncodeBase64`, and `ConformanceSelftest`
-- `packages/go/iscc_test.go` (676 lines): 22 test functions covering all 46 conformance vectors plus
-    unit tests for all 17 exported functions; `TestSlidingWindowError` verifies error on `width < 2`
+    `IsccDecompose`, `EncodeBase64`, `ConformanceSelftest`, `AlgSimhash`, `AlgMinhash256`,
+    `AlgCdcChunks`, `SoftHashVideoV0`, `GenIsccCodeV0`
+- `packages/go/iscc_test.go` (801 lines): 28 test functions covering all 46 conformance vectors plus
+    unit tests for all 21 exported functions; `TestSlidingWindowError` and
+    `TestSoftHashVideoV0Error` verify error paths; `TestAlgCdcChunksEmpty` covers empty-input edge
+    case
 - `TestMain` skips gracefully if `iscc_ffi.wasm` is not present (binary is gitignored)
 - `CGO_ENABLED=0 go test ./...` passes — pure Go, no cgo required
 - Go installed via mise (`go = "latest"` in `mise.toml`)
@@ -166,9 +169,8 @@ done; 6 remaining Tier 1 wrappers absent)
     `go vet ./...`; CI-verified passing at HEAD
 - `packages/go/README.md` (104 lines): module path (`go get`), quick start, API overview table,
     architecture section (wazero/no-cgo), links, Apache-2.0 license
-- Missing: 6 remaining Tier 1 wrappers — 4 algorithm primitives (`AlgMinhash256`, `AlgCdcChunks`,
-    `AlgSimhash`, `SoftHashVideoV0`) and 2 streaming types (`DataHasher`/`InstanceHasher` with
-    `io.Reader` support)
+- Missing: 2 remaining Tier 1 streaming types — `DataHasher` and `InstanceHasher` with `io.Reader`
+    support (new/update/finalize lifecycle wrapping WASM `FfiDataHasher`/`FfiInstanceHasher`)
 
 ## README
 
@@ -242,10 +244,10 @@ separately)
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
     (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22378399350](https://github.com/iscc/iscc-lib/actions/runs/22378399350) — all 7 jobs
+    [Run 22379389670](https://github.com/iscc/iscc-lib/actions/runs/22379389670) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22378399445](https://github.com/iscc/iscc-lib/actions/runs/22378399445) — build + deploy
+    [Run 22379389682](https://github.com/iscc/iscc-lib/actions/runs/22379389682) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -254,12 +256,12 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs. 17 of 23 Tier 1 Go wrappers are done. Recommended next work (in priority
+CI is green on all 7 jobs. 21 of 23 Tier 1 Go wrappers are done. Recommended next work (in priority
 order):
 
-1. **Remaining 6 Go wrappers** — 4 algorithm primitives (`AlgMinhash256`, `AlgCdcChunks`,
-    `AlgSimhash`, `SoftHashVideoV0`) and 2 streaming types (`DataHasher`/`InstanceHasher` with
-    `io.Reader` support)
+1. **Remaining 2 Go streaming types** — `DataHasher` and `InstanceHasher` as structs with
+    `io.Reader`-compatible `Update` method, wrapping the WASM `FfiDataHasher`/`FfiInstanceHasher`
+    opaque pointer lifecycle (`new/update/finalize/free`)
 2. **Root README Go section** — add Go installation and quick-start example; add Go badge; fix "What
-    is iscc-lib" body text to include Java
+    is iscc-lib" body text to include Java; add Maven Central badge
 3. **Documentation** — `docs/howto/go.md` Go how-to guide; `docs/howto/java.md` Java how-to guide
