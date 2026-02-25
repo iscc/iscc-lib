@@ -83,6 +83,13 @@ iterations.
     CLAUDE.md updates (1 file), JNI exception type mapping (1 file + test). Feature gates involving
     CI changes count as 3 files (Cargo.toml + lib.rs + ci.yml) — test files don't count against the
     limit. Group related [low] issues in the same crate only if they share files.
+- **Release workflow critical issues**: Two [critical] issues in release.yml should be done
+    sequentially: (1) selective publishing inputs first (adds `workflow_dispatch.inputs` + `if:`
+    conditions), then (2) idempotency checks (adds version-exists skipping within existing job
+    steps). Both are single-file changes to `.github/workflows/release.yml`. The spec in
+    `specs/ci-cd.md` has exact YAML snippets to follow — point the advance agent there. Verification
+    is structural (grep for expected strings + YAML validity), not functional (can't trigger the
+    workflow in CI).
 
 ## Architecture Decisions
 

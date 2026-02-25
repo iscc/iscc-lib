@@ -1,97 +1,89 @@
 # Next Work Package
 
-## Step: Gate iscc-wasm `conformance_selftest` behind Cargo feature
+## Step: Add selective publishing inputs to release.yml
 
 ## Goal
 
-Gate the `conformance_selftest` WASM export behind an opt-in Cargo feature (`conformance`) so that
-production WASM binaries don't include the embedded JSON test vectors and parsing logic (~543 lines
-of conformance module + vendored `data.json`). This reduces bundle size for browser consumers who
-don't need diagnostics.
+Add `workflow_dispatch` boolean inputs to `release.yml` so each registry (crates.io, PyPI, npm) can
+be published independently via the GitHub Actions UI. This is the first of two critical release
+readiness issues and unblocks the first `v0.0.1` publish.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**:
-    - `crates/iscc-wasm/Cargo.toml` — add `[features]` section with `conformance = []`
-    - `crates/iscc-wasm/src/lib.rs` — gate `conformance_selftest` export with
-        `#[cfg(feature = "conformance")]`
-    - `crates/iscc-wasm/tests/unit.rs` — gate `test_conformance_selftest_returns_true` with
-        `#[cfg(feature = "conformance")]`
-    - `.github/workflows/ci.yml` — update wasm-pack test command to pass `--features conformance`
-- **Reference**:
-    - `crates/iscc-wasm/src/lib.rs` (lines 192–200 — the `conformance_selftest` export)
-    - `crates/iscc-wasm/tests/unit.rs` (lines 121–129 — the unit test calling it)
-    - `.github/workflows/ci.yml` (line 77 — current wasm-pack test invocation)
+- **Modify**: `.github/workflows/release.yml`
+- **Reference**: `.claude/context/specs/ci-cd.md` (trigger configuration and job conditions
+    sections), `.claude/context/issues.md` (issue description)
 
 ## Not In Scope
 
-- Feature-gating the conformance module in `iscc-lib` itself (the Rust core should always include
-    it; the WASM linker performs dead code elimination when nothing references it)
-- Updating `crates/iscc-wasm/CLAUDE.md` stale content about DataHasher/InstanceHasher (separate
-    [low] issue — next step)
-- Measuring or documenting the actual binary size reduction
-- Adding `wasm-opt` size optimization settings to the release profile
-- Changing the conformance test file (`tests/conformance.rs`) — those tests exercise individual gen
-    functions independently and should always run
+- Idempotency checks (version-exists skipping) — that is a separate critical issue to be addressed
+    in the next step
+- Version sync tooling (`scripts/version_sync.py`, `mise.toml` tasks) — separate `[normal]` issue
+- Any changes to `ci.yml` or `docs.yml`
+- OIDC configuration on registry websites (crates.io, PyPI) — those are manual steps outside this
+    codebase
+- Testing the workflow by actually triggering it (we verify structure only)
 
 ## Implementation Notes
 
-1. **Cargo.toml** — add below `[dev-dependencies]`:
+The spec in `.claude/context/specs/ci-cd.md` defines the exact target YAML structure. Follow it
+precisely:
 
-    ```toml
-    [features]
-    conformance = []
-    ```
-
-2. **lib.rs** — wrap the existing `conformance_selftest` export:
-
-    ```rust
-    #[cfg(feature = "conformance")]
-    #[wasm_bindgen]
-    pub fn conformance_selftest() -> bool {
-        iscc_lib::conformance_selftest()
-    }
-    ```
-
-    Keep the section comment `// ── Conformance ───` intact.
-
-3. **unit.rs** — gate the single test:
-
-    ```rust
-    #[cfg(feature = "conformance")]
-    #[wasm_bindgen_test]
-    fn test_conformance_selftest_returns_true() {
-        assert!(
-            iscc_wasm::conformance_selftest(),
-            "conformance selftest should pass"
-        );
-    }
-    ```
-
-4. **ci.yml** — change the WASM test run command from:
+1. **Add `inputs:` block** under the existing `workflow_dispatch:` key:
 
     ```yaml
-    run: wasm-pack test --node crates/iscc-wasm
+    workflow_dispatch:
+      inputs:
+        crates-io:
+          description: Publish iscc-lib to crates.io
+          type: boolean
+          default: false
+        pypi:
+          description: Publish iscc-lib to PyPI
+          type: boolean
+          default: false
+        npm:
+          description: Publish @iscc/lib and @iscc/wasm to npm
+          type: boolean
+          default: false
     ```
 
-    to:
+2. **Add `if:` conditions** to each job (use the exact expressions from the spec):
 
-    ```yaml
-    run: wasm-pack test --node crates/iscc-wasm -- --features conformance
-    ```
+    - `publish-crates-io`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.crates-io`
+    - `build-wheels`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
+    - `build-sdist`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
+    - `publish-pypi`: keep existing `needs: [build-wheels, build-sdist]`, add
+        `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
+    - `build-napi`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
+    - `build-wasm`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
+    - `publish-npm-lib`: change existing `if: startsWith(github.ref, 'refs/tags/v')` to
+        `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
+    - `publish-npm-wasm`: change existing `if: startsWith(github.ref, 'refs/tags/v')` to
+        `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
 
-    This ensures CI still tests the conformance selftest via the WASM export.
+3. **Important edge case**: `publish-pypi` already has `needs: [build-wheels, build-sdist]`. When
+    adding `if:`, GitHub Actions will automatically skip a job whose dependencies were skipped. But
+    be explicit — add the `if:` anyway so the intent is clear and the job doesn't attempt to run if
+    only the `if:` on a dependency caused the skip. Same logic applies to `publish-npm-lib` (needs
+    `build-napi`) and `publish-npm-wasm` (needs `build-wasm`).
+
+4. **Do NOT change** the `permissions`, `concurrency`, trigger events (`push.tags`), or any build
+    step logic. Only add `inputs:` and `if:` conditions.
 
 ## Verification
 
-- `wasm-pack test --node crates/iscc-wasm -- --features conformance` passes all 54 tests
-- `cargo clippy -p iscc-wasm -- -D warnings` clean
-- `grep -q '^\[features\]' crates/iscc-wasm/Cargo.toml` exits 0 (features section exists)
-- `grep -q 'cfg.*feature.*conformance' crates/iscc-wasm/src/lib.rs` exits 0 (feature gate present)
-- `grep -q '\-\-features conformance' .github/workflows/ci.yml` exits 0 (CI updated)
+- `grep -q 'crates-io:' .github/workflows/release.yml` exits 0 — input defined
+- `grep -q 'pypi:' .github/workflows/release.yml` exits 0 — input defined
+- `grep -c 'inputs\.' .github/workflows/release.yml` returns 8 or more — all jobs have conditions
+- `grep -q "inputs.crates-io" .github/workflows/release.yml` exits 0 — crates.io condition present
+- `grep -q "inputs.pypi" .github/workflows/release.yml` exits 0 — PyPI condition present
+- `grep -q "inputs.npm" .github/workflows/release.yml` exits 0 — npm condition present
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 — valid
+    YAML
 
 ## Done When
 
-All 5 verification criteria pass — the `conformance_selftest` WASM export is gated behind an opt-in
-feature, CI enables the feature for testing, and all existing tests still pass.
+All verification criteria pass, confirming that `release.yml` has three boolean `workflow_dispatch`
+inputs and every job chain has the correct `if:` condition matching the spec.
