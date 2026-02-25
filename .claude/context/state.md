@@ -1,17 +1,17 @@
-<!-- assessed-at: 693a1f7cad8cb3c9c89fcacea61be39b0d1034e5 -->
+<!-- assessed-at: 12478fdb53f65dad7ee3927830e9cb4d0ad01083 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: DataHasher buffer optimization done — Java native bundling and publishing remain
+## Phase: Video API generalized — all [normal] FFI allocation issues resolved; only [low] issues remain
 
-The `DataHasher::update` buffer optimization landed in iteration 19: the `tail: Vec<u8>` field was
-replaced with `buf: Vec<u8>`, eliminating all per-call `to_vec()` and `.concat()` allocations. Data
-is appended via `extend_from_slice` and the tail is shifted to the front with `copy_within` +
-`truncate`. A Criterion streaming benchmark was added (~1.0 GiB/s). The `[normal]` DataHasher issue
-is resolved and removed from issues.md. All 7 CI jobs and Docs remain green. Java platform native
-bundling inside the JAR and Maven Central publishing are the primary remaining structural gaps.
+The video API was generalized in iteration 20: `gen_video_code_v0` and `soft_hash_video_v0` now
+accept `S: AsRef<[i32]> + Ord` (generic over borrowed and owned slices). The FFI crate passes
+`Vec<&[i32]>` (zero-copy borrows) instead of `Vec<Vec<i32>>` (heap copies), eliminating 2 per-frame
+`.to_vec()` allocations. The sole remaining `.to_vec()` in `iscc-ffi` is in `alg_cdc_chunks`
+(unrelated). All 7 CI jobs and Docs remain green. No `[normal]` or higher issues remain in issues.md
+— all open issues are `[low]` priority.
 
 ## Rust Core Crate
 
@@ -30,6 +30,8 @@ bundling inside the JAR and Maven Central publishing are the primary remaining s
 - `DataHasher::update` uses persistent `buf: Vec<u8>` reused across calls — no `to_vec()` or
     `.concat()` allocations on any update path; tail shift done via `copy_within` + `truncate`
 - `bench_data_hasher_streaming` Criterion benchmark added: 1 MB input, 64 KiB chunks, ~1.0 GiB/s
+- `soft_hash_video_v0` and `gen_video_code_v0` now generic: `S: AsRef<[i32]> + Ord` — accepts both
+    `&[Vec<i32>]` (owned) and `&[&[i32]]` (borrowed); backward-compatible with all binding crates
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
 - All prior correctness and robustness fixes in place; `sliding_window` returns `IsccResult` on
     `width < 2`; `alg_simhash` validated on digest length
@@ -116,7 +118,10 @@ bundling inside the JAR and Maven Central publishing are the primary remaining s
 - C test program covers streaming hasher lifecycle (tests 14–17 in `test_iscc.c`)
 - cbindgen generates valid C headers (CI-verified at HEAD)
 - C test program compiles with gcc and runs correctly (CI-verified at HEAD)
-- **Open issues** \[normal\]: video functions allocate/copy every frame signature
+- **Video frame allocation eliminated**: `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0` now
+    pass `Vec<&[i32]>` (zero-copy borrows) into the Rust core; no `to_vec()` call remains in the
+    video path; only 1 `.to_vec()` remains in the entire iscc-ffi crate (in `alg_cdc_chunks`)
+- No open `[normal]` issues remain in C FFI
 
 ## Java Bindings
 
@@ -232,7 +237,7 @@ separately)
     Benchmarks, Development — all entries present ✅
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22385062221](https://github.com/iscc/iscc-lib/actions/runs/22385062221))
+    [Run 22385938553](https://github.com/iscc/iscc-lib/actions/runs/22385938553))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button (`docs/javascripts/copypage.js`), `scripts/gen_llms_full.py`, Open Graph
     meta tags all in place
@@ -251,7 +256,7 @@ separately)
 
 - Criterion benchmarks exist for all 9 `gen_*_v0` functions in
     `crates/iscc-lib/benches/benchmarks.rs`
-- `bench_data_hasher_streaming` Criterion benchmark added: 1 MB, 64 KiB chunks, ~1.0 GiB/s
+- `bench_data_hasher_streaming` Criterion benchmark added: 1 MB input, 64 KiB chunks, ~1.0 GiB/s
 - pytest-benchmark comparison files exist: `benchmarks/python/bench_iscc_lib.py` and
     `benchmarks/python/bench_iscc_core.py` (101 lines each) plus `conftest.py`
 - Speedup factors documented in `docs/benchmarks.md`
@@ -266,10 +271,10 @@ separately)
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
     (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22385062252](https://github.com/iscc/iscc-lib/actions/runs/22385062252) — all 7 jobs
+    [Run 22385938552](https://github.com/iscc/iscc-lib/actions/runs/22385938552) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22385062221](https://github.com/iscc/iscc-lib/actions/runs/22385062221) — build + deploy
+    [Run 22385938553](https://github.com/iscc/iscc-lib/actions/runs/22385938553) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -280,16 +285,17 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs and Docs. The `DataHasher::update` buffer optimization is complete — all
-`[normal]` allocation issues are resolved. Recommended next work (in priority order):
+CI is green on all 7 jobs and Docs. All `[normal]` issues are resolved — the last one (video frame
+allocation in C FFI) was fixed in iteration 20. Only `[low]` issues remain. Recommended next work
+(in priority order):
 
-1. **iscc-ffi video frame allocation** [normal in issues.md] — change `iscc_lib` video API to accept
-    `&[&[i32]]` (borrowed slices) to eliminate per-frame `to_vec()` in FFI wrappers; benchmark
-    before/after
-2. **Java platform native bundling** — set up a multi-platform CI matrix job that builds
+1. **Java platform native bundling** — set up a multi-platform CI matrix job that builds
     `libiscc_jni.so` (linux-x64, linux-aarch64), `libiscc_jni.dylib` (macos-x64, macos-aarch64),
     `iscc_jni.dll` (windows-x64) and packages them under `META-INF/native/` in the JAR
-3. **Maven Central publishing configuration** — add sonatype staging plugin, POM metadata, GPG
+2. **Maven Central publishing configuration** — add sonatype staging plugin, POM metadata, GPG
     signing setup to `pom.xml`; wire into `release.yml`
-4. **`crates/iscc-ffi/README.md`** — low-priority, completes the per-crate README set
+3. **Low-priority code quality fixes** (any order): `alg_dct` power-of-two validation, `alg_wtahash`
+    bounds check, iscc-py `__version__` + docstring correction, iscc-wasm conformance feature gate
+    \+ stale CLAUDE.md update, iscc-jni `IllegalStateException` for state errors
+4. **`crates/iscc-ffi/README.md`** — completes the per-crate README set
 5. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper (optional per verified-when)

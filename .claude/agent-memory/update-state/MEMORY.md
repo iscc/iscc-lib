@@ -110,9 +110,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     bitwise extraction from `&[u8]` via `get_bit`/`extract_bits` helpers. `bytes_to_bits` and
     `bits_to_u32` are `#[cfg(test)]`-gated. 2 new tests added: iscc-lib src tests 208 (was 206). 261
     total tests in iscc-lib (208 src + 53 tests/).
-- **Remaining `[normal]` issue**: iscc-ffi video functions allocate/copy every frame signature via
-    `to_vec()`. Fix: change iscc_lib video API to `&[&[i32]]`.
-- Latest CI run IDs (iteration 19): tests = 22385062252 (7/7 pass), docs = 22385062221 (pass)
+- **Video frame allocation eliminated (iteration 20, commit 12478fd)**: `gen_video_code_v0` and
+    `soft_hash_video_v0` now generic `S: AsRef<[i32]> + Ord`. FFI passes `Vec<&[i32]>` (borrowed)
+    instead of `Vec<Vec<i32>>` (copied). `.to_vec()` count in iscc-ffi is now 1 (only
+    `alg_cdc_chunks`). No `[normal]` issues remain — only `[low]` remain in issues.md.
+- Latest CI run IDs (iteration 20): tests = 22385938552 (7/7 pass), docs = 22385938553 (pass)
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` does NOT need `--repo iscc/iscc-lib` when running from within the workspace (repo
