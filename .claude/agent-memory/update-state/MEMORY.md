@@ -121,6 +121,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `soft_hash_video_v0` propagates error directly. Both issues removed from issues.md. Total tests:
     216 in src/ (was 208) + 53 in tests/ = 269 total (was 261).
 - Latest CI run IDs (iteration 21): tests = 22386854867 (7/7 pass), docs = 22386854880 (pass)
+- **iscc-py __version__ and docstring fix (iteration 22, commit 590f8f5)**:
+    `__version__ =   version("iscc-lib")` added to `__init__.py` via `importlib.metadata`;
+    `"__version__"` added to `__all__`; module docstring in `src/lib.rs` corrected from
+    `iscc._lowlevel` to `iscc_lib._lowlevel`; 2 new tests added (`test_version_exists_and_correct`,
+    `test_version_in_all`). Both `[low]` Python issues removed from issues.md. DeepWiki badge added
+    to README.md. mise.toml `go = "latest"` tool entry removed.
+- Latest CI run IDs (iteration 22): tests = 22387850893 (7/7 pass), docs = 22387850902 (pass)
+- Python pytest count: 159 tests (was 157); Python `[low]` issues → all resolved (Python status
+    remains MET with no open issues)
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` does NOT need `--repo iscc/iscc-lib` when running from within the workspace (repo

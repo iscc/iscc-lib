@@ -1,17 +1,14 @@
-<!-- assessed-at: 0edb950bb55f0a80b7e98a59af69c0a39069f22 -->
+<!-- assessed-at: d6ad9f1b718280fd3346e9292da1043d83d5bdde -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Low-priority code quality — alg_dct and alg_wtahash input validation landed; only housekeeping [low] issues remain
+## Phase: Low-priority housekeeping — iscc-py __version__ and docstring resolved; only [low] issues remain
 
-Input validation was tightened in iteration 21: `alg_dct` now strictly requires a power-of-two
-length (was: non-empty even-or-1), and `alg_wtahash` now returns `IsccResult<Vec<u8>>` with bounds
-checks on `vec.len() >= 380` and `bits` constraints (was: panic on OOB index). Both fixes are tested
-with 4 new unit tests each; `soft_hash_video_v0` propagates the `alg_wtahash` error directly. All 7
-CI jobs and Docs remain green. All remaining open issues are `[low]` housekeeping — no correctness
-or robustness gaps remain.
+All `[normal]` correctness and robustness gaps are resolved. The two previously open `[low]` Python
+issues (`__version__` attribute and module docstring) were fixed in iteration 22. CI is green on all
+7 jobs. The remaining open issues are all `[low]` housekeeping in iscc-jni and iscc-wasm.
 
 ## Rust Core Crate
 
@@ -33,11 +30,10 @@ or robustness gaps remain.
 - `soft_hash_video_v0` and `gen_video_code_v0` now generic: `S: AsRef<[i32]> + Ord` — accepts both
     `&[Vec<i32>]` (owned) and `&[&[i32]]` (borrowed); backward-compatible with all binding crates
 - `alg_dct`: validation now strictly enforces `n.is_power_of_two()` (lengths like 6, 10, 12 are now
-    rejected); error message updated; 4 new unit tests covering non-power-of-two cases
+    rejected); error message updated; 4 unit tests covering non-power-of-two cases
 - `alg_wtahash`: return type changed from `Vec<u8>` to `IsccResult<Vec<u8>>`; validates
-    `vec.len() >= 380` and `bits > 0 && bits % 8 == 0 && bits <= 256`; 4 new unit tests covering
-    short input and invalid bit values; `soft_hash_video_v0` propagates error directly (no
-    `Ok(...)`)
+    `vec.len() >= 380` and `bits > 0 && bits % 8 == 0 && bits <= 256`; 4 unit tests covering short
+    input and invalid bit values; `soft_hash_video_v0` propagates error directly
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
 - All prior correctness and robustness fixes in place; `sliding_window` returns `IsccResult` on
     `width < 2`; `alg_simhash` validated on digest length
@@ -45,7 +41,7 @@ or robustness gaps remain.
 - `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD)
 - Note: target.md header says "22 public symbols" but the enumerated list totals 23; the crate
     implements 23
-- **Open issues** \[low\]: none remaining for Rust core (alg_dct and alg_wtahash issues resolved)
+- **Open issues**: none
 
 ## Python Bindings
 
@@ -61,14 +57,18 @@ or robustness gaps remain.
 - `DataHasher.update` and `InstanceHasher.update` accept `bytes | bytearray | memoryview | BinaryIO`
     with same chunked-read logic
 - `sliding_window` returns `PyResult<Vec<String>>` and raises `ValueError` on `width < 2`
-- 115 test functions across 5 files (`test_conformance.py`, `test_smoke.py`, `test_text_utils.py`,
-    `test_algo.py`, `test_streaming.py`); 157 total pytest tests pass
+- `__version__ = version("iscc-lib")` via `importlib.metadata` — present in `__init__.py` and
+    included in `__all__`
+- Module docstring in `crates/iscc-py/src/lib.rs` corrected to `iscc_lib._lowlevel` (was
+    `iscc._lowlevel`)
+- 117 test functions across 5 files (`test_conformance.py`, `test_smoke.py`, `test_text_utils.py`,
+    `test_algo.py`, `test_streaming.py`); 159 total pytest tests (2 new `__version__` tests added)
 - `ruff check` and `ruff format --check` clean (CI-verified at HEAD)
 - `pytest` passes all conformance vectors and bytes-like input tests (CI-verified at HEAD)
 - abi3-py310 wheel configuration in place
 - `ty` type checking configured
 - OIDC trusted publishing not yet configured
-- **Open issues** \[low\]: missing `__version__`; module docstring references wrong package name
+- **Open issues**: none
 
 ## Node.js Bindings
 
@@ -126,7 +126,7 @@ or robustness gaps remain.
 - **Video frame allocation eliminated**: `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0` now
     pass `Vec<&[i32]>` (zero-copy borrows) into the Rust core; no `to_vec()` call remains in the
     video path; only 1 `.to_vec()` remains in the entire iscc-ffi crate (in `alg_cdc_chunks`)
-- No open `[normal]` issues remain in C FFI
+- **Open issues**: none
 
 ## Java Bindings
 
@@ -202,8 +202,9 @@ done + howto/go.md done; io.Reader streaming interface absent)
 
 **Status**: met
 
-- ✅ Rewritten as public-facing polyglot developer README (237 lines)
-- ✅ CI badge; Crate (crates.io), PyPI, npm, and Go Reference (`pkg.go.dev`) version badges present
+- ✅ Rewritten as public-facing polyglot developer README (238 lines)
+- ✅ CI badge; DeepWiki badge added (iteration 22); Crate (crates.io), PyPI, npm, and Go Reference
+    (`pkg.go.dev`) version badges present
 - ✅ Experimental notice, tagline, Key Features (6 bullets with "Python, Java, Go, Node.js, WASM, and
     C FFI")
 - ✅ ISCC Architecture diagram and MainTypes table
@@ -242,7 +243,7 @@ separately)
     Benchmarks, Development — all entries present ✅
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22386854880](https://github.com/iscc/iscc-lib/actions/runs/22386854880))
+    [Run 22387850902](https://github.com/iscc/iscc-lib/actions/runs/22387850902))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button (`docs/javascripts/copypage.js`), `scripts/gen_llms_full.py`, Open Graph
     meta tags all in place
@@ -276,10 +277,10 @@ separately)
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
     (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22386854867](https://github.com/iscc/iscc-lib/actions/runs/22386854867) — all 7 jobs
+    [Run 22387850893](https://github.com/iscc/iscc-lib/actions/runs/22387850893) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22386854880](https://github.com/iscc/iscc-lib/actions/runs/22386854880) — build + deploy
+    [Run 22387850902](https://github.com/iscc/iscc-lib/actions/runs/22387850902) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -290,18 +291,16 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs and Docs. All `[normal]` issues are resolved. The two previously open
-`[low]` Rust core issues (`alg_dct` non-power-of-two and `alg_wtahash` panic on short input) were
-fixed in iteration 21. Remaining open issues are all `[low]` housekeeping. Recommended next work (in
-priority order):
+CI is green on all 7 jobs and Docs. All `[normal]` issues are resolved. In iteration 22, the two
+`[low]` Python issues (`__version__` attribute and module docstring) were also resolved. Remaining
+open issues are all `[low]` housekeeping. Recommended next work (in priority order):
 
 1. **Java platform native bundling** — set up a multi-platform CI matrix job that builds
     `libiscc_jni.so` (linux-x64, linux-aarch64), `libiscc_jni.dylib` (macos-x64, macos-aarch64),
     `iscc_jni.dll` (windows-x64) and packages them under `META-INF/native/` in the JAR
 2. **Maven Central publishing configuration** — add sonatype staging plugin, POM metadata, GPG
     signing setup to `pom.xml`; wire into `release.yml`
-3. **Low-priority code quality fixes** (any order): iscc-py `__version__` + docstring correction,
-    iscc-wasm conformance feature gate + stale CLAUDE.md update, iscc-jni `IllegalStateException`
-    for state errors, TypeScript port evaluation
+3. **Low-priority code quality fixes** (any order): iscc-wasm conformance feature gate + stale
+    CLAUDE.md update, iscc-jni `IllegalStateException` for state errors, TypeScript port evaluation
 4. **`crates/iscc-ffi/README.md`** — completes the per-crate README set
 5. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper (optional per verified-when)
