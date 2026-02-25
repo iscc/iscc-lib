@@ -115,6 +115,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     instead of `Vec<Vec<i32>>` (copied). `.to_vec()` count in iscc-ffi is now 1 (only
     `alg_cdc_chunks`). No `[normal]` issues remain — only `[low]` remain in issues.md.
 - Latest CI run IDs (iteration 20): tests = 22385938552 (7/7 pass), docs = 22385938553 (pass)
+- **alg_dct and alg_wtahash validation (iteration 21, commit 0edb950)**: `alg_dct` now enforces
+    `n.is_power_of_two()` (was: non-empty even-or-1); `alg_wtahash` changed return type from
+    `Vec<u8>` to `IsccResult<Vec<u8>>` with guards on `vec.len() >= 380` and bits constraints.
+    `soft_hash_video_v0` propagates error directly. Both issues removed from issues.md. Total tests:
+    216 in src/ (was 208) + 53 in tests/ = 269 total (was 261).
+- Latest CI run IDs (iteration 21): tests = 22386854867 (7/7 pass), docs = 22386854880 (pass)
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` does NOT need `--repo iscc/iscc-lib` when running from within the workspace (repo

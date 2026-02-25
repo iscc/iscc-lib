@@ -1,17 +1,17 @@
-<!-- assessed-at: 12478fdb53f65dad7ee3927830e9cb4d0ad01083 -->
+<!-- assessed-at: 0edb950bb55f0a80b7e98a59af69c0a39069f22 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Video API generalized — all [normal] FFI allocation issues resolved; only [low] issues remain
+## Phase: Low-priority code quality — alg_dct and alg_wtahash input validation landed; only housekeeping [low] issues remain
 
-The video API was generalized in iteration 20: `gen_video_code_v0` and `soft_hash_video_v0` now
-accept `S: AsRef<[i32]> + Ord` (generic over borrowed and owned slices). The FFI crate passes
-`Vec<&[i32]>` (zero-copy borrows) instead of `Vec<Vec<i32>>` (heap copies), eliminating 2 per-frame
-`.to_vec()` allocations. The sole remaining `.to_vec()` in `iscc-ffi` is in `alg_cdc_chunks`
-(unrelated). All 7 CI jobs and Docs remain green. No `[normal]` or higher issues remain in issues.md
-— all open issues are `[low]` priority.
+Input validation was tightened in iteration 21: `alg_dct` now strictly requires a power-of-two
+length (was: non-empty even-or-1), and `alg_wtahash` now returns `IsccResult<Vec<u8>>` with bounds
+checks on `vec.len() >= 380` and `bits` constraints (was: panic on OOB index). Both fixes are tested
+with 4 new unit tests each; `soft_hash_video_v0` propagates the `alg_wtahash` error directly. All 7
+CI jobs and Docs remain green. All remaining open issues are `[low]` housekeeping — no correctness
+or robustness gaps remain.
 
 ## Rust Core Crate
 
@@ -23,7 +23,7 @@ accept `S: AsRef<[i32]> + Ord` (generic over borrowed and owned slices). The FFI
     `iscc_decompose`, `DataHasher`, `InstanceHasher`, `conformance_selftest`
 - Tier 2 codec module (`codec.rs`) with `MainType`/`SubType`/`Version` enums and all encode/decode
     helpers — correctly Rust-only, not bound to foreign languages
-- 208 `#[test]` functions in `src/`; 53 additional tests in `tests/`; 261 total
+- 216 `#[test]` functions in `src/`; 53 additional tests in `tests/`; 269 total
 - `decode_header` and `decode_varnibble_from_bytes` use direct bitwise extraction from `&[u8]` — no
     `Vec<bool>` allocation in any production decode path; `bytes_to_bits` and `bits_to_u32` are
     `#[cfg(test)]`-gated
@@ -32,6 +32,12 @@ accept `S: AsRef<[i32]> + Ord` (generic over borrowed and owned slices). The FFI
 - `bench_data_hasher_streaming` Criterion benchmark added: 1 MB input, 64 KiB chunks, ~1.0 GiB/s
 - `soft_hash_video_v0` and `gen_video_code_v0` now generic: `S: AsRef<[i32]> + Ord` — accepts both
     `&[Vec<i32>]` (owned) and `&[&[i32]]` (borrowed); backward-compatible with all binding crates
+- `alg_dct`: validation now strictly enforces `n.is_power_of_two()` (lengths like 6, 10, 12 are now
+    rejected); error message updated; 4 new unit tests covering non-power-of-two cases
+- `alg_wtahash`: return type changed from `Vec<u8>` to `IsccResult<Vec<u8>>`; validates
+    `vec.len() >= 380` and `bits > 0 && bits % 8 == 0 && bits <= 256`; 4 new unit tests covering
+    short input and invalid bit values; `soft_hash_video_v0` propagates error directly (no
+    `Ok(...)`)
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
 - All prior correctness and robustness fixes in place; `sliding_window` returns `IsccResult` on
     `width < 2`; `alg_simhash` validated on digest length
@@ -39,8 +45,7 @@ accept `S: AsRef<[i32]> + Ord` (generic over borrowed and owned slices). The FFI
 - `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD)
 - Note: target.md header says "22 public symbols" but the enumerated list totals 23; the crate
     implements 23
-- **Open issues** (tracked in `issues.md`): `alg_dct` allows non-power-of-two even lengths [low];
-    `alg_wtahash` panics on short vectors [low]
+- **Open issues** \[low\]: none remaining for Rust core (alg_dct and alg_wtahash issues resolved)
 
 ## Python Bindings
 
@@ -237,7 +242,7 @@ separately)
     Benchmarks, Development — all entries present ✅
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22385938553](https://github.com/iscc/iscc-lib/actions/runs/22385938553))
+    [Run 22386854880](https://github.com/iscc/iscc-lib/actions/runs/22386854880))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button (`docs/javascripts/copypage.js`), `scripts/gen_llms_full.py`, Open Graph
     meta tags all in place
@@ -271,10 +276,10 @@ separately)
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
     (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22385938552](https://github.com/iscc/iscc-lib/actions/runs/22385938552) — all 7 jobs
+    [Run 22386854867](https://github.com/iscc/iscc-lib/actions/runs/22386854867) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22385938553](https://github.com/iscc/iscc-lib/actions/runs/22385938553) — build + deploy
+    [Run 22386854880](https://github.com/iscc/iscc-lib/actions/runs/22386854880) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -285,17 +290,18 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs and Docs. All `[normal]` issues are resolved — the last one (video frame
-allocation in C FFI) was fixed in iteration 20. Only `[low]` issues remain. Recommended next work
-(in priority order):
+CI is green on all 7 jobs and Docs. All `[normal]` issues are resolved. The two previously open
+`[low]` Rust core issues (`alg_dct` non-power-of-two and `alg_wtahash` panic on short input) were
+fixed in iteration 21. Remaining open issues are all `[low]` housekeeping. Recommended next work (in
+priority order):
 
 1. **Java platform native bundling** — set up a multi-platform CI matrix job that builds
     `libiscc_jni.so` (linux-x64, linux-aarch64), `libiscc_jni.dylib` (macos-x64, macos-aarch64),
     `iscc_jni.dll` (windows-x64) and packages them under `META-INF/native/` in the JAR
 2. **Maven Central publishing configuration** — add sonatype staging plugin, POM metadata, GPG
     signing setup to `pom.xml`; wire into `release.yml`
-3. **Low-priority code quality fixes** (any order): `alg_dct` power-of-two validation, `alg_wtahash`
-    bounds check, iscc-py `__version__` + docstring correction, iscc-wasm conformance feature gate
-    \+ stale CLAUDE.md update, iscc-jni `IllegalStateException` for state errors
+3. **Low-priority code quality fixes** (any order): iscc-py `__version__` + docstring correction,
+    iscc-wasm conformance feature gate + stale CLAUDE.md update, iscc-jni `IllegalStateException`
+    for state errors, TypeScript port evaluation
 4. **`crates/iscc-ffi/README.md`** — completes the per-crate README set
 5. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper (optional per verified-when)
