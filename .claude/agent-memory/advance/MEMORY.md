@@ -163,6 +163,19 @@ iterations.
     "Runtime setup", streaming uses opaque `long` handles with try-finally (not defer),
     `genIsccCodeV0` exposes `boolean wide` parameter (Go hardcodes to false)
 
+## Codec Internals
+
+- `decode_header` and `decode_varnibble_from_bytes` operate directly on `&[u8]` with bitwise
+    extraction — no intermediate `Vec<bool>` allocation. Helpers: `get_bit(data, bit_pos)` reads a
+    single bit, `extract_bits(data, bit_pos, count)` reads N bits as u32 (both MSB-first)
+- `encode_header` and `encode_varnibble` still use `Vec<bool>` internally (encode path is less
+    performance-sensitive)
+- `bytes_to_bits` and `bits_to_u32` are `#[cfg(test)]` only — used by test helpers but not
+    production code
+- `bits_to_bytes` is still in production code (used by `encode_header`)
+- Rust 1.93+ clippy lints: `collapsible_if` and `manual_div_ceil` (use `n.div_ceil(d)` instead of
+    `(n + d - 1) / d`)
+
 ## Gotchas
 
 - `pop_local_frame` is `unsafe` in jni crate v0.21 (Rust 2024 edition) — must wrap in `unsafe {}`

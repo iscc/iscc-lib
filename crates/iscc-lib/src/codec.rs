@@ -113,12 +113,30 @@ impl TryFrom<u8> for Version {
 
 // ---- Bit Manipulation Helpers ----
 
+/// Read bit at position `bit_pos` from byte slice (MSB-first ordering).
+fn get_bit(data: &[u8], bit_pos: usize) -> bool {
+    let byte_idx = bit_pos / 8;
+    let bit_idx = 7 - (bit_pos % 8);
+    (data[byte_idx] >> bit_idx) & 1 == 1
+}
+
+/// Extract `count` bits starting at `bit_pos` as a u32 (MSB-first).
+fn extract_bits(data: &[u8], bit_pos: usize, count: usize) -> u32 {
+    let mut value = 0u32;
+    for i in 0..count {
+        value = (value << 1) | u32::from(get_bit(data, bit_pos + i));
+    }
+    value
+}
+
 /// Convert a bit slice (big-endian, MSB first) to a u32.
+#[cfg(test)]
 fn bits_to_u32(bits: &[bool]) -> u32 {
     bits.iter().fold(0u32, |acc, &b| (acc << 1) | u32::from(b))
 }
 
 /// Convert bytes to a bit vector (big-endian, MSB first).
+#[cfg(test)]
 fn bytes_to_bits(bytes: &[u8]) -> Vec<bool> {
     bytes
         .iter()
@@ -180,28 +198,31 @@ fn encode_varnibble(value: u32) -> IsccResult<Vec<bool>> {
     }
 }
 
-/// Decode the first varnibble from a bit slice.
+/// Decode the first varnibble from a byte slice at the given bit position.
 ///
-/// Returns the decoded integer and the number of bits consumed.
-fn decode_varnibble(bits: &[bool]) -> IsccResult<(u32, usize)> {
-    if bits.len() < 4 {
+/// Operates directly on `&[u8]` with bitwise extraction, avoiding any
+/// intermediate `Vec<bool>` allocation. Returns the decoded integer and
+/// the number of bits consumed.
+fn decode_varnibble_from_bytes(data: &[u8], bit_pos: usize) -> IsccResult<(u32, usize)> {
+    let available = data.len() * 8 - bit_pos;
+    if available < 4 {
         return Err(IsccError::InvalidInput(
             "insufficient bits for varnibble".into(),
         ));
     }
 
-    if !bits[0] {
+    if !get_bit(data, bit_pos) {
         // 0xxx — 4 bits, values 0–7
-        Ok((bits_to_u32(&bits[..4]), 4))
-    } else if bits.len() >= 8 && !bits[1] {
+        Ok((extract_bits(data, bit_pos, 4), 4))
+    } else if available >= 8 && !get_bit(data, bit_pos + 1) {
         // 10xxxxxx — 8 bits, values 8–71
-        Ok((bits_to_u32(&bits[2..8]) + 8, 8))
-    } else if bits.len() >= 12 && !bits[2] {
+        Ok((extract_bits(data, bit_pos + 2, 6) + 8, 8))
+    } else if available >= 12 && !get_bit(data, bit_pos + 2) {
         // 110xxxxxxxxx — 12 bits, values 72–583
-        Ok((bits_to_u32(&bits[3..12]) + 72, 12))
-    } else if bits.len() >= 16 && !bits[3] {
+        Ok((extract_bits(data, bit_pos + 3, 9) + 72, 12))
+    } else if available >= 16 && !get_bit(data, bit_pos + 3) {
         // 1110xxxxxxxxxxxx — 16 bits, values 584–4679
-        Ok((bits_to_u32(&bits[4..16]) + 584, 16))
+        Ok((extract_bits(data, bit_pos + 4, 12) + 584, 16))
     } else {
         Err(IsccError::InvalidInput(
             "invalid varnibble prefix or insufficient bits".into(),
@@ -239,35 +260,35 @@ pub fn encode_header(
 
 /// Decode ISCC header from bytes.
 ///
-/// Returns `(MainType, SubType, Version, length, tail_bytes)` where
-/// `tail_bytes` contains any remaining data after the header.
+/// Operates directly on `&[u8]` with bitwise extraction, avoiding any
+/// intermediate `Vec<bool>` allocation. Returns `(MainType, SubType,
+/// Version, length, tail_bytes)` where `tail_bytes` contains any
+/// remaining data after the header.
 pub fn decode_header(data: &[u8]) -> IsccResult<(MainType, SubType, Version, u32, Vec<u8>)> {
-    let bits = bytes_to_bits(data);
-    let mut pos = 0;
+    let mut bit_pos = 0;
 
-    let (mtype_val, consumed) = decode_varnibble(&bits[pos..])?;
-    pos += consumed;
+    let (mtype_val, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
 
-    let (stype_val, consumed) = decode_varnibble(&bits[pos..])?;
-    pos += consumed;
+    let (stype_val, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
 
-    let (version_val, consumed) = decode_varnibble(&bits[pos..])?;
-    pos += consumed;
+    let (version_val, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
 
-    let (length, consumed) = decode_varnibble(&bits[pos..])?;
-    pos += consumed;
+    let (length, consumed) = decode_varnibble_from_bytes(data, bit_pos)?;
+    bit_pos += consumed;
 
     // Strip 4-bit zero padding if header bits are not byte-aligned.
     // Since each varnibble is a multiple of 4 bits, misalignment is always 4 bits.
-    if pos % 8 != 0 {
-        let pad_end = pos + 4;
-        if pad_end <= bits.len() && bits[pos..pad_end].iter().all(|&b| !b) {
-            pos = pad_end;
-        }
+    if bit_pos % 8 != 0 && bit_pos + 4 <= data.len() * 8 && extract_bits(data, bit_pos, 4) == 0 {
+        bit_pos += 4;
     }
 
-    let tail = if pos < bits.len() {
-        bits_to_bytes(&bits[pos..])
+    // Advance to next byte boundary for tail extraction
+    let tail_byte_start = bit_pos.div_ceil(8);
+    let tail = if tail_byte_start < data.len() {
+        data[tail_byte_start..].to_vec()
     } else {
         vec![]
     };
@@ -557,7 +578,8 @@ mod tests {
         let test_values = [0, 1, 7, 8, 71, 72, 583, 584, 4679];
         for &value in &test_values {
             let bits = encode_varnibble(value).unwrap();
-            let (decoded, consumed) = decode_varnibble(&bits).unwrap();
+            let bytes = bits_to_bytes(&bits);
+            let (decoded, consumed) = decode_varnibble_from_bytes(&bytes, 0).unwrap();
             assert_eq!(decoded, value, "roundtrip failed for value {value}");
             assert_eq!(consumed, bits.len(), "consumed mismatch for value {value}");
         }
@@ -598,6 +620,67 @@ mod tests {
             bits_8,
             vec![true, false, false, false, false, false, false, false]
         ); // 10 000000
+    }
+
+    // ---- Bitwise extraction tests ----
+
+    #[test]
+    fn test_extract_bits_basic() {
+        // 0xA5 = 1010_0101 in binary
+        let data = [0xA5u8];
+        assert_eq!(extract_bits(&data, 0, 4), 0b1010); // first nibble
+        assert_eq!(extract_bits(&data, 4, 4), 0b0101); // second nibble
+        assert_eq!(extract_bits(&data, 0, 8), 0xA5); // full byte
+        assert_eq!(extract_bits(&data, 1, 3), 0b010); // bits 1-3
+        assert_eq!(extract_bits(&data, 0, 1), 1); // MSB
+        assert_eq!(extract_bits(&data, 7, 1), 1); // LSB
+
+        // Multi-byte: 0xFF 0x00 = 1111_1111 0000_0000
+        let data2 = [0xFF, 0x00];
+        assert_eq!(extract_bits(&data2, 0, 8), 0xFF);
+        assert_eq!(extract_bits(&data2, 8, 8), 0x00);
+        assert_eq!(extract_bits(&data2, 4, 8), 0xF0); // crossing byte boundary
+        assert_eq!(extract_bits(&data2, 6, 4), 0b1100); // crossing byte boundary
+    }
+
+    #[test]
+    fn test_decode_varnibble_from_bytes_boundary_values() {
+        // Test decoding at non-zero bit offsets within a byte slice.
+        // Encode two varnibbles into a single byte sequence and decode both.
+
+        // varnibble(3) = 0011 (4 bits) + varnibble(8) = 10_000000 (8 bits) = 12 bits
+        let bits_3 = encode_varnibble(3).unwrap();
+        let bits_8 = encode_varnibble(8).unwrap();
+        let mut combined_bits = bits_3.clone();
+        combined_bits.extend(&bits_8);
+        let bytes = bits_to_bytes(&combined_bits);
+
+        // Decode first varnibble at bit 0
+        let (val1, consumed1) = decode_varnibble_from_bytes(&bytes, 0).unwrap();
+        assert_eq!(val1, 3);
+        assert_eq!(consumed1, 4);
+
+        // Decode second varnibble at bit 4 (non-zero offset)
+        let (val2, consumed2) = decode_varnibble_from_bytes(&bytes, 4).unwrap();
+        assert_eq!(val2, 8);
+        assert_eq!(consumed2, 8);
+
+        // Test with a 3-nibble value at offset
+        // varnibble(0) = 0000 (4 bits) + varnibble(72) = 110_000000000 (12 bits)
+        let bits_0 = encode_varnibble(0).unwrap();
+        let bits_72 = encode_varnibble(72).unwrap();
+        let mut combined2 = bits_0;
+        combined2.extend(&bits_72);
+        let bytes2 = bits_to_bytes(&combined2);
+
+        let (val3, consumed3) = decode_varnibble_from_bytes(&bytes2, 4).unwrap();
+        assert_eq!(val3, 72);
+        assert_eq!(consumed3, 12);
+
+        // Test insufficient bits at offset
+        let single_byte = [0x00u8];
+        let result = decode_varnibble_from_bytes(&single_byte, 6);
+        assert!(result.is_err(), "should fail with only 2 bits available");
     }
 
     // ---- Header encoding tests ----
