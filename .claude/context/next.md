@@ -1,53 +1,79 @@
 # Next Work Package
 
-## Step: Fix stale WASM CLAUDE.md documentation
+## Step: Create iscc-ffi per-crate README
 
 ## Goal
 
-Update `crates/iscc-wasm/CLAUDE.md` to accurately reflect that DataHasher and InstanceHasher are
-fully bound and the total exported symbol count is 23 (not 22). This resolves the
-`[low] iscc-wasm: Stale CLAUDE.md says DataHasher/InstanceHasher not yet bound` issue.
+Create `crates/iscc-ffi/README.md` to complete the per-crate README set (7 of 7 crates/packages).
+This is the last missing README and closes the "Per-Crate READMEs" gap in target.md. Although
+iscc-ffi is not published to a registry, its README serves as the primary documentation entry point
+for C/C#/Go integrators browsing the repository.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: `crates/iscc-wasm/CLAUDE.md`
-- **Reference**: `crates/iscc-wasm/src/lib.rs` (to verify the actual exports)
+- **Create**: `crates/iscc-ffi/README.md`
+- **Modify**: (none)
+- **Reference**:
+    - `crates/iscc-jni/README.md` — closest analog (another non-npm/non-crates.io binding)
+    - `crates/iscc-wasm/README.md` — established README structure
+    - `crates/iscc-ffi/CLAUDE.md` — detailed C ABI conventions, type mappings, memory management
+    - `crates/iscc-ffi/src/lib.rs` — actual exported symbols for accuracy
+    - `crates/iscc-ffi/cbindgen.toml` — header generation config
 
 ## Not In Scope
 
-- Adding new WASM bindings or changing any Rust code
-- Updating other crate CLAUDE.md files (e.g., iscc-jni Javadoc mismatch is a separate concern)
-- Creating `crates/iscc-ffi/README.md` (separate task)
-- Any changes to `src/lib.rs` or test files
+- Adding a `readme` field to `crates/iscc-ffi/Cargo.toml` (crate has `publish = false`, so crates.io
+    rendering is irrelevant)
+- Modifying any Rust source code or test files
+- Creating documentation pages (e.g., `docs/howto/c.md`) — that's a separate step
+- Updating the root `README.md` (C FFI is already mentioned there)
+- Changing cbindgen config or regenerating headers
 
 ## Implementation Notes
 
-Three changes needed in `crates/iscc-wasm/CLAUDE.md`:
+Follow the established per-crate README pattern (see iscc-jni and iscc-wasm READMEs):
 
-1. **Line 117**: Change "All 22 Tier 1 symbols are bound" → "All 23 Tier 1 symbols are bound, plus 2
-    streaming types". The 23 count matches the Tier 1 API definition in target.md and the actual
-    exports in `lib.rs`.
+1. **Title**: `iscc-ffi` (the crate name)
+2. **Badges**: CI badge + License badge (no registry version badge since it's not published)
+3. **Experimental notice**: same blockquote as other READMEs
+4. **Tagline**: C-compatible FFI bindings for ISO 24138:2024 ISCC. Built with Rust, usable from C,
+    Go, C#, and any language with C interop
+5. **"What is ISCC" section**: reuse the exact same text from other READMEs (3-sentence
+    description)
+6. **"Building" section** (instead of "Installation" — since there's no package manager install):
+    - `cargo build -p iscc-ffi --release` to produce shared/static library
+    - `cbindgen` command to generate the C header
+    - Note the output locations (`target/release/libiscc_ffi.so` / `.dylib` / `.dll`)
+7. **"Quick Start" section**: minimal C code example calling `iscc_gen_meta_code_v0` with
+    `iscc_free_string` cleanup — use the pattern from `tests/test_iscc.c`
+8. **"API Overview" section**: same table structure as other READMEs (9 gen functions + utilities),
+    but with `iscc_` prefixed C function names
+9. **"Memory Management" section**: brief note about Rust-allocates/Rust-frees rule, list the 4
+    free functions (`iscc_free_string`, `iscc_free_string_array`, `iscc_free_byte_buffer`,
+    `iscc_free_byte_buffer_array`), and `iscc_last_error` for error handling
+10. **"Links" section**: same 4 links as other READMEs (docs, repo, ISO spec, ISCC Foundation)
+11. **"License" section**: Apache-2.0
 
-2. **Lines 130-131**: Replace the paragraph that says "DataHasher and InstanceHasher (streaming
-    types) are not yet bound. Binding stateful types requires `#[wasm_bindgen]` on a struct with
-    constructor/method annotations." with accurate documentation stating they ARE bound as
-    `#[wasm_bindgen]` structs with constructor, `update()`, and `finalize()` methods. Mention the
-    `Option<Inner>` finalize-once pattern (consistent with Python/napi/JNI crates).
+Key differences from other READMEs:
 
-3. **Add DataHasher/InstanceHasher to the export list** (around lines 128-129): Add a line for the 2
-    streaming types, e.g., "**2 streaming types:** `DataHasher`, `InstanceHasher`".
-
-Keep edits minimal and factual. Do not rewrite unrelated sections.
+- No registry version badge (not published to any registry)
+- "Building" section instead of "Installation" (consumers compile from source or use pre-built
+    artifacts)
+- Memory management section (unique to C FFI — other bindings handle this automatically)
+- Function names use `iscc_` prefix and `snake_case` (C naming convention)
+- Quick start shows `#include "iscc.h"` and explicit free calls
 
 ## Verification
 
-- `grep -c "not yet bound" crates/iscc-wasm/CLAUDE.md` outputs `0`
-- `grep "All 23 Tier 1" crates/iscc-wasm/CLAUDE.md` matches (confirms updated count)
-- `grep "DataHasher" crates/iscc-wasm/CLAUDE.md` shows them listed as bound exports
-- `grep "InstanceHasher" crates/iscc-wasm/CLAUDE.md` shows them listed as bound exports
-- No Rust source files modified (only CLAUDE.md changed)
+- `test -f crates/iscc-ffi/README.md` exits 0 (file exists)
+- `grep "iscc-ffi" crates/iscc-ffi/README.md` matches (contains crate name)
+- `grep "What is ISCC" crates/iscc-ffi/README.md` matches (has the standard section)
+- `grep "iscc_gen_meta_code_v0" crates/iscc-ffi/README.md` matches (has C function names)
+- `grep "iscc_free_string" crates/iscc-ffi/README.md` matches (documents memory management)
+- `grep "Apache-2.0" crates/iscc-ffi/README.md` matches (has license)
+- No files other than `crates/iscc-ffi/README.md` are modified or created
 
 ## Done When
 
-All four grep verification checks pass and the only modified file is `crates/iscc-wasm/CLAUDE.md`.
+All 7 verification checks pass: the file exists, contains the standard sections (ISCC description,
+API overview with C function names, memory management, license), and no other files are changed.

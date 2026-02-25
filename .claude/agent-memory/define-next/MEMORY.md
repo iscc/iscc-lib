@@ -98,6 +98,12 @@ iterations.
     helper rather than parameterizing `throw_and_default` — simpler, no API churn. The 2 new Java
     tests follow the established negative test pattern (`assertThrows`). Existing 49 tests are
     unaffected. This is the last meaningful code quality improvement before release.
+- **End-of-project prioritization** (iteration 29): When all [normal]/[critical] issues are resolved
+    and only [low] issues remain, prefer concrete deliverables (creating missing files, completing
+    documentation sets) over research tasks (evaluating external repos). The iscc-ffi README
+    (completing 7/7 per-crate READMEs) is more verifiable and closes a target gap, while the
+    TypeScript port evaluation is research with uncertain outcomes. Registry-side publishing setup
+    (OIDC, Maven Central) is out of CID scope — it requires human action on external services.
 
 ## Architecture Decisions
 
@@ -128,6 +134,10 @@ iterations.
     (Cargo.toml has `publish = false`). Java method names use camelCase (e.g., `genMetaCodeV0`).
 - Go README: Go module proxy (pkg.go.dev) renders README.md. Go gen functions return
     `(string, error)` — quick start uses `iscc, err := rt.GenMetaCodeV0(ctx, ...)` pattern.
+- C FFI README: not published to any registry (`publish = false`), so no version badge. Uses
+    "Building" section instead of "Installation". Unique among READMEs in needing a "Memory
+    Management" section (Rust-allocates/Rust-frees, 4 free functions, `iscc_last_error`). C function
+    names use `iscc_` prefix (`iscc_gen_meta_code_v0`). Quick start must show explicit `free` calls.
 
 ## CI Workflow Patterns
 
