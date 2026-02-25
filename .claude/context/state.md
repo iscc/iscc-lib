@@ -1,4 +1,4 @@
-<!-- assessed-at: 53b02893f5fe312466f9e8e529c0aa98f9116d92 -->
+<!-- assessed-at: e22b4fa7031e17577f262c64decf120d75af1730 -->
 
 # Project State
 
@@ -6,9 +6,9 @@
 
 ## Phase: Release readiness — one [low] housekeeping issue remains
 
-All core bindings are complete, CI is green on all 7 jobs, and the `[low]` stale WASM CLAUDE.md
-issue was resolved in iteration 28. Only one `[low]` issue remains (TypeScript port evaluation). PR
-#1 (develop → main) is open and CI is passing.
+All core bindings are complete, CI is green on all 7 jobs, and the `crates/iscc-ffi/README.md` was
+created in iteration 29, completing all 7 per-crate READMEs. Only one `[low]` issue remains
+(TypeScript port evaluation). PR #1 (develop → main) is open and CI is passing.
 
 ## Rust Core Crate
 
@@ -154,12 +154,12 @@ done + howto/go.md done; io.Reader streaming interface absent)
 
 ## Per-Crate READMEs
 
-**Status**: partially met (6 of 6 publishable crates/packages done; iscc-ffi not published
-separately)
+**Status**: met
 
 - ✅ `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`, `crates/iscc-napi/README.md` — done
 - ✅ `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`, `packages/go/README.md` — done
-- ❌ `crates/iscc-ffi/README.md` — not created (not published to a registry; lower priority)
+- ✅ `crates/iscc-ffi/README.md` — created in iteration 29 (123 lines); all 7 per-crate READMEs
+    complete
 
 ## Documentation
 
@@ -195,7 +195,7 @@ separately)
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
 - **Latest CI run: PASSING** —
-    [Run 22393043406](https://github.com/iscc/iscc-lib/actions/runs/22393043406) — all 7 jobs
+    [Run 22394253866](https://github.com/iscc/iscc-lib/actions/runs/22394253866) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go); triggered by push to develop
 - Latest Docs run: **PASSING** —
     [Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757)
@@ -215,11 +215,11 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs. All `[normal]` and `[critical]` issues are resolved. Only one `[low]`
-issue remains. PR #1 (develop → main) is open and ready to merge. Recommended priority order:
+CI is green on all 7 jobs. All `[normal]` and `[critical]` issues are resolved. All 7 per-crate
+READMEs are complete. Only one `[low]` issue remains. PR #1 (develop → main) is open and ready to
+merge. Recommended priority order:
 
 1. **[low] Evaluate unofficial TypeScript port** — check whether `branciard/iscc-core-ts` passes
     `data.json` conformance vectors; document result or mention in docs if conformant
-2. **[low] `crates/iscc-ffi/README.md`** — completes the per-crate README set
-3. **Consider release** — PR #1 (develop → main) is open and all CI passes; merging and tagging
+2. **Consider release** — PR #1 (develop → main) is open and all CI passes; merging and tagging
     `v0.0.1` is the logical next step

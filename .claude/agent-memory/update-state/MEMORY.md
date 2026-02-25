@@ -64,9 +64,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     wrapping WASM FfiDataHasher/FfiInstanceHasher). `iscc_test.go` 1,069 lines — 36 func
     declarations (TestMain + 35 tests including 8 streaming hasher tests). Update takes `[]byte`,
     NOT `io.Reader` — architecture gap noted. WASM binary gitignored; TestMain skips if missing.
-- Per-crate READMEs: all 6 publishable packages done (iscc-lib, iscc-py, iscc-napi, iscc-wasm,
-    iscc-jni, packages/go). iscc-ffi not published separately (lower priority).
-    packages/go/README.md created in iteration 10 (commit a60a375).
+- Per-crate READMEs: all 7 done (iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni, packages/go,
+    iscc-ffi). iscc-ffi/README.md created in iteration 29 (123 lines). packages/go/README.md created
+    in iteration 10 (commit a60a375).
 - Root README NOW COMPLETE as of iteration 14 (commit 200ffb1): Go Reference badge, Go installation
     section, Go quick-start example added. "What is iscc-lib" body text fixed to "Python, Java, Go,
     Node.js, WebAssembly, and C". Key Features updated to "Python, Java, Go, Node.js, WASM, and C
@@ -190,3 +190,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     bound" text for DataHasher/InstanceHasher; added "2 streaming types: DataHasher, InstanceHasher"
     to export list. Issue deleted from issues.md. Only 1 `[low]` issue remains: TypeScript port
     evaluation. Latest CI run: 22393043406 (all 7 jobs success). PR #1 still open.
+- **iscc-ffi README created (iteration 29, commit e22b4fa)**: `crates/iscc-ffi/README.md` (123
+    lines) created. Pattern: "Building" instead of "Installation"; "Memory Management" section
+    unique to C FFI; `iscc_`-prefixed function names. All 7 per-crate READMEs now complete →
+    Per-Crate READMEs section status → MET. CI still green (run 22394253866, all 7 jobs pass). No
+    open issues remain — only the `[low]` TypeScript port evaluation. PR #1 (develop → main) still
+    open.
