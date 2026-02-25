@@ -1,95 +1,74 @@
 # Next Work Package
 
-## Step: Create version sync tooling
+## Step: JNI IllegalStateException for finalized hashers
 
 ## Goal
 
-Create `scripts/version_sync.py` and add `mise run version:sync` / `mise run version:check` tasks so
-non-Cargo manifests (`package.json`, `pom.xml`) stay in sync with the workspace version from root
-`Cargo.toml`. This is the last unchecked item in the Version Sync verification section of
-`specs/ci-cd.md` and the only remaining `[normal]` issue.
+Fix the Java binding to throw `IllegalStateException` (not `IllegalArgumentException`) when calling
+`update()` or `finalize()` on an already-finalized `DataHasher` or `InstanceHasher`. This makes the
+Java API idiomatic — Java convention uses `IllegalStateException` for operations invalid in the
+current object state, vs `IllegalArgumentException` for invalid input values.
 
 ## Scope
 
-- **Create**: `scripts/version_sync.py`
-- **Modify**: `mise.toml` (add `version:sync` and `version:check` tasks)
-- **Reference**:
-    - `.claude/context/specs/ci-cd.md` — sync tooling spec, release protocol, manifest table
-    - `.claude/context/issues.md` — `[normal] Create version sync tooling` issue description
-    - `Cargo.toml` — workspace version source of truth (`[workspace.package] version = "0.0.1"`)
-    - `crates/iscc-napi/package.json` — `"version": "0.0.1"` field to update
-    - `crates/iscc-jni/java/pom.xml` — `<version>0.0.1-SNAPSHOT</version>` element to update
-    - `scripts/gen_llms_full.py` — existing script for style/pattern reference
+- **Create**: (none)
+- **Modify**: `crates/iscc-jni/src/lib.rs` (add `throw_state_error` helper, change 4 call sites,
+    update 2 doc comments)
+- **Reference**: `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (existing
+    test patterns), `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (Java-side
+    declarations)
 
 ## Not In Scope
 
-- Adding `version:check` to CI workflow — that's a future CI integration step
-- Adding a pre-commit hook for version checking
-- Updating the WASM `pkg/package.json` — that's generated at build time by the release workflow
-    script, not a checked-in manifest
-- Removing `-SNAPSHOT` suffix from pom.xml (the sync script writes the bare version; the `-SNAPSHOT`
-    convention is a Maven development practice that can be addressed when Maven Central publishing
-    is set up)
-- Bumping the actual version number — all manifests are already at `0.0.1`
+- Changing exception types for non-state errors (all other `throw_and_default` call sites remain
+    `IllegalArgumentException` — those ARE argument validation errors)
+- Adding `IllegalStateException` to non-hasher functions (none of them have state)
+- Refactoring the `throw_and_default` function signature to accept exception class as parameter
+    (keep it simple with a separate helper)
+- Updating `crates/iscc-wasm/CLAUDE.md` stale text (separate [low] issue)
+- Release preparation or PR creation
 
 ## Implementation Notes
 
-**Script design** (`scripts/version_sync.py`):
+Add a `throw_state_error` helper alongside the existing `throw_and_default`:
 
-- Pure Python, stdlib only (no third-party dependencies). Cross-platform (Windows/Linux/macOS)
-- Use `pathlib.Path` for all file paths
-- Start with a module docstring explaining the script's purpose
-- Accept `--check` flag for validation mode (exit 0 if in sync, exit 1 with diff details if not)
-- Default mode (no flag) performs the sync — reads version and updates files in place
-
-**Reading workspace version from `Cargo.toml`**:
-
-- Use regex: `r'^version\s*=\s*"(.+?)"'` with `re.MULTILINE` on root `Cargo.toml`
-- Match the first occurrence (which is the `[workspace.package]` version line)
-- This is the same pattern used in the WASM release CI script (per learnings)
-
-**Updating `package.json`** (`crates/iscc-napi/package.json`):
-
-- Use `json.load` / `json.dump` (stdlib) — read, update `"version"` key, write back
-- Preserve 2-space indentation: `json.dump(data, f, indent=2)` + ensure trailing newline
-
-**Updating `pom.xml`** (`crates/iscc-jni/java/pom.xml`):
-
-- Use regex replacement on the raw XML string — do NOT use `xml.etree` (it rewrites the entire file,
-    changes attribute order, loses comments)
-- Target pattern:
-    `r'(<groupId>io\.iscc</groupId>\s*<artifactId>iscc-lib</artifactId>\s*<version>).+?(</version>)'`
-    with `re.DOTALL`
-- Replace the version content with the workspace version (bare, no `-SNAPSHOT` suffix)
-- This targets only the project's own `<version>`, not dependency versions
-
-**mise tasks** (add to `mise.toml`):
-
-```toml
-[tasks."version:sync"]
-description = "Sync non-Cargo manifest versions with workspace version"
-run = "uv run scripts/version_sync.py"
-
-[tasks."version:check"]
-description = "Check that all manifest versions match workspace version"
-run = "uv run scripts/version_sync.py --check"
+```rust
+fn throw_state_error<T: Default>(env: &mut JNIEnv, msg: &str) -> T {
+    let _ = env.throw_new("java/lang/IllegalStateException", msg);
+    T::default()
+}
 ```
 
-**Output**: The script should print what it's doing — which file was updated to which version (sync
-mode) or which file is out of sync (check mode). Keep output concise (1 line per manifest).
+Change exactly 4 call sites from `throw_and_default` to `throw_state_error` — the "already
+finalized" messages in:
+
+1. `dataHasherUpdate` (line ~739) — `throw_and_default::<()>` → `throw_state_error::<()>`
+2. `dataHasherFinalize` (line ~760) — `throw_and_default` → `throw_state_error`
+3. `instanceHasherUpdate` (line ~821) — `throw_and_default::<()>` → `throw_state_error::<()>`
+4. `instanceHasherFinalize` (line ~842) — `throw_and_default` → `throw_state_error`
+
+Update the 2 doc comments on `dataHasherUpdate` and `instanceHasherUpdate` from "Throws
+`IllegalArgumentException`" to "Throws `IllegalStateException`".
+
+Add 2 Java test methods to `IsccLibTest.java`:
+
+1. `testDataHasherThrowsIllegalStateAfterFinalize` — create hasher, finalize, then call update and
+    assert `IllegalStateException`
+2. `testInstanceHasherThrowsIllegalStateAfterFinalize` — same pattern for InstanceHasher
+
+These follow the existing negative test pattern (e.g., `testTextTrimNegativeThrows` at line 343).
 
 ## Verification
 
-- `uv run scripts/version_sync.py --check` exits 0 (all manifests already at 0.0.1)
-- `uv run scripts/version_sync.py` runs without error and reports sync complete
-- `mise run version:sync` executes the sync script successfully
-- `mise run version:check` executes the check script and exits 0
-- `grep -q 'version:sync' mise.toml` exits 0 (task registered)
-- `grep -q 'version:check' mise.toml` exits 0 (task registered)
-- `grep -q 'import re' scripts/version_sync.py` exits 0 (uses regex, no third-party deps)
-- `mise run check` passes (all pre-commit hooks clean)
+- `cd crates/iscc-jni && cargo build` succeeds (Rust JNI crate compiles)
+- `cd crates/iscc-jni/java && mvn test` passes (all existing 49 tests + 2 new = 51 tests)
+- `grep -c 'throw_state_error' crates/iscc-jni/src/lib.rs` outputs `4` (exactly 4 call sites)
+- `grep -c 'IllegalStateException' crates/iscc-jni/src/lib.rs` outputs at least `1` (the helper)
+- `grep -c 'IllegalStateException' crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
+    outputs at least `2` (the 2 new tests)
+- `cargo clippy -p iscc-jni -- -D warnings` clean
 
 ## Done When
 
-All 8 verification criteria pass — the version sync script correctly reads the workspace version,
-validates that `package.json` and `pom.xml` match, and both mise tasks are functional.
+All verification criteria pass: the JNI crate compiles, Maven tests pass (51 total), exactly 4
+state-error call sites use `IllegalStateException`, and clippy is clean.

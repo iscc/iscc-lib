@@ -93,6 +93,11 @@ iterations.
     instead of xml.etree to avoid file reformatting. The pom.xml version element sits right after
     groupId and artifactId, making a targeted regex safe. Cross-platform requirement means
     `pathlib.Path` everywhere. Verification is straightforward: run --check (exit 0 = in sync).
+- **JNI exception mapping** (iteration 27): Targeted fix — only 4 call sites change (the "already
+    finalized" messages in hasher update/finalize methods). Add a parallel `throw_state_error`
+    helper rather than parameterizing `throw_and_default` — simpler, no API churn. The 2 new Java
+    tests follow the established negative test pattern (`assertThrows`). Existing 49 tests are
+    unaffected. This is the last meaningful code quality improvement before release.
 
 ## Architecture Decisions
 
