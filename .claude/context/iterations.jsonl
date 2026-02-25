@@ -238,3 +238,8 @@
 {"ts":"2026-02-25T01:03:28.777373+00:00","iteration":9,"role":"define-next","status":"OK","turns":29,"cost_usd":1.067808,"duration_s":150.7}
 {"ts":"2026-02-25T01:06:40.483579+00:00","iteration":9,"role":"advance","status":"OK","turns":32,"cost_usd":1.027279,"duration_s":191.7}
 {"iteration":9,"timestamp":"2026-02-25T01:09:00Z","step":"Create Go package README","verdict":"PASS","files_changed":["packages/go/README.md"],"notes":"104-line README with all required sections. Clean pass, no issues."}
+{"ts":"2026-02-25T01:09:59.526317+00:00","iteration":9,"role":"review","status":"OK","turns":44,"cost_usd":1.316154,"duration_s":199.0}
+{"ts":"2026-02-25T01:32:48.409266+00:00","iteration":10,"role":"update-state","status":"OK","turns":17,"cost_usd":0.683769,"duration_s":198.7}
+{"ts":"2026-02-25T01:38:01.337504+00:00","iteration":10,"role":"define-next","status":"OK","turns":49,"cost_usd":2.406983,"duration_s":312.9}
+{"ts":"2026-02-25T01:42:35.984404+00:00","iteration":10,"role":"advance","status":"OK","turns":39,"cost_usd":1.794465,"duration_s":274.6}
+{"iteration":10,"timestamp":"2026-02-25T01:47:00Z","step":"Add 6 Go wrappers (text utils + encode + string-array functions)","verdict":"PASS","files_changed":["packages/go/iscc.go","packages/go/iscc_test.go"],"notes":"6 public wrappers + 3 private helpers. 22 Go tests pass. Clean implementation, no issues."}
