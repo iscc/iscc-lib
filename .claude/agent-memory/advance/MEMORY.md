@@ -156,6 +156,17 @@ iterations.
     via regex `r'^version\s*=\s*"(.+?)"'`, updates `package.json` (json stdlib) and `pom.xml` (regex
     replacement). Supports `--check` flag. mise tasks: `version:sync`, `version:check`
 
+## Release Workflow
+
+- PR merge: `gh pr merge N --merge` (merge commit, not squash) preserves commit history
+- Tag on main: `git tag vX.Y.Z && git push origin vX.Y.Z` triggers `.github/workflows/release.yml`
+- Release workflow matches pattern `push: tags: [v*.*.*]`
+- After tagging, switch back to develop: `git checkout develop`
+- If local changes block branch switch, `git stash push -m "reason" <file>` then `git stash pop`
+    after switching back
+- OIDC trusted publishing for crates.io requires crate to exist first (first publish needs API
+    token). PyPI supports pending trusted publishers. npm uses `NPM_TOKEN` secret
+
 ## Documentation
 
 - How-to guide structure: YAML front matter (`icon`, `description`) → title → intro → installation →
