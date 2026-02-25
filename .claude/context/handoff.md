@@ -1,36 +1,31 @@
-## 2026-02-25 — Gate iscc-wasm `conformance_selftest` behind Cargo feature
+## 2026-02-25 — Review of: Gate iscc-wasm `conformance_selftest` behind Cargo feature
 
-**Done:** Added `conformance` Cargo feature to iscc-wasm that gates the `conformance_selftest` WASM
-export. Production WASM binaries no longer include the selftest function (and its embedded JSON
-vectors/parsing logic) unless explicitly opted in. CI workflow updated to enable the feature during
-testing.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, minimal implementation adding a `conformance` Cargo feature to iscc-wasm that
+gates the `conformance_selftest` WASM export. All 54 wasm-pack tests pass with the feature enabled,
+CI workflow correctly updated, and no quality gate circumvention.
 
-- `crates/iscc-wasm/Cargo.toml`: added `[features]` section with `conformance = []`
-- `crates/iscc-wasm/src/lib.rs`: added `#[cfg(feature = "conformance")]` gate on
-    `conformance_selftest` export
-- `crates/iscc-wasm/tests/unit.rs`: added `#[cfg(feature = "conformance")]` gate on
-    `test_conformance_selftest_returns_true` test
-- `.github/workflows/ci.yml`: changed wasm-pack test command to
-    `wasm-pack test --node crates/iscc-wasm --features conformance`
+**Verification:**
 
-**Verification:** All 54 wasm-pack tests pass (9 conformance + 45 unit). Clippy clean. All 14
-pre-commit hooks pass. All 5 verification criteria from next.md satisfied:
+- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` passes all 54 tests (9
+    conformance + 45 unit)
+- [x] `cargo clippy -p iscc-wasm -- -D warnings` clean
+- [x] `grep -q '^\[features\]' crates/iscc-wasm/Cargo.toml` exits 0 — features section exists
+- [x] `grep -q 'cfg.*feature.*conformance' crates/iscc-wasm/src/lib.rs` exits 0 — feature gate
+    present
+- [x] `grep -q '\-\-features conformance' .github/workflows/ci.yml` exits 0 — CI updated
 
-- `[x]` `wasm-pack test --node crates/iscc-wasm --features conformance` passes all 54 tests
-- `[x]` `cargo clippy -p iscc-wasm -- -D warnings` clean
-- `[x]` `grep -q '^\[features\]' crates/iscc-wasm/Cargo.toml` exits 0
-- `[x]` `grep -q 'cfg.*feature.*conformance' crates/iscc-wasm/src/lib.rs` exits 0
-- `[x]` `grep -q '\-\-features conformance' .github/workflows/ci.yml` exits 0
+**Issues found:**
+
+- (none)
 
 **Next:** Remaining `[low]` issues: iscc-wasm stale CLAUDE.md (DataHasher/InstanceHasher documented
-as unbound), iscc-jni exception mapping, and TypeScript port evaluation.
+as unbound), iscc-jni exception mapping, and TypeScript port evaluation. Define-next should pick the
+next highest-value item from the remaining low-priority issues.
 
-**Notes:** The next.md template suggested
-`wasm-pack test --node crates/iscc-wasm -- --features conformance` (with `--` separator), but this
-is incorrect — `--` in wasm-pack passes args to the test runner binary (wasm-bindgen-test-runner),
-not to cargo. The correct syntax is `wasm-pack test --node crates/iscc-wasm --features conformance`
-(features as extra options after the path). This was discovered and fixed during implementation. The
-issue #3 in issues.md (`conformance_selftest unconditionally exported`) is now resolved by this
-change.
+**Notes:** The advance agent correctly identified that next.md's suggested CI syntax
+`wasm-pack test --node crates/iscc-wasm -- --features conformance` (with `--` separator) is wrong —
+`--` in wasm-pack passes args to wasm-bindgen-test-runner, not to cargo. The correct form is
+`wasm-pack test --node crates/iscc-wasm --features conformance`. This is now documented in
+learnings.md. Issue #3 (`conformance_selftest unconditionally exported`) resolved and deleted.

@@ -90,17 +90,6 @@ state-related errors (finalized hashers, etc.).
 
 **Source:** [human]
 
-## [low] iscc-wasm: `conformance_selftest` unconditionally exported increases binary size
-
-In `crates/iscc-wasm/src/lib.rs:197`, `conformance_selftest()` is exported via `#[wasm_bindgen]`
-without a feature gate. This pulls embedded JSON test vectors and parsing logic into every WASM
-binary, increasing bundle size for browser consumers who don't need diagnostics.
-
-Fix: gate the export behind a Cargo feature (e.g., `feature = "conformance"`) that is off by default
-for production builds.
-
-**Source:** [human]
-
 ## [low] iscc-wasm: Stale CLAUDE.md says DataHasher/InstanceHasher not yet bound
 
 In `crates/iscc-wasm/CLAUDE.md:130-131`, the documentation states "DataHasher and InstanceHasher
