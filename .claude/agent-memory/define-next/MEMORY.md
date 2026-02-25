@@ -78,6 +78,11 @@ iterations.
     additive (new error paths, no behavioral change for valid inputs). When changing a function's
     return type (e.g., `Vec<u8>` → `IsccResult<Vec<u8>>`), check all callers — if the caller already
     returns `IsccResult`, adding `?` is trivial.
+- **Low-priority housekeeping phase**: All [normal] issues resolved, only [low] issues remain. These
+    are good small iteration targets: WASM conformance feature gate (3 non-test files), stale
+    CLAUDE.md updates (1 file), JNI exception type mapping (1 file + test). Feature gates involving
+    CI changes count as 3 files (Cargo.toml + lib.rs + ci.yml) — test files don't count against the
+    limit. Group related [low] issues in the same crate only if they share files.
 
 ## Architecture Decisions
 

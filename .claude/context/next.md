@@ -1,71 +1,97 @@
 # Next Work Package
 
-## Step: Add `__version__` attribute and fix iscc-py module docstring
+## Step: Gate iscc-wasm `conformance_selftest` behind Cargo feature
 
 ## Goal
 
-Add the standard `__version__` attribute to the iscc-py package and fix the incorrect module
-docstring in the Rust source. These two small fixes improve Python packaging compliance and code
-accuracy — `__version__` is expected by standard Python tooling for runtime version detection, and
-the docstring currently references the wrong module name.
+Gate the `conformance_selftest` WASM export behind an opt-in Cargo feature (`conformance`) so that
+production WASM binaries don't include the embedded JSON test vectors and parsing logic (~543 lines
+of conformance module + vendored `data.json`). This reduces bundle size for browser consumers who
+don't need diagnostics.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-py/python/iscc_lib/__init__.py` — add `__version__` via
-        `importlib.metadata.version("iscc-lib")` and include it in `__all__`
-    - `crates/iscc-py/src/lib.rs` — fix docstring from `iscc._lowlevel` to `iscc_lib._lowlevel` and
-        update the reference to `python/iscc/__init__.py` → `python/iscc_lib/__init__.py`
-    - `tests/test_smoke.py` — add test for `__version__`
+    - `crates/iscc-wasm/Cargo.toml` — add `[features]` section with `conformance = []`
+    - `crates/iscc-wasm/src/lib.rs` — gate `conformance_selftest` export with
+        `#[cfg(feature = "conformance")]`
+    - `crates/iscc-wasm/tests/unit.rs` — gate `test_conformance_selftest_returns_true` with
+        `#[cfg(feature = "conformance")]`
+    - `.github/workflows/ci.yml` — update wasm-pack test command to pass `--features conformance`
 - **Reference**:
-    - `crates/iscc-py/pyproject.toml` — confirms package name is `iscc-lib`
+    - `crates/iscc-wasm/src/lib.rs` (lines 192–200 — the `conformance_selftest` export)
+    - `crates/iscc-wasm/tests/unit.rs` (lines 121–129 — the unit test calling it)
+    - `.github/workflows/ci.yml` (line 77 — current wasm-pack test invocation)
 
 ## Not In Scope
 
-- Adding `__version__` to other binding packages (Node.js, WASM, Java, Go) — separate steps
-- Adding a `.pyi` stub entry for `__version__` — the attribute lives in pure Python `__init__.py`,
-    not in the native extension, so `_lowlevel.pyi` doesn't need updating
-- Changing maturin configuration or build system settings
-- Any other `[low]` issues (exception mapping, conformance feature gate, stale CLAUDE.md, etc.)
+- Feature-gating the conformance module in `iscc-lib` itself (the Rust core should always include
+    it; the WASM linker performs dead code elimination when nothing references it)
+- Updating `crates/iscc-wasm/CLAUDE.md` stale content about DataHasher/InstanceHasher (separate
+    [low] issue — next step)
+- Measuring or documenting the actual binary size reduction
+- Adding `wasm-opt` size optimization settings to the release profile
+- Changing the conformance test file (`tests/conformance.rs`) — those tests exercise individual gen
+    functions independently and should always run
 
 ## Implementation Notes
 
-1. **`__version__` in `__init__.py`**: Add near the top, after the module docstring and
-    `from __future__` import:
+1. **Cargo.toml** — add below `[dev-dependencies]`:
 
-    ```python
-    from importlib.metadata import version
-
-    __version__ = version("iscc-lib")
+    ```toml
+    [features]
+    conformance = []
     ```
 
-    This is the standard approach recommended by Python packaging authorities. It reads the version
-    from the installed package metadata, which maturin populates from `Cargo.toml` via the
-    `dynamic = ["version"]` setting in `pyproject.toml`. Add `"__version__"` to the `__all__` list.
+2. **lib.rs** — wrap the existing `conformance_selftest` export:
 
-2. **Module docstring in `lib.rs`**: The top `//!` comments contain two incorrect references:
+    ```rust
+    #[cfg(feature = "conformance")]
+    #[wasm_bindgen]
+    pub fn conformance_selftest() -> bool {
+        iscc_lib::conformance_selftest()
+    }
+    ```
 
-    - Line 1: `iscc._lowlevel` → `iscc_lib._lowlevel`
-    - Line 4: `python/iscc/__init__.py` → `python/iscc_lib/__init__.py`
+    Keep the section comment `// ── Conformance ───` intact.
 
-3. **Test**: Add a test function in `tests/test_smoke.py`:
+3. **unit.rs** — gate the single test:
 
-    - `iscc_lib.__version__` exists and is a string
-    - `iscc_lib.__version__` equals `"0.0.1"` (the current workspace version)
-    - `"__version__"` is in `iscc_lib.__all__`
+    ```rust
+    #[cfg(feature = "conformance")]
+    #[wasm_bindgen_test]
+    fn test_conformance_selftest_returns_true() {
+        assert!(
+            iscc_wasm::conformance_selftest(),
+            "conformance selftest should pass"
+        );
+    }
+    ```
+
+4. **ci.yml** — change the WASM test run command from:
+
+    ```yaml
+    run: wasm-pack test --node crates/iscc-wasm
+    ```
+
+    to:
+
+    ```yaml
+    run: wasm-pack test --node crates/iscc-wasm -- --features conformance
+    ```
+
+    This ensures CI still tests the conformance selftest via the WASM export.
 
 ## Verification
 
-- `pytest tests/test_smoke.py` passes (existing tests + new `__version__` test)
-- `pytest tests/` passes (all 157 tests still green)
-- `python -c "import iscc_lib; print(iscc_lib.__version__)"` prints `0.0.1`
-- `grep -q 'iscc_lib._lowlevel' crates/iscc-py/src/lib.rs` exits 0 (docstring fixed)
-- `grep 'iscc\._lowlevel' crates/iscc-py/src/lib.rs | grep -qv 'iscc_lib'` exits non-zero (old
-    incorrect reference gone)
-- `cargo clippy -p iscc-py -- -D warnings` clean
+- `wasm-pack test --node crates/iscc-wasm -- --features conformance` passes all 54 tests
+- `cargo clippy -p iscc-wasm -- -D warnings` clean
+- `grep -q '^\[features\]' crates/iscc-wasm/Cargo.toml` exits 0 (features section exists)
+- `grep -q 'cfg.*feature.*conformance' crates/iscc-wasm/src/lib.rs` exits 0 (feature gate present)
+- `grep -q '\-\-features conformance' .github/workflows/ci.yml` exits 0 (CI updated)
 
 ## Done When
 
-All verification criteria pass: `__version__` is importable and correct, the module docstring
-references the right module name, and all existing tests remain green.
+All 5 verification criteria pass — the `conformance_selftest` WASM export is gated behind an opt-in
+feature, CI enables the feature for testing, and all existing tests still pass.
