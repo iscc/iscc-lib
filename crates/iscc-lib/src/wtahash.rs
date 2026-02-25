@@ -4,6 +4,8 @@
 //! hashes from MPEG-7 video frame signature vectors. Ported from the
 //! `iscc-core` Python reference implementation (`wtahash.py`).
 
+use crate::{IsccError, IsccResult};
+
 /// Permutation pairs for WTA-Hash video identification.
 ///
 /// Each pair `(i, j)` indexes into a 380-element frame signature vector.
@@ -275,7 +277,24 @@ const WTA_VIDEO_ID_PERMUTATIONS: [(usize, usize); 256] = [
 ///
 /// Bits are packed MSB-first into bytes, matching Python bitarray default
 /// endianness. Returns `bits/8` bytes.
-pub fn alg_wtahash(vec: &[i64], bits: u32) -> Vec<u8> {
+///
+/// # Constraints
+///
+/// - `vec` must have at least 380 elements (permutation indices go up to 379)
+/// - `bits` must be > 0, divisible by 8, and ≤ 256 (permutation table size)
+pub fn alg_wtahash(vec: &[i64], bits: u32) -> IsccResult<Vec<u8>> {
+    if vec.len() < 380 {
+        return Err(IsccError::InvalidInput(format!(
+            "WTA-Hash input must have at least 380 elements, got {}",
+            vec.len()
+        )));
+    }
+    if bits == 0 || bits % 8 != 0 || bits > 256 {
+        return Err(IsccError::InvalidInput(format!(
+            "WTA-Hash bits must be > 0, divisible by 8, and ≤ 256, got {bits}"
+        )));
+    }
+
     let n_bytes = (bits / 8) as usize;
     let mut result = vec![0u8; n_bytes];
 
@@ -292,7 +311,7 @@ pub fn alg_wtahash(vec: &[i64], bits: u32) -> Vec<u8> {
         // When vec[i] >= vec[j], bit is 0 (already initialized)
     }
 
-    result
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -303,7 +322,7 @@ mod tests {
     fn test_alg_wtahash_all_zeros() {
         // All-zero input should produce all-zero output (all comparisons are >=)
         let vec = vec![0i64; 380];
-        let result = alg_wtahash(&vec, 64);
+        let result = alg_wtahash(&vec, 64).unwrap();
         assert_eq!(result, vec![0u8; 8]);
     }
 
@@ -311,7 +330,7 @@ mod tests {
     fn test_alg_wtahash_range() {
         // Range 0..380 should produce deterministic non-zero output
         let vec: Vec<i64> = (0..380).collect();
-        let result = alg_wtahash(&vec, 64);
+        let result = alg_wtahash(&vec, 64).unwrap();
         assert_eq!(result.len(), 8);
         // Not all zeros since some pairs will have i < j
         assert!(result.iter().any(|&b| b != 0));
@@ -321,8 +340,36 @@ mod tests {
     fn test_alg_wtahash_256_bits() {
         // 256-bit output uses all 256 permutation pairs
         let vec: Vec<i64> = (0..380).collect();
-        let result = alg_wtahash(&vec, 256);
+        let result = alg_wtahash(&vec, 256).unwrap();
         assert_eq!(result.len(), 32);
+    }
+
+    #[test]
+    fn test_alg_wtahash_short_input_error() {
+        // Input with fewer than 380 elements must be rejected
+        let vec = vec![0i64; 100];
+        assert!(alg_wtahash(&vec, 64).is_err());
+    }
+
+    #[test]
+    fn test_alg_wtahash_zero_bits_error() {
+        // bits = 0 is invalid
+        let vec = vec![0i64; 380];
+        assert!(alg_wtahash(&vec, 0).is_err());
+    }
+
+    #[test]
+    fn test_alg_wtahash_non_divisible_bits_error() {
+        // bits = 7 is not divisible by 8
+        let vec = vec![0i64; 380];
+        assert!(alg_wtahash(&vec, 7).is_err());
+    }
+
+    #[test]
+    fn test_alg_wtahash_exceeds_permutations_error() {
+        // bits = 512 exceeds the 256-entry permutation table
+        let vec = vec![0i64; 380];
+        assert!(alg_wtahash(&vec, 512).is_err());
     }
 
     #[test]

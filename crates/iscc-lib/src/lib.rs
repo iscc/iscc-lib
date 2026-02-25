@@ -544,7 +544,7 @@ pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
         }
     }
 
-    Ok(wtahash::alg_wtahash(&vecsum, bits))
+    wtahash::alg_wtahash(&vecsum, bits)
 }
 
 /// Generate a Video-Code from frame signature data.

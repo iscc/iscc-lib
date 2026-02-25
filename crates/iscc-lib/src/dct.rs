@@ -12,13 +12,13 @@ use crate::IsccResult;
 /// Compute the fast Discrete Cosine Transform (Nayuki algorithm).
 ///
 /// Uses a recursive divide-and-conquer approach. Input length must be
-/// a power of 2 (or 1). Returns f64 values matching the reference
-/// implementation's floating-point behavior exactly.
+/// a power of 2 (1, 2, 4, 8, 16, …). Returns f64 values matching the
+/// reference implementation's floating-point behavior exactly.
 pub(crate) fn alg_dct(v: &[f64]) -> IsccResult<Vec<f64>> {
     let n = v.len();
-    if n == 0 || (n > 1 && n % 2 != 0) {
+    if !n.is_power_of_two() {
         return Err(crate::IsccError::InvalidInput(
-            "DCT input must be non-empty with even length (or 1)".into(),
+            "DCT input length must be a power of 2".into(),
         ));
     }
     Ok(dct_recursive(v))
@@ -110,6 +110,30 @@ mod tests {
     fn test_alg_dct_single() {
         let result = alg_dct(&[42.0]).unwrap();
         assert!((result[0] - 42.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_alg_dct_non_power_of_two_even_error() {
+        // Length 6 is even but not a power of 2 — must be rejected
+        assert!(alg_dct(&[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]).is_err());
+    }
+
+    #[test]
+    fn test_alg_dct_length_10_error() {
+        // Length 10 is even but not a power of 2
+        assert!(alg_dct(&[1.0; 10]).is_err());
+    }
+
+    #[test]
+    fn test_alg_dct_length_12_error() {
+        // Length 12 is even but not a power of 2
+        assert!(alg_dct(&[1.0; 12]).is_err());
+    }
+
+    #[test]
+    fn test_alg_dct_length_2_ok() {
+        // Length 2 is a valid power of 2
+        assert!(alg_dct(&[1.0, 2.0]).is_ok());
     }
 
     #[test]
