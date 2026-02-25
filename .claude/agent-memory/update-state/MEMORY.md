@@ -85,7 +85,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 17): tests = 22383254545 (7/7 pass), docs = 22383254570 (pass)
+- Latest CI run IDs (iteration 18): tests = 22384156126 (7/7 pass), docs = 22384156114 (pass)
 - `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
     compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
     alloc helpers). File is now 1,934 lines.
@@ -101,8 +101,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     binaries are bundled into META-INF/native/ (next iteration target).
 - Remaining Java gaps: platform-specific native library bundling inside JAR (CI matrix needed),
     Maven Central publishing configuration.
-- Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
-    DataHasher allocation overhead
+- Next normal-priority issues: FFI video frame allocation, DataHasher allocation overhead (codec
+    `Vec<bool>` issue RESOLVED in iteration 18, commit 9b6818d)
+- **Codec optimization (iteration 18)**: `decode_header` and `decode_varnibble` now use direct
+    bitwise extraction from `&[u8]` via `get_bit`/`extract_bits` helpers. `bytes_to_bits` and
+    `bits_to_u32` are `#[cfg(test)]`-gated. 2 new tests added: iscc-lib src tests 208 (was 206). 261
+    total tests in iscc-lib (208 src + 53 tests/).
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` does NOT need `--repo iscc/iscc-lib` when running from within the workspace (repo

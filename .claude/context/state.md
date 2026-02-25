@@ -1,16 +1,17 @@
-<!-- assessed-at: 96c48c198f3b450305bededfe6e0055f8c1628a1 -->
+<!-- assessed-at: 9b6818d3c646c6aa770459edc62e83be40257769 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Java NativeLoader done — platform native bundling and publishing remain
+## Phase: Codec Vec<bool> optimization done — Java native bundling and publishing remain
 
-The `NativeLoader.java` class (169 lines) is now implemented: it detects OS/arch, attempts to
-extract a platform-specific native library from `META-INF/native/` inside the JAR, and falls back to
-`System.loadLibrary`. `IsccLib.java` now delegates to `NativeLoader.load()`. All 7 CI jobs and Docs
-build remain green. The extraction path will not activate until native binaries are actually bundled
-in the JAR — that and Maven Central publishing are the remaining Java gaps.
+The codec header decoding optimization landed in iteration 18: `decode_header` and
+`decode_varnibble` now operate directly on `&[u8]` with bitwise extraction, eliminating the
+`Vec<bool>` intermediate allocation from all production decode paths. The `bytes_to_bits` and
+`bits_to_u32` helpers are `#[cfg(test)]`-gated. All 7 CI jobs and Docs remain green. Java platform
+native bundling inside the JAR and Maven Central publishing are the primary remaining structural
+gaps.
 
 ## Rust Core Crate
 
@@ -22,7 +23,10 @@ in the JAR — that and Maven Central publishing are the remaining Java gaps.
     `iscc_decompose`, `DataHasher`, `InstanceHasher`, `conformance_selftest`
 - Tier 2 codec module (`codec.rs`) with `MainType`/`SubType`/`Version` enums and all encode/decode
     helpers — correctly Rust-only, not bound to foreign languages
-- 206 `#[test]` functions in `src/`; 53 additional tests in `tests/`
+- 208 `#[test]` functions in `src/`; 53 additional tests in `tests/`; 261 total
+- `decode_header` and `decode_varnibble_from_bytes` use direct bitwise extraction from `&[u8]` — no
+    `Vec<bool>` allocation in any production decode path; `bytes_to_bits` and `bits_to_u32` are
+    `#[cfg(test)]`-gated
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
 - All prior correctness and robustness fixes in place; `sliding_window` returns `IsccResult` on
     `width < 2`; `alg_simhash` validated on digest length
@@ -30,10 +34,9 @@ in the JAR — that and Maven Central publishing are the remaining Java gaps.
 - `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD)
 - Note: target.md header says "22 public symbols" but the enumerated list totals 23; the crate
     implements 23
-- **Open issues** (tracked in `issues.md`): codec header parsing expands bytes to `Vec<bool>`
-    [normal]; `DataHasher::update` copies input on every call [normal]; `alg_dct` allows
-    non-power-of-two even lengths [low]; `alg_wtahash` panics on short vectors [low]; TypeScript
-    port evaluation [low]
+- **Open issues** (tracked in `issues.md`): `DataHasher::update` copies input on every call
+    [normal]; `alg_dct` allows non-power-of-two even lengths [low]; `alg_wtahash` panics on short
+    vectors [low]
 
 ## Python Bindings
 
@@ -130,7 +133,7 @@ publishing absent)
 - Local reference frame safety: `push_local_frame(16)`/`pop_local_frame` in all 5 array loops
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (331 lines): 29 `native` method
     declarations, Javadoc coverage, static initializer now delegates to `NativeLoader.load()`
-- **`NativeLoader.java`** (169 lines) — new: detects OS (`linux`/`macos`/`windows`) and arch
+- **`NativeLoader.java`** (169 lines): detects OS (`linux`/`macos`/`windows`) and arch
     (`x86_64`/`aarch64`), extracts `META-INF/native/{os}-{arch}/{libname}` from JAR to temp dir,
     falls back to `System.loadLibrary("iscc_jni")`; thread-safe via `synchronized` + `volatile`
     guard; package-private helpers (`detectOs`, `detectArch`, `libraryFileName`) are testable
@@ -227,7 +230,7 @@ separately)
     Benchmarks, Development — all entries present ✅
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22383254570](https://github.com/iscc/iscc-lib/actions/runs/22383254570))
+    [Run 22384156114](https://github.com/iscc/iscc-lib/actions/runs/22384156114))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button (`docs/javascripts/copypage.js`), `scripts/gen_llms_full.py`, Open Graph
     meta tags all in place
@@ -260,10 +263,10 @@ separately)
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
     (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22383254545](https://github.com/iscc/iscc-lib/actions/runs/22383254545) — all 7 jobs
+    [Run 22384156126](https://github.com/iscc/iscc-lib/actions/runs/22384156126) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22383254570](https://github.com/iscc/iscc-lib/actions/runs/22383254570) — build + deploy
+    [Run 22384156114](https://github.com/iscc/iscc-lib/actions/runs/22384156114) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -274,14 +277,16 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs and Docs. The NativeLoader infrastructure is complete. Recommended next
-work (in priority order):
+CI is green on all 7 jobs and Docs. The codec `Vec<bool>` issue is resolved. Recommended next work
+(in priority order):
 
 1. **Java platform native bundling** — set up a multi-platform CI matrix job that builds
     `libiscc_jni.so` (linux-x64, linux-aarch64), `libiscc_jni.dylib` (macos-x64, macos-aarch64),
     `iscc_jni.dll` (windows-x64) and packages them under `META-INF/native/` in the JAR; this
-    activates the NativeLoader extraction path built in iteration 17
+    activates the NativeLoader extraction path
 2. **Maven Central publishing configuration** — add sonatype staging plugin, POM metadata (groupId,
     licenses, SCM, developers), GPG signing setup to `pom.xml`; wire into `release.yml`
-3. **`crates/iscc-ffi/README.md`** — low-priority, completes the per-crate README set
-4. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper (optional per verified-when)
+3. **`DataHasher::update` buffer allocation** [normal in issues.md] — replace per-call allocations
+    with persistent internal buffer; benchmark before/after
+4. **`crates/iscc-ffi/README.md`** — low-priority, completes the per-crate README set
+5. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper (optional per verified-when)
