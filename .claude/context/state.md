@@ -1,17 +1,15 @@
-<!-- assessed-at: 6a7b3d2 -->
+<!-- assessed-at: a0f2d3d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.0.1 partially released — PR #3 open (develop → main), awaiting merge and re-release
+## Phase: v0.0.1 partially released — PR #3 open (develop → main), release workflow extended with JNI matrix build
 
-PR #2 (develop → main) was merged and the v0.0.1 tag was pushed in iteration 32. PyPI publishing
-succeeded; the WASM release build failed due to a `wasm-opt` bulk-memory error (fixed in iteration
-4\) and `docs/howto/wasm.md` had the wrong package name `@iscc/iscc-wasm` (fixed in iteration 5).
-Both fixes are on `develop` and captured in PR #3. CI on `develop` is fully green (all 7 jobs
-passing on run 22403499473). Merging PR #3 and re-triggering the release workflow will publish
-`@iscc/wasm` and `@iscc/lib` to npm.
+PR #3 (develop → main) is still open, containing the wasm-opt bulk-memory fix and the
+`docs/howto/wasm.md` package name correction. Iteration 6 added `build-jni` (5-platform matrix) and
+`assemble-jar` jobs to `release.yml`, plus a `maven` workflow-dispatch checkbox. CI on `develop` at
+HEAD commit `a0f2d3d` is fully green (all 7 jobs passing on run 22404197625).
 
 ## Rust Core Crate
 
@@ -98,8 +96,7 @@ passing on run 22403499473). Merging PR #3 and re-triggering the release workflo
 - **WASM release build fix applied** (iteration 4): `[package.metadata.wasm-pack.profile.release]`
     section added to `Cargo.toml` with
     `wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`;
-    `wasm-pack build --release` verified locally (29.36s success); CI WASM job passed on develop run
-    22403019335
+    `wasm-pack build --release` verified locally; CI WASM job passing
 - **`docs/howto/wasm.md` package name fixed** (iteration 5): all 20 occurrences of `@iscc/iscc-wasm`
     corrected to `@iscc/wasm`
 - **@iscc/wasm not yet published to npm**: both fixes are on `develop` in PR #3 awaiting merge to
@@ -122,8 +119,8 @@ passing on run 22403499473). Merging PR #3 and re-triggering the release workflo
 ## Java Bindings
 
 **Status**: partially met (JNI bridge + Java wrapper + NativeLoader + Maven config + conformance
-tests + CI job + how-to guide complete; platform native bundling inside JAR and Maven Central
-publishing absent)
+tests + CI job + how-to guide + release workflow JNI matrix build complete; Maven Central publishing
+absent; native bundling not yet exercised via an actual release)
 
 - `crates/iscc-jni/` crate: `lib.rs` with all 23 Tier 1 symbols as 29 `extern "system"` JNI
     functions; `throw_and_default` at 68 call sites + `throw_state_error` at 4 call sites (finalized
@@ -131,15 +128,23 @@ publishing absent)
 - Negative `jint` validation in 3 guards; local reference frame safety in 5 array loops
 - `IsccLib.java` (331 lines): 29 `native` declarations, `NativeLoader.load()` static initializer
 - `NativeLoader.java` (169 lines): OS/arch detection, JAR extraction to temp, `System.loadLibrary`
-    fallback; extraction path inactive (no native binaries bundled yet)
+    fallback; path convention `META-INF/native/{os}-{arch}/{libname}` (e.g. `linux-x86_64`,
+    `macos-aarch64`, `windows-x86_64`)
 - `IsccLibTest.java`: 9 `@TestFactory` conformance methods (46 vectors) + 3 `@Test` negative-value
     methods + 2 `@Test` `IllegalStateException` hasher-state methods = **51 total tests**; all
     passing
 - Java CI job (`Java (JNI build, mvn test)`) passing (CI-verified at HEAD)
 - `docs/howto/java.md` (319 lines): complete; navigation entry in `zensical.toml` ✅
 - Version: `pom.xml` at `0.0.1` (synced from workspace via `version:sync`)
-- Missing: platform-specific native library bundling inside JAR (`META-INF/native/`)
-- Missing: Maven Central publishing configuration
+- **`build-jni` release job** (iteration 6): 5-platform matrix (linux-x86_64, linux-aarch64,
+    macos-aarch64, macos-x86_64, windows-x86_64) in `release.yml`; builds `libiscc_jni.so`,
+    `libiscc_jni.dylib`, `iscc_jni.dll` for each target; cross-compiler installed for
+    `aarch64-unknown-linux-gnu`; `native-dir` values match `NativeLoader` path conventions exactly
+- **`assemble-jar` release job** (iteration 6): downloads `jni-*` artifacts, copies to
+    `META-INF/native/`, runs `mvn package -DskipTests`; triggered by tag push or `maven` input
+    checkbox
+- Missing: Maven Central publishing configuration (GPG signing, Sonatype credentials)
+- Missing: native bundling not yet exercised via a real release tag (untested end-to-end)
 - **Open issues**: none
 
 ## Go Bindings
@@ -217,20 +222,23 @@ done + howto/go.md done; io.Reader streaming interface absent)
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
 - **Latest completed CI run on develop: PASSING** —
-    [Run 22403499473](https://github.com/iscc/iscc-lib/actions/runs/22403499473) — all 7 jobs
-    SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go all green)
-- **CI runs in progress** — run 22403598203 (push to develop) and run 22403597692 (PR #3 check) both
-    triggered by iteration 5 commits; results pending
+    [Run 22404197625](https://github.com/iscc/iscc-lib/actions/runs/22404197625) — all 7 jobs
+    SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go all green) — triggered by HEAD `a0f2d3d`
 - **Latest CI run on main: PASSING** —
     [Run 22402167393](https://github.com/iscc/iscc-lib/actions/runs/22402167393) — all jobs SUCCESS
 - Latest Docs run: **PASSING** —
     [Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413)
-- `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
-    conditions on all 8 jobs
+- `release.yml` `workflow_dispatch` with `inputs:` block (four boolean checkboxes: crates, pypi,
+    npm, maven) and `if:` conditions on all jobs
+- **`build-jni` job** (iteration 6): 5-platform matrix added to `release.yml`; triggered by tag push
+    `v*.*.*` or `inputs.maven`; cross-compilation for `aarch64-unknown-linux-gnu` via
+    `gcc-aarch64-linux-gnu`
+- **`assemble-jar` job** (iteration 6): downloads all `jni-*` artifacts, populates
+    `META-INF/native/`, runs `mvn package -DskipTests`, uploads `iscc-lib-jar` artifact; needs
+    `build-jni`
 - **Idempotency checks** on all 4 publish jobs (crates.io, PyPI, npm lib/wasm)
-- `scripts/version_sync.py` created (120 lines, stdlib only); reads workspace version from root
-    `Cargo.toml`, updates `package.json` and `pom.xml`; `--check` mode exits 1 on mismatch;
-    `mise run version:sync` and `mise run version:check` tasks registered in `mise.toml`
+- `scripts/version_sync.py` created; reads workspace version, updates `package.json` and `pom.xml`;
+    `mise run version:sync` and `mise run version:check` tasks registered
 - **PR #2 merged** (develop → main, commit `4bdc899`); v0.0.1 tag pushed to remote
 - **PR #3 open** (develop → main) — contains wasm-opt fix + `docs/howto/wasm.md` package name fix
 - **Release workflow run 22402189532 — PARTIAL FAILURE**:
@@ -245,14 +253,16 @@ done + howto/go.md done; io.Reader streaming interface absent)
 - Missing: OIDC trusted publishing for crates.io not yet configured in registry settings (human
     task)
 - Missing: npm publishing awaiting PR #3 merge (develop → main) + new release trigger
-- Missing: Java platform native bundling in CI matrix
-- Missing: Maven Central publishing configuration
+- Missing: Maven Central publishing configuration (GPG signing, Sonatype)
+- Missing: `build-jni` / `assemble-jar` untested end-to-end (no release tag triggered since adding
+    them)
 
 ## Next Milestone
 
 **Merge PR #3 and re-release** — PR #3 (develop → main) contains the wasm-opt bulk-memory fix and
-the `docs/howto/wasm.md` package name correction. Next steps for a human: (1) verify PR #3 CI
-passes, (2) merge PR #3, (3) trigger the release workflow via `workflow_dispatch` (or tag a new
-version) to publish `@iscc/wasm` and `@iscc/lib` to npm. The crates.io OIDC publishing requires
-separate human action on the registry side and remains blocked. No CID-actionable code work is
-pending — the loop is in maintenance mode until new target.md goals are added.
+the `docs/howto/wasm.md` package name correction. Steps for a human: (1) verify PR #3 CI passes, (2)
+merge PR #3, (3) trigger the release workflow via `workflow_dispatch` or tag a new version to
+publish `@iscc/wasm` and `@iscc/lib` to npm and also exercise the new `build-jni` + `assemble-jar`
+pipeline. The crates.io OIDC publishing requires separate human action on the registry side and
+remains blocked. No CID-actionable code work is pending — the loop is in maintenance mode until new
+target.md goals are added.

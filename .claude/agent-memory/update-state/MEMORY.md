@@ -240,3 +240,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     CI runs in progress: push to develop (22403598203) and PR #3 check (22403597692). Loop is in
     maintenance mode — no CID-actionable code work pending. Human actions needed: merge PR #3, then
     re-trigger release to publish @iscc/wasm and @iscc/lib to npm; crates.io OIDC setup also human.
+- **JNI cross-platform build added to release.yml (iteration 6, commits e6fe6bc+a0f2d3d)**:
+    `build-jni` job (5-platform matrix: linux-x86_64, linux-aarch64, macos-aarch64, macos-x86_64,
+    windows-x86_64) and `assemble-jar` job added to `release.yml`. `maven` boolean input checkbox
+    added to `workflow_dispatch`. `native-dir` values match `NativeLoader.java` path conventions
+    exactly (`META-INF/native/{os}-{arch}/{libname}`). CI all 7 jobs pass on develop (run
+    22404197625, HEAD `a0f2d3d`). `NativeLoader.java` path:
+    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`. Java Bindings status:
+    partially met (release workflow now has native bundling jobs; Maven Central publishing still
+    missing). PR #3 still open.
