@@ -55,10 +55,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Gotchas
 
-- `packages/go/` scaffold exists (iteration 7, commit 060d1bc): `go.mod` (wazero v1.11.0), `iscc.go`
-    (198 lines — Runtime type, memory helpers, ConformanceSelftest, TextClean), `iscc_test.go` (5
-    tests, all pass). Missing: 9 gen\_\*\_v0 wrappers, conformance tests, CI job, README. WASM
-    binary is gitignored; TestMain skips if missing.
+- `packages/go/` (iteration 8, commit 59f973d): `go.mod` (wazero v1.11.0), `iscc.go` (560 lines —
+    Runtime type, memory helpers, ConformanceSelftest, TextClean, all 9 Gen\*CodeV0 wrappers),
+    `iscc_test.go` (557 lines — 14 tests: 5 scaffold + 9 conformance covering 46 vectors). Still
+    missing: 12 Tier 1 utility/streaming wrappers, CI job, README. WASM binary gitignored; TestMain
+    skips if missing.
 - Per-crate READMEs: batches 1+2 complete (iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni).
     iscc-ffi not published separately (lower priority). Go README blocked by Go bindings not
     started.
@@ -80,12 +81,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 7): tests = 22374554257 (6/6 pass), docs = 22374554268 (pass)
+- Latest CI run IDs (iteration 8): tests = 22375677807 (6/6 pass), docs = 22375677805 (pass)
 - `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
     compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
     alloc helpers). File is now 1,934 lines.
-- Next priority: Go gen\_\*\_v0 wrappers (9 functions: GenMetaCodeV0..GenIsccCodeV0), conformance
-    tests against data.json, Go CI job, packages/go/README.md
+- Next priority: Go CI job (build iscc-ffi wasm32-wasip1, copy to packages/go/, run go test + go
+    vet), then packages/go/README.md, then remaining 12 Tier 1 wrappers (3 text utils, 4 algo
+    primitives, SoftHashVideoV0, EncodeBase64, IsccDecompose, DataHasher/InstanceHasher with
+    io.Reader)
 - Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
     DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
