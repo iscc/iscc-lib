@@ -1,14 +1,15 @@
-<!-- assessed-at: eb5085dd3cb817eb2552dec3926eae53d4836897 -->
+<!-- assessed-at: a60a3752877e9464801cc467f3287dbb7b70f4f2 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go CI job done — Go README and remaining wrappers are next
+## Phase: Go package README done — remaining 12 Go wrappers and root README Go section are next
 
-All 9 `Gen*CodeV0` Go wrappers are implemented, 14 Go tests pass (46 conformance vectors), and the
-Go CI job (`Go (go test, go vet)`) was added this iteration and is now green. CI is green on all 7
-jobs. The highest-priority gaps are `packages/go/README.md` and the 12 remaining Tier 1 Go wrappers.
+`packages/go/README.md` (104 lines) was created this iteration and passed all quality gates. All 9
+`Gen*CodeV0` Go wrappers remain implemented, 14 Go tests pass (46 conformance vectors), and all 7 CI
+jobs remain green. The highest-priority gaps are the 12 remaining Tier 1 Go wrappers and the root
+README Go section.
 
 ## Rust Core Crate
 
@@ -146,8 +147,8 @@ complete; native loader/publishing/docs absent)
 
 ## Go Bindings
 
-**Status**: partially met (11 exported functions + 14 conformance tests + Go CI job passing;
-remaining 12 Tier 1 wrappers and README absent)
+**Status**: partially met (11 exported functions + 14 conformance tests + Go CI job passing + README
+done; remaining 12 Tier 1 wrappers absent)
 
 - `packages/go/go.mod` — module `github.com/iscc/iscc-lib/packages/go`, Go 1.24.0, wazero v1.11.0
 - `packages/go/iscc.go` (560 lines): `Runtime` struct, `NewRuntime`, `Close`, memory helpers
@@ -164,14 +165,17 @@ remaining 12 Tier 1 wrappers and README absent)
 - `CGO_ENABLED=0 go test ./...` passes — pure Go, no cgo required
 - Go installed via mise (`go = "latest"` in `mise.toml`)
 - `packages/go/*.wasm` added to `.gitignore`
-- **Go CI job** (`Go (go test, go vet)`) added to `.github/workflows/ci.yml` — builds `iscc-ffi` to
-    `wasm32-wasip1`, copies `.wasm` into `packages/go/`, runs `go test -v -count=1   ./...` and
+- **Go CI job** (`Go (go test, go vet)`) in `.github/workflows/ci.yml` — builds `iscc-ffi` to
+    `wasm32-wasip1`, copies `.wasm` into `packages/go/`, runs `go test -v -count=1 ./...` and
     `go vet ./...`; CI-verified passing at HEAD
+- `packages/go/README.md` (104 lines): module path (`go get`), quick start with `GenMetaCodeV0` +
+    `*Runtime` + `context.Context` + `defer Close` pattern, API overview table (9 `Gen*CodeV0` +
+    `TextClean` + `ConformanceSelftest`), architecture section (wazero/no-cgo), links, Apache-2.0
+    license — created this iteration, CI-verified
 - Missing: 12 remaining Tier 1 function wrappers — 3 text utilities (`TextRemoveNewlines`,
     `TextTrim`, `TextCollapse`), 4 algorithm primitives (`SlidingWindow`, `AlgMinhash256`,
     `AlgCdcChunks`, `AlgSimhash`), `SoftHashVideoV0`, `EncodeBase64`, `IsccDecompose`, and 2
     streaming types (`DataHasher`/`InstanceHasher` with `io.Reader` support)
-- Missing: `packages/go/README.md`
 
 ## README
 
@@ -194,15 +198,16 @@ remaining 12 Tier 1 wrappers and README absent)
 
 ## Per-Crate READMEs
 
-**Status**: partially met (5 of 6 publishable crates done; iscc-ffi and packages/go remain)
+**Status**: partially met (6 of 6 publishable crates/packages done; iscc-ffi not published
+separately)
 
 - ✅ `crates/iscc-lib/README.md` — complete
 - ✅ `crates/iscc-py/README.md` — complete
 - ✅ `crates/iscc-napi/README.md` — complete
 - ✅ `crates/iscc-wasm/README.md` — complete
 - ✅ `crates/iscc-jni/README.md` — complete
+- ✅ `packages/go/README.md` — complete (created this iteration)
 - ❌ `crates/iscc-ffi/README.md` — not created (not published to a registry; lower priority)
-- ❌ `packages/go/README.md` — not yet created (Go bindings in progress)
 
 ## Documentation
 
@@ -241,13 +246,13 @@ remaining 12 Tier 1 wrappers and README absent)
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
-    build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test),
-    **Go (go test, go vet)** — added this iteration
+    build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
+    (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22376568235](https://github.com/iscc/iscc-lib/actions/runs/22376568235) — all 7 jobs
+    [Run 22377460480](https://github.com/iscc/iscc-lib/actions/runs/22377460480) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22376568209](https://github.com/iscc/iscc-lib/actions/runs/22376568209) — build + deploy
+    [Run 22377460491](https://github.com/iscc/iscc-lib/actions/runs/22377460491) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -256,14 +261,13 @@ remaining 12 Tier 1 wrappers and README absent)
 
 ## Next Milestone
 
-CI is green on all 7 jobs. Recommended next work (in priority order):
+CI is green on all 7 jobs. Per-crate READMEs are now complete for all 6 publishable packages.
+Recommended next work (in priority order):
 
-1. **Go README** — create `packages/go/README.md` for the Go module proxy audience (module path,
-    install via `go get`, quick start with `GenMetaCodeV0`, API overview, links to docs)
-2. **Remaining 12 Go wrappers** — 3 text utilities (`TextRemoveNewlines`, `TextTrim`,
+1. **Remaining 12 Go wrappers** — 3 text utilities (`TextRemoveNewlines`, `TextTrim`,
     `TextCollapse`), 4 algorithm primitives (`SlidingWindow`, `AlgMinhash256`, `AlgCdcChunks`,
     `AlgSimhash`), `SoftHashVideoV0`, `EncodeBase64`, `IsccDecompose`, and streaming
     `DataHasher`/`InstanceHasher` with `io.Reader` support
-3. **Root README Go section** — add Go installation and quick-start example; add Go badge; fix "What
+2. **Root README Go section** — add Go installation and quick-start example; add Go badge; fix "What
     is iscc-lib" body text to include Java
-4. **Documentation** — `docs/howto/go.md` Go how-to guide; `docs/howto/java.md` Java how-to guide
+3. **Documentation** — `docs/howto/go.md` Go how-to guide; `docs/howto/java.md` Java how-to guide

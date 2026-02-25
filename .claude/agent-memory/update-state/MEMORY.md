@@ -62,9 +62,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `iscc_test.go` (557 lines — 14 tests: 5 scaffold + 9 conformance covering 46 vectors). Go CI job
     added in iteration 9 (commit eb5085d). Still missing: 12 Tier 1 utility/streaming wrappers,
     README. WASM binary gitignored; TestMain skips if missing.
-- Per-crate READMEs: batches 1+2 complete (iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni).
-    iscc-ffi not published separately (lower priority). Go README blocked by Go bindings not
-    started.
+- Per-crate READMEs: all 6 publishable packages done (iscc-lib, iscc-py, iscc-napi, iscc-wasm,
+    iscc-jni, packages/go). iscc-ffi not published separately (lower priority).
+    packages/go/README.md created in iteration 10 (commit a60a375).
 - Root README now has Java sections (installation + quick start) as of iteration 6 (commit 8012a7f).
     "What is iscc-lib" body text (line 47) still says "Python, Node.js, WebAssembly, and C" — minor
     gap. Go sections and Maven Central/Go badges still missing.
@@ -83,13 +83,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 9): tests = 22376568235 (7/7 pass), docs = 22376568209 (pass)
+- Latest CI run IDs (iteration 10): tests = 22377460480 (7/7 pass), docs = 22377460491 (pass)
 - `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
     compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
     alloc helpers). File is now 1,934 lines.
-- Next priority: packages/go/README.md, then remaining 12 Tier 1 Go wrappers (3 text utils, 4 algo
-    primitives, SoftHashVideoV0, EncodeBase64, IsccDecompose, DataHasher/InstanceHasher with
-    io.Reader), then root README Go section + howto/go.md. Go CI job is DONE as of iteration 9.
+- Next priority: remaining 12 Tier 1 Go wrappers (3 text utils, 4 algo primitives, SoftHashVideoV0,
+    EncodeBase64, IsccDecompose, DataHasher/InstanceHasher with io.Reader), then root README Go
+    section + howto/go.md. Go CI job is DONE as of iteration 9. Go README DONE as of iteration 10.
 - Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
     DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
