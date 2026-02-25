@@ -1,30 +1,37 @@
-## 2026-02-25 — Create Go how-to guide and add to navigation
+## 2026-02-25 — Review of: Create Go how-to guide and add to navigation
 
-**Done:** Created `docs/howto/go.md` with a comprehensive Go how-to guide following the exact
-structure from `docs/howto/python.md` and `docs/howto/nodejs.md`. Added the Go entry to
-`zensical.toml` navigation after WebAssembly. All function signatures verified against
-`packages/go/iscc.go`.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Created `docs/howto/go.md` with comprehensive Go how-to content covering all 10
+sections specified in next.md. Added the Go nav entry to `zensical.toml`. All API signatures
+verified against `packages/go/iscc.go` — the advance agent correctly used `uint32` for `bits`
+(next.md incorrectly said `int32`) and omitted the `bits` parameter from `GenIsccCodeV0` (hardcoded
+to `wide=false` in Go).
 
-- `docs/howto/go.md`: Created Go how-to guide with sections for installation, runtime setup
-    (NewRuntime/Close lifecycle), all 9 gen functions (Meta, Text, Image, Audio, Video, Mixed, Data,
-    Instance, ISCC-CODE), streaming (DataHasher/InstanceHasher with chunked file reading), text
-    utilities (TextClean, TextRemoveNewlines, TextTrim, TextCollapse), algorithm primitives
-    (SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash), conformance testing, and error
-    handling
-- `zensical.toml`: Added `{ "Go" = "howto/go.md" }` to How-to Guides nav after WebAssembly
+**Verification:**
 
-**Verification:** All 9 verification criteria pass (file exists, install command present, NewRuntime
-documented, GenMetaCodeV0 documented, DataHasher documented, TextClean documented,
-ConformanceSelftest documented, nav entry present with correct path). `uv run zensical build`
-succeeds with `/howto/go/` in output. All 14 pre-commit hooks pass.
+- [x] `test -f docs/howto/go.md` exits 0 — file exists
+- [x] `grep 'go get github.com/iscc/iscc-lib/packages/go' docs/howto/go.md` exits 0 — install
+    command present
+- [x] `grep 'NewRuntime' docs/howto/go.md` exits 0 — runtime setup documented
+- [x] `grep 'GenMetaCodeV0' docs/howto/go.md` exits 0 — code generation documented
+- [x] `grep 'DataHasher' docs/howto/go.md` exits 0 — streaming documented
+- [x] `grep 'TextClean' docs/howto/go.md` exits 0 — text utilities documented
+- [x] `grep 'ConformanceSelftest' docs/howto/go.md` exits 0 — conformance testing documented
+- [x] `grep '"Go"' zensical.toml` exits 0 — nav entry present
+- [x] `grep 'howto/go.md' zensical.toml` exits 0 — nav path correct
+- [x] `uv run zensical build` exits 0 — site builds with `/howto/go/` in output
+- [x] All 14 pre-commit hooks pass
+- [x] No quality gate circumvention in diff
 
-**Next:** Create `docs/howto/java.md` — the remaining documentation gap for binding how-to guides.
-Or address tracked issues from issues.md (codec optimization, DataHasher buffer allocation, etc.).
+**Issues found:**
 
-**Notes:** The Go API has a unique `Runtime` lifecycle pattern (NewRuntime/Close) not present in
-other bindings — this is prominently documented. `GenIsccCodeV0` in Go does not expose a `bits`
-parameter (wide is hardcoded to false). The `bits` parameters in Go are `uint32` (next.md said
-`int32` but the actual code uses `uint32`). The streaming examples use explicit `for` loops with
-`io.EOF` checks rather than Go's `io.ReadAll` pattern to demonstrate true chunked processing.
+- (none)
+
+**Next:** Create `docs/howto/java.md` — the last remaining how-to guide gap. Or address tracked
+issues from issues.md (codec optimization, DataHasher buffer allocation, etc.).
+
+**Notes:** The Go guide includes an "Algorithm primitives" section that Python and Node.js guides
+lack — this matches what next.md requested and aligns with the Rust guide. The Go guide is ~388
+lines, consistent with the ~280-350 line range of existing guides. The advance agent's memory
+correctly recorded that `bits` is `uint32` in Go (not `int32` as next.md stated).
