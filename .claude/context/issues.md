@@ -100,31 +100,6 @@ Fix: update CLAUDE.md to reflect the current state of the bindings.
 
 **Source:** [human]
 
-## [critical] Implement selective publishing in release.yml
-
-The current `release.yml` lacks `workflow_dispatch` inputs — triggering it manually fires all jobs
-(crates.io, PyPI, npm builds) with no way to select a single registry. The spec
-(`.claude/context/specs/ci-cd.md`) defines the target design with boolean checkbox inputs per
-registry and `if:` conditions on each job chain.
-
-Required changes to `.github/workflows/release.yml`:
-
-1. Add `workflow_dispatch.inputs` with three booleans: `crates-io`, `pypi`, `npm` (see spec for
-    exact YAML)
-2. Add `if:` conditions to each job chain:
-    - `publish-crates-io`: `if: startsWith(github.ref, 'refs/tags/v') || inputs.crates-io`
-    - `build-wheels`, `build-sdist`: `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
-    - `publish-pypi`: same condition (plus existing `needs:`)
-    - `build-napi`, `build-wasm`: `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
-    - `publish-npm-lib`, `publish-npm-wasm`: same condition (plus existing `needs:`)
-3. Remove the existing `if: startsWith(github.ref, 'refs/tags/v')` from `publish-npm-lib` and
-    `publish-npm-wasm` — the new unified condition replaces it
-
-After this change: `workflow_dispatch` with only `pypi: true` builds wheels + sdist and publishes to
-PyPI, without touching crates.io or npm. Tag push activates all jobs as before.
-
-**Source:** [human] **Spec:** .claude/context/specs/ci-cd.md#release-workflow--selective-publishing
-
 ## [critical] Add idempotency checks to release publish jobs
 
 The spec requires each publish job to skip gracefully when the version already exists on the target

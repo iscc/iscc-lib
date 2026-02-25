@@ -298,3 +298,8 @@
 {"ts":"2026-02-25T08:32:29.540531+00:00","iteration":22,"role":"define-next","status":"OK","turns":25,"cost_usd":0.966584,"duration_s":194.0}
 {"ts":"2026-02-25T08:36:43.157615+00:00","iteration":22,"role":"advance","status":"OK","turns":38,"cost_usd":1.019102,"duration_s":253.6}
 {"iteration":22,"timestamp":"2026-02-25T08:45:00Z","step":"Gate iscc-wasm conformance_selftest behind Cargo feature","verdict":"PASS","files_changed":["crates/iscc-wasm/Cargo.toml","crates/iscc-wasm/src/lib.rs","crates/iscc-wasm/tests/unit.rs",".github/workflows/ci.yml"],"issues_resolved":["iscc-wasm: conformance_selftest unconditionally exported"],"tests":{"wasm_pack":54},"notes":"Clean minimal change. wasm-pack --features goes after path, not after --."}
+{"ts":"2026-02-25T08:40:31.048126+00:00","iteration":22,"role":"review","status":"OK","turns":32,"cost_usd":0.945883,"duration_s":227.9}
+{"ts":"2026-02-25T09:05:12.550623+00:00","iteration":23,"role":"update-state","status":"OK","turns":28,"cost_usd":1.17051,"duration_s":337.0}
+{"ts":"2026-02-25T09:07:11.443134+00:00","iteration":23,"role":"define-next","status":"OK","turns":17,"cost_usd":0.765739,"duration_s":118.9}
+{"ts":"2026-02-25T09:09:53.993294+00:00","iteration":23,"role":"advance","status":"OK","turns":39,"cost_usd":0.955934,"duration_s":162.5}
+{"iteration":23,"timestamp":"2026-02-25T09:15:00Z","step":"Add selective publishing inputs to release.yml","verdict":"PASS","files_changed":[".github/workflows/release.yml"],"issues_resolved":["Implement selective publishing in release.yml"],"notes":"3 workflow_dispatch inputs + 8 job if: conditions. Spec criteria updated. Clean pass, no issues."}

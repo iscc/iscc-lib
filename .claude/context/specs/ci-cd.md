@@ -261,11 +261,11 @@ workflow triggers on push to `main`.
 
 ### Release
 
-- [ ] `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm)
-- [ ] Tag push `v*.*.*` triggers all publish jobs
-- [ ] `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
-- [ ] `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
-- [ ] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
+- [x] `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm)
+- [x] Tag push `v*.*.*` triggers all publish jobs
+- [x] `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
+- [x] `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
+- [x] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
 - [x] Each registry's jobs are independent — failure in one does not block others
 - [x] crates.io uses OIDC trusted publishing (no API key secret)
 - [x] PyPI uses OIDC trusted publishing (no API key secret)
