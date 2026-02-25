@@ -1,16 +1,17 @@
-<!-- assessed-at: f88dd56 -->
+<!-- assessed-at: 6a7b3d2 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.0.1 partially released — WASM release build fix on develop, awaiting re-release
+## Phase: v0.0.1 partially released — PR #3 open (develop → main), awaiting merge and re-release
 
 PR #2 (develop → main) was merged and the v0.0.1 tag was pushed in iteration 32. PyPI publishing
-succeeded; the WASM release build failed due to a `wasm-opt` bulk-memory error. Iteration 4 (this
-run) fixed the WASM release build by adding `[package.metadata.wasm-pack.profile.release]` config to
-`crates/iscc-wasm/Cargo.toml`. CI WASM job passed on develop with the fix. The fix is on `develop`
-and has not yet been merged to `main` or re-released.
+succeeded; the WASM release build failed due to a `wasm-opt` bulk-memory error (fixed in iteration
+4\) and `docs/howto/wasm.md` had the wrong package name `@iscc/iscc-wasm` (fixed in iteration 5).
+Both fixes are on `develop` and captured in PR #3. CI on `develop` is fully green (all 7 jobs
+passing on run 22403499473). Merging PR #3 and re-triggering the release workflow will publish
+`@iscc/wasm` and `@iscc/lib` to npm.
 
 ## Rust Core Crate
 
@@ -37,8 +38,7 @@ and has not yet been merged to `main` or re-released.
     constraints; 4 unit tests; `soft_hash_video_v0` propagates error directly
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD — Rust job
-    passes)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD)
 - **Open issues**: none
 
 ## Python Bindings
@@ -61,10 +61,8 @@ and has not yet been merged to `main` or re-released.
     numpy/array.array callers); stubs added to `_lowlevel.pyi`
 - Type signatures for `gen_video_code_v0` / `soft_hash_video_v0` use `Sequence[Sequence[int]]` in
     both `__init__.py` and `_lowlevel.pyi`
-- `_lowlevel.pyi` `gen_video_code_v0` signature reformatted to multi-line to satisfy ruff
-    line-length limit (fixed in iteration 31)
 - 117 test functions across 5 files; 159 total pytest tests
-- `ruff check` and `ruff format --check` both pass (CI-verified at HEAD — Python job SUCCESS)
+- `ruff check` and `ruff format --check` both pass (CI-verified at HEAD)
 - `pytest` passes all conformance vectors (CI-verified at HEAD)
 - abi3-py310 wheel configuration in place; `ty` type checking configured
 - **iscc-lib 0.0.1 published to PyPI** (release workflow `Publish to PyPI: success` for run
@@ -99,12 +97,14 @@ and has not yet been merged to `main` or re-released.
 - Browser and Node.js build targets supported
 - **WASM release build fix applied** (iteration 4): `[package.metadata.wasm-pack.profile.release]`
     section added to `Cargo.toml` with
-    `wasm-opt = ["-O", "--enable-bulk-memory",   "--enable-nontrapping-float-to-int"]`;
+    `wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`;
     `wasm-pack build --release` verified locally (29.36s success); CI WASM job passed on develop run
     22403019335
-- **@iscc/wasm not yet published to npm**: fix is on `develop`; a new PR to `main` and re-triggering
-    the release workflow is needed to publish `@iscc/wasm`
-- **Open issues**: none (the wasm-opt fix is in place; awaiting re-release)
+- **`docs/howto/wasm.md` package name fixed** (iteration 5): all 20 occurrences of `@iscc/iscc-wasm`
+    corrected to `@iscc/wasm`
+- **@iscc/wasm not yet published to npm**: both fixes are on `develop` in PR #3 awaiting merge to
+    `main` and re-trigger of the release workflow
+- **Open issues**: none (fixes are in place; awaiting re-release)
 
 ## C FFI
 
@@ -192,6 +192,8 @@ done + howto/go.md done; io.Reader streaming interface absent)
 - `docs/CNAME` contains `lib.iscc.codes`; `docs/includes/abbreviations.md` (19 abbreviations)
 - `docs/index.md` Quick Start section has all 6 language tabs: Rust, Python, Node.js, Java, Go,
     WASM; Available Bindings table includes all 7 entries
+- `docs/howto/wasm.md` package name corrected to `@iscc/wasm` throughout (20 occurrences, iteration
+    5\)
 - Target requirement "All code examples use tabbed multi-language format" now met for the landing
     page
 
@@ -214,16 +216,15 @@ done + howto/go.md done; io.Reader streaming interface absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
-- **Latest CI run on develop: IN PROGRESS** —
-    [Run 22403019335](https://github.com/iscc/iscc-lib/actions/runs/22403019335) — 6/7 jobs SUCCESS
-    (Rust, Python, Node.js, WASM, C FFI, Java all green); Go still running
-- **Previous CI run on develop: PASSING** —
-    [Run 22402375410](https://github.com/iscc/iscc-lib/actions/runs/22402375410) — all 7 jobs
-    SUCCESS
+- **Latest completed CI run on develop: PASSING** —
+    [Run 22403499473](https://github.com/iscc/iscc-lib/actions/runs/22403499473) — all 7 jobs
+    SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go all green)
+- **CI runs in progress** — run 22403598203 (push to develop) and run 22403597692 (PR #3 check) both
+    triggered by iteration 5 commits; results pending
 - **Latest CI run on main: PASSING** —
     [Run 22402167393](https://github.com/iscc/iscc-lib/actions/runs/22402167393) — all jobs SUCCESS
 - Latest Docs run: **PASSING** —
-    [Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413))
+    [Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413)
 - `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
     conditions on all 8 jobs
 - **Idempotency checks** on all 4 publish jobs (crates.io, PyPI, npm lib/wasm)
@@ -231,26 +232,27 @@ done + howto/go.md done; io.Reader streaming interface absent)
     `Cargo.toml`, updates `package.json` and `pom.xml`; `--check` mode exits 1 on mismatch;
     `mise run version:sync` and `mise run version:check` tasks registered in `mise.toml`
 - **PR #2 merged** (develop → main, commit `4bdc899`); v0.0.1 tag pushed to remote
+- **PR #3 open** (develop → main) — contains wasm-opt fix + `docs/howto/wasm.md` package name fix
 - **Release workflow run 22402189532 — PARTIAL FAILURE**:
     - `Publish to PyPI: success` ✅ — iscc-lib 0.0.1 published to PyPI
     - All 4 wheel platforms + sdist built successfully ✅
     - `Publish to crates.io: failure` — OIDC: "No Trusted Publishing config found for repository
         `iscc/iscc-lib`" — registry-side setup required (human task)
-    - `Build WASM package: failure` — **fixed** on develop (iteration 4); needs re-release to take
-        effect
+    - `Build WASM package: failure` — **fixed** on develop in PR #3; needs re-release
     - `Build napi (x86_64-apple-darwin): cancelled` — cascading from earlier failures
     - `Publish @iscc/lib to npm: skipped` — depends on build-napi (was cancelled)
-    - `Publish @iscc/wasm to npm: skipped` — depends on build-wasm (was failed; fix now on develop)
+    - `Publish @iscc/wasm to npm: skipped` — depends on build-wasm (was failed; fix in PR #3)
 - Missing: OIDC trusted publishing for crates.io not yet configured in registry settings (human
     task)
-- Missing: npm publishing awaiting PR develop → main + new release trigger
+- Missing: npm publishing awaiting PR #3 merge (develop → main) + new release trigger
 - Missing: Java platform native bundling in CI matrix
 - Missing: Maven Central publishing configuration
 
 ## Next Milestone
 
-**Merge the WASM fix and re-release** — the `crates/iscc-wasm/Cargo.toml` fix (iteration 4) is on
-`develop` but not yet on `main`. Next steps: (1) create a PR from `develop` → `main` via
-`mise run pr:main`, (2) merge the PR, (3) tag a new patch version (e.g., `v0.0.2`) or re-trigger the
-release workflow via `workflow_dispatch` to publish `@iscc/wasm` and `@iscc/lib` to npm. The
-crates.io OIDC publishing requires human action on the registry side and remains blocked separately.
+**Merge PR #3 and re-release** — PR #3 (develop → main) contains the wasm-opt bulk-memory fix and
+the `docs/howto/wasm.md` package name correction. Next steps for a human: (1) verify PR #3 CI
+passes, (2) merge PR #3, (3) trigger the release workflow via `workflow_dispatch` (or tag a new
+version) to publish `@iscc/wasm` and `@iscc/lib` to npm. The crates.io OIDC publishing requires
+separate human action on the registry side and remains blocked. No CID-actionable code work is
+pending — the loop is in maintenance mode until new target.md goals are added.

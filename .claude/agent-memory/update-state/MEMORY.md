@@ -234,3 +234,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **wasm-pack profile config**: The correct way to configure wasm-opt flags for wasm-pack is via
     `[package.metadata.wasm-pack.profile.release]` in `Cargo.toml`, NOT via command-line args in CI.
     This keeps the config close to the code and works for both local and CI builds.
+- **docs/howto/wasm.md package name fixed (iteration 5, commit 1023080)**: All 20 occurrences of
+    `@iscc/iscc-wasm` replaced with `@iscc/wasm`. PR #3 open (develop → main) with both the wasm-opt
+    fix and this package name fix. CI on develop fully green: all 7 jobs pass (run 22403499473). Two
+    CI runs in progress: push to develop (22403598203) and PR #3 check (22403597692). Loop is in
+    maintenance mode — no CID-actionable code work pending. Human actions needed: merge PR #3, then
+    re-trigger release to publish @iscc/wasm and @iscc/lib to npm; crates.io OIDC setup also human.
