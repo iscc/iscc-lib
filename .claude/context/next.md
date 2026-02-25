@@ -1,74 +1,53 @@
 # Next Work Package
 
-## Step: JNI IllegalStateException for finalized hashers
+## Step: Fix stale WASM CLAUDE.md documentation
 
 ## Goal
 
-Fix the Java binding to throw `IllegalStateException` (not `IllegalArgumentException`) when calling
-`update()` or `finalize()` on an already-finalized `DataHasher` or `InstanceHasher`. This makes the
-Java API idiomatic — Java convention uses `IllegalStateException` for operations invalid in the
-current object state, vs `IllegalArgumentException` for invalid input values.
+Update `crates/iscc-wasm/CLAUDE.md` to accurately reflect that DataHasher and InstanceHasher are
+fully bound and the total exported symbol count is 23 (not 22). This resolves the
+`[low] iscc-wasm: Stale CLAUDE.md says DataHasher/InstanceHasher not yet bound` issue.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `crates/iscc-jni/src/lib.rs` (add `throw_state_error` helper, change 4 call sites,
-    update 2 doc comments)
-- **Reference**: `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (existing
-    test patterns), `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (Java-side
-    declarations)
+- **Modify**: `crates/iscc-wasm/CLAUDE.md`
+- **Reference**: `crates/iscc-wasm/src/lib.rs` (to verify the actual exports)
 
 ## Not In Scope
 
-- Changing exception types for non-state errors (all other `throw_and_default` call sites remain
-    `IllegalArgumentException` — those ARE argument validation errors)
-- Adding `IllegalStateException` to non-hasher functions (none of them have state)
-- Refactoring the `throw_and_default` function signature to accept exception class as parameter
-    (keep it simple with a separate helper)
-- Updating `crates/iscc-wasm/CLAUDE.md` stale text (separate [low] issue)
-- Release preparation or PR creation
+- Adding new WASM bindings or changing any Rust code
+- Updating other crate CLAUDE.md files (e.g., iscc-jni Javadoc mismatch is a separate concern)
+- Creating `crates/iscc-ffi/README.md` (separate task)
+- Any changes to `src/lib.rs` or test files
 
 ## Implementation Notes
 
-Add a `throw_state_error` helper alongside the existing `throw_and_default`:
+Three changes needed in `crates/iscc-wasm/CLAUDE.md`:
 
-```rust
-fn throw_state_error<T: Default>(env: &mut JNIEnv, msg: &str) -> T {
-    let _ = env.throw_new("java/lang/IllegalStateException", msg);
-    T::default()
-}
-```
+1. **Line 117**: Change "All 22 Tier 1 symbols are bound" → "All 23 Tier 1 symbols are bound, plus 2
+    streaming types". The 23 count matches the Tier 1 API definition in target.md and the actual
+    exports in `lib.rs`.
 
-Change exactly 4 call sites from `throw_and_default` to `throw_state_error` — the "already
-finalized" messages in:
+2. **Lines 130-131**: Replace the paragraph that says "DataHasher and InstanceHasher (streaming
+    types) are not yet bound. Binding stateful types requires `#[wasm_bindgen]` on a struct with
+    constructor/method annotations." with accurate documentation stating they ARE bound as
+    `#[wasm_bindgen]` structs with constructor, `update()`, and `finalize()` methods. Mention the
+    `Option<Inner>` finalize-once pattern (consistent with Python/napi/JNI crates).
 
-1. `dataHasherUpdate` (line ~739) — `throw_and_default::<()>` → `throw_state_error::<()>`
-2. `dataHasherFinalize` (line ~760) — `throw_and_default` → `throw_state_error`
-3. `instanceHasherUpdate` (line ~821) — `throw_and_default::<()>` → `throw_state_error::<()>`
-4. `instanceHasherFinalize` (line ~842) — `throw_and_default` → `throw_state_error`
+3. **Add DataHasher/InstanceHasher to the export list** (around lines 128-129): Add a line for the 2
+    streaming types, e.g., "**2 streaming types:** `DataHasher`, `InstanceHasher`".
 
-Update the 2 doc comments on `dataHasherUpdate` and `instanceHasherUpdate` from "Throws
-`IllegalArgumentException`" to "Throws `IllegalStateException`".
-
-Add 2 Java test methods to `IsccLibTest.java`:
-
-1. `testDataHasherThrowsIllegalStateAfterFinalize` — create hasher, finalize, then call update and
-    assert `IllegalStateException`
-2. `testInstanceHasherThrowsIllegalStateAfterFinalize` — same pattern for InstanceHasher
-
-These follow the existing negative test pattern (e.g., `testTextTrimNegativeThrows` at line 343).
+Keep edits minimal and factual. Do not rewrite unrelated sections.
 
 ## Verification
 
-- `cd crates/iscc-jni && cargo build` succeeds (Rust JNI crate compiles)
-- `cd crates/iscc-jni/java && mvn test` passes (all existing 49 tests + 2 new = 51 tests)
-- `grep -c 'throw_state_error' crates/iscc-jni/src/lib.rs` outputs `4` (exactly 4 call sites)
-- `grep -c 'IllegalStateException' crates/iscc-jni/src/lib.rs` outputs at least `1` (the helper)
-- `grep -c 'IllegalStateException' crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
-    outputs at least `2` (the 2 new tests)
-- `cargo clippy -p iscc-jni -- -D warnings` clean
+- `grep -c "not yet bound" crates/iscc-wasm/CLAUDE.md` outputs `0`
+- `grep "All 23 Tier 1" crates/iscc-wasm/CLAUDE.md` matches (confirms updated count)
+- `grep "DataHasher" crates/iscc-wasm/CLAUDE.md` shows them listed as bound exports
+- `grep "InstanceHasher" crates/iscc-wasm/CLAUDE.md` shows them listed as bound exports
+- No Rust source files modified (only CLAUDE.md changed)
 
 ## Done When
 
-All verification criteria pass: the JNI crate compiles, Maven tests pass (51 total), exactly 4
-state-error call sites use `IllegalStateException`, and clippy is clean.
+All four grep verification checks pass and the only modified file is `crates/iscc-wasm/CLAUDE.md`.
