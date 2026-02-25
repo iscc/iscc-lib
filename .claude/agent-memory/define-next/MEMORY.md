@@ -72,6 +72,12 @@ iterations.
     accepting a broader type (e.g., borrowed slices instead of owned Vecs), prefer generic bounds
     (`AsRef<T> + OtherTraits`) over concrete type changes. This avoids cascading modifications
     across all binding crates.
+- **Low-priority internal validation fixes**: `pub(crate)` functions with incorrect or missing
+    validation are good candidates for batching — same crate, no binding changes, clear tests. The
+    `alg_dct` + `alg_wtahash` pair is 3 files (dct.rs, wtahash.rs, lib.rs caller) and purely
+    additive (new error paths, no behavioral change for valid inputs). When changing a function's
+    return type (e.g., `Vec<u8>` → `IsccResult<Vec<u8>>`), check all callers — if the caller already
+    returns `IsccResult`, adding `?` is trivial.
 
 ## Architecture Decisions
 
