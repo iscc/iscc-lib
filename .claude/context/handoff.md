@@ -1,32 +1,35 @@
-## 2026-02-25 — Review of: Create iscc-ffi per-crate README
+## 2026-02-25 — Expand docs landing page to all 6 languages
 
-**Verdict:** PASS
+**Done:** Added Node.js, Java, Go, and WASM tabs to the Quick Start section in `docs/index.md` and
+added Java and Go rows to the Available Bindings table. All 6 tabs demonstrate `gen_text_code_v0`
+with "Hello World" for consistent cross-language comparison.
 
-**Summary:** Clean, well-structured README for the C FFI crate. Follows the established per-crate
-pattern with appropriate adaptations: "Building" instead of "Installation", a "Memory Management"
-section unique to the C FFI target, and `iscc_`-prefixed function names throughout. Content verified
-against actual `lib.rs` exports. All 7 per-crate READMEs are now complete.
+**Files changed:**
+
+- `docs/index.md`: Added 4 new Quick Start tabs (Node.js, Java, Go, WASM) after existing Rust and
+    Python tabs. Added Java (Maven Central planned, build from source) and Go (Go module) rows to
+    the Available Bindings table between Node.js and WebAssembly. Table now has 7 rows.
 
 **Verification:**
 
-- [x] `test -f crates/iscc-ffi/README.md` exits 0 — file exists
-- [x] `grep "iscc-ffi"` matches — title heading and build commands
-- [x] `grep "What is ISCC"` matches — standard section present, text identical to other READMEs
-- [x] `grep "iscc_gen_meta_code_v0"` matches — C function names in table and Quick Start example
-- [x] `grep "iscc_free_string"` matches — memory management section documents free functions
-- [x] `grep "Apache-2.0"` matches — license section present
-- [x] No files other than `crates/iscc-ffi/README.md` modified — only README + `.claude/` changed
-- [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] No quality gate circumvention
+- `uv run zensical build` exits 0 — docs site builds without errors
+- `grep -c '=== "' docs/index.md` returns 6 — one tab per language
+- `grep 'Node.js' docs/index.md` matches — Node.js tab and binding table row present
+- `grep 'Java' docs/index.md` matches — Java tab and binding table row present
+- `grep 'Go' docs/index.md` matches — Go tab and binding table row present
+- `grep 'WASM' docs/index.md` matches — WASM tab present
+- `grep 'go get' docs/index.md` matches — Go install command in both tab and table
+- Available Bindings table has 7 rows (Rust, Python, Node.js, Java, Go, WebAssembly, C/C++)
+- `mise run check` — all 14 pre-commit hooks pass
 
-**Issues found:**
+**Next:** The "All code examples use tabbed multi-language format" gap from target.md is now closed.
+The existing Rust and Python Quick Start examples have minor inaccuracies noted in next.md's "Not In
+Scope" (Rust shows struct as "JSON string", Python uses `json.loads` unnecessarily) — these could be
+fixed in a follow-up step. The project appears ready for the v0.0.1 release PR from `develop` to
+`main`.
 
-- (none)
-
-**Next:** All 7 per-crate READMEs are complete. The "Per-Crate READMEs" gap in target.md is closed.
-The project is ready for the `v0.0.1` release — consider creating a PR from `develop` to `main`.
-
-**Notes:** The advance agent's learning about mdformat-mkdocs crashing on long backtick chains is
-valuable and already captured in agent memory. The Javadoc `@throws` annotation mismatch in
-`iscc-jni` (mentioned in previous handoffs) remains a cosmetic concern — not tracked as a formal
-issue.
+**Notes:** mdformat auto-reformatted the JS `import` statements in Node.js and WASM tabs to
+multi-line style (one import per line with braces). This is the formatter's standard behavior for
+code blocks inside markdown — the resulting code is functionally identical and renders correctly on
+the docs site. The Go tab has more boilerplate than other languages (runtime setup with context) but
+the example is kept minimal while remaining correct per the howto guide patterns.

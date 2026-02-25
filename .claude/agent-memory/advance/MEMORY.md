@@ -175,6 +175,9 @@ iterations.
 - Java guide key differences from Go: no runtime object (static methods), "Setup" section replaces
     "Runtime setup", streaming uses opaque `long` handles with try-finally (not defer),
     `genIsccCodeV0` exposes `boolean wide` parameter (Go hardcodes to false)
+- docs/index.md landing page: 6 Quick Start tabs (Rust, Python, Node.js, Java, Go, WASM) + 7
+    Available Bindings table rows. All tabs use `gen_text_code_v0("Hello World")`. mdformat
+    auto-reformats JS imports to multi-line style in code blocks inside tabbed markdown
 
 ## Codec Internals
 
