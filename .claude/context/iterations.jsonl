@@ -322,3 +322,8 @@
 {"ts":"2026-02-25T10:30:46.941837+00:00","iteration":27,"role":"define-next","status":"OK","turns":15,"cost_usd":0.610247,"duration_s":115.8}
 {"ts":"2026-02-25T10:33:18.288793+00:00","iteration":27,"role":"advance","status":"OK","turns":23,"cost_usd":0.741456,"duration_s":151.3}
 {"ts":"2026-02-25T10:36:00.000000+00:00","iteration":27,"role":"review","status":"PASS","turns":8,"cost_usd":0.15,"duration_s":90}
+{"ts":"2026-02-25T10:35:31.495478+00:00","iteration":27,"role":"review","status":"OK","turns":29,"cost_usd":0.765415,"duration_s":133.2}
+{"ts":"2026-02-25T10:57:23.464597+00:00","iteration":28,"role":"update-state","status":"OK","turns":15,"cost_usd":0.567621,"duration_s":173.0}
+{"ts":"2026-02-25T11:00:52.486073+00:00","iteration":28,"role":"define-next","status":"OK","turns":26,"cost_usd":1.010214,"duration_s":209.0}
+{"ts":"2026-02-25T11:08:14.649871+00:00","iteration":28,"role":"advance","status":"OK","turns":62,"cost_usd":2.234782,"duration_s":442.2}
+{"iteration":28,"timestamp":"2026-02-25T11:15:00Z","step":"Create iscc-ffi per-crate README","verdict":"PASS","files_changed":["crates/iscc-ffi/README.md"],"notes":"7/7 per-crate READMEs complete. Clean documentation-only change, 14 hooks pass."}
