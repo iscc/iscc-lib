@@ -65,9 +65,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - Per-crate READMEs: all 6 publishable packages done (iscc-lib, iscc-py, iscc-napi, iscc-wasm,
     iscc-jni, packages/go). iscc-ffi not published separately (lower priority).
     packages/go/README.md created in iteration 10 (commit a60a375).
-- Root README now has Java sections (installation + quick start) as of iteration 6 (commit 8012a7f).
-    "What is iscc-lib" body text (line 47) still says "Python, Node.js, WebAssembly, and C" — minor
-    gap. Go sections and Maven Central/Go badges still missing.
+- Root README NOW COMPLETE as of iteration 14 (commit 200ffb1): Go Reference badge, Go installation
+    section, Go quick-start example added. "What is iscc-lib" body text fixed to "Python, Java, Go,
+    Node.js, WebAssembly, and C". Key Features updated to "Python, Java, Go, Node.js, WASM, and C
+    FFI". README section status → MET. Maven Central badge not added (Java not yet published).
 - JNI unwrap() issue resolved in iteration 7 (commit a573475). All 21 unwrap() calls replaced with
     throw_and_default. No critical issues remain in issues.md as of f24a31f.
 - Python bytes-like + unbounded read issues resolved in iteration 2 (commit 29fb142). Fixed in
@@ -83,13 +84,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 13): tests = 22380174043 (7/7 pass), docs = 22380174037 (pass)
+- Latest CI run IDs (iteration 14): tests = 22380967314 (7/7 pass), docs = 22380967299 (pass)
 - `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
     compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
     alloc helpers). File is now 1,934 lines.
-- Go bindings NOW COMPLETE at 23/23 Tier 1 (iteration 13, commit c22fa53). Next: root README Go
-    section (installation + quick start + Go badge + Maven Central badge + fix "What is iscc-lib"
-    body text for Java) and howto/go.md + howto/java.md docs. io.Reader wrapper is optional.
+- Go bindings 23/23 Tier 1 COMPLETE (iteration 13, commit c22fa53). Root README Go section DONE
+    (iteration 14, commit 200ffb1). Next: howto/go.md + howto/java.md + zensical.toml nav entries.
+    io.Reader wrapper is optional per verified-when criteria.
 - Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
     DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added

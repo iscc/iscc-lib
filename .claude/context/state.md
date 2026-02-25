@@ -1,15 +1,16 @@
-<!-- assessed-at: c22fa5364a26fb1f6af835a347f25847582f4856 -->
+<!-- assessed-at: 200ffb1d5f5393cb713aa9a3fdf0d793c1e94090 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: 23/23 Go Tier 1 symbols done — README Go section + docs howtos remaining
+## Phase: README complete — documentation how-to guides (Go + Java) remaining
 
-Go streaming hashers (`DataHasher`/`InstanceHasher`) were added this iteration, bringing the Go
-binding to full 23/23 Tier 1 symbol parity. All 7 CI jobs remain green. Remaining gaps are the root
-README Go section (installation, quick start, badge), the two how-to guide pages (`docs/howto/go.md`
-and `docs/howto/java.md`), and the "What is iscc-lib" body text fix for Java.
+The root README is now fully complete: Go Reference badge, Go installation section, Go quick-start
+example, updated Key Features bullet, and corrected "What is iscc-lib" body text listing all six
+binding ecosystems are all in place. All 7 CI jobs remain green. The primary remaining gaps are the
+two missing how-to guide pages (`docs/howto/go.md` and `docs/howto/java.md`) and the absence of
+Java/Go entries in the `zensical.toml` navigation.
 
 ## Rust Core Crate
 
@@ -173,27 +174,28 @@ done; io.Reader streaming interface absent)
 - `packages/go/README.md` (104 lines): complete
 - Missing: `io.Reader` interface for `Update` methods (architecture describes it; current
     implementation accepts `[]byte` only — callers must chunk themselves)
+- Missing: `docs/howto/go.md`
 - Note: target.md `verified-when` criteria do not explicitly require `io.Reader`; the gap is in the
     architecture description
 
 ## README
 
-**Status**: partially met
+**Status**: met
 
-- Rewritten as public-facing polyglot developer README (200 lines)
-- ✅ CI badge; crate/PyPI/npm version badges present
-- ✅ Experimental notice, tagline, Key Features (6 bullets), ISCC Architecture diagram, MainTypes
-    table
-- ✅ "What is the ISCC" and "What is iscc-lib" sections
-- ✅ **Key Features** line reads "Python, Java, Node.js, WASM, and C FFI" — Java present
-- ✅ Installation: Rust, Python, Node.js, Java, WASM sections present
-- ✅ Quick Start: Rust, Python, Node.js, Java, WASM examples
-- ✅ Implementors Guide, Documentation link, Contributing, Apache-2.0 license, Maintainers
-- ❌ **"What is iscc-lib" body text** still says "Python, Node.js, WebAssembly, and C" — Java not
-    mentioned (line 47)
-- ❌ **Go installation section** not present
-- ❌ **Go quick start code example** not present
-- ❌ Maven Central and Go badges not present
+- ✅ Rewritten as public-facing polyglot developer README (237 lines)
+- ✅ CI badge; Crate (crates.io), PyPI, npm, and Go Reference (`pkg.go.dev`) version badges present
+- ✅ Experimental notice, tagline, Key Features (6 bullets with "Python, Java, Go, Node.js, WASM, and
+    C FFI")
+- ✅ ISCC Architecture diagram and MainTypes table
+- ✅ "What is the ISCC" section
+- ✅ "What is iscc-lib" body text — "Python, Java, Go, Node.js, WebAssembly, and C" (fixed)
+- ✅ Installation: Rust, Python, Node.js, Java, Go, WASM sections all present
+- ✅ Quick Start: Rust, Python, Node.js, Java, Go, WASM examples all present
+- ✅ Implementors Guide with all 9 `gen_*_v0` entry points listed
+- ✅ Documentation link to `lib.iscc.codes`
+- ✅ Contributing, Apache-2.0 license, Maintainers
+- ✅ No development workflow content (CID loop, dev container, pre-commit hooks absent)
+- Maven Central badge not added (Java not yet published to Maven Central; not blocking)
 
 ## Per-Crate READMEs
 
@@ -226,7 +228,9 @@ separately)
 - ✅ `docs/includes/abbreviations.md` with 19 ISCC-specific abbreviations
 - Missing: `howto/java.md` how-to guide for Java
 - Missing: `howto/go.md` how-to guide for Go
-- Missing: Java and Go code examples in existing tabbed code blocks
+- Missing: Java and Go entries in `zensical.toml` How-to Guides navigation
+- Missing: Java and Go code examples in existing tabbed code blocks (spec requires tabbed
+    multi-language format for all examples)
 
 ## Benchmarks
 
@@ -248,10 +252,10 @@ separately)
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
     (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22380174043](https://github.com/iscc/iscc-lib/actions/runs/22380174043) — all 7 jobs
+    [Run 22380967314](https://github.com/iscc/iscc-lib/actions/runs/22380967314) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22380174037](https://github.com/iscc/iscc-lib/actions/runs/22380174037) — build + deploy
+    [Run 22380967299](https://github.com/iscc/iscc-lib/actions/runs/22380967299) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -260,13 +264,13 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs. Go bindings are now at 23/23 Tier 1 symbol parity. Recommended next work
-(in priority order):
+CI is green on all 7 jobs. README is now fully complete. Recommended next work (in priority order):
 
-1. **Root README Go section** — add Go installation (`go get`) and quick-start code example; add Go
-    module proxy badge; fix "What is iscc-lib" body text to include Java; add Maven Central badge
-2. **Documentation how-to guides** — `docs/howto/go.md` Go how-to guide and `docs/howto/java.md`
-    Java how-to guide, each with language-appropriate install, quick start, and API overview
+1. **Documentation how-to guides** — create `docs/howto/go.md` (Go how-to: install via `go get`,
+    WASM runtime setup, `NewRuntime`, all gen functions, streaming hashers) and
+    `docs/howto/java.md` (Java how-to: pom.xml snippet, `System.loadLibrary`, all gen functions,
+    streaming hashers); add both to `zensical.toml` navigation under How-to Guides
+2. **Fix `iscc-ffi/README.md`** — low-priority but completes the per-crate README set
 3. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper to `DataHasher.Update` and
-    `InstanceHasher.Update` for idiomatic Go streaming (mentioned in architecture description;
+    `InstanceHasher.Update` for idiomatic Go streaming (architecture description mentions it;
     optional per verified-when criteria)
