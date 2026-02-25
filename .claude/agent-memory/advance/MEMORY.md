@@ -185,6 +185,15 @@ iterations.
     `drop(chunks)`, then mutate `self.buf`. Explicit `drop(chunks)` makes the borrow release visible
 - Benchmark: `DataHasher` streaming at 64 KiB chunks on 1 MB data achieves ~1.1 GiB/s throughput
 
+## API Generics
+
+- Video API (`soft_hash_video_v0`, `gen_video_code_v0`) uses `<S: AsRef<[i32]> + Ord>` instead of
+    concrete `&[Vec<i32>]`. This allows FFI to pass `&[&[i32]]` (zero-copy borrows) while other
+    bindings continue passing `&[Vec<i32>]` unchanged. `AsRef<[i32]>` gives slice access, `Ord`
+    enables `BTreeSet` deduplication. Body uses `.as_ref()` for element access
+- FFI video wrappers use `Vec<&[i32]>` (1 remaining `.to_vec()` in FFI crate is for
+    `alg_cdc_chunks`)
+
 ## Gotchas
 
 - `pop_local_frame` is `unsafe` in jni crate v0.21 (Rust 2024 edition) — must wrap in `unsafe {}`

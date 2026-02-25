@@ -522,21 +522,24 @@ pub fn gen_audio_code_v0(cv: &[i32], bits: u32) -> IsccResult<AudioCodeResult> {
 ///
 /// Deduplicates frame signatures, computes column-wise sums across all
 /// unique frames, then applies WTA-Hash to produce a digest of `bits/8` bytes.
-pub fn soft_hash_video_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<Vec<u8>> {
+pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
+    frame_sigs: &[S],
+    bits: u32,
+) -> IsccResult<Vec<u8>> {
     if frame_sigs.is_empty() {
         return Err(IsccError::InvalidInput(
             "frame_sigs must not be empty".into(),
         ));
     }
 
-    // Deduplicate using BTreeSet (Vec<i32> implements Ord)
-    let unique: std::collections::BTreeSet<&Vec<i32>> = frame_sigs.iter().collect();
+    // Deduplicate using BTreeSet (S: Ord)
+    let unique: std::collections::BTreeSet<&S> = frame_sigs.iter().collect();
 
     // Column-wise sum into i64 to avoid overflow
-    let cols = frame_sigs[0].len();
+    let cols = frame_sigs[0].as_ref().len();
     let mut vecsum = vec![0i64; cols];
     for sig in &unique {
-        for (c, &val) in sig.iter().enumerate() {
+        for (c, &val) in sig.as_ref().iter().enumerate() {
             vecsum[c] += val as i64;
         }
     }
@@ -548,7 +551,10 @@ pub fn soft_hash_video_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<Vec<
 ///
 /// Produces an ISCC Content-Code for video from a sequence of MPEG-7 frame
 /// signatures. Each frame signature is a 380-element integer vector.
-pub fn gen_video_code_v0(frame_sigs: &[Vec<i32>], bits: u32) -> IsccResult<VideoCodeResult> {
+pub fn gen_video_code_v0<S: AsRef<[i32]> + Ord>(
+    frame_sigs: &[S],
+    bits: u32,
+) -> IsccResult<VideoCodeResult> {
     let digest = soft_hash_video_v0(frame_sigs, bits)?;
     let component = codec::encode_component(
         codec::MainType::Content,

@@ -406,12 +406,12 @@ pub unsafe extern "C" fn iscc_gen_video_code_v0(
     let sig_ptrs = unsafe { std::slice::from_raw_parts(frame_sigs, num_frames) };
     let lens = unsafe { std::slice::from_raw_parts(frame_lens, num_frames) };
 
-    let frames: Vec<Vec<i32>> = sig_ptrs
+    let frames: Vec<&[i32]> = sig_ptrs
         .iter()
         .zip(lens.iter())
         .map(|(&ptr, &len)| {
             // SAFETY: caller guarantees each ptr is valid for its length
-            unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec()
+            unsafe { std::slice::from_raw_parts(ptr, len) }
         })
         .collect();
 
@@ -956,12 +956,12 @@ pub unsafe extern "C" fn iscc_soft_hash_video_v0(
     let sig_ptrs = unsafe { std::slice::from_raw_parts(frame_sigs, num_frames) };
     let lens = unsafe { std::slice::from_raw_parts(frame_lens, num_frames) };
 
-    let frames: Vec<Vec<i32>> = sig_ptrs
+    let frames: Vec<&[i32]> = sig_ptrs
         .iter()
         .zip(lens.iter())
         .map(|(&ptr, &len)| {
             // SAFETY: caller guarantees each ptr is valid for its length
-            unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec()
+            unsafe { std::slice::from_raw_parts(ptr, len) }
         })
         .collect();
 
