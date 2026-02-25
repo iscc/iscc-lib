@@ -278,3 +278,8 @@
 {"ts":"2026-02-25T06:13:37.101572+00:00","iteration":18,"role":"update-state","status":"OK","turns":19,"cost_usd":0.856842,"duration_s":241.1}
 {"ts":"2026-02-25T06:17:46.178461+00:00","iteration":18,"role":"define-next","status":"OK","turns":21,"cost_usd":0.983429,"duration_s":249.1}
 {"ts":"2026-02-25T06:22:21.014293+00:00","iteration":18,"role":"advance","status":"OK","turns":30,"cost_usd":1.016252,"duration_s":274.8}
+{"ts":"2026-02-25T06:26:21.450178+00:00","iteration":18,"role":"review","status":"OK","turns":34,"cost_usd":1.271032,"duration_s":240.4}
+{"ts":"2026-02-25T06:49:39.894610+00:00","iteration":19,"role":"update-state","status":"OK","turns":20,"cost_usd":0.87821,"duration_s":246.2}
+{"ts":"2026-02-25T06:53:20.818316+00:00","iteration":19,"role":"define-next","status":"OK","turns":28,"cost_usd":1.245213,"duration_s":220.9}
+{"ts":"2026-02-25T06:56:52.728919+00:00","iteration":19,"role":"advance","status":"OK","turns":35,"cost_usd":1.143091,"duration_s":211.9}
+{"iteration":19,"timestamp":"2026-02-25T07:00:00Z","step":"Generalize video API to accept borrowed slices","verdict":"PASS","files_changed":["crates/iscc-lib/src/lib.rs","crates/iscc-ffi/src/lib.rs"],"issues_resolved":["iscc-ffi: Video functions allocate/copy every frame signature"],"notes":"Generic AsRef<[i32]> + Ord approach eliminates per-frame allocations in FFI while maintaining backward compatibility for all binding crates."}

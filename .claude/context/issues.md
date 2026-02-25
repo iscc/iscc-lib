@@ -106,22 +106,6 @@ acknowledging community implementations builds goodwill and helps adopters find 
 
 **Source:** [human]
 
-## [normal] iscc-ffi: Video functions allocate/copy every frame signature
-
-In `crates/iscc-ffi/src/lib.rs`, both `iscc_gen_video_code_v0` (lines 369-376) and
-`iscc_soft_hash_video_v0` (lines 919-926) allocate a new `Vec<Vec<i32>>` by copying every frame
-signature via `.to_vec()`. For videos with hundreds or thousands of frames, this creates significant
-allocation overhead.
-
-The underlying `iscc_lib` functions require `&[Vec<i32>]`, so the wrapper must materialize the data.
-If `iscc_lib` could accept `&[&[i32]]` instead, the FFI layer could avoid per-frame allocations.
-
-Fix: consider changing the `iscc_lib` video API to accept `&[&[i32]]` (borrowed slices), then update
-all FFI/binding wrappers to pass slices directly. After fixing, benchmark video code generation with
-varying frame counts.
-
-**Source:** [human]
-
 ## [low] iscc-jni: All exceptions mapped to `IllegalArgumentException`
 
 In `crates/iscc-jni/src/lib.rs:34`, the `throw_and_default` function always throws
