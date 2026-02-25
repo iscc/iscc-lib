@@ -1,6 +1,7 @@
 # iscc-lib
 
 [![CI](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml/badge.svg)](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/iscc/iscc-lib)
 
 [![Crate](https://img.shields.io/crates/v/iscc-lib.svg)](https://crates.io/crates/iscc-lib)
 [![PyPI](https://img.shields.io/pypi/v/iscc-lib.svg)](https://pypi.org/project/iscc-lib/)
