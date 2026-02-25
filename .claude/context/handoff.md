@@ -1,38 +1,28 @@
-## 2026-02-25 — Review of: Add 9 gen\_\*\_v0 Go wrappers with conformance tests
+## 2026-02-25 — Add Go CI job to ci.yml
 
-**Verdict:** PASS
+**Done:** Added a `go:` job to `.github/workflows/ci.yml` that builds the WASM module from Rust,
+copies it to the Go package directory, and runs `go test` and `go vet`. The job follows the
+established CI pattern (checkout → Rust toolchain → cache → language setup → build → test) and is
+placed after the `java:` job at the end of the `jobs:` section.
 
-**Summary:** All 9 `Gen*CodeV0` Go wrappers implemented on `*Runtime` with 4 memory helpers
-(`writeBytes`, `writeI32Slice`, `writeStringArray`, `writeI32ArrayOfArrays`) and a shared
-`callStringResult` helper. Conformance tests cover all 46 vectors from data.json across all 9
-functions. Clean, well-structured code with proper error handling and memory cleanup on all paths.
+**Files changed:**
 
-**Verification:**
+- `.github/workflows/ci.yml`: Added `go:` job block with 8 steps (checkout, rust-toolchain with
+    wasm32-wasip1 target, rust-cache, setup-go with go-version-file, cargo build WASM, cp WASM to
+    packages/go, go test with CGO_ENABLED=0 and -count=1, go vet)
 
-- [x] `cd packages/go && CGO_ENABLED=0 go test -v -count=1 ./...` passes — 14 tests pass (5 existing
-    \+ 9 new conformance tests covering 46 vectors)
-- [x] `cd packages/go && go vet ./...` exits 0 — clean
-- [x] All 9 `Gen*CodeV0` methods exist on `*Runtime` type — confirmed in iscc.go
-- [x] Each conformance test vector produces an ISCC string matching expected output from data.json —
-    all 46 subtests pass
-- [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] No quality gate circumvention — no lint suppressions, test skips, or hook weakening in diff
+**Verification:** All four criteria from next.md pass:
 
-**Issues found:**
+- `git diff` shows exactly one new job block (`go:`) with no changes to existing jobs
+- YAML validation (`yaml.safe_load`) exits 0
+- All 8 required steps verified present in the Go job section
+- `mise run check` passes — all 14 pre-commit hooks clean
 
-- (none)
+**Next:** The Go bindings are now complete with CI coverage (14 tests, 46 conformance vectors).
+Consider adding the remaining 12 Tier 1 Go function wrappers (text utils, algo primitives,
+streaming), or creating `packages/go/README.md` and updating root README with Go installation
+instructions.
 
-**Next:** Add Go CI job in `.github/workflows/ci.yml` to run `go test` and `go vet` in CI. The Go
-module scaffold and all 9 gen functions are complete — CI integration is the natural next step to
-protect against regressions. After CI, consider adding the remaining 12 Tier 1 utility function
-wrappers (text utilities, algorithm primitives, streaming types).
-
-**Notes:**
-
-- The `allocEntry` type is defined locally in both `writeStringArray` and `writeI32ArrayOfArrays` —
-    minor duplication but acceptable since they're unexported local types. Could be extracted to a
-    package-level type in a future cleanup.
-- Go tests create a new Runtime per test function (not per subtest). This is efficient since wazero
-    module instantiation is the expensive part and subtests share it.
-- The `TextClean` method could be refactored to use `callStringResult` for consistency, but it was
-    pre-existing code and out of scope for this iteration.
+**Notes:** No surprises. This was a straightforward YAML addition following the exact spec in
+next.md. The `go-version-file` approach means the Go version in CI is controlled by `go.mod`
+(currently 1.24.0) — no hardcoded version in the workflow.

@@ -98,10 +98,13 @@ iterations.
 - Maven runs from `crates/iscc-jni/java/` as working directory
 - JDK 17 and Maven are pre-installed in devcontainer
 - Gson 2.11.0 used as test-scope dependency for JSON parsing
-- CI workflow at `.github/workflows/ci.yml` has 6 jobs: rust, python, nodejs, wasm, c-ffi, java
+- CI workflow at `.github/workflows/ci.yml` has 7 jobs: rust, python, nodejs, wasm, c-ffi, java, go
 - Java CI uses `actions/setup-java@v4` with `distribution: temurin` + `java-version: '17'` (provides
     both JDK and Maven -- no separate Maven setup needed)
 - All CI jobs share the same action triple: checkout@v4, rust-toolchain@stable, rust-cache@v2
+- Go CI job uses `actions/setup-go@v5` with `go-version-file: packages/go/go.mod` (version from
+    go.mod, not hardcoded). Build chain: cargo build WASM → cp to packages/go → go test → go vet.
+    Uses `CGO_ENABLED=0` and `-count=1` to prevent caching
 
 ## Registry/Publishing
 

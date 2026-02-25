@@ -113,3 +113,25 @@ jobs:
         run: cargo build -p iscc-jni
       - name: Run Maven tests
         run: mvn test -f crates/iscc-jni/java/pom.xml
+  go:
+    name: Go (go test, go vet)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: packages/go/go.mod
+      - name: Build WASM module
+        run: cargo build -p iscc-ffi --target wasm32-wasip1
+      - name: Copy WASM to Go package
+        run: cp target/wasm32-wasip1/debug/iscc_ffi.wasm packages/go/
+      - name: Run Go tests
+        run: CGO_ENABLED=0 go test -v -count=1 ./...
+        working-directory: packages/go
+      - name: Run Go vet
+        run: go vet ./...
+        working-directory: packages/go
