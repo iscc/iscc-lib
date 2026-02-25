@@ -1,7 +1,7 @@
-//! PyO3 bindings for iscc-lib, exposed as `iscc._lowlevel`.
+//! PyO3 bindings for iscc-lib, exposed as `iscc_lib._lowlevel`.
 //!
-//! This module provides the low-level Rust-backed functions for the `iscc`
-//! Python package. The pure-Python wrapper in `python/iscc/__init__.py`
+//! This module provides the low-level Rust-backed functions for the `iscc_lib`
+//! Python package. The pure-Python wrapper in `python/iscc_lib/__init__.py`
 //! re-exports these for a Pythonic API.
 //!
 //! All `gen_*_v0` functions return Python `dict` objects with the same keys
@@ -357,7 +357,7 @@ impl PyInstanceHasher {
     }
 }
 
-/// Python module `iscc._lowlevel` backed by Rust.
+/// Python module `iscc_lib._lowlevel` backed by Rust.
 #[pymodule(name = "_lowlevel")]
 fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(gen_meta_code_v0, m)?)?;

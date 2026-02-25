@@ -1,31 +1,32 @@
-## 2026-02-25 — Review of: Add input validation to alg_dct and alg_wtahash
+## 2026-02-25 — Add `__version__` attribute and fix iscc-py module docstring
 
-**Verdict:** PASS
+**Done:** Added `__version__` attribute to `iscc_lib` Python package via
+`importlib.metadata.version("iscc-lib")`, fixed three incorrect module name references in
+`crates/iscc-py/src/lib.rs` (changed `iscc._lowlevel` → `iscc_lib._lowlevel` and
+`python/iscc/__init__.py` → `python/iscc_lib/__init__.py`), and added two tests verifying the
+version attribute.
 
-**Summary:** Clean implementation fixing two `[low]` correctness issues. `alg_dct` now enforces
-power-of-two input length via `n.is_power_of_two()`, and `alg_wtahash` returns `IsccResult<Vec<u8>>`
-with guards for minimum vector length (380), valid bits (>0, divisible by 8, ≤256). Eight new tests
-cover the error paths. No behavioral change for valid inputs.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-py/python/iscc_lib/__init__.py`: Added `from importlib.metadata import version` and
+    `__version__ = version("iscc-lib")` near the top; added `"__version__"` to `__all__`
+- `crates/iscc-py/src/lib.rs`: Fixed three references — line 1 docstring (`iscc._lowlevel` →
+    `iscc_lib._lowlevel`), line 3 (`iscc` → `iscc_lib`), line 4 path (`python/iscc/__init__.py` →
+    `python/iscc_lib/__init__.py`), and line 360 module doc (`iscc._lowlevel` →
+    `iscc_lib._lowlevel`)
+- `tests/test_smoke.py`: Added `test_version_exists_and_correct` (verifies `__version__` is a string
+    equal to `"0.0.1"`) and `test_version_in_all` (verifies `"__version__"` is in `__all__`)
 
-- [x] `cargo test -p iscc-lib` passes — 269 tests (216 unit + 31 integration algo + 22 integration
-    text), all pass
-- [x] `cargo clippy -p iscc-lib -- -D warnings` clean — no warnings
-- [x] `alg_dct(&[1.0; 6])` returns `Err` — confirmed via `test_alg_dct_non_power_of_two_even_error`
-- [x] `alg_wtahash(&[0i64; 100], 64)` returns `Err` — confirmed via
-    `test_alg_wtahash_short_input_error`
-- [x] All existing conformance tests still pass — no behavioral change for valid inputs
+**Verification:** All 159 Python tests pass (19 smoke + 140 conformance).
+`python -c "import iscc_lib; print(iscc_lib.__version__)"` prints `0.0.1`.
+`grep -q 'iscc_lib._lowlevel' crates/iscc-py/src/lib.rs` exits 0. No old incorrect `iscc._lowlevel`
+references remain. `cargo clippy -p iscc-py -- -D warnings` clean.
 
-**Issues found:**
+**Next:** Remaining `[low]` issues: iscc-wasm conformance feature gate, iscc-wasm stale CLAUDE.md,
+iscc-jni exception mapping, and TypeScript port evaluation.
 
-- (none)
-
-**Next:** Only `[low]` items remain: iscc-py `__version__` attribute, iscc-py module docstring,
-iscc-wasm conformance feature gate, iscc-wasm stale CLAUDE.md, iscc-jni exception mapping, and
-TypeScript port evaluation. Define-next should pick the next highest-value item.
-
-**Notes:** The advance agent simplified the lib.rs caller change from next.md's suggested
-`Ok(wtahash::alg_wtahash(&vecsum, bits)?)` to just `wtahash::alg_wtahash(&vecsum, bits)` (removing
-the `Ok()` wrapper entirely), which is cleaner since both caller and callee now share the same
-`IsccResult<Vec<u8>>` return type.
+**Notes:** next.md specified the version as `"0.0.1"` which is correct for the workspace Cargo.toml
+version. The installed package had a stale `0.1.0` version from a previous build — rebuilding with
+`maturin develop` resolved the mismatch. Also found a third incorrect `iscc._lowlevel` reference on
+line 360 (the `#[pymodule]` docstring) that wasn't mentioned in next.md but was caught by the
+verification grep and fixed.

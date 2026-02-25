@@ -3,6 +3,7 @@
 import io
 import json
 
+import iscc_lib
 from iscc_lib import (
     DataCodeResult,
     IsccResult,
@@ -14,6 +15,18 @@ from iscc_lib import (
     gen_meta_code_v0,
     gen_text_code_v0,
 )
+
+
+def test_version_exists_and_correct():
+    """Verify __version__ is a string matching the workspace version."""
+    assert hasattr(iscc_lib, "__version__")
+    assert isinstance(iscc_lib.__version__, str)
+    assert iscc_lib.__version__ == "0.0.1"
+
+
+def test_version_in_all():
+    """Verify __version__ is included in __all__."""
+    assert "__version__" in iscc_lib.__all__
 
 
 def test_gen_instance_code_v0_empty():

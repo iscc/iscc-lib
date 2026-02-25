@@ -222,3 +222,8 @@ iterations.
     compatibility. CI uses the fallback path via Surefire `-Djava.library.path`
 - Python `__init__.py` module-level constants must go AFTER imports -- ruff E402 (module level
     import not at top of file) fires if a constant is placed between import groups
+- `__version__` in `__init__.py` uses `importlib.metadata.version("iscc-lib")` — reads from
+    installed package metadata, which maturin populates from Cargo.toml via `dynamic = ["version"]`.
+    Place it after `from __future__ import annotations` and `from importlib.metadata import version`
+- When `maturin develop` installs a version, it persists in the venv — if the workspace version
+    changes in Cargo.toml, must rebuild with `maturin develop` to sync the installed version

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from importlib.metadata import version
 from typing import BinaryIO
+
+__version__ = version("iscc-lib")
 
 from iscc_lib._lowlevel import (
     DataHasher as _DataHasher,
@@ -243,6 +246,7 @@ class InstanceHasher:
 
 
 __all__ = [
+    "__version__",
     "IsccResult",
     "AudioCodeResult",
     "DataCodeResult",
