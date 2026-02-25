@@ -36,7 +36,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `crates/iscc-wasm/src/lib.rs` — `alg_cdc_chunks` now returns `Result<JsValue, JsError>` with
     `.map_err(|e| JsError::new(&e.to_string()))` — silent null issue RESOLVED in iteration 5
 - `.devcontainer/Dockerfile` — includes `openjdk-17-jdk-headless` and `maven`
-- `.github/workflows/ci.yml` — 6 jobs: Rust, Python, Node.js, WASM, C FFI, Java (no Go yet)
+- `.github/workflows/ci.yml` — 7 jobs: Rust, Python, Node.js, WASM, C FFI, Java, Go (Go job added
+    iteration 9, commit eb5085d); Go job builds iscc-ffi → wasm32-wasip1, copies .wasm, runs go test
+    \+ go vet
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
 - `docs/howto/` — 4 files: rust.md, python.md, nodejs.md, wasm.md (no java.md or go.md yet)
 
@@ -45,8 +47,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Incremental review**: compare `assessed-at` hash vs HEAD `--stat` first, then re-verify only
     affected sections. Always carry forward sections where no relevant files changed.
 - **Tier 1 symbol count**: target says "22" but implementation has 23 (target.md counting error)
-- **CI now has 6 jobs**: Rust, Python, Node.js, WASM, C FFI, Java. All 6 pass at HEAD (run
-    22374554257). Go job pending (not yet in ci.yml).
+- **CI now has 7 jobs**: Rust, Python, Node.js, WASM, C FFI, Java, Go. All 7 pass at HEAD (run
+    22376568235, iteration 9). Go job added to ci.yml in iteration 9 (commit eb5085d).
 - **Registry readme metadata**: `Cargo.toml` `readme = "README.md"` in iscc-lib; `pyproject.toml`
     `readme = "README.md"` in iscc-py; npm auto-detects README.md (no explicit field needed in
     package.json)
@@ -57,9 +59,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 - `packages/go/` (iteration 8, commit 59f973d): `go.mod` (wazero v1.11.0), `iscc.go` (560 lines —
     Runtime type, memory helpers, ConformanceSelftest, TextClean, all 9 Gen\*CodeV0 wrappers),
-    `iscc_test.go` (557 lines — 14 tests: 5 scaffold + 9 conformance covering 46 vectors). Still
-    missing: 12 Tier 1 utility/streaming wrappers, CI job, README. WASM binary gitignored; TestMain
-    skips if missing.
+    `iscc_test.go` (557 lines — 14 tests: 5 scaffold + 9 conformance covering 46 vectors). Go CI job
+    added in iteration 9 (commit eb5085d). Still missing: 12 Tier 1 utility/streaming wrappers,
+    README. WASM binary gitignored; TestMain skips if missing.
 - Per-crate READMEs: batches 1+2 complete (iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni).
     iscc-ffi not published separately (lower priority). Go README blocked by Go bindings not
     started.
@@ -81,14 +83,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 8): tests = 22375677807 (6/6 pass), docs = 22375677805 (pass)
+- Latest CI run IDs (iteration 9): tests = 22376568235 (7/7 pass), docs = 22376568209 (pass)
 - `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
     compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
     alloc helpers). File is now 1,934 lines.
-- Next priority: Go CI job (build iscc-ffi wasm32-wasip1, copy to packages/go/, run go test + go
-    vet), then packages/go/README.md, then remaining 12 Tier 1 wrappers (3 text utils, 4 algo
+- Next priority: packages/go/README.md, then remaining 12 Tier 1 Go wrappers (3 text utils, 4 algo
     primitives, SoftHashVideoV0, EncodeBase64, IsccDecompose, DataHasher/InstanceHasher with
-    io.Reader)
+    io.Reader), then root README Go section + howto/go.md. Go CI job is DONE as of iteration 9.
 - Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
     DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added

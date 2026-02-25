@@ -1,15 +1,14 @@
-<!-- assessed-at: 59f973dcded84527c3bd6cf17fc2607eae29cc82 -->
+<!-- assessed-at: eb5085dd3cb817eb2552dec3926eae53d4836897 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go gen\_\*\_v0 wrappers done — Go CI job and README are next
+## Phase: Go CI job done — Go README and remaining wrappers are next
 
-All 9 `Gen*CodeV0` Go wrappers are implemented and 14 Go tests pass (including 9 conformance tests
-covering all 46 vectors from `data.json`). CI is green on all 6 existing jobs. The Go CI job and
-`packages/go/README.md` are the highest-priority gaps; the remaining 12 Tier 1 utility/streaming
-wrappers come after.
+All 9 `Gen*CodeV0` Go wrappers are implemented, 14 Go tests pass (46 conformance vectors), and the
+Go CI job (`Go (go test, go vet)`) was added this iteration and is now green. CI is green on all 7
+jobs. The highest-priority gaps are `packages/go/README.md` and the 12 remaining Tier 1 Go wrappers.
 
 ## Rust Core Crate
 
@@ -147,8 +146,8 @@ complete; native loader/publishing/docs absent)
 
 ## Go Bindings
 
-**Status**: partially met (11 exported functions + 14 conformance tests; remaining 12 Tier 1
-wrappers, Go CI job, and README absent)
+**Status**: partially met (11 exported functions + 14 conformance tests + Go CI job passing;
+remaining 12 Tier 1 wrappers and README absent)
 
 - `packages/go/go.mod` — module `github.com/iscc/iscc-lib/packages/go`, Go 1.24.0, wazero v1.11.0
 - `packages/go/iscc.go` (560 lines): `Runtime` struct, `NewRuntime`, `Close`, memory helpers
@@ -160,16 +159,18 @@ wrappers, Go CI job, and README absent)
     (`[]int32` Chromaprint vector), `GenVideoCodeV0` (`[][]int32` frame sigs), `GenMixedCodeV0`
     (`[]string` codes), `GenDataCodeV0`, `GenInstanceCodeV0`, `GenIsccCodeV0`
 - `packages/go/iscc_test.go` (557 lines): 14 tests — 5 scaffold tests + 9 conformance tests covering
-    all 46 vectors from `data.json` (all passing locally)
+    all 46 vectors from `data.json` (all passing locally and in CI)
 - `TestMain` skips gracefully if `iscc_ffi.wasm` is not present (binary is gitignored)
 - `CGO_ENABLED=0 go test ./...` passes — pure Go, no cgo required
 - Go installed via mise (`go = "latest"` in `mise.toml`)
 - `packages/go/*.wasm` added to `.gitignore`
+- **Go CI job** (`Go (go test, go vet)`) added to `.github/workflows/ci.yml` — builds `iscc-ffi` to
+    `wasm32-wasip1`, copies `.wasm` into `packages/go/`, runs `go test -v -count=1   ./...` and
+    `go vet ./...`; CI-verified passing at HEAD
 - Missing: 12 remaining Tier 1 function wrappers — 3 text utilities (`TextRemoveNewlines`,
     `TextTrim`, `TextCollapse`), 4 algorithm primitives (`SlidingWindow`, `AlgMinhash256`,
     `AlgCdcChunks`, `AlgSimhash`), `SoftHashVideoV0`, `EncodeBase64`, `IsccDecompose`, and 2
     streaming types (`DataHasher`/`InstanceHasher` with `io.Reader` support)
-- Missing: Go CI job in `.github/workflows/ci.yml`
 - Missing: `packages/go/README.md`
 
 ## README
@@ -239,30 +240,30 @@ wrappers, Go CI job, and README absent)
 **Status**: partially met
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
-- `ci.yml` covers 6 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
-    build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test) —
-    **Go not yet in CI**
+- `ci.yml` covers 7 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
+    build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test),
+    **Go (go test, go vet)** — added this iteration
 - Latest CI run: **PASSING** —
-    [Run 22375677807](https://github.com/iscc/iscc-lib/actions/runs/22375677807) — all 6 jobs
-    success (Rust, Python, Node.js, WASM, C FFI, Java)
+    [Run 22376568235](https://github.com/iscc/iscc-lib/actions/runs/22376568235) — all 7 jobs
+    success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22375677805](https://github.com/iscc/iscc-lib/actions/runs/22375677805) — build + deploy
+    [Run 22376568209](https://github.com/iscc/iscc-lib/actions/runs/22376568209) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
-- Missing: Go CI job (no `go test` / `go vet` in `ci.yml`)
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
 - Missing: npm publishing pipeline not fully wired
 - Missing: version sync automation across workspace not verified as release-ready
 
 ## Next Milestone
 
-CI is green on all 6 jobs. All 9 `Gen*CodeV0` Go wrappers are implemented with 46-vector conformance
-coverage. Recommended next work (in priority order):
+CI is green on all 7 jobs. Recommended next work (in priority order):
 
-1. **Go CI job** — add a `Go (go test)` job to `ci.yml` that builds `iscc-ffi` to `wasm32-wasip1`,
-    copies the `.wasm` into `packages/go/`, and runs `CGO_ENABLED=0 go test ./... && go vet ./...`
-2. **Go README** — create `packages/go/README.md` for the Go module proxy audience (module path,
-    install via `go get`, quick start with `GenMetaCodeV0`, API overview, links)
-3. **Remaining Go wrappers** — add the 12 missing Tier 1 wrappers: 3 text utilities, 4 algorithm
-    primitives, `SoftHashVideoV0`, `EncodeBase64`, `IsccDecompose`, and streaming `DataHasher`/
-    `InstanceHasher` with `io.Reader` support
+1. **Go README** — create `packages/go/README.md` for the Go module proxy audience (module path,
+    install via `go get`, quick start with `GenMetaCodeV0`, API overview, links to docs)
+2. **Remaining 12 Go wrappers** — 3 text utilities (`TextRemoveNewlines`, `TextTrim`,
+    `TextCollapse`), 4 algorithm primitives (`SlidingWindow`, `AlgMinhash256`, `AlgCdcChunks`,
+    `AlgSimhash`), `SoftHashVideoV0`, `EncodeBase64`, `IsccDecompose`, and streaming
+    `DataHasher`/`InstanceHasher` with `io.Reader` support
+3. **Root README Go section** — add Go installation and quick-start example; add Go badge; fix "What
+    is iscc-lib" body text to include Java
+4. **Documentation** — `docs/howto/go.md` Go how-to guide; `docs/howto/java.md` Java how-to guide
