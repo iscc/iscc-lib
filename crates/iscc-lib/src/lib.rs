@@ -227,7 +227,7 @@ pub fn gen_meta_code_v0(
         let payload = if desc_clean.is_empty() {
             name.clone()
         } else {
-            format!("{} {}", name, desc_clean)
+            format!("{name} {desc_clean}")
         };
         let payload = payload.trim().to_string();
         let metahash = utils::multi_hash_blake3(payload.as_bytes());
@@ -371,8 +371,7 @@ fn soft_hash_image_v0(pixels: &[u8], bits: u32) -> IsccResult<Vec<u8>> {
     }
     if bits > 256 {
         return Err(IsccError::InvalidInput(format!(
-            "bits must be <= 256, got {}",
-            bits
+            "bits must be <= 256, got {bits}"
         )));
     }
 
@@ -720,8 +719,7 @@ pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult
     for code in &cleaned {
         if code.len() < 16 {
             return Err(IsccError::InvalidInput(format!(
-                "ISCC unit code too short (min 16 chars): {}",
-                code
+                "ISCC unit code too short (min 16 chars): {code}"
             )));
         }
     }

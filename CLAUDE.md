@@ -176,3 +176,11 @@ would require re-staging.
 
 Official test vectors from `iscc-core/data.json` are the correctness baseline. All 9 `gen_*_v0`
 functions must produce output matching `iscc-core` for every vector.
+
+## Command Execution
+
+- Never prefix commands with `cd <project-dir> &&`. The working directory is already the project
+    root.
+- Run commands directly (e.g., `gh issue list ...`, `uv run pytest`, not
+    `cd /path && gh issue list ...`).
+- Use absolute paths for files outside the project if needed.

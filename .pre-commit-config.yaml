@@ -64,41 +64,41 @@ repos:
         name: Rust linting
         entry: cargo clippy --workspace --all-targets -- -D warnings
         language: system
-        types: [rust]
+        always_run: true
         stages: [pre-push]
         pass_filenames: false
       - id: cargo-test
         name: Rust tests
         entry: cargo test --workspace
         language: system
-        types: [rust]
+        always_run: true
         stages: [pre-push]
         pass_filenames: false
       - id: ty
         name: Python type checking
         entry: uv run ty check
         language: system
-        types: [python]
+        always_run: true
         stages: [pre-push]
         pass_filenames: false
       - id: security
         name: Security scan (Ruff S rules)
         entry: uv run ruff check --select S --force-exclude
         language: system
-        types: [python]
+        always_run: true
         stages: [pre-push]
         pass_filenames: false
       - id: complexity
         name: Complexity check (Ruff C901)
         entry: uv run ruff check --select C901 --force-exclude
         language: system
-        types: [python]
+        always_run: true
         stages: [pre-push]
         pass_filenames: false
       - id: pytest
         name: Python tests
         entry: uv run pytest --timeout=120
         language: system
-        types: [python]
+        always_run: true
         stages: [pre-push]
         pass_filenames: false

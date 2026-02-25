@@ -110,6 +110,18 @@ iterations.
     concrete verifiable gap. Single-file doc modifications are safe, quick steps. Use howto guides
     as reference for idiomatic code examples per language. Prefer state→target gap closure over
     [low] research issues.
+- **Cosmetic doc fixes** (iteration 31): After major doc gaps are closed, the review agent's handoff
+    often catches small inaccuracies in code examples. These are ideal for batching into a single
+    step when they're all in the same file. The README.md Quick Start was already correct
+    (established earlier by the root README step) while docs/index.md had stale patterns — always
+    cross-check both files when scoping doc fixes. Verification for doc example fixes can use `grep`
+    for presence/absence of specific patterns (e.g., `grep -c 'json.loads'` returns 0).
+- **Interactive session CI breakage** (CID iteration 1 on new loop): Interactive sessions that
+    modify Python binding stubs/init files can break `ruff format --check` in CI. The handoff from
+    the previous review cycle may not flag CI status if it was green at that time — always check
+    state.md's CI section for the latest status. When CI is red, that's always the first priority
+    regardless of what the handoff "Next" section suggests. Formatting fixes are trivial single-file
+    steps — don't over-scope them.
 
 ## Architecture Decisions
 

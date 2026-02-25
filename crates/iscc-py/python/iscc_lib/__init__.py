@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from importlib.metadata import version
 from typing import BinaryIO
 
@@ -139,7 +140,9 @@ def gen_audio_code_v0(cv: list[int], bits: int = 64) -> AudioCodeResult:
     return AudioCodeResult(_gen_audio_code_v0(cv, bits))
 
 
-def gen_video_code_v0(frame_sigs: list[list[int]], bits: int = 64) -> VideoCodeResult:
+def gen_video_code_v0(
+    frame_sigs: Sequence[Sequence[int]], bits: int = 64
+) -> VideoCodeResult:
     """Generate an ISCC Video-Code from frame signature data."""
     return VideoCodeResult(_gen_video_code_v0(frame_sigs, bits))
 

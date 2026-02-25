@@ -9,7 +9,96 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict};
+use pyo3::types::{PyBytes, PyDict, PyList};
+
+/// Convert a Python sequence to a PyList, passing lists through unchanged.
+fn to_pylist<'py>(py: Python<'py>, obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyList>> {
+    if let Ok(list) = obj.downcast::<PyList>() {
+        return Ok(list.clone());
+    }
+    unsafe {
+        let ptr = pyo3::ffi::PySequence_List(obj.as_ptr());
+        if ptr.is_null() {
+            return Err(pyo3::PyErr::fetch(py));
+        }
+        Ok(Bound::from_owned_ptr(py, ptr).downcast_into_unchecked())
+    }
+}
+
+/// Extract nested frame signatures from a Python sequence using CPython C API.
+///
+/// Accepts any sequence of sequences (lists, tuples, etc.). Uses `PyLong_AsLong`
+/// to bypass PyO3 object wrapping overhead. Returns a flat `Vec<i32>` plus dimensions.
+fn extract_frame_sigs(
+    py: Python<'_>,
+    frame_sigs: &Bound<'_, PyAny>,
+) -> PyResult<(Vec<i32>, usize)> {
+    let frame_list = to_pylist(py, frame_sigs)?;
+    let num_frames = frame_list.len();
+    if num_frames == 0 {
+        return Err(PyValueError::new_err("frame_sigs must not be empty"));
+    }
+
+    // Get frame length from first inner sequence
+    let first = to_pylist(py, &frame_list.get_item(0)?)?;
+    let frame_len = first.len();
+    if frame_len == 0 {
+        return Err(PyValueError::new_err("frame_sigs frames must not be empty"));
+    }
+
+    let total = num_frames * frame_len;
+    let mut flat = Vec::with_capacity(total);
+
+    // SAFETY: frame_list is a verified PyList. Inner sequences are converted
+    // to PyList as needed. PyList_GetItem returns borrowed references with
+    // bounds checking. PyLong_AsLong is called with error and range checking.
+    unsafe {
+        let outer_ptr = frame_list.as_ptr();
+        for f in 0..num_frames {
+            let frame_ptr = pyo3::ffi::PyList_GetItem(outer_ptr, f as isize);
+            if frame_ptr.is_null() {
+                return Err(pyo3::PyErr::fetch(py));
+            }
+            // Convert non-list inner sequences to list for PyList_GetItem access
+            let (inner_ptr, _guard) = if pyo3::ffi::PyList_Check(frame_ptr) != 0 {
+                (frame_ptr, None::<Bound<'_, PyAny>>)
+            } else {
+                let converted = pyo3::ffi::PySequence_List(frame_ptr);
+                if converted.is_null() {
+                    return Err(PyValueError::new_err(format!(
+                        "frame_sigs[{f}] is not a sequence"
+                    )));
+                }
+                let guard = Bound::from_owned_ptr(py, converted);
+                (converted, Some(guard))
+            };
+            let inner_len = pyo3::ffi::PyList_Size(inner_ptr) as usize;
+            if inner_len != frame_len {
+                return Err(PyValueError::new_err(format!(
+                    "frame_sigs[{f}] has length {inner_len}, expected {frame_len}"
+                )));
+            }
+            for i in 0..frame_len {
+                let val_ptr = pyo3::ffi::PyList_GetItem(inner_ptr, i as isize);
+                if val_ptr.is_null() {
+                    return Err(pyo3::PyErr::fetch(py));
+                }
+                let val = pyo3::ffi::PyLong_AsLong(val_ptr);
+                if val == -1 && !pyo3::ffi::PyErr_Occurred().is_null() {
+                    return Err(pyo3::PyErr::fetch(py));
+                }
+                let val_i32 = i32::try_from(val).map_err(|_| {
+                    PyValueError::new_err(format!(
+                        "frame_sigs[{f}][{i}]: value {val} out of i32 range"
+                    ))
+                })?;
+                flat.push(val_i32);
+            }
+        }
+    }
+
+    Ok((flat, frame_len))
+}
 
 /// Generate a Meta-Code from name and optional metadata.
 ///
@@ -81,15 +170,103 @@ fn gen_audio_code_v0(py: Python<'_>, cv: Vec<i32>, bits: u32) -> PyResult<PyObje
 
 /// Generate a Video-Code from frame signature data.
 ///
+/// Uses direct CPython C API for fast extraction from nested Python lists.
 /// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (frame_sigs, bits=64))]
-fn gen_video_code_v0(py: Python<'_>, frame_sigs: Vec<Vec<i32>>, bits: u32) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_video_code_v0(&frame_sigs, bits)
+fn gen_video_code_v0(
+    py: Python<'_>,
+    frame_sigs: Bound<'_, PyAny>,
+    bits: u32,
+) -> PyResult<PyObject> {
+    let (flat, frame_len) = extract_frame_sigs(py, &frame_sigs)?;
+    let frame_slices: Vec<&[i32]> = flat.chunks_exact(frame_len).collect();
+    let r = iscc_lib::gen_video_code_v0(&frame_slices, bits)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
     Ok(dict.into())
+}
+
+/// Generate a Video-Code from a flat byte buffer of i32 frame signatures.
+///
+/// Accepts pre-flattened frame data as raw bytes (native-endian i32 values)
+/// for callers that already have typed data (numpy, array.array).
+///
+/// Returns a dict with key: `iscc`.
+#[pyfunction]
+#[pyo3(signature = (data, num_frames, frame_len, bits=64))]
+fn gen_video_code_v0_flat(
+    py: Python<'_>,
+    data: &[u8],
+    num_frames: usize,
+    frame_len: usize,
+    bits: u32,
+) -> PyResult<PyObject> {
+    let frames = flat_bytes_to_frames(data, num_frames, frame_len)?;
+    let frame_refs: Vec<&[i32]> = frames.iter().map(|f| f.as_slice()).collect();
+    let r = iscc_lib::gen_video_code_v0(&frame_refs, bits)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    Ok(dict.into())
+}
+
+/// Compute a video hash from a flat byte buffer of i32 frame signatures.
+///
+/// Returns raw bytes of length `bits / 8`.
+#[pyfunction]
+#[pyo3(signature = (data, num_frames, frame_len, bits=64))]
+fn soft_hash_video_v0_flat(
+    py: Python<'_>,
+    data: &[u8],
+    num_frames: usize,
+    frame_len: usize,
+    bits: u32,
+) -> PyResult<PyObject> {
+    let frames = flat_bytes_to_frames(data, num_frames, frame_len)?;
+    let frame_refs: Vec<&[i32]> = frames.iter().map(|f| f.as_slice()).collect();
+    let result = iscc_lib::soft_hash_video_v0(&frame_refs, bits)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &result).into())
+}
+
+/// Reinterpret a flat byte buffer as a vector of i32 slices.
+fn flat_bytes_to_frames(
+    data: &[u8],
+    num_frames: usize,
+    frame_len: usize,
+) -> PyResult<Vec<Vec<i32>>> {
+    if num_frames == 0 || frame_len == 0 {
+        return Err(PyValueError::new_err(
+            "num_frames and frame_len must both be greater than zero",
+        ));
+    }
+    let expected = num_frames
+        .checked_mul(frame_len)
+        .and_then(|n| n.checked_mul(4))
+        .ok_or_else(|| PyValueError::new_err("frame dimensions overflow"))?;
+    if data.len() != expected {
+        return Err(PyValueError::new_err(format!(
+            "buffer size mismatch: expected {} bytes ({} frames × {} elements × 4), got {}",
+            expected,
+            num_frames,
+            frame_len,
+            data.len()
+        )));
+    }
+    let mut frames = Vec::with_capacity(num_frames);
+    for f in 0..num_frames {
+        let offset = f * frame_len * 4;
+        let mut frame = Vec::with_capacity(frame_len);
+        for i in 0..frame_len {
+            let pos = offset + i * 4;
+            let bytes: [u8; 4] = [data[pos], data[pos + 1], data[pos + 2], data[pos + 3]];
+            frame.push(i32::from_ne_bytes(bytes));
+        }
+        frames.push(frame);
+    }
+    Ok(frames)
 }
 
 /// Generate a Mixed-Code from multiple Content-Code strings.
@@ -258,11 +435,18 @@ fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<Vec<u8>>
 
 /// Compute a similarity-preserving hash from video frame signatures.
 ///
+/// Uses direct CPython C API for fast extraction from nested Python lists.
 /// Returns raw bytes of length `bits / 8`.
 #[pyfunction]
 #[pyo3(signature = (frame_sigs, bits=64))]
-fn soft_hash_video_v0(py: Python<'_>, frame_sigs: Vec<Vec<i32>>, bits: u32) -> PyResult<PyObject> {
-    let result = iscc_lib::soft_hash_video_v0(&frame_sigs, bits)
+fn soft_hash_video_v0(
+    py: Python<'_>,
+    frame_sigs: Bound<'_, PyAny>,
+    bits: u32,
+) -> PyResult<PyObject> {
+    let (flat, frame_len) = extract_frame_sigs(py, &frame_sigs)?;
+    let frame_slices: Vec<&[i32]> = flat.chunks_exact(frame_len).collect();
+    let result = iscc_lib::soft_hash_video_v0(&frame_slices, bits)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(PyBytes::new(py, &result).into())
 }
@@ -381,6 +565,8 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(alg_minhash_256, m)?)?;
     m.add_function(wrap_pyfunction!(alg_cdc_chunks, m)?)?;
     m.add_function(wrap_pyfunction!(soft_hash_video_v0, m)?)?;
+    m.add_function(wrap_pyfunction!(gen_video_code_v0_flat, m)?)?;
+    m.add_function(wrap_pyfunction!(soft_hash_video_v0_flat, m)?)?;
     m.add_class::<PyDataHasher>()?;
     m.add_class::<PyInstanceHasher>()?;
     Ok(())

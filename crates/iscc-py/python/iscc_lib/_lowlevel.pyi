@@ -1,5 +1,6 @@
 """Type stubs for the native Rust extension module `iscc_lib._lowlevel`."""
 
+from collections.abc import Sequence
 from typing import Any
 
 def conformance_selftest() -> bool:
@@ -156,7 +157,9 @@ def gen_audio_code_v0(cv: list[int], bits: int = 64) -> dict[str, Any]:
     """
     ...
 
-def gen_video_code_v0(frame_sigs: list[list[int]], bits: int = 64) -> dict[str, Any]:
+def gen_video_code_v0(
+    frame_sigs: Sequence[Sequence[int]], bits: int = 64
+) -> dict[str, Any]:
     """Generate an ISCC Video-Code from frame signature data.
 
     Produces a Content-Code for video from a sequence of frame signatures.
@@ -259,7 +262,7 @@ def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> dict[str, Any]:
     """
     ...
 
-def soft_hash_video_v0(frame_sigs: list[list[int]], bits: int = 64) -> bytes:
+def soft_hash_video_v0(frame_sigs: Sequence[Sequence[int]], bits: int = 64) -> bytes:
     """Compute a similarity-preserving hash from video frame signatures.
 
     Deduplicates frame signatures, computes column-wise sums across all
@@ -269,6 +272,38 @@ def soft_hash_video_v0(frame_sigs: list[list[int]], bits: int = 64) -> bytes:
     :param bits: Bit length of the output hash (default 64).
     :return: Raw hash bytes of length ``bits / 8``.
     :raises ValueError: If ``frame_sigs`` is empty.
+    """
+    ...
+
+def gen_video_code_v0_flat(
+    data: bytes, num_frames: int, frame_len: int, bits: int = 64
+) -> dict[str, Any]:
+    """Generate a Video-Code from a flat byte buffer of i32 frame signatures.
+
+    Accepts pre-flattened frame data as raw bytes (native-endian i32 values)
+    for callers that already have typed data (numpy, array.array).
+
+    :param data: Flat byte buffer of native-endian i32 frame signature values.
+    :param num_frames: Number of frames in the buffer.
+    :param frame_len: Number of i32 elements per frame.
+    :param bits: Bit length of the code body (default 64).
+    :return: Dict with ``iscc`` key.
+    """
+    ...
+
+def soft_hash_video_v0_flat(
+    data: bytes, num_frames: int, frame_len: int, bits: int = 64
+) -> bytes:
+    """Compute a video hash from a flat byte buffer of i32 frame signatures.
+
+    Accepts pre-flattened frame data as raw bytes (native-endian i32 values)
+    for callers that already have typed data (numpy, array.array).
+
+    :param data: Flat byte buffer of native-endian i32 frame signature values.
+    :param num_frames: Number of frames in the buffer.
+    :param frame_len: Number of i32 elements per frame.
+    :param bits: Bit length of the output hash (default 64).
+    :return: Raw hash bytes of length ``bits / 8``.
     """
     ...
 

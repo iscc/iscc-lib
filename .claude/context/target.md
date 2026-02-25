@@ -33,7 +33,7 @@ published to all registries.
 
 Detailed spec: `.claude/context/specs/rust-core.md`
 
-**Tier 1 API** — 22 public symbols bound in all languages:
+**Tier 1 API** — 23 public symbols bound in all languages:
 
 - 9 `gen_*_v0` functions with structured return types (matching iscc-core dict fields)
 - 4 text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
