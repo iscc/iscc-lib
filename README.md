@@ -5,6 +5,7 @@
 [![Crate](https://img.shields.io/crates/v/iscc-lib.svg)](https://crates.io/crates/iscc-lib)
 [![PyPI](https://img.shields.io/pypi/v/iscc-lib.svg)](https://pypi.org/project/iscc-lib/)
 [![npm](https://img.shields.io/npm/v/@iscc/lib.svg)](https://www.npmjs.com/package/@iscc/lib)
+[![Go Reference](https://pkg.go.dev/badge/github.com/iscc/iscc-lib/packages/go.svg)](https://pkg.go.dev/github.com/iscc/iscc-lib/packages/go)
 
 > **Experimental:** This library is in early development (v0.0.x). APIs may change without notice.
 > Not recommended for production use yet.
@@ -20,7 +21,7 @@
     levels
 - **Self-Describing**: Each component contains its own type and version information
 - **ISO Standardized**: Implements the official ISO 24138:2024 specification
-- **Polyglot**: Rust core with bindings for Python, Java, Node.js, WASM, and C FFI
+- **Polyglot**: Rust core with bindings for Python, Java, Go, Node.js, WASM, and C FFI
 - **Conformance-Tested**: Validated against the official
     [iscc-core](https://github.com/iscc/iscc-core) reference implementation
 
@@ -42,10 +43,10 @@ and general digital asset management use-cases.
 
 ## What is iscc-lib
 
-`iscc-lib` is a high-performance polyglot implementation of the ISCC core algorithms as defined by
-[ISO 24138](https://www.iso.org/standard/77899.html). Built in Rust with bindings for Python,
-Node.js, WebAssembly, and C, it serves developers across multiple ecosystems who need fast, reliable
-content identification.
+`iscc-lib` is a high-performance polyglot implementation of the ISCC core algorithms
+([ISO 24138](https://www.iso.org/standard/77899.html)). Built in Rust with language bindings for
+Python, Java, Go, Node.js, WebAssembly, and C, it serves developers across multiple ecosystems who
+need fast, reliable content identification.
 
 `iscc-lib` is conformance-tested against the official Python reference implementation
 [iscc-core](https://github.com/iscc/iscc-core) and produces identical results for all test vectors.
@@ -102,6 +103,12 @@ npm install @iscc/lib
 
 The native library must be available on `java.library.path` at runtime.
 
+### Go
+
+```bash
+go get github.com/iscc/iscc-lib/packages/go
+```
+
 ### WASM
 
 ```bash
@@ -144,6 +151,36 @@ import io.iscc.iscc_lib.IsccLib;
 
 String result = IsccLib.genMetaCodeV0("ISCC Test Document!", null, null, 64);
 System.out.println("Meta-Code: " + result);
+```
+
+### Go
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	iscc "github.com/iscc/iscc-lib/packages/go"
+)
+
+func main() {
+	ctx := context.Background()
+
+	rt, err := iscc.NewRuntime(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rt.Close(ctx)
+
+	code, err := rt.GenMetaCodeV0(ctx, "ISCC Test Document!", nil, nil, 64)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("Meta-Code:", code)
+}
 ```
 
 ### WASM

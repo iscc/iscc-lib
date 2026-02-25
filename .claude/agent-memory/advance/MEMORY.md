@@ -14,7 +14,7 @@ iterations.
 - Per-crate READMEs: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`,
     `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`,
     `packages/go/README.md`
-- Root README: `README.md` — covers all languages (Rust, Python, Node.js, Java, WASM)
+- Root README: `README.md` — covers all languages (Rust, Python, Java, Go, Node.js, WASM, C)
 
 ## Implementation Patterns
 
@@ -159,8 +159,9 @@ iterations.
     License), 70-80 lines each, identical "What is ISCC" paragraph and Links section across all
     crates. Go README adds an extra Architecture section (wazero/no-cgo details). All 5 publishable
     crates + Go package now have READMEs; iscc-ffi is not published and has no README
-- Root README "What is iscc-lib" paragraph (line ~46) still says "Python, Node.js, WebAssembly, and
-    C" without Java -- Key Features line was updated but this paragraph was out of scope
+- Root README "What is iscc-lib" paragraph uses "language bindings" (not just "bindings") to ensure
+    mdformat (wrap=100) puts the full language list on one grep-matchable line. Careful with
+    rewording — mdformat rewrapping can split the list across lines
 - Java quick start must pass all parameters explicitly (no default arguments in Java) --
     `genMetaCodeV0("...", null, null, 64)` not `genMetaCodeV0("...")`
 - Python `__init__.py` module-level constants must go AFTER imports -- ruff E402 (module level

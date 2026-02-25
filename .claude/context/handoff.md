@@ -1,34 +1,32 @@
-## 2026-02-25 — Review of: Add Go streaming hashers (DataHasher + InstanceHasher)
+## 2026-02-25 — Add Go section and fix body text in root README
 
-**Verdict:** PASS
+**Done:** Added Go Reference badge, Go installation section, Go quick-start example, and updated
+body text in the root README to mention all six binding ecosystems (Python, Java, Go, Node.js,
+WebAssembly, and C).
 
-**Summary:** The advance agent implemented `DataHasher` and `InstanceHasher` streaming types in the
-Go binding, completing the 23/23 Tier 1 symbol parity. The implementation is clean, idiomatic, and
-follows established patterns (writeBytes, callStringResult, lastError). All 8 new tests verify
-streaming equivalence against one-shot `Gen*CodeV0` functions using real conformance vectors.
+**Files changed:**
 
-**Verification:**
+- `README.md`: Added Go Reference badge (line 8), updated Key Features bullet to include Go (line
+    24), fixed "What is iscc-lib" body text to list all six bindings (line 48), added Go
+    installation section with `go get` command between Java and WASM (lines 106-110), added Go
+    quick-start section with complete runnable example between Java and WASM (lines 156-185)
 
-- [x] `CGO_ENABLED=0 mise exec -- go test -v -count=1 ./...` — all 35 tests PASS (27 existing + 8
-    new streaming hasher tests)
-- [x] `mise exec -- go vet ./...` — clean (no output)
-- [x] `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` — outputs 45 (≥ 45)
-- [x] `grep -c 'type.*Hasher struct' packages/go/iscc.go` — outputs 2
-- [x] `grep -c 'func Test' packages/go/iscc_test.go` — outputs 36 (≥ 35; 36 includes TestMain)
-- [x] `mise run check` — all 14 pre-commit hooks pass
+**Verification:** All six grep verification criteria pass:
 
-**Issues found:**
+1. `grep 'pkg.go.dev' README.md` — Go Reference badge present ✓
+2. `grep 'go get github.com/iscc/iscc-lib/packages/go' README.md` — Go install command ✓
+3. `grep 'iscc.NewRuntime' README.md` — Go quick-start example ✓
+4. `grep 'Python, Java, Go, Node.js, WebAssembly, and C' README.md` — body text fixed ✓
+5. `grep 'Python, Java, Go, Node.js, WASM, and C FFI' README.md` — Key Features updated ✓
+6. `grep -c '### Go' README.md` outputs `2` — two Go sections ✓
 
-- (none)
+All 14 pre-commit hooks pass (`mise run check`).
 
-**Next:** Go binding is now at full 23/23 Tier 1 parity. Recommended next steps (in priority order):
-(1) Root README Go section — add Go installation/quick-start example, Go badge, fix "What is
-iscc-lib" body text to include Java, add Maven Central badge. (2) Documentation how-to guides —
-`docs/howto/go.md` and `docs/howto/java.md`. (3) Address tracked issues from issues.md (codec
-optimization, DataHasher buffer allocation, etc.).
+**Next:** Documentation how-to guides (`docs/howto/go.md` and `docs/howto/java.md`) or address
+tracked issues from issues.md (codec optimization, DataHasher buffer allocation, etc.).
 
-**Notes:** The `break` after the first vector in one-shot streaming tests is intentional — one
-vector suffices to prove streaming equivalence since full conformance is already tested by the
-`TestGenDataCodeV0`/`TestGenInstanceCodeV0` suites. The multi-chunk tests correctly find the first
-vector with `len(data) >= 2` for splitting. Close methods zero the pointer before checking error
-return, which is the correct pattern to prevent double-free even on error.
+**Notes:** The "What is iscc-lib" body text required careful line wrapping to ensure the full
+language list (`Python, Java, Go, Node.js, WebAssembly, and C`) lands on a single grep-matchable
+line after mdformat auto-wraps at 100 characters. Changed "bindings" to "language bindings" to add
+enough characters to push "Python" to the start of the next line, producing a stable wrapping that
+mdformat doesn't re-break.
