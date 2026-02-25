@@ -50,9 +50,9 @@ iterations.
     to `.map_err(...)`, add `.unwrap()` in tests. Every other WASM function already uses this
     pattern so consistency is the primary motivation.
 - Go bindings multi-step plan: (1) WASI build + alloc/dealloc ✅ → (2) Go module scaffold + wazero
-    bridge + memory helpers ✅ → (3) gen\_\*\_v0 wrappers + conformance tests ✅ → (4) CI job
-    (current) → (5) remaining 12 Tier 1 wrappers (text utils, algo primitives, streaming hashers) →
-    (6) README/docs. CI before remaining wrappers ensures regression protection as the API grows.
+    bridge + memory helpers ✅ → (3) gen\_\*\_v0 wrappers + conformance tests ✅ → (4) CI job ✅ → (5)
+    Go README (current) → (6) remaining 12 Tier 1 wrappers (text utils, algo primitives, streaming
+    hashers) → (7) root README Go section → (8) docs/howto/go.md.
 - Go scaffold scoping: the WASM binary (~10.5 MB debug) is NOT checked into git. Uses `//go:embed`
     with a gitignored binary built by `cargo build -p iscc-ffi --target wasm32-wasip1`. TestMain
     skips gracefully if binary is missing.
@@ -73,6 +73,11 @@ iterations.
     before the language-specific test phase. The WASM binary is ~10.5 MB debug. Use
     `dtolnay/rust-toolchain@stable` with `targets: wasm32-wasip1` to avoid a separate rustup step.
     Use `actions/setup-go@v5` with `go-version-file` instead of hardcoded version.
+- Go README is a natural step after CI (step 4→5 in the multi-step plan). It documents the currently
+    available API (11 exported methods: NewRuntime, Close, ConformanceSelftest, TextClean, 9
+    Gen\*CodeV0). All methods are on `*Runtime`, take `context.Context` first, return `(T, error)`.
+    Module path is `github.com/iscc/iscc-lib/packages/go`, package name is `iscc`. Go module proxy
+    (pkg.go.dev) renders README.md from the module root.
 
 ## Architecture Decisions
 
@@ -118,6 +123,12 @@ iterations.
 - Batch 1 READMEs landed at 70-75 lines each — slightly under the originally suggested 80-120 range
     but the review agent confirmed they were "complete and well-structured." Target 70-80 lines for
     batch 2.
+
+- Go README: Go module proxy (pkg.go.dev) renders README.md. Go gen functions return
+    `(string,   error)` — quick start uses `iscc, err := rt.GenMetaCodeV0(ctx, ...)` pattern. Import
+    alias recommended: `iscc "github.com/iscc/iscc-lib/packages/go"`. No registry version badge — Go
+    module proxy doesn't have a standard badge URL (use Go Reference badge from pkg.go.dev instead
+    if desired).
 
 ## CI Workflow Patterns
 

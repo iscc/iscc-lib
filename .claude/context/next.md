@@ -1,84 +1,76 @@
 # Next Work Package
 
-## Step: Add Go CI job to ci.yml
+## Step: Create Go package README
 
 ## Goal
 
-Add a `Go (go test, go vet)` job to `.github/workflows/ci.yml` so the 14 existing Go tests
-(including 9 conformance tests covering all 46 vectors) run automatically on push/PR — protecting
-against regressions as Go bindings grow.
+Create `packages/go/README.md` for the Go module proxy audience, matching the structure and quality
+of existing per-crate READMEs (iscc-jni, iscc-napi, etc.). This is the first thing Go developers see
+when they find the package via `pkg.go.dev` or `go get`.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: `.github/workflows/ci.yml` — add one new job block
-- **Reference**: `packages/go/iscc_test.go` (build instructions in line 4-5 comments),
-    `packages/go/go.mod` (Go version and dependencies)
+- **Create**: `packages/go/README.md`
+- **Modify**: (none)
+- **Reference**: `crates/iscc-jni/README.md`, `crates/iscc-napi/README.md`,
+    `crates/iscc-lib/README.md` (for structure/tone), `packages/go/iscc.go` (for current API
+    surface), `packages/go/go.mod` (for module path)
 
 ## Not In Scope
 
-- Adding the remaining 12 Tier 1 Go function wrappers (text utils, algo primitives, streaming)
-- Creating `packages/go/README.md`
-- Updating the root README with Go installation/quick-start sections
-- Adding Go to the docs site navigation or howto guides
-- Using `mise` in CI (learnings say: call tools directly)
-- Running `go fmt` or `staticcheck` — keep it simple like the existing CI jobs
+- Adding Go sections to the root `README.md` (separate step)
+- Creating `docs/howto/go.md` how-to guide (separate step)
+- Implementing the 12 remaining Go wrappers (text utilities, algorithm primitives, streaming)
+- Adding Go badge to root README
+- Modifying any Go source code
 
 ## Implementation Notes
 
-The job follows the established CI pattern: checkout → Rust toolchain → Rust cache → language setup
-→ build → test. The Go-specific twist is that the WASM binary must be built first.
+Follow the established per-crate README pattern used by `crates/iscc-jni/README.md` and
+`crates/iscc-napi/README.md`. Structure:
 
-**Job structure:**
+1. **Title**: `iscc-lib (Go)` — consistent with `iscc-lib (Java)` pattern
+2. **Badges**: CI badge + License badge (no registry version badge yet — Go module proxy doesn't
+    have a standard badge URL like npm/PyPI; skip for now)
+3. **Experimental notice**: same blockquote used across all READMEs
+4. **Tagline**: Go bindings via WASM/wazero — emphasize pure Go (no cgo), zero external
+    dependencies for the consumer
+5. **What is ISCC**: reuse the shared paragraph from other READMEs verbatim
+6. **Installation**: `go get github.com/iscc/iscc-lib/packages/go` — note that the WASM binary is
+    embedded (`//go:embed`), no manual setup needed
+7. **Quick Start**: show `NewRuntime`, `GenMetaCodeV0`, `Close` — use `context.Background()`. Show
+    the `defer rt.Close(ctx)` pattern. Example should compile
+8. **API Overview**: list all 9 `Gen*CodeV0` functions in a table (same format as JNI README), then
+    list currently available utilities (`ConformanceSelftest`, `TextClean`). Note that additional
+    utilities (text processing, algorithm primitives, streaming hashers) are planned
+9. **Architecture note**: brief mention that the package uses wazero (pure-Go WASM runtime) to
+    execute Rust-compiled WASM — no cgo, no shared libraries, cross-compilation just works
+10. **Links**: Documentation, Repository, ISCC Specification, ISCC Foundation — same as other
+    READMEs
+11. **License**: Apache-2.0
 
-```yaml
-go:
-  name: Go (go test, go vet)
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-      with:
-        targets: wasm32-wasip1
-    - uses: Swatinem/rust-cache@v2
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: packages/go/go.mod
-    - name: Build WASM module
-      run: cargo build -p iscc-ffi --target wasm32-wasip1
-    - name: Copy WASM to Go package
-      run: cp target/wasm32-wasip1/debug/iscc_ffi.wasm packages/go/
-    - name: Run Go tests
-      run: CGO_ENABLED=0 go test -v -count=1 ./...
-      working-directory: packages/go
-    - name: Run Go vet
-      run: go vet ./...
-      working-directory: packages/go
-```
+Key details to get right:
 
-**Key details:**
-
-- Use `actions/setup-go@v5` (latest) with `go-version-file` pointing to `packages/go/go.mod` so the
-    Go version is controlled by the module file (currently 1.24.0), not hardcoded in CI.
-- The `wasm32-wasip1` target is added to the Rust toolchain in the setup step via `targets:` (not a
-    separate `rustup target add` step).
-- The WASM binary is built in debug mode (matching the local dev workflow) — release mode would be
-    slower and unnecessary for CI testing.
-- `CGO_ENABLED=0` confirms pure-Go operation (no cgo dependency on the CI runner).
-- `-count=1` prevents test caching so conformance tests always re-run.
-- Place the new job at the end of the `jobs:` section, after the `java:` job.
+- Module path is `github.com/iscc/iscc-lib/packages/go` (from `go.mod`)
+- Package name is `iscc` (from `package iscc` in `iscc.go`)
+- Import as `iscc "github.com/iscc/iscc-lib/packages/go"`
+- All methods are on `*Runtime` (not free functions)
+- `GenMetaCodeV0` takes `(ctx, name, description, meta, bits)` where description/meta are `*string`
+    (optional)
+- Functions return `(string, error)` — idiomatic Go error handling
+- The `context.Context` parameter is required on all methods
 
 ## Verification
 
-- `git diff .github/workflows/ci.yml` shows exactly one new job block (`go:`) with no changes to
-    existing jobs
-- The YAML is valid: `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"`
-    exits 0
-- The new job includes steps for: checkout, rust-toolchain with wasm32-wasip1, rust-cache, setup-go,
-    cargo build, cp wasm, go test, go vet
-- `mise run check` passes (pre-commit hooks clean)
+- `test -f packages/go/README.md` exits 0 (file exists)
+- `grep -q 'go get github.com/iscc/iscc-lib/packages/go' packages/go/README.md` exits 0 (install
+    instruction present)
+- `grep -q 'GenMetaCodeV0' packages/go/README.md` exits 0 (quick start uses correct function)
+- `grep -q 'Apache-2.0' packages/go/README.md` exits 0 (license present)
+- `grep -q 'wazero' packages/go/README.md` exits 0 (architecture mention present)
+- `grep -q 'What is ISCC' packages/go/README.md` exits 0 (shared section present)
+- `mise run check` passes (pre-commit hooks clean — mdformat will validate markdown formatting)
 
 ## Done When
 
-All four verification criteria pass — the Go CI job is defined in `ci.yml` with the correct build
-chain (Rust WASM → copy → Go test) and no existing jobs are modified.
+All verification commands exit 0 and `mise run check` passes clean.
