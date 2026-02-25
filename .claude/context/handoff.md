@@ -1,28 +1,33 @@
-## 2026-02-25 — Add Go CI job to ci.yml
+## 2026-02-25 — Review of: Add Go CI job to ci.yml
 
-**Done:** Added a `go:` job to `.github/workflows/ci.yml` that builds the WASM module from Rust,
-copies it to the Go package directory, and runs `go test` and `go vet`. The job follows the
-established CI pattern (checkout → Rust toolchain → cache → language setup → build → test) and is
-placed after the `java:` job at the end of the `jobs:` section.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Added a `go:` job to `.github/workflows/ci.yml` with the exact structure specified in
+next.md. The diff is minimal (22 lines added to ci.yml, no existing jobs touched). All verification
+criteria pass cleanly.
 
-- `.github/workflows/ci.yml`: Added `go:` job block with 8 steps (checkout, rust-toolchain with
-    wasm32-wasip1 target, rust-cache, setup-go with go-version-file, cargo build WASM, cp WASM to
-    packages/go, go test with CGO_ENABLED=0 and -count=1, go vet)
+**Verification:**
 
-**Verification:** All four criteria from next.md pass:
+- [x] `git diff .github/workflows/ci.yml` shows exactly one new job block (`go:`) with no changes to
+    existing jobs — confirmed, lines 116-137 added only
+- [x] YAML is valid: `yaml.safe_load()` exits 0
+- [x] All 8 required steps present: checkout, rust-toolchain with wasm32-wasip1, rust-cache,
+    setup-go with go-version-file, cargo build, cp wasm, go test, go vet
+- [x] `mise run check` passes — all 14 pre-commit hooks clean
+- [x] No quality gate circumvention — no lint suppressions, test skips, or hook weakening
 
-- `git diff` shows exactly one new job block (`go:`) with no changes to existing jobs
-- YAML validation (`yaml.safe_load`) exits 0
-- All 8 required steps verified present in the Go job section
-- `mise run check` passes — all 14 pre-commit hooks clean
+**Issues found:**
 
-**Next:** The Go bindings are now complete with CI coverage (14 tests, 46 conformance vectors).
-Consider adding the remaining 12 Tier 1 Go function wrappers (text utils, algo primitives,
-streaming), or creating `packages/go/README.md` and updating root README with Go installation
-instructions.
+- (none)
 
-**Notes:** No surprises. This was a straightforward YAML addition following the exact spec in
-next.md. The `go-version-file` approach means the Go version in CI is controlled by `go.mod`
-(currently 1.24.0) — no hardcoded version in the workflow.
+**Next:** The Go bindings now have CI coverage (7 CI jobs total). The state.md still lists "Go CI
+job" as missing, so update-state should reflect this. Suggested next steps in priority order:
+
+1. **Go README** — create `packages/go/README.md` for the Go module proxy audience
+2. **Remaining 12 Go wrappers** — text utilities, algorithm primitives, streaming hashers
+3. **Root README Go section** — add Go installation/quick-start
+4. **Documentation** — `howto/go.md` how-to guide
+
+**Notes:** This was a straightforward CI YAML addition. The Go CI job is unique among CI jobs in
+requiring a cross-compilation step (Rust → wasm32-wasip1) before language-specific tests. CI now has
+7 jobs covering all binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go.

@@ -228,3 +228,8 @@
 {"ts":"2026-02-24T23:49:09.727937+00:00","iteration":7,"role":"update-state","status":"OK","turns":24,"cost_usd":0.876271,"duration_s":230.6}
 {"ts":"2026-02-24T23:53:18.683622+00:00","iteration":7,"role":"define-next","status":"OK","turns":26,"cost_usd":1.236589,"duration_s":248.9}
 {"ts":"2026-02-25T00:02:12.051070+00:00","iteration":7,"role":"advance","status":"OK","turns":58,"cost_usd":3.403787,"duration_s":533.4}
+{"ts":"2026-02-25T00:05:17.834246+00:00","iteration":7,"role":"review","status":"OK","turns":24,"cost_usd":1.209184,"duration_s":185.8}
+{"ts":"2026-02-25T00:28:47.347212+00:00","iteration":8,"role":"update-state","status":"OK","turns":18,"cost_usd":1.006281,"duration_s":218.4}
+{"ts":"2026-02-25T00:32:27.007731+00:00","iteration":8,"role":"define-next","status":"OK","turns":19,"cost_usd":0.885958,"duration_s":219.7}
+{"ts":"2026-02-25T00:34:44.192320+00:00","iteration":8,"role":"advance","status":"OK","turns":23,"cost_usd":0.688039,"duration_s":137.2}
+{"iteration":8,"timestamp":"2026-02-25T00:35:00Z","step":"Add Go CI job to ci.yml","verdict":"PASS","files_changed":[".github/workflows/ci.yml"],"notes":"Clean YAML addition. 7 CI jobs now cover all binding targets. No issues."}
