@@ -142,6 +142,20 @@ iterations.
     publish via npm and Maven respectively, not crates.io)
 - Maven coordinates: `io.iscc:iscc-lib:0.0.1` (pom.xml has `0.0.1-SNAPSHOT`, README uses `0.0.1`)
 
+## Documentation
+
+- How-to guide structure: YAML front matter (`icon`, `description`) → title → intro → installation →
+    code generation (9 subsections: Meta, Text, Image, Audio, Video, Mixed, Data, Instance,
+    ISCC-CODE) → streaming → text utilities → conformance testing → error handling
+- Python uses `icon: lucide/terminal`, Node.js uses `icon: lucide/hexagon`, Go uses
+    `icon: lucide/package`
+- Go how-to emphasizes the `Runtime` lifecycle pattern (NewRuntime/Close) since it's unique to Go
+- Go `bits` parameter is `uint32` (not `int32`) — verified in `packages/go/iscc.go`
+- `GenIsccCodeV0` in Go does not expose a `bits` parameter (wide is hardcoded to false)
+- zensical.toml nav: How-to Guides order is Rust → Python → Node.js → WebAssembly → Go
+- `docs/howto/go.md` includes algorithm primitives section (SlidingWindow, AlgMinhash256,
+    AlgCdcChunks, AlgSimhash) not present in Python/Node.js guides
+
 ## Gotchas
 
 - `pop_local_frame` is `unsafe` in jni crate v0.21 (Rust 2024 edition) — must wrap in `unsafe {}`
