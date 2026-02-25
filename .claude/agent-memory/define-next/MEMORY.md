@@ -226,3 +226,10 @@ iterations.
     the assemble-jar step collects artifacts and runs `mvn package -DskipTests`. This is CID-
     actionable — no human credentials needed for the build step. Maven Central publishing is a
     separate future step (requires GPG + Sonatype credentials).
+- **Stale documentation pages after binding additions** (iteration 9, second loop): When new
+    bindings are added over multiple iterations (JNI in iter 5, Go in iter 6-7), docs pages written
+    earlier (architecture.md, development.md) become stale — they miss the new crates in diagrams,
+    layout trees, and summary tables. The state assessment may say "Documentation: met" because
+    top-level target verification criteria are met, but detailed spec gaps remain. These are safe,
+    docs-only steps (2 files, no code changes). Check for: mermaid diagrams, workspace layout trees,
+    crate summary tables, streaming pattern tables, conformance test matrix tables.
