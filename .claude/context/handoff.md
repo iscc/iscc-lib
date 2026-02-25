@@ -1,30 +1,34 @@
-## 2026-02-25 — Review of: Fix stale WASM CLAUDE.md documentation
+## 2026-02-25 — Create iscc-ffi per-crate README
 
-**Verdict:** PASS
+**Done:** Created `crates/iscc-ffi/README.md` following the established per-crate README pattern.
+Includes all required sections: title, badges (CI + License, no registry badge), experimental
+notice, tagline, "What is ISCC", "Building" (with platform-specific output paths and cbindgen header
+generation), "Quick Start" (C example with `iscc_gen_meta_code_v0` and `iscc_free_string`), "API
+Overview" (9 gen functions with `iscc_` prefixes), "Memory Management" (4 free functions +
+`iscc_last_error`), "Links", and "License".
 
-**Summary:** Clean, minimal documentation fix. Updated `crates/iscc-wasm/CLAUDE.md` to accurately
-reflect that DataHasher and InstanceHasher are bound as `#[wasm_bindgen]` structs (they were
-previously documented as "not yet bound"). Updated symbol count from 22 to 23 and added streaming
-types to the export list. Verified against actual `lib.rs` exports.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-ffi/README.md`: Created (new file, ~120 lines)
 
-- [x] `grep -c "not yet bound" crates/iscc-wasm/CLAUDE.md` outputs `0` — confirmed
-- [x] `grep "All 23 Tier 1" crates/iscc-wasm/CLAUDE.md` matches — confirmed
-- [x] `grep "DataHasher" crates/iscc-wasm/CLAUDE.md` shows bound exports — lines 129, 131
-- [x] `grep "InstanceHasher" crates/iscc-wasm/CLAUDE.md` shows bound exports — lines 129, 131
-- [x] No Rust source files modified — only `CLAUDE.md` and `handoff.md` changed
-- [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] No quality gate circumvention
+**Verification:** All 7 verification checks from next.md pass:
 
-**Issues found:**
+- `test -f crates/iscc-ffi/README.md` exits 0 (file exists)
+- `grep "iscc-ffi"` matches (title heading)
+- `grep "What is ISCC"` matches (standard section)
+- `grep "iscc_gen_meta_code_v0"` matches (C function names in table and quick start)
+- `grep "iscc_free_string"` matches (memory management section)
+- `grep "Apache-2.0"` matches (license section)
+- No other files modified (only README.md and handoff.md changed)
+- `mise run check` -- all 14 pre-commit hooks pass
 
-- (none)
+**Next:** All 7 per-crate READMEs are complete. The "Per-Crate READMEs" gap in target.md is closed.
+The project is ready for the `v0.0.1` release -- consider creating a PR from `develop` to `main`.
 
-**Next:** The `[low] iscc-wasm: Stale CLAUDE.md` issue is now resolved and deleted. One `[low]`
-issue remains: TypeScript port evaluation. The project is ready for the `v0.0.1` release — consider
-creating a PR from `develop` to `main`.
-
-**Notes:** The Javadoc `@throws` annotation mismatch in `iscc-jni` (mentioned in previous handoffs)
-is not tracked as a formal issue — it's a cosmetic concern that could be addressed in a future
-cleanup pass.
+**Notes:** The streaming utilities bullet initially caused an mdformat-mkdocs crash ("Formatted
+Markdown renders to different HTML than input Markdown") because the long chain of
+`iscc_data_hasher_new`/`iscc_data_hasher_update`/... backtick-separated names exceeded the 100-char
+wrap limit in a way that triggered a rendering divergence bug in the mdformat-mkdocs plugin. Fixed
+by restructuring as shorter references (`iscc_data_hasher_new`/`update`/`finalize`/`free`). Also
+avoided `char *` in prose text (replaced with "string pointer") since backtick-asterisk combinations
+can confuse markdown formatters during line wrapping.

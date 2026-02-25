@@ -14,7 +14,7 @@ iterations.
 - Node.js conformance tests: `crates/iscc-napi/__tests__/conformance.test.mjs`
 - Per-crate READMEs: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`,
     `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`,
-    `packages/go/README.md`
+    `crates/iscc-ffi/README.md`, `packages/go/README.md`
 - Root README: `README.md` — covers all languages (Rust, Python, Java, Go, Node.js, WASM, C)
 
 ## Implementation Patterns
@@ -218,12 +218,17 @@ iterations.
 - HexFormat requires Java 17+ (already set as Maven compiler target)
 - mdformat auto-formats markdown files in pre-commit -- write READMEs with compatible formatting (no
     smart dashes, use `--` not em-dashes in markdown text)
+- mdformat-mkdocs + `--wrap 100` crashes ("renders to different HTML") when long backtick chains
+    (e.g., func_a/func_b/func_c in backticks) cross the wrap boundary. Keep backtick expressions
+    short or restructure as abbreviated references. Also avoid `char *` (backtick + asterisk) in
+    prose -- the asterisk can be mis-parsed as emphasis during wrapping
 - WASM quick start must use ESM `import`/`await init()` (not CommonJS `require()`) -- wasm-bindgen
     requires async WASM initialization
 - README template: 6 H2 sections (What is ISCC, Installation, Quick Start, API Overview, Links,
     License), 70-80 lines each, identical "What is ISCC" paragraph and Links section across all
-    crates. Go README adds an extra Architecture section (wazero/no-cgo details). All 5 publishable
-    crates + Go package now have READMEs; iscc-ffi is not published and has no README
+    crates. Go README adds an extra Architecture section (wazero/no-cgo details). All 7
+    crates/packages now have READMEs. iscc-ffi README has Building (not Installation) + Memory
+    Management sections
 - Root README "What is iscc-lib" paragraph uses "language bindings" (not just "bindings") to ensure
     mdformat (wrap=100) puts the full language list on one grep-matchable line. Careful with
     rewording — mdformat rewrapping can split the list across lines
