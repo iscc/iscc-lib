@@ -56,9 +56,15 @@ iterations.
 - **Post-feature optimization phase**: All binding targets met (Rust, Python, Node.js, WASM, C FFI,
     Java partial, Go partial). Remaining target gaps are publishing infrastructure (OIDC, Maven
     Central, npm pipelines) which are complex multi-file CI tasks. Normal issues (codec Vec<bool>,
-    DataHasher copying, FFI video allocation) are good single-file optimization steps. The codec
-    Vec<bool> optimization is the most self-contained: single file, 71 existing tests, clear
-    approach (direct bitwise extraction replaces Vec<bool> allocation in decode_header).
+    DataHasher copying, FFI video allocation) are good single-file optimization steps.
+- **Codec Vec<bool> optimization complete** (iteration 18): direct bitwise extraction in
+    decode_header, verified by review. DataHasher buffer optimization is next natural optimization
+    step.
+- **DataHasher buffer optimization**: persistent `Vec<u8>` replacing per-call `to_vec()`/`concat()`
+    is the right approach. Key borrow checker consideration: CDC chunks borrow from `self.buf`, so
+    must extract tail offset/length before mutating buffer. `copy_within` + `truncate` avoids
+    reallocation. Add criterion benchmark for streaming path (DataHasher with 64 KiB chunks on 1 MB
+    data) alongside the optimization.
 
 ## Architecture Decisions
 
