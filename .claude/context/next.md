@@ -1,101 +1,144 @@
 # Next Work Package
 
-## Step: Add 6 Go wrappers (text utils + encode + string-array functions)
+## Step: Add 4 byte-buffer Go wrappers (AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0)
 
 ## Goal
 
-Implement the 6 simplest remaining Go wrappers — 3 text utilities, `EncodeBase64`, `SlidingWindow`,
-and `IsccDecompose` — cutting the Go Tier 1 gap from 12 to 6 functions. These are all
-string-returning or string-array-returning, building on established patterns without requiring byte
-buffer or opaque pointer infrastructure.
+Implement the 4 algorithm-primitive Go wrappers that return byte data (`[]byte` or `[][]byte`),
+bringing the Go binding from 17/23 to 21/23 Tier 1 symbols. These share a common pattern: call FFI →
+read struct from WASM memory → copy bytes to Go → free via FFI.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**: `packages/go/iscc.go`, `packages/go/iscc_test.go`
-- **Reference**: `crates/iscc-ffi/src/lib.rs` (FFI signatures at lines 605–755 and 1216–1230),
-    `packages/go/iscc.go` (existing `TextClean` and `callStringResult` patterns)
+- **Reference**: `crates/iscc-ffi/src/lib.rs` (FFI signatures at lines 782–975, free functions at
+    lines 1244–1275), `packages/go/iscc.go` (existing helpers: `writeI32Slice`, `writeBytes`,
+    `writeI32ArrayOfArrays`)
 
 ## Not In Scope
 
-- Byte-buffer-returning functions (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`)
-    — these need new `IsccByteBuffer` read/free helpers, save for next step
-- Streaming hashers (`DataHasher`, `InstanceHasher`) — need opaque pointer lifecycle management
-- Root README Go section or `docs/howto/go.md` — documentation follows after all wrappers land
-- Updating `packages/go/README.md` API table — wait until all 23 functions exist
+- Streaming hashers (`DataHasher`/`InstanceHasher`) — they need opaque pointer lifecycle, a
+    different pattern; save for next step
+- `io.Reader` support on the Go side — that wraps `DataHasher`/`InstanceHasher`
+- Root README Go section or docs updates
+- Changing the FFI crate's struct layout or function signatures
+- Benchmarking Go wrappers
 
 ## Implementation Notes
 
-### Group A: Simple string-returning (copy `TextClean` pattern exactly)
+### WASM ABI for struct returns — CRITICAL
 
-1. **`TextRemoveNewlines(ctx, text string) (string, error)`** — calls
-    `iscc_text_remove_newlines(text_ptr)`. Identical to `TextClean`: writeString → call →
-    callStringResult.
+`IsccByteBuffer` is `{ *mut u8: i32, len: usize: i32 }` on wasm32 — 8 bytes total.
+`IsccByteBufferArray` is `{ *mut IsccByteBuffer: i32, count: usize: i32 }` — also 8 bytes.
 
-2. **`TextCollapse(ctx, text string) (string, error)`** — calls `iscc_text_collapse(text_ptr)`. Same
-    pattern.
+The Rust wasm32-wasip1 ABI for functions returning structs uses an **sret (structure return)
+pointer**: the caller allocates space in WASM memory and passes a pointer as the **first hidden
+parameter**. The function writes the struct to that address and returns nothing (or returns the same
+pointer). The advance agent MUST verify this by inspecting the actual WASM export signatures before
+writing any wrapper code:
 
-3. **`TextTrim(ctx, text string, nbytes uint32) (string, error)`** — calls
-    `iscc_text_trim(text_ptr, nbytes)`. Like `TextClean` but with an extra `uint64(nbytes)` arg.
+```go
+// Check the actual exported function signature:
+fn := rt.mod.ExportedFunction("iscc_alg_minhash_256")
+// Inspect fn.Definition().ParamTypes() and fn.Definition().ResultTypes()
+```
 
-4. **`EncodeBase64(ctx, data []byte) (string, error)`** — calls
-    `iscc_encode_base64(data_ptr, data_len)`. Use `writeBytes` (existing helper) for the input,
-    then `callStringResult` for the output.
+If the ABI uses sret, the calling pattern is:
 
-### Group B: String-array-returning (new `readStringArray`/`freeStringArray` helpers)
+1. `iscc_alloc(8)` to get an sret pointer for `IsccByteBuffer`
+2. Call `iscc_alg_minhash_256(sretPtr, featuresPtr, featuresLen)` — sret pointer is arg 0
+3. Read `data_ptr` (i32) and `len` (i32) from `sretPtr` in WASM memory
+4. Copy `len` bytes from `data_ptr` to a Go `[]byte`
+5. Call `iscc_free_byte_buffer(data_ptr, len)` — pass the struct fields as two i32 args
+6. `iscc_dealloc(sretPtr, 8)` to free the sret allocation
 
-- **`SlidingWindow(ctx, seq string, width uint32) ([]string, error)`** — calls
-    `iscc_sliding_window(seq_ptr, width)`. Returns a null-terminated C string pointer array in WASM
-    memory.
+Similarly, `iscc_free_byte_buffer` takes `IsccByteBuffer` **by value**. On wasm32, this is typically
+lowered to two i32 parameters `(data_ptr, len)`. Verify with
+`rt.mod.ExportedFunction("iscc_free_byte_buffer").Definition().ParamTypes()`.
 
-- **`IsccDecompose(ctx, isccCode string) ([]string, error)`** — calls
-    `iscc_decompose(iscc_code_ptr)`. Same return pattern.
+**Alternative ABI**: If the compiler returns the struct packed as a single `i64` (two i32s), the
+pattern is different — extract high/low halves. Check `ResultTypes()` to determine which ABI is
+used. Do NOT assume — verify empirically.
 
-### New memory helpers needed
+### New private helpers needed
 
-- **`readStringArray(ctx, ptr uint32) ([]string, error)`** — reads u32 pointers from WASM memory
-    starting at `ptr` until hitting 0 (null terminator). For each non-zero u32, calls `readString`
-    to get the Go string. Returns the collected `[]string`. In WASM32, pointers are 4 bytes
-    (little-endian u32).
+1. **`readByteBuffer(ctx, sretPtr uint32) (dataPtr uint32, dataLen uint32, err error)`** — reads the
+    two i32 fields of `IsccByteBuffer` from WASM memory at the given address. Checks if
+    `dataPtr == 0` (null = error) and falls back to `lastError`.
 
-- **`freeStringArray(ctx, ptr uint32) error`** — calls `iscc_free_string_array(ptr)` to free the
-    entire array (strings + outer pointer array). Must be called after `readStringArray` reads all
-    strings but before returning to the caller.
+2. **`freeByteBuffer(ctx, dataPtr, dataLen uint32) error`** — calls `iscc_free_byte_buffer` passing
+    the struct fields. No-op if `dataPtr == 0`.
 
-- **`callStringArrayResult(ctx, fnName string, results []uint64) ([]string, error)`** — combines
-    null-check, readStringArray, freeStringArray into a reusable pattern (mirrors `callStringResult`
-    for single strings). Check if `results[0] == 0` → lastError, otherwise read + free + return.
+3. **`callByteBufferResult(ctx, fnName string, sretPtr uint32) ([]byte, error)`** — orchestrates:
+    read struct from sretPtr → check null → copy bytes from WASM → free byte buffer → dealloc sret
+    → return Go `[]byte`. This is the analog of `callStringResult` for byte buffer returns.
 
-### Test strategy
+4. **`readByteBufferArray(ctx, sretPtr uint32) (buffersPtr uint32, count uint32, err error)`** —
+    reads the two fields of `IsccByteBufferArray`.
 
-Unit tests with known inputs (no conformance vectors needed — `data.json` only covers gen\_\*\_v0):
+5. **`freeByteBufferArray(ctx, buffersPtr, count uint32) error`** — calls
+    `iscc_free_byte_buffer_array` passing the struct fields.
 
-- `TextRemoveNewlines`: "hello\\nworld" → "hello world"
-- `TextTrim`: long string with nbytes=10 → trimmed result
-- `TextCollapse`: "Hello, World!" → "helloworld" (lowercased, punctuation removed)
-- `EncodeBase64`: known bytes → expected base64url string (e.g., `[]byte{0,1,2}` → "AAEC")
-- `SlidingWindow`: "ABCDE" with width=3 → `["ABC", "BCD", "CDE"]`
-- `SlidingWindow`: width < 2 → error (validates error propagation)
-- `IsccDecompose`: use an ISCC-CODE from conformance vectors → expected units
+6. **`writeU32Slice(ctx, values []uint32) (ptr, allocSize, count uint32, err error)`** — needed for
+    `AlgMinhash256` which takes `*const u32` features. Follows the exact same pattern as
+    `writeI32Slice` but with `uint32` values (the encoding is identical since both are 4 bytes, but
+    the Go types differ).
 
-### WASM32 memory layout for string arrays
+### Input helper for AlgSimhash byte-array-of-arrays
 
-The FFI returns a pointer to a null-terminated array of C string pointers. In WASM32:
+`AlgSimhash` takes `*const *const u8` (array of byte pointers) + `*const usize` (array of lengths) +
+count. This is similar to the existing `writeI32ArrayOfArrays` but for `[][]byte`. Write a
+`writeByteArrayOfArrays(ctx, digests [][]byte) (dataPtrsPtr, dataLensPtr, count uint32, cleanup func(), err error)`
+helper following the same allocate-pointers+lengths-in-WASM pattern.
 
-- Outer pointer is u32 (4 bytes)
-- Array contains u32 pointers, each 4 bytes, terminated by a zero u32
-- Each string pointer leads to a null-terminated UTF-8 byte sequence
-- `iscc_free_string_array` frees each string then the outer array
+### Public wrappers
+
+1. **`AlgSimhash(ctx, digests [][]byte) ([]byte, error)`** — build pointer+length arrays via
+    `writeByteArrayOfArrays`, allocate sret, call
+    `iscc_alg_simhash(sretPtr, digestsPtr, lensPtr,  count)`, read via `callByteBufferResult`.
+    Returns SimHash bytes (length matches input digest length).
+
+2. **`AlgMinhash256(ctx, features []uint32) ([]byte, error)`** — write u32 features via
+    `writeU32Slice`, allocate sret, call FFI, read byte buffer result. Always returns 32 bytes.
+
+3. **`AlgCdcChunks(ctx, data []byte, utf32 bool, avgChunkSize uint32) ([][]byte, error)`** — write
+    input bytes via `writeBytes`, allocate sret (8 bytes for `IsccByteBufferArray`), call
+    `iscc_alg_cdc_chunks(sretPtr, dataPtr, dataLen, utf32, avgChunkSize)`, read buffer array from
+    sret, iterate: each `IsccByteBuffer` is at `buffersPtr + i*8` (8 bytes per struct on wasm32),
+    copy each chunk's bytes to Go, then call `freeByteBufferArray`.
+
+4. **`SoftHashVideoV0(ctx, frameSigs [][]int32, bits uint32) ([]byte, error)`** — reuse existing
+    `writeI32ArrayOfArrays` helper, allocate sret, call FFI, read byte buffer result.
+
+### Tests
+
+Add tests with known inputs (algorithm primitives don't have dedicated conformance vectors — the gen
+function conformance tests exercise them indirectly):
+
+- `TestAlgSimhash` — pass 2+ digests of equal length (e.g., 4-byte digests), verify output length
+    equals input digest length
+- `TestAlgMinhash256` — pass known `[]uint32` features, verify output is exactly 32 bytes
+- `TestAlgCdcChunks` — pass known data (e.g., 2048+ bytes), verify: returns ≥1 chunk, concatenation
+    of all chunks equals the original input data
+- `TestSoftHashVideoV0` — pass 2+ frame signatures (380-element `[]int32` each), verify output
+    length = bits/8
+- `TestSoftHashVideoV0Error` — pass empty frames → error (validates error propagation for byte
+    buffer returns)
+- `TestAlgCdcChunksEmpty` — pass empty data → returns 1 chunk of empty bytes
 
 ## Verification
 
-- `CGO_ENABLED=0 go test -v -count=1 ./...` in `packages/go/` passes (14 existing + new tests)
+- `CGO_ENABLED=0 go test -v -count=1 ./...` in `packages/go/` passes — all tests PASS (22 existing +
+    new tests)
 - `go vet ./...` in `packages/go/` is clean
-- `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` outputs 17 (11 existing + 6 new)
-- `grep 'TextRemoveNewlines\|TextTrim\|TextCollapse\|EncodeBase64\|SlidingWindow\|IsccDecompose' packages/go/iscc.go | wc -l`
-    ≥ 6
+- `grep 'AlgSimhash\|AlgMinhash256\|AlgCdcChunks\|SoftHashVideoV0' packages/go/iscc.go | wc -l`
+    outputs ≥ 4 (public method definitions exist)
+- `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` outputs ≥ 38 (32 existing + ~6 new helpers and
+    public methods)
+- `mise run check` passes (all pre-commit hooks clean)
 
 ## Done When
 
-All 4 verification commands pass — the 6 new Go wrappers are implemented with tests, existing 14
-tests still pass, and `go vet` is clean.
+All 4 byte-buffer-returning Go wrappers are implemented with tests, `go test` passes, and `go vet`
+is clean.

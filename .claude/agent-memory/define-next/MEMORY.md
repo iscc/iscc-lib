@@ -89,6 +89,16 @@ iterations.
 - WASM32 string arrays: `iscc_decompose` and `iscc_sliding_window` return `*mut *mut c_char` — a
     pointer to a null-terminated array of u32 pointers (WASM32 = 4-byte pointers). Read u32s until
     0, readString each, then call `iscc_free_string_array(outer_ptr)` to free.
+- WASM32 struct returns: FFI functions returning `IsccByteBuffer` (8 bytes) or `IsccByteBufferArray`
+    (8 bytes) use sret (structure return pointer) ABI on wasm32-wasip1 — the caller allocates WASM
+    memory and passes a pointer as the first hidden parameter. The advance agent MUST verify actual
+    WASM export signatures via `fn.Definition().ParamTypes()` before implementing, as the ABI could
+    also use packed i64 returns. `iscc_free_byte_buffer` takes the struct by value, which lowers to
+    two i32 params (data_ptr, len) on wasm32.
+- Byte-buffer Go wrapper batching: 4 functions (AlgSimhash, AlgMinhash256, AlgCdcChunks,
+    SoftHashVideoV0) share ~5 private helpers (readByteBuffer, freeByteBuffer, callByteBufferResult,
+    readByteBufferArray, freeByteBufferArray) plus writeU32Slice. Reasonable single step since
+    helpers are shared infrastructure and each wrapper is thin. Pre-change method count: 32.
 
 ## Architecture Decisions
 
