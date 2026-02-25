@@ -1,36 +1,34 @@
-## 2026-02-25 — Add Go streaming hashers (DataHasher + InstanceHasher)
+## 2026-02-25 — Review of: Add Go streaming hashers (DataHasher + InstanceHasher)
 
-**Done:** Implemented `DataHasher` and `InstanceHasher` structs in the Go binding with full
-`New/Update/Finalize/Close` lifecycle, wrapping the WASM opaque pointer FFI
-(`iscc_data_hasher_new/update/finalize/free` and `iscc_instance_hasher_*`). Added 2 factory methods
-on `Runtime` and 3 methods on each hasher type. The Go binding now exposes 23/23 Tier 1 symbols.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/go/iscc.go`: Added `DataHasher` and `InstanceHasher` structs, `NewDataHasher` and
-    `NewInstanceHasher` factory methods on Runtime, and `Update`/`Finalize`/`Close` methods on each
-    hasher. Close zeroes the pointer to prevent double-free.
-- `packages/go/iscc_test.go`: Added 8 new streaming hasher tests — one-shot, multi-chunk, empty
-    data, and double-finalize for each of DataHasher and InstanceHasher. Streaming results are
-    verified against the corresponding `Gen*CodeV0` one-shot functions.
+**Summary:** The advance agent implemented `DataHasher` and `InstanceHasher` streaming types in the
+Go binding, completing the 23/23 Tier 1 symbol parity. The implementation is clean, idiomatic, and
+follows established patterns (writeBytes, callStringResult, lastError). All 8 new tests verify
+streaming equivalence against one-shot `Gen*CodeV0` functions using real conformance vectors.
 
 **Verification:**
 
-- `CGO_ENABLED=0 mise exec -- go test -v -count=1 ./...` passes — all 35 tests (27 existing + 8 new)
-    PASS
-- `mise exec -- go vet ./...` clean (no output)
-- `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` outputs 45 (≥ 45)
-- `grep -c 'type.*Hasher struct' packages/go/iscc.go` outputs 2
-- `grep -c 'func Test' packages/go/iscc_test.go` outputs 36 (≥ 35; 36 because TestMain counts)
-- `mise run check` passes — all 14 pre-commit hooks clean
+- [x] `CGO_ENABLED=0 mise exec -- go test -v -count=1 ./...` — all 35 tests PASS (27 existing + 8
+    new streaming hasher tests)
+- [x] `mise exec -- go vet ./...` — clean (no output)
+- [x] `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` — outputs 45 (≥ 45)
+- [x] `grep -c 'type.*Hasher struct' packages/go/iscc.go` — outputs 2
+- [x] `grep -c 'func Test' packages/go/iscc_test.go` — outputs 36 (≥ 35; 36 includes TestMain)
+- [x] `mise run check` — all 14 pre-commit hooks pass
 
-**Next:** Go binding is now at full 23/23 Tier 1 parity. Next steps could be: (1) ergonomic
-`io.Reader`/`io.Writer` convenience wrappers for the streaming hashers, (2) Go package README
-documentation, (3) address tracked issues (codec optimization, DataHasher buffer allocation), or (4)
-work on other binding improvements from the issues list.
+**Issues found:**
 
-**Notes:** The test count is 36 (not 35) because `grep 'func Test'` also matches `TestMain` which is
-a setup function, not a real test — but 36 ≥ 35 satisfies the criterion. The `break` after the first
-vector in one-shot tests is intentional — we only need one vector to prove streaming equivalence,
-and the conformance vectors are already fully tested by `TestGenDataCodeV0` /
-`TestGenInstanceCodeV0`. The multi-chunk tests find the first vector with len ≥ 2 to split.
+- (none)
+
+**Next:** Go binding is now at full 23/23 Tier 1 parity. Recommended next steps (in priority order):
+(1) Root README Go section — add Go installation/quick-start example, Go badge, fix "What is
+iscc-lib" body text to include Java, add Maven Central badge. (2) Documentation how-to guides —
+`docs/howto/go.md` and `docs/howto/java.md`. (3) Address tracked issues from issues.md (codec
+optimization, DataHasher buffer allocation, etc.).
+
+**Notes:** The `break` after the first vector in one-shot streaming tests is intentional — one
+vector suffices to prove streaming equivalence since full conformance is already tested by the
+`TestGenDataCodeV0`/`TestGenInstanceCodeV0` suites. The multi-chunk tests correctly find the first
+vector with `len(data) >= 2` for splitting. Close methods zero the pointer before checking error
+return, which is the correct pattern to prevent double-free even on error.
