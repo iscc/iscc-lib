@@ -1,90 +1,89 @@
 # Next Work Package
 
-## Step: Create Go how-to guide and add to navigation
+## Step: Create Java how-to guide and add to navigation
 
 ## Goal
 
-Create `docs/howto/go.md` — a comprehensive how-to guide for Go developers — and add it to the
-`zensical.toml` navigation. This fills the largest remaining documentation gap and makes the Go
-binding discoverable on the documentation site.
+Create `docs/howto/java.md` — the last remaining how-to guide — and add its navigation entry to
+`zensical.toml`. This completes the documentation set for all 6 language bindings.
 
 ## Scope
 
-- **Create**: `docs/howto/go.md`
-- **Modify**: `zensical.toml` (add Go entry to How-to Guides nav)
-- **Reference**: `docs/howto/python.md` (structure and section pattern to follow),
-    `docs/howto/nodejs.md` (streaming pattern), `packages/go/README.md` (API details and code
-    examples), `packages/go/iscc.go` (actual Go API signatures)
+- **Create**: `docs/howto/java.md`
+- **Modify**: `zensical.toml` (add Java entry to How-to Guides navigation)
+- **Reference**: `docs/howto/go.md` (structural template — follow the same section pattern),
+    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (API signatures and Javadoc),
+    `crates/iscc-jni/java/pom.xml` (Maven coordinates and JDK version),
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (usage examples from
+    tests)
 
 ## Not In Scope
 
-- Creating `docs/howto/java.md` — that is a separate step
-- Adding Go code tabs to existing multi-language tabbed blocks on other pages
-- Adding a Go API reference page
-- Modifying Go binding code or tests
-- Updating the stale "Additional utilities" note in `packages/go/README.md`
+- Native library loader class (extracts `.so`/`.dll`/`.dylib` from JAR) — tracked separately
+- Maven Central publishing configuration — not yet wired
+- Gradle build examples — Maven is the primary build tool; Gradle can be added later
+- Fixing the `IllegalArgumentException` vs `IllegalStateException` issue — tracked in issues.md
+- Creating a Java API reference page (like `api.md` for Python) — future work
+- Changing the `io.iscc:iscc-lib` dependency coordinates (they match `pom.xml` as-is)
 
 ## Implementation Notes
 
-Follow the exact structure established by `docs/howto/python.md` and `docs/howto/nodejs.md`:
+Follow the Go how-to guide (`docs/howto/go.md`) as the structural template. The Java guide should
+have these sections:
 
-1. **YAML front matter**: `icon: lucide/package` (Go uses packages), `description:` one-liner
-2. **Title and intro**: "# Go" + one paragraph overview mentioning wazero, no cgo, embedded WASM
-3. **Installation**: `go get github.com/iscc/iscc-lib/packages/go` — note that the WASM binary is
-    embedded, no external files needed
-4. **Runtime setup**: explain the `NewRuntime(ctx)` / `defer rt.Close(ctx)` lifecycle pattern —
-    this is unique to Go (other bindings don't have a runtime concept). Emphasize that `Runtime`
-    is the entry point for all ISCC operations
-5. **Code generation**: all 9 `gen_*_v0` functions with Go examples. Use the same subsection
-    ordering as Python (Meta, Text, Image, Audio, Video, Mixed, Data, Instance, ISCC-CODE). Each
-    example should show idiomatic Go with `context.Background()`, `error` checking via
-    `if err != nil`, and `log.Fatal(err)`. Reference `packages/go/iscc.go` for exact function
-    signatures (all methods are on `*Runtime`, accept `context.Context` first, return
-    `(string, error)`)
-6. **Streaming**: `DataHasher` and `InstanceHasher` with `NewDataHasher`/`NewInstanceHasher` →
-    `Update(ctx, []byte)` → `Finalize(ctx)` → `Close(ctx)` pattern. Show chunked file reading.
-    Reference `packages/go/iscc.go` for hasher struct definitions
-7. **Text utilities**: `TextClean`, `TextRemoveNewlines`, `TextTrim`, `TextCollapse` — brief
-    section like the Python page
-8. **Algorithm primitives**: `SlidingWindow`, `AlgMinhash256`, `AlgCdcChunks`, `AlgSimhash` —
-    mention availability, brief example of `SlidingWindow`
-9. **Conformance testing**: `ConformanceSelftest` example
-10. **Error handling**: idiomatic Go `error` returns (no exceptions). Brief example
+1. **Front matter** — `icon: lucide/coffee`, `description:` line for Java
+2. **Intro paragraph** — explain that `iscc-lib` provides Java bindings via JNI with a native
+    shared library loaded via `System.loadLibrary("iscc_jni")`
+3. **Installation** — Maven dependency snippet (`io.iscc:iscc-lib:0.0.1`). Note: currently requires
+    building from source and setting `java.library.path` — Maven Central publishing is not yet
+    available. Show the `cargo build -p iscc-jni` + `mvn test` build-from-source workflow
+4. **Setup** — Since Java uses static methods (no runtime object like Go), this section covers the
+    `System.loadLibrary` call and `java.library.path` configuration
+5. **Code generation** — All 9 `gen*V0` methods with Java examples. Use `IsccLib.java` for exact
+    signatures. All gen functions return `String` (the ISCC code). Use `null` for optional
+    parameters (description, meta). Default `bits` is 64
+6. **Streaming** — `DataHasher` and `InstanceHasher` lifecycle using opaque `long` handles:
+    `dataHasherNew()` → `dataHasherUpdate(ptr, data)` → `dataHasherFinalize(ptr, bits)` →
+    `dataHasherFree(ptr)`. Emphasize the try-finally pattern for `*Free` calls
+7. **Text utilities** — `textClean`, `textRemoveNewlines`, `textTrim`, `textCollapse`
+8. **Algorithm primitives** — `algSimhash`, `algMinhash256`, `algCdcChunks`, `softHashVideoV0`
+9. **Conformance testing** — `conformanceSelftest()` returning boolean
+10. **Error handling** — `IllegalArgumentException` thrown on invalid input; try-catch pattern
 
-For the `zensical.toml` nav, insert Go after WebAssembly in the How-to Guides list:
+Key differences from Go guide:
+
+- No "Runtime setup" section (Java uses static methods, not a runtime object)
+- Instead, a "Setup" section explaining `System.loadLibrary` and build-from-source
+- Streaming hashers use opaque `long` handles (not struct types) — must emphasize memory management
+    with try-finally
+- All method names are camelCase (Java convention), not PascalCase (Go convention)
+- `byte[]` instead of `[]byte`, `int[]` instead of `[]int32`, `String[]` instead of `[]string`
+
+Insert the Java nav entry in `zensical.toml` after the Go entry:
 
 ```toml
-{ "Go" = "howto/go.md" },
+{ "Java" = "howto/java.md" },
 ```
 
-Key Go API details to get right (read from `iscc.go`):
-
-- All methods require `context.Context` as first argument
-- `GenMetaCodeV0(ctx, name, description, meta, bits)` — `description` and `meta` are `*string`
-    (pointer for nullable), `bits` is `int32`
-- Data/Instance functions accept `[]byte` directly
-- Video functions accept `[][]int32` for frame signatures
-- Mixed-Code accepts `[]string` for ISCC code strings
-- Hashers: `NewDataHasher(ctx)` returns `(*DataHasher, error)`, `Update(ctx, []byte)` returns
-    `error`, `Finalize(ctx)` returns `(string, error)`, `Close(ctx)` returns `error`
+Target length: ~300-400 lines (consistent with existing guides: Go 388, Rust 356, Python 353, WASM
+338, Node.js 281).
 
 Run `mise run format` before committing to satisfy pre-commit hooks (mdformat, etc.).
 
 ## Verification
 
-- `test -f docs/howto/go.md` exits 0 — file exists
-- `grep 'go get github.com/iscc/iscc-lib/packages/go' docs/howto/go.md` exits 0 — install command
-- `grep 'NewRuntime' docs/howto/go.md` exits 0 — runtime setup documented
-- `grep 'GenMetaCodeV0' docs/howto/go.md` exits 0 — code generation documented
-- `grep 'DataHasher' docs/howto/go.md` exits 0 — streaming documented
-- `grep 'TextClean' docs/howto/go.md` exits 0 — text utilities documented
-- `grep 'ConformanceSelftest' docs/howto/go.md` exits 0 — conformance testing documented
-- `grep '"Go"' zensical.toml` exits 0 — nav entry present
-- `grep 'howto/go.md' zensical.toml` exits 0 — nav path correct
-- `uv run zensical build` exits 0 — site builds successfully with the new page
+- `test -f docs/howto/java.md` exits 0
+- `grep 'io.iscc' docs/howto/java.md` exits 0 (Maven coordinates present)
+- `grep 'System.loadLibrary' docs/howto/java.md` exits 0 (native library setup documented)
+- `grep 'genMetaCodeV0' docs/howto/java.md` exits 0 (code generation documented)
+- `grep 'dataHasherNew' docs/howto/java.md` exits 0 (streaming documented)
+- `grep 'textClean' docs/howto/java.md` exits 0 (text utilities documented)
+- `grep 'conformanceSelftest' docs/howto/java.md` exits 0 (conformance testing documented)
+- `grep '"Java"' zensical.toml` exits 0 (nav entry present)
+- `grep 'howto/java.md' zensical.toml` exits 0 (nav path correct)
+- `uv run zensical build` exits 0 (site builds successfully with Java page)
 
 ## Done When
 
-All verification criteria pass: `docs/howto/go.md` exists with complete Go how-to content (install,
-runtime, all 9 gen functions, streaming, text utils, conformance, error handling), `zensical.toml`
-nav includes Go, and `uv run zensical build` succeeds.
+All 10 verification commands exit 0, confirming the Java how-to guide exists with all required
+sections and the navigation entry is live.

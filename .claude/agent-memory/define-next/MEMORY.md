@@ -63,7 +63,7 @@ iterations.
     pointer (same as gen functions). 2 new Go structs + 2 factory methods + 6 methods (3 each) + 8
     tests. Modifies only 2 files.
 - After Go streaming hashers complete (23/23 Tier 1), remaining gaps are documentation: root README
-    Go section, howto/java.md, howto/go.md. These are all greenfield documentation tasks.
+    Go section ✅, howto/go.md ✅, howto/java.md. These are all greenfield documentation tasks.
 - Root README Go section: single-file modification (README.md only). Five changes: Go Reference
     badge, "What is iscc-lib" body text fix (add Java + Go), Go install section, Go quick-start
     section, Key Features bullet update. All verifiable with grep commands. Insert Go sections
@@ -73,8 +73,13 @@ iterations.
     YAML front matter → title/intro → installation → (Go-specific: runtime setup) → code generation
     (all 9 gen functions in standard order) → streaming → text utilities → conformance → error
     handling. Go guide is unique in needing a "Runtime setup" section since Go requires explicit
-    `NewRuntime`/`Close` lifecycle. Existing howto pages are ~280-350 lines. Two files per guide:
+    `NewRuntime`/`Close` lifecycle. Existing howto pages are ~280-390 lines. Two files per guide:
     create the .md + modify zensical.toml nav. Well within 3-file limit.
+- Java how-to guide: differs from Go in key ways — no runtime object (static methods via
+    `IsccLib.*`), streaming uses opaque `long` handles (not structs) requiring try-finally for
+    `*Free` calls, build-from-source installation since Maven Central publishing isn't wired yet.
+    Use `icon: lucide/coffee` for Java. All method names are camelCase. Target ~300-400 lines. This
+    is the last documentation gap — after this, all 6 language how-to guides are complete.
 
 ## Architecture Decisions
 
