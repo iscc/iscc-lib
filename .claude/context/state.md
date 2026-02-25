@@ -1,14 +1,15 @@
-<!-- assessed-at: 6562623eb36df5776948a86bbd42101133e5c6b3 -->
+<!-- assessed-at: 21c0a09a1e9536860f7e71f2a2f514f3329a5164 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go how-to guide complete — Java how-to guide remaining
+## Phase: Documentation complete — Java native bundling and publishing remain
 
-The Go how-to guide (`docs/howto/go.md`, 388 lines) was added and the Go navigation entry is now
-live in `zensical.toml`. All 7 CI jobs remain green. The sole remaining documentation gap is the
-Java how-to guide (`docs/howto/java.md`) and its navigation entry.
+The Java how-to guide (`docs/howto/java.md`, 319 lines) is now complete and the Java navigation
+entry is live in `zensical.toml`. All 7 CI jobs and Docs build are green. Documentation section is
+now fully met. Remaining gaps are Java native library bundling/loader (needed for Maven Central
+zero-friction install) and publishing pipeline configuration.
 
 ## Rust Core Crate
 
@@ -113,8 +114,8 @@ Java how-to guide (`docs/howto/java.md`) and its navigation entry.
 
 ## Java Bindings
 
-**Status**: partially met (JNI bridge + Java wrapper + Maven config + conformance tests + CI job
-complete; native loader/publishing/docs absent)
+**Status**: partially met (JNI bridge + Java wrapper + Maven config + conformance tests + CI job +
+how-to guide complete; native loader/bundling/publishing absent)
 
 - `crates/iscc-jni/` crate: `Cargo.toml` with `crate-type = ["cdylib"]`, `publish = false`,
     `iscc-lib` and `jni = "0.21"` workspace dependencies; workspace member in root `Cargo.toml`
@@ -136,10 +137,14 @@ complete; native loader/publishing/docs absent)
 - Java CI job (`Java (JNI build, mvn test)`) in `.github/workflows/ci.yml`: passing on all runs
 - `.devcontainer/Dockerfile`: `openjdk-17-jdk-headless` and `maven` added
 - `cargo clippy -p iscc-jni -- -D warnings` passes (CI-verified at HEAD)
+- `docs/howto/java.md` (319 lines): ✅ complete — covers Maven/Gradle install note,
+    System.loadLibrary setup, all 9 gen functions with Java examples, streaming
+    DataHasher/InstanceHasher lifecycle, text utilities, algorithm primitives, conformance selftest,
+    error handling
+- Java entry in `zensical.toml` How-to Guides navigation: `{ "Java" = "howto/java.md" }` ✅
 - Missing: native library loader class (extracts platform `.so`/`.dll`/`.dylib` from
-    `META-INF/native/` to temp dir at runtime)
+    `META-INF/native/` to temp dir at runtime — needed for zero-friction JAR distribution)
 - Missing: platform-specific native library bundling inside JAR
-- Missing: `docs/howto/java.md`
 - Missing: Maven Central publishing configuration
 - **Open issues** \[low\]: all exceptions map to `IllegalArgumentException` (state errors should use
     `IllegalStateException`)
@@ -160,19 +165,15 @@ done + howto/go.md done; io.Reader streaming interface absent)
     wrapping `FfiDataHasher`/`FfiInstanceHasher` WASM opaque pointers via `writeBytes`/`lastError`
     pattern; finalize-once semantics enforced
 - `packages/go/iscc_test.go` (1,069 lines): 36 function declarations including TestMain + 35 actual
-    test functions covering all 46 conformance vectors, 8 streaming hasher tests
-    (`TestDataHasherOneShot`, `TestDataHasherMultiChunk`, `TestDataHasherEmpty`,
-    `TestDataHasherDoubleFinalize`, `TestInstanceHasherOneShot`, `TestInstanceHasherMultiChunk`,
-    `TestInstanceHasherEmpty`, `TestInstanceHasherDoubleFinalize`), error paths, and edge cases
+    test functions covering all 46 conformance vectors, 8 streaming hasher tests, error paths, and
+    edge cases
 - `TestMain` skips gracefully if `iscc_ffi.wasm` is not present (binary is gitignored)
 - `CGO_ENABLED=0 go test ./...` passes all 35 tests (CI-verified at HEAD)
 - `packages/go/*.wasm` added to `.gitignore`
 - **Go CI job** (`Go (go test, go vet)`) in `.github/workflows/ci.yml` — passes (CI-verified at
     HEAD)
 - `packages/go/README.md` (104 lines): complete
-- `docs/howto/go.md` (388 lines): complete — covers installation, runtime setup, all 9 Gen\*CodeV0
-    functions with examples, streaming (DataHasher + InstanceHasher), text utilities, algorithm
-    primitives, conformance testing, error handling
+- `docs/howto/go.md` (388 lines): complete
 - Go entry in `zensical.toml` How-to Guides navigation: `{ "Go" = "howto/go.md" }` ✅
 - Missing: `io.Reader` interface for `Update` methods (architecture describes it; current
     implementation accepts `[]byte` only — callers must chunk themselves)
@@ -213,24 +214,30 @@ separately)
 
 ## Documentation
 
-**Status**: partially met
+**Status**: met
 
-- 12 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
+- 13 pages deployed to lib.iscc.codes: `index.md`, `architecture.md`, `rust-api.md`, `api.md`,
     `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `howto/rust.md`,
-    `howto/go.md`, `development.md`, `tutorials/getting-started.md`
+    `howto/go.md`, `howto/java.md`, `development.md`, `tutorials/getting-started.md`
 - Navigation in `zensical.toml` has: Tutorials (Getting Started), How-to Guides (Rust, Python,
-    Node.js, WebAssembly, **Go**), Explanation (Architecture), Reference (Rust API, Python API),
-    Benchmarks, Development
+    Node.js, WebAssembly, Go, **Java**), Explanation (Architecture), Reference (Rust API, Python
+    API), Benchmarks, Development — all entries present ✅
 - All pages have `icon: lucide/...` and `description:` YAML front matter
-- Site builds and deploys via GitHub Pages (Docs CI: PASSING)
+- Site builds and deploys via GitHub Pages (Docs CI: PASSING —
+    [Run 22382440049](https://github.com/iscc/iscc-lib/actions/runs/22382440049))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
-- Copy-page split-button, `scripts/gen_llms_full.py`, Open Graph meta tags all in place
+- Copy-page split-button (`docs/javascripts/copypage.js`), `scripts/gen_llms_full.py`, Open Graph
+    meta tags all in place
 - ✅ `docs/CNAME` contains `lib.iscc.codes`
 - ✅ `docs/includes/abbreviations.md` with 19 ISCC-specific abbreviations
-- ✅ `docs/howto/go.md` — complete (388 lines; runtime setup, all 9 gen functions, streaming,
-    utilities, algorithm primitives, conformance, error handling)
-- Missing: `howto/java.md` how-to guide for Java
-- Missing: Java entry in `zensical.toml` How-to Guides navigation
+- ✅ `docs/howto/java.md` (319 lines): Maven/Gradle install, System.loadLibrary setup, all 9 gen
+    functions, streaming DataHasher/InstanceHasher lifecycle, text utilities, algorithm primitives,
+    conformance selftest, error handling
+- ✅ `docs/howto/go.md` (388 lines): complete
+- ✅ `docs/development.md`: covers dev container setup, CID workflow, quality gates, project
+    structure
+- Note: `docs/index.md` quick-start tabs show only Rust and Python (not all 6 languages); this
+    pre-existing gap was not flagged as blocking in prior assessments
 
 ## Benchmarks
 
@@ -252,10 +259,10 @@ separately)
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
     (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22381698650](https://github.com/iscc/iscc-lib/actions/runs/22381698650) — all 7 jobs
+    [Run 22382440051](https://github.com/iscc/iscc-lib/actions/runs/22382440051) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22381698658](https://github.com/iscc/iscc-lib/actions/runs/22381698658) — build + deploy
+    [Run 22382440049](https://github.com/iscc/iscc-lib/actions/runs/22382440049) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -264,13 +271,16 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs. Go how-to guide is complete. Recommended next work (in priority order):
+CI is green on all 7 jobs and all 8 documentation pages (including Java) are complete. Recommended
+next work (in priority order):
 
-1. **Java how-to guide** — create `docs/howto/java.md` covering: Maven/Gradle dependency snippet,
-    `System.loadLibrary` setup, all 9 gen functions with Java examples, streaming hashers
-    (`DataHasher`/`InstanceHasher` lifecycle), error handling, conformance selftest; add Java entry
-    to `zensical.toml` How-to Guides navigation
-2. **Fix `iscc-ffi/README.md`** — low-priority but completes the per-crate README set
-3. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper to `DataHasher.Update` and
-    `InstanceHasher.Update` for idiomatic Go streaming (architecture description mentions it;
-    optional per verified-when criteria)
+1. **Java native library loader** — implement the `NativeLoader` class that extracts the
+    platform-specific `.so`/`.dll`/`.dylib` from `META-INF/native/` inside the JAR to a temp
+    directory and loads it; replace `System.loadLibrary("iscc_jni")` with `NativeLoader.load()`.
+    This is the critical step toward zero-friction Maven Central distribution.
+2. **Java platform native bundling** — set up multi-platform native binary bundling in the JAR
+    (linux-x64, linux-aarch64, macos-x64, macos-aarch64, windows-x64 under `META-INF/native/`)
+3. **Maven Central publishing configuration** — add `sonatype` staging plugin, POM metadata, GPG
+    signing setup to `pom.xml`; wire into `release.yml`
+4. **`crates/iscc-ffi/README.md`** — low-priority, completes the per-crate README set
+5. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper (optional per verified-when)

@@ -40,7 +40,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     iteration 9, commit eb5085d); Go job builds iscc-ffi → wasm32-wasip1, copies .wasm, runs go test
     \+ go vet
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
-- `docs/howto/` — 5 files: rust.md, python.md, nodejs.md, wasm.md, go.md (no java.md yet)
+- `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete as
+    of iteration 16)
 
 ## Recurring Patterns
 
@@ -84,14 +85,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 15): tests = 22381698650 (7/7 pass), docs = 22381698658 (pass)
+- Latest CI run IDs (iteration 16): tests = 22382440051 (7/7 pass), docs = 22382440049 (pass)
 - `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
     compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
     alloc helpers). File is now 1,934 lines.
 - Go bindings 23/23 Tier 1 COMPLETE (iteration 13, commit c22fa53). Root README Go section DONE
     (iteration 14, commit 200ffb1). `docs/howto/go.md` DONE (iteration 15, commit 9af5e54, 388
     lines). Go entry in zensical.toml DONE. io.Reader wrapper is optional per verified-when
-    criteria. Remaining: howto/java.md + Java zensical.toml nav entry.
+    criteria.
+- `docs/howto/java.md` (319 lines) DONE (iteration 16, commit f9a590f). Java entry in zensical.toml
+    DONE. Documentation section now fully MET. Remaining Java gaps: native loader class,
+    platform-specific native library bundling inside JAR, Maven Central publishing configuration.
 - Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
     DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
