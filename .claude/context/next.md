@@ -1,69 +1,67 @@
 # Next Work Package
 
-## Step: Fix WASM release build (wasm-opt bulk-memory)
+## Step: Fix WASM howto package name and create PR to main
 
 ## Goal
 
-Fix the WASM release build failure in the release workflow caused by `wasm-opt` rejecting
-`memory.copy` instructions without bulk-memory support enabled. This unblocks npm publishing for
-both `@iscc/wasm` and `@iscc/lib` packages.
+Fix the incorrect npm package name in `docs/howto/wasm.md` (`@iscc/iscc-wasm` → `@iscc/wasm`) and
+create a PR from `develop` → `main` so the WASM release build fix and docs correction can be merged,
+unblocking npm publishing.
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `crates/iscc-wasm/Cargo.toml` (add wasm-pack profile metadata to configure wasm-opt)
-- **Reference**: `.github/workflows/release.yml` (line 260 — the failing `wasm-pack build` command),
-    `.claude/context/state.md` (error description)
+- **Create**: (none)
+- **Modify**: `docs/howto/wasm.md` (replace all 20 occurrences of `@iscc/iscc-wasm` with
+    `@iscc/wasm`)
+- **Reference**: `docs/index.md` (already uses the correct `@iscc/wasm` name — use as confirmation),
+    `.claude/context/learnings.md` (documents that correct name is `@iscc/wasm`)
 
 ## Not In Scope
 
-- Re-triggering the release workflow or re-publishing v0.0.1 (that's a human-gated operation)
-- Configuring OIDC trusted publishing for crates.io (registry-side human task)
-- Setting up NPM_TOKEN or npm provenance (separate publishing infrastructure)
-- Modifying the release workflow YAML itself — the fix belongs in the crate's Cargo.toml
-- Bumping the version to 0.0.2
+- Triggering the release workflow — that's a human-gated operation (NPM_TOKEN and crates.io OIDC may
+    not be configured yet)
+- Bumping the version from 0.0.1 — npm packages haven't been published at 0.0.1 yet, so the current
+    version is correct
+- Merging the PR — create it and let CI run; the human will merge after reviewing
+- Fixing any other documentation content (focus only on the package name replacement)
 
 ## Implementation Notes
 
-The release workflow `Build WASM package` job fails because `wasm-opt` (run automatically by
-`wasm-pack build --release`) does not enable the WebAssembly bulk-memory proposal by default. Rust's
-LLVM backend emits `memory.copy` instructions (from `copy_within`, `clone`, etc.) which require bulk
-memory support. The `wasm-opt` post-processing step rejects these instructions.
+1. **Package name fix**: Use `replace_all` in `docs/howto/wasm.md` to change `@iscc/iscc-wasm` →
+    `@iscc/wasm`. This is a mechanical find-and-replace across all 20 occurrences (import
+    statements, install commands, and prose references). The correct name `@iscc/wasm` is confirmed
+    in:
 
-**Fix**: Add a `[package.metadata.wasm-pack.profile.release]` section to
-`crates/iscc-wasm/Cargo.toml` that configures wasm-opt to accept bulk-memory instructions:
+    - `docs/index.md` (already correct)
+    - `crates/iscc-wasm/README.md`
+    - The release workflow's npm package patching logic
+    - `learnings.md` ("WASM npm package name is `@iscc/wasm` (not `@iscc/iscc-wasm`)")
 
-```toml
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O", "--enable-bulk-memory"]
-```
+2. **Pre-format before committing**: Run `mise run format` before staging and committing. This
+    ensures the markdown passes pre-commit hooks (mdformat, trailing whitespace, etc.).
 
-This is the standard wasm-pack mechanism for passing flags to wasm-opt during release builds. The
-`-O` flag applies standard optimizations (equivalent to the default behavior), and
-`--enable-bulk-memory` allows the bulk memory operations that Rust emits.
+3. **Create PR**: After committing and pushing the fix, create the PR:
 
-**Why Cargo.toml instead of release.yml**: The wasm-pack metadata section is the documented,
-portable way to configure wasm-opt. It works for any `wasm-pack build --release` invocation (local
-or CI), not just the release workflow. The `release.yml` command line doesn't need to change.
+    ```
+    gh pr create -B main -H develop --title "Fix WASM howto package name and merge release fixes" --body "..."
+    ```
 
-**Why not `-all`**: While `-all` enables all WASM features, `--enable-bulk-memory` is more targeted
-and documents exactly which feature is needed. If other features are needed later, they can be added
-explicitly.
+    The PR body should summarize both changes on develop since the last merge to main:
 
-**CI impact**: The regular CI WASM test job (`wasm-pack test --node`) does not use `--release`, so
-wasm-opt is not involved and these tests are unaffected by this change.
+    - WASM release build fix (wasm-opt bulk-memory config in `crates/iscc-wasm/Cargo.toml`)
+    - WASM howto package name correction (`@iscc/iscc-wasm` → `@iscc/wasm`)
+
+4. Do NOT merge the PR — just create it. CI must pass first, and the human should review.
 
 ## Verification
 
-- `grep -q 'enable-bulk-memory' crates/iscc-wasm/Cargo.toml` exits 0 (config present)
-- `grep -q 'wasm-pack.profile.release' crates/iscc-wasm/Cargo.toml` exits 0 (correct section)
-- `cargo check -p iscc-wasm` passes (Cargo.toml is valid)
-- `wasm-pack build --target web --release crates/iscc-wasm` succeeds (if wasm-pack is available;
-    install via `curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh` if needed)
-- `mise run check` passes (all pre-commit/pre-push hooks clean)
+- `grep -c '@iscc/iscc-wasm' docs/howto/wasm.md` returns `0`
+- `grep -c '@iscc/wasm' docs/howto/wasm.md` returns `20` (all occurrences corrected)
+- `uv run zensical build` exits 0 (docs still build)
+- `gh pr list --json number,title,state -B main -H develop` shows exactly one open PR
+- `mise run check` passes (all pre-commit hooks clean)
 
 ## Done When
 
-The `crates/iscc-wasm/Cargo.toml` contains a `[package.metadata.wasm-pack.profile.release]` section
-with `--enable-bulk-memory` flag, `wasm-pack build --release` succeeds locally, and all existing
-quality gates pass.
+All verification criteria pass: the package name is corrected in `docs/howto/wasm.md`, docs build
+succeeds, pre-commit hooks are clean, and a PR from `develop` → `main` is open.

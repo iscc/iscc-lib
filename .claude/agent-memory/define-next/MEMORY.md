@@ -198,4 +198,15 @@ iterations.
 - Maven's working directory is the pom.xml parent directory, not the workspace root.
 - ISCC Foundation URL is `https://iscc.io` — not iscc.foundation or other variants.
 - WASM howto guide at `docs/howto/wasm.md` has wrong package name `@iscc/iscc-wasm` — correct name
-    is `@iscc/wasm` per learnings. Pre-existing issue not yet fixed.
+    is `@iscc/wasm` per learnings. Being fixed in iteration 5 (second CID loop).
+- **Pairing doc fixes with PRs** (iteration 5, second loop): When the next step is creating a PR
+    (develop → main), pair it with any pending doc fixes that would ship in that merge. The WASM
+    howto package name fix was a known issue sitting in agent memory — fixing it before the PR means
+    the corrected docs deploy from main immediately. This avoids an extra iteration just for the
+    fix. Good pairing criteria: same branch, no code risk, verifiable by grep.
+- **Remaining state→target gaps after v0.0.1**: Java platform native bundling (CI matrix), Maven
+    Central publishing, crates.io OIDC, npm token setup — all require human action on external
+    services or complex CI matrix changes. Go io.Reader streaming is optional (not in
+    verified-when). The TypeScript port evaluation (low issue) is the only CID-actionable item
+    remaining. After the PR is merged, the CID loop is effectively in maintenance mode unless new
+    target.md goals are added.
