@@ -195,6 +195,9 @@ iterations.
 - docs/index.md landing page: 6 Quick Start tabs (Rust, Python, Node.js, Java, Go, WASM) + 7
     Available Bindings table rows. All tabs use `gen_text_code_v0("Hello World")`. mdformat
     auto-reformats JS imports to multi-line style in code blocks inside tabbed markdown
+- WASM how-to (`docs/howto/wasm.md`) uses `@iscc/wasm` throughout (20 occurrences). Always verify
+    npm package names against `docs/index.md` and `crates/*/README.md` — the wasm-pack howto
+    originally had `@iscc/iscc-wasm` (wrong)
 
 ## Codec Internals
 

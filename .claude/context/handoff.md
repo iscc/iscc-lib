@@ -1,34 +1,24 @@
-## 2026-02-25 — Review of: Fix WASM release build (wasm-opt bulk-memory)
+## 2026-02-25 — Fix WASM howto package name and create PR to main
 
-**Verdict:** PASS
+**Done:** Replaced all 20 occurrences of `@iscc/iscc-wasm` with `@iscc/wasm` in
+`docs/howto/wasm.md`. Created a PR from `develop` → `main` covering both the WASM release build fix
+and the docs correction.
 
-**Summary:** The advance agent added a `[package.metadata.wasm-pack.profile.release]` section to
-`crates/iscc-wasm/Cargo.toml` with two wasm-opt feature flags. The change is minimal (3 lines of
-TOML), correctly scoped, and verified end-to-end with a successful `wasm-pack build --release`. The
-additional `--enable-nontrapping-float-to-int` flag (beyond what next.md anticipated) was a
-justified discovery during testing.
+**Files changed:**
+
+- `docs/howto/wasm.md`: replaced `@iscc/iscc-wasm` → `@iscc/wasm` (20 occurrences via `replace_all`)
 
 **Verification:**
 
-- [x] `grep -q 'enable-bulk-memory' crates/iscc-wasm/Cargo.toml` exits 0 — PASS
-- [x] `grep -q 'wasm-pack.profile.release' crates/iscc-wasm/Cargo.toml` exits 0 — PASS
-- [x] `cargo check -p iscc-wasm` passes — Cargo.toml valid
-- [x] `wasm-pack build --target web --release crates/iscc-wasm` succeeds — completed in 29.36s
+- [x] `grep -c '@iscc/iscc-wasm' docs/howto/wasm.md` returns 0 — no old name remaining
+- [x] `grep -c '@iscc/wasm' docs/howto/wasm.md` returns 20 — all occurrences corrected
+- [x] `uv run zensical build` exits 0 — docs build succeeds
+- [x] `gh pr list --json number,title,state -B main -H develop` — PR #3 open
 - [x] `mise run check` passes — all 14 pre-commit hooks clean
-- [x] No quality gate circumvention — diff contains only Cargo.toml config + context files
 
-**Issues found:**
+**Next:** Merge the PR after CI passes (human-gated). Then tag a release on `main` to trigger the
+release workflow. Human still needs to configure `NPM_TOKEN` repository secret and crates.io OIDC
+trusted publishing before the release workflow can publish.
 
-- (none)
-
-**Next:** The WASM release build is now fixed on `develop`. To get this fix into a release: (1)
-merge `develop` → `main` via PR, (2) tag and push a new version (or re-trigger the release workflow
-manually). Human-gated tasks remain: configure `NPM_TOKEN` repository secret, configure crates.io
-OIDC trusted publishing. If no new target.md goals have been added, the next CID iteration could
-address the low-priority TypeScript port evaluation (issues.md) or wait for new direction from the
-human.
-
-**Notes:** The advance agent discovered that `--enable-nontrapping-float-to-int` is also needed
-(Rust's LLVM emits `i32.trunc_sat_f64_s/u` from DCT/codec float-to-int conversions). This is
-documented in both the handoff and agent memory. The explicit flag approach (vs `--enable-all`) is
-preferred for traceability.
+**Notes:** mdformat made a minor whitespace adjustment to the file during `mise run format` (line
+76: removed a line break within the tip admonition). This is cosmetic and correct.
