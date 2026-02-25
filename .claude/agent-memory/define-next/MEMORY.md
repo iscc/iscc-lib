@@ -84,15 +84,15 @@ iterations.
     CI changes count as 3 files (Cargo.toml + lib.rs + ci.yml) — test files don't count against the
     limit. Group related [low] issues in the same crate only if they share files.
 - **Release workflow critical issues**: Two [critical] issues in release.yml done sequentially: (1)
-    selective publishing inputs (PASS, iteration 24), (2) idempotency checks (iteration 25). Both
-    are single-file changes to `.github/workflows/release.yml`. The spec in `specs/ci-cd.md` has
-    exact YAML snippets to follow — point the advance agent there. Verification is structural (grep
-    for expected strings + YAML validity), not functional (can't trigger the workflow in CI).
-- **Idempotency check scoping**: 4 publish jobs, each needing version extraction + registry query +
-    conditional skip. Key detail: `publish-npm-wasm` has no checkout step — must extract version
-    from the downloaded artifact (`pkg/package.json`) not from `Cargo.toml`. `publish-pypi` also
-    lacks a checkout — needs one added for version extraction. Version extraction step must come
-    AFTER any download-artifact step that provides the version source.
+    selective publishing inputs (PASS, iteration 24), (2) idempotency checks (PASS, iteration 25).
+    Both are single-file changes to `.github/workflows/release.yml`. The spec in `specs/ci-cd.md`
+    has exact YAML snippets to follow — point the advance agent there. Verification is structural
+    (grep for expected strings + YAML validity), not functional (can't trigger the workflow in CI).
+- **Version sync tooling** (iteration 26): 1 create + 1 modify. The script is pure Python stdlib —
+    `json` for package.json, regex for Cargo.toml and pom.xml. Key design choice: regex for pom.xml
+    instead of xml.etree to avoid file reformatting. The pom.xml version element sits right after
+    groupId and artifactId, making a targeted regex safe. Cross-platform requirement means
+    `pathlib.Path` everywhere. Verification is straightforward: run --check (exit 0 = in sync).
 
 ## Architecture Decisions
 
