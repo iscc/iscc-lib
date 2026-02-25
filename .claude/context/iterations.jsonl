@@ -304,3 +304,7 @@
 {"ts":"2026-02-25T09:09:53.993294+00:00","iteration":23,"role":"advance","status":"OK","turns":39,"cost_usd":0.955934,"duration_s":162.5}
 {"iteration":23,"timestamp":"2026-02-25T09:15:00Z","step":"Add selective publishing inputs to release.yml","verdict":"PASS","files_changed":[".github/workflows/release.yml"],"issues_resolved":["Implement selective publishing in release.yml"],"notes":"3 workflow_dispatch inputs + 8 job if: conditions. Spec criteria updated. Clean pass, no issues."}
 {"ts":"2026-02-25T09:13:36.147776+00:00","iteration":23,"role":"review","status":"OK","turns":37,"cost_usd":1.312904,"duration_s":222.1}
+{"ts":"2026-02-25T09:28:16.169697+00:00","iteration":24,"role":"update-state","status":"OK","turns":16,"cost_usd":0.686312,"duration_s":239.9}
+{"ts":"2026-02-25T09:30:31.521421+00:00","iteration":24,"role":"define-next","status":"OK","turns":17,"cost_usd":0.796968,"duration_s":135.3}
+{"ts":"2026-02-25T09:34:12.617443+00:00","iteration":24,"role":"advance","status":"OK","turns":41,"cost_usd":1.226406,"duration_s":221.1}
+{"iteration":24,"timestamp":"2026-02-25T09:38:00Z","step":"Add idempotency checks to release publish jobs","verdict":"PASS","files_changed":[".github/workflows/release.yml"],"issues_resolved":["Add idempotency checks to release publish jobs"],"notes":"4 registry checks (crates.io/PyPI/npm-lib/npm-wasm), 7 skip conditions. Spec checkbox updated. Last [critical] blocker resolved."}

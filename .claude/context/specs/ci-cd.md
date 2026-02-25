@@ -271,7 +271,7 @@ workflow triggers on push to `main`.
 - [x] PyPI uses OIDC trusted publishing (no API key secret)
 - [x] npm uses `NPM_TOKEN` repository secret
 - [x] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
-- [ ] Publishing an existing version skips gracefully instead of failing
+- [x] Publishing an existing version skips gracefully instead of failing
 - [x] All build artifacts uploaded via `actions/upload-artifact@v4`
 
 ### Version Sync

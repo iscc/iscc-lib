@@ -100,27 +100,6 @@ Fix: update CLAUDE.md to reflect the current state of the bindings.
 
 **Source:** [human]
 
-## [critical] Add idempotency checks to release publish jobs
-
-The spec requires each publish job to skip gracefully when the version already exists on the target
-registry. The current `release.yml` has no such checks — re-publishing an existing version will fail
-the workflow.
-
-Required changes to `.github/workflows/release.yml`:
-
-1. **crates.io** (`publish-crates-io` job): Before `cargo publish`, run
-    `cargo info iscc-lib 2>/dev/null | grep -q "version: $VERSION"` and skip if it matches. Extract
-    `$VERSION` from root `Cargo.toml`.
-2. **PyPI** (`publish-pypi` job): Before publishing, query
-    `https://pypi.org/pypi/iscc-lib/$VERSION/json` — if HTTP 200, skip. If 404, proceed.
-3. **npm** (`publish-npm-lib` and `publish-npm-wasm` jobs): Before `npm publish`, run
-    `npm view @iscc/lib@$VERSION version 2>/dev/null` — if it returns the version, skip.
-
-Each check should output a clear log message ("Version X.Y.Z already published to <registry>,
-skipping") and exit the job successfully (not fail).
-
-**Source:** [human] **Spec:** .claude/context/specs/ci-cd.md#idempotency
-
 ## [normal] Create version sync tooling
 
 The project needs `mise run version:sync` and `mise run version:check` tasks to keep non-Cargo
