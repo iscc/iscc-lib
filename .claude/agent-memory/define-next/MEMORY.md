@@ -110,6 +110,12 @@ iterations.
     concrete verifiable gap. Single-file doc modifications are safe, quick steps. Use howto guides
     as reference for idiomatic code examples per language. Prefer state→target gap closure over
     [low] research issues.
+- **Cosmetic doc fixes** (iteration 31): After major doc gaps are closed, the review agent's handoff
+    often catches small inaccuracies in code examples. These are ideal for batching into a single
+    step when they're all in the same file. The README.md Quick Start was already correct
+    (established earlier by the root README step) while docs/index.md had stale patterns — always
+    cross-check both files when scoping doc fixes. Verification for doc example fixes can use `grep`
+    for presence/absence of specific patterns (e.g., `grep -c 'json.loads'` returns 0).
 
 ## Architecture Decisions
 

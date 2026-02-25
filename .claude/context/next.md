@@ -1,76 +1,88 @@
 # Next Work Package
 
-## Step: Expand docs landing page to all 6 languages
+## Step: Polish docs landing page code examples and Key Features
 
 ## Goal
 
-Add Node.js, Java, Go, and WASM tabs to the Quick Start section in `docs/index.md` and add Java and
-Go rows to the Available Bindings table. This closes the target gap "All code examples use tabbed
-multi-language format" before the v0.0.1 release.
+Fix three cosmetic inaccuracies in `docs/index.md` identified during the iteration 30 review: the
+Key Features bullet omits Java and Go, the Rust Quick Start example treats the result as a JSON
+string instead of a struct, and the Python Quick Start uses unnecessary `json.loads`. These are the
+last documentation polish items before the project reaches full target compliance.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**: `docs/index.md`
-- **Reference**: `docs/howto/nodejs.md`, `docs/howto/java.md`, `docs/howto/go.md`,
-    `docs/howto/wasm.md` (for idiomatic code patterns in each language)
+- **Reference**: `crates/iscc-lib/src/lib.rs` (return type of `gen_text_code_v0`),
+    `crates/iscc-py/python/iscc_lib/__init__.py` (Python API surface)
 
 ## Not In Scope
 
-- Fixing the existing Rust and Python Quick Start examples (they have minor inaccuracies — Rust
-    shows `println!("{result}")` as "JSON string" when it's a struct; Python uses `json.loads` when
-    the binding returns a dict-like object directly). These should be fixed but in a separate step
-- Adding the `Key Features` bullet to mention Java and Go (currently says "Rust, Python, Node.js,
-    WebAssembly, or C") — cosmetic, defer
-- Fixing the WASM howto guide package name (`@iscc/iscc-wasm` → `@iscc/wasm`) — pre-existing issue
-    in a different file
-- Restructuring the page layout or adding new sections beyond Quick Start tabs and binding table
-    rows
+- Changing the README.md Quick Start examples (already correct — uses `result.iscc` for Rust and
+    `result['iscc']` for Python)
+- Adding or modifying the howto guides
+- Updating any binding code or test files
+- Evaluating the TypeScript port (separate [low] issue)
+- Any CI/CD or publishing changes
 
 ## Implementation Notes
 
-Add 4 new tabs to the `=== "Language"` tabbed block under Quick Start. Follow
-[pymdownx.tabbed](https://facelessuser.github.io/pymdown-extensions/extensions/tabbed/) syntax
-(already used by the existing Rust/Python tabs). Each tab shows install command + minimal code
-example.
+Three targeted edits in `docs/index.md`:
 
-**Tab order**: Rust, Python, Node.js, Java, Go, WASM (matches target.md ordering and Available
-Bindings table).
+1. **Line 34 — Key Features bullet**: Change
+    `Multi-language — use from Rust, Python, Node.js, WebAssembly, or C` to
+    `Multi-language — use from Rust, Python, Java, Go, Node.js, WebAssembly, or C`. This matches
+    the README.md line 25 which already lists all languages.
 
-**Code patterns per language** (derived from howto guides and agent memory):
+2. **Lines 62-63 — Rust Quick Start**: The current code is:
 
-- **Node.js** (`=== "Node.js"`): `npm install @iscc/lib`, then
-    `import { gen_text_code_v0 } from "@iscc/lib"` — returns a string directly (not structured
-    object)
-- **Java** (`=== "Java"`): Maven dependency XML block or `System.loadLibrary` note, then
-    `IsccLib.genTextCodeV0("Hello World", 64)` — returns a String. Note that Maven Central is not
-    yet available (build from source). Use `import io.iscc.iscc_lib.IsccLib;`
-- **Go** (`=== "Go"`): `go get github.com/iscc/iscc-lib/packages/go`, then show Runtime creation +
-    `rt.GenTextCodeV0(ctx, "Hello World", 64)` — returns `(string, error)`. Go requires more
-    boilerplate (runtime setup) so keep the example minimal but correct
-- **WASM** (`=== "WASM"`): `npm install @iscc/wasm`, then
-    `import init, { gen_text_code_v0 } from "@iscc/wasm"` + `await init()` — returns a string. Note
-    the async init requirement
+    ```rust
+    let result = gen_text_code_v0("Hello World", 64)?;
+    println!("{result}"); // JSON string
+    ```
 
-**Available Bindings table**: Add rows for Java (Maven Central, `io.iscc:iscc-lib`, note not yet
-published) and Go (Go module, `go get github.com/iscc/iscc-lib/packages/go`).
+    `gen_text_code_v0` returns `IsccResult<TextCodeResult>` (a struct with an `.iscc` field), not a
+    JSON string. Fix to:
 
-**Consistency**: All 6 tabs should demonstrate the same function (`gen_text_code_v0` with "Hello
-World") to make cross-language comparison easy.
+    ```rust
+    let result = gen_text_code_v0("Hello World", 64)?;
+    println!("{}", result.iscc);
+    ```
+
+3. **Lines 72-77 — Python Quick Start**: The current code is:
+
+    ```python
+    import json
+    from iscc_lib import gen_text_code_v0
+
+    result = json.loads(gen_text_code_v0("Hello World"))
+    print(result["iscc"])
+    ```
+
+    The Python binding returns a dict-like `IsccResult` object directly (with `__getattr__` →
+    `__getitem__` delegation). No `json.loads` needed. Fix to:
+
+    ```python
+    from iscc_lib import gen_text_code_v0
+
+    result = gen_text_code_v0("Hello World")
+    print(result["iscc"])
+    ```
+
+    Note: Python `gen_text_code_v0` takes only `text` (with `bits=64` default) — no second argument
+    needed.
 
 ## Verification
 
-- `uv run zensical build` exits 0 (docs site builds without errors)
-- `grep -c '=== "' docs/index.md` returns 6 (one tab per language)
-- `grep 'Node.js' docs/index.md` matches (Node.js tab present)
-- `grep 'Java' docs/index.md` matches (Java tab and binding table row present)
-- `grep 'Go' docs/index.md` matches (Go tab and binding table row present)
-- `grep 'WASM' docs/index.md` matches (WASM tab present)
-- `grep 'go get' docs/index.md` matches (Go install command in table or tab)
-- Available Bindings table has 7 rows (Rust, Python, Node.js, WASM, C/C++, Java, Go)
-- `mise run check` passes (formatting, linting)
+- `uv run zensical build` exits 0 — docs site builds without errors
+- `grep 'Java, Go' docs/index.md` matches — Key Features mentions Java and Go
+- `grep -c 'json.loads' docs/index.md` returns 0 — no unnecessary json.loads in Python example
+- `grep -c 'import json' docs/index.md` returns 0 — no unused json import
+- `grep 'result.iscc' docs/index.md` matches — Rust example accesses struct field
+- `grep -c 'JSON string' docs/index.md` returns 0 — misleading comment removed
+- `mise run check` passes — all pre-commit hooks clean
 
 ## Done When
 
-All verification criteria pass — docs/index.md has 6 language tabs in Quick Start and 7 binding rows
-in the table, and the docs site builds cleanly.
+All seven verification criteria pass, confirming the three cosmetic fixes are applied correctly and
+the docs site builds cleanly.
