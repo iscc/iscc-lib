@@ -78,6 +78,17 @@ iterations.
     Gen\*CodeV0). All methods are on `*Runtime`, take `context.Context` first, return `(T, error)`.
     Module path is `github.com/iscc/iscc-lib/packages/go`, package name is `iscc`. Go module proxy
     (pkg.go.dev) renders README.md from the module root.
+- The 12 remaining Go wrappers break into 3 natural batches by return-type complexity: (A) 4
+    string-returning: TextRemoveNewlines, TextCollapse, TextTrim, EncodeBase64 — copy TextClean
+    pattern. (B) 2 string-array-returning: SlidingWindow, IsccDecompose — need readStringArray +
+    freeStringArray helpers for null-terminated `*mut *mut c_char`. (C) 4 byte-buffer-returning:
+    AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0 — need
+    IsccByteBuffer/IsccByteBufferArray read/free helpers. (D) 2 streaming types: DataHasher,
+    InstanceHasher — opaque pointer lifecycle. Batches A+B are a natural single step (6 functions,
+    all string-based, 2 files).
+- WASM32 string arrays: `iscc_decompose` and `iscc_sliding_window` return `*mut *mut c_char` — a
+    pointer to a null-terminated array of u32 pointers (WASM32 = 4-byte pointers). Read u32s until
+    0, readString each, then call `iscc_free_string_array(outer_ptr)` to free.
 
 ## Architecture Decisions
 
