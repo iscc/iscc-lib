@@ -47,7 +47,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Python-only changes: `mise run check` + `pytest` is sufficient; skip `cargo test` and `mvn test`
     unless Rust/Java code was also modified
 
-- Go-only changes: `mise run check` + `mise exec -- go test ./...` is sufficient
+- Go-only changes: `mise run check` + `cd packages/go && mise exec -- go test ./...` is sufficient
+    (must `cd` into the Go module directory — running from repo root with `./packages/go/` path
+    fails with "cannot find main module")
 
 - Full test suite (159 tests) runs in \<1s — always run it for Python changes
 
