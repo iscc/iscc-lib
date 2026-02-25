@@ -12,7 +12,8 @@ iterations.
 - Conformance vectors: `crates/iscc-lib/tests/data.json` (46 total: 16+5+3+5+3+2+4+3+5)
 - Node.js conformance tests: `crates/iscc-napi/__tests__/conformance.test.mjs`
 - Per-crate READMEs: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`,
-    `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`
+    `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`,
+    `packages/go/README.md`
 - Root README: `README.md` — covers all languages (Rust, Python, Node.js, Java, WASM)
 
 ## Implementation Patterns
@@ -132,7 +133,8 @@ iterations.
     requires async WASM initialization
 - README template: 6 H2 sections (What is ISCC, Installation, Quick Start, API Overview, Links,
     License), 70-80 lines each, identical "What is ISCC" paragraph and Links section across all
-    crates. All 5 publishable crates now have READMEs; iscc-ffi is not published and has no README
+    crates. Go README adds an extra Architecture section (wazero/no-cgo details). All 5 publishable
+    crates + Go package now have READMEs; iscc-ffi is not published and has no README
 - Root README "What is iscc-lib" paragraph (line ~46) still says "Python, Node.js, WebAssembly, and
     C" without Java -- Key Features line was updated but this paragraph was out of scope
 - Java quick start must pass all parameters explicitly (no default arguments in Java) --
