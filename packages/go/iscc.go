@@ -697,6 +697,325 @@ func (rt *Runtime) IsccDecompose(ctx context.Context, isccCode string) ([]string
 	return rt.callStringArrayResult(ctx, "iscc_decompose", results)
 }
 
+// ── Byte buffer helpers ─────────────────────────────────────────────────────
+
+// readByteBuffer reads the two i32 fields of IsccByteBuffer from WASM memory at sretPtr.
+// Returns (dataPtr, dataLen). If dataPtr is 0 (null = error), returns an error from lastError.
+func (rt *Runtime) readByteBuffer(ctx context.Context, sretPtr uint32) (uint32, uint32, error) {
+	raw, ok := rt.mod.Memory().Read(sretPtr, 8)
+	if !ok {
+		return 0, 0, fmt.Errorf("iscc: read byte buffer: out of bounds at %d", sretPtr)
+	}
+	dataPtr := binary.LittleEndian.Uint32(raw[0:4])
+	dataLen := binary.LittleEndian.Uint32(raw[4:8])
+	if dataPtr == 0 {
+		return 0, 0, fmt.Errorf("iscc: byte buffer null: %s", rt.lastError(ctx))
+	}
+	return dataPtr, dataLen, nil
+}
+
+// freeByteBuffer calls iscc_free_byte_buffer passing the struct by pointer.
+// The struct (data_ptr, len) must already be written at structPtr in WASM memory.
+// No-op if dataPtr is 0.
+func (rt *Runtime) freeByteBuffer(ctx context.Context, structPtr uint32) error {
+	fn := rt.mod.ExportedFunction("iscc_free_byte_buffer")
+	_, err := fn.Call(ctx, uint64(structPtr))
+	if err != nil {
+		return fmt.Errorf("iscc_free_byte_buffer: %w", err)
+	}
+	return nil
+}
+
+// callByteBufferResult orchestrates: read struct from sretPtr → check null → copy bytes
+// from WASM → free byte buffer → dealloc sret → return Go []byte.
+func (rt *Runtime) callByteBufferResult(ctx context.Context, fnName string, sretPtr uint32) ([]byte, error) {
+	dataPtr, dataLen, err := rt.readByteBuffer(ctx, sretPtr)
+	if err != nil {
+		_ = rt.dealloc(ctx, sretPtr, 8)
+		return nil, fmt.Errorf("%s failed: %w", fnName, err)
+	}
+	// Copy bytes from WASM memory to Go.
+	var result []byte
+	if dataLen > 0 {
+		raw, ok := rt.mod.Memory().Read(dataPtr, dataLen)
+		if !ok {
+			_ = rt.dealloc(ctx, sretPtr, 8)
+			return nil, fmt.Errorf("%s: read data: out of bounds (ptr=%d, len=%d)", fnName, dataPtr, dataLen)
+		}
+		result = make([]byte, dataLen)
+		copy(result, raw)
+	} else {
+		result = []byte{}
+	}
+	// Free the byte buffer data (struct is still at sretPtr).
+	_ = rt.freeByteBuffer(ctx, sretPtr)
+	// Free the sret allocation.
+	_ = rt.dealloc(ctx, sretPtr, 8)
+	return result, nil
+}
+
+// readByteBufferArray reads the two i32 fields of IsccByteBufferArray from WASM memory.
+// Returns (buffersPtr, count). If buffersPtr is 0 (null = error), returns an error.
+func (rt *Runtime) readByteBufferArray(ctx context.Context, sretPtr uint32) (uint32, uint32, error) {
+	raw, ok := rt.mod.Memory().Read(sretPtr, 8)
+	if !ok {
+		return 0, 0, fmt.Errorf("iscc: read byte buffer array: out of bounds at %d", sretPtr)
+	}
+	buffersPtr := binary.LittleEndian.Uint32(raw[0:4])
+	count := binary.LittleEndian.Uint32(raw[4:8])
+	if buffersPtr == 0 {
+		return 0, 0, fmt.Errorf("iscc: byte buffer array null: %s", rt.lastError(ctx))
+	}
+	return buffersPtr, count, nil
+}
+
+// freeByteBufferArray calls iscc_free_byte_buffer_array passing the struct by pointer.
+// The struct (buffers_ptr, count) must already be written at structPtr in WASM memory.
+func (rt *Runtime) freeByteBufferArray(ctx context.Context, structPtr uint32) error {
+	fn := rt.mod.ExportedFunction("iscc_free_byte_buffer_array")
+	_, err := fn.Call(ctx, uint64(structPtr))
+	if err != nil {
+		return fmt.Errorf("iscc_free_byte_buffer_array: %w", err)
+	}
+	return nil
+}
+
+// writeU32Slice allocates WASM memory and writes uint32 values in little-endian format.
+// For empty slices, allocates 4 bytes to ensure proper u32 alignment.
+func (rt *Runtime) writeU32Slice(ctx context.Context, values []uint32) (ptr, allocSize, count uint32, err error) {
+	count = uint32(len(values))
+	byteSize := count * 4
+	allocSize = byteSize
+	if allocSize == 0 {
+		allocSize = 4
+	}
+	ptr, err = rt.alloc(ctx, allocSize)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	if byteSize > 0 {
+		buf := make([]byte, byteSize)
+		for i, v := range values {
+			binary.LittleEndian.PutUint32(buf[i*4:], v)
+		}
+		if !rt.mod.Memory().Write(ptr, buf) {
+			return 0, 0, 0, fmt.Errorf("iscc: write u32 slice: out of bounds (ptr=%d, size=%d)", ptr, byteSize)
+		}
+	}
+	return ptr, allocSize, count, nil
+}
+
+// writeByteArrayOfArrays writes an array of byte slices to WASM memory for functions
+// that take (*const *const u8, *const usize, count). Returns pointers to the data-pointers
+// array and data-lengths array, the count, and a cleanup function.
+func (rt *Runtime) writeByteArrayOfArrays(ctx context.Context, digests [][]byte) (dataPtrsPtr, dataLensPtr, count uint32, cleanup func(), err error) {
+	count = uint32(len(digests))
+	if count == 0 {
+		return 0, 0, 0, func() {}, nil
+	}
+
+	type allocEntry struct {
+		ptr  uint32
+		size uint32
+	}
+	var allocs []allocEntry
+
+	doCleanup := func() {
+		for _, a := range allocs {
+			_ = rt.dealloc(ctx, a.ptr, a.size)
+		}
+	}
+
+	// Write each digest and collect pointers and lengths.
+	ptrs := make([]uint32, count)
+	lens := make([]uint32, count)
+	for i, d := range digests {
+		dPtr, dSize, werr := rt.writeBytes(ctx, d)
+		if werr != nil {
+			doCleanup()
+			return 0, 0, 0, nil, werr
+		}
+		allocs = append(allocs, allocEntry{dPtr, dSize})
+		ptrs[i] = dPtr
+		lens[i] = uint32(len(d))
+	}
+
+	// Build data-pointers array (uint32 per pointer).
+	ptrArrSize := count * 4
+	ptrArrPtr, aerr := rt.alloc(ctx, ptrArrSize)
+	if aerr != nil {
+		doCleanup()
+		return 0, 0, 0, nil, aerr
+	}
+	allocs = append(allocs, allocEntry{ptrArrPtr, ptrArrSize})
+
+	ptrBuf := make([]byte, ptrArrSize)
+	for i, p := range ptrs {
+		binary.LittleEndian.PutUint32(ptrBuf[i*4:], p)
+	}
+	if !rt.mod.Memory().Write(ptrArrPtr, ptrBuf) {
+		doCleanup()
+		return 0, 0, 0, nil, fmt.Errorf("iscc: write digest pointers: out of bounds")
+	}
+
+	// Build data-lengths array (uint32 per length, WASM usize is 4 bytes).
+	lenArrSize := count * 4
+	lenArrPtr, lerr := rt.alloc(ctx, lenArrSize)
+	if lerr != nil {
+		doCleanup()
+		return 0, 0, 0, nil, lerr
+	}
+	allocs = append(allocs, allocEntry{lenArrPtr, lenArrSize})
+
+	lenBuf := make([]byte, lenArrSize)
+	for i, l := range lens {
+		binary.LittleEndian.PutUint32(lenBuf[i*4:], l)
+	}
+	if !rt.mod.Memory().Write(lenArrPtr, lenBuf) {
+		doCleanup()
+		return 0, 0, 0, nil, fmt.Errorf("iscc: write digest lengths: out of bounds")
+	}
+
+	return ptrArrPtr, lenArrPtr, count, doCleanup, nil
+}
+
+// ── Byte buffer functions ───────────────────────────────────────────────────
+
+// AlgSimhash computes a SimHash from a set of equal-length byte digests.
+// Output length matches input digest length.
+func (rt *Runtime) AlgSimhash(ctx context.Context, digests [][]byte) ([]byte, error) {
+	dpPtr, dlPtr, cnt, cleanup, err := rt.writeByteArrayOfArrays(ctx, digests)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+
+	// Allocate sret for IsccByteBuffer (8 bytes).
+	sretPtr, err := rt.alloc(ctx, 8)
+	if err != nil {
+		return nil, err
+	}
+
+	fn := rt.mod.ExportedFunction("iscc_alg_simhash")
+	_, err = fn.Call(ctx, uint64(sretPtr), uint64(dpPtr), uint64(dlPtr), uint64(cnt))
+	if err != nil {
+		_ = rt.dealloc(ctx, sretPtr, 8)
+		return nil, fmt.Errorf("iscc_alg_simhash: %w", err)
+	}
+	return rt.callByteBufferResult(ctx, "iscc_alg_simhash", sretPtr)
+}
+
+// AlgMinhash256 computes a 256-bit (32-byte) MinHash digest from uint32 features.
+func (rt *Runtime) AlgMinhash256(ctx context.Context, features []uint32) ([]byte, error) {
+	fPtr, fAllocSize, fCount, err := rt.writeU32Slice(ctx, features)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rt.dealloc(ctx, fPtr, fAllocSize) }()
+
+	sretPtr, err := rt.alloc(ctx, 8)
+	if err != nil {
+		return nil, err
+	}
+
+	fn := rt.mod.ExportedFunction("iscc_alg_minhash_256")
+	_, err = fn.Call(ctx, uint64(sretPtr), uint64(fPtr), uint64(fCount))
+	if err != nil {
+		_ = rt.dealloc(ctx, sretPtr, 8)
+		return nil, fmt.Errorf("iscc_alg_minhash_256: %w", err)
+	}
+	return rt.callByteBufferResult(ctx, "iscc_alg_minhash_256", sretPtr)
+}
+
+// AlgCdcChunks splits data into content-defined chunks using gear rolling hash.
+// When utf32 is true, cut points align to 4-byte boundaries.
+// Returns at least one chunk (empty bytes for empty input).
+func (rt *Runtime) AlgCdcChunks(ctx context.Context, data []byte, utf32 bool, avgChunkSize uint32) ([][]byte, error) {
+	dataPtr, dataSize, err := rt.writeBytes(ctx, data)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rt.dealloc(ctx, dataPtr, dataSize) }()
+
+	// Allocate sret for IsccByteBufferArray (8 bytes).
+	sretPtr, err := rt.alloc(ctx, 8)
+	if err != nil {
+		return nil, err
+	}
+
+	var utf32Arg uint64
+	if utf32 {
+		utf32Arg = 1
+	}
+
+	fn := rt.mod.ExportedFunction("iscc_alg_cdc_chunks")
+	_, err = fn.Call(ctx, uint64(sretPtr), uint64(dataPtr), uint64(dataSize), utf32Arg, uint64(avgChunkSize))
+	if err != nil {
+		_ = rt.dealloc(ctx, sretPtr, 8)
+		return nil, fmt.Errorf("iscc_alg_cdc_chunks: %w", err)
+	}
+
+	buffersPtr, count, err := rt.readByteBufferArray(ctx, sretPtr)
+	if err != nil {
+		_ = rt.dealloc(ctx, sretPtr, 8)
+		return nil, fmt.Errorf("iscc_alg_cdc_chunks failed: %w", err)
+	}
+
+	// Read each IsccByteBuffer (8 bytes per struct) from the array.
+	chunks := make([][]byte, count)
+	for i := uint32(0); i < count; i++ {
+		bufOffset := buffersPtr + i*8
+		raw, ok := rt.mod.Memory().Read(bufOffset, 8)
+		if !ok {
+			_ = rt.freeByteBufferArray(ctx, sretPtr)
+			_ = rt.dealloc(ctx, sretPtr, 8)
+			return nil, fmt.Errorf("iscc_alg_cdc_chunks: read chunk %d: out of bounds", i)
+		}
+		chunkPtr := binary.LittleEndian.Uint32(raw[0:4])
+		chunkLen := binary.LittleEndian.Uint32(raw[4:8])
+		if chunkLen > 0 {
+			chunkData, ok := rt.mod.Memory().Read(chunkPtr, chunkLen)
+			if !ok {
+				_ = rt.freeByteBufferArray(ctx, sretPtr)
+				_ = rt.dealloc(ctx, sretPtr, 8)
+				return nil, fmt.Errorf("iscc_alg_cdc_chunks: read chunk %d data: out of bounds", i)
+			}
+			chunks[i] = make([]byte, chunkLen)
+			copy(chunks[i], chunkData)
+		} else {
+			chunks[i] = []byte{}
+		}
+	}
+
+	// Free all buffers and the array.
+	_ = rt.freeByteBufferArray(ctx, sretPtr)
+	_ = rt.dealloc(ctx, sretPtr, 8)
+	return chunks, nil
+}
+
+// SoftHashVideoV0 computes a similarity-preserving hash from video frame signatures.
+// Returns raw bytes of length bits/8. Errors if frameSigs is empty.
+func (rt *Runtime) SoftHashVideoV0(ctx context.Context, frameSigs [][]int32, bits uint32) ([]byte, error) {
+	fpPtr, flPtr, nFrames, cleanup, err := rt.writeI32ArrayOfArrays(ctx, frameSigs)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanup()
+
+	sretPtr, err := rt.alloc(ctx, 8)
+	if err != nil {
+		return nil, err
+	}
+
+	fn := rt.mod.ExportedFunction("iscc_soft_hash_video_v0")
+	_, err = fn.Call(ctx, uint64(sretPtr), uint64(fpPtr), uint64(flPtr), uint64(nFrames), uint64(bits))
+	if err != nil {
+		_ = rt.dealloc(ctx, sretPtr, 8)
+		return nil, fmt.Errorf("iscc_soft_hash_video_v0: %w", err)
+	}
+	return rt.callByteBufferResult(ctx, "iscc_soft_hash_video_v0", sretPtr)
+}
+
 // GenIsccCodeV0 generates a composite ISCC-CODE from individual unit codes.
 func (rt *Runtime) GenIsccCodeV0(ctx context.Context, codes []string) (string, error) {
 	codesPtr, codesCount, cleanup, err := rt.writeStringArray(ctx, codes)

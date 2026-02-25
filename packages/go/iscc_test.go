@@ -640,6 +640,131 @@ func TestIsccDecompose(t *testing.T) {
 	}
 }
 
+// ── Byte buffer function tests ───────────────────────────────────────────────
+
+// TestAlgSimhash verifies SimHash computation from equal-length digests.
+// Output length matches input digest length.
+func TestAlgSimhash(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	// 3 digests of 4 bytes each.
+	digests := [][]byte{
+		{0xFF, 0x00, 0xFF, 0x00},
+		{0xFF, 0xFF, 0x00, 0x00},
+		{0xFF, 0x00, 0x00, 0xFF},
+	}
+	result, err := rt.AlgSimhash(ctx, digests)
+	if err != nil {
+		t.Fatalf("AlgSimhash error: %v", err)
+	}
+	if len(result) != 4 {
+		t.Fatalf("AlgSimhash: got %d bytes, want 4", len(result))
+	}
+}
+
+// TestAlgMinhash256 verifies MinHash produces exactly 32 bytes.
+func TestAlgMinhash256(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	features := []uint32{100, 200, 300, 400, 500, 600, 700, 800}
+	result, err := rt.AlgMinhash256(ctx, features)
+	if err != nil {
+		t.Fatalf("AlgMinhash256 error: %v", err)
+	}
+	if len(result) != 32 {
+		t.Fatalf("AlgMinhash256: got %d bytes, want 32", len(result))
+	}
+}
+
+// TestAlgCdcChunks verifies CDC chunking: concatenation of chunks equals input.
+func TestAlgCdcChunks(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	// Build 4096 bytes of repeating pattern to encourage multiple chunks.
+	data := make([]byte, 4096)
+	for i := range data {
+		data[i] = byte(i % 256)
+	}
+
+	chunks, err := rt.AlgCdcChunks(ctx, data, false, 1024)
+	if err != nil {
+		t.Fatalf("AlgCdcChunks error: %v", err)
+	}
+	if len(chunks) < 1 {
+		t.Fatal("AlgCdcChunks: got 0 chunks, want >= 1")
+	}
+
+	// Concatenation of all chunks must equal the original data.
+	var concat []byte
+	for _, chunk := range chunks {
+		concat = append(concat, chunk...)
+	}
+	if len(concat) != len(data) {
+		t.Fatalf("AlgCdcChunks: concatenated length %d != input length %d", len(concat), len(data))
+	}
+	for i := range data {
+		if concat[i] != data[i] {
+			t.Fatalf("AlgCdcChunks: mismatch at byte %d: got 0x%02X, want 0x%02X", i, concat[i], data[i])
+		}
+	}
+}
+
+// TestAlgCdcChunksEmpty verifies that empty input returns 1 chunk of empty bytes.
+func TestAlgCdcChunksEmpty(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	chunks, err := rt.AlgCdcChunks(ctx, []byte{}, false, 1024)
+	if err != nil {
+		t.Fatalf("AlgCdcChunks empty error: %v", err)
+	}
+	if len(chunks) != 1 {
+		t.Fatalf("AlgCdcChunks empty: got %d chunks, want 1", len(chunks))
+	}
+	if len(chunks[0]) != 0 {
+		t.Fatalf("AlgCdcChunks empty: chunk[0] has %d bytes, want 0", len(chunks[0]))
+	}
+}
+
+// TestSoftHashVideoV0 verifies video hash output length.
+func TestSoftHashVideoV0(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	// 3 frame signatures, each with 380 elements (standard MPEG-7 size).
+	frames := make([][]int32, 3)
+	for i := range frames {
+		frames[i] = make([]int32, 380)
+		for j := range frames[i] {
+			frames[i][j] = int32((i + 1) * (j + 1))
+		}
+	}
+
+	bits := uint32(64)
+	result, err := rt.SoftHashVideoV0(ctx, frames, bits)
+	if err != nil {
+		t.Fatalf("SoftHashVideoV0 error: %v", err)
+	}
+	expectedLen := bits / 8
+	if uint32(len(result)) != expectedLen {
+		t.Fatalf("SoftHashVideoV0: got %d bytes, want %d", len(result), expectedLen)
+	}
+}
+
+// TestSoftHashVideoV0Error verifies that empty frames returns an error.
+func TestSoftHashVideoV0Error(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	_, err := rt.SoftHashVideoV0(ctx, [][]int32{}, 64)
+	if err == nil {
+		t.Fatal("SoftHashVideoV0 with empty frames: expected error, got nil")
+	}
+}
+
 // TestGenIsccCodeV0 tests gen_iscc_code_v0 against all conformance vectors.
 func TestGenIsccCodeV0(t *testing.T) {
 	ctx := context.Background()

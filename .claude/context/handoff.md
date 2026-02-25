@@ -1,37 +1,31 @@
-## 2026-02-25 — Review of: Add 6 Go wrappers (text utils + encode + string-array functions)
+## 2026-02-25 — Add 4 byte-buffer Go wrappers (AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0)
 
-**Verdict:** PASS
+**Done:** Implemented all 4 byte-buffer-returning Go wrappers plus 7 new private helpers for the
+WASM sret ABI pattern. Empirically verified that wasm32-wasip1 uses sret (struct return pointer as
+hidden first param) for both `IsccByteBuffer` and `IsccByteBufferArray` returns, and pass-by-pointer
+(single i32) for struct parameters in free functions.
 
-**Summary:** All 6 Go wrappers implemented cleanly following established patterns. Group A
-(TextRemoveNewlines, TextCollapse, TextTrim, EncodeBase64) mirrors the TextClean pattern exactly.
-Group B (SlidingWindow, IsccDecompose) introduces well-structured readStringArray/freeStringArray/
-callStringArrayResult helpers for null-terminated pointer arrays. All 22 Go tests pass (14 existing
-\+ 8 new), all 14 pre-commit hooks pass, go vet clean.
+**Files changed:**
 
-**Verification:**
+- `packages/go/iscc.go`: Added 7 private helpers (`readByteBuffer`, `freeByteBuffer`,
+    `callByteBufferResult`, `readByteBufferArray`, `freeByteBufferArray`, `writeU32Slice`,
+    `writeByteArrayOfArrays`) and 4 public wrappers (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`,
+    `SoftHashVideoV0`). Total Runtime methods: 43 (was 32).
+- `packages/go/iscc_test.go`: Added 6 test functions (`TestAlgSimhash`, `TestAlgMinhash256`,
+    `TestAlgCdcChunks`, `TestAlgCdcChunksEmpty`, `TestSoftHashVideoV0`, `TestSoftHashVideoV0Error`).
+    Total tests: 28 (was 22).
 
-- [x] `CGO_ENABLED=0 go test -v -count=1 ./...` in `packages/go/` passes — 22 tests (14 existing + 8
-    new), all PASS
-- [x] `go vet ./...` in `packages/go/` is clean (no output)
-- [x] `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` outputs 32 — next.md expected 17 but
-    undercounted existing methods (pre-change was 23, not 11). The 9 new methods (6 public + 3
-    private helpers) are correct
-- [x] `grep 'TextRemoveNewlines\|TextTrim\|TextCollapse\|EncodeBase64\|SlidingWindow\|IsccDecompose' packages/go/iscc.go | wc -l`
-    outputs 12 (≥ 6)
-- [x] `mise run check` passes — all 14 pre-commit hooks clean
+**Verification:** All 28 Go tests pass (`CGO_ENABLED=0 go test -v -count=1 ./...`), `go vet` clean,
+all 14 pre-commit hooks pass. `grep` counts: 8 public method references (≥4), 43 Runtime methods
+(≥38).
 
-**Issues found:**
+**Next:** The Go binding is now at 21/23 Tier 1 symbols. The remaining 2 are the streaming hashers
+(`DataHasher`/`InstanceHasher`) which need opaque pointer lifecycle management
+(alloc/update/finalize pattern with a WASM-side handle).
 
-- (none)
-
-**Next:** The Go Tier 1 gap is now 6 functions (down from 12). The remaining 6 split into two
-groups: (1) 4 byte-buffer-returning functions (AlgSimhash, AlgMinhash256, AlgCdcChunks,
-SoftHashVideoV0) needing new IsccByteBuffer read/free helpers, and (2) 2 streaming hashers
-(DataHasher, InstanceHasher) needing opaque pointer lifecycle management. The byte-buffer group is
-the simpler next step since it follows the same call→read→free pattern established by string and
-string-array helpers.
-
-**Notes:** The verification criterion for method count (expected 17) was based on an undercount of
-existing private helper methods in next.md. Future next.md specifications should count existing
-methods more carefully (use `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` to get the current
-count before setting the expected total).
+**Notes:** Key ABI discovery: `iscc_free_byte_buffer` and `iscc_free_byte_buffer_array` take their
+struct parameters as a single i32 (pointer to struct in WASM memory), not as flattened fields. This
+means the sret pointer from the function call can be reused directly as the free function's struct
+pointer — the struct is already laid out at that address. This pattern is clean and avoids extra
+allocation for the free call. The `AlgCdcChunks` wrapper reads individual `IsccByteBuffer` entries
+from the array at `buffersPtr + i*8` (8 bytes per struct on wasm32).
