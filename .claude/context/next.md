@@ -1,166 +1,76 @@
 # Next Work Package
 
-## Step: Add idempotency checks to release publish jobs
+## Step: Expand docs landing page to all 6 languages
 
 ## Goal
 
-Add pre-publish version-existence checks to all 4 publish jobs in `release.yml` so that
-re-publishing an already-published version skips gracefully instead of failing the workflow. This is
-the last `[critical]` blocker before the first `v0.0.1` release.
+Add Node.js, Java, Go, and WASM tabs to the Quick Start section in `docs/index.md` and add Java and
+Go rows to the Available Bindings table. This closes the target gap "All code examples use tabbed
+multi-language format" before the v0.0.1 release.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/release.yml`
-- **Reference**: `.claude/context/specs/ci-cd.md` (Idempotency section), `.claude/context/issues.md`
-    (`[critical] Add idempotency checks to release publish jobs`)
+- **Modify**: `docs/index.md`
+- **Reference**: `docs/howto/nodejs.md`, `docs/howto/java.md`, `docs/howto/go.md`,
+    `docs/howto/wasm.md` (for idiomatic code patterns in each language)
 
 ## Not In Scope
 
-- Version sync tooling (`scripts/version_sync.py`, `mise run version:sync`) — that is the `[normal]`
-    issue and comes after this step
-- Changing the build jobs (`build-wheels`, `build-sdist`, `build-napi`, `build-wasm`) — only the
-    publish steps need idempotency guards
-- Adding new CI jobs or modifying `ci.yml`
-- OIDC configuration changes or authentication modifications
-- Java/Maven Central publishing (not yet in release.yml)
+- Fixing the existing Rust and Python Quick Start examples (they have minor inaccuracies — Rust
+    shows `println!("{result}")` as "JSON string" when it's a struct; Python uses `json.loads` when
+    the binding returns a dict-like object directly). These should be fixed but in a separate step
+- Adding the `Key Features` bullet to mention Java and Go (currently says "Rust, Python, Node.js,
+    WebAssembly, or C") — cosmetic, defer
+- Fixing the WASM howto guide package name (`@iscc/iscc-wasm` → `@iscc/wasm`) — pre-existing issue
+    in a different file
+- Restructuring the page layout or adding new sections beyond Quick Start tabs and binding table
+    rows
 
 ## Implementation Notes
 
-Add a version-check step before each publish step in the 4 publish jobs. The pattern is: extract the
-workspace version, query the registry, and set a GitHub Actions output flag that the publish step
-uses to conditionally skip.
+Add 4 new tabs to the `=== "Language"` tabbed block under Quick Start. Follow
+[pymdownx.tabbed](https://facelessuser.github.io/pymdown-extensions/extensions/tabbed/) syntax
+(already used by the existing Rust/Python tabs). Each tab shows install command + minimal code
+example.
 
-### Version extraction
+**Tab order**: Rust, Python, Node.js, Java, Go, WASM (matches target.md ordering and Available
+Bindings table).
 
-Each publish job needs the workspace version. Extract it from root `Cargo.toml`:
+**Code patterns per language** (derived from howto guides and agent memory):
 
-```yaml
-  - name: Get workspace version
-    id: version
-    run: |
-      VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
-      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-```
+- **Node.js** (`=== "Node.js"`): `npm install @iscc/lib`, then
+    `import { gen_text_code_v0 } from "@iscc/lib"` — returns a string directly (not structured
+    object)
+- **Java** (`=== "Java"`): Maven dependency XML block or `System.loadLibrary` note, then
+    `IsccLib.genTextCodeV0("Hello World", 64)` — returns a String. Note that Maven Central is not
+    yet available (build from source). Use `import io.iscc.iscc_lib.IsccLib;`
+- **Go** (`=== "Go"`): `go get github.com/iscc/iscc-lib/packages/go`, then show Runtime creation +
+    `rt.GenTextCodeV0(ctx, "Hello World", 64)` — returns `(string, error)`. Go requires more
+    boilerplate (runtime setup) so keep the example minimal but correct
+- **WASM** (`=== "WASM"`): `npm install @iscc/wasm`, then
+    `import init, { gen_text_code_v0 } from "@iscc/wasm"` + `await init()` — returns a string. Note
+    the async init requirement
 
-The `publish-crates-io` job already checks out the repo. For `publish-pypi` and `publish-npm-lib`,
-the checkout step is also already present. For `publish-npm-wasm`, there is no checkout — read the
-version from the downloaded `pkg/package.json` artifact instead.
+**Available Bindings table**: Add rows for Java (Maven Central, `io.iscc:iscc-lib`, note not yet
+published) and Go (Go module, `go get github.com/iscc/iscc-lib/packages/go`).
 
-### Per-registry checks
-
-**crates.io** (`publish-crates-io` job): Insert before the "Publish iscc-lib" step:
-
-```yaml
-  - name: Check if already published
-    id: check
-    run: |
-      VERSION="${{ steps.version.outputs.version }}"
-      if cargo info iscc-lib 2>/dev/null | grep -q "version: $VERSION"; then
-        echo "Version $VERSION already published to crates.io, skipping"
-        echo "skip=true" >> "$GITHUB_OUTPUT"
-      else
-        echo "skip=false" >> "$GITHUB_OUTPUT"
-      fi
-```
-
-Then add `if: steps.check.outputs.skip != 'true'` to the "Authenticate with crates.io" and "Publish
-iscc-lib" steps.
-
-**PyPI** (`publish-pypi` job): This job does not check out the repo — it only downloads wheel
-artifacts. Add a checkout step for version extraction, then query the PyPI JSON API:
-
-```yaml
-  - uses: actions/checkout@v4
-  - name: Get workspace version
-    id: version
-    run: |
-      VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
-      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-  - name: Check if already published
-    id: check
-    run: |
-      VERSION="${{ steps.version.outputs.version }}"
-      if curl -sf "https://pypi.org/pypi/iscc-lib/$VERSION/json" > /dev/null 2>&1; then
-        echo "Version $VERSION already published to PyPI, skipping"
-        echo "skip=true" >> "$GITHUB_OUTPUT"
-      else
-        echo "skip=false" >> "$GITHUB_OUTPUT"
-      fi
-```
-
-Then add `if: steps.check.outputs.skip != 'true'` to the download-artifacts and publish steps.
-
-**npm @iscc/lib** (`publish-npm-lib` job): Insert before the "Publish to npm" step:
-
-```yaml
-  - name: Get workspace version
-    id: version
-    run: |
-      VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
-      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-  - name: Check if already published
-    id: check
-    run: |
-      VERSION="${{ steps.version.outputs.version }}"
-      if npm view "@iscc/lib@$VERSION" version 2>/dev/null; then
-        echo "Version $VERSION already published to npm, skipping"
-        echo "skip=true" >> "$GITHUB_OUTPUT"
-      else
-        echo "skip=false" >> "$GITHUB_OUTPUT"
-      fi
-```
-
-**npm @iscc/wasm** (`publish-npm-wasm` job): This job has no checkout. Read version from the
-downloaded `pkg/package.json`:
-
-```yaml
-  - name: Get package version
-    id: version
-    run: |
-      VERSION=$(node -p "require('./pkg/package.json').version")
-      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-  - name: Check if already published
-    id: check
-    run: |
-      VERSION="${{ steps.version.outputs.version }}"
-      if npm view "@iscc/wasm@$VERSION" version 2>/dev/null; then
-        echo "Version $VERSION already published to npm, skipping"
-        echo "skip=true" >> "$GITHUB_OUTPUT"
-      else
-        echo "skip=false" >> "$GITHUB_OUTPUT"
-      fi
-```
-
-Note: the version step must come AFTER the download-artifact step so `pkg/package.json` exists.
-
-### Key details
-
-- Each check must output a clear log message when skipping
-- The `if:` condition on publish steps must allow the job to succeed (green) when skipping —
-    skipping a step via `if:` still shows the job as successful
-- `curl -sf` (silent + fail) returns non-zero on HTTP 404 — correct for PyPI check
-- `cargo info` requires network (queries crates.io) — fine in CI
-- `npm view` returns non-zero when the version doesn't exist — correct for npm check
-- Do NOT change permissions, concurrency, triggers, build logic, or job conditions — only add
-    version-check steps and `if:` conditions on publish steps
+**Consistency**: All 6 tabs should demonstrate the same function (`gen_text_code_v0` with "Hello
+World") to make cross-language comparison easy.
 
 ## Verification
 
-- `grep -c 'already published' .github/workflows/release.yml` returns 4 (one message per publish
-    job)
-- `grep -c 'steps.check.outputs.skip' .github/workflows/release.yml` returns at least 4 (skip
-    conditions on publish steps)
-- `grep -q 'pypi.org/pypi/iscc-lib' .github/workflows/release.yml` exits 0 (PyPI version check)
-- `grep -q 'cargo info iscc-lib' .github/workflows/release.yml` exits 0 (crates.io version check)
-- `grep -q 'npm view.*@iscc/lib' .github/workflows/release.yml` exits 0 (npm lib version check)
-- `grep -q 'npm view.*@iscc/wasm' .github/workflows/release.yml` exits 0 (npm wasm version check)
-- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 (valid
-    YAML)
-- `mise run check` passes (all pre-commit hooks)
+- `uv run zensical build` exits 0 (docs site builds without errors)
+- `grep -c '=== "' docs/index.md` returns 6 (one tab per language)
+- `grep 'Node.js' docs/index.md` matches (Node.js tab present)
+- `grep 'Java' docs/index.md` matches (Java tab and binding table row present)
+- `grep 'Go' docs/index.md` matches (Go tab and binding table row present)
+- `grep 'WASM' docs/index.md` matches (WASM tab present)
+- `grep 'go get' docs/index.md` matches (Go install command in table or tab)
+- Available Bindings table has 7 rows (Rust, Python, Node.js, WASM, C/C++, Java, Go)
+- `mise run check` passes (formatting, linting)
 
 ## Done When
 
-All 8 verification criteria pass — every publish job has a version-existence check that logs a
-message and skips the publish step when the version already exists on the target registry, and the
-workflow file remains valid YAML passing all quality gates.
+All verification criteria pass — docs/index.md has 6 language tabs in Quick Start and 7 binding rows
+in the table, and the docs site builds cleanly.

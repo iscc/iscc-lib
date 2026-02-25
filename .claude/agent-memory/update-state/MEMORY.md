@@ -9,7 +9,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `ls crates/iscc-lib/README.md crates/iscc-py/README.md crates/iscc-napi/README.md crates/iscc-wasm/README.md crates/iscc-ffi/README.md crates/iscc-jni/README.md 2>&1`
     — check existence (batches 1+2 done: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni)
 - **CI jobs in a run**: `gh run view <id> --json jobs --jq '.jobs[] | {name, conclusion}'`
-- **Latest CI runs**: `gh run list --branch main --limit 3 --json status,conclusion,url,databaseId`
+- **Latest CI runs**:
+    `gh run list --branch "$(git branch --show-current)" --limit 3 --json status,conclusion,url,databaseId`
 - **Java native method count**:
     `grep -c 'native ' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`
 - **Incremental diff**: `git diff <assessed-at-hash>..HEAD --stat`
@@ -63,9 +64,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     wrapping WASM FfiDataHasher/FfiInstanceHasher). `iscc_test.go` 1,069 lines — 36 func
     declarations (TestMain + 35 tests including 8 streaming hasher tests). Update takes `[]byte`,
     NOT `io.Reader` — architecture gap noted. WASM binary gitignored; TestMain skips if missing.
-- Per-crate READMEs: all 6 publishable packages done (iscc-lib, iscc-py, iscc-napi, iscc-wasm,
-    iscc-jni, packages/go). iscc-ffi not published separately (lower priority).
-    packages/go/README.md created in iteration 10 (commit a60a375).
+- Per-crate READMEs: all 7 done (iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni, packages/go,
+    iscc-ffi). iscc-ffi/README.md created in iteration 29 (123 lines). packages/go/README.md created
+    in iteration 10 (commit a60a375).
 - Root README NOW COMPLETE as of iteration 14 (commit 200ffb1): Go Reference badge, Go installation
     section, Go quick-start example added. "What is iscc-lib" body text fixed to "Python, Java, Go,
     Node.js, WebAssembly, and C". Key Features updated to "Python, Java, Go, Node.js, WASM, and C
@@ -153,3 +154,45 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     deleted from issues.md. Remaining `[critical]`: idempotency checks. `[normal]`: version sync
     tooling. Three `[low]` issues remain.
 - Latest CI run IDs (iteration 24): tests = 22390109706 (7/7 pass), docs = 22390109757 (pass)
+- **Idempotency checks resolved (iteration 25, commits fc103f1+596e0a6)**: All 4 publish jobs in
+    `release.yml` now have pre-publish version-existence checks: crates.io uses
+    `cargo info   iscc-lib`, PyPI uses `curl -sf "https://pypi.org/pypi/iscc-lib/$VERSION/json"`,
+    npm lib/wasm use `npm view "@iscc/lib@$VERSION"` / `npm view "@iscc/wasm@$VERSION"`.
+    `skip=true/false` output used; all publish/auth/test steps conditioned on
+    `steps.check.outputs.skip != 'true'`. Review agent confirmed PASS. Last `[critical]` issue
+    deleted. `ci.yml` now triggers on `develop` branch too (1-line change). `mise.toml` has
+    `pr:main` task. CLAUDE.md has branching model section.
+- Latest CI run IDs (iteration 25): tests = 22391282792 (7/7 pass); new run 22391326755 in progress
+    (6/7 done, all success, Go still running)
+- **No [critical] issues remain**. Only `[normal]` (version sync tooling) + 3 `[low]` items remain.
+    Next target: implement `scripts/version_sync.py` + `mise run version:sync` / `version:check`.
+- **Version sync tooling resolved (iteration 26, commits dc985d2+98fa278)**:
+    `scripts/version_sync.py` created (120 lines, stdlib only — `json`, `re`, `pathlib`). Reads
+    workspace version from root `Cargo.toml` via regex, updates `crates/iscc-napi/package.json`
+    (json loads/dumps with `indent=2`) and `crates/iscc-jni/java/pom.xml` (regex replacement scoped
+    to `groupId io.iscc` + `artifactId iscc-lib`). `--check` mode prints OK/MISMATCH and exits 1 on
+    mismatch. `mise run version:sync` and `mise run version:check` tasks in `mise.toml` (lines 77,
+    81). `pom.xml` version updated from `0.0.1-SNAPSHOT` → `0.0.1`. All 8 review criteria passed.
+    `[normal]` issue deleted from issues.md. **All remaining issues are `[low]`**.
+- Latest CI run IDs (iteration 26): tests = 22391904404 (7/7 pass); docs = 22390109757 (pass)
+- Handoff from review (iteration 26): project ready for `v0.0.1` release — consider PR develop →
+    main via `mise run pr:main` before next iteration.
+- **JNI IllegalStateException resolved (iteration 27, commit 2083287)**: Added `throw_state_error`
+    helper (`env.throw_new("java/lang/IllegalStateException", msg)`); updated 4 call sites
+    (DataHasherUpdate, DataHasherFinalize, InstanceHasherUpdate, InstanceHasherFinalize); updated 2
+    doc comments; added 2 Java tests. `IsccLibTest.java` now 51 total tests (was 49). All 7 CI jobs
+    pass (run 22392431920 triggered by PR #1 develop → main). `[low]` JNI exception issue deleted
+    from issues.md. Only 2 `[low]` issues remain: TypeScript evaluation + WASM CLAUDE.md staleness.
+- **PR #1 open** (develop → main): CI passes on all 7 jobs; ready to merge for v0.0.1 release.
+- `throw_and_default` call sites: now 68 (was 72); `throw_state_error` call sites: 4 (new).
+- **WASM CLAUDE.md stale docs resolved (iteration 28, commit 53b0289)**: Updated
+    `crates/iscc-wasm/CLAUDE.md` to say "23 Tier 1 symbols plus 2 streaming types"; removed "not yet
+    bound" text for DataHasher/InstanceHasher; added "2 streaming types: DataHasher, InstanceHasher"
+    to export list. Issue deleted from issues.md. Only 1 `[low]` issue remains: TypeScript port
+    evaluation. Latest CI run: 22393043406 (all 7 jobs success). PR #1 still open.
+- **iscc-ffi README created (iteration 29, commit e22b4fa)**: `crates/iscc-ffi/README.md` (123
+    lines) created. Pattern: "Building" instead of "Installation"; "Memory Management" section
+    unique to C FFI; `iscc_`-prefixed function names. All 7 per-crate READMEs now complete →
+    Per-Crate READMEs section status → MET. CI still green (run 22394253866, all 7 jobs pass). No
+    open issues remain — only the `[low]` TypeScript port evaluation. PR #1 (develop → main) still
+    open.

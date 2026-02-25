@@ -308,3 +308,27 @@
 {"ts":"2026-02-25T09:30:31.521421+00:00","iteration":24,"role":"define-next","status":"OK","turns":17,"cost_usd":0.796968,"duration_s":135.3}
 {"ts":"2026-02-25T09:34:12.617443+00:00","iteration":24,"role":"advance","status":"OK","turns":41,"cost_usd":1.226406,"duration_s":221.1}
 {"iteration":24,"timestamp":"2026-02-25T09:38:00Z","step":"Add idempotency checks to release publish jobs","verdict":"PASS","files_changed":[".github/workflows/release.yml"],"issues_resolved":["Add idempotency checks to release publish jobs"],"notes":"4 registry checks (crates.io/PyPI/npm-lib/npm-wasm), 7 skip conditions. Spec checkbox updated. Last [critical] blocker resolved."}
+{"ts":"2026-02-25T09:37:13.243415+00:00","iteration":24,"role":"review","status":"OK","turns":34,"cost_usd":1.046133,"duration_s":180.6}
+{"ts":"2026-02-25T09:51:40.516632+00:00","iteration":25,"role":"update-state","status":"OK","turns":23,"cost_usd":1.014562,"duration_s":263.6}
+{"ts":"2026-02-25T09:55:12.479171+00:00","iteration":25,"role":"define-next","status":"OK","turns":21,"cost_usd":0.894534,"duration_s":212.0}
+{"ts":"2026-02-25T09:59:17.937896+00:00","iteration":25,"role":"advance","status":"OK","turns":39,"cost_usd":1.101784,"duration_s":245.5}
+{"ts":"2026-02-25T10:03:21.360745+00:00","iteration":25,"role":"review","status":"OK","turns":41,"cost_usd":1.328359,"duration_s":243.4}
+{"ts":"2026-02-25T10:08:31.594240+00:00","iteration":26,"role":"update-state","status":"OK","turns":22,"cost_usd":0.794462,"duration_s":213.9}
+{"ts":"2026-02-25T10:11:16.003220+00:00","iteration":26,"role":"define-next","status":"OK","turns":23,"cost_usd":0.90491,"duration_s":164.4}
+{"ts":"2026-02-25T10:15:36.627098+00:00","iteration":26,"role":"advance","status":"OK","turns":36,"cost_usd":1.594385,"duration_s":260.6}
+{"ts":"2026-02-25T10:17:25.780765+00:00","iteration":26,"role":"review","status":"PASS","turns":1,"cost_usd":0.0,"duration_s":0}
+{"ts":"2026-02-25T10:18:26.240919+00:00","iteration":26,"role":"review","status":"OK","turns":26,"cost_usd":0.690682,"duration_s":169.6}
+{"ts":"2026-02-25T10:28:51.077888+00:00","iteration":27,"role":"update-state","status":"OK","turns":22,"cost_usd":0.712915,"duration_s":213.8}
+{"ts":"2026-02-25T10:30:46.941837+00:00","iteration":27,"role":"define-next","status":"OK","turns":15,"cost_usd":0.610247,"duration_s":115.8}
+{"ts":"2026-02-25T10:33:18.288793+00:00","iteration":27,"role":"advance","status":"OK","turns":23,"cost_usd":0.741456,"duration_s":151.3}
+{"ts":"2026-02-25T10:36:00.000000+00:00","iteration":27,"role":"review","status":"PASS","turns":8,"cost_usd":0.15,"duration_s":90}
+{"ts":"2026-02-25T10:35:31.495478+00:00","iteration":27,"role":"review","status":"OK","turns":29,"cost_usd":0.765415,"duration_s":133.2}
+{"ts":"2026-02-25T10:57:23.464597+00:00","iteration":28,"role":"update-state","status":"OK","turns":15,"cost_usd":0.567621,"duration_s":173.0}
+{"ts":"2026-02-25T11:00:52.486073+00:00","iteration":28,"role":"define-next","status":"OK","turns":26,"cost_usd":1.010214,"duration_s":209.0}
+{"ts":"2026-02-25T11:08:14.649871+00:00","iteration":28,"role":"advance","status":"OK","turns":62,"cost_usd":2.234782,"duration_s":442.2}
+{"iteration":28,"timestamp":"2026-02-25T11:15:00Z","step":"Create iscc-ffi per-crate README","verdict":"PASS","files_changed":["crates/iscc-ffi/README.md"],"notes":"7/7 per-crate READMEs complete. Clean documentation-only change, 14 hooks pass."}
+{"ts":"2026-02-25T11:10:50.762163+00:00","iteration":28,"role":"review","status":"OK","turns":30,"cost_usd":0.817083,"duration_s":156.1}
+{"ts":"2026-02-25T11:33:02.299057+00:00","iteration":29,"role":"update-state","status":"OK","turns":16,"cost_usd":0.596232,"duration_s":194.3}
+{"ts":"2026-02-25T11:37:58.656768+00:00","iteration":29,"role":"define-next","status":"OK","turns":24,"cost_usd":1.06929,"duration_s":296.4}
+{"ts":"2026-02-25T11:41:50.250967+00:00","iteration":29,"role":"advance","status":"OK","turns":37,"cost_usd":1.373836,"duration_s":231.6}
+{"iteration":29,"timestamp":"2026-02-25T11:50:00Z","step":"Expand docs landing page to all 6 languages","verdict":"PASS","files_changed":["docs/index.md"],"notes":"6 Quick Start tabs + 7 binding table rows. Code examples match howto guides. All 14 hooks pass."}

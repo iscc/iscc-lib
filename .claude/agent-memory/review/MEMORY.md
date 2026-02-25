@@ -23,6 +23,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     implementation behavior rather than just accepting the spec
 - Advance agent handoff test counts may be off by 1 (e.g., counting TestMain as a test) — always
     verify by running tests and counting top-level test functions
+- `json.dumps` reformats JSON files (e.g., inline arrays become multi-line) — cosmetic but may
+    appear as unintended changes in diffs. Check that formatting changes are idempotent
 
 ## Review Shortcuts
 
@@ -48,6 +50,15 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go-only changes: `mise run check` + `mise exec -- go test ./...` is sufficient
 
 - Full test suite (159 tests) runs in \<1s — always run it for Python changes
+
+- Script-only changes (new Python scripts, mise task additions): `mise run check` + direct script
+    invocation is sufficient — skip all test suites unless the script modifies test infrastructure
+
+## Verification Patterns
+
+- `grep -c` counts ALL matching lines including function definitions — when next.md specifies "4
+    call sites" but the function name also appears in a definition, expect count = call sites + 1.
+    This is a valid pass if the arithmetic checks out
 
 ## Gotchas
 

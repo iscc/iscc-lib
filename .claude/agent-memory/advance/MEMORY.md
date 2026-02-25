@@ -14,7 +14,7 @@ iterations.
 - Node.js conformance tests: `crates/iscc-napi/__tests__/conformance.test.mjs`
 - Per-crate READMEs: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`,
     `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`,
-    `packages/go/README.md`
+    `crates/iscc-ffi/README.md`, `packages/go/README.md`
 - Root README: `README.md` — covers all languages (Rust, Python, Java, Go, Node.js, WASM, C)
 
 ## Implementation Patterns
@@ -46,9 +46,13 @@ iterations.
     `_DataHasher`/`_InstanceHasher` for true streaming (no unbounded `.read()`)
 - `from __future__ import annotations` is active in `__init__.py` — use `|` union syntax in type
     annotations, do NOT import `Union` from typing (ruff flags it as unused)
-- JNI error handling: all `unwrap()` calls replaced with `throw_and_default` pattern. Three forms:
-    (1) nested match for `env.new_string().into_raw()`, (2) nested match for
+- JNI error handling: `throw_and_default` for `IllegalArgumentException` (invalid input),
+    `throw_state_error` for `IllegalStateException` (invalid object state, e.g., finalized hashers).
+    Three return forms: (1) nested match for `env.new_string().into_raw()`, (2) nested match for
     `env.byte_array_from_slice().into_raw()`, (3) early-return match + `if let Err` for loop bodies
+- JNI Java-side Javadoc (`IsccLib.java`) still says `@throws IllegalArgumentException` for hasher
+    update/finalize methods — the Rust side throws `IllegalStateException` but Java declarations are
+    cosmetically mismatched (tests verify correct runtime behavior)
 
 ## WASM/WASI
 
@@ -147,7 +151,10 @@ iterations.
     `@iscc/wasm` (npm/WASM), `io.iscc:iscc-lib` (Maven Central)
 - iscc-wasm and iscc-jni both have `publish = false` in Cargo.toml -- no `readme` field needed (they
     publish via npm and Maven respectively, not crates.io)
-- Maven coordinates: `io.iscc:iscc-lib:0.0.1` (pom.xml has `0.0.1-SNAPSHOT`, README uses `0.0.1`)
+- Maven coordinates: `io.iscc:iscc-lib:0.0.1` (pom.xml version synced to bare `0.0.1`)
+- Version sync script: `scripts/version_sync.py` — reads workspace version from root `Cargo.toml`
+    via regex `r'^version\s*=\s*"(.+?)"'`, updates `package.json` (json stdlib) and `pom.xml` (regex
+    replacement). Supports `--check` flag. mise tasks: `version:sync`, `version:check`
 
 ## Documentation
 
@@ -168,6 +175,9 @@ iterations.
 - Java guide key differences from Go: no runtime object (static methods), "Setup" section replaces
     "Runtime setup", streaming uses opaque `long` handles with try-finally (not defer),
     `genIsccCodeV0` exposes `boolean wide` parameter (Go hardcodes to false)
+- docs/index.md landing page: 6 Quick Start tabs (Rust, Python, Node.js, Java, Go, WASM) + 7
+    Available Bindings table rows. All tabs use `gen_text_code_v0("Hello World")`. mdformat
+    auto-reformats JS imports to multi-line style in code blocks inside tabbed markdown
 
 ## Codec Internals
 
@@ -211,12 +221,17 @@ iterations.
 - HexFormat requires Java 17+ (already set as Maven compiler target)
 - mdformat auto-formats markdown files in pre-commit -- write READMEs with compatible formatting (no
     smart dashes, use `--` not em-dashes in markdown text)
+- mdformat-mkdocs + `--wrap 100` crashes ("renders to different HTML") when long backtick chains
+    (e.g., func_a/func_b/func_c in backticks) cross the wrap boundary. Keep backtick expressions
+    short or restructure as abbreviated references. Also avoid `char *` (backtick + asterisk) in
+    prose -- the asterisk can be mis-parsed as emphasis during wrapping
 - WASM quick start must use ESM `import`/`await init()` (not CommonJS `require()`) -- wasm-bindgen
     requires async WASM initialization
 - README template: 6 H2 sections (What is ISCC, Installation, Quick Start, API Overview, Links,
     License), 70-80 lines each, identical "What is ISCC" paragraph and Links section across all
-    crates. Go README adds an extra Architecture section (wazero/no-cgo details). All 5 publishable
-    crates + Go package now have READMEs; iscc-ffi is not published and has no README
+    crates. Go README adds an extra Architecture section (wazero/no-cgo details). All 7
+    crates/packages now have READMEs. iscc-ffi README has Building (not Installation) + Memory
+    Management sections
 - Root README "What is iscc-lib" paragraph uses "language bindings" (not just "bindings") to ensure
     mdformat (wrap=100) puts the full language list on one grep-matchable line. Careful with
     rewording — mdformat rewrapping can split the list across lines

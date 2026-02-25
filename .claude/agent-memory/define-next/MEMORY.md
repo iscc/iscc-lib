@@ -84,15 +84,32 @@ iterations.
     CI changes count as 3 files (Cargo.toml + lib.rs + ci.yml) — test files don't count against the
     limit. Group related [low] issues in the same crate only if they share files.
 - **Release workflow critical issues**: Two [critical] issues in release.yml done sequentially: (1)
-    selective publishing inputs (PASS, iteration 24), (2) idempotency checks (iteration 25). Both
-    are single-file changes to `.github/workflows/release.yml`. The spec in `specs/ci-cd.md` has
-    exact YAML snippets to follow — point the advance agent there. Verification is structural (grep
-    for expected strings + YAML validity), not functional (can't trigger the workflow in CI).
-- **Idempotency check scoping**: 4 publish jobs, each needing version extraction + registry query +
-    conditional skip. Key detail: `publish-npm-wasm` has no checkout step — must extract version
-    from the downloaded artifact (`pkg/package.json`) not from `Cargo.toml`. `publish-pypi` also
-    lacks a checkout — needs one added for version extraction. Version extraction step must come
-    AFTER any download-artifact step that provides the version source.
+    selective publishing inputs (PASS, iteration 24), (2) idempotency checks (PASS, iteration 25).
+    Both are single-file changes to `.github/workflows/release.yml`. The spec in `specs/ci-cd.md`
+    has exact YAML snippets to follow — point the advance agent there. Verification is structural
+    (grep for expected strings + YAML validity), not functional (can't trigger the workflow in CI).
+- **Version sync tooling** (iteration 26): 1 create + 1 modify. The script is pure Python stdlib —
+    `json` for package.json, regex for Cargo.toml and pom.xml. Key design choice: regex for pom.xml
+    instead of xml.etree to avoid file reformatting. The pom.xml version element sits right after
+    groupId and artifactId, making a targeted regex safe. Cross-platform requirement means
+    `pathlib.Path` everywhere. Verification is straightforward: run --check (exit 0 = in sync).
+- **JNI exception mapping** (iteration 27): Targeted fix — only 4 call sites change (the "already
+    finalized" messages in hasher update/finalize methods). Add a parallel `throw_state_error`
+    helper rather than parameterizing `throw_and_default` — simpler, no API churn. The 2 new Java
+    tests follow the established negative test pattern (`assertThrows`). Existing 49 tests are
+    unaffected. This is the last meaningful code quality improvement before release.
+- **End-of-project prioritization** (iteration 29): When all [normal]/[critical] issues are resolved
+    and only [low] issues remain, prefer concrete deliverables (creating missing files, completing
+    documentation sets) over research tasks (evaluating external repos). The iscc-ffi README
+    (completing 7/7 per-crate READMEs) is more verifiable and closes a target gap, while the
+    TypeScript port evaluation is research with uncertain outcomes. Registry-side publishing setup
+    (OIDC, Maven Central) is out of CID scope — it requires human action on external services.
+- **Pre-release docs polish** (iteration 30): When all code and READMEs are complete, look for
+    concrete docs/index.md gaps against target.md. The target says "All code examples use tabbed
+    multi-language format (Python, Rust, Java, Go, Node.js, WASM)" — if tabs are missing, that's a
+    concrete verifiable gap. Single-file doc modifications are safe, quick steps. Use howto guides
+    as reference for idiomatic code examples per language. Prefer state→target gap closure over
+    [low] research issues.
 
 ## Architecture Decisions
 
@@ -123,6 +140,10 @@ iterations.
     (Cargo.toml has `publish = false`). Java method names use camelCase (e.g., `genMetaCodeV0`).
 - Go README: Go module proxy (pkg.go.dev) renders README.md. Go gen functions return
     `(string, error)` — quick start uses `iscc, err := rt.GenMetaCodeV0(ctx, ...)` pattern.
+- C FFI README: not published to any registry (`publish = false`), so no version badge. Uses
+    "Building" section instead of "Installation". Unique among READMEs in needing a "Memory
+    Management" section (Rust-allocates/Rust-frees, 4 free functions, `iscc_last_error`). C function
+    names use `iscc_` prefix (`iscc_gen_meta_code_v0`). Quick start must show explicit `free` calls.
 
 ## CI Workflow Patterns
 
@@ -152,3 +173,5 @@ iterations.
     because the JNI bridge handles the conversion correctly.
 - Maven's working directory is the pom.xml parent directory, not the workspace root.
 - ISCC Foundation URL is `https://iscc.io` — not iscc.foundation or other variants.
+- WASM howto guide at `docs/howto/wasm.md` has wrong package name `@iscc/iscc-wasm` — correct name
+    is `@iscc/wasm` per learnings. Pre-existing issue not yet fixed.

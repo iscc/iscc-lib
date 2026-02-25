@@ -77,15 +77,79 @@ decentralized, content-based identification without a central registry.
     print(result["iscc"])
     ```
 
+=== "Node.js"
+
+    ```bash
+    npm install @iscc/lib
+    ```
+
+    ```javascript
+    import {
+        gen_text_code_v0
+    } from "@iscc/lib";
+
+    const iscc = gen_text_code_v0("Hello World");
+    console.log(iscc); // "ISCC:EAA..."
+    ```
+
+=== "Java"
+
+    ```bash
+    # Build from source (Maven Central not yet available)
+    cargo build -p iscc-jni --release
+    ```
+
+    ```java
+    import io.iscc.iscc_lib.IsccLib;
+
+    String iscc = IsccLib.genTextCodeV0("Hello World", 64);
+    System.out.println(iscc); // "ISCC:EAA..."
+    ```
+
+=== "Go"
+
+    ```bash
+    go get github.com/iscc/iscc-lib/packages/go
+    ```
+
+    ```go
+    import iscc "github.com/iscc/iscc-lib/packages/go"
+
+    ctx := context.Background()
+    rt, _ := iscc.NewRuntime(ctx)
+    defer rt.Close(ctx)
+
+    code, _ := rt.GenTextCodeV0(ctx, "Hello World", 64)
+    fmt.Println(code) // "ISCC:EAA..."
+    ```
+
+=== "WASM"
+
+    ```bash
+    npm install @iscc/wasm
+    ```
+
+    ```javascript
+    import init, {
+        gen_text_code_v0
+    } from "@iscc/wasm";
+
+    await init();
+    const iscc = gen_text_code_v0("Hello World");
+    console.log(iscc); // "ISCC:EAA..."
+    ```
+
 ## Available Bindings
 
-| Platform    | Package                                         | Install                     |
-| ----------- | ----------------------------------------------- | --------------------------- |
-| Rust        | [crates.io](https://crates.io/crates/iscc-lib)  | `cargo add iscc-lib`        |
-| Python      | [PyPI](https://pypi.org/project/iscc-lib/)      | `pip install iscc-lib`      |
-| Node.js     | [npm](https://www.npmjs.com/package/@iscc/lib)  | `npm install @iscc/lib`     |
-| WebAssembly | [npm](https://www.npmjs.com/package/@iscc/wasm) | `npm install @iscc/wasm`    |
-| C / C++     | Source                                          | Via C FFI header (`iscc.h`) |
+| Platform    | Package                                         | Install                                       |
+| ----------- | ----------------------------------------------- | --------------------------------------------- |
+| Rust        | [crates.io](https://crates.io/crates/iscc-lib)  | `cargo add iscc-lib`                          |
+| Python      | [PyPI](https://pypi.org/project/iscc-lib/)      | `pip install iscc-lib`                        |
+| Node.js     | [npm](https://www.npmjs.com/package/@iscc/lib)  | `npm install @iscc/lib`                       |
+| Java        | Maven Central (planned)                         | Build from source (`cargo build -p iscc-jni`) |
+| Go          | Go module                                       | `go get github.com/iscc/iscc-lib/packages/go` |
+| WebAssembly | [npm](https://www.npmjs.com/package/@iscc/wasm) | `npm install @iscc/wasm`                      |
+| C / C++     | Source                                          | Via C FFI header (`iscc.h`)                   |
 
 ## Links
 

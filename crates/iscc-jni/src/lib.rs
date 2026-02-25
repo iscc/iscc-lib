@@ -35,6 +35,15 @@ fn throw_and_default<T: Default>(env: &mut JNIEnv, msg: &str) -> T {
     T::default()
 }
 
+/// Throw `IllegalStateException` in Java and return a type-appropriate default.
+///
+/// Used for operations invalid in the current object state (e.g., calling
+/// `update()` or `finalize()` on an already-finalized hasher).
+fn throw_state_error<T: Default>(env: &mut JNIEnv, msg: &str) -> T {
+    let _ = env.throw_new("java/lang/IllegalStateException", msg);
+    T::default()
+}
+
 /// Convert a raw `jintArray` to a `Vec<i32>` via typed JNI wrapper.
 ///
 /// Returns the extracted integer array, or an error string on failure.
@@ -718,7 +727,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherNew(
 
 /// Push data into a streaming DataHasher.
 ///
-/// Throws `IllegalArgumentException` if the hasher has already been finalized.
+/// Throws `IllegalStateException` if the hasher has already been finalized.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherUpdate(
     mut env: JNIEnv,
@@ -736,7 +745,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherUpdate(
     // SAFETY: ptr was produced by Box::into_raw() in dataHasherNew
     let wrapper = unsafe { &mut *(ptr as *mut JniDataHasher) };
     let Some(inner) = wrapper.inner.as_mut() else {
-        throw_and_default::<()>(&mut env, "DataHasher already finalized");
+        throw_state_error::<()>(&mut env, "DataHasher already finalized");
         return;
     };
     inner.update(&bytes);
@@ -757,7 +766,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_dataHasherFinalize(
     // SAFETY: ptr was produced by Box::into_raw() in dataHasherNew
     let wrapper = unsafe { &mut *(ptr as *mut JniDataHasher) };
     let Some(inner) = wrapper.inner.take() else {
-        return throw_and_default(&mut env, "DataHasher already finalized");
+        return throw_state_error(&mut env, "DataHasher already finalized");
     };
     match inner.finalize(bits as u32) {
         Ok(result) => match env.new_string(result.iscc) {
@@ -800,7 +809,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherNew(
 
 /// Push data into a streaming InstanceHasher.
 ///
-/// Throws `IllegalArgumentException` if the hasher has already been finalized.
+/// Throws `IllegalStateException` if the hasher has already been finalized.
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherUpdate(
     mut env: JNIEnv,
@@ -818,7 +827,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherUpdate(
     // SAFETY: ptr was produced by Box::into_raw() in instanceHasherNew
     let wrapper = unsafe { &mut *(ptr as *mut JniInstanceHasher) };
     let Some(inner) = wrapper.inner.as_mut() else {
-        throw_and_default::<()>(&mut env, "InstanceHasher already finalized");
+        throw_state_error::<()>(&mut env, "InstanceHasher already finalized");
         return;
     };
     inner.update(&bytes);
@@ -839,7 +848,7 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_instanceHasherFinalize(
     // SAFETY: ptr was produced by Box::into_raw() in instanceHasherNew
     let wrapper = unsafe { &mut *(ptr as *mut JniInstanceHasher) };
     let Some(inner) = wrapper.inner.take() else {
-        return throw_and_default(&mut env, "InstanceHasher already finalized");
+        return throw_state_error(&mut env, "InstanceHasher already finalized");
     };
     match inner.finalize(bits as u32) {
         Ok(result) => match env.new_string(result.iscc) {
