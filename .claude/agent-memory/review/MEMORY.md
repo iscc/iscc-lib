@@ -54,6 +54,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Script-only changes (new Python scripts, mise task additions): `mise run check` + direct script
     invocation is sufficient — skip all test suites unless the script modifies test infrastructure
 
+- Config-only changes (Cargo.toml metadata, wasm-pack profiles, CI workflow YAML): `mise run check`
+    \+ `cargo check -p <crate>` is sufficient. If wasm-pack config changed, also run
+    `wasm-pack build --target web --release crates/iscc-wasm` to verify end-to-end
+
 ## Verification Patterns
 
 - `grep -c` counts ALL matching lines including function definitions — when next.md specifies "4

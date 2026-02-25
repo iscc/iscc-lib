@@ -1,33 +1,34 @@
-## 2026-02-25 — Fix WASM release build (wasm-opt bulk-memory)
+## 2026-02-25 — Review of: Fix WASM release build (wasm-opt bulk-memory)
 
-**Done:** Added `[package.metadata.wasm-pack.profile.release]` section to
-`crates/iscc-wasm/Cargo.toml` with
-`wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`. This configures
-wasm-opt to accept the WebAssembly post-MVP features that Rust's LLVM backend emits during release
-builds.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-wasm/Cargo.toml`: Added `[package.metadata.wasm-pack.profile.release]` section with
-    wasm-opt flags
+**Summary:** The advance agent added a `[package.metadata.wasm-pack.profile.release]` section to
+`crates/iscc-wasm/Cargo.toml` with two wasm-opt feature flags. The change is minimal (3 lines of
+TOML), correctly scoped, and verified end-to-end with a successful `wasm-pack build --release`. The
+additional `--enable-nontrapping-float-to-int` flag (beyond what next.md anticipated) was a
+justified discovery during testing.
 
 **Verification:**
 
-- `grep -q 'enable-bulk-memory' crates/iscc-wasm/Cargo.toml` — PASS
-- `grep -q 'wasm-pack.profile.release' crates/iscc-wasm/Cargo.toml` — PASS
-- `cargo check -p iscc-wasm` — PASS (Cargo.toml valid)
-- `wasm-pack build --target web --release crates/iscc-wasm` — PASS (completed in 29.81s)
-- `mise run check` — PASS (all 14 pre-commit hooks clean)
+- [x] `grep -q 'enable-bulk-memory' crates/iscc-wasm/Cargo.toml` exits 0 — PASS
+- [x] `grep -q 'wasm-pack.profile.release' crates/iscc-wasm/Cargo.toml` exits 0 — PASS
+- [x] `cargo check -p iscc-wasm` passes — Cargo.toml valid
+- [x] `wasm-pack build --target web --release crates/iscc-wasm` succeeds — completed in 29.36s
+- [x] `mise run check` passes — all 14 pre-commit hooks clean
+- [x] No quality gate circumvention — diff contains only Cargo.toml config + context files
 
-**Next:** The WASM release build is fixed. The next steps to unblock npm publishing are: (1) set up
-`NPM_TOKEN` repository secret for @iscc org, (2) manually trigger the release workflow with npm
-checkbox to publish @iscc/wasm and @iscc/lib, or re-tag a new version. The crates.io OIDC publishing
-remains a separate human-gated task.
+**Issues found:**
 
-**Notes:** The original next.md anticipated only `--enable-bulk-memory` was needed (based on the
-original `memory.copy` error). Testing locally revealed that Rust's LLVM also emits
-`i32.trunc_sat_f64_s` and `i32.trunc_sat_f64_u` instructions (from float-to-integer conversions in
-the DCT and codec code), which require the `--enable-nontrapping-float-to-int` feature. Both flags
-were added explicitly rather than using `--enable-all`, following the principle of documenting
-exactly which features are needed. If future Rust compiler versions emit additional post-MVP WASM
-instructions, additional `--enable-*` flags can be added to this same section.
+- (none)
+
+**Next:** The WASM release build is now fixed on `develop`. To get this fix into a release: (1)
+merge `develop` → `main` via PR, (2) tag and push a new version (or re-trigger the release workflow
+manually). Human-gated tasks remain: configure `NPM_TOKEN` repository secret, configure crates.io
+OIDC trusted publishing. If no new target.md goals have been added, the next CID iteration could
+address the low-priority TypeScript port evaluation (issues.md) or wait for new direction from the
+human.
+
+**Notes:** The advance agent discovered that `--enable-nontrapping-float-to-int` is also needed
+(Rust's LLVM emits `i32.trunc_sat_f64_s/u` from DCT/codec float-to-int conversions). This is
+documented in both the handoff and agent memory. The explicit flag approach (vs `--enable-all`) is
+preferred for traceability.
