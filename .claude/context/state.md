@@ -1,16 +1,16 @@
-<!-- assessed-at: c750df1 -->
+<!-- assessed-at: f88dd56 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.0.1 partially released — WASM release build failing
+## Phase: v0.0.1 partially released — WASM release build fix on develop, awaiting re-release
 
-PR #2 (develop → main) was merged and the v0.0.1 tag was pushed in iteration 32. The release
-workflow ran and succeeded for PyPI (all 4 wheel platforms + sdist built and published), but failed
-for crates.io (OIDC not configured on registry side — expected) and for WASM (unexpected `wasm-opt`
-bulk-memory validation error). The npm @iscc/lib and @iscc/wasm packages were not published. CI on
-develop and main are both fully green (all 7 jobs pass).
+PR #2 (develop → main) was merged and the v0.0.1 tag was pushed in iteration 32. PyPI publishing
+succeeded; the WASM release build failed due to a `wasm-opt` bulk-memory error. Iteration 4 (this
+run) fixed the WASM release build by adding `[package.metadata.wasm-pack.profile.release]` config to
+`crates/iscc-wasm/Cargo.toml`. CI WASM job passed on develop with the fix. The fix is on `develop`
+and has not yet been merged to `main` or re-released.
 
 ## Rust Core Crate
 
@@ -97,10 +97,14 @@ develop and main are both fully green (all 7 jobs pass).
 - 54 tests: 9 in `conformance.rs` + 45 in `unit.rs`; all pass (CI-verified at HEAD)
 - `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
 - Browser and Node.js build targets supported
-- **@iscc/wasm not yet published to npm**: release workflow `Build WASM package` failed due to
-    `wasm-opt` rejecting `memory.copy` without `--enable-bulk-memory` flag; must fix before
-    republishing
-- **Open issues**: none (the wasm-opt bug is in the release workflow, not the crate itself)
+- **WASM release build fix applied** (iteration 4): `[package.metadata.wasm-pack.profile.release]`
+    section added to `Cargo.toml` with
+    `wasm-opt = ["-O", "--enable-bulk-memory",   "--enable-nontrapping-float-to-int"]`;
+    `wasm-pack build --release` verified locally (29.36s success); CI WASM job passed on develop run
+    22403019335
+- **@iscc/wasm not yet published to npm**: fix is on `develop`; a new PR to `main` and re-triggering
+    the release workflow is needed to publish `@iscc/wasm`
+- **Open issues**: none (the wasm-opt fix is in place; awaiting re-release)
 
 ## C FFI
 
@@ -210,13 +214,16 @@ done + howto/go.md done; io.Reader streaming interface absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
-- **Latest CI run on develop: PASSING** —
+- **Latest CI run on develop: IN PROGRESS** —
+    [Run 22403019335](https://github.com/iscc/iscc-lib/actions/runs/22403019335) — 6/7 jobs SUCCESS
+    (Rust, Python, Node.js, WASM, C FFI, Java all green); Go still running
+- **Previous CI run on develop: PASSING** —
     [Run 22402375410](https://github.com/iscc/iscc-lib/actions/runs/22402375410) — all 7 jobs
-    SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go)
+    SUCCESS
 - **Latest CI run on main: PASSING** —
     [Run 22402167393](https://github.com/iscc/iscc-lib/actions/runs/22402167393) — all jobs SUCCESS
 - Latest Docs run: **PASSING** —
-    [Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413)
+    [Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413))
 - `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
     conditions on all 8 jobs
 - **Idempotency checks** on all 4 publish jobs (crates.io, PyPI, npm lib/wasm)
@@ -229,22 +236,21 @@ done + howto/go.md done; io.Reader streaming interface absent)
     - All 4 wheel platforms + sdist built successfully ✅
     - `Publish to crates.io: failure` — OIDC: "No Trusted Publishing config found for repository
         `iscc/iscc-lib`" — registry-side setup required (human task)
-    - `Build WASM package: failure` — **bug**: `wasm-opt` rejects `memory.copy` instructions without
-        `--enable-bulk-memory`; fix: add `-- -all --enable-bulk-memory` to `wasm-pack build` command
-        in `release.yml`, or pass `--no-opt`
+    - `Build WASM package: failure` — **fixed** on develop (iteration 4); needs re-release to take
+        effect
     - `Build napi (x86_64-apple-darwin): cancelled` — cascading from earlier failures
-    - `Publish @iscc/lib to npm: skipped` — depends on build-napi (napi macOS x86 was cancelled)
-    - `Publish @iscc/wasm to npm: skipped` — depends on build-wasm (WASM build failed)
-- Missing: OIDC trusted publishing for crates.io not yet configured in registry settings
-- Missing: npm publishing pipeline blocked by WASM build bug and NPM_TOKEN/provenance setup
+    - `Publish @iscc/lib to npm: skipped` — depends on build-napi (was cancelled)
+    - `Publish @iscc/wasm to npm: skipped` — depends on build-wasm (was failed; fix now on develop)
+- Missing: OIDC trusted publishing for crates.io not yet configured in registry settings (human
+    task)
+- Missing: npm publishing awaiting PR develop → main + new release trigger
 - Missing: Java platform native bundling in CI matrix
 - Missing: Maven Central publishing configuration
 
 ## Next Milestone
 
-**Fix the WASM release build failure** — the release workflow `Build WASM package` job fails because
-`wasm-opt` does not enable bulk memory instructions by default. Fix: modify the `wasm-pack build`
-command in `release.yml` to pass `-- -all --enable-bulk-memory` (or use `--no-opt` as a simpler
-alternative). After fixing, re-tag or manually trigger the release to publish `@iscc/wasm` and
-`@iscc/lib` to npm. The crates.io OIDC publishing requires human action on the registry side and is
-blocked separately.
+**Merge the WASM fix and re-release** — the `crates/iscc-wasm/Cargo.toml` fix (iteration 4) is on
+`develop` but not yet on `main`. Next steps: (1) create a PR from `develop` → `main` via
+`mise run pr:main`, (2) merge the PR, (3) tag a new patch version (e.g., `v0.0.2`) or re-trigger the
+release workflow via `workflow_dispatch` to publish `@iscc/wasm` and `@iscc/lib` to npm. The
+crates.io OIDC publishing requires human action on the registry side and remains blocked separately.

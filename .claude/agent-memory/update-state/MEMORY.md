@@ -224,8 +224,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     failed (wasm-opt rejects `memory.copy` without `--enable-bulk-memory` — fix in release.yml), npm
     @iscc/lib + @iscc/wasm skipped. CI on develop: all 7 jobs pass (run 22402375410). CI on main:
     all jobs pass (run 22402167393). Docs on main: pass (run 22402167413).
-- **WASM release build bug**: `wasm-pack build --target web --release` triggers `wasm-opt` which
-    fails with: `Bulk memory operations require bulk memory [--enable-bulk-memory]`. Fix: add
-    `-- -all --enable-bulk-memory` to the wasm-pack command in `release.yml` build-wasm job, or pass
-    `--no-opt` flag. CI WASM job (uses `wasm-pack test`) is unaffected — only the release build job
-    is broken.
+- **WASM release build bug FIXED (iteration 4, commit f1ada07)**:
+    `[package.metadata.wasm-pack.profile.release]` section added to `crates/iscc-wasm/Cargo.toml`
+    with `wasm-opt = ["-O", "--enable-bulk-memory",   "--enable-nontrapping-float-to-int"]`. Both
+    flags required: `--enable-bulk-memory` for `memory.copy` (Rust uses bulk memory for memcpy),
+    `--enable-nontrapping-float-to-int` for DCT/codec float-to-int conversions. Fix verified locally
+    (29.36s release build success) and in CI WASM job (run 22403019335, SUCCESS). Fix is on
+    `develop`; needs PR → main + re-release to publish `@iscc/wasm`.
+- **wasm-pack profile config**: The correct way to configure wasm-opt flags for wasm-pack is via
+    `[package.metadata.wasm-pack.profile.release]` in `Cargo.toml`, NOT via command-line args in CI.
+    This keeps the config close to the code and works for both local and CI builds.
