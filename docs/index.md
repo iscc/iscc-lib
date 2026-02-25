@@ -31,7 +31,7 @@ decentralized, content-based identification without a central registry.
 - **Complete ISO 24138 coverage** — all 9 `gen_*_v0` functions implemented
 - **Full conformance** — passes all official test vectors from iscc-core
 - **High performance** — pure Rust core delivers significant speedups over the Python reference
-- **Multi-language** — use from Rust, Python, Node.js, WebAssembly, or C
+- **Multi-language** — use from Rust, Python, Java, Go, Node.js, WebAssembly, or C
 - **Cross-platform** — runs on Linux, macOS, and Windows
 
 ## Supported Code Types
@@ -60,7 +60,7 @@ decentralized, content-based identification without a central registry.
     use iscc_lib::gen_text_code_v0;
 
     let result = gen_text_code_v0("Hello World", 64)?;
-    println!("{result}"); // JSON string
+    println!("{}", result.iscc);
     ```
 
 === "Python"
@@ -70,10 +70,9 @@ decentralized, content-based identification without a central registry.
     ```
 
     ```python
-    import json
     from iscc_lib import gen_text_code_v0
 
-    result = json.loads(gen_text_code_v0("Hello World"))
+    result = gen_text_code_v0("Hello World")
     print(result["iscc"])
     ```
 

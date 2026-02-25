@@ -1,36 +1,29 @@
-## 2026-02-25 — Review of: Expand docs landing page to all 6 languages
+## 2026-02-25 — Polish docs landing page code examples and Key Features
 
-**Verdict:** PASS
+**Done:** Applied three cosmetic fixes to `docs/index.md`: added Java and Go to the Key Features
+multi-language bullet, fixed the Rust Quick Start to access `result.iscc` (struct field) instead of
+printing as a JSON string, and removed the unnecessary `import json` / `json.loads` from the Python
+Quick Start.
 
-**Summary:** Clean implementation — added Node.js, Java, Go, and WASM tabs to the Quick Start
-section and Java/Go rows to the Available Bindings table. All 6 tabs consistently demonstrate
-`gen_text_code_v0("Hello World")`. Code examples match the howto guides. Scope discipline is
-excellent — explicitly excluded items were left untouched.
+**Files changed:**
 
-**Verification:**
+- `docs/index.md`: Three edits — Key Features bullet (line 34), Rust code example (line 63), Python
+    code example (lines 72-77)
 
-- [x] `uv run zensical build` exits 0 — docs site builds without errors
-- [x] `grep -c '=== "' docs/index.md` returns 6 — one tab per language
-- [x] `grep 'Node.js' docs/index.md` matches — Node.js tab and binding table row present
-- [x] `grep 'Java' docs/index.md` matches — Java tab and binding table row present
-- [x] `grep 'Go' docs/index.md` matches — Go tab and binding table row present
-- [x] `grep 'WASM' docs/index.md` matches — WASM tab present
-- [x] `grep 'go get' docs/index.md` matches — Go install command in tab and table
-- [x] Available Bindings table has 7 rows (Rust, Python, Node.js, Java, Go, WebAssembly, C/C++)
-- [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] No quality gate circumvention — no suppressions, no test skipping, no threshold changes
+**Verification:** All seven criteria pass:
 
-**Issues found:**
+- `uv run zensical build` exits 0 — docs site builds cleanly
+- `grep 'Java, Go' docs/index.md` matches line 34
+- `grep -c 'json.loads' docs/index.md` returns 0
+- `grep -c 'import json' docs/index.md` returns 0
+- `grep 'result.iscc' docs/index.md` matches line 63
+- `grep -c 'JSON string' docs/index.md` returns 0
+- `mise run check` — all 14 pre-commit hooks pass
 
-- (none)
+**Next:** All documentation polish items from the iteration 29/30 review are now resolved. The
+project should be at full target compliance. Consider creating the PR from `develop` → `main` for
+the v0.0.1 release.
 
-**Next:** The "All code examples use tabbed multi-language format" target gap is now closed. Two
-minor documentation polish items remain (noted as "Not In Scope" in this iteration): (1) Rust Quick
-Start shows `println!("{result}"); // JSON string` but result is a struct, not a JSON string; (2)
-Python Quick Start uses `json.loads` unnecessarily since the binding returns a dict-like object
-directly. Also, Key Features bullet says "Rust, Python, Node.js, WebAssembly, or C" — doesn't
-mention Java or Go. These are cosmetic fixes suitable for a polish step before the v0.0.1 release PR
-from `develop` to `main`.
-
-**Notes:** mdformat auto-reformats JS `import` statements in markdown code blocks to multi-line
-style — this is standard formatter behavior and the code renders correctly on the docs site.
+**Notes:** Straightforward text-only changes, no surprises. The Python Quick Start now matches the
+README.md pattern (dict-style access without json.loads). The Rust Quick Start now matches the
+README.md pattern (struct field access).
