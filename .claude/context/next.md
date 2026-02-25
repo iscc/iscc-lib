@@ -1,88 +1,50 @@
 # Next Work Package
 
-## Step: Polish docs landing page code examples and Key Features
+## Step: Fix Python ruff format CI failure
 
 ## Goal
 
-Fix three cosmetic inaccuracies in `docs/index.md` identified during the iteration 30 review: the
-Key Features bullet omits Java and Go, the Rust Quick Start example treats the result as a JSON
-string instead of a struct, and the Python Quick Start uses unnecessary `json.loads`. These are the
-last documentation polish items before the project reaches full target compliance.
+Fix the `ruff format --check` failure in CI that is blocking the Python job (and thus pytest) from
+passing. The `_lowlevel.pyi` file has a single line-length formatting violation introduced by the
+interactive session commit `5461a65` (CPython C API optimizations for video functions).
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `docs/index.md`
-- **Reference**: `crates/iscc-lib/src/lib.rs` (return type of `gen_text_code_v0`),
-    `crates/iscc-py/python/iscc_lib/__init__.py` (Python API surface)
+- **Modify**: `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`
+- **Reference**: (none — the fix is mechanical formatting)
 
 ## Not In Scope
 
-- Changing the README.md Quick Start examples (already correct — uses `result.iscc` for Rust and
-    `result['iscc']` for Python)
-- Adding or modifying the howto guides
-- Updating any binding code or test files
-- Evaluating the TypeScript port (separate [low] issue)
-- Any CI/CD or publishing changes
+- Modifying any Rust code (`lib.rs`, `src/*.rs`)
+- Modifying `__init__.py` (already passes `ruff format --check`)
+- Investigating or changing the CPython C API logic in `crates/iscc-py/src/lib.rs`
+- Any other Python source changes beyond formatting
+- Tagging v0.0.1 or creating PRs (separate future step)
 
 ## Implementation Notes
 
-Three targeted edits in `docs/index.md`:
+Run `uv run ruff format crates/iscc-py/python/iscc_lib/_lowlevel.pyi` to apply canonical formatting.
+The only change is splitting the `gen_video_code_v0` function signature across multiple lines to
+satisfy the line-length limit:
 
-1. **Line 34 — Key Features bullet**: Change
-    `Multi-language — use from Rust, Python, Node.js, WebAssembly, or C` to
-    `Multi-language — use from Rust, Python, Java, Go, Node.js, WebAssembly, or C`. This matches
-    the README.md line 25 which already lists all languages.
+```diff
+-def gen_video_code_v0(frame_sigs: Sequence[Sequence[int]], bits: int = 64) -> dict[str, Any]:
++def gen_video_code_v0(
++    frame_sigs: Sequence[Sequence[int]], bits: int = 64
++) -> dict[str, Any]:
+```
 
-2. **Lines 62-63 — Rust Quick Start**: The current code is:
-
-    ```rust
-    let result = gen_text_code_v0("Hello World", 64)?;
-    println!("{result}"); // JSON string
-    ```
-
-    `gen_text_code_v0` returns `IsccResult<TextCodeResult>` (a struct with an `.iscc` field), not a
-    JSON string. Fix to:
-
-    ```rust
-    let result = gen_text_code_v0("Hello World", 64)?;
-    println!("{}", result.iscc);
-    ```
-
-3. **Lines 72-77 — Python Quick Start**: The current code is:
-
-    ```python
-    import json
-    from iscc_lib import gen_text_code_v0
-
-    result = json.loads(gen_text_code_v0("Hello World"))
-    print(result["iscc"])
-    ```
-
-    The Python binding returns a dict-like `IsccResult` object directly (with `__getattr__` →
-    `__getitem__` delegation). No `json.loads` needed. Fix to:
-
-    ```python
-    from iscc_lib import gen_text_code_v0
-
-    result = gen_text_code_v0("Hello World")
-    print(result["iscc"])
-    ```
-
-    Note: Python `gen_text_code_v0` takes only `text` (with `bits=64` default) — no second argument
-    needed.
+After applying, run `mise run format` to ensure all pre-commit auto-fix hooks are satisfied, then
+stage and commit.
 
 ## Verification
 
-- `uv run zensical build` exits 0 — docs site builds without errors
-- `grep 'Java, Go' docs/index.md` matches — Key Features mentions Java and Go
-- `grep -c 'json.loads' docs/index.md` returns 0 — no unnecessary json.loads in Python example
-- `grep -c 'import json' docs/index.md` returns 0 — no unused json import
-- `grep 'result.iscc' docs/index.md` matches — Rust example accesses struct field
-- `grep -c 'JSON string' docs/index.md` returns 0 — misleading comment removed
+- `uv run ruff format --check crates/iscc-py/python/iscc_lib/` exits 0
+- `uv run ruff check crates/iscc-py/python/iscc_lib/` exits 0 (still passes)
 - `mise run check` passes — all pre-commit hooks clean
 
 ## Done When
 
-All seven verification criteria pass, confirming the three cosmetic fixes are applied correctly and
-the docs site builds cleanly.
+All three verification criteria pass, confirming the formatting fix restores CI-green status for the
+Python job.
