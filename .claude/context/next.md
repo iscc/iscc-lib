@@ -1,144 +1,122 @@
 # Next Work Package
 
-## Step: Add 4 byte-buffer Go wrappers (AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0)
+## Step: Add Go streaming hashers (DataHasher + InstanceHasher)
 
 ## Goal
 
-Implement the 4 algorithm-primitive Go wrappers that return byte data (`[]byte` or `[][]byte`),
-bringing the Go binding from 17/23 to 21/23 Tier 1 symbols. These share a common pattern: call FFI →
-read struct from WASM memory → copy bytes to Go → free via FFI.
+Implement the 2 remaining Tier 1 streaming types in the Go binding — `DataHasher` and
+`InstanceHasher` — achieving full 23/23 Tier 1 parity. These structs wrap the WASM opaque pointer
+lifecycle (`new/update/finalize/free`) and provide idiomatic Go access to incremental hashing.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**: `packages/go/iscc.go`, `packages/go/iscc_test.go`
-- **Reference**: `crates/iscc-ffi/src/lib.rs` (FFI signatures at lines 782–975, free functions at
-    lines 1244–1275), `packages/go/iscc.go` (existing helpers: `writeI32Slice`, `writeBytes`,
-    `writeI32ArrayOfArrays`)
+- **Reference**: `crates/iscc-ffi/src/lib.rs` (lines 983–1187: FFI streaming hasher exports),
+    `packages/go/iscc.go` (existing `callStringResult`, `writeBytes`, `lastError` helpers)
 
 ## Not In Scope
 
-- Streaming hashers (`DataHasher`/`InstanceHasher`) — they need opaque pointer lifecycle, a
-    different pattern; save for next step
-- `io.Reader` support on the Go side — that wraps `DataHasher`/`InstanceHasher`
-- Root README Go section or docs updates
-- Changing the FFI crate's struct layout or function signatures
-- Benchmarking Go wrappers
+- `io.Reader` convenience wrappers (e.g., `HashReader(r io.Reader)`) — that's a future ergonomic
+    enhancement; this step exposes the core `New/Update/Finalize/Close` lifecycle
+- Updating `packages/go/README.md` with streaming hasher documentation
+- Root README Go section updates
+- Documentation how-to guides (`docs/howto/go.md`)
+- Adding `io.Writer` interface implementation — keep the API simple for now
 
 ## Implementation Notes
 
-### WASM ABI for struct returns — CRITICAL
+### Structs
 
-`IsccByteBuffer` is `{ *mut u8: i32, len: usize: i32 }` on wasm32 — 8 bytes total.
-`IsccByteBufferArray` is `{ *mut IsccByteBuffer: i32, count: usize: i32 }` — also 8 bytes.
-
-The Rust wasm32-wasip1 ABI for functions returning structs uses an **sret (structure return)
-pointer**: the caller allocates space in WASM memory and passes a pointer as the **first hidden
-parameter**. The function writes the struct to that address and returns nothing (or returns the same
-pointer). The advance agent MUST verify this by inspecting the actual WASM export signatures before
-writing any wrapper code:
+Add two exported struct types to `iscc.go`:
 
 ```go
-// Check the actual exported function signature:
-fn := rt.mod.ExportedFunction("iscc_alg_minhash_256")
-// Inspect fn.Definition().ParamTypes() and fn.Definition().ResultTypes()
+type DataHasher struct {
+    rt  *Runtime
+    ptr uint32 // opaque WASM-side FfiDataHasher pointer
+}
+
+type InstanceHasher struct {
+    rt  *Runtime
+    ptr uint32 // opaque WASM-side FfiInstanceHasher pointer
+}
 ```
 
-If the ABI uses sret, the calling pattern is:
+### Factory methods on Runtime
 
-1. `iscc_alloc(8)` to get an sret pointer for `IsccByteBuffer`
-2. Call `iscc_alg_minhash_256(sretPtr, featuresPtr, featuresLen)` — sret pointer is arg 0
-3. Read `data_ptr` (i32) and `len` (i32) from `sretPtr` in WASM memory
-4. Copy `len` bytes from `data_ptr` to a Go `[]byte`
-5. Call `iscc_free_byte_buffer(data_ptr, len)` — pass the struct fields as two i32 args
-6. `iscc_dealloc(sretPtr, 8)` to free the sret allocation
+- `func (rt *Runtime) NewDataHasher(ctx context.Context) (*DataHasher, error)` — calls
+    `iscc_data_hasher_new()`, stores the returned `uint32` pointer. Check for 0 (NULL) as error
+- `func (rt *Runtime) NewInstanceHasher(ctx context.Context) (*InstanceHasher, error)` — calls
+    `iscc_instance_hasher_new()`, stores the returned `uint32` pointer
 
-Similarly, `iscc_free_byte_buffer` takes `IsccByteBuffer` **by value**. On wasm32, this is typically
-lowered to two i32 parameters `(data_ptr, len)`. Verify with
-`rt.mod.ExportedFunction("iscc_free_byte_buffer").Definition().ParamTypes()`.
+### Methods on each hasher
 
-**Alternative ABI**: If the compiler returns the struct packed as a single `i64` (two i32s), the
-pattern is different — extract high/low halves. Check `ResultTypes()` to determine which ABI is
-used. Do NOT assume — verify empirically.
+**Update(ctx, data []byte) error:**
 
-### New private helpers needed
+1. Write `data` to WASM memory via existing `writeBytes` helper
+2. Call `iscc_data_hasher_update(ptr, dataPtr, dataLen)` — returns a single `uint64`
+3. Interpret as bool: 0 = false (error), nonzero = true (ok)
+4. On false, read `rt.lastError(ctx)` for the message
+5. Deallocate the data buffer afterward (the FFI copies into its internal state)
 
-1. **`readByteBuffer(ctx, sretPtr uint32) (dataPtr uint32, dataLen uint32, err error)`** — reads the
-    two i32 fields of `IsccByteBuffer` from WASM memory at the given address. Checks if
-    `dataPtr == 0` (null = error) and falls back to `lastError`.
+This mirrors how `GenDataCodeV0`/`GenInstanceCodeV0` already handle their `data []byte` parameter.
 
-2. **`freeByteBuffer(ctx, dataPtr, dataLen uint32) error`** — calls `iscc_free_byte_buffer` passing
-    the struct fields. No-op if `dataPtr == 0`.
+**Finalize(ctx, bits uint32) (string, error):**
 
-3. **`callByteBufferResult(ctx, fnName string, sretPtr uint32) ([]byte, error)`** — orchestrates:
-    read struct from sretPtr → check null → copy bytes from WASM → free byte buffer → dealloc sret
-    → return Go `[]byte`. This is the analog of `callStringResult` for byte buffer returns.
+1. Call `iscc_data_hasher_finalize(ptr, bits)` — returns a `*mut c_char` pointer as `uint64`
+2. Use the same pattern as `callStringResult`: if pointer is 0 (null), read `lastError()`; otherwise
+    read the string and free it via `freeString`
+3. After finalize, the WASM-side inner is consumed — subsequent Update/Finalize calls will return
+    errors from the FFI layer
 
-4. **`readByteBufferArray(ctx, sretPtr uint32) (buffersPtr uint32, count uint32, err error)`** —
-    reads the two fields of `IsccByteBufferArray`.
+**Close(ctx) error:**
 
-5. **`freeByteBufferArray(ctx, buffersPtr, count uint32) error`** — calls
-    `iscc_free_byte_buffer_array` passing the struct fields.
+1. Call `iscc_data_hasher_free(ptr)` — fire-and-forget, no meaningful return
+2. Set `h.ptr = 0` after free to prevent double-free (FFI treats NULL as no-op, but being explicit
+    is more Go-idiomatic)
+3. Safe to call multiple times
 
-6. **`writeU32Slice(ctx, values []uint32) (ptr, allocSize, count uint32, err error)`** — needed for
-    `AlgMinhash256` which takes `*const u32` features. Follows the exact same pattern as
-    `writeI32Slice` but with `uint32` values (the encoding is identical since both are 4 bytes, but
-    the Go types differ).
+Same 3 methods on `InstanceHasher` with `iscc_instance_hasher_*` functions.
 
-### Input helper for AlgSimhash byte-array-of-arrays
+### WASM export signatures
 
-`AlgSimhash` takes `*const *const u8` (array of byte pointers) + `*const usize` (array of lengths) +
-count. This is similar to the existing `writeI32ArrayOfArrays` but for `[][]byte`. Write a
-`writeByteArrayOfArrays(ctx, digests [][]byte) (dataPtrsPtr, dataLensPtr, count uint32, cleanup func(), err error)`
-helper following the same allocate-pointers+lengths-in-WASM pattern.
+The FFI functions for streaming hashers use simple parameter types (no sret ABI needed):
 
-### Public wrappers
+- `iscc_data_hasher_new() -> i32` (pointer)
+- `iscc_data_hasher_update(hasher: i32, data: i32, data_len: i32) -> i32` (bool)
+- `iscc_data_hasher_finalize(hasher: i32, bits: i32) -> i32` (string pointer)
+- `iscc_data_hasher_free(hasher: i32)` (void)
 
-1. **`AlgSimhash(ctx, digests [][]byte) ([]byte, error)`** — build pointer+length arrays via
-    `writeByteArrayOfArrays`, allocate sret, call
-    `iscc_alg_simhash(sretPtr, digestsPtr, lensPtr,  count)`, read via `callByteBufferResult`.
-    Returns SimHash bytes (length matches input digest length).
+Same pattern for `iscc_instance_hasher_*`.
 
-2. **`AlgMinhash256(ctx, features []uint32) ([]byte, error)`** — write u32 features via
-    `writeU32Slice`, allocate sret, call FFI, read byte buffer result. Always returns 32 bytes.
+### Tests to add in `iscc_test.go`
 
-3. **`AlgCdcChunks(ctx, data []byte, utf32 bool, avgChunkSize uint32) ([][]byte, error)`** — write
-    input bytes via `writeBytes`, allocate sret (8 bytes for `IsccByteBufferArray`), call
-    `iscc_alg_cdc_chunks(sretPtr, dataPtr, dataLen, utf32, avgChunkSize)`, read buffer array from
-    sret, iterate: each `IsccByteBuffer` is at `buffersPtr + i*8` (8 bytes per struct on wasm32),
-    copy each chunk's bytes to Go, then call `freeByteBufferArray`.
+1. **`TestDataHasherOneShot`** — single Update + Finalize, compare result to `GenDataCodeV0` with
+    the same input bytes. Use a conformance vector's hex-decoded stream data
+2. **`TestDataHasherMultiChunk`** — split data at an arbitrary offset into 2 Update calls, verify
+    same result as one-shot
+3. **`TestDataHasherEmpty`** — Finalize with no Update calls (should produce a valid ISCC for empty
+    data — matches `GenDataCodeV0` with empty bytes)
+4. **`TestDataHasherDoubleFinalize`** — second Finalize returns error
+5. **`TestInstanceHasherOneShot`** — same as DataHasher pattern
+6. **`TestInstanceHasherMultiChunk`** — split data across 2 Update calls
+7. **`TestInstanceHasherEmpty`** — Finalize with no Update calls
+8. **`TestInstanceHasherDoubleFinalize`** — second Finalize returns error
 
-4. **`SoftHashVideoV0(ctx, frameSigs [][]int32, bits uint32) ([]byte, error)`** — reuse existing
-    `writeI32ArrayOfArrays` helper, allocate sret, call FFI, read byte buffer result.
-
-### Tests
-
-Add tests with known inputs (algorithm primitives don't have dedicated conformance vectors — the gen
-function conformance tests exercise them indirectly):
-
-- `TestAlgSimhash` — pass 2+ digests of equal length (e.g., 4-byte digests), verify output length
-    equals input digest length
-- `TestAlgMinhash256` — pass known `[]uint32` features, verify output is exactly 32 bytes
-- `TestAlgCdcChunks` — pass known data (e.g., 2048+ bytes), verify: returns ≥1 chunk, concatenation
-    of all chunks equals the original input data
-- `TestSoftHashVideoV0` — pass 2+ frame signatures (380-element `[]int32` each), verify output
-    length = bits/8
-- `TestSoftHashVideoV0Error` — pass empty frames → error (validates error propagation for byte
-    buffer returns)
-- `TestAlgCdcChunksEmpty` — pass empty data → returns 1 chunk of empty bytes
+For tests 1–3 and 5–7, the expected result should match the corresponding `Gen*CodeV0` function
+called with the same complete data, verifying streaming equivalence.
 
 ## Verification
 
-- `CGO_ENABLED=0 go test -v -count=1 ./...` in `packages/go/` passes — all tests PASS (22 existing +
-    new tests)
-- `go vet ./...` in `packages/go/` is clean
-- `grep 'AlgSimhash\|AlgMinhash256\|AlgCdcChunks\|SoftHashVideoV0' packages/go/iscc.go | wc -l`
-    outputs ≥ 4 (public method definitions exist)
-- `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` outputs ≥ 38 (32 existing + ~6 new helpers and
-    public methods)
-- `mise run check` passes (all pre-commit hooks clean)
+- `CGO_ENABLED=0 mise exec -- go test -v -count=1 ./...` in `packages/go/` passes — all existing 27
+    tests plus 8 new streaming hasher tests
+- `mise exec -- go vet ./...` in `packages/go/` is clean
+- `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` outputs ≥ 45 (43 existing + 2 new factory
+    methods)
+- `grep -c 'type.*Hasher struct' packages/go/iscc.go` outputs 2 (DataHasher + InstanceHasher)
+- `grep -c 'func Test' packages/go/iscc_test.go` outputs ≥ 35 (27 existing + 8 new)
 
 ## Done When
 
-All 4 byte-buffer-returning Go wrappers are implemented with tests, `go test` passes, and `go vet`
-is clean.
+All verification criteria pass — the Go binding exposes 23/23 Tier 1 symbols with full streaming
+hasher support, and all tests (existing + new) pass with `CGO_ENABLED=0`.

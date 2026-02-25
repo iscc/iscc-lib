@@ -51,54 +51,19 @@ iterations.
     pattern so consistency is the primary motivation.
 - Go bindings multi-step plan: (1) WASI build + alloc/dealloc ✅ → (2) Go module scaffold + wazero
     bridge + memory helpers ✅ → (3) gen\_\*\_v0 wrappers + conformance tests ✅ → (4) CI job ✅ → (5)
-    Go README (current) → (6) remaining 12 Tier 1 wrappers (text utils, algo primitives, streaming
-    hashers) → (7) root README Go section → (8) docs/howto/go.md.
+    Go README ✅ → (6) remaining 12 Tier 1 wrappers ✅ (string utils batch ✅, byte-buffer batch ✅) →
+    **(7) streaming hashers (DataHasher/InstanceHasher) — CURRENT** → (8) root README Go section →
+    (9) docs/howto/go.md.
 - Go scaffold scoping: the WASM binary (~10.5 MB debug) is NOT checked into git. Uses `//go:embed`
     with a gitignored binary built by `cargo build -p iscc-ffi --target wasm32-wasip1`. TestMain
     skips gracefully if binary is missing.
-- Go gen\_\*\_v0 wrappers need 4 memory helper categories: (1) writeString (existing), (2)
-    writeBytes for raw byte data (image/data/instance), (3) writeI32Slice for int32 arrays (audio),
-    (4) writeStringArray + writeI32ArrayOfArrays for pointer-to-pointer patterns (mixed/iscc/video).
-    WASM32 is little-endian for all integer writes. Pointer arrays use uint32 elements (4 bytes
-    each).
-- Go module path is `github.com/iscc/iscc-lib/packages/go` with package name `iscc`. This matches
-    the `go get` path in target.md.
-- Go/wazero requires WASI instantiation (`wasi_snapshot_preview1.MustInstantiate`) because iscc-ffi
-    targets `wasm32-wasip1`. Without WASI, the module won't instantiate.
-- `iscc_last_error()` returns a borrowed pointer (not owned) — the Go bridge must NOT call
-    `iscc_free_string` on it. This differs from `iscc_text_clean` etc. which return owned strings.
-- Go installation via mise is the cleanest approach — add `go = "latest"` to `[tools]` section in
-    `mise.toml`. This avoids Dockerfile changes and works in both devcontainer and CI contexts.
-- Go CI job is unique among CI jobs: it has a cross-compilation build step (Rust → wasm32-wasip1)
-    before the language-specific test phase. The WASM binary is ~10.5 MB debug. Use
-    `dtolnay/rust-toolchain@stable` with `targets: wasm32-wasip1` to avoid a separate rustup step.
-    Use `actions/setup-go@v5` with `go-version-file` instead of hardcoded version.
-- Go README is a natural step after CI (step 4→5 in the multi-step plan). It documents the currently
-    available API (11 exported methods: NewRuntime, Close, ConformanceSelftest, TextClean, 9
-    Gen\*CodeV0). All methods are on `*Runtime`, take `context.Context` first, return `(T, error)`.
-    Module path is `github.com/iscc/iscc-lib/packages/go`, package name is `iscc`. Go module proxy
-    (pkg.go.dev) renders README.md from the module root.
-- The 12 remaining Go wrappers break into 3 natural batches by return-type complexity: (A) 4
-    string-returning: TextRemoveNewlines, TextCollapse, TextTrim, EncodeBase64 — copy TextClean
-    pattern. (B) 2 string-array-returning: SlidingWindow, IsccDecompose — need readStringArray +
-    freeStringArray helpers for null-terminated `*mut *mut c_char`. (C) 4 byte-buffer-returning:
-    AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0 — need
-    IsccByteBuffer/IsccByteBufferArray read/free helpers. (D) 2 streaming types: DataHasher,
-    InstanceHasher — opaque pointer lifecycle. Batches A+B are a natural single step (6 functions,
-    all string-based, 2 files).
-- WASM32 string arrays: `iscc_decompose` and `iscc_sliding_window` return `*mut *mut c_char` — a
-    pointer to a null-terminated array of u32 pointers (WASM32 = 4-byte pointers). Read u32s until
-    0, readString each, then call `iscc_free_string_array(outer_ptr)` to free.
-- WASM32 struct returns: FFI functions returning `IsccByteBuffer` (8 bytes) or `IsccByteBufferArray`
-    (8 bytes) use sret (structure return pointer) ABI on wasm32-wasip1 — the caller allocates WASM
-    memory and passes a pointer as the first hidden parameter. The advance agent MUST verify actual
-    WASM export signatures via `fn.Definition().ParamTypes()` before implementing, as the ABI could
-    also use packed i64 returns. `iscc_free_byte_buffer` takes the struct by value, which lowers to
-    two i32 params (data_ptr, len) on wasm32.
-- Byte-buffer Go wrapper batching: 4 functions (AlgSimhash, AlgMinhash256, AlgCdcChunks,
-    SoftHashVideoV0) share ~5 private helpers (readByteBuffer, freeByteBuffer, callByteBufferResult,
-    readByteBufferArray, freeByteBufferArray) plus writeU32Slice. Reasonable single step since
-    helpers are shared infrastructure and each wrapper is thin. Pre-change method count: 32.
+- Go streaming hashers are simpler than byte-buffer wrappers: no sret ABI, no struct reads from WASM
+    memory. The opaque pointer lifecycle is 4 simple FFI calls (new→update→finalize→free) with basic
+    parameter types (i32 pointer, i32 data_ptr, i32 data_len, i32 bits). Finalize returns a string
+    pointer (same as gen functions). 2 new Go structs + 2 factory methods + 6 methods (3 each) + 8
+    tests. Modifies only 2 files.
+- After Go streaming hashers complete (23/23 Tier 1), remaining gaps are documentation: root README
+    Go section, howto/java.md, howto/go.md. These are all greenfield documentation tasks.
 
 ## Architecture Decisions
 
