@@ -116,10 +116,11 @@ iterations.
 - Go streaming hasher pattern: `DataHasher`/`InstanceHasher` structs hold `rt *Runtime` +
     `ptr   uint32` (opaque WASM pointer). Factory methods on Runtime call `iscc_*_hasher_new()` and
     check for NULL. `Update` writes bytes via `writeBytes`, calls `iscc_*_hasher_update` (returns
-    i32 as bool: 0=error, nonzero=ok). `Finalize` calls `iscc_*_hasher_finalize` (returns string
-    pointer) and uses `callStringResult`. `Close` calls `iscc_*_hasher_free` and zeroes `h.ptr` to
-    prevent double-free (fire-and-forget, safe to call multiple times). No sret ABI needed — all
-    streaming hasher FFI functions use simple i32 params/returns
+    i32 as bool: 0=error, nonzero=ok). `UpdateFrom` reads from `io.Reader` in 64 KiB chunks and
+    delegates to `Update`. `Finalize` calls `iscc_*_hasher_finalize` (returns string pointer) and
+    uses `callStringResult`. `Close` calls `iscc_*_hasher_free` and zeroes `h.ptr` to prevent
+    double-free (fire-and-forget, safe to call multiple times). No sret ABI needed — all streaming
+    hasher FFI functions use simple i32 params/returns
 - Byte-buffer-returning WASM functions use sret ABI: caller allocates 8 bytes (IsccByteBuffer or
     IsccByteBufferArray struct), passes ptr as first arg. Function writes struct fields to that ptr.
     The free functions (iscc_free_byte_buffer, iscc_free_byte_buffer_array) take the struct by

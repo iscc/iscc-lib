@@ -5,9 +5,11 @@
 package iscc
 
 import (
+	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -1067,4 +1069,140 @@ func TestGenIsccCodeV0(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ── UpdateFrom tests ─────────────────────────────────────────────────────────
+
+// TestDataHasherUpdateFrom verifies that feeding data via UpdateFrom(bytes.NewReader)
+// produces the same result as the GenDataCodeV0 one-shot function.
+func TestDataHasherUpdateFrom(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+	vectors := loadVectors(t)
+
+	cases := vectors["gen_data_code_v0"]
+	for name, v := range cases {
+		t.Run(name, func(t *testing.T) {
+			data := parseStreamData(t, name, v.Inputs[0])
+			bits := parseBits(t, name, v.Inputs[1])
+
+			expected, err := rt.GenDataCodeV0(ctx, data, bits)
+			if err != nil {
+				t.Fatalf("GenDataCodeV0: %v", err)
+			}
+
+			h, err := rt.NewDataHasher(ctx)
+			if err != nil {
+				t.Fatalf("NewDataHasher: %v", err)
+			}
+			defer func() { _ = h.Close(ctx) }()
+
+			if err := h.UpdateFrom(ctx, bytes.NewReader(data)); err != nil {
+				t.Fatalf("UpdateFrom: %v", err)
+			}
+			got, err := h.Finalize(ctx, bits)
+			if err != nil {
+				t.Fatalf("Finalize: %v", err)
+			}
+			if got != expected {
+				t.Fatalf("DataHasher UpdateFrom: got %q, want %q", got, expected)
+			}
+		})
+	}
+}
+
+// TestInstanceHasherUpdateFrom verifies that feeding data via UpdateFrom(bytes.NewReader)
+// produces the same result as the GenInstanceCodeV0 one-shot function.
+func TestInstanceHasherUpdateFrom(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+	vectors := loadVectors(t)
+
+	cases := vectors["gen_instance_code_v0"]
+	for name, v := range cases {
+		t.Run(name, func(t *testing.T) {
+			data := parseStreamData(t, name, v.Inputs[0])
+			bits := parseBits(t, name, v.Inputs[1])
+
+			expected, err := rt.GenInstanceCodeV0(ctx, data, bits)
+			if err != nil {
+				t.Fatalf("GenInstanceCodeV0: %v", err)
+			}
+
+			h, err := rt.NewInstanceHasher(ctx)
+			if err != nil {
+				t.Fatalf("NewInstanceHasher: %v", err)
+			}
+			defer func() { _ = h.Close(ctx) }()
+
+			if err := h.UpdateFrom(ctx, bytes.NewReader(data)); err != nil {
+				t.Fatalf("UpdateFrom: %v", err)
+			}
+			got, err := h.Finalize(ctx, bits)
+			if err != nil {
+				t.Fatalf("Finalize: %v", err)
+			}
+			if got != expected {
+				t.Fatalf("InstanceHasher UpdateFrom: got %q, want %q", got, expected)
+			}
+		})
+	}
+}
+
+// TestDataHasherUpdateFromMultiChunk uses a small-buffer reader to force multiple
+// Read calls, verifying that UpdateFrom handles partial reads correctly.
+func TestDataHasherUpdateFromMultiChunk(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+	vectors := loadVectors(t)
+
+	cases := vectors["gen_data_code_v0"]
+	for name, v := range cases {
+		data := parseStreamData(t, name, v.Inputs[0])
+		if len(data) < 2 {
+			continue
+		}
+		bits := parseBits(t, name, v.Inputs[1])
+
+		expected, err := rt.GenDataCodeV0(ctx, data, bits)
+		if err != nil {
+			t.Fatalf("GenDataCodeV0: %v", err)
+		}
+
+		// Wrap in a reader that returns at most 7 bytes per Read call.
+		smallReader := &smallBufReader{r: bytes.NewReader(data), max: 7}
+
+		h, err := rt.NewDataHasher(ctx)
+		if err != nil {
+			t.Fatalf("NewDataHasher: %v", err)
+		}
+		defer func() { _ = h.Close(ctx) }()
+
+		if err := h.UpdateFrom(ctx, smallReader); err != nil {
+			t.Fatalf("UpdateFrom: %v", err)
+		}
+		got, err := h.Finalize(ctx, bits)
+		if err != nil {
+			t.Fatalf("Finalize: %v", err)
+		}
+		if got != expected {
+			t.Fatalf("DataHasher UpdateFrom multi-chunk: got %q, want %q", got, expected)
+		}
+		return
+	}
+	t.Fatal("no suitable data code vector found with len >= 2")
+}
+
+// smallBufReader wraps an io.Reader and limits each Read to max bytes.
+type smallBufReader struct {
+	r   io.Reader
+	max int
+}
+
+// Read reads up to s.max bytes from the underlying reader.
+func (s *smallBufReader) Read(p []byte) (int, error) {
+	if len(p) > s.max {
+		p = p[:s.max]
+	}
+	return s.r.Read(p)
 }

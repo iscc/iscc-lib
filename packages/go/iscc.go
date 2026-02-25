@@ -1085,6 +1085,26 @@ func (h *DataHasher) Update(ctx context.Context, data []byte) error {
 	return nil
 }
 
+// UpdateFrom reads all data from r and feeds it into the hasher in chunks.
+// Uses 64 KiB internal buffer. Returns any read or update error.
+func (h *DataHasher) UpdateFrom(ctx context.Context, r io.Reader) error {
+	buf := make([]byte, 64*1024)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			if updateErr := h.Update(ctx, buf[:n]); updateErr != nil {
+				return updateErr
+			}
+		}
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("iscc: read: %w", err)
+		}
+	}
+}
+
 // Finalize completes the hashing and returns the ISCC Data-Code string.
 // After Finalize, Update and Finalize will return errors. The caller must
 // still call Close to free WASM-side memory.
@@ -1132,6 +1152,26 @@ func (h *InstanceHasher) Update(ctx context.Context, data []byte) error {
 		return fmt.Errorf("iscc_instance_hasher_update: %s", h.rt.lastError(ctx))
 	}
 	return nil
+}
+
+// UpdateFrom reads all data from r and feeds it into the hasher in chunks.
+// Uses 64 KiB internal buffer. Returns any read or update error.
+func (h *InstanceHasher) UpdateFrom(ctx context.Context, r io.Reader) error {
+	buf := make([]byte, 64*1024)
+	for {
+		n, err := r.Read(buf)
+		if n > 0 {
+			if updateErr := h.Update(ctx, buf[:n]); updateErr != nil {
+				return updateErr
+			}
+		}
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("iscc: read: %w", err)
+		}
+	}
 }
 
 // Finalize completes the hashing and returns the ISCC Instance-Code string.
