@@ -208,6 +208,9 @@ iterations.
     AlgCdcChunks, AlgSimhash) not present in Python/Node.js guides
 - All 6 how-to guides complete: Rust (356 lines), Python (353), Node.js (281), WASM (338), Go (388),
     Java (321)
+- `docs/architecture.md` and `docs/development.md` include all 6 binding crates (Python, Node.js,
+    WASM, C FFI, JNI, Go) in diagrams, layout trees, and tables. Go uses dotted arrow (`-.->`) in
+    Mermaid to indicate indirect WASM dependency via `iscc-ffi`
 - Java guide key differences from Go: no runtime object (static methods), "Setup" section replaces
     "Runtime setup", streaming uses opaque `long` handles with try-finally (not defer),
     `genIsccCodeV0` exposes `boolean wide` parameter (Go hardcodes to false)

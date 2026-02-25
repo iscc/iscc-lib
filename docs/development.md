@@ -43,6 +43,8 @@ The `postCreateCommand` runs automatically: trusts the mise config, installs Pyt
 | Rust (stable)    | Core library                  |
 | Python 3.12 + uv | Python bindings, dev tools    |
 | Node.js 20       | Node.js bindings, Claude Code |
+| JDK 17 + Maven   | Java JNI bindings             |
+| Go 1.24          | Go bindings (wazero)          |
 | mise             | Tool versions + task runner   |
 | Claude Code      | AI agent loop                 |
 | gh               | GitHub CLI                    |
@@ -184,9 +186,20 @@ iscc-lib/
 │   ├── iscc-wasm/              # WebAssembly bindings (wasm-bindgen)
 │   │   ├── src/lib.rs          # wasm-bindgen exports
 │   │   └── tests/              # WASM integration tests
-│   └── iscc-ffi/               # C FFI bindings
-│       ├── src/lib.rs          # extern "C" functions
-│       └── tests/              # C test program
+│   ├── iscc-ffi/               # C FFI bindings
+│   │   ├── src/lib.rs          # extern "C" functions
+│   │   └── tests/              # C test program
+│   └── iscc-jni/               # Java JNI bindings
+│       ├── src/lib.rs          # JNI extern "system" functions
+│       └── java/               # Java package + Maven build
+│           ├── pom.xml
+│           └── src/             # IsccLib.java + tests
+├── packages/
+│   └── go/                     # Go module (pure Go, no cgo)
+│       ├── go.mod
+│       ├── iscc.go             # wazero WASM bridge
+│       ├── iscc_test.go        # Conformance tests
+│       └── iscc_ffi.wasm       # Embedded WASM binary
 ├── docs/                       # Documentation site (lib.iscc.codes)
 ├── benchmarks/
 │   └── python/                 # Comparative Python benchmarks
@@ -204,13 +217,15 @@ iscc-lib/
 
 ### Crate Summary
 
-| Crate       | Produces                         | Build Tool     | Published To |
-| ----------- | -------------------------------- | -------------- | ------------ |
-| `iscc-lib`  | Rust library                     | cargo          | crates.io    |
-| `iscc-py`   | Python wheel                     | maturin + PyO3 | PyPI         |
-| `iscc-napi` | Native Node.js addon             | napi-rs        | npm          |
-| `iscc-wasm` | WASM package                     | wasm-bindgen   | npm          |
-| `iscc-ffi`  | Shared library (.so/.dll/.dylib) | cargo          | Source       |
+| Crate         | Produces                         | Build Tool     | Published To  |
+| ------------- | -------------------------------- | -------------- | ------------- |
+| `iscc-lib`    | Rust library                     | cargo          | crates.io     |
+| `iscc-py`     | Python wheel                     | maturin + PyO3 | PyPI          |
+| `iscc-napi`   | Native Node.js addon             | napi-rs        | npm           |
+| `iscc-wasm`   | WASM package                     | wasm-bindgen   | npm           |
+| `iscc-ffi`    | Shared library (.so/.dll/.dylib) | cargo          | Source        |
+| `iscc-jni`    | JNI shared library               | cargo          | Maven Central |
+| `packages/go` | Go module                        | cargo + wazero | pkg.go.dev    |
 
 ## Mise Task Runner
 
