@@ -359,4 +359,36 @@ class IsccLibTest {
                 IllegalArgumentException.class,
                 () -> IsccLib.algCdcChunks(new byte[] {1, 2, 3}, false, -1));
     }
+
+    // ── Hasher state validation ─────────────────────────────────────────────
+
+    /** Verify DataHasher throws IllegalStateException when update is called after finalize. */
+    @Test
+    void testDataHasherThrowsIllegalStateAfterFinalize() {
+        long ptr = IsccLib.dataHasherNew();
+        try {
+            IsccLib.dataHasherUpdate(ptr, new byte[] {1, 2, 3});
+            IsccLib.dataHasherFinalize(ptr, 64);
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> IsccLib.dataHasherUpdate(ptr, new byte[] {4, 5, 6}));
+        } finally {
+            IsccLib.dataHasherFree(ptr);
+        }
+    }
+
+    /** Verify InstanceHasher throws IllegalStateException when update is called after finalize. */
+    @Test
+    void testInstanceHasherThrowsIllegalStateAfterFinalize() {
+        long ptr = IsccLib.instanceHasherNew();
+        try {
+            IsccLib.instanceHasherUpdate(ptr, new byte[] {1, 2, 3});
+            IsccLib.instanceHasherFinalize(ptr, 64);
+            assertThrows(
+                    IllegalStateException.class,
+                    () -> IsccLib.instanceHasherUpdate(ptr, new byte[] {4, 5, 6}));
+        } finally {
+            IsccLib.instanceHasherFree(ptr);
+        }
+    }
 }

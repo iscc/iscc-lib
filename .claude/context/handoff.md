@@ -1,32 +1,37 @@
-## 2026-02-25 — Review of: Create version sync tooling
+## 2026-02-25 — JNI IllegalStateException for finalized hashers
 
-**Verdict:** PASS
+**Done:** Added `throw_state_error` helper to JNI bindings that throws `IllegalStateException`
+instead of `IllegalArgumentException`. Changed 4 call sites in the streaming hasher update/finalize
+functions and updated 2 doc comments. Added 2 Java tests verifying the exception type.
 
-**Summary:** Clean implementation of `scripts/version_sync.py` and mise tasks `version:sync` /
-`version:check`. The script correctly reads the workspace version from root `Cargo.toml` via regex,
-updates `package.json` (json stdlib) and `pom.xml` (regex replacement), and supports `--check`
-validation mode. All 8 verification criteria pass, all 14 pre-commit hooks clean.
+**Files changed:**
+
+- `crates/iscc-jni/src/lib.rs`: Added `throw_state_error` helper function, changed 4 "already
+    finalized" error paths from `throw_and_default` to `throw_state_error`, updated 2 doc comments
+    from `IllegalArgumentException` to `IllegalStateException`
+- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`: Added
+    `testDataHasherThrowsIllegalStateAfterFinalize` and
+    `testInstanceHasherThrowsIllegalStateAfterFinalize` test methods
 
 **Verification:**
 
-- [x] `uv run scripts/version_sync.py --check` exits 0 — both manifests report OK
-- [x] `uv run scripts/version_sync.py` runs without error — reports "Version sync complete."
-- [x] `mise run version:sync` executes the sync script successfully
-- [x] `mise run version:check` executes the check script and exits 0
-- [x] `grep -q 'version:sync' mise.toml` exits 0 — task registered at line 77
-- [x] `grep -q 'version:check' mise.toml` exits 0 — task registered at line 81
-- [x] `grep -q 'import re' scripts/version_sync.py` exits 0 — uses regex, stdlib only
-- [x] `mise run check` passes — all 14 pre-commit hooks clean
+- [x] `cargo build -p iscc-jni` succeeds
+- [x] `mvn test` passes — 51 tests (49 existing + 2 new), 0 failures
+- [x] `grep -c 'throw_state_error'` outputs 5 (1 definition + 4 call sites; next.md expected 4
+    counting call sites only, but grep counts lines)
+- [x] `grep -c 'IllegalStateException' lib.rs` outputs 4 (≥1 required)
+- [x] `grep -c 'IllegalStateException' IsccLibTest.java` outputs 4 (≥2 required)
+- [x] `cargo clippy -p iscc-jni -- -D warnings` clean
+- [x] `mise run check` — all 14 pre-commit hooks pass
 
-**Issues found:**
+**Next:** The `[low] iscc-jni: All exceptions mapped to IllegalArgumentException` issue is resolved.
+The Java-side Javadoc in `IsccLib.java` still says `@throws IllegalArgumentException` for the hasher
+update/finalize methods (lines 266, 280, 308, 322) — consider updating those in a follow-up to match
+the actual `IllegalStateException` behavior. Remaining low-priority issues: TypeScript port
+evaluation and WASM CLAUDE.md staleness. The project is ready for `v0.0.1` release.
 
-- (none — minor code redundancy in `get_pom_xml_version()` fixed directly)
-
-**Next:** The `[normal] Create version sync tooling` issue is resolved and the spec's Version Sync
-checkboxes are now all checked. All remaining issues are `[low]` priority: TypeScript port
-evaluation, JNI exception mapping, and WASM CLAUDE.md staleness. The project is ready for `v0.0.1`
-release — consider creating a PR from develop to main.
-
-**Notes:** The sync script's `json.dumps(data, indent=2)` reformatted `package.json`'s inline array
-`["aarch64-unknown-linux-gnu"]` to multi-line — cosmetic but idempotent (subsequent runs produce no
-diff). The pom.xml `0.0.1-SNAPSHOT` → `0.0.1` change was expected per next.md design.
+**Notes:** The `throw_state_error` grep count is 5 (not 4 as next.md predicted) because `grep -c`
+counts all lines matching the pattern, including the function definition line. This is correct — 1
+definition + 4 call sites = 5 matching lines. The `IsccLib.java` Javadoc was not updated because
+next.md scoped it as "Reference" only. The cosmetic mismatch between Java Javadoc and actual
+behavior is harmless but should be cleaned up.

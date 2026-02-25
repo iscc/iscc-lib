@@ -46,9 +46,13 @@ iterations.
     `_DataHasher`/`_InstanceHasher` for true streaming (no unbounded `.read()`)
 - `from __future__ import annotations` is active in `__init__.py` — use `|` union syntax in type
     annotations, do NOT import `Union` from typing (ruff flags it as unused)
-- JNI error handling: all `unwrap()` calls replaced with `throw_and_default` pattern. Three forms:
-    (1) nested match for `env.new_string().into_raw()`, (2) nested match for
+- JNI error handling: `throw_and_default` for `IllegalArgumentException` (invalid input),
+    `throw_state_error` for `IllegalStateException` (invalid object state, e.g., finalized hashers).
+    Three return forms: (1) nested match for `env.new_string().into_raw()`, (2) nested match for
     `env.byte_array_from_slice().into_raw()`, (3) early-return match + `if let Err` for loop bodies
+- JNI Java-side Javadoc (`IsccLib.java`) still says `@throws IllegalArgumentException` for hasher
+    update/finalize methods — the Rust side throws `IllegalStateException` but Java declarations are
+    cosmetically mismatched (tests verify correct runtime behavior)
 
 ## WASM/WASI
 
