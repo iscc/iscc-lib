@@ -63,11 +63,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Gotchas
 
-- `packages/go/` (iteration 13, commit c22fa53): `iscc.go` now 1,165 lines — 23/23 Tier 1 symbols
-    including `DataHasher` + `InstanceHasher` streaming types (New\*/Update/Finalize/Close lifecycle
-    wrapping WASM FfiDataHasher/FfiInstanceHasher). `iscc_test.go` 1,069 lines — 36 func
-    declarations (TestMain + 35 tests including 8 streaming hasher tests). Update takes `[]byte`,
-    NOT `io.Reader` — architecture gap noted. WASM binary gitignored; TestMain skips if missing.
+- `packages/go/` (iteration 13, commit c22fa53; updated iteration 7, commit 84ddb1b): `iscc.go` now
+    1,220 lines — 23/23 Tier 1 symbols including `DataHasher` + `InstanceHasher` with
+    `New*/Update/UpdateFrom/Finalize/Close` lifecycle. `iscc_test.go` now 1,208 lines — 39 test
+    functions, 93 subtests including `TestDataHasherUpdateFrom` and `TestInstanceHasherUpdateFrom`.
+    `io.Reader` gap resolved in iteration 7. WASM binary gitignored; TestMain skips if missing.
 - Per-crate READMEs: all 7 done (iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni, packages/go,
     iscc-ffi). iscc-ffi/README.md created in iteration 29 (123 lines). packages/go/README.md created
     in iteration 10 (commit a60a375).
@@ -249,3 +249,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`. Java Bindings status:
     partially met (release workflow now has native bundling jobs; Maven Central publishing still
     missing). PR #3 still open.
+- **io.Reader streaming added to Go bindings (iteration 7, commits 84ddb1b+4c942dd)**:
+    `UpdateFrom(ctx, io.Reader)` added to both `DataHasher` and `InstanceHasher` in
+    `packages/go/iscc.go`; 64 KiB buffer, delegates to `Update`. 4 new test functions added
+    (`TestDataHasherUpdateFrom`, `TestInstanceHasherUpdateFrom`). `iscc.go` now 1,220 lines;
+    `iscc_test.go` now 1,208 lines; 39 total test functions, 93 subtests. Go Bindings status:
+    **MET** (was partially met). CI all 7 jobs pass on develop (runs 22404891331 + 22404890215, HEAD
+    `4c942dd`). **All 7 binding sections now "met"**. Loop is in maintenance mode. PR #3 still open.
+    Next CID-actionable step: await new target.md goals.

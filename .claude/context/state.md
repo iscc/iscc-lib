@@ -1,15 +1,16 @@
-<!-- assessed-at: a0f2d3d -->
+<!-- assessed-at: 4c942dd -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: v0.0.1 partially released — PR #3 open (develop → main), release workflow extended with JNI matrix build
+## Phase: All bindings met — PR #3 open (develop → main), maintenance mode
 
-PR #3 (develop → main) is still open, containing the wasm-opt bulk-memory fix and the
-`docs/howto/wasm.md` package name correction. Iteration 6 added `build-jni` (5-platform matrix) and
-`assemble-jar` jobs to `release.yml`, plus a `maven` workflow-dispatch checkbox. CI on `develop` at
-HEAD commit `a0f2d3d` is fully green (all 7 jobs passing on run 22404197625).
+All 7 binding sections are now "met". Iteration 7 added `UpdateFrom(ctx, io.Reader)` to both
+`DataHasher` and `InstanceHasher` in the Go package, completing the last functional gap. CI on
+`develop` at HEAD `4c942dd` is fully green (all 7 jobs passing on runs 22404891331 and 22404890215).
+PR #3 (develop → main) is still open, awaiting human merge and re-release. No CID-actionable code
+work remains.
 
 ## Rust Core Crate
 
@@ -149,18 +150,18 @@ absent; native bundling not yet exercised via an actual release)
 
 ## Go Bindings
 
-**Status**: partially met (23/23 Tier 1 symbols + 35 test functions + Go CI job passing + README
-done + howto/go.md done; io.Reader streaming interface absent)
+**Status**: met
 
-- `packages/go/iscc.go` (1,165 lines): `Runtime` struct + 23 Tier 1 exported symbols
-- `DataHasher` / `InstanceHasher` structs with `New*/Update/Finalize/Close` lifecycle
-- `packages/go/iscc_test.go` (1,069 lines): 36 function declarations, 35 actual tests covering 46
-    conformance vectors, 8 streaming hasher tests, error paths
+- `packages/go/iscc.go` (1,220 lines): `Runtime` struct + 23 Tier 1 exported symbols
+- `DataHasher` / `InstanceHasher` structs with `New*/Update/UpdateFrom/Finalize/Close` lifecycle
+- **`UpdateFrom(ctx, io.Reader)` added** (iteration 7): both `DataHasher` and `InstanceHasher` now
+    support streaming from any `io.Reader` using a 64 KiB internal buffer; delegates to `Update`
+- `packages/go/iscc_test.go` (1,208 lines): 39 test functions covering 46 conformance vectors, 8
+    streaming hasher tests, 3 `UpdateFrom` tests (data + instance), error paths; 93 total subtests
 - `TestMain` skips gracefully if `iscc_ffi.wasm` is not present
 - `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD)
 - `docs/howto/go.md` (388 lines): complete; navigation entry in `zensical.toml` ✅
-- Missing: `io.Reader` interface for `Update` methods (target.md verified-when criteria do not
-    explicitly require it)
+- **Open issues**: none
 
 ## README
 
@@ -221,9 +222,10 @@ done + howto/go.md done; io.Reader streaming interface absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
-- **Latest completed CI run on develop: PASSING** —
-    [Run 22404197625](https://github.com/iscc/iscc-lib/actions/runs/22404197625) — all 7 jobs
-    SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go all green) — triggered by HEAD `a0f2d3d`
+- **Latest completed CI runs on develop: PASSING** —
+    [Run 22404891331](https://github.com/iscc/iscc-lib/actions/runs/22404891331) and
+    [Run 22404890215](https://github.com/iscc/iscc-lib/actions/runs/22404890215) — all 7 jobs
+    SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go all green) — triggered by HEAD `4c942dd`
 - **Latest CI run on main: PASSING** —
     [Run 22402167393](https://github.com/iscc/iscc-lib/actions/runs/22402167393) — all jobs SUCCESS
 - Latest Docs run: **PASSING** —
@@ -240,7 +242,8 @@ done + howto/go.md done; io.Reader streaming interface absent)
 - `scripts/version_sync.py` created; reads workspace version, updates `package.json` and `pom.xml`;
     `mise run version:sync` and `mise run version:check` tasks registered
 - **PR #2 merged** (develop → main, commit `4bdc899`); v0.0.1 tag pushed to remote
-- **PR #3 open** (develop → main) — contains wasm-opt fix + `docs/howto/wasm.md` package name fix
+- **PR #3 open** (develop → main) — contains wasm-opt fix + `docs/howto/wasm.md` package name fix;
+    CI passing at head `4c942dd`
 - **Release workflow run 22402189532 — PARTIAL FAILURE**:
     - `Publish to PyPI: success` ✅ — iscc-lib 0.0.1 published to PyPI
     - All 4 wheel platforms + sdist built successfully ✅
@@ -259,10 +262,10 @@ done + howto/go.md done; io.Reader streaming interface absent)
 
 ## Next Milestone
 
-**Merge PR #3 and re-release** — PR #3 (develop → main) contains the wasm-opt bulk-memory fix and
-the `docs/howto/wasm.md` package name correction. Steps for a human: (1) verify PR #3 CI passes, (2)
-merge PR #3, (3) trigger the release workflow via `workflow_dispatch` or tag a new version to
-publish `@iscc/wasm` and `@iscc/lib` to npm and also exercise the new `build-jni` + `assemble-jar`
-pipeline. The crates.io OIDC publishing requires separate human action on the registry side and
-remains blocked. No CID-actionable code work is pending — the loop is in maintenance mode until new
-target.md goals are added.
+**No CID-actionable code work remains.** All 7 binding sections are "met" and CI is green on
+`develop`. The loop is in maintenance mode until new target.md goals are added. Human-gated tasks
+remaining: (1) merge PR #3 (develop → main) — CI is passing at head `4c942dd`; (2) configure
+crates.io OIDC trusted publishing (registry-side); (3) trigger a new release to publish `@iscc/wasm`
+and `@iscc/lib` to npm and exercise the `build-jni` + `assemble-jar` pipeline; (4) configure Maven
+Central publishing (GPG signing, Sonatype) when ready. If new CID goals are desired, update
+`target.md`.
