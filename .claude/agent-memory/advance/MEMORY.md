@@ -66,7 +66,13 @@ iterations.
     Cargo.toml changes needed. The cdylib target produces the `.wasm` file
 - `iscc_alloc`/`iscc_dealloc` are the WASM host memory management pair — host allocates via
     `iscc_alloc`, writes data, calls FFI functions, then frees via `iscc_dealloc`
-- Debug WASM binary is ~10.5MB; release + wasm-opt would reduce significantly
+- Debug WASM binary is ~10.5MB; release + wasm-opt reduces significantly
+- wasm-opt release config in `crates/iscc-wasm/Cargo.toml`:
+    `[package.metadata.wasm-pack.profile.release]` with
+    `wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`. Rust's LLVM
+    emits `memory.copy` (bulk-memory) and `i32.trunc_sat_f64_s/u` (nontrapping-float-to-int) — both
+    must be enabled for wasm-opt to accept the binary. If future Rust versions emit more post-MVP
+    ops, add specific `--enable-*` flags (or switch to `--enable-all` as last resort)
 - Install target: `rustup target add wasm32-wasip1`
 - Build: `cargo build -p iscc-ffi --target wasm32-wasip1`
 - Output: `target/wasm32-wasip1/debug/iscc_ffi.wasm`
