@@ -57,12 +57,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Gotchas
 
-- `packages/go/` (iteration 12, commit f02c47b): `iscc.go` now 1,034 lines — 21 exported Tier 1
-    functions (all 9 Gen\*CodeV0, ConformanceSelftest, TextClean, TextRemoveNewlines, TextTrim,
-    TextCollapse, SlidingWindow, EncodeBase64, IsccDecompose, AlgSimhash, AlgMinhash256,
-    AlgCdcChunks, SoftHashVideoV0); `iscc_test.go` 801 lines — 28 test functions. Still missing 2:
-    DataHasher, InstanceHasher (io.Reader streaming types). WASM binary gitignored; TestMain skips
-    if missing.
+- `packages/go/` (iteration 13, commit c22fa53): `iscc.go` now 1,165 lines — 23/23 Tier 1 symbols
+    including `DataHasher` + `InstanceHasher` streaming types (New\*/Update/Finalize/Close lifecycle
+    wrapping WASM FfiDataHasher/FfiInstanceHasher). `iscc_test.go` 1,069 lines — 36 func
+    declarations (TestMain + 35 tests including 8 streaming hasher tests). Update takes `[]byte`,
+    NOT `io.Reader` — architecture gap noted. WASM binary gitignored; TestMain skips if missing.
 - Per-crate READMEs: all 6 publishable packages done (iscc-lib, iscc-py, iscc-napi, iscc-wasm,
     iscc-jni, packages/go). iscc-ffi not published separately (lower priority).
     packages/go/README.md created in iteration 10 (commit a60a375).
@@ -84,14 +83,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 12): tests = 22379389670 (7/7 pass), docs = 22379389682 (pass)
+- Latest CI run IDs (iteration 13): tests = 22380174043 (7/7 pass), docs = 22380174037 (pass)
 - `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
     compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
     alloc helpers). File is now 1,934 lines.
-- Next priority: remaining 2 Tier 1 Go streaming types (DataHasher/InstanceHasher with io.Reader),
-    then root README Go section + howto/go.md. Go CI job DONE (iter 9). Go README DONE (iter 10). 4
-    byte-buffer wrappers done in iteration 12 (AlgSimhash, AlgMinhash256, AlgCdcChunks,
-    SoftHashVideoV0). Now 21/23 Tier 1 Go done.
+- Go bindings NOW COMPLETE at 23/23 Tier 1 (iteration 13, commit c22fa53). Next: root README Go
+    section (installation + quick start + Go badge + Maven Central badge + fix "What is iscc-lib"
+    body text for Java) and howto/go.md + howto/java.md docs. io.Reader wrapper is optional.
 - Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
     DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
