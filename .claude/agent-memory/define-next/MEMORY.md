@@ -50,11 +50,9 @@ iterations.
     to `.map_err(...)`, add `.unwrap()` in tests. Every other WASM function already uses this
     pattern so consistency is the primary motivation.
 - Go bindings multi-step plan: (1) WASI build + alloc/dealloc ✅ → (2) Go module scaffold + wazero
-    bridge + memory helpers ✅ → (3) gen\_\*\_v0 wrappers + conformance tests (current step) → (4)
-    remaining Tier 1 wrappers (text utils, algo primitives, streaming hashers) → (5) CI job → (6)
-    README/docs. Combining gen wrappers with conformance tests in one step is feasible because both
-    modify only 2 files (iscc.go, iscc_test.go) and the conformance test pattern (read data.json,
-    iterate vectors, compare ISCC strings) is well-established across all bindings.
+    bridge + memory helpers ✅ → (3) gen\_\*\_v0 wrappers + conformance tests ✅ → (4) CI job
+    (current) → (5) remaining 12 Tier 1 wrappers (text utils, algo primitives, streaming hashers) →
+    (6) README/docs. CI before remaining wrappers ensures regression protection as the API grows.
 - Go scaffold scoping: the WASM binary (~10.5 MB debug) is NOT checked into git. Uses `//go:embed`
     with a gitignored binary built by `cargo build -p iscc-ffi --target wasm32-wasip1`. TestMain
     skips gracefully if binary is missing.
@@ -71,6 +69,10 @@ iterations.
     `iscc_free_string` on it. This differs from `iscc_text_clean` etc. which return owned strings.
 - Go installation via mise is the cleanest approach — add `go = "latest"` to `[tools]` section in
     `mise.toml`. This avoids Dockerfile changes and works in both devcontainer and CI contexts.
+- Go CI job is unique among CI jobs: it has a cross-compilation build step (Rust → wasm32-wasip1)
+    before the language-specific test phase. The WASM binary is ~10.5 MB debug. Use
+    `dtolnay/rust-toolchain@stable` with `targets: wasm32-wasip1` to avoid a separate rustup step.
+    Use `actions/setup-go@v5` with `go-version-file` instead of hardcoded version.
 
 ## Architecture Decisions
 
@@ -122,10 +124,13 @@ iterations.
 - All CI jobs share a common preamble: `actions/checkout@v4` → `dtolnay/rust-toolchain@stable` →
     `Swatinem/rust-cache@v2`, then language-specific setup and build/test commands.
 - Language-specific setup actions: `actions/setup-python@v5`, `actions/setup-node@v4`,
-    `actions/setup-java@v4` (with `distribution: 'temurin'`).
+    `actions/setup-java@v4` (with `distribution: 'temurin'`), `actions/setup-go@v5` (with
+    `go-version-file`).
 - Never use `mise` in CI — call tools directly per learnings.
 - Maven Surefire's `${project.basedir}` resolves to the pom.xml directory, so
     `${project.basedir}/../../../target/debug` reaches the workspace root's build output.
+- Go CI job is the only one with a cross-compilation pre-step: Rust → wasm32-wasip1 → copy to
+    packages/go/ before running Go tests. All other binding jobs build native (same-platform) Rust.
 
 ## napi-rs Packaging
 

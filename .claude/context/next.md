@@ -1,144 +1,84 @@
 # Next Work Package
 
-## Step: Add 9 gen\_\*\_v0 Go wrappers with conformance tests
+## Step: Add Go CI job to ci.yml
 
 ## Goal
 
-Implement all 9 `gen_*_v0` Go wrappers in `packages/go/iscc.go` and add conformance tests against
-`data.json` vectors in `iscc_test.go`. This completes the Go binding's core function surface,
-matching the target requirement that "All 9 `gen_*_v0` functions are accessible with idiomatic Go
-types and error handling."
+Add a `Go (go test, go vet)` job to `.github/workflows/ci.yml` so the 14 existing Go tests
+(including 9 conformance tests covering all 46 vectors) run automatically on push/PR — protecting
+against regressions as Go bindings grow.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `packages/go/iscc.go`, `packages/go/iscc_test.go`
-- **Reference**: `crates/iscc-ffi/src/lib.rs` (FFI signatures), `crates/iscc-lib/tests/data.json`
-    (conformance vectors), `packages/go/iscc.go` (existing patterns)
+- **Modify**: `.github/workflows/ci.yml` — add one new job block
+- **Reference**: `packages/go/iscc_test.go` (build instructions in line 4-5 comments),
+    `packages/go/go.mod` (Go version and dependencies)
 
 ## Not In Scope
 
-- Remaining 12 Tier 1 function wrappers (text utilities `TextRemoveNewlines`/`TextTrim`/
-    `TextCollapse`, algorithm primitives
-    `SlidingWindow`/`AlgMinhash256`/`AlgCdcChunks`/`AlgSimhash`, `SoftHashVideoV0`, `EncodeBase64`,
-    `IsccDecompose`, `DataHasher`/`InstanceHasher` streaming types)
-- Structured return types — return `(string, error)` with just the ISCC string, matching the Node.js
-    and WASM binding pattern. Structured types can be added later
-- `io.Reader` support for streaming functions (Data-Code, Instance-Code) — accept `[]byte` for now
-- Go CI job in `.github/workflows/ci.yml` — that's the next step
-- `packages/go/README.md`
-- Performance optimization (e.g., `CompileModule` once + `InstantiateModule` per test)
-- Modifying any Rust code or FFI signatures
+- Adding the remaining 12 Tier 1 Go function wrappers (text utils, algo primitives, streaming)
+- Creating `packages/go/README.md`
+- Updating the root README with Go installation/quick-start sections
+- Adding Go to the docs site navigation or howto guides
+- Using `mise` in CI (learnings say: call tools directly)
+- Running `go fmt` or `staticcheck` — keep it simple like the existing CI jobs
 
 ## Implementation Notes
 
-### Memory helpers needed
+The job follows the established CI pattern: checkout → Rust toolchain → Rust cache → language setup
+→ build → test. The Go-specific twist is that the WASM binary must be built first.
 
-The existing `writeString`/`readString`/`freeString` pattern handles string-in/string-out functions.
-Three additional unexported helpers are needed for the remaining data types:
+**Job structure:**
 
-1. **`writeBytes(ctx, data []byte) (ptr, size uint32, err error)`** — allocates WASM memory, writes
-    raw bytes (no null terminator). Used by `GenImageCodeV0`, `GenDataCodeV0`, `GenInstanceCodeV0`.
-    For empty `data`, pass ptr=0 and size=0 to the FFI function (Rust FFI handles null/0-len as
-    empty slice).
-
-2. **`writeI32Slice(ctx, values []int32) (ptr uint32, count uint32, err error)`** — allocates
-    `len*4` bytes, writes i32 values in little-endian format (wasm32 is LE). Used by
-    `GenAudioCodeV0`. For empty slice, return ptr=0, count=0. Use `binary.LittleEndian.PutUint32`
-    to encode each i32 as 4 bytes.
-
-3. **`writeStringArray(ctx, strings []string) (ptrsPtr uint32, count uint32, cleanup func(), err error)`**
-    — allocates individual null-terminated strings + a pointer array (array of uint32 WASM
-    pointers, each pointing to a string). Returns the WASM pointer to the pointer array, the count,
-    and a cleanup function that deallocs all strings and the pointer array. Used by
-    `GenMixedCodeV0` and `GenIsccCodeV0`.
-
-For `GenVideoCodeV0`, a dedicated helper is needed: allocate each frame's `[]int32` data in WASM
-memory, then build two parallel arrays (pointers-to-frames and frame-lengths) and write those to
-WASM memory. Consider `writeI32ArrayOfArrays(ctx, frames [][]int32)` returning pointers to the
-frame-pointers array and frame-lengths array, plus a cleanup function.
-
-### Function signatures (PascalCase, idiomatic Go)
-
-All functions are methods on `*Runtime` taking `context.Context` as first arg:
-
-```go
-func (rt *Runtime) GenMetaCodeV0(ctx context.Context, name string, description, meta *string, bits uint32) (string, error)
-func (rt *Runtime) GenTextCodeV0(ctx context.Context, text string, bits uint32) (string, error)
-func (rt *Runtime) GenImageCodeV0(ctx context.Context, pixels []byte, bits uint32) (string, error)
-func (rt *Runtime) GenAudioCodeV0(ctx context.Context, cv []int32, bits uint32) (string, error)
-func (rt *Runtime) GenVideoCodeV0(ctx context.Context, frameSigs [][]int32, bits uint32) (string, error)
-func (rt *Runtime) GenMixedCodeV0(ctx context.Context, codes []string, bits uint32) (string, error)
-func (rt *Runtime) GenDataCodeV0(ctx context.Context, data []byte, bits uint32) (string, error)
-func (rt *Runtime) GenInstanceCodeV0(ctx context.Context, data []byte, bits uint32) (string, error)
-func (rt *Runtime) GenIsccCodeV0(ctx context.Context, codes []string) (string, error)
+```yaml
+go:
+  name: Go (go test, go vet)
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: wasm32-wasip1
+    - uses: Swatinem/rust-cache@v2
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: packages/go/go.mod
+    - name: Build WASM module
+      run: cargo build -p iscc-ffi --target wasm32-wasip1
+    - name: Copy WASM to Go package
+      run: cp target/wasm32-wasip1/debug/iscc_ffi.wasm packages/go/
+    - name: Run Go tests
+      run: CGO_ENABLED=0 go test -v -count=1 ./...
+      working-directory: packages/go
+    - name: Run Go vet
+      run: go vet ./...
+      working-directory: packages/go
 ```
 
-Use `*string` for optional `description` and `meta` in `GenMetaCodeV0` — `nil` maps to NULL pointer
-in FFI. `GenIsccCodeV0` has no `bits` parameter; the FFI `wide` bool defaults to `false` (all test
-vectors use standard width).
+**Key details:**
 
-### FFI function names and signatures
-
-From `crates/iscc-ffi/src/lib.rs`:
-
-| Go wrapper          | FFI function                | FFI params                                                                    |
-| ------------------- | --------------------------- | ----------------------------------------------------------------------------- |
-| `GenMetaCodeV0`     | `iscc_gen_meta_code_v0`     | `name *c_char, description *c_char, meta *c_char, bits u32` → `*c_char`       |
-| `GenTextCodeV0`     | `iscc_gen_text_code_v0`     | `text *c_char, bits u32` → `*c_char`                                          |
-| `GenImageCodeV0`    | `iscc_gen_image_code_v0`    | `pixels *u8, pixels_len usize, bits u32` → `*c_char`                          |
-| `GenAudioCodeV0`    | `iscc_gen_audio_code_v0`    | `cv *i32, cv_len usize, bits u32` → `*c_char`                                 |
-| `GenVideoCodeV0`    | `iscc_gen_video_code_v0`    | `frame_sigs **i32, frame_lens *usize, num_frames usize, bits u32` → `*c_char` |
-| `GenMixedCodeV0`    | `iscc_gen_mixed_code_v0`    | `codes **c_char, num_codes usize, bits u32` → `*c_char`                       |
-| `GenDataCodeV0`     | `iscc_gen_data_code_v0`     | `data *u8, data_len usize, bits u32` → `*c_char`                              |
-| `GenInstanceCodeV0` | `iscc_gen_instance_code_v0` | `data *u8, data_len usize, bits u32` → `*c_char`                              |
-| `GenIsccCodeV0`     | `iscc_gen_iscc_code_v0`     | `codes **c_char, num_codes usize, wide bool` → `*c_char`                      |
-
-### Call pattern (same as existing TextClean)
-
-Each wrapper follows: marshal args → call FFI → check NULL result (ptr==0) → readString → freeString
-→ return. On NULL result, call `lastError()` for the error message.
-
-### WASM pointer size
-
-WASM32 uses 4-byte pointers. When building pointer arrays (for string arrays and video frame
-pointers), each element is a `uint32`. Use `binary.LittleEndian.PutUint32` to write pointer values
-into the array buffer.
-
-### Conformance tests
-
-Read `../../crates/iscc-lib/tests/data.json` via `os.ReadFile` (relative path from test working
-directory). Parse with `encoding/json`. Use Go subtests `t.Run(vectorName, ...)` for readable
-output.
-
-Special handling per function type:
-
-- **String functions** (meta, text): JSON inputs are strings. For meta, `inputs[2]` is `null` (JSON)
-    for no metadata → pass `nil` for `*string`. Empty `description` (`""`) should be passed as a
-    pointer to an empty string (not nil).
-- **Byte array functions** (image, data, instance): For image, `inputs[0]` is `[]float64` from JSON
-    → convert each to `byte`. For data/instance, `inputs[0]` has `"stream:"` prefix — strip prefix,
-    hex-decode the remainder with `encoding/hex`. Empty after prefix = empty `[]byte`.
-- **i32 array function** (audio): `inputs[0]` is `[]float64` → convert each to `int32`.
-- **Nested i32 arrays** (video): `inputs[0]` is `[][]float64` → convert to `[][]int32`.
-- **String array functions** (mixed, iscc): `inputs[0]` is `[]interface{}` → convert each to string.
-- **Bits parameter**: JSON numbers decode as `float64` in Go — cast to `uint32`.
-- **iscc_code**: no bits param; `inputs` is just `[codes_array]`.
-
-Expected output: `outputs["iscc"]` (string). Assert equality with Go wrapper return value.
-
-Total conformance vectors: 46 (16 meta + 5 text + 3 image + 5 audio + 3 video + 2 mixed + 4 data + 3
-instance + 5 iscc).
+- Use `actions/setup-go@v5` (latest) with `go-version-file` pointing to `packages/go/go.mod` so the
+    Go version is controlled by the module file (currently 1.24.0), not hardcoded in CI.
+- The `wasm32-wasip1` target is added to the Rust toolchain in the setup step via `targets:` (not a
+    separate `rustup target add` step).
+- The WASM binary is built in debug mode (matching the local dev workflow) — release mode would be
+    slower and unnecessary for CI testing.
+- `CGO_ENABLED=0` confirms pure-Go operation (no cgo dependency on the CI runner).
+- `-count=1` prevents test caching so conformance tests always re-run.
+- Place the new job at the end of the `jobs:` section, after the `java:` job.
 
 ## Verification
 
-- `cd packages/go && CGO_ENABLED=0 go test -v -count=1 ./...` passes all tests (existing 5 + new
-    conformance tests covering 46 vectors across 9 gen functions)
-- `cd packages/go && go vet ./...` exits 0
-- All 9 `Gen*CodeV0` methods exist on `*Runtime` type
-- Each conformance test vector produces an ISCC string matching the expected output from `data.json`
+- `git diff .github/workflows/ci.yml` shows exactly one new job block (`go:`) with no changes to
+    existing jobs
+- The YAML is valid: `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"`
+    exits 0
+- The new job includes steps for: checkout, rust-toolchain with wasm32-wasip1, rust-cache, setup-go,
+    cargo build, cp wasm, go test, go vet
+- `mise run check` passes (pre-commit hooks clean)
 
 ## Done When
 
-All 9 `Gen*CodeV0` Go wrappers are implemented and all conformance test vectors from `data.json`
-pass via `go test ./...`.
+All four verification criteria pass — the Go CI job is defined in `ci.yml` with the correct build
+chain (Rust WASM → copy → Go test) and no existing jobs are modified.
