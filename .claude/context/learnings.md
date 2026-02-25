@@ -282,3 +282,13 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     org
 - Maven Central (for Java JNI bindings) requires GPG signing + Sonatype credentials. Namespace
     verification needed for `io.iscc`. Deferred until Java bindings are functional
+
+## Branching
+
+- CID loop runs on `develop` branch; `main` is protected (requires PR + passing CI)
+- All CID agents are branch-agnostic — they commit/push to whatever branch is checked out. The
+    `update-state` agent uses `git branch --show-current` for CI status queries (not hardcoded
+    `main`)
+- CI triggers on push to both `main` and `develop`; docs deploy only from `main`; releases are
+    tag-based (branch-agnostic)
+- Use `mise run pr:main` to create a PR from `develop` → `main` when ready to merge

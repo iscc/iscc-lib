@@ -71,8 +71,8 @@ produce a complete state.md covering all sections.
 
 ### 3. Check CI status (final step)
 
-Run `gh run list --branch main --limit 1 --json status,conclusion,url` to get the latest CI result.
-If the conclusion is not `success`, identify which jobs failed:
+Run `gh run list --branch "$(git branch --show-current)" --limit 1 --json status,conclusion,url` to
+get the latest CI result. If the conclusion is not `success`, identify which jobs failed:
 
 ```
 gh run view <run-id> --json jobs --jq '.jobs[] | select(.conclusion != "success") | .name'

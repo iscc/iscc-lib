@@ -20,6 +20,17 @@ This project uses two development modes that share the same codebase and context
     `.claude/agents/*.md` protocols. CID agents get their context through `@` references in their
     agent definitions — they do not rely on this section.
 
+### Branching model
+
+- **`main`** — protected branch. Requires PRs with passing CI. Used for releases (tags) and docs
+    deployment.
+- **`develop`** — CID loop working branch. Agents commit and push here. CI runs on every push.
+- **Merge flow:** when `develop` is stable and ready for release, create a PR from `develop` →
+    `main` via `mise run pr:main` or manually with `gh pr create -B main -H develop`.
+- **Agents are branch-agnostic** — they operate on the current checkout. Run the CID loop with
+    `develop` checked out.
+- **Release tags** are created on `main` after merging from `develop`.
+
 ### Interactive session guidelines
 
 In an interactive session, be aware of the CID context files but do not read them all upfront. Read

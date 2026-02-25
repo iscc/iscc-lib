@@ -40,6 +40,12 @@ run = "uv run tools/cid.py --skip-permissions role advance"
 description = "Run review agent only"
 run = "uv run tools/cid.py --skip-permissions role review"
 
+# --- PR ---
+
+[tasks."pr:main"]
+description = "Create a PR from develop to main"
+run = "gh pr create -B main -H develop --title '{{arg(name=\"title\", i=0, default=\"Merge develop into main\")}}' --body '{{arg(name=\"body\", i=1, default=\"Merge CID loop progress from develop into main.\")}}'"
+
 # --- Quality ---
 
 [tasks.check]

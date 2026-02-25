@@ -9,7 +9,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `ls crates/iscc-lib/README.md crates/iscc-py/README.md crates/iscc-napi/README.md crates/iscc-wasm/README.md crates/iscc-ffi/README.md crates/iscc-jni/README.md 2>&1`
     — check existence (batches 1+2 done: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni)
 - **CI jobs in a run**: `gh run view <id> --json jobs --jq '.jobs[] | {name, conclusion}'`
-- **Latest CI runs**: `gh run list --branch main --limit 3 --json status,conclusion,url,databaseId`
+- **Latest CI runs**:
+    `gh run list --branch "$(git branch --show-current)" --limit 3 --json status,conclusion,url,databaseId`
 - **Java native method count**:
     `grep -c 'native ' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`
 - **Incremental diff**: `git diff <assessed-at-hash>..HEAD --stat`
