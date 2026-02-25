@@ -101,12 +101,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     binaries are bundled into META-INF/native/ (next iteration target).
 - Remaining Java gaps: platform-specific native library bundling inside JAR (CI matrix needed),
     Maven Central publishing configuration.
-- Next normal-priority issues: FFI video frame allocation, DataHasher allocation overhead (codec
-    `Vec<bool>` issue RESOLVED in iteration 18, commit 9b6818d)
+- **DataHasher buffer optimization (iteration 19, commit a2bbe28)**: `tail: Vec<u8>` replaced with
+    `buf: Vec<u8>`. No `to_vec()` or `.concat()` in streaming.rs production path. Tail shifted with
+    `copy_within` + `truncate`. `bench_data_hasher_streaming` Criterion benchmark added (~1.0
+    GiB/s). `[normal]` DataHasher issue removed from issues.md. 261 total tests unchanged (208 src +
+    53 tests/).
 - **Codec optimization (iteration 18)**: `decode_header` and `decode_varnibble` now use direct
     bitwise extraction from `&[u8]` via `get_bit`/`extract_bits` helpers. `bytes_to_bits` and
     `bits_to_u32` are `#[cfg(test)]`-gated. 2 new tests added: iscc-lib src tests 208 (was 206). 261
     total tests in iscc-lib (208 src + 53 tests/).
+- **Remaining `[normal]` issue**: iscc-ffi video functions allocate/copy every frame signature via
+    `to_vec()`. Fix: change iscc_lib video API to `&[&[i32]]`.
+- Latest CI run IDs (iteration 19): tests = 22385062252 (7/7 pass), docs = 22385062221 (pass)
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added
     to target in commit `0a10f73`)
 - `gh run list` does NOT need `--repo iscc/iscc-lib` when running from within the workspace (repo
