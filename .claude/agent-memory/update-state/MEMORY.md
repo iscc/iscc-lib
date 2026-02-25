@@ -154,3 +154,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     deleted from issues.md. Remaining `[critical]`: idempotency checks. `[normal]`: version sync
     tooling. Three `[low]` issues remain.
 - Latest CI run IDs (iteration 24): tests = 22390109706 (7/7 pass), docs = 22390109757 (pass)
+- **Idempotency checks resolved (iteration 25, commits fc103f1+596e0a6)**: All 4 publish jobs in
+    `release.yml` now have pre-publish version-existence checks: crates.io uses
+    `cargo info   iscc-lib`, PyPI uses `curl -sf "https://pypi.org/pypi/iscc-lib/$VERSION/json"`,
+    npm lib/wasm use `npm view "@iscc/lib@$VERSION"` / `npm view "@iscc/wasm@$VERSION"`.
+    `skip=true/false` output used; all publish/auth/test steps conditioned on
+    `steps.check.outputs.skip != 'true'`. Review agent confirmed PASS. Last `[critical]` issue
+    deleted. `ci.yml` now triggers on `develop` branch too (1-line change). `mise.toml` has
+    `pr:main` task. CLAUDE.md has branching model section.
+- Latest CI run IDs (iteration 25): tests = 22391282792 (7/7 pass); new run 22391326755 in progress
+    (6/7 done, all success, Go still running)
+- **No [critical] issues remain**. Only `[normal]` (version sync tooling) + 3 `[low]` items remain.
+    Next target: implement `scripts/version_sync.py` + `mise run version:sync` / `version:check`.
