@@ -157,7 +157,9 @@ def gen_audio_code_v0(cv: list[int], bits: int = 64) -> dict[str, Any]:
     """
     ...
 
-def gen_video_code_v0(frame_sigs: Sequence[Sequence[int]], bits: int = 64) -> dict[str, Any]:
+def gen_video_code_v0(
+    frame_sigs: Sequence[Sequence[int]], bits: int = 64
+) -> dict[str, Any]:
     """Generate an ISCC Video-Code from frame signature data.
 
     Produces a Content-Code for video from a sequence of frame signatures.
