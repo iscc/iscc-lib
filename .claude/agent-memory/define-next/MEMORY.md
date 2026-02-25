@@ -20,16 +20,10 @@ iterations.
 - README files are "create" operations (greenfield), not "modify" — they're less risky than code
     changes. Manifest updates are trivial one-liners. Combined, 3 creates + 2 modifies is a
     reasonable single step for documentation work.
-- Normal performance issues (codec Vec<bool>, DataHasher copying, FFI video frame allocation) are
-    non-blocking optimizations. They don't affect correctness or user-facing functionality. Starting
-    Go bindings (largest feature gap) takes priority over clearing optimization issues.
 - Root README updates: single-file modifications with clear verification. Java sections follow
     established patterns (Rust/Python/Node.js/WASM already present). Section ordering should match
     target.md: Rust, Python, Java, Node.js, WASM. Insert Java after Node.js and before WASM in both
     Installation and Quick Start sections.
-- After root README Java: next candidates are (1) docs/howto/java.md (create + zensical.toml nav
-    update), (2) Java native loader class, (3) Go bindings. The howto guide is a natural follow-up
-    since it continues the documentation story.
 - Critical issues always take priority regardless of feature trajectory. The JNI unwrap() issue is a
     safety fix — pure mechanical replacement (21 calls, 3 patterns, 1 file). Good scope: small,
     well-defined, zero behavioral change, easy to verify with `grep -c 'unwrap()'`.
@@ -49,43 +43,22 @@ iterations.
     Mechanical: change return type to `Result<JsValue, JsError>`, swap `.unwrap_or(JsValue::NULL)`
     to `.map_err(...)`, add `.unwrap()` in tests. Every other WASM function already uses this
     pattern so consistency is the primary motivation.
-- Go bindings multi-step plan: (1) WASI build + alloc/dealloc ✅ → (2) Go module scaffold + wazero
-    bridge + memory helpers ✅ → (3) gen\_\*\_v0 wrappers + conformance tests ✅ → (4) CI job ✅ → (5)
-    Go README ✅ → (6) remaining 12 Tier 1 wrappers ✅ (string utils batch ✅, byte-buffer batch ✅) →
-    (7) streaming hashers (DataHasher/InstanceHasher) ✅ → **(8) root README Go section — CURRENT** →
-    (9) docs/howto/go.md + docs/howto/java.md.
-- Go scaffold scoping: the WASM binary (~10.5 MB debug) is NOT checked into git. Uses `//go:embed`
-    with a gitignored binary built by `cargo build -p iscc-ffi --target wasm32-wasip1`. TestMain
-    skips gracefully if binary is missing.
-- Go streaming hashers are simpler than byte-buffer wrappers: no sret ABI, no struct reads from WASM
-    memory. The opaque pointer lifecycle is 4 simple FFI calls (new→update→finalize→free) with basic
-    parameter types (i32 pointer, i32 data_ptr, i32 data_len, i32 bits). Finalize returns a string
-    pointer (same as gen functions). 2 new Go structs + 2 factory methods + 6 methods (3 each) + 8
-    tests. Modifies only 2 files.
-- After Go streaming hashers complete (23/23 Tier 1), remaining gaps are documentation: root README
-    Go section ✅, howto/go.md ✅, howto/java.md. These are all greenfield documentation tasks.
-- Root README Go section: single-file modification (README.md only). Five changes: Go Reference
-    badge, "What is iscc-lib" body text fix (add Java + Go), Go install section, Go quick-start
-    section, Key Features bullet update. All verifiable with grep commands. Insert Go sections
-    between Java and WASM in both Installation and Quick Start — follows the target.md ordering
-    (Rust, Python, Java, Go, Node.js, WASM).
-- Documentation how-to guides: follow the established pattern from python.md/nodejs.md. Structure:
-    YAML front matter → title/intro → installation → (Go-specific: runtime setup) → code generation
-    (all 9 gen functions in standard order) → streaming → text utilities → conformance → error
-    handling. Go guide is unique in needing a "Runtime setup" section since Go requires explicit
-    `NewRuntime`/`Close` lifecycle. Existing howto pages are ~280-390 lines. Two files per guide:
-    create the .md + modify zensical.toml nav. Well within 3-file limit.
+- Go bindings multi-step plan: all 8 steps completed (WASI build → module scaffold → gen wrappers →
+    CI job → README → remaining 12 wrappers → streaming hashers → root README Go section). Follow-up
+    items: Go `io.Reader` streaming (optional, not explicitly in verified-when), docs/howto guides.
 - Java how-to guide: differs from Go in key ways — no runtime object (static methods via
     `IsccLib.*`), streaming uses opaque `long` handles (not structs) requiring try-finally for
     `*Free` calls, build-from-source installation since Maven Central publishing isn't wired yet.
-    Use `icon: lucide/coffee` for Java. All method names are camelCase. Target ~300-400 lines. This
-    is the last documentation gap — after this, all 6 language how-to guides are complete.
 - Java native loader: NativeLoader.java is a well-known JNI pattern (sqlite-jdbc, netty-tcnative).
     Two-phase loading: (1) try JAR resource extraction from `META-INF/native/{os}-{arch}/`, (2) fall
     back to `System.loadLibrary`. Existing CI still works via fallback since no native libs are
-    bundled in the JAR yet. This step creates the loader + updates IsccLib's static block — no test
-    changes needed since 49 existing tests exercise the fallback path. The bundling step (actually
-    putting .so/.dll/.dylib in META-INF) is a separate CI/build iteration.
+    bundled in the JAR yet. This is complete — created in iteration 16.
+- **Post-feature optimization phase**: All binding targets met (Rust, Python, Node.js, WASM, C FFI,
+    Java partial, Go partial). Remaining target gaps are publishing infrastructure (OIDC, Maven
+    Central, npm pipelines) which are complex multi-file CI tasks. Normal issues (codec Vec<bool>,
+    DataHasher copying, FFI video allocation) are good single-file optimization steps. The codec
+    Vec<bool> optimization is the most self-contained: single file, 71 existing tests, clear
+    approach (direct bitwise extraction replaces Vec<bool> allocation in decode_header).
 
 ## Architecture Decisions
 
@@ -98,8 +71,7 @@ iterations.
 - Go bindings use WASM/wazero (pure Go, no cgo) per target spec. The WASM module is built from
     iscc-ffi targeting `wasm32-wasip1`. The Go wrapper embeds the `.wasm` binary via `//go:embed`.
     Alloc/dealloc helpers are needed because the WASM host must allocate memory inside the module to
-    pass strings and byte buffers. `iscc_alloc(size) -> *mut u8` and `iscc_dealloc(ptr, size)` are
-    the standard pattern for WASM FFI memory management.
+    pass strings and byte buffers.
 - The FFI crate's existing `crate-type = ["cdylib", "staticlib"]` works for wasm32-wasip1 — cargo
     produces a `.wasm` from the cdylib target. No Cargo.toml changes needed for the build.
 - `thread_local!` in the FFI crate (for error storage) should work on wasm32-wasip1 since WASM is
@@ -109,34 +81,14 @@ iterations.
 
 - napi-rs `gen_*_v0` functions return `String` (not structured objects) — Node.js quick start
     examples must show string return, not `result.iscc` pattern.
-
 - Python bindings return `dict` (via PyO3 `PyDict`) — quick start uses `result['iscc']`.
-
 - Rust core returns typed `*CodeResult` structs with `.iscc` field.
-
-- `crates/iscc-lib/Cargo.toml` currently has `readme = "../../README.md"` — must change to
-    `"README.md"` when per-crate README is created.
-
-- `crates/iscc-py/pyproject.toml` has no `readme` field — needs `readme = "README.md"` added.
-
-- npm auto-detects `README.md` in the package directory — no `package.json` change needed.
-
 - WASM binding (`iscc-wasm`) also returns strings from gen functions (same as napi-rs). It publishes
     to npm as `@iscc/wasm` via wasm-pack, not to crates.io (Cargo.toml has `publish = false`).
-
 - JNI binding (`iscc-jni`) publishes to Maven Central as `io.iscc:iscc-lib`, not crates.io
     (Cargo.toml has `publish = false`). Java method names use camelCase (e.g., `genMetaCodeV0`).
-    Java gen functions return `String` (ISCC code string) — quick start shows direct string result.
-
-- Batch 1 READMEs landed at 70-75 lines each — slightly under the originally suggested 80-120 range
-    but the review agent confirmed they were "complete and well-structured." Target 70-80 lines for
-    batch 2.
-
 - Go README: Go module proxy (pkg.go.dev) renders README.md. Go gen functions return
-    `(string,   error)` — quick start uses `iscc, err := rt.GenMetaCodeV0(ctx, ...)` pattern. Import
-    alias recommended: `iscc "github.com/iscc/iscc-lib/packages/go"`. No registry version badge — Go
-    module proxy doesn't have a standard badge URL (use Go Reference badge from pkg.go.dev instead
-    if desired).
+    `(string, error)` — quick start uses `iscc, err := rt.GenMetaCodeV0(ctx, ...)` pattern.
 
 ## CI Workflow Patterns
 
@@ -146,63 +98,23 @@ iterations.
     `actions/setup-java@v4` (with `distribution: 'temurin'`), `actions/setup-go@v5` (with
     `go-version-file`).
 - Never use `mise` in CI — call tools directly per learnings.
-- Maven Surefire's `${project.basedir}` resolves to the pom.xml directory, so
-    `${project.basedir}/../../../target/debug` reaches the workspace root's build output.
 - Go CI job is the only one with a cross-compilation pre-step: Rust → wasm32-wasip1 → copy to
     packages/go/ before running Go tests. All other binding jobs build native (same-platform) Rust.
-
-## napi-rs Packaging
-
-- `index.js` and `index.d.ts` are auto-generated by `npx napi build` and gitignored. CI regenerates
-    them each run. The version embedded in `index.js` comes from `package.json`'s `version` field at
-    build time.
-- `npm publish` falls back to `.gitignore` when no `"files"` field or `.npmignore` exists. Since
-    `.gitignore` excludes `index.js`/`index.d.ts`, a `"files"` allowlist in `package.json` is
-    required for correct publishing.
-- napi-rs `Buffer::from()` accepts `Vec<u8>` directly. For `&[u8]` slices (from `alg_cdc_chunks`),
-    check if `From<&[u8]>` is implemented in napi v3; if not, `.to_vec()` is still needed but the
-    code should use `into_iter()` for clarity.
 
 ## Recurring Patterns
 
 - All binding conformance tests follow the same structure: load data.json, iterate per-function test
-    groups, decode inputs per function signature, compare `.iscc` output field. The Node.js test
-    (`conformance.test.mjs`) is the cleanest template to mirror.
+    groups, decode inputs per function signature, compare `.iscc` output field.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter in data.json — always pass `false` (the
     Python default).
 - `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data for `gen_data_code_v0` and
     `gen_instance_code_v0`. Empty after prefix = empty bytes.
 
-## Python Binding Patterns
-
-- `ty` type checker does NOT support `hasattr()` narrowing — must use `isinstance` inversion for
-    stream detection. Pattern: `if not isinstance(data, (bytes, bytearray, memoryview))` narrows to
-    BinaryIO; `elif not isinstance(data, bytes)` narrows to bytearray|memoryview.
-- For stream inputs in `gen_data_code_v0`/`gen_instance_code_v0`: use \_DataHasher/\_InstanceHasher
-    with chunked reads (64 KiB) instead of unbounded `.read()`. This avoids memory exhaustion and
-    exercises the streaming Rust code path.
-- For `DataHasher.update`/`InstanceHasher.update` stream inputs: chunked read loop feeding the inner
-    Rust hasher. The constructor delegates to update(), so only update() needs the fix.
-
-## JNI Safety Patterns
-
-- JNI `extern "system"` functions must never panic — with `panic = "abort"` in release, a panic
-    aborts the entire JVM. All JNI env operations (`new_string`, `byte_array_from_slice`,
-    `set_object_array_element`, etc.) return `jni::errors::Result` and must be handled.
-- The `throw_and_default` helper is the standard error-handling pattern: throws a Java exception and
-    returns `T::default()` (null for pointer types, 0 for primitives, false for booleans).
-- There are 3 unwrap patterns in the JNI crate: (A) `env.new_string().unwrap().into_raw()` for
-    string returns, (B) `env.byte_array_from_slice().unwrap().into_raw()` for byte array returns,
-    (C) loop-body unwraps in `algCdcChunks`. All follow the same fix: match + throw_and_default.
-
 ## Gotchas
 
-- JNI function names encode Java package underscores as `_1` (e.g., `iscc_lib` → `iscc_1lib`). The
-    Java `native` method names must match the Rust `extern "system"` function names exactly after
-    the JNI name-mangling prefix.
+- JNI function names encode Java package underscores as `_1` (e.g., `iscc_lib` → `iscc_1lib`).
 - `gen_image_code_v0` pixels in data.json are JSON int arrays (0-255) that need casting to Java
     `byte` (signed). Java's `byte` range is -128 to 127, so values 128-255 will wrap — this is fine
     because the JNI bridge handles the conversion correctly.
-- Maven's working directory is the pom.xml parent directory, not the workspace root. All relative
-    paths in Java tests must be calculated from `crates/iscc-jni/java/`.
+- Maven's working directory is the pom.xml parent directory, not the workspace root.
 - ISCC Foundation URL is `https://iscc.io` — not iscc.foundation or other variants.

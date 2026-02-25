@@ -1,100 +1,100 @@
 # Next Work Package
 
-## Step: Implement Java NativeLoader class
+## Step: Optimize codec header decoding with direct bitwise operations
 
 ## Goal
 
-Create a `NativeLoader` class that automatically extracts the platform-specific native library from
-the JAR's `META-INF/native/` directory and loads it, eliminating the need for manual
-`-Djava.library.path` configuration. Update `IsccLib` to use it, with fallback to
-`System.loadLibrary` for development/CI environments.
+Replace the `Vec<bool>` intermediate allocation in `decode_header` and `decode_varnibble` with
+direct bitwise extraction from the byte slice, eliminating the per-call heap allocation that occurs
+on every codec operation (decompose, mixed-code hashing, conformance checks).
 
 ## Scope
 
-- **Create**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`
-- **Modify**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (static initializer
-    and Javadoc)
-- **Reference**: `crates/iscc-jni/java/pom.xml`, `crates/iscc-jni/README.md`,
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
+- **Create**: none
+- **Modify**: `crates/iscc-lib/src/codec.rs` — rewrite `decode_header` and `decode_varnibble` to
+    operate on `&[u8]` + bit position instead of `&[bool]`; remove `bytes_to_bits` and `bits_to_u32`
+    if they become unused (they may still be needed by tests or `encode_varnibble` — check before
+    removing)
+- **Reference**: `crates/iscc-lib/src/codec.rs` (current implementation),
+    `crates/iscc-lib/benches/benchmarks.rs` (benchmark setup)
 
 ## Not In Scope
 
-- Bundling actual native binaries into the JAR (that's a CI/build pipeline step for a future
-    iteration — the NativeLoader's JAR extraction path won't activate until binaries are bundled)
-- Maven Central publishing configuration (Sonatype staging plugin, GPG signing, POM metadata)
-- Multi-platform CI matrix for cross-compiling native libraries
-- Updating the how-to guide (`docs/howto/java.md`) — defer until bundling is also done
-- Adding new test classes — existing 49 conformance tests verify the loader works via fallback
-- Changing NativeLoader to use `IllegalStateException` for state errors — tracked separately in
-    issues.md
+- Changing `encode_varnibble` or `encode_header` — encoding still uses `Vec<bool>` and is less
+    performance-sensitive (called once per code generation, not per codec parse)
+- Changing `bits_to_bytes` — used by encode path, not the decode path being optimized
+- Modifying any file outside `codec.rs` — the public signature of `decode_header` must not change
+- Adding new benchmarks — the existing `gen_mixed_code_v0` and full conformance suite already
+    exercise `decode_header` heavily
+- Optimizing `encode_header` in the same step — that's a separate future optimization
 
 ## Implementation Notes
 
-**NativeLoader pattern** (well-established in JNI projects like sqlite-jdbc, netty-tcnative):
+**Core approach:** Replace the `decode_varnibble(bits: &[bool])` function with a
+`decode_varnibble_from_bytes(data: &[u8], bit_pos: usize)` that reads bits directly from the byte
+slice using bitwise operations.
 
-1. **Platform detection**: Detect OS via `System.getProperty("os.name")` and arch via
-    `System.getProperty("os.arch")`. Normalize to canonical names:
+**Bit extraction helper:**
 
-    - OS: `linux`, `macos`, `windows` (detect via `os.name` prefix/contains)
-    - Arch: `x86_64`, `aarch64` (normalize `amd64` → `x86_64`)
+```rust
+/// Read bit at position `bit_pos` from byte slice (MSB-first ordering).
+fn get_bit(data: &[u8], bit_pos: usize) -> bool {
+    let byte_idx = bit_pos / 8;
+    let bit_idx = 7 - (bit_pos % 8);
+    (data[byte_idx] >> bit_idx) & 1 == 1
+}
 
-2. **Library naming**: Platform-specific library filename:
+/// Extract `count` bits starting at `bit_pos` as a u32 (MSB-first).
+fn extract_bits(data: &[u8], bit_pos: usize, count: usize) -> u32 {
+    let mut value = 0u32;
+    for i in 0..count {
+        value = (value << 1) | u32::from(get_bit(data, bit_pos + i));
+    }
+    value
+}
+```
 
-    - Linux: `libiscc_jni.so`
-    - macOS: `libiscc_jni.dylib`
-    - Windows: `iscc_jni.dll`
+**Rewritten `decode_varnibble_from_bytes`:** Same prefix-detection logic as current
+`decode_varnibble` but using `get_bit(data, bit_pos)` instead of `bits[0]`, and
+`extract_bits(data, bit_pos, n)` instead of `bits_to_u32(&bits[..n])`. Return type remains
+`IsccResult<(u32, usize)>` (value, bits consumed). Check available bits via
+`data.len() * 8 - bit_pos`.
 
-3. **Resource path**: `META-INF/native/{os}-{arch}/{libname}` (e.g.,
-    `META-INF/native/linux-x86_64/libiscc_jni.so`)
+**Rewritten `decode_header`:** Instead of `let bits = bytes_to_bits(data)`, maintain a `bit_pos`
+counter and call `decode_varnibble_from_bytes(data, bit_pos)` four times. For the tail extraction,
+compute `tail_byte_start = (bit_pos + 7) / 8` (round up to next byte boundary after padding check)
+and use `data[tail_byte_start..].to_vec()`.
 
-4. **Loading strategy** (try in order): a. Try loading from JAR resource — use
-    `NativeLoader.class.getResourceAsStream("/" + path)` to locate the resource. If found, extract
-    to a temp file in a unique temp directory (`Files.createTempDirectory("iscc-jni-")`), call
-    `System.load(absolutePath)`, mark temp file and directory for `deleteOnExit()` b. Fall back to
-    `System.loadLibrary("iscc_jni")` — this covers dev/CI environments where the library is on
-    `java.library.path` c. If both fail, throw `UnsatisfiedLinkError` with a descriptive message
-    listing both attempted paths and the detected OS/arch
+**Tail/padding logic:** The 4-bit zero-padding check at lines 262-267 becomes: if
+`bit_pos % 8 != 0`, verify the next 4 bits are zero using `extract_bits(data, bit_pos, 4) == 0`,
+then advance `bit_pos` by 4.
 
-5. **Thread safety**: The `load()` method is `public static synchronized` with a
-    `private static  volatile boolean loaded` guard. Since `IsccLib`'s static initializer calls it,
-    class loading guarantees single execution, but the synchronized guard protects against direct
-    calls from user code
+**Dead code cleanup:** After rewriting, check if `bytes_to_bits` and `bits_to_u32` are still
+referenced. `bytes_to_bits` is used in one test (`test_bits_to_u32` at line 984 calls
+`bytes_to_bits`). If the only remaining caller is in `#[cfg(test)]`, either gate them with
+`#[cfg(test)]` or keep them — don't remove test helpers that validate bit-level correctness. The
+`decode_varnibble` function on `&[bool]` is used in `test_varnibble_roundtrip` (line 560) — the
+roundtrip test can call the new function through `decode_header` or be updated to use
+`decode_varnibble_from_bytes` directly.
 
-6. **Temp file handling**: Use `Files.createTempDirectory("iscc-jni-")` to create an isolated
-    directory per JVM instance. Copy the resource to a file with the original library name inside
-    this directory (keeping the correct extension is important on some platforms). Use
-    `file.deleteOnExit()` and `dir.deleteOnExit()` (directory deletion only works when empty, but
-    the file gets deleted first)
+**Test updates:** Update tests that directly call `decode_varnibble` on `&[bool]` to instead call
+the new byte-based function. Add at least 2 new unit tests:
 
-**IsccLib changes**:
-
-- Replace `System.loadLibrary("iscc_jni")` with `NativeLoader.load()` in the static block
-- Update the class Javadoc to mention `NativeLoader` instead of `System.loadLibrary`
-
-**Important**: Use `NativeLoader.class.getResourceAsStream()` (NOT
-`ClassLoader.getSystemClassLoader()`) — this works correctly in shaded/fat JARs and OSGi containers
-where resources are loaded from the calling class's classloader.
-
-**CI compatibility**: The existing CI job sets `-Djava.library.path=target/debug` via Surefire
-plugin, so the fallback `System.loadLibrary("iscc_jni")` path will be used. The JAR-extraction path
-won't activate (no native libs in META-INF yet) but won't cause errors — it simply catches the
-`NullPointerException`/`IOException` from `getResourceAsStream` returning null and falls through to
-the working fallback.
+1. `test_extract_bits_basic` — verify `extract_bits` extracts correct values from known byte
+    patterns
+2. `test_decode_varnibble_from_bytes_boundary_values` — verify decoding at non-zero bit offsets
 
 ## Verification
 
-- `cd crates/iscc-jni && cargo build` succeeds (Rust side unchanged)
-- `cd crates/iscc-jni/java && mvn test` passes all 49 existing tests (loader fallback path works)
-- `test -f crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java` exits 0
-- `grep 'NativeLoader.load' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` exits
-    0
-- `grep -c 'System.loadLibrary' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`
-    outputs `0` (no direct loadLibrary in IsccLib)
-- `grep 'META-INF/native' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`
-    exits 0
+- `cargo test -p iscc-lib` passes (all 259 existing tests, including 71 codec tests)
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `grep 'fn bytes_to_bits' crates/iscc-lib/src/codec.rs` outputs nothing OR the function is gated
+    with `#[cfg(test)]` (no longer in production code path)
+- `grep 'Vec<bool>' crates/iscc-lib/src/codec.rs` — only in `encode_varnibble` and `bits_to_bytes`
+    (encode path), NOT in `decode_header` or any decode function
+- `cargo bench -p iscc-lib -- gen_mixed_code_v0` runs without error (benchmark still works)
 
 ## Done When
 
-All 6 verification checks pass: NativeLoader.java exists with META-INF/native extraction logic,
-IsccLib.java delegates to NativeLoader.load() with no direct System.loadLibrary, and all 49 existing
-Maven tests pass via the fallback loading path.
+All verification criteria pass — `decode_header` operates directly on `&[u8]` with zero intermediate
+`Vec<bool>` allocation, all 259+ tests pass, and clippy is clean.
