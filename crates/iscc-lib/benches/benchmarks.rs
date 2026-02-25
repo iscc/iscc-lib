@@ -5,8 +5,8 @@
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use iscc_lib::{
-    gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0, gen_instance_code_v0, gen_iscc_code_v0,
-    gen_meta_code_v0, gen_mixed_code_v0, gen_text_code_v0, gen_video_code_v0,
+    DataHasher, gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0, gen_instance_code_v0,
+    gen_iscc_code_v0, gen_meta_code_v0, gen_mixed_code_v0, gen_text_code_v0, gen_video_code_v0,
 };
 
 /// Generate a deterministic byte buffer of the given size.
@@ -178,6 +178,26 @@ fn bench_iscc_code(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark `DataHasher` streaming with 64 KiB update chunks on 1 MB data.
+fn bench_data_hasher_streaming(c: &mut Criterion) {
+    let mut group = c.benchmark_group("DataHasher");
+    let data = deterministic_bytes(1024 * 1024);
+    let chunk_size = 64 * 1024;
+
+    group.throughput(Throughput::Bytes(data.len() as u64));
+    group.bench_function("streaming_1MB_64KB_chunks", |b| {
+        b.iter(|| {
+            let mut dh = DataHasher::new();
+            for chunk in data.chunks(chunk_size) {
+                dh.update(black_box(chunk));
+            }
+            dh.finalize(black_box(64)).unwrap()
+        })
+    });
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_meta_code,
@@ -189,5 +209,6 @@ criterion_group!(
     bench_data_code,
     bench_instance_code,
     bench_iscc_code,
+    bench_data_hasher_streaming,
 );
 criterion_main!(benches);

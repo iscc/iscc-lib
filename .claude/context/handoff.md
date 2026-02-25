@@ -1,31 +1,28 @@
-## 2026-02-25 — Review of: Optimize codec header decoding with direct bitwise operations
+## 2026-02-25 — Optimize DataHasher::update buffer allocation
 
-**Verdict:** PASS
+**Done:** Replaced per-call heap allocations in `DataHasher::update` with a persistent internal
+buffer (`buf: Vec<u8>`) that is reused across calls. The `data.to_vec()`, `[tail, data].concat()`,
+and `prev_chunk.to_vec()` patterns are eliminated — new data is appended via `extend_from_slice`,
+and the tail is shifted to the front with `copy_within` + `truncate`, reusing existing buffer
+capacity. Added a `DataHasher` streaming benchmark to `benchmarks.rs`.
 
-**Summary:** Replaced `Vec<bool>` intermediate allocation in `decode_header` and `decode_varnibble`
-with direct bitwise extraction from `&[u8]`. Implementation is clean, minimal, and matches the
-next.md specification exactly. All 261 tests pass, clippy is clean, and all 14 pre-commit hooks
-pass.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-lib/src/streaming.rs`: Replaced `tail: Vec<u8>` field with `buf: Vec<u8>` in
+    `DataHasher`. Rewrote `update()` to use `extend_from_slice` + `copy_within` pattern. Updated
+    `finalize()` to reference `self.buf` instead of `self.tail`.
+- `crates/iscc-lib/benches/benchmarks.rs`: Added `bench_data_hasher_streaming` function (1 MB data,
+    64 KiB chunks, measures throughput). Registered in `criterion_group!` macro.
 
-- [x] `cargo test -p iscc-lib` passes — 261 tests (208 unit + 31 algo + 22 text), including 2 new
-    bitwise extraction tests
-- [x] `cargo clippy -p iscc-lib -- -D warnings` clean
-- [x] `bytes_to_bits` gated with `#[cfg(test)]` — no longer in production code path
-- [x] `Vec<bool>` only in `encode_varnibble` and test-gated helpers, NOT in `decode_header` or any
-    decode function
-- [x] `cargo bench -p iscc-lib -- gen_mixed_code_v0` runs without error — 1.35µs median
+**Verification:** All 265 tests pass (including all DataHasher conformance, multi-chunk, and
+byte-at-a-time tests). Clippy clean. Zero `to_vec()`/`.concat()` allocations in `streaming.rs`.
+Benchmark runs at ~1.1 GiB/s throughput. All 14 pre-commit hooks pass.
 
-**Issues found:**
+**Next:** The `[normal]` DataHasher issue is resolved. Consider the `[normal]` iscc-ffi video frame
+allocation issue, or one of the `[low]` issues (dct power-of-two validation, wtahash bounds check,
+iscc-py `__version__`, etc.).
 
-- (none)
-
-**Next:** The codec `Vec<bool>` issue is resolved. Consider addressing `DataHasher::update` buffer
-allocation (`[normal]` in issues.md), iscc-ffi video frame allocation (`[normal]`), or one of the
-`[low]` issues. Alternatively, if there are remaining target.md gaps, those take priority.
-
-**Notes:** The old `decode_varnibble` function was fully removed (not just gated). The roundtrip
-test was properly updated to use the new `decode_varnibble_from_bytes` via `bits_to_bytes`
-conversion. Benchmark shows ~1.35µs for `gen_mixed_code_v0` — consistent with the advance agent's
-reported 27% improvement from baseline.
+**Notes:** The borrow checker constraint was handled exactly as described in next.md — extracting
+`tail_len` as a `usize` from `prev_chunk` before dropping the `chunks` Vec, then using `copy_within`
+to relocate the tail. The `drop(chunks)` is explicit to make the borrow release clear. Test count is
+265 (vs 261 mentioned in next.md) — 4 additional tests were added in prior iterations.

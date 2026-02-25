@@ -176,6 +176,15 @@ iterations.
 - Rust 1.93+ clippy lints: `collapsible_if` and `manual_div_ceil` (use `n.div_ceil(d)` instead of
     `(n + d - 1) / d`)
 
+## Streaming Optimization
+
+- `DataHasher` uses a persistent `buf: Vec<u8>` that is reused across `update()` calls — no per-call
+    allocations. Pattern: `extend_from_slice` → CDC → hash complete chunks → extract `tail_len` as
+    `usize` (releases borrow) → `copy_within` + `truncate` to shift tail to front
+- Borrow checker constraint: CDC chunks borrow from `self.buf`, so extract `tail_len` before
+    `drop(chunks)`, then mutate `self.buf`. Explicit `drop(chunks)` makes the borrow release visible
+- Benchmark: `DataHasher` streaming at 64 KiB chunks on 1 MB data achieves ~1.1 GiB/s throughput
+
 ## Gotchas
 
 - `pop_local_frame` is `unsafe` in jni crate v0.21 (Rust 2024 edition) — must wrap in `unsafe {}`

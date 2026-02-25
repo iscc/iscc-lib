@@ -65,10 +65,11 @@ impl Default for InstanceHasher {
 ///
 /// Incrementally processes data with content-defined chunking (CDC) and
 /// MinHash to produce an ISCC Data-Code identical to `gen_data_code_v0`
-/// for the same byte stream.
+/// for the same byte stream. Uses a persistent internal buffer to avoid
+/// per-call heap allocations.
 pub struct DataHasher {
     chunk_features: Vec<u32>,
-    tail: Vec<u8>,
+    buf: Vec<u8>,
 }
 
 impl DataHasher {
@@ -76,23 +77,20 @@ impl DataHasher {
     pub fn new() -> Self {
         Self {
             chunk_features: Vec::new(),
-            tail: Vec::new(),
+            buf: Vec::new(),
         }
     }
 
     /// Push data into the hasher.
     ///
-    /// Prepends any leftover tail from the previous call, runs CDC on the
-    /// combined buffer, hashes all complete chunks, and retains the last
-    /// chunk as the new tail for the next call.
+    /// Appends data to the internal buffer (which starts with the retained
+    /// tail from the previous call), runs CDC, hashes all complete chunks,
+    /// and shifts the last chunk (tail) to the front of the buffer for the
+    /// next call. The buffer is reused across calls to avoid allocations.
     pub fn update(&mut self, data: &[u8]) {
-        let combined = if self.tail.is_empty() {
-            data.to_vec()
-        } else {
-            [self.tail.as_slice(), data].concat()
-        };
+        self.buf.extend_from_slice(data);
 
-        let chunks = cdc::alg_cdc_chunks(&combined, false, cdc::DATA_AVG_CHUNK_SIZE);
+        let chunks = cdc::alg_cdc_chunks(&self.buf, false, cdc::DATA_AVG_CHUNK_SIZE);
 
         // Process all chunks except the last (which becomes the new tail).
         // This mirrors the Python `push()` method's `prev_chunk` pattern.
@@ -104,8 +102,14 @@ impl DataHasher {
             prev_chunk = Some(chunk);
         }
 
-        // The last chunk becomes the new tail
-        self.tail = prev_chunk.unwrap_or(&b""[..]).to_vec();
+        // Extract tail length before dropping borrows on self.buf
+        let tail_len = prev_chunk.map_or(0, |c| c.len());
+        drop(chunks);
+
+        // Shift tail to front of buffer, reusing existing capacity
+        let tail_start = self.buf.len() - tail_len;
+        self.buf.copy_within(tail_start.., 0);
+        self.buf.truncate(tail_len);
     }
 
     /// Consume the hasher and produce a Data-Code result.
@@ -113,9 +117,9 @@ impl DataHasher {
     /// Equivalent to calling `gen_data_code_v0` with the concatenation
     /// of all data passed to `update`.
     pub fn finalize(mut self, bits: u32) -> IsccResult<DataCodeResult> {
-        if !self.tail.is_empty() {
+        if !self.buf.is_empty() {
             self.chunk_features
-                .push(xxhash_rust::xxh32::xxh32(&self.tail, 0));
+                .push(xxhash_rust::xxh32::xxh32(&self.buf, 0));
         } else if self.chunk_features.is_empty() {
             // Empty input: ensure at least one feature
             self.chunk_features.push(xxhash_rust::xxh32::xxh32(b"", 0));
