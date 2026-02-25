@@ -88,6 +88,15 @@ iterations.
     `writeI32ArrayOfArrays` for `[][]int32 → **i32 + *usize + count` (video frame signatures)
 - All 9 gen\_\*\_v0 Go wrappers follow the same pattern: marshal args → call FFI → callStringResult
     (check NULL, readString, freeString) → return
+- String-array-returning functions (SlidingWindow, IsccDecompose) use `callStringArrayResult` which
+    reads a null-terminated array of u32 pointers from WASM32 memory (4 bytes each, little-endian),
+    calls `readString` for each non-zero pointer, then `iscc_free_string_array` to free the entire
+    array. Pattern mirrors `callStringResult` for single strings
+- Go Runtime has ~32 methods total: 18 public (Close, ConformanceSelftest, TextClean,
+    TextRemoveNewlines, TextCollapse, TextTrim, EncodeBase64, SlidingWindow, IsccDecompose, 9
+    gen\_\*\_v0) + ~14 private helpers (alloc, dealloc, writeString, readString, freeString,
+    lastError, writeBytes, writeI32Slice, writeStringArray, writeI32ArrayOfArrays, callStringResult,
+    readStringArray, freeStringArray, callStringArrayResult)
 - Go conformance test path to data.json: `../../crates/iscc-lib/tests/data.json` (relative from
     packages/go test working directory)
 - Meta test vectors: dict meta values need json.Marshal before passing to FFI; null maps to nil

@@ -541,6 +541,162 @@ func (rt *Runtime) GenInstanceCodeV0(ctx context.Context, data []byte, bits uint
 	return rt.callStringResult(ctx, "iscc_gen_instance_code_v0", results)
 }
 
+// TextRemoveNewlines replaces newline characters with spaces.
+func (rt *Runtime) TextRemoveNewlines(ctx context.Context, text string) (string, error) {
+	textPtr, textSize, err := rt.writeString(ctx, text)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rt.dealloc(ctx, textPtr, textSize) }()
+
+	fn := rt.mod.ExportedFunction("iscc_text_remove_newlines")
+	results, err := fn.Call(ctx, uint64(textPtr))
+	if err != nil {
+		return "", fmt.Errorf("iscc_text_remove_newlines: %w", err)
+	}
+	return rt.callStringResult(ctx, "iscc_text_remove_newlines", results)
+}
+
+// TextCollapse normalizes and simplifies text for similarity hashing.
+// Applies NFD normalization, lowercasing, removes whitespace and control/mark/punctuation
+// characters, then recombines with NFKC normalization.
+func (rt *Runtime) TextCollapse(ctx context.Context, text string) (string, error) {
+	textPtr, textSize, err := rt.writeString(ctx, text)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rt.dealloc(ctx, textPtr, textSize) }()
+
+	fn := rt.mod.ExportedFunction("iscc_text_collapse")
+	results, err := fn.Call(ctx, uint64(textPtr))
+	if err != nil {
+		return "", fmt.Errorf("iscc_text_collapse: %w", err)
+	}
+	return rt.callStringResult(ctx, "iscc_text_collapse", results)
+}
+
+// TextTrim trims text so its UTF-8 encoded size does not exceed nbytes.
+// Multi-byte characters that would be split are dropped entirely.
+// Leading/trailing whitespace is stripped from the result.
+func (rt *Runtime) TextTrim(ctx context.Context, text string, nbytes uint32) (string, error) {
+	textPtr, textSize, err := rt.writeString(ctx, text)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rt.dealloc(ctx, textPtr, textSize) }()
+
+	fn := rt.mod.ExportedFunction("iscc_text_trim")
+	results, err := fn.Call(ctx, uint64(textPtr), uint64(nbytes))
+	if err != nil {
+		return "", fmt.Errorf("iscc_text_trim: %w", err)
+	}
+	return rt.callStringResult(ctx, "iscc_text_trim", results)
+}
+
+// EncodeBase64 encodes bytes as base64url (RFC 4648 section 5, no padding).
+func (rt *Runtime) EncodeBase64(ctx context.Context, data []byte) (string, error) {
+	dataPtr, dataSize, err := rt.writeBytes(ctx, data)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rt.dealloc(ctx, dataPtr, dataSize) }()
+
+	fn := rt.mod.ExportedFunction("iscc_encode_base64")
+	results, err := fn.Call(ctx, uint64(dataPtr), uint64(dataSize))
+	if err != nil {
+		return "", fmt.Errorf("iscc_encode_base64: %w", err)
+	}
+	return rt.callStringResult(ctx, "iscc_encode_base64", results)
+}
+
+// ── String array helpers ────────────────────────────────────────────────────
+
+// readStringArray reads a null-terminated array of C string pointers from WASM memory.
+// In WASM32, pointers are 4-byte little-endian uint32 values.
+func (rt *Runtime) readStringArray(ctx context.Context, ptr uint32) ([]string, error) {
+	mem := rt.mod.Memory()
+	var result []string
+	for offset := ptr; ; offset += 4 {
+		raw, ok := mem.Read(offset, 4)
+		if !ok {
+			return nil, fmt.Errorf("iscc: read string array: out of bounds at offset %d", offset)
+		}
+		strPtr := binary.LittleEndian.Uint32(raw)
+		if strPtr == 0 {
+			break
+		}
+		s, err := rt.readString(ctx, strPtr)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, s)
+	}
+	return result, nil
+}
+
+// freeStringArray calls iscc_free_string_array(ptr) to free the entire array
+// (strings + outer pointer array).
+func (rt *Runtime) freeStringArray(ctx context.Context, ptr uint32) error {
+	fn := rt.mod.ExportedFunction("iscc_free_string_array")
+	_, err := fn.Call(ctx, uint64(ptr))
+	if err != nil {
+		return fmt.Errorf("iscc_free_string_array: %w", err)
+	}
+	return nil
+}
+
+// callStringArrayResult handles the string-array result pattern:
+// check NULL (ptr==0) → readStringArray → freeStringArray → return.
+func (rt *Runtime) callStringArrayResult(ctx context.Context, fnName string, results []uint64) ([]string, error) {
+	resultPtr := uint32(results[0])
+	if resultPtr == 0 {
+		return nil, fmt.Errorf("%s failed: %s", fnName, rt.lastError(ctx))
+	}
+	arr, err := rt.readStringArray(ctx, resultPtr)
+	if err != nil {
+		return nil, err
+	}
+	_ = rt.freeStringArray(ctx, resultPtr)
+	return arr, nil
+}
+
+// ── String array functions ──────────────────────────────────────────────────
+
+// SlidingWindow generates overlapping substrings of width Unicode characters,
+// advancing by one character at a time. Width must be >= 2.
+func (rt *Runtime) SlidingWindow(ctx context.Context, seq string, width uint32) ([]string, error) {
+	seqPtr, seqSize, err := rt.writeString(ctx, seq)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rt.dealloc(ctx, seqPtr, seqSize) }()
+
+	fn := rt.mod.ExportedFunction("iscc_sliding_window")
+	results, err := fn.Call(ctx, uint64(seqPtr), uint64(width))
+	if err != nil {
+		return nil, fmt.Errorf("iscc_sliding_window: %w", err)
+	}
+	return rt.callStringArrayResult(ctx, "iscc_sliding_window", results)
+}
+
+// IsccDecompose decomposes a composite ISCC-CODE into individual ISCC-UNITs.
+// Accepts a normalized ISCC-CODE or concatenated ISCC-UNIT sequence.
+// The optional "ISCC:" prefix is stripped before decoding.
+func (rt *Runtime) IsccDecompose(ctx context.Context, isccCode string) ([]string, error) {
+	codePtr, codeSize, err := rt.writeString(ctx, isccCode)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rt.dealloc(ctx, codePtr, codeSize) }()
+
+	fn := rt.mod.ExportedFunction("iscc_decompose")
+	results, err := fn.Call(ctx, uint64(codePtr))
+	if err != nil {
+		return nil, fmt.Errorf("iscc_decompose: %w", err)
+	}
+	return rt.callStringArrayResult(ctx, "iscc_decompose", results)
+}
+
 // GenIsccCodeV0 generates a composite ISCC-CODE from individual unit codes.
 func (rt *Runtime) GenIsccCodeV0(ctx context.Context, codes []string) (string, error) {
 	codesPtr, codesCount, cleanup, err := rt.writeStringArray(ctx, codes)

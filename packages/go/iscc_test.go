@@ -520,6 +520,126 @@ func TestGenInstanceCodeV0(t *testing.T) {
 	}
 }
 
+// ── Text utility and codec function tests ───────────────────────────────────
+
+// TestTextRemoveNewlines verifies that newline characters are replaced with spaces.
+func TestTextRemoveNewlines(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	result, err := rt.TextRemoveNewlines(ctx, "hello\nworld\r\nfoo")
+	if err != nil {
+		t.Fatalf("TextRemoveNewlines error: %v", err)
+	}
+	expected := "hello world foo"
+	if result != expected {
+		t.Fatalf("TextRemoveNewlines: got %q, want %q", result, expected)
+	}
+}
+
+// TestTextCollapse verifies text normalization for similarity hashing.
+func TestTextCollapse(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	result, err := rt.TextCollapse(ctx, "Hello, World!")
+	if err != nil {
+		t.Fatalf("TextCollapse error: %v", err)
+	}
+	expected := "helloworld"
+	if result != expected {
+		t.Fatalf("TextCollapse: got %q, want %q", result, expected)
+	}
+}
+
+// TestTextTrim verifies that text is trimmed to a UTF-8 byte limit.
+func TestTextTrim(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	result, err := rt.TextTrim(ctx, "Hello, World! This is a long string.", 10)
+	if err != nil {
+		t.Fatalf("TextTrim error: %v", err)
+	}
+	// Result should be at most 10 UTF-8 bytes, with trailing whitespace stripped.
+	if len(result) > 10 {
+		t.Fatalf("TextTrim: result %q exceeds 10 bytes (got %d bytes)", result, len(result))
+	}
+	if len(result) == 0 {
+		t.Fatal("TextTrim: result is empty")
+	}
+}
+
+// TestEncodeBase64 verifies base64url encoding without padding.
+func TestEncodeBase64(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	result, err := rt.EncodeBase64(ctx, []byte{0, 1, 2})
+	if err != nil {
+		t.Fatalf("EncodeBase64 error: %v", err)
+	}
+	expected := "AAEC"
+	if result != expected {
+		t.Fatalf("EncodeBase64: got %q, want %q", result, expected)
+	}
+}
+
+// TestSlidingWindow verifies sliding window n-gram generation.
+func TestSlidingWindow(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	result, err := rt.SlidingWindow(ctx, "ABCDE", 3)
+	if err != nil {
+		t.Fatalf("SlidingWindow error: %v", err)
+	}
+	expected := []string{"ABC", "BCD", "CDE"}
+	if len(result) != len(expected) {
+		t.Fatalf("SlidingWindow: got %d results, want %d", len(result), len(expected))
+	}
+	for i := range expected {
+		if result[i] != expected[i] {
+			t.Fatalf("SlidingWindow[%d]: got %q, want %q", i, result[i], expected[i])
+		}
+	}
+}
+
+// TestSlidingWindowError verifies that width < 2 returns an error.
+func TestSlidingWindowError(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	_, err := rt.SlidingWindow(ctx, "ABCDE", 1)
+	if err == nil {
+		t.Fatal("SlidingWindow with width=1: expected error, got nil")
+	}
+}
+
+// TestIsccDecompose verifies decomposition of a composite ISCC-CODE into units.
+func TestIsccDecompose(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	// Use ISCC-CODE from gen_iscc_code_v0 conformance vector test_0000_standard.
+	// Input units: AAAYPXW445FTYNJ3, EAARMJLTQCUWAND2, GABVVC5DMJJGYKZ4ZBYVNYABFFYXG,
+	//   IADWIK7A7JTUAQ2D6QARX7OBEIK3OOUAM42LOBLCZ4ZOGDLRHMDL6TQ
+	isccCode := "ISCC:KACYPXW445FTYNJ3CYSXHAFJMA2HUWULUNRFE3BLHRSCXYH2M5AEGQY"
+	result, err := rt.IsccDecompose(ctx, isccCode)
+	if err != nil {
+		t.Fatalf("IsccDecompose error: %v", err)
+	}
+	// Decompose should return 4 unit codes (Meta, Content-Text, Data, Instance).
+	if len(result) != 4 {
+		t.Fatalf("IsccDecompose: got %d units, want 4: %v", len(result), result)
+	}
+	// Verify the first unit starts with the Meta-Code header.
+	expectedFirst := "AAAYPXW445FTYNJ3"
+	if result[0] != expectedFirst {
+		t.Fatalf("IsccDecompose[0]: got %q, want %q", result[0], expectedFirst)
+	}
+}
+
 // TestGenIsccCodeV0 tests gen_iscc_code_v0 against all conformance vectors.
 func TestGenIsccCodeV0(t *testing.T) {
 	ctx := context.Background()
