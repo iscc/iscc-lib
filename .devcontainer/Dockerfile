@@ -38,8 +38,8 @@ RUN mkdir /commandhistory \
     && chown -R $USERNAME /commandhistory
 
 # Create workspace and config directories
-RUN mkdir -p /workspace /home/$USERNAME/.claude \
-    && chown -R $USERNAME:$USERNAME /workspace /home/$USERNAME/.claude
+RUN mkdir -p /workspace /home/$USERNAME/.claude /home/$USERNAME/.codex \
+    && chown -R $USERNAME:$USERNAME /workspace /home/$USERNAME/.claude /home/$USERNAME/.codex
 
 # Ensure npm global directory is writable
 RUN mkdir -p /usr/local/share/npm-global \
@@ -80,8 +80,8 @@ RUN uv python install 3.12
 # Install mise (tool version manager + task runner)
 RUN curl https://mise.run | sh
 
-# Install Claude Code
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+# Install Claude Code and Codex CLI
+RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION} @openai/codex
 
 # Configure ZSH
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended \

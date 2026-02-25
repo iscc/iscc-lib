@@ -7,10 +7,12 @@
       "CLAUDE_CODE_VERSION": "latest"
     }
   },
+  "initializeCommand": "bash .devcontainer/init-host.sh",
   "remoteUser": "dev",
   "mounts": [
     "source=${localEnv:USERPROFILE}/.claude,target=/home/dev/.claude,type=bind",
     "source=${localEnv:USERPROFILE}/.claude.json,target=/home/dev/.claude.json,type=bind",
+    "source=${localEnv:USERPROFILE}/.codex,target=/home/dev/.codex,type=bind",
     "source=${localEnv:USERPROFILE}/.gitconfig,target=/home/dev/.gitconfig-host,type=bind,readonly",
     "source=iscc-lib-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
     "source=iscc-lib-cargo-registry-${devcontainerId},target=/home/dev/.cargo/registry,type=volume",
@@ -26,7 +28,7 @@
     "GIT_CONFIG_KEY_0": "commit.gpgsign",
     "GIT_CONFIG_VALUE_0": "false"
   },
-  "postCreateCommand": "sudo chown -R dev:dev /home/dev/.venvs /home/dev/.cargo/registry /home/dev/.cargo/git && .devcontainer/setup-gitconfig.sh && mise trust && uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push && [ -d reference/iscc-core ] || git clone --depth 1 https://github.com/iscc/iscc-core.git reference/iscc-core",
+  "postCreateCommand": "sudo chown -R dev:dev /home/dev/.venvs /home/dev/.cargo/registry /home/dev/.cargo/git && .devcontainer/setup-gitconfig.sh && .devcontainer/setup-codex.sh && mise trust && uv sync && uv run prek install --hook-type pre-commit --hook-type pre-push && [ -d reference/iscc-core ] || git clone --depth 1 https://github.com/iscc/iscc-core.git reference/iscc-core",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspace/iscc-lib,type=bind,consistency=delegated",
   "workspaceFolder": "/workspace/iscc-lib"
 }
