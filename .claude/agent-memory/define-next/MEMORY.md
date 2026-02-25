@@ -52,8 +52,8 @@ iterations.
 - Go bindings multi-step plan: (1) WASI build + alloc/dealloc ✅ → (2) Go module scaffold + wazero
     bridge + memory helpers ✅ → (3) gen\_\*\_v0 wrappers + conformance tests ✅ → (4) CI job ✅ → (5)
     Go README ✅ → (6) remaining 12 Tier 1 wrappers ✅ (string utils batch ✅, byte-buffer batch ✅) →
-    **(7) streaming hashers (DataHasher/InstanceHasher) — CURRENT** → (8) root README Go section →
-    (9) docs/howto/go.md.
+    (7) streaming hashers (DataHasher/InstanceHasher) ✅ → **(8) root README Go section — CURRENT** →
+    (9) docs/howto/go.md + docs/howto/java.md.
 - Go scaffold scoping: the WASM binary (~10.5 MB debug) is NOT checked into git. Uses `//go:embed`
     with a gitignored binary built by `cargo build -p iscc-ffi --target wasm32-wasip1`. TestMain
     skips gracefully if binary is missing.
@@ -64,6 +64,11 @@ iterations.
     tests. Modifies only 2 files.
 - After Go streaming hashers complete (23/23 Tier 1), remaining gaps are documentation: root README
     Go section, howto/java.md, howto/go.md. These are all greenfield documentation tasks.
+- Root README Go section: single-file modification (README.md only). Five changes: Go Reference
+    badge, "What is iscc-lib" body text fix (add Java + Go), Go install section, Go quick-start
+    section, Key Features bullet update. All verifiable with grep commands. Insert Go sections
+    between Java and WASM in both Installation and Quick Start — follows the target.md ordering
+    (Rust, Python, Java, Go, Node.js, WASM).
 
 ## Architecture Decisions
 
