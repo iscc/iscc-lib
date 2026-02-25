@@ -1,117 +1,96 @@
 # Next Work Package
 
-## Step: Optimize DataHasher::update buffer allocation
+## Step: Generalize video API to accept borrowed slices
 
 ## Goal
 
-Eliminate per-call heap allocations in `DataHasher::update` by replacing the `data.to_vec()` /
-`[tail, data].concat()` pattern with a persistent internal buffer that is reused across calls. This
-addresses the `[normal]` issue "DataHasher::update copies input data on every call" and improves
-streaming throughput for large files processed with many small `update()` calls.
+Change `soft_hash_video_v0` and `gen_video_code_v0` from `&[Vec<i32>]` to generic
+`&[S] where S: AsRef<[i32]> + Ord`, eliminating per-frame heap allocations in the FFI crate while
+remaining backward-compatible with all existing callers. This resolves the `[normal]` iscc-ffi video
+frame allocation issue.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `crates/iscc-lib/src/streaming.rs` (DataHasher struct + update method),
-    `crates/iscc-lib/benches/benchmarks.rs` (add DataHasher streaming benchmark)
-- **Reference**: `crates/iscc-lib/src/cdc.rs` (CDC returns `Vec<&[u8]>` — borrowed slices into
-    input), `.claude/context/issues.md` (issue description)
+- **Modify**:
+    - `crates/iscc-lib/src/lib.rs` — generalize `soft_hash_video_v0` and `gen_video_code_v0`
+        signatures
+    - `crates/iscc-ffi/src/lib.rs` — replace `Vec<Vec<i32>>` construction with `Vec<&[i32]>` in both
+        `iscc_gen_video_code_v0` and `iscc_soft_hash_video_v0`
+- **Reference**:
+    - `crates/iscc-lib/src/lib.rs` lines 525-563 (current video functions)
+    - `crates/iscc-ffi/src/lib.rs` lines 390-418, 940-975 (FFI video wrappers with `.to_vec()`)
+    - `crates/iscc-lib/tests/test_algorithm_primitives.rs` (existing video tests — should pass
+        unchanged)
 
 ## Not In Scope
 
-- Changing the `alg_cdc_chunks` API or CDC internals — it already returns borrowed slices
-- Optimizing `InstanceHasher` — BLAKE3 Hasher already handles streaming efficiently
-- Adding benchmark CI jobs — benchmarks remain local-only per current state
-- Changing any binding crate code — this is an internal `iscc-lib` optimization with no API change
-- Optimizing `gen_data_code_v0` one-shot function — only the streaming `DataHasher` is in scope
-- Addressing the `[normal]` FFI video frame allocation issue — separate step with broader API impact
+- Changing any other binding crate (iscc-py, iscc-napi, iscc-wasm, iscc-jni) — they pass
+    `Vec<Vec<i32>>` which satisfies the generic bounds, so no changes needed
+- Adding a benchmark for the FFI video path (no criterion bench for FFI; this is a pure allocation
+    removal)
+- Changing the Go bindings — they call through FFI/WASM and benefit automatically
+- Fixing other `[low]` issues (dct power-of-two, wtahash bounds, etc.)
+- Publishing or CI workflow changes
 
 ## Implementation Notes
 
-**Current problem** (lines 88–108 in `streaming.rs`):
+**Core API change** (`crates/iscc-lib/src/lib.rs`):
 
-1. `data.to_vec()` allocates a new Vec even when tail is empty (line 90)
-2. `[self.tail.as_slice(), data].concat()` allocates when tail exists (line 92)
-3. `prev_chunk.unwrap_or(&b""[..]).to_vec()` allocates a new Vec for the tail every call (line 108)
-
-**Approach — persistent buffer with tail retention:**
-
-Replace the `tail: Vec<u8>` field with a single `buf: Vec<u8>` that persists across calls:
+Replace concrete `&[Vec<i32>]` with generic `S: AsRef<[i32]> + Ord`:
 
 ```rust
-pub struct DataHasher {
-    chunk_features: Vec<u32>,
-    buf: Vec<u8>,  // persistent buffer: starts with retained tail, extended with new data
-}
+pub fn soft_hash_video_v0<S: AsRef<[i32]> + Ord>(
+    frame_sigs: &[S], bits: u32
+) -> IsccResult<Vec<u8>>
 ```
 
-In `update()`:
+Same for `gen_video_code_v0`.
 
-1. `self.buf.extend_from_slice(data)` — append new data to buffer (tail already at front)
-2. Run CDC: `let chunks = cdc::alg_cdc_chunks(&self.buf, false, cdc::DATA_AVG_CHUNK_SIZE);`
-3. Hash all chunks except the last (same `prev_chunk` pattern as current code)
-4. Retain only the tail in the buffer:
-    - Calculate the byte offset where the last chunk (tail) starts
-    - `self.buf.copy_within(tail_start.., 0); self.buf.truncate(tail_len);`
-    - This reuses the buffer's existing capacity without allocating
+Inside `soft_hash_video_v0`, update the body to use `.as_ref()`:
 
-**Borrow checker constraint:** CDC chunks borrow from `self.buf`, so you cannot mutate `self.buf`
-while chunks exist. Extract `tail_len` (the length of the last chunk) as a `usize` before dropping
-the chunks Vec. Then after the borrow is released, use `let tail_start = self.buf.len() - tail_len;`
-to relocate the tail to the front.
+- `frame_sigs[0].as_ref().len()` for column count
+- `sig.as_ref().iter()` for column-wise sum iteration
+- `BTreeSet<&S>` for deduplication (works because `S: Ord`)
 
-Pattern:
+This is **backward compatible**: `Vec<i32>` implements both `AsRef<[i32]>` and `Ord`, so all
+existing callers passing `&[Vec<i32>]` compile without changes.
+
+**FFI optimization** (`crates/iscc-ffi/src/lib.rs`):
+
+In both `iscc_gen_video_code_v0` (line ~409) and `iscc_soft_hash_video_v0` (line ~959), change:
 
 ```rust
-pub fn update(&mut self, data: &[u8]) {
-    self.buf.extend_from_slice(data);
-    let chunks = cdc::alg_cdc_chunks(&self.buf, false, cdc::DATA_AVG_CHUNK_SIZE);
-
-    let mut prev_chunk: Option<&[u8]> = None;
-    for chunk in &chunks {
-        if let Some(pc) = prev_chunk {
-            self.chunk_features.push(xxhash_rust::xxh32::xxh32(pc, 0));
-        }
-        prev_chunk = Some(chunk);
-    }
-
-    // Extract tail length before dropping borrows
-    let tail_len = prev_chunk.map_or(0, |c| c.len());
-    drop(chunks);  // release borrow on self.buf
-
-    // Shift tail to front, reusing buffer capacity
-    let tail_start = self.buf.len() - tail_len;
-    self.buf.copy_within(tail_start.., 0);
-    self.buf.truncate(tail_len);
-}
+let frames: Vec<Vec<i32>> = sig_ptrs.iter().zip(lens.iter())
+    .map(|(&ptr, &len)| unsafe { std::slice::from_raw_parts(ptr, len) }.to_vec())
+    .collect();
 ```
 
-**`finalize()` adjustment:** Replace `self.tail.is_empty()` with `self.buf.is_empty()` and hash
-`&self.buf` instead of `&self.tail`.
+to:
 
-**Empty input edge case:** When `data` is empty and `buf` contains only the tail from a previous
-call, CDC returns the tail as a single chunk. The `prev_chunk` pattern correctly carries it forward.
-No special handling needed — existing tests cover this (byte-at-a-time test).
+```rust
+let frames: Vec<&[i32]> = sig_ptrs.iter().zip(lens.iter())
+    .map(|(&ptr, &len)| unsafe { std::slice::from_raw_parts(ptr, len) })
+    .collect();
+```
 
-**Benchmark addition** (in `benchmarks.rs`): Add a `bench_data_hasher_streaming` function:
+This eliminates the `.to_vec()` per-frame allocation — slices borrow directly from the caller's
+memory. `&[i32]` satisfies `AsRef<[i32]> + Ord`.
 
-- Import `DataHasher` from `iscc_lib`
-- Create a 1 MB deterministic buffer
-- Benchmark feeding it in 64 KiB chunks (16 `update()` calls) then `finalize(64)`
-- Set throughput to 1 MB
-- Register in the `criterion_group!` macro
+**Why `AsRef<[i32]> + Ord` and not just `&[&[i32]]`**: Changing to a concrete `&[&[i32]]` would
+break all 5 binding crates (py, napi, wasm, jni, ffi) since `&[Vec<i32>]` doesn't coerce to
+`&[&[i32]]`. The generic approach is backward-compatible — only the FFI crate (the actual
+beneficiary) needs modification.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (261 existing tests, including all DataHasher conformance and
-    multi-chunk tests)
-- `cargo clippy -p iscc-lib -- -D warnings` clean
-- `grep -c 'to_vec\|\.concat()' crates/iscc-lib/src/streaming.rs` returns 0 (no per-call allocations
-    remain in `DataHasher::update` or tail retention)
-- `cargo bench -p iscc-lib -- DataHasher` runs without error (new streaming benchmark executes)
+- `cargo test -p iscc-lib` passes (all 261 tests — generics are transparent to existing callers)
+- `cargo test -p iscc-ffi` passes (62 FFI tests including video wrappers)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean
+- `grep -c '\.to_vec()' crates/iscc-ffi/src/lib.rs` returns `1` (down from 3 — only the unrelated
+    `alg_cdc_chunks` `.to_vec()` on line 906 remains)
 
 ## Done When
 
-All verification criteria pass: existing tests confirm correctness, clippy is clean, no `to_vec()`
-or `.concat()` allocations remain in the DataHasher code path, and the new streaming benchmark runs
-successfully.
+All four verification commands pass, confirming the generic video API compiles cleanly across the
+entire workspace and the FFI per-frame `.to_vec()` allocations are eliminated.

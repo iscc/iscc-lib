@@ -60,11 +60,18 @@ iterations.
 - **Codec Vec<bool> optimization complete** (iteration 18): direct bitwise extraction in
     decode_header, verified by review. DataHasher buffer optimization is next natural optimization
     step.
-- **DataHasher buffer optimization**: persistent `Vec<u8>` replacing per-call `to_vec()`/`concat()`
-    is the right approach. Key borrow checker consideration: CDC chunks borrow from `self.buf`, so
-    must extract tail offset/length before mutating buffer. `copy_within` + `truncate` avoids
-    reallocation. Add criterion benchmark for streaming path (DataHasher with 64 KiB chunks on 1 MB
-    data) alongside the optimization.
+- **DataHasher buffer optimization** (iteration 19, PASS): persistent `Vec<u8>` replacing per-call
+    `to_vec()`/`concat()`. Completed successfully.
+- **FFI video frame allocation**: the core video API takes `&[Vec<i32>]` but FFI must construct from
+    raw pointers. Using Rust generics `<S: AsRef<[i32]> + Ord>` makes the API accept both
+    `&[Vec<i32>]` (existing callers unchanged) and `&[&[i32]]` (FFI can pass borrowed slices). This
+    is backward-compatible and limits changes to 2 files (core + FFI). The `Ord` bound is needed for
+    `BTreeSet` deduplication inside `soft_hash_video_v0`. Both `Vec<i32>` and `&[i32]` implement
+    `AsRef<[i32]> + Ord`.
+- **Generic API for backward-compatible optimization**: when an internal optimization requires
+    accepting a broader type (e.g., borrowed slices instead of owned Vecs), prefer generic bounds
+    (`AsRef<T> + OtherTraits`) over concrete type changes. This avoids cascading modifications
+    across all binding crates.
 
 ## Architecture Decisions
 
