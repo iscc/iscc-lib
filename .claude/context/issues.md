@@ -64,33 +64,6 @@ action that requires review regardless of source:
 
 <!-- Add issues below this line -->
 
-## [low] `alg_dct` allows non-power-of-two even lengths
-
-In `crates/iscc-lib/src/dct.rs:19`, the input validation checks for non-empty and even length but
-does not enforce power-of-two. The recursive Nayuki algorithm assumes repeated halving to 1, so
-inputs like 6, 10, or 12 produce incorrect output. The docstring at line 15 says "Input length must
-be a power of 2 (or 1)" but this is not enforced.
-
-This is `pub(crate)` and current callers always use 32, so risk is low, but it's a correctness
-landmine if `alg_dct` is reused for other sizes.
-
-Fix: change the check to `n.is_power_of_two()` (which also handles n=0 and n=1 correctly).
-
-**Source:** [human]
-
-## [low] `alg_wtahash` panics on input vectors shorter than 380 elements
-
-In `crates/iscc-lib/src/wtahash.rs:287`, `alg_wtahash` indexes into `vec[i]` and `vec[j]` using
-permutation table indices up to 379 without checking `vec.len() >= 380`. Short input vectors cause a
-panic.
-
-This is `pub(crate)` (internal only), and the sole caller (`soft_hash_video_v0`) always provides
-380-element vectors from MPEG-7 frame signatures, so the risk is low in practice.
-
-Fix: add `if vec.len() < 380 { return error }` guard at function entry.
-
-**Source:** [human]
-
 ## [low] Evaluate unofficial TypeScript port branciard/iscc-core-ts
 
 An unofficial TypeScript implementation of ISCC exists at `branciard/iscc-core-ts`. Two actions:

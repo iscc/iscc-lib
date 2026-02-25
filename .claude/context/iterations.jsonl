@@ -283,3 +283,8 @@
 {"ts":"2026-02-25T06:53:20.818316+00:00","iteration":19,"role":"define-next","status":"OK","turns":28,"cost_usd":1.245213,"duration_s":220.9}
 {"ts":"2026-02-25T06:56:52.728919+00:00","iteration":19,"role":"advance","status":"OK","turns":35,"cost_usd":1.143091,"duration_s":211.9}
 {"iteration":19,"timestamp":"2026-02-25T07:00:00Z","step":"Generalize video API to accept borrowed slices","verdict":"PASS","files_changed":["crates/iscc-lib/src/lib.rs","crates/iscc-ffi/src/lib.rs"],"issues_resolved":["iscc-ffi: Video functions allocate/copy every frame signature"],"notes":"Generic AsRef<[i32]> + Ord approach eliminates per-frame allocations in FFI while maintaining backward compatibility for all binding crates."}
+{"ts":"2026-02-25T06:59:59.945262+00:00","iteration":19,"role":"review","status":"OK","turns":27,"cost_usd":0.821481,"duration_s":187.2}
+{"ts":"2026-02-25T07:22:49.025336+00:00","iteration":20,"role":"update-state","status":"OK","turns":22,"cost_usd":0.857579,"duration_s":218.9}
+{"ts":"2026-02-25T07:25:16.009255+00:00","iteration":20,"role":"define-next","status":"OK","turns":23,"cost_usd":0.860368,"duration_s":147.0}
+{"ts":"2026-02-25T07:29:07.169668+00:00","iteration":20,"role":"advance","status":"OK","turns":33,"cost_usd":1.170119,"duration_s":231.2}
+{"iteration":20,"timestamp":"2026-02-25T07:33:00Z","step":"Add input validation to alg_dct and alg_wtahash","verdict":"PASS","files_changed":["crates/iscc-lib/src/dct.rs","crates/iscc-lib/src/wtahash.rs","crates/iscc-lib/src/lib.rs"],"issues_resolved":["alg_dct allows non-power-of-two even lengths","alg_wtahash panics on short input"],"tests":{"iscc_lib":269},"notes":"8 new validation tests, no behavioral change for valid inputs."}
