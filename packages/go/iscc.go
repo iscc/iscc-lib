@@ -1016,6 +1016,152 @@ func (rt *Runtime) SoftHashVideoV0(ctx context.Context, frameSigs [][]int32, bit
 	return rt.callByteBufferResult(ctx, "iscc_soft_hash_video_v0", sretPtr)
 }
 
+// ── Streaming hashers ────────────────────────────────────────────────────────
+
+// DataHasher provides streaming Data-Code generation via the WASM FFI.
+// Create with Runtime.NewDataHasher, feed data with Update, and retrieve the
+// ISCC code with Finalize. Close releases the WASM-side memory.
+type DataHasher struct {
+	rt  *Runtime
+	ptr uint32 // opaque WASM-side FfiDataHasher pointer
+}
+
+// InstanceHasher provides streaming Instance-Code generation via the WASM FFI.
+// Create with Runtime.NewInstanceHasher, feed data with Update, and retrieve the
+// ISCC code with Finalize. Close releases the WASM-side memory.
+type InstanceHasher struct {
+	rt  *Runtime
+	ptr uint32 // opaque WASM-side FfiInstanceHasher pointer
+}
+
+// NewDataHasher creates a streaming Data-Code hasher.
+// The caller must call Close when done, even after Finalize.
+func (rt *Runtime) NewDataHasher(ctx context.Context) (*DataHasher, error) {
+	fn := rt.mod.ExportedFunction("iscc_data_hasher_new")
+	results, err := fn.Call(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("iscc_data_hasher_new: %w", err)
+	}
+	ptr := uint32(results[0])
+	if ptr == 0 {
+		return nil, fmt.Errorf("iscc_data_hasher_new: returned NULL: %s", rt.lastError(ctx))
+	}
+	return &DataHasher{rt: rt, ptr: ptr}, nil
+}
+
+// NewInstanceHasher creates a streaming Instance-Code hasher.
+// The caller must call Close when done, even after Finalize.
+func (rt *Runtime) NewInstanceHasher(ctx context.Context) (*InstanceHasher, error) {
+	fn := rt.mod.ExportedFunction("iscc_instance_hasher_new")
+	results, err := fn.Call(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("iscc_instance_hasher_new: %w", err)
+	}
+	ptr := uint32(results[0])
+	if ptr == 0 {
+		return nil, fmt.Errorf("iscc_instance_hasher_new: returned NULL: %s", rt.lastError(ctx))
+	}
+	return &InstanceHasher{rt: rt, ptr: ptr}, nil
+}
+
+// Update feeds data into the DataHasher.
+// Can be called multiple times before Finalize. Returns an error if the
+// hasher has already been finalized.
+func (h *DataHasher) Update(ctx context.Context, data []byte) error {
+	dataPtr, dataSize, err := h.rt.writeBytes(ctx, data)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = h.rt.dealloc(ctx, dataPtr, dataSize) }()
+
+	fn := h.rt.mod.ExportedFunction("iscc_data_hasher_update")
+	results, err := fn.Call(ctx, uint64(h.ptr), uint64(dataPtr), uint64(dataSize))
+	if err != nil {
+		return fmt.Errorf("iscc_data_hasher_update: %w", err)
+	}
+	if results[0] == 0 {
+		return fmt.Errorf("iscc_data_hasher_update: %s", h.rt.lastError(ctx))
+	}
+	return nil
+}
+
+// Finalize completes the hashing and returns the ISCC Data-Code string.
+// After Finalize, Update and Finalize will return errors. The caller must
+// still call Close to free WASM-side memory.
+func (h *DataHasher) Finalize(ctx context.Context, bits uint32) (string, error) {
+	fn := h.rt.mod.ExportedFunction("iscc_data_hasher_finalize")
+	results, err := fn.Call(ctx, uint64(h.ptr), uint64(bits))
+	if err != nil {
+		return "", fmt.Errorf("iscc_data_hasher_finalize: %w", err)
+	}
+	return h.rt.callStringResult(ctx, "iscc_data_hasher_finalize", results)
+}
+
+// Close releases the WASM-side DataHasher memory.
+// Safe to call multiple times. Sets the internal pointer to 0 to prevent
+// double-free.
+func (h *DataHasher) Close(ctx context.Context) error {
+	if h.ptr == 0 {
+		return nil
+	}
+	fn := h.rt.mod.ExportedFunction("iscc_data_hasher_free")
+	_, err := fn.Call(ctx, uint64(h.ptr))
+	h.ptr = 0
+	if err != nil {
+		return fmt.Errorf("iscc_data_hasher_free: %w", err)
+	}
+	return nil
+}
+
+// Update feeds data into the InstanceHasher.
+// Can be called multiple times before Finalize. Returns an error if the
+// hasher has already been finalized.
+func (h *InstanceHasher) Update(ctx context.Context, data []byte) error {
+	dataPtr, dataSize, err := h.rt.writeBytes(ctx, data)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = h.rt.dealloc(ctx, dataPtr, dataSize) }()
+
+	fn := h.rt.mod.ExportedFunction("iscc_instance_hasher_update")
+	results, err := fn.Call(ctx, uint64(h.ptr), uint64(dataPtr), uint64(dataSize))
+	if err != nil {
+		return fmt.Errorf("iscc_instance_hasher_update: %w", err)
+	}
+	if results[0] == 0 {
+		return fmt.Errorf("iscc_instance_hasher_update: %s", h.rt.lastError(ctx))
+	}
+	return nil
+}
+
+// Finalize completes the hashing and returns the ISCC Instance-Code string.
+// After Finalize, Update and Finalize will return errors. The caller must
+// still call Close to free WASM-side memory.
+func (h *InstanceHasher) Finalize(ctx context.Context, bits uint32) (string, error) {
+	fn := h.rt.mod.ExportedFunction("iscc_instance_hasher_finalize")
+	results, err := fn.Call(ctx, uint64(h.ptr), uint64(bits))
+	if err != nil {
+		return "", fmt.Errorf("iscc_instance_hasher_finalize: %w", err)
+	}
+	return h.rt.callStringResult(ctx, "iscc_instance_hasher_finalize", results)
+}
+
+// Close releases the WASM-side InstanceHasher memory.
+// Safe to call multiple times. Sets the internal pointer to 0 to prevent
+// double-free.
+func (h *InstanceHasher) Close(ctx context.Context) error {
+	if h.ptr == 0 {
+		return nil
+	}
+	fn := h.rt.mod.ExportedFunction("iscc_instance_hasher_free")
+	_, err := fn.Call(ctx, uint64(h.ptr))
+	h.ptr = 0
+	if err != nil {
+		return fmt.Errorf("iscc_instance_hasher_free: %w", err)
+	}
+	return nil
+}
+
 // GenIsccCodeV0 generates a composite ISCC-CODE from individual unit codes.
 func (rt *Runtime) GenIsccCodeV0(ctx context.Context, codes []string) (string, error) {
 	codesPtr, codesCount, cleanup, err := rt.writeStringArray(ctx, codes)

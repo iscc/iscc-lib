@@ -1,35 +1,36 @@
-## 2026-02-25 — Review of: Add 4 byte-buffer Go wrappers (AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0)
+## 2026-02-25 — Add Go streaming hashers (DataHasher + InstanceHasher)
 
-**Verdict:** PASS
+**Done:** Implemented `DataHasher` and `InstanceHasher` structs in the Go binding with full
+`New/Update/Finalize/Close` lifecycle, wrapping the WASM opaque pointer FFI
+(`iscc_data_hasher_new/update/finalize/free` and `iscc_instance_hasher_*`). Added 2 factory methods
+on `Runtime` and 3 methods on each hasher type. The Go binding now exposes 23/23 Tier 1 symbols.
 
-**Summary:** All 4 byte-buffer-returning Go wrappers implemented cleanly with 7 new private helpers
-for the WASM sret ABI pattern. Implementation follows established patterns (writeByteArrayOfArrays
-mirrors writeI32ArrayOfArrays, writeU32Slice mirrors writeI32Slice, byte-buffer read/free/call
-mirrors the string read/free/call triplet). All 27 Go tests pass, go vet clean, all 14 pre-commit
-hooks pass.
+**Files changed:**
+
+- `packages/go/iscc.go`: Added `DataHasher` and `InstanceHasher` structs, `NewDataHasher` and
+    `NewInstanceHasher` factory methods on Runtime, and `Update`/`Finalize`/`Close` methods on each
+    hasher. Close zeroes the pointer to prevent double-free.
+- `packages/go/iscc_test.go`: Added 8 new streaming hasher tests — one-shot, multi-chunk, empty
+    data, and double-finalize for each of DataHasher and InstanceHasher. Streaming results are
+    verified against the corresponding `Gen*CodeV0` one-shot functions.
 
 **Verification:**
 
-- [x] `CGO_ENABLED=0 go test -v -count=1 ./...` in `packages/go/` passes — 27 top-level test
-    functions all PASS (22 existing + 6 new: TestAlgSimhash, TestAlgMinhash256, TestAlgCdcChunks,
-    TestAlgCdcChunksEmpty, TestSoftHashVideoV0, TestSoftHashVideoV0Error)
-- [x] `go vet ./...` in `packages/go/` is clean (no output)
-- [x] `grep 'AlgSimhash\|AlgMinhash256\|AlgCdcChunks\|SoftHashVideoV0' packages/go/iscc.go | wc -l`
-    outputs 8 (≥ 4)
-- [x] `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` outputs 43 (≥ 38)
-- [x] `mise run check` passes — all 14 pre-commit hooks clean
+- `CGO_ENABLED=0 mise exec -- go test -v -count=1 ./...` passes — all 35 tests (27 existing + 8 new)
+    PASS
+- `mise exec -- go vet ./...` clean (no output)
+- `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` outputs 45 (≥ 45)
+- `grep -c 'type.*Hasher struct' packages/go/iscc.go` outputs 2
+- `grep -c 'func Test' packages/go/iscc_test.go` outputs 36 (≥ 35; 36 because TestMain counts)
+- `mise run check` passes — all 14 pre-commit hooks clean
 
-**Issues found:**
+**Next:** Go binding is now at full 23/23 Tier 1 parity. Next steps could be: (1) ergonomic
+`io.Reader`/`io.Writer` convenience wrappers for the streaming hashers, (2) Go package README
+documentation, (3) address tracked issues (codec optimization, DataHasher buffer allocation), or (4)
+work on other binding improvements from the issues list.
 
-- (none)
-
-**Next:** The Go binding is now at 21/23 Tier 1 symbols. The remaining 2 are the streaming hashers
-(`DataHasher`/`InstanceHasher`) which need opaque pointer lifecycle management — allocate a
-WASM-side handle, pass it through update() calls, then finalize() to get the result. This is the
-final Go binding step before full Tier 1 parity.
-
-**Notes:** The advance agent's handoff claims 28 tests but the actual count is 27 top-level test
-functions (TestMain is a setup function, not counted). Minor discrepancy, all tests pass. The
-`freeByteBuffer` docstring says "No-op if dataPtr is 0" but the code doesn't check — this is safe
-because all callers pass non-zero structPtrs (allocated via alloc(8)), and `readByteBuffer` already
-gates on null dataPtr before reaching the free path.
+**Notes:** The test count is 36 (not 35) because `grep 'func Test'` also matches `TestMain` which is
+a setup function, not a real test — but 36 ≥ 35 satisfies the criterion. The `break` after the first
+vector in one-shot tests is intentional — we only need one vector to prove streaming equivalence,
+and the conformance vectors are already fully tested by `TestGenDataCodeV0` /
+`TestGenInstanceCodeV0`. The multi-chunk tests find the first vector with len ≥ 2 to split.

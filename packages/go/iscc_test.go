@@ -765,6 +765,275 @@ func TestSoftHashVideoV0Error(t *testing.T) {
 	}
 }
 
+// ── Streaming hasher tests ────────────────────────────────────────────────────
+
+// TestDataHasherOneShot verifies that a single Update + Finalize matches GenDataCodeV0.
+func TestDataHasherOneShot(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+	vectors := loadVectors(t)
+
+	// Use the first data code conformance vector.
+	cases := vectors["gen_data_code_v0"]
+	for name, v := range cases {
+		t.Run(name, func(t *testing.T) {
+			data := parseStreamData(t, name, v.Inputs[0])
+			bits := parseBits(t, name, v.Inputs[1])
+
+			// One-shot via GenDataCodeV0.
+			expected, err := rt.GenDataCodeV0(ctx, data, bits)
+			if err != nil {
+				t.Fatalf("GenDataCodeV0: %v", err)
+			}
+
+			// Streaming via DataHasher.
+			h, err := rt.NewDataHasher(ctx)
+			if err != nil {
+				t.Fatalf("NewDataHasher: %v", err)
+			}
+			defer func() { _ = h.Close(ctx) }()
+
+			if err := h.Update(ctx, data); err != nil {
+				t.Fatalf("Update: %v", err)
+			}
+			got, err := h.Finalize(ctx, bits)
+			if err != nil {
+				t.Fatalf("Finalize: %v", err)
+			}
+			if got != expected {
+				t.Fatalf("DataHasher one-shot: got %q, want %q", got, expected)
+			}
+		})
+		break // one vector is enough for one-shot test
+	}
+}
+
+// TestDataHasherMultiChunk verifies that splitting data across 2 Update calls
+// produces the same result as a single Update.
+func TestDataHasherMultiChunk(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+	vectors := loadVectors(t)
+
+	// Find a vector with non-empty data.
+	cases := vectors["gen_data_code_v0"]
+	for name, v := range cases {
+		data := parseStreamData(t, name, v.Inputs[0])
+		if len(data) < 2 {
+			continue
+		}
+		bits := parseBits(t, name, v.Inputs[1])
+
+		expected, err := rt.GenDataCodeV0(ctx, data, bits)
+		if err != nil {
+			t.Fatalf("GenDataCodeV0: %v", err)
+		}
+
+		// Split at the midpoint.
+		mid := len(data) / 2
+		h, err := rt.NewDataHasher(ctx)
+		if err != nil {
+			t.Fatalf("NewDataHasher: %v", err)
+		}
+		defer func() { _ = h.Close(ctx) }()
+
+		if err := h.Update(ctx, data[:mid]); err != nil {
+			t.Fatalf("Update(first half): %v", err)
+		}
+		if err := h.Update(ctx, data[mid:]); err != nil {
+			t.Fatalf("Update(second half): %v", err)
+		}
+		got, err := h.Finalize(ctx, bits)
+		if err != nil {
+			t.Fatalf("Finalize: %v", err)
+		}
+		if got != expected {
+			t.Fatalf("DataHasher multi-chunk: got %q, want %q", got, expected)
+		}
+		return
+	}
+	t.Fatal("no suitable data code vector found with len >= 2")
+}
+
+// TestDataHasherEmpty verifies that Finalize with no Update calls produces
+// the same result as GenDataCodeV0 with empty bytes.
+func TestDataHasherEmpty(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	expected, err := rt.GenDataCodeV0(ctx, []byte{}, 64)
+	if err != nil {
+		t.Fatalf("GenDataCodeV0(empty): %v", err)
+	}
+
+	h, err := rt.NewDataHasher(ctx)
+	if err != nil {
+		t.Fatalf("NewDataHasher: %v", err)
+	}
+	defer func() { _ = h.Close(ctx) }()
+
+	got, err := h.Finalize(ctx, 64)
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if got != expected {
+		t.Fatalf("DataHasher empty: got %q, want %q", got, expected)
+	}
+}
+
+// TestDataHasherDoubleFinalize verifies that a second Finalize returns an error.
+func TestDataHasherDoubleFinalize(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	h, err := rt.NewDataHasher(ctx)
+	if err != nil {
+		t.Fatalf("NewDataHasher: %v", err)
+	}
+	defer func() { _ = h.Close(ctx) }()
+
+	_, err = h.Finalize(ctx, 64)
+	if err != nil {
+		t.Fatalf("first Finalize: %v", err)
+	}
+
+	_, err = h.Finalize(ctx, 64)
+	if err == nil {
+		t.Fatal("second Finalize: expected error, got nil")
+	}
+}
+
+// TestInstanceHasherOneShot verifies that a single Update + Finalize matches GenInstanceCodeV0.
+func TestInstanceHasherOneShot(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+	vectors := loadVectors(t)
+
+	cases := vectors["gen_instance_code_v0"]
+	for name, v := range cases {
+		t.Run(name, func(t *testing.T) {
+			data := parseStreamData(t, name, v.Inputs[0])
+			bits := parseBits(t, name, v.Inputs[1])
+
+			expected, err := rt.GenInstanceCodeV0(ctx, data, bits)
+			if err != nil {
+				t.Fatalf("GenInstanceCodeV0: %v", err)
+			}
+
+			h, err := rt.NewInstanceHasher(ctx)
+			if err != nil {
+				t.Fatalf("NewInstanceHasher: %v", err)
+			}
+			defer func() { _ = h.Close(ctx) }()
+
+			if err := h.Update(ctx, data); err != nil {
+				t.Fatalf("Update: %v", err)
+			}
+			got, err := h.Finalize(ctx, bits)
+			if err != nil {
+				t.Fatalf("Finalize: %v", err)
+			}
+			if got != expected {
+				t.Fatalf("InstanceHasher one-shot: got %q, want %q", got, expected)
+			}
+		})
+		break
+	}
+}
+
+// TestInstanceHasherMultiChunk verifies that splitting data across 2 Update calls
+// produces the same result as a single Update.
+func TestInstanceHasherMultiChunk(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+	vectors := loadVectors(t)
+
+	cases := vectors["gen_instance_code_v0"]
+	for name, v := range cases {
+		data := parseStreamData(t, name, v.Inputs[0])
+		if len(data) < 2 {
+			continue
+		}
+		bits := parseBits(t, name, v.Inputs[1])
+
+		expected, err := rt.GenInstanceCodeV0(ctx, data, bits)
+		if err != nil {
+			t.Fatalf("GenInstanceCodeV0: %v", err)
+		}
+
+		mid := len(data) / 2
+		h, err := rt.NewInstanceHasher(ctx)
+		if err != nil {
+			t.Fatalf("NewInstanceHasher: %v", err)
+		}
+		defer func() { _ = h.Close(ctx) }()
+
+		if err := h.Update(ctx, data[:mid]); err != nil {
+			t.Fatalf("Update(first half): %v", err)
+		}
+		if err := h.Update(ctx, data[mid:]); err != nil {
+			t.Fatalf("Update(second half): %v", err)
+		}
+		got, err := h.Finalize(ctx, bits)
+		if err != nil {
+			t.Fatalf("Finalize: %v", err)
+		}
+		if got != expected {
+			t.Fatalf("InstanceHasher multi-chunk: got %q, want %q", got, expected)
+		}
+		return
+	}
+	t.Fatal("no suitable instance code vector found with len >= 2")
+}
+
+// TestInstanceHasherEmpty verifies that Finalize with no Update calls produces
+// the same result as GenInstanceCodeV0 with empty bytes.
+func TestInstanceHasherEmpty(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	expected, err := rt.GenInstanceCodeV0(ctx, []byte{}, 64)
+	if err != nil {
+		t.Fatalf("GenInstanceCodeV0(empty): %v", err)
+	}
+
+	h, err := rt.NewInstanceHasher(ctx)
+	if err != nil {
+		t.Fatalf("NewInstanceHasher: %v", err)
+	}
+	defer func() { _ = h.Close(ctx) }()
+
+	got, err := h.Finalize(ctx, 64)
+	if err != nil {
+		t.Fatalf("Finalize: %v", err)
+	}
+	if got != expected {
+		t.Fatalf("InstanceHasher empty: got %q, want %q", got, expected)
+	}
+}
+
+// TestInstanceHasherDoubleFinalize verifies that a second Finalize returns an error.
+func TestInstanceHasherDoubleFinalize(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	h, err := rt.NewInstanceHasher(ctx)
+	if err != nil {
+		t.Fatalf("NewInstanceHasher: %v", err)
+	}
+	defer func() { _ = h.Close(ctx) }()
+
+	_, err = h.Finalize(ctx, 64)
+	if err != nil {
+		t.Fatalf("first Finalize: %v", err)
+	}
+
+	_, err = h.Finalize(ctx, 64)
+	if err == nil {
+		t.Fatal("second Finalize: expected error, got nil")
+	}
+}
+
 // TestGenIsccCodeV0 tests gen_iscc_code_v0 against all conformance vectors.
 func TestGenIsccCodeV0(t *testing.T) {
 	ctx := context.Background()

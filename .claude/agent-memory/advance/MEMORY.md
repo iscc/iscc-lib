@@ -92,13 +92,17 @@ iterations.
     reads a null-terminated array of u32 pointers from WASM32 memory (4 bytes each, little-endian),
     calls `readString` for each non-zero pointer, then `iscc_free_string_array` to free the entire
     array. Pattern mirrors `callStringResult` for single strings
-- Go Runtime has 43 methods total: 22 public (Close, ConformanceSelftest, TextClean,
+- Go Runtime has 45 methods total: 24 public (Close, ConformanceSelftest, TextClean,
     TextRemoveNewlines, TextCollapse, TextTrim, EncodeBase64, SlidingWindow, IsccDecompose,
-    AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0, 9 gen\_\*\_v0) + 21 private helpers
-    (alloc, dealloc, writeString, readString, freeString, lastError, writeBytes, writeI32Slice,
-    writeU32Slice, writeStringArray, writeI32ArrayOfArrays, writeByteArrayOfArrays,
-    callStringResult, readStringArray, freeStringArray, callStringArrayResult, readByteBuffer,
-    freeByteBuffer, callByteBufferResult, readByteBufferArray, freeByteBufferArray)
+    AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0, 9 gen\_\*\_v0, NewDataHasher,
+    NewInstanceHasher) + 21 private helpers
+- Go streaming hasher pattern: `DataHasher`/`InstanceHasher` structs hold `rt *Runtime` +
+    `ptr   uint32` (opaque WASM pointer). Factory methods on Runtime call `iscc_*_hasher_new()` and
+    check for NULL. `Update` writes bytes via `writeBytes`, calls `iscc_*_hasher_update` (returns
+    i32 as bool: 0=error, nonzero=ok). `Finalize` calls `iscc_*_hasher_finalize` (returns string
+    pointer) and uses `callStringResult`. `Close` calls `iscc_*_hasher_free` and zeroes `h.ptr` to
+    prevent double-free (fire-and-forget, safe to call multiple times). No sret ABI needed — all
+    streaming hasher FFI functions use simple i32 params/returns
 - Byte-buffer-returning WASM functions use sret ABI: caller allocates 8 bytes (IsccByteBuffer or
     IsccByteBufferArray struct), passes ptr as first arg. Function writes struct fields to that ptr.
     The free functions (iscc_free_byte_buffer, iscc_free_byte_buffer_array) take the struct by
