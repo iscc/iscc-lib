@@ -181,6 +181,10 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     tail) is critical for correctness across `update()` boundaries. Byte-at-a-time streaming
     produces identical results to one-shot because CDC handles sub-minimum-size input by returning
     the entire buffer as one chunk
+- `DataHasher` buffer optimization: persistent `buf: Vec<u8>` replaces per-call `to_vec()`/
+    `concat()`. Key pattern: `extend_from_slice` → CDC → extract `tail_len` (usize) before
+    `drop(chunks)` → `copy_within(tail_start.., 0)` + `truncate(tail_len)`. The explicit `drop` is
+    needed because CDC chunks borrow from `self.buf`
 - `InstanceHasher` constructs multihash directly from BLAKE3 digest
     (`format!("1e20{}", hex::encode(...))`) — avoids calling `multi_hash_blake3` which would
     redundantly rehash the same data. The `1e20` prefix is the BLAKE3 multihash header (codec 0x1e,

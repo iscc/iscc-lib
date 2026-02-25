@@ -91,22 +91,6 @@ Fix: add `if vec.len() < 380 { return error }` guard at function entry.
 
 **Source:** [human]
 
-## [normal] `DataHasher::update` copies input data on every call
-
-In `crates/iscc-lib/src/streaming.rs:88-93`, every `update()` call either copies the input via
-`data.to_vec()` or concatenates tail + data via `[self.tail.as_slice(), data].concat()`. The tail is
-also re-copied at line 108.
-
-For high-throughput streaming scenarios (large files with many small `update()` calls), this creates
-significant allocation overhead. A reusable internal buffer with `Vec::reserve` +
-`extend_from_slice` (or a ring buffer for the tail) would avoid repeated allocations.
-
-Fix: replace per-call allocations with a persistent internal buffer that grows as needed and is
-reused across calls. After fixing, re-run `cargo bench -p iscc-lib` and compare `gen_data_code_v0`
-timings against the baseline, and also benchmark `DataHasher` streaming with various chunk sizes.
-
-**Source:** [human]
-
 ## [low] Evaluate unofficial TypeScript port branciard/iscc-core-ts
 
 An unofficial TypeScript implementation of ISCC exists at `branciard/iscc-core-ts`. Two actions:
