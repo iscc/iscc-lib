@@ -1,89 +1,100 @@
 # Next Work Package
 
-## Step: Create Java how-to guide and add to navigation
+## Step: Implement Java NativeLoader class
 
 ## Goal
 
-Create `docs/howto/java.md` — the last remaining how-to guide — and add its navigation entry to
-`zensical.toml`. This completes the documentation set for all 6 language bindings.
+Create a `NativeLoader` class that automatically extracts the platform-specific native library from
+the JAR's `META-INF/native/` directory and loads it, eliminating the need for manual
+`-Djava.library.path` configuration. Update `IsccLib` to use it, with fallback to
+`System.loadLibrary` for development/CI environments.
 
 ## Scope
 
-- **Create**: `docs/howto/java.md`
-- **Modify**: `zensical.toml` (add Java entry to How-to Guides navigation)
-- **Reference**: `docs/howto/go.md` (structural template — follow the same section pattern),
-    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (API signatures and Javadoc),
-    `crates/iscc-jni/java/pom.xml` (Maven coordinates and JDK version),
-    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (usage examples from
-    tests)
+- **Create**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`
+- **Modify**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (static initializer
+    and Javadoc)
+- **Reference**: `crates/iscc-jni/java/pom.xml`, `crates/iscc-jni/README.md`,
+    `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
 
 ## Not In Scope
 
-- Native library loader class (extracts `.so`/`.dll`/`.dylib` from JAR) — tracked separately
-- Maven Central publishing configuration — not yet wired
-- Gradle build examples — Maven is the primary build tool; Gradle can be added later
-- Fixing the `IllegalArgumentException` vs `IllegalStateException` issue — tracked in issues.md
-- Creating a Java API reference page (like `api.md` for Python) — future work
-- Changing the `io.iscc:iscc-lib` dependency coordinates (they match `pom.xml` as-is)
+- Bundling actual native binaries into the JAR (that's a CI/build pipeline step for a future
+    iteration — the NativeLoader's JAR extraction path won't activate until binaries are bundled)
+- Maven Central publishing configuration (Sonatype staging plugin, GPG signing, POM metadata)
+- Multi-platform CI matrix for cross-compiling native libraries
+- Updating the how-to guide (`docs/howto/java.md`) — defer until bundling is also done
+- Adding new test classes — existing 49 conformance tests verify the loader works via fallback
+- Changing NativeLoader to use `IllegalStateException` for state errors — tracked separately in
+    issues.md
 
 ## Implementation Notes
 
-Follow the Go how-to guide (`docs/howto/go.md`) as the structural template. The Java guide should
-have these sections:
+**NativeLoader pattern** (well-established in JNI projects like sqlite-jdbc, netty-tcnative):
 
-1. **Front matter** — `icon: lucide/coffee`, `description:` line for Java
-2. **Intro paragraph** — explain that `iscc-lib` provides Java bindings via JNI with a native
-    shared library loaded via `System.loadLibrary("iscc_jni")`
-3. **Installation** — Maven dependency snippet (`io.iscc:iscc-lib:0.0.1`). Note: currently requires
-    building from source and setting `java.library.path` — Maven Central publishing is not yet
-    available. Show the `cargo build -p iscc-jni` + `mvn test` build-from-source workflow
-4. **Setup** — Since Java uses static methods (no runtime object like Go), this section covers the
-    `System.loadLibrary` call and `java.library.path` configuration
-5. **Code generation** — All 9 `gen*V0` methods with Java examples. Use `IsccLib.java` for exact
-    signatures. All gen functions return `String` (the ISCC code). Use `null` for optional
-    parameters (description, meta). Default `bits` is 64
-6. **Streaming** — `DataHasher` and `InstanceHasher` lifecycle using opaque `long` handles:
-    `dataHasherNew()` → `dataHasherUpdate(ptr, data)` → `dataHasherFinalize(ptr, bits)` →
-    `dataHasherFree(ptr)`. Emphasize the try-finally pattern for `*Free` calls
-7. **Text utilities** — `textClean`, `textRemoveNewlines`, `textTrim`, `textCollapse`
-8. **Algorithm primitives** — `algSimhash`, `algMinhash256`, `algCdcChunks`, `softHashVideoV0`
-9. **Conformance testing** — `conformanceSelftest()` returning boolean
-10. **Error handling** — `IllegalArgumentException` thrown on invalid input; try-catch pattern
+1. **Platform detection**: Detect OS via `System.getProperty("os.name")` and arch via
+    `System.getProperty("os.arch")`. Normalize to canonical names:
 
-Key differences from Go guide:
+    - OS: `linux`, `macos`, `windows` (detect via `os.name` prefix/contains)
+    - Arch: `x86_64`, `aarch64` (normalize `amd64` → `x86_64`)
 
-- No "Runtime setup" section (Java uses static methods, not a runtime object)
-- Instead, a "Setup" section explaining `System.loadLibrary` and build-from-source
-- Streaming hashers use opaque `long` handles (not struct types) — must emphasize memory management
-    with try-finally
-- All method names are camelCase (Java convention), not PascalCase (Go convention)
-- `byte[]` instead of `[]byte`, `int[]` instead of `[]int32`, `String[]` instead of `[]string`
+2. **Library naming**: Platform-specific library filename:
 
-Insert the Java nav entry in `zensical.toml` after the Go entry:
+    - Linux: `libiscc_jni.so`
+    - macOS: `libiscc_jni.dylib`
+    - Windows: `iscc_jni.dll`
 
-```toml
-{ "Java" = "howto/java.md" },
-```
+3. **Resource path**: `META-INF/native/{os}-{arch}/{libname}` (e.g.,
+    `META-INF/native/linux-x86_64/libiscc_jni.so`)
 
-Target length: ~300-400 lines (consistent with existing guides: Go 388, Rust 356, Python 353, WASM
-338, Node.js 281).
+4. **Loading strategy** (try in order): a. Try loading from JAR resource — use
+    `NativeLoader.class.getResourceAsStream("/" + path)` to locate the resource. If found, extract
+    to a temp file in a unique temp directory (`Files.createTempDirectory("iscc-jni-")`), call
+    `System.load(absolutePath)`, mark temp file and directory for `deleteOnExit()` b. Fall back to
+    `System.loadLibrary("iscc_jni")` — this covers dev/CI environments where the library is on
+    `java.library.path` c. If both fail, throw `UnsatisfiedLinkError` with a descriptive message
+    listing both attempted paths and the detected OS/arch
 
-Run `mise run format` before committing to satisfy pre-commit hooks (mdformat, etc.).
+5. **Thread safety**: The `load()` method is `public static synchronized` with a
+    `private static  volatile boolean loaded` guard. Since `IsccLib`'s static initializer calls it,
+    class loading guarantees single execution, but the synchronized guard protects against direct
+    calls from user code
+
+6. **Temp file handling**: Use `Files.createTempDirectory("iscc-jni-")` to create an isolated
+    directory per JVM instance. Copy the resource to a file with the original library name inside
+    this directory (keeping the correct extension is important on some platforms). Use
+    `file.deleteOnExit()` and `dir.deleteOnExit()` (directory deletion only works when empty, but
+    the file gets deleted first)
+
+**IsccLib changes**:
+
+- Replace `System.loadLibrary("iscc_jni")` with `NativeLoader.load()` in the static block
+- Update the class Javadoc to mention `NativeLoader` instead of `System.loadLibrary`
+
+**Important**: Use `NativeLoader.class.getResourceAsStream()` (NOT
+`ClassLoader.getSystemClassLoader()`) — this works correctly in shaded/fat JARs and OSGi containers
+where resources are loaded from the calling class's classloader.
+
+**CI compatibility**: The existing CI job sets `-Djava.library.path=target/debug` via Surefire
+plugin, so the fallback `System.loadLibrary("iscc_jni")` path will be used. The JAR-extraction path
+won't activate (no native libs in META-INF yet) but won't cause errors — it simply catches the
+`NullPointerException`/`IOException` from `getResourceAsStream` returning null and falls through to
+the working fallback.
 
 ## Verification
 
-- `test -f docs/howto/java.md` exits 0
-- `grep 'io.iscc' docs/howto/java.md` exits 0 (Maven coordinates present)
-- `grep 'System.loadLibrary' docs/howto/java.md` exits 0 (native library setup documented)
-- `grep 'genMetaCodeV0' docs/howto/java.md` exits 0 (code generation documented)
-- `grep 'dataHasherNew' docs/howto/java.md` exits 0 (streaming documented)
-- `grep 'textClean' docs/howto/java.md` exits 0 (text utilities documented)
-- `grep 'conformanceSelftest' docs/howto/java.md` exits 0 (conformance testing documented)
-- `grep '"Java"' zensical.toml` exits 0 (nav entry present)
-- `grep 'howto/java.md' zensical.toml` exits 0 (nav path correct)
-- `uv run zensical build` exits 0 (site builds successfully with Java page)
+- `cd crates/iscc-jni && cargo build` succeeds (Rust side unchanged)
+- `cd crates/iscc-jni/java && mvn test` passes all 49 existing tests (loader fallback path works)
+- `test -f crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java` exits 0
+- `grep 'NativeLoader.load' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` exits
+    0
+- `grep -c 'System.loadLibrary' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`
+    outputs `0` (no direct loadLibrary in IsccLib)
+- `grep 'META-INF/native' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`
+    exits 0
 
 ## Done When
 
-All 10 verification commands exit 0, confirming the Java how-to guide exists with all required
-sections and the navigation entry is live.
+All 6 verification checks pass: NativeLoader.java exists with META-INF/native extraction logic,
+IsccLib.java delegates to NativeLoader.load() with no direct System.loadLibrary, and all 49 existing
+Maven tests pass via the fallback loading path.

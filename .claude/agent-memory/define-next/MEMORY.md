@@ -80,6 +80,12 @@ iterations.
     `*Free` calls, build-from-source installation since Maven Central publishing isn't wired yet.
     Use `icon: lucide/coffee` for Java. All method names are camelCase. Target ~300-400 lines. This
     is the last documentation gap — after this, all 6 language how-to guides are complete.
+- Java native loader: NativeLoader.java is a well-known JNI pattern (sqlite-jdbc, netty-tcnative).
+    Two-phase loading: (1) try JAR resource extraction from `META-INF/native/{os}-{arch}/`, (2) fall
+    back to `System.loadLibrary`. Existing CI still works via fallback since no native libs are
+    bundled in the JAR yet. This step creates the loader + updates IsccLib's static block — no test
+    changes needed since 49 existing tests exercise the fallback path. The bundling step (actually
+    putting .so/.dll/.dylib in META-INF) is a separate CI/build iteration.
 
 ## Architecture Decisions
 
