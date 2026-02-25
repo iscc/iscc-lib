@@ -327,3 +327,8 @@
 {"ts":"2026-02-25T11:00:52.486073+00:00","iteration":28,"role":"define-next","status":"OK","turns":26,"cost_usd":1.010214,"duration_s":209.0}
 {"ts":"2026-02-25T11:08:14.649871+00:00","iteration":28,"role":"advance","status":"OK","turns":62,"cost_usd":2.234782,"duration_s":442.2}
 {"iteration":28,"timestamp":"2026-02-25T11:15:00Z","step":"Create iscc-ffi per-crate README","verdict":"PASS","files_changed":["crates/iscc-ffi/README.md"],"notes":"7/7 per-crate READMEs complete. Clean documentation-only change, 14 hooks pass."}
+{"ts":"2026-02-25T11:10:50.762163+00:00","iteration":28,"role":"review","status":"OK","turns":30,"cost_usd":0.817083,"duration_s":156.1}
+{"ts":"2026-02-25T11:33:02.299057+00:00","iteration":29,"role":"update-state","status":"OK","turns":16,"cost_usd":0.596232,"duration_s":194.3}
+{"ts":"2026-02-25T11:37:58.656768+00:00","iteration":29,"role":"define-next","status":"OK","turns":24,"cost_usd":1.06929,"duration_s":296.4}
+{"ts":"2026-02-25T11:41:50.250967+00:00","iteration":29,"role":"advance","status":"OK","turns":37,"cost_usd":1.373836,"duration_s":231.6}
+{"iteration":29,"timestamp":"2026-02-25T11:50:00Z","step":"Expand docs landing page to all 6 languages","verdict":"PASS","files_changed":["docs/index.md"],"notes":"6 Quick Start tabs + 7 binding table rows. Code examples match howto guides. All 14 hooks pass."}
