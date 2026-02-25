@@ -204,9 +204,14 @@ iterations.
     howto package name fix was a known issue sitting in agent memory — fixing it before the PR means
     the corrected docs deploy from main immediately. This avoids an extra iteration just for the
     fix. Good pairing criteria: same branch, no code risk, verifiable by grep.
-- **Remaining state→target gaps after v0.0.1**: Java platform native bundling (CI matrix), Maven
-    Central publishing, crates.io OIDC, npm token setup — all require human action on external
-    services or complex CI matrix changes. Go io.Reader streaming is optional (not in
-    verified-when). The TypeScript port evaluation (low issue) is the only CID-actionable item
-    remaining. After the PR is merged, the CID loop is effectively in maintenance mode unless new
-    target.md goals are added.
+- **Remaining state→target gaps after v0.0.1**: Maven Central publishing, crates.io OIDC, npm token
+    setup — all require human action on external services. Go io.Reader streaming is optional (not
+    in verified-when). The TypeScript port evaluation (low issue) is CID-actionable but low
+    priority.
+- **Java native bundling in release workflow** (iteration 5, second loop): The `build-jni` +
+    `assemble-jar` pattern mirrors the existing `build-napi` + `publish-npm-lib` pattern. Key
+    differences: (1) NativeLoader expects `META-INF/native/{os}-{arch}/{libname}` directory
+    convention, (2) Maven `src/main/resources/` is auto-included in JAR (no pom.xml changes), (3)
+    the assemble-jar step collects artifacts and runs `mvn package -DskipTests`. This is CID-
+    actionable — no human credentials needed for the build step. Maven Central publishing is a
+    separate future step (requires GPG + Sonatype credentials).
