@@ -147,3 +147,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `mise run version:sync` / `version:check` tooling. These were NOT in issues.md at iteration 22's
     assessed commit — added by human in between.
 - Latest CI run IDs (iteration 23): tests = 22388979767 (7/7 pass), docs = 22388979768 (pass)
+- **Selective publishing inputs resolved (iteration 24, commit 06a9ed6)**: `release.yml`
+    `workflow_dispatch` now has `inputs:` block with three boolean checkboxes (`crates-io`, `pypi`,
+    `npm`) and `if:` conditions on all 8 jobs. Review agent confirmed PASS. First `[critical]` issue
+    deleted from issues.md. Remaining `[critical]`: idempotency checks. `[normal]`: version sync
+    tooling. Three `[low]` issues remain.
+- Latest CI run IDs (iteration 24): tests = 22390109706 (7/7 pass), docs = 22390109757 (pass)

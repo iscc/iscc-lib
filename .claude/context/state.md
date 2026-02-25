@@ -1,16 +1,15 @@
-<!-- assessed-at: fe2e3bf216effdeaf5980b4af5a8a3b52ddc195c -->
+<!-- assessed-at: 17336e9fbcb5390693fe6fc8f2ce6f05b67d4591 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Release readiness — two [critical] release.yml issues block publishing; [low] housekeeping remains
+## Phase: Release readiness — one [critical] idempotency issue blocks publishing; [normal] and [low] housekeeping remain
 
-All core bindings are complete and CI is green on all 7 jobs. In iteration 23, the `[low]`
-`conformance_selftest` binary-size issue was resolved by gating the WASM export behind a
-`conformance` Cargo feature. Two new `[critical]` issues were filed (selective publishing inputs and
-idempotency checks for release.yml) plus one `[normal]` version sync tooling issue — these must be
-addressed before the first release.
+All core bindings are complete and CI is green on all 7 jobs. In iteration 24, the first
+`[critical]` release.yml issue (selective publishing inputs) was resolved — `workflow_dispatch` now
+has three boolean checkboxes (`crates-io`, `pypi`, `npm`) with `if:` guards on all 8 jobs. One
+`[critical]` issue remains (idempotency checks) plus one `[normal]` and three `[low]` issues.
 
 ## Rust Core Crate
 
@@ -248,7 +247,7 @@ separately)
     Benchmarks, Development — all entries present ✅
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22388979768](https://github.com/iscc/iscc-lib/actions/runs/22388979768))
+    [Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button (`docs/javascripts/copypage.js`), `scripts/gen_llms_full.py`, Open Graph
     meta tags all in place
@@ -282,18 +281,19 @@ separately)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22388979767](https://github.com/iscc/iscc-lib/actions/runs/22388979767) — all 7 jobs
+    [Run 22390109706](https://github.com/iscc/iscc-lib/actions/runs/22390109706) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22388979768](https://github.com/iscc/iscc-lib/actions/runs/22388979768) — build + deploy
+    [Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
-- **[critical]** Missing: `release.yml` `workflow_dispatch` has no `inputs:` block — manually
-    triggering fires all publish jobs with no way to select a single registry; spec
-    (`.claude/context/specs/ci-cd.md`) requires boolean checkboxes per registry (`crates-io`,
-    `pypi`, `npm`) with `if:` conditions on each job chain
+- ✅ **Resolved**: `release.yml` `workflow_dispatch` now has `inputs:` block with three boolean
+    checkboxes (`crates-io`, `pypi`, `npm`) and `if:` conditions on all 8 jobs — per spec in
+    `.claude/context/specs/ci-cd.md#release-workflow--selective-publishing` (resolved iteration 24)
 - **[critical]** Missing: No idempotency checks — re-publishing an existing version to crates.io,
-    PyPI, or npm will fail the workflow instead of skipping gracefully
+    PyPI, or npm will fail the workflow instead of skipping gracefully; spec in
+    `.claude/context/specs/ci-cd.md#idempotency` requires per-registry version-existence checks
+    before each publish step
 - **[normal]** Missing: `mise run version:sync` / `mise run version:check` tooling to keep
     `package.json` and `pom.xml` in sync with `Cargo.toml` workspace version
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
@@ -303,18 +303,15 @@ separately)
 
 ## Next Milestone
 
-CI is green on all 7 jobs and Docs. Two `[critical]` issues in `release.yml` must be addressed
-before the project can be considered release-ready. Recommended priority order:
+CI is green on all 7 jobs and Docs. One `[critical]` issue in `release.yml` must be addressed before
+the project can be considered release-ready. Recommended priority order:
 
-1. **[critical] Selective publishing inputs** — add `workflow_dispatch.inputs` with three boolean
-    checkboxes (`crates-io`, `pypi`, `npm`) and `if:` guards on each job chain in `release.yml`,
-    per spec in `.claude/context/specs/ci-cd.md#release-workflow--selective-publishing`
-2. **[critical] Idempotency checks** — add pre-publish version-existence checks to
+1. **[critical] Idempotency checks** — add pre-publish version-existence checks to
     `publish-crates-io`, `publish-pypi`, `publish-npm-lib`, and `publish-npm-wasm` jobs so
     re-publishing an existing version skips gracefully rather than failing, per spec in
     `.claude/context/specs/ci-cd.md#idempotency`
-3. **[normal] Version sync tooling** — `scripts/version_sync.py` + `mise run version:sync` /
+2. **[normal] Version sync tooling** — `scripts/version_sync.py` + `mise run version:sync` /
     `version:check` tasks (cross-platform Python, stdlib only)
-4. **Low-priority code quality fixes** (any order): iscc-wasm stale CLAUDE.md update, iscc-jni
+3. **Low-priority code quality fixes** (any order): iscc-wasm stale CLAUDE.md update, iscc-jni
     `IllegalStateException` for state errors, TypeScript port evaluation
-5. **`crates/iscc-ffi/README.md`** — completes the per-crate README set
+4. **`crates/iscc-ffi/README.md`** — completes the per-crate README set
