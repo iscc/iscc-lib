@@ -1,14 +1,16 @@
-<!-- assessed-at: 6d29673 -->
+<!-- assessed-at: c750df1 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: CI green — ready for v0.0.1 release tagging
+## Phase: v0.0.1 partially released — WASM release build failing
 
-The ruff format CI blocker introduced by the interactive CPython optimisation session has been
-resolved (iteration 31). All 7 CI jobs are now passing on develop. The natural next step is to
-create a PR from `develop` → `main` and tag `v0.0.1` to trigger the release workflow.
+PR #2 (develop → main) was merged and the v0.0.1 tag was pushed in iteration 32. The release
+workflow ran and succeeded for PyPI (all 4 wheel platforms + sdist built and published), but failed
+for crates.io (OIDC not configured on registry side — expected) and for WASM (unexpected `wasm-opt`
+bulk-memory validation error). The npm @iscc/lib and @iscc/wasm packages were not published. CI on
+develop and main are both fully green (all 7 jobs pass).
 
 ## Rust Core Crate
 
@@ -65,7 +67,9 @@ create a PR from `develop` → `main` and tag `v0.0.1` to trigger the release wo
 - `ruff check` and `ruff format --check` both pass (CI-verified at HEAD — Python job SUCCESS)
 - `pytest` passes all conformance vectors (CI-verified at HEAD)
 - abi3-py310 wheel configuration in place; `ty` type checking configured
-- OIDC trusted publishing not yet configured (registry-side setup required)
+- **iscc-lib 0.0.1 published to PyPI** (release workflow `Publish to PyPI: success` for run
+    22402189532\)
+- OIDC trusted publishing not yet configured for crates.io (registry-side setup required)
 - **Open issues**: none
 
 ## Node.js Bindings
@@ -79,6 +83,8 @@ create a PR from `develop` → `main` and tag `v0.0.1` to trigger the release wo
 - Version sync resolved: `package.json` version `0.0.1` matches workspace version; `version:sync`
     script now handles future updates automatically
 - npm packaging fixed: `"files"` allowlist ensures correct tarball contents
+- **@iscc/lib not yet published to npm**: release workflow `Publish @iscc/lib to npm` was skipped
+    because the macOS x86_64 napi build was cancelled (downstream of build failures)
 - **Open issues**: none
 
 ## WASM Bindings
@@ -91,7 +97,10 @@ create a PR from `develop` → `main` and tag `v0.0.1` to trigger the release wo
 - 54 tests: 9 in `conformance.rs` + 45 in `unit.rs`; all pass (CI-verified at HEAD)
 - `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
 - Browser and Node.js build targets supported
-- **Open issues**: none
+- **@iscc/wasm not yet published to npm**: release workflow `Build WASM package` failed due to
+    `wasm-opt` rejecting `memory.copy` without `--enable-bulk-memory` flag; must fix before
+    republishing
+- **Open issues**: none (the wasm-opt bug is in the release workflow, not the crate itself)
 
 ## C FFI
 
@@ -173,8 +182,8 @@ done + howto/go.md done; io.Reader streaming interface absent)
 - 13 pages deployed to lib.iscc.codes: all navigation sections complete (Tutorials, How-to Guides,
     Explanation, Reference, Benchmarks, Development)
 - All pages have `icon: lucide/...` and `description:` YAML front matter
-- Site builds and deploys via GitHub Pages; latest Docs run: **PASSING**
-    ([Run 22395922643](https://github.com/iscc/iscc-lib/actions/runs/22395922643))
+- Site builds and deploys via GitHub Pages; latest Docs run on main: **PASSING**
+    ([Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413))
 - ISCC branding, copy-page split-button, `gen_llms_full.py`, Open Graph meta tags in place
 - `docs/CNAME` contains `lib.iscc.codes`; `docs/includes/abbreviations.md` (19 abbreviations)
 - `docs/index.md` Quick Start section has all 6 language tabs: Rust, Python, Node.js, Java, Go,
@@ -202,35 +211,40 @@ done + howto/go.md done; io.Reader streaming interface absent)
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
 - **Latest CI run on develop: PASSING** —
-    [Run 22401873404](https://github.com/iscc/iscc-lib/actions/runs/22401873404) — all 7 jobs
+    [Run 22402375410](https://github.com/iscc/iscc-lib/actions/runs/22402375410) — all 7 jobs
     SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go)
-- Previous failing runs 22401304896 and 22401336439 were caused by ruff format issue in
-    `_lowlevel.pyi` (fixed in iteration 31)
+- **Latest CI run on main: PASSING** —
+    [Run 22402167393](https://github.com/iscc/iscc-lib/actions/runs/22402167393) — all jobs SUCCESS
 - Latest Docs run: **PASSING** —
-    [Run 22395922643](https://github.com/iscc/iscc-lib/actions/runs/22395922643))
+    [Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413)
 - `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
     conditions on all 8 jobs
 - **Idempotency checks** on all 4 publish jobs (crates.io, PyPI, npm lib/wasm)
 - `scripts/version_sync.py` created (120 lines, stdlib only); reads workspace version from root
     `Cargo.toml`, updates `package.json` and `pom.xml`; `--check` mode exits 1 on mismatch;
     `mise run version:sync` and `mise run version:check` tasks registered in `mise.toml`
-- **PR #1 merged**: develop → main (before CI was broken); develop is now ahead of main with the
-    ruff fix
-- Missing: OIDC trusted publishing for crates.io and PyPI not yet configured in registry settings
-    (workflow code is correct; registry-side setup is outside CI scope)
-- Missing: npm publishing pipeline not fully wired
+- **PR #2 merged** (develop → main, commit `4bdc899`); v0.0.1 tag pushed to remote
+- **Release workflow run 22402189532 — PARTIAL FAILURE**:
+    - `Publish to PyPI: success` ✅ — iscc-lib 0.0.1 published to PyPI
+    - All 4 wheel platforms + sdist built successfully ✅
+    - `Publish to crates.io: failure` — OIDC: "No Trusted Publishing config found for repository
+        `iscc/iscc-lib`" — registry-side setup required (human task)
+    - `Build WASM package: failure` — **bug**: `wasm-opt` rejects `memory.copy` instructions without
+        `--enable-bulk-memory`; fix: add `-- -all --enable-bulk-memory` to `wasm-pack build` command
+        in `release.yml`, or pass `--no-opt`
+    - `Build napi (x86_64-apple-darwin): cancelled` — cascading from earlier failures
+    - `Publish @iscc/lib to npm: skipped` — depends on build-napi (napi macOS x86 was cancelled)
+    - `Publish @iscc/wasm to npm: skipped` — depends on build-wasm (WASM build failed)
+- Missing: OIDC trusted publishing for crates.io not yet configured in registry settings
+- Missing: npm publishing pipeline blocked by WASM build bug and NPM_TOKEN/provenance setup
 - Missing: Java platform native bundling in CI matrix
 - Missing: Maven Central publishing configuration
 
 ## Next Milestone
 
-**CI is green.** All 7 jobs passing on develop. The immediate priorities are:
-
-1. **[high] Merge develop → main and tag v0.0.1** — create PR from `develop` → `main` (via
-    `mise run pr:main` or `gh pr create -B main -H develop`), merge it, then tag `v0.0.1` on main
-    to trigger the release workflow. This is the logical completion of the experimental release
-    milestone.
-2. **[medium] Evaluate unofficial TypeScript port** — check whether `branciard/iscc-core-ts` passes
-    `data.json` conformance vectors; document result or mention in docs if conformant
-3. **[low] Java platform native bundling** — bundle platform-specific `.so`/`.dylib`/`.dll` files
-    inside the JAR under `META-INF/native/` for a truly zero-friction Java install
+**Fix the WASM release build failure** — the release workflow `Build WASM package` job fails because
+`wasm-opt` does not enable bulk memory instructions by default. Fix: modify the `wasm-pack build`
+command in `release.yml` to pass `-- -all --enable-bulk-memory` (or use `--no-opt` as a simpler
+alternative). After fixing, re-tag or manually trigger the release to publish `@iscc/wasm` and
+`@iscc/lib` to npm. The crates.io OIDC publishing requires human action on the registry side and is
+blocked separately.

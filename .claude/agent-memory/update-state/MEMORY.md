@@ -218,3 +218,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     split across multiple lines to satisfy ruff line-length limit. Review PASS. CI now fully green:
     all 7 jobs SUCCESS on develop (runs 22401871901 + 22401873404). Python status: MET. All
     subsections passing. Next logical step: PR develop → main + tag v0.0.1.
+- **v0.0.1 release (iteration 32, commit 56e274d)**: PR #2 merged (develop → main, commit
+    `4bdc899`). v0.0.1 tag pushed. Release workflow run 22402189532: PyPI published ✅ (all 4 wheel
+    platforms + sdist), crates.io failed (OIDC not configured on registry — human task), WASM build
+    failed (wasm-opt rejects `memory.copy` without `--enable-bulk-memory` — fix in release.yml), npm
+    @iscc/lib + @iscc/wasm skipped. CI on develop: all 7 jobs pass (run 22402375410). CI on main:
+    all jobs pass (run 22402167393). Docs on main: pass (run 22402167413).
+- **WASM release build bug**: `wasm-pack build --target web --release` triggers `wasm-opt` which
+    fails with: `Bulk memory operations require bulk memory [--enable-bulk-memory]`. Fix: add
+    `-- -all --enable-bulk-memory` to the wasm-pack command in `release.yml` build-wasm job, or pass
+    `--no-opt` flag. CI WASM job (uses `wasm-pack test`) is unaffected — only the release build job
+    is broken.
