@@ -114,8 +114,8 @@ wasm-pack test --node crates/iscc-wasm -- --test unit
 
 ## Exported API Surface
 
-All 22 Tier 1 symbols are bound. Every `#[wasm_bindgen]` function in `lib.rs` maps 1:1 to an
-`iscc_lib` public function:
+All 23 Tier 1 symbols are bound, plus 2 streaming types. Every `#[wasm_bindgen]` export in `lib.rs`
+maps 1:1 to an `iscc_lib` public symbol:
 
 - **9 gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
@@ -126,9 +126,11 @@ All 22 Tier 1 symbols are bound. Every `#[wasm_bindgen]` function in `lib.rs` ma
 - **1 encoding:** `encode_base64`
 - **1 codec:** `iscc_decompose`
 - **1 diagnostic:** `conformance_selftest`
+- **2 streaming types:** `DataHasher`, `InstanceHasher`
 
-`DataHasher` and `InstanceHasher` (streaming types) are not yet bound. Binding stateful types
-requires `#[wasm_bindgen]` on a struct with constructor/method annotations.
+`DataHasher` and `InstanceHasher` are bound as `#[wasm_bindgen]` structs with `constructor`,
+`update()`, and `finalize()` methods. They use the `Option<Inner>` finalize-once pattern (consistent
+with the Python, napi, and JNI binding crates).
 
 ## Common Pitfalls
 

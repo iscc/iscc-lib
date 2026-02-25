@@ -1,35 +1,29 @@
-## 2026-02-25 — Review of: JNI IllegalStateException for finalized hashers
+## 2026-02-25 — Fix stale WASM CLAUDE.md documentation
 
-**Verdict:** PASS
+**Done:** Updated `crates/iscc-wasm/CLAUDE.md` to accurately reflect that DataHasher and
+InstanceHasher are fully bound as `#[wasm_bindgen]` structs, corrected the exported symbol count
+from 22 to 23, and added the 2 streaming types to the export list.
 
-**Summary:** Clean, well-scoped implementation. Added `throw_state_error` helper alongside existing
-`throw_and_default`, changed exactly 4 call sites for finalized-hasher errors, updated 2 doc
-comments, and added 2 Java tests that verify the correct exception type. All verification criteria
-pass, all 51 Maven tests green, clippy clean, all 14 pre-commit hooks pass.
+**Files changed:**
+
+- `crates/iscc-wasm/CLAUDE.md`: Updated "Exported API Surface" section — changed count from 22 to
+    23, added "2 streaming types: DataHasher, InstanceHasher" to the bullet list, replaced the "not
+    yet bound" paragraph with accurate documentation of the bound structs and their `Option<Inner>`
+    finalize-once pattern.
 
 **Verification:**
 
-- [x] `cargo build -p iscc-jni` succeeds
-- [x] `mvn test` passes — 51 tests (49 existing + 2 new), 0 failures
-- [x] `grep -c 'throw_state_error' lib.rs` outputs 5 (1 definition + 4 call sites — next.md said 4
-    counting call sites only, grep also matches the definition line)
-- [x] `grep -c 'IllegalStateException' lib.rs` outputs 4 (≥1 required)
-- [x] `grep -c 'IllegalStateException' IsccLibTest.java` outputs 4 (≥2 required)
-- [x] `cargo clippy -p iscc-jni -- -D warnings` clean
-- [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] No quality gate circumvention (no `#[allow]`, `#[ignore]`, or threshold changes)
+- `grep -c "not yet bound" crates/iscc-wasm/CLAUDE.md` → 0 (stale text removed)
+- `grep "All 23 Tier 1" crates/iscc-wasm/CLAUDE.md` → matches line 117
+- `grep "DataHasher" crates/iscc-wasm/CLAUDE.md` → shows lines 129, 131 (listed as bound exports)
+- `grep "InstanceHasher" crates/iscc-wasm/CLAUDE.md` → shows lines 129, 131 (listed as bound
+    exports)
+- No Rust source files modified (only CLAUDE.md changed)
+- All 14 pre-commit hooks pass
 
-**Issues found:**
+**Next:** The `[low] iscc-wasm: Stale CLAUDE.md` issue is resolved. Remaining low-priority issues
+include the TypeScript port evaluation and iscc-jni Javadoc `@throws` annotation mismatch. The
+project is ready for the `v0.0.1` release — consider creating a PR from develop to main.
 
-- (none)
-
-**Next:** The `[low] iscc-jni: All exceptions mapped to IllegalArgumentException` issue is resolved
-and deleted. Two `[low]` issues remain: TypeScript port evaluation and WASM CLAUDE.md staleness. The
-Java-side Javadoc in `IsccLib.java` still says `@throws IllegalArgumentException` for hasher
-update/finalize methods — this is a cosmetic mismatch that could be cleaned up in a follow-up. The
-project is ready for `v0.0.1` release — consider creating a PR from develop to main.
-
-**Notes:** The tests only exercise `update()` after `finalize()` (not `finalize()` after
-`finalize()`), but both code paths use the identical `throw_state_error` pattern and the Rust logic
-is straightforward. The grep count discrepancy (5 vs 4) is correctly explained by the function
-definition line also matching the pattern.
+**Notes:** mdformat re-wrapped some lines during formatting (standard behavior). No surprises or
+shortcuts taken. This was a documentation-only change with no code impact.
