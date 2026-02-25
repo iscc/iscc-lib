@@ -212,5 +212,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     flat-buffer functions `gen_video_code_v0_flat` + `soft_hash_video_v0_flat`; type signatures
     updated to `Sequence[Sequence[int]]`; API symbol count in target.md and specs/rust-core.md
     updated 22→23 (correcting a pre-existing under-count). **RESULT: CI FAILING** — Python ruff
-    format check fails (runs 22401304896 + 22401336439). Fix by running
+    format check fails (runs 22401304896 + 22401336439). Fixed by running
     `uv run ruff format crates/iscc-py/python/` and committing.
+- **ruff format fix (iteration 31, commit 3c0d70b)**: `_lowlevel.pyi` `gen_video_code_v0` signature
+    split across multiple lines to satisfy ruff line-length limit. Review PASS. CI now fully green:
+    all 7 jobs SUCCESS on develop (runs 22401871901 + 22401873404). Python status: MET. All
+    subsections passing. Next logical step: PR develop → main + tag v0.0.1.
