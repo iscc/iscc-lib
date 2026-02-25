@@ -21,7 +21,8 @@ Runs on every push to `main` and every PR. All jobs must pass before merge.
 | **Node.js** | napi build, `npm test`                                                                |
 | **WASM**    | `wasm-pack test --node`                                                               |
 | **C FFI**   | cbindgen header generation, gcc compile, C test run                                   |
-| **Java**    | (deferred until JNI bindings have tests)                                              |
+| **Java**    | JNI `cargo build`, `mvn test` (49 tests including conformance vectors)                |
+| **Go**      | `cargo build --target wasm32-wasip1` for FFI binary, `go test`, `go vet`              |
 
 CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
 `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, `astral-sh/setup-uv@v4`,
@@ -97,6 +98,43 @@ Each publish job handles "already published" gracefully:
 - **PyPI**: check version via PyPI JSON API before publishing; skip if exists
 - **npm**: check version with `npm view` before publishing; skip if exists
 
+### Release Protocol
+
+Lockstep versioning with selective publishing. All packages share a single version number (from
+`workspace.package.version` in root `Cargo.toml`), but only the registries with actual changes need
+to be published for a given release. Some registries may skip version numbers — this is expected and
+acceptable.
+
+**Rationale:** All binding crates are thin FFI wrappers over the same Rust core. Independent
+versioning adds overhead without benefit for a single-maintainer project where the bindings have no
+independent logic. Users never need a compatibility matrix — the version number is the compatibility
+story.
+
+**Full release (all registries):**
+
+1. Bump version in root `Cargo.toml` (`workspace.package.version`)
+2. Run `mise run version:sync` to propagate to non-Cargo manifests
+3. Run `mise run version:check` to validate consistency
+4. Commit: `git commit -m "Release X.Y.Z"`
+5. Tag: `git tag vX.Y.Z`
+6. Push: `git push && git push --tags`
+7. Tag push triggers `release.yml` — all registry jobs activate
+
+**Selective release (single registry):**
+
+1. Bump version in root `Cargo.toml` (if not already at the target version)
+2. Run `mise run version:sync` and `mise run version:check`
+3. Commit and push to `main` (no tag)
+4. Go to GitHub Actions → Release → Run workflow
+5. Check only the registries that need publishing (e.g., `pypi: true`)
+6. Unchecked registries skip entirely — no builds, no publish attempts
+
+**When to use selective publishing:**
+
+- Binding-layer bugfix (e.g., Python `__init__.py` wrapper fix) — publish only PyPI
+- Rust core change that affects all bindings — full release via tag
+- First release of a binding — selective publish for that registry only
+
 ## Build Matrices
 
 ### Python wheels (maturin)
@@ -126,22 +164,50 @@ Single build on ubuntu-latest, platform-independent.
 
 ## Package Names and Registries
 
-| Package   | Registry      | Name                          |
-| --------- | ------------- | ----------------------------- |
-| Rust core | crates.io     | `iscc-lib`                    |
-| Python    | PyPI          | `iscc-lib`                    |
-| Node.js   | npm           | `@iscc/lib`                   |
-| WASM      | npm           | `@iscc/wasm`                  |
-| Java      | Maven Central | `io.iscc:iscc-lib` (deferred) |
+| Package   | Registry      | Name                                                               |
+| --------- | ------------- | ------------------------------------------------------------------ |
+| Rust core | crates.io     | `iscc-lib`                                                         |
+| Python    | PyPI          | `iscc-lib`                                                         |
+| Node.js   | npm           | `@iscc/lib`                                                        |
+| WASM      | npm           | `@iscc/wasm`                                                       |
+| Java      | Maven Central | `io.iscc:iscc-lib` (not yet in release workflow)                   |
+| Go        | pkg.go.dev    | `github.com/iscc/iscc-lib/packages/go` (tag-based, no publish job) |
 
 ## Version Management
 
-- Version is defined once in root `Cargo.toml` under `[workspace.package]`
-- All Cargo crates inherit via `version.workspace = true`
-- `crates/iscc-napi/package.json` version must be updated manually (or via sync script)
-- `pyproject.toml` root version must be updated manually (or via sync script)
-- Before a release: bump version in all manifests in a single commit, then trigger the workflow
-- All packages share the same version number; some registries may skip versions (acceptable)
+All packages share the workspace version from root `Cargo.toml`. Some manifests derive the version
+automatically at build time; others require explicit synchronization.
+
+### Version source of truth
+
+`[workspace.package] version` in the root `Cargo.toml`.
+
+### Automatic propagation (no sync needed)
+
+| Manifest                            | Mechanism                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------- |
+| All `Cargo.toml` members            | `version.workspace = true` — Cargo resolves at build/publish time               |
+| `crates/iscc-py/pyproject.toml`     | `dynamic = ["version"]` — maturin reads from `Cargo.toml` at build time         |
+| `crates/iscc-wasm/pkg/package.json` | CI script in `release.yml` extracts version from root `Cargo.toml` during build |
+
+### Manual propagation (sync script required)
+
+| Manifest                        | Format                                                             |
+| ------------------------------- | ------------------------------------------------------------------ |
+| `crates/iscc-napi/package.json` | `"version": "X.Y.Z"`                                               |
+| `crates/iscc-jni/java/pom.xml`  | `<version>X.Y.Z-SNAPSHOT</version>` (drop `-SNAPSHOT` for release) |
+
+Go modules use git tags for versioning — no manifest version field to sync.
+
+### Sync tooling
+
+| Task            | Command                  | Purpose                                                     |
+| --------------- | ------------------------ | ----------------------------------------------------------- |
+| `version:sync`  | `mise run version:sync`  | Read workspace version, update `package.json` and `pom.xml` |
+| `version:check` | `mise run version:check` | Validate all manifests match; fail if mismatch (run in CI)  |
+
+The sync script reads the canonical version from root `Cargo.toml` and updates the two manual
+manifests. It is called before every release commit (see Release Protocol above).
 
 ## Dev Tooling
 
@@ -183,31 +249,36 @@ workflow triggers on push to `main`.
 
 ### CI
 
-- [ ] All quality gate jobs run on push to `main` and on PRs
-- [ ] Rust job checks fmt, clippy (workspace-wide), and tests
-- [ ] Python job checks ruff and runs pytest
-- [ ] Node.js job builds napi addon and runs tests
-- [ ] WASM job runs wasm-pack tests
-- [ ] C FFI job generates headers, compiles, and runs C test program
-- [ ] CI does not use `mise` — calls tools directly
+- [x] All quality gate jobs run on push to `main` and on PRs
+- [x] Rust job checks fmt, clippy (workspace-wide), and tests
+- [x] Python job checks ruff and runs pytest
+- [x] Node.js job builds napi addon and runs tests
+- [x] WASM job runs wasm-pack tests
+- [x] C FFI job generates headers, compiles, and runs C test program
+- [x] Java job builds JNI crate and runs Maven tests
+- [x] Go job builds WASM FFI binary, runs go test and go vet
+- [x] CI does not use `mise` — calls tools directly
 
 ### Release
 
-- [ ] `workflow_dispatch` trigger with boolean inputs for each registry
+- [ ] `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm)
 - [ ] Tag push `v*.*.*` triggers all publish jobs
 - [ ] `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
 - [ ] `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
 - [ ] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
-- [ ] Each registry's jobs are independent — failure in one does not block others
-- [ ] crates.io uses OIDC trusted publishing (no API key secret)
-- [ ] PyPI uses OIDC trusted publishing (no API key secret)
-- [ ] npm uses `NPM_TOKEN` repository secret
-- [ ] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
+- [x] Each registry's jobs are independent — failure in one does not block others
+- [x] crates.io uses OIDC trusted publishing (no API key secret)
+- [x] PyPI uses OIDC trusted publishing (no API key secret)
+- [x] npm uses `NPM_TOKEN` repository secret
+- [x] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
 - [ ] Publishing an existing version skips gracefully instead of failing
-- [ ] All build artifacts uploaded via `actions/upload-artifact@v4`
+- [x] All build artifacts uploaded via `actions/upload-artifact@v4`
 
 ### Version Sync
 
-- [ ] Version defined once in root `Cargo.toml` `[workspace.package]`
-- [ ] All Cargo crates inherit version via `version.workspace = true`
-- [ ] `package.json` and `pyproject.toml` versions match workspace version before release
+- [x] Version defined once in root `Cargo.toml` `[workspace.package]`
+- [x] All Cargo crates inherit version via `version.workspace = true`
+- [x] Python version derived automatically via maturin `dynamic = ["version"]`
+- [x] WASM version synced automatically via CI script in release.yml
+- [ ] `mise run version:sync` updates `package.json` and `pom.xml` from workspace version
+- [ ] `mise run version:check` validates all manifests match (suitable for CI)
