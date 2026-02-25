@@ -1,31 +1,32 @@
-## 2026-02-25 — Review of: Gate iscc-wasm `conformance_selftest` behind Cargo feature
+## 2026-02-25 — Add selective publishing inputs to release.yml
 
-**Verdict:** PASS
+**Done:** Added three boolean `workflow_dispatch` inputs (`crates-io`, `pypi`, `npm`) and `if:`
+conditions to all 8 jobs in `release.yml`. Tag pushes activate all jobs as before; manual dispatch
+allows selecting individual registries via checkboxes in the GitHub Actions UI.
 
-**Summary:** Clean, minimal implementation adding a `conformance` Cargo feature to iscc-wasm that
-gates the `conformance_selftest` WASM export. All 54 wasm-pack tests pass with the feature enabled,
-CI workflow correctly updated, and no quality gate circumvention.
+**Files changed:**
+
+- `.github/workflows/release.yml`: Added `inputs:` block under `workflow_dispatch:` with three
+    boolean inputs. Added `if: startsWith(github.ref, 'refs/tags/v') || inputs.<registry>` to all 8
+    jobs (`publish-crates-io`, `build-wheels`, `build-sdist`, `publish-pypi`, `build-napi`,
+    `build-wasm`, `publish-npm-lib`, `publish-npm-wasm`). Updated existing tag-only conditions on
+    `publish-npm-lib` and `publish-npm-wasm` to include `|| inputs.npm`.
 
 **Verification:**
 
-- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` passes all 54 tests (9
-    conformance + 45 unit)
-- [x] `cargo clippy -p iscc-wasm -- -D warnings` clean
-- [x] `grep -q '^\[features\]' crates/iscc-wasm/Cargo.toml` exits 0 — features section exists
-- [x] `grep -q 'cfg.*feature.*conformance' crates/iscc-wasm/src/lib.rs` exits 0 — feature gate
-    present
-- [x] `grep -q '\-\-features conformance' .github/workflows/ci.yml` exits 0 — CI updated
+- [x] `grep -q 'crates-io:' .github/workflows/release.yml` — input defined
+- [x] `grep -q 'pypi:' .github/workflows/release.yml` — input defined
+- [x] `grep -c 'inputs\.' .github/workflows/release.yml` returns 8 — all jobs have conditions
+- [x] `grep -q "inputs.crates-io"` — crates.io condition present
+- [x] `grep -q "inputs.pypi"` — PyPI condition present
+- [x] `grep -q "inputs.npm"` — npm condition present
+- [x] `python3 -c "import yaml; yaml.safe_load(...)"` — valid YAML
+- [x] `mise run check` — all 14 quality gate hooks pass
 
-**Issues found:**
+**Next:** The second critical release issue: add idempotency checks to each publish job so
+re-publishing an existing version skips gracefully. This is the remaining blocker for the first
+`v0.0.1` publish.
 
-- (none)
-
-**Next:** Remaining `[low]` issues: iscc-wasm stale CLAUDE.md (DataHasher/InstanceHasher documented
-as unbound), iscc-jni exception mapping, and TypeScript port evaluation. Define-next should pick the
-next highest-value item from the remaining low-priority issues.
-
-**Notes:** The advance agent correctly identified that next.md's suggested CI syntax
-`wasm-pack test --node crates/iscc-wasm -- --features conformance` (with `--` separator) is wrong —
-`--` in wasm-pack passes args to wasm-bindgen-test-runner, not to cargo. The correct form is
-`wasm-pack test --node crates/iscc-wasm --features conformance`. This is now documented in
-learnings.md. Issue #3 (`conformance_selftest unconditionally exported`) resolved and deleted.
+**Notes:** Straightforward change — no surprises. The `permissions`, `concurrency`, trigger events,
+and build step logic were left untouched as specified. No tests needed since this is a workflow
+configuration change (verified structurally via grep and YAML parsing).

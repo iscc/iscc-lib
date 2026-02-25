@@ -4,6 +4,19 @@ on:
   push:
     tags: [v*.*.*]
   workflow_dispatch:
+    inputs:
+      crates-io:
+        description: Publish iscc-lib to crates.io
+        type: boolean
+        default: false
+      pypi:
+        description: Publish iscc-lib to PyPI
+        type: boolean
+        default: false
+      npm:
+        description: Publish @iscc/lib and @iscc/wasm to npm
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -13,6 +26,7 @@ jobs:
   # Publish Rust core crate to crates.io via OIDC trusted publishing
   publish-crates-io:
     name: Publish to crates.io
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.crates-io
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,6 +45,7 @@ jobs:
   # Build cross-platform Python wheels using maturin
   build-wheels:
     name: Build wheels (${{ matrix.target }})
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -63,6 +78,7 @@ jobs:
   # Build source distribution
   build-sdist:
     name: Build sdist
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -81,6 +97,7 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     needs: [build-wheels, build-sdist]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -100,6 +117,7 @@ jobs:
   # Build napi-rs native addons for cross-platform npm publishing
   build-napi:
     name: Build napi (${{ matrix.target }})
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -146,7 +164,7 @@ jobs:
   publish-npm-lib:
     name: Publish @iscc/lib to npm
     needs: [build-napi]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -178,6 +196,7 @@ jobs:
   # Build WASM package for npm publishing
   build-wasm:
     name: Build WASM package
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -208,7 +227,7 @@ jobs:
   publish-npm-wasm:
     name: Publish @iscc/wasm to npm
     needs: [build-wasm]
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
     runs-on: ubuntu-latest
     permissions:
       contents: read
