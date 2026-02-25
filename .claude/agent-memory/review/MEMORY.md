@@ -54,6 +54,12 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Script-only changes (new Python scripts, mise task additions): `mise run check` + direct script
     invocation is sufficient — skip all test suites unless the script modifies test infrastructure
 
+## Verification Patterns
+
+- `grep -c` counts ALL matching lines including function definitions — when next.md specifies "4
+    call sites" but the function name also appears in a definition, expect count = call sites + 1.
+    This is a valid pass if the arithmetic checks out
+
 ## Gotchas
 
 - Git log shows iteration numbering resets when a new CID run starts (iteration 12 → iteration 1) —

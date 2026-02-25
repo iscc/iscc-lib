@@ -79,17 +79,6 @@ acknowledging community implementations builds goodwill and helps adopters find 
 
 **Source:** [human]
 
-## [low] iscc-jni: All exceptions mapped to `IllegalArgumentException`
-
-In `crates/iscc-jni/src/lib.rs:34`, the `throw_and_default` function always throws
-`java/lang/IllegalArgumentException` for all error types. State violations (e.g., hasher already
-finalized) should throw `IllegalStateException` instead.
-
-Fix: add a `throw_state_error` variant that throws `IllegalStateException` and use it for
-state-related errors (finalized hashers, etc.).
-
-**Source:** [human]
-
 ## [low] iscc-wasm: Stale CLAUDE.md says DataHasher/InstanceHasher not yet bound
 
 In `crates/iscc-wasm/CLAUDE.md:130-131`, the documentation states "DataHasher and InstanceHasher
