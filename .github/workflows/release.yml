@@ -35,11 +35,29 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: Get workspace version
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check version on registry
+        id: check
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if cargo info iscc-lib 2>/dev/null | grep -q "version: $VERSION"; then
+            echo "Version $VERSION already published to crates.io, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Run tests
+        if: steps.check.outputs.skip != 'true'
         run: cargo test --workspace
       - name: Authenticate with crates.io
+        if: steps.check.outputs.skip != 'true'
         uses: rust-lang/crates-io-auth-action@v1
       - name: Publish iscc-lib
+        if: steps.check.outputs.skip != 'true'
         run: cargo publish -p iscc-lib
 
   # Build cross-platform Python wheels using maturin
@@ -103,13 +121,31 @@ jobs:
       contents: read
       id-token: write
     steps:
+      - uses: actions/checkout@v4
+      - name: Get workspace version
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check version on registry
+        id: check
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if curl -sf "https://pypi.org/pypi/iscc-lib/$VERSION/json" > /dev/null 2>&1; then
+            echo "Version $VERSION already published to PyPI, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Download all artifacts
+        if: steps.check.outputs.skip != 'true'
         uses: actions/download-artifact@v4
         with:
           pattern: wheels-*
           path: dist
           merge-multiple: true
       - name: Publish to PyPI
+        if: steps.check.outputs.skip != 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
@@ -187,7 +223,23 @@ jobs:
       - name: Prepare npm packages
         run: npx napi prepublish -t npm
         working-directory: crates/iscc-napi
+      - name: Get workspace version
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check version on registry
+        id: check
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if npm view "@iscc/lib@$VERSION" version 2>/dev/null; then
+            echo "Version $VERSION already published to npm, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish to npm
+        if: steps.check.outputs.skip != 'true'
         run: npm publish --provenance --access public
         working-directory: crates/iscc-napi
         env:
@@ -242,7 +294,23 @@ jobs:
         with:
           name: wasm-pkg
           path: pkg
+      - name: Get package version
+        id: version
+        run: |
+          VERSION=$(node -p "require('./pkg/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check version on registry
+        id: check
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if npm view "@iscc/wasm@$VERSION" version 2>/dev/null; then
+            echo "Version $VERSION already published to npm, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Publish to npm
+        if: steps.check.outputs.skip != 'true'
         run: npm publish --provenance --access public
         working-directory: pkg
         env:
