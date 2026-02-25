@@ -122,6 +122,12 @@ iterations.
     state.md's CI section for the latest status. When CI is red, that's always the first priority
     regardless of what the handoff "Next" section suggests. Formatting fixes are trivial single-file
     steps — don't over-scope them.
+- **Release milestone steps** (iteration 2, second loop): When all code is complete and CI is green,
+    the remaining work is operational (merge PRs, tag releases). These are zero-file-change steps
+    that use `gh` and `git` commands exclusively. Verify preconditions (PR mergeable, CI green)
+    before scoping, and call out what NOT to do (don't squash, don't delete develop, don't wait for
+    release workflow). When an existing PR already covers the merge, update its title/body rather
+    than creating a new one.
 
 ## Architecture Decisions
 
