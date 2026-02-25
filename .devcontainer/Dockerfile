@@ -13,6 +13,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openjdk-17-jdk-headless maven \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Install Go (for Go bindings — version matches packages/go/go.mod)
+ARG GO_VERSION=1.24.0
+RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
+    | tar -C /usr/local -xz
+ENV PATH="/usr/local/go/bin:$PATH"
+
 # Install GitHub CLI
 RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg \
@@ -50,15 +56,20 @@ WORKDIR /workspace
 USER $USERNAME
 ENV HOME=/home/$USERNAME
 ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH="$HOME/.cargo/bin:$HOME/.local/bin:/usr/local/share/npm-global/bin:$PATH"
+ENV PATH="$HOME/go/bin:$HOME/.cargo/bin:$HOME/.local/bin:/usr/local/share/npm-global/bin:$PATH"
 ENV SHELL=/bin/zsh
 
 # Pre-create volume mount-point directories so named volumes inherit dev ownership
 RUN mkdir -p $HOME/.venvs/iscc-lib $HOME/.cargo/registry $HOME/.cargo/git
 
-# Install Rust
+# Install Rust + WASM targets
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
-    --default-toolchain stable --profile default
+    --default-toolchain stable --profile default \
+    && rustup target add wasm32-unknown-unknown wasm32-wasip1
+
+# Install wasm-pack (WASM bindings testing) and cbindgen (C FFI header generation)
+RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh \
+    && cargo install cbindgen
 
 # Install uv (Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
