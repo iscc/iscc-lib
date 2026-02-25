@@ -205,9 +205,14 @@ iterations.
     the corrected docs deploy from main immediately. This avoids an extra iteration just for the
     fix. Good pairing criteria: same branch, no code risk, verifiable by grep.
 - **Remaining state→target gaps after v0.0.1**: Maven Central publishing, crates.io OIDC, npm token
-    setup — all require human action on external services. Go io.Reader streaming is optional (not
-    in verified-when). The TypeScript port evaluation (low issue) is CID-actionable but low
-    priority.
+    setup — all require human action on external services. The TypeScript port evaluation (low
+    issue) is CID-actionable but low priority.
+- **Go io.Reader streaming** (iteration 7, second loop): When the handoff says "maintenance mode"
+    but the target architecture description mentions a feature ("io.Reader support for streaming")
+    that isn't implemented, that's still a valid gap to close. `UpdateFrom(ctx, io.Reader)` is 2
+    methods + 3 tests, well under the 3-file limit. It delegates to existing `Update`, so no WASM
+    changes. Prefer concrete code improvements over research tasks (TypeScript evaluation) even when
+    the handoff suggests the latter.
 - **Java native bundling in release workflow** (iteration 5, second loop): The `build-jni` +
     `assemble-jar` pattern mirrors the existing `build-napi` + `publish-npm-lib` pattern. Key
     differences: (1) NativeLoader expects `META-INF/native/{os}-{arch}/{libname}` directory
