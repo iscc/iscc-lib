@@ -1,32 +1,29 @@
-## 2026-02-25 — Add `__version__` attribute and fix iscc-py module docstring
+## 2026-02-25 — Review of: Add `__version__` attribute and fix iscc-py module docstring
 
-**Done:** Added `__version__` attribute to `iscc_lib` Python package via
-`importlib.metadata.version("iscc-lib")`, fixed three incorrect module name references in
-`crates/iscc-py/src/lib.rs` (changed `iscc._lowlevel` → `iscc_lib._lowlevel` and
-`python/iscc/__init__.py` → `python/iscc_lib/__init__.py`), and added two tests verifying the
-version attribute.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, minimal implementation adding `__version__` via `importlib.metadata.version()`
+and fixing three incorrect module name references in `lib.rs`. Two `[human]`-sourced issues
+resolved. All 159 Python tests pass, 14 pre-commit hooks pass, clippy clean.
 
-- `crates/iscc-py/python/iscc_lib/__init__.py`: Added `from importlib.metadata import version` and
-    `__version__ = version("iscc-lib")` near the top; added `"__version__"` to `__all__`
-- `crates/iscc-py/src/lib.rs`: Fixed three references — line 1 docstring (`iscc._lowlevel` →
-    `iscc_lib._lowlevel`), line 3 (`iscc` → `iscc_lib`), line 4 path (`python/iscc/__init__.py` →
-    `python/iscc_lib/__init__.py`), and line 360 module doc (`iscc._lowlevel` →
-    `iscc_lib._lowlevel`)
-- `tests/test_smoke.py`: Added `test_version_exists_and_correct` (verifies `__version__` is a string
-    equal to `"0.0.1"`) and `test_version_in_all` (verifies `"__version__"` is in `__all__`)
+**Verification:**
 
-**Verification:** All 159 Python tests pass (19 smoke + 140 conformance).
-`python -c "import iscc_lib; print(iscc_lib.__version__)"` prints `0.0.1`.
-`grep -q 'iscc_lib._lowlevel' crates/iscc-py/src/lib.rs` exits 0. No old incorrect `iscc._lowlevel`
-references remain. `cargo clippy -p iscc-py -- -D warnings` clean.
+- [x] `pytest tests/test_smoke.py` passes — 19 tests (17 existing + 2 new), all pass
+- [x] `pytest tests/` passes — 159 tests (19 smoke + 140 conformance), all pass
+- [x] `python -c "import iscc_lib; print(iscc_lib.__version__)"` prints `0.0.1`
+- [x] `grep -q 'iscc_lib._lowlevel' crates/iscc-py/src/lib.rs` exits 0 — docstring fixed
+- [x] `grep 'iscc\._lowlevel' ... | grep -qv 'iscc_lib'` exits non-zero — no old references remain
+- [x] `cargo clippy -p iscc-py -- -D warnings` clean
+
+**Issues found:**
+
+- (none)
 
 **Next:** Remaining `[low]` issues: iscc-wasm conformance feature gate, iscc-wasm stale CLAUDE.md,
-iscc-jni exception mapping, and TypeScript port evaluation.
+iscc-jni exception mapping, and TypeScript port evaluation. Define-next should pick the next
+highest-value item.
 
-**Notes:** next.md specified the version as `"0.0.1"` which is correct for the workspace Cargo.toml
-version. The installed package had a stale `0.1.0` version from a previous build — rebuilding with
-`maturin develop` resolved the mismatch. Also found a third incorrect `iscc._lowlevel` reference on
-line 360 (the `#[pymodule]` docstring) that wasn't mentioned in next.md but was caught by the
-verification grep and fixed.
+**Notes:** The advance agent found and fixed a third incorrect `iscc._lowlevel` reference on line
+360 (the `#[pymodule]` docstring) that wasn't in next.md's scope — this was correctly caught by the
+verification grep and is within the spirit of the docstring fix task. Total `__all__` count is now
+34 symbols (33 API + `__version__`).

@@ -288,3 +288,8 @@
 {"ts":"2026-02-25T07:25:16.009255+00:00","iteration":20,"role":"define-next","status":"OK","turns":23,"cost_usd":0.860368,"duration_s":147.0}
 {"ts":"2026-02-25T07:29:07.169668+00:00","iteration":20,"role":"advance","status":"OK","turns":33,"cost_usd":1.170119,"duration_s":231.2}
 {"iteration":20,"timestamp":"2026-02-25T07:33:00Z","step":"Add input validation to alg_dct and alg_wtahash","verdict":"PASS","files_changed":["crates/iscc-lib/src/dct.rs","crates/iscc-lib/src/wtahash.rs","crates/iscc-lib/src/lib.rs"],"issues_resolved":["alg_dct allows non-power-of-two even lengths","alg_wtahash panics on short input"],"tests":{"iscc_lib":269},"notes":"8 new validation tests, no behavioral change for valid inputs."}
+{"ts":"2026-02-25T07:32:36.763744+00:00","iteration":20,"role":"review","status":"OK","turns":28,"cost_usd":0.997514,"duration_s":209.6}
+{"ts":"2026-02-25T07:55:53.036970+00:00","iteration":21,"role":"update-state","status":"OK","turns":18,"cost_usd":0.836841,"duration_s":247.9}
+{"ts":"2026-02-25T07:58:01.988026+00:00","iteration":21,"role":"define-next","status":"OK","turns":20,"cost_usd":0.663946,"duration_s":128.9}
+{"ts":"2026-02-25T08:02:44.790355+00:00","iteration":21,"role":"advance","status":"OK","turns":42,"cost_usd":1.427565,"duration_s":282.8}
+{"iteration":21,"timestamp":"2026-02-25T08:10:00Z","step":"Add __version__ attribute and fix iscc-py module docstring","verdict":"PASS","files_changed":["crates/iscc-py/python/iscc_lib/__init__.py","crates/iscc-py/src/lib.rs","tests/test_smoke.py"],"issues_resolved":["iscc-py: Missing __version__ attribute","iscc-py: Module docstring references wrong package name"],"tests":{"python":159},"notes":"Standard importlib.metadata.version() pattern. 3 docstring references fixed. 2 new tests."}

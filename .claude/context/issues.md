@@ -90,25 +90,6 @@ state-related errors (finalized hashers, etc.).
 
 **Source:** [human]
 
-## [low] iscc-py: Missing `__version__` attribute
-
-`crates/iscc-py/python/iscc_lib/__init__.py` does not expose a `__version__` attribute. The Python
-reference (`iscc-core`) exports `__version__`, and standard Python tooling expects it for runtime
-version detection.
-
-Fix: add `__version__` via `importlib.metadata.version("iscc-lib")` or let maturin inject it.
-
-**Source:** [human]
-
-## [low] iscc-py: Module docstring references wrong package name
-
-In `crates/iscc-py/src/lib.rs:1`, the module docstring says `iscc._lowlevel` but the actual module
-name is `iscc_lib._lowlevel` (per `pyproject.toml` `[tool.maturin].module-name`).
-
-Fix: update the docstring to reference `iscc_lib._lowlevel`.
-
-**Source:** [human]
-
 ## [low] iscc-wasm: `conformance_selftest` unconditionally exported increases binary size
 
 In `crates/iscc-wasm/src/lib.rs:197`, `conformance_selftest()` is exported via `#[wasm_bindgen]`

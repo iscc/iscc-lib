@@ -47,7 +47,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 - Go-only changes: `mise run check` + `mise exec -- go test ./...` is sufficient
 
-- Full test suite (157 tests) runs in \<1s — always run it for Python changes
+- Full test suite (159 tests) runs in \<1s — always run it for Python changes
 
 ## Gotchas
 
