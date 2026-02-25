@@ -4,15 +4,16 @@ Continuous integration, quality gates, developer tooling, and selective package 
 
 ## Workflow Files
 
-| Workflow    | File          | Trigger                             | Purpose                       |
-| ----------- | ------------- | ----------------------------------- | ----------------------------- |
-| **CI**      | `ci.yml`      | push/PR to `main`                   | Quality gates for all targets |
-| **Release** | `release.yml` | `v*.*.*` tag or `workflow_dispatch` | Build and publish packages    |
-| **Docs**    | `docs.yml`    | push to `main`                      | Build and deploy docs site    |
+| Workflow    | File          | Trigger                                | Purpose                       |
+| ----------- | ------------- | -------------------------------------- | ----------------------------- |
+| **CI**      | `ci.yml`      | push to `main`/`develop`, PR to `main` | Quality gates for all targets |
+| **Release** | `release.yml` | `v*.*.*` tag or `workflow_dispatch`    | Build and publish packages    |
+| **Docs**    | `docs.yml`    | push to `main`                         | Build and deploy docs site    |
 
 ## CI Workflow — Quality Gates
 
-Runs on every push to `main` and every PR. All jobs must pass before merge.
+Runs on every push to `main` or `develop` and every PR targeting `main`. All jobs must pass before
+merge.
 
 | Job         | What it checks                                                                        |
 | ----------- | ------------------------------------------------------------------------------------- |
@@ -124,7 +125,7 @@ story.
 
 1. Bump version in root `Cargo.toml` (if not already at the target version)
 2. Run `mise run version:sync` and `mise run version:check`
-3. Commit and push to `main` (no tag)
+3. Commit and push (no tag). If on `develop`, merge to `main` first via PR
 4. Go to GitHub Actions → Release → Run workflow
 5. Check only the registries that need publishing (e.g., `pypi: true`)
 6. Unchecked registries skip entirely — no builds, no publish attempts
@@ -249,7 +250,7 @@ workflow triggers on push to `main`.
 
 ### CI
 
-- [x] All quality gate jobs run on push to `main` and on PRs
+- [x] All quality gate jobs run on push to `main`/`develop` and on PRs to `main`
 - [x] Rust job checks fmt, clippy (workspace-wide), and tests
 - [x] Python job checks ruff and runs pytest
 - [x] Node.js job builds napi addon and runs tests
