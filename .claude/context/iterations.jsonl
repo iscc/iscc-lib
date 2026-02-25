@@ -332,3 +332,8 @@
 {"ts":"2026-02-25T11:37:58.656768+00:00","iteration":29,"role":"define-next","status":"OK","turns":24,"cost_usd":1.06929,"duration_s":296.4}
 {"ts":"2026-02-25T11:41:50.250967+00:00","iteration":29,"role":"advance","status":"OK","turns":37,"cost_usd":1.373836,"duration_s":231.6}
 {"iteration":29,"timestamp":"2026-02-25T11:50:00Z","step":"Expand docs landing page to all 6 languages","verdict":"PASS","files_changed":["docs/index.md"],"notes":"6 Quick Start tabs + 7 binding table rows. Code examples match howto guides. All 14 hooks pass."}
+{"ts":"2026-02-25T11:44:23.523844+00:00","iteration":29,"role":"review","status":"OK","turns":29,"cost_usd":0.872514,"duration_s":153.3}
+{"ts":"2026-02-25T12:08:12.357123+00:00","iteration":30,"role":"update-state","status":"OK","turns":2,"cost_usd":0.995104,"duration_s":373.2}
+{"ts":"2026-02-25T12:10:25.270708+00:00","iteration":30,"role":"define-next","status":"OK","turns":19,"cost_usd":0.754156,"duration_s":132.9}
+{"ts":"2026-02-25T12:12:41.104448+00:00","iteration":30,"role":"advance","status":"OK","turns":21,"cost_usd":0.552226,"duration_s":135.8}
+{"iteration":30,"timestamp":"2026-02-25T12:15:00Z","step":"Polish docs landing page code examples and Key Features","verdict":"PASS","files_changed":["docs/index.md"],"notes":"Three cosmetic doc fixes: Key Features bullet adds Java/Go, Rust Quick Start uses result.iscc, Python Quick Start drops json.loads. All 7 criteria pass, 14 hooks clean."}

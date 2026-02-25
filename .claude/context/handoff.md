@@ -1,29 +1,30 @@
-## 2026-02-25 — Polish docs landing page code examples and Key Features
+## 2026-02-25 — Review of: Polish docs landing page code examples and Key Features
 
-**Done:** Applied three cosmetic fixes to `docs/index.md`: added Java and Go to the Key Features
-multi-language bullet, fixed the Rust Quick Start to access `result.iscc` (struct field) instead of
-printing as a JSON string, and removed the unnecessary `import json` / `json.loads` from the Python
-Quick Start.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Three targeted cosmetic fixes applied to `docs/index.md` — exactly what next.md
+specified, nothing more. Key Features bullet now lists Java and Go, Rust Quick Start accesses
+`result.iscc` (struct field) instead of printing as a JSON string, Python Quick Start drops the
+unnecessary `import json` / `json.loads`. All changes are consistent with the README.md patterns.
 
-- `docs/index.md`: Three edits — Key Features bullet (line 34), Rust code example (line 63), Python
-    code example (lines 72-77)
+**Verification:**
 
-**Verification:** All seven criteria pass:
+- [x] `uv run zensical build` exits 0 — docs site builds cleanly
+- [x] `grep 'Java, Go' docs/index.md` matches — Key Features bullet lists all 7 languages
+- [x] `grep -c 'json.loads' docs/index.md` returns 0 — no unnecessary json.loads
+- [x] `grep -c 'import json' docs/index.md` returns 0 — no unused json import
+- [x] `grep 'result.iscc' docs/index.md` matches — Rust example accesses struct field
+- [x] `grep -c 'JSON string' docs/index.md` returns 0 — misleading comment removed
+- [x] `mise run check` — all 14 pre-commit hooks pass
+- [x] No quality gate circumvention — no suppressions, no test skipping, no threshold changes
 
-- `uv run zensical build` exits 0 — docs site builds cleanly
-- `grep 'Java, Go' docs/index.md` matches line 34
-- `grep -c 'json.loads' docs/index.md` returns 0
-- `grep -c 'import json' docs/index.md` returns 0
-- `grep 'result.iscc' docs/index.md` matches line 63
-- `grep -c 'JSON string' docs/index.md` returns 0
-- `mise run check` — all 14 pre-commit hooks pass
+**Issues found:**
 
-**Next:** All documentation polish items from the iteration 29/30 review are now resolved. The
-project should be at full target compliance. Consider creating the PR from `develop` → `main` for
-the v0.0.1 release.
+- (none)
 
-**Notes:** Straightforward text-only changes, no surprises. The Python Quick Start now matches the
-README.md pattern (dict-style access without json.loads). The Rust Quick Start now matches the
-README.md pattern (struct field access).
+**Next:** All documentation polish items are resolved. The project should be at full target
+compliance. The natural next step is creating the PR from `develop` → `main` for the v0.0.1 release,
+or running a final state assessment to confirm nothing remains.
+
+**Notes:** This was the last cosmetic fix identified in the iteration 29 review. The docs landing
+page now has correct code examples across all 6 language tabs, matching the README.md patterns.
