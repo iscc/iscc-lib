@@ -303,3 +303,4 @@
 {"ts":"2026-02-25T09:07:11.443134+00:00","iteration":23,"role":"define-next","status":"OK","turns":17,"cost_usd":0.765739,"duration_s":118.9}
 {"ts":"2026-02-25T09:09:53.993294+00:00","iteration":23,"role":"advance","status":"OK","turns":39,"cost_usd":0.955934,"duration_s":162.5}
 {"iteration":23,"timestamp":"2026-02-25T09:15:00Z","step":"Add selective publishing inputs to release.yml","verdict":"PASS","files_changed":[".github/workflows/release.yml"],"issues_resolved":["Implement selective publishing in release.yml"],"notes":"3 workflow_dispatch inputs + 8 job if: conditions. Spec criteria updated. Clean pass, no issues."}
+{"ts":"2026-02-25T09:13:36.147776+00:00","iteration":23,"role":"review","status":"OK","turns":37,"cost_usd":1.312904,"duration_s":222.1}
