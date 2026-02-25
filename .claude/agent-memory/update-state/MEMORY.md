@@ -48,9 +48,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 - **Incremental review**: compare `assessed-at` hash vs HEAD `--stat` first, then re-verify only
     affected sections. Always carry forward sections where no relevant files changed.
-- **Tier 1 symbol count**: target says "22" but implementation has 23 (target.md counting error)
-- **CI now has 7 jobs**: Rust, Python, Node.js, WASM, C FFI, Java, Go. All 7 pass at HEAD (run
-    22376568235, iteration 9). Go job added to ci.yml in iteration 9 (commit eb5085d).
+- **Tier 1 symbol count**: target.md and specs/rust-core.md previously said "22" but had uncommitted
+    edits correcting to "23" (the actual implementation count). Working-tree-only edits visible in
+    `git diff` (HEAD is clean at 23 in both files as of iteration 30).
+- **CI now has 7 jobs**: Rust, Python, Node.js, WASM, C FFI, Java, Go. All 7 pass at HEAD.
 - **Registry readme metadata**: `Cargo.toml` `readme = "README.md"` in iscc-lib; `pyproject.toml`
     `readme = "README.md"` in iscc-py; npm auto-detects README.md (no explicit field needed in
     package.json)
@@ -196,3 +197,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     Per-Crate READMEs section status → MET. CI still green (run 22394253866, all 7 jobs pass). No
     open issues remain — only the `[low]` TypeScript port evaluation. PR #1 (develop → main) still
     open.
+- **docs/index.md Quick Start expanded (iteration 30, commits 746b038+0699ea1)**: Quick Start tabs
+    now include all 6 languages: Rust, Python, Node.js, Java, Go, WASM (was only Rust and Python).
+    Available Bindings table now includes Java and Go rows (7 total). Documentation target "All code
+    examples use tabbed multi-language format" now met for landing page. PR #1 MERGED (develop →
+    main). Latest CI: develop run 22395380785 (7/7 pass), main run 22395922655 (all pass), Docs run
+    22395922643 (pass). Only 1 `[low]` issue remains. v0.0.1 tag is the logical next step.

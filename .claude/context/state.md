@@ -1,4 +1,4 @@
-<!-- assessed-at: e22b4fa7031e17577f262c64decf120d75af1730 -->
+<!-- assessed-at: 0699ea1d96fc0d95ebe6b6fd2acdb7b7e90e2fc4 -->
 
 # Project State
 
@@ -6,9 +6,9 @@
 
 ## Phase: Release readiness — one [low] housekeeping issue remains
 
-All core bindings are complete, CI is green on all 7 jobs, and the `crates/iscc-ffi/README.md` was
-created in iteration 29, completing all 7 per-crate READMEs. Only one `[low]` issue remains
-(TypeScript port evaluation). PR #1 (develop → main) is open and CI is passing.
+All core bindings are complete, CI is green on all 7 jobs, and `docs/index.md` Quick Start tabs were
+expanded to all 6 languages in iteration 30. PR #1 (develop → main) was merged. Only one `[low]`
+issue remains (TypeScript port evaluation).
 
 ## Rust Core Crate
 
@@ -143,22 +143,22 @@ done + howto/go.md done; io.Reader streaming interface absent)
 
 **Status**: met
 
-- ✅ Rewritten as public-facing polyglot developer README (238 lines)
-- ✅ CI badge, DeepWiki badge, Crate, PyPI, npm, and Go Reference version badges
-- ✅ Experimental notice, tagline, Key Features, ISCC Architecture diagram, MainTypes table
-- ✅ "What is the ISCC" and "What is iscc-lib" sections; all 6 language bindings mentioned
-- ✅ Installation and Quick Start for Rust, Python, Node.js, Java, Go, WASM
-- ✅ Implementors Guide with all 9 `gen_*_v0` entry points listed
-- ✅ Documentation link, Contributing, Apache-2.0 license, Maintainers
+- Rewritten as public-facing polyglot developer README (238 lines)
+- CI badge, DeepWiki badge, Crate, PyPI, npm, and Go Reference version badges
+- Experimental notice, tagline, Key Features, ISCC Architecture diagram, MainTypes table
+- "What is the ISCC" and "What is iscc-lib" sections; all 6 language bindings mentioned
+- Installation and Quick Start for Rust, Python, Node.js, Java, Go, WASM
+- Implementors Guide with all 9 `gen_*_v0` entry points listed
+- Documentation link, Contributing, Apache-2.0 license, Maintainers
 - Maven Central badge not added (Java not yet published to Maven Central; not blocking)
 
 ## Per-Crate READMEs
 
 **Status**: met
 
-- ✅ `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`, `crates/iscc-napi/README.md` — done
-- ✅ `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`, `packages/go/README.md` — done
-- ✅ `crates/iscc-ffi/README.md` — created in iteration 29 (123 lines); all 7 per-crate READMEs
+- `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`, `crates/iscc-napi/README.md` — done
+- `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`, `packages/go/README.md` — done
+- `crates/iscc-ffi/README.md` — created in iteration 29 (123 lines); all 7 per-crate READMEs
     complete
 
 ## Documentation
@@ -169,11 +169,14 @@ done + howto/go.md done; io.Reader streaming interface absent)
     Explanation, Reference, Benchmarks, Development)
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages; latest Docs run: **PASSING**
-    ([Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757))
+    ([Run 22395922643](https://github.com/iscc/iscc-lib/actions/runs/22395922643))
 - ISCC branding, copy-page split-button, `gen_llms_full.py`, Open Graph meta tags in place
-- ✅ `docs/CNAME` contains `lib.iscc.codes`; ✅ `docs/includes/abbreviations.md` (19 abbreviations)
-- Note: `docs/index.md` quick-start tabs show only Rust and Python (not all 6 languages); not
-    flagged as blocking
+- `docs/CNAME` contains `lib.iscc.codes`; `docs/includes/abbreviations.md` (19 abbreviations)
+- `docs/index.md` Quick Start section now has all 6 language tabs: Rust, Python, Node.js, Java, Go,
+    WASM (expanded in iteration 30); Available Bindings table includes all 7 entries (Java and Go
+    rows added)
+- Target requirement "All code examples use tabbed multi-language format" now met for the landing
+    page
 
 ## Benchmarks
 
@@ -194,19 +197,20 @@ done + howto/go.md done; io.Reader streaming interface absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
-- **Latest CI run: PASSING** —
-    [Run 22394253866](https://github.com/iscc/iscc-lib/actions/runs/22394253866) — all 7 jobs
-    success (Rust, Python, Node.js, WASM, C FFI, Java, Go); triggered by push to develop
+- **Latest CI run on develop: PASSING** —
+    [Run 22395380785](https://github.com/iscc/iscc-lib/actions/runs/22395380785) — all 7 jobs
+    success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
+- **Latest CI run on main: PASSING** —
+    [Run 22395922655](https://github.com/iscc/iscc-lib/actions/runs/22395922655) — all jobs success
 - Latest Docs run: **PASSING** —
-    [Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757)
-- ✅ `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
+    [Run 22395922643](https://github.com/iscc/iscc-lib/actions/runs/22395922643)
+- `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
     conditions on all 8 jobs
-- ✅ **Idempotency checks** on all 4 publish jobs (crates.io, PyPI, npm lib/wasm)
-- ✅ **[normal] RESOLVED (iteration 26)**: `scripts/version_sync.py` created (120 lines, stdlib
-    only); reads workspace version from root `Cargo.toml`, updates `package.json` and `pom.xml`;
-    `--check` mode exits 1 on mismatch; `mise run version:sync` and `mise run version:check` tasks
-    registered in `mise.toml`
-- **PR #1 open**: develop → main, all CI passing, ready to merge
+- **Idempotency checks** on all 4 publish jobs (crates.io, PyPI, npm lib/wasm)
+- `scripts/version_sync.py` created (120 lines, stdlib only); reads workspace version from root
+    `Cargo.toml`, updates `package.json` and `pom.xml`; `--check` mode exits 1 on mismatch;
+    `mise run version:sync` and `mise run version:check` tasks registered in `mise.toml`
+- **PR #1 merged**: develop → main, all CI passing; `v0.0.1` release is ready
 - Missing: OIDC trusted publishing for crates.io and PyPI not yet configured in registry settings
     (workflow code is correct; registry-side setup is outside CI scope)
 - Missing: npm publishing pipeline not fully wired
@@ -215,11 +219,11 @@ done + howto/go.md done; io.Reader streaming interface absent)
 
 ## Next Milestone
 
-CI is green on all 7 jobs. All `[normal]` and `[critical]` issues are resolved. All 7 per-crate
-READMEs are complete. Only one `[low]` issue remains. PR #1 (develop → main) is open and ready to
-merge. Recommended priority order:
+CI is green on all 7 jobs on both `develop` and `main`. PR #1 (develop → main) was merged. All
+`[normal]` and `[critical]` issues are resolved. The docs landing page now shows all 6 language
+tabs. Only one `[low]` issue remains. Recommended priority order:
 
 1. **[low] Evaluate unofficial TypeScript port** — check whether `branciard/iscc-core-ts` passes
     `data.json` conformance vectors; document result or mention in docs if conformant
-2. **Consider release** — PR #1 (develop → main) is open and all CI passes; merging and tagging
-    `v0.0.1` is the logical next step
+2. **Consider tagging v0.0.1** — main branch is stable with all CI passing; tagging `v0.0.1` and
+    triggering the release workflow is the logical next step for a first experimental release
