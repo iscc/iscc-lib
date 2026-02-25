@@ -85,7 +85,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - WASM silent null on alg_cdc_chunks resolved in iteration 5 (commit a908f95): return type changed
     to `Result<JsValue, JsError>`, tests updated with `.unwrap()`. WASM test count is 54 (9
     conformance + 45 unit), NOT 56 (previous state.md overcounted).
-- Latest CI run IDs (iteration 16): tests = 22382440051 (7/7 pass), docs = 22382440049 (pass)
+- Latest CI run IDs (iteration 17): tests = 22383254545 (7/7 pass), docs = 22383254570 (pass)
 - `iscc-ffi` now has `iscc_alloc`/`iscc_dealloc` exported (added iteration 6, commit 2ebca17); crate
     compiles to `wasm32-wasip1` (~10.5 MB debug). Total exported C functions: 25 (23 Tier 1 + 2
     alloc helpers). File is now 1,934 lines.
@@ -94,8 +94,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     lines). Go entry in zensical.toml DONE. io.Reader wrapper is optional per verified-when
     criteria.
 - `docs/howto/java.md` (319 lines) DONE (iteration 16, commit f9a590f). Java entry in zensical.toml
-    DONE. Documentation section now fully MET. Remaining Java gaps: native loader class,
-    platform-specific native library bundling inside JAR, Maven Central publishing configuration.
+    DONE. Documentation section now fully MET.
+- `NativeLoader.java` (169 lines) DONE (iteration 17, commit 0cc7d51): detects OS/arch, extracts
+    `META-INF/native/{os}-{arch}/{libname}` from JAR to temp dir, falls back to System.loadLibrary.
+    `IsccLib.java` now delegates to NativeLoader.load(). Extraction path is inactive until native
+    binaries are bundled into META-INF/native/ (next iteration target).
+- Remaining Java gaps: platform-specific native library bundling inside JAR (CI matrix needed),
+    Maven Central publishing configuration.
 - Next normal-priority issues: FFI video frame allocation, codec header `Vec<bool>` expansion,
     DataHasher allocation overhead
 - The `state.md` section order must include both Go Bindings and Per-Crate READMEs sections (added

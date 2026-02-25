@@ -1,15 +1,16 @@
-<!-- assessed-at: 21c0a09a1e9536860f7e71f2a2f514f3329a5164 -->
+<!-- assessed-at: 96c48c198f3b450305bededfe6e0055f8c1628a1 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Documentation complete — Java native bundling and publishing remain
+## Phase: Java NativeLoader done — platform native bundling and publishing remain
 
-The Java how-to guide (`docs/howto/java.md`, 319 lines) is now complete and the Java navigation
-entry is live in `zensical.toml`. All 7 CI jobs and Docs build are green. Documentation section is
-now fully met. Remaining gaps are Java native library bundling/loader (needed for Maven Central
-zero-friction install) and publishing pipeline configuration.
+The `NativeLoader.java` class (169 lines) is now implemented: it detects OS/arch, attempts to
+extract a platform-specific native library from `META-INF/native/` inside the JAR, and falls back to
+`System.loadLibrary`. `IsccLib.java` now delegates to `NativeLoader.load()`. All 7 CI jobs and Docs
+build remain green. The extraction path will not activate until native binaries are actually bundled
+in the JAR — that and Maven Central publishing are the remaining Java gaps.
 
 ## Rust Core Crate
 
@@ -114,8 +115,9 @@ zero-friction install) and publishing pipeline configuration.
 
 ## Java Bindings
 
-**Status**: partially met (JNI bridge + Java wrapper + Maven config + conformance tests + CI job +
-how-to guide complete; native loader/bundling/publishing absent)
+**Status**: partially met (JNI bridge + Java wrapper + NativeLoader + Maven config + conformance
+tests + CI job + how-to guide complete; platform native bundling inside JAR and Maven Central
+publishing absent)
 
 - `crates/iscc-jni/` crate: `Cargo.toml` with `crate-type = ["cdylib"]`, `publish = false`,
     `iscc-lib` and `jni = "0.21"` workspace dependencies; workspace member in root `Cargo.toml`
@@ -123,12 +125,16 @@ how-to guide complete; native loader/bundling/publishing absent)
     `extern "system"` JNI functions (streaming hashers expand to 4 JNI functions each)
 - `throw_and_default` helper implemented and used consistently at 72 call sites; zero `unwrap()`
     calls — all error paths throw Java exceptions instead of aborting the JVM
-- **Negative `jint` validation**: 3 guards added — `textTrim` (`nbytes < 0`), `slidingWindow`
-    (`width < 0`), `algCdcChunks` (`avg_chunk_size < 0`) — all throw `IllegalArgumentException`
-- **Local reference frame safety**: `push_local_frame(16)`/`pop_local_frame` added to all 5 loops —
-    prevents JVM local reference table overflow on large arrays
+- Negative `jint` validation: 3 guards — `textTrim`, `slidingWindow`, `algCdcChunks` — throw
+    `IllegalArgumentException`
+- Local reference frame safety: `push_local_frame(16)`/`pop_local_frame` in all 5 array loops
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (331 lines): 29 `native` method
-    declarations, Javadoc coverage, static `System.loadLibrary("iscc_jni")` initializer
+    declarations, Javadoc coverage, static initializer now delegates to `NativeLoader.load()`
+- **`NativeLoader.java`** (169 lines) — new: detects OS (`linux`/`macos`/`windows`) and arch
+    (`x86_64`/`aarch64`), extracts `META-INF/native/{os}-{arch}/{libname}` from JAR to temp dir,
+    falls back to `System.loadLibrary("iscc_jni")`; thread-safe via `synchronized` + `volatile`
+    guard; package-private helpers (`detectOs`, `detectArch`, `libraryFileName`) are testable
+    without reflection; extraction path currently inactive (no native binaries bundled yet)
 - `crates/iscc-jni/java/pom.xml`: Maven build config, JDK 17 target, JUnit 5 + Gson test
     dependencies, Surefire 3.5.2 plugin with `java.library.path=target/debug`
 - `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (362 lines): 9
@@ -137,15 +143,12 @@ how-to guide complete; native loader/bundling/publishing absent)
 - Java CI job (`Java (JNI build, mvn test)`) in `.github/workflows/ci.yml`: passing on all runs
 - `.devcontainer/Dockerfile`: `openjdk-17-jdk-headless` and `maven` added
 - `cargo clippy -p iscc-jni -- -D warnings` passes (CI-verified at HEAD)
-- `docs/howto/java.md` (319 lines): ✅ complete — covers Maven/Gradle install note,
-    System.loadLibrary setup, all 9 gen functions with Java examples, streaming
-    DataHasher/InstanceHasher lifecycle, text utilities, algorithm primitives, conformance selftest,
-    error handling
+- `docs/howto/java.md` (319 lines): complete
 - Java entry in `zensical.toml` How-to Guides navigation: `{ "Java" = "howto/java.md" }` ✅
-- Missing: native library loader class (extracts platform `.so`/`.dll`/`.dylib` from
-    `META-INF/native/` to temp dir at runtime — needed for zero-friction JAR distribution)
-- Missing: platform-specific native library bundling inside JAR
-- Missing: Maven Central publishing configuration
+- Missing: platform-specific native library bundling inside JAR (`META-INF/native/` population
+    requires multi-platform CI matrix to produce `.so`/`.dll`/`.dylib` per target)
+- Missing: Maven Central publishing configuration (sonatype staging plugin, POM metadata, GPG
+    signing, release.yml wiring)
 - **Open issues** \[low\]: all exceptions map to `IllegalArgumentException` (state errors should use
     `IllegalStateException`)
 
@@ -220,24 +223,22 @@ separately)
     `benchmarks.md`, `howto/python.md`, `howto/nodejs.md`, `howto/wasm.md`, `howto/rust.md`,
     `howto/go.md`, `howto/java.md`, `development.md`, `tutorials/getting-started.md`
 - Navigation in `zensical.toml` has: Tutorials (Getting Started), How-to Guides (Rust, Python,
-    Node.js, WebAssembly, Go, **Java**), Explanation (Architecture), Reference (Rust API, Python
-    API), Benchmarks, Development — all entries present ✅
+    Node.js, WebAssembly, Go, Java), Explanation (Architecture), Reference (Rust API, Python API),
+    Benchmarks, Development — all entries present ✅
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22382440049](https://github.com/iscc/iscc-lib/actions/runs/22382440049))
+    [Run 22383254570](https://github.com/iscc/iscc-lib/actions/runs/22383254570))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button (`docs/javascripts/copypage.js`), `scripts/gen_llms_full.py`, Open Graph
     meta tags all in place
 - ✅ `docs/CNAME` contains `lib.iscc.codes`
 - ✅ `docs/includes/abbreviations.md` with 19 ISCC-specific abbreviations
-- ✅ `docs/howto/java.md` (319 lines): Maven/Gradle install, System.loadLibrary setup, all 9 gen
-    functions, streaming DataHasher/InstanceHasher lifecycle, text utilities, algorithm primitives,
-    conformance selftest, error handling
+- ✅ `docs/howto/java.md` (319 lines): complete
 - ✅ `docs/howto/go.md` (388 lines): complete
 - ✅ `docs/development.md`: covers dev container setup, CID workflow, quality gates, project
     structure
-- Note: `docs/index.md` quick-start tabs show only Rust and Python (not all 6 languages); this
-    pre-existing gap was not flagged as blocking in prior assessments
+- Note: `docs/index.md` quick-start tabs show only Rust and Python (not all 6 languages); not
+    flagged as blocking
 
 ## Benchmarks
 
@@ -259,28 +260,28 @@ separately)
     build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
     (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22382440051](https://github.com/iscc/iscc-lib/actions/runs/22382440051) — all 7 jobs
+    [Run 22383254545](https://github.com/iscc/iscc-lib/actions/runs/22383254545) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22382440049](https://github.com/iscc/iscc-lib/actions/runs/22382440049) — build + deploy
+    [Run 22383254570](https://github.com/iscc/iscc-lib/actions/runs/22383254570) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
 - Missing: npm publishing pipeline not fully wired
+- Missing: Java platform native bundling in CI matrix (needed to populate `META-INF/native/`)
+- Missing: Maven Central publishing configuration
 - Missing: version sync automation across workspace not verified as release-ready
 
 ## Next Milestone
 
-CI is green on all 7 jobs and all 8 documentation pages (including Java) are complete. Recommended
-next work (in priority order):
+CI is green on all 7 jobs and Docs. The NativeLoader infrastructure is complete. Recommended next
+work (in priority order):
 
-1. **Java native library loader** — implement the `NativeLoader` class that extracts the
-    platform-specific `.so`/`.dll`/`.dylib` from `META-INF/native/` inside the JAR to a temp
-    directory and loads it; replace `System.loadLibrary("iscc_jni")` with `NativeLoader.load()`.
-    This is the critical step toward zero-friction Maven Central distribution.
-2. **Java platform native bundling** — set up multi-platform native binary bundling in the JAR
-    (linux-x64, linux-aarch64, macos-x64, macos-aarch64, windows-x64 under `META-INF/native/`)
-3. **Maven Central publishing configuration** — add `sonatype` staging plugin, POM metadata, GPG
-    signing setup to `pom.xml`; wire into `release.yml`
-4. **`crates/iscc-ffi/README.md`** — low-priority, completes the per-crate README set
-5. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper (optional per verified-when)
+1. **Java platform native bundling** — set up a multi-platform CI matrix job that builds
+    `libiscc_jni.so` (linux-x64, linux-aarch64), `libiscc_jni.dylib` (macos-x64, macos-aarch64),
+    `iscc_jni.dll` (windows-x64) and packages them under `META-INF/native/` in the JAR; this
+    activates the NativeLoader extraction path built in iteration 17
+2. **Maven Central publishing configuration** — add sonatype staging plugin, POM metadata (groupId,
+    licenses, SCM, developers), GPG signing setup to `pom.xml`; wire into `release.yml`
+3. **`crates/iscc-ffi/README.md`** — low-priority, completes the per-crate README set
+4. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper (optional per verified-when)
