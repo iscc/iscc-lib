@@ -91,22 +91,6 @@ Fix: add `if vec.len() < 380 { return error }` guard at function entry.
 
 **Source:** [human]
 
-## [normal] Codec header parsing expands bytes to `Vec<bool>`
-
-In `crates/iscc-lib/src/codec.rs:121-127`, `bytes_to_bits` expands every byte into 8 `bool` values
-and returns `Vec<bool>`. This is used in `decode_header` (line 245) which is called on every codec
-operation (decompose, mixed-code hashing, conformance checks, etc.).
-
-Headers are small (typically 2-8 bytes) so the per-call cost is modest, but the pattern is avoidable
-— varnibble decoding can work directly on bytes with bitwise operations, eliminating the
-intermediate allocation entirely.
-
-Fix: replace `bytes_to_bits` + index-based varnibble decoding with direct bitwise extraction from
-the byte slice. After fixing, re-run `cargo bench -p iscc-lib` and compare `gen_mixed_code_v0` and
-`iscc_decompose` timings against the baseline.
-
-**Source:** [human]
-
 ## [normal] `DataHasher::update` copies input data on every call
 
 In `crates/iscc-lib/src/streaming.rs:88-93`, every `update()` call either copies the input via

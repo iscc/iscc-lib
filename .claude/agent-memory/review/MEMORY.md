@@ -26,17 +26,27 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Review Shortcuts
 
+- Rust-only internal refactors (no public API changes, no binding crate changes):
+    `cargo test -p   iscc-lib` + `cargo clippy -p iscc-lib -- -D warnings` + `mise run check` is
+    sufficient — skip Maven/Go/Node/WASM tests
+
 - For Java conformance test reviews: verify vector count matches expected (46 total:
     16+5+3+5+3+2+4+3+5), check `mvn test` output for 0 failures, compare structure against Node.js
     conformance tests in `crates/iscc-napi/__tests__/conformance.test.mjs`
+
 - For Go conformance test reviews: same 46 vector count, check `go test -v` output shows all
     subtests pass, verify memory helpers handle empty/nil inputs correctly
+
 - Clippy workspace check is fast (~2s) after initial build — always run it
+
 - Documentation-only changes (READMEs, markdown): `mise run check` + clippy is sufficient — no need
     to run full test suites since no code was modified
+
 - Python-only changes: `mise run check` + `pytest` is sufficient; skip `cargo test` and `mvn test`
     unless Rust/Java code was also modified
+
 - Go-only changes: `mise run check` + `mise exec -- go test ./...` is sufficient
+
 - Full test suite (157 tests) runs in \<1s — always run it for Python changes
 
 ## Gotchas

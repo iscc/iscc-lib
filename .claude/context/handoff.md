@@ -1,29 +1,31 @@
-## 2026-02-25 — Optimize codec header decoding with direct bitwise operations
+## 2026-02-25 — Review of: Optimize codec header decoding with direct bitwise operations
 
-**Done:** Replaced `Vec<bool>` intermediate allocation in `decode_header` and `decode_varnibble`
-with direct bitwise extraction from the byte slice. Added `get_bit` and `extract_bits` helpers that
-operate on `&[u8]` + bit position. Gated `bytes_to_bits` and `bits_to_u32` with `#[cfg(test)]` since
-they're only used by test helpers after the rewrite.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Replaced `Vec<bool>` intermediate allocation in `decode_header` and `decode_varnibble`
+with direct bitwise extraction from `&[u8]`. Implementation is clean, minimal, and matches the
+next.md specification exactly. All 261 tests pass, clippy is clean, and all 14 pre-commit hooks
+pass.
 
-- `crates/iscc-lib/src/codec.rs`: Added `get_bit`, `extract_bits`, `decode_varnibble_from_bytes`
-    functions; rewrote `decode_header` to use byte-based decoding; gated `bytes_to_bits` and
-    `bits_to_u32` with `#[cfg(test)]`; updated `test_varnibble_roundtrip` to use new function; added
-    `test_extract_bits_basic` and `test_decode_varnibble_from_bytes_boundary_values` tests
+**Verification:**
 
-**Verification:** All 261 tests pass (208 unit + 31 algo primitives + 22 text utils). Clippy clean
-(workspace-wide `--all-targets`). All 14 pre-commit hooks pass. Benchmark shows 27% improvement for
-`gen_mixed_code_v0` (1.34µs → was ~1.87µs). Benchmark runs without error.
+- [x] `cargo test -p iscc-lib` passes — 261 tests (208 unit + 31 algo + 22 text), including 2 new
+    bitwise extraction tests
+- [x] `cargo clippy -p iscc-lib -- -D warnings` clean
+- [x] `bytes_to_bits` gated with `#[cfg(test)]` — no longer in production code path
+- [x] `Vec<bool>` only in `encode_varnibble` and test-gated helpers, NOT in `decode_header` or any
+    decode function
+- [x] `cargo bench -p iscc-lib -- gen_mixed_code_v0` runs without error — 1.35µs median
 
-**Next:** The codec issue (`[normal] Codec header parsing expands bytes to Vec<bool>`) is now
-resolved and can be deleted from issues.md. Consider addressing `DataHasher::update` buffer
-allocation (`[normal]`), iscc-ffi video frame allocation (`[normal]`), or lower-priority items.
+**Issues found:**
 
-**Notes:** The old `decode_varnibble` function was removed entirely (no production or test callers
-remain after updating `test_varnibble_roundtrip`). Clippy suggested two improvements: collapsing the
-nested `if` in the padding check into a single condition, and using `bit_pos.div_ceil(8)` instead of
-`(bit_pos + 7) / 8`. Both applied. The tail extraction behavior is slightly cleaner for invalid data
-(non-zero padding) — it now rounds up to the next byte boundary instead of reconstructing mid-byte
-tail data through `bits_to_bytes`, but this difference is invisible for valid ISCC data where
-padding is always zero.
+- (none)
+
+**Next:** The codec `Vec<bool>` issue is resolved. Consider addressing `DataHasher::update` buffer
+allocation (`[normal]` in issues.md), iscc-ffi video frame allocation (`[normal]`), or one of the
+`[low]` issues. Alternatively, if there are remaining target.md gaps, those take priority.
+
+**Notes:** The old `decode_varnibble` function was fully removed (not just gated). The roundtrip
+test was properly updated to use the new `decode_varnibble_from_bytes` via `bits_to_bytes`
+conversion. Benchmark shows ~1.35µs for `gen_mixed_code_v0` — consistent with the advance agent's
+reported 27% improvement from baseline.

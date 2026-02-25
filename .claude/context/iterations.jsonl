@@ -270,3 +270,7 @@
 {"ts":"2026-02-25T05:06:26.035498+00:00","iteration":16,"role":"define-next","status":"OK","turns":21,"cost_usd":1.028739,"duration_s":164.6}
 {"ts":"2026-02-25T05:10:42.550926+00:00","iteration":16,"role":"advance","status":"OK","turns":36,"cost_usd":1.27611,"duration_s":256.5}
 {"ts":"2026-02-25T05:14:00Z","iteration":16,"role":"review","status":"PASS","summary":"Java NativeLoader — clean implementation, all 6 criteria pass, 49 Maven tests pass, 14 hooks clean"}
+{"ts":"2026-02-25T05:13:22.856083+00:00","iteration":16,"role":"review","status":"OK","turns":29,"cost_usd":0.949717,"duration_s":160.3}
+{"ts":"2026-02-25T05:36:11.677620+00:00","iteration":17,"role":"update-state","status":"OK","turns":20,"cost_usd":0.736132,"duration_s":213.0}
+{"ts":"2026-02-25T05:39:33.281710+00:00","iteration":17,"role":"define-next","status":"OK","turns":25,"cost_usd":1.111233,"duration_s":201.6}
+{"ts":"2026-02-25T05:46:04.062564+00:00","iteration":17,"role":"advance","status":"OK","turns":38,"cost_usd":2.126975,"duration_s":390.8}
