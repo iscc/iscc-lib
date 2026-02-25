@@ -1,31 +1,33 @@
-## 2026-02-25 — Review of: Fix WASM howto package name and create PR to main
+## 2026-02-25 — Add Java JNI cross-platform build to release workflow
 
-**Verdict:** PASS
+**Done:** Added `build-jni` and `assemble-jar` jobs to `release.yml` with a 5-platform matrix
+(linux-x86_64, linux-aarch64, macos-aarch64, macos-x86_64, windows-x86_64) matching the NativeLoader
+path conventions. Also added a `maven` boolean input to workflow_dispatch for manual triggering.
 
-**Summary:** The advance agent replaced all 20 occurrences of the incorrect `@iscc/iscc-wasm`
-package name with `@iscc/wasm` in `docs/howto/wasm.md` and created PR #3 from `develop` → `main`.
-The change is mechanical, correctly scoped, and all verification criteria pass.
+**Files changed:**
+
+- `.github/workflows/release.yml`: Added `maven` input, `build-jni` job (5-platform matrix with
+    cross-compilation for aarch64-linux), and `assemble-jar` job (downloads artifacts, copies native
+    libs to `META-INF/native/{os}-{arch}/`, runs `mvn package -DskipTests`, uploads JAR)
 
 **Verification:**
 
-- [x] `grep -c '@iscc/iscc-wasm' docs/howto/wasm.md` returns 0 — no old name remaining
-- [x] `grep -c '@iscc/wasm' docs/howto/wasm.md` returns 20 — all occurrences corrected
-- [x] `uv run zensical build` exits 0 — docs build succeeds (0.24s)
-- [x] `gh pr list --json number,title,state -B main -H develop` — PR #3 open
-- [x] `mise run check` passes — all 14 pre-commit hooks clean
-- [x] No quality gate circumvention — diff contains only docs + context files
+- YAML validation: `python3 -c "import yaml; yaml.safe_load(...)"` exits 0
+- `grep -c 'build-jni'` returns 2 (job name + needs reference)
+- `grep -c 'assemble-jar'` returns 1 (job definition)
+- `grep 'inputs.maven'` finds both condition lines (build-jni and assemble-jar)
+- `grep 'META-INF/native'` finds the resource path in copy step
+- `grep -c 'jni-'` returns 5 (artifact name template + download pattern + 3 in copy script)
+- Matrix has exactly 5 entries (verified via Python YAML parsing)
+- `mise run check` passes: all 14 pre-commit hooks clean
 
-**Issues found:**
+**Next:** Maven Central publishing job (requires GPG signing + Sonatype credentials — human-gated
+setup). Alternatively, `version_sync.py` could be extended to handle Maven SNAPSHOT versioning. The
+CID loop is otherwise in maintenance mode with all core functionality complete.
 
-- (none)
-
-**Next:** The CID loop is now effectively in maintenance mode on `develop`. All 9 gen functions are
-implemented and conformant, all bindings (Python, Node.js, WASM, C FFI, Go, Java) work,
-documentation is deployed. Remaining work is human-gated: merge PR #3, configure publishing
-credentials (NPM_TOKEN, crates.io OIDC, PyPI OIDC), and trigger a release. The only CID-actionable
-item is the low-priority TypeScript port evaluation (issues.md). If no new target.md goals are
-added, the loop can idle.
-
-**Notes:** mdformat adjusted line 76 whitespace in the tip admonition (cosmetic, correct). The PR
-body correctly summarizes both changes on `develop` since last merge: the wasm-opt bulk-memory fix
-and the package name correction.
+**Notes:** The `assemble-jar` job uses a shell loop to iterate over downloaded artifact directories
+(`jni-staging/jni-*/`), extracting the `native-dir` name by stripping the `jni-` prefix. This relies
+on `actions/download-artifact@v4` creating per-artifact subdirectories when `merge-multiple` is not
+set (default `false`). The `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER` env var is set on all
+matrix entries but only takes effect for the aarch64 target — same pattern as the existing
+`build-napi` job.

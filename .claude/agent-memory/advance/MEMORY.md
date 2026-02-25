@@ -172,6 +172,17 @@ iterations.
     after switching back
 - OIDC trusted publishing for crates.io requires crate to exist first (first publish needs API
     token). PyPI supports pending trusted publishers. npm uses `NPM_TOKEN` secret
+- Release workflow has 4 `workflow_dispatch` inputs: `crates-io`, `pypi`, `npm`, `maven` (all
+    boolean, default false). Jobs: `publish-crates-io`, `build-wheels`, `build-sdist`,
+    `publish-pypi`, `build-napi`, `publish-npm-lib`, `build-wasm`, `publish-npm-wasm`, `build-jni`,
+    `assemble-jar`
+- `build-jni` matrix: 5 platforms with `native-dir` and `lib-name` matrix vars matching NativeLoader
+    conventions. Artifacts named `jni-{native-dir}` (e.g., `jni-linux-x86_64`)
+- `assemble-jar` downloads `jni-*` artifacts into `jni-staging/`, iterates subdirectories to copy
+    native libs to `src/main/resources/META-INF/native/{native-dir}/`. Uses
+    `mvn package -DskipTests` and uploads JAR as `iscc-lib-jar` artifact
+- `actions/download-artifact@v4` default behavior (no `merge-multiple`) creates per-artifact
+    subdirectories named after the artifact — useful for iterating platform-specific downloads
 
 ## Documentation
 
