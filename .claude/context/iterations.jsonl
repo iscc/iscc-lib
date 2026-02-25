@@ -309,3 +309,6 @@
 {"ts":"2026-02-25T09:34:12.617443+00:00","iteration":24,"role":"advance","status":"OK","turns":41,"cost_usd":1.226406,"duration_s":221.1}
 {"iteration":24,"timestamp":"2026-02-25T09:38:00Z","step":"Add idempotency checks to release publish jobs","verdict":"PASS","files_changed":[".github/workflows/release.yml"],"issues_resolved":["Add idempotency checks to release publish jobs"],"notes":"4 registry checks (crates.io/PyPI/npm-lib/npm-wasm), 7 skip conditions. Spec checkbox updated. Last [critical] blocker resolved."}
 {"ts":"2026-02-25T09:37:13.243415+00:00","iteration":24,"role":"review","status":"OK","turns":34,"cost_usd":1.046133,"duration_s":180.6}
+{"ts":"2026-02-25T09:51:40.516632+00:00","iteration":25,"role":"update-state","status":"OK","turns":23,"cost_usd":1.014562,"duration_s":263.6}
+{"ts":"2026-02-25T09:55:12.479171+00:00","iteration":25,"role":"define-next","status":"OK","turns":21,"cost_usd":0.894534,"duration_s":212.0}
+{"ts":"2026-02-25T09:59:17.937896+00:00","iteration":25,"role":"advance","status":"OK","turns":39,"cost_usd":1.101784,"duration_s":245.5}

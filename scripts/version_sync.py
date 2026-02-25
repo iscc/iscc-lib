@@ -53,16 +53,12 @@ def sync_package_json(version):
 def get_pom_xml_version():
     """Read the current project version from pom.xml."""
     text = POM_XML.read_text(encoding="utf-8")
-    match = POM_VERSION_RE.search(text)
-    if not match:
-        return ""
-    # Extract version between the captured groups
-    full_match = re.search(
+    match = re.search(
         r"<groupId>io\.iscc</groupId>\s*<artifactId>iscc-lib</artifactId>\s*<version>(.+?)</version>",
         text,
         re.DOTALL,
     )
-    return full_match.group(1) if full_match else ""
+    return match.group(1) if match else ""
 
 
 def sync_pom_xml(version):

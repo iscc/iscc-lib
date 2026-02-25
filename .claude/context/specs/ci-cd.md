@@ -281,5 +281,5 @@ workflow triggers on push to `main`.
 - [x] All Cargo crates inherit version via `version.workspace = true`
 - [x] Python version derived automatically via maturin `dynamic = ["version"]`
 - [x] WASM version synced automatically via CI script in release.yml
-- [ ] `mise run version:sync` updates `package.json` and `pom.xml` from workspace version
-- [ ] `mise run version:check` validates all manifests match (suitable for CI)
+- [x] `mise run version:sync` updates `package.json` and `pom.xml` from workspace version
+- [x] `mise run version:check` validates all manifests match (suitable for CI)

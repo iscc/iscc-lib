@@ -1,34 +1,32 @@
-## 2026-02-25 — Create version sync tooling
+## 2026-02-25 — Review of: Create version sync tooling
 
-**Done:** Created `scripts/version_sync.py` that reads the workspace version from root `Cargo.toml`
-and syncs it to `crates/iscc-napi/package.json` and `crates/iscc-jni/java/pom.xml`. Added
-`version:sync` and `version:check` mise tasks. The pom.xml was updated from `0.0.1-SNAPSHOT` to
-`0.0.1` as part of the sync.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean implementation of `scripts/version_sync.py` and mise tasks `version:sync` /
+`version:check`. The script correctly reads the workspace version from root `Cargo.toml` via regex,
+updates `package.json` (json stdlib) and `pom.xml` (regex replacement), and supports `--check`
+validation mode. All 8 verification criteria pass, all 14 pre-commit hooks clean.
 
-- `scripts/version_sync.py`: New script — reads workspace version via regex, updates package.json
-    (json stdlib) and pom.xml (regex replacement), supports `--check` flag for validation mode
-- `mise.toml`: Added `version:sync` and `version:check` tasks under a new `# --- Version ---`
-    section
-- `crates/iscc-jni/java/pom.xml`: Version changed from `0.0.1-SNAPSHOT` to `0.0.1` (result of
-    running the sync script)
+**Verification:**
 
-**Verification:** All 8 criteria pass:
+- [x] `uv run scripts/version_sync.py --check` exits 0 — both manifests report OK
+- [x] `uv run scripts/version_sync.py` runs without error — reports "Version sync complete."
+- [x] `mise run version:sync` executes the sync script successfully
+- [x] `mise run version:check` executes the check script and exits 0
+- [x] `grep -q 'version:sync' mise.toml` exits 0 — task registered at line 77
+- [x] `grep -q 'version:check' mise.toml` exits 0 — task registered at line 81
+- [x] `grep -q 'import re' scripts/version_sync.py` exits 0 — uses regex, stdlib only
+- [x] `mise run check` passes — all 14 pre-commit hooks clean
 
-- `uv run scripts/version_sync.py --check` exits 0
-- `uv run scripts/version_sync.py` runs without error
-- `mise run version:sync` executes successfully
-- `mise run version:check` exits 0
-- `grep -q 'version:sync' mise.toml` exits 0
-- `grep -q 'version:check' mise.toml` exits 0
-- `grep -q 'import re' scripts/version_sync.py` exits 0
-- `mise run check` passes (all 14 pre-commit hooks clean)
+**Issues found:**
 
-**Next:** The `[normal]` version sync issue can be resolved. The remaining issues are all `[low]`
-priority: TypeScript port evaluation, JNI exception mapping, and WASM CLAUDE.md staleness. The
-project is ready for `v0.0.1` release — consider creating a PR from develop to main.
+- (none — minor code redundancy in `get_pom_xml_version()` fixed directly)
 
-**Notes:** The pom.xml `-SNAPSHOT` suffix was stripped by the sync script as designed (next.md
-explicitly stated "the sync script writes the bare version"). This is a real file change that should
-be committed alongside the script. No third-party dependencies used — pure stdlib Python.
+**Next:** The `[normal] Create version sync tooling` issue is resolved and the spec's Version Sync
+checkboxes are now all checked. All remaining issues are `[low]` priority: TypeScript port
+evaluation, JNI exception mapping, and WASM CLAUDE.md staleness. The project is ready for `v0.0.1`
+release — consider creating a PR from develop to main.
+
+**Notes:** The sync script's `json.dumps(data, indent=2)` reformatted `package.json`'s inline array
+`["aarch64-unknown-linux-gnu"]` to multi-line — cosmetic but idempotent (subsequent runs produce no
+diff). The pom.xml `0.0.1-SNAPSHOT` → `0.0.1` change was expected per next.md design.

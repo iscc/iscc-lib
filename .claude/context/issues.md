@@ -99,27 +99,3 @@ In `crates/iscc-wasm/CLAUDE.md:130-131`, the documentation states "DataHasher an
 Fix: update CLAUDE.md to reflect the current state of the bindings.
 
 **Source:** [human]
-
-## [normal] Create version sync tooling
-
-The project needs `mise run version:sync` and `mise run version:check` tasks to keep non-Cargo
-manifests in sync with the workspace version. Currently `package.json` and `pom.xml` must be updated
-by hand.
-
-Required deliverables:
-
-1. **`scripts/version_sync.py`** — reads `workspace.package.version` from root `Cargo.toml`,
-    updates:
-    - `crates/iscc-napi/package.json` (`"version"` field)
-    - `crates/iscc-jni/java/pom.xml` (`<version>` element — drop `-SNAPSHOT` suffix if present, or
-        keep it based on a flag)
-2. **`mise run version:sync`** task in `mise.toml` — runs the sync script
-3. **`mise run version:check`** task in `mise.toml` — runs the sync script in validation mode (exits
-    non-zero if any manifest is out of sync)
-4. The sync script must be cross-platform (Python, no platform-specific dependencies)
-5. Use simple string/regex parsing — no TOML/XML library dependencies beyond the standard library
-
-Not blocking the first 0.0.1 release (all manifests already at 0.0.1), but required before any
-subsequent version bump.
-
-**Source:** [human] **Spec:** .claude/context/specs/ci-cd.md#sync-tooling
