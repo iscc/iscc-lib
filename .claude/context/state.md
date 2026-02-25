@@ -1,14 +1,16 @@
-<!-- assessed-at: d6ad9f1b718280fd3346e9292da1043d83d5bdde -->
+<!-- assessed-at: fe2e3bf216effdeaf5980b4af5a8a3b52ddc195c -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Low-priority housekeeping — iscc-py __version__ and docstring resolved; only [low] issues remain
+## Phase: Release readiness — two [critical] release.yml issues block publishing; [low] housekeeping remains
 
-All `[normal]` correctness and robustness gaps are resolved. The two previously open `[low]` Python
-issues (`__version__` attribute and module docstring) were fixed in iteration 22. CI is green on all
-7 jobs. The remaining open issues are all `[low]` housekeeping in iscc-jni and iscc-wasm.
+All core bindings are complete and CI is green on all 7 jobs. In iteration 23, the `[low]`
+`conformance_selftest` binary-size issue was resolved by gating the WASM export behind a
+`conformance` Cargo feature. Two new `[critical]` issues were filed (selective publishing inputs and
+idempotency checks for release.yml) plus one `[normal]` version sync tooling issue — these must be
+addressed before the first release.
 
 ## Rust Core Crate
 
@@ -95,13 +97,16 @@ issues (`__version__` attribute and module docstring) were fixed in iteration 22
 - `DataHasher` and `InstanceHasher` added as `#[wasm_bindgen]` structs
 - `sliding_window` propagates `IsccError` as `JsError` on `width < 2`
 - 54 tests: 9 in `conformance.rs` + 45 in `unit.rs` (all run via wasm-pack test --node)
-- `wasm-pack test --node crates/iscc-wasm` passes all 54 tests (CI-verified at HEAD)
+- `wasm-pack test --node crates/iscc-wasm --features conformance` passes all 54 tests (CI-verified
+    at HEAD)
 - `alg_cdc_chunks` fixed: now returns `Result<JsValue, JsError>` and propagates serialization errors
     via `.map_err(|e| JsError::new(&e.to_string()))` — no more silent null on failure
 - Structured results not returned — gen functions return only the `.iscc` string field
 - Browser and Node.js build targets supported
-- **Open issues** \[low\]: `conformance_selftest` exported without feature gate increases binary
-    size; stale CLAUDE.md says DataHasher/InstanceHasher not yet bound
+- `conformance_selftest` is now gated behind `#[cfg(feature = "conformance")]` — production builds
+    omit the function and embedded test vectors; `Cargo.toml` has `[features] conformance = []`; CI
+    tests with `--features conformance`
+- **Open issues** \[low\]: stale CLAUDE.md says DataHasher/InstanceHasher not yet bound
 
 ## C FFI
 
@@ -243,7 +248,7 @@ separately)
     Benchmarks, Development — all entries present ✅
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages (Docs CI: PASSING —
-    [Run 22387850902](https://github.com/iscc/iscc-lib/actions/runs/22387850902))
+    [Run 22388979768](https://github.com/iscc/iscc-lib/actions/runs/22388979768))
 - ISCC branding in place: `docs/stylesheets/extra.css`, logo, favicon, dark mode inversion
 - Copy-page split-button (`docs/javascripts/copypage.js`), `scripts/gen_llms_full.py`, Open Graph
     meta tags all in place
@@ -274,33 +279,42 @@ separately)
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
-    build, test), WASM (wasm-pack test), C FFI (cbindgen, gcc, test), Java (JNI build, mvn test), Go
-    (go test, go vet)
+    build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
+    (JNI build, mvn test), Go (go test, go vet)
 - Latest CI run: **PASSING** —
-    [Run 22387850893](https://github.com/iscc/iscc-lib/actions/runs/22387850893) — all 7 jobs
+    [Run 22388979767](https://github.com/iscc/iscc-lib/actions/runs/22388979767) — all 7 jobs
     success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - Latest Docs run: **PASSING** —
-    [Run 22387850902](https://github.com/iscc/iscc-lib/actions/runs/22387850902) — build + deploy
+    [Run 22388979768](https://github.com/iscc/iscc-lib/actions/runs/22388979768) — build + deploy
     success
 - All local commits are pushed; remote HEAD matches local HEAD
+- **[critical]** Missing: `release.yml` `workflow_dispatch` has no `inputs:` block — manually
+    triggering fires all publish jobs with no way to select a single registry; spec
+    (`.claude/context/specs/ci-cd.md`) requires boolean checkboxes per registry (`crates-io`,
+    `pypi`, `npm`) with `if:` conditions on each job chain
+- **[critical]** Missing: No idempotency checks — re-publishing an existing version to crates.io,
+    PyPI, or npm will fail the workflow instead of skipping gracefully
+- **[normal]** Missing: `mise run version:sync` / `mise run version:check` tooling to keep
+    `package.json` and `pom.xml` in sync with `Cargo.toml` workspace version
 - Missing: OIDC trusted publishing for crates.io and PyPI not configured
 - Missing: npm publishing pipeline not fully wired
 - Missing: Java platform native bundling in CI matrix (needed to populate `META-INF/native/`)
 - Missing: Maven Central publishing configuration
-- Missing: version sync automation across workspace not verified as release-ready
 
 ## Next Milestone
 
-CI is green on all 7 jobs and Docs. All `[normal]` issues are resolved. In iteration 22, the two
-`[low]` Python issues (`__version__` attribute and module docstring) were also resolved. Remaining
-open issues are all `[low]` housekeeping. Recommended next work (in priority order):
+CI is green on all 7 jobs and Docs. Two `[critical]` issues in `release.yml` must be addressed
+before the project can be considered release-ready. Recommended priority order:
 
-1. **Java platform native bundling** — set up a multi-platform CI matrix job that builds
-    `libiscc_jni.so` (linux-x64, linux-aarch64), `libiscc_jni.dylib` (macos-x64, macos-aarch64),
-    `iscc_jni.dll` (windows-x64) and packages them under `META-INF/native/` in the JAR
-2. **Maven Central publishing configuration** — add sonatype staging plugin, POM metadata, GPG
-    signing setup to `pom.xml`; wire into `release.yml`
-3. **Low-priority code quality fixes** (any order): iscc-wasm conformance feature gate + stale
-    CLAUDE.md update, iscc-jni `IllegalStateException` for state errors, TypeScript port evaluation
-4. **`crates/iscc-ffi/README.md`** — completes the per-crate README set
-5. **Go `io.Reader` streaming** — add `io.Reader` convenience wrapper (optional per verified-when)
+1. **[critical] Selective publishing inputs** — add `workflow_dispatch.inputs` with three boolean
+    checkboxes (`crates-io`, `pypi`, `npm`) and `if:` guards on each job chain in `release.yml`,
+    per spec in `.claude/context/specs/ci-cd.md#release-workflow--selective-publishing`
+2. **[critical] Idempotency checks** — add pre-publish version-existence checks to
+    `publish-crates-io`, `publish-pypi`, `publish-npm-lib`, and `publish-npm-wasm` jobs so
+    re-publishing an existing version skips gracefully rather than failing, per spec in
+    `.claude/context/specs/ci-cd.md#idempotency`
+3. **[normal] Version sync tooling** — `scripts/version_sync.py` + `mise run version:sync` /
+    `version:check` tasks (cross-platform Python, stdlib only)
+4. **Low-priority code quality fixes** (any order): iscc-wasm stale CLAUDE.md update, iscc-jni
+    `IllegalStateException` for state errors, TypeScript port evaluation
+5. **`crates/iscc-ffi/README.md`** — completes the per-crate README set

@@ -134,3 +134,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     to target in commit `0a10f73`)
 - `gh run list` does NOT need `--repo iscc/iscc-lib` when running from within the workspace (repo
     auto-detected); but `--json` fields are needed to avoid GraphQL deprecation error
+- **WASM conformance feature gate (iteration 23, commit fe2e3bf)**: `conformance_selftest` gated
+    behind `#[cfg(feature = "conformance")]` in `src/lib.rs` and `tests/unit.rs`;
+    `[features]   conformance = []` added to `Cargo.toml`; CI now uses
+    `wasm-pack test --node crates/iscc-wasm   --features conformance` (NOT `-- --features` — that
+    passes to test runner, not cargo). `[low]` conformance_selftest binary-size issue resolved. WASM
+    `[low]` open issue count: 1 (stale CLAUDE.md only).
+- **New critical issues (iteration 23)**: Two `[critical]` issues added to issues.md — (1) selective
+    publishing inputs for release.yml `workflow_dispatch` (spec:
+    `.claude/context/specs/ci-cd.md#release-workflow--selective-publishing`); (2) idempotency checks
+    for all publish jobs (spec: `.claude/context/specs/ci-cd.md#idempotency`). One `[normal]` issue:
+    `mise run version:sync` / `version:check` tooling. These were NOT in issues.md at iteration 22's
+    assessed commit — added by human in between.
+- Latest CI run IDs (iteration 23): tests = 22388979767 (7/7 pass), docs = 22388979768 (pass)
