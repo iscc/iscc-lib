@@ -128,6 +128,12 @@ iterations.
     before scoping, and call out what NOT to do (don't squash, don't delete develop, don't wait for
     release workflow). When an existing PR already covers the merge, update its title/body rather
     than creating a new one.
+- **Post-release build fixes** (iteration 3, second loop): When a release workflow partially fails,
+    the fix often belongs in crate-level config (e.g., `Cargo.toml` metadata sections) rather than
+    the workflow YAML. wasm-pack supports `[package.metadata.wasm-pack.profile.release]` for
+    configuring wasm-opt flags — this is the portable, documented approach that works both locally
+    and in CI. Prefer crate-config fixes over workflow-command-line fixes for reproducibility. After
+    fixing, don't re-trigger the release in the same step — that's a separate human-gated operation.
 
 ## Architecture Decisions
 
