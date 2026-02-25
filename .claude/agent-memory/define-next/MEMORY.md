@@ -69,6 +69,12 @@ iterations.
     section, Key Features bullet update. All verifiable with grep commands. Insert Go sections
     between Java and WASM in both Installation and Quick Start — follows the target.md ordering
     (Rust, Python, Java, Go, Node.js, WASM).
+- Documentation how-to guides: follow the established pattern from python.md/nodejs.md. Structure:
+    YAML front matter → title/intro → installation → (Go-specific: runtime setup) → code generation
+    (all 9 gen functions in standard order) → streaming → text utilities → conformance → error
+    handling. Go guide is unique in needing a "Runtime setup" section since Go requires explicit
+    `NewRuntime`/`Close` lifecycle. Existing howto pages are ~280-350 lines. Two files per guide:
+    create the .md + modify zensical.toml nav. Well within 3-file limit.
 
 ## Architecture Decisions
 
