@@ -251,6 +251,11 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - Go conformance test pattern: `json.RawMessage` for deferred parsing + helper functions
     (`parseBits`, `parseStreamData`, `parseF64Array`, `f64ToI32`, `f64ToByte`). Meta test vectors
     with dict values need `json.Marshal` to serialize back to string before passing to FFI
+- WASM sret ABI for struct returns: `iscc_free_byte_buffer` and `iscc_free_byte_buffer_array` take
+    the struct by pointer (single i32 param) on wasm32, not as flattened fields. The sret pointer
+    from the function call can be reused directly as the free function's argument — no extra alloc
+    needed. `IsccByteBuffer` and `IsccByteBufferArray` are both 8 bytes (2×i32). Individual buffers
+    in an array are at `buffersPtr + i*8`
 
 ## Publishing
 

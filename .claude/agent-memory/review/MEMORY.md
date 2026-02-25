@@ -21,6 +21,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - next.md test case specifications may have incorrect expected values (e.g., text_clean double-space
     collapsing) — when the advance agent adjusts test expectations, verify against the actual Rust
     implementation behavior rather than just accepting the spec
+- Advance agent handoff test counts may be off by 1 (e.g., counting TestMain as a test) — always
+    verify by running tests and counting top-level test functions
 
 ## Review Shortcuts
 
@@ -42,5 +44,5 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Git log shows iteration numbering resets when a new CID run starts (iteration 12 → iteration 1) —
     this is normal, each `mise run cid:run` starts a new run
 - Go via mise requires `mise exec --` prefix — `go` is not on PATH in all environments
-- The advance commit is at HEAD (not HEAD~1) when the handoff references `HEAD~2..HEAD~1` — use
-    `git diff HEAD~1..HEAD` for the advance diff
+- The advance commit is at HEAD (not HEAD~1) when the review hasn't committed yet — use
+    `git diff HEAD~1..HEAD` for the advance diff (define-next → advance)

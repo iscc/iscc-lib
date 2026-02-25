@@ -243,3 +243,7 @@
 {"ts":"2026-02-25T01:38:01.337504+00:00","iteration":10,"role":"define-next","status":"OK","turns":49,"cost_usd":2.406983,"duration_s":312.9}
 {"ts":"2026-02-25T01:42:35.984404+00:00","iteration":10,"role":"advance","status":"OK","turns":39,"cost_usd":1.794465,"duration_s":274.6}
 {"iteration":10,"timestamp":"2026-02-25T01:47:00Z","step":"Add 6 Go wrappers (text utils + encode + string-array functions)","verdict":"PASS","files_changed":["packages/go/iscc.go","packages/go/iscc_test.go"],"notes":"6 public wrappers + 3 private helpers. 22 Go tests pass. Clean implementation, no issues."}
+{"ts":"2026-02-25T01:45:24.994493+00:00","iteration":10,"role":"review","status":"OK","turns":29,"cost_usd":1.345004,"duration_s":169.0}
+{"ts":"2026-02-25T02:11:37.686965+00:00","iteration":11,"role":"update-state","status":"OK","turns":47,"cost_usd":2.235081,"duration_s":405.0}
+{"ts":"2026-02-25T02:15:43.048563+00:00","iteration":11,"role":"define-next","status":"OK","turns":25,"cost_usd":1.138484,"duration_s":245.4}
+{"ts":"2026-02-25T02:21:17.546607+00:00","iteration":11,"role":"advance","status":"OK","turns":33,"cost_usd":1.656501,"duration_s":334.5}
