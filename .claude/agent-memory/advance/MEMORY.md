@@ -78,6 +78,19 @@ iterations.
 - `text_clean` does NOT collapse double spaces within a line — it does NFKC normalization, control
     char removal, newline normalization, consecutive empty line collapse, and leading/trailing
     whitespace stripping. Use NFKC test cases (e.g., fi ligature U+FB01) for testing
+- WASM32 empty slice alignment: `iscc_alloc(0)` returns NonNull::dangling (ptr=1, alignment 1). This
+    is fine for `*const u8` but NOT for `*const i32` (needs alignment 4). For empty i32 slices,
+    allocate minimum 4 bytes to get a properly aligned pointer from the allocator. `writeI32Slice`
+    returns (ptr, allocSize, count) because allocSize may differ from count\*4 for this reason
+- Memory helpers: `writeBytes` for `[]byte → *const u8 + len`, `writeI32Slice` for
+    `[]int32 → *const i32 + len`, `writeStringArray` for `[]string → **c_char + count`,
+    `writeI32ArrayOfArrays` for `[][]int32 → **i32 + *usize + count` (video frame signatures)
+- All 9 gen\_\*\_v0 Go wrappers follow the same pattern: marshal args → call FFI → callStringResult
+    (check NULL, readString, freeString) → return
+- Go conformance test path to data.json: `../../crates/iscc-lib/tests/data.json` (relative from
+    packages/go test working directory)
+- Meta test vectors: dict meta values need json.Marshal before passing to FFI; null maps to nil
+    `*string`; empty description `""` is passed as pointer to empty string (not nil)
 
 ## Build and Tooling
 
