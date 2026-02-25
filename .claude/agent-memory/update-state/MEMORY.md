@@ -177,3 +177,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - Latest CI run IDs (iteration 26): tests = 22391904404 (7/7 pass); docs = 22390109757 (pass)
 - Handoff from review (iteration 26): project ready for `v0.0.1` release — consider PR develop →
     main via `mise run pr:main` before next iteration.
+- **JNI IllegalStateException resolved (iteration 27, commit 2083287)**: Added `throw_state_error`
+    helper (`env.throw_new("java/lang/IllegalStateException", msg)`); updated 4 call sites
+    (DataHasherUpdate, DataHasherFinalize, InstanceHasherUpdate, InstanceHasherFinalize); updated 2
+    doc comments; added 2 Java tests. `IsccLibTest.java` now 51 total tests (was 49). All 7 CI jobs
+    pass (run 22392431920 triggered by PR #1 develop → main). `[low]` JNI exception issue deleted
+    from issues.md. Only 2 `[low]` issues remain: TypeScript evaluation + WASM CLAUDE.md staleness.
+- **PR #1 open** (develop → main): CI passes on all 7 jobs; ready to merge for v0.0.1 release.
+- `throw_and_default` call sites: now 68 (was 72); `throw_state_error` call sites: 4 (new).

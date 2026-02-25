@@ -1,4 +1,4 @@
-<!-- assessed-at: 98fa278681030616b830ce5695a4ce310c645943 -->
+<!-- assessed-at: 208328732828ad8dea341a5141dd97d8fe208d12 -->
 
 # Project State
 
@@ -6,10 +6,11 @@
 
 ## Phase: Release readiness — only [low] housekeeping issues remain
 
-All core bindings are complete, CI is green on all 7 jobs, and the `[normal]` version sync tooling
-issue was resolved in iteration 26. `scripts/version_sync.py` and `mise run version:sync` /
-`mise run version:check` are fully implemented and verified. Three `[low]` issues remain (TypeScript
-evaluation, JNI exception mapping, WASM CLAUDE.md staleness).
+All core bindings are complete, CI is green on all 7 jobs, and the `[low]` JNI exception mapping
+issue was resolved in iteration 27. `throw_state_error` was added alongside `throw_and_default` and
+4 call sites updated; 2 new Java tests verify `IllegalStateException` for finalized-hasher errors.
+Two `[low]` issues remain (TypeScript evaluation, WASM CLAUDE.md staleness). PR #1 (develop → main)
+is open and CI is passing.
 
 ## Rust Core Crate
 
@@ -106,21 +107,24 @@ evaluation, JNI exception mapping, WASM CLAUDE.md staleness).
 tests + CI job + how-to guide complete; platform native bundling inside JAR and Maven Central
 publishing absent)
 
-- `crates/iscc-jni/` crate: 866-line `lib.rs` with all 23 Tier 1 symbols as 29 `extern "system"` JNI
-    functions; `throw_and_default` at 72 call sites, zero `unwrap()` calls
+- `crates/iscc-jni/` crate: `lib.rs` with all 23 Tier 1 symbols as 29 `extern "system"` JNI
+    functions; `throw_and_default` at 68 call sites + `throw_state_error` at 4 call sites (finalized
+    hasher errors), zero `unwrap()` calls
 - Negative `jint` validation in 3 guards; local reference frame safety in 5 array loops
 - `IsccLib.java` (331 lines): 29 `native` declarations, `NativeLoader.load()` static initializer
 - `NativeLoader.java` (169 lines): OS/arch detection, JAR extraction to temp, `System.loadLibrary`
     fallback; extraction path inactive (no native binaries bundled yet)
-- `IsccLibTest.java` (362 lines): 9 `@TestFactory` conformance methods (46 vectors) + 3 negative
-    tests — 49 total; all passing
+- `IsccLibTest.java`: 9 `@TestFactory` conformance methods (46 vectors) + 3 `@Test` negative-value
+    methods + 2 `@Test` `IllegalStateException` hasher-state methods = **51 total tests**; all
+    passing
 - Java CI job (`Java (JNI build, mvn test)`) passing (CI-verified at HEAD)
 - `docs/howto/java.md` (319 lines): complete; navigation entry in `zensical.toml` ✅
-- Version: `pom.xml` now at `0.0.1` (synced from workspace via `version:sync` in iteration 26)
+- Version: `pom.xml` at `0.0.1` (synced from workspace via `version:sync`)
 - Missing: platform-specific native library bundling inside JAR (`META-INF/native/`)
 - Missing: Maven Central publishing configuration
-- **Open issues** \[low\]: all exceptions map to `IllegalArgumentException` (state errors should use
-    `IllegalStateException`)
+- Note: `IsccLib.java` Javadoc still says `@throws IllegalArgumentException` for hasher
+    update/finalize methods — cosmetic mismatch, not blocking
+- **Open issues**: none
 
 ## Go Bindings
 
@@ -193,8 +197,8 @@ separately)
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
 - **Latest CI run: PASSING** —
-    [Run 22391904404](https://github.com/iscc/iscc-lib/actions/runs/22391904404) — all 7 jobs
-    success (Rust, Python, Node.js, WASM, C FFI, Java, Go)
+    [Run 22392431920](https://github.com/iscc/iscc-lib/actions/runs/22392431920) — all 7 jobs
+    success (Rust, Python, Node.js, WASM, C FFI, Java, Go); triggered by PR #1 (develop → main)
 - Latest Docs run: **PASSING** —
     [Run 22390109757](https://github.com/iscc/iscc-lib/actions/runs/22390109757)
 - ✅ `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
@@ -203,7 +207,8 @@ separately)
 - ✅ **[normal] RESOLVED (iteration 26)**: `scripts/version_sync.py` created (120 lines, stdlib
     only); reads workspace version from root `Cargo.toml`, updates `package.json` and `pom.xml`;
     `--check` mode exits 1 on mismatch; `mise run version:sync` and `mise run version:check` tasks
-    registered in `mise.toml`; all 8 verification criteria passed in review
+    registered in `mise.toml`
+- **PR #1 open**: develop → main, all CI passing, ready to merge
 - Missing: OIDC trusted publishing for crates.io and PyPI not yet configured in registry settings
     (workflow code is correct; registry-side setup is outside CI scope)
 - Missing: npm publishing pipeline not fully wired
@@ -213,15 +218,13 @@ separately)
 ## Next Milestone
 
 CI is green on all 7 jobs and all `[normal]` and `[critical]` issues are resolved. Only `[low]`
-housekeeping issues remain. Recommended priority order:
+housekeeping issues remain. PR #1 (develop → main) is open and ready to merge. Recommended priority
+order:
 
 1. **[low] iscc-wasm stale CLAUDE.md** — update `crates/iscc-wasm/CLAUDE.md:130-131` to reflect
     DataHasher/InstanceHasher are now fully bound (trivial one-line edit)
-2. **[low] iscc-jni exception mapping** — add `throw_state_error` variant for
-    `IllegalStateException` in `crates/iscc-jni/src/lib.rs:34`; use for finalized-hasher state
-    errors
-3. **[low] TypeScript evaluation** — evaluate `branciard/iscc-core-ts` conformance against
+2. **[low] TypeScript evaluation** — evaluate `branciard/iscc-core-ts` conformance against
     `data.json` vectors; document result in `docs/` if relevant
-4. **[low] `crates/iscc-ffi/README.md`** — completes the per-crate README set
-5. **Consider release** — the handoff note from iteration 26 suggests the project is ready for a
-    `v0.0.1` release; create PR from `develop` → `main` via `mise run pr:main`
+3. **[low] `crates/iscc-ffi/README.md`** — completes the per-crate README set
+4. **Consider release** — PR #1 (develop → main) is open and all CI passes; merging and tagging
+    `v0.0.1` is the logical next step
