@@ -1,29 +1,30 @@
-## 2026-02-25 — Fix stale WASM CLAUDE.md documentation
+## 2026-02-25 — Review of: Fix stale WASM CLAUDE.md documentation
 
-**Done:** Updated `crates/iscc-wasm/CLAUDE.md` to accurately reflect that DataHasher and
-InstanceHasher are fully bound as `#[wasm_bindgen]` structs, corrected the exported symbol count
-from 22 to 23, and added the 2 streaming types to the export list.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-wasm/CLAUDE.md`: Updated "Exported API Surface" section — changed count from 22 to
-    23, added "2 streaming types: DataHasher, InstanceHasher" to the bullet list, replaced the "not
-    yet bound" paragraph with accurate documentation of the bound structs and their `Option<Inner>`
-    finalize-once pattern.
+**Summary:** Clean, minimal documentation fix. Updated `crates/iscc-wasm/CLAUDE.md` to accurately
+reflect that DataHasher and InstanceHasher are bound as `#[wasm_bindgen]` structs (they were
+previously documented as "not yet bound"). Updated symbol count from 22 to 23 and added streaming
+types to the export list. Verified against actual `lib.rs` exports.
 
 **Verification:**
 
-- `grep -c "not yet bound" crates/iscc-wasm/CLAUDE.md` → 0 (stale text removed)
-- `grep "All 23 Tier 1" crates/iscc-wasm/CLAUDE.md` → matches line 117
-- `grep "DataHasher" crates/iscc-wasm/CLAUDE.md` → shows lines 129, 131 (listed as bound exports)
-- `grep "InstanceHasher" crates/iscc-wasm/CLAUDE.md` → shows lines 129, 131 (listed as bound
-    exports)
-- No Rust source files modified (only CLAUDE.md changed)
-- All 14 pre-commit hooks pass
+- [x] `grep -c "not yet bound" crates/iscc-wasm/CLAUDE.md` outputs `0` — confirmed
+- [x] `grep "All 23 Tier 1" crates/iscc-wasm/CLAUDE.md` matches — confirmed
+- [x] `grep "DataHasher" crates/iscc-wasm/CLAUDE.md` shows bound exports — lines 129, 131
+- [x] `grep "InstanceHasher" crates/iscc-wasm/CLAUDE.md` shows bound exports — lines 129, 131
+- [x] No Rust source files modified — only `CLAUDE.md` and `handoff.md` changed
+- [x] `mise run check` — all 14 pre-commit hooks pass
+- [x] No quality gate circumvention
 
-**Next:** The `[low] iscc-wasm: Stale CLAUDE.md` issue is resolved. Remaining low-priority issues
-include the TypeScript port evaluation and iscc-jni Javadoc `@throws` annotation mismatch. The
-project is ready for the `v0.0.1` release — consider creating a PR from develop to main.
+**Issues found:**
 
-**Notes:** mdformat re-wrapped some lines during formatting (standard behavior). No surprises or
-shortcuts taken. This was a documentation-only change with no code impact.
+- (none)
+
+**Next:** The `[low] iscc-wasm: Stale CLAUDE.md` issue is now resolved and deleted. One `[low]`
+issue remains: TypeScript port evaluation. The project is ready for the `v0.0.1` release — consider
+creating a PR from `develop` to `main`.
+
+**Notes:** The Javadoc `@throws` annotation mismatch in `iscc-jni` (mentioned in previous handoffs)
+is not tracked as a formal issue — it's a cosmetic concern that could be addressed in a future
+cleanup pass.

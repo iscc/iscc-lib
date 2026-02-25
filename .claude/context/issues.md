@@ -78,13 +78,3 @@ This is not urgent — iscc-lib's own Node.js/WASM bindings will serve the JS/TS
 acknowledging community implementations builds goodwill and helps adopters find options.
 
 **Source:** [human]
-
-## [low] iscc-wasm: Stale CLAUDE.md says DataHasher/InstanceHasher not yet bound
-
-In `crates/iscc-wasm/CLAUDE.md:130-131`, the documentation states "DataHasher and InstanceHasher
-(streaming types) are not yet bound." Both are now fully exported in `lib.rs` with constructor,
-`update()`, and `finalize()` methods.
-
-Fix: update CLAUDE.md to reflect the current state of the bindings.
-
-**Source:** [human]
