@@ -1,89 +1,166 @@
 # Next Work Package
 
-## Step: Add selective publishing inputs to release.yml
+## Step: Add idempotency checks to release publish jobs
 
 ## Goal
 
-Add `workflow_dispatch` boolean inputs to `release.yml` so each registry (crates.io, PyPI, npm) can
-be published independently via the GitHub Actions UI. This is the first of two critical release
-readiness issues and unblocks the first `v0.0.1` publish.
+Add pre-publish version-existence checks to all 4 publish jobs in `release.yml` so that
+re-publishing an already-published version skips gracefully instead of failing the workflow. This is
+the last `[critical]` blocker before the first `v0.0.1` release.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**: `.github/workflows/release.yml`
-- **Reference**: `.claude/context/specs/ci-cd.md` (trigger configuration and job conditions
-    sections), `.claude/context/issues.md` (issue description)
+- **Reference**: `.claude/context/specs/ci-cd.md` (Idempotency section), `.claude/context/issues.md`
+    (`[critical] Add idempotency checks to release publish jobs`)
 
 ## Not In Scope
 
-- Idempotency checks (version-exists skipping) — that is a separate critical issue to be addressed
-    in the next step
-- Version sync tooling (`scripts/version_sync.py`, `mise.toml` tasks) — separate `[normal]` issue
-- Any changes to `ci.yml` or `docs.yml`
-- OIDC configuration on registry websites (crates.io, PyPI) — those are manual steps outside this
-    codebase
-- Testing the workflow by actually triggering it (we verify structure only)
+- Version sync tooling (`scripts/version_sync.py`, `mise run version:sync`) — that is the `[normal]`
+    issue and comes after this step
+- Changing the build jobs (`build-wheels`, `build-sdist`, `build-napi`, `build-wasm`) — only the
+    publish steps need idempotency guards
+- Adding new CI jobs or modifying `ci.yml`
+- OIDC configuration changes or authentication modifications
+- Java/Maven Central publishing (not yet in release.yml)
 
 ## Implementation Notes
 
-The spec in `.claude/context/specs/ci-cd.md` defines the exact target YAML structure. Follow it
-precisely:
+Add a version-check step before each publish step in the 4 publish jobs. The pattern is: extract the
+workspace version, query the registry, and set a GitHub Actions output flag that the publish step
+uses to conditionally skip.
 
-1. **Add `inputs:` block** under the existing `workflow_dispatch:` key:
+### Version extraction
 
-    ```yaml
-    workflow_dispatch:
-      inputs:
-        crates-io:
-          description: Publish iscc-lib to crates.io
-          type: boolean
-          default: false
-        pypi:
-          description: Publish iscc-lib to PyPI
-          type: boolean
-          default: false
-        npm:
-          description: Publish @iscc/lib and @iscc/wasm to npm
-          type: boolean
-          default: false
-    ```
+Each publish job needs the workspace version. Extract it from root `Cargo.toml`:
 
-2. **Add `if:` conditions** to each job (use the exact expressions from the spec):
+```yaml
+  - name: Get workspace version
+    id: version
+    run: |
+      VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+```
 
-    - `publish-crates-io`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.crates-io`
-    - `build-wheels`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
-    - `build-sdist`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
-    - `publish-pypi`: keep existing `needs: [build-wheels, build-sdist]`, add
-        `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
-    - `build-napi`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
-    - `build-wasm`: add `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
-    - `publish-npm-lib`: change existing `if: startsWith(github.ref, 'refs/tags/v')` to
-        `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
-    - `publish-npm-wasm`: change existing `if: startsWith(github.ref, 'refs/tags/v')` to
-        `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
+The `publish-crates-io` job already checks out the repo. For `publish-pypi` and `publish-npm-lib`,
+the checkout step is also already present. For `publish-npm-wasm`, there is no checkout — read the
+version from the downloaded `pkg/package.json` artifact instead.
 
-3. **Important edge case**: `publish-pypi` already has `needs: [build-wheels, build-sdist]`. When
-    adding `if:`, GitHub Actions will automatically skip a job whose dependencies were skipped. But
-    be explicit — add the `if:` anyway so the intent is clear and the job doesn't attempt to run if
-    only the `if:` on a dependency caused the skip. Same logic applies to `publish-npm-lib` (needs
-    `build-napi`) and `publish-npm-wasm` (needs `build-wasm`).
+### Per-registry checks
 
-4. **Do NOT change** the `permissions`, `concurrency`, trigger events (`push.tags`), or any build
-    step logic. Only add `inputs:` and `if:` conditions.
+**crates.io** (`publish-crates-io` job): Insert before the "Publish iscc-lib" step:
+
+```yaml
+  - name: Check if already published
+    id: check
+    run: |
+      VERSION="${{ steps.version.outputs.version }}"
+      if cargo info iscc-lib 2>/dev/null | grep -q "version: $VERSION"; then
+        echo "Version $VERSION already published to crates.io, skipping"
+        echo "skip=true" >> "$GITHUB_OUTPUT"
+      else
+        echo "skip=false" >> "$GITHUB_OUTPUT"
+      fi
+```
+
+Then add `if: steps.check.outputs.skip != 'true'` to the "Authenticate with crates.io" and "Publish
+iscc-lib" steps.
+
+**PyPI** (`publish-pypi` job): This job does not check out the repo — it only downloads wheel
+artifacts. Add a checkout step for version extraction, then query the PyPI JSON API:
+
+```yaml
+  - uses: actions/checkout@v4
+  - name: Get workspace version
+    id: version
+    run: |
+      VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+  - name: Check if already published
+    id: check
+    run: |
+      VERSION="${{ steps.version.outputs.version }}"
+      if curl -sf "https://pypi.org/pypi/iscc-lib/$VERSION/json" > /dev/null 2>&1; then
+        echo "Version $VERSION already published to PyPI, skipping"
+        echo "skip=true" >> "$GITHUB_OUTPUT"
+      else
+        echo "skip=false" >> "$GITHUB_OUTPUT"
+      fi
+```
+
+Then add `if: steps.check.outputs.skip != 'true'` to the download-artifacts and publish steps.
+
+**npm @iscc/lib** (`publish-npm-lib` job): Insert before the "Publish to npm" step:
+
+```yaml
+  - name: Get workspace version
+    id: version
+    run: |
+      VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+  - name: Check if already published
+    id: check
+    run: |
+      VERSION="${{ steps.version.outputs.version }}"
+      if npm view "@iscc/lib@$VERSION" version 2>/dev/null; then
+        echo "Version $VERSION already published to npm, skipping"
+        echo "skip=true" >> "$GITHUB_OUTPUT"
+      else
+        echo "skip=false" >> "$GITHUB_OUTPUT"
+      fi
+```
+
+**npm @iscc/wasm** (`publish-npm-wasm` job): This job has no checkout. Read version from the
+downloaded `pkg/package.json`:
+
+```yaml
+  - name: Get package version
+    id: version
+    run: |
+      VERSION=$(node -p "require('./pkg/package.json').version")
+      echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+  - name: Check if already published
+    id: check
+    run: |
+      VERSION="${{ steps.version.outputs.version }}"
+      if npm view "@iscc/wasm@$VERSION" version 2>/dev/null; then
+        echo "Version $VERSION already published to npm, skipping"
+        echo "skip=true" >> "$GITHUB_OUTPUT"
+      else
+        echo "skip=false" >> "$GITHUB_OUTPUT"
+      fi
+```
+
+Note: the version step must come AFTER the download-artifact step so `pkg/package.json` exists.
+
+### Key details
+
+- Each check must output a clear log message when skipping
+- The `if:` condition on publish steps must allow the job to succeed (green) when skipping —
+    skipping a step via `if:` still shows the job as successful
+- `curl -sf` (silent + fail) returns non-zero on HTTP 404 — correct for PyPI check
+- `cargo info` requires network (queries crates.io) — fine in CI
+- `npm view` returns non-zero when the version doesn't exist — correct for npm check
+- Do NOT change permissions, concurrency, triggers, build logic, or job conditions — only add
+    version-check steps and `if:` conditions on publish steps
 
 ## Verification
 
-- `grep -q 'crates-io:' .github/workflows/release.yml` exits 0 — input defined
-- `grep -q 'pypi:' .github/workflows/release.yml` exits 0 — input defined
-- `grep -c 'inputs\.' .github/workflows/release.yml` returns 8 or more — all jobs have conditions
-- `grep -q "inputs.crates-io" .github/workflows/release.yml` exits 0 — crates.io condition present
-- `grep -q "inputs.pypi" .github/workflows/release.yml` exits 0 — PyPI condition present
-- `grep -q "inputs.npm" .github/workflows/release.yml` exits 0 — npm condition present
-- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 — valid
-    YAML
+- `grep -c 'already published' .github/workflows/release.yml` returns 4 (one message per publish
+    job)
+- `grep -c 'steps.check.outputs.skip' .github/workflows/release.yml` returns at least 4 (skip
+    conditions on publish steps)
+- `grep -q 'pypi.org/pypi/iscc-lib' .github/workflows/release.yml` exits 0 (PyPI version check)
+- `grep -q 'cargo info iscc-lib' .github/workflows/release.yml` exits 0 (crates.io version check)
+- `grep -q 'npm view.*@iscc/lib' .github/workflows/release.yml` exits 0 (npm lib version check)
+- `grep -q 'npm view.*@iscc/wasm' .github/workflows/release.yml` exits 0 (npm wasm version check)
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 (valid
+    YAML)
+- `mise run check` passes (all pre-commit hooks)
 
 ## Done When
 
-All verification criteria pass, confirming that `release.yml` has three boolean `workflow_dispatch`
-inputs and every job chain has the correct `if:` condition matching the spec.
+All 8 verification criteria pass — every publish job has a version-existence check that logs a
+message and skips the publish step when the version already exists on the target registry, and the
+workflow file remains valid YAML passing all quality gates.
