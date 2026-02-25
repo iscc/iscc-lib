@@ -72,6 +72,12 @@ cargo test --workspace &&
 uv run pytest
 """
 
+# --- Release verification ---
+
+[tasks."test:install"]
+description = "Test published packages are installable from registries"
+run = "uv run scripts/test_install.py {{arg(name='flags', i=0, default='--version 0.0.1')}}"
+
 # --- Version ---
 
 [tasks."version:sync"]
