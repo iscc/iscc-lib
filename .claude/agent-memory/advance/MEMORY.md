@@ -52,6 +52,12 @@ iterations.
 
 ## WASM/WASI
 
+- `iscc-wasm` has `[features] conformance = []` — gates `conformance_selftest` WASM export and its
+    unit test. CI enables it via `wasm-pack test --node crates/iscc-wasm --features conformance`
+- wasm-pack `--features` must go AFTER the path, NOT after `--`. `--` in wasm-pack passes args to
+    the test runner (wasm-bindgen-test-runner), not to cargo. Correct:
+    `wasm-pack test --node crates/iscc-wasm --features conformance`. Wrong:
+    `wasm-pack test --node crates/iscc-wasm -- --features conformance`
 - `iscc-ffi` compiles as wasm32-wasip1 from existing `crate-type = ["cdylib", "staticlib"]` — no
     Cargo.toml changes needed. The cdylib target produces the `.wasm` file
 - `iscc_alloc`/`iscc_dealloc` are the WASM host memory management pair — host allocates via

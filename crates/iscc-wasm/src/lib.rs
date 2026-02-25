@@ -194,6 +194,7 @@ pub fn iscc_decompose(iscc_code: &str) -> Result<Vec<String>, JsError> {
 /// Run all conformance tests against vendored test vectors.
 ///
 /// Returns `true` if all tests pass, `false` if any fail.
+#[cfg(feature = "conformance")]
 #[wasm_bindgen]
 pub fn conformance_selftest() -> bool {
     iscc_lib::conformance_selftest()

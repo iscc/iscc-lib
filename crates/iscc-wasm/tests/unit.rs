@@ -120,6 +120,7 @@ fn test_iscc_decompose_error_on_invalid() {
 
 // ── conformance_selftest ────────────────────────────────────────────────────
 
+#[cfg(feature = "conformance")]
 #[wasm_bindgen_test]
 fn test_conformance_selftest_returns_true() {
     assert!(

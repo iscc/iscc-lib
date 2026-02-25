@@ -1,29 +1,36 @@
-## 2026-02-25 — Review of: Add `__version__` attribute and fix iscc-py module docstring
+## 2026-02-25 — Gate iscc-wasm `conformance_selftest` behind Cargo feature
 
-**Verdict:** PASS
+**Done:** Added `conformance` Cargo feature to iscc-wasm that gates the `conformance_selftest` WASM
+export. Production WASM binaries no longer include the selftest function (and its embedded JSON
+vectors/parsing logic) unless explicitly opted in. CI workflow updated to enable the feature during
+testing.
 
-**Summary:** Clean, minimal implementation adding `__version__` via `importlib.metadata.version()`
-and fixing three incorrect module name references in `lib.rs`. Two `[human]`-sourced issues
-resolved. All 159 Python tests pass, 14 pre-commit hooks pass, clippy clean.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-wasm/Cargo.toml`: added `[features]` section with `conformance = []`
+- `crates/iscc-wasm/src/lib.rs`: added `#[cfg(feature = "conformance")]` gate on
+    `conformance_selftest` export
+- `crates/iscc-wasm/tests/unit.rs`: added `#[cfg(feature = "conformance")]` gate on
+    `test_conformance_selftest_returns_true` test
+- `.github/workflows/ci.yml`: changed wasm-pack test command to
+    `wasm-pack test --node crates/iscc-wasm --features conformance`
 
-- [x] `pytest tests/test_smoke.py` passes — 19 tests (17 existing + 2 new), all pass
-- [x] `pytest tests/` passes — 159 tests (19 smoke + 140 conformance), all pass
-- [x] `python -c "import iscc_lib; print(iscc_lib.__version__)"` prints `0.0.1`
-- [x] `grep -q 'iscc_lib._lowlevel' crates/iscc-py/src/lib.rs` exits 0 — docstring fixed
-- [x] `grep 'iscc\._lowlevel' ... | grep -qv 'iscc_lib'` exits non-zero — no old references remain
-- [x] `cargo clippy -p iscc-py -- -D warnings` clean
+**Verification:** All 54 wasm-pack tests pass (9 conformance + 45 unit). Clippy clean. All 14
+pre-commit hooks pass. All 5 verification criteria from next.md satisfied:
 
-**Issues found:**
+- `[x]` `wasm-pack test --node crates/iscc-wasm --features conformance` passes all 54 tests
+- `[x]` `cargo clippy -p iscc-wasm -- -D warnings` clean
+- `[x]` `grep -q '^\[features\]' crates/iscc-wasm/Cargo.toml` exits 0
+- `[x]` `grep -q 'cfg.*feature.*conformance' crates/iscc-wasm/src/lib.rs` exits 0
+- `[x]` `grep -q '\-\-features conformance' .github/workflows/ci.yml` exits 0
 
-- (none)
+**Next:** Remaining `[low]` issues: iscc-wasm stale CLAUDE.md (DataHasher/InstanceHasher documented
+as unbound), iscc-jni exception mapping, and TypeScript port evaluation.
 
-**Next:** Remaining `[low]` issues: iscc-wasm conformance feature gate, iscc-wasm stale CLAUDE.md,
-iscc-jni exception mapping, and TypeScript port evaluation. Define-next should pick the next
-highest-value item.
-
-**Notes:** The advance agent found and fixed a third incorrect `iscc._lowlevel` reference on line
-360 (the `#[pymodule]` docstring) that wasn't in next.md's scope — this was correctly caught by the
-verification grep and is within the spirit of the docstring fix task. Total `__all__` count is now
-34 symbols (33 API + `__version__`).
+**Notes:** The next.md template suggested
+`wasm-pack test --node crates/iscc-wasm -- --features conformance` (with `--` separator), but this
+is incorrect — `--` in wasm-pack passes args to the test runner binary (wasm-bindgen-test-runner),
+not to cargo. The correct syntax is `wasm-pack test --node crates/iscc-wasm --features conformance`
+(features as extra options after the path). This was discovered and fixed during implementation. The
+issue #3 in issues.md (`conformance_selftest unconditionally exported`) is now resolved by this
+change.

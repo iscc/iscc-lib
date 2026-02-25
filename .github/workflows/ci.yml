@@ -74,7 +74,7 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Run tests
-        run: wasm-pack test --node crates/iscc-wasm
+        run: wasm-pack test --node crates/iscc-wasm --features conformance
   c-ffi:
     name: C FFI (cbindgen, gcc, test)
     runs-on: ubuntu-latest

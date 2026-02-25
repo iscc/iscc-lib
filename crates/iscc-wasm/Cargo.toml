@@ -17,3 +17,6 @@ serde = { workspace = true }
 wasm-bindgen-test = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }
+
+[features]
+conformance = []
