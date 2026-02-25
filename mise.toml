@@ -71,3 +71,13 @@ run = """
 cargo test --workspace &&
 uv run pytest
 """
+
+# --- Version ---
+
+[tasks."version:sync"]
+description = "Sync non-Cargo manifest versions with workspace version"
+run = "uv run scripts/version_sync.py"
+
+[tasks."version:check"]
+description = "Check that all manifest versions match workspace version"
+run = "uv run scripts/version_sync.py --check"

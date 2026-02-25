@@ -147,7 +147,10 @@ iterations.
     `@iscc/wasm` (npm/WASM), `io.iscc:iscc-lib` (Maven Central)
 - iscc-wasm and iscc-jni both have `publish = false` in Cargo.toml -- no `readme` field needed (they
     publish via npm and Maven respectively, not crates.io)
-- Maven coordinates: `io.iscc:iscc-lib:0.0.1` (pom.xml has `0.0.1-SNAPSHOT`, README uses `0.0.1`)
+- Maven coordinates: `io.iscc:iscc-lib:0.0.1` (pom.xml version synced to bare `0.0.1`)
+- Version sync script: `scripts/version_sync.py` — reads workspace version from root `Cargo.toml`
+    via regex `r'^version\s*=\s*"(.+?)"'`, updates `package.json` (json stdlib) and `pom.xml` (regex
+    replacement). Supports `--check` flag. mise tasks: `version:sync`, `version:check`
 
 ## Documentation
 

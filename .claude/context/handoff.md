@@ -1,41 +1,34 @@
-## 2026-02-25 — Review of: Add idempotency checks to release publish jobs
+## 2026-02-25 — Create version sync tooling
 
-**Verdict:** PASS
+**Done:** Created `scripts/version_sync.py` that reads the workspace version from root `Cargo.toml`
+and syncs it to `crates/iscc-napi/package.json` and `crates/iscc-jni/java/pom.xml`. Added
+`version:sync` and `version:check` mise tasks. The pom.xml was updated from `0.0.1-SNAPSHOT` to
+`0.0.1` as part of the sync.
 
-**Summary:** All 4 publish jobs in `release.yml` now have pre-publish version-existence checks that
-skip gracefully when the version already exists on the target registry. The implementation matches
-the spec exactly and resolves the last `[critical]` blocker for `v0.0.1`. Clean, minimal diff
-touching only the intended file.
+**Files changed:**
 
-**Verification:**
+- `scripts/version_sync.py`: New script — reads workspace version via regex, updates package.json
+    (json stdlib) and pom.xml (regex replacement), supports `--check` flag for validation mode
+- `mise.toml`: Added `version:sync` and `version:check` tasks under a new `# --- Version ---`
+    section
+- `crates/iscc-jni/java/pom.xml`: Version changed from `0.0.1-SNAPSHOT` to `0.0.1` (result of
+    running the sync script)
 
-- [x] `grep -c 'already published'` returns 4 — one skip message per publish job
-- [x] `grep -c 'steps.check.outputs.skip'` returns 7 — skip conditions on publish + auth + test
-    steps (exceeds minimum of 4)
-- [x] `grep -q 'pypi.org/pypi/iscc-lib'` exits 0 — PyPI version check present
-- [x] `grep -q 'cargo info iscc-lib'` exits 0 — crates.io version check present
-- [x] `grep -q 'npm view.*@iscc/lib'` exits 0 — npm lib version check present
-- [x] `grep -q 'npm view.*@iscc/wasm'` exits 0 — npm wasm version check present
-- [x] YAML validation passes — `check yaml` hook and `yaml.safe_load` both succeed
-- [x] `mise run check` — all 14 quality gate hooks pass
+**Verification:** All 8 criteria pass:
 
-**Issues found:**
+- `uv run scripts/version_sync.py --check` exits 0
+- `uv run scripts/version_sync.py` runs without error
+- `mise run version:sync` executes successfully
+- `mise run version:check` exits 0
+- `grep -q 'version:sync' mise.toml` exits 0
+- `grep -q 'version:check' mise.toml` exits 0
+- `grep -q 'import re' scripts/version_sync.py` exits 0
+- `mise run check` passes (all 14 pre-commit hooks clean)
 
-- (none)
+**Next:** The `[normal]` version sync issue can be resolved. The remaining issues are all `[low]`
+priority: TypeScript port evaluation, JNI exception mapping, and WASM CLAUDE.md staleness. The
+project is ready for `v0.0.1` release — consider creating a PR from develop to main.
 
-**Resolved:**
-
-- Deleted `[critical] Add idempotency checks to release publish jobs` from issues.md
-- Checked spec verification criterion in `specs/ci-cd.md` (line 274): "Publishing an existing
-    version skips gracefully instead of failing"
-
-**Next:** The `[normal]` version sync tooling issue is the next logical step — create
-`scripts/version_sync.py`, `mise run version:sync`, and `mise run version:check` tasks. This is the
-last unchecked item in the Release/Version Sync verification section of `specs/ci-cd.md`. After
-that, the remaining `[low]` issues (TypeScript port evaluation, JNI exception mapping, WASM
-CLAUDE.md staleness) can be addressed.
-
-**Notes:** No `[critical]` issues remain. The project is clear for the `v0.0.1` release once the
-version sync tooling (normal priority) is in place. The advance agent also wisely guarded the "Run
-tests" step in `publish-crates-io` behind the skip condition — avoids redundant test execution when
-skipping the publish.
+**Notes:** The pom.xml `-SNAPSHOT` suffix was stripped by the sync script as designed (next.md
+explicitly stated "the sync script writes the bare version"). This is a real file change that should
+be committed alongside the script. No third-party dependencies used — pure stdlib Python.
