@@ -244,6 +244,13 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     freed
 - `text_clean` does NOT collapse double spaces within a line — use NFKC ligature normalization
     (e.g., fi ligature U+FB01 → "fi") for test cases instead of space-collapsing expectations
+- WASM i32 alignment: `iscc_alloc(0)` returns a dangling pointer with alignment 1, which panics in
+    `slice::from_raw_parts` for `*const i32` (needs alignment 4). `writeI32Slice` must allocate
+    minimum 4 bytes for empty slices to ensure proper alignment. `writeBytes` (u8) is fine with
+    alignment 1
+- Go conformance test pattern: `json.RawMessage` for deferred parsing + helper functions
+    (`parseBits`, `parseStreamData`, `parseF64Array`, `f64ToI32`, `f64ToByte`). Meta test vectors
+    with dict values need `json.Marshal` to serialize back to string before passing to FFI
 
 ## Publishing
 
