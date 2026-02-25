@@ -22,6 +22,8 @@ graph TD
     NAPI["iscc-napi<br/><small>Node.js · napi-rs</small>"] --> CORE
     WASM["iscc-wasm<br/><small>WebAssembly · wasm-bindgen</small>"] --> CORE
     FFI["iscc-ffi<br/><small>C FFI · extern &quot;C&quot;</small>"] --> CORE
+    JNI["iscc-jni<br/><small>Java · JNI</small>"] --> CORE
+    GO["Go<br/><small>wazero · WASM</small>"] -.-> FFI
 ```
 
 All binding crates are thin wrappers — they contain no algorithm logic. This ensures that every
@@ -63,10 +65,22 @@ iscc-lib/
 │   │   ├── package.json        # npm package config
 │   │   ├── src/lib.rs          # wasm-bindgen exports
 │   │   └── tests/              # WASM integration tests
-│   └── iscc-ffi/               # C FFI bindings
+│   ├── iscc-ffi/               # C FFI bindings
+│   │   ├── Cargo.toml
+│   │   ├── src/lib.rs          # extern "C" functions
+│   │   └── tests/              # C test program
+│   └── iscc-jni/               # Java JNI bindings
 │       ├── Cargo.toml
-│       ├── src/lib.rs          # extern "C" functions
-│       └── tests/              # C test program
+│       ├── src/lib.rs          # JNI extern "system" functions
+│       └── java/               # Java package + Maven build
+│           ├── pom.xml
+│           └── src/             # IsccLib.java + tests
+├── packages/
+│   └── go/                     # Go module (pure Go, no cgo)
+│       ├── go.mod
+│       ├── iscc.go             # wazero WASM bridge
+│       ├── iscc_test.go        # Conformance tests
+│       └── iscc_ffi.wasm       # Embedded WASM binary
 └── .github/workflows/
     ├── ci.yml                  # Test + lint
     └── docs.yml                # Documentation deployment
@@ -74,13 +88,15 @@ iscc-lib/
 
 ### Crate Summary
 
-| Crate       | Produces                         | Build Tool     | Published To |
-| ----------- | -------------------------------- | -------------- | ------------ |
-| `iscc-lib`  | Rust library                     | cargo          | crates.io    |
-| `iscc-py`   | Python wheel                     | maturin + PyO3 | PyPI         |
-| `iscc-napi` | Native Node.js addon             | napi-rs        | npm          |
-| `iscc-wasm` | WASM package                     | wasm-bindgen   | npm          |
-| `iscc-ffi`  | Shared library (.so/.dll/.dylib) | cargo          | Source       |
+| Crate         | Produces                         | Build Tool     | Published To  |
+| ------------- | -------------------------------- | -------------- | ------------- |
+| `iscc-lib`    | Rust library                     | cargo          | crates.io     |
+| `iscc-py`     | Python wheel                     | maturin + PyO3 | PyPI          |
+| `iscc-napi`   | Native Node.js addon             | napi-rs        | npm           |
+| `iscc-wasm`   | WASM package                     | wasm-bindgen   | npm           |
+| `iscc-ffi`    | Shared library (.so/.dll/.dylib) | cargo          | Source        |
+| `iscc-jni`    | JNI shared library               | cargo          | Maven Central |
+| `packages/go` | Go module                        | cargo + wazero | pkg.go.dev    |
 
 ## Internal Module Structure
 
@@ -151,6 +167,8 @@ of any size, then finalize to get the result.
 | **Node.js** | napi-rs `AsyncTask` offloads to libuv thread pool, returning `Promise<T>`                 |
 | **WASM**    | Sync exports — no threading in browser WASM                                               |
 | **C FFI**   | `ctx_new()` / `ctx_update()` / `ctx_finalize()` / `ctx_free()` — standard streaming C API |
+| **Java**    | Sync JNI API. `DataHasher`/`InstanceHasher` via opaque `long` handles                     |
+| **Go**      | Sync API via wazero WASM calls. `UpdateFrom(ctx, io.Reader)` for streaming                |
 
 !!! note "Why not async in the core?"
 
@@ -172,13 +190,15 @@ official [iscc-core](https://github.com/iscc/iscc-core) Python reference impleme
 
 ### Cross-Language Test Matrix
 
-| Language | Test Runner   | Vector Access                   |
-| -------- | ------------- | ------------------------------- |
-| Rust     | `cargo test`  | `include_str!` at compile time  |
-| Python   | pytest        | Relative path from test file    |
-| Node.js  | `node:test`   | Relative path from `__tests__/` |
-| WASM     | `cargo test`  | `include_str!` (no filesystem)  |
-| C        | gcc + runtime | Linked against shared library   |
+| Language | Test Runner   | Vector Access                          |
+| -------- | ------------- | -------------------------------------- |
+| Rust     | `cargo test`  | `include_str!` at compile time         |
+| Python   | pytest        | Relative path from test file           |
+| Node.js  | `node:test`   | Relative path from `__tests__/`        |
+| WASM     | `cargo test`  | `include_str!` (no filesystem)         |
+| C        | gcc + runtime | Linked against shared library          |
+| Java     | `mvn test`    | Relative path from test resources      |
+| Go       | `go test`     | Embedded via WASM conformance selftest |
 
 This approach catches cross-language drift — encoding differences, rounding behavior, default
 parameter mismatches — immediately when any binding diverges from the reference.

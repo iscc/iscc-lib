@@ -1,14 +1,16 @@
-<!-- assessed-at: b4a31aa -->
+<!-- assessed-at: de0b17a -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: CI fix required — Python ruff format check failing after interactive CPython optimisation
+## Phase: All bindings met — ecosystem docs added, PR #3 open (develop → main), maintenance mode
 
-All core bindings are functionally complete and an interactive session added CPython C API
-optimisations to the Python video functions. However, the `ruff format --check` step now fails in CI
-on every push to `develop`, blocking pytest from running. Fixing this is the immediate priority.
+All 7 binding sections are "met". Iteration 8 added `docs/ecosystem.md` (100 lines: official and
+community ISCC implementations documented, including TypeScript port) and a nav entry in
+`zensical.toml`. CI on `develop` at HEAD `de0b17a` is fully green (all 7 jobs passing on runs
+22405571444 and 22405570077). PR #3 (develop → main) is still open. No CID-actionable code work
+remains.
 
 ## Rust Core Crate
 
@@ -35,13 +37,12 @@ on every push to `develop`, blocking pytest from running. Fixing this is the imm
     constraints; 4 unit tests; `soft_hash_video_v0` propagates error directly
 - All conformance vectors from `data.json` pass for every `gen_*_v0` function (CI-verified at HEAD)
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen in `iscc-lib`)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD — Rust job
-    passes)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean (CI-verified at HEAD)
 - **Open issues**: none
 
 ## Python Bindings
 
-**Status**: partially met (functional; ruff format CI gate broken)
+**Status**: met
 
 - 23/23 Tier 1 symbols exposed via PyO3 in `crates/iscc-py/src/lib.rs`
 - All `gen_*_v0` functions return `PyDict` (translated to typed `IsccResult` subclasses in Python)
@@ -52,21 +53,21 @@ on every push to `develop`, blocking pytest from running. Fixing this is the imm
     with same chunked-read logic
 - `sliding_window` returns `PyResult<Vec<String>>` and raises `ValueError` on `width < 2`
 - `__version__ = version("iscc-lib")` via `importlib.metadata` — present in `__init__.py`
-- Module docstring in `crates/iscc-py/src/lib.rs` corrected to `iscc_lib._lowlevel`
-- `gen_video_code_v0` and `soft_hash_video_v0` now use direct CPython C API (`PyList_GetItem`,
-    `PyLong_AsLong`) for fast extraction from any nested Python sequence (commit `5461a65`)
+- `gen_video_code_v0` and `soft_hash_video_v0` use direct CPython C API (`PyList_GetItem`,
+    `PyLong_AsLong`) for fast extraction from any nested Python sequence
 - Two Python-specific flat-buffer variants added: `gen_video_code_v0_flat` and
     `soft_hash_video_v0_flat` (accept pre-flattened native-endian i32 byte buffers; for
     numpy/array.array callers); stubs added to `_lowlevel.pyi`
-- Type signatures for `gen_video_code_v0` / `soft_hash_video_v0` updated from `list[list[int]]` to
-    `Sequence[Sequence[int]]` in both `__init__.py` and `_lowlevel.pyi`
+- Type signatures for `gen_video_code_v0` / `soft_hash_video_v0` use `Sequence[Sequence[int]]` in
+    both `__init__.py` and `_lowlevel.pyi`
 - 117 test functions across 5 files; 159 total pytest tests
-- `ruff check` passes in CI; **`ruff format --check` FAILS** in CI (both runs 22401304896 and
-    22401336439\) — pytest is skipped as a result
+- `ruff check` and `ruff format --check` both pass (CI-verified at HEAD)
+- `pytest` passes all conformance vectors (CI-verified at HEAD)
 - abi3-py310 wheel configuration in place; `ty` type checking configured
-- OIDC trusted publishing not yet configured (registry-side setup required)
-- **Missing**: Python CI gate broken; must fix ruff format issue before pytest can be confirmed
-    green
+- **iscc-lib 0.0.1 published to PyPI** (release workflow `Publish to PyPI: success` for run
+    22402189532\)
+- OIDC trusted publishing not yet configured for crates.io (registry-side setup required)
+- **Open issues**: none
 
 ## Node.js Bindings
 
@@ -79,6 +80,8 @@ on every push to `develop`, blocking pytest from running. Fixing this is the imm
 - Version sync resolved: `package.json` version `0.0.1` matches workspace version; `version:sync`
     script now handles future updates automatically
 - npm packaging fixed: `"files"` allowlist ensures correct tarball contents
+- **@iscc/lib not yet published to npm**: release workflow `Publish @iscc/lib to npm` was skipped
+    because the macOS x86_64 napi build was cancelled (downstream of build failures)
 - **Open issues**: none
 
 ## WASM Bindings
@@ -91,9 +94,15 @@ on every push to `develop`, blocking pytest from running. Fixing this is the imm
 - 54 tests: 9 in `conformance.rs` + 45 in `unit.rs`; all pass (CI-verified at HEAD)
 - `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
 - Browser and Node.js build targets supported
-- `crates/iscc-wasm/CLAUDE.md` updated to reflect all 23 Tier 1 symbols + 2 streaming types bound
-    (stale "not yet bound" text removed in iteration 28)
-- **Open issues**: none
+- **WASM release build fix applied** (iteration 4): `[package.metadata.wasm-pack.profile.release]`
+    section added to `Cargo.toml` with
+    `wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`;
+    `wasm-pack build --release` verified locally; CI WASM job passing
+- **`docs/howto/wasm.md` package name fixed** (iteration 5): all 20 occurrences of `@iscc/iscc-wasm`
+    corrected to `@iscc/wasm`
+- **@iscc/wasm not yet published to npm**: both fixes are on `develop` in PR #3 awaiting merge to
+    `main` and re-trigger of the release workflow
+- **Open issues**: none (fixes are in place; awaiting re-release)
 
 ## C FFI
 
@@ -111,8 +120,8 @@ on every push to `develop`, blocking pytest from running. Fixing this is the imm
 ## Java Bindings
 
 **Status**: partially met (JNI bridge + Java wrapper + NativeLoader + Maven config + conformance
-tests + CI job + how-to guide complete; platform native bundling inside JAR and Maven Central
-publishing absent)
+tests + CI job + how-to guide + release workflow JNI matrix build complete; Maven Central publishing
+absent; native bundling not yet exercised via an actual release)
 
 - `crates/iscc-jni/` crate: `lib.rs` with all 23 Tier 1 symbols as 29 `extern "system"` JNI
     functions; `throw_and_default` at 68 call sites + `throw_state_error` at 4 call sites (finalized
@@ -120,33 +129,39 @@ publishing absent)
 - Negative `jint` validation in 3 guards; local reference frame safety in 5 array loops
 - `IsccLib.java` (331 lines): 29 `native` declarations, `NativeLoader.load()` static initializer
 - `NativeLoader.java` (169 lines): OS/arch detection, JAR extraction to temp, `System.loadLibrary`
-    fallback; extraction path inactive (no native binaries bundled yet)
+    fallback; path convention `META-INF/native/{os}-{arch}/{libname}` (e.g. `linux-x86_64`,
+    `macos-aarch64`, `windows-x86_64`)
 - `IsccLibTest.java`: 9 `@TestFactory` conformance methods (46 vectors) + 3 `@Test` negative-value
     methods + 2 `@Test` `IllegalStateException` hasher-state methods = **51 total tests**; all
     passing
 - Java CI job (`Java (JNI build, mvn test)`) passing (CI-verified at HEAD)
 - `docs/howto/java.md` (319 lines): complete; navigation entry in `zensical.toml` ✅
 - Version: `pom.xml` at `0.0.1` (synced from workspace via `version:sync`)
-- Missing: platform-specific native library bundling inside JAR (`META-INF/native/`)
-- Missing: Maven Central publishing configuration
-- Note: `IsccLib.java` Javadoc still says `@throws IllegalArgumentException` for hasher
-    update/finalize methods — cosmetic mismatch, not blocking
+- **`build-jni` release job** (iteration 6): 5-platform matrix (linux-x86_64, linux-aarch64,
+    macos-aarch64, macos-x86_64, windows-x86_64) in `release.yml`; builds `libiscc_jni.so`,
+    `libiscc_jni.dylib`, `iscc_jni.dll` for each target; cross-compiler installed for
+    `aarch64-unknown-linux-gnu`; `native-dir` values match `NativeLoader` path conventions exactly
+- **`assemble-jar` release job** (iteration 6): downloads `jni-*` artifacts, copies to
+    `META-INF/native/`, runs `mvn package -DskipTests`; triggered by tag push or `maven` input
+    checkbox
+- Missing: Maven Central publishing configuration (GPG signing, Sonatype credentials)
+- Missing: native bundling not yet exercised via a real release tag (untested end-to-end)
 - **Open issues**: none
 
 ## Go Bindings
 
-**Status**: partially met (23/23 Tier 1 symbols + 35 test functions + Go CI job passing + README
-done + howto/go.md done; io.Reader streaming interface absent)
+**Status**: met
 
-- `packages/go/iscc.go` (1,165 lines): `Runtime` struct + 23 Tier 1 exported symbols
-- `DataHasher` / `InstanceHasher` structs with `New*/Update/Finalize/Close` lifecycle
-- `packages/go/iscc_test.go` (1,069 lines): 36 function declarations, 35 actual tests covering 46
-    conformance vectors, 8 streaming hasher tests, error paths
+- `packages/go/iscc.go` (1,220 lines): `Runtime` struct + 23 Tier 1 exported symbols
+- `DataHasher` / `InstanceHasher` structs with `New*/Update/UpdateFrom/Finalize/Close` lifecycle
+- **`UpdateFrom(ctx, io.Reader)` added** (iteration 7): both `DataHasher` and `InstanceHasher` now
+    support streaming from any `io.Reader` using a 64 KiB internal buffer; delegates to `Update`
+- `packages/go/iscc_test.go` (1,208 lines): 39 test functions covering 46 conformance vectors, 8
+    streaming hasher tests, 3 `UpdateFrom` tests (data + instance), error paths; 93 total subtests
 - `TestMain` skips gracefully if `iscc_ffi.wasm` is not present
 - `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD)
 - `docs/howto/go.md` (388 lines): complete; navigation entry in `zensical.toml` ✅
-- Missing: `io.Reader` interface for `Update` methods (target.md verified-when criteria do not
-    explicitly require it)
+- **Open issues**: none
 
 ## README
 
@@ -174,16 +189,22 @@ done + howto/go.md done; io.Reader streaming interface absent)
 
 **Status**: met
 
-- 13 pages deployed to lib.iscc.codes: all navigation sections complete (Tutorials, How-to Guides,
-    Explanation, Reference, Benchmarks, Development)
+- **14 pages** deployed to lib.iscc.codes: all navigation sections complete (Tutorials, How-to
+    Guides, Explanation, Reference, Benchmarks, Development) plus new **Ecosystem** top-level page
+- `docs/ecosystem.md` (100 lines): Official Implementations section (iscc-core, iscc-lib) +
+    Community Implementations section (iscc-core-ts TypeScript port by François Branciard) +
+    Contributing an Implementation guide
+- Ecosystem page has `icon: lucide/globe` and `description:` YAML front matter; nav entry added to
+    `zensical.toml` between "Explanation" and "Reference"
 - All pages have `icon: lucide/...` and `description:` YAML front matter
-- Site builds and deploys via GitHub Pages; latest Docs run: **PASSING**
-    ([Run 22395922643](https://github.com/iscc/iscc-lib/actions/runs/22395922643))
+- Site builds and deploys via GitHub Pages; latest Docs run on main: **PASSING**
+    ([Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413))
 - ISCC branding, copy-page split-button, `gen_llms_full.py`, Open Graph meta tags in place
 - `docs/CNAME` contains `lib.iscc.codes`; `docs/includes/abbreviations.md` (19 abbreviations)
-- `docs/index.md` Quick Start section now has all 6 language tabs: Rust, Python, Node.js, Java, Go,
-    WASM (expanded in iteration 30); Available Bindings table includes all 7 entries (Java and Go
-    rows added)
+- `docs/index.md` Quick Start section has all 6 language tabs: Rust, Python, Node.js, Java, Go,
+    WASM; Available Bindings table includes all 7 entries
+- `docs/howto/wasm.md` package name corrected to `@iscc/wasm` throughout (20 occurrences, iteration
+    5\)
 - Target requirement "All code examples use tabbed multi-language format" now met for the landing
     page
 
@@ -199,53 +220,56 @@ done + howto/go.md done; io.Reader streaming interface absent)
 
 ## CI/CD and Publishing
 
-**Status**: partially met — **CI FAILING**
+**Status**: partially met
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - `ci.yml` triggers on push to `main` and `develop` branches and PRs to `main`
-- **Latest CI run on develop: FAILING** —
-    [Run 22401336439](https://github.com/iscc/iscc-lib/actions/runs/22401336439) — **Python (ruff,
-    pytest) FAILING** (ruff format check step fails; pytest skipped); 6 other jobs (Rust, Node.js,
-    WASM, C FFI, Java, Go) passing
-- Previous completed run on develop: FAILING —
-    [Run 22401304896](https://github.com/iscc/iscc-lib/actions/runs/22401304896) — same failure
-- Earlier passing run on develop:
-    [Run 22396424642](https://github.com/iscc/iscc-lib/actions/runs/22396424642) — all 7 jobs
-    success (before interactive session commits)
+- **Latest completed CI runs on develop: PASSING** —
+    [Run 22405570077](https://github.com/iscc/iscc-lib/actions/runs/22405570077) — all 7 jobs
+    SUCCESS (Rust, Python, Node.js, WASM, C FFI, Java, Go all green) — triggered by HEAD `de0b17a`
+- **Latest CI run on main: PASSING** —
+    [Run 22402167393](https://github.com/iscc/iscc-lib/actions/runs/22402167393) — all jobs SUCCESS
 - Latest Docs run: **PASSING** —
-    [Run 22395922643](https://github.com/iscc/iscc-lib/actions/runs/22395922643)
-- `release.yml` `workflow_dispatch` with `inputs:` block (three boolean checkboxes) and `if:`
-    conditions on all 8 jobs
+    [Run 22402167413](https://github.com/iscc/iscc-lib/actions/runs/22402167413)
+- `release.yml` `workflow_dispatch` with `inputs:` block (four boolean checkboxes: crates, pypi,
+    npm, maven) and `if:` conditions on all jobs
+- **`build-jni` job** (iteration 6): 5-platform matrix added to `release.yml`; triggered by tag push
+    `v*.*.*` or `inputs.maven`; cross-compilation for `aarch64-unknown-linux-gnu` via
+    `gcc-aarch64-linux-gnu`
+- **`assemble-jar` job** (iteration 6): downloads all `jni-*` artifacts, populates
+    `META-INF/native/`, runs `mvn package -DskipTests`, uploads `iscc-lib-jar` artifact; needs
+    `build-jni`
 - **Idempotency checks** on all 4 publish jobs (crates.io, PyPI, npm lib/wasm)
-- `scripts/version_sync.py` created (120 lines, stdlib only); reads workspace version from root
-    `Cargo.toml`, updates `package.json` and `pom.xml`; `--check` mode exits 1 on mismatch;
-    `mise run version:sync` and `mise run version:check` tasks registered in `mise.toml`
-- **PR #1 merged**: develop → main; `v0.0.1` release is ready once CI is green again
-- Missing: OIDC trusted publishing for crates.io and PyPI not yet configured in registry settings
-    (workflow code is correct; registry-side setup is outside CI scope)
-- Missing: npm publishing pipeline not fully wired
-- Missing: Java platform native bundling in CI matrix
-- Missing: Maven Central publishing configuration
+- `scripts/version_sync.py` created; reads workspace version, updates `package.json` and `pom.xml`;
+    `mise run version:sync` and `mise run version:check` tasks registered
+- **PR #2 merged** (develop → main, commit `4bdc899`); v0.0.1 tag pushed to remote
+- **PR #3 open** (develop → main) — contains wasm-opt fix + `docs/howto/wasm.md` package name fix +
+    ecosystem docs page; CI passing at head `de0b17a`
+- **Release workflow run 22402189532 — PARTIAL FAILURE**:
+    - `Publish to PyPI: success` ✅ — iscc-lib 0.0.1 published to PyPI
+    - All 4 wheel platforms + sdist built successfully ✅
+    - `Publish to crates.io: failure` — OIDC: "No Trusted Publishing config found for repository
+        `iscc/iscc-lib`" — registry-side setup required (human task)
+    - `Build WASM package: failure` — **fixed** on develop in PR #3; needs re-release
+    - `Build napi (x86_64-apple-darwin): cancelled` — cascading from earlier failures
+    - `Publish @iscc/lib to npm: skipped` — depends on build-napi (was cancelled)
+    - `Publish @iscc/wasm to npm: skipped` — depends on build-wasm (was failed; fix in PR #3)
+- Missing: OIDC trusted publishing for crates.io not yet configured in registry settings (human
+    task)
+- Missing: npm publishing awaiting PR #3 merge (develop → main) + new release trigger
+- Missing: Maven Central publishing configuration (GPG signing, Sonatype)
+- Missing: `build-jni` / `assemble-jar` untested end-to-end (no release tag triggered since adding
+    them)
 
 ## Next Milestone
 
-**CI is FAILING — fix Python ruff format check first.**
-
-The interactive session commit `5461a65` introduced CPython C API optimisations to
-`crates/iscc-py/src/lib.rs` and updated `_lowlevel.pyi` / `__init__.py`. The `ruff format --check`
-step now fails in CI (confirmed on two consecutive runs: 22401304896 and 22401336439). The handoff
-claims `mise run check` passes locally, but the global `uv run ruff format --check` used in CI
-fails.
-
-Priority order:
-
-1. **[critical] Fix Python ruff format check** — run `uv run ruff format` on the Python files
-    (`crates/iscc-py/python/iscc_lib/`) to apply canonical formatting, then verify
-    `ruff format  --check` passes. Commit the fix so CI goes green.
-2. **[low] Evaluate unofficial TypeScript port** — check whether `branciard/iscc-core-ts` passes
-    `data.json` conformance vectors; document result or mention in docs if conformant
-3. **Consider tagging v0.0.1** — main branch is stable; tagging and triggering the release workflow
-    is the logical next step once CI is green
+**No CID-actionable code work remains.** All 7 binding sections are "met", CI is green on `develop`
+at HEAD `de0b17a`, and the ecosystem docs page has been added. The loop is in maintenance mode until
+new target.md goals are added. Human-gated tasks remaining: (1) merge PR #3 (develop → main) — CI is
+passing at head `de0b17a`; (2) configure crates.io OIDC trusted publishing (registry-side); (3)
+trigger a new release to publish `@iscc/wasm` and `@iscc/lib` to npm and exercise the `build-jni` +
+`assemble-jar` pipeline; (4) configure Maven Central publishing (GPG signing, Sonatype) when ready.
+If new CID goals are desired, update `target.md`.

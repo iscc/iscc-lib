@@ -63,11 +63,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Gotchas
 
-- `packages/go/` (iteration 13, commit c22fa53): `iscc.go` now 1,165 lines — 23/23 Tier 1 symbols
-    including `DataHasher` + `InstanceHasher` streaming types (New\*/Update/Finalize/Close lifecycle
-    wrapping WASM FfiDataHasher/FfiInstanceHasher). `iscc_test.go` 1,069 lines — 36 func
-    declarations (TestMain + 35 tests including 8 streaming hasher tests). Update takes `[]byte`,
-    NOT `io.Reader` — architecture gap noted. WASM binary gitignored; TestMain skips if missing.
+- `packages/go/` (iteration 13, commit c22fa53; updated iteration 7, commit 84ddb1b): `iscc.go` now
+    1,220 lines — 23/23 Tier 1 symbols including `DataHasher` + `InstanceHasher` with
+    `New*/Update/UpdateFrom/Finalize/Close` lifecycle. `iscc_test.go` now 1,208 lines — 39 test
+    functions, 93 subtests including `TestDataHasherUpdateFrom` and `TestInstanceHasherUpdateFrom`.
+    `io.Reader` gap resolved in iteration 7. WASM binary gitignored; TestMain skips if missing.
 - Per-crate READMEs: all 7 done (iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-jni, packages/go,
     iscc-ffi). iscc-ffi/README.md created in iteration 29 (123 lines). packages/go/README.md created
     in iteration 10 (commit a60a375).
@@ -212,5 +212,56 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     flat-buffer functions `gen_video_code_v0_flat` + `soft_hash_video_v0_flat`; type signatures
     updated to `Sequence[Sequence[int]]`; API symbol count in target.md and specs/rust-core.md
     updated 22→23 (correcting a pre-existing under-count). **RESULT: CI FAILING** — Python ruff
-    format check fails (runs 22401304896 + 22401336439). Fix by running
+    format check fails (runs 22401304896 + 22401336439). Fixed by running
     `uv run ruff format crates/iscc-py/python/` and committing.
+- **ruff format fix (iteration 31, commit 3c0d70b)**: `_lowlevel.pyi` `gen_video_code_v0` signature
+    split across multiple lines to satisfy ruff line-length limit. Review PASS. CI now fully green:
+    all 7 jobs SUCCESS on develop (runs 22401871901 + 22401873404). Python status: MET. All
+    subsections passing. Next logical step: PR develop → main + tag v0.0.1.
+- **v0.0.1 release (iteration 32, commit 56e274d)**: PR #2 merged (develop → main, commit
+    `4bdc899`). v0.0.1 tag pushed. Release workflow run 22402189532: PyPI published ✅ (all 4 wheel
+    platforms + sdist), crates.io failed (OIDC not configured on registry — human task), WASM build
+    failed (wasm-opt rejects `memory.copy` without `--enable-bulk-memory` — fix in release.yml), npm
+    @iscc/lib + @iscc/wasm skipped. CI on develop: all 7 jobs pass (run 22402375410). CI on main:
+    all jobs pass (run 22402167393). Docs on main: pass (run 22402167413).
+- **WASM release build bug FIXED (iteration 4, commit f1ada07)**:
+    `[package.metadata.wasm-pack.profile.release]` section added to `crates/iscc-wasm/Cargo.toml`
+    with `wasm-opt = ["-O", "--enable-bulk-memory",   "--enable-nontrapping-float-to-int"]`. Both
+    flags required: `--enable-bulk-memory` for `memory.copy` (Rust uses bulk memory for memcpy),
+    `--enable-nontrapping-float-to-int` for DCT/codec float-to-int conversions. Fix verified locally
+    (29.36s release build success) and in CI WASM job (run 22403019335, SUCCESS). Fix is on
+    `develop`; needs PR → main + re-release to publish `@iscc/wasm`.
+- **wasm-pack profile config**: The correct way to configure wasm-opt flags for wasm-pack is via
+    `[package.metadata.wasm-pack.profile.release]` in `Cargo.toml`, NOT via command-line args in CI.
+    This keeps the config close to the code and works for both local and CI builds.
+- **docs/howto/wasm.md package name fixed (iteration 5, commit 1023080)**: All 20 occurrences of
+    `@iscc/iscc-wasm` replaced with `@iscc/wasm`. PR #3 open (develop → main) with both the wasm-opt
+    fix and this package name fix. CI on develop fully green: all 7 jobs pass (run 22403499473). Two
+    CI runs in progress: push to develop (22403598203) and PR #3 check (22403597692). Loop is in
+    maintenance mode — no CID-actionable code work pending. Human actions needed: merge PR #3, then
+    re-trigger release to publish @iscc/wasm and @iscc/lib to npm; crates.io OIDC setup also human.
+- **JNI cross-platform build added to release.yml (iteration 6, commits e6fe6bc+a0f2d3d)**:
+    `build-jni` job (5-platform matrix: linux-x86_64, linux-aarch64, macos-aarch64, macos-x86_64,
+    windows-x86_64) and `assemble-jar` job added to `release.yml`. `maven` boolean input checkbox
+    added to `workflow_dispatch`. `native-dir` values match `NativeLoader.java` path conventions
+    exactly (`META-INF/native/{os}-{arch}/{libname}`). CI all 7 jobs pass on develop (run
+    22404197625, HEAD `a0f2d3d`). `NativeLoader.java` path:
+    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/NativeLoader.java`. Java Bindings status:
+    partially met (release workflow now has native bundling jobs; Maven Central publishing still
+    missing). PR #3 still open.
+- **io.Reader streaming added to Go bindings (iteration 7, commits 84ddb1b+4c942dd)**:
+    `UpdateFrom(ctx, io.Reader)` added to both `DataHasher` and `InstanceHasher` in
+    `packages/go/iscc.go`; 64 KiB buffer, delegates to `Update`. 4 new test functions added
+    (`TestDataHasherUpdateFrom`, `TestInstanceHasherUpdateFrom`). `iscc.go` now 1,220 lines;
+    `iscc_test.go` now 1,208 lines; 39 total test functions, 93 subtests. Go Bindings status:
+    **MET** (was partially met). CI all 7 jobs pass on develop (runs 22404891331 + 22404890215, HEAD
+    `4c942dd`). **All 7 binding sections now "met"**. Loop is in maintenance mode. PR #3 still open.
+    Next CID-actionable step: await new target.md goals.
+- **Ecosystem docs page added (iteration 8, commits daf2831+de0b17a)**: `docs/ecosystem.md` (100
+    lines) created with Official Implementations section (iscc-core Python reference, iscc-lib Rust
+    polyglot) and Community Implementations section (iscc-core-ts TypeScript port by François
+    Branciard, NGI Zero Core funded, 263 tests, 9 gen\_\*\_v0 functions, not yet production-ready).
+    "Contributing an Implementation" section with 3-step guide. `icon: lucide/globe` front matter.
+    `zensical.toml` updated with `{ "Ecosystem" = "ecosystem.md" }` between Explanation and
+    Reference. Documentation page count: 14 (was 13). CI all 7 jobs pass on develop (runs
+    22405571444 + 22405570077, HEAD `de0b17a`). PR #3 still open (now includes ecosystem page too).

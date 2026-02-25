@@ -5,7 +5,7 @@ description: Guide to using iscc-lib from the browser or Node.js via WebAssembly
 
 # WebAssembly
 
-A guide to using iscc-lib from the browser or Node.js via the `@iscc/iscc-wasm` WebAssembly package.
+A guide to using iscc-lib from the browser or Node.js via the `@iscc/wasm` WebAssembly package.
 Covers installation, setup for different environments, code generation, and streaming.
 
 ---
@@ -13,7 +13,7 @@ Covers installation, setup for different environments, code generation, and stre
 ## Installation
 
 ```bash
-npm install @iscc/iscc-wasm
+npm install @iscc/wasm
 ```
 
 ## Setup
@@ -29,7 +29,7 @@ import init, {
     gen_text_code_v0,
     gen_data_code_v0,
     DataHasher,
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 // Initialize the WASM module before calling any functions
 await init();
@@ -64,7 +64,7 @@ For Node.js environments where native addons are not available, build with `--ta
 import {
     gen_text_code_v0,
     gen_data_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 const iscc = gen_text_code_v0("Hello World");
 console.log(iscc);
@@ -73,8 +73,8 @@ console.log(iscc);
 !!! tip "Prefer @iscc/lib for Node.js"
 
     For Node.js server applications, the native addon [`@iscc/lib`](nodejs.md) provides better
-    performance than the WASM package. Use `@iscc/iscc-wasm` for Node.js only when native addon
-    installation is not possible (e.g., restricted build environments).
+    performance than the WASM package. Use `@iscc/wasm` for Node.js only when native addon installation
+    is not possible (e.g., restricted build environments).
 
 ## Code generation
 
@@ -86,7 +86,7 @@ defaults.
 ```javascript
 import {
     gen_meta_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 const iscc = gen_meta_code_v0("Die Unendliche Geschichte", "Von Michael Ende");
 console.log(iscc); // "ISCC:AAA..."
@@ -105,7 +105,7 @@ console.log(iscc2);
 ```javascript
 import {
     gen_text_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 const iscc = gen_text_code_v0("Hello World");
 console.log(iscc); // "ISCC:EAA..."
@@ -116,7 +116,7 @@ console.log(iscc); // "ISCC:EAA..."
 ```javascript
 import {
     gen_image_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 // 32x32 grayscale thumbnail as Uint8Array (1024 bytes)
 const pixels = new Uint8Array(1024).fill(128);
@@ -129,7 +129,7 @@ console.log(iscc); // "ISCC:EEA..."
 ```javascript
 import {
     gen_audio_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 // Chromaprint feature vector (signed integers)
 const fingerprint = [123456, -789012, 345678, 901234];
@@ -142,7 +142,7 @@ console.log(iscc); // "ISCC:EIA..."
 ```javascript
 import {
     gen_video_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 // MPEG-7 frame signatures: array of arrays of integers
 const frameSigs = [new Array(380).fill(0), new Array(380).fill(1)];
@@ -157,7 +157,7 @@ import {
     gen_text_code_v0,
     gen_image_code_v0,
     gen_mixed_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 const textCode = gen_text_code_v0("Hello World");
 const imageCode = gen_image_code_v0(new Uint8Array(1024).fill(128));
@@ -170,7 +170,7 @@ console.log(iscc); // "ISCC:EQA..."
 ```javascript
 import {
     gen_data_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 const encoder = new TextEncoder();
 const data = encoder.encode("Hello World".repeat(1000));
@@ -183,7 +183,7 @@ console.log(iscc); // "ISCC:GAA..."
 ```javascript
 import {
     gen_instance_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 const encoder = new TextEncoder();
 const data = encoder.encode("Hello World");
@@ -198,7 +198,7 @@ import {
     gen_data_code_v0,
     gen_instance_code_v0,
     gen_iscc_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 const encoder = new TextEncoder();
 const data = encoder.encode("Hello World".repeat(1000));
@@ -216,7 +216,7 @@ browser, convert `File` or `Blob` objects to `Uint8Array`:
 ```javascript
 import {
     gen_data_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 // From a File input element
 const file = document.getElementById("fileInput").files[0];
@@ -243,7 +243,7 @@ For large files, use `DataHasher` and `InstanceHasher` to process data in chunks
 ```javascript
 import {
     DataHasher
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 const hasher = new DataHasher();
 
@@ -269,7 +269,7 @@ console.log(iscc);
 ```javascript
 import {
     InstanceHasher
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 const hasher = new InstanceHasher();
 
@@ -294,7 +294,7 @@ import {
     text_collapse,
     text_remove_newlines,
     text_trim
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 // Normalize text for display
 const cleaned = text_clean("  Hello\r\n\r\n\r\nWorld  ");
@@ -316,7 +316,7 @@ Verify the library against official test vectors:
 ```javascript
 import {
     conformance_selftest
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 console.log(conformance_selftest()); // true
 ```
@@ -328,7 +328,7 @@ Functions throw on invalid input:
 ```javascript
 import {
     gen_text_code_v0
-} from "@iscc/iscc-wasm";
+} from "@iscc/wasm";
 
 try {
     gen_text_code_v0("Hello", 13); // bits must be a multiple of 32

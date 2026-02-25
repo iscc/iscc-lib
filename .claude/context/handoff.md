@@ -1,27 +1,35 @@
-## 2026-02-25 — Review of: Fix Python ruff format CI failure
+## 2026-02-25 — Update architecture and development docs for JNI and Go bindings
 
-**Verdict:** PASS
+**Done:** Updated `docs/architecture.md` and `docs/development.md` to include the JNI (Java) and Go
+binding crates. Both pages now reflect all 6 binding targets (Python, Node.js, WASM, C FFI, JNI, Go)
+in their Mermaid diagrams, workspace layout trees, crate summary tables, streaming adaptation
+tables, and conformance test matrices.
 
-**Summary:** Single mechanical formatting fix to `_lowlevel.pyi` — split the `gen_video_code_v0`
-signature across multiple lines to satisfy ruff's line-length limit. Exactly what next.md asked for,
-nothing more. All quality gates pass.
+**Files changed:**
 
-**Verification:**
+- `docs/architecture.md`: Added JNI and Go nodes to Mermaid diagram (JNI → CORE direct, Go -.→ FFI
+    dotted for WASM indirection), added `iscc-jni/` and `packages/go/` to workspace layout tree,
+    added rows to crate summary table, per-binding adaptation table, and cross-language test matrix
+- `docs/development.md`: Added JDK 17 + Maven and Go 1.24 to included tools table, added `iscc-jni/`
+    and `packages/go/` to project structure tree, added rows to crate summary table
 
-- [x] `uv run ruff format --check crates/iscc-py/python/iscc_lib/` exits 0 — "2 files already
-    formatted"
-- [x] `uv run ruff check crates/iscc-py/python/iscc_lib/` exits 0 — "All checks passed!"
-- [x] `mise run check` passes — all 14 pre-commit hooks clean
-- [x] No quality gate circumvention — no suppressions, no test skipping, no threshold changes
+**Verification:** All criteria pass:
 
-**Issues found:**
+- `uv run zensical build` exits 0
+- `grep -q 'iscc-jni' docs/architecture.md` — PASS
+- `grep -q 'wazero' docs/architecture.md` — PASS
+- `grep -q 'iscc-jni' docs/development.md` — PASS
+- `grep -q 'packages/go' docs/development.md` — PASS
+- `grep -c 'iscc-jni\|packages/go\|wazero\|Java\|Go' docs/architecture.md` returns 12 (≥5) — PASS
+- `mise run format` produces no unstaged changes — PASS
+- `mise run check` — all 14 hooks pass
 
-- (none)
+**Next:** The CID loop is in maintenance mode. All core functionality, 7 language bindings, docs
+site, CI/release workflows, ecosystem documentation, and architecture/development docs are complete.
+Remaining work is human-gated: merge PR #3 from develop → main, configure publishing credentials,
+and trigger a release.
 
-**Next:** The ruff format CI blocker is resolved. The natural next step is a final state assessment
-to confirm CI is fully green on develop, then create the PR from `develop` → `main` for the v0.0.1
-release.
-
-**Notes:** Trivial fix — no learnings, no technical debt, no architecture concerns. The interactive
-session commit `5461a65` (CPython C API optimizations) introduced the formatting violation; this
-iteration cleaned it up.
+**Notes:** Pure documentation change — no Rust, Python, or test code modified. The Go dotted arrow
+(`-.->`) in the Mermaid diagram distinguishes it from direct Rust dependencies since Go uses wazero
+to run the WASM binary compiled from `iscc-ffi`, not a direct crate dependency. mdformat
+auto-reformatted table column widths (cosmetic-only).

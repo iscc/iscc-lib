@@ -17,6 +17,10 @@ on:
         description: Publish @iscc/lib and @iscc/wasm to npm
         type: boolean
         default: false
+      maven:
+        description: Build Java JAR with bundled native libraries
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -315,3 +319,85 @@ jobs:
         working-directory: pkg
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # Build JNI native libraries for cross-platform JAR packaging
+  build-jni:
+    name: Build JNI (${{ matrix.native-dir }})
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            native-dir: linux-x86_64
+            lib-name: libiscc_jni.so
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            native-dir: linux-aarch64
+            lib-name: libiscc_jni.so
+          - os: macos-14
+            target: aarch64-apple-darwin
+            native-dir: macos-aarch64
+            lib-name: libiscc_jni.dylib
+          - os: macos-13
+            target: x86_64-apple-darwin
+            native-dir: macos-x86_64
+            lib-name: libiscc_jni.dylib
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            native-dir: windows-x86_64
+            lib-name: iscc_jni.dll
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cross-compiler
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build JNI library
+        run: cargo build -p iscc-jni --release --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jni-${{ matrix.native-dir }}
+          path: target/${{ matrix.target }}/release/${{ matrix.lib-name }}
+
+  # Assemble cross-platform JAR with bundled native libraries
+  assemble-jar:
+    name: Assemble JAR
+    needs: [build-jni]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download JNI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: jni-*
+          path: jni-staging
+      - name: Copy native libraries to resources
+        run: |
+          for dir in jni-staging/jni-*/; do
+            native_dir=$(basename "$dir" | sed 's/^jni-//')
+            dest="crates/iscc-jni/java/src/main/resources/META-INF/native/$native_dir"
+            mkdir -p "$dest"
+            cp "$dir"* "$dest/"
+          done
+      - name: Build JAR
+        run: mvn package -DskipTests -f crates/iscc-jni/java/pom.xml
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: iscc-lib-jar
+          path: crates/iscc-jni/java/target/*.jar

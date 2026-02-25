@@ -63,18 +63,3 @@ action that requires review regardless of source:
     performance; not style preferences or minor nits
 
 <!-- Add issues below this line -->
-
-## [low] Evaluate unofficial TypeScript port branciard/iscc-core-ts
-
-An unofficial TypeScript implementation of ISCC exists at `branciard/iscc-core-ts`. Two actions:
-
-1. **Conformance check**: verify whether it passes the official `data.json` test vectors. If it
-    does, it could be referenced as a community implementation. If not, note the gaps.
-2. **Documentation mention**: if conformant (or partially conformant), mention it in the iscc-lib
-    documentation site (e.g., in an "Ecosystem" or "Related Projects" section) as an independent
-    community port alongside iscc-lib's own bindings.
-
-This is not urgent — iscc-lib's own Node.js/WASM bindings will serve the JS/TS ecosystem. But
-acknowledging community implementations builds goodwill and helps adopters find options.
-
-**Source:** [human]

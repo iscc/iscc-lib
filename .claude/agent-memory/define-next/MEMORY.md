@@ -122,6 +122,18 @@ iterations.
     state.md's CI section for the latest status. When CI is red, that's always the first priority
     regardless of what the handoff "Next" section suggests. Formatting fixes are trivial single-file
     steps — don't over-scope them.
+- **Release milestone steps** (iteration 2, second loop): When all code is complete and CI is green,
+    the remaining work is operational (merge PRs, tag releases). These are zero-file-change steps
+    that use `gh` and `git` commands exclusively. Verify preconditions (PR mergeable, CI green)
+    before scoping, and call out what NOT to do (don't squash, don't delete develop, don't wait for
+    release workflow). When an existing PR already covers the merge, update its title/body rather
+    than creating a new one.
+- **Post-release build fixes** (iteration 3, second loop): When a release workflow partially fails,
+    the fix often belongs in crate-level config (e.g., `Cargo.toml` metadata sections) rather than
+    the workflow YAML. wasm-pack supports `[package.metadata.wasm-pack.profile.release]` for
+    configuring wasm-opt flags — this is the portable, documented approach that works both locally
+    and in CI. Prefer crate-config fixes over workflow-command-line fixes for reproducibility. After
+    fixing, don't re-trigger the release in the same step — that's a separate human-gated operation.
 
 ## Architecture Decisions
 
@@ -186,4 +198,38 @@ iterations.
 - Maven's working directory is the pom.xml parent directory, not the workspace root.
 - ISCC Foundation URL is `https://iscc.io` — not iscc.foundation or other variants.
 - WASM howto guide at `docs/howto/wasm.md` has wrong package name `@iscc/iscc-wasm` — correct name
-    is `@iscc/wasm` per learnings. Pre-existing issue not yet fixed.
+    is `@iscc/wasm` per learnings. Being fixed in iteration 5 (second CID loop).
+- **Pairing doc fixes with PRs** (iteration 5, second loop): When the next step is creating a PR
+    (develop → main), pair it with any pending doc fixes that would ship in that merge. The WASM
+    howto package name fix was a known issue sitting in agent memory — fixing it before the PR means
+    the corrected docs deploy from main immediately. This avoids an extra iteration just for the
+    fix. Good pairing criteria: same branch, no code risk, verifiable by grep.
+- **Remaining state→target gaps after v0.0.1**: Maven Central publishing, crates.io OIDC, npm token
+    setup — all require human action on external services. The TypeScript port evaluation (low
+    issue) is CID-actionable but low priority.
+- **Go io.Reader streaming** (iteration 7, second loop): When the handoff says "maintenance mode"
+    but the target architecture description mentions a feature ("io.Reader support for streaming")
+    that isn't implemented, that's still a valid gap to close. `UpdateFrom(ctx, io.Reader)` is 2
+    methods + 3 tests, well under the 3-file limit. It delegates to existing `Update`, so no WASM
+    changes. Prefer concrete code improvements over research tasks (TypeScript evaluation) even when
+    the handoff suggests the latter.
+- **Research + docs hybrid steps** (iteration 8, second loop): When the only remaining CID-
+    actionable item is a research task (evaluating an external repo), combine it with a concrete
+    deliverable (a new docs page) so the step is verifiable. The advance agent uses
+    WebFetch/deepwiki to examine the external repo, then creates a documentation page with findings.
+    Scope: 1 create (docs page) + 1 modify (nav config) = well under the 3-file limit. Key: be
+    factual and neutral about third-party conformance — state what was observed, not assumptions.
+- **Java native bundling in release workflow** (iteration 5, second loop): The `build-jni` +
+    `assemble-jar` pattern mirrors the existing `build-napi` + `publish-npm-lib` pattern. Key
+    differences: (1) NativeLoader expects `META-INF/native/{os}-{arch}/{libname}` directory
+    convention, (2) Maven `src/main/resources/` is auto-included in JAR (no pom.xml changes), (3)
+    the assemble-jar step collects artifacts and runs `mvn package -DskipTests`. This is CID-
+    actionable — no human credentials needed for the build step. Maven Central publishing is a
+    separate future step (requires GPG + Sonatype credentials).
+- **Stale documentation pages after binding additions** (iteration 9, second loop): When new
+    bindings are added over multiple iterations (JNI in iter 5, Go in iter 6-7), docs pages written
+    earlier (architecture.md, development.md) become stale — they miss the new crates in diagrams,
+    layout trees, and summary tables. The state assessment may say "Documentation: met" because
+    top-level target verification criteria are met, but detailed spec gaps remain. These are safe,
+    docs-only steps (2 files, no code changes). Check for: mermaid diagrams, workspace layout trees,
+    crate summary tables, streaming pattern tables, conformance test matrix tables.

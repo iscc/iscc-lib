@@ -66,7 +66,13 @@ iterations.
     Cargo.toml changes needed. The cdylib target produces the `.wasm` file
 - `iscc_alloc`/`iscc_dealloc` are the WASM host memory management pair — host allocates via
     `iscc_alloc`, writes data, calls FFI functions, then frees via `iscc_dealloc`
-- Debug WASM binary is ~10.5MB; release + wasm-opt would reduce significantly
+- Debug WASM binary is ~10.5MB; release + wasm-opt reduces significantly
+- wasm-opt release config in `crates/iscc-wasm/Cargo.toml`:
+    `[package.metadata.wasm-pack.profile.release]` with
+    `wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`. Rust's LLVM
+    emits `memory.copy` (bulk-memory) and `i32.trunc_sat_f64_s/u` (nontrapping-float-to-int) — both
+    must be enabled for wasm-opt to accept the binary. If future Rust versions emit more post-MVP
+    ops, add specific `--enable-*` flags (or switch to `--enable-all` as last resort)
 - Install target: `rustup target add wasm32-wasip1`
 - Build: `cargo build -p iscc-ffi --target wasm32-wasip1`
 - Output: `target/wasm32-wasip1/debug/iscc_ffi.wasm`
@@ -110,10 +116,11 @@ iterations.
 - Go streaming hasher pattern: `DataHasher`/`InstanceHasher` structs hold `rt *Runtime` +
     `ptr   uint32` (opaque WASM pointer). Factory methods on Runtime call `iscc_*_hasher_new()` and
     check for NULL. `Update` writes bytes via `writeBytes`, calls `iscc_*_hasher_update` (returns
-    i32 as bool: 0=error, nonzero=ok). `Finalize` calls `iscc_*_hasher_finalize` (returns string
-    pointer) and uses `callStringResult`. `Close` calls `iscc_*_hasher_free` and zeroes `h.ptr` to
-    prevent double-free (fire-and-forget, safe to call multiple times). No sret ABI needed — all
-    streaming hasher FFI functions use simple i32 params/returns
+    i32 as bool: 0=error, nonzero=ok). `UpdateFrom` reads from `io.Reader` in 64 KiB chunks and
+    delegates to `Update`. `Finalize` calls `iscc_*_hasher_finalize` (returns string pointer) and
+    uses `callStringResult`. `Close` calls `iscc_*_hasher_free` and zeroes `h.ptr` to prevent
+    double-free (fire-and-forget, safe to call multiple times). No sret ABI needed — all streaming
+    hasher FFI functions use simple i32 params/returns
 - Byte-buffer-returning WASM functions use sret ABI: caller allocates 8 bytes (IsccByteBuffer or
     IsccByteBufferArray struct), passes ptr as first arg. Function writes struct fields to that ptr.
     The free functions (iscc_free_byte_buffer, iscc_free_byte_buffer_array) take the struct by
@@ -156,8 +163,37 @@ iterations.
     via regex `r'^version\s*=\s*"(.+?)"'`, updates `package.json` (json stdlib) and `pom.xml` (regex
     replacement). Supports `--check` flag. mise tasks: `version:sync`, `version:check`
 
+## Release Workflow
+
+- PR merge: `gh pr merge N --merge` (merge commit, not squash) preserves commit history
+- Tag on main: `git tag vX.Y.Z && git push origin vX.Y.Z` triggers `.github/workflows/release.yml`
+- Release workflow matches pattern `push: tags: [v*.*.*]`
+- After tagging, switch back to develop: `git checkout develop`
+- If local changes block branch switch, `git stash push -m "reason" <file>` then `git stash pop`
+    after switching back
+- OIDC trusted publishing for crates.io requires crate to exist first (first publish needs API
+    token). PyPI supports pending trusted publishers. npm uses `NPM_TOKEN` secret
+- Release workflow has 4 `workflow_dispatch` inputs: `crates-io`, `pypi`, `npm`, `maven` (all
+    boolean, default false). Jobs: `publish-crates-io`, `build-wheels`, `build-sdist`,
+    `publish-pypi`, `build-napi`, `publish-npm-lib`, `build-wasm`, `publish-npm-wasm`, `build-jni`,
+    `assemble-jar`
+- `build-jni` matrix: 5 platforms with `native-dir` and `lib-name` matrix vars matching NativeLoader
+    conventions. Artifacts named `jni-{native-dir}` (e.g., `jni-linux-x86_64`)
+- `assemble-jar` downloads `jni-*` artifacts into `jni-staging/`, iterates subdirectories to copy
+    native libs to `src/main/resources/META-INF/native/{native-dir}/`. Uses
+    `mvn package -DskipTests` and uploads JAR as `iscc-lib-jar` artifact
+- `actions/download-artifact@v4` default behavior (no `merge-multiple`) creates per-artifact
+    subdirectories named after the artifact — useful for iterating platform-specific downloads
+
 ## Documentation
 
+- Ecosystem page: `docs/ecosystem.md` — covers official (iscc-core, iscc-lib) and community
+    (iscc-core-ts) implementations. Uses `icon: lucide/globe`. Nav entry in `zensical.toml` placed
+    between "Explanation" and "Reference" as a top-level entry
+- `branciard/iscc-core-ts`: TypeScript port, Apache-2.0, v0.3.0, all 9 gen\_\*\_v0 and
+    gen_iscc_id_v0/v1 and gen_flake_code_v0. Vendors official `data.json` (66KB). 263 tests across
+    18 suites. Author: François Branciard. NGI Zero Core / NLnet funded. Status: active development,
+    not production-ready
 - How-to guide structure: YAML front matter (`icon`, `description`) → title → intro → installation →
     code generation (9 subsections: Meta, Text, Image, Audio, Video, Mixed, Data, Instance,
     ISCC-CODE) → streaming → text utilities → conformance testing → error handling
@@ -172,12 +208,18 @@ iterations.
     AlgCdcChunks, AlgSimhash) not present in Python/Node.js guides
 - All 6 how-to guides complete: Rust (356 lines), Python (353), Node.js (281), WASM (338), Go (388),
     Java (321)
+- `docs/architecture.md` and `docs/development.md` include all 6 binding crates (Python, Node.js,
+    WASM, C FFI, JNI, Go) in diagrams, layout trees, and tables. Go uses dotted arrow (`-.->`) in
+    Mermaid to indicate indirect WASM dependency via `iscc-ffi`
 - Java guide key differences from Go: no runtime object (static methods), "Setup" section replaces
     "Runtime setup", streaming uses opaque `long` handles with try-finally (not defer),
     `genIsccCodeV0` exposes `boolean wide` parameter (Go hardcodes to false)
 - docs/index.md landing page: 6 Quick Start tabs (Rust, Python, Node.js, Java, Go, WASM) + 7
     Available Bindings table rows. All tabs use `gen_text_code_v0("Hello World")`. mdformat
     auto-reformats JS imports to multi-line style in code blocks inside tabbed markdown
+- WASM how-to (`docs/howto/wasm.md`) uses `@iscc/wasm` throughout (20 occurrences). Always verify
+    npm package names against `docs/index.md` and `crates/*/README.md` — the wasm-pack howto
+    originally had `@iscc/iscc-wasm` (wrong)
 
 ## Codec Internals
 
