@@ -2,6 +2,8 @@
 
 import io
 import json
+import re
+from pathlib import Path
 
 import iscc_lib
 from iscc_lib import (
@@ -19,9 +21,13 @@ from iscc_lib import (
 
 def test_version_exists_and_correct():
     """Verify __version__ is a string matching the workspace version."""
+    cargo_toml = Path(__file__).resolve().parent.parent / "Cargo.toml"
+    match = re.search(r'^version\s*=\s*"(.+?)"', cargo_toml.read_text(), re.MULTILINE)
+    assert match is not None, "version not found in Cargo.toml"
+    expected = match.group(1)
     assert hasattr(iscc_lib, "__version__")
     assert isinstance(iscc_lib.__version__, str)
-    assert iscc_lib.__version__ == "0.0.1"
+    assert iscc_lib.__version__ == expected
 
 
 def test_version_in_all():
