@@ -369,3 +369,8 @@
 {"ts":"2026-02-25T16:09:51.100229+00:00","iteration":7,"role":"define-next","status":"OK","turns":18,"cost_usd":0.728289,"duration_s":173.4}
 {"ts":"2026-02-25T16:15:20.767990+00:00","iteration":7,"role":"advance","status":"OK","turns":54,"cost_usd":1.425829,"duration_s":329.7}
 {"ts":"2026-02-25T16:17:22+00:00","iteration":7,"role":"review","status":"PASS","summary":"Ecosystem docs page verified — all criteria pass, TypeScript port issue resolved"}
+{"ts":"2026-02-25T16:18:29.431526+00:00","iteration":7,"role":"review","status":"OK","turns":30,"cost_usd":0.610476,"duration_s":188.7}
+{"ts":"2026-02-25T16:22:31.962736+00:00","iteration":8,"role":"update-state","status":"OK","turns":17,"cost_usd":0.681364,"duration_s":224.4}
+{"ts":"2026-02-25T16:27:47.618743+00:00","iteration":8,"role":"define-next","status":"OK","turns":29,"cost_usd":1.352201,"duration_s":315.6}
+{"ts":"2026-02-25T16:32:07.622167+00:00","iteration":8,"role":"advance","status":"OK","turns":44,"cost_usd":2.500712,"duration_s":260.0}
+{"ts":"2026-02-25T16:32:25.713520+00:00","iteration":8,"role":"review","status":"FAIL","turns":10,"cost_usd":0.203843,"duration_s":18.1}

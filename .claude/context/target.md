@@ -33,20 +33,22 @@ published to all registries.
 
 Detailed spec: `.claude/context/specs/rust-core.md`
 
-**Tier 1 API** — 23 public symbols bound in all languages:
+**Tier 1 API** — 30 public symbols bound in all languages:
 
 - 9 `gen_*_v0` functions with structured return types (matching iscc-core dict fields)
 - 4 text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - 4 algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
 - 1 soft hash: `soft_hash_video_v0`
-- 1 encoding utility: `encode_base64`
-- 1 codec operation: `iscc_decompose`
+- 2 encoding utilities: `encode_base64`, `json_to_data_url`
+- 3 codec operations: `iscc_decompose`, `encode_component`, `iscc_decode`
+- 4 algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`,
+    `TEXT_NGRAM_SIZE`
 - 2 streaming types: `DataHasher`, `InstanceHasher`
 - 1 diagnostic: `conformance_selftest`
 
 **Tier 2 API** — `codec` module (Rust-only, not bound): `MainType`, `SubType`, `Version` enums,
-`encode_header`, `decode_header`, `encode_base32`, `decode_base32`, `encode_component`,
-`encode_length`, `decode_length`, `encode_units`.
+`encode_header`, `decode_header`, `encode_base32`, `decode_base32`, `encode_length`,
+`decode_length`, `encode_units`.
 
 **Verified when:**
 
