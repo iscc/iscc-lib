@@ -77,9 +77,9 @@ iterations.
     Cargo.toml changes needed. The cdylib target produces the `.wasm` file
 - `iscc_alloc`/`iscc_dealloc` are the WASM host memory management pair — host allocates via
     `iscc_alloc`, writes data, calls FFI functions, then frees via `iscc_dealloc`
-- WASM binary in `packages/go/iscc_ffi.wasm` must be rebuilt and copied whenever new FFI functions
-    are added to `crates/iscc-ffi/src/lib.rs`. Build:
-    `cargo build -p iscc-ffi --target   wasm32-wasip1 --release` →
+- WASM binary in `packages/go/iscc_ffi.wasm` is tracked in git (release build, ~683KB). Must be
+    rebuilt and recommitted whenever FFI exports change. Build:
+    `cargo build -p iscc-ffi --target wasm32-wasip1 --release` →
     `cp target/wasm32-wasip1/release/iscc_ffi.wasm packages/go/`
 - Debug WASM binary is ~10.5MB; release + wasm-opt reduces significantly
 - wasm-opt release config in `crates/iscc-wasm/Cargo.toml`:
