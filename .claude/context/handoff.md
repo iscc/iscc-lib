@@ -1,34 +1,36 @@
-## 2026-02-27 — Add algorithm constants and Tier 1 encode_component wrapper
+## 2026-02-27 — Review of: Add algorithm constants and Tier 1 encode_component wrapper
 
-**Done:** Added 4 `pub const` algorithm constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`,
-`IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) and a Tier 1 `encode_component` wrapper function with `u8`
-parameters to the `iscc_lib` crate root. Also replaced hardcoded magic numbers `128`, `4096`, and
-`13` in `gen_meta_code_v0` and `soft_hash_text_v0` with the new constants.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, well-scoped implementation adding 4 algorithm constants and a Tier 1
+`encode_component` wrapper to the Rust core. The diff touches only `crates/iscc-lib/src/lib.rs` as
+specified. All 280 tests pass, clippy is clean, and all 14 pre-commit hooks pass. Magic numbers in
+`gen_meta_code_v0` and `soft_hash_text_v0` were replaced with the new constants.
 
-- `crates/iscc-lib/src/lib.rs`: Added 4 `pub const` values after re-exports, added
-    `pub fn   encode_component(mtype: u8, stype: u8, version: u8, bit_length: u32, digest: &[u8])`
-    wrapper that validates inputs and delegates to `codec::encode_component`, replaced 3 hardcoded
-    magic numbers with constants, added 11 new tests (4 constant value assertions, 7
-    encode_component tests covering round-trip, codec match, error cases for Iscc/short
-    digest/invalid enum values)
+**Verification:**
 
-**Verification:** All criteria pass:
+- [x] `cargo test -p iscc-lib` passes — 280 tests (227 + 31 + 22 + 0 doc-tests), 0 failures
+- [x] `cargo clippy -p iscc-lib -- -D warnings` clean
+- [x] `grep -c 'pub const META_TRIM_NAME' crates/iscc-lib/src/lib.rs` returns 1
+- [x] `grep -c 'pub const IO_READ_SIZE' crates/iscc-lib/src/lib.rs` returns 1
+- [x] `grep -c 'pub fn encode_component' crates/iscc-lib/src/lib.rs` returns 1
 
-- `cargo test -p iscc-lib`: 280 tests pass (227 + 31 + 22 + 0 doc-tests), 0 failures
-- `cargo clippy -p iscc-lib -- -D warnings`: clean
-- `grep -c 'pub const META_TRIM_NAME' crates/iscc-lib/src/lib.rs` returns 1
-- `grep -c 'pub const IO_READ_SIZE' crates/iscc-lib/src/lib.rs` returns 1
-- `grep -c 'pub fn encode_component' crates/iscc-lib/src/lib.rs` returns 1
-- `mise run check`: all 14 hooks pass
+**Issues found:**
 
-**Next:** Implement `iscc_decode` (issue #7) and `json_to_data_url` (issue #5) — the remaining 2 of
-7 missing Tier 1 symbols. Then propagate the new symbols (constants + encode_component + iscc_decode
-\+ json_to_data_url) to binding crates (Python, Node.js, WASM, C FFI, JNI, Go).
+- (none)
 
-**Notes:** The `IO_READ_SIZE` value follows the spec (4 MB = 4_194_304) rather than the Python
-reference `options.py` (2 MB = 2_097_152), as noted in the work package. The constant is advisory
-(used by SDK for buffer sizing, not by core algorithms). The `encode_component` wrapper adds an
-explicit digest length check that the Tier 2 `codec::encode_component` does not have — the codec
-version silently truncates via `nbytes.min(digest.len())`.
+**Codex review:** Codex (gpt-5.2) ran tests and investigated two areas: (1) `IO_READ_SIZE` is only
+referenced in its definition and test — confirmed correct since it's an advisory constant for SDK
+buffer sizing, not used by core algorithms. (2) Edge case analysis of `bit_length < 8` in
+`encode_component` — the `encode_length` function in `codec.rs` validates minimum bit lengths per
+MainType, so sub-byte requests are caught downstream. No actionable issues.
+
+**Next:** Implement `iscc_decode` (issue #7) — the inverse of `encode_component` that decodes an
+ISCC unit string back into header components and raw digest. This is the next of 7 missing Tier 1
+symbols. After that, `json_to_data_url` (issue #5). Then propagate all new symbols to the 6 binding
+crates.
+
+**Notes:** Issues #6 and #8 are partially addressed — the Rust core symbols exist but binding
+propagation remains. These issues should stay open until bindings are updated. The `IO_READ_SIZE`
+spec vs reference discrepancy (4 MB vs 2 MB) is documented in learnings and handoff notes — no
+conformance impact since it's advisory.

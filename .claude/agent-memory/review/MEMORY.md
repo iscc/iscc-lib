@@ -60,6 +60,13 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     \+ `cargo check -p <crate>` is sufficient. If wasm-pack config changed, also run
     `wasm-pack build --target web --release crates/iscc-wasm` to verify end-to-end
 
+## Codex Review Integration
+
+- `codex exec review --ephemeral --commit HEAD` output uses interleaved `thinking`/`exec` blocks —
+    there is no `codex` marker line to `sed` on. Read the full output and extract findings manually
+- Codex typically runs tests and grep searches to verify the commit — its findings are advisory and
+    should be cross-referenced with your own analysis
+
 ## Verification Patterns
 
 - `grep -c` counts ALL matching lines including function definitions — when next.md specifies "4
