@@ -263,6 +263,86 @@ int main(void) {
     printf("PASS: iscc_instance_hasher_free(NULL) no-op\n");
     tests_passed++;
 
+    /* 18. Algorithm constants */
+    ASSERT_EQ(iscc_meta_trim_name(), 128, "iscc_meta_trim_name() == 128");
+    ASSERT_EQ(iscc_meta_trim_description(), 4096, "iscc_meta_trim_description() == 4096");
+    ASSERT_EQ(iscc_io_read_size(), 4194304, "iscc_io_read_size() == 4194304");
+    ASSERT_EQ(iscc_text_ngram_size(), 13, "iscc_text_ngram_size() == 13");
+
+    /* 19. json_to_data_url */
+    result = iscc_json_to_data_url("{\"key\":\"value\"}");
+    ASSERT_STR_STARTS_WITH(result, "data:application/json;base64,", "json_to_data_url prefix");
+    iscc_free_string(result);
+
+    /* 20. encode_component — Meta-Code (mtype=0, stype=0, version=0, 64-bit) */
+    {
+        uint8_t digest[8] = {0};
+        result = iscc_encode_component(0, 0, 0, 64, digest, 8);
+        ASSERT_NOT_NULL(result, "encode_component returns non-NULL");
+        iscc_free_string(result);
+    }
+
+    /* 21. iscc_decode — known Meta-Code */
+    {
+        struct iscc_IsccDecodeResult dr = iscc_decode("AAAZXZ6OU74YAZIM");
+        if (dr.ok) {
+            printf("PASS: iscc_decode ok == true\n");
+            tests_passed++;
+        } else {
+            printf("FAIL: iscc_decode ok == false\n");
+            tests_failed++;
+        }
+        ASSERT_EQ(dr.maintype, 0, "iscc_decode maintype == 0 (Meta)");
+        ASSERT_EQ(dr.subtype, 0, "iscc_decode subtype == 0");
+        ASSERT_EQ(dr.version, 0, "iscc_decode version == 0");
+        ASSERT_EQ(dr.length, 1, "iscc_decode length == 1 (64-bit)");
+        ASSERT_NOT_NULL(dr.digest.data, "iscc_decode digest not NULL");
+        ASSERT_EQ(dr.digest.len, 8, "iscc_decode digest len == 8");
+        iscc_free_decode_result(dr);
+    }
+
+    /* 22. iscc_decode — invalid input returns ok=false */
+    {
+        struct iscc_IsccDecodeResult dr = iscc_decode("INVALID");
+        if (!dr.ok) {
+            printf("PASS: iscc_decode(invalid) ok == false\n");
+            tests_passed++;
+        } else {
+            printf("FAIL: iscc_decode(invalid) ok should be false\n");
+            tests_failed++;
+        }
+        iscc_free_decode_result(dr);
+    }
+
+    /* 23. Roundtrip: encode_component → iscc_decode */
+    {
+        uint8_t digest[8] = {0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89};
+        char *encoded = iscc_encode_component(0, 0, 0, 64, digest, 8);
+        ASSERT_NOT_NULL(encoded, "roundtrip: encode_component not NULL");
+        if (encoded != NULL) {
+            struct iscc_IsccDecodeResult dr = iscc_decode(encoded);
+            if (dr.ok) {
+                printf("PASS: roundtrip: decode ok\n");
+                tests_passed++;
+            } else {
+                printf("FAIL: roundtrip: decode not ok\n");
+                tests_failed++;
+            }
+            ASSERT_EQ(dr.maintype, 0, "roundtrip: maintype == 0");
+            ASSERT_EQ(dr.digest.len, 8, "roundtrip: digest len == 8");
+            if (dr.digest.data != NULL && dr.digest.len == 8 &&
+                memcmp(dr.digest.data, digest, 8) == 0) {
+                printf("PASS: roundtrip: digest matches\n");
+                tests_passed++;
+            } else {
+                printf("FAIL: roundtrip: digest mismatch\n");
+                tests_failed++;
+            }
+            iscc_free_decode_result(dr);
+            iscc_free_string(encoded);
+        }
+    }
+
     /* Summary */
     printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

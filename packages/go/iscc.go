@@ -19,8 +19,25 @@ import (
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
 )
 
+// Algorithm configuration constants matching iscc-core core_opts.
+const (
+	MetaTrimName        = 128
+	MetaTrimDescription = 4096
+	IoReadSize          = 4_194_304
+	TextNgramSize       = 13
+)
+
 //go:embed iscc_ffi.wasm
 var wasmModule []byte
+
+// DecodeResult holds the decoded header components and raw digest of an ISCC unit.
+type DecodeResult struct {
+	Maintype uint8
+	Subtype  uint8
+	Version  uint8
+	Length   uint8
+	Digest   []byte
+}
 
 // Runtime holds the wazero WASM runtime and the instantiated iscc-ffi module.
 // Create with NewRuntime and release resources with Close.
@@ -607,6 +624,126 @@ func (rt *Runtime) EncodeBase64(ctx context.Context, data []byte) (string, error
 		return "", fmt.Errorf("iscc_encode_base64: %w", err)
 	}
 	return rt.callStringResult(ctx, "iscc_encode_base64", results)
+}
+
+// ── Codec functions ──────────────────────────────────────────────────────────
+
+// JsonToDataUrl converts a JSON string to a data URL with base64 encoding.
+// Uses application/ld+json media type when the JSON contains an @context key,
+// otherwise uses application/json.
+func (rt *Runtime) JsonToDataUrl(ctx context.Context, jsonStr string) (string, error) {
+	jsonPtr, jsonSize, err := rt.writeString(ctx, jsonStr)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rt.dealloc(ctx, jsonPtr, jsonSize) }()
+
+	fn := rt.mod.ExportedFunction("iscc_json_to_data_url")
+	results, err := fn.Call(ctx, uint64(jsonPtr))
+	if err != nil {
+		return "", fmt.Errorf("iscc_json_to_data_url: %w", err)
+	}
+	return rt.callStringResult(ctx, "iscc_json_to_data_url", results)
+}
+
+// EncodeComponent encodes ISCC header components and a raw digest into an ISCC unit string.
+// Parameters: mtype (MainType), stype (SubType), version, bitLength, and digest bytes.
+func (rt *Runtime) EncodeComponent(ctx context.Context, mtype, stype, version uint8, bitLength uint32, digest []byte) (string, error) {
+	digestPtr, digestSize, err := rt.writeBytes(ctx, digest)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = rt.dealloc(ctx, digestPtr, digestSize) }()
+
+	fn := rt.mod.ExportedFunction("iscc_encode_component")
+	results, err := fn.Call(ctx,
+		uint64(mtype), uint64(stype), uint64(version),
+		uint64(bitLength), uint64(digestPtr), uint64(digestSize),
+	)
+	if err != nil {
+		return "", fmt.Errorf("iscc_encode_component: %w", err)
+	}
+	return rt.callStringResult(ctx, "iscc_encode_component", results)
+}
+
+// IsccDecode decodes an ISCC unit string into its header components and raw digest.
+// Strips an optional "ISCC:" prefix before decoding.
+// Returns a DecodeResult with maintype, subtype, version, length index, and digest bytes.
+func (rt *Runtime) IsccDecode(ctx context.Context, isccUnit string) (*DecodeResult, error) {
+	// Allocate 16 bytes for sret (IsccDecodeResult struct in WASM).
+	sretPtr, err := rt.alloc(ctx, 16)
+	if err != nil {
+		return nil, err
+	}
+
+	strPtr, strSize, err := rt.writeString(ctx, isccUnit)
+	if err != nil {
+		_ = rt.dealloc(ctx, sretPtr, 16)
+		return nil, err
+	}
+	defer func() { _ = rt.dealloc(ctx, strPtr, strSize) }()
+
+	// iscc_decode uses sret: first param is sret pointer, second is the string pointer.
+	fn := rt.mod.ExportedFunction("iscc_decode")
+	_, err = fn.Call(ctx, uint64(sretPtr), uint64(strPtr))
+	if err != nil {
+		_ = rt.dealloc(ctx, sretPtr, 16)
+		return nil, fmt.Errorf("iscc_decode: %w", err)
+	}
+
+	// Read 16 bytes from sret.
+	raw, ok := rt.mod.Memory().Read(sretPtr, 16)
+	if !ok {
+		_ = rt.dealloc(ctx, sretPtr, 16)
+		return nil, fmt.Errorf("iscc_decode: read sret: out of bounds at %d", sretPtr)
+	}
+
+	// Parse struct fields.
+	isOK := raw[0] != 0
+	if !isOK {
+		errMsg := rt.lastError(ctx)
+		_ = rt.dealloc(ctx, sretPtr, 16)
+		return nil, fmt.Errorf("iscc_decode failed: %s", errMsg)
+	}
+
+	maintype := raw[1]
+	subtype := raw[2]
+	version := raw[3]
+	length := raw[4]
+
+	// Digest: IsccByteBuffer at offset 8 (data ptr at 8, len at 12).
+	dataPtr := binary.LittleEndian.Uint32(raw[8:12])
+	dataLen := binary.LittleEndian.Uint32(raw[12:16])
+
+	// Copy digest bytes from WASM memory to Go.
+	var digest []byte
+	if dataLen > 0 {
+		digestRaw, ok := rt.mod.Memory().Read(dataPtr, dataLen)
+		if !ok {
+			// Free via iscc_free_decode_result then dealloc sret.
+			freeFn := rt.mod.ExportedFunction("iscc_free_decode_result")
+			_, _ = freeFn.Call(ctx, uint64(sretPtr))
+			_ = rt.dealloc(ctx, sretPtr, 16)
+			return nil, fmt.Errorf("iscc_decode: read digest: out of bounds (ptr=%d, len=%d)", dataPtr, dataLen)
+		}
+		digest = make([]byte, dataLen)
+		copy(digest, digestRaw)
+	} else {
+		digest = []byte{}
+	}
+
+	// Free the decode result (frees digest buffer) then dealloc sret.
+	freeFn := rt.mod.ExportedFunction("iscc_free_decode_result")
+	_, _ = freeFn.Call(ctx, uint64(sretPtr))
+	_ = rt.dealloc(ctx, sretPtr, 16)
+
+	return &DecodeResult{
+		Maintype: maintype,
+		Subtype:  subtype,
+		Version:  version,
+		Length:   length,
+		Digest:   digest,
+	}, nil
 }
 
 // ── String array helpers ────────────────────────────────────────────────────

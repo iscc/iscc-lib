@@ -53,6 +53,17 @@ iterations.
 - JNI Java-side Javadoc (`IsccLib.java`) still says `@throws IllegalArgumentException` for hasher
     update/finalize methods — the Rust side throws `IllegalStateException` but Java declarations are
     cosmetically mismatched (tests verify correct runtime behavior)
+- JNI `isccDecode` returns `jobject` (not `jstring`): construct Java object via `env.find_class` +
+    `env.new_object` with constructor signature `(IIII[B)V`. The `JValue::Object` takes a reference
+    to `JByteArray` (which derefs to `JObject`). Class path uses `/` separators
+- JNI `encodeComponent` validates jint ranges (0-255 for mtype/stype/version, ≥0 for bitLength)
+    before casting to u8/u32, using `throw_and_default` for out-of-range values
+- JNI constants are `public static final int` in Java (no JNI function needed — compile-time
+    literals). Placed at top of `IsccLib.java` before static initializer block
+- `IsccDecodeResult.java`: separate file in same package (`io.iscc.iscc_lib`), public final fields,
+    single constructor `(int, int, int, int, byte[])`. Auto-compiled by Maven (no pom.xml changes)
+- JNI `extern "system"` count verification: `grep -c 'extern "system"'` returns N+1 because of doc
+    comment on line 3 mentioning the string. Actual function count = grep result - 1
 
 ## WASM/WASI
 
@@ -66,6 +77,10 @@ iterations.
     Cargo.toml changes needed. The cdylib target produces the `.wasm` file
 - `iscc_alloc`/`iscc_dealloc` are the WASM host memory management pair — host allocates via
     `iscc_alloc`, writes data, calls FFI functions, then frees via `iscc_dealloc`
+- WASM binary in `packages/go/iscc_ffi.wasm` must be rebuilt and copied whenever new FFI functions
+    are added to `crates/iscc-ffi/src/lib.rs`. Build:
+    `cargo build -p iscc-ffi --target   wasm32-wasip1 --release` →
+    `cp target/wasm32-wasip1/release/iscc_ffi.wasm packages/go/`
 - Debug WASM binary is ~10.5MB; release + wasm-opt reduces significantly
 - wasm-opt release config in `crates/iscc-wasm/Cargo.toml`:
     `[package.metadata.wasm-pack.profile.release]` with
@@ -109,10 +124,17 @@ iterations.
     reads a null-terminated array of u32 pointers from WASM32 memory (4 bytes each, little-endian),
     calls `readString` for each non-zero pointer, then `iscc_free_string_array` to free the entire
     array. Pattern mirrors `callStringResult` for single strings
-- Go Runtime has 45 methods total: 24 public (Close, ConformanceSelftest, TextClean,
+- Go Runtime has 48 methods total: 27 public (Close, ConformanceSelftest, TextClean,
     TextRemoveNewlines, TextCollapse, TextTrim, EncodeBase64, SlidingWindow, IsccDecompose,
     AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0, 9 gen\_\*\_v0, NewDataHasher,
-    NewInstanceHasher) + 21 private helpers
+    NewInstanceHasher, JsonToDataUrl, EncodeComponent, IsccDecode) + 21 private helpers
+- Go `DecodeResult` struct: public struct with `Maintype`, `Subtype`, `Version`, `Length` (all
+    `uint8`) and `Digest` (`[]byte`). Returned as `*DecodeResult` (pointer) from `IsccDecode`
+- Go `IsccDecode` uses sret ABI: 16-byte `IsccDecodeResult` struct. Layout: ok(1B) + maintype(1B) +
+    subtype(1B) + version(1B) + length(1B) + padding(3B) + digest.data(4B) + digest.len(4B).
+    `iscc_free_decode_result` takes sret pointer (single i32 param) on wasm32
+- Go constants: `MetaTrimName`, `MetaTrimDescription`, `IoReadSize`, `TextNgramSize` are
+    package-level `const` (idiomatic Go). No enum types — use plain `int`/`uint8`
 - Go streaming hasher pattern: `DataHasher`/`InstanceHasher` structs hold `rt *Runtime` +
     `ptr   uint32` (opaque WASM pointer). Factory methods on Runtime call `iscc_*_hasher_new()` and
     check for NULL. `Update` writes bytes via `writeBytes`, calls `iscc_*_hasher_update` (returns
@@ -206,8 +228,13 @@ iterations.
 - zensical.toml nav: How-to Guides order is Rust → Python → Node.js → WebAssembly → Go → Java
 - Go and Java guides include algorithm primitives section (SlidingWindow, AlgMinhash256,
     AlgCdcChunks, AlgSimhash) not present in Python/Node.js guides
-- All 6 how-to guides complete: Rust (356 lines), Python (353), Node.js (281), WASM (338), Go (388),
-    Java (321)
+- All 6 how-to guides have Codec operations + Constants sections. Python, Node.js, WASM, Go all have
+    them; Java has them too. Python uniquely documents `core_opts` SimpleNamespace and IntEnum
+    return types from `iscc_decode`. WASM constants are exported as uppercase getter functions
+    (`META_TRIM_NAME()` etc.) via `js_name` attributes. Node.js Codec section uses `require()` style
+    imports per next.md spec
+- All 6 how-to guides complete: Rust (356 lines), Python (~420), Node.js (~350), WASM (~410), Go
+    (463), Java (~390)
 - `docs/architecture.md` and `docs/development.md` include all 6 binding crates (Python, Node.js,
     WASM, C FFI, JNI, Go) in diagrams, layout trees, and tables. Go uses dotted arrow (`-.->`) in
     Mermaid to indicate indirect WASM dependency via `iscc-ffi`
@@ -220,6 +247,90 @@ iterations.
 - WASM how-to (`docs/howto/wasm.md`) uses `@iscc/wasm` throughout (20 occurrences). Always verify
     npm package names against `docs/index.md` and `crates/*/README.md` — the wasm-pack howto
     originally had `@iscc/iscc-wasm` (wrong)
+
+## Node.js Binding — Tier 1 Propagation
+
+- napi-rs `#[napi]` on `pub const` works directly (no getter function fallback needed). `usize` to
+    `u32` cast is safe for all 4 algorithm constants (all fit within u32 range)
+- `IsccDecodeResult` uses `#[napi(object)]` struct with named fields (`maintype`, `subtype`,
+    `version`, `length`, `digest`) — JavaScript has no tuples, so return an object instead
+- `iscc_decode` napi wrapper destructures the Rust tuple `(u8, u8, u8, u8, Vec<u8>)` into
+    `IsccDecodeResult` struct fields, converting `Vec<u8>` to `Buffer` via `.into()`
+- napi-rs `#[napi(js_name = "...")]` on constants uses the original SCREAMING_SNAKE_CASE name to
+    prevent napi-rs auto-conversion to camelCase
+- Total Node.js test count after 7 new symbols: 124 (103 existing + 21 new across 7 describe blocks)
+
+## WASM Binding — Tier 1 Propagation
+
+- wasm-bindgen does NOT support `#[wasm_bindgen]` on `pub const` — use getter functions with
+    `#[wasm_bindgen(js_name = "SCREAMING_CASE")]` instead. Safe `as u32` cast (all values fit)
+- `IsccDecodeResult` WASM struct uses `#[wasm_bindgen(getter_with_clone)]` because `Vec<u8>` is not
+    `Copy`. The `digest` field maps to `Uint8Array` in JS
+- wasm-bindgen accepts `&str` and `&[u8]` directly (like PyO3, unlike napi-rs which needs owned
+    `String`/`Buffer`). No `.as_deref()` or `.as_ref()` conversion needed for these types
+- Total WASM test count after 7 new symbols: 59 unit + 1 conformance_selftest (with feature) + 9
+    conformance, from 40 unit previously
+- `#[wasm_bindgen` annotation count in lib.rs: 35 (was 25, +10 for 7 functions + 2 impl blocks + 1
+    struct)
+
+## C FFI Binding — Tier 1 Propagation
+
+- Constants exposed as `extern "C"` getter functions (not `pub static` — avoids cbindgen `usize` → C
+    type mapping issues). All are infallible (no error handling, no `clear_last_error`)
+- `iscc_json_to_data_url` follows the standard string-in/string-out pattern (same as
+    `iscc_text_clean`)
+- `iscc_encode_component` takes raw `*const u8` + `usize` for digest, with the standard null-check +
+    `from_raw_parts` pattern from `iscc_gen_data_code_v0`
+- `IsccDecodeResult` is `#[repr(C)]` struct with `ok: bool` discriminant,
+    `maintype/subtype/version/   length: u8`, and `digest: IsccByteBuffer`. Reuses existing
+    `IsccByteBuffer` and helpers (`null_byte_buffer`, `vec_to_byte_buffer`)
+- `iscc_free_decode_result` delegates to `iscc_free_byte_buffer` for digest cleanup
+- `ptr_to_str` in FFI crate takes `param_name: &str` arg for error messages (not just `ptr` like
+    next.md pseudocode suggested) — all new functions use this pattern
+- Length index for 64-bit codes is 1 (not 0): `decode_length` uses `(length_index + 1) * 32` for
+    standard MainTypes. Index 0 = 32-bit, index 1 = 64-bit
+- Generated `iscc.h` header is NOT committed — CI generates it dynamically via `cbindgen`
+- Total `#[unsafe(no_mangle)]` count after propagation: 44 (was 35, +9: 4 constants +
+    json_to_data_url
+    - encode_component + iscc_decode + iscc_free_decode_result + the existing ones)
+- Total Rust unit tests: 77 (62 existing + 15 new). Total C test assertions: 49 (30 existing + 19
+    new)
+
+## Tier 1 API Surface
+
+- Algorithm constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)
+    are `pub const` at crate root in `lib.rs`, placed after `pub use` re-exports
+- Tier 1 `encode_component` wrapper in `lib.rs` takes `u8` for enum fields, validates with
+    `TryFrom<u8>`, adds explicit digest length check (`digest.len() < bit_length / 8`), then
+    delegates to `codec::encode_component`. No naming conflict because `codec::encode_component` is
+    NOT re-exported at crate root
+- Magic numbers 128, 4096, 13 in gen functions replaced with constants `META_TRIM_NAME`,
+    `META_TRIM_DESCRIPTION`, `TEXT_NGRAM_SIZE` respectively
+- `IO_READ_SIZE` uses spec value 4_194_304 (4 MB), not Python reference value 2_097_152 (2 MB)
+- `iscc_decode` Tier 1 wrapper in `lib.rs` takes `&str`, returns `(u8, u8, u8, u8, Vec<u8>)` —
+    strips "ISCC:" prefix and dashes, delegates to `codec::decode_base32` → `codec::decode_header` →
+    `codec::decode_length`, truncates tail to exact digest bytes. Unlike Python ref which returns
+    full tail, our API returns usable digest directly
+- `json_to_data_url` in `lib.rs` combines `parse_meta_json` + `build_meta_data_url` private helpers
+    into one public API. Defined directly in `lib.rs` (not in a submodule), so no `pub use`
+    re-export needed. Deps: `serde_json`, `serde_json_canonicalizer`, `data_encoding` — all already
+    present. Output differs from conformance vector test_0016 in two ways: no `charset=utf-8`
+    parameter, and payload is JCS-canonical (spaces removed)
+
+## Python Binding — Tier 1 Propagation
+
+- PyO3 `iscc_decode` wrapper needs `py: Python<'_>` param to wrap `Vec<u8>` in `PyBytes::new()`.
+    Returns `PyObject` using `.into_pyobject(py)?.into()` for the tuple
+- PyO3 constants registered with `m.add("NAME", value)?` in module init (not `wrap_pyfunction!`)
+- Python `__init__.py` `__all__` had 34 entries before Tier 1 propagation, not 35 as estimated. The
+    count after adding 7 new symbols is 41 (34 + 7)
+- Constants and simple functions (encode_component, iscc_decode, json_to_data_url) are direct
+    re-exports in `__init__.py` — no wrapper logic needed (unlike gen_data_code_v0 which adds
+    streaming)
+- Type stubs (`_lowlevel.pyi`) place constants at top (before function stubs), with inline
+    docstrings. Constants use `int` type annotation
+- `uv run maturin develop -m crates/iscc-py/Cargo.toml` works; bare `maturin develop` fails (command
+    not found in devcontainer PATH — needs `uv run` prefix)
 
 ## Codec Internals
 
@@ -290,3 +401,19 @@ iterations.
     Place it after `from __future__ import annotations` and `from importlib.metadata import version`
 - When `maturin develop` installs a version, it persists in the venv — if the workspace version
     changes in Cargo.toml, must rebuild with `maturin develop` to sync the installed version
+- Dict meta pattern in `gen_meta_code_v0` Python wrapper: `import json as _json` (underscore alias
+    to avoid namespace pollution), `isinstance(meta, dict)` →
+    `_json.dumps(meta, separators=(",",   ":"), ensure_ascii=False)` → `json_to_data_url()`. The
+    Rust `json_to_data_url` handles JCS canonicalization internally, so the Python side only needs
+    compact JSON serialization
+- PIL pixel data pattern in `gen_image_code_v0` Python wrapper: widen signature to
+    `bytes | bytearray | memoryview | Sequence[int]`, use
+    `if not isinstance(pixels, bytes):   pixels = bytes(pixels)`. The `bytes()` constructor handles
+    bytearray, memoryview, and Sequence[int] (including PIL's ImagingCore from `Image.getdata()`)
+    uniformly. No Rust changes needed — conversion is Python-wrapper-only. This same pattern applies
+    to any future function that accepts `&[u8]` in Rust but needs wider input types in Python
+- Python IntEnum classes (`MT`, `ST`, `VS`) in `__init__.py`: pure Python, no Rust dependency. `ST`
+    has `TEXT = 0` alias for `NONE` (IntEnum allows duplicate values as aliases — first definition
+    wins). `iscc_decode` wrapper converts raw integers to IntEnum types. `core_opts` is a
+    `SimpleNamespace` mapping attribute names to existing constants. Total `__all__` entries: 45 (41
+    \+ MT, ST, VS, core_opts)

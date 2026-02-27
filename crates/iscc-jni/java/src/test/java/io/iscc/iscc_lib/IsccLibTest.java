@@ -7,8 +7,11 @@
  */
 package io.iscc.iscc_lib;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
@@ -390,5 +393,80 @@ class IsccLibTest {
         } finally {
             IsccLib.instanceHasherFree(ptr);
         }
+    }
+
+    // ── Constants ────────────────────────────────────────────────────────────
+
+    /** Verify the 4 algorithm configuration constants. */
+    @Test
+    void testConstants() {
+        assertEquals(128, IsccLib.META_TRIM_NAME);
+        assertEquals(4096, IsccLib.META_TRIM_DESCRIPTION);
+        assertEquals(4_194_304, IsccLib.IO_READ_SIZE);
+        assertEquals(13, IsccLib.TEXT_NGRAM_SIZE);
+    }
+
+    // ── jsonToDataUrl ────────────────────────────────────────────────────────
+
+    /** Verify jsonToDataUrl produces a data URL with application/json media type. */
+    @Test
+    void testJsonToDataUrl() {
+        String result = IsccLib.jsonToDataUrl("{\"key\":\"value\"}");
+        assertTrue(result.startsWith("data:application/json;base64,"),
+                "should start with data:application/json;base64,");
+    }
+
+    /** Verify jsonToDataUrl uses application/ld+json for JSON-LD content. */
+    @Test
+    void testJsonToDataUrlLdJson() {
+        String result = IsccLib.jsonToDataUrl("{\"@context\":\"https://schema.org\"}");
+        assertTrue(result.startsWith("data:application/ld+json;base64,"),
+                "should start with data:application/ld+json;base64,");
+    }
+
+    // ── encodeComponent ──────────────────────────────────────────────────────
+
+    /** Verify encodeComponent produces a valid ISCC unit string for a Meta-Code. */
+    @Test
+    void testEncodeComponent() {
+        byte[] digest = new byte[8];
+        String result = IsccLib.encodeComponent(0, 0, 0, 64, digest);
+        assertNotNull(result);
+        assertTrue(result.length() > 0, "encoded component should not be empty");
+    }
+
+    // ── isccDecode ───────────────────────────────────────────────────────────
+
+    /** Verify isccDecode returns correct fields for a known Meta-Code. */
+    @Test
+    void testIsccDecode() {
+        IsccDecodeResult result = IsccLib.isccDecode("AAAZXZ6OU74YAZIM");
+        assertEquals(0, result.maintype, "maintype should be 0 (Meta)");
+        assertEquals(0, result.subtype, "subtype should be 0");
+        assertEquals(0, result.version, "version should be 0");
+        assertEquals(1, result.length, "length index should be 1 (64-bit)");
+        assertNotNull(result.digest);
+        assertEquals(8, result.digest.length, "digest should be 8 bytes for 64-bit");
+    }
+
+    /** Verify isccDecode throws IllegalArgumentException on invalid input. */
+    @Test
+    void testIsccDecodeInvalid() {
+        assertThrows(IllegalArgumentException.class, () -> IsccLib.isccDecode("INVALID"));
+    }
+
+    /** Verify roundtrip: encodeComponent -> isccDecode -> fields match inputs. */
+    @Test
+    void testEncodeDecodeRoundtrip() {
+        byte[] digest = new byte[] {
+            (byte) 0xAB, (byte) 0xCD, (byte) 0xEF, 0x01, 0x23, 0x45, 0x67, (byte) 0x89
+        };
+        String encoded = IsccLib.encodeComponent(0, 0, 0, 64, digest);
+        IsccDecodeResult decoded = IsccLib.isccDecode(encoded);
+        assertEquals(0, decoded.maintype);
+        assertEquals(0, decoded.subtype);
+        assertEquals(0, decoded.version);
+        assertEquals(1, decoded.length, "length index should be 1 for 64-bit");
+        assertArrayEquals(digest, decoded.digest);
     }
 }

@@ -25,6 +25,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     verify by running tests and counting top-level test functions
 - `json.dumps` reformats JSON files (e.g., inline arrays become multi-line) — cosmetic but may
     appear as unintended changes in diffs. Check that formatting changes are idempotent
+- Doc examples claiming "ISCC:" prefix on decompose results — `iscc_decompose` returns units WITHOUT
+    the prefix. Always cross-check doc comments against actual function behavior (Rust docstring +
+    test assertions)
 
 ## Review Shortcuts
 
@@ -51,7 +54,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     (must `cd` into the Go module directory — running from repo root with `./packages/go/` path
     fails with "cannot find main module")
 
-- Full test suite (159 tests) runs in \<1s — always run it for Python changes
+- Full test suite (198 tests) runs in \<1s — always run it for Python changes
 
 - Script-only changes (new Python scripts, mise task additions): `mise run check` + direct script
     invocation is sufficient — skip all test suites unless the script modifies test infrastructure
@@ -60,11 +63,71 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     \+ `cargo check -p <crate>` is sufficient. If wasm-pack config changed, also run
     `wasm-pack build --target web --release crates/iscc-wasm` to verify end-to-end
 
+## Codex Review Integration
+
+- `codex exec review --ephemeral --commit HEAD` output ends with structured findings after a `codex`
+    marker line. Use `sed -n '/^codex$/,$ p' /tmp/codex-review.txt | tail -n +2` to extract them
+- Codex typically runs tests and grep searches to verify the commit — its findings are advisory and
+    should be cross-referenced with your own analysis
+- The `--commit HEAD~1` in the protocol template assumes advance is at HEAD~1, but when the review
+    agent runs immediately after advance, the advance commit is at HEAD. Always use `--commit HEAD`
+    for the advance commit (or verify with `git log` first). Codex reviewing the wrong commit
+    (define-next instead of advance) produces mostly irrelevant findings about planning docs
+
+## Binding State
+
+- Python `__all__` count is 45 as of iteration 7 (30 Tier 1 API + 10 result types + `__version__` +
+    MT, ST, VS, core_opts). All 30/30 Tier 1 symbols propagated
+- Node.js has 30/30 Tier 1 symbols as of iteration 8 (124 tests total: 103 existing + 21 new)
+- WASM has 30/30 Tier 1 symbols as of iteration 9 (59 unit tests + 9 conformance tests)
+- C FFI has 30/30 Tier 1 symbols as of iteration 10 (77 Rust unit tests, 49 C test assertions)
+- Java JNI has 30/30 Tier 1 symbols as of iteration 11 (58 Maven tests: 51 existing + 7 new)
+- Go/wazero has 30/30 Tier 1 symbols as of iteration 12 (48 total Runtime methods: 27 public + 21
+    private helpers, 7 new tests)
+
+## Binding Propagation Review Shortcuts
+
+- For napi-rs binding propagation: `cd crates/iscc-napi && npm test` +
+    `cargo clippy -p iscc-napi   --all-targets -- -D warnings` + `mise run check` covers all gates.
+    Verify 7 new symbols individually via `node -e` one-liners (constants values, function types)
+
+- Binding propagation diffs are typically 2 files: native wrapper source + test file. Quick to
+    review — check error mapping pattern, type conversions, test coverage categories
+
+- WASM binding propagation: `wasm-pack test --node crates/iscc-wasm` +
+    `wasm-pack test --node crates/iscc-wasm --features conformance` +
+    `cargo clippy -p iscc-wasm --all-targets -- -D warnings` + `mise run check` covers all gates.
+    Remember to update `crates/iscc-wasm/CLAUDE.md` API surface list when symbols are added
+
+- C FFI binding propagation: `cargo test -p iscc-ffi` +
+    `cargo clippy -p iscc-ffi --all-targets -- -D warnings` + `mise run check` + C test compilation
+    (requires cbindgen header generation:
+    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/tests/iscc.h`
+    then gcc build and run). Clean up generated iscc.h after testing
+
+- Java JNI binding propagation: `cargo build -p iscc-jni` +
+    `cargo clippy -p iscc-jni --all-targets -- -D warnings` + `cd crates/iscc-jni/java && mvn test`
+    \+ `mise run check` covers all gates. Use `grep -c 'pub extern "system" fn'` (not
+    `extern "system"`) to count actual functions — the module doc comment also matches the looser
+    pattern
+
+- For JNI `isccDecode` returning structured data: verify `env.find_class` path uses `/` separators
+    (not `.`), constructor signature matches class constructor, and `JValue::Object` wraps byte
+    array reference correctly
+
 ## Verification Patterns
 
 - `grep -c` counts ALL matching lines including function definitions — when next.md specifies "4
     call sites" but the function name also appears in a definition, expect count = call sites + 1.
     This is a valid pass if the arithmetic checks out
+
+## Documentation Review Patterns
+
+- Always verify documented API names against actual binding source code attributes (`js_name`,
+    `#[pyfunction]`, `#[napi(js_name)]`) — next.md specs may have incorrect naming that the advance
+    agent faithfully reproduces
+- WASM constants have `js_name = "META_TRIM_NAME"` (uppercase) despite Rust function being
+    `meta_trim_name()` — this is a known divergence point
 
 ## Gotchas
 
@@ -73,3 +136,6 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go via mise requires `mise exec --` prefix — `go` is not on PATH in all environments
 - The advance commit is at HEAD (not HEAD~1) when the review hasn't committed yet — use
     `git diff HEAD~1..HEAD` for the advance diff (define-next → advance)
+- The `--stat` in handoff template says `git diff HEAD~2..HEAD~1` but this is wrong when the advance
+    commit is the latest — always verify with `git log --oneline -5` first, then use the correct
+    range (typically `git diff HEAD~1..HEAD` for define-next → advance)

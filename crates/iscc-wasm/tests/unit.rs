@@ -437,3 +437,136 @@ fn test_instance_hasher_default_bits() {
 
     assert_eq!(result_none, result_64, "None bits should equal explicit 64");
 }
+
+// ── Constants ──────────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_meta_trim_name_value() {
+    assert_eq!(iscc_wasm::meta_trim_name(), 128);
+}
+
+#[wasm_bindgen_test]
+fn test_meta_trim_description_value() {
+    assert_eq!(iscc_wasm::meta_trim_description(), 4096);
+}
+
+#[wasm_bindgen_test]
+fn test_io_read_size_value() {
+    assert_eq!(iscc_wasm::io_read_size(), 4_194_304);
+}
+
+#[wasm_bindgen_test]
+fn test_text_ngram_size_value() {
+    assert_eq!(iscc_wasm::text_ngram_size(), 13);
+}
+
+// ── encode_component ───────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_encode_component_meta_code() {
+    // mtype=0 (META), stype=0, version=0, 64 bits, 8-byte digest
+    let digest = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07];
+    let result = iscc_wasm::encode_component(0, 0, 0, 64, &digest).unwrap();
+    assert!(!result.is_empty(), "should return non-empty string");
+    // Result should be valid base32 — all uppercase letters and digits 2-7
+    assert!(
+        result
+            .chars()
+            .all(|c| c.is_ascii_uppercase() || ('2'..='7').contains(&c)),
+        "should be valid base32: {result}"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_encode_component_roundtrip_with_decode() {
+    let digest = [0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89];
+    let encoded = iscc_wasm::encode_component(3, 0, 0, 64, &digest).unwrap();
+    let decoded = iscc_wasm::iscc_decode(&encoded).unwrap();
+    assert_eq!(decoded.maintype, 3);
+    assert_eq!(decoded.subtype, 0);
+    assert_eq!(decoded.version, 0);
+    assert_eq!(decoded.digest, digest.to_vec());
+}
+
+#[wasm_bindgen_test]
+fn test_encode_component_error_on_invalid_mtype() {
+    let result = iscc_wasm::encode_component(255, 0, 0, 64, &[0u8; 8]);
+    assert!(result.is_err(), "mtype 255 should error");
+}
+
+#[wasm_bindgen_test]
+fn test_encode_component_error_on_short_digest() {
+    // 64 bits needs 8 bytes, but only 4 provided
+    let result = iscc_wasm::encode_component(0, 0, 0, 64, &[0u8; 4]);
+    assert!(result.is_err(), "short digest should error");
+}
+
+// ── iscc_decode ────────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_iscc_decode_known_data_code() {
+    // Known 64-bit Data-Code with specific digest bytes
+    let result = iscc_wasm::iscc_decode("GAA2XTPPAERUKZ4J").unwrap();
+    assert_eq!(result.maintype, 3); // DATA
+    assert_eq!(result.subtype, 0);
+    assert_eq!(result.version, 0);
+    assert_eq!(
+        result.digest,
+        vec![0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89]
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_iscc_decode_with_iscc_prefix() {
+    let digest = [0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89];
+    let encoded = iscc_wasm::encode_component(3, 0, 0, 64, &digest).unwrap();
+    let with_prefix = format!("ISCC:{encoded}");
+    let result = iscc_wasm::iscc_decode(&with_prefix).unwrap();
+    assert_eq!(result.maintype, 3);
+    assert_eq!(result.digest, digest.to_vec());
+}
+
+#[wasm_bindgen_test]
+fn test_iscc_decode_has_all_fields() {
+    let digest = [0xAA; 8];
+    let encoded = iscc_wasm::encode_component(0, 0, 0, 64, &digest).unwrap();
+    let result = iscc_wasm::iscc_decode(&encoded).unwrap();
+    // Verify all fields are accessible
+    let _mt = result.maintype;
+    let _st = result.subtype;
+    let _vs = result.version;
+    let _li = result.length;
+    let _d = result.digest;
+}
+
+#[wasm_bindgen_test]
+fn test_iscc_decode_error_on_invalid() {
+    let result = iscc_wasm::iscc_decode("NOT_VALID_ISCC");
+    assert!(result.is_err(), "invalid ISCC should error");
+}
+
+// ── json_to_data_url ───────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_json_to_data_url_plain_json() {
+    let result = iscc_wasm::json_to_data_url(r#"{"key":"value"}"#).unwrap();
+    assert!(
+        result.starts_with("data:application/json;base64,"),
+        "should have application/json media type: {result}"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_json_to_data_url_json_ld() {
+    let result = iscc_wasm::json_to_data_url(r#"{"@context":"https://schema.org"}"#).unwrap();
+    assert!(
+        result.starts_with("data:application/ld+json;base64,"),
+        "should have application/ld+json media type: {result}"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_json_to_data_url_error_on_invalid_json() {
+    let result = iscc_wasm::json_to_data_url("not json {{{");
+    assert!(result.is_err(), "invalid JSON should error");
+}

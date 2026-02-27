@@ -1,12 +1,12 @@
 ---
 icon: lucide/terminal
-description: Guide to using iscc-lib from Python — code generation, streaming, and text utilities.
+description: Guide to using iscc-lib from Python — code generation, streaming, codec operations, constants, and text utilities.
 ---
 
 # Python
 
 A guide to using iscc-lib from Python. Covers installation, code generation, structured results,
-streaming, and text utilities.
+streaming, text utilities, codec operations, and constants.
 
 ---
 
@@ -327,6 +327,94 @@ from iscc_lib import text_trim
 
 trimmed = text_trim("Hello World", 5)
 print(trimmed)  # 'Hello'
+```
+
+## Codec operations
+
+Functions for encoding, decoding, and decomposing ISCC codes. These operate on the ISCC binary
+format defined in ISO 24138.
+
+### Encode and decode
+
+Construct an ISCC unit from raw header fields and digest, then decode it back:
+
+```python
+from iscc_lib import encode_component, iscc_decode, MT, ST, VS
+
+# Encode: maintype=0 (Meta), subtype=0, version=0, 64 bits, 8-byte digest
+digest = bytes([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08])
+code = encode_component(0, 0, 0, 64, digest)
+print(code)  # ISCC unit string (without "ISCC:" prefix)
+
+# Decode: parse an ISCC unit string back into header components and digest
+mt, st, vs, length, raw_digest = iscc_decode(code)
+print(f"MainType: {mt}, SubType: {st}, Version: {vs}, Length: {length}")
+print(f"Digest: {raw_digest.hex()}")
+
+# Returned enum fields are IntEnum instances
+assert isinstance(mt, MT)
+assert isinstance(st, ST)
+assert isinstance(vs, VS)
+```
+
+`iscc_decode` returns a `tuple[MT, ST, VS, int, bytes]` with `IntEnum`-typed values for the header
+fields.
+
+### Decompose
+
+Split a composite ISCC-CODE into its individual unit codes:
+
+```python
+from iscc_lib import (
+    gen_data_code_v0,
+    gen_instance_code_v0,
+    gen_iscc_code_v0,
+    iscc_decompose,
+)
+
+data = b"Hello World" * 1000
+data_result = gen_data_code_v0(data)
+instance_result = gen_instance_code_v0(data)
+iscc_code = gen_iscc_code_v0([data_result.iscc, instance_result.iscc])
+
+# Decompose into individual units
+units = iscc_decompose(iscc_code.iscc)
+for unit in units:
+    print(unit)  # Each unit code (without "ISCC:" prefix)
+```
+
+### Other codec functions
+
+- `encode_base64(data: bytes) -> str` — encode bytes to base64
+- `json_to_data_url(json: str) -> str` — convert a JSON string to a
+    `data:application/json;base64,...` URL
+- `soft_hash_video_v0(frame_sigs, bits=64) -> bytes` — compute a video similarity hash from MPEG-7
+    frame signatures
+
+## Constants
+
+Module-level constants used by the ISCC algorithms. These are available as direct imports and also
+through the `core_opts` namespace for iscc-core API parity:
+
+```python
+from iscc_lib import (
+    META_TRIM_NAME,
+    META_TRIM_DESCRIPTION,
+    IO_READ_SIZE,
+    TEXT_NGRAM_SIZE,
+    core_opts,
+)
+
+META_TRIM_NAME  # 128 — max byte length for name normalization
+META_TRIM_DESCRIPTION  # 4096 — max byte length for description normalization
+IO_READ_SIZE  # 4_194_304 — default read buffer size (4 MB)
+TEXT_NGRAM_SIZE  # 13 — n-gram size for text similarity hashing
+
+# core_opts namespace (iscc-core compatibility)
+core_opts.meta_trim_name  # 128
+core_opts.meta_trim_description  # 4096
+core_opts.io_read_size  # 4_194_304
+core_opts.text_ngram_size  # 13
 ```
 
 ## Conformance testing

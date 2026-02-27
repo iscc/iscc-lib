@@ -25,6 +25,18 @@ pub use streaming::{DataHasher, InstanceHasher};
 pub use types::*;
 pub use utils::{text_clean, text_collapse, text_remove_newlines, text_trim};
 
+/// Max UTF-8 byte length for name metadata trimming.
+pub const META_TRIM_NAME: usize = 128;
+
+/// Max UTF-8 byte length for description metadata trimming.
+pub const META_TRIM_DESCRIPTION: usize = 4096;
+
+/// Buffer size in bytes for streaming file reads (4 MB).
+pub const IO_READ_SIZE: usize = 4_194_304;
+
+/// Character n-gram width for text content features.
+pub const TEXT_NGRAM_SIZE: usize = 13;
+
 /// Error type for ISCC operations.
 #[derive(Debug, thiserror::Error)]
 pub enum IsccError {
@@ -151,6 +163,109 @@ fn build_meta_data_url(json_bytes: &[u8], json_value: &serde_json::Value) -> Str
     format!("data:{media_type};base64,{b64}")
 }
 
+/// Encode a raw digest into an ISCC unit string.
+///
+/// Takes integer type identifiers (matching `MainType`, `SubType`, `Version` enum values)
+/// and a raw digest, returns a base32-encoded ISCC unit string.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` if enum values are out of range, if `mtype` is
+/// `MainType::Iscc` (5), or if `digest.len() < bit_length / 8`.
+pub fn encode_component(
+    mtype: u8,
+    stype: u8,
+    version: u8,
+    bit_length: u32,
+    digest: &[u8],
+) -> IsccResult<String> {
+    let mt = codec::MainType::try_from(mtype)?;
+    let st = codec::SubType::try_from(stype)?;
+    let vs = codec::Version::try_from(version)?;
+    let needed = (bit_length / 8) as usize;
+    if digest.len() < needed {
+        return Err(IsccError::InvalidInput(format!(
+            "digest length {} < bit_length/8 ({})",
+            digest.len(),
+            needed
+        )));
+    }
+    codec::encode_component(mt, st, vs, bit_length, digest)
+}
+
+/// Decode an ISCC unit string into its header components and raw digest.
+///
+/// Inverse of [`encode_component`]. Strips an optional `"ISCC:"` prefix and
+/// dashes, base32-decodes the string, parses the variable-length header, and
+/// returns the digest truncated to exactly the encoded bit-length.
+///
+/// Returns `(maintype, subtype, version, length_index, digest)` where the
+/// integer fields match [`codec::MainType`], [`codec::SubType`], and
+/// [`codec::Version`] enum values.
+///
+/// # Errors
+///
+/// Returns `IsccError::InvalidInput` on invalid base32 input, malformed
+/// header, or if the decoded body is shorter than the expected digest length.
+pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
+    // Strip optional "ISCC:" prefix (case-sensitive, matching iscc_decompose)
+    let clean = iscc.strip_prefix("ISCC:").unwrap_or(iscc);
+    // Remove dashes (matching iscc_clean behavior for base32 input)
+    let clean = clean.replace('-', "");
+    let raw = codec::decode_base32(&clean)?;
+    let (mt, st, vs, length_index, tail) = codec::decode_header(&raw)?;
+    let bit_length = codec::decode_length(mt, length_index, st);
+    let nbytes = (bit_length / 8) as usize;
+    if tail.len() < nbytes {
+        return Err(IsccError::InvalidInput(format!(
+            "decoded body too short: expected {nbytes} digest bytes, got {}",
+            tail.len()
+        )));
+    }
+    Ok((
+        mt as u8,
+        st as u8,
+        vs as u8,
+        length_index as u8,
+        tail[..nbytes].to_vec(),
+    ))
+}
+
+/// Convert a JSON string into a `data:` URL with JCS canonicalization.
+///
+/// Parses the JSON, re-serializes to [RFC 8785 (JCS)](https://www.rfc-editor.org/rfc/rfc8785)
+/// canonical form, base64-encodes the result, and wraps it in a `data:` URL.
+/// Uses `application/ld+json` media type when the JSON contains an `@context`
+/// key, otherwise `application/json`.
+///
+/// This enables all language bindings to support dict/object meta parameters
+/// by serializing to JSON once (language-specific) then delegating encoding
+/// to Rust.
+///
+/// # Errors
+///
+/// Returns [`IsccError::InvalidInput`] if `json` is not valid JSON or if
+/// JCS canonicalization fails.
+///
+/// # Examples
+///
+/// ```
+/// # use iscc_lib::json_to_data_url;
+/// let url = json_to_data_url(r#"{"key": "value"}"#).unwrap();
+/// assert!(url.starts_with("data:application/json;base64,"));
+///
+/// let ld_url = json_to_data_url(r#"{"@context": "https://schema.org"}"#).unwrap();
+/// assert!(ld_url.starts_with("data:application/ld+json;base64,"));
+/// ```
+pub fn json_to_data_url(json: &str) -> IsccResult<String> {
+    let parsed: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| IsccError::InvalidInput(format!("invalid JSON: {e}")))?;
+    let mut canonical_bytes = Vec::new();
+    serde_json_canonicalizer::to_writer(&parsed, &mut canonical_bytes)
+        .map_err(|e| IsccError::InvalidInput(format!("JSON canonicalization failed: {e}")))?;
+    Ok(build_meta_data_url(&canonical_bytes, &parsed))
+}
+
 /// Generate a Meta-Code from name and optional metadata.
 ///
 /// Produces an ISCC Meta-Code by hashing the provided name, description,
@@ -167,7 +282,7 @@ pub fn gen_meta_code_v0(
     // Normalize name: clean → remove newlines → trim to 128 bytes
     let name = utils::text_clean(name);
     let name = utils::text_remove_newlines(&name);
-    let name = utils::text_trim(&name, 128);
+    let name = utils::text_trim(&name, META_TRIM_NAME);
 
     if name.is_empty() {
         return Err(IsccError::InvalidInput(
@@ -178,7 +293,7 @@ pub fn gen_meta_code_v0(
     // Normalize description: clean → trim to 4096 bytes
     let desc_str = description.unwrap_or("");
     let desc_clean = utils::text_clean(desc_str);
-    let desc_clean = utils::text_trim(&desc_clean, 4096);
+    let desc_clean = utils::text_trim(&desc_clean, META_TRIM_DESCRIPTION);
 
     // Resolve meta payload bytes (if meta is provided)
     let meta_payload: Option<Vec<u8>> = match meta {
@@ -267,7 +382,7 @@ pub fn gen_meta_code_v0(
 /// Generates character n-grams with a sliding window of width 13,
 /// hashes each with xxh32, then applies MinHash to produce a 32-byte digest.
 fn soft_hash_text_v0(text: &str) -> Vec<u8> {
-    let ngrams = simhash::sliding_window_strs(text, 13);
+    let ngrams = simhash::sliding_window_strs(text, TEXT_NGRAM_SIZE);
     let features: Vec<u32> = ngrams
         .iter()
         .map(|ng| xxhash_rust::xxh32::xxh32(ng.as_bytes(), 0))
@@ -1559,6 +1674,327 @@ mod tests {
         assert_eq!(
             name_only, empty_bytes,
             "empty bytes should produce same digest as name-only (no interleaving)"
+        );
+    }
+
+    // ---- Algorithm constants tests ----
+
+    #[test]
+    fn test_meta_trim_name_value() {
+        assert_eq!(META_TRIM_NAME, 128);
+    }
+
+    #[test]
+    fn test_meta_trim_description_value() {
+        assert_eq!(META_TRIM_DESCRIPTION, 4096);
+    }
+
+    #[test]
+    fn test_io_read_size_value() {
+        assert_eq!(IO_READ_SIZE, 4_194_304);
+    }
+
+    #[test]
+    fn test_text_ngram_size_value() {
+        assert_eq!(TEXT_NGRAM_SIZE, 13);
+    }
+
+    // ---- encode_component Tier 1 wrapper tests ----
+
+    /// Encode a known digest and verify the output matches the codec version.
+    #[test]
+    fn test_encode_component_matches_codec() {
+        let digest = [0xABu8; 8];
+        let tier1 = encode_component(3, 0, 0, 64, &digest).unwrap();
+        let tier2 = codec::encode_component(
+            codec::MainType::Data,
+            codec::SubType::None,
+            codec::Version::V0,
+            64,
+            &digest,
+        )
+        .unwrap();
+        assert_eq!(tier1, tier2);
+    }
+
+    /// Round-trip: encode a digest and verify the result is a valid ISCC unit.
+    #[test]
+    fn test_encode_component_round_trip() {
+        let digest = [0x42u8; 32];
+        let result = encode_component(0, 0, 0, 64, &digest).unwrap();
+        // Meta-Code with 64-bit digest should start with "AA"
+        assert!(!result.is_empty());
+    }
+
+    /// Reject MainType::Iscc (value 5).
+    #[test]
+    fn test_encode_component_rejects_iscc() {
+        let result = encode_component(5, 0, 0, 64, &[0u8; 8]);
+        assert!(result.is_err());
+    }
+
+    /// Reject digest shorter than bit_length / 8.
+    #[test]
+    fn test_encode_component_rejects_short_digest() {
+        let result = encode_component(0, 0, 0, 64, &[0u8; 4]);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("digest length 4 < bit_length/8 (8)"),
+            "unexpected error: {err}"
+        );
+    }
+
+    /// Reject invalid MainType value.
+    #[test]
+    fn test_encode_component_rejects_invalid_mtype() {
+        let result = encode_component(99, 0, 0, 64, &[0u8; 8]);
+        assert!(result.is_err());
+    }
+
+    /// Reject invalid SubType value.
+    #[test]
+    fn test_encode_component_rejects_invalid_stype() {
+        let result = encode_component(0, 99, 0, 64, &[0u8; 8]);
+        assert!(result.is_err());
+    }
+
+    /// Reject invalid Version value.
+    #[test]
+    fn test_encode_component_rejects_invalid_version() {
+        let result = encode_component(0, 0, 99, 64, &[0u8; 8]);
+        assert!(result.is_err());
+    }
+
+    // ---- iscc_decode tests ----
+
+    /// Round-trip: encode a Meta-Code digest, decode back, verify all fields match.
+    #[test]
+    fn test_iscc_decode_round_trip_meta() {
+        let digest = [0xaa_u8; 8];
+        let encoded = encode_component(0, 0, 0, 64, &digest).unwrap();
+        let (mt, st, vs, li, decoded_digest) = iscc_decode(&encoded).unwrap();
+        assert_eq!(mt, 0, "MainType::Meta");
+        assert_eq!(st, 0, "SubType::None");
+        assert_eq!(vs, 0, "Version::V0");
+        // encode_length(Meta, 64) → 64/32 - 1 = 1
+        assert_eq!(li, 1, "length_index");
+        assert_eq!(decoded_digest, digest.to_vec());
+    }
+
+    /// Round-trip with Content-Code (MainType=2, SubType::TEXT=0).
+    #[test]
+    fn test_iscc_decode_round_trip_content() {
+        let digest = [0xbb_u8; 8];
+        let encoded = encode_component(2, 0, 0, 64, &digest).unwrap();
+        let (mt, st, vs, _li, decoded_digest) = iscc_decode(&encoded).unwrap();
+        assert_eq!(mt, 2, "MainType::Content");
+        assert_eq!(st, 0, "SubType::TEXT");
+        assert_eq!(vs, 0, "Version::V0");
+        assert_eq!(decoded_digest, digest.to_vec());
+    }
+
+    /// Round-trip with Data-Code (MainType=3).
+    #[test]
+    fn test_iscc_decode_round_trip_data() {
+        let digest = [0xcc_u8; 8];
+        let encoded = encode_component(3, 0, 0, 64, &digest).unwrap();
+        let (mt, _st, _vs, _li, decoded_digest) = iscc_decode(&encoded).unwrap();
+        assert_eq!(mt, 3, "MainType::Data");
+        assert_eq!(decoded_digest, digest.to_vec());
+    }
+
+    /// Round-trip with Instance-Code (MainType=4).
+    #[test]
+    fn test_iscc_decode_round_trip_instance() {
+        let digest = [0xdd_u8; 8];
+        let encoded = encode_component(4, 0, 0, 64, &digest).unwrap();
+        let (mt, _st, _vs, _li, decoded_digest) = iscc_decode(&encoded).unwrap();
+        assert_eq!(mt, 4, "MainType::Instance");
+        assert_eq!(decoded_digest, digest.to_vec());
+    }
+
+    /// Decode with "ISCC:" prefix produces the same result.
+    #[test]
+    fn test_iscc_decode_with_prefix() {
+        let digest = [0xaa_u8; 8];
+        let encoded = encode_component(0, 0, 0, 64, &digest).unwrap();
+        let with_prefix = format!("ISCC:{encoded}");
+        let (mt, st, vs, li, decoded_digest) = iscc_decode(&with_prefix).unwrap();
+        assert_eq!(mt, 0);
+        assert_eq!(st, 0);
+        assert_eq!(vs, 0);
+        assert_eq!(li, 1);
+        assert_eq!(decoded_digest, digest.to_vec());
+    }
+
+    /// Decode with dashes inserted in the string.
+    #[test]
+    fn test_iscc_decode_with_dashes() {
+        let digest = [0xaa_u8; 8];
+        let encoded = encode_component(0, 0, 0, 64, &digest).unwrap();
+        // Insert dashes at arbitrary positions
+        let with_dashes = format!("{}-{}-{}", &encoded[..4], &encoded[4..8], &encoded[8..]);
+        let (mt, st, vs, li, decoded_digest) = iscc_decode(&with_dashes).unwrap();
+        assert_eq!(mt, 0);
+        assert_eq!(st, 0);
+        assert_eq!(vs, 0);
+        assert_eq!(li, 1);
+        assert_eq!(decoded_digest, digest.to_vec());
+    }
+
+    /// Error on invalid base32 characters.
+    #[test]
+    fn test_iscc_decode_invalid_base32() {
+        let result = iscc_decode("!!!INVALID!!!");
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("base32"), "expected base32 error: {err}");
+    }
+
+    /// Known value from conformance vectors: Meta-Code "ISCC:AAAZXZ6OU74YAZIM".
+    /// MainType=Meta(0), SubType=None(0), Version=V0(0), 64-bit digest.
+    #[test]
+    fn test_iscc_decode_known_meta_code() {
+        let (mt, st, vs, li, digest) = iscc_decode("ISCC:AAAZXZ6OU74YAZIM").unwrap();
+        assert_eq!(mt, 0, "MainType::Meta");
+        assert_eq!(st, 0, "SubType::None");
+        assert_eq!(vs, 0, "Version::V0");
+        assert_eq!(li, 1, "length_index for 64-bit");
+        assert_eq!(digest.len(), 8, "64-bit = 8 bytes");
+    }
+
+    /// Known value from conformance vectors: Instance-Code "ISCC:IAA26E2JXH27TING".
+    /// MainType=Instance(4), SubType=None(0), Version=V0(0), 64-bit digest.
+    #[test]
+    fn test_iscc_decode_known_instance_code() {
+        let (mt, st, vs, li, digest) = iscc_decode("ISCC:IAA26E2JXH27TING").unwrap();
+        assert_eq!(mt, 4, "MainType::Instance");
+        assert_eq!(st, 0, "SubType::None");
+        assert_eq!(vs, 0, "Version::V0");
+        assert_eq!(li, 1, "length_index for 64-bit");
+        assert_eq!(digest.len(), 8, "64-bit = 8 bytes");
+    }
+
+    /// Known value: Data-Code "ISCC:GAAXL2XYM5BQIAZ3".
+    /// MainType=Data(3), SubType=None(0), Version=V0(0), 64-bit digest.
+    #[test]
+    fn test_iscc_decode_known_data_code() {
+        let (mt, st, vs, _li, digest) = iscc_decode("ISCC:GAAXL2XYM5BQIAZ3").unwrap();
+        assert_eq!(mt, 3, "MainType::Data");
+        assert_eq!(st, 0, "SubType::None");
+        assert_eq!(vs, 0, "Version::V0");
+        assert_eq!(digest.len(), 8, "64-bit = 8 bytes");
+    }
+
+    /// Verification criterion: round-trip with specific known values.
+    /// encode_component(0, 0, 0, 64, &[0xaa;8]) → iscc_decode → (0, 0, 0, 1, vec![0xaa;8])
+    #[test]
+    fn test_iscc_decode_verification_round_trip() {
+        let digest = [0xaa_u8; 8];
+        let encoded = encode_component(0, 0, 0, 64, &digest).unwrap();
+        let result = iscc_decode(&encoded).unwrap();
+        assert_eq!(result, (0, 0, 0, 1, vec![0xaa; 8]));
+    }
+
+    /// Error on truncated input where body is shorter than expected digest length.
+    #[test]
+    fn test_iscc_decode_truncated_input() {
+        // Encode a valid 256-bit Meta-Code, then truncate the base32 string
+        let digest = [0xff_u8; 32];
+        let encoded = encode_component(0, 0, 0, 256, &digest).unwrap();
+        // Truncate to just the header portion (first few chars)
+        let truncated = &encoded[..6];
+        let result = iscc_decode(truncated);
+        assert!(result.is_err(), "should fail on truncated input");
+    }
+
+    // --- json_to_data_url tests ---
+
+    /// Basic JSON object produces a data URL with application/json media type.
+    #[test]
+    fn test_json_to_data_url_basic() {
+        let url = json_to_data_url(r#"{"key": "value"}"#).unwrap();
+        assert!(
+            url.starts_with("data:application/json;base64,"),
+            "expected application/json prefix, got: {url}"
+        );
+    }
+
+    /// JSON with `@context` key uses application/ld+json media type.
+    #[test]
+    fn test_json_to_data_url_ld_json() {
+        let url = json_to_data_url(r#"{"@context": "https://schema.org"}"#).unwrap();
+        assert!(
+            url.starts_with("data:application/ld+json;base64,"),
+            "expected application/ld+json prefix, got: {url}"
+        );
+    }
+
+    /// JCS canonicalization reorders keys alphabetically.
+    #[test]
+    fn test_json_to_data_url_jcs_ordering() {
+        let url = json_to_data_url(r#"{"b":1,"a":2}"#).unwrap();
+        // Extract and decode the base64 payload
+        let b64 = url.split_once(',').unwrap().1;
+        let decoded = data_encoding::BASE64.decode(b64.as_bytes()).unwrap();
+        let canonical = std::str::from_utf8(&decoded).unwrap();
+        assert_eq!(canonical, r#"{"a":2,"b":1}"#, "JCS should sort keys");
+    }
+
+    /// Round-trip: json_to_data_url output fed into decode_data_url recovers
+    /// the JCS-canonical bytes.
+    #[test]
+    fn test_json_to_data_url_round_trip() {
+        let input = r#"{"hello": "world", "num": 42}"#;
+        let url = json_to_data_url(input).unwrap();
+        let decoded_bytes = decode_data_url(&url).unwrap();
+        // The decoded bytes should be JCS-canonical JSON
+        let canonical: serde_json::Value =
+            serde_json::from_slice(&decoded_bytes).expect("decoded bytes should be valid JSON");
+        let original: serde_json::Value = serde_json::from_str(input).unwrap();
+        assert_eq!(canonical, original, "round-trip preserves JSON semantics");
+    }
+
+    /// Invalid JSON string returns an error.
+    #[test]
+    fn test_json_to_data_url_invalid_json() {
+        let result = json_to_data_url("not json");
+        assert!(result.is_err(), "should reject invalid JSON");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("invalid JSON"),
+            "expected 'invalid JSON' in error: {err}"
+        );
+    }
+
+    /// Compatibility with conformance vector test_0016_meta_data_url.
+    ///
+    /// The conformance vector's meta field is:
+    ///   data:application/json;charset=utf-8;base64,eyJzb21lIjogIm9iamVjdCJ9
+    /// which encodes `{"some": "object"}` (with space after colon).
+    ///
+    /// Our function differs in two ways:
+    /// 1. No `charset=utf-8` parameter (matching Python's DataURL.from_byte_data)
+    /// 2. JCS canonicalization removes whitespace: `{"some":"object"}` (no space)
+    ///
+    /// We verify: (a) correct media type prefix, and (b) decoded payload equals
+    /// JCS-canonical form of the same JSON input.
+    #[test]
+    fn test_json_to_data_url_conformance_0016() {
+        let url = json_to_data_url(r#"{"some": "object"}"#).unwrap();
+        // (a) Correct media type prefix (no charset, no @context → application/json)
+        assert!(
+            url.starts_with("data:application/json;base64,"),
+            "expected application/json prefix"
+        );
+        // (b) Decoded payload is JCS-canonical (no whitespace)
+        let b64 = url.split_once(',').unwrap().1;
+        let decoded = data_encoding::BASE64.decode(b64.as_bytes()).unwrap();
+        let canonical = std::str::from_utf8(&decoded).unwrap();
+        assert_eq!(
+            canonical, r#"{"some":"object"}"#,
+            "JCS removes whitespace from JSON"
         );
     }
 }

@@ -116,6 +116,12 @@ iterations.
     (established earlier by the root README step) while docs/index.md had stale patterns — always
     cross-check both files when scoping doc fixes. Verification for doc example fixes can use `grep`
     for presence/absence of specific patterns (e.g., `grep -c 'json.loads'` returns 0).
+- **Post-binding-completion doc updates** (CID loop 4, iteration 13): When new symbols are added to
+    a binding but docs were written for the earlier symbol count, batch the howto guide + per-crate
+    README update into a single step (2 files). The howto guide needs new sections (codec
+    operations, constants) while the README needs stale "planned" text replaced with actual API
+    tables. Verification is all grep-based — check for presence of newly documented symbols and
+    absence of stale text. `uv run zensical build` catches broken docs markup.
 - **Interactive session CI breakage** (CID iteration 1 on new loop): Interactive sessions that
     modify Python binding stubs/init files can break `ruff format --check` in CI. The handoff from
     the previous review cycle may not flag CI status if it was green at that time — always check
@@ -134,6 +140,81 @@ iterations.
     configuring wasm-opt flags — this is the portable, documented approach that works both locally
     and in CI. Prefer crate-config fixes over workflow-command-line fixes for reproducibility. After
     fixing, don't re-trigger the release in the same step — that's a separate human-gated operation.
+- **Extended Tier 1 API — ordering** (CID loop 3): 7 new symbols added in order: (1) constants +
+    encode_component wrapper (5 symbols, iteration 1), (2) iscc_decode (iteration 2), (3)
+    json_to_data_url (iteration 3). This ordering worked well — additive constants first, then
+    progressively complex functions. After all 30 Rust core symbols: propagate to 6 binding crates.
+- **json_to_data_url combines existing helpers**: The function is a thin public wrapper around
+    `parse_meta_json` (JCS canonicalization) + `build_meta_data_url` (media type + base64 encoding).
+    Both helpers are already private in lib.rs. The conformance vector `test_0016_meta_data_url`
+    uses `charset=utf-8` in its data URL while our function omits charset — the payloads should
+    match but the full URL prefix will differ. Test the payload, not the exact URL format.
+- **Binding propagation ordering** (CID loop 3, iteration 5+): Start with Python because it has the
+    most mature test infrastructure (117 tests across 5 files) and issue #5 layer 2 (dict meta
+    acceptance) depends on `json_to_data_url` being available. Each binding propagation step is 3
+    files (native wrapper + Python wrapper/init + type stubs), well within limits. The 7 symbols
+    split into 3 functions + 4 constants — constants are trivial (`m.add()` in PyO3, simple imports
+    in Python). Functions follow the established thin-wrapper `map_err(PyValueError)` pattern.
+    `iscc_decode` is the trickiest because it returns a tuple with `bytes` (needs `PyBytes`
+    wrapping). After Python: Node.js, WASM, C FFI, Java, Go in any order.
+- **Python iscc-core drop-in extensions** (CID loop 3, iteration 6+): After all 30/30 Tier 1 symbols
+    are in Python, 4 small drop-in extensions remain: (1) dict meta for gen_meta_code_v0 (issue #5)
+    — Python wrapper only, uses json_to_data_url from \_lowlevel, (2) PIL pixel data for
+    gen_image_code_v0 (issue #4) — Python wrapper only, bytes(pixels), (3) MT/ST/VS IntEnum classes
+    (issue #6), (4) core_opts SimpleNamespace (issue #8). All are Python-only, no Rust changes. Each
+    is a single-step scope (1-2 files). Natural ordering: dict meta first (uses newly-propagated
+    json_to_data_url), then PIL pixels, then enums + core_opts (can batch #6 + #8 since both are
+    pure additions to __init__.py).
+- **PIL pixel data conversion** (issue #4): The simplest pattern is
+    `if not isinstance(pixels, bytes):   pixels = bytes(pixels)` — the `bytes()` constructor handles
+    `bytearray`, `memoryview`, and `Sequence[int]` uniformly. No PIL test dependency needed —
+    `list(range(256)) * 4` creates 1024 synthetic pixel values. The `Sequence` import is already in
+    `__init__.py`. After this: #6 + #8 can be batched as they're both additive to `__init__.py` and
+    `__all__`.
+- **Batching #6 + #8 + iscc_decode wrapping** (iteration 7, CID loop 4): All three are pure Python
+    additions to `__init__.py` — no Rust changes. Total ~30 lines of production code + tests. The
+    `ST` IntEnum must include all values 0-7 (not just 0-4 from the spec listing) because
+    `iscc_decode` can return subtype values 5 (SUM), 6 (ISCC_NONE), 7 (WIDE) for ISCC-CODE headers.
+    Python IntEnum handles `TEXT = 0` as an alias for `NONE = 0` naturally. After this step: all
+    Python iscc-core drop-in gaps are closed; next phase is propagating 7 symbols to 5 remaining
+    bindings.
+- **Binding propagation phase** (CID loop 4, iteration 8+): 5 bindings × 7 symbols each. One binding
+    per step. Order: Node.js → WASM → C FFI → Java → Go. Node.js first because it's the most mature
+    non-Python binding (103 tests) and napi-rs patterns are well-established. Each step is 2 files
+    (native wrapper + tests). For napi-rs: `#[napi]` on `pub const` exports JS constants (cast
+    `usize` → `u32`); `#[napi(object)]` struct for `iscc_decode` return (JS has no tuples); `String`
+    not `&str` for function args (napi-rs convention). Build regeneration (`napi build`) needed
+    before running tests — `index.js`/`index.d.ts` are gitignored artifacts.
+- **WASM constant export** (CID loop 4, iteration 9): wasm-bindgen does not support
+    `#[wasm_bindgen]` on `pub const` — use getter functions with
+    `#[wasm_bindgen(js_name = "CONST_NAME")]` instead. For struct returns (like `iscc_decode`), use
+    `#[wasm_bindgen(getter_with_clone)]` on the struct since `Vec<u8>` isn't `Copy`. wasm-bindgen
+    accepts `&str` directly (unlike napi-rs which needs owned `String`), so prefer `&str` for string
+    args. After WASM: C FFI, Java, Go remain.
+- **C FFI propagation** (CID loop 4, iteration 10): C FFI uses `extern "C"` functions with
+    `#[unsafe(no_mangle)]`. Constants are best exposed as getter functions (not `pub const`) for
+    consistency with WASM pattern and to avoid cbindgen `usize` → C type mapping issues. For
+    `iscc_decode`, a `#[repr(C)]` struct `IsccDecodeResult` with `ok: bool` discriminant + reuse of
+    `IsccByteBuffer` for digest is the cleanest approach — matches existing FFI memory model. The C
+    test file uses macro-based assertions (`ASSERT_STR_EQ`, `ASSERT_EQ`, etc.) and must call
+    `iscc_free_*` for every allocated result. After C FFI: Java JNI, then Go.
+- **Java JNI propagation** (CID loop 4, iteration 11): 3 files (1 create + 2 modify, excluding
+    tests). Constants are pure Java `public static final int` — no JNI needed. `jsonToDataUrl` and
+    `encodeComponent` follow existing JNI patterns (`env.get_string`, `extract_byte_array`,
+    `throw_and_default`). `isccDecode` is the novel part — requires constructing a Java object from
+    JNI via `env.find_class` + `env.new_object` with constructor descriptor `(IIII[B)V`. A separate
+    `IsccDecodeResult.java` class is more idiomatic Java than a static inner class. The existing JNI
+    crate has 29 `extern "system"` functions; this step adds 3 (total 32). After Java: Go (final
+    binding).
+- **Go binding propagation** (CID loop 4, iteration 12): Final binding — 7 symbols (4 constants + 3
+    functions). Constants are trivial package-level `const` (Go idiomatic — no enum types).
+    Functions follow existing Go bridge patterns: `JsonToDataUrl` mirrors `TextClean`
+    (string→string); `EncodeComponent` mirrors `EncodeBase64` (bytes+scalars→string); `IsccDecode`
+    is the complex one — struct return via sret ABI (16 bytes: bool+4×u8+padding+IsccByteBuffer).
+    The `DecodeResult` struct has PascalCase fields (Go convention). The sret is 16 bytes:
+    ok(1)+maintype(1)+subtype(1) +version(1)+length(1)+pad(3)+data_ptr(4)+data_len(4). Must free via
+    `iscc_free_decode_result(sret_ptr)` then `dealloc(sret_ptr, 16)`. All 7 symbols fit in 1 source
+    file + 1 test file.
 
 ## Architecture Decisions
 
@@ -233,3 +314,11 @@ iterations.
     top-level target verification criteria are met, but detailed spec gaps remain. These are safe,
     docs-only steps (2 files, no code changes). Check for: mermaid diagrams, workspace layout trees,
     crate summary tables, streaming pattern tables, conformance test matrix tables.
+- **Cross-language doc parity** (CID loop 5, iteration 1): When all 6 bindings have 30/30 Tier 1
+    symbols but only Go's howto guide documents codec/constants, batch all 4 remaining binding
+    guides (Python, Node.js, Java, WASM) into one step. Doc files are excluded from the 3-file
+    limit, and all guides follow the same Go template — ~60-70 lines per guide. Key
+    language-specific details: Python has `core_opts` SimpleNamespace + IntEnum return from
+    `iscc_decode`; WASM uses getter functions for constants (not `const`); Java uses camelCase
+    method names on static `IsccLib` class. Verification is all grep-based (check for function names
+    \+ constant names in each file) plus `zensical build` for docs integrity.

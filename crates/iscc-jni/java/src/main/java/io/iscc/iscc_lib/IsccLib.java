@@ -18,6 +18,18 @@ package io.iscc.iscc_lib;
  */
 public class IsccLib {
 
+    /** Maximum UTF-8 byte length for the name parameter in gen_meta_code_v0. */
+    public static final int META_TRIM_NAME = 128;
+
+    /** Maximum UTF-8 byte length for the description parameter in gen_meta_code_v0. */
+    public static final int META_TRIM_DESCRIPTION = 4096;
+
+    /** Default read buffer size for streaming I/O (4 MB). */
+    public static final int IO_READ_SIZE = 4_194_304;
+
+    /** N-gram window size for text similarity hashing. */
+    public static final int TEXT_NGRAM_SIZE = 13;
+
     static {
         NativeLoader.load();
     }
@@ -184,7 +196,43 @@ public class IsccLib {
      */
     public static native String encodeBase64(byte[] data);
 
+    /**
+     * Convert a JSON string to a data URL with base64 encoding.
+     *
+     * <p>Uses {@code application/ld+json} media type when the JSON contains an
+     * {@code @context} key, otherwise {@code application/json}.
+     *
+     * @param json valid JSON string
+     * @return data URL string (e.g., "data:application/json;base64,...")
+     * @throws IllegalArgumentException on invalid JSON input
+     */
+    public static native String jsonToDataUrl(String json);
+
     // ── Codec ───────────────────────────────────────────────────────────────
+
+    /**
+     * Encode header fields and a raw digest into a base32-encoded ISCC unit string.
+     *
+     * @param mtype     MainType enum value (0-255)
+     * @param stype     SubType enum value (0-255)
+     * @param version   Version enum value (0-255)
+     * @param bitLength digest bit length (must be a multiple of 32)
+     * @param digest    raw digest bytes (length must be >= bitLength / 8)
+     * @return base32-encoded ISCC unit string (without "ISCC:" prefix)
+     * @throws IllegalArgumentException on invalid input
+     */
+    public static native String encodeComponent(int mtype, int stype, int version, int bitLength, byte[] digest);
+
+    /**
+     * Decode an ISCC unit string into its header components and raw digest.
+     *
+     * <p>Strips an optional "ISCC:" prefix before decoding.
+     *
+     * @param isccUnit ISCC unit string (with or without "ISCC:" prefix)
+     * @return decoded result with maintype, subtype, version, length, and digest
+     * @throws IllegalArgumentException on invalid input
+     */
+    public static native IsccDecodeResult isccDecode(String isccUnit);
 
     /**
      * Decompose a composite ISCC-CODE into individual ISCC-UNITs.

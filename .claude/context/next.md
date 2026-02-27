@@ -1,92 +1,101 @@
 # Next Work Package
 
-## Step: Update architecture and development docs for JNI and Go bindings
+## Step: Add Codec operations and Constants sections to binding howto guides
 
 ## Goal
 
-Update `docs/architecture.md` and `docs/development.md` to include the JNI (Java) and Go binding
-crates, which were added in iterations 5-7 but never reflected in these documentation pages. Both
-pages currently show only 4 binding crates when there are actually 6 (+ Go via WASM/wazero).
+Add "Codec operations" and "Constants" documentation sections to the Python, Node.js, Java, and WASM
+howto guides, achieving cross-language documentation parity with `docs/howto/go.md` which is
+currently the only guide covering all 30/30 Tier 1 symbols.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `docs/architecture.md`, `docs/development.md`
-- **Reference**: `crates/iscc-jni/src/lib.rs`, `packages/go/iscc.go`, `docs/howto/java.md`,
-    `docs/howto/go.md`, `zensical.toml` (for current nav structure)
+- **Modify**: `docs/howto/python.md`, `docs/howto/nodejs.md`, `docs/howto/java.md`,
+    `docs/howto/wasm.md`
+- **Reference**: `docs/howto/go.md` (template for section structure and content),
+    `crates/iscc-py/python/iscc_lib/__init__.py` (Python API surface and naming),
+    `crates/iscc-napi/src/lib.rs` (Node.js API names),
+    `packages/java/src/main/java/io/iscc/IsccLib.java` (Java API names),
+    `crates/iscc-wasm/src/lib.rs` (WASM API names)
 
 ## Not In Scope
 
-- Adding new Reference nav pages (Java API reference, C FFI reference) — those are separate steps
-- Changing the getting-started tutorial or adding tabbed multi-language examples
-- Modifying any Rust, Python, or other source code
-- Updating the README or per-crate READMEs
+- Adding "Algorithm primitives" sections to Python, Node.js, or WASM guides (separate step)
+- Adding Codec/Constants to `docs/howto/rust.md` (Rust developers use `cargo doc`)
+- Modifying any source code — this is documentation-only
+- Updating `zensical.toml` navigation (sections are within existing pages, no new pages)
+- Restructuring existing sections in any guide
 
 ## Implementation Notes
 
-### architecture.md changes
+Use `docs/howto/go.md` lines 365–437 as the structural template. Each guide gets two new sections
+inserted **before** the "Conformance testing" section:
 
-1. **Mermaid diagram**: Add `JNI` and `GO` nodes. JNI depends on CORE directly. Go depends on CORE
-    indirectly via WASM (Go uses wazero to run the WASM binary compiled from `iscc-ffi`). The
-    diagram should show this relationship: `GO --> WASM_BIN --> CORE` where WASM_BIN represents the
-    compiled WASI binary from `iscc-ffi`. Or more accurately, Go depends on the FFI crate's WASM
-    output. Keep the diagram simple — something like:
+### "Codec operations" section
 
-    ```
-    JNI["iscc-jni<br/><small>Java · JNI</small>"] --> CORE
-    GO["Go<br/><small>wazero · WASM</small>"] -.-> FFI
-    ```
+Cover these 6 functions with language-idiomatic code examples:
 
-    The dotted arrow for Go (via WASM) distinguishes it from the direct Rust dependency of other
-    binding crates.
+1. **`encode_component`** — construct an ISCC unit from raw header fields and digest
+2. **`iscc_decode`** — parse an ISCC unit string back into header components and digest
+3. **`iscc_decompose`** — split a composite ISCC-CODE into individual unit codes
+4. **`encode_base64`** — encode bytes to base64
+5. **`json_to_data_url`** — convert JSON string to data URL
+6. **`soft_hash_video_v0`** — compute video similarity hash from frame signatures
 
-2. **Workspace layout tree**: Add `iscc-jni/` under `crates/` and `packages/go/` as a top-level
-    directory alongside `crates/`. Include key files (`Cargo.toml`, `src/lib.rs`, `java/`
-    subdirectory with `pom.xml`, `IsccLib.java`, etc. for JNI; `iscc.go`, `iscc_test.go`, `go.mod`
-    for Go).
+Structure: Show encode + decode as a paired example (like Go guide), then decompose, then list
+remaining 3 as bullet points with signatures.
 
-3. **Crate summary table**: Add rows for `iscc-jni` (produces JNI shared library, build tool cargo,
-    published to Maven Central) and `packages/go` (produces Go module, build tool cargo+wasm-pack
-    for the embedded binary, published to pkg.go.dev).
+### "Constants" section
 
-4. **Streaming pattern / Per-Binding Adaptation table**: Add rows for Java (JNI sync API,
-    `DataHasher`/`InstanceHasher` via JNI) and Go (sync API via wazero WASM calls,
-    `UpdateFrom(ctx, io.Reader)` support for streaming).
+Cover 4 algorithm constants with a single code block showing how to import/access them:
 
-5. **Conformance test matrix table**: Add rows for Java (`mvn test`, `data.json` via relative path
-    from test resources) and Go (`go test`, embedded test vectors).
+- `META_TRIM_NAME` = 128
+- `META_TRIM_DESCRIPTION` = 4096
+- `IO_READ_SIZE` = 4,194,304
+- `TEXT_NGRAM_SIZE` = 13
 
-### development.md changes
+### Language-specific details
 
-1. **Project structure tree**: Add `iscc-jni/` under `crates/` (with `src/lib.rs` and `java/`
-    subdirectory) and `packages/go/` as a peer of `crates/`.
+**Python:** Functions use `snake_case`. `iscc_decode` returns `tuple[MT, ST, VS, int, bytes]` with
+IntEnum-typed values. Constants are top-level module attributes. Also mention `core_opts`
+SimpleNamespace for iscc-core API parity.
 
-2. **Crate summary table**: Add rows for `iscc-jni` and `packages/go` matching the pattern of
-    existing rows.
+**Node.js:** Functions use `snake_case` (via `js_name`). `iscc_decode` returns an `IsccDecodeResult`
+object. Constants are exported as `META_TRIM_NAME` etc. Use `const { ... } = require("@iscc/lib")`
+import style.
 
-3. **Included Tools table**: Add JDK 17 and Go entries if they're provided by the devcontainer
-    (check `.devcontainer/Dockerfile` if unsure).
+**Java:** Methods use `camelCase` on `IsccLib` class: `encodeComponent`, `isccDecode` (returns
+`IsccDecodeResult`), `isccDecompose`, `encodeBase64`, `jsonToDataUrl`, `softHashVideoV0`. Constants
+are `public static final int` on `IsccLib`.
 
-### Style guidance
+**WASM:** Functions use `snake_case`. `iscc_decode` returns an `IsccDecodeResult` object. Constants
+are getter functions: `meta_trim_name()`, etc.
 
-- Match the existing style and formatting of both pages exactly
-- Use the same icon/description YAML front matter format (already present)
-- Keep descriptions concise and consistent with adjacent entries
-- For Go, emphasize the "pure Go, no cgo" aspect that's central to the design (wazero)
-- For Java, mention JNI + bundled native libraries pattern
+### Description update
+
+Update each guide's front matter `description:` and opening paragraph to mention codec operations
+and constants coverage.
 
 ## Verification
 
-- `uv run zensical build` exits 0 (site builds with updated pages)
-- `grep -q 'iscc-jni' docs/architecture.md` (JNI mentioned in architecture)
-- `grep -q 'wazero' docs/architecture.md` (Go/wazero mentioned in architecture)
-- `grep -q 'iscc-jni' docs/development.md` (JNI mentioned in development)
-- `grep -q 'packages/go' docs/development.md` (Go mentioned in development)
-- `grep -c 'iscc-jni\|packages/go\|wazero\|Java\|Go' docs/architecture.md` returns at least 5
-    (multiple references across diagram, layout, tables)
-- `mise run format` produces no unstaged changes (formatting clean)
+- `grep -c 'encode_component\|encodeComponent\|EncodeComponent' docs/howto/python.md` returns ≥ 1
+- `grep -c 'iscc_decode\|isccDecode' docs/howto/python.md` returns ≥ 1
+- `grep -c 'META_TRIM_NAME' docs/howto/python.md` returns ≥ 1
+- `grep -c 'core_opts' docs/howto/python.md` returns ≥ 1
+- `grep -c 'encode_component' docs/howto/nodejs.md` returns ≥ 1
+- `grep -c 'iscc_decode' docs/howto/nodejs.md` returns ≥ 1
+- `grep -c 'META_TRIM_NAME' docs/howto/nodejs.md` returns ≥ 1
+- `grep -c 'encodeComponent' docs/howto/java.md` returns ≥ 1
+- `grep -c 'isccDecode' docs/howto/java.md` returns ≥ 1
+- `grep -c 'META_TRIM_NAME' docs/howto/java.md` returns ≥ 1
+- `grep -c 'encode_component' docs/howto/wasm.md` returns ≥ 1
+- `grep -c 'iscc_decode' docs/howto/wasm.md` returns ≥ 1
+- `grep -c 'meta_trim_name' docs/howto/wasm.md` returns ≥ 1
+- `uv run zensical build` exits 0 (docs site builds successfully)
+- `mise run check` passes (all pre-commit/pre-push hooks clean)
 
 ## Done When
 
-All verification criteria pass — both docs pages reflect the full set of 6 binding crates (Python,
-Node.js, WASM, C FFI, JNI, Go) in their diagrams, layout trees, and summary tables.
+All 4 binding howto guides have "Codec operations" and "Constants" sections with idiomatic code
+examples, the docs site builds cleanly, and all verification grep checks pass.

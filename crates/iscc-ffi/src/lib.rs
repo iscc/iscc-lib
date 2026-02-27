@@ -1,8 +1,9 @@
 //! C FFI bindings for iscc-lib.
 //!
-//! Exposes all 9 `gen_*_v0` functions and 4 algorithm primitives as
-//! `extern "C"` symbols for integration from C, Go, Java, C#, and any
-//! other language with C interop.
+//! Exposes all 9 `gen_*_v0` functions, 4 algorithm primitives, codec
+//! functions (`encode_component`, `iscc_decode`, `json_to_data_url`),
+//! and 4 algorithm constants as `extern "C"` symbols for integration
+//! from C, Go, Java, C#, and any other language with C interop.
 //!
 //! ## Memory model
 //!
@@ -36,6 +37,32 @@ fn set_last_error(msg: &str) {
 /// Clear the thread-local error message.
 fn clear_last_error() {
     LAST_ERROR.with(|e| *e.borrow_mut() = None);
+}
+
+// --- Algorithm constants ---
+
+/// Maximum byte length for the name field after trimming.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_meta_trim_name() -> u32 {
+    iscc_lib::META_TRIM_NAME as u32
+}
+
+/// Maximum byte length for the description field after trimming.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_meta_trim_description() -> u32 {
+    iscc_lib::META_TRIM_DESCRIPTION as u32
+}
+
+/// Default read buffer size for streaming I/O (4 MB).
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_io_read_size() -> u32 {
+    iscc_lib::IO_READ_SIZE as u32
+}
+
+/// Sliding window width for text n-gram generation.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_text_ngram_size() -> u32 {
+    iscc_lib::TEXT_NGRAM_SIZE as u32
 }
 
 // --- Memory allocation helpers (for WASM host) ---
@@ -684,6 +711,162 @@ pub unsafe extern "C" fn iscc_encode_base64(data: *const u8, data_len: usize) ->
     string_to_c(iscc_lib::encode_base64(data))
 }
 
+/// Convert a JSON string into a `data:` URL with JCS canonicalization.
+///
+/// Uses `application/ld+json` media type when the JSON contains an `@context`
+/// key, otherwise `application/json`.
+///
+/// # Returns
+///
+/// Heap-allocated C string on success, `NULL` on error.
+/// Caller must free with `iscc_free_string()`.
+///
+/// # Safety
+///
+/// `json` must point to a valid null-terminated UTF-8 string, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_json_to_data_url(json: *const c_char) -> *mut c_char {
+    clear_last_error();
+    let Some(s) = (unsafe { ptr_to_str(json, "json") }) else {
+        return ptr::null_mut();
+    };
+    result_to_c_string(iscc_lib::json_to_data_url(s))
+}
+
+// ── Codec ───────────────────────────────────────────────────────────────────
+
+/// Encode raw ISCC header components and digest into a base32 ISCC unit string.
+///
+/// Takes integer type identifiers and a raw digest, returns a base32-encoded
+/// ISCC unit string (without "ISCC:" prefix).
+///
+/// # Parameters
+///
+/// - `mtype`: MainType enum value (0–7)
+/// - `stype`: SubType enum value (0–7)
+/// - `version`: Version enum value
+/// - `bit_length`: bit length of the digest (multiple of 32)
+/// - `digest`: pointer to raw digest bytes
+/// - `digest_len`: number of bytes in the digest buffer
+///
+/// # Returns
+///
+/// Heap-allocated C string on success, `NULL` on error.
+/// Caller must free with `iscc_free_string()`.
+///
+/// # Safety
+///
+/// If `digest_len > 0`, `digest` must point to a valid buffer of at least
+/// `digest_len` bytes.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_encode_component(
+    mtype: u8,
+    stype: u8,
+    version: u8,
+    bit_length: u32,
+    digest: *const u8,
+    digest_len: usize,
+) -> *mut c_char {
+    clear_last_error();
+    let slice = if digest_len == 0 {
+        &[]
+    } else if digest.is_null() {
+        set_last_error("digest must not be NULL");
+        return ptr::null_mut();
+    } else {
+        // SAFETY: caller guarantees digest is valid for digest_len bytes
+        unsafe { std::slice::from_raw_parts(digest, digest_len) }
+    };
+    result_to_c_string(iscc_lib::encode_component(
+        mtype, stype, version, bit_length, slice,
+    ))
+}
+
+/// Result of decoding an ISCC unit string.
+///
+/// On success, `ok` is `true` and all fields are populated.
+/// On error, `ok` is `false` and all fields are zeroed (check `iscc_last_error()`).
+/// Caller must free with `iscc_free_decode_result()`.
+#[repr(C)]
+pub struct IsccDecodeResult {
+    /// Whether the decode succeeded.
+    pub ok: bool,
+    /// MainType enum value (0–7).
+    pub maintype: u8,
+    /// SubType enum value (0–7).
+    pub subtype: u8,
+    /// Version enum value.
+    pub version: u8,
+    /// Length index from the header.
+    pub length: u8,
+    /// Raw digest bytes truncated to the encoded bit-length.
+    pub digest: IsccByteBuffer,
+}
+
+/// Decode an ISCC unit string into header components and raw digest.
+///
+/// Returns an `IsccDecodeResult` struct. Check `ok` to determine success.
+/// Strips an optional "ISCC:" prefix before decoding.
+///
+/// # Returns
+///
+/// `IsccDecodeResult` with decoded fields. On error, `ok` is `false`.
+/// Caller must free with `iscc_free_decode_result()`.
+///
+/// # Safety
+///
+/// `iscc` must point to a valid null-terminated UTF-8 string, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_decode(iscc: *const c_char) -> IsccDecodeResult {
+    clear_last_error();
+    let Some(s) = (unsafe { ptr_to_str(iscc, "iscc") }) else {
+        return IsccDecodeResult {
+            ok: false,
+            maintype: 0,
+            subtype: 0,
+            version: 0,
+            length: 0,
+            digest: null_byte_buffer(),
+        };
+    };
+    match iscc_lib::iscc_decode(s) {
+        Ok((mt, st, vs, li, digest)) => IsccDecodeResult {
+            ok: true,
+            maintype: mt,
+            subtype: st,
+            version: vs,
+            length: li,
+            digest: vec_to_byte_buffer(digest),
+        },
+        Err(e) => {
+            set_last_error(&e.to_string());
+            IsccDecodeResult {
+                ok: false,
+                maintype: 0,
+                subtype: 0,
+                version: 0,
+                length: 0,
+                digest: null_byte_buffer(),
+            }
+        }
+    }
+}
+
+/// Free an `IsccDecodeResult` previously returned by `iscc_decode`.
+///
+/// Releases the digest buffer if non-null. No-op if digest is already null.
+///
+/// # Safety
+///
+/// `result` must be a value returned by `iscc_decode`.
+/// Each result must only be freed once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_free_decode_result(result: IsccDecodeResult) {
+    if !result.digest.data.is_null() {
+        unsafe { iscc_free_byte_buffer(result.digest) };
+    }
+}
+
 // ── Conformance ─────────────────────────────────────────────────────────────
 
 /// Run all conformance tests against vendored test vectors.
@@ -693,8 +876,6 @@ pub unsafe extern "C" fn iscc_encode_base64(data: *const u8, data_len: usize) ->
 pub extern "C" fn iscc_conformance_selftest() -> bool {
     iscc_lib::conformance_selftest()
 }
-
-// ── Codec ───────────────────────────────────────────────────────────────────
 
 /// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
 ///
@@ -1930,5 +2111,152 @@ mod tests {
     fn test_instance_hasher_free_null() {
         // Should be a no-op, not crash
         unsafe { iscc_instance_hasher_free(ptr::null_mut()) };
+    }
+
+    // ── Algorithm constants tests ────────────────────────────────────────
+
+    #[test]
+    fn test_meta_trim_name() {
+        assert_eq!(iscc_meta_trim_name(), 128);
+    }
+
+    #[test]
+    fn test_meta_trim_description() {
+        assert_eq!(iscc_meta_trim_description(), 4096);
+    }
+
+    #[test]
+    fn test_io_read_size() {
+        assert_eq!(iscc_io_read_size(), 4_194_304);
+    }
+
+    #[test]
+    fn test_text_ngram_size() {
+        assert_eq!(iscc_text_ngram_size(), 13);
+    }
+
+    // ── json_to_data_url tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_json_to_data_url_basic() {
+        let json = CString::new(r#"{"key":"value"}"#).unwrap();
+        let result = unsafe { iscc_json_to_data_url(json.as_ptr()) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert!(s.starts_with("data:application/json;base64,"));
+    }
+
+    #[test]
+    fn test_json_to_data_url_null() {
+        let result = unsafe { iscc_json_to_data_url(ptr::null()) };
+        assert!(result.is_null());
+    }
+
+    // ── encode_component tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_encode_component_basic() {
+        // Meta-Code (mtype=0, stype=0, version=0, 64-bit, 8 zero bytes)
+        let digest = [0u8; 8];
+        let result = unsafe { iscc_encode_component(0, 0, 0, 64, digest.as_ptr(), digest.len()) };
+        let s = unsafe { c_ptr_to_string(result) }.unwrap();
+        assert!(!s.is_empty());
+    }
+
+    #[test]
+    fn test_encode_component_null_digest_with_len() {
+        let result = unsafe { iscc_encode_component(0, 0, 0, 64, ptr::null(), 8) };
+        assert!(result.is_null());
+    }
+
+    #[test]
+    fn test_encode_component_zero_len_digest() {
+        // Zero-length digest with len=0 still passes the null check
+        // but encode_component may reject bit_length=0 — verify it handles gracefully
+        let result = unsafe { iscc_encode_component(0, 0, 0, 64, ptr::null(), 0) };
+        // Empty digest with bit_length=64 is invalid — expect NULL
+        assert!(result.is_null());
+    }
+
+    // ── iscc_decode tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_decode_known_meta_code() {
+        // Decode known Meta-Code "AAAZXZ6OU74YAZIM"
+        let iscc = CString::new("AAAZXZ6OU74YAZIM").unwrap();
+        let result = unsafe { iscc_decode(iscc.as_ptr()) };
+        assert!(result.ok);
+        assert_eq!(result.maintype, 0); // Meta
+        assert_eq!(result.subtype, 0);
+        assert_eq!(result.version, 0);
+        assert_eq!(result.length, 1); // 64-bit = length index 1 ((1+1)*32 = 64)
+        assert!(!result.digest.data.is_null());
+        assert_eq!(result.digest.len, 8); // 64 bits = 8 bytes
+        unsafe { iscc_free_decode_result(result) };
+    }
+
+    #[test]
+    fn test_decode_null() {
+        let result = unsafe { iscc_decode(ptr::null()) };
+        assert!(!result.ok);
+        assert!(result.digest.data.is_null());
+    }
+
+    #[test]
+    fn test_decode_invalid() {
+        let iscc = CString::new("INVALID").unwrap();
+        let result = unsafe { iscc_decode(iscc.as_ptr()) };
+        assert!(!result.ok);
+        assert!(result.digest.data.is_null());
+    }
+
+    #[test]
+    fn test_decode_with_prefix() {
+        // Should handle "ISCC:" prefix
+        let iscc = CString::new("ISCC:AAAZXZ6OU74YAZIM").unwrap();
+        let result = unsafe { iscc_decode(iscc.as_ptr()) };
+        assert!(result.ok);
+        assert_eq!(result.maintype, 0);
+        assert_eq!(result.digest.len, 8);
+        unsafe { iscc_free_decode_result(result) };
+    }
+
+    #[test]
+    fn test_free_decode_result_null_digest() {
+        // Should be a no-op for null digest
+        let result = IsccDecodeResult {
+            ok: false,
+            maintype: 0,
+            subtype: 0,
+            version: 0,
+            length: 0,
+            digest: null_byte_buffer(),
+        };
+        unsafe { iscc_free_decode_result(result) };
+    }
+
+    // ── Roundtrip: encode_component → iscc_decode ────────────────────────
+
+    #[test]
+    fn test_encode_decode_roundtrip() {
+        let digest = [0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89u8];
+        let encoded = unsafe { iscc_encode_component(0, 0, 0, 64, digest.as_ptr(), digest.len()) };
+        assert!(!encoded.is_null());
+
+        // Decode the encoded result
+        let decoded = unsafe { iscc_decode(encoded) };
+        assert!(decoded.ok);
+        assert_eq!(decoded.maintype, 0);
+        assert_eq!(decoded.subtype, 0);
+        assert_eq!(decoded.version, 0);
+        assert_eq!(decoded.length, 1); // 64-bit = length index 1 ((1+1)*32 = 64)
+        assert_eq!(decoded.digest.len, 8);
+
+        // Verify digest matches
+        let decoded_digest =
+            unsafe { std::slice::from_raw_parts(decoded.digest.data, decoded.digest.len) };
+        assert_eq!(decoded_digest, &digest);
+
+        unsafe { iscc_free_string(encoded) };
+        unsafe { iscc_free_decode_result(decoded) };
     }
 }

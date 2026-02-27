@@ -21,6 +21,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Codebase Landmarks
 
+- `docs/howto/go.md` — 462 lines (as of CID iteration 14); "Codec operations" at line 365,
+    "Constants" at line 425; full 30/30 symbol coverage
+- `packages/go/README.md` — 150 lines (as of CID iteration 14); stale "planned" text removed; all 30
+    symbols in API tables
 - `crates/iscc-jni/src/lib.rs` — 866-line Rust JNI bridge, 29 `extern "system"` functions, 0
     unwrap(), 72 throw_and_default call sites, 3 jint negative guards, 5 push/pop_local_frame loops
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — 331-line Java wrapper, 29
@@ -265,3 +269,156 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `zensical.toml` updated with `{ "Ecosystem" = "ecosystem.md" }` between Explanation and
     Reference. Documentation page count: 14 (was 13). CI all 7 jobs pass on develop (runs
     22405571444 + 22405570077, HEAD `de0b17a`). PR #3 still open (now includes ecosystem page too).
+- **CID iteration 1 (new numbering, commits 3729d96..4e213a5)**: Between assessments, several
+    human-driven changes occurred:
+    - PR #3 MERGED (develop → main, commit `69cce77`) — wasm-opt fix + docs/howto/wasm.md name fix
+    - **Version bumped to 0.0.2** (commit `306c5e9`): root Cargo.toml, package.json, pom.xml
+    - `crates/iscc-py/pyproject.toml` enriched with description, license, authors, keywords,
+        classifiers, project URLs (commit `53ecc6c`)
+    - `scripts/test_install.py` added (461 lines) — install verification for PyPI/crates.io/npm/Go;
+        `mise run test:install` task (commit `53ecc6c`)
+    - `crates/iscc-napi/package.json` now has `"repository"` field for npm provenance (commit
+        `3729d96`)
+    - Release workflow fixed (commit `2f4b8f5`): CARGO_REGISTRY_TOKEN passed explicitly, WASM
+        package.json gets `repository` field for npm provenance, deprecated `macos-13` → `macos-14`
+        for x86_64-apple-darwin
+    - **Target updated** (commit `0df17ca`): Tier 1 API expanded to **30 public symbols** (was 23). 7
+        new symbols: `json_to_data_url`, Tier 1 `encode_component`, `iscc_decode`, `META_TRIM_NAME`,
+        `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
+    - `specs/rust-core.md` added (~290 lines): detailed spec for all new Tier 1 symbols
+    - `specs/python-bindings.md` updated: iscc-core drop-in compatibility extensions (PIL pixels, dict
+        meta, MT/ST/VS enums, core_opts)
+    - Issues #4-#8 added to issues.md (GitHub issues filed); issues link to GitHub URLs
+    - CID agent protocols updated: Codex code review in review agent, documentation freshness checks
+    - CI all 7 jobs PASSING at HEAD `4e213a5` (run 22479950631)
+- **New Tier 1 symbol inventory**: `encode_component` already `pub fn` in `codec.rs` but NOT
+    re-exported at crate root. `json_to_data_url` and `iscc_decode` do NOT exist in any source file.
+    4 constants do NOT exist in any source file. Python `__init__.py` does NOT have new extensions.
+- **Exploration shortcuts updated**: check new symbols with
+    `grep -n "json_to_data_url\|encode_component\|iscc_decode\|META_TRIM\|IO_READ\|TEXT_NGRAM" crates/iscc-lib/src/lib.rs`
+- **CID iteration 2 (commits dbcbd04..5df058f)**: advance agent added 4 algorithm constants
+    (`META_TRIM_NAME=128`, `META_TRIM_DESCRIPTION=4096`, `IO_READ_SIZE=4_194_304`,
+    `TEXT_NGRAM_SIZE=13`) and a Tier 1 `encode_component` wrapper (with `u8` params) directly in
+    `crates/iscc-lib/src/lib.rs`. Review agent PASS. Rust core is now 28/30 Tier 1 symbols. Still
+    missing: `json_to_data_url` and `iscc_decode`. None of the 5 new symbols have been propagated to
+    any binding crate yet. All 6 bindings remain at 23/30. CI all 7 jobs passing at HEAD `5df058f`
+    (run 22480614770).
+- **CID iteration 3 (commits ddfdff4..d9a87c2)**: advance agent implemented `iscc_decode` in
+    `crates/iscc-lib/src/lib.rs` (only file changed). Review agent PASS. Total Rust tests now
+    **292** (239 src unit tests across 10 files + 31 integration + 22 doc-tests). Rust core is now
+    29/30 Tier 1 symbols. `json_to_data_url` is the sole remaining missing symbol. All 6 bindings
+    unchanged at 23/30. CI all 7 jobs passing at HEAD `d9a87c2` (run 22481268707).
+- **Test count breakdown (iteration 3)**: lib.rs=63, codec.rs=73, cdc.rs=15, dct.rs=12,
+    simhash.rs=24, utils.rs=20, streaming.rs=15, minhash.rs=7, wtahash.rs=9, conformance.rs=1 →
+    total src=239. Plus 31 integration tests in tests/ + 22 doc-tests = 292 total.
+- **Binding symbol check shortcut**: check all 6 bindings for new symbols in one go:
+    `grep -n "encode_component\|META_TRIM\|IO_READ\|TEXT_NGRAM\|iscc_decode\|json_to_data_url" crates/iscc-py/src/lib.rs crates/iscc-napi/src/lib.rs crates/iscc-wasm/src/lib.rs crates/iscc-ffi/src/lib.rs crates/iscc-jni/src/lib.rs packages/go/iscc.go`
+- **CID iteration 4 (commits c607ef6..51161d4)**: advance agent implemented `json_to_data_url` in
+    `crates/iscc-lib/src/lib.rs` (only file changed). Uses `serde_json_canonicalizer` for JCS
+    canonicalization, detects `@context` key for `application/ld+json` vs `application/json`, reuses
+    `build_meta_data_url` helper. Review agent PASS. Total Rust tests now **299** (245 src unit
+    tests
+    - 31 integration tests + 22 additional integration + 1 doc-test). Rust core is now **30/30 Tier 1
+        symbols** (ALL DONE). All 6 bindings still unchanged at 23/30. CI all 7 jobs passing at HEAD
+        `51161d4` (run 22482230713).
+- **CID iteration 5 (commits 7d040ab..a7eb843)**: advance agent propagated all 7 new Tier 1 symbols
+    to Python bindings: 3 functions (`encode_component`, `iscc_decode`, `json_to_data_url`) added to
+    `crates/iscc-py/src/lib.rs` + 4 constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`,
+    `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) via `m.add()`. `__init__.py` updated: 4 constants re-exported
+    - 3 functions added to imports + 7 symbols added to `__all__` (now 41 entries, was 34). New
+        `_lowlevel.pyi` entries for all 7 symbols. New test file `tests/test_new_symbols.py` (13 test
+        functions). Review agent PASS. 172 total pytest tests (was 159). Python: 30/30 Tier 1 symbols.
+        All other bindings still 23/30. CI all 7 jobs passing at HEAD `a7eb843` (run 22483013373).
+- **Python missing extensions (still as of iteration 5)**: `core_opts` SimpleNamespace,
+    `MT`/`ST`/`VS` IntEnum classes, PIL Sequence[int] for `gen_image_code_v0`, dict `meta` for
+    `gen_meta_code_v0`. Check with:
+    `grep -n "core_opts\|IntEnum\|class MT\|class ST\|class VS" crates/iscc-py/python/iscc_lib/__init__.py`
+- **CID iteration 6 (commits 918ccc9..7b5fe29)**: advance agent added dict `meta` support to
+    `gen_meta_code_v0` Python wrapper — 3-line `isinstance(meta, dict)` check, `json.dumps`
+    (compact, ensure_ascii=False), `json_to_data_url`. `import json as _json` added to
+    `__init__.py`. 5 new tests in `test_new_symbols.py` (now 18 tests). Review agent PASS. 177 total
+    pytest tests (was 172). CI all 7 jobs passing at HEAD `7b5fe29` (run 22483625347). Python
+    missing extensions now 3 (was 4): PIL Sequence[int], MT/ST/VS IntEnum, core_opts
+    SimpleNamespace.
+- **CID iteration 7 (commits 7bc5667..e74d416)**: advance agent widened `gen_image_code_v0` Python
+    wrapper to accept `bytes | bytearray | memoryview | Sequence[int]` — 3-line `isinstance` check
+    - `bytes()` conversion. Same pattern as `gen_data_code_v0`/`gen_instance_code_v0`. 7 new tests in
+        `test_new_symbols.py` (now 25 tests). Review agent PASS. 184 total pytest tests (was 177). CI
+        all 7 jobs passing at HEAD `e74d416` (run 22484174232). Python missing extensions now 2 (was
+        3): MT/ST/VS IntEnum, core_opts SimpleNamespace.
+- **CID iteration 8 (commits 4d87055..17995bf)**: advance agent added `MT`/`ST`/`VS` `IntEnum`
+    classes (8/8/1 values), `core_opts` `SimpleNamespace` (4 attributes), and `iscc_decode` Python
+    wrapper returning `(MT, ST, VS, length, bytes)` with IntEnum-typed values. All in
+    `crates/iscc-py/python/iscc_lib/__init__.py`. 14 new tests added to `test_new_symbols.py` (now
+    39 test functions). Review agent PASS. 198 total pytest tests (was 184). `__all__` now 45
+    entries (MT, ST, VS, core_opts added; was 41). **Python Bindings: fully MET** — all 30/30 Tier 1
+    symbols + all iscc-core drop-in extensions complete. CI all 7 jobs passing at HEAD `17995bf`
+    (runs 22484814543 + 22484813628).
+- **CID iteration 9 (commits aa1bba3..0d2f60c)**: advance agent propagated all 7 new Tier 1 symbols
+    to Node.js napi-rs bindings. Added 4 constants (`META_TRIM_NAME=128`,
+    `META_TRIM_DESCRIPTION=4096`, `IO_READ_SIZE=4_194_304`, `TEXT_NGRAM_SIZE=13`) via `#[napi]` on
+    `pub const`; added 3 functions (`encode_component`, `iscc_decode`, `json_to_data_url`) and
+    `IsccDecodeResult` `#[napi(object)]` struct. `crates/iscc-napi/src/lib.rs` now has 39 `#[napi]`
+    annotations. 21 new tests in `crates/iscc-napi/__tests__/functions.test.mjs` (total 124 tests).
+    Review agent PASS. **Node.js Bindings: fully MET** — 30/30 Tier 1 symbols. CI all 7 jobs passing
+    at HEAD `0d2f60c` (run 22485432283). Next: propagate 7 symbols to WASM (good candidate —
+    well-established wasm-bindgen pattern).
+- **CID iteration 10 (commits e83db35..c7c3807)**: advance agent propagated all 7 new Tier 1 symbols
+    to WASM bindings. Added 4 constants as getter functions (`meta_trim_name()→128`, etc.),
+    `encode_component`, `iscc_decode` (with `IsccDecodeResult` struct, `getter_with_clone` for
+    `Vec<u8>` digest), `json_to_data_url`. `crates/iscc-wasm/src/lib.rs` now has 35
+    `#[wasm_bindgen]` annotations. 19 new tests in `tests/unit.rs` (total 60 unit + 9 conformance =
+    69 wasm tests). Review agent PASS. **WASM Bindings: fully MET** — 30/30 Tier 1 symbols. CI all 7
+    jobs passing at HEAD `c7c3807` (run 22486077314). Next: propagate 7 symbols to C FFI (3
+    `extern "C"` functions + 4 `#define` constants pattern).
+- **CID iteration 11 (commits 8a168a1..43ca0c4)**: advance agent propagated all 7 new Tier 1 symbols
+    to C FFI bindings. Added 4 constant getter functions (`iscc_meta_trim_name()→128`, etc.),
+    `iscc_json_to_data_url`, `iscc_encode_component`, `iscc_decode` (returns `IsccDecodeResult` C
+    struct with `ok`/`maintype`/`subtype`/`version`/`length`/`digest` fields), plus
+    `iscc_free_decode_result` helper. `crates/iscc-ffi/src/lib.rs` now has 44 exported `extern "C"`
+    functions (was 25 at start of CID numbering). `crates/iscc-ffi/tests/test_iscc.c` now covers 23
+    test cases. 77 Rust unit tests (was 62). Review agent PASS. **C FFI Bindings: fully MET** —
+    30/30 Tier 1 symbols. CI all 7 jobs passing at HEAD `43ca0c4` (run 22486942175). Next: propagate
+    7 symbols to Java JNI (highest priority), then Go.
+- **CID iteration 12 (commits 3519b8d..1a5dfd7)**: advance agent propagated all 7 new Tier 1 symbols
+    to Java JNI bindings. Added 4 constants as `public static final int` fields in `IsccLib.java`
+    (`META_TRIM_NAME=128`, `META_TRIM_DESCRIPTION=4096`, `IO_READ_SIZE=4_194_304`,
+    `TEXT_NGRAM_SIZE=13`). Added 3 JNI functions: `jsonToDataUrl` (line 514), `encodeComponent`
+    (line 540), `isccDecode` (line 588). Created `IsccDecodeResult.java` (42 lines) with `maintype`,
+    `subtype`, `version`, `length`, `digest` fields. `crates/iscc-jni/src/lib.rs` now has 32
+    `extern "system"` JNI functions. 7 new `@Test` methods in `IsccLibTest.java` (total 12 unit
+    tests + 9 `@TestFactory` = 58 effective test cases). Review agent PASS. **Java JNI Bindings:
+    fully MET** — 30/30 Tier 1 symbols. CI all 7 jobs passing at HEAD `1a5dfd7` (run 22487752698).
+    **Go is the sole remaining binding at 23/30**. Next: propagate 7 symbols to Go.
+- **Java JNI `IsccDecodeResult.java` path**:
+    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java`
+- **Java constants pattern**: static final fields in `IsccLib.java` (NOT JNI native methods) —
+    mirrors C FFI getter functions pattern but Java-idiomatic.
+- **Go symbol propagation strategy**: WASM FFI sret-based pattern for `iscc_decode` (same as Go uses
+    for byte buffer results); Go constants are `package`-level `const` block; `DecodeResult` struct
+    with exported fields `Maintype`, `Subtype`, `Version`, `Length`, `Digest`.
+- **CID iteration 13 (commits eb30795..ace5839)**: advance agent propagated all 7 new Tier 1 symbols
+    to Go bindings. Added 4 package-level constants (`MetaTrimName=128`, `MetaTrimDescription=4096`,
+    `IoReadSize=4_194_304`, `TextNgramSize=13`) in a `const` block at line 23-28. Added
+    `DecodeResult` struct (lines 33-41) with `Maintype`, `Subtype`, `Version`, `Length`, `Digest`
+    fields. Added 3 `Runtime` methods: `JsonToDataUrl` (line 634), `EncodeComponent` (line 651),
+    `IsccDecode` (line 672, returns `*DecodeResult`) with correct WASM sret ABI and multi-path
+    cleanup. 7 new test functions in `iscc_test.go` (46 total, was 39). `iscc.go` now 1,357 lines
+    (was 1,220); `iscc_test.go` now 1,353 lines (was 1,208). Review agent PASS. **Go Bindings: fully
+    MET** — 30/30 Tier 1 symbols. **All 6 language bindings now at 30/30**. CI all 7 jobs passing at
+    HEAD `ace5839` (run 22488601158, all jobs SUCCESS).
+- **CID iteration 14 (new numbering, commits 40b8097..6050f86)**: advance agent updated Go
+    documentation. `docs/howto/go.md` expanded from 388→462 lines: "Codec operations" section added
+    at line 365 (`EncodeComponent`, `IsccDecode`, `IsccDecompose`, `JsonToDataUrl`, `EncodeBase64`);
+    "Constants" section added at line 425 (`MetaTrimName`, `MetaTrimDescription`, `IoReadSize`,
+    `TextNgramSize`). `packages/go/README.md` expanded from 104→150 lines: stale "planned" text
+    removed; full API tables added for all 30 symbols (Text Utilities, Algorithm Primitives, Codec
+    operations, Streaming Hashers, Constants). Review agent PASS_WITH_NOTES (fixed incorrect "ISCC:"
+    prefix claim in decompose example). **Documentation section: MET** (was partially met).
+    **Per-Crate READMEs section: MET** (was partially met). CI all 7 jobs passing at HEAD `6050f86`
+    (runs 22489327741 + 22489326645, all SUCCESS).
+- **issues.md status (iteration 14)**: Issues #5-#8 still present with GitHub URLs — all
+    implementations complete, local entries should be deleted (resolved issues). Not yet cleaned up.
+- **Latest CI run**: 22489327741, HEAD `6050f86`, all 7 jobs SUCCESS.
+- **Documentation parity gap**: Python/Java/Node.js/WASM howto guides do NOT have codec/constants
+    sections (only Go howto has full coverage). Aspirational parity, not a hard target.md criterion.

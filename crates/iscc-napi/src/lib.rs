@@ -7,6 +7,85 @@
 use napi::bindgen_prelude::Buffer;
 use napi_derive::napi;
 
+// ── Algorithm constants ───────────────────────────────────────────────────────
+
+/// Maximum byte length for the name field after trimming.
+#[napi(js_name = "META_TRIM_NAME")]
+pub const META_TRIM_NAME: u32 = iscc_lib::META_TRIM_NAME as u32;
+
+/// Maximum byte length for the description field after trimming.
+#[napi(js_name = "META_TRIM_DESCRIPTION")]
+pub const META_TRIM_DESCRIPTION: u32 = iscc_lib::META_TRIM_DESCRIPTION as u32;
+
+/// Default read buffer size for streaming I/O (4 MB).
+#[napi(js_name = "IO_READ_SIZE")]
+pub const IO_READ_SIZE: u32 = iscc_lib::IO_READ_SIZE as u32;
+
+/// Sliding window width for text n-gram generation.
+#[napi(js_name = "TEXT_NGRAM_SIZE")]
+pub const TEXT_NGRAM_SIZE: u32 = iscc_lib::TEXT_NGRAM_SIZE as u32;
+
+// ── Codec functions ──────────────────────────────────────────────────────────
+
+/// Encode raw ISCC header components and digest into a base32 ISCC unit string.
+///
+/// Takes integer type identifiers and a raw digest, returns a base32-encoded
+/// ISCC unit string (without "ISCC:" prefix).
+#[napi(js_name = "encode_component")]
+pub fn encode_component(
+    mtype: u8,
+    stype: u8,
+    version: u8,
+    bit_length: u32,
+    digest: Buffer,
+) -> napi::Result<String> {
+    iscc_lib::encode_component(mtype, stype, version, bit_length, digest.as_ref())
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
+/// Result of decoding an ISCC unit string.
+#[napi(object)]
+pub struct IsccDecodeResult {
+    /// MainType enum value (0–7).
+    pub maintype: u8,
+    /// SubType enum value (0–7).
+    pub subtype: u8,
+    /// Version enum value.
+    pub version: u8,
+    /// Length index from the header.
+    pub length: u8,
+    /// Raw digest bytes truncated to the encoded bit-length.
+    pub digest: Buffer,
+}
+
+/// Decode an ISCC unit string into header components and raw digest.
+///
+/// Returns an object with `maintype`, `subtype`, `version`, `length`, and
+/// `digest` fields. Strips an optional "ISCC:" prefix before decoding.
+#[napi(js_name = "iscc_decode")]
+pub fn iscc_decode(iscc: String) -> napi::Result<IsccDecodeResult> {
+    let (mt, st, vs, li, digest) =
+        iscc_lib::iscc_decode(&iscc).map_err(|e| napi::Error::from_reason(e.to_string()))?;
+    Ok(IsccDecodeResult {
+        maintype: mt,
+        subtype: st,
+        version: vs,
+        length: li,
+        digest: digest.into(),
+    })
+}
+
+/// Convert a JSON string into a `data:` URL with JCS canonicalization.
+///
+/// Uses `application/ld+json` media type when the JSON contains an `@context`
+/// key, otherwise `application/json`.
+#[napi(js_name = "json_to_data_url")]
+pub fn json_to_data_url(json: String) -> napi::Result<String> {
+    iscc_lib::json_to_data_url(&json).map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
+// ── Code generators ──────────────────────────────────────────────────────────
+
 /// Generate a Meta-Code from name and optional metadata.
 ///
 /// Produces an ISCC Meta-Code by hashing the provided name, description,

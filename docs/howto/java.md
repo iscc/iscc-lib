@@ -1,6 +1,6 @@
 ---
 icon: lucide/coffee
-description: Guide to using iscc-lib from Java — JNI setup, code generation, streaming, and utilities.
+description: Guide to using iscc-lib from Java — JNI setup, code generation, streaming, codec operations, constants, and utilities.
 ---
 
 # Java
@@ -295,6 +295,71 @@ Additional primitives:
     content-defined chunks, returns `byte[][]`
 - `IsccLib.softHashVideoV0(int[][] frameSigs, int bits)` — compute a similarity-preserving hash from
     video frame signatures, returns `byte[]`
+
+## Codec operations
+
+Methods for encoding, decoding, and decomposing ISCC codes. These operate on the ISCC binary format
+defined in ISO 24138.
+
+### Encode and decode
+
+Construct an ISCC unit from raw header fields and digest, then decode it back:
+
+```java
+// Encode: maintype=0 (Meta), subtype=0, version=0, 64 bits, 8-byte digest
+byte[] digest = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+String code = IsccLib.encodeComponent(0, 0, 0, 64, digest);
+System.out.println(code); // ISCC unit string (without "ISCC:" prefix)
+
+// Decode: parse an ISCC unit string back into header components and digest
+IsccDecodeResult result = IsccLib.isccDecode(code);
+System.out.printf("Maintype: %d, Subtype: %d, Version: %d, Length: %d%n",
+    result.maintype, result.subtype, result.version, result.length);
+System.out.printf("Digest: %s%n", java.util.HexFormat.of().formatHex(result.digest));
+```
+
+`isccDecode` returns an `IsccDecodeResult` with `int` fields `maintype`, `subtype`, `version`,
+`length` (length index), and a `byte[]` field `digest`.
+
+### Decompose
+
+Split a composite ISCC-CODE into its individual unit codes:
+
+```java
+byte[] data = "Hello World".repeat(1000).getBytes();
+String dataCode = IsccLib.genDataCodeV0(data, 64);
+String instanceCode = IsccLib.genInstanceCodeV0(data, 64);
+String isccCode = IsccLib.genIsccCodeV0(
+    new String[]{dataCode, instanceCode}, false
+);
+
+// Decompose into individual units
+String[] units = IsccLib.isccDecompose(isccCode);
+for (String unit : units) {
+    System.out.println(unit); // Each unit code (without "ISCC:" prefix)
+}
+```
+
+### Other codec methods
+
+- `IsccLib.encodeBase64(byte[] data)` — encode bytes to base64 string
+- `IsccLib.jsonToDataUrl(String json)` — convert a JSON string to a
+    `data:application/json;base64,...` URL
+- `IsccLib.softHashVideoV0(int[][] frameSigs, int bits)` — compute a video similarity hash from
+    MPEG-7 frame signatures, returns `byte[]`
+
+## Constants
+
+Static constants on the `IsccLib` class used by the ISCC algorithms:
+
+```java
+import io.iscc.iscc_lib.IsccLib;
+
+IsccLib.META_TRIM_NAME;        // 128 — max byte length for name normalization
+IsccLib.META_TRIM_DESCRIPTION; // 4096 — max byte length for description normalization
+IsccLib.IO_READ_SIZE;          // 4_194_304 — default read buffer size (4 MB)
+IsccLib.TEXT_NGRAM_SIZE;       // 13 — n-gram size for text similarity hashing
+```
 
 ## Conformance testing
 

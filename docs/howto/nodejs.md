@@ -1,12 +1,12 @@
 ---
 icon: lucide/hexagon
-description: Guide to using iscc-lib from Node.js via the native addon.
+description: Guide to using iscc-lib from Node.js — code generation, streaming, codec operations, and constants.
 ---
 
 # Node.js
 
 A guide to using iscc-lib from Node.js via the `@iscc/lib` native addon. Covers installation, code
-generation, and streaming.
+generation, streaming, codec operations, and constants.
 
 ---
 
@@ -250,6 +250,85 @@ const singleLine = text_remove_newlines("Hello\nWorld");
 
 // Trim to UTF-8 byte limit
 const trimmed = text_trim("Hello World", 5);
+```
+
+## Codec operations
+
+Functions for encoding, decoding, and decomposing ISCC codes. These operate on the ISCC binary
+format defined in ISO 24138.
+
+### Encode and decode
+
+Construct an ISCC unit from raw header fields and digest, then decode it back:
+
+```javascript
+const {
+    encode_component,
+    iscc_decode
+} = require("@iscc/lib");
+
+// Encode: maintype=0 (Meta), subtype=0, version=0, 64 bits, 8-byte digest
+const digest = Buffer.from([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08]);
+const code = encode_component(0, 0, 0, 64, digest);
+console.log(code); // ISCC unit string (without "ISCC:" prefix)
+
+// Decode: parse an ISCC unit string back into header components and digest
+const result = iscc_decode(code);
+console.log(`Maintype: ${result.maintype}, Subtype: ${result.subtype}`);
+console.log(`Version: ${result.version}, Length: ${result.length}`);
+console.log(`Digest: ${Buffer.from(result.digest).toString("hex")}`);
+```
+
+`iscc_decode` returns an `IsccDecodeResult` object with `maintype`, `subtype`, `version`, `length`
+(length index), and `digest` (Buffer) fields.
+
+### Decompose
+
+Split a composite ISCC-CODE into its individual unit codes:
+
+```javascript
+const {
+    gen_data_code_v0,
+    gen_instance_code_v0,
+    gen_iscc_code_v0,
+    iscc_decompose
+} = require("@iscc/lib");
+
+const data = Buffer.from("Hello World".repeat(1000));
+const dataCode = gen_data_code_v0(data);
+const instanceCode = gen_instance_code_v0(data);
+const isccCode = gen_iscc_code_v0([dataCode, instanceCode]);
+
+// Decompose into individual units
+const units = iscc_decompose(isccCode);
+for (const unit of units) {
+    console.log(unit); // Each unit code (without "ISCC:" prefix)
+}
+```
+
+### Other codec functions
+
+- `encode_base64(data)` — encode a Buffer to base64 string
+- `json_to_data_url(json)` — convert a JSON string to a `data:application/json;base64,...` URL
+- `soft_hash_video_v0(frameSigs, bits?)` — compute a video similarity hash from MPEG-7 frame
+    signatures, returns Buffer
+
+## Constants
+
+Exported constants used by the ISCC algorithms:
+
+```javascript
+const {
+    META_TRIM_NAME,
+    META_TRIM_DESCRIPTION,
+    IO_READ_SIZE,
+    TEXT_NGRAM_SIZE,
+} = require("@iscc/lib");
+
+META_TRIM_NAME; // 128 — max byte length for name normalization
+META_TRIM_DESCRIPTION; // 4096 — max byte length for description normalization
+IO_READ_SIZE; // 4_194_304 — default read buffer size (4 MB)
+TEXT_NGRAM_SIZE; // 13 — n-gram size for text similarity hashing
 ```
 
 ## Conformance testing
