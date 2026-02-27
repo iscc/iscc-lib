@@ -1,40 +1,40 @@
-## 2026-02-27 — Review of: Propagate 7 Tier 1 symbols to Go binding
+## 2026-02-27 — Update Go docs for 30/30 Tier 1 symbols
 
-**Verdict:** PASS
+**Done:** Updated `docs/howto/go.md` with two new sections (Codec operations and Constants) covering
+all 7 newly added Go symbols (EncodeBase64, JsonToDataUrl, EncodeComponent, IsccDecode,
+IsccDecompose, SoftHashVideoV0, and 4 constants). Updated `packages/go/README.md` to replace stale
+"planned" text with a complete API overview organized into 6 subsections (Text Processing, Algorithm
+Primitives, Codec Operations, Streaming, Constants, Diagnostics) covering all 30/30 Tier 1 symbols.
 
-**Summary:** Clean, focused implementation adding 4 package-level constants, a `DecodeResult`
-struct, and 3 new `Runtime` methods (`JsonToDataUrl`, `EncodeComponent`, `IsccDecode`) to the
-Go/wazero binding. All 30/30 Tier 1 symbols are now accessible from Go. The implementation follows
-existing bridge patterns consistently, with thorough WASM memory management and comprehensive tests.
+**Files changed:**
+
+- `docs/howto/go.md`: Added "Codec operations" section with encode/decode roundtrip and decompose
+    examples, and "Constants" section listing all 4 package-level constants
+- `packages/go/README.md`: Replaced stale Utilities subsection with 6 organized table-based
+    subsections covering the full symbol set
 
 **Verification:**
 
-- [x] `cd packages/go && mise exec -- go test -v -run TestConstants ./...` — PASS
-- [x] `cd packages/go && mise exec -- go test -v -run TestJsonToDataUrl ./...` — PASS (both
-    variants)
-- [x] `cd packages/go && mise exec -- go test -v -run TestEncodeComponent ./...` — PASS
-- [x] `cd packages/go && mise exec -- go test -v -run TestIsccDecode ./...` — PASS (valid + invalid)
-- [x] `cd packages/go && mise exec -- go test -v -run TestEncodeDecodeRoundtrip ./...` — PASS
-- [x] `cd packages/go && mise exec -- go test -count=1 ./...` — PASS (all existing + new tests)
-- [x] `cd packages/go && mise exec -- go vet ./...` — clean
-- [x] `grep -c` for constants returns 4
-- [x] `grep -c 'func (rt \*Runtime)'` returns 48 (≥ 26)
-- [x] `mise run check` — all 14 pre-commit hooks pass
+- `grep -c 'EncodeComponent' docs/howto/go.md` → 1 ✓
+- `grep -c 'IsccDecode' docs/howto/go.md` → 2 ✓
+- `grep -c 'IsccDecompose' docs/howto/go.md` → 1 ✓
+- `grep -c 'JsonToDataUrl' docs/howto/go.md` → 1 ✓
+- `grep -c 'EncodeBase64' docs/howto/go.md` → 1 ✓
+- `grep -c 'SoftHashVideoV0' docs/howto/go.md` → 1 ✓
+- `grep -c 'MetaTrimName' docs/howto/go.md` → 1 ✓
+- `grep 'are planned' packages/go/README.md` → no matches ✓
+- `grep -c 'EncodeComponent' packages/go/README.md` → 1 ✓
+- `grep -c 'DataHasher' packages/go/README.md` → 2 ✓
+- `uv run zensical build` → exits 0 ✓
+- `mise run check` → all 14 hooks pass ✓
 
-**Issues found:**
+**Next:** All Go documentation gaps are closed (30/30 Tier 1 symbols documented). The project could
+address remaining items in issues.md or other target milestones — e.g., dict auto-serialization for
+`gen_meta_code_v0`, or adding codec/constants documentation sections to the Java and Python howto
+guides for parity.
 
-- (none)
-
-**Codex review:** No issues identified. Codex confirmed the new Go binding symbols follow existing
-allocation/call/free patterns and the added Go tests pass against the embedded WASM module.
-
-**Next:** All 30/30 Tier 1 symbols are now propagated to all 6 language bindings (Python, Node.js,
-WASM, C FFI, Java JNI, Go/wazero). The project can move on to other priorities from target.md —
-likely addressing the remaining issues in issues.md (dict auto-serialization for `gen_meta_code_v0`,
-documentation updates) or other target milestones.
-
-**Notes:** The WASM binary (`packages/go/iscc_ffi.wasm`) was stale and had to be rebuilt locally
-despite next.md stating it was already up-to-date. The binary is gitignored (build artifact), so
-this didn't affect the commit. The advance agent correctly identified and resolved this
-prerequisite. The `IsccDecode` implementation handles the complex WASM sret ABI correctly with
-proper cleanup in all error paths (sret dealloc, string dealloc, digest copy before free).
+**Notes:** The next.md referenced `docs/howto/java.md` and `docs/howto/python.md` for
+codec/constants section patterns, but neither has those sections yet. I followed the existing
+pattern in go.md (Algorithm primitives section style) for the Codec operations section and used a
+simple code-comment format for the Constants section. The README tables were reformatted by mdformat
+during the format pass (proper column alignment).

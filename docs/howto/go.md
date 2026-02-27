@@ -362,6 +362,80 @@ Additional primitives:
 - `AlgCdcChunks(ctx, data, utf32, avgChunkSize)` — split data into content-defined chunks
 - `AlgSimhash(ctx, digests)` — compute a SimHash from equal-length byte digests
 
+## Codec operations
+
+Functions for encoding, decoding, and decomposing ISCC codes. These operate on the ISCC binary
+format defined in ISO 24138.
+
+### Encode and decode
+
+Construct an ISCC unit from raw header fields and digest, then decode it back:
+
+```go
+// Encode: maintype=0 (Meta), subtype=0, version=0, 64 bits, 8-byte digest
+digest := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}
+code, err := rt.EncodeComponent(ctx, 0, 0, 0, 64, digest)
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(code) // ISCC unit string (without "ISCC:" prefix)
+
+// Decode: parse an ISCC unit string back into its header components and digest
+result, err := rt.IsccDecode(ctx, code)
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Printf("Maintype: %d, Subtype: %d, Version: %d, Length: %d\n",
+	result.Maintype, result.Subtype, result.Version, result.Length)
+fmt.Printf("Digest: %x\n", result.Digest)
+```
+
+`IsccDecode` returns a `*DecodeResult` with fields `Maintype`, `Subtype`, `Version`, `Length`
+(length index), and `Digest` (raw bytes).
+
+### Decompose
+
+Split a composite ISCC-CODE into its individual unit codes:
+
+```go
+// Generate a composite ISCC-CODE first
+data := bytes.Repeat([]byte("Hello World"), 1000)
+dataCode, _ := rt.GenDataCodeV0(ctx, data, 64)
+instanceCode, _ := rt.GenInstanceCodeV0(ctx, data, 64)
+isccCode, _ := rt.GenIsccCodeV0(ctx, []string{dataCode, instanceCode})
+
+// Decompose into individual units
+units, err := rt.IsccDecompose(ctx, isccCode)
+if err != nil {
+	log.Fatal(err)
+}
+for _, unit := range units {
+	fmt.Println(unit) // Each unit code with "ISCC:" prefix
+}
+```
+
+### Other codec functions
+
+- `EncodeBase64(ctx, data []byte) (string, error)` — encode bytes to base64
+- `JsonToDataUrl(ctx, jsonStr string) (string, error)` — convert a JSON string to a
+    `data:application/json;base64,...` URL
+- `SoftHashVideoV0(ctx, frameSigs [][]int32, bits uint32) ([]byte, error)` — compute a video
+    similarity hash from MPEG-7 frame signatures
+
+## Constants
+
+Package-level constants used by the ISCC algorithms. These are imported directly from the package,
+not accessed through `Runtime`:
+
+```go
+import iscc "github.com/iscc/iscc-lib/packages/go"
+
+iscc.MetaTrimName        // 128 — max byte length for name normalization
+iscc.MetaTrimDescription // 4096 — max byte length for description normalization
+iscc.IoReadSize          // 4_194_304 — default read buffer size (4 MB)
+iscc.TextNgramSize       // 13 — n-gram size for text similarity hashing
+```
+
 ## Conformance testing
 
 Verify that the library produces correct results for all official test vectors:

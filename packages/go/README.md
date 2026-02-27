@@ -75,12 +75,58 @@ func main() {
 All methods are on `*Runtime` and accept a `context.Context` as the first parameter. Functions
 return `(string, error)` following idiomatic Go error handling.
 
-### Utilities
+### Text Processing
 
-- **Text processing:** `TextClean`
-- **Diagnostics:** `ConformanceSelftest`
+| Function             | Description                                              |
+| -------------------- | -------------------------------------------------------- |
+| `TextClean`          | Normalize text (NFKC, control chars, line endings)       |
+| `TextRemoveNewlines` | Remove newlines and collapse whitespace to single spaces |
+| `TextTrim`           | Trim text to a UTF-8 byte length limit                   |
+| `TextCollapse`       | Simplify text for similarity hashing                     |
 
-Additional utilities (text processing, algorithm primitives, streaming hashers) are planned.
+### Algorithm Primitives
+
+| Function          | Description                                             |
+| ----------------- | ------------------------------------------------------- |
+| `SlidingWindow`   | Generate overlapping substrings of a given width        |
+| `AlgMinhash256`   | Compute a 256-bit MinHash digest from `uint32` features |
+| `AlgCdcChunks`    | Split data into content-defined chunks                  |
+| `AlgSimhash`      | Compute a SimHash from equal-length byte digests        |
+| `SoftHashVideoV0` | Compute video similarity hash from frame signatures     |
+
+### Codec Operations
+
+| Function          | Description                                                |
+| ----------------- | ---------------------------------------------------------- |
+| `EncodeBase64`    | Encode bytes to base64                                     |
+| `JsonToDataUrl`   | Convert JSON string to `data:` URL                         |
+| `EncodeComponent` | Construct an ISCC unit from header fields and digest       |
+| `IsccDecode`      | Decode an ISCC unit string into header components + digest |
+| `IsccDecompose`   | Decompose a composite ISCC-CODE into individual units      |
+
+### Streaming
+
+| Type / Function     | Description                                           |
+| ------------------- | ----------------------------------------------------- |
+| `NewDataHasher`     | Create a streaming Data-Code hasher                   |
+| `NewInstanceHasher` | Create a streaming Instance-Code hasher               |
+| `DataHasher`        | Streaming hasher with `Update` → `Finalize` → `Close` |
+| `InstanceHasher`    | Streaming hasher with `Update` → `Finalize` → `Close` |
+
+### Constants
+
+| Constant              | Value     | Description                                   |
+| --------------------- | --------- | --------------------------------------------- |
+| `MetaTrimName`        | 128       | Max byte length for name normalization        |
+| `MetaTrimDescription` | 4096      | Max byte length for description normalization |
+| `IoReadSize`          | 4,194,304 | Default read buffer size (4 MB)               |
+| `TextNgramSize`       | 13        | N-gram size for text similarity hashing       |
+
+### Diagnostics
+
+| Function              | Description                                      |
+| --------------------- | ------------------------------------------------ |
+| `ConformanceSelftest` | Verify correctness against official test vectors |
 
 ## Architecture
 
