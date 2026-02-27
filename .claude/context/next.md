@@ -1,154 +1,99 @@
 # Next Work Package
 
-## Step: Propagate 7 Tier 1 symbols to Go binding
+## Step: Update Go docs for 30/30 Tier 1 symbols
 
 ## Goal
 
-Add the 7 missing Tier 1 symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4
-constants) to the Go/wazero binding, bringing it from 23/30 to 30/30 — completing all language
-bindings.
+Update `docs/howto/go.md` and `packages/go/README.md` to document the 7 newly added Go symbols (4
+constants + 3 functions) and replace stale "planned" text, closing the last documentation gap
+identified by the state assessment.
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `packages/go/iscc.go` (add constants, `DecodeResult` struct, 3 new methods)
-- **Reference**:
-    - `crates/iscc-ffi/src/lib.rs` — C FFI signatures for `iscc_json_to_data_url`,
-        `iscc_encode_component`, `iscc_decode`, `iscc_free_decode_result`, `IsccDecodeResult` struct
-        layout
-    - `packages/go/iscc.go` — existing patterns: `callStringResult`, `writeString`, `writeBytes`,
-        `readByteBuffer`, `freeByteBuffer`, `dealloc`
-    - `packages/go/iscc_test.go` — existing test patterns
-    - `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — test vectors for the
-        new symbols
+- **Create**: (none)
+- **Modify**: `docs/howto/go.md`, `packages/go/README.md`
+- **Reference**: `packages/go/iscc.go` (exact method signatures, constants, `DecodeResult` struct),
+    `docs/howto/java.md` (for codec operations section pattern), `docs/howto/python.md` (for
+    constants/codec section style)
 
 ## Not In Scope
 
-- Rebuilding the WASM binary (`iscc_ffi.wasm`) — the binary already exports all FFI functions
-    including the 3 new ones (it was rebuilt when C FFI was updated)
-- Changing Go module path, version, or `go.mod` dependencies
-- Adding Go-side `MT`/`ST`/`VS` enum types — Go constants use plain `int` (idiomatic Go)
-- Updating documentation (`docs/howto/go.md`) — separate step if needed
-- Refactoring existing Go bridge code
+- Deleting resolved issues from `issues.md` — the review agent handles issue cleanup
+- Updating the root `README.md` — it already covers all 6 bindings and lists the 9 `gen_*_v0`
+    functions
+- Adding new Go tests or modifying Go source code
+- Updating `docs/architecture.md` or `docs/development.md`
 
 ## Implementation Notes
 
-### Constants (4 symbols)
+### `docs/howto/go.md` — add two new sections
 
-Add package-level constants at the top of `iscc.go` (after imports, before `Runtime` struct):
+**1. Codec operations section** (insert after "Algorithm primitives", before "Conformance testing"):
 
-```go
-const (
-    MetaTrimName        = 128
-    MetaTrimDescription = 4096
-    IoReadSize          = 4_194_304
-    TextNgramSize       = 13
-)
-```
+Add a `## Codec operations` section covering these 6 functions:
 
-### `JsonToDataUrl` method
+- `EncodeBase64(ctx, data []byte) (string, error)` — encode bytes to base64
+- `JsonToDataUrl(ctx, jsonStr string) (string, error)` — convert JSON string to
+    `data:application/json;base64,...` URL
+- `EncodeComponent(ctx, mtype, stype, version uint8, bitLength uint32, digest []byte) (string, error)`
+    — construct an ISCC unit from raw header fields and digest
+- `IsccDecode(ctx, isccUnit string) (*DecodeResult, error)` — decode an ISCC unit string into its
+    header components and raw digest; returns `*DecodeResult` with `Maintype`, `Subtype`, `Version`,
+    `Length`, `Digest` fields
+- `IsccDecompose(ctx, isccCode string) ([]string, error)` — decompose a composite ISCC-CODE into
+    individual unit codes
+- `SoftHashVideoV0(ctx, frameSigs [][]int32, bits uint32) ([]byte, error)` — compute video soft hash
+    from frame signatures
 
-Simple string→string pattern, identical to `TextClean`:
+Include short Go code examples showing encode/decode roundtrip and decompose usage. Look at
+`docs/howto/java.md` for the codec section structure to follow a consistent pattern across guides.
 
-1. `writeString` the JSON input
-2. Call `iscc_json_to_data_url(ptr)` — returns a string pointer
-3. Use `callStringResult` to read and free the result
-4. `dealloc` the input string
+**2. Algorithm constants section** (insert after "Codec operations"):
 
-### `EncodeComponent` method
-
-Signature:
-`EncodeComponent(ctx, mtype, stype, version uint8, bitLength uint32, digest []byte) (string, error)`
-
-1. `writeBytes` the digest
-2. Call `iscc_encode_component(mtype, stype, version, bit_length, digest_ptr, digest_len)` — 6 i64
-    params (wazero uses uint64 for all WASM i32 values), returns string pointer
-3. Use `callStringResult` to read and free the result
-4. `dealloc` the digest bytes
-
-### `IsccDecode` method — struct return via sret
-
-This is the most complex. The C FFI function `iscc_decode` returns an `IsccDecodeResult` struct
-(`#[repr(C)]`, 16 bytes on wasm32).
-
-**WASM struct layout** (wasm32, `#[repr(C)]`):
-
-- offset 0: `ok` (bool = 1 byte)
-- offset 1: `maintype` (u8)
-- offset 2: `subtype` (u8)
-- offset 3: `version` (u8)
-- offset 4: `length` (u8)
-- offset 5–7: padding (3 bytes, alignment to 4 for IsccByteBuffer)
-- offset 8: `digest.data` (u32 pointer)
-- offset 12: `digest.len` (u32)
-- Total: 16 bytes
-
-**sret calling convention**: WASM uses sret for struct returns. The function signature becomes
-`iscc_decode(sret_ptr, iscc_str_ptr)` where `sret_ptr` is a pre-allocated 16-byte region.
-
-Steps:
-
-1. Allocate 16 bytes for sret: `rt.alloc(ctx, 16)`
-2. `writeString` the ISCC unit string
-3. Call `iscc_decode(sret_ptr, str_ptr)` — no return value (result written to sret)
-4. Read 16 bytes from `sret_ptr`
-5. Parse: `ok = raw[0] != 0`, `maintype = raw[1]`, `subtype = raw[2]`, `version = raw[3]`,
-    `length = raw[4]`
-6. If `!ok`, read `lastError`, free sret via `dealloc(sret_ptr, 16)`, return error
-7. Digest: `dataPtr = LittleEndian.Uint32(raw[8:12])`, `dataLen = LittleEndian.Uint32(raw[12:16])`
-8. Read `dataLen` bytes from `dataPtr` into Go `[]byte`
-9. Free: call `iscc_free_decode_result(sret_ptr)` (single i32 param — struct passed by pointer in
-    WASM per learnings), then `dealloc(sret_ptr, 16)`
-
-Define a Go `DecodeResult` struct:
+Add a `## Constants` section listing the 4 package-level constants:
 
 ```go
-type DecodeResult struct {
-    Maintype uint8
-    Subtype  uint8
-    Version  uint8
-    Length   uint8
-    Digest   []byte
-}
+iscc.MetaTrimName        // 128 — max byte length for name normalization
+iscc.MetaTrimDescription // 4096 — max byte length for description normalization
+iscc.IoReadSize          // 4_194_304 — default read buffer size (4 MB)
+iscc.TextNgramSize       // 13 — n-gram size for text similarity hashing
 ```
 
-### `iscc_free_decode_result` in WASM
+Emphasize these are package-level constants (imported directly), not `Runtime` methods.
 
-Per the learnings: "WASM sret ABI for struct returns: `iscc_free_byte_buffer` and
-`iscc_free_byte_buffer_array` take the struct by pointer (single i32 param) on wasm32." The same
-applies to `iscc_free_decode_result` — pass the sret pointer directly.
+### `packages/go/README.md` — update API Overview
 
-### Tests
+Replace the stale Utilities subsection (lines 78-83) which says "Additional utilities (text
+processing, algorithm primitives, streaming hashers) are planned." with a complete listing organized
+into subsections matching the full 30/30 symbol set:
 
-Add tests in `packages/go/iscc_test.go`:
+- **Text processing**: `TextClean`, `TextRemoveNewlines`, `TextTrim`, `TextCollapse`
+- **Algorithm primitives**: `SlidingWindow`, `AlgMinhash256`, `AlgCdcChunks`, `AlgSimhash`,
+    `SoftHashVideoV0`
+- **Codec operations**: `EncodeBase64`, `JsonToDataUrl`, `EncodeComponent`, `IsccDecode`,
+    `IsccDecompose`
+- **Streaming**: `DataHasher`, `InstanceHasher` (with `NewDataHasher`/`NewInstanceHasher` + `Update`
+    - `Finalize` + `Close`)
+- **Constants**: `MetaTrimName`, `MetaTrimDescription`, `IoReadSize`, `TextNgramSize`
+- **Diagnostics**: `ConformanceSelftest`
 
-1. `TestConstants` — verify all 4 constant values
-2. `TestJsonToDataUrl` — test with a simple JSON object, verify `data:application/json;base64,...`
-    prefix
-3. `TestJsonToDataUrlLdJson` — test with `@context` key, verify
-    `data:application/ld+json;base64,...`
-4. `TestEncodeComponent` — encode a known Meta-Code component, verify output matches expected
-5. `TestIsccDecode` — decode a known ISCC unit, verify all fields
-6. `TestIsccDecodeInvalid` — decode an invalid string, verify error returned
-7. `TestEncodeDecodeRoundtrip` — encode then decode, verify round-trip consistency
-
-Use the same test vectors as Java tests (in `IsccLibTest.java`).
+Use a table format consistent with the existing Code Generators table in the same file.
 
 ## Verification
 
-- `cd packages/go && mise exec -- go test -v -run TestConstants ./...` passes
-- `cd packages/go && mise exec -- go test -v -run TestJsonToDataUrl ./...` passes
-- `cd packages/go && mise exec -- go test -v -run TestEncodeComponent ./...` passes
-- `cd packages/go && mise exec -- go test -v -run TestIsccDecode ./...` passes
-- `cd packages/go && mise exec -- go test -v -run TestEncodeDecodeRoundtrip ./...` passes
-- `cd packages/go && mise exec -- go test -count=1 ./...` passes (all existing + new tests)
-- `cd packages/go && mise exec -- go vet ./...` clean
-- `grep -c 'MetaTrimName\|MetaTrimDescription\|IoReadSize\|TextNgramSize' packages/go/iscc.go`
-    returns 4 (one per constant)
-- `grep -c 'func (rt \*Runtime)' packages/go/iscc.go` returns at least 26 (23 existing methods + 3
-    new)
+- `grep -c 'EncodeComponent' docs/howto/go.md` returns ≥ 1
+- `grep -c 'IsccDecode' docs/howto/go.md` returns ≥ 1
+- `grep -c 'IsccDecompose' docs/howto/go.md` returns ≥ 1
+- `grep -c 'JsonToDataUrl' docs/howto/go.md` returns ≥ 1
+- `grep -c 'EncodeBase64' docs/howto/go.md` returns ≥ 1
+- `grep -c 'SoftHashVideoV0' docs/howto/go.md` returns ≥ 1
+- `grep -c 'MetaTrimName' docs/howto/go.md` returns ≥ 1
+- `grep 'are planned' packages/go/README.md` returns no matches (stale text removed)
+- `grep -c 'EncodeComponent' packages/go/README.md` returns ≥ 1
+- `grep -c 'DataHasher' packages/go/README.md` returns ≥ 1
+- `uv run zensical build` exits 0 (docs site builds cleanly)
 
 ## Done When
 
-All verification criteria pass, confirming 30/30 Tier 1 symbols are accessible from Go with correct
-behavior matching the C FFI/WASM/Java/Node.js implementations.
+All verification criteria pass — both Go documentation files are updated to cover the full 30/30
+Tier 1 symbol set with no stale "planned" text remaining.

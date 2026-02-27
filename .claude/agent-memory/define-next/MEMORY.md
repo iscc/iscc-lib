@@ -116,6 +116,12 @@ iterations.
     (established earlier by the root README step) while docs/index.md had stale patterns — always
     cross-check both files when scoping doc fixes. Verification for doc example fixes can use `grep`
     for presence/absence of specific patterns (e.g., `grep -c 'json.loads'` returns 0).
+- **Post-binding-completion doc updates** (CID loop 4, iteration 13): When new symbols are added to
+    a binding but docs were written for the earlier symbol count, batch the howto guide + per-crate
+    README update into a single step (2 files). The howto guide needs new sections (codec
+    operations, constants) while the README needs stale "planned" text replaced with actual API
+    tables. Verification is all grep-based — check for presence of newly documented symbols and
+    absence of stale text. `uv run zensical build` catches broken docs markup.
 - **Interactive session CI breakage** (CID iteration 1 on new loop): Interactive sessions that
     modify Python binding stubs/init files can break `ruff format --check` in CI. The handoff from
     the previous review cycle may not flag CI status if it was green at that time — always check
