@@ -342,3 +342,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
         `test_new_symbols.py` (now 25 tests). Review agent PASS. 184 total pytest tests (was 177). CI
         all 7 jobs passing at HEAD `e74d416` (run 22484174232). Python missing extensions now 2 (was
         3): MT/ST/VS IntEnum, core_opts SimpleNamespace.
+- **CID iteration 8 (commits 4d87055..17995bf)**: advance agent added `MT`/`ST`/`VS` `IntEnum`
+    classes (8/8/1 values), `core_opts` `SimpleNamespace` (4 attributes), and `iscc_decode` Python
+    wrapper returning `(MT, ST, VS, length, bytes)` with IntEnum-typed values. All in
+    `crates/iscc-py/python/iscc_lib/__init__.py`. 14 new tests added to `test_new_symbols.py` (now
+    39 test functions). Review agent PASS. 198 total pytest tests (was 184). `__all__` now 45
+    entries (MT, ST, VS, core_opts added; was 41). **Python Bindings: fully MET** — all 30/30 Tier 1
+    symbols
+    - all iscc-core drop-in extensions complete. CI all 7 jobs passing at HEAD `17995bf` (runs
+        22484814543 + 22484813628). Next: propagate 7 symbols to Node.js, WASM, C FFI, Java, Go.

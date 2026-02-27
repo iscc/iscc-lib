@@ -1,15 +1,16 @@
-<!-- assessed-at: e74d416 -->
+<!-- assessed-at: 17995bf -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Binding Propagation — Python drop-in extensions (2 of 4 remaining); 5 bindings at 23/30
+## Phase: Symbol Propagation — 7 Tier 1 symbols to 5 remaining bindings (Node.js, WASM, C FFI, Java, Go)
 
-CID iteration 7 added PIL pixel data support for `gen_image_code_v0` in Python: a 3-line widening of
-the type signature to accept `bytes | bytearray | memoryview | Sequence[int]`, converting non-bytes
-input via `bytes()`. 184 Python tests pass; all 7 CI jobs green. Two Python iscc-core drop-in
-extensions remain, then 7 Tier 1 symbols must be propagated to Node.js, WASM, C FFI, Java, and Go.
+CID iteration 8 completed the final Python iscc-core drop-in extensions: `MT`, `ST`, `VS` `IntEnum`
+classes, `core_opts` `SimpleNamespace`, and an `iscc_decode` wrapper returning IntEnum-typed values.
+Python bindings are now fully met. All other bindings remain at 23/30 Tier 1 symbols — the 7 new
+symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants) must be propagated
+to Node.js, WASM, C FFI, Java, and Go.
 
 ## Rust Core Crate
 
@@ -30,23 +31,25 @@ extensions remain, then 7 Tier 1 symbols must be propagated to Node.js, WASM, C 
 
 ## Python Bindings
 
-**Status**: partially met (30/30 Tier 1 symbols exposed; 2 iscc-core drop-in extensions missing)
+**Status**: met (30/30 Tier 1 symbols + all iscc-core drop-in extensions)
 
 - All 30/30 Tier 1 symbols accessible from Python
-- `__all__` has 41 entries: 4 constants + `__version__` + `IsccResult` + 9 result type classes + 27
-    API symbols
+- `__all__` has 45 entries: 4 constants + `__version__` + `MT`/`ST`/`VS` IntEnums + `core_opts` +
+    `IsccResult` + 9 typed result classes + `DataHasher` + `InstanceHasher` + 27 API symbols
 - `IsccResult(dict)` base class + 9 typed subclasses — dict-style and attribute-style access both
     work
+- `MT` (`IntEnum`, 8 values: META=0..FLAKE=7), `ST` (`IntEnum`, 8 values with TEXT=0 alias for
+    NONE=0), `VS` (`IntEnum`, V0=0) — all exported in `__all__`
+- `core_opts` `SimpleNamespace` with `meta_trim_name=128`, `meta_trim_description=4096`,
+    `io_read_size=4_194_304`, `text_ngram_size=13` — exported in `__all__`
+- `iscc_decode` Python wrapper returns `(MT, ST, VS, length, bytes)` with IntEnum-typed values
 - `gen_meta_code_v0` accepts `meta: str | dict | None` — dict serialized to compact JSON then
     converted to data URL via `json_to_data_url`
-- `gen_image_code_v0` now accepts `bytes | bytearray | memoryview | Sequence[int]` — non-bytes input
-    converted via `bytes()` (NEW this iteration, 3-line change)
+- `gen_image_code_v0` accepts `bytes | bytearray | memoryview | Sequence[int]` — non-bytes input
+    converted via `bytes()`
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
-- 184 tests passing across 6 files (up from 177); CI-verified on run 22484174232
+- 198 tests passing across 6 files (CI-verified at HEAD 17995bf)
 - `ruff check` and `ruff format --check` pass (CI-verified at HEAD)
-- **Missing iscc-core drop-in extensions** (per `specs/python-bindings.md`):
-    - `MT`, `ST`, `VS` `IntEnum` classes — not present
-    - `core_opts` `SimpleNamespace` — not present
 - `iscc-lib 0.0.2` not yet published to PyPI (0.0.1 was published; release not re-triggered since
     v0.0.2 bump)
 
@@ -153,8 +156,8 @@ publishing absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22484174232](https://github.com/iscc/iscc-lib/actions/runs/22484174232) — all 7 jobs
-    SUCCESS — triggered at HEAD `e74d416`
+    [Run 22484814543](https://github.com/iscc/iscc-lib/actions/runs/22484814543) — all 7 jobs
+    SUCCESS — triggered at HEAD `17995bf`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -165,19 +168,13 @@ publishing absent)
 
 ## Next Milestone
 
-**Complete remaining 2 Python iscc-core drop-in extensions, then propagate 7 symbols to 5
-bindings:**
+**Propagate 7 new Tier 1 symbols to all 5 remaining bindings:**
 
-1. **Python drop-in extensions** (`crates/iscc-py`) — 2 items remaining:
-    - Add `MT`, `ST`, `VS` `IntEnum` classes (8/5/1 values); export in `__all__`; update
-        `iscc_decode` return to use enum values
-    - Add `core_opts` `SimpleNamespace` with `meta_trim_name`, `meta_trim_description`,
-        `io_read_size`, `text_ngram_size` attributes; export in `__all__`
-2. **Node.js** (`crates/iscc-napi`): Add 3 functions + 4 constants with `#[napi]`; update TS types;
-    add tests
-3. **WASM** (`crates/iscc-wasm`): Add 3 functions + 4 constants with `#[wasm_bindgen]`; add tests
-4. **C FFI** (`crates/iscc-ffi`): Add `extern "C"` wrappers for 3 functions; add `#define` constants
+1. **Node.js** (`crates/iscc-napi`): Add `encode_component`, `iscc_decode`, `json_to_data_url` as
+    `#[napi]` functions; expose 4 constants via `#[napi]`; update TypeScript types; add tests
+2. **WASM** (`crates/iscc-wasm`): Add 3 functions + 4 constants with `#[wasm_bindgen]`; add tests
+3. **C FFI** (`crates/iscc-ffi`): Add `extern "C"` wrappers for 3 functions; add `#define` constants
     in cbindgen header; add C tests
-5. **Java** (`crates/iscc-jni`): Add JNI functions + Java method declarations; add tests
-6. **Go** (`packages/go`): Extend `iscc.go` with 3 functions + 4 constants; update `.wasm` embed;
+4. **Java** (`crates/iscc-jni`): Add JNI functions + Java method declarations; add tests
+5. **Go** (`packages/go`): Extend `iscc.go` with 3 functions + 4 constants; update `.wasm` embed;
     add tests
