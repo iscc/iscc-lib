@@ -459,3 +459,10 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 
 - Go dependency management: `go get` adds dependencies as `// indirect` regardless of whether
     they're directly imported — always run `go mod tidy` afterward to fix annotations
+
+- Go MinHash/CDC/SimHash port: Go `uint32`/`uint64` arithmetic wraps naturally at overflow, matching
+    Rust's `wrapping_add`/`wrapping_mul` — no special handling needed. Go `%` and `&` operators have
+    equal precedence (both multiplicative), so `x % mprime & maxH` evaluates left-to-right as
+    `(x % mprime) & maxH`, matching Rust operator precedence. Use `const` (not `var`) for scalar
+    constants like `math.MaxUint64` and bit-shift expressions — Go supports these as constant
+    expressions

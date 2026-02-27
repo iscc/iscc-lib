@@ -6,13 +6,13 @@ package iscc
 import "math"
 
 // maxi64 is the maximum uint64 value (2^64 - 1).
-var maxi64 uint64 = math.MaxUint64
+const maxi64 uint64 = math.MaxUint64
 
 // mprime is the Mersenne prime 2^61 - 1.
-var mprime uint64 = (1 << 61) - 1
+const mprime uint64 = (1 << 61) - 1
 
 // maxH is the maximum hash value mask (2^32 - 1).
-var maxH uint64 = (1 << 32) - 1
+const maxH uint64 = (1 << 32) - 1
 
 // mpa contains 64 universal hash function multipliers for MinHash.
 var mpa = [64]uint64{
@@ -150,7 +150,7 @@ var mpb = [64]uint64{
 	1501611130776083278,
 }
 
-// minhash computes a 64-dimensional MinHash from 32-bit integer features.
+// minhashFn computes a 64-dimensional MinHash from 32-bit integer features.
 // Uses 64 universal hash functions parameterized by mpa/mpb. Returns maxH
 // for each dimension when features is empty.
 func minhashFn(features []uint32) []uint64 {

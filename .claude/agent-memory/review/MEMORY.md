@@ -93,8 +93,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java JNI has 30/30 Tier 1 symbols as of iteration 11 (58 Maven tests: 51 existing + 7 new)
 - Go/wazero has 30/30 Tier 1 symbols as of iteration 12 (48 total Runtime methods: 27 public + 21
     private helpers, 7 new tests)
-- Go pure rewrite progress: codec module complete (570 lines, 48 tests), text utils complete (130
-    lines, 21 tests). Next: algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash) → gen functions
+- Go pure rewrite progress: codec complete (570 lines, 48 tests), text utils complete (130 lines, 21
+    tests), algorithms partial — CDC (129 lines, 15 tests), MinHash (205 lines, 8 tests),
+    SimHash+SlidingWindow (86 lines, 14 tests). Next: DCT, WTA-Hash → gen functions
 
 ## Binding Propagation Review Shortcuts
 
