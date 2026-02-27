@@ -196,8 +196,6 @@ public class IsccLib {
      */
     public static native String encodeBase64(byte[] data);
 
-    // ── Encoding ── (additional) ────────────────────────────────────────────
-
     /**
      * Convert a JSON string to a data URL with base64 encoding.
      *

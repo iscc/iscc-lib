@@ -78,24 +78,38 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Node.js has 30/30 Tier 1 symbols as of iteration 8 (124 tests total: 103 existing + 21 new)
 - WASM has 30/30 Tier 1 symbols as of iteration 9 (59 unit tests + 9 conformance tests)
 - C FFI has 30/30 Tier 1 symbols as of iteration 10 (77 Rust unit tests, 49 C test assertions)
-- Java JNI, Go/wazero are at 23/30 Tier 1 symbols
+- Java JNI has 30/30 Tier 1 symbols as of iteration 11 (58 Maven tests: 51 existing + 7 new)
+- Go/wazero is at 23/30 Tier 1 symbols (last remaining binding)
 
 ## Binding Propagation Review Shortcuts
 
 - For napi-rs binding propagation: `cd crates/iscc-napi && npm test` +
     `cargo clippy -p iscc-napi   --all-targets -- -D warnings` + `mise run check` covers all gates.
     Verify 7 new symbols individually via `node -e` one-liners (constants values, function types)
+
 - Binding propagation diffs are typically 2 files: native wrapper source + test file. Quick to
     review — check error mapping pattern, type conversions, test coverage categories
+
 - WASM binding propagation: `wasm-pack test --node crates/iscc-wasm` +
     `wasm-pack test --node crates/iscc-wasm --features conformance` +
     `cargo clippy -p iscc-wasm --all-targets -- -D warnings` + `mise run check` covers all gates.
     Remember to update `crates/iscc-wasm/CLAUDE.md` API surface list when symbols are added
+
 - C FFI binding propagation: `cargo test -p iscc-ffi` +
     `cargo clippy -p iscc-ffi --all-targets -- -D warnings` + `mise run check` + C test compilation
     (requires cbindgen header generation:
     `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/tests/iscc.h`
     then gcc build and run). Clean up generated iscc.h after testing
+
+- Java JNI binding propagation: `cargo build -p iscc-jni` +
+    `cargo clippy -p iscc-jni --all-targets -- -D warnings` + `cd crates/iscc-jni/java && mvn test`
+    \+ `mise run check` covers all gates. Use `grep -c 'pub extern "system" fn'` (not
+    `extern "system"`) to count actual functions — the module doc comment also matches the looser
+    pattern
+
+- For JNI `isccDecode` returning structured data: verify `env.find_class` path uses `/` separators
+    (not `.`), constructor signature matches class constructor, and `JValue::Object` wraps byte
+    array reference correctly
 
 ## Verification Patterns
 
