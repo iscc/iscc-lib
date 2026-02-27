@@ -51,7 +51,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     (must `cd` into the Go module directory — running from repo root with `./packages/go/` path
     fails with "cannot find main module")
 
-- Full test suite (159 tests) runs in \<1s — always run it for Python changes
+- Full test suite (172 tests) runs in \<1s — always run it for Python changes
 
 - Script-only changes (new Python scripts, mise task additions): `mise run check` + direct script
     invocation is sufficient — skip all test suites unless the script modifies test infrastructure
@@ -62,14 +62,19 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Codex Review Integration
 
-- `codex exec review --ephemeral --commit HEAD` output uses interleaved `thinking`/`exec` blocks —
-    there is no `codex` marker line to `sed` on. Read the full output and extract findings manually
+- `codex exec review --ephemeral --commit HEAD` output ends with structured findings after a `codex`
+    marker line. Use `sed -n '/^codex$/,$ p' /tmp/codex-review.txt | tail -n +2` to extract them
 - Codex typically runs tests and grep searches to verify the commit — its findings are advisory and
     should be cross-referenced with your own analysis
 - The `--commit HEAD~1` in the protocol template assumes advance is at HEAD~1, but when the review
     agent runs immediately after advance, the advance commit is at HEAD. Always use `--commit HEAD`
     for the advance commit (or verify with `git log` first). Codex reviewing the wrong commit
     (define-next instead of advance) produces mostly irrelevant findings about planning docs
+
+## Python Binding State
+
+- `__all__` count in `iscc_lib/__init__.py` is 41 as of iteration 4 (30 Tier 1 API symbols + 10
+    result type classes + `__version__`)
 
 ## Verification Patterns
 

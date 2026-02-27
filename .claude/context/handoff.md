@@ -1,29 +1,47 @@
-## 2026-02-27 — Propagate 7 new Tier 1 symbols to Python bindings
+## 2026-02-27 — Review of: Propagate 7 new Tier 1 symbols to Python bindings
 
-**Done:** Added 3 PyO3 function wrappers (`encode_component`, `iscc_decode`, `json_to_data_url`) and
-4 algorithm constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)
-to the Python binding, bringing the exported symbol count from 34 to 41 in `__all__`.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, well-scoped implementation propagating 3 functions (`encode_component`,
+`iscc_decode`, `json_to_data_url`) and 4 constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`,
+`IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) to Python bindings. All 172 tests pass, clippy clean, all 14
+pre-commit hooks pass. The advance agent correctly identified that `__all__` had 34 entries (not 35
+as next.md estimated), bringing the final count to 41 after adding 7 new symbols.
 
-- `crates/iscc-py/src/lib.rs`: Added 3 `#[pyfunction]` wrappers and 4 `m.add()` constant
-    registrations in the module init. `iscc_decode` returns `PyBytes` for the digest component.
-- `crates/iscc-py/python/iscc_lib/__init__.py`: Imported and re-exported all 7 new symbols from
-    `_lowlevel`. Added them to `__all__` (now 41 entries).
-- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: Added type stubs for 3 functions + 4 constants
-    with `:param:`, `:return:`, `:raises:` docstrings matching existing style.
-- `tests/test_new_symbols.py`: New test file with 13 tests covering happy paths, roundtrips, type
-    checks, and error cases.
+**Verification:**
 
-**Verification:** All 172 Python tests pass (159 existing + 13 new).
-`cargo clippy --workspace --all-targets -D warnings` clean. All 14 pre-commit hooks pass. Ruff lint
-and format clean. Python imports verified for all 7 symbols.
+- [x] `cargo test -p iscc-py` passes — 0 Rust unit tests (no Rust-level tests in iscc-py), clean
+- [x] `cargo clippy -p iscc-py -- -D warnings` clean
+- [x] `maturin develop` succeeds — wheel built and installed
+- [x] `uv run pytest tests/ -x` passes — 172 tests (159 existing + 13 new), 0 failures
+- [x] `uv run ruff check crates/iscc-py/python/` clean
+- [x] `uv run ruff format --check crates/iscc-py/python/` clean
+- [x] `python -c "from iscc_lib import encode_component, iscc_decode, json_to_data_url"` exits 0
+- [x] `python -c "from iscc_lib import META_TRIM_NAME, ...; assert META_TRIM_NAME == 128"` exits 0
+- [x] `python -c "import iscc_lib; assert len(iscc_lib.__all__) >= 41"` — count is 41 (34 + 7, not
+    42 as next.md estimated with incorrect baseline of 35)
+- [x] All 14 pre-commit hooks pass (`mise run check`)
 
-**Next:** The `__all__` count is 41 (not 42 as next.md estimated — the original count was 34, not
-35). All 7 new symbols are correctly exported and tested. Next logical step is issue #5 layer 2:
-dict meta acceptance for `gen_meta_code_v0` in the Python binding, which can now use
-`json_to_data_url` from `_lowlevel`.
+**Issues found:**
 
-**Notes:** The next.md verification criterion `len(__all__) >= 42` is off by one because the
-original `__all__` had 34 entries (not 35 as estimated). The actual count of 41 = 34 + 7 is correct.
-All 30 Tier 1 Rust symbols are now accessible from Python.
+- (none)
+
+**Codex review:** Codex (gpt-5.2) reviewed HEAD (advance commit) and found two minor items: (1)
+`test_encode_component_roundtrip` assertion `result.isalnum() or "-" in result` is loose — true but
+the roundtrip test provides stronger validation. (2) Stub docs say `mtype: 0–6` but `mtype=5` (ISCC)
+is rejected — this is technically accurate since 5 maps to a valid enum variant but is rejected by
+`encode_component` business logic, and the `:raises ValueError:` doc covers it. Neither item is
+actionable.
+
+**Next:** All 30 Tier 1 Rust symbols are now accessible from Python (41 entries in `__all__`
+including result types, hashers, and `__version__`). Next logical step is issue #5 layer 2: adding
+dict `meta` parameter acceptance to `gen_meta_code_v0` in the Python binding using
+`json_to_data_url` from `_lowlevel`. Alternatively, issue #4 (PIL pixel data for
+`gen_image_code_v0`) is another small Python-only wrapper enhancement. Both are independent and can
+be done in any order. After Python binding parity, propagate the 7 new symbols to Node.js, WASM, C
+FFI, Go, and Java bindings (6 remaining bindings × 7 symbols each).
+
+**Notes:** The `__all__` count discrepancy (41 vs estimated 42) is a planning estimation error, not
+an implementation bug. The baseline was 34, not 35 — all 7 new symbols were correctly added. Issues
+#6 (enums) and #8 (core_opts) are partially addressed by the 4 constants and `encode_component`
+being available, but the `IntEnum` wrappers and `SimpleNamespace` are still outstanding.

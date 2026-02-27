@@ -102,6 +102,10 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 
 - PyO3 `#[pyo3(signature = (data, bits=64))]` syntax provides Python-side default arguments cleanly
 
+- PyO3 constants: register with `m.add("NAME", value)?` in module init (not `wrap_pyfunction!`).
+    Re-export in `__init__.py` with `NAME as NAME` pattern for explicit re-export. Type stubs use
+    `NAME: int` with inline docstrings
+
 - `ty` type checker (pre-push hook) cannot resolve native extension module imports — PyO3/maturin
     modules need `.pyi` type stubs (e.g., `_lowlevel.pyi`) alongside `py.typed` for `ty` to pass
 
@@ -266,8 +270,8 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `inner.as_mut().ok_or(already finalized)?` and `finalize()` calls `inner.take().ok_or(...)`.
     Python wrapper class in `__init__.py` adds `BinaryIO` support and optional constructor `data`
     parameter. Import lowlevel class with underscore prefix (`_DataHasher`) to avoid name collision
-    with the wrapper class. All 23 Tier 1 Python symbols: 33 total in `__all__` (23 API + 10 result
-    type classes)
+    with the wrapper class. All 30 Tier 1 Python symbols: 41 total in `__all__` (30 API + 10 result
+    type classes + `__version__`)
 
 - CID workflow: `next.md` now requires a `## Not In Scope` section and the review handoff uses a
     structured `[x]`/`[ ]` verification grid. Verification criteria should be boolean-testable
