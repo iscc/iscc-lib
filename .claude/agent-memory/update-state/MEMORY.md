@@ -336,3 +336,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     pytest tests (was 172). CI all 7 jobs passing at HEAD `7b5fe29` (run 22483625347). Python
     missing extensions now 3 (was 4): PIL Sequence[int], MT/ST/VS IntEnum, core_opts
     SimpleNamespace.
+- **CID iteration 7 (commits 7bc5667..e74d416)**: advance agent widened `gen_image_code_v0` Python
+    wrapper to accept `bytes | bytearray | memoryview | Sequence[int]` — 3-line `isinstance` check
+    - `bytes()` conversion. Same pattern as `gen_data_code_v0`/`gen_instance_code_v0`. 7 new tests in
+        `test_new_symbols.py` (now 25 tests). Review agent PASS. 184 total pytest tests (was 177). CI
+        all 7 jobs passing at HEAD `e74d416` (run 22484174232). Python missing extensions now 2 (was
+        3): MT/ST/VS IntEnum, core_opts SimpleNamespace.

@@ -1,15 +1,15 @@
-<!-- assessed-at: 7b5fe29 -->
+<!-- assessed-at: e74d416 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Binding Propagation — Python drop-in extensions (3 of 4 remaining); 5 bindings at 23/30
+## Phase: Binding Propagation — Python drop-in extensions (2 of 4 remaining); 5 bindings at 23/30
 
-CID iteration 6 added `dict` support for `meta` parameter in Python `gen_meta_code_v0`: a 3-line
-change that serializes dict to compact JSON then converts to a data URL via `json_to_data_url`. 177
-Python tests pass; all 7 CI jobs green. Three Python iscc-core drop-in extensions remain, then 7
-Tier 1 symbols must be propagated to Node.js, WASM, C FFI, Java, and Go.
+CID iteration 7 added PIL pixel data support for `gen_image_code_v0` in Python: a 3-line widening of
+the type signature to accept `bytes | bytearray | memoryview | Sequence[int]`, converting non-bytes
+input via `bytes()`. 184 Python tests pass; all 7 CI jobs green. Two Python iscc-core drop-in
+extensions remain, then 7 Tier 1 symbols must be propagated to Node.js, WASM, C FFI, Java, and Go.
 
 ## Rust Core Crate
 
@@ -30,20 +30,21 @@ Tier 1 symbols must be propagated to Node.js, WASM, C FFI, Java, and Go.
 
 ## Python Bindings
 
-**Status**: partially met (30/30 Tier 1 symbols exposed; 3 iscc-core drop-in extensions missing)
+**Status**: partially met (30/30 Tier 1 symbols exposed; 2 iscc-core drop-in extensions missing)
 
 - All 30/30 Tier 1 symbols accessible from Python
 - `__all__` has 41 entries: 4 constants + `__version__` + `IsccResult` + 9 result type classes + 27
     API symbols
 - `IsccResult(dict)` base class + 9 typed subclasses — dict-style and attribute-style access both
     work
-- `gen_meta_code_v0` now accepts `meta: str | dict | None` — dict serialized to compact JSON then
-    converted to data URL via `json_to_data_url` (NEW this iteration)
+- `gen_meta_code_v0` accepts `meta: str | dict | None` — dict serialized to compact JSON then
+    converted to data URL via `json_to_data_url`
+- `gen_image_code_v0` now accepts `bytes | bytearray | memoryview | Sequence[int]` — non-bytes input
+    converted via `bytes()` (NEW this iteration, 3-line change)
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
-- 177 tests passing across 6 files; CI-verified
+- 184 tests passing across 6 files (up from 177); CI-verified on run 22484174232
 - `ruff check` and `ruff format --check` pass (CI-verified at HEAD)
 - **Missing iscc-core drop-in extensions** (per `specs/python-bindings.md`):
-    - PIL pixel data for `gen_image_code_v0`: still `pixels: bytes` only (no `Sequence[int]`)
     - `MT`, `ST`, `VS` `IntEnum` classes — not present
     - `core_opts` `SimpleNamespace` — not present
 - `iscc-lib 0.0.2` not yet published to PyPI (0.0.1 was published; release not re-triggered since
@@ -152,8 +153,8 @@ publishing absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22483625347](https://github.com/iscc/iscc-lib/actions/runs/22483625347) — all 7 jobs
-    SUCCESS — triggered at HEAD `7b5fe29`
+    [Run 22484174232](https://github.com/iscc/iscc-lib/actions/runs/22484174232) — all 7 jobs
+    SUCCESS — triggered at HEAD `e74d416`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -164,12 +165,10 @@ publishing absent)
 
 ## Next Milestone
 
-**Complete remaining 3 Python iscc-core drop-in extensions, then propagate 7 symbols to 5
+**Complete remaining 2 Python iscc-core drop-in extensions, then propagate 7 symbols to 5
 bindings:**
 
-1. **Python drop-in extensions** (`crates/iscc-py`) — 3 items remaining:
-    - Widen `gen_image_code_v0` to accept `bytes | bytearray | memoryview | Sequence[int]`; convert
-        `Sequence[int]` via `bytes(pixels)` in the Python wrapper
+1. **Python drop-in extensions** (`crates/iscc-py`) — 2 items remaining:
     - Add `MT`, `ST`, `VS` `IntEnum` classes (8/5/1 values); export in `__all__`; update
         `iscc_decode` return to use enum values
     - Add `core_opts` `SimpleNamespace` with `meta_trim_name`, `meta_trim_description`,
