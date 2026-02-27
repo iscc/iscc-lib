@@ -359,3 +359,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     Review agent PASS. **Node.js Bindings: fully MET** — 30/30 Tier 1 symbols. CI all 7 jobs passing
     at HEAD `0d2f60c` (run 22485432283). Next: propagate 7 symbols to WASM (good candidate —
     well-established wasm-bindgen pattern).
+- **CID iteration 10 (commits e83db35..c7c3807)**: advance agent propagated all 7 new Tier 1 symbols
+    to WASM bindings. Added 4 constants as getter functions (`meta_trim_name()→128`, etc.),
+    `encode_component`, `iscc_decode` (with `IsccDecodeResult` struct, `getter_with_clone` for
+    `Vec<u8>` digest), `json_to_data_url`. `crates/iscc-wasm/src/lib.rs` now has 35
+    `#[wasm_bindgen]` annotations. 19 new tests in `tests/unit.rs` (total 60 unit + 9 conformance =
+    69 wasm tests). Review agent PASS. **WASM Bindings: fully MET** — 30/30 Tier 1 symbols. CI all 7
+    jobs passing at HEAD `c7c3807` (run 22486077314). Next: propagate 7 symbols to C FFI (3
+    `extern "C"` functions + 4 `#define` constants pattern).

@@ -1,15 +1,15 @@
-<!-- assessed-at: 0d2f60c -->
+<!-- assessed-at: c7c3807 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Symbol Propagation — 7 Tier 1 symbols to 4 remaining bindings (WASM, C FFI, Java, Go)
+## Phase: Symbol Propagation — 7 Tier 1 symbols to 3 remaining bindings (C FFI, Java JNI, Go)
 
-CID iteration 9 completed Node.js symbol propagation: all 30/30 Tier 1 symbols are now accessible
-from Node.js. Python and Node.js bindings are fully met. WASM, C FFI, Java JNI, and Go remain at
-23/30 Tier 1 symbols — the 7 symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4
-constants) must be propagated to these 4 remaining bindings.
+CID iteration 10 completed WASM symbol propagation: all 30/30 Tier 1 symbols are now accessible from
+WASM. Python, Node.js, and WASM bindings are fully met. C FFI, Java JNI, and Go remain at 23/30 Tier
+1 symbols — the 7 symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants)
+must be propagated to these 3 remaining bindings.
 
 ## Rust Core Crate
 
@@ -71,14 +71,21 @@ constants) must be propagated to these 4 remaining bindings.
 
 ## WASM Bindings
 
-**Status**: partially met (23/30 Tier 1 symbols; 7 new symbols not yet propagated)
+**Status**: met (30/30 Tier 1 symbols)
 
-- 23/23 old Tier 1 symbols exported; 25 `#[wasm_bindgen]` annotations
-- `DataHasher` and `InstanceHasher` as `#[wasm_bindgen]` structs; 54 tests pass (CI-verified)
+- All 30/30 Tier 1 symbols exported; 35 `#[wasm_bindgen]` annotations
+- 4 constants exposed as getter functions: `meta_trim_name()→128`, `meta_trim_description()→4096`,
+    `io_read_size()→4194304`, `text_ngram_size()→13`
+- 3 newly propagated functions: `encode_component`, `iscc_decode` (returns `IsccDecodeResult` struct
+    with `getter_with_clone` for `Vec<u8>` digest), `json_to_data_url`
+- `DataHasher` and `InstanceHasher` as `#[wasm_bindgen]` structs with `new`/`update`/`finalize`
+- `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
+- 69 total `#[wasm_bindgen_test]` tests: 60 in `tests/unit.rs` (40 pre-existing + 19 new covering
+    all 7 symbols) + 9 in `tests/conformance.rs` — CI-verified passing (run 22486077314)
 - WASM release build fix in place (`wasm-opt` flags in `Cargo.toml`)
 - `docs/howto/wasm.md` package name corrected to `@iscc/wasm`
-- **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
 - `@iscc/wasm 0.0.2` not yet published to npm (awaiting release trigger)
+- **Nothing missing** in WASM bindings
 
 ## C FFI
 
@@ -162,8 +169,8 @@ publishing absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22485432283](https://github.com/iscc/iscc-lib/actions/runs/22485432283) — all 7 jobs
-    SUCCESS — triggered at HEAD `0d2f60c`
+    [Run 22486077314](https://github.com/iscc/iscc-lib/actions/runs/22486077314) — all 7 jobs
+    SUCCESS — triggered at HEAD `c7c3807`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -174,14 +181,12 @@ publishing absent)
 
 ## Next Milestone
 
-**Propagate 7 new Tier 1 symbols to WASM (highest priority — well-established wasm-bindgen
-pattern):**
+**Propagate 7 new Tier 1 symbols to C FFI (highest priority — well-established pattern):**
 
-1. **WASM** (`crates/iscc-wasm`): Add `encode_component`, `iscc_decode`, `json_to_data_url` as
-    `#[wasm_bindgen]` functions; expose 4 constants via `#[wasm_bindgen]`; add tests — pattern
-    mirrors Node.js additions in commit `caf87ef`
-2. **C FFI** (`crates/iscc-ffi`): Add `extern "C"` wrappers for 3 functions; add `#define` constants
-    in cbindgen header; add C tests
-3. **Java** (`crates/iscc-jni`): Add JNI functions + Java method declarations; add tests
-4. **Go** (`packages/go`): Extend `iscc.go` with 3 functions + 4 constants; update `.wasm` embed;
+1. **C FFI** (`crates/iscc-ffi`): Add `extern "C"` wrappers for `encode_component`, `iscc_decode`
+    (returning an out-param struct or allocated string), `json_to_data_url`; expose 4 constants as
+    `#define` entries in cbindgen header via `const`; add C tests — pattern mirrors Node.js
+    additions in commit `caf87ef` and WASM additions in commit `ec436a2`
+2. **Java** (`crates/iscc-jni`): Add JNI functions + Java method declarations; add tests
+3. **Go** (`packages/go`): Extend `iscc.go` with 3 functions + 4 constants; update `.wasm` embed;
     add tests
