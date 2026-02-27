@@ -221,6 +221,18 @@ iterations.
     npm package names against `docs/index.md` and `crates/*/README.md` — the wasm-pack howto
     originally had `@iscc/iscc-wasm` (wrong)
 
+## Tier 1 API Surface
+
+- Algorithm constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)
+    are `pub const` at crate root in `lib.rs`, placed after `pub use` re-exports
+- Tier 1 `encode_component` wrapper in `lib.rs` takes `u8` for enum fields, validates with
+    `TryFrom<u8>`, adds explicit digest length check (`digest.len() < bit_length / 8`), then
+    delegates to `codec::encode_component`. No naming conflict because `codec::encode_component` is
+    NOT re-exported at crate root
+- Magic numbers 128, 4096, 13 in gen functions replaced with constants `META_TRIM_NAME`,
+    `META_TRIM_DESCRIPTION`, `TEXT_NGRAM_SIZE` respectively
+- `IO_READ_SIZE` uses spec value 4_194_304 (4 MB), not Python reference value 2_097_152 (2 MB)
+
 ## Codec Internals
 
 - `decode_header` and `decode_varnibble_from_bytes` operate directly on `&[u8]` with bitwise
