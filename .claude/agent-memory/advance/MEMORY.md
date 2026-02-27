@@ -363,6 +363,29 @@ iterations.
 - FFI video wrappers use `Vec<&[i32]>` (1 remaining `.to_vec()` in FFI crate is for
     `alg_cdc_chunks`)
 
+## Go Pure Go Rewrite
+
+- Pure Go codec module: `packages/go/codec.go` — type enums (`MainType`, `SubType`, `Version` as
+    typed constants with `iota`), varnibble header encoding/decoding, base32/base64, length
+    encoding/decoding, unit encoding/decoding, `EncodeComponent`, `IsccDecompose`, `IsccDecode`.
+    Zero external dependencies (Go standard library only)
+- Go type enum naming: `MTMeta`..`MTFlake` (not `MainTypeMeta` etc.), `STNone`..`STWide`,
+    `STText = STNone` alias, `VSV0 Version = 0`
+- Go codec internal helpers are unexported (lowercase): `encodeHeader`, `decodeHeader`,
+    `encodeLength`, `decodeLength`, `encodeBase32`, `decodeBase32`, `encodeVarnibble`,
+    `decodeVarnibbleFromBytes`, `getBit`, `extractBits`, `bitsToBytes`, `encodeUnits`,
+    `decodeUnits`, `encodeComponentInternal`, `popcount`
+- Go codec public API: `EncodeBase64`, `EncodeComponent` (takes `uint8` for enum fields),
+    `IsccDecompose`, `IsccDecode` (returns `*DecodeResult` from `iscc.go`)
+- `IsccDecode` reuses existing `DecodeResult` struct from `iscc.go` (same package, no duplication)
+- Go base32 uses `base32.StdEncoding.WithPadding(base32.NoPadding)` — RFC 4648 uppercase, no padding
+- Go base64 uses `base64.RawURLEncoding` — RFC 4648 §5 URL-safe, no padding
+- Go codec test file: `packages/go/codec_test.go` with `TestCodec*` naming convention. All 48 tests
+    independent of WASM binary (pure Go). Conformance tests load data.json via
+    `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
+- Dependency chain for pure Go rewrite: codec (done) → text utils → algorithms → gen functions →
+    streaming hashers → conformance selftest
+
 ## Gotchas
 
 - `pop_local_frame` is `unsafe` in jni crate v0.21 (Rust 2024 edition) — must wrap in `unsafe {}`
