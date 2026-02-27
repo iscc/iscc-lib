@@ -1,45 +1,34 @@
-## 2026-02-27 — Review of: Add MT/ST/VS IntEnums and core_opts to Python
+## 2026-02-27 — Propagate 7 new Tier 1 symbols to Node.js bindings
 
-**Verdict:** PASS
+**Done:** Added `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 algorithm constants
+(`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) to the Node.js
+napi-rs bindings. All 30/30 Tier 1 symbols are now accessible from Node.js.
 
-**Summary:** Clean, focused implementation adding three `IntEnum` classes (`MT`, `ST`, `VS`), a
-`core_opts` `SimpleNamespace`, and an `iscc_decode` wrapper returning IntEnum-typed values to the
-Python bindings. 14 new tests cover all enum values, aliases, core_opts attributes, and iscc_decode
-IntEnum wrapping. All 198 tests pass, all 14 pre-commit hooks pass, no quality gate circumvention.
+**Files changed:**
+
+- `crates/iscc-napi/src/lib.rs`: Added 4 `#[napi]` constants (cast from `usize` to `u32`), 3
+    `#[napi]` functions (`encode_component`, `iscc_decode`, `json_to_data_url`), and 1
+    `#[napi(object)]` struct (`IsccDecodeResult` with `maintype`, `subtype`, `version`, `length`,
+    `digest` fields)
+- `crates/iscc-napi/__tests__/functions.test.mjs`: Added 21 new tests across 7 `describe` blocks
+    covering all 7 new symbols (constants values + types, encode/decode roundtrips, error cases,
+    known Data-Code decoding, JSON/JSON-LD data URL generation)
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_new_symbols.py -x` passes — 39 tests (25 existing + 14 new)
-- [x] `uv run pytest tests/ -x` passes — 198 tests, 0 failures
-- [x] `uv run ruff check crates/iscc-py/python/` clean
-- [x] `uv run ruff format --check crates/iscc-py/python/` clean
-- [x] `python -c "from iscc_lib import MT, ST, VS; assert MT.DATA == 3; assert ST.TEXT == 0; assert VS.V0 == 0"`
-    exits 0
-- [x] `python -c "from iscc_lib import core_opts; assert core_opts.meta_trim_name == 128"` exits 0
-- [x] `python -c "from iscc_lib import iscc_decode, MT; r = iscc_decode('GAA2XTPPAERUKZ4J'); assert isinstance(r[0], MT)"`
-    exits 0 (note: the `GABTQLB6CQ6ILWLO` code from next.md was invalid — advance agent correctly
-    substituted a valid code and documented the reason)
-- [x] All 14 pre-commit hooks pass (`mise run check`)
+- `cd crates/iscc-napi && npm test` passes — 124 tests (103 existing + 21 new), 0 failures
+- Constants verification: `node -e "..."` prints `128,4096,4194304,13`
+- Function type checks: all 3 new functions report `typeof` as `function`
+- `cargo clippy -p iscc-napi --all-targets -- -D warnings` clean
+- `mise run check` passes — all 14 pre-commit hooks pass
 
-**Issues found:**
+**Next:** All 30 Tier 1 symbols are now propagated to both Python and Node.js bindings. Remaining
+binding propagation targets: WASM, C FFI, Java (JNI), Go (wazero). Issue #5 (dict meta) also needs
+propagation to Node.js and other bindings. The define-next agent should decide whether to continue
+propagating the 7 new symbols to WASM/C/Java/Go bindings, or tackle dict meta propagation for
+Node.js next.
 
-- (none)
-
-**Codex review:** Codex (gpt-5.2) flagged the `ST.TEXT=0` alias for `ST.NONE=0` as potentially
-confusing, but this is correct — the Rust `SubType` enum and iscc-core both have TEXT and NONE
-sharing value 0. The first definition (NONE) is canonical in IntEnum, TEXT is the alias. It also
-raised test brittleness with hardcoded values, but tests cross-reference both hardcoded values and
-module constants (e.g., `core_opts.meta_trim_name == 128` AND `== META_TRIM_NAME`). No actionable
-findings.
-
-**Next:** Issues #6, #7, #8 Python-side work is complete but issues remain open for other-bindings
-propagation (Node.js TS const enums, WASM, C FFI, Java, Go). Issue #5 (dict meta) also needs
-propagation to other bindings. The define-next agent should prioritize either: (a) batching
-enum/core_opts/iscc_decode propagation to remaining bindings, or (b) tackling Issue #5 dict meta
-propagation, or (c) addressing any other items from issues.md/state.md gaps. The `__all__` count is
-now 45 entries (41 prior + MT, ST, VS, core_opts).
-
-**Notes:** The third verification criterion in next.md used an invalid test vector
-(`GABTQLB6CQ6ILWLO` — 8-byte body but header indicates 128-bit/16-byte digest). The advance agent
-handled this well by substituting a valid code (`GAA2XTPPAERUKZ4J`) and documenting the discrepancy.
-Future define-next should validate test vectors before including them in verification criteria.
+**Notes:** `#[napi]` on `pub const` worked directly with the current napi-rs version (no fallback to
+getter functions needed). The `usize` to `u32` cast is safe since all 4 constants fit within `u32`
+range. The `IsccDecodeResult` struct uses `Buffer` for the digest field (consistent with napi-rs
+conventions for byte data).

@@ -221,6 +221,18 @@ iterations.
     npm package names against `docs/index.md` and `crates/*/README.md` — the wasm-pack howto
     originally had `@iscc/iscc-wasm` (wrong)
 
+## Node.js Binding — Tier 1 Propagation
+
+- napi-rs `#[napi]` on `pub const` works directly (no getter function fallback needed). `usize` to
+    `u32` cast is safe for all 4 algorithm constants (all fit within u32 range)
+- `IsccDecodeResult` uses `#[napi(object)]` struct with named fields (`maintype`, `subtype`,
+    `version`, `length`, `digest`) — JavaScript has no tuples, so return an object instead
+- `iscc_decode` napi wrapper destructures the Rust tuple `(u8, u8, u8, u8, Vec<u8>)` into
+    `IsccDecodeResult` struct fields, converting `Vec<u8>` to `Buffer` via `.into()`
+- napi-rs `#[napi(js_name = "...")]` on constants uses the original SCREAMING_SNAKE_CASE name to
+    prevent napi-rs auto-conversion to camelCase
+- Total Node.js test count after 7 new symbols: 124 (103 existing + 21 new across 7 describe blocks)
+
 ## Tier 1 API Surface
 
 - Algorithm constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)

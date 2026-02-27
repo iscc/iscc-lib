@@ -29,6 +29,13 @@ import {
     gen_instance_code_v0,
     DataHasher,
     InstanceHasher,
+    META_TRIM_NAME,
+    META_TRIM_DESCRIPTION,
+    IO_READ_SIZE,
+    TEXT_NGRAM_SIZE,
+    encode_component,
+    iscc_decode,
+    json_to_data_url,
 } from '../index.js';
 
 describe('text_clean', () => {
@@ -417,5 +424,159 @@ describe('InstanceHasher', () => {
         ih2.update(data);
         const explicit64 = ih2.finalize(64);
         strictEqual(defaultResult, explicit64);
+    });
+});
+
+// ── Algorithm constants ──────────────────────────────────────────────────────
+
+describe('META_TRIM_NAME', () => {
+    it('equals 128', () => {
+        strictEqual(META_TRIM_NAME, 128);
+    });
+
+    it('is a number', () => {
+        strictEqual(typeof META_TRIM_NAME, 'number');
+    });
+});
+
+describe('META_TRIM_DESCRIPTION', () => {
+    it('equals 4096', () => {
+        strictEqual(META_TRIM_DESCRIPTION, 4096);
+    });
+
+    it('is a number', () => {
+        strictEqual(typeof META_TRIM_DESCRIPTION, 'number');
+    });
+});
+
+describe('IO_READ_SIZE', () => {
+    it('equals 4194304', () => {
+        strictEqual(IO_READ_SIZE, 4194304);
+    });
+
+    it('is a number', () => {
+        strictEqual(typeof IO_READ_SIZE, 'number');
+    });
+});
+
+describe('TEXT_NGRAM_SIZE', () => {
+    it('equals 13', () => {
+        strictEqual(TEXT_NGRAM_SIZE, 13);
+    });
+
+    it('is a number', () => {
+        strictEqual(typeof TEXT_NGRAM_SIZE, 'number');
+    });
+});
+
+// ── encode_component ─────────────────────────────────────────────────────────
+
+describe('encode_component', () => {
+    it('roundtrip with iscc_decode', () => {
+        // mtype=0 (META), stype=0, version=0, 64 bits, 8-byte digest
+        const digest = Buffer.from([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07]);
+        const encoded = encode_component(0, 0, 0, 64, digest);
+        strictEqual(typeof encoded, 'string');
+        ok(encoded.length > 0);
+        // Decode and verify components
+        const decoded = iscc_decode(encoded);
+        strictEqual(decoded.maintype, 0);
+        strictEqual(decoded.subtype, 0);
+        strictEqual(decoded.version, 0);
+        deepStrictEqual([...decoded.digest], [...digest]);
+    });
+
+    it('throws on invalid mtype (255)', () => {
+        throws(
+            () => encode_component(255, 0, 0, 64, Buffer.alloc(8)),
+            /./
+        );
+    });
+
+    it('throws on digest too short', () => {
+        throws(
+            () => encode_component(0, 0, 0, 64, Buffer.alloc(4)),
+            /digest length/
+        );
+    });
+
+    it('throws on ISCC mtype (5)', () => {
+        throws(
+            () => encode_component(5, 0, 0, 64, Buffer.alloc(8)),
+            /./
+        );
+    });
+});
+
+// ── iscc_decode ──────────────────────────────────────────────────────────────
+
+describe('iscc_decode', () => {
+    it('roundtrip with encode_component', () => {
+        const digest = Buffer.from([0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89]);
+        const encoded = encode_component(3, 0, 0, 64, digest);
+        const result = iscc_decode(encoded);
+        strictEqual(result.maintype, 3);
+        strictEqual(result.subtype, 0);
+        strictEqual(result.version, 0);
+        deepStrictEqual([...result.digest], [...digest]);
+    });
+
+    it('returned object has correct fields', () => {
+        const digest = Buffer.alloc(8, 0xaa);
+        const encoded = encode_component(0, 0, 0, 64, digest);
+        const result = iscc_decode(encoded);
+        strictEqual('maintype' in result, true);
+        strictEqual('subtype' in result, true);
+        strictEqual('version' in result, true);
+        strictEqual('length' in result, true);
+        strictEqual('digest' in result, true);
+    });
+
+    it('digest is a Buffer', () => {
+        const digest = Buffer.alloc(8, 0xbb);
+        const encoded = encode_component(0, 0, 0, 64, digest);
+        const result = iscc_decode(encoded);
+        ok(Buffer.isBuffer(result.digest));
+    });
+
+    it('decodes with ISCC: prefix', () => {
+        const digest = Buffer.from([0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89]);
+        const encoded = encode_component(3, 0, 0, 64, digest);
+        const result = iscc_decode(`ISCC:${encoded}`);
+        strictEqual(result.maintype, 3);
+        deepStrictEqual([...result.digest], [...digest]);
+    });
+
+    it('decodes known Data-Code GAA2XTPPAERUKZ4J', () => {
+        const result = iscc_decode('GAA2XTPPAERUKZ4J');
+        strictEqual(result.maintype, 3); // DATA
+        strictEqual(result.subtype, 0);
+        strictEqual(result.version, 0);
+        deepStrictEqual(
+            [...result.digest],
+            [0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89]
+        );
+    });
+
+    it('throws on invalid input string', () => {
+        throws(() => iscc_decode('NOT_VALID_ISCC'), /./);
+    });
+});
+
+// ── json_to_data_url ─────────────────────────────────────────────────────────
+
+describe('json_to_data_url', () => {
+    it('plain JSON returns data:application/json;base64,...', () => {
+        const result = json_to_data_url('{"key":"value"}');
+        ok(result.startsWith('data:application/json;base64,'));
+    });
+
+    it('JSON-LD with @context returns data:application/ld+json;base64,...', () => {
+        const result = json_to_data_url('{"@context":"https://schema.org"}');
+        ok(result.startsWith('data:application/ld+json;base64,'));
+    });
+
+    it('throws on invalid JSON string', () => {
+        throws(() => json_to_data_url('not json {{{'), /JSON/i);
     });
 });
