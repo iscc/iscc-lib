@@ -461,3 +461,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Go WASM CI job**: `.github/workflows/ci.yml` Go job currently builds WASM binary and runs tests.
     After Go rewrite, the Go CI job must be simplified (just `go test ./...` and `go vet ./...`).
 - **Latest assessed commit**: `3d59788fd59057b02a6e7815fb3ecf786eb317f3` (HEAD at assessment).
+- **CID iteration 5 (new numbering, commits 32290e4..da22141)**: advance agent implemented pure Go
+    codec module: `packages/go/codec.go` (570 lines) — `MainType`/`SubType`/`Version` typed
+    constants, varnibble header encode/decode, base32/base64, length/unit encode/decode,
+    `EncodeComponent` (uint8 params, Tier 1-compatible), `IsccDecompose`, `IsccDecode`,
+    `EncodeBase64`. `codec_test.go` (929 lines, 47 `func Test...` functions, 48 total test
+    functions). Zero external deps (stdlib only). Both files COEXIST with `iscc.go` WASM bridge.
+    Review verdict: PASS. `go test -run TestCodec` all pass; `go test ./...` all pass (WASM +
+    codec). CI all 7 jobs passing (run 22495010193, HEAD `da22141`). WASM binary still in git
+    (683KB), `wazero` still in go.mod, large-file threshold still at 1024KB. Go rewrite is ~1/5
+    complete: codec done; next is utils.go (text normalization, needs
+    `golang.org/x/text/unicode/norm`).
+- **Go codec public API**: `EncodeBase64`, `EncodeComponent`, `IsccDecompose`, `IsccDecode`,
+    `MainType`/`SubType`/`Version` types, `MTMeta`..`MTFlake`, `STNone`..`STWide`, `STText`, `VSV0`,
+    `DecodeResult` struct. All other helpers are unexported (lowercase).
+- **Go rewrite dependency order**: codec (done) → utils.go (text: NFKC norm, TextClean,
+    TextCollapse, TextTrim, TextRemoveNewlines; first ext dep: `golang.org/x/text`) → algorithms
+    (CDC/MinHash/SimHash/DCT/WTA-Hash) → gen\_\*\_v0 functions → streaming hashers →
+    conformance_selftest → WASM removal.

@@ -1,15 +1,15 @@
-<!-- assessed-at: 3d59788fd59057b02a6e7815fb3ecf786eb317f3 -->
+<!-- assessed-at: da22141 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go Bindings Rewrite (Pure Go)
+## Phase: Go Bindings Rewrite — Step 1 of ~5 Complete (Codec Module)
 
-All bindings except Go are at 30/30 Tier 1 symbols against the target. The target.md was updated in
-HEAD to require a **pure Go implementation** (no WASM/wazero bridge, no committed binary artifacts).
-The current Go implementation still uses the wazero bridge with a 683KB `.wasm` binary committed to
-git — this is now a **[critical]** target mismatch. CI is green across all 7 jobs.
+All non-Go bindings are at 30/30 Tier 1 symbols. The Go bindings rewrite is underway: the pure Go
+codec module (`codec.go`) was implemented and reviewed PASS. The WASM bridge (`iscc.go`,
+`iscc_ffi.wasm`, wazero dep) still exists — removal happens only after all pure Go modules are
+complete. CI is green across all 7 jobs.
 
 ## Rust Core Crate
 
@@ -115,20 +115,24 @@ git — this is now a **[critical]** target mismatch. CI is green across all 7 j
 
 ## Go Bindings
 
-**Status**: not met (target rewritten; current implementation is WASM/wazero bridge)
+**Status**: not met — pure Go rewrite in progress (~1/5 modules complete)
 
-- **Target changed**: `target.md` was updated in HEAD to require a **pure Go implementation** — no
-    WASM, no wazero, no committed binary artifacts
-- Current implementation: WASM/wazero bridge (`packages/go/iscc.go`, 1,357 lines) with 683KB
-    `iscc_ffi.wasm` committed to git via `//go:embed`
-- `go.mod` still depends on `github.com/tetratelabs/wazero v1.11.0`
-- 46 test functions in `iscc_test.go` (1,353 lines) pass via the WASM bridge — tests exist and are
-    valid, but the bridge approach must be replaced
-- `.pre-commit-config.yaml` threshold raised to 1024KB globally to accommodate the binary — must be
-    restored to 256KB after removing the binary
-- `[critical]` issue filed in `issues.md`: rewrite as pure Go with Go-native algorithm
-    implementations (CDC, MinHash, SimHash, DCT, WTA-Hash), using `zeebo/blake3`, `cespare/xxhash`,
-    `golang.org/x/text` — estimated ~6,300 lines of Rust to port
+- **Target requires**: pure Go, no WASM/wazero, no binary artifacts
+- **Step 1 COMPLETE**: `packages/go/codec.go` (570 lines) — type enums (`MainType`, `SubType`,
+    `Version`), varnibble header encoding/decoding, base32/base64, length/unit encode/decode,
+    `EncodeComponent`, `IsccDecompose`, `IsccDecode`, `EncodeBase64`; zero external deps; 48 tests
+    pass in `codec_test.go` (929 lines) — review verdict: PASS
+- **Remaining**: `utils.go` (text normalization: `TextClean`, `TextCollapse`, `TextTrim`,
+    `TextRemoveNewlines`), algorithms (`AlgCdcChunks`, `AlgMinhash256`, `AlgSimhash`, DCT,
+    WTA-Hash), gen functions (9 `Gen*V0`), streaming hashers (`DataHasher`, `InstanceHasher`),
+    conformance selftest
+- `iscc.go` (1,357 lines) WASM/wazero bridge still present — coexists with pure Go modules during
+    transition; will be deleted once pure Go modules cover all 30 Tier 1 symbols
+- `iscc_ffi.wasm` (683KB) still committed to git; `go.mod` still has `wazero` dependency
+- `.pre-commit-config.yaml` large-file threshold still raised to 1024KB (must restore to 256KB after
+    binary removal)
+- 46 test functions in `iscc_test.go` (1,353 lines) valid as regression suite for new implementation
+    — all currently pass via WASM bridge
 
 ## README
 
@@ -172,26 +176,24 @@ git — this is now a **[critical]** target mismatch. CI is green across all 7 j
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - **Latest CI run on develop: PASSING** —
-    [Run 22493418952](https://github.com/iscc/iscc-lib/actions/runs/22493418952) — all 7 jobs
-    SUCCESS — triggered at commit `e225748`
+    [Run 22495010193](https://github.com/iscc/iscc-lib/actions/runs/22495010193) — all 7 jobs
+    SUCCESS
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
 - Missing: Maven Central publishing configuration (GPG signing, Sonatype)
-- Missing: `issues.md` entries #5–#8 are resolved but never deleted (stale noise for agents)
 
 ## Next Milestone
 
-**[critical] Rewrite Go bindings as pure Go — top priority:**
+**Continue pure Go rewrite — implement `packages/go/utils.go` (text utilities):**
 
-The `target.md` now requires a pure Go implementation with no WASM/wazero bridge and no binary
-artifacts in git. The current implementation is entirely WASM-based. The rewrite must:
+Step 2 of the Go rewrite dependency chain (codec → **text utils** → algorithms → gen functions).
+Implement idiomatic Go text normalization functions:
 
-1. **Remove WASM infrastructure**: delete `packages/go/iscc_ffi.wasm`, re-add `packages/go/*.wasm`
-    to `.gitignore`, restore `check-added-large-files` to `--maxkb=256`, remove `wazero` from
-    `go.mod`
-2. **Implement pure Go algorithms**: port CDC, MinHash, SimHash, DCT, WTA-Hash, codec, and text
-    utilities from Rust into Go using `zeebo/blake3`, `cespare/xxhash/v2`, `golang.org/x/text`
-3. **Preserve 30/30 Tier 1 API surface**: same function signatures and Go naming conventions;
-    existing `iscc_test.go` (46 test functions) should pass against the new implementation
-4. **Clean up issues.md**: delete the 4 stale resolved entries (#5–#8: gen_meta_code_v0 dict,
-    encode_component, iscc_decode, constants) — all implementations confirmed complete
+1. `TextClean(text string) string` — Unicode NFKC normalization + whitespace collapse
+2. `TextCollapse(text string) string` — collapse whitespace runs to single space
+3. `TextTrim(text string, nbytes uint) string` — trim to nbytes at character boundary
+4. `TextRemoveNewlines(text string) string` — replace newlines with spaces
+
+Requires adding `golang.org/x/text/unicode/norm` to `go.mod` (first external dependency in the pure
+Go rewrite). Existing `iscc_test.go` test functions for these utilities will validate against
+conformance vectors. After utils, proceed with algorithms module.
