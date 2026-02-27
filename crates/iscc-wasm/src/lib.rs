@@ -7,6 +7,32 @@
 
 use wasm_bindgen::prelude::*;
 
+// ── Constants ────────────────────────────────────────────────────────────────
+
+/// Maximum byte length for the name field after trimming.
+#[wasm_bindgen(js_name = "META_TRIM_NAME")]
+pub fn meta_trim_name() -> u32 {
+    iscc_lib::META_TRIM_NAME as u32
+}
+
+/// Maximum byte length for the description field after trimming.
+#[wasm_bindgen(js_name = "META_TRIM_DESCRIPTION")]
+pub fn meta_trim_description() -> u32 {
+    iscc_lib::META_TRIM_DESCRIPTION as u32
+}
+
+/// Default read buffer size for streaming I/O (4 MB).
+#[wasm_bindgen(js_name = "IO_READ_SIZE")]
+pub fn io_read_size() -> u32 {
+    iscc_lib::IO_READ_SIZE as u32
+}
+
+/// Sliding window width for text n-gram generation.
+#[wasm_bindgen(js_name = "TEXT_NGRAM_SIZE")]
+pub fn text_ngram_size() -> u32 {
+    iscc_lib::TEXT_NGRAM_SIZE as u32
+}
+
 /// Generate a Meta-Code from name and optional metadata.
 ///
 /// Produces an ISCC Meta-Code by hashing the provided name, description,
@@ -169,6 +195,15 @@ pub fn text_collapse(text: &str) -> String {
 
 // ── Encoding ────────────────────────────────────────────────────────────────
 
+/// Convert a JSON string into a `data:` URL with JCS canonicalization.
+///
+/// Uses `application/ld+json` media type when the JSON contains an `@context`
+/// key, otherwise `application/json`.
+#[wasm_bindgen]
+pub fn json_to_data_url(json: &str) -> Result<String, JsError> {
+    iscc_lib::json_to_data_url(json).map_err(|e| JsError::new(&e.to_string()))
+}
+
 /// Encode bytes as base64url (RFC 4648 §5, no padding).
 ///
 /// Returns a URL-safe base64 encoded string without padding characters.
@@ -178,6 +213,54 @@ pub fn encode_base64(data: &[u8]) -> String {
 }
 
 // ── Codec ───────────────────────────────────────────────────────────────────
+
+/// Encode raw ISCC header components and digest into a base32 ISCC unit string.
+///
+/// Takes integer type identifiers and a raw digest, returns a base32-encoded
+/// ISCC unit string (without "ISCC:" prefix).
+#[wasm_bindgen]
+pub fn encode_component(
+    mtype: u8,
+    stype: u8,
+    version: u8,
+    bit_length: u32,
+    digest: &[u8],
+) -> Result<String, JsError> {
+    iscc_lib::encode_component(mtype, stype, version, bit_length, digest)
+        .map_err(|e| JsError::new(&e.to_string()))
+}
+
+/// Result of decoding an ISCC unit string.
+#[wasm_bindgen(getter_with_clone)]
+pub struct IsccDecodeResult {
+    /// MainType enum value (0–7).
+    pub maintype: u8,
+    /// SubType enum value (0–7).
+    pub subtype: u8,
+    /// Version enum value.
+    pub version: u8,
+    /// Length index from the header.
+    pub length: u8,
+    /// Raw digest bytes truncated to the encoded bit-length.
+    pub digest: Vec<u8>,
+}
+
+/// Decode an ISCC unit string into header components and raw digest.
+///
+/// Returns an object with `maintype`, `subtype`, `version`, `length`, and
+/// `digest` fields. Strips an optional "ISCC:" prefix before decoding.
+#[wasm_bindgen]
+pub fn iscc_decode(iscc: &str) -> Result<IsccDecodeResult, JsError> {
+    let (mt, st, vs, li, digest) =
+        iscc_lib::iscc_decode(iscc).map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(IsccDecodeResult {
+        maintype: mt,
+        subtype: st,
+        version: vs,
+        length: li,
+        digest,
+    })
+}
 
 /// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
 ///

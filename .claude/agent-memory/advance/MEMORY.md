@@ -233,6 +233,19 @@ iterations.
     prevent napi-rs auto-conversion to camelCase
 - Total Node.js test count after 7 new symbols: 124 (103 existing + 21 new across 7 describe blocks)
 
+## WASM Binding — Tier 1 Propagation
+
+- wasm-bindgen does NOT support `#[wasm_bindgen]` on `pub const` — use getter functions with
+    `#[wasm_bindgen(js_name = "SCREAMING_CASE")]` instead. Safe `as u32` cast (all values fit)
+- `IsccDecodeResult` WASM struct uses `#[wasm_bindgen(getter_with_clone)]` because `Vec<u8>` is not
+    `Copy`. The `digest` field maps to `Uint8Array` in JS
+- wasm-bindgen accepts `&str` and `&[u8]` directly (like PyO3, unlike napi-rs which needs owned
+    `String`/`Buffer`). No `.as_deref()` or `.as_ref()` conversion needed for these types
+- Total WASM test count after 7 new symbols: 59 unit + 1 conformance_selftest (with feature) + 9
+    conformance, from 40 unit previously
+- `#[wasm_bindgen` annotation count in lib.rs: 35 (was 25, +10 for 7 functions + 2 impl blocks + 1
+    struct)
+
 ## Tier 1 API Surface
 
 - Algorithm constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)
