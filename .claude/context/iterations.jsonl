@@ -439,3 +439,8 @@
 {"ts":"2026-02-27T15:06:17.347906+00:00","iteration":2,"role":"define-next","status":"OK","turns":24,"cost_usd":1.117706,"duration_s":393.3}
 {"ts":"2026-02-27T15:09:35.785892+00:00","iteration":2,"role":"advance","status":"OK","turns":35,"cost_usd":0.940277,"duration_s":198.4}
 {"ts":"2026-02-27T15:20:00.000000+00:00","iteration":2,"role":"review","status":"PASS","summary":"crates/iscc-lib/CLAUDE.md accurately updated for 30-symbol Tier 1 API. All 7 grep checks pass, 14 hooks clean."}
+{"ts":"2026-02-27T15:16:38.959670+00:00","iteration":2,"role":"review","status":"OK","turns":55,"cost_usd":1.785609,"duration_s":423.2}
+{"ts":"2026-02-27T15:39:29.653174+00:00","iteration":3,"role":"update-state","status":"OK","turns":15,"cost_usd":0.79454,"duration_s":199.5}
+{"ts":"2026-02-27T15:46:50.147268+00:00","iteration":3,"role":"define-next","status":"OK","turns":35,"cost_usd":1.659328,"duration_s":440.5}
+{"ts":"2026-02-27T15:51:24.515021+00:00","iteration":3,"role":"advance","status":"OK","turns":36,"cost_usd":1.031645,"duration_s":274.4}
+{"ts":"2026-02-27T16:10:00.000000+00:00","iteration":3,"role":"review","status":"PASS_WITH_NOTES","summary":"Go WASM binary committed for go get distribution. All 5 verification criteria pass. Minor note: check-added-large-files threshold raised to 1024KB (justified but out of scope)."}

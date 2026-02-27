@@ -353,10 +353,11 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `iscc_free_decode_result(sret_ptr)` → `dealloc(sret_ptr, 16)`. Order matters: digest data is
     freed by `iscc_free_decode_result`, so it must be copied first
 
-- Go `packages/go/iscc_ffi.wasm` is gitignored (build artifact, not committed). When new FFI
-    functions are added to `crates/iscc-ffi/src/lib.rs`, the binary must be rebuilt and copied
-    locally before Go tests can exercise the new exports. define-next should not list WASM rebuild
-    as "Not In Scope" when new FFI functions are being added
+- Go `packages/go/iscc_ffi.wasm` is tracked in git (release build, ~683KB). When FFI exports change
+    in `crates/iscc-ffi/src/lib.rs`, the binary must be rebuilt
+    (`cargo build -p iscc-ffi --target   wasm32-wasip1 --release`), copied to `packages/go/`, and
+    recommitted. CI builds a fresh debug binary for testing (overwrites committed release in CI env
+    only)
 
 - All 6 language bindings (Python, Node.js, WASM, C FFI, Java JNI, Go/wazero) now have 30/30 Tier 1
     symbols as of iteration 12

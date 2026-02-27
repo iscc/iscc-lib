@@ -10,6 +10,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java tests are NOT part of `mise run check` or pre-push hooks — must run `mvn test` explicitly
 - Go tests are NOT part of `mise run check` or pre-push hooks — must run
     `cd packages/go && mise exec -- go test ./...` explicitly
+- `check-added-large-files` threshold is `--maxkb=1024` (raised from default 500KB to accommodate
+    the 683KB Go WASM binary). If a future committed binary exceeds 1MB, consider per-file `exclude`
+    patterns instead of further raising the threshold
 
 ## Common Issues
 
