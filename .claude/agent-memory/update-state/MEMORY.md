@@ -317,3 +317,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     - 31 integration tests + 22 additional integration + 1 doc-test). Rust core is now **30/30 Tier 1
         symbols** (ALL DONE). All 6 bindings still unchanged at 23/30. CI all 7 jobs passing at HEAD
         `51161d4` (run 22482230713).
+- **CID iteration 5 (commits 7d040ab..a7eb843)**: advance agent propagated all 7 new Tier 1 symbols
+    to Python bindings: 3 functions (`encode_component`, `iscc_decode`, `json_to_data_url`) added to
+    `crates/iscc-py/src/lib.rs` + 4 constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`,
+    `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) via `m.add()`. `__init__.py` updated: 4 constants re-exported
+    - 3 functions added to imports + 7 symbols added to `__all__` (now 41 entries, was 34). New
+        `_lowlevel.pyi` entries for all 7 symbols. New test file `tests/test_new_symbols.py` (13 test
+        functions). Review agent PASS. 172 total pytest tests (was 159). Python: 30/30 Tier 1 symbols.
+        All other bindings still 23/30. CI all 7 jobs passing at HEAD `a7eb843` (run 22483013373).
+- **Python missing extensions (still as of iteration 5)**: `core_opts` SimpleNamespace,
+    `MT`/`ST`/`VS` IntEnum classes, PIL Sequence[int] for `gen_image_code_v0`, dict `meta` for
+    `gen_meta_code_v0`. Check with:
+    `grep -n "core_opts\|IntEnum\|class MT\|class ST\|class VS" crates/iscc-py/python/iscc_lib/__init__.py`

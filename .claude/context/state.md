@@ -1,14 +1,17 @@
-<!-- assessed-at: 51161d4 -->
+<!-- assessed-at: a7eb843 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Binding Propagation — 30/30 Tier 1 symbols in Rust core; 0/7 new symbols in bindings
+## Phase: Binding Propagation — Python at 30/30; 5 other bindings at 23/30
 
-CID iteration 4 implemented `json_to_data_url` as the 30th and final Tier 1 symbol in the Rust core.
-All 30 target symbols now exist in `crates/iscc-lib`. However, no new symbols have been propagated
-to any binding crate — all 6 bindings remain at 23/30. CI is fully green on all 7 jobs.
+CID iteration 5 propagated all 7 new Tier 1 symbols to Python bindings: 3 functions
+(`encode_component`, `iscc_decode`, `json_to_data_url`) and 4 constants (`META_TRIM_NAME`,
+`META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`). Python `__all__` is now 41 entries; 172
+tests pass. However, 4 iscc-core drop-in extensions remain missing (PIL pixels, dict meta, MT/ST/VS
+enums, `core_opts`). Node.js, WASM, C FFI, Java, and Go bindings are still at 23/30 Tier 1 symbols.
+CI is fully green on all 7 jobs.
 
 ## Rust Core Crate
 
@@ -17,12 +20,10 @@ to any binding crate — all 6 bindings remain at 23/30. CI is fully green on al
 - All 30 Tier 1 public symbols at crate root: 9 `gen_*_v0` functions, 4 text utilities
     (`text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`), 4 algorithm primitives
     (`sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`), `soft_hash_video_v0`,
-    `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`, `json_to_data_url` (NEW —
-    implemented this iteration), `DataHasher`, `InstanceHasher`, `conformance_selftest`, and 4
-    algorithm constants: `META_TRIM_NAME` (128), `META_TRIM_DESCRIPTION` (4096), `IO_READ_SIZE`
-    (4_194_304), `TEXT_NGRAM_SIZE` (13)
-- `json_to_data_url` parses JSON, JCS-canonicalizes via `serde_json_canonicalizer`, detects
-    `@context` for `application/ld+json` media type, encodes as base64 data URL
+    `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`, `json_to_data_url`,
+    `DataHasher`, `InstanceHasher`, `conformance_selftest`, and 4 algorithm constants:
+    `META_TRIM_NAME` (128), `META_TRIM_DESCRIPTION` (4096), `IO_READ_SIZE` (4_194_304),
+    `TEXT_NGRAM_SIZE` (13)
 - 299 total tests (245 src unit tests + 31 integration tests + 22 additional integration tests + 1
     doc-test); `cargo clippy --workspace` clean; all conformance vectors pass (CI-verified)
 - Tier 2 codec module remains Rust-only: `MainType`/`SubType`/`Version` enums, header encode/decode
@@ -31,24 +32,25 @@ to any binding crate — all 6 bindings remain at 23/30. CI is fully green on al
 
 ## Python Bindings
 
-**Status**: partially met (23/30 Tier 1 symbols; 7 new symbols not yet propagated)
+**Status**: partially met (30/30 Tier 1 symbols exposed; 4 iscc-core drop-in extensions missing)
 
-- 23/23 old Tier 1 symbols exposed via PyO3 in `crates/iscc-py/src/lib.rs`
-- `IsccResult(dict)` base class + 9 typed subclasses (`MetaCodeResult`, `TextCodeResult`, etc.)
-    implemented in `__init__.py` — dict-style and attribute-style access both work
+- All 30/30 Tier 1 symbols now accessible from Python (NEW this iteration: +7 symbols)
+- `__all__` has 41 entries: 4 constants + `__version__` + `IsccResult` + 9 result type classes + 23
+    previously-propagated API symbols + 3 new functions (`encode_component`, `iscc_decode`,
+    `json_to_data_url`)
+- `IsccResult(dict)` base class + 9 typed subclasses implemented in `__init__.py` — dict-style and
+    attribute-style access both work
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
-- `__all__` exports 35 symbols (23 API + 10 result type classes + `__version__`)
-- **Not yet propagated** from Rust core: `encode_component`, `iscc_decode`, `json_to_data_url`,
-    `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
-- **Still missing iscc-core drop-in extensions** (per `specs/python-bindings.md`):
-    - PIL pixel data for `gen_image_code_v0`: function signature still `pixels: bytes` only
-    - dict `meta` parameter for `gen_meta_code_v0`: accepts only `str | None` (depends on
-        `json_to_data_url` propagation)
+- `_lowlevel.pyi` stubs updated with new type annotations for all 7 new symbols
+- 172 tests passing across 6 files (was 159 + 13 new in `tests/test_new_symbols.py`); CI-verified
+- `ruff check` and `ruff format --check` pass (CI-verified at HEAD)
+- **Missing iscc-core drop-in extensions** (per `specs/python-bindings.md`):
+    - PIL pixel data for `gen_image_code_v0`: still `pixels: bytes` only (no `Sequence[int]`)
+    - dict `meta` parameter for `gen_meta_code_v0`: still `str | None` only
     - `MT`, `ST`, `VS` `IntEnum` classes — not present
     - `core_opts` `SimpleNamespace` — not present
-- 117 test functions across 5 files; all pass (CI-verified at HEAD)
-- `ruff check` and `ruff format --check` pass (CI-verified at HEAD)
-- `iscc-lib 0.0.2` not yet published to PyPI (0.0.1 was published; release not re-triggered)
+- `iscc-lib 0.0.2` not yet published to PyPI (0.0.1 was published; release not re-triggered since
+    v0.0.2 bump)
 
 ## Node.js Bindings
 
@@ -153,8 +155,8 @@ publishing absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22482230713](https://github.com/iscc/iscc-lib/actions/runs/22482230713) — all 7 jobs
-    SUCCESS — triggered at HEAD `51161d4`
+    [Run 22483013373](https://github.com/iscc/iscc-lib/actions/runs/22483013373) — all 7 jobs
+    SUCCESS — triggered at HEAD `a7eb843`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -165,11 +167,17 @@ publishing absent)
 
 ## Next Milestone
 
-**Propagate all 7 new symbols to all 6 binding crates:**
+**Complete Python iscc-core drop-in compatibility extensions, then propagate 7 symbols to remaining
+5 binding crates:**
 
-1. **Python** (`crates/iscc-py`): Add `encode_component`, `iscc_decode`, `json_to_data_url` as
-    `#[pyfunction]`; expose 4 constants as module-level Python constants; add tests; also implement
-    dict `meta` parameter for `gen_meta_code_v0` (depends on `json_to_data_url`)
+1. **Python drop-in extensions** (`crates/iscc-py`):
+    - Add `core_opts` `SimpleNamespace` with `meta_trim_name`, `meta_trim_description`,
+        `io_read_size`, `text_ngram_size` attributes; export in `__all__`
+    - Add `MT`, `ST`, `VS` `IntEnum` classes (8/5/1 values); export in `__all__`; update
+        `iscc_decode` return to use enum values
+    - Widen `gen_image_code_v0` to accept `bytes | bytearray | memoryview | Sequence[int]`
+    - Accept `meta: str | dict | None` in `gen_meta_code_v0`; serialize dict via `json.dumps` +
+        `json_to_data_url`
 2. **Node.js** (`crates/iscc-napi`): Add 3 functions + 4 constants with `#[napi]`; update TS types;
     add tests
 3. **WASM** (`crates/iscc-wasm`): Add 3 functions + 4 constants with `#[wasm_bindgen]`; add tests
@@ -178,5 +186,3 @@ publishing absent)
 5. **Java** (`crates/iscc-jni`): Add JNI functions + Java method declarations; add tests
 6. **Go** (`packages/go`): Extend `iscc.go` with 3 functions + 4 constants; update `.wasm` embed;
     add tests
-7. **Python-only extensions**: PIL pixel data for `gen_image_code_v0`; `MT`/`ST`/`VS` `IntEnum`
-    classes; `core_opts` `SimpleNamespace`
