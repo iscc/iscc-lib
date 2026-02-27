@@ -383,8 +383,20 @@ iterations.
 - Go codec test file: `packages/go/codec_test.go` with `TestCodec*` naming convention. All 48 tests
     independent of WASM binary (pure Go). Conformance tests load data.json via
     `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
-- Dependency chain for pure Go rewrite: codec (done) → text utils → algorithms → gen functions →
-    streaming hashers → conformance selftest
+- Dependency chain for pure Go rewrite: codec (done) → text utils (done) → algorithms → gen
+    functions → streaming hashers → conformance selftest
+- Pure Go text utils module: `packages/go/utils.go` — 4 public functions (`TextClean`,
+    `TextRemoveNewlines`, `TextTrim`, `TextCollapse`) + 2 internal helpers (`isCCategory`,
+    `isCMPCategory`). Uses `golang.org/x/text/unicode/norm` for NFKC/NFD and `unicode` stdlib for
+    category checks (C, M, P super-categories). `newlineSet` is a `map[rune]bool` for O(1) lookup
+- Go `unicode.Is(unicode.C, c)` covers Cc, Cf, Co, Cs (matches Rust minus `Unassigned`). In
+    practice, NFKC-normalized text won't contain unassigned codepoints — functionally equivalent
+- Go `TextTrim` uses backward byte trimming (`truncated[:len-1]` loop) until `utf8.ValidString` —
+    simpler than Rust's `from_utf8`/`valid_up_to` approach but produces identical results
+- Go `TextRemoveNewlines` is `strings.Join(strings.Fields(text), " ")` — one-liner matching Python's
+    `" ".join(text.split())` and Rust's `split_whitespace().join(" ")`
+- Go utils test file: `packages/go/utils_test.go` with `TestUtils*` naming convention. 21 tests, all
+    pure Go (no WASM dependency)
 
 ## Gotchas
 
