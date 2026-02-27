@@ -200,6 +200,15 @@ iterations.
     `IsccDecodeResult.java` class is more idiomatic Java than a static inner class. The existing JNI
     crate has 29 `extern "system"` functions; this step adds 3 (total 32). After Java: Go (final
     binding).
+- **Go binding propagation** (CID loop 4, iteration 12): Final binding — 7 symbols (4 constants + 3
+    functions). Constants are trivial package-level `const` (Go idiomatic — no enum types).
+    Functions follow existing Go bridge patterns: `JsonToDataUrl` mirrors `TextClean`
+    (string→string); `EncodeComponent` mirrors `EncodeBase64` (bytes+scalars→string); `IsccDecode`
+    is the complex one — struct return via sret ABI (16 bytes: bool+4×u8+padding+IsccByteBuffer).
+    The `DecodeResult` struct has PascalCase fields (Go convention). The sret is 16 bytes:
+    ok(1)+maintype(1)+subtype(1) +version(1)+length(1)+pad(3)+data_ptr(4)+data_len(4). Must free via
+    `iscc_free_decode_result(sret_ptr)` then `dealloc(sret_ptr, 16)`. All 7 symbols fit in 1 source
+    file + 1 test file.
 
 ## Architecture Decisions
 
