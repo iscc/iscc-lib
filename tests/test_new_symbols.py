@@ -1,4 +1,4 @@
-"""Tests for Tier 1 Python symbols, dict meta, and PIL pixel data support."""
+"""Tests for Tier 1 Python symbols, dict meta, PIL pixel data, enums, and core_opts."""
 
 import json
 
@@ -8,7 +8,11 @@ from iscc_lib import (
     IO_READ_SIZE,
     META_TRIM_DESCRIPTION,
     META_TRIM_NAME,
+    MT,
+    ST,
     TEXT_NGRAM_SIZE,
+    VS,
+    core_opts,
     encode_component,
     gen_image_code_v0,
     gen_meta_code_v0,
@@ -223,3 +227,131 @@ def test_gen_image_code_v0_memoryview_matches_bytes():
     result_mv = gen_image_code_v0(memoryview(raw))
     result_bytes = gen_image_code_v0(raw)
     assert result_mv["iscc"] == result_bytes["iscc"]
+
+
+# ── MT IntEnum tests ─────────────────────────────────────────────────────────
+
+
+def test_mt_values():
+    """MT IntEnum has correct values for all 8 MainTypes."""
+    assert MT.META == 0
+    assert MT.SEMANTIC == 1
+    assert MT.CONTENT == 2
+    assert MT.DATA == 3
+    assert MT.INSTANCE == 4
+    assert MT.ISCC == 5
+    assert MT.ID == 6
+    assert MT.FLAKE == 7
+
+
+def test_mt_is_int():
+    """MT members are integers (IntEnum inherits from int)."""
+    assert isinstance(MT.DATA, int)
+    assert isinstance(MT.META, int)
+
+
+# ── ST IntEnum tests ─────────────────────────────────────────────────────────
+
+
+def test_st_values():
+    """ST IntEnum has correct values for all SubTypes."""
+    assert ST.NONE == 0
+    assert ST.IMAGE == 1
+    assert ST.AUDIO == 2
+    assert ST.VIDEO == 3
+    assert ST.MIXED == 4
+    assert ST.SUM == 5
+    assert ST.ISCC_NONE == 6
+    assert ST.WIDE == 7
+
+
+def test_st_text_alias():
+    """ST.TEXT is an alias for ST.NONE (both are value 0)."""
+    assert ST.TEXT == 0
+    assert ST.TEXT == ST.NONE
+
+
+# ── VS IntEnum tests ─────────────────────────────────────────────────────────
+
+
+def test_vs_values():
+    """VS IntEnum has correct value."""
+    assert VS.V0 == 0
+
+
+# ── core_opts tests ──────────────────────────────────────────────────────────
+
+
+def test_core_opts_meta_trim_name():
+    """core_opts.meta_trim_name matches the module-level constant."""
+    assert core_opts.meta_trim_name == 128
+    assert core_opts.meta_trim_name == META_TRIM_NAME
+
+
+def test_core_opts_meta_trim_description():
+    """core_opts.meta_trim_description matches the module-level constant."""
+    assert core_opts.meta_trim_description == 4096
+    assert core_opts.meta_trim_description == META_TRIM_DESCRIPTION
+
+
+def test_core_opts_io_read_size():
+    """core_opts.io_read_size matches the module-level constant."""
+    assert core_opts.io_read_size == 4_194_304
+    assert core_opts.io_read_size == IO_READ_SIZE
+
+
+def test_core_opts_text_ngram_size():
+    """core_opts.text_ngram_size matches the module-level constant."""
+    assert core_opts.text_ngram_size == 13
+    assert core_opts.text_ngram_size == TEXT_NGRAM_SIZE
+
+
+# ── iscc_decode IntEnum wrapping tests ───────────────────────────────────────
+
+
+def test_iscc_decode_returns_mt():
+    """iscc_decode returns MT IntEnum for the maintype field."""
+    digest = bytes(range(8))
+    encoded = encode_component(0, 0, 0, 64, digest)
+    result = iscc_decode(encoded)
+    assert isinstance(result[0], MT)
+
+
+def test_iscc_decode_returns_st():
+    """iscc_decode returns ST IntEnum for the subtype field."""
+    digest = bytes(range(8))
+    encoded = encode_component(0, 0, 0, 64, digest)
+    result = iscc_decode(encoded)
+    assert isinstance(result[1], ST)
+
+
+def test_iscc_decode_returns_vs():
+    """iscc_decode returns VS IntEnum for the version field."""
+    digest = bytes(range(8))
+    encoded = encode_component(0, 0, 0, 64, digest)
+    result = iscc_decode(encoded)
+    assert isinstance(result[2], VS)
+
+
+def test_iscc_decode_roundtrip_with_enums():
+    """Round-trip: encode_component with enum values, decode, verify match."""
+    digest = b"\xab\xcd\xef\x01\x23\x45\x67\x89"
+    encoded = encode_component(MT.DATA, ST.NONE, VS.V0, 64, digest)
+    mt, st, vs, length, decoded_digest = iscc_decode(encoded)
+    assert mt == MT.DATA
+    assert st == ST.NONE
+    assert vs == VS.V0
+    assert decoded_digest == digest
+
+
+def test_iscc_decode_known_code():
+    """Decode a known ISCC code and verify IntEnum types."""
+    # GAA2XTPPAERUKZ4J is a Data-Code (MT=3, ST=0, VS=0, 64-bit)
+    mt, st, vs, length, digest = iscc_decode("GAA2XTPPAERUKZ4J")
+    assert mt == MT.DATA
+    assert st == ST.NONE
+    assert vs == VS.V0
+    assert isinstance(mt, MT)
+    assert isinstance(st, ST)
+    assert isinstance(vs, VS)
+    assert digest == b"\xab\xcd\xef\x01\x23\x45\x67\x89"

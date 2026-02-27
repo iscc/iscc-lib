@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import enum
 import json as _json
 from collections.abc import Sequence
 from importlib.metadata import version
+from types import SimpleNamespace
 from typing import BinaryIO
 
 __version__ = version("iscc-lib")
@@ -31,7 +33,7 @@ from iscc_lib._lowlevel import (
     gen_mixed_code_v0 as _gen_mixed_code_v0,
     gen_text_code_v0 as _gen_text_code_v0,
     gen_video_code_v0 as _gen_video_code_v0,
-    iscc_decode as iscc_decode,
+    iscc_decode as _iscc_decode,
     iscc_decompose as iscc_decompose,
     json_to_data_url as json_to_data_url,
     sliding_window as sliding_window,
@@ -41,6 +43,62 @@ from iscc_lib._lowlevel import (
     text_remove_newlines as text_remove_newlines,
     text_trim as text_trim,
 )
+
+
+# ── Type Enums ──────────────────────────────────────────────────────────────
+
+
+class MT(enum.IntEnum):
+    """ISCC MainType identifiers."""
+
+    META = 0
+    SEMANTIC = 1
+    CONTENT = 2
+    DATA = 3
+    INSTANCE = 4
+    ISCC = 5
+    ID = 6
+    FLAKE = 7
+
+
+class ST(enum.IntEnum):
+    """ISCC SubType identifiers."""
+
+    NONE = 0
+    IMAGE = 1
+    AUDIO = 2
+    VIDEO = 3
+    MIXED = 4
+    SUM = 5
+    ISCC_NONE = 6
+    WIDE = 7
+    TEXT = 0  # Alias — IntEnum allows duplicate values as aliases
+
+
+class VS(enum.IntEnum):
+    """ISCC Version identifiers."""
+
+    V0 = 0
+
+
+# ── Algorithm configuration namespace ───────────────────────────────────────
+
+core_opts = SimpleNamespace(
+    meta_trim_name=META_TRIM_NAME,
+    meta_trim_description=META_TRIM_DESCRIPTION,
+    io_read_size=IO_READ_SIZE,
+    text_ngram_size=TEXT_NGRAM_SIZE,
+)
+
+
+# ── Codec helpers ───────────────────────────────────────────────────────────
+
+
+def iscc_decode(iscc: str) -> tuple[MT, ST, VS, int, bytes]:
+    """Decode an ISCC unit string into header components and raw digest."""
+    mt, st, vs, length, digest = _iscc_decode(iscc)
+    return MT(mt), ST(st), VS(vs), length, digest
+
 
 _CHUNK_SIZE = 65536  # 64 KiB read chunks
 
@@ -269,7 +327,10 @@ __all__ = [
     "IO_READ_SIZE",
     "META_TRIM_DESCRIPTION",
     "META_TRIM_NAME",
+    "MT",
+    "ST",
     "TEXT_NGRAM_SIZE",
+    "VS",
     "IsccResult",
     "AudioCodeResult",
     "DataCodeResult",
@@ -286,6 +347,7 @@ __all__ = [
     "alg_minhash_256",
     "alg_simhash",
     "conformance_selftest",
+    "core_opts",
     "encode_base64",
     "encode_component",
     "gen_audio_code_v0",

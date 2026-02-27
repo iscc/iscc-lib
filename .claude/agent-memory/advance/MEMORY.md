@@ -337,3 +337,8 @@ iterations.
     bytearray, memoryview, and Sequence[int] (including PIL's ImagingCore from `Image.getdata()`)
     uniformly. No Rust changes needed — conversion is Python-wrapper-only. This same pattern applies
     to any future function that accepts `&[u8]` in Rust but needs wider input types in Python
+- Python IntEnum classes (`MT`, `ST`, `VS`) in `__init__.py`: pure Python, no Rust dependency. `ST`
+    has `TEXT = 0` alias for `NONE` (IntEnum allows duplicate values as aliases — first definition
+    wins). `iscc_decode` wrapper converts raw integers to IntEnum types. `core_opts` is a
+    `SimpleNamespace` mapping attribute names to existing constants. Total `__all__` entries: 45 (41
+    \+ MT, ST, VS, core_opts)
