@@ -77,8 +77,8 @@ recurring patterns. This builds up institutional knowledge across iterations.
     up an issue from issues.md, reference its title in the Goal section.
 
 9. **Update agent memory** — update your agent memory with scoping decisions, architecture
-    insights, feasibility findings, and patterns that will help you scope better in future
-    iterations. Remove outdated entries that no longer apply.
+    insights, feasibility findings, and patterns. Remove outdated entries that no longer apply.
+    Keep agent memory under 200 lines — archive stale entries to `MEMORY-archive.md`.
 
 10. **Commit** — stage and commit next.md and agent memory:
 
@@ -124,17 +124,6 @@ edge cases to handle, reference code to port from>
 
 <single sentence: the advance agent is done when all verification criteria pass>
 ```
-
-## Available Skills
-
-The advance agent can invoke these skills on demand. When a step involves their domain, mention the
-skill by name in Implementation Notes so the advance agent knows to use it.
-
-- **`docs-for-agents`** — Create or update a "For Coding Agents" reference page in project docs. Use
-    for steps that involve generating agent-oriented documentation.
-- **`zensical-customizer`** — Customize Zensical documentation sites (custom templates, JS widgets,
-    CSS, interactive pages). Use for steps that involve docs site customization beyond markdown
-    content.
 
 ## Rules
 

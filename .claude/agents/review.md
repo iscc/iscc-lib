@@ -83,27 +83,26 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
         `HUMAN REVIEW REQUESTED` approval.
 
 6. **Update learnings** — append new findings to `.claude/context/learnings.md`. Add entries under
-    the appropriate section (Architecture, Reference Implementation, Tooling, Process). Only add
-    genuinely useful learnings — things that will help future iterations. Examples:
+    the appropriate section. Only add genuinely useful learnings — things that will help future
+    iterations. Keep entries specific and actionable (not vague advice). **Pruning:** if
+    learnings.md exceeds 200 lines, move entries about fully-met target sections to
+    `learnings-archive.md`. The archive is never loaded by agents — it's reference for humans
+    only.
 
-    - "The XYZ algorithm requires input to be normalized first — learned from conformance failure"
-    - "Cargo workspace members must be listed explicitly; glob patterns don't work for nested
-        crates"
-    - "iscc-core uses little-endian byte order for hash truncation"
+7. **Manage issues** — scan issues.md for resolved entries AND manage new issues:
 
-7. **Manage issues** — If the review uncovered a problem that should be tracked (design flaw,
-    technical debt, recurring bug pattern, missing test coverage), add it to issues.md following
-    the file's format. Use source tag `[review]`. Use `normal` priority unless the issue blocks
-    progress (then `critical`). If this iteration resolved an issue from issues.md, delete that
-    issue entry. **Spec-rooted issues:** if you identify that a problem stems from an under- or
-    miss-specification in target.md (or a sub-spec), include a `**Spec:**` field pointing to the
-    affected section. Since this is an agent-sourced issue, add `HUMAN REVIEW REQUESTED` and
-    describe the proposed spec change — do not modify target.md yourself. **Upstream issues:** if
-    conformance checking reveals a bug or inconsistency in the iscc-core reference implementation
-    (not in our code), add an issue with `**Upstream:** iscc/iscc-core`. Include concrete
-    evidence: failing vectors, expected vs actual output, and specific file/function references in
-    `reference/iscc-core/`. Always add `HUMAN REVIEW REQUESTED` for upstream issues — do not file
-    GitHub issues yourself.
+    - **Sweep for stale entries**: compare each issue against state.md "met" sections. If an issue
+        describes a feature/fix that is now complete, delete the entry (even if it was resolved in a
+        prior iteration, not this one). This prevents stale accumulation.
+    - **Current iteration**: if this iteration resolved an issue, delete it after verification.
+    - **New issues**: if the review uncovered a problem, add it with source tag `[review]` and
+        `normal` priority (or `critical` if it blocks progress).
+    - **Advance agent issues**: if the advance handoff mentions out-of-scope problems, evaluate and
+        add to issues.md if warranted.
+    - **Spec-rooted issues**: include `**Spec:**` field + `HUMAN REVIEW REQUESTED` for agent-sourced
+        issues. Do NOT modify target.md yourself.
+    - **Upstream issues**: include `**Upstream:** iscc/iscc-core` + `HUMAN REVIEW REQUESTED` +
+        concrete evidence. Do not file GitHub issues.
 
 8. **Update handoff** — rewrite `.claude/context/handoff.md` to prepare the define-next agent for
     the next iteration. Include what was accomplished, what issues remain, and a concrete
@@ -125,8 +124,8 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     import), fix them directly. Do not fix anything that would change behavior or architecture.
 
 10. **Update agent memory** — update your agent memory with quality gate details, common review
-    issues, review shortcuts, and gotchas that will help you review faster in future iterations.
-    Remove outdated entries that no longer apply.
+    issues, review shortcuts, and gotchas. Remove outdated entries that no longer apply. Keep
+    agent memory under 200 lines — archive stale entries to `MEMORY-archive.md`.
 
 11. **Commit** — stage learnings.md, handoff.md, issues.md, the iteration log, agent memory, and any
     minor fixes:

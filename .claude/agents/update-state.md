@@ -89,7 +89,8 @@ Record the current HEAD commit hash so the next run can do an incremental review
 ### 5. Update agent memory
 
 Update your agent memory with codepaths, file locations, exploration shortcuts, and codebase
-landmarks discovered during this iteration. Remove outdated entries that no longer apply.
+landmarks discovered during this iteration. Remove outdated entries that no longer apply. Keep agent
+memory under 200 lines — archive stale entries to `MEMORY-archive.md`.
 
 ### 6. Commit
 
