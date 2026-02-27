@@ -314,3 +314,11 @@ iterations.
     top-level target verification criteria are met, but detailed spec gaps remain. These are safe,
     docs-only steps (2 files, no code changes). Check for: mermaid diagrams, workspace layout trees,
     crate summary tables, streaming pattern tables, conformance test matrix tables.
+- **Cross-language doc parity** (CID loop 5, iteration 1): When all 6 bindings have 30/30 Tier 1
+    symbols but only Go's howto guide documents codec/constants, batch all 4 remaining binding
+    guides (Python, Node.js, Java, WASM) into one step. Doc files are excluded from the 3-file
+    limit, and all guides follow the same Go template — ~60-70 lines per guide. Key
+    language-specific details: Python has `core_opts` SimpleNamespace + IntEnum return from
+    `iscc_decode`; WASM uses getter functions for constants (not `const`); Java uses camelCase
+    method names on static `IsccLib` class. Verification is all grep-based (check for function names
+    \+ constant names in each file) plus `zensical build` for docs integrity.
