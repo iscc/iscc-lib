@@ -10,9 +10,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java tests are NOT part of `mise run check` or pre-push hooks — must run `mvn test` explicitly
 - Go tests are NOT part of `mise run check` or pre-push hooks — must run
     `cd packages/go && mise exec -- go test ./...` explicitly
-- `check-added-large-files` threshold is `--maxkb=1024` (raised from default 500KB to accommodate
-    the 683KB Go WASM binary). If a future committed binary exceeds 1MB, consider per-file `exclude`
-    patterns instead of further raising the threshold
+- `check-added-large-files` threshold is `--maxkb=1024` (temporarily raised for Go WASM binary).
+    Must be restored to `--maxkb=256` after Go pure rewrite removes the WASM binary from git
 
 ## Common Issues
 
@@ -140,6 +139,14 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     agent faithfully reproduces
 - WASM constants have `js_name = "META_TRIM_NAME"` (uppercase) despite Rust function being
     `meta_trim_name()` — this is a known divergence point
+
+## Issues Cleanup
+
+- The review agent only cleans up issues resolved in the *current* iteration's advance step. It does
+    NOT sweep the full issues.md backlog for stale entries resolved in prior CID loops. This led to
+    issues #5-#8 persisting for 4+ iterations after their fixes landed. **Mitigation:** after
+    verifying the advance work, also scan issues.md for any other entries that are now resolved
+    (check state.md "met" sections against issue descriptions)
 
 ## Gotchas
 

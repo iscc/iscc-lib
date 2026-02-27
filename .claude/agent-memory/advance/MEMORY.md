@@ -75,13 +75,6 @@ iterations.
     `wasm-pack test --node crates/iscc-wasm -- --features conformance`
 - `iscc-ffi` compiles as wasm32-wasip1 from existing `crate-type = ["cdylib", "staticlib"]` — no
     Cargo.toml changes needed. The cdylib target produces the `.wasm` file
-- `iscc_alloc`/`iscc_dealloc` are the WASM host memory management pair — host allocates via
-    `iscc_alloc`, writes data, calls FFI functions, then frees via `iscc_dealloc`
-- WASM binary in `packages/go/iscc_ffi.wasm` is tracked in git (release build, ~683KB). Must be
-    rebuilt and recommitted whenever FFI exports change. Build:
-    `cargo build -p iscc-ffi --target wasm32-wasip1 --release` →
-    `cp target/wasm32-wasip1/release/iscc_ffi.wasm packages/go/`
-- Debug WASM binary is ~10.5MB; release + wasm-opt reduces significantly
 - wasm-opt release config in `crates/iscc-wasm/Cargo.toml`:
     `[package.metadata.wasm-pack.profile.release]` with
     `wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`. Rust's LLVM
@@ -92,70 +85,22 @@ iterations.
 - Build: `cargo build -p iscc-ffi --target wasm32-wasip1`
 - Output: `target/wasm32-wasip1/debug/iscc_ffi.wasm`
 
-## Go/wazero Bridge
+## Go/wazero Bridge (OBSOLETE — replaced by pure Go rewrite)
+
+The Go bindings are being rewritten as pure Go. The wazero bridge entries below are retained for
+historical reference only. See "Go Pure Go Rewrite" section for current patterns.
 
 - Go module: `packages/go/` with package name `iscc`, module path
     `github.com/iscc/iscc-lib/packages/go`
-- wazero v1.11.0 is the pure-Go WASM runtime — no CGO required
-- WASM binary embedded via `//go:embed iscc_ffi.wasm` — must be pre-built and copied to
-    `packages/go/iscc_ffi.wasm` before `go test`
-- wazero function calls return `[]uint64` — cast to `uint32` for WASM32 pointers
-- String marshaling pattern: `writeString` allocs + writes UTF-8 + null terminator, `readString`
-    reads byte-by-byte until null, `freeString` calls `iscc_free_string`
-- `iscc_last_error` returns borrowed pointer — do NOT free it
-- Each `NewRuntime()` call compiles the ~11MB WASM module (~0.6s). For test suites with many tests,
-    consider `CompileModule` once + `InstantiateModule` per test
-- `wazero.NewModuleConfig().WithStdout(io.Discard).WithStderr(io.Discard)` suppresses WASI noise
-- Use `r.InstantiateWithConfig(ctx, wasmModule, cfg)` (not separate compile+instantiate) for simpler
-    single-module loading
+- Go conformance test path to data.json: `../../crates/iscc-lib/tests/data.json` (relative from
+    packages/go test working directory)
 - `text_clean` does NOT collapse double spaces within a line — it does NFKC normalization, control
     char removal, newline normalization, consecutive empty line collapse, and leading/trailing
     whitespace stripping. Use NFKC test cases (e.g., fi ligature U+FB01) for testing
-- WASM32 empty slice alignment: `iscc_alloc(0)` returns NonNull::dangling (ptr=1, alignment 1). This
-    is fine for `*const u8` but NOT for `*const i32` (needs alignment 4). For empty i32 slices,
-    allocate minimum 4 bytes to get a properly aligned pointer from the allocator. `writeI32Slice`
-    returns (ptr, allocSize, count) because allocSize may differ from count\*4 for this reason
-- Memory helpers: `writeBytes` for `[]byte → *const u8 + len`, `writeI32Slice` for
-    `[]int32 → *const i32 + len`, `writeStringArray` for `[]string → **c_char + count`,
-    `writeI32ArrayOfArrays` for `[][]int32 → **i32 + *usize + count` (video frame signatures)
-- All 9 gen\_\*\_v0 Go wrappers follow the same pattern: marshal args → call FFI → callStringResult
-    (check NULL, readString, freeString) → return
-- String-array-returning functions (SlidingWindow, IsccDecompose) use `callStringArrayResult` which
-    reads a null-terminated array of u32 pointers from WASM32 memory (4 bytes each, little-endian),
-    calls `readString` for each non-zero pointer, then `iscc_free_string_array` to free the entire
-    array. Pattern mirrors `callStringResult` for single strings
-- Go Runtime has 48 methods total: 27 public (Close, ConformanceSelftest, TextClean,
-    TextRemoveNewlines, TextCollapse, TextTrim, EncodeBase64, SlidingWindow, IsccDecompose,
-    AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0, 9 gen\_\*\_v0, NewDataHasher,
-    NewInstanceHasher, JsonToDataUrl, EncodeComponent, IsccDecode) + 21 private helpers
-- Go `DecodeResult` struct: public struct with `Maintype`, `Subtype`, `Version`, `Length` (all
-    `uint8`) and `Digest` (`[]byte`). Returned as `*DecodeResult` (pointer) from `IsccDecode`
-- Go `IsccDecode` uses sret ABI: 16-byte `IsccDecodeResult` struct. Layout: ok(1B) + maintype(1B) +
-    subtype(1B) + version(1B) + length(1B) + padding(3B) + digest.data(4B) + digest.len(4B).
-    `iscc_free_decode_result` takes sret pointer (single i32 param) on wasm32
 - Go constants: `MetaTrimName`, `MetaTrimDescription`, `IoReadSize`, `TextNgramSize` are
     package-level `const` (idiomatic Go). No enum types — use plain `int`/`uint8`
-- Go streaming hasher pattern: `DataHasher`/`InstanceHasher` structs hold `rt *Runtime` +
-    `ptr   uint32` (opaque WASM pointer). Factory methods on Runtime call `iscc_*_hasher_new()` and
-    check for NULL. `Update` writes bytes via `writeBytes`, calls `iscc_*_hasher_update` (returns
-    i32 as bool: 0=error, nonzero=ok). `UpdateFrom` reads from `io.Reader` in 64 KiB chunks and
-    delegates to `Update`. `Finalize` calls `iscc_*_hasher_finalize` (returns string pointer) and
-    uses `callStringResult`. `Close` calls `iscc_*_hasher_free` and zeroes `h.ptr` to prevent
-    double-free (fire-and-forget, safe to call multiple times). No sret ABI needed — all streaming
-    hasher FFI functions use simple i32 params/returns
-- Byte-buffer-returning WASM functions use sret ABI: caller allocates 8 bytes (IsccByteBuffer or
-    IsccByteBufferArray struct), passes ptr as first arg. Function writes struct fields to that ptr.
-    The free functions (iscc_free_byte_buffer, iscc_free_byte_buffer_array) take the struct by
-    pointer (1 i32 param), so the sret ptr can be reused directly — no extra alloc for free call.
-    IsccByteBuffer is {data_ptr: i32, len: i32} = 8 bytes. IsccByteBufferArray is {buffers_ptr: i32,
-    count: i32} = 8 bytes. Each buffer in the array is at offset i\*8
-- `writeByteArrayOfArrays` follows same pattern as `writeI32ArrayOfArrays` but for `[][]byte` input
-    (digests). Used by `AlgSimhash` which takes `*const *const u8` + `*const usize` + count
-- `writeU32Slice` is identical to `writeI32Slice` but with `uint32` Go type (same 4-byte encoding)
-- Go conformance test path to data.json: `../../crates/iscc-lib/tests/data.json` (relative from
-    packages/go test working directory)
-- Meta test vectors: dict meta values need json.Marshal before passing to FFI; null maps to nil
-    `*string`; empty description `""` is passed as pointer to empty string (not nil)
+- `DecodeResult` struct: public struct with `Maintype`, `Subtype`, `Version`, `Length` (all `uint8`)
+    and `Digest` (`[]byte`). Returned as `*DecodeResult` from `IsccDecode`
 
 ## Build and Tooling
 

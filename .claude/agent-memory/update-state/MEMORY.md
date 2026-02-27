@@ -417,11 +417,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     prefix claim in decompose example). **Documentation section: MET** (was partially met).
     **Per-Crate READMEs section: MET** (was partially met). CI all 7 jobs passing at HEAD `6050f86`
     (runs 22489327741 + 22489326645, all SUCCESS).
-- **issues.md status (iteration 14)**: Issues #5-#8 still present with GitHub URLs — all
-    implementations complete, local entries should be deleted (resolved issues). Not yet cleaned up.
 - **Latest CI run**: 22489327741, HEAD `6050f86`, all 7 jobs SUCCESS.
-- **Documentation parity gap**: Python/Java/Node.js/WASM howto guides do NOT have codec/constants
-    sections (only Go howto has full coverage). Aspirational parity, not a hard target.md criterion.
 - **CID iteration 2 (new numbering, commits 1924063..4c40c40)**: advance agent added "Codec
     operations" and "Constants" sections to the 4 remaining binding howto guides: `python.md`
     (332→394→441 lines), `java.md` (313→384 lines), `nodejs.md` (277→360 lines), `wasm.md` (334→419
@@ -435,14 +431,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     is uppercase, NOT the Rust function name. Always verify `js_name` attribute when documenting
     WASM APIs.
 - **Latest CI run**: 22490458908, HEAD `4c40c40`, all 7 jobs SUCCESS.
-- **issues.md status (iteration 2)**: Issues #5-#8 still present with GitHub URLs — cleanup remains
-    pending. All implementations are complete.
 - **crates/iscc-lib/CLAUDE.md RESOLVED (CID iteration 3)**: Updated to "30 symbols at crate root",
     correct Tier 1/2 lists, iscc-jni added, serde_json_canonicalizer added. No longer stale.
 - **Howto doc line counts (post-iteration-2)**: python.md=441, java.md=384, nodejs.md=360,
     wasm.md=419, go.md=462 lines. All 5 have Codec ops + Constants sections.
-- **issues.md status (CID iteration 3)**: Issues #5-#8 still present with GitHub URLs — all
-    implementations complete, local entries should be deleted. Cleanup is the immediate next step.
 - **CID iteration 4 (new numbering, commits 93be74d..3d59788)**: Go WASM binary committed to git for
     `go get` distribution: `packages/go/iscc_ffi.wasm` (683KB), `.gitignore` rule removed, CI
     `.pre-commit-config.yaml` `check-added-large-files` threshold raised to 1024KB. Review agent
@@ -455,12 +447,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     artifacts). Key new dependencies: `github.com/zeebo/blake3`, `github.com/cespare/xxhash/v2`,
     `golang.org/x/text/unicode/norm`. WASM binary must be removed from git, `.gitignore` rule
     restored, `check-added-large-files` threshold restored to 256KB, `wazero` removed from go.mod.
-- **issues.md status (CID iteration 4)**: Issues #5-#8 still present (stale, all resolved). New
-    `[critical]` issue: "Rewrite Go bindings as pure Go (replace WASM/wazero bridge)". This
-    `[critical]` issue overrides all other work.
-- **Go WASM CI job**: `.github/workflows/ci.yml` Go job currently builds WASM binary and runs tests.
-    After Go rewrite, the Go CI job must be simplified (just `go test ./...` and `go vet ./...`).
-- **Latest assessed commit**: `3d59788fd59057b02a6e7815fb3ecf786eb317f3` (HEAD at assessment).
+- **issues.md cleanup**: Issues #5-#8 were cleaned up in an interactive session (2026-02-27). Only
+    the `[critical]` Go pure rewrite issue remains. GitHub issues #4-#8 closed.
+- **Go CI job simplification pending**: After Go pure rewrite completes, the Go CI job must be
+    simplified (just `go test ./...` and `go vet ./...` — no WASM build step).
 - **CID iteration 5 (new numbering, commits 32290e4..da22141)**: advance agent implemented pure Go
     codec module: `packages/go/codec.go` (570 lines) — `MainType`/`SubType`/`Version` typed
     constants, varnibble header encode/decode, base32/base64, length/unit encode/decode,

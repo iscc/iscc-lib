@@ -317,50 +317,16 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     Data, Instance, Flake), multiples of 64 for ISCC-CODE, and multiples of 8 for ID —
     `bit_length / 8` in `iscc_decode` is always safe without remainder checking
 
-## Go/wazero Bridge
+## Go/wazero Bridge (OBSOLETE — replaced by pure Go rewrite)
 
-- Go module path is `github.com/iscc/iscc-lib/packages/go`, package name `iscc`. Go is installed via
-    mise (`go = "latest"` in `[tools]`) — requires `mise exec --` prefix to run Go commands
+The Go bindings are being rewritten as pure Go (no WASM, no wazero). The entries below document the
+old WASM/wazero bridge approach. They are retained for historical reference only and should NOT
+guide current development. See "Go Bindings — Pure Go Rewrite" section below for current patterns.
 
-- wazero v1.11.0 (pure-Go WASM runtime, no CGO). WASM binary embedded via `//go:embed iscc_ffi.wasm`
-    — must be pre-built and copied to `packages/go/` before tests. TestMain skips gracefully if
-    missing
-
-- `iscc_last_error()` returns a borrowed pointer — Go bridge must NOT call `iscc_free_string` on it.
-    Other string-returning FFI functions (like `iscc_text_clean`) return owned strings that must be
-    freed
+- Go module path is `github.com/iscc/iscc-lib/packages/go`, package name `iscc`
 
 - `text_clean` does NOT collapse double spaces within a line — use NFKC ligature normalization
     (e.g., fi ligature U+FB01 → "fi") for test cases instead of space-collapsing expectations
-
-- WASM i32 alignment: `iscc_alloc(0)` returns a dangling pointer with alignment 1, which panics in
-    `slice::from_raw_parts` for `*const i32` (needs alignment 4). `writeI32Slice` must allocate
-    minimum 4 bytes for empty slices to ensure proper alignment. `writeBytes` (u8) is fine with
-    alignment 1
-
-- Go conformance test pattern: `json.RawMessage` for deferred parsing + helper functions
-    (`parseBits`, `parseStreamData`, `parseF64Array`, `f64ToI32`, `f64ToByte`). Meta test vectors
-    with dict values need `json.Marshal` to serialize back to string before passing to FFI
-
-- WASM sret ABI for struct returns: `iscc_free_byte_buffer` and `iscc_free_byte_buffer_array` take
-    the struct by pointer (single i32 param) on wasm32, not as flattened fields. The sret pointer
-    from the function call can be reused directly as the free function's argument — no extra alloc
-    needed. `IsccByteBuffer` and `IsccByteBufferArray` are both 8 bytes (2×i32). Individual buffers
-    in an array are at `buffersPtr + i*8`
-
-- Go `IsccDecode` returns `*DecodeResult` (pointer to struct, not value) — idiomatic Go for
-    non-trivial return types. The sret cleanup sequence is: copy digest to Go memory →
-    `iscc_free_decode_result(sret_ptr)` → `dealloc(sret_ptr, 16)`. Order matters: digest data is
-    freed by `iscc_free_decode_result`, so it must be copied first
-
-- Go `packages/go/iscc_ffi.wasm` is tracked in git (release build, ~683KB). When FFI exports change
-    in `crates/iscc-ffi/src/lib.rs`, the binary must be rebuilt
-    (`cargo build -p iscc-ffi --target   wasm32-wasip1 --release`), copied to `packages/go/`, and
-    recommitted. CI builds a fresh debug binary for testing (overwrites committed release in CI env
-    only)
-
-- All 6 language bindings (Python, Node.js, WASM, C FFI, Java JNI, Go/wazero) now have 30/30 Tier 1
-    symbols as of iteration 12
 
 ## Publishing
 
@@ -466,3 +432,12 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     `(x % mprime) & maxH`, matching Rust operator precedence. Use `const` (not `var`) for scalar
     constants like `math.MaxUint64` and bit-shift expressions — Go supports these as constant
     expressions
+
+## CID Process
+
+- **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current
+    iteration's advance step — it does NOT sweep the full issues.md backlog. Issues resolved across
+    prior CID loops can persist indefinitely. The update-state agent detected this for issues #5-#8
+    across 4+ iterations but define-next never scoped cleanup work (higher-priority items always
+    took precedence). Fix: review agent should scan all issues.md entries against state.md "met"
+    sections after reviewing the advance work
