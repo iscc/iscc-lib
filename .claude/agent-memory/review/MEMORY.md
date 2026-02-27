@@ -51,7 +51,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     (must `cd` into the Go module directory — running from repo root with `./packages/go/` path
     fails with "cannot find main module")
 
-- Full test suite (177 tests) runs in \<1s — always run it for Python changes
+- Full test suite (184 tests) runs in \<1s — always run it for Python changes
 
 - Script-only changes (new Python scripts, mise task additions): `mise run check` + direct script
     invocation is sufficient — skip all test suites unless the script modifies test infrastructure

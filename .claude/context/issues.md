@@ -64,22 +64,6 @@ action that requires review regardless of source:
 
 <!-- Add issues below this line -->
 
-## [normal] gen_image_code_v0: accept PIL pixel data (Sequence[int]), not just bytes
-
-GitHub: https://github.com/iscc/iscc-lib/issues/4
-
-`gen_image_code_v0` only accepts `bytes` for the `pixels` parameter. In `iscc-core`, it also accepts
-PIL's `ImagingCore` object (a `Sequence[int]`) returned by `Image.getdata()`. This blocks drop-in
-replacement of `iscc-core` in `iscc-sdk`.
-
-**Approach (per maintainer comment):** Handle conversion in the Python wrapper only — Rust stays
-`&[u8]`. In `crates/iscc-py/python/iscc_lib/__init__.py`, widen `gen_image_code_v0` to accept
-`bytes | bytearray | memoryview | Sequence[int]`. If `pixels` is not bytes-like, convert with
-`pixels = bytes(pixels)`. Update type stubs in `_lowlevel.pyi`. Add a test using
-`PIL.Image(...).convert('L').resize((32,32)).getdata()`.
-
-**Source:** [human]
-
 ## [normal] gen_meta_code_v0: accept dict for meta parameter (auto-serialize to data URL)
 
 GitHub: https://github.com/iscc/iscc-lib/issues/5

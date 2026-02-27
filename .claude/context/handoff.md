@@ -1,18 +1,12 @@
-## 2026-02-27 — Accept PIL pixel data in Python gen_image_code_v0
+## 2026-02-27 — Review of: Accept PIL pixel data in Python gen_image_code_v0
 
-**Done:** Widened `gen_image_code_v0` in the Python wrapper to accept
-`bytes | bytearray | memoryview | Sequence[int]` for the `pixels` parameter, enabling drop-in
-replacement of `iscc-core` when used with PIL/Pillow's `Image.getdata()`. This closes GitHub issue
-#4. The change is a 3-line modification using the same `isinstance` + `bytes()` conversion pattern
-already used by `gen_data_code_v0` and `gen_instance_code_v0`.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-py/python/iscc_lib/__init__.py`: Widened `gen_image_code_v0` signature from `bytes`
-    to `bytes | bytearray | memoryview | Sequence[int]`, added `isinstance` check with `bytes()`
-    conversion for non-bytes inputs
-- `tests/test_new_symbols.py`: Added 7 tests covering `list[int]`, `bytearray`, `memoryview`,
-    `bytes` regression, and equivalence checks between all input types
+**Summary:** Clean, minimal implementation widening `gen_image_code_v0` in the Python wrapper to
+accept `bytes | bytearray | memoryview | Sequence[int]` for the `pixels` parameter. The 3-line
+change (`isinstance` check + `bytes()` conversion) follows the exact same pattern already used by
+`gen_data_code_v0` and `gen_instance_code_v0`. All 184 tests pass, all 14 pre-commit hooks pass, no
+quality gate circumvention. Issue #4 resolved and removed from issues.md.
 
 **Verification:**
 
@@ -26,13 +20,21 @@ already used by `gen_data_code_v0` and `gen_instance_code_v0`.
     exits 0
 - [x] All 14 pre-commit hooks pass (`mise run check`)
 
-**Next:** Issue #4 Python layer is complete. Three remaining Python iscc-core drop-in extensions:
-(1) Issue #6 — `MT`/`ST`/`VS` IntEnum classes for Python, (2) Issue #7 — `iscc_decode` returning
-IntEnum-typed tuples, (3) Issue #8 — `core_opts` SimpleNamespace. All are independent Python-wrapper
-changes. After these drop-in extensions are done, propagate the new Tier 1 symbols to the remaining
-bindings (Node.js, WASM, C FFI, Java, Go).
+**Issues found:**
 
-**Notes:** The implementation is minimal and follows the exact pattern suggested in next.md. The
-`Sequence` import was already present in `__init__.py` (line 6). The `bytes()` constructor handles
-all three non-bytes types uniformly: `bytearray`, `memoryview`, and `Sequence[int]` (including PIL's
-`ImagingCore`). No Rust changes needed — the conversion happens entirely in the Python wrapper.
+- (none)
+
+**Codex review:** Codex (gpt-5.2) found no functional regressions or actionable issues. Confirmed
+the change is small, self-contained, and correctly applies `bytes()` conversion.
+
+**Next:** Issue #4 is done. Three remaining Python iscc-core drop-in extensions: (1) Issue #6 —
+`MT`/`ST`/`VS` IntEnum classes for Python, (2) Issue #7 — `iscc_decode` returning IntEnum-typed
+tuples (depends on #6), (3) Issue #8 — `core_opts` SimpleNamespace. Issues #6 and #8 are independent
+additive changes to `__init__.py` and could potentially be batched. Issue #5 (dict meta) was
+resolved in iteration 5 but remains in issues.md for the other-bindings propagation. After these
+Python extensions, propagate new Tier 1 symbols to remaining bindings (Node.js, WASM, C FFI, Java,
+Go).
+
+**Notes:** The `Sequence` import was already present in `__init__.py` (line 6). Test coverage is
+thorough: 4 type-acceptance tests + 3 equivalence tests verifying identical output across all input
+types. The test count grew from 177 to 184 across the last two iterations (dict meta + PIL pixels).
