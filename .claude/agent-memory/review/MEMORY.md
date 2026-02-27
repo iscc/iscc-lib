@@ -95,12 +95,12 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go pure rewrite progress: codec complete (570 lines, 48 tests), text utils complete (130 lines, 21
     tests), algorithms complete — CDC (129 lines, 15 tests), MinHash (205 lines, 8 tests),
     SimHash+SlidingWindow (86 lines, 14 tests), DCT (52 lines, 10 tests), WTA-Hash (92 lines, 9
-    tests). Gen functions: GenMetaCodeV0 (281 lines) + GenTextCodeV0 (41 lines) + xxh32 (81 lines) +
-    GenDataCodeV0 (90 lines) + GenInstanceCodeV0 (67 lines) + GenImageCodeV0 (134 lines) +
-    GenAudioCodeV0 (112 lines) + GenVideoCodeV0 (61 lines) + GenMixedCodeV0 (92 lines) = 8/9 gen
-    functions done, 49 conformance tests (16 meta + 5 text + 4 data + 3 instance + 3 image + 5 audio
-    \+ 3 video + 2 mixed + 8 xxh32 unit). WASM bridge types renamed: `WasmDataHasher`,
-    `WasmInstanceHasher`. Next: GenIsccCodeV0 (step 5e) → conformance_selftest → WASM cleanup
+    tests). All 9 gen functions DONE: GenMetaCodeV0 (281 lines) + GenTextCodeV0 (41 lines) + xxh32
+    (81 lines) + GenDataCodeV0 (90 lines) + GenInstanceCodeV0 (67 lines) + GenImageCodeV0 (134
+    lines) + GenAudioCodeV0 (112 lines) + GenVideoCodeV0 (61 lines) + GenMixedCodeV0 (92 lines) +
+    GenIsccCodeV0 (148 lines) = 54 conformance tests (16 meta + 5 text + 4 data + 3 instance + 3
+    image + 5 audio + 3 video + 2 mixed + 5 iscc + 8 xxh32 unit). WASM bridge types renamed:
+    `WasmDataHasher`, `WasmInstanceHasher`. Next: conformance_selftest → WASM cleanup
 
 ## Binding Propagation Review Shortcuts
 
