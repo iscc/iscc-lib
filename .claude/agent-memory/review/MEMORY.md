@@ -79,7 +79,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - WASM has 30/30 Tier 1 symbols as of iteration 9 (59 unit tests + 9 conformance tests)
 - C FFI has 30/30 Tier 1 symbols as of iteration 10 (77 Rust unit tests, 49 C test assertions)
 - Java JNI has 30/30 Tier 1 symbols as of iteration 11 (58 Maven tests: 51 existing + 7 new)
-- Go/wazero is at 23/30 Tier 1 symbols (last remaining binding)
+- Go/wazero has 30/30 Tier 1 symbols as of iteration 12 (48 total Runtime methods: 27 public + 21
+    private helpers, 7 new tests)
 
 ## Binding Propagation Review Shortcuts
 

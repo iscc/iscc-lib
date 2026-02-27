@@ -420,3 +420,8 @@
 {"ts":"2026-02-27T13:03:58.431296+00:00","iteration":11,"role":"define-next","status":"OK","turns":17,"cost_usd":1.599619,"duration_s":279.0}
 {"ts":"2026-02-27T13:09:44.472461+00:00","iteration":11,"role":"advance","status":"OK","turns":46,"cost_usd":2.144583,"duration_s":346.0}
 {"ts":"2026-02-27T13:15:00.000000+00:00","iteration":11,"role":"review","status":"PASS","verdict":"PASS","summary":"All 7 Tier 1 symbols propagated to Java JNI (30/30). 58 Maven tests pass. Clean implementation, no issues."}
+{"ts":"2026-02-27T13:16:27.062068+00:00","iteration":11,"role":"review","status":"OK","turns":91,"cost_usd":4.134008,"duration_s":402.6}
+{"ts":"2026-02-27T13:25:38.290239+00:00","iteration":12,"role":"update-state","status":"OK","turns":20,"cost_usd":0.935075,"duration_s":252.6}
+{"ts":"2026-02-27T13:29:07.447860+00:00","iteration":12,"role":"define-next","status":"OK","turns":30,"cost_usd":1.182671,"duration_s":209.1}
+{"ts":"2026-02-27T13:35:11.813036+00:00","iteration":12,"role":"advance","status":"OK","turns":48,"cost_usd":2.532888,"duration_s":364.4}
+{"ts":"2026-02-27T13:42:00.000000+00:00","iteration":12,"role":"review","status":"PASS","turns":15,"cost_usd":0.5,"duration_s":420}
