@@ -1,101 +1,68 @@
 # Next Work Package
 
-## Step: Add Codec operations and Constants sections to binding howto guides
+## Step: Update crates/iscc-lib/CLAUDE.md for 30-symbol Tier 1 API
 
 ## Goal
 
-Add "Codec operations" and "Constants" documentation sections to the Python, Node.js, Java, and WASM
-howto guides, achieving cross-language documentation parity with `docs/howto/go.md` which is
-currently the only guide covering all 30/30 Tier 1 symbols.
+Update the per-crate `CLAUDE.md` in `crates/iscc-lib/` to reflect the current 30-symbol Tier 1 API.
+The file currently says "22 symbols at crate root" and has stale Tier 1/Tier 2 lists — this
+misguides agents working on the crate. Fixing it ensures accurate developer guidance.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `docs/howto/python.md`, `docs/howto/nodejs.md`, `docs/howto/java.md`,
-    `docs/howto/wasm.md`
-- **Reference**: `docs/howto/go.md` (template for section structure and content),
-    `crates/iscc-py/python/iscc_lib/__init__.py` (Python API surface and naming),
-    `crates/iscc-napi/src/lib.rs` (Node.js API names),
-    `packages/java/src/main/java/io/iscc/IsccLib.java` (Java API names),
-    `crates/iscc-wasm/src/lib.rs` (WASM API names)
+- **Modify**: `crates/iscc-lib/CLAUDE.md`
+- **Reference**: `crates/iscc-lib/src/lib.rs` (actual exports), `.claude/context/specs/rust-core.md`
+    (authoritative 30-symbol table at lines 257-278)
 
 ## Not In Scope
 
-- Adding "Algorithm primitives" sections to Python, Node.js, or WASM guides (separate step)
-- Adding Codec/Constants to `docs/howto/rust.md` (Rust developers use `cargo doc`)
-- Modifying any source code — this is documentation-only
-- Updating `zensical.toml` navigation (sections are within existing pages, no new pages)
-- Restructuring existing sections in any guide
+- Modifying any Rust source code
+- Updating the root `CLAUDE.md` (different file, different purpose)
+- Deleting resolved issues from `issues.md` (review agent's job)
+- Updating any documentation site pages (`docs/`)
+- Changing module visibility or API surface — this is a docs-only step
 
 ## Implementation Notes
 
-Use `docs/howto/go.md` lines 365–437 as the structural template. Each guide gets two new sections
-inserted **before** the "Conformance testing" section:
+The file has several stale sections that all need updating together:
 
-### "Codec operations" section
+1. **Line 8 — binding crate list**: Currently says `iscc-py`, `iscc-napi`, `iscc-wasm`, `iscc-ffi`.
+    Add `iscc-jni` (Java JNI binding crate added months ago).
 
-Cover these 6 functions with language-idiomatic code examples:
+2. **Line 31 — symbol count**: Change `22 symbols at crate root` → `30 symbols at crate root`.
 
-1. **`encode_component`** — construct an ISCC unit from raw header fields and digest
-2. **`iscc_decode`** — parse an ISCC unit string back into header components and digest
-3. **`iscc_decompose`** — split a composite ISCC-CODE into individual unit codes
-4. **`encode_base64`** — encode bytes to base64
-5. **`json_to_data_url`** — convert JSON string to data URL
-6. **`soft_hash_video_v0`** — compute video similarity hash from frame signatures
+3. **Tier 1 list (lines 33-42)**: Update to match the actual API:
 
-Structure: Show encode + decode as a paired example (like Go guide), then decompose, then list
-remaining 3 as bullet points with signatures.
+    - Encoding utilities: add `json_to_data_url` (was 1 → now 2)
+    - Codec operations: add `encode_component` and `iscc_decode` (was 1 → now 3)
+    - Add new category: 4 algorithm constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`,
+        `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)
+    - Keep all existing entries unchanged
 
-### "Constants" section
+4. **Tier 2 list (lines 44-48)**: Remove `encode_component` (promoted to Tier 1). It still lives in
+    `codec.rs` but is re-exported at crate root via a public wrapper in `lib.rs`.
 
-Cover 4 algorithm constants with a single code block showing how to import/access them:
+5. **Dependencies section (lines 113-121)**: Add `serde_json_canonicalizer` — RFC 8785 (JCS)
+    compliant JSON serialization, used for metadata canonicalization. Already in `Cargo.toml` but
+    missing from the CLAUDE.md dependency listing.
 
-- `META_TRIM_NAME` = 128
-- `META_TRIM_DESCRIPTION` = 4096
-- `IO_READ_SIZE` = 4,194,304
-- `TEXT_NGRAM_SIZE` = 13
-
-### Language-specific details
-
-**Python:** Functions use `snake_case`. `iscc_decode` returns `tuple[MT, ST, VS, int, bytes]` with
-IntEnum-typed values. Constants are top-level module attributes. Also mention `core_opts`
-SimpleNamespace for iscc-core API parity.
-
-**Node.js:** Functions use `snake_case` (via `js_name`). `iscc_decode` returns an `IsccDecodeResult`
-object. Constants are exported as `META_TRIM_NAME` etc. Use `const { ... } = require("@iscc/lib")`
-import style.
-
-**Java:** Methods use `camelCase` on `IsccLib` class: `encodeComponent`, `isccDecode` (returns
-`IsccDecodeResult`), `isccDecompose`, `encodeBase64`, `jsonToDataUrl`, `softHashVideoV0`. Constants
-are `public static final int` on `IsccLib`.
-
-**WASM:** Functions use `snake_case`. `iscc_decode` returns an `IsccDecodeResult` object. Constants
-are getter functions: `meta_trim_name()`, etc.
-
-### Description update
-
-Update each guide's front matter `description:` and opening paragraph to mention codec operations
-and constants coverage.
+Use `specs/rust-core.md` lines 257-278 as the authoritative reference for the complete Tier 1 table.
+Cross-check against `lib.rs` `pub use` re-exports and `pub const` declarations.
 
 ## Verification
 
-- `grep -c 'encode_component\|encodeComponent\|EncodeComponent' docs/howto/python.md` returns ≥ 1
-- `grep -c 'iscc_decode\|isccDecode' docs/howto/python.md` returns ≥ 1
-- `grep -c 'META_TRIM_NAME' docs/howto/python.md` returns ≥ 1
-- `grep -c 'core_opts' docs/howto/python.md` returns ≥ 1
-- `grep -c 'encode_component' docs/howto/nodejs.md` returns ≥ 1
-- `grep -c 'iscc_decode' docs/howto/nodejs.md` returns ≥ 1
-- `grep -c 'META_TRIM_NAME' docs/howto/nodejs.md` returns ≥ 1
-- `grep -c 'encodeComponent' docs/howto/java.md` returns ≥ 1
-- `grep -c 'isccDecode' docs/howto/java.md` returns ≥ 1
-- `grep -c 'META_TRIM_NAME' docs/howto/java.md` returns ≥ 1
-- `grep -c 'encode_component' docs/howto/wasm.md` returns ≥ 1
-- `grep -c 'iscc_decode' docs/howto/wasm.md` returns ≥ 1
-- `grep -c 'meta_trim_name' docs/howto/wasm.md` returns ≥ 1
-- `uv run zensical build` exits 0 (docs site builds successfully)
-- `mise run check` passes (all pre-commit/pre-push hooks clean)
+- `grep '30 symbols' crates/iscc-lib/CLAUDE.md` returns a match
+- `grep 'json_to_data_url' crates/iscc-lib/CLAUDE.md` returns a match (in Tier 1 section)
+- `grep 'iscc_decode' crates/iscc-lib/CLAUDE.md` returns a match (in Tier 1 section)
+- `grep -c 'encode_component' crates/iscc-lib/CLAUDE.md` returns exactly 2 (once in Tier 1, once in
+    Common Pitfalls — NOT in Tier 2)
+- `grep 'META_TRIM_NAME' crates/iscc-lib/CLAUDE.md` returns a match
+- `grep 'serde_json_canonicalizer' crates/iscc-lib/CLAUDE.md` returns a match
+- `grep 'iscc-jni' crates/iscc-lib/CLAUDE.md` returns a match
+- No Rust compilation or test changes (this is docs-only)
 
 ## Done When
 
-All 4 binding howto guides have "Codec operations" and "Constants" sections with idiomatic code
-examples, the docs site builds cleanly, and all verification grep checks pass.
+All 7 grep verification checks pass, confirming the CLAUDE.md accurately reflects the current
+30-symbol Tier 1 API with correct Tier 2 demotion and updated dependency list.

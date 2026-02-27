@@ -322,3 +322,13 @@ iterations.
     `iscc_decode`; WASM uses getter functions for constants (not `const`); Java uses camelCase
     method names on static `IsccLib` class. Verification is all grep-based (check for function names
     \+ constant names in each file) plus `zensical build` for docs integrity.
+- **Stale internal docs after API promotions** (CID loop 6, iteration 2): When Tier 2 symbols get
+    promoted to Tier 1 across multiple iterations, per-crate CLAUDE.md files become stale — they
+    still list old symbol counts and tier assignments. This is a concrete maintenance debt because
+    agents read CLAUDE.md for API tier rules. Signs: state.md says "30 symbols" but CLAUDE.md says
+    "22", Tier 2 section lists functions that are re-exported at crate root. Fix is single-file,
+    docs-only, fully grep-verifiable. Low risk, high value for agent accuracy.
+- **End-of-project maintenance phase**: When all code is complete, CI green, and only operational
+    tasks remain (publishing, issues cleanup), prioritize stale internal docs (CLAUDE.md, agent
+    memory) over external operational tasks that require human action (OIDC setup, npm triggers,
+    Maven Central). Internal docs are CID-actionable; external operations are not.
