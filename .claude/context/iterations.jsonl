@@ -434,3 +434,8 @@
 {"ts":"2026-02-27T14:19:36.940005+00:00","iteration":1,"role":"define-next","status":"OK","turns":27,"cost_usd":1.086837,"duration_s":262.3}
 {"ts":"2026-02-27T14:24:54.476963+00:00","iteration":1,"role":"advance","status":"OK","turns":47,"cost_usd":1.876835,"duration_s":317.5}
 {"ts":"2026-02-27T14:34:49.987191+00:00","iteration":1,"role":"review","status":"PASS_WITH_NOTES","summary":"Codec/Constants docs for 4 binding guides. Fixed WASM constant naming (lowercase→uppercase)."}
+{"ts":"2026-02-27T14:36:11.357155+00:00","iteration":1,"role":"review","status":"OK","turns":127,"cost_usd":5.869301,"duration_s":676.9}
+{"ts":"2026-02-27T14:59:44.015297+00:00","iteration":2,"role":"update-state","status":"OK","turns":2,"cost_usd":1.191851,"duration_s":223.3}
+{"ts":"2026-02-27T15:06:17.347906+00:00","iteration":2,"role":"define-next","status":"OK","turns":24,"cost_usd":1.117706,"duration_s":393.3}
+{"ts":"2026-02-27T15:09:35.785892+00:00","iteration":2,"role":"advance","status":"OK","turns":35,"cost_usd":0.940277,"duration_s":198.4}
+{"ts":"2026-02-27T15:20:00.000000+00:00","iteration":2,"role":"review","status":"PASS","summary":"crates/iscc-lib/CLAUDE.md accurately updated for 30-symbol Tier 1 API. All 7 grep checks pass, 14 hooks clean."}
