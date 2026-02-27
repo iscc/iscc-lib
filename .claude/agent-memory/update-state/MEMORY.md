@@ -348,6 +348,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `crates/iscc-py/python/iscc_lib/__init__.py`. 14 new tests added to `test_new_symbols.py` (now
     39 test functions). Review agent PASS. 198 total pytest tests (was 184). `__all__` now 45
     entries (MT, ST, VS, core_opts added; was 41). **Python Bindings: fully MET** — all 30/30 Tier 1
-    symbols
-    - all iscc-core drop-in extensions complete. CI all 7 jobs passing at HEAD `17995bf` (runs
-        22484814543 + 22484813628). Next: propagate 7 symbols to Node.js, WASM, C FFI, Java, Go.
+    symbols + all iscc-core drop-in extensions complete. CI all 7 jobs passing at HEAD `17995bf`
+    (runs 22484814543 + 22484813628).
+- **CID iteration 9 (commits aa1bba3..0d2f60c)**: advance agent propagated all 7 new Tier 1 symbols
+    to Node.js napi-rs bindings. Added 4 constants (`META_TRIM_NAME=128`,
+    `META_TRIM_DESCRIPTION=4096`, `IO_READ_SIZE=4_194_304`, `TEXT_NGRAM_SIZE=13`) via `#[napi]` on
+    `pub const`; added 3 functions (`encode_component`, `iscc_decode`, `json_to_data_url`) and
+    `IsccDecodeResult` `#[napi(object)]` struct. `crates/iscc-napi/src/lib.rs` now has 39 `#[napi]`
+    annotations. 21 new tests in `crates/iscc-napi/__tests__/functions.test.mjs` (total 124 tests).
+    Review agent PASS. **Node.js Bindings: fully MET** — 30/30 Tier 1 symbols. CI all 7 jobs passing
+    at HEAD `0d2f60c` (run 22485432283). Next: propagate 7 symbols to WASM (good candidate —
+    well-established wasm-bindgen pattern).

@@ -1,16 +1,15 @@
-<!-- assessed-at: 17995bf -->
+<!-- assessed-at: 0d2f60c -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Symbol Propagation — 7 Tier 1 symbols to 5 remaining bindings (Node.js, WASM, C FFI, Java, Go)
+## Phase: Symbol Propagation — 7 Tier 1 symbols to 4 remaining bindings (WASM, C FFI, Java, Go)
 
-CID iteration 8 completed the final Python iscc-core drop-in extensions: `MT`, `ST`, `VS` `IntEnum`
-classes, `core_opts` `SimpleNamespace`, and an `iscc_decode` wrapper returning IntEnum-typed values.
-Python bindings are now fully met. All other bindings remain at 23/30 Tier 1 symbols — the 7 new
-symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants) must be propagated
-to Node.js, WASM, C FFI, Java, and Go.
+CID iteration 9 completed Node.js symbol propagation: all 30/30 Tier 1 symbols are now accessible
+from Node.js. Python and Node.js bindings are fully met. WASM, C FFI, Java JNI, and Go remain at
+23/30 Tier 1 symbols — the 7 symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4
+constants) must be propagated to these 4 remaining bindings.
 
 ## Rust Core Crate
 
@@ -48,20 +47,27 @@ to Node.js, WASM, C FFI, Java, and Go.
 - `gen_image_code_v0` accepts `bytes | bytearray | memoryview | Sequence[int]` — non-bytes input
     converted via `bytes()`
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
-- 198 tests passing across 6 files (CI-verified at HEAD 17995bf)
+- 198 tests passing across 6 files (CI-verified at HEAD)
 - `ruff check` and `ruff format --check` pass (CI-verified at HEAD)
 - `iscc-lib 0.0.2` not yet published to PyPI (0.0.1 was published; release not re-triggered since
     v0.0.2 bump)
 
 ## Node.js Bindings
 
-**Status**: partially met (23/30 Tier 1 symbols; 7 new symbols not yet propagated)
+**Status**: met (30/30 Tier 1 symbols)
 
-- 23/23 old Tier 1 symbols exported via napi-rs; 31 `#[napi]` annotations (includes struct methods)
-- `DataHasher` and `InstanceHasher` implemented; conformance vectors pass; 103 tests (CI-verified)
-- **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
-- `repository` field added to `package.json` for npm provenance verification
+- All 30/30 Tier 1 symbols exported via napi-rs; 39 `#[napi]` annotations (includes struct methods
+    and `IsccDecodeResult` object struct)
+- 4 algorithm constants exported: `META_TRIM_NAME` (128), `META_TRIM_DESCRIPTION` (4096),
+    `IO_READ_SIZE` (4194304), `TEXT_NGRAM_SIZE` (13) — verified by tests
+- 3 newly propagated functions: `encode_component`, `iscc_decode` (returns `IsccDecodeResult` object
+    with `maintype`/`subtype`/`version`/`length`/`digest` fields), `json_to_data_url`
+- `DataHasher` and `InstanceHasher` implemented; conformance vectors pass
+- 124 tests (103 existing + 21 new covering all 7 symbols) — CI-verified at HEAD `0d2f60c`
+- `cargo clippy -p iscc-napi --all-targets -- -D warnings` clean (CI-verified)
+- `repository` field in `package.json` for npm provenance verification
 - `@iscc/lib 0.0.2` not yet published to npm (awaiting release trigger)
+- **Nothing missing** in Node.js bindings
 
 ## WASM Bindings
 
@@ -156,8 +162,8 @@ publishing absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22484814543](https://github.com/iscc/iscc-lib/actions/runs/22484814543) — all 7 jobs
-    SUCCESS — triggered at HEAD `17995bf`
+    [Run 22485432283](https://github.com/iscc/iscc-lib/actions/runs/22485432283) — all 7 jobs
+    SUCCESS — triggered at HEAD `0d2f60c`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -168,13 +174,14 @@ publishing absent)
 
 ## Next Milestone
 
-**Propagate 7 new Tier 1 symbols to all 5 remaining bindings:**
+**Propagate 7 new Tier 1 symbols to WASM (highest priority — well-established wasm-bindgen
+pattern):**
 
-1. **Node.js** (`crates/iscc-napi`): Add `encode_component`, `iscc_decode`, `json_to_data_url` as
-    `#[napi]` functions; expose 4 constants via `#[napi]`; update TypeScript types; add tests
-2. **WASM** (`crates/iscc-wasm`): Add 3 functions + 4 constants with `#[wasm_bindgen]`; add tests
-3. **C FFI** (`crates/iscc-ffi`): Add `extern "C"` wrappers for 3 functions; add `#define` constants
+1. **WASM** (`crates/iscc-wasm`): Add `encode_component`, `iscc_decode`, `json_to_data_url` as
+    `#[wasm_bindgen]` functions; expose 4 constants via `#[wasm_bindgen]`; add tests — pattern
+    mirrors Node.js additions in commit `caf87ef`
+2. **C FFI** (`crates/iscc-ffi`): Add `extern "C"` wrappers for 3 functions; add `#define` constants
     in cbindgen header; add C tests
-4. **Java** (`crates/iscc-jni`): Add JNI functions + Java method declarations; add tests
-5. **Go** (`packages/go`): Extend `iscc.go` with 3 functions + 4 constants; update `.wasm` embed;
+3. **Java** (`crates/iscc-jni`): Add JNI functions + Java method declarations; add tests
+4. **Go** (`packages/go`): Extend `iscc.go` with 3 functions + 4 constants; update `.wasm` embed;
     add tests
