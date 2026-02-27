@@ -265,3 +265,30 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `zensical.toml` updated with `{ "Ecosystem" = "ecosystem.md" }` between Explanation and
     Reference. Documentation page count: 14 (was 13). CI all 7 jobs pass on develop (runs
     22405571444 + 22405570077, HEAD `de0b17a`). PR #3 still open (now includes ecosystem page too).
+- **CID iteration 1 (new numbering, commits 3729d96..4e213a5)**: Between assessments, several
+    human-driven changes occurred:
+    - PR #3 MERGED (develop → main, commit `69cce77`) — wasm-opt fix + docs/howto/wasm.md name fix
+    - **Version bumped to 0.0.2** (commit `306c5e9`): root Cargo.toml, package.json, pom.xml
+    - `crates/iscc-py/pyproject.toml` enriched with description, license, authors, keywords,
+        classifiers, project URLs (commit `53ecc6c`)
+    - `scripts/test_install.py` added (461 lines) — install verification for PyPI/crates.io/npm/Go;
+        `mise run test:install` task (commit `53ecc6c`)
+    - `crates/iscc-napi/package.json` now has `"repository"` field for npm provenance (commit
+        `3729d96`)
+    - Release workflow fixed (commit `2f4b8f5`): CARGO_REGISTRY_TOKEN passed explicitly, WASM
+        package.json gets `repository` field for npm provenance, deprecated `macos-13` → `macos-14`
+        for x86_64-apple-darwin
+    - **Target updated** (commit `0df17ca`): Tier 1 API expanded to **30 public symbols** (was 23). 7
+        new symbols: `json_to_data_url`, Tier 1 `encode_component`, `iscc_decode`, `META_TRIM_NAME`,
+        `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
+    - `specs/rust-core.md` added (~290 lines): detailed spec for all new Tier 1 symbols
+    - `specs/python-bindings.md` updated: iscc-core drop-in compatibility extensions (PIL pixels, dict
+        meta, MT/ST/VS enums, core_opts)
+    - Issues #4-#8 added to issues.md (GitHub issues filed); issues link to GitHub URLs
+    - CID agent protocols updated: Codex code review in review agent, documentation freshness checks
+    - CI all 7 jobs PASSING at HEAD `4e213a5` (run 22479950631)
+- **New Tier 1 symbol inventory**: `encode_component` already `pub fn` in `codec.rs` but NOT
+    re-exported at crate root. `json_to_data_url` and `iscc_decode` do NOT exist in any source file.
+    4 constants do NOT exist in any source file. Python `__init__.py` does NOT have new extensions.
+- **Exploration shortcuts updated**: check new symbols with
+    `grep -n "json_to_data_url\|encode_component\|iscc_decode\|META_TRIM\|IO_READ\|TEXT_NGRAM" crates/iscc-lib/src/lib.rs`
