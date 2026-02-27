@@ -416,3 +416,28 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - WASM binding constants use `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` — the JS export name is
     uppercase despite the Rust function being `meta_trim_name()`. Always verify documented API names
     against actual `js_name` attributes in `crates/iscc-wasm/src/lib.rs`, not just next.md specs
+
+## Go Bindings — Pure Go Rewrite
+
+- Go bindings are being rewritten from WASM/wazero bridge to pure Go. The WASM approach required
+    committing a ~700KB binary to git and inflating `check-added-large-files` to 1024KB — build
+    artifacts do not belong in git tracking
+
+- The Rust core is ~6,300 lines of pure algorithms that translate directly to Go. Key Go
+    dependencies: `github.com/zeebo/blake3` (BLAKE3), xxHash library (feature hashing),
+    `golang.org/x/text/unicode/norm` (NFKC/NFD). Standard library covers base32/base64/hex/json
+
+- The pure Go approach eliminates: WASM binary in git, wazero runtime dependency, WASM interpreter
+    overhead, cross-compilation target for WASM in CI, inflated large-file threshold
+
+- The existing public API surface (30 Tier 1 symbols) must be preserved. The `Runtime` struct
+    pattern from wazero is replaced by package-level functions (more idiomatic Go). Existing test
+    functions need adaptation to remove `Runtime` ceremony
+
+- Port order should follow dependency graph: codec (standalone) → text utils (standalone) →
+    algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash — all standalone) → gen\_\*\_v0 functions
+    (compose algorithms) → streaming hashers → conformance selftest
+
+- Conformance test vectors are the correctness contract — as long as Go passes the same vectors as
+    Rust and Python, the implementations are equivalent. The existing `iscc_test.go` (1,353 lines,
+    46 test functions) provides comprehensive coverage

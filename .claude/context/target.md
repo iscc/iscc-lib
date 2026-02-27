@@ -136,40 +136,59 @@ management required.
 
 ## Go Bindings — Go module
 
-A Go module consumable via `go get` (e.g., `go get github.com/iscc/iscc-lib/packages/go`) providing
-idiomatic Go access to all ISCC functions. Uses WASM via [wazero](https://wazero.io/) (pure Go,
-zero-dependency WebAssembly runtime) to avoid cgo and deliver the best possible developer
-experience.
+A pure Go module consumable via `go get` (e.g., `go get github.com/iscc/iscc-lib/packages/go`)
+providing idiomatic, first-class Go access to all ISCC functions. This is a native Go implementation
+— not an FFI wrapper or WASM bridge.
 
 **Architecture:**
 
-- WASM module compiled from Rust core targeting `wasm32-wasip1` (WASI), exporting C-style functions
-    (same signatures as `iscc-ffi`) plus memory allocation helpers (`iscc_alloc`/`iscc_dealloc`)
-- Pre-built `.wasm` binary embedded in the Go package via `//go:embed` — no build-time compilation
-    needed by consumers
-- Go wrapper provides idiomatic API with Go naming conventions, `error` returns, `[]byte` slices,
-    and `io.Reader` support for streaming
+- Pure Go implementation of all ISCC algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash)
+- No CGO, no WASM, no embedded binaries — just Go source code
+- Idiomatic Go API with Go naming conventions, `error` returns, `[]byte` slices, and `io.Reader`
+    support for streaming
 - Lives in this repository under `packages/go/` as a Go sub-module
+- Validated against the same conformance test vectors as all other bindings
 
-**Why WASM instead of cgo:**
+**Why pure Go (not WASM/wazero bridge):**
 
-- **Pure Go** — no C toolchain required, `go get` is all a developer needs
-- **Cross-compilation works** — `GOOS=linux GOARCH=arm64 go build` just works, unlike cgo
-- **Self-contained** — the `.wasm` binary is compiled into the Go binary, no shared library
-    management
-- **Performance** — Rust-compiled-to-WASM via wazero is faster than a pure Go implementation and
-    acceptable for ISCC operations (hashing, text normalization, CDC chunking)
+- **Zero distribution friction** — `go get` fetches source code only, no binary artifacts in git
+- **Native performance** — compiled to machine code, no WASM interpreter overhead. BLAKE3 and xxHash
+    Go libraries have SIMD-optimized implementations
+- **First-class debugging** — Go developers can step into ISCC code, profile it, read the source
+- **Cross-compilation works** — `GOOS=linux GOARCH=arm64 go build` just works
+- **No build artifacts in git** — the WASM approach required committing a ~700KB binary to the
+    repository, polluting git history and weakening large-file guards
+
+**Go dependencies (all well-maintained, pure Go):**
+
+- `github.com/zeebo/blake3` — BLAKE3 cryptographic hash
+- `github.com/cespare/xxhash/v2` or equivalent — xxHash for feature hashing
+- `golang.org/x/text/unicode/norm` — Unicode NFKC/NFD normalization
+- `encoding/base32`, `encoding/base64`, `encoding/hex`, `encoding/json` — standard library
+
+**Implementation scope** (~6,300 lines of Rust to port):
+
+- Codec: header encode/decode, base32, component encoding, ISCC decomposition
+- Text utilities: Unicode normalization, cleaning, trimming, collapsing
+- Algorithms: CDC (gear rolling hash), MinHash (64-dim universal hash), SimHash (bit-vote), DCT
+    (Nayuki fast recursive), WTA-Hash (video fingerprinting)
+- 9 `gen_*_v0` code generation functions
+- Streaming: `DataHasher` and `InstanceHasher` with `io.Reader` support
+- Conformance selftest
 
 **Verified when:**
 
-- `go test ./...` passes conformance vectors from Go
-- Package installs cleanly via `go get` with no external dependencies
+- `go test ./...` passes all conformance vectors from `iscc-core/data.json`
+- Output of every `gen_*_v0` function matches `iscc-core` reference for every test vector
+- Package installs cleanly via `go get` with no external dependencies beyond Go modules
 - No cgo required (`CGO_ENABLED=0` works)
 - Cross-compilation works (`GOOS`/`GOARCH` combinations)
-- All 9 `gen_*_v0` functions are accessible with idiomatic Go types and error handling
+- All 30 Tier 1 symbols are accessible with idiomatic Go types and error handling
 - API uses Go conventions: `GenMetaCodeV0`, `GenTextCodeV0`, exported types with PascalCase, `error`
     return values
-- Embedded `.wasm` binary is up to date with the Rust core
+- No binary artifacts committed to the repository
+- `check-added-large-files` threshold at 256KB (no need for inflated limits)
+- `go vet ./...` clean
 
 ## README
 
