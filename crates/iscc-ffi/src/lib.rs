@@ -877,8 +877,6 @@ pub extern "C" fn iscc_conformance_selftest() -> bool {
     iscc_lib::conformance_selftest()
 }
 
-// ── Codec ───────────────────────────────────────────────────────────────────
-
 /// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
 ///
 /// Accepts a normalized ISCC-CODE or concatenated ISCC-UNIT sequence.

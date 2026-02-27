@@ -77,7 +77,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     MT, ST, VS, core_opts). All 30/30 Tier 1 symbols propagated
 - Node.js has 30/30 Tier 1 symbols as of iteration 8 (124 tests total: 103 existing + 21 new)
 - WASM has 30/30 Tier 1 symbols as of iteration 9 (59 unit tests + 9 conformance tests)
-- C FFI, Java JNI, Go/wazero are all at 23/30 Tier 1 symbols
+- C FFI has 30/30 Tier 1 symbols as of iteration 10 (77 Rust unit tests, 49 C test assertions)
+- Java JNI, Go/wazero are at 23/30 Tier 1 symbols
 
 ## Binding Propagation Review Shortcuts
 
@@ -90,6 +91,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `wasm-pack test --node crates/iscc-wasm --features conformance` +
     `cargo clippy -p iscc-wasm --all-targets -- -D warnings` + `mise run check` covers all gates.
     Remember to update `crates/iscc-wasm/CLAUDE.md` API surface list when symbols are added
+- C FFI binding propagation: `cargo test -p iscc-ffi` +
+    `cargo clippy -p iscc-ffi --all-targets -- -D warnings` + `mise run check` + C test compilation
+    (requires cbindgen header generation:
+    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/tests/iscc.h`
+    then gcc build and run). Clean up generated iscc.h after testing
 
 ## Verification Patterns
 

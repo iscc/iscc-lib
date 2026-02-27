@@ -384,3 +384,11 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     128-bit/16-byte digest. Use `GAA2XTPPAERUKZ4J` for a valid 64-bit Data-Code with digest
     `\xab\xcd\xef\x01\x23\x45\x67\x89`. define-next should validate test vectors before including
     them in verification criteria
+
+- C FFI `iscc_decode` length index for 64-bit codes is 1 (not 0): `decode_length` uses
+    `(length_index + 1) * 32` for standard MainTypes (index 0 = 32-bit, index 1 = 64-bit). The
+    next.md spec had this wrong; the advance agent corrected it
+
+- C FFI C test compilation requires cbindgen header generation before gcc can build:
+    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output <path>/iscc.h`. The
+    generated header is not committed — CI generates it dynamically
