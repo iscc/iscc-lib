@@ -46,23 +46,28 @@ iterations.
 - **Step 4 (DCT+WTA-Hash)**: COMPLETE — DCT unexported `algDct`, WTA-Hash exported `AlgWtahash`
 - **After step 4**: all 7 algorithm modules complete (codec, utils, CDC, MinHash, SimHash, DCT,
     WTA-Hash). Step 5 is gen functions + streaming hashers — needs 3-4 sub-steps
-- **Step 5a (meta+text gen)**: GenMetaCodeV0 + GenTextCodeV0 together. Creates 3 files (xxh32.go,
-    code_content_text.go, code_meta.go). Requires adding BLAKE3 dep (`github.com/zeebo/blake3`) and
-    JCS library. Validates 21 conformance vectors (16 meta + 5 text)
-- **Gen function dependencies**: GenTextCodeV0 needs xxh32 (inline, no ext dep). GenMetaCodeV0 needs
-    BLAKE3 (for n-gram hashing in metaNameSimhash AND for metahash field) + JCS (for JSON meta
-    canonicalization). Even name-only meta vectors need BLAKE3
-- **Handoff was wrong about deps**: review said "meta+text need no new deps" — actually
-    `soft_hash_meta_v0` uses `blake3::hash()` for every n-gram feature, so BLAKE3 is required even
-    for the simplest meta vector. xxh32 is only used by text code
+- **Step 5a (meta+text gen)**: COMPLETE — GenMetaCodeV0 + GenTextCodeV0 done. 3 files (xxh32.go,
+    code_content_text.go, code_meta.go). BLAKE3 dep added. JCS via stdlib json.Marshal. 21/21
+    conformance vectors pass
+- **Step 5b (data+instance gen)**: GenDataCodeV0 + GenInstanceCodeV0. Creates 2 files (code_data.go,
+    code_instance.go). All deps available (CDC, MinHash, xxh32, BLAKE3). DataHasher needs CDC
+    chunking + xxh32 + MinHash. InstanceHasher needs BLAKE3 streaming. 7 conformance vectors (4 data
+    \+ 3 instance). No new dependencies needed
+- **DataHasher streaming pattern**: Python `DataHasherV0.push()` uses `prev_chunk` pattern — all
+    chunks except the last are complete; last chunk becomes tail. Rust mirrors this in
+    `streaming.rs`. Go must implement same: append data to tail, CDC chunk, hash all-but-last, keep
+    last as new tail. Finalize flushes tail
+- **InstanceCodeResult fields**: `iscc`, `datahash` (multihash hex), `filesize` (uint64). Tests must
+    verify all three fields, not just `iscc`
+- **Data-Code avg chunk size**: hardcoded `1024` (from `core_opts.data_avg_chunk_size`)
 - **Go function naming**: pure Go gen functions are package-level (e.g., `GenMetaCodeV0`) and
     coexist with WASM bridge methods (`(rt *Runtime) GenMetaCodeV0`) — no naming conflict in Go
-- **Conformance vector format**: data.json inputs are positional arrays. For meta:
-    `[name, desc,   meta, bits]` where meta can be null, JSON dict, or data-URL string. For text:
-    `[text, bits]`. When meta is a dict, test must marshal to JSON string before calling
-    GenMetaCodeV0
-- **Result types**: pure Go gen functions return rich structs (`*MetaCodeResult`, `*TextCodeResult`)
-    unlike the WASM bridge which returns only `(string, error)`
+- **Conformance vector format**: data.json inputs are positional arrays. For data/instance:
+    `[stream_hex, bits]` where stream_hex = `"stream:<hex>"`. For meta: `[name, desc, meta, bits]`.
+    For text: `[text, bits]`
+- **Result types**: pure Go gen functions return rich structs (`*MetaCodeResult`, `*TextCodeResult`,
+    `*DataCodeResult`, `*InstanceCodeResult`) unlike the WASM bridge which returns only
+    `(string, error)`
 
 ## CI/Release Patterns
 
