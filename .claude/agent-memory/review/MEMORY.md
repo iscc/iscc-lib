@@ -16,6 +16,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Common Issues
 
+- Go `go get` adds dependencies as `// indirect` even when directly imported — advance agents should
+    run `go mod tidy` after adding deps. Check for this in review
 - Unused imports in Java code (e.g., `JsonNull` imported but only `isJsonNull()` method on
     `JsonElement` is used) — quick fix, remove the import
 - Verification criteria in next.md that use generic `grep` patterns may false-positive on the
@@ -91,8 +93,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java JNI has 30/30 Tier 1 symbols as of iteration 11 (58 Maven tests: 51 existing + 7 new)
 - Go/wazero has 30/30 Tier 1 symbols as of iteration 12 (48 total Runtime methods: 27 public + 21
     private helpers, 7 new tests)
-- Go pure rewrite progress: codec module complete (codec.go 570 lines, codec_test.go 929 lines, 48
-    tests). Next: text utils → algorithms → gen functions
+- Go pure rewrite progress: codec module complete (570 lines, 48 tests), text utils complete (130
+    lines, 21 tests). Next: algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash) → gen functions
 
 ## Binding Propagation Review Shortcuts
 

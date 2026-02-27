@@ -1,38 +1,41 @@
-## 2026-02-27 — Implement pure Go text utilities (utils.go)
+## 2026-02-27 — Review of: Implement pure Go text utilities (utils.go)
 
-**Done:** Implemented all 4 text utility functions (`TextClean`, `TextCollapse`, `TextTrim`,
-`TextRemoveNewlines`) as pure Go in `packages/go/utils.go` with comprehensive tests in
-`packages/go/utils_test.go`. Added `golang.org/x/text` dependency for NFKC/NFD Unicode
-normalization. All functions are direct ports from the Rust `utils.rs` implementation.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/go/utils.go`: New file — 4 public functions + 2 internal helpers (`isCCategory`,
-    `isCMPCategory`), using `golang.org/x/text/unicode/norm` for NFKC/NFD and `unicode` stdlib for
-    category checks
-- `packages/go/utils_test.go`: New file — 21 test functions covering NFKC normalization, control
-    char removal, newline preservation, empty line collapsing, CRLF handling, whitespace stripping,
-    newline removal, space collapsing, UTF-8 byte limit trimming, Unicode boundary safety, accent
-    stripping, punctuation removal, and empty input
-- `packages/go/go.mod`: Added `golang.org/x/text v0.34.0` dependency
-- `packages/go/go.sum`: Updated automatically by `go get`
+**Summary:** The advance agent created a clean pure Go text utilities module (`utils.go`, 130 lines)
+with comprehensive tests (`utils_test.go`, 186 lines, 21 test functions). All 4 functions
+(`TextClean`, `TextCollapse`, `TextTrim`, `TextRemoveNewlines`) faithfully port the Rust `utils.rs`
+reference. The `golang.org/x/text` dependency is properly added for NFKC/NFD normalization. All
+tests pass, all quality gates pass.
 
 **Verification:**
 
-- `cd packages/go && go build ./...` — exits 0 ✓
-- `cd packages/go && go test -run TestUtils -count=1 -v` — 21/21 tests PASS ✓
-- `cd packages/go && go vet ./...` — exits 0 ✓
-- `cd packages/go && go test ./...` — both utils tests and existing codec+WASM tests pass (9.997s) ✓
-- `grep -c 'golang.org/x/text' packages/go/go.mod` — returns 1 ✓
-- `grep -c 'func Text' packages/go/utils.go` — returns 4 ✓
-- `mise run check` — all 14 hooks pass ✓
+- [x] `cd packages/go && go build ./...` exits 0 — compiles alongside existing WASM code
+- [x] `cd packages/go && go test -run TestUtils -count=1 -v` — 21/21 tests PASS (0.005s)
+- [x] `cd packages/go && go vet ./...` exits 0
+- [x] `cd packages/go && go test ./...` — both utils and existing codec+WASM tests pass (12.4s)
+- [x] `grep -c 'golang.org/x/text' packages/go/go.mod` returns 1
+- [x] `grep -c 'func Text' packages/go/utils.go` returns 4 (all 4 public functions present)
+- [x] `mise run check` — all 14 hooks pass
 
-**Next:** Implement CDC (Content-Defined Chunking) in `packages/go/cdc.go` — the next module in the
-dependency chain (codec → text utils → **algorithms** → gen functions). CDC requires a gear rolling
-hash table and chunk boundary detection. Port from `crates/iscc-lib/src/cdc.rs`.
+**Issues found:**
 
-**Notes:** The Go `unicode.Is(unicode.C, c)` covers Cc, Cf, Co, Cs (matching Rust minus
-`Unassigned`). In practice, NFKC-normalized text won't contain unassigned codepoints, so this is
-functionally equivalent. The `TextTrim` implementation uses a backward scan approach (trimming bytes
-from the end until the string is valid UTF-8) which is simpler than the Rust `from_utf8` +
-`valid_up_to` approach but produces identical results. No surprises or technical debt.
+- Minor: `golang.org/x/text` was marked `// indirect` in `go.mod` despite being a direct import —
+    fixed by running `go mod tidy` (step 9 minor fix)
+
+**Codex review:** One finding about `Unassigned` (Cn) codepoints not being covered by Go's
+`unicode.C` (unlike Rust's `is_c_category` which includes `GeneralCategory::Unassigned`). This was
+an explicitly documented design decision in next.md and learnings.md — NFKC normalization doesn't
+produce unassigned codepoints from valid text input, making the implementations functionally
+equivalent. No action needed.
+
+**Next:** Implement algorithms module(s) — the next step in the dependency chain (codec → text utils
+→ **algorithms** → gen functions). CDC (Content-Defined Chunking) is the most complex algorithm and
+a prerequisite for `gen_data_code_v0`. MinHash is needed for both Data-Code and Text-Code. Consider
+starting with CDC (`cdc.go`) as the next work package, porting from `crates/iscc-lib/src/cdc.rs`.
+
+**Notes:** The pure Go rewrite is progressing well — codec and text utils are complete. The
+remaining modules in order of dependency are: algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash), gen
+functions, streaming hashers, and conformance selftest. The `go.mod` still has the `wazero`
+dependency (needed by the existing WASM bridge code in `iscc.go`) — it will be removed when the full
+pure Go rewrite is complete and the WASM bridge is deleted.

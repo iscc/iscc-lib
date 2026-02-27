@@ -452,3 +452,10 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - Conformance test vectors are the correctness contract — as long as Go passes the same vectors as
     Rust and Python, the implementations are equivalent. The existing `iscc_test.go` (1,353 lines,
     46 test functions) provides comprehensive coverage
+
+- Pure Go text utils module (`packages/go/utils.go`) is complete — `TextClean`, `TextCollapse`,
+    `TextTrim`, `TextRemoveNewlines` + 2 internal helpers. Uses `golang.org/x/text/unicode/norm`
+    (first external dependency). 21 tests passing
+
+- Go dependency management: `go get` adds dependencies as `// indirect` regardless of whether
+    they're directly imported — always run `go mod tidy` afterward to fix annotations
