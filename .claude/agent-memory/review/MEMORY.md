@@ -95,7 +95,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go pure rewrite progress: codec complete (570 lines, 48 tests), text utils complete (130 lines, 21
     tests), algorithms complete — CDC (129 lines, 15 tests), MinHash (205 lines, 8 tests),
     SimHash+SlidingWindow (86 lines, 14 tests), DCT (52 lines, 10 tests), WTA-Hash (92 lines, 9
-    tests). Next: gen functions layer (step 5)
+    tests). Gen functions step 5a complete: GenMetaCodeV0 (281 lines) + GenTextCodeV0 (41 lines) +
+    xxh32 (81 lines) = 29 new tests. Next: gen_data + gen_instance (step 5b)
 
 ## Binding Propagation Review Shortcuts
 

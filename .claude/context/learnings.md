@@ -105,6 +105,12 @@ fully-met target sections to `learnings-archive.md`.
 - DCT beta computation: Rust `/ cos / 2.0` vs Go `/ (cos * 2.0)` are numerically identical
     (verified) — multiplying cos ∈ [-1,1] by 2.0 is exact in IEEE 754
 - Dependency order: codec → utils → algorithms → gen functions → streaming → conformance → cleanup
+- Gen function test naming: `TestPureGo*` prefix avoids conflicts with existing WASM bridge tests in
+    `iscc_test.go` (which already defines `TestGenMetaCodeV0`, `TestGenTextCodeV0`, etc.)
+- JCS canonicalization: Go's `json.Marshal` suffices for string-only JSON values (sorted keys,
+    compact format). A dedicated JCS library is needed only if float number formatting matters
+- `SlidingWindow`/`AlgSimhash` error suppression (`_, _`) is safe in gen functions: width params are
+    hardcoded valid constants (3 or 13), and AlgSimhash returns 32 zero bytes for empty input
 
 ## CID Process
 
