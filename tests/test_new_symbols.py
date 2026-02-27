@@ -1,4 +1,6 @@
-"""Tests for the 7 new Tier 1 Python symbols: 3 functions + 4 constants."""
+"""Tests for Tier 1 Python symbols and dict meta parameter support."""
+
+import json
 
 import pytest
 
@@ -8,6 +10,7 @@ from iscc_lib import (
     META_TRIM_NAME,
     TEXT_NGRAM_SIZE,
     encode_component,
+    gen_meta_code_v0,
     iscc_decode,
     json_to_data_url,
 )
@@ -112,3 +115,51 @@ def test_encode_component_iscc_mtype_rejected():
     """encode_component rejects MainType::Iscc (5) as mtype."""
     with pytest.raises(ValueError):
         encode_component(5, 0, 0, 64, b"\x00" * 8)
+
+
+# ── Dict meta parameter tests ────────────────────────────────────────────────
+
+
+def test_gen_meta_dict_meta_basic():
+    """Pass meta as dict, verify result meta starts with data:application/json;base64,."""
+    result = gen_meta_code_v0("Test Name", meta={"key": "value"})
+    assert "meta" in result
+    assert result["meta"].startswith("data:application/json;base64,")
+
+
+def test_gen_meta_dict_meta_ld_json():
+    """Pass meta dict with @context, verify result uses application/ld+json media type."""
+    result = gen_meta_code_v0(
+        "Test Name", meta={"@context": "https://schema.org", "name": "Test"}
+    )
+    assert "meta" in result
+    assert result["meta"].startswith("data:application/ld+json;base64,")
+
+
+def test_gen_meta_dict_meta_matches_string():
+    """Dict meta and pre-computed data URL string produce identical ISCC codes."""
+    meta_dict = {"key": "value"}
+    # Compute the data URL string the same way the wrapper does
+    json_str = json.dumps(meta_dict, separators=(",", ":"), ensure_ascii=False)
+    data_url = json_to_data_url(json_str)
+
+    result_dict = gen_meta_code_v0("Test Name", meta=meta_dict)
+    result_str = gen_meta_code_v0("Test Name", meta=data_url)
+    assert result_dict["iscc"] == result_str["iscc"]
+    assert result_dict["meta"] == result_str["meta"]
+    assert result_dict["metahash"] == result_str["metahash"]
+
+
+def test_gen_meta_str_meta_still_works():
+    """Regression: meta as data URL string still works."""
+    data_url = json_to_data_url('{"key":"value"}')
+    result = gen_meta_code_v0("Test Name", meta=data_url)
+    assert "iscc" in result
+    assert result["meta"] == data_url
+
+
+def test_gen_meta_dict_meta_none_still_works():
+    """Regression: meta=None still works (no meta in output)."""
+    result = gen_meta_code_v0("Test Name", meta=None)
+    assert "iscc" in result
+    assert "meta" not in result

@@ -326,3 +326,8 @@ iterations.
     Place it after `from __future__ import annotations` and `from importlib.metadata import version`
 - When `maturin develop` installs a version, it persists in the venv — if the workspace version
     changes in Cargo.toml, must rebuild with `maturin develop` to sync the installed version
+- Dict meta pattern in `gen_meta_code_v0` Python wrapper: `import json as _json` (underscore alias
+    to avoid namespace pollution), `isinstance(meta, dict)` →
+    `_json.dumps(meta, separators=(",",   ":"), ensure_ascii=False)` → `json_to_data_url()`. The
+    Rust `json_to_data_url` handles JCS canonicalization internally, so the Python side only needs
+    compact JSON serialization

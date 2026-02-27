@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json as _json
 from collections.abc import Sequence
 from importlib.metadata import version
 from typing import BinaryIO
@@ -125,10 +126,14 @@ class IsccCodeResult(IsccResult):
 def gen_meta_code_v0(
     name: str,
     description: str | None = None,
-    meta: str | None = None,
+    meta: str | dict | None = None,
     bits: int = 64,
 ) -> MetaCodeResult:
     """Generate an ISCC Meta-Code from content metadata."""
+    if isinstance(meta, dict):
+        meta = json_to_data_url(
+            _json.dumps(meta, separators=(",", ":"), ensure_ascii=False)
+        )
     return MetaCodeResult(_gen_meta_code_v0(name, description, meta, bits))
 
 
