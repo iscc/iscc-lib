@@ -367,3 +367,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     69 wasm tests). Review agent PASS. **WASM Bindings: fully MET** — 30/30 Tier 1 symbols. CI all 7
     jobs passing at HEAD `c7c3807` (run 22486077314). Next: propagate 7 symbols to C FFI (3
     `extern "C"` functions + 4 `#define` constants pattern).
+- **CID iteration 11 (commits 8a168a1..43ca0c4)**: advance agent propagated all 7 new Tier 1 symbols
+    to C FFI bindings. Added 4 constant getter functions (`iscc_meta_trim_name()→128`, etc.),
+    `iscc_json_to_data_url`, `iscc_encode_component`, `iscc_decode` (returns `IsccDecodeResult` C
+    struct with `ok`/`maintype`/`subtype`/`version`/`length`/`digest` fields), plus
+    `iscc_free_decode_result` helper. `crates/iscc-ffi/src/lib.rs` now has 44 exported `extern "C"`
+    functions (was 25 at start of CID numbering). `crates/iscc-ffi/tests/test_iscc.c` now covers 23
+    test cases. 77 Rust unit tests (was 62). Review agent PASS. **C FFI Bindings: fully MET** —
+    30/30 Tier 1 symbols. CI all 7 jobs passing at HEAD `43ca0c4` (run 22486942175). Next: propagate
+    7 symbols to Java JNI (highest priority), then Go.
