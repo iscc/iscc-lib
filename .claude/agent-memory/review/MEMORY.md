@@ -68,14 +68,18 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Codex Review Integration
 
-- `codex exec review --ephemeral --commit HEAD` output ends with structured findings after a `codex`
-    marker line. Use `sed -n '/^codex$/,$ p' /tmp/codex-review.txt | tail -n +2` to extract them
+- `codex exec review --ephemeral --commit HEAD` output ends with structured findings after
+    `Full review comments:` marker. Use
+    `sed -n '/^Full review comments:/,$ p' /tmp/codex-review.txt` to extract them
 - Codex typically runs tests and grep searches to verify the commit — its findings are advisory and
     should be cross-referenced with your own analysis
 - The `--commit HEAD~1` in the protocol template assumes advance is at HEAD~1, but when the review
     agent runs immediately after advance, the advance commit is at HEAD. Always use `--commit HEAD`
     for the advance commit (or verify with `git log` first). Codex reviewing the wrong commit
     (define-next instead of advance) produces mostly irrelevant findings about planning docs
+- Codex findings about Go codec design (silent truncation, dash stripping, trailing bytes) were all
+    dismissed because Go faithfully mirrors Rust reference. When reviewing Go ports, always validate
+    Codex findings against the Rust implementation before acting on them
 
 ## Binding State
 
@@ -87,6 +91,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java JNI has 30/30 Tier 1 symbols as of iteration 11 (58 Maven tests: 51 existing + 7 new)
 - Go/wazero has 30/30 Tier 1 symbols as of iteration 12 (48 total Runtime methods: 27 public + 21
     private helpers, 7 new tests)
+- Go pure rewrite progress: codec module complete (codec.go 570 lines, codec_test.go 929 lines, 48
+    tests). Next: text utils → algorithms → gen functions
 
 ## Binding Propagation Review Shortcuts
 

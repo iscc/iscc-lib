@@ -438,6 +438,17 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
     algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash — all standalone) → gen\_\*\_v0 functions
     (compose algorithms) → streaming hashers → conformance selftest
 
+- Pure Go codec module (`packages/go/codec.go`) is complete — type enums, varnibble header
+    encoding/decoding, base32/base64, length encode/decode, unit encode/decode, `EncodeComponent`,
+    `IsccDecompose`, `IsccDecode`. Uses only Go stdlib (no external deps). 48 tests passing
+
+- Go codec `EncodeComponent` takes `uint8` for enum fields (not typed `MainType`/`SubType`) to match
+    the Rust Tier 1 API pattern. Internal `encodeComponentInternal` wraps this for typed callers
+    within the package
+
+- Go `IsccDecompose` does NOT strip dashes (matching Rust `iscc_decompose`). Only `IsccDecode`
+    strips dashes. This is intentional — decompose operates on normalized base32 strings
+
 - Conformance test vectors are the correctness contract — as long as Go passes the same vectors as
     Rust and Python, the implementations are equivalent. The existing `iscc_test.go` (1,353 lines,
     46 test functions) provides comprehensive coverage
