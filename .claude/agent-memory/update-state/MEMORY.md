@@ -393,3 +393,25 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Go symbol propagation strategy**: WASM FFI sret-based pattern for `iscc_decode` (same as Go uses
     for byte buffer results); Go constants are `package`-level `const` block; `DecodeResult` struct
     with exported fields `Maintype`, `Subtype`, `Version`, `Length`, `Digest`.
+- **CID iteration 13 (commits eb30795..ace5839)**: advance agent propagated all 7 new Tier 1 symbols
+    to Go bindings. Added 4 package-level constants (`MetaTrimName=128`, `MetaTrimDescription=4096`,
+    `IoReadSize=4_194_304`, `TextNgramSize=13`) in a `const` block at line 23-28. Added
+    `DecodeResult` struct (lines 33-41) with `Maintype`, `Subtype`, `Version`, `Length`, `Digest`
+    fields. Added 3 `Runtime` methods: `JsonToDataUrl` (line 634), `EncodeComponent` (line 651),
+    `IsccDecode` (line 672, returns `*DecodeResult`) with correct WASM sret ABI and multi-path
+    cleanup. 7 new test functions in `iscc_test.go` (46 total, was 39). `iscc.go` now 1,357 lines
+    (was 1,220); `iscc_test.go` now 1,353 lines (was 1,208). Review agent PASS. **Go Bindings: fully
+    MET** — 30/30 Tier 1 symbols. **All 6 language bindings now at 30/30**. CI all 7 jobs passing at
+    HEAD `ace5839` (run 22488601158, all jobs SUCCESS). **Documentation gap found**:
+    `docs/howto/go.md` (388 lines, unchanged) and `packages/go/README.md` (104 lines) do NOT cover
+    the 7 new symbols; README still says "Additional utilities…are planned" (stale since iteration
+    7/8). Next milestone: update Go docs.
+- **Go docs gap**: `docs/howto/go.md` has no sections for codec ops (`EncodeComponent`,
+    `IsccDecode`, `IsccDecompose`, `JsonToDataUrl`, `EncodeBase64`) or constants.
+    `packages/go/README.md` Utilities section is stale — says "planned" for features that are now
+    complete. Both need updates.
+- **issues.md status (iteration 13)**: Issues #5-#8 still present with GitHub URLs — all
+    implementations complete, local entries should be deleted (resolved issues). No new issues
+    added.
+- **Latest CI run**: 22488601158, HEAD `ace5839`, all 7 jobs SUCCESS (Python, WASM, Rust, C FFI, Go,
+    Java, Node.js).

@@ -1,15 +1,14 @@
-<!-- assessed-at: 1a5dfd7 -->
+<!-- assessed-at: ace583940417575c7dd505e8b77571b654506f81 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Symbol Propagation — 7 Tier 1 symbols to Go (final remaining binding)
+## Phase: Documentation Polish & Publishing Prep
 
-CID iteration 12 completed Java JNI symbol propagation: all 30/30 Tier 1 symbols are now accessible
-from Java JNI. Python, Node.js, WASM, C FFI, and Java JNI bindings are fully met. Go remains at
-23/30 Tier 1 symbols — `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants must
-be propagated to complete the final binding.
+All 6 language bindings now have 30/30 Tier 1 symbols (Go completed in iteration 13). CI is fully
+green across all 7 jobs. Remaining work: update Go docs to reflect 7 newly added symbols, clean up
+resolved issues from issues.md, advance benchmarks and publishing pipeline.
 
 ## Rust Core Crate
 
@@ -118,9 +117,8 @@ be propagated to complete the final binding.
 - 3 newly propagated functions: `encodeComponent`, `isccDecode` (returns `IsccDecodeResult`),
     `jsonToDataUrl` — JNI Rust wrappers at lines 514, 540, 588 of `lib.rs`
 - `NativeLoader.java` (169 lines) handles platform JAR extraction
-- `IsccLibTest.java` (472 lines): 9 `@TestFactory` sections + 12 `@Test` unit methods (5 existing
-    - 7 new for constants, jsonToDataUrl, jsonToDataUrlLdJson, encodeComponent, isccDecode,
-        isccDecodeInvalid, encodeDecodeRoundtrip); CI-verified passing
+- `IsccLibTest.java` (472 lines): 9 `@TestFactory` sections + 12 `@Test` unit methods — CI-verified
+    passing
 - `docs/howto/java.md` complete; navigation entry in `zensical.toml` ✅
 - `build-jni` + `assemble-jar` release jobs in `release.yml`; 5-platform matrix
 - Version: `pom.xml` at `0.0.2` (synced)
@@ -128,15 +126,22 @@ be propagated to complete the final binding.
 
 ## Go Bindings
 
-**Status**: partially met (23/30 Tier 1 symbols; 7 new symbols not yet propagated)
+**Status**: met (30/30 Tier 1 symbols)
 
-- `packages/go/iscc.go` (1,220 lines): `Runtime` struct + 23 Tier 1 exported symbols
+- `packages/go/iscc.go` (1,357 lines): `Runtime` struct + all 30 Tier 1 exported symbols
+- 4 package-level constants added: `MetaTrimName = 128`, `MetaTrimDescription = 4096`,
+    `IoReadSize = 4_194_304`, `TextNgramSize = 13`
+- `DecodeResult` struct added with `Maintype`, `Subtype`, `Version`, `Length`, `Digest` fields
+- 3 new `Runtime` methods: `JsonToDataUrl`, `EncodeComponent`, `IsccDecode` (returns
+    `*DecodeResult`); WASM sret ABI handled correctly with proper cleanup on all error paths
 - `DataHasher` / `InstanceHasher` with `UpdateFrom(ctx, io.Reader)` streaming
-- `packages/go/iscc_test.go` (1,208 lines): 39 test functions; 93 total subtests; all pass
-- `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD)
-- `docs/howto/go.md` complete; navigation entry in `zensical.toml` ✅
-- **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
-    (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)
+- `packages/go/iscc_test.go` (1,353 lines): 46 test functions (39 existing + 7 new for constants,
+    `JsonToDataUrl` x2, `EncodeComponent`, `IsccDecode` valid/invalid, encode/decode roundtrip); all
+    pass CI-verified
+- `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD `ace5839`)
+- **Documentation gap**: `docs/howto/go.md` (388 lines) and `packages/go/README.md` (104 lines) do
+    not cover the 7 newly added symbols; README still says "Additional utilities…are planned"
+    (stale)
 
 ## README
 
@@ -148,15 +153,20 @@ be propagated to complete the final binding.
 
 ## Per-Crate READMEs
 
-**Status**: met
+**Status**: partially met
 
-- All 7 per-crate READMEs present and complete: `crates/iscc-lib/README.md`,
-    `crates/iscc-py/README.md`, `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`,
-    `crates/iscc-jni/README.md`, `packages/go/README.md`, `crates/iscc-ffi/README.md`
+- All 7 per-crate READMEs present: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`,
+    `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`,
+    `packages/go/README.md`, `crates/iscc-ffi/README.md`
+- **Gap**: `packages/go/README.md` API overview is stale — Utilities section says "Additional
+    utilities (text processing, algorithm primitives, streaming hashers) are planned"; the full 30
+    Tier 1 symbols (including codec functions, constants, streaming hashers, all text utilities, all
+    primitives) are implemented but the README only lists the 9 `gen_*_v0` functions in the API
+    table
 
 ## Documentation
 
-**Status**: met
+**Status**: partially met
 
 - **14 pages** deployed to lib.iscc.codes; all navigation sections complete (Tutorials, How-to
     Guides, Explanation, Reference, Benchmarks, Development) plus Ecosystem top-level page
@@ -165,6 +175,10 @@ be propagated to complete the final binding.
 - ISCC branding, copy-page split-button, Open Graph meta tags, `gen_llms_full.py` in place
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages; latest Docs run on main: **PASSING**
+- **Gap**: `docs/howto/go.md` (388 lines) was written when Go had 23/30 symbols; it has no sections
+    for codec operations (`EncodeComponent`, `IsccDecode`, `IsccDecompose`, `JsonToDataUrl`,
+    `EncodeBase64`) or algorithm constants (`MetaTrimName`, `MetaTrimDescription`, `IoReadSize`,
+    `TextNgramSize`)
 
 ## Benchmarks
 
@@ -185,8 +199,8 @@ be propagated to complete the final binding.
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22487752698](https://github.com/iscc/iscc-lib/actions/runs/22487752698) — all 7 jobs
-    SUCCESS — triggered at HEAD `1a5dfd7`
+    [Run 22488601158](https://github.com/iscc/iscc-lib/actions/runs/22488601158) — all 7 jobs
+    SUCCESS — triggered at HEAD `ace5839`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -197,14 +211,13 @@ be propagated to complete the final binding.
 
 ## Next Milestone
 
-**Propagate 7 new Tier 1 symbols to Go (final remaining binding):**
+**Update Go documentation to reflect completed 30/30 symbol set:**
 
-Extend `packages/go/iscc.go` with:
-
-1. 3 new exported methods on `Runtime`: `JsonToDataUrl`, `EncodeComponent`, `IsccDecode` (returns a
-    `DecodeResult` struct with `Maintype`, `Subtype`, `Version`, `Length`, `Digest` fields)
-2. 4 package-level constants: `MetaTrimName = 128`, `MetaTrimDescription = 4096`,
-    `IoReadSize = 4_194_304`, `TextNgramSize = 13`
-3. Update `packages/go/iscc_test.go` with test cases for all 7 symbols
-4. Pattern mirrors C FFI/Node.js/WASM/Java additions — use the WASM FFI call pattern for the 3 new
-    functions (reading struct results via `sretPtr` for `iscc_decode`'s multi-value return)
+1. **`docs/howto/go.md`**: Add sections for codec operations (`EncodeComponent`, `IsccDecode`,
+    `IsccDecompose`, `JsonToDataUrl`, `EncodeBase64`), algorithm constants block, complete text
+    utilities coverage (`TextRemoveNewlines`, `TextTrim`, `TextCollapse`), and algorithm primitives
+    table
+2. **`packages/go/README.md`**: Replace stale "planned" text; update API Overview Utilities table to
+    list the full set of available functions beyond `gen_*_v0` generators
+3. **`issues.md` cleanup**: Issues #5–#8 have been implemented and GitHub issues filed — delete
+    local entries (they are resolved)
