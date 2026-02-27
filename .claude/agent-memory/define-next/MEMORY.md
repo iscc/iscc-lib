@@ -49,22 +49,27 @@ iterations.
 - **Step 5a (meta+text gen)**: COMPLETE — GenMetaCodeV0 + GenTextCodeV0 done. 3 files (xxh32.go,
     code_content_text.go, code_meta.go). BLAKE3 dep added. JCS via stdlib json.Marshal. 21/21
     conformance vectors pass
-- **Step 5b (data+instance gen)**: GenDataCodeV0 + GenInstanceCodeV0. Creates 2 files (code_data.go,
-    code_instance.go). All deps available (CDC, MinHash, xxh32, BLAKE3). DataHasher needs CDC
-    chunking + xxh32 + MinHash. InstanceHasher needs BLAKE3 streaming. 7 conformance vectors (4 data
-    \+ 3 instance). No new dependencies needed
-- **DataHasher streaming pattern**: Python `DataHasherV0.push()` uses `prev_chunk` pattern — all
-    chunks except the last are complete; last chunk becomes tail. Rust mirrors this in
-    `streaming.rs`. Go must implement same: append data to tail, CDC chunk, hash all-but-last, keep
-    last as new tail. Finalize flushes tail
-- **InstanceCodeResult fields**: `iscc`, `datahash` (multihash hex), `filesize` (uint64). Tests must
-    verify all three fields, not just `iscc`
-- **Data-Code avg chunk size**: hardcoded `1024` (from `core_opts.data_avg_chunk_size`)
+- **Step 5b (data+instance gen)**: COMPLETE — GenDataCodeV0, GenInstanceCodeV0, DataHasher,
+    InstanceHasher all done. 7/7 conformance vectors pass
+- **Step 5c (image+audio gen)**: GenImageCodeV0 + GenAudioCodeV0. Creates 2 files
+    (code_content_image.go, code_content_audio.go). Deps: `algDct` (unexported), `AlgSimhash`.
+    Image: 2D DCT → 8×8 block extraction → median comparison → bitstring (NO WTA-Hash — that's video
+    only). Audio: int32 → 4-byte BE → multi-stage SimHash (full + quarters + sorted thirds). 8
+    conformance vectors (3 image + 5 audio)
 - **Go function naming**: pure Go gen functions are package-level (e.g., `GenMetaCodeV0`) and
     coexist with WASM bridge methods (`(rt *Runtime) GenMetaCodeV0`) — no naming conflict in Go
 - **Conformance vector format**: data.json inputs are positional arrays. For data/instance:
     `[stream_hex, bits]` where stream_hex = `"stream:<hex>"`. For meta: `[name, desc, meta, bits]`.
-    For text: `[text, bits]`
+    For text: `[text, bits]`. For image: `[pixel_array, bits]` (1024 uint8s). For audio:
+    `[cv_array, bits]` (variable-length int32s)
+- **Image-Code algorithm**: row-wise DCT → transpose → column-wise DCT → transpose back → extract
+    four 8×8 blocks at (0,0),(1,0),(0,1),(1,1) → per-block median comparison → bitstring. Does NOT
+    use WTA-Hash (that's Video-Code only). Handoff incorrectly mentioned WTA-Hash for image
+- **Audio-Code simhash inner**: Rust uses `alg_simhash_inner` (pub(crate), skips validation). Go
+    `AlgSimhash` validates but error is safe to discard (`_, _`) since all digests are 4-byte
+    equal-length. Output is 4 bytes (not 32) when input digests are 4 bytes each
+- **arraySplit helper**: needed for audio code only. Equivalent to `more_itertools.divide`. Put in
+    audio code file (unexported)
 - **Result types**: pure Go gen functions return rich structs (`*MetaCodeResult`, `*TextCodeResult`,
     `*DataCodeResult`, `*InstanceCodeResult`) unlike the WASM bridge which returns only
     `(string, error)`

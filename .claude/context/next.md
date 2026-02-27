@@ -1,120 +1,107 @@
 # Next Work Package
 
-## Step: Implement pure Go GenDataCodeV0 and GenInstanceCodeV0
+## Step: Implement pure Go GenImageCodeV0 and GenAudioCodeV0
 
 ## Goal
 
-Add `GenDataCodeV0` and `GenInstanceCodeV0` as pure Go gen functions with `DataHasher` and
-`InstanceHasher` streaming types, passing all 7 conformance vectors (4 data + 3 instance). This
-continues step 5 of the Go rewrite — all algorithm dependencies (CDC, MinHash, xxh32, BLAKE3) are
-already available.
+Port the Image-Code and Audio-Code generation functions to pure Go, completing 6 of 9 gen functions
+in the Go rewrite. This unblocks GenVideoCodeV0 (which also uses DCT) and brings the rewrite closer
+to WASM bridge removal.
 
 ## Scope
 
-- **Create**:
-    - `packages/go/code_data.go` — `GenDataCodeV0`, `DataHasher` struct, `DataCodeResult` type
-    - `packages/go/code_data_test.go` — conformance tests for 4 data vectors
-    - `packages/go/code_instance.go` — `GenInstanceCodeV0`, `InstanceHasher` struct,
-        `InstanceCodeResult` type
-    - `packages/go/code_instance_test.go` — conformance tests for 3 instance vectors
+- **Create**: `packages/go/code_content_image.go`, `packages/go/code_content_audio.go`,
+    `packages/go/code_content_image_test.go`, `packages/go/code_content_audio_test.go`
 - **Modify**: (none)
 - **Reference**:
-    - `reference/iscc-core/iscc_core/code_data.py` — Python reference for DataHasherV0
-    - `reference/iscc-core/iscc_core/code_instance.py` — Python reference for InstanceHasherV0
-    - `crates/iscc-lib/src/streaming.rs` — Rust implementation (authoritative)
-    - `packages/go/code_meta.go` — existing Go gen function pattern (result types, error handling)
-    - `packages/go/code_content_text.go` — existing Go gen function pattern
-    - `packages/go/code_meta_test.go` — existing Go conformance test pattern
-    - `packages/go/cdc.go` — `AlgCdcChunks` function signature
-    - `packages/go/minhash.go` — `AlgMinhash256` function signature
-    - `packages/go/xxh32.go` — `Xxh32` function (for Data-Code chunk hashing)
+    - `crates/iscc-lib/src/lib.rs` lines 416–633 (helpers, `soft_hash_image_v0`, `gen_image_code_v0`,
+        `array_split`, `soft_hash_audio_v0`, `gen_audio_code_v0`)
+    - `packages/go/dct.go` (`algDct` function signature)
+    - `packages/go/simhash.go` (`AlgSimhash` function signature)
+    - `packages/go/codec.go` (`EncodeComponent`, `MTContent`, `STImage`, `STAudio`, `VSV0`)
+    - `packages/go/code_content_text.go` (pattern: result struct, gen function, soft hash helper)
+    - `packages/go/code_data_test.go` (pattern: conformance test harness)
 
 ## Not In Scope
 
-- `DataHasher`/`InstanceHasher` with `io.Reader` interface — streaming with io.Reader is a
-    convenience wrapper that should come in a later step (gen functions accept `[]byte` like the
-    existing Rust `gen_data_code_v0(&[u8])` pattern)
-- Other gen functions (`GenImageCodeV0`, `GenVideoCodeV0`, `GenAudioCodeV0`, `GenMixedCodeV0`,
-    `GenIsccCodeV0`)
-- Removing the WASM bridge (`iscc.go`, `iscc_ffi.wasm`, wazero dependency)
-- Refactoring existing pure Go modules
-- `conformance_selftest` function
+- GenVideoCodeV0, GenMixedCodeV0, GenIsccCodeV0 — separate step(s)
+- Refactoring existing gen functions or algorithms
+- WASM bridge removal or cleanup — wait until all 9 gen functions are done
+- Adding an unexported `algSimhashInner` to Go — use existing `AlgSimhash` and discard the error
+    (validation is trivially satisfied when all digests are 4 bytes)
+- Exporting soft hash helper functions — these are unexported (`softHashImageV0`, `softHashAudioV0`)
 
 ## Implementation Notes
 
-### GenDataCodeV0 (`code_data.go`)
+### GenImageCodeV0 (`code_content_image.go`, ~90-100 lines)
 
-Port from `crates/iscc-lib/src/streaming.rs` `DataHasher` and Python `code_data.py`:
+Port from Rust `soft_hash_image_v0` + `gen_image_code_v0` (lib.rs lines 480–550):
 
-1. **`DataCodeResult`** struct with `Iscc string` field (matching `MetaCodeResult` pattern)
-2. **`DataHasher`** struct with:
-    - `chunkFeatures []uint32` — accumulated xxh32 hashes of CDC chunks
-    - `tail []byte` — buffered incomplete chunk from previous Push
-    - `Push(data []byte)` — append data to tail, run `AlgCdcChunks`, xxh32-hash all complete chunks,
-        keep last chunk as new tail (mirrors Python's `prev_chunk` pattern)
-    - `Finalize(bits uint32) (*DataCodeResult, error)` — flush tail (hash if non-empty, or hash empty
-        bytes if no features), compute `AlgMinhash256` on features, `EncodeComponent` with
-        `MTData`/`STNone`/`VSV0`
-3. **`GenDataCodeV0(data []byte, bits uint32) (*DataCodeResult, error)`** — create DataHasher,
-    single Push, Finalize
-4. CDC call: `AlgCdcChunks(data, false, 1024)` — `utf32=false`, `avgChunkSize=1024` (from
-    `core_opts.data_avg_chunk_size`)
-5. Empty input edge case: if tail is empty AND no features, hash empty bytes `Xxh32([]byte{}, 0)` to
-    ensure at least one feature
+1. **Input validation**: exactly 1024 pixels (`[]byte`), bits ≤ 256
+2. **Unexported helpers** (all in the same file):
+    - `transposeMatrix(matrix [][]float64) [][]float64` — swap rows/cols
+    - `flatten8x8(matrix [][]float64, col, row int) []float64` — extract 8×8 block at (col, row)
+    - `computeMedian(values []float64) float64` — sort + pick middle (avg for even length)
+    - `bitsToBytes(bits []bool) []byte` — MSB-first per byte
+3. **`softHashImageV0(pixels []byte, bits uint32) ([]byte, error)`**:
+    - Row-wise DCT (32 rows of 32 pixels → `algDct`)
+    - Transpose
+    - Column-wise DCT
+    - Transpose back
+    - Extract 8×8 blocks at positions `(0,0), (1,0), (0,1), (1,1)` — note `(col, row)` ordering
+    - For each block: compute median, compare each value `> median` → bool bitstring
+    - Break early when `len(bitstring) >= bits`
+    - Convert first `bits` bools to bytes
+4. **`GenImageCodeV0(pixels []byte, bits uint32) (*ImageCodeResult, error)`**:
+    - Call `softHashImageV0`, then `EncodeComponent(MTContent, STImage, VSV0, bits, digest)`
+    - Return `&ImageCodeResult{Iscc: "ISCC:" + component}`
+5. **Result struct**: `ImageCodeResult{Iscc string}`
 
-### GenInstanceCodeV0 (`code_instance.go`)
+### GenAudioCodeV0 (`code_content_audio.go`, ~100-120 lines)
 
-Port from `crates/iscc-lib/src/streaming.rs` `InstanceHasher` and Python `code_instance.py`:
+Port from Rust `array_split` + `soft_hash_audio_v0` + `gen_audio_code_v0` (lib.rs lines 557–633):
 
-1. **`InstanceCodeResult`** struct with `Iscc string`, `Datahash string`, `Filesize uint64`
-2. **`InstanceHasher`** struct with:
-    - `hasher *blake3.Hasher` — BLAKE3 streaming hasher from `github.com/zeebo/blake3`
-    - `filesize uint64`
-    - `Push(data []byte)` — update hasher, add to filesize
-    - `Finalize(bits uint32) (*InstanceCodeResult, error)` — get digest, build multihash
-        (`"1e20" + hex(digest)`), `EncodeComponent` with `MTInstance`/`STNone`/`VSV0`
-3. **`GenInstanceCodeV0(data []byte, bits uint32) (*InstanceCodeResult, error)`** — create
-    InstanceHasher, single Push, Finalize
-4. BLAKE3 API: `blake3.New()` returns `*blake3.Hasher`, `.Write(data)` for update, `.Sum(nil)`
-    returns `[]byte` digest (32 bytes)
+1. **Unexported helper**:
+    - `arraySplit[T any](slice []T, n int) [][]T` — distribute elements evenly, first `len%n` parts
+        get one extra. Returns empty sub-slices for excess parts (same as Python
+        `more_itertools.divide`)
+2. **`softHashAudioV0(cv []int32) []byte`** (returns exactly 32 bytes):
+    - Convert each `int32` to 4-byte big-endian `[]byte` → `digests [][]byte`
+    - Empty input: return 32 zero bytes
+    - **Stage 1**: `AlgSimhash(digests)` → 4-byte result → append to `parts`
+    - **Stage 2**: `arraySplit(digests, 4)` → for each quarter: if empty, append 4 zero bytes; else
+        `AlgSimhash(quarter)` → append 4 bytes. Total: 16 bytes
+    - **Stage 3**: sort `cv` copy by value → convert sorted to digests →
+        `arraySplit(sortedDigests, 3)` → for each third: same empty handling → append 4 bytes. Total:
+        12 bytes
+    - Return `parts` (4 + 16 + 12 = 32 bytes)
+3. **`GenAudioCodeV0(cv []int32, bits uint32) (*AudioCodeResult, error)`**:
+    - Call `softHashAudioV0`, then `EncodeComponent(MTContent, STAudio, VSV0, bits, digest)`
+    - Return `&AudioCodeResult{Iscc: "ISCC:" + component}`
+4. **Result struct**: `AudioCodeResult{Iscc string}`
 
-### Constants needed (already available)
+### Key details
 
-- `MTData = 3`, `MTInstance = 4` — from codec.go MainType constants
-- `STNone = 0`, `VSV0 = 0` — from codec.go
-- CDC avg chunk size: use literal `1024` (matching `core_opts.data_avg_chunk_size`)
-
-### Test pattern
-
-Follow the `TestPureGo*` naming convention from existing tests. Load `data.json`, iterate
-`gen_data_code_v0` / `gen_instance_code_v0` sections, decode `"stream:<hex>"` inputs, compare output
-fields. For instance vectors, also verify `datahash` and `filesize` fields.
-
-### Conformance vectors
-
-- Data: 4 vectors — `test_0000_two_bytes_64`, `test_0001_empty_64`, `test_0002_zero_128`,
-    `test_0003_static_256`. Inputs: `[stream_hex, bits]`. Output: `{iscc}`
-- Instance: 3 vectors — `test_0000_empty_64`, `test_0001_zero_128`, `test_0002_static_256`. Inputs:
-    `[stream_hex, bits]`. Output: `{iscc, datahash, filesize}`
+- `AlgSimhash` on 4-byte inputs returns 4 bytes (output length = input digest length). Discard the
+    error with `result, _ := AlgSimhash(...)` since all digests are guaranteed equal length
+- `int32` to big-endian: `binary.BigEndian.PutUint32(buf[:], uint32(v))` — Go handles two's
+    complement naturally via the `uint32()` cast
+- Test file naming: `TestPureGoGenImageCodeV0`, `TestPureGoGenAudioCodeV0` (prefix avoids collision
+    with WASM bridge tests)
+- Image conformance vectors: input[0] is `[]float64` (JSON numbers) → cast to `[]byte`
+- Audio conformance vectors: input[0] is `[]float64` (JSON numbers) → cast to `[]int32`
 
 ## Verification
 
 - `cd packages/go && go build ./...` exits 0
-- `cd packages/go && go test -run TestPureGoGenDataCodeV0 -count=1 -v` — 4/4 data vectors PASS
-- `cd packages/go && go test -run TestPureGoGenInstanceCodeV0 -count=1 -v` — 3/3 instance vectors
-    PASS
+- `cd packages/go && go test -run TestPureGoGenImageCodeV0 -count=1 -v` — 3/3 image vectors PASS
+- `cd packages/go && go test -run TestPureGoGenAudioCodeV0 -count=1 -v` — 5/5 audio vectors PASS
 - `cd packages/go && go vet ./...` exits 0
 - `cd packages/go && go test ./...` — all tests pass (pure Go + WASM bridge)
-- `cd packages/go && go test -race -run "TestPureGo(GenDataCodeV0|GenInstanceCodeV0)" -count=1` —
-    race detector clean
-- `grep -c 'func GenDataCodeV0' packages/go/code_data.go` returns 1
-- `grep -c 'func GenInstanceCodeV0' packages/go/code_instance.go` returns 1
-- `grep -c 'type DataHasher struct' packages/go/code_data.go` returns 1
-- `grep -c 'type InstanceHasher struct' packages/go/code_instance.go` returns 1
+- `grep -c 'func GenImageCodeV0' packages/go/code_content_image.go` returns 1
+- `grep -c 'func GenAudioCodeV0' packages/go/code_content_audio.go` returns 1
 
 ## Done When
 
-All verification criteria pass — `GenDataCodeV0` and `GenInstanceCodeV0` produce correct ISCC codes
-for all 7 conformance vectors, `DataHasher` and `InstanceHasher` structs are implemented with
-Push/Finalize API, and the full Go test suite (pure Go + WASM bridge) passes including race
-detection.
+All 7 verification commands pass, confirming 8 new conformance vectors (3 image + 5 audio) produce
+correct ISCC codes matching the reference implementation.
