@@ -16,12 +16,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Go in CI**: `grep -n "go\|Go\|golang" .github/workflows/ci.yml`
 - **Binding symbol check**:
     `grep -n "encode_component\|META_TRIM\|IO_READ\|TEXT_NGRAM\|iscc_decode\|json_to_data_url" crates/iscc-py/src/lib.rs crates/iscc-napi/src/lib.rs crates/iscc-wasm/src/lib.rs crates/iscc-ffi/src/lib.rs crates/iscc-jni/src/lib.rs packages/go/*.go`
+- **Go test count**: `grep -c "^func Test" packages/go/*_test.go`
+- **Go gen functions**: `grep "^func Gen" packages/go/code_*.go`
 
 ## Codebase Landmarks
 
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
 - `packages/go/` — pure Go module (codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go,
-    wtahash.go + tests); WASM bridge (iscc.go) still present during transition
+    wtahash.go, xxh32.go, code_meta.go, code_content_text.go, code_data.go, code_instance.go +
+    tests); WASM bridge (iscc.go + iscc_ffi.wasm) still present during transition
 - `.github/workflows/ci.yml` — 7 jobs: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -36,22 +39,22 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Current State
 
-- **All 6 bindings**: 30/30 Tier 1 symbols (Python, Node.js, WASM, C FFI, Java, Go/wazero)
-- **Go pure rewrite**: step 5 in progress — 2/9 gen functions done:
+- **All 6 bindings**: 30/30 Tier 1 symbols (Python, Node.js, WASM, C FFI, Java)
+- **Go pure rewrite**: step 5 in progress — 4/9 gen functions done:
     - codec.go (570L, 47T), utils.go (130L, 21T), cdc.go (129L, 15T), minhash.go (205L, 8T),
         simhash.go (86L, 14T), dct.go (52L, 10T), wtahash.go (92L, 9T)
-    - code_meta.go (281L, 1T/16 vectors), code_content_text.go (41L, 1T/5 vectors)
     - xxh32.go (81L, 8T): pure Go xxHash32
-    - 180 total Go test functions (134 pure Go + 46 WASM bridge tests)
-- **`github.com/zeebo/blake3 v0.2.4` added** to go.mod — needed for MetaCode and DataCode
-- **Remaining in step 5**: GenDataCodeV0+DataHasher, GenInstanceCodeV0+InstanceHasher,
-    GenImageCodeV0, GenVideoCodeV0, GenAudioCodeV0, GenMixedCodeV0, GenIsccCodeV0,
-    conformance_selftest, cleanup (remove iscc.go, iscc_ffi.wasm, wazero dep, restore 256KB
-    threshold)
+    - code_meta.go (281L, 1T/16 vectors): GenMetaCodeV0 + MetaCodeResult
+    - code_content_text.go (41L, 1T/5 vectors): GenTextCodeV0 + TextCodeResult
+    - code_data.go (90L, 1T/4 vectors): GenDataCodeV0 + DataHasher streaming
+    - code_instance.go (67L, 1T/3 vectors): GenInstanceCodeV0 + InstanceHasher streaming
+    - 182 total Go test functions (136 pure Go + 46 WASM bridge tests)
+- **`github.com/zeebo/blake3 v0.2.4`** in go.mod — needed for Meta/Data/Instance code
+- **Remaining in step 5**: GenImageCodeV0 (DCT ready), GenVideoCodeV0 (WTA-Hash ready),
+    GenAudioCodeV0, GenMixedCodeV0, GenIsccCodeV0, conformance_selftest, cleanup (remove iscc.go,
+    iscc_ffi.wasm, wazero dep, restore 256KB threshold)
 - **check-added-large-files**: threshold is 1024KB (must restore to 256KB after cleanup)
-- **JCS gotcha**: Go `json.Marshal` passes current vectors (string-only). If future vectors have
-    floats, a proper RFC 8785 JCS library may be needed
-- **assessed-at**: a392f27 (2026-02-27)
+- **assessed-at**: c44b63b (2026-02-27)
 
 ## Gotchas
 
@@ -59,8 +62,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `github.com/zeebo/blake3`, `golang.org/x/text/unicode/norm`
 - WASM constant name gotcha: `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` exports uppercase, NOT
     the Rust function name
-- `state.md` section order must include both Go Bindings and Per-Crate READMEs sections
-- Python ruff format check can fail in CI even if local `mise run check` passes (CI uses global
-    `uv run ruff format --check`, pre-commit may only check staged files)
+- `state.md` section order must include Go Bindings and Per-Crate READMEs sections
+- Python ruff format check can fail in CI even if local `mise run check` passes
 - `dct.go`: `algDct` is unexported (matches Rust `pub(crate)`). `AlgWtahash` is exported. Go has no
     const arrays so `wtaVideoIdPermutations` is `var`
+- **JCS gotcha**: Go `json.Marshal` passes current vectors (string-only). If future vectors have
+    floats, a proper RFC 8785 JCS library may be needed
+- **DataHasher/InstanceHasher API**: Go uses `Push([]byte)` + `Finalize(bits)` pattern (not
+    `io.Writer`), matching the Rust streaming interface

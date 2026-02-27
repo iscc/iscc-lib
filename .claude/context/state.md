@@ -1,17 +1,16 @@
-<!-- assessed-at: a392f27 -->
+<!-- assessed-at: c44b63b -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go Bindings Rewrite — Step 5 In Progress (2/9 Gen Functions Done)
+## Phase: Go Bindings Rewrite — Step 5 In Progress (4/9 Gen Functions Done)
 
-All non-Go bindings are at 30/30 Tier 1 symbols. The Go pure rewrite has entered step 5: gen
-functions. `GenMetaCodeV0` (16/16 vectors) and `GenTextCodeV0` (5/5 vectors) are complete — review
-verdict PASS. `github.com/zeebo/blake3` dependency added. 7 more gen functions remain
-(`GenDataCodeV0`, `GenInstanceCodeV0`, `GenImageCodeV0`, `GenVideoCodeV0`, `GenAudioCodeV0`,
-`GenMixedCodeV0`, `GenIsccCodeV0`) plus `DataHasher`/`InstanceHasher` streaming and WASM bridge
-removal. CI is green across all 7 jobs.
+All non-Go bindings are at 30/30 Tier 1 symbols. The Go pure rewrite is progressing through step 5
+(gen functions): `GenMetaCodeV0`, `GenTextCodeV0`, `GenDataCodeV0`, and `GenInstanceCodeV0` are
+complete with `DataHasher`/`InstanceHasher` streaming types — all 4 reviewed PASS. Five gen
+functions remain (`GenImageCodeV0`, `GenVideoCodeV0`, `GenAudioCodeV0`, `GenMixedCodeV0`,
+`GenIsccCodeV0`) plus `conformance_selftest` and WASM bridge cleanup. CI is green across all 7 jobs.
 
 ## Rust Core Crate
 
@@ -102,7 +101,7 @@ removal. CI is green across all 7 jobs.
 
 ## Go Bindings
 
-**Status**: not met — pure Go rewrite in progress (step 5 of ~5, 2/9 gen functions done)
+**Status**: not met — pure Go rewrite in progress (step 5 of ~5, 4/9 gen functions done)
 
 - **Target requires**: pure Go, no WASM/wazero, no binary artifacts
 - **Steps 1–4 COMPLETE**: codec, text utils, 5 algorithm modules (CDC, MinHash, SimHash, DCT,
@@ -113,20 +112,22 @@ removal. CI is green across all 7 jobs.
             struct; JCS canonicalization via stdlib `json.Marshal`; BLAKE3 multihash
         - `packages/go/code_content_text.go`: `GenTextCodeV0` — 5/5 conformance vectors pass;
             `TextCodeResult` struct
+        - `packages/go/code_data.go` (90 lines): `GenDataCodeV0` + `DataHasher` streaming struct
+            (`NewDataHasher`, `Push`, `Finalize`) — 4/4 conformance vectors pass
+        - `packages/go/code_instance.go` (67 lines): `GenInstanceCodeV0` + `InstanceHasher` streaming
+            struct (`NewInstanceHasher`, `Push`, `Finalize`) — 3/3 conformance vectors pass
         - `packages/go/xxh32.go` (81 lines): pure Go xxHash32 — 8 unit tests pass
-        - `github.com/zeebo/blake3 v0.2.4` added to `go.mod` (needed for MetaCode and future
-            DataCode/InstanceCode)
-    - **Remaining** (7 gen functions + streaming + selftest + cleanup):
-        - `GenDataCodeV0` + `GenInstanceCodeV0` — need CDC + MinHash + BLAKE3 (dep now available)
-        - `GenImageCodeV0` + `GenVideoCodeV0` — need DCT + WTA-Hash (already implemented)
-        - `GenAudioCodeV0` + `GenMixedCodeV0` + `GenIsccCodeV0`
-        - `DataHasher` / `InstanceHasher` streaming with `io.Reader` interface
+        - `github.com/zeebo/blake3 v0.2.4` in `go.mod`
+    - **Remaining** (5 gen functions + selftest + cleanup):
+        - `GenImageCodeV0` — needs DCT (already implemented)
+        - `GenVideoCodeV0` — needs WTA-Hash (already implemented)
+        - `GenAudioCodeV0`, `GenMixedCodeV0`, `GenIsccCodeV0`
         - `conformance_selftest` — validates all vectors against `data.json`
         - Cleanup: remove `iscc.go` (1,357 lines WASM bridge), `iscc_ffi.wasm` (683KB binary), wazero
             dep from `go.mod`; restore `.pre-commit-config.yaml` large-file threshold to 256KB
-- 180 total test functions across Go files (47 codec + 21 utils + 15 CDC + 8 MinHash + 14 SimHash +
-    10 DCT + 9 WTA-Hash + 8 xxh32 + 1 meta + 1 text + 46 WASM bridge); `go test ./...` and
-    `go vet   ./...` passing (CI-verified)
+- 182 total test functions across Go files (47 codec + 21 utils + 15 CDC + 8 MinHash + 14 SimHash +
+    10 DCT + 9 WTA-Hash + 8 xxh32 + 1 meta + 1 text + 1 data + 1 instance + 46 WASM bridge);
+    `go test ./...` and `go vet ./...` passing (CI-verified)
 - `iscc_ffi.wasm` (683KB) still committed to git; `go.mod` still has `wazero` dependency
 - `.pre-commit-config.yaml` large-file threshold still raised to 1024KB (must restore after cleanup)
 
@@ -170,7 +171,7 @@ removal. CI is green across all 7 jobs.
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - **Latest CI run on develop: PASSING** —
-    [Run 22503872330](https://github.com/iscc/iscc-lib/actions/runs/22503872330) — all 7 jobs
+    [Run 22505179763](https://github.com/iscc/iscc-lib/actions/runs/22505179763) — all 7 jobs
     SUCCESS
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
@@ -178,16 +179,17 @@ removal. CI is green across all 7 jobs.
 
 ## Next Milestone
 
-**Continue pure Go rewrite — implement `GenDataCodeV0` + `GenInstanceCodeV0` (step 5, sub-step 2):**
+**Continue pure Go rewrite — implement `GenImageCodeV0` + `GenVideoCodeV0` (step 5, sub-step 3):**
 
-`GenMetaCodeV0` and `GenTextCodeV0` are done and reviewed PASS. The BLAKE3 dependency is now in
-`go.mod`. Implement:
+`GenDataCodeV0`, `GenInstanceCodeV0`, `DataHasher`, and `InstanceHasher` are done and reviewed PASS.
+All algorithm dependencies are now in place. Implement:
 
-1. **`GenDataCodeV0`** — CDC chunking + MinHash + BLAKE3. Needs `packages/go/code_data.go` +
-    `DataHasher` streaming struct with `io.Reader` + `Write([]byte)` + `Finalize()`. 4 conformance
-    vectors in `data.json`
-2. **`GenInstanceCodeV0`** — BLAKE3 streaming hash + MinHash on CDC chunks. Needs
-    `packages/go/code_instance.go` + `InstanceHasher` streaming struct. 3 conformance vectors
+1. **`GenImageCodeV0`** — pixel data → DCT fingerprint (already implemented in `dct.go`). Needs
+    `packages/go/code_content_image.go` + `ImageCodeResult` struct. Conformance vectors in
+    `data.json`
+2. **`GenVideoCodeV0`** — frame signatures → WTA-Hash (already implemented in `wtahash.go`). Needs
+    `packages/go/code_content_video.go` + `VideoCodeResult` struct. Conformance vectors in
+    `data.json`
 
-After review PASS on both, proceed to `GenImageCodeV0` + `GenVideoCodeV0` (DCT + WTA-Hash already
-implemented).
+After review PASS on both, proceed to `GenAudioCodeV0`, `GenMixedCodeV0`, `GenIsccCodeV0`,
+`conformance_selftest`, and cleanup (remove WASM bridge + restore 256KB large-file threshold).
