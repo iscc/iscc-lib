@@ -80,3 +80,6 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go via mise requires `mise exec --` prefix — `go` is not on PATH in all environments
 - The advance commit is at HEAD (not HEAD~1) when the review hasn't committed yet — use
     `git diff HEAD~1..HEAD` for the advance diff (define-next → advance)
+- The `--stat` in handoff template says `git diff HEAD~2..HEAD~1` but this is wrong when the advance
+    commit is the latest — always verify with `git log --oneline -5` first, then use the correct
+    range (typically `git diff HEAD~1..HEAD` for define-next → advance)

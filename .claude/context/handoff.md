@@ -1,16 +1,13 @@
-## 2026-02-27 — Implement `iscc_decode` Tier 1 function
+## 2026-02-27 — Review of: Implement `iscc_decode` Tier 1 function
 
-**Done:** Added `pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)>` to the
-Rust core as the 29th of 30 Tier 1 symbols. The function strips an optional "ISCC:" prefix and
-dashes, base32-decodes the input, parses the variable-length header, computes the bit-length via
-`decode_length`, and returns the digest truncated to exactly the encoded length. Twelve tests cover
-round-trips across four MainTypes, prefix/dash handling, three known conformance vectors, the
-verification criterion, and two error cases.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/src/lib.rs`: Added `iscc_decode` function (after `encode_component`) and 12 tests
-    in the `#[cfg(test)]` module
+**Summary:** Clean, well-scoped implementation adding `iscc_decode` as the 29th of 30 Tier 1
+symbols. The diff touches only `crates/iscc-lib/src/lib.rs` as specified. The function correctly
+delegates to existing `codec::` helpers with proper error propagation. All 292 tests pass, clippy is
+clean, and all 14 pre-commit hooks pass. Test coverage is thorough — 12 new tests covering
+round-trips across 4 MainTypes, prefix/dash handling, 3 known conformance vectors, the verification
+criterion, and 2 error cases.
 
 **Verification:**
 
@@ -21,11 +18,22 @@ verification criterion, and two error cases.
     `(0, 0, 0, 1, vec![0xaa;8])` — verified in `test_iscc_decode_verification_round_trip`
 - [x] All 14 pre-commit hooks pass
 
-**Next:** Implement `json_to_data_url` (issue #5) — the last of 30 Tier 1 symbols. Then propagate
-all new symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, constants) to the 6 binding
-crates.
+**Issues found:**
 
-**Notes:** The implementation follows the `iscc_decompose` pattern for prefix stripping (exact
-case-sensitive "ISCC:" match) and delegates entirely to existing `codec::` functions. Unlike the
-Python reference which returns the full tail and expects callers to truncate, our API returns the
-usable digest directly — cleaner and harder to misuse.
+- (none)
+
+**Codex review:** Codex (gpt-5.2) investigated two areas: (1) case sensitivity of the "ISCC:" prefix
+stripping — confirmed consistent with `iscc_decompose` pattern (the explicit design choice
+documented in next.md's "Not In Scope" excludes full `iscc_normalize` multibase handling). (2)
+Whether `decode_length` could return a non-byte-aligned bit length — safe because all standard ISCC
+MainTypes return multiples of 32 bits. No actionable issues.
+
+**Next:** Implement `json_to_data_url` (issue #5) — the last of 30 Tier 1 symbols. Then propagate
+all 7 new symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, 4 constants) to the 6
+binding crates.
+
+**Notes:** Issue #7 (`iscc_decode`) is now partially addressed — the Rust core symbol exists but
+binding propagation remains. The issue should stay open until bindings are updated. The digest
+truncation design choice (returning exact bytes vs full tail) makes the API safer for callers but
+diverges from the Python reference behavior — document this if it causes integration issues with
+`iscc-sdk` expectations.
