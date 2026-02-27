@@ -242,6 +242,21 @@ iterations.
     present. Output differs from conformance vector test_0016 in two ways: no `charset=utf-8`
     parameter, and payload is JCS-canonical (spaces removed)
 
+## Python Binding — Tier 1 Propagation
+
+- PyO3 `iscc_decode` wrapper needs `py: Python<'_>` param to wrap `Vec<u8>` in `PyBytes::new()`.
+    Returns `PyObject` using `.into_pyobject(py)?.into()` for the tuple
+- PyO3 constants registered with `m.add("NAME", value)?` in module init (not `wrap_pyfunction!`)
+- Python `__init__.py` `__all__` had 34 entries before Tier 1 propagation, not 35 as estimated. The
+    count after adding 7 new symbols is 41 (34 + 7)
+- Constants and simple functions (encode_component, iscc_decode, json_to_data_url) are direct
+    re-exports in `__init__.py` — no wrapper logic needed (unlike gen_data_code_v0 which adds
+    streaming)
+- Type stubs (`_lowlevel.pyi`) place constants at top (before function stubs), with inline
+    docstrings. Constants use `int` type annotation
+- `uv run maturin develop -m crates/iscc-py/Cargo.toml` works; bare `maturin develop` fails (command
+    not found in devcontainer PATH — needs `uv run` prefix)
+
 ## Codec Internals
 
 - `decode_header` and `decode_varnibble_from_bytes` operate directly on `&[u8]` with bitwise

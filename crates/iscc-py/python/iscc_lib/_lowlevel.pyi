@@ -3,6 +3,64 @@
 from collections.abc import Sequence
 from typing import Any
 
+META_TRIM_NAME: int
+"""Max UTF-8 byte length for name metadata trimming (128)."""
+
+META_TRIM_DESCRIPTION: int
+"""Max UTF-8 byte length for description metadata trimming (4096)."""
+
+IO_READ_SIZE: int
+"""Buffer size in bytes for streaming file reads (4,194,304 = 4 MB)."""
+
+TEXT_NGRAM_SIZE: int
+"""Character n-gram width for text content features (13)."""
+
+def encode_component(
+    mtype: int, stype: int, version: int, bit_length: int, digest: bytes
+) -> str:
+    """Encode raw digest components into a base32 ISCC unit string.
+
+    Takes integer type identifiers (matching ``MainType``, ``SubType``,
+    ``Version`` enum values) and a raw digest, returns a base32-encoded
+    ISCC unit string (without ``"ISCC:"`` prefix).
+
+    :param mtype: Main type identifier (0–6).
+    :param stype: Sub type identifier (0–7).
+    :param version: Version identifier (0).
+    :param bit_length: Bit length of the code body (multiple of 32).
+    :param digest: Raw digest bytes (at least ``bit_length // 8`` bytes).
+    :return: Base32-encoded ISCC unit string.
+    :raises ValueError: If enum values are out of range or digest is too short.
+    """
+    ...
+
+def iscc_decode(iscc: str) -> tuple[int, int, int, int, bytes]:
+    """Decode an ISCC unit string into header components and raw digest.
+
+    Inverse of :func:`encode_component`. Strips an optional ``"ISCC:"``
+    prefix and dashes, base32-decodes the string, parses the header, and
+    returns the digest truncated to exactly the encoded bit-length.
+
+    :param iscc: ISCC unit string (with or without ``"ISCC:"`` prefix).
+    :return: Tuple of ``(maintype, subtype, version, length_index, digest)``.
+    :raises ValueError: If the input is not a valid ISCC string.
+    """
+    ...
+
+def json_to_data_url(json: str) -> str:
+    """Convert a JSON string into a ``data:`` URL with JCS canonicalization.
+
+    Parses the JSON, re-serializes to RFC 8785 (JCS) canonical form,
+    base64-encodes the result, and wraps it in a ``data:`` URL. Uses
+    ``application/ld+json`` media type when the JSON contains an ``@context``
+    key, otherwise ``application/json``.
+
+    :param json: JSON string to convert.
+    :return: Data URL string.
+    :raises ValueError: If ``json`` is not valid JSON.
+    """
+    ...
+
 def conformance_selftest() -> bool:
     """Run all conformance tests against vendored test vectors.
 

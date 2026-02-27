@@ -391,6 +391,47 @@ fn iscc_decompose(iscc_code: &str) -> PyResult<Vec<String>> {
     iscc_lib::iscc_decompose(iscc_code).map_err(|e| PyValueError::new_err(e.to_string()))
 }
 
+/// Encode raw digest components into a base32 ISCC unit string.
+///
+/// Takes integer type identifiers and a raw digest, returns a base32-encoded
+/// ISCC unit string (without "ISCC:" prefix).
+#[pyfunction]
+#[pyo3(signature = (mtype, stype, version, bit_length, digest))]
+fn encode_component(
+    mtype: u8,
+    stype: u8,
+    version: u8,
+    bit_length: u32,
+    digest: &[u8],
+) -> PyResult<String> {
+    iscc_lib::encode_component(mtype, stype, version, bit_length, digest)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+/// Decode an ISCC unit string into header components and raw digest.
+///
+/// Returns a tuple of `(maintype, subtype, version, length_index, digest)`
+/// where digest is the raw bytes truncated to the encoded bit-length.
+#[pyfunction]
+#[pyo3(signature = (iscc))]
+fn iscc_decode(py: Python<'_>, iscc: &str) -> PyResult<PyObject> {
+    let (mt, st, vs, li, digest) =
+        iscc_lib::iscc_decode(iscc).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok((mt, st, vs, li, PyBytes::new(py, &digest))
+        .into_pyobject(py)?
+        .into())
+}
+
+/// Convert a JSON string into a `data:` URL with JCS canonicalization.
+///
+/// Uses `application/ld+json` media type when the JSON contains an `@context`
+/// key, otherwise `application/json`.
+#[pyfunction]
+#[pyo3(signature = (json))]
+fn json_to_data_url(json: &str) -> PyResult<String> {
+    iscc_lib::json_to_data_url(json).map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
 /// Generate sliding window n-grams from a string.
 ///
 /// Returns overlapping substrings of `width` Unicode characters, advancing
@@ -560,6 +601,13 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(text_collapse, m)?)?;
     m.add_function(wrap_pyfunction!(encode_base64, m)?)?;
     m.add_function(wrap_pyfunction!(iscc_decompose, m)?)?;
+    m.add_function(wrap_pyfunction!(encode_component, m)?)?;
+    m.add_function(wrap_pyfunction!(iscc_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(json_to_data_url, m)?)?;
+    m.add("META_TRIM_NAME", iscc_lib::META_TRIM_NAME)?;
+    m.add("META_TRIM_DESCRIPTION", iscc_lib::META_TRIM_DESCRIPTION)?;
+    m.add("IO_READ_SIZE", iscc_lib::IO_READ_SIZE)?;
+    m.add("TEXT_NGRAM_SIZE", iscc_lib::TEXT_NGRAM_SIZE)?;
     m.add_function(wrap_pyfunction!(sliding_window, m)?)?;
     m.add_function(wrap_pyfunction!(alg_simhash, m)?)?;
     m.add_function(wrap_pyfunction!(alg_minhash_256, m)?)?;

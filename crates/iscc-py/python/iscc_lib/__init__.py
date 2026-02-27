@@ -9,6 +9,10 @@ from typing import BinaryIO
 __version__ = version("iscc-lib")
 
 from iscc_lib._lowlevel import (
+    IO_READ_SIZE as IO_READ_SIZE,
+    META_TRIM_DESCRIPTION as META_TRIM_DESCRIPTION,
+    META_TRIM_NAME as META_TRIM_NAME,
+    TEXT_NGRAM_SIZE as TEXT_NGRAM_SIZE,
     DataHasher as _DataHasher,
     InstanceHasher as _InstanceHasher,
     alg_cdc_chunks as alg_cdc_chunks,
@@ -16,6 +20,7 @@ from iscc_lib._lowlevel import (
     alg_simhash as alg_simhash,
     conformance_selftest as conformance_selftest,
     encode_base64 as encode_base64,
+    encode_component as encode_component,
     gen_audio_code_v0 as _gen_audio_code_v0,
     gen_data_code_v0 as _gen_data_code_v0,
     gen_image_code_v0 as _gen_image_code_v0,
@@ -25,7 +30,9 @@ from iscc_lib._lowlevel import (
     gen_mixed_code_v0 as _gen_mixed_code_v0,
     gen_text_code_v0 as _gen_text_code_v0,
     gen_video_code_v0 as _gen_video_code_v0,
+    iscc_decode as iscc_decode,
     iscc_decompose as iscc_decompose,
+    json_to_data_url as json_to_data_url,
     sliding_window as sliding_window,
     soft_hash_video_v0 as soft_hash_video_v0,
     text_clean as text_clean,
@@ -250,6 +257,10 @@ class InstanceHasher:
 
 __all__ = [
     "__version__",
+    "IO_READ_SIZE",
+    "META_TRIM_DESCRIPTION",
+    "META_TRIM_NAME",
+    "TEXT_NGRAM_SIZE",
     "IsccResult",
     "AudioCodeResult",
     "DataCodeResult",
@@ -267,6 +278,7 @@ __all__ = [
     "alg_simhash",
     "conformance_selftest",
     "encode_base64",
+    "encode_component",
     "gen_audio_code_v0",
     "gen_data_code_v0",
     "gen_image_code_v0",
@@ -276,7 +288,9 @@ __all__ = [
     "gen_mixed_code_v0",
     "gen_text_code_v0",
     "gen_video_code_v0",
+    "iscc_decode",
     "iscc_decompose",
+    "json_to_data_url",
     "sliding_window",
     "soft_hash_video_v0",
     "text_clean",
