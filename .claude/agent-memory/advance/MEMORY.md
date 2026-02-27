@@ -246,6 +246,29 @@ iterations.
 - `#[wasm_bindgen` annotation count in lib.rs: 35 (was 25, +10 for 7 functions + 2 impl blocks + 1
     struct)
 
+## C FFI Binding — Tier 1 Propagation
+
+- Constants exposed as `extern "C"` getter functions (not `pub static` — avoids cbindgen `usize` → C
+    type mapping issues). All are infallible (no error handling, no `clear_last_error`)
+- `iscc_json_to_data_url` follows the standard string-in/string-out pattern (same as
+    `iscc_text_clean`)
+- `iscc_encode_component` takes raw `*const u8` + `usize` for digest, with the standard null-check +
+    `from_raw_parts` pattern from `iscc_gen_data_code_v0`
+- `IsccDecodeResult` is `#[repr(C)]` struct with `ok: bool` discriminant,
+    `maintype/subtype/version/   length: u8`, and `digest: IsccByteBuffer`. Reuses existing
+    `IsccByteBuffer` and helpers (`null_byte_buffer`, `vec_to_byte_buffer`)
+- `iscc_free_decode_result` delegates to `iscc_free_byte_buffer` for digest cleanup
+- `ptr_to_str` in FFI crate takes `param_name: &str` arg for error messages (not just `ptr` like
+    next.md pseudocode suggested) — all new functions use this pattern
+- Length index for 64-bit codes is 1 (not 0): `decode_length` uses `(length_index + 1) * 32` for
+    standard MainTypes. Index 0 = 32-bit, index 1 = 64-bit
+- Generated `iscc.h` header is NOT committed — CI generates it dynamically via `cbindgen`
+- Total `#[unsafe(no_mangle)]` count after propagation: 44 (was 35, +9: 4 constants +
+    json_to_data_url
+    - encode_component + iscc_decode + iscc_free_decode_result + the existing ones)
+- Total Rust unit tests: 77 (62 existing + 15 new). Total C test assertions: 49 (30 existing + 19
+    new)
+
 ## Tier 1 API Surface
 
 - Algorithm constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)
