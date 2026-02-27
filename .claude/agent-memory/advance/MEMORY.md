@@ -228,8 +228,12 @@ iterations.
 - zensical.toml nav: How-to Guides order is Rust → Python → Node.js → WebAssembly → Go → Java
 - Go and Java guides include algorithm primitives section (SlidingWindow, AlgMinhash256,
     AlgCdcChunks, AlgSimhash) not present in Python/Node.js guides
-- All 6 how-to guides complete: Rust (356 lines), Python (353), Node.js (281), WASM (338), Go (388),
-    Java (321)
+- All 6 how-to guides have Codec operations + Constants sections. Python, Node.js, WASM, Go all have
+    them; Java has them too. Python uniquely documents `core_opts` SimpleNamespace and IntEnum
+    return types from `iscc_decode`. WASM constants use getter functions (`meta_trim_name()` not
+    `META_TRIM_NAME`). Node.js Codec section uses `require()` style imports per next.md spec
+- All 6 how-to guides complete: Rust (356 lines), Python (~420), Node.js (~350), WASM (~410), Go
+    (463), Java (~390)
 - `docs/architecture.md` and `docs/development.md` include all 6 binding crates (Python, Node.js,
     WASM, C FFI, JNI, Go) in diagrams, layout trees, and tables. Go uses dotted arrow (`-.->`) in
     Mermaid to indicate indirect WASM dependency via `iscc-ffi`

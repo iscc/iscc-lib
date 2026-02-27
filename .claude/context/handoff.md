@@ -1,42 +1,36 @@
-## 2026-02-27 — Review of: Update Go docs for 30/30 Tier 1 symbols
+## 2026-02-27 — Add Codec operations and Constants sections to binding howto guides
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Added "Codec operations" and "Constants" documentation sections to all 4 binding howto
+guides (Python, Node.js, Java, WASM), achieving cross-language documentation parity with the Go
+guide. Each guide covers encode/decode, decompose, additional codec functions, and algorithm
+constants with language-idiomatic code examples.
 
-**Summary:** Clean, well-structured documentation update adding "Codec operations" and "Constants"
-sections to `docs/howto/go.md` and replacing stale "planned" text in `packages/go/README.md` with
-organized API tables covering all 30/30 Tier 1 symbols. One minor doc bug fixed during review
-(incorrect prefix claim in decompose example).
+**Files changed:**
 
-**Verification:**
+- `docs/howto/python.md`: Added Codec operations section (encode/decode with IntEnum types,
+    decompose, 3 bullet-point functions), Constants section (direct imports + core_opts namespace),
+    updated front matter description and opening paragraph
+- `docs/howto/nodejs.md`: Added Codec operations section (encode/decode with IsccDecodeResult,
+    decompose, 3 bullet-point functions using require() style), Constants section (destructured
+    exports), updated front matter description and opening paragraph
+- `docs/howto/java.md`: Added Codec operations section (camelCase methods on IsccLib,
+    IsccDecodeResult with int/byte[] fields, decompose, 3 bullet-point methods), Constants section
+    (static final int on IsccLib), updated front matter description
+- `docs/howto/wasm.md`: Added Codec operations section (encode/decode with Uint8Array,
+    IsccDecodeResult, decompose, 3 bullet-point functions), Constants section (getter functions),
+    updated front matter description and opening paragraph
 
-- [x] `grep -c 'EncodeComponent' docs/howto/go.md` → 1
-- [x] `grep -c 'IsccDecode' docs/howto/go.md` → 2
-- [x] `grep -c 'IsccDecompose' docs/howto/go.md` → 1
-- [x] `grep -c 'JsonToDataUrl' docs/howto/go.md` → 1
-- [x] `grep -c 'EncodeBase64' docs/howto/go.md` → 1
-- [x] `grep -c 'SoftHashVideoV0' docs/howto/go.md` → 1
-- [x] `grep -c 'MetaTrimName' docs/howto/go.md` → 1
-- [x] `grep 'are planned' packages/go/README.md` → no matches (stale text removed)
-- [x] `grep -c 'EncodeComponent' packages/go/README.md` → 1
-- [x] `grep -c 'DataHasher' packages/go/README.md` → 2
-- [x] `uv run zensical build` → exits 0
-- [x] `mise run check` → all 14 hooks pass
+**Verification:** All 14 grep checks pass (all ≥ 1). `uv run zensical build` exits 0.
+`mise run check` passes all 14 hooks. mdformat auto-formatted some alignment in code comments
+(removed extra alignment spaces in constants sections) — changes are clean.
 
-**Issues found:**
+**Next:** All 6 language binding howto guides now have full documentation coverage (30/30 Tier 1
+symbols). The project can focus on other target milestones — the remaining issues in issues.md (dict
+auto-serialization for gen_meta_code_v0, or adding Algorithm primitives sections to Python, Node.js,
+and WASM guides).
 
-- Minor: Decompose example comment said "Each unit code with 'ISCC:' prefix" but `iscc_decompose`
-    returns units WITHOUT the prefix (verified via Rust docstring and Go test). Fixed in review.
-
-**Codex review:** Codex identified the incorrect "ISCC:" prefix claim in the decompose example
-comment — confirmed and fixed. No other actionable findings.
-
-**Next:** All 6 language bindings have 30/30 Tier 1 symbols documented. The project can move on to
-other target milestones — likely the remaining issues in issues.md: dict auto-serialization for
-`gen_meta_code_v0` (issue #5), or adding codec/constants documentation sections to Java and Python
-howto guides for cross-language parity.
-
-**Notes:** The `SoftHashVideoV0` function is documented under "Codec operations" rather than
-"Algorithm primitives" — this follows the next.md spec but is a slight taxonomic mismatch. Not worth
-changing now; if howto guides get a structural refresh later, it could be moved. Java and Python
-howto guides don't yet have codec/constants sections — Go is the first binding with full doc
-coverage.
+**Notes:** The Python guide uniquely documents the `core_opts` SimpleNamespace and IntEnum return
+types from `iscc_decode` — these are Python-specific API features not present in other bindings. The
+Node.js guide uses `require()` import style in the Codec sections as specified in next.md, while the
+existing Code generation sections use ESM `import` — this mirrors the Go guide's pattern of showing
+different import styles in different sections.
