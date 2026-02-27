@@ -5,30 +5,30 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 ## Crate Role
 
 - This is the **core crate** that all binding crates (`iscc-py`, `iscc-napi`, `iscc-wasm`,
-    `iscc-ffi`) depend on
+    `iscc-ffi`, `iscc-jni`) depend on
 - Must remain **pure Rust** -- zero binding dependencies (no PyO3, napi, wasm-bindgen)
 - Publishable to crates.io as `iscc-lib`
 - All ISCC algorithm logic lives here; binding crates only translate the API
 
 ## Module Layout
 
-| Module           | Visibility   | Purpose                                                                                                          |
-| ---------------- | ------------ | ---------------------------------------------------------------------------------------------------------------- |
-| `lib.rs`         | public       | Crate root: re-exports, `IsccError`/`IsccResult`, all 9 `gen_*_v0` functions                                     |
-| `types.rs`       | `pub`        | Result structs (`MetaCodeResult`, `TextCodeResult`, etc.)                                                        |
-| `codec.rs`       | `pub`        | Tier 2: `MainType`/`SubType`/`Version` enums, header encode/decode, base32, `encode_component`, `iscc_decompose` |
-| `streaming.rs`   | `pub`        | `DataHasher` and `InstanceHasher` streaming types                                                                |
-| `conformance.rs` | `pub`        | `conformance_selftest()` -- runtime conformance checker                                                          |
-| `utils.rs`       | `pub`        | `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`, `multi_hash_blake3` (pub(crate))             |
-| `cdc.rs`         | `pub`        | Content-defined chunking (`alg_cdc_chunks`)                                                                      |
-| `minhash.rs`     | `pub`        | MinHash algorithm (`alg_minhash_256`)                                                                            |
-| `simhash.rs`     | `pub`        | SimHash and sliding window (`alg_simhash`, `sliding_window`)                                                     |
-| `dct.rs`         | `pub(crate)` | Discrete Cosine Transform for image hashing                                                                      |
-| `wtahash.rs`     | `pub(crate)` | Winner-Take-All hash for video fingerprinting                                                                    |
+| Module           | Visibility   | Purpose                                                                                              |
+| ---------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
+| `lib.rs`         | public       | Crate root: re-exports, `IsccError`/`IsccResult`, all 9 `gen_*_v0` functions                         |
+| `types.rs`       | `pub`        | Result structs (`MetaCodeResult`, `TextCodeResult`, etc.)                                            |
+| `codec.rs`       | `pub`        | Tier 2: `MainType`/`SubType`/`Version` enums, header encode/decode, base32, `iscc_decompose`         |
+| `streaming.rs`   | `pub`        | `DataHasher` and `InstanceHasher` streaming types                                                    |
+| `conformance.rs` | `pub`        | `conformance_selftest()` -- runtime conformance checker                                              |
+| `utils.rs`       | `pub`        | `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`, `multi_hash_blake3` (pub(crate)) |
+| `cdc.rs`         | `pub`        | Content-defined chunking (`alg_cdc_chunks`)                                                          |
+| `minhash.rs`     | `pub`        | MinHash algorithm (`alg_minhash_256`)                                                                |
+| `simhash.rs`     | `pub`        | SimHash and sliding window (`alg_simhash`, `sliding_window`)                                         |
+| `dct.rs`         | `pub(crate)` | Discrete Cosine Transform for image hashing                                                          |
+| `wtahash.rs`     | `pub(crate)` | Winner-Take-All hash for video fingerprinting                                                        |
 
 ## API Tier Rules
 
-**Tier 1 -- public API, bound in all languages (22 symbols at crate root):**
+**Tier 1 -- public API, bound in all languages (30 symbols at crate root):**
 
 - 9 gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`,
     `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`,
@@ -36,8 +36,10 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 - 4 text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - 4 algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
 - 1 soft hash: `soft_hash_video_v0`
-- 1 encoding utility: `encode_base64`
-- 1 codec operation: `iscc_decompose`
+- 2 encoding utilities: `encode_base64`, `json_to_data_url`
+- 3 codec operations: `iscc_decompose`, `encode_component`, `iscc_decode`
+- 4 algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`,
+    `TEXT_NGRAM_SIZE`
 - 2 streaming types: `DataHasher`, `InstanceHasher`
 - 1 diagnostic: `conformance_selftest`
 
@@ -45,7 +47,7 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 
 - `MainType`, `SubType`, `Version` enums
 - `encode_header`, `decode_header`, `encode_base32`, `decode_base32`
-- `encode_component`, `encode_length`, `decode_length`, `encode_units`, `decode_units`
+- `encode_length`, `decode_length`, `encode_units`, `decode_units`
 
 **Internal -- `pub(crate)` or private, free to change:**
 
@@ -118,6 +120,8 @@ cargo bench -p iscc-lib                     # Criterion benchmarks
 - `unicode-general-category` -- Unicode category classification for text filtering
 - `thiserror` -- error derive macro
 - `serde_json` -- JSON parsing for meta processing and conformance vectors
+- `serde_json_canonicalizer` -- RFC 8785 (JCS) compliant JSON serialization for metadata
+    canonicalization
 - `serde` + `criterion` -- dev-dependencies only
 
 ## Common Pitfalls
