@@ -24,7 +24,7 @@
 
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JIntArray, JObject, JObjectArray, JString};
-use jni::sys::{jboolean, jbyteArray, jint, jintArray, jlong, jobjectArray, jstring};
+use jni::sys::{jboolean, jbyteArray, jint, jintArray, jlong, jobject, jobjectArray, jstring};
 
 /// Throw `IllegalArgumentException` in Java and return a type-appropriate default.
 ///
@@ -505,7 +505,124 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_encodeBase64(
     }
 }
 
+/// Convert a JSON string to a base64-encoded data URL.
+///
+/// Uses `application/ld+json` media type when the JSON contains an `@context`
+/// key, otherwise `application/json`. Throws `IllegalArgumentException` on
+/// invalid JSON input.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_jsonToDataUrl(
+    mut env: JNIEnv,
+    _class: JClass,
+    json: JString,
+) -> jstring {
+    let json_str: String = match env.get_string(&json) {
+        Ok(s) => s.into(),
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
+    match iscc_lib::json_to_data_url(&json_str) {
+        Ok(result) => match env.new_string(result) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
+}
+
 // ── Codec ───────────────────────────────────────────────────────────────────
+
+/// Encode header fields and a raw digest into a base32-encoded ISCC unit string.
+///
+/// Accepts integer type identifiers (`mtype`, `stype`, `version` in range
+/// 0–255) and a `bit_length` (≥0). Returns the encoded ISCC unit string.
+/// Throws `IllegalArgumentException` on invalid input or out-of-range values.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_encodeComponent(
+    mut env: JNIEnv,
+    _class: JClass,
+    mtype: jint,
+    stype: jint,
+    version: jint,
+    bit_length: jint,
+    digest: jbyteArray,
+) -> jstring {
+    // Validate jint ranges before casting
+    if !(0..=255).contains(&mtype) {
+        return throw_and_default(&mut env, "mtype must be in range 0-255");
+    }
+    if !(0..=255).contains(&stype) {
+        return throw_and_default(&mut env, "stype must be in range 0-255");
+    }
+    if !(0..=255).contains(&version) {
+        return throw_and_default(&mut env, "version must be in range 0-255");
+    }
+    if bit_length < 0 {
+        return throw_and_default(&mut env, "bitLength must be non-negative");
+    }
+    let digest_bytes = match extract_byte_array(&env, digest) {
+        Ok(b) => b,
+        Err(e) => return throw_and_default(&mut env, &e),
+    };
+    match iscc_lib::encode_component(
+        mtype as u8,
+        stype as u8,
+        version as u8,
+        bit_length as u32,
+        &digest_bytes,
+    ) {
+        Ok(result) => match env.new_string(result) {
+            Ok(s) => s.into_raw(),
+            Err(e) => throw_and_default(&mut env, &e.to_string()),
+        },
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
+}
+
+/// Decode an ISCC unit string into its header components and raw digest.
+///
+/// Strips an optional "ISCC:" prefix before decoding. Returns a Java
+/// `IsccDecodeResult` object with `maintype`, `subtype`, `version`,
+/// `length`, and `digest` fields. Throws `IllegalArgumentException` on
+/// invalid input.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_isccDecode(
+    mut env: JNIEnv,
+    _class: JClass,
+    iscc_unit: JString,
+) -> jobject {
+    let iscc_str: String = match env.get_string(&iscc_unit) {
+        Ok(s) => s.into(),
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
+    let (mt, st, vs, li, digest) = match iscc_lib::iscc_decode(&iscc_str) {
+        Ok(result) => result,
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
+    // Build a jbyteArray from the digest Vec<u8>
+    let byte_array = match env.byte_array_from_slice(&digest) {
+        Ok(a) => a,
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
+    // Find the IsccDecodeResult class and construct a new instance
+    let class = match env.find_class("io/iscc/iscc_lib/IsccDecodeResult") {
+        Ok(c) => c,
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
+    match env.new_object(
+        class,
+        "(IIII[B)V",
+        &[
+            jni::objects::JValue::Int(mt as jint),
+            jni::objects::JValue::Int(st as jint),
+            jni::objects::JValue::Int(vs as jint),
+            jni::objects::JValue::Int(li as jint),
+            jni::objects::JValue::Object(&byte_array),
+        ],
+    ) {
+        Ok(obj) => obj.into_raw(),
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
+}
 
 /// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
 ///

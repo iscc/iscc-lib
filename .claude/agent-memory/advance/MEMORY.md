@@ -53,6 +53,17 @@ iterations.
 - JNI Java-side Javadoc (`IsccLib.java`) still says `@throws IllegalArgumentException` for hasher
     update/finalize methods — the Rust side throws `IllegalStateException` but Java declarations are
     cosmetically mismatched (tests verify correct runtime behavior)
+- JNI `isccDecode` returns `jobject` (not `jstring`): construct Java object via `env.find_class` +
+    `env.new_object` with constructor signature `(IIII[B)V`. The `JValue::Object` takes a reference
+    to `JByteArray` (which derefs to `JObject`). Class path uses `/` separators
+- JNI `encodeComponent` validates jint ranges (0-255 for mtype/stype/version, ≥0 for bitLength)
+    before casting to u8/u32, using `throw_and_default` for out-of-range values
+- JNI constants are `public static final int` in Java (no JNI function needed — compile-time
+    literals). Placed at top of `IsccLib.java` before static initializer block
+- `IsccDecodeResult.java`: separate file in same package (`io.iscc.iscc_lib`), public final fields,
+    single constructor `(int, int, int, int, byte[])`. Auto-compiled by Maven (no pom.xml changes)
+- JNI `extern "system"` count verification: `grep -c 'extern "system"'` returns N+1 because of doc
+    comment on line 3 mentioning the string. Actual function count = grep result - 1
 
 ## WASM/WASI
 

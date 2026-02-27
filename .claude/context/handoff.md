@@ -1,35 +1,44 @@
-## 2026-02-27 — Review of: Propagate 7 Tier 1 symbols to C FFI
+## 2026-02-27 — Propagate 7 Tier 1 symbols to Java JNI
 
-**Verdict:** PASS
+**Done:** Added 4 constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`,
+`TEXT_NGRAM_SIZE`) as `public static final int` fields, 3 new JNI native methods (`jsonToDataUrl`,
+`encodeComponent`, `isccDecode`), and a new `IsccDecodeResult` Java class to the Java JNI binding.
+Java JNI now exposes 30/30 Tier 1 symbols.
 
-**Summary:** Clean, focused implementation adding 4 constant getter functions,
-`iscc_json_to_data_url`, `iscc_encode_component`, `iscc_decode` (with `IsccDecodeResult` struct and
-`iscc_free_decode_result`) to the C FFI binding crate. All 30/30 Tier 1 symbols are now accessible
-via the C ABI. The advance agent correctly identified that the next.md specification had an error in
-the length index for 64-bit codes (should be 1, not 0) and implemented accordingly.
+**Files changed:**
+
+- `crates/iscc-jni/src/lib.rs`: Added 3 new `extern "system"` JNI functions — `jsonToDataUrl`
+    (string-in/string-out), `encodeComponent` (scalar args + byte array → string with range
+    validation), `isccDecode` (string → `IsccDecodeResult` Java object via `env.new_object`). Added
+    `jobject` to imports.
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`: Added 4
+    `public static final int` constants before the static initializer, 3 native method declarations
+    (`jsonToDataUrl`, `encodeComponent`, `isccDecode`).
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java`: New class with 5
+    `public final` fields (`maintype`, `subtype`, `version`, `length`, `digest`) and a single
+    constructor.
+- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`: Added 7 new tests —
+    constants verification (4 assertions), `jsonToDataUrl` (2 tests: plain JSON + JSON-LD),
+    `encodeComponent` (1 test), `isccDecode` (1 known value test), `isccDecode` invalid input error
+    test, and encode→decode roundtrip test.
 
 **Verification:**
 
-- [x] `cargo test -p iscc-ffi` passes — 77 unit tests (62 existing + 15 new), 0 failures
-- [x] `cargo clippy -p iscc-ffi --all-targets -- -D warnings` clean — no warnings
-- [x] `grep -c '#[unsafe(no_mangle)]' crates/iscc-ffi/src/lib.rs` shows 44 (≥ 43 required)
-- [x] C test program compiles and passes — 49 passed, 0 failed (requires cbindgen header generation)
-- [x] `mise run check` passes — all 14 pre-commit hooks pass
+- `cargo build -p iscc-jni` succeeds
+- `cargo clippy -p iscc-jni --all-targets -- -D warnings` clean
+- `cd crates/iscc-jni/java && mvn test` passes — 58 tests (51 existing + 7 new), 0 failures
+- `grep -c 'extern "system"' crates/iscc-jni/src/lib.rs` shows 33 (32 functions + 1 doc comment
+    mention — the spec expected 32 but didn't account for the line-3 doc comment)
+- `grep -c 'static final int' IsccLib.java` shows 4
+- `grep 'IsccDecodeResult' IsccLib.java` finds the `isccDecode` native method
+- `mise run check` passes — all 14 pre-commit hooks pass
 
-**Issues found:**
+**Next:** All 30 Tier 1 symbols are now propagated to Python, Node.js, WASM, C FFI, and Java JNI
+bindings. Remaining: Go/wazero binding (23/30 → 30/30). The define-next agent should propagate the 7
+new symbols to the Go binding.
 
-- (none)
-
-**Codex review:** No correctness issues identified. The added C FFI exports follow the crate's
-existing error/ownership patterns, and the new Rust/C tests cover the expected success and failure
-cases.
-
-**Next:** All 30 Tier 1 symbols are now propagated to Python, Node.js, WASM, and C FFI bindings.
-Remaining binding propagation targets: Java JNI (23/30) and Go/wazero (23/30). The define-next agent
-should continue propagating the 7 new symbols to Java JNI next.
-
-**Notes:** Minor fix applied — removed duplicate `// ── Codec ──` section comment in
-`crates/iscc-ffi/src/lib.rs`. The C test compilation requires `cbindgen` to generate `iscc.h` before
-gcc can build (header is not committed — CI generates it dynamically). The advance agent's
-observation about next.md's incorrect length index specification is correct and has been noted in
-learnings.
+**Notes:** The `isccDecode` JNI function constructs a Java `IsccDecodeResult` object on the Rust
+side using `env.find_class` + `env.new_object` with constructor signature `(IIII[B)V`. The
+`encodeComponent` function validates jint ranges (0-255 for mtype/stype/version, ≥0 for bitLength)
+before casting. The verification grep count of 33 vs expected 32 is harmless — the extra match is
+the doc comment on line 3 of the module, not an actual function.
