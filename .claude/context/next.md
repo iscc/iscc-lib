@@ -1,129 +1,83 @@
 # Next Work Package
 
-## Step: Add algorithm constants and Tier 1 encode_component wrapper
+## Step: Implement `iscc_decode` Tier 1 function
 
 ## Goal
 
-Add 5 of the 7 missing Tier 1 symbols to the Rust core: 4 algorithm constants (`META_TRIM_NAME`,
-`META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) and a Tier 1 `encode_component` wrapper
-that accepts `u8` enum parameters. This unblocks binding crates and addresses issues #6 and #8.
+Add `iscc_decode` to the Rust core as the 29th of 30 Tier 1 symbols. This is the inverse of
+`encode_component` — it decodes an ISCC unit string back into its header components and raw digest.
+Needed by `iscc-sdk` for `code_sum()` and ISCC unit inspection (issue #7).
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `crates/iscc-lib/src/lib.rs` (add `pub const` values, add Tier 1 `encode_component`
-    wrapper function with doc comments and tests)
-- **Reference**: `crates/iscc-lib/src/codec.rs` (existing `encode_component` with Rust enum params,
-    `MainType`/`SubType`/`Version` enums with `TryFrom<u8>` impls),
-    `reference/iscc-core/iscc_core/options.py` (constant values),
-    `.claude/context/specs/rust-core.md` (Tier 1 API spec)
+- **Create**: (none)
+- **Modify**: `crates/iscc-lib/src/lib.rs` — add `pub fn iscc_decode` function and tests
+- **Reference**:
+    - `reference/iscc-core/iscc_core/codec.py` — `iscc_decode` (line 486), `iscc_clean` (line 644),
+        `decode_header` (line 108)
+    - `crates/iscc-lib/src/codec.rs` — `decode_base32`, `decode_header`, `decode_length`
+    - Issue #7 in `.claude/context/issues.md`
 
 ## Not In Scope
 
-- Implementing `iscc_decode` — that's a separate step requiring new decode logic
-- Implementing `json_to_data_url` — separate step requiring base64 encoding logic
-- Propagating new symbols to any binding crate (Python, Node.js, WASM, C FFI, JNI, Go)
-- Adding Python `IntEnum` wrappers (`MT`, `ST`, `VS`) or `core_opts` — those are binding-layer work
-- Changing the existing `codec::encode_component` signature — the Tier 2 version stays as-is
-- Updating documentation site or README
+- `iscc_normalize` (full multibase/hex normalization) — our `iscc_decode` only needs basic cleaning
+    (strip "ISCC:" prefix, remove dashes), matching the pattern in `iscc_decompose`
+- `iscc_clean` or `iscc_normalize` as separate public functions — not Tier 1 symbols
+- `iscc_explain` — depends on `iscc_decode` but is not in the target API
+- Propagating `iscc_decode` to binding crates — separate step
+- Implementing `json_to_data_url` — the next step after this one
+- Adding conformance vectors for `iscc_decode` — the existing data.json does not have
+    decode-specific vectors; round-trip tests with `encode_component` provide sufficient coverage
 
 ## Implementation Notes
 
-### Algorithm Constants
+**Algorithm** (port from Python `iscc_decode` in `codec.py` line 486-497):
 
-Add 4 `pub const` values directly in `lib.rs` (near the top, after the `pub use` re-exports):
+1. Strip optional `"ISCC:"` prefix (case-sensitive, matching `iscc_decompose` pattern)
+2. Remove dashes (matching `iscc_clean` behavior for base32 input)
+3. `codec::decode_base32(cleaned)` → raw bytes
+4. `codec::decode_header(raw)` → `(MainType, SubType, Version, length_index, tail)`
+5. `codec::decode_length(mtype, length_index, stype)` → `bit_length`
+6. Truncate `tail` to exactly `bit_length / 8` bytes (cleaner than the Python ref which returns full
+    tail and expects callers to truncate — our API returns the usable digest directly)
+7. Return `(mtype as u8, stype as u8, version as u8, length_index as u8, truncated_digest)`
 
-```rust
-/// Max UTF-8 byte length for name metadata trimming.
-pub const META_TRIM_NAME: usize = 128;
+**Signature**: `pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)>`
 
-/// Max UTF-8 byte length for description metadata trimming.
-pub const META_TRIM_DESCRIPTION: usize = 4096;
+**Pattern**: Follow the same Tier 1 wrapper pattern as `encode_component` — takes/returns primitive
+types (`u8` for enum fields), delegates to `codec::` module functions internally. Define the
+function directly in `lib.rs` (not in `codec.rs`) to match the `encode_component` placement.
 
-/// Buffer size in bytes for streaming file reads (4 MB).
-pub const IO_READ_SIZE: usize = 4_194_304;
+**Error cases**:
 
-/// Character n-gram width for text content features.
-pub const TEXT_NGRAM_SIZE: usize = 13;
-```
+- Empty or whitespace-only string → propagated from `decode_base32`
+- Invalid base32 characters → propagated from `decode_base32`
+- Malformed header (unknown enum values) → propagated from `decode_header`
+- Tail shorter than expected digest length → return `IsccError::InvalidInput` with descriptive
+    message
 
-**Note on `IO_READ_SIZE`**: The spec says `4_194_304` (4 MB). The Python reference `options.py` says
-`2_097_152` (2 MB). Follow the spec — Titusz authored both the spec and the issues, and this
-constant is advisory (used by SDK for buffer sizing, not by core algorithms). If in doubt, use the
-spec value `4_194_304`.
+**Tests** (add in the `#[cfg(test)]` module at the bottom of `lib.rs`):
 
-Optionally replace the hardcoded magic numbers `128`, `4096`, and `13` in the existing gen functions
-(`gen_meta_code_v0` lines ~170-181, `gen_text_code_v0` line ~270) with the new constants. This is
-good practice but secondary — the constants must exist as `pub const` regardless.
-
-### Tier 1 `encode_component` Wrapper
-
-Add a new `pub fn encode_component` at crate root (in `lib.rs`) that takes `u8` for enum fields and
-delegates to `codec::encode_component`. There is no naming conflict because
-`codec::encode_component` is NOT re-exported at crate root.
-
-```rust
-/// Encode a raw digest into an ISCC unit string.
-///
-/// Takes integer type identifiers (matching `MainType`, `SubType`, `Version` enum values)
-/// and a raw digest, returns a base32-encoded ISCC unit string.
-///
-/// # Errors
-///
-/// Returns `IsccError::InvalidInput` if enum values are out of range, if `mtype` is
-/// `MainType::Iscc` (5), or if `digest.len() < bit_length / 8`.
-pub fn encode_component(
-    mtype: u8,
-    stype: u8,
-    version: u8,
-    bit_length: u32,
-    digest: &[u8],
-) -> IsccResult<String> {
-    let mt = codec::MainType::try_from(mtype)?;
-    let st = codec::SubType::try_from(stype)?;
-    let vs = codec::Version::try_from(version)?;
-    // Validate digest length before delegating
-    let needed = (bit_length / 8) as usize;
-    if digest.len() < needed {
-        return Err(IsccError::InvalidInput(format!(
-            "digest length {} < bit_length/8 ({})", digest.len(), needed
-        )));
-    }
-    codec::encode_component(mt, st, vs, bit_length, digest)
-}
-```
-
-**Key details:**
-
-- The `TryFrom<u8>` impls already exist on `MainType`, `SubType`, and `Version` in `codec.rs`
-- The wrapper adds an explicit `digest.len() < bit_length / 8` check (the spec says to reject short
-    digests rather than silently truncating)
-- The existing `codec::encode_component` already rejects `MainType::Iscc` — that check cascades
-    through
-- All internal callers in `lib.rs` already use `codec::encode_component(MainType::..., ...)` — they
-    don't need to change
-
-### Tests
-
-Add tests in the `#[cfg(test)]` module at the bottom of `lib.rs`:
-
-1. **Constants tests**: Assert each constant equals its expected value
-2. **encode_component round-trip**: Encode a known digest and verify the output matches the codec
-    version
-3. **encode_component rejects Iscc**: `encode_component(5, 0, 0, 64, &[0;8])` returns error
-4. **encode_component rejects short digest**: `encode_component(0, 0, 0, 64, &[0;4])` returns error
-5. **encode_component matches codec**: `encode_component(3, 0, 0, 64, &digest)` ==
-    `codec::encode_component(MainType::Data, SubType::None, Version::V0, 64, &digest)`
+1. **Round-trip with encode_component**: encode known digests with `encode_component`, decode with
+    `iscc_decode`, verify all 5 tuple fields match
+2. **With "ISCC:" prefix**: prepend "ISCC:" to an encoded component, decode, verify same result
+3. **With dashes**: insert dashes into an encoded string, verify decode still works
+4. **Various MainTypes**: test at least Meta (0), Content (2), Data (3), Instance (4) round-trips
+5. **Error: invalid base32**: `iscc_decode("!!!INVALID!!!")` returns error
+6. **Error: truncated input**: a too-short base32 string that decodes to fewer bytes than needed
+7. **Known value**: pick a known ISCC from `data.json` test vectors and verify `iscc_decode` returns
+    the expected MainType, SubType, Version, and digest length
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all 269 existing + new tests for constants and encode_component)
+- `cargo test -p iscc-lib` passes (280 existing + new `iscc_decode` tests)
 - `cargo clippy -p iscc-lib -- -D warnings` clean
-- `grep -c 'pub const META_TRIM_NAME' crates/iscc-lib/src/lib.rs` returns 1
-- `grep -c 'pub const IO_READ_SIZE' crates/iscc-lib/src/lib.rs` returns 1
-- `grep -c 'pub fn encode_component' crates/iscc-lib/src/lib.rs` returns 1
+- `grep -c 'pub fn iscc_decode' crates/iscc-lib/src/lib.rs` returns 1
+- Round-trip: `encode_component(0, 0, 0, 64, &[0xaa;8])` → `iscc_decode(result)` returns
+    `(0, 0, 0, 1, vec![0xaa;8])` (length_index is 1 because `encode_length(Meta, 64) = 64/32-1 = 1`)
 
 ## Done When
 
-All verification criteria pass — the 4 algorithm constants and the Tier 1 `encode_component` wrapper
-with `u8` parameters are public at the `iscc_lib` crate root, tested, and clippy-clean.
+All verification criteria pass and `iscc_decode` is a public Tier 1 function in
+`crates/iscc-lib/src/lib.rs` that correctly decodes any valid ISCC unit string into its header
+components and truncated digest.

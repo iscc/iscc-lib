@@ -243,3 +243,10 @@ iterations.
 - **IO_READ_SIZE discrepancy**: Spec says 4_194_304 (4 MB), Python `options.py` says 2_097_152 (2
     MB). Follow the spec since Titusz authored it. This constant is advisory (SDK buffer sizing),
     not algorithm-critical. Flag for human review if it causes conformance issues later.
+- **iscc_decode scoping** (CID loop 3, iteration 2): `iscc_decode` is a thin Tier 1 wrapper
+    combining existing codec helpers (decode_base32 → decode_header → decode_length → truncate
+    tail). Single-file change in lib.rs matching the encode_component pattern. The Python reference
+    returns raw decode_header output (full tail), but our API returns truncated digest (bit_length/8
+    bytes) for a cleaner caller experience. Round-trip tests with encode_component provide
+    sufficient verification. After iscc_decode: json_to_data_url is the last missing Tier 1 symbol
+    (30/30), then propagate all 7 new symbols to 6 binding crates.
