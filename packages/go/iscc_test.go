@@ -1206,3 +1206,148 @@ func (s *smallBufReader) Read(p []byte) (int, error) {
 	}
 	return s.r.Read(p)
 }
+
+// ── Constants tests ──────────────────────────────────────────────────────────
+
+// TestConstants verifies all 4 algorithm configuration constants.
+func TestConstants(t *testing.T) {
+	if MetaTrimName != 128 {
+		t.Fatalf("MetaTrimName: got %d, want 128", MetaTrimName)
+	}
+	if MetaTrimDescription != 4096 {
+		t.Fatalf("MetaTrimDescription: got %d, want 4096", MetaTrimDescription)
+	}
+	if IoReadSize != 4_194_304 {
+		t.Fatalf("IoReadSize: got %d, want 4194304", IoReadSize)
+	}
+	if TextNgramSize != 13 {
+		t.Fatalf("TextNgramSize: got %d, want 13", TextNgramSize)
+	}
+}
+
+// ── JsonToDataUrl tests ──────────────────────────────────────────────────────
+
+// TestJsonToDataUrl verifies JSON string produces a data URL with application/json media type.
+func TestJsonToDataUrl(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	result, err := rt.JsonToDataUrl(ctx, `{"key":"value"}`)
+	if err != nil {
+		t.Fatalf("JsonToDataUrl error: %v", err)
+	}
+	prefix := "data:application/json;base64,"
+	if !strings.HasPrefix(result, prefix) {
+		t.Fatalf("JsonToDataUrl: got %q, want prefix %q", result, prefix)
+	}
+}
+
+// TestJsonToDataUrlLdJson verifies JSON-LD content uses application/ld+json media type.
+func TestJsonToDataUrlLdJson(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	result, err := rt.JsonToDataUrl(ctx, `{"@context":"https://schema.org"}`)
+	if err != nil {
+		t.Fatalf("JsonToDataUrl error: %v", err)
+	}
+	prefix := "data:application/ld+json;base64,"
+	if !strings.HasPrefix(result, prefix) {
+		t.Fatalf("JsonToDataUrl LD+JSON: got %q, want prefix %q", result, prefix)
+	}
+}
+
+// ── EncodeComponent tests ────────────────────────────────────────────────────
+
+// TestEncodeComponent verifies encoding of a Meta-Code component.
+func TestEncodeComponent(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	digest := make([]byte, 8) // 8 zero bytes
+	result, err := rt.EncodeComponent(ctx, 0, 0, 0, 64, digest)
+	if err != nil {
+		t.Fatalf("EncodeComponent error: %v", err)
+	}
+	if len(result) == 0 {
+		t.Fatal("EncodeComponent: result is empty")
+	}
+}
+
+// ── IsccDecode tests ─────────────────────────────────────────────────────────
+
+// TestIsccDecode verifies decoding of a known Meta-Code unit.
+func TestIsccDecode(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	result, err := rt.IsccDecode(ctx, "AAAZXZ6OU74YAZIM")
+	if err != nil {
+		t.Fatalf("IsccDecode error: %v", err)
+	}
+	if result.Maintype != 0 {
+		t.Fatalf("Maintype: got %d, want 0", result.Maintype)
+	}
+	if result.Subtype != 0 {
+		t.Fatalf("Subtype: got %d, want 0", result.Subtype)
+	}
+	if result.Version != 0 {
+		t.Fatalf("Version: got %d, want 0", result.Version)
+	}
+	if result.Length != 1 {
+		t.Fatalf("Length: got %d, want 1 (64-bit = length index 1)", result.Length)
+	}
+	if len(result.Digest) != 8 {
+		t.Fatalf("Digest length: got %d, want 8", len(result.Digest))
+	}
+}
+
+// TestIsccDecodeInvalid verifies that decoding an invalid string returns an error.
+func TestIsccDecodeInvalid(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	_, err := rt.IsccDecode(ctx, "INVALID")
+	if err == nil {
+		t.Fatal("IsccDecode with invalid input: expected error, got nil")
+	}
+}
+
+// ── Roundtrip test ───────────────────────────────────────────────────────────
+
+// TestEncodeDecodeRoundtrip verifies that encoding then decoding preserves all fields.
+func TestEncodeDecodeRoundtrip(t *testing.T) {
+	ctx := context.Background()
+	rt := newTestRuntime(t)
+
+	digest := []byte{0xAB, 0xCD, 0xEF, 0x01, 0x23, 0x45, 0x67, 0x89}
+	encoded, err := rt.EncodeComponent(ctx, 0, 0, 0, 64, digest)
+	if err != nil {
+		t.Fatalf("EncodeComponent error: %v", err)
+	}
+
+	decoded, err := rt.IsccDecode(ctx, encoded)
+	if err != nil {
+		t.Fatalf("IsccDecode error: %v", err)
+	}
+	if decoded.Maintype != 0 {
+		t.Fatalf("Maintype: got %d, want 0", decoded.Maintype)
+	}
+	if decoded.Subtype != 0 {
+		t.Fatalf("Subtype: got %d, want 0", decoded.Subtype)
+	}
+	if decoded.Version != 0 {
+		t.Fatalf("Version: got %d, want 0", decoded.Version)
+	}
+	if decoded.Length != 1 {
+		t.Fatalf("Length: got %d, want 1 (64-bit)", decoded.Length)
+	}
+	if len(decoded.Digest) != len(digest) {
+		t.Fatalf("Digest length: got %d, want %d", len(decoded.Digest), len(digest))
+	}
+	for i := range digest {
+		if decoded.Digest[i] != digest[i] {
+			t.Fatalf("Digest[%d]: got 0x%02X, want 0x%02X", i, decoded.Digest[i], digest[i])
+		}
+	}
+}

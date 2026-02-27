@@ -77,6 +77,10 @@ iterations.
     Cargo.toml changes needed. The cdylib target produces the `.wasm` file
 - `iscc_alloc`/`iscc_dealloc` are the WASM host memory management pair — host allocates via
     `iscc_alloc`, writes data, calls FFI functions, then frees via `iscc_dealloc`
+- WASM binary in `packages/go/iscc_ffi.wasm` must be rebuilt and copied whenever new FFI functions
+    are added to `crates/iscc-ffi/src/lib.rs`. Build:
+    `cargo build -p iscc-ffi --target   wasm32-wasip1 --release` →
+    `cp target/wasm32-wasip1/release/iscc_ffi.wasm packages/go/`
 - Debug WASM binary is ~10.5MB; release + wasm-opt reduces significantly
 - wasm-opt release config in `crates/iscc-wasm/Cargo.toml`:
     `[package.metadata.wasm-pack.profile.release]` with
@@ -120,10 +124,17 @@ iterations.
     reads a null-terminated array of u32 pointers from WASM32 memory (4 bytes each, little-endian),
     calls `readString` for each non-zero pointer, then `iscc_free_string_array` to free the entire
     array. Pattern mirrors `callStringResult` for single strings
-- Go Runtime has 45 methods total: 24 public (Close, ConformanceSelftest, TextClean,
+- Go Runtime has 48 methods total: 27 public (Close, ConformanceSelftest, TextClean,
     TextRemoveNewlines, TextCollapse, TextTrim, EncodeBase64, SlidingWindow, IsccDecompose,
     AlgSimhash, AlgMinhash256, AlgCdcChunks, SoftHashVideoV0, 9 gen\_\*\_v0, NewDataHasher,
-    NewInstanceHasher) + 21 private helpers
+    NewInstanceHasher, JsonToDataUrl, EncodeComponent, IsccDecode) + 21 private helpers
+- Go `DecodeResult` struct: public struct with `Maintype`, `Subtype`, `Version`, `Length` (all
+    `uint8`) and `Digest` (`[]byte`). Returned as `*DecodeResult` (pointer) from `IsccDecode`
+- Go `IsccDecode` uses sret ABI: 16-byte `IsccDecodeResult` struct. Layout: ok(1B) + maintype(1B) +
+    subtype(1B) + version(1B) + length(1B) + padding(3B) + digest.data(4B) + digest.len(4B).
+    `iscc_free_decode_result` takes sret pointer (single i32 param) on wasm32
+- Go constants: `MetaTrimName`, `MetaTrimDescription`, `IoReadSize`, `TextNgramSize` are
+    package-level `const` (idiomatic Go). No enum types — use plain `int`/`uint8`
 - Go streaming hasher pattern: `DataHasher`/`InstanceHasher` structs hold `rt *Runtime` +
     `ptr   uint32` (opaque WASM pointer). Factory methods on Runtime call `iscc_*_hasher_new()` and
     check for NULL. `Update` writes bytes via `writeBytes`, calls `iscc_*_hasher_update` (returns
