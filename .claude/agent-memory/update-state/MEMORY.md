@@ -467,15 +467,25 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `EncodeComponent` (uint8 params, Tier 1-compatible), `IsccDecompose`, `IsccDecode`,
     `EncodeBase64`. `codec_test.go` (929 lines, 47 `func Test...` functions, 48 total test
     functions). Zero external deps (stdlib only). Both files COEXIST with `iscc.go` WASM bridge.
-    Review verdict: PASS. `go test -run TestCodec` all pass; `go test ./...` all pass (WASM +
-    codec). CI all 7 jobs passing (run 22495010193, HEAD `da22141`). WASM binary still in git
-    (683KB), `wazero` still in go.mod, large-file threshold still at 1024KB. Go rewrite is ~1/5
-    complete: codec done; next is utils.go (text normalization, needs
-    `golang.org/x/text/unicode/norm`).
+    Review verdict: PASS. CI all 7 jobs passing (run 22495010193, HEAD `da22141`).
+- **CID iteration 6 (new numbering, commits af15686..d32d2bd)**: advance agent implemented pure Go
+    text utilities: `packages/go/utils.go` (130 lines) — `TextClean` (NFKC + control-char removal +
+    empty-line collapse + strip), `TextCollapse` (NFD + lowercase + filter C/M/P + NFKC), `TextTrim`
+    (UTF-8 byte-boundary truncate + strip), `TextRemoveNewlines` (strings.Fields join).
+    `utils_test.go` (186 lines, 21 test functions). `golang.org/x/text` added as direct dependency
+    (was indirect after advance; fixed to direct by `go mod tidy` in review). Review verdict: PASS.
+    CI all 7 jobs passing (run 22496298772, HEAD `d32d2bd`). Go rewrite is ~2/5 complete. Next:
+    algorithms module (CDC, MinHash, SimHash, DCT, WTA-Hash).
 - **Go codec public API**: `EncodeBase64`, `EncodeComponent`, `IsccDecompose`, `IsccDecode`,
     `MainType`/`SubType`/`Version` types, `MTMeta`..`MTFlake`, `STNone`..`STWide`, `STText`, `VSV0`,
     `DecodeResult` struct. All other helpers are unexported (lowercase).
-- **Go rewrite dependency order**: codec (done) → utils.go (text: NFKC norm, TextClean,
-    TextCollapse, TextTrim, TextRemoveNewlines; first ext dep: `golang.org/x/text`) → algorithms
+- **Go utils public API**: `TextClean(string) string`, `TextCollapse(string) string`,
+    `TextTrim(string, int) string`, `TextRemoveNewlines(string) string`. Internal helpers:
+    `isCCategory`, `isCMPCategory`, `newlineSet` (unexported).
+- **Go rewrite dependency order**: codec (done) → utils.go (done) → algorithms
     (CDC/MinHash/SimHash/DCT/WTA-Hash) → gen\_\*\_v0 functions → streaming hashers →
     conformance_selftest → WASM removal.
+- **Go algorithms needed**: `AlgCdcChunks` (Gear hash CDC, most complex), `AlgMinhash256`
+    (256-permutation MinHash), `AlgSimhash` (64-bit LSH), DCT, WTA-Hash. New deps expected:
+    `github.com/zeebo/blake3` (for CDC+MinHash), possibly `github.com/cespare/xxhash/v2` (Gear
+    hash). Reference: `crates/iscc-lib/src/{cdc,minhash,simhash,dct,wtahash}.rs`.

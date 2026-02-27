@@ -1,15 +1,15 @@
-<!-- assessed-at: da22141 -->
+<!-- assessed-at: d32d2bd -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go Bindings Rewrite — Step 1 of ~5 Complete (Codec Module)
+## Phase: Go Bindings Rewrite — Step 2 of ~5 Complete (Codec + Text Utils)
 
-All non-Go bindings are at 30/30 Tier 1 symbols. The Go bindings rewrite is underway: the pure Go
-codec module (`codec.go`) was implemented and reviewed PASS. The WASM bridge (`iscc.go`,
-`iscc_ffi.wasm`, wazero dep) still exists — removal happens only after all pure Go modules are
-complete. CI is green across all 7 jobs.
+All non-Go bindings are at 30/30 Tier 1 symbols. The Go bindings rewrite is progressing: the pure Go
+codec module (`codec.go`) and text utilities module (`utils.go`) are both implemented and reviewed
+PASS. The WASM bridge (`iscc.go`, `iscc_ffi.wasm`, wazero dep) still coexists during transition. CI
+is green across all 7 jobs.
 
 ## Rust Core Crate
 
@@ -115,24 +115,28 @@ complete. CI is green across all 7 jobs.
 
 ## Go Bindings
 
-**Status**: not met — pure Go rewrite in progress (~1/5 modules complete)
+**Status**: not met — pure Go rewrite in progress (~2/5 modules complete)
 
 - **Target requires**: pure Go, no WASM/wazero, no binary artifacts
 - **Step 1 COMPLETE**: `packages/go/codec.go` (570 lines) — type enums (`MainType`, `SubType`,
     `Version`), varnibble header encoding/decoding, base32/base64, length/unit encode/decode,
     `EncodeComponent`, `IsccDecompose`, `IsccDecode`, `EncodeBase64`; zero external deps; 48 tests
-    pass in `codec_test.go` (929 lines) — review verdict: PASS
-- **Remaining**: `utils.go` (text normalization: `TextClean`, `TextCollapse`, `TextTrim`,
-    `TextRemoveNewlines`), algorithms (`AlgCdcChunks`, `AlgMinhash256`, `AlgSimhash`, DCT,
-    WTA-Hash), gen functions (9 `Gen*V0`), streaming hashers (`DataHasher`, `InstanceHasher`),
-    conformance selftest
-- `iscc.go` (1,357 lines) WASM/wazero bridge still present — coexists with pure Go modules during
-    transition; will be deleted once pure Go modules cover all 30 Tier 1 symbols
+    pass in `codec_test.go` (929 lines)
+- **Step 2 COMPLETE**: `packages/go/utils.go` (130 lines) — 4 pure Go text utilities: `TextClean`
+    (NFKC normalization + control-char removal + empty-line collapse), `TextCollapse` (NFD + lower +
+    filter C/M/P categories + NFKC), `TextTrim` (UTF-8 byte-boundary truncation),
+    `TextRemoveNewlines` (whitespace-field join); `golang.org/x/text` added as direct dependency; 21
+    tests pass in `utils_test.go` (186 lines) — review verdict: PASS
+- **Remaining**: algorithms module (`AlgCdcChunks`, `AlgMinhash256`, `AlgSimhash`, DCT, WTA-Hash),
+    gen functions (9 `Gen*V0`), streaming hashers (`DataHasher`, `InstanceHasher`), conformance
+    selftest
+- `iscc.go` (1,357 lines) WASM/wazero bridge still present — coexists during transition; will be
+    deleted once pure Go modules cover all 30 Tier 1 symbols
 - `iscc_ffi.wasm` (683KB) still committed to git; `go.mod` still has `wazero` dependency
 - `.pre-commit-config.yaml` large-file threshold still raised to 1024KB (must restore to 256KB after
     binary removal)
-- 46 test functions in `iscc_test.go` (1,353 lines) valid as regression suite for new implementation
-    — all currently pass via WASM bridge
+- 46 test functions in `iscc_test.go` (1,353 lines) valid as regression suite — all currently pass
+    via WASM bridge
 
 ## README
 
@@ -176,7 +180,7 @@ complete. CI is green across all 7 jobs.
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - **Latest CI run on develop: PASSING** —
-    [Run 22495010193](https://github.com/iscc/iscc-lib/actions/runs/22495010193) — all 7 jobs
+    [Run 22496298772](https://github.com/iscc/iscc-lib/actions/runs/22496298772) — all 7 jobs
     SUCCESS
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
@@ -184,16 +188,21 @@ complete. CI is green across all 7 jobs.
 
 ## Next Milestone
 
-**Continue pure Go rewrite — implement `packages/go/utils.go` (text utilities):**
+**Continue pure Go rewrite — implement algorithms module (Step 3 of ~5):**
 
-Step 2 of the Go rewrite dependency chain (codec → **text utils** → algorithms → gen functions).
-Implement idiomatic Go text normalization functions:
+The dependency chain is codec → text utils → **algorithms** → gen functions. Implement pure Go
+algorithm functions needed by the gen\_\*\_v0 functions:
 
-1. `TextClean(text string) string` — Unicode NFKC normalization + whitespace collapse
-2. `TextCollapse(text string) string` — collapse whitespace runs to single space
-3. `TextTrim(text string, nbytes uint) string` — trim to nbytes at character boundary
-4. `TextRemoveNewlines(text string) string` — replace newlines with spaces
+1. `AlgCdcChunks(data []byte, minChunk, avgChunk, maxChunk int) [][]byte` — Content-Defined Chunking
+    (Gear hash / rolling hash); most complex algorithm; prerequisite for `gen_data_code_v0`
+2. `AlgMinhash256(features []uint32) []byte` — 256-permutation MinHash for similarity; needed by
+    Data-Code and Text-Code
+3. `AlgSimhash(features []uint32) []byte` — SimHash for 64-bit locality-sensitive hash; needed by
+    Meta-Code
+4. DCT and WTA-Hash functions — needed for Image-Code and Video-Code
 
-Requires adding `golang.org/x/text/unicode/norm` to `go.mod` (first external dependency in the pure
-Go rewrite). Existing `iscc_test.go` test functions for these utilities will validate against
-conformance vectors. After utils, proceed with algorithms module.
+The algorithms may span multiple files (`cdc.go`, `minhash.go`, etc.) or one `alg.go`. Reference:
+`crates/iscc-lib/src/cdc.rs`, `minhash.rs`, `simhash.rs`, `dct.rs`, `wtahash.rs`. New external deps
+needed: `github.com/zeebo/blake3` (BLAKE3 hashing for CDC and MinHash) and possibly
+`github.com/cespare/xxhash/v2` (for Gear hash). Existing `iscc_test.go` conformance vectors will
+validate algorithm outputs. Start with CDC as it is the longest and most complex.
