@@ -1,15 +1,15 @@
-<!-- assessed-at: ae956788b9b5d355ff4dc0e41679b392c6d8f2d4 -->
+<!-- assessed-at: 3d59788fd59057b02a6e7815fb3ecf786eb317f3 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Publishing Prep & Issues Cleanup
+## Phase: Go Bindings Rewrite (Pure Go)
 
-All 6 language bindings are at 30/30 Tier 1 symbols. Documentation parity is complete: all 6 howto
-guides have "Codec operations" and "Constants" sections. `crates/iscc-lib/CLAUDE.md` is now accurate
-(updated from "22 symbols" to "30 symbols" with correct Tier 1/Tier 2 lists). Remaining work:
-issues.md cleanup (entries #5–#8 resolved but not yet deleted) and publishing pipeline completion.
+All bindings except Go are at 30/30 Tier 1 symbols against the target. The target.md was updated in
+HEAD to require a **pure Go implementation** (no WASM/wazero bridge, no committed binary artifacts).
+The current Go implementation still uses the wazero bridge with a 683KB `.wasm` binary committed to
+git — this is now a **[critical]** target mismatch. CI is green across all 7 jobs.
 
 ## Rust Core Crate
 
@@ -26,8 +26,7 @@ issues.md cleanup (entries #5–#8 resolved but not yet deleted) and publishing 
     doc-test); `cargo clippy --workspace` clean; all conformance vectors pass (CI-verified)
 - Tier 2 codec module remains Rust-only: `MainType`/`SubType`/`Version` enums, header encode/decode
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen)
-- `crates/iscc-lib/CLAUDE.md` now accurate: 30-symbol Tier 1 list, correct Tier 2 list, iscc-jni
-    added to binding crate list, `serde_json_canonicalizer` added to dependencies section
+- `crates/iscc-lib/CLAUDE.md` accurate: 30-symbol Tier 1 list, correct Tier 2 list
 - **Nothing missing** in Rust core
 
 ## Python Bindings
@@ -49,23 +48,21 @@ issues.md cleanup (entries #5–#8 resolved but not yet deleted) and publishing 
 - `gen_image_code_v0` accepts `bytes | bytearray | memoryview | Sequence[int]` — non-bytes input
     converted via `bytes()`
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
-- 198 tests passing across 6 files (CI-verified at HEAD)
-- `ruff check` and `ruff format --check` pass (CI-verified at HEAD)
-- `iscc-lib 0.0.2` not yet published to PyPI (0.0.1 was published; release not re-triggered since
-    v0.0.2 bump)
+- 198 tests passing across 6 files (CI-verified)
+- `ruff check` and `ruff format --check` pass (CI-verified)
+- `iscc-lib 0.0.2` not yet published to PyPI (0.0.1 was published; release not re-triggered)
 
 ## Node.js Bindings
 
 **Status**: met (30/30 Tier 1 symbols)
 
-- All 30/30 Tier 1 symbols exported via napi-rs; 39 `#[napi]` annotations (includes struct methods
-    and `IsccDecodeResult` object struct)
+- All 30/30 Tier 1 symbols exported via napi-rs; 39 `#[napi]` annotations
 - 4 algorithm constants exported: `META_TRIM_NAME` (128), `META_TRIM_DESCRIPTION` (4096),
     `IO_READ_SIZE` (4194304), `TEXT_NGRAM_SIZE` (13) — verified by tests
-- 3 newly propagated functions: `encode_component`, `iscc_decode` (returns `IsccDecodeResult` object
-    with `maintype`/`subtype`/`version`/`length`/`digest` fields), `json_to_data_url`
+- `iscc_decode` returns `IsccDecodeResult` object with
+    `maintype`/`subtype`/`version`/`length`/`digest` fields
 - `DataHasher` and `InstanceHasher` implemented; conformance vectors pass
-- 124 tests (103 existing + 21 new covering all 7 symbols) — CI-verified at HEAD
+- 124 tests (CI-verified)
 - `cargo clippy -p iscc-napi --all-targets -- -D warnings` clean (CI-verified)
 - `repository` field in `package.json` for npm provenance verification
 - `@iscc/lib 0.0.2` not yet published to npm (awaiting release trigger)
@@ -79,14 +76,10 @@ issues.md cleanup (entries #5–#8 resolved but not yet deleted) and publishing 
 - 4 constants exposed as getter functions with uppercase names via `js_name`:
     `META_TRIM_NAME()→128`, `META_TRIM_DESCRIPTION()→4096`, `IO_READ_SIZE()→4194304`,
     `TEXT_NGRAM_SIZE()→13`
-- 3 newly propagated functions: `encode_component`, `iscc_decode` (returns `IsccDecodeResult` struct
-    with `getter_with_clone` for `Vec<u8>` digest), `json_to_data_url`
+- `iscc_decode` returns `IsccDecodeResult` struct with `getter_with_clone` for `Vec<u8>` digest
 - `DataHasher` and `InstanceHasher` as `#[wasm_bindgen]` structs with `new`/`update`/`finalize`
 - `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
 - 69 total `#[wasm_bindgen_test]` tests; CI-verified passing
-- WASM release build fix in place (`wasm-opt` flags in `Cargo.toml`)
-- `docs/howto/wasm.md` package name corrected to `@iscc/wasm`; constants section uses uppercase
-    names
 - `@iscc/wasm 0.0.2` not yet published to npm (awaiting release trigger)
 - **Nothing missing** in WASM bindings
 
@@ -100,12 +93,8 @@ issues.md cleanup (entries #5–#8 resolved but not yet deleted) and publishing 
     `iscc_last_error`)
 - 4 constants exported as getter functions: `iscc_meta_trim_name()→128`,
     `iscc_meta_trim_description()→4096`, `iscc_io_read_size()→4194304`, `iscc_text_ngram_size()→13`
-- 3 newly propagated functions: `iscc_json_to_data_url`, `iscc_encode_component`, `iscc_decode`
-    (returns `IsccDecodeResult` struct with `ok`, `maintype`, `subtype`, `version`, `length`,
-    `digest` fields); `iscc_free_decode_result` for lifecycle management
 - `FfiDataHasher` and `FfiInstanceHasher` with complete lifecycle
-- 77 `#[test]` Rust unit tests; C test program covers all 23 test cases including 3 new symbol tests
-    and 4 constant assertions — CI-verified passing
+- 77 `#[test]` Rust unit tests; C test program covers 23 test cases — CI-verified passing
 - cbindgen generates valid C headers; C test program compiles and runs (CI-verified)
 - **Nothing missing** in C FFI bindings
 
@@ -115,37 +104,31 @@ issues.md cleanup (entries #5–#8 resolved but not yet deleted) and publishing 
 
 - `crates/iscc-jni/` crate: 32 `extern "system"` JNI functions covering all 30 Tier 1 symbols
 - `IsccLib.java` (382 lines): all 30 Tier 1 symbols as `public static native` methods
-- 4 algorithm constants as `public static final int` fields: `META_TRIM_NAME` (128),
-    `META_TRIM_DESCRIPTION` (4096), `IO_READ_SIZE` (4_194_304), `TEXT_NGRAM_SIZE` (13)
-- `IsccDecodeResult.java` (42 lines): new class with `maintype`, `subtype`, `version`, `length`,
-    `digest` fields — returned by `isccDecode`
-- 3 newly propagated functions: `encodeComponent`, `isccDecode` (returns `IsccDecodeResult`),
-    `jsonToDataUrl` — JNI Rust wrappers at lines 514, 540, 588 of `lib.rs`
+- 4 algorithm constants as `public static final int` fields
+- `IsccDecodeResult.java` (42 lines): returned by `isccDecode`
 - `NativeLoader.java` (169 lines) handles platform JAR extraction
 - `IsccLibTest.java` (472 lines): 9 `@TestFactory` sections + 12 `@Test` unit methods — CI-verified
-    passing
-- `docs/howto/java.md` complete; navigation entry in `zensical.toml` — confirmed present
+- `docs/howto/java.md` complete; navigation entry in `zensical.toml` present
 - `build-jni` + `assemble-jar` release jobs in `release.yml`; 5-platform matrix
 - Version: `pom.xml` at `0.0.2` (synced)
 - Missing: Maven Central publishing (GPG signing, Sonatype); end-to-end release untested
 
 ## Go Bindings
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: not met (target rewritten; current implementation is WASM/wazero bridge)
 
-- `packages/go/iscc.go` (1,357 lines): `Runtime` struct + all 30 Tier 1 exported symbols
-- 4 package-level constants added: `MetaTrimName = 128`, `MetaTrimDescription = 4096`,
-    `IoReadSize = 4_194_304`, `TextNgramSize = 13`
-- `DecodeResult` struct added with `Maintype`, `Subtype`, `Version`, `Length`, `Digest` fields
-- 3 new `Runtime` methods: `JsonToDataUrl`, `EncodeComponent`, `IsccDecode` (returns
-    `*DecodeResult`); WASM sret ABI handled correctly with proper cleanup on all error paths
-- `DataHasher` / `InstanceHasher` with `UpdateFrom(ctx, io.Reader)` streaming
-- `packages/go/iscc_test.go` (1,353 lines): 46 test functions — all pass CI-verified
-- `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD)
-- **Documentation fully complete**: `docs/howto/go.md` (462 lines) has "Codec operations" section
-    (line 365) and "Constants" section (line 425) covering all 7 newly added symbols;
-    `packages/go/README.md` (150 lines) full API tables for all 30 symbols present
-- **Nothing missing** in Go bindings
+- **Target changed**: `target.md` was updated in HEAD to require a **pure Go implementation** — no
+    WASM, no wazero, no committed binary artifacts
+- Current implementation: WASM/wazero bridge (`packages/go/iscc.go`, 1,357 lines) with 683KB
+    `iscc_ffi.wasm` committed to git via `//go:embed`
+- `go.mod` still depends on `github.com/tetratelabs/wazero v1.11.0`
+- 46 test functions in `iscc_test.go` (1,353 lines) pass via the WASM bridge — tests exist and are
+    valid, but the bridge approach must be replaced
+- `.pre-commit-config.yaml` threshold raised to 1024KB globally to accommodate the binary — must be
+    restored to 256KB after removing the binary
+- `[critical]` issue filed in `issues.md`: rewrite as pure Go with Go-native algorithm
+    implementations (CDC, MinHash, SimHash, DCT, WTA-Hash), using `zeebo/blake3`, `cespare/xxhash`,
+    `golang.org/x/text` — estimated ~6,300 lines of Rust to port
 
 ## README
 
@@ -159,45 +142,27 @@ issues.md cleanup (entries #5–#8 resolved but not yet deleted) and publishing 
 
 **Status**: met
 
-- All 7 per-crate READMEs present: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`,
-    `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`,
-    `packages/go/README.md`, `crates/iscc-ffi/README.md`
-- `packages/go/README.md` (150 lines) fully updated: stale "planned" text removed, complete API
-    tables for all 30 Tier 1 symbols across Generators, Text Utilities, Algorithm Primitives, Codec
-    operations, Streaming Hashers, and Constants sections
-- All READMEs have registry-specific install commands and quick-start code examples
+- All 7 per-crate READMEs present with registry-specific install commands and quick-start examples
+- `packages/go/README.md` (150 lines): complete API tables for all 30 Tier 1 symbols
 - **Nothing missing** in Per-Crate READMEs
 
 ## Documentation
 
 **Status**: met
 
-- **14 pages** deployed to lib.iscc.codes; all navigation sections complete (Tutorials, How-to
-    Guides, Explanation, Reference, Benchmarks, Development) plus Ecosystem top-level page
-- `docs/ecosystem.md` (100 lines): Official + Community Implementations; Contributing guide
-- `docs/architecture.md` and `docs/development.md` updated for JNI and Go bindings
-- ISCC branding, copy-page split-button, Open Graph meta tags, `gen_llms_full.py` in place
-- All pages have `icon: lucide/...` and `description:` YAML front matter
-- Site builds and deploys via GitHub Pages; latest Docs run on main: **PASSING**
-- **Full documentation parity achieved**: All 6 binding howto guides now have dedicated "Codec
-    operations" and "Constants" sections:
-    - `docs/howto/python.md` (441 lines): Codec ops at line 332, Constants at line 394
-    - `docs/howto/java.md` (384 lines): Codec ops at line 299, Constants at line 351
-    - `docs/howto/nodejs.md` (360 lines): Codec ops at line 255, Constants at line 316
-    - `docs/howto/wasm.md` (419 lines): Codec ops at line 313, Constants at line 375
-    - `docs/howto/go.md` (462 lines): Codec ops at line 365, Constants at line 425
-    - `docs/howto/rust.md`: existing coverage
-- WASM constants section uses uppercase function names (`META_TRIM_NAME()` etc.) matching actual
-    `js_name` exports
+- **14 pages** deployed to lib.iscc.codes; all navigation sections complete
+- All 6 binding howto guides have "Codec operations" and "Constants" sections
+- `docs/howto/python.md` (441 lines), `docs/howto/java.md` (384 lines), `docs/howto/nodejs.md` (360
+    lines), `docs/howto/wasm.md` (419 lines), `docs/howto/go.md` (462 lines), `docs/howto/rust.md`
+- Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
+- ISCC branding, copy-page split-button, Open Graph meta tags in place
 
 ## Benchmarks
 
 **Status**: partially met
 
 - Criterion benchmarks exist for all 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
-- pytest-benchmark comparison files: `benchmarks/python/bench_iscc_lib.py` and
-    `benchmarks/python/bench_iscc_core.py` (101 lines each) plus `conftest.py`
-- Speedup factors documented in `docs/benchmarks.md`
+- pytest-benchmark comparison files present
 - Missing: CI does not run benchmarks automatically; no published benchmark results in CI artifacts
 
 ## CI/CD and Publishing
@@ -205,27 +170,28 @@ issues.md cleanup (entries #5–#8 resolved but not yet deleted) and publishing 
 **Status**: partially met
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
-- `ci.yml` covers 7 binding targets: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi
-    build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
-    (JNI build, mvn test), Go (go test, go vet)
+- `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - **Latest CI run on develop: PASSING** —
-    [Run 22491920445](https://github.com/iscc/iscc-lib/actions/runs/22491920445) — all 7 jobs
-    SUCCESS — triggered at HEAD `ae95678`
-- Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
-- PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
-- `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
+    [Run 22493418952](https://github.com/iscc/iscc-lib/actions/runs/22493418952) — all 7 jobs
+    SUCCESS — triggered at commit `e225748`
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
 - Missing: Maven Central publishing configuration (GPG signing, Sonatype)
-- Missing: `build-jni` / `assemble-jar` untested end-to-end (no release tag triggered since adding)
+- Missing: `issues.md` entries #5–#8 are resolved but never deleted (stale noise for agents)
 
 ## Next Milestone
 
-**Clean up resolved issues and advance to next release:**
+**[critical] Rewrite Go bindings as pure Go — top priority:**
 
-1. **`issues.md` cleanup**: Issues #5–#8 all have GitHub URLs confirming they were filed and all
-    underlying implementations are complete. Delete the 4 local entries — they no longer provide
-    useful direction to CID agents and add noise.
-2. **Publishing**: Trigger 0.0.2 release to npm (`@iscc/lib`, `@iscc/wasm`) — the release workflow
-    is ready; it just needs a `workflow_dispatch` or new tag. crates.io OIDC setup remains a
-    human-only task.
+The `target.md` now requires a pure Go implementation with no WASM/wazero bridge and no binary
+artifacts in git. The current implementation is entirely WASM-based. The rewrite must:
+
+1. **Remove WASM infrastructure**: delete `packages/go/iscc_ffi.wasm`, re-add `packages/go/*.wasm`
+    to `.gitignore`, restore `check-added-large-files` to `--maxkb=256`, remove `wazero` from
+    `go.mod`
+2. **Implement pure Go algorithms**: port CDC, MinHash, SimHash, DCT, WTA-Hash, codec, and text
+    utilities from Rust into Go using `zeebo/blake3`, `cespare/xxhash/v2`, `golang.org/x/text`
+3. **Preserve 30/30 Tier 1 API surface**: same function signatures and Go naming conventions;
+    existing `iscc_test.go` (46 test functions) should pass against the new implementation
+4. **Clean up issues.md**: delete the 4 stale resolved entries (#5–#8: gen_meta_code_v0 dict,
+    encode_component, iscc_decode, constants) — all implementations confirmed complete

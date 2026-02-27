@@ -443,3 +443,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     wasm.md=419, go.md=462 lines. All 5 have Codec ops + Constants sections.
 - **issues.md status (CID iteration 3)**: Issues #5-#8 still present with GitHub URLs — all
     implementations complete, local entries should be deleted. Cleanup is the immediate next step.
+- **CID iteration 4 (new numbering, commits 93be74d..3d59788)**: Go WASM binary committed to git for
+    `go get` distribution: `packages/go/iscc_ffi.wasm` (683KB), `.gitignore` rule removed, CI
+    `.pre-commit-config.yaml` `check-added-large-files` threshold raised to 1024KB. Review agent
+    PASS_WITH_NOTES. Then **target.md rewritten** by human/interactive session (commit `3d59788`):
+    Go Bindings section completely replaced — WASM/wazero approach replaced by pure Go requirement.
+    New `[critical]` issue filed in `issues.md`. Current Go implementation is now **NOT MET**
+    against the new target. CI all 7 jobs passing (run 22493418952, HEAD `e225748`). The critical
+    issue to rewrite Go as pure Go is now the #1 priority.
+- **Go target change**: target.md now requires pure Go implementation (no WASM, no wazero, no binary
+    artifacts). Key new dependencies: `github.com/zeebo/blake3`, `github.com/cespare/xxhash/v2`,
+    `golang.org/x/text/unicode/norm`. WASM binary must be removed from git, `.gitignore` rule
+    restored, `check-added-large-files` threshold restored to 256KB, `wazero` removed from go.mod.
+- **issues.md status (CID iteration 4)**: Issues #5-#8 still present (stale, all resolved). New
+    `[critical]` issue: "Rewrite Go bindings as pure Go (replace WASM/wazero bridge)". This
+    `[critical]` issue overrides all other work.
+- **Go WASM CI job**: `.github/workflows/ci.yml` Go job currently builds WASM binary and runs tests.
+    After Go rewrite, the Go CI job must be simplified (just `go test ./...` and `go vet ./...`).
+- **Latest assessed commit**: `3d59788fd59057b02a6e7815fb3ecf786eb317f3` (HEAD at assessment).
