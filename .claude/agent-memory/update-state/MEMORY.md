@@ -295,9 +295,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **CID iteration 2 (commits dbcbd04..5df058f)**: advance agent added 4 algorithm constants
     (`META_TRIM_NAME=128`, `META_TRIM_DESCRIPTION=4096`, `IO_READ_SIZE=4_194_304`,
     `TEXT_NGRAM_SIZE=13`) and a Tier 1 `encode_component` wrapper (with `u8` params) directly in
-    `crates/iscc-lib/src/lib.rs`. Review agent PASS. Total Rust tests now **280** (227 in lib.rs +
-    53 in tests/). Rust core is now 28/30 Tier 1 symbols. Still missing: `json_to_data_url` and
-    `iscc_decode`. None of the 5 new symbols have been propagated to any binding crate yet. All 6
-    bindings remain at 23/30. CI all 7 jobs passing at HEAD `5df058f` (run 22480614770).
+    `crates/iscc-lib/src/lib.rs`. Review agent PASS. Rust core is now 28/30 Tier 1 symbols. Still
+    missing: `json_to_data_url` and `iscc_decode`. None of the 5 new symbols have been propagated to
+    any binding crate yet. All 6 bindings remain at 23/30. CI all 7 jobs passing at HEAD `5df058f`
+    (run 22480614770).
+- **CID iteration 3 (commits ddfdff4..d9a87c2)**: advance agent implemented `iscc_decode` in
+    `crates/iscc-lib/src/lib.rs` (only file changed). Review agent PASS. Total Rust tests now **292**
+    (239 src unit tests across 10 files + 31 integration + 22 doc-tests). Rust core is now 29/30 Tier
+    1 symbols. `json_to_data_url` is the sole remaining missing symbol. All 6 bindings unchanged at
+    23/30. CI all 7 jobs passing at HEAD `d9a87c2` (run 22481268707).
+- **Test count breakdown (iteration 3)**: lib.rs=63, codec.rs=73, cdc.rs=15, dct.rs=12,
+    simhash.rs=24, utils.rs=20, streaming.rs=15, minhash.rs=7, wtahash.rs=9, conformance.rs=1 →
+    total src=239. Plus 31 integration tests in tests/ + 22 doc-tests = 292 total.
 - **Binding symbol check shortcut**: check all 6 bindings for new symbols in one go:
     `grep -n "encode_component\|META_TRIM\|IO_READ\|TEXT_NGRAM\|iscc_decode\|json_to_data_url" crates/iscc-py/src/lib.rs crates/iscc-napi/src/lib.rs crates/iscc-wasm/src/lib.rs crates/iscc-ffi/src/lib.rs crates/iscc-jni/src/lib.rs packages/go/iscc.go`
