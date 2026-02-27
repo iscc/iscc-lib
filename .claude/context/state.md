@@ -1,15 +1,15 @@
-<!-- assessed-at: 43ca0c4 -->
+<!-- assessed-at: 1a5dfd7 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Symbol Propagation — 7 Tier 1 symbols to 2 remaining bindings (Java JNI, Go)
+## Phase: Symbol Propagation — 7 Tier 1 symbols to Go (final remaining binding)
 
-CID iteration 11 completed C FFI symbol propagation: all 30/30 Tier 1 symbols are now accessible
-from C FFI. Python, Node.js, WASM, and C FFI bindings are fully met. Java JNI and Go remain at 23/30
-Tier 1 symbols — `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants must be
-propagated to these 2 remaining bindings.
+CID iteration 12 completed Java JNI symbol propagation: all 30/30 Tier 1 symbols are now accessible
+from Java JNI. Python, Node.js, WASM, C FFI, and Java JNI bindings are fully met. Go remains at
+23/30 Tier 1 symbols — `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants must
+be propagated to complete the final binding.
 
 ## Rust Core Crate
 
@@ -101,22 +101,29 @@ propagated to these 2 remaining bindings.
     `digest` fields); `iscc_free_decode_result` for lifecycle management
 - `FfiDataHasher` and `FfiInstanceHasher` with complete lifecycle
 - 77 `#[test]` Rust unit tests; C test program covers all 23 test cases including 3 new symbol tests
-    and 4 constant assertions — CI-verified passing at run 22486942175
+    and 4 constant assertions — CI-verified passing
 - cbindgen generates valid C headers; C test program compiles and runs (CI-verified)
 - **Nothing missing** in C FFI bindings
 
 ## Java Bindings
 
-**Status**: partially met (JNI bridge functional; 7 new symbols not yet propagated; Maven Central
-publishing absent)
+**Status**: met (30/30 Tier 1 symbols)
 
-- `crates/iscc-jni/` crate: 29 `extern "system"` JNI functions covering 23 Tier 1 symbols
-- `IsccLib.java` (331 lines), `NativeLoader.java` (169 lines), `IsccLibTest.java` (51 tests)
-- Java CI job passing (CI-verified at HEAD)
+- `crates/iscc-jni/` crate: 32 `extern "system"` JNI functions covering all 30 Tier 1 symbols
+- `IsccLib.java` (382 lines): all 30 Tier 1 symbols as `public static native` methods
+- 4 algorithm constants as `public static final int` fields: `META_TRIM_NAME` (128),
+    `META_TRIM_DESCRIPTION` (4096), `IO_READ_SIZE` (4_194_304), `TEXT_NGRAM_SIZE` (13)
+- `IsccDecodeResult.java` (42 lines): new class with `maintype`, `subtype`, `version`, `length`,
+    `digest` fields — returned by `isccDecode`
+- 3 newly propagated functions: `encodeComponent`, `isccDecode` (returns `IsccDecodeResult`),
+    `jsonToDataUrl` — JNI Rust wrappers at lines 514, 540, 588 of `lib.rs`
+- `NativeLoader.java` (169 lines) handles platform JAR extraction
+- `IsccLibTest.java` (472 lines): 9 `@TestFactory` sections + 12 `@Test` unit methods (5 existing
+    - 7 new for constants, jsonToDataUrl, jsonToDataUrlLdJson, encodeComponent, isccDecode,
+        isccDecodeInvalid, encodeDecodeRoundtrip); CI-verified passing
 - `docs/howto/java.md` complete; navigation entry in `zensical.toml` ✅
 - `build-jni` + `assemble-jar` release jobs in `release.yml`; 5-platform matrix
 - Version: `pom.xml` at `0.0.2` (synced)
-- **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
 - Missing: Maven Central publishing (GPG signing, Sonatype); end-to-end release untested
 
 ## Go Bindings
@@ -129,6 +136,7 @@ publishing absent)
 - `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD)
 - `docs/howto/go.md` complete; navigation entry in `zensical.toml` ✅
 - **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
+    (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)
 
 ## README
 
@@ -177,8 +185,8 @@ publishing absent)
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22486942175](https://github.com/iscc/iscc-lib/actions/runs/22486942175) — all 7 jobs
-    SUCCESS — triggered at HEAD `43ca0c4`
+    [Run 22487752698](https://github.com/iscc/iscc-lib/actions/runs/22487752698) — all 7 jobs
+    SUCCESS — triggered at HEAD `1a5dfd7`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -189,10 +197,14 @@ publishing absent)
 
 ## Next Milestone
 
-**Propagate 7 new Tier 1 symbols to Java JNI (highest priority — established pattern):**
+**Propagate 7 new Tier 1 symbols to Go (final remaining binding):**
 
-1. **Java** (`crates/iscc-jni`): Add 3 JNI functions for `encode_component`, `iscc_decode`,
-    `json_to_data_url`; expose 4 constants as static final fields in `IsccLib.java`; add JNI Rust
-    wrapper functions; add Java test cases — pattern mirrors C FFI additions in commit `fb01b02`
-2. **Go** (`packages/go`): Extend `iscc.go` with 3 functions + 4 constants; update wasm embed; add
-    Go test cases
+Extend `packages/go/iscc.go` with:
+
+1. 3 new exported methods on `Runtime`: `JsonToDataUrl`, `EncodeComponent`, `IsccDecode` (returns a
+    `DecodeResult` struct with `Maintype`, `Subtype`, `Version`, `Length`, `Digest` fields)
+2. 4 package-level constants: `MetaTrimName = 128`, `MetaTrimDescription = 4096`,
+    `IoReadSize = 4_194_304`, `TextNgramSize = 13`
+3. Update `packages/go/iscc_test.go` with test cases for all 7 symbols
+4. Pattern mirrors C FFI/Node.js/WASM/Java additions — use the WASM FFI call pattern for the 3 new
+    functions (reading struct results via `sretPtr` for `iscc_decode`'s multi-value return)

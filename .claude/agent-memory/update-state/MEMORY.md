@@ -376,3 +376,20 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     test cases. 77 Rust unit tests (was 62). Review agent PASS. **C FFI Bindings: fully MET** —
     30/30 Tier 1 symbols. CI all 7 jobs passing at HEAD `43ca0c4` (run 22486942175). Next: propagate
     7 symbols to Java JNI (highest priority), then Go.
+- **CID iteration 12 (commits 3519b8d..1a5dfd7)**: advance agent propagated all 7 new Tier 1 symbols
+    to Java JNI bindings. Added 4 constants as `public static final int` fields in `IsccLib.java`
+    (`META_TRIM_NAME=128`, `META_TRIM_DESCRIPTION=4096`, `IO_READ_SIZE=4_194_304`,
+    `TEXT_NGRAM_SIZE=13`). Added 3 JNI functions: `jsonToDataUrl` (line 514), `encodeComponent`
+    (line 540), `isccDecode` (line 588). Created `IsccDecodeResult.java` (42 lines) with `maintype`,
+    `subtype`, `version`, `length`, `digest` fields. `crates/iscc-jni/src/lib.rs` now has 32
+    `extern "system"` JNI functions. 7 new `@Test` methods in `IsccLibTest.java` (total 12 unit
+    tests + 9 `@TestFactory` = 58 effective test cases). Review agent PASS. **Java JNI Bindings:
+    fully MET** — 30/30 Tier 1 symbols. CI all 7 jobs passing at HEAD `1a5dfd7` (run 22487752698).
+    **Go is the sole remaining binding at 23/30**. Next: propagate 7 symbols to Go.
+- **Java JNI `IsccDecodeResult.java` path**:
+    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java`
+- **Java constants pattern**: static final fields in `IsccLib.java` (NOT JNI native methods) —
+    mirrors C FFI getter functions pattern but Java-idiomatic.
+- **Go symbol propagation strategy**: WASM FFI sret-based pattern for `iscc_decode` (same as Go uses
+    for byte buffer results); Go constants are `package`-level `const` block; `DecodeResult` struct
+    with exported fields `Maintype`, `Subtype`, `Version`, `Length`, `Digest`.
