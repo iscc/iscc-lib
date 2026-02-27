@@ -332,3 +332,10 @@ iterations.
     tasks remain (publishing, issues cleanup), prioritize stale internal docs (CLAUDE.md, agent
     memory) over external operational tasks that require human action (OIDC setup, npm triggers,
     Maven Central). Internal docs are CID-actionable; external operations are not.
+- **Go WASM binary distribution gap** (CID loop 6, iteration 3): The Go module uses
+    `//go:embed   iscc_ffi.wasm` but the binary was gitignored — blocking `go get` for consumers.
+    The fix is simple: remove the gitignore line and commit the release binary (~683KB with LTO).
+    The CI Go job builds a fresh debug binary for testing anyway (overwrites the committed one in
+    the CI environment), so there's no conflict. This is the standard pattern for Go modules
+    embedding WASM via wazero. Debug binary is ~11MB vs ~683KB for release — always commit the
+    release build.

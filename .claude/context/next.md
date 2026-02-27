@@ -1,68 +1,65 @@
 # Next Work Package
 
-## Step: Update crates/iscc-lib/CLAUDE.md for 30-symbol Tier 1 API
+## Step: Commit Go WASM binary for go get distribution
 
 ## Goal
 
-Update the per-crate `CLAUDE.md` in `crates/iscc-lib/` to reflect the current 30-symbol Tier 1 API.
-The file currently says "22 symbols at crate root" and has stale Tier 1/Tier 2 lists — this
-misguides agents working on the crate. Fixing it ensures accurate developer guidance.
+Make the Go module distributable via `go get` by unignoring and committing the release WASM binary.
+Currently `packages/go/iscc_ffi.wasm` is gitignored, which means Go consumers who `go get` the
+module get no WASM binary — the `//go:embed iscc_ffi.wasm` directive fails at compile time. This
+blocks two target verification criteria: "Package installs cleanly via `go get`" and "Embedded
+`.wasm` binary is up to date with the Rust core."
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `crates/iscc-lib/CLAUDE.md`
-- **Reference**: `crates/iscc-lib/src/lib.rs` (actual exports), `.claude/context/specs/rust-core.md`
-    (authoritative 30-symbol table at lines 257-278)
+- **Modify**: `.gitignore` (remove `packages/go/*.wasm` line)
+- **Reference**: `packages/go/iscc.go` (line 30: `//go:embed iscc_ffi.wasm`),
+    `.github/workflows/ci.yml` (Go job builds WASM for testing)
 
 ## Not In Scope
 
-- Modifying any Rust source code
-- Updating the root `CLAUDE.md` (different file, different purpose)
+- Changing the CI Go job — it currently builds a fresh debug WASM binary for testing, which is
+    correct behavior (tests current code). Leave it as-is.
+- Adding a `mise run go:build-wasm` task — useful but separate step
+- Adding a CI step to verify the committed binary matches current FFI code — fragile across compiler
+    versions and debug/release modes
+- Updating `specs/ci-cd.md` release protocol to include WASM rebuild — can be done in a future step
+    when the release process is formalized
+- Re-triggering any release workflows
 - Deleting resolved issues from `issues.md` (review agent's job)
-- Updating any documentation site pages (`docs/`)
-- Changing module visibility or API surface — this is a docs-only step
 
 ## Implementation Notes
 
-The file has several stale sections that all need updating together:
+1. **Edit `.gitignore`**: Remove the line `packages/go/*.wasm` (line 232 in root `.gitignore`).
 
-1. **Line 8 — binding crate list**: Currently says `iscc-py`, `iscc-napi`, `iscc-wasm`, `iscc-ffi`.
-    Add `iscc-jni` (Java JNI binding crate added months ago).
+2. **Build the release WASM binary**: Run `cargo build -p iscc-ffi --target wasm32-wasip1 --release`
+    (the `wasm32-wasip1` target is already installed in the devcontainer). The release profile
+    (`lto = true`, `codegen-units = 1`, `strip = true`) produces a ~683KB binary vs ~11MB for
+    debug.
 
-2. **Line 31 — symbol count**: Change `22 symbols at crate root` → `30 symbols at crate root`.
+3. **Copy to Go package**: `cp target/wasm32-wasip1/release/iscc_ffi.wasm packages/go/`
 
-3. **Tier 1 list (lines 33-42)**: Update to match the actual API:
+4. **Verify Go tests pass** with the release binary:
+    `cd packages/go && CGO_ENABLED=0 go test -count=1 ./...`
 
-    - Encoding utilities: add `json_to_data_url` (was 1 → now 2)
-    - Codec operations: add `encode_component` and `iscc_decode` (was 1 → now 3)
-    - Add new category: 4 algorithm constants (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`,
-        `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`)
-    - Keep all existing entries unchanged
+5. **Stage both files**: `git add .gitignore packages/go/iscc_ffi.wasm`
 
-4. **Tier 2 list (lines 44-48)**: Remove `encode_component` (promoted to Tier 1). It still lives in
-    `codec.rs` but is re-exported at crate root via a public wrapper in `lib.rs`.
-
-5. **Dependencies section (lines 113-121)**: Add `serde_json_canonicalizer` — RFC 8785 (JCS)
-    compliant JSON serialization, used for metadata canonicalization. Already in `Cargo.toml` but
-    missing from the CLAUDE.md dependency listing.
-
-Use `specs/rust-core.md` lines 257-278 as the authoritative reference for the complete Tier 1 table.
-Cross-check against `lib.rs` `pub use` re-exports and `pub const` declarations.
+The binary is already present locally (built during CI testing). The release binary is 683KB — well
+within reason for a committed asset in a Go module. Many Go projects with embedded WASM (via wazero)
+commit binaries of similar or larger size. This is the standard distribution pattern for Go modules
+that embed binary assets.
 
 ## Verification
 
-- `grep '30 symbols' crates/iscc-lib/CLAUDE.md` returns a match
-- `grep 'json_to_data_url' crates/iscc-lib/CLAUDE.md` returns a match (in Tier 1 section)
-- `grep 'iscc_decode' crates/iscc-lib/CLAUDE.md` returns a match (in Tier 1 section)
-- `grep -c 'encode_component' crates/iscc-lib/CLAUDE.md` returns exactly 2 (once in Tier 1, once in
-    Common Pitfalls — NOT in Tier 2)
-- `grep 'META_TRIM_NAME' crates/iscc-lib/CLAUDE.md` returns a match
-- `grep 'serde_json_canonicalizer' crates/iscc-lib/CLAUDE.md` returns a match
-- `grep 'iscc-jni' crates/iscc-lib/CLAUDE.md` returns a match
-- No Rust compilation or test changes (this is docs-only)
+- `grep -c 'packages/go/\*.wasm' .gitignore` returns `0` (line removed)
+- `git ls-files packages/go/iscc_ffi.wasm` returns `packages/go/iscc_ffi.wasm` (file is tracked)
+- `file packages/go/iscc_ffi.wasm` contains `WebAssembly`
+- `ls -la packages/go/iscc_ffi.wasm | awk '{print $5}'` returns a number less than 1000000 (release
+    build, not debug)
+- `cd packages/go && CGO_ENABLED=0 go test -count=1 ./...` passes (46 tests)
 
 ## Done When
 
-All 7 grep verification checks pass, confirming the CLAUDE.md accurately reflects the current
-30-symbol Tier 1 API with correct Tier 2 demotion and updated dependency list.
+All verification criteria pass: the WASM binary is tracked in git, is a release build under 1MB, and
+Go tests pass with it.
