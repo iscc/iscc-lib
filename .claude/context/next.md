@@ -1,139 +1,126 @@
 # Next Work Package
 
-## Step: Implement pure Go text utilities (utils.go)
+## Step: Implement pure Go CDC, MinHash, and SimHash/SlidingWindow
 
 ## Goal
 
-Port the 4 text utility functions (`TextClean`, `TextCollapse`, `TextTrim`, `TextRemoveNewlines`) to
-pure Go as step 2 of the Go rewrite dependency chain (codec → **text utils** → algorithms → gen
-functions). These functions are prerequisites for the gen functions that perform text normalization.
+Port the three core algorithm primitives (CDC, MinHash, SimHash + SlidingWindow) from Rust to pure
+Go, completing the algorithm layer in the dependency chain (codec → text utils → **algorithms** →
+gen functions). These are prerequisites for all 9 `gen_*_v0` functions.
 
 ## Scope
 
-- **Create**: `packages/go/utils.go`, `packages/go/utils_test.go`
-- **Modify**: `packages/go/go.mod` (add `golang.org/x/text` dependency; `go.sum` updates
-    automatically)
-- **Reference**: `crates/iscc-lib/src/utils.rs` (Rust implementation — primary reference),
-    `reference/iscc-core/iscc_core/code_meta.py` (Python `text_clean`, `text_trim`,
-    `text_remove_newlines`), `reference/iscc-core/iscc_core/code_content_text.py` (Python
-    `text_collapse`), `packages/go/codec.go` (existing pure Go module — follow same patterns),
-    `packages/go/codec_test.go` (test structure to follow)
+- **Create**: `packages/go/cdc.go`, `packages/go/minhash.go`, `packages/go/simhash.go`,
+    `packages/go/cdc_test.go`, `packages/go/minhash_test.go`, `packages/go/simhash_test.go`
+- **Modify**: (none)
+- **Reference**: `crates/iscc-lib/src/cdc.rs`, `crates/iscc-lib/src/minhash.rs`,
+    `crates/iscc-lib/src/simhash.rs`, `packages/go/codec.go` (for Go conventions/patterns),
+    `packages/go/utils.go` (for Go conventions/patterns)
 
 ## Not In Scope
 
-- Removing the WASM bridge (`iscc.go`, `iscc_ffi.wasm`, wazero dep) — happens only after all pure Go
-    modules are complete
-- Modifying the existing `iscc_test.go` tests — they test the WASM bridge and remain as a regression
-    suite
-- Implementing `multi_hash_blake3` or any hashing functions — those belong in a later algorithms
-    step
-- Any CI workflow changes — the Go CI job already runs `go test ./...` which handles dependencies
-    automatically
+- DCT (`dct.rs`) and WTA-Hash (`wtahash.rs`) — these are only needed for Image-Code and Video-Code
+    and belong in a separate step
+- Any `gen_*_v0` functions — those compose algorithms and are the next layer
+- Streaming hashers (`DataHasher`, `InstanceHasher`) — depend on gen functions and CDC
+- External dependencies (`github.com/zeebo/blake3`, xxHash) — the three algorithm primitives are
+    pure computation with no external deps (they take pre-computed features/data as input)
+- Modifying `go.mod` — no new dependencies needed for these algorithms
+- Removing the WASM bridge code (`iscc.go`) — it coexists during the rewrite
+- `sliding_window_strs` or `sliding_window_bytes` internal variants — only the public
+    `SlidingWindow` (string-based) is Tier 1
 
 ## Implementation Notes
 
-### Functions to implement (all in package `iscc`, file `utils.go`)
+### CDC (`cdc.go`)
 
-**1. `TextClean(text string) string`** — display text cleaning:
+Port from `crates/iscc-lib/src/cdc.rs`. Four components:
 
-1. NFKC normalize: `norm.NFKC.String(text)` (from `golang.org/x/text/unicode/norm`)
-2. Remove control characters except newlines. Use Go's `unicode` stdlib package:
-    - C-category check: `unicode.Is(unicode.C, c)` covers Cc, Cf, Co, Cs (matches Rust's
-        `is_c_category` minus `Unassigned`; in practice NFKC text won't contain unassigned
-        codepoints)
-    - Newline set (preserve these): `\n` (U+000A), `\v` (U+000B), `\f` (U+000C), `\r` (U+000D),
-        U+0085 (NEL), U+2028 (LS), U+2029 (PS)
-    - Handle `\r\n` as single newline (normalize all newlines to `\n`)
-3. Collapse consecutive empty/whitespace-only lines to at most one
-4. `strings.TrimSpace()` the result
+1. **`cdcGear` table** — 256-entry `[256]uint32` constant (unexported). Copy values exactly from
+    Rust `CDC_GEAR`.
+2. **`algCdcParams(avgSize uint32) (mi, ma, cs int, maskS, maskL uint32)`** — unexported helper.
+    Calculates min/max/center sizes and masks. Note: `min_size.div_ceil(2)` in Rust → use
+    `(minSize + 1) / 2` in Go (integer ceiling division). `(avg_size as f64).log2().round()` →
+    `math.Round(math.Log2(float64(avgSize)))`. Import `math`.
+3. **`algCdcOffset(buffer []byte, mi, ma, cs int, maskS, maskL uint32) int`** — unexported helper.
+    Gear rolling hash scanning in two phases (strict mask then relaxed mask). Use
+    `(pattern >> 1) + cdcGear[buffer[i]]` with Go's natural `uint32` wrapping.
+4. **`AlgCdcChunks(data []byte, utf32 bool, avgChunkSize uint32) [][]byte`** — public function.
+    Returns `[][]byte` slices into the original data (use Go slicing `data[pos:pos+cutPoint]`).
+    Empty input → single empty slice `[][]byte{data[0:0]}`. UTF-32 alignment:
+    `cutPoint -= cutPoint % 4`, if zero then `cutPoint = min(len(remaining), 4)`.
 
-Port directly from `text_clean` in `crates/iscc-lib/src/utils.rs` lines 62-101.
+**Go-specific**: No `wrapping_add` needed — Go's `uint32` arithmetic wraps naturally. The `min()`
+builtin is available in Go 1.21+.
 
-**2. `TextRemoveNewlines(text string) string`** — single-line conversion:
+### MinHash (`minhash.go`)
 
-- `strings.Join(strings.Fields(text), " ")` — Go's `strings.Fields` splits on any whitespace and
-    filters empty strings, exactly matching Python's `" ".join(text.split())` and Rust's
-    `split_whitespace().join(" ")`
+Port from `crates/iscc-lib/src/minhash.rs`. Four components:
 
-This is a one-liner.
+1. **Constants** — `maxi64 uint64 = math.MaxUint64`, `mprime uint64 = (1 << 61) - 1`,
+    `maxH uint64 = (1 << 32) - 1`, `mpa [64]uint64`, `mpb [64]uint64` (all unexported). Copy
+    MPA/MPB arrays exactly from Rust.
+2. **`minhash(features []uint32) []uint64`** — unexported. For each of 64 dimensions, compute
+    `min(((a*uint64(f) + b) & maxi64) % mprime) & maxH)` across all features. Return `maxH` per
+    dimension when features is empty. **Critical**: use `uint64` arithmetic throughout. Go's `*` on
+    `uint64` wraps at 2^64 naturally (matching Rust's `wrapping_mul`). The `& maxi64` is a no-op
+    for uint64 but keep it for clarity/parity with reference.
+3. **`minhashCompress(mhash []uint64, lsb int) []byte`** — unexported. Bit-interleaved compression.
+    Extract `lsb` LSBs from each hash, iterate bit positions 0..lsb then hash values, pack
+    MSB-first into bytes. Use `(totalBits + 7) / 8` for ceiling division.
+4. **`AlgMinhash256(features []uint32) []byte`** — public. Calls `minhash` → `minhashCompress` with
+    `lsb=4`. Returns 32 bytes.
 
-**3. `TextTrim(text string, nbytes int) string`** — UTF-8 byte limit trimming:
+### SimHash + SlidingWindow (`simhash.go`)
 
-1. If `len(text) <= nbytes`, return `strings.TrimSpace(text)`
-2. Take `text[:nbytes]` bytes — but this may split a multibyte rune
-3. Find last valid rune boundary: iterate backwards from `nbytes` using `utf8.RuneStart(text[i])` to
-    find where the last complete rune starts, then verify it's complete with
-    `utf8.DecodeRuneInString`
-4. Alternative simpler approach: convert to `[]byte`, take `[:nbytes]`, scan for valid UTF-8 with
-    `utf8.Valid()`, if not valid use `utf8.ValidString()` up to nbytes. Simplest: iterate runes and
-    accumulate byte length, stop when adding next rune would exceed nbytes
-5. `strings.TrimSpace(result)`
+Port from `crates/iscc-lib/src/simhash.rs`. Two public functions:
 
-Port from `text_trim` in `utils.rs` lines 116-126. Key behavior: multi-byte characters that would be
-split are dropped entirely (matching Python's `decode('utf-8', 'ignore')`).
+1. **`AlgSimhash(hashDigests [][]byte) ([]byte, error)`** — public. Validates all digests have equal
+    length (return `fmt.Errorf(...)` if not). Bit-vote aggregation: count bits across all digests,
+    set bit if `count*2 >= n`. Empty input → 32 zero bytes. Uses MSB-first bit ordering
+    (`7 - (i % 8)`). No need for a separate unchecked variant (Go has no binding crate separation).
+2. **`SlidingWindow(seq string, width int) ([]string, error)`** — public. Returns overlapping
+    substrings of `width` runes. Return error if `width < 2`. If input shorter than width, return
+    single element with full input. Use `[]rune` conversion for proper Unicode character counting,
+    then `string(runes[i:end])` for each window.
 
-**4. `TextCollapse(text string) string`** — similarity hashing normalization:
+### Testing pattern
 
-1. NFD normalize: `norm.NFD.String(text)`
-2. Lowercase: `strings.ToLower(result)`
-3. Filter: keep chars that are NOT whitespace (`unicode.IsSpace`) AND NOT in C/M/P categories. Use
-    Go's super-category range tables:
-    - `unicode.Is(unicode.C, c)` — all Control categories
-    - `unicode.Is(unicode.M, c)` — all Mark categories (includes diacritics/accents)
-    - `unicode.Is(unicode.P, c)` — all Punctuation categories
-4. NFKC normalize the filtered result: `norm.NFKC.String(filtered)`
+Follow the established pattern from `codec_test.go` and `utils_test.go`:
 
-Port from `text_collapse` in `utils.rs` lines 133-145.
+- Package `iscc` (same package, access to internal functions)
+- Use `testing.T` with subtests where appropriate
+- Test edge cases: empty input, single element, deterministic output, reassembly (CDC)
+- Port the unit tests from Rust directly (see test sections at bottom of each `.rs` file)
+- CDC: test params calculation, small buffer offset, max-size cap, empty/small chunks, reassembly,
+    determinism, utf32 alignment (including the 3-byte regression test)
+- MinHash: empty features (all 0xFF), single feature, deterministic, compress basic/all-ones
+- SimHash: single digest (passthrough), empty (32 zero bytes), identical digests, opposite digests,
+    mismatched lengths (error), SlidingWindow basic/unicode/edge cases
 
-### Go Unicode category mapping
+### Naming conventions
 
-The Rust code uses `unicode_general_category` crate. Go's `unicode` stdlib provides equivalent
-super-category range tables (no external dependency needed for category checks):
+Follow Go conventions matching existing `codec.go` / `utils.go`:
 
-| Rust Category             | Go Equivalent                                                                          |
-| ------------------------- | -------------------------------------------------------------------------------------- |
-| `is_c_category` (C)       | `unicode.Is(unicode.C, c)`                                                             |
-| `is_cmp_category` (C+M+P) | `unicode.Is(unicode.C, c) \|\| unicode.Is(unicode.M, c) \|\| unicode.Is(unicode.P, c)` |
-| whitespace                | `unicode.IsSpace(c)`                                                                   |
-
-### Dependency management
-
-Run `cd packages/go && go get golang.org/x/text@latest` to add the dependency. Only
-`golang.org/x/text/unicode/norm` is imported — the rest of the module is pulled transitively.
-
-### Test structure
-
-Follow the `codec_test.go` pattern: `package iscc`, direct function calls (no WASM Runtime), no
-external dependencies. Include tests ported from the Rust `utils.rs` test section (lines 160-263):
-
-- `TextClean`: NFKC normalization (U+FB01 ligature → "fi"), control char removal (tab removed),
-    newline preservation, empty line collapsing (`"a\n\n\nb"` → `"a\n\nb"`), CRLF handling
-    (`"a\r\nb"` → `"a\nb"`), whitespace stripping, empty input
-- `TextRemoveNewlines`: basic newline replacement, multi-space collapsing
-- `TextTrim`: no-truncation, exact fit, truncation, Unicode boundary safety (é at 1 byte → ""),
-    whitespace stripping
-- `TextCollapse`: basic lowercasing + space removal, accent stripping (café → cafe), punctuation
-    removal, empty input
-
-Also include the test cases from `iscc_test.go` (testing pure Go functions directly):
-
-- `TextClean("  Hel\uFB01 World  ")` → `"Helfi World"`
-- `TextRemoveNewlines("hello\nworld\r\nfoo")` → `"hello world foo"`
-- `TextCollapse("Hello, World!")` → `"helloworld"`
-- `TextTrim("Hello, World! This is a long string.", 10)` → ≤10 bytes, non-empty
+- Public: `AlgCdcChunks`, `AlgMinhash256`, `AlgSimhash`, `SlidingWindow`
+- Unexported: `algCdcParams`, `algCdcOffset`, `minhash`, `minhashCompress`, `cdcGear`, `mpa`, `mpb`,
+    `maxi64`, `mprime`, `maxH`
 
 ## Verification
 
-- `cd packages/go && go build ./...` exits 0 (compiles alongside existing WASM code)
-- `cd packages/go && go test -run TestUtils -count=1 -v` — all utils tests pass
+- `cd packages/go && go build ./...` exits 0 — compiles alongside existing WASM code
+- `cd packages/go && go test -run TestCdc -count=1 -v` — CDC tests pass
+- `cd packages/go && go test -run TestMinhash -count=1 -v` — MinHash tests pass
+- `cd packages/go && go test -run TestSimhash -count=1 -v` — SimHash tests pass
+- `cd packages/go && go test -run TestSlidingWindow -count=1 -v` — SlidingWindow tests pass
 - `cd packages/go && go vet ./...` exits 0
-- `cd packages/go && go test ./...` — both new utils tests and existing codec+WASM tests all pass
-- `grep -c 'golang.org/x/text' packages/go/go.mod` returns at least 1
-- `grep -c 'func Text' packages/go/utils.go` returns 4 (all 4 public functions present)
-- `mise run check` — all pre-commit/pre-push hooks pass
+- `cd packages/go && go test ./...` — all tests pass (pure Go + existing WASM bridge tests)
+- `grep -c 'func Alg' packages/go/cdc.go` returns 1 (AlgCdcChunks)
+- `grep -c 'func Alg' packages/go/minhash.go` returns 1 (AlgMinhash256)
+- `grep -c 'func Alg' packages/go/simhash.go` returns 1 (AlgSimhash)
+- `grep -c 'func SlidingWindow' packages/go/simhash.go` returns 1
 
 ## Done When
 
-All 4 text utility functions are implemented as pure Go in `utils.go`, all verification criteria
-pass including the full test suite (`go test ./...`), and the `golang.org/x/text` dependency is
-properly recorded in `go.mod`.
+All verification criteria pass — three algorithm files compile, all unit tests pass, and existing
+WASM bridge tests continue to pass alongside the new pure Go code.

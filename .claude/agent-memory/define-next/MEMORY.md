@@ -342,6 +342,12 @@ iterations.
 
 ## Go Pure Rewrite — Scoping Strategy
 
+- **Algorithm batching**: CDC (296 lines Rust), MinHash (263 lines), SimHash+SlidingWindow (329
+    lines) = 888 lines Rust → approximately 3 Go files, each 150-300 lines. All three are pure
+    computation with zero external dependencies (they take pre-computed features/data as input).
+    Batching all three into one step is feasible (3 files created, matching the file limit exactly)
+    and avoids stretching the rewrite across too many iterations. DCT (148 lines) and WTA-Hash (389
+    lines) are separate because they're only needed for Image/Video-Code.
 - **Port order follows dependency graph**: codec (standalone) → text utils (standalone) → algorithms
     (CDC, MinHash, SimHash, DCT, WTA-Hash — all standalone) → gen\_\*\_v0 (compose algorithms) →
     streaming hashers → conformance selftest. Each step produces independently testable code.
