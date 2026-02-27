@@ -97,9 +97,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     SimHash+SlidingWindow (86 lines, 14 tests), DCT (52 lines, 10 tests), WTA-Hash (92 lines, 9
     tests). Gen functions: GenMetaCodeV0 (281 lines) + GenTextCodeV0 (41 lines) + xxh32 (81 lines) +
     GenDataCodeV0 (90 lines) + GenInstanceCodeV0 (67 lines) + GenImageCodeV0 (134 lines) +
-    GenAudioCodeV0 (112 lines) = 6/9 gen functions done, 44 conformance tests (16 meta + 5 text + 4
-    data + 3 instance + 3 image + 5 audio + 8 xxh32 unit). WASM bridge types renamed:
-    `WasmDataHasher`, `WasmInstanceHasher`. Next: gen_video + gen_mixed (step 5d)
+    GenAudioCodeV0 (112 lines) + GenVideoCodeV0 (61 lines) + GenMixedCodeV0 (92 lines) = 8/9 gen
+    functions done, 49 conformance tests (16 meta + 5 text + 4 data + 3 instance + 3 image + 5 audio
+    \+ 3 video + 2 mixed + 8 xxh32 unit). WASM bridge types renamed: `WasmDataHasher`,
+    `WasmInstanceHasher`. Next: GenIsccCodeV0 (step 5e) → conformance_selftest → WASM cleanup
 
 ## Binding Propagation Review Shortcuts
 
