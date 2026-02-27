@@ -95,8 +95,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go pure rewrite progress: codec complete (570 lines, 48 tests), text utils complete (130 lines, 21
     tests), algorithms complete — CDC (129 lines, 15 tests), MinHash (205 lines, 8 tests),
     SimHash+SlidingWindow (86 lines, 14 tests), DCT (52 lines, 10 tests), WTA-Hash (92 lines, 9
-    tests). Gen functions step 5a complete: GenMetaCodeV0 (281 lines) + GenTextCodeV0 (41 lines) +
-    xxh32 (81 lines) = 29 new tests. Next: gen_data + gen_instance (step 5b)
+    tests). Gen functions: GenMetaCodeV0 (281 lines) + GenTextCodeV0 (41 lines) + xxh32 (81 lines) +
+    GenDataCodeV0 (90 lines) + GenInstanceCodeV0 (67 lines) = 4/9 gen functions done, 36 conformance
+    tests (16 meta + 5 text + 4 data + 3 instance + 8 xxh32 unit). WASM bridge types renamed:
+    `WasmDataHasher`, `WasmInstanceHasher`. Next: gen_image + gen_audio (step 5c)
 
 ## Binding Propagation Review Shortcuts
 
@@ -149,6 +151,13 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     issues #5-#8 persisting for 4+ iterations after their fixes landed. **Mitigation:** after
     verifying the advance work, also scan issues.md for any other entries that are now resolved
     (check state.md "met" sections against issue descriptions)
+
+## Environment
+
+- Python `iscc_lib` module must be compiled before pre-push hooks can pass. If `ty` or `pytest`
+    fails with `No module named 'iscc_lib'`, run
+    `cd crates/iscc-py && uv run maturin develop --release` to build the Python extension. This is a
+    one-time setup per container/checkout
 
 ## Gotchas
 

@@ -1,40 +1,47 @@
-## 2026-02-27 — Implement pure Go GenDataCodeV0 and GenInstanceCodeV0
+## 2026-02-27 — Review of: Implement pure Go GenDataCodeV0 and GenInstanceCodeV0
 
-**Done:** Implemented `GenDataCodeV0` with `DataHasher` streaming type and `GenInstanceCodeV0` with
-`InstanceHasher` streaming type as pure Go gen functions. All 7 conformance vectors pass (4 data + 3
-instance). Also renamed WASM bridge streaming types to `WasmDataHasher`/`WasmInstanceHasher` to
-resolve name collisions.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/go/code_data.go`: New file — `DataHasher` struct with `Push`/`Finalize` API,
-    `DataCodeResult` type, `GenDataCodeV0` convenience function. Uses CDC + xxh32 + MinHash pipeline
-- `packages/go/code_data_test.go`: New file — 4 conformance vector tests using `TestPureGo*` prefix
-- `packages/go/code_instance.go`: New file — `InstanceHasher` struct with `Push`/`Finalize` API,
-    `InstanceCodeResult` type, `GenInstanceCodeV0` convenience function. Uses BLAKE3 + multihash
-- `packages/go/code_instance_test.go`: New file — 3 conformance vector tests verifying iscc,
-    datahash, and filesize fields
-- `packages/go/iscc.go`: Renamed `DataHasher` → `WasmDataHasher`, `InstanceHasher` →
-    `WasmInstanceHasher` to resolve type name collision with new pure Go implementations
+**Summary:** Clean implementation of `GenDataCodeV0` and `GenInstanceCodeV0` as pure Go gen
+functions with all 7 conformance vectors passing (4 data + 3 instance). `DataHasher` and
+`InstanceHasher` streaming structs follow the Python/Rust reference correctly. The WASM bridge type
+rename (`DataHasher`→`WasmDataHasher`, `InstanceHasher`→`WasmInstanceHasher`) was a minimal,
+necessary adaptation to resolve Go package-level name collisions.
 
 **Verification:**
 
-- `go build ./...` — exits 0
-- `TestPureGoGenDataCodeV0` — 4/4 vectors PASS
-- `TestPureGoGenInstanceCodeV0` — 3/3 vectors PASS
-- `go vet ./...` — exits 0
-- `go test ./...` — all tests pass (pure Go + WASM bridge)
-- Race detector clean on both new test suites
-- All grep verification criteria return 1
-- `mise run check` — all 14 hooks pass
+- [x] `cd packages/go && go build ./...` exits 0
+- [x] `cd packages/go && go test -run TestPureGoGenDataCodeV0 -count=1 -v` — 4/4 data vectors PASS
+- [x] `cd packages/go && go test -run TestPureGoGenInstanceCodeV0 -count=1 -v` — 3/3 instance
+    vectors PASS
+- [x] `cd packages/go && go vet ./...` exits 0
+- [x] `cd packages/go && go test ./...` — all tests pass (pure Go + WASM bridge)
+- [x] `cd packages/go && go test -race -run "TestPureGo(GenDataCodeV0|GenInstanceCodeV0)" -count=1`
+    — race detector clean
+- [x] `grep -c 'func GenDataCodeV0' packages/go/code_data.go` returns 1
+- [x] `grep -c 'func GenInstanceCodeV0' packages/go/code_instance.go` returns 1
+- [x] `grep -c 'type DataHasher struct' packages/go/code_data.go` returns 1
+- [x] `grep -c 'type InstanceHasher struct' packages/go/code_instance.go` returns 1
+- [x] `mise run check` — all 14 hooks pass
 
-**Next:** Implement remaining gen functions (`GenImageCodeV0`, `GenAudioCodeV0`, `GenVideoCodeV0`,
-`GenMixedCodeV0`, `GenIsccCodeV0`) following the same pattern. Image and Audio codes need SimHash;
-Mixed and ISCC codes need component decoding/composition.
+**Issues found:**
 
-**Notes:** The WASM bridge in `iscc.go` already defined `DataHasher` and `InstanceHasher` types for
-its FFI streaming interface. Since both live in the same `iscc` package and Go doesn't support type
-name overloading, the WASM bridge types were renamed to `WasmDataHasher` and `WasmInstanceHasher`.
-This was the minimal change needed — the WASM bridge tests reference these types through
-`rt.NewDataHasher()` which only required changing the return type signature, not the test code
-itself. The existing WASM bridge tests all pass with the rename.
+- (none)
+
+**Codex review:** Codex flagged that `DataHasher.Finalize()` mutates internal state (appends to
+`chunkFeatures`, clears `tail`), making it non-idempotent — calling Finalize twice would produce
+different results. This mirrors the Python reference (`DataHasherV0._finalize()` sets
+`self.tail = None`) and Rust (which consumes `self` on finalize). The single-use-finalize pattern is
+by design. Not a blocking issue, but worth noting for documentation if a public streaming API guide
+is written later.
+
+**Next:** Implement `GenImageCodeV0` and `GenAudioCodeV0` as the next gen function sub-step. Image
+code needs DCT + WTA-Hash (both already implemented). Audio code needs SimHash on Chromaprint
+features (SimHash already implemented). 5 conformance vectors for image + 3 for audio = 8 total
+vectors. After these two, only `GenVideoCodeV0`, `GenMixedCodeV0`, and `GenIsccCodeV0` remain.
+
+**Notes:** The WASM bridge type rename is a one-time adaptation. Future gen functions that share
+names with WASM bridge functions (`GenImageCodeV0`, `GenVideoCodeV0`, etc.) will NOT need renames
+because the WASM bridge wraps them as `Runtime.GenImageCodeV0()` (method on `Runtime` struct) while
+the pure Go versions are package-level functions — Go resolves these differently. Only struct type
+names (like `DataHasher`/`InstanceHasher`) had actual collisions.

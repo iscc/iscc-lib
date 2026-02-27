@@ -50,7 +50,7 @@ fully-met target sections to `learnings-archive.md`.
 - `gen_text_code_v0` uses MinHash (not SimHash) for the content hash portion. `alg_minhash_256`
     produces 256 bits (32 bytes) from a set of n-gram features. Text n-gram size = 13 (characters)
 - `gen_data_code_v0` uses MinHash on CDC chunk hashes. CDC splits binary data into content-defined
-    chunks, each chunk is BLAKE3-hashed, the set of chunk hashes is MinHash'd
+    chunks, each chunk is xxh32-hashed (not BLAKE3), the set of chunk hashes is MinHash'd
 - `soft_hash_audio_v0` is a multi-stage hash: Chromaprint i32 array → overlapping frames of
     `frame_size` i32s → each frame's individual bits → SimHash across frames → byte digest
 - `alg_simhash` output length is always 32 bytes (256 bits) regardless of input. The function hashes
@@ -111,6 +111,12 @@ fully-met target sections to `learnings-archive.md`.
     compact format). A dedicated JCS library is needed only if float number formatting matters
 - `SlidingWindow`/`AlgSimhash` error suppression (`_, _`) is safe in gen functions: width params are
     hardcoded valid constants (3 or 13), and AlgSimhash returns 32 zero bytes for empty input
+- WASM bridge type collision: pure Go structs (`DataHasher`, `InstanceHasher`) collide with WASM
+    bridge types in the same `iscc` package. Solution: prefix WASM bridge types with `Wasm`. Method
+    receivers on `Runtime` struct (e.g., `rt.GenImageCodeV0()`) do NOT collide with package-level
+    functions — only struct types need renaming
+- Go `DataHasher`/`InstanceHasher` Finalize is single-use (mutates internal state). Mirrors Python
+    reference `_finalize()` which sets `self.tail = None`. Do not call Finalize twice
 
 ## CID Process
 
