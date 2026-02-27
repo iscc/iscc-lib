@@ -15,7 +15,8 @@ iterations.
 - WASM: `crates/iscc-wasm/src/lib.rs`
 - C FFI: `crates/iscc-ffi/src/lib.rs`
 - JNI: `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
-- Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go (+ test files)
+- Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go
+    (+ test files)
 - Go WASM bridge (legacy): `packages/go/iscc.go` + `packages/go/iscc_test.go`
 
 ## Build and Tooling
@@ -50,11 +51,15 @@ iterations.
 - SimHash: `AlgSimhash` returns `([]byte, error)`, `SlidingWindow` returns `([]string, error)`. Uses
     `[]rune` for Unicode-correct SlidingWindow
 - CDC integer ceiling: `(minSize + 1) / 2` (Go has no div_ceil method)
-- Dependency order: codec (done) → utils (done) → algorithms (CDC/MinHash/SimHash done) →
-    DCT/WTA-Hash → gen functions → streaming hashers → conformance → WASM removal
+- DCT: `algDct` (unexported) + `dctRecursive` helper. Only uses `math` stdlib. Nayuki recursive
+    divide-and-conquer. Input must be power of 2 — checked via `n > 0 && n&(n-1) == 0`
+- WTA-Hash: `AlgWtahash` (exported) + `wtaVideoIdPermutations` `[256][2]int` table. No external deps
+- Dependency order: codec (done) → utils (done) → algorithms (all done: CDC, MinHash, SimHash, DCT,
+    WTA-Hash) → gen functions → streaming hashers → conformance → WASM removal
 - Coexistence: new pure Go files live alongside WASM bridge in same `iscc` package. Package-level
     functions (`IsccDecode`) and method receivers (`rt.IsccDecode`) don't conflict
-- Test naming: `TestCodec*`, `TestUtils*`, `TestCdc*`, `TestMinhash*`, `TestSimhash*`
+- Test naming: `TestCodec*`, `TestUtils*`, `TestCdc*`, `TestMinhash*`, `TestSimhash*`,
+    `TestAlgDct*`, `TestAlgWtahash*`, `TestPermutation*`
 - Conformance tests: `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
 
 ## Codec Internals

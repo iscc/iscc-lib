@@ -1,47 +1,40 @@
-## 2026-02-27 — Review of: Implement pure Go CDC, MinHash, and SimHash/SlidingWindow
+## 2026-02-27 — Implement pure Go DCT and WTA-Hash
 
-**Verdict:** PASS
+**Done:** Ported DCT (Nayuki fast recursive algorithm) and WTA-Hash (winner-take-all video
+fingerprinting) from Rust to pure Go. Both modules are faithful translations of
+`crates/iscc-lib/src/dct.rs` and `crates/iscc-lib/src/wtahash.rs` with identical algorithms,
+constant tables, and error handling.
 
-**Summary:** Three core algorithm modules (CDC, MinHash, SimHash+SlidingWindow) ported from Rust to
-pure Go. Implementation is a faithful translation of the Rust reference with correct arithmetic
-wrapping semantics, identical constant tables, and matching algorithm logic. All 39 Go tests pass,
-`go vet` clean, 14 pre-commit hooks pass. Two minor fixes applied: `var` → `const` for scalar
-constants, docstring correction for `minhashFn`.
+**Files changed:**
+
+- `packages/go/dct.go`: New file — `algDct` (unexported) and `dctRecursive` helper implementing the
+    Nayuki fast DCT
+- `packages/go/dct_test.go`: New file — 10 test functions covering error cases, edge cases, and
+    known values
+- `packages/go/wtahash.go`: New file — `AlgWtahash` (exported) with the 256-entry
+    `wtaVideoIdPermutations` table
+- `packages/go/wtahash_test.go`: New file — 9 test functions covering error validation, output
+    correctness, and table integrity
 
 **Verification:**
 
-- [x] `cd packages/go && go build ./...` exits 0
-- [x] `cd packages/go && go test -run TestCdc -count=1 -v` — 15/15 CDC tests PASS
-- [x] `cd packages/go && go test -run TestMinhash -count=1 -v` — 8/8 MinHash tests PASS
-- [x] `cd packages/go && go test -run TestSimhash -count=1 -v` — 6/6 SimHash tests PASS
-- [x] `cd packages/go && go test -run TestSlidingWindow -count=1 -v` — 10/10 SlidingWindow tests
-    PASS (8 new pure Go + 2 existing WASM bridge)
-- [x] `cd packages/go && go vet ./...` exits 0
-- [x] `cd packages/go && go test ./...` — all tests pass
-- [x] `grep -c 'func Alg' packages/go/cdc.go` returns 1 (AlgCdcChunks)
-- [x] `grep -c 'func Alg' packages/go/minhash.go` returns 1 (AlgMinhash256)
-- [x] `grep -c 'func Alg' packages/go/simhash.go` returns 1 (AlgSimhash)
-- [x] `grep -c 'func SlidingWindow' packages/go/simhash.go` returns 1
-- [x] `mise run check` — all 14 hooks pass
+- `cd packages/go && go build ./...` — exits 0
+- `cd packages/go && go test -run TestAlgDct -count=1 -v` — 10/10 DCT tests PASS
+- `cd packages/go && go test -run TestAlgWtahash -count=1 -v` — 7/7 WTA-Hash tests PASS
+- `cd packages/go && go test -run TestPermutation -count=1 -v` — 2/2 table validation tests PASS
+- `cd packages/go && go vet ./...` — exits 0
+- `cd packages/go && go test ./...` — all tests pass (including existing pure Go and WASM bridge
+    tests)
+- `mise run check` — all 14 hooks pass
 
-**Issues found:**
+**Next:** All five algorithm modules are now complete (codec, utils, CDC, MinHash, SimHash, DCT,
+WTA-Hash). The next step should be implementing the gen functions layer, starting with
+`gen_data_code_v0` and `gen_instance_code_v0` which need CDC + MinHash + BLAKE3 (requires adding
+`github.com/zeebo/blake3` dependency). Alternatively, `gen_meta_code_v0` and `gen_text_code_v0`
+could come first since they only need SimHash + MinHash + already-ported utils.
 
-- (none)
-
-**Codex review:** Codex raised two advisory concerns: (1) small `avgChunkSize` could produce
-negative `centerSize` — dismissed, matches Rust behavior exactly (no validation there either, the
-algorithm expects reasonable chunk sizes like 1024); (2) function names might conflict with WASM
-bridge — dismissed, WASM bridge uses `(rt *Runtime)` method receivers while new code uses
-package-level functions, no collision. No actionable findings.
-
-**Next:** Implement DCT and WTA-Hash (`dct.go`, `wtahash.go`) — these are the remaining algorithm
-primitives needed before the gen functions layer. Alternatively, implement `gen_data_code_v0` and
-`gen_instance_code_v0` which only need CDC + MinHash + BLAKE3 (requires adding
-`github.com/zeebo/blake3` dependency). The gen functions are the higher-value target since they
-directly enable conformance testing.
-
-**Notes:** Go pure rewrite is at step 3/5 (codec ✓, text utils ✓, algorithms ✓ partial). Three of
-five algorithm modules done, two remaining (DCT, WTA-Hash). The WASM bridge code (`iscc.go`) still
-coexists — it will be removed once all gen functions are ported and conformance-tested. No new
-external dependencies were added in this step (`math` is stdlib). The `check-added-large-files`
-threshold (1024KB) can be lowered to 256KB once the WASM binary is removed from git.
+**Notes:** The next.md spec listed 12 DCT tests and 9 WTA-Hash tests, but the Rust source has 12 DCT
+tests (some testing the same condition) which I consolidated into 10 Go test functions (combining
+the three non-power-of-two-even tests into one function with three sub-cases, matching the logical
+grouping). All 21 test cases from Rust are covered. No external dependencies added — both modules
+use only `math` and `fmt` from stdlib.
