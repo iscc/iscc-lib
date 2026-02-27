@@ -364,9 +364,23 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 ## Branching
 
 - CID loop runs on `develop` branch; `main` is protected (requires PR + passing CI)
+
 - All CID agents are branch-agnostic — they commit/push to whatever branch is checked out. The
     `update-state` agent uses `git branch --show-current` for CI status queries (not hardcoded
     `main`)
+
 - CI triggers on push to both `main` and `develop`; docs deploy only from `main`; releases are
     tag-based (branch-agnostic)
+
 - Use `mise run pr:main` to create a PR from `develop` → `main` when ready to merge
+
+- Python `IntEnum` classes (`MT`, `ST`, `VS`) in `__init__.py`: pure Python, no Rust changes. `ST`
+    has `TEXT = 0` alias for `NONE` (IntEnum allows duplicate values — first definition is
+    canonical). `iscc_decode` wrapper converts raw integers to IntEnum types. `core_opts` is a
+    `SimpleNamespace` mapping attribute names to existing constants. `__all__` has 45 entries after
+    this addition
+
+- `GABTQLB6CQ6ILWLO` is NOT a valid 64-bit Data-Code — it has 8-byte body but header indicates
+    128-bit/16-byte digest. Use `GAA2XTPPAERUKZ4J` for a valid 64-bit Data-Code with digest
+    `\xab\xcd\xef\x01\x23\x45\x67\x89`. define-next should validate test vectors before including
+    them in verification criteria

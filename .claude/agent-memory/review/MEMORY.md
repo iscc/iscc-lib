@@ -51,7 +51,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     (must `cd` into the Go module directory — running from repo root with `./packages/go/` path
     fails with "cannot find main module")
 
-- Full test suite (184 tests) runs in \<1s — always run it for Python changes
+- Full test suite (198 tests) runs in \<1s — always run it for Python changes
 
 - Script-only changes (new Python scripts, mise task additions): `mise run check` + direct script
     invocation is sufficient — skip all test suites unless the script modifies test infrastructure
@@ -73,8 +73,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Python Binding State
 
-- `__all__` count in `iscc_lib/__init__.py` is 41 as of iteration 4 (30 Tier 1 API symbols + 10
-    result type classes + `__version__`)
+- `__all__` count in `iscc_lib/__init__.py` is 45 as of iteration 7 (30 Tier 1 API symbols + 10
+    result type classes + `__version__` + MT, ST, VS, core_opts)
 
 ## Verification Patterns
 
