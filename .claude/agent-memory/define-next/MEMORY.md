@@ -192,6 +192,14 @@ iterations.
     `IsccByteBuffer` for digest is the cleanest approach — matches existing FFI memory model. The C
     test file uses macro-based assertions (`ASSERT_STR_EQ`, `ASSERT_EQ`, etc.) and must call
     `iscc_free_*` for every allocated result. After C FFI: Java JNI, then Go.
+- **Java JNI propagation** (CID loop 4, iteration 11): 3 files (1 create + 2 modify, excluding
+    tests). Constants are pure Java `public static final int` — no JNI needed. `jsonToDataUrl` and
+    `encodeComponent` follow existing JNI patterns (`env.get_string`, `extract_byte_array`,
+    `throw_and_default`). `isccDecode` is the novel part — requires constructing a Java object from
+    JNI via `env.find_class` + `env.new_object` with constructor descriptor `(IIII[B)V`. A separate
+    `IsccDecodeResult.java` class is more idiomatic Java than a static inner class. The existing JNI
+    crate has 29 `extern "system"` functions; this step adds 3 (total 32). After Java: Go (final
+    binding).
 
 ## Architecture Decisions
 

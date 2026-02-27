@@ -1,185 +1,145 @@
 # Next Work Package
 
-## Step: Propagate 7 Tier 1 symbols to C FFI
+## Step: Propagate 7 Tier 1 symbols to Java JNI
 
 ## Goal
 
-Add the 7 missing Tier 1 symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4
-constants) to the C FFI binding crate, bringing it from 23/30 to 30/30 Tier 1 symbols — matching the
-Python, Node.js, and WASM bindings.
+Add the 7 remaining Tier 1 symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4
+constants) to the Java JNI binding, bringing it from 23/30 to 30/30 — matching all other completed
+bindings.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `crates/iscc-ffi/src/lib.rs` — add 4 constant getter functions, `iscc_encode_component`,
-        `iscc_decode` (with `IsccDecodeResult` struct + free function), `iscc_json_to_data_url`
-    - `crates/iscc-ffi/tests/test_iscc.c` — add C tests for all 7 new symbols
-- **Reference**:
-    - `crates/iscc-napi/src/lib.rs` — Node.js implementation of same 7 symbols (pattern reference)
-    - `crates/iscc-wasm/src/lib.rs` — WASM implementation of same 7 symbols (pattern reference)
-    - `crates/iscc-lib/src/lib.rs` — Tier 1 function signatures (`encode_component`, `iscc_decode`,
-        `json_to_data_url`, 4 constants)
+- **Create**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java`
+- **Modify**: `crates/iscc-jni/src/lib.rs`,
+    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`
+- **Tests**: `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`
+- **Reference**: `crates/iscc-ffi/src/lib.rs` (C FFI pattern for these 3 functions),
+    `crates/iscc-napi/src/lib.rs` (Node.js `IsccDecodeResult` object pattern),
+    `crates/iscc-jni/src/lib.rs` (existing JNI helpers: `throw_and_default`, `extract_byte_array`)
 
 ## Not In Scope
 
-- Propagating to Java JNI or Go bindings (separate future steps)
-- Updating `crates/iscc-ffi/CLAUDE.md` or documentation files (review agent handles doc updates)
-- Modifying cbindgen.toml (existing config auto-generates headers from `#[repr(C)]` structs and
-    `extern "C"` functions)
-- Rebuilding the Go `.wasm` binary (that depends on FFI but is a separate Go-binding step)
+- Go binding propagation (separate step after Java is done)
+- Maven Central publishing setup (requires human credentials on Sonatype)
+- Updating `docs/howto/java.md` for the new symbols (separate docs step)
+- Modifying the existing 29 JNI function signatures or error handling
+- Adding `IsccDecodeResult` to the `pom.xml` (it's in the same package, auto-compiled by Maven)
 
 ## Implementation Notes
 
 ### Constants (4 symbols)
 
-Expose as `extern "C"` getter functions (matching WASM pattern and avoiding cbindgen `usize` → C
-type mapping issues). All functions are infallible — no error handling needed:
+Add as `public static final int` fields in `IsccLib.java` — no JNI functions needed since these are
+stable compile-time literals:
 
-```rust
-#[unsafe(no_mangle)]
-pub extern "C" fn iscc_meta_trim_name() -> u32 { iscc_lib::META_TRIM_NAME as u32 }
-
-#[unsafe(no_mangle)]
-pub extern "C" fn iscc_meta_trim_description() -> u32 { iscc_lib::META_TRIM_DESCRIPTION as u32 }
-
-#[unsafe(no_mangle)]
-pub extern "C" fn iscc_io_read_size() -> u32 { iscc_lib::IO_READ_SIZE as u32 }
-
-#[unsafe(no_mangle)]
-pub extern "C" fn iscc_text_ngram_size() -> u32 { iscc_lib::TEXT_NGRAM_SIZE as u32 }
+```java
+public static final int META_TRIM_NAME = 128;
+public static final int META_TRIM_DESCRIPTION = 4096;
+public static final int IO_READ_SIZE = 4_194_304;
+public static final int TEXT_NGRAM_SIZE = 13;
 ```
 
-Place in a `// --- Algorithm constants ---` section near the top, after the memory helpers.
+Place them at the top of the class, before the static initializer block.
 
-### `iscc_json_to_data_url` (1 symbol)
+### `jsonToDataUrl` (1 symbol)
 
-Standard string-in, string-out pattern — identical to `iscc_text_clean`. Uses existing `ptr_to_str`
-and `result_to_c_string` helpers:
+String-in, string-out. Follows the exact pattern of `textClean`:
 
-```rust
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn iscc_json_to_data_url(json: *const c_char) -> *mut c_char {
-    clear_last_error();
-    let s = match ptr_to_str(json) {
-        Some(s) => s,
-        None => return ptr::null_mut(),
-    };
-    result_to_c_string(iscc_lib::json_to_data_url(s))
-}
-```
+- **Rust JNI**: extract string with `env.get_string(&input)`, call `iscc_lib::json_to_data_url(&s)`,
+    return via `env.new_string(result)`. Use `throw_and_default` on error (the Rust function returns
+    `IsccResult`).
+- **Java**: `public static native String jsonToDataUrl(String json);`
 
-Caller frees with `iscc_free_string()`.
+JNI function name: `Java_io_iscc_iscc_1lib_IsccLib_jsonToDataUrl`
 
-### `iscc_encode_component` (1 symbol)
+### `encodeComponent` (1 symbol)
 
-Takes `mtype: u8, stype: u8, version: u8, bit_length: u32, digest: *const u8, digest_len: usize`.
-Returns `*mut c_char` (the encoded ISCC unit string). Uses `result_to_c_string`. Follows the same
-null-check + slice pattern as `iscc_gen_data_code_v0`:
+Scalar args + byte array → string:
 
-```rust
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn iscc_encode_component(
-    mtype: u8, stype: u8, version: u8, bit_length: u32,
-    digest: *const u8, digest_len: usize,
-) -> *mut c_char {
-    clear_last_error();
-    let slice = if digest_len == 0 { &[] }
-    else if digest.is_null() {
-        set_last_error("digest must not be NULL"); return ptr::null_mut();
-    } else { unsafe { std::slice::from_raw_parts(digest, digest_len) } };
-    result_to_c_string(iscc_lib::encode_component(mtype, stype, version, bit_length, slice))
-}
-```
+- **Rust JNI**: Accept
+    `mtype: jint, stype: jint, version: jint, bit_length: jint, digest: jbyteArray`. Validate jint
+    ranges (0–255 for mtype/stype/version; ≥0 for bit_length) — use `throw_and_default` for
+    out-of-range values. Use existing `extract_byte_array` for digest. Call
+    `iscc_lib::encode_component(mtype as u8, stype as u8, version as u8, bit_length as u32, &digest)`.
+    Return via `env.new_string(result)`.
+- **Java**:
+    `public static native String encodeComponent(int mtype, int stype, int version, int bitLength, byte[] digest);`
 
-### `iscc_decode` (1 symbol)
+JNI function name: `Java_io_iscc_iscc_1lib_IsccLib_encodeComponent`
 
-Returns a `#[repr(C)]` struct `IsccDecodeResult` containing the 5 fields. The existing crate already
-has `IsccByteBuffer` for variable-length byte data — reuse it for the digest field. Add an
-`ok: bool` discriminant so C callers can check success without parsing `iscc_last_error()`:
+### `isccDecode` (1 symbol — most complex)
 
-```rust
-#[repr(C)]
-pub struct IsccDecodeResult {
-    pub ok: bool,
-    pub maintype: u8,
-    pub subtype: u8,
-    pub version: u8,
-    pub length: u8,
-    pub digest: IsccByteBuffer,
-}
-```
+Returns structured data via a new Java class.
 
-The function and its free helper:
+**Create `IsccDecodeResult.java`** in `io.iscc.iscc_lib` package:
 
-```rust
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn iscc_decode(iscc: *const c_char) -> IsccDecodeResult {
-    clear_last_error();
-    let s = match ptr_to_str(iscc) {
-        Some(s) => s,
-        None => return IsccDecodeResult {
-            ok: false, maintype: 0, subtype: 0, version: 0, length: 0,
-            digest: null_byte_buffer(),
-        },
-    };
-    match iscc_lib::iscc_decode(s) {
-        Ok((mt, st, vs, li, digest)) => IsccDecodeResult {
-            ok: true, maintype: mt, subtype: st, version: vs, length: li,
-            digest: vec_to_byte_buffer(digest),
-        },
-        Err(e) => {
-            set_last_error(&e.to_string());
-            IsccDecodeResult {
-                ok: false, maintype: 0, subtype: 0, version: 0, length: 0,
-                digest: null_byte_buffer(),
-            }
-        }
-    }
-}
+```java
+package io.iscc.iscc_lib;
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn iscc_free_decode_result(result: IsccDecodeResult) {
-    if !result.digest.data.is_null() {
-        unsafe { iscc_free_byte_buffer(result.digest) };
+public class IsccDecodeResult {
+    public final int maintype;
+    public final int subtype;
+    public final int version;
+    public final int length;
+    public final byte[] digest;
+
+    public IsccDecodeResult(int maintype, int subtype, int version, int length, byte[] digest) {
+        this.maintype = maintype;
+        this.subtype = subtype;
+        this.version = version;
+        this.length = length;
+        this.digest = digest;
     }
 }
 ```
 
-### C Tests
+**Rust JNI side**: Call `iscc_lib::iscc_decode(&s)` → get `(u8, u8, u8, u8, Vec<u8>)`. Construct the
+Java object:
 
-Add tests to `test_iscc.c` covering all 7 new symbols (aim for ~10 new assertions):
+1. `env.find_class("io/iscc/iscc_lib/IsccDecodeResult")`
+2. Create `jbyteArray` from `Vec<u8>` via `env.new_byte_array(len)` + `env.set_byte_array_region`
+3. `env.new_object(class, "(IIII[B)V", &[JValue::Int(mt), JValue::Int(st), JValue::Int(vs), JValue::Int(li), JValue::Object(&byte_array)])`
+4. Return `jobject`
 
-1. **4 constant getters**: call each, assert expected value (128, 4096, 4194304, 13)
-2. **`iscc_json_to_data_url`**: pass `{"key":"value"}`, assert starts with
-    `data:application/json;base64,`; free result
-3. **`iscc_encode_component`**: encode mtype=0 (Meta), stype=0, version=0, bit_length=64, 8 zero
-    bytes → verify result is a valid ISCC unit string (non-NULL)
-4. **`iscc_decode`**: decode `AAAZXZ6OU74YAZIM` (known Meta-Code), verify `ok==true`, `maintype==0`,
-    `subtype==0`, `version==0`, `length==0` (64-bit = length index 0), digest is non-NULL with 8
-    bytes; free result
-5. **Roundtrip**: `iscc_encode_component` → `iscc_decode` → verify fields match original inputs
-6. **Error case**: `iscc_decode` with invalid input → verify `ok==false`
+Return type in the `extern "system"` signature is `jobject`. On error, `throw_and_default` returns
+null.
 
-### Naming Convention
+- **Java**: `public static native IsccDecodeResult isccDecode(String isccUnit);`
 
-All C FFI functions use the `iscc_` prefix (per cbindgen.toml `[export] prefix = "iscc_"`). The
-constants use `iscc_meta_trim_name()` etc. (lowercase, matching the C convention). The decode
-function is `iscc_decode` (not `iscc_iscc_decode` — the function is already namespaced by the
-`iscc_` prefix).
+JNI function name: `Java_io_iscc_iscc_1lib_IsccLib_isccDecode`
+
+### Tests
+
+Add to `IsccLibTest.java`:
+
+1. **Constants** (4 assertions): verify `IsccLib.META_TRIM_NAME == 128`,
+    `IsccLib.META_TRIM_DESCRIPTION == 4096`, `IsccLib.IO_READ_SIZE == 4_194_304`,
+    `IsccLib.TEXT_NGRAM_SIZE == 13`
+2. **`jsonToDataUrl`**: test with `{"key":"value"}` → verify starts with
+    `data:application/json;base64,`; test with `{"@context":"..."}` → verify `application/ld+json`
+    media type
+3. **`encodeComponent`**: encode a known Meta-Code (mtype=0, stype=0, version=0, bit_length=64,
+    8-byte digest) → verify output is a valid ISCC unit string
+4. **`isccDecode`**: decode a known ISCC unit → verify all 5 fields match expected values. Test
+    roundtrip: `encodeComponent` → `isccDecode` → fields match inputs
+5. **Error cases**: `isccDecode` with invalid input → `assertThrows(IllegalArgumentException.class)`
+
+Use the same test data patterns as the C FFI tests in `crates/iscc-ffi/tests/test_iscc.c` for
+consistency.
 
 ## Verification
 
-- `cargo test -p iscc-ffi` passes (62 existing + new unit tests)
-- `cargo clippy -p iscc-ffi --all-targets -- -D warnings` clean
-- `grep -c '#\[unsafe(no_mangle)\]' crates/iscc-ffi/src/lib.rs` shows >= 43 (35 existing + 4
-    constants + encode_component + iscc_decode + json_to_data_url + free_decode_result)
-- C test program compiles and passes:
-    `cargo build -p iscc-ffi && gcc crates/iscc-ffi/tests/test_iscc.c -Icrates/iscc-ffi/tests -Ltarget/debug -liscc_ffi -lpthread -ldl -lm -o /tmp/test_iscc && LD_LIBRARY_PATH=target/debug /tmp/test_iscc`
-    (exits 0 with 0 failures)
-- `mise run check` passes (all pre-commit hooks)
+- `cargo build -p iscc-jni` succeeds
+- `cargo clippy -p iscc-jni --all-targets -- -D warnings` clean
+- `cd crates/iscc-jni/java && mvn test` passes (51 existing + new tests, 0 failures)
+- `grep -c 'extern "system"' crates/iscc-jni/src/lib.rs` shows 32 (29 existing + 3 new)
+- `grep -c 'static final int' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`
+    shows 4
+- `grep 'IsccDecodeResult' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` finds
+    the `isccDecode` native method
 
 ## Done When
 
-All verification criteria pass: Rust unit tests, clippy, C test compilation and execution, and
-pre-commit hooks all succeed with 0 errors/warnings.
+All verification criteria pass — Java JNI exposes 30/30 Tier 1 symbols with 4 constants, 3 new
+native methods, a structured `IsccDecodeResult` class, and comprehensive tests.
