@@ -309,3 +309,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     total src=239. Plus 31 integration tests in tests/ + 22 doc-tests = 292 total.
 - **Binding symbol check shortcut**: check all 6 bindings for new symbols in one go:
     `grep -n "encode_component\|META_TRIM\|IO_READ\|TEXT_NGRAM\|iscc_decode\|json_to_data_url" crates/iscc-py/src/lib.rs crates/iscc-napi/src/lib.rs crates/iscc-wasm/src/lib.rs crates/iscc-ffi/src/lib.rs crates/iscc-jni/src/lib.rs packages/go/iscc.go`
+- **CID iteration 4 (commits c607ef6..51161d4)**: advance agent implemented `json_to_data_url` in
+    `crates/iscc-lib/src/lib.rs` (only file changed). Uses `serde_json_canonicalizer` for JCS
+    canonicalization, detects `@context` key for `application/ld+json` vs `application/json`, reuses
+    `build_meta_data_url` helper. Review agent PASS. Total Rust tests now **299** (245 src unit
+    tests
+    - 31 integration tests + 22 additional integration + 1 doc-test). Rust core is now **30/30 Tier 1
+        symbols** (ALL DONE). All 6 bindings still unchanged at 23/30. CI all 7 jobs passing at HEAD
+        `51161d4` (run 22482230713).

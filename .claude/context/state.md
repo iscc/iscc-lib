@@ -1,50 +1,49 @@
-<!-- assessed-at: d9a87c2 -->
+<!-- assessed-at: 51161d4 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Extended Tier 1 API — 1 symbol remaining, then binding propagation
+## Phase: Binding Propagation — 30/30 Tier 1 symbols in Rust core; 0/7 new symbols in bindings
 
-CID iteration 3 implemented `iscc_decode` as the 29th of 30 Tier 1 symbols in the Rust core. The
-Rust core is now at 29/30 Tier 1 symbols; `json_to_data_url` is the sole remaining missing symbol.
-No new symbols have been propagated to any binding crate — all 6 bindings remain at 23/30. CI is
-fully green on all 7 jobs.
+CID iteration 4 implemented `json_to_data_url` as the 30th and final Tier 1 symbol in the Rust core.
+All 30 target symbols now exist in `crates/iscc-lib`. However, no new symbols have been propagated
+to any binding crate — all 6 bindings remain at 23/30. CI is fully green on all 7 jobs.
 
 ## Rust Core Crate
 
-**Status**: partially met (29/30 Tier 1 symbols)
+**Status**: met (30/30 Tier 1 symbols)
 
-- 29 Tier 1 public symbols at crate root: 9 `gen_*_v0` functions, 4 text utilities (`text_clean`,
-    `text_remove_newlines`, `text_trim`, `text_collapse`), 4 algorithm primitives (`sliding_window`,
-    `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`), `soft_hash_video_v0`, `encode_base64`,
-    `iscc_decompose`, `encode_component` (Tier 1 wrapper with `u8` parameters), `iscc_decode` (NEW —
+- All 30 Tier 1 public symbols at crate root: 9 `gen_*_v0` functions, 4 text utilities
+    (`text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`), 4 algorithm primitives
+    (`sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`), `soft_hash_video_v0`,
+    `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`, `json_to_data_url` (NEW —
     implemented this iteration), `DataHasher`, `InstanceHasher`, `conformance_selftest`, and 4
     algorithm constants: `META_TRIM_NAME` (128), `META_TRIM_DESCRIPTION` (4096), `IO_READ_SIZE`
     (4_194_304), `TEXT_NGRAM_SIZE` (13)
-- **Still missing 1 Tier 1 symbol:**
-    - `json_to_data_url` — not implemented anywhere in `crates/iscc-lib/src/`
+- `json_to_data_url` parses JSON, JCS-canonicalizes via `serde_json_canonicalizer`, detects
+    `@context` for `application/ld+json` media type, encodes as base64 data URL
+- 299 total tests (245 src unit tests + 31 integration tests + 22 additional integration tests + 1
+    doc-test); `cargo clippy --workspace` clean; all conformance vectors pass (CI-verified)
 - Tier 2 codec module remains Rust-only: `MainType`/`SubType`/`Version` enums, header encode/decode
-- 292 total tests (239 src unit tests across 10 files + 31 integration tests + 22 doc-tests);
-    `cargo clippy --workspace` clean; all conformance vectors pass (CI-verified)
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen)
+- **Nothing missing** in Rust core
 
 ## Python Bindings
 
-**Status**: partially met (23/30 Tier 1 symbols; new symbols not yet propagated)
+**Status**: partially met (23/30 Tier 1 symbols; 7 new symbols not yet propagated)
 
 - 23/23 old Tier 1 symbols exposed via PyO3 in `crates/iscc-py/src/lib.rs`
 - `IsccResult(dict)` base class + 9 typed subclasses (`MetaCodeResult`, `TextCodeResult`, etc.)
     implemented in `__init__.py` — dict-style and attribute-style access both work
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
 - `__all__` exports 35 symbols (23 API + 10 result type classes + `__version__`)
-- **Not yet propagated** from Rust core: `encode_component`, `META_TRIM_NAME`,
-    `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
-- **Not yet implemented** (blocked by missing Rust core symbols or not started): `iscc_decode`,
-    `json_to_data_url`
-- **Still missing iscc-core drop-in extensions** (per updated `specs/python-bindings.md`):
+- **Not yet propagated** from Rust core: `encode_component`, `iscc_decode`, `json_to_data_url`,
+    `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
+- **Still missing iscc-core drop-in extensions** (per `specs/python-bindings.md`):
     - PIL pixel data for `gen_image_code_v0`: function signature still `pixels: bytes` only
-    - dict `meta` parameter for `gen_meta_code_v0`: accepts only `str | None`
+    - dict `meta` parameter for `gen_meta_code_v0`: accepts only `str | None` (depends on
+        `json_to_data_url` propagation)
     - `MT`, `ST`, `VS` `IntEnum` classes — not present
     - `core_opts` `SimpleNamespace` — not present
 - 117 test functions across 5 files; all pass (CI-verified at HEAD)
@@ -53,40 +52,39 @@ fully green on all 7 jobs.
 
 ## Node.js Bindings
 
-**Status**: partially met (23/30 Tier 1 symbols; new symbols not yet propagated)
+**Status**: partially met (23/30 Tier 1 symbols; 7 new symbols not yet propagated)
 
 - 23/23 old Tier 1 symbols exported via napi-rs; 31 `#[napi]` annotations (includes struct methods)
 - `DataHasher` and `InstanceHasher` implemented; conformance vectors pass; 103 tests (CI-verified)
-- **Not yet propagated**: `encode_component`, 4 constants, `iscc_decode`; **not yet implemented**:
-    `json_to_data_url`
+- **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
 - `repository` field added to `package.json` for npm provenance verification
 - `@iscc/lib 0.0.2` not yet published to npm (awaiting release trigger)
 
 ## WASM Bindings
 
-**Status**: partially met (23/30 Tier 1 symbols; new symbols not yet propagated)
+**Status**: partially met (23/30 Tier 1 symbols; 7 new symbols not yet propagated)
 
 - 23/23 old Tier 1 symbols exported; 25 `#[wasm_bindgen]` annotations
 - `DataHasher` and `InstanceHasher` as `#[wasm_bindgen]` structs; 54 tests pass (CI-verified)
 - WASM release build fix in place (`wasm-opt` flags in `Cargo.toml`)
 - `docs/howto/wasm.md` package name corrected to `@iscc/wasm`
-- **Not yet propagated**: `encode_component`, 4 constants, `iscc_decode`; **not yet implemented**:
-    `json_to_data_url`
+- **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
 - `@iscc/wasm 0.0.2` not yet published to npm (awaiting release trigger)
 
 ## C FFI
 
-**Status**: partially met (23/30 Tier 1 symbols; new symbols not yet propagated)
+**Status**: partially met (23/30 Tier 1 symbols; 7 new symbols not yet propagated)
 
 - 25 exported `extern "C"` functions: 23 Tier 1 symbols + `iscc_alloc` / `iscc_dealloc`
 - `FfiDataHasher` and `FfiInstanceHasher` with complete lifecycle; 62 `#[test]` Rust unit tests
 - cbindgen generates valid C headers; C test program compiles and runs (CI-verified)
-- **Not yet propagated**: `encode_component`, 4 constants, `iscc_decode`; **not yet implemented**:
-    `json_to_data_url`
+- **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
+    (constants are typically exposed as `#define` in the C header)
 
 ## Java Bindings
 
-**Status**: partially met (JNI bridge functional; Maven Central publishing absent)
+**Status**: partially met (JNI bridge functional; 7 new symbols not yet propagated; Maven Central
+publishing absent)
 
 - `crates/iscc-jni/` crate: 29 `extern "system"` JNI functions covering 23 Tier 1 symbols
 - `IsccLib.java` (331 lines), `NativeLoader.java` (169 lines), `IsccLibTest.java` (51 tests)
@@ -94,21 +92,19 @@ fully green on all 7 jobs.
 - `docs/howto/java.md` complete; navigation entry in `zensical.toml` ✅
 - `build-jni` + `assemble-jar` release jobs in `release.yml`; 5-platform matrix
 - Version: `pom.xml` at `0.0.2` (synced)
-- **Not yet propagated**: `encode_component`, 4 constants, `iscc_decode`; **not yet implemented**:
-    `json_to_data_url`
+- **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
 - Missing: Maven Central publishing (GPG signing, Sonatype); end-to-end release untested
 
 ## Go Bindings
 
-**Status**: partially met (23/30 Tier 1 symbols; new symbols not yet propagated)
+**Status**: partially met (23/30 Tier 1 symbols; 7 new symbols not yet propagated)
 
 - `packages/go/iscc.go` (1,220 lines): `Runtime` struct + 23 Tier 1 exported symbols
 - `DataHasher` / `InstanceHasher` with `UpdateFrom(ctx, io.Reader)` streaming
 - `packages/go/iscc_test.go` (1,208 lines): 39 test functions; 93 total subtests; all pass
 - `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD)
 - `docs/howto/go.md` complete; navigation entry in `zensical.toml` ✅
-- **Not yet propagated**: `encode_component`, 4 constants, `iscc_decode`; **not yet implemented**:
-    `json_to_data_url`
+- **Not yet propagated**: `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants
 
 ## README
 
@@ -157,8 +153,8 @@ fully green on all 7 jobs.
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22481268707](https://github.com/iscc/iscc-lib/actions/runs/22481268707) — all 7 jobs
-    SUCCESS — triggered at HEAD `d9a87c2`
+    [Run 22482230713](https://github.com/iscc/iscc-lib/actions/runs/22482230713) — all 7 jobs
+    SUCCESS — triggered at HEAD `51161d4`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -169,15 +165,18 @@ fully green on all 7 jobs.
 
 ## Next Milestone
 
-**Implement `json_to_data_url` (last of 30 Tier 1 symbols), then propagate all 7 new symbols to 6
-binding crates:**
+**Propagate all 7 new symbols to all 6 binding crates:**
 
-1. **Implement `json_to_data_url(json: &str) -> String`** in `crates/iscc-lib/src/lib.rs` using
-    `data_encoding::BASE64`; detect `@context` key for `application/ld+json` media type vs
-    `application/json`
-2. **Propagate all 7 new symbols** (`encode_component`, `iscc_decode`, `json_to_data_url`,
-    `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) to all 6 binding
-    crates: Python (`crates/iscc-py`), Node.js (`crates/iscc-napi`), WASM (`crates/iscc-wasm`), C
-    FFI (`crates/iscc-ffi`), Java (`crates/iscc-jni`), Go (`packages/go`)
-3. **Python-only iscc-core drop-in extensions**: PIL pixel data, dict `meta`, `MT`/`ST`/`VS` enums,
-    `core_opts` `SimpleNamespace`
+1. **Python** (`crates/iscc-py`): Add `encode_component`, `iscc_decode`, `json_to_data_url` as
+    `#[pyfunction]`; expose 4 constants as module-level Python constants; add tests; also implement
+    dict `meta` parameter for `gen_meta_code_v0` (depends on `json_to_data_url`)
+2. **Node.js** (`crates/iscc-napi`): Add 3 functions + 4 constants with `#[napi]`; update TS types;
+    add tests
+3. **WASM** (`crates/iscc-wasm`): Add 3 functions + 4 constants with `#[wasm_bindgen]`; add tests
+4. **C FFI** (`crates/iscc-ffi`): Add `extern "C"` wrappers for 3 functions; add `#define` constants
+    in cbindgen header; add C tests
+5. **Java** (`crates/iscc-jni`): Add JNI functions + Java method declarations; add tests
+6. **Go** (`packages/go`): Extend `iscc.go` with 3 functions + 4 constants; update `.wasm` embed;
+    add tests
+7. **Python-only extensions**: PIL pixel data for `gen_image_code_v0`; `MT`/`ST`/`VS` `IntEnum`
+    classes; `core_opts` `SimpleNamespace`
