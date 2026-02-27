@@ -1,36 +1,31 @@
-## 2026-02-27 — Review of: Add algorithm constants and Tier 1 encode_component wrapper
+## 2026-02-27 — Implement `iscc_decode` Tier 1 function
 
-**Verdict:** PASS
+**Done:** Added `pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)>` to the
+Rust core as the 29th of 30 Tier 1 symbols. The function strips an optional "ISCC:" prefix and
+dashes, base32-decodes the input, parses the variable-length header, computes the bit-length via
+`decode_length`, and returns the digest truncated to exactly the encoded length. Twelve tests cover
+round-trips across four MainTypes, prefix/dash handling, three known conformance vectors, the
+verification criterion, and two error cases.
 
-**Summary:** Clean, well-scoped implementation adding 4 algorithm constants and a Tier 1
-`encode_component` wrapper to the Rust core. The diff touches only `crates/iscc-lib/src/lib.rs` as
-specified. All 280 tests pass, clippy is clean, and all 14 pre-commit hooks pass. Magic numbers in
-`gen_meta_code_v0` and `soft_hash_text_v0` were replaced with the new constants.
+**Files changed:**
+
+- `crates/iscc-lib/src/lib.rs`: Added `iscc_decode` function (after `encode_component`) and 12 tests
+    in the `#[cfg(test)]` module
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` passes — 280 tests (227 + 31 + 22 + 0 doc-tests), 0 failures
+- [x] `cargo test -p iscc-lib` passes — 292 tests (239 + 31 + 22 + 0 doc-tests), 0 failures
 - [x] `cargo clippy -p iscc-lib -- -D warnings` clean
-- [x] `grep -c 'pub const META_TRIM_NAME' crates/iscc-lib/src/lib.rs` returns 1
-- [x] `grep -c 'pub const IO_READ_SIZE' crates/iscc-lib/src/lib.rs` returns 1
-- [x] `grep -c 'pub fn encode_component' crates/iscc-lib/src/lib.rs` returns 1
+- [x] `grep -c 'pub fn iscc_decode' crates/iscc-lib/src/lib.rs` returns 1
+- [x] Round-trip: `encode_component(0, 0, 0, 64, &[0xaa;8])` → `iscc_decode(result)` returns
+    `(0, 0, 0, 1, vec![0xaa;8])` — verified in `test_iscc_decode_verification_round_trip`
+- [x] All 14 pre-commit hooks pass
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** Codex (gpt-5.2) ran tests and investigated two areas: (1) `IO_READ_SIZE` is only
-referenced in its definition and test — confirmed correct since it's an advisory constant for SDK
-buffer sizing, not used by core algorithms. (2) Edge case analysis of `bit_length < 8` in
-`encode_component` — the `encode_length` function in `codec.rs` validates minimum bit lengths per
-MainType, so sub-byte requests are caught downstream. No actionable issues.
-
-**Next:** Implement `iscc_decode` (issue #7) — the inverse of `encode_component` that decodes an
-ISCC unit string back into header components and raw digest. This is the next of 7 missing Tier 1
-symbols. After that, `json_to_data_url` (issue #5). Then propagate all new symbols to the 6 binding
+**Next:** Implement `json_to_data_url` (issue #5) — the last of 30 Tier 1 symbols. Then propagate
+all new symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, constants) to the 6 binding
 crates.
 
-**Notes:** Issues #6 and #8 are partially addressed — the Rust core symbols exist but binding
-propagation remains. These issues should stay open until bindings are updated. The `IO_READ_SIZE`
-spec vs reference discrepancy (4 MB vs 2 MB) is documented in learnings and handoff notes — no
-conformance impact since it's advisory.
+**Notes:** The implementation follows the `iscc_decompose` pattern for prefix stripping (exact
+case-sensitive "ISCC:" match) and delegates entirely to existing `codec::` functions. Unlike the
+Python reference which returns the full tail and expects callers to truncate, our API returns the
+usable digest directly — cleaner and harder to misuse.

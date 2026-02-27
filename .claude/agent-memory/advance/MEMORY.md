@@ -232,6 +232,10 @@ iterations.
 - Magic numbers 128, 4096, 13 in gen functions replaced with constants `META_TRIM_NAME`,
     `META_TRIM_DESCRIPTION`, `TEXT_NGRAM_SIZE` respectively
 - `IO_READ_SIZE` uses spec value 4_194_304 (4 MB), not Python reference value 2_097_152 (2 MB)
+- `iscc_decode` Tier 1 wrapper in `lib.rs` takes `&str`, returns `(u8, u8, u8, u8, Vec<u8>)` —
+    strips "ISCC:" prefix and dashes, delegates to `codec::decode_base32` → `codec::decode_header` →
+    `codec::decode_length`, truncates tail to exact digest bytes. Unlike Python ref which returns
+    full tail, our API returns usable digest directly
 
 ## Codec Internals
 
