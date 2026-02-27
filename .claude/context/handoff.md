@@ -1,47 +1,47 @@
-## 2026-02-27 — Review of: Implement pure Go DCT and WTA-Hash
+## 2026-02-27 — Implement pure Go GenMetaCodeV0 and GenTextCodeV0
 
-**Verdict:** PASS
+**Done:** Implemented xxh32, GenTextCodeV0, and GenMetaCodeV0 as pure Go functions matching the Rust
+reference implementation. All 21 conformance vectors pass (5 text + 16 meta). Added
+`github.com/zeebo/blake3` dependency for BLAKE3 hashing. Used Go stdlib `json.Marshal` for JCS (RFC
+8785\) canonicalization instead of an external library — Go's json.Marshal already produces sorted
+keys with compact separators, which is JCS-compatible for the string/null values in our conformance
+vectors.
 
-**Summary:** DCT and WTA-Hash modules faithfully ported from Rust to pure Go, completing the
-algorithm layer (all 7 modules: codec, utils, CDC, MinHash, SimHash, DCT, WTA-Hash). Code is clean,
-minimal, and follows established conventions. All 19 test functions pass (covering all 21 Rust test
-cases), permutation table verified exact match with Rust, and all 14 pre-commit hooks pass.
+**Files changed:**
+
+- `packages/go/xxh32.go`: xxh32 hash function (standalone, ~80 lines) with prime constants, 4-lane
+    accumulation, remainder processing, and avalanche mixing
+- `packages/go/xxh32_test.go`: xxh32 unit tests (canonical empty/seed=0 vector + determinism +
+    property tests)
+- `packages/go/code_content_text.go`: GenTextCodeV0, softHashTextV0, TextCodeResult struct
+- `packages/go/code_content_text_test.go`: 5 conformance vector tests from data.json
+- `packages/go/code_meta.go`: GenMetaCodeV0, softHashMetaV0, softHashMetaV0WithBytes,
+    metaNameSimhash, interleaveDigests, slidingWindowBytes, decodeDataURL, parseMetaJSON,
+    jsonHasContext, buildMetaDataURL, multiHashBlake3, MetaCodeResult struct
+- `packages/go/code_meta_test.go`: 16 conformance vector tests from data.json
+- `packages/go/go.mod`: added `github.com/zeebo/blake3` (+ transitive
+    `github.com/klauspost/cpuid/v2`)
+- `packages/go/go.sum`: updated with new dependency checksums
 
 **Verification:**
 
 - [x] `cd packages/go && go build ./...` exits 0
-- [x] `cd packages/go && go test -run TestAlgDct -count=1 -v` — 10/10 DCT tests PASS
-- [x] `cd packages/go && go test -run TestAlgWtahash -count=1 -v` — 7/7 WTA-Hash tests PASS
-- [x] `cd packages/go && go test -run TestPermutation -count=1 -v` — 2/2 table validation tests PASS
+- [x] `cd packages/go && go test -run TestXxh32 -count=1 -v` — 8 tests PASS
+- [x] `cd packages/go && go test -run TestPureGoGenTextCodeV0 -count=1 -v` — 5/5 text vectors PASS
+- [x] `cd packages/go && go test -run TestPureGoGenMetaCodeV0 -count=1 -v` — 16/16 meta vectors PASS
 - [x] `cd packages/go && go vet ./...` exits 0
 - [x] `cd packages/go && go test ./...` — all tests pass (pure Go + WASM bridge)
-- [x] `grep -c 'func algDct' packages/go/dct.go` returns 1
-- [x] `grep -c 'func AlgWtahash' packages/go/wtahash.go` returns 1
+- [x] `grep -c 'func GenTextCodeV0' packages/go/code_content_text.go` returns 1
+- [x] `grep -c 'func GenMetaCodeV0' packages/go/code_meta.go` returns 1
 - [x] `mise run check` — all 14 hooks pass
 
-**Issues found:**
+**Next:** Implement gen_data_code_v0 + gen_instance_code_v0 (next sub-step of gen functions layer).
+These need CDC + MinHash + BLAKE3 (all available now) plus DataHasher/InstanceHasher streaming
+types. 4 conformance vectors for data + 3 for instance.
 
-- (none)
-
-**Codex review:** Codex flagged a theoretical floating-point precision concern: Go's `/ (cos * 2.0)`
-vs Rust's `/ cos / 2.0` in the DCT beta computation. Verified numerically identical — `cos * 2.0` is
-exact in IEEE 754 (just exponent increment for values in [-1,1]), so both expressions have exactly
-one rounding point and produce identical results. Non-actionable.
-
-**Next:** Begin the gen functions layer (step 5 of ~5). Two possible approaches:
-
-1. **Start with `gen_meta_code_v0` + `gen_text_code_v0`** — these only need SimHash, MinHash, and
-    the already-ported text utils. No new dependencies required. Enables early conformance
-    validation against data.json vectors.
-2. **Start with `gen_data_code_v0` + `gen_instance_code_v0`** — these need CDC + MinHash + BLAKE3.
-    Requires adding `github.com/zeebo/blake3` dependency. Data/Instance codes are always present in
-    ISCC-CODE, making them foundational.
-
-Recommend approach 1: meta + text gen functions first, since they need no new deps and enable
-immediate conformance testing. `gen_data_code_v0` + `gen_instance_code_v0` can follow once BLAKE3
-dep is added.
-
-**Notes:** The algorithm layer is now complete. The gen functions layer will be significantly larger
-in scope — likely needs 2-3 sub-steps to cover all 9 `gen_*_v0` functions + `DataHasher` +
-`InstanceHasher` + `conformance_selftest`. The `iscc_test.go` conformance tests (46 vectors) will
-serve as the ultimate validation once gen functions are in place.
+**Notes:** Test function names use `TestPureGo*` prefix to avoid conflicts with existing WASM bridge
+tests in iscc_test.go (which already has `TestGenMetaCodeV0` and `TestGenTextCodeV0`). The JCS
+approach uses Go stdlib json.Marshal instead of an external library — this works because Go's
+json.Marshal already sorts map keys and uses compact output. For full RFC 8785 compliance (e.g.,
+float number formatting), a dedicated library would be needed, but our conformance vectors only
+contain string values.

@@ -15,8 +15,8 @@ iterations.
 - WASM: `crates/iscc-wasm/src/lib.rs`
 - C FFI: `crates/iscc-ffi/src/lib.rs`
 - JNI: `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
-- Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go
-    (+ test files)
+- Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go,
+    xxh32.go, code_content_text.go, code_meta.go (+ test files)
 - Go WASM bridge (legacy): `packages/go/iscc.go` + `packages/go/iscc_test.go`
 
 ## Build and Tooling
@@ -54,8 +54,21 @@ iterations.
 - DCT: `algDct` (unexported) + `dctRecursive` helper. Only uses `math` stdlib. Nayuki recursive
     divide-and-conquer. Input must be power of 2 — checked via `n > 0 && n&(n-1) == 0`
 - WTA-Hash: `AlgWtahash` (exported) + `wtaVideoIdPermutations` `[256][2]int` table. No external deps
+- Gen functions: `code_content_text.go` (GenTextCodeV0 + softHashTextV0), `code_meta.go`
+    (GenMetaCodeV0 + metaNameSimhash + softHashMetaV0 + softHashMetaV0WithBytes + interleaveDigests
+    \+ slidingWindowBytes + decodeDataURL + parseMetaJSON + jsonHasContext + buildMetaDataURL +
+    multiHashBlake3). Result types: `TextCodeResult`, `MetaCodeResult`
+- xxh32: `xxh32.go` — standalone xxHash32 impl (~80 lines). Used by softHashTextV0 for n-gram
+    feature hashing. Unexported: `xxh32(data, seed)`, `xxh32Round`, `rotl32`, `readU32LE`
+- JCS canonicalization: uses Go stdlib `json.Marshal` (sorts keys, compact format). Works for
+    string/null values in conformance vectors. For full RFC 8785 float compliance, would need a
+    dedicated library
+- BLAKE3 dependency: `github.com/zeebo/blake3` (SIMD-optimized). `blake3.Sum256(data)` returns
+    `[32]byte`
+- Test naming for gen functions: `TestPureGo*` prefix avoids conflicts with WASM bridge tests in
+    iscc_test.go (e.g., `TestPureGoGenMetaCodeV0` vs `TestGenMetaCodeV0`)
 - Dependency order: codec (done) → utils (done) → algorithms (all done: CDC, MinHash, SimHash, DCT,
-    WTA-Hash) → gen functions → streaming hashers → conformance → WASM removal
+    WTA-Hash) → gen functions (meta+text done) → streaming hashers → conformance → WASM removal
 - Coexistence: new pure Go files live alongside WASM bridge in same `iscc` package. Package-level
     functions (`IsccDecode`) and method receivers (`rt.IsccDecode`) don't conflict
 - Test naming: `TestCodec*`, `TestUtils*`, `TestCdc*`, `TestMinhash*`, `TestSimhash*`,
