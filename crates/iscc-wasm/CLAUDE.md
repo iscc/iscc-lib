@@ -114,7 +114,7 @@ wasm-pack test --node crates/iscc-wasm -- --test unit
 
 ## Exported API Surface
 
-All 23 Tier 1 symbols are bound, plus 2 streaming types. Every `#[wasm_bindgen]` export in `lib.rs`
+All 30 Tier 1 symbols are bound, plus 2 streaming types. Every `#[wasm_bindgen]` export in `lib.rs`
 maps 1:1 to an `iscc_lib` public symbol:
 
 - **9 gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
@@ -122,9 +122,11 @@ maps 1:1 to an `iscc_lib` public symbol:
     `gen_instance_code_v0`, `gen_iscc_code_v0`
 - **4 text utils:** `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - **4 algorithm primitives:** `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`
+- **4 constants:** `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
+    (exposed as getter functions — wasm-bindgen does not support `#[wasm_bindgen]` on `pub const`)
 - **1 soft hash:** `soft_hash_video_v0`
-- **1 encoding:** `encode_base64`
-- **1 codec:** `iscc_decompose`
+- **2 encoding:** `encode_base64`, `json_to_data_url`
+- **3 codec:** `encode_component`, `iscc_decode` (with `IsccDecodeResult` struct), `iscc_decompose`
 - **1 diagnostic:** `conformance_selftest`
 - **2 streaming types:** `DataHasher`, `InstanceHasher`
 

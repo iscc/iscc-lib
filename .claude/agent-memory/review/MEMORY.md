@@ -76,7 +76,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Python `__all__` count is 45 as of iteration 7 (30 Tier 1 API + 10 result types + `__version__` +
     MT, ST, VS, core_opts). All 30/30 Tier 1 symbols propagated
 - Node.js has 30/30 Tier 1 symbols as of iteration 8 (124 tests total: 103 existing + 21 new)
-- WASM, C FFI, Java JNI, Go/wazero are all at 23/30 Tier 1 symbols
+- WASM has 30/30 Tier 1 symbols as of iteration 9 (59 unit tests + 9 conformance tests)
+- C FFI, Java JNI, Go/wazero are all at 23/30 Tier 1 symbols
 
 ## Binding Propagation Review Shortcuts
 
@@ -85,6 +86,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     Verify 7 new symbols individually via `node -e` one-liners (constants values, function types)
 - Binding propagation diffs are typically 2 files: native wrapper source + test file. Quick to
     review — check error mapping pattern, type conversions, test coverage categories
+- WASM binding propagation: `wasm-pack test --node crates/iscc-wasm` +
+    `wasm-pack test --node crates/iscc-wasm --features conformance` +
+    `cargo clippy -p iscc-wasm --all-targets -- -D warnings` + `mise run check` covers all gates.
+    Remember to update `crates/iscc-wasm/CLAUDE.md` API surface list when symbols are added
 
 ## Verification Patterns
 
