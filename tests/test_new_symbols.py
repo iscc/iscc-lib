@@ -1,4 +1,4 @@
-"""Tests for Tier 1 Python symbols and dict meta parameter support."""
+"""Tests for Tier 1 Python symbols, dict meta, and PIL pixel data support."""
 
 import json
 
@@ -10,6 +10,7 @@ from iscc_lib import (
     META_TRIM_NAME,
     TEXT_NGRAM_SIZE,
     encode_component,
+    gen_image_code_v0,
     gen_meta_code_v0,
     iscc_decode,
     json_to_data_url,
@@ -163,3 +164,62 @@ def test_gen_meta_dict_meta_none_still_works():
     result = gen_meta_code_v0("Test Name", meta=None)
     assert "iscc" in result
     assert "meta" not in result
+
+
+# ── PIL pixel data (gen_image_code_v0) tests ─────────────────────────────────
+
+
+def test_gen_image_code_v0_list_int():
+    """gen_image_code_v0 accepts list[int] (Sequence[int]) like PIL getdata()."""
+    pixels = list(range(256)) * 4  # 1024 ints, each 0-255
+    result = gen_image_code_v0(pixels)
+    assert "iscc" in result
+    assert result["iscc"].startswith("ISCC:")
+
+
+def test_gen_image_code_v0_bytearray():
+    """gen_image_code_v0 accepts bytearray input."""
+    pixels = bytearray(b"\x80" * 1024)
+    result = gen_image_code_v0(pixels)
+    assert "iscc" in result
+    assert result["iscc"].startswith("ISCC:")
+
+
+def test_gen_image_code_v0_memoryview():
+    """gen_image_code_v0 accepts memoryview input."""
+    pixels = memoryview(b"\x80" * 1024)
+    result = gen_image_code_v0(pixels)
+    assert "iscc" in result
+    assert result["iscc"].startswith("ISCC:")
+
+
+def test_gen_image_code_v0_bytes_regression():
+    """Regression: gen_image_code_v0 still accepts bytes."""
+    pixels = b"\x80" * 1024
+    result = gen_image_code_v0(pixels)
+    assert "iscc" in result
+    assert result["iscc"].startswith("ISCC:")
+
+
+def test_gen_image_code_v0_list_matches_bytes():
+    """list[int] and bytes produce identical ISCC for equivalent pixel data."""
+    pixel_values = list(range(256)) * 4  # 1024 ints
+    result_list = gen_image_code_v0(pixel_values)
+    result_bytes = gen_image_code_v0(bytes(pixel_values))
+    assert result_list["iscc"] == result_bytes["iscc"]
+
+
+def test_gen_image_code_v0_bytearray_matches_bytes():
+    """bytearray and bytes produce identical ISCC for same pixel data."""
+    raw = b"\x80" * 1024
+    result_ba = gen_image_code_v0(bytearray(raw))
+    result_bytes = gen_image_code_v0(raw)
+    assert result_ba["iscc"] == result_bytes["iscc"]
+
+
+def test_gen_image_code_v0_memoryview_matches_bytes():
+    """memoryview and bytes produce identical ISCC for same pixel data."""
+    raw = b"\x80" * 1024
+    result_mv = gen_image_code_v0(memoryview(raw))
+    result_bytes = gen_image_code_v0(raw)
+    assert result_mv["iscc"] == result_bytes["iscc"]

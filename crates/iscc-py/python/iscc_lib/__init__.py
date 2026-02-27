@@ -142,8 +142,12 @@ def gen_text_code_v0(text: str, bits: int = 64) -> TextCodeResult:
     return TextCodeResult(_gen_text_code_v0(text, bits))
 
 
-def gen_image_code_v0(pixels: bytes, bits: int = 64) -> ImageCodeResult:
+def gen_image_code_v0(
+    pixels: bytes | bytearray | memoryview | Sequence[int], bits: int = 64
+) -> ImageCodeResult:
     """Generate an ISCC Image-Code from pixel data."""
+    if not isinstance(pixels, bytes):
+        pixels = bytes(pixels)
     return ImageCodeResult(_gen_image_code_v0(pixels, bits))
 
 

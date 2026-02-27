@@ -331,3 +331,9 @@ iterations.
     `_json.dumps(meta, separators=(",",   ":"), ensure_ascii=False)` → `json_to_data_url()`. The
     Rust `json_to_data_url` handles JCS canonicalization internally, so the Python side only needs
     compact JSON serialization
+- PIL pixel data pattern in `gen_image_code_v0` Python wrapper: widen signature to
+    `bytes | bytearray | memoryview | Sequence[int]`, use
+    `if not isinstance(pixels, bytes):   pixels = bytes(pixels)`. The `bytes()` constructor handles
+    bytearray, memoryview, and Sequence[int] (including PIL's ImagingCore from `Image.getdata()`)
+    uniformly. No Rust changes needed — conversion is Python-wrapper-only. This same pattern applies
+    to any future function that accepts `&[u8]` in Rust but needs wider input types in Python
