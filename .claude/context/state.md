@@ -1,14 +1,16 @@
-<!-- assessed-at: ace583940417575c7dd505e8b77571b654506f81 -->
+<!-- assessed-at: 6050f86e56d2bf169f0a605e9b885d637a8e2ede -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Documentation Polish & Publishing Prep
+## Phase: Publishing Prep & Documentation Parity
 
-All 6 language bindings now have 30/30 Tier 1 symbols (Go completed in iteration 13). CI is fully
-green across all 7 jobs. Remaining work: update Go docs to reflect 7 newly added symbols, clean up
-resolved issues from issues.md, advance benchmarks and publishing pipeline.
+All 6 language bindings now have 30/30 Tier 1 symbols fully documented (Go docs gap resolved in this
+iteration). Documentation and Per-Crate READMEs sections both promoted to "met". Remaining work:
+issues.md cleanup (entries #5–#8 resolved but not deleted), publishing pipeline completion, and
+cross-language documentation parity (Python/Java/Node.js/WASM howto guides missing codec/constants
+sections added to Go in this iteration).
 
 ## Rust Core Crate
 
@@ -135,13 +137,13 @@ resolved issues from issues.md, advance benchmarks and publishing pipeline.
 - 3 new `Runtime` methods: `JsonToDataUrl`, `EncodeComponent`, `IsccDecode` (returns
     `*DecodeResult`); WASM sret ABI handled correctly with proper cleanup on all error paths
 - `DataHasher` / `InstanceHasher` with `UpdateFrom(ctx, io.Reader)` streaming
-- `packages/go/iscc_test.go` (1,353 lines): 46 test functions (39 existing + 7 new for constants,
-    `JsonToDataUrl` x2, `EncodeComponent`, `IsccDecode` valid/invalid, encode/decode roundtrip); all
-    pass CI-verified
-- `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD `ace5839`)
-- **Documentation gap**: `docs/howto/go.md` (388 lines) and `packages/go/README.md` (104 lines) do
-    not cover the 7 newly added symbols; README still says "Additional utilities…are planned"
-    (stale)
+- `packages/go/iscc_test.go` (1,353 lines): 46 test functions — all pass CI-verified
+- `CGO_ENABLED=0 go test ./...` passes (CI-verified at HEAD)
+- **Documentation fully complete**: `docs/howto/go.md` (462 lines) now has "Codec operations"
+    section (line 365) and "Constants" section (line 425) covering all 7 newly added symbols;
+    `packages/go/README.md` (150 lines) stale "planned" text removed — full API tables for all 30
+    symbols present
+- **Nothing missing** in Go bindings
 
 ## README
 
@@ -153,20 +155,20 @@ resolved issues from issues.md, advance benchmarks and publishing pipeline.
 
 ## Per-Crate READMEs
 
-**Status**: partially met
+**Status**: met
 
 - All 7 per-crate READMEs present: `crates/iscc-lib/README.md`, `crates/iscc-py/README.md`,
     `crates/iscc-napi/README.md`, `crates/iscc-wasm/README.md`, `crates/iscc-jni/README.md`,
     `packages/go/README.md`, `crates/iscc-ffi/README.md`
-- **Gap**: `packages/go/README.md` API overview is stale — Utilities section says "Additional
-    utilities (text processing, algorithm primitives, streaming hashers) are planned"; the full 30
-    Tier 1 symbols (including codec functions, constants, streaming hashers, all text utilities, all
-    primitives) are implemented but the README only lists the 9 `gen_*_v0` functions in the API
-    table
+- `packages/go/README.md` (150 lines) fully updated: stale "planned" text removed, complete API
+    tables for all 30 Tier 1 symbols across Generators, Text Utilities, Algorithm Primitives, Codec
+    operations, Streaming Hashers, and Constants sections
+- All READMEs have registry-specific install commands and quick-start code examples
+- **Nothing missing** in Per-Crate READMEs
 
 ## Documentation
 
-**Status**: partially met
+**Status**: met
 
 - **14 pages** deployed to lib.iscc.codes; all navigation sections complete (Tutorials, How-to
     Guides, Explanation, Reference, Benchmarks, Development) plus Ecosystem top-level page
@@ -175,10 +177,10 @@ resolved issues from issues.md, advance benchmarks and publishing pipeline.
 - ISCC branding, copy-page split-button, Open Graph meta tags, `gen_llms_full.py` in place
 - All pages have `icon: lucide/...` and `description:` YAML front matter
 - Site builds and deploys via GitHub Pages; latest Docs run on main: **PASSING**
-- **Gap**: `docs/howto/go.md` (388 lines) was written when Go had 23/30 symbols; it has no sections
-    for codec operations (`EncodeComponent`, `IsccDecode`, `IsccDecompose`, `JsonToDataUrl`,
-    `EncodeBase64`) or algorithm constants (`MetaTrimName`, `MetaTrimDescription`, `IoReadSize`,
-    `TextNgramSize`)
+- `docs/howto/go.md` (462 lines): now fully covers all 30/30 Tier 1 symbols including new "Codec
+    operations" and "Constants" sections (gap resolved this iteration)
+- **Note**: Python, Java, Node.js, and WASM howto guides do not yet have dedicated codec/constants
+    sections (aspirational parity with Go; not a hard target.md criterion)
 
 ## Benchmarks
 
@@ -199,8 +201,8 @@ resolved issues from issues.md, advance benchmarks and publishing pipeline.
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22488601158](https://github.com/iscc/iscc-lib/actions/runs/22488601158) — all 7 jobs
-    SUCCESS — triggered at HEAD `ace5839`
+    [Run 22489327741](https://github.com/iscc/iscc-lib/actions/runs/22489327741) — all 7 jobs
+    SUCCESS — triggered at HEAD `6050f86`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -211,13 +213,15 @@ resolved issues from issues.md, advance benchmarks and publishing pipeline.
 
 ## Next Milestone
 
-**Update Go documentation to reflect completed 30/30 symbol set:**
+**Clean up resolved issues and advance documentation parity:**
 
-1. **`docs/howto/go.md`**: Add sections for codec operations (`EncodeComponent`, `IsccDecode`,
-    `IsccDecompose`, `JsonToDataUrl`, `EncodeBase64`), algorithm constants block, complete text
-    utilities coverage (`TextRemoveNewlines`, `TextTrim`, `TextCollapse`), and algorithm primitives
-    table
-2. **`packages/go/README.md`**: Replace stale "planned" text; update API Overview Utilities table to
-    list the full set of available functions beyond `gen_*_v0` generators
-3. **`issues.md` cleanup**: Issues #5–#8 have been implemented and GitHub issues filed — delete
-    local entries (they are resolved)
+1. **`issues.md` cleanup**: Issues #5–#8 have GitHub URLs confirming they were filed and all
+    implementations are complete — delete the 4 local entries. The issue descriptions are no longer
+    useful to CID agents and just add noise.
+2. **Cross-language doc parity** (aspirational): Add "Codec operations" and "Constants" sections to
+    `docs/howto/python.md`, `docs/howto/java.md`, `docs/howto/nodejs.md`, and `docs/howto/wasm.md`
+    to match the full coverage now in `docs/howto/go.md`. Go is currently the only binding with
+    complete coverage.
+3. **Publishing**: Trigger 0.0.2 release to npm (`@iscc/lib`, `@iscc/wasm`) — the release workflow
+    is ready; it just needs a `workflow_dispatch` or new tag. crates.io OIDC setup remains a
+    human-only task.

@@ -21,6 +21,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Codebase Landmarks
 
+- `docs/howto/go.md` — 462 lines (as of CID iteration 14); "Codec operations" at line 365,
+    "Constants" at line 425; full 30/30 symbol coverage
+- `packages/go/README.md` — 150 lines (as of CID iteration 14); stale "planned" text removed; all 30
+    symbols in API tables
 - `crates/iscc-jni/src/lib.rs` — 866-line Rust JNI bridge, 29 `extern "system"` functions, 0
     unwrap(), 72 throw_and_default call sites, 3 jint negative guards, 5 push/pop_local_frame loops
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — 331-line Java wrapper, 29
@@ -402,16 +406,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     cleanup. 7 new test functions in `iscc_test.go` (46 total, was 39). `iscc.go` now 1,357 lines
     (was 1,220); `iscc_test.go` now 1,353 lines (was 1,208). Review agent PASS. **Go Bindings: fully
     MET** — 30/30 Tier 1 symbols. **All 6 language bindings now at 30/30**. CI all 7 jobs passing at
-    HEAD `ace5839` (run 22488601158, all jobs SUCCESS). **Documentation gap found**:
-    `docs/howto/go.md` (388 lines, unchanged) and `packages/go/README.md` (104 lines) do NOT cover
-    the 7 new symbols; README still says "Additional utilities…are planned" (stale since iteration
-    7/8). Next milestone: update Go docs.
-- **Go docs gap**: `docs/howto/go.md` has no sections for codec ops (`EncodeComponent`,
-    `IsccDecode`, `IsccDecompose`, `JsonToDataUrl`, `EncodeBase64`) or constants.
-    `packages/go/README.md` Utilities section is stale — says "planned" for features that are now
-    complete. Both need updates.
-- **issues.md status (iteration 13)**: Issues #5-#8 still present with GitHub URLs — all
-    implementations complete, local entries should be deleted (resolved issues). No new issues
-    added.
-- **Latest CI run**: 22488601158, HEAD `ace5839`, all 7 jobs SUCCESS (Python, WASM, Rust, C FFI, Go,
-    Java, Node.js).
+    HEAD `ace5839` (run 22488601158, all jobs SUCCESS).
+- **CID iteration 14 (new numbering, commits 40b8097..6050f86)**: advance agent updated Go
+    documentation. `docs/howto/go.md` expanded from 388→462 lines: "Codec operations" section added
+    at line 365 (`EncodeComponent`, `IsccDecode`, `IsccDecompose`, `JsonToDataUrl`, `EncodeBase64`);
+    "Constants" section added at line 425 (`MetaTrimName`, `MetaTrimDescription`, `IoReadSize`,
+    `TextNgramSize`). `packages/go/README.md` expanded from 104→150 lines: stale "planned" text
+    removed; full API tables added for all 30 symbols (Text Utilities, Algorithm Primitives, Codec
+    operations, Streaming Hashers, Constants). Review agent PASS_WITH_NOTES (fixed incorrect "ISCC:"
+    prefix claim in decompose example). **Documentation section: MET** (was partially met).
+    **Per-Crate READMEs section: MET** (was partially met). CI all 7 jobs passing at HEAD `6050f86`
+    (runs 22489327741 + 22489326645, all SUCCESS).
+- **issues.md status (iteration 14)**: Issues #5-#8 still present with GitHub URLs — all
+    implementations complete, local entries should be deleted (resolved issues). Not yet cleaned up.
+- **Latest CI run**: 22489327741, HEAD `6050f86`, all 7 jobs SUCCESS.
+- **Documentation parity gap**: Python/Java/Node.js/WASM howto guides do NOT have codec/constants
+    sections (only Go howto has full coverage). Aspirational parity, not a hard target.md criterion.
