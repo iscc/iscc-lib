@@ -17,7 +17,8 @@ iterations.
 - JNI: `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
 - Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go,
     xxh32.go, code_content_text.go, code_meta.go, code_data.go, code_instance.go,
-    code_content_image.go, code_content_audio.go (+ test files)
+    code_content_image.go, code_content_audio.go, code_content_video.go, code_content_mixed.go (+
+    test files)
 - Go WASM bridge (legacy): `packages/go/iscc.go` + `packages/go/iscc_test.go`
     - Streaming types renamed: `WasmDataHasher`, `WasmInstanceHasher` (avoid collision with pure Go)
 
@@ -64,7 +65,7 @@ iterations.
     `code_content_image.go` (GenImageCodeV0 + softHashImageV0 + transposeMatrix + flatten8x8 +
     computeMedian), `code_content_audio.go` (GenAudioCodeV0 + softHashAudioV0 + arraySplit[T]).
     Result types: `TextCodeResult`, `MetaCodeResult`, `DataCodeResult`, `InstanceCodeResult`,
-    `ImageCodeResult`, `AudioCodeResult`
+    `ImageCodeResult`, `AudioCodeResult`, `VideoCodeResult`, `MixedCodeResult`
 - xxh32: `xxh32.go` — standalone xxHash32 impl (~80 lines). Used by softHashTextV0 for n-gram
     feature hashing. Unexported: `xxh32(data, seed)`, `xxh32Round`, `rotl32`, `readU32LE`
 - JCS canonicalization: uses Go stdlib `json.Marshal` (sorts keys, compact format). Works for
@@ -75,13 +76,19 @@ iterations.
 - Test naming for gen functions: `TestPureGo*` prefix avoids conflicts with WASM bridge tests in
     iscc_test.go (e.g., `TestPureGoGenMetaCodeV0` vs `TestGenMetaCodeV0`)
 - Dependency order: codec (done) → utils (done) → algorithms (all done: CDC, MinHash, SimHash, DCT,
-    WTA-Hash) → gen functions (meta+text+data+instance+image+audio done, 6/9) → remaining gen funcs
-    (video+mixed+iscc) → conformance → WASM removal
+    WTA-Hash) → gen functions (meta+text+data+instance+image+audio+video+mixed done, 8/9) →
+    remaining gen funcs (iscc only) → conformance → WASM removal
 - Image-Code helpers: `transposeMatrix`, `flatten8x8`, `computeMedian` are unexported in
     `code_content_image.go`. `bitsToBytes` reused from `codec.go`
 - Audio-Code: `arraySplit[T any]` is generic (Go 1.18+), used for splitting digests into quarters/
     thirds. `AlgSimhash` on 4-byte digests returns 4 bytes (output = input digest length)
 - `sort.Slice` for int32: `func(i, j int) bool { return s[i] < s[j] }` (no built-in int32 sort)
+- Video-Code: `SoftHashVideoV0` exported (matching Rust `pub fn`). Dedup via
+    `fmt.Sprintf("%v", sig)` string keys in `map[string][]int32`. Column-wise int64 sums →
+    `AlgWtahash`
+- Mixed-Code: `softHashCodesV0` unexported (matching Rust non-pub). Preserves first header byte for
+    type info in SimHash entries. Uses `decodeHeader`/`decodeLength` to validate Content MainType
+    and bit length. `AlgSimhash` error safely discarded (all entries identical length)
 - WASM bridge type collision: when adding pure Go types that share names with WASM bridge types,
     rename the WASM bridge types (prefix `Wasm`) since they're being superseded
 - Coexistence: new pure Go files live alongside WASM bridge in same `iscc` package. Package-level

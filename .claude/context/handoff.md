@@ -1,38 +1,38 @@
-## 2026-02-27 — Review of: Implement pure Go GenImageCodeV0 and GenAudioCodeV0
+## 2026-02-27 — Implement pure Go GenVideoCodeV0 and GenMixedCodeV0
 
-**Verdict:** PASS
+**Done:** Implemented GenVideoCodeV0 (video content fingerprinting via WTA-Hash on deduplicated
+frame signatures) and GenMixedCodeV0 (multi-code SimHash combination) as pure Go functions. Both
+produce correct ISCC codes for all 5 conformance vectors.
 
-**Summary:** GenImageCodeV0 and GenAudioCodeV0 implemented as pure Go functions with clean,
-well-structured code that precisely mirrors the Rust reference. All 8 conformance vectors pass (3
-image + 5 audio), all quality gates clear, and the diff is tightly scoped to the 4 new files
-specified in next.md.
+**Files changed:**
 
-**Verification:**
+- `packages/go/code_content_video.go`: New file — `VideoCodeResult`, `GenVideoCodeV0`,
+    `SoftHashVideoV0` (exported, matching Rust). Deduplicates frame sigs via string-keyed map,
+    column-wise sums into int64, delegates to `AlgWtahash`
+- `packages/go/code_content_video_test.go`: New file — 3 conformance vectors testing video code
+    generation
+- `packages/go/code_content_mixed.go`: New file — `MixedCodeResult`, `GenMixedCodeV0`,
+    `softHashCodesV0` (unexported, matching Rust). Decodes ISCC strings, validates Content MainType,
+    prepares fixed-length entries (header byte + body + zero-pad), delegates to `AlgSimhash`
+- `packages/go/code_content_mixed_test.go`: New file — 2 conformance vectors testing mixed code
+    generation, verifying both `Iscc` and `Parts` fields
 
-- [x] `cd packages/go && go build ./...` exits 0
-- [x] `cd packages/go && go test -run TestPureGoGenImageCodeV0 -count=1 -v` — 3/3 image vectors PASS
-- [x] `cd packages/go && go test -run TestPureGoGenAudioCodeV0 -count=1 -v` — 5/5 audio vectors PASS
-- [x] `cd packages/go && go vet ./...` exits 0
-- [x] `cd packages/go && go test ./...` — all tests pass
-- [x] `grep -c 'func GenImageCodeV0' packages/go/code_content_image.go` returns 1
-- [x] `grep -c 'func GenAudioCodeV0' packages/go/code_content_audio.go` returns 1
-- [x] `mise run check` — all 14 hooks pass
+**Verification:** All criteria pass:
 
-**Issues found:**
+- `go build ./...` — exits 0
+- `TestPureGoGenVideoCodeV0` — 3/3 vectors PASS
+- `TestPureGoGenMixedCodeV0` — 2/2 vectors PASS
+- `go vet ./...` — exits 0
+- `go test ./...` — all tests pass (pure Go + WASM bridge)
+- Both function declarations confirmed present (grep -c returns 1)
+- `mise run check` — all 14 hooks pass
 
-- (none)
+**Next:** Implement `GenIsccCodeV0` — the 9th and final gen function. After that, implement
+`conformance_selftest` and then WASM bridge cleanup. Only `GenIsccCodeV0` remains before all 9 gen
+functions are complete.
 
-**Codex review:** Codex flagged three potential issues, all dismissed after cross-referencing with
-Rust: (1) `PutUint32(uint32(v))` for negative int32 — correct two's complement conversion matching
-Rust's `to_be_bytes()`. (2) AlgSimhash error suppression — safe since all digests are guaranteed 4
-bytes. (3) Missing bits validation — correctly deferred to `EncodeComponent`, same as Rust.
-
-**Next:** Implement `GenVideoCodeV0` and `GenMixedCodeV0` as the next gen function pair. Video-Code
-reuses DCT + WTA-Hash + SimHash pipeline (per-frame DCT → WTA-Hash per frame → SimHash across
-frames). Mixed-Code processes multiple ISCC content codes via decompose + sort + group + SimHash.
-After these two, only `GenIsccCodeV0` remains to complete all 9 gen functions.
-
-**Notes:** The `arraySplit[T any]` generic helper is well-implemented and will be reused by
-GenMixedCodeV0. With 6/9 gen functions done (Meta, Text, Data, Instance, Image, Audio), 3 remain
-(Video, Mixed, ISCC) plus `conformance_selftest` and WASM bridge cleanup. Fixed an incorrect
-learning about `alg_simhash` output length (it equals input digest length, not always 32 bytes).
+**Notes:** No surprises. The implementation was straightforward — both functions closely mirror the
+Rust reference. Video dedup uses `fmt.Sprintf("%v", sig)` for string keys (simple and correct).
+Mixed code correctly handles the first-byte header preservation for type info encoding in the
+SimHash input. 8/9 gen functions now complete (Meta, Text, Data, Instance, Image, Audio, Video,
+Mixed — only ISCC remains).
