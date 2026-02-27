@@ -339,3 +339,29 @@ iterations.
     the CI environment), so there's no conflict. This is the standard pattern for Go modules
     embedding WASM via wazero. Debug binary is ~11MB vs ~683KB for release — always commit the
     release build.
+
+## Go Pure Rewrite — Scoping Strategy
+
+- **Port order follows dependency graph**: codec (standalone) → text utils (standalone) → algorithms
+    (CDC, MinHash, SimHash, DCT, WTA-Hash — all standalone) → gen\_\*\_v0 (compose algorithms) →
+    streaming hashers → conformance selftest. Each step produces independently testable code.
+- **Coexistence pattern**: new pure Go files (`codec.go`, `utils.go`, etc.) live alongside existing
+    WASM bridge (`iscc.go`) in the same `iscc` package. Go allows method receivers (`rt.IsccDecode`)
+    and package-level functions (`IsccDecode`) with the same name without conflict. WASM removal
+    happens only after all pure Go modules pass conformance tests.
+- **Codec is standard-library only**: `encoding/base32`, `encoding/base64`, `fmt`, `strings` — no
+    external Go dependencies needed. This means no `go.mod` changes for the first step.
+- **Codec size estimate**: Rust codec.rs is 1,541 lines. Go port should be ~500-700 lines (Go is
+    more verbose for bit manipulation but standard library handles base32/base64). Plus ~300-400
+    lines of tests.
+- **Shared types**: `DecodeResult` struct already exists in `iscc.go`. The new `codec.go` can
+    reference it since they're in the same package. When WASM code is eventually removed, the struct
+    moves to `codec.go` or a `types.go` file.
+- **Base32 specifics**: ISCC uses RFC 4648 uppercase base32 without padding. Go:
+    `base32.StdEncoding.WithPadding(base32.NoPadding)`. Decode must uppercase input first for
+    case-insensitivity. Base64 uses URL-safe no-padding: `base64.RawURLEncoding`.
+- **Test vectors**: Use ISCC strings from `data.json` conformance vectors — decode known outputs
+    from gen functions to verify codec round-trips. `gen_iscc_code_v0` vectors test decomposition.
+- **Verification pattern for multi-step rewrite**: Each step verifies with `go build ./...`
+    (compiles with existing WASM code), `go test -run TestXxx` (targeted tests), `go vet ./...`
+    (lint). Full test suite (`go test ./...`) only runs after final WASM removal step.
