@@ -36,13 +36,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Current State
 
 - **All 6 bindings**: 30/30 Tier 1 symbols (Python, Node.js, WASM, C FFI, Java, Go/wazero)
-- **Go pure rewrite**: ~3/5 complete — codec (570 lines, 48 tests), text utils (130 lines, 21
-    tests), algorithms (CDC + MinHash + SimHash, reviewed PASS). Remaining: DCT/WTA-Hash, gen
-    functions, streaming hashers, conformance selftest, WASM removal
+- **Go pure rewrite**: ~3/5 complete — codec (570 lines, 47 tests), text utils (130 lines, 21
+    tests), algorithms (CDC 129L/15T + MinHash 205L/8T + SimHash 86L/14T, reviewed PASS). Remaining:
+    DCT (`dct.go`), WTA-Hash (`wtahash.go`), gen functions (9), streaming hashers, conformance
+    selftest, WASM bridge removal
+- **zeebo/blake3 not yet added**: Needed for gen_data_code_v0/gen_instance_code_v0. No blake3 dep in
+    go.mod yet — only wazero + golang.org/x/text + golang.org/x/sys
 - **Go CI job simplification pending**: After pure rewrite completes, simplify to just
     `go test ./...` and `go vet ./...` (no WASM build step)
-- **issues.md**: Only `[critical]` Go pure rewrite issue remains. GitHub issues #4-#8 closed
 - **check-added-large-files**: threshold is 1024KB (must restore to 256KB after Go rewrite)
+- **assessed-at**: eeb59ff (2026-02-27)
 
 ## Gotchas
 

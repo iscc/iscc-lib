@@ -1,15 +1,16 @@
-<!-- assessed-at: d32d2bd -->
+<!-- assessed-at: eeb59ff -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go Bindings Rewrite — Step 2 of ~5 Complete (Codec + Text Utils)
+## Phase: Go Bindings Rewrite — Step 3 of ~5 Complete (Codec + Text Utils + Core Algorithms)
 
-All non-Go bindings are at 30/30 Tier 1 symbols. The Go bindings rewrite is progressing: the pure Go
-codec module (`codec.go`) and text utilities module (`utils.go`) are both implemented and reviewed
-PASS. The WASM bridge (`iscc.go`, `iscc_ffi.wasm`, wazero dep) still coexists during transition. CI
-is green across all 7 jobs.
+All non-Go bindings are at 30/30 Tier 1 symbols. The Go bindings pure rewrite has progressed to step
+3: codec (`codec.go`), text utilities (`utils.go`), and three core algorithm modules (`cdc.go`,
+`minhash.go`, `simhash.go`) are implemented and reviewed PASS. DCT and WTA-Hash remain (step 4),
+then gen functions + streaming hashers (step 5). The WASM bridge (`iscc.go`, `iscc_ffi.wasm`, wazero
+dep) still coexists during transition. CI is green across all 7 jobs.
 
 ## Rust Core Crate
 
@@ -26,7 +27,6 @@ is green across all 7 jobs.
     doc-test); `cargo clippy --workspace` clean; all conformance vectors pass (CI-verified)
 - Tier 2 codec module remains Rust-only: `MainType`/`SubType`/`Version` enums, header encode/decode
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen)
-- `crates/iscc-lib/CLAUDE.md` accurate: 30-symbol Tier 1 list, correct Tier 2 list
 - **Nothing missing** in Rust core
 
 ## Python Bindings
@@ -38,18 +38,14 @@ is green across all 7 jobs.
     `IsccResult` + 9 typed result classes + `DataHasher` + `InstanceHasher` + 27 API symbols
 - `IsccResult(dict)` base class + 9 typed subclasses — dict-style and attribute-style access both
     work
-- `MT` (`IntEnum`, 8 values: META=0..FLAKE=7), `ST` (`IntEnum`, 8 values with TEXT=0 alias for
-    NONE=0), `VS` (`IntEnum`, V0=0) — all exported in `__all__`
-- `core_opts` `SimpleNamespace` with `meta_trim_name=128`, `meta_trim_description=4096`,
-    `io_read_size=4_194_304`, `text_ngram_size=13` — exported in `__all__`
+- `MT` (`IntEnum`, 8 values), `ST` (`IntEnum`, 8 values), `VS` (`IntEnum`, V0=0) all exported
+- `core_opts` `SimpleNamespace` with all 4 constants exported in `__all__`
 - `iscc_decode` Python wrapper returns `(MT, ST, VS, length, bytes)` with IntEnum-typed values
-- `gen_meta_code_v0` accepts `meta: str | dict | None` — dict serialized to compact JSON then
-    converted to data URL via `json_to_data_url`
-- `gen_image_code_v0` accepts `bytes | bytearray | memoryview | Sequence[int]` — non-bytes input
-    converted via `bytes()`
+- `gen_meta_code_v0` accepts `meta: str | dict | None`; `gen_image_code_v0` accepts multiple buffer
+    types
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
-- 198 tests passing across 6 files (CI-verified)
-- `ruff check` and `ruff format --check` pass (CI-verified)
+- 198 tests passing across 6 files (CI-verified); `ruff check` and `ruff format --check` pass
+    (CI-verified)
 - `iscc-lib 0.0.2` not yet published to PyPI (0.0.1 was published; release not re-triggered)
 
 ## Node.js Bindings
@@ -57,13 +53,10 @@ is green across all 7 jobs.
 **Status**: met (30/30 Tier 1 symbols)
 
 - All 30/30 Tier 1 symbols exported via napi-rs; 39 `#[napi]` annotations
-- 4 algorithm constants exported: `META_TRIM_NAME` (128), `META_TRIM_DESCRIPTION` (4096),
-    `IO_READ_SIZE` (4194304), `TEXT_NGRAM_SIZE` (13) — verified by tests
-- `iscc_decode` returns `IsccDecodeResult` object with
-    `maintype`/`subtype`/`version`/`length`/`digest` fields
+- 4 algorithm constants exported; `iscc_decode` returns `IsccDecodeResult` object
 - `DataHasher` and `InstanceHasher` implemented; conformance vectors pass
-- 124 tests (CI-verified)
-- `cargo clippy -p iscc-napi --all-targets -- -D warnings` clean (CI-verified)
+- 124 tests (CI-verified); `cargo clippy -p iscc-napi --all-targets -- -D warnings` clean
+    (CI-verified)
 - `repository` field in `package.json` for npm provenance verification
 - `@iscc/lib 0.0.2` not yet published to npm (awaiting release trigger)
 - **Nothing missing** in Node.js bindings
@@ -73,11 +66,9 @@ is green across all 7 jobs.
 **Status**: met (30/30 Tier 1 symbols)
 
 - All 30/30 Tier 1 symbols exported; 35 `#[wasm_bindgen]` annotations
-- 4 constants exposed as getter functions with uppercase names via `js_name`:
-    `META_TRIM_NAME()→128`, `META_TRIM_DESCRIPTION()→4096`, `IO_READ_SIZE()→4194304`,
-    `TEXT_NGRAM_SIZE()→13`
-- `iscc_decode` returns `IsccDecodeResult` struct with `getter_with_clone` for `Vec<u8>` digest
-- `DataHasher` and `InstanceHasher` as `#[wasm_bindgen]` structs with `new`/`update`/`finalize`
+- 4 constants exposed as getter functions with uppercase names via `js_name`
+- `iscc_decode` returns `IsccDecodeResult` struct; `DataHasher` and `InstanceHasher` fully
+    implemented
 - `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
 - 69 total `#[wasm_bindgen_test]` tests; CI-verified passing
 - `@iscc/wasm 0.0.2` not yet published to npm (awaiting release trigger)
@@ -88,12 +79,8 @@ is green across all 7 jobs.
 **Status**: met (30/30 Tier 1 symbols)
 
 - 44 exported `extern "C"` functions covering all 30 Tier 1 symbols + memory management helpers
-    (`iscc_alloc`, `iscc_dealloc`, `iscc_free_string`, `iscc_free_string_array`,
-    `iscc_free_byte_buffer`, `iscc_free_byte_buffer_array`, `iscc_free_decode_result`,
-    `iscc_last_error`)
-- 4 constants exported as getter functions: `iscc_meta_trim_name()→128`,
-    `iscc_meta_trim_description()→4096`, `iscc_io_read_size()→4194304`, `iscc_text_ngram_size()→13`
-- `FfiDataHasher` and `FfiInstanceHasher` with complete lifecycle
+- 4 constants exported as getter functions; `FfiDataHasher` and `FfiInstanceHasher` with complete
+    lifecycle
 - 77 `#[test]` Rust unit tests; C test program covers 23 test cases — CI-verified passing
 - cbindgen generates valid C headers; C test program compiles and runs (CI-verified)
 - **Nothing missing** in C FFI bindings
@@ -104,8 +91,7 @@ is green across all 7 jobs.
 
 - `crates/iscc-jni/` crate: 32 `extern "system"` JNI functions covering all 30 Tier 1 symbols
 - `IsccLib.java` (382 lines): all 30 Tier 1 symbols as `public static native` methods
-- 4 algorithm constants as `public static final int` fields
-- `IsccDecodeResult.java` (42 lines): returned by `isccDecode`
+- 4 algorithm constants as `public static final int` fields; `IsccDecodeResult.java` present
 - `NativeLoader.java` (169 lines) handles platform JAR extraction
 - `IsccLibTest.java` (472 lines): 9 `@TestFactory` sections + 12 `@Test` unit methods — CI-verified
 - `docs/howto/java.md` complete; navigation entry in `zensical.toml` present
@@ -115,28 +101,31 @@ is green across all 7 jobs.
 
 ## Go Bindings
 
-**Status**: not met — pure Go rewrite in progress (~2/5 modules complete)
+**Status**: not met — pure Go rewrite in progress (~3/5 modules complete)
 
 - **Target requires**: pure Go, no WASM/wazero, no binary artifacts
-- **Step 1 COMPLETE**: `packages/go/codec.go` (570 lines) — type enums (`MainType`, `SubType`,
-    `Version`), varnibble header encoding/decoding, base32/base64, length/unit encode/decode,
-    `EncodeComponent`, `IsccDecompose`, `IsccDecode`, `EncodeBase64`; zero external deps; 48 tests
-    pass in `codec_test.go` (929 lines)
-- **Step 2 COMPLETE**: `packages/go/utils.go` (130 lines) — 4 pure Go text utilities: `TextClean`
-    (NFKC normalization + control-char removal + empty-line collapse), `TextCollapse` (NFD + lower +
-    filter C/M/P categories + NFKC), `TextTrim` (UTF-8 byte-boundary truncation),
-    `TextRemoveNewlines` (whitespace-field join); `golang.org/x/text` added as direct dependency; 21
-    tests pass in `utils_test.go` (186 lines) — review verdict: PASS
-- **Remaining**: algorithms module (`AlgCdcChunks`, `AlgMinhash256`, `AlgSimhash`, DCT, WTA-Hash),
-    gen functions (9 `Gen*V0`), streaming hashers (`DataHasher`, `InstanceHasher`), conformance
-    selftest
-- `iscc.go` (1,357 lines) WASM/wazero bridge still present — coexists during transition; will be
-    deleted once pure Go modules cover all 30 Tier 1 symbols
+- **Step 1 COMPLETE**: `packages/go/codec.go` (570 lines) — type enums, varnibble header
+    encode/decode, base32/base64, `EncodeComponent`, `IsccDecompose`, `IsccDecode`, `EncodeBase64`;
+    47 tests in `codec_test.go`
+- **Step 2 COMPLETE**: `packages/go/utils.go` (130 lines) — 4 pure Go text utilities using
+    `golang.org/x/text`; 21 tests in `utils_test.go` — review verdict: PASS
+- **Step 3 COMPLETE**: Three algorithm modules — review verdict: PASS
+    - `packages/go/cdc.go` (129 lines): `AlgCdcChunks` + 2 private helpers; 15 tests in `cdc_test.go`
+    - `packages/go/minhash.go` (205 lines): `AlgMinhash256` + 2 private helpers; 8 tests in
+        `minhash_test.go`
+    - `packages/go/simhash.go` (86 lines): `AlgSimhash`, `SlidingWindow`; 14 tests in
+        `simhash_test.go`
+    - Total new pure Go tests from step 3: 37; `go vet ./...` clean (CI-verified)
+- **Remaining**:
+    - Step 4: DCT and WTA-Hash (needed for Image-Code and Video-Code gen functions)
+    - Step 5: 9 `gen_*_v0` functions, `DataHasher`/`InstanceHasher` streaming, conformance selftest
+    - `github.com/zeebo/blake3` dependency not yet added (needed for gen_data_code_v0,
+        gen_instance_code_v0)
+- `iscc.go` (1,357 lines) WASM/wazero bridge still present — coexists during transition
 - `iscc_ffi.wasm` (683KB) still committed to git; `go.mod` still has `wazero` dependency
 - `.pre-commit-config.yaml` large-file threshold still raised to 1024KB (must restore to 256KB after
     binary removal)
-- 46 test functions in `iscc_test.go` (1,353 lines) valid as regression suite — all currently pass
-    via WASM bridge
+- 46 test functions in `iscc_test.go` valid as regression suite (currently pass via WASM bridge)
 
 ## README
 
@@ -160,8 +149,6 @@ is green across all 7 jobs.
 
 - **14 pages** deployed to lib.iscc.codes; all navigation sections complete
 - All 6 binding howto guides have "Codec operations" and "Constants" sections
-- `docs/howto/python.md` (441 lines), `docs/howto/java.md` (384 lines), `docs/howto/nodejs.md` (360
-    lines), `docs/howto/wasm.md` (419 lines), `docs/howto/go.md` (462 lines), `docs/howto/rust.md`
 - Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
 
@@ -180,7 +167,7 @@ is green across all 7 jobs.
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - **Latest CI run on develop: PASSING** —
-    [Run 22496298772](https://github.com/iscc/iscc-lib/actions/runs/22496298772) — all 7 jobs
+    [Run 22497818006](https://github.com/iscc/iscc-lib/actions/runs/22497818006) — all 7 jobs
     SUCCESS
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
@@ -188,21 +175,17 @@ is green across all 7 jobs.
 
 ## Next Milestone
 
-**Continue pure Go rewrite — implement algorithms module (Step 3 of ~5):**
+**Continue pure Go rewrite — implement DCT and WTA-Hash (Step 4 of ~5):**
 
-The dependency chain is codec → text utils → **algorithms** → gen functions. Implement pure Go
-algorithm functions needed by the gen\_\*\_v0 functions:
+The dependency chain is codec → text utils → algorithms → **gen functions**. Before implementing gen
+functions, the remaining algorithm primitives are needed:
 
-1. `AlgCdcChunks(data []byte, minChunk, avgChunk, maxChunk int) [][]byte` — Content-Defined Chunking
-    (Gear hash / rolling hash); most complex algorithm; prerequisite for `gen_data_code_v0`
-2. `AlgMinhash256(features []uint32) []byte` — 256-permutation MinHash for similarity; needed by
-    Data-Code and Text-Code
-3. `AlgSimhash(features []uint32) []byte` — SimHash for 64-bit locality-sensitive hash; needed by
-    Meta-Code
-4. DCT and WTA-Hash functions — needed for Image-Code and Video-Code
+1. `dct.go`: DCT (Discrete Cosine Transform) — Nayuki fast recursive DCT; needed by
+    `gen_image_code_v0` and `gen_video_code_v0`. Reference: `crates/iscc-lib/src/dct.rs`
+2. `wtahash.go`: WTA-Hash (Winner Takes All Hash) — video fingerprinting; needed by
+    `gen_video_code_v0`. Reference: `crates/iscc-lib/src/wtahash.rs`
 
-The algorithms may span multiple files (`cdc.go`, `minhash.go`, etc.) or one `alg.go`. Reference:
-`crates/iscc-lib/src/cdc.rs`, `minhash.rs`, `simhash.rs`, `dct.rs`, `wtahash.rs`. New external deps
-needed: `github.com/zeebo/blake3` (BLAKE3 hashing for CDC and MinHash) and possibly
-`github.com/cespare/xxhash/v2` (for Gear hash). Existing `iscc_test.go` conformance vectors will
-validate algorithm outputs. Start with CDC as it is the longest and most complex.
+Alternatively, skip DCT/WTA-Hash temporarily and implement `gen_data_code_v0` and
+`gen_instance_code_v0` first (only need CDC + MinHash + BLAKE3 = `github.com/zeebo/blake3` dep
+needed). This enables early conformance validation. Existing `iscc_test.go` conformance vectors will
+validate output against reference.
