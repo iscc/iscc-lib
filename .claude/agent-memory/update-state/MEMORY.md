@@ -37,15 +37,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Current State
 
 - **All 6 bindings**: 30/30 Tier 1 symbols (Python, Node.js, WASM, C FFI, Java, Go/wazero)
-- **Go pure rewrite**: ~4/5 complete — all 7 algorithm modules done:
+- **Go pure rewrite**: step 5 in progress — 2/9 gen functions done:
     - codec.go (570L, 47T), utils.go (130L, 21T), cdc.go (129L, 15T), minhash.go (205L, 8T),
         simhash.go (86L, 14T), dct.go (52L, 10T), wtahash.go (92L, 9T)
-    - 124 total pure Go test functions (excl. 46 WASM bridge tests in iscc_test.go)
-- **Remaining in step 5**: 9 `gen_*_v0` functions, DataHasher/InstanceHasher, conformance_selftest,
-    then cleanup (remove iscc.go, iscc_ffi.wasm, wazero dep, restore 256KB large-file threshold)
-- **zeebo/blake3 not yet added**: Needed for gen_data/instance_code_v0. Not in go.mod yet
-- **check-added-large-files**: threshold is 1024KB (must restore to 256KB after Go rewrite cleanup)
-- **assessed-at**: bdbc92f (2026-02-27)
+    - code_meta.go (281L, 1T/16 vectors), code_content_text.go (41L, 1T/5 vectors)
+    - xxh32.go (81L, 8T): pure Go xxHash32
+    - 180 total Go test functions (134 pure Go + 46 WASM bridge tests)
+- **`github.com/zeebo/blake3 v0.2.4` added** to go.mod — needed for MetaCode and DataCode
+- **Remaining in step 5**: GenDataCodeV0+DataHasher, GenInstanceCodeV0+InstanceHasher,
+    GenImageCodeV0, GenVideoCodeV0, GenAudioCodeV0, GenMixedCodeV0, GenIsccCodeV0,
+    conformance_selftest, cleanup (remove iscc.go, iscc_ffi.wasm, wazero dep, restore 256KB
+    threshold)
+- **check-added-large-files**: threshold is 1024KB (must restore to 256KB after cleanup)
+- **JCS gotcha**: Go `json.Marshal` passes current vectors (string-only). If future vectors have
+    floats, a proper RFC 8785 JCS library may be needed
+- **assessed-at**: a392f27 (2026-02-27)
 
 ## Gotchas
 
