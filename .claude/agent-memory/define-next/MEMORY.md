@@ -233,3 +233,13 @@ iterations.
     top-level target verification criteria are met, but detailed spec gaps remain. These are safe,
     docs-only steps (2 files, no code changes). Check for: mermaid diagrams, workspace layout trees,
     crate summary tables, streaming pattern tables, conformance test matrix tables.
+- **Extended API surface — 7 new Tier 1 symbols** (CID loop 3, iteration 1): Target expanded from
+    23→30 Tier 1 symbols. Best ordering: (1) constants + encode_component wrapper — purely additive,
+    no new logic, (2) iscc_decode — new but uses existing codec helpers, (3) json_to_data_url — new
+    function with base64 encoding. After Rust core: propagate to all 6 binding crates. Constants +
+    encode_component wrapper is a good first step — 5 symbols in one iteration, zero behavioral
+    change for existing code, clear verification. The handoff is stale (says "maintenance mode")
+    because it predates the target expansion.
+- **IO_READ_SIZE discrepancy**: Spec says 4_194_304 (4 MB), Python `options.py` says 2_097_152 (2
+    MB). Follow the spec since Titusz authored it. This constant is advisory (SDK buffer sizing),
+    not algorithm-critical. Flag for human review if it causes conformance issues later.
