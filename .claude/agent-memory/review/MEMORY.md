@@ -121,6 +121,14 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     call sites" but the function name also appears in a definition, expect count = call sites + 1.
     This is a valid pass if the arithmetic checks out
 
+## Documentation Review Patterns
+
+- Always verify documented API names against actual binding source code attributes (`js_name`,
+    `#[pyfunction]`, `#[napi(js_name)]`) — next.md specs may have incorrect naming that the advance
+    agent faithfully reproduces
+- WASM constants have `js_name = "META_TRIM_NAME"` (uppercase) despite Rust function being
+    `meta_trim_name()` — this is a known divergence point
+
 ## Gotchas
 
 - Git log shows iteration numbering resets when a new CID run starts (iteration 12 → iteration 1) —

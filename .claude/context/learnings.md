@@ -411,3 +411,7 @@ Accumulated knowledge from CID iterations. Each review agent appends findings he
 - C FFI C test compilation requires cbindgen header generation before gcc can build:
     `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output <path>/iscc.h`. The
     generated header is not committed — CI generates it dynamically
+
+- WASM binding constants use `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` — the JS export name is
+    uppercase despite the Rust function being `meta_trim_name()`. Always verify documented API names
+    against actual `js_name` attributes in `crates/iscc-wasm/src/lib.rs`, not just next.md specs

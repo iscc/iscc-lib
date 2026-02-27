@@ -374,20 +374,20 @@ for (const unit of units) {
 
 ## Constants
 
-Constants are exposed as getter functions:
+Constants are exposed as getter functions (uppercase names matching other bindings):
 
 ```javascript
 import {
-    meta_trim_name,
-    meta_trim_description,
-    io_read_size,
-    text_ngram_size,
+    META_TRIM_NAME,
+    META_TRIM_DESCRIPTION,
+    IO_READ_SIZE,
+    TEXT_NGRAM_SIZE,
 } from "@iscc/wasm";
 
-meta_trim_name(); // 128 — max byte length for name normalization
-meta_trim_description(); // 4096 — max byte length for description normalization
-io_read_size(); // 4_194_304 — default read buffer size (4 MB)
-text_ngram_size(); // 13 — n-gram size for text similarity hashing
+META_TRIM_NAME(); // 128 — max byte length for name normalization
+META_TRIM_DESCRIPTION(); // 4096 — max byte length for description normalization
+IO_READ_SIZE(); // 4_194_304 — default read buffer size (4 MB)
+TEXT_NGRAM_SIZE(); // 13 — n-gram size for text similarity hashing
 ```
 
 ## Conformance testing

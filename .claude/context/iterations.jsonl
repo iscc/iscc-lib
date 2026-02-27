@@ -425,3 +425,12 @@
 {"ts":"2026-02-27T13:29:07.447860+00:00","iteration":12,"role":"define-next","status":"OK","turns":30,"cost_usd":1.182671,"duration_s":209.1}
 {"ts":"2026-02-27T13:35:11.813036+00:00","iteration":12,"role":"advance","status":"OK","turns":48,"cost_usd":2.532888,"duration_s":364.4}
 {"ts":"2026-02-27T13:42:00.000000+00:00","iteration":12,"role":"review","status":"PASS","turns":15,"cost_usd":0.5,"duration_s":420}
+{"ts":"2026-02-27T13:42:45.561049+00:00","iteration":12,"role":"review","status":"OK","turns":61,"cost_usd":1.694731,"duration_s":453.7}
+{"ts":"2026-02-27T13:52:42.867816+00:00","iteration":13,"role":"update-state","status":"OK","turns":39,"cost_usd":1.318754,"duration_s":298.8}
+{"ts":"2026-02-27T13:55:52.400727+00:00","iteration":13,"role":"define-next","status":"OK","turns":20,"cost_usd":0.876853,"duration_s":189.5}
+{"ts":"2026-02-27T13:59:21.964529+00:00","iteration":13,"role":"advance","status":"OK","turns":31,"cost_usd":1.024486,"duration_s":209.6}
+{"ts":"2026-02-27T14:04:16.984287+00:00","iteration":13,"role":"review","status":"OK","turns":46,"cost_usd":1.598465,"duration_s":295.0}
+{"ts":"2026-02-27T14:15:14.596624+00:00","iteration":1,"role":"update-state","status":"OK","turns":27,"cost_usd":1.079692,"duration_s":255.7}
+{"ts":"2026-02-27T14:19:36.940005+00:00","iteration":1,"role":"define-next","status":"OK","turns":27,"cost_usd":1.086837,"duration_s":262.3}
+{"ts":"2026-02-27T14:24:54.476963+00:00","iteration":1,"role":"advance","status":"OK","turns":47,"cost_usd":1.876835,"duration_s":317.5}
+{"ts":"2026-02-27T14:34:49.987191+00:00","iteration":1,"role":"review","status":"PASS_WITH_NOTES","summary":"Codec/Constants docs for 4 binding guides. Fixed WASM constant naming (lowercase→uppercase)."}
