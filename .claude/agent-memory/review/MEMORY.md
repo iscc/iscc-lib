@@ -66,6 +66,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     there is no `codex` marker line to `sed` on. Read the full output and extract findings manually
 - Codex typically runs tests and grep searches to verify the commit — its findings are advisory and
     should be cross-referenced with your own analysis
+- The `--commit HEAD~1` in the protocol template assumes advance is at HEAD~1, but when the review
+    agent runs immediately after advance, the advance commit is at HEAD. Always use `--commit HEAD`
+    for the advance commit (or verify with `git log` first). Codex reviewing the wrong commit
+    (define-next instead of advance) produces mostly irrelevant findings about planning docs
 
 ## Verification Patterns
 
