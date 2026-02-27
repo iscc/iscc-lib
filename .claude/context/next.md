@@ -1,149 +1,139 @@
 # Next Work Package
 
-## Step: Implement pure Go codec module (enums, header codec, base32, component encoding)
+## Step: Implement pure Go text utilities (utils.go)
 
 ## Goal
 
-Begin the pure Go rewrite of the Go bindings (critical issue) by implementing the foundational codec
-module — enums, varnibble header encoding/decoding, base32/base64, component encoding, ISCC
-decompose, and ISCC decode. The codec is the dependency-free foundation that all subsequent Go
-modules (text utils, algorithms, gen functions) will build upon.
+Port the 4 text utility functions (`TextClean`, `TextCollapse`, `TextTrim`, `TextRemoveNewlines`) to
+pure Go as step 2 of the Go rewrite dependency chain (codec → **text utils** → algorithms → gen
+functions). These functions are prerequisites for the gen functions that perform text normalization.
 
 ## Scope
 
-- **Create**: `packages/go/codec.go`, `packages/go/codec_test.go`
-- **Modify**: (none — the new file coexists with existing WASM bridge code)
-- **Reference**:
-    - `crates/iscc-lib/src/codec.rs` — the Rust codec to port (1,541 lines)
-    - `crates/iscc-lib/src/lib.rs` lines 210-230 — `iscc_decode` Tier 1 wrapper
-    - `crates/iscc-lib/tests/data.json` — conformance test vectors for verification
-    - `packages/go/iscc.go` — existing `DecodeResult` struct and API naming conventions
+- **Create**: `packages/go/utils.go`, `packages/go/utils_test.go`
+- **Modify**: `packages/go/go.mod` (add `golang.org/x/text` dependency; `go.sum` updates
+    automatically)
+- **Reference**: `crates/iscc-lib/src/utils.rs` (Rust implementation — primary reference),
+    `reference/iscc-core/iscc_core/code_meta.py` (Python `text_clean`, `text_trim`,
+    `text_remove_newlines`), `reference/iscc-core/iscc_core/code_content_text.py` (Python
+    `text_collapse`), `packages/go/codec.go` (existing pure Go module — follow same patterns),
+    `packages/go/codec_test.go` (test structure to follow)
 
 ## Not In Scope
 
-- Removing WASM infrastructure (delete binary, update .gitignore, restore large-file threshold) —
-    that happens after all pure Go modules are complete and tests pass
-- Modifying `iscc.go` or `iscc_test.go` — the WASM bridge stays untouched; both implementations
-    coexist temporarily in the same package
-- Text utilities (`text_clean`, `text_collapse`, etc.) — next step in the dependency chain
-- Algorithm implementations (CDC, MinHash, SimHash, DCT, WTA-Hash)
-- Any `gen_*_v0` functions
-- Modifying `go.mod` — the codec uses only Go standard library (`encoding/base32`,
-    `encoding/base64`, `fmt`, `strings`)
+- Removing the WASM bridge (`iscc.go`, `iscc_ffi.wasm`, wazero dep) — happens only after all pure Go
+    modules are complete
+- Modifying the existing `iscc_test.go` tests — they test the WASM bridge and remain as a regression
+    suite
+- Implementing `multi_hash_blake3` or any hashing functions — those belong in a later algorithms
+    step
+- Any CI workflow changes — the Go CI job already runs `go test ./...` which handles dependencies
+    automatically
 
 ## Implementation Notes
 
-### Enums (Go typed constants)
+### Functions to implement (all in package `iscc`, file `utils.go`)
 
-Port `MainType`, `SubType`, `Version` from Rust enums to Go typed constants using `iota`:
+**1. `TextClean(text string) string`** — display text cleaning:
 
-```go
-type MainType uint8
-const (
-    MTMeta     MainType = iota // 0
-    MTSemantic                 // 1
-    MTContent                  // 2
-    MTData                     // 3
-    MTInstance                 // 4
-    MTIscc                     // 5
-    MTId                       // 6
-    MTFlake                    // 7
-)
+1. NFKC normalize: `norm.NFKC.String(text)` (from `golang.org/x/text/unicode/norm`)
+2. Remove control characters except newlines. Use Go's `unicode` stdlib package:
+    - C-category check: `unicode.Is(unicode.C, c)` covers Cc, Cf, Co, Cs (matches Rust's
+        `is_c_category` minus `Unassigned`; in practice NFKC text won't contain unassigned
+        codepoints)
+    - Newline set (preserve these): `\n` (U+000A), `\v` (U+000B), `\f` (U+000C), `\r` (U+000D),
+        U+0085 (NEL), U+2028 (LS), U+2029 (PS)
+    - Handle `\r\n` as single newline (normalize all newlines to `\n`)
+3. Collapse consecutive empty/whitespace-only lines to at most one
+4. `strings.TrimSpace()` the result
 
-type SubType uint8
-const (
-    STNone    SubType = iota // 0 (also TEXT in CC context)
-    STImage                  // 1
-    STAudio                  // 2
-    STVideo                  // 3
-    STMixed                  // 4
-    STSum                    // 5
-    STIsccNone               // 6
-    STWide                   // 7
-)
-const STText = STNone // alias
+Port directly from `text_clean` in `crates/iscc-lib/src/utils.rs` lines 62-101.
 
-type Version uint8
-const ( VSV0 Version = 0 )
-```
+**2. `TextRemoveNewlines(text string) string`** — single-line conversion:
 
-### Header encode/decode (varnibble format)
+- `strings.Join(strings.Fields(text), " ")` — Go's `strings.Fields` splits on any whitespace and
+    filters empty strings, exactly matching Python's `" ".join(text.split())` and Rust's
+    `split_whitespace().join(" ")`
 
-Port the varnibble encoding from `codec.rs` lines 159-308. The header uses variable-nibble encoding
-where each field is 3 bits + an optional 4-bit extension. Key bit layout:
+This is a one-liner.
 
-- Bits 0-2: MainType (3 bits, always)
-- Bits 3-5: SubType (3 bits, always)
-- Bit 6: version extension flag (0 = single nibble V0, 1 = extended)
-- Bits 6-8 or 6-9: Version (variable)
-- Remaining: length field (variable)
-- Tail: remaining bytes after header
+**3. `TextTrim(text string, nbytes int) string`** — UTF-8 byte limit trimming:
 
-Use `extract_bits` / bit manipulation helpers (port `get_bit`, `extract_bits`, `bits_to_bytes` from
-Rust). These are internal (unexported).
+1. If `len(text) <= nbytes`, return `strings.TrimSpace(text)`
+2. Take `text[:nbytes]` bytes — but this may split a multibyte rune
+3. Find last valid rune boundary: iterate backwards from `nbytes` using `utf8.RuneStart(text[i])` to
+    find where the last complete rune starts, then verify it's complete with
+    `utf8.DecodeRuneInString`
+4. Alternative simpler approach: convert to `[]byte`, take `[:nbytes]`, scan for valid UTF-8 with
+    `utf8.Valid()`, if not valid use `utf8.ValidString()` up to nbytes. Simplest: iterate runes and
+    accumulate byte length, stop when adding next rune would exceed nbytes
+5. `strings.TrimSpace(result)`
 
-### Length encode/decode
+Port from `text_trim` in `utils.rs` lines 116-126. Key behavior: multi-byte characters that would be
+split are dropped entirely (matching Python's `decode('utf-8', 'ignore')`).
 
-Port `encode_length` and `decode_length` (lines 311-380). These convert between bit-lengths and
-header length indices. Rules:
+**4. `TextCollapse(text string) string`** — similarity hashing normalization:
 
-- Standard types (Meta through Flake): `length = (bit_length / 32) - 1`
-- ISCC-CODE: `length = (bit_length / 64) - 1`
-- ID type: `length = (bit_length / 8) - 1`
+1. NFD normalize: `norm.NFD.String(text)`
+2. Lowercase: `strings.ToLower(result)`
+3. Filter: keep chars that are NOT whitespace (`unicode.IsSpace`) AND NOT in C/M/P categories. Use
+    Go's super-category range tables:
+    - `unicode.Is(unicode.C, c)` — all Control categories
+    - `unicode.Is(unicode.M, c)` — all Mark categories (includes diacritics/accents)
+    - `unicode.Is(unicode.P, c)` — all Punctuation categories
+4. NFKC normalize the filtered result: `norm.NFKC.String(filtered)`
 
-### Base32/Base64
+Port from `text_collapse` in `utils.rs` lines 133-145.
 
-- Base32: `encoding/base32.StdEncoding.WithPadding(base32.NoPadding)` — RFC 4648 uppercase, no
-    padding. `decodeBase32` must uppercase input first (case-insensitive).
-- Base64: `encoding/base64.RawURLEncoding` — RFC 4648 §5 URL-safe, no padding.
+### Go Unicode category mapping
 
-### Tier 1 public functions
+The Rust code uses `unicode_general_category` crate. Go's `unicode` stdlib provides equivalent
+super-category range tables (no external dependency needed for category checks):
 
-- `EncodeBase64(data []byte) string`
-- `EncodeComponent(mtype, stype uint8, version uint8, bitLength uint32, digest []byte) (string, error)`
-    — rejects `MTIscc` (use `gen_iscc_code_v0` instead)
-- `IsccDecompose(isccCode string) ([]string, error)` — strips "ISCC:" prefix, walks raw bytes
-    extracting units
-- `IsccDecode(iscc string) (*DecodeResult, error)` — reuses existing `DecodeResult` struct from
-    `iscc.go` (same package). Strips "ISCC:" prefix and dashes.
+| Rust Category             | Go Equivalent                                                                          |
+| ------------------------- | -------------------------------------------------------------------------------------- |
+| `is_c_category` (C)       | `unicode.Is(unicode.C, c)`                                                             |
+| `is_cmp_category` (C+M+P) | `unicode.Is(unicode.C, c) \|\| unicode.Is(unicode.M, c) \|\| unicode.Is(unicode.P, c)` |
+| whitespace                | `unicode.IsSpace(c)`                                                                   |
 
-### Internal helpers (unexported)
+### Dependency management
 
-- `encodeHeader`, `decodeHeader` — varnibble format
-- `encodeLength`, `decodeLength` — length index conversion
-- `encodeBase32`, `decodeBase32` — base32 with no padding
-- `encodeUnits`, `decodeUnits` — bitfield for ISCC-CODE optional components (needed later by
-    `gen_iscc_code_v0`)
+Run `cd packages/go && go get golang.org/x/text@latest` to add the dependency. Only
+`golang.org/x/text/unicode/norm` is imported — the rest of the module is pulled transitively.
 
-### Error handling
+### Test structure
 
-Use Go-idiomatic `error` returns (not panic). Define a package-level error sentinel or use
-`fmt.Errorf("iscc: ...")` for error messages.
+Follow the `codec_test.go` pattern: `package iscc`, direct function calls (no WASM Runtime), no
+external dependencies. Include tests ported from the Rust `utils.rs` test section (lines 160-263):
 
-### Test strategy
+- `TextClean`: NFKC normalization (U+FB01 ligature → "fi"), control char removal (tab removed),
+    newline preservation, empty line collapsing (`"a\n\n\nb"` → `"a\n\nb"`), CRLF handling
+    (`"a\r\nb"` → `"a\nb"`), whitespace stripping, empty input
+- `TextRemoveNewlines`: basic newline replacement, multi-space collapsing
+- `TextTrim`: no-truncation, exact fit, truncation, Unicode boundary safety (é at 1 byte → ""),
+    whitespace stripping
+- `TextCollapse`: basic lowercasing + space removal, accent stripping (café → cafe), punctuation
+    removal, empty input
 
-Write `codec_test.go` with:
+Also include the test cases from `iscc_test.go` (testing pure Go functions directly):
 
-1. Round-trip tests: `encodeHeader` → `decodeHeader` for all MainType values
-2. Known vector tests: decode known ISCC units from data.json and verify components
-3. `EncodeComponent` → `IsccDecode` round-trips
-4. `IsccDecompose` on known ISCC-CODE strings from data.json (extract from `gen_iscc_code_v0` test
-    vectors)
-5. Base32 encode/decode round-trips with known byte sequences
-6. Edge cases: invalid input, truncated data, unknown enum values
-
-Use `crates/iscc-lib/tests/data.json` vectors — specifically the `gen_meta_code_v0`,
-`gen_data_code_v0` output ISCC strings can be decoded and re-encoded to verify codec correctness.
+- `TextClean("  Hel\uFB01 World  ")` → `"Helfi World"`
+- `TextRemoveNewlines("hello\nworld\r\nfoo")` → `"hello world foo"`
+- `TextCollapse("Hello, World!")` → `"helloworld"`
+- `TextTrim("Hello, World! This is a long string.", 10)` → ≤10 bytes, non-empty
 
 ## Verification
 
-- `cd packages/go && go build ./...` exits 0 (new codec code compiles alongside existing WASM code)
-- `cd packages/go && go test -run TestCodec -count=1 -v` passes (all codec tests green)
+- `cd packages/go && go build ./...` exits 0 (compiles alongside existing WASM code)
+- `cd packages/go && go test -run TestUtils -count=1 -v` — all utils tests pass
 - `cd packages/go && go vet ./...` exits 0
-- `cd packages/go && grep -c 'func Encode\|func Iscc\|func encodeHeader\|func decodeHeader' codec.go`
-    returns at least 6 (public + internal functions exist)
+- `cd packages/go && go test ./...` — both new utils tests and existing codec+WASM tests all pass
+- `grep -c 'golang.org/x/text' packages/go/go.mod` returns at least 1
+- `grep -c 'func Text' packages/go/utils.go` returns 4 (all 4 public functions present)
+- `mise run check` — all pre-commit/pre-push hooks pass
 
 ## Done When
 
-All four verification commands pass, confirming the pure Go codec module compiles, is tested, and
-coexists with the existing WASM bridge code without conflicts.
+All 4 text utility functions are implemented as pure Go in `utils.go`, all verification criteria
+pass including the full test suite (`go test ./...`), and the `golang.org/x/text` dependency is
+properly recorded in `go.mod`.

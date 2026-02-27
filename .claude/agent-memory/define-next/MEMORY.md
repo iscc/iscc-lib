@@ -364,4 +364,15 @@ iterations.
     from gen functions to verify codec round-trips. `gen_iscc_code_v0` vectors test decomposition.
 - **Verification pattern for multi-step rewrite**: Each step verifies with `go build ./...`
     (compiles with existing WASM code), `go test -run TestXxx` (targeted tests), `go vet ./...`
-    (lint). Full test suite (`go test ./...`) only runs after final WASM removal step.
+    (lint). Full test suite (`go test ./...`) runs at each step (both pure Go and WASM tests pass).
+- **Text utils is first external dependency**: `golang.org/x/text/unicode/norm` for NFKC/NFD. The
+    codec step had zero external deps (stdlib only). Go's `unicode` package provides C/M/P
+    super-category range tables via `unicode.Is(unicode.C, c)` etc. — no extra deps for character
+    classification.
+- **Go text utils size estimate**: Rust utils.rs has ~85 lines of text utility code (lines 62-145)
+    plus ~100 lines of tests. Go port should be ~100-150 lines code + ~150-200 lines tests. The
+    `TextRemoveNewlines` function is a one-liner (`strings.Join(strings.Fields(text), " ")`).
+- **Existing iscc_test.go uses Runtime struct**: The WASM bridge tests call `rt.TextClean(ctx, ...)`
+    — they do NOT test pure Go functions. New pure Go tests go in `utils_test.go` with direct
+    function calls (same pattern as `codec_test.go`). Both test files run in the same `go test`
+    invocation without conflict.
