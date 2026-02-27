@@ -1,131 +1,132 @@
 # Next Work Package
 
-## Step: Propagate 7 new Tier 1 symbols to Node.js bindings
+## Step: Propagate 7 Tier 1 symbols to WASM bindings
 
 ## Goal
 
-Add `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 algorithm constants
-(`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) to the Node.js
-napi-rs bindings, bringing them from 23/30 to 30/30 Tier 1 symbols.
+Add the 7 missing Tier 1 symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4
+algorithm constants) to the WASM binding crate, bringing it from 23/30 to 30/30 Tier 1 parity with
+Rust core, Python, and Node.js.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-napi/src/lib.rs` — add 3 `#[napi]` functions + 4 `#[napi]` constants
-    - `crates/iscc-napi/__tests__/functions.test.mjs` — add tests for the 7 new symbols
+    - `crates/iscc-wasm/src/lib.rs` — add 4 constant getter functions, `encode_component`,
+        `iscc_decode` (with `IsccDecodeResult` struct), and `json_to_data_url`
+    - `crates/iscc-wasm/tests/unit.rs` — add tests for all 7 new symbols
 - **Reference**:
-    - `crates/iscc-py/src/lib.rs` lines 395–433 — Python wrappers for the same 3 functions
-    - `crates/iscc-lib/src/lib.rs` lines 170–267 — Rust core API signatures
-    - `tests/test_new_symbols.py` — Python test patterns for encode_component, iscc_decode,
-        json_to_data_url (roundtrips, error cases, etc.)
+    - `crates/iscc-napi/src/lib.rs` — Node.js implementation of same 7 symbols (pattern to mirror)
+    - `crates/iscc-napi/__tests__/codec.test.mjs` — Node.js test patterns for reference
+    - `crates/iscc-wasm/CLAUDE.md` — WASM-specific type mappings and conventions
+    - `crates/iscc-wasm/src/lib.rs` — existing wasm-bindgen patterns
 
 ## Not In Scope
 
-- Issue #5 dict meta propagation (accepting `object` for `meta` in `gen_meta_code_v0`) — separate
-    step after all 7 symbols are propagated to all bindings
-- TypeScript `const enum` wrappers for MT/ST/VS — not required by the target (Python has IntEnums as
-    a drop-in extension; other bindings use raw `u8` integers per spec)
-- Propagation to WASM, C FFI, Java, or Go — each gets its own step
-- Changing `gen_*_v0` return types from `String` to structured objects — out of scope
+- Updating `crates/iscc-wasm/CLAUDE.md` API surface list (defer to review or later step)
+- Propagating symbols to C FFI, Java JNI, or Go bindings (separate future steps)
+- Returning full result structs from gen functions (they continue returning `.iscc` string only)
+- Adding `gen_meta_code_v0` dict/object support for the `meta` parameter (issue #5)
+- Publishing `@iscc/wasm` to npm
 
 ## Implementation Notes
 
 ### Constants
 
-napi-rs v2 supports `#[napi]` on `pub const`. Since `iscc_lib` constants are `usize`, cast to `u32`
-for JavaScript compatibility:
+wasm-bindgen does not support `#[wasm_bindgen]` on `pub const`. Export 4 getter functions instead:
 
 ```rust
-#[napi(js_name = "META_TRIM_NAME")]
-pub const META_TRIM_NAME: u32 = iscc_lib::META_TRIM_NAME as u32;
-```
-
-If `#[napi]` on const doesn't work (napi-rs version issue), fall back to exporting them as
-module-level getter functions:
-
-```rust
-#[napi(js_name = "META_TRIM_NAME")]
-pub fn meta_trim_name() -> u32 { iscc_lib::META_TRIM_NAME as u32 }
-```
-
-### encode_component
-
-Thin wrapper following the established napi pattern. `digest` is `Buffer`:
-
-```rust
-#[napi(js_name = "encode_component")]
-pub fn encode_component(
-    mtype: u8, stype: u8, version: u8, bit_length: u32, digest: Buffer,
-) -> napi::Result<String> {
-    iscc_lib::encode_component(mtype, stype, version, bit_length, digest.as_ref())
-        .map_err(|e| napi::Error::from_reason(e.to_string()))
+#[wasm_bindgen(js_name = "META_TRIM_NAME")]
+pub fn meta_trim_name() -> u32 {
+    iscc_lib::META_TRIM_NAME as u32
 }
 ```
 
-### iscc_decode
+Same pattern for `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`. The `as u32` cast is
+safe — all values fit within u32 (max is 4_194_304). Place these at the top of the file in a
+`// ── Constants ──` section, right after the `use` imports.
 
-Returns a JS object (not a tuple — JavaScript has no tuples). Use `#[napi(object)]` struct:
+### encode_component
 
 ```rust
-#[napi(object)]
+#[wasm_bindgen]
+pub fn encode_component(
+    mtype: u8, stype: u8, version: u8, bit_length: u32, digest: &[u8],
+) -> Result<String, JsError> {
+    iscc_lib::encode_component(mtype, stype, version, bit_length, digest)
+        .map_err(|e| JsError::new(&e.to_string()))
+}
+```
+
+Note: wasm-bindgen accepts `&[u8]` directly (unlike napi-rs which needs `Buffer`).
+
+### iscc_decode
+
+Return a `#[wasm_bindgen(getter_with_clone)]` struct with public fields. The `digest` field is
+`Vec<u8>` (mapped to `Uint8Array` in JS). `getter_with_clone` is needed because `Vec<u8>` is not
+`Copy`. Define the struct:
+
+```rust
+#[wasm_bindgen(getter_with_clone)]
 pub struct IsccDecodeResult {
     pub maintype: u8,
     pub subtype: u8,
     pub version: u8,
     pub length: u8,
-    pub digest: Buffer,
+    pub digest: Vec<u8>,
 }
 ```
 
-The function destructures the Rust tuple into this struct. Field names match the Python tuple
-semantics: `maintype`, `subtype`, `version`, `length` (the length_index), `digest`.
+The function:
+
+```rust
+#[wasm_bindgen]
+pub fn iscc_decode(iscc: &str) -> Result<IsccDecodeResult, JsError> {
+    let (mt, st, vs, li, digest) =
+        iscc_lib::iscc_decode(iscc).map_err(|e| JsError::new(&e.to_string()))?;
+    Ok(IsccDecodeResult {
+        maintype: mt, subtype: st, version: vs, length: li, digest,
+    })
+}
+```
+
+Place this struct and function in the `// ── Codec ──` section near `iscc_decompose`.
 
 ### json_to_data_url
 
-Simple pass-through, same as Python wrapper. Takes `String` (not `&str` — napi-rs convention):
-
 ```rust
-#[napi(js_name = "json_to_data_url")]
-pub fn json_to_data_url(json: String) -> napi::Result<String> {
-    iscc_lib::json_to_data_url(&json)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))
+#[wasm_bindgen]
+pub fn json_to_data_url(json: &str) -> Result<String, JsError> {
+    iscc_lib::json_to_data_url(json).map_err(|e| JsError::new(&e.to_string()))
 }
 ```
 
+Note: takes `&str` (not owned `String`) — wasm-bindgen supports `&str` directly, unlike napi-rs.
+Place in the `// ── Encoding ──` section near `encode_base64`.
+
 ### Tests
 
-Add to `functions.test.mjs` following the existing `describe`/`it` pattern with `node:test` +
-`node:assert`. Import the 7 new symbols. Test categories:
+Add tests in `crates/iscc-wasm/tests/unit.rs` using `#[wasm_bindgen_test]`:
 
-1. **Constants**: verify values match (128, 4096, 4194304, 13), verify `typeof` is `'number'`
-2. **encode_component**: roundtrip (encode then decompose to verify), error on invalid mtype (255),
-    error on digest too short, error on ISCC mtype (5)
-3. **iscc_decode**: roundtrip with encode_component, returned object has correct fields (`maintype`,
-    `subtype`, `version`, `length`, `digest`), `digest` is a Buffer, error on invalid input string
-4. **json_to_data_url**: plain JSON → `data:application/json;base64,...`, JSON-LD with `@context` →
-    `data:application/ld+json;base64,...`, error on invalid JSON string
+- 4 constant tests: verify each returns expected value (128, 4096, 4194304, 13)
+- `encode_component`: encode a known Meta-Code component, verify result string is valid base32
+- `iscc_decode`: decode a known ISCC unit, verify all 5 fields (maintype, subtype, version, length,
+    digest bytes)
+- `encode_component` + `iscc_decode` roundtrip: encode then decode, verify fields match inputs
+- `json_to_data_url`: basic JSON → `data:application/json;base64,...`, JSON-LD with `@context` →
+    `data:application/ld+json;base64,...`
 
-### Build regeneration
-
-After modifying `lib.rs`, run `napi build --platform --release` (from `crates/iscc-napi/`) to
-regenerate `index.js` and `index.d.ts`. These are gitignored build artifacts but needed for tests.
-The advance agent must build before testing.
+Aim for ~12-15 new `#[wasm_bindgen_test]` functions covering all 7 symbols.
 
 ## Verification
 
-- `cd crates/iscc-napi && npm test` passes (103 existing + new tests, 0 failures)
-- `node -e "const m = require('./crates/iscc-napi'); console.log([m.META_TRIM_NAME, m.META_TRIM_DESCRIPTION, m.IO_READ_SIZE, m.TEXT_NGRAM_SIZE].join(','))"`
-    prints `128,4096,4194304,13`
-- `node -e "const m = require('./crates/iscc-napi'); console.log(typeof m.encode_component)"` prints
-    `function`
-- `node -e "const m = require('./crates/iscc-napi'); console.log(typeof m.iscc_decode)"` prints
-    `function`
-- `node -e "const m = require('./crates/iscc-napi'); console.log(typeof m.json_to_data_url)"` prints
-    `function`
-- `cargo clippy -p iscc-napi --all-targets -- -D warnings` is clean
+- `wasm-pack test --node crates/iscc-wasm` passes (54 existing + new tests)
+- `wasm-pack test --node crates/iscc-wasm --features conformance` passes
+- `cargo clippy -p iscc-wasm --all-targets -- -D warnings` clean
+- `grep -c '#\[wasm_bindgen' crates/iscc-wasm/src/lib.rs` shows at least 32 (was 25, +7 new
+    annotations)
 
 ## Done When
 
-All verification criteria pass — 30/30 Tier 1 symbols are accessible from Node.js with tests
-covering the 7 new symbols.
+All verification criteria pass — WASM crate exports all 30 Tier 1 symbols with tests covering the 7
+newly added symbols.

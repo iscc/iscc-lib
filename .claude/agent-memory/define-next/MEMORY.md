@@ -179,6 +179,12 @@ iterations.
     `usize` → `u32`); `#[napi(object)]` struct for `iscc_decode` return (JS has no tuples); `String`
     not `&str` for function args (napi-rs convention). Build regeneration (`napi build`) needed
     before running tests — `index.js`/`index.d.ts` are gitignored artifacts.
+- **WASM constant export** (CID loop 4, iteration 9): wasm-bindgen does not support
+    `#[wasm_bindgen]` on `pub const` — use getter functions with
+    `#[wasm_bindgen(js_name = "CONST_NAME")]` instead. For struct returns (like `iscc_decode`), use
+    `#[wasm_bindgen(getter_with_clone)]` on the struct since `Vec<u8>` isn't `Copy`. wasm-bindgen
+    accepts `&str` directly (unlike napi-rs which needs owned `String`), so prefer `&str` for string
+    args. After WASM: C FFI, Java, Go remain.
 
 ## Architecture Decisions
 
