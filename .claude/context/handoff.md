@@ -1,47 +1,38 @@
-## 2026-02-27 — Review of: Implement pure Go GenDataCodeV0 and GenInstanceCodeV0
+## 2026-02-27 — Implement pure Go GenImageCodeV0 and GenAudioCodeV0
 
-**Verdict:** PASS
+**Done:** Implemented `GenImageCodeV0` and `GenAudioCodeV0` as pure Go functions with all helper
+functions. Image-Code uses 2D DCT + median-threshold bitstring extraction from 8×8 low-frequency
+blocks. Audio-Code uses multi-stage SimHash (overall + quarters + sorted thirds) on Chromaprint
+features. Both reuse existing `algDct`, `AlgSimhash`, `EncodeComponent`, and `bitsToBytes` from the
+Go codebase.
 
-**Summary:** Clean implementation of `GenDataCodeV0` and `GenInstanceCodeV0` as pure Go gen
-functions with all 7 conformance vectors passing (4 data + 3 instance). `DataHasher` and
-`InstanceHasher` streaming structs follow the Python/Rust reference correctly. The WASM bridge type
-rename (`DataHasher`→`WasmDataHasher`, `InstanceHasher`→`WasmInstanceHasher`) was a minimal,
-necessary adaptation to resolve Go package-level name collisions.
+**Files changed:**
+
+- `packages/go/code_content_image.go`: New file — `GenImageCodeV0`, `softHashImageV0`,
+    `transposeMatrix`, `flatten8x8`, `computeMedian` (ImageCodeResult struct)
+- `packages/go/code_content_audio.go`: New file — `GenAudioCodeV0`, `softHashAudioV0`, `arraySplit`
+    generic helper (AudioCodeResult struct)
+- `packages/go/code_content_image_test.go`: New file — 3 image conformance vectors
+- `packages/go/code_content_audio_test.go`: New file — 5 audio conformance vectors
 
 **Verification:**
 
-- [x] `cd packages/go && go build ./...` exits 0
-- [x] `cd packages/go && go test -run TestPureGoGenDataCodeV0 -count=1 -v` — 4/4 data vectors PASS
-- [x] `cd packages/go && go test -run TestPureGoGenInstanceCodeV0 -count=1 -v` — 3/3 instance
-    vectors PASS
-- [x] `cd packages/go && go vet ./...` exits 0
-- [x] `cd packages/go && go test ./...` — all tests pass (pure Go + WASM bridge)
-- [x] `cd packages/go && go test -race -run "TestPureGo(GenDataCodeV0|GenInstanceCodeV0)" -count=1`
-    — race detector clean
-- [x] `grep -c 'func GenDataCodeV0' packages/go/code_data.go` returns 1
-- [x] `grep -c 'func GenInstanceCodeV0' packages/go/code_instance.go` returns 1
-- [x] `grep -c 'type DataHasher struct' packages/go/code_data.go` returns 1
-- [x] `grep -c 'type InstanceHasher struct' packages/go/code_instance.go` returns 1
-- [x] `mise run check` — all 14 hooks pass
+- `cd packages/go && go build ./...` — exits 0
+- `cd packages/go && go test -run TestPureGoGenImageCodeV0 -count=1 -v` — 3/3 image vectors PASS
+- `cd packages/go && go test -run TestPureGoGenAudioCodeV0 -count=1 -v` — 5/5 audio vectors PASS
+- `cd packages/go && go vet ./...` — exits 0
+- `cd packages/go && go test ./...` — all tests pass (pure Go + WASM bridge)
+- `grep -c 'func GenImageCodeV0' packages/go/code_content_image.go` — returns 1
+- `grep -c 'func GenAudioCodeV0' packages/go/code_content_audio.go` — returns 1
+- `mise run check` — all 14 hooks pass
 
-**Issues found:**
+**Next:** Implement `GenVideoCodeV0` and `GenMixedCodeV0` as the next gen function sub-step. Video
+code reuses the same DCT + WTA-Hash + SimHash pipeline (DCT per frame, WTA-Hash per frame, SimHash
+across frames). Mixed code processes multiple ISCC content codes via decompose + sort + group +
+SimHash. After these two, only `GenIsccCodeV0` remains to complete all 9 gen functions.
 
-- (none)
-
-**Codex review:** Codex flagged that `DataHasher.Finalize()` mutates internal state (appends to
-`chunkFeatures`, clears `tail`), making it non-idempotent — calling Finalize twice would produce
-different results. This mirrors the Python reference (`DataHasherV0._finalize()` sets
-`self.tail = None`) and Rust (which consumes `self` on finalize). The single-use-finalize pattern is
-by design. Not a blocking issue, but worth noting for documentation if a public streaming API guide
-is written later.
-
-**Next:** Implement `GenImageCodeV0` and `GenAudioCodeV0` as the next gen function sub-step. Image
-code needs DCT + WTA-Hash (both already implemented). Audio code needs SimHash on Chromaprint
-features (SimHash already implemented). 5 conformance vectors for image + 3 for audio = 8 total
-vectors. After these two, only `GenVideoCodeV0`, `GenMixedCodeV0`, and `GenIsccCodeV0` remain.
-
-**Notes:** The WASM bridge type rename is a one-time adaptation. Future gen functions that share
-names with WASM bridge functions (`GenImageCodeV0`, `GenVideoCodeV0`, etc.) will NOT need renames
-because the WASM bridge wraps them as `Runtime.GenImageCodeV0()` (method on `Runtime` struct) while
-the pure Go versions are package-level functions — Go resolves these differently. Only struct type
-names (like `DataHasher`/`InstanceHasher`) had actual collisions.
+**Notes:** No surprises. The `AlgSimhash` function returns output length equal to input digest
+length (4 bytes for 4-byte digests), so we take `[:4]` when appending to parts. The `arraySplit`
+generic helper was implemented as a Go generic function `arraySplit[T any]` since it's used with
+both `[][]byte` slices. No WASM bridge naming collisions — `GenImageCodeV0` and `GenAudioCodeV0` are
+package-level functions while the WASM bridge wraps them as methods on the `Runtime` struct.
