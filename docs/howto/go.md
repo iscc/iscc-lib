@@ -410,7 +410,7 @@ if err != nil {
 	log.Fatal(err)
 }
 for _, unit := range units {
-	fmt.Println(unit) // Each unit code with "ISCC:" prefix
+	fmt.Println(unit) // Each unit code (without "ISCC:" prefix)
 }
 ```
 

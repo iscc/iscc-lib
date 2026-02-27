@@ -25,6 +25,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     verify by running tests and counting top-level test functions
 - `json.dumps` reformats JSON files (e.g., inline arrays become multi-line) — cosmetic but may
     appear as unintended changes in diffs. Check that formatting changes are idempotent
+- Doc examples claiming "ISCC:" prefix on decompose results — `iscc_decompose` returns units WITHOUT
+    the prefix. Always cross-check doc comments against actual function behavior (Rust docstring +
+    test assertions)
 
 ## Review Shortcuts
 
