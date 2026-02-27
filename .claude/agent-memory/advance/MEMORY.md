@@ -16,8 +16,9 @@ iterations.
 - C FFI: `crates/iscc-ffi/src/lib.rs`
 - JNI: `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
 - Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go,
-    xxh32.go, code_content_text.go, code_meta.go (+ test files)
+    xxh32.go, code_content_text.go, code_meta.go, code_data.go, code_instance.go (+ test files)
 - Go WASM bridge (legacy): `packages/go/iscc.go` + `packages/go/iscc_test.go`
+    - Streaming types renamed: `WasmDataHasher`, `WasmInstanceHasher` (avoid collision with pure Go)
 
 ## Build and Tooling
 
@@ -57,7 +58,9 @@ iterations.
 - Gen functions: `code_content_text.go` (GenTextCodeV0 + softHashTextV0), `code_meta.go`
     (GenMetaCodeV0 + metaNameSimhash + softHashMetaV0 + softHashMetaV0WithBytes + interleaveDigests
     \+ slidingWindowBytes + decodeDataURL + parseMetaJSON + jsonHasContext + buildMetaDataURL +
-    multiHashBlake3). Result types: `TextCodeResult`, `MetaCodeResult`
+    multiHashBlake3), `code_data.go` (GenDataCodeV0 + DataHasher with Push/Finalize),
+    `code_instance.go` (GenInstanceCodeV0 + InstanceHasher with Push/Finalize). Result types:
+    `TextCodeResult`, `MetaCodeResult`, `DataCodeResult`, `InstanceCodeResult`
 - xxh32: `xxh32.go` — standalone xxHash32 impl (~80 lines). Used by softHashTextV0 for n-gram
     feature hashing. Unexported: `xxh32(data, seed)`, `xxh32Round`, `rotl32`, `readU32LE`
 - JCS canonicalization: uses Go stdlib `json.Marshal` (sorts keys, compact format). Works for
@@ -68,7 +71,10 @@ iterations.
 - Test naming for gen functions: `TestPureGo*` prefix avoids conflicts with WASM bridge tests in
     iscc_test.go (e.g., `TestPureGoGenMetaCodeV0` vs `TestGenMetaCodeV0`)
 - Dependency order: codec (done) → utils (done) → algorithms (all done: CDC, MinHash, SimHash, DCT,
-    WTA-Hash) → gen functions (meta+text done) → streaming hashers → conformance → WASM removal
+    WTA-Hash) → gen functions (meta+text+data+instance done) → remaining gen funcs → conformance →
+    WASM removal
+- WASM bridge type collision: when adding pure Go types that share names with WASM bridge types,
+    rename the WASM bridge types (prefix `Wasm`) since they're being superseded
 - Coexistence: new pure Go files live alongside WASM bridge in same `iscc` package. Package-level
     functions (`IsccDecode`) and method receivers (`rt.IsccDecode`) don't conflict
 - Test naming: `TestCodec*`, `TestUtils*`, `TestCdc*`, `TestMinhash*`, `TestSimhash*`,

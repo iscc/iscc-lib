@@ -1155,25 +1155,25 @@ func (rt *Runtime) SoftHashVideoV0(ctx context.Context, frameSigs [][]int32, bit
 
 // ── Streaming hashers ────────────────────────────────────────────────────────
 
-// DataHasher provides streaming Data-Code generation via the WASM FFI.
+// WasmDataHasher provides streaming Data-Code generation via the WASM FFI.
 // Create with Runtime.NewDataHasher, feed data with Update, and retrieve the
 // ISCC code with Finalize. Close releases the WASM-side memory.
-type DataHasher struct {
+type WasmDataHasher struct {
 	rt  *Runtime
 	ptr uint32 // opaque WASM-side FfiDataHasher pointer
 }
 
-// InstanceHasher provides streaming Instance-Code generation via the WASM FFI.
+// WasmInstanceHasher provides streaming Instance-Code generation via the WASM FFI.
 // Create with Runtime.NewInstanceHasher, feed data with Update, and retrieve the
 // ISCC code with Finalize. Close releases the WASM-side memory.
-type InstanceHasher struct {
+type WasmInstanceHasher struct {
 	rt  *Runtime
 	ptr uint32 // opaque WASM-side FfiInstanceHasher pointer
 }
 
 // NewDataHasher creates a streaming Data-Code hasher.
 // The caller must call Close when done, even after Finalize.
-func (rt *Runtime) NewDataHasher(ctx context.Context) (*DataHasher, error) {
+func (rt *Runtime) NewDataHasher(ctx context.Context) (*WasmDataHasher, error) {
 	fn := rt.mod.ExportedFunction("iscc_data_hasher_new")
 	results, err := fn.Call(ctx)
 	if err != nil {
@@ -1183,12 +1183,12 @@ func (rt *Runtime) NewDataHasher(ctx context.Context) (*DataHasher, error) {
 	if ptr == 0 {
 		return nil, fmt.Errorf("iscc_data_hasher_new: returned NULL: %s", rt.lastError(ctx))
 	}
-	return &DataHasher{rt: rt, ptr: ptr}, nil
+	return &WasmDataHasher{rt: rt, ptr: ptr}, nil
 }
 
 // NewInstanceHasher creates a streaming Instance-Code hasher.
 // The caller must call Close when done, even after Finalize.
-func (rt *Runtime) NewInstanceHasher(ctx context.Context) (*InstanceHasher, error) {
+func (rt *Runtime) NewInstanceHasher(ctx context.Context) (*WasmInstanceHasher, error) {
 	fn := rt.mod.ExportedFunction("iscc_instance_hasher_new")
 	results, err := fn.Call(ctx)
 	if err != nil {
@@ -1198,13 +1198,13 @@ func (rt *Runtime) NewInstanceHasher(ctx context.Context) (*InstanceHasher, erro
 	if ptr == 0 {
 		return nil, fmt.Errorf("iscc_instance_hasher_new: returned NULL: %s", rt.lastError(ctx))
 	}
-	return &InstanceHasher{rt: rt, ptr: ptr}, nil
+	return &WasmInstanceHasher{rt: rt, ptr: ptr}, nil
 }
 
 // Update feeds data into the DataHasher.
 // Can be called multiple times before Finalize. Returns an error if the
 // hasher has already been finalized.
-func (h *DataHasher) Update(ctx context.Context, data []byte) error {
+func (h *WasmDataHasher) Update(ctx context.Context, data []byte) error {
 	dataPtr, dataSize, err := h.rt.writeBytes(ctx, data)
 	if err != nil {
 		return err
@@ -1224,7 +1224,7 @@ func (h *DataHasher) Update(ctx context.Context, data []byte) error {
 
 // UpdateFrom reads all data from r and feeds it into the hasher in chunks.
 // Uses 64 KiB internal buffer. Returns any read or update error.
-func (h *DataHasher) UpdateFrom(ctx context.Context, r io.Reader) error {
+func (h *WasmDataHasher) UpdateFrom(ctx context.Context, r io.Reader) error {
 	buf := make([]byte, 64*1024)
 	for {
 		n, err := r.Read(buf)
@@ -1245,7 +1245,7 @@ func (h *DataHasher) UpdateFrom(ctx context.Context, r io.Reader) error {
 // Finalize completes the hashing and returns the ISCC Data-Code string.
 // After Finalize, Update and Finalize will return errors. The caller must
 // still call Close to free WASM-side memory.
-func (h *DataHasher) Finalize(ctx context.Context, bits uint32) (string, error) {
+func (h *WasmDataHasher) Finalize(ctx context.Context, bits uint32) (string, error) {
 	fn := h.rt.mod.ExportedFunction("iscc_data_hasher_finalize")
 	results, err := fn.Call(ctx, uint64(h.ptr), uint64(bits))
 	if err != nil {
@@ -1257,7 +1257,7 @@ func (h *DataHasher) Finalize(ctx context.Context, bits uint32) (string, error) 
 // Close releases the WASM-side DataHasher memory.
 // Safe to call multiple times. Sets the internal pointer to 0 to prevent
 // double-free.
-func (h *DataHasher) Close(ctx context.Context) error {
+func (h *WasmDataHasher) Close(ctx context.Context) error {
 	if h.ptr == 0 {
 		return nil
 	}
@@ -1273,7 +1273,7 @@ func (h *DataHasher) Close(ctx context.Context) error {
 // Update feeds data into the InstanceHasher.
 // Can be called multiple times before Finalize. Returns an error if the
 // hasher has already been finalized.
-func (h *InstanceHasher) Update(ctx context.Context, data []byte) error {
+func (h *WasmInstanceHasher) Update(ctx context.Context, data []byte) error {
 	dataPtr, dataSize, err := h.rt.writeBytes(ctx, data)
 	if err != nil {
 		return err
@@ -1293,7 +1293,7 @@ func (h *InstanceHasher) Update(ctx context.Context, data []byte) error {
 
 // UpdateFrom reads all data from r and feeds it into the hasher in chunks.
 // Uses 64 KiB internal buffer. Returns any read or update error.
-func (h *InstanceHasher) UpdateFrom(ctx context.Context, r io.Reader) error {
+func (h *WasmInstanceHasher) UpdateFrom(ctx context.Context, r io.Reader) error {
 	buf := make([]byte, 64*1024)
 	for {
 		n, err := r.Read(buf)
@@ -1314,7 +1314,7 @@ func (h *InstanceHasher) UpdateFrom(ctx context.Context, r io.Reader) error {
 // Finalize completes the hashing and returns the ISCC Instance-Code string.
 // After Finalize, Update and Finalize will return errors. The caller must
 // still call Close to free WASM-side memory.
-func (h *InstanceHasher) Finalize(ctx context.Context, bits uint32) (string, error) {
+func (h *WasmInstanceHasher) Finalize(ctx context.Context, bits uint32) (string, error) {
 	fn := h.rt.mod.ExportedFunction("iscc_instance_hasher_finalize")
 	results, err := fn.Call(ctx, uint64(h.ptr), uint64(bits))
 	if err != nil {
@@ -1326,7 +1326,7 @@ func (h *InstanceHasher) Finalize(ctx context.Context, bits uint32) (string, err
 // Close releases the WASM-side InstanceHasher memory.
 // Safe to call multiple times. Sets the internal pointer to 0 to prevent
 // double-free.
-func (h *InstanceHasher) Close(ctx context.Context) error {
+func (h *WasmInstanceHasher) Close(ctx context.Context) error {
 	if h.ptr == 0 {
 		return nil
 	}

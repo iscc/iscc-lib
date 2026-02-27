@@ -1,39 +1,40 @@
-## 2026-02-27 — Review of: Implement pure Go GenMetaCodeV0 and GenTextCodeV0
+## 2026-02-27 — Implement pure Go GenDataCodeV0 and GenInstanceCodeV0
 
-**Verdict:** PASS
+**Done:** Implemented `GenDataCodeV0` with `DataHasher` streaming type and `GenInstanceCodeV0` with
+`InstanceHasher` streaming type as pure Go gen functions. All 7 conformance vectors pass (4 data + 3
+instance). Also renamed WASM bridge streaming types to `WasmDataHasher`/`WasmInstanceHasher` to
+resolve name collisions.
 
-**Summary:** Clean implementation of GenMetaCodeV0 and GenTextCodeV0 as pure Go functions with all
-21 conformance vectors passing (16 meta + 5 text). The xxh32 hash, BLAKE3 dependency, and JCS
-canonicalization (via stdlib json.Marshal) are all correct. Code quality is high — well-structured
-helpers, proper docstrings, no dead code, and tests validate all output fields.
+**Files changed:**
+
+- `packages/go/code_data.go`: New file — `DataHasher` struct with `Push`/`Finalize` API,
+    `DataCodeResult` type, `GenDataCodeV0` convenience function. Uses CDC + xxh32 + MinHash pipeline
+- `packages/go/code_data_test.go`: New file — 4 conformance vector tests using `TestPureGo*` prefix
+- `packages/go/code_instance.go`: New file — `InstanceHasher` struct with `Push`/`Finalize` API,
+    `InstanceCodeResult` type, `GenInstanceCodeV0` convenience function. Uses BLAKE3 + multihash
+- `packages/go/code_instance_test.go`: New file — 3 conformance vector tests verifying iscc,
+    datahash, and filesize fields
+- `packages/go/iscc.go`: Renamed `DataHasher` → `WasmDataHasher`, `InstanceHasher` →
+    `WasmInstanceHasher` to resolve type name collision with new pure Go implementations
 
 **Verification:**
 
-- [x] `cd packages/go && go build ./...` exits 0
-- [x] `cd packages/go && go test -run TestXxh32 -count=1 -v` — 8 xxh32 unit tests PASS
-- [x] `cd packages/go && go test -run TestPureGoGenTextCodeV0 -count=1 -v` — 5/5 text vectors PASS
-- [x] `cd packages/go && go test -run TestPureGoGenMetaCodeV0 -count=1 -v` — 16/16 meta vectors PASS
-- [x] `cd packages/go && go vet ./...` exits 0
-- [x] `cd packages/go && go test ./...` — all tests pass (pure Go + WASM bridge)
-- [x] `grep -c 'func GenTextCodeV0' packages/go/code_content_text.go` returns 1
-- [x] `grep -c 'func GenMetaCodeV0' packages/go/code_meta.go` returns 1
-- [x] `mise run check` — all 14 hooks pass
-- [x] Race detector clean: `go test -race` passes
+- `go build ./...` — exits 0
+- `TestPureGoGenDataCodeV0` — 4/4 vectors PASS
+- `TestPureGoGenInstanceCodeV0` — 3/3 vectors PASS
+- `go vet ./...` — exits 0
+- `go test ./...` — all tests pass (pure Go + WASM bridge)
+- Race detector clean on both new test suites
+- All grep verification criteria return 1
+- `mise run check` — all 14 hooks pass
 
-**Issues found:**
+**Next:** Implement remaining gen functions (`GenImageCodeV0`, `GenAudioCodeV0`, `GenVideoCodeV0`,
+`GenMixedCodeV0`, `GenIsccCodeV0`) following the same pattern. Image and Audio codes need SimHash;
+Mixed and ISCC codes need component decoding/composition.
 
-- (none)
-
-**Codex review:** Codex reviewed the define-next commit (planning docs only) rather than the advance
-commit, so no code-level findings. No actionable items.
-
-**Next:** Implement `gen_data_code_v0` + `gen_instance_code_v0` as the next gen functions sub-step.
-These need CDC + MinHash + BLAKE3 (all available now) plus `DataHasher` and `InstanceHasher`
-streaming types with `io.Reader` support. 4 conformance vectors for data + 3 for instance = 7 total
-vectors to validate.
-
-**Notes:** The JCS approach uses Go stdlib `json.Marshal` instead of a dedicated JCS library. This
-passes all conformance vectors because they only contain string values. If future vectors include
-float numbers, a proper JCS library may be needed — `json.Marshal` may format numbers differently
-from RFC 8785 requirements. The `TestPureGo*` test name prefix convention avoids conflicts with
-existing WASM bridge tests and should continue for remaining gen function tests.
+**Notes:** The WASM bridge in `iscc.go` already defined `DataHasher` and `InstanceHasher` types for
+its FFI streaming interface. Since both live in the same `iscc` package and Go doesn't support type
+name overloading, the WASM bridge types were renamed to `WasmDataHasher` and `WasmInstanceHasher`.
+This was the minimal change needed — the WASM bridge tests reference these types through
+`rt.NewDataHasher()` which only required changing the return type signature, not the test code
+itself. The existing WASM bridge tests all pass with the rename.
