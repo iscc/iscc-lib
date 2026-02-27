@@ -100,6 +100,10 @@ fully-met target sections to `learnings-archive.md`.
     `var` not `const` (Go uint64 shift limitation)
 - SimHash: `AlgSimhash` returns `([]byte, error)`, `SlidingWindow` returns `([]string, error)`. Uses
     `[]rune` for Unicode-correct SlidingWindow
+- DCT: `algDct` (unexported, `pub(crate)` in Rust). WTA-Hash: `AlgWtahash` (exported, `pub` in
+    Rust). `wtaVideoIdPermutations` is `var` (Go no const arrays). All 7 algorithm modules complete
+- DCT beta computation: Rust `/ cos / 2.0` vs Go `/ (cos * 2.0)` are numerically identical
+    (verified) — multiplying cos ∈ [-1,1] by 2.0 is exact in IEEE 754
 - Dependency order: codec → utils → algorithms → gen functions → streaming → conformance → cleanup
 
 ## CID Process

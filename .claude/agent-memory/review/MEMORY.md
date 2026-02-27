@@ -93,8 +93,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go/wazero has 30/30 Tier 1 symbols as of iteration 12 (48 total Runtime methods: 27 public + 21
     private helpers, 7 new tests)
 - Go pure rewrite progress: codec complete (570 lines, 48 tests), text utils complete (130 lines, 21
-    tests), algorithms partial — CDC (129 lines, 15 tests), MinHash (205 lines, 8 tests),
-    SimHash+SlidingWindow (86 lines, 14 tests). Next: DCT, WTA-Hash → gen functions
+    tests), algorithms complete — CDC (129 lines, 15 tests), MinHash (205 lines, 8 tests),
+    SimHash+SlidingWindow (86 lines, 14 tests), DCT (52 lines, 10 tests), WTA-Hash (92 lines, 9
+    tests). Next: gen functions layer (step 5)
 
 ## Binding Propagation Review Shortcuts
 
