@@ -300,10 +300,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     any binding crate yet. All 6 bindings remain at 23/30. CI all 7 jobs passing at HEAD `5df058f`
     (run 22480614770).
 - **CID iteration 3 (commits ddfdff4..d9a87c2)**: advance agent implemented `iscc_decode` in
-    `crates/iscc-lib/src/lib.rs` (only file changed). Review agent PASS. Total Rust tests now **292**
-    (239 src unit tests across 10 files + 31 integration + 22 doc-tests). Rust core is now 29/30 Tier
-    1 symbols. `json_to_data_url` is the sole remaining missing symbol. All 6 bindings unchanged at
-    23/30. CI all 7 jobs passing at HEAD `d9a87c2` (run 22481268707).
+    `crates/iscc-lib/src/lib.rs` (only file changed). Review agent PASS. Total Rust tests now
+    **292** (239 src unit tests across 10 files + 31 integration + 22 doc-tests). Rust core is now
+    29/30 Tier 1 symbols. `json_to_data_url` is the sole remaining missing symbol. All 6 bindings
+    unchanged at 23/30. CI all 7 jobs passing at HEAD `d9a87c2` (run 22481268707).
 - **Test count breakdown (iteration 3)**: lib.rs=63, codec.rs=73, cdc.rs=15, dct.rs=12,
     simhash.rs=24, utils.rs=20, streaming.rs=15, minhash.rs=7, wtahash.rs=9, conformance.rs=1 →
     total src=239. Plus 31 integration tests in tests/ + 22 doc-tests = 292 total.
