@@ -51,10 +51,10 @@ fully-met target sections to `learnings-archive.md`.
     produces 256 bits (32 bytes) from a set of n-gram features. Text n-gram size = 13 (characters)
 - `gen_data_code_v0` uses MinHash on CDC chunk hashes. CDC splits binary data into content-defined
     chunks, each chunk is xxh32-hashed (not BLAKE3), the set of chunk hashes is MinHash'd
-- `soft_hash_audio_v0` is a multi-stage hash: Chromaprint i32 array → overlapping frames of
-    `frame_size` i32s → each frame's individual bits → SimHash across frames → byte digest
-- `alg_simhash` output length is always 32 bytes (256 bits) regardless of input. The function hashes
-    feature vectors (each a byte slice) into a single 256-bit fingerprint
+- `soft_hash_audio_v0` is a 3-stage hash: Chromaprint i32 array → 4-byte big-endian digests →
+    SimHash (overall 4B + quarters 16B + sorted thirds 12B) = 32 bytes total
+- `alg_simhash` output length equals input digest length (e.g., 4 bytes for 4-byte digests). Returns
+    32 zero bytes only for empty input. NOT always 256 bits
 - `gen_mixed_code_v0` processes multiple content codes: sorts by MainType, groups by SubType,
     soft-hashes each group, then SimHash across groups. The input is a list of ISCC strings (units),
     not raw data
