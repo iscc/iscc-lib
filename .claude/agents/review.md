@@ -43,12 +43,23 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     is the advance commit, HEAD~2 is the define-next commit). Read the modified files in full.
     Compare against what next.md asked for.
 
-3. **Run verification** — run `mise run check` (runs all quality gates via pre-commit hooks). Then
+3. **Launch independent review** — start a Codex code review of the advance agent's commit as a
+    background task. Run this command with `run_in_background: true` on the Bash tool (it may take
+    10–30 minutes):
+
+    ```
+    codex exec review --ephemeral --commit HEAD~1 > /tmp/codex-review.txt 2>&1
+    ```
+
+    Continue with the remaining steps while it runs. The output will be incorporated in step 8. If
+    `codex` is not installed or the command fails immediately, skip this step.
+
+4. **Run verification** — run `mise run check` (runs all quality gates via pre-commit hooks). Then
     execute each specific check from next.md's `## Verification` section individually and record
     pass/fail for each criterion. Every criterion from next.md must appear in the handoff's
     `**Verification:**` grid with `[x]` or `[ ]`.
 
-4. **Assess quality** — check the implementation for:
+5. **Assess quality** — check the implementation for:
 
     - **Scope discipline**: Does the diff touch only what next.md asked for? Check the
         `## Not In Scope` section — if the advance agent did something explicitly excluded, flag it.
@@ -71,7 +82,7 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
         the issue. If the source is `[review]` or `[advance]`, do NOT update the spec without
         `HUMAN REVIEW REQUESTED` approval.
 
-5. **Update learnings** — append new findings to `.claude/context/learnings.md`. Add entries under
+6. **Update learnings** — append new findings to `.claude/context/learnings.md`. Add entries under
     the appropriate section (Architecture, Reference Implementation, Tooling, Process). Only add
     genuinely useful learnings — things that will help future iterations. Examples:
 
@@ -80,7 +91,7 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
         crates"
     - "iscc-core uses little-endian byte order for hash truncation"
 
-6. **Manage issues** — If the review uncovered a problem that should be tracked (design flaw,
+7. **Manage issues** — If the review uncovered a problem that should be tracked (design flaw,
     technical debt, recurring bug pattern, missing test coverage), add it to issues.md following
     the file's format. Use source tag `[review]`. Use `normal` priority unless the issue blocks
     progress (then `critical`). If this iteration resolved an issue from issues.md, delete that
@@ -94,18 +105,30 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     `reference/iscc-core/`. Always add `HUMAN REVIEW REQUESTED` for upstream issues — do not file
     GitHub issues yourself.
 
-7. **Update handoff** — rewrite `.claude/context/handoff.md` to prepare the define-next agent for
+8. **Update handoff** — rewrite `.claude/context/handoff.md` to prepare the define-next agent for
     the next iteration. Include what was accomplished, what issues remain, and a concrete
     suggestion for the next step.
 
-8. **Fix minor issues** — if you find minor problems (formatting, missing docstring, unused
+    Before writing, check if the Codex review from step 3 has completed. If `/tmp/codex-review.txt`
+    exists and has content, extract the findings:
+
+    ```
+    sed -n '/^codex$/,$ p' /tmp/codex-review.txt | tail -n +2
+    ```
+
+    Add a `**Codex review:**` section to the handoff with any actionable findings. Codex findings
+    are advisory — use your judgment on whether each is relevant given the project conventions and
+    the work package scope. If the background task hasn't completed or produced no output, omit
+    this section.
+
+9. **Fix minor issues** — if you find minor problems (formatting, missing docstring, unused
     import), fix them directly. Do not fix anything that would change behavior or architecture.
 
-9. **Update agent memory** — update your agent memory with quality gate details, common review
+10. **Update agent memory** — update your agent memory with quality gate details, common review
     issues, review shortcuts, and gotchas that will help you review faster in future iterations.
     Remove outdated entries that no longer apply.
 
-10. **Commit** — stage learnings.md, handoff.md, issues.md, the iteration log, agent memory, and any
+11. **Commit** — stage learnings.md, handoff.md, issues.md, the iteration log, agent memory, and any
     minor fixes:
 
     ```
@@ -115,7 +138,7 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     git commit -m "cid(review): <summary of findings>"
     ```
 
-11. **Push (on PASS or PASS_WITH_NOTES)** — if the verdict is PASS or PASS_WITH_NOTES, push all
+12. **Push (on PASS or PASS_WITH_NOTES)** — if the verdict is PASS or PASS_WITH_NOTES, push all
     unpushed commits to the remote. This sends the full batch (define-next + advance + review) as
     one logical unit of progress. Pre-push hooks run automatically and provide defense in depth.
 
@@ -152,6 +175,8 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
 - <issue 1, if any>
 - <issue 2, if any>
 - (none) if clean
+
+**Codex review:** <actionable findings from the independent Codex review, if available>
 
 **Next:** <concrete suggestion for the define-next agent — what should be worked on next>
 
@@ -214,7 +239,7 @@ Use this when:
 - Do not add issues for style preferences or minor nits — only for problems that affect correctness,
     architecture, or maintainability.
 - Be critical but constructive. Flag real problems, not style preferences.
-- Do not rewrite the advance agent's code (unless fixing minor issues per step 7).
+- Do not rewrite the advance agent's code (unless fixing minor issues per step 9).
 - Do not modify `.claude/context/state.md` or `.claude/context/next.md`.
 - Do not modify `.claude/context/target.md` (or sub-specs) UNLESS resolving a `[human]`-sourced
     issue that has a `**Spec:**` field — in that case, the human authorized the spec change by

@@ -53,7 +53,7 @@ iterations.
     - Consult `notes/` documents referenced in next.md for architectural guidance
     - Keep it simple. Prefer explicit over clever.
     - Write short, pure functions with docstrings
-    - Stay within the file scope defined in next.md (max 3 files, excluding tests)
+    - Stay within the file scope defined in next.md (max 3 files, excluding tests and docs)
     - If next.md lists documentation files in Scope, update them to reflect the code changes made in
         this step. Doc updates should be minimal and accurate — match the actual implementation,
         don't embellish.

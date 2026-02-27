@@ -56,7 +56,7 @@ recurring patterns. This builds up institutional knowledge across iterations.
 5. **Choose ONE step** — pick the single highest-value step that:
 
     - Advances toward the target
-    - Can be implemented by modifying at most 3 files (excluding tests)
+    - Can be implemented by modifying at most 3 files (excluding tests and docs)
     - Has clear, testable verification criteria (prefer boolean-testable: a command that exits 0 or
         an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)
