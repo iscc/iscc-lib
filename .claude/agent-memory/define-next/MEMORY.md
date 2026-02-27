@@ -134,6 +134,15 @@ iterations.
     configuring wasm-opt flags — this is the portable, documented approach that works both locally
     and in CI. Prefer crate-config fixes over workflow-command-line fixes for reproducibility. After
     fixing, don't re-trigger the release in the same step — that's a separate human-gated operation.
+- **Extended Tier 1 API — ordering** (CID loop 3): 7 new symbols added in order: (1) constants +
+    encode_component wrapper (5 symbols, iteration 1), (2) iscc_decode (iteration 2), (3)
+    json_to_data_url (iteration 3). This ordering worked well — additive constants first, then
+    progressively complex functions. After all 30 Rust core symbols: propagate to 6 binding crates.
+- **json_to_data_url combines existing helpers**: The function is a thin public wrapper around
+    `parse_meta_json` (JCS canonicalization) + `build_meta_data_url` (media type + base64 encoding).
+    Both helpers are already private in lib.rs. The conformance vector `test_0016_meta_data_url`
+    uses `charset=utf-8` in its data URL while our function omits charset — the payloads should
+    match but the full URL prefix will differ. Test the payload, not the exact URL format.
 
 ## Architecture Decisions
 
@@ -233,20 +242,3 @@ iterations.
     top-level target verification criteria are met, but detailed spec gaps remain. These are safe,
     docs-only steps (2 files, no code changes). Check for: mermaid diagrams, workspace layout trees,
     crate summary tables, streaming pattern tables, conformance test matrix tables.
-- **Extended API surface — 7 new Tier 1 symbols** (CID loop 3, iteration 1): Target expanded from
-    23→30 Tier 1 symbols. Best ordering: (1) constants + encode_component wrapper — purely additive,
-    no new logic, (2) iscc_decode — new but uses existing codec helpers, (3) json_to_data_url — new
-    function with base64 encoding. After Rust core: propagate to all 6 binding crates. Constants +
-    encode_component wrapper is a good first step — 5 symbols in one iteration, zero behavioral
-    change for existing code, clear verification. The handoff is stale (says "maintenance mode")
-    because it predates the target expansion.
-- **IO_READ_SIZE discrepancy**: Spec says 4_194_304 (4 MB), Python `options.py` says 2_097_152 (2
-    MB). Follow the spec since Titusz authored it. This constant is advisory (SDK buffer sizing),
-    not algorithm-critical. Flag for human review if it causes conformance issues later.
-- **iscc_decode scoping** (CID loop 3, iteration 2): `iscc_decode` is a thin Tier 1 wrapper
-    combining existing codec helpers (decode_base32 → decode_header → decode_length → truncate
-    tail). Single-file change in lib.rs matching the encode_component pattern. The Python reference
-    returns raw decode_header output (full tail), but our API returns truncated digest (bit_length/8
-    bytes) for a cleaner caller experience. Round-trip tests with encode_component provide
-    sufficient verification. After iscc_decode: json_to_data_url is the last missing Tier 1 symbol
-    (30/30), then propagate all 7 new symbols to 6 binding crates.

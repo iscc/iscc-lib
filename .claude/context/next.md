@@ -1,83 +1,86 @@
 # Next Work Package
 
-## Step: Implement `iscc_decode` Tier 1 function
+## Step: Implement `json_to_data_url` — 30th Tier 1 symbol
 
 ## Goal
 
-Add `iscc_decode` to the Rust core as the 29th of 30 Tier 1 symbols. This is the inverse of
-`encode_component` — it decodes an ISCC unit string back into its header components and raw digest.
-Needed by `iscc-sdk` for `code_sum()` and ISCC unit inspection (issue #7).
+Add `json_to_data_url` as the last of 30 Tier 1 public symbols in the Rust core. This utility
+function converts a JSON string into a `data:` URL with JCS canonicalization, enabling all bindings
+to support dict/object meta parameters by delegating encoding to Rust (issue #5 layer 1).
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `crates/iscc-lib/src/lib.rs` — add `pub fn iscc_decode` function and tests
+- **Modify**: `crates/iscc-lib/src/lib.rs` — add `pub fn json_to_data_url`, tests, and doc comment
 - **Reference**:
-    - `reference/iscc-core/iscc_core/codec.py` — `iscc_decode` (line 486), `iscc_clean` (line 644),
-        `decode_header` (line 108)
-    - `crates/iscc-lib/src/codec.rs` — `decode_base32`, `decode_header`, `decode_length`
-    - Issue #7 in `.claude/context/issues.md`
+    - `reference/iscc-core/iscc_core/code_meta.py` — lines 70-77 (dict meta → data URL flow)
+    - `.claude/context/specs/rust-core.md` — Encoding Utilities section (signature, behavior)
+    - Existing private helpers `parse_meta_json` (line 143) and `build_meta_data_url` (line 156) in
+        `crates/iscc-lib/src/lib.rs`
 
 ## Not In Scope
 
-- `iscc_normalize` (full multibase/hex normalization) — our `iscc_decode` only needs basic cleaning
-    (strip "ISCC:" prefix, remove dashes), matching the pattern in `iscc_decompose`
-- `iscc_clean` or `iscc_normalize` as separate public functions — not Tier 1 symbols
-- `iscc_explain` — depends on `iscc_decode` but is not in the target API
-- Propagating `iscc_decode` to binding crates — separate step
-- Implementing `json_to_data_url` — the next step after this one
-- Adding conformance vectors for `iscc_decode` — the existing data.json does not have
-    decode-specific vectors; round-trip tests with `encode_component` provide sufficient coverage
+- Propagating `json_to_data_url` (or any of the 7 new symbols) to bindings — that's the next phase
+- Refactoring `gen_meta_code_v0` to call `json_to_data_url` internally — the existing code path
+    works and the refactor risks changing behavior or performance for no user-facing benefit
+- Adding `core_opts` namespace or enum types to bindings — separate steps
+- Non-JSON media type variants (XML, etc.) — iscc-core only supports JSON
 
 ## Implementation Notes
 
-**Algorithm** (port from Python `iscc_decode` in `codec.py` line 486-497):
+The function combines two existing private helpers into a single public API:
 
-1. Strip optional `"ISCC:"` prefix (case-sensitive, matching `iscc_decompose` pattern)
-2. Remove dashes (matching `iscc_clean` behavior for base32 input)
-3. `codec::decode_base32(cleaned)` → raw bytes
-4. `codec::decode_header(raw)` → `(MainType, SubType, Version, length_index, tail)`
-5. `codec::decode_length(mtype, length_index, stype)` → `bit_length`
-6. Truncate `tail` to exactly `bit_length / 8` bytes (cleaner than the Python ref which returns full
-    tail and expects callers to truncate — our API returns the usable digest directly)
-7. Return `(mtype as u8, stype as u8, version as u8, length_index as u8, truncated_digest)`
+1. **`parse_meta_json(meta_str)`** (line 143) — parses JSON string, JCS-canonicalizes via
+    `serde_json_canonicalizer`
+2. **`build_meta_data_url(json_bytes, json_value)`** (line 156) — determines media type from
+    `@context` key, base64-encodes, formats `data:` URL
 
-**Signature**: `pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)>`
+**Signature**: `pub fn json_to_data_url(json: &str) -> IsccResult<String>`
 
-**Pattern**: Follow the same Tier 1 wrapper pattern as `encode_component` — takes/returns primitive
-types (`u8` for enum fields), delegates to `codec::` module functions internally. Define the
-function directly in `lib.rs` (not in `codec.rs`) to match the `encode_component` placement.
+Returns `IsccResult` (not bare `String`) because JSON parsing can fail. This follows the
+`encode_component` / `iscc_decode` error-returning pattern for Tier 1 functions.
 
-**Error cases**:
+**Algorithm** (matches iscc-core `gen_meta_code_v0` lines 71-76):
 
-- Empty or whitespace-only string → propagated from `decode_base32`
-- Invalid base32 characters → propagated from `decode_base32`
-- Malformed header (unknown enum values) → propagated from `decode_header`
-- Tail shorter than expected digest length → return `IsccError::InvalidInput` with descriptive
-    message
+1. Parse `json` to `serde_json::Value` — return `IsccError::InvalidInput` on invalid JSON
+2. JCS-canonicalize via `serde_json_canonicalizer::to_writer` → canonical bytes
+3. Check `json_value.get("@context").is_some()` → `application/ld+json` else `application/json`
+4. Base64-encode canonical bytes with `data_encoding::BASE64` (standard, with padding)
+5. Return `format!("data:{media_type};base64,{b64}")`
+
+**Placement**: Define near the other encoding utilities and the existing private helpers (around
+line 120-165 area, near `decode_data_url` and `build_meta_data_url`). Add a doc comment with
+`# Errors` and `# Examples` sections.
+
+**Dependencies**: All already present — `serde_json`, `serde_json_canonicalizer`, `data_encoding`.
 
 **Tests** (add in the `#[cfg(test)]` module at the bottom of `lib.rs`):
 
-1. **Round-trip with encode_component**: encode known digests with `encode_component`, decode with
-    `iscc_decode`, verify all 5 tuple fields match
-2. **With "ISCC:" prefix**: prepend "ISCC:" to an encoded component, decode, verify same result
-3. **With dashes**: insert dashes into an encoded string, verify decode still works
-4. **Various MainTypes**: test at least Meta (0), Content (2), Data (3), Instance (4) round-trips
-5. **Error: invalid base32**: `iscc_decode("!!!INVALID!!!")` returns error
-6. **Error: truncated input**: a too-short base32 string that decodes to fewer bytes than needed
-7. **Known value**: pick a known ISCC from `data.json` test vectors and verify `iscc_decode` returns
-    the expected MainType, SubType, Version, and digest length
+1. Basic JSON object → data URL with `data:application/json;base64,...` prefix
+2. JSON with `@context` key → `data:application/ld+json;base64,...` prefix
+3. JCS canonicalization: `{"b":1,"a":2}` → verify key ordering in canonical output (decode base64
+    payload and check it equals `{"a":2,"b":1}`)
+4. Round-trip: feed `json_to_data_url` output into `decode_data_url` (private helper) and verify
+    decoded bytes match JCS-canonical form of original input
+5. Error case: invalid JSON string (e.g., `"not json"`) returns `Err(IsccError::InvalidInput(...))`
+6. Compatibility: `json_to_data_url("{\"some\": \"object\"}")` produces the same data URL as the
+    `test_0016_meta_data_url` conformance vector's meta field — note the conformance vector uses a
+    charset-qualified data URL (`data:application/json;charset=utf-8;base64,...`) while our
+    function omits charset (matching Python's `DataURL.from_byte_data`), so this may NOT match
+    exactly. If it differs, document the reason in a test comment and verify the _payload_ (base64
+    content) matches.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (280 existing + new `iscc_decode` tests)
+- `cargo test -p iscc-lib` passes (292 existing + new tests, 0 failures)
 - `cargo clippy -p iscc-lib -- -D warnings` clean
-- `grep -c 'pub fn iscc_decode' crates/iscc-lib/src/lib.rs` returns 1
-- Round-trip: `encode_component(0, 0, 0, 64, &[0xaa;8])` → `iscc_decode(result)` returns
-    `(0, 0, 0, 1, vec![0xaa;8])` (length_index is 1 because `encode_length(Meta, 64) = 64/32-1 = 1`)
+- `grep -c 'pub fn json_to_data_url' crates/iscc-lib/src/lib.rs` returns 1
+- Test confirms `json_to_data_url("{\"key\":\"value\"}")` returns a string starting with
+    `data:application/json;base64,`
+- Test confirms `json_to_data_url("{\"@context\":\"x\"}")` returns a string starting with
+    `data:application/ld+json;base64,`
 
 ## Done When
 
-All verification criteria pass and `iscc_decode` is a public Tier 1 function in
-`crates/iscc-lib/src/lib.rs` that correctly decodes any valid ISCC unit string into its header
-components and truncated digest.
+All verification criteria pass, confirming `json_to_data_url` is the 30th and final Tier 1 public
+symbol in the Rust core with proper JCS canonicalization, media type detection, and error handling.
