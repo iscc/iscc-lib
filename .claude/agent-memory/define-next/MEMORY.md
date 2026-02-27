@@ -43,8 +43,11 @@ iterations.
     `go vet ./...`. Full suite at each step (both pure Go and WASM tests pass)
 - **Shared types**: `DecodeResult` struct in `iscc.go` referenced by `codec.go` (same package). When
     WASM is removed, struct moves to appropriate file
-- **Next algorithm step**: DCT (~150 lines Rust) + WTA-Hash (~390 lines) — separate batch because
-    only needed for Image/Video-Code. Both are pure computation, no external deps
+- **Step 4 (DCT+WTA-Hash)**: ~537 lines Rust combined, but WTA-Hash is mostly a 256-entry constant
+    table. Both are pure computation, stdlib only. DCT is `pub(crate)` → unexported `algDct` in Go.
+    WTA-Hash is `pub` → exported `AlgWtahash` in Go
+- **After step 4**: all 5 algorithm modules complete. Step 5 is gen functions + BLAKE3 dep +
+    streaming hashers — will likely need multiple sub-steps due to scope
 
 ## CI/Release Patterns
 
