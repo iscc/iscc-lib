@@ -151,6 +151,14 @@ iterations.
     in Python). Functions follow the established thin-wrapper `map_err(PyValueError)` pattern.
     `iscc_decode` is the trickiest because it returns a tuple with `bytes` (needs `PyBytes`
     wrapping). After Python: Node.js, WASM, C FFI, Java, Go in any order.
+- **Python iscc-core drop-in extensions** (CID loop 3, iteration 6+): After all 30/30 Tier 1 symbols
+    are in Python, 4 small drop-in extensions remain: (1) dict meta for gen_meta_code_v0 (issue #5)
+    — Python wrapper only, uses json_to_data_url from \_lowlevel, (2) PIL pixel data for
+    gen_image_code_v0 (issue #4) — Python wrapper only, bytes(pixels), (3) MT/ST/VS IntEnum classes
+    (issue #6), (4) core_opts SimpleNamespace (issue #8). All are Python-only, no Rust changes. Each
+    is a single-step scope (1-2 files). Natural ordering: dict meta first (uses newly-propagated
+    json_to_data_url), then PIL pixels, then enums + core_opts (can batch #6 + #8 since both are
+    pure additions to __init__.py).
 
 ## Architecture Decisions
 

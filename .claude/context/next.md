@@ -1,116 +1,94 @@
 # Next Work Package
 
-## Step: Propagate 7 new Tier 1 symbols to Python bindings
+## Step: Accept dict meta in Python gen_meta_code_v0
 
 ## Goal
 
-Add `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 algorithm constants
-(`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) to the Python
-binding, bringing it from 23/30 to 30/30 Tier 1 symbols.
+Enable `gen_meta_code_v0` in the Python binding to accept `dict` for the `meta` parameter (in
+addition to `str | None`), matching iscc-core behavior. This is one of 4 remaining iscc-core drop-in
+compatibility extensions and unblocks `iscc-sdk` migration (issue #5).
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-py/src/lib.rs` — add 3 `#[pyfunction]` wrappers + 4 constants in module init
-    - `crates/iscc-py/python/iscc_lib/__init__.py` — import and re-export the 7 new symbols, add to
-        `__all__`
-    - `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — add type stubs for 3 functions + 4 constants
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — widen `gen_meta_code_v0` wrapper to accept
+        `meta: str | dict | None`, serialize dict to JSON then call `json_to_data_url()`
+    - `tests/test_new_symbols.py` — add tests for dict meta parameter
 - **Reference**:
-    - `crates/iscc-lib/src/lib.rs` — Rust signatures for `encode_component`, `iscc_decode`,
-        `json_to_data_url`, and 4 constants
-    - `crates/iscc-py/src/lib.rs` — existing PyO3 wrapper patterns (`iscc_decompose`, `encode_base64`
-        for simple pass-through examples)
+    - `reference/iscc-core/iscc_core/code_meta.py` — lines 62-77 show the dict→data URL conversion
+        logic
+    - `.claude/context/specs/python-bindings.md` — "Dict for gen_meta_code_v0 meta Parameter" section
+    - `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — type stubs (lowlevel stays `str | None`)
 
 ## Not In Scope
 
-- dict `meta` parameter for `gen_meta_code_v0` (issue #5 layer 2) — separate step after these
-    symbols land
-- PIL pixel data for `gen_image_code_v0` (issue #4) — Python-only wrapper enhancement, separate step
-- `MT`/`ST`/`VS` `IntEnum` classes (issue #6 binding-level enums) — separate step
-- `core_opts` `SimpleNamespace` (issue #8 binding-level wrapper) — separate step
-- Propagation to other bindings (Node.js, WASM, C FFI, Java, Go) — one binding at a time
+- Updating `_lowlevel.pyi` — the lowlevel Rust function still only accepts `str | None`; the dict
+    handling is entirely in the Python wrapper layer
+- Adding `MT`, `ST`, `VS` IntEnum classes (issue #6) — separate step
+- Adding `core_opts` SimpleNamespace (issue #8) — separate step
+- Widening `gen_image_code_v0` for PIL pixel data (issue #4) — separate step
+- Propagating symbols to Node.js/WASM/C/Java/Go bindings — separate step
+- Any Rust core changes — this is Python-wrapper-only
 
 ## Implementation Notes
 
-### PyO3 wrappers (`lib.rs`)
+In `crates/iscc-py/python/iscc_lib/__init__.py`:
 
-**`encode_component`**: Thin wrapper taking
-`(mtype: u8, stype: u8, version: u8, bit_length: u32, digest: &[u8]) -> PyResult<String>`. Map error
-with `map_err(PyValueError)`. Follow the existing `iscc_decompose` pattern.
+1. Add `import json` at the top of the file.
+2. In `gen_meta_code_v0`, before calling `_gen_meta_code_v0`, check if `meta` is a `dict`:
+    ```python
+    def gen_meta_code_v0(
+        name: str,
+        description: str | None = None,
+        meta: str | dict | None = None,
+        bits: int = 64,
+    ) -> MetaCodeResult:
+        """Generate an ISCC Meta-Code from content metadata."""
+        if isinstance(meta, dict):
+            meta = json_to_data_url(
+                json.dumps(meta, separators=(",", ":"), ensure_ascii=False)
+            )
+        return MetaCodeResult(_gen_meta_code_v0(name, description, meta, bits))
+    ```
 
-**`iscc_decode`**: Returns `PyResult<(u8, u8, u8, u8, Py<PyBytes>)>`. The Rust function returns
-`IsccResult<(u8, u8, u8, u8, Vec<u8>)>`. Wrap the `Vec<u8>` in `PyBytes::new(py, &digest)` for the
-Python side to receive `bytes`. The first 4 elements are `u8` integers. Use the Python `py`
-parameter (add `py: Python<'_>` to the function signature). Return a tuple.
+Key details from the iscc-core reference (`code_meta.py` lines 70-76):
 
-**`json_to_data_url`**: Simplest — `(json: &str) -> PyResult<String>`. Map error with
-`map_err(PyValueError)`.
+- The dict is serialized via `jcs.canonicalize(meta)` (JCS = RFC 8785), then base64-encoded into a
+    data URL.
+- `json_to_data_url()` in the Rust core already handles JCS canonicalization internally (it parses
+    the JSON, re-serializes to JCS, and base64-encodes). So the Python wrapper only needs to do
+    `json.dumps()` to get valid JSON, then `json_to_data_url()` handles the rest.
+- The `separators=(",", ":")` in `json.dumps` produces compact JSON (no extra whitespace). This
+    doesn't need to be JCS-canonical because `json_to_data_url()` re-canonicalizes.
+- `ensure_ascii=False` preserves non-ASCII characters (matching iscc-core behavior).
+- The `@context` key detection for media type selection (`application/json` vs
+    `application/ld+json`) is handled inside `json_to_data_url()` — no Python-side logic needed.
 
-**Constants**: In the `iscc_lowlevel` module init function, add:
+Tests to add in `tests/test_new_symbols.py`:
 
-```rust
-m.add("META_TRIM_NAME", iscc_lib::META_TRIM_NAME)?;
-m.add("META_TRIM_DESCRIPTION", iscc_lib::META_TRIM_DESCRIPTION)?;
-m.add("IO_READ_SIZE", iscc_lib::IO_READ_SIZE)?;
-m.add("TEXT_NGRAM_SIZE", iscc_lib::TEXT_NGRAM_SIZE)?;
-```
-
-Register all 3 functions with `wrap_pyfunction!` in the module init.
-
-### Python wrapper (`__init__.py`)
-
-Import the 7 new symbols from `_lowlevel`. Constants are simple re-exports (no wrapper needed).
-Functions are also simple re-exports — no wrapper logic needed (unlike `gen_data_code_v0` which adds
-streaming). Add all 7 to `__all__`.
-
-### Type stubs (`_lowlevel.pyi`)
-
-Add stubs for:
-
-- `def encode_component(mtype: int, stype: int, version: int, bit_length: int, digest: bytes) -> str: ...`
-- `def iscc_decode(iscc: str) -> tuple[int, int, int, int, bytes]: ...`
-- `def json_to_data_url(json: str) -> str: ...`
-- `META_TRIM_NAME: int`
-- `META_TRIM_DESCRIPTION: int`
-- `IO_READ_SIZE: int`
-- `TEXT_NGRAM_SIZE: int`
-
-Include docstrings matching the existing stub style (`:param:`, `:return:`, `:raises:`).
-
-### Tests
-
-Add a new test file `tests/test_new_symbols.py` (or extend `tests/test_smoke.py`) with:
-
-- `test_encode_component_roundtrip` — encode a known digest, verify output is a valid ISCC string
-- `test_iscc_decode_roundtrip` — encode then decode, verify components match
-- `test_json_to_data_url_plain` — JSON without `@context` returns `data:application/json;base64,...`
-- `test_json_to_data_url_ld` — JSON with `@context` returns `data:application/ld+json;base64,...`
-- `test_constants` — verify `META_TRIM_NAME == 128`, `META_TRIM_DESCRIPTION == 4096`,
-    `IO_READ_SIZE == 4_194_304`, `TEXT_NGRAM_SIZE == 13`
-- Error cases: `encode_component` with invalid mtype, `iscc_decode` with invalid string,
-    `json_to_data_url` with invalid JSON — all raise `ValueError`
-
-### Build & format
-
-Run `mise run format` before committing. Run
-`VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop -m crates/iscc-py/Cargo.toml` to build the
-updated native module before running pytest.
+- `test_gen_meta_dict_meta_basic` — pass `meta={"key": "value"}`, verify result has `meta` key
+    starting with `data:application/json;base64,`
+- `test_gen_meta_dict_meta_ld_json` — pass
+    `meta={"@context": "https://schema.org", "name": "Test"}`, verify result `meta` starts with
+    `data:application/ld+json;base64,`
+- `test_gen_meta_dict_meta_matches_string` — pass the same data as both dict and pre-computed data
+    URL string, verify ISCC codes match (confirming dict→string→Rust path produces identical output)
+- `test_gen_meta_str_meta_still_works` — regression: pass `meta="data:application/json;base64,..."`
+    as string, verify it still works
+- `test_gen_meta_dict_meta_none_still_works` — regression: `meta=None` still works
 
 ## Verification
 
-- `cargo test -p iscc-py` passes (existing Rust unit tests still pass)
-- `cargo clippy -p iscc-py -- -D warnings` clean
-- `VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop -m crates/iscc-py/Cargo.toml` succeeds
-- `uv run pytest tests/ -x` passes (all existing + new tests)
+- `uv run pytest tests/test_new_symbols.py -x` passes (13 existing + ~5 new tests)
+- `uv run pytest tests/ -x` passes (all ~172+ tests, 0 failures)
 - `uv run ruff check crates/iscc-py/python/` clean
 - `uv run ruff format --check crates/iscc-py/python/` clean
-- `python -c "from iscc_lib import encode_component, iscc_decode, json_to_data_url"` exits 0
-- `python -c "from iscc_lib import META_TRIM_NAME, META_TRIM_DESCRIPTION, IO_READ_SIZE, TEXT_NGRAM_SIZE; assert META_TRIM_NAME == 128"`
+- `python -c "from iscc_lib import gen_meta_code_v0; r = gen_meta_code_v0('Test', meta={'key': 'val'}); assert r['meta'].startswith('data:application/json;base64,')"`
     exits 0
-- `python -c "import iscc_lib; assert len(iscc_lib.__all__) >= 42"` exits 0 (was 35 + 7 new = 42)
+- `cargo clippy -p iscc-py -- -D warnings` clean (no Rust changes expected, but verify)
 
 ## Done When
 
-All verification criteria pass — 30/30 Tier 1 symbols are accessible from Python with correct
-behavior and types.
+All verification criteria pass, confirming `gen_meta_code_v0` accepts `dict` for the `meta`
+parameter and produces output matching the iscc-core reference behavior.
