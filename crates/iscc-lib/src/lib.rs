@@ -231,6 +231,41 @@ pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
     ))
 }
 
+/// Convert a JSON string into a `data:` URL with JCS canonicalization.
+///
+/// Parses the JSON, re-serializes to [RFC 8785 (JCS)](https://www.rfc-editor.org/rfc/rfc8785)
+/// canonical form, base64-encodes the result, and wraps it in a `data:` URL.
+/// Uses `application/ld+json` media type when the JSON contains an `@context`
+/// key, otherwise `application/json`.
+///
+/// This enables all language bindings to support dict/object meta parameters
+/// by serializing to JSON once (language-specific) then delegating encoding
+/// to Rust.
+///
+/// # Errors
+///
+/// Returns [`IsccError::InvalidInput`] if `json` is not valid JSON or if
+/// JCS canonicalization fails.
+///
+/// # Examples
+///
+/// ```
+/// # use iscc_lib::json_to_data_url;
+/// let url = json_to_data_url(r#"{"key": "value"}"#).unwrap();
+/// assert!(url.starts_with("data:application/json;base64,"));
+///
+/// let ld_url = json_to_data_url(r#"{"@context": "https://schema.org"}"#).unwrap();
+/// assert!(ld_url.starts_with("data:application/ld+json;base64,"));
+/// ```
+pub fn json_to_data_url(json: &str) -> IsccResult<String> {
+    let parsed: serde_json::Value = serde_json::from_str(json)
+        .map_err(|e| IsccError::InvalidInput(format!("invalid JSON: {e}")))?;
+    let mut canonical_bytes = Vec::new();
+    serde_json_canonicalizer::to_writer(&parsed, &mut canonical_bytes)
+        .map_err(|e| IsccError::InvalidInput(format!("JSON canonicalization failed: {e}")))?;
+    Ok(build_meta_data_url(&canonical_bytes, &parsed))
+}
+
 /// Generate a Meta-Code from name and optional metadata.
 ///
 /// Produces an ISCC Meta-Code by hashing the provided name, description,
@@ -1872,5 +1907,94 @@ mod tests {
         let truncated = &encoded[..6];
         let result = iscc_decode(truncated);
         assert!(result.is_err(), "should fail on truncated input");
+    }
+
+    // --- json_to_data_url tests ---
+
+    /// Basic JSON object produces a data URL with application/json media type.
+    #[test]
+    fn test_json_to_data_url_basic() {
+        let url = json_to_data_url(r#"{"key": "value"}"#).unwrap();
+        assert!(
+            url.starts_with("data:application/json;base64,"),
+            "expected application/json prefix, got: {url}"
+        );
+    }
+
+    /// JSON with `@context` key uses application/ld+json media type.
+    #[test]
+    fn test_json_to_data_url_ld_json() {
+        let url = json_to_data_url(r#"{"@context": "https://schema.org"}"#).unwrap();
+        assert!(
+            url.starts_with("data:application/ld+json;base64,"),
+            "expected application/ld+json prefix, got: {url}"
+        );
+    }
+
+    /// JCS canonicalization reorders keys alphabetically.
+    #[test]
+    fn test_json_to_data_url_jcs_ordering() {
+        let url = json_to_data_url(r#"{"b":1,"a":2}"#).unwrap();
+        // Extract and decode the base64 payload
+        let b64 = url.split_once(',').unwrap().1;
+        let decoded = data_encoding::BASE64.decode(b64.as_bytes()).unwrap();
+        let canonical = std::str::from_utf8(&decoded).unwrap();
+        assert_eq!(canonical, r#"{"a":2,"b":1}"#, "JCS should sort keys");
+    }
+
+    /// Round-trip: json_to_data_url output fed into decode_data_url recovers
+    /// the JCS-canonical bytes.
+    #[test]
+    fn test_json_to_data_url_round_trip() {
+        let input = r#"{"hello": "world", "num": 42}"#;
+        let url = json_to_data_url(input).unwrap();
+        let decoded_bytes = decode_data_url(&url).unwrap();
+        // The decoded bytes should be JCS-canonical JSON
+        let canonical: serde_json::Value =
+            serde_json::from_slice(&decoded_bytes).expect("decoded bytes should be valid JSON");
+        let original: serde_json::Value = serde_json::from_str(input).unwrap();
+        assert_eq!(canonical, original, "round-trip preserves JSON semantics");
+    }
+
+    /// Invalid JSON string returns an error.
+    #[test]
+    fn test_json_to_data_url_invalid_json() {
+        let result = json_to_data_url("not json");
+        assert!(result.is_err(), "should reject invalid JSON");
+        let err = result.unwrap_err().to_string();
+        assert!(
+            err.contains("invalid JSON"),
+            "expected 'invalid JSON' in error: {err}"
+        );
+    }
+
+    /// Compatibility with conformance vector test_0016_meta_data_url.
+    ///
+    /// The conformance vector's meta field is:
+    ///   data:application/json;charset=utf-8;base64,eyJzb21lIjogIm9iamVjdCJ9
+    /// which encodes `{"some": "object"}` (with space after colon).
+    ///
+    /// Our function differs in two ways:
+    /// 1. No `charset=utf-8` parameter (matching Python's DataURL.from_byte_data)
+    /// 2. JCS canonicalization removes whitespace: `{"some":"object"}` (no space)
+    ///
+    /// We verify: (a) correct media type prefix, and (b) decoded payload equals
+    /// JCS-canonical form of the same JSON input.
+    #[test]
+    fn test_json_to_data_url_conformance_0016() {
+        let url = json_to_data_url(r#"{"some": "object"}"#).unwrap();
+        // (a) Correct media type prefix (no charset, no @context → application/json)
+        assert!(
+            url.starts_with("data:application/json;base64,"),
+            "expected application/json prefix"
+        );
+        // (b) Decoded payload is JCS-canonical (no whitespace)
+        let b64 = url.split_once(',').unwrap().1;
+        let decoded = data_encoding::BASE64.decode(b64.as_bytes()).unwrap();
+        let canonical = std::str::from_utf8(&decoded).unwrap();
+        assert_eq!(
+            canonical, r#"{"some":"object"}"#,
+            "JCS removes whitespace from JSON"
+        );
     }
 }

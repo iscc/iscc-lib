@@ -236,6 +236,11 @@ iterations.
     strips "ISCC:" prefix and dashes, delegates to `codec::decode_base32` → `codec::decode_header` →
     `codec::decode_length`, truncates tail to exact digest bytes. Unlike Python ref which returns
     full tail, our API returns usable digest directly
+- `json_to_data_url` in `lib.rs` combines `parse_meta_json` + `build_meta_data_url` private helpers
+    into one public API. Defined directly in `lib.rs` (not in a submodule), so no `pub use`
+    re-export needed. Deps: `serde_json`, `serde_json_canonicalizer`, `data_encoding` — all already
+    present. Output differs from conformance vector test_0016 in two ways: no `charset=utf-8`
+    parameter, and payload is JCS-canonical (spaces removed)
 
 ## Codec Internals
 

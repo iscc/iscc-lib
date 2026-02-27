@@ -1,39 +1,36 @@
-## 2026-02-27 — Review of: Implement `iscc_decode` Tier 1 function
+## 2026-02-27 — Implement `json_to_data_url` — 30th Tier 1 symbol
 
-**Verdict:** PASS
+**Done:** Added `pub fn json_to_data_url(json: &str) -> IsccResult<String>` as the 30th and final
+Tier 1 public symbol. The function parses JSON, JCS-canonicalizes via `serde_json_canonicalizer`,
+detects `@context` for LD+JSON media type, base64-encodes, and returns a `data:` URL. It reuses the
+existing private `build_meta_data_url` helper for the URL construction.
 
-**Summary:** Clean, well-scoped implementation adding `iscc_decode` as the 29th of 30 Tier 1
-symbols. The diff touches only `crates/iscc-lib/src/lib.rs` as specified. The function correctly
-delegates to existing `codec::` helpers with proper error propagation. All 292 tests pass, clippy is
-clean, and all 14 pre-commit hooks pass. Test coverage is thorough — 12 new tests covering
-round-trips across 4 MainTypes, prefix/dash handling, 3 known conformance vectors, the verification
-criterion, and 2 error cases.
+**Files changed:**
+
+- `crates/iscc-lib/src/lib.rs`: Added `json_to_data_url` function (lines 234-266) with full doc
+    comment including `# Errors` and `# Examples` sections. Added 6 tests covering basic JSON,
+    LD+JSON media type, JCS key ordering, round-trip with `decode_data_url`, invalid JSON error, and
+    conformance vector compatibility.
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` passes — 292 tests (239 + 31 + 22 + 0 doc-tests), 0 failures
-- [x] `cargo clippy -p iscc-lib -- -D warnings` clean
-- [x] `grep -c 'pub fn iscc_decode' crates/iscc-lib/src/lib.rs` returns 1
-- [x] Round-trip: `encode_component(0, 0, 0, 64, &[0xaa;8])` → `iscc_decode(result)` returns
-    `(0, 0, 0, 1, vec![0xaa;8])` — verified in `test_iscc_decode_verification_round_trip`
-- [x] All 14 pre-commit hooks pass
+- `cargo test -p iscc-lib` passes — 245 unit + 31 + 22 integration + 1 doc-test, 0 failures
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `grep -c 'pub fn json_to_data_url' crates/iscc-lib/src/lib.rs` returns 1
+- Test confirms `json_to_data_url("{\"key\":\"value\"}")` returns string starting with
+    `data:application/json;base64,`
+- Test confirms `json_to_data_url("{\"@context\":\"x\"}")` returns string starting with
+    `data:application/ld+json;base64,`
+- All 14 pre-commit hooks pass
 
-**Issues found:**
+**Next:** All 30 Tier 1 symbols are now implemented in the Rust core. The next phase is propagating
+the 7 new symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, and 4 constants) to the 6
+binding crates (Python, Node.js, WASM, C FFI, JNI, Go).
 
-- (none)
-
-**Codex review:** Codex (gpt-5.2) investigated two areas: (1) case sensitivity of the "ISCC:" prefix
-stripping — confirmed consistent with `iscc_decompose` pattern (the explicit design choice
-documented in next.md's "Not In Scope" excludes full `iscc_normalize` multibase handling). (2)
-Whether `decode_length` could return a non-byte-aligned bit length — safe because all standard ISCC
-MainTypes return multiples of 32 bits. No actionable issues.
-
-**Next:** Implement `json_to_data_url` (issue #5) — the last of 30 Tier 1 symbols. Then propagate
-all 7 new symbols (`encode_component`, `iscc_decode`, `json_to_data_url`, 4 constants) to the 6
-binding crates.
-
-**Notes:** Issue #7 (`iscc_decode`) is now partially addressed — the Rust core symbol exists but
-binding propagation remains. The issue should stay open until bindings are updated. The digest
-truncation design choice (returning exact bytes vs full tail) makes the API safer for callers but
-diverges from the Python reference behavior — document this if it causes integration issues with
-`iscc-sdk` expectations.
+**Notes:** The conformance vector `test_0016_meta_data_url` uses
+`data:application/json;charset=utf-8;base64,...` with non-canonical JSON (`{"some": "object"}` with
+spaces). Our function produces `data:application/json;base64,...` with JCS-canonical JSON
+(`{"some":"object"}` without spaces). Both differences are expected and documented in the test
+comment: (1) no charset parameter matches Python's `DataURL.from_byte_data`, (2) JCS
+canonicalization is the function's purpose. The payloads intentionally differ because the
+conformance vector was pre-encoded without JCS.
