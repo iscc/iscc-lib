@@ -185,6 +185,13 @@ iterations.
     `#[wasm_bindgen(getter_with_clone)]` on the struct since `Vec<u8>` isn't `Copy`. wasm-bindgen
     accepts `&str` directly (unlike napi-rs which needs owned `String`), so prefer `&str` for string
     args. After WASM: C FFI, Java, Go remain.
+- **C FFI propagation** (CID loop 4, iteration 10): C FFI uses `extern "C"` functions with
+    `#[unsafe(no_mangle)]`. Constants are best exposed as getter functions (not `pub const`) for
+    consistency with WASM pattern and to avoid cbindgen `usize` → C type mapping issues. For
+    `iscc_decode`, a `#[repr(C)]` struct `IsccDecodeResult` with `ok: bool` discriminant + reuse of
+    `IsccByteBuffer` for digest is the cleanest approach — matches existing FFI memory model. The C
+    test file uses macro-based assertions (`ASSERT_STR_EQ`, `ASSERT_EQ`, etc.) and must call
+    `iscc_free_*` for every allocated result. After C FFI: Java JNI, then Go.
 
 ## Architecture Decisions
 
