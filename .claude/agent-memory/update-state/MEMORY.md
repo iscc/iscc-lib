@@ -329,3 +329,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `MT`/`ST`/`VS` IntEnum classes, PIL Sequence[int] for `gen_image_code_v0`, dict `meta` for
     `gen_meta_code_v0`. Check with:
     `grep -n "core_opts\|IntEnum\|class MT\|class ST\|class VS" crates/iscc-py/python/iscc_lib/__init__.py`
+- **CID iteration 6 (commits 918ccc9..7b5fe29)**: advance agent added dict `meta` support to
+    `gen_meta_code_v0` Python wrapper — 3-line `isinstance(meta, dict)` check, `json.dumps`
+    (compact, ensure_ascii=False), `json_to_data_url`. `import json as _json` added to
+    `__init__.py`. 5 new tests in `test_new_symbols.py` (now 18 tests). Review agent PASS. 177 total
+    pytest tests (was 172). CI all 7 jobs passing at HEAD `7b5fe29` (run 22483625347). Python
+    missing extensions now 3 (was 4): PIL Sequence[int], MT/ST/VS IntEnum, core_opts
+    SimpleNamespace.
