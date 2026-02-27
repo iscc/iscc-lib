@@ -143,6 +143,14 @@ iterations.
     Both helpers are already private in lib.rs. The conformance vector `test_0016_meta_data_url`
     uses `charset=utf-8` in its data URL while our function omits charset — the payloads should
     match but the full URL prefix will differ. Test the payload, not the exact URL format.
+- **Binding propagation ordering** (CID loop 3, iteration 5+): Start with Python because it has the
+    most mature test infrastructure (117 tests across 5 files) and issue #5 layer 2 (dict meta
+    acceptance) depends on `json_to_data_url` being available. Each binding propagation step is 3
+    files (native wrapper + Python wrapper/init + type stubs), well within limits. The 7 symbols
+    split into 3 functions + 4 constants — constants are trivial (`m.add()` in PyO3, simple imports
+    in Python). Functions follow the established thin-wrapper `map_err(PyValueError)` pattern.
+    `iscc_decode` is the trickiest because it returns a tuple with `bytes` (needs `PyBytes`
+    wrapping). After Python: Node.js, WASM, C FFI, Java, Go in any order.
 
 ## Architecture Decisions
 

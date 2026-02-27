@@ -1,86 +1,116 @@
 # Next Work Package
 
-## Step: Implement `json_to_data_url` — 30th Tier 1 symbol
+## Step: Propagate 7 new Tier 1 symbols to Python bindings
 
 ## Goal
 
-Add `json_to_data_url` as the last of 30 Tier 1 public symbols in the Rust core. This utility
-function converts a JSON string into a `data:` URL with JCS canonicalization, enabling all bindings
-to support dict/object meta parameters by delegating encoding to Rust (issue #5 layer 1).
+Add `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 algorithm constants
+(`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) to the Python
+binding, bringing it from 23/30 to 30/30 Tier 1 symbols.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `crates/iscc-lib/src/lib.rs` — add `pub fn json_to_data_url`, tests, and doc comment
+- **Modify**:
+    - `crates/iscc-py/src/lib.rs` — add 3 `#[pyfunction]` wrappers + 4 constants in module init
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — import and re-export the 7 new symbols, add to
+        `__all__`
+    - `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — add type stubs for 3 functions + 4 constants
 - **Reference**:
-    - `reference/iscc-core/iscc_core/code_meta.py` — lines 70-77 (dict meta → data URL flow)
-    - `.claude/context/specs/rust-core.md` — Encoding Utilities section (signature, behavior)
-    - Existing private helpers `parse_meta_json` (line 143) and `build_meta_data_url` (line 156) in
-        `crates/iscc-lib/src/lib.rs`
+    - `crates/iscc-lib/src/lib.rs` — Rust signatures for `encode_component`, `iscc_decode`,
+        `json_to_data_url`, and 4 constants
+    - `crates/iscc-py/src/lib.rs` — existing PyO3 wrapper patterns (`iscc_decompose`, `encode_base64`
+        for simple pass-through examples)
 
 ## Not In Scope
 
-- Propagating `json_to_data_url` (or any of the 7 new symbols) to bindings — that's the next phase
-- Refactoring `gen_meta_code_v0` to call `json_to_data_url` internally — the existing code path
-    works and the refactor risks changing behavior or performance for no user-facing benefit
-- Adding `core_opts` namespace or enum types to bindings — separate steps
-- Non-JSON media type variants (XML, etc.) — iscc-core only supports JSON
+- dict `meta` parameter for `gen_meta_code_v0` (issue #5 layer 2) — separate step after these
+    symbols land
+- PIL pixel data for `gen_image_code_v0` (issue #4) — Python-only wrapper enhancement, separate step
+- `MT`/`ST`/`VS` `IntEnum` classes (issue #6 binding-level enums) — separate step
+- `core_opts` `SimpleNamespace` (issue #8 binding-level wrapper) — separate step
+- Propagation to other bindings (Node.js, WASM, C FFI, Java, Go) — one binding at a time
 
 ## Implementation Notes
 
-The function combines two existing private helpers into a single public API:
+### PyO3 wrappers (`lib.rs`)
 
-1. **`parse_meta_json(meta_str)`** (line 143) — parses JSON string, JCS-canonicalizes via
-    `serde_json_canonicalizer`
-2. **`build_meta_data_url(json_bytes, json_value)`** (line 156) — determines media type from
-    `@context` key, base64-encodes, formats `data:` URL
+**`encode_component`**: Thin wrapper taking
+`(mtype: u8, stype: u8, version: u8, bit_length: u32, digest: &[u8]) -> PyResult<String>`. Map error
+with `map_err(PyValueError)`. Follow the existing `iscc_decompose` pattern.
 
-**Signature**: `pub fn json_to_data_url(json: &str) -> IsccResult<String>`
+**`iscc_decode`**: Returns `PyResult<(u8, u8, u8, u8, Py<PyBytes>)>`. The Rust function returns
+`IsccResult<(u8, u8, u8, u8, Vec<u8>)>`. Wrap the `Vec<u8>` in `PyBytes::new(py, &digest)` for the
+Python side to receive `bytes`. The first 4 elements are `u8` integers. Use the Python `py`
+parameter (add `py: Python<'_>` to the function signature). Return a tuple.
 
-Returns `IsccResult` (not bare `String`) because JSON parsing can fail. This follows the
-`encode_component` / `iscc_decode` error-returning pattern for Tier 1 functions.
+**`json_to_data_url`**: Simplest — `(json: &str) -> PyResult<String>`. Map error with
+`map_err(PyValueError)`.
 
-**Algorithm** (matches iscc-core `gen_meta_code_v0` lines 71-76):
+**Constants**: In the `iscc_lowlevel` module init function, add:
 
-1. Parse `json` to `serde_json::Value` — return `IsccError::InvalidInput` on invalid JSON
-2. JCS-canonicalize via `serde_json_canonicalizer::to_writer` → canonical bytes
-3. Check `json_value.get("@context").is_some()` → `application/ld+json` else `application/json`
-4. Base64-encode canonical bytes with `data_encoding::BASE64` (standard, with padding)
-5. Return `format!("data:{media_type};base64,{b64}")`
+```rust
+m.add("META_TRIM_NAME", iscc_lib::META_TRIM_NAME)?;
+m.add("META_TRIM_DESCRIPTION", iscc_lib::META_TRIM_DESCRIPTION)?;
+m.add("IO_READ_SIZE", iscc_lib::IO_READ_SIZE)?;
+m.add("TEXT_NGRAM_SIZE", iscc_lib::TEXT_NGRAM_SIZE)?;
+```
 
-**Placement**: Define near the other encoding utilities and the existing private helpers (around
-line 120-165 area, near `decode_data_url` and `build_meta_data_url`). Add a doc comment with
-`# Errors` and `# Examples` sections.
+Register all 3 functions with `wrap_pyfunction!` in the module init.
 
-**Dependencies**: All already present — `serde_json`, `serde_json_canonicalizer`, `data_encoding`.
+### Python wrapper (`__init__.py`)
 
-**Tests** (add in the `#[cfg(test)]` module at the bottom of `lib.rs`):
+Import the 7 new symbols from `_lowlevel`. Constants are simple re-exports (no wrapper needed).
+Functions are also simple re-exports — no wrapper logic needed (unlike `gen_data_code_v0` which adds
+streaming). Add all 7 to `__all__`.
 
-1. Basic JSON object → data URL with `data:application/json;base64,...` prefix
-2. JSON with `@context` key → `data:application/ld+json;base64,...` prefix
-3. JCS canonicalization: `{"b":1,"a":2}` → verify key ordering in canonical output (decode base64
-    payload and check it equals `{"a":2,"b":1}`)
-4. Round-trip: feed `json_to_data_url` output into `decode_data_url` (private helper) and verify
-    decoded bytes match JCS-canonical form of original input
-5. Error case: invalid JSON string (e.g., `"not json"`) returns `Err(IsccError::InvalidInput(...))`
-6. Compatibility: `json_to_data_url("{\"some\": \"object\"}")` produces the same data URL as the
-    `test_0016_meta_data_url` conformance vector's meta field — note the conformance vector uses a
-    charset-qualified data URL (`data:application/json;charset=utf-8;base64,...`) while our
-    function omits charset (matching Python's `DataURL.from_byte_data`), so this may NOT match
-    exactly. If it differs, document the reason in a test comment and verify the _payload_ (base64
-    content) matches.
+### Type stubs (`_lowlevel.pyi`)
+
+Add stubs for:
+
+- `def encode_component(mtype: int, stype: int, version: int, bit_length: int, digest: bytes) -> str: ...`
+- `def iscc_decode(iscc: str) -> tuple[int, int, int, int, bytes]: ...`
+- `def json_to_data_url(json: str) -> str: ...`
+- `META_TRIM_NAME: int`
+- `META_TRIM_DESCRIPTION: int`
+- `IO_READ_SIZE: int`
+- `TEXT_NGRAM_SIZE: int`
+
+Include docstrings matching the existing stub style (`:param:`, `:return:`, `:raises:`).
+
+### Tests
+
+Add a new test file `tests/test_new_symbols.py` (or extend `tests/test_smoke.py`) with:
+
+- `test_encode_component_roundtrip` — encode a known digest, verify output is a valid ISCC string
+- `test_iscc_decode_roundtrip` — encode then decode, verify components match
+- `test_json_to_data_url_plain` — JSON without `@context` returns `data:application/json;base64,...`
+- `test_json_to_data_url_ld` — JSON with `@context` returns `data:application/ld+json;base64,...`
+- `test_constants` — verify `META_TRIM_NAME == 128`, `META_TRIM_DESCRIPTION == 4096`,
+    `IO_READ_SIZE == 4_194_304`, `TEXT_NGRAM_SIZE == 13`
+- Error cases: `encode_component` with invalid mtype, `iscc_decode` with invalid string,
+    `json_to_data_url` with invalid JSON — all raise `ValueError`
+
+### Build & format
+
+Run `mise run format` before committing. Run
+`VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop -m crates/iscc-py/Cargo.toml` to build the
+updated native module before running pytest.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (292 existing + new tests, 0 failures)
-- `cargo clippy -p iscc-lib -- -D warnings` clean
-- `grep -c 'pub fn json_to_data_url' crates/iscc-lib/src/lib.rs` returns 1
-- Test confirms `json_to_data_url("{\"key\":\"value\"}")` returns a string starting with
-    `data:application/json;base64,`
-- Test confirms `json_to_data_url("{\"@context\":\"x\"}")` returns a string starting with
-    `data:application/ld+json;base64,`
+- `cargo test -p iscc-py` passes (existing Rust unit tests still pass)
+- `cargo clippy -p iscc-py -- -D warnings` clean
+- `VIRTUAL_ENV=/home/dev/.venvs/iscc-lib maturin develop -m crates/iscc-py/Cargo.toml` succeeds
+- `uv run pytest tests/ -x` passes (all existing + new tests)
+- `uv run ruff check crates/iscc-py/python/` clean
+- `uv run ruff format --check crates/iscc-py/python/` clean
+- `python -c "from iscc_lib import encode_component, iscc_decode, json_to_data_url"` exits 0
+- `python -c "from iscc_lib import META_TRIM_NAME, META_TRIM_DESCRIPTION, IO_READ_SIZE, TEXT_NGRAM_SIZE; assert META_TRIM_NAME == 128"`
+    exits 0
+- `python -c "import iscc_lib; assert len(iscc_lib.__all__) >= 42"` exits 0 (was 35 + 7 new = 42)
 
 ## Done When
 
-All verification criteria pass, confirming `json_to_data_url` is the 30th and final Tier 1 public
-symbol in the Rust core with proper JCS canonicalization, media type detection, and error handling.
+All verification criteria pass — 30/30 Tier 1 symbols are accessible from Python with correct
+behavior and types.
