@@ -40,7 +40,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Current State
 
 - **All 6 bindings**: 30/30 Tier 1 symbols (Python, Node.js, WASM, C FFI, Java)
-- **Go pure rewrite**: step 5 in progress — 4/9 gen functions done:
+- **Go pure rewrite**: step 5 in progress — 6/9 gen functions done:
     - codec.go (570L, 47T), utils.go (130L, 21T), cdc.go (129L, 15T), minhash.go (205L, 8T),
         simhash.go (86L, 14T), dct.go (52L, 10T), wtahash.go (92L, 9T)
     - xxh32.go (81L, 8T): pure Go xxHash32
@@ -48,13 +48,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     - code_content_text.go (41L, 1T/5 vectors): GenTextCodeV0 + TextCodeResult
     - code_data.go (90L, 1T/4 vectors): GenDataCodeV0 + DataHasher streaming
     - code_instance.go (67L, 1T/3 vectors): GenInstanceCodeV0 + InstanceHasher streaming
-    - 182 total Go test functions (136 pure Go + 46 WASM bridge tests)
+    - code_content_image.go (134L, 1T/3 vectors): GenImageCodeV0 + ImageCodeResult (DCT-based)
+    - code_content_audio.go (112L, 1T/5 vectors): GenAudioCodeV0 + AudioCodeResult + arraySplit[T]
+    - 184 total Go test functions (138 pure Go + 46 WASM bridge tests)
 - **`github.com/zeebo/blake3 v0.2.4`** in go.mod — needed for Meta/Data/Instance code
-- **Remaining in step 5**: GenImageCodeV0 (DCT ready), GenVideoCodeV0 (WTA-Hash ready),
-    GenAudioCodeV0, GenMixedCodeV0, GenIsccCodeV0, conformance_selftest, cleanup (remove iscc.go,
+- **`arraySplit[T any]`** generic helper in code_content_audio.go — reusable for MixedCode
+- **Remaining in step 5**: GenVideoCodeV0 (DCT+WTA-Hash+SimHash), GenMixedCodeV0
+    (decompose+SimHash), GenIsccCodeV0, conformance_selftest, cleanup (remove iscc.go,
     iscc_ffi.wasm, wazero dep, restore 256KB threshold)
 - **check-added-large-files**: threshold is 1024KB (must restore to 256KB after cleanup)
-- **assessed-at**: c44b63b (2026-02-27)
+- **assessed-at**: 79973c2 (2026-02-27)
 
 ## Gotchas
 
