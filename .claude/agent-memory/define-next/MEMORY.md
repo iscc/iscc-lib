@@ -159,6 +159,12 @@ iterations.
     is a single-step scope (1-2 files). Natural ordering: dict meta first (uses newly-propagated
     json_to_data_url), then PIL pixels, then enums + core_opts (can batch #6 + #8 since both are
     pure additions to __init__.py).
+- **PIL pixel data conversion** (issue #4): The simplest pattern is
+    `if not isinstance(pixels, bytes):   pixels = bytes(pixels)` — the `bytes()` constructor handles
+    `bytearray`, `memoryview`, and `Sequence[int]` uniformly. No PIL test dependency needed —
+    `list(range(256)) * 4` creates 1024 synthetic pixel values. The `Sequence` import is already in
+    `__init__.py`. After this: #6 + #8 can be batched as they're both additive to `__init__.py` and
+    `__all__`.
 
 ## Architecture Decisions
 
