@@ -383,8 +383,9 @@ iterations.
 - Go codec test file: `packages/go/codec_test.go` with `TestCodec*` naming convention. All 48 tests
     independent of WASM binary (pure Go). Conformance tests load data.json via
     `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
-- Dependency chain for pure Go rewrite: codec (done) → text utils (done) → algorithms → gen
-    functions → streaming hashers → conformance selftest
+- Dependency chain for pure Go rewrite: codec (done) → text utils (done) → algorithms (done: CDC,
+    MinHash, SimHash) → DCT/WTA-Hash (not yet) → gen functions → streaming hashers → conformance
+    selftest
 - Pure Go text utils module: `packages/go/utils.go` — 4 public functions (`TextClean`,
     `TextRemoveNewlines`, `TextTrim`, `TextCollapse`) + 2 internal helpers (`isCCategory`,
     `isCMPCategory`). Uses `golang.org/x/text/unicode/norm` for NFKC/NFD and `unicode` stdlib for
@@ -397,6 +398,20 @@ iterations.
     `" ".join(text.split())` and Rust's `split_whitespace().join(" ")`
 - Go utils test file: `packages/go/utils_test.go` with `TestUtils*` naming convention. 21 tests, all
     pure Go (no WASM dependency)
+- Pure Go CDC module: `packages/go/cdc.go` — `cdcGear` table (var, not const — Go doesn't support
+    const arrays), `algCdcParams`, `algCdcOffset`, `AlgCdcChunks`. Uses `math.Round`/`math.Log2` for
+    bit calculation. Go uint32 arithmetic wraps naturally (no wrapping_add needed). `min()` is
+    builtin since Go 1.21+
+- Pure Go MinHash module: `packages/go/minhash.go` — `mpa`/`mpb` arrays, `minhashFn` (named to avoid
+    Go naming conflict), `minhashCompress`, `AlgMinhash256`. Go uint64 multiply wraps at 2^64
+    naturally (matches Rust wrapping_mul). Constants `maxi64`/`mprime`/`maxH` are `var` not `const`
+    because Go doesn't support const for uint64 expressions involving shifts
+- Pure Go SimHash module: `packages/go/simhash.go` — `AlgSimhash` (returns `([]byte, error)`),
+    `SlidingWindow` (returns `([]string, error)`). No internal/unchecked variants needed (Go has no
+    binding crate separation). Uses `[]rune` conversion for Unicode-correct SlidingWindow
+- CDC integer ceiling division: `(minSize + 1) / 2` in Go (no `div_ceil` method). Rust uses
+    `usize::div_ceil(2)` — produces identical results
+- Go algorithm test naming: `TestCdc*`, `TestMinhash*`, `TestSimhash*`, `TestSlidingWindow*`
 
 ## Gotchas
 
