@@ -43,11 +43,26 @@ iterations.
     `go vet ./...`. Full suite at each step (both pure Go and WASM tests pass)
 - **Shared types**: `DecodeResult` struct in `iscc.go` referenced by `codec.go` (same package). When
     WASM is removed, struct moves to appropriate file
-- **Step 4 (DCT+WTA-Hash)**: ~537 lines Rust combined, but WTA-Hash is mostly a 256-entry constant
-    table. Both are pure computation, stdlib only. DCT is `pub(crate)` → unexported `algDct` in Go.
-    WTA-Hash is `pub` → exported `AlgWtahash` in Go
-- **After step 4**: all 5 algorithm modules complete. Step 5 is gen functions + BLAKE3 dep +
-    streaming hashers — will likely need multiple sub-steps due to scope
+- **Step 4 (DCT+WTA-Hash)**: COMPLETE — DCT unexported `algDct`, WTA-Hash exported `AlgWtahash`
+- **After step 4**: all 7 algorithm modules complete (codec, utils, CDC, MinHash, SimHash, DCT,
+    WTA-Hash). Step 5 is gen functions + streaming hashers — needs 3-4 sub-steps
+- **Step 5a (meta+text gen)**: GenMetaCodeV0 + GenTextCodeV0 together. Creates 3 files (xxh32.go,
+    code_content_text.go, code_meta.go). Requires adding BLAKE3 dep (`github.com/zeebo/blake3`) and
+    JCS library. Validates 21 conformance vectors (16 meta + 5 text)
+- **Gen function dependencies**: GenTextCodeV0 needs xxh32 (inline, no ext dep). GenMetaCodeV0 needs
+    BLAKE3 (for n-gram hashing in metaNameSimhash AND for metahash field) + JCS (for JSON meta
+    canonicalization). Even name-only meta vectors need BLAKE3
+- **Handoff was wrong about deps**: review said "meta+text need no new deps" — actually
+    `soft_hash_meta_v0` uses `blake3::hash()` for every n-gram feature, so BLAKE3 is required even
+    for the simplest meta vector. xxh32 is only used by text code
+- **Go function naming**: pure Go gen functions are package-level (e.g., `GenMetaCodeV0`) and
+    coexist with WASM bridge methods (`(rt *Runtime) GenMetaCodeV0`) — no naming conflict in Go
+- **Conformance vector format**: data.json inputs are positional arrays. For meta:
+    `[name, desc,   meta, bits]` where meta can be null, JSON dict, or data-URL string. For text:
+    `[text, bits]`. When meta is a dict, test must marshal to JSON string before calling
+    GenMetaCodeV0
+- **Result types**: pure Go gen functions return rich structs (`*MetaCodeResult`, `*TextCodeResult`)
+    unlike the WASM bridge which returns only `(string, error)`
 
 ## CI/Release Patterns
 
