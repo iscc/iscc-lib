@@ -1,148 +1,131 @@
 # Next Work Package
 
-## Step: Add MT/ST/VS IntEnums and core_opts to Python
+## Step: Propagate 7 new Tier 1 symbols to Node.js bindings
 
 ## Goal
 
-Add the two remaining iscc-core drop-in extensions to the Python bindings: `MT`/`ST`/`VS` IntEnum
-classes (Issue #6) and `core_opts` SimpleNamespace (Issue #8). Also wrap `iscc_decode` to return
-IntEnum-typed tuple values instead of raw integers (the Python-side part of Issue #7). This closes
-all Python iscc-core API gaps.
+Add `encode_component`, `iscc_decode`, `json_to_data_url`, and 4 algorithm constants
+(`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) to the Node.js
+napi-rs bindings, bringing them from 23/30 to 30/30 Tier 1 symbols.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-py/python/iscc_lib/__init__.py` — add IntEnum classes, wrap `iscc_decode`, add
-        `core_opts`
-    - `tests/test_new_symbols.py` — add tests for enums, core_opts, iscc_decode wrapping
+    - `crates/iscc-napi/src/lib.rs` — add 3 `#[napi]` functions + 4 `#[napi]` constants
+    - `crates/iscc-napi/__tests__/functions.test.mjs` — add tests for the 7 new symbols
 - **Reference**:
-    - `reference/iscc-core/iscc_core/constants.py` — MT, ST, ST_CC, ST_ISCC, VS enum definitions
-    - `reference/iscc-core/iscc_core/options.py` — core_opts structure
-    - `.claude/context/specs/python-bindings.md` — spec for all 3 extensions
-    - `crates/iscc-lib/src/codec.rs` — Rust MainType/SubType/Version enum values
+    - `crates/iscc-py/src/lib.rs` lines 395–433 — Python wrappers for the same 3 functions
+    - `crates/iscc-lib/src/lib.rs` lines 170–267 — Rust core API signatures
+    - `tests/test_new_symbols.py` — Python test patterns for encode_component, iscc_decode,
+        json_to_data_url (roundtrips, error cases, etc.)
 
 ## Not In Scope
 
-- Modifying Rust core code — all changes are pure Python in `__init__.py`
-- Adding `ST_CC`, `ST_ISCC`, `ST_ID`, `LN` or other specialized iscc-core enum types — only `MT`,
-    `ST`, `VS` per spec
-- Propagating these extensions to other bindings (Node.js, WASM, C FFI, Java, Go) — that's the next
-    phase
-- Updating `_lowlevel.pyi` type stubs — the public API types are in `__init__.py` (pure Python)
-- Publishing to PyPI
+- Issue #5 dict meta propagation (accepting `object` for `meta` in `gen_meta_code_v0`) — separate
+    step after all 7 symbols are propagated to all bindings
+- TypeScript `const enum` wrappers for MT/ST/VS — not required by the target (Python has IntEnums as
+    a drop-in extension; other bindings use raw `u8` integers per spec)
+- Propagation to WASM, C FFI, Java, or Go — each gets its own step
+- Changing `gen_*_v0` return types from `String` to structured objects — out of scope
 
 ## Implementation Notes
 
-### IntEnum classes (Issue #6)
+### Constants
 
-Add three `enum.IntEnum` classes to `__init__.py` (add `import enum` at top):
+napi-rs v2 supports `#[napi]` on `pub const`. Since `iscc_lib` constants are `usize`, cast to `u32`
+for JavaScript compatibility:
 
-**`MT`** — MainType, 8 values matching Rust `MainType` enum:
-
-```python
-class MT(enum.IntEnum):
-    META = 0
-    SEMANTIC = 1
-    CONTENT = 2
-    DATA = 3
-    INSTANCE = 4
-    ISCC = 5
-    ID = 6
-    FLAKE = 7
+```rust
+#[napi(js_name = "META_TRIM_NAME")]
+pub const META_TRIM_NAME: u32 = iscc_lib::META_TRIM_NAME as u32;
 ```
 
-**`ST`** — SubType, 8 values matching Rust `SubType` enum. Must include all values 0-7 so
-`iscc_decode` can wrap any valid ISCC code. `TEXT` is an alias for `NONE` (both are value 0) — in
-Python IntEnum the first definition wins and the second becomes an alias:
+If `#[napi]` on const doesn't work (napi-rs version issue), fall back to exporting them as
+module-level getter functions:
 
-```python
-class ST(enum.IntEnum):
-    NONE = 0
-    IMAGE = 1
-    AUDIO = 2
-    VIDEO = 3
-    MIXED = 4
-    SUM = 5
-    ISCC_NONE = 6
-    WIDE = 7
-    TEXT = 0  # Alias — IntEnum allows duplicate values as aliases
+```rust
+#[napi(js_name = "META_TRIM_NAME")]
+pub fn meta_trim_name() -> u32 { iscc_lib::META_TRIM_NAME as u32 }
 ```
 
-**`VS`** — Version, 1 value:
+### encode_component
 
-```python
-class VS(enum.IntEnum):
-    V0 = 0
+Thin wrapper following the established napi pattern. `digest` is `Buffer`:
+
+```rust
+#[napi(js_name = "encode_component")]
+pub fn encode_component(
+    mtype: u8, stype: u8, version: u8, bit_length: u32, digest: Buffer,
+) -> napi::Result<String> {
+    iscc_lib::encode_component(mtype, stype, version, bit_length, digest.as_ref())
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
+}
 ```
 
-Place these classes after the `import` block but before the result type classes.
+### iscc_decode
 
-### Wrap iscc_decode (Issue #7 Python layer)
+Returns a JS object (not a tuple — JavaScript has no tuples). Use `#[napi(object)]` struct:
 
-Currently `iscc_decode` is a direct pass-through from `_lowlevel`. Change it to a wrapper that
-converts raw integer fields to IntEnum types:
-
-```python
-from iscc_lib._lowlevel import iscc_decode as _iscc_decode
-
-
-def iscc_decode(iscc: str) -> tuple[MT, ST, VS, int, bytes]:
-    """Decode an ISCC unit string into header components and raw digest."""
-    mt, st, vs, length, digest = _iscc_decode(iscc)
-    return MT(mt), ST(st), VS(vs), length, digest
+```rust
+#[napi(object)]
+pub struct IsccDecodeResult {
+    pub maintype: u8,
+    pub subtype: u8,
+    pub version: u8,
+    pub length: u8,
+    pub digest: Buffer,
+}
 ```
 
-### core_opts SimpleNamespace (Issue #8)
+The function destructures the Rust tuple into this struct. Field names match the Python tuple
+semantics: `maintype`, `subtype`, `version`, `length` (the length_index), `digest`.
 
-Add after the IntEnum classes:
+### json_to_data_url
 
-```python
-from types import SimpleNamespace
+Simple pass-through, same as Python wrapper. Takes `String` (not `&str` — napi-rs convention):
 
-core_opts = SimpleNamespace(
-    meta_trim_name=META_TRIM_NAME,
-    meta_trim_description=META_TRIM_DESCRIPTION,
-    io_read_size=IO_READ_SIZE,
-    text_ngram_size=TEXT_NGRAM_SIZE,
-)
+```rust
+#[napi(js_name = "json_to_data_url")]
+pub fn json_to_data_url(json: String) -> napi::Result<String> {
+    iscc_lib::json_to_data_url(&json)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))
+}
 ```
-
-The constants are already imported from `_lowlevel` and re-exported. `core_opts` provides the
-attribute-access pattern that `iscc-core` uses (`ic.core_opts.meta_trim_name`).
-
-### Update `__all__`
-
-Add `"MT"`, `"ST"`, `"VS"`, `"core_opts"` to `__all__`. `iscc_decode` is already there.
 
 ### Tests
 
-Add to `tests/test_new_symbols.py`:
+Add to `functions.test.mjs` following the existing `describe`/`it` pattern with `node:test` +
+`node:assert`. Import the 7 new symbols. Test categories:
 
-1. `MT` values: `MT.META == 0`, `MT.FLAKE == 7`, `isinstance(MT.DATA, int)` (IntEnum is int)
-2. `ST` values: `ST.NONE == 0`, `ST.TEXT == 0` (alias), `ST.WIDE == 7`
-3. `VS` values: `VS.V0 == 0`
-4. `core_opts` attributes: `core_opts.meta_trim_name == 128`,
-    `core_opts.meta_trim_description == 4096`, `core_opts.io_read_size == 4_194_304`,
-    `core_opts.text_ngram_size == 13`
-5. `iscc_decode` returns IntEnum types: decode a known ISCC code, check `isinstance(result[0], MT)`,
-    `isinstance(result[1], ST)`, `isinstance(result[2], VS)`
-6. Round-trip: `encode_component(MT.DATA, ST.NONE, VS.V0, 64, digest)` → `iscc_decode(result)` →
-    verify fields match
+1. **Constants**: verify values match (128, 4096, 4194304, 13), verify `typeof` is `'number'`
+2. **encode_component**: roundtrip (encode then decompose to verify), error on invalid mtype (255),
+    error on digest too short, error on ISCC mtype (5)
+3. **iscc_decode**: roundtrip with encode_component, returned object has correct fields (`maintype`,
+    `subtype`, `version`, `length`, `digest`), `digest` is a Buffer, error on invalid input string
+4. **json_to_data_url**: plain JSON → `data:application/json;base64,...`, JSON-LD with `@context` →
+    `data:application/ld+json;base64,...`, error on invalid JSON string
+
+### Build regeneration
+
+After modifying `lib.rs`, run `napi build --platform --release` (from `crates/iscc-napi/`) to
+regenerate `index.js` and `index.d.ts`. These are gitignored build artifacts but needed for tests.
+The advance agent must build before testing.
 
 ## Verification
 
-- `uv run pytest tests/test_new_symbols.py -x` passes (25 existing + ~10 new tests)
-- `uv run pytest tests/ -x` passes (all ~184+ tests)
-- `uv run ruff check crates/iscc-py/python/` clean
-- `uv run ruff format --check crates/iscc-py/python/` clean
-- `python -c "from iscc_lib import MT, ST, VS; assert MT.DATA == 3; assert ST.TEXT == 0; assert VS.V0 == 0"`
-    exits 0
-- `python -c "from iscc_lib import core_opts; assert core_opts.meta_trim_name == 128"` exits 0
-- `python -c "from iscc_lib import iscc_decode, MT; r = iscc_decode('GABTQLB6CQ6ILWLO'); assert isinstance(r[0], MT)"`
-    exits 0
+- `cd crates/iscc-napi && npm test` passes (103 existing + new tests, 0 failures)
+- `node -e "const m = require('./crates/iscc-napi'); console.log([m.META_TRIM_NAME, m.META_TRIM_DESCRIPTION, m.IO_READ_SIZE, m.TEXT_NGRAM_SIZE].join(','))"`
+    prints `128,4096,4194304,13`
+- `node -e "const m = require('./crates/iscc-napi'); console.log(typeof m.encode_component)"` prints
+    `function`
+- `node -e "const m = require('./crates/iscc-napi'); console.log(typeof m.iscc_decode)"` prints
+    `function`
+- `node -e "const m = require('./crates/iscc-napi'); console.log(typeof m.json_to_data_url)"` prints
+    `function`
+- `cargo clippy -p iscc-napi --all-targets -- -D warnings` is clean
 
 ## Done When
 
-All verification criteria pass — `MT`, `ST`, `VS` IntEnums, `core_opts` SimpleNamespace, and
-IntEnum-typed `iscc_decode` are all functional and exported in `__all__`.
+All verification criteria pass — 30/30 Tier 1 symbols are accessible from Node.js with tests
+covering the 7 new symbols.

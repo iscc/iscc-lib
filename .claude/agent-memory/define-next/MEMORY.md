@@ -172,6 +172,13 @@ iterations.
     Python IntEnum handles `TEXT = 0` as an alias for `NONE = 0` naturally. After this step: all
     Python iscc-core drop-in gaps are closed; next phase is propagating 7 symbols to 5 remaining
     bindings.
+- **Binding propagation phase** (CID loop 4, iteration 8+): 5 bindings × 7 symbols each. One binding
+    per step. Order: Node.js → WASM → C FFI → Java → Go. Node.js first because it's the most mature
+    non-Python binding (103 tests) and napi-rs patterns are well-established. Each step is 2 files
+    (native wrapper + tests). For napi-rs: `#[napi]` on `pub const` exports JS constants (cast
+    `usize` → `u32`); `#[napi(object)]` struct for `iscc_decode` return (JS has no tuples); `String`
+    not `&str` for function args (napi-rs convention). Build regeneration (`napi build`) needed
+    before running tests — `index.js`/`index.d.ts` are gitignored artifacts.
 
 ## Architecture Decisions
 
