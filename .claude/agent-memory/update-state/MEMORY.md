@@ -20,7 +20,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Codebase Landmarks
 
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
-- `packages/go/` — pure Go module (codec.go, utils.go, cdc.go, minhash.go, simhash.go + tests)
+- `packages/go/` — pure Go module (codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go,
+    wtahash.go + tests); WASM bridge (iscc.go) still present during transition
 - `.github/workflows/ci.yml` — 7 jobs: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -36,16 +37,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Current State
 
 - **All 6 bindings**: 30/30 Tier 1 symbols (Python, Node.js, WASM, C FFI, Java, Go/wazero)
-- **Go pure rewrite**: ~3/5 complete — codec (570 lines, 47 tests), text utils (130 lines, 21
-    tests), algorithms (CDC 129L/15T + MinHash 205L/8T + SimHash 86L/14T, reviewed PASS). Remaining:
-    DCT (`dct.go`), WTA-Hash (`wtahash.go`), gen functions (9), streaming hashers, conformance
-    selftest, WASM bridge removal
-- **zeebo/blake3 not yet added**: Needed for gen_data_code_v0/gen_instance_code_v0. No blake3 dep in
-    go.mod yet — only wazero + golang.org/x/text + golang.org/x/sys
-- **Go CI job simplification pending**: After pure rewrite completes, simplify to just
-    `go test ./...` and `go vet ./...` (no WASM build step)
-- **check-added-large-files**: threshold is 1024KB (must restore to 256KB after Go rewrite)
-- **assessed-at**: eeb59ff (2026-02-27)
+- **Go pure rewrite**: ~4/5 complete — all 7 algorithm modules done:
+    - codec.go (570L, 47T), utils.go (130L, 21T), cdc.go (129L, 15T), minhash.go (205L, 8T),
+        simhash.go (86L, 14T), dct.go (52L, 10T), wtahash.go (92L, 9T)
+    - 124 total pure Go test functions (excl. 46 WASM bridge tests in iscc_test.go)
+- **Remaining in step 5**: 9 `gen_*_v0` functions, DataHasher/InstanceHasher, conformance_selftest,
+    then cleanup (remove iscc.go, iscc_ffi.wasm, wazero dep, restore 256KB large-file threshold)
+- **zeebo/blake3 not yet added**: Needed for gen_data/instance_code_v0. Not in go.mod yet
+- **check-added-large-files**: threshold is 1024KB (must restore to 256KB after Go rewrite cleanup)
+- **assessed-at**: bdbc92f (2026-02-27)
 
 ## Gotchas
 
@@ -56,3 +56,5 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `state.md` section order must include both Go Bindings and Per-Crate READMEs sections
 - Python ruff format check can fail in CI even if local `mise run check` passes (CI uses global
     `uv run ruff format --check`, pre-commit may only check staged files)
+- `dct.go`: `algDct` is unexported (matches Rust `pub(crate)`). `AlgWtahash` is exported. Go has no
+    const arrays so `wtaVideoIdPermutations` is `var`
