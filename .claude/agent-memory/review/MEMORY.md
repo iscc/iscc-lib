@@ -71,10 +71,20 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     for the advance commit (or verify with `git log` first). Codex reviewing the wrong commit
     (define-next instead of advance) produces mostly irrelevant findings about planning docs
 
-## Python Binding State
+## Binding State
 
-- `__all__` count in `iscc_lib/__init__.py` is 45 as of iteration 7 (30 Tier 1 API symbols + 10
-    result type classes + `__version__` + MT, ST, VS, core_opts)
+- Python `__all__` count is 45 as of iteration 7 (30 Tier 1 API + 10 result types + `__version__` +
+    MT, ST, VS, core_opts). All 30/30 Tier 1 symbols propagated
+- Node.js has 30/30 Tier 1 symbols as of iteration 8 (124 tests total: 103 existing + 21 new)
+- WASM, C FFI, Java JNI, Go/wazero are all at 23/30 Tier 1 symbols
+
+## Binding Propagation Review Shortcuts
+
+- For napi-rs binding propagation: `cd crates/iscc-napi && npm test` +
+    `cargo clippy -p iscc-napi   --all-targets -- -D warnings` + `mise run check` covers all gates.
+    Verify 7 new symbols individually via `node -e` one-liners (constants values, function types)
+- Binding propagation diffs are typically 2 files: native wrapper source + test file. Quick to
+    review — check error mapping pattern, type conversions, test coverage categories
 
 ## Verification Patterns
 

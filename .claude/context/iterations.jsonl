@@ -402,3 +402,7 @@
 {"ts":"2026-02-27T11:28:37.214165+00:00","iteration":7,"role":"update-state","status":"OK","turns":16,"cost_usd":0.630258,"duration_s":162.0}
 {"ts":"2026-02-27T11:33:08.027327+00:00","iteration":7,"role":"define-next","status":"OK","turns":29,"cost_usd":1.399836,"duration_s":270.8}
 {"ts":"2026-02-27T11:37:03.126451+00:00","iteration":7,"role":"advance","status":"OK","turns":37,"cost_usd":1.525623,"duration_s":235.1}
+{"ts":"2026-02-27T11:42:14.760379+00:00","iteration":7,"role":"review","status":"OK","turns":48,"cost_usd":1.572166,"duration_s":311.6}
+{"ts":"2026-02-27T11:50:21.715415+00:00","iteration":8,"role":"update-state","status":"OK","turns":18,"cost_usd":0.839787,"duration_s":188.0}
+{"ts":"2026-02-27T11:54:27.218811+00:00","iteration":8,"role":"define-next","status":"OK","turns":30,"cost_usd":1.175274,"duration_s":245.5}
+{"ts":"2026-02-27T11:58:39.356442+00:00","iteration":8,"role":"advance","status":"OK","turns":32,"cost_usd":1.432781,"duration_s":252.1}
