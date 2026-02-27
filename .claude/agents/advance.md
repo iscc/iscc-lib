@@ -54,6 +54,9 @@ iterations.
     - Keep it simple. Prefer explicit over clever.
     - Write short, pure functions with docstrings
     - Stay within the file scope defined in next.md (max 3 files, excluding tests)
+    - If next.md lists documentation files in Scope, update them to reflect the code changes made in
+        this step. Doc updates should be minimal and accurate — match the actual implementation,
+        don't embellish.
 
 5. **Write tests** — write tests that cover the verification criteria from next.md. Use real data
     from conformance vectors when available, not mocks. Tests go alongside the code they test (Rust

@@ -60,6 +60,10 @@ recurring patterns. This builds up institutional knowledge across iterations.
     - Has clear, testable verification criteria (prefer boolean-testable: a command that exits 0 or
         an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)
+    - If the step changes public API signatures, function behavior, configuration, or usage patterns
+        that appear in documentation (README, per-crate READMEs, `docs/` pages, code examples),
+        include affected doc files in the Scope section under "Modify". Keeping docs in sync is part
+        of the work, not a separate step.
 
 6. **Research if needed** — if unsure about APIs, patterns, or reference implementation details,
     read the relevant `notes/` documents or files from `reference/iscc-core/` (see paths in

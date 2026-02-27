@@ -60,6 +60,10 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     - **Dead code**: Any unused functions, imports, or commented-out code?
     - **Technical debt**: Any shortcuts that should be addressed soon?
     - **Quality gate integrity**: See dedicated section below.
+    - **Documentation freshness**: If the diff changes public API, behavior, or usage patterns that
+        are documented but no doc files were updated, add an issue to issues.md so define-next
+        includes doc files next time. Do not verdict NEEDS_WORK solely for stale docs unless the
+        discrepancy would mislead users (e.g., a code example that no longer compiles).
     - **Issue resolution**: If this iteration addressed an issue from issues.md, verify the fix
         resolves it. If resolved, delete the issue entry from issues.md in the commit step. If the
         resolved issue has a `**Spec:**` field and source `[human]`, update the referenced spec
