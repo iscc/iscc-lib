@@ -109,8 +109,9 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     the next iteration. Include what was accomplished, what issues remain, and a concrete
     suggestion for the next step.
 
-    Before writing, check if the Codex review from step 3 has completed. If `/tmp/codex-review.txt`
-    exists and has content, extract the findings:
+    **Before writing, wait for the Codex review from step 3 to complete.** If you have not yet
+    received the background task completion notification, do not proceed — wait for it. Once
+    complete, extract the findings:
 
     ```
     sed -n '/^codex$/,$ p' /tmp/codex-review.txt | tail -n +2
@@ -118,8 +119,7 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
 
     Add a `**Codex review:**` section to the handoff with any actionable findings. Codex findings
     are advisory — use your judgment on whether each is relevant given the project conventions and
-    the work package scope. If the background task hasn't completed or produced no output, omit
-    this section.
+    the work package scope. If step 3 was skipped (codex unavailable), omit this section.
 
 9. **Fix minor issues** — if you find minor problems (formatting, missing docstring, unused
     import), fix them directly. Do not fix anything that would change behavior or architecture.
