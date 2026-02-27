@@ -165,6 +165,13 @@ iterations.
     `list(range(256)) * 4` creates 1024 synthetic pixel values. The `Sequence` import is already in
     `__init__.py`. After this: #6 + #8 can be batched as they're both additive to `__init__.py` and
     `__all__`.
+- **Batching #6 + #8 + iscc_decode wrapping** (iteration 7, CID loop 4): All three are pure Python
+    additions to `__init__.py` — no Rust changes. Total ~30 lines of production code + tests. The
+    `ST` IntEnum must include all values 0-7 (not just 0-4 from the spec listing) because
+    `iscc_decode` can return subtype values 5 (SUM), 6 (ISCC_NONE), 7 (WIDE) for ISCC-CODE headers.
+    Python IntEnum handles `TEXT = 0` as an alias for `NONE = 0` naturally. After this step: all
+    Python iscc-core drop-in gaps are closed; next phase is propagating 7 symbols to 5 remaining
+    bindings.
 
 ## Architecture Decisions
 
