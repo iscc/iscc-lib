@@ -422,3 +422,22 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Latest CI run**: 22489327741, HEAD `6050f86`, all 7 jobs SUCCESS.
 - **Documentation parity gap**: Python/Java/Node.js/WASM howto guides do NOT have codec/constants
     sections (only Go howto has full coverage). Aspirational parity, not a hard target.md criterion.
+- **CID iteration 2 (new numbering, commits 1924063..4c40c40)**: advance agent added "Codec
+    operations" and "Constants" sections to the 4 remaining binding howto guides: `python.md`
+    (332→394→441 lines), `java.md` (313→384 lines), `nodejs.md` (277→360 lines), `wasm.md` (334→419
+    lines). All now match Go howto coverage. Review agent PASS_WITH_NOTES: fixed WASM constants
+    section — advance had used lowercase names (`meta_trim_name()`) but actual `js_name` exports use
+    uppercase (`META_TRIM_NAME()`). Also fixed advance agent memory note. **Documentation parity gap
+    RESOLVED** — all 6 binding howto guides now have Codec operations + Constants sections. CI all 7
+    jobs passing at HEAD `4c40c40` (run 22490458908).
+- **WASM constant name gotcha**: WASM constants in `crates/iscc-wasm/src/lib.rs` use
+    `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` on the getter function — so the exported JS name
+    is uppercase, NOT the Rust function name. Always verify `js_name` attribute when documenting
+    WASM APIs.
+- **Latest CI run**: 22490458908, HEAD `4c40c40`, all 7 jobs SUCCESS.
+- **issues.md status (iteration 2)**: Issues #5-#8 still present with GitHub URLs — cleanup remains
+    pending. All implementations are complete.
+- **crates/iscc-lib/CLAUDE.md stale**: API tier doc says "22 symbols at crate root" (should be 30).
+    Not a blocking issue.
+- **Howto doc line counts (post-iteration-2)**: python.md=441, java.md=384, nodejs.md=360,
+    wasm.md=419, go.md=462 lines. All 5 have Codec ops + Constants sections.
