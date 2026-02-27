@@ -1,4 +1,4 @@
-<!-- assessed-at: 4c40c40e40c800c133986b8dba45d5635f5da6aa -->
+<!-- assessed-at: ae956788b9b5d355ff4dc0e41679b392c6d8f2d4 -->
 
 # Project State
 
@@ -6,10 +6,10 @@
 
 ## Phase: Publishing Prep & Issues Cleanup
 
-All 6 language bindings are at 30/30 Tier 1 symbols. Documentation parity is now complete: all 6
-howto guides (Python, Java, Node.js, WASM, Go, Rust) have "Codec operations" and "Constants"
-sections. Remaining work: issues.md cleanup (entries #5–#8 resolved but not yet deleted), publishing
-pipeline completion, and Maven Central publishing configuration.
+All 6 language bindings are at 30/30 Tier 1 symbols. Documentation parity is complete: all 6 howto
+guides have "Codec operations" and "Constants" sections. `crates/iscc-lib/CLAUDE.md` is now accurate
+(updated from "22 symbols" to "30 symbols" with correct Tier 1/Tier 2 lists). Remaining work:
+issues.md cleanup (entries #5–#8 resolved but not yet deleted) and publishing pipeline completion.
 
 ## Rust Core Crate
 
@@ -26,6 +26,8 @@ pipeline completion, and Maven Central publishing configuration.
     doc-test); `cargo clippy --workspace` clean; all conformance vectors pass (CI-verified)
 - Tier 2 codec module remains Rust-only: `MainType`/`SubType`/`Version` enums, header encode/decode
 - Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen)
+- `crates/iscc-lib/CLAUDE.md` now accurate: 30-symbol Tier 1 list, correct Tier 2 list, iscc-jni
+    added to binding crate list, `serde_json_canonicalizer` added to dependencies section
 - **Nothing missing** in Rust core
 
 ## Python Bindings
@@ -186,7 +188,7 @@ pipeline completion, and Maven Central publishing configuration.
     - `docs/howto/go.md` (462 lines): Codec ops at line 365, Constants at line 425
     - `docs/howto/rust.md`: existing coverage
 - WASM constants section uses uppercase function names (`META_TRIM_NAME()` etc.) matching actual
-    `js_name` exports — fixed by review agent in this iteration
+    `js_name` exports
 
 ## Benchmarks
 
@@ -207,8 +209,8 @@ pipeline completion, and Maven Central publishing configuration.
     build, test), WASM (wasm-pack test --features conformance), C FFI (cbindgen, gcc, test), Java
     (JNI build, mvn test), Go (go test, go vet)
 - **Latest CI run on develop: PASSING** —
-    [Run 22490458908](https://github.com/iscc/iscc-lib/actions/runs/22490458908) — all 7 jobs
-    SUCCESS — triggered at HEAD `4c40c40`
+    [Run 22491920445](https://github.com/iscc/iscc-lib/actions/runs/22491920445) — all 7 jobs
+    SUCCESS — triggered at HEAD `ae95678`
 - Release workflow fixed: crates.io OIDC token, npm provenance, `macos-14` for x86_64-apple-darwin
 - PR #3 merged (develop → main); version bumped to 0.0.2 across all manifests
 - `pyproject.toml` metadata enriched; `scripts/test_install.py` present; idempotency checks in place
@@ -221,11 +223,9 @@ pipeline completion, and Maven Central publishing configuration.
 
 **Clean up resolved issues and advance to next release:**
 
-1. **`issues.md` cleanup**: Issues #5–#8 all have GitHub URLs confirming they were filed upstream,
-    and all underlying implementations are complete. Delete the 4 local entries — they no longer
-    provide useful direction to CID agents and add noise.
+1. **`issues.md` cleanup**: Issues #5–#8 all have GitHub URLs confirming they were filed and all
+    underlying implementations are complete. Delete the 4 local entries — they no longer provide
+    useful direction to CID agents and add noise.
 2. **Publishing**: Trigger 0.0.2 release to npm (`@iscc/lib`, `@iscc/wasm`) — the release workflow
     is ready; it just needs a `workflow_dispatch` or new tag. crates.io OIDC setup remains a
     human-only task.
-3. **Note**: `crates/iscc-lib/CLAUDE.md` API tier documentation still says "22 symbols at crate
-    root" (stale — should be 30). Not a blocking issue but worth updating to avoid agent confusion.

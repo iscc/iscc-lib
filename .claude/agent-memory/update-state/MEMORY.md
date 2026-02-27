@@ -437,7 +437,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Latest CI run**: 22490458908, HEAD `4c40c40`, all 7 jobs SUCCESS.
 - **issues.md status (iteration 2)**: Issues #5-#8 still present with GitHub URLs — cleanup remains
     pending. All implementations are complete.
-- **crates/iscc-lib/CLAUDE.md stale**: API tier doc says "22 symbols at crate root" (should be 30).
-    Not a blocking issue.
+- **crates/iscc-lib/CLAUDE.md RESOLVED (CID iteration 3)**: Updated to "30 symbols at crate root",
+    correct Tier 1/2 lists, iscc-jni added, serde_json_canonicalizer added. No longer stale.
 - **Howto doc line counts (post-iteration-2)**: python.md=441, java.md=384, nodejs.md=360,
     wasm.md=419, go.md=462 lines. All 5 have Codec ops + Constants sections.
+- **issues.md status (CID iteration 3)**: Issues #5-#8 still present with GitHub URLs — all
+    implementations complete, local entries should be deleted. Cleanup is the immediate next step.
