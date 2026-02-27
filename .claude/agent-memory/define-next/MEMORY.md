@@ -41,10 +41,12 @@ iterations.
 - **Step 5a**: COMPLETE — GenMetaCodeV0 + GenTextCodeV0 (21/21 vectors pass)
 - **Step 5b**: COMPLETE — GenDataCodeV0, GenInstanceCodeV0, DataHasher, InstanceHasher (7/7 vectors)
 - **Step 5c**: COMPLETE — GenImageCodeV0 + GenAudioCodeV0 (8/8 vectors)
-- **Step 5d (current)**: GenVideoCodeV0 + GenMixedCodeV0. Video uses `AlgWtahash([]int64)` on
-    column-wise sums. Mixed uses `decodeHeader`/`decodeBase32`/`decodeLength` (unexported codec
-    functions) + `AlgSimhash`. 5 conformance vectors (3 video + 2 mixed)
-- **After step 5d**: GenIsccCodeV0 (step 5e), then conformance_selftest, then WASM bridge cleanup
+- **Step 5d**: COMPLETE — GenVideoCodeV0 + GenMixedCodeV0 (5/5 vectors)
+- **Step 5e (current)**: GenIsccCodeV0 — composite ISCC-CODE assembly. Uses `encodeUnits`,
+    `decodeBase32`, `decodeHeader`, `decodeLength`, `encodeHeader`, `encodeBase32` (all in
+    codec.go). Sort decoded entries by MainType, validate Data+Instance mandatory, determine SubType
+    from Content/Semantic codes. 5 conformance vectors, no `wide` or `bits` in vectors
+- **After step 5e**: conformance_selftest (all 46 vectors), then WASM bridge cleanup
 - **Go function naming**: pure Go gen functions are package-level (e.g., `GenMetaCodeV0`) and
     coexist with WASM bridge methods (`(rt *Runtime) GenMetaCodeV0`) — no naming conflict in Go
 - **Conformance vector format**: data.json inputs are positional arrays. For video:

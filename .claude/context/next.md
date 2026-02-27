@@ -1,136 +1,98 @@
 # Next Work Package
 
-## Step: Implement pure Go GenVideoCodeV0 and GenMixedCodeV0
+## Step: Implement pure Go GenIsccCodeV0
 
 ## Goal
 
-Implement the 7th and 8th gen functions for the pure Go rewrite: `GenVideoCodeV0` (video content
-fingerprinting via WTA-Hash) and `GenMixedCodeV0` (multi-code SimHash combination). After this step,
-only `GenIsccCodeV0` remains before all 9 gen functions are complete.
+Implement `GenIsccCodeV0` — the 9th and final gen function for the pure Go rewrite. This function
+assembles individual ISCC unit codes (Meta, Content, Data, Instance) into a composite ISCC-CODE,
+completing the full set of code generation functions needed before conformance selftest and cleanup.
 
 ## Scope
 
 - **Create**:
-    - `packages/go/code_content_video.go` — `GenVideoCodeV0`, `SoftHashVideoV0`, `VideoCodeResult`
-    - `packages/go/code_content_video_test.go` — conformance tests (3 vectors)
-    - `packages/go/code_content_mixed.go` — `GenMixedCodeV0`, `softHashCodesV0`, `MixedCodeResult`
-    - `packages/go/code_content_mixed_test.go` — conformance tests (2 vectors)
+    - `packages/go/code_iscc.go` — `GenIsccCodeV0` function + `IsccCodeResult` struct
+    - `packages/go/code_iscc_test.go` — conformance test against 5 data.json vectors
 - **Modify**: (none)
 - **Reference**:
-    - `crates/iscc-lib/src/lib.rs` lines 636–756 — Rust `soft_hash_video_v0`, `gen_video_code_v0`,
-        `soft_hash_codes_v0`, `gen_mixed_code_v0`
-    - `packages/go/code_content_audio.go` — pattern for gen function structure, `arraySplit` helper
-    - `packages/go/code_content_image.go` — pattern for result structs, DCT usage
-    - `packages/go/wtahash.go` — `AlgWtahash` (exported, takes `[]int64`)
-    - `packages/go/simhash.go` — `AlgSimhash` (exported)
-    - `packages/go/codec.go` — `decodeHeader`, `decodeBase32`, `decodeLength` (unexported)
+    - `crates/iscc-lib/src/lib.rs` lines 819–934 — Rust `gen_iscc_code_v0` implementation
+    - `crates/iscc-lib/src/codec.rs` lines 329–397 — `encodeUnits` / `decodeUnits`
+    - `packages/go/codec.go` — Go `encodeUnits`, `decodeBase32`, `decodeHeader`, `decodeLength`,
+        `encodeHeader`, `encodeBase32` (all already implemented)
+    - `packages/go/code_content_mixed.go` — pattern for prefix stripping, decoding, error handling
+    - `crates/iscc-lib/tests/data.json` — `gen_iscc_code_v0` section (5 vectors)
 
 ## Not In Scope
 
-- `GenIsccCodeV0` — that's the 9th and final gen function, a separate step
-- `conformance_selftest` — comes after all 9 gen functions are done
-- WASM bridge removal or cleanup — only after full conformance selftest passes
-- Modifying existing files (no refactoring of codec.go, simhash.go, etc.)
-- Adding an unexported `algSimhashInner` to Go — use existing `AlgSimhash` and discard the error
-    (validation is trivially satisfied since all digests passed to it are equal length)
+- `conformance_selftest` — that's the next step after all 9 gen functions are done
+- WASM bridge cleanup (removing `iscc.go`, `iscc_ffi.wasm`, wazero dep) — separate step
+- Restoring `.pre-commit-config.yaml` large-file threshold — part of cleanup step
+- Adding `GenIsccCodeV0` to Go README API table — doc updates after all gen functions are done
+- Wide mode testing — no test vectors exercise `wide=true`; implement the logic but don't add extra
+    unit tests for it
 
 ## Implementation Notes
 
-### GenVideoCodeV0 (`code_content_video.go`)
+Port `gen_iscc_code_v0` from Rust (`crates/iscc-lib/src/lib.rs` lines 819–934). Key algorithm steps:
 
-Port from Rust `soft_hash_video_v0` + `gen_video_code_v0` (lib.rs lines 636–683):
+1. **Clean inputs**: strip `"ISCC:"` prefix from each code string
+2. **Validate**: minimum 2 codes, each at least 16 base32 chars
+3. **Decode each code**: `decodeBase32` + `decodeHeader` →
+    `(MainType, SubType, Version, length, body)`
+4. **Sort by MainType** ascending — use `sort.Slice` on the decoded entries' MainType value
+5. **Validate mandatory**: last two sorted entries must be `MTData` + `MTInstance`
+6. **Wide mode**: `wide && len==2 && types==[Data,Instance] && both decodeLength>=128`. Test
+    vectors never use wide — always pass `false`. Implement the logic but it won't be exercised
+7. **SubType determination**:
+    - If wide → `STWide`
+    - Else: collect SubTypes of Semantic/Content codes. If any exist and all same → use that
+        SubType. If different SubTypes → error. If no Semantic/Content codes and len==2 → `STSum`.
+        If no Semantic/Content codes and len>2 → `STIsccNone`
+8. **Encode units**: call `encodeUnits(optionalMainTypes)` on the MainTypes from all entries except
+    the last two (Data+Instance). These are the "optional" types: Meta, Content, Semantic
+9. **Build digest body**: for each decoded entry, take first `bytesPerUnit` bytes from body (8 for
+    standard, 16 for wide). Concatenate all
+10. **Encode header + digest**: `encodeHeader(MTIscc, subtype, VSV0, encodedLength)` + digest →
+    `encodeBase32` to get the final code string
+11. **Return**: `&IsccCodeResult{Iscc: "ISCC:" + code}`
 
-1. **`SoftHashVideoV0(frameSigs [][]int32, bits uint32) ([]byte, error)`** (exported, matching Rust
-    `pub fn soft_hash_video_v0`):
+**Result struct**: `IsccCodeResult` with single `Iscc string` field (matches Rust `IsccCodeResult`).
 
-    - Validate `frameSigs` is non-empty → return error if empty
-    - Deduplicate frame signatures. Rust uses `BTreeSet<&S>` (ordered dedup). For Go, convert each
-        `[]int32` sig to a string key for a map (e.g., `fmt.Sprint(sig)` or manual byte encoding).
-        Order doesn't matter for column-wise sum — just need unique sigs
-    - Column-wise sum into `[]int64` to avoid overflow. Each frame is 380 `int32` values. Sum over
-        all unique frames: `vecsum[c] += int64(sig[c])`
-    - Call `AlgWtahash(vecsum, bits)` to produce the digest
-    - Return digest bytes
+**Codec functions available** (all in `packages/go/codec.go`, same `iscc` package):
 
-2. **`GenVideoCodeV0(frameSigs [][]int32, bits uint32) (*VideoCodeResult, error)`**:
+- `decodeBase32(s string) ([]byte, error)` — unexported
+- `decodeHeader(data []byte) (MainType, SubType, Version, uint32, []byte, error)` — unexported
+- `decodeLength(mtype MainType, length uint32, stype SubType) uint32` — unexported
+- `encodeUnits(mainTypes []MainType) (uint32, error)` — unexported
+- `encodeHeader(mtype MainType, stype SubType, version Version, length uint32) ([]byte, error)` —
+    unexported
+- `encodeBase32(data []byte) string` — unexported
 
-    - Call `SoftHashVideoV0` to get digest
-    - Call `EncodeComponent(uint8(MTContent), uint8(STVideo), uint8(VSV0), bits, digest)`
-    - Return `&VideoCodeResult{Iscc: "ISCC:" + component}`
+**Test pattern**: Follow `code_data_test.go`. The `gen_iscc_code_v0` vectors have:
 
-3. **`VideoCodeResult`** struct with `Iscc string` field
+- `inputs`: `[[code1, code2, ...]]` — single element: an array of ISCC code strings (WITHOUT prefix)
+- `outputs`: `{"iscc": "ISCC:..."}` — expected composite ISCC-CODE
+- No `wide` or `bits` parameter in the vectors — call `GenIsccCodeV0(codes, false)`
+- Test function name: `TestPureGoGenIsccCodeV0`
+- Parse `inputs[0]` as `[]string` (the array of code strings), no `inputs[1]`
 
-4. **Deduplication approach**: A simple string-keyed map works. Convert each `[]int32` sig to a
-    canonical string key (e.g., `fmt.Sprintf("%v", sig)` or serialize to bytes), store in
-    `map[string][]int32`. Then iterate the map values for the column-wise sum. Alternatively, sort
-    the sigs and skip consecutive equal ones — but map is simpler
+**5 conformance vectors**:
 
-5. **Conformance vector format**: `inputs[0]` is array of arrays (frame sigs, each 380 int32
-    values), `inputs[1]` is bits. `outputs` has `iscc` string. 3 vectors total
-
-### GenMixedCodeV0 (`code_content_mixed.go`)
-
-Port from Rust `soft_hash_codes_v0` + `gen_mixed_code_v0` (lib.rs lines 685–756):
-
-1. **`softHashCodesV0(ccDigests [][]byte, bits uint32) ([]byte, error)`** (unexported, matching Rust
-    `fn soft_hash_codes_v0` which is not `pub`):
-
-    - Validate at least 2 digests → error if < 2
-    - `nbytes := bits / 8`
-    - For each raw digest:
-        - Call `decodeHeader(raw)` to get `(mtype, stype, _, blen, body, err)`
-        - Validate `mtype == MTContent` → error if not
-        - Call `decodeLength(mtype, blen, stype)` to get `unitBits`
-        - Validate `unitBits >= bits` → error if too short
-        - Build entry of `nbytes` length: first byte = `raw[0]` (header byte preserves type info), then
-            `min(nbytes-1, len(body))` bytes from body, zero-pad remainder
-    - Call `AlgSimhash(prepared)` — all entries are `nbytes` long, so validation passes
-    - Return result (discard error since lengths are guaranteed equal)
-
-2. **`GenMixedCodeV0(codes []string, bits uint32) (*MixedCodeResult, error)`**:
-
-    - For each code string: strip `"ISCC:"` prefix if present, then `decodeBase32(clean)`
-    - Collect all decoded bytes
-    - Call `softHashCodesV0(decoded, bits)` to get digest
-    - Call `EncodeComponent(uint8(MTContent), uint8(STMixed), uint8(VSV0), bits, digest)`
-    - Return `&MixedCodeResult{Iscc: "ISCC:" + component, Parts: codes}` (copy input slice)
-
-3. **`MixedCodeResult`** struct with `Iscc string` and `Parts []string` fields
-
-4. **Conformance vector format**: `inputs[0]` is array of strings (ISCC codes without "ISCC:"
-    prefix), `inputs[1]` is bits. `outputs` has `iscc` string and `parts` array. 2 vectors total
-
-### Test files
-
-Follow the pattern from `code_content_audio_test.go`:
-
-- **`TestPureGoGenVideoCodeV0`**: Parse `gen_video_code_v0` vectors from data.json. Video
-    `inputs[0]` is array of arrays of float64 (JSON numbers) → convert each inner array to
-    `[]int32`. `inputs[1]` is bits. Compare output `Iscc` to expected
-- **`TestPureGoGenMixedCodeV0`**: Parse `gen_mixed_code_v0` vectors from data.json. Mixed
-    `inputs[0]` is array of strings (codes). `inputs[1]` is bits. Compare both `Iscc` and `Parts`
-
-### Key details
-
-- `AlgWtahash` takes `[]int64` — the column sums are already `int64`, direct match
-- `AlgSimhash` returns `([]byte, error)` — safe to discard error with `_, _` in `softHashCodesV0`
-    since all prepared entries have identical length (`nbytes`)
-- `decodeHeader` returns 6 values in Go: `(MainType, SubType, Version, uint32, []byte, error)`
-- Go `min()` builtin (Go 1.21+) available for `min(nbytes-1, len(body))`
-- Test prefix `TestPureGo*` avoids collision with existing WASM bridge tests
+- `test_0000_standard`: 4 codes (Meta+Content+Data+Instance)
+- `test_0001_no_meta`: 3 codes (Content+Data+Instance)
+- `test_0002_no_meta_content_256`: 3 codes (Content-256bit+Data+Instance)
+- `test_0003_no_meta_content_128`: 3 codes (Content-128bit+Data+Instance)
+- `test_0004_ordering`: Same codes as test_0000 in different order (must produce same output)
 
 ## Verification
 
 - `cd packages/go && go build ./...` exits 0
-- `cd packages/go && go test -run TestPureGoGenVideoCodeV0 -count=1 -v` — 3/3 video vectors PASS
-- `cd packages/go && go test -run TestPureGoGenMixedCodeV0 -count=1 -v` — 2/2 mixed vectors PASS
+- `cd packages/go && go test -run TestPureGoGenIsccCodeV0 -count=1 -v` — 5/5 vectors PASS
 - `cd packages/go && go vet ./...` exits 0
 - `cd packages/go && go test ./...` — all tests pass (pure Go + WASM bridge)
-- `grep -c 'func GenVideoCodeV0' packages/go/code_content_video.go` returns 1
-- `grep -c 'func GenMixedCodeV0' packages/go/code_content_mixed.go` returns 1
-- `mise run check` — all hooks pass
+- `grep -c 'func GenIsccCodeV0' packages/go/code_iscc.go` returns 1
 
 ## Done When
 
-All verification criteria pass: both GenVideoCodeV0 and GenMixedCodeV0 produce correct ISCC codes
-for all 5 conformance vectors, full Go test suite passes, and all quality gates are clean.
+All 5 verification checks pass, confirming GenIsccCodeV0 produces correct ISCC-CODEs for all
+conformance vectors and coexists cleanly with existing pure Go and WASM bridge code.
