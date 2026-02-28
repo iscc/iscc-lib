@@ -1,44 +1,34 @@
-## 2026-02-28 — Review of: Fix stale wazero/WASM references in docs
+## 2026-02-28 — Fix Go representation in architecture diagram
 
-**Verdict:** PASS
+**Done:** Updated the Mermaid diagram in `docs/architecture.md` to show Go as a standalone
+disconnected node with a green style, rather than connected to CORE. Updated the explanatory text to
+distinguish the five binding crates from the standalone Go reimplementation. Removed all 5 vestigial
+"do NOT require the WASM binary" comments from Go test files.
 
-**Summary:** Clean, well-scoped documentation-only update. All stale wazero/WASM references removed
-from `docs/architecture.md` (6 edits) and `docs/development.md` (3 edits). The Go module is now
-accurately represented as a pure Go implementation throughout both pages. Directory trees and crate
-summary tables are identical between the two files. All 9 verification criteria pass.
+**Files changed:**
+
+- `docs/architecture.md`: Mermaid diagram — Go node disconnected from CORE with green style; text
+    below diagram rewritten to distinguish binding crates from standalone Go module
+- `packages/go/minhash_test.go`: Removed WASM binary comment (line 2)
+- `packages/go/utils_test.go`: Removed WASM binary comment (line 2)
+- `packages/go/codec_test.go`: Removed WASM binary comment (line 2)
+- `packages/go/cdc_test.go`: Removed WASM binary comment (line 2)
+- `packages/go/simhash_test.go`: Removed WASM binary comment (line 2)
 
 **Verification:**
 
-- [x] `grep -c 'wazero' docs/architecture.md` → 0
-- [x] `grep -c 'wazero' docs/development.md` → 0
-- [x] `grep -c 'iscc_ffi\.wasm' docs/architecture.md` → 0
-- [x] `grep -c 'iscc_ffi\.wasm' docs/development.md` → 0
-- [x] `grep -c 'cargo + wazero' docs/architecture.md` → 0
-- [x] `grep -c 'cargo + wazero' docs/development.md` → 0
-- [x] `grep -q 'release\.yml' docs/architecture.md` → exits 0
-- [x] `uv run zensical build` → succeeds (0.51s)
-- [x] `mise run check` → all 14 hooks pass
+- `GO.*-->.*CORE` in architecture.md: 0 matches ✓
+- `standalone reimplementation` in architecture.md: found at line 31 ✓
+- `All binding crates are thin wrappers` in architecture.md: 0 matches ✓
+- `WASM binary` in packages/go/: 0 matches ✓
+- `uv run zensical build`: succeeded (0.57s) ✓
+- `go test ./... && go vet ./...`: passed (0.064s) ✓
+- `mise run check`: all 14 hooks pass ✓
 
-**Issues found:**
+**Next:** The project is in maintenance mode with all functional requirements met. Remaining work is
+human-dependent: merge PR #10 (develop → main), trigger 0.0.2 releases, configure Maven Central
+publishing. The only remaining automated low-priority task is ci-cd.md standard action set gap
+(missing Go/Java CI actions).
 
-- (none)
-
-**Codex review:** Codex flagged that the Mermaid diagram shows Go with an arrow to CORE
-(`GO --> CORE`), but Go is a standalone reimplementation with its own algorithm logic — it doesn't
-actually depend on the Rust core crate. The "All binding crates are thin wrappers — they contain no
-algorithm logic" statement is technically inaccurate for Go. This is a **pre-existing** issue not
-introduced by this commit (the old diagram had `GO -.-> FFI` which was even more wrong). A future
-diagram refinement could show Go as a standalone node. Low priority — the current representation is
-directionally correct (Go reimplements CORE's API surface).
-
-**Next:** The project is in maintenance mode with all functional requirements met. All remaining
-work is human-dependent: merge PR #10 (develop → main), trigger 0.0.2 releases, configure Maven
-Central publishing. The CID loop provides diminishing returns at this point. If the human wants
-continued CID iterations, the only remaining low-priority automated tasks are: (1) refining the
-Mermaid diagram to show Go as standalone, (2) cleaning up vestigial WASM comments in Go test files,
-(3) ci-cd.md standard action set gap (missing Go/Java actions).
-
-**Notes:** The Mermaid diagram change from `-.-> FFI` to `--> CORE` is a significant improvement —
-it correctly conveys that Go produces identical results to the core without going through FFI. The
-directory trees use glob patterns (`code_content_*.go`, `*_test.go`) which is a good practice for
-representing 36+ files concisely.
+**Notes:** Straightforward documentation and comment cleanup. No surprises. The Mermaid `style`
+directive with green fill/stroke visually distinguishes Go from the Rust-dependent binding crates.

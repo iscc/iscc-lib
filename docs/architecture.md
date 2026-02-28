@@ -23,11 +23,14 @@ graph TD
     WASM["iscc-wasm<br/><small>WebAssembly · wasm-bindgen</small>"] --> CORE
     FFI["iscc-ffi<br/><small>C FFI · extern &quot;C&quot;</small>"] --> CORE
     JNI["iscc-jni<br/><small>Java · JNI</small>"] --> CORE
-    GO["Go<br/><small>Pure Go</small>"] --> CORE
+    GO["Go module<br/><small>Pure Go reimplementation</small>"]
+    style GO fill:#e8f5e9,stroke:#4caf50
 ```
 
-All binding crates are thin wrappers — they contain no algorithm logic. This ensures that every
-language produces identical results for the same inputs.
+The five binding crates (Python, Node.js, WASM, C FFI, Java) are thin wrappers — they contain no
+algorithm logic. The Go module is a standalone reimplementation of the same algorithms in pure Go.
+All languages produce identical results for the same inputs, verified by shared conformance test
+vectors.
 
 ## Workspace Layout
 

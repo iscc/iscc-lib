@@ -1,5 +1,4 @@
 // Tests for the pure Go ISCC codec module.
-// These tests do NOT require the WASM binary — they test pure Go functions.
 package iscc
 
 import (

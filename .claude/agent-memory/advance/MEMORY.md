@@ -133,8 +133,8 @@ iterations.
 - Node.js/Java/WASM gen functions return plain strings; Python/Rust/Go return result objects
 - `docs/architecture.md` and `docs/development.md` share identical directory trees and crate summary
     tables — keep them in sync when editing either file
-- Go shown in Mermaid diagram as `GO["Go<br/><small>Pure Go</small>"] --> CORE` (direct dep on core,
-    not on FFI)
+- Go shown in Mermaid diagram as standalone disconnected node with green style (not connected to
+    CORE) — reflects pure Go reimplementation. Five Rust-dependent binding crates shown with arrows
 
 ## Gotchas
 
