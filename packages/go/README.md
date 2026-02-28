@@ -6,10 +6,9 @@
 > **Experimental:** This library is in early development (v0.0.x). APIs may change without notice.
 > Not recommended for production use yet.
 
-Go bindings for [ISO 24138:2024](https://www.iso.org/standard/77899.html) — International Standard
-Content Code (ISCC). Pure Go with no cgo — uses [wazero](https://wazero.io/) to run Rust-compiled
-WebAssembly. The WASM binary is embedded via `//go:embed`, so there are zero external dependencies
-for consumers.
+Pure Go implementation of [ISO 24138:2024](https://www.iso.org/standard/77899.html) — International
+Standard Content Code (ISCC). No cgo, no binary artifacts — all algorithms are implemented in native
+Go for full portability and standard `go get` distribution.
 
 ## What is ISCC
 
@@ -24,15 +23,12 @@ to create a composite identifier that exhibits similarity-preserving properties 
 go get github.com/iscc/iscc-lib/packages/go
 ```
 
-The WASM binary is embedded in the package — no manual setup or external files needed.
-
 ## Quick Start
 
 ```go
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 
@@ -40,19 +36,11 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
-
-	rt, err := iscc.NewRuntime(ctx)
+	result, err := iscc.GenMetaCodeV0("ISCC Test Document!", nil, nil, 64)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer rt.Close(ctx)
-
-	code, err := rt.GenMetaCodeV0(ctx, "ISCC Test Document!", nil, nil, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Meta-Code:", code)
+	fmt.Println("Meta-Code:", result.Iscc)
 }
 ```
 
@@ -60,7 +48,7 @@ func main() {
 
 ### Code Generators
 
-| Method              | Description                                  |
+| Function            | Description                                  |
 | ------------------- | -------------------------------------------- |
 | `GenMetaCodeV0`     | Generate a Meta-Code from metadata fields    |
 | `GenTextCodeV0`     | Generate a Text-Code from plain text         |
@@ -72,8 +60,8 @@ func main() {
 | `GenInstanceCodeV0` | Generate an Instance-Code from raw bytes     |
 | `GenIsccCodeV0`     | Generate a composite ISCC-CODE               |
 
-All methods are on `*Runtime` and accept a `context.Context` as the first parameter. Functions
-return `(string, error)` following idiomatic Go error handling.
+Package-level functions that return typed result structs (e.g., `*MetaCodeResult`,
+`*TextCodeResult`) and `error`, following idiomatic Go error handling.
 
 ### Text Processing
 
@@ -106,12 +94,12 @@ return `(string, error)` following idiomatic Go error handling.
 
 ### Streaming
 
-| Type / Function     | Description                                           |
-| ------------------- | ----------------------------------------------------- |
-| `NewDataHasher`     | Create a streaming Data-Code hasher                   |
-| `NewInstanceHasher` | Create a streaming Instance-Code hasher               |
-| `DataHasher`        | Streaming hasher with `Update` → `Finalize` → `Close` |
-| `InstanceHasher`    | Streaming hasher with `Update` → `Finalize` → `Close` |
+| Type / Function     | Description                               |
+| ------------------- | ----------------------------------------- |
+| `NewDataHasher`     | Create a streaming Data-Code hasher       |
+| `NewInstanceHasher` | Create a streaming Instance-Code hasher   |
+| `DataHasher`        | Streaming hasher with `Push` → `Finalize` |
+| `InstanceHasher`    | Streaming hasher with `Push` → `Finalize` |
 
 ### Constants
 
@@ -130,13 +118,12 @@ return `(string, error)` following idiomatic Go error handling.
 
 ## Architecture
 
-The package uses [wazero](https://wazero.io/), a pure-Go WebAssembly runtime, to execute
-Rust-compiled WASM. This means:
+Pure Go implementation of all ISCC algorithms — native compiled code with no runtime overhead:
 
 - **No cgo** — builds with `CGO_ENABLED=0`
-- **No shared libraries** — no `.so`, `.dylib`, or `.dll` to manage
+- **No binary artifacts** — no shared libraries, no embedded binaries
 - **Cross-compilation works** — `GOOS`/`GOARCH` just works, no C toolchain needed
-- **Single binary deployment** — the WASM module is embedded at compile time
+- **Standard distribution** — install via `go get`, no extra setup
 
 ## Links
 

@@ -9,6 +9,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  version-check:
+    name: Version consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Check version sync
+        run: python scripts/version_sync.py --check
   rust:
     name: Rust (fmt, clippy, test)
     runs-on: ubuntu-latest
@@ -118,20 +128,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-wasip1
-      - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-go@v5
         with:
           go-version-file: packages/go/go.mod
-      - name: Build WASM module
-        run: cargo build -p iscc-ffi --target wasm32-wasip1
-      - name: Copy WASM to Go package
-        run: cp target/wasm32-wasip1/debug/iscc_ffi.wasm packages/go/
       - name: Run Go tests
         run: CGO_ENABLED=0 go test -v -count=1 ./...
         working-directory: packages/go
       - name: Run Go vet
         run: go vet ./...
         working-directory: packages/go
+  bench:
+    name: Bench (compile check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Compile benchmarks
+        run: cargo bench --no-run

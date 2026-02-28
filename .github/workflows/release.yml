@@ -18,7 +18,7 @@ on:
         type: boolean
         default: false
       maven:
-        description: Build Java JAR with bundled native libraries
+        description: Publish iscc-lib to Maven Central
         type: boolean
         default: false
 permissions:
@@ -405,3 +405,59 @@ jobs:
         with:
           name: iscc-lib-jar
           path: crates/iscc-jni/java/target/*.jar
+
+  # Publish Java JAR to Maven Central via Sonatype Central Portal
+  publish-maven:
+    name: Publish to Maven Central
+    needs: [build-jni]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+      - name: Get workspace version
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check version on Maven Central
+        id: check
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if curl -sf "https://search.maven.org/solrsearch/select?q=g:io.iscc+AND+a:iscc-lib+AND+v:$VERSION&rows=1&wt=json" | grep -q '"numFound":1'; then
+            echo "Version $VERSION already published to Maven Central, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download JNI artifacts
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: jni-*
+          path: jni-staging
+      - name: Copy native libraries to resources
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          for dir in jni-staging/jni-*/; do
+            native_dir=$(basename "$dir" | sed 's/^jni-//')
+            dest="crates/iscc-jni/java/src/main/resources/META-INF/native/$native_dir"
+            mkdir -p "$dest"
+            cp "$dir"* "$dest/"
+          done
+      - name: Import GPG key
+        if: steps.check.outputs.skip != 'true'
+        run: echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
+      - name: Publish to Maven Central
+        if: steps.check.outputs.skip != 'true'
+        run: mvn deploy -Prelease -DskipTests -f crates/iscc-jni/java/pom.xml
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}

@@ -1,101 +1,88 @@
 # Next Work Package
 
-## Step: Add Codec operations and Constants sections to binding howto guides
+## Step: Add Java API reference page
 
 ## Goal
 
-Add "Codec operations" and "Constants" documentation sections to the Python, Node.js, Java, and WASM
-howto guides, achieving cross-language documentation parity with `docs/howto/go.md` which is
-currently the only guide covering all 30/30 Tier 1 symbols.
+Create `docs/java-api.md` documenting the full Java API surface (`IsccLib` class, `IsccDecodeResult`
+class, constants, streaming hashers), and wire it into the site navigation and `llms.txt`. This is
+the last spec-required Reference page — the documentation spec lists "Java API" alongside Rust API,
+Python API, and C FFI in the Reference section.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: `docs/howto/python.md`, `docs/howto/nodejs.md`, `docs/howto/java.md`,
-    `docs/howto/wasm.md`
-- **Reference**: `docs/howto/go.md` (template for section structure and content),
-    `crates/iscc-py/python/iscc_lib/__init__.py` (Python API surface and naming),
-    `crates/iscc-napi/src/lib.rs` (Node.js API names),
-    `packages/java/src/main/java/io/iscc/IsccLib.java` (Java API names),
-    `crates/iscc-wasm/src/lib.rs` (WASM API names)
+- **Create**: `docs/java-api.md`
+- **Modify**: `zensical.toml` (add `{ "Java API" = "java-api.md" }` to Reference nav section)
+- **Modify**: `docs/llms.txt` (add Java API reference line)
+- **Reference**:
+    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — authoritative source for
+        all 30 Tier 1 symbols (382 lines, 30 methods + 4 constants)
+    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java` — decode result type
+        (42 lines, 5 public final fields)
+    - `docs/c-ffi-api.md` — pattern to follow for structure and depth (694 lines)
+    - `docs/rust-api.md` — pattern to follow for function documentation style
+    - `.claude/context/specs/documentation.md` — spec requiring "Java API" in Reference
 
 ## Not In Scope
 
-- Adding "Algorithm primitives" sections to Python, Node.js, or WASM guides (separate step)
-- Adding Codec/Constants to `docs/howto/rust.md` (Rust developers use `cargo doc`)
-- Modifying any source code — this is documentation-only
-- Updating `zensical.toml` navigation (sections are within existing pages, no new pages)
-- Restructuring existing sections in any guide
+- Javadoc generation or mkdocstrings integration for Java (the page is hand-written markdown like
+    the Rust API and C FFI pages)
+- Maven Central publishing configuration or setup documentation
+- `NativeLoader.java` internals — not part of the public API surface
+- Updating the Java how-to guide (`docs/howto/java.md`) — already complete
+- Updating other Reference pages (Rust API, Python API, C FFI) — they are already final
 
 ## Implementation Notes
 
-Use `docs/howto/go.md` lines 365–437 as the structural template. Each guide gets two new sections
-inserted **before** the "Conformance testing" section:
+**Page structure** — follow the C FFI reference page pattern, adapted for Java:
 
-### "Codec operations" section
+1. **Front matter**: `icon: lucide/book-open`, description for Java API
+2. **Intro paragraph**: Java library for ISCC via JNI, all 30 Tier 1 symbols as static methods on
+    `IsccLib`
+3. **Installation**: Maven and Gradle dependency snippets (use `io.iscc:iscc-lib:0.0.2`)
+4. **Quick example**: `IsccLib.genMetaCodeV0("title", null, null, 64)` → ISCC string
+5. **Constants section**: 4 `public static final int` fields (`META_TRIM_NAME`,
+    `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) in a table
+6. **Classes section**: `IsccDecodeResult` with its 5 public final fields in a table
+7. **Functions sections** (organized by category, matching IsccLib.java order):
+    - Conformance: `conformanceSelftest()`
+    - Code generation: all 9 `gen*V0` methods with signature, parameter table, return type, and
+        throws clause
+    - Text utilities: `textClean`, `textRemoveNewlines`, `textTrim`, `textCollapse`
+    - Encoding: `encodeBase64`, `jsonToDataUrl`
+    - Codec: `encodeComponent`, `isccDecode`, `isccDecompose`
+    - Sliding window: `slidingWindow`
+    - Algorithm primitives: `algSimhash`, `algMinhash256`, `algCdcChunks`, `softHashVideoV0`
+    - Streaming hashers: `DataHasher` lifecycle (`dataHasherNew` → `dataHasherUpdate` →
+        `dataHasherFinalize` → `dataHasherFree`) and same for `InstanceHasher`
+8. **Error handling**: all methods throw `IllegalArgumentException` on invalid input; streaming
+    hashers throw after finalize
+9. **Memory management note**: streaming hashers use opaque `long` handles — callers MUST call
+    `*Free` to release native memory
 
-Cover these 6 functions with language-idiomatic code examples:
+**Content source**: transcribe directly from the Javadoc in `IsccLib.java` and
+`IsccDecodeResult.java`. Do NOT invent undocumented behavior.
 
-1. **`encode_component`** — construct an ISCC unit from raw header fields and digest
-2. **`iscc_decode`** — parse an ISCC unit string back into header components and digest
-3. **`iscc_decompose`** — split a composite ISCC-CODE into individual unit codes
-4. **`encode_base64`** — encode bytes to base64
-5. **`json_to_data_url`** — convert JSON string to data URL
-6. **`soft_hash_video_v0`** — compute video similarity hash from frame signatures
+**Nav entry**: insert `{ "Java API" = "java-api.md" }` after `{ "C FFI" = "c-ffi-api.md" }` in the
+Reference section of `zensical.toml`.
 
-Structure: Show encode + decode as a paired example (like Go guide), then decompose, then list
-remaining 3 as bullet points with signatures.
-
-### "Constants" section
-
-Cover 4 algorithm constants with a single code block showing how to import/access them:
-
-- `META_TRIM_NAME` = 128
-- `META_TRIM_DESCRIPTION` = 4096
-- `IO_READ_SIZE` = 4,194,304
-- `TEXT_NGRAM_SIZE` = 13
-
-### Language-specific details
-
-**Python:** Functions use `snake_case`. `iscc_decode` returns `tuple[MT, ST, VS, int, bytes]` with
-IntEnum-typed values. Constants are top-level module attributes. Also mention `core_opts`
-SimpleNamespace for iscc-core API parity.
-
-**Node.js:** Functions use `snake_case` (via `js_name`). `iscc_decode` returns an `IsccDecodeResult`
-object. Constants are exported as `META_TRIM_NAME` etc. Use `const { ... } = require("@iscc/lib")`
-import style.
-
-**Java:** Methods use `camelCase` on `IsccLib` class: `encodeComponent`, `isccDecode` (returns
-`IsccDecodeResult`), `isccDecompose`, `encodeBase64`, `jsonToDataUrl`, `softHashVideoV0`. Constants
-are `public static final int` on `IsccLib`.
-
-**WASM:** Functions use `snake_case`. `iscc_decode` returns an `IsccDecodeResult` object. Constants
-are getter functions: `meta_trim_name()`, etc.
-
-### Description update
-
-Update each guide's front matter `description:` and opening paragraph to mention codec operations
-and constants coverage.
+**llms.txt entry**: add `- [Java API](https://lib.iscc.codes/java-api.md): Java API reference` after
+the C FFI line, following the existing pattern.
 
 ## Verification
 
-- `grep -c 'encode_component\|encodeComponent\|EncodeComponent' docs/howto/python.md` returns ≥ 1
-- `grep -c 'iscc_decode\|isccDecode' docs/howto/python.md` returns ≥ 1
-- `grep -c 'META_TRIM_NAME' docs/howto/python.md` returns ≥ 1
-- `grep -c 'core_opts' docs/howto/python.md` returns ≥ 1
-- `grep -c 'encode_component' docs/howto/nodejs.md` returns ≥ 1
-- `grep -c 'iscc_decode' docs/howto/nodejs.md` returns ≥ 1
-- `grep -c 'META_TRIM_NAME' docs/howto/nodejs.md` returns ≥ 1
-- `grep -c 'encodeComponent' docs/howto/java.md` returns ≥ 1
-- `grep -c 'isccDecode' docs/howto/java.md` returns ≥ 1
-- `grep -c 'META_TRIM_NAME' docs/howto/java.md` returns ≥ 1
-- `grep -c 'encode_component' docs/howto/wasm.md` returns ≥ 1
-- `grep -c 'iscc_decode' docs/howto/wasm.md` returns ≥ 1
-- `grep -c 'meta_trim_name' docs/howto/wasm.md` returns ≥ 1
-- `uv run zensical build` exits 0 (docs site builds successfully)
-- `mise run check` passes (all pre-commit/pre-push hooks clean)
+- `uv run zensical build` succeeds (site builds with new page)
+- `grep -q 'java-api.md' zensical.toml` exits 0 (nav entry present)
+- `grep -q 'java-api' docs/llms.txt` exits 0 (llms.txt reference added)
+- `grep -c 'genMetaCodeV0\|genTextCodeV0\|genImageCodeV0\|genAudioCodeV0\|genVideoCodeV0\|genMixedCodeV0\|genDataCodeV0\|genInstanceCodeV0\|genIsccCodeV0' docs/java-api.md`
+    returns ≥ 9 (all gen functions documented)
+- `grep -c 'dataHasherNew\|dataHasherUpdate\|dataHasherFinalize\|dataHasherFree' docs/java-api.md`
+    returns ≥ 4 (DataHasher lifecycle documented)
+- `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 (decode result type documented)
+- `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 (constants documented)
+- `mise run check` passes (all hooks clean)
 
 ## Done When
 
-All 4 binding howto guides have "Codec operations" and "Constants" sections with idiomatic code
-examples, the docs site builds cleanly, and all verification grep checks pass.
+All 8 verification commands pass — the Java API reference page is complete, wired into navigation
+and llms.txt, and the site builds cleanly.

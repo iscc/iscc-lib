@@ -9,10 +9,19 @@ SITE_DIR = Path(__file__).parent.parent / "site"
 # Ordered list of doc pages to include (matches nav in zensical.toml)
 PAGES = [
     "index.md",
+    "tutorials/getting-started.md",
+    "howto/rust.md",
+    "howto/python.md",
+    "howto/nodejs.md",
+    "howto/wasm.md",
+    "howto/go.md",
+    "howto/java.md",
     "architecture.md",
+    "ecosystem.md",
     "rust-api.md",
     "api.md",
     "benchmarks.md",
+    "development.md",
 ]
 
 # Regex to strip YAML frontmatter

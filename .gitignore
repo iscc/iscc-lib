@@ -228,8 +228,5 @@ cauldron/
 # Claude Code local settings
 .claude/settings.local.json
 
-# Go WASM binaries (built from iscc-ffi crate)
-packages/go/*.wasm
-
 # Reference implementations (shallow-cloned for agent use)
 /reference/

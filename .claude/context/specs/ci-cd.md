@@ -23,7 +23,9 @@ merge.
 | **WASM**    | `wasm-pack test --node`                                                               |
 | **C FFI**   | cbindgen header generation, gcc compile, C test run                                   |
 | **Java**    | JNI `cargo build`, `mvn test` (49 tests including conformance vectors)                |
-| **Go**      | `cargo build --target wasm32-wasip1` for FFI binary, `go test`, `go vet`              |
+| **Go**      | `CGO_ENABLED=0 go test`, `go vet` (pure Go, no Rust toolchain)                        |
+| **Version** | `python scripts/version_sync.py --check` for manifest version consistency             |
+| **Bench**   | `cargo bench --no-run` compile-only benchmark verification                            |
 
 CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
 `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, `astral-sh/setup-uv@v4`,
@@ -67,6 +69,10 @@ on:
         description: Publish @iscc/lib and @iscc/wasm to npm
         type: boolean
         default: false
+      maven:
+        description: Publish iscc-lib to Maven Central
+        type: boolean
+        default: false
 ```
 
 ### Job Conditions
@@ -78,18 +84,22 @@ Each job chain activates on either a tag push or its corresponding checkbox:
     `if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi`
 - **npm jobs** (build-napi, build-wasm, publish-npm-lib, publish-npm-wasm):
     `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
+- **Maven jobs** (build-jni, assemble-jar, publish-maven):
+    `if: startsWith(github.ref, 'refs/tags/v') || inputs.maven`
 
 Tag pushes activate all jobs (no inputs are set, but the tag condition passes for all).
 
 ### Authentication
 
-| Registry      | Method                     | Secret/Action                            |
-| ------------- | -------------------------- | ---------------------------------------- |
-| **crates.io** | OIDC trusted publishing    | `rust-lang/crates-io-auth-action@v1`     |
-| **PyPI**      | OIDC trusted publishing    | `pypa/gh-action-pypi-publish@release/v1` |
-| **npm**       | Token (`NPM_TOKEN` secret) | `NODE_AUTH_TOKEN` env var                |
+| Registry          | Method                       | Secret/Action                                                                       |
+| ----------------- | ---------------------------- | ----------------------------------------------------------------------------------- |
+| **crates.io**     | OIDC trusted publishing      | `rust-lang/crates-io-auth-action@v1`                                                |
+| **PyPI**          | OIDC trusted publishing      | `pypa/gh-action-pypi-publish@release/v1`                                            |
+| **npm**           | Token (`NPM_TOKEN` secret)   | `NODE_AUTH_TOKEN` env var                                                           |
+| **Maven Central** | GPG signing + Sonatype token | `MAVEN_GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE`, `MAVEN_USERNAME`, `MAVEN_PASSWORD` |
 
-All jobs that use OIDC require `permissions: id-token: write`.
+All jobs that use OIDC require `permissions: id-token: write`. Maven Central uses the Sonatype
+Central Portal via `central-publishing-maven-plugin` with GPG-signed artifacts.
 
 ### Idempotency
 
@@ -98,6 +108,7 @@ Each publish job handles "already published" gracefully:
 - **crates.io**: check version with `cargo info iscc-lib` before publishing; skip if matches
 - **PyPI**: check version via PyPI JSON API before publishing; skip if exists
 - **npm**: check version with `npm view` before publishing; skip if exists
+- **Maven Central**: check version via Maven Central search API before publishing; skip if exists
 
 ### Release Protocol
 
@@ -156,7 +167,7 @@ One wheel per platform covers Python 3.10 through 3.14+ (abi3 stable ABI).
 | ubuntu-latest  | x86_64-unknown-linux-gnu  |
 | ubuntu-latest  | aarch64-unknown-linux-gnu |
 | macos-14       | aarch64-apple-darwin      |
-| macos-13       | x86_64-apple-darwin       |
+| macos-14       | x86_64-apple-darwin       |
 | windows-latest | x86_64-pc-windows-msvc    |
 
 ### WASM (wasm-pack)
@@ -171,8 +182,21 @@ Single build on ubuntu-latest, platform-independent.
 | Python    | PyPI          | `iscc-lib`                                                         |
 | Node.js   | npm           | `@iscc/lib`                                                        |
 | WASM      | npm           | `@iscc/wasm`                                                       |
-| Java      | Maven Central | `io.iscc:iscc-lib` (not yet in release workflow)                   |
+| Java      | Maven Central | `io.iscc:iscc-lib`                                                 |
 | Go        | pkg.go.dev    | `github.com/iscc/iscc-lib/packages/go` (tag-based, no publish job) |
+
+### Java JNI native libraries (cargo + Maven)
+
+| OS             | Target                    | Native dir     | Library           |
+| -------------- | ------------------------- | -------------- | ----------------- |
+| ubuntu-latest  | x86_64-unknown-linux-gnu  | linux-x86_64   | libiscc_jni.so    |
+| ubuntu-latest  | aarch64-unknown-linux-gnu | linux-aarch64  | libiscc_jni.so    |
+| macos-14       | aarch64-apple-darwin      | macos-aarch64  | libiscc_jni.dylib |
+| macos-14       | x86_64-apple-darwin       | macos-x86_64   | libiscc_jni.dylib |
+| windows-latest | x86_64-pc-windows-msvc    | windows-x86_64 | iscc_jni.dll      |
+
+Native libraries are bundled inside the JAR under `META-INF/native/{platform}/` and extracted at
+runtime by `NativeLoader.java`.
 
 ## Version Management
 
@@ -193,22 +217,30 @@ automatically at build time; others require explicit synchronization.
 
 ### Manual propagation (sync script required)
 
-| Manifest                        | Format                                                             |
-| ------------------------------- | ------------------------------------------------------------------ |
-| `crates/iscc-napi/package.json` | `"version": "X.Y.Z"`                                               |
-| `crates/iscc-jni/java/pom.xml`  | `<version>X.Y.Z-SNAPSHOT</version>` (drop `-SNAPSHOT` for release) |
+| Target                          | What is synced                       |
+| ------------------------------- | ------------------------------------ |
+| `pyproject.toml`                | Root project version (dev workspace) |
+| `crates/iscc-napi/package.json` | npm package version                  |
+| `crates/iscc-jni/java/pom.xml`  | Maven artifact version               |
+| `mise.toml`                     | Default `--version` flag             |
+| `scripts/test_install.py`       | Registry check fallback version      |
+| `README.md`                     | Maven dependency snippet             |
+| `crates/iscc-jni/README.md`     | Maven dependency snippet             |
+| `docs/howto/java.md`            | Maven dependency snippet             |
+| `docs/java-api.md`              | Maven + Gradle dependency snippets   |
 
 Go modules use git tags for versioning — no manifest version field to sync.
 
 ### Sync tooling
 
-| Task            | Command                  | Purpose                                                     |
-| --------------- | ------------------------ | ----------------------------------------------------------- |
-| `version:sync`  | `mise run version:sync`  | Read workspace version, update `package.json` and `pom.xml` |
-| `version:check` | `mise run version:check` | Validate all manifests match; fail if mismatch (run in CI)  |
+| Task            | Command                  | Purpose                                                  |
+| --------------- | ------------------------ | -------------------------------------------------------- |
+| `version:sync`  | `mise run version:sync`  | Read workspace version, update all 9 sync targets        |
+| `version:check` | `mise run version:check` | Validate all targets match; fail if mismatch (run in CI) |
 
-The sync script reads the canonical version from root `Cargo.toml` and updates the two manual
-manifests. It is called before every release commit (see Release Protocol above).
+The sync script (`scripts/version_sync.py`) reads the canonical version from root `Cargo.toml` and
+updates all targets listed above. It is called before every release commit (see Release Protocol
+above). CI runs `version:check` on every push to catch drift.
 
 ## Dev Tooling
 
@@ -257,21 +289,27 @@ workflow triggers on push to `main`.
 - [x] WASM job runs wasm-pack tests
 - [x] C FFI job generates headers, compiles, and runs C test program
 - [x] Java job builds JNI crate and runs Maven tests
-- [x] Go job builds WASM FFI binary, runs go test and go vet
+- [x] Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain)
+- [x] Version job runs scripts/version_sync.py --check for manifest consistency
+- [x] Bench job runs cargo bench --no-run for compile-only benchmark verification
 - [x] CI does not use `mise` — calls tools directly
 
 ### Release
 
-- [x] `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm)
+- [x] `workflow_dispatch` trigger with boolean inputs for each registry (crates-io, pypi, npm,
+    maven)
 - [x] Tag push `v*.*.*` triggers all publish jobs
 - [x] `workflow_dispatch` with only `pypi: true` builds and publishes only Python wheels
 - [x] `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
 - [x] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
+- [x] `workflow_dispatch` with only `maven: true` builds and publishes only to Maven Central
 - [x] Each registry's jobs are independent — failure in one does not block others
 - [x] crates.io uses OIDC trusted publishing (no API key secret)
 - [x] PyPI uses OIDC trusted publishing (no API key secret)
 - [x] npm uses `NPM_TOKEN` repository secret
+- [x] Maven Central uses GPG signing + Sonatype Central Portal credentials
 - [x] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
+- [x] Java JAR bundles 5-platform native libraries under `META-INF/native/`
 - [x] Publishing an existing version skips gracefully instead of failing
 - [x] All build artifacts uploaded via `actions/upload-artifact@v4`
 
@@ -281,5 +319,5 @@ workflow triggers on push to `main`.
 - [x] All Cargo crates inherit version via `version.workspace = true`
 - [x] Python version derived automatically via maturin `dynamic = ["version"]`
 - [x] WASM version synced automatically via CI script in release.yml
-- [x] `mise run version:sync` updates `package.json` and `pom.xml` from workspace version
-- [x] `mise run version:check` validates all manifests match (suitable for CI)
+- [x] `mise run version:sync` updates all 9 sync targets (manifests, docs, scripts)
+- [x] `mise run version:check` validates all targets match (run in CI on every push)

@@ -2,11 +2,11 @@
 
 > High-performance polyglot implementation of ISO 24138:2024 International Standard Content Code (ISCC).
 
-iscc-lib is a Rust library with Python, Node.js, WASM, and C FFI bindings implementing the ISCC
-standard for content identification. It provides all 9 gen_*_v0 functions, streaming hashers,
-text utilities, and algorithm primitives for generating ISCC codes from digital content.
+iscc-lib is a Rust library with Python, Node.js, WASM, Go, Java, and C FFI bindings implementing
+the ISCC standard for content identification. It provides all 9 gen_*_v0 functions, streaming
+hashers, text utilities, and algorithm primitives for generating ISCC codes from digital content.
 
-Install: `pip install iscc-lib` (Python), `npm install @iscc/lib` (Node.js)
+Install: `pip install iscc-lib` (Python), `npm install @iscc/lib` (Node.js), `go get github.com/iscc/iscc-lib/packages/go` (Go)
 
 - [Source code](https://github.com/iscc/iscc-lib)
 - [Full documentation](https://lib.iscc.codes/llms-full.txt)
@@ -14,7 +14,18 @@ Install: `pip install iscc-lib` (Python), `npm install @iscc/lib` (Node.js)
 ## Reference
 
 - [Home](https://lib.iscc.codes/index.md): Overview and quick start
+- [Getting Started](https://lib.iscc.codes/tutorials/getting-started.md): Install iscc-lib, generate your first ISCC code, and understand the result
+- [Rust How-to](https://lib.iscc.codes/howto/rust.md): Guide to using iscc-lib from Rust
+- [Python How-to](https://lib.iscc.codes/howto/python.md): Guide to using iscc-lib from Python
+- [Node.js How-to](https://lib.iscc.codes/howto/nodejs.md): Guide to using iscc-lib from Node.js
+- [WebAssembly How-to](https://lib.iscc.codes/howto/wasm.md): Guide to using iscc-lib via WebAssembly
+- [Go How-to](https://lib.iscc.codes/howto/go.md): Guide to using iscc-lib from Go
+- [Java How-to](https://lib.iscc.codes/howto/java.md): Guide to using iscc-lib from Java via JNI
 - [Architecture](https://lib.iscc.codes/architecture.md): Hub-and-spoke model and internal modules
+- [Ecosystem](https://lib.iscc.codes/ecosystem.md): Official and community implementations of the ISCC standard
 - [Rust API](https://lib.iscc.codes/rust-api.md): Rust API reference
 - [Python API](https://lib.iscc.codes/api.md): Python API reference
+- [C FFI](https://lib.iscc.codes/c-ffi-api.md): C FFI API reference
+- [Java API](https://lib.iscc.codes/java-api.md): Java API reference
 - [Benchmarks](https://lib.iscc.codes/benchmarks.md): Performance comparisons
+- [Development](https://lib.iscc.codes/development.md): Development environment setup, quality gates, and CID workflow

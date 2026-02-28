@@ -1,53 +1,39 @@
-## 2026-02-27 — Review of: Add Codec operations and Constants sections to binding howto guides
+## 2026-02-28 — Review of: Add Java API reference page
 
-**Verdict:** PASS_WITH_NOTES
+**Verdict:** PASS
 
-**Summary:** Clean documentation-only update adding "Codec operations" and "Constants" sections to
-all 4 binding howto guides (Python, Node.js, Java, WASM). Content is well-structured, follows the Go
-template, and uses language-idiomatic examples. One factual error fixed during review: WASM
-constants were documented with lowercase names but the actual `js_name` exports use uppercase.
+**Summary:** Clean, well-scoped documentation addition. The new `docs/java-api.md` (676 lines)
+documents all 30 Tier 1 symbols as static methods on `IsccLib` with accurate Java type signatures,
+parameter tables, code examples, streaming hasher lifecycle, error handling, and memory management.
+Content faithfully transcribed from `IsccLib.java` and `IsccDecodeResult.java` Javadoc. Site builds
+cleanly, nav entry and llms.txt updated. All 4 spec-required Reference pages are now complete.
 
 **Verification:**
 
-- [x] `grep -c 'encode_component\|encodeComponent\|EncodeComponent' docs/howto/python.md` → 2
-- [x] `grep -c 'iscc_decode\|isccDecode' docs/howto/python.md` → 3
-- [x] `grep -c 'META_TRIM_NAME' docs/howto/python.md` → 2
-- [x] `grep -c 'core_opts' docs/howto/python.md` → 7
-- [x] `grep -c 'encode_component' docs/howto/nodejs.md` → 2
-- [x] `grep -c 'iscc_decode' docs/howto/nodejs.md` → 3
-- [x] `grep -c 'META_TRIM_NAME' docs/howto/nodejs.md` → 2
-- [x] `grep -c 'encodeComponent' docs/howto/java.md` → 1
-- [x] `grep -c 'isccDecode' docs/howto/java.md` → 2
-- [x] `grep -c 'META_TRIM_NAME' docs/howto/java.md` → 1
-- [x] `grep -c 'encode_component' docs/howto/wasm.md` → 2
-- [x] `grep -c 'iscc_decode' docs/howto/wasm.md` → 3
-- [x] `grep -c 'meta_trim_name' docs/howto/wasm.md` → 2 (now via uppercase `META_TRIM_NAME`)
-- [x] `uv run zensical build` → exits 0
-- [x] `mise run check` → all 14 hooks pass
+- [x] `uv run zensical build` succeeds — builds in 0.66s with `/java-api/` in output
+- [x] `grep -q 'java-api.md' zensical.toml` exits 0 — nav entry present after C FFI
+- [x] `grep -q 'java-api' docs/llms.txt` exits 0 — reference line added
+- [x] gen function count: 32 (≥ 9) — all 9 gen functions documented with signatures and examples
+- [x] DataHasher lifecycle count: 18 (≥ 4) — DataHasher + InstanceHasher fully documented
+- [x] `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 — class with 5 fields documented
+- [x] `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 — all 4 constants in table
+- [x] `mise run check` — all 14 hooks pass
 
 **Issues found:**
 
-- Fixed: WASM constants section used lowercase function names (`meta_trim_name()`) but the actual
-    `wasm_bindgen` exports use uppercase via `js_name = "META_TRIM_NAME"`. Corrected to uppercase
-    `META_TRIM_NAME()` etc.
-- Fixed: Advance agent memory note incorrectly stated WASM constants use lowercase — corrected.
-- Note: `softHashVideoV0` appears in both "Algorithm primitives" and "Other codec methods" sections
-    in the Java guide. The existing "Algorithm primitives" section was not in scope for
-    modification, and next.md required including it in Codec operations. Cosmetic duplication only.
-- Note: Node.js guide mixes ESM `import` (existing sections) with CommonJS `require()` (new Codec
-    and Constants sections). This was explicitly specified in next.md and mirrors the Go guide's
-    pattern of showing different import styles. Could confuse users in ESM-only projects — consider
-    unifying to ESM in a future doc refresh.
+- (none)
 
-**Codex review:** Codex identified the same WASM constant naming issue (P1, fixed), the ESM/CJS
-mixing in Node.js (P2, by-design per next.md spec but noted), and the advance agent memory
-inaccuracy (P3, fixed).
+**Codex review:** Codex reviewed the define-next commit (HEAD~1, not the advance commit) but still
+identified relevant documentation accuracy points: (1) P2: intro paragraph oversimplified native
+library loading — fixed by adding fallback mention. (2) P3: `IsccLib.isccDecode()` reference omits
+parameter — standard Java method reference convention, not actionable. (3) P3: handoff grep uses
+`...` abbreviation — textual shorthand in handoff text, not actual regex, not actionable.
 
-**Next:** All 6 language binding howto guides now have complete documentation coverage (30/30 Tier 1
-symbols with Codec operations and Constants). The project can focus on remaining issues in
-issues.md: dict auto-serialization for `gen_meta_code_v0` (issue #5), `encode_component` API
-promotion (issue #6), `iscc_decode` implementation (issue #7), or constants exposure (issue #8).
+**Next:** All spec-required documentation pages are complete (Rust API, Python API, C FFI, Java
+API). The documentation spec is fully met. All remaining work requires human action: merge PR #10
+(develop → main), trigger 0.0.2 releases to PyPI/npm, configure Maven Central publishing (GPG,
+Sonatype), decide canonical tab order, and configure OIDC for crates.io.
 
-**Notes:** The next.md spec incorrectly specified WASM constant names as lowercase — always verify
-documented API names against actual `js_name`/`#[pyfunction]`/`#[napi]` attributes in the binding
-source code, not just the spec.
+**Notes:** The project has reached the end of automatable CID work. All 7 bindings at 30/30 Tier 1
+symbols, all 46 conformance vectors pass, CI green on all 9 jobs, documentation complete with 16
+pages. The only remaining issue is the low-priority tab order inconsistency (needs human decision).

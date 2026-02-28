@@ -10,9 +10,12 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java tests are NOT part of `mise run check` or pre-push hooks — must run `mvn test` explicitly
 - Go tests are NOT part of `mise run check` or pre-push hooks — must run
     `cd packages/go && mise exec -- go test ./...` explicitly
+- `check-added-large-files` threshold is `--maxkb=256` (restored after WASM binary removal)
 
 ## Common Issues
 
+- Go `go get` adds dependencies as `// indirect` even when directly imported — advance agents should
+    run `go mod tidy` after adding deps. Check for this in review
 - Unused imports in Java code (e.g., `JsonNull` imported but only `isJsonNull()` method on
     `JsonElement` is used) — quick fix, remove the import
 - Verification criteria in next.md that use generic `grep` patterns may false-positive on the
@@ -63,16 +66,23 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     \+ `cargo check -p <crate>` is sufficient. If wasm-pack config changed, also run
     `wasm-pack build --target web --release crates/iscc-wasm` to verify end-to-end
 
+- CI-only YAML changes: `mise run check` is sufficient — no code changed, only workflow config.
+    Verify the script/command referenced in the job runs successfully locally
+
 ## Codex Review Integration
 
-- `codex exec review --ephemeral --commit HEAD` output ends with structured findings after a `codex`
-    marker line. Use `sed -n '/^codex$/,$ p' /tmp/codex-review.txt | tail -n +2` to extract them
+- `codex exec review --ephemeral --commit HEAD` output ends with structured findings after the
+    `codex` marker. Use `sed -n '/^codex$/,$ p' /tmp/codex-review.txt | tail -n +2` to extract. The
+    `Full review comments:` marker is no longer used in newer codex versions
 - Codex typically runs tests and grep searches to verify the commit — its findings are advisory and
     should be cross-referenced with your own analysis
 - The `--commit HEAD~1` in the protocol template assumes advance is at HEAD~1, but when the review
     agent runs immediately after advance, the advance commit is at HEAD. Always use `--commit HEAD`
     for the advance commit (or verify with `git log` first). Codex reviewing the wrong commit
     (define-next instead of advance) produces mostly irrelevant findings about planning docs
+- Codex findings about Go codec design (silent truncation, dash stripping, trailing bytes) were all
+    dismissed because Go faithfully mirrors Rust reference. When reviewing Go ports, always validate
+    Codex findings against the Rust implementation before acting on them
 
 ## Binding State
 
@@ -82,8 +92,14 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - WASM has 30/30 Tier 1 symbols as of iteration 9 (59 unit tests + 9 conformance tests)
 - C FFI has 30/30 Tier 1 symbols as of iteration 10 (77 Rust unit tests, 49 C test assertions)
 - Java JNI has 30/30 Tier 1 symbols as of iteration 11 (58 Maven tests: 51 existing + 7 new)
-- Go/wazero has 30/30 Tier 1 symbols as of iteration 12 (48 total Runtime methods: 27 public + 21
-    private helpers, 7 new tests)
+- Go pure rewrite COMPLETE: 30/30 Tier 1 symbols, all 46 conformance vectors, zero WASM deps.
+    DecodeResult and algorithm constants in codec.go. Module deps: blake3 + golang.org/x/text only
+- Go docs/CI cleanup COMPLETE: CI job has 4 steps (no Rust/WASM), README and howto guide describe
+    pure Go API with typed result structs. Vestigial WASM comments removed from all test files
+- CI has 9 jobs total: version-check, rust, python, nodejs, wasm, c-ffi, java, go, bench.
+    version-check is lightweight (checkout + setup-python only, no Rust/uv/caching)
+- All 4 spec-required Reference pages complete: Rust API, Python API, C FFI, Java API. Documentation
+    spec fully met. Only remaining issue: tab order inconsistency (needs human decision)
 
 ## Binding Propagation Review Shortcuts
 
@@ -120,6 +136,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - `grep -c` counts ALL matching lines including function definitions — when next.md specifies "4
     call sites" but the function name also appears in a definition, expect count = call sites + 1.
     This is a valid pass if the arithmetic checks out
+- `grep -c '---' site/llms-full.txt` does NOT reliably count page dividers — doc pages contain
+    internal `---` horizontal rules. Use the script's "N pages" stdout as the authoritative check
 
 ## Documentation Review Patterns
 
@@ -128,6 +146,26 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     agent faithfully reproduces
 - WASM constants have `js_name = "META_TRIM_NAME"` (uppercase) despite Rust function being
     `meta_trim_name()` — this is a known divergence point
+- Cross-check version requirements in docs against build config files (e.g., `pom.xml`
+    `maven.compiler.source`, `go.mod` go version). Advance agents may introduce version claims that
+    don't match actual build requirements (e.g., Java 11+ claimed but pom.xml requires 17+)
+- Doc tab conversions: verify WASM `init()` is shown at least once. Each language's return type
+    differs (Python/Rust/Go return result structs; Node.js/Java/WASM return plain strings)
+
+## Issues Cleanup
+
+- The review agent only cleans up issues resolved in the *current* iteration's advance step. It does
+    NOT sweep the full issues.md backlog for stale entries resolved in prior CID loops. This led to
+    issues #5-#8 persisting for 4+ iterations after their fixes landed. **Mitigation:** after
+    verifying the advance work, also scan issues.md for any other entries that are now resolved
+    (check state.md "met" sections against issue descriptions)
+
+## Environment
+
+- Python `iscc_lib` module must be compiled before pre-push hooks can pass. If `ty` or `pytest`
+    fails with `No module named 'iscc_lib'`, run
+    `cd crates/iscc-py && uv run maturin develop --release` to build the Python extension. This is a
+    one-time setup per container/checkout
 
 ## Gotchas
 

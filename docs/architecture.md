@@ -23,11 +23,14 @@ graph TD
     WASM["iscc-wasm<br/><small>WebAssembly · wasm-bindgen</small>"] --> CORE
     FFI["iscc-ffi<br/><small>C FFI · extern &quot;C&quot;</small>"] --> CORE
     JNI["iscc-jni<br/><small>Java · JNI</small>"] --> CORE
-    GO["Go<br/><small>wazero · WASM</small>"] -.-> FFI
+    GO["Go module<br/><small>Pure Go reimplementation</small>"]
+    style GO fill:#e8f5e9,stroke:#4caf50
 ```
 
-All binding crates are thin wrappers — they contain no algorithm logic. This ensures that every
-language produces identical results for the same inputs.
+The five binding crates (Python, Node.js, WASM, C FFI, Java) are thin wrappers — they contain no
+algorithm logic. The Go module is a standalone reimplementation of the same algorithms in pure Go.
+All languages produce identical results for the same inputs, verified by shared conformance test
+vectors.
 
 ## Workspace Layout
 
@@ -78,12 +81,18 @@ iscc-lib/
 ├── packages/
 │   └── go/                     # Go module (pure Go, no cgo)
 │       ├── go.mod
-│       ├── iscc.go             # wazero WASM bridge
-│       ├── iscc_test.go        # Conformance tests
-│       └── iscc_ffi.wasm       # Embedded WASM binary
+│       ├── codec.go            # ISCC codec, constants, types
+│       ├── code_meta.go        # GenMetaCodeV0
+│       ├── code_content_*.go   # GenText/Image/Audio/Video/MixedCodeV0
+│       ├── code_data.go        # GenDataCodeV0 + DataHasher
+│       ├── code_instance.go    # GenInstanceCodeV0 + InstanceHasher
+│       ├── code_iscc.go        # GenIsccCodeV0
+│       ├── conformance.go      # ConformanceSelftest
+│       └── *_test.go           # Conformance tests
 └── .github/workflows/
     ├── ci.yml                  # Test + lint
-    └── docs.yml                # Documentation deployment
+    ├── docs.yml                # Documentation deployment
+    └── release.yml             # Publish to crates.io, PyPI, npm
 ```
 
 ### Crate Summary
@@ -96,7 +105,7 @@ iscc-lib/
 | `iscc-wasm`   | WASM package                     | wasm-bindgen   | npm           |
 | `iscc-ffi`    | Shared library (.so/.dll/.dylib) | cargo          | Source        |
 | `iscc-jni`    | JNI shared library               | cargo          | Maven Central |
-| `packages/go` | Go module                        | cargo + wazero | pkg.go.dev    |
+| `packages/go` | Go module                        | go             | pkg.go.dev    |
 
 ## Internal Module Structure
 
@@ -168,7 +177,7 @@ of any size, then finalize to get the result.
 | **WASM**    | Sync exports — no threading in browser WASM                                               |
 | **C FFI**   | `ctx_new()` / `ctx_update()` / `ctx_finalize()` / `ctx_free()` — standard streaming C API |
 | **Java**    | Sync JNI API. `DataHasher`/`InstanceHasher` via opaque `long` handles                     |
-| **Go**      | Sync API via wazero WASM calls. `UpdateFrom(ctx, io.Reader)` for streaming                |
+| **Go**      | Sync API. `DataHasher`/`InstanceHasher` with `Push([]byte)` / `Finalize(bits)` streaming  |
 
 !!! note "Why not async in the core?"
 
@@ -190,15 +199,15 @@ official [iscc-core](https://github.com/iscc/iscc-core) Python reference impleme
 
 ### Cross-Language Test Matrix
 
-| Language | Test Runner   | Vector Access                          |
-| -------- | ------------- | -------------------------------------- |
-| Rust     | `cargo test`  | `include_str!` at compile time         |
-| Python   | pytest        | Relative path from test file           |
-| Node.js  | `node:test`   | Relative path from `__tests__/`        |
-| WASM     | `cargo test`  | `include_str!` (no filesystem)         |
-| C        | gcc + runtime | Linked against shared library          |
-| Java     | `mvn test`    | Relative path from test resources      |
-| Go       | `go test`     | Embedded via WASM conformance selftest |
+| Language | Test Runner   | Vector Access                     |
+| -------- | ------------- | --------------------------------- |
+| Rust     | `cargo test`  | `include_str!` at compile time    |
+| Python   | pytest        | Relative path from test file      |
+| Node.js  | `node:test`   | Relative path from `__tests__/`   |
+| WASM     | `cargo test`  | `include_str!` (no filesystem)    |
+| C        | gcc + runtime | Linked against shared library     |
+| Java     | `mvn test`    | Relative path from test resources |
+| Go       | `go test`     | Relative path from test file      |
 
 This approach catches cross-language drift — encoding differences, rounding behavior, default
 parameter mismatches — immediately when any binding diverges from the reference.

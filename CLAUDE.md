@@ -144,6 +144,8 @@ mise run format           # Apply formatting
 mise run check            # Run all pre-commit hooks
 cargo test -p iscc-lib    # Rust tests only
 pytest                    # Python tests only
+mise run version:sync     # Sync all manifest versions with Cargo.toml
+mise run version:check    # Validate version consistency (CI uses this)
 mise run cid:run          # Run autonomous CID loop (up to 20 iterations)
 mise run cid:step         # Run one CID iteration
 mise run cid:status       # Show current project state

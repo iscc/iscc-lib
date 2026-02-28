@@ -44,7 +44,7 @@ The `postCreateCommand` runs automatically: trusts the mise config, installs Pyt
 | Python 3.12 + uv | Python bindings, dev tools    |
 | Node.js 20       | Node.js bindings, Claude Code |
 | JDK 17 + Maven   | Java JNI bindings             |
-| Go 1.24          | Go bindings (wazero)          |
+| Go 1.24          | Go bindings                   |
 | mise             | Tool versions + task runner   |
 | Claude Code      | AI agent loop                 |
 | gh               | GitHub CLI                    |
@@ -197,9 +197,14 @@ iscc-lib/
 ├── packages/
 │   └── go/                     # Go module (pure Go, no cgo)
 │       ├── go.mod
-│       ├── iscc.go             # wazero WASM bridge
-│       ├── iscc_test.go        # Conformance tests
-│       └── iscc_ffi.wasm       # Embedded WASM binary
+│       ├── codec.go            # ISCC codec, constants, types
+│       ├── code_meta.go        # GenMetaCodeV0
+│       ├── code_content_*.go   # GenText/Image/Audio/Video/MixedCodeV0
+│       ├── code_data.go        # GenDataCodeV0 + DataHasher
+│       ├── code_instance.go    # GenInstanceCodeV0 + InstanceHasher
+│       ├── code_iscc.go        # GenIsccCodeV0
+│       ├── conformance.go      # ConformanceSelftest
+│       └── *_test.go           # Conformance tests
 ├── docs/                       # Documentation site (lib.iscc.codes)
 ├── benchmarks/
 │   └── python/                 # Comparative Python benchmarks
@@ -212,7 +217,7 @@ iscc-lib/
 └── .github/workflows/
     ├── ci.yml                  # Test + lint
     ├── docs.yml                # Documentation deployment
-    └── release.yml             # Publish to crates.io, PyPI, npm
+    └── release.yml             # Publish to crates.io, PyPI, npm, Maven Central
 ```
 
 ### Crate Summary
@@ -225,7 +230,7 @@ iscc-lib/
 | `iscc-wasm`   | WASM package                     | wasm-bindgen   | npm           |
 | `iscc-ffi`    | Shared library (.so/.dll/.dylib) | cargo          | Source        |
 | `iscc-jni`    | JNI shared library               | cargo          | Maven Central |
-| `packages/go` | Go module                        | cargo + wazero | pkg.go.dev    |
+| `packages/go` | Go module                        | go             | pkg.go.dev    |
 
 ## Mise Task Runner
 
@@ -253,3 +258,91 @@ All development tasks are defined in `mise.toml` and run via `mise run <task>`.
 | `mise run cid:next`        | Run define-next agent only                                             |
 | `mise run cid:advance`     | Run advance agent only                                                 |
 | `mise run cid:review`      | Run review agent only                                                  |
+
+### Version and Release Tasks
+
+| Task                     | Description                                             |
+| ------------------------ | ------------------------------------------------------- |
+| `mise run version:sync`  | Sync all manifest versions with workspace `Cargo.toml`  |
+| `mise run version:check` | Validate version consistency (used in CI)               |
+| `mise run test:install`  | Test published packages are installable from registries |
+| `mise run pr:main`       | Create a PR from `develop` to `main`                    |
+
+## Releasing
+
+All packages share a single version defined in the root `Cargo.toml` workspace. The
+`version_sync.py` script propagates it to all language-specific manifests and documentation. CI
+enforces consistency on every push.
+
+### Version Bump
+
+```bash
+# 1. Edit the canonical version in Cargo.toml (line 13)
+#    version = "X.Y.Z"
+
+# 2. Propagate to all manifests and docs
+mise run version:sync
+
+# 3. Update Cargo.lock
+cargo update -w
+
+# 4. Format, stage, and commit
+mise run format
+git add -A
+git commit -m "Release X.Y.Z"
+```
+
+`version:sync` updates these files automatically:
+
+| File                            | What it updates                    |
+| ------------------------------- | ---------------------------------- |
+| `pyproject.toml`                | Root project version               |
+| `crates/iscc-napi/package.json` | npm package version                |
+| `crates/iscc-jni/java/pom.xml`  | Maven artifact version             |
+| `mise.toml`                     | Default `--version` flag           |
+| `scripts/test_install.py`       | Registry check fallback version    |
+| `README.md`                     | Maven dependency snippet           |
+| `crates/iscc-jni/README.md`     | Maven dependency snippet           |
+| `docs/howto/java.md`            | Maven dependency snippet           |
+| `docs/java-api.md`              | Maven + Gradle dependency snippets |
+
+Cargo workspace members (`Cargo.lock`) inherit the version automatically via
+`version.workspace = true`.
+
+### Publish
+
+```bash
+# 1. Merge develop into main
+mise run pr:main          # Create PR
+# Merge PR after CI passes
+
+# 2. Tag the release on main
+git checkout main && git pull
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+The tag push triggers `.github/workflows/release.yml`, which publishes to all registries in
+parallel:
+
+| Registry      | Package            | Auth Method                        |
+| ------------- | ------------------ | ---------------------------------- |
+| crates.io     | `iscc-lib`         | OIDC trusted publishing            |
+| PyPI          | `iscc-lib`         | OIDC trusted publishing            |
+| npm           | `@iscc/lib`        | `NPM_TOKEN` secret                 |
+| npm           | `@iscc/wasm`       | `NPM_TOKEN` secret                 |
+| Maven Central | `io.iscc:iscc-lib` | GPG signing + Sonatype credentials |
+
+Each publish job checks if the version already exists on the registry and skips gracefully.
+
+You can also publish to individual registries via `workflow_dispatch` on the
+[Release workflow](https://github.com/iscc/iscc-lib/actions/workflows/release.yml) page (select the
+checkboxes for crates.io, PyPI, npm, or Maven).
+
+### Post-Release Verification
+
+```bash
+mise run test:install --version X.Y.Z
+```
+
+This installs each package from its registry in a clean environment and runs a smoke test.

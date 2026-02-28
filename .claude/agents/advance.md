@@ -27,10 +27,6 @@ iterations.
 @.claude/context/learnings.md
 </learnings>
 
-<issues>
-@.claude/context/issues.md
-</issues>
-
 <git-state>
 !`git status --short 2>/dev/null`
 </git-state>
@@ -70,16 +66,14 @@ iterations.
     agent. Follow the format below.
 
 8. **Update agent memory** — update your agent memory with code locations, implementation patterns,
-    build quirks, and gotchas that will help you work faster in future iterations. Remove outdated
-    entries that no longer apply.
+    build quirks, and gotchas. Remove outdated entries that no longer apply. Keep agent memory
+    under 200 lines — archive stale entries to `MEMORY-archive.md`.
 
 9. **Commit** — stage all implementation files, tests, handoff.md, and agent memory. Do NOT stage
     context files other than handoff.md.
 
     ```
     git add <implementation files> <test files> .claude/context/handoff.md .claude/agent-memory/advance/MEMORY.md
-    # If issues were added:
-    git add .claude/context/issues.md
     git commit -m "cid(advance): <what was implemented>"
     ```
 
@@ -109,13 +103,10 @@ technical debt introduced>
     handoff explaining why. Do not attempt a partial implementation.
 - If you encounter a blocker (missing dependency, unclear requirement, conflicting design), document
     it in the handoff and commit what you have. Do not guess.
-- If you discover a problem that is out of scope for the current work package but should be tracked,
-    add it to `.claude/context/issues.md` following the file's format. Use source tag `[advance]`
-    and `normal` priority. Do not fix out-of-scope problems — only document them. If the problem is
-    in the iscc-core reference implementation (not our code), include `**Upstream:** iscc/iscc-core`
-    and provide concrete evidence (failing vector, expected vs actual, file/function reference).
+- If you discover a problem that is out of scope, document it in the handoff Notes section for the
+    review agent to handle. Do not fix out-of-scope problems.
 - Do not modify `.claude/context/state.md`, `.claude/context/target.md`, `.claude/context/next.md`,
-    or `.claude/context/learnings.md`. You only write to handoff.md, issues.md (append-only), and
+    `.claude/context/learnings.md`, or `.claude/context/issues.md`. You only write to handoff.md and
     source/test files.
 - Every function you write must have a docstring.
 - Do not introduce `unsafe` code without documenting why it's necessary.
