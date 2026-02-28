@@ -1,34 +1,36 @@
-## 2026-02-28 — Fix Go representation in architecture diagram
+## 2026-02-28 — Review of: Fix Go representation in architecture diagram
 
-**Done:** Updated the Mermaid diagram in `docs/architecture.md` to show Go as a standalone
-disconnected node with a green style, rather than connected to CORE. Updated the explanatory text to
-distinguish the five binding crates from the standalone Go reimplementation. Removed all 5 vestigial
-"do NOT require the WASM binary" comments from Go test files.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `docs/architecture.md`: Mermaid diagram — Go node disconnected from CORE with green style; text
-    below diagram rewritten to distinguish binding crates from standalone Go module
-- `packages/go/minhash_test.go`: Removed WASM binary comment (line 2)
-- `packages/go/utils_test.go`: Removed WASM binary comment (line 2)
-- `packages/go/codec_test.go`: Removed WASM binary comment (line 2)
-- `packages/go/cdc_test.go`: Removed WASM binary comment (line 2)
-- `packages/go/simhash_test.go`: Removed WASM binary comment (line 2)
+**Summary:** Clean, well-scoped documentation and comment cleanup. The Mermaid diagram in
+`docs/architecture.md` now correctly shows Go as a standalone disconnected node with green styling,
+the explanatory text distinguishes binding crates from the Go reimplementation, and all 5 vestigial
+WASM comments were removed from Go test files. All 7 verification criteria pass.
 
 **Verification:**
 
-- `GO.*-->.*CORE` in architecture.md: 0 matches ✓
-- `standalone reimplementation` in architecture.md: found at line 31 ✓
-- `All binding crates are thin wrappers` in architecture.md: 0 matches ✓
-- `WASM binary` in packages/go/: 0 matches ✓
-- `uv run zensical build`: succeeded (0.57s) ✓
-- `go test ./... && go vet ./...`: passed (0.064s) ✓
-- `mise run check`: all 14 hooks pass ✓
+- [x] `grep -c 'GO.*-->.*CORE' docs/architecture.md` → 0
+- [x] `grep -q 'standalone reimplementation\|pure Go reimplementation' docs/architecture.md` → exits
+    0
+- [x] `grep -c 'All binding crates are thin wrappers' docs/architecture.md` → 0
+- [x] `grep -rc 'WASM binary' packages/go/` → 0 (no matches in any file)
+- [x] `uv run zensical build` → succeeds (0.35s)
+- [x] `cd packages/go && go test ./... && go vet ./...` → passes (cached)
+- [x] `mise run check` → all 14 hooks pass
 
-**Next:** The project is in maintenance mode with all functional requirements met. Remaining work is
-human-dependent: merge PR #10 (develop → main), trigger 0.0.2 releases, configure Maven Central
-publishing. The only remaining automated low-priority task is ci-cd.md standard action set gap
-(missing Go/Java CI actions).
+**Issues found:**
 
-**Notes:** Straightforward documentation and comment cleanup. No surprises. The Mermaid `style`
-directive with green fill/stroke visually distinguishes Go from the Rust-dependent binding crates.
+- (none)
+
+**Codex review:** Codex confirmed the commit is documentation-only with no runtime logic impact.
+Noted that the intro paragraph ("Each binding crate depends on the core") could be slightly
+misleading since Go isn't a binding crate, but the text immediately below the diagram now clarifies
+this distinction explicitly. No actionable findings.
+
+**Next:** The project is in maintenance mode with all functional requirements met. All remaining
+work is human-dependent: merge PR #10 (develop → main), trigger 0.0.2 releases, configure Maven
+Central publishing. The only remaining automated low-priority task is ci-cd.md standard action set
+gap (missing Go/Java CI actions) and the tab order issue (needs human decision).
+
+**Notes:** The `state.md` Go section still mentions "5 test files retain vestigial WASM comments" —
+this will be cleaned by update-state in the next iteration since the advance just fixed it.

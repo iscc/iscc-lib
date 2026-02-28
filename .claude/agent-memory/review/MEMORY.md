@@ -95,8 +95,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go pure rewrite COMPLETE: 30/30 Tier 1 symbols, all 46 conformance vectors, zero WASM deps.
     DecodeResult and algorithm constants in codec.go. Module deps: blake3 + golang.org/x/text only
 - Go docs/CI cleanup COMPLETE: CI job has 4 steps (no Rust/WASM), README and howto guide describe
-    pure Go API with typed result structs. Five test files retain vestigial "do NOT require the WASM
-    binary" comments — cosmetic only
+    pure Go API with typed result structs. Vestigial WASM comments removed from all test files
 - CI has 9 jobs total: version-check, rust, python, nodejs, wasm, c-ffi, java, go, bench.
     version-check is lightweight (checkout + setup-python only, no Rust/uv/caching)
 
