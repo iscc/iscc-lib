@@ -24,7 +24,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
-- `.github/workflows/ci.yml` — 8 jobs: Rust, Python, Node.js, WASM, C FFI, Java, Go, Bench
+- `.github/workflows/ci.yml` — 9 jobs: version-check, Rust, Python, Node.js, WASM, C FFI, Java, Go,
+    Bench
 - `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
@@ -35,27 +36,29 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 - **Incremental review**: compare `assessed-at` hash vs HEAD `--stat` first, then re-verify only
     affected sections. Always carry forward sections where no relevant files changed
-- **CI has 8 jobs**: Rust, Python, Node.js, WASM, C FFI, Java, Go, Bench. All 8 must pass
+- **CI has 9 jobs**: version-check, Rust, Python, Node.js, WASM, C FFI, Java, Go, Bench. All 9 must
+    pass
 - `gh run list` does NOT need `--repo` when running from within the workspace; but `--json` fields
     are needed to avoid GraphQL deprecation error
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts
 
-## Current State (assessed-at: cc70146)
+## Current State (assessed-at: 13070b6)
 
 - **All 7 bindings**: 30/30 Tier 1 symbols complete (Rust, Python, Node.js, WASM, C FFI, Java, Go)
-- **Bench CI**: `cargo bench --no-run` job added (iteration 10); 7 bench targets compile
-    (CI-verified)
+- **Bench CI**: `cargo bench --no-run` job; 7 bench targets compile (CI-verified)
+- **Benchmarks docs**: `docs/benchmarks.md` COMPLETE with full speedup data (1.3×–158×) — was
+    incorrectly marked missing in prior iterations; it existed since commit 453124d
+- **version-check CI job**: added iteration 15; runs `python scripts/version_sync.py --check`
 - **PR #10**: develop → main OPEN ("Pure Go rewrite & polyglot bindings progress")
-- **CI latest**: Run 22513202460 — all 8 jobs SUCCESS (develop branch, 2026-02-28)
+- **CI latest**: Run 22513767637 — all 9 jobs SUCCESS (develop branch, 2026-02-28)
 - **Publishing**: 0.0.2 not published to PyPI, npm, or Maven Central
 - **LLM docs**: `docs/llms.txt` and `scripts/gen_llms_full.py` cover all 14 doc pages
-- **Getting-started tutorial**: converted to tabbed multi-language format (7 sections × 6 languages)
-- **Landing page Go example**: FIXED (cc70146) — pure Go API
-    (`result, _ := iscc.GenTextCodeV0(...)`)
-- **Known doc issue**: tab order inconsistency across pages (low priority; human review requested
-    for canonical order — whether Go is included and where)
-- **Remaining gaps**: Benchmark speedup docs; Maven Central publishing; npm/PyPI 0.0.2 release
+- **Getting-started tutorial**: tabbed multi-language (7 sections × 6 languages)
+- **Known doc issue**: tab order inconsistency (human review requested for canonical order)
+- **Stale spec**: `specs/ci-cd.md` Go job entry still mentions WASM binary; version-check/bench not
+    in spec table — cleanup is last automatable CID task
+- **Remaining human tasks**: PR merge, PyPI/npm 0.0.2 publish, Maven Central, tab order
 - **Minor cosmetic**: 5 Go test files have vestigial "do NOT require the WASM binary" comments
 
 ## Go Package Tier 1 Coverage (30/30 — COMPLETE)

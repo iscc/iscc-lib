@@ -1,17 +1,16 @@
-<!-- assessed-at: cc70146dc8af829f6b74c7288796b72acad3f809 -->
+<!-- assessed-at: 13070b667041416d60760b6a5ec7f7a3756b0add -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All 7 Bindings + Docs Complete — Tab Order + Publishing Remain
+## Phase: All 7 Bindings + Docs + Benchmarks Complete — Publishing and PR Merge Remain
 
 All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export the full 30/30
-Tier 1 symbols and pass conformance. CI is green on all 8 jobs. PR #10 (develop → main) is open. The
-landing page Go example was fixed this iteration (stale WASM-bridge API → pure Go API). One
-low-priority doc issue remains: tab order inconsistency across pages (needs human decision on
-canonical order). Non-doc gaps: benchmark speedup documentation, Maven Central publishing, and
-npm/crates.io release triggers.
+Tier 1 symbols and pass conformance. CI is green on all 9 jobs (version-check job added this
+iteration). The benchmarks documentation page (`docs/benchmarks.md`) is complete with full speedup
+data — this was incorrectly marked missing in the previous state assessment. PR #10 (develop → main)
+is open. Remaining gaps are human tasks: PR merge, publishing triggers, and tab order decision.
 
 ## Rust Core Crate
 
@@ -142,8 +141,7 @@ npm/crates.io release triggers.
     `site/llms-full.txt`
 - Getting-started tutorial in tabbed multi-language format: 7 sections × 6 languages (Python, Rust,
     Node.js, Java, Go, WASM)
-- Landing page Go tab fixed: stale WASM-bridge API (`NewRuntime`/`ctx`) replaced with pure Go API
-    (`result, _ := iscc.GenTextCodeV0(...)`) — verified this iteration
+- Landing page Go tab: correct pure Go API (`result, _ := iscc.GenTextCodeV0(...)`)
 - All 6 binding howto guides have "Codec operations" and "Constants" sections
 - Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
@@ -151,29 +149,38 @@ npm/crates.io release triggers.
     - Tab order inconsistency across pages: spec says "Python, Rust, Java, Node.js, WASM" (no Go),
         landing page uses "Rust, Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" —
         spec update needed to add Go; `HUMAN REVIEW REQUESTED` for canonical tab order
+- **Stale spec issue**: `specs/ci-cd.md` Go job table entry still says "cargo build --target
+    wasm32-wasip1 for FFI binary, go test, go vet" (pure Go CI has no Rust); version-check and bench
+    jobs not listed in the spec table
 
 ## Benchmarks
 
-**Status**: partially met
+**Status**: met
 
 - Criterion benchmarks exist for all 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
-- pytest-benchmark comparison files present
-- `Bench (compile check)` job in CI (`cargo bench --no-run`) — all 7 benchmark targets compile
-    (CI-verified, run 22513202460)
-- Missing: CI does not run benchmarks and collect results; speedup factors not published in
-    documentation
+    (`crates/iscc-lib/benches/benchmarks.rs`)
+- pytest-benchmark comparison: `benchmarks/python/bench_iscc_core.py` and
+    `benchmarks/python/bench_iscc_lib.py` compare Python reference vs Rust-backed bindings
+- **Speedup factors published** in `docs/benchmarks.md` (117 lines): full table of Python comparison
+    (1.3×–158× speedup) and Native Rust Criterion results (with throughput for streaming functions);
+    page linked in navigation under "Benchmarks"
+- `Bench (compile check)` job in CI verifies all 7 benchmark targets compile
+    (`cargo bench   --no-run`)
+- **Nothing missing** in Benchmarks
 
 ## CI/CD and Publishing
 
 **Status**: partially met
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
-- `ci.yml` covers **8 jobs**: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi build,
-    test), WASM (wasm-pack test), Java (JNI build, mvn test), Go (go test, go vet), C FFI (cbindgen,
-    gcc, test), **Bench (compile check)** — all 8 SUCCESS
+- `ci.yml` covers **9 jobs**: version-check, Rust (fmt, clippy, test), Python (ruff, pytest),
+    Node.js (napi build, test), WASM (wasm-pack test), Java (JNI build, mvn test), Go (go test, go
+    vet), C FFI (cbindgen, gcc, test), Bench (compile check) — all 9 SUCCESS
+- **version-check** job added this iteration: runs `python scripts/version_sync.py --check` using
+    only Python 3.10 (no Rust toolchain, no uv, no caching)
 - Go CI job is clean: checkout → setup-go → `CGO_ENABLED=0 go test` → `go vet` (no Rust toolchain)
 - **Latest CI run on develop: PASSING** —
-    [Run 22513202460](https://github.com/iscc/iscc-lib/actions/runs/22513202460) — all 8 jobs
+    [Run 22513767637](https://github.com/iscc/iscc-lib/actions/runs/22513767637) — all 9 jobs
     SUCCESS
 - **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
     ([#10](https://github.com/iscc/iscc-lib/pull/10))
@@ -183,21 +190,18 @@ npm/crates.io release triggers.
 
 ## Next Milestone
 
-**Tab order standardization requires human decision; next automatable step is benchmark speedup
-documentation.**
+**Remaining automated CID work is minimal; most gaps are human tasks.**
 
-The one remaining low-priority doc issue (tab order) is blocked on a human decision about the
-canonical order (whether Go is included and where). That's not an automated CID task without the
-decision.
+The last automatable gap is fixing the stale `specs/ci-cd.md`:
 
-The next high-value automated step is **benchmark speedup documentation**:
+1. Update the CI jobs table to add version-check and bench rows; remove stale "cargo build --target
+    wasm32-wasip1" from Go row description
+2. Update the verification checklist's Go entry to reflect pure Go (no WASM FFI binary)
 
-1. Run `cargo bench` to capture Rust benchmark results
-2. Run `pytest --benchmark-only` to capture Python baseline
-3. Document speedup factors in the documentation site (e.g., a `docs/benchmarks.md` page or within
-    the existing `docs/howto/` pages)
+After that spec cleanup, all functional requirements are met and CI is green (9/9). The remaining
+open items require human action:
 
-After benchmarks, the remaining non-automated gaps are publishing (PyPI 0.0.2, npm 0.0.2, Maven
-Central) — these require registry-side configuration or human-triggered releases.
-
-Merging PR #10 (develop → main) remains a human task requiring approval.
+- **Merge PR #10** (develop → main) — needs human approval
+- **Publish 0.0.2** to PyPI, npm — needs release trigger (workflow_dispatch or tag push)
+- **Maven Central** — needs GPG key setup and Sonatype account (external)
+- **Tab order** — canonical language tab order needs human decision
