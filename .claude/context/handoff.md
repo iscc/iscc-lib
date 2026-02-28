@@ -1,41 +1,31 @@
-## 2026-02-28 — Review of: Add benchmark compile-check job to CI
+## 2026-02-28 — Include all doc pages in llms-full.txt
 
-**Verdict:** PASS
+**Done:** Updated `scripts/gen_llms_full.py` PAGES list from 5 to 14 entries (matching zensical.toml
+nav order) and rewrote `docs/llms.txt` to reference all 14 documentation pages with accurate titles
+and descriptions. Also updated the intro to mention Go and Java bindings.
 
-**Summary:** Clean, minimal 9-line YAML addition that adds a `bench` job to CI compiling all
-criterion benchmarks with `cargo bench --no-run`. The job follows existing CI patterns exactly (same
-toolchain, cache actions). All 5 verification criteria pass, `mise run check` passes all 14 hooks,
-benchmarks compile locally (7 targets). No scope violations, no quality gate changes.
+**Files changed:**
+
+- `scripts/gen_llms_full.py`: Expanded PAGES list to include all 14 doc pages (tutorials, howto
+    guides, ecosystem, development) in zensical.toml navigation order
+- `docs/llms.txt`: Added 9 missing page references (Getting Started, 6 howto guides, Ecosystem,
+    Development), updated intro to mention Go/Java bindings and Go install command
 
 **Verification:**
 
-- [x] `grep -q 'cargo bench --no-run' .github/workflows/ci.yml` — exits 0
-- [x] `grep -q 'Bench (compile check)' .github/workflows/ci.yml` — exits 0
-- [x] YAML valid — `yaml.safe_load()` succeeds
-- [x] `mise run format` — no unformatted changes (only `iterations.jsonl` touched, expected)
-- [x] `cargo bench --no-run` — succeeds locally, compiled 7 bench targets
-- [x] `mise run check` — all 14 hooks pass
+- `uv run python scripts/gen_llms_full.py` → "14 pages, 115291 bytes" ✓
+- `grep 'howto/go.md' docs/llms.txt` → exits 0 ✓
+- `grep 'tutorials/getting-started.md' docs/llms.txt` → exits 0 ✓
+- `grep 'development.md' docs/llms.txt` → exits 0 ✓
+- `mise run format` → no changes ✓
+- `mise run check` → all 14 hooks pass ✓
+- Note: `grep -c '---' site/llms-full.txt` returns 64 (not 13) because doc pages themselves contain
+    `---` horizontal rules. The divider count verification in next.md was approximate — the script's
+    "14 pages" output is the authoritative check.
 
-**Issues found:**
+**Next:** The develop branch now has complete documentation coverage (all 14 pages in LLM-friendly
+output). Remaining target gaps are publishing infrastructure (OIDC, npm, Maven Central) and develop
+→ main merge PR. The tabbed multi-language code examples in doc pages are still pending per the
+documentation spec.
 
-- (none)
-
-**Codex review:** One P2 finding: `cargo bench --no-run` compiles the full workspace (including
-binding crates) rather than just `iscc-lib`. Codex suggested scoping with `-p iscc-lib`. Assessment:
-the existing Rust CI job already runs `cargo test --workspace` and
-`cargo clippy --workspace --all-targets`, so workspace-wide compilation is the established pattern.
-Compiling binding bench targets also prevents bitrot there. Not actionable.
-
-**Next:** All 7 bindings at 30/30, CI has 8 jobs (all green), Go docs are clean. The develop branch
-is ready for merge to main. Suggested priorities:
-
-1. PR from develop → main — this is a solid milestone (all bindings, clean CI, benchmark check)
-2. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks requiring credentials
-3. Benchmark speedup documentation (criterion results → docs)
-
-Note: PR #10 may already exist. Check with `gh pr list` before creating a new one.
-
-**Notes:** This was iteration 10, a straightforward CI-only change. The CID loop has completed all
-binding work and cleanup. Remaining target gaps are primarily human tasks (publishing credentials,
-Maven Central setup) or require running benchmarks and documenting results. The develop → main merge
-is the natural next milestone.
+**Notes:** Straightforward docs-only change. No code logic changes, no new dependencies.
