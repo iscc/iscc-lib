@@ -66,6 +66,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     \+ `cargo check -p <crate>` is sufficient. If wasm-pack config changed, also run
     `wasm-pack build --target web --release crates/iscc-wasm` to verify end-to-end
 
+- CI-only YAML changes: `mise run check` is sufficient — no code changed, only workflow config.
+    Verify the script/command referenced in the job runs successfully locally
+
 ## Codex Review Integration
 
 - `codex exec review --ephemeral --commit HEAD` output ends with structured findings after the
@@ -94,7 +97,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go docs/CI cleanup COMPLETE: CI job has 4 steps (no Rust/WASM), README and howto guide describe
     pure Go API with typed result structs. Five test files retain vestigial "do NOT require the WASM
     binary" comments — cosmetic only
-- CI has 8 jobs total: rust, python, nodejs, wasm, c-ffi, java, go, bench (compile-only benchmarks)
+- CI has 9 jobs total: version-check, rust, python, nodejs, wasm, c-ffi, java, go, bench.
+    version-check is lightweight (checkout + setup-python only, no Rust/uv/caching)
 
 ## Binding Propagation Review Shortcuts
 
