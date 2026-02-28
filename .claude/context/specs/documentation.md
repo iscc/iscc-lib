@@ -58,7 +58,7 @@ config format.
 ## Per-Language Code Examples
 
 All code examples use tabbed format (`pymdownx.tabbed`) showing equivalent code in multiple
-languages. Standard tab order: Python, Rust, Java, Node.js, WASM. Only languages relevant to the
+languages. Standard tab order: Python, Rust, Node.js, Java, Go, WASM. Only languages relevant to the
 example are included. The landing page quick start and all how-to guides use this pattern.
 
 ## Custom Domain

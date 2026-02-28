@@ -152,10 +152,7 @@ Maven Central external setup (GPG signing, Sonatype) complete.
 - **C FFI API reference** (`docs/c-ffi-api.md`, 694 lines): all 44 exported `extern "C"` symbols
     documented with C type mappings, struct layouts, memory management guidance, and error handling
 - **Java API reference** (`docs/java-api.md`): all 30 Tier 1 symbols documented
-- **Known issue (low priority, needs human decision):**
-    - Tab order inconsistency across pages: spec says "Python, Rust, Java, Node.js, WASM" (no Go),
-        landing page uses "Rust, Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" —
-        spec update needed to add Go; `HUMAN REVIEW REQUESTED` for canonical tab order
+- **Tab order**: standardized to Python, Rust, Node.js, Java, Go, WASM across all pages
 
 ## Benchmarks
 
@@ -190,8 +187,4 @@ Maven Central external setup (GPG signing, Sonatype) complete.
 
 ## Next Milestone
 
-**Ready for 0.0.3 release.** All functional work complete.
-
-Remaining low-priority item:
-
-1. **Tab order** — canonical language tab order needs human decision (Python-first vs Rust-first)
+**Ready for 0.0.3 release.** All functional work complete. No open issues.
