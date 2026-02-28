@@ -24,7 +24,8 @@ iterations.
 ## Build and Tooling
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
-- CI workflow at `.github/workflows/ci.yml` has 7 jobs: rust, python, nodejs, wasm, c-ffi, java, go
+- CI workflow at `.github/workflows/ci.yml` has 8 jobs: rust, python, nodejs, wasm, c-ffi, java, go,
+    bench. The `bench` job runs `cargo bench --no-run` (compile-only, no execution)
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
 - Go CI uses `actions/setup-go@v5` with `go-version-file: packages/go/go.mod`
 - Version sync: `scripts/version_sync.py` — `--check` mode exits 1 on mismatch
