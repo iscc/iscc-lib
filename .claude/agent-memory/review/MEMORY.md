@@ -94,6 +94,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go docs/CI cleanup COMPLETE: CI job has 4 steps (no Rust/WASM), README and howto guide describe
     pure Go API with typed result structs. Five test files retain vestigial "do NOT require the WASM
     binary" comments — cosmetic only
+- CI has 8 jobs total: rust, python, nodejs, wasm, c-ffi, java, go, bench (compile-only benchmarks)
 
 ## Binding Propagation Review Shortcuts
 
