@@ -89,11 +89,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - WASM has 30/30 Tier 1 symbols as of iteration 9 (59 unit tests + 9 conformance tests)
 - C FFI has 30/30 Tier 1 symbols as of iteration 10 (77 Rust unit tests, 49 C test assertions)
 - Java JNI has 30/30 Tier 1 symbols as of iteration 11 (58 Maven tests: 51 existing + 7 new)
-- Go/wazero has 30/30 Tier 1 symbols as of iteration 12 (48 total Runtime methods: 27 public + 21
-    private helpers, 7 new tests)
-- Go pure rewrite COMPLETE: 30/30 Tier 1 symbols, all 46 conformance vectors, zero WASM deps. WASM
-    bridge removed (iscc.go, iscc_ffi.wasm, iscc_test.go deleted). DecodeResult and algorithm
-    constants relocated to codec.go. Module deps: blake3 + golang.org/x/text only
+- Go pure rewrite COMPLETE: 30/30 Tier 1 symbols, all 46 conformance vectors, zero WASM deps.
+    DecodeResult and algorithm constants in codec.go. Module deps: blake3 + golang.org/x/text only
+- Go docs/CI cleanup COMPLETE: CI job has 4 steps (no Rust/WASM), README and howto guide describe
+    pure Go API with typed result structs. Five test files retain vestigial "do NOT require the WASM
+    binary" comments — cosmetic only
 
 ## Binding Propagation Review Shortcuts
 

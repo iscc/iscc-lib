@@ -1,40 +1,37 @@
-## 2026-02-28 — Remove WASM vestiges from Go CI, README, and docs
+## 2026-02-28 — Review of: Remove WASM vestiges from Go CI, README, and docs
 
-**Done:** Removed all WASM/wazero references from three Go-related files. The CI Go job now has 4
-steps (checkout, setup-go, test, vet) with zero Rust dependencies. The README describes the pure Go
-architecture with direct function call examples. The howto guide uses `iscc.Function(...)` pattern
-throughout with correct return types (typed result structs, not strings).
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean documentation-only cleanup that removes all WASM/wazero references from the Go CI
+job, README, and howto guide. Exactly the 3 files specified in next.md were modified, no code
+changes, all API examples verified against actual Go function signatures. All 6 verification
+criteria pass including `mise run check` (14 hooks).
 
-- `.github/workflows/ci.yml`: Removed `dtolnay/rust-toolchain` (with `wasm32-wasip1` target),
-    `Swatinem/rust-cache`, "Build WASM module", and "Copy WASM to Go package" steps from the Go job.
-    Go job reduced from 6 steps to 4.
-- `packages/go/README.md`: Rewrote description (pure Go, no binary artifacts), Quick Start (direct
-    `iscc.GenMetaCodeV0` call, no Runtime/context), API tables (package-level functions returning
-    typed structs), Streaming section (`Push` → `Finalize`, no `Close`), Architecture section
-    (native compiled code, no runtime overhead).
-- `docs/howto/go.md`: Removed "Runtime setup" section. Updated all code examples from
-    `rt.Method(ctx, ...)` to `iscc.Function(...)`. Updated return types from `(string, error)` to
-    typed result structs (`*MetaCodeResult`, etc.) with `.Iscc` field access. Updated streaming from
-    `Update`/`Close` to `Push`/`Finalize`. Text utilities now show direct return values (no error).
-    Error handling section no longer mentions WASM runtime failures.
+**Verification:**
 
-**Verification:** All 6 verification criteria pass:
+- [x] No `wasm32-wasip1` in CI — confirmed absent from `.github/workflows/ci.yml`
+- [x] No `wazero`/`wasm` in README — confirmed absent from `packages/go/README.md`
+- [x] No `wazero`/`wasm`/`Runtime`/`NewRuntime` in howto — confirmed absent from `docs/howto/go.md`
+- [x] `iscc.GenMetaCodeV0` pattern in howto — confirmed present
+- [x] `iscc.GenMetaCodeV0` pattern in README — confirmed present
+- [x] `mise run check` — all 14 hooks pass
 
-- No `wasm32-wasip1` in CI ✓
-- No `wazero`/`wasm` in README ✓
-- No `wazero`/`wasm`/`Runtime`/`NewRuntime` in howto ✓
-- `iscc.GenMetaCodeV0` pattern in howto ✓
-- `iscc.GenMetaCodeV0` pattern in README ✓
-- `mise run check` — all 14 hooks pass ✓
+**Issues found:**
 
-**Next:** The Go pure rewrite is fully complete and documented. Suggested next priorities:
+- (none)
 
-1. PR from develop → main — the Go pure rewrite is a major milestone worth merging
-2. Benchmark CI integration
+**Codex review:** Codex reviewed the define-next commit (HEAD~1) rather than the advance commit,
+producing two P2 findings about `*string` parameter clarity in planning documents (next.md and
+define-next MEMORY.md). The actual advance commit's documentation correctly uses `nil` for optional
+parameters and `&desc` for pointer values. Not actionable.
+
+**Next:** All 7 binding types are complete at 30/30, Go docs and CI are in sync with the pure Go
+architecture. Suggested next priorities from target.md gaps:
+
+1. PR from develop → main — the Go pure rewrite and cleanup is a major milestone worth merging
+2. Benchmark CI integration (criterion benchmarks exist but CI doesn't run them)
 3. Publishing infrastructure (OIDC, npm, Maven Central)
 
-**Notes:** No surprises. The `GenIsccCodeV0` signature takes a `wide bool` parameter that was
-missing from the old howto examples — added it in the ISCC-CODE section. The mdformat hook adjusted
-some table column widths and line wrapping — cosmetic only.
+**Notes:** Five Go test files still have vestigial "do NOT require the WASM binary" comments
+(`cdc_test.go`, `codec_test.go`, `minhash_test.go`, `simhash_test.go`, `utils_test.go`). This was
+explicitly out of scope per next.md. Cosmetic cleanup for a future iteration.

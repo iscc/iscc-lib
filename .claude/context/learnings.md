@@ -118,6 +118,11 @@ fully-met target sections to `learnings-archive.md`.
 - `DecodeResult` struct and algorithm constants (`MetaTrimName`, etc.) live in `codec.go` — the
     canonical location after WASM bridge removal
 
+## Documentation Maintenance
+
+- After major architecture changes (e.g., WASM→pure Go), CI workflows, READMEs, and howto guides go
+    stale simultaneously — group the cleanup into a single step targeting all affected files
+
 ## CID Process
 
 - **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current
