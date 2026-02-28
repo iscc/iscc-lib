@@ -17,7 +17,8 @@ Execute a robust, self-healing release workflow. The version argument is require
 
 **Flags:**
 
-- `--dry-run` — run all checks and prepare the commit but do NOT push, create PR, tag, or publish
+- `--dry-run` — run all checks but do NOT commit, push, create PR, tag, or publish. Reports what
+    would happen at each skipped step
 - `--skip-publish` — do everything through PR merge but do NOT push the tag (which triggers
     publishing)
 
@@ -25,7 +26,7 @@ Execute a robust, self-healing release workflow. The version argument is require
 
 Before touching anything, validate the environment is ready.
 
-**Required tools:** `git`, `gh` (authenticated), `mise`, `cargo`, `uv`, `python`.
+**Required tools:** `git`, `gh` (authenticated), `mise`, `cargo`, `uv`, `python`, `curl`, `npm`.
 
 ### Step 1.1 — Parse arguments
 
@@ -121,7 +122,8 @@ mise run lint
 If linting fails:
 
 1. Read the error output carefully
-2. Attempt to fix the issues (formatting, clippy warnings, ruff violations)
+2. Attempt to fix the issues (formatting, clippy warnings, ruff violations). Lint fixes triggered by
+    quality gates are within scope of the release — they are not "edits outside version scope"
 3. Re-run `mise run lint`
 4. If it fails again after one fix attempt, stop and show the errors to the user
 
@@ -143,21 +145,24 @@ If tests fail:
 
 ### Step 4.1 — Stage release changes
 
-Stage only the files modified by the version bump and sync. Expected files:
+Stage only the files modified by the version bump and sync. Use `git diff --name-only` to find which
+files were actually modified, then stage only those. Expected candidates:
 
 ```
-git add Cargo.toml Cargo.lock pyproject.toml mise.toml \
-  crates/iscc-napi/package.json crates/iscc-jni/java/pom.xml \
-  scripts/test_install.py README.md crates/iscc-jni/README.md \
-  docs/howto/java.md docs/java-api.md
-git status
+Cargo.toml Cargo.lock pyproject.toml mise.toml
+crates/iscc-napi/package.json crates/iscc-jni/java/pom.xml
+scripts/test_install.py README.md crates/iscc-jni/README.md
+docs/howto/java.md docs/java-api.md
 ```
 
-Only stage files that were actually modified (some doc files may not exist yet — that's OK,
-`git add` will skip them). Review staged files before committing. Do NOT use `git add -A` which can
-stage untracked files from `.claude/` and other directories.
+Do NOT use a single `git add` with all paths — `git add` fails if any listed file does not exist.
+Stage only files that appear in `git diff`. Do NOT use `git add -A` which can stage untracked files
+from `.claude/` and other directories. Review staged files with `git status` before committing.
 
 ### Step 4.2 — Commit
+
+If `--dry-run`, skip this step and Step 4.3. Report staged files and what the commit message would
+be, then skip to Phase 6 (which also checks for `--dry-run`).
 
 Create the release commit. Use the exact format:
 
@@ -170,7 +175,7 @@ EOF
 
 ### Step 4.3 — Push develop
 
-If `--dry-run`, skip this step and report what would be pushed.
+If `--dry-run`, skip (already handled in Step 4.2).
 
 ```
 git push origin develop
@@ -225,17 +230,23 @@ timeout). If CI fails, show which check failed and stop.
 
 **Do NOT merge automatically.** Ask the user:
 
-> PR #N is green and ready to merge: <url> Shall I merge it? (squash / merge commit / rebase)
+> PR #N is green and ready to merge: <url>. Shall I merge it?
 
-Wait for explicit confirmation. Then merge:
+Wait for explicit confirmation. Always use a **merge commit** (never squash or rebase — those
+rewrite history and cause divergence on the long-lived `develop` branch):
 
 ```
-gh pr merge <pr-number> --<method> --delete-branch=false
+gh pr merge <pr-number> --merge
 ```
 
-(`--delete-branch=false` because we keep `develop` alive.)
+(The default is to not delete the branch, which is what we want — `develop` stays alive.)
 
 ## Phase 6: Tag and Release
+
+If `--dry-run`, skip this phase entirely. Report a dry-run summary: version bump was applied to
+working tree files but not committed (Step 4.2 skipped the commit). The user can inspect the changes
+with `git diff` and discard them with `git checkout -- .` if desired. Then jump to the final summary
+(Phase 7 also skips in dry-run).
 
 ### Step 6.1 — Switch to main and pull
 
@@ -245,6 +256,15 @@ git pull --ff-only
 ```
 
 ### Step 6.2 — Create tag
+
+First check if the tag already exists (idempotency for partial reruns):
+
+```
+git tag -l v<version>
+```
+
+If the tag exists locally, skip creation. If it also exists on the remote
+(`git ls-remote --tags origin v<version>`), skip to Step 6.4 to monitor the release workflow.
 
 ```
 git tag v<version>
@@ -263,17 +283,19 @@ This triggers `.github/workflows/release.yml` which publishes to all registries.
 
 ### Step 6.4 — Monitor release workflow
 
-Watch the release workflow triggered by the tag push:
+Find the release workflow run triggered by the tag push. Use `--event push` to avoid matching
+`workflow_dispatch` runs:
 
 ```
-gh run list --workflow release.yml --limit 1 --json status,conclusion,url,headBranch
+gh run list --workflow release.yml --event push --limit 1 --json databaseId,status,conclusion,url,headBranch
 ```
 
-Verify the latest run's `headBranch` matches `v<version>`. If the workflow hasn't appeared yet, wait
-a few seconds and retry (tags may take a moment to trigger). Once found, watch it:
+Verify `headBranch` matches `v<version>` (tag-triggered runs report the tag name here). If the run
+hasn't appeared yet, wait a few seconds and retry (tags may take a moment to trigger). Once found,
+extract the `databaseId` and watch it:
 
 ```
-gh run watch <run-id>
+gh run watch <databaseId>
 ```
 
 Report progress. If the workflow fails, show the URL and which job failed.
@@ -289,7 +311,7 @@ Ensure develop is up to date after the merge.
 
 ## Phase 7: Post-Release Verification
 
-If `--skip-publish`, skip this phase.
+If `--dry-run` or `--skip-publish`, skip this phase.
 
 ### Step 7.1 — Verify registries
 
@@ -311,10 +333,14 @@ npm view @iscc/wasm@<version> version && echo "npm @iscc/wasm: OK"
 
 # Maven Central (may take up to 30 minutes to index)
 curl -sf "https://search.maven.org/solrsearch/select?q=g:io.iscc+AND+a:iscc-lib+AND+v:<version>&rows=1&wt=json" | grep -q '"numFound":1' && echo "Maven Central: OK"
+
+# Go proxy (auto-published via git tag, may take a few minutes)
+curl -sf "https://proxy.golang.org/github.com/iscc/iscc-lib/packages/go/@v/v<version>.info" > /dev/null && echo "Go proxy: OK"
 ```
 
-Maven Central indexing can lag. If Maven shows "NOT FOUND" but the release workflow succeeded, tell
-the user it may take up to 30 minutes to appear and suggest re-checking later with:
+Maven Central and Go proxy indexing can lag. If either shows "NOT FOUND" but the release workflow
+succeeded (or the tag was pushed), tell the user it may take up to 30 minutes to appear and suggest
+re-checking later with:
 
 ```
 uv run scripts/test_install.py --version <version>
@@ -337,6 +363,7 @@ Release <version> complete!
     npm @iscc/lib  <version>  OK
     npm @iscc/wasm <version>  OK
     Maven Central  <version>  OK / pending indexing
+    Go proxy       <version>  OK / pending indexing
 
   Post-release:
     uv run scripts/test_install.py --version <version>
@@ -358,6 +385,7 @@ When any step fails:
 
 - This skill handles real releases with real side effects. Be careful and precise
 - Never guess registry credentials or authentication — they are configured via GitHub secrets
-- Never modify files outside the version bump scope without asking
+- Never modify files outside the release scope without asking. Release scope includes: version bump
+    files, formatting/lint fixes from quality gates, and any files the pre-commit hooks auto-fix
 - The `develop` branch is never deleted — it's the long-lived working branch
 - Go module publishing happens automatically via the git tag (no explicit publish step)
