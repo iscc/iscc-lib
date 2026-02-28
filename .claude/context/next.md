@@ -1,53 +1,53 @@
 # Next Work Package
 
-## Step: Add version consistency check to CI
+## Step: Update ci-cd.md spec to match actual CI state
 
 ## Goal
 
-Add the `version:check` script to the CI workflow so manifest version drift (between Cargo.toml,
-package.json, and pom.xml) is caught automatically on every push. The ci-cd spec explicitly labels
-this task as "(run in CI)" but it's currently missing from `ci.yml`.
+Fix three stale entries in the CI/CD spec so it accurately reflects the current CI workflow (9 jobs,
+pure Go, version-check and bench jobs). This is the last automatable gap before the project enters
+human-dependent maintenance mode.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/ci.yml` — add a version consistency check step
-- **Reference**: `scripts/version_sync.py` (stdlib-only Python script, no `uv` needed),
-    `.claude/context/specs/ci-cd.md` (version sync section)
+- **Modify**: `.claude/context/specs/ci-cd.md`
+- **Reference**: `.github/workflows/ci.yml` (actual CI workflow, source of truth)
 
 ## Not In Scope
 
-- Adding a dedicated `mise run bench` task or benchmark CI job improvements
-- Updating the stale Go job description in `specs/ci-cd.md` (spec maintenance is a separate concern)
-- Cosmetic Go test cleanup (vestigial WASM comments, `TestPureGo*` naming)
-- Tab order standardization (blocked on human decision)
-- Publishing infrastructure (registry-side configuration)
+- Modifying the actual CI workflow (ci.yml) — it is correct; only the spec is stale
+- Adding Maven Central or Go release jobs to the spec — those are future human tasks
+- Updating the verification checklist checkmarks — only fix the text descriptions
+- Any code changes — this is a documentation-only step
+- Resolving the tab order issue (needs human decision)
 
 ## Implementation Notes
 
-The `scripts/version_sync.py --check` script reads the workspace version from root `Cargo.toml` and
-validates that `crates/iscc-napi/package.json` and `crates/iscc-jni/java/pom.xml` match. It uses
-only Python stdlib modules (json, re, sys, pathlib) — no `uv` or pip dependencies needed.
+Three targeted edits in the spec file:
 
-**Recommended approach:** Add a lightweight standalone CI job named `version-check` (or similar)
-that runs early and fast. It needs only `actions/checkout@v4` and `actions/setup-python@v5` — no
-Rust toolchain, no uv, no caching. A single step: `python scripts/version_sync.py --check`.
+**Edit 1 — CI jobs table, Go row (line 26):** Change the Go row from referencing "cargo build
+--target wasm32-wasip1 for FFI binary" to "CGO_ENABLED=0 go test, go vet" (pure Go, no Rust
+toolchain).
 
-Alternatively, it could be added as an early step in the existing Python job (which already has
-Python), but a standalone job is cleaner since version consistency is a cross-cutting concern, not
-Python-specific.
+**Edit 2 — CI jobs table, add missing rows:** Add two new rows after Go for the Version and Bench
+jobs:
 
-The job should run on the same triggers as other CI jobs (push to main/develop, PR to main) and is
-expected to complete in under 10 seconds.
+- Version job: runs python version_sync.py --check for manifest consistency
+- Bench job: runs cargo bench --no-run for compile-only benchmark verification
+
+**Edit 3 — Verification checklist, Go entry (line 260):** Change "Go job builds WASM FFI binary,
+runs go test and go vet" to reflect pure Go (CGO_ENABLED=0 go test and go vet, no Rust toolchain).
+Also add two new verification entries for the version-check and bench jobs.
 
 ## Verification
 
-- `python scripts/version_sync.py --check` exits 0 locally (versions are currently in sync)
-- `grep -q 'version_sync' .github/workflows/ci.yml` exits 0 (script is referenced in CI)
-- `mise run check` passes (all pre-commit/pre-push hooks pass)
-- CI on develop passes after push (all 9 jobs green including the new version check)
+- `grep -q 'CGO_ENABLED=0' .claude/context/specs/ci-cd.md` exits 0 (Go row updated)
+- `grep -q 'Version' .claude/context/specs/ci-cd.md` finds the version-check job row
+- `grep -q 'Bench' .claude/context/specs/ci-cd.md` finds the bench job row
+- `grep -c 'wasm32-wasip1' .claude/context/specs/ci-cd.md` outputs 0 (no stale WASM ref)
 
 ## Done When
 
-All verification criteria pass and the CI workflow includes a version consistency check job/step
-that runs `scripts/version_sync.py --check`.
+All four verification commands pass, confirming the spec accurately reflects the 9-job CI workflow
+with pure Go and version-check/bench jobs.

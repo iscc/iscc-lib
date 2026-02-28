@@ -46,32 +46,26 @@ iterations.
 - `scripts/version_sync.py` uses only stdlib (json, re, sys, pathlib) — can run as
     `python scripts/version_sync.py --check` without uv. Spec says "(run in CI)" but wasn't added
 
-## Project Near-Completion State (Iteration 14)
+## Project Near-Completion State (Iteration 15)
 
-All 7 bindings at 30/30, CI green with 8 jobs. PR #10 exists from develop→main.
-
-**State.md inaccuracies to watch:**
-
-- State says "speedup factors not published in documentation" — WRONG. `docs/benchmarks.md` has
-    comprehensive speedup tables with real data (1.3×–158×). Benchmarks target is fully met.
-- ci-cd.md spec still references WASM for Go job (`cargo build --target wasm32-wasip1`) — stale
+All 7 bindings at 30/30, CI green with 9 jobs. PR #10 exists from develop→main.
 
 **Remaining automated gaps (in priority order):**
 
-1. ~~Benchmark CI integration (compile-only job)~~ — DONE (iteration 10)
-2. ~~Benchmark results in docs~~ — DONE (docs/benchmarks.md has real data)
-3. ~~LLM docs coverage: all 14 pages~~ — DONE (iteration 11)
+1. ~~Benchmark CI integration~~ — DONE (iteration 10)
+2. ~~Benchmark results in docs~~ — DONE
+3. ~~LLM docs coverage~~ — DONE (iteration 11)
 4. ~~Tabbed multi-language code examples~~ — DONE (iteration 12)
 5. ~~Fix stale Go example on landing page~~ — DONE (iteration 13)
-6. Add version:check to CI — SCOPED (iteration 14)
-7. Tab order standardization — LOW priority, needs human review
-8. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
-9. PR #10 merge — human task
-10. Stale spec cleanup (ci-cd.md Go job references WASM) — minor, human/editorial
+6. ~~Add version:check to CI~~ — DONE (iteration 14)
+7. Stale spec cleanup (ci-cd.md) — SCOPED (iteration 15)
+8. Tab order standardization — LOW priority, needs human review
+9. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
+10. PR #10 merge — human task
 
-**When no automated gaps remain:** The project will be in maintenance mode. Remaining work is
-human-dependent (registry config, PR merge, spec decisions). The CID loop provides diminishing
-returns at this stage.
+**After iteration 15:** The only automated gap is the low-priority tab order issue (needs human
+decision). All other remaining work is human-dependent. The CID loop should signal completion or
+enter maintenance mode.
 
 ## Gotchas
 
