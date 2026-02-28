@@ -1,18 +1,12 @@
-## 2026-02-28 — Implement pure Go ConformanceSelftest
+## 2026-02-28 — Review of: Implement pure Go ConformanceSelftest
 
-**Done:** Implemented `ConformanceSelftest() (bool, error)` as a pure Go package-level function that
-validates all 46 conformance vectors from `data.json` in a single call. The function uses
-`//go:embed testdata/data.json` for compile-time embedding, mirrors the Rust `conformance.rs`
-structure with 9 section runners (one per gen function), and reports failures via
-`fmt.Fprintf(os.Stderr, ...)`.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/go/testdata/data.json`: Copied from `crates/iscc-lib/tests/data.json` (conformance
-    vectors)
-- `packages/go/conformance.go`: New file with `ConformanceSelftest()`, 9 `run*Tests` section
-    runners, `decodeStream` helper, and `vectorEntry` struct for JSON parsing
-- `packages/go/conformance_test.go`: New file with `TestPureGoConformanceSelftest`
+**Summary:** ConformanceSelftest implemented as a pure Go package-level function that validates all
+46 conformance vectors from embedded data.json. The implementation faithfully mirrors
+`crates/iscc-lib/src/conformance.rs` with 9 section runners, proper error handling, and a shared
+`decodeStream` helper. All verification criteria pass, including the full test suite (pure Go + WASM
+bridge).
 
 **Verification:**
 
@@ -20,18 +14,26 @@ structure with 9 section runners (one per gen function), and reports failures vi
 - [x] `cd packages/go && go test -run TestPureGoConformanceSelftest -count=1 -v` — PASS (all 46
     vectors)
 - [x] `cd packages/go && go vet ./...` exits 0
-- [x] `cd packages/go && go test ./...` — all tests pass (pure Go + WASM bridge, 9.581s)
+- [x] `cd packages/go && go test ./...` — all tests pass (9.755s)
 - [x] `grep -c 'func ConformanceSelftest' packages/go/conformance.go` returns 1
 - [x] `test -f packages/go/testdata/data.json` exits 0
 - [x] `mise run check` — all 14 hooks pass
+- [x] Scope discipline — only 3 Go files created (conformance.go, conformance_test.go,
+    testdata/data.json) + CID context files. No out-of-scope changes
+- [x] data.json is byte-identical to `crates/iscc-lib/tests/data.json`
+- [x] No quality gate circumvention patterns
 
-**Next:** All 9 gen functions + ConformanceSelftest are complete — the pure Go implementation is
-functionally complete with 30/30 Tier 1 symbol coverage. The next step should be WASM bridge
-cleanup: removing `iscc.go`, `iscc_ffi.wasm`, the wazero dependency, and restoring the
-`.pre-commit-config.yaml` large-file threshold to 256KB.
+**Issues found:**
 
-**Notes:** The `runMetaCase` helper was extracted as a separate function (rather than inline in
-`runMetaTests`) because the meta input parsing is more complex (null/string/object for meta,
-null/string for description). All other section runners use inline parsing with `continue` on error.
-The `vectorEntry` type is unexported and only used within this file. The `decodeStream` helper is
-shared between `runDataTests` and `runInstanceTests`.
+- (none)
+
+**Next:** WASM bridge cleanup — the final step of the Go pure rewrite. Remove `iscc.go` (1,357 lines
+WASM bridge), `iscc_ffi.wasm` (667KB binary), `iscc_test.go` (WASM bridge tests), wazero dependency
+from `go.mod`, and restore `.pre-commit-config.yaml` large-file threshold from 1024KB back to 256KB.
+After cleanup, verify `go test ./...` still passes with only pure Go tests.
+
+**Notes:** With ConformanceSelftest done, all 30/30 Tier 1 symbols are implemented in pure Go. The
+WASM bridge is now fully redundant. The cleanup step should also remove the `WasmDataHasher` and
+`WasmInstanceHasher` renamed types from `iscc.go` since the pure Go `DataHasher` and
+`InstanceHasher` are the canonical implementations. After cleanup, the Go module will have zero
+non-Go dependencies (only pure Go + stdlib + `golang.org/x/text`).

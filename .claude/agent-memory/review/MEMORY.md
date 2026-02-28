@@ -98,9 +98,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     tests). All 9 gen functions DONE: GenMetaCodeV0 (281 lines) + GenTextCodeV0 (41 lines) + xxh32
     (81 lines) + GenDataCodeV0 (90 lines) + GenInstanceCodeV0 (67 lines) + GenImageCodeV0 (134
     lines) + GenAudioCodeV0 (112 lines) + GenVideoCodeV0 (61 lines) + GenMixedCodeV0 (92 lines) +
-    GenIsccCodeV0 (148 lines) = 54 conformance tests (16 meta + 5 text + 4 data + 3 instance + 3
-    image + 5 audio + 3 video + 2 mixed + 5 iscc + 8 xxh32 unit). WASM bridge types renamed:
-    `WasmDataHasher`, `WasmInstanceHasher`. Next: conformance_selftest → WASM cleanup
+    GenIsccCodeV0 (148 lines) + ConformanceSelftest (471 lines, all 46 vectors embedded via
+    `//go:embed`). WASM bridge types renamed: `WasmDataHasher`, `WasmInstanceHasher`. 30/30 Tier 1
+    symbols in pure Go. Next: WASM bridge cleanup (remove iscc.go, iscc_ffi.wasm, wazero dep,
+    restore 256KB threshold)
 
 ## Binding Propagation Review Shortcuts
 
