@@ -20,6 +20,8 @@ iterations.
 - File deletions don't count toward the 3-file modification limit — they are simpler than edits
 - Small utility functions that compose existing helpers are ideal single-step scopes (e.g.,
     `JsonToDataUrl` = 3 existing unexported helpers composed into 1 public function)
+- After a major rewrite (e.g., Go pure rewrite), docs/CI lag behind — schedule a cleanup step to
+    bring all stale references in sync before moving to the next feature
 
 ## Architecture Decisions
 
@@ -33,15 +35,17 @@ iterations.
 
 ## Go Package — Key Facts
 
-- **30/30 after JsonToDataUrl**: Was 29/30 — WASM bridge had it but pure Go rewrite missed it
-- Unexported helpers in `code_meta.go`: `parseMetaJSON`, `jsonHasContext`, `buildMetaDataURL` —
-    these compose directly into the public `JsonToDataUrl` function
-- `EncodeBase64` and `EncodeComponent` live in `codec.go` — encoding utilities group here
-- `DecodeResult` struct and 4 algorithm constants (`MetaTrimName`, etc.) live in `codec.go`
-- Go `encoding/json.Marshal` produces JCS-compatible output for string-only JSON values
-- Go function naming: `PascalCase` for exported symbols (e.g., `JsonToDataUrl`)
-- `TestPureGo*` test prefix is historical vestige — cosmetic cleanup only, no urgency
+- **30/30 Tier 1 symbols**: All pure Go, zero WASM dependencies
+- Pure Go API: package-level functions like `iscc.GenMetaCodeV0(name, desc, meta, bits)` — no
+    Runtime, no context.Context
+- Hashers: `NewDataHasher()` → `Push(data)` → `Finalize(bits)`. No Close, no context
+- Text utilities return plain types (no error): `TextClean` → `string`, `TextRemoveNewlines` →
+    `string`, `TextTrim` → `string`, `TextCollapse` → `string`
+- Return types are structs: `*MetaCodeResult`, `*TextCodeResult`, etc. with `.Iscc` field
+- `EncodeBase64` returns `string` (no error)
+- `SlidingWindow` and `AlgSimhash` return `(Type, error)`
 - Module deps: `github.com/zeebo/blake3`, `golang.org/x/text` (+ cpuid indirect)
+- `TestPureGo*` test prefix is historical vestige — cosmetic cleanup only
 
 ## CI/Release Patterns
 
@@ -50,11 +54,10 @@ iterations.
 
 ## Post-Go-Completion Planning
 
-After Go reaches 30/30 ("met"):
+After Go reaches 30/30 ("met") and WASM vestiges are cleaned:
 
 - PR from develop → main — major milestone worth merging
 - Remaining gaps: benchmarks (CI integration), publishing (OIDC, npm, Maven Central)
-- Go CI job may have leftover WASM build steps that can be simplified
 
 ## Recurring Patterns
 
@@ -62,6 +65,8 @@ After Go reaches 30/30 ("met"):
     into one step (2 files). Verification is grep-based
 - Interactive sessions can break CI (e.g., Python ruff format) — always check state.md CI section
 - After PR merge, always switch back to develop: `git checkout develop`
+- After major architecture changes (e.g., WASM→pure Go), multiple files go stale simultaneously (CI,
+    README, howto docs, test comments) — group the most impactful ones in a single step
 
 ## Gotchas
 
