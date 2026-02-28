@@ -22,6 +22,8 @@ iterations.
     `JsonToDataUrl` = 3 existing unexported helpers composed into 1 public function)
 - After a major rewrite (e.g., Go pure rewrite), docs/CI lag behind — schedule a cleanup step to
     bring all stale references in sync before moving to the next feature
+- Documentation single-page rewrites are well-scoped: one file, clear verification, high value. Tab
+    conversions require reference to howto guides for accurate per-language snippets
 
 ## Architecture Decisions
 
@@ -39,13 +41,7 @@ iterations.
 - Pure Go API: package-level functions like `iscc.GenMetaCodeV0(name, desc, meta, bits)` — no
     Runtime, no context.Context
 - Hashers: `NewDataHasher()` → `Push(data)` → `Finalize(bits)`. No Close, no context
-- Text utilities return plain types (no error): `TextClean` → `string`, `TextRemoveNewlines` →
-    `string`, `TextTrim` → `string`, `TextCollapse` → `string`
 - Return types are structs: `*MetaCodeResult`, `*TextCodeResult`, etc. with `.Iscc` field
-- `EncodeBase64` returns `string` (no error)
-- `SlidingWindow` and `AlgSimhash` return `(Type, error)`
-- Module deps: `github.com/zeebo/blake3`, `golang.org/x/text` (+ cpuid indirect)
-- `TestPureGo*` test prefix is historical vestige — cosmetic cleanup only
 
 ## CI/Release Patterns
 
@@ -55,15 +51,18 @@ iterations.
 ## Post-All-Bindings-Complete Planning
 
 All 7 bindings at 30/30, CI green with 8 jobs. PR #10 exists from develop→main (passing, mergeable).
-Benchmarks documented with real speedup data in `docs/benchmarks.md`. State.md assessment of
-"speedup factors not published" is stale — the page exists with real data (1.3×–158×).
+Benchmarks fully documented with real speedup data in `docs/benchmarks.md` (1.3×–158×).
+
+**State.md inaccuracy**: State says "speedup factors not published in documentation" — this is
+wrong. `docs/benchmarks.md` has comprehensive speedup tables with real data. The update-state agent
+should correct the benchmarks section to "met" in the next assessment.
 
 Remaining automated gaps (in priority order):
 
 1. ~~Benchmark CI integration (compile-only job)~~ — DONE (iteration 10)
 2. ~~Benchmark results in docs~~ — DONE (docs/benchmarks.md has real data)
-3. LLM docs coverage: `gen_llms_full.py` and `docs/llms.txt` only include 5 of 14 pages
-4. Tabbed multi-language code examples in docs (spec requires, not yet implemented)
+3. ~~LLM docs coverage: all 14 pages~~ — DONE (iteration 11)
+4. Tabbed multi-language code examples in getting-started tutorial — SCOPED (iteration 12)
 5. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
 6. PR #10 merge — human task
 
@@ -73,14 +72,21 @@ create-PR step. The real work may be updating the existing PR or something else 
 State assessments can go stale — always verify claimed gaps by reading the actual files. The state
 may say "missing" for something already completed in a prior iteration.
 
+## Documentation Tabbed Pattern
+
+- Landing page (`docs/index.md`) already uses `=== "Language"` pymdownx.tabbed syntax — 6 tabs
+    (Python, Rust, Node.js, Java, Go, WASM)
+- Per-language howto guides are separate files by design — they don't need tabs
+- Getting-started tutorial is the main candidate for tab conversion (Python-only → 6 languages)
+- The doc spec says "Standard tab order: Python, Rust, Java, Node.js, WASM" but the landing page
+    includes Go — use all 6 languages
+
 ## Recurring Patterns
 
 - When new symbols are added to bindings but docs predate them, batch howto guide + README update
     into one step (2 files). Verification is grep-based
 - Interactive sessions can break CI (e.g., Python ruff format) — always check state.md CI section
 - After PR merge, always switch back to develop: `git checkout develop`
-- After major architecture changes (e.g., WASM→pure Go), multiple files go stale simultaneously (CI,
-    README, howto docs, test comments) — group the most impactful ones in a single step
 
 ## Gotchas
 
