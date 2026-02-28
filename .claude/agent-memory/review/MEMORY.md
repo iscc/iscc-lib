@@ -131,6 +131,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - `grep -c` counts ALL matching lines including function definitions — when next.md specifies "4
     call sites" but the function name also appears in a definition, expect count = call sites + 1.
     This is a valid pass if the arithmetic checks out
+- `grep -c '---' site/llms-full.txt` does NOT reliably count page dividers — doc pages contain
+    internal `---` horizontal rules. Use the script's "N pages" stdout as the authoritative check
 
 ## Documentation Review Patterns
 
