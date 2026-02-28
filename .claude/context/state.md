@@ -1,17 +1,17 @@
-<!-- assessed-at: 860be8ecbb0531fd2708698d304810730dedadde -->
+<!-- assessed-at: 966a69f6bb89cb10b3280001a82ba153daf1c32c -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All 7 Bindings + Docs + Bench CI Complete — Publishing and Merge to Main Remain
+## Phase: All 7 Bindings + Docs CI Complete — Doc Polish + Publishing Remain
 
 All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export the full 30/30
-Tier 1 symbols and pass conformance. CI is green on all 8 jobs (Rust, Python, Node.js, WASM, C FFI,
-Java, Go, Bench compile check). PR #10 (develop → main) is open. Documentation now covers all 14
-pages in LLM-friendly output via `docs/llms.txt` and `scripts/gen_llms_full.py`. Remaining gaps are
-non-binding items: benchmark speedup documentation, Maven Central publishing configuration, and
-npm/crates.io release triggers.
+Tier 1 symbols and pass conformance. CI is green on all 8 jobs. PR #10 (develop → main) is open. The
+getting-started tutorial was converted to tabbed multi-language format (7 sections × 6 languages) in
+this iteration. Two doc polish issues remain: stale Go example on the landing page and tab order
+inconsistency across pages. Non-doc gaps: benchmark speedup documentation, Maven Central publishing,
+and npm/crates.io release triggers.
 
 ## Rust Core Crate
 
@@ -135,16 +135,22 @@ npm/crates.io release triggers.
 
 ## Documentation
 
-**Status**: met
+**Status**: partially met
 
 - **14 pages** deployed to lib.iscc.codes; all navigation sections complete
-- `docs/llms.txt` updated to reference all 14 doc pages (previously 5 pages only)
-- `scripts/gen_llms_full.py` created: generates `site/llms-full.txt` (115 KB) and per-page `.md`
-    files from all 14 documentation sources; runs via `uv run python scripts/gen_llms_full.py`
-- `docs/howto/go.md` updated to reflect pure Go; all 6 binding howto guides have "Codec operations"
-    and "Constants" sections
+- `docs/llms.txt` references all 14 doc pages; `scripts/gen_llms_full.py` generates
+    `site/llms-full.txt`
+- Getting-started tutorial converted to tabbed multi-language format in this iteration: 7 sections ×
+    6 languages (Python, Rust, Node.js, Java, Go, WASM); Java version corrected to 17+
+- All 6 binding howto guides have "Codec operations" and "Constants" sections
 - Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
+- **Known issues (not blocking, filed):**
+    - `docs/index.md` landing page Go tab still uses stale WASM-bridge API (`NewRuntime`/`ctx`)
+        instead of pure Go API — needs fix
+    - Tab order inconsistency across pages: spec says "Python, Rust, Java, Node.js, WASM" (no Go),
+        landing page uses "Rust, Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" —
+        spec update needed; HUMAN REVIEW REQUESTED for canonical order
 
 ## Benchmarks
 
@@ -153,7 +159,7 @@ npm/crates.io release triggers.
 - Criterion benchmarks exist for all 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
 - pytest-benchmark comparison files present
 - `Bench (compile check)` job in CI (`cargo bench --no-run`) — all 7 benchmark targets compile
-    (CI-verified, run 22512149652)
+    (CI-verified, run 22512739822)
 - Missing: CI does not run benchmarks and collect results; speedup factors not published in
     documentation
 
@@ -167,7 +173,7 @@ npm/crates.io release triggers.
     gcc, test), **Bench (compile check)** — all 8 SUCCESS
 - Go CI job is clean: checkout → setup-go → `CGO_ENABLED=0 go test` → `go vet` (no Rust toolchain)
 - **Latest CI run on develop: PASSING** —
-    [Run 22512149652](https://github.com/iscc/iscc-lib/actions/runs/22512149652) — all 8 jobs
+    [Run 22512739822](https://github.com/iscc/iscc-lib/actions/runs/22512739822) — all 8 jobs
     SUCCESS
 - **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
     ([#10](https://github.com/iscc/iscc-lib/pull/10))
@@ -177,16 +183,17 @@ npm/crates.io release triggers.
 
 ## Next Milestone
 
-**Merge PR #10 (develop → main) — first stable milestone release:**
+**Doc polish — fix stale Go example on landing page and standardize tab order:**
 
-PR #10 is already open (develop → main). All 7 bindings are at 30/30 with 8 green CI jobs and
-complete documentation (14 pages, full LLM-friendly output). Steps to complete the milestone:
+Two small, well-scoped documentation fixes are the next automated CID step:
 
-1. Review and merge PR #10 (develop → main) — this is a human task requiring approval
-2. After merge, tag `v0.0.2` on `main` to trigger coordinated publishing across all registries
-3. OIDC publishing setup for crates.io (registry-side; human task)
-4. npm token configuration for `@iscc/lib` and `@iscc/wasm` publishing
+1. Fix `docs/index.md` landing page Go tab: replace stale WASM-bridge API (`NewRuntime`/`ctx`) with
+    pure Go API (`iscc.GenTextCodeV0("Hello World", 64)`) matching `docs/howto/go.md`
+2. Standardize tab order: update `specs/documentation.md` to add Go to canonical order and apply
+    consistently across landing page and tutorial (requires human decision on canonical order
+    first)
 
-If merging to main is deferred, the next automated CID step is **benchmark speedup documentation**:
-run `cargo bench` to capture results and document speedup factors vs Python in the documentation
-site.
+After doc polish, the next remaining automated step is **benchmark speedup documentation**: run
+`cargo bench` to capture results and document speedup factors in the documentation site.
+
+Merging PR #10 (develop → main) remains a human task requiring approval.
