@@ -131,6 +131,10 @@ iterations.
 - mdformat reformats JS imports to multi-line `import { ... } from` style — run format before commit
 - Landing page Go example updated to pure Go API (`result, _ := iscc.GenTextCodeV0(...)` pattern)
 - Node.js/Java/WASM gen functions return plain strings; Python/Rust/Go return result objects
+- `docs/architecture.md` and `docs/development.md` share identical directory trees and crate summary
+    tables — keep them in sync when editing either file
+- Go shown in Mermaid diagram as `GO["Go<br/><small>Pure Go</small>"] --> CORE` (direct dep on core,
+    not on FFI)
 
 ## Gotchas
 

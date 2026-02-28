@@ -44,7 +44,7 @@ The `postCreateCommand` runs automatically: trusts the mise config, installs Pyt
 | Python 3.12 + uv | Python bindings, dev tools    |
 | Node.js 20       | Node.js bindings, Claude Code |
 | JDK 17 + Maven   | Java JNI bindings             |
-| Go 1.24          | Go bindings (wazero)          |
+| Go 1.24          | Go bindings                   |
 | mise             | Tool versions + task runner   |
 | Claude Code      | AI agent loop                 |
 | gh               | GitHub CLI                    |
@@ -197,9 +197,14 @@ iscc-lib/
 ├── packages/
 │   └── go/                     # Go module (pure Go, no cgo)
 │       ├── go.mod
-│       ├── iscc.go             # wazero WASM bridge
-│       ├── iscc_test.go        # Conformance tests
-│       └── iscc_ffi.wasm       # Embedded WASM binary
+│       ├── codec.go            # ISCC codec, constants, types
+│       ├── code_meta.go        # GenMetaCodeV0
+│       ├── code_content_*.go   # GenText/Image/Audio/Video/MixedCodeV0
+│       ├── code_data.go        # GenDataCodeV0 + DataHasher
+│       ├── code_instance.go    # GenInstanceCodeV0 + InstanceHasher
+│       ├── code_iscc.go        # GenIsccCodeV0
+│       ├── conformance.go      # ConformanceSelftest
+│       └── *_test.go           # Conformance tests
 ├── docs/                       # Documentation site (lib.iscc.codes)
 ├── benchmarks/
 │   └── python/                 # Comparative Python benchmarks
@@ -225,7 +230,7 @@ iscc-lib/
 | `iscc-wasm`   | WASM package                     | wasm-bindgen   | npm           |
 | `iscc-ffi`    | Shared library (.so/.dll/.dylib) | cargo          | Source        |
 | `iscc-jni`    | JNI shared library               | cargo          | Maven Central |
-| `packages/go` | Go module                        | cargo + wazero | pkg.go.dev    |
+| `packages/go` | Go module                        | go             | pkg.go.dev    |
 
 ## Mise Task Runner
 
