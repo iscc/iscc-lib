@@ -54,16 +54,24 @@ iterations.
 
 ## Post-All-Bindings-Complete Planning
 
-All 7 bindings at 30/30, CI green. PR #10 exists from develop→main (passing, mergeable). Remaining
-gaps in priority order:
+All 7 bindings at 30/30, CI green with 8 jobs. PR #10 exists from develop→main (passing, mergeable).
+Benchmarks documented with real speedup data in `docs/benchmarks.md`. State.md assessment of
+"speedup factors not published" is stale — the page exists with real data (1.3×–158×).
 
-1. Benchmark CI integration (compile-only job) — prevents bitrot
-2. PR #10 update (title/description reflect full milestone) — prep for human merge
-3. Publishing infrastructure (OIDC, npm, Maven Central) — mostly human tasks
-4. Benchmark results in docs (speedup factors) — requires running benchmarks and documenting
+Remaining automated gaps (in priority order):
+
+1. ~~Benchmark CI integration (compile-only job)~~ — DONE (iteration 10)
+2. ~~Benchmark results in docs~~ — DONE (docs/benchmarks.md has real data)
+3. LLM docs coverage: `gen_llms_full.py` and `docs/llms.txt` only include 5 of 14 pages
+4. Tabbed multi-language code examples in docs (spec requires, not yet implemented)
+5. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
+6. PR #10 merge — human task
 
 When the handoff says "create PR" but a PR already exists, check with `gh pr list` before scoping a
 create-PR step. The real work may be updating the existing PR or something else entirely.
+
+State assessments can go stale — always verify claimed gaps by reading the actual files. The state
+may say "missing" for something already completed in a prior iteration.
 
 ## Recurring Patterns
 

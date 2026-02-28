@@ -1,67 +1,68 @@
 # Next Work Package
 
-## Step: Add benchmark compile-check job to CI
+## Step: Include all doc pages in llms-full.txt
 
 ## Goal
 
-Add a `bench` job to `ci.yml` that compiles all criterion benchmarks (`cargo bench --no-run`) on
-every push and PR, preventing benchmark bitrot. This closes the state.md gap "CI does not run
-benchmarks automatically" and ensures benchmarks stay buildable as the codebase evolves.
+Update the LLM-friendly docs generation to include all 14 documentation pages instead of only the
+current 5. The spec requires `site/llms-full.txt` to contain "content from all pages" and
+`docs/llms.txt` to list all documentation pages — both currently cover only 5 of 14 pages, omitting
+all howto guides, tutorials, ecosystem, and development pages.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/ci.yml` — add a new `bench` job
-- **Reference**: `crates/iscc-lib/benches/benchmarks.rs` (to understand what gets compiled),
-    `.github/workflows/ci.yml` (existing job structure to follow)
+- **Modify**: `scripts/gen_llms_full.py`, `docs/llms.txt`
+- **Reference**: `docs/` directory listing (14 `.md` files),
+    `.claude/context/specs/documentation.md` (verification criteria), `zensical.toml` (navigation
+    order)
 
 ## Not In Scope
 
-- Running benchmarks and uploading results as CI artifacts (future step — adds complexity with
-    criterion JSON output, artifact storage, comparison tooling)
-- Publishing benchmark speedup factors in documentation (separate target gap)
-- pytest-benchmark comparison infrastructure (Python-side benchmarks are a separate concern)
-- Updating PR #10 title/description (human task — PR is already passing and mergeable)
-- Any publishing infrastructure changes (OIDC, npm, Maven Central are human tasks)
+- Rewriting doc page content or adding tabbed multi-language code examples
+- Changing the `gen_llms_full.py` script logic (stripping frontmatter, cleaning, concatenation)
+- Modifying the docs workflow (`docs.yml`) — it already calls `gen_llms_full.py`
+- Building the site locally or deploying — just fix the page lists
 
 ## Implementation Notes
 
-Follow the existing CI job pattern — same toolchain setup, same cache action. The job structure:
+**`scripts/gen_llms_full.py`** — Update the `PAGES` list to include all 14 doc pages. Use the same
+order as `zensical.toml` navigation:
 
-```yaml
-bench:
-  name: Bench (compile check)
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2
-    - name: Compile benchmarks
-      run: cargo bench --no-run
+```python
+PAGES = [
+    "index.md",
+    "tutorials/getting-started.md",
+    "howto/rust.md",
+    "howto/python.md",
+    "howto/nodejs.md",
+    "howto/wasm.md",
+    "howto/go.md",
+    "howto/java.md",
+    "architecture.md",
+    "ecosystem.md",
+    "rust-api.md",
+    "api.md",
+    "benchmarks.md",
+    "development.md",
+]
 ```
 
-Key points:
-
-- `cargo bench --no-run` compiles all benchmark targets without executing them. This catches
-    compilation errors (broken imports, removed APIs, type mismatches) without the noise and
-    variability of running benchmarks on shared CI runners.
-- Use `Swatinem/rust-cache@v2` for caching (consistent with all other Rust-based jobs).
-- Place the job after the existing `go` job to keep logical ordering (supplementary checks after
-    binding jobs).
-- Do NOT add `--workspace` — `cargo bench` already discovers workspace bench targets.
-- The benchmark file (`crates/iscc-lib/benches/benchmarks.rs`) imports 10 symbols from `iscc_lib`
-    and defines 10 benchmark functions. A compile-only check validates all imports and types.
+**`docs/llms.txt`** — Add the missing 9 page references under `## Reference`. Keep the existing
+format (`- [Title](URL): Description`). Match titles and descriptions to actual page content. Add
+all howto guides, the tutorial, ecosystem, and development pages. Also add Java and Go to the
+install line in the intro since they're now available.
 
 ## Verification
 
-- `grep -q 'cargo bench --no-run' .github/workflows/ci.yml` exits 0
-- `grep -q 'Bench (compile check)' .github/workflows/ci.yml` exits 0
-- The CI YAML is valid: `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"`
-    exits 0
-- `mise run format` produces no unformatted changes (run format, then `git diff` shows no changes)
-- `cargo bench --no-run` succeeds locally (exits 0)
+- `uv run python scripts/gen_llms_full.py` exits 0 and prints "14 pages"
+- `grep -c '---' site/llms-full.txt` returns 13 (14 pages separated by 13 dividers)
+- `grep 'howto/go.md' docs/llms.txt` exits 0 (Go howto is referenced)
+- `grep 'tutorials/getting-started.md' docs/llms.txt` exits 0 (tutorial is referenced)
+- `grep 'development.md' docs/llms.txt` exits 0 (development page is referenced)
+- `mise run format` produces no formatting changes (pre-format before commit)
 
 ## Done When
 
-All verification criteria pass: the `bench` job is present in `ci.yml`, the YAML is valid and
-formatted, benchmarks compile locally, and the file is ready to trigger the new job on next push.
+All 14 documentation pages are included in both `scripts/gen_llms_full.py` PAGES list and
+`docs/llms.txt` reference section, and all verification checks pass.
