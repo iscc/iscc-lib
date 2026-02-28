@@ -127,7 +127,7 @@ iterations.
 - Tab order for tutorial: Python, Rust, Node.js, Java, Go, WASM (6 tabs)
 - Landing page (`docs/index.md`) tab order: Rust, Python, Node.js, Java, Go, WASM
 - mdformat reformats JS imports to multi-line `import { ... } from` style — run format before commit
-- Landing page Go example is stale (still shows WASM-bridge `NewRuntime`/`ctx` pattern)
+- Landing page Go example updated to pure Go API (`result, _ := iscc.GenTextCodeV0(...)` pattern)
 - Node.js/Java/WASM gen functions return plain strings; Python/Rust/Go return result objects
 
 ## Gotchas

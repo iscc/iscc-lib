@@ -114,12 +114,8 @@ decentralized, content-based identification without a central registry.
     ```go
     import iscc "github.com/iscc/iscc-lib/packages/go"
 
-    ctx := context.Background()
-    rt, _ := iscc.NewRuntime(ctx)
-    defer rt.Close(ctx)
-
-    code, _ := rt.GenTextCodeV0(ctx, "Hello World", 64)
-    fmt.Println(code) // "ISCC:EAA..."
+    result, _ := iscc.GenTextCodeV0("Hello World", 64)
+    fmt.Println(result.Iscc) // "ISCC:EAA..."
     ```
 
 === "WASM"
