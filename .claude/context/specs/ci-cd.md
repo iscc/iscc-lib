@@ -23,7 +23,9 @@ merge.
 | **WASM**    | `wasm-pack test --node`                                                               |
 | **C FFI**   | cbindgen header generation, gcc compile, C test run                                   |
 | **Java**    | JNI `cargo build`, `mvn test` (49 tests including conformance vectors)                |
-| **Go**      | `cargo build --target wasm32-wasip1` for FFI binary, `go test`, `go vet`              |
+| **Go**      | `CGO_ENABLED=0 go test`, `go vet` (pure Go, no Rust toolchain)                        |
+| **Version** | `python version_sync.py --check` for manifest version consistency                     |
+| **Bench**   | `cargo bench --no-run` compile-only benchmark verification                            |
 
 CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
 `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, `astral-sh/setup-uv@v4`,
@@ -257,7 +259,9 @@ workflow triggers on push to `main`.
 - [x] WASM job runs wasm-pack tests
 - [x] C FFI job generates headers, compiles, and runs C test program
 - [x] Java job builds JNI crate and runs Maven tests
-- [x] Go job builds WASM FFI binary, runs go test and go vet
+- [x] Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain)
+- [x] Version job runs version_sync.py --check for manifest consistency
+- [x] Bench job runs cargo bench --no-run for compile-only benchmark verification
 - [x] CI does not use `mise` — calls tools directly
 
 ### Release
