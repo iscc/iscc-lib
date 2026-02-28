@@ -1,82 +1,110 @@
 # Next Work Package
 
-## Step: Fix Go representation in architecture diagram
+## Step: Add C FFI API reference page
 
 ## Goal
 
-Correct the Mermaid diagram and accompanying text in `docs/architecture.md` so that Go is shown as a
-standalone pure Go reimplementation rather than a binding crate that depends on the Rust core. Also
-clean up 5 vestigial "do NOT require the WASM binary" comments in Go test files. Both are
-post-WASM-removal cleanup items flagged by the review agent.
+Create a C FFI API reference page documenting all 43 exported `extern "C"` functions. The
+documentation spec explicitly requires a "C FFI reference" under the Reference nav section, but it
+is missing — only Rust API and Python API reference pages exist. This gives C/C# integrators a
+standalone reference for the shared library interface.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `docs/architecture.md` — Mermaid diagram + explanatory text below it
-    - `packages/go/minhash_test.go` — remove WASM comment (test file)
-    - `packages/go/utils_test.go` — remove WASM comment (test file)
-    - `packages/go/codec_test.go` — remove WASM comment (test file)
-    - `packages/go/cdc_test.go` — remove WASM comment (test file)
-    - `packages/go/simhash_test.go` — remove WASM comment (test file)
-- **Reference**: `docs/architecture.md` (current diagram at lines 19-30)
+- **Create**: `docs/c-ffi-api.md` — C FFI API reference page
+- **Modify**: `zensical.toml` — add `{ "C FFI" = "c-ffi-api.md" }` entry under the Reference nav
+    section (after Python API)
+- **Modify**: `docs/llms.txt` — add a line referencing the new page
 
 ## Not In Scope
 
-- Rewriting the entire architecture page or other sections beyond the diagram/text
-- Changing the hub-and-spoke description — it's still accurate for the 5 Rust-based binding crates
-- Modifying `docs/development.md` (already updated in the previous iteration)
-- Renaming `TestPureGo*` test function prefixes (cosmetic, separate concern)
-- Touching any Go source (non-test) files
+- Java API reference page (separate future step — also missing per spec)
+- Rewriting or expanding the existing C test program
+- Generating or committing C header files (cbindgen generates them at build time)
+- Adding a C FFI howto guide (spec only requires a Reference page for C FFI)
+- Tab order changes (needs human decision)
 
 ## Implementation Notes
 
-**Mermaid diagram change:** Show Go as a separate standalone node, not connected to CORE. Options:
+### Content structure
 
-1. Add Go as a disconnected node with a different style (recommended):
+Model the page after `docs/rust-api.md` — same YAML front matter pattern (icon, description), same
+section organization (intro → install/build → functions → types → memory management → error
+handling).
 
-    ```mermaid
-    graph TD
-        PY[...] --> CORE[...]
-        NAPI[...] --> CORE
-        WASM[...] --> CORE
-        FFI[...] --> CORE
-        JNI[...] --> CORE
-        GO["Go module<br/><small>Pure Go reimplementation</small>"]
-        style GO fill:#e8f5e9,stroke:#4caf50
-    ```
+### Source material
 
-    The `style` line gives Go a visually distinct appearance (green tint) to signal it's different.
+Read `crates/iscc-ffi/src/lib.rs` for all 43 exported functions. The file has doc comments for each
+function that provide parameter descriptions, return types, and safety notes. Group the functions
+into these sections:
 
-2. Alternatively, use a dotted line with a label: `GO -.->|"reimplements API"| CORE` — but a
-    disconnected node is cleaner and more accurate.
+1. **Overview** — brief intro explaining the C FFI shared library, memory model
+    (`iscc_free_string`, NULL-on-error + `iscc_last_error`), and build instructions
+    (`cargo build -p iscc-ffi --release`, `cbindgen`)
+2. **Constants** — 4 getter functions (`iscc_meta_trim_name`, `iscc_meta_trim_description`,
+    `iscc_io_read_size`, `iscc_text_ngram_size`)
+3. **Code Generation** — 9 `iscc_gen_*_v0` functions with C signatures, parameter tables, and brief
+    descriptions
+4. **Text Utilities** — 4 functions (`iscc_text_clean`, `iscc_text_remove_newlines`,
+    `iscc_text_trim`, `iscc_text_collapse`)
+5. **Algorithm Primitives** — `iscc_sliding_window`, `iscc_alg_simhash`, `iscc_alg_minhash_256`,
+    `iscc_alg_cdc_chunks`, `iscc_soft_hash_video_v0`
+6. **Codec Operations** — `iscc_encode_base64`, `iscc_json_to_data_url`, `iscc_encode_component`,
+    `iscc_decode`, `iscc_decompose`
+7. **Streaming** — `DataHasher` and `InstanceHasher` lifecycle functions (`_new`, `_update`,
+    `_finalize`, `_free`)
+8. **Diagnostics** — `iscc_conformance_selftest`
+9. **Memory Management** — `iscc_free_string`, `iscc_free_string_array`, `iscc_free_byte_buffer`,
+    `iscc_free_byte_buffer_array`, `iscc_free_decode_result`, `iscc_alloc`, `iscc_dealloc`
+10. **Error Handling** — `iscc_last_error` and the NULL-return convention
 
-**Text change:** Replace "All binding crates are thin wrappers — they contain no algorithm logic.
-This ensures that every language produces identical results for the same inputs." with something
-like: "The five binding crates (Python, Node.js, WASM, C FFI, Java) are thin wrappers — they contain
-no algorithm logic. The Go module is a standalone reimplementation of the same algorithms in pure
-Go. All languages produce identical results for the same inputs, verified by shared conformance test
-vectors."
+### Function signature format
 
-**Go test file comments:** In each of the 5 test files, the second line reads:
-`// These tests do NOT require the WASM binary — they test pure Go functions.` Replace with a
-simpler comment like `// These tests verify pure Go functions.` or just remove the line entirely
-(the first line already says "Tests for the pure Go ... module"). Removing the line is cleanest —
-the "do NOT require WASM" phrasing is a historical artifact with no current value.
+Use C function signatures (not Rust), e.g.:
+
+```c
+const char* iscc_gen_meta_code_v0(
+    const char* name,
+    const char* description,
+    const char* meta,
+    uint32_t bits
+);
+```
+
+Derive C types from the Rust FFI code: `*const c_char` → `const char*`, `*const u8` + `usize` →
+`const uint8_t*` + `size_t`, `u32` → `uint32_t`, etc.
+
+### Struct types
+
+Document `IsccByteBuffer`, `IsccByteBufferArray`, `IsccDecodeResult` — their C struct layouts and
+which functions return/consume them.
+
+### Navigation
+
+Add entry in `zensical.toml` under the existing Reference section, after Python API:
+
+```toml
+{ "C FFI" = "c-ffi-api.md" },
+```
+
+### llms.txt
+
+Add one line in `docs/llms.txt` under the Reference section:
+
+```
+- [C FFI](https://lib.iscc.codes/c-ffi-api.md): C FFI API reference
+```
 
 ## Verification
 
-- `grep -c 'GO.*-->.*CORE' docs/architecture.md` returns 0
-- `grep -q 'standalone reimplementation\|pure Go reimplementation' docs/architecture.md` exits 0
-- `grep -c 'All binding crates are thin wrappers' docs/architecture.md` returns 0
-- `grep -rc 'WASM binary' packages/go/` returns 0 (no matches)
-- `uv run zensical build` succeeds (site builds with updated Mermaid diagram)
-- `cd packages/go && go test ./... && go vet ./...` passes (Go tests still work after comment
-    changes)
-- `mise run check` passes (all pre-commit/pre-push hooks clean)
+- `uv run zensical build` succeeds
+- `grep -q 'c-ffi-api.md' zensical.toml` exits 0
+- `grep -q 'c-ffi' docs/llms.txt` exits 0
+- `grep -c 'iscc_gen_' docs/c-ffi-api.md` returns 9 (all gen functions documented)
+- `grep -c 'iscc_free_' docs/c-ffi-api.md` returns at least 4 (memory management functions)
+- `grep -q 'iscc_last_error' docs/c-ffi-api.md` exits 0
 
 ## Done When
 
-All verification criteria pass: Go is correctly represented as standalone in the architecture
-diagram, the explanatory text is accurate, and all vestigial WASM comments are removed from Go test
-files.
+All verification criteria pass — the C FFI reference page is accessible in the doc site navigation,
+documents all 43 exported functions with C-style signatures, and the site builds cleanly.
