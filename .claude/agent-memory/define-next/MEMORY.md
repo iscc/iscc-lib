@@ -62,9 +62,11 @@ Remaining automated gaps (in priority order):
 1. ~~Benchmark CI integration (compile-only job)~~ — DONE (iteration 10)
 2. ~~Benchmark results in docs~~ — DONE (docs/benchmarks.md has real data)
 3. ~~LLM docs coverage: all 14 pages~~ — DONE (iteration 11)
-4. Tabbed multi-language code examples in getting-started tutorial — SCOPED (iteration 12)
-5. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
-6. PR #10 merge — human task
+4. ~~Tabbed multi-language code examples in getting-started tutorial~~ — DONE (iteration 12)
+5. Fix stale Go example on landing page — SCOPED (iteration 13)
+6. Tab order standardization — LOW priority, needs human review
+7. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
+8. PR #10 merge — human task
 
 When the handoff says "create PR" but a PR already exists, check with `gh pr list` before scoping a
 create-PR step. The real work may be updating the existing PR or something else entirely.
