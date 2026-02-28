@@ -52,12 +52,18 @@ iterations.
 - Release workflow has `workflow_dispatch` inputs: `crates-io`, `pypi`, `npm`, `maven` (booleans)
 - All publish jobs have idempotency checks (version-existence pre-check, `skip` output)
 
-## Post-Go-Completion Planning
+## Post-All-Bindings-Complete Planning
 
-After Go reaches 30/30 ("met") and WASM vestiges are cleaned:
+All 7 bindings at 30/30, CI green. PR #10 exists from develop→main (passing, mergeable). Remaining
+gaps in priority order:
 
-- PR from develop → main — major milestone worth merging
-- Remaining gaps: benchmarks (CI integration), publishing (OIDC, npm, Maven Central)
+1. Benchmark CI integration (compile-only job) — prevents bitrot
+2. PR #10 update (title/description reflect full milestone) — prep for human merge
+3. Publishing infrastructure (OIDC, npm, Maven Central) — mostly human tasks
+4. Benchmark results in docs (speedup factors) — requires running benchmarks and documenting
+
+When the handoff says "create PR" but a PR already exists, check with `gh pr list` before scoping a
+create-PR step. The real work may be updating the existing PR or something else entirely.
 
 ## Recurring Patterns
 
