@@ -403,6 +403,20 @@ func EncodeBase64(data []byte) string {
 	return b64Encoding.EncodeToString(data)
 }
 
+// JsonToDataUrl converts a JSON string to a data-URL with base64-encoded canonical JSON.
+//
+// Parses and canonicalizes the JSON (sorted keys, compact format). If the JSON
+// contains an "@context" key, uses "application/ld+json" media type; otherwise
+// uses "application/json".
+func JsonToDataUrl(jsonStr string) (string, error) {
+	canonical, err := parseMetaJSON(jsonStr)
+	if err != nil {
+		return "", err
+	}
+	hasContext := jsonHasContext(jsonStr)
+	return buildMetaDataURL(canonical, hasContext), nil
+}
+
 // ---- Component Encoding (public) ----
 
 // EncodeComponent encodes an ISCC-UNIT with header and body as a base32 string.

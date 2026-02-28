@@ -3,6 +3,7 @@
 package iscc
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"strings"
@@ -422,6 +423,83 @@ func TestCodecEncodeBase64NoPadding(t *testing.T) {
 		if strings.Contains(encoded, "=") {
 			t.Errorf("base64 output for len=%d should not contain padding", l)
 		}
+	}
+}
+
+// ---- JsonToDataUrl tests ----
+
+func TestCodecJsonToDataUrlBasic(t *testing.T) {
+	url, err := JsonToDataUrl(`{"key": "value"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefix := "data:application/json;base64,"
+	if !strings.HasPrefix(url, prefix) {
+		t.Errorf("expected prefix %q, got: %s", prefix, url)
+	}
+}
+
+func TestCodecJsonToDataUrlLdJson(t *testing.T) {
+	url, err := JsonToDataUrl(`{"@context": "https://schema.org"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	prefix := "data:application/ld+json;base64,"
+	if !strings.HasPrefix(url, prefix) {
+		t.Errorf("expected prefix %q, got: %s", prefix, url)
+	}
+}
+
+func TestCodecJsonToDataUrlJCSOrdering(t *testing.T) {
+	url, err := JsonToDataUrl(`{"b":1,"a":2}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Extract base64 payload after the comma
+	parts := strings.SplitN(url, ",", 2)
+	if len(parts) != 2 {
+		t.Fatalf("expected comma in data URL: %s", url)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("base64 decode: %v", err)
+	}
+	canonical := string(decoded)
+	if canonical != `{"a":2,"b":1}` {
+		t.Errorf("JCS should sort keys: got %q, want %q", canonical, `{"a":2,"b":1}`)
+	}
+}
+
+func TestCodecJsonToDataUrlInvalidJSON(t *testing.T) {
+	_, err := JsonToDataUrl("not json")
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestCodecJsonToDataUrlConformance0016(t *testing.T) {
+	// Cross-check with Rust output for conformance vector test_0016_meta_data_url
+	url, err := JsonToDataUrl(`{"some": "object"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// (a) Correct media type prefix (no @context → application/json)
+	prefix := "data:application/json;base64,"
+	if !strings.HasPrefix(url, prefix) {
+		t.Errorf("expected prefix %q, got: %s", prefix, url)
+	}
+	// (b) Decoded payload is JCS-canonical (no whitespace)
+	parts := strings.SplitN(url, ",", 2)
+	if len(parts) != 2 {
+		t.Fatalf("expected comma in data URL: %s", url)
+	}
+	decoded, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("base64 decode: %v", err)
+	}
+	canonical := string(decoded)
+	if canonical != `{"some":"object"}` {
+		t.Errorf("JCS removes whitespace: got %q, want %q", canonical, `{"some":"object"}`)
 	}
 }
 
