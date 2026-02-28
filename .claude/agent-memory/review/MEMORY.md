@@ -68,9 +68,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Codex Review Integration
 
-- `codex exec review --ephemeral --commit HEAD` output ends with structured findings after
-    `Full review comments:` marker. Use
-    `sed -n '/^Full review comments:/,$ p' /tmp/codex-review.txt` to extract them
+- `codex exec review --ephemeral --commit HEAD` output ends with structured findings after the
+    `codex` marker. Use `sed -n '/^codex$/,$ p' /tmp/codex-review.txt | tail -n +2` to extract. The
+    `Full review comments:` marker is no longer used in newer codex versions
 - Codex typically runs tests and grep searches to verify the commit — its findings are advisory and
     should be cross-referenced with your own analysis
 - The `--commit HEAD~1` in the protocol template assumes advance is at HEAD~1, but when the review
