@@ -64,8 +64,8 @@ All 7 bindings at 30/30, CI green with 9 jobs. PR #10 exists from develop→main
 5. ~~Fix stale Go example on landing page~~ — DONE (iteration 13)
 6. ~~Add version:check to CI~~ — DONE (iteration 14)
 7. ~~Stale spec cleanup (ci-cd.md)~~ — DONE (iteration 15)
-8. Fix stale wazero/WASM refs in docs — SCOPED (iteration 16)
-9. ci-cd.md standard action set gap (missing Go/Java actions) — cosmetic, future step
+8. ~~Fix stale wazero/WASM refs in docs~~ — DONE (iteration 16)
+9. Fix Go architecture diagram + vestigial WASM comments — SCOPED (iteration 17)
 10. Tab order standardization — LOW priority, needs human review
 11. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
 12. PR #10 merge — human task

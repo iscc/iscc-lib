@@ -1,81 +1,82 @@
 # Next Work Package
 
-## Step: Fix stale wazero/WASM references in docs
+## Step: Fix Go representation in architecture diagram
 
 ## Goal
 
-Remove all stale wazero/WASM references from `docs/architecture.md` and `docs/development.md` to
-reflect the Go pure rewrite. These are factual inaccuracies on the public documentation site — the
-Go binding is now a pure Go implementation with no wazero, no WASM binary, and no cargo involvement.
+Correct the Mermaid diagram and accompanying text in `docs/architecture.md` so that Go is shown as a
+standalone pure Go reimplementation rather than a binding crate that depends on the Rust core. Also
+clean up 5 vestigial "do NOT require the WASM binary" comments in Go test files. Both are
+post-WASM-removal cleanup items flagged by the review agent.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `docs/architecture.md` — 7 stale references
-    - `docs/development.md` — 4 stale references
-- **Reference**:
-    - `packages/go/` directory listing — actual Go module structure (36 `.go` files, no WASM)
-    - `docs/howto/go.md` — already-updated Go howto guide for consistent wording
-    - `packages/go/README.md` — already-updated Go README for consistent wording
+    - `docs/architecture.md` — Mermaid diagram + explanatory text below it
+    - `packages/go/minhash_test.go` — remove WASM comment (test file)
+    - `packages/go/utils_test.go` — remove WASM comment (test file)
+    - `packages/go/codec_test.go` — remove WASM comment (test file)
+    - `packages/go/cdc_test.go` — remove WASM comment (test file)
+    - `packages/go/simhash_test.go` — remove WASM comment (test file)
+- **Reference**: `docs/architecture.md` (current diagram at lines 19-30)
 
 ## Not In Scope
 
-- Tab order standardization (needs human decision, low-priority issue)
-- Rewriting the full Go section of architecture.md (only fix stale references)
-- Updating `specs/ci-cd.md` standard action set (cosmetic, separate step if needed)
-- Cleaning up vestigial WASM comments in Go test files (cosmetic, separate step)
-- Any code changes
+- Rewriting the entire architecture page or other sections beyond the diagram/text
+- Changing the hub-and-spoke description — it's still accurate for the 5 Rust-based binding crates
+- Modifying `docs/development.md` (already updated in the previous iteration)
+- Renaming `TestPureGo*` test function prefixes (cosmetic, separate concern)
+- Touching any Go source (non-test) files
 
 ## Implementation Notes
 
-### `docs/architecture.md` — 7 edits:
+**Mermaid diagram change:** Show Go as a separate standalone node, not connected to CORE. Options:
 
-1. **Line 26 (Mermaid diagram)**: Change `GO["Go<br/><small>wazero · WASM</small>"] -.-> FFI` to
-    show Go as a standalone pure Go module (no dependency on FFI). Use a solid arrow to CORE or a
-    standalone node with `<small>Pure Go</small>`. The key point: Go does NOT depend on FFI or any
-    Rust crate.
-2. **Lines 79-83 (workspace tree)**: Replace the stale `packages/go/` subtree. Actual structure has
-    `go.mod`, `go.sum`, `codec.go`, `conformance.go`, multiple `code_*.go` files, `README.md`. Show
-    a representative subset (not all 36 files). No `iscc.go`, no `iscc_ffi.wasm`.
-3. **Line 86 (workflows)**: Add `release.yml` to the workflows listing (currently missing).
-4. **Line 99 (crate summary table)**: Change `cargo + wazero` to `go` for the `packages/go` row.
-5. **Line 171 (per-binding adaptation table)**: Change Go row from
-    `Sync API via wazero WASM calls. UpdateFrom(ctx, io.Reader) for streaming` to reflect pure Go
-    sync API with `Push([]byte)` / `Finalize(bits)` streaming.
-6. **Line 201 (cross-language test matrix)**: Change Go row from
-    `Embedded via WASM conformance selftest` to `Relative path from test file` (Go tests load
-    `../../crates/iscc-lib/tests/data.json`).
+1. Add Go as a disconnected node with a different style (recommended):
 
-### `docs/development.md` — 4 edits:
+    ```mermaid
+    graph TD
+        PY[...] --> CORE[...]
+        NAPI[...] --> CORE
+        WASM[...] --> CORE
+        FFI[...] --> CORE
+        JNI[...] --> CORE
+        GO["Go module<br/><small>Pure Go reimplementation</small>"]
+        style GO fill:#e8f5e9,stroke:#4caf50
+    ```
 
-1. **Line 47 (included tools table)**: Change `Go bindings (wazero)` to `Go bindings (pure Go)` or
-    just `Go bindings`.
-2. **Lines 198-202 (project structure tree)**: Replace the stale `packages/go/` subtree with actual
-    files. Same representative subset as architecture.md.
-3. **Line 228 (crate summary table)**: Change `cargo + wazero` to `go` for the `packages/go` row.
+    The `style` line gives Go a visually distinct appearance (green tint) to signal it's different.
 
-### Consistency guidance:
+2. Alternatively, use a dotted line with a label: `GO -.->|"reimplements API"| CORE` — but a
+    disconnected node is cleaner and more accurate.
 
-- Both files share identical directory trees and crate summary tables — keep them in sync.
-- Use "pure Go" wording consistent with `packages/go/README.md` and `docs/howto/go.md`.
-- The Go module line in directory trees should read: `# Go module (pure Go, no cgo)` — this is
-    already used at line 79 of architecture.md and line 198 of development.md.
+**Text change:** Replace "All binding crates are thin wrappers — they contain no algorithm logic.
+This ensures that every language produces identical results for the same inputs." with something
+like: "The five binding crates (Python, Node.js, WASM, C FFI, Java) are thin wrappers — they contain
+no algorithm logic. The Go module is a standalone reimplementation of the same algorithms in pure
+Go. All languages produce identical results for the same inputs, verified by shared conformance test
+vectors."
+
+**Go test file comments:** In each of the 5 test files, the second line reads:
+`// These tests do NOT require the WASM binary — they test pure Go functions.` Replace with a
+simpler comment like `// These tests verify pure Go functions.` or just remove the line entirely
+(the first line already says "Tests for the pure Go ... module"). Removing the line is cleanest —
+the "do NOT require WASM" phrasing is a historical artifact with no current value.
 
 ## Verification
 
-- `grep -c 'wazero' docs/architecture.md` outputs `0`
-- `grep -c 'wazero' docs/development.md` outputs `0`
-- `grep -c 'iscc_ffi\.wasm' docs/architecture.md` outputs `0`
-- `grep -c 'iscc_ffi\.wasm' docs/development.md` outputs `0`
-- `grep -c 'cargo + wazero' docs/architecture.md` outputs `0`
-- `grep -c 'cargo + wazero' docs/development.md` outputs `0`
-- `grep -q 'release\.yml' docs/architecture.md` exits 0 (release workflow listed)
-- `uv run zensical build` succeeds
-- `mise run check` passes (all pre-commit hooks)
+- `grep -c 'GO.*-->.*CORE' docs/architecture.md` returns 0
+- `grep -q 'standalone reimplementation\|pure Go reimplementation' docs/architecture.md` exits 0
+- `grep -c 'All binding crates are thin wrappers' docs/architecture.md` returns 0
+- `grep -rc 'WASM binary' packages/go/` returns 0 (no matches)
+- `uv run zensical build` succeeds (site builds with updated Mermaid diagram)
+- `cd packages/go && go test ./... && go vet ./...` passes (Go tests still work after comment
+    changes)
+- `mise run check` passes (all pre-commit/pre-push hooks clean)
 
 ## Done When
 
-All verification criteria pass — zero stale wazero/WASM references remain in either documentation
-page, the Go module is accurately represented as pure Go throughout, and the docs site builds
-cleanly.
+All verification criteria pass: Go is correctly represented as standalone in the architecture
+diagram, the explanatory text is accurate, and all vestigial WASM comments are removed from Go test
+files.
