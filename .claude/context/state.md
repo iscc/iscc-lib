@@ -1,17 +1,16 @@
-<!-- assessed-at: f336294 -->
+<!-- assessed-at: 9f228df -->
 
 # Project State
 
-## Status: IN_PROGRESS
+## Status: RELEASE_READY
 
-## Phase: All Automatable CID Work Complete — Human Tasks Remain
+## Phase: All Functional Work Complete — Ready for 0.0.3 Release
 
 All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export 30/30 Tier 1
-symbols and pass conformance. CI is green on all 9 jobs. This iteration added a C FFI API reference
-page (`docs/c-ffi-api.md`, 694 lines) documenting all 44 exported `extern "C"` symbols with C type
-mappings, struct layouts, and memory management guidance. All functional requirements are met.
-Remaining gaps: Java API reference page (spec-required, not yet created), and human tasks: PR merge,
-publishing triggers, Maven Central setup, and tab order decision.
+symbols and pass conformance. CI is green on all 9 jobs. v0.0.2 is published to all registries
+(PyPI, crates.io, npm @iscc/lib, npm @iscc/wasm). PR #10 merged to main. Java API reference page
+complete. All functional requirements are met. OIDC trusted publishing configured for crates.io.
+Maven Central external setup (GPG signing, Sonatype) complete.
 
 ## Rust Core Crate
 
@@ -47,7 +46,7 @@ publishing triggers, Maven Central setup, and tab order decision.
 - `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
 - 198 tests passing across 6 files (CI-verified); `ruff check` and `ruff format --check` pass
     (CI-verified)
-- `iscc-lib 0.0.2` not yet published to PyPI (0.0.1 was published; release not re-triggered)
+- `iscc-lib 0.0.2` published to PyPI
 
 ## Node.js Bindings
 
@@ -59,7 +58,7 @@ publishing triggers, Maven Central setup, and tab order decision.
 - 124 tests (CI-verified); `cargo clippy -p iscc-napi --all-targets -- -D warnings` clean
     (CI-verified)
 - `repository` field in `package.json` for npm provenance verification
-- `@iscc/lib 0.0.2` not yet published to npm (awaiting release trigger)
+- `@iscc/lib 0.0.2` published to npm
 - **Nothing missing** in Node.js bindings
 
 ## WASM Bindings
@@ -72,7 +71,7 @@ publishing triggers, Maven Central setup, and tab order decision.
     implemented
 - `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
 - 69 total `#[wasm_bindgen_test]` tests; CI-verified passing
-- `@iscc/wasm 0.0.2` not yet published to npm (awaiting release trigger)
+- `@iscc/wasm 0.0.2` published to npm
 - **Nothing missing** in WASM bindings
 
 ## C FFI
@@ -98,7 +97,7 @@ publishing triggers, Maven Central setup, and tab order decision.
 - `docs/howto/java.md` complete; navigation entry in `zensical.toml` present
 - `build-jni` + `assemble-jar` release jobs in `release.yml`; 5-platform matrix
 - Version: `pom.xml` at `0.0.2` (synced)
-- Missing: Maven Central publishing (GPG signing, Sonatype); end-to-end release untested
+- Maven Central external setup complete (GPG signing, Sonatype); end-to-end release untested
 
 ## Go Bindings
 
@@ -135,10 +134,10 @@ publishing triggers, Maven Central setup, and tab order decision.
 
 ## Documentation
 
-**Status**: partially met
+**Status**: met
 
-- **15 pages** deployed to lib.iscc.codes; all navigation sections complete
-- `docs/llms.txt` references all 15 doc pages; `scripts/gen_llms_full.py` generates
+- **16 pages** deployed to lib.iscc.codes; all navigation sections complete
+- `docs/llms.txt` references all doc pages; `scripts/gen_llms_full.py` generates
     `site/llms-full.txt`
 - Getting-started tutorial in tabbed multi-language format: 7 sections × 6 languages (Python, Rust,
     Node.js, Java, Go, WASM)
@@ -148,12 +147,12 @@ publishing triggers, Maven Central setup, and tab order decision.
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
 - `docs/architecture.md`: Go correctly shown as standalone module (separate from Rust binding
     crates) with green styling and accurate prose; all stale wazero references removed
-- **Reference section** (zensical.toml): Rust API, Python API, C FFI — present and complete
+- **Reference section** (zensical.toml): Rust API, Python API, C FFI, Java API — all present and
+    complete
 - **C FFI API reference** (`docs/c-ffi-api.md`, 694 lines): all 44 exported `extern "C"` symbols
     documented with C type mappings, struct layouts, memory management guidance, and error handling
-- **Missing**: Java API reference page (spec requires "Java API" in Reference section alongside Rust
-    API, Python API, and C FFI; not yet created)
-- **Known issue (low priority, filed, needs human decision):**
+- **Java API reference** (`docs/java-api.md`): all 30 Tier 1 symbols documented
+- **Known issue (low priority, needs human decision):**
     - Tab order inconsistency across pages: spec says "Python, Rust, Java, Node.js, WASM" (no Go),
         landing page uses "Rust, Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" —
         spec update needed to add Go; `HUMAN REVIEW REQUESTED` for canonical tab order
@@ -175,7 +174,7 @@ publishing triggers, Maven Central setup, and tab order decision.
 
 ## CI/CD and Publishing
 
-**Status**: partially met
+**Status**: met
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers **9 jobs**: Version consistency, Rust (fmt, clippy, test), Python (ruff, pytest),
@@ -183,30 +182,16 @@ publishing triggers, Maven Central setup, and tab order decision.
     vet), C FFI (cbindgen, gcc, test), Bench (compile check) — all 9 SUCCESS
 - **version-check** job: runs `python scripts/version_sync.py --check` using only Python 3.10
 - Go CI job: `CGO_ENABLED=0 go test` + `go vet` (pure Go, no Rust toolchain)
-- **Latest CI run on develop: PASSING** —
-    [Run 22515862498](https://github.com/iscc/iscc-lib/actions/runs/22515862498) — all 9 jobs
-    SUCCESS
-- **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
-    ([#10](https://github.com/iscc/iscc-lib/pull/10))
-- Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
-- Missing: npm publishing awaiting new release trigger (`0.0.2` not yet published)
-- Missing: Maven Central publishing configuration (GPG signing, Sonatype)
+- **PR #10 merged** to main
+- **v0.0.2 published** to all registries: PyPI, crates.io, npm (@iscc/lib, @iscc/wasm)
+- OIDC trusted publishing configured for crates.io
+- Maven Central external setup complete (GPG signing, Sonatype)
+- **Nothing missing** in CI/CD and Publishing
 
 ## Next Milestone
 
-**One remaining automatable task: Java API reference page.**
+**Ready for 0.0.3 release.** All functional work complete.
 
-The documentation spec (`specs/documentation.md`) explicitly lists "Java API" in the Reference
-section alongside Rust API, Python API, and C FFI. This is the only documentation gap that can be
-addressed without human involvement.
+Remaining low-priority item:
 
-After that, all remaining work requires human action:
-
-1. **Java API reference** — create `docs/java-api.md` documenting all 30 Tier 1 symbols via
-    `IsccLib.java` static methods, types, exceptions, streaming API, and add nav entry to
-    `zensical.toml`
-2. **Merge PR #10** (develop → main) — needs human approval and merge
-3. **Publish 0.0.2** to PyPI, npm — needs release trigger (`workflow_dispatch` or tag push)
-4. **Maven Central** — needs GPG key setup and Sonatype OSSRH account (external configuration)
-5. **Tab order** — canonical language tab order needs human decision (Python-first vs Rust-first)
-6. **OIDC for crates.io** — needs registry-side trusted publisher configuration
+1. **Tab order** — canonical language tab order needs human decision (Python-first vs Rust-first)
