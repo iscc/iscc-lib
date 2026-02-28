@@ -1,15 +1,15 @@
-<!-- assessed-at: fe7e381 -->
+<!-- assessed-at: fff2ed2 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go Bindings Rewrite — Step 5 Complete (9/9 Gen Functions), Cleanup Remaining
+## Phase: Go Bindings Rewrite — ConformanceSelftest Done, WASM Bridge Cleanup Remaining
 
-All non-Go bindings are at 30/30 Tier 1 symbols. The Go pure rewrite has completed all 9 gen
-functions — `GenIsccCodeV0` was implemented and reviewed PASS (all 5 vectors pass). Remaining work:
-implement `ConformanceSelftest` as pure Go, then remove the WASM bridge (`iscc.go`, `iscc_ffi.wasm`,
-wazero dependency) and restore the 256KB large-file threshold. CI is green across all 7 jobs.
+`ConformanceSelftest` is implemented as pure Go (conformance.go, 471 lines) and validated by CI (all
+7 jobs pass). However, the WASM bridge has NOT been removed: `iscc.go` (1,357 lines) and
+`iscc_ffi.wasm` (667KB) still exist, `wazero v1.11.0` is still in `go.mod`, and the large-file
+threshold in `.pre-commit-config.yaml` remains at 1024KB instead of 256KB.
 
 ## Rust Core Crate
 
@@ -100,30 +100,21 @@ wazero dependency) and restore the 256KB large-file threshold. CI is green acros
 
 ## Go Bindings
 
-**Status**: not met — 9/9 gen functions done, `ConformanceSelftest` and WASM bridge cleanup remain
+**Status**: not met — `ConformanceSelftest` implemented, WASM bridge cleanup still pending
 
 - **Target requires**: pure Go, no WASM/wazero, no binary artifacts
-- **Steps 1–4 COMPLETE**: codec, text utils, 5 algorithm modules (CDC, MinHash, SimHash, DCT,
-    WTA-Hash) — all reviewed PASS
-- **Step 5 COMPLETE** — all 9 gen functions implemented and reviewed PASS:
-    - `code_meta.go`: `GenMetaCodeV0` — 16/16 conformance vectors pass
-    - `code_content_text.go`: `GenTextCodeV0` — 5/5 conformance vectors pass
-    - `code_data.go` (90 lines): `GenDataCodeV0` + `DataHasher` streaming struct — 4/4 vectors pass
-    - `code_instance.go` (67 lines): `GenInstanceCodeV0` + `InstanceHasher` streaming struct — 3/3
-        vectors pass
-    - `code_content_image.go` (134 lines): `GenImageCodeV0` — 3/3 vectors pass
-    - `code_content_audio.go` (112 lines): `GenAudioCodeV0` — 5/5 vectors pass
-    - `code_content_video.go` (61 lines): `GenVideoCodeV0` + `SoftHashVideoV0` — 3/3 vectors pass
-    - `code_content_mixed.go` (92 lines): `GenMixedCodeV0` — 2/2 vectors pass
-    - `code_iscc.go` (148 lines): `GenIsccCodeV0` + `IsccCodeResult` struct — 5/5 vectors pass
-        (reviewed PASS 2026-02-27)
-- 187 total test functions across Go files (CI-verified passing)
-- **Still remaining**:
-    - `ConformanceSelftest` — pure Go function validating all 46 vectors from `data.json`; only exists
-        as WASM bridge method in `iscc.go` (not as standalone pure Go)
-    - Cleanup: remove `iscc.go` (1,357 lines WASM bridge), `iscc_ffi.wasm` (667KB binary), wazero dep
-        from `go.mod` (`github.com/tetratelabs/wazero v1.11.0`), restore `.pre-commit-config.yaml`
-        large-file threshold to 256KB (currently 1024KB)
+- **Steps 1–5 COMPLETE**: all 9 gen functions + `ConformanceSelftest` as pure Go — reviewed PASS
+- `packages/go/conformance.go` (471 lines): `ConformanceSelftest()` reads `testdata/data.json` and
+    runs all 9 gen functions against all 46 vectors; returns `(bool, error)`
+- `packages/go/conformance_test.go` (14 lines): `TestPureGoConformanceSelftest` validates all 46
+    vectors pass — CI-verified (Go job: SUCCESS)
+- `packages/go/testdata/data.json` (518 lines): vendored conformance vectors
+- **Still remaining (cleanup)**:
+    - Remove `packages/go/iscc.go` (1,357 lines WASM bridge)
+    - Remove `packages/go/iscc_ffi.wasm` (667KB binary artifact)
+    - Remove `github.com/tetratelabs/wazero v1.11.0` from `packages/go/go.mod` and `go.sum`
+    - Restore `.pre-commit-config.yaml` large-file threshold from 1024KB back to 256KB
+- 188 total test functions across Go test files (CI-verified passing)
 
 ## README
 
@@ -165,7 +156,7 @@ wazero dependency) and restore the 256KB large-file threshold. CI is green acros
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - **Latest CI run on develop: PASSING** —
-    [Run 22508122569](https://github.com/iscc/iscc-lib/actions/runs/22508122569) — all 7 jobs
+    [Run 22508879495](https://github.com/iscc/iscc-lib/actions/runs/22508879495) — all 7 jobs
     SUCCESS
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
@@ -173,13 +164,12 @@ wazero dependency) and restore the 256KB large-file threshold. CI is green acros
 
 ## Next Milestone
 
-**Complete pure Go rewrite — implement `ConformanceSelftest` and remove WASM bridge (final step):**
+**Complete pure Go rewrite — remove WASM bridge (final cleanup step):**
 
-All 9 gen functions are done and reviewed PASS (46 conformance vectors total). Implement:
+`ConformanceSelftest` is implemented and passing. The only remaining work is cleanup:
 
-1. **`ConformanceSelftest`** in `packages/go/conformance.go` — pure Go function that reads
-    `data.json`, runs all 9 gen functions against all 46 vectors, and returns `(bool, error)`.
-    Reference: `crates/iscc-lib/src/lib.rs` for the Rust implementation logic.
-2. **Cleanup**: remove `iscc.go` (1,357 lines), `iscc_ffi.wasm` (667KB), wazero from `go.mod`;
-    restore `.pre-commit-config.yaml` large-file threshold from 1024KB back to 256KB.
-3. Verify `go test ./...` and `go vet ./...` still pass after cleanup; ensure CI stays green.
+1. **Remove** `packages/go/iscc.go` (1,357-line WASM bridge — all functions superseded by pure Go)
+2. **Remove** `packages/go/iscc_ffi.wasm` (667KB binary artifact)
+3. **Update** `packages/go/go.mod` and `go.sum`: remove `github.com/tetratelabs/wazero v1.11.0`
+4. **Fix** `.pre-commit-config.yaml`: restore `--maxkb=256` (currently 1024)
+5. Verify `go test ./...` and `go vet ./...` still pass after removal; confirm CI stays green

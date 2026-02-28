@@ -54,13 +54,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     - code_content_video.go (61L, 1T/3 vectors): GenVideoCodeV0 + SoftHashVideoV0 + VideoCodeResult
     - code_content_mixed.go (92L, 1T/2 vectors): GenMixedCodeV0 + softHashCodesV0 + MixedCodeResult
     - code_iscc.go (148L, 1T/5 vectors): GenIsccCodeV0 + IsccCodeResult (reviewed PASS 2026-02-27)
-    - 187 total Go test functions (141 pure Go + 46 WASM bridge tests)
+    - 188 total Go test functions (187 pure Go + conformance selftest)
+    - conformance.go (471L): ConformanceSelftest() validates all 46 vectors; testdata/data.json
 - **`github.com/zeebo/blake3 v0.2.4`** in go.mod — needed for Meta/Data/Instance code
 - **`arraySplit[T any]`** generic helper in code_content_audio.go — reusable
-- **Remaining**: ConformanceSelftest (pure Go, validate all 46 vectors from data.json), cleanup
-    (remove iscc.go 1357L, iscc_ffi.wasm 667KB, wazero dep, restore 256KB threshold)
+- **Remaining**: cleanup only — remove iscc.go (1357L), iscc_ffi.wasm (667KB), wazero dep from
+    go.mod/go.sum, restore .pre-commit-config.yaml large-file threshold from 1024KB to 256KB
 - **check-added-large-files**: threshold is 1024KB (must restore to 256KB after cleanup)
-- **assessed-at**: fe7e381 (2026-02-28)
+- **assessed-at**: fff2ed2 (2026-02-28)
+- **conformance.go**: 471 lines, reads `testdata/data.json` (518 lines), 12 internal funcs; CI PASS
+- **188 total Go test functions** (187 pure Go + 1 conformance selftest)
 
 ## Gotchas
 
@@ -79,3 +82,5 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Video dedup**: uses `fmt.Sprintf("%v", sig)` as map key — simple and correct (commutative sum)
 - **GenIsccCodeV0 key details**: `encode_units` produces a bitfield; `wide` param always false in
     test vectors; SubType from content code's SubType (or NONE if absent); 5 conformance vectors
+- **WASM bridge still present**: `iscc.go` (1357L) + `iscc_ffi.wasm` (667KB) remain even after pure
+    Go ConformanceSelftest is done; cleanup is a separate final step
