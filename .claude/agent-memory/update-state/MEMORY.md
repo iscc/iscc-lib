@@ -15,18 +15,22 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Go files**: `ls packages/go/*.go` — check pure Go source files
 - **Go in CI**: `grep -n "go\|Go\|golang" .github/workflows/ci.yml`
 - **Binding symbol check**:
-    `grep -n "encode_component\|META_TRIM\|IO_READ\|TEXT_NGRAM\|iscc_decode\|json_to_data_url" crates/iscc-py/src/lib.rs crates/iscc-napi/src/lib.rs crates/iscc-wasm/src/lib.rs crates/iscc-ffi/src/lib.rs crates/iscc-jni/src/lib.rs packages/go/*.go`
-- **Go test count**: `grep -c "^func Test" packages/go/*_test.go`
+    `grep -n "encode_component\|META_TRIM\|IO_READ\|TEXT_NGRAM\|iscc_decode\|json_to_data_url\|JsonToDataUrl" crates/iscc-py/src/lib.rs crates/iscc-napi/src/lib.rs crates/iscc-wasm/src/lib.rs crates/iscc-ffi/src/lib.rs crates/iscc-jni/src/lib.rs packages/go/*.go`
+- **Go test count**: `grep -r "^func Test" packages/go/ --include="*_test.go" | wc -l`
 - **Go gen functions**: `grep "^func Gen" packages/go/code_*.go`
 - **Go exported funcs**: `grep -h "^func " packages/go/*.go | grep -v "_test.go" | sort`
 
 ## Codebase Landmarks
 
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
-- `packages/go/` — pure Go module (no WASM bridge); WASM bridge fully removed in commit 0cbff37
+- `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — 7 jobs: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
+- `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
+    EncodeComponent, IsccDecompose, IsccDecode
+- `packages/go/code_meta.go` — `parseMetaJSON`, `jsonHasContext`, `buildMetaDataURL` helpers used by
+    `JsonToDataUrl`
 
 ## Recurring Patterns
 
@@ -35,33 +39,32 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **CI has 7 jobs**: Rust, Python, Node.js, WASM, C FFI, Java, Go. All 7 must pass
 - `gh run list` does NOT need `--repo` when running from within the workspace; but `--json` fields
     are needed to avoid GraphQL deprecation error
-- **Verify claims independently**: review agents can make incorrect claims (e.g., claimed 30/30 Go
-    symbols after WASM bridge removal but `JsonToDataUrl` was never ported). Always grep for each
+- **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts
 
-## Current State (assessed-at: 0cbff37)
+## Current State (assessed-at: 8bbc9a3)
 
-- **All bindings except Go**: 30/30 Tier 1 symbols (Python, Node.js, WASM, C FFI, Java, Rust)
-- **Go bindings**: 29/30 Tier 1 symbols — missing `JsonToDataUrl`
-    - WASM bridge FULLY REMOVED: `iscc.go`, `iscc_ffi.wasm`, `iscc_test.go` gone
-    - `wazero v1.11.0` removed from `go.mod`; `--maxkb=256` restored
-    - `JsonToDataUrl` was only in the WASM bridge — never ported to pure Go
-    - 142 test functions across 18 test files (pure Go only)
+- **All 7 bindings**: 30/30 Tier 1 symbols complete (Rust, Python, Node.js, WASM, C FFI, Java, Go)
+- **Go bindings (COMPLETE)**:
+    - `JsonToDataUrl` added in `packages/go/codec.go` (lines 406–418); commit `8f74552`
+    - Uses `parseMetaJSON`/`jsonHasContext`/`buildMetaDataURL` helpers from `code_meta.go`
+    - 147 test functions across 18+ test files; 5 new `TestCodecJsonToDataUrl*` tests
     - go.mod: zeebo/blake3, golang.org/x/text, klauspost/cpuid (indirect)
-- **CI latest**: Run 22509596765 — all 7 jobs SUCCESS (develop branch, 2026-02-28)
+    - Pure Go, no CGO, no WASM, no binary artifacts
+- **CI latest**: Run 22510330106 — all 7 jobs SUCCESS (develop branch, 2026-02-28)
 - **Publishing**: 0.0.2 not published to PyPI, npm, or Maven Central
+- **Remaining gaps**: Benchmark CI integration; Maven Central publishing; npm/PyPI 0.0.2 release
 
-## Go Package Tier 1 Coverage (29/30)
+## Go Package Tier 1 Coverage (30/30 — COMPLETE)
 
-Missing: `JsonToDataUrl` (Rust: `json_to_data_url` in `crates/iscc-lib/src/lib.rs:260`) Present: all
-9 gen functions, ConformanceSelftest, DataHasher, InstanceHasher, 4 text utilities, SlidingWindow,
-AlgMinhash256, AlgCdcChunks, AlgSimhash, SoftHashVideoV0, EncodeBase64, EncodeComponent, IsccDecode,
-IsccDecompose, 4 constants (MetaTrimName, MetaTrimDescription, IoReadSize, TextNgramSize)
+All symbols present: 9 gen functions, ConformanceSelftest, DataHasher, InstanceHasher, 4 text
+utilities, SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash, SoftHashVideoV0, EncodeBase64,
+EncodeComponent, IsccDecode, IsccDecompose, JsonToDataUrl, 4 constants (MetaTrimName,
+MetaTrimDescription, IoReadSize, TextNgramSize).
 
 ## Gotchas
 
 - Go target requires pure Go (no WASM, no wazero, no binary artifacts)
-- `JsonToDataUrl` was only implemented in deleted `iscc.go` WASM bridge — not yet in pure Go
 - WASM constant name gotcha: `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` exports uppercase
 - `state.md` section order must include Go Bindings and Per-Crate READMEs sections
 - Python ruff format check can fail in CI even if local `mise run check` passes
@@ -72,5 +75,5 @@ IsccDecompose, 4 constants (MetaTrimName, MetaTrimDescription, IoReadSize, TextN
 - **DataHasher/InstanceHasher API**: Go uses `Push([]byte)` + `Finalize(bits)` pattern
 - **GenIsccCodeV0 key details**: `encode_units` produces a bitfield; `wide` param always false in
     test vectors; SubType from content code's SubType (or NONE if absent); 5 conformance vectors
-- **Go README lists JsonToDataUrl** in API table — misleading since not implemented; README needs
-    update after implementation
+- Java Maven Central: requires GPG key, Sonatype OSSRH account, pom.xml signing plugin — not yet
+    configured; end-to-end release untested

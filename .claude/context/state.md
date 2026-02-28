@@ -1,15 +1,15 @@
-<!-- assessed-at: 0cbff37 -->
+<!-- assessed-at: 8bbc9a3 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go Bindings — WASM Bridge Removed, JsonToDataUrl Missing (29/30)
+## Phase: All 7 Bindings Complete (30/30) — Benchmarks CI and Publishing Remain
 
-The WASM bridge has been fully cleaned up: `iscc.go`, `iscc_ffi.wasm`, and `wazero v1.11.0` are all
-gone; the `--maxkb=256` pre-commit threshold is restored. CI is green on all 7 jobs. However, the
-pure Go implementation is at 29/30 Tier 1 symbols — `JsonToDataUrl` was only in the deleted WASM
-bridge and was never ported to pure Go. The previous review agent incorrectly claimed 30/30.
+All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) now export the full 30/30
+Tier 1 symbols. `JsonToDataUrl` was added to the Go package in commit `8f74552`, completing Go at
+30/30. CI is green on all 7 jobs. Remaining gaps are non-binding items: benchmark CI integration,
+Maven Central publishing configuration, and npm/crates.io release triggers.
 
 ## Rust Core Crate
 
@@ -100,22 +100,20 @@ bridge and was never ported to pure Go. The previous review agent incorrectly cl
 
 ## Go Bindings
 
-**Status**: partially met — 29/30 Tier 1 symbols (missing `JsonToDataUrl`)
+**Status**: met — 30/30 Tier 1 symbols
 
 - **Architecture**: Pure Go, no CGO, no WASM, no binary artifacts — target fully met
-- **WASM bridge cleanup COMPLETE**: `iscc.go` (WASM bridge), `iscc_ffi.wasm` (667KB binary), and
-    `iscc_test.go` (WASM bridge tests) all removed; `wazero v1.11.0` removed from `go.mod`;
-    `--maxkb=256` restored in `.pre-commit-config.yaml`
-- **29/30 Tier 1 symbols**: All 9 `gen_*_v0` functions, `ConformanceSelftest`, `DataHasher`,
+- **30/30 Tier 1 symbols**: All 9 `gen_*_v0` functions, `ConformanceSelftest`, `DataHasher`,
     `InstanceHasher`, 4 text utilities, `SlidingWindow`, `AlgMinhash256`, `AlgCdcChunks`,
     `AlgSimhash`, `SoftHashVideoV0`, `EncodeBase64`, `EncodeComponent`, `IsccDecode`,
-    `IsccDecompose`, 4 constants (`MetaTrimName`, `MetaTrimDescription`, `IoReadSize`,
-    `TextNgramSize`) — **but `JsonToDataUrl` is missing**
-- `JsonToDataUrl` was only implemented in the deleted WASM bridge (`iscc.go`); was never ported to
-    pure Go. README lists it but no implementation exists in any `.go` source file.
-- 142 pure Go test functions across 18 test files; `go test ./...` and `go vet ./...` pass
+    `IsccDecompose`, `JsonToDataUrl`, 4 constants (`MetaTrimName`, `MetaTrimDescription`,
+    `IoReadSize`, `TextNgramSize`)
+- `JsonToDataUrl` implemented in `packages/go/codec.go` (lines 406–418), uses `parseMetaJSON` +
+    `jsonHasContext` + `buildMetaDataURL` helpers from `code_meta.go`; 5 tests in `codec_test.go`
+- 147 pure Go test functions across 18+ test files; `go test ./...` and `go vet ./...` pass
     (CI-verified)
 - `go.mod` has minimal deps: `zeebo/blake3`, `golang.org/x/text`, `klauspost/cpuid` (indirect)
+- **Nothing missing** in Go bindings
 
 ## README
 
@@ -157,7 +155,7 @@ bridge and was never ported to pure Go. The previous review agent incorrectly cl
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - **Latest CI run on develop: PASSING** —
-    [Run 22509596765](https://github.com/iscc/iscc-lib/actions/runs/22509596765) — all 7 jobs
+    [Run 22510330106](https://github.com/iscc/iscc-lib/actions/runs/22510330106) — all 7 jobs
     SUCCESS
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
@@ -165,15 +163,19 @@ bridge and was never ported to pure Go. The previous review agent incorrectly cl
 
 ## Next Milestone
 
-**Add `JsonToDataUrl` to pure Go package (complete 30/30 Tier 1 symbols):**
+**Integrate benchmarks into CI (first automated performance baseline):**
 
-`JsonToDataUrl` is the only missing Tier 1 symbol in the Go package. The Rust implementation
-(`json_to_data_url` in `crates/iscc-lib/src/lib.rs`) converts a JSON string to a `data:` URL with
-base64 encoding (appending `application/ld+json` context when `@context` key is present, else
-`application/json`). Implementation is straightforward — ~10 lines of pure Go:
+All 7 binding types are now complete at 30/30. The most actionable remaining gap in target criteria
+is benchmark CI integration. The criterion benchmarks exist in `crates/iscc-lib/benches/` but CI
+does not run them. Steps:
 
-1. **Add** `func JsonToDataUrl(jsonStr string) (string, error)` to `packages/go/utils.go` or a new
-    `packages/go/codec.go` section
-2. **Add** corresponding tests in the appropriate `_test.go` file
-3. Verify `go test ./...` and `go vet ./...` still pass; confirm CI stays green
-4. This completes 30/30 and allows the Go section to be marked "met"
+1. Add a `bench` job to `ci.yml` (or a separate `bench.yml`) that runs `cargo bench --no-run`
+    (compile-only) on CI to ensure benchmarks stay buildable
+2. Optionally add `cargo bench -- --output-format bencher | tee bench-output.txt` and upload as a CI
+    artifact for tracking over time
+3. Consider adding pytest-benchmark to the Python CI step: `pytest --benchmark-only` or storing
+    `.benchmarks/` JSON artifacts
+
+Alternatively, if benchmark CI is deferred, the next priority is Maven Central publishing
+configuration (GPG key setup, Sonatype OSSRH account, `pom.xml` signing plugin) or triggering a new
+0.0.2 release across all registries.
