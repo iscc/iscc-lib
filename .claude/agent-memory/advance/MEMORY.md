@@ -126,15 +126,27 @@ iterations.
 ## Documentation
 
 - Tabbed syntax: `=== "Language"` with 4-space indent, blank line before code block
+
 - Tab order for tutorial: Python, Rust, Node.js, Java, Go, WASM (6 tabs)
+
 - Landing page (`docs/index.md`) tab order: Rust, Python, Node.js, Java, Go, WASM
+
 - mdformat reformats JS imports to multi-line `import { ... } from` style — run format before commit
+
 - Landing page Go example updated to pure Go API (`result, _ := iscc.GenTextCodeV0(...)` pattern)
+
 - Node.js/Java/WASM gen functions return plain strings; Python/Rust/Go return result objects
+
 - `docs/architecture.md` and `docs/development.md` share identical directory trees and crate summary
     tables — keep them in sync when editing either file
+
 - Go shown in Mermaid diagram as standalone disconnected node with green style (not connected to
     CORE) — reflects pure Go reimplementation. Five Rust-dependent binding crates shown with arrows
+
+- Java API reference: `docs/java-api.md` — hand-written, follows C FFI page structure adapted for
+    Java (no manual memory mgmt except streaming hasher handles)
+
+- All 4 Reference pages complete: Rust API, Python API, C FFI, Java API
 
 ## Gotchas
 

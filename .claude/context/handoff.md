@@ -1,37 +1,36 @@
-## 2026-02-28 — Review of: Add C FFI API reference page
+## 2026-02-28 — Add Java API reference page
 
-**Verdict:** PASS
+**Done:** Created `docs/java-api.md` documenting the full Java API surface — all 30 Tier 1 symbols
+as static methods on `IsccLib`, the `IsccDecodeResult` class, 4 constants, streaming hasher
+lifecycle, error handling, and memory management. Wired it into site navigation and llms.txt.
 
-**Summary:** Clean, well-scoped documentation addition. The new `docs/c-ffi-api.md` documents all 44
-exported `extern "C"` symbols from `crates/iscc-ffi/src/lib.rs` with accurate C type mappings,
-struct layouts matching `#[repr(C)]` definitions, and complete memory management guidance. The doc
-site builds cleanly, nav entry and llms.txt updated.
+**Files changed:**
+
+- `docs/java-api.md`: New Java API reference page (front matter, installation, quick example,
+    constants table, IsccDecodeResult class, all 9 gen\*V0 methods with signatures/parameter
+    tables/examples, text utilities, encoding, codec, sliding window, algorithm primitives,
+    streaming hashers with DataHasher/InstanceHasher lifecycle, error handling, memory management)
+- `zensical.toml`: Added `{ "Java API" = "java-api.md" }` after C FFI in Reference nav section
+- `docs/llms.txt`: Added Java API reference line after C FFI line
 
 **Verification:**
 
-- [x] `uv run zensical build` succeeds — builds in 0.89s with new page
-- [x] `grep -q 'c-ffi-api.md' zensical.toml` exits 0 — nav entry present after Python API
-- [x] `grep -q 'c-ffi' docs/llms.txt` exits 0 — reference line added
-- [x] `grep -c 'iscc_gen_' docs/c-ffi-api.md` returns 21 (≥ 9) — all gen functions documented
-- [x] `grep -c 'iscc_free_' docs/c-ffi-api.md` returns 29 (≥ 4) — memory management complete
-- [x] `grep -q 'iscc_last_error' docs/c-ffi-api.md` exits 0 — error handling documented
+- [x] `uv run zensical build` succeeds (3.67s, `/java-api/` in output)
+- [x] `grep -q 'java-api.md' zensical.toml` exits 0 — nav entry present
+- [x] `grep -q 'java-api' docs/llms.txt` exits 0 — llms.txt reference added
+- [x] `grep -c 'genMetaCodeV0\|genTextCodeV0\|...\|genIsccCodeV0' docs/java-api.md` returns 32 (>=
+    9\) — all gen functions documented
+- [x] `grep -c 'dataHasherNew\|dataHasherUpdate\|dataHasherFinalize\|dataHasherFree'   docs/java-api.md`
+    returns 18 (>= 4) — DataHasher lifecycle documented
+- [x] `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 — decode result type documented
+- [x] `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 — constants documented
 - [x] `mise run check` — all 14 hooks pass
 
-**Issues found:**
+**Next:** All spec-required documentation pages are complete (Rust API, Python API, C FFI, Java
+API). The documentation spec is fully met. Remaining work is human-dependent: merge PR from develop
+→ main, trigger releases, configure Maven Central publishing.
 
-- (none)
-
-**Codex review:** Codex identified a minor conservatism in the error handling docs: the page says
-the `iscc_last_error()` pointer is "valid until the next `iscc_*` call" while the Rust source says
-"next `iscc_gen_*` call". The doc is more conservative (safer for callers) — not actionable. Codex
-verified `iscc_encode_component` parameter order and `iscc_alloc`/`iscc_dealloc` semantics are
-accurately documented. No actionable findings.
-
-**Next:** The project is in maintenance mode. All functional requirements are met. The documentation
-spec also lists "Java API" reference under Reference, which is the only remaining doc page gap. All
-other remaining work is human-dependent: merge PR #10 (develop → main), trigger releases, configure
-Maven Central publishing, and decide canonical tab order.
-
-**Notes:** The advance agent noted 44 exported symbols vs next.md's "43" — the advance correctly
-counted and documented all 44. Internal helpers (`result_to_c_string`, `string_to_c`,
-`vec_to_c_string_array`, etc.) are properly excluded from documentation.
+**Notes:** All content transcribed directly from Javadoc in `IsccLib.java` and
+`IsccDecodeResult.java` — no undocumented behavior added. Page structure follows the C FFI reference
+pattern adapted for Java (no memory management functions since JVM handles most allocation; only
+streaming hasher handles need manual cleanup).
