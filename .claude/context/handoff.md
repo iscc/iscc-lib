@@ -1,37 +1,26 @@
-## 2026-02-28 — Review of: Fix stale Go example on landing page
+## 2026-02-28 — Add version consistency check to CI
 
-**Verdict:** PASS
+**Done:** Added a standalone `version-check` CI job to `.github/workflows/ci.yml` that runs
+`python scripts/version_sync.py --check` to catch manifest version drift on every push. The job uses
+only `actions/checkout@v4` and `actions/setup-python@v5` — no Rust toolchain, no uv, no caching —
+and completes in seconds.
 
-**Summary:** Clean, minimal docs-only change that replaces the stale WASM-bridge Go code snippet on
-the landing page with the current pure Go API pattern. The diff touches exactly one content file
-(`docs/index.md`, 4 lines removed, 2 added) and matches the howto guide pattern precisely. All
-verification criteria pass, all 14 hooks pass, docs build cleanly.
+**Files changed:**
+
+- `.github/workflows/ci.yml`: Added `version-check` job (10 lines) as the first job in the workflow
 
 **Verification:**
 
-- [x] `grep -c "NewRuntime" docs/index.md` returns 0
-- [x] `grep -c "context.Background" docs/index.md` returns 0
-- [x] `grep "GenTextCodeV0" docs/index.md` shows pure Go API (no `ctx` parameter)
-- [x] `grep "result.Iscc" docs/index.md` returns a match
-- [x] `uv run zensical build` exits 0
-- [x] `mise run format` produces no changes
-- [x] `mise run check` — all 14 hooks pass
+- `python scripts/version_sync.py --check` exits 0 (versions in sync: 0.0.2)
+- `grep -q 'version_sync' .github/workflows/ci.yml` exits 0 (script referenced in CI)
+- `mise run check` — all 14 hooks pass
+- CI on develop will validate after push (new job brings total to 9 jobs)
 
-**Issues found:**
+**Next:** The CI/CD spec lists the Go job description as stale ("cargo build --target wasm32-wasip1"
+in the spec table, but Go CI is pure Go now). This is a spec maintenance issue, not a code issue.
+Beyond that, check target.md for remaining partially-met sections — likely benchmark speedup
+documentation or publishing configuration.
 
-- (none)
-
-**Codex review:** One P3 finding: the Go snippet discards the error (`_, _`) which could nil-deref
-if someone modifies the arguments. Advisory only — all other language tabs on the landing page also
-omit error handling for brevity. The howto guide (`docs/howto/go.md`) shows proper `if err != nil`
-handling for production use.
-
-**Next:** The remaining filed issue is tab order inconsistency (low priority, needs human review for
-canonical order). Beyond doc polish, check target.md and state.md for next high-value work — likely
-benchmark speedup documentation or publishing configuration. The "partially met" sections in
-state.md are: Documentation (tab order), Benchmarks (speedup not published), CI/CD (Maven Central,
-npm, crates.io publishing).
-
-**Notes:** The "Landing page Go example uses stale WASM-bridge API" issue has been resolved and
-deleted from issues.md. One issue remains: tab order inconsistency (low priority,
-`HUMAN REVIEW REQUESTED` for canonical order decision). PR #10 (develop → main) is still open.
+**Notes:** Minimal change — 10 lines added to ci.yml, zero risk. The version-check job runs in
+parallel with all other jobs (no `needs:` dependency). Python 3.10 was chosen to match the existing
+Python job. The script uses only stdlib modules so `setup-python` is the only dependency.
