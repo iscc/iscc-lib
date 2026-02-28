@@ -1,110 +1,88 @@
 # Next Work Package
 
-## Step: Add C FFI API reference page
+## Step: Add Java API reference page
 
 ## Goal
 
-Create a C FFI API reference page documenting all 43 exported `extern "C"` functions. The
-documentation spec explicitly requires a "C FFI reference" under the Reference nav section, but it
-is missing — only Rust API and Python API reference pages exist. This gives C/C# integrators a
-standalone reference for the shared library interface.
+Create `docs/java-api.md` documenting the full Java API surface (`IsccLib` class, `IsccDecodeResult`
+class, constants, streaming hashers), and wire it into the site navigation and `llms.txt`. This is
+the last spec-required Reference page — the documentation spec lists "Java API" alongside Rust API,
+Python API, and C FFI in the Reference section.
 
 ## Scope
 
-- **Create**: `docs/c-ffi-api.md` — C FFI API reference page
-- **Modify**: `zensical.toml` — add `{ "C FFI" = "c-ffi-api.md" }` entry under the Reference nav
-    section (after Python API)
-- **Modify**: `docs/llms.txt` — add a line referencing the new page
+- **Create**: `docs/java-api.md`
+- **Modify**: `zensical.toml` (add `{ "Java API" = "java-api.md" }` to Reference nav section)
+- **Modify**: `docs/llms.txt` (add Java API reference line)
+- **Reference**:
+    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — authoritative source for
+        all 30 Tier 1 symbols (382 lines, 30 methods + 4 constants)
+    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java` — decode result type
+        (42 lines, 5 public final fields)
+    - `docs/c-ffi-api.md` — pattern to follow for structure and depth (694 lines)
+    - `docs/rust-api.md` — pattern to follow for function documentation style
+    - `.claude/context/specs/documentation.md` — spec requiring "Java API" in Reference
 
 ## Not In Scope
 
-- Java API reference page (separate future step — also missing per spec)
-- Rewriting or expanding the existing C test program
-- Generating or committing C header files (cbindgen generates them at build time)
-- Adding a C FFI howto guide (spec only requires a Reference page for C FFI)
-- Tab order changes (needs human decision)
+- Javadoc generation or mkdocstrings integration for Java (the page is hand-written markdown like
+    the Rust API and C FFI pages)
+- Maven Central publishing configuration or setup documentation
+- `NativeLoader.java` internals — not part of the public API surface
+- Updating the Java how-to guide (`docs/howto/java.md`) — already complete
+- Updating other Reference pages (Rust API, Python API, C FFI) — they are already final
 
 ## Implementation Notes
 
-### Content structure
+**Page structure** — follow the C FFI reference page pattern, adapted for Java:
 
-Model the page after `docs/rust-api.md` — same YAML front matter pattern (icon, description), same
-section organization (intro → install/build → functions → types → memory management → error
-handling).
+1. **Front matter**: `icon: lucide/book-open`, description for Java API
+2. **Intro paragraph**: Java library for ISCC via JNI, all 30 Tier 1 symbols as static methods on
+    `IsccLib`
+3. **Installation**: Maven and Gradle dependency snippets (use `io.iscc:iscc-lib:0.0.2`)
+4. **Quick example**: `IsccLib.genMetaCodeV0("title", null, null, 64)` → ISCC string
+5. **Constants section**: 4 `public static final int` fields (`META_TRIM_NAME`,
+    `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) in a table
+6. **Classes section**: `IsccDecodeResult` with its 5 public final fields in a table
+7. **Functions sections** (organized by category, matching IsccLib.java order):
+    - Conformance: `conformanceSelftest()`
+    - Code generation: all 9 `gen*V0` methods with signature, parameter table, return type, and
+        throws clause
+    - Text utilities: `textClean`, `textRemoveNewlines`, `textTrim`, `textCollapse`
+    - Encoding: `encodeBase64`, `jsonToDataUrl`
+    - Codec: `encodeComponent`, `isccDecode`, `isccDecompose`
+    - Sliding window: `slidingWindow`
+    - Algorithm primitives: `algSimhash`, `algMinhash256`, `algCdcChunks`, `softHashVideoV0`
+    - Streaming hashers: `DataHasher` lifecycle (`dataHasherNew` → `dataHasherUpdate` →
+        `dataHasherFinalize` → `dataHasherFree`) and same for `InstanceHasher`
+8. **Error handling**: all methods throw `IllegalArgumentException` on invalid input; streaming
+    hashers throw after finalize
+9. **Memory management note**: streaming hashers use opaque `long` handles — callers MUST call
+    `*Free` to release native memory
 
-### Source material
+**Content source**: transcribe directly from the Javadoc in `IsccLib.java` and
+`IsccDecodeResult.java`. Do NOT invent undocumented behavior.
 
-Read `crates/iscc-ffi/src/lib.rs` for all 43 exported functions. The file has doc comments for each
-function that provide parameter descriptions, return types, and safety notes. Group the functions
-into these sections:
+**Nav entry**: insert `{ "Java API" = "java-api.md" }` after `{ "C FFI" = "c-ffi-api.md" }` in the
+Reference section of `zensical.toml`.
 
-1. **Overview** — brief intro explaining the C FFI shared library, memory model
-    (`iscc_free_string`, NULL-on-error + `iscc_last_error`), and build instructions
-    (`cargo build -p iscc-ffi --release`, `cbindgen`)
-2. **Constants** — 4 getter functions (`iscc_meta_trim_name`, `iscc_meta_trim_description`,
-    `iscc_io_read_size`, `iscc_text_ngram_size`)
-3. **Code Generation** — 9 `iscc_gen_*_v0` functions with C signatures, parameter tables, and brief
-    descriptions
-4. **Text Utilities** — 4 functions (`iscc_text_clean`, `iscc_text_remove_newlines`,
-    `iscc_text_trim`, `iscc_text_collapse`)
-5. **Algorithm Primitives** — `iscc_sliding_window`, `iscc_alg_simhash`, `iscc_alg_minhash_256`,
-    `iscc_alg_cdc_chunks`, `iscc_soft_hash_video_v0`
-6. **Codec Operations** — `iscc_encode_base64`, `iscc_json_to_data_url`, `iscc_encode_component`,
-    `iscc_decode`, `iscc_decompose`
-7. **Streaming** — `DataHasher` and `InstanceHasher` lifecycle functions (`_new`, `_update`,
-    `_finalize`, `_free`)
-8. **Diagnostics** — `iscc_conformance_selftest`
-9. **Memory Management** — `iscc_free_string`, `iscc_free_string_array`, `iscc_free_byte_buffer`,
-    `iscc_free_byte_buffer_array`, `iscc_free_decode_result`, `iscc_alloc`, `iscc_dealloc`
-10. **Error Handling** — `iscc_last_error` and the NULL-return convention
-
-### Function signature format
-
-Use C function signatures (not Rust), e.g.:
-
-```c
-const char* iscc_gen_meta_code_v0(
-    const char* name,
-    const char* description,
-    const char* meta,
-    uint32_t bits
-);
-```
-
-Derive C types from the Rust FFI code: `*const c_char` → `const char*`, `*const u8` + `usize` →
-`const uint8_t*` + `size_t`, `u32` → `uint32_t`, etc.
-
-### Struct types
-
-Document `IsccByteBuffer`, `IsccByteBufferArray`, `IsccDecodeResult` — their C struct layouts and
-which functions return/consume them.
-
-### Navigation
-
-Add entry in `zensical.toml` under the existing Reference section, after Python API:
-
-```toml
-{ "C FFI" = "c-ffi-api.md" },
-```
-
-### llms.txt
-
-Add one line in `docs/llms.txt` under the Reference section:
-
-```
-- [C FFI](https://lib.iscc.codes/c-ffi-api.md): C FFI API reference
-```
+**llms.txt entry**: add `- [Java API](https://lib.iscc.codes/java-api.md): Java API reference` after
+the C FFI line, following the existing pattern.
 
 ## Verification
 
-- `uv run zensical build` succeeds
-- `grep -q 'c-ffi-api.md' zensical.toml` exits 0
-- `grep -q 'c-ffi' docs/llms.txt` exits 0
-- `grep -c 'iscc_gen_' docs/c-ffi-api.md` returns 9 (all gen functions documented)
-- `grep -c 'iscc_free_' docs/c-ffi-api.md` returns at least 4 (memory management functions)
-- `grep -q 'iscc_last_error' docs/c-ffi-api.md` exits 0
+- `uv run zensical build` succeeds (site builds with new page)
+- `grep -q 'java-api.md' zensical.toml` exits 0 (nav entry present)
+- `grep -q 'java-api' docs/llms.txt` exits 0 (llms.txt reference added)
+- `grep -c 'genMetaCodeV0\|genTextCodeV0\|genImageCodeV0\|genAudioCodeV0\|genVideoCodeV0\|genMixedCodeV0\|genDataCodeV0\|genInstanceCodeV0\|genIsccCodeV0' docs/java-api.md`
+    returns ≥ 9 (all gen functions documented)
+- `grep -c 'dataHasherNew\|dataHasherUpdate\|dataHasherFinalize\|dataHasherFree' docs/java-api.md`
+    returns ≥ 4 (DataHasher lifecycle documented)
+- `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 (decode result type documented)
+- `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 (constants documented)
+- `mise run check` passes (all hooks clean)
 
 ## Done When
 
-All verification criteria pass — the C FFI reference page is accessible in the doc site navigation,
-documents all 43 exported functions with C-style signatures, and the site builds cleanly.
+All 8 verification commands pass — the Java API reference page is complete, wired into navigation
+and llms.txt, and the site builds cleanly.

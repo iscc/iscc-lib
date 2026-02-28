@@ -34,25 +34,24 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## Documentation Reference Pages Status (Iteration 18)
+## Documentation Reference Pages Status (Iteration 19)
 
 Documentation spec requires 4 Reference pages:
 
 1. Rust API (`rust-api.md`) — ✓ exists
 2. Python API (`api.md`) — ✓ exists
-3. Java API — ✗ missing (future step)
-4. C FFI reference — ✗ missing (scoped for iteration 18)
+3. C FFI reference (`c-ffi-api.md`) — ✓ exists (added iteration 18, 694 lines)
+4. Java API — ✗ missing (scoped for iteration 19)
 
-The state.md previously said "all navigation sections complete" but this was inaccurate — 2 of 4
-spec-required Reference pages were missing. Always cross-check spec requirements vs actual file
-existence.
+## Java API Reference Page Facts
 
-## C FFI Reference Page Facts
-
-- 43 exported `extern "C"` functions in `crates/iscc-ffi/src/lib.rs`
-- Struct types: `IsccByteBuffer`, `IsccByteBufferArray`, `IsccDecodeResult`
-- Memory model: caller frees with `iscc_free_string()`, NULL on error + `iscc_last_error()`
-- Also exports `iscc_alloc`/`iscc_dealloc` for WASM-side memory allocation
+- `IsccLib.java`: 382 lines, 30 `public static native` methods + 4 `public static final int`
+    constants + private constructor + static NativeLoader block
+- `IsccDecodeResult.java`: 42 lines, 5 `public final` fields (maintype, subtype, version, length,
+    digest)
+- Streaming hashers use opaque `long` handles (JNI pointers) — must document free lifecycle
+- All methods throw `IllegalArgumentException` on invalid input
+- Package: `io.iscc.iscc_lib`, Maven coordinates: `io.iscc:iscc-lib:0.0.2`
 
 ## CI/Release Patterns
 
@@ -60,17 +59,22 @@ existence.
 - All publish jobs have idempotency checks (version-existence pre-check, `skip` output)
 - `scripts/version_sync.py` uses only stdlib — can run as `python scripts/version_sync.py --check`
 
-## Project Near-Completion State (Iteration 18)
+## Project Near-Completion State (Iteration 19)
 
 All 7 bindings at 30/30, CI green with 9 jobs. PR #10 exists from develop→main.
 
 **Remaining automated gaps:**
 
-1. C FFI reference page — SCOPED (iteration 18)
-2. Java API reference page — future step
-3. Tab order standardization — LOW priority, needs human review
-4. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
-5. PR #10 merge — human task
+1. Java API reference page — SCOPED (iteration 19, LAST automatable task)
+2. Tab order standardization — LOW priority, needs human review
+
+**Human-only tasks remaining after iteration 19:**
+
+- Merge PR #10 (develop → main)
+- Trigger releases for npm, PyPI
+- Maven Central publishing (GPG, Sonatype)
+- Tab order decision
+- OIDC for crates.io
 
 ## Gotchas
 
