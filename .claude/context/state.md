@@ -1,4 +1,4 @@
-<!-- assessed-at: d689886 -->
+<!-- assessed-at: d39712a -->
 
 # Project State
 
@@ -7,10 +7,11 @@
 ## Phase: All Automatable CID Work Complete — Human Tasks Remain
 
 All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export 30/30 Tier 1
-symbols and pass conformance. CI is green on all 9 jobs. The last automatable CID task — removing
-stale wazero/WASM references from `docs/architecture.md` and `docs/development.md` — was completed
-this iteration. All functional requirements are met. Remaining gaps are human tasks: PR merge,
-publishing triggers, Maven Central setup, and tab order decision.
+symbols and pass conformance. CI is green on all 9 jobs. This iteration removed the 5 vestigial "do
+NOT require the WASM binary" comments from Go test files and fixed the architecture diagram to
+correctly depict Go as a standalone module (not a binding crate). All functional requirements are
+met. Remaining gaps are human tasks: PR merge, publishing triggers, Maven Central setup, and tab
+order decision.
 
 ## Rust Core Crate
 
@@ -112,8 +113,8 @@ publishing triggers, Maven Central setup, and tab order decision.
 - 147 pure Go test functions across 18+ test files; `go test ./...` and `go vet ./...` pass
     (CI-verified)
 - `go.mod` has minimal deps: `zeebo/blake3`, `golang.org/x/text`, `klauspost/cpuid` (indirect)
+- All 5 vestigial "do NOT require the WASM binary" comments removed from test files
 - **Nothing missing** in Go bindings
-- Minor: 5 test files retain vestigial "do NOT require the WASM binary" comments (cosmetic only)
 
 ## README
 
@@ -145,8 +146,9 @@ publishing triggers, Maven Central setup, and tab order decision.
 - All 6 binding howto guides have "Codec operations" and "Constants" sections
 - Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
-- `docs/architecture.md` and `docs/development.md` updated this iteration — all stale wazero/WASM
-    references removed; Go architecture correctly reflects pure Go implementation throughout
+- `docs/architecture.md`: Go correctly shown as standalone module (separate from Rust binding
+    crates) with green styling and accurate prose; all stale wazero references removed from all doc
+    pages
 - **Known issue (low priority, filed, needs human decision):**
     - Tab order inconsistency across pages: spec says "Python, Rust, Java, Node.js, WASM" (no Go),
         landing page uses "Rust, Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" —
@@ -178,7 +180,7 @@ publishing triggers, Maven Central setup, and tab order decision.
 - **version-check** job: runs `python scripts/version_sync.py --check` using only Python 3.10
 - Go CI job: `CGO_ENABLED=0 go test` + `go vet` (pure Go, no Rust toolchain)
 - **Latest CI run on develop: PASSING** —
-    [Run 22514805866](https://github.com/iscc/iscc-lib/actions/runs/22514805866) — all 9 jobs
+    [Run 22515294571](https://github.com/iscc/iscc-lib/actions/runs/22515294571) — all 9 jobs
     SUCCESS
 - **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
     ([#10](https://github.com/iscc/iscc-lib/pull/10))
