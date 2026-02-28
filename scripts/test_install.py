@@ -11,7 +11,7 @@ Usage:
     uv run scripts/test_install.py --crates     # Test crates.io only
     uv run scripts/test_install.py --go         # Test Go module only
     uv run scripts/test_install.py --maven      # Test Maven Central only
-    uv run scripts/test_install.py --version 0.0.2  # Test specific version
+    uv run scripts/test_install.py --version 0.0.3  # Test specific version
 """
 
 from __future__ import annotations
@@ -470,7 +470,7 @@ def main() -> int:
 
     # Check registry availability first
     if args.check_only or test_all:
-        v = version or "0.0.2"
+        v = version or "0.0.3"
         print("--- Registry availability ---")
         available = check_registry_availability(v)
         for reg, avail in available.items():

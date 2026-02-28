@@ -76,7 +76,7 @@ uv run pytest
 
 [tasks."test:install"]
 description = "Test published packages are installable from registries"
-run = "uv run scripts/test_install.py {{arg(name='flags', i=0, default='--version 0.0.2')}}"
+run = "uv run scripts/test_install.py {{arg(name='flags', i=0, default='--version 0.0.3')}}"
 
 # --- Version ---
 

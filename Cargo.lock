@@ -453,14 +453,14 @@ dependencies = [
 
 [[package]]
 name = "iscc-ffi"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "iscc-lib",
 ]
 
 [[package]]
 name = "iscc-jni"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "iscc-lib",
  "jni",
@@ -468,7 +468,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-lib"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "blake3",
  "criterion",
@@ -485,7 +485,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-napi"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "iscc-lib",
  "napi",
@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-py"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "iscc-lib",
  "pyo3",
@@ -503,7 +503,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-wasm"
-version = "0.0.2"
+version = "0.0.3"
 dependencies = [
  "hex",
  "iscc-lib",
