@@ -50,19 +50,6 @@ decentralized, content-based identification without a central registry.
 
 ## Quick Start
 
-=== "Rust"
-
-    ```bash
-    cargo add iscc-lib
-    ```
-
-    ```rust
-    use iscc_lib::gen_text_code_v0;
-
-    let result = gen_text_code_v0("Hello World", 64)?;
-    println!("{}", result.iscc);
-    ```
-
 === "Python"
 
     ```bash
@@ -74,6 +61,19 @@ decentralized, content-based identification without a central registry.
 
     result = gen_text_code_v0("Hello World")
     print(result["iscc"])
+    ```
+
+=== "Rust"
+
+    ```bash
+    cargo add iscc-lib
+    ```
+
+    ```rust
+    use iscc_lib::gen_text_code_v0;
+
+    let result = gen_text_code_v0("Hello World", 64)?;
+    println!("{}", result.iscc);
     ```
 
 === "Node.js"
