@@ -1,16 +1,15 @@
-<!-- assessed-at: 983e23a -->
+<!-- assessed-at: fe7e381 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go Bindings Rewrite — Step 5 In Progress (8/9 Gen Functions Done)
+## Phase: Go Bindings Rewrite — Step 5 Complete (9/9 Gen Functions), Cleanup Remaining
 
-All non-Go bindings are at 30/30 Tier 1 symbols. The Go pure rewrite is progressing through step 5
-(gen functions): `GenMetaCodeV0`, `GenTextCodeV0`, `GenDataCodeV0`, `GenInstanceCodeV0`,
-`GenImageCodeV0`, `GenAudioCodeV0`, `GenVideoCodeV0`, and `GenMixedCodeV0` are complete — all 8
-reviewed PASS. One gen function remains (`GenIsccCodeV0`) plus `conformance_selftest` and WASM
-bridge cleanup. CI is green across all 7 jobs.
+All non-Go bindings are at 30/30 Tier 1 symbols. The Go pure rewrite has completed all 9 gen
+functions — `GenIsccCodeV0` was implemented and reviewed PASS (all 5 vectors pass). Remaining work:
+implement `ConformanceSelftest` as pure Go, then remove the WASM bridge (`iscc.go`, `iscc_ffi.wasm`,
+wazero dependency) and restore the 256KB large-file threshold. CI is green across all 7 jobs.
 
 ## Rust Core Crate
 
@@ -101,38 +100,30 @@ bridge cleanup. CI is green across all 7 jobs.
 
 ## Go Bindings
 
-**Status**: not met — pure Go rewrite in progress (step 5 of ~5, 8/9 gen functions done)
+**Status**: not met — 9/9 gen functions done, `ConformanceSelftest` and WASM bridge cleanup remain
 
 - **Target requires**: pure Go, no WASM/wazero, no binary artifacts
 - **Steps 1–4 COMPLETE**: codec, text utils, 5 algorithm modules (CDC, MinHash, SimHash, DCT,
     WTA-Hash) — all reviewed PASS
-- **Step 5 in progress** — gen functions layer:
-    - **DONE** (review verdict PASS, 2026-02-27):
-        - `packages/go/code_meta.go`: `GenMetaCodeV0` — 16/16 conformance vectors pass
-        - `packages/go/code_content_text.go`: `GenTextCodeV0` — 5/5 conformance vectors pass
-        - `packages/go/code_data.go` (90 lines): `GenDataCodeV0` + `DataHasher` streaming struct — 4/4
-            vectors pass
-        - `packages/go/code_instance.go` (67 lines): `GenInstanceCodeV0` + `InstanceHasher` streaming
-            struct — 3/3 vectors pass
-        - `packages/go/code_content_image.go` (134 lines): `GenImageCodeV0` — 3/3 conformance vectors
-            pass; DCT-based perceptual hash; `ImageCodeResult` struct
-        - `packages/go/code_content_audio.go` (112 lines): `GenAudioCodeV0` — 5/5 conformance vectors
-            pass; multi-stage SimHash; `AudioCodeResult` struct; `arraySplit[T any]` generic helper
-        - `packages/go/code_content_video.go` (61 lines): `GenVideoCodeV0` + `SoftHashVideoV0` — 3/3
-            conformance vectors pass; WTA-Hash from deduplicated frame sigs; `VideoCodeResult` struct
-        - `packages/go/code_content_mixed.go` (92 lines): `GenMixedCodeV0` + `softHashCodesV0` — 2/2
-            conformance vectors pass; multi-code SimHash; `MixedCodeResult` struct
-    - **Remaining** (1 gen function + selftest + cleanup):
-        - `GenIsccCodeV0` — top-level ISCC code assembly combining Data-Code, Instance-Code, optional
-            Content-Code; `IsccCodeResult` struct; 5 conformance vectors in data.json
-        - `conformance_selftest` — validates all conformance vectors against `data.json`
-        - Cleanup: remove `iscc.go` (1,357 lines WASM bridge), `iscc_ffi.wasm` (683KB binary), wazero
-            dep from `go.mod`; restore `.pre-commit-config.yaml` large-file threshold to 256KB
-- 186 total test functions across Go files (47 codec + 21 utils + 15 CDC + 8 MinHash + 14 SimHash +
-    10 DCT + 9 WTA-Hash + 8 xxh32 + 1 meta + 1 text + 1 data + 1 instance + 1 image + 1 audio + 1
-    video + 1 mixed + 46 WASM bridge); `go test ./...` and `go vet ./...` passing (CI-verified)
-- `iscc_ffi.wasm` (683KB) still committed to git; `go.mod` still has `wazero` dependency
-- `.pre-commit-config.yaml` large-file threshold still raised to 1024KB (must restore after cleanup)
+- **Step 5 COMPLETE** — all 9 gen functions implemented and reviewed PASS:
+    - `code_meta.go`: `GenMetaCodeV0` — 16/16 conformance vectors pass
+    - `code_content_text.go`: `GenTextCodeV0` — 5/5 conformance vectors pass
+    - `code_data.go` (90 lines): `GenDataCodeV0` + `DataHasher` streaming struct — 4/4 vectors pass
+    - `code_instance.go` (67 lines): `GenInstanceCodeV0` + `InstanceHasher` streaming struct — 3/3
+        vectors pass
+    - `code_content_image.go` (134 lines): `GenImageCodeV0` — 3/3 vectors pass
+    - `code_content_audio.go` (112 lines): `GenAudioCodeV0` — 5/5 vectors pass
+    - `code_content_video.go` (61 lines): `GenVideoCodeV0` + `SoftHashVideoV0` — 3/3 vectors pass
+    - `code_content_mixed.go` (92 lines): `GenMixedCodeV0` — 2/2 vectors pass
+    - `code_iscc.go` (148 lines): `GenIsccCodeV0` + `IsccCodeResult` struct — 5/5 vectors pass
+        (reviewed PASS 2026-02-27)
+- 187 total test functions across Go files (CI-verified passing)
+- **Still remaining**:
+    - `ConformanceSelftest` — pure Go function validating all 46 vectors from `data.json`; only exists
+        as WASM bridge method in `iscc.go` (not as standalone pure Go)
+    - Cleanup: remove `iscc.go` (1,357 lines WASM bridge), `iscc_ffi.wasm` (667KB binary), wazero dep
+        from `go.mod` (`github.com/tetratelabs/wazero v1.11.0`), restore `.pre-commit-config.yaml`
+        large-file threshold to 256KB (currently 1024KB)
 
 ## README
 
@@ -174,7 +165,7 @@ bridge cleanup. CI is green across all 7 jobs.
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - **Latest CI run on develop: PASSING** —
-    [Run 22507263277](https://github.com/iscc/iscc-lib/actions/runs/22507263277) — all 7 jobs
+    [Run 22508122569](https://github.com/iscc/iscc-lib/actions/runs/22508122569) — all 7 jobs
     SUCCESS
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
@@ -182,18 +173,13 @@ bridge cleanup. CI is green across all 7 jobs.
 
 ## Next Milestone
 
-**Complete pure Go rewrite — implement `GenIsccCodeV0`, `conformance_selftest`, and WASM bridge
-cleanup (step 5, final sub-step):**
+**Complete pure Go rewrite — implement `ConformanceSelftest` and remove WASM bridge (final step):**
 
-8/9 gen functions are done and reviewed PASS. Implement:
+All 9 gen functions are done and reviewed PASS (46 conformance vectors total). Implement:
 
-1. **`GenIsccCodeV0`** — top-level ISCC code assembly that combines Data-Code, Instance-Code, and
-    optionally a Content-Code into a single ISCC-CODE. Reference: `crates/iscc-lib/src/lib.rs`
-    lines ~758-850 for `gen_iscc_code_v0` + `encode_units`. 5 conformance vectors in data.json. Key
-    details: `wide` parameter (always false in test vectors), SubType determined by content code's
-    SubType (or NONE if no content code), `encode_units` produces a bitfield encoding the list of
-    content components.
-2. **`conformance_selftest`** — validates all 46 conformance vectors from `data.json` against all 9
-    gen functions.
-3. **Cleanup**: remove `iscc.go` (1,357 lines), `iscc_ffi.wasm` (683KB), wazero from `go.mod`;
-    restore `.pre-commit-config.yaml` large-file threshold to 256KB.
+1. **`ConformanceSelftest`** in `packages/go/conformance.go` — pure Go function that reads
+    `data.json`, runs all 9 gen functions against all 46 vectors, and returns `(bool, error)`.
+    Reference: `crates/iscc-lib/src/lib.rs` for the Rust implementation logic.
+2. **Cleanup**: remove `iscc.go` (1,357 lines), `iscc_ffi.wasm` (667KB), wazero from `go.mod`;
+    restore `.pre-commit-config.yaml` large-file threshold from 1024KB back to 256KB.
+3. Verify `go test ./...` and `go vet ./...` still pass after cleanup; ensure CI stays green.
