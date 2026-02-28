@@ -105,18 +105,18 @@ fully-met target sections to `learnings-archive.md`.
 - DCT beta computation: Rust `/ cos / 2.0` vs Go `/ (cos * 2.0)` are numerically identical
     (verified) — multiplying cos ∈ [-1,1] by 2.0 is exact in IEEE 754
 - Dependency order: codec → utils → algorithms → gen functions → streaming → conformance → cleanup
-- Gen function test naming: `TestPureGo*` prefix avoids conflicts with existing WASM bridge tests in
-    `iscc_test.go` (which already defines `TestGenMetaCodeV0`, `TestGenTextCodeV0`, etc.)
+- Gen function test naming: `TestPureGo*` prefix is historical (from WASM coexistence phase). Could
+    be renamed to `Test*` now that the WASM bridge is removed — cosmetic cleanup only
 - JCS canonicalization: Go's `json.Marshal` suffices for string-only JSON values (sorted keys,
     compact format). A dedicated JCS library is needed only if float number formatting matters
 - `SlidingWindow`/`AlgSimhash` error suppression (`_, _`) is safe in gen functions: width params are
     hardcoded valid constants (3 or 13), and AlgSimhash returns 32 zero bytes for empty input
-- WASM bridge type collision: pure Go structs (`DataHasher`, `InstanceHasher`) collide with WASM
-    bridge types in the same `iscc` package. Solution: prefix WASM bridge types with `Wasm`. Method
-    receivers on `Runtime` struct (e.g., `rt.GenImageCodeV0()`) do NOT collide with package-level
-    functions — only struct types need renaming
 - Go `DataHasher`/`InstanceHasher` Finalize is single-use (mutates internal state). Mirrors Python
     reference `_finalize()` which sets `self.tail = None`. Do not call Finalize twice
+- Go pure rewrite is COMPLETE: 30/30 Tier 1 symbols, all 46 conformance vectors pass, zero WASM
+    dependencies. Module deps: `github.com/zeebo/blake3`, `golang.org/x/text` (+ cpuid indirect)
+- `DecodeResult` struct and algorithm constants (`MetaTrimName`, etc.) live in `codec.go` — the
+    canonical location after WASM bridge removal
 
 ## CID Process
 

@@ -10,8 +10,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java tests are NOT part of `mise run check` or pre-push hooks — must run `mvn test` explicitly
 - Go tests are NOT part of `mise run check` or pre-push hooks — must run
     `cd packages/go && mise exec -- go test ./...` explicitly
-- `check-added-large-files` threshold is `--maxkb=1024` (temporarily raised for Go WASM binary).
-    Must be restored to `--maxkb=256` after Go pure rewrite removes the WASM binary from git
+- `check-added-large-files` threshold is `--maxkb=256` (restored after WASM binary removal)
 
 ## Common Issues
 
@@ -92,16 +91,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java JNI has 30/30 Tier 1 symbols as of iteration 11 (58 Maven tests: 51 existing + 7 new)
 - Go/wazero has 30/30 Tier 1 symbols as of iteration 12 (48 total Runtime methods: 27 public + 21
     private helpers, 7 new tests)
-- Go pure rewrite progress: codec complete (570 lines, 48 tests), text utils complete (130 lines, 21
-    tests), algorithms complete — CDC (129 lines, 15 tests), MinHash (205 lines, 8 tests),
-    SimHash+SlidingWindow (86 lines, 14 tests), DCT (52 lines, 10 tests), WTA-Hash (92 lines, 9
-    tests). All 9 gen functions DONE: GenMetaCodeV0 (281 lines) + GenTextCodeV0 (41 lines) + xxh32
-    (81 lines) + GenDataCodeV0 (90 lines) + GenInstanceCodeV0 (67 lines) + GenImageCodeV0 (134
-    lines) + GenAudioCodeV0 (112 lines) + GenVideoCodeV0 (61 lines) + GenMixedCodeV0 (92 lines) +
-    GenIsccCodeV0 (148 lines) + ConformanceSelftest (471 lines, all 46 vectors embedded via
-    `//go:embed`). WASM bridge types renamed: `WasmDataHasher`, `WasmInstanceHasher`. 30/30 Tier 1
-    symbols in pure Go. Next: WASM bridge cleanup (remove iscc.go, iscc_ffi.wasm, wazero dep,
-    restore 256KB threshold)
+- Go pure rewrite COMPLETE: 30/30 Tier 1 symbols, all 46 conformance vectors, zero WASM deps. WASM
+    bridge removed (iscc.go, iscc_ffi.wasm, iscc_test.go deleted). DecodeResult and algorithm
+    constants relocated to codec.go. Module deps: blake3 + golang.org/x/text only
 
 ## Binding Propagation Review Shortcuts
 

@@ -1,39 +1,44 @@
-## 2026-02-28 — Remove WASM bridge from Go bindings
+## 2026-02-28 — Review of: Remove WASM bridge from Go bindings
 
-**Done:** Removed the WASM/wazero bridge (`iscc.go`, `iscc_test.go`, `iscc_ffi.wasm`) from the Go
-package. Relocated `DecodeResult` struct and 4 algorithm constants (`MetaTrimName`,
-`MetaTrimDescription`, `IoReadSize`, `TextNgramSize`) to `codec.go`. Removed wazero dependency from
-`go.mod` and ran `go mod tidy`. Restored large-file threshold from 1024KB to 256KB in
-`.pre-commit-config.yaml`.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean removal of the WASM/wazero bridge from Go bindings. All 3 WASM-related files
+deleted (iscc.go, iscc_test.go, iscc_ffi.wasm), shared types correctly relocated to codec.go, wazero
+dependency removed, and large-file threshold restored to 256KB. All verification criteria pass. The
+critical issue "Rewrite Go bindings as pure Go" is now fully resolved and deleted from issues.md.
 
-- `packages/go/codec.go`: Added algorithm constants block and `DecodeResult` struct (relocated from
-    `iscc.go`); updated `IsccDecode` comment to remove "defined in iscc.go" reference
-- `packages/go/go.mod`: Removed `github.com/tetratelabs/wazero v1.11.0` from requires
-- `packages/go/go.sum`: Cleaned by `go mod tidy` (removed wazero + golang.org/x/sys entries)
-- `.pre-commit-config.yaml`: Changed `--maxkb=1024` to `--maxkb=256`
-- `packages/go/iscc.go`: Deleted (1,357-line WASM bridge)
-- `packages/go/iscc_test.go`: Deleted (46 WASM bridge tests)
-- `packages/go/iscc_ffi.wasm`: Deleted (667KB binary)
+**Verification:**
 
-**Verification:** All verification criteria pass:
+- [x] `cd packages/go && go build ./...` exits 0 — clean compilation
+- [x] `cd packages/go && go test ./... -count=1` passes — all pure Go tests (0.055s)
+- [x] `cd packages/go && go vet ./...` exits 0
+- [x] `test ! -f packages/go/iscc.go` — WASM bridge file deleted
+- [x] `test ! -f packages/go/iscc_ffi.wasm` — WASM binary deleted
+- [x] `test ! -f packages/go/iscc_test.go` — WASM bridge tests deleted
+- [x] wazero absent from go.mod — dependency removed
+- [x] `grep 'maxkb=256' .pre-commit-config.yaml` — threshold restored
+- [x] `DecodeResult` struct in codec.go — relocated correctly
+- [x] `MetaTrimName` constants in codec.go — relocated correctly
+- [x] `mise run check` — all 14 hooks pass
+- [x] Scope discipline — only files specified in next.md were touched (no out-of-scope changes)
+- [x] No quality gate circumvention — threshold was RESTORED (strengthened from 1024→256KB)
 
-- `go build ./...` exits 0
-- `go test ./... -count=1` passes (all pure Go tests including conformance, 0.059s)
-- `go vet ./...` exits 0
-- All 3 WASM files confirmed deleted
-- wazero confirmed absent from go.mod
-- `--maxkb=256` confirmed in `.pre-commit-config.yaml`
-- `DecodeResult` and constants confirmed in `codec.go`
-- `mise run check` passes all 14 hooks
+**Issues found:**
 
-**Next:** The Go pure rewrite is complete. All 30/30 Tier 1 symbols are implemented in pure Go with
-zero non-Go dependencies (only stdlib + `golang.org/x/text` + `github.com/zeebo/blake3`). Consider
-updating CI to remove WASM build steps if they exist, or focus on the next target milestone (Python
-bindings, additional platform support, or performance benchmarking).
+- (none)
 
-**Notes:** The `go mod tidy` also removed `golang.org/x/sys` as an indirect dependency — it was only
-needed transitively by wazero. The Go module now has a smaller dependency footprint. No surprises or
-blockers encountered. The pure Go test naming convention (`TestPureGo*` prefix) is no longer needed
-since the WASM bridge tests are gone, but renaming existing tests is out of scope for this step.
+**Codex review:** No actionable findings. Codex verified tests pass, constants are defined once in
+codec.go (no duplicates), and `golang.org/x/sys` is correctly no longer needed after wazero removal.
+
+**Next:** The Go pure rewrite is complete (30/30 Tier 1 symbols, zero WASM dependencies). The Go
+bindings section should now be "met" in state.md. Next priorities from target.md gaps:
+
+1. CI simplification — Go CI job may still have WASM build steps that can be removed
+2. PR from develop → main — the Go rewrite is a major milestone worth merging
+3. Remaining partially-met areas: benchmark CI integration, publishing (OIDC, npm, Maven Central)
+
+**Notes:** The `TestPureGo*` test naming prefix is vestigial now that the WASM bridge tests are gone
+— the tests could be renamed to `Test*` in a future cleanup iteration. The `golang.org/x/sys`
+indirect dependency was also removed by `go mod tidy` since it was only needed by wazero
+transitively. The Go module now has a minimal dependency footprint: blake3 + golang.org/x/text +
+cpuid (indirect).
