@@ -121,6 +121,15 @@ iterations.
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
     depends on `@context` key
 
+## Documentation
+
+- Tabbed syntax: `=== "Language"` with 4-space indent, blank line before code block
+- Tab order for tutorial: Python, Rust, Node.js, Java, Go, WASM (6 tabs)
+- Landing page (`docs/index.md`) tab order: Rust, Python, Node.js, Java, Go, WASM
+- mdformat reformats JS imports to multi-line `import { ... } from` style — run format before commit
+- Landing page Go example is stale (still shows WASM-bridge `NewRuntime`/`ctx` pattern)
+- Node.js/Java/WASM gen functions return plain strings; Python/Rust/Go return result objects
+
 ## Gotchas
 
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
