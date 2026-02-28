@@ -1,4 +1,4 @@
-<!-- assessed-at: d39712a -->
+<!-- assessed-at: f336294 -->
 
 # Project State
 
@@ -7,11 +7,11 @@
 ## Phase: All Automatable CID Work Complete — Human Tasks Remain
 
 All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export 30/30 Tier 1
-symbols and pass conformance. CI is green on all 9 jobs. This iteration removed the 5 vestigial "do
-NOT require the WASM binary" comments from Go test files and fixed the architecture diagram to
-correctly depict Go as a standalone module (not a binding crate). All functional requirements are
-met. Remaining gaps are human tasks: PR merge, publishing triggers, Maven Central setup, and tab
-order decision.
+symbols and pass conformance. CI is green on all 9 jobs. This iteration added a C FFI API reference
+page (`docs/c-ffi-api.md`, 694 lines) documenting all 44 exported `extern "C"` symbols with C type
+mappings, struct layouts, and memory management guidance. All functional requirements are met.
+Remaining gaps: Java API reference page (spec-required, not yet created), and human tasks: PR merge,
+publishing triggers, Maven Central setup, and tab order decision.
 
 ## Rust Core Crate
 
@@ -137,8 +137,8 @@ order decision.
 
 **Status**: partially met
 
-- **14 pages** deployed to lib.iscc.codes; all navigation sections complete
-- `docs/llms.txt` references all 14 doc pages; `scripts/gen_llms_full.py` generates
+- **15 pages** deployed to lib.iscc.codes; all navigation sections complete
+- `docs/llms.txt` references all 15 doc pages; `scripts/gen_llms_full.py` generates
     `site/llms-full.txt`
 - Getting-started tutorial in tabbed multi-language format: 7 sections × 6 languages (Python, Rust,
     Node.js, Java, Go, WASM)
@@ -147,8 +147,12 @@ order decision.
 - Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
 - `docs/architecture.md`: Go correctly shown as standalone module (separate from Rust binding
-    crates) with green styling and accurate prose; all stale wazero references removed from all doc
-    pages
+    crates) with green styling and accurate prose; all stale wazero references removed
+- **Reference section** (zensical.toml): Rust API, Python API, C FFI — present and complete
+- **C FFI API reference** (`docs/c-ffi-api.md`, 694 lines): all 44 exported `extern "C"` symbols
+    documented with C type mappings, struct layouts, memory management guidance, and error handling
+- **Missing**: Java API reference page (spec requires "Java API" in Reference section alongside Rust
+    API, Python API, and C FFI; not yet created)
 - **Known issue (low priority, filed, needs human decision):**
     - Tab order inconsistency across pages: spec says "Python, Rust, Java, Node.js, WASM" (no Go),
         landing page uses "Rust, Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" —
@@ -180,7 +184,7 @@ order decision.
 - **version-check** job: runs `python scripts/version_sync.py --check` using only Python 3.10
 - Go CI job: `CGO_ENABLED=0 go test` + `go vet` (pure Go, no Rust toolchain)
 - **Latest CI run on develop: PASSING** —
-    [Run 22515294571](https://github.com/iscc/iscc-lib/actions/runs/22515294571) — all 9 jobs
+    [Run 22515862498](https://github.com/iscc/iscc-lib/actions/runs/22515862498) — all 9 jobs
     SUCCESS
 - **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
     ([#10](https://github.com/iscc/iscc-lib/pull/10))
@@ -190,15 +194,19 @@ order decision.
 
 ## Next Milestone
 
-**All automatable CID work is complete. All remaining gaps require human action.**
+**One remaining automatable task: Java API reference page.**
 
-The project is in maintenance mode:
+The documentation spec (`specs/documentation.md`) explicitly lists "Java API" in the Reference
+section alongside Rust API, Python API, and C FFI. This is the only documentation gap that can be
+addressed without human involvement.
 
-1. **Merge PR #10** (develop → main) — needs human approval and merge
-2. **Publish 0.0.2** to PyPI, npm — needs release trigger (`workflow_dispatch` or tag push)
-3. **Maven Central** — needs GPG key setup and Sonatype OSSRH account (external configuration)
-4. **Tab order** — canonical language tab order needs human decision (Python-first vs Rust-first)
-5. **OIDC for crates.io** — needs registry-side trusted publisher configuration
+After that, all remaining work requires human action:
 
-No further automated CID iterations add value until at least one of the above is unblocked by the
-human.
+1. **Java API reference** — create `docs/java-api.md` documenting all 30 Tier 1 symbols via
+    `IsccLib.java` static methods, types, exceptions, streaming API, and add nav entry to
+    `zensical.toml`
+2. **Merge PR #10** (develop → main) — needs human approval and merge
+3. **Publish 0.0.2** to PyPI, npm — needs release trigger (`workflow_dispatch` or tag push)
+4. **Maven Central** — needs GPG key setup and Sonatype OSSRH account (external configuration)
+5. **Tab order** — canonical language tab order needs human decision (Python-first vs Rust-first)
+6. **OIDC for crates.io** — needs registry-side trusted publisher configuration

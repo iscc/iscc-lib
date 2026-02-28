@@ -19,6 +19,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Go test count**: `grep -r "^func Test" packages/go/ --include="*_test.go" | wc -l`
 - **Go gen functions**: `grep "^func Gen" packages/go/code_*.go`
 - **Go exported funcs**: `grep -h "^func " packages/go/*.go | grep -v "_test.go" | sort`
+- **Doc nav check**: `grep -A 15 "Reference" zensical.toml`
+- **llms.txt page count**: `grep -c "^\-" docs/llms.txt`
 
 ## Codebase Landmarks
 
@@ -31,6 +33,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode
 - `packages/go/code_meta.go` — `parseMetaJSON`, `jsonHasContext`, `buildMetaDataURL` helpers
+- `docs/c-ffi-api.md` — C FFI API reference (694 lines, all 44 extern "C" symbols documented)
+- `crates/iscc-jni/java/src/main/java/io/iscc/IsccLib.java` — 382-line Java class (30 Tier 1)
 
 ## Recurring Patterns
 
@@ -43,24 +47,23 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts
 
-## Current State (assessed-at: d39712a)
+## Current State (assessed-at: f336294)
 
 - **All 7 bindings**: 30/30 Tier 1 symbols complete (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - **Bench CI**: `cargo bench --no-run` job; 7 bench targets compile (CI-verified)
 - **Benchmarks docs**: `docs/benchmarks.md` COMPLETE with full speedup data (1.3×–158×)
 - **version-check CI job**: runs `python scripts/version_sync.py --check`
 - **PR #10**: develop → main OPEN ("Pure Go rewrite & polyglot bindings progress")
-- **CI latest**: Run 22515294571 — all 9 jobs SUCCESS (develop branch, 2026-02-28)
+- **CI latest**: Run 22515862498 — all 9 jobs SUCCESS (develop branch, 2026-02-28)
 - **Publishing**: 0.0.2 not published to PyPI, npm, or Maven Central
-- **LLM docs**: `docs/llms.txt` and `scripts/gen_llms_full.py` cover all 14 doc pages
+- **LLM docs**: `docs/llms.txt` and `scripts/gen_llms_full.py` cover all 15 doc pages
+- **C FFI API reference**: `docs/c-ffi-api.md` COMPLETE (694 lines, added iter 19)
+- **Reference nav** (zensical.toml): Rust API, Python API, C FFI — present; Java API MISSING
 - **Getting-started tutorial**: tabbed multi-language (7 sections × 6 languages)
 - **Known doc issue**: tab order inconsistency (human review requested for canonical order)
-- **specs/ci-cd.md**: CLEAN — Go row updated to pure Go, Version+Bench jobs added (iter 16)
-- **docs/architecture.md**: Go shown as standalone (not pointing to CORE), green styling, accurate
-    prose; all stale wazero/WASM refs removed from all doc pages (iter 17-18)
-- **All automatable CID work complete** — only human tasks remain: PR merge, PyPI/npm publish, Maven
-    Central setup, canonical tab order decision
-- **Go test files**: All 5 vestigial "do NOT require the WASM binary" comments removed (iter 18)
+- **docs/architecture.md**: Go shown as standalone, all stale wazero/WASM refs removed
+- **Go test files**: All 5 vestigial "do NOT require the WASM binary" comments removed
+- **One remaining automatable task**: Java API reference page (`docs/java-api.md`)
 
 ## Go Package Tier 1 Coverage (30/30 — COMPLETE)
 
@@ -84,3 +87,5 @@ MetaTrimDescription, IoReadSize, TextNgramSize).
     test vectors; SubType from content code's SubType (or NONE if absent); 5 conformance vectors
 - Java Maven Central: requires GPG key, Sonatype OSSRH account, pom.xml signing plugin — not yet
     configured; end-to-end release untested
+- **Doc spec**: `specs/documentation.md` Reference section lists "Java API" — this page is MISSING
+    and is the one remaining automatable doc task
