@@ -65,6 +65,69 @@ pub(crate) fn alg_cdc_params(avg_size: u32) -> (usize, usize, usize, u32, u32) {
     (min_size, max_size, center_size, mask_s, mask_l)
 }
 
+/// Scan buffer for a gear-hash cut point, returning the offset if found.
+///
+/// Uses unsafe unchecked indexing and 4x loop unrolling for performance.
+///
+/// # Safety
+/// Caller must ensure `i <= barrier <= buffer.len()`.
+#[inline(always)]
+fn gear_scan(
+    buffer: &[u8],
+    pattern: &mut u32,
+    mut i: usize,
+    barrier: usize,
+    mask: u32,
+) -> (usize, Option<usize>) {
+    // SAFETY: `i < barrier <= buffer.len()`, so `buffer[i]` is in bounds.
+    // `buffer[i]` is u8 (0..=255) and CDC_GEAR has 256 entries, always in bounds.
+
+    // Unrolled 4x to reduce loop overhead and branch frequency
+    while i + 3 < barrier {
+        unsafe {
+            *pattern = (*pattern >> 1)
+                .wrapping_add(*CDC_GEAR.get_unchecked(*buffer.get_unchecked(i) as usize));
+        }
+        if *pattern & mask == 0 {
+            return (i + 1, Some(i + 1));
+        }
+        unsafe {
+            *pattern = (*pattern >> 1)
+                .wrapping_add(*CDC_GEAR.get_unchecked(*buffer.get_unchecked(i + 1) as usize));
+        }
+        if *pattern & mask == 0 {
+            return (i + 2, Some(i + 2));
+        }
+        unsafe {
+            *pattern = (*pattern >> 1)
+                .wrapping_add(*CDC_GEAR.get_unchecked(*buffer.get_unchecked(i + 2) as usize));
+        }
+        if *pattern & mask == 0 {
+            return (i + 3, Some(i + 3));
+        }
+        unsafe {
+            *pattern = (*pattern >> 1)
+                .wrapping_add(*CDC_GEAR.get_unchecked(*buffer.get_unchecked(i + 3) as usize));
+        }
+        if *pattern & mask == 0 {
+            return (i + 4, Some(i + 4));
+        }
+        i += 4;
+    }
+    // Handle remaining bytes
+    while i < barrier {
+        unsafe {
+            *pattern = (*pattern >> 1)
+                .wrapping_add(*CDC_GEAR.get_unchecked(*buffer.get_unchecked(i) as usize));
+        }
+        if *pattern & mask == 0 {
+            return (i + 1, Some(i + 1));
+        }
+        i += 1;
+    }
+    (i, None)
+}
+
 /// Find the CDC cut point offset within a buffer.
 ///
 /// Uses a gear rolling hash to scan the buffer in two phases:
@@ -83,26 +146,18 @@ pub(crate) fn alg_cdc_offset(
 ) -> usize {
     let mut pattern: u32 = 0;
     let size = buffer.len();
-    let mut i = mi.min(size);
-    let mut barrier = cs.min(size);
+    let i = mi.min(size);
 
     // Phase 1: strict mask (harder to match, produces larger chunks)
-    while i < barrier {
-        pattern = (pattern >> 1).wrapping_add(CDC_GEAR[buffer[i] as usize]);
-        if pattern & mask_s == 0 {
-            return i + 1;
-        }
-        i += 1;
+    let (i, found) = gear_scan(buffer, &mut pattern, i, cs.min(size), mask_s);
+    if let Some(offset) = found {
+        return offset;
     }
 
     // Phase 2: relaxed mask (easier to match, prevents overly large chunks)
-    barrier = ma.min(size);
-    while i < barrier {
-        pattern = (pattern >> 1).wrapping_add(CDC_GEAR[buffer[i] as usize]);
-        if pattern & mask_l == 0 {
-            return i + 1;
-        }
-        i += 1;
+    let (i, found) = gear_scan(buffer, &mut pattern, i, ma.min(size), mask_l);
+    if let Some(offset) = found {
+        return offset;
     }
 
     i

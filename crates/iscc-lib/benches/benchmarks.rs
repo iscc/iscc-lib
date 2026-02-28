@@ -5,8 +5,9 @@
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use iscc_lib::{
-    DataHasher, gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0, gen_instance_code_v0,
-    gen_iscc_code_v0, gen_meta_code_v0, gen_mixed_code_v0, gen_text_code_v0, gen_video_code_v0,
+    DataHasher, alg_cdc_chunks, gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0,
+    gen_instance_code_v0, gen_iscc_code_v0, gen_meta_code_v0, gen_mixed_code_v0, gen_text_code_v0,
+    gen_video_code_v0,
 };
 
 /// Generate a deterministic byte buffer of the given size.
@@ -198,6 +199,27 @@ fn bench_data_hasher_streaming(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark `alg_cdc_chunks` directly at various data sizes.
+fn bench_cdc_chunks(c: &mut Criterion) {
+    let mut group = c.benchmark_group("alg_cdc_chunks");
+
+    for &size in &[4 * 1024, 64 * 1024, 1024 * 1024] {
+        let data = deterministic_bytes(size);
+        let label = match size {
+            4096 => "4KB",
+            65536 => "64KB",
+            1048576 => "1MB",
+            _ => unreachable!(),
+        };
+        group.throughput(Throughput::Bytes(size as u64));
+        group.bench_with_input(BenchmarkId::new("throughput", label), &data, |b, data| {
+            b.iter(|| alg_cdc_chunks(black_box(data), black_box(false), black_box(1024)))
+        });
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_meta_code,
@@ -210,5 +232,6 @@ criterion_group!(
     bench_instance_code,
     bench_iscc_code,
     bench_data_hasher_streaming,
+    bench_cdc_chunks,
 );
 criterion_main!(benches);
