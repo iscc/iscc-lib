@@ -1,4 +1,4 @@
-<!-- assessed-at: e16823ecba5b929f65e48a66e8c5ce31bcc8edd2 -->
+<!-- assessed-at: d689886 -->
 
 # Project State
 
@@ -7,11 +7,10 @@
 ## Phase: All Automatable CID Work Complete — Human Tasks Remain
 
 All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export 30/30 Tier 1
-symbols and pass conformance. CI is green on all 9 jobs. The last automatable CID task —
-`specs/ci-cd.md` stale spec cleanup — was completed this iteration: Go row updated to pure Go
-(`CGO_ENABLED=0`), Version and Bench job rows added to table and checklist. All functional
-requirements are met. Remaining gaps are human tasks: PR merge, publishing triggers, Maven Central
-setup, and tab order decision.
+symbols and pass conformance. CI is green on all 9 jobs. The last automatable CID task — removing
+stale wazero/WASM references from `docs/architecture.md` and `docs/development.md` — was completed
+this iteration. All functional requirements are met. Remaining gaps are human tasks: PR merge,
+publishing triggers, Maven Central setup, and tab order decision.
 
 ## Rust Core Crate
 
@@ -146,12 +145,12 @@ setup, and tab order decision.
 - All 6 binding howto guides have "Codec operations" and "Constants" sections
 - Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
+- `docs/architecture.md` and `docs/development.md` updated this iteration — all stale wazero/WASM
+    references removed; Go architecture correctly reflects pure Go implementation throughout
 - **Known issue (low priority, filed, needs human decision):**
     - Tab order inconsistency across pages: spec says "Python, Rust, Java, Node.js, WASM" (no Go),
         landing page uses "Rust, Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" —
         spec update needed to add Go; `HUMAN REVIEW REQUESTED` for canonical tab order
-- **Minor cosmetic** (resolved this iteration): `specs/ci-cd.md` stale spec cleaned up — Go row
-    updated to pure Go, Version and Bench CI jobs added to table and checklist
 
 ## Benchmarks
 
@@ -173,13 +172,13 @@ setup, and tab order decision.
 **Status**: partially met
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
-- `ci.yml` covers **9 jobs**: version-check, Rust (fmt, clippy, test), Python (ruff, pytest),
+- `ci.yml` covers **9 jobs**: Version consistency, Rust (fmt, clippy, test), Python (ruff, pytest),
     Node.js (napi build, test), WASM (wasm-pack test), Java (JNI build, mvn test), Go (go test, go
     vet), C FFI (cbindgen, gcc, test), Bench (compile check) — all 9 SUCCESS
 - **version-check** job: runs `python scripts/version_sync.py --check` using only Python 3.10
 - Go CI job: `CGO_ENABLED=0 go test` + `go vet` (pure Go, no Rust toolchain)
 - **Latest CI run on develop: PASSING** —
-    [Run 22514270274](https://github.com/iscc/iscc-lib/actions/runs/22514270274) — all 9 jobs
+    [Run 22514805866](https://github.com/iscc/iscc-lib/actions/runs/22514805866) — all 9 jobs
     SUCCESS
 - **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
     ([#10](https://github.com/iscc/iscc-lib/pull/10))
