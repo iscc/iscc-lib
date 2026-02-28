@@ -24,7 +24,7 @@ merge.
 | **C FFI**   | cbindgen header generation, gcc compile, C test run                                   |
 | **Java**    | JNI `cargo build`, `mvn test` (49 tests including conformance vectors)                |
 | **Go**      | `CGO_ENABLED=0 go test`, `go vet` (pure Go, no Rust toolchain)                        |
-| **Version** | `python version_sync.py --check` for manifest version consistency                     |
+| **Version** | `python scripts/version_sync.py --check` for manifest version consistency             |
 | **Bench**   | `cargo bench --no-run` compile-only benchmark verification                            |
 
 CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
@@ -260,7 +260,7 @@ workflow triggers on push to `main`.
 - [x] C FFI job generates headers, compiles, and runs C test program
 - [x] Java job builds JNI crate and runs Maven tests
 - [x] Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain)
-- [x] Version job runs version_sync.py --check for manifest consistency
+- [x] Version job runs scripts/version_sync.py --check for manifest consistency
 - [x] Bench job runs cargo bench --no-run for compile-only benchmark verification
 - [x] CI does not use `mise` — calls tools directly
 
