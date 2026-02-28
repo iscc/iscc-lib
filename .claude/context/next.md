@@ -1,67 +1,53 @@
 # Next Work Package
 
-## Step: Fix stale Go example on landing page
+## Step: Add version consistency check to CI
 
 ## Goal
 
-Replace the WASM-bridge Go code snippet on the documentation landing page (`docs/index.md`) with the
-current pure Go API pattern. The existing snippet uses `NewRuntime`/`ctx` which no longer exists
-after the pure Go rewrite — it confuses developers and contradicts the Go howto guide.
+Add the `version:check` script to the CI workflow so manifest version drift (between Cargo.toml,
+package.json, and pom.xml) is caught automatically on every push. The ci-cd spec explicitly labels
+this task as "(run in CI)" but it's currently missing from `ci.yml`.
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `docs/index.md` (lines 114-122 — the Go tab code block)
-- **Reference**: `docs/howto/go.md` (lines 60-67 — the canonical `GenTextCodeV0` example)
+- **Create**: (none)
+- **Modify**: `.github/workflows/ci.yml` — add a version consistency check step
+- **Reference**: `scripts/version_sync.py` (stdlib-only Python script, no `uv` needed),
+    `.claude/context/specs/ci-cd.md` (version sync section)
 
 ## Not In Scope
 
-- Tab order standardization across pages (low priority issue, needs human review for canonical
-    order)
-- Updating any other doc pages — only the landing page Go tab is stale
-- Adding error handling to other language tabs for consistency (keep existing style)
+- Adding a dedicated `mise run bench` task or benchmark CI job improvements
+- Updating the stale Go job description in `specs/ci-cd.md` (spec maintenance is a separate concern)
+- Cosmetic Go test cleanup (vestigial WASM comments, `TestPureGo*` naming)
+- Tab order standardization (blocked on human decision)
+- Publishing infrastructure (registry-side configuration)
 
 ## Implementation Notes
 
-Replace the Go code block in the `=== "Go"` tab (lines 114-122) with the pure Go API pattern. The
-current stale code:
+The `scripts/version_sync.py --check` script reads the workspace version from root `Cargo.toml` and
+validates that `crates/iscc-napi/package.json` and `crates/iscc-jni/java/pom.xml` match. It uses
+only Python stdlib modules (json, re, sys, pathlib) — no `uv` or pip dependencies needed.
 
-```go
-import iscc "github.com/iscc/iscc-lib/packages/go"
+**Recommended approach:** Add a lightweight standalone CI job named `version-check` (or similar)
+that runs early and fast. It needs only `actions/checkout@v4` and `actions/setup-python@v5` — no
+Rust toolchain, no uv, no caching. A single step: `python scripts/version_sync.py --check`.
 
-ctx := context.Background()
-rt, _ := iscc.NewRuntime(ctx)
-defer rt.Close(ctx)
+Alternatively, it could be added as an early step in the existing Python job (which already has
+Python), but a standalone job is cleaner since version consistency is a cross-cutting concern, not
+Python-specific.
 
-code, _ := rt.GenTextCodeV0(ctx, "Hello World", 64)
-fmt.Println(code) // "ISCC:EAA..."
-```
-
-Replace with the pure Go API matching the howto guide:
-
-```go
-import iscc "github.com/iscc/iscc-lib/packages/go"
-
-result, _ := iscc.GenTextCodeV0("Hello World", 64)
-fmt.Println(result.Iscc) // "ISCC:EAA..."
-```
-
-Key differences: no `context.Background()`, no `NewRuntime`, no `defer rt.Close`, function is
-package-level not a method, returns a struct with `.Iscc` field (not a plain string).
-
-Keep the import line unchanged — it's correct. Keep the install command (`go get ...`) unchanged.
-Preserve the indentation style (4-space indent under the tab).
+The job should run on the same triggers as other CI jobs (push to main/develop, PR to main) and is
+expected to complete in under 10 seconds.
 
 ## Verification
 
-- `grep -c "NewRuntime" docs/index.md` returns 0
-- `grep -c "context.Background" docs/index.md` returns 0
-- `grep "GenTextCodeV0" docs/index.md` shows the pure Go API pattern (no `ctx` parameter)
-- `grep "result.Iscc" docs/index.md` returns a match
-- `uv run zensical build` exits 0
-- `mise run format` produces no changes (run format before committing)
+- `python scripts/version_sync.py --check` exits 0 locally (versions are currently in sync)
+- `grep -q 'version_sync' .github/workflows/ci.yml` exits 0 (script is referenced in CI)
+- `mise run check` passes (all pre-commit/pre-push hooks pass)
+- CI on develop passes after push (all 9 jobs green including the new version check)
 
 ## Done When
 
-All verification criteria pass — the landing page Go tab uses the pure Go API with no references to
-the stale WASM-bridge pattern.
+All verification criteria pass and the CI workflow includes a version consistency check job/step
+that runs `scripts/version_sync.py --check`.
