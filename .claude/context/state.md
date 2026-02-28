@@ -1,15 +1,15 @@
-<!-- assessed-at: fff2ed2 -->
+<!-- assessed-at: 0cbff37 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Go Bindings Rewrite — ConformanceSelftest Done, WASM Bridge Cleanup Remaining
+## Phase: Go Bindings — WASM Bridge Removed, JsonToDataUrl Missing (29/30)
 
-`ConformanceSelftest` is implemented as pure Go (conformance.go, 471 lines) and validated by CI (all
-7 jobs pass). However, the WASM bridge has NOT been removed: `iscc.go` (1,357 lines) and
-`iscc_ffi.wasm` (667KB) still exist, `wazero v1.11.0` is still in `go.mod`, and the large-file
-threshold in `.pre-commit-config.yaml` remains at 1024KB instead of 256KB.
+The WASM bridge has been fully cleaned up: `iscc.go`, `iscc_ffi.wasm`, and `wazero v1.11.0` are all
+gone; the `--maxkb=256` pre-commit threshold is restored. CI is green on all 7 jobs. However, the
+pure Go implementation is at 29/30 Tier 1 symbols — `JsonToDataUrl` was only in the deleted WASM
+bridge and was never ported to pure Go. The previous review agent incorrectly claimed 30/30.
 
 ## Rust Core Crate
 
@@ -100,21 +100,22 @@ threshold in `.pre-commit-config.yaml` remains at 1024KB instead of 256KB.
 
 ## Go Bindings
 
-**Status**: not met — `ConformanceSelftest` implemented, WASM bridge cleanup still pending
+**Status**: partially met — 29/30 Tier 1 symbols (missing `JsonToDataUrl`)
 
-- **Target requires**: pure Go, no WASM/wazero, no binary artifacts
-- **Steps 1–5 COMPLETE**: all 9 gen functions + `ConformanceSelftest` as pure Go — reviewed PASS
-- `packages/go/conformance.go` (471 lines): `ConformanceSelftest()` reads `testdata/data.json` and
-    runs all 9 gen functions against all 46 vectors; returns `(bool, error)`
-- `packages/go/conformance_test.go` (14 lines): `TestPureGoConformanceSelftest` validates all 46
-    vectors pass — CI-verified (Go job: SUCCESS)
-- `packages/go/testdata/data.json` (518 lines): vendored conformance vectors
-- **Still remaining (cleanup)**:
-    - Remove `packages/go/iscc.go` (1,357 lines WASM bridge)
-    - Remove `packages/go/iscc_ffi.wasm` (667KB binary artifact)
-    - Remove `github.com/tetratelabs/wazero v1.11.0` from `packages/go/go.mod` and `go.sum`
-    - Restore `.pre-commit-config.yaml` large-file threshold from 1024KB back to 256KB
-- 188 total test functions across Go test files (CI-verified passing)
+- **Architecture**: Pure Go, no CGO, no WASM, no binary artifacts — target fully met
+- **WASM bridge cleanup COMPLETE**: `iscc.go` (WASM bridge), `iscc_ffi.wasm` (667KB binary), and
+    `iscc_test.go` (WASM bridge tests) all removed; `wazero v1.11.0` removed from `go.mod`;
+    `--maxkb=256` restored in `.pre-commit-config.yaml`
+- **29/30 Tier 1 symbols**: All 9 `gen_*_v0` functions, `ConformanceSelftest`, `DataHasher`,
+    `InstanceHasher`, 4 text utilities, `SlidingWindow`, `AlgMinhash256`, `AlgCdcChunks`,
+    `AlgSimhash`, `SoftHashVideoV0`, `EncodeBase64`, `EncodeComponent`, `IsccDecode`,
+    `IsccDecompose`, 4 constants (`MetaTrimName`, `MetaTrimDescription`, `IoReadSize`,
+    `TextNgramSize`) — **but `JsonToDataUrl` is missing**
+- `JsonToDataUrl` was only implemented in the deleted WASM bridge (`iscc.go`); was never ported to
+    pure Go. README lists it but no implementation exists in any `.go` source file.
+- 142 pure Go test functions across 18 test files; `go test ./...` and `go vet ./...` pass
+    (CI-verified)
+- `go.mod` has minimal deps: `zeebo/blake3`, `golang.org/x/text`, `klauspost/cpuid` (indirect)
 
 ## README
 
@@ -156,7 +157,7 @@ threshold in `.pre-commit-config.yaml` remains at 1024KB instead of 256KB.
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
 - **Latest CI run on develop: PASSING** —
-    [Run 22508879495](https://github.com/iscc/iscc-lib/actions/runs/22508879495) — all 7 jobs
+    [Run 22509596765](https://github.com/iscc/iscc-lib/actions/runs/22509596765) — all 7 jobs
     SUCCESS
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
@@ -164,12 +165,15 @@ threshold in `.pre-commit-config.yaml` remains at 1024KB instead of 256KB.
 
 ## Next Milestone
 
-**Complete pure Go rewrite — remove WASM bridge (final cleanup step):**
+**Add `JsonToDataUrl` to pure Go package (complete 30/30 Tier 1 symbols):**
 
-`ConformanceSelftest` is implemented and passing. The only remaining work is cleanup:
+`JsonToDataUrl` is the only missing Tier 1 symbol in the Go package. The Rust implementation
+(`json_to_data_url` in `crates/iscc-lib/src/lib.rs`) converts a JSON string to a `data:` URL with
+base64 encoding (appending `application/ld+json` context when `@context` key is present, else
+`application/json`). Implementation is straightforward — ~10 lines of pure Go:
 
-1. **Remove** `packages/go/iscc.go` (1,357-line WASM bridge — all functions superseded by pure Go)
-2. **Remove** `packages/go/iscc_ffi.wasm` (667KB binary artifact)
-3. **Update** `packages/go/go.mod` and `go.sum`: remove `github.com/tetratelabs/wazero v1.11.0`
-4. **Fix** `.pre-commit-config.yaml`: restore `--maxkb=256` (currently 1024)
-5. Verify `go test ./...` and `go vet ./...` still pass after removal; confirm CI stays green
+1. **Add** `func JsonToDataUrl(jsonStr string) (string, error)` to `packages/go/utils.go` or a new
+    `packages/go/codec.go` section
+2. **Add** corresponding tests in the appropriate `_test.go` file
+3. Verify `go test ./...` and `go vet ./...` still pass; confirm CI stays green
+4. This completes 30/30 and allows the Go section to be marked "met"
