@@ -1,17 +1,17 @@
-<!-- assessed-at: 966a69f6bb89cb10b3280001a82ba153daf1c32c -->
+<!-- assessed-at: cc70146dc8af829f6b74c7288796b72acad3f809 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All 7 Bindings + Docs CI Complete — Doc Polish + Publishing Remain
+## Phase: All 7 Bindings + Docs Complete — Tab Order + Publishing Remain
 
 All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export the full 30/30
 Tier 1 symbols and pass conformance. CI is green on all 8 jobs. PR #10 (develop → main) is open. The
-getting-started tutorial was converted to tabbed multi-language format (7 sections × 6 languages) in
-this iteration. Two doc polish issues remain: stale Go example on the landing page and tab order
-inconsistency across pages. Non-doc gaps: benchmark speedup documentation, Maven Central publishing,
-and npm/crates.io release triggers.
+landing page Go example was fixed this iteration (stale WASM-bridge API → pure Go API). One
+low-priority doc issue remains: tab order inconsistency across pages (needs human decision on
+canonical order). Non-doc gaps: benchmark speedup documentation, Maven Central publishing, and
+npm/crates.io release triggers.
 
 ## Rust Core Crate
 
@@ -140,17 +140,17 @@ and npm/crates.io release triggers.
 - **14 pages** deployed to lib.iscc.codes; all navigation sections complete
 - `docs/llms.txt` references all 14 doc pages; `scripts/gen_llms_full.py` generates
     `site/llms-full.txt`
-- Getting-started tutorial converted to tabbed multi-language format in this iteration: 7 sections ×
-    6 languages (Python, Rust, Node.js, Java, Go, WASM); Java version corrected to 17+
+- Getting-started tutorial in tabbed multi-language format: 7 sections × 6 languages (Python, Rust,
+    Node.js, Java, Go, WASM)
+- Landing page Go tab fixed: stale WASM-bridge API (`NewRuntime`/`ctx`) replaced with pure Go API
+    (`result, _ := iscc.GenTextCodeV0(...)`) — verified this iteration
 - All 6 binding howto guides have "Codec operations" and "Constants" sections
 - Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
-- **Known issues (not blocking, filed):**
-    - `docs/index.md` landing page Go tab still uses stale WASM-bridge API (`NewRuntime`/`ctx`)
-        instead of pure Go API — needs fix
+- **Known issue (low priority, filed, needs human decision):**
     - Tab order inconsistency across pages: spec says "Python, Rust, Java, Node.js, WASM" (no Go),
         landing page uses "Rust, Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" —
-        spec update needed; HUMAN REVIEW REQUESTED for canonical order
+        spec update needed to add Go; `HUMAN REVIEW REQUESTED` for canonical tab order
 
 ## Benchmarks
 
@@ -159,7 +159,7 @@ and npm/crates.io release triggers.
 - Criterion benchmarks exist for all 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
 - pytest-benchmark comparison files present
 - `Bench (compile check)` job in CI (`cargo bench --no-run`) — all 7 benchmark targets compile
-    (CI-verified, run 22512739822)
+    (CI-verified, run 22513202460)
 - Missing: CI does not run benchmarks and collect results; speedup factors not published in
     documentation
 
@@ -173,7 +173,7 @@ and npm/crates.io release triggers.
     gcc, test), **Bench (compile check)** — all 8 SUCCESS
 - Go CI job is clean: checkout → setup-go → `CGO_ENABLED=0 go test` → `go vet` (no Rust toolchain)
 - **Latest CI run on develop: PASSING** —
-    [Run 22512739822](https://github.com/iscc/iscc-lib/actions/runs/22512739822) — all 8 jobs
+    [Run 22513202460](https://github.com/iscc/iscc-lib/actions/runs/22513202460) — all 8 jobs
     SUCCESS
 - **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
     ([#10](https://github.com/iscc/iscc-lib/pull/10))
@@ -183,17 +183,21 @@ and npm/crates.io release triggers.
 
 ## Next Milestone
 
-**Doc polish — fix stale Go example on landing page and standardize tab order:**
+**Tab order standardization requires human decision; next automatable step is benchmark speedup
+documentation.**
 
-Two small, well-scoped documentation fixes are the next automated CID step:
+The one remaining low-priority doc issue (tab order) is blocked on a human decision about the
+canonical order (whether Go is included and where). That's not an automated CID task without the
+decision.
 
-1. Fix `docs/index.md` landing page Go tab: replace stale WASM-bridge API (`NewRuntime`/`ctx`) with
-    pure Go API (`iscc.GenTextCodeV0("Hello World", 64)`) matching `docs/howto/go.md`
-2. Standardize tab order: update `specs/documentation.md` to add Go to canonical order and apply
-    consistently across landing page and tutorial (requires human decision on canonical order
-    first)
+The next high-value automated step is **benchmark speedup documentation**:
 
-After doc polish, the next remaining automated step is **benchmark speedup documentation**: run
-`cargo bench` to capture results and document speedup factors in the documentation site.
+1. Run `cargo bench` to capture Rust benchmark results
+2. Run `pytest --benchmark-only` to capture Python baseline
+3. Document speedup factors in the documentation site (e.g., a `docs/benchmarks.md` page or within
+    the existing `docs/howto/` pages)
+
+After benchmarks, the remaining non-automated gaps are publishing (PyPI 0.0.2, npm 0.0.2, Maven
+Central) — these require registry-side configuration or human-triggered releases.
 
 Merging PR #10 (develop → main) remains a human task requiring approval.
