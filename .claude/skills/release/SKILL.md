@@ -4,7 +4,7 @@ description: >-
   End-to-end release workflow for iscc-lib. Bumps version, syncs manifests,
   runs quality gates, commits, creates PR to main, and publishes to all
   registries. Self-healing: diagnoses and fixes failures before retrying.
-disable-model-invocation: true
+disable-model-invocation: false
 user-invocable: true
 argument-hint: <version> [--dry-run] [--skip-publish]
 ---
@@ -18,11 +18,14 @@ Execute a robust, self-healing release workflow. The version argument is require
 **Flags:**
 
 - `--dry-run` — run all checks and prepare the commit but do NOT push, create PR, tag, or publish
-- `--skip-publish` — do everything up to and including the tag push but skip registry publishing
+- `--skip-publish` — do everything through PR merge but do NOT push the tag (which triggers
+    publishing)
 
 ## Phase 1: Pre-flight Checks
 
 Before touching anything, validate the environment is ready.
+
+**Required tools:** `git`, `gh` (authenticated), `mise`, `cargo`, `uv`, `python`.
 
 ### Step 1.1 — Parse arguments
 
@@ -52,15 +55,16 @@ If this fails (diverged history), stop and explain the situation.
 
 ### Step 1.4 — Current version check
 
-Read the current version from root `Cargo.toml` line 13. Verify the requested version is strictly
-higher than the current version (compare major.minor.patch numerically). If not, stop and explain.
+Read the current version from the `version` field under `[workspace.package]` in root `Cargo.toml`.
+Verify the requested version is strictly higher than the current version (compare major.minor.patch
+numerically). If not, stop and explain.
 
 ### Step 1.5 — CI status
 
-Check that the latest commit on `develop` has passing CI:
+Check that the latest CI workflow run on `develop` is passing:
 
 ```
-gh run list --branch develop --limit 1 --json status,conclusion,headSha
+gh run list --workflow ci.yml --branch develop --limit 1 --json status,conclusion,headSha
 ```
 
 If CI is not green, warn the user and ask whether to proceed anyway.
@@ -69,7 +73,7 @@ If CI is not green, warn the user and ask whether to proceed anyway.
 
 ### Step 2.1 — Update canonical version
 
-Edit root `Cargo.toml` line 13 to set the new version.
+Edit the `version` field under `[workspace.package]` in root `Cargo.toml` to set the new version.
 
 ### Step 2.2 — Propagate to all manifests
 
@@ -83,8 +87,11 @@ diagnose the issue, fix it, and retry.
 ### Step 2.3 — Update Cargo.lock
 
 ```
-cargo update -w
+cargo check --workspace
 ```
+
+This regenerates the lockfile entries for workspace members with the new version. Do NOT use
+`cargo update -w` which can also upgrade external dependency versions.
 
 ### Step 2.4 — Validate consistency
 
@@ -134,15 +141,21 @@ If tests fail:
 
 ## Phase 4: Commit and Push
 
-### Step 4.1 — Stage all changes
+### Step 4.1 — Stage release changes
+
+Stage only the files modified by the version bump and sync. Expected files:
 
 ```
-git add -A
+git add Cargo.toml Cargo.lock pyproject.toml mise.toml \
+  crates/iscc-napi/package.json crates/iscc-jni/java/pom.xml \
+  scripts/test_install.py README.md crates/iscc-jni/README.md \
+  docs/howto/java.md docs/java-api.md
 git status
 ```
 
-Review the staged files. They should include Cargo.toml, Cargo.lock, and the sync targets. If
-unexpected files are staged (secrets, large binaries), warn the user.
+Only stage files that were actually modified (some doc files may not exist yet — that's OK,
+`git add` will skip them). Review staged files before committing. Do NOT use `git add -A` which can
+stage untracked files from `.claude/` and other directories.
 
 ### Step 4.2 — Commit
 
@@ -167,8 +180,10 @@ If push fails due to pre-push hooks:
 
 1. Read the hook output
 2. Fix the issue (likely a formatting or test failure)
-3. Amend the commit and retry push
-4. If it fails twice, stop and show the errors
+3. Stage the fix and create a new commit (do NOT amend — the failed push means the commit exists
+    locally)
+4. Retry push
+5. If it fails twice, stop and show the errors
 
 ## Phase 5: PR and Merge
 
@@ -197,13 +212,14 @@ EOF
 
 ### Step 5.2 — Wait for CI
 
-Poll PR CI status (max 10 minutes, check every 30 seconds):
+Watch PR checks until they complete:
 
 ```
-gh pr checks <pr-number> --json name,state,conclusion
+gh pr checks <pr-number> --watch --fail-fast
 ```
 
-Report progress to the user as checks complete. If CI fails, show which check failed and stop.
+This blocks until all checks finish (exit 0 = all passed, exit 1 = failure, exit 8 = pending
+timeout). If CI fails, show which check failed and stop.
 
 ### Step 5.3 — Ask to merge
 
@@ -236,7 +252,8 @@ git tag v<version>
 
 ### Step 6.3 — Push tag
 
-If `--skip-publish`, skip this step and report what would be pushed.
+If `--skip-publish`, skip this step and Step 6.4. Report that the tag `v<version>` was created
+locally and can be pushed later with `git push origin v<version>`. Then go directly to Step 6.5.
 
 ```
 git push origin v<version>
@@ -244,7 +261,24 @@ git push origin v<version>
 
 This triggers `.github/workflows/release.yml` which publishes to all registries.
 
-### Step 6.4 — Switch back to develop
+### Step 6.4 — Monitor release workflow
+
+Watch the release workflow triggered by the tag push:
+
+```
+gh run list --workflow release.yml --limit 1 --json status,conclusion,url,headBranch
+```
+
+Verify the latest run's `headBranch` matches `v<version>`. If the workflow hasn't appeared yet, wait
+a few seconds and retry (tags may take a moment to trigger). Once found, watch it:
+
+```
+gh run watch <run-id>
+```
+
+Report progress. If the workflow fails, show the URL and which job failed.
+
+### Step 6.5 — Switch back to develop
 
 ```
 git checkout develop
@@ -257,17 +291,7 @@ Ensure develop is up to date after the merge.
 
 If `--skip-publish`, skip this phase.
 
-### Step 7.1 — Monitor release workflow
-
-Poll the release workflow (max 15 minutes, check every 60 seconds):
-
-```
-gh run list --workflow release.yml --branch v<version> --limit 1 --json status,conclusion,url
-```
-
-Report progress. If the workflow fails, show the URL and which job failed.
-
-### Step 7.2 — Verify registries
+### Step 7.1 — Verify registries
 
 After the release workflow completes, verify each registry has the new version. For each registry,
 check availability and report pass/fail:
@@ -277,7 +301,7 @@ check availability and report pass/fail:
 curl -sf "https://pypi.org/pypi/iscc-lib/<version>/json" > /dev/null && echo "PyPI: OK"
 
 # crates.io
-cargo search iscc-lib | grep -q "<version>" && echo "crates.io: OK"
+cargo info iscc-lib 2>/dev/null | grep -q "<version>" && echo "crates.io: OK"
 
 # npm @iscc/lib
 npm view @iscc/lib@<version> version && echo "npm @iscc/lib: OK"
@@ -293,10 +317,10 @@ Maven Central indexing can lag. If Maven shows "NOT FOUND" but the release workf
 the user it may take up to 30 minutes to appear and suggest re-checking later with:
 
 ```
-mise run test:install --version <version>
+uv run scripts/test_install.py --version <version>
 ```
 
-### Step 7.3 — Summary
+### Step 7.2 — Summary
 
 Print a final summary:
 
@@ -315,7 +339,7 @@ Release <version> complete!
     Maven Central  <version>  OK / pending indexing
 
   Post-release:
-    mise run test:install --version <version>
+    uv run scripts/test_install.py --version <version>
 ```
 
 ## Self-Healing Rules
