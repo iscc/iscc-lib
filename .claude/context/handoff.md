@@ -1,33 +1,42 @@
-## 2026-02-28 — Convert getting-started tutorial to tabbed multi-language examples
+## 2026-02-28 — Review of: Convert getting-started tutorial to tabbed multi-language examples
 
-**Done:** Converted the getting-started tutorial from Python-only to tabbed multi-language format
-with 7 tabbed sections covering all 6 languages (Python, Rust, Node.js, Java, Go, WASM). Sections
-converted: install, conformance selftest, gen_meta_code_v0, iscc_decompose, gen_text_code_v0,
-gen_instance_code_v0, and InstanceHasher streaming.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `docs/tutorials/getting-started.md`: Replaced Python-only prerequisites with language-agnostic
-    statement. Converted all code examples to `=== "Language"` tabbed format (7 groups × 6 languages
-    = 42 tabs). Kept JSON serialization as Python-only admonition. Updated Next Steps to link all 6
-    language howto guides. Code snippets pulled from per-language howto guides with consistent
-    variable naming ("The Neverending Story" metadata example).
+**Summary:** Clean docs-only change that converts the getting-started tutorial from Python-only to
+tabbed multi-language format with 7 tabbed sections × 6 languages = 42 tabs. Code snippets are
+accurate (cross-checked against howto guides), the narrative structure is preserved, and the JSON
+serialization tip correctly remains Python-only. Minor fix applied: Java version corrected from 11+
+to 17+ (pom.xml requires 17).
 
 **Verification:**
 
-- `grep -c '=== "Python"'` → 7 (≥ 5 ✓)
-- `grep -c '=== "Rust"'` → 7 (≥ 5 ✓)
-- `grep -c '=== "Go"'` → 7 (≥ 5 ✓)
-- `uv run zensical build` → exits 0 ✓
-- `mise run format` → no changes ✓
-- `mise run check` → all 14 hooks pass ✓
+- [x] `grep -c '=== "Python"' docs/tutorials/getting-started.md` returns 7 (≥ 5)
+- [x] `grep -c '=== "Rust"' docs/tutorials/getting-started.md` returns 7 (≥ 5)
+- [x] `grep -c '=== "Go"' docs/tutorials/getting-started.md` returns 7 (≥ 5)
+- [x] `uv run zensical build` exits 0 — site builds cleanly
+- [x] `mise run format` produces no changes
+- [x] `mise run check` — all 14 hooks pass
 
-**Next:** The landing page `docs/index.md` has a stale Go example using the old WASM-bridge API
-(`NewRuntime`/`ctx` pattern) instead of the current pure Go API (`iscc.GenTextCodeV0` directly).
-This should be updated to match the howto guide. Also, the doc spec tab order says "Python, Rust,
-Java, Node.js, WASM" but the landing page uses "Rust, Python, Node.js, Java, Go, WASM" and the
-tutorial now uses "Python, Rust, Node.js, Java, Go, WASM" — these should be standardized.
+**Issues found:**
 
-**Notes:** The Go code in `docs/index.md` Quick Start section still shows the old WASM-bridge API
-(`iscc.NewRuntime(ctx)`, `rt.GenTextCodeV0(ctx, ...)`). This is out of scope for the current work
-package but should be fixed. Filed mentally — the review agent may want to create an issue.
+- Java prerequisite version said "11+" but pom.xml requires Java 17+ — fixed directly
+- Landing page Go code (`docs/index.md` lines 114-122) uses stale WASM-bridge API
+    (`NewRuntime`/`ctx`) instead of pure Go API — filed as issue
+- Tab order inconsistency: spec says "Python, Rust, Java, Node.js, WASM", landing page uses "Rust,
+    Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" — filed as issue
+- WASM examples after selftest omit `await init()` — minor inconsistency (selftest shows it, other 5
+    WASM tabs don't). Not blocking since snippets are illustrative, but could confuse readers
+
+**Codex review:** Two actionable findings: (1) Java version mismatch (11+ vs pom.xml 17+) — fixed.
+(2) WASM `init()` inconsistency across examples — noted but not blocking (see issues above). Codex
+also explored the full file structure and found no other issues.
+
+**Next:** Fix the stale Go example on the landing page (`docs/index.md`) and standardize tab order
+across landing page and tutorial. Both are small, well-scoped changes that could be done in one
+iteration. The landing page Go fix is straightforward — replace the WASM-bridge pattern with the
+pure Go API pattern from the howto guide.
+
+**Notes:** The doc spec (`specs/documentation.md`) tab order doesn't include Go (was written before
+Go bindings existed). If Go is included in the standard tab order, the spec should be updated. The
+advance agent's observation about this inconsistency is valid. All 7 bindings remain at 30/30, CI
+has 8 green jobs, PR #10 is open.

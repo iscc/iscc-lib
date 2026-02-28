@@ -122,6 +122,11 @@ fully-met target sections to `learnings-archive.md`.
 
 - After major architecture changes (e.g., WASM→pure Go), CI workflows, READMEs, and howto guides go
     stale simultaneously — group the cleanup into a single step targeting all affected files
+- Java requires JDK 17+ (pom.xml `maven.compiler.source/target` = 17), not 11+. Always cross-check
+    version claims in docs against actual build config files
+- WASM tab snippets should include `await init()` when showing standalone examples — it's required
+    before any WASM function call. Can omit for brevity in sequential examples where init was shown
+    earlier
 
 ## CID Process
 

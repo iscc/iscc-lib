@@ -12,7 +12,7 @@ text, and binary data.
 ## Prerequisites
 
 You need a working development environment for your language of choice. iscc-lib supports Python
-3.10+, Rust, Node.js, Java 11+, Go 1.21+, and WebAssembly.
+3.10+, Rust, Node.js, Java 17+, Go 1.21+, and WebAssembly.
 
 ## Install
 

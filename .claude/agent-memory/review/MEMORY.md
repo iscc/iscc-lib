@@ -141,6 +141,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     agent faithfully reproduces
 - WASM constants have `js_name = "META_TRIM_NAME"` (uppercase) despite Rust function being
     `meta_trim_name()` — this is a known divergence point
+- Cross-check version requirements in docs against build config files (e.g., `pom.xml`
+    `maven.compiler.source`, `go.mod` go version). Advance agents may introduce version claims that
+    don't match actual build requirements (e.g., Java 11+ claimed but pom.xml requires 17+)
+- Doc tab conversions: verify WASM `init()` is shown at least once. Each language's return type
+    differs (Python/Rust/Go return result structs; Node.js/Java/WASM return plain strings)
 
 ## Issues Cleanup
 
