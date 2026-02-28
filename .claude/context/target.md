@@ -313,14 +313,17 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 
 **Verified when:**
 
-- All quality gates run automatically on push/PR (Rust, Python, Node.js, WASM, C FFI)
-- `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm) works
+- All quality gates run automatically on push/PR (Rust, Python, Node.js, WASM, C FFI, Java, Go)
+- `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven) works
 - Tag push `v*.*.*` triggers all publish jobs
 - crates.io and PyPI publishing via OIDC trusted publishing (no API keys)
 - npm publishing via `NPM_TOKEN` secret for `@iscc/lib` and `@iscc/wasm`
+- Maven Central publishing via GPG signing + Sonatype Central Portal credentials
 - Publishing an already-published version skips gracefully
 - All CI workflows green
-- All packages versioned at `0.0.1` (experimental) with coordinated version across manifests
+- All packages share coordinated version from root `Cargo.toml`
+- `mise run version:sync` propagates version to all 9 sync targets
+- `mise run version:check` validates consistency (run in CI)
 
 ## Key Resources
 

@@ -128,6 +128,16 @@ fully-met target sections to `learnings-archive.md`.
     before any WASM function call. Can omit for brevity in sequential examples where init was shown
     earlier
 
+## State Verification
+
+- **Never trust state.md claims about external state.** Registry publications, CI status, and
+    infrastructure setup are frequently stale in state.md. Always verify against the actual source
+    (registry APIs, CI dashboards) before reporting to the human
+- **Verify every claim independently.** Don't batch-assume. Check each registry individually:
+    `cargo search`, `npm view`, Maven Central search API, `pip index versions`, Go module proxy. A
+    claim that "X is not published" may be outdated; a claim that "everything works" may miss one
+    that genuinely doesn't
+
 ## CID Process
 
 - **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current

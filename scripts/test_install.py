@@ -10,7 +10,8 @@ Usage:
     uv run scripts/test_install.py --npm        # Test npm only
     uv run scripts/test_install.py --crates     # Test crates.io only
     uv run scripts/test_install.py --go         # Test Go module only
-    uv run scripts/test_install.py --version 0.0.1  # Test specific version
+    uv run scripts/test_install.py --maven      # Test Maven Central only
+    uv run scripts/test_install.py --version 0.0.2  # Test specific version
 """
 
 from __future__ import annotations
@@ -288,12 +289,11 @@ def test_go_module(version: str) -> TestResult:
                 registry, package, False, f"go get failed: {result.stderr}"
             )
 
-        # Go API: NewRuntime(ctx) and GenMetaCodeV0(ctx, name, *desc, *meta, bits)
+        # Pure Go API: iscc.GenMetaCodeV0(name, desc, meta, bits)
         main_go = f"""\
 package main
 
 import (
-\t"context"
 \t"fmt"
 \t"log"
 
@@ -301,22 +301,15 @@ import (
 )
 
 func main() {{
-\tctx := context.Background()
-\trt, err := iscc.NewRuntime(ctx)
-\tif err != nil {{
-\t\tlog.Fatal(err)
-\t}}
-\tdefer rt.Close(ctx)
-
-\tresult, err := rt.GenMetaCodeV0(ctx, "Hello World", nil, nil, 64)
+\tresult, err := iscc.GenMetaCodeV0("Hello World", nil, nil, 64)
 \tif err != nil {{
 \t\tlog.Fatal(err)
 \t}}
 \texpected := "{EXPECTED_ISCC}"
-\tif result != expected {{
-\t\tlog.Fatalf("ISCC mismatch: %s != %s", result, expected)
+\tif result.Iscc != expected {{
+\t\tlog.Fatalf("ISCC mismatch: %s != %s", result.Iscc, expected)
 \t}}
-\tfmt.Printf("OK: go iscc — %s\\n", result)
+\tfmt.Printf("OK: go iscc — %s\\n", result.Iscc)
 }}
 """
         Path(tmpdir, "main.go").write_text(main_go)
@@ -336,6 +329,74 @@ func main() {{
         if result.returncode != 0:
             return TestResult(
                 registry, package, False, f"go run failed: {result.stderr}"
+            )
+
+        return TestResult(registry, package, True, result.stdout.strip())
+
+
+def test_maven(version: str) -> TestResult:
+    """Test installing io.iscc:iscc-lib from Maven Central."""
+    registry = "Maven Central"
+    package = "io.iscc:iscc-lib"
+
+    if not check_command("mvn"):
+        return TestResult(registry, package, False, "mvn not found on PATH")
+
+    with tempfile.TemporaryDirectory(prefix="iscc_test_maven_") as tmpdir:
+        dep_version = version if version else "RELEASE"
+
+        pom_xml = f"""\
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>test</groupId>
+    <artifactId>iscc-install-test</artifactId>
+    <version>0.0.0</version>
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>io.iscc</groupId>
+            <artifactId>iscc-lib</artifactId>
+            <version>{dep_version}</version>
+        </dependency>
+    </dependencies>
+</project>
+"""
+        Path(tmpdir, "pom.xml").write_text(pom_xml)
+
+        src_dir = Path(tmpdir, "src", "main", "java")
+        src_dir.mkdir(parents=True)
+
+        main_java = f"""\
+import io.iscc.iscc_lib.IsccLib;
+
+public class Main {{
+    public static void main(String[] args) {{
+        String result = IsccLib.genMetaCodeV0("Hello World", null, null, 64);
+        String expected = "{EXPECTED_ISCC}";
+        if (!result.equals(expected)) {{
+            System.err.println("ISCC mismatch: " + result + " != " + expected);
+            System.exit(1);
+        }}
+        System.out.println("OK: io.iscc:iscc-lib — " + result);
+    }}
+}}
+"""
+        Path(src_dir, "Main.java").write_text(main_java)
+
+        result = run(
+            ["mvn", "-q", "compile", "exec:java", "-Dexec.mainClass=Main"],
+            cwd=tmpdir,
+            timeout=300,
+        )
+        if result.returncode != 0:
+            return TestResult(
+                registry, package, False, f"maven test failed: {result.stderr}"
             )
 
         return TestResult(registry, package, True, result.stdout.strip())
@@ -367,6 +428,16 @@ def check_registry_availability(version: str) -> dict[str, bool]:
     else:
         available["npm_wasm"] = False
 
+    # Maven Central
+    result = run(
+        [
+            "curl",
+            "-sf",
+            f"https://search.maven.org/solrsearch/select?q=g:io.iscc+AND+a:iscc-lib+AND+v:{version}&rows=1&wt=json",
+        ]
+    )
+    available["maven"] = result.returncode == 0 and '"numFound":1' in result.stdout
+
     return available
 
 
@@ -381,12 +452,13 @@ def main() -> int:
     parser.add_argument("--npm", action="store_true", help="Test npm packages only")
     parser.add_argument("--crates", action="store_true", help="Test crates.io only")
     parser.add_argument("--go", action="store_true", help="Test Go module only")
+    parser.add_argument("--maven", action="store_true", help="Test Maven Central only")
     parser.add_argument(
         "--check-only", action="store_true", help="Only check registry availability"
     )
     args = parser.parse_args()
 
-    test_all = not (args.pypi or args.npm or args.crates or args.go)
+    test_all = not (args.pypi or args.npm or args.crates or args.go or args.maven)
     version = args.version
 
     print("=== iscc-lib install test protocol ===")
@@ -398,7 +470,7 @@ def main() -> int:
 
     # Check registry availability first
     if args.check_only or test_all:
-        v = version or "0.0.1"
+        v = version or "0.0.2"
         print("--- Registry availability ---")
         available = check_registry_availability(v)
         for reg, avail in available.items():
@@ -440,6 +512,13 @@ def main() -> int:
     if test_all or args.go:
         print("--- Testing Go: github.com/iscc/iscc-lib/packages/go ---")
         r = test_go_module(version)
+        results.append(r)
+        print(f"  {'PASS' if r.passed else 'FAIL'}: {r.message}")
+        print()
+
+    if test_all or args.maven:
+        print("--- Testing Maven Central: io.iscc:iscc-lib ---")
+        r = test_maven(version)
         results.append(r)
         print(f"  {'PASS' if r.passed else 'FAIL'}: {r.message}")
         print()
