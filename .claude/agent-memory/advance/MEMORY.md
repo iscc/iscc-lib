@@ -18,7 +18,7 @@ iterations.
 - Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go,
     xxh32.go, code_content_text.go, code_meta.go, code_data.go, code_instance.go,
     code_content_image.go, code_content_audio.go, code_content_video.go, code_content_mixed.go,
-    code_iscc.go (+ test files)
+    code_iscc.go, conformance.go (+ test files, testdata/data.json embedded via go:embed)
 - Go WASM bridge (legacy): `packages/go/iscc.go` + `packages/go/iscc_test.go`
     - Streaming types renamed: `WasmDataHasher`, `WasmInstanceHasher` (avoid collision with pure Go)
 
@@ -77,7 +77,7 @@ iterations.
     iscc_test.go (e.g., `TestPureGoGenMetaCodeV0` vs `TestGenMetaCodeV0`)
 - Dependency order: codec (done) → utils (done) → algorithms (all done: CDC, MinHash, SimHash, DCT,
     WTA-Hash) → gen functions (all 9 done: meta+text+data+instance+image+audio+video+mixed+iscc) →
-    conformance selftest → WASM removal
+    conformance selftest (done) → WASM removal
 - Image-Code helpers: `transposeMatrix`, `flatten8x8`, `computeMedian` are unexported in
     `code_content_image.go`. `bitsToBytes` reused from `codec.go`
 - Audio-Code: `arraySplit[T any]` is generic (Go 1.18+), used for splitting digests into quarters/
@@ -95,7 +95,11 @@ iterations.
     functions (`IsccDecode`) and method receivers (`rt.IsccDecode`) don't conflict
 - Test naming: `TestCodec*`, `TestUtils*`, `TestCdc*`, `TestMinhash*`, `TestSimhash*`,
     `TestAlgDct*`, `TestAlgWtahash*`, `TestPermutation*`
-- Conformance tests: `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
+- Conformance tests (per-function): `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
+- Conformance selftest: `//go:embed testdata/data.json` in conformance.go.
+    `ConformanceSelftest()   (bool, error)` — package-level function (no receiver). Uses
+    `vectorEntry` struct + 9 `run*Tests` section runners. `decodeStream` shared helper for
+    Data/Instance hex decoding
 
 ## Codec Internals
 
