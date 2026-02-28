@@ -19,7 +19,10 @@ iterations.
 - After a major rewrite (e.g., Go pure rewrite), docs/CI lag behind — schedule a cleanup step to
     bring all stale references in sync before moving to the next feature
 - State assessments can go stale — always verify claimed gaps by reading the actual files. The state
-    may say "missing" for something already completed in a prior iteration
+    may say "met" for something that still has stale content (e.g., wazero references in docs after
+    Go rewrite)
+- When state says "all automatable work complete," grep for known stale terms (e.g., old tech names)
+    across docs — state assessment may miss content-level inaccuracies
 
 ## Architecture Decisions
 
@@ -38,6 +41,8 @@ iterations.
     Runtime, no context.Context
 - Hashers: `NewDataHasher()` → `Push(data)` → `Finalize(bits)`. No Close, no context
 - Return types are structs: `*MetaCodeResult`, `*TextCodeResult`, etc. with `.Iscc` field
+- Go module structure: 36 .go files (18 source + 18 test), go.mod, go.sum, README.md
+- Go tests load conformance vectors from `../../crates/iscc-lib/tests/data.json` (relative path)
 
 ## CI/Release Patterns
 
@@ -46,7 +51,7 @@ iterations.
 - `scripts/version_sync.py` uses only stdlib (json, re, sys, pathlib) — can run as
     `python scripts/version_sync.py --check` without uv. Spec says "(run in CI)" but wasn't added
 
-## Project Near-Completion State (Iteration 15)
+## Project Near-Completion State (Iteration 16)
 
 All 7 bindings at 30/30, CI green with 9 jobs. PR #10 exists from develop→main.
 
@@ -58,14 +63,12 @@ All 7 bindings at 30/30, CI green with 9 jobs. PR #10 exists from develop→main
 4. ~~Tabbed multi-language code examples~~ — DONE (iteration 12)
 5. ~~Fix stale Go example on landing page~~ — DONE (iteration 13)
 6. ~~Add version:check to CI~~ — DONE (iteration 14)
-7. Stale spec cleanup (ci-cd.md) — SCOPED (iteration 15)
-8. Tab order standardization — LOW priority, needs human review
-9. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
-10. PR #10 merge — human task
-
-**After iteration 15:** The only automated gap is the low-priority tab order issue (needs human
-decision). All other remaining work is human-dependent. The CID loop should signal completion or
-enter maintenance mode.
+7. ~~Stale spec cleanup (ci-cd.md)~~ — DONE (iteration 15)
+8. Fix stale wazero/WASM refs in docs — SCOPED (iteration 16)
+9. ci-cd.md standard action set gap (missing Go/Java actions) — cosmetic, future step
+10. Tab order standardization — LOW priority, needs human review
+11. Publishing infrastructure (OIDC, npm, Maven Central) — human tasks
+12. PR #10 merge — human task
 
 ## Gotchas
 
@@ -73,3 +76,5 @@ enter maintenance mode.
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
 - ISCC Foundation URL is `https://iscc.io`
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
+- Two docs pages (architecture.md, development.md) share identical directory tree and crate summary
+    table — edits must be synced between them
