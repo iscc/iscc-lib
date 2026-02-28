@@ -25,6 +25,7 @@ iterations.
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - CI workflow at `.github/workflows/ci.yml` has 7 jobs: rust, python, nodejs, wasm, c-ffi, java, go
+- Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
 - Go CI uses `actions/setup-go@v5` with `go-version-file: packages/go/go.mod`
 - Version sync: `scripts/version_sync.py` — `--check` mode exits 1 on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
@@ -72,11 +73,10 @@ iterations.
     dedicated library
 - BLAKE3 dependency: `github.com/zeebo/blake3` (SIMD-optimized). `blake3.Sum256(data)` returns
     `[32]byte`
-- Test naming for gen functions: `TestPureGo*` prefix (historical — WASM bridge removed, could be
-    renamed to `Test*` in future cleanup)
-- Dependency order: codec (done) → utils (done) → algorithms (all done: CDC, MinHash, SimHash, DCT,
-    WTA-Hash) → gen functions (all 9 done: meta+text+data+instance+image+audio+video+mixed+iscc) →
-    conformance selftest (done) → WASM removal
+- Test naming for gen functions: `TestPureGo*` prefix (historical — could be renamed to `Test*` in
+    future cleanup)
+- Go docs: `packages/go/README.md` and `docs/howto/go.md` describe pure Go API (no WASM/wazero).
+    Examples use `iscc.Function(...)` pattern with typed result structs (`*MetaCodeResult`, etc.)
 - Image-Code helpers: `transposeMatrix`, `flatten8x8`, `computeMedian` are unexported in
     `code_content_image.go`. `bitsToBytes` reused from `codec.go`
 - Audio-Code: `arraySplit[T any]` is generic (Go 1.18+), used for splitting digests into quarters/

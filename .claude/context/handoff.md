@@ -1,41 +1,40 @@
-## 2026-02-28 — Review of: Add JsonToDataUrl to Go package (30/30)
+## 2026-02-28 — Remove WASM vestiges from Go CI, README, and docs
 
-**Verdict:** PASS
+**Done:** Removed all WASM/wazero references from three Go-related files. The CI Go job now has 4
+steps (checkout, setup-go, test, vet) with zero Rust dependencies. The README describes the pure Go
+architecture with direct function call examples. The howto guide uses `iscc.Function(...)` pattern
+throughout with correct return types (typed result structs, not strings).
 
-**Summary:** Clean, minimal implementation of `JsonToDataUrl` as a thin wrapper composing three
-existing unexported helpers (`parseMetaJSON`, `jsonHasContext`, `buildMetaDataURL`). Five
-well-chosen tests cover basic JSON, LD+JSON, JCS key ordering, invalid JSON error, and conformance
-vector cross-check. The implementation matches the Rust `json_to_data_url` semantics and completes
-Go bindings at 30/30 Tier 1 symbols.
+**Files changed:**
 
-**Verification:**
+- `.github/workflows/ci.yml`: Removed `dtolnay/rust-toolchain` (with `wasm32-wasip1` target),
+    `Swatinem/rust-cache`, "Build WASM module", and "Copy WASM to Go package" steps from the Go job.
+    Go job reduced from 6 steps to 4.
+- `packages/go/README.md`: Rewrote description (pure Go, no binary artifacts), Quick Start (direct
+    `iscc.GenMetaCodeV0` call, no Runtime/context), API tables (package-level functions returning
+    typed structs), Streaming section (`Push` → `Finalize`, no `Close`), Architecture section
+    (native compiled code, no runtime overhead).
+- `docs/howto/go.md`: Removed "Runtime setup" section. Updated all code examples from
+    `rt.Method(ctx, ...)` to `iscc.Function(...)`. Updated return types from `(string, error)` to
+    typed result structs (`*MetaCodeResult`, etc.) with `.Iscc` field access. Updated streaming from
+    `Update`/`Close` to `Push`/`Finalize`. Text utilities now show direct return values (no error).
+    Error handling section no longer mentions WASM runtime failures.
 
-- [x] `cd packages/go && go build ./...` exits 0 — clean compilation
-- [x] `cd packages/go && go test ./... -count=1` passes — all tests (0.073s)
-- [x] `cd packages/go && go vet ./...` exits 0
-- [x] `grep -q 'func JsonToDataUrl' packages/go/codec.go` exits 0 — function exists
-- [x] `grep -q 'JsonToDataUrl' packages/go/codec_test.go` exits 0 — tests exist
-- [x] `mise run check` — all 14 hooks pass
-- [x] `cargo test -p iscc-lib` — all Rust tests pass
-- [x] Scope discipline — only `codec.go` and `codec_test.go` modified (plus handoff.md)
-- [x] No quality gate circumvention patterns in diff
+**Verification:** All 6 verification criteria pass:
 
-**Issues found:**
+- No `wasm32-wasip1` in CI ✓
+- No `wazero`/`wasm` in README ✓
+- No `wazero`/`wasm`/`Runtime`/`NewRuntime` in howto ✓
+- `iscc.GenMetaCodeV0` pattern in howto ✓
+- `iscc.GenMetaCodeV0` pattern in README ✓
+- `mise run check` — all 14 hooks pass ✓
 
-- (none)
+**Next:** The Go pure rewrite is fully complete and documented. Suggested next priorities:
 
-**Codex review:** One P3 advisory: the `TestCodecJsonToDataUrlConformance0016` name references
-conformance vector `test_0016_meta_data_url`, but that vector tests data URL acceptance in
-`gen_meta_code_v0`, not `json_to_data_url` directly. However, the Rust test
-(`test_json_to_data_url_conformance_0016`) uses the same naming convention and the same input JSON
-from that vector. The naming is consistent across implementations — not actionable.
+1. PR from develop → main — the Go pure rewrite is a major milestone worth merging
+2. Benchmark CI integration
+3. Publishing infrastructure (OIDC, npm, Maven Central)
 
-**Next:** Go bindings are now complete at 30/30 Tier 1 symbols with zero WASM dependencies.
-Suggested next priorities from target.md gaps:
-
-1. CI simplification — Go CI job may still reference old WASM build steps that can be removed
-2. PR from develop → main — the Go pure rewrite is a major milestone worth merging
-3. Remaining partially-met areas: benchmark CI integration, publishing (OIDC, npm, Maven Central)
-
-**Notes:** The `TestPureGo*` test naming prefix is vestigial from the WASM coexistence phase. Could
-be renamed to `Test*` in a future cleanup iteration — cosmetic only.
+**Notes:** No surprises. The `GenIsccCodeV0` signature takes a `wide bool` parameter that was
+missing from the old howto examples — added it in the ISCC-CODE section. The mdformat hook adjusted
+some table column widths and line wrapping — cosmetic only.
