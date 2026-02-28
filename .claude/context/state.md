@@ -1,16 +1,16 @@
-<!-- assessed-at: 37100bf117196aa0870ddde635b1f9c28b7237c7 -->
+<!-- assessed-at: 184a4fece33e7caf58394c2aebbae17353ecb8d6 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All 7 Bindings + Docs Complete — Benchmarks, CI, and Publishing Remain
+## Phase: All 7 Bindings + Docs + Bench CI Complete — Publishing and Merge to Main Remain
 
 All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export the full 30/30
-Tier 1 symbols and pass conformance. CI is green on all 7 jobs. The Go CI job, README, and howto
-guide have been cleaned up to fully reflect the pure Go architecture — no WASM vestiges remain.
-Remaining gaps are non-binding items: benchmark CI integration, Maven Central publishing
-configuration, and npm/crates.io release triggers.
+Tier 1 symbols and pass conformance. CI is green on all 8 jobs (Rust, Python, Node.js, WASM, C FFI,
+Java, Go, Bench compile check). PR #10 (develop → main) is open. Remaining gaps are non-binding
+items: benchmark speedup documentation, Maven Central publishing configuration, and npm/crates.io
+release triggers.
 
 ## Rust Core Crate
 
@@ -149,36 +149,41 @@ configuration, and npm/crates.io release triggers.
 
 - Criterion benchmarks exist for all 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
 - pytest-benchmark comparison files present
-- Missing: CI does not run benchmarks automatically; no published benchmark results in CI artifacts
+- `Bench (compile check)` job in CI (`cargo bench --no-run`) — all 7 benchmark targets compile
+    (CI-verified, run 22511594559)
+- Missing: CI does not run benchmarks and collect results; speedup factors not published in
+    documentation
 
 ## CI/CD and Publishing
 
 **Status**: partially met
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
-- `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
-- Go CI job is now fully clean: checkout → setup-go → `go test` → `go vet` (no Rust toolchain, no
-    WASM target, no WASM build/copy steps)
+- `ci.yml` covers **8 jobs**: Rust (fmt, clippy, test), Python (ruff, pytest), Node.js (napi build,
+    test), WASM (wasm-pack test), Java (JNI build, mvn test), Go (go test, go vet), C FFI (cbindgen,
+    gcc, test), **Bench (compile check)** — all 8 SUCCESS
+- Go CI job is clean: checkout → setup-go → `CGO_ENABLED=0 go test` → `go vet` (no Rust toolchain)
 - **Latest CI run on develop: PASSING** —
-    [Run 22511013392](https://github.com/iscc/iscc-lib/actions/runs/22511013392) — all 7 jobs
+    [Run 22511594559](https://github.com/iscc/iscc-lib/actions/runs/22511594559) — all 8 jobs
     SUCCESS
+- **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
+    ([#10](https://github.com/iscc/iscc-lib/pull/10))
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
-- Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
+- Missing: npm publishing awaiting new release trigger (`0.0.2` not yet published)
 - Missing: Maven Central publishing configuration (GPG signing, Sonatype)
 
 ## Next Milestone
 
-**Merge develop → main (first stable milestone release):**
+**Merge PR #10 (develop → main) — first stable milestone release:**
 
-All 7 binding types are complete at 30/30 with clean CI and fully updated documentation. The pure Go
-architecture cleanup is done. The `develop` branch is in its cleanest state to date — a good
-candidate for a PR to `main`. Steps:
+PR #10 is already open (develop → main). All 7 bindings are at 30/30 with 8 green CI jobs and
+complete documentation. Steps to complete the milestone:
 
-1. Create PR from `develop` → `main` via `mise run pr:main` or
-    `gh pr create -B main -H develop --title "feat: complete polyglot ISCC implementation (7 bindings, 30/30)"`
+1. Review and merge PR #10 (develop → main) — this is a human task requiring approval
 2. After merge, tag `v0.0.2` on `main` to trigger coordinated publishing across all registries
-3. Trigger OIDC publishing for crates.io (registry-side setup; human task)
+3. OIDC publishing setup for crates.io (registry-side; human task)
+4. npm token configuration for `@iscc/lib` and `@iscc/wasm` publishing
 
-If merging to main is deferred, the next CI priority is **benchmark CI integration**: add a `bench`
-job that runs `cargo bench --no-run` (compile-only) to keep benchmarks buildable, and optionally
-upload benchmark artifacts.
+If merging to main is deferred, the next automated CID step is **benchmark speedup documentation**:
+run `cargo bench` to capture results and document speedup factors vs Python in the documentation
+site.

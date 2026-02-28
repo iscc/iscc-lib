@@ -24,7 +24,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
-- `.github/workflows/ci.yml` — 7 jobs: Rust, Python, Node.js, WASM, C FFI, Java, Go
+- `.github/workflows/ci.yml` — 8 jobs: Rust, Python, Node.js, WASM, C FFI, Java, Go, Bench
 - `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
@@ -35,21 +35,22 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 - **Incremental review**: compare `assessed-at` hash vs HEAD `--stat` first, then re-verify only
     affected sections. Always carry forward sections where no relevant files changed
-- **CI has 7 jobs**: Rust, Python, Node.js, WASM, C FFI, Java, Go. All 7 must pass
+- **CI has 8 jobs**: Rust, Python, Node.js, WASM, C FFI, Java, Go, Bench. All 8 must pass
 - `gh run list` does NOT need `--repo` when running from within the workspace; but `--json` fields
     are needed to avoid GraphQL deprecation error
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts
 
-## Current State (assessed-at: 37100bf)
+## Current State (assessed-at: 184a4fe)
 
 - **All 7 bindings**: 30/30 Tier 1 symbols complete (Rust, Python, Node.js, WASM, C FFI, Java, Go)
-- **Go CI**: Clean — checkout → setup-go → `go test` → `go vet` (no WASM vestiges since 37100bf)
-- **Go docs** (`docs/howto/go.md`): Pure Go — no Runtime/wazero, package-level function examples
-- **Go README** (`packages/go/README.md`): Pure Go — no wazero, Push/Finalize streaming API
-- **CI latest**: Run 22511013392 — all 7 jobs SUCCESS (develop branch, 2026-02-28)
+- **Bench CI**: `cargo bench --no-run` job added (iteration 10); 7 bench targets compile
+    (CI-verified)
+- **PR #10**: develop → main OPEN ("Pure Go rewrite & polyglot bindings progress")
+- **CI latest**: Run 22511594559 — all 8 jobs SUCCESS (develop branch, 2026-02-28)
 - **Publishing**: 0.0.2 not published to PyPI, npm, or Maven Central
-- **Remaining gaps**: Benchmark CI integration; Maven Central publishing; npm/PyPI 0.0.2 release
+- **Remaining gaps**: Benchmark speedup documentation; Maven Central publishing; npm/PyPI 0.0.2
+    release
 - **Minor cosmetic**: 5 Go test files have vestigial "do NOT require the WASM binary" comments
 
 ## Go Package Tier 1 Coverage (30/30 — COMPLETE)
