@@ -1,100 +1,73 @@
 # Next Work Package
 
-## Step: Remove WASM bridge from Go bindings
+## Step: Add JsonToDataUrl to Go package (30/30)
 
 ## Goal
 
-Remove the now-redundant WASM/wazero bridge from the Go package, completing the pure Go rewrite.
-This eliminates the 667KB binary artifact from git, removes the wazero dependency, and restores the
-large-file guard to 256KB.
+Implement the `JsonToDataUrl` public function in the Go package — the only missing Tier 1 symbol.
+This completes Go bindings at 30/30 and moves the Go section from "partially met" to "met".
 
 ## Scope
 
-- **Delete**: `packages/go/iscc.go` (1,357-line WASM bridge), `packages/go/iscc_ffi.wasm` (667KB
-    binary), `packages/go/iscc_test.go` (46 WASM bridge tests — all covered by pure Go tests)
-- **Modify**: `packages/go/codec.go` (relocate `DecodeResult` struct and 4 algorithm constants from
-    `iscc.go`), `packages/go/go.mod` (remove wazero dependency), `.pre-commit-config.yaml` (restore
-    `--maxkb=256`)
-- **Reference**: `packages/go/iscc.go` (read before deletion — identify all types/constants that
-    must be relocated), `packages/go/codec.go` (current state, find the "defined in iscc.go"
-    comment)
+- **Create**: (none)
+- **Modify**: `packages/go/codec.go` (add `JsonToDataUrl` function), `packages/go/codec_test.go`
+    (add tests)
+- **Reference**: `crates/iscc-lib/src/lib.rs` (Rust `json_to_data_url` + `build_meta_data_url`),
+    `packages/go/code_meta.go` (existing unexported helpers: `parseMetaJSON`, `jsonHasContext`,
+    `buildMetaDataURL`)
 
 ## Not In Scope
 
-- Refactoring pure Go code (algorithm files, gen functions) — they are complete and passing
-- Updating CI workflow (`ci.yml`) — the Go CI job already runs `go test ./...` which will work fine
-    without the WASM bridge; any CI simplification (removing WASM build steps) is a separate concern
-- Renaming `WasmDataHasher`/`WasmInstanceHasher` — these types live in `iscc.go` and will be deleted
-    entirely, not renamed
-- Updating documentation or README for the Go package — docs already describe pure Go
-- Adding `.gitignore` entries for `*.wasm` — the file is deleted from git, not just ignored
+- Renaming `TestPureGo*` test prefixes to `Test*` — cosmetic cleanup for a future iteration
+- Go CI job simplification (removing old WASM build steps) — separate step
+- PR from develop → main — separate step after this is verified
+- Refactoring the existing unexported helpers in code_meta.go — they work fine as-is
 
 ## Implementation Notes
 
-**Relocate shared definitions before deletion:**
+The function composes three existing unexported helpers already in `code_meta.go`:
 
-The following definitions in `iscc.go` are used by pure Go files and must be moved to `codec.go`
-before `iscc.go` is deleted:
-
-1. **4 constants** (lines 23-28):
-
-    ```go
-    const (
-        MetaTrimName        = 128
-        MetaTrimDescription = 4096
-        IoReadSize          = 4_194_304
-        TextNgramSize       = 13
-    )
-    ```
-
-    Used by: `code_meta.go` (MetaTrimName, MetaTrimDescription), `code_content_text.go`
-    (TextNgramSize). Place them near the top of `codec.go` with the existing codec constants.
-
-2. **`DecodeResult` struct** (lines 33-40):
-
-    ```go
-    type DecodeResult struct {
-        Maintype uint8
-        Subtype  uint8
-        Version  uint8
-        Length   uint8
-        Digest   []byte
+```go
+// JsonToDataUrl converts a JSON string to a data-URL with base64-encoded canonical JSON.
+//
+// Parses and canonicalizes the JSON (sorted keys, compact format). If the JSON
+// contains an "@context" key, uses "application/ld+json" media type; otherwise
+// uses "application/json".
+func JsonToDataUrl(jsonStr string) (string, error) {
+    canonical, err := parseMetaJSON(jsonStr)
+    if err != nil {
+        return "", err
     }
-    ```
+    hasContext := jsonHasContext(jsonStr)
+    return buildMetaDataURL(canonical, hasContext), nil
+}
+```
 
-    Used by: `codec.go` `IsccDecode` function (line 544) and `conformance.go`. Move it to `codec.go`
-    near the `IsccDecode` function. Update the comment on line 542-543 that says "Reuses the
-    DecodeResult struct defined in iscc.go" to just describe the struct locally.
+Place the function in `codec.go` alongside `EncodeBase64` and `EncodeComponent` (matching the Rust
+grouping of encoding utilities).
 
-**Deletion order:**
+**Tests to add** (in `codec_test.go`):
 
-1. First, apply modifications to `codec.go` (add constants + DecodeResult)
-2. Then delete `iscc.go`, `iscc_test.go`, `iscc_ffi.wasm`
-3. Update `go.mod`: remove the `github.com/tetratelabs/wazero v1.11.0` require line
-4. Run `cd packages/go && go mod tidy` to clean up `go.sum`
-5. Fix `.pre-commit-config.yaml`: change `args: [--maxkb=1024]` to `args: [--maxkb=256]`
+1. Basic JSON → `data:application/json;base64,...` prefix
+2. JSON with `@context` → `data:application/ld+json;base64,...` prefix
+3. JCS key ordering: `{"b":1,"a":2}` → decoded payload has keys sorted `{"a":2,"b":1}`
+4. Invalid JSON → returns error
+5. Cross-check with Rust output for conformance vector `test_0016_meta_data_url` input
+    (`{"some": "object"}`) — verify identical data URL output
 
-**Verification sequence:**
-
-Run `cd packages/go && go build ./...` first (catches any missing type/constant). Then
-`go test ./...` (all pure Go tests pass). Then `go vet ./...` (clean).
+Match the Rust test patterns from `lib.rs` lines 1912-1995. The Go `encoding/json` Marshal produces
+JCS-compatible output for string-only JSON (sorted keys, compact) — no external JCS library needed.
 
 ## Verification
 
-- `cd packages/go && go build ./...` exits 0 (no compilation errors after removing iscc.go)
-- `cd packages/go && go test ./... -count=1` passes (all pure Go tests including conformance)
+- `cd packages/go && go build ./...` exits 0
+- `cd packages/go && go test ./... -count=1` passes (all existing + new JsonToDataUrl tests)
 - `cd packages/go && go vet ./...` exits 0
-- `test ! -f packages/go/iscc.go` exits 0 (WASM bridge file deleted)
-- `test ! -f packages/go/iscc_ffi.wasm` exits 0 (WASM binary deleted)
-- `test ! -f packages/go/iscc_test.go` exits 0 (WASM bridge tests deleted)
-- `grep -q wazero packages/go/go.mod; test $? -ne 0` (wazero dependency removed)
-- `grep 'maxkb=256' .pre-commit-config.yaml` exits 0 (threshold restored)
-- `grep -q 'type DecodeResult struct' packages/go/codec.go` exits 0 (struct relocated)
-- `grep -q 'MetaTrimName' packages/go/codec.go` exits 0 (constants relocated)
-- `mise run check` passes (all pre-commit hooks clean, including large-file check)
+- `grep -q 'func JsonToDataUrl' packages/go/codec.go` exits 0 (function exists)
+- `grep -q 'JsonToDataUrl' packages/go/codec_test.go` exits 0 (tests exist)
+- `mise run check` passes (all hooks green)
 
 ## Done When
 
-All verification criteria pass: WASM bridge files are deleted, shared types/constants are relocated
-to codec.go, wazero dependency is removed, large-file threshold is restored to 256KB, and all Go
-tests pass.
+All verification criteria pass, confirming `JsonToDataUrl` is implemented, tested, and the Go
+package compiles and passes all tests including the new ones.
