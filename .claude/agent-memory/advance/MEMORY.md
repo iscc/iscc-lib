@@ -15,12 +15,11 @@ iterations.
 - WASM: `crates/iscc-wasm/src/lib.rs`
 - C FFI: `crates/iscc-ffi/src/lib.rs`
 - JNI: `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
-- Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go,
-    xxh32.go, code_content_text.go, code_meta.go, code_data.go, code_instance.go,
-    code_content_image.go, code_content_audio.go, code_content_video.go, code_content_mixed.go,
-    code_iscc.go, conformance.go (+ test files, testdata/data.json embedded via go:embed)
-- Go WASM bridge (legacy): `packages/go/iscc.go` + `packages/go/iscc_test.go`
-    - Streaming types renamed: `WasmDataHasher`, `WasmInstanceHasher` (avoid collision with pure Go)
+- Go pure: `packages/go/` — codec.go (types + constants + DecodeResult + codec functions), utils.go,
+    cdc.go, minhash.go, simhash.go, dct.go, wtahash.go, xxh32.go, code_content_text.go,
+    code_meta.go, code_data.go, code_instance.go, code_content_image.go, code_content_audio.go,
+    code_content_video.go, code_content_mixed.go, code_iscc.go, conformance.go (+ test files,
+    testdata/data.json embedded via go:embed). WASM bridge removed — pure Go only
 
 ## Build and Tooling
 
@@ -44,7 +43,7 @@ iterations.
     `IsccDecode`. Zero external dependencies
 - Go type naming: `MTMeta`..`MTFlake`, `STNone`..`STWide`, `STText = STNone`, `VSV0 Version = 0`
 - Internal helpers are unexported (lowercase): `encodeHeader`, `decodeHeader`, etc.
-- `IsccDecode` reuses `DecodeResult` struct from `iscc.go` (same package)
+- `IsccDecode` uses `DecodeResult` struct defined in `codec.go`
 - Base32: `base32.StdEncoding.WithPadding(base32.NoPadding)`. Base64: `base64.RawURLEncoding`
 - Pure Go text utils: `TextClean` (NFKC + control-char + empty-line collapse), `TextCollapse` (NFD +
     lowercase + filter C/M/P + NFKC), `TextTrim` (UTF-8 byte-boundary), `TextRemoveNewlines`
@@ -73,8 +72,8 @@ iterations.
     dedicated library
 - BLAKE3 dependency: `github.com/zeebo/blake3` (SIMD-optimized). `blake3.Sum256(data)` returns
     `[32]byte`
-- Test naming for gen functions: `TestPureGo*` prefix avoids conflicts with WASM bridge tests in
-    iscc_test.go (e.g., `TestPureGoGenMetaCodeV0` vs `TestGenMetaCodeV0`)
+- Test naming for gen functions: `TestPureGo*` prefix (historical — WASM bridge removed, could be
+    renamed to `Test*` in future cleanup)
 - Dependency order: codec (done) → utils (done) → algorithms (all done: CDC, MinHash, SimHash, DCT,
     WTA-Hash) → gen functions (all 9 done: meta+text+data+instance+image+audio+video+mixed+iscc) →
     conformance selftest (done) → WASM removal
@@ -89,10 +88,8 @@ iterations.
 - Mixed-Code: `softHashCodesV0` unexported (matching Rust non-pub). Preserves first header byte for
     type info in SimHash entries. Uses `decodeHeader`/`decodeLength` to validate Content MainType
     and bit length. `AlgSimhash` error safely discarded (all entries identical length)
-- WASM bridge type collision: when adding pure Go types that share names with WASM bridge types,
-    rename the WASM bridge types (prefix `Wasm`) since they're being superseded
-- Coexistence: new pure Go files live alongside WASM bridge in same `iscc` package. Package-level
-    functions (`IsccDecode`) and method receivers (`rt.IsccDecode`) don't conflict
+- Go module dependencies: `github.com/zeebo/blake3` (BLAKE3, SIMD), `golang.org/x/text` (Unicode).
+    No wazero or WASM dependencies. `github.com/klauspost/cpuid/v2` indirect (blake3 SIMD detection)
 - Test naming: `TestCodec*`, `TestUtils*`, `TestCdc*`, `TestMinhash*`, `TestSimhash*`,
     `TestAlgDct*`, `TestAlgWtahash*`, `TestPermutation*`
 - Conformance tests (per-function): `os.ReadFile("../../crates/iscc-lib/tests/data.json")`

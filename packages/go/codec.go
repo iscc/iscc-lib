@@ -10,6 +10,16 @@ import (
 	"strings"
 )
 
+// ---- Algorithm Configuration Constants ----
+
+// Algorithm configuration constants matching iscc-core core_opts.
+const (
+	MetaTrimName        = 128
+	MetaTrimDescription = 4096
+	IoReadSize          = 4_194_304
+	TextNgramSize       = 13
+)
+
 // ---- Type Enums (Go typed constants) ----
 
 // MainType identifies the primary ISCC unit type.
@@ -538,9 +548,17 @@ func IsccDecompose(isccCode string) ([]string, error) {
 
 // ---- ISCC Decode (public) ----
 
+// DecodeResult holds the decoded header components and raw digest of an ISCC unit.
+type DecodeResult struct {
+	Maintype uint8
+	Subtype  uint8
+	Version  uint8
+	Length   uint8
+	Digest   []byte
+}
+
 // IsccDecode decodes an ISCC string into its header components and raw digest.
-// Strips optional "ISCC:" prefix and dashes. Reuses the DecodeResult struct
-// defined in iscc.go.
+// Strips optional "ISCC:" prefix and dashes.
 func IsccDecode(iscc string) (*DecodeResult, error) {
 	clean := strings.TrimPrefix(iscc, "ISCC:")
 	clean = strings.ReplaceAll(clean, "-", "")
