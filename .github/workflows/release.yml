@@ -453,7 +453,9 @@ jobs:
           done
       - name: Import GPG key
         if: steps.check.outputs.skip != 'true'
-        run: echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import
+        run: |
+          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import || true
+          gpg --list-secret-keys --keyid-format LONG | grep -q "sec" || { echo "GPG key import failed"; exit 1; }
       - name: Publish to Maven Central
         if: steps.check.outputs.skip != 'true'
         run: mvn deploy -Prelease -DskipTests -f crates/iscc-jni/java/pom.xml
