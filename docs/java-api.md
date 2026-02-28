@@ -7,7 +7,7 @@ description: Java API reference for the ISCC library via JNI.
 
 Java library for ISCC (ISO 24138:2024) code generation via JNI. All 30 Tier 1 symbols are exposed as
 static methods on the `IsccLib` class. The native library is loaded automatically from the JAR's
-`META-INF/native/` directory.
+`META-INF/native/` directory, with fallback to `System.loadLibrary` for development environments.
 
 ## Installation
 

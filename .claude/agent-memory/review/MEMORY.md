@@ -98,6 +98,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     pure Go API with typed result structs. Vestigial WASM comments removed from all test files
 - CI has 9 jobs total: version-check, rust, python, nodejs, wasm, c-ffi, java, go, bench.
     version-check is lightweight (checkout + setup-python only, no Rust/uv/caching)
+- All 4 spec-required Reference pages complete: Rust API, Python API, C FFI, Java API. Documentation
+    spec fully met. Only remaining issue: tab order inconsistency (needs human decision)
 
 ## Binding Propagation Review Shortcuts
 
