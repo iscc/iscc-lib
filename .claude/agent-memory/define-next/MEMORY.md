@@ -46,7 +46,11 @@ iterations.
     `decodeBase32`, `decodeHeader`, `decodeLength`, `encodeHeader`, `encodeBase32` (all in
     codec.go). Sort decoded entries by MainType, validate Data+Instance mandatory, determine SubType
     from Content/Semantic codes. 5 conformance vectors, no `wide` or `bits` in vectors
-- **After step 5e**: conformance_selftest (all 46 vectors), then WASM bridge cleanup
+- **Step 6 (current)**: ConformanceSelftest — pure Go function, embed data.json via
+    `//go:embed   testdata/data.json`. Copy data.json to `packages/go/testdata/` since `//go:embed`
+    only works with files inside module directory. Mirrors Rust's `include_str!` pattern.
+- **After step 6**: WASM bridge cleanup (remove iscc.go, iscc_ffi.wasm, wazero dep, restore 256KB
+    threshold)
 - **Go function naming**: pure Go gen functions are package-level (e.g., `GenMetaCodeV0`) and
     coexist with WASM bridge methods (`(rt *Runtime) GenMetaCodeV0`) — no naming conflict in Go
 - **Conformance vector format**: data.json inputs are positional arrays. For video:
