@@ -1,36 +1,38 @@
-## 2026-02-28 — Review of: Fix Go representation in architecture diagram
+## 2026-02-28 — Add C FFI API reference page
 
-**Verdict:** PASS
+**Done:** Created `docs/c-ffi-api.md` documenting all 44 exported `extern "C"` functions from
+`crates/iscc-ffi/src/lib.rs`. Added nav entry in `zensical.toml` under Reference (after Python API)
+and a reference line in `docs/llms.txt`.
 
-**Summary:** Clean, well-scoped documentation and comment cleanup. The Mermaid diagram in
-`docs/architecture.md` now correctly shows Go as a standalone disconnected node with green styling,
-the explanatory text distinguishes binding crates from the Go reimplementation, and all 5 vestigial
-WASM comments were removed from Go test files. All 7 verification criteria pass.
+**Files changed:**
+
+- `docs/c-ffi-api.md`: New C FFI API reference page with 10 sections (overview/build, types,
+    constants, code generation, text utilities, algorithm primitives, codec operations, streaming,
+    diagnostics, memory management, error handling). All functions documented with C signatures and
+    parameter tables.
+- `zensical.toml`: Added `{ "C FFI" = "c-ffi-api.md" }` under Reference nav section
+- `docs/llms.txt`: Added C FFI reference line under Reference section
 
 **Verification:**
 
-- [x] `grep -c 'GO.*-->.*CORE' docs/architecture.md` → 0
-- [x] `grep -q 'standalone reimplementation\|pure Go reimplementation' docs/architecture.md` → exits
-    0
-- [x] `grep -c 'All binding crates are thin wrappers' docs/architecture.md` → 0
-- [x] `grep -rc 'WASM binary' packages/go/` → 0 (no matches in any file)
-- [x] `uv run zensical build` → succeeds (0.35s)
-- [x] `cd packages/go && go test ./... && go vet ./...` → passes (cached)
-- [x] `mise run check` → all 14 hooks pass
+- `uv run zensical build` — succeeds (3.39s)
+- `grep -q 'c-ffi-api.md' zensical.toml` — exits 0 ✓
+- `grep -q 'c-ffi' docs/llms.txt` — exits 0 ✓
+- `grep -c 'iscc_gen_' docs/c-ffi-api.md` — returns 21 (≥ 9, all gen functions documented with
+    multiple references) ✓
+- `grep -c 'iscc_free_' docs/c-ffi-api.md` — returns 29 (≥ 4) ✓
+- `grep -q 'iscc_last_error' docs/c-ffi-api.md` — exits 0 ✓
+- `mise run check` — all 14 hooks pass ✓
 
-**Issues found:**
+**Next:** The project is in maintenance mode with all functional requirements met. Remaining work is
+human-dependent: merge PR #10 (develop → main), trigger releases, configure Maven Central
+publishing. The only remaining automated task could be adding a Java API reference page (also
+missing per the documentation spec).
 
-- (none)
+**Notes:** next.md says "43 exported functions" but I counted 44 in the source: 4 constants + 2
+alloc/dealloc + 9 gen functions + 4 text utils + 2 encoding + 3 codec + 1 conformance + 1 decompose
 
-**Codex review:** Codex confirmed the commit is documentation-only with no runtime logic impact.
-Noted that the intro paragraph ("Each binding crate depends on the core") could be slightly
-misleading since Go isn't a binding crate, but the text immediately below the diagram now clarifies
-this distinction explicitly. No actionable findings.
-
-**Next:** The project is in maintenance mode with all functional requirements met. All remaining
-work is human-dependent: merge PR #10 (develop → main), trigger 0.0.2 releases, configure Maven
-Central publishing. The only remaining automated low-priority task is ci-cd.md standard action set
-gap (missing Go/Java CI actions) and the tab order issue (needs human decision).
-
-**Notes:** The `state.md` Go section still mentions "5 test files retain vestigial WASM comments" —
-this will be cleaned by update-state in the next iteration since the advance just fixed it.
+- 1 sliding_window + 4 algorithm primitives + 8 streaming hasher + 5 memory management + 1
+    last_error = 45 total `#[unsafe(no_mangle)]` symbols (but `result_to_c_string`, `string_to_c`,
+    `vec_to_c_string_array` etc. are internal helpers, not exported). All exported symbols are
+    documented.

@@ -29,6 +29,7 @@ nav = [
   { "Reference" = [
     { "Rust API" = "rust-api.md" },
     { "Python API" = "api.md" },
+    { "C FFI" = "c-ffi-api.md" },
   ] },
   { "Benchmarks" = "benchmarks.md" },
   { "Development" = "development.md" },

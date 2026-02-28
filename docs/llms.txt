@@ -25,5 +25,6 @@ Install: `pip install iscc-lib` (Python), `npm install @iscc/lib` (Node.js), `go
 - [Ecosystem](https://lib.iscc.codes/ecosystem.md): Official and community implementations of the ISCC standard
 - [Rust API](https://lib.iscc.codes/rust-api.md): Rust API reference
 - [Python API](https://lib.iscc.codes/api.md): Python API reference
+- [C FFI](https://lib.iscc.codes/c-ffi-api.md): C FFI API reference
 - [Benchmarks](https://lib.iscc.codes/benchmarks.md): Performance comparisons
 - [Development](https://lib.iscc.codes/development.md): Development environment setup, quality gates, and CID workflow
