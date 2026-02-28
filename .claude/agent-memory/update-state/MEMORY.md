@@ -29,8 +29,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode
-- `packages/go/code_meta.go` — `parseMetaJSON`, `jsonHasContext`, `buildMetaDataURL` helpers used by
-    `JsonToDataUrl`
+- `packages/go/code_meta.go` — `parseMetaJSON`, `jsonHasContext`, `buildMetaDataURL` helpers
 
 ## Recurring Patterns
 
@@ -42,18 +41,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts
 
-## Current State (assessed-at: 8bbc9a3)
+## Current State (assessed-at: 37100bf)
 
 - **All 7 bindings**: 30/30 Tier 1 symbols complete (Rust, Python, Node.js, WASM, C FFI, Java, Go)
-- **Go bindings (COMPLETE)**:
-    - `JsonToDataUrl` added in `packages/go/codec.go` (lines 406–418); commit `8f74552`
-    - Uses `parseMetaJSON`/`jsonHasContext`/`buildMetaDataURL` helpers from `code_meta.go`
-    - 147 test functions across 18+ test files; 5 new `TestCodecJsonToDataUrl*` tests
-    - go.mod: zeebo/blake3, golang.org/x/text, klauspost/cpuid (indirect)
-    - Pure Go, no CGO, no WASM, no binary artifacts
-- **CI latest**: Run 22510330106 — all 7 jobs SUCCESS (develop branch, 2026-02-28)
+- **Go CI**: Clean — checkout → setup-go → `go test` → `go vet` (no WASM vestiges since 37100bf)
+- **Go docs** (`docs/howto/go.md`): Pure Go — no Runtime/wazero, package-level function examples
+- **Go README** (`packages/go/README.md`): Pure Go — no wazero, Push/Finalize streaming API
+- **CI latest**: Run 22511013392 — all 7 jobs SUCCESS (develop branch, 2026-02-28)
 - **Publishing**: 0.0.2 not published to PyPI, npm, or Maven Central
 - **Remaining gaps**: Benchmark CI integration; Maven Central publishing; npm/PyPI 0.0.2 release
+- **Minor cosmetic**: 5 Go test files have vestigial "do NOT require the WASM binary" comments
 
 ## Go Package Tier 1 Coverage (30/30 — COMPLETE)
 

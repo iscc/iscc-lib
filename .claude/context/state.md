@@ -1,15 +1,16 @@
-<!-- assessed-at: 8bbc9a3 -->
+<!-- assessed-at: 37100bf117196aa0870ddde635b1f9c28b7237c7 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All 7 Bindings Complete (30/30) — Benchmarks CI and Publishing Remain
+## Phase: All 7 Bindings + Docs Complete — Benchmarks, CI, and Publishing Remain
 
-All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) now export the full 30/30
-Tier 1 symbols. `JsonToDataUrl` was added to the Go package in commit `8f74552`, completing Go at
-30/30. CI is green on all 7 jobs. Remaining gaps are non-binding items: benchmark CI integration,
-Maven Central publishing configuration, and npm/crates.io release triggers.
+All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export the full 30/30
+Tier 1 symbols and pass conformance. CI is green on all 7 jobs. The Go CI job, README, and howto
+guide have been cleaned up to fully reflect the pure Go architecture — no WASM vestiges remain.
+Remaining gaps are non-binding items: benchmark CI integration, Maven Central publishing
+configuration, and npm/crates.io release triggers.
 
 ## Rust Core Crate
 
@@ -108,12 +109,11 @@ Maven Central publishing configuration, and npm/crates.io release triggers.
     `AlgSimhash`, `SoftHashVideoV0`, `EncodeBase64`, `EncodeComponent`, `IsccDecode`,
     `IsccDecompose`, `JsonToDataUrl`, 4 constants (`MetaTrimName`, `MetaTrimDescription`,
     `IoReadSize`, `TextNgramSize`)
-- `JsonToDataUrl` implemented in `packages/go/codec.go` (lines 406–418), uses `parseMetaJSON` +
-    `jsonHasContext` + `buildMetaDataURL` helpers from `code_meta.go`; 5 tests in `codec_test.go`
 - 147 pure Go test functions across 18+ test files; `go test ./...` and `go vet ./...` pass
     (CI-verified)
 - `go.mod` has minimal deps: `zeebo/blake3`, `golang.org/x/text`, `klauspost/cpuid` (indirect)
 - **Nothing missing** in Go bindings
+- Minor: 5 test files retain vestigial "do NOT require the WASM binary" comments (cosmetic only)
 
 ## README
 
@@ -128,7 +128,8 @@ Maven Central publishing configuration, and npm/crates.io release triggers.
 **Status**: met
 
 - All 7 per-crate READMEs present with registry-specific install commands and quick-start examples
-- `packages/go/README.md` (150 lines): complete API tables for all 30 Tier 1 symbols
+- `packages/go/README.md` updated to reflect pure Go: no wazero references, package-level functions,
+    `Push` → `Finalize` streaming API, no binary artifact description
 - **Nothing missing** in Per-Crate READMEs
 
 ## Documentation
@@ -136,6 +137,8 @@ Maven Central publishing configuration, and npm/crates.io release triggers.
 **Status**: met
 
 - **14 pages** deployed to lib.iscc.codes; all navigation sections complete
+- `docs/howto/go.md` updated to reflect pure Go: removed wazero/Runtime setup section, all code
+    examples use `iscc.GenMetaCodeV0(...)` returning typed `result` structs
 - All 6 binding howto guides have "Codec operations" and "Constants" sections
 - Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
@@ -154,8 +157,10 @@ Maven Central publishing configuration, and npm/crates.io release triggers.
 
 - 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
 - `ci.yml` covers 7 binding targets: Rust, Python, Node.js, WASM, C FFI, Java, Go
+- Go CI job is now fully clean: checkout → setup-go → `go test` → `go vet` (no Rust toolchain, no
+    WASM target, no WASM build/copy steps)
 - **Latest CI run on develop: PASSING** —
-    [Run 22510330106](https://github.com/iscc/iscc-lib/actions/runs/22510330106) — all 7 jobs
+    [Run 22511013392](https://github.com/iscc/iscc-lib/actions/runs/22511013392) — all 7 jobs
     SUCCESS
 - Missing: OIDC trusted publishing for crates.io not configured (registry-side; human task)
 - Missing: npm publishing awaiting new release trigger (0.0.2 not yet published)
@@ -163,19 +168,17 @@ Maven Central publishing configuration, and npm/crates.io release triggers.
 
 ## Next Milestone
 
-**Integrate benchmarks into CI (first automated performance baseline):**
+**Merge develop → main (first stable milestone release):**
 
-All 7 binding types are now complete at 30/30. The most actionable remaining gap in target criteria
-is benchmark CI integration. The criterion benchmarks exist in `crates/iscc-lib/benches/` but CI
-does not run them. Steps:
+All 7 binding types are complete at 30/30 with clean CI and fully updated documentation. The pure Go
+architecture cleanup is done. The `develop` branch is in its cleanest state to date — a good
+candidate for a PR to `main`. Steps:
 
-1. Add a `bench` job to `ci.yml` (or a separate `bench.yml`) that runs `cargo bench --no-run`
-    (compile-only) on CI to ensure benchmarks stay buildable
-2. Optionally add `cargo bench -- --output-format bencher | tee bench-output.txt` and upload as a CI
-    artifact for tracking over time
-3. Consider adding pytest-benchmark to the Python CI step: `pytest --benchmark-only` or storing
-    `.benchmarks/` JSON artifacts
+1. Create PR from `develop` → `main` via `mise run pr:main` or
+    `gh pr create -B main -H develop --title "feat: complete polyglot ISCC implementation (7 bindings, 30/30)"`
+2. After merge, tag `v0.0.2` on `main` to trigger coordinated publishing across all registries
+3. Trigger OIDC publishing for crates.io (registry-side setup; human task)
 
-Alternatively, if benchmark CI is deferred, the next priority is Maven Central publishing
-configuration (GPG key setup, Sonatype OSSRH account, `pom.xml` signing plugin) or triggering a new
-0.0.2 release across all registries.
+If merging to main is deferred, the next CI priority is **benchmark CI integration**: add a `bench`
+job that runs `cargo bench --no-run` (compile-only) to keep benchmarks buildable, and optionally
+upload benchmark artifacts.
