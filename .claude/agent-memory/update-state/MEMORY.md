@@ -41,14 +41,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts
 
-## Current State (assessed-at: 184a4fe)
+## Current State (assessed-at: 860be8e)
 
 - **All 7 bindings**: 30/30 Tier 1 symbols complete (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - **Bench CI**: `cargo bench --no-run` job added (iteration 10); 7 bench targets compile
     (CI-verified)
 - **PR #10**: develop → main OPEN ("Pure Go rewrite & polyglot bindings progress")
-- **CI latest**: Run 22511594559 — all 8 jobs SUCCESS (develop branch, 2026-02-28)
+- **CI latest**: Run 22512149652 — all 8 jobs SUCCESS (develop branch, 2026-02-28)
 - **Publishing**: 0.0.2 not published to PyPI, npm, or Maven Central
+- **LLM docs**: `docs/llms.txt` and `scripts/gen_llms_full.py` now cover all 14 doc pages (was 5)
 - **Remaining gaps**: Benchmark speedup documentation; Maven Central publishing; npm/PyPI 0.0.2
     release
 - **Minor cosmetic**: 5 Go test files have vestigial "do NOT require the WASM binary" comments

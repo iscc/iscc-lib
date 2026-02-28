@@ -1,4 +1,4 @@
-<!-- assessed-at: 184a4fece33e7caf58394c2aebbae17353ecb8d6 -->
+<!-- assessed-at: 860be8ecbb0531fd2708698d304810730dedadde -->
 
 # Project State
 
@@ -8,9 +8,10 @@
 
 All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export the full 30/30
 Tier 1 symbols and pass conformance. CI is green on all 8 jobs (Rust, Python, Node.js, WASM, C FFI,
-Java, Go, Bench compile check). PR #10 (develop → main) is open. Remaining gaps are non-binding
-items: benchmark speedup documentation, Maven Central publishing configuration, and npm/crates.io
-release triggers.
+Java, Go, Bench compile check). PR #10 (develop → main) is open. Documentation now covers all 14
+pages in LLM-friendly output via `docs/llms.txt` and `scripts/gen_llms_full.py`. Remaining gaps are
+non-binding items: benchmark speedup documentation, Maven Central publishing configuration, and
+npm/crates.io release triggers.
 
 ## Rust Core Crate
 
@@ -137,9 +138,11 @@ release triggers.
 **Status**: met
 
 - **14 pages** deployed to lib.iscc.codes; all navigation sections complete
-- `docs/howto/go.md` updated to reflect pure Go: removed wazero/Runtime setup section, all code
-    examples use `iscc.GenMetaCodeV0(...)` returning typed `result` structs
-- All 6 binding howto guides have "Codec operations" and "Constants" sections
+- `docs/llms.txt` updated to reference all 14 doc pages (previously 5 pages only)
+- `scripts/gen_llms_full.py` created: generates `site/llms-full.txt` (115 KB) and per-page `.md`
+    files from all 14 documentation sources; runs via `uv run python scripts/gen_llms_full.py`
+- `docs/howto/go.md` updated to reflect pure Go; all 6 binding howto guides have "Codec operations"
+    and "Constants" sections
 - Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
 - ISCC branding, copy-page split-button, Open Graph meta tags in place
 
@@ -150,7 +153,7 @@ release triggers.
 - Criterion benchmarks exist for all 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
 - pytest-benchmark comparison files present
 - `Bench (compile check)` job in CI (`cargo bench --no-run`) — all 7 benchmark targets compile
-    (CI-verified, run 22511594559)
+    (CI-verified, run 22512149652)
 - Missing: CI does not run benchmarks and collect results; speedup factors not published in
     documentation
 
@@ -164,7 +167,7 @@ release triggers.
     gcc, test), **Bench (compile check)** — all 8 SUCCESS
 - Go CI job is clean: checkout → setup-go → `CGO_ENABLED=0 go test` → `go vet` (no Rust toolchain)
 - **Latest CI run on develop: PASSING** —
-    [Run 22511594559](https://github.com/iscc/iscc-lib/actions/runs/22511594559) — all 8 jobs
+    [Run 22512149652](https://github.com/iscc/iscc-lib/actions/runs/22512149652) — all 8 jobs
     SUCCESS
 - **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
     ([#10](https://github.com/iscc/iscc-lib/pull/10))
@@ -177,7 +180,7 @@ release triggers.
 **Merge PR #10 (develop → main) — first stable milestone release:**
 
 PR #10 is already open (develop → main). All 7 bindings are at 30/30 with 8 green CI jobs and
-complete documentation. Steps to complete the milestone:
+complete documentation (14 pages, full LLM-friendly output). Steps to complete the milestone:
 
 1. Review and merge PR #10 (develop → main) — this is a human task requiring approval
 2. After merge, tag `v0.0.2` on `main` to trigger coordinated publishing across all registries
