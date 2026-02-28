@@ -1,16 +1,17 @@
-<!-- assessed-at: 13070b667041416d60760b6a5ec7f7a3756b0add -->
+<!-- assessed-at: e16823ecba5b929f65e48a66e8c5ce31bcc8edd2 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All 7 Bindings + Docs + Benchmarks Complete — Publishing and PR Merge Remain
+## Phase: All Automatable CID Work Complete — Human Tasks Remain
 
-All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export the full 30/30
-Tier 1 symbols and pass conformance. CI is green on all 9 jobs (version-check job added this
-iteration). The benchmarks documentation page (`docs/benchmarks.md`) is complete with full speedup
-data — this was incorrectly marked missing in the previous state assessment. PR #10 (develop → main)
-is open. Remaining gaps are human tasks: PR merge, publishing triggers, and tab order decision.
+All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export 30/30 Tier 1
+symbols and pass conformance. CI is green on all 9 jobs. The last automatable CID task —
+`specs/ci-cd.md` stale spec cleanup — was completed this iteration: Go row updated to pure Go
+(`CGO_ENABLED=0`), Version and Bench job rows added to table and checklist. All functional
+requirements are met. Remaining gaps are human tasks: PR merge, publishing triggers, Maven Central
+setup, and tab order decision.
 
 ## Rust Core Crate
 
@@ -149,9 +150,8 @@ is open. Remaining gaps are human tasks: PR merge, publishing triggers, and tab 
     - Tab order inconsistency across pages: spec says "Python, Rust, Java, Node.js, WASM" (no Go),
         landing page uses "Rust, Python, ...", tutorial uses "Python, Rust, Node.js, Java, Go, WASM" —
         spec update needed to add Go; `HUMAN REVIEW REQUESTED` for canonical tab order
-- **Stale spec issue**: `specs/ci-cd.md` Go job table entry still says "cargo build --target
-    wasm32-wasip1 for FFI binary, go test, go vet" (pure Go CI has no Rust); version-check and bench
-    jobs not listed in the spec table
+- **Minor cosmetic** (resolved this iteration): `specs/ci-cd.md` stale spec cleaned up — Go row
+    updated to pure Go, Version and Bench CI jobs added to table and checklist
 
 ## Benchmarks
 
@@ -165,7 +165,7 @@ is open. Remaining gaps are human tasks: PR merge, publishing triggers, and tab 
     (1.3×–158× speedup) and Native Rust Criterion results (with throughput for streaming functions);
     page linked in navigation under "Benchmarks"
 - `Bench (compile check)` job in CI verifies all 7 benchmark targets compile
-    (`cargo bench   --no-run`)
+    (`cargo bench --no-run`)
 - **Nothing missing** in Benchmarks
 
 ## CI/CD and Publishing
@@ -176,11 +176,10 @@ is open. Remaining gaps are human tasks: PR merge, publishing triggers, and tab 
 - `ci.yml` covers **9 jobs**: version-check, Rust (fmt, clippy, test), Python (ruff, pytest),
     Node.js (napi build, test), WASM (wasm-pack test), Java (JNI build, mvn test), Go (go test, go
     vet), C FFI (cbindgen, gcc, test), Bench (compile check) — all 9 SUCCESS
-- **version-check** job added this iteration: runs `python scripts/version_sync.py --check` using
-    only Python 3.10 (no Rust toolchain, no uv, no caching)
-- Go CI job is clean: checkout → setup-go → `CGO_ENABLED=0 go test` → `go vet` (no Rust toolchain)
+- **version-check** job: runs `python scripts/version_sync.py --check` using only Python 3.10
+- Go CI job: `CGO_ENABLED=0 go test` + `go vet` (pure Go, no Rust toolchain)
 - **Latest CI run on develop: PASSING** —
-    [Run 22513767637](https://github.com/iscc/iscc-lib/actions/runs/22513767637) — all 9 jobs
+    [Run 22514270274](https://github.com/iscc/iscc-lib/actions/runs/22514270274) — all 9 jobs
     SUCCESS
 - **PR #10 open**: develop → main "Pure Go rewrite & polyglot bindings progress"
     ([#10](https://github.com/iscc/iscc-lib/pull/10))
@@ -190,18 +189,15 @@ is open. Remaining gaps are human tasks: PR merge, publishing triggers, and tab 
 
 ## Next Milestone
 
-**Remaining automated CID work is minimal; most gaps are human tasks.**
+**All automatable CID work is complete. All remaining gaps require human action.**
 
-The last automatable gap is fixing the stale `specs/ci-cd.md`:
+The project is in maintenance mode:
 
-1. Update the CI jobs table to add version-check and bench rows; remove stale "cargo build --target
-    wasm32-wasip1" from Go row description
-2. Update the verification checklist's Go entry to reflect pure Go (no WASM FFI binary)
+1. **Merge PR #10** (develop → main) — needs human approval and merge
+2. **Publish 0.0.2** to PyPI, npm — needs release trigger (`workflow_dispatch` or tag push)
+3. **Maven Central** — needs GPG key setup and Sonatype OSSRH account (external configuration)
+4. **Tab order** — canonical language tab order needs human decision (Python-first vs Rust-first)
+5. **OIDC for crates.io** — needs registry-side trusted publisher configuration
 
-After that spec cleanup, all functional requirements are met and CI is green (9/9). The remaining
-open items require human action:
-
-- **Merge PR #10** (develop → main) — needs human approval
-- **Publish 0.0.2** to PyPI, npm — needs release trigger (workflow_dispatch or tag push)
-- **Maven Central** — needs GPG key setup and Sonatype account (external)
-- **Tab order** — canonical language tab order needs human decision
+No further automated CID iterations add value until at least one of the above is unblocked by the
+human.

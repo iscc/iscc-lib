@@ -43,22 +43,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts
 
-## Current State (assessed-at: 13070b6)
+## Current State (assessed-at: e16823e)
 
 - **All 7 bindings**: 30/30 Tier 1 symbols complete (Rust, Python, Node.js, WASM, C FFI, Java, Go)
 - **Bench CI**: `cargo bench --no-run` job; 7 bench targets compile (CI-verified)
-- **Benchmarks docs**: `docs/benchmarks.md` COMPLETE with full speedup data (1.3×–158×) — was
-    incorrectly marked missing in prior iterations; it existed since commit 453124d
-- **version-check CI job**: added iteration 15; runs `python scripts/version_sync.py --check`
+- **Benchmarks docs**: `docs/benchmarks.md` COMPLETE with full speedup data (1.3×–158×)
+- **version-check CI job**: runs `python scripts/version_sync.py --check`
 - **PR #10**: develop → main OPEN ("Pure Go rewrite & polyglot bindings progress")
-- **CI latest**: Run 22513767637 — all 9 jobs SUCCESS (develop branch, 2026-02-28)
+- **CI latest**: Run 22514270274 — all 9 jobs SUCCESS (develop branch, 2026-02-28)
 - **Publishing**: 0.0.2 not published to PyPI, npm, or Maven Central
 - **LLM docs**: `docs/llms.txt` and `scripts/gen_llms_full.py` cover all 14 doc pages
 - **Getting-started tutorial**: tabbed multi-language (7 sections × 6 languages)
 - **Known doc issue**: tab order inconsistency (human review requested for canonical order)
-- **Stale spec**: `specs/ci-cd.md` Go job entry still mentions WASM binary; version-check/bench not
-    in spec table — cleanup is last automatable CID task
-- **Remaining human tasks**: PR merge, PyPI/npm 0.0.2 publish, Maven Central, tab order
+- **specs/ci-cd.md**: NOW CLEAN — Go row updated to pure Go, Version+Bench jobs added (iter 16)
+- **All automatable CID work complete** — only human tasks remain: PR merge, PyPI/npm publish, Maven
+    Central setup, canonical tab order decision
 - **Minor cosmetic**: 5 Go test files have vestigial "do NOT require the WASM binary" comments
 
 ## Go Package Tier 1 Coverage (30/30 — COMPLETE)
