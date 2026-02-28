@@ -7,14 +7,6 @@ resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-### Landing page Go example uses stale WASM-bridge API
-
-**Priority:** normal | **Source:** [review]
-
-The Go tab in `docs/index.md` Quick Start (lines 114-122) still uses the old WASM-bridge API pattern
-(`iscc.NewRuntime(ctx)`, `rt.GenTextCodeV0(ctx, ...)`) instead of the current pure Go API
-(`iscc.GenTextCodeV0("Hello World", 64)`). Should be updated to match `docs/howto/go.md`.
-
 ### Tab order inconsistency across doc pages
 
 **Priority:** low | **Source:** [review]
