@@ -160,6 +160,9 @@ fully-met target sections to `learnings-archive.md`.
     being the composite ISCC-CODE rather than a single component code
 - Binding propagation order: Python first (primary consumer), then Node.js/WASM/C FFI/Java, Go last
     (pure Go reimplementation needed — not a Rust wrapper)
+- Python binding pattern: PyO3 wrapper accepts `&str` path → `Path::new(path)`, public wrapper adds
+    `str | os.PathLike` via `os.fspath()`. `SumCodeResult(IsccResult)` class + `__all__` update.
+    Wide mode test requires `bits=128` since 64-bit codes produce identical output in both modes
 
 ## CID Process
 

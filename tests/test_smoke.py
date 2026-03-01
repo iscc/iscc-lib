@@ -202,10 +202,10 @@ def test_gen_sum_code_v0_pathlike(tmp_path):
     assert result["iscc"].startswith("ISCC:")
 
 
-def test_gen_sum_code_v0_error_nonexistent():
+def test_gen_sum_code_v0_error_nonexistent(tmp_path):
     """Verify gen_sum_code_v0 raises ValueError for nonexistent path."""
     with pytest.raises(ValueError):
-        gen_sum_code_v0("/nonexistent/path/to/file.bin")
+        gen_sum_code_v0(tmp_path / "missing.bin")
 
 
 def test_gen_sum_code_v0_result_type(tmp_path):

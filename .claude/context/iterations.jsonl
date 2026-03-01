@@ -568,3 +568,11 @@
 {"ts":"2026-03-01T19:19:20.325554+00:00","iteration":1,"role":"advance","status":"OK","turns":52,"cost_usd":1.763298,"duration_s":385.9}
 {"ts":"2026-03-01T19:20:32.458449+00:00","iteration":5,"role":"review","status":"OK","verdict":"PASS","summary":"gen_sum_code_v0 + SumCodeResult implemented in Rust core — 32/32 Tier 1 symbols complete"}
 {"ts":"2026-03-01T19:22:11.758555+00:00","iteration":5,"role":"review","status":"OK","turns":52,"cost_usd":1.63523,"duration_s":368.1}
+{"ts":"2026-03-01T19:25:05.061078+00:00","iteration":1,"role":"review","status":"OK","turns":45,"cost_usd":1.160861,"duration_s":344.7}
+{"ts":"2026-03-01T19:44:16.079713+00:00","iteration":6,"role":"update-state","status":"OK","turns":24,"cost_usd":0.62167,"duration_s":191.5}
+{"ts":"2026-03-01T19:45:04.620539+00:00","iteration":2,"role":"update-state","status":"OK","turns":14,"cost_usd":0.246241,"duration_s":66.9}
+{"ts":"2026-03-01T19:47:46.798729+00:00","iteration":6,"role":"define-next","status":"OK","turns":20,"cost_usd":0.832243,"duration_s":210.7}
+{"ts":"2026-03-01T19:49:30.648465+00:00","iteration":2,"role":"define-next","status":"OK","turns":37,"cost_usd":1.363391,"duration_s":266.0}
+{"ts":"2026-03-01T19:53:41.200314+00:00","iteration":6,"role":"advance","status":"OK","turns":47,"cost_usd":1.812707,"duration_s":354.4}
+{"ts":"2026-03-01T19:54:36.705599+00:00","iteration":2,"role":"advance","status":"OK","turns":44,"cost_usd":1.654222,"duration_s":306.1}
+{"ts":"2026-03-01T19:58:06.685336+00:00","iteration":2,"role":"review","status":"PASS","turns":0,"cost_usd":0.0,"duration_s":0}
