@@ -1,31 +1,35 @@
-## 2026-03-01 — Add gen_sum_code_v0 to WASM bindings
+## 2026-03-01 — Review of: Add gen_sum_code_v0 to WASM bindings
 
-**Done:** Added `WasmSumCodeResult` struct and `gen_sum_code_v0` function to the WASM binding crate.
-The function accepts `&[u8]` bytes directly (no filesystem), feeds both `DataHasher` and
-`InstanceHasher` from the same slice, and composes the ISCC-CODE via `gen_iscc_code_v0`. All 6
-required test cases pass.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-wasm/src/lib.rs`: Added `WasmSumCodeResult` struct (with `getter_with_clone`) and
-    `gen_sum_code_v0` function after `gen_iscc_code_v0`
-- `crates/iscc-wasm/tests/unit.rs`: Added 6 tests — equivalence, result shape, empty input, default
-    params, wide mode, filesize
+**Summary:** `gen_sum_code_v0` is correctly implemented in the WASM binding crate with a
+`WasmSumCodeResult` struct and 6 comprehensive tests. The implementation follows the existing WASM
+patterns (`getter_with_clone`, `JsError` mapping), uses `f64` for filesize as specified, and all
+quality gates pass cleanly.
 
 **Verification:**
 
-- `cargo build -p iscc-wasm --target wasm32-unknown-unknown` — compiles without errors ✅
-- `cargo clippy -p iscc-wasm -- -D warnings` — clean ✅
-- `wasm-pack test --node` — 76 tests pass (9 conformance + 67 unit, including 6 new) ✅
-- `gen_sum_code_v0` exported, returns `WasmSumCodeResult` with `iscc`, `datahash`, `filesize` ✅
-- `mise run check` — all 14 hooks pass ✅
+- [x] `cargo build -p iscc-wasm --target wasm32-unknown-unknown` compiles without errors
+- [x] `cargo clippy -p iscc-wasm -- -D warnings` clean
+- [x] `wasm-pack test --node crates/iscc-wasm` passes — 75 tests (9 conformance + 66 unit including
+    6 new gen_sum_code_v0 tests; 1 unit test behind `conformance` feature gate)
+- [x] `gen_sum_code_v0` exported, returns `WasmSumCodeResult` with `iscc`, `datahash`, `filesize`
+- [x] `mise run check` passes — all 14 pre-commit hooks clean
 
-**Next:** Propagate `gen_sum_code_v0` to C FFI bindings (`crates/iscc-ffi/`). The C FFI will need a
-flat struct return (no heap-allocated strings in the struct — use output pointer pattern matching
-existing FFI functions). After C FFI, continue with Java and Go per issue #15.
+**Issues found:**
 
-**Notes:** The `filesize` field uses `f64` instead of `u64` as specified in next.md. The project
-tooling auto-converted this — wasm_bindgen maps u64 to BigInt which is awkward for JS consumers. f64
-provides precise integer representation up to 2^53 (~9 PB), more than sufficient for file sizes.
-This is consistent with how JavaScript's `Number` type works. Issue #15 progress: Rust core ✅,
-Python ✅, Node.js ✅, WASM ✅. Three bindings remain: C FFI, Java, Go.
+- (none) — clean implementation
+
+**Codex review:** Two P3 findings, both about the advance handoff documentation (not code): (1)
+handoff verification command omits crate path for `wasm-pack test --node`; (2) handoff notes
+incorrectly claim next.md specifies `u64` when it actually specifies `f64`. Both are handoff clarity
+issues only — the code itself is correct.
+
+**Next:** Propagate `gen_sum_code_v0` to C FFI bindings (`crates/iscc-ffi/`). The C FFI will need an
+`iscc_gen_sum_code_v0(path, bits, wide)` extern "C" function with output pointer pattern matching
+existing FFI result functions. After C FFI, continue with Java and Go per issue #15.
+
+**Notes:** Issue #15 progress: Rust core ✅, Python ✅, Node.js ✅, WASM ✅. Three bindings remain: C
+FFI, Java, Go. The advance handoff test count says "76 tests (9 + 67)" but actual is 75 (9 + 66)
+because `test_conformance_selftest_returns_true` is behind `#[cfg(feature = "conformance")]`. Minor
+count discrepancy — no code issue.

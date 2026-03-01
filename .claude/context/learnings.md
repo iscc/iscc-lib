@@ -166,6 +166,10 @@ fully-met target sections to `learnings-archive.md`.
 - Node.js binding pattern: `NapiSumCodeResult` struct with `#[napi(object)]` + `gen_sum_code_v0` fn
     with `Option<u32>`/`Option<bool>` params. Uses `i64` for filesize (napi-rs lacks u64 support).
     Tests use `node:test` + `node:assert` + temp files for I/O. Total: 132 tests after adding 6
+- WASM binding pattern: `WasmSumCodeResult` struct with `#[wasm_bindgen(getter_with_clone)]` +
+    `gen_sum_code_v0` fn accepting `&[u8]` (no filesystem in WASM). Uses `f64` for filesize (avoids
+    `u64` → BigInt friction in JS). 6 tests in `tests/unit.rs`. Total: 75 tests (9 conformance + 66
+    unit; 1 unit test behind `conformance` feature gate)
 
 ## CID Process
 
