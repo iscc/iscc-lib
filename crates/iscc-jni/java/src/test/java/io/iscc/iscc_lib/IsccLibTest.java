@@ -397,11 +397,12 @@ class IsccLibTest {
 
     // ── Constants ────────────────────────────────────────────────────────────
 
-    /** Verify the 4 algorithm configuration constants. */
+    /** Verify the 5 algorithm configuration constants. */
     @Test
     void testConstants() {
         assertEquals(128, IsccLib.META_TRIM_NAME);
         assertEquals(4096, IsccLib.META_TRIM_DESCRIPTION);
+        assertEquals(128_000, IsccLib.META_TRIM_META);
         assertEquals(4_194_304, IsccLib.IO_READ_SIZE);
         assertEquals(13, IsccLib.TEXT_NGRAM_SIZE);
     }

@@ -24,6 +24,9 @@ public class IsccLib {
     /** Maximum UTF-8 byte length for the description parameter in gen_meta_code_v0. */
     public static final int META_TRIM_DESCRIPTION = 4096;
 
+    /** Maximum decoded payload byte length for the meta parameter in gen_meta_code_v0. */
+    public static final int META_TRIM_META = 128_000;
+
     /** Default read buffer size for streaming I/O (4 MB). */
     public static final int IO_READ_SIZE = 4_194_304;
 

@@ -24,6 +24,7 @@ iterations.
 ## Build and Tooling
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
+- Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
 - CI workflow at `.github/workflows/ci.yml` has 9 jobs: version-check, rust, python, nodejs, wasm,
     c-ffi, java, go, bench. The `bench` job runs `cargo bench --no-run` (compile-only, no execution)
 - `version-check` job: lightweight (checkout + setup-python only), runs
