@@ -141,6 +141,16 @@ fully-met target sections to `learnings-archive.md`.
     claim that "X is not published" may be outdated; a claim that "everything works" may miss one
     that genuinely doesn't
 
+## Binding Propagation
+
+- NAPI `index.js` and `index.d.ts` are gitignored (`crates/iscc-napi/.gitignore`) and auto-generated
+    by `napi build`. CI runs `napi build` before `npm test`. Do NOT manually edit or commit these
+    files — they regenerate with new constants automatically
+- Java `META_TRIM_*` constants are pure Java `public static final int` (no JNI call needed). Go
+    constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
+- When adding FFI constants, update the algorithm constant count in the module docstring
+    (`crates/iscc-ffi/src/lib.rs` line 5)
+
 ## CID Process
 
 - **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current

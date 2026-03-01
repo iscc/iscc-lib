@@ -2,7 +2,7 @@
 //!
 //! Exposes all 9 `gen_*_v0` functions, 4 algorithm primitives, codec
 //! functions (`encode_component`, `iscc_decode`, `json_to_data_url`),
-//! and 4 algorithm constants as `extern "C"` symbols for integration
+//! and 5 algorithm constants as `extern "C"` symbols for integration
 //! from C, Go, Java, C#, and any other language with C interop.
 //!
 //! ## Memory model
