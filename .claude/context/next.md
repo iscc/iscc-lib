@@ -1,75 +1,99 @@
 # Next Work Package
 
-## Step: Export META_TRIM_META in Java and Go bindings
+## Step: Implement gen_sum_code_v0 + SumCodeResult in Rust core
 
 ## Goal
 
-Add the `META_TRIM_META = 128_000` constant to Java (`IsccLib.java`) and Go (`codec.go`) bindings,
-completing issue #18 — the last two bindings that lack this Tier 1 constant.
+Add `gen_sum_code_v0` and `SumCodeResult` to the Rust core crate — the 32nd and final Tier 1 symbol.
+This function performs single-pass file I/O that feeds both `DataHasher` (CDC/MinHash) and
+`InstanceHasher` (BLAKE3) from the same read buffer, then composes the final ISCC-CODE internally.
+This is the first function in the crate that introduces file I/O.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — add
-        `public static final int META_TRIM_META = 128_000;`
-    - `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — add `META_TRIM_META`
-        assertion to `testConstants()` and update comment from "4" to "5"
-    - `packages/go/codec.go` — add `MetaTrimMeta = 128_000` to the const block
+    - `crates/iscc-lib/src/types.rs` — add `SumCodeResult` struct
+    - `crates/iscc-lib/src/lib.rs` — add `gen_sum_code_v0` function + export + tests
 - **Reference**:
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (existing constant pattern at
-        lines 22-31)
-    - `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (existing test pattern at
-        lines 398-407)
-    - `packages/go/codec.go` (existing const block at lines 16-21)
+    - `crates/iscc-lib/src/streaming.rs` — `DataHasher` and `InstanceHasher` API
+    - `crates/iscc-lib/src/types.rs` — existing result type patterns
+    - `.claude/context/specs/rust-core.md` — spec for signature and verification criteria
 
 ## Not In Scope
 
-- Adding a JNI native method for META_TRIM_META (it's a compile-time constant — no JNI call needed)
-- Adding Go tests for the constant (Go has no constant-value tests for the existing 4 constants;
-    adding one just for this would break the pattern — keep consistent)
-- Updating documentation pages, READMEs, or the docs site (wait until gen_sum_code_v0 is done)
-- Starting work on gen_sum_code_v0 or SumCodeResult (issue #15 — separate step)
-- Updating `crates/iscc-jni/src/lib.rs` Rust JNI source (no JNI bridge needed for a Java constant)
+- Propagating `gen_sum_code_v0` to any binding crate (Python, Node.js, WASM, C FFI, Java, Go) —
+    separate steps after core lands
+- Updating README, per-crate READMEs, or documentation site for the new function
+- Adding `units: Vec<String>` field to `SumCodeResult` (optional field per spec — defer until
+    bindings need it or add if trivial)
+- Benchmarks for `gen_sum_code_v0` (add after bindings to benchmark full pipeline)
+- WASM design decisions for path-based I/O — not relevant for core crate
 
 ## Implementation Notes
 
-**Java** — follow the exact pattern of `META_TRIM_DESCRIPTION`:
+**SumCodeResult** — add to `types.rs` following the existing pattern (`#[non_exhaustive]`,
+`#[derive(Debug, Clone, PartialEq, Eq)]`):
 
-```java
-/** Maximum decoded payload byte length for the meta parameter in gen_meta_code_v0. */
-public static final int META_TRIM_META = 128_000;
+```rust
+/// Result of [`gen_sum_code_v0`](crate::gen_sum_code_v0).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SumCodeResult {
+    /// Composite ISCC-CODE string (e.g., `"ISCC:KAC..."`).
+    pub iscc: String,
+    /// Hex-encoded BLAKE3 multihash (`"1e20..."`) of the file.
+    pub datahash: String,
+    /// Byte length of the file.
+    pub filesize: u64,
+}
 ```
 
-Place it immediately after `META_TRIM_DESCRIPTION` (line 25). In `IsccLibTest.java`, add
-`assertEquals(128_000, IsccLib.META_TRIM_META);` to the `testConstants()` method (after line 404),
-and update the Javadoc from "4 algorithm configuration constants" to "5 algorithm configuration
-constants".
+**gen_sum_code_v0** — add to `lib.rs` near the other `gen_*_v0` functions:
 
-**Go** — follow the exact pattern of `MetaTrimDescription`:
+1. Open file with `std::fs::File::open(path)`, map I/O errors to `IsccError::InvalidInput`
+2. Create `DataHasher::new()` and `InstanceHasher::new()`
+3. Read loop: `let mut buf = vec![0u8; IO_READ_SIZE];` — read chunks, feed both hashers
+4. Finalize both: `data_hasher.finalize(bits)?` and `instance_hasher.finalize(bits)?`
+5. Compose ISCC-CODE: call `gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)?`
+6. Return
+    `SumCodeResult { iscc: iscc_result.iscc, datahash: instance_result.datahash, filesize: instance_result.filesize }`
 
-```go
-MetaTrimMeta        = 128_000
-```
+**Error handling**: Use `IsccError::InvalidInput` for file-not-found and read errors — this matches
+the existing error type. The format should include the OS error message (e.g.,
+`"Cannot open file: No such file or directory (os error 2)"`).
 
-Place it after `MetaTrimDescription` in the existing `const` block (after line 18). The underscore
-numeric separator is valid Go syntax (Go 1.13+).
+**Tests** — write test functions (not a test class) in `lib.rs`'s `#[cfg(test)]` module:
 
-Both are pure source-language constants (no FFI/JNI bridge involved).
+1. **Equivalence test**: Write known bytes to a temp file (`std::env::temp_dir()` +
+    `std::fs::write`), call `gen_sum_code_v0`, compare against separate
+    `gen_data_code_v0(data, bits)` + `gen_instance_code_v0(data, bits)` →
+    `gen_iscc_code_v0(&[data_iscc, instance_iscc], wide)`. Assert `iscc`, `datahash`, and
+    `filesize` all match.
+2. **Empty file**: Test with a zero-byte file — should still produce valid ISCC.
+3. **File not found**: Assert `gen_sum_code_v0` returns `Err` for a nonexistent path.
+4. **Wide mode**: Test with `wide=true` — verify output differs from `wide=false`.
+5. **Different bit lengths**: Test at least `bits=64` and `bits=128`.
+
+Use `std::fs::write` + `std::fs::remove_file` for temp files (no new dev dependencies needed). Clean
+up temp files even on test failure — or use unique filenames under `std::env::temp_dir()`.
+
+**Export**: Add `pub use` or ensure `gen_sum_code_v0` is `pub fn` at crate root. `SumCodeResult` is
+already picked up by `pub use types::*`.
 
 ## Verification
 
-- `cargo test -p iscc-jni` passes (existing tests still compile and pass)
-- `cd crates/iscc-jni && mvn test -q` passes (including the updated `testConstants` with 5
-    assertions)
-- `cd packages/go && go test ./... -count=1` passes (147+ tests, MetaTrimMeta is available)
-- `cd packages/go && go vet ./...` clean
-- `cargo clippy -p iscc-jni -- -D warnings` clean
-- `grep -c 'META_TRIM_META' crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`
-    outputs `1` (constant declared)
-- `grep -c 'MetaTrimMeta' packages/go/codec.go` outputs `1` (constant declared)
+- `cargo test -p iscc-lib` passes (303 existing + ≥5 new tests)
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `cargo fmt -p iscc-lib --check` clean
+- `iscc_lib::gen_sum_code_v0` is importable from crate root
+- `iscc_lib::SumCodeResult` is importable from crate root
+- Test asserts
+    `gen_sum_code_v0(path, 64, false).iscc == gen_iscc_code_v0(&[data_iscc, instance_iscc], false).iscc`
+    for the same file content
+- Test asserts `gen_sum_code_v0(nonexistent_path, 64, false)` returns `Err`
 
 ## Done When
 
-All verification criteria pass — META_TRIM_META is exported and tested in both Java and Go bindings,
-completing the 6/6 binding propagation for issue #18.
+All verification criteria pass — `gen_sum_code_v0` and `SumCodeResult` are implemented, tested, and
+exported from the Rust core crate with equivalence to the two-pass approach verified.

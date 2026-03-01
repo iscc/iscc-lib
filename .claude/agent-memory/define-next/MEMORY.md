@@ -33,26 +33,26 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## New Symbol Implementation Plan (Issues #18 + #15)
+## gen_sum_code_v0 Implementation Plan (Issue #15)
 
-Target requires 32 Tier 1 symbols (up from 30). Two missing:
+Target requires 32 Tier 1 symbols. 31 done. gen_sum_code_v0 + SumCodeResult are the final pair.
 
-1. **META_TRIM_META** (issue #18) — constant + validation. Simpler, do first.
+**Key design facts discovered during scoping:**
 
-    - Rust core: add constant + pre-decode/post-decode checks in gen_meta_code_v0
-    - Then propagate to 6 bindings (Python core_opts, Node.js, WASM, C FFI, Java, Go)
+- No Python reference exists — `gen_sum_code_v0` is a Rust-only convenience function
+- No conformance vectors — correctness verified by equivalence to the two-pass approach
+- First function in the crate that introduces file I/O (std::fs::File + std::io::Read)
+- IO_READ_SIZE = 4_194_304 (4 MB) constant already exists for buffer sizing
+- Composes DataHasher + InstanceHasher in single read loop, then gen_iscc_code_v0
+- SumCodeResult has 3 fields: iscc, datahash, filesize (spec also mentions optional `units`)
+- WASM binding needs special design (no path-based I/O in browser) — defer to binding step
 
-2. **gen_sum_code_v0** (issue #15) — new function + SumCodeResult. Larger.
+**Execution plan:**
 
-    - Single-pass file I/O reading into both DataHasher and InstanceHasher
-    - Composes ISCC-CODE internally
-    - Returns SumCodeResult {iscc, datahash, filesize}
-    - WASM needs special handling (no path-based I/O in browser)
-
-Execution order: #18 Rust core ✅ → #18 Python ✅ → #18 Node.js+WASM+C FFI ✅ → #18 Java+Go (iter 4) →
-#15 Rust core → #15 bindings
-
-After iter 4 completes #18, all 6 bindings will have META_TRIM_META. Focus shifts to #15.
+1. ✅ Issue #18 (META_TRIM_META) — all 6 bindings complete
+2. → Issue #15 Rust core — gen_sum_code_v0 + SumCodeResult (iter 5)
+3. Issue #15 Python binding — accept str | os.PathLike
+4. Issue #15 remaining bindings — Node.js, C FFI, Java, Go (WASM needs design decision)
 
 ## Binding Propagation Patterns
 
