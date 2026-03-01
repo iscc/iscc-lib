@@ -1,15 +1,15 @@
-<!-- assessed-at: 1ba01b1e275707a4439356212c8b3016d193402d -->
+<!-- assessed-at: 03a8a2231afc173a4367ced52337bfd991655af1 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: gen_sum_code_v0 — META_TRIM_META complete across all 6 bindings; Rust core implementation next
+## Phase: gen_sum_code_v0 — all 6 bindings at 31/32 Tier 1 symbols; Rust core implementation next
 
 Iteration 4 completed: `META_TRIM_META = 128_000` is now exported in all 6 bindings (Rust, Python,
-Node.js, WASM, C FFI, Java, Go) — issue #18 fully resolved. CI remains fully green (11/11 jobs). The
-sole remaining gap is `gen_sum_code_v0` + `SumCodeResult`, which requires Rust core implementation
-first, then propagation to all 6 bindings.
+Node.js, WASM, C FFI, Java, Go) — issue #18 fully resolved. CI remains fully green (11/11 jobs, all
+5 recent runs success). The sole remaining gap is `gen_sum_code_v0` + `SumCodeResult`, which
+requires Rust core implementation first, then propagation to all 6 bindings.
 
 ## Rust Core Crate
 
@@ -131,7 +131,7 @@ first, then propagation to all 6 bindings.
 
 **Status**: met (for existing features)
 
-- **11/11 CI jobs all SUCCESS** on latest push
+- **11/11 CI jobs all SUCCESS** on latest push; all 5 recent runs green
 - Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22550003423
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
     Java, Go, Bench — all success

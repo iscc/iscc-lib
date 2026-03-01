@@ -50,7 +50,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 1ba01b1)
+## Current State (assessed-at: 03a8a22)
 
 - **Target**: 32 Tier 1 symbols — Rust core at 31/32 (gen_sum_code_v0 missing)
 - **Iteration 4 completed**: `META_TRIM_META` now exported in ALL 6 bindings — issue #18 fully done
@@ -59,7 +59,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **gen_sum_code_v0**: NOT YET IMPLEMENTED in Rust core or any binding
 - **SumCodeResult**: NOT YET IMPLEMENTED
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22550003423 — all 11 job records SUCCESS
+- **CI latest**: Run 22550003423 — all 11 job records SUCCESS (all 5 recent runs green)
 - **Next priority**: Implement gen_sum_code_v0 + SumCodeResult in Rust core (issue #15), then
     propagate to all 6 bindings
 
