@@ -584,3 +584,4 @@
 {"ts":"2026-03-01T20:26:28.345283+00:00","iteration":3,"role":"define-next","status":"OK","turns":21,"cost_usd":0.996454,"duration_s":310.6}
 {"ts":"2026-03-01T20:30:23.096167+00:00","iteration":7,"role":"advance","status":"OK","turns":32,"cost_usd":1.289107,"duration_s":274.3}
 {"ts":"2026-03-01T20:30:59.352081+00:00","iteration":3,"role":"advance","status":"OK","turns":34,"cost_usd":1.334597,"duration_s":271.0}
+{"ts":"2026-03-01T20:36:16.126065+00:00","iteration":7,"role":"review","status":"PASS","turns":0,"cost_usd":0.0,"duration_s":0}
