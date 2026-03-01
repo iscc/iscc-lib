@@ -50,7 +50,7 @@ jobs:
           allow-prereleases: true
       - uses: astral-sh/setup-uv@v4
       - name: Install dev dependencies
-        run: uv sync --group dev --python '${{ matrix.python-version }}'
+        run: uv sync --group dev
       - name: Build Python bindings
         run: uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml
       - name: Run ruff check
