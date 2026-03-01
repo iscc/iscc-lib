@@ -118,9 +118,10 @@ iterations.
     `crates/iscc-napi/src/lib.rs`. Uses `i64` for `filesize` (napi-rs no u64 support). 6 tests in
     `__tests__/functions.test.mjs`
 - WASM binding: `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) +
-    `gen_sum_code_v0` fn in `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (maps to `Uint8Array` in
-    JS). Uses `f64` for `filesize` (avoids BigInt friction — `u64` → `BigInt` in wasm-bindgen). 6
-    tests in `tests/unit.rs`. Remaining: C FFI, Java, Go (3 crates)
+    `gen_sum_code_v0` fn in `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (no filesystem in WASM).
+    Uses `f64` for `filesize` (wasm-bindgen `u64` maps to `BigInt`, awkward for JS). Composes
+    internally via `DataHasher` + `InstanceHasher` + `gen_iscc_code_v0`. 6 tests in `tests/unit.rs`,
+    76 total WASM tests (9 conformance + 67 unit). Remaining: C FFI, Java, Go (3 bindings)
 
 ## Codec Internals
 
