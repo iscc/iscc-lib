@@ -148,6 +148,19 @@ iterations.
 
 - All 4 Reference pages complete: Rust API, Python API, C FFI, Java API
 
+## Binding Constant Export Patterns
+
+- NAPI: `#[napi(js_name = "CONST_NAME")] pub const CONST_NAME: u32 = iscc_lib::CONST_NAME as u32;`
+- WASM: `#[wasm_bindgen(js_name = "CONST_NAME")] pub fn const_name() -> u32 { ... }` (getter fn, not
+    const — wasm-bindgen limitation)
+- C FFI: `#[unsafe(no_mangle)] pub extern "C" fn iscc_const_name() -> u32 { ... }` + inline
+    `#[test]` in same file. cbindgen auto-generates the C header
+- NAPI JS tests: `describe('CONST_NAME', () => { it('equals X'); it('is a number'); })`
+- WASM tests: `#[wasm_bindgen_test]` in `tests/unit.rs` (requires wasm-pack to run)
+- C tests: `ASSERT_EQ(iscc_const_name(), value, "label")` in `tests/test_iscc.c`
+- 5 constants currently exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
+    IO_READ_SIZE, TEXT_NGRAM_SIZE
+
 ## Gotchas
 
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names

@@ -21,6 +21,12 @@ pub fn meta_trim_description() -> u32 {
     iscc_lib::META_TRIM_DESCRIPTION as u32
 }
 
+/// Maximum byte length for the meta field payload after decoding.
+#[wasm_bindgen(js_name = "META_TRIM_META")]
+pub fn meta_trim_meta() -> u32 {
+    iscc_lib::META_TRIM_META as u32
+}
+
 /// Default read buffer size for streaming I/O (4 MB).
 #[wasm_bindgen(js_name = "IO_READ_SIZE")]
 pub fn io_read_size() -> u32 {

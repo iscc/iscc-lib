@@ -53,6 +53,12 @@ pub extern "C" fn iscc_meta_trim_description() -> u32 {
     iscc_lib::META_TRIM_DESCRIPTION as u32
 }
 
+/// Maximum byte length for the meta field payload after decoding.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_meta_trim_meta() -> u32 {
+    iscc_lib::META_TRIM_META as u32
+}
+
 /// Default read buffer size for streaming I/O (4 MB).
 #[unsafe(no_mangle)]
 pub extern "C" fn iscc_io_read_size() -> u32 {
@@ -2123,6 +2129,11 @@ mod tests {
     #[test]
     fn test_meta_trim_description() {
         assert_eq!(iscc_meta_trim_description(), 4096);
+    }
+
+    #[test]
+    fn test_meta_trim_meta() {
+        assert_eq!(iscc_meta_trim_meta(), 128_000);
     }
 
     #[test]

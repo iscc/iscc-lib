@@ -451,6 +451,11 @@ fn test_meta_trim_description_value() {
 }
 
 #[wasm_bindgen_test]
+fn test_meta_trim_meta_value() {
+    assert_eq!(iscc_wasm::meta_trim_meta(), 128_000);
+}
+
+#[wasm_bindgen_test]
 fn test_io_read_size_value() {
     assert_eq!(iscc_wasm::io_read_size(), 4_194_304);
 }

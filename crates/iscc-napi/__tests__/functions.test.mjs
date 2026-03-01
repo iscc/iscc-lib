@@ -31,6 +31,7 @@ import {
     InstanceHasher,
     META_TRIM_NAME,
     META_TRIM_DESCRIPTION,
+    META_TRIM_META,
     IO_READ_SIZE,
     TEXT_NGRAM_SIZE,
     encode_component,
@@ -446,6 +447,16 @@ describe('META_TRIM_DESCRIPTION', () => {
 
     it('is a number', () => {
         strictEqual(typeof META_TRIM_DESCRIPTION, 'number');
+    });
+});
+
+describe('META_TRIM_META', () => {
+    it('equals 128000', () => {
+        strictEqual(META_TRIM_META, 128000);
+    });
+
+    it('is a number', () => {
+        strictEqual(typeof META_TRIM_META, 'number');
     });
 });
 

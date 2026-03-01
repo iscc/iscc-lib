@@ -17,6 +17,10 @@ pub const META_TRIM_NAME: u32 = iscc_lib::META_TRIM_NAME as u32;
 #[napi(js_name = "META_TRIM_DESCRIPTION")]
 pub const META_TRIM_DESCRIPTION: u32 = iscc_lib::META_TRIM_DESCRIPTION as u32;
 
+/// Maximum byte length for the meta field payload after decoding.
+#[napi(js_name = "META_TRIM_META")]
+pub const META_TRIM_META: u32 = iscc_lib::META_TRIM_META as u32;
+
 /// Default read buffer size for streaming I/O (4 MB).
 #[napi(js_name = "IO_READ_SIZE")]
 pub const IO_READ_SIZE: u32 = iscc_lib::IO_READ_SIZE as u32;
