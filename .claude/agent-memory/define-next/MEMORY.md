@@ -15,14 +15,13 @@ iterations.
     3-file limit
 - When CI is red, formatting/lint fixes are always the first priority regardless of handoff "Next"
 - Prefer concrete deliverables over research tasks when both are available
-- File deletions don't count toward the 3-file modification limit — they are simpler than edits
-- After a major rewrite (e.g., Go pure rewrite), docs/CI lag behind — schedule a cleanup step to
-    bring all stale references in sync before moving to the next feature
-- State assessments can go stale — always verify claimed gaps by reading the actual files. The state
-    may say "met" for something that still has stale content
+- State assessments can go stale — always verify claimed gaps by reading the actual files
 - When state says "all automatable work complete," cross-check the spec's verification criteria
-    against actual files — state assessment may miss spec requirements that were never implemented
-    (e.g., missing Reference pages)
+    against actual files — state assessment may miss spec requirements
+- New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
+    steps. Core + tests in one step, bindings in subsequent steps
+- For constant + validation additions: single-file change to lib.rs is ideal scope (constant
+    definition + function modification + tests all live in one file)
 
 ## Architecture Decisions
 
@@ -34,47 +33,35 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## Documentation Reference Pages Status (Iteration 19)
+## New Symbol Implementation Plan (Issues #18 + #15)
 
-Documentation spec requires 4 Reference pages:
+Target requires 32 Tier 1 symbols (up from 30). Two missing:
 
-1. Rust API (`rust-api.md`) — ✓ exists
-2. Python API (`api.md`) — ✓ exists
-3. C FFI reference (`c-ffi-api.md`) — ✓ exists (added iteration 18, 694 lines)
-4. Java API — ✗ missing (scoped for iteration 19)
+1. **META_TRIM_META** (issue #18) — constant + validation. Simpler, do first.
 
-## Java API Reference Page Facts
+    - Rust core: add constant + pre-decode/post-decode checks in gen_meta_code_v0
+    - Then propagate to 6 bindings (Python core_opts, Node.js, WASM, C FFI, Java, Go)
 
-- `IsccLib.java`: 382 lines, 30 `public static native` methods + 4 `public static final int`
-    constants + private constructor + static NativeLoader block
-- `IsccDecodeResult.java`: 42 lines, 5 `public final` fields (maintype, subtype, version, length,
-    digest)
-- Streaming hashers use opaque `long` handles (JNI pointers) — must document free lifecycle
-- All methods throw `IllegalArgumentException` on invalid input
-- Package: `io.iscc.iscc_lib`, Maven coordinates: `io.iscc:iscc-lib:0.0.2`
+2. **gen_sum_code_v0** (issue #15) — new function + SumCodeResult. Larger.
+
+    - Single-pass file I/O reading into both DataHasher and InstanceHasher
+    - Composes ISCC-CODE internally
+    - Returns SumCodeResult {iscc, datahash, filesize}
+    - WASM needs special handling (no path-based I/O in browser)
+
+Execution order: #18 Rust core → #18 bindings → #15 Rust core → #15 bindings
+
+## Documentation Status
+
+All 4 spec-required Reference pages complete: Rust API, Python API, C FFI, Java API. 16 docs pages
+deployed to lib.iscc.codes. Will need updates for new symbols after implementation.
 
 ## CI/Release Patterns
 
 - Release workflow has `workflow_dispatch` inputs: `crates-io`, `pypi`, `npm`, `maven` (booleans)
 - All publish jobs have idempotency checks (version-existence pre-check, `skip` output)
 - `scripts/version_sync.py` uses only stdlib — can run as `python scripts/version_sync.py --check`
-
-## Project Near-Completion State (Iteration 19)
-
-All 7 bindings at 30/30, CI green with 9 jobs. PR #10 exists from develop→main.
-
-**Remaining automated gaps:**
-
-1. Java API reference page — SCOPED (iteration 19, LAST automatable task)
-2. Tab order standardization — LOW priority, needs human review
-
-**Human-only tasks remaining after iteration 19:**
-
-- Merge PR #10 (develop → main)
-- Trigger releases for npm, PyPI
-- Maven Central publishing (GPG, Sonatype)
-- Tab order decision
-- OIDC for crates.io
+- v0.0.3 released to all registries. Next release after new symbols are complete.
 
 ## Gotchas
 
@@ -84,3 +71,5 @@ All 7 bindings at 30/30, CI green with 9 jobs. PR #10 exists from develop→main
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
 - Two docs pages (architecture.md, development.md) share identical directory tree and crate summary
     table — edits must be synced between them
+- META_TRIM_META pre-decode formula: `META_TRIM_META * 4/3 + 256` accounts for base64 inflation plus
+    media type header

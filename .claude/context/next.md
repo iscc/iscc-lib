@@ -1,88 +1,119 @@
 # Next Work Package
 
-## Step: Add Java API reference page
+## Step: Add META_TRIM_META constant and payload validation to Rust core
 
 ## Goal
 
-Create `docs/java-api.md` documenting the full Java API surface (`IsccLib` class, `IsccDecodeResult`
-class, constants, streaming hashers), and wire it into the site navigation and `llms.txt`. This is
-the last spec-required Reference page — the documentation spec lists "Java API" alongside Rust API,
-Python API, and C FFI in the Reference section.
+Add the `META_TRIM_META: usize = 128_000` constant to the Rust core Tier 1 API and enforce payload
+size validation in `gen_meta_code_v0`, preventing unbounded memory/compute from oversized meta
+parameters. This addresses issue #18.
 
 ## Scope
 
-- **Create**: `docs/java-api.md`
-- **Modify**: `zensical.toml` (add `{ "Java API" = "java-api.md" }` to Reference nav section)
-- **Modify**: `docs/llms.txt` (add Java API reference line)
+- **Create**: (none)
+- **Modify**:
+    - `crates/iscc-lib/src/lib.rs` — add `META_TRIM_META` constant next to existing `META_TRIM_*`
+        constants; add pre-decode and post-decode size checks in `gen_meta_code_v0`
 - **Reference**:
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — authoritative source for
-        all 30 Tier 1 symbols (382 lines, 30 methods + 4 constants)
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java` — decode result type
-        (42 lines, 5 public final fields)
-    - `docs/c-ffi-api.md` — pattern to follow for structure and depth (694 lines)
-    - `docs/rust-api.md` — pattern to follow for function documentation style
-    - `.claude/context/specs/documentation.md` — spec requiring "Java API" in Reference
+    - `.claude/context/specs/rust-core.md` lines 254–291 (Algorithm Constants spec with validation
+        formula)
+    - `reference/iscc-core/iscc_core/code_meta.py` (Python reference for meta handling)
+    - `crates/iscc-lib/src/lib.rs` lines 276–378 (current `gen_meta_code_v0` implementation)
 
 ## Not In Scope
 
-- Javadoc generation or mkdocstrings integration for Java (the page is hand-written markdown like
-    the Rust API and C FFI pages)
-- Maven Central publishing configuration or setup documentation
-- `NativeLoader.java` internals — not part of the public API surface
-- Updating the Java how-to guide (`docs/howto/java.md`) — already complete
-- Updating other Reference pages (Rust API, Python API, C FFI) — they are already final
+- Exposing `META_TRIM_META` in any binding (Python, Node.js, WASM, C FFI, Java, Go) — that's a
+    separate step after the Rust core is done
+- Adding `gen_sum_code_v0` or `SumCodeResult` — that's issue #15, a separate larger feature
+- Truncating payloads to the limit instead of rejecting — the spec says reject with error
+- Updating documentation pages or READMEs for the new constant — wait until bindings are also done
 
 ## Implementation Notes
 
-**Page structure** — follow the C FFI reference page pattern, adapted for Java:
+**Constant definition** (add after `META_TRIM_DESCRIPTION` at line ~32):
 
-1. **Front matter**: `icon: lucide/book-open`, description for Java API
-2. **Intro paragraph**: Java library for ISCC via JNI, all 30 Tier 1 symbols as static methods on
-    `IsccLib`
-3. **Installation**: Maven and Gradle dependency snippets (use `io.iscc:iscc-lib:0.0.2`)
-4. **Quick example**: `IsccLib.genMetaCodeV0("title", null, null, 64)` → ISCC string
-5. **Constants section**: 4 `public static final int` fields (`META_TRIM_NAME`,
-    `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) in a table
-6. **Classes section**: `IsccDecodeResult` with its 5 public final fields in a table
-7. **Functions sections** (organized by category, matching IsccLib.java order):
-    - Conformance: `conformanceSelftest()`
-    - Code generation: all 9 `gen*V0` methods with signature, parameter table, return type, and
-        throws clause
-    - Text utilities: `textClean`, `textRemoveNewlines`, `textTrim`, `textCollapse`
-    - Encoding: `encodeBase64`, `jsonToDataUrl`
-    - Codec: `encodeComponent`, `isccDecode`, `isccDecompose`
-    - Sliding window: `slidingWindow`
-    - Algorithm primitives: `algSimhash`, `algMinhash256`, `algCdcChunks`, `softHashVideoV0`
-    - Streaming hashers: `DataHasher` lifecycle (`dataHasherNew` → `dataHasherUpdate` →
-        `dataHasherFinalize` → `dataHasherFree`) and same for `InstanceHasher`
-8. **Error handling**: all methods throw `IllegalArgumentException` on invalid input; streaming
-    hashers throw after finalize
-9. **Memory management note**: streaming hashers use opaque `long` handles — callers MUST call
-    `*Free` to release native memory
+```rust
+/// Max decoded payload size in bytes for the meta element.
+pub const META_TRIM_META: usize = 128_000;
+```
 
-**Content source**: transcribe directly from the Javadoc in `IsccLib.java` and
-`IsccDecodeResult.java`. Do NOT invent undocumented behavior.
+**Pre-decode fast check** — Before decoding the Data-URL or parsing JSON, check string length.
+Base64 encoding inflates by ~4/3, plus there's a media type header. The spec formula:
 
-**Nav entry**: insert `{ "Java API" = "java-api.md" }` after `{ "C FFI" = "c-ffi-api.md" }` in the
-Reference section of `zensical.toml`.
+```rust
+const PRE_DECODE_LIMIT: usize = META_TRIM_META * 4 / 3 + 256;
+```
 
-**llms.txt entry**: add `- [Java API](https://lib.iscc.codes/java-api.md): Java API reference` after
-the C FFI line, following the existing pattern.
+Apply this check when `meta_str` is provided (both Data-URL and JSON paths), before any decoding
+work. Return `IsccError::InvalidInput` with a descriptive message.
+
+**Post-decode check** — After `decode_data_url()` or `parse_meta_json()` returns the payload bytes,
+check `payload.len() > META_TRIM_META`. Return `IsccError::InvalidInput`.
+
+**Where to insert in `gen_meta_code_v0`** — The current match block at lines 299–303:
+
+```rust
+let meta_payload: Option<Vec<u8>> = match meta {
+    Some(meta_str) if meta_str.starts_with("data:") => Some(decode_data_url(meta_str)?),
+    Some(meta_str) => Some(parse_meta_json(meta_str)?),
+    None => None,
+};
+```
+
+Add the pre-decode check before the match, and the post-decode check after. Pattern:
+
+```rust
+// Pre-decode fast check: reject obviously oversized meta strings
+if let Some(meta_str) = meta {
+    const PRE_DECODE_LIMIT: usize = META_TRIM_META * 4 / 3 + 256;
+    if meta_str.len() > PRE_DECODE_LIMIT {
+        return Err(IsccError::InvalidInput(format!(
+            "meta string exceeds size limit ({} > {PRE_DECODE_LIMIT} bytes)",
+            meta_str.len()
+        )));
+    }
+}
+
+let meta_payload: Option<Vec<u8>> = match meta {
+    Some(meta_str) if meta_str.starts_with("data:") => Some(decode_data_url(meta_str)?),
+    Some(meta_str) => Some(parse_meta_json(meta_str)?),
+    None => None,
+};
+
+// Post-decode check: reject payloads exceeding META_TRIM_META
+if let Some(ref payload) = meta_payload {
+    if payload.len() > META_TRIM_META {
+        return Err(IsccError::InvalidInput(format!(
+            "decoded meta payload exceeds size limit ({} > {META_TRIM_META} bytes)",
+            payload.len()
+        )));
+    }
+}
+```
+
+**Tests to add** (in the existing `mod tests` block):
+
+1. `test_meta_trim_meta_value` — assert `META_TRIM_META == 128_000`
+2. `test_gen_meta_code_v0_meta_at_limit` — create a JSON payload of exactly 128,000 bytes, verify it
+    succeeds
+3. `test_gen_meta_code_v0_meta_over_limit` — create a JSON payload of 128,001 bytes, verify it
+    returns `IsccError::InvalidInput`
+4. `test_gen_meta_code_v0_data_url_pre_decode_reject` — create a Data-URL string exceeding the
+    pre-decode limit, verify rejection before decoding
+
+**Edge case**: Existing conformance tests with meta payloads are small (well under 128K) — they must
+continue to pass unchanged.
 
 ## Verification
 
-- `uv run zensical build` succeeds (site builds with new page)
-- `grep -q 'java-api.md' zensical.toml` exits 0 (nav entry present)
-- `grep -q 'java-api' docs/llms.txt` exits 0 (llms.txt reference added)
-- `grep -c 'genMetaCodeV0\|genTextCodeV0\|genImageCodeV0\|genAudioCodeV0\|genVideoCodeV0\|genMixedCodeV0\|genDataCodeV0\|genInstanceCodeV0\|genIsccCodeV0' docs/java-api.md`
-    returns ≥ 9 (all gen functions documented)
-- `grep -c 'dataHasherNew\|dataHasherUpdate\|dataHasherFinalize\|dataHasherFree' docs/java-api.md`
-    returns ≥ 4 (DataHasher lifecycle documented)
-- `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 (decode result type documented)
-- `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 (constants documented)
-- `mise run check` passes (all hooks clean)
+- `cargo test -p iscc-lib` passes (all existing tests + 4 new tests)
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `iscc_lib::META_TRIM_META` is importable and equals `128_000`
+- `gen_meta_code_v0("test", None, Some(<128K+ payload>), 64)` returns `Err(IsccError::InvalidInput)`
+- All existing conformance vector tests still pass
 
 ## Done When
 
-All 8 verification commands pass — the Java API reference page is complete, wired into navigation
-and llms.txt, and the site builds cleanly.
+All verification criteria pass: the `META_TRIM_META` constant exists at crate root,
+`gen_meta_code_v0` rejects oversized payloads with pre-decode and post-decode checks, new boundary
+tests pass, and all existing tests remain green.
