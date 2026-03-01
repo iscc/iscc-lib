@@ -31,6 +31,9 @@ pub const META_TRIM_NAME: usize = 128;
 /// Max UTF-8 byte length for description metadata trimming.
 pub const META_TRIM_DESCRIPTION: usize = 4096;
 
+/// Max decoded payload size in bytes for the meta element.
+pub const META_TRIM_META: usize = 128_000;
+
 /// Buffer size in bytes for streaming file reads (4 MB).
 pub const IO_READ_SIZE: usize = 4_194_304;
 
@@ -295,12 +298,33 @@ pub fn gen_meta_code_v0(
     let desc_clean = utils::text_clean(desc_str);
     let desc_clean = utils::text_trim(&desc_clean, META_TRIM_DESCRIPTION);
 
+    // Pre-decode fast check: reject obviously oversized meta strings
+    if let Some(meta_str) = meta {
+        const PRE_DECODE_LIMIT: usize = META_TRIM_META * 4 / 3 + 256;
+        if meta_str.len() > PRE_DECODE_LIMIT {
+            return Err(IsccError::InvalidInput(format!(
+                "meta string exceeds size limit ({} > {PRE_DECODE_LIMIT} bytes)",
+                meta_str.len()
+            )));
+        }
+    }
+
     // Resolve meta payload bytes (if meta is provided)
     let meta_payload: Option<Vec<u8>> = match meta {
         Some(meta_str) if meta_str.starts_with("data:") => Some(decode_data_url(meta_str)?),
         Some(meta_str) => Some(parse_meta_json(meta_str)?),
         None => None,
     };
+
+    // Post-decode check: reject payloads exceeding META_TRIM_META
+    if let Some(ref payload) = meta_payload {
+        if payload.len() > META_TRIM_META {
+            return Err(IsccError::InvalidInput(format!(
+                "decoded meta payload exceeds size limit ({} > {META_TRIM_META} bytes)",
+                payload.len()
+            )));
+        }
+    }
 
     // Branch: meta bytes path vs. description text path
     if let Some(ref payload) = meta_payload {
@@ -1995,6 +2019,51 @@ mod tests {
         assert_eq!(
             canonical, r#"{"some":"object"}"#,
             "JCS removes whitespace from JSON"
+        );
+    }
+
+    #[test]
+    fn test_meta_trim_meta_value() {
+        assert_eq!(META_TRIM_META, 128_000);
+    }
+
+    #[test]
+    fn test_gen_meta_code_v0_meta_at_limit() {
+        // Create a JSON payload that decodes to exactly 128,000 bytes
+        // JSON: {"x":"<padding>"} where padding fills to 128,000 bytes
+        // The canonical JSON overhead is {"x":""} = 8 bytes, so padding = 127,992 bytes
+        let padding = "a".repeat(128_000 - 8);
+        let json_str = format!(r#"{{"x":"{padding}"}}"#);
+        let result = gen_meta_code_v0("test", None, Some(&json_str), 64);
+        assert!(
+            result.is_ok(),
+            "payload at exactly META_TRIM_META should succeed"
+        );
+    }
+
+    #[test]
+    fn test_gen_meta_code_v0_meta_over_limit() {
+        // Create a JSON payload that decodes to 128,001 bytes (one over limit)
+        let padding = "a".repeat(128_000 - 8 + 1);
+        let json_str = format!(r#"{{"x":"{padding}"}}"#);
+        let result = gen_meta_code_v0("test", None, Some(&json_str), 64);
+        assert!(
+            matches!(result, Err(IsccError::InvalidInput(ref msg)) if msg.contains("size limit")),
+            "payload exceeding META_TRIM_META should return InvalidInput"
+        );
+    }
+
+    #[test]
+    fn test_gen_meta_code_v0_data_url_pre_decode_reject() {
+        // Create a Data-URL string exceeding the pre-decode limit
+        // PRE_DECODE_LIMIT = META_TRIM_META * 4 / 3 + 256 = 170,922
+        let pre_decode_limit = META_TRIM_META * 4 / 3 + 256;
+        let padding = "A".repeat(pre_decode_limit + 1);
+        let data_url = format!("data:application/octet-stream;base64,{padding}");
+        let result = gen_meta_code_v0("test", None, Some(&data_url), 64);
+        assert!(
+            matches!(result, Err(IsccError::InvalidInput(ref msg)) if msg.contains("size limit")),
+            "oversized Data-URL should be rejected before decoding"
         );
     }
 }

@@ -1,39 +1,26 @@
-## 2026-02-28 — Review of: Add Java API reference page
+## 2026-03-01 — Add META_TRIM_META constant and payload validation to Rust core
 
-**Verdict:** PASS
+**Done:** Added `META_TRIM_META: usize = 128_000` constant to the Rust core Tier 1 API and
+implemented pre-decode and post-decode payload size validation in `gen_meta_code_v0`. The pre-decode
+check rejects meta strings exceeding `META_TRIM_META * 4/3 + 256` bytes before any parsing work. The
+post-decode check rejects decoded payloads exceeding `META_TRIM_META` bytes. Both return
+`IsccError::InvalidInput` with descriptive messages.
 
-**Summary:** Clean, well-scoped documentation addition. The new `docs/java-api.md` (676 lines)
-documents all 30 Tier 1 symbols as static methods on `IsccLib` with accurate Java type signatures,
-parameter tables, code examples, streaming hasher lifecycle, error handling, and memory management.
-Content faithfully transcribed from `IsccLib.java` and `IsccDecodeResult.java` Javadoc. Site builds
-cleanly, nav entry and llms.txt updated. All 4 spec-required Reference pages are now complete.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-lib/src/lib.rs`: Added `META_TRIM_META` constant after `META_TRIM_DESCRIPTION`; added
+    pre-decode fast check and post-decode size check in `gen_meta_code_v0`; added 4 new tests
+    (`test_meta_trim_meta_value`, `test_gen_meta_code_v0_meta_at_limit`,
+    `test_gen_meta_code_v0_meta_over_limit`, `test_gen_meta_code_v0_data_url_pre_decode_reject`)
 
-- [x] `uv run zensical build` succeeds — builds in 0.66s with `/java-api/` in output
-- [x] `grep -q 'java-api.md' zensical.toml` exits 0 — nav entry present after C FFI
-- [x] `grep -q 'java-api' docs/llms.txt` exits 0 — reference line added
-- [x] gen function count: 32 (≥ 9) — all 9 gen functions documented with signatures and examples
-- [x] DataHasher lifecycle count: 18 (≥ 4) — DataHasher + InstanceHasher fully documented
-- [x] `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 — class with 5 fields documented
-- [x] `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 — all 4 constants in table
-- [x] `mise run check` — all 14 hooks pass
+**Verification:** All 252 tests pass (`cargo test -p iscc-lib`). All 14 pre-commit hooks pass
+(`mise run check`). Clippy clean with `-D warnings`. All 46 conformance vector tests unchanged and
+passing. The 4 new tests cover: constant value, boundary at-limit (succeeds), boundary over-limit
+(rejects), and pre-decode Data-URL rejection.
 
-**Issues found:**
+**Next:** Expose `META_TRIM_META` in all 6 binding crates (Python, Node.js, WASM, C FFI, Java, Go).
+The Python binding should also add it to `core_opts` namespace for iscc-core parity.
 
-- (none)
-
-**Codex review:** Codex reviewed the define-next commit (HEAD~1, not the advance commit) but still
-identified relevant documentation accuracy points: (1) P2: intro paragraph oversimplified native
-library loading — fixed by adding fallback mention. (2) P3: `IsccLib.isccDecode()` reference omits
-parameter — standard Java method reference convention, not actionable. (3) P3: handoff grep uses
-`...` abbreviation — textual shorthand in handoff text, not actual regex, not actionable.
-
-**Next:** All spec-required documentation pages are complete (Rust API, Python API, C FFI, Java
-API). The documentation spec is fully met. All remaining work requires human action: merge PR #10
-(develop → main), trigger 0.0.2 releases to PyPI/npm, configure Maven Central publishing (GPG,
-Sonatype), decide canonical tab order, and configure OIDC for crates.io.
-
-**Notes:** The project has reached the end of automatable CID work. All 7 bindings at 30/30 Tier 1
-symbols, all 46 conformance vectors pass, CI green on all 9 jobs, documentation complete with 16
-pages. The only remaining issue is the low-priority tab order inconsistency (needs human decision).
+**Notes:** Initial test had an off-by-one: `{"x":""}` has 8 bytes overhead (not 7). Fixed
+immediately. The JSON overhead for boundary tests: `{`, `"x"`, `:`, `""`, `}` = 8 bytes, so at-limit
+padding = 127,992 chars, over-limit padding = 127,993 chars.

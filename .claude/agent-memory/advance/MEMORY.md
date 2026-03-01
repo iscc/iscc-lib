@@ -154,3 +154,6 @@ iterations.
 - mdformat auto-formats markdown — keep backtick expressions short to avoid wrapping crashes
 - `from __future__ import annotations` in `__init__.py` — use `|` union syntax, not `Union`
 - Python `__all__` has 45 entries (30 API + 10 result types + `__version__` + MT, ST, VS, core_opts)
+- JSON `{"x":""}` overhead is 8 bytes (not 7) — relevant for boundary tests on META_TRIM_META
+- META_TRIM_META validation: pre-decode check uses `META_TRIM_META * 4/3 + 256` (base64 inflation +
+    media type header), post-decode check uses `META_TRIM_META` directly
