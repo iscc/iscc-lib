@@ -102,6 +102,17 @@ iterations.
     `vectorEntry` struct + 9 `run*Tests` section runners. `decodeStream` shared helper for
     Data/Instance hex decoding
 
+## gen_sum_code_v0
+
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>` in `lib.rs`
+- Single-pass file I/O: opens file, reads in `IO_READ_SIZE` chunks, feeds both `DataHasher` and
+    `InstanceHasher`, composes ISCC-CODE via `gen_iscc_code_v0`
+- `SumCodeResult { iscc, datahash, filesize }` in `types.rs` — same `#[non_exhaustive]` pattern
+- File I/O errors mapped to `IsccError::InvalidInput("Cannot open/read file: {e}")`
+- `units: Vec<String>` field deferred (not in scope for initial core implementation)
+- 32nd and final Tier 1 symbol for Rust core — all 32 symbols now implemented
+- Binding propagation needed: Python, Node.js, WASM, C FFI, Java, Go (6 crates)
+
 ## Codec Internals
 
 - `decode_header` and `decode_varnibble_from_bytes` operate directly on `&[u8]` with bitwise

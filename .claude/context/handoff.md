@@ -1,40 +1,37 @@
-## 2026-03-01 — Review of: Export META_TRIM_META in Java and Go bindings
+## 2026-03-01 — Implement gen_sum_code_v0 + SumCodeResult in Rust core
 
-**Verdict:** PASS
+**Done:** Added `SumCodeResult` struct to `types.rs` and `gen_sum_code_v0` function to `lib.rs`. The
+function opens a file, reads it in `IO_READ_SIZE` chunks, feeds both `DataHasher` and
+`InstanceHasher` from the same buffer, then composes the final ISCC-CODE. This is the 32nd and final
+Tier 1 symbol for the Rust core crate.
 
-**Summary:** Clean, minimal, well-scoped change. `META_TRIM_META = 128_000` is now correctly
-exported in both Java (`IsccLib.java`) and Go (`codec.go`) bindings, completing issue #18 — all 6
-binding crates now export the constant. The implementation follows the exact pattern of existing
-constants (`META_TRIM_DESCRIPTION`) in each language.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-lib/src/types.rs`: Added `SumCodeResult` struct with `iscc`, `datahash`, `filesize`
+    fields
+- `crates/iscc-lib/src/lib.rs`: Added `gen_sum_code_v0(path, bits, wide)` function + 7 test
+    functions
 
-- [x] `cargo test -p iscc-jni` passes — 0 Rust-side tests (expected; JNI tests are Java-side)
-- [x] `cd crates/iscc-jni/java && mvn test -q` passes — all Java tests including updated
-    `testConstants` with 5 assertions
-- [x] `cd packages/go && go test ./... -count=1` passes — 147 tests
-- [x] `cd packages/go && go vet ./...` — clean
-- [x] `cargo clippy -p iscc-jni -- -D warnings` — clean
-- [x] `grep -c 'META_TRIM_META' IsccLib.java` → 1 (constant declared)
-- [x] `grep -c 'MetaTrimMeta' codec.go` → 1 (constant declared)
-- [x] `mise run check` — all 14 pre-commit hooks passed
-- [x] No quality gate circumvention patterns found
+**Verification:** All quality gates pass:
 
-**Issues found:**
+- `cargo test -p iscc-lib`: 310 tests pass (303 existing + 7 new gen_sum_code_v0 tests)
+- `cargo clippy -p iscc-lib -- -D warnings`: clean
+- `cargo fmt -p iscc-lib --check`: clean
+- `mise run check`: all 14 pre-commit hooks pass
+- `gen_sum_code_v0` and `SumCodeResult` are importable from crate root (via `pub fn` and
+    `pub use types::*`)
+- Equivalence verified:
+    `gen_sum_code_v0(path, bits, wide).iscc == gen_iscc_code_v0(&[data_iscc, instance_iscc], wide).iscc`
+    for same content
+- Error case verified: nonexistent path returns `Err` with "Cannot open file" message
+- Wide mode verified: 64-bit codes produce same result for narrow/wide (below threshold), 128-bit
+    codes produce different results
+- Both 64-bit and 128-bit tested with equivalence assertion
 
-- (none)
+**Next:** Propagate `gen_sum_code_v0` + `SumCodeResult` to binding crates. Start with Python
+bindings (`crates/iscc-py/`) since it's the primary consumer, then Node.js, WASM, C FFI, Java, and
+Go. The Go binding will need a pure-Go implementation (not a Rust binding wrapper).
 
-**Next:** Issue #18 is fully complete (6/6 bindings). The next major work is issue #15
-(`gen_sum_code_v0` + `SumCodeResult`). This is a substantial feature: single-pass file I/O for
-Data+Instance code in Rust core, then propagation to all 6 bindings. Start with the Rust core
-implementation — `gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>`.
-The existing `DataHasher` and `InstanceHasher` streaming types can be composed in a single read
-loop.
-
-**Codex review:** No actionable findings. Codex confirmed all tests pass (cargo test, Go tests,
-Maven tests) and the constant additions are correct.
-
-**Notes:** Issue #18 deletion from issues.md is part of this review commit. State.md currently shows
-Java and Go as "missing META_TRIM_META" — the next update-state will correct this. The project is
-now at 31/32 Tier 1 symbols; `gen_sum_code_v0` + `SumCodeResult` are the final 2 symbols needed to
-reach the full 32-symbol target.
+**Notes:** No surprises. The implementation is straightforward — `DataHasher` and `InstanceHasher`
+compose cleanly in a single read loop. `SumCodeResult` follows the exact same `#[non_exhaustive]`
+pattern as all other result types. The `units: Vec<String>` field was deferred per next.md scope.

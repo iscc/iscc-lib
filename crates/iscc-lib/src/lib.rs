@@ -1,6 +1,6 @@
 //! High-performance Rust implementation of ISO 24138:2024 (ISCC).
 //!
-//! This crate provides the core ISCC algorithm implementations. All 9 `gen_*_v0`
+//! This crate provides the core ISCC algorithm implementations. All 10 `gen_*_v0`
 //! functions are the public Tier 1 API surface, designed to be compatible with
 //! the `iscc-core` Python reference implementation.
 
@@ -954,6 +954,46 @@ pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult
     // Step 15: Return with prefix
     Ok(IsccCodeResult {
         iscc: format!("ISCC:{code}"),
+    })
+}
+
+/// Generate a composite ISCC-CODE from a file in a single pass.
+///
+/// Opens the file at `path`, reads it with an optimal buffer size, and feeds
+/// both `DataHasher` (CDC/MinHash) and `InstanceHasher` (BLAKE3) from the
+/// same read buffer. Composes the final ISCC-CODE from the Data-Code and
+/// Instance-Code internally. This avoids multiple passes over the file and
+/// eliminates per-chunk FFI overhead in language bindings.
+pub fn gen_sum_code_v0(path: &std::path::Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult> {
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path)
+        .map_err(|e| IsccError::InvalidInput(format!("Cannot open file: {e}")))?;
+
+    let mut data_hasher = streaming::DataHasher::new();
+    let mut instance_hasher = streaming::InstanceHasher::new();
+
+    let mut buf = vec![0u8; IO_READ_SIZE];
+    loop {
+        let n = file
+            .read(&mut buf)
+            .map_err(|e| IsccError::InvalidInput(format!("Cannot read file: {e}")))?;
+        if n == 0 {
+            break;
+        }
+        data_hasher.update(&buf[..n]);
+        instance_hasher.update(&buf[..n]);
+    }
+
+    let data_result = data_hasher.finalize(bits)?;
+    let instance_result = instance_hasher.finalize(bits)?;
+
+    let iscc_result = gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)?;
+
+    Ok(SumCodeResult {
+        iscc: iscc_result.iscc,
+        datahash: instance_result.datahash,
+        filesize: instance_result.filesize,
     })
 }
 
@@ -2065,5 +2105,144 @@ mod tests {
             matches!(result, Err(IsccError::InvalidInput(ref msg)) if msg.contains("size limit")),
             "oversized Data-URL should be rejected before decoding"
         );
+    }
+
+    // ---- gen_sum_code_v0 tests ----
+
+    /// Helper: write data to a unique temp file and return the path.
+    fn write_temp_file(name: &str, data: &[u8]) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("iscc_test_{name}"));
+        std::fs::write(&path, data).expect("failed to write temp file");
+        path
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_equivalence() {
+        let data = b"Hello, ISCC World! This is a test of gen_sum_code_v0.";
+        let path = write_temp_file("sum_equiv", data);
+
+        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+
+        // Compute the same result via separate functions
+        let data_result = gen_data_code_v0(data, 64).unwrap();
+        let instance_result = gen_instance_code_v0(data, 64).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+        assert_eq!(sum_result.datahash, instance_result.datahash);
+        assert_eq!(sum_result.filesize, instance_result.filesize);
+        assert_eq!(sum_result.filesize, data.len() as u64);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_empty_file() {
+        let path = write_temp_file("sum_empty", b"");
+
+        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+
+        let data_result = gen_data_code_v0(b"", 64).unwrap();
+        let instance_result = gen_instance_code_v0(b"", 64).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+        assert_eq!(sum_result.datahash, instance_result.datahash);
+        assert_eq!(sum_result.filesize, 0);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_file_not_found() {
+        let path = std::path::Path::new("/tmp/iscc_test_nonexistent_file_xyz");
+        let result = gen_sum_code_v0(path, 64, false);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("Cannot open file"),
+            "error message should mention file open failure: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_wide_mode() {
+        let data = b"Testing wide mode for gen_sum_code_v0 function.";
+        let path = write_temp_file("sum_wide", data);
+
+        let narrow = gen_sum_code_v0(&path, 64, false).unwrap();
+        let wide = gen_sum_code_v0(&path, 64, true).unwrap();
+
+        // Wide mode with 64-bit codes doesn't trigger (need 128+), so they should be equal
+        assert_eq!(narrow.iscc, wide.iscc);
+
+        // With 128 bits, wide mode should produce a different (longer) ISCC
+        let narrow_128 = gen_sum_code_v0(&path, 128, false).unwrap();
+        let wide_128 = gen_sum_code_v0(&path, 128, true).unwrap();
+        assert_ne!(narrow_128.iscc, wide_128.iscc);
+
+        // Both should have the same datahash and filesize
+        assert_eq!(narrow_128.datahash, wide_128.datahash);
+        assert_eq!(narrow_128.filesize, wide_128.filesize);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_bits_64() {
+        let data = b"Testing 64-bit gen_sum_code_v0.";
+        let path = write_temp_file("sum_bits64", data);
+
+        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+
+        let data_result = gen_data_code_v0(data, 64).unwrap();
+        let instance_result = gen_instance_code_v0(data, 64).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_bits_128() {
+        let data = b"Testing 128-bit gen_sum_code_v0.";
+        let path = write_temp_file("sum_bits128", data);
+
+        let sum_result = gen_sum_code_v0(&path, 128, false).unwrap();
+
+        let data_result = gen_data_code_v0(data, 128).unwrap();
+        let instance_result = gen_instance_code_v0(data, 128).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+        assert_eq!(sum_result.datahash, instance_result.datahash);
+        assert_eq!(sum_result.filesize, data.len() as u64);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_large_data() {
+        // Generate data large enough to produce multiple CDC chunks
+        let data: Vec<u8> = (0..50_000).map(|i| (i % 256) as u8).collect();
+        let path = write_temp_file("sum_large", &data);
+
+        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+
+        let data_result = gen_data_code_v0(&data, 64).unwrap();
+        let instance_result = gen_instance_code_v0(&data, 64).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+        assert_eq!(sum_result.datahash, instance_result.datahash);
+        assert_eq!(sum_result.filesize, data.len() as u64);
+
+        std::fs::remove_file(&path).ok();
     }
 }
