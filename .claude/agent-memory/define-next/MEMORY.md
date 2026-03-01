@@ -50,9 +50,19 @@ Target requires 32 Tier 1 symbols. 31 done. gen_sum_code_v0 + SumCodeResult are 
 **Execution plan:**
 
 1. ✅ Issue #18 (META_TRIM_META) — all 6 bindings complete
-2. → Issue #15 Rust core — gen_sum_code_v0 + SumCodeResult (iter 5)
+2. → Issue #15 Rust core — gen_sum_code_v0 + SumCodeResult (scoped twice, advance pending)
 3. Issue #15 Python binding — accept str | os.PathLike
 4. Issue #15 remaining bindings — Node.js, C FFI, Java, Go (WASM needs design decision)
+
+**Implementation details confirmed via research:**
+
+- `InstanceHasher.finalize(bits)` ignores the `bits` param — always 256-bit output. Only Data-Code
+    truncation is affected by `bits`
+- DataHasher.finalize consumes self (takes `mut self`, not `&mut self`), same for InstanceHasher
+- When composing Data + Instance only (no content code), `gen_iscc_code_v0` produces SubType::Sum
+- When `wide=true` and both codes ≥128 bits, SubType::Wide is used instead
+- `gen_sum_code_v0` is a `pub fn` at crate root — no `pub use` needed (unlike types)
+- Required imports: `std::fs::File`, `std::io::Read`, `std::path::Path`
 
 ## Binding Propagation Patterns
 

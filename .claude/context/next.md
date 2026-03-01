@@ -49,7 +49,8 @@ pub struct SumCodeResult {
 }
 ```
 
-**gen_sum_code_v0** — add to `lib.rs` near the other `gen_*_v0` functions:
+**gen_sum_code_v0** — add to `lib.rs` near the other `gen_*_v0` functions (after
+`gen_iscc_code_v0`):
 
 1. Open file with `std::fs::File::open(path)`, map I/O errors to `IsccError::InvalidInput`
 2. Create `DataHasher::new()` and `InstanceHasher::new()`
@@ -59,9 +60,16 @@ pub struct SumCodeResult {
 6. Return
     `SumCodeResult { iscc: iscc_result.iscc, datahash: instance_result.datahash, filesize: instance_result.filesize }`
 
+**Important note**: `InstanceHasher.finalize(bits)` ignores the `bits` parameter — always produces
+256-bit output (per learnings). The `bits` parameter is passed for API consistency but only affects
+the Data-Code hash truncation.
+
 **Error handling**: Use `IsccError::InvalidInput` for file-not-found and read errors — this matches
 the existing error type. The format should include the OS error message (e.g.,
 `"Cannot open file: No such file or directory (os error 2)"`).
+
+**Required imports**: `std::fs::File`, `std::io::Read`, `std::path::Path` — add to existing imports
+in `lib.rs`.
 
 **Tests** — write test functions (not a test class) in `lib.rs`'s `#[cfg(test)]` module:
 
@@ -72,14 +80,15 @@ the existing error type. The format should include the OS error message (e.g.,
     `filesize` all match.
 2. **Empty file**: Test with a zero-byte file — should still produce valid ISCC.
 3. **File not found**: Assert `gen_sum_code_v0` returns `Err` for a nonexistent path.
-4. **Wide mode**: Test with `wide=true` — verify output differs from `wide=false`.
+4. **Wide mode**: Test with `wide=true` — verify output differs from `wide=false` (both produce
+    valid results but with different SubType/digest layout).
 5. **Different bit lengths**: Test at least `bits=64` and `bits=128`.
 
 Use `std::fs::write` + `std::fs::remove_file` for temp files (no new dev dependencies needed). Clean
 up temp files even on test failure — or use unique filenames under `std::env::temp_dir()`.
 
-**Export**: Add `pub use` or ensure `gen_sum_code_v0` is `pub fn` at crate root. `SumCodeResult` is
-already picked up by `pub use types::*`.
+**Export**: `gen_sum_code_v0` is a `pub fn` at crate root — no additional `pub use` needed.
+`SumCodeResult` is already picked up by `pub use types::*`.
 
 ## Verification
 
