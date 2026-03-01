@@ -1,108 +1,94 @@
 # Next Work Package
 
-## Step: Implement gen_sum_code_v0 + SumCodeResult in Rust core
+## Step: Add gen_sum_code_v0 to Python bindings
 
 ## Goal
 
-Add `gen_sum_code_v0` and `SumCodeResult` to the Rust core crate — the 32nd and final Tier 1 symbol.
-This function performs single-pass file I/O that feeds both `DataHasher` (CDC/MinHash) and
-`InstanceHasher` (BLAKE3) from the same read buffer, then composes the final ISCC-CODE internally.
-This is the first function in the crate that introduces file I/O.
+Propagate `gen_sum_code_v0` and `SumCodeResult` to the Python bindings (`crates/iscc-py/`), making
+Python the first binding to expose the 32nd Tier 1 symbol. This is the primary consumer language and
+the handoff-recommended starting point for binding propagation (issue #15).
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-lib/src/types.rs` — add `SumCodeResult` struct
-    - `crates/iscc-lib/src/lib.rs` — add `gen_sum_code_v0` function + export + tests
+    - `crates/iscc-py/src/lib.rs` — add PyO3 `gen_sum_code_v0` wrapper + register in module
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — add `SumCodeResult` class, public
+        `gen_sum_code_v0(path, bits, wide)` wrapper, update imports and `__all__`
+    - `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — add type stub for low-level `gen_sum_code_v0`
 - **Reference**:
-    - `crates/iscc-lib/src/streaming.rs` — `DataHasher` and `InstanceHasher` API
-    - `crates/iscc-lib/src/types.rs` — existing result type patterns
-    - `.claude/context/specs/rust-core.md` — spec for signature and verification criteria
+    - `crates/iscc-lib/src/lib.rs` lines 967-1010 — Rust `gen_sum_code_v0` signature and
+        implementation
+    - `crates/iscc-lib/src/types.rs` lines 96-105 — `SumCodeResult` struct definition
+    - `crates/iscc-py/src/lib.rs` lines 300-327 — existing `gen_instance_code_v0` PyO3 wrapper (dict
+        with `iscc`, `datahash`, `filesize` — same fields as `SumCodeResult`)
+    - `crates/iscc-py/python/iscc_lib/__init__.py` lines 111-181 — existing result class pattern
+        (`IsccResult(dict)` base, typed subclasses)
+    - `crates/iscc-py/python/iscc_lib/__init__.py` lines 247-256 — existing `gen_instance_code_v0`
+        public wrapper pattern
 
 ## Not In Scope
 
-- Propagating `gen_sum_code_v0` to any binding crate (Python, Node.js, WASM, C FFI, Java, Go) —
-    separate steps after core lands
-- Updating README, per-crate READMEs, or documentation site for the new function
-- Adding `units: Vec<String>` field to `SumCodeResult` (optional field per spec — defer until
-    bindings need it or add if trivial)
-- Benchmarks for `gen_sum_code_v0` (add after bindings to benchmark full pipeline)
-- WASM design decisions for path-based I/O — not relevant for core crate
+- Propagating to Node.js, WASM, C FFI, Java, or Go bindings (separate future steps)
+- Adding `units: Vec<String>` field to `SumCodeResult` (deferred per prior scope decision)
+- Updating README or documentation pages for gen_sum_code_v0 (do after all bindings complete)
+- Adding Criterion benchmarks for gen_sum_code_v0 (separate step)
+- Modifying the Rust core crate in any way
 
 ## Implementation Notes
 
-**SumCodeResult** — add to `types.rs` following the existing pattern (`#[non_exhaustive]`,
-`#[derive(Debug, Clone, PartialEq, Eq)]`):
+**PyO3 wrapper (`crates/iscc-py/src/lib.rs`):**
 
-```rust
-/// Result of [`gen_sum_code_v0`](crate::gen_sum_code_v0).
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct SumCodeResult {
-    /// Composite ISCC-CODE string (e.g., `"ISCC:KAC..."`).
-    pub iscc: String,
-    /// Hex-encoded BLAKE3 multihash (`"1e20..."`) of the file.
-    pub datahash: String,
-    /// Byte length of the file.
-    pub filesize: u64,
-}
-```
+- Unlike existing gen functions that accept `&[u8]`, `gen_sum_code_v0` takes `&Path`. The PyO3
+    wrapper should accept `path: &str` (not bytes), convert to `std::path::Path`, and call
+    `iscc_lib::gen_sum_code_v0`.
+- Signature:
+    `fn gen_sum_code_v0(py: Python<'_>, path: &str, bits: u32, wide: bool) -> PyResult<PyObject>`
+- Use `#[pyo3(signature = (path, bits=64, wide=false))]` for defaults matching iscc-core convention.
+- Return a `PyDict` with keys `iscc` (String), `datahash` (String), `filesize` (u64) — same pattern
+    as `gen_instance_code_v0`.
+- Error mapping: `.map_err(|e| PyValueError::new_err(e.to_string()))` as with all other wrappers.
+- Register via `m.add_function(wrap_pyfunction!(gen_sum_code_v0, m)?)` in the module init.
 
-**gen_sum_code_v0** — add to `lib.rs` near the other `gen_*_v0` functions (after
-`gen_iscc_code_v0`):
+**Python public API (`__init__.py`):**
 
-1. Open file with `std::fs::File::open(path)`, map I/O errors to `IsccError::InvalidInput`
-2. Create `DataHasher::new()` and `InstanceHasher::new()`
-3. Read loop: `let mut buf = vec![0u8; IO_READ_SIZE];` — read chunks, feed both hashers
-4. Finalize both: `data_hasher.finalize(bits)?` and `instance_hasher.finalize(bits)?`
-5. Compose ISCC-CODE: call `gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)?`
-6. Return
-    `SumCodeResult { iscc: iscc_result.iscc, datahash: instance_result.datahash, filesize: instance_result.filesize }`
+- Add `SumCodeResult(IsccResult)` class with annotations: `iscc: str`, `datahash: str`,
+    `filesize: int`. Same shape as `InstanceCodeResult`.
+- Add public
+    `gen_sum_code_v0(path: str | os.PathLike, bits: int = 64, wide: bool = False) -> SumCodeResult`.
+- The public wrapper converts `os.PathLike` to string via `os.fspath(path)` before passing to the
+    low-level Rust function. Use `str(os.fspath(path))` to handle both `str` and `pathlib.Path`.
+- Import low-level `gen_sum_code_v0 as _gen_sum_code_v0` from `_lowlevel`.
+- Add `"SumCodeResult"` and `"gen_sum_code_v0"` to `__all__` (keep alphabetically sorted).
 
-**Important note**: `InstanceHasher.finalize(bits)` ignores the `bits` parameter — always produces
-256-bit output (per learnings). The `bits` parameter is passed for API consistency but only affects
-the Data-Code hash truncation.
+**Type stub (`_lowlevel.pyi`):**
 
-**Error handling**: Use `IsccError::InvalidInput` for file-not-found and read errors — this matches
-the existing error type. The format should include the OS error message (e.g.,
-`"Cannot open file: No such file or directory (os error 2)"`).
+- Add `def gen_sum_code_v0(path: str, bits: int = 64, wide: bool = False) -> dict[str, Any]: ...`
+- Docstring mentioning it generates both Data-Code and Instance-Code from a file path.
 
-**Required imports**: `std::fs::File`, `std::io::Read`, `std::path::Path` — add to existing imports
-in `lib.rs`.
+**Tests (in `tests/test_smoke.py` or similar):**
 
-**Tests** — write test functions (not a test class) in `lib.rs`'s `#[cfg(test)]` module:
-
-1. **Equivalence test**: Write known bytes to a temp file (`std::env::temp_dir()` +
-    `std::fs::write`), call `gen_sum_code_v0`, compare against separate
-    `gen_data_code_v0(data, bits)` + `gen_instance_code_v0(data, bits)` →
-    `gen_iscc_code_v0(&[data_iscc, instance_iscc], wide)`. Assert `iscc`, `datahash`, and
-    `filesize` all match.
-2. **Empty file**: Test with a zero-byte file — should still produce valid ISCC.
-3. **File not found**: Assert `gen_sum_code_v0` returns `Err` for a nonexistent path.
-4. **Wide mode**: Test with `wide=true` — verify output differs from `wide=false` (both produce
-    valid results but with different SubType/digest layout).
-5. **Different bit lengths**: Test at least `bits=64` and `bits=128`.
-
-Use `std::fs::write` + `std::fs::remove_file` for temp files (no new dev dependencies needed). Clean
-up temp files even on test failure — or use unique filenames under `std::env::temp_dir()`.
-
-**Export**: `gen_sum_code_v0` is a `pub fn` at crate root — no additional `pub use` needed.
-`SumCodeResult` is already picked up by `pub use types::*`.
+- Test with `str` path: write temp file, call `gen_sum_code_v0(str(path))`, verify result has
+    `iscc`, `datahash`, `filesize` keys.
+- Test with `pathlib.Path`: call `gen_sum_code_v0(pathlib.Path(path))`, verify same result.
+- Test equivalence: verify `gen_sum_code_v0(path).datahash == gen_instance_code_v0(data).datahash`
+    and `.filesize` match.
+- Test file not found: verify `ValueError` raised with descriptive message.
+- Test `isinstance(result, SumCodeResult)` and `isinstance(result, dict)`.
+- Test attribute access: `result.iscc`, `result.datahash`, `result.filesize`.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (303 existing + ≥5 new tests)
-- `cargo clippy -p iscc-lib -- -D warnings` clean
-- `cargo fmt -p iscc-lib --check` clean
-- `iscc_lib::gen_sum_code_v0` is importable from crate root
-- `iscc_lib::SumCodeResult` is importable from crate root
-- Test asserts
-    `gen_sum_code_v0(path, 64, false).iscc == gen_iscc_code_v0(&[data_iscc, instance_iscc], false).iscc`
-    for the same file content
-- Test asserts `gen_sum_code_v0(nonexistent_path, 64, false)` returns `Err`
+- `cargo test -p iscc-py` passes (existing 78+ Rust unit tests still green)
+- `cargo clippy -p iscc-py -- -D warnings` clean
+- `uv run pytest` passes (existing 198+ tests + new gen_sum_code_v0 tests)
+- `uv run ruff check` clean
+- `python -c "from iscc_lib import gen_sum_code_v0, SumCodeResult; print('OK')"` exits 0
+- `python -c "import iscc_lib; assert 'gen_sum_code_v0' in iscc_lib.__all__; assert 'SumCodeResult' in iscc_lib.__all__"`
+    exits 0
 
 ## Done When
 
-All verification criteria pass — `gen_sum_code_v0` and `SumCodeResult` are implemented, tested, and
-exported from the Rust core crate with equivalence to the two-pass approach verified.
+The advance agent is done when all verification criteria pass, confirming that `gen_sum_code_v0` and
+`SumCodeResult` are fully functional in the Python bindings with path-based input, dict+attribute
+result access, and equivalence to the two-pass Rust approach.

@@ -50,8 +50,8 @@ Target requires 32 Tier 1 symbols. 31 done. gen_sum_code_v0 + SumCodeResult are 
 **Execution plan:**
 
 1. ✅ Issue #18 (META_TRIM_META) — all 6 bindings complete
-2. → Issue #15 Rust core — gen_sum_code_v0 + SumCodeResult (scoped twice, advance pending)
-3. Issue #15 Python binding — accept str | os.PathLike
+2. ✅ Issue #15 Rust core — gen_sum_code_v0 + SumCodeResult (310 tests, 7 new)
+3. → Issue #15 Python binding — accept str | os.PathLike, SumCodeResult class
 4. Issue #15 remaining bindings — Node.js, C FFI, Java, Go (WASM needs design decision)
 
 **Implementation details confirmed via research:**
@@ -76,6 +76,12 @@ complexity:
     existing patterns. Natural batch.
 - **Java + Go** (2 files): Java is Java source (literal value), Go is Go source (literal value).
     Both hardcode values. Natural batch.
+
+**gen_sum_code_v0 is path-based, not bytes-based** — unlike all other gen functions that accept
+`&[u8]` at the PyO3 layer, `gen_sum_code_v0` accepts `&Path`. PyO3 wrapper accepts `&str`, Python
+public API accepts `str | os.PathLike` (converted via `os.fspath`). No streaming fallback needed —
+the function does its own file I/O internally. WASM binding will need a different approach (likely
+`Uint8Array` input + internal CDC/BLAKE3 processing).
 
 ## Documentation Status
 
