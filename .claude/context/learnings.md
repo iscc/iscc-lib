@@ -33,6 +33,9 @@ fully-met target sections to `learnings-archive.md`.
 
 - `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing
+- `META_TRIM_META` validation: pre-decode check (`META_TRIM_META * 4/3 + 256`) applies to ALL meta
+    strings (both Data-URL and JSON) as a fast-path optimization. Post-decode check on
+    `payload.len()` guarantees correctness. JSON boundary test overhead: `{"x":""}` = 8 bytes
 - `gen_image_code_v0` pixels parameter is a flat `&[u8]`, NOT `&[i32]`. Chromaprint provides `i32`
     audio fingerprints (for `gen_audio_code_v0`), not image pixels
 - `gen_instance_code_v0` accepts `bits` but ignores it — always produces 256-bit output (the hash of

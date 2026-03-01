@@ -24,8 +24,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - next.md test case specifications may have incorrect expected values (e.g., text_clean double-space
     collapsing) — when the advance agent adjusts test expectations, verify against the actual Rust
     implementation behavior rather than just accepting the spec
-- Advance agent handoff test counts may be off by 1 (e.g., counting TestMain as a test) — always
-    verify by running tests and counting top-level test functions
+- Advance agent handoff test counts are often inaccurate — always verify by running tests. iscc-lib
+    has 4 test suites (lib, integration, utils, doctest) and the total may differ from what the
+    advance agent reports (e.g., 303 actual vs 252 claimed)
 - `json.dumps` reformats JSON files (e.g., inline arrays become multi-line) — cosmetic but may
     appear as unintended changes in diffs. Check that formatting changes are idempotent
 - Doc examples claiming "ISCC:" prefix on decompose results — `iscc_decompose` returns units WITHOUT
