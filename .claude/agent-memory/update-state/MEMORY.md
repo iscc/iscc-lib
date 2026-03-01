@@ -33,8 +33,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode
 - `packages/go/code_meta.go` — `parseMetaJSON`, `jsonHasContext`, `buildMetaDataURL` helpers
-- `docs/c-ffi-api.md` — C FFI API reference (694 lines, all 44 extern "C" symbols documented)
-- `crates/iscc-jni/java/src/main/java/io/iscc/IsccLib.java` — 382-line Java class (30 Tier 1)
+- `docs/c-ffi-api.md` — C FFI API reference (694 lines); now 45 extern "C" symbols after
+    META_TRIM_META
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class (correct subpath:
+    `iscc_lib/`)
+- **Java META_TRIM_META path**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` —
+    has META_TRIM_NAME but NOT MetaTrimMeta yet; no JNI call needed (compile-time constant)
 
 ## Recurring Patterns
 
@@ -49,21 +53,20 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: e3bed27)
+## Current State (assessed-at: 415973f)
 
 - **Target**: 32 Tier 1 symbols — Rust core at 31/32 (META_TRIM_META added, gen_sum_code_v0 missing)
-- **Iteration 2 completed**: `META_TRIM_META` fully exported in Python binding (PyO3 init,
-    `__init__.py` import + `__all__` + `core_opts.meta_trim_meta`, `_lowlevel.pyi`); 198 Python
-    tests passing; all 11 CI jobs SUCCESS
+- **Iteration 3 completed**: `META_TRIM_META` exported in Node.js, WASM, C FFI bindings; all tests
+    added
 - **Issues**: #15 (gen_sum_code_v0), #16 (feature flags, low priority), #18 partially done (Rust
-    core + Python done; Node.js/WASM/C FFI/Java/Go still pending)
-- **META_TRIM_META**: IMPLEMENTED in Rust core ✅; Python ✅; Node.js/WASM/C FFI/Java/Go NOT YET
+    core + Python + Node.js + WASM + C FFI done; Java/Go still pending)
+- **META_TRIM_META**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ❌ Go ❌
 - **gen_sum_code_v0**: NOT YET IMPLEMENTED in Rust core or any binding
 - **SumCodeResult**: NOT YET IMPLEMENTED
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22548648285 — all 11 job records SUCCESS
-- **Next priority**: Propagate META_TRIM_META to 5 remaining bindings (Node.js, WASM, C FFI, Java,
-    Go) as single work package, then implement gen_sum_code_v0
+- **CI latest**: Run 22549429626 — all 11 job records SUCCESS
+- **Next priority**: Propagate META_TRIM_META to Java and Go (2 remaining bindings), then implement
+    gen_sum_code_v0
 
 ## Go Package Tier 1 Coverage (30/32 — incomplete per new target)
 
