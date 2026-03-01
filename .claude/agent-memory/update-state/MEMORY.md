@@ -49,19 +49,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 5eb6ba1)
+## Current State (assessed-at: 59626a7)
 
-- **Target upgraded to 32 Tier 1 symbols** (was 30): +`gen_sum_code_v0`, +`META_TRIM_META`
-- **Issues**: #15 (gen_sum_code_v0), #16 (feature flags, low priority), #18 (META_TRIM_META)
-- **gen_sum_code_v0**: NOT YET IMPLEMENTED in any crate/binding
-- **META_TRIM_META**: NOT YET IMPLEMENTED in any crate/binding
+- **Target**: 32 Tier 1 symbols — Rust core at 31/32 (META_TRIM_META added, gen_sum_code_v0 missing)
+- **Iteration 1 completed**: `META_TRIM_META: usize = 128_000` + pre/post-decode validation in Rust
+    core; 303 tests passing; all 11 CI jobs SUCCESS
+- **Issues**: #15 (gen_sum_code_v0), #16 (feature flags, low priority), #18 partially done (Rust
+    core done, bindings not yet updated)
+- **META_TRIM_META**: IMPLEMENTED in Rust core; NOT YET exported in 6 bindings (Python, Node.js,
+    WASM, C FFI, Java, Go)
+- **gen_sum_code_v0**: NOT YET IMPLEMENTED in Rust core or any binding
 - **SumCodeResult**: NOT YET IMPLEMENTED
-- **CDC optimization**: PR #17 merged (unchecked + 4x unrolling); `bench_cdc_chunks` added
-- **Python CI**: matrix 3.10+3.14 + gate job; all passing
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22545587495 — all 11 job records SUCCESS
-- **Existing 30 symbols**: all CI-verified passing in all bindings
-- **LLM docs**: `docs/llms.txt` covers all 16 doc pages
+- **CI latest**: Run 22548036633 — all 11 job records SUCCESS
+- **Next priority**: Propagate META_TRIM_META to all 6 bindings first (easy constant additions),
+    then implement gen_sum_code_v0 in Rust core + propagate
 
 ## Go Package Tier 1 Coverage (30/32 — incomplete per new target)
 
