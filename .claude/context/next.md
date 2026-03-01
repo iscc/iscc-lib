@@ -1,119 +1,71 @@
 # Next Work Package
 
-## Step: Add META_TRIM_META constant and payload validation to Rust core
+## Step: Export META_TRIM_META in Python binding
 
 ## Goal
 
-Add the `META_TRIM_META: usize = 128_000` constant to the Rust core Tier 1 API and enforce payload
-size validation in `gen_meta_code_v0`, preventing unbounded memory/compute from oversized meta
-parameters. This addresses issue #18.
+Expose `META_TRIM_META = 128_000` in the Python binding (`iscc_lib` package) so Python consumers can
+access it as a module-level constant, via `core_opts.meta_trim_meta`, and with proper type stubs.
+This is the first binding propagation step for issue #18, starting with the highest-priority
+binding.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-lib/src/lib.rs` — add `META_TRIM_META` constant next to existing `META_TRIM_*`
-        constants; add pre-decode and post-decode size checks in `gen_meta_code_v0`
+    - `crates/iscc-py/src/lib.rs` — add `m.add("META_TRIM_META", iscc_lib::META_TRIM_META)?;`
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — add import, `__all__` entry, and `core_opts`
+        attribute
+    - `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — add type stub with docstring
 - **Reference**:
-    - `.claude/context/specs/rust-core.md` lines 254–291 (Algorithm Constants spec with validation
-        formula)
-    - `reference/iscc-core/iscc_core/code_meta.py` (Python reference for meta handling)
-    - `crates/iscc-lib/src/lib.rs` lines 276–378 (current `gen_meta_code_v0` implementation)
+    - `crates/iscc-lib/src/lib.rs` — verify `META_TRIM_META` is `pub const` (already confirmed)
+    - Existing constant patterns in all 3 files above (META_TRIM_NAME, META_TRIM_DESCRIPTION)
 
 ## Not In Scope
 
-- Exposing `META_TRIM_META` in any binding (Python, Node.js, WASM, C FFI, Java, Go) — that's a
-    separate step after the Rust core is done
-- Adding `gen_sum_code_v0` or `SumCodeResult` — that's issue #15, a separate larger feature
-- Truncating payloads to the limit instead of rejecting — the spec says reject with error
-- Updating documentation pages or READMEs for the new constant — wait until bindings are also done
+- Exporting META_TRIM_META in the other 5 bindings (Node.js, WASM, C FFI, Java, Go) — separate step
+- Adding `gen_sum_code_v0` or `SumCodeResult` to any binding
+- Updating documentation pages or READMEs for the new constant
+- Adding Python tests for `gen_meta_code_v0` payload validation (Rust core already tests this)
 
 ## Implementation Notes
 
-**Constant definition** (add after `META_TRIM_DESCRIPTION` at line ~32):
+Follow the exact pattern used by `META_TRIM_NAME` and `META_TRIM_DESCRIPTION` in each file:
+
+**1. `crates/iscc-py/src/lib.rs`** (Rust PyO3 module init, line ~608):
+
+Add after the existing `m.add("META_TRIM_DESCRIPTION", ...)` line:
 
 ```rust
-/// Max decoded payload size in bytes for the meta element.
-pub const META_TRIM_META: usize = 128_000;
+m.add("META_TRIM_META", iscc_lib::META_TRIM_META)?;
 ```
 
-**Pre-decode fast check** — Before decoding the Data-URL or parsing JSON, check string length.
-Base64 encoding inflates by ~4/3, plus there's a media type header. The spec formula:
+**2. `crates/iscc-py/python/iscc_lib/__init__.py`** (3 changes):
 
-```rust
-const PRE_DECODE_LIMIT: usize = META_TRIM_META * 4 / 3 + 256;
+- Import: add `META_TRIM_META as META_TRIM_META,` in the `_lowlevel` import block (alphabetical
+    order — after `META_TRIM_DESCRIPTION`, before `TEXT_NGRAM_SIZE`)
+- `core_opts`: add `meta_trim_meta=META_TRIM_META,` after the `meta_trim_description` line
+- `__all__`: add `"META_TRIM_META",` after `"META_TRIM_DESCRIPTION",` (alphabetical order)
+
+**3. `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`** (type stub):
+
+Add after the `META_TRIM_DESCRIPTION` stub (after line 10):
+
+```python
+META_TRIM_META: int
+"""Max byte length for decoded meta parameter payload (128,000)."""
 ```
-
-Apply this check when `meta_str` is provided (both Data-URL and JSON paths), before any decoding
-work. Return `IsccError::InvalidInput` with a descriptive message.
-
-**Post-decode check** — After `decode_data_url()` or `parse_meta_json()` returns the payload bytes,
-check `payload.len() > META_TRIM_META`. Return `IsccError::InvalidInput`.
-
-**Where to insert in `gen_meta_code_v0`** — The current match block at lines 299–303:
-
-```rust
-let meta_payload: Option<Vec<u8>> = match meta {
-    Some(meta_str) if meta_str.starts_with("data:") => Some(decode_data_url(meta_str)?),
-    Some(meta_str) => Some(parse_meta_json(meta_str)?),
-    None => None,
-};
-```
-
-Add the pre-decode check before the match, and the post-decode check after. Pattern:
-
-```rust
-// Pre-decode fast check: reject obviously oversized meta strings
-if let Some(meta_str) = meta {
-    const PRE_DECODE_LIMIT: usize = META_TRIM_META * 4 / 3 + 256;
-    if meta_str.len() > PRE_DECODE_LIMIT {
-        return Err(IsccError::InvalidInput(format!(
-            "meta string exceeds size limit ({} > {PRE_DECODE_LIMIT} bytes)",
-            meta_str.len()
-        )));
-    }
-}
-
-let meta_payload: Option<Vec<u8>> = match meta {
-    Some(meta_str) if meta_str.starts_with("data:") => Some(decode_data_url(meta_str)?),
-    Some(meta_str) => Some(parse_meta_json(meta_str)?),
-    None => None,
-};
-
-// Post-decode check: reject payloads exceeding META_TRIM_META
-if let Some(ref payload) = meta_payload {
-    if payload.len() > META_TRIM_META {
-        return Err(IsccError::InvalidInput(format!(
-            "decoded meta payload exceeds size limit ({} > {META_TRIM_META} bytes)",
-            payload.len()
-        )));
-    }
-}
-```
-
-**Tests to add** (in the existing `mod tests` block):
-
-1. `test_meta_trim_meta_value` — assert `META_TRIM_META == 128_000`
-2. `test_gen_meta_code_v0_meta_at_limit` — create a JSON payload of exactly 128,000 bytes, verify it
-    succeeds
-3. `test_gen_meta_code_v0_meta_over_limit` — create a JSON payload of 128,001 bytes, verify it
-    returns `IsccError::InvalidInput`
-4. `test_gen_meta_code_v0_data_url_pre_decode_reject` — create a Data-URL string exceeding the
-    pre-decode limit, verify rejection before decoding
-
-**Edge case**: Existing conformance tests with meta payloads are small (well under 128K) — they must
-continue to pass unchanged.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing tests + 4 new tests)
-- `cargo clippy -p iscc-lib -- -D warnings` clean
-- `iscc_lib::META_TRIM_META` is importable and equals `128_000`
-- `gen_meta_code_v0("test", None, Some(<128K+ payload>), 64)` returns `Err(IsccError::InvalidInput)`
-- All existing conformance vector tests still pass
+- `cargo test -p iscc-py` passes (existing Rust-side tests still work)
+- `uv run pytest` passes (all existing Python tests still pass)
+- `python -c "from iscc_lib import META_TRIM_META; assert META_TRIM_META == 128_000"` exits 0
+- `python -c "from iscc_lib import core_opts; assert core_opts.meta_trim_meta == 128_000"` exits 0
+- `python -c "import iscc_lib; assert 'META_TRIM_META' in iscc_lib.__all__"` exits 0
+- `cargo clippy -p iscc-py -- -D warnings` clean
 
 ## Done When
 
-All verification criteria pass: the `META_TRIM_META` constant exists at crate root,
-`gen_meta_code_v0` rejects oversized payloads with pre-decode and post-decode checks, new boundary
-tests pass, and all existing tests remain green.
+All six verification commands pass — `META_TRIM_META` is accessible as a Python module constant, in
+`core_opts`, and listed in `__all__`, with existing tests unaffected.

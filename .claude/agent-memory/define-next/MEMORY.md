@@ -49,7 +49,21 @@ Target requires 32 Tier 1 symbols (up from 30). Two missing:
     - Returns SumCodeResult {iscc, datahash, filesize}
     - WASM needs special handling (no path-based I/O in browser)
 
-Execution order: #18 Rust core → #18 bindings → #15 Rust core → #15 bindings
+Execution order: #18 Rust core ✅ → #18 bindings (Python first, then batch remaining 5) → #15 Rust
+core → #15 bindings
+
+## Binding Propagation Patterns
+
+Constants propagation to 6 bindings exceeds the 3-file limit if done all at once. Split by binding
+complexity:
+
+- **Python** (3 files): `src/lib.rs` (PyO3 m.add), `__init__.py` (import + core_opts + __all__),
+    `_lowlevel.pyi` (type stub). Most complex — needs `core_opts` namespace update for iscc-core
+    parity. Do separately.
+- **Node.js + WASM + C FFI** (3 Rust files): each is a 1-3 line mechanical addition following
+    existing patterns. Natural batch.
+- **Java + Go** (2 files): Java is Java source (literal value), Go is Go source (literal value).
+    Both hardcode values. Natural batch.
 
 ## Documentation Status
 
