@@ -54,9 +54,12 @@ Rust core complete (32/32 Tier 1 symbols, 310 tests). Python binding complete (3
 
 - WASM has no filesystem — `gen_sum_code_v0` accepts `&[u8]` (Uint8Array) instead of a path
 - Compose internally: DataHasher + InstanceHasher → finalize both → gen_iscc_code_v0
-- `wasm_bindgen` supports `u64` natively (unlike napi-rs) — use `u64` for `filesize`
+- Use `f64` for filesize (not `u64`): wasm-bindgen maps u64→BigInt which causes JS friction (can't
+    mix with numbers, JSON.stringify fails). f64→number handles up to 2^53 bytes (~9 PB)
 - Use `#[wasm_bindgen(getter_with_clone)]` struct (same as `IsccDecodeResult`)
-- Tests via `wasm_bindgen_test` in `tests/unit.rs` — currently 70 tests (61 unit + 9 conformance)
+- Tests via `wasm_bindgen_test` in `tests/unit.rs`
+- Existing WASM gen functions return only `String` (the `.iscc` field). gen_sum_code_v0 is the first
+    gen function returning a multi-field struct (besides IsccDecodeResult from iscc_decode)
 
 ## Binding Propagation Patterns
 
