@@ -1,34 +1,39 @@
-## 2026-03-01 — Add gen_sum_code_v0 to Node.js bindings
+## 2026-03-01 — Review of: Add gen_sum_code_v0 to Node.js bindings
 
-**Done:** Added `NapiSumCodeResult` struct and `gen_sum_code_v0` napi function to the Node.js
-binding crate. The function reads a file path, computes Data-Code + Instance-Code in a single pass,
-and returns a structured object with `iscc`, `datahash`, and `filesize` fields. Tests were already
-pre-written from a previous failed iteration — only the Rust binding code was missing.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, well-scoped implementation that adds `NapiSumCodeResult` struct and
+`gen_sum_code_v0` napi function to the Node.js binding crate. The code follows existing patterns
+exactly, all 6 required test cases pass, and all quality gates are clean. 132 total tests pass (126
+existing + 6 new gen_sum_code_v0).
 
-- `crates/iscc-napi/src/lib.rs`: Added `NapiSumCodeResult` struct (`#[napi(object)]`) with
-    `iscc:   String`, `datahash: String`, `filesize: i64`, and `gen_sum_code_v0` napi function with
-    `path: String, bits: Option<u32>, wide: Option<bool>` parameters
-- `crates/iscc-napi/__tests__/functions.test.mjs`: No changes needed — 6 test cases were already in
-    place from a previous iteration (equivalence, result shape, file not found, default params, wide
-    mode, filesize correctness)
+**Verification:**
 
-**Verification:** All quality gates pass:
+- [x] `cargo build -p iscc-napi` compiles without errors
+- [x] `cargo clippy -p iscc-napi -- -D warnings` clean
+- [x] `cd crates/iscc-napi && npm run build && npm test` — 132 tests pass (126 existing + 6 new)
+- [x] `gen_sum_code_v0` callable from JavaScript, returns object with `iscc`, `datahash`, `filesize`
+- [x] `mise run check` — all 14 pre-commit hooks pass
+- [x] No quality gate circumvention in diff
 
-- `cargo build -p iscc-napi` — clean
-- `cargo clippy -p iscc-napi -- -D warnings` — clean
-- `npm run build && npm test` — 132 tests pass (126 existing + 6 gen_sum_code_v0), 0 failures
-- `mise run check` — all 14 hooks pass
-- gen_sum_code_v0 callable from JavaScript, returns object with correct `iscc`, `datahash`,
-    `filesize` fields
+**Issues found:**
 
-**Next:** Propagate `gen_sum_code_v0` to WASM bindings (`crates/iscc-wasm/`). WASM needs a different
-approach since file I/O isn't available — will need to accept `Uint8Array` data directly or use the
-streaming hasher pattern. Check if the core API supports a data-based variant.
+- (none)
 
-**Notes:** The test file and imports were already prepared by a previous iteration that failed
-before completing the Rust binding code. This iteration only needed to add the `NapiSumCodeResult`
-struct and `gen_sum_code_v0` function to `lib.rs`. The `filesize` field uses `i64` (not `u64`)
-because napi-rs doesn't support `u64` directly — files up to 2^53 bytes (~9 PB) are representable as
-safe JS integers.
+**Codex review:** Codex raised three concerns, all dismissed as non-issues: (1) `u64→i64` filesize
+cast could overflow for files >9 EB — this is a documented design decision; napi-rs doesn't support
+`u64` and files up to 2^53 bytes (~9 PB) are representable as safe JS integers. (2) `datahash` not
+independently verified in tests beyond prefix check — the value passes through directly from Rust
+core which has its own tests. (3) Temp directory not cleaned up after tests — minor, OS handles
+this. No actionable bugs found.
+
+**Next:** Propagate `gen_sum_code_v0` to WASM bindings (`crates/iscc-wasm/`). WASM has no filesystem
+access, so the function must accept `Uint8Array` data directly. Check if the Rust core supports a
+bytes-based variant or if a WASM-specific streaming approach is needed. After WASM, continue to C
+FFI, Java, and Go bindings per issue #15 propagation chain.
+
+**Notes:** Issue #15 is progressively being resolved — Rust core complete, Python binding done,
+Node.js binding now done. 4 binding propagations remain (WASM, C FFI, Java, Go). The advance agent
+left unstaged cleanup in the working tree (removed dead `instResult` variable, fixed misleading test
+name) — included in this review commit. State.md Node.js section will need update-state to reflect
+the new 132 test count and gen_sum_code_v0 completion.

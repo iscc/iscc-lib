@@ -618,14 +618,10 @@ describe('gen_sum_code_v0', () => {
         }
     });
 
-    it('datahash and filesize match gen_instance_code_v0', () => {
+    it('iscc and filesize match composed data+instance codes', () => {
         const data = Buffer.from('Hello World');
         const filePath = writeTempFile('equiv.bin', data);
         const sumResult = gen_sum_code_v0(filePath);
-        const instResult = gen_instance_code_v0(data);
-        // Instance-Code returns only iscc string, so verify via datahash from decode
-        // gen_sum_code_v0 returns structured result with datahash and filesize
-        // gen_instance_code_v0 returns just the iscc string — use data+instance to compose
         const dataCode = gen_data_code_v0(data);
         const instCode = gen_instance_code_v0(data);
         const composedIscc = gen_iscc_code_v0([dataCode, instCode]);
