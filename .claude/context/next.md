@@ -1,109 +1,110 @@
 # Next Work Package
 
-## Step: Add gen_sum_code_v0 to Node.js bindings
+## Step: Add gen_sum_code_v0 to WASM bindings
 
 ## Goal
 
-Propagate `gen_sum_code_v0` to the Node.js napi-rs binding so that `@iscc/lib` exposes
-`gen_sum_code_v0(path, bits?, wide?)` returning a structured object with `iscc`, `datahash`, and
-`filesize` fields. This is the next binding in the issue #15 propagation chain (Python done, Node.js
-next).
+Propagate `gen_sum_code_v0` to the WASM binding crate (`crates/iscc-wasm/`), making it 32/32 Tier 1
+symbols in WASM. WASM has no filesystem access, so the function accepts `Uint8Array` bytes directly
+and composes the ISCC-SUM internally.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-napi/src/lib.rs` — add `NapiSumCodeResult` struct (`#[napi(object)]`) and
-        `gen_sum_code_v0` napi function
-    - `crates/iscc-napi/__tests__/functions.test.mjs` — add test suite for `gen_sum_code_v0`
+    - `crates/iscc-wasm/src/lib.rs` — add `WasmSumCodeResult` struct and `gen_sum_code_v0` function
+    - `crates/iscc-wasm/tests/unit.rs` — add unit tests for `gen_sum_code_v0`
 - **Reference**:
-    - `crates/iscc-lib/src/lib.rs` — Rust core `gen_sum_code_v0` signature and behavior
+    - `crates/iscc-lib/src/lib.rs` lines 960–998 — Rust core `gen_sum_code_v0` implementation
     - `crates/iscc-lib/src/types.rs` — `SumCodeResult` struct definition
-    - `crates/iscc-py/src/lib.rs` — PyO3 pattern for reference (lines ~330-350)
+    - `crates/iscc-wasm/src/lib.rs` lines 240–269 — `IsccDecodeResult` struct pattern for wasm_bindgen
+        structs with multiple fields
 
 ## Not In Scope
 
-- WASM, C FFI, Java, or Go bindings for gen_sum_code_v0 (future steps)
-- Updating README or documentation for gen_sum_code_v0 in Node.js (after all bindings done)
-- Changing existing gen function signatures to also return structured objects (they intentionally
-    return just the iscc string)
-- Adding gen_sum_code_v0 to the conformance test file (no conformance vectors exist for this
-    function)
+- Adding `gen_sum_code_v0` to C FFI, Java, or Go bindings (separate future steps)
+- Adding WASM conformance tests for `gen_sum_code_v0` (no conformance vectors exist for this
+    function — it's tested via equivalence with `gen_data_code_v0` + `gen_instance_code_v0`)
+- Updating documentation, READMEs, or docs site (deferred until all bindings have the function)
+- Adding a bytes-based variant to the Rust core API (the WASM wrapper composes internally)
 
 ## Implementation Notes
 
-**Napi struct** — Create a `#[napi(object)]` struct following the `IsccDecodeResult` pattern:
+**Struct — `WasmSumCodeResult`:**
+
+Use `#[wasm_bindgen(getter_with_clone)]` (same pattern as `IsccDecodeResult` at line 240):
 
 ```rust
-#[napi(object)]
-pub struct NapiSumCodeResult {
+#[wasm_bindgen(getter_with_clone)]
+pub struct WasmSumCodeResult {
     pub iscc: String,
     pub datahash: String,
-    pub filesize: i64,  // napi doesn't support u64 directly; use i64
+    pub filesize: u64,
 }
 ```
 
-Note: napi-rs maps `i64` to JavaScript `number` (or `BigInt` for very large values). Since
-`filesize` is a `u64` in Rust core, cast with `as i64`. Files up to 2^53 bytes (~9 PB) are
-representable as safe JS integers. Use `i64` to keep it simple.
+Note: `wasm_bindgen` supports `u64` (unlike napi-rs), so use `u64` directly for `filesize`.
 
-**Napi function** — Follow the gen code pattern but return the struct instead of just `iscc`:
+**Function — `gen_sum_code_v0`:**
+
+Since WASM has no filesystem, accept `data: &[u8]` instead of a file path. Replicate the core logic
+without file I/O:
 
 ```rust
-#[napi(js_name = "gen_sum_code_v0")]
+#[wasm_bindgen]
 pub fn gen_sum_code_v0(
-    path: String,
+    data: &[u8],
     bits: Option<u32>,
     wide: Option<bool>,
-) -> napi::Result<NapiSumCodeResult> {
+) -> Result<WasmSumCodeResult, JsError> {
     let bits = bits.unwrap_or(64);
     let wide = wide.unwrap_or(false);
-    let result = iscc_lib::gen_sum_code_v0(std::path::Path::new(&path), bits, wide)
-        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
-    Ok(NapiSumCodeResult {
-        iscc: result.iscc,
-        datahash: result.datahash,
-        filesize: result.filesize as i64,
+
+    let mut data_hasher = iscc_lib::DataHasher::new();
+    let mut instance_hasher = iscc_lib::InstanceHasher::new();
+
+    data_hasher.update(data);
+    instance_hasher.update(data);
+
+    let data_result = data_hasher.finalize(bits).map_err(|e| JsError::new(&e.to_string()))?;
+    let instance_result = instance_hasher.finalize(bits).map_err(|e| JsError::new(&e.to_string()))?;
+
+    let iscc_result = iscc_lib::gen_iscc_code_v0(
+        &[&data_result.iscc, &instance_result.iscc],
+        wide,
+    ).map_err(|e| JsError::new(&e.to_string()))?;
+
+    Ok(WasmSumCodeResult {
+        iscc: iscc_result.iscc,
+        datahash: instance_result.datahash,
+        filesize: instance_result.filesize,
     })
 }
 ```
 
-Place the function in the "Code generators" section, after `gen_iscc_code_v0`.
+Place the function right after `gen_iscc_code_v0` (around line 161), and the struct right after
+`IsccDecodeResult` (around line 252).
 
-**Tests** — Use `node:test` (`describe`/`it`) + `node:assert`, NOT mocha. The test runner is
-`node --test __tests__/*.test.mjs` per package.json. Tests need temp files since gen_sum_code_v0
-does file I/O. Add imports for `node:fs` (`writeFileSync`, `unlinkSync`, `mkdtempSync`) and
-`node:os` (`tmpdir`) and `node:path` (`join`).
+**Tests** (add to `tests/unit.rs`):
 
-Required test cases (mirroring Python test coverage):
-
-1. **Equivalence**: Write data to temp file → call `gen_sum_code_v0(path)` → verify `datahash` and
-    `filesize` match what you'd get from separate `gen_instance_code_v0` + `gen_data_code_v0` on
-    the same data. Use `gen_iscc_code_v0` to compose the expected `iscc` from data+instance codes.
-2. **Result shape**: Verify returned object has `iscc`, `datahash`, `filesize` keys with correct
-    types (string, string, number).
-3. **File not found**: Non-existent path should throw.
-4. **Default parameters**: Omit bits and wide → should use 64 and false defaults.
-5. **Wide mode**: With bits=128, `wide=true` should produce a different `iscc` than `wide=false`
-    (same `datahash` and `filesize`).
-6. **Filesize correctness**: Verify `filesize` matches the written data byte length.
-
-Add `gen_sum_code_v0` to the import list from `'../index.js'` in the test file.
-
-Clean up temp files in a `describe` block with `after()` or inline `unlinkSync`.
-
-**Important**: `index.js` and `index.d.ts` are auto-generated by `napi build` — do NOT manually edit
-or commit them. The CI runs `napi build` before `npm test`.
+1. **Equivalence test**: Feed same bytes to `gen_sum_code_v0` and separately to
+    `gen_data_code_v0`/`gen_instance_code_v0` + `gen_iscc_code_v0`. Verify `iscc` matches.
+2. **Result shape**: Verify `iscc` starts with `"ISCC:"`, `datahash` starts with `"1e20"`,
+    `filesize` equals input length.
+3. **Empty input**: Verify `gen_sum_code_v0(&[], None, None)` succeeds and matches empty-data
+    equivalents.
+4. **Default params**: Verify `None` bits/wide produce same as explicit `Some(64)`/`Some(false)`.
+5. **Wide mode**: With `bits=128`, verify wide and non-wide produce different `iscc` values but same
+    `datahash` and `filesize`.
+6. **Filesize**: Verify `filesize` equals `data.len() as u64` for known input.
 
 ## Verification
 
-- `cargo build -p iscc-napi` compiles without errors
-- `cargo clippy -p iscc-napi -- -D warnings` clean
-- `cd crates/iscc-napi && npm run build && npm test` passes (80 existing + ~6 new test cases)
-- `gen_sum_code_v0` is callable from JavaScript and returns object with `iscc`, `datahash`,
-    `filesize`
+- `cargo build -p iscc-wasm --target wasm32-unknown-unknown` compiles without errors
+- `cargo clippy -p iscc-wasm -- -D warnings` clean
+- `wasm-pack test --node crates/iscc-wasm` passes (70 existing + 6 new tests = 76 total)
+- `gen_sum_code_v0` is exported and returns `WasmSumCodeResult` with `iscc`, `datahash`, `filesize`
 
 ## Done When
 
-All verification criteria pass: the Node.js binding compiles, clippy is clean, and all tests
-(existing + new gen_sum_code_v0 tests) pass with `npm test`.
+All four verification criteria pass with `gen_sum_code_v0` fully functional in the WASM binding.
