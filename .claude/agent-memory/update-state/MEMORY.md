@@ -50,7 +50,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: d27f5f6)
+## Current State (assessed-at: f2eeb6d)
 
 - **Target**: 32 Tier 1 symbols — Rust core NOW AT 32/32 ✅; all 6 bindings at 31/32
 - **Iteration 5 completed**: `gen_sum_code_v0` + `SumCodeResult` implemented in Rust core
