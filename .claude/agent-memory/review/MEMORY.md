@@ -87,8 +87,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Binding State
 
-- Python `__all__` count is 45 as of iteration 7 (30 Tier 1 API + 10 result types + `__version__` +
-    MT, ST, VS, core_opts). All 30/30 Tier 1 symbols propagated
+- Python `__all__` count is 46 as of META_TRIM_META propagation (31 API + 10 result types +
+    `__version__` + MT, ST, VS, core_opts). All 30/30 Tier 1 symbols + META_TRIM_META propagated
 - Node.js has 30/30 Tier 1 symbols as of iteration 8 (124 tests total: 103 existing + 21 new)
 - WASM has 30/30 Tier 1 symbols as of iteration 9 (59 unit tests + 9 conformance tests)
 - C FFI has 30/30 Tier 1 symbols as of iteration 10 (77 Rust unit tests, 49 C test assertions)
