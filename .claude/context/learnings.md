@@ -11,7 +11,7 @@ fully-met target sections to `learnings-archive.md`.
 
 - Hub-and-spoke: `iscc-lib` (pure Rust core) → 6 binding crates. Each binding depends only on
     `iscc-lib`, never on another binding
-- Tier 1 API (30 symbols) exposed via `pub use` at crate root. Tier 2 is `pub(crate)` — internal
+- Tier 1 API (32 symbols) exposed via `pub use` at crate root. Tier 2 is `pub(crate)` — internal
     only, never crosses FFI boundary
 - Sync core, async boundaries: Rust core is synchronous. Each binding adapts idiomatically
 
@@ -150,6 +150,16 @@ fully-met target sections to `learnings-archive.md`.
     constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
+
+## gen_sum_code_v0
+
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool)` is the 10th gen function and 32nd Tier 1
+    symbol. Single-pass file I/O feeds both `DataHasher` (CDC/MinHash) and `InstanceHasher` (BLAKE3)
+    from the same buffer, then composes ISCC-CODE via `gen_iscc_code_v0`
+- `SumCodeResult { iscc, datahash, filesize }` — same fields as `InstanceCodeResult` minus `iscc`
+    being the composite ISCC-CODE rather than a single component code
+- Binding propagation order: Python first (primary consumer), then Node.js/WASM/C FFI/Java, Go last
+    (pure Go reimplementation needed — not a Rust wrapper)
 
 ## CID Process
 

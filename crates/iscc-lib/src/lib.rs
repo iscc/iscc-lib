@@ -2157,8 +2157,8 @@ mod tests {
 
     #[test]
     fn test_gen_sum_code_v0_file_not_found() {
-        let path = std::path::Path::new("/tmp/iscc_test_nonexistent_file_xyz");
-        let result = gen_sum_code_v0(path, 64, false);
+        let path = std::env::temp_dir().join("iscc_test_nonexistent_file_xyz");
+        let result = gen_sum_code_v0(&path, 64, false);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(
