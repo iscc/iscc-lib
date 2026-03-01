@@ -111,7 +111,9 @@ iterations.
 - File I/O errors mapped to `IsccError::InvalidInput("Cannot open/read file: {e}")`
 - `units: Vec<String>` field deferred (not in scope for initial core implementation)
 - 32nd and final Tier 1 symbol for Rust core — all 32 symbols now implemented
-- Binding propagation needed: Python, Node.js, WASM, C FFI, Java, Go (6 crates)
+- Python binding: PyO3 wrapper in `crates/iscc-py/src/lib.rs` accepts `&str` path, `SumCodeResult`
+    class in `__init__.py`, public wrapper accepts `str | os.PathLike` via `os.fspath()`, 6 tests in
+    `tests/test_smoke.py`. Remaining bindings: Node.js, WASM, C FFI, Java, Go (5 crates)
 
 ## Codec Internals
 
@@ -178,7 +180,9 @@ iterations.
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
 - mdformat auto-formats markdown — keep backtick expressions short to avoid wrapping crashes
 - `from __future__ import annotations` in `__init__.py` — use `|` union syntax, not `Union`
-- Python `__all__` has 46 entries (31 API + 10 result types + `__version__` + MT, ST, VS, core_opts)
+- Python `__all__` has 48 entries (32 API + 11 result types + `__version__` + MT, ST, VS, core_opts)
+- `gen_sum_code_v0` wide mode only differs from normal when `bits >= 128` (wide requires 128-bit+
+    codes)
 - After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
 - JSON `{"x":""}` overhead is 8 bytes (not 7) — relevant for boundary tests on META_TRIM_META

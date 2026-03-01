@@ -326,6 +326,21 @@ fn gen_iscc_code_v0(py: Python<'_>, codes: Vec<String>, wide: bool) -> PyResult<
     Ok(dict.into())
 }
 
+/// Generate a composite ISCC-CODE from a file in a single pass.
+///
+/// Returns a dict with keys: `iscc`, `datahash`, `filesize`.
+#[pyfunction]
+#[pyo3(signature = (path, bits=64, wide=false))]
+fn gen_sum_code_v0(py: Python<'_>, path: &str, bits: u32, wide: bool) -> PyResult<PyObject> {
+    let r = iscc_lib::gen_sum_code_v0(std::path::Path::new(path), bits, wide)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let dict = PyDict::new(py);
+    dict.set_item("iscc", r.iscc)?;
+    dict.set_item("datahash", r.datahash)?;
+    dict.set_item("filesize", r.filesize)?;
+    Ok(dict.into())
+}
+
 /// Run all conformance tests against vendored test vectors.
 ///
 /// Returns `True` if all tests pass, `False` if any fail.
@@ -594,6 +609,7 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(gen_data_code_v0, m)?)?;
     m.add_function(wrap_pyfunction!(gen_instance_code_v0, m)?)?;
     m.add_function(wrap_pyfunction!(gen_iscc_code_v0, m)?)?;
+    m.add_function(wrap_pyfunction!(gen_sum_code_v0, m)?)?;
     m.add_function(wrap_pyfunction!(conformance_selftest, m)?)?;
     m.add_function(wrap_pyfunction!(text_clean, m)?)?;
     m.add_function(wrap_pyfunction!(text_remove_newlines, m)?)?;

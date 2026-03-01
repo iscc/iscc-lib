@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import enum
 import json as _json
+import os
 from collections.abc import Sequence
 from importlib.metadata import version
 from types import SimpleNamespace
@@ -32,6 +33,7 @@ from iscc_lib._lowlevel import (
     gen_iscc_code_v0 as _gen_iscc_code_v0,
     gen_meta_code_v0 as _gen_meta_code_v0,
     gen_mixed_code_v0 as _gen_mixed_code_v0,
+    gen_sum_code_v0 as _gen_sum_code_v0,
     gen_text_code_v0 as _gen_text_code_v0,
     gen_video_code_v0 as _gen_video_code_v0,
     iscc_decode as _iscc_decode,
@@ -180,6 +182,14 @@ class IsccCodeResult(IsccResult):
     iscc: str
 
 
+class SumCodeResult(IsccResult):
+    """Result of gen_sum_code_v0."""
+
+    iscc: str
+    datahash: str
+    filesize: int
+
+
 # ── Wrapper functions ────────────────────────────────────────────────────────
 
 
@@ -259,6 +269,13 @@ def gen_instance_code_v0(
 def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> IsccCodeResult:
     """Generate a composite ISCC-CODE from individual ISCC unit codes."""
     return IsccCodeResult(_gen_iscc_code_v0(codes, wide))
+
+
+def gen_sum_code_v0(
+    path: str | os.PathLike, bits: int = 64, wide: bool = False
+) -> SumCodeResult:
+    """Generate Data-Code + Instance-Code + ISCC-CODE from a file path in a single pass."""
+    return SumCodeResult(_gen_sum_code_v0(os.fspath(path), bits, wide))
 
 
 # ── Streaming hashers ──────────────────────────────────────────────────────
@@ -344,6 +361,7 @@ __all__ = [
     "IsccCodeResult",
     "MetaCodeResult",
     "MixedCodeResult",
+    "SumCodeResult",
     "TextCodeResult",
     "VideoCodeResult",
     "alg_cdc_chunks",
@@ -360,6 +378,7 @@ __all__ = [
     "gen_iscc_code_v0",
     "gen_meta_code_v0",
     "gen_mixed_code_v0",
+    "gen_sum_code_v0",
     "gen_text_code_v0",
     "gen_video_code_v0",
     "iscc_decode",

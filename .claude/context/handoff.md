@@ -1,39 +1,36 @@
-## 2026-03-01 — Review of: Implement gen_sum_code_v0 + SumCodeResult in Rust core
+## 2026-03-01 — Add gen_sum_code_v0 to Python bindings
 
-**Verdict:** PASS
+**Done:** Exposed `gen_sum_code_v0` and `SumCodeResult` in the Python package (`iscc_lib`),
+completing 32/32 Tier 1 symbols in the primary consumer binding. The PyO3 wrapper accepts a `str`
+path, the Python public wrapper additionally accepts `os.PathLike`, and a type stub was added.
 
-**Summary:** Clean, well-scoped implementation of `gen_sum_code_v0` and `SumCodeResult` in the Rust
-core crate. The function performs single-pass file I/O feeding both `DataHasher` and
-`InstanceHasher`, then composes the ISCC-CODE internally. All 7 tests verify equivalence with the
-two-pass approach, error handling, wide mode, and multiple bit lengths. This completes all 32 Tier 1
-symbols in the Rust core.
+**Files changed:**
+
+- `crates/iscc-py/src/lib.rs`: Added `gen_sum_code_v0` PyO3 function (accepts `&str` path,
+    `bits: u32`, `wide: bool`, returns `PyDict` with `iscc`/`datahash`/`filesize`) and registered it
+    in the pymodule
+- `crates/iscc-py/python/iscc_lib/__init__.py`: Added `os` import, `_gen_sum_code_v0` lowlevel
+    import, `SumCodeResult(IsccResult)` class, public `gen_sum_code_v0` wrapper with
+    `str | os.PathLike` support, and both symbols to `__all__`
+- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: Added type stub for `gen_sum_code_v0`
+- `tests/test_smoke.py`: Added 6 tests covering equivalence with `gen_instance_code_v0`, `PathLike`
+    acceptance, error on nonexistent path, result type checks, attribute access, and wide mode
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` passes — 310 tests (256 unit + 31 streaming + 22 utils + 1 doctest)
-- [x] `cargo clippy -p iscc-lib -- -D warnings` — clean
-- [x] `cargo fmt -p iscc-lib --check` — clean
-- [x] `iscc_lib::gen_sum_code_v0` importable from crate root (`pub fn` at line 967)
-- [x] `iscc_lib::SumCodeResult` importable from crate root (via `pub use types::*` at line 25)
-- [x] Equivalence test asserts
-    `gen_sum_code_v0(path, 64, false).iscc == gen_iscc_code_v0(&[data_iscc, instance_iscc], false).iscc`
-- [x] File-not-found test asserts `gen_sum_code_v0(nonexistent_path, 64, false)` returns `Err`
-- [x] No quality gate circumvention in diff
+- `cargo test -p iscc-py` passes (0 Rust-side tests — iscc-py has no Rust tests)
+- `cargo clippy -p iscc-py -- -D warnings` clean
+- `uv run pytest tests/ -x` passes — 204 tests (25 smoke + 179 conformance/others)
+- `uv run ruff check` clean (via `mise run check`)
+- Import verification: `from iscc_lib import gen_sum_code_v0, SumCodeResult` succeeds
+- `__all__` verification: both `gen_sum_code_v0` and `SumCodeResult` present
 
-**Issues found:**
+**Next:** Propagate `gen_sum_code_v0` to Node.js bindings (`crates/iscc-napi/`) following the same
+pattern, or to C FFI / Java / WASM bindings. Issue #15 binding tasks 5-6 track the full propagation
+across all bindings.
 
-- (none — minor cross-platform fix applied directly to file-not-found test path)
-
-**Codex review:** One P2 finding: `test_gen_sum_code_v0_file_not_found` used a hardcoded `/tmp/...`
-path instead of `std::env::temp_dir()`. Fixed directly in this review commit — test now uses
-`std::env::temp_dir().join(...)` for cross-platform correctness.
-
-**Next:** The Rust core now has all 32 Tier 1 symbols. Next step is propagating `gen_sum_code_v0` +
-`SumCodeResult` to binding crates. Start with Python bindings (`crates/iscc-py/`) — add a PyO3
-wrapper accepting `str | os.PathLike`, returning a dict-like `SumCodeResult` class. Follow the
-existing pattern of `gen_data_code_v0`/`gen_instance_code_v0` wrappers. Issue #15 tracks the full
-propagation.
-
-**Notes:** Issue #15 is partially resolved (Rust core tasks 1-4 and 7 complete; binding tasks 5-6
-pending). The module docstring was correctly updated from "9 `gen_*_v0`" to "10 `gen_*_v0`".
-`units: Vec<String>` field was deferred per next.md scope — can be added when bindings need it.
+**Notes:** The wide mode test required `bits=128` because `gen_iscc_code_v0` only produces a
+different wide-mode output when both input codes are 128-bit+. With default `bits=64`, the Data-Code
+body is only 64 bits, and wide mode falls back to the same output. This is expected behavior from
+the Rust core, not a bug. Also fixed a pre-existing duplicate `MixedCodeResult` entry in `__all__`
+that was introduced by the edit.
