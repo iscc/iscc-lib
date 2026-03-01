@@ -22,6 +22,8 @@ iterations.
     steps. Core + tests in one step, bindings in subsequent steps
 - For constant + validation additions: single-file change to lib.rs is ideal scope (constant
     definition + function modification + tests all live in one file)
+- When previous next.md already contains correct scoping, verify line references are still accurate
+    and refresh rather than rewrite from scratch — avoid unnecessary churn
 
 ## Architecture Decisions
 
@@ -33,75 +35,52 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## gen_sum_code_v0 Implementation Plan (Issue #15)
+## gen_sum_code_v0 Binding Propagation (Issue #15)
 
-Target requires 32 Tier 1 symbols. 31 done. gen_sum_code_v0 + SumCodeResult are the final pair.
+Rust core complete (32/32 Tier 1 symbols, 310 tests). Binding propagation in progress.
 
-**Key design facts discovered during scoping:**
+**Key design facts:**
 
 - No Python reference exists — `gen_sum_code_v0` is a Rust-only convenience function
 - No conformance vectors — correctness verified by equivalence to the two-pass approach
-- First function in the crate that introduces file I/O (std::fs::File + std::io::Read)
-- IO_READ_SIZE = 4_194_304 (4 MB) constant already exists for buffer sizing
-- Composes DataHasher + InstanceHasher in single read loop, then gen_iscc_code_v0
-- SumCodeResult has 3 fields: iscc, datahash, filesize (spec also mentions optional `units`)
+- SumCodeResult has 3 fields: iscc, datahash, filesize (optional `units` deferred)
 - WASM binding needs special design (no path-based I/O in browser) — defer to binding step
 
 **Execution plan:**
 
-1. ✅ Issue #18 (META_TRIM_META) — all 6 bindings complete
-2. ✅ Issue #15 Rust core — gen_sum_code_v0 + SumCodeResult (310 tests, 7 new)
-3. → Issue #15 Python binding — accept str | os.PathLike, SumCodeResult class
-4. Issue #15 remaining bindings — Node.js, C FFI, Java, Go (WASM needs design decision)
+1. ✅ Rust core — gen_sum_code_v0 + SumCodeResult (complete)
+2. → Python binding — accept str | os.PathLike (current step)
+3. Node.js, WASM, C FFI, Java bindings (batch or individual steps)
+4. Go binding (pure Go reimplementation — not a Rust wrapper)
 
-**Implementation details confirmed via research:**
+**Python binding specifics:**
 
-- `InstanceHasher.finalize(bits)` ignores the `bits` param — always 256-bit output. Only Data-Code
-    truncation is affected by `bits`
-- DataHasher.finalize consumes self (takes `mut self`, not `&mut self`), same for InstanceHasher
-- When composing Data + Instance only (no content code), `gen_iscc_code_v0` produces SubType::Sum
-- When `wide=true` and both codes ≥128 bits, SubType::Wide is used instead
-- `gen_sum_code_v0` is a `pub fn` at crate root — no `pub use` needed (unlike types)
-- Required imports: `std::fs::File`, `std::io::Read`, `std::path::Path`
+- PyO3 wrapper accepts `&str` for path (Python `str`), not `&Path` directly
+- `os.fspath()` converts `PathLike` in the Python wrapper before calling low-level Rust
+- Same dict keys as `gen_instance_code_v0`: `iscc`, `datahash`, `filesize`
+- `SumCodeResult(IsccResult)` follows established pattern of typed dict subclass
+- Python files at `crates/iscc-py/python/iscc_lib/` (not `python/iscc_lib/` from repo root)
 
 ## Binding Propagation Patterns
 
-Constants propagation to 6 bindings exceeds the 3-file limit if done all at once. Split by binding
-complexity:
-
-- **Python** (3 files): `src/lib.rs` (PyO3 m.add), `__init__.py` (import + core_opts + __all__),
-    `_lowlevel.pyi` (type stub). Most complex — needs `core_opts` namespace update for iscc-core
-    parity. Do separately.
-- **Node.js + WASM + C FFI** (3 Rust files): each is a 1-3 line mechanical addition following
-    existing patterns. Natural batch.
-- **Java + Go** (2 files): Java is Java source (literal value), Go is Go source (literal value).
-    Both hardcode values. Natural batch.
-
-**gen_sum_code_v0 is path-based, not bytes-based** — unlike all other gen functions that accept
-`&[u8]` at the PyO3 layer, `gen_sum_code_v0` accepts `&Path`. PyO3 wrapper accepts `&str`, Python
-public API accepts `str | os.PathLike` (converted via `os.fspath`). No streaming fallback needed —
-the function does its own file I/O internally. WASM binding will need a different approach (likely
-`Uint8Array` input + internal CDC/BLAKE3 processing).
+- **Python** (3 files): `src/lib.rs` (PyO3 wrapper), `__init__.py` (import + class + wrapper +
+    __all__), `_lowlevel.pyi` (type stub). Most complex — needs result class + os.fspath. Separate.
+- **Node.js + WASM + C FFI** (3 Rust files): mechanical additions. Natural batch.
+- **Java + Go** (2 files): idiomatic path types needed. Natural batch.
 
 ## Documentation Status
 
-All 4 spec-required Reference pages complete: Rust API, Python API, C FFI, Java API. 16 docs pages
-deployed to lib.iscc.codes. Will need updates for new symbols after implementation.
+16 docs pages deployed to lib.iscc.codes. Will need gen_sum_code_v0 updates after all bindings.
 
 ## CI/Release Patterns
 
-- Release workflow has `workflow_dispatch` inputs: `crates-io`, `pypi`, `npm`, `maven` (booleans)
-- All publish jobs have idempotency checks (version-existence pre-check, `skip` output)
-- `scripts/version_sync.py` uses only stdlib — can run as `python scripts/version_sync.py --check`
-- v0.0.3 released to all registries. Next release after new symbols are complete.
+- v0.0.3 released to all registries. Next release after binding propagation complete.
+- Release workflow has `workflow_dispatch` with per-registry checkboxes
 
 ## Gotchas
 
 - JNI function names encode Java package underscores as `_1`
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
-- ISCC Foundation URL is `https://iscc.io`
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
 - Two docs pages (architecture.md, development.md) share identical directory tree and crate summary
     table — edits must be synced between them
-- META_TRIM_META pre-decode formula: `META_TRIM_META * 4/3 + 256` accounts for base64 inflation plus
-    media type header
