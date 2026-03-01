@@ -116,7 +116,11 @@ iterations.
     `tests/test_smoke.py`
 - Node.js binding: `NapiSumCodeResult` struct (`#[napi(object)]`) + `gen_sum_code_v0` napi fn in
     `crates/iscc-napi/src/lib.rs`. Uses `i64` for `filesize` (napi-rs no u64 support). 6 tests in
-    `__tests__/functions.test.mjs`. Remaining: WASM, C FFI, Java, Go (4 crates)
+    `__tests__/functions.test.mjs`
+- WASM binding: `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) +
+    `gen_sum_code_v0` fn in `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (maps to `Uint8Array` in
+    JS). Uses `f64` for `filesize` (avoids BigInt friction — `u64` → `BigInt` in wasm-bindgen). 6
+    tests in `tests/unit.rs`. Remaining: C FFI, Java, Go (3 crates)
 
 ## Codec Internals
 

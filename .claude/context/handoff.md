@@ -1,41 +1,34 @@
-## 2026-03-01 — Review of: Add gen_sum_code_v0 to Node.js bindings
+## 2026-03-01 — Add gen_sum_code_v0 to WASM bindings
 
-**Verdict:** PASS
+**Done:** Added `WasmSumCodeResult` struct and `gen_sum_code_v0` function to the WASM binding crate.
+The function accepts `&[u8]` (maps to `Uint8Array` in JS), feeds both `DataHasher` and
+`InstanceHasher` from the same byte slice, then composes the ISCC-CODE via `gen_iscc_code_v0`. Uses
+`f64` for filesize (maps to JS `number`, avoids BigInt friction). Added 6 tests covering
+equivalence, result shape, empty input, default params, wide mode, and filesize.
 
-**Summary:** Clean, well-scoped implementation that adds `NapiSumCodeResult` struct and
-`gen_sum_code_v0` napi function to the Node.js binding crate. The function correctly reads a file
-path, computes Data-Code + Instance-Code in a single pass, and returns a structured object. All 6
-required test cases pass, quality gates clean, no scope violations.
+**Files changed:**
+
+- `crates/iscc-wasm/src/lib.rs`: Added `WasmSumCodeResult` struct with `getter_with_clone` and
+    `gen_sum_code_v0` function after `gen_iscc_code_v0`. Used `f64` for filesize per spec (not `u64`
+    as the define-next scaffold had).
+- `crates/iscc-wasm/tests/unit.rs`: Added 6 `wasm_bindgen_test` tests for `gen_sum_code_v0`
+    (equivalence, result shape, empty input, default params, wide mode, filesize).
 
 **Verification:**
 
-- [x] `cargo build -p iscc-napi` — compiles without errors
-- [x] `cargo clippy -p iscc-napi -- -D warnings` — clean
-- [x] `cd crates/iscc-napi && npm run build && npm test` — 132 tests pass (126 existing + 6 new
-    gen_sum_code_v0), 0 failures
-- [x] `gen_sum_code_v0` callable from JavaScript, returns object with `iscc`, `datahash`, `filesize`
-- [x] `mise run check` — all 14 hooks pass
-- [x] No quality gate circumvention in diff
+- `cargo build -p iscc-wasm --target wasm32-unknown-unknown` — compiles clean
+- `cargo clippy -p iscc-wasm -- -D warnings` — clean
+- `wasm-pack test --node crates/iscc-wasm` — 75 tests pass (9 conformance + 66 unit, of which 6 are
+    new gen_sum_code_v0 tests)
+- `gen_sum_code_v0` exported and returns `WasmSumCodeResult` with `iscc`, `datahash`, `filesize`
+    fields
+- `mise run check` — all 14 hooks pass
+- `cargo test -p iscc-lib` — 310 tests pass (no regressions)
 
-**Issues found:**
+**Next:** Propagate `gen_sum_code_v0` to C FFI bindings (`crates/iscc-ffi/`). After that, Java and
+Go remain. Go will need a pure reimplementation (not a Rust wrapper).
 
-- (none — minor test cleanup applied directly in review)
-
-**Codex review:** Two advisory findings, both addressed or accepted:
-
-1. u64→i64 filesize cast (P2): Codex flagged `result.filesize as i64` as potentially lossy. This is
-    a deliberate design choice — napi-rs lacks u64 support, and i64 covers files up to 2^63 bytes
-    (~8 EB), far beyond any practical file size. The JS Number.MAX_SAFE_INTEGER (~9 PB) is the real
-    boundary. Accepted as-is — consistent with the implementation notes in next.md.
-2. Unused `instResult` variable and misleading test name (P3): Fixed during review — removed dead
-    variable, renamed test to accurately describe its assertions.
-
-**Next:** Propagate `gen_sum_code_v0` to WASM bindings (`crates/iscc-wasm/`). Key design difference:
-WASM has no filesystem access, so `gen_sum_code_v0` needs to accept `Uint8Array` bytes directly (or
-use the streaming DataHasher + InstanceHasher pattern). Check if the Rust core exposes a data-based
-variant, or if a WASM-specific wrapper composing from data+instance is needed. After WASM, continue
-with C FFI, Java, and Go in that order per issue #15.
-
-**Notes:** Issue #15 is progressively being resolved — Rust core ✅, Python ✅, Node.js ✅. Four
-bindings remain: WASM, C FFI, Java, Go. State.md still shows Node.js as "partially met" — the next
-update-state agent will update it to reflect the 132-test milestone.
+**Notes:** The `define-next` agent scaffolded the implementation with `u64` for `filesize`, which
+maps to `BigInt` in JS. Changed to `f64` per the spec in next.md — `f64` maps to JS `number` and
+handles files up to 2^53 bytes (~9 PB), far beyond any browser WASM use case. Issue #15 progress:
+Rust core ✅, Python ✅, Node.js ✅, WASM ✅. Three bindings remain: C FFI, Java, Go.

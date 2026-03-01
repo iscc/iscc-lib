@@ -160,6 +160,54 @@ pub fn gen_iscc_code_v0(codes: JsValue, wide: Option<bool>) -> Result<String, Js
         .map_err(|e| JsError::new(&e.to_string()))
 }
 
+/// Result of [`gen_sum_code_v0`], containing the composite ISCC-CODE, data hash, and file size.
+#[wasm_bindgen(getter_with_clone)]
+pub struct WasmSumCodeResult {
+    /// Composite ISCC-CODE string (e.g., `"ISCC:KAC..."`).
+    pub iscc: String,
+    /// Hex-encoded BLAKE3 multihash (`"1e20..."`) of the data.
+    pub datahash: String,
+    /// Byte length of the input data (as `f64` for JS `number` compatibility).
+    pub filesize: f64,
+}
+
+/// Generate a composite ISCC-CODE from raw byte data in a single pass.
+///
+/// Feeds both `DataHasher` (CDC/MinHash) and `InstanceHasher` (BLAKE3) from
+/// the same byte slice, then composes the final ISCC-CODE via
+/// `gen_iscc_code_v0`. WASM-compatible alternative to the file-based core API.
+#[wasm_bindgen]
+pub fn gen_sum_code_v0(
+    data: &[u8],
+    bits: Option<u32>,
+    wide: Option<bool>,
+) -> Result<WasmSumCodeResult, JsError> {
+    let bits = bits.unwrap_or(64);
+    let wide = wide.unwrap_or(false);
+
+    let mut data_hasher = iscc_lib::DataHasher::new();
+    let mut instance_hasher = iscc_lib::InstanceHasher::new();
+
+    data_hasher.update(data);
+    instance_hasher.update(data);
+
+    let data_result = data_hasher
+        .finalize(bits)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+    let instance_result = instance_hasher
+        .finalize(bits)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+
+    let iscc_result = iscc_lib::gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)
+        .map_err(|e| JsError::new(&e.to_string()))?;
+
+    Ok(WasmSumCodeResult {
+        iscc: iscc_result.iscc,
+        datahash: instance_result.datahash,
+        filesize: instance_result.filesize as f64,
+    })
+}
+
 // ── Text utilities ──────────────────────────────────────────────────────────
 
 /// Clean and normalize text for display.
