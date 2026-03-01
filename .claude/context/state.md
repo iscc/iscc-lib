@@ -1,15 +1,15 @@
-<!-- assessed-at: 21823e962ce016e5435732a5f4f3aeb203b30e71 -->
+<!-- assessed-at: 4e7a04e509337e43af1ed6abfd0c74ba74c95fcb -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: gen_sum_code_v0 propagation — Python done (1/6 bindings); Node.js next
+## Phase: gen_sum_code_v0 propagation — Node.js done (2/6 bindings); WASM next
 
-Iteration 8 completed: `gen_sum_code_v0` + `SumCodeResult` fully propagated to Python bindings
-(32/32 Tier 1 symbols in Python). The PyO3 wrapper, public API wrapper, type stub, `SumCodeResult`
-class, and 6 pytest tests are all present and CI-verified. Five binding crates still lack
-`gen_sum_code_v0`: Node.js, WASM, C FFI, Java, Go.
+Iteration 8 completed: `gen_sum_code_v0` + `NapiSumCodeResult` fully propagated to Node.js bindings
+(32/32 Tier 1 symbols in Node.js). The napi struct, function, TypeScript declarations, and 6 mocha
+tests are all present and CI-verified (132 total tests pass). Four binding crates still lack
+`gen_sum_code_v0`: WASM, C FFI, Java, Go.
 
 ## Rust Core Crate
 
@@ -45,12 +45,17 @@ class, and 6 pytest tests are all present and CI-verified. Five binding crates s
 
 ## Node.js Bindings
 
-**Status**: partially met (missing gen_sum_code_v0)
+**Status**: met (32/32 Tier 1 symbols; all conformance tests pass)
 
-- 31/31 existing Tier 1 symbols exported; `META_TRIM_META` added with 2 test assertions ✅
-- 80 `it()` test cases CI-verified passing
-- **MISSING**: `genSumCodeV0(path: string)` napi export + `SumCodeResult`-shaped object + TS types
-    - mocha tests
+- All 32 Tier 1 symbols exported including `gen_sum_code_v0` ✅
+- `NapiSumCodeResult` struct (`#[napi(object)]`) with `iscc: String`, `datahash: String`,
+    `filesize: i64` in `crates/iscc-napi/src/lib.rs` ✅
+- `#[napi(js_name = "gen_sum_code_v0")] fn gen_sum_code_v0(path, bits?, wide?)` with
+    `Option<u32>`/`Option<bool>` params ✅
+- `NapiSumCodeResult` interface + `gen_sum_code_v0` declaration in auto-generated `index.d.ts` ✅
+- 6 mocha tests for `gen_sum_code_v0` in `functions.test.mjs` (equivalence, shape, error, defaults,
+    wide mode, filesize) ✅; 132 total tests pass (95 `it()` blocks across 2 test files)
+- Review verdict: PASS; `cargo clippy -p iscc-napi -- -D warnings` clean
 - `@iscc/lib 0.0.3` on npm
 
 ## WASM Bindings
@@ -131,8 +136,8 @@ class, and 6 pytest tests are all present and CI-verified. Five binding crates s
 
 **Status**: met (for existing features)
 
-- **11/11 CI jobs all SUCCESS** on latest push; all 3 recent runs green
-- Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22551403022
+- **All 11 CI job records SUCCESS** on latest push; 3 consecutive green runs
+- Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22552124782
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest), Node.js, WASM, C
     FFI, Java, Go, Bench — all success
 - v0.0.3 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
@@ -140,15 +145,13 @@ class, and 6 pytest tests are all present and CI-verified. Five binding crates s
 
 ## Next Milestone
 
-**Propagate gen_sum_code_v0 to Node.js bindings (`crates/iscc-napi/`) — issue #15:**
+**Propagate gen_sum_code_v0 to WASM bindings (`crates/iscc-wasm/`) — issue #15:**
 
-1. **Node.js** (next): Add napi export `genSumCodeV0(path: string)` returning object with `iscc`,
-    `datahash`, `filesize` keys — follow `genInstanceCodeV0` pattern; update TS type declarations;
-    add mocha tests
-2. **WASM** (`crates/iscc-wasm/`): Accept `Uint8Array` bytes (no filesystem); wasm-bindgen export +
-    tests
-3. **C FFI** (`crates/iscc-ffi/`): `iscc_gen_sum_code_v0(path, bits, wide)` + opaque result struct;
+1. **WASM** (next): WASM has no filesystem access — accept `Uint8Array` bytes and compose Data-Code
+    \+ Instance-Code internally. Add `#[wasm_bindgen]` export + `WasmSumCodeResult` struct; add
+    wasm-bindgen tests
+2. **C FFI** (`crates/iscc-ffi/`): `iscc_gen_sum_code_v0(path, bits, wide)` + opaque result struct;
     update C test program
-4. **Java** (`crates/iscc-jni/`): JNI bridge + `SumCodeResult` record + `genSumCodeV0` native
+3. **Java** (`crates/iscc-jni/`): JNI bridge + `SumCodeResult` record + `genSumCodeV0` native
     method; mvn tests
-5. **Go** (`packages/go/`): `GenSumCodeV0` + `SumCodeResult` struct; pure Go file I/O; tests
+4. **Go** (`packages/go/`): `GenSumCodeV0` + `SumCodeResult` struct; pure Go file I/O; tests
