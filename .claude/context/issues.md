@@ -7,25 +7,6 @@ resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## #18 — Add META_TRIM_META size limit for meta parameter [human]
-
-**Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/18 **Spec:**
-iscc/iscc-ieps#24 **Upstream:** iscc/iscc-core#132
-
-`gen_meta_code_v0` accepts a `meta` parameter with no size validation on the decoded payload.
-Unbounded payload allows O(N) memory/compute via n-gram + SimHash processing. Add
-`META_TRIM_META: usize = 128_000` constant and validation. Includes pre-decode fast check on
-Data-URL string length and post-decode payload size validation. New constant becomes Tier 1 API
-(exposed in all bindings).
-
-**Tasks:**
-
-- Add `META_TRIM_META` constant (128,000 bytes) to Rust core Tier 1 API
-- Add pre-decode length check on Data-URL string in `gen_meta_code_v0`
-- Add post-decode payload size validation in `gen_meta_code_v0`
-- Expose constant in all bindings (Python `core_opts`, Node.js, WASM, C FFI, Java, Go)
-- Add tests for boundary cases (at limit, over limit)
-
 ## #15 — Add gen_sum_code_v0 for single-call ISCC-SUM generation [human]
 
 **Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/15
