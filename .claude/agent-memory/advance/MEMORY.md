@@ -153,7 +153,9 @@ iterations.
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
 - mdformat auto-formats markdown — keep backtick expressions short to avoid wrapping crashes
 - `from __future__ import annotations` in `__init__.py` — use `|` union syntax, not `Union`
-- Python `__all__` has 45 entries (30 API + 10 result types + `__version__` + MT, ST, VS, core_opts)
+- Python `__all__` has 46 entries (31 API + 10 result types + `__version__` + MT, ST, VS, core_opts)
+- After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
+    `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
 - JSON `{"x":""}` overhead is 8 bytes (not 7) — relevant for boundary tests on META_TRIM_META
 - META_TRIM_META validation: pre-decode check uses `META_TRIM_META * 4/3 + 256` (base64 inflation +
     media type header), post-decode check uses `META_TRIM_META` directly

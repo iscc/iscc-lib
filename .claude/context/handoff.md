@@ -1,39 +1,34 @@
-## 2026-03-01 — Review of: Add META_TRIM_META constant and payload validation to Rust core
+## 2026-03-01 — Export META_TRIM_META in Python binding
 
-**Verdict:** PASS
+**Done:** Added `META_TRIM_META = 128_000` to the Python binding in all three required locations:
+PyO3 module init (Rust), Python `__init__.py` (import, `core_opts`, `__all__`), and type stub
+(`.pyi`). Followed the exact pattern used by `META_TRIM_NAME` and `META_TRIM_DESCRIPTION`.
 
-**Summary:** Clean, well-scoped implementation. The `META_TRIM_META: usize = 128_000` constant was
-added to the Rust core Tier 1 API alongside pre-decode and post-decode payload size validation in
-`gen_meta_code_v0`. Only `crates/iscc-lib/src/lib.rs` was modified (constant + validation logic + 4
-tests), exactly matching next.md scope. All 303 tests pass (249 lib + 31 integration + 22 utils + 1
-doctest), clippy clean, all 14 pre-commit hooks pass.
+**Files changed:**
+
+- `crates/iscc-py/src/lib.rs`: Added `m.add("META_TRIM_META", iscc_lib::META_TRIM_META)?;` after
+    `META_TRIM_DESCRIPTION` line in module init
+- `crates/iscc-py/python/iscc_lib/__init__.py`: Added `META_TRIM_META` import (alphabetical order),
+    `core_opts.meta_trim_meta` attribute, and `__all__` entry
+- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: Added `META_TRIM_META: int` type stub with
+    docstring
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` passes — 303 tests, 0 failures
-- [x] `cargo clippy -p iscc-lib -- -D warnings` clean — no warnings
-- [x] `iscc_lib::META_TRIM_META` is importable and equals `128_000` — `test_meta_trim_meta_value`
-    passes
-- [x] `gen_meta_code_v0("test", None, Some(<128K+ payload>), 64)` returns
-    `Err(IsccError::InvalidInput)` — `test_gen_meta_code_v0_meta_over_limit` passes
-- [x] All existing conformance vector tests still pass — all 14 conformance tests green
+- `cargo test -p iscc-py` passes (0 Rust-side tests, compiles clean)
+- `cargo clippy -p iscc-py -- -D warnings` clean
+- `uv run pytest` passes — 198 tests, 0 failures
+- `python -c "from iscc_lib import META_TRIM_META; assert META_TRIM_META == 128_000"` — OK
+- `python -c "from iscc_lib import core_opts; assert core_opts.meta_trim_meta == 128_000"` — OK
+- `python -c "import iscc_lib; assert 'META_TRIM_META' in iscc_lib.__all__"` — OK
+- All 14 pre-commit hooks pass
 
-**Issues found:**
+**Next:** Expose `META_TRIM_META` in the remaining 5 binding crates (Node.js, WASM, C FFI, Java,
+Go). Go already has `MetaTrimMeta` patterns in `codec.go`; the other 4 are Rust-based and follow the
+same `m.add()` / export pattern. Each needs constant export + test. This can likely be done as a
+single step since it's mechanical repetition.
 
-- (none)
-
-**Codex review:** Codex reviewed the define-next commit (HEAD~1) instead of the advance commit
-(HEAD) — a known issue with the `--commit HEAD~1` parameter. Its thinking trace explored edge cases
-around pre-decode limits (JSON vs Data-URL paths, base64 inflation math, header length edge cases)
-but concluded correctly that the dual-check approach (pre-decode fast path + post-decode correctness
-guarantee) is sound. No actionable findings.
-
-**Next:** Expose `META_TRIM_META` in all 6 binding crates. Start with Python (add to `__all__`,
-`core_opts.meta_trim_meta`, and constants list) and Go (`MetaTrimMeta` constant in `codec.go`), then
-Node.js/WASM/C FFI/Java. Each binding needs the constant export + a test asserting the value equals
-128,000. The Python binding additionally needs `core_opts` namespace update for iscc-core parity.
-
-**Notes:** Issue #18 is partially resolved — Rust core tasks (constant + pre-decode + post-decode +
-tests) are done. The remaining tasks are binding propagation (6 crates) which should be
-straightforward constant additions. Issue #15 (gen_sum_code_v0) and #16 (feature flags) are
-unaffected and remain open.
+**Notes:** Required `uv run maturin develop -m crates/iscc-py/Cargo.toml` to rebuild the `.so` file
+after adding the Rust constant — the stale `.abi3.so` caused import errors until rebuilt. No new
+tests were added since next.md explicitly excluded Python tests for the constant (Rust core already
+tests it), and the verification criteria use inline assertions. All existing tests remain green.

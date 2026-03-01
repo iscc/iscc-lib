@@ -14,6 +14,7 @@ __version__ = version("iscc-lib")
 from iscc_lib._lowlevel import (
     IO_READ_SIZE as IO_READ_SIZE,
     META_TRIM_DESCRIPTION as META_TRIM_DESCRIPTION,
+    META_TRIM_META as META_TRIM_META,
     META_TRIM_NAME as META_TRIM_NAME,
     TEXT_NGRAM_SIZE as TEXT_NGRAM_SIZE,
     DataHasher as _DataHasher,
@@ -86,6 +87,7 @@ class VS(enum.IntEnum):
 core_opts = SimpleNamespace(
     meta_trim_name=META_TRIM_NAME,
     meta_trim_description=META_TRIM_DESCRIPTION,
+    meta_trim_meta=META_TRIM_META,
     io_read_size=IO_READ_SIZE,
     text_ngram_size=TEXT_NGRAM_SIZE,
 )
@@ -326,6 +328,7 @@ __all__ = [
     "__version__",
     "IO_READ_SIZE",
     "META_TRIM_DESCRIPTION",
+    "META_TRIM_META",
     "META_TRIM_NAME",
     "MT",
     "ST",

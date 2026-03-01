@@ -606,6 +606,7 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(json_to_data_url, m)?)?;
     m.add("META_TRIM_NAME", iscc_lib::META_TRIM_NAME)?;
     m.add("META_TRIM_DESCRIPTION", iscc_lib::META_TRIM_DESCRIPTION)?;
+    m.add("META_TRIM_META", iscc_lib::META_TRIM_META)?;
     m.add("IO_READ_SIZE", iscc_lib::IO_READ_SIZE)?;
     m.add("TEXT_NGRAM_SIZE", iscc_lib::TEXT_NGRAM_SIZE)?;
     m.add_function(wrap_pyfunction!(sliding_window, m)?)?;

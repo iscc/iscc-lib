@@ -9,6 +9,9 @@ META_TRIM_NAME: int
 META_TRIM_DESCRIPTION: int
 """Max UTF-8 byte length for description metadata trimming (4096)."""
 
+META_TRIM_META: int
+"""Max byte length for decoded meta parameter payload (128,000)."""
+
 IO_READ_SIZE: int
 """Buffer size in bytes for streaming file reads (4,194,304 = 4 MB)."""
 
