@@ -50,19 +50,20 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: f2eeb6d)
+## Current State (assessed-at: 21823e9)
 
-- **Target**: 32 Tier 1 symbols — Rust core NOW AT 32/32 ✅; all 6 bindings at 31/32
-- **Iteration 5 completed**: `gen_sum_code_v0` + `SumCodeResult` implemented in Rust core
+- **Target**: 32 Tier 1 symbols — Rust core 32/32 ✅; Python 32/32 ✅; others 31/32
+- **Iteration 8**: Python bindings for gen_sum_code_v0 + SumCodeResult complete
 - **Issues**: #15 (gen_sum_code_v0 propagation to 6 bindings, in-progress), #16 (feature flags)
-- **gen_sum_code_v0**: Rust ✅ Python ❌ Node.js ❌ WASM ❌ C FFI ❌ Java ❌ Go ❌
-- **SumCodeResult**: Rust ✅ (types.rs, exported via `pub use types::*`); all bindings ❌
+- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ❌ WASM ❌ C FFI ❌ Java ❌ Go ❌
+- **SumCodeResult**: Rust ✅ Python ✅ (class in __init__.py line 185); others ❌
+- **Python details**: `gen_sum_code_v0` at __init__.py:274; PyO3 fn at src/lib.rs:334; type stub at
+    \_lowlevel.pyi:326; registered in module at lib.rs:612; 6 pytest tests in tests/test_smoke.py;
+    204 Python tests passing; __all__ has 48 entries
 - **Rust core tests**: 310 (256 unit + 31 streaming + 22 utils + 1 doctest)
-- **gen_sum_code_v0 impl details**: line 967 lib.rs; `pub fn`; uses DataHasher + InstanceHasher
-    single-pass; calls gen_iscc_code_v0 internally; `SumCodeResult.units` field deferred
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22550764467 — all 11 job records SUCCESS (all 5 recent runs green)
-- **Next priority**: Propagate gen_sum_code_v0 + SumCodeResult to all 6 bindings (start Python)
+- **CI latest**: Run 22551403022 — all 11 job records SUCCESS
+- **Next priority**: Propagate gen_sum_code_v0 to Node.js bindings (crates/iscc-napi/)
 
 ## Go Package Tier 1 Coverage (31/32)
 
