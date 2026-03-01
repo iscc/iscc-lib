@@ -1,15 +1,15 @@
-<!-- assessed-at: 415973fd0ab4a9d2b0252467808dddb9d8641bef -->
+<!-- assessed-at: 1ba01b1e275707a4439356212c8b3016d193402d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Binding Propagation — META_TRIM_META in 4/6 bindings; Java and Go still pending
+## Phase: gen_sum_code_v0 — META_TRIM_META complete across all 6 bindings; Rust core implementation next
 
-Iteration 3 completed: `META_TRIM_META = 128_000` is now exported in Python, Node.js, WASM, and C
-FFI bindings (4/6). CI remains fully green (11/11 jobs). Java (`crates/iscc-jni` + `IsccLib.java`)
-and Go (`packages/go/codec.go`) still lack the constant. `gen_sum_code_v0` + `SumCodeResult` remain
-unimplemented in all bindings.
+Iteration 4 completed: `META_TRIM_META = 128_000` is now exported in all 6 bindings (Rust, Python,
+Node.js, WASM, C FFI, Java, Go) — issue #18 fully resolved. CI remains fully green (11/11 jobs). The
+sole remaining gap is `gen_sum_code_v0` + `SumCodeResult`, which requires Rust core implementation
+first, then propagation to all 6 bindings.
 
 ## Rust Core Crate
 
@@ -63,32 +63,32 @@ unimplemented in all bindings.
 
 **Status**: partially met (missing gen_sum_code_v0)
 
-- 45 `extern "C"` functions now (was 44); `iscc_meta_trim_meta()` added in
-    `crates/iscc-ffi/src/lib.rs` with Rust unit test + C test assertion
-    (`iscc_meta_trim_meta() == 128000`) ✅
+- 45 `extern "C"` functions now; `iscc_meta_trim_meta()` added in `crates/iscc-ffi/src/lib.rs` with
+    Rust unit test + C test assertion (`iscc_meta_trim_meta() == 128000`) ✅
 - 78 Rust unit tests + C test program (23+ cases) CI-verified passing
 - **MISSING**: `iscc_gen_sum_code_v0` extern "C" function + memory management helpers for result
 
 ## Java Bindings
 
-**Status**: partially met (missing META_TRIM_META, gen_sum_code_v0)
+**Status**: partially met (missing gen_sum_code_v0)
 
-- 32 existing `extern "system"` JNI functions in `crates/iscc-jni/src/lib.rs`; `IsccLibTest.java`
-    CI-verified passing
-- **MISSING**: `META_TRIM_META` constant in
-    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (Rust core has it; binding
-    not updated)
+- 32 existing `extern "system"` JNI functions in `crates/iscc-jni/src/lib.rs`; all Java tests pass
+- `META_TRIM_META = 128_000` added as `public static final int` in `IsccLib.java` ✅
+- `assertEquals(128_000, IsccLib.META_TRIM_META)` test assertion added in `IsccLibTest.java` ✅
+- CI-verified: `Java (JNI build, mvn test)` job SUCCESS
 - **MISSING**: JNI bridge + Java static native method for `genSumCodeV0`
 - Maven Central external setup complete; end-to-end release untested
 
 ## Go Bindings
 
-**Status**: partially met (missing MetaTrimMeta, gen_sum_code_v0)
+**Status**: partially met (missing gen_sum_code_v0)
 
-- 30/30 existing Tier 1 symbols in `packages/go/`; `MetaTrimName = 128` and
-    `MetaTrimDescription = 4096` in `packages/go/codec.go`; 147 pure Go tests CI-verified passing
-    (`CGO_ENABLED=0`)
-- **MISSING**: `MetaTrimMeta = 128_000` constant in `packages/go/codec.go`
+- 31/32 Tier 1 symbols now in `packages/go/`; `MetaTrimMeta = 128_000` constant added in
+    `packages/go/codec.go` ✅
+- 147 pure Go tests CI-verified passing (`CGO_ENABLED=0`); `go vet` clean
+- **NOTE**: No explicit test asserting `MetaTrimMeta == 128_000` in Go test files; constant is
+    declared but only `MetaTrimName` and `MetaTrimDescription` are actually referenced in Go source
+    functions. CI still passes.
 - **MISSING**: `GenSumCodeV0(path string, bits uint32, wide bool)` function
 - **MISSING**: `SumCodeResult` struct in Go
 
@@ -98,14 +98,14 @@ unimplemented in all bindings.
 
 - Public-facing polyglot README (238 lines); all 6 bindings, all 9 `gen_*_v0` listed, CI badge,
     registry badges
-- Will need update for `gen_sum_code_v0` and `META_TRIM_META` when remaining bindings are propagated
+- Will need update for `gen_sum_code_v0` when implemented
 
 ## Per-Crate READMEs
 
-**Status**: met (for existing 30 symbols)
+**Status**: met (for existing 31 symbols)
 
 - All 7 per-crate READMEs present with registry-specific install commands and quick-start examples
-- Will need `gen_sum_code_v0` and `META_TRIM_META` mentions when implemented in remaining bindings
+- Will need `gen_sum_code_v0` mention when implemented in remaining bindings
 
 ## Documentation
 
@@ -115,7 +115,7 @@ unimplemented in all bindings.
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place
 - Getting-started tutorial: 7 sections × 6 languages; all howto guides complete
 - Benchmarks page updated; `docs/ecosystem.md` current
-- Will need `gen_sum_code_v0` and `META_TRIM_META` mentions when remaining bindings are propagated
+- Will need `gen_sum_code_v0` mention when implemented
 
 ## Benchmarks
 
@@ -132,7 +132,7 @@ unimplemented in all bindings.
 **Status**: met (for existing features)
 
 - **11/11 CI jobs all SUCCESS** on latest push
-- Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22549429626
+- Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22550003423
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
     Java, Go, Bench — all success
 - v0.0.3 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
@@ -140,12 +140,16 @@ unimplemented in all bindings.
 
 ## Next Milestone
 
-**Export META_TRIM_META to remaining 2 bindings (Java, Go), then implement gen_sum_code_v0:**
+**Implement gen_sum_code_v0 + SumCodeResult in Rust core, then propagate to all 6 bindings (issue
+#15):**
 
-1. Export `MetaTrimMeta = 128_000` in `packages/go/codec.go` + test asserting value equals 128,000
-2. Export `META_TRIM_META = 128_000` in
-    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java constant (no JNI call
-    needed, it's a compile-time value); add `META_TRIM_META` test in `IsccLibTest.java`; optionally
-    add a JNI accessor in `crates/iscc-jni/src/lib.rs` for symmetry with the other bindings
-3. After META_TRIM_META fully propagated to all 6 bindings: implement `gen_sum_code_v0` +
-    `SumCodeResult` in Rust core (issue #15), then propagate to all 6 bindings
+1. Implement `gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>` in
+    `crates/iscc-lib/src/` — single-pass file I/O composing `DataHasher` + `InstanceHasher` in one
+    read loop, then calling `gen_iscc_code_v0` internally
+2. Add `SumCodeResult` struct with `iscc: String`, `datahash: String`, `filesize: u64` fields (and
+    optional `units: Vec<String>`)
+3. Add conformance tests verifying output matches two-pass `gen_data_code_v0` +
+    `gen_instance_code_v0`
+4. Propagate to all 6 bindings: Python (`str | os.PathLike`), Node.js (napi), WASM (design decision:
+    Uint8Array or skip path-based), C FFI (`iscc_gen_sum_code_v0`), Java (JNI + Java wrapper), Go
+    (`GenSumCodeV0(path string, bits uint32, wide bool)`)

@@ -31,14 +31,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
-    EncodeComponent, IsccDecompose, IsccDecode
-- `packages/go/code_meta.go` — `parseMetaJSON`, `jsonHasContext`, `buildMetaDataURL` helpers
-- `docs/c-ffi-api.md` — C FFI API reference (694 lines); now 45 extern "C" symbols after
-    META_TRIM_META
-- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class (correct subpath:
-    `iscc_lib/`)
-- **Java META_TRIM_META path**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` —
-    has META_TRIM_NAME but NOT MetaTrimMeta yet; no JNI call needed (compile-time constant)
+    EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
+    MetaTrimMeta, IoReadSize, TextNgramSize)
+- `docs/c-ffi-api.md` — C FFI API reference (694 lines); 45 extern "C" symbols
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class (subpath:
+    `iscc_lib/`); now has META_TRIM_META as `public static final int`
 
 ## Recurring Patterns
 
@@ -53,27 +50,29 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 415973f)
+## Current State (assessed-at: 1ba01b1)
 
-- **Target**: 32 Tier 1 symbols — Rust core at 31/32 (META_TRIM_META added, gen_sum_code_v0 missing)
-- **Iteration 3 completed**: `META_TRIM_META` exported in Node.js, WASM, C FFI bindings; all tests
-    added
-- **Issues**: #15 (gen_sum_code_v0), #16 (feature flags, low priority), #18 partially done (Rust
-    core + Python + Node.js + WASM + C FFI done; Java/Go still pending)
-- **META_TRIM_META**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ❌ Go ❌
+- **Target**: 32 Tier 1 symbols — Rust core at 31/32 (gen_sum_code_v0 missing)
+- **Iteration 4 completed**: `META_TRIM_META` now exported in ALL 6 bindings — issue #18 fully done
+- **Issues**: #15 (gen_sum_code_v0, normal priority), #16 (feature flags, low priority)
+- **META_TRIM_META**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ✅ Go ✅
 - **gen_sum_code_v0**: NOT YET IMPLEMENTED in Rust core or any binding
 - **SumCodeResult**: NOT YET IMPLEMENTED
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22549429626 — all 11 job records SUCCESS
-- **Next priority**: Propagate META_TRIM_META to Java and Go (2 remaining bindings), then implement
-    gen_sum_code_v0
+- **CI latest**: Run 22550003423 — all 11 job records SUCCESS
+- **Next priority**: Implement gen_sum_code_v0 + SumCodeResult in Rust core (issue #15), then
+    propagate to all 6 bindings
 
-## Go Package Tier 1 Coverage (30/32 — incomplete per new target)
+## Go Package Tier 1 Coverage (31/32)
 
-All 30 original symbols present: 9 gen functions, ConformanceSelftest, DataHasher, InstanceHasher, 4
-text utilities, SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash, SoftHashVideoV0,
-EncodeBase64, EncodeComponent, IsccDecode, IsccDecompose, JsonToDataUrl, 4 constants (MetaTrimName,
-MetaTrimDescription, IoReadSize, TextNgramSize). Missing: GenSumCodeV0, MetaTrimMeta.
+All 31 symbols present: 9 gen functions, ConformanceSelftest, DataHasher, InstanceHasher, 4 text
+utilities, SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash, SoftHashVideoV0, EncodeBase64,
+EncodeComponent, IsccDecode, IsccDecompose, JsonToDataUrl, **5 constants** (MetaTrimName,
+MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNgramSize). Missing: GenSumCodeV0 +
+SumCodeResult.
+
+**Note**: MetaTrimMeta declared in codec.go but has no explicit test assertion in Go test files.
+Other constants also have no explicit value tests. This is acceptable since CI passes 147 tests.
 
 ## Gotchas
 
@@ -92,3 +91,4 @@ MetaTrimDescription, IoReadSize, TextNgramSize). Missing: GenSumCodeV0, MetaTrim
     decision (accept Uint8Array? throw? only Node.js WASM? skip?)
 - **META_TRIM_META validation**: pre-decode fast check on Data-URL string length AND post-decode
     payload check; both needed in gen_meta_code_v0
+- **Java META_TRIM_META**: added as compile-time `public static final int` (no JNI function needed)
