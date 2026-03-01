@@ -50,18 +50,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 03a8a22)
+## Current State (assessed-at: d27f5f6)
 
-- **Target**: 32 Tier 1 symbols — Rust core at 31/32 (gen_sum_code_v0 missing)
-- **Iteration 4 completed**: `META_TRIM_META` now exported in ALL 6 bindings — issue #18 fully done
-- **Issues**: #15 (gen_sum_code_v0, normal priority), #16 (feature flags, low priority)
-- **META_TRIM_META**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ✅ Go ✅
-- **gen_sum_code_v0**: NOT YET IMPLEMENTED in Rust core or any binding
-- **SumCodeResult**: NOT YET IMPLEMENTED
+- **Target**: 32 Tier 1 symbols — Rust core NOW AT 32/32 ✅; all 6 bindings at 31/32
+- **Iteration 5 completed**: `gen_sum_code_v0` + `SumCodeResult` implemented in Rust core
+- **Issues**: #15 (gen_sum_code_v0 propagation to 6 bindings, in-progress), #16 (feature flags)
+- **gen_sum_code_v0**: Rust ✅ Python ❌ Node.js ❌ WASM ❌ C FFI ❌ Java ❌ Go ❌
+- **SumCodeResult**: Rust ✅ (types.rs, exported via `pub use types::*`); all bindings ❌
+- **Rust core tests**: 310 (256 unit + 31 streaming + 22 utils + 1 doctest)
+- **gen_sum_code_v0 impl details**: line 967 lib.rs; `pub fn`; uses DataHasher + InstanceHasher
+    single-pass; calls gen_iscc_code_v0 internally; `SumCodeResult.units` field deferred
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22550003423 — all 11 job records SUCCESS (all 5 recent runs green)
-- **Next priority**: Implement gen_sum_code_v0 + SumCodeResult in Rust core (issue #15), then
-    propagate to all 6 bindings
+- **CI latest**: Run 22550764467 — all 11 job records SUCCESS (all 5 recent runs green)
+- **Next priority**: Propagate gen_sum_code_v0 + SumCodeResult to all 6 bindings (start Python)
 
 ## Go Package Tier 1 Coverage (31/32)
 
