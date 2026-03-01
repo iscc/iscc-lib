@@ -49,21 +49,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 59626a7)
+## Current State (assessed-at: e3bed27)
 
 - **Target**: 32 Tier 1 symbols — Rust core at 31/32 (META_TRIM_META added, gen_sum_code_v0 missing)
-- **Iteration 1 completed**: `META_TRIM_META: usize = 128_000` + pre/post-decode validation in Rust
-    core; 303 tests passing; all 11 CI jobs SUCCESS
+- **Iteration 2 completed**: `META_TRIM_META` fully exported in Python binding (PyO3 init,
+    `__init__.py` import + `__all__` + `core_opts.meta_trim_meta`, `_lowlevel.pyi`); 198 Python
+    tests passing; all 11 CI jobs SUCCESS
 - **Issues**: #15 (gen_sum_code_v0), #16 (feature flags, low priority), #18 partially done (Rust
-    core done, bindings not yet updated)
-- **META_TRIM_META**: IMPLEMENTED in Rust core; NOT YET exported in 6 bindings (Python, Node.js,
-    WASM, C FFI, Java, Go)
+    core + Python done; Node.js/WASM/C FFI/Java/Go still pending)
+- **META_TRIM_META**: IMPLEMENTED in Rust core ✅; Python ✅; Node.js/WASM/C FFI/Java/Go NOT YET
 - **gen_sum_code_v0**: NOT YET IMPLEMENTED in Rust core or any binding
 - **SumCodeResult**: NOT YET IMPLEMENTED
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22548036633 — all 11 job records SUCCESS
-- **Next priority**: Propagate META_TRIM_META to all 6 bindings first (easy constant additions),
-    then implement gen_sum_code_v0 in Rust core + propagate
+- **CI latest**: Run 22548648285 — all 11 job records SUCCESS
+- **Next priority**: Propagate META_TRIM_META to 5 remaining bindings (Node.js, WASM, C FFI, Java,
+    Go) as single work package, then implement gen_sum_code_v0
 
 ## Go Package Tier 1 Coverage (30/32 — incomplete per new target)
 

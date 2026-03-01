@@ -1,17 +1,17 @@
-<!-- assessed-at: 59626a7c352410f3c79ffa7bf432c71c0491f523 -->
+<!-- assessed-at: e3bed2734aabe437bd8dda9e37fc8b4e341759e3 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Binding Propagation — META_TRIM_META + gen_sum_code_v0 Pending in All 6 Bindings
+## Phase: Binding Propagation — META_TRIM_META exported in Python; 5 bindings still pending
 
-Iteration 1 completed: `META_TRIM_META: usize = 128_000` and `gen_meta_code_v0` payload validation
-(pre-decode + post-decode) are now implemented in the Rust core with 4 tests (303 total, all
-passing). CI is fully green (11/11 jobs). The Rust core now has 31/32 Tier 1 symbols — only
-`gen_sum_code_v0` + `SumCodeResult` remain unimplemented. All 6 language bindings still need
-`META_TRIM_META` exported, and all 6 still need `gen_sum_code_v0` when that is added to the Rust
-core.
+Iteration 2 completed: `META_TRIM_META = 128_000` is now fully exported in the Python binding (PyO3
+module init, `__init__.py` import + `__all__` + `core_opts.meta_trim_meta`, `_lowlevel.pyi` type
+stub). CI is fully green (11/11 jobs). The Rust core has 31/32 Tier 1 symbols — `gen_sum_code_v0`
+
+- `SumCodeResult` remain unimplemented. Node.js, WASM, C FFI, Java, and Go bindings still need
+    `META_TRIM_META` exported, and all 6 bindings still need `gen_sum_code_v0` when that is added.
 
 ## Rust Core Crate
 
@@ -19,7 +19,8 @@ core.
 
 - 31 Tier 1 symbols present: all 9 existing `gen_*_v0`, 4 text utilities, 4 algo primitives, 1 soft
     hash, 2 encoding utilities, 3 codec operations, **5 constants** (META_TRIM_NAME,
-    META_TRIM_DESCRIPTION, **META_TRIM_META now added ✅**), 2 streaming types, 1 diagnostic
+    META_TRIM_DESCRIPTION, META_TRIM_META, IO_READ_SIZE, TEXT_NGRAM_SIZE), 2 streaming types, 1
+    diagnostic
 - `META_TRIM_META: usize = 128_000` added to `crates/iscc-lib/src/lib.rs` (CI-verified)
 - `gen_meta_code_v0` pre-decode + post-decode payload validation implemented and tested
 - 303 tests passing (249 lib + 31 integration + 22 utils + 1 doctest); `cargo clippy` clean
@@ -29,24 +30,22 @@ core.
 
 ## Python Bindings
 
-**Status**: partially met (missing gen_sum_code_v0, META_TRIM_META export)
+**Status**: partially met (missing gen_sum_code_v0, SumCodeResult)
 
-- 30/30 existing Tier 1 symbols accessible; all conformance vectors pass (CI-verified on 3.10 +
-    3.14)
-- `__all__` currently has 45 entries; needs `gen_sum_code_v0`, `SumCodeResult`, `META_TRIM_META`,
-    `core_opts.meta_trim_meta`
-- Python 3.10 and 3.14 CI passing; `python` gate job passing
-- **MISSING**: `META_TRIM_META` constant export (Rust core now has it; binding not updated)
+- 31/32 Tier 1 symbols now accessible; all conformance vectors pass (CI-verified on 3.10 + 3.14)
+- `__all__` now has 46 entries (was 45); `META_TRIM_META` exported ✅
+- `core_opts.meta_trim_meta = META_TRIM_META` attribute added ✅
+- `_lowlevel.pyi` type stub updated with `META_TRIM_META` ✅
+- 198 Python tests passing; `cargo clippy -p iscc-py` clean
 - **MISSING**: `gen_sum_code_v0` wrapper accepting `str | os.PathLike`
 - **MISSING**: `SumCodeResult` class with dict + attribute access
-- **MISSING**: `core_opts.meta_trim_meta` attribute for iscc-core parity
 
 ## Node.js Bindings
 
 **Status**: partially met (missing gen_sum_code_v0, META_TRIM_META export)
 
 - 30/30 existing Tier 1 symbols exported; 124 tests CI-verified passing
-- **MISSING**: `META_TRIM_META` constant export (Rust core now has it; binding not updated)
+- **MISSING**: `META_TRIM_META` constant export (Rust core has it; binding not updated)
 - **MISSING**: `gen_sum_code_v0` napi export
 - `@iscc/lib 0.0.3` on npm
 
@@ -55,8 +54,9 @@ core.
 **Status**: partially met (missing gen_sum_code_v0, META_TRIM_META export)
 
 - 30/30 existing Tier 1 symbols exported; 69 wasm-bindgen tests CI-verified passing
-- **MISSING**: `META_TRIM_META` constant getter (Rust core now has it; binding not updated)
-- **MISSING**: `gen_sum_code_v0` wasm_bindgen export (path-based I/O needs special WASM handling)
+- **MISSING**: `META_TRIM_META` constant getter (Rust core has it; binding not updated)
+- **MISSING**: `gen_sum_code_v0` wasm_bindgen export (path-based I/O needs design decision for WASM
+    context)
 - `@iscc/wasm 0.0.3` on npm
 
 ## C FFI
@@ -65,7 +65,7 @@ core.
 
 - 44 existing `extern "C"` functions; 77 Rust unit tests + C test program (23 cases) CI-verified
     passing
-- **MISSING**: `iscc_meta_trim_meta()` getter function (Rust core now has it; binding not updated)
+- **MISSING**: `iscc_meta_trim_meta()` getter function (Rust core has it; binding not updated)
 - **MISSING**: `iscc_gen_sum_code_v0` extern "C" function + memory management helpers for result
 
 ## Java Bindings
@@ -73,17 +73,16 @@ core.
 **Status**: partially met (missing gen_sum_code_v0, META_TRIM_META export)
 
 - 32 existing `extern "system"` JNI functions; `IsccLibTest.java` CI-verified passing
-- **MISSING**: `META_TRIM_META` constant in `IsccLib.java` (Rust core now has it; binding not
-    updated)
+- **MISSING**: `META_TRIM_META` constant in `IsccLib.java` (Rust core has it; binding not updated)
 - **MISSING**: `genSumCodeV0` JNI bridge + Java static native method
 - Maven Central external setup complete; end-to-end release untested
 
 ## Go Bindings
 
-**Status**: partially met (missing gen_sum_code_v0, META_TRIM_META export)
+**Status**: partially met (missing gen_sum_code_v0, MetaTrimMeta)
 
 - 30/30 existing Tier 1 symbols present; 147 pure Go tests CI-verified passing (`CGO_ENABLED=0`)
-- **MISSING**: `MetaTrimMeta` constant (128_000) (Rust core now has it; Go binding not updated)
+- **MISSING**: `MetaTrimMeta` constant (128_000) — Go binding not updated
 - **MISSING**: `GenSumCodeV0(path string, bits uint32, wide bool)` function
 - **MISSING**: `SumCodeResult` struct in Go
 
@@ -127,7 +126,7 @@ core.
 **Status**: met (for existing features)
 
 - **11/11 CI jobs all SUCCESS** on latest push
-- Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22548036633
+- Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22548648285
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
     Java, Go, Bench — all success
 - v0.0.3 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
@@ -135,10 +134,11 @@ core.
 
 ## Next Milestone
 
-**Propagate META_TRIM_META to all 6 bindings, then implement gen_sum_code_v0 across all crates:**
+**Export META_TRIM_META to remaining 5 bindings (Node.js, WASM, C FFI, Java, Go), then implement
+gen_sum_code_v0:**
 
-1. Export `META_TRIM_META = 128_000` in all 6 binding crates (Python, Node.js, WASM, C FFI, Java,
-    Go) — each needs the constant + a test asserting value equals 128,000
-2. Python additionally needs `core_opts.meta_trim_meta` attribute for iscc-core parity
-3. After META_TRIM_META is propagated: implement `gen_sum_code_v0` + `SumCodeResult` in Rust core
-    (issue #15), then propagate to all 6 bindings
+1. Export `META_TRIM_META = 128_000` in all 5 remaining binding crates — each needs the constant + a
+    test asserting value equals 128,000. These are mechanical additions following established
+    patterns; all 5 could be done as a single work package
+2. After META_TRIM_META is fully propagated: implement `gen_sum_code_v0` + `SumCodeResult` in Rust
+    core (issue #15), then propagate to all 6 bindings
