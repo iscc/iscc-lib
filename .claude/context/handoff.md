@@ -1,39 +1,35 @@
-## 2026-02-28 — Review of: Add Java API reference page
+## 2026-03-01 — Review of: Add gen_sum_code_v0 to WASM bindings
 
 **Verdict:** PASS
 
-**Summary:** Clean, well-scoped documentation addition. The new `docs/java-api.md` (676 lines)
-documents all 30 Tier 1 symbols as static methods on `IsccLib` with accurate Java type signatures,
-parameter tables, code examples, streaming hasher lifecycle, error handling, and memory management.
-Content faithfully transcribed from `IsccLib.java` and `IsccDecodeResult.java` Javadoc. Site builds
-cleanly, nav entry and llms.txt updated. All 4 spec-required Reference pages are now complete.
+**Summary:** `gen_sum_code_v0` is correctly implemented in the WASM binding crate with a
+`WasmSumCodeResult` struct and 6 comprehensive tests. The implementation follows the existing WASM
+patterns (`getter_with_clone`, `JsError` mapping), uses `f64` for filesize as specified, and all
+quality gates pass cleanly.
 
 **Verification:**
 
-- [x] `uv run zensical build` succeeds — builds in 0.66s with `/java-api/` in output
-- [x] `grep -q 'java-api.md' zensical.toml` exits 0 — nav entry present after C FFI
-- [x] `grep -q 'java-api' docs/llms.txt` exits 0 — reference line added
-- [x] gen function count: 32 (≥ 9) — all 9 gen functions documented with signatures and examples
-- [x] DataHasher lifecycle count: 18 (≥ 4) — DataHasher + InstanceHasher fully documented
-- [x] `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 — class with 5 fields documented
-- [x] `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 — all 4 constants in table
-- [x] `mise run check` — all 14 hooks pass
+- [x] `cargo build -p iscc-wasm --target wasm32-unknown-unknown` compiles without errors
+- [x] `cargo clippy -p iscc-wasm -- -D warnings` clean
+- [x] `wasm-pack test --node crates/iscc-wasm` passes — 75 tests (9 conformance + 66 unit including
+    6 new gen_sum_code_v0 tests; 1 unit test behind `conformance` feature gate)
+- [x] `gen_sum_code_v0` exported, returns `WasmSumCodeResult` with `iscc`, `datahash`, `filesize`
+- [x] `mise run check` passes — all 14 pre-commit hooks clean
 
 **Issues found:**
 
-- (none)
+- (none) — clean implementation
 
-**Codex review:** Codex reviewed the define-next commit (HEAD~1, not the advance commit) but still
-identified relevant documentation accuracy points: (1) P2: intro paragraph oversimplified native
-library loading — fixed by adding fallback mention. (2) P3: `IsccLib.isccDecode()` reference omits
-parameter — standard Java method reference convention, not actionable. (3) P3: handoff grep uses
-`...` abbreviation — textual shorthand in handoff text, not actual regex, not actionable.
+**Codex review:** Two P3 findings, both about the advance handoff documentation (not code): (1)
+handoff verification command omits crate path for `wasm-pack test --node`; (2) handoff notes
+incorrectly claim next.md specifies `u64` when it actually specifies `f64`. Both are handoff clarity
+issues only — the code itself is correct.
 
-**Next:** All spec-required documentation pages are complete (Rust API, Python API, C FFI, Java
-API). The documentation spec is fully met. All remaining work requires human action: merge PR #10
-(develop → main), trigger 0.0.2 releases to PyPI/npm, configure Maven Central publishing (GPG,
-Sonatype), decide canonical tab order, and configure OIDC for crates.io.
+**Next:** Propagate `gen_sum_code_v0` to C FFI bindings (`crates/iscc-ffi/`). The C FFI will need an
+`iscc_gen_sum_code_v0(path, bits, wide)` extern "C" function with output pointer pattern matching
+existing FFI result functions. After C FFI, continue with Java and Go per issue #15.
 
-**Notes:** The project has reached the end of automatable CID work. All 7 bindings at 30/30 Tier 1
-symbols, all 46 conformance vectors pass, CI green on all 9 jobs, documentation complete with 16
-pages. The only remaining issue is the low-priority tab order inconsistency (needs human decision).
+**Notes:** Issue #15 progress: Rust core ✅, Python ✅, Node.js ✅, WASM ✅. Three bindings remain: C
+FFI, Java, Go. The advance handoff test count says "76 tests (9 + 67)" but actual is 75 (9 + 66)
+because `test_conformance_selftest_returns_true` is behind `#[cfg(feature = "conformance")]`. Minor
+count discrepancy — no code issue.

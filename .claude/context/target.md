@@ -33,16 +33,17 @@ published to all registries.
 
 Detailed spec: `.claude/context/specs/rust-core.md`
 
-**Tier 1 API** — 30 public symbols bound in all languages:
+**Tier 1 API** — 32 public symbols bound in all languages:
 
-- 9 `gen_*_v0` functions with structured return types (matching iscc-core dict fields)
+- 10 `gen_*_v0` functions with structured return types (matching iscc-core dict fields), including
+    `gen_sum_code_v0` for single-call ISCC-SUM generation with Rust-native file I/O
 - 4 text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - 4 algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
 - 1 soft hash: `soft_hash_video_v0`
 - 2 encoding utilities: `encode_base64`, `json_to_data_url`
 - 3 codec operations: `iscc_decompose`, `encode_component`, `iscc_decode`
-- 4 algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`,
-    `TEXT_NGRAM_SIZE`
+- 5 algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`,
+    `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
 - 2 streaming types: `DataHasher`, `InstanceHasher`
 - 1 diagnostic: `conformance_selftest`
 

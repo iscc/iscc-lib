@@ -2,7 +2,7 @@
 //!
 //! Exposes all 9 `gen_*_v0` functions, 4 algorithm primitives, codec
 //! functions (`encode_component`, `iscc_decode`, `json_to_data_url`),
-//! and 4 algorithm constants as `extern "C"` symbols for integration
+//! and 5 algorithm constants as `extern "C"` symbols for integration
 //! from C, Go, Java, C#, and any other language with C interop.
 //!
 //! ## Memory model
@@ -51,6 +51,12 @@ pub extern "C" fn iscc_meta_trim_name() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn iscc_meta_trim_description() -> u32 {
     iscc_lib::META_TRIM_DESCRIPTION as u32
+}
+
+/// Maximum byte length for the meta field payload after decoding.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_meta_trim_meta() -> u32 {
+    iscc_lib::META_TRIM_META as u32
 }
 
 /// Default read buffer size for streaming I/O (4 MB).
@@ -2123,6 +2129,11 @@ mod tests {
     #[test]
     fn test_meta_trim_description() {
         assert_eq!(iscc_meta_trim_description(), 4096);
+    }
+
+    #[test]
+    fn test_meta_trim_meta() {
+        assert_eq!(iscc_meta_trim_meta(), 128_000);
     }
 
     #[test]

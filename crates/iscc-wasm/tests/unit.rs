@@ -5,6 +5,92 @@
 
 use wasm_bindgen_test::*;
 
+// ── gen_sum_code_v0 ─────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_gen_sum_code_v0_equivalence() {
+    // Result should match composing data + instance + iscc manually
+    let data = b"Hello, ISCC World!";
+    let sum = iscc_wasm::gen_sum_code_v0(data, None, None).unwrap();
+    let data_code = iscc_wasm::gen_data_code_v0(data, None).unwrap();
+    let instance_code = iscc_wasm::gen_instance_code_v0(data, None).unwrap();
+    let codes = serde_wasm_bindgen::to_value(&[&data_code, &instance_code]).unwrap();
+    let iscc_code = iscc_wasm::gen_iscc_code_v0(codes, None).unwrap();
+    assert_eq!(
+        sum.iscc, iscc_code,
+        "sum iscc should match manual composition"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_gen_sum_code_v0_result_shape() {
+    let data = b"Test data for result shape";
+    let sum = iscc_wasm::gen_sum_code_v0(data, None, None).unwrap();
+    assert!(
+        sum.iscc.starts_with("ISCC:"),
+        "iscc should have ISCC: prefix"
+    );
+    assert!(
+        sum.datahash.starts_with("1e20"),
+        "datahash should start with BLAKE3 multihash prefix"
+    );
+    assert_eq!(
+        sum.filesize,
+        data.len() as f64,
+        "filesize should equal input length"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_gen_sum_code_v0_empty_input() {
+    // Empty data should succeed and match empty equivalents
+    let sum = iscc_wasm::gen_sum_code_v0(&[], None, None).unwrap();
+    let data_code = iscc_wasm::gen_data_code_v0(&[], None).unwrap();
+    let instance_code = iscc_wasm::gen_instance_code_v0(&[], None).unwrap();
+    let codes = serde_wasm_bindgen::to_value(&[&data_code, &instance_code]).unwrap();
+    let iscc_code = iscc_wasm::gen_iscc_code_v0(codes, None).unwrap();
+    assert_eq!(
+        sum.iscc, iscc_code,
+        "empty sum should match empty composition"
+    );
+    assert_eq!(sum.filesize, 0.0, "empty data should have filesize 0");
+}
+
+#[wasm_bindgen_test]
+fn test_gen_sum_code_v0_default_params() {
+    // None bits/wide should produce the same as explicit Some(64)/Some(false)
+    let data = b"Default params test data";
+    let default_result = iscc_wasm::gen_sum_code_v0(data, None, None).unwrap();
+    let explicit_result = iscc_wasm::gen_sum_code_v0(data, Some(64), Some(false)).unwrap();
+    assert_eq!(default_result.iscc, explicit_result.iscc);
+    assert_eq!(default_result.datahash, explicit_result.datahash);
+    assert_eq!(default_result.filesize, explicit_result.filesize);
+}
+
+#[wasm_bindgen_test]
+fn test_gen_sum_code_v0_wide_mode() {
+    // Wide and non-wide should produce different iscc but same datahash/filesize
+    let data = b"Wide mode test data with enough bytes to make it meaningful";
+    let narrow = iscc_wasm::gen_sum_code_v0(data, Some(128), Some(false)).unwrap();
+    let wide = iscc_wasm::gen_sum_code_v0(data, Some(128), Some(true)).unwrap();
+    assert_ne!(narrow.iscc, wide.iscc, "wide and non-wide should differ");
+    assert_eq!(
+        narrow.datahash, wide.datahash,
+        "datahash should be the same"
+    );
+    assert_eq!(
+        narrow.filesize, wide.filesize,
+        "filesize should be the same"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_gen_sum_code_v0_filesize() {
+    let data = vec![0xABu8; 1234];
+    let sum = iscc_wasm::gen_sum_code_v0(&data, None, None).unwrap();
+    assert_eq!(sum.filesize, 1234.0, "filesize should equal data.len()");
+}
+
 // ── text_clean ──────────────────────────────────────────────────────────────
 
 #[wasm_bindgen_test]
@@ -448,6 +534,11 @@ fn test_meta_trim_name_value() {
 #[wasm_bindgen_test]
 fn test_meta_trim_description_value() {
     assert_eq!(iscc_wasm::meta_trim_description(), 4096);
+}
+
+#[wasm_bindgen_test]
+fn test_meta_trim_meta_value() {
+    assert_eq!(iscc_wasm::meta_trim_meta(), 128_000);
 }
 
 #[wasm_bindgen_test]

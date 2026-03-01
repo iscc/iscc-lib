@@ -24,6 +24,7 @@ iterations.
 ## Build and Tooling
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
+- Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
 - CI workflow at `.github/workflows/ci.yml` has 9 jobs: version-check, rust, python, nodejs, wasm,
     c-ffi, java, go, bench. The `bench` job runs `cargo bench --no-run` (compile-only, no execution)
 - `version-check` job: lightweight (checkout + setup-python only), runs
@@ -101,6 +102,27 @@ iterations.
     `vectorEntry` struct + 9 `run*Tests` section runners. `decodeStream` shared helper for
     Data/Instance hex decoding
 
+## gen_sum_code_v0
+
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>` in `lib.rs`
+- Single-pass file I/O: opens file, reads in `IO_READ_SIZE` chunks, feeds both `DataHasher` and
+    `InstanceHasher`, composes ISCC-CODE via `gen_iscc_code_v0`
+- `SumCodeResult { iscc, datahash, filesize }` in `types.rs` — same `#[non_exhaustive]` pattern
+- File I/O errors mapped to `IsccError::InvalidInput("Cannot open/read file: {e}")`
+- `units: Vec<String>` field deferred (not in scope for initial core implementation)
+- 32nd and final Tier 1 symbol for Rust core — all 32 symbols now implemented
+- Python binding: PyO3 wrapper in `crates/iscc-py/src/lib.rs` accepts `&str` path, `SumCodeResult`
+    class in `__init__.py`, public wrapper accepts `str | os.PathLike` via `os.fspath()`, 6 tests in
+    `tests/test_smoke.py`
+- Node.js binding: `NapiSumCodeResult` struct (`#[napi(object)]`) + `gen_sum_code_v0` napi fn in
+    `crates/iscc-napi/src/lib.rs`. Uses `i64` for `filesize` (napi-rs no u64 support). 6 tests in
+    `__tests__/functions.test.mjs`
+- WASM binding: `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) +
+    `gen_sum_code_v0` fn in `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (no filesystem in WASM).
+    Uses `f64` for `filesize` (wasm-bindgen `u64` maps to `BigInt`, awkward for JS). Composes
+    internally via `DataHasher` + `InstanceHasher` + `gen_iscc_code_v0`. 6 tests in `tests/unit.rs`,
+    76 total WASM tests (9 conformance + 67 unit). Remaining: C FFI, Java, Go (3 bindings)
+
 ## Codec Internals
 
 - `decode_header` and `decode_varnibble_from_bytes` operate directly on `&[u8]` with bitwise
@@ -148,9 +170,29 @@ iterations.
 
 - All 4 Reference pages complete: Rust API, Python API, C FFI, Java API
 
+## Binding Constant Export Patterns
+
+- NAPI: `#[napi(js_name = "CONST_NAME")] pub const CONST_NAME: u32 = iscc_lib::CONST_NAME as u32;`
+- WASM: `#[wasm_bindgen(js_name = "CONST_NAME")] pub fn const_name() -> u32 { ... }` (getter fn, not
+    const — wasm-bindgen limitation)
+- C FFI: `#[unsafe(no_mangle)] pub extern "C" fn iscc_const_name() -> u32 { ... }` + inline
+    `#[test]` in same file. cbindgen auto-generates the C header
+- NAPI JS tests: `describe('CONST_NAME', () => { it('equals X'); it('is a number'); })`
+- WASM tests: `#[wasm_bindgen_test]` in `tests/unit.rs` (requires wasm-pack to run)
+- C tests: `ASSERT_EQ(iscc_const_name(), value, "label")` in `tests/test_iscc.c`
+- 5 constants currently exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
+    IO_READ_SIZE, TEXT_NGRAM_SIZE
+
 ## Gotchas
 
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
 - mdformat auto-formats markdown — keep backtick expressions short to avoid wrapping crashes
 - `from __future__ import annotations` in `__init__.py` — use `|` union syntax, not `Union`
-- Python `__all__` has 45 entries (30 API + 10 result types + `__version__` + MT, ST, VS, core_opts)
+- Python `__all__` has 48 entries (32 API + 11 result types + `__version__` + MT, ST, VS, core_opts)
+- `gen_sum_code_v0` wide mode only differs from normal when `bits >= 128` (wide requires 128-bit+
+    codes)
+- After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
+    `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
+- JSON `{"x":""}` overhead is 8 bytes (not 7) — relevant for boundary tests on META_TRIM_META
+- META_TRIM_META validation: pre-decode check uses `META_TRIM_META * 4/3 + 256` (base64 inflation +
+    media type header), post-decode check uses `META_TRIM_META` directly

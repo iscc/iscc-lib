@@ -9,6 +9,9 @@ META_TRIM_NAME: int
 META_TRIM_DESCRIPTION: int
 """Max UTF-8 byte length for description metadata trimming (4096)."""
 
+META_TRIM_META: int
+"""Max byte length for decoded meta parameter payload (128,000)."""
+
 IO_READ_SIZE: int
 """Buffer size in bytes for streaming file reads (4,194,304 = 4 MB)."""
 
@@ -317,6 +320,16 @@ def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> dict[str, Any]:
     :param codes: List of ISCC unit code strings to combine.
     :param wide: Whether to produce a wide (256-bit) code (default False).
     :return: Dict with ``iscc`` key.
+    """
+    ...
+
+def gen_sum_code_v0(path: str, bits: int = 64, wide: bool = False) -> dict[str, Any]:
+    """Generate Data-Code + Instance-Code + ISCC-CODE from a file path in a single pass.
+
+    :param path: File system path to the file.
+    :param bits: Bit length for the Data-Code body (default 64).
+    :param wide: Whether to produce a wide (256-bit) ISCC-CODE (default False).
+    :return: Dict with ``iscc``, ``datahash``, and ``filesize`` keys.
     """
     ...
 

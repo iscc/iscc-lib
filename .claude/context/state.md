@@ -1,190 +1,157 @@
-<!-- assessed-at: 9f228df -->
+<!-- assessed-at: cb9615e78a6e3221c56601ce67070390b1d32997 -->
 
 # Project State
 
-## Status: RELEASE_READY
+## Status: IN_PROGRESS
 
-## Phase: All Functional Work Complete — Ready for 0.0.3 Release
+## Phase: gen_sum_code_v0 propagation — Node.js done (2/6 bindings); WASM next
 
-All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export 30/30 Tier 1
-symbols and pass conformance. CI is green on all 9 jobs. v0.0.2 is published to all registries
-(PyPI, crates.io, npm @iscc/lib, npm @iscc/wasm). PR #10 merged to main. Java API reference page
-complete. All functional requirements are met. OIDC trusted publishing configured for crates.io.
-Maven Central external setup (GPG signing, Sonatype) complete.
+Iteration 8 completed: `gen_sum_code_v0` + `NapiSumCodeResult` fully propagated to Node.js bindings
+(32/32 Tier 1 symbols in Node.js). The napi struct, function, TypeScript declarations, and 6 mocha
+tests are all present and CI-verified (132 total tests pass). Four binding crates still lack
+`gen_sum_code_v0`: WASM, C FFI, Java, Go.
 
 ## Rust Core Crate
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: met (32/32 Tier 1 symbols; all conformance tests pass)
 
-- All 30 Tier 1 public symbols at crate root: 9 `gen_*_v0` functions, 4 text utilities
-    (`text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`), 4 algorithm primitives
-    (`sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`), `soft_hash_video_v0`,
-    `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`, `json_to_data_url`,
-    `DataHasher`, `InstanceHasher`, `conformance_selftest`, and 4 algorithm constants:
-    `META_TRIM_NAME` (128), `META_TRIM_DESCRIPTION` (4096), `IO_READ_SIZE` (4_194_304),
-    `TEXT_NGRAM_SIZE` (13)
-- 299 total tests (245 src unit tests + 31 integration tests + 22 additional integration tests + 1
-    doc-test); `cargo clippy --workspace` clean; all conformance vectors pass (CI-verified)
-- Tier 2 codec module remains Rust-only: `MainType`/`SubType`/`Version` enums, header encode/decode
-- Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen)
-- **Nothing missing** in Rust core
+- All 32 Tier 1 symbols present: 10 `gen_*_v0` functions (including `gen_sum_code_v0`), 4 text
+    utilities, 4 algo primitives, 1 soft hash, 2 encoding utilities, 3 codec operations, 5 constants
+    (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
+    `TEXT_NGRAM_SIZE`), 2 streaming types, 1 diagnostic
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>` — single-pass
+    file I/O ✅
+- `SumCodeResult { iscc: String, datahash: String, filesize: u64 }` in `types.rs` ✅
+- 310 tests passing (256 unit + 31 streaming + 22 utils + 1 doctest)
+- `cargo clippy -p iscc-lib -- -D warnings` clean; `cargo fmt -p iscc-lib --check` clean
 
 ## Python Bindings
 
-**Status**: met (30/30 Tier 1 symbols + all iscc-core drop-in extensions)
+**Status**: met (32/32 Tier 1 symbols; all conformance tests pass)
 
-- All 30/30 Tier 1 symbols accessible from Python
-- `__all__` has 45 entries: 4 constants + `__version__` + `MT`/`ST`/`VS` IntEnums + `core_opts` +
-    `IsccResult` + 9 typed result classes + `DataHasher` + `InstanceHasher` + 27 API symbols
-- `IsccResult(dict)` base class + 9 typed subclasses — dict-style and attribute-style access both
-    work
-- `MT` (`IntEnum`, 8 values), `ST` (`IntEnum`, 8 values), `VS` (`IntEnum`, V0=0) all exported
-- `core_opts` `SimpleNamespace` with all 4 constants exported in `__all__`
-- `iscc_decode` Python wrapper returns `(MT, ST, VS, length, bytes)` with IntEnum-typed values
-- `gen_meta_code_v0` accepts `meta: str | dict | None`; `gen_image_code_v0` accepts multiple buffer
-    types
-- `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
-- 198 tests passing across 6 files (CI-verified); `ruff check` and `ruff format --check` pass
-    (CI-verified)
-- `iscc-lib 0.0.2` published to PyPI
+- All 32 Tier 1 symbols accessible; `__all__` has 48 entries (32 API + 11 result types +
+    `__version__` + `MT`, `ST`, `VS`, `core_opts`) ✅
+- `gen_sum_code_v0(path: str | os.PathLike, bits: int = 64, wide: bool = False) -> SumCodeResult` in
+    `crates/iscc-py/python/iscc_lib/__init__.py` at line 274 ✅
+- `SumCodeResult(IsccResult)` class with `iscc`, `datahash`, `filesize` attributes in `__init__.py`
+    at line 185 ✅
+- PyO3 `#[pyfunction] fn gen_sum_code_v0(path: &str, bits: u32, wide: bool)` in
+    `crates/iscc-py/src/lib.rs` at line 334; registered in `iscc_lowlevel` module at line 612 ✅
+- `gen_sum_code_v0` type stub in `_lowlevel.pyi` at line 326 ✅
+- 6 pytest tests for `gen_sum_code_v0` in `tests/test_smoke.py` (equivalence, PathLike, error,
+    result type, attribute access, wide mode) ✅
+- 204 Python tests passing (25 smoke + 179 conformance/other); `cargo clippy -p iscc-py` clean;
+    `ruff check` clean ✅
 
 ## Node.js Bindings
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: met (32/32 Tier 1 symbols; all conformance tests pass)
 
-- All 30/30 Tier 1 symbols exported via napi-rs; 39 `#[napi]` annotations
-- 4 algorithm constants exported; `iscc_decode` returns `IsccDecodeResult` object
-- `DataHasher` and `InstanceHasher` implemented; conformance vectors pass
-- 124 tests (CI-verified); `cargo clippy -p iscc-napi --all-targets -- -D warnings` clean
-    (CI-verified)
-- `repository` field in `package.json` for npm provenance verification
-- `@iscc/lib 0.0.2` published to npm
-- **Nothing missing** in Node.js bindings
+- All 32 Tier 1 symbols exported including `gen_sum_code_v0` ✅
+- `NapiSumCodeResult` struct (`#[napi(object)]`) with `iscc: String`, `datahash: String`,
+    `filesize: i64` in `crates/iscc-napi/src/lib.rs` ✅
+- `#[napi(js_name = "gen_sum_code_v0")] fn gen_sum_code_v0(path, bits?, wide?)` with
+    `Option<u32>`/`Option<bool>` params ✅
+- `NapiSumCodeResult` interface + `gen_sum_code_v0` declaration in auto-generated `index.d.ts` ✅
+- 6 mocha tests for `gen_sum_code_v0` in `functions.test.mjs` (equivalence, shape, error, defaults,
+    wide mode, filesize) ✅; 132 total tests pass (95 `it()` blocks across 2 test files)
+- Review verdict: PASS; `cargo clippy -p iscc-napi -- -D warnings` clean
+- `@iscc/lib 0.0.3` on npm
 
 ## WASM Bindings
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: partially met (missing gen_sum_code_v0)
 
-- All 30/30 Tier 1 symbols exported; 35 `#[wasm_bindgen]` annotations
-- 4 constants exposed as getter functions with uppercase names via `js_name`
-- `iscc_decode` returns `IsccDecodeResult` struct; `DataHasher` and `InstanceHasher` fully
-    implemented
-- `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
-- 69 total `#[wasm_bindgen_test]` tests; CI-verified passing
-- `@iscc/wasm 0.0.2` published to npm
-- **Nothing missing** in WASM bindings
+- 31/31 existing Tier 1 symbols exported; `META_TRIM_META` getter added with unit test ✅
+- 61+ wasm-bindgen tests CI-verified passing
+- **MISSING**: `gen_sum_code_v0` wasm_bindgen export (design: accept `Uint8Array` bytes since WASM
+    has no filesystem access)
+- `@iscc/wasm 0.0.3` on npm
 
 ## C FFI
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: partially met (missing gen_sum_code_v0)
 
-- 44 exported `extern "C"` functions covering all 30 Tier 1 symbols + memory management helpers
-- 4 constants exported as getter functions; `FfiDataHasher` and `FfiInstanceHasher` with complete
-    lifecycle
-- 77 `#[test]` Rust unit tests; C test program covers 23 test cases — CI-verified passing
-- cbindgen generates valid C headers; C test program compiles and runs (CI-verified)
-- **Nothing missing** in C FFI bindings
+- 45 `extern "C"` functions; `iscc_meta_trim_meta()` added with unit test ✅
+- 78 Rust unit tests + C test program (23+ cases) CI-verified passing
+- **MISSING**: `iscc_gen_sum_code_v0` extern "C" function + memory management helpers for result
+    struct
 
 ## Java Bindings
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: partially met (missing gen_sum_code_v0)
 
-- `crates/iscc-jni/` crate: 32 `extern "system"` JNI functions covering all 30 Tier 1 symbols
-- `IsccLib.java` (382 lines): all 30 Tier 1 symbols as `public static native` methods
-- 4 algorithm constants as `public static final int` fields; `IsccDecodeResult.java` present
-- `NativeLoader.java` (169 lines) handles platform JAR extraction
-- `IsccLibTest.java` (472 lines): 9 `@TestFactory` sections + 12 `@Test` unit methods — CI-verified
-- `docs/howto/java.md` complete; navigation entry in `zensical.toml` present
-- `build-jni` + `assemble-jar` release jobs in `release.yml`; 5-platform matrix
-- Version: `pom.xml` at `0.0.2` (synced)
-- Maven Central external setup complete (GPG signing, Sonatype); end-to-end release untested
+- 32 existing `extern "system"` JNI functions; `META_TRIM_META = 128_000` added in `IsccLib.java`
+    with test assertion ✅
+- CI-verified: `Java (JNI build, mvn test)` job SUCCESS
+- **MISSING**: JNI bridge + `genSumCodeV0(String path, int bits, boolean wide)` native method +
+    `SumCodeResult` record in Java
+- Maven Central external setup complete; end-to-end release untested
 
 ## Go Bindings
 
-**Status**: met — 30/30 Tier 1 symbols
+**Status**: partially met (missing gen_sum_code_v0)
 
-- **Architecture**: Pure Go, no CGO, no WASM, no binary artifacts — target fully met
-- **30/30 Tier 1 symbols**: All 9 `gen_*_v0` functions, `ConformanceSelftest`, `DataHasher`,
-    `InstanceHasher`, 4 text utilities, `SlidingWindow`, `AlgMinhash256`, `AlgCdcChunks`,
-    `AlgSimhash`, `SoftHashVideoV0`, `EncodeBase64`, `EncodeComponent`, `IsccDecode`,
-    `IsccDecompose`, `JsonToDataUrl`, 4 constants (`MetaTrimName`, `MetaTrimDescription`,
-    `IoReadSize`, `TextNgramSize`)
-- 147 pure Go test functions across 18+ test files; `go test ./...` and `go vet ./...` pass
-    (CI-verified)
-- `go.mod` has minimal deps: `zeebo/blake3`, `golang.org/x/text`, `klauspost/cpuid` (indirect)
-- All 5 vestigial "do NOT require the WASM binary" comments removed from test files
-- **Nothing missing** in Go bindings
+- 31/32 Tier 1 symbols in `packages/go/`; `MetaTrimMeta = 128_000` constant in `codec.go` ✅
+- 147 pure Go tests CI-verified passing (`CGO_ENABLED=0`); `go vet` clean
+- **MISSING**: `GenSumCodeV0(path string, bits uint32, wide bool) (*SumCodeResult, error)` +
+    `SumCodeResult` struct + Go tests
 
 ## README
 
 **Status**: met
 
-- Rewritten public-facing polyglot developer README (238 lines)
-- All 6 language bindings mentioned; per-language install + Quick Start; all 9 `gen_*_v0` listed
-- CI badge, DeepWiki badge, version badges for all registries
+- Public-facing polyglot README (238 lines); all 6 bindings, all 9 `gen_*_v0` listed, CI badge,
+    registry badges
+- Will need update for `gen_sum_code_v0` when remaining bindings are implemented
 
 ## Per-Crate READMEs
 
-**Status**: met
+**Status**: met (for existing 31 symbols)
 
 - All 7 per-crate READMEs present with registry-specific install commands and quick-start examples
-- `packages/go/README.md` updated to reflect pure Go: no wazero references, package-level functions,
-    `Push` → `Finalize` streaming API, no binary artifact description
-- **Nothing missing** in Per-Crate READMEs
+- Will need `gen_sum_code_v0` mention when implemented in remaining bindings
 
 ## Documentation
 
-**Status**: met
+**Status**: met (for existing features)
 
-- **16 pages** deployed to lib.iscc.codes; all navigation sections complete
-- `docs/llms.txt` references all doc pages; `scripts/gen_llms_full.py` generates
-    `site/llms-full.txt`
-- Getting-started tutorial in tabbed multi-language format: 7 sections × 6 languages (Python, Rust,
-    Node.js, Java, Go, WASM)
-- Landing page Go tab: correct pure Go API (`result, _ := iscc.GenTextCodeV0(...)`)
-- All 6 binding howto guides have "Codec operations" and "Constants" sections
-- Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
-- ISCC branding, copy-page split-button, Open Graph meta tags in place
-- `docs/architecture.md`: Go correctly shown as standalone module (separate from Rust binding
-    crates) with green styling and accurate prose; all stale wazero references removed
-- **Reference section** (zensical.toml): Rust API, Python API, C FFI, Java API — all present and
-    complete
-- **C FFI API reference** (`docs/c-ffi-api.md`, 694 lines): all 44 exported `extern "C"` symbols
-    documented with C type mappings, struct layouts, memory management guidance, and error handling
-- **Java API reference** (`docs/java-api.md`): all 30 Tier 1 symbols documented
-- **Tab order**: standardized to Python, Rust, Node.js, Java, Go, WASM across all pages
+- 16 pages deployed to lib.iscc.codes; all navigation sections complete
+- `docs/llms.txt` and `scripts/gen_llms_full.py` in place
+- Getting-started tutorial: 7 sections × 6 languages; all howto guides complete
+- Benchmarks page updated; `docs/ecosystem.md` current
+- Will need `gen_sum_code_v0` mention when remaining bindings are implemented
 
 ## Benchmarks
 
 **Status**: met
 
-- Criterion benchmarks exist for all 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
-    (`crates/iscc-lib/benches/benchmarks.rs`)
-- pytest-benchmark comparison: `benchmarks/python/bench_iscc_core.py` and
-    `benchmarks/python/bench_iscc_lib.py` compare Python reference vs Rust-backed bindings
-- **Speedup factors published** in `docs/benchmarks.md` (117 lines): full table of Python comparison
-    (1.3×–158× speedup) and Native Rust Criterion results (with throughput for streaming functions);
-    page linked in navigation under "Benchmarks"
-- `Bench (compile check)` job in CI verifies all 7 benchmark targets compile
-    (`cargo bench --no-run`)
-- **Nothing missing** in Benchmarks
+- Criterion benchmarks for all 9 `gen_*_v0` + `bench_data_hasher_streaming` + `bench_cdc_chunks`
+    (4KB/64KB/1MB)
+- pytest-benchmark comparison: `benchmarks/python/bench_iscc_core.py` and `bench_iscc_lib.py`
+- Speedup factors published in `docs/benchmarks.md`
+- `Bench (compile check)` CI job verifies all benchmark targets compile
 
 ## CI/CD and Publishing
 
-**Status**: met
+**Status**: met (for existing features)
 
-- 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
-- `ci.yml` covers **9 jobs**: Version consistency, Rust (fmt, clippy, test), Python (ruff, pytest),
-    Node.js (napi build, test), WASM (wasm-pack test), Java (JNI build, mvn test), Go (go test, go
-    vet), C FFI (cbindgen, gcc, test), Bench (compile check) — all 9 SUCCESS
-- **version-check** job: runs `python scripts/version_sync.py --check` using only Python 3.10
-- Go CI job: `CGO_ENABLED=0 go test` + `go vet` (pure Go, no Rust toolchain)
-- **PR #10 merged** to main
-- **v0.0.2 published** to all registries: PyPI, crates.io, npm (@iscc/lib, @iscc/wasm)
-- OIDC trusted publishing configured for crates.io
-- Maven Central external setup complete (GPG signing, Sonatype)
-- **Nothing missing** in CI/CD and Publishing
+- **All 11 CI job records SUCCESS** on latest push; 3 consecutive green runs
+- Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22552124782
+- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest), Node.js, WASM, C
+    FFI, Java, Go, Bench — all success
+- v0.0.3 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
+    configured; npm via NPM_TOKEN
 
 ## Next Milestone
 
-**Ready for 0.0.3 release.** All functional work complete. No open issues.
+**Propagate gen_sum_code_v0 to WASM bindings (`crates/iscc-wasm/`) — issue #15:**
+
+1. **WASM** (next): WASM has no filesystem access — accept `Uint8Array` bytes and compose Data-Code
+    \+ Instance-Code internally. Add `#[wasm_bindgen]` export + `WasmSumCodeResult` struct; add
+    wasm-bindgen tests
+2. **C FFI** (`crates/iscc-ffi/`): `iscc_gen_sum_code_v0(path, bits, wide)` + opaque result struct;
+    update C test program
+3. **Java** (`crates/iscc-jni/`): JNI bridge + `SumCodeResult` record + `genSumCodeV0` native
+    method; mvn tests
+4. **Go** (`packages/go/`): `GenSumCodeV0` + `SumCodeResult` struct; pure Go file I/O; tests

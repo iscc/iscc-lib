@@ -34,16 +34,20 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: Run tests
         run: cargo test --workspace
-  python:
-    name: Python (ruff, pytest)
+  python-test:
+    name: Python ${{ matrix.python-version }} (ruff, pytest)
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.14']
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
+          allow-prereleases: true
       - uses: astral-sh/setup-uv@v4
       - name: Install dev dependencies
         run: uv sync --group dev
@@ -55,6 +59,14 @@ jobs:
         run: uv run ruff format --check
       - name: Run pytest
         run: uv run pytest
+  python:
+    name: Python (ruff, pytest)
+    if: always()
+    needs: python-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all Python versions passed
+        run: test "${{ needs.python-test.result }}" = "success"
   nodejs:
     name: Node.js (napi build, test)
     runs-on: ubuntu-latest

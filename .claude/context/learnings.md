@@ -11,7 +11,7 @@ fully-met target sections to `learnings-archive.md`.
 
 - Hub-and-spoke: `iscc-lib` (pure Rust core) → 6 binding crates. Each binding depends only on
     `iscc-lib`, never on another binding
-- Tier 1 API (30 symbols) exposed via `pub use` at crate root. Tier 2 is `pub(crate)` — internal
+- Tier 1 API (32 symbols) exposed via `pub use` at crate root. Tier 2 is `pub(crate)` — internal
     only, never crosses FFI boundary
 - Sync core, async boundaries: Rust core is synchronous. Each binding adapts idiomatically
 
@@ -33,6 +33,9 @@ fully-met target sections to `learnings-archive.md`.
 
 - `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing
+- `META_TRIM_META` validation: pre-decode check (`META_TRIM_META * 4/3 + 256`) applies to ALL meta
+    strings (both Data-URL and JSON) as a fast-path optimization. Post-decode check on
+    `payload.len()` guarantees correctness. JSON boundary test overhead: `{"x":""}` = 8 bytes
 - `gen_image_code_v0` pixels parameter is a flat `&[u8]`, NOT `&[i32]`. Chromaprint provides `i32`
     audio fingerprints (for `gen_audio_code_v0`), not image pixels
 - `gen_instance_code_v0` accepts `bits` but ignores it — always produces 256-bit output (the hash of
@@ -137,6 +140,36 @@ fully-met target sections to `learnings-archive.md`.
     `cargo search`, `npm view`, Maven Central search API, `pip index versions`, Go module proxy. A
     claim that "X is not published" may be outdated; a claim that "everything works" may miss one
     that genuinely doesn't
+
+## Binding Propagation
+
+- NAPI `index.js` and `index.d.ts` are gitignored (`crates/iscc-napi/.gitignore`) and auto-generated
+    by `napi build`. CI runs `napi build` before `npm test`. Do NOT manually edit or commit these
+    files — they regenerate with new constants automatically
+- Java `META_TRIM_*` constants are pure Java `public static final int` (no JNI call needed). Go
+    constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
+- When adding FFI constants, update the algorithm constant count in the module docstring
+    (`crates/iscc-ffi/src/lib.rs` line 5)
+
+## gen_sum_code_v0
+
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool)` is the 10th gen function and 32nd Tier 1
+    symbol. Single-pass file I/O feeds both `DataHasher` (CDC/MinHash) and `InstanceHasher` (BLAKE3)
+    from the same buffer, then composes ISCC-CODE via `gen_iscc_code_v0`
+- `SumCodeResult { iscc, datahash, filesize }` — same fields as `InstanceCodeResult` minus `iscc`
+    being the composite ISCC-CODE rather than a single component code
+- Binding propagation order: Python first (primary consumer), then Node.js/WASM/C FFI/Java, Go last
+    (pure Go reimplementation needed — not a Rust wrapper)
+- Python binding pattern: PyO3 wrapper accepts `&str` path → `Path::new(path)`, public wrapper adds
+    `str | os.PathLike` via `os.fspath()`. `SumCodeResult(IsccResult)` class + `__all__` update.
+    Wide mode test requires `bits=128` since 64-bit codes produce identical output in both modes
+- Node.js binding pattern: `NapiSumCodeResult` struct with `#[napi(object)]` + `gen_sum_code_v0` fn
+    with `Option<u32>`/`Option<bool>` params. Uses `i64` for filesize (napi-rs lacks u64 support).
+    Tests use `node:test` + `node:assert` + temp files for I/O. Total: 132 tests after adding 6
+- WASM binding pattern: `WasmSumCodeResult` struct with `#[wasm_bindgen(getter_with_clone)]` +
+    `gen_sum_code_v0` fn accepting `&[u8]` (no filesystem in WASM). Uses `f64` for filesize (avoids
+    `u64` → BigInt friction in JS). 6 tests in `tests/unit.rs`. Total: 75 tests (9 conformance + 66
+    unit; 1 unit test behind `conformance` feature gate)
 
 ## CID Process
 

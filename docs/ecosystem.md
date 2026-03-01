@@ -53,16 +53,18 @@ project.
 
 ### iscc-core-ts — TypeScript
 
-A TypeScript implementation of the ISCC core functions, targeting the Node.js ecosystem. Created by
-François Branciard with funding from NGI Zero Core (NLnet / European Commission).
+A standalone TypeScript implementation of the ISCC core functions for the JavaScript ecosystem.
+Created by François Branciard with funding from NGI Zero Core (NLnet / European Commission).
+Maintained by the original author under the ISCC Foundation GitHub org.
 
-|            |                                                                     |
-| ---------- | ------------------------------------------------------------------- |
-| Repository | [branciard/iscc-core-ts](https://github.com/branciard/iscc-core-ts) |
-| Language   | TypeScript (Node.js v22+)                                           |
-| License    | Apache-2.0                                                          |
-| Version    | 0.3.0                                                               |
-| Status     | Active development — not yet recommended for production use         |
+|            |                                                                   |
+| ---------- | ----------------------------------------------------------------- |
+| Repository | [iscc/iscc-core-ts](https://github.com/iscc/iscc-core-ts)         |
+| Package    | [iscc-core-ts on npm](https://www.npmjs.com/package/iscc-core-ts) |
+| Language   | TypeScript (Node.js, Browser via bundler)                         |
+| License    | Apache-2.0                                                        |
+| Version    | 1.0.0                                                             |
+| Status     | Stable — security audited, full conformance with iscc-core v1.2.2 |
 
 **Function coverage:**
 
@@ -81,9 +83,14 @@ The project implements all 9 `gen_*_v0` functions from ISO 24138, plus additiona
 | `gen_instance_code_v0` | 3     |
 | `gen_iscc_code_v0`     | 5     |
 
-**Conformance testing:** The repository includes a vendored copy of the official `data.json`
-conformance test vectors from iscc-core. 263 tests pass across 18 test suites, including a dedicated
-`conformance.test.ts`.
+**Conformance testing:** 263 tests derived from the official `data.json` conformance vectors,
+running across 4 module modes (CJS, CJS-isolated, ESM, ESM-isolated) for 1,052 total test
+executions. Includes a dedicated `conformance.test.ts` suite.
+
+**Security:** Completed an external security audit by Radically Open Security (ROS) with all
+findings remediated. See the
+[audit remediation report](https://github.com/iscc/iscc-core-ts/blob/main/docs/audit-remediation-report.md)
+for details.
 
 ## Contributing an Implementation
 

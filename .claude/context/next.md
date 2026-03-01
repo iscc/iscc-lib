@@ -1,88 +1,117 @@
 # Next Work Package
 
-## Step: Add Java API reference page
+## Step: Add gen_sum_code_v0 to WASM bindings
 
 ## Goal
 
-Create `docs/java-api.md` documenting the full Java API surface (`IsccLib` class, `IsccDecodeResult`
-class, constants, streaming hashers), and wire it into the site navigation and `llms.txt`. This is
-the last spec-required Reference page — the documentation spec lists "Java API" alongside Rust API,
-Python API, and C FFI in the Reference section.
+Propagate `gen_sum_code_v0` to the WASM binding crate (`crates/iscc-wasm/`), completing 32/32 Tier 1
+symbols in WASM. Since WASM has no filesystem access, the function accepts `Uint8Array` bytes
+instead of a file path and composes the ISCC-SUM internally. This advances issue #15.
 
 ## Scope
 
-- **Create**: `docs/java-api.md`
-- **Modify**: `zensical.toml` (add `{ "Java API" = "java-api.md" }` to Reference nav section)
-- **Modify**: `docs/llms.txt` (add Java API reference line)
+- **Create**: (none)
+- **Modify**:
+    - `crates/iscc-wasm/src/lib.rs` — add `WasmSumCodeResult` struct + `gen_sum_code_v0` function
+    - `crates/iscc-wasm/tests/unit.rs` — add tests for `gen_sum_code_v0`
 - **Reference**:
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — authoritative source for
-        all 30 Tier 1 symbols (382 lines, 30 methods + 4 constants)
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java` — decode result type
-        (42 lines, 5 public final fields)
-    - `docs/c-ffi-api.md` — pattern to follow for structure and depth (694 lines)
-    - `docs/rust-api.md` — pattern to follow for function documentation style
-    - `.claude/context/specs/documentation.md` — spec requiring "Java API" in Reference
+    - `crates/iscc-lib/src/lib.rs` lines ~960-998 — core `gen_sum_code_v0` logic (single-pass file I/O
+        feeding DataHasher + InstanceHasher, then gen_iscc_code_v0 composition)
+    - `crates/iscc-lib/src/types.rs` — `SumCodeResult` struct definition
+    - `crates/iscc-lib/src/streaming.rs` — `DataHasher` and `InstanceHasher` API
+    - `crates/iscc-wasm/src/lib.rs` lines ~240-269 — `IsccDecodeResult` pattern for structured
+        wasm_bindgen returns with `#[wasm_bindgen(getter_with_clone)]`
 
 ## Not In Scope
 
-- Javadoc generation or mkdocstrings integration for Java (the page is hand-written markdown like
-    the Rust API and C FFI pages)
-- Maven Central publishing configuration or setup documentation
-- `NativeLoader.java` internals — not part of the public API surface
-- Updating the Java how-to guide (`docs/howto/java.md`) — already complete
-- Updating other Reference pages (Rust API, Python API, C FFI) — they are already final
+- Adding `gen_sum_code_v0` to C FFI, Java, or Go bindings (separate future steps)
+- Conformance test vectors for gen_sum_code_v0 (none exist in data.json — test via equivalence)
+- Updating documentation, READMEs, or docs site (defer until all bindings complete)
+- Adding a bytes-based variant to the Rust core API (the WASM wrapper composes internally)
+- Changing the return type of existing WASM functions to return structured results
 
 ## Implementation Notes
 
-**Page structure** — follow the C FFI reference page pattern, adapted for Java:
+**Return type — `WasmSumCodeResult`:**
 
-1. **Front matter**: `icon: lucide/book-open`, description for Java API
-2. **Intro paragraph**: Java library for ISCC via JNI, all 30 Tier 1 symbols as static methods on
-    `IsccLib`
-3. **Installation**: Maven and Gradle dependency snippets (use `io.iscc:iscc-lib:0.0.2`)
-4. **Quick example**: `IsccLib.genMetaCodeV0("title", null, null, 64)` → ISCC string
-5. **Constants section**: 4 `public static final int` fields (`META_TRIM_NAME`,
-    `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) in a table
-6. **Classes section**: `IsccDecodeResult` with its 5 public final fields in a table
-7. **Functions sections** (organized by category, matching IsccLib.java order):
-    - Conformance: `conformanceSelftest()`
-    - Code generation: all 9 `gen*V0` methods with signature, parameter table, return type, and
-        throws clause
-    - Text utilities: `textClean`, `textRemoveNewlines`, `textTrim`, `textCollapse`
-    - Encoding: `encodeBase64`, `jsonToDataUrl`
-    - Codec: `encodeComponent`, `isccDecode`, `isccDecompose`
-    - Sliding window: `slidingWindow`
-    - Algorithm primitives: `algSimhash`, `algMinhash256`, `algCdcChunks`, `softHashVideoV0`
-    - Streaming hashers: `DataHasher` lifecycle (`dataHasherNew` → `dataHasherUpdate` →
-        `dataHasherFinalize` → `dataHasherFree`) and same for `InstanceHasher`
-8. **Error handling**: all methods throw `IllegalArgumentException` on invalid input; streaming
-    hashers throw after finalize
-9. **Memory management note**: streaming hashers use opaque `long` handles — callers MUST call
-    `*Free` to release native memory
+Use `#[wasm_bindgen(getter_with_clone)]` (same pattern as `IsccDecodeResult`):
 
-**Content source**: transcribe directly from the Javadoc in `IsccLib.java` and
-`IsccDecodeResult.java`. Do NOT invent undocumented behavior.
+```rust
+#[wasm_bindgen(getter_with_clone)]
+pub struct WasmSumCodeResult {
+    pub iscc: String,
+    pub datahash: String,
+    pub filesize: f64,
+}
+```
 
-**Nav entry**: insert `{ "Java API" = "java-api.md" }` after `{ "C FFI" = "c-ffi-api.md" }` in the
-Reference section of `zensical.toml`.
+**Why `f64` for filesize:** In wasm-bindgen, `u64` maps to JS `BigInt`, which causes friction for
+web developers (can't mix with regular numbers, `JSON.stringify` fails, arithmetic requires explicit
+conversion). `f64` maps naturally to JS `number` and handles files up to 2^53 bytes (~9 PB) — far
+beyond any browser WASM use case. This matches the pragmatic approach for web consumers.
 
-**llms.txt entry**: add `- [Java API](https://lib.iscc.codes/java-api.md): Java API reference` after
-the C FFI line, following the existing pattern.
+**Function — `gen_sum_code_v0`:**
+
+Since WASM has no filesystem, accept `data: &[u8]` (maps to `Uint8Array` in JS). Replicate the core
+logic without file I/O by composing from streaming hashers:
+
+```rust
+#[wasm_bindgen]
+pub fn gen_sum_code_v0(
+    data: &[u8],
+    bits: Option<u32>,
+    wide: Option<bool>,
+) -> Result<WasmSumCodeResult, JsError> {
+    let bits = bits.unwrap_or(64);
+    let wide = wide.unwrap_or(false);
+
+    let mut data_hasher = iscc_lib::DataHasher::new();
+    let mut instance_hasher = iscc_lib::InstanceHasher::new();
+
+    data_hasher.update(data);
+    instance_hasher.update(data);
+
+    let data_result = data_hasher.finalize(bits).map_err(|e| JsError::new(&e.to_string()))?;
+    let instance_result = instance_hasher.finalize(bits).map_err(|e| JsError::new(&e.to_string()))?;
+
+    let iscc_result = iscc_lib::gen_iscc_code_v0(
+        &[&data_result.iscc, &instance_result.iscc],
+        wide,
+    ).map_err(|e| JsError::new(&e.to_string()))?;
+
+    Ok(WasmSumCodeResult {
+        iscc: iscc_result.iscc,
+        datahash: instance_result.datahash,
+        filesize: instance_result.filesize as f64,
+    })
+}
+```
+
+**Placement:** Insert `WasmSumCodeResult` struct near `IsccDecodeResult` (~line 240). Insert
+`gen_sum_code_v0` function after `gen_iscc_code_v0` (~line 161).
+
+**Tests** (add to `tests/unit.rs`, minimum 4, target 6):
+
+1. **Equivalence**: Feed same bytes to `gen_sum_code_v0` and separately to `gen_data_code_v0` +
+    `gen_instance_code_v0` + `gen_iscc_code_v0`. Verify `iscc` matches.
+2. **Result shape**: Verify `iscc` starts with `"ISCC:"`, `datahash` starts with `"1e20"`,
+    `filesize` equals input length.
+3. **Empty input**: Verify `gen_sum_code_v0(&[], None, None)` succeeds and matches empty-data
+    equivalents.
+4. **Default params**: Verify `None` bits/wide produce same as explicit `Some(64)`/`Some(false)`.
+5. **Wide mode**: With `bits=128`, verify wide and non-wide produce different `iscc` values but same
+    `datahash` and `filesize`.
+6. **Filesize**: Verify `filesize` equals `data.len() as f64` for known test input.
 
 ## Verification
 
-- `uv run zensical build` succeeds (site builds with new page)
-- `grep -q 'java-api.md' zensical.toml` exits 0 (nav entry present)
-- `grep -q 'java-api' docs/llms.txt` exits 0 (llms.txt reference added)
-- `grep -c 'genMetaCodeV0\|genTextCodeV0\|genImageCodeV0\|genAudioCodeV0\|genVideoCodeV0\|genMixedCodeV0\|genDataCodeV0\|genInstanceCodeV0\|genIsccCodeV0' docs/java-api.md`
-    returns ≥ 9 (all gen functions documented)
-- `grep -c 'dataHasherNew\|dataHasherUpdate\|dataHasherFinalize\|dataHasherFree' docs/java-api.md`
-    returns ≥ 4 (DataHasher lifecycle documented)
-- `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 (decode result type documented)
-- `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 (constants documented)
-- `mise run check` passes (all hooks clean)
+- `cargo build -p iscc-wasm --target wasm32-unknown-unknown` compiles without errors
+- `cargo clippy -p iscc-wasm -- -D warnings` clean
+- `wasm-pack test --node crates/iscc-wasm` passes (existing + 4-6 new gen_sum_code_v0 tests)
+- `gen_sum_code_v0` is exported and returns `WasmSumCodeResult` with `iscc`, `datahash`, `filesize`
+- `mise run check` passes (all pre-commit hooks clean)
 
 ## Done When
 
-All 8 verification commands pass — the Java API reference page is complete, wired into navigation
-and llms.txt, and the site builds cleanly.
+All five verification criteria pass — `gen_sum_code_v0` is fully functional in the WASM binding with
+structured result return and at least 4 new tests.

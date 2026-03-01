@@ -266,6 +266,7 @@ int main(void) {
     /* 18. Algorithm constants */
     ASSERT_EQ(iscc_meta_trim_name(), 128, "iscc_meta_trim_name() == 128");
     ASSERT_EQ(iscc_meta_trim_description(), 4096, "iscc_meta_trim_description() == 4096");
+    ASSERT_EQ(iscc_meta_trim_meta(), 128000, "iscc_meta_trim_meta() == 128000");
     ASSERT_EQ(iscc_io_read_size(), 4194304, "iscc_io_read_size() == 4194304");
     ASSERT_EQ(iscc_text_ngram_size(), 13, "iscc_text_ngram_size() == 13");
 

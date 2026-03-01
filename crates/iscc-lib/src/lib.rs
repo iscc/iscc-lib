@@ -1,6 +1,6 @@
 //! High-performance Rust implementation of ISO 24138:2024 (ISCC).
 //!
-//! This crate provides the core ISCC algorithm implementations. All 9 `gen_*_v0`
+//! This crate provides the core ISCC algorithm implementations. All 10 `gen_*_v0`
 //! functions are the public Tier 1 API surface, designed to be compatible with
 //! the `iscc-core` Python reference implementation.
 
@@ -30,6 +30,9 @@ pub const META_TRIM_NAME: usize = 128;
 
 /// Max UTF-8 byte length for description metadata trimming.
 pub const META_TRIM_DESCRIPTION: usize = 4096;
+
+/// Max decoded payload size in bytes for the meta element.
+pub const META_TRIM_META: usize = 128_000;
 
 /// Buffer size in bytes for streaming file reads (4 MB).
 pub const IO_READ_SIZE: usize = 4_194_304;
@@ -295,12 +298,33 @@ pub fn gen_meta_code_v0(
     let desc_clean = utils::text_clean(desc_str);
     let desc_clean = utils::text_trim(&desc_clean, META_TRIM_DESCRIPTION);
 
+    // Pre-decode fast check: reject obviously oversized meta strings
+    if let Some(meta_str) = meta {
+        const PRE_DECODE_LIMIT: usize = META_TRIM_META * 4 / 3 + 256;
+        if meta_str.len() > PRE_DECODE_LIMIT {
+            return Err(IsccError::InvalidInput(format!(
+                "meta string exceeds size limit ({} > {PRE_DECODE_LIMIT} bytes)",
+                meta_str.len()
+            )));
+        }
+    }
+
     // Resolve meta payload bytes (if meta is provided)
     let meta_payload: Option<Vec<u8>> = match meta {
         Some(meta_str) if meta_str.starts_with("data:") => Some(decode_data_url(meta_str)?),
         Some(meta_str) => Some(parse_meta_json(meta_str)?),
         None => None,
     };
+
+    // Post-decode check: reject payloads exceeding META_TRIM_META
+    if let Some(ref payload) = meta_payload {
+        if payload.len() > META_TRIM_META {
+            return Err(IsccError::InvalidInput(format!(
+                "decoded meta payload exceeds size limit ({} > {META_TRIM_META} bytes)",
+                payload.len()
+            )));
+        }
+    }
 
     // Branch: meta bytes path vs. description text path
     if let Some(ref payload) = meta_payload {
@@ -930,6 +954,46 @@ pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult
     // Step 15: Return with prefix
     Ok(IsccCodeResult {
         iscc: format!("ISCC:{code}"),
+    })
+}
+
+/// Generate a composite ISCC-CODE from a file in a single pass.
+///
+/// Opens the file at `path`, reads it with an optimal buffer size, and feeds
+/// both `DataHasher` (CDC/MinHash) and `InstanceHasher` (BLAKE3) from the
+/// same read buffer. Composes the final ISCC-CODE from the Data-Code and
+/// Instance-Code internally. This avoids multiple passes over the file and
+/// eliminates per-chunk FFI overhead in language bindings.
+pub fn gen_sum_code_v0(path: &std::path::Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult> {
+    use std::io::Read;
+
+    let mut file = std::fs::File::open(path)
+        .map_err(|e| IsccError::InvalidInput(format!("Cannot open file: {e}")))?;
+
+    let mut data_hasher = streaming::DataHasher::new();
+    let mut instance_hasher = streaming::InstanceHasher::new();
+
+    let mut buf = vec![0u8; IO_READ_SIZE];
+    loop {
+        let n = file
+            .read(&mut buf)
+            .map_err(|e| IsccError::InvalidInput(format!("Cannot read file: {e}")))?;
+        if n == 0 {
+            break;
+        }
+        data_hasher.update(&buf[..n]);
+        instance_hasher.update(&buf[..n]);
+    }
+
+    let data_result = data_hasher.finalize(bits)?;
+    let instance_result = instance_hasher.finalize(bits)?;
+
+    let iscc_result = gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)?;
+
+    Ok(SumCodeResult {
+        iscc: iscc_result.iscc,
+        datahash: instance_result.datahash,
+        filesize: instance_result.filesize,
     })
 }
 
@@ -1996,5 +2060,189 @@ mod tests {
             canonical, r#"{"some":"object"}"#,
             "JCS removes whitespace from JSON"
         );
+    }
+
+    #[test]
+    fn test_meta_trim_meta_value() {
+        assert_eq!(META_TRIM_META, 128_000);
+    }
+
+    #[test]
+    fn test_gen_meta_code_v0_meta_at_limit() {
+        // Create a JSON payload that decodes to exactly 128,000 bytes
+        // JSON: {"x":"<padding>"} where padding fills to 128,000 bytes
+        // The canonical JSON overhead is {"x":""} = 8 bytes, so padding = 127,992 bytes
+        let padding = "a".repeat(128_000 - 8);
+        let json_str = format!(r#"{{"x":"{padding}"}}"#);
+        let result = gen_meta_code_v0("test", None, Some(&json_str), 64);
+        assert!(
+            result.is_ok(),
+            "payload at exactly META_TRIM_META should succeed"
+        );
+    }
+
+    #[test]
+    fn test_gen_meta_code_v0_meta_over_limit() {
+        // Create a JSON payload that decodes to 128,001 bytes (one over limit)
+        let padding = "a".repeat(128_000 - 8 + 1);
+        let json_str = format!(r#"{{"x":"{padding}"}}"#);
+        let result = gen_meta_code_v0("test", None, Some(&json_str), 64);
+        assert!(
+            matches!(result, Err(IsccError::InvalidInput(ref msg)) if msg.contains("size limit")),
+            "payload exceeding META_TRIM_META should return InvalidInput"
+        );
+    }
+
+    #[test]
+    fn test_gen_meta_code_v0_data_url_pre_decode_reject() {
+        // Create a Data-URL string exceeding the pre-decode limit
+        // PRE_DECODE_LIMIT = META_TRIM_META * 4 / 3 + 256 = 170,922
+        let pre_decode_limit = META_TRIM_META * 4 / 3 + 256;
+        let padding = "A".repeat(pre_decode_limit + 1);
+        let data_url = format!("data:application/octet-stream;base64,{padding}");
+        let result = gen_meta_code_v0("test", None, Some(&data_url), 64);
+        assert!(
+            matches!(result, Err(IsccError::InvalidInput(ref msg)) if msg.contains("size limit")),
+            "oversized Data-URL should be rejected before decoding"
+        );
+    }
+
+    // ---- gen_sum_code_v0 tests ----
+
+    /// Helper: write data to a unique temp file and return the path.
+    fn write_temp_file(name: &str, data: &[u8]) -> std::path::PathBuf {
+        let path = std::env::temp_dir().join(format!("iscc_test_{name}"));
+        std::fs::write(&path, data).expect("failed to write temp file");
+        path
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_equivalence() {
+        let data = b"Hello, ISCC World! This is a test of gen_sum_code_v0.";
+        let path = write_temp_file("sum_equiv", data);
+
+        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+
+        // Compute the same result via separate functions
+        let data_result = gen_data_code_v0(data, 64).unwrap();
+        let instance_result = gen_instance_code_v0(data, 64).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+        assert_eq!(sum_result.datahash, instance_result.datahash);
+        assert_eq!(sum_result.filesize, instance_result.filesize);
+        assert_eq!(sum_result.filesize, data.len() as u64);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_empty_file() {
+        let path = write_temp_file("sum_empty", b"");
+
+        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+
+        let data_result = gen_data_code_v0(b"", 64).unwrap();
+        let instance_result = gen_instance_code_v0(b"", 64).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+        assert_eq!(sum_result.datahash, instance_result.datahash);
+        assert_eq!(sum_result.filesize, 0);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_file_not_found() {
+        let path = std::env::temp_dir().join("iscc_test_nonexistent_file_xyz");
+        let result = gen_sum_code_v0(&path, 64, false);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("Cannot open file"),
+            "error message should mention file open failure: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_wide_mode() {
+        let data = b"Testing wide mode for gen_sum_code_v0 function.";
+        let path = write_temp_file("sum_wide", data);
+
+        let narrow = gen_sum_code_v0(&path, 64, false).unwrap();
+        let wide = gen_sum_code_v0(&path, 64, true).unwrap();
+
+        // Wide mode with 64-bit codes doesn't trigger (need 128+), so they should be equal
+        assert_eq!(narrow.iscc, wide.iscc);
+
+        // With 128 bits, wide mode should produce a different (longer) ISCC
+        let narrow_128 = gen_sum_code_v0(&path, 128, false).unwrap();
+        let wide_128 = gen_sum_code_v0(&path, 128, true).unwrap();
+        assert_ne!(narrow_128.iscc, wide_128.iscc);
+
+        // Both should have the same datahash and filesize
+        assert_eq!(narrow_128.datahash, wide_128.datahash);
+        assert_eq!(narrow_128.filesize, wide_128.filesize);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_bits_64() {
+        let data = b"Testing 64-bit gen_sum_code_v0.";
+        let path = write_temp_file("sum_bits64", data);
+
+        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+
+        let data_result = gen_data_code_v0(data, 64).unwrap();
+        let instance_result = gen_instance_code_v0(data, 64).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_bits_128() {
+        let data = b"Testing 128-bit gen_sum_code_v0.";
+        let path = write_temp_file("sum_bits128", data);
+
+        let sum_result = gen_sum_code_v0(&path, 128, false).unwrap();
+
+        let data_result = gen_data_code_v0(data, 128).unwrap();
+        let instance_result = gen_instance_code_v0(data, 128).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+        assert_eq!(sum_result.datahash, instance_result.datahash);
+        assert_eq!(sum_result.filesize, data.len() as u64);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_large_data() {
+        // Generate data large enough to produce multiple CDC chunks
+        let data: Vec<u8> = (0..50_000).map(|i| (i % 256) as u8).collect();
+        let path = write_temp_file("sum_large", &data);
+
+        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+
+        let data_result = gen_data_code_v0(&data, 64).unwrap();
+        let instance_result = gen_instance_code_v0(&data, 64).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+        assert_eq!(sum_result.datahash, instance_result.datahash);
+        assert_eq!(sum_result.filesize, data.len() as u64);
+
+        std::fs::remove_file(&path).ok();
     }
 }

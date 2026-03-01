@@ -5,16 +5,20 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 import iscc_lib
 from iscc_lib import (
     DataCodeResult,
     IsccResult,
     InstanceCodeResult,
     MetaCodeResult,
+    SumCodeResult,
     TextCodeResult,
     gen_data_code_v0,
     gen_instance_code_v0,
     gen_meta_code_v0,
+    gen_sum_code_v0,
     gen_text_code_v0,
 )
 
@@ -174,3 +178,60 @@ def test_gen_instance_code_v0_bytes_still_works():
     assert result["iscc"].startswith("ISCC:")
     assert result["filesize"] == 9
     assert isinstance(result, InstanceCodeResult)
+
+
+# ── gen_sum_code_v0 tests ──────────────────────────────────────────────────
+
+
+def test_gen_sum_code_v0_equivalence(tmp_path):
+    """Verify gen_sum_code_v0 matches gen_instance_code_v0 datahash and filesize."""
+    data = b"Hello World"
+    file = tmp_path / "test.bin"
+    file.write_bytes(data)
+    sum_result = gen_sum_code_v0(str(file))
+    inst_result = gen_instance_code_v0(data)
+    assert sum_result["datahash"] == inst_result["datahash"]
+    assert sum_result["filesize"] == inst_result["filesize"]
+
+
+def test_gen_sum_code_v0_pathlike(tmp_path):
+    """Verify gen_sum_code_v0 accepts pathlib.Path via os.fspath conversion."""
+    file = tmp_path / "pathlike.bin"
+    file.write_bytes(b"test")
+    result = gen_sum_code_v0(file)
+    assert result["iscc"].startswith("ISCC:")
+
+
+def test_gen_sum_code_v0_error_nonexistent(tmp_path):
+    """Verify gen_sum_code_v0 raises ValueError for nonexistent path."""
+    with pytest.raises(ValueError):
+        gen_sum_code_v0(tmp_path / "missing.bin")
+
+
+def test_gen_sum_code_v0_result_type(tmp_path):
+    """Verify gen_sum_code_v0 returns SumCodeResult which is a dict."""
+    file = tmp_path / "type.bin"
+    file.write_bytes(b"data")
+    result = gen_sum_code_v0(str(file))
+    assert isinstance(result, SumCodeResult)
+    assert isinstance(result, dict)
+
+
+def test_gen_sum_code_v0_attribute_access(tmp_path):
+    """Verify attribute-style access works on SumCodeResult."""
+    file = tmp_path / "attr.bin"
+    file.write_bytes(b"data")
+    result = gen_sum_code_v0(str(file))
+    assert result.iscc == result["iscc"]
+    assert result.datahash == result["datahash"]
+    assert result.filesize == result["filesize"]
+
+
+def test_gen_sum_code_v0_wide_mode(tmp_path):
+    """Verify wide=True produces a different ISCC string than wide=False."""
+    file = tmp_path / "wide.bin"
+    file.write_bytes(b"test data for wide mode")
+    # Wide mode requires 128-bit+ codes to produce a different result
+    result_normal = gen_sum_code_v0(str(file), bits=128, wide=False)
+    result_wide = gen_sum_code_v0(str(file), bits=128, wide=True)
+    assert result_normal["iscc"] != result_wide["iscc"]
