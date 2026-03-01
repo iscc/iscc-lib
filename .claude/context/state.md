@@ -1,190 +1,145 @@
-<!-- assessed-at: 9f228df -->
+<!-- assessed-at: 5eb6ba133c2cda81471a1176047c78d8ed01f4ec -->
 
 # Project State
 
-## Status: RELEASE_READY
+## Status: IN_PROGRESS
 
-## Phase: All Functional Work Complete — Ready for 0.0.3 Release
+## Phase: New Tier 1 Symbols Required — gen_sum_code_v0 + META_TRIM_META Unimplemented
 
-All seven language bindings (Rust, Python, Node.js, WASM, C FFI, Java, Go) export 30/30 Tier 1
-symbols and pass conformance. CI is green on all 9 jobs. v0.0.2 is published to all registries
-(PyPI, crates.io, npm @iscc/lib, npm @iscc/wasm). PR #10 merged to main. Java API reference page
-complete. All functional requirements are met. OIDC trusted publishing configured for crates.io.
-Maven Central external setup (GPG signing, Sonatype) complete.
+v0.0.3 was released (all registries) and CI is green on all jobs. However, the target was updated to
+require **32** public Tier 1 symbols (up from 30): a new `gen_sum_code_v0` function and a new
+`META_TRIM_META` constant are now required but not yet implemented in any crate or binding. Issues
+#15 and #18 track these additions.
 
 ## Rust Core Crate
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: partially met (30/32 Tier 1 symbols; 2 new symbols unimplemented)
 
-- All 30 Tier 1 public symbols at crate root: 9 `gen_*_v0` functions, 4 text utilities
-    (`text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`), 4 algorithm primitives
-    (`sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`), `soft_hash_video_v0`,
-    `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`, `json_to_data_url`,
-    `DataHasher`, `InstanceHasher`, `conformance_selftest`, and 4 algorithm constants:
-    `META_TRIM_NAME` (128), `META_TRIM_DESCRIPTION` (4096), `IO_READ_SIZE` (4_194_304),
-    `TEXT_NGRAM_SIZE` (13)
-- 299 total tests (245 src unit tests + 31 integration tests + 22 additional integration tests + 1
-    doc-test); `cargo clippy --workspace` clean; all conformance vectors pass (CI-verified)
-- Tier 2 codec module remains Rust-only: `MainType`/`SubType`/`Version` enums, header encode/decode
-- Pure Rust: zero binding dependencies (no PyO3, napi, wasm-bindgen)
-- **Nothing missing** in Rust core
+- 30 existing Tier 1 symbols present and passing conformance (CI-verified)
+- **MISSING**: `gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>` —
+    single-pass file I/O for Data+Instance code (issue #15)
+- **MISSING**: `META_TRIM_META: usize = 128_000` constant — payload size guard for
+    `gen_meta_code_v0` (issue #18)
+- **MISSING**: `SumCodeResult` struct with `iscc`, `datahash`, `filesize` fields
+- **MISSING**: `gen_meta_code_v0` payload validation against `META_TRIM_META`
+- CDC optimization merged (PR #17): unchecked indexing + 4x loop unrolling in `cdc.rs`;
+    `bench_cdc_chunks` benchmark added
+- `cargo test -p iscc-lib` CI-verified passing; `cargo clippy --workspace` clean
 
 ## Python Bindings
 
-**Status**: met (30/30 Tier 1 symbols + all iscc-core drop-in extensions)
+**Status**: partially met (missing gen_sum_code_v0, META_TRIM_META, SumCodeResult)
 
-- All 30/30 Tier 1 symbols accessible from Python
-- `__all__` has 45 entries: 4 constants + `__version__` + `MT`/`ST`/`VS` IntEnums + `core_opts` +
-    `IsccResult` + 9 typed result classes + `DataHasher` + `InstanceHasher` + 27 API symbols
-- `IsccResult(dict)` base class + 9 typed subclasses — dict-style and attribute-style access both
-    work
-- `MT` (`IntEnum`, 8 values), `ST` (`IntEnum`, 8 values), `VS` (`IntEnum`, V0=0) all exported
-- `core_opts` `SimpleNamespace` with all 4 constants exported in `__all__`
-- `iscc_decode` Python wrapper returns `(MT, ST, VS, length, bytes)` with IntEnum-typed values
-- `gen_meta_code_v0` accepts `meta: str | dict | None`; `gen_image_code_v0` accepts multiple buffer
-    types
-- `DataHasher` and `InstanceHasher` as `#[pyclass]` with file-like object support
-- 198 tests passing across 6 files (CI-verified); `ruff check` and `ruff format --check` pass
-    (CI-verified)
-- `iscc-lib 0.0.2` published to PyPI
+- 30/30 existing Tier 1 symbols accessible; all conformance vectors pass (CI-verified on 3.10 +
+    3.14)
+- `__all__` currently has 45 entries; needs `gen_sum_code_v0`, `SumCodeResult`, `META_TRIM_META`,
+    `core_opts.meta_trim_meta`
+- Python 3.14 CI added (matrix 3.10 + 3.14 both passing); `python` gate job added for stable branch
+    protection
+- **MISSING**: `gen_sum_code_v0` wrapper accepting `str | os.PathLike`
+- **MISSING**: `SumCodeResult` class with dict + attribute access
+- **MISSING**: `META_TRIM_META` constant and `core_opts.meta_trim_meta` attribute
+- `iscc-lib 0.0.3` published to PyPI
 
 ## Node.js Bindings
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: partially met (missing gen_sum_code_v0, META_TRIM_META)
 
-- All 30/30 Tier 1 symbols exported via napi-rs; 39 `#[napi]` annotations
-- 4 algorithm constants exported; `iscc_decode` returns `IsccDecodeResult` object
-- `DataHasher` and `InstanceHasher` implemented; conformance vectors pass
-- 124 tests (CI-verified); `cargo clippy -p iscc-napi --all-targets -- -D warnings` clean
-    (CI-verified)
-- `repository` field in `package.json` for npm provenance verification
-- `@iscc/lib 0.0.2` published to npm
-- **Nothing missing** in Node.js bindings
+- 30/30 existing Tier 1 symbols exported; 124 tests CI-verified passing
+- **MISSING**: `gen_sum_code_v0` napi export
+- **MISSING**: `META_TRIM_META` constant export
+- `@iscc/lib 0.0.3` published to npm
 
 ## WASM Bindings
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: partially met (missing gen_sum_code_v0, META_TRIM_META)
 
-- All 30/30 Tier 1 symbols exported; 35 `#[wasm_bindgen]` annotations
-- 4 constants exposed as getter functions with uppercase names via `js_name`
-- `iscc_decode` returns `IsccDecodeResult` struct; `DataHasher` and `InstanceHasher` fully
-    implemented
-- `conformance_selftest` gated behind `#[cfg(feature = "conformance")]`
-- 69 total `#[wasm_bindgen_test]` tests; CI-verified passing
-- `@iscc/wasm 0.0.2` published to npm
-- **Nothing missing** in WASM bindings
+- 30/30 existing Tier 1 symbols exported; 69 wasm-bindgen tests CI-verified passing
+- **MISSING**: `gen_sum_code_v0` wasm_bindgen export (note: path-based I/O may need special handling
+    in WASM context)
+- **MISSING**: `META_TRIM_META` constant getter
+- `@iscc/wasm 0.0.3` published to npm
 
 ## C FFI
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: partially met (missing gen_sum_code_v0, META_TRIM_META)
 
-- 44 exported `extern "C"` functions covering all 30 Tier 1 symbols + memory management helpers
-- 4 constants exported as getter functions; `FfiDataHasher` and `FfiInstanceHasher` with complete
-    lifecycle
-- 77 `#[test]` Rust unit tests; C test program covers 23 test cases — CI-verified passing
-- cbindgen generates valid C headers; C test program compiles and runs (CI-verified)
-- **Nothing missing** in C FFI bindings
+- 44 existing `extern "C"` functions; 77 Rust unit tests + C test program (23 cases) CI-verified
+    passing
+- **MISSING**: `iscc_gen_sum_code_v0` extern "C" function + memory management helpers for result
+- **MISSING**: `iscc_meta_trim_meta()` getter function
 
 ## Java Bindings
 
-**Status**: met (30/30 Tier 1 symbols)
+**Status**: partially met (missing gen_sum_code_v0, META_TRIM_META)
 
-- `crates/iscc-jni/` crate: 32 `extern "system"` JNI functions covering all 30 Tier 1 symbols
-- `IsccLib.java` (382 lines): all 30 Tier 1 symbols as `public static native` methods
-- 4 algorithm constants as `public static final int` fields; `IsccDecodeResult.java` present
-- `NativeLoader.java` (169 lines) handles platform JAR extraction
-- `IsccLibTest.java` (472 lines): 9 `@TestFactory` sections + 12 `@Test` unit methods — CI-verified
-- `docs/howto/java.md` complete; navigation entry in `zensical.toml` present
-- `build-jni` + `assemble-jar` release jobs in `release.yml`; 5-platform matrix
-- Version: `pom.xml` at `0.0.2` (synced)
-- Maven Central external setup complete (GPG signing, Sonatype); end-to-end release untested
+- 32 existing `extern "system"` JNI functions; `IsccLibTest.java` (472 lines) CI-verified passing
+- **MISSING**: `genSumCodeV0` JNI bridge + Java static native method
+- **MISSING**: `META_TRIM_META` constant in `IsccLib.java`
+- Maven Central external setup complete; end-to-end release untested
 
 ## Go Bindings
 
-**Status**: met — 30/30 Tier 1 symbols
+**Status**: partially met (missing gen_sum_code_v0, META_TRIM_META)
 
-- **Architecture**: Pure Go, no CGO, no WASM, no binary artifacts — target fully met
-- **30/30 Tier 1 symbols**: All 9 `gen_*_v0` functions, `ConformanceSelftest`, `DataHasher`,
-    `InstanceHasher`, 4 text utilities, `SlidingWindow`, `AlgMinhash256`, `AlgCdcChunks`,
-    `AlgSimhash`, `SoftHashVideoV0`, `EncodeBase64`, `EncodeComponent`, `IsccDecode`,
-    `IsccDecompose`, `JsonToDataUrl`, 4 constants (`MetaTrimName`, `MetaTrimDescription`,
-    `IoReadSize`, `TextNgramSize`)
-- 147 pure Go test functions across 18+ test files; `go test ./...` and `go vet ./...` pass
-    (CI-verified)
-- `go.mod` has minimal deps: `zeebo/blake3`, `golang.org/x/text`, `klauspost/cpuid` (indirect)
-- All 5 vestigial "do NOT require the WASM binary" comments removed from test files
-- **Nothing missing** in Go bindings
+- 30/30 existing Tier 1 symbols present; 147 pure Go tests CI-verified passing (`CGO_ENABLED=0`)
+- **MISSING**: `GenSumCodeV0(path string, bits uint32, wide bool)` function
+- **MISSING**: `MetaTrimMeta` constant (128_000)
+- **MISSING**: `SumCodeResult` struct
 
 ## README
 
 **Status**: met
 
-- Rewritten public-facing polyglot developer README (238 lines)
-- All 6 language bindings mentioned; per-language install + Quick Start; all 9 `gen_*_v0` listed
-- CI badge, DeepWiki badge, version badges for all registries
+- Public-facing polyglot README (238 lines); all 6 bindings, all 9 `gen_*_v0` listed, CI badge,
+    registry badges
+- Will need update for `gen_sum_code_v0` when implemented (low priority — new function)
 
 ## Per-Crate READMEs
 
-**Status**: met
+**Status**: met (for existing 30 symbols)
 
 - All 7 per-crate READMEs present with registry-specific install commands and quick-start examples
-- `packages/go/README.md` updated to reflect pure Go: no wazero references, package-level functions,
-    `Push` → `Finalize` streaming API, no binary artifact description
-- **Nothing missing** in Per-Crate READMEs
+- Will need `gen_sum_code_v0` mention when implemented
 
 ## Documentation
 
-**Status**: met
+**Status**: met (for existing features)
 
-- **16 pages** deployed to lib.iscc.codes; all navigation sections complete
-- `docs/llms.txt` references all doc pages; `scripts/gen_llms_full.py` generates
-    `site/llms-full.txt`
-- Getting-started tutorial in tabbed multi-language format: 7 sections × 6 languages (Python, Rust,
-    Node.js, Java, Go, WASM)
-- Landing page Go tab: correct pure Go API (`result, _ := iscc.GenTextCodeV0(...)`)
-- All 6 binding howto guides have "Codec operations" and "Constants" sections
-- Site builds and deploys via GitHub Pages; latest Docs run on main: PASSING
-- ISCC branding, copy-page split-button, Open Graph meta tags in place
-- `docs/architecture.md`: Go correctly shown as standalone module (separate from Rust binding
-    crates) with green styling and accurate prose; all stale wazero references removed
-- **Reference section** (zensical.toml): Rust API, Python API, C FFI, Java API — all present and
-    complete
-- **C FFI API reference** (`docs/c-ffi-api.md`, 694 lines): all 44 exported `extern "C"` symbols
-    documented with C type mappings, struct layouts, memory management guidance, and error handling
-- **Java API reference** (`docs/java-api.md`): all 30 Tier 1 symbols documented
-- **Tab order**: standardized to Python, Rust, Node.js, Java, Go, WASM across all pages
+- 16 pages deployed to lib.iscc.codes; all navigation sections complete
+- `docs/llms.txt` and `scripts/gen_llms_full.py` in place
+- Getting-started tutorial: 7 sections × 6 languages; all howto guides complete
+- Benchmarks page updated; `docs/ecosystem.md` updated for iscc-core-ts v1.0.0 stable
+- Will need `gen_sum_code_v0` and `META_TRIM_META` mentions when implemented
 
 ## Benchmarks
 
 **Status**: met
 
-- Criterion benchmarks exist for all 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
-    (`crates/iscc-lib/benches/benchmarks.rs`)
-- pytest-benchmark comparison: `benchmarks/python/bench_iscc_core.py` and
-    `benchmarks/python/bench_iscc_lib.py` compare Python reference vs Rust-backed bindings
-- **Speedup factors published** in `docs/benchmarks.md` (117 lines): full table of Python comparison
-    (1.3×–158× speedup) and Native Rust Criterion results (with throughput for streaming functions);
-    page linked in navigation under "Benchmarks"
-- `Bench (compile check)` job in CI verifies all 7 benchmark targets compile
-    (`cargo bench --no-run`)
-- **Nothing missing** in Benchmarks
+- Criterion benchmarks for all 9 `gen_*_v0` + `bench_data_hasher_streaming` + `bench_cdc_chunks`
+    (4KB/64KB/1MB)
+- pytest-benchmark comparison: `benchmarks/python/bench_iscc_core.py` and `bench_iscc_lib.py`
+- Speedup factors published in `docs/benchmarks.md`
+- `Bench (compile check)` CI job verifies all benchmark targets compile
 
 ## CI/CD and Publishing
 
-**Status**: met
+**Status**: met (for existing features)
 
-- 3 workflows: `ci.yml`, `docs.yml`, `release.yml`
-- `ci.yml` covers **9 jobs**: Version consistency, Rust (fmt, clippy, test), Python (ruff, pytest),
-    Node.js (napi build, test), WASM (wasm-pack test), Java (JNI build, mvn test), Go (go test, go
-    vet), C FFI (cbindgen, gcc, test), Bench (compile check) — all 9 SUCCESS
-- **version-check** job: runs `python scripts/version_sync.py --check` using only Python 3.10
-- Go CI job: `CGO_ENABLED=0 go test` + `go vet` (pure Go, no Rust toolchain)
-- **PR #10 merged** to main
-- **v0.0.2 published** to all registries: PyPI, crates.io, npm (@iscc/lib, @iscc/wasm)
-- OIDC trusted publishing configured for crates.io
-- Maven Central external setup complete (GPG signing, Sonatype)
-- **Nothing missing** in CI/CD and Publishing
+- CI workflow upgraded: `python-test` matrix (3.10, 3.14), `python` gate job for stable branch
+    protection
+- **11 CI run records** per push: version-check, Rust, Python 3.10, Python 3.14, Python (gate),
+    Node.js, WASM, C FFI, Java, Go, Bench — **all SUCCESS**
+- Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22545587495
+- v0.0.3 released: tags `v0.0.3` and `packages/go/v0.0.3`; all registries published
+- OIDC trusted publishing for crates.io; Maven Central GPG/Sonatype configured; npm via NPM_TOKEN
 
 ## Next Milestone
 
-**Ready for 0.0.3 release.** All functional work complete. No open issues.
+**Implement the two new Tier 1 symbols across all 7 bindings:**
+
+1. Add `META_TRIM_META: usize = 128_000` constant to Rust core (`crates/iscc-lib/src/lib.rs`)
+2. Add `gen_meta_code_v0` payload validation in Rust core (pre-decode + post-decode checks)
+3. Add `gen_sum_code_v0` + `SumCodeResult` to Rust core with single-pass file I/O
+4. Propagate both new symbols to all 6 language bindings (Python, Node.js, WASM, C FFI, Java, Go)
+5. Add tests for `META_TRIM_META` boundary cases and `gen_sum_code_v0` correctness
