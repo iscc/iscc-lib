@@ -184,6 +184,43 @@ enum fields (same pattern as `encode_component`).
 - [ ] Handles both `"ISCC:..."` prefixed and bare base32 input
 - [ ] Function is accessible from all bindings
 
+## Single-Call ISCC-SUM Generation
+
+One combined code generation function is public Tier 1 API. It generates both Data-Code and
+Instance-Code in a single pass with Rust-native file I/O, eliminating Python→Rust boundary crossing
+overhead.
+
+GitHub: https://github.com/iscc/iscc-lib/issues/15
+
+| Function          | Signature (Rust)                                                      | Behavior                                                        |
+| ----------------- | --------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `gen_sum_code_v0` | `fn(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>` | Open file in Rust, single-pass Data+Instance, compose ISCC-CODE |
+
+Internally: opens the file, reads with optimal buffer size, feeds both CDC/MinHash (Data-Code) and
+BLAKE3 (Instance-Code) from the same read buffer, then composes the final ISCC-CODE using
+`gen_iscc_code_v0` logic. Returns in a single call (1 boundary crossing instead of ~46,000 for a 1.5
+GB file through Python).
+
+**Result type:**
+
+```rust
+pub struct SumCodeResult {
+    pub iscc: String,
+    pub datahash: String,
+    pub filesize: u64,
+}
+```
+
+**Verified when:**
+
+- [ ] `gen_sum_code_v0(path, 64, false)` produces the same ISCC as separate
+    `gen_data_code_v0(data, 64)` + `gen_instance_code_v0(data, 64)` → `gen_iscc_code_v0`
+- [ ] `datahash` matches `gen_instance_code_v0` output for the same file
+- [ ] `filesize` matches actual file size
+- [ ] Function is accessible from all bindings
+- [ ] Python binding accepts `str | os.PathLike` for path
+- [ ] Handles missing/unreadable files with appropriate error
+
 ## Streaming Hashers
 
 Two streaming processor types are public Tier 1 API. They enable processing large files without
@@ -216,15 +253,24 @@ accumulates a BLAKE3 streaming hash and byte count.
 
 ## Algorithm Constants
 
-Four algorithm configuration constants are public Tier 1 API, defined as `pub const` in the Rust
+Five algorithm configuration constants are public Tier 1 API, defined as `pub const` in the Rust
 core. These are standardized parameters from ISO 24138 — read-only by design.
 
-| Constant                | Type    | Value     | Description                                    |
-| ----------------------- | ------- | --------- | ---------------------------------------------- |
-| `META_TRIM_NAME`        | `usize` | 128       | Max UTF-8 byte length for name metadata        |
-| `META_TRIM_DESCRIPTION` | `usize` | 4096      | Max UTF-8 byte length for description metadata |
-| `IO_READ_SIZE`          | `usize` | 4_194_304 | Buffer size for streaming file reads (4 MB)    |
-| `TEXT_NGRAM_SIZE`       | `usize` | 13        | Character n-gram width for text features       |
+| Constant                | Type    | Value     | Description                                        |
+| ----------------------- | ------- | --------- | -------------------------------------------------- |
+| `META_TRIM_NAME`        | `usize` | 128       | Max UTF-8 byte length for name metadata            |
+| `META_TRIM_DESCRIPTION` | `usize` | 4096      | Max UTF-8 byte length for description metadata     |
+| `META_TRIM_META`        | `usize` | 128_000   | Max decoded payload size in bytes for meta element |
+| `IO_READ_SIZE`          | `usize` | 4_194_304 | Buffer size for streaming file reads (4 MB)        |
+| `TEXT_NGRAM_SIZE`       | `usize` | 13        | Character n-gram width for text features           |
+
+GitHub: https://github.com/iscc/iscc-lib/issues/18 (META_TRIM_META) Spec: iscc/iscc-ieps#24
+Upstream: iscc/iscc-core#132
+
+`META_TRIM_META` guards `gen_meta_code_v0` against unbounded payload processing. Validation:
+
+1. Pre-decode: reject Data-URL strings exceeding `META_TRIM_META * 4/3 + 256` bytes
+2. Post-decode: reject payloads exceeding `META_TRIM_META` bytes
 
 Each binding exposes these as module-level constants and optionally as a `core_opts` namespace
 object for iscc-core API parity.
@@ -234,10 +280,14 @@ object for iscc-core API parity.
 - [ ] Constants are `pub const` in the Rust core crate root
 - [ ] `iscc_lib::META_TRIM_NAME == 128`
 - [ ] `iscc_lib::META_TRIM_DESCRIPTION == 4096`
+- [ ] `iscc_lib::META_TRIM_META == 128_000`
 - [ ] `iscc_lib::IO_READ_SIZE == 4_194_304`
 - [ ] `iscc_lib::TEXT_NGRAM_SIZE == 13`
 - [ ] Constants are accessible from all bindings
-- [ ] Python binding exposes `core_opts.meta_trim_name` (SimpleNamespace) for iscc-core parity
+- [ ] Python binding exposes `core_opts.meta_trim_meta` (SimpleNamespace) for iscc-core parity
+- [ ] `gen_meta_code_v0` rejects payloads exceeding `META_TRIM_META` with `IsccError::InvalidInput`
+- [ ] Pre-decode fast check rejects obviously oversized Data-URL strings
+- [ ] Tests cover boundary cases: at limit (passes), over limit (error)
 
 ## Conformance Selftest
 
@@ -262,19 +312,20 @@ The full public API surface bound in all languages:
 | ----------- | -------------------------------------------------------------------- |
 | Code gen    | `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,         |
 |             | `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`,       |
-|             | `gen_data_code_v0`, `gen_instance_code_v0`, `gen_iscc_code_v0`       |
+|             | `gen_data_code_v0`, `gen_instance_code_v0`, `gen_iscc_code_v0`,      |
+|             | `gen_sum_code_v0`                                                    |
 | Text utils  | `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`   |
 | Algorithms  | `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash` |
 | Soft hashes | `soft_hash_video_v0`                                                 |
 | Encoding    | `encode_base64`, `json_to_data_url`                                  |
 | Codec       | `iscc_decompose`, `encode_component`, `iscc_decode`                  |
-| Constants   | `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`,           |
-|             | `TEXT_NGRAM_SIZE`                                                    |
+| Constants   | `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`,         |
+|             | `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`                                    |
 | Streaming   | `DataHasher`, `InstanceHasher`                                       |
 | Diagnostics | `conformance_selftest`                                               |
 
-Total: 9 gen functions + 4 text utils + 4 algorithm primitives + 1 soft hash + 2 encoding + 3 codec
-\+ 4 constants + 2 streaming types + 1 diagnostic = **30 public symbols** (+ the `codec` module
+Total: 10 gen functions + 4 text utils + 4 algorithm primitives + 1 soft hash + 2 encoding + 3 codec
+\+ 5 constants + 2 streaming types + 1 diagnostic = **32 public symbols** (+ the `codec` module
 remains Tier 2 Rust-only for header encode/decode internals).
 
 ## Quality Gates
