@@ -49,8 +49,8 @@ Target requires 32 Tier 1 symbols (up from 30). Two missing:
     - Returns SumCodeResult {iscc, datahash, filesize}
     - WASM needs special handling (no path-based I/O in browser)
 
-Execution order: #18 Rust core ✅ → #18 bindings (Python first, then batch remaining 5) → #15 Rust
-core → #15 bindings
+Execution order: #18 Rust core ✅ → #18 Python ✅ → #18 Node.js+WASM+C FFI (iter 3) → #18 Java+Go
+(iter 4) → #15 Rust core → #15 bindings
 
 ## Binding Propagation Patterns
 

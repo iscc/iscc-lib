@@ -1,71 +1,113 @@
 # Next Work Package
 
-## Step: Export META_TRIM_META in Python binding
+## Step: Export META_TRIM_META in Node.js, WASM, and C FFI bindings
 
 ## Goal
 
-Expose `META_TRIM_META = 128_000` in the Python binding (`iscc_lib` package) so Python consumers can
-access it as a module-level constant, via `core_opts.meta_trim_meta`, and with proper type stubs.
-This is the first binding propagation step for issue #18, starting with the highest-priority
-binding.
+Propagate the `META_TRIM_META = 128_000` constant to the three Rust-based binding crates (Node.js,
+WASM, C FFI), completing 3 of the 5 remaining bindings for issue #18. Each addition is a mechanical
+copy of the existing `META_TRIM_DESCRIPTION` pattern.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-py/src/lib.rs` — add `m.add("META_TRIM_META", iscc_lib::META_TRIM_META)?;`
-    - `crates/iscc-py/python/iscc_lib/__init__.py` — add import, `__all__` entry, and `core_opts`
-        attribute
-    - `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — add type stub with docstring
+    - `crates/iscc-napi/src/lib.rs` — add `#[napi]` const for META_TRIM_META
+    - `crates/iscc-wasm/src/lib.rs` — add `#[wasm_bindgen]` getter function for META_TRIM_META
+    - `crates/iscc-ffi/src/lib.rs` — add `extern "C"` getter function + inline Rust test for
+        META_TRIM_META
 - **Reference**:
-    - `crates/iscc-lib/src/lib.rs` — verify `META_TRIM_META` is `pub const` (already confirmed)
-    - Existing constant patterns in all 3 files above (META_TRIM_NAME, META_TRIM_DESCRIPTION)
+    - `crates/iscc-napi/src/lib.rs` lines 13-18 — existing META_TRIM_NAME/DESCRIPTION napi pattern
+    - `crates/iscc-wasm/src/lib.rs` lines 13-22 — existing wasm_bindgen getter pattern
+    - `crates/iscc-ffi/src/lib.rs` lines 44-54 — existing extern "C" getter pattern
+    - `crates/iscc-ffi/src/lib.rs` lines 2118-2126 — existing inline Rust test pattern
+    - `crates/iscc-napi/__tests__/functions.test.mjs` lines 32-33, 432-450 — existing JS test pattern
+    - `crates/iscc-wasm/tests/unit.rs` lines 443-451 — existing wasm_bindgen_test pattern
+    - `crates/iscc-ffi/tests/test_iscc.c` lines 266-270 — existing C test pattern
 
 ## Not In Scope
 
-- Exporting META_TRIM_META in the other 5 bindings (Node.js, WASM, C FFI, Java, Go) — separate step
-- Adding `gen_sum_code_v0` or `SumCodeResult` to any binding
-- Updating documentation pages or READMEs for the new constant
-- Adding Python tests for `gen_meta_code_v0` payload validation (Rust core already tests this)
+- Exporting META_TRIM_META in Java or Go bindings (next step — different file types)
+- Updating documentation pages, per-crate READMEs, or CLAUDE.md files for the new constant
+- Adding `gen_sum_code_v0` or `SumCodeResult` (issue #15 — separate future work)
+- Updating the WASM `CLAUDE.md` constants list (cosmetic, not functional)
+- Regenerating any TypeScript definitions (napi-rs auto-generates `.d.ts` at build time)
 
 ## Implementation Notes
 
-Follow the exact pattern used by `META_TRIM_NAME` and `META_TRIM_DESCRIPTION` in each file:
-
-**1. `crates/iscc-py/src/lib.rs`** (Rust PyO3 module init, line ~608):
-
-Add after the existing `m.add("META_TRIM_DESCRIPTION", ...)` line:
+**Node.js (`crates/iscc-napi/src/lib.rs`):** Add immediately after `META_TRIM_DESCRIPTION` (line
+18):
 
 ```rust
-m.add("META_TRIM_META", iscc_lib::META_TRIM_META)?;
+/// Maximum byte length for the meta field payload after decoding.
+#[napi(js_name = "META_TRIM_META")]
+pub const META_TRIM_META: u32 = iscc_lib::META_TRIM_META as u32;
 ```
 
-**2. `crates/iscc-py/python/iscc_lib/__init__.py`** (3 changes):
+Add import + test to `__tests__/functions.test.mjs`:
 
-- Import: add `META_TRIM_META as META_TRIM_META,` in the `_lowlevel` import block (alphabetical
-    order — after `META_TRIM_DESCRIPTION`, before `TEXT_NGRAM_SIZE`)
-- `core_opts`: add `meta_trim_meta=META_TRIM_META,` after the `meta_trim_description` line
-- `__all__`: add `"META_TRIM_META",` after `"META_TRIM_DESCRIPTION",` (alphabetical order)
+- Add `META_TRIM_META` to the import destructure (after `META_TRIM_DESCRIPTION`)
+- Add describe block: value equals `128000`, type is `'number'`
 
-**3. `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`** (type stub):
+**WASM (`crates/iscc-wasm/src/lib.rs`):** Add immediately after `meta_trim_description()` (line 22):
 
-Add after the `META_TRIM_DESCRIPTION` stub (after line 10):
-
-```python
-META_TRIM_META: int
-"""Max byte length for decoded meta parameter payload (128,000)."""
+```rust
+/// Maximum byte length for the meta field payload after decoding.
+#[wasm_bindgen(js_name = "META_TRIM_META")]
+pub fn meta_trim_meta() -> u32 {
+    iscc_lib::META_TRIM_META as u32
+}
 ```
+
+Add wasm_bindgen_test to `tests/unit.rs`:
+
+```rust
+#[wasm_bindgen_test]
+fn test_meta_trim_meta_value() {
+    assert_eq!(iscc_wasm::meta_trim_meta(), 128_000);
+}
+```
+
+**C FFI (`crates/iscc-ffi/src/lib.rs`):** Add immediately after `iscc_meta_trim_description()` (line
+54):
+
+```rust
+/// Maximum byte length for the meta field payload after decoding.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_meta_trim_meta() -> u32 {
+    iscc_lib::META_TRIM_META as u32
+}
+```
+
+Add inline Rust test after `test_meta_trim_description` (line 2126):
+
+```rust
+#[test]
+fn test_meta_trim_meta() {
+    assert_eq!(iscc_meta_trim_meta(), 128_000);
+}
+```
+
+Add C test assertion to `tests/test_iscc.c` after the existing constant tests (line 268):
+
+```c
+ASSERT_EQ(iscc_meta_trim_meta(), 128000, "iscc_meta_trim_meta() == 128000");
+```
+
+**Important:** The value is `128_000` (128,000), NOT 128. This is the meta field limit, much larger
+than the name/description trim limits.
 
 ## Verification
 
-- `cargo test -p iscc-py` passes (existing Rust-side tests still work)
-- `uv run pytest` passes (all existing Python tests still pass)
-- `python -c "from iscc_lib import META_TRIM_META; assert META_TRIM_META == 128_000"` exits 0
-- `python -c "from iscc_lib import core_opts; assert core_opts.meta_trim_meta == 128_000"` exits 0
-- `python -c "import iscc_lib; assert 'META_TRIM_META' in iscc_lib.__all__"` exits 0
-- `cargo clippy -p iscc-py -- -D warnings` clean
+- `cargo test -p iscc-napi` compiles clean (napi crate has no Rust-side tests to run, but must
+    compile)
+- `cargo test -p iscc-wasm` passes (existing 69 tests + 1 new test for meta_trim_meta)
+- `cargo test -p iscc-ffi` passes (existing 77 tests + 1 new test for meta_trim_meta)
+- `cargo clippy -p iscc-napi -- -D warnings` clean
+- `cargo clippy -p iscc-wasm -- -D warnings` clean
+- `cargo clippy -p iscc-ffi -- -D warnings` clean
 
 ## Done When
 
-All six verification commands pass — `META_TRIM_META` is accessible as a Python module constant, in
-`core_opts`, and listed in `__all__`, with existing tests unaffected.
+All three Rust-based binding crates export `META_TRIM_META = 128_000` with passing tests and clean
+clippy, following the exact pattern of the existing `META_TRIM_DESCRIPTION` export in each crate.
