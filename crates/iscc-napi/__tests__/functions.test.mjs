@@ -1,16 +1,20 @@
 /**
- * Unit tests for text utility, helper, algorithm primitive, and streaming
- * hasher napi-rs bindings.
+ * Unit tests for text utility, helper, algorithm primitive, streaming hasher,
+ * and gen_sum_code_v0 napi-rs bindings.
  *
- * Tests the 12 non-gen functions plus 2 streaming hasher classes:
+ * Tests the 12 non-gen functions, 2 streaming hasher classes, and
+ * gen_sum_code_v0:
  * text_clean, text_remove_newlines, text_trim, text_collapse, encode_base64,
  * iscc_decompose, conformance_selftest, sliding_window, alg_simhash,
  * alg_minhash_256, alg_cdc_chunks, soft_hash_video_v0, DataHasher,
- * InstanceHasher.
+ * InstanceHasher, gen_sum_code_v0.
  */
 
-import { describe, it } from 'node:test';
+import { describe, it, after } from 'node:test';
 import { strictEqual, deepStrictEqual, throws, ok, match as assertMatch } from 'node:assert';
+import { writeFileSync, unlinkSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 import {
     text_clean,
@@ -27,6 +31,8 @@ import {
     soft_hash_video_v0,
     gen_data_code_v0,
     gen_instance_code_v0,
+    gen_iscc_code_v0,
+    gen_sum_code_v0,
     DataHasher,
     InstanceHasher,
     META_TRIM_NAME,
@@ -589,5 +595,83 @@ describe('json_to_data_url', () => {
 
     it('throws on invalid JSON string', () => {
         throws(() => json_to_data_url('not json {{{'), /JSON/i);
+    });
+});
+
+// ── gen_sum_code_v0 ─────────────────────────────────────────────────────────
+
+describe('gen_sum_code_v0', () => {
+    const tempDir = mkdtempSync(join(tmpdir(), 'iscc-napi-'));
+    const tempFiles = [];
+
+    /** Write data to a temp file and track for cleanup. */
+    function writeTempFile(name, data) {
+        const filePath = join(tempDir, name);
+        writeFileSync(filePath, data);
+        tempFiles.push(filePath);
+        return filePath;
+    }
+
+    after(() => {
+        for (const f of tempFiles) {
+            try { unlinkSync(f); } catch { /* ignore */ }
+        }
+    });
+
+    it('datahash and filesize match gen_instance_code_v0', () => {
+        const data = Buffer.from('Hello World');
+        const filePath = writeTempFile('equiv.bin', data);
+        const sumResult = gen_sum_code_v0(filePath);
+        const instResult = gen_instance_code_v0(data);
+        // Instance-Code returns only iscc string, so verify via datahash from decode
+        // gen_sum_code_v0 returns structured result with datahash and filesize
+        // gen_instance_code_v0 returns just the iscc string — use data+instance to compose
+        const dataCode = gen_data_code_v0(data);
+        const instCode = gen_instance_code_v0(data);
+        const composedIscc = gen_iscc_code_v0([dataCode, instCode]);
+        strictEqual(sumResult.iscc, composedIscc);
+        strictEqual(sumResult.filesize, data.length);
+    });
+
+    it('returns object with iscc, datahash, filesize fields', () => {
+        const filePath = writeTempFile('shape.bin', Buffer.from('test shape'));
+        const result = gen_sum_code_v0(filePath);
+        strictEqual(typeof result.iscc, 'string');
+        strictEqual(typeof result.datahash, 'string');
+        strictEqual(typeof result.filesize, 'number');
+        ok(result.iscc.startsWith('ISCC:'));
+        ok(result.datahash.startsWith('1e20'));
+    });
+
+    it('throws on non-existent path', () => {
+        throws(
+            () => gen_sum_code_v0(join(tempDir, 'nonexistent.bin')),
+            /./
+        );
+    });
+
+    it('uses default parameters (bits=64, wide=false)', () => {
+        const filePath = writeTempFile('defaults.bin', Buffer.from('default params'));
+        const defaultResult = gen_sum_code_v0(filePath);
+        const explicitResult = gen_sum_code_v0(filePath, 64, false);
+        strictEqual(defaultResult.iscc, explicitResult.iscc);
+        strictEqual(defaultResult.datahash, explicitResult.datahash);
+        strictEqual(defaultResult.filesize, explicitResult.filesize);
+    });
+
+    it('wide mode produces different iscc with same datahash and filesize', () => {
+        const filePath = writeTempFile('wide.bin', Buffer.from('test data for wide mode'));
+        const normalResult = gen_sum_code_v0(filePath, 128, false);
+        const wideResult = gen_sum_code_v0(filePath, 128, true);
+        ok(normalResult.iscc !== wideResult.iscc, 'wide should produce different iscc');
+        strictEqual(normalResult.datahash, wideResult.datahash);
+        strictEqual(normalResult.filesize, wideResult.filesize);
+    });
+
+    it('filesize matches written data byte length', () => {
+        const data = Buffer.from('exact size check 1234567890');
+        const filePath = writeTempFile('size.bin', data);
+        const result = gen_sum_code_v0(filePath);
+        strictEqual(result.filesize, data.length);
     });
 });

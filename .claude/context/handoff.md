@@ -1,37 +1,34 @@
-## 2026-03-01 — Review of: Add gen_sum_code_v0 to Python bindings
+## 2026-03-01 — Add gen_sum_code_v0 to Node.js bindings
 
-**Verdict:** PASS
+**Done:** Added `NapiSumCodeResult` struct and `gen_sum_code_v0` napi function to the Node.js
+binding crate. The function reads a file path, computes Data-Code + Instance-Code in a single pass,
+and returns a structured object with `iscc`, `datahash`, and `filesize` fields. Tests were already
+pre-written from a previous failed iteration — only the Rust binding code was missing.
 
-**Summary:** Clean, well-scoped implementation that adds `gen_sum_code_v0` and `SumCodeResult` to
-the Python bindings. The PyO3 wrapper, Python public API, type stub, and 6 tests all follow existing
-patterns exactly. All 48 `__all__` entries are correct and sorted. 204 tests pass, all quality gates
-clean.
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-napi/src/lib.rs`: Added `NapiSumCodeResult` struct (`#[napi(object)]`) with
+    `iscc:   String`, `datahash: String`, `filesize: i64`, and `gen_sum_code_v0` napi function with
+    `path: String, bits: Option<u32>, wide: Option<bool>` parameters
+- `crates/iscc-napi/__tests__/functions.test.mjs`: No changes needed — 6 test cases were already in
+    place from a previous iteration (equivalence, result shape, file not found, default params, wide
+    mode, filesize correctness)
 
-- [x] `cargo test -p iscc-py` passes — 0 Rust-side tests (iscc-py has no Rust tests), compiles OK
-- [x] `cargo clippy -p iscc-py -- -D warnings` — clean
-- [x] `uv run pytest tests/ -x` passes — 204 tests (25 smoke + 179 conformance/others)
-- [x] `uv run ruff check` — clean
-- [x] Import verification: `from iscc_lib import gen_sum_code_v0, SumCodeResult` succeeds
-- [x] `__all__` verification: both `gen_sum_code_v0` and `SumCodeResult` present (48 entries total)
-- [x] No quality gate circumvention in diff
+**Verification:** All quality gates pass:
 
-**Issues found:**
+- `cargo build -p iscc-napi` — clean
+- `cargo clippy -p iscc-napi -- -D warnings` — clean
+- `npm run build && npm test` — 132 tests pass (126 existing + 6 gen_sum_code_v0), 0 failures
+- `mise run check` — all 14 hooks pass
+- gen_sum_code_v0 callable from JavaScript, returns object with correct `iscc`, `datahash`,
+    `filesize` fields
 
-- (none)
+**Next:** Propagate `gen_sum_code_v0` to WASM bindings (`crates/iscc-wasm/`). WASM needs a different
+approach since file I/O isn't available — will need to accept `Uint8Array` data directly or use the
+streaming hasher pattern. Check if the core API supports a data-based variant.
 
-**Codex review:** Codex raised theoretical concerns about `os.PathLike` potentially returning bytes
-(suggesting `os.PathLike[str]` would be more precise). This is a minor typing nit — `pathlib.Path`
-(the standard path type) is `PathLike[str]`, and the `os.fspath()` call handles conversion
-correctly. The existing pattern is consistent with common Python practice. No actionable bugs found.
-
-**Next:** Propagate `gen_sum_code_v0` to Node.js bindings (`crates/iscc-napi/`). Follow the existing
-pattern of `gen_instance_code_v0` — add napi export `genSumCodeV0(path: string)` returning an object
-with `iscc`, `datahash`, `filesize` keys. Add mocha tests. Issue #15 binding tasks track the full
-propagation across all 5 remaining bindings (Node.js, WASM, C FFI, Java, Go).
-
-**Notes:** Issue #15 is progressively being resolved — Rust core tasks 1-4/7 are complete, Python
-binding (task 5) is now done. 5 more binding propagations remain. The `__all__` count is now 48 (32
-API + 11 result types + `__version__` + MT, ST, VS, core_opts). State.md still shows Python bindings
-as "partially met" — will be updated by the next update-state agent.
+**Notes:** The test file and imports were already prepared by a previous iteration that failed
+before completing the Rust binding code. This iteration only needed to add the `NapiSumCodeResult`
+struct and `gen_sum_code_v0` function to `lib.rs`. The `filesize` field uses `i64` (not `u64`)
+because napi-rs doesn't support `u64` directly — files up to 2^53 bytes (~9 PB) are representable as
+safe JS integers.

@@ -205,6 +205,39 @@ pub fn gen_iscc_code_v0(codes: Vec<String>, wide: Option<bool>) -> napi::Result<
         .map_err(|e| napi::Error::from_reason(e.to_string()))
 }
 
+/// Result of generating a composite ISCC-CODE from a file in a single pass.
+#[napi(object)]
+pub struct NapiSumCodeResult {
+    /// Composite ISCC-CODE string.
+    pub iscc: String,
+    /// Hex-encoded BLAKE3 multihash of the file.
+    pub datahash: String,
+    /// Byte length of the file.
+    pub filesize: i64,
+}
+
+/// Generate a composite ISCC-CODE from a file in a single pass.
+///
+/// Reads the file at `path` and produces Data-Code + Instance-Code in one
+/// pass, then combines them into an ISCC-CODE. Returns an object with
+/// `iscc`, `datahash`, and `filesize` fields.
+#[napi(js_name = "gen_sum_code_v0")]
+pub fn gen_sum_code_v0(
+    path: String,
+    bits: Option<u32>,
+    wide: Option<bool>,
+) -> napi::Result<NapiSumCodeResult> {
+    let bits = bits.unwrap_or(64);
+    let wide = wide.unwrap_or(false);
+    let result = iscc_lib::gen_sum_code_v0(std::path::Path::new(&path), bits, wide)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+    Ok(NapiSumCodeResult {
+        iscc: result.iscc,
+        datahash: result.datahash,
+        filesize: result.filesize as i64,
+    })
+}
+
 /// Clean and normalize text for display.
 ///
 /// Applies NFKC normalization, removes control characters (except newlines),

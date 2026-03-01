@@ -113,7 +113,10 @@ iterations.
 - 32nd and final Tier 1 symbol for Rust core — all 32 symbols now implemented
 - Python binding: PyO3 wrapper in `crates/iscc-py/src/lib.rs` accepts `&str` path, `SumCodeResult`
     class in `__init__.py`, public wrapper accepts `str | os.PathLike` via `os.fspath()`, 6 tests in
-    `tests/test_smoke.py`. Remaining bindings: Node.js, WASM, C FFI, Java, Go (5 crates)
+    `tests/test_smoke.py`
+- Node.js binding: `NapiSumCodeResult` struct (`#[napi(object)]`) + `gen_sum_code_v0` napi fn in
+    `crates/iscc-napi/src/lib.rs`. Uses `i64` for `filesize` (napi-rs no u64 support). 6 tests in
+    `__tests__/functions.test.mjs`. Remaining: WASM, C FFI, Java, Go (4 crates)
 
 ## Codec Internals
 
