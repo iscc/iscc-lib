@@ -76,6 +76,13 @@ fully-met target sections to `learnings-archive.md`.
 - C FFI decode: length index for 64-bit codes is 1 (not 0) — `decode_length` uses
     `(length_index + 1) * 32`
 
+## CI/CD
+
+- Windows GHA runners default to `pwsh` shell. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
+    `grep`, `sed`) MUST specify `shell: bash`. Existing publish jobs avoid this by only running
+    version extraction on `ubuntu-latest`, but per-matrix version steps (like in `build-ffi`) hit
+    Windows. Always check `shell:` declarations when adding `run:` steps to cross-platform matrices
+
 ## Branching
 
 - `main` is protected — requires PRs with passing CI. `develop` is the CID working branch

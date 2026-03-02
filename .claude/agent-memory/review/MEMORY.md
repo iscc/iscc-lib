@@ -70,6 +70,12 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - CI-only YAML changes: `mise run check` is sufficient — no code changed, only workflow config.
     Verify the script/command referenced in the job runs successfully locally
 
+- Cross-platform CI matrices: when a `run:` step uses bash syntax (`$(...)`, `$VARIABLE`,
+    `grep`/`sed`), verify it has `shell: bash` if the matrix includes Windows. Default shell on
+    Windows runners is `pwsh`, which silently fails on bash syntax. Existing jobs avoid this by
+    putting version extraction only in publish jobs (ubuntu-only), but per-matrix steps must declare
+    the shell explicitly
+
 ## Codex Review Integration
 
 - `codex exec review --ephemeral --commit HEAD` output ends with structured findings after the

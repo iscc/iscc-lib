@@ -123,11 +123,11 @@ Add to `release.yml`:
 
 **Verified when:**
 
-- [ ] `release.yml` includes `build-ffi` and `publish-ffi` jobs
-- [ ] `workflow_dispatch` has `ffi` boolean input
-- [ ] Tag push triggers FFI builds for all 5 platform targets
-- [ ] Each platform produces a tarball with shared lib + static lib + header + LICENSE
-- [ ] Tarballs are uploaded as GitHub Release assets
+- [x] `release.yml` includes `build-ffi` and `publish-ffi` jobs
+- [x] `workflow_dispatch` has `ffi` boolean input
+- [x] Tag push triggers FFI builds for all 5 platform targets
+- [x] Each platform produces a tarball with shared lib + static lib + header + LICENSE
+- [x] Tarballs are uploaded as GitHub Release assets
 
 ## 5. Feature Flags for Minimal Builds
 

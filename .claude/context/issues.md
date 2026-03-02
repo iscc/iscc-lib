@@ -16,16 +16,6 @@ dependencies (~82K source lines for serde/unicode). Default behavior unchanged (
 `conformance_selftest()` must adapt to available features (skip disabled code types). CI must test
 `--all-features`, `--no-default-features`, and each feature individually.
 
-## #25 — Add pre-built FFI release artifacts to GitHub Releases [human]
-
-**Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/25 **Spec:**
-`.claude/context/specs/c-ffi-dx.md` §4
-
-Add `build-ffi` and `publish-ffi` jobs to `release.yml` with a 5-platform matrix (matching JNI/napi
-targets). Each platform produces a tarball containing shared lib + static lib + `iscc.h` + LICENSE.
-Add `ffi` boolean input to `workflow_dispatch`. Tarballs uploaded as GitHub Release assets with
-naming `iscc-ffi-v{version}-{target}.tar.gz`.
-
 ## #21 — Add units support to gen_sum_code_v0 [human]
 
 **Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/21
