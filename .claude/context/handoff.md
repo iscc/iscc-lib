@@ -1,39 +1,40 @@
-## 2026-03-02 — Review of: Expose `add_units`/`units` in C FFI binding (issue #21)
+## 2026-03-02 — Expose `add_units`/`units` in Java/JNI binding (issue #21)
 
-**Verdict:** PASS
+**Done:** Added `addUnits` boolean parameter to `genSumCodeV0` and `String[] units` field to
+`SumCodeResult` across all three JNI layers: Java class (`SumCodeResult.java`), native declaration
+(`IsccLib.java`), and Rust JNI bridge (`lib.rs`). The Rust side converts `Option<Vec<String>>` to a
+nullable `jobjectArray` using the existing `build_string_array` helper, wrapped with
+`unsafe { JObject::from_raw(arr) }`. Updated 4 existing test calls to pass `false` as the new 4th
+argument and added 3 new tests verifying units enabled/disabled/content.
 
-**Summary:** Clean, focused implementation that adds the `add_units` parameter and `units` field to
-the C FFI layer's `iscc_gen_sum_code_v0` and `IsccSumCodeResult`. The implementation correctly
-reuses the existing `vec_to_c_string_array` helper and `iscc_free_string_array` cleanup pattern.
-Error cleanup path properly frees `iscc` and `datahash` if `vec_to_c_string_array` fails. All
-quality gates pass, all tests green.
+**Files changed:**
+
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/SumCodeResult.java`: Added
+    `public final String[] units` field (nullable), updated constructor to accept 4th
+    `String[] units` param, updated Javadoc
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java`: Changed native method
+    signature from 3 params to 4 (`boolean addUnits`), updated Javadoc
+- `crates/iscc-jni/src/lib.rs`: Added `add_units: jboolean` parameter, passes `add_units != 0` to
+    core, converts `result.units` to nullable `jobjectArray` via `build_string_array`, updated
+    constructor signature to `(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V`
+- `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java`: Updated 4 existing tests
+    to pass `false` as 4th arg, added 3 new tests (`genSumCodeV0UnitsEnabled`,
+    `genSumCodeV0UnitsDisabled`, `genSumCodeV0UnitsContent`)
 
 **Verification:**
 
-- [x] `cargo test -p iscc-ffi` passes — 85 tests (82 existing + 3 new units tests)
-- [x] `cargo clippy -p iscc-ffi -- -D warnings` clean — no warnings
-- [x] `cargo build -p iscc-ffi` succeeds
-- [x] C header freshness — cbindgen regenerated, `git diff --exit-code` clean
-- [x] C test compiles — gcc against updated header and shared library
-- [x] C test passes — 65 passed, 0 failed
-- [x] `iscc_IsccSumCodeResult` in `iscc.h` contains `char **units` field
-- [x] `mise run check` passes — 14/14 pre-commit hooks
+- `cargo build -p iscc-jni` — success
+- `cargo clippy -p iscc-jni -- -D warnings` — clean, no warnings
+- `cargo test -p iscc-jni` — 0 Rust-side tests (no JVM in test env), passes
+- `cd crates/iscc-jni/java && mvn test` — 65 tests run, 0 failures, 0 errors (62 existing + 3 new)
+- `mise run check` — 14/14 pre-commit hooks passed
 
-**Issues found:**
+**Next:** Continue issue #21 binding propagation. Next target is Go (`packages/go`): add `addUnits`
+parameter to `GenSumCodeV0` and `Units` field to `SumCodeResult`. This is a pure Go reimplementation
+(not a Rust FFI wrapper), so the Go function needs to collect the Data-Code and Instance-Code ISCC
+strings during `GenSumCodeV0` execution and return them in the result struct.
 
-- (none)
-
-**Codex review:** Codex investigated `extern "C"` / `__cplusplus` guard absence in `iscc.h` and
-NULL-safety of `ASSERT_STR_STARTS_WITH` macro in test 27. Both are non-issues: the header is
-cbindgen-generated (pre-existing design, not in scope), and the C test already guards `sr.units`
-access with a NULL check before dereferencing array elements. No actionable findings.
-
-**Next:** Continue issue #21 binding propagation. Next target is Java/JNI (`crates/iscc-jni`): add
-`addUnits` boolean parameter to the JNI `genSumCodeV0` method, extend `SumCodeResult.java` with a
-`String[] units` field, update the JNI bridge to convert `Vec<String>` to `jobjectArray`, and update
-Maven tests.
-
-**Notes:** Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM ✅ → C FFI ✅ → JNI (next) →
-Go. Two bindings remain. After JNI, Go needs its own pure implementation (not a Rust FFI wrapper).
-After all bindings are done, update `docs/rust-api.md` and `docs/architecture.md` to reflect the
-4-parameter signature and close issue #21.
+**Notes:** Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM ✅ → C FFI ✅ → JNI ✅ → Go
+(next). One binding remains. The `unsafe { JObject::from_raw(arr) }` in the units conversion is the
+same pattern used by `isccDecompose` — the raw pointer comes from `build_string_array` which returns
+a valid `jobjectArray`.

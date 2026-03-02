@@ -85,10 +85,12 @@ iterations.
     `iscc_gen_sum_code_v0(path, bits,   wide, add_units)` extern "C" function +
     `iscc_free_sum_code_result` (frees units via `iscc_free_string_array`). 7 Rust sum tests + 5 C
     sum tests. 85 total Rust tests, 65 total C test assertions
-- JNI binding: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`, `long filesize`)
-    - `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` in `crates/iscc-jni/src/lib.rs`. Returns `jobject`
-        via `env.find_class("io/iscc/iscc_lib/SumCodeResult")` + `env.new_object()` with signature
-        `(Ljava/lang/String;Ljava/lang/String;J)V`. 4 Maven tests. 62 total Maven tests
+- JNI binding: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`, `long filesize`,
+    `String[] units`) — `units` is nullable (`null` when `addUnits=false`, 2-element `String[]` when
+    true). JNI bridge uses `build_string_array` → `unsafe { JObject::from_raw(arr) }` for units
+    conversion. Constructor signature:
+    `(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V`. 7 Maven sum tests. 65 total Maven
+    tests
 - Go binding: `packages/go/code_sum.go` — `SumCodeResult` struct (`Iscc`, `Datahash`, `Filesize`) +
     `GenSumCodeV0(path string, bits uint32, wide bool)`. Single-pass file I/O with `os.Open` +
     `DataHasher` + `InstanceHasher` + `GenIsccCodeV0`. 4 tests in `code_sum_test.go`. 151 total Go
