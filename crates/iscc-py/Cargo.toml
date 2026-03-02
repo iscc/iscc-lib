@@ -2,7 +2,8 @@
 name = "iscc-py"
 version.workspace = true
 edition.workspace = true
-publish = false          # Published via PyPI, not crates.io
+rust-version.workspace = true
+publish = false               # Published via PyPI, not crates.io
 
 [lib]
 name = "_lowlevel"

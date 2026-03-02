@@ -2,7 +2,8 @@
 name = "iscc-wasm"
 version.workspace = true
 edition.workspace = true
-publish = false          # Published via npm, not crates.io
+rust-version.workspace = true
+publish = false               # Published via npm, not crates.io
 
 [lib]
 crate-type = ["cdylib", "rlib"]
