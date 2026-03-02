@@ -114,7 +114,7 @@ downstream Rust consumers.
 
 ### Tier 1 — Stable Public API
 
-The 9 `gen_*_v0` functions are the stable entrypoints, bound in all languages. They are `pub`
+The 10 `gen_*_v0` functions are the stable entrypoints, bound in all languages. They are `pub`
 functions in the crate root (`lib.rs`). Changes require a SemVer MAJOR bump.
 
 ```rust
@@ -128,6 +128,7 @@ pub fn gen_mixed_code_v0(codes, bits) -> IsccResult<String>
 pub fn gen_data_code_v0(data, bits) -> IsccResult<String>
 pub fn gen_instance_code_v0(data, bits) -> IsccResult<String>
 pub fn gen_iscc_code_v0(codes, wide) -> IsccResult<String>
+pub fn gen_sum_code_v0(path, bits, wide) -> IsccResult<SumCodeResult>
 ```
 
 ### Tier 2 — Public Rust API
@@ -194,7 +195,7 @@ official [iscc-core](https://github.com/iscc/iscc-core) Python reference impleme
 
 1. The canonical `data.json` file lives in `crates/iscc-lib/tests/data.json`
 2. Every binding loads the **same file** (via relative path or `include_str!`)
-3. Test vectors contain inputs and expected outputs for all 9 `gen_*_v0` functions
+3. Test vectors contain inputs and expected outputs for all 10 `gen_*_v0` functions
 4. Tests are parametrized — each test case name maps to a key in the JSON
 
 ### Cross-Language Test Matrix

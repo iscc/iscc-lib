@@ -131,7 +131,7 @@ Returns `13`.
 
 ## Code Generation
 
-All 9 `iscc_gen_*_v0` functions return a heap-allocated ISCC string (prefixed with `ISCC:`) on
+All 10 `iscc_gen_*_v0` functions return a heap-allocated ISCC string (prefixed with `ISCC:`) on
 success, or `NULL` on error. Free the result with `iscc_free_string()`.
 
 ### iscc_gen_meta_code_v0
@@ -312,6 +312,54 @@ char* iscc_gen_iscc_code_v0(
 | `codes`     | `const char *const*` | Array of ISCC unit code strings (optional `ISCC:` prefix)       |
 | `num_codes` | `size_t`             | Number of code strings (must include Data-Code + Instance-Code) |
 | `wide`      | `bool`               | Enable 256-bit wide mode (Data+Instance only)                   |
+
+---
+
+### iscc_gen_sum_code_v0
+
+Generate an ISCC-SUM from a file path. Performs single-pass file I/O, feeding both a Data-Code
+hasher (CDC/MinHash) and an Instance-Code hasher (BLAKE3) from the same read buffer, then composes
+the result into an ISCC-CODE via `iscc_gen_iscc_code_v0`.
+
+Unlike the other `iscc_gen_*_v0` functions which return `char*`, this function returns an
+`IsccSumCodeResult` struct.
+
+```c
+IsccSumCodeResult iscc_gen_sum_code_v0(
+    const char *path,
+    uint32_t bits,
+    bool wide
+);
+```
+
+| Parameter | Type          | Description                                        |
+| --------- | ------------- | -------------------------------------------------- |
+| `path`    | `const char*` | Path to the file (null-terminated UTF-8 string)    |
+| `bits`    | `uint32_t`    | Bit length of the generated code (default: 64)     |
+| `wide`    | `bool`        | Enable 256-bit wide mode for ISCC-CODE combination |
+
+#### IsccSumCodeResult
+
+```c
+typedef struct {
+    bool ok;           // Whether the operation succeeded
+    char *iscc;        // Composite ISCC-CODE string (heap-allocated)
+    char *datahash;    // Hex-encoded BLAKE3 multihash (heap-allocated)
+    uint64_t filesize; // Byte length of the file
+} IsccSumCodeResult;
+```
+
+Check `result.ok` to determine success. On error, `ok` is `false`, string pointers are `NULL`, and
+`filesize` is 0. Free the result with `iscc_free_sum_code_result()`.
+
+#### iscc_free_sum_code_result
+
+```c
+void iscc_free_sum_code_result(IsccSumCodeResult result);
+```
+
+Releases the `iscc` and `datahash` strings in the result. No-op for `NULL` pointers. Each result
+must only be freed once.
 
 ---
 

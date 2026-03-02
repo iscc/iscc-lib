@@ -79,8 +79,8 @@ console.log(iscc);
 
 ## Code generation
 
-All 9 `gen_*_v0` functions return the ISCC code as a string. Optional parameters use `undefined` for
-defaults.
+All 10 `gen_*_v0` functions return the ISCC code as a string. Optional parameters use `undefined`
+for defaults.
 
 ### Meta-Code
 
@@ -207,6 +207,25 @@ const dataCode = gen_data_code_v0(data);
 const instanceCode = gen_instance_code_v0(data);
 const iscc = gen_iscc_code_v0([dataCode, instanceCode]);
 console.log(iscc); // "ISCC:KAA..."
+```
+
+### Sum-Code
+
+Generate a composite ISCC-CODE from raw bytes in a single pass. The WASM package operates on
+in-memory data (`Uint8Array`) instead of file paths since there is no filesystem access in the
+browser:
+
+```javascript
+import {
+    gen_sum_code_v0
+} from "@iscc/wasm";
+
+const encoder = new TextEncoder();
+const data = encoder.encode("Hello World".repeat(1000));
+const result = gen_sum_code_v0(data);
+console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.datahash); // Multihash of the data
+console.log(result.filesize); // Size in bytes
 ```
 
 ## Binary data

@@ -1,8 +1,8 @@
 //! C FFI bindings for iscc-lib.
 //!
-//! Exposes all 9 `gen_*_v0` functions, 4 algorithm primitives, codec
+//! Exposes all 10 `gen_*_v0` functions, 4 algorithm primitives, codec
 //! functions (`encode_component`, `iscc_decode`, `json_to_data_url`),
-//! and 4 algorithm constants as `extern "C"` symbols for integration
+//! and 5 algorithm constants as `extern "C"` symbols for integration
 //! from C, Go, Java, C#, and any other language with C interop.
 //!
 //! ## Memory model
@@ -51,6 +51,12 @@ pub extern "C" fn iscc_meta_trim_name() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "C" fn iscc_meta_trim_description() -> u32 {
     iscc_lib::META_TRIM_DESCRIPTION as u32
+}
+
+/// Maximum byte length for the meta field payload after decoding.
+#[unsafe(no_mangle)]
+pub extern "C" fn iscc_meta_trim_meta() -> u32 {
+    iscc_lib::META_TRIM_META as u32
 }
 
 /// Default read buffer size for streaming I/O (4 MB).
@@ -780,6 +786,102 @@ pub unsafe extern "C" fn iscc_encode_component(
     result_to_c_string(iscc_lib::encode_component(
         mtype, stype, version, bit_length, slice,
     ))
+}
+
+/// Result of `gen_sum_code_v0` — composite Data+Instance ISCC-CODE with file metadata.
+///
+/// On success, `ok` is `true` and all fields are populated.
+/// On error, `ok` is `false`, string pointers are `NULL`, and `filesize` is 0.
+/// Caller must free with `iscc_free_sum_code_result()`.
+#[repr(C)]
+pub struct IsccSumCodeResult {
+    /// Whether the operation succeeded.
+    pub ok: bool,
+    /// Composite ISCC-CODE string (heap-allocated, caller frees via `iscc_free_sum_code_result`).
+    pub iscc: *mut c_char,
+    /// Hex-encoded BLAKE3 multihash of the file (heap-allocated).
+    pub datahash: *mut c_char,
+    /// Byte length of the file.
+    pub filesize: u64,
+}
+
+/// Return a zeroed-out error `IsccSumCodeResult`.
+fn null_sum_code_result() -> IsccSumCodeResult {
+    IsccSumCodeResult {
+        ok: false,
+        iscc: ptr::null_mut(),
+        datahash: ptr::null_mut(),
+        filesize: 0,
+    }
+}
+
+/// Generate a composite ISCC-CODE from a file path (Data-Code + Instance-Code).
+///
+/// Single-pass file I/O feeds both DataHasher and InstanceHasher, then composes
+/// the ISCC-CODE internally.
+///
+/// # Parameters
+///
+/// - `path`: null-terminated UTF-8 file path
+/// - `bits`: hash bit length (typically 64)
+/// - `wide`: if true, use 256-bit combination for ISCC-CODE
+///
+/// # Returns
+///
+/// `IsccSumCodeResult` struct. Check `ok` to determine success.
+/// Caller must free with `iscc_free_sum_code_result()`.
+///
+/// # Safety
+///
+/// `path` must point to a valid null-terminated UTF-8 string, or be null.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_gen_sum_code_v0(
+    path: *const c_char,
+    bits: u32,
+    wide: bool,
+) -> IsccSumCodeResult {
+    clear_last_error();
+    let Some(path_str) = (unsafe { ptr_to_str(path, "path") }) else {
+        return null_sum_code_result();
+    };
+    match iscc_lib::gen_sum_code_v0(std::path::Path::new(path_str), bits, wide) {
+        Ok(result) => {
+            let iscc = string_to_c(result.iscc);
+            if iscc.is_null() {
+                return null_sum_code_result();
+            }
+            let datahash = string_to_c(result.datahash);
+            if datahash.is_null() {
+                // Free the already-allocated iscc string
+                unsafe { iscc_free_string(iscc) };
+                return null_sum_code_result();
+            }
+            IsccSumCodeResult {
+                ok: true,
+                iscc,
+                datahash,
+                filesize: result.filesize,
+            }
+        }
+        Err(e) => {
+            set_last_error(&e.to_string());
+            null_sum_code_result()
+        }
+    }
+}
+
+/// Free an `IsccSumCodeResult` previously returned by `iscc_gen_sum_code_v0`.
+///
+/// Releases the `iscc` and `datahash` strings. No-op for NULL pointers.
+///
+/// # Safety
+///
+/// `result` must be a value returned by `iscc_gen_sum_code_v0`.
+/// Each result must only be freed once.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_free_sum_code_result(result: IsccSumCodeResult) {
+    unsafe { iscc_free_string(result.iscc) };
+    unsafe { iscc_free_string(result.datahash) };
 }
 
 /// Result of decoding an ISCC unit string.
@@ -2126,6 +2228,11 @@ mod tests {
     }
 
     #[test]
+    fn test_meta_trim_meta() {
+        assert_eq!(iscc_meta_trim_meta(), 128_000);
+    }
+
+    #[test]
     fn test_io_read_size() {
         assert_eq!(iscc_io_read_size(), 4_194_304);
     }
@@ -2258,5 +2365,83 @@ mod tests {
 
         unsafe { iscc_free_string(encoded) };
         unsafe { iscc_free_decode_result(decoded) };
+    }
+
+    // ── gen_sum_code_v0 tests ─────────────────────────────────────────────
+
+    /// Write data to a unique temp file and return the path.
+    fn write_ffi_temp_file(name: &str, data: &[u8]) -> std::path::PathBuf {
+        use std::io::Write;
+        let path = std::env::temp_dir().join(format!("iscc_ffi_test_{name}"));
+        let mut f = std::fs::File::create(&path).unwrap();
+        f.write_all(data).unwrap();
+        path
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_basic() {
+        let data = b"Hello World";
+        let path = write_ffi_temp_file("sum_basic", data);
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+
+        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false) };
+        assert!(result.ok);
+        assert!(!result.iscc.is_null());
+        assert!(!result.datahash.is_null());
+        assert_eq!(result.filesize, 11);
+
+        let iscc_str = unsafe { CStr::from_ptr(result.iscc) }.to_str().unwrap();
+        assert!(iscc_str.starts_with("ISCC:"));
+
+        unsafe { iscc_free_sum_code_result(result) };
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_null_path() {
+        let result = unsafe { iscc_gen_sum_code_v0(ptr::null(), 64, false) };
+        assert!(!result.ok);
+        assert!(result.iscc.is_null());
+        assert!(result.datahash.is_null());
+        assert_eq!(result.filesize, 0);
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_free_null_strings() {
+        // Freeing a result with null strings should be a no-op
+        let result = null_sum_code_result();
+        unsafe { iscc_free_sum_code_result(result) };
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_matches_lib() {
+        let data = b"Hello World";
+        let path = write_ffi_temp_file("sum_matches", data);
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+
+        // FFI result
+        let ffi_result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false) };
+        assert!(ffi_result.ok);
+
+        let ffi_iscc = unsafe { CStr::from_ptr(ffi_result.iscc) }
+            .to_str()
+            .unwrap()
+            .to_owned();
+        let ffi_datahash = unsafe { CStr::from_ptr(ffi_result.datahash) }
+            .to_str()
+            .unwrap()
+            .to_owned();
+        let ffi_filesize = ffi_result.filesize;
+
+        unsafe { iscc_free_sum_code_result(ffi_result) };
+
+        // Direct lib result
+        let lib_result = iscc_lib::gen_sum_code_v0(&path, 64, false).unwrap();
+
+        assert_eq!(ffi_iscc, lib_result.iscc);
+        assert_eq!(ffi_datahash, lib_result.datahash);
+        assert_eq!(ffi_filesize, lib_result.filesize);
+
+        let _ = std::fs::remove_file(&path);
     }
 }

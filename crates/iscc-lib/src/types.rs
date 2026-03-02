@@ -91,3 +91,15 @@ pub struct IsccCodeResult {
     /// ISCC code string.
     pub iscc: String,
 }
+
+/// Result of [`gen_sum_code_v0`](crate::gen_sum_code_v0).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SumCodeResult {
+    /// Composite ISCC-CODE string (e.g., `"ISCC:KAC..."`).
+    pub iscc: String,
+    /// Hex-encoded BLAKE3 multihash (`"1e20..."`) of the file.
+    pub datahash: String,
+    /// Byte length of the file.
+    pub filesize: u64,
+}

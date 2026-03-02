@@ -36,7 +36,7 @@ All function names use `snake_case` to match the Python and Rust APIs.
 
 ## Code generation
 
-All 9 `gen_*_v0` functions return the ISCC code as a string (prefixed with `ISCC:`). Optional
+All 10 `gen_*_v0` functions return the ISCC code as a string (prefixed with `ISCC:`). Optional
 parameters use `null` or `undefined` for defaults.
 
 ### Meta-Code
@@ -169,6 +169,25 @@ const dataCode = gen_data_code_v0(data);
 const instanceCode = gen_instance_code_v0(data);
 const iscc = gen_iscc_code_v0([dataCode, instanceCode]);
 console.log(iscc); // "ISCC:KAA..."
+```
+
+### Sum-Code
+
+Generate a composite ISCC-CODE from a file in a single pass:
+
+```javascript
+import {
+    writeFileSync
+} from "node:fs";
+import {
+    gen_sum_code_v0
+} from "@iscc/lib";
+
+writeFileSync("example.bin", Buffer.from("Hello World".repeat(1000)));
+const result = gen_sum_code_v0("example.bin");
+console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.datahash); // Multihash of the data
+console.log(result.filesize); // Size in bytes
 ```
 
 ## Streaming

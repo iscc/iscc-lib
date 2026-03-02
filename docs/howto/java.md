@@ -64,7 +64,7 @@ All ISCC methods are static — there is no runtime object to create or close.
 
 ## Code generation
 
-All 9 `gen*V0` methods are static on `IsccLib`, return a `String` (the ISCC code prefixed with
+All 10 `gen*V0` methods are static on `IsccLib`, return a `String` (the ISCC code prefixed with
 `ISCC:`), and throw `IllegalArgumentException` on invalid input. Optional parameters use `null`. The
 default `bits` value is `64`.
 
@@ -190,6 +190,22 @@ System.out.println(code); // "ISCC:KAA..."
 ```
 
 Parameters: `String[] codes`, `boolean wide` (`true` for 256-bit output, `false` for 128-bit).
+
+### Sum-Code
+
+Generate a composite ISCC-CODE from a file in a single pass:
+
+```java
+java.nio.file.Files.write(
+    java.nio.file.Path.of("example.bin"),
+    "Hello World".repeat(1000).getBytes()
+);
+
+SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false);
+System.out.println(result.iscc());      // "ISCC:KAA..."
+System.out.println(result.datahash());  // Multihash of the data
+System.out.println(result.filesize());  // Size in bytes
+```
 
 ## Streaming
 

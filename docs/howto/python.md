@@ -21,7 +21,7 @@ for installation.
 
 ## Code generation
 
-All 9 `gen_*_v0` functions follow the same pattern: pass content-specific input and an optional
+All 10 `gen_*_v0` functions follow the same pattern: pass content-specific input and an optional
 `bits` parameter (default 64), and receive a structured result with an `.iscc` field containing the
 ISCC code string.
 
@@ -175,6 +175,21 @@ result = gen_iscc_code_v0([data_result.iscc, instance_result.iscc])
 print(result.iscc)  # "ISCC:KAA..."
 ```
 
+### Sum-Code
+
+Generate a composite ISCC-CODE from a file in a single pass:
+
+```python
+from pathlib import Path
+from iscc_lib import gen_sum_code_v0
+
+Path("example.bin").write_bytes(b"Hello World" * 1000)
+result = gen_sum_code_v0("example.bin")
+print(result.iscc)  # "ISCC:KAA..."
+print(result.datahash)  # Multihash of the data
+print(result.filesize)  # Size in bytes
+```
+
 ## Structured results
 
 Every `gen_*_v0` function returns a typed result object that supports both dict-style and
@@ -217,6 +232,7 @@ Result types and their fields:
 | `DataCodeResult`     | `iscc`                                              |
 | `InstanceCodeResult` | `iscc`, `datahash`, `filesize`                      |
 | `IsccCodeResult`     | `iscc`                                              |
+| `SumCodeResult`      | `iscc`, `datahash`, `filesize`                      |
 
 Fields marked with `?` are optional and only present when the corresponding input was provided.
 

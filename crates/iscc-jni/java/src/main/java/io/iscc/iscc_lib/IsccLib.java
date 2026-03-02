@@ -24,6 +24,9 @@ public class IsccLib {
     /** Maximum UTF-8 byte length for the description parameter in gen_meta_code_v0. */
     public static final int META_TRIM_DESCRIPTION = 4096;
 
+    /** Maximum decoded payload byte length for the meta parameter in gen_meta_code_v0. */
+    public static final int META_TRIM_META = 128_000;
+
     /** Default read buffer size for streaming I/O (4 MB). */
     public static final int IO_READ_SIZE = 4_194_304;
 
@@ -140,6 +143,20 @@ public class IsccLib {
      * @throws IllegalArgumentException on invalid input
      */
     public static native String genIsccCodeV0(String[] codes, boolean wide);
+
+    /**
+     * Generate an ISCC-SUM code from a file path.
+     *
+     * <p>Reads the file once, generating both Data-Code and Instance-Code in a
+     * single pass, then composes the final ISCC-CODE.
+     *
+     * @param path file path to process
+     * @param bits hash bit length (32, 64, 96, 128, 160, 192, 224, 256)
+     * @param wide if {@code true}, use 256-bit combination (requires bits >= 128)
+     * @return SumCodeResult with iscc, datahash, and filesize
+     * @throws IllegalArgumentException on invalid input or file I/O error
+     */
+    public static native SumCodeResult genSumCodeV0(String path, int bits, boolean wide);
 
     // ── Text utilities ──────────────────────────────────────────────────────
 

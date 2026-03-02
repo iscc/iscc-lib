@@ -255,31 +255,37 @@ git checkout main
 git pull --ff-only
 ```
 
-### Step 6.2 — Create tag
+### Step 6.2 — Create tags
 
-First check if the tag already exists (idempotency for partial reruns):
+Create both the release tag and the Go module tag. The Go module lives in `packages/go/` and
+requires a prefixed tag (`packages/go/v<version>`) for the Go proxy to resolve the version.
+
+First check if the tags already exist (idempotency for partial reruns):
 
 ```
 git tag -l v<version>
+git tag -l packages/go/v<version>
 ```
 
-If the tag exists locally, skip creation. If it also exists on the remote
+If the tags exist locally, skip creation. If they also exist on the remote
 (`git ls-remote --tags origin v<version>`), skip to Step 6.4 to monitor the release workflow.
 
 ```
 git tag v<version>
+git tag packages/go/v<version>
 ```
 
-### Step 6.3 — Push tag
+### Step 6.3 — Push tags
 
-If `--skip-publish`, skip this step and Step 6.4. Report that the tag `v<version>` was created
-locally and can be pushed later with `git push origin v<version>`. Then go directly to Step 6.5.
+If `--skip-publish`, skip this step and Step 6.4. Report that the tags were created locally and can
+be pushed later. Then go directly to Step 6.5.
 
 ```
-git push origin v<version>
+git push origin v<version> packages/go/v<version>
 ```
 
-This triggers `.github/workflows/release.yml` which publishes to all registries.
+The `v<version>` tag triggers `.github/workflows/release.yml` which publishes to all registries. The
+`packages/go/v<version>` tag enables the Go proxy to resolve the versioned module.
 
 ### Step 6.4 — Monitor release workflow
 

@@ -20,7 +20,7 @@ iscc-lib is a pure Rust crate with no system dependencies.
 
 ## Code generation
 
-All 9 `gen_*_v0` functions follow the same pattern: pass content-specific input and a `bits`
+All 10 `gen_*_v0` functions follow the same pattern: pass content-specific input and a `bits`
 parameter (typically 64), and receive a typed result struct with an `.iscc` field containing the
 ISCC code string.
 
@@ -154,6 +154,21 @@ let result = gen_iscc_code_v0(&codes, false)?;
 println!("{}", result.iscc);  // "ISCC:KAA..."
 ```
 
+### Sum-Code
+
+Generate a composite ISCC-CODE from a file in a single pass:
+
+```rust
+use iscc_lib::gen_sum_code_v0;
+use std::path::Path;
+
+std::fs::write("example.bin", b"Hello World".repeat(1000))?;
+let result = gen_sum_code_v0(Path::new("example.bin"), 64, false)?;
+println!("{}", result.iscc);       // "ISCC:KAA..."
+println!("{}", result.datahash);   // Multihash of the data
+println!("{}", result.filesize);   // Size in bytes
+```
+
 ## Structured results
 
 Every `gen_*_v0` function returns a dedicated result struct carrying the ISCC code string plus
@@ -197,6 +212,7 @@ Result types and their fields:
 | `DataCodeResult`     | `iscc`                                              |
 | `InstanceCodeResult` | `iscc`, `datahash`, `filesize`                      |
 | `IsccCodeResult`     | `iscc`                                              |
+| `SumCodeResult`      | `iscc`, `datahash`, `filesize`                      |
 
 Fields marked with `?` are `Option<String>` — present only when the corresponding input was
 provided.

@@ -1,13 +1,16 @@
-//! Criterion benchmarks for all 9 `gen_*_v0` ISCC functions.
+//! Criterion benchmarks for all 10 `gen_*_v0` ISCC functions.
 //!
 //! Uses representative inline inputs (conformance-derived and synthetic) to
 //! measure latency and throughput of the core ISCC generation functions.
 
 use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use iscc_lib::{
-    DataHasher, gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0, gen_instance_code_v0,
-    gen_iscc_code_v0, gen_meta_code_v0, gen_mixed_code_v0, gen_text_code_v0, gen_video_code_v0,
+    DataHasher, alg_cdc_chunks, gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0,
+    gen_instance_code_v0, gen_iscc_code_v0, gen_meta_code_v0, gen_mixed_code_v0, gen_sum_code_v0,
+    gen_text_code_v0, gen_video_code_v0,
 };
+use std::io::Write;
+use tempfile::NamedTempFile;
 
 /// Generate a deterministic byte buffer of the given size.
 fn deterministic_bytes(size: usize) -> Vec<u8> {
@@ -178,6 +181,43 @@ fn bench_iscc_code(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark `gen_sum_code_v0` at 64KB and 1MB sizes using temp files.
+fn bench_sum_code(c: &mut Criterion) {
+    let mut group = c.benchmark_group("gen_sum_code_v0");
+
+    let data_64k = deterministic_bytes(64 * 1024);
+    let mut tmpfile_64k = NamedTempFile::new().expect("failed to create temp file");
+    tmpfile_64k
+        .write_all(&data_64k)
+        .expect("failed to write temp file");
+    let path_64k = tmpfile_64k.path().to_path_buf();
+    group.throughput(Throughput::Bytes(data_64k.len() as u64));
+    group.bench_with_input(
+        BenchmarkId::new("throughput", "64KB"),
+        &path_64k,
+        |b, path| {
+            b.iter(|| gen_sum_code_v0(black_box(path), black_box(64), black_box(false)).unwrap())
+        },
+    );
+
+    let data_1m = deterministic_bytes(1024 * 1024);
+    let mut tmpfile_1m = NamedTempFile::new().expect("failed to create temp file");
+    tmpfile_1m
+        .write_all(&data_1m)
+        .expect("failed to write temp file");
+    let path_1m = tmpfile_1m.path().to_path_buf();
+    group.throughput(Throughput::Bytes(data_1m.len() as u64));
+    group.bench_with_input(
+        BenchmarkId::new("throughput", "1MB"),
+        &path_1m,
+        |b, path| {
+            b.iter(|| gen_sum_code_v0(black_box(path), black_box(64), black_box(false)).unwrap())
+        },
+    );
+
+    group.finish();
+}
+
 /// Benchmark `DataHasher` streaming with 64 KiB update chunks on 1 MB data.
 fn bench_data_hasher_streaming(c: &mut Criterion) {
     let mut group = c.benchmark_group("DataHasher");
@@ -198,6 +238,27 @@ fn bench_data_hasher_streaming(c: &mut Criterion) {
     group.finish();
 }
 
+/// Benchmark `alg_cdc_chunks` directly at various data sizes.
+fn bench_cdc_chunks(c: &mut Criterion) {
+    let mut group = c.benchmark_group("alg_cdc_chunks");
+
+    for &size in &[4 * 1024, 64 * 1024, 1024 * 1024] {
+        let data = deterministic_bytes(size);
+        let label = match size {
+            4096 => "4KB",
+            65536 => "64KB",
+            1048576 => "1MB",
+            _ => unreachable!(),
+        };
+        group.throughput(Throughput::Bytes(size as u64));
+        group.bench_with_input(BenchmarkId::new("throughput", label), &data, |b, data| {
+            b.iter(|| alg_cdc_chunks(black_box(data), black_box(false), black_box(1024)))
+        });
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_meta_code,
@@ -209,6 +270,8 @@ criterion_group!(
     bench_data_code,
     bench_instance_code,
     bench_iscc_code,
+    bench_sum_code,
     bench_data_hasher_streaming,
+    bench_cdc_chunks,
 );
 criterion_main!(benches);

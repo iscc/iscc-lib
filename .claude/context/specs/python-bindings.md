@@ -20,6 +20,7 @@ All `gen_*_v0` functions return `dict` with exactly the same keys and value type
 | `gen_data_code_v0`     | `iscc`                                                           |
 | `gen_instance_code_v0` | `iscc`, `datahash`, `filesize`                                   |
 | `gen_iscc_code_v0`     | `iscc`                                                           |
+| `gen_sum_code_v0`      | `iscc`, `datahash`, `filesize`                                   |
 
 Field definitions:
 
@@ -103,6 +104,7 @@ Result type classes:
 | `DataCodeResult`     | `iscc: str`                                                                                |
 | `InstanceCodeResult` | `iscc: str`, `datahash: str`, `filesize: int`                                              |
 | `IsccCodeResult`     | `iscc: str`                                                                                |
+| `SumCodeResult`      | `iscc: str`, `datahash: str`, `filesize: int`                                              |
 
 **Wrapper functions** in `__init__.py` call `_lowlevel` and wrap the returned dict:
 
@@ -206,6 +208,32 @@ fields. The Python binding provides idiomatic enum wrappers.
 - [ ] Output matches iscc-core for all test cases
 - [ ] All symbols exported in `__all__`
 
+### gen_sum_code_v0 Path-Based API
+
+GitHub: https://github.com/iscc/iscc-lib/issues/15
+
+`gen_sum_code_v0` accepts a file path and generates both Data-Code and Instance-Code in a single
+Rust-native I/O pass. The Python binding accepts `str | os.PathLike` for the path.
+
+```python
+def gen_sum_code_v0(
+    path: str | os.PathLike,
+    bits: int = 64,
+    wide: bool = False,
+) -> SumCodeResult:
+    """Generate ISCC-SUM (Data-Code + Instance-Code) from a file path."""
+    return SumCodeResult(_gen_sum_code_v0(str(path), bits, wide))
+```
+
+**Verified when:**
+
+- [ ] `gen_sum_code_v0("path/to/file.bin")` returns `SumCodeResult` with `iscc`, `datahash`,
+    `filesize`
+- [ ] `gen_sum_code_v0(pathlib.Path("file.bin"))` works (`os.PathLike` support)
+- [ ] Output matches separate `gen_data_code_v0` + `gen_instance_code_v0` → `gen_iscc_code_v0`
+- [ ] `SumCodeResult` supports both dict-style and attribute-style access
+- [ ] `gen_sum_code_v0` exported in `__all__`
+
 ### core_opts Algorithm Constants
 
 GitHub: https://github.com/iscc/iscc-lib/issues/8
@@ -221,6 +249,7 @@ from types import SimpleNamespace
 # Module-level constants (from Rust core)
 META_TRIM_NAME = _lowlevel.META_TRIM_NAME  # 128
 META_TRIM_DESCRIPTION = _lowlevel.META_TRIM_DESCRIPTION  # 4096
+META_TRIM_META = _lowlevel.META_TRIM_META  # 128_000
 IO_READ_SIZE = _lowlevel.IO_READ_SIZE  # 4_194_304
 TEXT_NGRAM_SIZE = _lowlevel.TEXT_NGRAM_SIZE  # 13
 
@@ -228,6 +257,7 @@ TEXT_NGRAM_SIZE = _lowlevel.TEXT_NGRAM_SIZE  # 13
 core_opts = SimpleNamespace(
     meta_trim_name=META_TRIM_NAME,
     meta_trim_description=META_TRIM_DESCRIPTION,
+    meta_trim_meta=META_TRIM_META,
     io_read_size=IO_READ_SIZE,
     text_ngram_size=TEXT_NGRAM_SIZE,
 )
@@ -236,8 +266,10 @@ core_opts = SimpleNamespace(
 **Verified when:**
 
 - [ ] `iscc_lib.META_TRIM_NAME == 128`
+- [ ] `iscc_lib.META_TRIM_META == 128_000`
 - [ ] `iscc_lib.core_opts.meta_trim_name == 128`
 - [ ] `iscc_lib.core_opts.meta_trim_description == 4096`
+- [ ] `iscc_lib.core_opts.meta_trim_meta == 128_000`
 - [ ] `iscc_lib.core_opts.io_read_size == 4_194_304`
 - [ ] `iscc_lib.core_opts.text_ngram_size == 13`
 - [ ] All constants and `core_opts` exported in `__all__`

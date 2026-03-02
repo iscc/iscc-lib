@@ -236,7 +236,7 @@ iscc-lib/
 │   │   ├── Cargo.toml
 │   │   ├── src/
 │   │   │   ├── lib.rs        # Public API re-exports
-│   │   │   ├── api.rs        # 9 gen_*_v0 functions
+│   │   │   ├── api.rs        # 10 gen_*_v0 functions
 │   │   │   ├── codec.rs      # Tier 2: header/base32 encode/decode
 │   │   │   ├── utils.rs      # text_clean, text_trim, etc.
 │   │   │   ├── simhash.rs    # alg_simhash, sliding_window

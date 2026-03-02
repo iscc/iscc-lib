@@ -16,6 +16,7 @@ import (
 const (
 	MetaTrimName        = 128
 	MetaTrimDescription = 4096
+	MetaTrimMeta        = 128_000
 	IoReadSize          = 4_194_304
 	TextNgramSize       = 13
 )

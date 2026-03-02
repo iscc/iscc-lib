@@ -13,70 +13,76 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `gh run list --branch "$(git branch --show-current)" --limit 3 --json status,conclusion,url,databaseId`
 - **Incremental diff**: `git diff <assessed-at-hash>..HEAD --stat`
 - **Go files**: `ls packages/go/*.go` — check pure Go source files
-- **Go in CI**: `grep -n "go\|Go\|golang" .github/workflows/ci.yml`
-- **Binding symbol check**:
-    `grep -n "encode_component\|META_TRIM\|IO_READ\|TEXT_NGRAM\|iscc_decode\|json_to_data_url\|JsonToDataUrl" crates/iscc-py/src/lib.rs crates/iscc-napi/src/lib.rs crates/iscc-wasm/src/lib.rs crates/iscc-ffi/src/lib.rs crates/iscc-jni/src/lib.rs packages/go/*.go`
+- **New symbol existence check**:
+    `grep -r "gen_sum_code\|META_TRIM_META\|SumCodeResult" crates/ packages/ 2>/dev/null | grep -v "target\|\.lock\|\.md"`
+- **Tier 1 pub fns in Rust core**:
+    `grep -r "pub fn gen_\|pub const META\|pub const IO\|pub const TEXT" crates/iscc-lib/src/`
 - **Go test count**: `grep -r "^func Test" packages/go/ --include="*_test.go" | wc -l`
 - **Go gen functions**: `grep "^func Gen" packages/go/code_*.go`
-- **Go exported funcs**: `grep -h "^func " packages/go/*.go | grep -v "_test.go" | sort`
 - **Doc nav check**: `grep -A 15 "Reference" zensical.toml`
 - **llms.txt page count**: `grep -c "^\-" docs/llms.txt`
+- **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
+- **Howto Sum-Code check**:
+    `grep -n "### Sum-Code\|gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0" docs/howto/*.md`
+- **Benchmark functions**:
+    `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
 
 ## Codebase Landmarks
 
 - `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
-- `.github/workflows/ci.yml` — 9 jobs: version-check, Rust, Python, Node.js, WASM, C FFI, Java, Go,
-    Bench
-- `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete)
+- `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
+    (gate), Node.js, WASM, C FFI, Java, Go, Bench
+- `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete,
+    including Sum-Code subsections as of iteration 15)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
-    EncodeComponent, IsccDecompose, IsccDecode
-- `packages/go/code_meta.go` — `parseMetaJSON`, `jsonHasContext`, `buildMetaDataURL` helpers
-- `docs/c-ffi-api.md` — C FFI API reference (694 lines, all 44 extern "C" symbols documented)
-- `crates/iscc-jni/java/src/main/java/io/iscc/IsccLib.java` — 382-line Java class (30 Tier 1)
+    EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
+    MetaTrimMeta, IoReadSize, TextNgramSize)
+- `docs/c-ffi-api.md` — C FFI API reference (fully updated with iscc_gen_sum_code_v0)
+- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class (subpath:
+    `iscc_lib/`); has META_TRIM_META as `public static final int`
+- `crates/iscc-ffi/src/lib.rs` line 3 — module docstring says "10 `gen_*_v0` functions"
+- `crates/iscc-lib/benches/benchmarks.rs` — 237 lines; docstring says "9 gen\_\*\_v0" (stale);
+    missing `bench_sum_code` function; `criterion_group!` lists 11 benches (no bench_sum_code)
 
 ## Recurring Patterns
 
 - **Incremental review**: compare `assessed-at` hash vs HEAD `--stat` first, then re-verify only
     affected sections. Always carry forward sections where no relevant files changed
-- **CI has 9 jobs**: version-check, Rust, Python, Node.js, WASM, C FFI, Java, Go, Bench. All 9 must
-    pass
+- **CI has matrix jobs**: python-test runs as Python 3.10 + Python 3.14 (separate records); gate job
+    `python` checks both pass. Count distinct job definitions, not run records.
 - `gh run list` does NOT need `--repo` when running from within the workspace; but `--json` fields
     are needed to avoid GraphQL deprecation error
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts
+- **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
+    and spec requirements can increase
 
-## Current State (assessed-at: f336294)
+## Current State (assessed-at: 580793c)
 
-- **All 7 bindings**: 30/30 Tier 1 symbols complete (Rust, Python, Node.js, WASM, C FFI, Java, Go)
-- **Bench CI**: `cargo bench --no-run` job; 7 bench targets compile (CI-verified)
-- **Benchmarks docs**: `docs/benchmarks.md` COMPLETE with full speedup data (1.3×–158×)
-- **version-check CI job**: runs `python scripts/version_sync.py --check`
-- **PR #10**: develop → main OPEN ("Pure Go rewrite & polyglot bindings progress")
-- **CI latest**: Run 22515862498 — all 9 jobs SUCCESS (develop branch, 2026-02-28)
-- **Publishing**: 0.0.2 not published to PyPI, npm, or Maven Central
-- **LLM docs**: `docs/llms.txt` and `scripts/gen_llms_full.py` cover all 15 doc pages
-- **C FFI API reference**: `docs/c-ffi-api.md` COMPLETE (694 lines, added iter 19)
-- **Reference nav** (zensical.toml): Rust API, Python API, C FFI — present; Java API MISSING
-- **Getting-started tutorial**: tabbed multi-language (7 sections × 6 languages)
-- **Known doc issue**: tab order inconsistency (human review requested for canonical order)
-- **docs/architecture.md**: Go shown as standalone, all stale wazero/WASM refs removed
-- **Go test files**: All 5 vestigial "do NOT require the WASM binary" comments removed
-- **One remaining automatable task**: Java API reference page (`docs/java-api.md`)
+- **Target**: 32 Tier 1 symbols — all 7 bindings COMPLETE ✅; README ✅; Per-crate READMEs ✅;
+    Documentation ✅
+- **Iteration 15**: Howto guides (PASS) — all 6 howto guides now have `### Sum-Code` subsections
+    with working code examples; `uv run zensical build` verified ✅
+- **Remaining gap**: Benchmarks partially met — `gen_sum_code_v0` has no criterion benchmark;
+    `benchmarks.rs` docstring says "9 gen\_\*\_v0" (stale). Target requires benchmarks for all 10.
+- **Issues**: Only #16 remains (feature flags for minimal builds, low priority)
+- **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
+- **CI latest**: Run 22559996288 — all 11 CI jobs SUCCESS
 
-## Go Package Tier 1 Coverage (30/30 — COMPLETE)
+## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
-All symbols present: 9 gen functions, ConformanceSelftest, DataHasher, InstanceHasher, 4 text
-utilities, SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash, SoftHashVideoV0, EncodeBase64,
-EncodeComponent, IsccDecode, IsccDecompose, JsonToDataUrl, 4 constants (MetaTrimName,
-MetaTrimDescription, IoReadSize, TextNgramSize).
+All 32 symbols: 10 gen functions (including GenSumCodeV0), ConformanceSelftest, DataHasher,
+InstanceHasher, 4 text utilities, SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash,
+SoftHashVideoV0, EncodeBase64, EncodeComponent, IsccDecode, IsccDecompose, JsonToDataUrl, **5
+constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNgramSize).
 
 ## Gotchas
 
 - Go target requires pure Go (no WASM, no wazero, no binary artifacts)
 - WASM constant name gotcha: `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` exports uppercase
-- `state.md` section order must include Go Bindings and Per-Crate READMEs sections
+- `state.md` section order must include Go Bindings, README, Per-Crate READMEs sections
 - Python ruff format check can fail in CI even if local `mise run check` passes
 - `dct.go`: `algDct` is unexported. `AlgWtahash` is exported. Go has no const arrays so
     `wtaVideoIdPermutations` is `var`
@@ -85,7 +91,15 @@ MetaTrimDescription, IoReadSize, TextNgramSize).
 - **DataHasher/InstanceHasher API**: Go uses `Push([]byte)` + `Finalize(bits)` pattern
 - **GenIsccCodeV0 key details**: `encode_units` produces a bitfield; `wide` param always false in
     test vectors; SubType from content code's SubType (or NONE if absent); 5 conformance vectors
-- Java Maven Central: requires GPG key, Sonatype OSSRH account, pom.xml signing plugin — not yet
-    configured; end-to-end release untested
-- **Doc spec**: `specs/documentation.md` Reference section lists "Java API" — this page is MISSING
-    and is the one remaining automatable doc task
+- **gen_sum_code_v0 WASM**: path-based I/O doesn't exist in browser WASM context — accepts
+    Uint8Array/&[u8] instead; WASM and Go both solve this differently from Rust/Python/Node.js/C FFI
+- **META_TRIM_META validation**: pre-decode fast check on Data-URL string length AND post-decode
+    payload check; both needed in gen_meta_code_v0
+- **Java META_TRIM_META**: added as compile-time `public static final int` (no JNI function needed)
+- **C FFI IsccSumCodeResult**: struct-return pattern (not output-pointer); matches IsccDecodeResult
+    pattern precisely; partial allocation failure handled (free iscc before returning null)
+- **9 vs 10 distinction**: data.json has 9 conformance sections (no gen_sum_code_v0 vectors);
+    iscc-lib has 10 gen functions. Test/conformance docstrings correctly say "9"; user-facing docs
+    say "10". Benchmarks file is stale at "9"
+- **gen_sum_code_v0 benchmark**: uses file I/O (not in-memory) — needs temp files with 64KB/1MB
+    payloads; follow `bench_data_code` pattern but use `tempfile` crate or `env::temp_dir()`

@@ -82,7 +82,7 @@ crates/iscc-py/
 - Optional keys (`description`, `meta`) must be absent (not `None`) when not provided
 - Bindings must NOT define semantics -- they translate the core API only
 - Conformance vectors from `crates/iscc-lib/tests/data.json` are the correctness baseline
-- All 9 `gen_*_v0` functions must match iscc-core output for every vector
+- All 10 `gen_*_v0` functions must match iscc-core output for every vector
 
 ## Build Commands
 
@@ -106,7 +106,7 @@ mise run format
 ## Test Patterns
 
 - Tests live in `/workspace/iscc-lib/tests/` (project root), not inside the crate
-- `test_conformance.py` -- parametrized tests for all 9 `gen_*_v0` against `data.json` vectors
+- `test_conformance.py` -- parametrized tests for all 10 `gen_*_v0` against `data.json` vectors
 - `test_smoke.py` -- basic functionality, IsccResult hierarchy, attribute access, BinaryIO streaming
 - `test_text_utils.py` -- text utility functions
 - `test_algo.py` -- algorithm primitives

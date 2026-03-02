@@ -176,7 +176,7 @@ would require re-staging.
 
 ## Conformance
 
-Official test vectors from `iscc-core/data.json` are the correctness baseline. All 9 `gen_*_v0`
+Official test vectors from `iscc-core/data.json` are the correctness baseline. All 10 `gen_*_v0`
 functions must produce output matching `iscc-core` for every vector.
 
 ## Command Execution

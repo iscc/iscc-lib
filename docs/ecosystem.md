@@ -27,7 +27,7 @@ against its conformance test vectors (`data.json`).
 | Package    | [iscc-core on PyPI](https://pypi.org/project/iscc-core/)        |
 | Language   | Python                                                          |
 | License    | Apache-2.0                                                      |
-| Coverage   | All 9 `gen_*_v0` functions                                      |
+| Coverage   | All 10 `gen_*_v0` functions                                     |
 | Role       | Reference implementation — defines the conformance test vectors |
 
 ### iscc-lib — Rust + Polyglot Bindings
@@ -41,7 +41,7 @@ project.
 | Packages   | [crates.io](https://crates.io/crates/iscc-lib), [PyPI](https://pypi.org/project/iscc-lib/), [npm (@iscc/lib)](https://www.npmjs.com/package/@iscc/lib), [npm (@iscc/wasm)](https://www.npmjs.com/package/@iscc/wasm) |
 | Language   | Rust (core) + Python, Node.js, WASM, Go, Java, C bindings                                                                                                                                                            |
 | License    | Apache-2.0                                                                                                                                                                                                           |
-| Coverage   | All 9 `gen_*_v0` functions — full conformance with iscc-core                                                                                                                                                         |
+| Coverage   | All 10 `gen_*_v0` functions — full conformance with iscc-core                                                                                                                                                        |
 | Role       | Performance-optimized polyglot implementation                                                                                                                                                                        |
 
 ## Community Implementations
@@ -53,20 +53,22 @@ project.
 
 ### iscc-core-ts — TypeScript
 
-A TypeScript implementation of the ISCC core functions, targeting the Node.js ecosystem. Created by
-François Branciard with funding from NGI Zero Core (NLnet / European Commission).
+A standalone TypeScript implementation of the ISCC core functions for the JavaScript ecosystem.
+Created by François Branciard with funding from NGI Zero Core (NLnet / European Commission).
+Maintained by the original author under the ISCC Foundation GitHub org.
 
-|            |                                                                     |
-| ---------- | ------------------------------------------------------------------- |
-| Repository | [branciard/iscc-core-ts](https://github.com/branciard/iscc-core-ts) |
-| Language   | TypeScript (Node.js v22+)                                           |
-| License    | Apache-2.0                                                          |
-| Version    | 0.3.0                                                               |
-| Status     | Active development — not yet recommended for production use         |
+|            |                                                                   |
+| ---------- | ----------------------------------------------------------------- |
+| Repository | [iscc/iscc-core-ts](https://github.com/iscc/iscc-core-ts)         |
+| Package    | [iscc-core-ts on npm](https://www.npmjs.com/package/iscc-core-ts) |
+| Language   | TypeScript (Node.js, Browser via bundler)                         |
+| License    | Apache-2.0                                                        |
+| Version    | 1.0.0                                                             |
+| Status     | Stable — security audited, full conformance with iscc-core v1.2.2 |
 
 **Function coverage:**
 
-The project implements all 9 `gen_*_v0` functions from ISO 24138, plus additional functions
+The project implements 9 of the 10 `gen_*_v0` functions from ISO 24138, plus additional functions
 (`gen_iscc_id_v0`, `gen_iscc_id_v1`, `gen_flake_code_v0`):
 
 | Function               | Tests |
@@ -81,9 +83,14 @@ The project implements all 9 `gen_*_v0` functions from ISO 24138, plus additiona
 | `gen_instance_code_v0` | 3     |
 | `gen_iscc_code_v0`     | 5     |
 
-**Conformance testing:** The repository includes a vendored copy of the official `data.json`
-conformance test vectors from iscc-core. 263 tests pass across 18 test suites, including a dedicated
-`conformance.test.ts`.
+**Conformance testing:** 263 tests derived from the official `data.json` conformance vectors,
+running across 4 module modes (CJS, CJS-isolated, ESM, ESM-isolated) for 1,052 total test
+executions. Includes a dedicated `conformance.test.ts` suite.
+
+**Security:** Completed an external security audit by Radically Open Security (ROS) with all
+findings remediated. See the
+[audit remediation report](https://github.com/iscc/iscc-core-ts/blob/main/docs/audit-remediation-report.md)
+for details.
 
 ## Contributing an Implementation
 
@@ -92,7 +99,7 @@ interoperability:
 
 1. **Use the official test vectors** — validate against the `data.json` file from
     [iscc-core](https://github.com/iscc/iscc-core). This file contains inputs and expected outputs
-    for all 9 `gen_*_v0` functions.
+    for all 10 `gen_*_v0` functions.
 2. **Reference the specification** — [ISO 24138:2024](https://www.iso.org/standard/77899.html)
     defines the algorithms. The [iscc-core](https://github.com/iscc/iscc-core) Python source serves
     as the executable specification.

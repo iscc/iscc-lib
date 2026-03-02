@@ -1,39 +1,39 @@
-## 2026-02-28 — Review of: Add Java API reference page
+## 2026-03-02 — Review of: Add bench_sum_code criterion benchmark for gen_sum_code_v0
 
 **Verdict:** PASS
 
-**Summary:** Clean, well-scoped documentation addition. The new `docs/java-api.md` (676 lines)
-documents all 30 Tier 1 symbols as static methods on `IsccLib` with accurate Java type signatures,
-parameter tables, code examples, streaming hasher lifecycle, error handling, and memory management.
-Content faithfully transcribed from `IsccLib.java` and `IsccDecodeResult.java` Javadoc. Site builds
-cleanly, nav entry and llms.txt updated. All 4 spec-required Reference pages are now complete.
+**Summary:** The advance agent added the 10th and final `gen_*_v0` criterion benchmark
+(`bench_sum_code`) with two throughput measurements (64KB and 1MB), matching the existing pattern
+from `bench_data_code` and `bench_instance_code`. The `tempfile` crate was correctly added as a
+workspace dev-dependency. Implementation is clean, correctly scoped, and all verification criteria
+pass.
 
 **Verification:**
 
-- [x] `uv run zensical build` succeeds — builds in 0.66s with `/java-api/` in output
-- [x] `grep -q 'java-api.md' zensical.toml` exits 0 — nav entry present after C FFI
-- [x] `grep -q 'java-api' docs/llms.txt` exits 0 — reference line added
-- [x] gen function count: 32 (≥ 9) — all 9 gen functions documented with signatures and examples
-- [x] DataHasher lifecycle count: 18 (≥ 4) — DataHasher + InstanceHasher fully documented
-- [x] `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 — class with 5 fields documented
-- [x] `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 — all 4 constants in table
-- [x] `mise run check` — all 14 hooks pass
+- [x] `cargo bench -p iscc-lib --bench benchmarks --no-run` exits 0 — compiles in 44s
+- [x] `grep -c 'gen_sum_code_v0' crates/iscc-lib/benches/benchmarks.rs` returns 5 (≥2 required)
+- [x] `grep 'all 10' crates/iscc-lib/benches/benchmarks.rs` — matches updated docstring
+- [x] `cargo clippy -p iscc-lib -- -D warnings` — clean
+- [x] `cargo test -p iscc-lib` — 310 tests pass (256 + 31 + 22 + 1 doctest)
+- [x] `mise run check` — 14/14 hooks pass
 
 **Issues found:**
 
 - (none)
 
-**Codex review:** Codex reviewed the define-next commit (HEAD~1, not the advance commit) but still
-identified relevant documentation accuracy points: (1) P2: intro paragraph oversimplified native
-library loading — fixed by adding fallback mention. (2) P3: `IsccLib.isccDecode()` reference omits
-parameter — standard Java method reference convention, not actionable. (3) P3: handoff grep uses
-`...` abbreviation — textual shorthand in handoff text, not actual regex, not actionable.
+**Codex review:** Codex raised a concern about `NamedTempFile` keeping the file handle open on
+Windows, potentially causing exclusive access issues when `gen_sum_code_v0` tries to read the file.
+This is not an issue in practice: Rust's `std::fs::File::open` uses shared access modes on Windows,
+and `NamedTempFile` wraps an unbuffered `File` (no flush needed). The throughput pattern
+(`group.throughput()` called per-size) was also questioned but matches the existing
+`bench_data_code` and `bench_instance_code` patterns exactly. No actionable findings.
 
-**Next:** All spec-required documentation pages are complete (Rust API, Python API, C FFI, Java
-API). The documentation spec is fully met. All remaining work requires human action: merge PR #10
-(develop → main), trigger 0.0.2 releases to PyPI/npm, configure Maven Central publishing (GPG,
-Sonatype), decide canonical tab order, and configure OIDC for crates.io.
+**Next:** All target.md sections should now be fully met (Benchmarks was the last gap). The next
+update-state should confirm this. Only issue #16 (feature flags for minimal builds, low priority)
+remains as tracked work. The project may be approaching target completion — the next iteration
+should verify all criteria are satisfied and consider whether to close out the target or move to
+issue #16.
 
-**Notes:** The project has reached the end of automatable CID work. All 7 bindings at 30/30 Tier 1
-symbols, all 46 conformance vectors pass, CI green on all 9 jobs, documentation complete with 16
-pages. The only remaining issue is the low-priority tab order inconsistency (needs human decision).
+**Notes:** The `tempfile` crate (v3) was the only new dependency. The benchmark correctly creates
+temp files outside the criterion closure so file I/O setup isn't measured. `NamedTempFile`
+auto-cleans up via `Drop`. No regressions, no scope creep, no quality gate issues.

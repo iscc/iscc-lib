@@ -76,9 +76,11 @@ LD_LIBRARY_PATH=target/release ./example
 | `iscc_gen_data_code_v0`     | Generate a Data-Code from raw bytes          |
 | `iscc_gen_instance_code_v0` | Generate an Instance-Code from raw bytes     |
 | `iscc_gen_iscc_code_v0`     | Generate a composite ISCC-CODE               |
+| `iscc_gen_sum_code_v0`      | Generate an ISCC-SUM from a file path        |
 
-All code generators return a string pointer (caller frees with `iscc_free_string`). On error, they
-return `NULL` -- call `iscc_last_error()` for the error message.
+All code generators return a string pointer (caller frees with `iscc_free_string`), except
+`iscc_gen_sum_code_v0` which returns an `IsccSumCodeResult` struct. On error, they return `NULL` (or
+`ok == false` for struct results) -- call `iscc_last_error()` for the error message.
 
 ### Utilities
 

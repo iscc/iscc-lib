@@ -210,6 +210,7 @@ gen_mixed_code_v0
 gen_data_code_v0
 gen_instance_code_v0
 gen_iscc_code_v0
+gen_sum_code_v0
 ```
 
 The corresponding conformance test vectors can be found in

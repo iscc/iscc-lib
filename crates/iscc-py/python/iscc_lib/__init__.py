@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import enum
 import json as _json
+import os
 from collections.abc import Sequence
 from importlib.metadata import version
 from types import SimpleNamespace
@@ -14,6 +15,7 @@ __version__ = version("iscc-lib")
 from iscc_lib._lowlevel import (
     IO_READ_SIZE as IO_READ_SIZE,
     META_TRIM_DESCRIPTION as META_TRIM_DESCRIPTION,
+    META_TRIM_META as META_TRIM_META,
     META_TRIM_NAME as META_TRIM_NAME,
     TEXT_NGRAM_SIZE as TEXT_NGRAM_SIZE,
     DataHasher as _DataHasher,
@@ -31,6 +33,7 @@ from iscc_lib._lowlevel import (
     gen_iscc_code_v0 as _gen_iscc_code_v0,
     gen_meta_code_v0 as _gen_meta_code_v0,
     gen_mixed_code_v0 as _gen_mixed_code_v0,
+    gen_sum_code_v0 as _gen_sum_code_v0,
     gen_text_code_v0 as _gen_text_code_v0,
     gen_video_code_v0 as _gen_video_code_v0,
     iscc_decode as _iscc_decode,
@@ -86,6 +89,7 @@ class VS(enum.IntEnum):
 core_opts = SimpleNamespace(
     meta_trim_name=META_TRIM_NAME,
     meta_trim_description=META_TRIM_DESCRIPTION,
+    meta_trim_meta=META_TRIM_META,
     io_read_size=IO_READ_SIZE,
     text_ngram_size=TEXT_NGRAM_SIZE,
 )
@@ -178,6 +182,14 @@ class IsccCodeResult(IsccResult):
     iscc: str
 
 
+class SumCodeResult(IsccResult):
+    """Result of gen_sum_code_v0."""
+
+    iscc: str
+    datahash: str
+    filesize: int
+
+
 # ── Wrapper functions ────────────────────────────────────────────────────────
 
 
@@ -259,6 +271,13 @@ def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> IsccCodeResult:
     return IsccCodeResult(_gen_iscc_code_v0(codes, wide))
 
 
+def gen_sum_code_v0(
+    path: str | os.PathLike, bits: int = 64, wide: bool = False
+) -> SumCodeResult:
+    """Generate Data-Code + Instance-Code + ISCC-CODE from a file path in a single pass."""
+    return SumCodeResult(_gen_sum_code_v0(os.fspath(path), bits, wide))
+
+
 # ── Streaming hashers ──────────────────────────────────────────────────────
 
 
@@ -326,6 +345,7 @@ __all__ = [
     "__version__",
     "IO_READ_SIZE",
     "META_TRIM_DESCRIPTION",
+    "META_TRIM_META",
     "META_TRIM_NAME",
     "MT",
     "ST",
@@ -341,6 +361,7 @@ __all__ = [
     "IsccCodeResult",
     "MetaCodeResult",
     "MixedCodeResult",
+    "SumCodeResult",
     "TextCodeResult",
     "VideoCodeResult",
     "alg_cdc_chunks",
@@ -357,6 +378,7 @@ __all__ = [
     "gen_iscc_code_v0",
     "gen_meta_code_v0",
     "gen_mixed_code_v0",
+    "gen_sum_code_v0",
     "gen_text_code_v0",
     "gen_video_code_v0",
     "iscc_decode",

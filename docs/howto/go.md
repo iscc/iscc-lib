@@ -19,7 +19,7 @@ go get github.com/iscc/iscc-lib/packages/go
 
 ## Code generation
 
-All 9 `Gen*V0` functions are package-level functions that return typed result structs and `error`.
+All 10 `Gen*V0` functions are package-level functions that return typed result structs and `error`.
 The result struct's `Iscc` field contains the ISCC code string prefixed with `ISCC:`. Optional
 parameters use `nil` (for pointer types) or a default value.
 
@@ -194,6 +194,22 @@ if err != nil {
 	log.Fatal(err)
 }
 fmt.Println(result.Iscc) // "ISCC:KAA..."
+```
+
+### Sum-Code
+
+Generate a composite ISCC-CODE from a file in a single pass:
+
+```go
+os.WriteFile("example.bin", bytes.Repeat([]byte("Hello World"), 1000), 0644)
+
+result, err := iscc.GenSumCodeV0("example.bin", 64, false)
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(result.Iscc)      // "ISCC:KAA..."
+fmt.Println(result.Datahash)  // Multihash of the data
+fmt.Println(result.Filesize)  // Size in bytes
 ```
 
 ## Streaming

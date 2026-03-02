@@ -17,6 +17,10 @@ pub const META_TRIM_NAME: u32 = iscc_lib::META_TRIM_NAME as u32;
 #[napi(js_name = "META_TRIM_DESCRIPTION")]
 pub const META_TRIM_DESCRIPTION: u32 = iscc_lib::META_TRIM_DESCRIPTION as u32;
 
+/// Maximum byte length for the meta field payload after decoding.
+#[napi(js_name = "META_TRIM_META")]
+pub const META_TRIM_META: u32 = iscc_lib::META_TRIM_META as u32;
+
 /// Default read buffer size for streaming I/O (4 MB).
 #[napi(js_name = "IO_READ_SIZE")]
 pub const IO_READ_SIZE: u32 = iscc_lib::IO_READ_SIZE as u32;
@@ -199,6 +203,39 @@ pub fn gen_iscc_code_v0(codes: Vec<String>, wide: Option<bool>) -> napi::Result<
     iscc_lib::gen_iscc_code_v0(&refs, wide)
         .map(|r| r.iscc)
         .map_err(|e| napi::Error::from_reason(e.to_string()))
+}
+
+/// Result of generating a composite ISCC-CODE from a file in a single pass.
+#[napi(object)]
+pub struct NapiSumCodeResult {
+    /// Composite ISCC-CODE string.
+    pub iscc: String,
+    /// Hex-encoded BLAKE3 multihash of the file.
+    pub datahash: String,
+    /// Byte length of the file.
+    pub filesize: i64,
+}
+
+/// Generate a composite ISCC-CODE from a file in a single pass.
+///
+/// Reads the file at `path` and produces Data-Code + Instance-Code in one
+/// pass, then combines them into an ISCC-CODE. Returns an object with
+/// `iscc`, `datahash`, and `filesize` fields.
+#[napi(js_name = "gen_sum_code_v0")]
+pub fn gen_sum_code_v0(
+    path: String,
+    bits: Option<u32>,
+    wide: Option<bool>,
+) -> napi::Result<NapiSumCodeResult> {
+    let bits = bits.unwrap_or(64);
+    let wide = wide.unwrap_or(false);
+    let result = iscc_lib::gen_sum_code_v0(std::path::Path::new(&path), bits, wide)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))?;
+    Ok(NapiSumCodeResult {
+        iscc: result.iscc,
+        datahash: result.datahash,
+        filesize: result.filesize as i64,
+    })
 }
 
 /// Clean and normalize text for display.

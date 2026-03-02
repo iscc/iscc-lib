@@ -1,88 +1,72 @@
 # Next Work Package
 
-## Step: Add Java API reference page
+## Step: Add bench_sum_code criterion benchmark for gen_sum_code_v0
 
 ## Goal
 
-Create `docs/java-api.md` documenting the full Java API surface (`IsccLib` class, `IsccDecodeResult`
-class, constants, streaming hashers), and wire it into the site navigation and `llms.txt`. This is
-the last spec-required Reference page — the documentation spec lists "Java API" alongside Rust API,
-Python API, and C FFI in the Reference section.
+Add the missing criterion benchmark for `gen_sum_code_v0` to complete the target requirement that
+"criterion benchmarks exist for all Rust `gen_*_v0` functions". This is the last gap before full
+target completion — all other sections (core, bindings, docs, README, CI) are already met.
 
 ## Scope
 
-- **Create**: `docs/java-api.md`
-- **Modify**: `zensical.toml` (add `{ "Java API" = "java-api.md" }` to Reference nav section)
-- **Modify**: `docs/llms.txt` (add Java API reference line)
-- **Reference**:
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — authoritative source for
-        all 30 Tier 1 symbols (382 lines, 30 methods + 4 constants)
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java` — decode result type
-        (42 lines, 5 public final fields)
-    - `docs/c-ffi-api.md` — pattern to follow for structure and depth (694 lines)
-    - `docs/rust-api.md` — pattern to follow for function documentation style
-    - `.claude/context/specs/documentation.md` — spec requiring "Java API" in Reference
+- **Create**: (none)
+- **Modify**: `crates/iscc-lib/benches/benchmarks.rs` (add `bench_sum_code` function, update
+    docstring from "9" to "10", add import, register in `criterion_group!`),
+    `crates/iscc-lib/Cargo.toml` (add `tempfile` dev-dependency if not already present)
+- **Reference**: `crates/iscc-lib/src/lib.rs` (for `gen_sum_code_v0` signature:
+    `path: &Path,   bits: u32, wide: bool`), `Cargo.toml` (root workspace dependencies)
 
 ## Not In Scope
 
-- Javadoc generation or mkdocstrings integration for Java (the page is hand-written markdown like
-    the Rust API and C FFI pages)
-- Maven Central publishing configuration or setup documentation
-- `NativeLoader.java` internals — not part of the public API surface
-- Updating the Java how-to guide (`docs/howto/java.md`) — already complete
-- Updating other Reference pages (Rust API, Python API, C FFI) — they are already final
+- Adding benchmarks for `gen_sum_code_v0` to the Python benchmark suite (`benchmarks/python/`)
+- Updating `docs/benchmarks.md` with sum-code speedup numbers (no Python baseline exists yet)
+- Updating the "Bench (compile check)" CI job config — it already compiles all bench targets
+- Running actual benchmarks and collecting timing data
+- Working on issue #16 (feature flags for minimal builds)
 
 ## Implementation Notes
 
-**Page structure** — follow the C FFI reference page pattern, adapted for Java:
+`gen_sum_code_v0` takes `path: &std::path::Path` (not `&[u8]`), so the benchmark must write temp
+files. Follow the same throughput pattern as `bench_data_code` and `bench_instance_code`:
 
-1. **Front matter**: `icon: lucide/book-open`, description for Java API
-2. **Intro paragraph**: Java library for ISCC via JNI, all 30 Tier 1 symbols as static methods on
-    `IsccLib`
-3. **Installation**: Maven and Gradle dependency snippets (use `io.iscc:iscc-lib:0.0.2`)
-4. **Quick example**: `IsccLib.genMetaCodeV0("title", null, null, 64)` → ISCC string
-5. **Constants section**: 4 `public static final int` fields (`META_TRIM_NAME`,
-    `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`) in a table
-6. **Classes section**: `IsccDecodeResult` with its 5 public final fields in a table
-7. **Functions sections** (organized by category, matching IsccLib.java order):
-    - Conformance: `conformanceSelftest()`
-    - Code generation: all 9 `gen*V0` methods with signature, parameter table, return type, and
-        throws clause
-    - Text utilities: `textClean`, `textRemoveNewlines`, `textTrim`, `textCollapse`
-    - Encoding: `encodeBase64`, `jsonToDataUrl`
-    - Codec: `encodeComponent`, `isccDecode`, `isccDecompose`
-    - Sliding window: `slidingWindow`
-    - Algorithm primitives: `algSimhash`, `algMinhash256`, `algCdcChunks`, `softHashVideoV0`
-    - Streaming hashers: `DataHasher` lifecycle (`dataHasherNew` → `dataHasherUpdate` →
-        `dataHasherFinalize` → `dataHasherFree`) and same for `InstanceHasher`
-8. **Error handling**: all methods throw `IllegalArgumentException` on invalid input; streaming
-    hashers throw after finalize
-9. **Memory management note**: streaming hashers use opaque `long` handles — callers MUST call
-    `*Free` to release native memory
+1. **Import**: Add `gen_sum_code_v0` to the `use iscc_lib::{...}` block. Add `use std::io::Write`
+    and `use tempfile::NamedTempFile` (or `std::env::temp_dir` + manual file creation).
 
-**Content source**: transcribe directly from the Javadoc in `IsccLib.java` and
-`IsccDecodeResult.java`. Do NOT invent undocumented behavior.
+2. **Temp file approach**: Use `tempfile::NamedTempFile` if the `tempfile` crate is already a
+    dev-dependency. If not, add it. Check `Cargo.toml` dev-dependencies first. If adding `tempfile`
+    feels heavyweight, an alternative is `std::env::temp_dir()` with a unique filename — but
+    `tempfile` is the idiomatic Rust choice and auto-cleans up.
 
-**Nav entry**: insert `{ "Java API" = "java-api.md" }` after `{ "C FFI" = "c-ffi-api.md" }` in the
-Reference section of `zensical.toml`.
+3. **Benchmark function** `bench_sum_code`:
 
-**llms.txt entry**: add `- [Java API](https://lib.iscc.codes/java-api.md): Java API reference` after
-the C FFI line, following the existing pattern.
+    - Create a benchmark group `"gen_sum_code_v0"`
+    - Two sizes: 64KB and 1MB (matching `bench_data_code` pattern)
+    - For each size: write `deterministic_bytes(size)` to a temp file, set
+        `group.throughput(Throughput::Bytes(...))`, bench `gen_sum_code_v0(&path, 64, false)`
+    - The temp file must be created OUTSIDE the benchmark closure (file I/O setup is not part of what
+        we're measuring). Use `NamedTempFile::new()` + `write_all()` before the `bench_with_input`
+        call, then pass the path into the closure.
+
+4. **Docstring**: Update line 1 from "9 `gen_*_v0`" to "10 `gen_*_v0`"
+
+5. **Registration**: Add `bench_sum_code` to the `criterion_group!` macro, after `bench_iscc_code`
+    and before `bench_data_hasher_streaming`.
+
+6. **Dev dependency**: If `tempfile` isn't already in dev-dependencies, add it to the workspace
+    `Cargo.toml` under `[workspace.dependencies]` and to `crates/iscc-lib/Cargo.toml` under
+    `[dev-dependencies]`. Use a recent stable version (e.g., `tempfile = "3"`).
 
 ## Verification
 
-- `uv run zensical build` succeeds (site builds with new page)
-- `grep -q 'java-api.md' zensical.toml` exits 0 (nav entry present)
-- `grep -q 'java-api' docs/llms.txt` exits 0 (llms.txt reference added)
-- `grep -c 'genMetaCodeV0\|genTextCodeV0\|genImageCodeV0\|genAudioCodeV0\|genVideoCodeV0\|genMixedCodeV0\|genDataCodeV0\|genInstanceCodeV0\|genIsccCodeV0' docs/java-api.md`
-    returns ≥ 9 (all gen functions documented)
-- `grep -c 'dataHasherNew\|dataHasherUpdate\|dataHasherFinalize\|dataHasherFree' docs/java-api.md`
-    returns ≥ 4 (DataHasher lifecycle documented)
-- `grep -q 'IsccDecodeResult' docs/java-api.md` exits 0 (decode result type documented)
-- `grep -q 'META_TRIM_NAME' docs/java-api.md` exits 0 (constants documented)
-- `mise run check` passes (all hooks clean)
+- `cargo bench -p iscc-lib --bench benchmarks --no-run` exits 0 (benchmark compiles)
+- `grep -c 'gen_sum_code_v0' crates/iscc-lib/benches/benchmarks.rs` returns at least 2 (import +
+    function usage)
+- `grep 'all 10' crates/iscc-lib/benches/benchmarks.rs` matches the updated docstring
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `cargo test -p iscc-lib` still passes (310 tests)
 
 ## Done When
 
-All 8 verification commands pass — the Java API reference page is complete, wired into navigation
-and llms.txt, and the site builds cleanly.
+All verification criteria pass — the benchmark file compiles with 10 `gen_*_v0` benchmarks, clippy
+is clean, and existing tests still pass.
