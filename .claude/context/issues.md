@@ -16,16 +16,6 @@ dependencies (~82K source lines for serde/unicode). Default behavior unchanged (
 `conformance_selftest()` must adapt to available features (skip disabled code types). CI must test
 `--all-features`, `--no-default-features`, and each feature individually.
 
-## #22 — Add C/C++ how-to guide [human]
-
-**Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/22 **Spec:**
-`.claude/context/specs/c-ffi-dx.md` §1
-
-Create `docs/howto/c-cpp.md` following the same structure as existing per-language guides. Must
-include: CMake integration snippet, streaming DataHasher/InstanceHasher walkthrough, ISCC-SUM
-one-shot example, error handling and memory management sections, C++ RAII wrapper example, static vs
-dynamic linking guidance, and cross-compilation notes. Add to site navigation.
-
 ## #25 — Add pre-built FFI release artifacts to GitHub Releases [human]
 
 **Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/25 **Spec:**

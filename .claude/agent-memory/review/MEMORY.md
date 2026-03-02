@@ -147,6 +147,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Documentation Review Patterns
 
+- **C FFI type prefix**: cbindgen config has `[export] prefix = "iscc_"` for types but
+    `[fn] prefix = ""` for functions. Code examples must use `iscc_FfiDataHasher`,
+    `iscc_IsccSumCodeResult`, etc. The advance agent used short names — always cross-check type
+    names in C code blocks against `crates/iscc-ffi/include/iscc.h`
 - Always verify documented API names against actual binding source code attributes (`js_name`,
     `#[pyfunction]`, `#[napi(js_name)]`) — next.md specs may have incorrect naming that the advance
     agent faithfully reproduces

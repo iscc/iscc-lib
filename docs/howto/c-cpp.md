@@ -98,7 +98,7 @@ single-pass file I/O, feeding both a Data-Code hasher and an Instance-Code hashe
 
 int main(void)
 {
-    IsccSumCodeResult result = iscc_gen_sum_code_v0("document.pdf", 64, false);
+    iscc_IsccSumCodeResult result = iscc_gen_sum_code_v0("document.pdf", 64, false);
     if (!result.ok) {
         fprintf(stderr, "Error: %s\n", iscc_last_error());
         return 1;
@@ -151,8 +151,8 @@ int main(int argc, char *argv[])
     }
 
     unsigned char *buf = malloc(buf_size);
-    FfiDataHasher *dh = iscc_data_hasher_new();
-    FfiInstanceHasher *ih = iscc_instance_hasher_new();
+    iscc_FfiDataHasher *dh = iscc_data_hasher_new();
+    iscc_FfiInstanceHasher *ih = iscc_instance_hasher_new();
 
     /* Feed both hashers from the same read loop */
     size_t n;
@@ -228,7 +228,7 @@ if (result == NULL) {
 Struct-returning functions (like `iscc_gen_sum_code_v0` and `iscc_decode`) use an `ok` field:
 
 ```c
-IsccSumCodeResult result = iscc_gen_sum_code_v0("file.bin", 64, false);
+iscc_IsccSumCodeResult result = iscc_gen_sum_code_v0("file.bin", 64, false);
 if (!result.ok) {
     fprintf(stderr, "Error: %s\n", iscc_last_error());
     /* No need to free — fields are NULL on error */
@@ -248,16 +248,16 @@ always a safe no-op.
 
 ### Ownership rules
 
-| Return type           | Free with                       | Example functions                          |
-| --------------------- | ------------------------------- | ------------------------------------------ |
-| `char*`               | `iscc_free_string()`            | `iscc_gen_*_v0`, text utilities, codec ops |
-| `char**`              | `iscc_free_string_array()`      | `iscc_decompose`, `iscc_sliding_window`    |
-| `IsccByteBuffer`      | `iscc_free_byte_buffer()`       | `iscc_alg_simhash`, `iscc_alg_minhash_256` |
-| `IsccByteBufferArray` | `iscc_free_byte_buffer_array()` | `iscc_alg_cdc_chunks`                      |
-| `IsccDecodeResult`    | `iscc_free_decode_result()`     | `iscc_decode`                              |
-| `IsccSumCodeResult`   | `iscc_free_sum_code_result()`   | `iscc_gen_sum_code_v0`                     |
-| `FfiDataHasher*`      | `iscc_data_hasher_free()`       | `iscc_data_hasher_new`                     |
-| `FfiInstanceHasher*`  | `iscc_instance_hasher_free()`   | `iscc_instance_hasher_new`                 |
+| Return type                | Free with                       | Example functions                          |
+| -------------------------- | ------------------------------- | ------------------------------------------ |
+| `char*`                    | `iscc_free_string()`            | `iscc_gen_*_v0`, text utilities, codec ops |
+| `char**`                   | `iscc_free_string_array()`      | `iscc_decompose`, `iscc_sliding_window`    |
+| `iscc_IsccByteBuffer`      | `iscc_free_byte_buffer()`       | `iscc_alg_simhash`, `iscc_alg_minhash_256` |
+| `iscc_IsccByteBufferArray` | `iscc_free_byte_buffer_array()` | `iscc_alg_cdc_chunks`                      |
+| `iscc_IsccDecodeResult`    | `iscc_free_decode_result()`     | `iscc_decode`                              |
+| `iscc_IsccSumCodeResult`   | `iscc_free_sum_code_result()`   | `iscc_gen_sum_code_v0`                     |
+| `iscc_FfiDataHasher*`      | `iscc_data_hasher_free()`       | `iscc_data_hasher_new`                     |
+| `iscc_FfiInstanceHasher*`  | `iscc_instance_hasher_free()`   | `iscc_instance_hasher_new`                 |
 
 !!! warning "Common pitfalls"
 
@@ -381,7 +381,7 @@ public:
     }
 
 private:
-    FfiDataHasher* handle_;
+    iscc_FfiDataHasher* handle_;
 };
 ```
 

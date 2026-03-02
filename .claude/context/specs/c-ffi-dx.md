@@ -38,12 +38,12 @@ seen ISCC before.
 
 **Verified when:**
 
-- [ ] `docs/howto/c-cpp.md` exists and is linked in site navigation
-- [ ] Contains CMake integration snippet
-- [ ] Contains streaming DataHasher + InstanceHasher example
-- [ ] Contains ISCC-SUM one-shot example
-- [ ] Contains C++ RAII wrapper example
-- [ ] Contains error handling and memory management sections
+- [x] `docs/howto/c-cpp.md` exists and is linked in site navigation
+- [x] Contains CMake integration snippet
+- [x] Contains streaming DataHasher + InstanceHasher example
+- [x] Contains ISCC-SUM one-shot example
+- [x] Contains C++ RAII wrapper example
+- [x] Contains error handling and memory management sections
 
 ## 2. Standalone Example Program
 

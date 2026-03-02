@@ -136,6 +136,11 @@ fully-met target sections to `learnings-archive.md`.
 - WASM tab snippets should include `await init()` when showing standalone examples — it's required
     before any WASM function call. Can omit for brevity in sequential examples where init was shown
     earlier
+- **cbindgen `iscc_` prefix on types**: `cbindgen.toml` has `[export] prefix = "iscc_"` but
+    `[fn] prefix = ""`. All type names in C code examples must use `iscc_`-prefixed forms
+    (`iscc_FfiDataHasher`, `iscc_IsccSumCodeResult`, etc.) while function names are un-prefixed
+    (`iscc_data_hasher_new`). The `c-ffi-api.md` reference page uses short names for exposition but
+    howto code examples must be compilable
 
 ## State Verification
 
