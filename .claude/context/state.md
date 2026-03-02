@@ -1,16 +1,16 @@
-<!-- assessed-at: 6cfae5e458a67a4146431cd651d8636f7bb3b2fc -->
+<!-- assessed-at: 75bc98ffdfa30fd222e55fc71254858a79bb182b -->
 
 # Project State
 
 ## Status: DONE
 
-## Phase: All target criteria met; CI green
+## Phase: All target criteria met; CI green; v0.0.4 released
 
-All sections of `target.md` are fully satisfied. The `bench_sum_code` criterion benchmark added in
-iteration 16 completed the final gap — all 10 `gen_*_v0` functions now have Rust criterion
-benchmarks. CI is all green (11/11 jobs SUCCESS). The only open item is issue #16 (feature flags for
-minimal builds), which is low priority, has a GitHub issue filed, and is **not** part of the
-`target.md` acceptance criteria.
+All sections of `target.md` are fully satisfied. The Release 0.0.4 commit (`75bc98f`) bumped
+versions across all manifests (Cargo.toml, pyproject.toml, package.json, pom.xml, mise.toml) — no
+functional changes. CI is all green (11/11 jobs SUCCESS). The only open item is issue #16 (feature
+flags for minimal builds), which is low priority, has a GitHub issue filed, and is **not** part of
+the `target.md` acceptance criteria.
 
 ## Rust Core Crate
 
@@ -45,7 +45,7 @@ minimal builds), which is low priority, has a GitHub issue filed, and is **not**
 - `NapiSumCodeResult` struct with `iscc: String`, `datahash: String`, `filesize: i64` ✅
 - 6 mocha tests for `gen_sum_code_v0`; 132 total tests pass ✅
 - `cargo clippy -p iscc-napi -- -D warnings` clean
-- `@iscc/lib 0.0.3` on npm
+- `@iscc/lib 0.0.4` on npm
 
 ## WASM Bindings
 
@@ -55,7 +55,7 @@ minimal builds), which is low priority, has a GitHub issue filed, and is **not**
 - `WasmSumCodeResult` struct with `iscc: String`, `datahash: String`, `filesize: f64` ✅
 - 6 wasm-bindgen tests for `gen_sum_code_v0`; 75 total wasm-bindgen tests ✅
 - `cargo clippy -p iscc-wasm` clean
-- `@iscc/wasm 0.0.3` on npm
+- `@iscc/wasm 0.0.4` on npm
 
 ## C FFI
 
@@ -140,12 +140,12 @@ minimal builds), which is low priority, has a GitHub issue filed, and is **not**
 **Status**: met
 
 - **All 11 CI jobs SUCCESS** on latest push; latest CI run: **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22560748212
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22567609585
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check) —
     all success ✅
-- v0.0.3 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
+- v0.0.4 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
     configured; npm via `NPM_TOKEN`
 
 ## Next Milestone

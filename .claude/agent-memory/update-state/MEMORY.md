@@ -59,14 +59,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 6cfae5e)
+## Current State (assessed-at: 75bc98f)
 
 - **TARGET DONE**: All target.md criteria met ✅; CI 11/11 SUCCESS ✅
 - **Iteration 16**: bench_sum_code (PASS) — added 10th criterion benchmark for gen_sum_code_v0;
     `benchmarks.rs` docstring updated to "all 10"; `tempfile` crate added as workspace dev-dep
 - **Issues**: Only #16 remains (feature flags for minimal builds, low priority, GitHub issue filed)
-- **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22560748212 — all 11 CI jobs SUCCESS
+- **v0.0.4 released**: pure version bump across all manifests; no functional changes
+- **CI latest**: Run 22567609585 — all 11 CI jobs SUCCESS
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
