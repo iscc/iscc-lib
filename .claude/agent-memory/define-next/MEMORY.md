@@ -57,7 +57,17 @@ iterations.
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
 
+## C FFI DX Phase
+
+- 4 new C FFI DX criteria added in commit 9721877 (issues #22-#25)
+- Priority order from state.md: #24 (header) → #23 (examples) → #22 (howto) → #25 (release)
+- Issue #24 scope: generate header to include/, commit it, CI freshness check, update compile path
+- No changes needed to lib.rs or test_iscc.c — only ci.yml + new header file
+- `.gitignore` ignores `crates/iscc-ffi/tests/iscc.h` but NOT `crates/iscc-ffi/include/iscc.h`
+- `cbindgen.toml` already has correct config (language=C, guard=ISCC_H, sys_includes)
+
 ## Project Status
 
-- Iteration 16: Only gap is bench_sum_code. After that, only issue #16 (low priority, feature flags)
-    remains. Project approaching full target completion.
+- Iteration 17: C FFI DX expansion phase. 4 new criteria unmet, 6 open issues (#16, #21-#25)
+- All original target sections met. New work is C FFI DX (issues #22-#25) + #21 (units) + #16
+    (flags)
