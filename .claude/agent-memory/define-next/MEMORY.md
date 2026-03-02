@@ -98,7 +98,8 @@ iterations.
 
 ## Project Status
 
-- Iteration 10: C FFI done (iter 9). Now exposing `add_units` in Java/JNI binding
-- Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM ✅ → C FFI ✅ → JNI (this step) → Go
-- 2 open issues: #21 (units support, partially done), #16 (feature flags, normal/low)
+- Iteration 11: JNI done (iter 10). Now exposing `add_units` in Go binding (LAST binding)
+- Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM ✅ → C FFI ✅ → JNI ✅ → Go (this step)
+- After Go: docs update (`rust-api.md`, `architecture.md`) to reflect 4-param signature, close #21
+- 2 open issues: #21 (units support, almost done), #16 (feature flags, normal/low)
 - v0.0.4 released to all registries
