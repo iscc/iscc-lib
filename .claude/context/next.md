@@ -1,72 +1,107 @@
 # Next Work Package
 
-## Step: Expose add_units/units in Go binding (issue #21)
+## Step: Update docs for 4-parameter gen_sum_code_v0
 
 ## Goal
 
-Add `addUnits bool` parameter to `GenSumCodeV0` and `Units []string` field to `SumCodeResult` in the
-pure Go binding, completing the last binding for issue #21. This lets Go callers get the individual
-Data-Code and Instance-Code ISCC strings from a single optimized call.
+Update all documentation files that still reference the old 3-parameter
+`gen_sum_code_v0(path, bits, wide)` signature to reflect the current 4-parameter signature with
+`add_units` and the `units` result field. This unblocks the Documentation section from "partially
+met" to "met."
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `packages/go/code_sum.go` — add `addUnits bool` parameter, add `Units []string` field to
-        `SumCodeResult`, conditionally populate when `addUnits=true`
-    - `packages/go/code_sum_test.go` — update existing 4 tests to pass `false` as 4th arg, add 3 new
-        tests (units enabled, units disabled, units content verification)
+    - `docs/architecture.md` — line 131: add `add_units` to pseudocode signature
+    - `docs/rust-api.md` — lines 270-296: update signature, add `add_units` parameter row, mention
+        `units` field in description and `SumCodeResult` struct, update code example to pass 4th arg
+    - `docs/howto/rust.md` — line 166: add `false` 4th argument to code example
+    - `docs/c-ffi-api.md` — lines 328-362: update C signature to include `bool add_units`, add
+        parameter row, add `units` field (`char **units`) to `IsccSumCodeResult` struct docs, update
+        `iscc_free_sum_code_result` doc to mention freeing `units`
+    - `docs/howto/c-cpp.md` — lines 101, 231: add `false` 4th argument to both C code examples
 - **Reference**:
-    - `crates/iscc-lib/src/code_sum.rs` — Rust core implementation for pattern reference
-    - `crates/iscc-jni/src/lib.rs` — JNI binding for comparison (most recent units exposure)
+    - `crates/iscc-lib/src/lib.rs` lines 968-975 — actual Rust signature
+    - `crates/iscc-lib/src/types.rs` lines 98-107 — `SumCodeResult` struct definition
+    - `crates/iscc-ffi/include/iscc.h` lines 31-52, 528-531 — actual C signature and struct
 
 ## Not In Scope
 
-- Updating docs (`rust-api.md`, `architecture.md`) — that's a separate step after all bindings done
-- Closing issue #21 — the review agent handles issue resolution
-- Renaming `TestPureGo*` test prefixes — cosmetic cleanup, not part of this work
-- Any changes to other binding crates (all already complete)
+- Updating Python/Node.js/WASM howto examples (they use keyword args or defaults — `add_units`
+    defaults to `false` and the examples are correct as-is)
+- Updating per-crate READMEs (they reference `gen_sum_code_v0` by name only, not signature)
+- Updating `docs/index.md` (only has function name in table, not signature)
+- Regenerating `llms.txt` / `llms-full.txt` (automated by build pipeline)
+- Any source code changes
 
 ## Implementation Notes
 
-The Go function already computes `dataResult.Iscc` and `instanceResult.Iscc` internally (needed for
-`GenIsccCodeV0`). The change is straightforward:
+### docs/architecture.md (line 131)
 
-1. **`SumCodeResult` struct**: Add `Units []string` field. When `addUnits=false`, leave it `nil` (Go
-    zero value). When `addUnits=true`, set to `[]string{dataResult.Iscc, instanceResult.Iscc}`.
+Change:
 
-2. **`GenSumCodeV0` signature**: Change from `(path string, bits uint32, wide bool)` to
-    `(path string, bits uint32, wide bool, addUnits bool)`. This is a breaking change for Go
-    callers but matches all other bindings. No default parameter support in Go.
+```
+pub fn gen_sum_code_v0(path, bits, wide) -> IsccResult<SumCodeResult>
+```
 
-3. **Conditional population**: After `dh.Finalize(bits)` and `ih.Finalize(bits)` but before
-    constructing the result, check `addUnits`. If true, create the units slice from the two ISCC
-    strings. Pattern from Rust core:
+to:
 
-    ```go
-    var units []string
-    if addUnits {
-        units = []string{dataResult.Iscc, instanceResult.Iscc}
-    }
-    ```
+```
+pub fn gen_sum_code_v0(path, bits, wide, add_units) -> IsccResult<SumCodeResult>
+```
 
-4. **Tests**: Update all 4 existing `GenSumCodeV0` call sites to pass `false` as the 4th argument.
-    Add 3 new tests following the pattern from other bindings:
+### docs/rust-api.md (lines 270-296)
 
-    - `TestGenSumCodeV0UnitsEnabled` — call with `addUnits=true`, verify `Units` is non-nil and has
-        length 2
-    - `TestGenSumCodeV0UnitsDisabled` — call with `addUnits=false`, verify `Units` is nil
-    - `TestGenSumCodeV0UnitsContent` — call with `addUnits=true`, verify each unit string starts with
-        "ISCC:" and that units match separate `GenDataCodeV0`/`GenInstanceCodeV0` calls
+1. **Signature** (line 275): change to
+    `pub fn gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult>`
+2. **Parameter table** (after line 282): add row for `add_units` | `bool` |
+    `Include individual Data-Code and Instance-Code ISCC strings in the result`
+3. **Description** (lines 284-286): update to mention `units` field: "Returns a `SumCodeResult` with
+    `iscc`, `datahash`, `filesize`, and optionally `units` (when `add_units` is `true`)."
+4. **Code example** (line 292): `gen_sum_code_v0(Path::new("document.pdf"), 64, false, false)?;`
+
+### docs/howto/rust.md (line 166)
+
+Change:
+
+```rust
+let result = gen_sum_code_v0(Path::new("example.bin"), 64, false)?;
+```
+
+to:
+
+```rust
+let result = gen_sum_code_v0(Path::new("example.bin"), 64, false, false)?;
+```
+
+### docs/c-ffi-api.md (lines 328-362)
+
+1. **C signature** (lines 328-332): add `bool add_units` parameter
+2. **Parameter table** (after line 339): add row for `add_units` | `bool` |
+    `Include individual Data-Code and Instance-Code strings in the result`
+3. **Struct** (lines 344-349): add `char **units` field with doc:
+    `NULL-terminated array of Data-Code and Instance-Code ISCC strings, or NULL when add_units is false`
+4. **Free doc** (line 361): update to mention releasing `units` array
+
+### docs/howto/c-cpp.md (lines 101, 231)
+
+Both C examples need `false` added as 4th argument:
+
+- Line 101: `iscc_gen_sum_code_v0("document.pdf", 64, false, false);`
+- Line 231: `iscc_gen_sum_code_v0("file.bin", 64, false, false);`
 
 ## Verification
 
-- `cd packages/go && go test ./...` passes (all existing + 3 new tests)
-- `cd packages/go && go vet ./...` clean
-- `grep -c 'func Test' packages/go/code_sum_test.go` shows 7 (4 existing + 3 new)
-- `grep 'Units' packages/go/code_sum.go` shows the field declaration and population logic
+- `grep -n 'gen_sum_code_v0.*bits.*wide' docs/rust-api.md docs/architecture.md docs/howto/rust.md docs/c-ffi-api.md docs/howto/c-cpp.md | grep -v add_units`
+    returns no matches (all signatures include `add_units`)
+- `grep -c 'add_units' docs/rust-api.md` returns at least 2 (signature + parameter table row)
+- `grep -c 'add_units' docs/c-ffi-api.md` returns at least 2 (signature + parameter table row)
+- `grep 'units' docs/c-ffi-api.md | grep -c 'char \*\*'` returns at least 1 (struct field)
+- `uv run zensical build` exits 0 (docs site builds cleanly)
+- `mise run check` passes (pre-commit hooks: formatting, YAML, TOML, markdown)
 
 ## Done When
 
-All verification criteria pass: `go test` passes with 7 sum code tests (4 updated + 3 new), `go vet`
-clean, and `SumCodeResult.Units` is correctly gated by `addUnits`.
+All verification criteria pass — every `gen_sum_code_v0` reference in docs shows the 4-parameter
+signature with `add_units`, and the documentation site builds cleanly.

@@ -76,30 +76,9 @@ iterations.
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
 - Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
 
-## Binding Units Exposure Patterns
-
-- Python: `SumCodeResult(IsccResult)` class with type annotations in `__init__.py`. Wrapper calls
-    `_gen_sum_code_v0(os.fspath(path), bits, wide, add_units)`. Dict keys omit optional `None`
-    fields (pattern: only `set_item` when `Some`)
-- Python tests in `tests/test_smoke.py` use `tmp_path` fixture, follow existing
-    `test_gen_sum_code_v0_*` pattern
-- C FFI: `IsccSumCodeResult` uses `*mut *mut c_char` (NULL-terminated string array) for `units` —
-    same representation as `iscc_decompose`/`iscc_sliding_window` return. Reuse
-    `vec_to_c_string_array` helper and `iscc_free_string_array` for cleanup
-- C FFI: `test_iscc.c` compiles with gcc in CI, must update 3 existing call sites (tests 24-26) when
-    signature changes. cbindgen regenerates header; CI checks freshness
-- C example `iscc_sum.c` uses streaming hashers, NOT `iscc_gen_sum_code_v0` — no update needed
-- JNI: `build_string_array` helper (line 120) converts `Vec<String>` → `jobjectArray`. Reuse it for
-    `units`. `jobjectArray` is a raw pointer — wrap with `unsafe { JObject::from_raw(arr) }` to pass
-    as `JValue::Object`. For null, use `JValue::Object(&JObject::null())`
-- JNI constructor signature encoding: `String[]` = `[Ljava/lang/String;` in JNI descriptor. Updated
-    sig: `"(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V"`
-- JNI: 4 existing Maven tests call `genSumCodeV0(path, bits, wide)` — all need 4th arg `false`
-
 ## Project Status
 
-- Iteration 11: JNI done (iter 10). Now exposing `add_units` in Go binding (LAST binding)
-- Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM ✅ → C FFI ✅ → JNI ✅ → Go (this step)
-- After Go: docs update (`rust-api.md`, `architecture.md`) to reflect 4-param signature, close #21
-- 2 open issues: #21 (units support, almost done), #16 (feature flags, normal/low)
+- Iteration 12: Issue #21 (units support) RESOLVED across all 7 bindings. Docs update in progress
+- After docs update: only issue #16 (feature flags for embedded/minimal builds) remains
+- 1 open issue: #16 (feature flags, normal priority)
 - v0.0.4 released to all registries
