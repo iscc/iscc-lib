@@ -161,6 +161,16 @@ iterations.
 - mdformat auto-reformats after edits — always run `mise run format` twice after doc changes
 - iscc-core-ts is external and may have different function counts than iscc-lib
 
+## C FFI Documentation
+
+- `docs/howto/c-cpp.md` — C/C++ how-to guide with 12 sections (overview, build, cmake, quick start,
+    streaming, composing, error handling, memory mgmt, static/dynamic, cross-compile, RAII,
+    conformance)
+- `docs/c-ffi-api.md` — full API reference (types, constants, code gen, text utils, algorithms,
+    codec, streaming, diagnostics, memory mgmt, error handling)
+- zensical.toml nav: howto guides list includes `{ "C / C++" = "howto/c-cpp.md" }` after Java
+- CMake integration uses `find_library()` pattern (not `CMAKE_LIBRARY_PATH`)
+
 ## C FFI Examples
 
 - `crates/iscc-ffi/examples/iscc_sum.c` — streaming ISCC-SUM example (read file → dual hashers →

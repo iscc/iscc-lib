@@ -1,53 +1,34 @@
-## 2026-03-02 — Review of: Create standalone C example with CMakeLists.txt (issue #23)
+## 2026-03-02 — Create C/C++ how-to guide (issue #22)
 
-**Verdict:** PASS
+**Done:** Created `docs/howto/c-cpp.md` with all 12 required sections (overview, building from
+source, CMake integration, ISCC-SUM quick start, streaming, composing ISCC-SUM manually, error
+handling, memory management, static vs dynamic linking, cross-compilation, C++ RAII wrapper,
+conformance verification). Added navigation entry in `zensical.toml` after Java.
 
-**Summary:** The advance agent created `crates/iscc-ffi/examples/iscc_sum.c` and
-`crates/iscc-ffi/examples/CMakeLists.txt` exactly as specified in next.md. The C example is
-well-structured with C89/C99 compatible style, proper error handling at every step, and clear
-comments. It compiles cleanly with gcc, runs correctly producing valid ISCC codes, and touches no
-existing files. Review fixed two minor issues in error paths (hasher leak on partial creation
-failure, missing `ferror` check after read loop).
+**Files changed:**
 
-**Verification:**
+- `docs/howto/c-cpp.md`: Created — full C/C++ how-to guide with 12 sections, code examples,
+    ownership rules table, admonition blocks for warnings/tips
+- `zensical.toml`: Added `{ "C / C++" = "howto/c-cpp.md" }` to How-to Guides nav after Java
 
-- [x] `test -f crates/iscc-ffi/examples/iscc_sum.c` — exists
-- [x] `test -f crates/iscc-ffi/examples/CMakeLists.txt` — exists
-- [x] `grep 'iscc_data_hasher_update'` — streaming pattern present
-- [x] `grep 'iscc_instance_hasher_update'` — dual-hasher present
-- [x] `grep 'iscc_gen_iscc_code_v0'` — composition present
-- [x] `grep 'fread'` — file chunk loop present
-- [x] `grep 'cmake_minimum_required'` — cmake structure valid
-- [x] `cargo build -p iscc-ffi` — succeeds
-- [x] gcc compilation — compiles cleanly
-- [x] Example execution — prints 3 labeled lines with `ISCC:` prefix codes
-- [x] `cargo clippy -p iscc-ffi -- -D warnings` — clean
-- [x] `cargo test -p iscc-lib` — 310 tests pass (256 + 31 + 22 + 1 doctest)
+**Verification:** All 9 verification criteria pass:
+
+- [x] `test -f docs/howto/c-cpp.md` — file exists
+- [x] `grep -q 'c-cpp.md' zensical.toml` — nav entry present
+- [x] `grep -q 'iscc_gen_sum_code_v0'` — ISCC-SUM quick start present
+- [x] `grep -q 'iscc_data_hasher'` — streaming section present
+- [x] `grep -q 'iscc_last_error'` — error handling present
+- [x] `grep -q 'iscc_free_string'` — memory management present
+- [x] `grep -q 'RAII'` — C++ RAII wrapper present
+- [x] `grep -q 'cmake'` — CMake integration present
+- [x] `uv run zensical build` — site builds successfully (4.46s)
 - [x] `mise run check` — 14/14 hooks pass
 
-**Issues found:**
+**Next:** Issue #25 (pre-built FFI release tarballs) is the remaining C FFI DX target item. The
+howto guide's "Building from source" section references planned pre-built binaries. Alternatively,
+#21 (units support) or #16 (feature flags) are independent enhancements.
 
-- (none blocking — two minor error path issues fixed directly by review)
-
-**Issue resolved:** #23 (standalone C example with CMakeLists.txt) — deleted from issues.md.
-
-**Codex review:** Three findings, all addressed or assessed:
-
-1. *CMake library discovery (P1)*: `CMAKE_LIBRARY_PATH` in comment instructions doesn't work with
-    `target_link_libraries` without `find_library()`. Valid observation — the Cargo-built scenario
-    comment is aspirational. The `CMAKE_PREFIX_PATH` scenario (pre-built library) works correctly.
-    Low impact since this is instructional comments, not executable build logic. Can be improved
-    when #22 (c-cpp howto guide) is written.
-2. *Hasher leak on partial creation (P2)*: Fixed by review — added conditional free for non-NULL
-    hashers in step 4 error path.
-3. *fread I/O error (P2)*: Fixed by review — added `ferror(fp)` check after read loop to detect I/O
-    errors vs EOF.
-
-**Next:** Issue #22 — Create `docs/howto/c-cpp.md` how-to guide for C/C++ integration. The example
-program (`iscc_sum.c`) and committed header (`iscc.h`) are now in place to reference from the guide.
-The CMake comment about `CMAKE_LIBRARY_PATH` vs `find_library` should be clarified in the howto
-guide's CMake section.
-
-**Notes:** The remaining C FFI DX issues are #22 (howto guide), #25 (release tarballs), plus #21
-(units support) and #16 (feature flags) as independent enhancements. The c-cpp howto guide (#22) is
-the natural next step since all prerequisites (header, example, API docs) are in place.
+**Notes:** The guide uses `find_library()` for CMake integration (not `CMAKE_LIBRARY_PATH`), as
+flagged in the prior review. The streaming section links to the committed example at
+`crates/iscc-ffi/examples/iscc_sum.c` for full error handling. The RAII wrapper is illustrative code
+within the doc (not a compiled artifact), as specified in the scope.
