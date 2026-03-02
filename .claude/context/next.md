@@ -1,117 +1,111 @@
 # Next Work Package
 
-## Step: Add gen_sum_code_v0 to WASM bindings
+## Step: Add gen_sum_code_v0 to C FFI bindings
 
 ## Goal
 
-Propagate `gen_sum_code_v0` to the WASM binding crate (`crates/iscc-wasm/`), completing 32/32 Tier 1
-symbols in WASM. Since WASM has no filesystem access, the function accepts `Uint8Array` bytes
-instead of a file path and composes the ISCC-SUM internally. This advances issue #15.
+Propagate `gen_sum_code_v0` to the C FFI crate (`crates/iscc-ffi/`), making it 32/32 Tier 1 symbols
+in C. This is the first of three remaining bindings for issue #15.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-wasm/src/lib.rs` — add `WasmSumCodeResult` struct + `gen_sum_code_v0` function
-    - `crates/iscc-wasm/tests/unit.rs` — add tests for `gen_sum_code_v0`
+    - `crates/iscc-ffi/src/lib.rs` — add `IsccSumCodeResult` struct, `iscc_gen_sum_code_v0` extern "C"
+        function, `iscc_free_sum_code_result` free function, Rust unit tests
+    - `crates/iscc-ffi/tests/test_iscc.c` — add C test cases for `gen_sum_code_v0` (create temp file,
+        call function, verify result, free, test NULL path error)
 - **Reference**:
-    - `crates/iscc-lib/src/lib.rs` lines ~960-998 — core `gen_sum_code_v0` logic (single-pass file I/O
-        feeding DataHasher + InstanceHasher, then gen_iscc_code_v0 composition)
-    - `crates/iscc-lib/src/types.rs` — `SumCodeResult` struct definition
-    - `crates/iscc-lib/src/streaming.rs` — `DataHasher` and `InstanceHasher` API
-    - `crates/iscc-wasm/src/lib.rs` lines ~240-269 — `IsccDecodeResult` pattern for structured
-        wasm_bindgen returns with `#[wasm_bindgen(getter_with_clone)]`
+    - `crates/iscc-ffi/src/lib.rs` — existing patterns for `IsccDecodeResult`, `iscc_decode`,
+        `iscc_free_decode_result`, `result_to_c_string`, `ptr_to_str`
+    - `crates/iscc-lib/src/api.rs` — `gen_sum_code_v0` signature and `SumCodeResult` type
+    - `crates/iscc-ffi/tests/test_iscc.c` — existing C test patterns
 
 ## Not In Scope
 
-- Adding `gen_sum_code_v0` to C FFI, Java, or Go bindings (separate future steps)
-- Conformance test vectors for gen_sum_code_v0 (none exist in data.json — test via equivalence)
-- Updating documentation, READMEs, or docs site (defer until all bindings complete)
-- Adding a bytes-based variant to the Rust core API (the WASM wrapper composes internally)
-- Changing the return type of existing WASM functions to return structured results
+- Updating the cbindgen header file (auto-generated in CI, not checked in)
+- Updating CI workflow (already tests C FFI with gcc + test_iscc)
+- Java or Go bindings (separate steps)
+- Updating README or documentation (wait until all 3 remaining bindings are done)
+- Updating module docstring function count (cosmetic, can bundle with Java step)
 
 ## Implementation Notes
 
-**Return type — `WasmSumCodeResult`:**
-
-Use `#[wasm_bindgen(getter_with_clone)]` (same pattern as `IsccDecodeResult`):
+**Result struct pattern** — follow `IsccDecodeResult` for struct-return pattern:
 
 ```rust
-#[wasm_bindgen(getter_with_clone)]
-pub struct WasmSumCodeResult {
-    pub iscc: String,
-    pub datahash: String,
-    pub filesize: f64,
+#[repr(C)]
+pub struct IsccSumCodeResult {
+    pub ok: bool,
+    pub iscc: *mut c_char,
+    pub datahash: *mut c_char,
+    pub filesize: u64,
 }
 ```
 
-**Why `f64` for filesize:** In wasm-bindgen, `u64` maps to JS `BigInt`, which causes friction for
-web developers (can't mix with regular numbers, `JSON.stringify` fails, arithmetic requires explicit
-conversion). `f64` maps naturally to JS `number` and handles files up to 2^53 bytes (~9 PB) — far
-beyond any browser WASM use case. This matches the pragmatic approach for web consumers.
+Place the struct definition near `IsccDecodeResult` (around line 795). Add a helper
+`null_sum_code_result()` that returns a zeroed-out error result (like the inline error returns in
+`iscc_decode`).
 
-**Function — `gen_sum_code_v0`:**
-
-Since WASM has no filesystem, accept `data: &[u8]` (maps to `Uint8Array` in JS). Replicate the core
-logic without file I/O by composing from streaming hashers:
+**Function signature:**
 
 ```rust
-#[wasm_bindgen]
-pub fn gen_sum_code_v0(
-    data: &[u8],
-    bits: Option<u32>,
-    wide: Option<bool>,
-) -> Result<WasmSumCodeResult, JsError> {
-    let bits = bits.unwrap_or(64);
-    let wide = wide.unwrap_or(false);
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_gen_sum_code_v0(
+    path: *const c_char,
+    bits: u32,
+    wide: bool,
+) -> IsccSumCodeResult
+```
 
-    let mut data_hasher = iscc_lib::DataHasher::new();
-    let mut instance_hasher = iscc_lib::InstanceHasher::new();
+Pattern: `clear_last_error()` → `ptr_to_str(path, "path")` →
+`iscc_lib::gen_sum_code_v0(Path::new(path_str), bits, wide)` → convert `SumCodeResult` fields to C
+types. On error, `set_last_error` and return `ok: false` result. On success, convert `iscc` and
+`datahash` via `CString::new().into_raw()`.
 
-    data_hasher.update(data);
-    instance_hasher.update(data);
+**Free function:**
 
-    let data_result = data_hasher.finalize(bits).map_err(|e| JsError::new(&e.to_string()))?;
-    let instance_result = instance_hasher.finalize(bits).map_err(|e| JsError::new(&e.to_string()))?;
-
-    let iscc_result = iscc_lib::gen_iscc_code_v0(
-        &[&data_result.iscc, &instance_result.iscc],
-        wide,
-    ).map_err(|e| JsError::new(&e.to_string()))?;
-
-    Ok(WasmSumCodeResult {
-        iscc: iscc_result.iscc,
-        datahash: instance_result.datahash,
-        filesize: instance_result.filesize as f64,
-    })
+```rust
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn iscc_free_sum_code_result(result: IsccSumCodeResult) {
+    unsafe { iscc_free_string(result.iscc) };
+    unsafe { iscc_free_string(result.datahash) };
 }
 ```
 
-**Placement:** Insert `WasmSumCodeResult` struct near `IsccDecodeResult` (~line 240). Insert
-`gen_sum_code_v0` function after `gen_iscc_code_v0` (~line 161).
+`iscc_free_string` already handles NULL, so this is safe even for error results.
 
-**Tests** (add to `tests/unit.rs`, minimum 4, target 6):
+**C test cases** — add 3 test cases after existing test #23:
 
-1. **Equivalence**: Feed same bytes to `gen_sum_code_v0` and separately to `gen_data_code_v0` +
-    `gen_instance_code_v0` + `gen_iscc_code_v0`. Verify `iscc` matches.
-2. **Result shape**: Verify `iscc` starts with `"ISCC:"`, `datahash` starts with `"1e20"`,
-    `filesize` equals input length.
-3. **Empty input**: Verify `gen_sum_code_v0(&[], None, None)` succeeds and matches empty-data
-    equivalents.
-4. **Default params**: Verify `None` bits/wide produce same as explicit `Some(64)`/`Some(false)`.
-5. **Wide mode**: With `bits=128`, verify wide and non-wide produce different `iscc` values but same
-    `datahash` and `filesize`.
-6. **Filesize**: Verify `filesize` equals `data.len() as f64` for known test input.
+1. **gen_sum_code_v0 with temp file**: Write "Hello World" to a temp file via `fopen`/`fwrite`, call
+    `iscc_gen_sum_code_v0(path, 64, false)`, verify `ok == true`, `iscc` starts with `"ISCC:"`,
+    `datahash` is non-NULL, `filesize == 11`, then `iscc_free_sum_code_result`. Clean up temp file
+    with `remove()`.
+
+2. **gen_sum_code_v0 NULL path**: Call with NULL path, verify `ok == false`, `iscc` is NULL.
+
+3. **gen_sum_code_v0 nonexistent path**: Call with `"/nonexistent/file.bin"`, verify `ok == false`.
+
+**Rust unit tests** — add tests in the `#[cfg(test)]` module:
+
+1. Test `iscc_gen_sum_code_v0` with a real temp file (use `std::io::Write` + `std::env::temp_dir()`)
+2. Test NULL path returns `ok: false`
+3. Test `iscc_free_sum_code_result` with null strings (no-op safety)
+4. Test result fields match `iscc_lib::gen_sum_code_v0` output
+
+**Import note**: Add `use std::path::Path;` if not already imported. The function needs
+`std::fs::File` or similar for temp file tests.
 
 ## Verification
 
-- `cargo build -p iscc-wasm --target wasm32-unknown-unknown` compiles without errors
-- `cargo clippy -p iscc-wasm -- -D warnings` clean
-- `wasm-pack test --node crates/iscc-wasm` passes (existing + 4-6 new gen_sum_code_v0 tests)
-- `gen_sum_code_v0` is exported and returns `WasmSumCodeResult` with `iscc`, `datahash`, `filesize`
-- `mise run check` passes (all pre-commit hooks clean)
+- `cargo test -p iscc-ffi` passes (78 existing + ~4 new tests = ~82 tests)
+- `cargo clippy -p iscc-ffi -- -D warnings` clean
+- `cargo build -p iscc-ffi` succeeds
+- `IsccSumCodeResult` struct and `iscc_gen_sum_code_v0` function are present in source
+- C test program compiles and passes when run locally:
+    `cargo build -p iscc-ffi && cbindgen --crate iscc-ffi -o crates/iscc-ffi/tests/iscc.h && gcc -o /tmp/test_iscc crates/iscc-ffi/tests/test_iscc.c -I crates/iscc-ffi/tests -L target/debug -liscc_ffi -lpthread -ldl -lm && LD_LIBRARY_PATH=target/debug /tmp/test_iscc`
 
 ## Done When
 
-All five verification criteria pass — `gen_sum_code_v0` is fully functional in the WASM binding with
-structured result return and at least 4 new tests.
+All verification criteria pass: Rust tests, clippy, and the C test program all succeed with the new
+`gen_sum_code_v0` function returning correct results for a file-based input.

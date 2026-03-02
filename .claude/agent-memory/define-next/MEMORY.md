@@ -45,21 +45,24 @@ Rust core complete (32/32 Tier 1 symbols, 310 tests). Python binding complete (3
 1. ✅ Rust core — gen_sum_code_v0 + SumCodeResult (complete)
 2. ✅ Python binding — accept str | os.PathLike (complete)
 3. ✅ Node.js binding — NapiSumCodeResult + napi fn + 6 mocha tests (complete, 132 total tests)
-4. → WASM binding — accept Uint8Array bytes (no filesystem in browser) (current step)
-5. C FFI binding — iscc_gen_sum_code_v0 + opaque result struct
+4. ✅ WASM binding — WasmSumCodeResult + &[u8] input + 6 tests (complete, 75 total tests)
+5. → C FFI binding — IsccSumCodeResult struct + iscc_gen_sum_code_v0 extern "C" (current step)
 6. Java binding — JNI bridge + SumCodeResult record
 7. Go binding — pure Go reimplementation (not a Rust wrapper)
 
-**WASM binding specifics:**
+**C FFI binding specifics:**
 
-- WASM has no filesystem — `gen_sum_code_v0` accepts `&[u8]` (Uint8Array) instead of a path
-- Compose internally: DataHasher + InstanceHasher → finalize both → gen_iscc_code_v0
-- Use `f64` for filesize (not `u64`): wasm-bindgen maps u64→BigInt which causes JS friction (can't
-    mix with numbers, JSON.stringify fails). f64→number handles up to 2^53 bytes (~9 PB)
-- Use `#[wasm_bindgen(getter_with_clone)]` struct (same as `IsccDecodeResult`)
-- Tests via `wasm_bindgen_test` in `tests/unit.rs`
-- Existing WASM gen functions return only `String` (the `.iscc` field). gen_sum_code_v0 is the first
-    gen function returning a multi-field struct (besides IsccDecodeResult from iscc_decode)
+- C FFI gen functions typically return `*mut c_char` (just the `.iscc` field). `gen_sum_code_v0`
+    needs a multi-field struct return (like `IsccDecodeResult`) because it returns `iscc`,
+    `datahash`, `filesize`
+- `IsccSumCodeResult` uses `#[repr(C)]` with `ok: bool`, `iscc: *mut c_char`,
+    `datahash: *mut c_char`, `filesize: u64`. Follow `IsccDecodeResult` pattern with dedicated free
+    function
+- `iscc_gen_sum_code_v0` takes `path: *const c_char` → `ptr_to_str` → `Path::new()` →
+    `iscc_lib::gen_sum_code_v0`. Strings via `CString::new().into_raw()`
+- C test needs temp file for gen_sum_code_v0 — use `fopen`/`fwrite`/`fclose` + `remove()`
+- 78 existing Rust unit tests + 23 C test cases (state says "23+ cases")
+- `iscc_free_string` already handles NULL, so `iscc_free_sum_code_result` just delegates
 
 ## Binding Propagation Patterns
 
