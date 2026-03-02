@@ -11,15 +11,17 @@ import (
 
 // SumCodeResult holds the output of GenSumCodeV0.
 type SumCodeResult struct {
-	Iscc     string // Composite ISCC-CODE string with "ISCC:" prefix
-	Datahash string // Hex-encoded BLAKE3 multihash (prefix "1e20" + 32-byte digest)
-	Filesize uint64 // Size of input file in bytes
+	Iscc     string   // Composite ISCC-CODE string with "ISCC:" prefix
+	Datahash string   // Hex-encoded BLAKE3 multihash (prefix "1e20" + 32-byte digest)
+	Filesize uint64   // Size of input file in bytes
+	Units    []string // Data-Code and Instance-Code ISCC strings (nil when addUnits is false)
 }
 
 // GenSumCodeV0 generates a composite ISCC-CODE from a file path using a single
 // read pass. Internally creates a DataHasher and InstanceHasher, feeds both from
 // the same buffer, finalizes each, and assembles the ISCC-CODE via GenIsccCodeV0.
-func GenSumCodeV0(path string, bits uint32, wide bool) (*SumCodeResult, error) {
+// When addUnits is true, the result includes individual Data-Code and Instance-Code strings.
+func GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool) (*SumCodeResult, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("iscc: open file: %w", err)
@@ -61,9 +63,15 @@ func GenSumCodeV0(path string, bits uint32, wide bool) (*SumCodeResult, error) {
 		return nil, fmt.Errorf("iscc: compose iscc code: %w", err)
 	}
 
+	var units []string
+	if addUnits {
+		units = []string{dataResult.Iscc, instanceResult.Iscc}
+	}
+
 	return &SumCodeResult{
 		Iscc:     isccResult.Iscc,
 		Datahash: instanceResult.Datahash,
 		Filesize: instanceResult.Filesize,
+		Units:    units,
 	}, nil
 }

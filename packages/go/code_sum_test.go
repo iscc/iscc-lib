@@ -27,7 +27,7 @@ func TestGenSumCodeV0Equivalence(t *testing.T) {
 	}
 
 	// Single-pass via GenSumCodeV0
-	sumResult, err := GenSumCodeV0(f.Name(), 64, false)
+	sumResult, err := GenSumCodeV0(f.Name(), 64, false, false)
 	if err != nil {
 		t.Fatalf("GenSumCodeV0: %v", err)
 	}
@@ -80,7 +80,7 @@ func TestGenSumCodeV0ResultFields(t *testing.T) {
 		t.Fatalf("close temp file: %v", err)
 	}
 
-	result, err := GenSumCodeV0(f.Name(), 64, false)
+	result, err := GenSumCodeV0(f.Name(), 64, false, false)
 	if err != nil {
 		t.Fatalf("GenSumCodeV0: %v", err)
 	}
@@ -101,7 +101,7 @@ func TestGenSumCodeV0ResultFields(t *testing.T) {
 // TestGenSumCodeV0ErrorNonExistent verifies that GenSumCodeV0 returns an error
 // for a non-existent file path.
 func TestGenSumCodeV0ErrorNonExistent(t *testing.T) {
-	_, err := GenSumCodeV0("/nonexistent/path/to/file.bin", 64, false)
+	_, err := GenSumCodeV0("/nonexistent/path/to/file.bin", 64, false, false)
 	if err == nil {
 		t.Fatal("expected error for non-existent file, got nil")
 	}
@@ -126,12 +126,12 @@ func TestGenSumCodeV0WideMode(t *testing.T) {
 		t.Fatalf("close temp file: %v", err)
 	}
 
-	narrowResult, err := GenSumCodeV0(f.Name(), 128, false)
+	narrowResult, err := GenSumCodeV0(f.Name(), 128, false, false)
 	if err != nil {
 		t.Fatalf("GenSumCodeV0 narrow: %v", err)
 	}
 
-	wideResult, err := GenSumCodeV0(f.Name(), 128, true)
+	wideResult, err := GenSumCodeV0(f.Name(), 128, true, false)
 	if err != nil {
 		t.Fatalf("GenSumCodeV0 wide: %v", err)
 	}
@@ -149,5 +149,117 @@ func TestGenSumCodeV0WideMode(t *testing.T) {
 	// Filesize should be identical regardless of mode
 	if narrowResult.Filesize != wideResult.Filesize {
 		t.Errorf("filesize should be identical: narrow=%d, wide=%d", narrowResult.Filesize, wideResult.Filesize)
+	}
+}
+
+// TestGenSumCodeV0UnitsEnabled verifies that addUnits=true returns a non-nil
+// Units slice with exactly 2 elements.
+func TestGenSumCodeV0UnitsEnabled(t *testing.T) {
+	content := []byte("Units enabled test content for ISCC SUM generation!")
+
+	f, err := os.CreateTemp("", "iscc-sum-units-on-*.bin")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(f.Name())
+
+	if _, err := f.Write(content); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
+
+	result, err := GenSumCodeV0(f.Name(), 64, false, true)
+	if err != nil {
+		t.Fatalf("GenSumCodeV0: %v", err)
+	}
+
+	if result.Units == nil {
+		t.Fatal("Units should be non-nil when addUnits is true")
+	}
+
+	if len(result.Units) != 2 {
+		t.Errorf("Units should have 2 elements, got %d", len(result.Units))
+	}
+}
+
+// TestGenSumCodeV0UnitsDisabled verifies that addUnits=false returns a nil
+// Units slice.
+func TestGenSumCodeV0UnitsDisabled(t *testing.T) {
+	content := []byte("Units disabled test content for ISCC SUM generation!")
+
+	f, err := os.CreateTemp("", "iscc-sum-units-off-*.bin")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(f.Name())
+
+	if _, err := f.Write(content); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
+
+	result, err := GenSumCodeV0(f.Name(), 64, false, false)
+	if err != nil {
+		t.Fatalf("GenSumCodeV0: %v", err)
+	}
+
+	if result.Units != nil {
+		t.Errorf("Units should be nil when addUnits is false, got %v", result.Units)
+	}
+}
+
+// TestGenSumCodeV0UnitsContent verifies that units contain valid ISCC strings
+// matching separate GenDataCodeV0 and GenInstanceCodeV0 calls.
+func TestGenSumCodeV0UnitsContent(t *testing.T) {
+	content := []byte("Units content verification test data for ISCC SUM!")
+
+	f, err := os.CreateTemp("", "iscc-sum-units-content-*.bin")
+	if err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	defer os.Remove(f.Name())
+
+	if _, err := f.Write(content); err != nil {
+		t.Fatalf("write temp file: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close temp file: %v", err)
+	}
+
+	result, err := GenSumCodeV0(f.Name(), 64, false, true)
+	if err != nil {
+		t.Fatalf("GenSumCodeV0: %v", err)
+	}
+
+	if result.Units == nil || len(result.Units) != 2 {
+		t.Fatal("Units should have exactly 2 elements")
+	}
+
+	// Each unit should start with "ISCC:"
+	for i, unit := range result.Units {
+		if !strings.HasPrefix(unit, "ISCC:") {
+			t.Errorf("unit[%d] should start with 'ISCC:', got %q", i, unit)
+		}
+	}
+
+	// Units should match separately computed Data-Code and Instance-Code
+	dataResult, err := GenDataCodeV0(content, 64)
+	if err != nil {
+		t.Fatalf("GenDataCodeV0: %v", err)
+	}
+	instanceResult, err := GenInstanceCodeV0(content, 64)
+	if err != nil {
+		t.Fatalf("GenInstanceCodeV0: %v", err)
+	}
+
+	if result.Units[0] != dataResult.Iscc {
+		t.Errorf("unit[0] mismatch: got %q, want %q", result.Units[0], dataResult.Iscc)
+	}
+	if result.Units[1] != instanceResult.Iscc {
+		t.Errorf("unit[1] mismatch: got %q, want %q", result.Units[1], instanceResult.Iscc)
 	}
 }

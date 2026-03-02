@@ -1,35 +1,29 @@
-## 2026-03-02 — Review of: Expose `add_units`/`units` in Java/JNI binding (issue #21)
+## 2026-03-02 — Expose add_units/units in Go binding (issue #21)
 
-**Verdict:** PASS
+**Done:** Added `addUnits bool` parameter to `GenSumCodeV0` and `Units []string` field to
+`SumCodeResult` in the pure Go binding. When `addUnits=true`, Units contains the individual
+Data-Code and Instance-Code ISCC strings; when `false`, Units is nil. Updated all 4 existing test
+call sites and added 3 new tests.
 
-**Summary:** Clean, focused implementation that adds `addUnits` parameter and `units` field to the
-Java/JNI binding's `genSumCodeV0` across all three layers (Java class, native declaration, Rust JNI
-bridge). The implementation correctly reuses the existing `build_string_array` helper and matches
-the `isccDecompose` pattern for `unsafe { JObject::from_raw(arr) }`. All 65 Maven tests pass (62
-existing + 3 new), clippy clean, all 14 pre-commit hooks pass.
+**Files changed:**
+
+- `packages/go/code_sum.go`: Added `Units []string` field to `SumCodeResult`, added `addUnits bool`
+    parameter to `GenSumCodeV0`, conditional population logic after finalization
+- `packages/go/code_sum_test.go`: Updated 4 existing tests to pass `false` as 4th arg, added
+    `TestGenSumCodeV0UnitsEnabled`, `TestGenSumCodeV0UnitsDisabled`, `TestGenSumCodeV0UnitsContent`
 
 **Verification:**
 
-- [x] `cargo build -p iscc-jni` succeeds
-- [x] `cargo clippy -p iscc-jni -- -D warnings` clean — no warnings
-- [x] `cargo test -p iscc-jni` passes — 0 Rust-side tests (no JVM in test env)
-- [x] `cd crates/iscc-jni/java && mvn test` passes — 65 tests, 0 failures, 0 errors
-- [x] `mise run check` passes — 14/14 pre-commit hooks
+- `cd packages/go && go test ./...` — all tests pass (7 sum code tests: 4 updated + 3 new)
+- `cd packages/go && go vet ./...` — clean, no warnings
+- `grep -c 'func Test' packages/go/code_sum_test.go` — 7 ✅
+- `grep 'Units' packages/go/code_sum.go` — shows field declaration and population logic ✅
+- `mise run check` — 14/14 pre-commit hooks pass
 
-**Issues found:**
+**Next:** Issue #21 is now complete across all 7 bindings (Rust core → Python → Node.js → WASM → C
+FFI → JNI → Go). Next steps: update documentation (`rust-api.md`, `architecture.md`) to reflect the
+`add_units`/`units` additions across all bindings, then close issue #21.
 
-- (none)
-
-**Codex review:** Ran against the define-next commit (HEAD~1) instead of the advance commit (HEAD)
-due to protocol template mismatch. Confirmed the 4 test method names exist in the test file. No
-actionable findings about the actual implementation.
-
-**Next:** Continue issue #21 binding propagation. Last remaining binding: Go (`packages/go`). Add
-`addUnits bool` parameter to `GenSumCodeV0` and `Units []string` field to `SumCodeResult`. This is a
-pure Go reimplementation — the function needs to collect the Data-Code and Instance-Code ISCC
-strings during execution and return them in the result struct. After Go is done, issue #21 is
-complete — update docs (`rust-api.md`, `architecture.md`) and close the issue.
-
-**Notes:** Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM ✅ → C FFI ✅ → JNI ✅ → Go
-(next). Only Go remains. The Go binding is a pure rewrite (not Rust FFI wrapper), so the advance
-agent will need to modify `code_sum.go` and `code_sum_test.go` directly.
+**Notes:** Straightforward implementation. The Go binding already computed `dataResult.Iscc` and
+`instanceResult.Iscc` internally, so the change only required threading the `addUnits` parameter and
+conditionally building the `[]string` slice. No surprises or technical debt.
