@@ -87,6 +87,7 @@ iterations.
 
 ## Project Status
 
-- Iteration 6: Rust core units done (iter 5). Now exposing `add_units` in Python binding first
+- Iteration 7: Python binding units done (iter 6). Now exposing `add_units` in Node.js binding
+- Issue #21 progress: Rust core ✅ → Python ✅ → Node.js (this step) → WASM → C FFI → JNI → Go
 - 2 open issues: #21 (units support, partially done), #16 (feature flags, normal/low)
 - v0.0.4 released to all registries
