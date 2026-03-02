@@ -190,8 +190,9 @@ fully-met target sections to `learnings-archive.md`.
     Tests use `node:test` + `node:assert` + temp files for I/O. Total: 135 tests (6 sum + 3 units)
 - WASM binding pattern: `WasmSumCodeResult` struct with `#[wasm_bindgen(getter_with_clone)]` +
     `gen_sum_code_v0` fn accepting `&[u8]` (no filesystem in WASM). Uses `f64` for filesize (avoids
-    `u64` → BigInt friction in JS). 6 tests in `tests/unit.rs`. Total: 75 tests (9 conformance + 66
-    unit; 1 unit test behind `conformance` feature gate)
+    `u64` → BigInt friction in JS). `add_units: Option<bool>` param + `units: Option<Vec<String>>`
+    field (maps to `string[] | undefined` in TS). Total: 79 tests (9 conformance + 70 unit; 1 unit
+    test behind `conformance` feature gate)
 - JNI binding pattern: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`,
     `long filesize`). JNI bridge returns `jobject` via `env.find_class` + `env.new_object` with
     signature `(Ljava/lang/String;Ljava/lang/String;J)V`. `jboolean` is `u8` — compare `wide != 0`.

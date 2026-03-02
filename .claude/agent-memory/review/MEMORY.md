@@ -95,15 +95,15 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 - META_TRIM_META propagated to all 6 bindings ✅ (issue #18 fully resolved iter 4)
 - gen_sum_code_v0 + SumCodeResult in Rust core ✅ (32/32 Tier 1 symbols)
-- `add_units: bool` + `units: Option<Vec<String>>` added to Rust core ✅ — Python and Node.js
-    bindings expose `add_units`; 4 remaining bindings (WASM, C FFI, JNI, Go) still pass `false`.
-    Docs (`rust-api.md`, `architecture.md`) still show old 3-param signature — update when all done
+- `add_units: bool` + `units: Option<Vec<String>>` added to Rust core ✅ — Python, Node.js, and WASM
+    bindings expose `add_units`; 3 remaining bindings (C FFI, JNI, Go) still pass `false`. Docs
+    (`rust-api.md`, `architecture.md`) still show old 3-param signature — update when all done
 - gen_sum_code_v0 Python binding `add_units` exposed ✅ (48 __all__ entries, 207 tests). `.pyi` stub
     updated with `add_units: bool = False` parameter
 - gen_sum_code_v0 Node.js binding `add_units` exposed ✅ (135 tests, NapiSumCodeResult with
     `units: Option<Vec<String>>` + gen_sum_code_v0 fn with `add_units: Option<bool>` param)
-- gen_sum_code_v0 WASM binding complete ✅ (75 tests: 9 conformance + 66 unit; WasmSumCodeResult +
-    gen_sum_code_v0 fn with f64 filesize)
+- gen_sum_code_v0 WASM binding `add_units` exposed ✅ (79 tests: 9 conformance + 70 unit;
+    WasmSumCodeResult with `units: Option<Vec<String>>` + `add_units: Option<bool>` param)
 - gen_sum_code_v0 C FFI binding complete ✅ (82 Rust tests, 57 C test assertions; IsccSumCodeResult
     struct + iscc_gen_sum_code_v0 fn + iscc_free_sum_code_result fn)
 - gen_sum_code_v0 Java JNI binding complete ✅ (62 Maven tests; SumCodeResult.java + genSumCodeV0
