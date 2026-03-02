@@ -98,7 +98,7 @@ single-pass file I/O, feeding both a Data-Code hasher and an Instance-Code hashe
 
 int main(void)
 {
-    iscc_IsccSumCodeResult result = iscc_gen_sum_code_v0("document.pdf", 64, false);
+    iscc_IsccSumCodeResult result = iscc_gen_sum_code_v0("document.pdf", 64, false, false);
     if (!result.ok) {
         fprintf(stderr, "Error: %s\n", iscc_last_error());
         return 1;
@@ -228,7 +228,7 @@ if (result == NULL) {
 Struct-returning functions (like `iscc_gen_sum_code_v0` and `iscc_decode`) use an `ok` field:
 
 ```c
-iscc_IsccSumCodeResult result = iscc_gen_sum_code_v0("file.bin", 64, false);
+iscc_IsccSumCodeResult result = iscc_gen_sum_code_v0("file.bin", 64, false, false);
 if (!result.ok) {
     fprintf(stderr, "Error: %s\n", iscc_last_error());
     /* No need to free — fields are NULL on error */

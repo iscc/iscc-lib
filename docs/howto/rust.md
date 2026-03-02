@@ -163,7 +163,7 @@ use iscc_lib::gen_sum_code_v0;
 use std::path::Path;
 
 std::fs::write("example.bin", b"Hello World".repeat(1000))?;
-let result = gen_sum_code_v0(Path::new("example.bin"), 64, false)?;
+let result = gen_sum_code_v0(Path::new("example.bin"), 64, false, false)?;
 println!("{}", result.iscc);       // "ISCC:KAA..."
 println!("{}", result.datahash);   // Multihash of the data
 println!("{}", result.filesize);   // Size in bytes

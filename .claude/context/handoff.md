@@ -1,40 +1,33 @@
-## 2026-03-02 — Review of: Expose add_units/units in Go binding (issue #21)
+## 2026-03-02 — Update docs for 4-parameter gen_sum_code_v0
 
-**Verdict:** PASS
+**Done:** Updated all 5 documentation files that referenced the old 3-parameter
+`gen_sum_code_v0(path, bits, wide)` signature to include `add_units` as the 4th parameter. Also
+added `units` field to the C FFI struct docs and updated the free function description.
 
-**Summary:** Clean, minimal implementation of `addUnits bool` parameter and `Units []string` field
-in the pure Go binding. All 4 existing tests updated, 3 new tests added. This completes issue #21
-across all 7 bindings (Rust core, Python, Node.js, WASM, C FFI, JNI, Go).
+**Files changed:**
+
+- `docs/architecture.md`: Added `add_units` to pseudocode signature on line 131
+- `docs/rust-api.md`: Updated signature, added `add_units` parameter row, mentioned `units` field in
+    description, updated code example
+- `docs/howto/rust.md`: Added `false` 4th argument to code example
+- `docs/c-ffi-api.md`: Updated C signature with `bool add_units`, added parameter row, added
+    `char **units` to struct, updated free function doc
+- `docs/howto/c-cpp.md`: Added `false` 4th argument to both C code examples (lines 101 and 231)
 
 **Verification:**
 
-- [x] `cd packages/go && go test ./...` passes — all 7 sum code tests pass (4 updated + 3 new), plus
-    full Go test suite (151+ tests total)
-- [x] `cd packages/go && go vet ./...` — clean, no warnings
-- [x] `grep -c 'func Test' packages/go/code_sum_test.go` — 7 ✅
-- [x] `grep 'Units' packages/go/code_sum.go` — field declaration, addUnits conditional, and result
-    assignment all present ✅
-- [x] `mise run check` — 14/14 pre-commit hooks pass ✅
-- [x] Scope discipline — only `packages/go/code_sum.go` and `packages/go/code_sum_test.go` modified
-    (no out-of-scope changes) ✅
-- [x] No quality gate circumvention — no lint suppressions, test skips, or threshold reductions ✅
+- `grep -n 'gen_sum_code_v0.*bits.*wide' docs/*.md docs/howto/*.md | grep -v add_units` — no matches
+    ✅
+- `grep -c 'add_units' docs/rust-api.md` — 3 ✅ (≥2 required)
+- `grep -c 'add_units' docs/c-ffi-api.md` — 2 ✅ (≥2 required)
+- `grep 'char \*\*' docs/c-ffi-api.md` — 2 matches ✅ (≥1 required)
+- `uv run zensical build` — exits 0, docs site builds cleanly ✅
+- `mise run check` — 14/14 pre-commit hooks pass ✅
 
-**Issues found:**
+**Next:** Documentation section should now be fully met. Remaining open issue is #16 (feature flags
+for embedded/minimal builds). The CID loop should verify state and define the next target-aligned
+work package.
 
-- (none)
-
-**Issue #21 resolved:** All 7 bindings now expose `add_units`/`units` in `gen_sum_code_v0`. Deleted
-from issues.md.
-
-**Codex review:** Codex reviewed the define-next commit (not the advance commit) and found no
-concerns. The advance diff is trivially correct — 16 lines added to `code_sum.go`, 122 lines of
-tests added to `code_sum_test.go`.
-
-**Next:** Update documentation (`docs/rust-api.md`, `docs/architecture.md`) to reflect the
-4-parameter `gen_sum_code_v0` signature across all bindings. After docs, the remaining open issue is
-#16 (feature flags for embedded/minimal builds).
-
-**Notes:** The Go implementation pattern is identical to all other bindings — conditional
-`[]string{dataResult.Iscc, instanceResult.Iscc}` slice when `addUnits=true`, `nil` otherwise. The
-`TestGenSumCodeV0UnitsContent` test verifies equivalence against separate `GenDataCodeV0` /
-`GenInstanceCodeV0` calls.
+**Notes:** mdformat reformatted table alignment in rust-api.md and c-ffi-api.md (trailing whitespace
+in table cells). This is expected — the pre-commit hook normalizes markdown table formatting. No
+source code changes were needed for this step.

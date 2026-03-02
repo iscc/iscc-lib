@@ -328,15 +328,17 @@ Unlike the other `iscc_gen_*_v0` functions which return `char*`, this function r
 IsccSumCodeResult iscc_gen_sum_code_v0(
     const char *path,
     uint32_t bits,
-    bool wide
+    bool wide,
+    bool add_units
 );
 ```
 
-| Parameter | Type          | Description                                        |
-| --------- | ------------- | -------------------------------------------------- |
-| `path`    | `const char*` | Path to the file (null-terminated UTF-8 string)    |
-| `bits`    | `uint32_t`    | Bit length of the generated code (default: 64)     |
-| `wide`    | `bool`        | Enable 256-bit wide mode for ISCC-CODE combination |
+| Parameter   | Type          | Description                                                          |
+| ----------- | ------------- | -------------------------------------------------------------------- |
+| `path`      | `const char*` | Path to the file (null-terminated UTF-8 string)                      |
+| `bits`      | `uint32_t`    | Bit length of the generated code (default: 64)                       |
+| `wide`      | `bool`        | Enable 256-bit wide mode for ISCC-CODE combination                   |
+| `add_units` | `bool`        | Include individual Data-Code and Instance-Code strings in the result |
 
 #### IsccSumCodeResult
 
@@ -346,6 +348,7 @@ typedef struct {
     char *iscc;        // Composite ISCC-CODE string (heap-allocated)
     char *datahash;    // Hex-encoded BLAKE3 multihash (heap-allocated)
     uint64_t filesize; // Byte length of the file
+    char **units;      // NULL-terminated array of Data-Code and Instance-Code ISCC strings, or NULL
 } IsccSumCodeResult;
 ```
 
@@ -358,8 +361,8 @@ Check `result.ok` to determine success. On error, `ok` is `false`, string pointe
 void iscc_free_sum_code_result(IsccSumCodeResult result);
 ```
 
-Releases the `iscc` and `datahash` strings in the result. No-op for `NULL` pointers. Each result
-must only be freed once.
+Releases the `iscc`, `datahash` strings, and `units` array in the result. No-op for `NULL` pointers.
+Each result must only be freed once.
 
 ---
 
