@@ -83,11 +83,16 @@ iterations.
     fields (pattern: only `set_item` when `Some`)
 - Python tests in `tests/test_smoke.py` use `tmp_path` fixture, follow existing
     `test_gen_sum_code_v0_*` pattern
-- After Python, remaining bindings: Node.js, WASM (inline impl), C FFI, JNI, Go (pure Go)
+- C FFI: `IsccSumCodeResult` uses `*mut *mut c_char` (NULL-terminated string array) for `units` —
+    same representation as `iscc_decompose`/`iscc_sliding_window` return. Reuse
+    `vec_to_c_string_array` helper and `iscc_free_string_array` for cleanup
+- C FFI: `test_iscc.c` compiles with gcc in CI, must update 3 existing call sites (tests 24-26) when
+    signature changes. cbindgen regenerates header; CI checks freshness
+- C example `iscc_sum.c` uses streaming hashers, NOT `iscc_gen_sum_code_v0` — no update needed
 
 ## Project Status
 
-- Iteration 8: Node.js binding units done (iter 7). Now exposing `add_units` in WASM binding
-- Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM (this step) → C FFI → JNI → Go
+- Iteration 9: WASM done (iter 8). Now exposing `add_units` in C FFI binding
+- Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM ✅ → C FFI (this step) → JNI → Go
 - 2 open issues: #21 (units support, partially done), #16 (feature flags, normal/low)
 - v0.0.4 released to all registries
