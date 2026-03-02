@@ -73,11 +73,13 @@ iterations.
         Uses `i64` for `filesize` (napi-rs no u64 support). 9 tests in `__tests__/functions.test.mjs`
         (6 existing + 3 units tests). `Option<Vec<String>>` maps to `string[] | undefined` in TS
         automatically. 135 total NAPI tests
-- WASM binding: `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) +
-    `gen_sum_code_v0` fn in `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (no filesystem in WASM).
-    Uses `f64` for `filesize` (wasm-bindgen `u64` maps to `BigInt`, awkward for JS). Composes
-    internally via `DataHasher` + `InstanceHasher` + `gen_iscc_code_v0`. 6 tests in `tests/unit.rs`,
-    75 total WASM tests (9 conformance + 66 unit; 1 behind `conformance` feature gate)
+- WASM binding: `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) with
+    `units: Option<Vec<String>>` + `gen_sum_code_v0` fn with `add_units: Option<bool>` param in
+    `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (no filesystem in WASM). Uses `f64` for
+    `filesize` (wasm-bindgen `u64` maps to `BigInt`, awkward for JS). Composes internally via
+    `DataHasher` + `InstanceHasher` + `gen_iscc_code_v0` (borrow-before-move pattern for units). 9
+    tests in `tests/unit.rs` (6 existing + 3 units). 78 total WASM tests (9 conformance + 69 unit; 1
+    behind `conformance` feature gate). `Option<Vec<String>>` maps to `string[] | undefined` in TS
 - C FFI binding: `IsccSumCodeResult` repr(C) struct with `ok: bool`, `iscc: *mut c_char`,
     `datahash: *mut c_char`, `filesize: u64`. `iscc_gen_sum_code_v0(path, bits, wide)` extern "C"
     function + `iscc_free_sum_code_result` free function in `crates/iscc-ffi/src/lib.rs`. Follows

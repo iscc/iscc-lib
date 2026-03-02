@@ -169,6 +169,8 @@ pub struct WasmSumCodeResult {
     pub datahash: String,
     /// Byte length of the input data (as `f64` for JS `number` compatibility).
     pub filesize: f64,
+    /// Data-Code and Instance-Code ISCC strings (when `add_units` is true).
+    pub units: Option<Vec<String>>,
 }
 
 /// Generate a composite ISCC-CODE from raw byte data in a single pass.
@@ -176,14 +178,19 @@ pub struct WasmSumCodeResult {
 /// Feeds both `DataHasher` (CDC/MinHash) and `InstanceHasher` (BLAKE3) from
 /// the same byte slice, then composes the final ISCC-CODE via
 /// `gen_iscc_code_v0`. WASM-compatible alternative to the file-based core API.
+///
+/// When `add_units` is `true`, the result includes the individual Data-Code
+/// and Instance-Code ISCC strings.
 #[wasm_bindgen]
 pub fn gen_sum_code_v0(
     data: &[u8],
     bits: Option<u32>,
     wide: Option<bool>,
+    add_units: Option<bool>,
 ) -> Result<WasmSumCodeResult, JsError> {
     let bits = bits.unwrap_or(64);
     let wide = wide.unwrap_or(false);
+    let add_units = add_units.unwrap_or(false);
 
     let mut data_hasher = iscc_lib::DataHasher::new();
     let mut instance_hasher = iscc_lib::InstanceHasher::new();
@@ -198,13 +205,21 @@ pub fn gen_sum_code_v0(
         .finalize(bits)
         .map_err(|e| JsError::new(&e.to_string()))?;
 
+    // Borrow strings for gen_iscc_code_v0 before potentially moving them into units.
     let iscc_result = iscc_lib::gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)
         .map_err(|e| JsError::new(&e.to_string()))?;
+
+    let units = if add_units {
+        Some(vec![data_result.iscc, instance_result.iscc])
+    } else {
+        None
+    };
 
     Ok(WasmSumCodeResult {
         iscc: iscc_result.iscc,
         datahash: instance_result.datahash,
         filesize: instance_result.filesize as f64,
+        units,
     })
 }
 
