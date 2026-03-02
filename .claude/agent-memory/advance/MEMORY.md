@@ -189,6 +189,16 @@ iterations.
 - CI freshness check: regenerates to include/, `git diff --exit-code` fails if stale
 - C test uses `-I crates/iscc-ffi/include` (not tests/) for the committed header
 
+## C FFI Release Artifacts
+
+- `release.yml` has `build-ffi` (5-platform matrix) + `publish-ffi` (uploads to GitHub Releases)
+- Trigger: `startsWith(github.ref, 'refs/tags/v') || inputs.ffi` (same pattern as other jobs)
+- Tarball naming: `iscc-ffi-v{version}-{target}.tar.gz` (Unix), `.zip` (Windows)
+- Windows includes 3 files: `iscc_ffi.dll`, `iscc_ffi.dll.lib` (import lib), `iscc_ffi.lib` (static)
+- Unix includes 2 files: shared lib + static lib. Both also include `iscc.h` + `LICENSE`
+- `publish-ffi` needs `contents: write` (top-level is `contents: read`)
+- Uses `softprops/action-gh-release@v2` with tag_name ternary for tag push vs manual dispatch
+
 ## Gotchas
 
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
