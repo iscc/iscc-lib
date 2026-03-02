@@ -104,8 +104,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `units: Option<Vec<String>>` + gen_sum_code_v0 fn with `add_units: Option<bool>` param)
 - gen_sum_code_v0 WASM binding `add_units` exposed ✅ (79 tests: 9 conformance + 70 unit;
     WasmSumCodeResult with `units: Option<Vec<String>>` + `add_units: Option<bool>` param)
-- gen_sum_code_v0 C FFI binding complete ✅ (82 Rust tests, 57 C test assertions; IsccSumCodeResult
-    struct + iscc_gen_sum_code_v0 fn + iscc_free_sum_code_result fn)
+- gen_sum_code_v0 C FFI binding `add_units` exposed ✅ (85 Rust tests, 65 C test assertions;
+    `IsccSumCodeResult` with `units: *mut *mut c_char` +
+    `iscc_gen_sum_code_v0(path, bits, wide,   add_units)` + `iscc_free_sum_code_result` with
+    `iscc_free_string_array` cleanup)
 - gen_sum_code_v0 Java JNI binding complete ✅ (62 Maven tests; SumCodeResult.java + genSumCodeV0
     native method + JNI bridge returning jobject)
 - gen_sum_code_v0 Go binding complete ✅ (151 tests; SumCodeResult struct + GenSumCodeV0 fn with

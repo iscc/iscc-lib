@@ -662,3 +662,8 @@
 {"ts":"2026-03-02T21:05:24.987300+00:00","iteration":8,"role":"define-next","status":"OK","turns":17,"cost_usd":0.728277,"duration_s":150.1}
 {"ts":"2026-03-02T21:11:31.625412+00:00","iteration":8,"role":"advance","status":"OK","turns":33,"cost_usd":1.382942,"duration_s":366.6}
 {"ts":"2026-03-02T21:15:41.013132+00:00","iteration":8,"role":"review","status":"PASS","turns":1,"cost_usd":0.0,"duration_s":0}
+{"ts":"2026-03-02T21:16:42.227210+00:00","iteration":8,"role":"review","status":"OK","turns":37,"cost_usd":1.553232,"duration_s":310.6}
+{"ts":"2026-03-02T21:39:49.941586+00:00","iteration":9,"role":"update-state","status":"OK","turns":17,"cost_usd":0.705561,"duration_s":190.0}
+{"ts":"2026-03-02T21:43:28.343179+00:00","iteration":9,"role":"define-next","status":"OK","turns":28,"cost_usd":1.237815,"duration_s":218.4}
+{"ts":"2026-03-02T21:50:10.099764+00:00","iteration":9,"role":"advance","status":"OK","turns":50,"cost_usd":2.170864,"duration_s":401.8}
+{"ts":"2026-03-02T21:53:57.203351+00:00","iteration":9,"role":"review","status":"PASS","verdict":"PASS","summary":"C FFI add_units/units clean implementation — 85 Rust tests, 65 C tests, all quality gates pass"}
