@@ -35,44 +35,40 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## gen_sum_code_v0 Binding Propagation (Issue #15)
+## gen_sum_code_v0 — Status: all 7 bindings DONE, docs sweep pending
 
-Rust core complete (32/32 Tier 1 symbols, 310 tests). Python binding complete (32/32 Tier 1 symbols,
-204 tests).
+Issue #15 fully resolved. All 7 bindings complete. Current step: documentation sweep to add
+gen_sum_code_v0 references to all READMEs, docs pages, and code comments.
 
-**Execution plan:**
+**Files needing "9 → 10" comment updates** (found by grep):
 
-1. ✅ Rust core — gen_sum_code_v0 + SumCodeResult (complete)
-2. ✅ Python binding — accept str | os.PathLike (complete)
-3. ✅ Node.js binding — NapiSumCodeResult + napi fn + 6 mocha tests (complete, 132 total tests)
-4. ✅ WASM binding — WasmSumCodeResult + &[u8] input + 6 tests (complete, 75 total tests)
-5. ✅ C FFI binding — IsccSumCodeResult struct + iscc_gen_sum_code_v0 extern "C" (complete, 82 Rust
-    tests + 57 C assertions)
-6. ✅ Java binding — JNI bridge + SumCodeResult class (complete, 62 mvn tests)
-7. → Go binding — pure Go reimplementation (current step)
+- `crates/iscc-ffi/src/lib.rs` line 3 (module docstring)
+- `crates/iscc-lib/src/conformance.rs` line 17
+- `crates/iscc-lib/benches/benchmarks.rs` line 1
+- `crates/iscc-wasm/tests/unit.rs` line 4
+- `crates/iscc-wasm/tests/conformance.rs` line 1
 
-**Go binding specifics:**
+**READMEs needing gen_sum_code_v0 table row** (9 files):
 
-- `GenSumCodeV0(path string, bits uint32, wide bool) (*SumCodeResult, error)` — first Go gen
-    function that takes a file path (string) instead of `[]byte`
-- Uses `os.Open` + `f.Read(buf)` loop with `IoReadSize` (4 MB) buffer feeding both `DataHasher` and
-    `InstanceHasher`, then composes via `GenIsccCodeV0`
-- `SumCodeResult{Iscc string, Datahash string, Filesize uint64}` — mirrors `InstanceCodeResult`
-- Go `io.EOF` handling: `f.Read` may return `(n > 0, io.EOF)` on last chunk — must process bytes
-    before breaking
-- No `data.json` vectors for gen_sum_code_v0 — tests use temp files and equivalence checks
-- 147 existing Go tests; expect 151 after adding 4 new tests
+- `README.md` (Implementors Guide list, line ~203-213)
+- 7 per-crate READMEs (each has Code Generators table with 9 rows)
+- `crates/iscc-wasm/pkg/README.md` (exact copy of wasm README, must stay synced)
 
-## Binding Propagation Patterns
+**Docs pages referencing gen functions** (12 files found by grep):
 
-- **Python** (3 files): `src/lib.rs` (PyO3 wrapper), `__init__.py` (import + class + wrapper +
-    __all__), `_lowlevel.pyi` (type stub). Most complex — needs result class + os.fspath. Separate.
-- **Node.js** (2 files): `src/lib.rs` (napi struct + fn), `__tests__/functions.test.mjs` (tests).
-    Moderate — structured result object is new pattern vs. plain string returns.
-- **WASM** (1 file): different I/O model (Uint8Array, no filesystem). Separate step.
-- **C FFI** (1-2 files): extern "C" + opaque result struct. Separate step.
-- **Java** (2 files): JNI bridge + SumCodeResult record. Separate step.
-- **Go** (1-2 files): pure Go reimplementation. Separate step.
+- `docs/c-ffi-api.md` — needs new section for `iscc_gen_sum_code_v0` (returns struct, not string)
+- `docs/benchmarks.md` — "the 9" text (don't add benchmark data, none exists yet)
+- 10 other docs files — check each for function lists vs. example-only mentions
+
+## Documentation Sweep Patterns
+
+- `crates/iscc-wasm/pkg/README.md` must always be identical to `crates/iscc-wasm/README.md` — both
+    are published to npm
+- `docs/c-ffi-api.md` documents C FFI with full function signatures. `gen_sum_code_v0` returns a
+    struct (`IsccSumCodeResult`) unlike all other gen functions which return strings — document the
+    struct and its free function
+- When updating "9 gen functions" to "10", search broadly — comments in test files, benchmark files,
+    and docstrings all reference the count
 
 ## Documentation Status
 
