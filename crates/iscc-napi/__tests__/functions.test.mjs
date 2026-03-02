@@ -670,4 +670,27 @@ describe('gen_sum_code_v0', () => {
         const result = gen_sum_code_v0(filePath);
         strictEqual(result.filesize, data.length);
     });
+
+    it('addUnits=true returns units as array of 2 ISCC strings', () => {
+        const data = Buffer.from('Hello World for units test');
+        const filePath = writeTempFile('units.bin', data);
+        const result = gen_sum_code_v0(filePath, 64, false, true);
+        ok(Array.isArray(result.units), 'units should be an array');
+        strictEqual(result.units.length, 2, 'units should contain 2 elements');
+    });
+
+    it('default call returns units as undefined', () => {
+        const data = Buffer.from('No units requested');
+        const filePath = writeTempFile('no-units.bin', data);
+        const result = gen_sum_code_v0(filePath);
+        strictEqual(result.units, undefined, 'units should be undefined by default');
+    });
+
+    it('units contain valid ISCC strings (Data-Code and Instance-Code)', () => {
+        const data = Buffer.from('Verify unit ISCC prefixes');
+        const filePath = writeTempFile('units-prefix.bin', data);
+        const result = gen_sum_code_v0(filePath, 64, false, true);
+        ok(result.units[0].startsWith('ISCC:'), 'units[0] (Data-Code) should start with ISCC:');
+        ok(result.units[1].startsWith('ISCC:'), 'units[1] (Instance-Code) should start with ISCC:');
+    });
 });

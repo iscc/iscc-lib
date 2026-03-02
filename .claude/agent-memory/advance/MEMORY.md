@@ -68,9 +68,11 @@ iterations.
     accepts `str | os.PathLike` via `os.fspath()` + `add_units: bool = False`. 9 tests in
     `tests/test_smoke.py` (6 existing + 3 units tests). `add_units=True` sets `"units"` dict key,
     `False` omits it (matching iscc-core optional field pattern)
-- Node.js binding: `NapiSumCodeResult` struct (`#[napi(object)]`) + `gen_sum_code_v0` napi fn in
-    `crates/iscc-napi/src/lib.rs`. Uses `i64` for `filesize` (napi-rs no u64 support). 6 tests in
-    `__tests__/functions.test.mjs`
+- Node.js binding: `NapiSumCodeResult` struct (`#[napi(object)]`) with `units: Option<Vec<String>>`
+    - `gen_sum_code_v0` napi fn with `add_units: Option<bool>` param in `crates/iscc-napi/src/lib.rs`.
+        Uses `i64` for `filesize` (napi-rs no u64 support). 9 tests in `__tests__/functions.test.mjs`
+        (6 existing + 3 units tests). `Option<Vec<String>>` maps to `string[] | undefined` in TS
+        automatically. 135 total NAPI tests
 - WASM binding: `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) +
     `gen_sum_code_v0` fn in `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (no filesystem in WASM).
     Uses `f64` for `filesize` (wasm-bindgen `u64` maps to `BigInt`, awkward for JS). Composes
