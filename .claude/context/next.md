@@ -1,91 +1,111 @@
 # Next Work Package
 
-## Step: Create C/C++ how-to guide (issue #22)
+## Step: Add pre-built FFI release artifacts to release.yml (issue #25)
 
 ## Goal
 
-Create `docs/howto/c-cpp.md` — the dedicated how-to guide for C/C++ integration — and add it to site
-navigation. This is the last documentation criterion blocking the C FFI DX target section.
+Add `build-ffi` and `publish-ffi` jobs to `.github/workflows/release.yml` so that C/C++ consumers
+can download pre-built platform tarballs from GitHub Releases without needing a Rust toolchain. This
+completes the last unmet C FFI DX target criterion (spec §4).
 
 ## Scope
 
-- **Create**: `docs/howto/c-cpp.md`
-- **Modify**: `zensical.toml` (add `{ "C / C++" = "howto/c-cpp.md" }` to the How-to Guides nav
-    section, after Java)
+- **Create**: none
+- **Modify**: `.github/workflows/release.yml`
 - **Reference**:
-    - `.claude/context/specs/c-ffi-dx.md` §1 — required sections and tone
-    - `docs/howto/rust.md` — structural model for howto guides (front matter, heading style, section
-        flow)
-    - `docs/c-ffi-api.md` — full API reference to link to (not duplicate)
-    - `crates/iscc-ffi/examples/iscc_sum.c` — the committed example program to reference/embed
-    - `crates/iscc-ffi/include/iscc.h` — the committed header for type signatures
+    - `.claude/context/specs/c-ffi-dx.md` §4 (exact requirements)
+    - `crates/iscc-ffi/Cargo.toml` (crate-type: cdylib + staticlib)
+    - Existing `build-jni` job in `release.yml` (template for 5-platform matrix)
+    - Existing `build-napi` job in `release.yml` (cross-compilation pattern)
 
 ## Not In Scope
 
-- Pre-built FFI release tarballs (#25) — the "installation" section should cover building from
-    source and mention that pre-built binaries are planned for future releases. Do NOT create CI
-    jobs or release workflow changes.
-- Modifying any C source code, header files, or Rust code
-- Creating a separate C++ example program — the RAII wrapper section is illustrative code within the
-    doc, not a compiled artifact
-- Updating `docs/c-ffi-api.md` — that page is the API reference; the howto guide links to it
+- Testing the workflow end-to-end (requires tag push or manual dispatch on GitHub — verified by
+    maintainer)
+- Modifying `ci.yml` or any other workflow file
+- Adding FFI tarball download instructions to `docs/howto/c-cpp.md` — that's a future doc update
+- Changing `crates/iscc-ffi/` source code or build configuration
+- Version bump or release — this step only adds the CI jobs
 
 ## Implementation Notes
 
-**Front matter**: Use `icon: lucide/code` and a description matching the other howto guides' style
-(`Guide to using iscc-lib from C/C++ — ...`).
+### workflow_dispatch input
 
-**Required sections** (from spec §1):
+Add an `ffi` boolean input alongside the existing `crates-io`, `pypi`, `npm`, `maven` inputs:
 
-1. **Overview** — what `iscc-ffi` provides (shared + static lib, generated C header), target
-    audience (systems-level teams, embedded, C++ services)
-2. **Building from source** — `cargo build -p iscc-ffi --release`, cbindgen header generation,
-    output paths per platform (`libiscc_ffi.so` / `.dylib` / `iscc_ffi.dll`)
-3. **Build system integration** — CMake `find_library()` snippet with `CMAKE_PREFIX_PATH`. Use
-    `find_library()` pattern (NOT bare `CMAKE_LIBRARY_PATH` — flagged in review of #23). Include a
-    brief pkg-config note.
-4. **ISCC-SUM quick start** — focused example showing `iscc_gen_sum_code_v0()` for one-shot file
-    hashing (can reference the committed example in `crates/iscc-ffi/examples/iscc_sum.c`)
-5. **Streaming** — `DataHasher` + `InstanceHasher` walkthrough: create, feed chunks in a loop,
-    finalize, free. Show dual-hasher pattern from same read loop
-6. **Composing ISCC-SUM manually** — using `iscc_gen_iscc_code_v0()` to combine individually
-    streamed Data-Code + Instance-Code
-7. **Error handling** — `iscc_last_error()` pattern, NULL checks, thread safety note (thread-local
-    storage)
-8. **Memory management** — ownership rules table (which `_free` function for which return type),
-    common pitfalls (double-free, use-after-free)
-9. **Static vs dynamic linking** — when to use each, platform differences
-10. **Cross-compilation** — building for ARM/embedded targets with `--target`
-11. **C++ RAII wrapper** — minimal `IsccDataHasher` class (constructor→`_new`, destructor→`_free`,
-    move-only, deleted copy)
-12. **Conformance verification** — `iscc_conformance_selftest()` to validate a build
+```yaml
+ffi:
+  description: Build and publish FFI tarballs to GitHub Releases
+  type: boolean
+  default: false
+```
 
-**Style guidelines**:
+### build-ffi job
 
-- Use fenced code blocks with `c` or `cpp` language tags
-- Link to `c-ffi-api.md` for full API reference rather than duplicating function tables
-- Tone: practical, task-oriented. Assume the reader is an experienced C/C++ developer who has never
-    seen ISCC before
-- Keep code examples self-contained and compilable (include necessary `#include` directives)
-- Use admonition blocks (`!!! warning`, `!!! tip`) for important notes about memory management and
-    thread safety
+Model directly on the existing `build-jni` job. Same 5-platform matrix:
 
-**Navigation**: Add after the Java entry in zensical.toml nav, using format
-`{ "C / C++" = "howto/c-cpp.md" }`.
+| os             | target                    | lib-shared        | lib-static    |
+| -------------- | ------------------------- | ----------------- | ------------- |
+| ubuntu-latest  | x86_64-unknown-linux-gnu  | libiscc_ffi.so    | libiscc_ffi.a |
+| ubuntu-latest  | aarch64-unknown-linux-gnu | libiscc_ffi.so    | libiscc_ffi.a |
+| macos-14       | aarch64-apple-darwin      | libiscc_ffi.dylib | libiscc_ffi.a |
+| macos-14       | x86_64-apple-darwin       | libiscc_ffi.dylib | libiscc_ffi.a |
+| windows-latest | x86_64-pc-windows-msvc    | iscc_ffi.dll      | iscc_ffi.lib  |
+
+Steps per matrix entry:
+
+1. Checkout + Rust toolchain + rust-cache (same as build-jni)
+2. Install cross-compiler for aarch64-unknown-linux-gnu (same pattern)
+3. `cargo build -p iscc-ffi --release --target ${{ matrix.target }}`
+4. Get version from root `Cargo.toml` (same `grep` pattern as other jobs)
+5. Stage artifacts into a staging directory: shared lib + static lib +
+    `crates/iscc-ffi/include/iscc.h` + `LICENSE`
+6. Create tarball: `tar czf iscc-ffi-v{version}-{target}.tar.gz` on Unix,
+    `Compress-Archive ... iscc-ffi-v{version}-{target}.zip` on Windows
+7. Upload artifact with name `ffi-${{ matrix.target }}`
+
+**Windows library files**: Cargo produces `iscc_ffi.dll` (DLL), `iscc_ffi.dll.lib` (import lib for
+DLL), and `iscc_ffi.lib` (static lib). Include all three in the Windows archive.
+
+**Tarball contents**: Files placed in a directory named `iscc-ffi-v{version}-{target}/` so
+extraction creates a named subdirectory (standard tarball practice).
+
+### publish-ffi job
+
+Depends on `build-ffi`. Triggers on same condition:
+`startsWith(github.ref, 'refs/tags/v') || inputs.ffi`
+
+Steps:
+
+1. Checkout (for version extraction)
+2. Download all `ffi-*` artifacts
+3. Get version from root `Cargo.toml`
+4. Use `softprops/action-gh-release@v2` to upload tarballs/zips as release assets
+
+**Permissions**: needs `contents: write` at job level (top-level is `contents: read`). The action
+creates the release if it doesn't exist (for tag pushes) or uploads to existing release.
+
+**Tag resolution**: For tag pushes, `github.ref` is the tag. For workflow_dispatch, use
+`v${{ steps.version.outputs.version }}` as the tag name for the release.
+
+### Conditional logic
+
+The `if` condition follows the same pattern as all other jobs:
+`startsWith(github.ref, 'refs/tags/v') || inputs.ffi`
 
 ## Verification
 
-- `test -f docs/howto/c-cpp.md` exits 0
-- `grep -q 'c-cpp.md' zensical.toml` exits 0
-- `grep -q 'iscc_gen_sum_code_v0' docs/howto/c-cpp.md` exits 0 (ISCC-SUM quick start present)
-- `grep -q 'iscc_data_hasher' docs/howto/c-cpp.md` exits 0 (streaming section present)
-- `grep -q 'iscc_last_error' docs/howto/c-cpp.md` exits 0 (error handling present)
-- `grep -q 'iscc_free_string' docs/howto/c-cpp.md` exits 0 (memory management present)
-- `grep -q 'RAII' docs/howto/c-cpp.md` exits 0 (C++ RAII wrapper present)
-- `grep -q 'cmake' docs/howto/c-cpp.md` exits 0 (CMake integration present)
-- `uv run zensical build` exits 0 (site builds successfully)
+- `grep -q 'build-ffi' .github/workflows/release.yml` exits 0 (build job exists)
+- `grep -q 'publish-ffi' .github/workflows/release.yml` exits 0 (publish job exists)
+- `grep -q 'ffi:' .github/workflows/release.yml` exits 0 (workflow_dispatch input exists)
+- `grep -c 'x86_64-unknown-linux-gnu' .github/workflows/release.yml` returns ≥4 (FFI + JNI + napi
+    matrices all have this target)
+- `grep -q 'iscc-ffi' .github/workflows/release.yml` exits 0 (builds iscc-ffi crate)
+- `grep -q 'iscc.h' .github/workflows/release.yml` exits 0 (header included in tarball)
+- YAML is valid: `python -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"`
+    exits 0
 
 ## Done When
 
-All verification commands exit 0 — the C/C++ howto guide exists with all required sections and the
-documentation site builds successfully.
+The advance agent is done when all verification criteria pass and `release.yml` contains
+well-structured `build-ffi` and `publish-ffi` jobs matching the spec §4 requirements.

@@ -59,19 +59,18 @@ iterations.
 
 ## C FFI DX Phase
 
-- 4 new C FFI DX criteria added in commit 9721877 (issues #22-#25)
-- Priority order: #24 (header) ✅ → #23 (examples) ✅ → #22 (howto) → #25 (release)
-- Issue #24 DONE: header committed at `crates/iscc-ffi/include/iscc.h`, CI freshness check active
-- Issue #23 DONE: `crates/iscc-ffi/examples/iscc_sum.c` + `CMakeLists.txt` committed
-- cmake is NOT available in devcontainer — use gcc for compilation verification (matches CI pattern)
-- CMake guide must use `find_library()` pattern (NOT bare `CMAKE_LIBRARY_PATH` — flagged in #23
-    review)
-- `docs/c-ffi-api.md` is the API reference page; howto guide should link to it, not duplicate
-- zensical.toml nav: howto guides listed at lines 17-24, add C/C++ after Java entry
-- Doc-only steps (single file create + nav config) are well within 3-file limit
+- 4 C FFI DX criteria: #24 (header) ✅ → #23 (examples) ✅ → #22 (howto) ✅ → #25 (release)
+- Only #25 (pre-built FFI tarballs) remains — completes last C FFI target criterion
+- FFI crate-type: `cdylib` + `staticlib` — produces shared + static libs per platform
+- Windows: 3 files (`iscc_ffi.dll`, `iscc_ffi.dll.lib` import lib, `iscc_ffi.lib` static)
+- Unix: 2 files (`libiscc_ffi.so`/`.dylib` shared, `libiscc_ffi.a` static)
+- `build-jni` job in release.yml is the template: same 5 platforms, same cross-compile pattern
+- `publish-ffi` needs `contents: write` permission (top-level is `contents: read`)
+- `softprops/action-gh-release@v2` handles release creation + asset upload
 
 ## Project Status
 
-- Iteration 21: C FFI DX continued. 2 criteria unmet (#22 howto, #25 release), 4 open issues
-- All original target sections met. Current work is C FFI DX remaining items
+- Iteration 4 (reset): C FFI DX almost complete. 1 criterion unmet (#25 release tarballs)
+- 3 open issues: #25 (FFI tarballs), #21 (units support), #16 (feature flags)
 - v0.0.4 released to all registries
+- After #25, remaining work is #21 (units) and #16 (feature flags) — both "normal" priority
