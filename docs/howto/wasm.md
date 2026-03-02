@@ -209,6 +209,25 @@ const iscc = gen_iscc_code_v0([dataCode, instanceCode]);
 console.log(iscc); // "ISCC:KAA..."
 ```
 
+### Sum-Code
+
+Generate a composite ISCC-CODE from raw bytes in a single pass. The WASM package operates on
+in-memory data (`Uint8Array`) instead of file paths since there is no filesystem access in the
+browser:
+
+```javascript
+import {
+    gen_sum_code_v0
+} from "@iscc/wasm";
+
+const encoder = new TextEncoder();
+const data = encoder.encode("Hello World".repeat(1000));
+const result = gen_sum_code_v0(data);
+console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.datahash); // Multihash of the data
+console.log(result.filesize); // Size in bytes
+```
+
 ## Binary data
 
 WASM uses `Uint8Array` for binary data (not Node.js `Buffer`). When working with files in the

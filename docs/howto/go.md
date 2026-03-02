@@ -196,6 +196,22 @@ if err != nil {
 fmt.Println(result.Iscc) // "ISCC:KAA..."
 ```
 
+### Sum-Code
+
+Generate a composite ISCC-CODE from a file in a single pass:
+
+```go
+os.WriteFile("example.bin", bytes.Repeat([]byte("Hello World"), 1000), 0644)
+
+result, err := iscc.GenSumCodeV0("example.bin", 64, false)
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Println(result.Iscc)      // "ISCC:KAA..."
+fmt.Println(result.Datahash)  // Multihash of the data
+fmt.Println(result.Filesize)  // Size in bytes
+```
+
 ## Streaming
 
 For large files, use `DataHasher` and `InstanceHasher` to process data in chunks without loading

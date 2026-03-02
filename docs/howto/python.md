@@ -175,6 +175,21 @@ result = gen_iscc_code_v0([data_result.iscc, instance_result.iscc])
 print(result.iscc)  # "ISCC:KAA..."
 ```
 
+### Sum-Code
+
+Generate a composite ISCC-CODE from a file in a single pass:
+
+```python
+from pathlib import Path
+from iscc_lib import gen_sum_code_v0
+
+Path("example.bin").write_bytes(b"Hello World" * 1000)
+result = gen_sum_code_v0("example.bin")
+print(result.iscc)  # "ISCC:KAA..."
+print(result.datahash)  # Multihash of the data
+print(result.filesize)  # Size in bytes
+```
+
 ## Structured results
 
 Every `gen_*_v0` function returns a typed result object that supports both dict-style and

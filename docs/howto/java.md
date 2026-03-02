@@ -191,6 +191,22 @@ System.out.println(code); // "ISCC:KAA..."
 
 Parameters: `String[] codes`, `boolean wide` (`true` for 256-bit output, `false` for 128-bit).
 
+### Sum-Code
+
+Generate a composite ISCC-CODE from a file in a single pass:
+
+```java
+java.nio.file.Files.write(
+    java.nio.file.Path.of("example.bin"),
+    "Hello World".repeat(1000).getBytes()
+);
+
+SumCodeResult result = IsccLib.genSumCodeV0("example.bin", 64, false);
+System.out.println(result.iscc());      // "ISCC:KAA..."
+System.out.println(result.datahash());  // Multihash of the data
+System.out.println(result.filesize());  // Size in bytes
+```
+
 ## Streaming
 
 For large files, use `DataHasher` and `InstanceHasher` to process data in chunks without loading

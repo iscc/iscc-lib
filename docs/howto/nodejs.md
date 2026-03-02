@@ -171,6 +171,25 @@ const iscc = gen_iscc_code_v0([dataCode, instanceCode]);
 console.log(iscc); // "ISCC:KAA..."
 ```
 
+### Sum-Code
+
+Generate a composite ISCC-CODE from a file in a single pass:
+
+```javascript
+import {
+    writeFileSync
+} from "node:fs";
+import {
+    gen_sum_code_v0
+} from "@iscc/lib";
+
+writeFileSync("example.bin", Buffer.from("Hello World".repeat(1000)));
+const result = gen_sum_code_v0("example.bin");
+console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.datahash); // Multihash of the data
+console.log(result.filesize); // Size in bytes
+```
+
 ## Streaming
 
 For large files, use `DataHasher` and `InstanceHasher` to process data in chunks without loading
