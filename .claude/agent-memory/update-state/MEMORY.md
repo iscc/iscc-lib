@@ -34,7 +34,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench
 - `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md; **c-cpp.md
-    missing** — required by updated documentation spec (issue #22)
+    missing** (issue #22); `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
@@ -59,17 +59,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 7cccb6d)
+## Current State (assessed-at: 05676ae)
 
-- **IN_PROGRESS**: C FFI DX — 3 of 6 criteria remain unmet; 5 open issues
+- **IN_PROGRESS**: C FFI DX — 2 of 6 criteria remain unmet; 4 open issues
 - **Issues open**: #16 (feature flags, low priority), #21 (units in gen_sum_code_v0), #22 (c-cpp.md
-    how-to), #23 (standalone C example), #25 (FFI release tarballs)
-- **Issue #24 RESOLVED**: `crates/iscc-ffi/include/iscc.h` committed; CI freshness check added to C
-    FFI job (regenerates header, asserts `git diff --exit-code`)
-- **C FFI examples**: `crates/iscc-ffi/examples/` does NOT exist (issue #23)
+    how-to), #25 (FFI release tarballs)
+- **Issue #23 RESOLVED**: `crates/iscc-ffi/examples/iscc_sum.c` (147 lines) + `CMakeLists.txt`
+    committed; compiles cleanly; dual-hasher streaming + full error handling; C89/C99 compatible
 - **docs/howto/c-cpp.md**: does NOT exist (only 6 howto guides; c-cpp missing — issue #22)
 - **release.yml**: NO build-ffi/publish-ffi jobs; NO ffi workflow_dispatch input (issue #25)
-- **CI latest**: Run 22586849856 — all 11 CI jobs SUCCESS ✅
+- **CI latest**: Run 22588241470 — all 11 CI jobs SUCCESS ✅
+- **C FFI examples CMake note**: `CMAKE_LIBRARY_PATH` in comment doesn't work with
+    `target_link_libraries` without `find_library()` — flagged during #23 review; clarify in #22
+    howto guide's CMake section
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
