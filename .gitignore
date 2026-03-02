@@ -228,5 +228,8 @@ cauldron/
 # Claude Code local settings
 .claude/settings.local.json
 
+# Generated C header (cbindgen output)
+crates/iscc-ffi/tests/iscc.h
+
 # Reference implementations (shallow-cloned for agent use)
 /reference/
