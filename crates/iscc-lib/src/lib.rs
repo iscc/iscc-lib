@@ -964,7 +964,15 @@ pub fn gen_iscc_code_v0(codes: &[&str], wide: bool) -> IsccResult<IsccCodeResult
 /// same read buffer. Composes the final ISCC-CODE from the Data-Code and
 /// Instance-Code internally. This avoids multiple passes over the file and
 /// eliminates per-chunk FFI overhead in language bindings.
-pub fn gen_sum_code_v0(path: &std::path::Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult> {
+///
+/// When `add_units` is `true`, the result includes the individual Data-Code
+/// and Instance-Code ISCC strings at the requested `bits` precision.
+pub fn gen_sum_code_v0(
+    path: &std::path::Path,
+    bits: u32,
+    wide: bool,
+    add_units: bool,
+) -> IsccResult<SumCodeResult> {
     use std::io::Read;
 
     let mut file = std::fs::File::open(path)
@@ -988,12 +996,20 @@ pub fn gen_sum_code_v0(path: &std::path::Path, bits: u32, wide: bool) -> IsccRes
     let data_result = data_hasher.finalize(bits)?;
     let instance_result = instance_hasher.finalize(bits)?;
 
+    // Borrow strings for gen_iscc_code_v0 before potentially moving them into units.
     let iscc_result = gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)?;
+
+    let units = if add_units {
+        Some(vec![data_result.iscc, instance_result.iscc])
+    } else {
+        None
+    };
 
     Ok(SumCodeResult {
         iscc: iscc_result.iscc,
         datahash: instance_result.datahash,
         filesize: instance_result.filesize,
+        units,
     })
 }
 
@@ -2121,7 +2137,7 @@ mod tests {
         let data = b"Hello, ISCC World! This is a test of gen_sum_code_v0.";
         let path = write_temp_file("sum_equiv", data);
 
-        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+        let sum_result = gen_sum_code_v0(&path, 64, false, false).unwrap();
 
         // Compute the same result via separate functions
         let data_result = gen_data_code_v0(data, 64).unwrap();
@@ -2133,6 +2149,7 @@ mod tests {
         assert_eq!(sum_result.datahash, instance_result.datahash);
         assert_eq!(sum_result.filesize, instance_result.filesize);
         assert_eq!(sum_result.filesize, data.len() as u64);
+        assert_eq!(sum_result.units, None);
 
         std::fs::remove_file(&path).ok();
     }
@@ -2141,7 +2158,7 @@ mod tests {
     fn test_gen_sum_code_v0_empty_file() {
         let path = write_temp_file("sum_empty", b"");
 
-        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+        let sum_result = gen_sum_code_v0(&path, 64, false, false).unwrap();
 
         let data_result = gen_data_code_v0(b"", 64).unwrap();
         let instance_result = gen_instance_code_v0(b"", 64).unwrap();
@@ -2158,7 +2175,7 @@ mod tests {
     #[test]
     fn test_gen_sum_code_v0_file_not_found() {
         let path = std::env::temp_dir().join("iscc_test_nonexistent_file_xyz");
-        let result = gen_sum_code_v0(&path, 64, false);
+        let result = gen_sum_code_v0(&path, 64, false, false);
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(
@@ -2172,15 +2189,15 @@ mod tests {
         let data = b"Testing wide mode for gen_sum_code_v0 function.";
         let path = write_temp_file("sum_wide", data);
 
-        let narrow = gen_sum_code_v0(&path, 64, false).unwrap();
-        let wide = gen_sum_code_v0(&path, 64, true).unwrap();
+        let narrow = gen_sum_code_v0(&path, 64, false, false).unwrap();
+        let wide = gen_sum_code_v0(&path, 64, true, false).unwrap();
 
         // Wide mode with 64-bit codes doesn't trigger (need 128+), so they should be equal
         assert_eq!(narrow.iscc, wide.iscc);
 
         // With 128 bits, wide mode should produce a different (longer) ISCC
-        let narrow_128 = gen_sum_code_v0(&path, 128, false).unwrap();
-        let wide_128 = gen_sum_code_v0(&path, 128, true).unwrap();
+        let narrow_128 = gen_sum_code_v0(&path, 128, false, false).unwrap();
+        let wide_128 = gen_sum_code_v0(&path, 128, true, false).unwrap();
         assert_ne!(narrow_128.iscc, wide_128.iscc);
 
         // Both should have the same datahash and filesize
@@ -2195,7 +2212,7 @@ mod tests {
         let data = b"Testing 64-bit gen_sum_code_v0.";
         let path = write_temp_file("sum_bits64", data);
 
-        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+        let sum_result = gen_sum_code_v0(&path, 64, false, false).unwrap();
 
         let data_result = gen_data_code_v0(data, 64).unwrap();
         let instance_result = gen_instance_code_v0(data, 64).unwrap();
@@ -2212,7 +2229,7 @@ mod tests {
         let data = b"Testing 128-bit gen_sum_code_v0.";
         let path = write_temp_file("sum_bits128", data);
 
-        let sum_result = gen_sum_code_v0(&path, 128, false).unwrap();
+        let sum_result = gen_sum_code_v0(&path, 128, false, false).unwrap();
 
         let data_result = gen_data_code_v0(data, 128).unwrap();
         let instance_result = gen_instance_code_v0(data, 128).unwrap();
@@ -2232,7 +2249,7 @@ mod tests {
         let data: Vec<u8> = (0..50_000).map(|i| (i % 256) as u8).collect();
         let path = write_temp_file("sum_large", &data);
 
-        let sum_result = gen_sum_code_v0(&path, 64, false).unwrap();
+        let sum_result = gen_sum_code_v0(&path, 64, false, false).unwrap();
 
         let data_result = gen_data_code_v0(&data, 64).unwrap();
         let instance_result = gen_instance_code_v0(&data, 64).unwrap();
@@ -2242,6 +2259,71 @@ mod tests {
         assert_eq!(sum_result.iscc, iscc_result.iscc);
         assert_eq!(sum_result.datahash, instance_result.datahash);
         assert_eq!(sum_result.filesize, data.len() as u64);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_units_enabled() {
+        let data = b"Hello, ISCC World! This is a test of gen_sum_code_v0 units.";
+        let path = write_temp_file("sum_units_on", data);
+
+        let sum_result = gen_sum_code_v0(&path, 64, false, true).unwrap();
+
+        // units should be Some with exactly 2 elements
+        let units = sum_result.units.as_ref().expect("units should be Some");
+        assert_eq!(
+            units.len(),
+            2,
+            "units should contain [Data-Code, Instance-Code]"
+        );
+
+        // First unit should be a Data-Code (MainType::Data = 3)
+        let (maintype, ..) = iscc_decode(&units[0]).unwrap();
+        assert_eq!(
+            maintype, 3,
+            "first unit should be a Data-Code (MainType::Data = 3)"
+        );
+
+        // Second unit should be an Instance-Code (MainType::Instance = 4)
+        let (maintype, ..) = iscc_decode(&units[1]).unwrap();
+        assert_eq!(
+            maintype, 4,
+            "second unit should be an Instance-Code (MainType::Instance = 4)"
+        );
+
+        // Units should match individually computed codes
+        let data_result = gen_data_code_v0(data, 64).unwrap();
+        let instance_result = gen_instance_code_v0(data, 64).unwrap();
+        assert_eq!(units[0], data_result.iscc);
+        assert_eq!(units[1], instance_result.iscc);
+
+        // The composite ISCC should still be correct
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
+
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_units_disabled() {
+        let data = b"Hello, ISCC World! This is a test of gen_sum_code_v0 no units.";
+        let path = write_temp_file("sum_units_off", data);
+
+        let sum_result = gen_sum_code_v0(&path, 64, false, false).unwrap();
+
+        assert_eq!(
+            sum_result.units, None,
+            "units should be None when add_units is false"
+        );
+
+        // The composite ISCC should still be correct
+        let data_result = gen_data_code_v0(data, 64).unwrap();
+        let instance_result = gen_instance_code_v0(data, 64).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], false).unwrap();
+        assert_eq!(sum_result.iscc, iscc_result.iscc);
 
         std::fs::remove_file(&path).ok();
     }

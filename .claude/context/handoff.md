@@ -1,50 +1,41 @@
-## 2026-03-02 — Review of: Add pre-built FFI release artifacts to release.yml (issue #25)
+## 2026-03-02 — Add `units` support to `gen_sum_code_v0` in Rust core (issue #21)
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Added `add_units: bool` parameter to `gen_sum_code_v0` and `units: Option<Vec<String>>`
+field to `SumCodeResult`. When `add_units` is true, the result includes individual Data-Code and
+Instance-Code ISCC strings. Updated all 4 Rust binding crates, 1 FFI test, and benchmarks to pass
+`false` for the new parameter. Added 2 new tests validating both enabled and disabled paths.
 
-**Summary:** The advance agent added well-structured `build-ffi` and `publish-ffi` jobs to
-`release.yml` with a 5-platform matrix, following the exact pattern of existing `build-jni`/napi
-jobs. All spec §4 criteria are met. Review found one bug: the `Get workspace version` step lacked
-`shell: bash`, which would fail on Windows runners (default shell is `pwsh`). Fixed directly by the
-review agent.
+**Files changed:**
+
+- `crates/iscc-lib/src/types.rs`: Added `pub units: Option<Vec<String>>` field to `SumCodeResult`
+    with doc comment
+- `crates/iscc-lib/src/lib.rs`: Added `add_units: bool` as 4th parameter to `gen_sum_code_v0`,
+    conditionally populates `units` field. Updated 7 existing tests to pass `false`, added 2 new
+    tests (`test_gen_sum_code_v0_units_enabled`, `test_gen_sum_code_v0_units_disabled`)
+- `crates/iscc-py/src/lib.rs`: Added `, false` to `iscc_lib::gen_sum_code_v0` call (line 335)
+- `crates/iscc-napi/src/lib.rs`: Added `, false` to `iscc_lib::gen_sum_code_v0` call (line 232)
+- `crates/iscc-ffi/src/lib.rs`: Added `, false` to two `iscc_lib::gen_sum_code_v0` calls (extern fn
+    - test)
+- `crates/iscc-jni/src/lib.rs`: Added `, false` to `iscc_lib::gen_sum_code_v0` call (line 414)
+- `crates/iscc-lib/benches/benchmarks.rs`: Added `black_box(false)` 4th arg to both benchmark calls
 
 **Verification:**
 
-- [x] `grep -q 'build-ffi'` — build job exists
-- [x] `grep -q 'publish-ffi'` — publish job exists
-- [x] `grep -q 'ffi:'` — workflow_dispatch input exists
-- [x] `grep -c 'x86_64-unknown-linux-gnu'` returns 3 (napi + jni + ffi — the next.md ">=4" criterion
-    was miscounted; 3 is correct for 3 jobs with this target)
-- [x] `grep -q 'iscc-ffi'` — builds iscc-ffi crate
-- [x] `grep -q 'iscc.h'` — header included in tarball
-- [x] YAML valid (yaml.safe_load succeeds)
-- [x] `mise run check` — 14/14 hooks pass
+- `cargo test -p iscc-lib`: 312 tests pass (258 lib + 31 integration + 22 streaming + 1 doctest). 2
+    new tests added (was 310)
+- `cargo clippy -p iscc-lib -- -D warnings`: clean
+- `cargo build -p iscc-py`: compiles
+- `cargo build -p iscc-napi`: compiles
+- `cargo build -p iscc-ffi`: compiles
+- `cargo build -p iscc-jni`: compiles
+- `cargo bench -p iscc-lib --no-run`: compiles
+- `mise run check`: 14/14 hooks pass
 
-**Issues found:**
+**Next:** Expose `add_units` parameter in binding APIs (Python first, then Node.js, C FFI, JNI).
+WASM needs separate scoping since it has its own implementation that doesn't call
+`iscc_lib::gen_sum_code_v0`. Go needs a pure Go implementation of the `units` feature.
 
-- Windows shell bug: `Get workspace version` step in `build-ffi` used bash syntax (`$(...)`,
-    `$GITHUB_OUTPUT`) without `shell: bash`. Windows GHA runners default to `pwsh`, where this
-    syntax fails. Fixed by adding `shell: bash` to the step.
-- Minor: upload artifact glob `iscc-ffi-v*.*` also matches the staging directory (which has dots in
-    the version number). Causes slightly larger artifacts but not a correctness issue — the
-    publish-ffi glob only uploads files, not directories.
-
-**Issue resolved:** #25 (pre-built FFI release artifacts) — deleted from issues.md. Spec §4
-checkboxes updated to all checked.
-
-**Codex review:** Codex reviewed the define-next commit (HEAD~1) rather than the advance commit
-(HEAD) due to protocol commit offset. No actionable findings — the actual advance diff was reviewed
-manually.
-
-**Next:** The C FFI DX spec (§§1-4) is now fully complete. Remaining open issues: #21 (units support
-for gen_sum_code_v0) and #16 (feature flags for minimal builds). Both are normal priority. Issue #21
-adds an `add_units: bool` parameter across all bindings — good candidate for next step.
-
-**Notes:**
-
-- Cannot test the workflow end-to-end without a tag push or manual dispatch on GitHub. Structural
-    verification only. The maintainer should trigger a manual `ffi: true` dispatch to validate.
-- The `softprops/action-gh-release@v2` tag_name ternary correctly handles both tag pushes
-    (`github.ref_name`) and manual dispatch (`v{version}` from Cargo.toml).
-- Windows includes 3 library files (dll, dll.lib import lib, lib static). Unix includes 2 (shared +
-    static). Both also include iscc.h + LICENSE.
+**Notes:** The implementation borrows `data_result.iscc` and `instance_result.iscc` for
+`gen_iscc_code_v0`, then moves them into the `units` vec when `add_units` is true. When `add_units`
+is false, the strings are dropped (no clone needed). The `#[non_exhaustive]` attribute on
+`SumCodeResult` ensures the new field doesn't break downstream match patterns.

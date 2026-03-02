@@ -410,11 +410,15 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0(
         Ok(s) => s.into(),
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
     };
-    let result =
-        match iscc_lib::gen_sum_code_v0(std::path::Path::new(&path_str), bits as u32, wide != 0) {
-            Ok(r) => r,
-            Err(e) => return throw_and_default(&mut env, &e.to_string()),
-        };
+    let result = match iscc_lib::gen_sum_code_v0(
+        std::path::Path::new(&path_str),
+        bits as u32,
+        wide != 0,
+        false,
+    ) {
+        Ok(r) => r,
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
     let iscc_jstr = match env.new_string(&result.iscc) {
         Ok(s) => s,
         Err(e) => return throw_and_default(&mut env, &e.to_string()),

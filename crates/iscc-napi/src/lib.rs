@@ -229,7 +229,7 @@ pub fn gen_sum_code_v0(
 ) -> napi::Result<NapiSumCodeResult> {
     let bits = bits.unwrap_or(64);
     let wide = wide.unwrap_or(false);
-    let result = iscc_lib::gen_sum_code_v0(std::path::Path::new(&path), bits, wide)
+    let result = iscc_lib::gen_sum_code_v0(std::path::Path::new(&path), bits, wide, false)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
     Ok(NapiSumCodeResult {
         iscc: result.iscc,

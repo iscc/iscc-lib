@@ -53,12 +53,15 @@ iterations.
 
 ## gen_sum_code_v0
 
-- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>` in `lib.rs`
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult>`
+    in `lib.rs`
 - Single-pass file I/O: opens file, reads in `IO_READ_SIZE` chunks, feeds both `DataHasher` and
     `InstanceHasher`, composes ISCC-CODE via `gen_iscc_code_v0`
-- `SumCodeResult { iscc, datahash, filesize }` in `types.rs` — same `#[non_exhaustive]` pattern
+- `SumCodeResult { iscc, datahash, filesize, units }` in `types.rs` — `#[non_exhaustive]`,
+    `units: Option<Vec<String>>` contains `[Data-Code, Instance-Code]` when `add_units` is true
 - File I/O errors mapped to `IsccError::InvalidInput("Cannot open/read file: {e}")`
-- `units: Vec<String>` field deferred (not in scope for initial core implementation)
+- `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring in tests, not
+    field access. `MainType` is `pub(crate)` in `codec` module, not accessible from test module
 - 32nd and final Tier 1 symbol for Rust core — all 32 symbols now implemented
 - Python binding: PyO3 wrapper in `crates/iscc-py/src/lib.rs` accepts `&str` path, `SumCodeResult`
     class in `__init__.py`, public wrapper accepts `str | os.PathLike` via `os.fspath()`, 6 tests in

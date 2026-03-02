@@ -332,7 +332,7 @@ fn gen_iscc_code_v0(py: Python<'_>, codes: Vec<String>, wide: bool) -> PyResult<
 #[pyfunction]
 #[pyo3(signature = (path, bits=64, wide=false))]
 fn gen_sum_code_v0(py: Python<'_>, path: &str, bits: u32, wide: bool) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_sum_code_v0(std::path::Path::new(path), bits, wide)
+    let r = iscc_lib::gen_sum_code_v0(std::path::Path::new(path), bits, wide, false)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;

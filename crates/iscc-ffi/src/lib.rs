@@ -844,7 +844,7 @@ pub unsafe extern "C" fn iscc_gen_sum_code_v0(
     let Some(path_str) = (unsafe { ptr_to_str(path, "path") }) else {
         return null_sum_code_result();
     };
-    match iscc_lib::gen_sum_code_v0(std::path::Path::new(path_str), bits, wide) {
+    match iscc_lib::gen_sum_code_v0(std::path::Path::new(path_str), bits, wide, false) {
         Ok(result) => {
             let iscc = string_to_c(result.iscc);
             if iscc.is_null() {
@@ -2436,7 +2436,7 @@ mod tests {
         unsafe { iscc_free_sum_code_result(ffi_result) };
 
         // Direct lib result
-        let lib_result = iscc_lib::gen_sum_code_v0(&path, 64, false).unwrap();
+        let lib_result = iscc_lib::gen_sum_code_v0(&path, 64, false, false).unwrap();
 
         assert_eq!(ffi_iscc, lib_result.iscc);
         assert_eq!(ffi_datahash, lib_result.datahash);
