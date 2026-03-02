@@ -1,85 +1,72 @@
 # Next Work Package
 
-## Step: Add gen_sum_code_v0 examples to all 6 howto guides
+## Step: Add bench_sum_code criterion benchmark for gen_sum_code_v0
 
 ## Goal
 
-Add a "Sum-Code" subsection with a minimal working code example to the Code Generation section of
-each per-language howto guide. This is the last remaining documentation gap — all 6 guides currently
-have 9 gen function subsections but none for `gen_sum_code_v0`.
+Add the missing criterion benchmark for `gen_sum_code_v0` to complete the target requirement that
+"criterion benchmarks exist for all Rust `gen_*_v0` functions". This is the last gap before full
+target completion — all other sections (core, bindings, docs, README, CI) are already met.
 
 ## Scope
 
-- **Create**: none
-- **Modify**: `docs/howto/rust.md`, `docs/howto/python.md`, `docs/howto/nodejs.md`,
-    `docs/howto/wasm.md`, `docs/howto/java.md`, `docs/howto/go.md`
-- **Reference**:
-    - `crates/iscc-wasm/tests/unit.rs` (WASM `gen_sum_code_v0` takes `&[u8]`, not file path)
-    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (Java signature)
-    - `packages/go/code_sum.go` (Go signature)
-    - `crates/iscc-lib/src/api.rs` (Rust signature)
-    - `crates/iscc-py/src/lib.rs` (Python binding signature)
-    - `crates/iscc-napi/src/lib.rs` (Node.js binding signature)
+- **Create**: (none)
+- **Modify**: `crates/iscc-lib/benches/benchmarks.rs` (add `bench_sum_code` function, update
+    docstring from "9" to "10", add import, register in `criterion_group!`),
+    `crates/iscc-lib/Cargo.toml` (add `tempfile` dev-dependency if not already present)
+- **Reference**: `crates/iscc-lib/src/lib.rs` (for `gen_sum_code_v0` signature:
+    `path: &Path,   bits: u32, wide: bool`), `Cargo.toml` (root workspace dependencies)
 
 ## Not In Scope
 
-- Adding `gen_sum_code_v0` benchmarks or benchmark documentation
-- Updating result types tables in rust.md or python.md (SumCodeResult is already listed there)
-- Modifying code, tests, or any non-howto documentation files
-- Adding new sections beyond the Code Generation subsection (e.g., no new "Streaming" or "Advanced"
-    subsections for Sum-Code)
-- Updating the count of gen functions in howto guide introductions or other prose — if they say
-    "nine" in running text, that's a separate cleanup task, not part of adding the example
-    subsection
-- Addressing issue #16 (feature flags) — separate low-priority step
+- Adding benchmarks for `gen_sum_code_v0` to the Python benchmark suite (`benchmarks/python/`)
+- Updating `docs/benchmarks.md` with sum-code speedup numbers (no Python baseline exists yet)
+- Updating the "Bench (compile check)" CI job config — it already compiles all bench targets
+- Running actual benchmarks and collecting timing data
+- Working on issue #16 (feature flags for minimal builds)
 
 ## Implementation Notes
 
-**Insertion point:** Add `### Sum-Code` subsection immediately AFTER the existing `### ISCC-CODE`
-subsection in the Code Generation section of each file.
+`gen_sum_code_v0` takes `path: &std::path::Path` (not `&[u8]`), so the benchmark must write temp
+files. Follow the same throughput pattern as `bench_data_code` and `bench_instance_code`:
 
-**Pattern to follow:** Each subsection has:
+1. **Import**: Add `gen_sum_code_v0` to the `use iscc_lib::{...}` block. Add `use std::io::Write`
+    and `use tempfile::NamedTempFile` (or `std::env::temp_dir` + manual file creation).
 
-1. `### Sum-Code` heading
-2. One-line description: "Generate a composite ISCC-CODE from a file in a single pass:" (adjust for
-    WASM: "from raw bytes")
-3. Fenced code block with language-appropriate example
+2. **Temp file approach**: Use `tempfile::NamedTempFile` if the `tempfile` crate is already a
+    dev-dependency. If not, add it. Check `Cargo.toml` dev-dependencies first. If adding `tempfile`
+    feels heavyweight, an alternative is `std::env::temp_dir()` with a unique filename — but
+    `tempfile` is the idiomatic Rust choice and auto-cleans up.
 
-**Key API differences by language:**
+3. **Benchmark function** `bench_sum_code`:
 
-| Language | Function                                | Input                | Result type                                                  |
-| -------- | --------------------------------------- | -------------------- | ------------------------------------------------------------ |
-| Rust     | `gen_sum_code_v0(path, 64, false)`      | `&Path`              | `SumCodeResult { iscc, datahash, filesize }`                 |
-| Python   | `gen_sum_code_v0("file.bin")`           | `str \| os.PathLike` | `SumCodeResult` with `.iscc`, `.datahash`, `.filesize`       |
-| Node.js  | `gen_sum_code_v0("file.bin")`           | `string` path        | object with `iscc`, `datahash`, `filesize`                   |
-| WASM     | `gen_sum_code_v0(data)`                 | `Uint8Array`         | object with `iscc`, `datahash`, `filesize`                   |
-| Java     | `IsccLib.genSumCodeV0(path, 64, false)` | `String` path        | `SumCodeResult` with `.iscc()`, `.datahash()`, `.filesize()` |
-| Go       | `iscc.GenSumCodeV0(path, 64, false)`    | `string` path        | `*SumCodeResult` with `.Iscc`, `.Datahash`, `.Filesize`      |
+    - Create a benchmark group `"gen_sum_code_v0"`
+    - Two sizes: 64KB and 1MB (matching `bench_data_code` pattern)
+    - For each size: write `deterministic_bytes(size)` to a temp file, set
+        `group.throughput(Throughput::Bytes(...))`, bench `gen_sum_code_v0(&path, 64, false)`
+    - The temp file must be created OUTSIDE the benchmark closure (file I/O setup is not part of what
+        we're measuring). Use `NamedTempFile::new()` + `write_all()` before the `bench_with_input`
+        call, then pass the path into the closure.
 
-**WASM is the outlier:** No filesystem access in browser — takes `Uint8Array` (raw bytes) instead of
-a file path. Include a brief comment explaining this difference. The WASM howto already uses
-`TextEncoder` for data encoding in other examples — follow the same pattern.
+4. **Docstring**: Update line 1 from "9 `gen_*_v0`" to "10 `gen_*_v0`"
 
-**Example style:** Match the tone and coding style of adjacent subsections (ISCC-CODE,
-Instance-Code). Use the same import style, variable naming, and output printing pattern as existing
-examples in each file. Keep examples to 5-10 lines excluding imports.
+5. **Registration**: Add `bench_sum_code` to the `criterion_group!` macro, after `bench_iscc_code`
+    and before `bench_data_hasher_streaming`.
 
-**File-based examples:** For Rust/Python/Node.js/Java/Go, the example needs a file path. Use a
-simple example like `std::fs::write` (Rust), `Path("example.bin").write_bytes(...)` (Python),
-`fs.writeFileSync` (Node.js), `Files.write` (Java), `os.WriteFile` (Go) to create a sample file,
-then call `gen_sum_code_v0` on it. Alternatively, reference a hypothetical file path with a comment
-— match whatever pattern feels most natural for the language. Look at how existing examples in each
-guide handle data setup.
+6. **Dev dependency**: If `tempfile` isn't already in dev-dependencies, add it to the workspace
+    `Cargo.toml` under `[workspace.dependencies]` and to `crates/iscc-lib/Cargo.toml` under
+    `[dev-dependencies]`. Use a recent stable version (e.g., `tempfile = "3"`).
 
 ## Verification
 
-- `grep -c "### Sum-Code" docs/howto/rust.md docs/howto/python.md docs/howto/nodejs.md docs/howto/wasm.md docs/howto/java.md docs/howto/go.md`
-    — all 6 files show count of 1
-- `grep -l "gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0" docs/howto/*.md | wc -l` — returns 6
-- `uv run zensical build 2>&1 | tail -1` — exits 0 (docs site builds successfully)
-- `mise run format` exits 0 (formatting clean)
+- `cargo bench -p iscc-lib --bench benchmarks --no-run` exits 0 (benchmark compiles)
+- `grep -c 'gen_sum_code_v0' crates/iscc-lib/benches/benchmarks.rs` returns at least 2 (import +
+    function usage)
+- `grep 'all 10' crates/iscc-lib/benches/benchmarks.rs` matches the updated docstring
+- `cargo clippy -p iscc-lib -- -D warnings` clean
+- `cargo test -p iscc-lib` still passes (310 tests)
 
 ## Done When
 
-All 6 howto guides have a `### Sum-Code` subsection with a working code example in the Code
-Generation section, and the documentation site builds without errors.
+All verification criteria pass — the benchmark file compiles with 10 `gen_*_v0` benchmarks, clippy
+is clean, and existing tests still pass.

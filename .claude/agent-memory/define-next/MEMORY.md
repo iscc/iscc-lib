@@ -29,19 +29,13 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## gen_sum_code_v0 — Status: all 7 bindings DONE, howto examples pending
+## Benchmark Patterns
 
-Issue #15 fully resolved. All 7 bindings complete. README/docs sweep complete (iteration 14).
-Remaining: 6 howto guides need `### Sum-Code` subsections with code examples.
-
-**WASM is the outlier:** Takes `Uint8Array`/`&[u8]` (no filesystem in browser) while all other
-bindings take file paths. The WASM howto already uses `TextEncoder` for data encoding.
-
-**Howto structure (all 6 files identical):** 9 subsections under `## Code generation` heading
-(Meta-Code through ISCC-CODE). New `### Sum-Code` goes after `### ISCC-CODE`.
-
-**SumCodeResult already in result tables:** rust.md and python.md already list `SumCodeResult` in
-their "Structured results" tables — no need to update those.
+- `benchmarks.rs` uses `criterion_group!` macro to register all bench functions
+- Data/Instance/ISCC-Code benchmarks use `BenchmarkId` + `Throughput::Bytes` for throughput metrics
+- `deterministic_bytes(size)` helper generates reproducible test data
+- `gen_sum_code_v0` requires `&Path` (temp file needed) — unlike `gen_data_code_v0` which takes
+    `&[u8]` directly. Temp file must be created OUTSIDE the bench closure
 
 ## Documentation Sweep Patterns
 
@@ -54,7 +48,7 @@ their "Structured results" tables — no need to update those.
 
 ## CI/Release Patterns
 
-- v0.0.3 released to all registries. Next release after doc completion.
+- v0.0.3 released to all registries. Next release after remaining gaps closed.
 - Release workflow has `workflow_dispatch` with per-registry checkboxes
 
 ## Gotchas
@@ -63,7 +57,7 @@ their "Structured results" tables — no need to update those.
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
 
-## Post-Howto Roadmap
+## Project Status
 
-After howto completion, only issue #16 remains (feature flags for minimal builds, low priority). The
-project may be approaching target completion — verify all target.md criteria are met.
+- Iteration 16: Only gap is bench_sum_code. After that, only issue #16 (low priority, feature flags)
+    remains. Project approaching full target completion.
