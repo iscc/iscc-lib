@@ -341,6 +341,71 @@ class IsccLibTest {
         return tests;
     }
 
+    // ── gen_sum_code_v0 ──────────────────────────────────────────────────────
+
+    /**
+     * Verify genSumCodeV0 produces the same ISCC as composing Data-Code and
+     * Instance-Code manually, and returns correct filesize.
+     */
+    @Test
+    void genSumCodeV0Equivalence() throws Exception {
+        byte[] content = "Hello ISCC from Java JNI!".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.File tmp = java.io.File.createTempFile("iscc-jni-sum-", ".bin");
+        tmp.deleteOnExit();
+        java.nio.file.Files.write(tmp.toPath(), content);
+
+        SumCodeResult result = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 64, false);
+
+        // Compose manually: genDataCodeV0 + genInstanceCodeV0 -> genIsccCodeV0
+        String dataCode = IsccLib.genDataCodeV0(content, 64);
+        String instanceCode = IsccLib.genInstanceCodeV0(content, 64);
+        String composedIscc = IsccLib.genIsccCodeV0(new String[] {dataCode, instanceCode}, false);
+
+        assertEquals(composedIscc, result.iscc, "ISCC should match manual composition");
+        assertEquals(content.length, result.filesize, "filesize should match content length");
+    }
+
+    /** Verify genSumCodeV0 returns non-null, non-empty fields. */
+    @Test
+    void genSumCodeV0ResultFields() throws Exception {
+        byte[] content = new byte[] {1, 2, 3, 4, 5, 6, 7, 8};
+        java.io.File tmp = java.io.File.createTempFile("iscc-jni-sum-fields-", ".bin");
+        tmp.deleteOnExit();
+        java.nio.file.Files.write(tmp.toPath(), content);
+
+        SumCodeResult result = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 64, false);
+
+        assertNotNull(result.iscc, "iscc should not be null");
+        assertTrue(result.iscc.length() > 0, "iscc should not be empty");
+        assertNotNull(result.datahash, "datahash should not be null");
+        assertTrue(result.datahash.length() > 0, "datahash should not be empty");
+        assertTrue(result.filesize > 0, "filesize should be positive");
+    }
+
+    /** Verify genSumCodeV0 throws IllegalArgumentException for non-existent file. */
+    @Test
+    void genSumCodeV0NonExistentFile() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> IsccLib.genSumCodeV0("/non/existent/path/to/file.bin", 64, false));
+    }
+
+    /** Verify narrow and wide modes produce different ISCC but same datahash and filesize. */
+    @Test
+    void genSumCodeV0WideMode() throws Exception {
+        byte[] content = "Wide mode test content for ISCC-SUM".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.File tmp = java.io.File.createTempFile("iscc-jni-sum-wide-", ".bin");
+        tmp.deleteOnExit();
+        java.nio.file.Files.write(tmp.toPath(), content);
+
+        SumCodeResult narrow = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 128, false);
+        SumCodeResult wide = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 128, true);
+
+        assertTrue(!narrow.iscc.equals(wide.iscc), "narrow and wide ISCC should differ");
+        assertEquals(narrow.datahash, wide.datahash, "datahash should be same regardless of wide");
+        assertEquals(narrow.filesize, wide.filesize, "filesize should be same regardless of wide");
+    }
+
     // ── Negative jint validation ─────────────────────────────────────────────
 
     /** Verify textTrim throws IllegalArgumentException for negative nbytes. */

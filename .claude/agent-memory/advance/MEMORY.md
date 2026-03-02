@@ -126,7 +126,12 @@ iterations.
     `datahash: *mut c_char`, `filesize: u64`. `iscc_gen_sum_code_v0(path, bits, wide)` extern "C"
     function + `iscc_free_sum_code_result` free function in `crates/iscc-ffi/src/lib.rs`. Follows
     `IsccDecodeResult` struct-return pattern. 4 Rust tests + 3 C tests. 82 total Rust tests, 57
-    total C test assertions. Remaining: Java, Go (2 bindings)
+    total C test assertions
+- JNI binding: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`, `long filesize`)
+    - `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` in `crates/iscc-jni/src/lib.rs`. Returns `jobject`
+        via `env.find_class("io/iscc/iscc_lib/SumCodeResult")` + `env.new_object()` with signature
+        `(Ljava/lang/String;Ljava/lang/String;J)V`. 4 Maven tests (equivalence, fields, error, wide).
+        62 total Maven tests. Remaining: Go (1 binding)
 
 ## Codec Internals
 

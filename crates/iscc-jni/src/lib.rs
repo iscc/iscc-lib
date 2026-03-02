@@ -392,6 +392,55 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genIsccCodeV0(
     }
 }
 
+/// Generate an ISCC-SUM code from a file path.
+///
+/// Reads the file once, generating both Data-Code and Instance-Code in a
+/// single pass, then composes the final ISCC-CODE. Returns a Java
+/// `SumCodeResult` object with `iscc`, `datahash`, and `filesize` fields.
+/// Throws `IllegalArgumentException` on invalid input or file I/O error.
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0(
+    mut env: JNIEnv,
+    _class: JClass,
+    path: JString,
+    bits: jint,
+    wide: jboolean,
+) -> jobject {
+    let path_str: String = match env.get_string(&path) {
+        Ok(s) => s.into(),
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
+    let result =
+        match iscc_lib::gen_sum_code_v0(std::path::Path::new(&path_str), bits as u32, wide != 0) {
+            Ok(r) => r,
+            Err(e) => return throw_and_default(&mut env, &e.to_string()),
+        };
+    let iscc_jstr = match env.new_string(&result.iscc) {
+        Ok(s) => s,
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
+    let datahash_jstr = match env.new_string(&result.datahash) {
+        Ok(s) => s,
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
+    let class = match env.find_class("io/iscc/iscc_lib/SumCodeResult") {
+        Ok(c) => c,
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
+    match env.new_object(
+        class,
+        "(Ljava/lang/String;Ljava/lang/String;J)V",
+        &[
+            jni::objects::JValue::Object(&iscc_jstr),
+            jni::objects::JValue::Object(&datahash_jstr),
+            jni::objects::JValue::Long(result.filesize as jlong),
+        ],
+    ) {
+        Ok(obj) => obj.into_raw(),
+        Err(e) => throw_and_default(&mut env, &e.to_string()),
+    }
+}
+
 // ── Text utilities ──────────────────────────────────────────────────────────
 
 /// Clean and normalize text for display.
