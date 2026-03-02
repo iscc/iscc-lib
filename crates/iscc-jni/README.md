@@ -53,6 +53,7 @@ System.out.println("Meta-Code: " + iscc);
 | `genDataCodeV0`     | Generate a Data-Code from raw bytes          |
 | `genInstanceCodeV0` | Generate an Instance-Code from raw bytes     |
 | `genIsccCodeV0`     | Generate a composite ISCC-CODE               |
+| `genSumCodeV0`      | Generate an ISCC-SUM from a file path        |
 
 All methods are static and accessed via `IsccLib`. Methods that accept invalid input throw
 `IllegalArgumentException`.

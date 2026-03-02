@@ -518,7 +518,7 @@ memory:
 
 Now that you have generated your first ISCC codes, explore further:
 
-- **[Python how-to guide](../howto/python.md)** — all 9 code types, structured results, streaming,
+- **[Python how-to guide](../howto/python.md)** — all 10 code types, structured results, streaming,
     and text utilities
 - **[Rust how-to guide](../howto/rust.md)** — Rust-level API with typed results and ownership
 - **[Node.js how-to guide](../howto/nodejs.md)** — use iscc-lib from JavaScript

@@ -14,7 +14,7 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 
 | Module           | Visibility   | Purpose                                                                                              |
 | ---------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| `lib.rs`         | public       | Crate root: re-exports, `IsccError`/`IsccResult`, all 9 `gen_*_v0` functions                         |
+| `lib.rs`         | public       | Crate root: re-exports, `IsccError`/`IsccResult`, all 10 `gen_*_v0` functions                        |
 | `types.rs`       | `pub`        | Result structs (`MetaCodeResult`, `TextCodeResult`, etc.)                                            |
 | `codec.rs`       | `pub`        | Tier 2: `MainType`/`SubType`/`Version` enums, header encode/decode, base32, `iscc_decompose`         |
 | `streaming.rs`   | `pub`        | `DataHasher` and `InstanceHasher` streaming types                                                    |
@@ -30,9 +30,9 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 
 **Tier 1 -- public API, bound in all languages (30 symbols at crate root):**
 
-- 9 gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`,
-    `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`,
-    `gen_iscc_code_v0`
+- 10 gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
+    `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
+    `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
 - 4 text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - 4 algorithm primitives: `sliding_window`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash`
 - 1 soft hash: `soft_hash_video_v0`
@@ -92,7 +92,7 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
 ## Conformance Rules
 
 - Correctness baseline: vendored `tests/data.json` from `iscc-core`
-- All 9 `gen_*_v0` functions must match `iscc-core` output for every test vector
+- All 10 `gen_*_v0` functions must match `iscc-core` output for every test vector
 - `conformance_selftest()` runs all vectors at runtime (non-panicking, returns bool)
 - Each `gen_*_v0` also has `#[test]` functions that run the same vectors and panic on mismatch
 - Streaming types (`DataHasher`/`InstanceHasher`) are tested against one-shot functions at multiple

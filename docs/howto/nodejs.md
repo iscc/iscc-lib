@@ -36,7 +36,7 @@ All function names use `snake_case` to match the Python and Rust APIs.
 
 ## Code generation
 
-All 9 `gen_*_v0` functions return the ISCC code as a string (prefixed with `ISCC:`). Optional
+All 10 `gen_*_v0` functions return the ISCC code as a string (prefixed with `ISCC:`). Optional
 parameters use `null` or `undefined` for defaults.
 
 ### Meta-Code

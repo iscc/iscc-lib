@@ -27,7 +27,7 @@ against its conformance test vectors (`data.json`).
 | Package    | [iscc-core on PyPI](https://pypi.org/project/iscc-core/)        |
 | Language   | Python                                                          |
 | License    | Apache-2.0                                                      |
-| Coverage   | All 9 `gen_*_v0` functions                                      |
+| Coverage   | All 10 `gen_*_v0` functions                                     |
 | Role       | Reference implementation — defines the conformance test vectors |
 
 ### iscc-lib — Rust + Polyglot Bindings
@@ -41,7 +41,7 @@ project.
 | Packages   | [crates.io](https://crates.io/crates/iscc-lib), [PyPI](https://pypi.org/project/iscc-lib/), [npm (@iscc/lib)](https://www.npmjs.com/package/@iscc/lib), [npm (@iscc/wasm)](https://www.npmjs.com/package/@iscc/wasm) |
 | Language   | Rust (core) + Python, Node.js, WASM, Go, Java, C bindings                                                                                                                                                            |
 | License    | Apache-2.0                                                                                                                                                                                                           |
-| Coverage   | All 9 `gen_*_v0` functions — full conformance with iscc-core                                                                                                                                                         |
+| Coverage   | All 10 `gen_*_v0` functions — full conformance with iscc-core                                                                                                                                                        |
 | Role       | Performance-optimized polyglot implementation                                                                                                                                                                        |
 
 ## Community Implementations
@@ -68,7 +68,7 @@ Maintained by the original author under the ISCC Foundation GitHub org.
 
 **Function coverage:**
 
-The project implements all 9 `gen_*_v0` functions from ISO 24138, plus additional functions
+The project implements all 10 `gen_*_v0` functions from ISO 24138, plus additional functions
 (`gen_iscc_id_v0`, `gen_iscc_id_v1`, `gen_flake_code_v0`):
 
 | Function               | Tests |
@@ -99,7 +99,7 @@ interoperability:
 
 1. **Use the official test vectors** — validate against the `data.json` file from
     [iscc-core](https://github.com/iscc/iscc-core). This file contains inputs and expected outputs
-    for all 9 `gen_*_v0` functions.
+    for all 10 `gen_*_v0` functions.
 2. **Reference the specification** — [ISO 24138:2024](https://www.iso.org/standard/77899.html)
     defines the algorithms. The [iscc-core](https://github.com/iscc/iscc-core) Python source serves
     as the executable specification.

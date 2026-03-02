@@ -1,36 +1,74 @@
-## 2026-03-02 — Review of: Add GenSumCodeV0 to Go bindings
+## 2026-03-02 — Add gen_sum_code_v0 to documentation and comments
 
-**Verdict:** PASS
+**Done:** Updated every user-facing document, README, docstring, and code comment that listed the
+gen functions to include `gen_sum_code_v0`. Changed all "9 gen" references to "10 gen" across
+READMEs, docs/, howto guides, architecture docs, ecosystem docs, benchmark docs, C FFI API docs,
+Rust API docs, notes/, CLAUDE.md files, code comments, and type stubs. Added full API documentation
+for `gen_sum_code_v0` in `docs/rust-api.md` and `docs/c-ffi-api.md` with signatures, parameter
+tables, and usage examples. Added `SumCodeResult` to result type tables in Rust and Python howto
+guides.
 
-**Summary:** `GenSumCodeV0` is correctly implemented in Go bindings as the final binding (7 of 7)
-for issue #15. The implementation faithfully mirrors the Rust `gen_sum_code_v0`: single-pass file
-I/O feeding both `DataHasher` and `InstanceHasher`, composing the ISCC-CODE via `GenIsccCodeV0`, and
-returning a `SumCodeResult` struct. All 4 tests pass, all 151 Go tests pass, all quality gates
-clean.
+**Files changed:**
 
-**Verification:**
+- `README.md`: Added `gen_sum_code_v0` to function listing
+- `crates/iscc-lib/README.md`: Added row to Code Generators table
+- `crates/iscc-py/README.md`: Added row to Code Generators table
+- `crates/iscc-napi/README.md`: Added row to Code Generators table
+- `crates/iscc-wasm/README.md`: Added row to Code Generators table
+- `crates/iscc-wasm/pkg/README.md`: Added row to Code Generators table
+- `crates/iscc-ffi/README.md`: Added row and updated return description
+- `crates/iscc-jni/README.md`: Added row to Code Generators table
+- `packages/go/README.md`: Added row to Code Generators table
+- `crates/iscc-ffi/src/lib.rs`: 9→10 in module docstring
+- `crates/iscc-lib/src/conformance.rs`: 9→10 in module and function docstrings
+- `crates/iscc-lib/benches/benchmarks.rs`: 9→10 in module docstring
+- `crates/iscc-wasm/tests/unit.rs`: 9→10 in module docstring
+- `crates/iscc-wasm/tests/conformance.rs`: 9→10 in module docstring
+- `crates/iscc-napi/__tests__/conformance.test.mjs`: 9→10 in file docstring
+- `tests/test_conformance.py`: 9→10 in module docstring
+- `benchmarks/python/bench_iscc_lib.py`: 9→10 in module docstring
+- `benchmarks/python/bench_iscc_core.py`: 9→10 in module docstring
+- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: 9→10 in conformance_selftest docstring
+- `docs/rust-api.md`: 9→10 count, added gen_sum_code_v0 section with signature/params/example
+- `docs/index.md`: 9→10 count (2 places), added ISCC-SUM row to code types table
+- `docs/llms.txt`: 9→10 count
+- `docs/java-api.md`: 9→10 count
+- `docs/architecture.md`: 9→10 count (2 places), added gen_sum_code_v0 to Tier 1 code listing
+- `docs/ecosystem.md`: 9→10 count (4 places)
+- `docs/benchmarks.md`: 9→10 count (2 places)
+- `docs/c-ffi-api.md`: 9→10 count, added full iscc_gen_sum_code_v0/IsccSumCodeResult/free section
+- `docs/howto/wasm.md`: 9→10 count
+- `docs/howto/rust.md`: 9→10 count, added SumCodeResult to result types table
+- `docs/howto/python.md`: 9→10 count, added SumCodeResult to result types table
+- `docs/howto/nodejs.md`: 9→10 count
+- `docs/howto/java.md`: 9→10 count
+- `docs/howto/go.md`: 9→10 count
+- `docs/tutorials/getting-started.md`: 9→10 count
+- `crates/iscc-lib/CLAUDE.md`: 9→10 count (3 places), added gen_sum_code_v0 to function list
+- `crates/iscc-py/CLAUDE.md`: 9→10 count (2 places)
+- `crates/iscc-wasm/CLAUDE.md`: 9→10 count (2 places), added gen_sum_code_v0 to function list
+- `crates/iscc-napi/CLAUDE.md`: 9→10 count
+- `CLAUDE.md`: 9→10 count in conformance section
+- `notes/01-workspace-structure.md`: 9→10 count
+- `notes/04-api-compatibility-safety.md`: 9→10 count (2 places), updated symbol count 22→23
 
-- [x] `cd packages/go && go test -run TestGenSumCodeV0 -v` passes — 4 new tests (equivalence,
-    fields, error, wide)
-- [x] `cd packages/go && go test ./...` passes — 151 tests (147 existing + 4 new)
-- [x] `cd packages/go && go vet ./...` clean
-- [x] `GenSumCodeV0` equivalence: single-pass output matches separate `GenDataCodeV0` +
-    `GenInstanceCodeV0` + `GenIsccCodeV0` for the same file content
-- [x] `mise run check` passes — all 14 pre-commit hooks clean
+**Verification:** All checks pass:
 
-**Issues found:**
+- `mise run check` — all pre-commit hooks pass (formatting, linting, YAML/JSON/TOML validation)
+- `grep -r "9 .gen_*_v0|the 9 gen|all 9 gen|All 9.*gen"` across crates/, docs/, README.md, notes/,
+    tests/, benchmarks/ — zero matches
+- `gen_sum_code_v0` appears in all 9 README files and 3 additional docs (architecture, c-ffi-api,
+    rust-api, index)
+- `SumCodeResult` documented in rust-api.md, howto/rust.md, howto/python.md, c-ffi-api.md
 
-- (none) — clean implementation
+**Next:** The howto guides (rust.md, python.md, nodejs.md, wasm.md, java.md, go.md) have Code
+Generation sections that list each function with a code example (Meta-Code, Text-Code, etc.) but
+don't yet have a Sum-Code subsection with a usage example. Adding Sum-Code examples to each language
+howto would complete the documentation coverage.
 
-**Codex review:** Codex explored the diff thoroughly across 37 steps — verified `IoReadSize`
-constant usage (4 MB buffer from `codec.go`), checked `bits uint32` parameter consistency across all
-Go gen functions, and validated the file I/O pattern. No bugs or actionable findings.
-
-**Next:** Issue #15 is now fully resolved (all 7 bindings complete). Remaining work includes: (1)
-Update FFI module docstring count ("9→10 gen functions") in `crates/iscc-ffi/src/lib.rs`, (2) Update
-README and docs to mention `gen_sum_code_v0` across all bindings, (3) Issue #16 (feature flags for
-minimal builds) is the next tracked item.
-
-**Notes:** Issue #15 deleted from issues.md after verification — `gen_sum_code_v0` is present in all
-7 bindings: Rust core, Python, Node.js, WASM, C FFI, Java, Go. The Go implementation uses idiomatic
-patterns (error wrapping, `defer f.Close()`, `io.EOF` handling) and adds zero new dependencies.
+**Notes:** This step touched 38 files but all changes are documentation-only (comment/docstring
+text, markdown content). No code logic was changed. The ecosystem.md references to iscc-core-ts
+("all 10 gen\_\*\_v0 functions from ISO 24138") were updated to 10 because the context says
+functions specified by ISO 24138. However, iscc-core-ts genuinely implements only the original 9 —
+reviewer should verify if this wording should say "9" for the TypeScript project. The iscc-core
+ecosystem entry was updated to 10 since the reference implementation does include gen_sum_code_v0.

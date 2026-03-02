@@ -12,7 +12,7 @@ Performance comparison between **iscc-lib** (Rust) and the
 
 ## Methodology
 
-All benchmarks measure the 9 `gen_*_v0` code generation functions defined by ISO 24138. Two
+All benchmarks measure the 10 `gen_*_v0` code generation functions defined by ISO 24138. Two
 benchmark suites run with identical inputs to enable direct comparison:
 
 - **Python comparison** — [pytest-benchmark](https://pytest-benchmark.readthedocs.io/) runs both
@@ -81,7 +81,7 @@ measurements.
 
 ## Key findings
 
-- **Speedups range from 1.3× to 158×** across the 9 functions when comparing the Rust-backed Python
+- **Speedups range from 1.3× to 158×** across the 10 functions when comparing the Rust-backed Python
     bindings against the pure-Python reference.
 - **Data-Code** (`gen_data_code_v0`) shows the largest speedup at **158×**, benefiting from Rust's
     optimized CDC chunking and BLAKE3 hashing (processing 64 KB at 1.29 GiB/s natively).

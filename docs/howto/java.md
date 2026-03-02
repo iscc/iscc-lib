@@ -64,7 +64,7 @@ All ISCC methods are static — there is no runtime object to create or close.
 
 ## Code generation
 
-All 9 `gen*V0` methods are static on `IsccLib`, return a `String` (the ISCC code prefixed with
+All 10 `gen*V0` methods are static on `IsccLib`, return a `String` (the ISCC code prefixed with
 `ISCC:`), and throw `IllegalArgumentException` on invalid input. Optional parameters use `null`. The
 default `bits` value is `64`.
 

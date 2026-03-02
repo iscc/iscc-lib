@@ -79,8 +79,8 @@ console.log(iscc);
 
 ## Code generation
 
-All 9 `gen_*_v0` functions return the ISCC code as a string. Optional parameters use `undefined` for
-defaults.
+All 10 `gen_*_v0` functions return the ISCC code as a string. Optional parameters use `undefined`
+for defaults.
 
 ### Meta-Code
 

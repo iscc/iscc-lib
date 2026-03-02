@@ -1,4 +1,4 @@
-"""Pytest-benchmark tests for all 9 iscc_lib gen_*_v0 functions (Rust-backed).
+"""Pytest-benchmark tests for all 10 iscc_lib gen_*_v0 functions (Rust-backed).
 
 Mirrors bench_iscc_core.py with identical inputs and benchmark group names,
 enabling direct speedup factor comparison between the Rust bindings and the

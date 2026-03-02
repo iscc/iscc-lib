@@ -1,5 +1,5 @@
 /**
- * Conformance tests for all 9 gen_*_v0 napi-rs bindings against data.json vectors.
+ * Conformance tests for all 10 gen_*_v0 napi-rs bindings against data.json vectors.
  *
  * Mirrors the Python conformance tests in tests/test_conformance.py.
  * Uses Node.js built-in test runner (node:test) — no extra dependencies.

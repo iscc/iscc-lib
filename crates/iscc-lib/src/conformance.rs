@@ -1,6 +1,6 @@
 //! Conformance selftest for ISO 24138:2024 (ISCC).
 //!
-//! Runs all 9 gen functions against vendored conformance vectors from `data.json`
+//! Runs all 10 gen functions against vendored conformance vectors from `data.json`
 //! and reports pass/fail. An application that claims ISCC conformance MUST pass
 //! all tests in this suite.
 
@@ -14,7 +14,7 @@ const TEST_DATA: &str = include_str!("../tests/data.json");
 
 /// Run all conformance tests against vendored test vectors.
 ///
-/// Iterates through all 9 `gen_*_v0` function sections in the conformance data,
+/// Iterates through all 10 `gen_*_v0` function sections in the conformance data,
 /// calls each function with the specified inputs, and compares the `.iscc` field
 /// of the result against expected output. Returns `true` if all tests pass,
 /// `false` if any mismatch or error occurs. Does not panic — logs failures via

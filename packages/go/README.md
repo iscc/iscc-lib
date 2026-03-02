@@ -59,6 +59,7 @@ func main() {
 | `GenDataCodeV0`     | Generate a Data-Code from raw bytes          |
 | `GenInstanceCodeV0` | Generate an Instance-Code from raw bytes     |
 | `GenIsccCodeV0`     | Generate a composite ISCC-CODE               |
+| `GenSumCodeV0`      | Generate an ISCC-SUM from a file path        |
 
 Package-level functions that return typed result structs (e.g., `*MetaCodeResult`,
 `*TextCodeResult`) and `error`, following idiomatic Go error handling.

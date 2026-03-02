@@ -1,4 +1,4 @@
-//! Conformance tests for all 9 gen_*_v0 WASM-exported functions against data.json vectors.
+//! Conformance tests for all 10 gen_*_v0 WASM-exported functions against data.json vectors.
 //!
 //! Runs in a Node.js WASM runtime via `wasm-pack test --node`.
 //! Mirrors the Rust core and Node.js conformance test patterns.

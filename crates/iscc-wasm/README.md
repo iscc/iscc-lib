@@ -54,6 +54,7 @@ Both browser and Node.js targets are supported.
 | `gen_data_code_v0`     | Generate a Data-Code from raw bytes          |
 | `gen_instance_code_v0` | Generate an Instance-Code from raw bytes     |
 | `gen_iscc_code_v0`     | Generate a composite ISCC-CODE               |
+| `gen_sum_code_v0`      | Generate an ISCC-SUM from raw bytes          |
 
 All code generators return ISCC strings directly.
 

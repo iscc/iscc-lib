@@ -67,7 +67,7 @@ def json_to_data_url(json: str) -> str:
 def conformance_selftest() -> bool:
     """Run all conformance tests against vendored test vectors.
 
-    Iterates through all 9 ``gen_*_v0`` function sections in the conformance
+    Iterates through all 10 ``gen_*_v0`` function sections in the conformance
     data, calls each function with the specified inputs, and compares results
     against expected output. Returns ``True`` if all tests pass.
 

@@ -19,7 +19,7 @@ go get github.com/iscc/iscc-lib/packages/go
 
 ## Code generation
 
-All 9 `Gen*V0` functions are package-level functions that return typed result structs and `error`.
+All 10 `Gen*V0` functions are package-level functions that return typed result structs and `error`.
 The result struct's `Iscc` field contains the ISCC code string prefixed with `ISCC:`. Optional
 parameters use `nil` (for pointer types) or a default value.
 

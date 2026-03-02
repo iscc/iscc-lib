@@ -20,7 +20,7 @@ crates/iscc-wasm/
   src/
     lib.rs            # All #[wasm_bindgen] exports (single file, flat)
   tests/
-    conformance.rs    # 9 gen_*_v0 functions vs vendored data.json vectors
+    conformance.rs    # 10 gen_*_v0 functions vs vendored data.json vectors
     unit.rs           # Text utils, encoding, codec, algorithm primitives
 ```
 
@@ -117,9 +117,9 @@ wasm-pack test --node crates/iscc-wasm -- --test unit
 All 30 Tier 1 symbols are bound, plus 2 streaming types. Every `#[wasm_bindgen]` export in `lib.rs`
 maps 1:1 to an `iscc_lib` public symbol:
 
-- **9 gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
+- **10 gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
-    `gen_instance_code_v0`, `gen_iscc_code_v0`
+    `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
 - **4 text utils:** `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 - **4 algorithm primitives:** `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`
 - **4 constants:** `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`

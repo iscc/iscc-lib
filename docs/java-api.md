@@ -95,7 +95,7 @@ Returns `true` if all tests pass, `false` otherwise.
 
 ## Code Generation
 
-All 9 `gen*V0` methods return an ISCC string (prefixed with `ISCC:`) on success. All throw
+All 10 `gen*V0` methods return an ISCC string (prefixed with `ISCC:`) on success. All throw
 `IllegalArgumentException` on invalid input.
 
 ### genMetaCodeV0

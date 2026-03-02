@@ -5,7 +5,7 @@ description: Rust API reference for all ISCC code generation functions and types
 
 # Rust API Reference
 
-Pure Rust crate for ISCC (ISO 24138:2024) code generation. All 9 `gen_*_v0` functions return
+Pure Rust crate for ISCC (ISO 24138:2024) code generation. All 10 `gen_*_v0` functions return
 `IsccResult<String>` containing the ISCC code string (prefixed with `ISCC:`).
 
 ```bash
@@ -263,6 +263,36 @@ let instance_code = gen_instance_code_v0(data, 64)?;
 // Combine the ISCC code strings:
 let codes = &[data_code.as_str(), instance_code.as_str()];
 let iscc_code = gen_iscc_code_v0(codes, false)?;
+```
+
+---
+
+### gen_sum_code_v0
+
+Generate an ISCC-SUM from a file path in a single pass.
+
+```rust
+pub fn gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>
+```
+
+| Parameter | Type    | Description                                        |
+| --------- | ------- | -------------------------------------------------- |
+| `path`    | `&Path` | Path to the file                                   |
+| `bits`    | `u32`   | Bit length of the generated code (default: 64)     |
+| `wide`    | `bool`  | Enable 256-bit wide mode for ISCC-CODE combination |
+
+Reads the file once, feeding both a `DataHasher` (CDC/MinHash) and an `InstanceHasher` (BLAKE3) from
+the same buffer, then composes the result into an ISCC-CODE. Returns a `SumCodeResult` with `iscc`,
+`datahash`, and `filesize` fields.
+
+```rust
+use iscc_lib::gen_sum_code_v0;
+use std::path::Path;
+
+let result = gen_sum_code_v0(Path::new("document.pdf"), 64, false)?;
+println!("{}", result.iscc);      // Composite ISCC-CODE
+println!("{}", result.datahash);  // BLAKE3 multihash
+println!("{}", result.filesize);  // File size in bytes
 ```
 
 ## Types

@@ -18,8 +18,8 @@ across languages.
 | **Tier 2** (`pub mod codec`)           | Rust-only (enums, header encode/decode)    | May change in MINOR releases                |
 | **Internal** (`pub(crate)` or private) | Never exposed to bindings                  | Free to change                              |
 
-Tier 1 includes 22 public symbols: 9 gen functions, 4 text utilities, 4 algorithm primitives, 1 soft
-hash, 1 encoding utility, 1 codec operation, 2 streaming types, and 1 diagnostic function. See
+Tier 1 includes 23 public symbols: 10 gen functions, 4 text utilities, 4 algorithm primitives, 1
+soft hash, 1 encoding utility, 1 codec operation, 2 streaming types, and 1 diagnostic function. See
 `specs/rust-core.md` for the complete listing.
 
 **Concrete pattern:**
@@ -28,7 +28,7 @@ hash, 1 encoding utility, 1 codec operation, 2 streaming types, and 1 diagnostic
 // crates/iscc-lib/src/lib.rs
 
 // Tier 1 public API — bound in all languages:
-// - 9 gen_*_v0 functions (code generation)
+// - 10 gen_*_v0 functions (code generation)
 // - text_clean, text_remove_newlines, text_trim, text_collapse (text utils)
 // - sliding_window, alg_minhash_256, alg_cdc_chunks, alg_simhash (algorithms)
 // - soft_hash_video_v0 (soft hash)

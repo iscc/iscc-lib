@@ -21,7 +21,7 @@ for installation.
 
 ## Code generation
 
-All 9 `gen_*_v0` functions follow the same pattern: pass content-specific input and an optional
+All 10 `gen_*_v0` functions follow the same pattern: pass content-specific input and an optional
 `bits` parameter (default 64), and receive a structured result with an `.iscc` field containing the
 ISCC code string.
 
@@ -217,6 +217,7 @@ Result types and their fields:
 | `DataCodeResult`     | `iscc`                                              |
 | `InstanceCodeResult` | `iscc`, `datahash`, `filesize`                      |
 | `IsccCodeResult`     | `iscc`                                              |
+| `SumCodeResult`      | `iscc`, `datahash`, `filesize`                      |
 
 Fields marked with `?` are optional and only present when the corresponding input was provided.
 

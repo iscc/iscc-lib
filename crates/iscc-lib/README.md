@@ -47,6 +47,7 @@ println!("Meta-Code: {}", result.iscc);
 | `gen_data_code_v0`     | Generate a Data-Code from raw bytes          |
 | `gen_instance_code_v0` | Generate an Instance-Code from raw bytes     |
 | `gen_iscc_code_v0`     | Generate a composite ISCC-CODE               |
+| `gen_sum_code_v0`      | Generate an ISCC-SUM from a file path        |
 
 ### Utilities
 

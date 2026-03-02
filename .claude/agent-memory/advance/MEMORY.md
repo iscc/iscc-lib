@@ -196,6 +196,14 @@ iterations.
 - 5 constants currently exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
     IO_READ_SIZE, TEXT_NGRAM_SIZE
 
+## Documentation Sweep Patterns
+
+- "N gen" count references exist in: READMEs (9 files), docs/ (14 files), howto/ (6 files), crate
+    CLAUDE.md files (5), notes/ (2), source comments (.rs, .py, .mjs, .pyi), benchmarks/ (2)
+- The Edit tool requires a full Read call (not offset/limit) before the first edit per file
+- mdformat auto-reformats after edits — always run `mise run format` twice after doc changes
+- iscc-core-ts is external and may have different function counts than iscc-lib
+
 ## Gotchas
 
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
