@@ -1,37 +1,34 @@
-## 2026-03-02 — Review of: Commit iscc.h header with CI freshness check
+## 2026-03-02 — Create standalone C example with CMakeLists.txt (issue #23)
 
-**Verdict:** PASS
+**Done:** Created `crates/iscc-ffi/examples/iscc_sum.c` — a complete C program that reads a file in
+chunks, feeds both DataHasher and InstanceHasher, composes the ISCC-CODE, and prints all three
+codes. Also created `crates/iscc-ffi/examples/CMakeLists.txt` with build instructions for both
+pre-built and Cargo-built library scenarios.
 
-**Summary:** The advance agent generated and committed `crates/iscc-ffi/include/iscc.h` via cbindgen
-and updated the CI workflow to use a freshness check (`git diff --exit-code`) instead of generating
-the header at test time. The implementation is exactly scoped to what next.md specified — only two
-non-context files changed. The committed header matches cbindgen output exactly (verified by
-regenerating and diffing).
+**Files changed:**
+
+- `crates/iscc-ffi/examples/iscc_sum.c`: New C example program demonstrating streaming ISCC-SUM
+- `crates/iscc-ffi/examples/CMakeLists.txt`: Minimal CMake build file with usage instructions
 
 **Verification:**
 
-- [x] `test -f crates/iscc-ffi/include/iscc.h` exits 0 — header file exists (873 lines)
-- [x] `grep '#ifndef ISCC_H' crates/iscc-ffi/include/iscc.h` — include guard found
-- [x] `grep 'include/iscc.h' .github/workflows/ci.yml` — freshness check step references correct
-    path
-- [x] `grep 'exit-code' .github/workflows/ci.yml` — diff-based freshness check present
-- [x] `grep '\-I crates/iscc-ffi/include' .github/workflows/ci.yml` — updated include path
-- [x] `cargo clippy -p iscc-ffi -- -D warnings` — clean
-- [x] `cargo test -p iscc-lib` — 310 tests pass (256 + 31 + 22 + 1 doctest)
-- [x] `mise run check` — 14/14 hooks pass
-- [x] Header freshness — regenerated header matches committed version exactly
+- `test -f crates/iscc-ffi/examples/iscc_sum.c` — PASS
+- `test -f crates/iscc-ffi/examples/CMakeLists.txt` — PASS
+- `grep 'iscc_data_hasher_update'` — PASS (streaming pattern present)
+- `grep 'iscc_instance_hasher_update'` — PASS (dual-hasher present)
+- `grep 'iscc_gen_iscc_code_v0'` — PASS (composition present)
+- `grep 'fread'` — PASS (file chunk loop present)
+- `grep 'cmake_minimum_required'` — PASS
+- `cargo build -p iscc-ffi` — PASS
+- gcc compilation — PASS (compiled with `-I include -L target/debug -liscc_ffi -lpthread -ldl -lm`)
+- Example execution — PASS (prints 3 labeled lines with `ISCC:` prefix codes)
+- `cargo clippy -p iscc-ffi -- -D warnings` — PASS (clean)
+- `cargo test -p iscc-lib` — PASS (310 tests: 256 + 31 + 22 + 1 doctest)
+- `mise run check` — PASS (14/14 hooks)
 
-**Issues found:**
+**Next:** Issue #22 — Create the `docs/howto/c-cpp.md` how-to guide for C/C++ integration. The
+example program and committed header are now in place to reference from the guide.
 
-- (none)
-
-**Issue resolved:** #24 (Commit iscc.h header with CI freshness check) — deleted from issues.md.
-
-**Next:** The next C FFI DX item is issue #23 (standalone C example with CMakeLists.txt in
-`crates/iscc-ffi/examples/`). This can now reference the committed header at
-`crates/iscc-ffi/include/iscc.h`. After that: #22 (how-to guide) and #25 (release artifacts).
-
-**Notes:** The `crates/iscc-ffi/tests/iscc.h` gitignore entry remains — that's the CI artifact copy
-for test compilation, not the committed header. The committed header at `include/iscc.h` is not
-gitignored. Codex review was launched against the wrong commit (define-next instead of advance) due
-to the protocol template using `HEAD~1` — this is a known issue documented in review agent memory.
+**Notes:** The example uses C89/C99 compatible style (variables declared at block start) for maximum
+portability. Error handling covers every fallible step with proper cleanup. The CMakeLists.txt
+includes comment blocks explaining both pre-built and Cargo-built library build workflows.
