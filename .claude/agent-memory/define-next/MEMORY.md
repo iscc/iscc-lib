@@ -89,10 +89,16 @@ iterations.
 - C FFI: `test_iscc.c` compiles with gcc in CI, must update 3 existing call sites (tests 24-26) when
     signature changes. cbindgen regenerates header; CI checks freshness
 - C example `iscc_sum.c` uses streaming hashers, NOT `iscc_gen_sum_code_v0` — no update needed
+- JNI: `build_string_array` helper (line 120) converts `Vec<String>` → `jobjectArray`. Reuse it for
+    `units`. `jobjectArray` is a raw pointer — wrap with `unsafe { JObject::from_raw(arr) }` to pass
+    as `JValue::Object`. For null, use `JValue::Object(&JObject::null())`
+- JNI constructor signature encoding: `String[]` = `[Ljava/lang/String;` in JNI descriptor. Updated
+    sig: `"(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V"`
+- JNI: 4 existing Maven tests call `genSumCodeV0(path, bits, wide)` — all need 4th arg `false`
 
 ## Project Status
 
-- Iteration 9: WASM done (iter 8). Now exposing `add_units` in C FFI binding
-- Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM ✅ → C FFI (this step) → JNI → Go
+- Iteration 10: C FFI done (iter 9). Now exposing `add_units` in Java/JNI binding
+- Issue #21 progress: Rust core ✅ → Python ✅ → Node.js ✅ → WASM ✅ → C FFI ✅ → JNI (this step) → Go
 - 2 open issues: #21 (units support, partially done), #16 (feature flags, normal/low)
 - v0.0.4 released to all registries
