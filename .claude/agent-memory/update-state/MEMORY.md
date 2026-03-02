@@ -59,19 +59,22 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 0994ddb)
+## Current State (assessed-at: 80c59f7)
 
-- **IN_PROGRESS**: 2 open issues remain; C FFI DX spec §§1–4 now fully complete
-- **Issues open**: #16 (feature flags, low priority), #21 (units in gen_sum_code_v0, normal)
-- **Issue #25 RESOLVED**: `build-ffi`/`publish-ffi` jobs added to `release.yml`; 5-platform matrix;
-    Windows uses PowerShell staging (`.zip`); Unix uses bash (`.tar.gz`); `ffi` boolean
-    `workflow_dispatch` input added; `shell: bash` fix applied by review agent
+- **IN_PROGRESS**: 2 open issues remain (#16 feature flags, #21 units — partial)
+- **Issue #21 PARTIAL**: Rust core done (`gen_sum_code_v0` now 4 params, `SumCodeResult` has
+    `units: Option<Vec<String>>`; 312 tests, 2 new); all 6 binding crates compile via hardcoded
+    `false`; none yet expose `add_units` or `units` to their public APIs
+- **WASM note**: WASM has its OWN inline `gen_sum_code_v0` (byte-slice, not path-based); doesn't
+    call `iscc_lib::gen_sum_code_v0`; needs its own `add_units`/`units` implementation
+- **Go note**: pure Go `GenSumCodeV0` (3 params) — needs `addUnits bool` + `Units []string` field
+- **Docs deferred**: `docs/rust-api.md` + `docs/architecture.md` still show old 3-param signature;
+    intentionally deferred until binding APIs are exposed (per handoff)
 - **release.yml structure**: build-ffi (5 targets) → publish-ffi (needs build-ffi, ubuntu-latest,
     contents: write); artifact pattern `ffi-*`; upload glob `iscc-ffi-v*.*`
-- **CI latest**: Run 22590833507 — all 11 CI jobs SUCCESS ✅
-- **Next priority**: #21 — units support for gen_sum_code_v0 (add `add_units: bool`,
-    `units:   Option<Vec<String>>` across all bindings including Python, Node.js, WASM, JNI, C FFI,
-    Go)
+- **CI latest**: Run 22592139384 — all 11 CI jobs SUCCESS ✅
+- **Next priority**: #21 continued — expose `add_units`/`units` in Python, Node.js, C FFI, Java,
+    WASM, Go binding APIs; then update docs
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
