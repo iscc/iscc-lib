@@ -181,6 +181,14 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `cd crates/iscc-py && uv run maturin develop --release` to build the Python extension. This is a
     one-time setup per container/checkout
 
+## Benchmark Review
+
+- `NamedTempFile` wraps unbuffered `std::fs::File` — no explicit flush needed after `write_all`.
+    `File::open` in Rust uses shared access on Windows, so concurrent read-while-write-handle-open
+    works. Codex false-positive about Windows exclusive access can be dismissed
+- `group.throughput()` called per-size within the same benchmark group is the established pattern in
+    this codebase (used by `bench_data_code`, `bench_instance_code`, and now `bench_sum_code`)
+
 ## Gotchas
 
 - Git log shows iteration numbering resets when a new CID run starts (iteration 12 → iteration 1) —
