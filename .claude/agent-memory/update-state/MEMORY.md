@@ -59,20 +59,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: ba1a030)
+## Current State (assessed-at: 0994ddb)
 
-- **IN_PROGRESS**: C FFI DX — 1 of 6 criteria remain unmet (pre-built FFI tarballs); 3 open issues
-- **Issues open**: #16 (feature flags, low priority), #21 (units in gen_sum_code_v0, normal), #25
-    (FFI release tarballs, normal)
-- **Issue #22 RESOLVED**: `docs/howto/c-cpp.md` (433 lines) created; linked in navigation via
-    `"C / C++" = "howto/c-cpp.md"` entry in zensical.toml; all 13 spec sections present
-- **docs/howto/c-cpp.md sections**: Building from source, CMake `find_library` + pkg-config,
-    ISCC-SUM quick start, Streaming (dual-hasher), Composing ISCC-SUM manually, Error handling,
-    Memory management (full table), Static vs dynamic linking, Cross-compilation, C++ RAII wrapper,
-    Conformance verification
-- **release.yml**: NO build-ffi/publish-ffi jobs; NO ffi workflow_dispatch input (issue #25)
-- **CI latest**: Run 22589681430 — all 11 CI jobs SUCCESS ✅
-- **Documentation section**: now fully met (17 pages, all howto guides complete)
+- **IN_PROGRESS**: 2 open issues remain; C FFI DX spec §§1–4 now fully complete
+- **Issues open**: #16 (feature flags, low priority), #21 (units in gen_sum_code_v0, normal)
+- **Issue #25 RESOLVED**: `build-ffi`/`publish-ffi` jobs added to `release.yml`; 5-platform matrix;
+    Windows uses PowerShell staging (`.zip`); Unix uses bash (`.tar.gz`); `ffi` boolean
+    `workflow_dispatch` input added; `shell: bash` fix applied by review agent
+- **release.yml structure**: build-ffi (5 targets) → publish-ffi (needs build-ffi, ubuntu-latest,
+    contents: write); artifact pattern `ffi-*`; upload glob `iscc-ffi-v*.*`
+- **CI latest**: Run 22590833507 — all 11 CI jobs SUCCESS ✅
+- **Next priority**: #21 — units support for gen_sum_code_v0 (add `add_units: bool`,
+    `units:   Option<Vec<String>>` across all bindings including Python, Node.js, WASM, JNI, C FFI,
+    Go)
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 

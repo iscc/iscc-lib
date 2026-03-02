@@ -1,16 +1,16 @@
-<!-- assessed-at: ba1a0302595036bab3e2f6e5f949f45266147e4d -->
+<!-- assessed-at: 0994ddb4a78a8d41a5f35e94e2c30a49e12a6a7 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C FFI DX — 1 target criterion unmet; 3 open issues
+## Phase: C FFI DX — complete; 2 open issues remain (#21 units, #16 feature flags)
 
-Commit `ba1a030` resolved issue #22: `docs/howto/c-cpp.md` (433 lines) now exists with all required
-sections (CMake, streaming, RAII wrapper, error handling, memory management, static vs dynamic
-linking, cross-compilation, conformance verification) and is linked in site navigation.
-Documentation section is now fully met. One C FFI target criterion remains unmet (pre-built FFI
-tarballs, issue #25), plus issues #21 (units support) and #16 (feature flags). All 11 CI jobs pass.
+Commit `0994ddb` resolved issue #25: `release.yml` now has `build-ffi` and `publish-ffi` jobs with a
+5-platform matrix (`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`,
+`x86_64-apple-darwin`, `x86_64-pc-windows-msvc`), a `ffi` boolean `workflow_dispatch` input, and
+Windows PowerShell staging. All C FFI DX spec criteria (§§1–4) are now met. The two remaining open
+issues are #21 (units support for `gen_sum_code_v0`) and #16 (feature flags). All 11 CI jobs pass.
 
 ## Rust Core Crate
 
@@ -59,7 +59,7 @@ tarballs, issue #25), plus issues #21 (units support) and #16 (feature flags). A
 
 ## C FFI
 
-**Status**: partially met (5/6 criteria met; pre-built tarballs outstanding)
+**Status**: met (6/6 criteria met)
 
 - cbindgen generates valid C headers ✅
 - C test program calls entrypoints and gets correct results ✅
@@ -69,8 +69,11 @@ tarballs, issue #25), plus issues #21 (units support) and #16 (feature flags). A
     error handling) + `CMakeLists.txt` exist and compile correctly ✅ (resolved issue #23)
 - `docs/howto/c-cpp.md` exists (433 lines) with all required sections — linked in navigation ✅
     (resolved issue #22)
-- Pre-built FFI tarballs not set up — `release.yml` has no `build-ffi`/`publish-ffi` jobs ❌ (issue
-    #25)
+- `build-ffi` + `publish-ffi` jobs in `release.yml` with 5-platform matrix; `ffi` boolean
+    `workflow_dispatch` input; Windows uses PowerShell staging (`.zip`), Unix uses shell
+    (`.tar.gz`); each artifact contains shared lib + static lib + `iscc.h` + LICENSE ✅ (resolved
+    issue #25)
+- End-to-end publish not yet tested with an actual tag push (structural verification only)
 
 ## Java Bindings
 
@@ -145,24 +148,25 @@ tarballs, issue #25), plus issues #21 (units support) and #16 (feature flags). A
 **Status**: partially met
 
 - **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22589681430
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22590833507
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check)
 - v0.0.4 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
     configured; npm via `NPM_TOKEN` secret
-- `release.yml` is missing `build-ffi` and `publish-ffi` jobs ❌ (issue #25)
-- `workflow_dispatch` does not have `ffi` boolean input ❌ (issue #25)
+- `release.yml` now has `build-ffi`/`publish-ffi` jobs with 5-platform matrix ✅ (resolved issue
+    #25); `workflow_dispatch` has `ffi` boolean input ✅
+- FFI publishing untested end-to-end (no tag push triggered since merge); structural verification
+    only
 
 ## Next Milestone
 
 **Remaining open issues in priority order:**
 
-1. **#25** — Add `build-ffi` and `publish-ffi` jobs to `release.yml` with 5-platform matrix
-    (`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`,
-    `x86_64-apple-darwin`, `x86_64-pc-windows-msvc`). Each platform produces a tarball containing
-    shared lib + static lib + `iscc.h` + LICENSE. Add `ffi` boolean input to `workflow_dispatch`.
-    Tarballs uploaded as GitHub Release assets with naming `iscc-ffi-v{version}-{target}.tar.gz`.
-2. **#21** — Units support for `gen_sum_code_v0`: add `add_units: bool` parameter and
-    `units: Option<Vec<String>>` field to `SumCodeResult`; update all bindings.
-3. **#16** — Feature flags for embedded/minimal builds (low priority).
+1. **#21** — Units support for `gen_sum_code_v0`: add `add_units: bool` parameter and
+    `units: Option<Vec<String>>` field to `SumCodeResult` containing the individually computed
+    Data-Code and Instance-Code ISCC strings. Gate via `add_units: bool`. Update all bindings
+    (Python, Node.js, WASM, JNI, C FFI, Go). This enables `iscc-sdk` to get Data-Code +
+    Instance-Code
+    - ISCC-SUM in a single optimized file read instead of three separate calls.
+2. **#16** — Feature flags for embedded/minimal builds (low priority).
