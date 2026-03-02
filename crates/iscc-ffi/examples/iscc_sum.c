@@ -58,6 +58,8 @@ int main(int argc, char *argv[])
     ih = iscc_instance_hasher_new();
     if (dh == NULL || ih == NULL) {
         fprintf(stderr, "Error: failed to create hashers\n");
+        if (dh != NULL) iscc_data_hasher_free(dh);
+        if (ih != NULL) iscc_instance_hasher_free(ih);
         free(buf);
         fclose(fp);
         return 1;
@@ -83,6 +85,14 @@ int main(int argc, char *argv[])
             fclose(fp);
             return 1;
         }
+    }
+    if (ferror(fp)) {
+        fprintf(stderr, "Error: read failed for '%s'\n", argv[1]);
+        iscc_data_hasher_free(dh);
+        iscc_instance_hasher_free(ih);
+        free(buf);
+        fclose(fp);
+        return 1;
     }
     fclose(fp);
     free(buf);

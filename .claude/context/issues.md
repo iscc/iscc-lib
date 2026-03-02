@@ -26,16 +26,6 @@ include: CMake integration snippet, streaming DataHasher/InstanceHasher walkthro
 one-shot example, error handling and memory management sections, C++ RAII wrapper example, static vs
 dynamic linking guidance, and cross-compilation notes. Add to site navigation.
 
-## #23 — Add standalone C example with CMakeLists.txt [human]
-
-**Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/23 **Spec:**
-`.claude/context/specs/c-ffi-dx.md` §2
-
-Create `crates/iscc-ffi/examples/iscc_sum.c` showing the streaming use case: open file, read chunks
-in a loop, feed both DataHasher and InstanceHasher, finalize, compose ISCC-SUM via
-`iscc_gen_iscc_code_v0`, print, free. Include `crates/iscc-ffi/examples/CMakeLists.txt` for
-one-command builds. Must compile and produce correct output.
-
 ## #25 — Add pre-built FFI release artifacts to GitHub Releases [human]
 
 **Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/25 **Spec:**
