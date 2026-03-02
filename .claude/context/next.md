@@ -1,101 +1,85 @@
 # Next Work Package
 
-## Step: Add gen_sum_code_v0 to all documentation and READMEs
+## Step: Add gen_sum_code_v0 examples to all 6 howto guides
 
 ## Goal
 
-Update every user-facing reference that lists the gen\_\*\_v0 functions to include `gen_sum_code_v0`
-(the 10th gen function). This closes the documentation gap identified after completing issue #15
-across all 7 bindings.
+Add a "Sum-Code" subsection with a minimal working code example to the Code Generation section of
+each per-language howto guide. This is the last remaining documentation gap — all 6 guides currently
+have 9 gen function subsections but none for `gen_sum_code_v0`.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `README.md` — add `gen_sum_code_v0` to the Implementors Guide list (line ~212)
-    - `crates/iscc-lib/README.md` — add row to Code Generators table
-    - `crates/iscc-py/README.md` — add row to Code Generators table
-    - `crates/iscc-napi/README.md` — add row to Code Generators table
-    - `crates/iscc-wasm/README.md` — add row to Code Generators table
-    - `crates/iscc-wasm/pkg/README.md` — keep in sync with `crates/iscc-wasm/README.md` (identical)
-    - `crates/iscc-ffi/README.md` — add row to Code Generators table
-    - `crates/iscc-ffi/src/lib.rs` — fix module docstring: "9 `gen_*_v0` functions" → "10"
-    - `crates/iscc-jni/README.md` — add row to Code Generators table
-    - `packages/go/README.md` — add row to Code Generators table
-    - `crates/iscc-lib/src/conformance.rs` — update comment "all 9" → "all 10"
-    - `crates/iscc-lib/benches/benchmarks.rs` — update comment "all 9" → "all 10"
-    - `crates/iscc-wasm/tests/unit.rs` — update comment "the 9" → "the 10"
-    - `crates/iscc-wasm/tests/conformance.rs` — update comment "all 9" → "all 10"
-    - `docs/c-ffi-api.md` — add `iscc_gen_sum_code_v0` section after `iscc_gen_iscc_code_v0`; update
-        "All 9" → "All 10"
-    - `docs/benchmarks.md` — update "the 9" → "the 10" in description text
-    - Any other `docs/*.md` files that list the 9 gen functions (check `docs/api.md`,
-        `docs/rust-api.md`, `docs/architecture.md`, `docs/index.md`, `docs/ecosystem.md`,
-        `docs/tutorials/getting-started.md`, `docs/howto/*.md`)
+- **Create**: none
+- **Modify**: `docs/howto/rust.md`, `docs/howto/python.md`, `docs/howto/nodejs.md`,
+    `docs/howto/wasm.md`, `docs/howto/java.md`, `docs/howto/go.md`
 - **Reference**:
-    - `crates/iscc-ffi/src/lib.rs` — for `iscc_gen_sum_code_v0` C API signature (already exists)
-    - `crates/iscc-lib/src/api.rs` — for `gen_sum_code_v0` Rust signature
-    - `crates/iscc-py/src/lib.rs` — for Python binding signature
-    - `crates/iscc-napi/src/lib.rs` — for Node.js binding signature
+    - `crates/iscc-wasm/tests/unit.rs` (WASM `gen_sum_code_v0` takes `&[u8]`, not file path)
+    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` (Java signature)
+    - `packages/go/code_sum.go` (Go signature)
+    - `crates/iscc-lib/src/api.rs` (Rust signature)
+    - `crates/iscc-py/src/lib.rs` (Python binding signature)
+    - `crates/iscc-napi/src/lib.rs` (Node.js binding signature)
 
 ## Not In Scope
 
-- Adding `gen_sum_code_v0` to benchmark suite (criterion or pytest-benchmark) — separate performance
-    step
-- Updating `docs/benchmarks.md` with benchmark results for `gen_sum_code_v0` — no benchmarks exist
-    yet for this function
-- Modifying any functional code — this is a documentation-only step
-- Adding new tests — all tests already pass
-- Updating version numbers or releasing a new version
+- Adding `gen_sum_code_v0` benchmarks or benchmark documentation
+- Updating result types tables in rust.md or python.md (SumCodeResult is already listed there)
+- Modifying code, tests, or any non-howto documentation files
+- Adding new sections beyond the Code Generation subsection (e.g., no new "Streaming" or "Advanced"
+    subsections for Sum-Code)
+- Updating the count of gen functions in howto guide introductions or other prose — if they say
+    "nine" in running text, that's a separate cleanup task, not part of adding the example
+    subsection
 - Addressing issue #16 (feature flags) — separate low-priority step
-- Rewriting any existing documentation sections — only add missing function references
 
 ## Implementation Notes
 
-**Pattern for API tables:** Every per-crate README and the Go README has a "Code Generators" table
-with 9 rows. Add `gen_sum_code_v0` as the 10th row, placed after `gen_iscc_code_v0` (it builds on
-Data-Code + Instance-Code + ISCC-CODE). Use binding-appropriate naming:
+**Insertion point:** Add `### Sum-Code` subsection immediately AFTER the existing `### ISCC-CODE`
+subsection in the Code Generation section of each file.
 
-| Binding | Function name          | Description                           |
-| ------- | ---------------------- | ------------------------------------- |
-| Rust    | `gen_sum_code_v0`      | Generate an ISCC-SUM from a file path |
-| Python  | `gen_sum_code_v0`      | Generate an ISCC-SUM from a file path |
-| Node.js | `gen_sum_code_v0`      | Generate an ISCC-SUM from a file path |
-| WASM    | `gen_sum_code_v0`      | Generate an ISCC-SUM from raw bytes   |
-| C FFI   | `iscc_gen_sum_code_v0` | Generate an ISCC-SUM from a file path |
-| Java    | `genSumCodeV0`         | Generate an ISCC-SUM from a file path |
-| Go      | `GenSumCodeV0`         | Generate an ISCC-SUM from a file path |
+**Pattern to follow:** Each subsection has:
 
-**Root README Implementors Guide** (line ~203-213): Add `gen_sum_code_v0` to the code block list.
+1. `### Sum-Code` heading
+2. One-line description: "Generate a composite ISCC-CODE from a file in a single pass:" (adjust for
+    WASM: "from raw bytes")
+3. Fenced code block with language-appropriate example
 
-**FFI module docstring** (`crates/iscc-ffi/src/lib.rs` line 3): Change "9" to "10".
+**Key API differences by language:**
 
-**Code comments** in `conformance.rs`, `benchmarks.rs`, and WASM test files: simple "9" → "10"
-string replacements.
+| Language | Function                                | Input                | Result type                                                  |
+| -------- | --------------------------------------- | -------------------- | ------------------------------------------------------------ |
+| Rust     | `gen_sum_code_v0(path, 64, false)`      | `&Path`              | `SumCodeResult { iscc, datahash, filesize }`                 |
+| Python   | `gen_sum_code_v0("file.bin")`           | `str \| os.PathLike` | `SumCodeResult` with `.iscc`, `.datahash`, `.filesize`       |
+| Node.js  | `gen_sum_code_v0("file.bin")`           | `string` path        | object with `iscc`, `datahash`, `filesize`                   |
+| WASM     | `gen_sum_code_v0(data)`                 | `Uint8Array`         | object with `iscc`, `datahash`, `filesize`                   |
+| Java     | `IsccLib.genSumCodeV0(path, 64, false)` | `String` path        | `SumCodeResult` with `.iscc()`, `.datahash()`, `.filesize()` |
+| Go       | `iscc.GenSumCodeV0(path, 64, false)`    | `string` path        | `*SumCodeResult` with `.Iscc`, `.Datahash`, `.Filesize`      |
 
-**docs/c-ffi-api.md**: Add a new `### iscc_gen_sum_code_v0` section after `iscc_gen_iscc_code_v0`.
-Read the actual C FFI function signature from `crates/iscc-ffi/src/lib.rs` to document it
-accurately. The function returns an `IsccSumCodeResult` struct (not a plain string like other gen
-functions) — document the struct fields and the `iscc_free_sum_code_result` cleanup function.
+**WASM is the outlier:** No filesystem access in browser — takes `Uint8Array` (raw bytes) instead of
+a file path. Include a brief comment explaining this difference. The WASM howto already uses
+`TextEncoder` for data encoding in other examples — follow the same pattern.
 
-**WASM pkg/README.md**: This file is an exact copy of `crates/iscc-wasm/README.md`. After editing
-the source README, copy the same changes to `pkg/README.md` to keep them in sync.
+**Example style:** Match the tone and coding style of adjacent subsections (ISCC-CODE,
+Instance-Code). Use the same import style, variable naming, and output printing pattern as existing
+examples in each file. Keep examples to 5-10 lines excluding imports.
 
-**Other docs pages**: Grep each file in the docs/ reference list to find where gen functions are
-listed. Some pages may list functions in code examples, API tables, or prose — add gen_sum_code_v0
-where it fits naturally. Don't add it to places that only show one or two example functions.
+**File-based examples:** For Rust/Python/Node.js/Java/Go, the example needs a file path. Use a
+simple example like `std::fs::write` (Rust), `Path("example.bin").write_bytes(...)` (Python),
+`fs.writeFileSync` (Node.js), `Files.write` (Java), `os.WriteFile` (Go) to create a sample file,
+then call `gen_sum_code_v0` on it. Alternatively, reference a hypothetical file path with a comment
+— match whatever pattern feels most natural for the language. Look at how existing examples in each
+guide handle data setup.
 
 ## Verification
 
-- `grep -rl "gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0\|iscc_gen_sum_code_v0" README.md crates/*/README.md packages/go/README.md docs/`
-    returns hits in all expected files
-- `grep -r "9 .gen_\*_v0\|the 9 gen\|all 9 gen\|All 9.*gen" crates/ docs/ README.md` returns zero
-    hits (all "9" references updated to "10")
-- `cargo clippy -p iscc-ffi -- -D warnings` passes (docstring change doesn't break code)
-- `diff crates/iscc-wasm/README.md crates/iscc-wasm/pkg/README.md` returns no output (files in sync)
-- `mise run check` passes (formatting hooks clean)
+- `grep -c "### Sum-Code" docs/howto/rust.md docs/howto/python.md docs/howto/nodejs.md docs/howto/wasm.md docs/howto/java.md docs/howto/go.md`
+    — all 6 files show count of 1
+- `grep -l "gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0" docs/howto/*.md | wc -l` — returns 6
+- `uv run zensical build 2>&1 | tail -1` — exits 0 (docs site builds successfully)
+- `mise run format` exits 0 (formatting clean)
 
 ## Done When
 
-All verification criteria pass — every user-facing listing of gen\_\*\_v0 functions includes
-`gen_sum_code_v0`, all "9 gen" comments/text are updated to "10", and no code behavior is changed.
+All 6 howto guides have a `### Sum-Code` subsection with a working code example in the Code
+Generation section, and the documentation site builds without errors.
