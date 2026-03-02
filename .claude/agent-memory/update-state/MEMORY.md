@@ -50,12 +50,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 4e7a04e)
+## Current State (assessed-at: 90ee23a)
 
-- **Target**: 32 Tier 1 symbols — Rust core 32/32 ✅; Python 32/32 ✅; Node.js 32/32 ✅; others 31/32
-- **Iteration 8**: Node.js bindings for gen_sum_code_v0 + NapiSumCodeResult complete (PASS)
-- **Issues**: #15 (gen_sum_code_v0 propagation to 6 bindings, in-progress), #16 (feature flags)
-- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ✅ WASM ❌ C FFI ❌ Java ❌ Go ❌
+- **Target**: 32 Tier 1 symbols — Rust core 32/32 ✅; Python 32/32 ✅; Node.js 32/32 ✅; WASM 32/32 ✅;
+    C FFI ❌; Java ❌; Go ❌
+- **Iteration 10**: WASM bindings for gen_sum_code_v0 + WasmSumCodeResult complete (PASS)
+- **Issues**: #15 (gen_sum_code_v0 propagation to 6 bindings, 4/6 done), #16 (feature flags)
+- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ❌ Java ❌ Go ❌
+- **WASM details**: `WasmSumCodeResult` (`getter_with_clone`) with filesize as `f64` (JS compat); fn
+    at lib.rs:180 composes DataHasher+InstanceHasher from single &[u8]; 6 new tests; 75 total
+    wasm-bindgen tests (9 conformance + 66 unit)
 - **Node.js details**: `NapiSumCodeResult` struct + `gen_sum_code_v0` fn in
     `crates/iscc-napi/src/lib.rs`; TypeScript declarations auto-generated in `index.d.ts`; 6 new
     tests in `functions.test.mjs`; 132 total tests; filesize is i64 (napi-rs lacks u64)
@@ -63,9 +67,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     tests
 - **Rust core tests**: 310 (256 unit + 31 streaming + 22 utils + 1 doctest)
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22552124782 — all 11 job records SUCCESS (3 consecutive green)
-- **Next priority**: Propagate gen_sum_code_v0 to WASM bindings (crates/iscc-wasm/) — WASM design:
-    accept Uint8Array (no filesystem), compose Data-Code + Instance-Code internally
+- **CI latest**: Run 22552829248 — all 11 job records SUCCESS
+- **Next priority**: Propagate gen_sum_code_v0 to C FFI (crates/iscc-ffi/) — output-pointer pattern
 
 ## Go Package Tier 1 Coverage (31/32)
 

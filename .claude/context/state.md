@@ -1,15 +1,15 @@
-<!-- assessed-at: cb9615e78a6e3221c56601ce67070390b1d32997 -->
+<!-- assessed-at: 90ee23a62eebdd44f5f97ad26b261511e43b686e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: gen_sum_code_v0 propagation — Node.js done (2/6 bindings); WASM next
+## Phase: gen_sum_code_v0 propagation — WASM done (3/6 bindings); C FFI next
 
-Iteration 8 completed: `gen_sum_code_v0` + `NapiSumCodeResult` fully propagated to Node.js bindings
-(32/32 Tier 1 symbols in Node.js). The napi struct, function, TypeScript declarations, and 6 mocha
-tests are all present and CI-verified (132 total tests pass). Four binding crates still lack
-`gen_sum_code_v0`: WASM, C FFI, Java, Go.
+Iteration 10 completed: `gen_sum_code_v0` + `WasmSumCodeResult` fully propagated to WASM bindings
+(32/32 Tier 1 symbols in WASM). The wasm-bindgen struct, function, and 6 tests are all present and
+CI-verified (75 total wasm-bindgen tests pass across 9 conformance + 66 unit). Three binding crates
+still lack `gen_sum_code_v0`: C FFI, Java, Go.
 
 ## Rust Core Crate
 
@@ -53,19 +53,24 @@ tests are all present and CI-verified (132 total tests pass). Four binding crate
 - `#[napi(js_name = "gen_sum_code_v0")] fn gen_sum_code_v0(path, bits?, wide?)` with
     `Option<u32>`/`Option<bool>` params ✅
 - `NapiSumCodeResult` interface + `gen_sum_code_v0` declaration in auto-generated `index.d.ts` ✅
-- 6 mocha tests for `gen_sum_code_v0` in `functions.test.mjs` (equivalence, shape, error, defaults,
-    wide mode, filesize) ✅; 132 total tests pass (95 `it()` blocks across 2 test files)
+- 6 mocha tests for `gen_sum_code_v0` in `functions.test.mjs`; 132 total tests pass ✅
 - Review verdict: PASS; `cargo clippy -p iscc-napi -- -D warnings` clean
 - `@iscc/lib 0.0.3` on npm
 
 ## WASM Bindings
 
-**Status**: partially met (missing gen_sum_code_v0)
+**Status**: met (32/32 Tier 1 symbols; all conformance tests pass)
 
-- 31/31 existing Tier 1 symbols exported; `META_TRIM_META` getter added with unit test ✅
-- 61+ wasm-bindgen tests CI-verified passing
-- **MISSING**: `gen_sum_code_v0` wasm_bindgen export (design: accept `Uint8Array` bytes since WASM
-    has no filesystem access)
+- All 32 Tier 1 symbols exported including `gen_sum_code_v0` ✅
+- `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) with `iscc: String`,
+    `datahash: String`, `filesize: f64` in `crates/iscc-wasm/src/lib.rs` at line 165 ✅
+- `#[wasm_bindgen] fn gen_sum_code_v0(data: &[u8], bits: Option<u32>, wide: Option<bool>)` at line
+    180; feeds `DataHasher` + `InstanceHasher` from same byte slice, composes via `gen_iscc_code_v0`
+    ✅
+- 6 wasm-bindgen tests for `gen_sum_code_v0` in `crates/iscc-wasm/tests/unit.rs`: `equivalence`,
+    `result_shape`, `empty_input`, `default_params`, `wide_mode`, `filesize` ✅
+- 75 total wasm-bindgen tests (9 conformance + 66 unit); CI "WASM (wasm-pack test)" SUCCESS ✅
+- Review verdict: PASS; `cargo clippy -p iscc-wasm` clean
 - `@iscc/wasm 0.0.3` on npm
 
 ## C FFI
@@ -74,8 +79,8 @@ tests are all present and CI-verified (132 total tests pass). Four binding crate
 
 - 45 `extern "C"` functions; `iscc_meta_trim_meta()` added with unit test ✅
 - 78 Rust unit tests + C test program (23+ cases) CI-verified passing
-- **MISSING**: `iscc_gen_sum_code_v0` extern "C" function + memory management helpers for result
-    struct
+- **MISSING**: `iscc_gen_sum_code_v0(path, bits, wide)` extern "C" function + memory management
+    helpers for result struct
 
 ## Java Bindings
 
@@ -136,22 +141,22 @@ tests are all present and CI-verified (132 total tests pass). Four binding crate
 
 **Status**: met (for existing features)
 
-- **All 11 CI job records SUCCESS** on latest push; 3 consecutive green runs
-- Latest CI run: **PASSING** — https://github.com/iscc/iscc-lib/actions/runs/22552124782
-- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest), Node.js, WASM, C
-    FFI, Java, Go, Bench — all success
+- **All 11 CI job records SUCCESS** on latest push; latest CI run: **PASSING**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22552829248
+- Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
+    (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
+    (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check) —
+    all success ✅
 - v0.0.3 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
     configured; npm via NPM_TOKEN
 
 ## Next Milestone
 
-**Propagate gen_sum_code_v0 to WASM bindings (`crates/iscc-wasm/`) — issue #15:**
+**Propagate gen_sum_code_v0 to C FFI bindings (`crates/iscc-ffi/`) — issue #15:**
 
-1. **WASM** (next): WASM has no filesystem access — accept `Uint8Array` bytes and compose Data-Code
-    \+ Instance-Code internally. Add `#[wasm_bindgen]` export + `WasmSumCodeResult` struct; add
-    wasm-bindgen tests
-2. **C FFI** (`crates/iscc-ffi/`): `iscc_gen_sum_code_v0(path, bits, wide)` + opaque result struct;
-    update C test program
-3. **Java** (`crates/iscc-jni/`): JNI bridge + `SumCodeResult` record + `genSumCodeV0` native
+1. **C FFI** (next): `iscc_gen_sum_code_v0(path: *const c_char, bits: u32, wide: bool)` extern "C"
+    function with output-pointer pattern (matching existing FFI result functions); update cbindgen
+    header; add C test program cases
+2. **Java** (`crates/iscc-jni/`): JNI bridge + `SumCodeResult` record + `genSumCodeV0` native
     method; mvn tests
-4. **Go** (`packages/go/`): `GenSumCodeV0` + `SumCodeResult` struct; pure Go file I/O; tests
+3. **Go** (`packages/go/`): `GenSumCodeV0` + `SumCodeResult` struct; pure Go file I/O; tests
