@@ -46,23 +46,23 @@ Rust core complete (32/32 Tier 1 symbols, 310 tests). Python binding complete (3
 2. ✅ Python binding — accept str | os.PathLike (complete)
 3. ✅ Node.js binding — NapiSumCodeResult + napi fn + 6 mocha tests (complete, 132 total tests)
 4. ✅ WASM binding — WasmSumCodeResult + &[u8] input + 6 tests (complete, 75 total tests)
-5. → C FFI binding — IsccSumCodeResult struct + iscc_gen_sum_code_v0 extern "C" (current step)
-6. Java binding — JNI bridge + SumCodeResult record
+5. ✅ C FFI binding — IsccSumCodeResult struct + iscc_gen_sum_code_v0 extern "C" (complete, 82 Rust
+    tests + 57 C assertions)
+6. → Java binding — JNI bridge + SumCodeResult class (current step)
 7. Go binding — pure Go reimplementation (not a Rust wrapper)
 
-**C FFI binding specifics:**
+**Java JNI binding specifics:**
 
-- C FFI gen functions typically return `*mut c_char` (just the `.iscc` field). `gen_sum_code_v0`
-    needs a multi-field struct return (like `IsccDecodeResult`) because it returns `iscc`,
-    `datahash`, `filesize`
-- `IsccSumCodeResult` uses `#[repr(C)]` with `ok: bool`, `iscc: *mut c_char`,
-    `datahash: *mut c_char`, `filesize: u64`. Follow `IsccDecodeResult` pattern with dedicated free
-    function
-- `iscc_gen_sum_code_v0` takes `path: *const c_char` → `ptr_to_str` → `Path::new()` →
-    `iscc_lib::gen_sum_code_v0`. Strings via `CString::new().into_raw()`
-- C test needs temp file for gen_sum_code_v0 — use `fopen`/`fwrite`/`fclose` + `remove()`
-- 78 existing Rust unit tests + 23 C test cases (state says "23+ cases")
-- `iscc_free_string` already handles NULL, so `iscc_free_sum_code_result` just delegates
+- Existing JNI gen functions return `jstring` (just the `.iscc` field). `gen_sum_code_v0` needs
+    `jobject` return (like `isccDecode` at lib.rs line 588) because it returns `iscc`, `datahash`,
+    `filesize`
+- `SumCodeResult.java`: immutable class with `public final String iscc, datahash; long filesize` —
+    follows `IsccDecodeResult.java` pattern
+- JNI constructor signature: `"(Ljava/lang/String;Ljava/lang/String;J)V"` for (String, String, long)
+- `jboolean` is `u8` in jni crate — compare `wide != 0` for Rust bool
+- No `data.json` vectors for gen_sum_code_v0 — tests use temp files and equivalence checks against
+    `genDataCodeV0 + genInstanceCodeV0 → genIsccCodeV0`
+- 992 lines in lib.rs currently; ~385 lines in IsccLib.java; ~473 lines in tests
 
 ## Binding Propagation Patterns
 

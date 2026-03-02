@@ -1,111 +1,124 @@
 # Next Work Package
 
-## Step: Add gen_sum_code_v0 to C FFI bindings
+## Step: Add gen_sum_code_v0 to Java JNI bindings
 
 ## Goal
 
-Propagate `gen_sum_code_v0` to the C FFI crate (`crates/iscc-ffi/`), making it 32/32 Tier 1 symbols
-in C. This is the first of three remaining bindings for issue #15.
+Propagate `gen_sum_code_v0` to the Java JNI bindings so Java developers can generate ISCC-SUM codes
+with a single native call. This advances issue #15 (5 of 7 bindings complete; Java is 6th).
 
 ## Scope
 
-- **Create**: (none)
+- **Create**: `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/SumCodeResult.java`
 - **Modify**:
-    - `crates/iscc-ffi/src/lib.rs` — add `IsccSumCodeResult` struct, `iscc_gen_sum_code_v0` extern "C"
-        function, `iscc_free_sum_code_result` free function, Rust unit tests
-    - `crates/iscc-ffi/tests/test_iscc.c` — add C test cases for `gen_sum_code_v0` (create temp file,
-        call function, verify result, free, test NULL path error)
+    - `crates/iscc-jni/src/lib.rs` — add JNI bridge function returning `SumCodeResult` Java object
+    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — add `genSumCodeV0` native
+        method declaration
+    - `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` — add tests
 - **Reference**:
-    - `crates/iscc-ffi/src/lib.rs` — existing patterns for `IsccDecodeResult`, `iscc_decode`,
-        `iscc_free_decode_result`, `result_to_c_string`, `ptr_to_str`
-    - `crates/iscc-lib/src/api.rs` — `gen_sum_code_v0` signature and `SumCodeResult` type
-    - `crates/iscc-ffi/tests/test_iscc.c` — existing C test patterns
+    - `crates/iscc-jni/src/lib.rs` lines 588-625 — `isccDecode` JNI bridge returning a Java object via
+        `env.find_class()` + `env.new_object()`
+    - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccDecodeResult.java` — Java result class
+        pattern (immutable, public final fields)
+    - `crates/iscc-lib/src/lib.rs` line 967 — `gen_sum_code_v0` Rust implementation and tests
 
 ## Not In Scope
 
-- Updating the cbindgen header file (auto-generated in CI, not checked in)
-- Updating CI workflow (already tests C FFI with gcc + test_iscc)
-- Java or Go bindings (separate steps)
-- Updating README or documentation (wait until all 3 remaining bindings are done)
-- Updating module docstring function count (cosmetic, can bundle with Java step)
+- Updating `crates/iscc-ffi/src/lib.rs` module docstring ("9→10 gen functions") — cosmetic, bundle
+    with Go step or a separate cleanup step
+- Go bindings (`packages/go/`) — that is the next step after Java
+- README or documentation updates for gen_sum_code_v0 — deferred until all bindings complete
+- Refactoring existing JNI gen functions to return structured results (they currently return
+    `jstring`; that's a separate concern)
+- Adding `gen_sum_code_v0` conformance vectors to `data.json` (none exist upstream)
 
 ## Implementation Notes
 
-**Result struct pattern** — follow `IsccDecodeResult` for struct-return pattern:
+### 1. Create `SumCodeResult.java`
 
-```rust
-#[repr(C)]
-pub struct IsccSumCodeResult {
-    pub ok: bool,
-    pub iscc: *mut c_char,
-    pub datahash: *mut c_char,
-    pub filesize: u64,
+Follow the `IsccDecodeResult.java` pattern — simple immutable class with public final fields:
+
+```java
+package io.iscc.iscc_lib;
+
+public class SumCodeResult {
+    public final String iscc;
+    public final String datahash;
+    public final long filesize;
+
+    public SumCodeResult(String iscc, String datahash, long filesize) {
+        this.iscc = iscc;
+        this.datahash = datahash;
+        this.filesize = filesize;
+    }
 }
 ```
 
-Place the struct definition near `IsccDecodeResult` (around line 795). Add a helper
-`null_sum_code_result()` that returns a zeroed-out error result (like the inline error returns in
-`iscc_decode`).
+Use `long` for filesize (Java's 64-bit signed long; file sizes won't exceed `Long.MAX_VALUE`).
 
-**Function signature:**
+### 2. Add JNI bridge function in `lib.rs`
 
-```rust
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn iscc_gen_sum_code_v0(
-    path: *const c_char,
-    bits: u32,
-    wide: bool,
-) -> IsccSumCodeResult
+Add `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` following the `isccDecode` pattern (line 588) for
+returning Java objects:
+
+- Parameters: `(env: JNIEnv, _class: JClass, path: JString, bits: jint, wide: jboolean)`
+- Return type: `jobject`
+- Extract `path` string via `env.get_string()`, convert to `std::path::Path::new()`
+- Call `iscc_lib::gen_sum_code_v0(std::path::Path::new(&path_str), bits as u32, wide != 0)`
+- On success:
+    1. Create Java strings for `iscc` and `datahash` via `env.new_string()`
+    2. Find class: `env.find_class("io/iscc/iscc_lib/SumCodeResult")`
+    3. Construct object:
+        `env.new_object(class, "(Ljava/lang/String;Ljava/lang/String;J)V", &[iscc_jstr, datahash_jstr, filesize_jlong])`
+    4. Return `obj.into_raw()`
+- On error: `throw_and_default(&mut env, &e.to_string())`
+- `jboolean` is `u8` in jni crate — compare `wide != 0` to get a Rust `bool`
+
+### 3. Add native method in `IsccLib.java`
+
+Add after the existing `genIsccCodeV0` declaration (~line 145):
+
+```java
+/**
+ * Generate an ISCC-SUM code from a file path.
+ *
+ * Reads the file once, generating both Data-Code and Instance-Code in a single pass,
+ * then composes the final ISCC-CODE.
+ *
+ * @param path file path to process
+ * @param bits hash bit length (32, 64, 96, 128, 160, 192, 224, 256)
+ * @param wide if true, use 256-bit combination (requires bits >= 128)
+ * @return SumCodeResult with iscc, datahash, and filesize
+ * @throws IllegalArgumentException on invalid input or file I/O error
+ */
+public static native SumCodeResult genSumCodeV0(String path, int bits, boolean wide);
 ```
 
-Pattern: `clear_last_error()` → `ptr_to_str(path, "path")` →
-`iscc_lib::gen_sum_code_v0(Path::new(path_str), bits, wide)` → convert `SumCodeResult` fields to C
-types. On error, `set_last_error` and return `ok: false` result. On success, convert `iscc` and
-`datahash` via `CString::new().into_raw()`.
+### 4. Add tests in `IsccLibTest.java`
 
-**Free function:**
+Since `data.json` has no `gen_sum_code_v0` vectors, write manual tests using temp files (matching
+the Rust core test pattern). Use `java.io.File.createTempFile()` and `deleteOnExit()` for cleanup.
+Add a new `@Test` method (not `@TestFactory` since there are no data-driven vectors):
 
-```rust
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn iscc_free_sum_code_result(result: IsccSumCodeResult) {
-    unsafe { iscc_free_string(result.iscc) };
-    unsafe { iscc_free_string(result.datahash) };
-}
-```
-
-`iscc_free_string` already handles NULL, so this is safe even for error results.
-
-**C test cases** — add 3 test cases after existing test #23:
-
-1. **gen_sum_code_v0 with temp file**: Write "Hello World" to a temp file via `fopen`/`fwrite`, call
-    `iscc_gen_sum_code_v0(path, 64, false)`, verify `ok == true`, `iscc` starts with `"ISCC:"`,
-    `datahash` is non-NULL, `filesize == 11`, then `iscc_free_sum_code_result`. Clean up temp file
-    with `remove()`.
-
-2. **gen_sum_code_v0 NULL path**: Call with NULL path, verify `ok == false`, `iscc` is NULL.
-
-3. **gen_sum_code_v0 nonexistent path**: Call with `"/nonexistent/file.bin"`, verify `ok == false`.
-
-**Rust unit tests** — add tests in the `#[cfg(test)]` module:
-
-1. Test `iscc_gen_sum_code_v0` with a real temp file (use `std::io::Write` + `std::env::temp_dir()`)
-2. Test NULL path returns `ok: false`
-3. Test `iscc_free_sum_code_result` with null strings (no-op safety)
-4. Test result fields match `iscc_lib::gen_sum_code_v0` output
-
-**Import note**: Add `use std::path::Path;` if not already imported. The function needs
-`std::fs::File` or similar for temp file tests.
+- **Equivalence test**: Write known bytes to temp file, call `genSumCodeV0(path, 64, false)`, then
+    compose the same result manually via
+    `genDataCodeV0(bytes, 64) + genInstanceCodeV0(bytes, 64) → genIsccCodeV0(codes, false)`. Assert
+    `result.iscc` equals the composed ISCC string. Assert `result.filesize` matches bytes length.
+- **Result fields test**: Verify `result.datahash` is non-null and non-empty, `result.filesize > 0`
+- **Error test**: Non-existent file path throws `IllegalArgumentException`
+- **Wide mode test**: With `bits=128`, verify narrow and wide produce different `iscc` values but
+    same `datahash` and `filesize`
 
 ## Verification
 
-- `cargo test -p iscc-ffi` passes (78 existing + ~4 new tests = ~82 tests)
-- `cargo clippy -p iscc-ffi -- -D warnings` clean
-- `cargo build -p iscc-ffi` succeeds
-- `IsccSumCodeResult` struct and `iscc_gen_sum_code_v0` function are present in source
-- C test program compiles and passes when run locally:
-    `cargo build -p iscc-ffi && cbindgen --crate iscc-ffi -o crates/iscc-ffi/tests/iscc.h && gcc -o /tmp/test_iscc crates/iscc-ffi/tests/test_iscc.c -I crates/iscc-ffi/tests -L target/debug -liscc_ffi -lpthread -ldl -lm && LD_LIBRARY_PATH=target/debug /tmp/test_iscc`
+- `cargo test -p iscc-jni` passes (all existing + new JNI tests)
+- `cargo clippy -p iscc-jni -- -D warnings` clean
+- `cd crates/iscc-jni/java && mvn test` passes (all existing + new Java tests)
+- `SumCodeResult.java` exists at expected path
+- `genSumCodeV0` native method declared in `IsccLib.java`
+- JNI bridge function `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` present in `lib.rs`
 
 ## Done When
 
-All verification criteria pass: Rust tests, clippy, and the C test program all succeed with the new
-`gen_sum_code_v0` function returning correct results for a file-based input.
+All verification criteria pass: `cargo test -p iscc-jni` and `mvn test` both succeed with the new
+`genSumCodeV0` function returning a `SumCodeResult` object, and clippy is clean.
