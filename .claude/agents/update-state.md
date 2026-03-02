@@ -28,6 +28,10 @@ and structural patterns. This builds up institutional knowledge across iteration
 @.claude/context/learnings.md
 </learnings>
 
+<issues>
+@.claude/context/issues.md
+</issues>
+
 <git-log>
 !`git log --oneline -20 2>/dev/null || echo "(no commits yet)"`
 </git-log>
@@ -178,8 +182,8 @@ git commit -m "cid(update-state): <one-line summary of findings>"
 
 - Be brutally honest. Do not inflate progress or minimize problems.
 - Verify by exploring — do not copy claims from the handoff without checking.
-- Only write `## Status: DONE` if ALL criteria in target.md are fully met and CI is green. When in
-    doubt, stay IN_PROGRESS.
+- Only write `## Status: DONE` if ALL criteria in target.md are fully met, CI is green, AND there
+    are no open issues in issues.md. Any open issue blocks DONE. When in doubt, stay IN_PROGRESS.
 - If CI is failing, `## Next Milestone` must prioritize fixing CI before any feature work.
 - Do not modify any file other than `.claude/context/state.md` and your agent memory.
 - Do not implement code, fix bugs, or make improvements. You only observe and report.

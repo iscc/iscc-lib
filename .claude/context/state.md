@@ -2,9 +2,9 @@
 
 # Project State
 
-## Status: DONE
+## Status: IN_PROGRESS
 
-## Phase: All target criteria met; CI green; v0.0.4 released
+## Phase: Target criteria met; open issues #16 and #21 remain
 
 All sections of `target.md` are fully satisfied. The Release 0.0.4 commit (`75bc98f`) bumped
 versions across all manifests (Cargo.toml, pyproject.toml, package.json, pom.xml, mise.toml) — no
