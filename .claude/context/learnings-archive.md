@@ -197,6 +197,32 @@ reference-only for humans.
     `crate-type = ["cdylib", "rlib"]` but only one can ship to crates.io. Use `crate-type = ["lib"]`
     for the core crate (iscc-lib), keep `["cdylib"]` for binding crates
 
+## Issue #21 — add_units/units Binding Patterns (COMPLETED)
+
+- Python binding pattern: PyO3 wrapper accepts `&str` path → `Path::new(path)`, public wrapper adds
+    `str | os.PathLike` via `os.fspath()`. `SumCodeResult(IsccResult)` class + `__all__` update.
+    Wide mode test requires `bits=128` since 64-bit codes produce identical output in both modes
+- Node.js binding pattern: `NapiSumCodeResult` struct with `#[napi(object)]` + `gen_sum_code_v0` fn
+    with `Option<u32>`/`Option<bool>` params. Uses `i64` for filesize (napi-rs lacks u64 support).
+    Tests use `node:test` + `node:assert` + temp files for I/O. Total: 135 tests (6 sum + 3 units)
+- WASM binding pattern: `WasmSumCodeResult` struct with `#[wasm_bindgen(getter_with_clone)]` +
+    `gen_sum_code_v0` fn accepting `&[u8]` (no filesystem in WASM). Uses `f64` for filesize (avoids
+    `u64` → BigInt friction in JS). `add_units: Option<bool>` param + `units: Option<Vec<String>>`
+    field (maps to `string[] | undefined` in TS). Total: 79 tests (9 conformance + 70 unit; 1 unit
+    test behind `conformance` feature gate)
+- C FFI binding pattern for units: `IsccSumCodeResult` uses `*mut *mut c_char` (NULL-terminated
+    string array) for `units` — same representation as `iscc_decompose`/`iscc_sliding_window`.
+    `vec_to_c_string_array` helper converts `Vec<String>` → C array; `iscc_free_string_array` cleans
+    up. Error path frees `iscc` + `datahash` before returning null result. 85 Rust tests, 65 C tests
+- JNI binding pattern: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`,
+    `long filesize`, `String[] units` nullable). JNI bridge returns `jobject` via `env.find_class` +
+    `env.new_object` with signature `(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V`.
+    `jboolean` is `u8` — compare `wide != 0`. Units via `build_string_array` →
+    `unsafe { JObject::from_raw(arr) }`. 7 Maven sum tests. 65 total Maven tests
+- Go binding pattern: `SumCodeResult` with `Units []string` + `addUnits bool` param. Pure Go (no
+    FFI). Conditional `[]string{dataResult.Iscc, instanceResult.Iscc}` when `addUnits=true`, nil
+    otherwise. 7 sum code tests total (4 existing + 3 units tests)
+
 ## Go/wazero Bridge (OBSOLETE)
 
 - Go module path is `github.com/iscc/iscc-lib/packages/go`, package name `iscc`

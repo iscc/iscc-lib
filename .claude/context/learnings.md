@@ -179,29 +179,11 @@ fully-met target sections to `learnings-archive.md`.
     `gen_iscc_code_v0` borrows the strings, then they're moved into the vec (no clone needed)
 - Binding propagation order: Python first (primary consumer), then Node.js/WASM/C FFI/Java, Go last
     (pure Go reimplementation needed — not a Rust wrapper)
-- Python binding pattern: PyO3 wrapper accepts `&str` path → `Path::new(path)`, public wrapper adds
-    `str | os.PathLike` via `os.fspath()`. `SumCodeResult(IsccResult)` class + `__all__` update.
-    Wide mode test requires `bits=128` since 64-bit codes produce identical output in both modes
 - **`.pyi` stub must be updated alongside binding changes.** When adding/modifying parameters in
     `crates/iscc-py/src/lib.rs`, also update the corresponding signature in
     `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`. `ty check` (pre-push hook) will fail otherwise
-- Node.js binding pattern: `NapiSumCodeResult` struct with `#[napi(object)]` + `gen_sum_code_v0` fn
-    with `Option<u32>`/`Option<bool>` params. Uses `i64` for filesize (napi-rs lacks u64 support).
-    Tests use `node:test` + `node:assert` + temp files for I/O. Total: 135 tests (6 sum + 3 units)
-- WASM binding pattern: `WasmSumCodeResult` struct with `#[wasm_bindgen(getter_with_clone)]` +
-    `gen_sum_code_v0` fn accepting `&[u8]` (no filesystem in WASM). Uses `f64` for filesize (avoids
-    `u64` → BigInt friction in JS). `add_units: Option<bool>` param + `units: Option<Vec<String>>`
-    field (maps to `string[] | undefined` in TS). Total: 79 tests (9 conformance + 70 unit; 1 unit
-    test behind `conformance` feature gate)
-- C FFI binding pattern for units: `IsccSumCodeResult` uses `*mut *mut c_char` (NULL-terminated
-    string array) for `units` — same representation as `iscc_decompose`/`iscc_sliding_window`.
-    `vec_to_c_string_array` helper converts `Vec<String>` → C array; `iscc_free_string_array` cleans
-    up. Error path frees `iscc` + `datahash` before returning null result. 85 Rust tests, 65 C tests
-- JNI binding pattern: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`,
-    `long filesize`, `String[] units` nullable). JNI bridge returns `jobject` via `env.find_class` +
-    `env.new_object` with signature `(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V`.
-    `jboolean` is `u8` — compare `wide != 0`. Units via `build_string_array` →
-    `unsafe { JObject::from_raw(arr) }`. 7 Maven sum tests. 65 total Maven tests
+- Binding-specific `add_units`/`units` patterns archived to `learnings-archive.md` (issue #21 fully
+    resolved: all 7 bindings complete)
 
 ## CID Process
 
