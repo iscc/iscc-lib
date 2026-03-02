@@ -59,24 +59,24 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: b4b8beec898276a7191129d611f71503c1c01b03)
+## Current State (assessed-at: 7d3ca68ec9ef5b38128dbe4ebd870125dd2a1853)
 
 - **IN_PROGRESS**: 2 open issues remain (#16 feature flags, #21 units — partial)
-- **Issue #21 PARTIAL**: Rust core + Python + Node.js + WASM bindings done. 3 bindings still
-    hardcode `false`: C FFI (`IsccSumCodeResult` no units), Java/JNI (no units), Go (3-param, no
-    `Units` field)
-- **WASM binding now complete**: `gen_sum_code_v0(data, bits?, wide?, add_units?)`;
-    `WasmSumCodeResult.units: Option<Vec<String>>`; 3 new wasm-bindgen tests; 79 total tests (9
-    conformance.rs + 70 unit.rs incl. 1 gated); review PASS
+- **Issue #21 PARTIAL**: Rust core + Python + Node.js + WASM + C FFI done. 2 bindings still hardcode
+    `false`: Java/JNI (no `addUnits`, no `units` field), Go (3-param, no `Units` field)
+- **C FFI binding now complete**: `iscc_gen_sum_code_v0(path, bits, wide, add_units: bool)`;
+    `IsccSumCodeResult.units: char **` (NULL-terminated); 85 Rust tests + 65 C tests; review PASS
+- **WASM binding complete**: `gen_sum_code_v0(data, bits?, wide?, add_units?)`;
+    `WasmSumCodeResult.units: Option<Vec<String>>`; 79 total wasm-bindgen tests
 - **Node.js binding complete**: `gen_sum_code_v0(path, bits?, wide?, addUnits?)`;
-    `NapiSumCodeResult.units: Option<Vec<String>>`; 135 total mocha tests
+    `NapiSumCodeResult.units: Option<Vec<String>>`; 135 mocha tests
 - **Python binding complete**: `gen_sum_code_v0(path, bits=64, wide=False, add_units=False)`;
     `SumCodeResult.units: list[str] | None`; `.pyi` stub updated; 207 py tests
 - **Go note**: pure Go `GenSumCodeV0` (3 params) — needs `addUnits bool` + `Units []string` field
 - **Docs deferred**: `docs/rust-api.md` + `docs/architecture.md` still show old 3-param signature;
     intentionally deferred until all binding APIs are exposed
-- **CI latest**: Run 22596078258 — all 11 CI jobs SUCCESS ✅
-- **Next priority**: #21 continued — expose `add_units`/`units` in C FFI, Java/JNI, Go
+- **CI latest**: Run 22597450859 — all 11 CI jobs SUCCESS ✅
+- **Next priority**: #21 continued — expose `add_units`/`units` in Java/JNI, then Go
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 

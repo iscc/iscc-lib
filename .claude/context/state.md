@@ -1,16 +1,16 @@
-<!-- assessed-at: b4b8beec898276a7191129d611f71503c1c01b03 -->
+<!-- assessed-at: 7d3ca68ec9ef5b38128dbe4ebd870125dd2a1853 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Issue #21 partial — WASM binding done; 3 bindings still need add_units/units exposure
+## Phase: Issue #21 partial — C FFI done; Java/JNI and Go still need add_units/units exposure
 
-Commit `b4b8bee` (review PASS) completed the WASM binding for issue #21: `gen_sum_code_v0` now
-accepts `add_units?: Option<bool>` in the WASM layer; `WasmSumCodeResult` has
-`units: Option<Vec<String>>`; 3 new wasm-bindgen tests verify enabled/disabled/content. Rust core,
-Python, Node.js, and WASM are complete. Remaining bindings (C FFI, Java/JNI, Go) still hardcode
-`false` and do not expose the parameter or field to their callers.
+Commit `7d3ca68` (review PASS) completed the C FFI binding for issue #21: `iscc_gen_sum_code_v0` now
+accepts `add_units: bool`, `IsccSumCodeResult` has `char **units` (NULL-terminated array), the
+`iscc.h` header was regenerated, and C tests 27–28 verify enabled/disabled cases. Rust core, Python,
+Node.js, WASM, and C FFI are complete. Remaining bindings (Java/JNI, Go) still hardcode `false` and
+do not expose the parameter or field to their callers.
 
 ## Rust Core Crate
 
@@ -55,30 +55,32 @@ Python, Node.js, and WASM are complete. Remaining bindings (C FFI, Java/JNI, Go)
 
 ## WASM Bindings
 
-**Status**: met — `add_units`/`units` fully exposed to WASM callers ✅ (completed this iteration)
+**Status**: met — `add_units`/`units` fully exposed to WASM callers
 
 - All 32 Tier 1 symbols exported ✅
-- `gen_sum_code_v0(data, bits?, wide?, add_units?)` — `add_units: Option<bool>` parameter added to
+- `gen_sum_code_v0(data, bits?, wide?, add_units?)` — `add_units: Option<bool>` parameter wired in
     inline WASM implementation (accepts `Uint8Array`/`&[u8]`, not path-based); defaults to `false`
     when `None` ✅
 - `WasmSumCodeResult.units: Option<Vec<String>>` — set to `Some(vec![data_code, instance_code])`
     when `add_units=true`, `None` otherwise ✅
-- 3 new wasm-bindgen tests: `test_gen_sum_code_v0_units_enabled`, `_units_disabled`,
-    `_units_content` ✅
-- Total: 79 wasm-bindgen tests pass (9 conformance.rs + 70 unit.rs including 1 gated by feature) ✅
-- `cargo clippy -p iscc-wasm -- -D warnings` clean ✅; `mise run check` 14/14 hooks pass ✅
+- 3 wasm-bindgen tests: `test_gen_sum_code_v0_units_enabled`, `_units_disabled`, `_units_content` ✅
+- Total: 79 wasm-bindgen tests pass ✅
+- `cargo clippy -p iscc-wasm -- -D warnings` clean ✅
 
 ## C FFI
 
-**Status**: partially met — compiles; `add_units`/`units` not yet exposed to C callers
+**Status**: met — `add_units`/`units` fully exposed to C callers ✅ (completed this iteration)
 
-- cbindgen generates valid C headers ✅; `iscc.h` committed ✅; CI freshness check ✅
-- C example `crates/iscc-ffi/examples/iscc_sum.c` + `CMakeLists.txt` ✅
-- `docs/howto/c-cpp.md` (433 lines) linked in navigation ✅
-- `build-ffi`/`publish-ffi` jobs in `release.yml` with 5-platform matrix ✅
-- `iscc_gen_sum_code_v0` hardcodes `add_units: false` — C callers cannot request units ❌
-- `IsccSumCodeResult` C struct has no `units` field ❌
-- CI "C FFI (cbindgen, gcc, test)" SUCCESS ✅
+- `iscc_gen_sum_code_v0(path, bits, wide, add_units: bool)` — 4-parameter signature in both
+    `iscc-ffi/src/lib.rs` and regenerated `crates/iscc-ffi/include/iscc.h` ✅
+- `iscc_IsccSumCodeResult.units: char **` — NULL-terminated array of Data-Code + Instance-Code
+    strings, or `NULL` when `add_units=false` ✅
+- `iscc_free_sum_code_result()` frees `units` via existing `iscc_free_string_array()` ✅
+- 85 Rust tests (82 existing + 3 new: units_enabled, units_disabled, units_content) ✅
+- C test `test_iscc.c`: 65 passed, 0 failed — tests 27 and 28 cover add_units=true/false ✅
+- `cargo clippy -p iscc-ffi -- -D warnings` clean; header freshness check passes ✅
+- `iscc_sum.c` example already used `false` for add_units; still compiles ✅
+- `docs/howto/c-cpp.md` linked in navigation ✅
 
 ## Java Bindings
 
@@ -96,7 +98,7 @@ Python, Node.js, and WASM are complete. Remaining bindings (C FFI, Java/JNI, Go)
 - All 32 Tier 1 symbols via pure Go ✅; 151 Go tests pass; `go vet` clean ✅
 - `SumCodeResult` struct has no `Units` field ❌
 - `GenSumCodeV0` still has 3 parameters (path, bits, wide) — no `addUnits` param ❌
-- Go uses its own pure Go implementation, not Rust FFI, so needs its own change
+- Go uses its own pure Go implementation, not Rust FFI, so needs its own independent change
 
 ## README
 
@@ -141,7 +143,7 @@ Python, Node.js, and WASM are complete. Remaining bindings (C FFI, Java/JNI, Go)
 **Status**: partially met
 
 - **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22596078258
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22597450859
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check)
@@ -150,22 +152,20 @@ Python, Node.js, and WASM are complete. Remaining bindings (C FFI, Java/JNI, Go)
 - `release.yml` has `build-ffi`/`publish-ffi` with 5-platform matrix; `workflow_dispatch` `ffi`
     boolean input ✅
 - FFI publishing untested end-to-end (structural verification only)
-- Open issues #16 (feature flags) and #21 (units in remaining 3 bindings) block DONE status
+- Open issues #16 (feature flags) and #21 (units in remaining 2 bindings) block DONE status
 
 ## Next Milestone
 
-**Issue #21 — Expose `add_units` in remaining 3 binding APIs (priority: normal)**
+**Issue #21 — Expose `add_units` in remaining 2 binding APIs (priority: normal)**
 
-Rust core, Python, Node.js, and WASM bindings are complete. Next step is C FFI, then Java/JNI and
-Go. Recommended order:
+Rust core, Python, Node.js, WASM, and C FFI are complete. Next step is Java/JNI, then Go.
+Recommended order:
 
-1. **C FFI** (`iscc-ffi/src/lib.rs`): add `add_units: u8` (or `bool`) param to
-    `iscc_gen_sum_code_v0`; extend `IsccSumCodeResult` C struct with a units array (requires header
-    regeneration); update `iscc_sum.c` example; update C tests.
-2. **Java/JNI** (`iscc-jni/src/lib.rs`): add `boolean addUnits` param to JNI method; extend
-    `SumCodeResult.java` with `units` field; update mvn tests.
-3. **Go** (`packages/go/code_sum.go`): add `addUnits bool` param; extend `SumCodeResult` with
+1. **Java/JNI** (`crates/iscc-jni/src/lib.rs`): add `boolean addUnits` param to JNI method; extend
+    `SumCodeResult.java` with `String[] units` field; update JNI bridge to convert `Vec<String>` to
+    `jobjectArray`; update mvn tests.
+2. **Go** (`packages/go/code_sum.go`): add `addUnits bool` param; extend `SumCodeResult` with
     `Units []string`; update Go tests.
 
-After all 3 are done, update `docs/rust-api.md` and `docs/architecture.md` to reflect the
+After all 2 are done, update `docs/rust-api.md` and `docs/architecture.md` to reflect the
 4-parameter signature and close issue #21.
