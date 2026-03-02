@@ -130,8 +130,11 @@ iterations.
 - JNI binding: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`, `long filesize`)
     - `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` in `crates/iscc-jni/src/lib.rs`. Returns `jobject`
         via `env.find_class("io/iscc/iscc_lib/SumCodeResult")` + `env.new_object()` with signature
-        `(Ljava/lang/String;Ljava/lang/String;J)V`. 4 Maven tests (equivalence, fields, error, wide).
-        62 total Maven tests. Remaining: Go (1 binding)
+        `(Ljava/lang/String;Ljava/lang/String;J)V`. 4 Maven tests. 62 total Maven tests
+- Go binding: `packages/go/code_sum.go` — `SumCodeResult` struct (`Iscc`, `Datahash`, `Filesize`) +
+    `GenSumCodeV0(path string, bits uint32, wide bool)`. Single-pass file I/O with `os.Open` +
+    `DataHasher` + `InstanceHasher` + `GenIsccCodeV0`. 4 tests in `code_sum_test.go`. 151 total Go
+    tests. ALL 7 bindings complete for issue #15
 
 ## Codec Internals
 
