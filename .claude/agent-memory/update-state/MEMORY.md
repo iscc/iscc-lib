@@ -59,24 +59,27 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 7d3ca68ec9ef5b38128dbe4ebd870125dd2a1853)
+## Current State (assessed-at: c10aea2)
 
-- **IN_PROGRESS**: 2 open issues remain (#16 feature flags, #21 units — partial)
-- **Issue #21 PARTIAL**: Rust core + Python + Node.js + WASM + C FFI done. 2 bindings still hardcode
-    `false`: Java/JNI (no `addUnits`, no `units` field), Go (3-param, no `Units` field)
-- **C FFI binding now complete**: `iscc_gen_sum_code_v0(path, bits, wide, add_units: bool)`;
-    `IsccSumCodeResult.units: char **` (NULL-terminated); 85 Rust tests + 65 C tests; review PASS
+- **IN_PROGRESS**: 2 open issues remain (#16 feature flags, #21 units — 1 binding left)
+- **Issue #21 NEAR-COMPLETE**: Rust core + Python + Node.js + WASM + C FFI + Java/JNI done. Only Go
+    remains: `GenSumCodeV0` still has 3 params, `SumCodeResult` has no `Units []string` field
+- **Java/JNI binding now complete** (iteration 11): `genSumCodeV0(path, bits, wide, addUnits)`;
+    `SumCodeResult.units: String[]` (null when `addUnits=false`); 65 mvn tests; review PASS
+- **C FFI binding complete**: `iscc_gen_sum_code_v0(path, bits, wide, add_units: bool)`;
+    `IsccSumCodeResult.units: char **` (NULL-terminated); 85 Rust tests + 65 C tests
 - **WASM binding complete**: `gen_sum_code_v0(data, bits?, wide?, add_units?)`;
     `WasmSumCodeResult.units: Option<Vec<String>>`; 79 total wasm-bindgen tests
 - **Node.js binding complete**: `gen_sum_code_v0(path, bits?, wide?, addUnits?)`;
     `NapiSumCodeResult.units: Option<Vec<String>>`; 135 mocha tests
 - **Python binding complete**: `gen_sum_code_v0(path, bits=64, wide=False, add_units=False)`;
     `SumCodeResult.units: list[str] | None`; `.pyi` stub updated; 207 py tests
-- **Go note**: pure Go `GenSumCodeV0` (3 params) — needs `addUnits bool` + `Units []string` field
+- **Go note**: pure Go `GenSumCodeV0` (3 params) in `packages/go/code_sum.go` — needs
+    `addUnits   bool` + `Units []string`; collect data_code + instance_code ISCCs during execution
 - **Docs deferred**: `docs/rust-api.md` + `docs/architecture.md` still show old 3-param signature;
-    intentionally deferred until all binding APIs are exposed
-- **CI latest**: Run 22597450859 — all 11 CI jobs SUCCESS ✅
-- **Next priority**: #21 continued — expose `add_units`/`units` in Java/JNI, then Go
+    intentionally deferred until all binding APIs are exposed (Go is last)
+- **CI latest**: Run 22598730723 — all 11 CI jobs SUCCESS ✅
+- **Next priority**: Go binding `add_units`/`units` + docs update + close issue #21
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 

@@ -1,16 +1,16 @@
-<!-- assessed-at: 7d3ca68ec9ef5b38128dbe4ebd870125dd2a1853 -->
+<!-- assessed-at: c10aea2 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Issue #21 partial — C FFI done; Java/JNI and Go still need add_units/units exposure
+## Phase: Issue #21 partial — Java/JNI done; Go is the last remaining binding
 
-Commit `7d3ca68` (review PASS) completed the C FFI binding for issue #21: `iscc_gen_sum_code_v0` now
-accepts `add_units: bool`, `IsccSumCodeResult` has `char **units` (NULL-terminated array), the
-`iscc.h` header was regenerated, and C tests 27–28 verify enabled/disabled cases. Rust core, Python,
-Node.js, WASM, and C FFI are complete. Remaining bindings (Java/JNI, Go) still hardcode `false` and
-do not expose the parameter or field to their callers.
+Commit `c10aea2` (review PASS) completed the Java/JNI binding for issue #21: `genSumCodeV0` now
+accepts `boolean addUnits`, `SumCodeResult` has `String[] units` (null when `addUnits=false`), the
+Rust JNI bridge reuses `build_string_array` to convert `Vec<String>` to `jobjectArray`, and 3 new
+Maven tests verify enabled/disabled/content cases (65 total). Rust core, Python, Node.js, WASM, C
+FFI, and Java/JNI are complete. Only Go remains.
 
 ## Rust Core Crate
 
@@ -69,7 +69,7 @@ do not expose the parameter or field to their callers.
 
 ## C FFI
 
-**Status**: met — `add_units`/`units` fully exposed to C callers ✅ (completed this iteration)
+**Status**: met — `add_units`/`units` fully exposed to C callers ✅
 
 - `iscc_gen_sum_code_v0(path, bits, wide, add_units: bool)` — 4-parameter signature in both
     `iscc-ffi/src/lib.rs` and regenerated `crates/iscc-ffi/include/iscc.h` ✅
@@ -79,17 +79,24 @@ do not expose the parameter or field to their callers.
 - 85 Rust tests (82 existing + 3 new: units_enabled, units_disabled, units_content) ✅
 - C test `test_iscc.c`: 65 passed, 0 failed — tests 27 and 28 cover add_units=true/false ✅
 - `cargo clippy -p iscc-ffi -- -D warnings` clean; header freshness check passes ✅
-- `iscc_sum.c` example already used `false` for add_units; still compiles ✅
+- `iscc_sum.c` example still compiles ✅
 - `docs/howto/c-cpp.md` linked in navigation ✅
 
 ## Java Bindings
 
-**Status**: partially met — compiles; `add_units`/`units` not yet exposed to Java callers
+**Status**: met — `add_units`/`units` fully exposed to Java callers ✅ (completed this iteration)
 
 - All 32 Tier 1 symbols via JNI ✅
-- `genSumCodeV0` hardcodes `add_units: false` — Java callers cannot request units ❌
-- `SumCodeResult.java` has no `units` field ❌
-- 62 mvn tests pass (CI green) ✅
+- `genSumCodeV0(String path, int bits, boolean wide, boolean addUnits)` — 4-parameter signature in
+    `IsccLib.java` (native declaration) ✅
+- `SumCodeResult.java` has `String[] units` field — `null` when `addUnits=false`, otherwise
+    `[Data-Code ISCC, Instance-Code ISCC]` ✅
+- Rust JNI bridge (`crates/iscc-jni/src/lib.rs`) reuses `build_string_array` helper to convert
+    `Some(Vec<String>)` → `jobjectArray`; `None` → `JObject::null()` ✅
+- Constructor signature updated to `(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V` ✅
+- 65 Maven tests pass (62 existing + 3 new: `genSumCodeV0UnitsEnabled`, `genSumCodeV0UnitsDisabled`,
+    `genSumCodeV0UnitsContent`) ✅
+- `cargo clippy -p iscc-jni -- -D warnings` clean ✅
 
 ## Go Bindings
 
@@ -97,7 +104,7 @@ do not expose the parameter or field to their callers.
 
 - All 32 Tier 1 symbols via pure Go ✅; 151 Go tests pass; `go vet` clean ✅
 - `SumCodeResult` struct has no `Units` field ❌
-- `GenSumCodeV0` still has 3 parameters (path, bits, wide) — no `addUnits` param ❌
+- `GenSumCodeV0` still has 3 parameters (path, bits, wide) — no `addUnits bool` param ❌
 - Go uses its own pure Go implementation, not Rust FFI, so needs its own independent change
 
 ## README
@@ -143,7 +150,7 @@ do not expose the parameter or field to their callers.
 **Status**: partially met
 
 - **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22597450859
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22598730723
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check)
@@ -152,20 +159,16 @@ do not expose the parameter or field to their callers.
 - `release.yml` has `build-ffi`/`publish-ffi` with 5-platform matrix; `workflow_dispatch` `ffi`
     boolean input ✅
 - FFI publishing untested end-to-end (structural verification only)
-- Open issues #16 (feature flags) and #21 (units in remaining 2 bindings) block DONE status
+- Open issues #16 (feature flags) and #21 (units in Go binding) block DONE status
 
 ## Next Milestone
 
-**Issue #21 — Expose `add_units` in remaining 2 binding APIs (priority: normal)**
+**Issue #21 — Expose `add_units` in Go binding (final binding, priority: normal)**
 
-Rust core, Python, Node.js, WASM, and C FFI are complete. Next step is Java/JNI, then Go.
-Recommended order:
+Only Go remains for issue #21. The Go binding is a pure Go reimplementation in `packages/go/`:
 
-1. **Java/JNI** (`crates/iscc-jni/src/lib.rs`): add `boolean addUnits` param to JNI method; extend
-    `SumCodeResult.java` with `String[] units` field; update JNI bridge to convert `Vec<String>` to
-    `jobjectArray`; update mvn tests.
-2. **Go** (`packages/go/code_sum.go`): add `addUnits bool` param; extend `SumCodeResult` with
-    `Units []string`; update Go tests.
-
-After all 2 are done, update `docs/rust-api.md` and `docs/architecture.md` to reflect the
-4-parameter signature and close issue #21.
+1. **Go** (`packages/go/code_sum.go`): add `addUnits bool` as 4th parameter to `GenSumCodeV0`;
+    extend `SumCodeResult` with `Units []string`; collect Data-Code and Instance-Code during
+    execution when `addUnits=true`; update `code_sum_test.go` with 3 new tests.
+2. After Go is done, **update docs**: `docs/rust-api.md` and `docs/architecture.md` to reflect the
+    4-parameter signature and close issue #21.
