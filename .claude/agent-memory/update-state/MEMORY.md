@@ -21,6 +21,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Go gen functions**: `grep "^func Gen" packages/go/code_*.go`
 - **Doc nav check**: `grep -A 15 "Reference" zensical.toml`
 - **llms.txt page count**: `grep -c "^\-" docs/llms.txt`
+- **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
 
 ## Codebase Landmarks
 
@@ -33,9 +34,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
     MetaTrimMeta, IoReadSize, TextNgramSize)
-- `docs/c-ffi-api.md` — C FFI API reference (694 lines); 45 extern "C" symbols
+- `docs/c-ffi-api.md` — C FFI API reference (needs update after gen_sum_code_v0 added)
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class (subpath:
-    `iscc_lib/`); now has META_TRIM_META as `public static final int`
+    `iscc_lib/`); has META_TRIM_META as `public static final int`
+- `crates/iscc-ffi/src/lib.rs` line 3 — module docstring says "9 gen\_\*\_v0 functions" (stale,
+    needs updating to 10)
 
 ## Recurring Patterns
 
@@ -50,13 +53,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 90ee23a)
+## Current State (assessed-at: b41c25d)
 
 - **Target**: 32 Tier 1 symbols — Rust core 32/32 ✅; Python 32/32 ✅; Node.js 32/32 ✅; WASM 32/32 ✅;
-    C FFI ❌; Java ❌; Go ❌
-- **Iteration 10**: WASM bindings for gen_sum_code_v0 + WasmSumCodeResult complete (PASS)
-- **Issues**: #15 (gen_sum_code_v0 propagation to 6 bindings, 4/6 done), #16 (feature flags)
-- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ❌ Java ❌ Go ❌
+    C FFI 32/32 ✅; Java ❌; Go ❌
+- **Iteration 11**: C FFI gen_sum_code_v0 + IsccSumCodeResult + iscc_free_sum_code_result complete
+    (PASS)
+- **Issues**: #15 (gen_sum_code_v0 propagation to 6 bindings, 5/6 done), #16 (feature flags)
+- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ❌ Go ❌
+- **C FFI details**: IsccSumCodeResult repr(C) struct; `iscc_gen_sum_code_v0` extern "C";
+    `iscc_free_sum_code_result` free fn; 82 Rust unit tests (78+4 new); 57 C assertions (49+8 new)
 - **WASM details**: `WasmSumCodeResult` (`getter_with_clone`) with filesize as `f64` (JS compat); fn
     at lib.rs:180 composes DataHasher+InstanceHasher from single &[u8]; 6 new tests; 75 total
     wasm-bindgen tests (9 conformance + 66 unit)
@@ -67,8 +73,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     tests
 - **Rust core tests**: 310 (256 unit + 31 streaming + 22 utils + 1 doctest)
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22552829248 — all 11 job records SUCCESS
-- **Next priority**: Propagate gen_sum_code_v0 to C FFI (crates/iscc-ffi/) — output-pointer pattern
+- **CI latest**: Run 22556887030 — all CI jobs SUCCESS
+- **Next priority**: Propagate gen_sum_code_v0 to Java (crates/iscc-jni/); then Go (packages/go/)
 
 ## Go Package Tier 1 Coverage (31/32)
 
@@ -94,8 +100,10 @@ Other constants also have no explicit value tests. This is acceptable since CI p
 - **DataHasher/InstanceHasher API**: Go uses `Push([]byte)` + `Finalize(bits)` pattern
 - **GenIsccCodeV0 key details**: `encode_units` produces a bitfield; `wide` param always false in
     test vectors; SubType from content code's SubType (or NONE if absent); 5 conformance vectors
-- **gen_sum_code_v0 WASM**: path-based I/O doesn't exist in browser WASM context — needs design
-    decision (accept Uint8Array? throw? only Node.js WASM? skip?)
+- **gen_sum_code_v0 WASM**: path-based I/O doesn't exist in browser WASM context — accepts
+    Uint8Array/&[u8] instead; WASM and Go both solve this differently from Rust/Python/Node.js/C FFI
 - **META_TRIM_META validation**: pre-decode fast check on Data-URL string length AND post-decode
     payload check; both needed in gen_meta_code_v0
 - **Java META_TRIM_META**: added as compile-time `public static final int` (no JNI function needed)
+- **C FFI IsccSumCodeResult**: struct-return pattern (not output-pointer); matches IsccDecodeResult
+    pattern precisely; partial allocation failure handled (free iscc before returning null)

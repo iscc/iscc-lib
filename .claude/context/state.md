@@ -1,15 +1,16 @@
-<!-- assessed-at: 90ee23a62eebdd44f5f97ad26b261511e43b686e -->
+<!-- assessed-at: b41c25d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: gen_sum_code_v0 propagation — WASM done (3/6 bindings); C FFI next
+## Phase: gen_sum_code_v0 propagation — C FFI done (5/6 bindings); Java and Go remain
 
-Iteration 10 completed: `gen_sum_code_v0` + `WasmSumCodeResult` fully propagated to WASM bindings
-(32/32 Tier 1 symbols in WASM). The wasm-bindgen struct, function, and 6 tests are all present and
-CI-verified (75 total wasm-bindgen tests pass across 9 conformance + 66 unit). Three binding crates
-still lack `gen_sum_code_v0`: C FFI, Java, Go.
+Iteration 11 completed: `gen_sum_code_v0` fully propagated to C FFI bindings with
+`IsccSumCodeResult` repr(C) struct, `iscc_gen_sum_code_v0` extern "C" function, and
+`iscc_free_sum_code_result` free function (review verdict: PASS, all 82 Rust unit tests + 57 C
+assertions pass). Two binding crates still lack `gen_sum_code_v0`: Java (iscc-jni) and Go
+(packages/go).
 
 ## Rust Core Crate
 
@@ -75,12 +76,19 @@ still lack `gen_sum_code_v0`: C FFI, Java, Go.
 
 ## C FFI
 
-**Status**: partially met (missing gen_sum_code_v0)
+**Status**: met (32/32 Tier 1 symbols; gen_sum_code_v0 added — review PASS)
 
-- 45 `extern "C"` functions; `iscc_meta_trim_meta()` added with unit test ✅
-- 78 Rust unit tests + C test program (23+ cases) CI-verified passing
-- **MISSING**: `iscc_gen_sum_code_v0(path, bits, wide)` extern "C" function + memory management
-    helpers for result struct
+- `IsccSumCodeResult` repr(C) struct (`ok: bool`, `iscc: *mut c_char`, `datahash: *mut c_char`,
+    `filesize: u64`) added to `crates/iscc-ffi/src/lib.rs` ✅
+- `iscc_gen_sum_code_v0(path: *const c_char, bits: u32, wide: bool) -> IsccSumCodeResult` extern "C"
+    function — struct-return pattern matching `IsccDecodeResult` ✅
+- `iscc_free_sum_code_result(result: IsccSumCodeResult)` free function — handles partial-allocation
+    failure (frees `iscc` string before returning null result) ✅
+- 45 original extern "C" functions + 2 new (gen_sum_code_v0 + free); 82 Rust unit tests (78 + 4 new)
+    ✅
+- C test program: 57 assertions (49 existing + 8 new for sum_code: success path, null path, values
+    match) ✅
+- Review verdict: PASS; `cargo clippy -p iscc-ffi -- -D warnings` clean
 
 ## Java Bindings
 
@@ -98,6 +106,8 @@ still lack `gen_sum_code_v0`: C FFI, Java, Go.
 **Status**: partially met (missing gen_sum_code_v0)
 
 - 31/32 Tier 1 symbols in `packages/go/`; `MetaTrimMeta = 128_000` constant in `codec.go` ✅
+- No `code_sum.go` file exists; no `GenSumCodeV0` function; no `SumCodeResult` struct — verified by
+    directory listing and grep
 - 147 pure Go tests CI-verified passing (`CGO_ENABLED=0`); `go vet` clean
 - **MISSING**: `GenSumCodeV0(path string, bits uint32, wide bool) (*SumCodeResult, error)` +
     `SumCodeResult` struct + Go tests
@@ -108,7 +118,7 @@ still lack `gen_sum_code_v0`: C FFI, Java, Go.
 
 - Public-facing polyglot README (238 lines); all 6 bindings, all 9 `gen_*_v0` listed, CI badge,
     registry badges
-- Will need update for `gen_sum_code_v0` when remaining bindings are implemented
+- Will need update for `gen_sum_code_v0` when remaining bindings (Java, Go) are implemented
 
 ## Per-Crate READMEs
 
@@ -125,7 +135,7 @@ still lack `gen_sum_code_v0`: C FFI, Java, Go.
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place
 - Getting-started tutorial: 7 sections × 6 languages; all howto guides complete
 - Benchmarks page updated; `docs/ecosystem.md` current
-- Will need `gen_sum_code_v0` mention when remaining bindings are implemented
+- Will need `gen_sum_code_v0` mention when remaining bindings (Java, Go) are implemented
 
 ## Benchmarks
 
@@ -141,8 +151,8 @@ still lack `gen_sum_code_v0`: C FFI, Java, Go.
 
 **Status**: met (for existing features)
 
-- **All 11 CI job records SUCCESS** on latest push; latest CI run: **PASSING**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22552829248
+- **All CI jobs SUCCESS** on latest push; latest CI run: **PASSING**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22556887030
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check) —
@@ -152,11 +162,11 @@ still lack `gen_sum_code_v0`: C FFI, Java, Go.
 
 ## Next Milestone
 
-**Propagate gen_sum_code_v0 to C FFI bindings (`crates/iscc-ffi/`) — issue #15:**
+**Propagate gen_sum_code_v0 to Java bindings (`crates/iscc-jni/`) — issue #15:**
 
-1. **C FFI** (next): `iscc_gen_sum_code_v0(path: *const c_char, bits: u32, wide: bool)` extern "C"
-    function with output-pointer pattern (matching existing FFI result functions); update cbindgen
-    header; add C test program cases
-2. **Java** (`crates/iscc-jni/`): JNI bridge + `SumCodeResult` record + `genSumCodeV0` native
-    method; mvn tests
-3. **Go** (`packages/go/`): `GenSumCodeV0` + `SumCodeResult` struct; pure Go file I/O; tests
+1. **Java** (next): JNI bridge function `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` in
+    `crates/iscc-jni/src/lib.rs`; `SumCodeResult` Java record with `iscc`, `datahash`, `filesize`
+    fields; `genSumCodeV0(String path, int bits, boolean wide)` native method in `IsccLib.java`;
+    Maven tests; bundle module docstring update (9→10 gen\_\*\_v0 functions) in
+    `iscc-ffi/src/lib.rs` line 3
+2. **Go** (`packages/go/`): `GenSumCodeV0` + `SumCodeResult` struct; pure Go file I/O; tests
