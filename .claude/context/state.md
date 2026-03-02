@@ -1,16 +1,16 @@
-<!-- assessed-at: e20b349 -->
+<!-- assessed-at: 637722d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: gen_sum_code_v0 propagation — Java done (6/7 bindings); Go remains
+## Phase: gen_sum_code_v0 complete (7/7 bindings); README/docs cleanup pending
 
-Iteration 12 completed: `gen_sum_code_v0` fully propagated to Java JNI bindings with
-`SumCodeResult.java` immutable result class, `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` JNI
-bridge function (object-return pattern matching `isccDecode`), `genSumCodeV0` native method in
-`IsccLib.java`, and 4 Java tests (review verdict: PASS, all 62 mvn tests pass). Go (`packages/go/`)
-remains the sole binding missing `GenSumCodeV0` — no `code_sum.go`, no `SumCodeResult` struct.
+Iteration 13 completed: `GenSumCodeV0` propagated to Go bindings — issue #15 is fully resolved. All
+7 language bindings (Rust core, Python, Node.js, WASM, C FFI, Java, Go) now expose
+`gen_sum_code_v0`. CI is all-green (11/11 jobs SUCCESS). Remaining work: update README, per-crate
+READMEs, docs, and FFI module docstring to mention `gen_sum_code_v0`; then address issue #16
+(feature flags for minimal builds).
 
 ## Rust Core Crate
 
@@ -32,17 +32,12 @@ remains the sole binding missing `GenSumCodeV0` — no `code_sum.go`, no `SumCod
 
 - All 32 Tier 1 symbols accessible; `__all__` has 48 entries (32 API + 11 result types +
     `__version__` + `MT`, `ST`, `VS`, `core_opts`) ✅
-- `gen_sum_code_v0(path: str | os.PathLike, bits: int = 64, wide: bool = False) -> SumCodeResult` in
-    `crates/iscc-py/python/iscc_lib/__init__.py` at line 274 ✅
-- `SumCodeResult(IsccResult)` class with `iscc`, `datahash`, `filesize` attributes in `__init__.py`
-    at line 185 ✅
-- PyO3 `#[pyfunction] fn gen_sum_code_v0(path: &str, bits: u32, wide: bool)` in
-    `crates/iscc-py/src/lib.rs` at line 334; registered in `iscc_lowlevel` module at line 612 ✅
-- `gen_sum_code_v0` type stub in `_lowlevel.pyi` at line 326 ✅
-- 6 pytest tests for `gen_sum_code_v0` in `tests/test_smoke.py` (equivalence, PathLike, error,
-    result type, attribute access, wide mode) ✅
-- 204 Python tests passing (25 smoke + 179 conformance/other); `cargo clippy -p iscc-py` clean;
-    `ruff check` clean ✅
+- `gen_sum_code_v0(path: str | os.PathLike, bits: int = 64, wide: bool = False) -> SumCodeResult` ✅
+- `SumCodeResult(IsccResult)` class with `iscc`, `datahash`, `filesize` attributes ✅
+- PyO3 `#[pyfunction] fn gen_sum_code_v0` in `crates/iscc-py/src/lib.rs`; registered in
+    `iscc_lowlevel` module; type stub in `_lowlevel.pyi` ✅
+- 6 pytest tests for `gen_sum_code_v0`; 204 Python tests passing ✅
+- `cargo clippy -p iscc-py` clean; `ruff check` clean ✅
 
 ## Node.js Bindings
 
@@ -51,10 +46,8 @@ remains the sole binding missing `GenSumCodeV0` — no `code_sum.go`, no `SumCod
 - All 32 Tier 1 symbols exported including `gen_sum_code_v0` ✅
 - `NapiSumCodeResult` struct (`#[napi(object)]`) with `iscc: String`, `datahash: String`,
     `filesize: i64` in `crates/iscc-napi/src/lib.rs` ✅
-- `#[napi(js_name = "gen_sum_code_v0")] fn gen_sum_code_v0(path, bits?, wide?)` with
-    `Option<u32>`/`Option<bool>` params ✅
 - `NapiSumCodeResult` interface + `gen_sum_code_v0` declaration in auto-generated `index.d.ts` ✅
-- 6 mocha tests for `gen_sum_code_v0` in `functions.test.mjs`; 132 total tests pass ✅
+- 6 mocha tests for `gen_sum_code_v0`; 132 total tests pass ✅
 - Review verdict: PASS; `cargo clippy -p iscc-napi -- -D warnings` clean
 - `@iscc/lib 0.0.3` on npm
 
@@ -64,13 +57,8 @@ remains the sole binding missing `GenSumCodeV0` — no `code_sum.go`, no `SumCod
 
 - All 32 Tier 1 symbols exported including `gen_sum_code_v0` ✅
 - `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) with `iscc: String`,
-    `datahash: String`, `filesize: f64` in `crates/iscc-wasm/src/lib.rs` at line 165 ✅
-- `#[wasm_bindgen] fn gen_sum_code_v0(data: &[u8], bits: Option<u32>, wide: Option<bool>)` at line
-    180; feeds `DataHasher` + `InstanceHasher` from same byte slice, composes via `gen_iscc_code_v0`
-    ✅
-- 6 wasm-bindgen tests for `gen_sum_code_v0` in `crates/iscc-wasm/tests/unit.rs`: `equivalence`,
-    `result_shape`, `empty_input`, `default_params`, `wide_mode`, `filesize` ✅
-- 75 total wasm-bindgen tests (9 conformance + 66 unit); CI "WASM (wasm-pack test)" SUCCESS ✅
+    `datahash: String`, `filesize: f64` ✅
+- 6 wasm-bindgen tests for `gen_sum_code_v0`; 75 total wasm-bindgen tests ✅
 - Review verdict: PASS; `cargo clippy -p iscc-wasm` clean
 - `@iscc/wasm 0.0.3` on npm
 
@@ -78,69 +66,64 @@ remains the sole binding missing `GenSumCodeV0` — no `code_sum.go`, no `SumCod
 
 **Status**: met (32/32 Tier 1 symbols; gen_sum_code_v0 added — review PASS)
 
-- `IsccSumCodeResult` repr(C) struct (`ok: bool`, `iscc: *mut c_char`, `datahash: *mut c_char`,
-    `filesize: u64`) added to `crates/iscc-ffi/src/lib.rs` ✅
-- `iscc_gen_sum_code_v0(path: *const c_char, bits: u32, wide: bool) -> IsccSumCodeResult` extern "C"
-    function — struct-return pattern matching `IsccDecodeResult` ✅
-- `iscc_free_sum_code_result(result: IsccSumCodeResult)` free function — handles partial-allocation
-    failure (frees `iscc` string before returning null result) ✅
-- 45 original extern "C" functions + 2 new (gen_sum_code_v0 + free); 82 Rust unit tests (78 + 4 new)
-    ✅
-- C test program: 57 assertions (49 existing + 8 new for sum_code: success path, null path, values
-    match) ✅
+- `IsccSumCodeResult` repr(C) struct + `iscc_gen_sum_code_v0` + `iscc_free_sum_code_result` in
+    `crates/iscc-ffi/src/lib.rs` ✅
+- 82 Rust unit tests; 57 C assertions ✅
 - Review verdict: PASS; `cargo clippy -p iscc-ffi -- -D warnings` clean
+- **Minor gap**: module docstring still says "9 `gen_*_v0` functions" (should be 10) — cosmetic only
 
 ## Java Bindings
 
 **Status**: met (32/32 Tier 1 symbols; gen_sum_code_v0 added — review PASS)
 
-- `SumCodeResult.java` immutable class with `iscc: String`, `datahash: String`, `filesize: long`
-    fields at `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/SumCodeResult.java` ✅
+- `SumCodeResult.java` immutable class with `iscc: String`, `datahash: String`, `filesize: long` ✅
 - `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` JNI bridge function in `crates/iscc-jni/src/lib.rs`
-    (lines 395–442); uses object-return pattern (finds `io/iscc/iscc_lib/SumCodeResult` class,
-    constructs with constructor sig `(Ljava/lang/String;Ljava/lang/String;J)V`) ✅
-- `public static native SumCodeResult genSumCodeV0(String path, int bits, boolean wide)` declared in
+    ✅
+- `public static native SumCodeResult genSumCodeV0(String path, int bits, boolean wide)` in
     `IsccLib.java` ✅
-- 4 Java tests: equivalence, result-fields, non-existent-file (exception), wide-mode — all pass ✅
 - 62 total mvn tests (58 existing + 4 new); CI "Java (JNI build, mvn test)" SUCCESS ✅
 - Review verdict: PASS; `cargo clippy -p iscc-jni -- -D warnings` clean
 - Maven Central external setup complete; end-to-end release untested
 
 ## Go Bindings
 
-**Status**: partially met (missing gen_sum_code_v0)
+**Status**: met (32/32 Tier 1 symbols; gen_sum_code_v0 added — review PASS)
 
-- 31/32 Tier 1 symbols in `packages/go/`; `MetaTrimMeta = 128_000` constant in `codec.go` ✅
-- No `code_sum.go` file exists; no `GenSumCodeV0` function; no `SumCodeResult` struct — verified by
-    directory listing and grep
-- 147 pure Go tests CI-verified passing (`CGO_ENABLED=0`); `go vet` clean
-- **MISSING**: `GenSumCodeV0(path string, bits uint32, wide bool) (*SumCodeResult, error)` +
-    `SumCodeResult` struct + Go tests
+- `code_sum.go`: `SumCodeResult` struct (`Iscc string`, `Datahash string`, `Filesize uint64`) +
+    `GenSumCodeV0(path string, bits uint32, wide bool) (*SumCodeResult, error)` ✅
+- Single-pass file I/O: feeds `DataHasher` and `InstanceHasher` from shared 4MB buffer, composes via
+    `GenIsccCodeV0`; idiomatic error wrapping, `defer f.Close()`, `io.EOF` handling ✅
+- `code_sum_test.go`: 4 tests (equivalence, result fields, non-existent-file error, wide mode) ✅
+- 151 total Go tests (147 existing + 4 new); `go vet ./...` clean ✅
+- CI "Go (go test, go vet)" SUCCESS; review verdict: PASS
+- **Issue #15 fully resolved** — `gen_sum_code_v0` present in all 7 bindings
 
 ## README
 
-**Status**: met
+**Status**: partially met
 
-- Public-facing polyglot README (238 lines); all 6 bindings, all 9 `gen_*_v0` listed, CI badge,
-    registry badges
-- Will need update for `gen_sum_code_v0` when Go binding is implemented
+- Public-facing polyglot README (238 lines); all 6 bindings, CI badge, registry badges ✅
+- **MISSING**: `gen_sum_code_v0` not listed among the 9 gen\_\*\_v0 entry points (README lists only
+    9 but doesn't include this 10th function by name) — needs update now that all 7 bindings
+    complete
+- Go README (`packages/go/README.md`) API table omits `GenSumCodeV0` from code generators table
 
 ## Per-Crate READMEs
 
-**Status**: met (for existing 31 symbols)
+**Status**: partially met
 
-- All 7 per-crate READMEs present with registry-specific install commands and quick-start examples
-- Will need `gen_sum_code_v0` mention when implemented in Go
+- All 7 per-crate READMEs present with registry-specific install commands and quick-start examples ✅
+- **MISSING**: None of the 7 per-crate READMEs mention `gen_sum_code_v0` — all need updating now
+    that the function is fully implemented across all bindings
 
 ## Documentation
 
-**Status**: met (for existing features)
+**Status**: partially met
 
-- 16 pages deployed to lib.iscc.codes; all navigation sections complete
-- `docs/llms.txt` and `scripts/gen_llms_full.py` in place
-- Getting-started tutorial: 7 sections × 6 languages; all howto guides complete
-- Benchmarks page updated; `docs/ecosystem.md` current
-- Will need `gen_sum_code_v0` mention when Go binding is implemented
+- 16 pages deployed to lib.iscc.codes; all navigation sections complete ✅
+- `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
+- Getting-started tutorial: 7 sections × 6 languages; all howto guides complete ✅
+- **MISSING**: docs pages don't mention `gen_sum_code_v0` — grep confirms zero hits in `docs/`
 
 ## Benchmarks
 
@@ -154,10 +137,10 @@ remains the sole binding missing `GenSumCodeV0` — no `code_sum.go`, no `SumCod
 
 ## CI/CD and Publishing
 
-**Status**: met (for existing features)
+**Status**: met
 
-- **All CI jobs SUCCESS** on latest push; latest CI run: **PASSING**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22557592751
+- **All 11 CI jobs SUCCESS** on latest push; latest CI run: **PASSING** ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22558240656
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check) —
@@ -167,11 +150,13 @@ remains the sole binding missing `GenSumCodeV0` — no `code_sum.go`, no `SumCod
 
 ## Next Milestone
 
-**Propagate gen_sum_code_v0 to Go bindings (`packages/go/`) — issue #15 final step:**
+**Update README, per-crate READMEs, docs, and FFI docstring for `gen_sum_code_v0`:**
 
-Add `code_sum.go` with `GenSumCodeV0(path string, bits uint32, wide bool) (*SumCodeResult, error)`
-and `SumCodeResult` struct using pure Go file I/O (no cgo), reading the file once and passing data
-to `GenDataCodeV0` + `GenInstanceCodeV0` pipelines, then composing with `GenIsccCodeV0`. Add
-`code_sum_test.go` with tests mirroring other bindings (equivalence, result fields, non-existent
-file error, wide mode). After Go, issue #15 is complete and README/docs need `gen_sum_code_v0`
-mention cleanup.
+1. Fix `crates/iscc-ffi/src/lib.rs` module docstring: "9 `gen_*_v0` functions" → "10 `gen_*_v0`
+    functions"
+2. Update `README.md` to list `gen_sum_code_v0` among the 10 gen\_\*\_v0 entry points
+3. Update `packages/go/README.md` API table to include `GenSumCodeV0`
+4. Update all 7 per-crate READMEs to mention `gen_sum_code_v0` in their API overview sections
+5. Update `docs/` pages that list gen\_\*\_v0 functions to include `gen_sum_code_v0`
+
+After documentation cleanup, address issue #16 (feature flags for minimal builds, low priority).

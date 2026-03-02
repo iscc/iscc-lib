@@ -53,44 +53,28 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: e20b349)
+## Current State (assessed-at: 637722d)
 
-- **Target**: 32 Tier 1 symbols — Rust core 32/32 ✅; Python 32/32 ✅; Node.js 32/32 ✅; WASM 32/32 ✅;
-    C FFI 32/32 ✅; Java 32/32 ✅; Go ❌
-- **Iteration 12**: Java JNI gen_sum_code_v0 complete (PASS) — SumCodeResult.java + JNI bridge +
-    native method + 4 Java tests; 62 mvn tests pass
-- **Issues**: #15 (gen_sum_code_v0 propagation to 6 bindings, 6/6 done except Go), #16 (feature
-    flags)
-- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ✅ Go ❌
-- **Java gen_sum_code_v0 details**: `SumCodeResult.java` at
-    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/SumCodeResult.java`; JNI bridge at
-    `crates/iscc-jni/src/lib.rs` lines 395-442; object-return pattern using
-    `(Ljava/lang/String;Ljava/lang/String;J)V` constructor sig; 4 tests in IsccLibTest.java
-- **C FFI details**: IsccSumCodeResult repr(C) struct; `iscc_gen_sum_code_v0` extern "C";
-    `iscc_free_sum_code_result` free fn; 82 Rust unit tests (78+4 new); 57 C assertions (49+8 new)
-- **WASM details**: `WasmSumCodeResult` (`getter_with_clone`) with filesize as `f64` (JS compat); fn
-    at lib.rs:180 composes DataHasher+InstanceHasher from single &[u8]; 6 new tests; 75 total
-    wasm-bindgen tests (9 conformance + 66 unit)
-- **Node.js details**: `NapiSumCodeResult` struct + `gen_sum_code_v0` fn in
-    `crates/iscc-napi/src/lib.rs`; TypeScript declarations auto-generated in `index.d.ts`; 6 new
-    tests in `functions.test.mjs`; 132 total tests; filesize is i64 (napi-rs lacks u64)
-- **Python details**: `gen_sum_code_v0` at __init__.py:274; PyO3 fn at src/lib.rs:334; 204 Python
-    tests
-- **Rust core tests**: 310 (256 unit + 31 streaming + 22 utils + 1 doctest)
+- **Target**: 32 Tier 1 symbols — all 7 bindings COMPLETE ✅
+- **Iteration 13**: GenSumCodeV0 added to Go (PASS) — code_sum.go + code_sum_test.go; 151 Go tests
+- **Issues**: Only #16 remains (feature flags for minimal builds, low priority)
+- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ✅ Go ✅ (COMPLETE)
+- **Go gen_sum_code_v0 details**: `packages/go/code_sum.go`; `SumCodeResult` struct (Iscc, Datahash,
+    Filesize uint64); single-pass file I/O with `IoReadSize` (4MB) buffer; feeds DataHasher +
+    InstanceHasher; composes via GenIsccCodeV0; 4 tests in `code_sum_test.go`; 151 total tests
+- **Pending cleanups**: (1) FFI docstring says "9 gen\_\*\_v0" → needs "10"; (2) README.md missing
+    gen_sum_code_v0 entry; (3) all 7 per-crate READMEs missing gen_sum_code_v0; (4) docs/ pages
+    missing gen_sum_code_v0; (5) packages/go/README.md API table missing GenSumCodeV0
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22557592751 — all 11 CI jobs SUCCESS
-- **Next priority**: Propagate gen_sum_code_v0 to Go (packages/go/) — final binding
+- **CI latest**: Run 22558240656 — all 11 CI jobs SUCCESS
+- **Next priority**: Documentation cleanup (README, per-crate READMEs, docs, FFI docstring)
 
-## Go Package Tier 1 Coverage (31/32)
+## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
-All 31 symbols present: 9 gen functions, ConformanceSelftest, DataHasher, InstanceHasher, 4 text
-utilities, SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash, SoftHashVideoV0, EncodeBase64,
-EncodeComponent, IsccDecode, IsccDecompose, JsonToDataUrl, **5 constants** (MetaTrimName,
-MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNgramSize). Missing: GenSumCodeV0 +
-SumCodeResult.
-
-**Note**: MetaTrimMeta declared in codec.go but has no explicit test assertion in Go test files.
-Other constants also have no explicit value tests. This is acceptable since CI passes 147 tests.
+All 32 symbols: 10 gen functions (including GenSumCodeV0), ConformanceSelftest, DataHasher,
+InstanceHasher, 4 text utilities, SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash,
+SoftHashVideoV0, EncodeBase64, EncodeComponent, IsccDecode, IsccDecompose, JsonToDataUrl, **5
+constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNgramSize).
 
 ## Gotchas
 
