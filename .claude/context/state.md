@@ -1,16 +1,16 @@
-<!-- assessed-at: 580793c -->
+<!-- assessed-at: 6cfae5e458a67a4146431cd651d8636f7bb3b2fc -->
 
 # Project State
 
-## Status: IN_PROGRESS
+## Status: DONE
 
-## Phase: Documentation complete; gen_sum_code_v0 benchmark missing
+## Phase: All target criteria met; CI green
 
-Iteration 15 completed the final documentation gap: all 6 per-language howto guides now have a
-`### Sum-Code` subsection with working code examples for `gen_sum_code_v0`. CI remains all-green
-(11/11 jobs SUCCESS). The only remaining target gap is that `crates/iscc-lib/benches/benchmarks.rs`
-still says "9 gen\_\*\_v0" and has no `bench_sum_code` criterion function — the target requires
-criterion benchmarks for all Rust `gen_*_v0` functions, and there are now 10.
+All sections of `target.md` are fully satisfied. The `bench_sum_code` criterion benchmark added in
+iteration 16 completed the final gap — all 10 `gen_*_v0` functions now have Rust criterion
+benchmarks. CI is all green (11/11 jobs SUCCESS). The only open item is issue #16 (feature flags for
+minimal builds), which is low priority, has a GitHub issue filed, and is **not** part of the
+`target.md` acceptance criteria.
 
 ## Rust Core Crate
 
@@ -118,47 +118,45 @@ criterion benchmarks for all Rust `gen_*_v0` functions, and there are now 10.
 - `docs/c-ffi-api.md` has `iscc_gen_sum_code_v0` + `IsccSumCodeResult` struct documented ✅
 - `docs/index.md` lists `gen_sum_code_v0` in function table ✅
 - `docs/architecture.md` references `gen_sum_code_v0` ✅
-- All 6 howto guides now have `### Sum-Code` subsections with working code examples ✅
-    - `docs/howto/rust.md` — `gen_sum_code_v0(Path::new(...))` ✅
-    - `docs/howto/python.md` — `gen_sum_code_v0("example.bin")` ✅
-    - `docs/howto/nodejs.md` — `gen_sum_code_v0("example.bin")` ✅
-    - `docs/howto/wasm.md` — `gen_sum_code_v0(data)` (Uint8Array, no path) ✅
-    - `docs/howto/java.md` — `IsccLib.genSumCodeV0("example.bin", 64, false)` ✅
-    - `docs/howto/go.md` — `iscc.GenSumCodeV0("example.bin", 64, false)` ✅
-- `uv run zensical build` exits 0 (verified by review agent) ✅
+- All 6 howto guides have `### Sum-Code` subsections with working code examples ✅
+- `uv run zensical build` exits 0 ✅
 
 ## Benchmarks
 
-**Status**: partially met
+**Status**: met
 
-- Criterion benchmarks exist for the original 9 `gen_*_v0` functions + `bench_data_hasher_streaming`
-    - `bench_cdc_chunks` (4KB/64KB/1MB)
-- pytest-benchmark comparison: `benchmarks/python/bench_iscc_core.py` and `bench_iscc_lib.py`
-- Speedup factors published in `docs/benchmarks.md`
-- `Bench (compile check)` CI job verifies all benchmark targets compile
-- **MISSING**: `crates/iscc-lib/benches/benchmarks.rs` file docstring says "9 gen\_\*\_v0 ISCC
-    functions" (stale) and has no `bench_sum_code` criterion function. Target requires criterion
-    benchmarks for all Rust `gen_*_v0` functions; there are now 10.
+- Criterion benchmarks exist for all 10 `gen_*_v0` functions:
+    - `bench_meta_code`, `bench_text_code`, `bench_image_code`, `bench_audio_code`,
+        `bench_video_code`, `bench_mixed_code`, `bench_data_code`, `bench_instance_code`,
+        `bench_iscc_code`, `bench_sum_code` (64KB + 1MB throughput using `NamedTempFile`) ✅
+- File docstring updated to "all 10 `gen_*_v0` ISCC functions" ✅
+- `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks ✅
+- pytest-benchmark comparison: `benchmarks/python/bench_iscc_core.py` and `bench_iscc_lib.py` ✅
+- Speedup factors published in `docs/benchmarks.md` ✅
+- `Bench (compile check)` CI job passes ✅
 
 ## CI/CD and Publishing
 
 **Status**: met
 
 - **All 11 CI jobs SUCCESS** on latest push; latest CI run: **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22559996288
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22560748212
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check) —
     all success ✅
 - v0.0.3 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
-    configured; npm via NPM_TOKEN
+    configured; npm via `NPM_TOKEN`
 
 ## Next Milestone
 
-**Add `bench_sum_code` criterion benchmark for `gen_sum_code_v0`:**
+**Target fully met.** All `target.md` acceptance criteria are satisfied and CI is green.
 
-`crates/iscc-lib/benches/benchmarks.rs` has benchmarks for 9 `gen_*_v0` functions but not the tenth
-(`gen_sum_code_v0`). The target requires criterion benchmarks for all Rust `gen_*_v0` functions. Add
-a `bench_sum_code` function (using a temp file with 64KB and 1MB payloads, matching the pattern from
-`bench_data_code`) and register it in `criterion_group!`. Also update the file docstring from "9" to
-"10". After that, only issue #16 (feature flags for minimal builds, low priority) remains.
+The only remaining tracked item is **issue #16** — feature flags for embedded/minimal builds (low
+priority, GitHub issue filed at https://github.com/iscc/iscc-lib/issues/16). This is an enhancement
+outside the current target scope. The CID loop may either:
+
+1. Implement issue #16 as a low-priority follow-on
+2. Declare target completion and stop the loop
+
+No blocking work remains.
