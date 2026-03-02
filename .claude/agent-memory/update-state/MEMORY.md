@@ -53,14 +53,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: b41c25d)
+## Current State (assessed-at: e20b349)
 
 - **Target**: 32 Tier 1 symbols — Rust core 32/32 ✅; Python 32/32 ✅; Node.js 32/32 ✅; WASM 32/32 ✅;
-    C FFI 32/32 ✅; Java ❌; Go ❌
-- **Iteration 11**: C FFI gen_sum_code_v0 + IsccSumCodeResult + iscc_free_sum_code_result complete
-    (PASS)
-- **Issues**: #15 (gen_sum_code_v0 propagation to 6 bindings, 5/6 done), #16 (feature flags)
-- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ❌ Go ❌
+    C FFI 32/32 ✅; Java 32/32 ✅; Go ❌
+- **Iteration 12**: Java JNI gen_sum_code_v0 complete (PASS) — SumCodeResult.java + JNI bridge +
+    native method + 4 Java tests; 62 mvn tests pass
+- **Issues**: #15 (gen_sum_code_v0 propagation to 6 bindings, 6/6 done except Go), #16 (feature
+    flags)
+- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ✅ Go ❌
+- **Java gen_sum_code_v0 details**: `SumCodeResult.java` at
+    `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/SumCodeResult.java`; JNI bridge at
+    `crates/iscc-jni/src/lib.rs` lines 395-442; object-return pattern using
+    `(Ljava/lang/String;Ljava/lang/String;J)V` constructor sig; 4 tests in IsccLibTest.java
 - **C FFI details**: IsccSumCodeResult repr(C) struct; `iscc_gen_sum_code_v0` extern "C";
     `iscc_free_sum_code_result` free fn; 82 Rust unit tests (78+4 new); 57 C assertions (49+8 new)
 - **WASM details**: `WasmSumCodeResult` (`getter_with_clone`) with filesize as `f64` (JS compat); fn
@@ -73,8 +78,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     tests
 - **Rust core tests**: 310 (256 unit + 31 streaming + 22 utils + 1 doctest)
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22556887030 — all CI jobs SUCCESS
-- **Next priority**: Propagate gen_sum_code_v0 to Java (crates/iscc-jni/); then Go (packages/go/)
+- **CI latest**: Run 22557592751 — all 11 CI jobs SUCCESS
+- **Next priority**: Propagate gen_sum_code_v0 to Go (packages/go/) — final binding
 
 ## Go Package Tier 1 Coverage (31/32)
 
