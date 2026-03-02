@@ -1,33 +1,37 @@
-## 2026-03-02 — Update docs for 4-parameter gen_sum_code_v0
+## 2026-03-02 — Review of: Update docs for 4-parameter gen_sum_code_v0
 
-**Done:** Updated all 5 documentation files that referenced the old 3-parameter
-`gen_sum_code_v0(path, bits, wide)` signature to include `add_units` as the 4th parameter. Also
-added `units` field to the C FFI struct docs and updated the free function description.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `docs/architecture.md`: Added `add_units` to pseudocode signature on line 131
-- `docs/rust-api.md`: Updated signature, added `add_units` parameter row, mentioned `units` field in
-    description, updated code example
-- `docs/howto/rust.md`: Added `false` 4th argument to code example
-- `docs/c-ffi-api.md`: Updated C signature with `bool add_units`, added parameter row, added
-    `char **units` to struct, updated free function doc
-- `docs/howto/c-cpp.md`: Added `false` 4th argument to both C code examples (lines 101 and 231)
+**Summary:** Clean, minimal documentation update across all 5 files specified in next.md. Every
+`gen_sum_code_v0` reference now includes the `add_units` parameter and `units` result field. The
+documented signatures exactly match the actual source code in `crates/iscc-lib/src/lib.rs` and
+`crates/iscc-ffi/include/iscc.h`.
 
 **Verification:**
 
-- `grep -n 'gen_sum_code_v0.*bits.*wide' docs/*.md docs/howto/*.md | grep -v add_units` — no matches
-    ✅
-- `grep -c 'add_units' docs/rust-api.md` — 3 ✅ (≥2 required)
-- `grep -c 'add_units' docs/c-ffi-api.md` — 2 ✅ (≥2 required)
-- `grep 'char \*\*' docs/c-ffi-api.md` — 2 matches ✅ (≥1 required)
-- `uv run zensical build` — exits 0, docs site builds cleanly ✅
-- `mise run check` — 14/14 pre-commit hooks pass ✅
+- [x] `grep -n 'gen_sum_code_v0.*bits.*wide' docs/*.md docs/howto/*.md | grep -v add_units` — no
+    matches (all signatures include `add_units`) ✅
+- [x] `grep -c 'add_units' docs/rust-api.md` — 3 (≥2 required) ✅
+- [x] `grep -c 'add_units' docs/c-ffi-api.md` — 2 (≥2 required) ✅
+- [x] `grep 'units' docs/c-ffi-api.md | grep -c 'char \*\*'` — 1 (≥1 required) ✅
+- [x] `uv run zensical build` — exits 0, docs site builds cleanly ✅
+- [x] `mise run check` — 14/14 pre-commit hooks pass ✅
+- [x] Scope discipline — only 5 docs files modified, nothing from "Not In Scope" touched ✅
+- [x] No quality gate circumvention ✅
 
-**Next:** Documentation section should now be fully met. Remaining open issue is #16 (feature flags
-for embedded/minimal builds). The CID loop should verify state and define the next target-aligned
-work package.
+**Issues found:**
 
-**Notes:** mdformat reformatted table alignment in rust-api.md and c-ffi-api.md (trailing whitespace
-in table cells). This is expected — the pre-commit hook normalizes markdown table formatting. No
-source code changes were needed for this step.
+- (none)
+
+**Codex review:** Codex reviewed the define-next commit (HEAD~1 targets define-next, not advance —
+known protocol issue). Correctly identified it as context-only changes with no code impact. No
+actionable findings.
+
+**Next:** Documentation section should now be fully "met" — update-state should confirm. The only
+remaining open issue is #16 (feature flags for embedded/minimal builds). The CID loop should verify
+state and define the next work package for issue #16.
+
+**Notes:** This was a docs-only iteration with no source code changes. The mdformat pre-commit hook
+reformatted table alignment in rust-api.md and c-ffi-api.md (trailing whitespace normalization),
+which is expected behavior. Issue #21 (add_units/units across all bindings + docs) is now fully
+complete.
