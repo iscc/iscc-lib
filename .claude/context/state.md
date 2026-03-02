@@ -1,16 +1,16 @@
-<!-- assessed-at: e4e85c04257a73ce81cba3fdec856d2018027c25 -->
+<!-- assessed-at: e894b6ca69b17ab1d1e0abda4ad19b2faee9d1c5 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Issue #21 partial — Python binding done; 5 bindings still need add_units/units exposure
+## Phase: Issue #21 partial — Python + Node.js bindings done; 4 bindings still need add_units/units exposure
 
-Commit `e4e85c0` (review pass) completed the Python binding half of issue #21: `gen_sum_code_v0` now
-accepts `add_units: bool = False` in the PyO3 layer, `__init__.py` wrapper, and `.pyi` stub;
-`SumCodeResult` has `units: list[str] | None`; 3 new smoke tests verify the behavior. Remaining
-bindings (Node.js, C FFI, Java/JNI, WASM, Go) still hardcode `false` and do not expose the parameter
-or field to their callers.
+Commit `e894b6c` (review PASS) completed the Node.js binding half of issue #21: `gen_sum_code_v0`
+now accepts `add_units?: boolean` in the NAPI layer; `NapiSumCodeResult` has
+`units?: Array<string>`; 3 new mocha tests verify enabled/disabled/content. Python was done the
+previous iteration. Remaining bindings (WASM, C FFI, Java/JNI, Go) still hardcode `false` and do not
+expose the parameter or field to their callers.
 
 ## Rust Core Crate
 
@@ -29,7 +29,7 @@ or field to their callers.
 
 ## Python Bindings
 
-**Status**: met — `add_units`/`units` now fully exposed to Python callers
+**Status**: met — `add_units`/`units` fully exposed to Python callers
 
 - All 32 Tier 1 symbols accessible via `__all__` (48 entries) ✅
 - `gen_sum_code_v0(path, bits=64, wide=False, add_units=False)` — `add_units` properly wired through
@@ -37,18 +37,21 @@ or field to their callers.
 - `SumCodeResult.units: list[str] | None` annotation in `__init__.py` ✅
 - `_lowlevel.pyi` stub updated: `gen_sum_code_v0(..., add_units: bool = False)` with `units` in
     return-type docstring ✅
-- 207 Python tests pass: 3 new smoke tests cover `add_units=True`, default (no units), and
+- 207 Python tests pass: 3 smoke tests cover `add_units=True`, default (no units), and
     attribute-access of `result.units` ✅
 - `ty check` passes ✅; `cargo clippy -p iscc-py` clean ✅
 
 ## Node.js Bindings
 
-**Status**: partially met — compiles; `add_units`/`units` not yet exposed to JS callers
+**Status**: met — `add_units`/`units` fully exposed to JS callers ✅ (completed this iteration)
 
 - All 32 Tier 1 symbols exported ✅
-- `gen_sum_code_v0` hardcodes `add_units: false` — JS callers cannot request units ❌
-- `NapiSumCodeResult` has no `units` field ❌
-- 132 mocha tests pass (CI green) ✅
+- `gen_sum_code_v0(path, bits?, wide?, addUnits?)` — `add_units: Option<bool>` properly wired in
+    NAPI layer; defaults to `false` when omitted ✅
+- `NapiSumCodeResult.units: Option<Vec<String>>` — auto-generated `index.d.ts` shows
+    `units?:   Array<string>` ✅
+- 135 mocha tests pass (132 existing + 3 new for add_units=true, default, content verification) ✅
+- `cargo clippy -p iscc-napi -- -D warnings` clean ✅
 
 ## WASM Bindings
 
@@ -113,8 +116,8 @@ or field to their callers.
 
 - 17 pages deployed to lib.iscc.codes; all navigation sections complete ✅
 - Getting-started tutorial: 7 sections × 6 languages ✅
-- `docs/rust-api.md` still shows old 3-parameter signature for `gen_sum_code_v0` ❌ (intentionally
-    deferred until all bindings are updated)
+- `docs/rust-api.md` still shows old 3-parameter signature for `gen_sum_code_v0` ❌ (deferred until
+    all bindings are updated)
 - `docs/architecture.md` still references old 3-parameter signature ❌ (same deferral)
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
 - All howto guides have Sum-Code subsections ✅; `docs/howto/c-cpp.md` linked in nav ✅
@@ -134,7 +137,7 @@ or field to their callers.
 **Status**: partially met
 
 - **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22593415248
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22594770894
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check)
@@ -143,24 +146,24 @@ or field to their callers.
 - `release.yml` has `build-ffi`/`publish-ffi` with 5-platform matrix; `workflow_dispatch` `ffi`
     boolean input ✅
 - FFI publishing untested end-to-end (structural verification only)
-- Open issues #16 (feature flags) and #21 (units in remaining 5 bindings) block DONE status
+- Open issues #16 (feature flags) and #21 (units in remaining 4 bindings) block DONE status
 
 ## Next Milestone
 
-**Issue #21 — Expose `add_units` in remaining 5 binding APIs (priority: normal)**
+**Issue #21 — Expose `add_units` in remaining 4 binding APIs (priority: normal)**
 
-Python binding is complete. Next step is Node.js, then the remaining bindings. Recommended order:
+Python and Node.js bindings are complete. Next step is WASM, then the remaining bindings.
+Recommended order:
 
-1. **Node.js** (`iscc-napi/src/lib.rs`): add optional `addUnits?: boolean` param; add
-    `units?: string[]` to `NapiSumCodeResult`; update mocha tests.
+1. **WASM** (`iscc-wasm/src/lib.rs`): add `addUnits?: boolean` param to inline implementation;
+    extend `WasmSumCodeResult` with `units: Option<Vec<String>>`; update wasm tests. Note: WASM has
+    its own inline implementation not delegating to `iscc_lib::gen_sum_code_v0`.
 2. **C FFI** (`iscc-ffi/src/lib.rs`): add `add_units: u8` param to `iscc_gen_sum_code_v0`; extend
     `IsccSumCodeResult` C struct with a `units` array (requires header regeneration); update tests.
 3. **Java/JNI** (`iscc-jni/src/lib.rs`): add `boolean addUnits` param to JNI method; extend
     `SumCodeResult.java` with `units` field; update mvn tests.
-4. **WASM** (`iscc-wasm/src/lib.rs`): add `addUnits?: boolean` param to inline implementation;
-    extend `WasmSumCodeResult` with `units: Option<Vec<String>>`; update wasm tests.
-5. **Go** (`packages/go/code_sum.go`): add `addUnits bool` param; extend `SumCodeResult` with
+4. **Go** (`packages/go/code_sum.go`): add `addUnits bool` param; extend `SumCodeResult` with
     `Units []string`; update Go tests.
 
-After all 5 are done, update `docs/rust-api.md` and `docs/architecture.md` to reflect the
+After all 4 are done, update `docs/rust-api.md` and `docs/architecture.md` to reflect the
 4-parameter signature and close issue #21.

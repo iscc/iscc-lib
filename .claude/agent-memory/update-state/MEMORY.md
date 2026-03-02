@@ -59,25 +59,24 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: e4e85c0)
+## Current State (assessed-at: e894b6c)
 
 - **IN_PROGRESS**: 2 open issues remain (#16 feature flags, #21 units — partial)
-- **Issue #21 PARTIAL**: Rust core + Python binding done. 5 bindings still hardcode `false`: Node.js
-    (`NapiSumCodeResult` no units), C FFI (`IsccSumCodeResult` no units), Java/JNI (no units), WASM
-    (inline impl, no units), Go (3-param, no `Units` field)
-- **Python binding now complete**: `gen_sum_code_v0(path, bits=64, wide=False, add_units=False)`;
-    `SumCodeResult.units: list[str] | None`; `.pyi` stub updated; 3 new smoke tests; 207 py tests
+- **Issue #21 PARTIAL**: Rust core + Python + Node.js bindings done. 4 bindings still hardcode
+    `false`: C FFI (`IsccSumCodeResult` no units), Java/JNI (no units), WASM (inline impl, no
+    units), Go (3-param, no `Units` field)
+- **Node.js binding now complete**: `gen_sum_code_v0(path, bits?, wide?, addUnits?)`;
+    `NapiSumCodeResult.units: Option<Vec<String>>`; auto-generated `index.d.ts` shows
+    `units?:   Array<string>`; 3 new mocha tests; 135 total mocha tests
+- **Python binding complete**: `gen_sum_code_v0(path, bits=64, wide=False, add_units=False)`;
+    `SumCodeResult.units: list[str] | None`; `.pyi` stub updated; 207 py tests
 - **WASM note**: WASM has its OWN inline `gen_sum_code_v0` (byte-slice, not path-based); doesn't
     call `iscc_lib::gen_sum_code_v0`; needs its own `add_units`/`units` implementation
 - **Go note**: pure Go `GenSumCodeV0` (3 params) — needs `addUnits bool` + `Units []string` field
 - **Docs deferred**: `docs/rust-api.md` + `docs/architecture.md` still show old 3-param signature;
     intentionally deferred until all binding APIs are exposed
-- **release.yml structure**: build-ffi (5 targets) → publish-ffi (needs build-ffi, ubuntu-latest,
-    contents: write); artifact pattern `ffi-*`; upload glob `iscc-ffi-v*.*`
-- **CI latest**: Run 22593415248 — all 11 CI jobs SUCCESS ✅
-- **Next priority**: #21 continued — expose `add_units`/`units` in Node.js, C FFI, Java, WASM, Go
-- **pyi stub lesson**: advance agent must update `.pyi` stub when modifying Python binding sigs;
-    `ty check` in pre-push hooks catches mismatch (review agent fixed it this iteration)
+- **CI latest**: Run 22594770894 — all 11 CI jobs SUCCESS ✅
+- **Next priority**: #21 continued — expose `add_units`/`units` in WASM, C FFI, Java, Go
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
