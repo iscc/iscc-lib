@@ -48,21 +48,20 @@ Rust core complete (32/32 Tier 1 symbols, 310 tests). Python binding complete (3
 4. ✅ WASM binding — WasmSumCodeResult + &[u8] input + 6 tests (complete, 75 total tests)
 5. ✅ C FFI binding — IsccSumCodeResult struct + iscc_gen_sum_code_v0 extern "C" (complete, 82 Rust
     tests + 57 C assertions)
-6. → Java binding — JNI bridge + SumCodeResult class (current step)
-7. Go binding — pure Go reimplementation (not a Rust wrapper)
+6. ✅ Java binding — JNI bridge + SumCodeResult class (complete, 62 mvn tests)
+7. → Go binding — pure Go reimplementation (current step)
 
-**Java JNI binding specifics:**
+**Go binding specifics:**
 
-- Existing JNI gen functions return `jstring` (just the `.iscc` field). `gen_sum_code_v0` needs
-    `jobject` return (like `isccDecode` at lib.rs line 588) because it returns `iscc`, `datahash`,
-    `filesize`
-- `SumCodeResult.java`: immutable class with `public final String iscc, datahash; long filesize` —
-    follows `IsccDecodeResult.java` pattern
-- JNI constructor signature: `"(Ljava/lang/String;Ljava/lang/String;J)V"` for (String, String, long)
-- `jboolean` is `u8` in jni crate — compare `wide != 0` for Rust bool
-- No `data.json` vectors for gen_sum_code_v0 — tests use temp files and equivalence checks against
-    `genDataCodeV0 + genInstanceCodeV0 → genIsccCodeV0`
-- 992 lines in lib.rs currently; ~385 lines in IsccLib.java; ~473 lines in tests
+- `GenSumCodeV0(path string, bits uint32, wide bool) (*SumCodeResult, error)` — first Go gen
+    function that takes a file path (string) instead of `[]byte`
+- Uses `os.Open` + `f.Read(buf)` loop with `IoReadSize` (4 MB) buffer feeding both `DataHasher` and
+    `InstanceHasher`, then composes via `GenIsccCodeV0`
+- `SumCodeResult{Iscc string, Datahash string, Filesize uint64}` — mirrors `InstanceCodeResult`
+- Go `io.EOF` handling: `f.Read` may return `(n > 0, io.EOF)` on last chunk — must process bytes
+    before breaking
+- No `data.json` vectors for gen_sum_code_v0 — tests use temp files and equivalence checks
+- 147 existing Go tests; expect 151 after adding 4 new tests
 
 ## Binding Propagation Patterns
 
