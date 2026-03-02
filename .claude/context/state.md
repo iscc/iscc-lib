@@ -1,16 +1,16 @@
-<!-- assessed-at: 05676ae3e8fba376b9855bf8f9228546170d5f25 -->
+<!-- assessed-at: ba1a0302595036bab3e2f6e5f949f45266147e4d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C FFI DX — 2 criteria unmet; 4 open issues
+## Phase: C FFI DX — 1 target criterion unmet; 3 open issues
 
-Commit `05676ae` resolved issue #23: `crates/iscc-ffi/examples/iscc_sum.c` and
-`crates/iscc-ffi/examples/CMakeLists.txt` are now committed. The C example compiles cleanly, runs
-correctly, uses dual-hasher streaming pattern, and error paths were verified by the review agent.
-Two C FFI DX criteria remain unmet (`docs/howto/c-cpp.md` and release tarballs), plus issues #21
-(units support) and #16 (feature flags). All 11 CI jobs pass.
+Commit `ba1a030` resolved issue #22: `docs/howto/c-cpp.md` (433 lines) now exists with all required
+sections (CMake, streaming, RAII wrapper, error handling, memory management, static vs dynamic
+linking, cross-compilation, conformance verification) and is linked in site navigation.
+Documentation section is now fully met. One C FFI target criterion remains unmet (pre-built FFI
+tarballs, issue #25), plus issues #21 (units support) and #16 (feature flags). All 11 CI jobs pass.
 
 ## Rust Core Crate
 
@@ -59,7 +59,7 @@ Two C FFI DX criteria remain unmet (`docs/howto/c-cpp.md` and release tarballs),
 
 ## C FFI
 
-**Status**: partially met (5/6 criteria met; 2 DX criteria not yet met)
+**Status**: partially met (5/6 criteria met; pre-built tarballs outstanding)
 
 - cbindgen generates valid C headers ✅
 - C test program calls entrypoints and gets correct results ✅
@@ -67,7 +67,8 @@ Two C FFI DX criteria remain unmet (`docs/howto/c-cpp.md` and release tarballs),
 - CI freshness check regenerates `iscc.h` and asserts `git diff --exit-code` ✅
 - `crates/iscc-ffi/examples/iscc_sum.c` (147 lines, dual-hasher streaming, C89/C99 compatible, full
     error handling) + `CMakeLists.txt` exist and compile correctly ✅ (resolved issue #23)
-- `docs/howto/c-cpp.md` does NOT exist ❌ (issue #22)
+- `docs/howto/c-cpp.md` exists (433 lines) with all required sections — linked in navigation ✅
+    (resolved issue #22)
 - Pre-built FFI tarballs not set up — `release.yml` has no `build-ffi`/`publish-ffi` jobs ❌ (issue
     #25)
 
@@ -113,9 +114,9 @@ Two C FFI DX criteria remain unmet (`docs/howto/c-cpp.md` and release tarballs),
 
 ## Documentation
 
-**Status**: partially met
+**Status**: met
 
-- 16 pages deployed to lib.iscc.codes; all navigation sections complete ✅
+- 17 pages deployed to lib.iscc.codes; all navigation sections complete ✅
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
 - Getting-started tutorial: 7 sections × 6 languages ✅
 - `docs/rust-api.md` has full `gen_sum_code_v0` section with code example ✅
@@ -123,7 +124,7 @@ Two C FFI DX criteria remain unmet (`docs/howto/c-cpp.md` and release tarballs),
 - `docs/index.md` lists `gen_sum_code_v0` in function table ✅
 - `docs/architecture.md` references `gen_sum_code_v0` ✅
 - All existing 6 howto guides have `### Sum-Code` subsections with working code examples ✅
-- `docs/howto/c-cpp.md` does NOT exist — required by documentation spec ❌ (issue #22)
+- `docs/howto/c-cpp.md` (433 lines) exists and is linked in navigation ✅ (resolved issue #22)
 - `uv run zensical build` exits 0 ✅
 
 ## Benchmarks
@@ -144,7 +145,7 @@ Two C FFI DX criteria remain unmet (`docs/howto/c-cpp.md` and release tarballs),
 **Status**: partially met
 
 - **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22588241470
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22589681430
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check)
@@ -155,14 +156,13 @@ Two C FFI DX criteria remain unmet (`docs/howto/c-cpp.md` and release tarballs),
 
 ## Next Milestone
 
-**C FFI DX (continued)** — implement remaining open issues in priority order:
+**Remaining open issues in priority order:**
 
-1. **#22** — Create `docs/howto/c-cpp.md` with all required sections (CMake integration snippet,
-    streaming DataHasher/InstanceHasher walkthrough, ISCC-SUM one-shot example, error handling and
-    memory management sections, C++ RAII wrapper, static vs dynamic linking, cross-compilation
-    notes). The committed header (`iscc.h`), example program (`iscc_sum.c`), and
-    `docs/c-ffi-api.md` are all prerequisites — they now exist. Note: clarify `CMAKE_LIBRARY_PATH`
-    vs `find_library()` in the CMake section (flagged during review of #23).
-2. **#25** — Add `build-ffi` and `publish-ffi` jobs to `release.yml` with 5-platform matrix
-3. **#21** — Units support for `gen_sum_code_v0` (independent enhancement)
-4. **#16** — Feature flags (low priority)
+1. **#25** — Add `build-ffi` and `publish-ffi` jobs to `release.yml` with 5-platform matrix
+    (`x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`,
+    `x86_64-apple-darwin`, `x86_64-pc-windows-msvc`). Each platform produces a tarball containing
+    shared lib + static lib + `iscc.h` + LICENSE. Add `ffi` boolean input to `workflow_dispatch`.
+    Tarballs uploaded as GitHub Release assets with naming `iscc-ffi-v{version}-{target}.tar.gz`.
+2. **#21** — Units support for `gen_sum_code_v0`: add `add_units: bool` parameter and
+    `units: Option<Vec<String>>` field to `SumCodeResult`; update all bindings.
+3. **#16** — Feature flags for embedded/minimal builds (low priority).

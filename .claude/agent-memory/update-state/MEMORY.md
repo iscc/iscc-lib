@@ -33,8 +33,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench
-- `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md; **c-cpp.md
-    missing** (issue #22); `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
+- `docs/howto/` — 7 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, **c-cpp.md** ✅
+    (resolved issue #22); `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
@@ -59,19 +59,20 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 05676ae)
+## Current State (assessed-at: ba1a030)
 
-- **IN_PROGRESS**: C FFI DX — 2 of 6 criteria remain unmet; 4 open issues
-- **Issues open**: #16 (feature flags, low priority), #21 (units in gen_sum_code_v0), #22 (c-cpp.md
-    how-to), #25 (FFI release tarballs)
-- **Issue #23 RESOLVED**: `crates/iscc-ffi/examples/iscc_sum.c` (147 lines) + `CMakeLists.txt`
-    committed; compiles cleanly; dual-hasher streaming + full error handling; C89/C99 compatible
-- **docs/howto/c-cpp.md**: does NOT exist (only 6 howto guides; c-cpp missing — issue #22)
+- **IN_PROGRESS**: C FFI DX — 1 of 6 criteria remain unmet (pre-built FFI tarballs); 3 open issues
+- **Issues open**: #16 (feature flags, low priority), #21 (units in gen_sum_code_v0, normal), #25
+    (FFI release tarballs, normal)
+- **Issue #22 RESOLVED**: `docs/howto/c-cpp.md` (433 lines) created; linked in navigation via
+    `"C / C++" = "howto/c-cpp.md"` entry in zensical.toml; all 13 spec sections present
+- **docs/howto/c-cpp.md sections**: Building from source, CMake `find_library` + pkg-config,
+    ISCC-SUM quick start, Streaming (dual-hasher), Composing ISCC-SUM manually, Error handling,
+    Memory management (full table), Static vs dynamic linking, Cross-compilation, C++ RAII wrapper,
+    Conformance verification
 - **release.yml**: NO build-ffi/publish-ffi jobs; NO ffi workflow_dispatch input (issue #25)
-- **CI latest**: Run 22588241470 — all 11 CI jobs SUCCESS ✅
-- **C FFI examples CMake note**: `CMAKE_LIBRARY_PATH` in comment doesn't work with
-    `target_link_libraries` without `find_library()` — flagged during #23 review; clarify in #22
-    howto guide's CMake section
+- **CI latest**: Run 22589681430 — all 11 CI jobs SUCCESS ✅
+- **Documentation section**: now fully met (17 pages, all howto guides complete)
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
