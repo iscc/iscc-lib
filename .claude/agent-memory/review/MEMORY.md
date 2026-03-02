@@ -94,7 +94,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 ## Binding State
 
 - META_TRIM_META propagated to all 6 bindings ✅ (issue #18 fully resolved iter 4)
-- gen_sum_code_v0 + SumCodeResult in Rust core ✅ (32/32 Tier 1 symbols, iter 5)
+- gen_sum_code_v0 + SumCodeResult in Rust core ✅ (32/32 Tier 1 symbols)
+- `add_units: bool` + `units: Option<Vec<String>>` added to Rust core ✅ — bindings still pass
+    `false`, not yet exposed in binding APIs. Docs (`rust-api.md`, `architecture.md`) still show old
+    3-param signature — update when binding APIs are exposed
 - gen_sum_code_v0 Python binding complete ✅ (48 __all__ entries, 204 tests)
 - gen_sum_code_v0 Node.js binding complete ✅ (132 tests, NapiSumCodeResult struct + gen_sum_code_v0
     fn)

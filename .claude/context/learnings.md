@@ -171,11 +171,12 @@ fully-met target sections to `learnings-archive.md`.
 
 ## gen_sum_code_v0
 
-- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool)` is the 10th gen function and 32nd Tier 1
-    symbol. Single-pass file I/O feeds both `DataHasher` (CDC/MinHash) and `InstanceHasher` (BLAKE3)
-    from the same buffer, then composes ISCC-CODE via `gen_iscc_code_v0`
-- `SumCodeResult { iscc, datahash, filesize }` — same fields as `InstanceCodeResult` minus `iscc`
-    being the composite ISCC-CODE rather than a single component code
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` is the 10th gen function
+    and 32nd Tier 1 symbol. Single-pass file I/O feeds both `DataHasher` (CDC/MinHash) and
+    `InstanceHasher` (BLAKE3) from the same buffer, then composes ISCC-CODE via `gen_iscc_code_v0`
+- `SumCodeResult { iscc, datahash, filesize, units }` — `units: Option<Vec<String>>` contains
+    `[Data-Code, Instance-Code]` ISCC strings when `add_units` is true. Borrow-before-move pattern:
+    `gen_iscc_code_v0` borrows the strings, then they're moved into the vec (no clone needed)
 - Binding propagation order: Python first (primary consumer), then Node.js/WASM/C FFI/Java, Go last
     (pure Go reimplementation needed — not a Rust wrapper)
 - Python binding pattern: PyO3 wrapper accepts `&str` path → `Path::new(path)`, public wrapper adds

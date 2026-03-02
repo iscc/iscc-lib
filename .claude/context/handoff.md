@@ -1,41 +1,40 @@
-## 2026-03-02 — Add `units` support to `gen_sum_code_v0` in Rust core (issue #21)
+## 2026-03-02 — Review of: Add `units` support to `gen_sum_code_v0` in Rust core (issue #21)
 
-**Done:** Added `add_units: bool` parameter to `gen_sum_code_v0` and `units: Option<Vec<String>>`
-field to `SumCodeResult`. When `add_units` is true, the result includes individual Data-Code and
-Instance-Code ISCC strings. Updated all 4 Rust binding crates, 1 FFI test, and benchmarks to pass
-`false` for the new parameter. Added 2 new tests validating both enabled and disabled paths.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/src/types.rs`: Added `pub units: Option<Vec<String>>` field to `SumCodeResult`
-    with doc comment
-- `crates/iscc-lib/src/lib.rs`: Added `add_units: bool` as 4th parameter to `gen_sum_code_v0`,
-    conditionally populates `units` field. Updated 7 existing tests to pass `false`, added 2 new
-    tests (`test_gen_sum_code_v0_units_enabled`, `test_gen_sum_code_v0_units_disabled`)
-- `crates/iscc-py/src/lib.rs`: Added `, false` to `iscc_lib::gen_sum_code_v0` call (line 335)
-- `crates/iscc-napi/src/lib.rs`: Added `, false` to `iscc_lib::gen_sum_code_v0` call (line 232)
-- `crates/iscc-ffi/src/lib.rs`: Added `, false` to two `iscc_lib::gen_sum_code_v0` calls (extern fn
-    - test)
-- `crates/iscc-jni/src/lib.rs`: Added `, false` to `iscc_lib::gen_sum_code_v0` call (line 414)
-- `crates/iscc-lib/benches/benchmarks.rs`: Added `black_box(false)` 4th arg to both benchmark calls
+**Summary:** Clean, well-scoped implementation adding `add_units: bool` parameter and
+`units: Option<Vec<String>>` field to `gen_sum_code_v0`/`SumCodeResult`. The borrow-before-move
+pattern for `gen_iscc_code_v0` is correct, all 4 binding crates compile with the new parameter, and
+2 new tests validate both enabled and disabled paths. All 7 verification criteria pass.
 
 **Verification:**
 
-- `cargo test -p iscc-lib`: 312 tests pass (258 lib + 31 integration + 22 streaming + 1 doctest). 2
-    new tests added (was 310)
-- `cargo clippy -p iscc-lib -- -D warnings`: clean
-- `cargo build -p iscc-py`: compiles
-- `cargo build -p iscc-napi`: compiles
-- `cargo build -p iscc-ffi`: compiles
-- `cargo build -p iscc-jni`: compiles
-- `cargo bench -p iscc-lib --no-run`: compiles
-- `mise run check`: 14/14 hooks pass
+- [x] `cargo test -p iscc-lib` passes — 312 tests (258 + 31 + 22 + 1), 2 new vs prior 310
+- [x] `cargo clippy -p iscc-lib -- -D warnings` — clean
+- [x] `cargo build -p iscc-py` — compiles
+- [x] `cargo build -p iscc-napi` — compiles
+- [x] `cargo build -p iscc-ffi` — compiles
+- [x] `cargo build -p iscc-jni` — compiles
+- [x] `cargo bench -p iscc-lib --no-run` — compiles
+- [x] `mise run check` — 14/14 hooks pass
 
-**Next:** Expose `add_units` parameter in binding APIs (Python first, then Node.js, C FFI, JNI).
-WASM needs separate scoping since it has its own implementation that doesn't call
-`iscc_lib::gen_sum_code_v0`. Go needs a pure Go implementation of the `units` feature.
+**Issues found:**
 
-**Notes:** The implementation borrows `data_result.iscc` and `instance_result.iscc` for
-`gen_iscc_code_v0`, then moves them into the `units` vec when `add_units` is true. When `add_units`
-is false, the strings are dropped (no clone needed). The `#[non_exhaustive]` attribute on
-`SumCodeResult` ensures the new field doesn't break downstream match patterns.
+- (none) — implementation is clean and correctly scoped
+
+**Codex review:** Codex couldn't run tests (cross-device link error in sandbox) but performed static
+analysis. It verified all binding call sites are updated, confirmed no destructuring breakage due to
+`#[non_exhaustive]`, and noted docs (`docs/rust-api.md`, `docs/architecture.md`) still reference the
+old 3-parameter signature. Doc updates are explicitly out of scope per next.md — they should be
+included when binding APIs are exposed.
+
+**Next:** Expose `add_units` parameter in binding APIs. Suggested order: Python first (primary
+`iscc-sdk` consumer), then Node.js, C FFI, JNI. WASM has its own inline `gen_sum_code_v0`
+implementation — needs separate scoping. Go needs a pure Go reimplementation. When exposing
+bindings, also update `docs/rust-api.md` and `docs/architecture.md` to show the new 4-parameter
+signature. Issue #21 remains open until all bindings are updated.
+
+**Notes:** The `#[non_exhaustive]` attribute on `SumCodeResult` ensures the new field doesn't break
+downstream pattern matches. When `add_units` is false, `data_result.iscc` and `instance_result.iscc`
+are dropped after `gen_iscc_code_v0` borrows them — no unnecessary cloning. State.md still shows the
+old 3-parameter signature at line 23 — update-state will pick this up next cycle.
