@@ -48,7 +48,7 @@ iterations.
 
 ## CI/Release Patterns
 
-- v0.0.3 released to all registries. Next release after remaining gaps closed.
+- v0.0.4 released to all registries. Next release after remaining C FFI DX gaps closed.
 - Release workflow has `workflow_dispatch` with per-registry checkboxes
 
 ## Gotchas
@@ -60,14 +60,19 @@ iterations.
 ## C FFI DX Phase
 
 - 4 new C FFI DX criteria added in commit 9721877 (issues #22-#25)
-- Priority order from state.md: #24 (header) → #23 (examples) → #22 (howto) → #25 (release)
-- Issue #24 scope: generate header to include/, commit it, CI freshness check, update compile path
-- No changes needed to lib.rs or test_iscc.c — only ci.yml + new header file
+- Priority order from state.md: #24 (header) ✅ → #23 (examples) → #22 (howto) → #25 (release)
+- Issue #24 DONE: header committed at `crates/iscc-ffi/include/iscc.h`, CI freshness check active
 - `.gitignore` ignores `crates/iscc-ffi/tests/iscc.h` but NOT `crates/iscc-ffi/include/iscc.h`
 - `cbindgen.toml` already has correct config (language=C, guard=ISCC_H, sys_includes)
+- cmake is NOT available in devcontainer — use gcc for compilation verification (matches CI pattern)
+- CI C FFI compilation pattern:
+    `gcc -o test_iscc <src> -I crates/iscc-ffi/include -L target/debug   -liscc_ffi -lpthread -ldl -lm`
+    then `LD_LIBRARY_PATH=target/debug ./test_iscc`
+- `crates/iscc-ffi/examples/` directory does not exist yet — advance agent must create it
+- C example files are "create only" steps — no existing files need modification
 
 ## Project Status
 
-- Iteration 17: C FFI DX expansion phase. 4 new criteria unmet, 6 open issues (#16, #21-#25)
-- All original target sections met. New work is C FFI DX (issues #22-#25) + #21 (units) + #16
-    (flags)
+- Iteration 19: C FFI DX continued. 3 criteria unmet (#23, #22, #25), 5 open issues
+- All original target sections met. Current work is C FFI DX remaining items
+- v0.0.4 released to all registries
