@@ -108,13 +108,16 @@ jobs:
         run: cargo install cbindgen
       - name: Build FFI crate
         run: cargo build -p iscc-ffi
-      - name: Generate C header
-        run: cbindgen --crate iscc-ffi -o crates/iscc-ffi/tests/iscc.h
+      - name: Check C header freshness
+        run: |
+          cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h
+          git diff --exit-code crates/iscc-ffi/include/iscc.h || \
+            (echo "::error::iscc.h is stale. Run: cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h" && exit 1)
       - name: Compile C test program
         run: >
           gcc -o test_iscc
           crates/iscc-ffi/tests/test_iscc.c
-          -I crates/iscc-ffi/tests
+          -I crates/iscc-ffi/include
           -L target/debug
           -liscc_ffi
           -lpthread -ldl -lm

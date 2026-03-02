@@ -1,39 +1,35 @@
-## 2026-03-02 — Review of: Add bench_sum_code criterion benchmark for gen_sum_code_v0
+## 2026-03-02 — Commit iscc.h header with CI freshness check
 
-**Verdict:** PASS
+**Done:** Generated and committed `crates/iscc-ffi/include/iscc.h` via cbindgen, and updated the CI
+workflow to replace the "Generate C header" step with a freshness check using
+`git diff --exit-code`. The C test compile step now references `-I crates/iscc-ffi/include` instead
+of `-I crates/iscc-ffi/tests`.
 
-**Summary:** The advance agent added the 10th and final `gen_*_v0` criterion benchmark
-(`bench_sum_code`) with two throughput measurements (64KB and 1MB), matching the existing pattern
-from `bench_data_code` and `bench_instance_code`. The `tempfile` crate was correctly added as a
-workspace dev-dependency. Implementation is clean, correctly scoped, and all verification criteria
-pass.
+**Files changed:**
+
+- `crates/iscc-ffi/include/iscc.h`: New file — generated C header with `#ifndef ISCC_H` include
+    guard, all 40+ FFI function declarations, struct definitions, and docstrings
+- `.github/workflows/ci.yml`: Replaced "Generate C header" step with "Check C header freshness"
+    (regenerates to include/, diffs against committed version); updated `-I` path from
+    `crates/iscc-ffi/tests` to `crates/iscc-ffi/include`
 
 **Verification:**
 
-- [x] `cargo bench -p iscc-lib --bench benchmarks --no-run` exits 0 — compiles in 44s
-- [x] `grep -c 'gen_sum_code_v0' crates/iscc-lib/benches/benchmarks.rs` returns 5 (≥2 required)
-- [x] `grep 'all 10' crates/iscc-lib/benches/benchmarks.rs` — matches updated docstring
-- [x] `cargo clippy -p iscc-lib -- -D warnings` — clean
-- [x] `cargo test -p iscc-lib` — 310 tests pass (256 + 31 + 22 + 1 doctest)
+- [x] `test -f crates/iscc-ffi/include/iscc.h` exits 0
+- [x] `grep '#ifndef ISCC_H' crates/iscc-ffi/include/iscc.h` finds include guard
+- [x] `grep 'include/iscc.h' .github/workflows/ci.yml` finds freshness check step
+- [x] `grep 'exit-code' .github/workflows/ci.yml` confirms diff-based freshness check
+- [x] `grep '\-I crates/iscc-ffi/include' .github/workflows/ci.yml` confirms updated include path
+- [x] `cargo clippy -p iscc-ffi -- -D warnings` clean
+- [x] `cargo test -p iscc-lib` passes (310 tests: 256 + 31 + 22 + 1 doctest)
 - [x] `mise run check` — 14/14 hooks pass
 
-**Issues found:**
+**Next:** The remaining C FFI DX items from the spec: issue #23 (standalone example program in
+`crates/iscc-ffi/examples/`), issue #22 (how-to guide `docs/howto/c-cpp.md`), and issue #25
+(pre-built FFI release artifacts in `release.yml`). The example program (#23) is the logical next
+step as it can reference the committed header.
 
-- (none)
-
-**Codex review:** Codex raised a concern about `NamedTempFile` keeping the file handle open on
-Windows, potentially causing exclusive access issues when `gen_sum_code_v0` tries to read the file.
-This is not an issue in practice: Rust's `std::fs::File::open` uses shared access modes on Windows,
-and `NamedTempFile` wraps an unbuffered `File` (no flush needed). The throughput pattern
-(`group.throughput()` called per-size) was also questioned but matches the existing
-`bench_data_code` and `bench_instance_code` patterns exactly. No actionable findings.
-
-**Next:** All target.md sections should now be fully met (Benchmarks was the last gap). The next
-update-state should confirm this. Only issue #16 (feature flags for minimal builds, low priority)
-remains as tracked work. The project may be approaching target completion — the next iteration
-should verify all criteria are satisfied and consider whether to close out the target or move to
-issue #16.
-
-**Notes:** The `tempfile` crate (v3) was the only new dependency. The benchmark correctly creates
-temp files outside the criterion closure so file I/O setup isn't measured. `NamedTempFile`
-auto-cleans up via `Drop`. No regressions, no scope creep, no quality gate issues.
+**Notes:** The `crates/iscc-ffi/tests/iscc.h` entry in `.gitignore` remains — that's the CI artifact
+copy generated during test compilation, not the committed header. The committed header at
+`include/iscc.h` is not gitignored. No source code changes to `test_iscc.c` were needed since it
+uses `#include "iscc.h"` without a path prefix.
