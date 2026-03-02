@@ -60,19 +60,18 @@ iterations.
 ## C FFI DX Phase
 
 - 4 new C FFI DX criteria added in commit 9721877 (issues #22-#25)
-- Priority order from state.md: #24 (header) ✅ → #23 (examples) → #22 (howto) → #25 (release)
+- Priority order: #24 (header) ✅ → #23 (examples) ✅ → #22 (howto) → #25 (release)
 - Issue #24 DONE: header committed at `crates/iscc-ffi/include/iscc.h`, CI freshness check active
-- `.gitignore` ignores `crates/iscc-ffi/tests/iscc.h` but NOT `crates/iscc-ffi/include/iscc.h`
-- `cbindgen.toml` already has correct config (language=C, guard=ISCC_H, sys_includes)
+- Issue #23 DONE: `crates/iscc-ffi/examples/iscc_sum.c` + `CMakeLists.txt` committed
 - cmake is NOT available in devcontainer — use gcc for compilation verification (matches CI pattern)
-- CI C FFI compilation pattern:
-    `gcc -o test_iscc <src> -I crates/iscc-ffi/include -L target/debug   -liscc_ffi -lpthread -ldl -lm`
-    then `LD_LIBRARY_PATH=target/debug ./test_iscc`
-- `crates/iscc-ffi/examples/` directory does not exist yet — advance agent must create it
-- C example files are "create only" steps — no existing files need modification
+- CMake guide must use `find_library()` pattern (NOT bare `CMAKE_LIBRARY_PATH` — flagged in #23
+    review)
+- `docs/c-ffi-api.md` is the API reference page; howto guide should link to it, not duplicate
+- zensical.toml nav: howto guides listed at lines 17-24, add C/C++ after Java entry
+- Doc-only steps (single file create + nav config) are well within 3-file limit
 
 ## Project Status
 
-- Iteration 19: C FFI DX continued. 3 criteria unmet (#23, #22, #25), 5 open issues
+- Iteration 21: C FFI DX continued. 2 criteria unmet (#22 howto, #25 release), 4 open issues
 - All original target sections met. Current work is C FFI DX remaining items
 - v0.0.4 released to all registries

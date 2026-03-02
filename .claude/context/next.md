@@ -1,112 +1,91 @@
 # Next Work Package
 
-## Step: Create standalone C example with CMakeLists.txt (issue #23)
+## Step: Create C/C++ how-to guide (issue #22)
 
 ## Goal
 
-Create a self-contained C example program and CMake build file in `crates/iscc-ffi/examples/` that
-demonstrates the streaming ISCC-SUM use case — reading a file in chunks, feeding both DataHasher and
-InstanceHasher, composing the ISCC-CODE, and printing the result. This gives C/C++ developers a
-copy-pasteable starting point for integration.
+Create `docs/howto/c-cpp.md` — the dedicated how-to guide for C/C++ integration — and add it to site
+navigation. This is the last documentation criterion blocking the C FFI DX target section.
 
 ## Scope
 
-- **Create**: `crates/iscc-ffi/examples/iscc_sum.c`, `crates/iscc-ffi/examples/CMakeLists.txt`
-- **Modify**: (none)
-- **Reference**: `crates/iscc-ffi/include/iscc.h` (API signatures),
-    `crates/iscc-ffi/tests/test_iscc.c` (existing patterns for hasher lifecycle, temp files, linking
-    flags), `.claude/context/specs/c-ffi-dx.md` §2 (spec requirements)
+- **Create**: `docs/howto/c-cpp.md`
+- **Modify**: `zensical.toml` (add `{ "C / C++" = "howto/c-cpp.md" }` to the How-to Guides nav
+    section, after Java)
+- **Reference**:
+    - `.claude/context/specs/c-ffi-dx.md` §1 — required sections and tone
+    - `docs/howto/rust.md` — structural model for howto guides (front matter, heading style, section
+        flow)
+    - `docs/c-ffi-api.md` — full API reference to link to (not duplicate)
+    - `crates/iscc-ffi/examples/iscc_sum.c` — the committed example program to reference/embed
+    - `crates/iscc-ffi/include/iscc.h` — the committed header for type signatures
 
 ## Not In Scope
 
-- Adding CI steps for the example (CI already tests via `test_iscc.c`; example CI can follow later)
-- Creating the `docs/howto/c-cpp.md` guide (issue #22, separate step)
-- Installing cmake in the devcontainer (cmake is not available; verify CMakeLists.txt structure via
-    file content inspection)
-- Adding the example to any CI workflow or Makefile
-- Modifying any existing source files
+- Pre-built FFI release tarballs (#25) — the "installation" section should cover building from
+    source and mention that pre-built binaries are planned for future releases. Do NOT create CI
+    jobs or release workflow changes.
+- Modifying any C source code, header files, or Rust code
+- Creating a separate C++ example program — the RAII wrapper section is illustrative code within the
+    doc, not a compiled artifact
+- Updating `docs/c-ffi-api.md` — that page is the API reference; the howto guide links to it
 
 ## Implementation Notes
 
-**`iscc_sum.c`** — a complete program that:
+**Front matter**: Use `icon: lucide/code` and a description matching the other howto guides' style
+(`Guide to using iscc-lib from C/C++ — ...`).
 
-1. Takes a file path as `argv[1]` (exit with usage message if missing)
-2. Opens the file with `fopen(path, "rb")`
-3. Creates both hashers: `iscc_data_hasher_new()` + `iscc_instance_hasher_new()`
-4. Reads the file in a loop using a 4MB buffer (`iscc_io_read_size()`) — calls
-    `iscc_data_hasher_update()` and `iscc_instance_hasher_update()` on each chunk
-5. Finalizes both: `iscc_data_hasher_finalize(dh, 64)` and `iscc_instance_hasher_finalize(ih, 64)`
-6. Composes ISCC-CODE: builds a 2-element `const char*` array `{data_code, instance_code}` and
-    calls `iscc_gen_iscc_code_v0(codes, 2, false)`
-7. Prints: ISCC-CODE, Data-Code, Instance-Code (one per line, labeled)
-8. Frees everything: strings via `iscc_free_string()`, hashers via `_free()` (in correct order —
-    finalize before free)
-9. Handles errors at each step: checks NULL returns, prints `iscc_last_error()`, exits non-zero
-10. Include `#include "iscc.h"` (relative — works with `-I` flag)
+**Required sections** (from spec §1):
 
-Use comments explaining each step. Keep it readable for a C developer who has never seen ISCC.
-Follow C89/C99 compatible style (declare variables at block start) for maximum portability.
+1. **Overview** — what `iscc-ffi` provides (shared + static lib, generated C header), target
+    audience (systems-level teams, embedded, C++ services)
+2. **Building from source** — `cargo build -p iscc-ffi --release`, cbindgen header generation,
+    output paths per platform (`libiscc_ffi.so` / `.dylib` / `iscc_ffi.dll`)
+3. **Build system integration** — CMake `find_library()` snippet with `CMAKE_PREFIX_PATH`. Use
+    `find_library()` pattern (NOT bare `CMAKE_LIBRARY_PATH` — flagged in review of #23). Include a
+    brief pkg-config note.
+4. **ISCC-SUM quick start** — focused example showing `iscc_gen_sum_code_v0()` for one-shot file
+    hashing (can reference the committed example in `crates/iscc-ffi/examples/iscc_sum.c`)
+5. **Streaming** — `DataHasher` + `InstanceHasher` walkthrough: create, feed chunks in a loop,
+    finalize, free. Show dual-hasher pattern from same read loop
+6. **Composing ISCC-SUM manually** — using `iscc_gen_iscc_code_v0()` to combine individually
+    streamed Data-Code + Instance-Code
+7. **Error handling** — `iscc_last_error()` pattern, NULL checks, thread safety note (thread-local
+    storage)
+8. **Memory management** — ownership rules table (which `_free` function for which return type),
+    common pitfalls (double-free, use-after-free)
+9. **Static vs dynamic linking** — when to use each, platform differences
+10. **Cross-compilation** — building for ARM/embedded targets with `--target`
+11. **C++ RAII wrapper** — minimal `IsccDataHasher` class (constructor→`_new`, destructor→`_free`,
+    move-only, deleted copy)
+12. **Conformance verification** — `iscc_conformance_selftest()` to validate a build
 
-**`CMakeLists.txt`** — minimal cmake build:
+**Style guidelines**:
 
-```cmake
-cmake_minimum_required(VERSION 3.14)
-project(iscc_sum_example C)
-add_executable(iscc_sum iscc_sum.c)
-target_include_directories(iscc_sum PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../include)
-target_link_libraries(iscc_sum PRIVATE iscc_ffi)
-```
+- Use fenced code blocks with `c` or `cpp` language tags
+- Link to `c-ffi-api.md` for full API reference rather than duplicating function tables
+- Tone: practical, task-oriented. Assume the reader is an experienced C/C++ developer who has never
+    seen ISCC before
+- Keep code examples self-contained and compilable (include necessary `#include` directives)
+- Use admonition blocks (`!!! warning`, `!!! tip`) for important notes about memory management and
+    thread safety
 
-Include a comment block at the top explaining how to build:
-
-```
-# Build against a pre-built iscc-ffi library:
-#   cmake -B build -DCMAKE_PREFIX_PATH=/path/to/iscc-ffi
-#   cmake --build build
-#
-# Build against a Cargo-built library (from repo root):
-#   cargo build -p iscc-ffi --release
-#   cmake -B crates/iscc-ffi/examples/build \
-#         -S crates/iscc-ffi/examples \
-#         -DCMAKE_LIBRARY_PATH=target/release
-#   cmake --build crates/iscc-ffi/examples/build
-```
-
-Add `build/` to comments as a generated directory (no need for .gitignore — it won't be created in
-CI).
-
-**gcc verification command** (mirrors CI compilation pattern from `.github/workflows/ci.yml`):
-
-```sh
-cargo build -p iscc-ffi
-gcc -o /tmp/iscc_sum_example crates/iscc-ffi/examples/iscc_sum.c \
-    -I crates/iscc-ffi/include -L target/debug -liscc_ffi -lpthread -ldl -lm
-echo "Hello ISCC" > /tmp/iscc_test_file.bin
-LD_LIBRARY_PATH=target/debug /tmp/iscc_sum_example /tmp/iscc_test_file.bin
-```
-
-The output should show 3 labeled lines with ISCC codes (each starting with `ISCC:`).
+**Navigation**: Add after the Java entry in zensical.toml nav, using format
+`{ "C / C++" = "howto/c-cpp.md" }`.
 
 ## Verification
 
-- `test -f crates/iscc-ffi/examples/iscc_sum.c` exits 0
-- `test -f crates/iscc-ffi/examples/CMakeLists.txt` exits 0
-- `grep 'iscc_data_hasher_update' crates/iscc-ffi/examples/iscc_sum.c` exits 0 (streaming pattern)
-- `grep 'iscc_instance_hasher_update' crates/iscc-ffi/examples/iscc_sum.c` exits 0 (dual-hasher)
-- `grep 'iscc_gen_iscc_code_v0' crates/iscc-ffi/examples/iscc_sum.c` exits 0 (composition)
-- `grep 'fread' crates/iscc-ffi/examples/iscc_sum.c` exits 0 (file chunk loop)
-- `grep 'cmake_minimum_required' crates/iscc-ffi/examples/CMakeLists.txt` exits 0
-- `cargo build -p iscc-ffi` succeeds
-- gcc compiles the example:
-    `gcc -o /tmp/iscc_sum_example crates/iscc-ffi/examples/iscc_sum.c -I crates/iscc-ffi/include -L target/debug -liscc_ffi -lpthread -ldl -lm`
-    exits 0
-- Example runs and prints ISCC codes:
-    `echo "Hello ISCC" > /tmp/iscc_test_file.bin && LD_LIBRARY_PATH=target/debug /tmp/iscc_sum_example /tmp/iscc_test_file.bin`
-    prints lines containing `ISCC:`
-- `cargo clippy -p iscc-ffi -- -D warnings` clean (no regressions)
-- `cargo test -p iscc-lib` passes (310 tests — no regressions)
+- `test -f docs/howto/c-cpp.md` exits 0
+- `grep -q 'c-cpp.md' zensical.toml` exits 0
+- `grep -q 'iscc_gen_sum_code_v0' docs/howto/c-cpp.md` exits 0 (ISCC-SUM quick start present)
+- `grep -q 'iscc_data_hasher' docs/howto/c-cpp.md` exits 0 (streaming section present)
+- `grep -q 'iscc_last_error' docs/howto/c-cpp.md` exits 0 (error handling present)
+- `grep -q 'iscc_free_string' docs/howto/c-cpp.md` exits 0 (memory management present)
+- `grep -q 'RAII' docs/howto/c-cpp.md` exits 0 (C++ RAII wrapper present)
+- `grep -q 'cmake' docs/howto/c-cpp.md` exits 0 (CMake integration present)
+- `uv run zensical build` exits 0 (site builds successfully)
 
 ## Done When
 
-All verification criteria pass: both files exist, the example compiles with gcc, runs against a test
-file producing valid ISCC output on stdout, and existing tests/clippy remain clean.
+All verification commands exit 0 — the C/C++ howto guide exists with all required sections and the
+documentation site builds successfully.
