@@ -123,10 +123,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     Remember to update `crates/iscc-wasm/CLAUDE.md` API surface list when symbols are added
 
 - C FFI binding propagation: `cargo test -p iscc-ffi` +
-    `cargo clippy -p iscc-ffi --all-targets -- -D warnings` + `mise run check` + C test compilation
-    (requires cbindgen header generation:
-    `cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/tests/iscc.h`
-    then gcc build and run). Clean up generated iscc.h after testing
+    `cargo clippy -p iscc-ffi --all-targets -- -D warnings` + `mise run check`. The committed header
+    at `crates/iscc-ffi/include/iscc.h` is tracked in git — no need to regenerate for testing. CI
+    freshness check verifies it stays in sync with cbindgen output
 
 - Java JNI binding propagation: `cargo build -p iscc-jni` +
     `cargo clippy -p iscc-jni --all-targets -- -D warnings` + `cd crates/iscc-jni/java && mvn test`

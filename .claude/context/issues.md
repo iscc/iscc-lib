@@ -36,15 +36,6 @@ in a loop, feed both DataHasher and InstanceHasher, finalize, compose ISCC-SUM v
 `iscc_gen_iscc_code_v0`, print, free. Include `crates/iscc-ffi/examples/CMakeLists.txt` for
 one-command builds. Must compile and produce correct output.
 
-## #24 — Commit iscc.h header with CI freshness check [human]
-
-**Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/24 **Spec:**
-`.claude/context/specs/c-ffi-dx.md` §3
-
-Generate and commit `crates/iscc-ffi/include/iscc.h` to the repo. Remove from `.gitignore` if
-needed. Add a CI step to the C FFI job that regenerates the header and runs `git diff --exit-code`
-to catch stale headers. The C test must compile against the committed header.
-
 ## #25 — Add pre-built FFI release artifacts to GitHub Releases [human]
 
 **Priority:** normal **GitHub:** https://github.com/iscc/iscc-lib/issues/25 **Spec:**
