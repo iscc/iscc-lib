@@ -1,40 +1,36 @@
-## 2026-03-02 — Add gen_sum_code_v0 examples to all 6 howto guides
+## 2026-03-02 — Review of: Add gen_sum_code_v0 examples to all 6 howto guides
 
-**Done:** Added a `### Sum-Code` subsection with a minimal working code example to the Code
-Generation section of each per-language howto guide (rust.md, python.md, nodejs.md, wasm.md,
-java.md, go.md). Each subsection follows the existing pattern: heading, one-line description, and a
-fenced code block showing file creation, `gen_sum_code_v0` call, and result field printing.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `docs/howto/rust.md`: Added Sum-Code subsection after ISCC-CODE with
-    `gen_sum_code_v0(Path, 64, false)` example
-- `docs/howto/python.md`: Added Sum-Code subsection with `gen_sum_code_v0("example.bin")` example
-    using pathlib for file setup
-- `docs/howto/nodejs.md`: Added Sum-Code subsection with `gen_sum_code_v0("example.bin")` example
-    using `writeFileSync` for file setup
-- `docs/howto/wasm.md`: Added Sum-Code subsection with `gen_sum_code_v0(data)` taking `Uint8Array`
-    (no filesystem), includes explanatory note about WASM's in-memory data model
-- `docs/howto/java.md`: Added Sum-Code subsection with `IsccLib.genSumCodeV0(path, 64, false)`
-    example using `Files.write` for file setup, accessing result via `.iscc()`, `.datahash()`,
-    `.filesize()` methods
-- `docs/howto/go.md`: Added Sum-Code subsection with `iscc.GenSumCodeV0(path, 64, false)` example
-    using `os.WriteFile` for file setup, accessing result via `.Iscc`, `.Datahash`, `.Filesize`
-    fields
+**Summary:** Clean documentation-only change adding `### Sum-Code` subsections with
+language-appropriate code examples to all 6 per-language howto guides. All examples use correct API
+signatures verified against actual binding source code. Style is consistent with adjacent
+subsections in each file.
 
 **Verification:**
 
-- `grep -c "### Sum-Code"` across all 6 howto files: each returns 1 ✓
-- `grep -l "gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0" docs/howto/*.md | wc -l`: returns 6 ✓
-- `uv run zensical build` exits 0 (docs site builds successfully) ✓
-- `mise run format` exits 0 (formatting clean after mdformat pass) ✓
-- `mise run check` passes (14/14 hooks pass) ✓
+- [x] `grep -c "### Sum-Code"` across all 6 howto files — each returns 1
+- [x] `grep -l "gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0" docs/howto/*.md | wc -l` — returns 6
+- [x] `uv run zensical build` — exits 0, docs site builds successfully
+- [x] `mise run format` — exits 0, formatting clean
+- [x] `mise run check` — 14/14 hooks pass
 
-**Next:** All howto guides now have complete Sum-Code examples. The documentation work for
-gen_sum_code_v0 is fully complete across READMEs, docs pages, and howto guides. Remaining work:
-address issue #16 (feature flags for minimal builds, low priority).
+**Issues found:**
 
-**Notes:** mdformat auto-adjusted some inline comment spacing in the JavaScript code blocks (e.g.,
-`// "ISCC:KAA..."` → consolidated onto same line). This is cosmetic and consistent with how mdformat
-already formatted adjacent examples in those files. No substantive content was changed by the
-formatter.
+- (none)
+
+**Codex review:** One advisory finding: next.md's verification command
+`uv run zensical build 2>&1 | tail -1` could mask build failures due to pipeline exit status.
+However, the advance agent ran the build directly and confirmed success — the actual verification
+was sound. The `| tail -1` pattern is a define-next convention for concise output, not a quality
+gate weakness.
+
+**Next:** Documentation for gen_sum_code_v0 is now complete across all READMEs, docs pages, and
+howto guides. The only tracked issue remaining is #16 (feature flags for minimal builds, low
+priority). The project may be approaching target completion — the next update-state should evaluate
+whether all target.md criteria are met.
+
+**Notes:** This was a straightforward doc-only iteration. All 6 examples follow the existing pattern
+(heading, description, code block) and use correct language-specific patterns (WASM takes
+`Uint8Array`, Go uses exported fields, Java uses accessor methods, etc.). No code changes, no test
+changes, no quality gate changes.
