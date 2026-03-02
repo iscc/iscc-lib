@@ -41,66 +41,15 @@ iterations.
 - wasm-opt release flags: `[package.metadata.wasm-pack.profile.release]` with
     `wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`
 
-## Go Pure Go Rewrite
+## Go Pure Go Rewrite (Summary)
 
-- Pure Go codec: `packages/go/codec.go` — type enums (`MainType`, `SubType`, `Version` with `iota`),
-    varnibble header encoding/decoding, base32/base64, `EncodeComponent`, `IsccDecompose`,
-    `IsccDecode`. Zero external dependencies
-- Go type naming: `MTMeta`..`MTFlake`, `STNone`..`STWide`, `STText = STNone`, `VSV0 Version = 0`
-- Internal helpers are unexported (lowercase): `encodeHeader`, `decodeHeader`, etc.
-- `IsccDecode` uses `DecodeResult` struct defined in `codec.go`
-- Base32: `base32.StdEncoding.WithPadding(base32.NoPadding)`. Base64: `base64.RawURLEncoding`
-- Pure Go text utils: `TextClean` (NFKC + control-char + empty-line collapse), `TextCollapse` (NFD +
-    lowercase + filter C/M/P + NFKC), `TextTrim` (UTF-8 byte-boundary), `TextRemoveNewlines`
-    (strings.Fields join). Uses `golang.org/x/text/unicode/norm`
-- CDC: `cdcGear` table is `var` not `const` (Go no const arrays). `min()` builtin Go 1.21+
-- MinHash: `minhashFn` naming (avoids conflict). `maxi64`/`mprime`/`maxH` are `var` not `const`
-- SimHash: `AlgSimhash` returns `([]byte, error)`, `SlidingWindow` returns `([]string, error)`. Uses
-    `[]rune` for Unicode-correct SlidingWindow
-- CDC integer ceiling: `(minSize + 1) / 2` (Go has no div_ceil method)
-- DCT: `algDct` (unexported) + `dctRecursive` helper. Only uses `math` stdlib. Nayuki recursive
-    divide-and-conquer. Input must be power of 2 — checked via `n > 0 && n&(n-1) == 0`
-- WTA-Hash: `AlgWtahash` (exported) + `wtaVideoIdPermutations` `[256][2]int` table. No external deps
-- Gen functions: `code_content_text.go` (GenTextCodeV0 + softHashTextV0), `code_meta.go`
-    (GenMetaCodeV0 + metaNameSimhash + softHashMetaV0 + softHashMetaV0WithBytes + interleaveDigests
-    \+ slidingWindowBytes + decodeDataURL + parseMetaJSON + jsonHasContext + buildMetaDataURL +
-    multiHashBlake3), `code_data.go` (GenDataCodeV0 + DataHasher with Push/Finalize),
-    `code_instance.go` (GenInstanceCodeV0 + InstanceHasher with Push/Finalize),
-    `code_content_image.go` (GenImageCodeV0 + softHashImageV0 + transposeMatrix + flatten8x8 +
-    computeMedian), `code_content_audio.go` (GenAudioCodeV0 + softHashAudioV0 + arraySplit[T]).
-    Result types: `TextCodeResult`, `MetaCodeResult`, `DataCodeResult`, `InstanceCodeResult`,
-    `ImageCodeResult`, `AudioCodeResult`, `VideoCodeResult`, `MixedCodeResult`, `IsccCodeResult`
-- xxh32: `xxh32.go` — standalone xxHash32 impl (~80 lines). Used by softHashTextV0 for n-gram
-    feature hashing. Unexported: `xxh32(data, seed)`, `xxh32Round`, `rotl32`, `readU32LE`
-- JCS canonicalization: uses Go stdlib `json.Marshal` (sorts keys, compact format). Works for
-    string/null values in conformance vectors. For full RFC 8785 float compliance, would need a
-    dedicated library
-- BLAKE3 dependency: `github.com/zeebo/blake3` (SIMD-optimized). `blake3.Sum256(data)` returns
-    `[32]byte`
-- Test naming for gen functions: `TestPureGo*` prefix (historical — could be renamed to `Test*` in
-    future cleanup)
-- Go docs: `packages/go/README.md` and `docs/howto/go.md` describe pure Go API (no WASM/wazero).
-    Examples use `iscc.Function(...)` pattern with typed result structs (`*MetaCodeResult`, etc.)
-- Image-Code helpers: `transposeMatrix`, `flatten8x8`, `computeMedian` are unexported in
-    `code_content_image.go`. `bitsToBytes` reused from `codec.go`
-- Audio-Code: `arraySplit[T any]` is generic (Go 1.18+), used for splitting digests into quarters/
-    thirds. `AlgSimhash` on 4-byte digests returns 4 bytes (output = input digest length)
-- `sort.Slice` for int32: `func(i, j int) bool { return s[i] < s[j] }` (no built-in int32 sort)
-- Video-Code: `SoftHashVideoV0` exported (matching Rust `pub fn`). Dedup via
-    `fmt.Sprintf("%v", sig)` string keys in `map[string][]int32`. Column-wise int64 sums →
-    `AlgWtahash`
-- Mixed-Code: `softHashCodesV0` unexported (matching Rust non-pub). Preserves first header byte for
-    type info in SimHash entries. Uses `decodeHeader`/`decodeLength` to validate Content MainType
-    and bit length. `AlgSimhash` error safely discarded (all entries identical length)
-- Go module dependencies: `github.com/zeebo/blake3` (BLAKE3, SIMD), `golang.org/x/text` (Unicode).
-    No wazero or WASM dependencies. `github.com/klauspost/cpuid/v2` indirect (blake3 SIMD detection)
-- Test naming: `TestCodec*`, `TestUtils*`, `TestCdc*`, `TestMinhash*`, `TestSimhash*`,
-    `TestAlgDct*`, `TestAlgWtahash*`, `TestPermutation*`
-- Conformance tests (per-function): `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
-- Conformance selftest: `//go:embed testdata/data.json` in conformance.go.
-    `ConformanceSelftest()   (bool, error)` — package-level function (no receiver). Uses
-    `vectorEntry` struct + 9 `run*Tests` section runners. `decodeStream` shared helper for
-    Data/Instance hex decoding
+- Pure Go in `packages/go/` — all 10 gen functions + codec + algorithms. Zero WASM deps
+- Dependencies: `github.com/zeebo/blake3`, `golang.org/x/text`. Indirect: `cpuid/v2`
+- Go idioms: unexported helpers (lowercase), `var` for arrays/large uint64 (Go const limitations),
+    `[]rune` for Unicode SlidingWindow, generics for `arraySplit[T]`
+- Conformance: `//go:embed testdata/data.json`, per-function tests use
+    `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
+- 151 Go tests total. CI: 4 steps (checkout, setup-go, test, vet) — no Rust deps
 
 ## gen_sum_code_v0
 
@@ -135,6 +84,14 @@ iterations.
     `GenSumCodeV0(path string, bits uint32, wide bool)`. Single-pass file I/O with `os.Open` +
     `DataHasher` + `InstanceHasher` + `GenIsccCodeV0`. 4 tests in `code_sum_test.go`. 151 total Go
     tests. ALL 7 bindings complete for issue #15
+
+## Benchmarks
+
+- `crates/iscc-lib/benches/benchmarks.rs` — all 10 `gen_*_v0` + DataHasher streaming + CDC chunks
+- `bench_sum_code` uses `tempfile::NamedTempFile` since `gen_sum_code_v0` takes `&Path` (not
+    `&[u8]`)
+- Temp files created outside bench closure (setup cost excluded from measurement)
+- `tempfile` is a dev-dependency only (workspace dep `tempfile = "3"`)
 
 ## Codec Internals
 

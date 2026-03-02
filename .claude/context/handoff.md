@@ -1,36 +1,31 @@
-## 2026-03-02 — Review of: Add gen_sum_code_v0 examples to all 6 howto guides
+## 2026-03-02 — Add bench_sum_code criterion benchmark for gen_sum_code_v0
 
-**Verdict:** PASS
+**Done:** Added the `bench_sum_code` criterion benchmark function for `gen_sum_code_v0`, completing
+all 10 `gen_*_v0` benchmarks. The benchmark writes deterministic data to temp files (64KB and 1MB)
+and measures throughput, matching the pattern used by `bench_data_code` and `bench_instance_code`.
+Added `tempfile` as a workspace and dev-dependency.
 
-**Summary:** Clean documentation-only change adding `### Sum-Code` subsections with
-language-appropriate code examples to all 6 per-language howto guides. All examples use correct API
-signatures verified against actual binding source code. Style is consistent with adjacent
-subsections in each file.
+**Files changed:**
+
+- `crates/iscc-lib/benches/benchmarks.rs`: Added `gen_sum_code_v0` import, `std::io::Write` and
+    `tempfile::NamedTempFile` imports, `bench_sum_code` function with 64KB/1MB throughput
+    benchmarks, registered in `criterion_group!`, updated docstring from "9" to "10"
+- `crates/iscc-lib/Cargo.toml`: Added `tempfile = { workspace = true }` to dev-dependencies
+- `Cargo.toml`: Added `tempfile = "3"` to workspace dependencies
 
 **Verification:**
 
-- [x] `grep -c "### Sum-Code"` across all 6 howto files — each returns 1
-- [x] `grep -l "gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0" docs/howto/*.md | wc -l` — returns 6
-- [x] `uv run zensical build` — exits 0, docs site builds successfully
-- [x] `mise run format` — exits 0, formatting clean
-- [x] `mise run check` — 14/14 hooks pass
+- `cargo bench -p iscc-lib --bench benchmarks --no-run` — exits 0 (compiles)
+- `grep -c 'gen_sum_code_v0' crates/iscc-lib/benches/benchmarks.rs` — returns 5 (≥2 required)
+- `grep 'all 10' crates/iscc-lib/benches/benchmarks.rs` — matches updated docstring
+- `cargo clippy -p iscc-lib -- -D warnings` — clean
+- `cargo test -p iscc-lib` — 310 tests pass (256 + 31 + 22 + 1 doctest)
+- `mise run check` — 14/14 hooks pass
 
-**Issues found:**
+**Next:** All 10 `gen_*_v0` benchmarks now exist. The target requirement for criterion benchmarks is
+fully met. The next update-state should evaluate whether all target.md criteria are satisfied — this
+may be the final gap before target completion.
 
-- (none)
-
-**Codex review:** One advisory finding: next.md's verification command
-`uv run zensical build 2>&1 | tail -1` could mask build failures due to pipeline exit status.
-However, the advance agent ran the build directly and confirmed success — the actual verification
-was sound. The `| tail -1` pattern is a define-next convention for concise output, not a quality
-gate weakness.
-
-**Next:** Documentation for gen_sum_code_v0 is now complete across all READMEs, docs pages, and
-howto guides. The only tracked issue remaining is #16 (feature flags for minimal builds, low
-priority). The project may be approaching target completion — the next update-state should evaluate
-whether all target.md criteria are met.
-
-**Notes:** This was a straightforward doc-only iteration. All 6 examples follow the existing pattern
-(heading, description, code block) and use correct language-specific patterns (WASM takes
-`Uint8Array`, Go uses exported fields, Java uses accessor methods, etc.). No code changes, no test
-changes, no quality gate changes.
+**Notes:** The `tempfile` crate (v3) was the only new dependency added. Temp files are created
+outside the benchmark closure so file I/O setup isn't measured. The `NamedTempFile` handles cleanup
+automatically. No surprises during implementation.
