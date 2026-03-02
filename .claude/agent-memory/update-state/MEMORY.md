@@ -34,11 +34,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
     MetaTrimMeta, IoReadSize, TextNgramSize)
-- `docs/c-ffi-api.md` — C FFI API reference (needs update after gen_sum_code_v0 added)
+- `docs/c-ffi-api.md` — C FFI API reference (fully updated with iscc_gen_sum_code_v0)
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class (subpath:
     `iscc_lib/`); has META_TRIM_META as `public static final int`
-- `crates/iscc-ffi/src/lib.rs` line 3 — module docstring says "9 gen\_\*\_v0 functions" (stale,
-    needs updating to 10)
+- `crates/iscc-ffi/src/lib.rs` line 3 — module docstring says "10 `gen_*_v0` functions" (updated in
+    iteration 14)
 
 ## Recurring Patterns
 
@@ -53,21 +53,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 637722d)
+## Current State (assessed-at: 000c35d)
 
-- **Target**: 32 Tier 1 symbols — all 7 bindings COMPLETE ✅
-- **Iteration 13**: GenSumCodeV0 added to Go (PASS) — code_sum.go + code_sum_test.go; 151 Go tests
+- **Target**: 32 Tier 1 symbols — all 7 bindings COMPLETE ✅; README ✅; Per-crate READMEs ✅
+- **Iteration 14**: Documentation sweep (PASS_WITH_NOTES) — gen_sum_code_v0 added to all 9 READMEs,
+    key docs pages; FFI docstring fixed (9→10); review fixed 10 docstrings where 9 was correct
 - **Issues**: Only #16 remains (feature flags for minimal builds, low priority)
-- **gen_sum_code_v0**: Rust ✅ Python ✅ Node.js ✅ WASM ✅ C FFI ✅ Java ✅ Go ✅ (COMPLETE)
-- **Go gen_sum_code_v0 details**: `packages/go/code_sum.go`; `SumCodeResult` struct (Iscc, Datahash,
-    Filesize uint64); single-pass file I/O with `IoReadSize` (4MB) buffer; feeds DataHasher +
-    InstanceHasher; composes via GenIsccCodeV0; 4 tests in `code_sum_test.go`; 151 total tests
-- **Pending cleanups**: (1) FFI docstring says "9 gen\_\*\_v0" → needs "10"; (2) README.md missing
-    gen_sum_code_v0 entry; (3) all 7 per-crate READMEs missing gen_sum_code_v0; (4) docs/ pages
-    missing gen_sum_code_v0; (5) packages/go/README.md API table missing GenSumCodeV0
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22558240656 — all 11 CI jobs SUCCESS
-- **Next priority**: Documentation cleanup (README, per-crate READMEs, docs, FFI docstring)
+- **CI latest**: Run 22559228662 — all 11 CI jobs SUCCESS
+- **Remaining gap**: 6 howto guides missing gen_sum_code_v0 code examples. rust.md + python.md have
+    SumCodeResult in table only; nodejs.md, wasm.md, java.md, go.md have zero gen_sum mentions
+- **9 vs 10 distinction**: data.json has 9 conformance sections (no gen_sum_code_v0 vectors);
+    iscc-lib has 10 gen functions. Test/benchmark/conformance docstrings say "9"; user-facing docs
+    say "10"
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
