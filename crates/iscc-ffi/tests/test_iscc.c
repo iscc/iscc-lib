@@ -344,6 +344,58 @@ int main(void) {
         }
     }
 
+    /* 24. gen_sum_code_v0 — temp file */
+    {
+        const char *tmppath = "/tmp/iscc_c_test_sum.bin";
+        FILE *fp = fopen(tmppath, "wb");
+        if (fp != NULL) {
+            fwrite("Hello World", 1, 11, fp);
+            fclose(fp);
+
+            struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(tmppath, 64, false);
+            if (sr.ok) {
+                printf("PASS: gen_sum_code_v0 ok == true\n");
+                tests_passed++;
+            } else {
+                printf("FAIL: gen_sum_code_v0 ok should be true\n");
+                tests_failed++;
+            }
+            ASSERT_STR_STARTS_WITH(sr.iscc, "ISCC:", "gen_sum_code_v0 iscc starts with ISCC:");
+            ASSERT_NOT_NULL(sr.datahash, "gen_sum_code_v0 datahash not NULL");
+            ASSERT_EQ(sr.filesize, 11, "gen_sum_code_v0 filesize == 11");
+            iscc_free_sum_code_result(sr);
+            remove(tmppath);
+        } else {
+            printf("FAIL: gen_sum_code_v0 — could not create temp file\n");
+            tests_failed++;
+        }
+    }
+
+    /* 25. gen_sum_code_v0 — NULL path */
+    {
+        struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(NULL, 64, false);
+        if (!sr.ok) {
+            printf("PASS: gen_sum_code_v0(NULL) ok == false\n");
+            tests_passed++;
+        } else {
+            printf("FAIL: gen_sum_code_v0(NULL) ok should be false\n");
+            tests_failed++;
+        }
+        ASSERT_NULL(sr.iscc, "gen_sum_code_v0(NULL) iscc is NULL");
+    }
+
+    /* 26. gen_sum_code_v0 — nonexistent path */
+    {
+        struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0("/nonexistent/file.bin", 64, false);
+        if (!sr.ok) {
+            printf("PASS: gen_sum_code_v0(nonexistent) ok == false\n");
+            tests_passed++;
+        } else {
+            printf("FAIL: gen_sum_code_v0(nonexistent) ok should be false\n");
+            tests_failed++;
+        }
+    }
+
     /* Summary */
     printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;

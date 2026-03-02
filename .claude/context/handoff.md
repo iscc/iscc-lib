@@ -1,35 +1,33 @@
-## 2026-03-01 — Review of: Add gen_sum_code_v0 to WASM bindings
+## 2026-03-02 — Add gen_sum_code_v0 to C FFI bindings
 
-**Verdict:** PASS
+**Done:** Added `IsccSumCodeResult` struct, `iscc_gen_sum_code_v0` extern "C" function, and
+`iscc_free_sum_code_result` free function to the C FFI crate. Added 4 Rust unit tests and 3 C test
+cases (temp file, NULL path, nonexistent path).
 
-**Summary:** `gen_sum_code_v0` is correctly implemented in the WASM binding crate with a
-`WasmSumCodeResult` struct and 6 comprehensive tests. The implementation follows the existing WASM
-patterns (`getter_with_clone`, `JsError` mapping), uses `f64` for filesize as specified, and all
-quality gates pass cleanly.
+**Files changed:**
+
+- `crates/iscc-ffi/src/lib.rs`: Added `IsccSumCodeResult` repr(C) struct, `null_sum_code_result()`
+    helper, `iscc_gen_sum_code_v0(path, bits, wide)` extern "C" function,
+    `iscc_free_sum_code_result(result)` free function, and 4 Rust tests
+    (`test_gen_sum_code_v0_basic`, `test_gen_sum_code_v0_null_path`,
+    `test_gen_sum_code_v0_free_null_strings`, `test_gen_sum_code_v0_matches_lib`)
+- `crates/iscc-ffi/tests/test_iscc.c`: Added 3 C test cases (#24 temp file, #25 NULL path, #26
+    nonexistent path)
 
 **Verification:**
 
-- [x] `cargo build -p iscc-wasm --target wasm32-unknown-unknown` compiles without errors
-- [x] `cargo clippy -p iscc-wasm -- -D warnings` clean
-- [x] `wasm-pack test --node crates/iscc-wasm` passes — 75 tests (9 conformance + 66 unit including
-    6 new gen_sum_code_v0 tests; 1 unit test behind `conformance` feature gate)
-- [x] `gen_sum_code_v0` exported, returns `WasmSumCodeResult` with `iscc`, `datahash`, `filesize`
-- [x] `mise run check` passes — all 14 pre-commit hooks clean
+- `cargo test -p iscc-ffi`: 82 tests passed (78 existing + 4 new), 0 failed
+- `cargo clippy -p iscc-ffi -- -D warnings`: clean
+- `cargo build -p iscc-ffi`: success
+- C test program compiled and ran: 57 passed (49 existing + 8 new assertions), 0 failed
+- `mise run check`: all 14 pre-commit hooks passed
 
-**Issues found:**
+**Next:** Propagate `gen_sum_code_v0` to Java bindings (`crates/iscc-jni/`) per issue #15. After
+Java, continue with Go (pure Go reimplementation). Then update module docstring function count.
 
-- (none) — clean implementation
-
-**Codex review:** Two P3 findings, both about the advance handoff documentation (not code): (1)
-handoff verification command omits crate path for `wasm-pack test --node`; (2) handoff notes
-incorrectly claim next.md specifies `u64` when it actually specifies `f64`. Both are handoff clarity
-issues only — the code itself is correct.
-
-**Next:** Propagate `gen_sum_code_v0` to C FFI bindings (`crates/iscc-ffi/`). The C FFI will need an
-`iscc_gen_sum_code_v0(path, bits, wide)` extern "C" function with output pointer pattern matching
-existing FFI result functions. After C FFI, continue with Java and Go per issue #15.
-
-**Notes:** Issue #15 progress: Rust core ✅, Python ✅, Node.js ✅, WASM ✅. Three bindings remain: C
-FFI, Java, Go. The advance handoff test count says "76 tests (9 + 67)" but actual is 75 (9 + 66)
-because `test_conformance_selftest_returns_true` is behind `#[cfg(feature = "conformance")]`. Minor
-count discrepancy — no code issue.
+**Notes:** The implementation follows the `IsccDecodeResult` pattern exactly: `#[repr(C)]` struct
+with `ok: bool`, heap-allocated string fields, and a dedicated free function that delegates to
+`iscc_free_string`. The `iscc_gen_sum_code_v0` function properly handles partial allocation failure
+(if `datahash` CString conversion fails after `iscc` was already allocated, it frees `iscc` before
+returning the error result). The C test uses `/tmp/iscc_c_test_sum.bin` as a temp file path, which
+is cleaned up after the test.

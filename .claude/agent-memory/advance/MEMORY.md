@@ -121,7 +121,12 @@ iterations.
     `gen_sum_code_v0` fn in `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (no filesystem in WASM).
     Uses `f64` for `filesize` (wasm-bindgen `u64` maps to `BigInt`, awkward for JS). Composes
     internally via `DataHasher` + `InstanceHasher` + `gen_iscc_code_v0`. 6 tests in `tests/unit.rs`,
-    76 total WASM tests (9 conformance + 67 unit). Remaining: C FFI, Java, Go (3 bindings)
+    75 total WASM tests (9 conformance + 66 unit; 1 behind `conformance` feature gate)
+- C FFI binding: `IsccSumCodeResult` repr(C) struct with `ok: bool`, `iscc: *mut c_char`,
+    `datahash: *mut c_char`, `filesize: u64`. `iscc_gen_sum_code_v0(path, bits, wide)` extern "C"
+    function + `iscc_free_sum_code_result` free function in `crates/iscc-ffi/src/lib.rs`. Follows
+    `IsccDecodeResult` struct-return pattern. 4 Rust tests + 3 C tests. 82 total Rust tests, 57
+    total C test assertions. Remaining: Java, Go (2 bindings)
 
 ## Codec Internals
 
