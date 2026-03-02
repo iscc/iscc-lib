@@ -33,8 +33,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench
-- `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete,
-    including Sum-Code subsections as of iteration 15)
+- `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md; **c-cpp.md
+    missing** — required by updated documentation spec (issue #22)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
@@ -59,14 +59,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 75bc98f)
+## Current State (assessed-at: 9721877)
 
-- **TARGET DONE**: All target.md criteria met ✅; CI 11/11 SUCCESS ✅
-- **Iteration 16**: bench_sum_code (PASS) — added 10th criterion benchmark for gen_sum_code_v0;
-    `benchmarks.rs` docstring updated to "all 10"; `tempfile` crate added as workspace dev-dep
-- **Issues**: Only #16 remains (feature flags for minimal builds, low priority, GitHub issue filed)
-- **v0.0.4 released**: pure version bump across all manifests; no functional changes
-- **CI latest**: Run 22567609585 — all 11 CI jobs SUCCESS
+- **IN_PROGRESS**: C FFI DX expansion added 4 new target criteria; none yet met
+- **Issues open**: #16 (feature flags, low priority), #21 (units in gen_sum_code_v0), #22 (c-cpp.md
+    how-to), #23 (standalone C example), #24 (committed iscc.h + CI freshness), #25 (FFI release
+    tarballs)
+- **C FFI header**: `crates/iscc-ffi/include/iscc.h` does NOT exist; `tests/iscc.h` is gitignored
+- **C FFI examples**: `crates/iscc-ffi/examples/` does NOT exist
+- **docs/howto/c-cpp.md**: does NOT exist (only 6 howto guides; c-cpp missing)
+- **release.yml**: NO build-ffi/publish-ffi jobs; NO ffi workflow_dispatch input
+- **CI latest**: Run 22584245564 — all 11 CI jobs SUCCESS ✅
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 

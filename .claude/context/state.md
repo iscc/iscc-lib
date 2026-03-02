@@ -1,16 +1,16 @@
-<!-- assessed-at: 75bc98ffdfa30fd222e55fc71254858a79bb182b -->
+<!-- assessed-at: 9721877b263bafe71f7dc7d5b59ef48036c522af -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Target criteria met; open issues #16 and #21 remain
+## Phase: C FFI DX expansion — 4 new criteria unmet; 6 open issues
 
-All sections of `target.md` are fully satisfied. The Release 0.0.4 commit (`75bc98f`) bumped
-versions across all manifests (Cargo.toml, pyproject.toml, package.json, pom.xml, mise.toml) — no
-functional changes. CI is all green (11/11 jobs SUCCESS). The only open item is issue #16 (feature
-flags for minimal builds), which is low priority, has a GitHub issue filed, and is **not** part of
-the `target.md` acceptance criteria.
+Commit `9721877` expanded the C FFI section in `target.md` with four new acceptance criteria
+(committed header, CI freshness check, standalone C example, pre-built release tarballs) and added
+the corresponding spec `c-ffi-dx.md` plus issues #22-#25. All previously-met sections remain
+unchanged. CI is all green (11/11 jobs). The new C FFI DX work and issue #21 (units support) are the
+next priority.
 
 ## Rust Core Crate
 
@@ -59,13 +59,17 @@ the `target.md` acceptance criteria.
 
 ## C FFI
 
-**Status**: met (32/32 Tier 1 symbols; all quality gates pass)
+**Status**: partially met (original 2 criteria met; 4 new DX criteria not met)
 
-- `IsccSumCodeResult` repr(C) struct + `iscc_gen_sum_code_v0` + `iscc_free_sum_code_result` in
-    `crates/iscc-ffi/src/lib.rs` ✅
-- Module docstring says "10 `gen_*_v0` functions" ✅
-- 82 Rust unit tests; 57 C assertions ✅
-- `cargo clippy -p iscc-ffi -- -D warnings` clean
+- cbindgen generates valid C headers ✅
+- C test program calls entrypoints and gets correct results ✅
+- `crates/iscc-ffi/include/iscc.h` NOT committed — `include/` dir absent; `tests/iscc.h` is
+    gitignored ❌
+- CI freshness check for `iscc.h` not present in `ci.yml` ❌
+- `docs/howto/c-cpp.md` does not exist ❌
+- `crates/iscc-ffi/examples/iscc_sum.c` + `CMakeLists.txt` do not exist (`examples/` absent) ❌
+- Pre-built FFI tarballs not set up — `release.yml` has no `build-ffi`/`publish-ffi` jobs ❌
+- Open issues: #22 (c-cpp.md), #23 (examples), #24 (committed header), #25 (release artifacts)
 
 ## Java Bindings
 
@@ -109,7 +113,7 @@ the `target.md` acceptance criteria.
 
 ## Documentation
 
-**Status**: met
+**Status**: partially met
 
 - 16 pages deployed to lib.iscc.codes; all navigation sections complete ✅
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
@@ -118,7 +122,8 @@ the `target.md` acceptance criteria.
 - `docs/c-ffi-api.md` has `iscc_gen_sum_code_v0` + `IsccSumCodeResult` struct documented ✅
 - `docs/index.md` lists `gen_sum_code_v0` in function table ✅
 - `docs/architecture.md` references `gen_sum_code_v0` ✅
-- All 6 howto guides have `### Sum-Code` subsections with working code examples ✅
+- All existing 6 howto guides have `### Sum-Code` subsections with working code examples ✅
+- `docs/howto/c-cpp.md` does NOT exist — required by updated documentation spec ❌ (issue #22)
 - `uv run zensical build` exits 0 ✅
 
 ## Benchmarks
@@ -129,7 +134,6 @@ the `target.md` acceptance criteria.
     - `bench_meta_code`, `bench_text_code`, `bench_image_code`, `bench_audio_code`,
         `bench_video_code`, `bench_mixed_code`, `bench_data_code`, `bench_instance_code`,
         `bench_iscc_code`, `bench_sum_code` (64KB + 1MB throughput using `NamedTempFile`) ✅
-- File docstring updated to "all 10 `gen_*_v0` ISCC functions" ✅
 - `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks ✅
 - pytest-benchmark comparison: `benchmarks/python/bench_iscc_core.py` and `bench_iscc_lib.py` ✅
 - Speedup factors published in `docs/benchmarks.md` ✅
@@ -137,26 +141,29 @@ the `target.md` acceptance criteria.
 
 ## CI/CD and Publishing
 
-**Status**: met
+**Status**: partially met
 
-- **All 11 CI jobs SUCCESS** on latest push; latest CI run: **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22567609585
+- **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22584245564
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
-    (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check) —
-    all success ✅
+    (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check)
 - v0.0.4 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
-    configured; npm via `NPM_TOKEN`
+    configured; npm via `NPM_TOKEN` secret
+- `release.yml` is missing `build-ffi` and `publish-ffi` jobs ❌ (issue #25)
+- `workflow_dispatch` does not have `ffi` boolean input ❌ (issue #25)
 
 ## Next Milestone
 
-**Target fully met.** All `target.md` acceptance criteria are satisfied and CI is green.
+**C FFI DX** — implement the four open issues in priority order:
 
-The only remaining tracked item is **issue #16** — feature flags for embedded/minimal builds (low
-priority, GitHub issue filed at https://github.com/iscc/iscc-lib/issues/16). This is an enhancement
-outside the current target scope. The CID loop may either:
+1. **#24** — Generate and commit `crates/iscc-ffi/include/iscc.h`; remove from `.gitignore`; add CI
+    freshness check to C FFI job
+2. **#23** — Create `crates/iscc-ffi/examples/iscc_sum.c` (streaming file hash loop) +
+    `CMakeLists.txt`
+3. **#22** — Create `docs/howto/c-cpp.md` with all required sections (CMake snippet, streaming
+    example, RAII wrapper, error handling, memory management, static vs dynamic, cross-compilation)
+4. **#25** — Add `build-ffi` and `publish-ffi` jobs to `release.yml` with 5-platform matrix
 
-1. Implement issue #16 as a low-priority follow-on
-2. Declare target completion and stop the loop
-
-No blocking work remains.
+Issue #21 (units support for `gen_sum_code_v0`) is a separate enhancement that can follow. Issue #16
+(feature flags) remains low-priority.
