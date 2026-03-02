@@ -63,9 +63,11 @@ iterations.
 - `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring in tests, not
     field access. `MainType` is `pub(crate)` in `codec` module, not accessible from test module
 - 32nd and final Tier 1 symbol for Rust core — all 32 symbols now implemented
-- Python binding: PyO3 wrapper in `crates/iscc-py/src/lib.rs` accepts `&str` path, `SumCodeResult`
-    class in `__init__.py`, public wrapper accepts `str | os.PathLike` via `os.fspath()`, 6 tests in
-    `tests/test_smoke.py`
+- Python binding: PyO3 wrapper in `crates/iscc-py/src/lib.rs` accepts `&str` path + `add_units` bool
+    param, `SumCodeResult` class in `__init__.py` with `units: list[str] | None`, public wrapper
+    accepts `str | os.PathLike` via `os.fspath()` + `add_units: bool = False`. 9 tests in
+    `tests/test_smoke.py` (6 existing + 3 units tests). `add_units=True` sets `"units"` dict key,
+    `False` omits it (matching iscc-core optional field pattern)
 - Node.js binding: `NapiSumCodeResult` struct (`#[napi(object)]`) + `gen_sum_code_v0` napi fn in
     `crates/iscc-napi/src/lib.rs`. Uses `i64` for `filesize` (napi-rs no u64 support). 6 tests in
     `__tests__/functions.test.mjs`

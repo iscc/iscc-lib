@@ -1,40 +1,36 @@
-## 2026-03-02 — Review of: Add `units` support to `gen_sum_code_v0` in Rust core (issue #21)
+## 2026-03-02 — Expose `add_units` in Python binding (issue #21)
 
-**Verdict:** PASS
+**Done:** Added `add_units: bool` parameter to `gen_sum_code_v0` in both the PyO3 Rust binding and
+the Python wrapper. When `add_units=True`, the returned dict includes a `"units"` key with
+`[Data-Code, Instance-Code]` ISCC strings. When `False` (default), the key is omitted. Updated
+`SumCodeResult` type annotation to include `units: list[str] | None`.
 
-**Summary:** Clean, well-scoped implementation adding `add_units: bool` parameter and
-`units: Option<Vec<String>>` field to `gen_sum_code_v0`/`SumCodeResult`. The borrow-before-move
-pattern for `gen_iscc_code_v0` is correct, all 4 binding crates compile with the new parameter, and
-2 new tests validate both enabled and disabled paths. All 7 verification criteria pass.
+**Files changed:**
+
+- `crates/iscc-py/src/lib.rs`: Added `add_units` param to `#[pyo3(signature)]` (now 4 params),
+    passed through to `iscc_lib::gen_sum_code_v0`, added `if let Some(units)` dict insertion
+- `crates/iscc-py/python/iscc_lib/__init__.py`: Added `units: list[str] | None` type annotation to
+    `SumCodeResult`, added `add_units: bool = False` param to wrapper, passed through to lowlevel
+    call
+- `tests/test_smoke.py`: Added 3 tests: `test_gen_sum_code_v0_units_enabled` (verifies units list
+    with 2 ISCC strings), `test_gen_sum_code_v0_units_disabled` (verifies units key absent by
+    default), `test_gen_sum_code_v0_units_attribute_access` (verifies `result.units` attribute
+    access)
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` passes — 312 tests (258 + 31 + 22 + 1), 2 new vs prior 310
-- [x] `cargo clippy -p iscc-lib -- -D warnings` — clean
-- [x] `cargo build -p iscc-py` — compiles
-- [x] `cargo build -p iscc-napi` — compiles
-- [x] `cargo build -p iscc-ffi` — compiles
-- [x] `cargo build -p iscc-jni` — compiles
-- [x] `cargo bench -p iscc-lib --no-run` — compiles
-- [x] `mise run check` — 14/14 hooks pass
+- `cargo build -p iscc-py` — compiles clean
+- `cargo clippy -p iscc-py -- -D warnings` — clean
+- `mise run check` — 14/14 hooks pass
+- `mise run test` — all tests pass (312 Rust + 207 Python, including 3 new smoke tests)
+- `gen_sum_code_v0(path, add_units=True)` returns dict with `"units"` key containing 2 ISCC strings
+- `gen_sum_code_v0(path)` (default) returns dict without `"units"` key
 
-**Issues found:**
+**Next:** Expose `add_units` in Node.js binding (`crates/iscc-napi`). The NAPI pattern is already
+documented in learnings.md — `NapiSumCodeResult` struct needs an `Option<Vec<String>>` field for
+`units`, and the `gen_sum_code_v0` function needs `Option<bool>` for `add_units`.
 
-- (none) — implementation is clean and correctly scoped
-
-**Codex review:** Codex couldn't run tests (cross-device link error in sandbox) but performed static
-analysis. It verified all binding call sites are updated, confirmed no destructuring breakage due to
-`#[non_exhaustive]`, and noted docs (`docs/rust-api.md`, `docs/architecture.md`) still reference the
-old 3-parameter signature. Doc updates are explicitly out of scope per next.md — they should be
-included when binding APIs are exposed.
-
-**Next:** Expose `add_units` parameter in binding APIs. Suggested order: Python first (primary
-`iscc-sdk` consumer), then Node.js, C FFI, JNI. WASM has its own inline `gen_sum_code_v0`
-implementation — needs separate scoping. Go needs a pure Go reimplementation. When exposing
-bindings, also update `docs/rust-api.md` and `docs/architecture.md` to show the new 4-parameter
-signature. Issue #21 remains open until all bindings are updated.
-
-**Notes:** The `#[non_exhaustive]` attribute on `SumCodeResult` ensures the new field doesn't break
-downstream pattern matches. When `add_units` is false, `data_result.iscc` and `instance_result.iscc`
-are dropped after `gen_iscc_code_v0` borrows them — no unnecessary cloning. State.md still shows the
-old 3-parameter signature at line 23 — update-state will pick this up next cycle.
+**Notes:** The Python extension must be rebuilt with `maturin develop` after changing the Rust
+binding code. `mise run test` triggers `cargo test` which rebuilds the Rust code, but the installed
+Python `.so` is a separate artifact. The `maturin develop` step is needed before `pytest` can pick
+up the new signature. This is a known dev workflow requirement.

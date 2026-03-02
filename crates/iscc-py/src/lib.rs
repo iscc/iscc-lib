@@ -328,16 +328,26 @@ fn gen_iscc_code_v0(py: Python<'_>, codes: Vec<String>, wide: bool) -> PyResult<
 
 /// Generate a composite ISCC-CODE from a file in a single pass.
 ///
-/// Returns a dict with keys: `iscc`, `datahash`, `filesize`.
+/// Returns a dict with keys: `iscc`, `datahash`, `filesize`, and optionally
+/// `units` (list of Data-Code and Instance-Code strings) when `add_units` is true.
 #[pyfunction]
-#[pyo3(signature = (path, bits=64, wide=false))]
-fn gen_sum_code_v0(py: Python<'_>, path: &str, bits: u32, wide: bool) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_sum_code_v0(std::path::Path::new(path), bits, wide, false)
+#[pyo3(signature = (path, bits=64, wide=false, add_units=false))]
+fn gen_sum_code_v0(
+    py: Python<'_>,
+    path: &str,
+    bits: u32,
+    wide: bool,
+    add_units: bool,
+) -> PyResult<PyObject> {
+    let r = iscc_lib::gen_sum_code_v0(std::path::Path::new(path), bits, wide, add_units)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
     dict.set_item("datahash", r.datahash)?;
     dict.set_item("filesize", r.filesize)?;
+    if let Some(units) = r.units {
+        dict.set_item("units", units)?;
+    }
     Ok(dict.into())
 }
 

@@ -188,6 +188,7 @@ class SumCodeResult(IsccResult):
     iscc: str
     datahash: str
     filesize: int
+    units: list[str] | None
 
 
 # ── Wrapper functions ────────────────────────────────────────────────────────
@@ -272,10 +273,13 @@ def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> IsccCodeResult:
 
 
 def gen_sum_code_v0(
-    path: str | os.PathLike, bits: int = 64, wide: bool = False
+    path: str | os.PathLike,
+    bits: int = 64,
+    wide: bool = False,
+    add_units: bool = False,
 ) -> SumCodeResult:
     """Generate Data-Code + Instance-Code + ISCC-CODE from a file path in a single pass."""
-    return SumCodeResult(_gen_sum_code_v0(os.fspath(path), bits, wide))
+    return SumCodeResult(_gen_sum_code_v0(os.fspath(path), bits, wide, add_units))
 
 
 # ── Streaming hashers ──────────────────────────────────────────────────────
