@@ -1,105 +1,69 @@
 # Next Work Package
 
-## Step: Add `units` support to `gen_sum_code_v0` in Rust core (issue #21)
+## Step: Expose `add_units` in Python binding (issue #21)
 
 ## Goal
 
-Add an `add_units: bool` parameter to `gen_sum_code_v0` and a `units: Option<Vec<String>>` field to
-`SumCodeResult`. When `add_units` is true, the result includes the individual Data-Code and
-Instance-Code ISCC strings at the requested `bits` precision. This enables `iscc-sdk` to obtain all
-three codes (ISCC-SUM, Data-Code, Instance-Code) from a single optimized file read instead of three
-separate calls. This step implements the Rust core change and fixes all Rust-based binding call
-sites to maintain compilation.
+Expose the `add_units: bool` parameter and `units` return field in the Python binding for
+`gen_sum_code_v0`, so Python callers (especially `iscc-sdk`) can get Data-Code and Instance-Code
+ISCC strings from a single optimized call. This is the first binding update for issue #21.
 
 ## Scope
 
-- **Create**: none
+- **Create**: (none)
 - **Modify**:
-    - `crates/iscc-lib/src/types.rs` — add `pub units: Option<Vec<String>>` field to `SumCodeResult`
-    - `crates/iscc-lib/src/lib.rs` — add `add_units: bool` parameter to `gen_sum_code_v0`, populate
-        `units` conditionally
-    - `crates/iscc-py/src/lib.rs` — pass `false` for new `add_units` parameter (1-line fix)
-    - `crates/iscc-napi/src/lib.rs` — pass `false` for new `add_units` parameter (1-line fix)
-    - `crates/iscc-ffi/src/lib.rs` — pass `false` for new `add_units` parameter (1-line fix)
-    - `crates/iscc-jni/src/lib.rs` — pass `false` for new `add_units` parameter (1-line fix)
+    - `crates/iscc-py/src/lib.rs` — add `add_units` param, include `units` in returned dict
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — add `add_units` param to wrapper, add `units`
+        type annotation to `SumCodeResult`
+    - `tests/test_smoke.py` — add tests for `add_units=True` and `add_units=False`
 - **Reference**:
-    - `crates/iscc-lib/src/lib.rs` lines 960-998 (current `gen_sum_code_v0` implementation)
-    - `crates/iscc-lib/src/types.rs` lines 95-105 (current `SumCodeResult` definition)
-    - `crates/iscc-lib/src/lib.rs` lines 2110-2247 (existing unit tests)
-    - `crates/iscc-lib/benches/benchmarks.rs` lines 184-214 (benchmark calls)
+    - `crates/iscc-lib/src/code_sum.rs` — Rust core `gen_sum_code_v0` signature and `SumCodeResult`
+    - Existing Python test patterns in `tests/test_smoke.py`
 
 ## Not In Scope
 
-- Exposing `add_units` parameter in any binding's public API (Python `__init__.py`, Node.js, WASM,
-    JNI, FFI, Go). Bindings always pass `false` for now; API exposure is a separate step.
-- Updating `WasmSumCodeResult` or WASM's inline `gen_sum_code_v0` (WASM has its own implementation
-    that doesn't call `iscc_lib::gen_sum_code_v0` — needs separate scoping)
-- Updating Go's pure Go implementation (separate step with its own logic)
-- Documentation updates for the new parameter/field
-- Adding `units` to C FFI's `IsccSumCodeResult` struct or header
-- Changing any binding's result type to include units
+- Updating Node.js, WASM, C FFI, JNI, or Go bindings (separate steps per binding)
+- Updating `docs/rust-api.md` or `docs/architecture.md` (defer until all bindings are done)
+- Changing the Rust core API (already complete)
+- Adding conformance vectors for `gen_sum_code_v0` (none exist in `data.json`)
 
 ## Implementation Notes
 
-The current `gen_sum_code_v0` already computes `data_result.iscc` and `instance_result.iscc` (lines
-988-989) and uses them to call `gen_iscc_code_v0` (line 991). These strings are then discarded. The
-change is minimal:
+**Rust side (`crates/iscc-py/src/lib.rs`):**
 
-1. **`types.rs`**: Add `pub units: Option<Vec<String>>` to `SumCodeResult`. Keep `#[non_exhaustive]`
-    attribute. Add a doc comment explaining the field contains `[Data-Code, Instance-Code]` ISCC
-    strings at the requested bit precision.
+- Change the `#[pyo3(signature)]` from `(path, bits=64, wide=false)` to
+    `(path, bits=64, wide=false, add_units=false)` — 4 params
+- Pass `add_units` through to `iscc_lib::gen_sum_code_v0(Path::new(path), bits, wide, add_units)`
+- When `r.units` is `Some(vec)`, set `dict.set_item("units", vec)?` — PyO3 auto-converts
+    `Vec<String>` to a Python list of strings
+- When `r.units` is `None`, do NOT set the "units" key (matching iscc-core pattern of omitting
+    optional fields)
 
-2. **`lib.rs`**: Add `add_units: bool` as the 4th parameter. In the result construction:
+**Python side (`__init__.py`):**
 
-    ```rust
-    Ok(SumCodeResult {
-        iscc: iscc_result.iscc,
-        datahash: instance_result.datahash,
-        filesize: instance_result.filesize,
-        units: if add_units {
-            Some(vec![data_result.iscc, instance_result.iscc])
-        } else {
-            None
-        },
-    })
-    ```
+- Update `SumCodeResult` class to add `units: list[str] | None` type annotation (after `filesize`)
+- Update the `gen_sum_code_v0` wrapper signature to accept `add_units: bool = False`
+- Pass `add_units` through: `_gen_sum_code_v0(os.fspath(path), bits, wide, add_units)`
 
-    Note: when `add_units` is false, `data_result.iscc` and `instance_result.iscc` are still computed
-    (needed for `gen_iscc_code_v0`) but are dropped rather than cloned into the result. Since
-    `data_result` and `instance_result` are consumed by value, use `data_result.iscc` directly
-    (moved, not cloned) when `add_units` is true. Reorder the result construction so
-    `gen_iscc_code_v0` borrows the strings before they're potentially moved.
+**Tests (`tests/test_smoke.py`):**
 
-3. **Binding call-site fixes**: Each of the 4 Rust binding crates has exactly one call to
-    `iscc_lib::gen_sum_code_v0(path, bits, wide)`. Add `, false` as the 4th argument. These are
-    mechanical 1-line changes to keep all crates compiling. Exact locations:
-
-    - `crates/iscc-py/src/lib.rs:335` — `iscc_lib::gen_sum_code_v0(..., bits, wide)`
-    - `crates/iscc-napi/src/lib.rs:232` — `iscc_lib::gen_sum_code_v0(..., bits, wide)`
-    - `crates/iscc-ffi/src/lib.rs:847` — `iscc_lib::gen_sum_code_v0(..., bits, wide)`
-    - `crates/iscc-jni/src/lib.rs:414` — `iscc_lib::gen_sum_code_v0(..., bits, wide)`
-
-4. **Benchmarks**: `crates/iscc-lib/benches/benchmarks.rs` also calls `gen_sum_code_v0` — update
-    those calls to pass `false` as the 4th argument.
-
-5. **Tests**: Add 2-3 new tests in `lib.rs`:
-
-    - `test_gen_sum_code_v0_units_enabled` — verify `units` is `Some` with exactly 2 elements, first
-        starting with `"ISCC:"` and decoding to MainType::Data, second to MainType::Instance
-    - `test_gen_sum_code_v0_units_disabled` — verify `units` is `None` when `add_units` is `false`
-    - Update all 7 existing `test_gen_sum_code_v0_*` tests to pass `false` for `add_units`
+- Add `test_gen_sum_code_v0_units_enabled`: create temp file, call with `add_units=True`, assert
+    `"units"` key exists, assert it's a list of 2 strings, each starting with `"ISCC:"`
+- Add `test_gen_sum_code_v0_units_disabled`: create temp file, call with `add_units=False`
+    (default), assert `"units"` key is NOT present in the result dict
+- Add `test_gen_sum_code_v0_units_attribute_access`: call with `add_units=True`, verify
+    `result.units` attribute access works
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (310 existing + 2-3 new tests)
-- `cargo clippy -p iscc-lib -- -D warnings` clean
-- `cargo build -p iscc-py` compiles successfully
-- `cargo build -p iscc-napi` compiles successfully
-- `cargo build -p iscc-ffi` compiles successfully
-- `cargo build -p iscc-jni` compiles successfully
-- `cargo bench -p iscc-lib --no-run` compiles successfully
+- `cargo build -p iscc-py` compiles without errors
+- `mise run test` passes (all existing + 3 new Python tests)
+- `cargo clippy -p iscc-py -- -D warnings` clean
+- Calling `gen_sum_code_v0(path, add_units=True)` returns a dict with `"units"` key containing
+    `[data_iscc, instance_iscc]`
+- Calling `gen_sum_code_v0(path)` (default) returns a dict WITHOUT `"units"` key
 
 ## Done When
 
-All verification criteria pass: Rust core has `add_units` parameter with `units` field working
-correctly, all binding crates compile, and new tests validate both enabled and disabled paths.
+All verification criteria pass: Python binding exposes `add_units` parameter with correct dict
+output for both `True` and `False` cases, and all tests (existing + 3 new) pass.

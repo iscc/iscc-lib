@@ -76,8 +76,17 @@ iterations.
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
 - Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
 
+## Binding Units Exposure Patterns
+
+- Python: `SumCodeResult(IsccResult)` class with type annotations in `__init__.py`. Wrapper calls
+    `_gen_sum_code_v0(os.fspath(path), bits, wide, add_units)`. Dict keys omit optional `None`
+    fields (pattern: only `set_item` when `Some`)
+- Python tests in `tests/test_smoke.py` use `tmp_path` fixture, follow existing
+    `test_gen_sum_code_v0_*` pattern
+- After Python, remaining bindings: Node.js, WASM (inline impl), C FFI, JNI, Go (pure Go)
+
 ## Project Status
 
-- Iteration 5: C FFI DX complete. Starting issue #21 (units support for gen_sum_code_v0)
-- 2 open issues: #21 (units support, normal), #16 (feature flags, normal/low)
+- Iteration 6: Rust core units done (iter 5). Now exposing `add_units` in Python binding first
+- 2 open issues: #21 (units support, partially done), #16 (feature flags, normal/low)
 - v0.0.4 released to all registries
