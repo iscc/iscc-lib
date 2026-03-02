@@ -98,7 +98,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - `add_units: bool` + `units: Option<Vec<String>>` added to Rust core ✅ — bindings still pass
     `false`, not yet exposed in binding APIs. Docs (`rust-api.md`, `architecture.md`) still show old
     3-param signature — update when binding APIs are exposed
-- gen_sum_code_v0 Python binding complete ✅ (48 __all__ entries, 204 tests)
+- gen_sum_code_v0 Python binding `add_units` exposed ✅ (48 __all__ entries, 207 tests). `.pyi` stub
+    updated with `add_units: bool = False` parameter
 - gen_sum_code_v0 Node.js binding complete ✅ (132 tests, NapiSumCodeResult struct + gen_sum_code_v0
     fn)
 - gen_sum_code_v0 WASM binding complete ✅ (75 tests: 9 conformance + 66 unit; WasmSumCodeResult +
@@ -192,6 +193,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     fails with `No module named 'iscc_lib'`, run
     `cd crates/iscc-py && uv run maturin develop --release` to build the Python extension. This is a
     one-time setup per container/checkout
+- **`.pyi` stub sync** — When the advance agent modifies Python binding signatures (`lib.rs`), the
+    `.pyi` stub at `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` must also be updated. `ty check`
+    (pre-push) catches mismatches but `mise run check` (pre-commit) does not. Always verify
+    `uv run ty check` for Python binding changes
 
 ## Benchmark Review
 

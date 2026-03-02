@@ -182,6 +182,9 @@ fully-met target sections to `learnings-archive.md`.
 - Python binding pattern: PyO3 wrapper accepts `&str` path → `Path::new(path)`, public wrapper adds
     `str | os.PathLike` via `os.fspath()`. `SumCodeResult(IsccResult)` class + `__all__` update.
     Wide mode test requires `bits=128` since 64-bit codes produce identical output in both modes
+- **`.pyi` stub must be updated alongside binding changes.** When adding/modifying parameters in
+    `crates/iscc-py/src/lib.rs`, also update the corresponding signature in
+    `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`. `ty check` (pre-push hook) will fail otherwise
 - Node.js binding pattern: `NapiSumCodeResult` struct with `#[napi(object)]` + `gen_sum_code_v0` fn
     with `Option<u32>`/`Option<bool>` params. Uses `i64` for filesize (napi-rs lacks u64 support).
     Tests use `node:test` + `node:assert` + temp files for I/O. Total: 132 tests after adding 6
