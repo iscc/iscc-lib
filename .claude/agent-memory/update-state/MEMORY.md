@@ -43,8 +43,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class (subpath:
     `iscc_lib/`); has META_TRIM_META as `public static final int`
 - `crates/iscc-ffi/src/lib.rs` line 3 — module docstring says "10 `gen_*_v0` functions"
-- `crates/iscc-lib/benches/benchmarks.rs` — 237 lines; docstring says "9 gen\_\*\_v0" (stale);
-    missing `bench_sum_code` function; `criterion_group!` lists 11 benches (no bench_sum_code)
+- `crates/iscc-lib/benches/benchmarks.rs` — 277 lines; docstring says "all 10 gen\_\*\_v0"; has
+    `bench_sum_code` (64KB+1MB using NamedTempFile); `criterion_group!` lists 12 benches
 
 ## Recurring Patterns
 
@@ -59,17 +59,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 580793c)
+## Current State (assessed-at: 6cfae5e)
 
-- **Target**: 32 Tier 1 symbols — all 7 bindings COMPLETE ✅; README ✅; Per-crate READMEs ✅;
-    Documentation ✅
-- **Iteration 15**: Howto guides (PASS) — all 6 howto guides now have `### Sum-Code` subsections
-    with working code examples; `uv run zensical build` verified ✅
-- **Remaining gap**: Benchmarks partially met — `gen_sum_code_v0` has no criterion benchmark;
-    `benchmarks.rs` docstring says "9 gen\_\*\_v0" (stale). Target requires benchmarks for all 10.
-- **Issues**: Only #16 remains (feature flags for minimal builds, low priority)
+- **TARGET DONE**: All target.md criteria met ✅; CI 11/11 SUCCESS ✅
+- **Iteration 16**: bench_sum_code (PASS) — added 10th criterion benchmark for gen_sum_code_v0;
+    `benchmarks.rs` docstring updated to "all 10"; `tempfile` crate added as workspace dev-dep
+- **Issues**: Only #16 remains (feature flags for minimal builds, low priority, GitHub issue filed)
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22559996288 — all 11 CI jobs SUCCESS
+- **CI latest**: Run 22560748212 — all 11 CI jobs SUCCESS
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
@@ -100,6 +97,6 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     pattern precisely; partial allocation failure handled (free iscc before returning null)
 - **9 vs 10 distinction**: data.json has 9 conformance sections (no gen_sum_code_v0 vectors);
     iscc-lib has 10 gen functions. Test/conformance docstrings correctly say "9"; user-facing docs
-    say "10". Benchmarks file is stale at "9"
-- **gen_sum_code_v0 benchmark**: uses file I/O (not in-memory) — needs temp files with 64KB/1MB
-    payloads; follow `bench_data_code` pattern but use `tempfile` crate or `env::temp_dir()`
+    and benchmarks file say "10"
+- **gen_sum_code_v0 benchmark**: uses NamedTempFile (tempfile crate); temp files created outside
+    criterion closure so file setup is not measured; cleanup via Drop
