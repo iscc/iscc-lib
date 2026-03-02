@@ -21,6 +21,22 @@ iterations.
 - Repetitive doc additions across language guides: all 6 howto files follow identical structure
     (heading, 1-line description, fenced code block). Safe to batch all in one step
 
+## Signature Change Propagation
+
+- When a Rust core function signature changes, ALL Rust-based binding crates must be updated in the
+    SAME step to keep CI green. The 3-file guideline can be exceeded when the additional files are
+    mechanical 1-line call-site fixes (e.g., adding `, false` to 4 binding calls)
+- WASM binding (`iscc-wasm`) has its OWN inline implementation of `gen_sum_code_v0` using
+    `DataHasher`/`InstanceHasher` directly (no filesystem in WASM) — it does NOT call
+    `iscc_lib::gen_sum_code_v0`, so signature changes don't break it
+- Go binding is pure Go — completely independent of Rust core signatures
+- Binding call sites for `gen_sum_code_v0`:
+    - `iscc-py/src/lib.rs:335`
+    - `iscc-napi/src/lib.rs:232`
+    - `iscc-ffi/src/lib.rs:847`
+    - `iscc-jni/src/lib.rs:414`
+    - `benchmarks.rs:199,214` (test-adjacent, excluded from file count)
+
 ## Architecture Decisions
 
 - Go bindings are pure Go (no WASM, no wazero, no binary artifacts)
@@ -29,13 +45,15 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## Benchmark Patterns
+## gen_sum_code_v0 Units Design
 
-- `benchmarks.rs` uses `criterion_group!` macro to register all bench functions
-- Data/Instance/ISCC-Code benchmarks use `BenchmarkId` + `Throughput::Bytes` for throughput metrics
-- `deterministic_bytes(size)` helper generates reproducible test data
-- `gen_sum_code_v0` requires `&Path` (temp file needed) — unlike `gen_data_code_v0` which takes
-    `&[u8]` directly. Temp file must be created OUTSIDE the bench closure
+- `data_result.iscc` and `instance_result.iscc` are ALREADY computed internally (needed for
+    `gen_iscc_code_v0` call). When `add_units=false`, these strings are computed but dropped
+- `SumCodeResult` has `#[non_exhaustive]` — adding fields is backward compatible for consumers but
+    NOT for constructors (only the crate itself constructs it, so this is fine)
+- Issue #21 specifies `Option<Vec<String>>` gated by `add_units: bool` — respect this design even
+    though always-populating would be zero-cost (FFI/WASM string marshalling overhead matters)
+- Propagation order for units: Rust core → Python → Node.js/WASM/JNI/FFI → Go (each a step)
 
 ## Documentation Sweep Patterns
 
@@ -48,29 +66,18 @@ iterations.
 
 ## CI/Release Patterns
 
-- v0.0.4 released to all registries. Next release after remaining C FFI DX gaps closed.
-- Release workflow has `workflow_dispatch` with per-registry checkboxes
+- v0.0.4 released to all registries. Next release after units support is complete.
+- Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
 
 ## Gotchas
 
 - JNI function names encode Java package underscores as `_1`
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
-
-## C FFI DX Phase
-
-- 4 C FFI DX criteria: #24 (header) ✅ → #23 (examples) ✅ → #22 (howto) ✅ → #25 (release)
-- Only #25 (pre-built FFI tarballs) remains — completes last C FFI target criterion
-- FFI crate-type: `cdylib` + `staticlib` — produces shared + static libs per platform
-- Windows: 3 files (`iscc_ffi.dll`, `iscc_ffi.dll.lib` import lib, `iscc_ffi.lib` static)
-- Unix: 2 files (`libiscc_ffi.so`/`.dylib` shared, `libiscc_ffi.a` static)
-- `build-jni` job in release.yml is the template: same 5 platforms, same cross-compile pattern
-- `publish-ffi` needs `contents: write` permission (top-level is `contents: read`)
-- `softprops/action-gh-release@v2` handles release creation + asset upload
+- Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
 
 ## Project Status
 
-- Iteration 4 (reset): C FFI DX almost complete. 1 criterion unmet (#25 release tarballs)
-- 3 open issues: #25 (FFI tarballs), #21 (units support), #16 (feature flags)
+- Iteration 5: C FFI DX complete. Starting issue #21 (units support for gen_sum_code_v0)
+- 2 open issues: #21 (units support, normal), #16 (feature flags, normal/low)
 - v0.0.4 released to all registries
-- After #25, remaining work is #21 (units) and #16 (feature flags) — both "normal" priority
