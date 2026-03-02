@@ -22,6 +22,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Doc nav check**: `grep -A 15 "Reference" zensical.toml`
 - **llms.txt page count**: `grep -c "^\-" docs/llms.txt`
 - **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
+- **Howto Sum-Code check**:
+    `grep -n "### Sum-Code\|gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0" docs/howto/*.md`
+- **Benchmark functions**:
+    `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
 
 ## Codebase Landmarks
 
@@ -29,7 +33,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench
-- `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete)
+- `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete,
+    including Sum-Code subsections as of iteration 15)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
@@ -37,8 +42,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `docs/c-ffi-api.md` — C FFI API reference (fully updated with iscc_gen_sum_code_v0)
 - `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class (subpath:
     `iscc_lib/`); has META_TRIM_META as `public static final int`
-- `crates/iscc-ffi/src/lib.rs` line 3 — module docstring says "10 `gen_*_v0` functions" (updated in
-    iteration 14)
+- `crates/iscc-ffi/src/lib.rs` line 3 — module docstring says "10 `gen_*_v0` functions"
+- `crates/iscc-lib/benches/benchmarks.rs` — 237 lines; docstring says "9 gen\_\*\_v0" (stale);
+    missing `bench_sum_code` function; `criterion_group!` lists 11 benches (no bench_sum_code)
 
 ## Recurring Patterns
 
@@ -53,19 +59,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 000c35d)
+## Current State (assessed-at: 580793c)
 
-- **Target**: 32 Tier 1 symbols — all 7 bindings COMPLETE ✅; README ✅; Per-crate READMEs ✅
-- **Iteration 14**: Documentation sweep (PASS_WITH_NOTES) — gen_sum_code_v0 added to all 9 READMEs,
-    key docs pages; FFI docstring fixed (9→10); review fixed 10 docstrings where 9 was correct
+- **Target**: 32 Tier 1 symbols — all 7 bindings COMPLETE ✅; README ✅; Per-crate READMEs ✅;
+    Documentation ✅
+- **Iteration 15**: Howto guides (PASS) — all 6 howto guides now have `### Sum-Code` subsections
+    with working code examples; `uv run zensical build` verified ✅
+- **Remaining gap**: Benchmarks partially met — `gen_sum_code_v0` has no criterion benchmark;
+    `benchmarks.rs` docstring says "9 gen\_\*\_v0" (stale). Target requires benchmarks for all 10.
 - **Issues**: Only #16 remains (feature flags for minimal builds, low priority)
 - **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22559228662 — all 11 CI jobs SUCCESS
-- **Remaining gap**: 6 howto guides missing gen_sum_code_v0 code examples. rust.md + python.md have
-    SumCodeResult in table only; nodejs.md, wasm.md, java.md, go.md have zero gen_sum mentions
-- **9 vs 10 distinction**: data.json has 9 conformance sections (no gen_sum_code_v0 vectors);
-    iscc-lib has 10 gen functions. Test/benchmark/conformance docstrings say "9"; user-facing docs
-    say "10"
+- **CI latest**: Run 22559996288 — all 11 CI jobs SUCCESS
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
@@ -94,3 +98,8 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
 - **Java META_TRIM_META**: added as compile-time `public static final int` (no JNI function needed)
 - **C FFI IsccSumCodeResult**: struct-return pattern (not output-pointer); matches IsccDecodeResult
     pattern precisely; partial allocation failure handled (free iscc before returning null)
+- **9 vs 10 distinction**: data.json has 9 conformance sections (no gen_sum_code_v0 vectors);
+    iscc-lib has 10 gen functions. Test/conformance docstrings correctly say "9"; user-facing docs
+    say "10". Benchmarks file is stale at "9"
+- **gen_sum_code_v0 benchmark**: uses file I/O (not in-memory) — needs temp files with 64KB/1MB
+    payloads; follow `bench_data_code` pattern but use `tempfile` crate or `env::temp_dir()`
