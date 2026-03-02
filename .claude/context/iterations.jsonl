@@ -610,3 +610,8 @@
 {"ts":"2026-03-02T01:46:35.816609+00:00","iteration":3,"role":"define-next","status":"OK","turns":29,"cost_usd":0.869935,"duration_s":172.1}
 {"ts":"2026-03-02T01:49:42.421488+00:00","iteration":3,"role":"advance","status":"OK","turns":29,"cost_usd":0.746843,"duration_s":186.6}
 {"ts":"2026-03-02T01:53:07.763539+00:00","iteration":3,"role":"review","status":"PASS","verdict":"PASS"}
+{"ts":"2026-03-02T01:54:14.923515+00:00","iteration":3,"role":"review","status":"OK","turns":48,"cost_usd":1.281599,"duration_s":272.5}
+{"ts":"2026-03-02T02:16:03.063999+00:00","iteration":4,"role":"update-state","status":"OK","turns":25,"cost_usd":0.778478,"duration_s":188.4}
+{"ts":"2026-03-02T02:19:26.957705+00:00","iteration":4,"role":"define-next","status":"OK","turns":27,"cost_usd":0.90058,"duration_s":203.9}
+{"ts":"2026-03-02T02:33:23.900850+00:00","iteration":4,"role":"advance","status":"OK","turns":205,"cost_usd":8.168626,"duration_s":836.9}
+{"ts":"2026-03-02T02:41:20.292912+00:00","iteration":4,"role":"review","status":"PASS_WITH_NOTES","detail":"fixed 10 docstrings where 9 is correct (conformance/benchmark files); fixed ecosystem.md iscc-core-ts count"}

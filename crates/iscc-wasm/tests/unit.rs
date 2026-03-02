@@ -1,7 +1,7 @@
 //! Unit tests for non-gen WASM-exported functions (text utils, encoding, codec, conformance).
 //!
 //! Runs in a Node.js WASM runtime via `wasm-pack test --node`.
-//! Complements conformance.rs which covers the 10 gen_*_v0 functions.
+//! Complements conformance.rs which covers the 9 gen_*_v0 functions.
 
 use wasm_bindgen_test::*;
 

@@ -1,4 +1,4 @@
-//! Criterion benchmarks for all 10 `gen_*_v0` ISCC functions.
+//! Criterion benchmarks for all 9 `gen_*_v0` ISCC functions.
 //!
 //! Uses representative inline inputs (conformance-derived and synthetic) to
 //! measure latency and throughput of the core ISCC generation functions.

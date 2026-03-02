@@ -68,7 +68,7 @@ Maintained by the original author under the ISCC Foundation GitHub org.
 
 **Function coverage:**
 
-The project implements all 10 `gen_*_v0` functions from ISO 24138, plus additional functions
+The project implements 9 of the 10 `gen_*_v0` functions from ISO 24138, plus additional functions
 (`gen_iscc_id_v0`, `gen_iscc_id_v1`, `gen_flake_code_v0`):
 
 | Function               | Tests |

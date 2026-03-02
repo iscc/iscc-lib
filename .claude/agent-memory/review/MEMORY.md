@@ -158,6 +158,13 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     don't match actual build requirements (e.g., Java 11+ claimed but pom.xml requires 17+)
 - Doc tab conversions: verify WASM `init()` is shown at least once. Each language's return type
     differs (Python/Rust/Go return result structs; Node.js/Java/WASM return plain strings)
+- **Count-sensitive docstrings**: "10 gen functions" is correct for library-wide descriptions, but
+    conformance tests, benchmarks, and type stubs that reference data.json should say "9" (no
+    gen_sum_code_v0 vectors exist). Always verify the actual code scope before accepting numeric
+    count changes in docstrings. Blanket find-replace of counts across all files is error-prone
+- **External project claims**: When updating counts/coverage for external projects (e.g.,
+    iscc-core-ts in ecosystem.md), verify against the function table in the same file. Don't assume
+    all projects implement the same set of functions
 
 ## Issues Cleanup
 

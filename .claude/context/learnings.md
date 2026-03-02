@@ -123,6 +123,12 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Documentation Maintenance
 
+- **"10 gen functions" vs "9 conformance functions"**: iscc-lib has 10 `gen_*_v0` functions, but
+    `data.json` conformance vectors only cover 9 (no gen_sum_code_v0). Files that test/benchmark
+    against data.json should say "9", while general library descriptions should say "10". The
+    advance agent's blanket find-and-replace of "9→10" introduced errors in conformance-scoped files
+- iscc-core-ts implements 9 of the 10 gen functions (no gen_sum_code_v0) — do not claim "all 10" for
+    external projects without verifying their function table
 - After major architecture changes (e.g., WASM→pure Go), CI workflows, READMEs, and howto guides go
     stale simultaneously — group the cleanup into a single step targeting all affected files
 - Java requires JDK 17+ (pom.xml `maven.compiler.source/target` = 17), not 11+. Always cross-check

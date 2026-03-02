@@ -1,4 +1,4 @@
-"""Conformance tests for all 10 gen_*_v0 functions against data.json vectors."""
+"""Conformance tests for all 9 gen_*_v0 functions against data.json vectors."""
 
 import json
 from pathlib import Path

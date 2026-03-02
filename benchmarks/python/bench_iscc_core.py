@@ -1,4 +1,4 @@
-"""Pytest-benchmark tests for all 10 iscc-core gen_*_v0 functions.
+"""Pytest-benchmark tests for all 9 iscc-core gen_*_v0 functions.
 
 Establishes the Python reference performance baseline (Phase 0) for computing
 speedup factors against the Rust implementation. Uses identical inputs to the
