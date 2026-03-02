@@ -1,5 +1,5 @@
 /**
- * Conformance tests for all 9 gen_*_v0 JNI functions against data.json vectors.
+ * Conformance tests for all 10 gen_*_v0 JNI functions against data.json vectors.
  *
  * <p>Mirrors the Node.js conformance tests in crates/iscc-napi/__tests__/conformance.test.mjs.
  * Uses JUnit 5 {@code @TestFactory} with {@code DynamicTest} for data-driven test names
