@@ -1,16 +1,17 @@
-<!-- assessed-at: c10aea2 -->
+<!-- assessed-at: 34f9580 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Issue #21 partial — Java/JNI done; Go is the last remaining binding
+## Phase: Issue #21 complete across all 7 bindings; docs update pending, then issue #16
 
-Commit `c10aea2` (review PASS) completed the Java/JNI binding for issue #21: `genSumCodeV0` now
-accepts `boolean addUnits`, `SumCodeResult` has `String[] units` (null when `addUnits=false`), the
-Rust JNI bridge reuses `build_string_array` to convert `Vec<String>` to `jobjectArray`, and 3 new
-Maven tests verify enabled/disabled/content cases (65 total). Rust core, Python, Node.js, WASM, C
-FFI, and Java/JNI are complete. Only Go remains.
+Commit `34f9580` (review PASS) completed Go binding for issue #21: `GenSumCodeV0` now accepts
+`addUnits bool`, `SumCodeResult` has `Units []string` (nil when `addUnits=false`), and 3 new tests
+verify enabled/disabled/content cases (154 total Go tests). Issue #21 is now fully resolved across
+all 7 bindings. Only one open issue remains (#16 feature flags). Docs (`docs/rust-api.md` and
+`docs/architecture.md`) still show the old 3-parameter `gen_sum_code_v0` signature and need updating
+now that all bindings are aligned.
 
 ## Rust Core Crate
 
@@ -84,7 +85,7 @@ FFI, and Java/JNI are complete. Only Go remains.
 
 ## Java Bindings
 
-**Status**: met — `add_units`/`units` fully exposed to Java callers ✅ (completed this iteration)
+**Status**: met — `add_units`/`units` fully exposed to Java callers ✅
 
 - All 32 Tier 1 symbols via JNI ✅
 - `genSumCodeV0(String path, int bits, boolean wide, boolean addUnits)` — 4-parameter signature in
@@ -100,12 +101,17 @@ FFI, and Java/JNI are complete. Only Go remains.
 
 ## Go Bindings
 
-**Status**: partially met — compiles; `add_units`/`units` not yet exposed to Go callers
+**Status**: met — `add_units`/`units` fully exposed to Go callers ✅ (completed this iteration)
 
-- All 32 Tier 1 symbols via pure Go ✅; 151 Go tests pass; `go vet` clean ✅
-- `SumCodeResult` struct has no `Units` field ❌
-- `GenSumCodeV0` still has 3 parameters (path, bits, wide) — no `addUnits bool` param ❌
-- Go uses its own pure Go implementation, not Rust FFI, so needs its own independent change
+- All 32 Tier 1 symbols via pure Go ✅; 154 Go tests pass; `go vet` clean ✅
+- `GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool) (*SumCodeResult, error)` —
+    4-parameter signature in `packages/go/code_sum.go` ✅
+- `SumCodeResult.Units []string` — `nil` when `addUnits=false`; `[]string{dataCode, instanceCode}`
+    when `addUnits=true` ✅
+- 7 tests in `code_sum_test.go` (4 existing updated + 3 new: `TestGenSumCodeV0UnitsEnabled`,
+    `TestGenSumCodeV0UnitsDisabled`, `TestGenSumCodeV0UnitsContent`) ✅
+- `TestGenSumCodeV0UnitsContent` verifies units match separate `GenDataCodeV0` / `GenInstanceCodeV0`
+    calls ✅
 
 ## README
 
@@ -129,9 +135,10 @@ FFI, and Java/JNI are complete. Only Go remains.
 
 - 17 pages deployed to lib.iscc.codes; all navigation sections complete ✅
 - Getting-started tutorial: 7 sections × 6 languages ✅
-- `docs/rust-api.md` still shows old 3-parameter signature for `gen_sum_code_v0` ❌ (deferred until
-    all bindings are updated)
-- `docs/architecture.md` still references old 3-parameter signature ❌ (same deferral)
+- `docs/rust-api.md` line 275 still shows old 3-parameter signature:
+    `pub fn gen_sum_code_v0(path: &Path, bits: u32, wide: bool)` ❌
+- `docs/architecture.md` line 131 still shows old 3-parameter signature:
+    `pub fn gen_sum_code_v0(path, bits, wide)` ❌
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
 - All howto guides have Sum-Code subsections ✅; `docs/howto/c-cpp.md` linked in nav ✅
 - `uv run zensical build` exits 0 ✅
@@ -149,8 +156,8 @@ FFI, and Java/JNI are complete. Only Go remains.
 
 **Status**: partially met
 
-- **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22598730723
+- **All CI jobs SUCCESS** on latest push — **PASSING** ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22599959379
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check)
@@ -159,16 +166,19 @@ FFI, and Java/JNI are complete. Only Go remains.
 - `release.yml` has `build-ffi`/`publish-ffi` with 5-platform matrix; `workflow_dispatch` `ffi`
     boolean input ✅
 - FFI publishing untested end-to-end (structural verification only)
-- Open issues #16 (feature flags) and #21 (units in Go binding) block DONE status
+- Open issue #16 (feature flags) blocks DONE status
 
 ## Next Milestone
 
-**Issue #21 — Expose `add_units` in Go binding (final binding, priority: normal)**
+**Update docs for 4-parameter `gen_sum_code_v0` signature, then issue #16 (feature flags)**
 
-Only Go remains for issue #21. The Go binding is a pure Go reimplementation in `packages/go/`:
+Issue #21 is fully resolved across all 7 bindings. Two items remain before closing documentation
+gaps:
 
-1. **Go** (`packages/go/code_sum.go`): add `addUnits bool` as 4th parameter to `GenSumCodeV0`;
-    extend `SumCodeResult` with `Units []string`; collect Data-Code and Instance-Code during
-    execution when `addUnits=true`; update `code_sum_test.go` with 3 new tests.
-2. After Go is done, **update docs**: `docs/rust-api.md` and `docs/architecture.md` to reflect the
-    4-parameter signature and close issue #21.
+1. **Fix docs** (`docs/rust-api.md` line 275, `docs/architecture.md` line 131): update
+    `gen_sum_code_v0` signatures from 3-parameter to 4-parameter (`add_units`/`addUnits`) across
+    all language examples in both files. This unblocks the Documentation section.
+
+2. **Issue #16 — Feature flags** (`meta-code`, `text-processing`): add Cargo feature flags for
+    embedded/minimal builds. CI must test `--all-features`, `--no-default-features`, and each
+    feature individually. This is the only remaining open issue and the final blocker for DONE.

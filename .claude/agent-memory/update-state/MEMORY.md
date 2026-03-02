@@ -59,27 +59,24 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: c10aea2)
+## Current State (assessed-at: 34f9580)
 
-- **IN_PROGRESS**: 2 open issues remain (#16 feature flags, #21 units — 1 binding left)
-- **Issue #21 NEAR-COMPLETE**: Rust core + Python + Node.js + WASM + C FFI + Java/JNI done. Only Go
-    remains: `GenSumCodeV0` still has 3 params, `SumCodeResult` has no `Units []string` field
-- **Java/JNI binding now complete** (iteration 11): `genSumCodeV0(path, bits, wide, addUnits)`;
-    `SumCodeResult.units: String[]` (null when `addUnits=false`); 65 mvn tests; review PASS
+- **IN_PROGRESS**: 1 open issue remains (#16 feature flags); issue #21 fully resolved
+- **Issue #21 COMPLETE** (iteration 12): Go binding done. All 7 bindings expose `add_units`/`units`:
+    Rust core, Python, Node.js, WASM, C FFI, Java/JNI, Go
+- **Go binding complete**: `GenSumCodeV0(path, bits, wide, addUnits bool)`;
+    `SumCodeResult.Units []string` (nil when false); 154 Go tests; review PASS
+- **Java/JNI binding complete**: `genSumCodeV0(path, bits, wide, addUnits)`;
+    `SumCodeResult.units: String[]`; 65 mvn tests
 - **C FFI binding complete**: `iscc_gen_sum_code_v0(path, bits, wide, add_units: bool)`;
-    `IsccSumCodeResult.units: char **` (NULL-terminated); 85 Rust tests + 65 C tests
-- **WASM binding complete**: `gen_sum_code_v0(data, bits?, wide?, add_units?)`;
-    `WasmSumCodeResult.units: Option<Vec<String>>`; 79 total wasm-bindgen tests
-- **Node.js binding complete**: `gen_sum_code_v0(path, bits?, wide?, addUnits?)`;
-    `NapiSumCodeResult.units: Option<Vec<String>>`; 135 mocha tests
-- **Python binding complete**: `gen_sum_code_v0(path, bits=64, wide=False, add_units=False)`;
-    `SumCodeResult.units: list[str] | None`; `.pyi` stub updated; 207 py tests
-- **Go note**: pure Go `GenSumCodeV0` (3 params) in `packages/go/code_sum.go` — needs
-    `addUnits   bool` + `Units []string`; collect data_code + instance_code ISCCs during execution
-- **Docs deferred**: `docs/rust-api.md` + `docs/architecture.md` still show old 3-param signature;
-    intentionally deferred until all binding APIs are exposed (Go is last)
-- **CI latest**: Run 22598730723 — all 11 CI jobs SUCCESS ✅
-- **Next priority**: Go binding `add_units`/`units` + docs update + close issue #21
+    `IsccSumCodeResult.units: char **`; 85 Rust tests + 65 C tests
+- **WASM binding complete**: 79 wasm-bindgen tests; accepts `Uint8Array` not path
+- **Node.js binding complete**: 135 mocha tests
+- **Python binding complete**: 207 py tests
+- **Docs gap**: `docs/rust-api.md` line 275 + `docs/architecture.md` line 131 still show old 3-param
+    signature — needs update now that all bindings are done
+- **CI latest**: Run 22599959379 — all CI jobs SUCCESS ✅
+- **Next priority**: docs update (rust-api.md + architecture.md) then issue #16 (feature flags)
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
