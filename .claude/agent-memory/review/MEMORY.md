@@ -108,8 +108,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `IsccSumCodeResult` with `units: *mut *mut c_char` +
     `iscc_gen_sum_code_v0(path, bits, wide,   add_units)` + `iscc_free_sum_code_result` with
     `iscc_free_string_array` cleanup)
-- gen_sum_code_v0 Java JNI binding complete ✅ (62 Maven tests; SumCodeResult.java + genSumCodeV0
-    native method + JNI bridge returning jobject)
+- gen_sum_code_v0 Java JNI binding `add_units` exposed ✅ (65 Maven tests; SumCodeResult.java with
+    `String[] units` + `addUnits` param + JNI bridge using `build_string_array` →
+    `unsafe { JObject::from_raw(arr) }` for units conversion)
 - gen_sum_code_v0 Go binding complete ✅ (151 tests; SumCodeResult struct + GenSumCodeV0 fn with
     single-pass file I/O via DataHasher + InstanceHasher + GenIsccCodeV0)
 - **Issue #15 fully resolved** — all 7 bindings have gen_sum_code_v0 (deleted from issues.md)

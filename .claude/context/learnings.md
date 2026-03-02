@@ -198,9 +198,10 @@ fully-met target sections to `learnings-archive.md`.
     `vec_to_c_string_array` helper converts `Vec<String>` → C array; `iscc_free_string_array` cleans
     up. Error path frees `iscc` + `datahash` before returning null result. 85 Rust tests, 65 C tests
 - JNI binding pattern: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`,
-    `long filesize`). JNI bridge returns `jobject` via `env.find_class` + `env.new_object` with
-    signature `(Ljava/lang/String;Ljava/lang/String;J)V`. `jboolean` is `u8` — compare `wide != 0`.
-    4 Maven tests (equivalence, fields, error, wide). 62 total Maven tests
+    `long filesize`, `String[] units` nullable). JNI bridge returns `jobject` via `env.find_class` +
+    `env.new_object` with signature `(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V`.
+    `jboolean` is `u8` — compare `wide != 0`. Units via `build_string_array` →
+    `unsafe { JObject::from_raw(arr) }`. 7 Maven sum tests. 65 total Maven tests
 
 ## CID Process
 
