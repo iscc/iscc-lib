@@ -45,6 +45,10 @@ typedef struct iscc_IsccSumCodeResult {
    * Byte length of the file.
    */
   uint64_t filesize;
+  /**
+   * NULL-terminated array of Data-Code and Instance-Code ISCC strings, or NULL.
+   */
+  char **units;
 } iscc_IsccSumCodeResult;
 
 /**
@@ -509,6 +513,7 @@ char *iscc_encode_component(uint8_t mtype,
  * - `path`: null-terminated UTF-8 file path
  * - `bits`: hash bit length (typically 64)
  * - `wide`: if true, use 256-bit combination for ISCC-CODE
+ * - `add_units`: if true, include individual Data-Code and Instance-Code strings
  *
  * # Returns
  *
@@ -519,12 +524,16 @@ char *iscc_encode_component(uint8_t mtype,
  *
  * `path` must point to a valid null-terminated UTF-8 string, or be null.
  */
- struct iscc_IsccSumCodeResult iscc_gen_sum_code_v0(const char *path, uint32_t bits, bool wide);
+
+struct iscc_IsccSumCodeResult iscc_gen_sum_code_v0(const char *path,
+                                                   uint32_t bits,
+                                                   bool wide,
+                                                   bool add_units);
 
 /**
  * Free an `IsccSumCodeResult` previously returned by `iscc_gen_sum_code_v0`.
  *
- * Releases the `iscc` and `datahash` strings. No-op for NULL pointers.
+ * Releases the `iscc`, `datahash` strings, and `units` array. No-op for NULL pointers.
  *
  * # Safety
  *

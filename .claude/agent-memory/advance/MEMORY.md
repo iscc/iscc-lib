@@ -80,11 +80,11 @@ iterations.
     `DataHasher` + `InstanceHasher` + `gen_iscc_code_v0` (borrow-before-move pattern for units). 9
     tests in `tests/unit.rs` (6 existing + 3 units). 78 total WASM tests (9 conformance + 69 unit; 1
     behind `conformance` feature gate). `Option<Vec<String>>` maps to `string[] | undefined` in TS
-- C FFI binding: `IsccSumCodeResult` repr(C) struct with `ok: bool`, `iscc: *mut c_char`,
-    `datahash: *mut c_char`, `filesize: u64`. `iscc_gen_sum_code_v0(path, bits, wide)` extern "C"
-    function + `iscc_free_sum_code_result` free function in `crates/iscc-ffi/src/lib.rs`. Follows
-    `IsccDecodeResult` struct-return pattern. 4 Rust tests + 3 C tests. 82 total Rust tests, 57
-    total C test assertions
+- C FFI binding: `IsccSumCodeResult` repr(C) struct with `ok`, `iscc`, `datahash`, `filesize`,
+    `units: *mut *mut c_char` (NULL-terminated array or NULL).
+    `iscc_gen_sum_code_v0(path, bits,   wide, add_units)` extern "C" function +
+    `iscc_free_sum_code_result` (frees units via `iscc_free_string_array`). 7 Rust sum tests + 5 C
+    sum tests. 85 total Rust tests, 65 total C test assertions
 - JNI binding: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`, `long filesize`)
     - `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` in `crates/iscc-jni/src/lib.rs`. Returns `jobject`
         via `env.find_class("io/iscc/iscc_lib/SumCodeResult")` + `env.new_object()` with signature
