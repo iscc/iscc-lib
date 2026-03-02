@@ -59,17 +59,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 9721877)
+## Current State (assessed-at: 7cccb6d)
 
-- **IN_PROGRESS**: C FFI DX expansion added 4 new target criteria; none yet met
+- **IN_PROGRESS**: C FFI DX — 3 of 6 criteria remain unmet; 5 open issues
 - **Issues open**: #16 (feature flags, low priority), #21 (units in gen_sum_code_v0), #22 (c-cpp.md
-    how-to), #23 (standalone C example), #24 (committed iscc.h + CI freshness), #25 (FFI release
-    tarballs)
-- **C FFI header**: `crates/iscc-ffi/include/iscc.h` does NOT exist; `tests/iscc.h` is gitignored
-- **C FFI examples**: `crates/iscc-ffi/examples/` does NOT exist
-- **docs/howto/c-cpp.md**: does NOT exist (only 6 howto guides; c-cpp missing)
-- **release.yml**: NO build-ffi/publish-ffi jobs; NO ffi workflow_dispatch input
-- **CI latest**: Run 22584245564 — all 11 CI jobs SUCCESS ✅
+    how-to), #23 (standalone C example), #25 (FFI release tarballs)
+- **Issue #24 RESOLVED**: `crates/iscc-ffi/include/iscc.h` committed; CI freshness check added to C
+    FFI job (regenerates header, asserts `git diff --exit-code`)
+- **C FFI examples**: `crates/iscc-ffi/examples/` does NOT exist (issue #23)
+- **docs/howto/c-cpp.md**: does NOT exist (only 6 howto guides; c-cpp missing — issue #22)
+- **release.yml**: NO build-ffi/publish-ffi jobs; NO ffi workflow_dispatch input (issue #25)
+- **CI latest**: Run 22586849856 — all 11 CI jobs SUCCESS ✅
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 

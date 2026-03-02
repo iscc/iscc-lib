@@ -1,16 +1,15 @@
-<!-- assessed-at: 9721877b263bafe71f7dc7d5b59ef48036c522af -->
+<!-- assessed-at: 7cccb6d63a630fbced9c4e13bf0c1c91c2539d86 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C FFI DX expansion — 4 new criteria unmet; 6 open issues
+## Phase: C FFI DX — 3 criteria unmet; 5 open issues
 
-Commit `9721877` expanded the C FFI section in `target.md` with four new acceptance criteria
-(committed header, CI freshness check, standalone C example, pre-built release tarballs) and added
-the corresponding spec `c-ffi-dx.md` plus issues #22-#25. All previously-met sections remain
-unchanged. CI is all green (11/11 jobs). The new C FFI DX work and issue #21 (units support) are the
-next priority.
+Commit `7cccb6d` resolved issue #24: `crates/iscc-ffi/include/iscc.h` is now committed and CI has a
+freshness check that regenerates the header and asserts `git diff` is empty. All 11 CI jobs pass.
+Three C FFI DX criteria remain unmet (examples, c-cpp.md howto, release tarballs), plus issues #21
+(units support) and #16 (feature flags).
 
 ## Rust Core Crate
 
@@ -59,17 +58,18 @@ next priority.
 
 ## C FFI
 
-**Status**: partially met (original 2 criteria met; 4 new DX criteria not met)
+**Status**: partially met (4/6 criteria met; 3 DX criteria not yet met)
 
 - cbindgen generates valid C headers ✅
 - C test program calls entrypoints and gets correct results ✅
-- `crates/iscc-ffi/include/iscc.h` NOT committed — `include/` dir absent; `tests/iscc.h` is
-    gitignored ❌
-- CI freshness check for `iscc.h` not present in `ci.yml` ❌
-- `docs/howto/c-cpp.md` does not exist ❌
-- `crates/iscc-ffi/examples/iscc_sum.c` + `CMakeLists.txt` do not exist (`examples/` absent) ❌
-- Pre-built FFI tarballs not set up — `release.yml` has no `build-ffi`/`publish-ffi` jobs ❌
-- Open issues: #22 (c-cpp.md), #23 (examples), #24 (committed header), #25 (release artifacts)
+- `crates/iscc-ffi/include/iscc.h` committed ✅ (resolved issue #24)
+- CI freshness check regenerates `iscc.h` and asserts `git diff --exit-code` — present in `ci.yml` C
+    FFI job ✅ (resolved issue #24)
+- `docs/howto/c-cpp.md` does NOT exist ❌ (issue #22)
+- `crates/iscc-ffi/examples/iscc_sum.c` + `CMakeLists.txt` do not exist (`examples/` dir absent) ❌
+    (issue #23)
+- Pre-built FFI tarballs not set up — `release.yml` has no `build-ffi`/`publish-ffi` jobs ❌ (issue
+    #25)
 
 ## Java Bindings
 
@@ -144,7 +144,7 @@ next priority.
 **Status**: partially met
 
 - **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22584245564
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22586849856
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
     (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check)
@@ -155,15 +155,13 @@ next priority.
 
 ## Next Milestone
 
-**C FFI DX** — implement the four open issues in priority order:
+**C FFI DX (continued)** — implement remaining open issues in priority order:
 
-1. **#24** — Generate and commit `crates/iscc-ffi/include/iscc.h`; remove from `.gitignore`; add CI
-    freshness check to C FFI job
-2. **#23** — Create `crates/iscc-ffi/examples/iscc_sum.c` (streaming file hash loop) +
+1. **#23** — Create `crates/iscc-ffi/examples/iscc_sum.c` (streaming file hash loop) +
     `CMakeLists.txt`
-3. **#22** — Create `docs/howto/c-cpp.md` with all required sections (CMake snippet, streaming
+2. **#22** — Create `docs/howto/c-cpp.md` with all required sections (CMake snippet, streaming
     example, RAII wrapper, error handling, memory management, static vs dynamic, cross-compilation)
-4. **#25** — Add `build-ffi` and `publish-ffi` jobs to `release.yml` with 5-platform matrix
+3. **#25** — Add `build-ffi` and `publish-ffi` jobs to `release.yml` with 5-platform matrix
 
 Issue #21 (units support for `gen_sum_code_v0`) is a separate enhancement that can follow. Issue #16
 (feature flags) remains low-priority.
