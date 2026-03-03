@@ -4,9 +4,6 @@
 [![PyPI](https://img.shields.io/pypi/v/iscc-lib.svg)](https://pypi.org/project/iscc-lib/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-> **Experimental:** This library is in early development (v0.0.x). APIs may change without notice.
-> Not recommended for production use yet.
-
 High-performance Python bindings for [ISO 24138:2024](https://www.iso.org/standard/77899.html) --
 International Standard Content Code (ISCC). Built on a Rust core for speed, with a Pythonic API that
 is a drop-in replacement for [iscc-core](https://github.com/iscc/iscc-core).

@@ -8,9 +8,6 @@
 [![npm](https://img.shields.io/npm/v/@iscc/lib.svg)](https://www.npmjs.com/package/@iscc/lib)
 [![Go Reference](https://pkg.go.dev/badge/github.com/iscc/iscc-lib/packages/go.svg)](https://pkg.go.dev/github.com/iscc/iscc-lib/packages/go)
 
-> **Experimental:** This library is in early development (v0.0.x). APIs may change without notice.
-> Not recommended for production use yet.
-
 **High-performance polyglot implementation of
 [ISO 24138:2024](https://www.iso.org/standard/77899.html) — International Standard Content Code
 (ISCC)**

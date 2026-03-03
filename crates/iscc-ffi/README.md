@@ -3,9 +3,6 @@
 [![CI](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml/badge.svg)](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-> **Experimental:** This library is in early development (v0.0.x). APIs may change without notice.
-> Not recommended for production use yet.
-
 C-compatible FFI bindings for [ISO 24138:2024](https://www.iso.org/standard/77899.html) --
 International Standard Content Code (ISCC). Built with Rust, usable from C, Go, C#, and any language
 with C interop.

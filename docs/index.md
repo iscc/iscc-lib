@@ -9,11 +9,6 @@ description: High-performance polyglot implementation of ISO 24138 International
 [ISO 24138:2024](https://www.iso.org/standard/77899.html) International Standard Content Code
 (ISCC).**
 
-!!! warning "Experimental"
-
-    This library is in early development (v0.0.x). APIs may change without notice. Not recommended for
-    production use yet.
-
 ---
 
 ## What is iscc-lib?

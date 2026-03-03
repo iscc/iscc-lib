@@ -209,7 +209,6 @@ C developers.
 
 **Structure** (modeled after iscc-core README):
 
-- **Experimental notice**: prominent warning that the library is v0.0.x and APIs may change
 - **Badges**: CI status, crate/package version badges for all published packages
 - **Tagline**: one-line description emphasizing polyglot, high-performance, ISO 24138
 - **Key Features**: similarity-preserving, multi-level identification, self-describing, ISO
