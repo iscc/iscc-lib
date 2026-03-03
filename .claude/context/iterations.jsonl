@@ -693,3 +693,5 @@
 {"ts":"2026-03-03T01:28:43.190529+00:00","iteration":15,"role":"update-state","status":"OK","turns":19,"cost_usd":0.539732,"duration_s":153.7}
 {"ts":"2026-03-03T01:30:53.866787+00:00","iteration":15,"role":"define-next","status":"OK","turns":21,"cost_usd":0.608989,"duration_s":130.7}
 {"ts":"2026-03-03T01:33:06.372543+00:00","iteration":15,"role":"advance","status":"OK","turns":23,"cost_usd":0.479299,"duration_s":132.5}
+{"ts":"2026-03-03T01:36:27.923882+00:00","iteration":15,"role":"review","status":"OK","turns":33,"cost_usd":0.638409,"duration_s":201.5}
+{"ts":"2026-03-03T01:59:26.241376+00:00","iteration":16,"role":"update-state","status":"OK","turns":18,"cost_usd":0.60603,"duration_s":184.7}
