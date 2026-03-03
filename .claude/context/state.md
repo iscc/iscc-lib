@@ -1,32 +1,28 @@
-<!-- assessed-at: a6a942c -->
+<!-- assessed-at: 1e56791 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings + conformance update
+## Phase: Ruby bindings + fix WASM CI regression
 
-Version 0.1.0 was released. Since then, the target was extended with a full Ruby bindings
-requirement (Magnus-based, `iscc-rb` crate). Three open issues block DONE: a critical conformance
-gap (iscc-core v1.3.0 adds 4 new test vectors and a `META_TRIM_META` size limit), the Ruby bindings
-implementation (not yet started), and a low-priority README logo request.
+CID iteration 1 vendored the iscc-core v1.3.0 conformance vectors (4 new Meta-Code tests:
+test_0017–test_0020) into both Rust and Go, and fixed the Go conformance loader to skip the new
+`_metadata` top-level key. The critical conformance issue is resolved in Rust and Go. However, the
+advance agent introduced a CI regression: the WASM conformance test still asserts `tested == 16`
+while data.json now supplies 20 Meta-Code vectors — `WASM (wasm-pack test)` fails in both CI runs
+triggered after the vendoring commit. Two open issues remain (Ruby bindings, language logos).
 
 ## Rust Core Crate
 
 **Status**: met
 
 - All 32 Tier 1 symbols present with correct feature-gating ✅
-- `gen_meta_code_v0`, `json_to_data_url`, `META_TRIM_*` constants: `#[cfg(feature = "meta-code")]`
-- `gen_text_code_v0`, `text_clean`, `text_collapse`: `#[cfg(feature = "text-processing")]`
-- All other symbols always available
-- `Cargo.toml` features: `default = ["meta-code"]`, `meta-code = ["text-processing", ...]`,
-    `text-processing = [dep:unicode-*]` ✅
-- `conformance_selftest()` always callable; meta/text sections gated internally ✅
-- 314 tests with default features; 250 (no-default-features); 284 (text-processing only) ✅
-- CI feature matrix: 5 steps (2 clippy + 3 test combos) all passing ✅
-- **Gap**: Does not yet implement iscc-core v1.3.0 changes: 4 new conformance vectors
-    (`test_0017`–`test_0020`), `META_TRIM_META` 128 000-byte limit, `_metadata` key in data.json
-    vector loader tolerance, codec validation tightening (issue: `critical`)
+- `data.json` updated to iscc-core v1.3.0 (50 total vectors; 4 new: test_0017–test_0020) ✅
+- Rust conformance assertion updated: `assert_eq!(tested, 20, ...)` in `lib.rs` ✅
+- 314 tests pass with default features (per review agent verification) ✅
+- `_metadata` key in data.json: ignored silently by `serde_json` (unknown fields skipped) ✅
+- Feature matrix CI (5 steps) passed in the prior green run ✅
 
 ## Python Bindings
 
@@ -34,7 +30,7 @@ implementation (not yet started), and a low-priority README logo request.
 
 - All 32 Tier 1 symbols accessible via `__all__` (48 entries) ✅
 - 207 Python tests pass; `ty check` passes; `cargo clippy -p iscc-py` clean ✅
-- Version bumped to 0.1.0 ✅
+- Python bindings use data.json by section name — 4 new vectors exercised without code changes ✅
 
 ## Node.js Bindings
 
@@ -42,42 +38,45 @@ implementation (not yet started), and a low-priority README logo request.
 
 - All 32 Tier 1 symbols exported ✅
 - 135 mocha tests pass; `cargo clippy -p iscc-napi -- -D warnings` clean ✅
-- Version bumped to 0.1.0 ✅
+- Node.js tests use data.json by section name — 4 new vectors exercised without code changes ✅
 
 ## WASM Bindings
 
-**Status**: met
+**Status**: partially met
 
-- All 32 Tier 1 symbols exported ✅
-- 79 wasm-bindgen tests pass; `cargo clippy -p iscc-wasm -- -D warnings` clean ✅
+- All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
+- **CI REGRESSION**: `test_gen_meta_code_v0_conformance` fails in
+    `crates/iscc-wasm/tests/conformance.rs`
+- Root cause: line 66 still asserts `assert_eq!(tested, 16, "expected 16 conformance tests to run")`
+    but data.json now has 20 Meta-Code vectors — assertion must be updated to `20`
+- CI run 22627307003: `WASM (wasm-pack test)` = FAILURE; all other 10 jobs = SUCCESS ❌
+- The advance agent forgot to update this assertion when it updated the equivalent in `lib.rs`
 
 ## C FFI
 
 **Status**: met
 
-- `iscc_gen_sum_code_v0(path, bits, wide, add_units: bool)` — 4-parameter signature ✅
-- `iscc_IsccSumCodeResult.units: char **` — NULL-terminated array or `NULL` ✅
-- Memory-safety fix applied: boxed slices replace `shrink_to_fit` (commit c5857d9) ✅
-- 85 Rust tests + 65 C tests pass; `cargo clippy -p iscc-ffi -- -D warnings` clean ✅
-- `iscc_sum.c` example compiles; `docs/howto/c-cpp.md` linked in nav ✅
-- `cbindgen` header freshness checked in CI ✅
+- 85 Rust tests + 65 C tests pass (per last green CI run) ✅
+- C FFI tests use data.json by section name — new vectors exercised without code changes ✅
+- `cbindgen` header freshness check in CI passed ✅
 
 ## Java Bindings
 
 **Status**: met
 
 - All 32 Tier 1 symbols via JNI ✅
-- `genSumCodeV0(String path, int bits, boolean wide, boolean addUnits)` — 4-parameter ✅
-- 65 Maven tests pass; `cargo clippy -p iscc-jni -- -D warnings` clean ✅
-- Version bumped to 0.1.0 ✅
+- 65 Maven tests pass (per last green CI run) ✅
+- Java tests use data.json by section name — new vectors exercised without code changes ✅
 
 ## Go Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols via pure Go ✅; 154 Go tests pass; `go vet` clean ✅
-- `GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool) (*SumCodeResult, error)` ✅
-- Pure Go (no cgo); CGO_ENABLED=0 works ✅
+- All 32 Tier 1 symbols via pure Go ✅
+- `parseConformanceData()` helper added to skip `_metadata` key in data.json ✅
+- `packages/go/testdata/data.json` updated to iscc-core v1.3.0 (byte-identical to Rust copy) ✅
+- All 9 per-function Go test files updated to use `parseConformanceData()` ✅
+- 155 Go tests pass; `go vet` clean ✅; CGO_ENABLED=0 confirmed ✅
 
 ## Ruby Bindings
 
@@ -89,7 +88,6 @@ implementation (not yet started), and a low-priority README logo request.
 - No Ruby CI job in `.github/workflows/ci.yml`
 - No RubyGems step in `.github/workflows/release.yml`
 - Not in `scripts/version_sync.py` sync targets
-- DevContainer has Ruby installed but crate not scaffolded
 
 ## README
 
@@ -97,7 +95,7 @@ implementation (not yet started), and a low-priority README logo request.
 
 - Public-facing polyglot README exists; CI badge, registry badges ✅
 - All 10 `gen_*_v0` functions listed; per-language install + quick-start examples ✅
-- **Gap**: Ruby install instructions and quickstart not present (target requires Ruby/gem section) ✅
+- **Gap**: Ruby install instructions and quickstart not present (target requires Ruby/gem section)
 
 ## Per-Crate READMEs
 
@@ -111,11 +109,10 @@ implementation (not yet started), and a low-priority README logo request.
 **Status**: partially met
 
 - 17 pages deployed to lib.iscc.codes; all navigation sections complete ✅
-- All 5 language howto guides updated to 4-parameter `gen_sum_code_v0` signature ✅
+- All 5 language howto guides current ✅
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
-- `uv run zensical build` exits 0 ✅
-- **Gap**: No `docs/howto/ruby.md` guide; no `docs/ruby-api.md`; target requires Ruby in all
-    multi-language code example tabs
+- **Gap**: No `docs/howto/ruby.md` guide; no `docs/ruby-api.md`; no Ruby tabs in multi-language
+    examples
 
 ## Benchmarks
 
@@ -123,36 +120,31 @@ implementation (not yet started), and a low-priority README logo request.
 
 - Criterion benchmarks for all 10 `gen_*_v0` functions ✅
 - `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks ✅
-- pytest-benchmark comparison files; speedup factors in `docs/benchmarks.md` ✅
 - `Bench (compile check)` CI job SUCCESS ✅
 
 ## CI/CD and Publishing
 
 **Status**: partially met
 
-- **All 11 CI jobs SUCCESS** on HEAD `a6a942c` — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22626200126
-- Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10, Python 3.14, Python (gate),
-    Node.js, WASM, C FFI, Java, Go, Bench — all SUCCESS ✅
+- **FAILING** — latest CI run 22627307003: `WASM (wasm-pack test)` = FAILURE ❌
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22627307003
+- Failed job: `WASM (wasm-pack test)` — `test_gen_meta_code_v0_conformance` panics with
+    `assertion left == right failed: expected 16 conformance tests to run` (left=20, right=16)
+- All other 10 jobs in the latest run succeed ✅
 - `release.yml` has `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven,
     FFI) ✅
-- Tag push `v*.*.*` triggers all publish jobs ✅
-- v0.1.0 released to all registries ✅
-- **Gap**: No `ruby` CI job; no `rubygems` publish step in `release.yml`; Ruby not in
-    `version_sync.py` (9 targets, should be 10 with `iscc-rb/lib/iscc_lib/version.rb`)
+- **Gap**: No `ruby` CI job; no `rubygems` publish step; Ruby not in `version_sync.py`
 
 ## Next Milestone
 
-Three open issues block DONE. Priority order:
+**Immediate (fixes CI first)**: Update `crates/iscc-wasm/tests/conformance.rs` line 66 to change
+`assert_eq!(tested, 16, ...)` → `assert_eq!(tested, 20, ...)`. This is a one-line fix that unblocks
+the WASM CI job. Verify that no other binding test files (Python, Node.js, Java, C FFI) have similar
+hardcoded count assertions that also need updating (grep shows none — confirmed already).
 
-1. **Critical — iscc-core v1.3.0 conformance update**: Update `reference/iscc-core` shallow clone to
-    v1.3.0; vendor new `data.json`; add `_metadata` key tolerance to the vector loader; implement
-    `META_TRIM_META` 128 000-byte payload limit in `gen_meta_code_v0`; pass 4 new conformance
-    vectors (`test_0017` JCS float-as-integer, `test_0018` JCS large float, `test_0019` description
-    trim, `test_0020` description trim i18n).
+**Then**: Begin Ruby bindings (`crates/iscc-rb/`): scaffold the Magnus crate per the spec at
+`.claude/context/specs/ruby-bindings.md`, implement all 32 Tier 1 symbols, add Minitest conformance
+suite, add Ruby CI job, add RubyGems release step, update version_sync, add docs/howto/ruby.md,
+update README and Per-Crate READMEs.
 
-2. **Normal — Ruby bindings** (`crates/iscc-rb/`): Scaffold the Magnus crate, implement all 32 Tier
-    1 symbols, add Minitest conformance suite, add Ruby CI job, add RubyGems release step, update
-    version_sync, add docs/howto/ruby.md, update README and Per-Crate READMEs.
-
-3. **Low — Language logos**: Visual logo additions to README and docs (deferred until Ruby is done).
+**Low priority**: Language logos for README and docs (deferred until Ruby is done).

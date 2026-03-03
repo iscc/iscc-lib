@@ -60,27 +60,27 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: a6a942c)
+## Current State (assessed-at: 1e56791)
 
-- **IN_PROGRESS**: v0.1.0 released. Target extended with Ruby bindings. 3 open issues.
-- **Issues open**: critical (iscc-core v1.3.0: 4 new vectors, META_TRIM_META 128k limit), normal
-    (Ruby bindings not started), low (language logos)
+- **IN_PROGRESS**: v1.3.0 conformance resolved in Rust+Go; WASM CI regression introduced; 2 open
+    issues (Ruby bindings normal, language logos low)
 - **Ruby bindings**: NOT STARTED — `crates/iscc-rb` absent, no CI job, no release step
-- **CI (run 22626200126)**: all 11 jobs SUCCESS ✅ (no Ruby job yet)
+- **CI (run 22627307003)**: WASM FAILURE — `test_gen_meta_code_v0_conformance` (count 20 vs 16)
+- **WASM fix needed**: `crates/iscc-wasm/tests/conformance.rs` line 66: change 16 → 20
 - **Feature flags**: `default = ["meta-code"]`, `meta-code = ["text-processing", ...]`,
     `text-processing = [dep:unicode-*]`; 5 CI feature matrix steps
 - **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
 - **release.yml**: checkboxes for crates.io, PyPI, npm, Maven, FFI (not RubyGems yet) ✅
 - **devcontainer**: `ruby ruby-dev` added ✅; spec `ruby-bindings.md` created ✅
 
-## iscc-core v1.3.0 Conformance Gap
+## iscc-core v1.3.0 Conformance (RESOLVED in Rust+Go, WASM regression pending)
 
-- 4 new test vectors: test_0017 (JCS float→int), test_0018 (JCS large float), test_0019 (description
-    trim ASCII), test_0020 (description trim UTF-8)
-- New `META_TRIM_META = 128_000` byte limit in gen_meta_code_v0 (raises ValueError if exceeded)
-- `data.json` now has top-level `_metadata` object — vector loader must skip it
-- Codec validation tightening (check `(MainType, Version)` combos)
-- Reference clone at `reference/iscc-core/` needs update from v1.2.2 → v1.3.0
+- 4 new test vectors vendored: test_0017–test_0020 in both `crates/iscc-lib/tests/data.json` and
+    `packages/go/testdata/data.json` (50 total vectors)
+- `data.json` has top-level `_metadata` object — Go uses `parseConformanceData()` to skip it; Rust
+    `serde_json` silently ignores unknown fields
+- Rust lib.rs assertion updated: 16 → 20; Go all 9 test files use `parseConformanceData()`
+- **WASM regression**: `crates/iscc-wasm/tests/conformance.rs:66` still says 16 (must change to 20)
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
@@ -114,3 +114,7 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     and benchmarks file say "10"
 - **gen_sum_code_v0 benchmark**: uses NamedTempFile (tempfile crate); temp files created outside
     criterion closure so file setup is not measured; cleanup via Drop
+- **WASM count assertions**: `crates/iscc-wasm/tests/conformance.rs` has per-function
+    `assert_eq!(tested, N, ...)` guards. When data.json gains new vectors, BOTH lib.rs AND the WASM
+    conformance test must be updated. Review agents may miss this (check grep result:
+    `grep -n "assert_eq.*tested" crates/iscc-wasm/tests/conformance.rs`)
