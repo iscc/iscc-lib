@@ -1,17 +1,15 @@
-<!-- assessed-at: 34f9580 -->
+<!-- assessed-at: 58ab8d1 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Issue #21 complete across all 7 bindings; docs update pending, then issue #16
+## Phase: Issue #21 fully resolved (docs updated); issue #16 (feature flags) is the only remaining work
 
-Commit `34f9580` (review PASS) completed Go binding for issue #21: `GenSumCodeV0` now accepts
-`addUnits bool`, `SumCodeResult` has `Units []string` (nil when `addUnits=false`), and 3 new tests
-verify enabled/disabled/content cases (154 total Go tests). Issue #21 is now fully resolved across
-all 7 bindings. Only one open issue remains (#16 feature flags). Docs (`docs/rust-api.md` and
-`docs/architecture.md`) still show the old 3-parameter `gen_sum_code_v0` signature and need updating
-now that all bindings are aligned.
+Commit `58ab8d1` (review PASS) completed the documentation update for the 4-parameter
+`gen_sum_code_v0` signature. All 5 affected doc files now show `add_units` in function signatures,
+parameter tables, and code examples. Issue #21 is completely closed. The only remaining open issue
+is #16 (feature flags for embedded/minimal builds), which is the sole blocker for DONE status.
 
 ## Rust Core Crate
 
@@ -50,7 +48,7 @@ now that all bindings are aligned.
 - `gen_sum_code_v0(path, bits?, wide?, addUnits?)` — `add_units: Option<bool>` properly wired in
     NAPI layer; defaults to `false` when omitted ✅
 - `NapiSumCodeResult.units: Option<Vec<String>>` — auto-generated `index.d.ts` shows
-    `units?:   Array<string>` ✅
+    `units?: Array<string>` ✅
 - 135 mocha tests pass (132 existing + 3 new for add_units=true, default, content verification) ✅
 - `cargo clippy -p iscc-napi -- -D warnings` clean ✅
 
@@ -101,7 +99,7 @@ now that all bindings are aligned.
 
 ## Go Bindings
 
-**Status**: met — `add_units`/`units` fully exposed to Go callers ✅ (completed this iteration)
+**Status**: met — `add_units`/`units` fully exposed to Go callers ✅
 
 - All 32 Tier 1 symbols via pure Go ✅; 154 Go tests pass; `go vet` clean ✅
 - `GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool) (*SumCodeResult, error)` —
@@ -131,14 +129,18 @@ now that all bindings are aligned.
 
 ## Documentation
 
-**Status**: partially met — docs reference old 3-parameter `gen_sum_code_v0` signature
+**Status**: met — all `gen_sum_code_v0` references updated to 4-parameter signature ✅
 
 - 17 pages deployed to lib.iscc.codes; all navigation sections complete ✅
 - Getting-started tutorial: 7 sections × 6 languages ✅
-- `docs/rust-api.md` line 275 still shows old 3-parameter signature:
-    `pub fn gen_sum_code_v0(path: &Path, bits: u32, wide: bool)` ❌
-- `docs/architecture.md` line 131 still shows old 3-parameter signature:
-    `pub fn gen_sum_code_v0(path, bits, wide)` ❌
+- `docs/rust-api.md` line 275:
+    `pub fn gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` ✅
+- `docs/architecture.md` line 131: `pub fn gen_sum_code_v0(path, bits, wide, add_units)` ✅
+- `docs/c-ffi-api.md`: `add_units` parameter in table + `char **units` field in struct docs ✅
+- `docs/howto/rust.md`: code example uses 4-argument call ✅
+- `docs/howto/c-cpp.md`: both code examples use 4-argument call ✅
+- Verified: `grep -n 'gen_sum_code_v0.*bits.*wide' docs/*.md docs/howto/*.md | grep -v add_units` —
+    no matches ✅
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
 - All howto guides have Sum-Code subsections ✅; `docs/howto/c-cpp.md` linked in nav ✅
 - `uv run zensical build` exits 0 ✅
@@ -156,11 +158,12 @@ now that all bindings are aligned.
 
 **Status**: partially met
 
-- **All CI jobs SUCCESS** on latest push — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22599959379
+- **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22600934621
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10 (ruff, pytest), Python 3.14
     (ruff, pytest), Python (ruff, pytest), Node.js (napi build, test), WASM (wasm-pack test), C FFI
-    (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check)
+    (cbindgen, gcc, test), Java (JNI build, mvn test), Go (go test, go vet), Bench (compile check) —
+    all SUCCESS ✅
 - v0.0.4 released to all registries; OIDC trusted publishing for crates.io; Maven Central GPG
     configured; npm via `NPM_TOKEN` secret ✅
 - `release.yml` has `build-ffi`/`publish-ffi` with 5-platform matrix; `workflow_dispatch` `ffi`
@@ -170,15 +173,13 @@ now that all bindings are aligned.
 
 ## Next Milestone
 
-**Update docs for 4-parameter `gen_sum_code_v0` signature, then issue #16 (feature flags)**
+**Issue #16 — Feature flags for embedded/minimal builds**
 
-Issue #21 is fully resolved across all 7 bindings. Two items remain before closing documentation
-gaps:
+Issue #21 is fully resolved across all 7 bindings and docs. The only remaining open issue is #16:
 
-1. **Fix docs** (`docs/rust-api.md` line 275, `docs/architecture.md` line 131): update
-    `gen_sum_code_v0` signatures from 3-parameter to 4-parameter (`add_units`/`addUnits`) across
-    all language examples in both files. This unblocks the Documentation section.
+Add Cargo feature flags (`meta-code`, `text-processing`) so embedded consumers can opt out of heavy
+dependencies (~82K source lines for serde/unicode). Default behavior unchanged (all features on).
+`conformance_selftest()` must adapt to available features (skip disabled code types). CI must test
+`--all-features`, `--no-default-features`, and each feature individually.
 
-2. **Issue #16 — Feature flags** (`meta-code`, `text-processing`): add Cargo feature flags for
-    embedded/minimal builds. CI must test `--all-features`, `--no-default-features`, and each
-    feature individually. This is the only remaining open issue and the final blocker for DONE.
+Completing issue #16 is the final requirement before the project can reach DONE status.

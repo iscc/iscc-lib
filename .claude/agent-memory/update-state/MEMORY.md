@@ -59,11 +59,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 34f9580)
+## Current State (assessed-at: 58ab8d1)
 
-- **IN_PROGRESS**: 1 open issue remains (#16 feature flags); issue #21 fully resolved
-- **Issue #21 COMPLETE** (iteration 12): Go binding done. All 7 bindings expose `add_units`/`units`:
-    Rust core, Python, Node.js, WASM, C FFI, Java/JNI, Go
+- **IN_PROGRESS**: 1 open issue remains (#16 feature flags); issue #21 fully resolved (all bindings
+    - docs)
+- **Issue #21 COMPLETE** (iterations 5–13): All 7 bindings expose `add_units`/`units` and all 5 doc
+    files updated to 4-parameter signature
+- **Documentation gap RESOLVED**: `docs/rust-api.md` line 275, `docs/architecture.md` line 131,
+    `docs/c-ffi-api.md`, `docs/howto/rust.md`, `docs/howto/c-cpp.md` — all updated ✅
 - **Go binding complete**: `GenSumCodeV0(path, bits, wide, addUnits bool)`;
     `SumCodeResult.Units []string` (nil when false); 154 Go tests; review PASS
 - **Java/JNI binding complete**: `genSumCodeV0(path, bits, wide, addUnits)`;
@@ -73,10 +76,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **WASM binding complete**: 79 wasm-bindgen tests; accepts `Uint8Array` not path
 - **Node.js binding complete**: 135 mocha tests
 - **Python binding complete**: 207 py tests
-- **Docs gap**: `docs/rust-api.md` line 275 + `docs/architecture.md` line 131 still show old 3-param
-    signature — needs update now that all bindings are done
-- **CI latest**: Run 22599959379 — all CI jobs SUCCESS ✅
-- **Next priority**: docs update (rust-api.md + architecture.md) then issue #16 (feature flags)
+- **CI latest**: Run 22600934621 — all 11 CI jobs SUCCESS ✅
+- **Next priority**: issue #16 (feature flags: `meta-code`, `text-processing` Cargo features)
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
