@@ -99,15 +99,11 @@ iterations.
 
 ## Ruby Bindings — Symbol Implementation Plan
 
-Remaining 7 of 32 Tier 1 symbols (gen batches 1-3 done in iters 5-8). Now by complexity:
+All module functions complete (30/32). Final step:
 
-1. ~~**Gen functions batch 3** (3 symbols): done in iter 8 → 25/32~~
-2. **Algorithm primitives** (5 symbols, array types): `sliding_window`, `alg_simhash`,
-    `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0` — iter 9 (current)
-3. **Streaming types** (2 types): `DataHasher`, `InstanceHasher`
+- **Streaming types** (2 types): `DataHasher`, `InstanceHasher` — iter 10 (current)
 
-Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it. Handoff review
-agent incorrectly listed it — always verify against target.md's 32-symbol list.
+Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it.
 
 ## Ruby Bridge Patterns
 
@@ -125,6 +121,10 @@ agent incorrectly listed it — always verify against target.md's 32-symbol list
     binary `RString` for byte outputs. `alg_minhash_256` is infallible (no Result). `alg_cdc_chunks`
     returns `RArray` of binary `RString` (must copy slices to owned). `soft_hash_video_v0` reuses
     the same `RArray → Vec<Vec<i32>>` pattern as `gen_video_code_v0`
+- Streaming types (`DataHasher`, `InstanceHasher`): use `#[magnus::wrap(class = "...")]` +
+    `RefCell<Option<inner>>` for one-shot finalize. Instance methods use `method!` macro (not
+    `function!`). Register via `define_class` + `define_method`. This is a different Magnus pattern
+    from all 30 prior module functions. Python binding uses same `Option<inner>` pattern in PyO3
 
 ## Project Status
 
@@ -138,4 +138,6 @@ agent incorrectly listed it — always verify against target.md's 32-symbol list
 - Ruby gen batch 1 done (iter 5): text/image/audio → 19/32
 - Ruby gen batch 2 done (iter 6): video/mixed/data → 22/32
 - Ruby gen batch 3 done (iter 8): instance/iscc/sum → 25/32
-- Current: Ruby algorithm primitives (iter 9): sliding_window/simhash/minhash/cdc/video → 30/32
+- Ruby algo primitives done (iter 9): sliding_window/simhash/minhash/cdc/video → 30/32
+- Current: Ruby streaming types (iter 10): DataHasher/InstanceHasher → 32/32
+- After 32/32: conformance tests, CI job, release pipeline, docs, linting (multiple future steps)
