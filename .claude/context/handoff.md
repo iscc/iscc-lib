@@ -1,43 +1,24 @@
-## 2026-03-03 — Review of: Add DataHasher and InstanceHasher streaming types to Ruby bridge
+## 2026-03-03 — Add Ruby conformance tests against data.json
 
-**Verdict:** PASS
+**Done:** Created `crates/iscc-rb/test/test_conformance.rb` with 50 dynamically generated test
+methods (one per data.json vector) covering all 9 gen\_\*\_v0 functions. Uses `define_method` for
+individual test names, mirrors the Python `tests/test_conformance.py` structure with Minitest
+idioms.
 
-**Summary:** Added `DataHasher` and `InstanceHasher` streaming classes to the Ruby Magnus bridge,
-completing all 32/32 Tier 1 symbols. Implementation is clean, follows established patterns, adapts
-the PyO3 `Option<inner>` pattern correctly for Magnus using `RefCell<Option<inner>>`. All 61 tests
-pass (152 assertions, 0 failures).
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-rb/test/test_conformance.rb`: New file — conformance tests for gen_meta_code_v0 (20),
+    gen_text_code_v0 (5), gen_image_code_v0 (3), gen_audio_code_v0 (5), gen_video_code_v0 (3),
+    gen_mixed_code_v0 (2), gen_data_code_v0 (4), gen_instance_code_v0 (3), gen_iscc_code_v0 (5)
 
-- [x] `cargo check -p iscc-rb` compiles successfully
-- [x] `cargo clippy -p iscc-rb -- -D warnings` — clean (0 warnings)
-- [x] `bundle exec rake compile` — builds native extension in release profile
-- [x] `bundle exec rake test` — 61 runs, 152 assertions, 0 failures, 0 errors, 0 skips
-- [x] `IsccLib::DataHasher.new` returns a DataHasher instance (proven by tests)
-- [x] `IsccLib::InstanceHasher.new` returns an InstanceHasher instance (proven by tests)
-- [x] Streaming result matches one-shot: DataHasher and InstanceHasher both match `gen_*_v0`
-- [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] No quality gate circumvention in diff
+**Verification:** `bundle exec rake test` — 111 runs, 295 assertions, 0 failures, 0 errors, 0 skips.
+All 50 conformance vectors pass alongside 61 existing smoke/streaming tests. `mise run check` — all
+14 pre-commit hooks pass. `grep -c "define_method"` returns 9 (one per function section).
 
-**Issues found:**
+**Next:** Ruby CI job in `.github/workflows/ci.yml` (compile + test), `version_sync.py` gemspec
+integration, `docs/howto/ruby.md` how-to guide, and RubyGems publishing setup in `release.yml`.
 
-- (none)
-
-**Codex review:** Clean — no correctness issues found. Codex confirmed consistent wiring end-to-end
-(Rust types, class registration, Ruby reopen/wrapper, tests).
-
-**Next:** Ruby binding is now feature-complete (32/32 Tier 1 symbols). The next logical step is
-adding conformance tests against `data.json` vectors to verify correctness across all gen functions.
-After that: Ruby CI job in `ci.yml`, `version_sync.py` for gemspec, `docs/howto/ruby.md`, and
-RubyGems publishing setup.
-
-**Notes:**
-
-- Design choice B (direct class name, prefixed methods) was the right call. `_DataHasher` is not a
-    valid Ruby constant name. The `#[magnus::wrap(class = "IsccLib::DataHasher")]` + Ruby
-    `class   DataHasher` reopen pattern is clean and avoids inner delegation.
-- The `RefCell<Option<inner>>` adaptation for Magnus (vs PyO3's direct `Option<inner>`) is the
-    correct approach: Magnus instance methods receive `&self`, so interior mutability is needed.
-- 32/32 symbols means the Ruby `issues.md` entry scope items 1 (crate setup) and the symbol surface
-    portion are done. Remaining from that issue: conformance tests, CI job, release workflow,
-    version_sync, documentation, account setup.
+**Notes:** No surprises. The implementation was straightforward — the Ruby API surface maps cleanly
+to the data.json vectors. Helper methods `prepare_meta_arg` and `decode_stream` are class methods on
+`TestConformance` (called via `self.class.method_name` from instance methods). JSON `sort_keys`
+option in `JSON.generate` handles JCS-compatible output for dict meta inputs.
