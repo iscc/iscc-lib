@@ -99,26 +99,28 @@ iterations.
 
 ## Ruby Bindings — Symbol Implementation Plan
 
-Remaining 16 of 32 Tier 1 symbols (codec/encoding/diagnostic batch done in iter 4). Now by
-complexity:
+Remaining 10 of 32 Tier 1 symbols (gen batches 1-2 done in iters 5-6). Now by complexity:
 
-1. **Gen functions batch 1** (3 symbols, simple params): `gen_text_code_v0`, `gen_image_code_v0`,
-    `gen_audio_code_v0` — iter 5 (current)
-2. **Gen functions batch 2** (3 symbols, complex params): `gen_video_code_v0` (nested arrays),
-    `gen_mixed_code_v0` (string arrays), `gen_data_code_v0` (binary data)
-3. **Gen functions batch 3** (3 symbols): `gen_instance_code_v0`, `gen_iscc_code_v0`,
-    `gen_sum_code_v0` (file path)
-4. **Algorithm primitives** (5 symbols, array types): `sliding_window`, `alg_simhash`,
+1. **Gen functions batch 3** (3 symbols): `gen_instance_code_v0`, `gen_iscc_code_v0`,
+    `gen_sum_code_v0` (file path) — iter 7 (current)
+2. **Algorithm primitives** (5 symbols, array types): `sliding_window`, `alg_simhash`,
     `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`
-5. **Algorithms + streaming** (1 utility + 2 types): `alg_simhash_from_iscc`, `DataHasher`,
-    `InstanceHasher`
+3. **Streaming types** (2 types): `DataHasher`, `InstanceHasher`
+
+Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it.
 
 ## Ruby Bridge Patterns
 
 - Gen functions use `_` prefix (e.g., `_gen_meta_code_v0`) with Ruby wrapper providing keyword args
 - Utility/codec functions exposed directly (no prefix, no Ruby wrapper needed)
-- Binary data: Ruby `String` holds bytes; in Magnus use `String` type + `.as_bytes()` for input
+- Binary data: Ruby `String` holds bytes; in Magnus use `RString` + `unsafe { .as_slice() }` for
+    input (same safety comment pattern as gen_image/data_code_v0)
 - `iscc_decode` returns tuple → use Ruby Array in Magnus
+- `gen_sum_code_v0` takes a file path String → convert to `std::path::Path` in bridge. Smoke tests
+    need `require "tempfile"` to create temp files
+- `gen_instance_code_v0` accepts `bits` for API consistency but always produces 256-bit output
+- `gen_iscc_code_v0` return type has only `iscc` field (no `units` — that's `gen_sum_code_v0`)
+- `gen_sum_code_v0` return: `units` key only present when `add_units: true` (Option\<Vec<String>>)
 
 ## Project Status
 
@@ -130,4 +132,5 @@ complexity:
 - Ruby scaffold complete (iter 3): 10/32 symbols
 - Ruby codec/encoding/diagnostic done (iter 4): 16/32 symbols
 - Ruby gen batch 1 done (iter 5): text/image/audio → 19/32
-- Current: Ruby gen batch 2 (iter 6): video/mixed/data → 22/32
+- Ruby gen batch 2 done (iter 6): video/mixed/data → 22/32
+- Current: Ruby gen batch 3 (iter 7): instance/iscc/sum → 25/32
