@@ -1,16 +1,16 @@
-<!-- assessed-at: 47f237d800d66cbbeb4aaba66b1a784888a406d3 -->
+<!-- assessed-at: 78f4e04b8ba8d4d21e15c4f02addd2e6dc29f1e6 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings — 19/32 symbols; 4 new binding targets added (C#, C++, Swift, Kotlin)
+## Phase: Ruby bindings — 22/32 symbols; low-priority targets (C#, C++, Swift, Kotlin) deferred
 
-The Ruby Magnus bridge advanced from 16 to 19 of 32 Tier 1 symbols, adding `gen_text_code_v0`,
-`gen_image_code_v0`, and `gen_audio_code_v0` with matching result classes in the pure Ruby wrapper.
-Target scope expanded significantly: C# / .NET, C++, Swift, and Kotlin bindings were added as new
-target sections in `target.md` along with corresponding issues. None of these new targets have any
-code started. All 11 CI jobs remain green.
+The Ruby Magnus bridge advanced from 19 to 22 of 32 Tier 1 symbols, adding `gen_video_code_v0`,
+`gen_mixed_code_v0`, and `gen_data_code_v0` with matching `VideoCodeResult`, `MixedCodeResult`, and
+`DataCodeResult` wrapper classes. Binding specs for all languages were extracted into separate
+`.claude/context/specs/` files. All 11 CI jobs remain green. The C#, C++, Swift, Kotlin issues are
+now marked `low` priority (CID loop skips them); the Ruby issue remains `normal`.
 
 ## Rust Core Crate
 
@@ -44,7 +44,7 @@ code started. All 11 CI jobs remain green.
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22637279696 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22639088838 ✅
 
 ## C FFI
 
@@ -76,22 +76,21 @@ code started. All 11 CI jobs remain green.
 **Status**: partially met
 
 - `crates/iscc-rb/` scaffold with Magnus bridge (magnus 0.7.1, Ruby 3.1.2 compat) ✅
-- **19 of 32 Tier 1 symbols** exposed:
-    - Gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
-        (4)
+- **22 of 32 Tier 1 symbols** exposed:
+    - Gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`,
+        `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0` (7)
     - Text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse` (4)
     - Codec/diagnostic: `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`,
         `json_to_data_url`, `conformance_selftest` (6)
     - Constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
         `TEXT_NGRAM_SIZE` (5)
-- Pure Ruby wrapper: `TextCodeResult`, `ImageCodeResult`, `AudioCodeResult < Result < Hash` pattern,
+- Pure Ruby wrapper: `VideoCodeResult`, `MixedCodeResult`, `DataCodeResult < Result < Hash` pattern,
     keyword args ✅
-- 25 Minitest smoke tests; `bundle exec rake compile` builds in release profile ✅
+- 31 Minitest smoke tests; `bundle exec rake compile` builds in release profile ✅
 - `crates/iscc-rb/README.md` exists (stub) ✅
-- **Missing**: 13 remaining symbols: 6 gen functions (`gen_video_code_v0`, `gen_mixed_code_v0`,
-    `gen_data_code_v0`, `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`), 4 algorithm
-    primitives (`sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`), 1 utility
-    (`alg_simhash_from_iscc`), 2 streaming types (`DataHasher`, `InstanceHasher`)
+- **Missing** (10 symbols): 3 gen functions (`gen_instance_code_v0`, `gen_iscc_code_v0`,
+    `gen_sum_code_v0`), 5 algorithm primitives (`sliding_window`, `alg_simhash`, `alg_minhash_256`,
+    `alg_cdc_chunks`, `soft_hash_video_v0`), 2 streaming types (`DataHasher`, `InstanceHasher`)
 - **Missing**: No conformance tests against `data.json`
 - **Missing**: No dedicated `ruby` CI job (workspace Rust job uses `--exclude iscc-rb`)
 - **Missing**: No RubyGems step in `release.yml`
@@ -103,39 +102,29 @@ code started. All 11 CI jobs remain green.
 
 **Status**: not started
 
-- Target defined in `target.md`: P/Invoke bindings via `csbindgen`, `packages/dotnet/` directory,
-    NuGet package `Iscc.Lib` targeting .NET 8+
-- Issue filed in `issues.md` with full implementation scope ✅
-- **No code exists**: `packages/dotnet/` does not exist; no `csbindgen` integration; no CI job; no
-    devcontainer .NET SDK
+- Target defined in `target.md`; issue filed as `low` priority (CID loop skips) ✅
+- **No code exists**: `packages/dotnet/` does not exist; no `csbindgen` integration; no CI job
 
 ## C++ Bindings
 
 **Status**: not started
 
-- Target defined in `target.md`: header-only wrapper `iscc.hpp`, `packages/cpp/` directory,
-    distribution via vcpkg/Conan/FFI release tarballs
-- Issue filed in `issues.md` with full implementation scope ✅
+- Target defined in `target.md`; issue filed as `low` priority (CID loop skips) ✅
 - **No code exists**: `packages/cpp/` does not exist; no `iscc.hpp`; no vcpkg/Conan manifests
 
 ## Swift Bindings
 
 **Status**: not started
 
-- Target defined in `target.md`: UniFFI-generated Swift bindings, `packages/swift/` directory, SPM
-    package, `crates/iscc-uniffi/` scaffolding crate
-- Issue filed in `issues.md` with full implementation scope ✅
-- **No code exists**: `packages/swift/` does not exist; `crates/iscc-uniffi/` does not exist; no
-    UniFFI integration
+- Target defined in `target.md`; issue filed as `low` priority (CID loop skips) ✅
+- **No code exists**: `packages/swift/` does not exist; `crates/iscc-uniffi/` does not exist
 
 ## Kotlin Multiplatform Bindings
 
 **Status**: not started
 
-- Target defined in `target.md`: UniFFI-generated KMP bindings, `packages/kotlin/` directory, shares
-    `crates/iscc-uniffi/` with Swift
-- Issue filed in `issues.md` with full implementation scope; depends on Swift ✅
-- **No code exists**: `packages/kotlin/` does not exist; depends on `iscc-uniffi` crate (also not
+- Target defined in `target.md`; issue filed as `low` priority (CID loop skips) ✅
+- **No code exists**: `packages/kotlin/` does not exist; depends on `iscc-uniffi` crate (not
     started)
 
 ## README
@@ -145,7 +134,7 @@ code started. All 11 CI jobs remain green.
 - Public-facing polyglot README exists; CI badge, registry badges ✅
 - All 10 `gen_*_v0` functions listed; per-language install + quick-start examples ✅
 - **Gap**: Ruby install instructions and quickstart not present
-- **Gap**: C#, C++, Swift, Kotlin sections not present (target now requires all 4)
+- **Gap**: C#, C++, Swift, Kotlin sections not present (target requires all 4; all `low` priority)
 
 ## Per-Crate READMEs
 
@@ -154,8 +143,8 @@ code started. All 11 CI jobs remain green.
 - READMEs present for all existing 8 crates/packages (including `crates/iscc-rb/README.md`) ✅
 - **Gap**: `crates/iscc-rb/README.md` is a stub (31 lines); full installation/usage instructions not
     yet complete
-- **Gap**: Target now requires READMEs for `packages/dotnet`, `packages/cpp`, `packages/swift`,
-    `packages/kotlin` — none of these directories exist yet
+- **Gap**: Target requires READMEs for `packages/dotnet`, `packages/cpp`, `packages/swift`,
+    `packages/kotlin` — none of these directories exist yet (all `low` priority)
 
 ## Documentation
 
@@ -166,7 +155,7 @@ code started. All 11 CI jobs remain green.
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
 - **Gap**: No `docs/howto/ruby.md` guide; no `docs/ruby-api.md`; no Ruby tabs in multi-language
     examples
-- **Gap**: Target now requires C#, C++, Swift, Kotlin how-to guides and tabs (none started)
+- **Gap**: Target requires C#, C++, Swift, Kotlin how-to guides (all `low` priority; none started)
 
 ## Benchmarks
 
@@ -180,24 +169,24 @@ code started. All 11 CI jobs remain green.
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22637279696: all 11 jobs SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22637279696
+- **ALL PASSING** — latest CI run 22639088838: all 11 jobs SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22639088838
 - `release.yml` has `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven,
     FFI) ✅
 - `iscc-rb` excluded from workspace Rust CI job (`--exclude iscc-rb`) — no dedicated Ruby CI job
 - **Gap**: No `ruby` CI job; no `rubygems` publish step; Ruby not in `version_sync.py`
-- **Gap**: Target now requires CI jobs for C#, C++, Swift, Kotlin (none started)
+- **Gap**: Target requires CI jobs for C#, C++, Swift, Kotlin (all `low` priority; none started)
 
 ## Next Milestone
 
-Continue advancing the Ruby bindings toward 32/32 symbols — this is the most immediate bottleneck
-before the new binding targets (C#, C++, Swift, Kotlin) can be tackled. Suggested next work package:
+Continue advancing the Ruby bindings toward 32/32 symbols. Suggested next work package:
 
-1. **`gen_video_code_v0`**, **`gen_mixed_code_v0`**, **`gen_data_code_v0`** — file/byte-based gen
-    functions following the established pattern; add matching `VideoCodeResult`, `MixedCodeResult`,
-    `DataCodeResult` result classes
-2. **`gen_instance_code_v0`**, **`gen_iscc_code_v0`**, **`gen_sum_code_v0`** — complete the gen
-    function set
+1. **`gen_instance_code_v0`** — byte-slice based gen function; add `InstanceCodeResult` result class
+2. **`gen_iscc_code_v0`** — multi-code aggregation; add `IsccCodeResult` result class
+3. **`gen_sum_code_v0`** — path-based I/O; add `SumCodeResult` result class
+4. **Algorithm primitives** — `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+    `soft_hash_video_v0`
+5. **Streaming types** — `DataHasher` and `InstanceHasher` with `push`/`finalize` interface
 
-After all 9 gen functions: add algorithm primitives + streaming types, then conformance tests,
-Standard Ruby linting, Ruby CI job, RubyGems release step, and documentation.
+After all 32 symbols: add conformance tests against `data.json`, Standard Ruby linting, Ruby CI job,
+RubyGems release step, version_sync, and documentation.
