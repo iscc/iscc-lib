@@ -1,16 +1,15 @@
-<!-- assessed-at: 78f4e04b8ba8d4d21e15c4f02addd2e6dc29f1e6 -->
+<!-- assessed-at: f322e55b84286a3c36a96e5df5167f56a004e714 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings — 22/32 symbols; low-priority targets (C#, C++, Swift, Kotlin) deferred
+## Phase: Ruby bindings — 25/32 symbols; low-priority targets (C#, C++, Swift, Kotlin) deferred
 
-The Ruby Magnus bridge advanced from 19 to 22 of 32 Tier 1 symbols, adding `gen_video_code_v0`,
-`gen_mixed_code_v0`, and `gen_data_code_v0` with matching `VideoCodeResult`, `MixedCodeResult`, and
-`DataCodeResult` wrapper classes. Binding specs for all languages were extracted into separate
-`.claude/context/specs/` files. All 11 CI jobs remain green. The C#, C++, Swift, Kotlin issues are
-now marked `low` priority (CID loop skips them); the Ruby issue remains `normal`.
+The Ruby Magnus bridge advanced from 22 to 25 of 32 Tier 1 symbols, adding `gen_instance_code_v0`,
+`gen_iscc_code_v0`, and `gen_sum_code_v0` with matching `InstanceCodeResult`, `IsccCodeResult`, and
+`SumCodeResult` result classes. All 11 CI jobs remain green on the new run (22640865894). The
+remaining 7 missing symbols are algorithm primitives and streaming types.
 
 ## Rust Core Crate
 
@@ -44,7 +43,7 @@ now marked `low` priority (CID loop skips them); the Ruby issue remains `normal`
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22639088838 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22640865894 ✅
 
 ## C FFI
 
@@ -76,21 +75,21 @@ now marked `low` priority (CID loop skips them); the Ruby issue remains `normal`
 **Status**: partially met
 
 - `crates/iscc-rb/` scaffold with Magnus bridge (magnus 0.7.1, Ruby 3.1.2 compat) ✅
-- **22 of 32 Tier 1 symbols** exposed:
+- **25 of 32 Tier 1 symbols** exposed:
     - Gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`,
-        `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0` (7)
+        `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`,
+        `gen_iscc_code_v0`, `gen_sum_code_v0` (10) ✅
     - Text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse` (4)
     - Codec/diagnostic: `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`,
         `json_to_data_url`, `conformance_selftest` (6)
     - Constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
         `TEXT_NGRAM_SIZE` (5)
-- Pure Ruby wrapper: `VideoCodeResult`, `MixedCodeResult`, `DataCodeResult < Result < Hash` pattern,
-    keyword args ✅
-- 31 Minitest smoke tests; `bundle exec rake compile` builds in release profile ✅
+- Pure Ruby wrapper: 10 result classes (`*CodeResult < Result < Hash`), keyword args ✅
+- 37 Minitest smoke tests; `bundle exec rake compile` builds in release profile ✅
 - `crates/iscc-rb/README.md` exists (stub) ✅
-- **Missing** (10 symbols): 3 gen functions (`gen_instance_code_v0`, `gen_iscc_code_v0`,
-    `gen_sum_code_v0`), 5 algorithm primitives (`sliding_window`, `alg_simhash`, `alg_minhash_256`,
-    `alg_cdc_chunks`, `soft_hash_video_v0`), 2 streaming types (`DataHasher`, `InstanceHasher`)
+- **Missing** (7 symbols): 5 algorithm primitives (`sliding_window`, `alg_simhash`,
+    `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`), 2 streaming types (`DataHasher`,
+    `InstanceHasher`)
 - **Missing**: No conformance tests against `data.json`
 - **Missing**: No dedicated `ruby` CI job (workspace Rust job uses `--exclude iscc-rb`)
 - **Missing**: No RubyGems step in `release.yml`
@@ -169,8 +168,8 @@ now marked `low` priority (CID loop skips them); the Ruby issue remains `normal`
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22639088838: all 11 jobs SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22639088838
+- **ALL PASSING** — latest CI run 22640865894: all 11 jobs SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22640865894
 - `release.yml` has `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven,
     FFI) ✅
 - `iscc-rb` excluded from workspace Rust CI job (`--exclude iscc-rb`) — no dedicated Ruby CI job
@@ -179,14 +178,13 @@ now marked `low` priority (CID loop skips them); the Ruby issue remains `normal`
 
 ## Next Milestone
 
-Continue advancing the Ruby bindings toward 32/32 symbols. Suggested next work package:
+Continue advancing the Ruby bindings toward 32/32 symbols. All 10 gen functions are now complete.
+Suggested next work package:
 
-1. **`gen_instance_code_v0`** — byte-slice based gen function; add `InstanceCodeResult` result class
-2. **`gen_iscc_code_v0`** — multi-code aggregation; add `IsccCodeResult` result class
-3. **`gen_sum_code_v0`** — path-based I/O; add `SumCodeResult` result class
-4. **Algorithm primitives** — `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
-    `soft_hash_video_v0`
-5. **Streaming types** — `DataHasher` and `InstanceHasher` with `push`/`finalize` interface
+1. **Algorithm primitives** (5 symbols) — `sliding_window`, `alg_simhash`, `alg_minhash_256`,
+    `alg_cdc_chunks`, `soft_hash_video_v0`
+2. **Streaming types** (2 symbols) — `DataHasher` and `InstanceHasher` with `push`/`finalize`
+    interface
 
 After all 32 symbols: add conformance tests against `data.json`, Standard Ruby linting, Ruby CI job,
 RubyGems release step, version_sync, and documentation.

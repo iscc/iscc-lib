@@ -30,7 +30,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Codebase Landmarks
 
 - `crates/` — 7 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni, **iscc-rb**
-    (22/32 symbols)
+    (25/32 symbols)
 - `.claude/context/specs/` — per-binding spec files (ruby, go, java, nodejs, wasm, cpp, dotnet,
     swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
@@ -62,20 +62,20 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 78f4e04)
+## Current State (assessed-at: f322e55)
 
-- **IN_PROGRESS**: all 11 CI jobs green (run 22639088838); Ruby bindings at 22/32 symbols
+- **IN_PROGRESS**: all 11 CI jobs green (run 22640865894); Ruby bindings at 25/32 symbols
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
-- **Ruby bindings**: PARTIALLY MET — 22/32 symbols, 31 smoke tests pass
-    - 7 gen (meta, text, image, audio, video, mixed, data), 4 text, 6 codec/diagnostic, 5 constants
-    - Missing 10: 3 gen functions (instance, iscc, sum), 5 algo primitives (sliding_window,
-        alg_simhash, alg_minhash_256, alg_cdc_chunks, soft_hash_video_v0), 2 streaming types
+- **Ruby bindings**: PARTIALLY MET — 25/32 symbols, 37 smoke tests pass
+    - ALL 10 gen functions exposed ✅; 4 text, 6 codec/diagnostic, 5 constants
+    - Missing 7: 5 algo primitives (sliding_window, alg_simhash, alg_minhash_256, alg_cdc_chunks,
+        soft_hash_video_v0), 2 streaming types (DataHasher, InstanceHasher)
     - Missing: conformance tests, Standard Ruby linting, Ruby CI job, RubyGems release, version_sync,
         docs/howto/ruby.md
     - **CORRECTION**: `alg_simhash_from_iscc` does NOT exist in the Rust core API — the 5 missing algo
         primitives are sliding_window, alg_simhash, alg_minhash_256, alg_cdc_chunks,
         soft_hash_video_v0 (NOT alg_simhash_from_iscc)
-- **CI (run 22639088838)**: ALL SUCCESS — 11 jobs (no Ruby job yet; iscc-rb excluded from Rust job)
+- **CI (run 22640865894)**: ALL SUCCESS — 11 jobs (no Ruby job yet; iscc-rb excluded from Rust job)
 - **Ruby CI exclusion**: `--exclude iscc-rb` on both clippy and cargo test in Rust CI job
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **extconf.rb location**: crate root (not `ext/iscc_lib/`); rb_sys expects it next to Cargo.toml
