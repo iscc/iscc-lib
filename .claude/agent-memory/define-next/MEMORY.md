@@ -65,6 +65,11 @@ iterations.
 
 - v0.1.0 released to all registries
 - Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
+- `iscc-rb` requires `libclang-dev` + Ruby headers to compile — cannot remove `--exclude iscc-rb`
+    from Rust CI job without adding those deps. Cleaner to run clippy in the dedicated Ruby job
+- `ruby/setup-ruby@v1` supports `working-directory` input for bundler cache (Gemfile location)
+- Ruby CI pattern: checkout → rust toolchain (with clippy) → rust-cache → apt libclang-dev →
+    setup-ruby → clippy → rake compile → rake test
 
 ## Gotchas
 
@@ -99,10 +104,12 @@ iterations.
 
 ## Ruby Bindings — Infrastructure Remaining
 
-All 32/32 Tier 1 symbols complete. Remaining infrastructure (in recommended order):
+All 32/32 Tier 1 symbols + conformance tests complete (111 tests, 295 assertions). Remaining
+infrastructure (in recommended order):
 
-1. **Conformance tests** — `test/test_conformance.rb` against data.json (iter 11)
-2. **Ruby CI job** — add to `ci.yml`, remove `--exclude iscc-rb` from Rust job
+1. ~~**Conformance tests**~~ — done (iter 11, 50 vectors)
+2. **Ruby CI job** — add to `ci.yml` (iter 12). Do NOT remove `--exclude iscc-rb` from the Rust job
+    — iscc-rb needs Ruby headers + libclang-dev to compile. Run clippy in the Ruby job instead.
 3. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into Rakefile and CI
 4. **Version sync** — add gemspec to `scripts/version_sync.py`
 5. **RubyGems release** — add `rubygems` checkbox to `release.yml`
@@ -146,5 +153,6 @@ Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include
 - Ruby gen batch 3 done (iter 8): instance/iscc/sum → 25/32
 - Ruby algo primitives done (iter 9): sliding_window/simhash/minhash/cdc/video → 30/32
 - Ruby streaming types done (iter 10): DataHasher/InstanceHasher → 32/32
-- Current: Ruby conformance tests (iter 11): test_conformance.rb against data.json
-- After conformance: CI job, linting, version sync, release pipeline, docs (multiple future steps)
+- Ruby conformance tests done (iter 11): 50 vectors, 111 tests total
+- Current (iter 12): Ruby CI job in ci.yml
+- After CI: linting, version sync, release pipeline, docs (multiple future steps)

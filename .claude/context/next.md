@@ -1,111 +1,77 @@
 # Next Work Package
 
-## Step: Add Ruby conformance tests against data.json
+## Step: Add Ruby CI job to ci.yml
 
 ## Goal
 
-Add conformance tests that verify all 9 gen\_\*\_v0 functions in the Ruby binding produce output
-matching the official `data.json` test vectors (50 vectors across 9 function sections). This proves
-correctness of the entire Ruby binding surface before adding CI and release infrastructure.
+Add a dedicated Ruby CI job to `.github/workflows/ci.yml` that compiles and tests the `iscc-rb`
+crate on every push, and runs clippy on the Ruby bridge crate. This enables automated verification
+of all 111 Ruby tests (including 50 conformance vectors) on every push — currently Ruby is excluded
+from CI entirely.
 
 ## Scope
 
-- **Create**: `crates/iscc-rb/test/test_conformance.rb`
-- **Modify**: (none)
+- **Create**: (none)
+- **Modify**: `.github/workflows/ci.yml`
 - **Reference**:
-    - `tests/test_conformance.py` — Python conformance tests (pattern to mirror)
-    - `crates/iscc-rb/test/test_smoke.rb` — existing Ruby test patterns
-    - `crates/iscc-rb/test/test_helper.rb` — test setup
-    - `crates/iscc-rb/lib/iscc_lib.rb` — Ruby API surface (keyword args, result classes)
-    - `crates/iscc-lib/tests/data.json` — conformance vectors (50 total, 9 function sections)
+    - `crates/iscc-rb/Rakefile` — build/test task definitions
+    - `crates/iscc-rb/Gemfile` — Ruby dependencies
+    - `crates/iscc-rb/extconf.rb` — extension config (uses `rb_sys`)
+    - `crates/iscc-rb/iscc-lib.gemspec` — `required_ruby_version: ">= 3.1.0"`
+    - `.github/workflows/ci.yml` — existing CI structure (follow patterns from java/nodejs jobs)
 
 ## Not In Scope
 
-- Adding a Ruby CI job to `ci.yml` — that's a separate infrastructure step
-- Standard Ruby linting (`standard` gem) — separate step
-- RubyGems publish step in `release.yml` — separate step
-- `version_sync.py` gemspec update — separate step
-- `docs/howto/ruby.md` or README updates — separate step
-- Testing `gen_sum_code_v0` — not in data.json (only 9 of 10 gen functions have vectors)
-- Streaming type conformance — the existing `test_iscc_lib.rb` already verifies DataHasher and
-    InstanceHasher produce results matching one-shot calls
+- **Do NOT remove `--exclude iscc-rb` from the Rust job** — the Rust job lacks Ruby headers and
+    libclang-dev. Clippy for iscc-rb runs in the new Ruby job instead. This mirrors how the Java job
+    doesn't rely on the Rust job for JNI-specific checks.
+- Do NOT add Standard Ruby linting (`standard` gem) — that's a separate step
+- Do NOT modify `release.yml` — RubyGems publish is a separate step
+- Do NOT modify `version_sync.py` — gemspec sync is a separate step
+- Do NOT write `docs/howto/ruby.md` — documentation is a separate step
 
 ## Implementation Notes
 
-**Pattern**: Mirror `tests/test_conformance.py` structure using Ruby/Minitest idioms.
+Add a new `ruby` job to `ci.yml` following the pattern of existing jobs (checkout → toolchain →
+cache → build → test). Place it after the `go` job and before the `bench` job. The job structure:
 
-**File structure**:
+1. **`actions/checkout@v4`**
+2. **`dtolnay/rust-toolchain@stable`** with `components: clippy` — needed for both Rust compilation
+    and clippy linting
+3. **`Swatinem/rust-cache@v2`** — cache Rust compilation artifacts
+4. **Install `libclang-dev`** — required by rb-sys/bindgen at compile time. Use
+    `sudo apt-get update && sudo apt-get install -y libclang-dev`.
+5. **`ruby/setup-ruby@v1`** with `ruby-version: '3.1'` and `working-directory: crates/iscc-rb`. Use
+    `bundler-cache: true` to auto-install gems from the Gemfile.
+6. **Clippy**: `cargo clippy -p iscc-rb -- -D warnings` — lint the bridge crate
+7. **Compile**: `bundle exec rake compile` with `working-directory: crates/iscc-rb`
+8. **Test**: `bundle exec rake test` with `working-directory: crates/iscc-rb`
 
-```ruby
-require "test_helper"
-require "json"
+Name the job key `ruby` with display name `Ruby (magnus build, test)`.
 
-class TestConformance < Minitest::Test
-  # Load data.json once, generate test methods dynamically
-end
-```
+**`ruby/setup-ruby` working-directory**: The action supports a `working-directory` input parameter
+for bundler operations (finding Gemfile). Set it as an action `with:` parameter, not a step-level
+`working-directory`.
 
-**Vector loading**: Load `data.json` from `../../iscc-lib/tests/data.json` relative to the test
-directory. Use `File.expand_path` for robust path resolution. Parse with `JSON.parse`.
+**Clippy step placement**: Run clippy BEFORE `rake compile` because clippy catches issues faster
+than a full build+test cycle. Clippy will compile the crate as a side effect (populating the cargo
+cache), which `rake compile` then benefits from.
 
-**Dynamic test generation**: Use `define_method("test_gen_xxx_v0_#{vector_name}")` in a class-level
-loop over each function section's vectors. This gives individual test names in output (like pytest
-parametrize).
-
-**Input decoding helpers** (match Python patterns exactly):
-
-1. `prepare_meta_arg(meta_val)` — handle `nil`, `String`, and `Hash` (dict) inputs. For Hash, use
-    `JSON.generate(meta_val)` with sorted keys to produce JCS-compatible JSON string.
-2. `decode_stream(stream_str)` — strip `"stream:"` prefix, hex-decode remainder with
-    `[hex].pack("H*")`. Return empty binary string (`"".b`) for empty hex.
-
-**Per-function input mapping** (from data.json `inputs` array to Ruby keyword args):
-
-| Function             | inputs[0]                       | inputs[1]               | inputs[2]              | inputs[3]      | Ruby call                                                                  |
-| -------------------- | ------------------------------- | ----------------------- | ---------------------- | -------------- | -------------------------------------------------------------------------- |
-| gen_meta_code_v0     | name (String)                   | description (String/"") | meta (nil/String/Hash) | bits (Integer) | `gen_meta_code_v0(name, description: desc_or_nil, meta: meta, bits: bits)` |
-| gen_text_code_v0     | text (String)                   | bits (Integer)          | —                      | —              | `gen_text_code_v0(text, bits: bits)`                                       |
-| gen_image_code_v0    | pixels (Array<int>)             | bits (Integer)          | —                      | —              | `gen_image_code_v0(pixels.pack("C*"), bits: bits)`                         |
-| gen_audio_code_v0    | cv (Array<int>)                 | bits (Integer)          | —                      | —              | `gen_audio_code_v0(cv, bits: bits)`                                        |
-| gen_video_code_v0    | frame_sigs (Array\<Array<int>>) | bits (Integer)          | —                      | —              | `gen_video_code_v0(frame_sigs, bits: bits)`                                |
-| gen_mixed_code_v0    | codes (Array<String>)           | bits (Integer)          | —                      | —              | `gen_mixed_code_v0(codes, bits: bits)`                                     |
-| gen_data_code_v0     | stream (String)                 | bits (Integer)          | —                      | —              | `gen_data_code_v0(decode_stream(stream), bits: bits)`                      |
-| gen_instance_code_v0 | stream (String)                 | bits (Integer)          | —                      | —              | `gen_instance_code_v0(decode_stream(stream), bits: bits)`                  |
-| gen_iscc_code_v0     | codes (Array<String>)           | —                       | —                      | —              | `gen_iscc_code_v0(codes)`                                                  |
-
-**Key edge cases**:
-
-- `gen_meta_code_v0`: empty description string `""` in data.json → pass `nil` to Ruby (matching
-    Python's `description or None` pattern)
-- `gen_image_code_v0`: pixel array in JSON is `Array<Integer>` (0-255) → pack to binary string with
-    `.pack("C*")` (unsigned bytes)
-- `gen_iscc_code_v0`: no `bits` parameter, no `wide` parameter in vectors — call with just `codes`
-    (default `wide: false`)
-- Optional output fields (`description`, `meta` in meta results; `parts` in mixed results) — assert
-    presence/absence matches expected outputs
-
-**Output assertions** (per function):
-
-- **meta**: `iscc`, `name`, `metahash` (always); `description`, `meta` (conditional on outputs)
-- **text**: `iscc`, `characters`
-- **image/audio/video**: `iscc` only
-- **mixed**: `iscc`, `parts`
-- **data**: `iscc` only
-- **instance**: `iscc`, `datahash`, `filesize`
-- **iscc**: `iscc` only
-
-**Expected test count**: 50 vectors across 9 functions = 50 dynamically generated test methods, plus
-the existing 61 tests = ~111 total tests.
+**No `shell: bash` needed**: This job only runs on `ubuntu-latest` (no Windows matrix), so default
+shell is fine.
 
 ## Verification
 
-- `cd crates/iscc-rb && bundle exec rake test` passes with 0 failures, 0 errors
-- Test output shows `test_gen_meta_code_v0_test_0001` style names (dynamically generated)
-- Total test count ≥ 100 (existing 61 + ~50 conformance vectors)
-- `grep -c "define_method" crates/iscc-rb/test/test_conformance.rb` returns 9 (one per function)
-- `mise run check` passes (formatting/linting clean)
+- `grep -c 'name: Ruby' .github/workflows/ci.yml` returns 1 (new job exists)
+- `grep 'cargo clippy -p iscc-rb' .github/workflows/ci.yml` finds the clippy step
+- `grep 'bundle exec rake test' .github/workflows/ci.yml` finds the test step
+- `grep 'libclang-dev' .github/workflows/ci.yml` finds the dependency install step
+- `grep 'exclude iscc-rb' .github/workflows/ci.yml` still finds 2 occurrences (Rust job keeps its
+    excludes — this is intentional)
+- YAML is valid: `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` exits 0
+- `mise run check` passes (pre-commit hooks validate YAML/formatting)
 
 ## Done When
 
-All verification criteria pass — `bundle exec rake test` runs the conformance test file with all 50
-data.json vectors passing alongside existing smoke/streaming tests.
+All verification criteria pass — the Ruby CI job is defined in ci.yml with clippy, compile, and test
+steps, and the file passes YAML validation and formatting checks.
