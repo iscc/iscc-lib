@@ -1,38 +1,36 @@
-## 2026-03-03 — Adapt conformance_selftest to skip disabled features
+## 2026-03-03 — Review of: Adapt conformance_selftest to skip disabled features
 
-**Done:** Made `conformance_selftest()` always available regardless of feature flags. Removed
-`#[cfg(feature = "meta-code")]` gates from the `pub mod conformance` declaration and
-`pub use conformance::conformance_selftest` re-export in `lib.rs`. In `conformance.rs`, gated
-`run_meta_tests` behind `meta-code`, `run_text_tests` behind `text-processing`, and wrapped their
-calls in the `conformance_selftest()` body with corresponding `#[cfg]` blocks. Updated module and
-function docstrings to reflect skip-not-fail behavior.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/src/lib.rs`: removed `#[cfg(feature = "meta-code")]` from conformance module
-    declaration (line 9) and `conformance_selftest` re-export (line 22)
-- `crates/iscc-lib/src/conformance.rs`: gated `gen_meta_code_v0` import behind `meta-code`,
-    `gen_text_code_v0` import behind `text-processing`; gated `run_meta_tests` and `run_text_tests`
-    functions behind their respective features; wrapped calls in `conformance_selftest()` body with
-    `#[cfg]` blocks; updated module docstring and function docstring
+**Summary:** The advance agent correctly made `conformance_selftest()` always available regardless
+of feature flags by removing the module-level `#[cfg(feature = "meta-code")]` gates from `lib.rs`
+and adding granular `#[cfg]` gates on the individual `run_meta_tests`/`run_text_tests` functions and
+their imports/calls in `conformance.rs`. The implementation is minimal, correct, and cleanly scoped.
 
 **Verification:**
 
-- `cargo test -p iscc-lib` — 314 tests pass (default features, conformance test present)
-- `cargo test -p iscc-lib --no-default-features` — 250 tests pass (conformance_selftest callable,
-    runs 7 of 9 test sections, skips meta and text)
-- `cargo test -p iscc-lib --no-default-features --features text-processing` — 284 tests pass (runs 8
-    of 9 test sections, skips meta only)
-- `cargo clippy -p iscc-lib -- -D warnings` — clean (default features)
-- `cargo clippy -p iscc-lib --no-default-features -- -D warnings` — clean
-- `cargo clippy -p iscc-lib --all-features -- -D warnings` — clean
-- `mise run check` — all pre-commit hooks pass
-- `uv run prek run --stage pre-push --all-files` — all pre-push hooks pass
+- [x] `cargo test -p iscc-lib` — 314 tests pass (258 unit + 31 streaming + 24 utils + 1 doctest)
+- [x] `cargo test -p iscc-lib --no-default-features` — 250 tests pass; conformance_selftest runs 7
+    of 9 sections
+- [x] `cargo test -p iscc-lib --no-default-features --features text-processing` — 284 tests pass;
+    runs 8 of 9 sections
+- [x] `cargo clippy -p iscc-lib -- -D warnings` — clean (default features)
+- [x] `cargo clippy -p iscc-lib --no-default-features -- -D warnings` — clean
+- [x] `cargo clippy -p iscc-lib --all-features -- -D warnings` — clean
+- [x] `mise run check` — all 14 pre-commit hooks pass
+- [x] No quality gate circumvention (no `#[allow]`, `#[ignore]`, threshold changes)
 
-**Next:** Issue #16 has one remaining sub-task: add CI workflow jobs for feature matrix testing
-(`--all-features`, `--no-default-features`, and per-feature testing). This is a `.github/workflows/`
-change, not a Rust code change.
+**Issues found:**
 
-**Notes:** No surprises. The `cargo fmt` reordered the `#[cfg]`-gated imports above the main `use`
-block — this is standard rustfmt behavior (cfg-gated items sort separately). The existing
-`test_conformance_selftest_passes` test works unchanged under all feature combinations as expected.
+- (none)
+
+**Next:** Issue #16 has one remaining sub-task: add CI workflow jobs for feature matrix testing. The
+`.github/workflows/ci.yml` needs new steps (or a matrix expansion) to run
+`cargo test -p iscc-lib --no-default-features`, `cargo test -p iscc-lib --all-features`, and
+`cargo test -p iscc-lib --no-default-features --features text-processing`. This is a YAML-only
+change with no Rust code modifications. Completing this closes issue #16.
+
+**Notes:** The Codex review was run against the define-next commit (HEAD~1) and found no code issues
+(expected — that commit only changed context files). The advance commit at HEAD was independently
+verified through the 6 criteria above. The existing `test_conformance_selftest_passes` test works
+correctly across all feature combinations without modification.

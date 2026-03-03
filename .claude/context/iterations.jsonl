@@ -684,3 +684,8 @@
 {"ts":"2026-03-03T00:02:33.900160+00:00","iteration":13,"role":"update-state","status":"OK","turns":18,"cost_usd":0.522665,"duration_s":143.5}
 {"ts":"2026-03-03T00:09:49.891924+00:00","iteration":13,"role":"define-next","status":"OK","turns":32,"cost_usd":1.532192,"duration_s":436.0}
 {"ts":"2026-03-03T00:23:37.345403+00:00","iteration":13,"role":"advance","status":"OK","turns":124,"cost_usd":6.24323,"duration_s":827.4}
+{"ts":"2026-03-03T00:32:06.081498+00:00","iteration":13,"role":"review","status":"OK","turns":70,"cost_usd":2.678719,"duration_s":508.7}
+{"ts":"2026-03-03T00:55:08.721994+00:00","iteration":14,"role":"update-state","status":"OK","turns":21,"cost_usd":0.673472,"duration_s":187.6}
+{"ts":"2026-03-03T00:57:03.232314+00:00","iteration":14,"role":"define-next","status":"OK","turns":18,"cost_usd":0.627425,"duration_s":114.5}
+{"ts":"2026-03-03T01:01:58.718610+00:00","iteration":14,"role":"advance","status":"OK","turns":36,"cost_usd":0.890525,"duration_s":295.5}
+{"ts":"2026-03-03T01:10:00.000000+00:00","iteration":14,"role":"review","status":"OK","verdict":"PASS","summary":"conformance_selftest always available, skips disabled features correctly"}
