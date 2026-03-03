@@ -50,10 +50,10 @@ iterations.
     - `gen_text_code_v0` uses `text_collapse` → needs `text-processing`
     - `gen_meta_code_v0` uses `text_clean/trim/remove_newlines/collapse` + serde_json_canonicalizer →
         needs `meta-code` (which brings `text-processing`)
-    - `conformance` module calls `gen_meta_code_v0` + `gen_text_code_v0` → gated at module level
-        behind `meta-code` for now; adaptation to partial features is follow-up
-- **Incremental plan**: Step 1 = define features + gate code. Step 2 = adapt conformance_selftest to
-    skip disabled tests. Step 3 = CI workflow changes
+    - `conformance` module calls `gen_meta_code_v0` + `gen_text_code_v0` → initially gated at module
+        level behind `meta-code`; step 2 (iteration 14) adapts selftest to skip disabled sections
+- **Incremental plan**: Step 1 = define features + gate code ✅. Step 2 = adapt conformance_selftest
+    to skip disabled tests (iteration 14). Step 3 = CI workflow changes
 - **lib.rs test gating pattern**: Gate individual test functions with `#[cfg(feature)]`, NOT the
     entire `mod tests` block, because it contains tests for both gated and ungated code
 
@@ -79,6 +79,7 @@ iterations.
 
 ## Project Status
 
-- Iteration 13: Starting issue #16 (feature flags). All other work complete
+- Iteration 13: Feature flag definitions + code gating done (step 1 of #16)
+- Iteration 14: Conformance selftest adaptation (step 2 of #16)
 - 1 open issue: #16 (feature flags, normal priority)
 - v0.0.4 released to all registries
