@@ -125,7 +125,9 @@ complexity:
 - Issue #16 fully resolved (iterations 13-15)
 - v0.1.0 released to all registries
 - WASM CI regression resolved (iter 2)
-- 2 open issues: Ruby bindings (normal, multi-iteration), README logos (low)
+- 6 open issues: Ruby bindings (normal), C# (low), C++ (low), Swift (low), Kotlin (low), README
+    logos (low)
 - Ruby scaffold complete (iter 3): 10/32 symbols
 - Ruby codec/encoding/diagnostic done (iter 4): 16/32 symbols
-- Current: Ruby gen functions batch 1 (iter 5): text/image/audio → 19/32
+- Ruby gen batch 1 done (iter 5): text/image/audio → 19/32
+- Current: Ruby gen batch 2 (iter 6): video/mixed/data → 22/32

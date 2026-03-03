@@ -1,120 +1,154 @@
 # Next Work Package
 
-## Step: Add gen_text/image/audio_code_v0 to Ruby bridge
+## Step: Add gen_video/mixed/data_code_v0 to Ruby bridge
 
 ## Goal
 
-Add the first batch of 3 gen functions (`gen_text_code_v0`, `gen_image_code_v0`,
-`gen_audio_code_v0`) to the Ruby Magnus bridge, advancing from 16/32 to 19/32 Tier 1 symbols. These
-three share the simplest parameter/return patterns among the gen functions and establish the Result
-class template for the remaining 6.
+Expose `gen_video_code_v0`, `gen_mixed_code_v0`, and `gen_data_code_v0` in the Ruby Magnus bridge,
+advancing from 19/32 to 22/32 Tier 1 symbols. These three functions have more complex parameter
+types than the previous batch (nested arrays, string arrays, binary data).
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
     - `crates/iscc-rb/src/lib.rs` — add 3 bridge functions + register in `init()`
-    - `crates/iscc-rb/lib/iscc_lib.rb` — add 3 Result classes + 3 Ruby wrapper methods
+    - `crates/iscc-rb/lib/iscc_lib.rb` — add `VideoCodeResult`, `MixedCodeResult`, `DataCodeResult`
+        classes + keyword-arg wrappers
     - `crates/iscc-rb/test/test_smoke.rb` — add smoke tests for the 3 new functions
 - **Reference**:
-    - `crates/iscc-py/src/lib.rs` lines 130-169 — PyO3 equivalents (pattern to follow)
-    - `crates/iscc-lib/src/types.rs` — return type structs (`TextCodeResult`, `ImageCodeResult`,
-        `AudioCodeResult`)
-    - `crates/iscc-lib/src/lib.rs` — core function signatures
+    - `crates/iscc-py/src/lib.rs` — Python bridge patterns for the same 3 functions
+    - `crates/iscc-lib/src/types.rs` — result struct fields
+    - `crates/iscc-lib/src/lib.rs` — Rust core API signatures
 
 ## Not In Scope
 
-- The remaining 6 gen functions (`gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
-    `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`) — separate steps
-- Algorithm primitives (`sliding_window`, `alg_simhash`, etc.) — later batch
-- Streaming types (`DataHasher`, `InstanceHasher`) — later batch
+- `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0` — next batch after this one
+- Algorithm primitives (`sliding_window`, `alg_simhash`, etc.) — future step
+- Streaming types (`DataHasher`, `InstanceHasher`) — future step
 - Conformance tests against `data.json` — separate step after all 32 symbols are exposed
-- Standard Ruby linting configuration — separate step
-- Ruby CI job or RubyGems release workflow — separate step
+- Ruby CI job, RubyGems release workflow, or documentation — later steps
+- Refactoring existing bridge functions or result class hierarchy
 
 ## Implementation Notes
 
-### Rust bridge functions (lib.rs)
+### `gen_video_code_v0` — nested array conversion (trickiest)
 
-Follow the exact pattern of existing `gen_meta_code_v0`. Each function:
+The Rust core signature is `gen_video_code_v0<S: AsRef<[i32]> + Ord>(frame_sigs: &[S], bits: u32)`.
+From Ruby, this comes as `Array<Array<Integer>>`.
 
-1. Takes positional parameters matching the core API
-2. Calls the `iscc_lib::gen_*_v0` function, mapping errors via `to_magnus_err`
-3. Builds an `RHash` with string keys matching the Python dict keys
-4. Returns `Result<RHash, Error>`
+Magnus does NOT auto-convert nested arrays of integers. The bridge function must:
 
-**`gen_text_code_v0(text: String, bits: u32)`**:
+1. Accept `RArray` (the outer array)
+2. Iterate over elements, converting each to `Vec<i32>` (Magnus can convert inner arrays)
+3. Build `Vec<Vec<i32>>` and pass as `&[Vec<i32>]` to the core function
 
-- Core returns `TextCodeResult { iscc: String, characters: usize }`
-- Hash keys: `"iscc"`, `"characters"`
-
-**`gen_image_code_v0(pixels: RString, bits: u32)`**:
-
-- Use `RString` for binary data (same pattern as `encode_base64`): `unsafe { pixels.as_slice() }`
-- Core returns `ImageCodeResult { iscc: String }`
-- Hash key: `"iscc"`
-
-**`gen_audio_code_v0(cv: Vec<i32>, bits: u32)`**:
-
-- Magnus can convert Ruby Array of integers to `Vec<i32>` automatically
-- Core returns `AudioCodeResult { iscc: String }`
-- Hash key: `"iscc"`
-
-Register all three with `_` prefix in `init()`:
+Pattern (similar to Python's `extract_frame_sigs`):
 
 ```rust
-module.define_module_function("_gen_text_code_v0", function!(gen_text_code_v0, 2))?;
-module.define_module_function("_gen_image_code_v0", function!(gen_image_code_v0, 2))?;
-module.define_module_function("_gen_audio_code_v0", function!(gen_audio_code_v0, 2))?;
+fn gen_video_code_v0(frame_sigs: RArray, bits: u32) -> Result<RHash, Error> {
+    let frames: Vec<Vec<i32>> = frame_sigs
+        .each()
+        .map(|frame| {
+            let arr: Vec<i32> = frame?.try_convert()?;
+            Ok(arr)
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    let r = iscc_lib::gen_video_code_v0(&frames, bits).map_err(to_magnus_err)?;
+    // ...build hash...
+}
 ```
 
-Update the module docstring symbol count: "16 of 32" → "19 of 32", and add these three to the symbol
-list.
+Return type: `VideoCodeResult { iscc: String }` — simple hash with one key.
 
-### Ruby wrapper (lib/iscc_lib.rb)
+### `gen_mixed_code_v0` — string array
 
-Add three Result subclasses and three wrapper methods:
+Signature: `gen_mixed_code_v0(codes: &[&str], bits: u32)`. From Ruby: `Array<String>`.
+
+Magnus auto-converts `Vec<String>`. Then convert to `Vec<&str>` for the core call:
+
+```rust
+fn gen_mixed_code_v0(codes: Vec<String>, bits: u32) -> Result<RHash, Error> {
+    let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
+    let r = iscc_lib::gen_mixed_code_v0(&refs, bits).map_err(to_magnus_err)?;
+    // ...build hash with iscc + parts (Array of Strings)...
+}
+```
+
+Return type: `MixedCodeResult { iscc: String, parts: Vec<String> }` — hash with `iscc` key and
+`parts` key (Ruby Array of Strings).
+
+### `gen_data_code_v0` — binary data
+
+Signature: `gen_data_code_v0(data: &[u8], bits: u32)`. From Ruby: binary `String`.
+
+Use the same `RString` + `unsafe { data.as_slice() }` pattern as `gen_image_code_v0`:
+
+```rust
+fn gen_data_code_v0(data: RString, bits: u32) -> Result<RHash, Error> {
+    let bytes = unsafe { data.as_slice() };
+    let r = iscc_lib::gen_data_code_v0(bytes, bits).map_err(to_magnus_err)?;
+    // ...build hash...
+}
+```
+
+Return type: `DataCodeResult { iscc: String }` — simple hash with one key.
+
+### Registration pattern
+
+All 3 functions use `_` prefix in the module registration (for Ruby wrapper layer):
+
+```rust
+module.define_module_function("_gen_video_code_v0", function!(gen_video_code_v0, 2))?;
+module.define_module_function("_gen_mixed_code_v0", function!(gen_mixed_code_v0, 2))?;
+module.define_module_function("_gen_data_code_v0", function!(gen_data_code_v0, 2))?;
+```
+
+### Ruby wrapper pattern
+
+Follow the existing pattern exactly — `Result < Hash` subclass + `self.` class method with keyword
+`bits:` argument:
 
 ```ruby
-class TextCodeResult < Result; end
-class ImageCodeResult < Result; end
-class AudioCodeResult < Result; end
+class VideoCodeResult < Result; end
+class MixedCodeResult < Result; end
+class DataCodeResult < Result; end
 
-def self.gen_text_code_v0(text, bits: 64)
-  TextCodeResult[_gen_text_code_v0(text, bits)]
+def self.gen_video_code_v0(frame_sigs, bits: 64)
+  VideoCodeResult[_gen_video_code_v0(frame_sigs, bits)]
 end
-
-def self.gen_image_code_v0(pixels, bits: 64)
-  ImageCodeResult[_gen_image_code_v0(pixels, bits)]
-end
-
-def self.gen_audio_code_v0(cv, bits: 64)
-  AudioCodeResult[_gen_audio_code_v0(cv, bits)]
-end
+# ...etc
 ```
 
-### Tests (test_smoke.rb)
+### Update module docstring
 
-Add tests verifying:
+Update the symbol count in `src/lib.rs` docstring from "19 of 32" to "22 of 32" and add the 3 new
+function names to the list.
 
-- `gen_text_code_v0("Hello World")` returns a Hash with `"iscc"` and `"characters"` keys
-- `gen_text_code_v0("Hello World").iscc` returns a non-empty string starting with "ISCC:"
-- `gen_text_code_v0("Hello World").characters` returns an integer > 0
-- `gen_image_code_v0` with a small pixel buffer (e.g., `"\x00" * 100`) returns Hash with `"iscc"`
-- `gen_audio_code_v0` with a short integer array returns Hash with `"iscc"`
-- All three result types respond to attribute access (`.iscc`)
-- Result types are correct subclass (`TextCodeResult`, `ImageCodeResult`, `AudioCodeResult`)
+### Smoke tests
+
+Add tests for each function following the existing pattern:
+
+- `gen_video_code_v0`: pass a small nested array like `[[1,2,3,4],[5,6,7,8]]`, verify
+    `VideoCodeResult` type and `iscc` starts with `"ISCC:"`
+- `gen_mixed_code_v0`: pass array of ISCC unit strings (e.g., from `gen_meta_code_v0` and
+    `gen_text_code_v0`), verify `MixedCodeResult` type, `iscc` starts with `"ISCC:"`, and `parts` is
+    an Array
+- `gen_data_code_v0`: pass binary string `("Hello World" * 100).b`, verify `DataCodeResult` type and
+    `iscc` starts with `"ISCC:"`
+- Test attribute access (`.iscc`, `.parts`) on each result type
 
 ## Verification
 
 - `cargo check -p iscc-rb` compiles successfully
 - `cargo clippy -p iscc-rb -- -D warnings` clean (0 warnings)
 - `bundle exec rake compile` builds native extension (run from `crates/iscc-rb/`)
-- `bundle exec rake test` passes all tests with 0 failures (run from `crates/iscc-rb/`)
-- `bundle exec ruby -e "require 'iscc_lib'; r = IsccLib.gen_text_code_v0('Hello World'); puts r.iscc"`
-    prints an ISCC string starting with "ISCC:"
+- `bundle exec rake test` passes with 0 failures, 0 errors (run from `crates/iscc-rb/`)
+- `bundle exec ruby -e "require 'iscc_lib'; r = IsccLib.gen_video_code_v0([[1,2,3],[4,5,6]]); puts r.iscc"`
+    prints an ISCC string starting with `ISCC:`
+- `bundle exec ruby -e "require 'iscc_lib'; r = IsccLib.gen_data_code_v0(('x' * 1000).b); puts r.iscc"`
+    prints an ISCC string starting with `ISCC:`
 
 ## Done When
 
-All five verification commands pass — the three new gen functions are callable from Ruby with
-keyword arguments and typed Result objects.
+All 6 verification criteria pass and the Ruby bridge exposes 22 of 32 Tier 1 symbols.
