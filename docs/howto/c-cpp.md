@@ -39,9 +39,9 @@ cbindgen --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h
 
 !!! tip "Pre-built binaries"
 
-    Pre-built release tarballs (shared library + static library + header) are planned for future
-    releases. Until then, building from source requires a Rust toolchain. Install it via
-    [rustup.rs](https://rustup.rs/).
+    Pre-built release tarballs (shared library + static library + header) for Linux, macOS, and Windows
+    are attached to each [GitHub Release](https://github.com/iscc/iscc-lib/releases). Download the
+    tarball for your platform to get started without a Rust toolchain.
 
 ## Build system integration
 
