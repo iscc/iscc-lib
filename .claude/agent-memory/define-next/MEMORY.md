@@ -97,11 +97,17 @@ iterations.
 - New binding crate scaffold: many files to CREATE but only root Cargo.toml to MODIFY (well within
     3-file limit since creates don't count)
 
-## Ruby Bindings — Symbol Implementation Plan
+## Ruby Bindings — Infrastructure Remaining
 
-All module functions complete (30/32). Final step:
+All 32/32 Tier 1 symbols complete. Remaining infrastructure (in recommended order):
 
-- **Streaming types** (2 types): `DataHasher`, `InstanceHasher` — iter 10 (current)
+1. **Conformance tests** — `test/test_conformance.rb` against data.json (iter 11)
+2. **Ruby CI job** — add to `ci.yml`, remove `--exclude iscc-rb` from Rust job
+3. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into Rakefile and CI
+4. **Version sync** — add gemspec to `scripts/version_sync.py`
+5. **RubyGems release** — add `rubygems` checkbox to `release.yml`
+6. **Documentation** — `docs/howto/ruby.md`, expand `crates/iscc-rb/README.md`, add Ruby to root
+    README
 
 Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it.
 
@@ -139,5 +145,6 @@ Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include
 - Ruby gen batch 2 done (iter 6): video/mixed/data → 22/32
 - Ruby gen batch 3 done (iter 8): instance/iscc/sum → 25/32
 - Ruby algo primitives done (iter 9): sliding_window/simhash/minhash/cdc/video → 30/32
-- Current: Ruby streaming types (iter 10): DataHasher/InstanceHasher → 32/32
-- After 32/32: conformance tests, CI job, release pipeline, docs, linting (multiple future steps)
+- Ruby streaming types done (iter 10): DataHasher/InstanceHasher → 32/32
+- Current: Ruby conformance tests (iter 11): test_conformance.rb against data.json
+- After conformance: CI job, linting, version sync, release pipeline, docs (multiple future steps)

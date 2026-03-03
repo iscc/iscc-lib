@@ -1,155 +1,111 @@
 # Next Work Package
 
-## Step: Add DataHasher and InstanceHasher streaming types to Ruby bridge
+## Step: Add Ruby conformance tests against data.json
 
 ## Goal
 
-Expose the final 2 of 32 Tier 1 symbols — `DataHasher` and `InstanceHasher` streaming types — in the
-Ruby Magnus bridge, completing the Ruby binding's full symbol surface. These are **class-based**
-(not module functions), requiring a different Magnus pattern from all 30 prior symbols.
+Add conformance tests that verify all 9 gen\_\*\_v0 functions in the Ruby binding produce output
+matching the official `data.json` test vectors (50 vectors across 9 function sections). This proves
+correctness of the entire Ruby binding surface before adding CI and release infrastructure.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `crates/iscc-rb/src/lib.rs` — add `RbDataHasher` and `RbInstanceHasher` struct definitions with
-        `new`, `update`, `finalize` methods; register as classes under `IsccLib` in `init()`; update
-        docstring symbol count from 30→32
-    - `crates/iscc-rb/lib/iscc_lib.rb` — add Ruby wrapper classes for `DataHasher` and
-        `InstanceHasher` that delegate to Rust and provide `bits: 64` default, wrapping finalize
-        return in `DataCodeResult` / `InstanceCodeResult`
-    - `crates/iscc-rb/test/test_iscc_lib.rb` — add streaming type tests (test file, excluded from
-        3-file limit)
+- **Create**: `crates/iscc-rb/test/test_conformance.rb`
+- **Modify**: (none)
 - **Reference**:
-    - `crates/iscc-lib/src/streaming.rs` — Rust core `DataHasher` / `InstanceHasher` API
-    - `crates/iscc-py/src/lib.rs` — Python `PyDataHasher` / `PyInstanceHasher` pattern
-        (`Option<inner>`, one-shot finalize, dict return)
-    - `crates/iscc-napi/src/lib.rs` — Node.js pattern (for comparison)
+    - `tests/test_conformance.py` — Python conformance tests (pattern to mirror)
+    - `crates/iscc-rb/test/test_smoke.rb` — existing Ruby test patterns
+    - `crates/iscc-rb/test/test_helper.rb` — test setup
+    - `crates/iscc-rb/lib/iscc_lib.rb` — Ruby API surface (keyword args, result classes)
+    - `crates/iscc-lib/tests/data.json` — conformance vectors (50 total, 9 function sections)
 
 ## Not In Scope
 
-- Conformance tests against `data.json` (separate future step)
-- Ruby CI job in `ci.yml` (separate future step)
-- RubyGems publishing in `release.yml` (separate future step)
-- `version_sync.py` update for gemspec (separate future step)
-- `docs/howto/ruby.md` guide (separate future step)
-- Full `iscc-rb/README.md` content (separate future step)
-- Ruby linting with `standard` gem (separate future step)
-- Any changes to other binding crates
-- Renaming `update` to `push` or any other Ruby-specific method aliasing
+- Adding a Ruby CI job to `ci.yml` — that's a separate infrastructure step
+- Standard Ruby linting (`standard` gem) — separate step
+- RubyGems publish step in `release.yml` — separate step
+- `version_sync.py` gemspec update — separate step
+- `docs/howto/ruby.md` or README updates — separate step
+- Testing `gen_sum_code_v0` — not in data.json (only 9 of 10 gen functions have vectors)
+- Streaming type conformance — the existing `test_iscc_lib.rb` already verifies DataHasher and
+    InstanceHasher produce results matching one-shot calls
 
 ## Implementation Notes
 
-### Magnus class pattern (NEW — first time in this bridge)
+**Pattern**: Mirror `tests/test_conformance.py` structure using Ruby/Minitest idioms.
 
-All 30 prior symbols used `define_module_function` (stateless functions on the `IsccLib` module).
-Streaming types need `define_class` + `define_method` (stateful class instances).
-
-**Struct definition** — use `#[magnus::wrap(class = "IsccLib::DataHasher")]`:
-
-```rust
-use std::cell::RefCell;
-
-#[magnus::wrap(class = "IsccLib::DataHasher")]
-struct RbDataHasher {
-    inner: RefCell<Option<iscc_lib::DataHasher>>,
-}
-```
-
-**Interior mutability** — Magnus instance methods take `&self` (not `&mut self`), so use
-`RefCell<Option<inner>>` for one-shot finalize semantics. `Option` allows `take()` on finalize so
-the hasher can only be consumed once.
-
-**Method registration in `init()`:**
-
-```rust
-let data_hasher = module.define_class("DataHasher", ruby.class_object())?;
-data_hasher.define_singleton_method("new", function!(RbDataHasher::rb_new, 0))?;
-data_hasher.define_method("update", method!(RbDataHasher::update, 1))?;
-data_hasher.define_method("finalize", method!(RbDataHasher::finalize, 1))?;
-```
-
-Note: use `method!` (not `function!`) for instance methods. `function!` is for module/class-level
-functions (no `self`). `method!` passes `&self` as first argument.
-
-### Return types from `finalize`
-
-- `DataHasher#finalize(bits)` → returns `RHash` with key `"iscc"` (String)
-- `InstanceHasher#finalize(bits)` → returns `RHash` with keys `"iscc"` (String), `"datahash"`
-    (String), `"filesize"` (Integer)
-
-This matches the Python pattern (returns dict). The existing `DataCodeResult` and
-`InstanceCodeResult` classes in `iscc_lib.rb` wrap these hashes.
-
-### Ruby wrapper layer
-
-Add Ruby wrapper classes in `iscc_lib.rb` that:
-
-1. Delegate to the Rust class (registered with `_` prefix as `_DataHasher` / `_InstanceHasher`)
-2. Provide `bits: 64` default for `finalize`
-3. Wrap the `finalize` return hash in `DataCodeResult` / `InstanceCodeResult`
-4. Return `self` from `update` to enable method chaining
-
-This follows the same two-layer pattern as gen functions: Rust does the work (prefixed), Ruby wraps
-with defaults and result classes.
+**File structure**:
 
 ```ruby
-class DataHasher
-  def initialize
-    @inner = _DataHasher.new
-  end
+require "test_helper"
+require "json"
 
-  def update(data)
-    @inner.update(data)
-    self
-  end
-
-  def finalize(bits: 64)
-    DataCodeResult[@inner.finalize(bits)]
-  end
+class TestConformance < Minitest::Test
+  # Load data.json once, generate test methods dynamically
 end
 ```
 
-Alternatively, if using `#[magnus::wrap]` the Rust struct IS the Ruby object and wrapping becomes
-trickier. The advance agent should choose the simpler approach — either:
+**Vector loading**: Load `data.json` from `../../iscc-lib/tests/data.json` relative to the test
+directory. Use `File.expand_path` for robust path resolution. Parse with `JSON.parse`.
 
-- (A) Register Rust class as `_DataHasher` (prefixed), Ruby `DataHasher` wraps it
-- (B) Register Rust class as `DataHasher` directly, have `finalize` take the bits arg, handle
-    defaults and result wrapping in Rust
+**Dynamic test generation**: Use `define_method("test_gen_xxx_v0_#{vector_name}")` in a class-level
+loop over each function section's vectors. This gives individual test names in output (like pytest
+parametrize).
 
-Option (A) is consistent with the gen function pattern. Option (B) is simpler code. The advance
-agent should pick whichever results in cleaner code.
+**Input decoding helpers** (match Python patterns exactly):
 
-### Error handling
+1. `prepare_meta_arg(meta_val)` — handle `nil`, `String`, and `Hash` (dict) inputs. For Hash, use
+    `JSON.generate(meta_val)` with sorted keys to produce JCS-compatible JSON string.
+2. `decode_stream(stream_str)` — strip `"stream:"` prefix, hex-decode remainder with
+    `[hex].pack("H*")`. Return empty binary string (`"".b`) for empty hex.
 
-- `update` after `finalize` → `RuntimeError: DataHasher already finalized` (match Python message)
-- `finalize` after `finalize` → `RuntimeError: DataHasher already finalized`
-- Invalid `bits` → propagate Rust core error via `to_magnus_err`
+**Per-function input mapping** (from data.json `inputs` array to Ruby keyword args):
 
-### Tests to add
+| Function             | inputs[0]                       | inputs[1]               | inputs[2]              | inputs[3]      | Ruby call                                                                  |
+| -------------------- | ------------------------------- | ----------------------- | ---------------------- | -------------- | -------------------------------------------------------------------------- |
+| gen_meta_code_v0     | name (String)                   | description (String/"") | meta (nil/String/Hash) | bits (Integer) | `gen_meta_code_v0(name, description: desc_or_nil, meta: meta, bits: bits)` |
+| gen_text_code_v0     | text (String)                   | bits (Integer)          | —                      | —              | `gen_text_code_v0(text, bits: bits)`                                       |
+| gen_image_code_v0    | pixels (Array<int>)             | bits (Integer)          | —                      | —              | `gen_image_code_v0(pixels.pack("C*"), bits: bits)`                         |
+| gen_audio_code_v0    | cv (Array<int>)                 | bits (Integer)          | —                      | —              | `gen_audio_code_v0(cv, bits: bits)`                                        |
+| gen_video_code_v0    | frame_sigs (Array\<Array<int>>) | bits (Integer)          | —                      | —              | `gen_video_code_v0(frame_sigs, bits: bits)`                                |
+| gen_mixed_code_v0    | codes (Array<String>)           | bits (Integer)          | —                      | —              | `gen_mixed_code_v0(codes, bits: bits)`                                     |
+| gen_data_code_v0     | stream (String)                 | bits (Integer)          | —                      | —              | `gen_data_code_v0(decode_stream(stream), bits: bits)`                      |
+| gen_instance_code_v0 | stream (String)                 | bits (Integer)          | —                      | —              | `gen_instance_code_v0(decode_stream(stream), bits: bits)`                  |
+| gen_iscc_code_v0     | codes (Array<String>)           | —                       | —                      | —              | `gen_iscc_code_v0(codes)`                                                  |
 
-1. Basic usage: `new → update → finalize` produces valid ISCC string starting with `"ISCC:"`
-2. Streaming equivalence: streaming result matches `gen_data_code_v0` / `gen_instance_code_v0` for
-    same input data
-3. Multi-update: split data across multiple `update` calls, verify same result as single update
-4. Double-finalize error: verify `RuntimeError` on second `finalize` call
-5. Update-after-finalize error: verify `RuntimeError` on `update` after `finalize`
-6. InstanceHasher `finalize` returns hash with `datahash` and `filesize` fields
-7. Method chaining: `hasher.update(data).update(more_data).finalize` works
+**Key edge cases**:
+
+- `gen_meta_code_v0`: empty description string `""` in data.json → pass `nil` to Ruby (matching
+    Python's `description or None` pattern)
+- `gen_image_code_v0`: pixel array in JSON is `Array<Integer>` (0-255) → pack to binary string with
+    `.pack("C*")` (unsigned bytes)
+- `gen_iscc_code_v0`: no `bits` parameter, no `wide` parameter in vectors — call with just `codes`
+    (default `wide: false`)
+- Optional output fields (`description`, `meta` in meta results; `parts` in mixed results) — assert
+    presence/absence matches expected outputs
+
+**Output assertions** (per function):
+
+- **meta**: `iscc`, `name`, `metahash` (always); `description`, `meta` (conditional on outputs)
+- **text**: `iscc`, `characters`
+- **image/audio/video**: `iscc` only
+- **mixed**: `iscc`, `parts`
+- **data**: `iscc` only
+- **instance**: `iscc`, `datahash`, `filesize`
+- **iscc**: `iscc` only
+
+**Expected test count**: 50 vectors across 9 functions = 50 dynamically generated test methods, plus
+the existing 61 tests = ~111 total tests.
 
 ## Verification
 
-- `cargo check -p iscc-rb` compiles successfully
-- `cargo clippy -p iscc-rb -- -D warnings` — clean (0 warnings)
-- `bundle exec rake compile` — builds native extension in release profile (run from
-    `crates/iscc-rb/`)
-- `bundle exec rake test` — all tests pass (46 existing + ~7-10 new streaming tests, 0 failures)
-- `IsccLib::DataHasher.new` returns a DataHasher instance (not error)
-- `IsccLib::InstanceHasher.new` returns an InstanceHasher instance (not error)
-- Streaming result matches one-shot: DataHasher result matches `gen_data_code_v0` for same data
-- `mise run check` — all pre-commit/pre-push hooks pass
+- `cd crates/iscc-rb && bundle exec rake test` passes with 0 failures, 0 errors
+- Test output shows `test_gen_meta_code_v0_test_0001` style names (dynamically generated)
+- Total test count ≥ 100 (existing 61 + ~50 conformance vectors)
+- `grep -c "define_method" crates/iscc-rb/test/test_conformance.rb` returns 9 (one per function)
+- `mise run check` passes (formatting/linting clean)
 
 ## Done When
 
-All verification criteria pass and both `DataHasher` and `InstanceHasher` are usable from Ruby with
-`new → update → finalize` interface, completing 32/32 Tier 1 symbols.
+All verification criteria pass — `bundle exec rake test` runs the conformance test file with all 50
+data.json vectors passing alongside existing smoke/streaming tests.
