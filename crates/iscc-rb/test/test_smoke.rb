@@ -217,6 +217,74 @@ class TestSmoke < Minitest::Test
     assert result.iscc.is_a?(String)
   end
 
+  def test_gen_instance_code_v0_basic
+    data = ("Hello Instance" * 100).b
+    result = IsccLib.gen_instance_code_v0(data)
+    assert_kind_of IsccLib::InstanceCodeResult, result
+    assert result["iscc"].start_with?("ISCC:"), "ISCC should start with 'ISCC:'"
+    assert result.key?("datahash"), "Result should contain datahash"
+    assert result.key?("filesize"), "Result should contain filesize"
+    assert_equal data.bytesize, result["filesize"]
+  end
+
+  def test_gen_instance_code_v0_attribute_access
+    data = ("x" * 500).b
+    result = IsccLib.gen_instance_code_v0(data)
+    assert result.iscc.start_with?("ISCC:")
+    assert result.datahash.is_a?(String)
+    assert_equal data.bytesize, result.filesize
+  end
+
+  def test_gen_iscc_code_v0_basic
+    data = ("ISCC code test data" * 100).b
+    data_code = IsccLib.gen_data_code_v0(data)
+    instance_code = IsccLib.gen_instance_code_v0(data)
+    result = IsccLib.gen_iscc_code_v0([data_code.iscc, instance_code.iscc])
+    assert_kind_of IsccLib::IsccCodeResult, result
+    assert result["iscc"].start_with?("ISCC:"), "ISCC should start with 'ISCC:'"
+  end
+
+  def test_gen_iscc_code_v0_attribute_access
+    data = ("composite code test" * 100).b
+    data_code = IsccLib.gen_data_code_v0(data)
+    instance_code = IsccLib.gen_instance_code_v0(data)
+    result = IsccLib.gen_iscc_code_v0([data_code.iscc, instance_code.iscc])
+    assert result.iscc.start_with?("ISCC:")
+    assert result.iscc.is_a?(String)
+  end
+
+  def test_gen_sum_code_v0_basic
+    require "tempfile"
+    file = Tempfile.new("iscc_test")
+    file.binmode
+    file.write("Sum code test content" * 100)
+    file.flush
+    result = IsccLib.gen_sum_code_v0(file.path)
+    assert_kind_of IsccLib::SumCodeResult, result
+    assert result["iscc"].start_with?("ISCC:"), "ISCC should start with 'ISCC:'"
+    assert result.key?("datahash"), "Result should contain datahash"
+    assert result.key?("filesize"), "Result should contain filesize"
+  ensure
+    file&.close
+    file&.unlink
+  end
+
+  def test_gen_sum_code_v0_with_units
+    require "tempfile"
+    file = Tempfile.new("iscc_test_units")
+    file.binmode
+    file.write("Sum code with units" * 100)
+    file.flush
+    result = IsccLib.gen_sum_code_v0(file.path, add_units: true)
+    assert result.iscc.start_with?("ISCC:")
+    assert result.key?("units"), "Result should contain units when add_units is true"
+    assert result["units"].is_a?(Array), "units should be an Array"
+    assert result["units"].length.positive?, "units should not be empty"
+  ensure
+    file&.close
+    file&.unlink
+  end
+
   def test_version
     assert IsccLib::VERSION.is_a?(String)
     assert_match(/\A\d+\.\d+\.\d+\z/, IsccLib::VERSION)

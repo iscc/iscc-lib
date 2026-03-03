@@ -46,6 +46,15 @@ module IsccLib
   # Result from gen_data_code_v0.
   class DataCodeResult < Result; end
 
+  # Result from gen_instance_code_v0.
+  class InstanceCodeResult < Result; end
+
+  # Result from gen_iscc_code_v0.
+  class IsccCodeResult < Result; end
+
+  # Result from gen_sum_code_v0.
+  class SumCodeResult < Result; end
+
   # Generate a Meta-Code from name and optional metadata.
   #
   # @param name [String] content name (required, non-empty)
@@ -109,5 +118,34 @@ module IsccLib
   # @return [DataCodeResult] hash with iscc
   def self.gen_data_code_v0(data, bits: 64)
     DataCodeResult[_gen_data_code_v0(data, bits)]
+  end
+
+  # Generate an Instance-Code from binary data.
+  #
+  # @param data [String] binary data
+  # @param bits [Integer] bit length (default: 64, accepted for API consistency)
+  # @return [InstanceCodeResult] hash with iscc, datahash, filesize
+  def self.gen_instance_code_v0(data, bits: 64)
+    InstanceCodeResult[_gen_instance_code_v0(data, bits)]
+  end
+
+  # Generate a composite ISCC-CODE from individual unit codes.
+  #
+  # @param codes [Array<String>] ISCC unit strings (Data-Code + Instance-Code, optional Content-Code)
+  # @param wide [Boolean] use 256-bit combination (default: false for 128-bit)
+  # @return [IsccCodeResult] hash with iscc
+  def self.gen_iscc_code_v0(codes, wide: false)
+    IsccCodeResult[_gen_iscc_code_v0(codes, wide)]
+  end
+
+  # Generate a composite ISCC-CODE from a file in a single pass.
+  #
+  # @param path [String] file path
+  # @param bits [Integer] bit length (default: 64)
+  # @param wide [Boolean] use 256-bit combination (default: false)
+  # @param add_units [Boolean] include individual unit codes (default: false)
+  # @return [SumCodeResult] hash with iscc, datahash, filesize, and optionally units
+  def self.gen_sum_code_v0(path, bits: 64, wide: false, add_units: false)
+    SumCodeResult[_gen_sum_code_v0(path, bits, wide, add_units)]
   end
 end

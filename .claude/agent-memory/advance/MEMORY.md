@@ -184,9 +184,9 @@ iterations.
     immediately before any Ruby API calls. Return binary data via `RString::from_slice(&bytes)`
 - Returning arrays: use `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays (e.g.,
     `iscc_decode` returns `[u8, u8, u8, u8, RString]`)
-- 22/32 Tier 1 symbols exposed: gen_meta/text/image/audio/video/mixed/data_code_v0, 4 text utils, 5
-    constants, encode_base64, iscc_decompose, encode_component, iscc_decode, json_to_data_url,
-    conformance_selftest
+- 25/32 Tier 1 symbols exposed: all 10 gen functions (meta/text/image/audio/video/mixed/data/
+    instance/iscc/sum_code_v0), 4 text utils, 5 constants, encode_base64, iscc_decompose,
+    encode_component, iscc_decode, json_to_data_url, conformance_selftest
 - `gen_image_code_v0` requires exactly 1024 pixels (32×32 image) — use `RString` for binary input
 - `gen_audio_code_v0` takes `Vec<i32>` — Magnus auto-converts Ruby Array of integers
 - `gen_video_code_v0`: `RArray` → `Vec<Vec<i32>>` via `into_iter()` +
@@ -196,21 +196,15 @@ iterations.
 - `gen_video_code_v0` requires ≥380 elements per frame (WTA-Hash minimum). Small test arrays error
 - `gen_mixed_code_v0`: `Vec<String>` auto-converts, then `Vec<&str>` for core. Only Content-Codes
     (Text/Image/Audio/Video) accepted — Meta-Codes cause "all codes must be Content-Codes" error
-- `gen_data_code_v0`: same `RString` + `unsafe { data.as_slice() }` pattern as gen_image_code_v0
+- `gen_data_code_v0`/`gen_instance_code_v0`: same `RString` + `unsafe { data.as_slice() }` pattern
+- `gen_iscc_code_v0`: `Vec<String>` + `bool` wide — same pattern as `gen_mixed_code_v0`
+- `gen_sum_code_v0`: `String` path → `std::path::Path::new(&path)`, 4 positional args. `units` is
+    conditionally included in hash (only when `Some`). Tests use `Tempfile` with ensure cleanup
 
 ## Gotchas
 
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
-- mdformat auto-formats markdown — keep backtick expressions short to avoid wrapping crashes
-- `from __future__ import annotations` in `__init__.py` — use `|` union syntax, not `Union`
-- Python `__all__` has 48 entries (32 API + 11 result types + `__version__` + MT, ST, VS, core_opts)
-- `gen_sum_code_v0` wide mode only differs from normal when `bits >= 128` (wide requires 128-bit+
-    codes)
 - After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
-- JSON `{"x":""}` overhead is 8 bytes (not 7) — relevant for boundary tests on META_TRIM_META
-- META_TRIM_META validation: pre-decode check uses `META_TRIM_META * 4/3 + 256` (base64 inflation +
-    media type header), post-decode check uses `META_TRIM_META` directly
 - data.json `_metadata` key (v1.3.0+): top-level metadata section with flat string values, not test
-    vectors. Rust `serde_json::Value` ignores it naturally; Go needed explicit skip logic. All
-    bindings that parse by section name (Python, Node.js, WASM, Java, C FFI) are unaffected
+    vectors. Rust `serde_json::Value` ignores it naturally; Go needed explicit skip logic

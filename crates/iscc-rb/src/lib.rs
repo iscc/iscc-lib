@@ -4,9 +4,10 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Symbols (22 of 32):
+//! Symbols (25 of 32):
 //! - `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
 //! - `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`
+//! - `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
 //! - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 //! - `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`
 //! - `json_to_data_url`, `conformance_selftest`
@@ -133,6 +134,55 @@ fn gen_data_code_v0(data: RString, bits: u32) -> Result<RHash, Error> {
     Ok(hash)
 }
 
+/// Generate an Instance-Code from binary data.
+///
+/// Accepts a binary Ruby String of raw bytes.
+/// Returns a Ruby Hash with keys: `iscc`, `datahash`, `filesize`.
+fn gen_instance_code_v0(data: RString, bits: u32) -> Result<RHash, Error> {
+    // Safety: the slice is passed directly to a pure Rust function
+    // and not held across any Ruby API calls.
+    let bytes = unsafe { data.as_slice() };
+    let r = iscc_lib::gen_instance_code_v0(bytes, bits).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
+    hash.aset("datahash", r.datahash)?;
+    hash.aset("filesize", r.filesize)?;
+    Ok(hash)
+}
+
+/// Generate a composite ISCC-CODE from individual unit codes.
+///
+/// Accepts a Ruby Array of ISCC unit strings and a wide flag.
+/// Returns a Ruby Hash with key: `iscc`.
+fn gen_iscc_code_v0(codes: Vec<String>, wide: bool) -> Result<RHash, Error> {
+    let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
+    let r = iscc_lib::gen_iscc_code_v0(&refs, wide).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
+    Ok(hash)
+}
+
+/// Generate a composite ISCC-CODE from a file in a single pass.
+///
+/// Accepts a file path string, bit length, wide flag, and add_units flag.
+/// Returns a Ruby Hash with keys: `iscc`, `datahash`, `filesize`, and
+/// optionally `units` when `add_units` is true.
+fn gen_sum_code_v0(path: String, bits: u32, wide: bool, add_units: bool) -> Result<RHash, Error> {
+    let r = iscc_lib::gen_sum_code_v0(std::path::Path::new(&path), bits, wide, add_units)
+        .map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
+    hash.aset("datahash", r.datahash)?;
+    hash.aset("filesize", r.filesize)?;
+    if let Some(units) = r.units {
+        hash.aset("units", units)?;
+    }
+    Ok(hash)
+}
+
 /// Clean and normalize text for display.
 ///
 /// Applies NFKC normalization, removes control characters (except newlines),
@@ -243,6 +293,9 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     module.define_module_function("_gen_video_code_v0", function!(gen_video_code_v0, 2))?;
     module.define_module_function("_gen_mixed_code_v0", function!(gen_mixed_code_v0, 2))?;
     module.define_module_function("_gen_data_code_v0", function!(gen_data_code_v0, 2))?;
+    module.define_module_function("_gen_instance_code_v0", function!(gen_instance_code_v0, 2))?;
+    module.define_module_function("_gen_iscc_code_v0", function!(gen_iscc_code_v0, 2))?;
+    module.define_module_function("_gen_sum_code_v0", function!(gen_sum_code_v0, 4))?;
 
     // Text utility functions
     module.define_module_function("text_clean", function!(text_clean, 1))?;
