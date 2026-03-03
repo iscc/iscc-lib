@@ -44,3 +44,9 @@ iscc-lib must track.
 - Implement `META_TRIM_META` limit in Meta-Code generation
 - Verify JCS number canonicalization and description trimming produce matching output
 - Update codec validation if `iscc_validate` is implemented
+
+## Add programming language logos to README and docs `low` [human]
+
+Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and
+documentation pages where appropriate. Visual language indicators help users quickly identify
+binding availability and make the project more approachable.
