@@ -18,6 +18,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - next.md test specs may have wrong expected values — verify against Rust implementation
 - Advance agent test counts often inaccurate — always run tests to verify
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix — cross-check doc examples
+- **prek stash conflict**: untracked files with formatting issues cause prek stash/restore to fail
+    during commit. Fix: move untracked files to /tmp before committing, restore after
 
 ## Review Shortcuts
 
