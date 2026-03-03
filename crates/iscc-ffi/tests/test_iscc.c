@@ -352,7 +352,7 @@ int main(void) {
             fwrite("Hello World", 1, 11, fp);
             fclose(fp);
 
-            struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(tmppath, 64, false);
+            struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(tmppath, 64, false, false);
             if (sr.ok) {
                 printf("PASS: gen_sum_code_v0 ok == true\n");
                 tests_passed++;
@@ -363,6 +363,7 @@ int main(void) {
             ASSERT_STR_STARTS_WITH(sr.iscc, "ISCC:", "gen_sum_code_v0 iscc starts with ISCC:");
             ASSERT_NOT_NULL(sr.datahash, "gen_sum_code_v0 datahash not NULL");
             ASSERT_EQ(sr.filesize, 11, "gen_sum_code_v0 filesize == 11");
+            ASSERT_NULL(sr.units, "gen_sum_code_v0 units NULL when disabled");
             iscc_free_sum_code_result(sr);
             remove(tmppath);
         } else {
@@ -373,7 +374,7 @@ int main(void) {
 
     /* 25. gen_sum_code_v0 — NULL path */
     {
-        struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(NULL, 64, false);
+        struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(NULL, 64, false, false);
         if (!sr.ok) {
             printf("PASS: gen_sum_code_v0(NULL) ok == false\n");
             tests_passed++;
@@ -386,12 +387,68 @@ int main(void) {
 
     /* 26. gen_sum_code_v0 — nonexistent path */
     {
-        struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0("/nonexistent/file.bin", 64, false);
+        struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0("/nonexistent/file.bin", 64, false, false);
         if (!sr.ok) {
             printf("PASS: gen_sum_code_v0(nonexistent) ok == false\n");
             tests_passed++;
         } else {
             printf("FAIL: gen_sum_code_v0(nonexistent) ok should be false\n");
+            tests_failed++;
+        }
+    }
+
+    /* 27. gen_sum_code_v0 — add_units=true returns units array */
+    {
+        const char *tmppath = "/tmp/iscc_c_test_sum_units.bin";
+        FILE *fp = fopen(tmppath, "wb");
+        if (fp != NULL) {
+            fwrite("Hello World", 1, 11, fp);
+            fclose(fp);
+
+            struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(tmppath, 64, false, true);
+            if (sr.ok) {
+                printf("PASS: gen_sum_code_v0(units=true) ok == true\n");
+                tests_passed++;
+            } else {
+                printf("FAIL: gen_sum_code_v0(units=true) ok should be true\n");
+                tests_failed++;
+            }
+            ASSERT_NOT_NULL(sr.units, "gen_sum_code_v0(units=true) units not NULL");
+            if (sr.units != NULL) {
+                /* Verify 2 ISCC strings + NULL terminator */
+                ASSERT_STR_STARTS_WITH(sr.units[0], "ISCC:", "units[0] starts with ISCC:");
+                ASSERT_STR_STARTS_WITH(sr.units[1], "ISCC:", "units[1] starts with ISCC:");
+                ASSERT_NULL(sr.units[2], "units[2] is NULL terminator");
+            }
+            iscc_free_sum_code_result(sr);
+            remove(tmppath);
+        } else {
+            printf("FAIL: gen_sum_code_v0(units=true) — could not create temp file\n");
+            tests_failed++;
+        }
+    }
+
+    /* 28. gen_sum_code_v0 — add_units=false returns NULL units */
+    {
+        const char *tmppath = "/tmp/iscc_c_test_sum_nounits.bin";
+        FILE *fp = fopen(tmppath, "wb");
+        if (fp != NULL) {
+            fwrite("Hello World", 1, 11, fp);
+            fclose(fp);
+
+            struct iscc_IsccSumCodeResult sr = iscc_gen_sum_code_v0(tmppath, 64, false, false);
+            if (sr.ok) {
+                printf("PASS: gen_sum_code_v0(units=false) ok == true\n");
+                tests_passed++;
+            } else {
+                printf("FAIL: gen_sum_code_v0(units=false) ok should be true\n");
+                tests_failed++;
+            }
+            ASSERT_NULL(sr.units, "gen_sum_code_v0(units=false) units is NULL");
+            iscc_free_sum_code_result(sr);
+            remove(tmppath);
+        } else {
+            printf("FAIL: gen_sum_code_v0(units=false) — could not create temp file\n");
             tests_failed++;
         }
     }

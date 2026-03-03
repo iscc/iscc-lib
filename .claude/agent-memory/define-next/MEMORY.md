@@ -16,10 +16,15 @@ iterations.
 - State assessments can go stale — always verify claimed gaps by reading the actual files
 - New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
     steps. Core + tests in one step, bindings in subsequent steps
-- When previous next.md already contains correct scoping, verify line references are still accurate
-    and refresh rather than rewrite from scratch — avoid unnecessary churn
 - Repetitive doc additions across language guides: all 6 howto files follow identical structure
     (heading, 1-line description, fenced code block). Safe to batch all in one step
+
+## Signature Change Propagation
+
+- When a Rust core function signature changes, ALL Rust-based binding crates must be updated in the
+    SAME step to keep CI green
+- WASM binding has its OWN inline `gen_sum_code_v0` (no filesystem in WASM)
+- Go binding is pure Go — completely independent of Rust core signatures
 
 ## Architecture Decisions
 
@@ -29,18 +34,32 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## Benchmark Patterns
+## Feature Flags Design (Issue #16)
 
-- `benchmarks.rs` uses `criterion_group!` macro to register all bench functions
-- Data/Instance/ISCC-Code benchmarks use `BenchmarkId` + `Throughput::Bytes` for throughput metrics
-- `deterministic_bytes(size)` helper generates reproducible test data
-- `gen_sum_code_v0` requires `&Path` (temp file needed) — unlike `gen_data_code_v0` which takes
-    `&[u8]` directly. Temp file must be created OUTSIDE the bench closure
+- **Dependency graph analysis** (iteration 13):
+    - `serde_json` is used by `conformance.rs` for parsing data.json — cannot be fully gated without
+        restructuring conformance. Stays as regular dep for now
+    - `serde_json_canonicalizer` only used by `gen_meta_code_v0` and `json_to_data_url` — gated behind
+        `meta-code`
+    - `unicode-normalization` + `unicode-general-category` only used in `utils.rs` by `text_clean` and
+        `text_collapse` — gated behind `text-processing`
+    - `gen_meta_code_v0` uses text_clean/text_collapse, so `meta-code` implies `text-processing`
+- **Cross-module dependencies**:
+    - `text_remove_newlines` and `text_trim` have NO unicode deps — always available
+    - `multi_hash_blake3` in utils.rs has no unicode deps — always available
+    - `gen_text_code_v0` uses `text_collapse` → needs `text-processing`
+    - `gen_meta_code_v0` uses `text_clean/trim/remove_newlines/collapse` + serde_json_canonicalizer →
+        needs `meta-code` (which brings `text-processing`)
+    - `conformance` module calls `gen_meta_code_v0` + `gen_text_code_v0` → initially gated at module
+        level behind `meta-code`; step 2 (iteration 14) adapts selftest to skip disabled sections
+- **Incremental plan**: Step 1 = define features + gate code ✅. Step 2 = adapt conformance_selftest
+    to skip disabled tests (iteration 14). Step 3 = CI workflow changes
+- **lib.rs test gating pattern**: Gate individual test functions with `#[cfg(feature)]`, NOT the
+    entire `mod tests` block, because it contains tests for both gated and ungated code
 
 ## Documentation Sweep Patterns
 
-- `crates/iscc-wasm/pkg/README.md` must always be identical to `crates/iscc-wasm/README.md` — both
-    are published to npm
+- `crates/iscc-wasm/pkg/README.md` must always be identical to `crates/iscc-wasm/README.md`
 - When updating "9 gen functions" to "10", distinguish context: data.json has 9 function sections
     (no gen_sum_code_v0), so conformance/benchmark code correctly says "9"
 - Two docs pages (architecture.md, development.md) share identical directory tree and crate summary
@@ -48,16 +67,20 @@ iterations.
 
 ## CI/Release Patterns
 
-- v0.0.3 released to all registries. Next release after remaining gaps closed.
-- Release workflow has `workflow_dispatch` with per-registry checkboxes
+- v0.0.4 released to all registries
+- Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
 
 ## Gotchas
 
 - JNI function names encode Java package underscores as `_1`
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
+- Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
 
 ## Project Status
 
-- Iteration 16: Only gap is bench_sum_code. After that, only issue #16 (low priority, feature flags)
-    remains. Project approaching full target completion.
+- Iteration 13: Feature flag definitions + code gating done (step 1 of #16)
+- Iteration 14: Conformance selftest adaptation (step 2 of #16)
+- Iteration 15: CI feature matrix testing — YAML-only final sub-task (step 3 of #16)
+- 1 open issue: #16 (feature flags, normal priority) — this step should close it
+- v0.0.4 released to all registries

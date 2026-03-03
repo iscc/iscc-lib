@@ -102,4 +102,7 @@ pub struct SumCodeResult {
     pub datahash: String,
     /// Byte length of the file.
     pub filesize: u64,
+    /// Individual `[Data-Code, Instance-Code]` ISCC strings at the requested bit precision.
+    /// Present only when `add_units` is `true`.
+    pub units: Option<Vec<String>>,
 }

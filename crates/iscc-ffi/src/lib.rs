@@ -22,7 +22,7 @@
 
 use std::cell::RefCell;
 use std::ffi::{CStr, CString, c_char};
-use std::{mem, ptr};
+use std::ptr;
 
 thread_local! {
     /// Thread-local storage for the last error message.
@@ -168,10 +168,7 @@ fn vec_to_c_string_array(v: Vec<String>) -> *mut *mut c_char {
         }
     }
     ptrs.push(ptr::null_mut()); // NULL terminator
-    ptrs.shrink_to_fit();
-    let ptr = ptrs.as_mut_ptr();
-    mem::forget(ptrs);
-    ptr
+    Box::into_raw(ptrs.into_boxed_slice()) as *mut *mut c_char
 }
 
 // ── Byte buffer types ────────────────────────────────────────────────────
@@ -219,13 +216,11 @@ fn null_byte_buffer_array() -> IsccByteBufferArray {
 
 /// Convert an owned `Vec<u8>` to a C-compatible `IsccByteBuffer`.
 ///
-/// Uses `shrink_to_fit` + `as_mut_ptr` + `mem::forget` so the caller
-/// can reconstruct with `Vec::from_raw_parts(data, len, len)`.
-fn vec_to_byte_buffer(mut v: Vec<u8>) -> IsccByteBuffer {
-    v.shrink_to_fit();
+/// Uses `into_boxed_slice` to guarantee capacity equals length, then
+/// transfers ownership via `Box::into_raw`.
+fn vec_to_byte_buffer(v: Vec<u8>) -> IsccByteBuffer {
     let len = v.len();
-    let data = v.as_mut_ptr();
-    mem::forget(v);
+    let data = Box::into_raw(v.into_boxed_slice()) as *mut u8;
     IsccByteBuffer { data, len }
 }
 
@@ -803,6 +798,8 @@ pub struct IsccSumCodeResult {
     pub datahash: *mut c_char,
     /// Byte length of the file.
     pub filesize: u64,
+    /// NULL-terminated array of Data-Code and Instance-Code ISCC strings, or NULL.
+    pub units: *mut *mut c_char,
 }
 
 /// Return a zeroed-out error `IsccSumCodeResult`.
@@ -812,6 +809,7 @@ fn null_sum_code_result() -> IsccSumCodeResult {
         iscc: ptr::null_mut(),
         datahash: ptr::null_mut(),
         filesize: 0,
+        units: ptr::null_mut(),
     }
 }
 
@@ -825,6 +823,7 @@ fn null_sum_code_result() -> IsccSumCodeResult {
 /// - `path`: null-terminated UTF-8 file path
 /// - `bits`: hash bit length (typically 64)
 /// - `wide`: if true, use 256-bit combination for ISCC-CODE
+/// - `add_units`: if true, include individual Data-Code and Instance-Code strings
 ///
 /// # Returns
 ///
@@ -839,12 +838,13 @@ pub unsafe extern "C" fn iscc_gen_sum_code_v0(
     path: *const c_char,
     bits: u32,
     wide: bool,
+    add_units: bool,
 ) -> IsccSumCodeResult {
     clear_last_error();
     let Some(path_str) = (unsafe { ptr_to_str(path, "path") }) else {
         return null_sum_code_result();
     };
-    match iscc_lib::gen_sum_code_v0(std::path::Path::new(path_str), bits, wide) {
+    match iscc_lib::gen_sum_code_v0(std::path::Path::new(path_str), bits, wide, add_units) {
         Ok(result) => {
             let iscc = string_to_c(result.iscc);
             if iscc.is_null() {
@@ -852,15 +852,27 @@ pub unsafe extern "C" fn iscc_gen_sum_code_v0(
             }
             let datahash = string_to_c(result.datahash);
             if datahash.is_null() {
-                // Free the already-allocated iscc string
                 unsafe { iscc_free_string(iscc) };
                 return null_sum_code_result();
             }
+            let units = match result.units {
+                Some(v) => {
+                    let arr = vec_to_c_string_array(v);
+                    if arr.is_null() {
+                        unsafe { iscc_free_string(iscc) };
+                        unsafe { iscc_free_string(datahash) };
+                        return null_sum_code_result();
+                    }
+                    arr
+                }
+                None => ptr::null_mut(),
+            };
             IsccSumCodeResult {
                 ok: true,
                 iscc,
                 datahash,
                 filesize: result.filesize,
+                units,
             }
         }
         Err(e) => {
@@ -872,7 +884,7 @@ pub unsafe extern "C" fn iscc_gen_sum_code_v0(
 
 /// Free an `IsccSumCodeResult` previously returned by `iscc_gen_sum_code_v0`.
 ///
-/// Releases the `iscc` and `datahash` strings. No-op for NULL pointers.
+/// Releases the `iscc`, `datahash` strings, and `units` array. No-op for NULL pointers.
 ///
 /// # Safety
 ///
@@ -882,6 +894,7 @@ pub unsafe extern "C" fn iscc_gen_sum_code_v0(
 pub unsafe extern "C" fn iscc_free_sum_code_result(result: IsccSumCodeResult) {
     unsafe { iscc_free_string(result.iscc) };
     unsafe { iscc_free_string(result.datahash) };
+    unsafe { iscc_free_string_array(result.units) };
 }
 
 /// Result of decoding an ISCC unit string.
@@ -1184,14 +1197,12 @@ pub unsafe extern "C" fn iscc_alg_cdc_chunks(
         unsafe { std::slice::from_raw_parts(data, data_len) }
     };
     let chunks = iscc_lib::alg_cdc_chunks(slice, utf32, avg_chunk_size);
-    let mut buffers: Vec<IsccByteBuffer> = chunks
+    let buffers: Vec<IsccByteBuffer> = chunks
         .iter()
         .map(|chunk| vec_to_byte_buffer(chunk.to_vec()))
         .collect();
-    buffers.shrink_to_fit();
     let count = buffers.len();
-    let ptr = buffers.as_mut_ptr();
-    mem::forget(buffers);
+    let ptr = Box::into_raw(buffers.into_boxed_slice()) as *mut IsccByteBuffer;
     IsccByteBufferArray {
         buffers: ptr,
         count,
@@ -1508,10 +1519,9 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
         drop(unsafe { CString::from_raw(*arr.add(count)) });
         count += 1;
     }
-    // Reconstruct the Vec to free the array itself.
-    // shrink_to_fit guarantees capacity == len, and len == count + 1 (including NULL terminator)
-    // SAFETY: arr was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget
-    drop(unsafe { Vec::from_raw_parts(arr, count + 1, count + 1) });
+    // Reconstruct the boxed slice to free the array itself.
+    // SAFETY: arr was produced by Box::into_raw() of a boxed slice with count + 1 elements
+    drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(arr, count + 1)) });
 }
 
 /// Free a byte buffer returned by `iscc_alg_simhash`, `iscc_alg_minhash_256`,
@@ -1526,9 +1536,8 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_free_byte_buffer(buf: IsccByteBuffer) {
     if !buf.data.is_null() {
-        // SAFETY: buf.data was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget.
-        // Capacity equals len because of shrink_to_fit.
-        drop(unsafe { Vec::from_raw_parts(buf.data, buf.len, buf.len) });
+        // SAFETY: buf.data was produced by Box::into_raw() of a boxed slice with buf.len elements
+        drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(buf.data, buf.len)) });
     }
 }
 
@@ -1546,12 +1555,13 @@ pub unsafe extern "C" fn iscc_free_byte_buffer_array(arr: IsccByteBufferArray) {
     if arr.buffers.is_null() {
         return;
     }
-    // SAFETY: arr.buffers was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget
-    let buffers = unsafe { Vec::from_raw_parts(arr.buffers, arr.count, arr.count) };
-    for buf in buffers {
+    // SAFETY: arr.buffers was produced by Box::into_raw() of a boxed slice with arr.count elements
+    let buffers =
+        unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(arr.buffers, arr.count)) };
+    for buf in buffers.iter() {
         if !buf.data.is_null() {
-            // SAFETY: each buf.data was produced by vec_to_byte_buffer
-            drop(unsafe { Vec::from_raw_parts(buf.data, buf.len, buf.len) });
+            // SAFETY: each buf.data was produced by vec_to_byte_buffer (Box::into_raw of boxed slice)
+            drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(buf.data, buf.len)) });
         }
     }
 }
@@ -2384,11 +2394,12 @@ mod tests {
         let path = write_ffi_temp_file("sum_basic", data);
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
 
-        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false) };
+        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, false) };
         assert!(result.ok);
         assert!(!result.iscc.is_null());
         assert!(!result.datahash.is_null());
         assert_eq!(result.filesize, 11);
+        assert!(result.units.is_null());
 
         let iscc_str = unsafe { CStr::from_ptr(result.iscc) }.to_str().unwrap();
         assert!(iscc_str.starts_with("ISCC:"));
@@ -2399,17 +2410,19 @@ mod tests {
 
     #[test]
     fn test_gen_sum_code_v0_null_path() {
-        let result = unsafe { iscc_gen_sum_code_v0(ptr::null(), 64, false) };
+        let result = unsafe { iscc_gen_sum_code_v0(ptr::null(), 64, false, false) };
         assert!(!result.ok);
         assert!(result.iscc.is_null());
         assert!(result.datahash.is_null());
         assert_eq!(result.filesize, 0);
+        assert!(result.units.is_null());
     }
 
     #[test]
     fn test_gen_sum_code_v0_free_null_strings() {
-        // Freeing a result with null strings should be a no-op
+        // Freeing a result with null strings and null units should be a no-op
         let result = null_sum_code_result();
+        assert!(result.units.is_null());
         unsafe { iscc_free_sum_code_result(result) };
     }
 
@@ -2420,7 +2433,7 @@ mod tests {
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
 
         // FFI result
-        let ffi_result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false) };
+        let ffi_result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, false) };
         assert!(ffi_result.ok);
 
         let ffi_iscc = unsafe { CStr::from_ptr(ffi_result.iscc) }
@@ -2436,12 +2449,91 @@ mod tests {
         unsafe { iscc_free_sum_code_result(ffi_result) };
 
         // Direct lib result
-        let lib_result = iscc_lib::gen_sum_code_v0(&path, 64, false).unwrap();
+        let lib_result = iscc_lib::gen_sum_code_v0(&path, 64, false, false).unwrap();
 
         assert_eq!(ffi_iscc, lib_result.iscc);
         assert_eq!(ffi_datahash, lib_result.datahash);
         assert_eq!(ffi_filesize, lib_result.filesize);
 
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_units_enabled() {
+        let data = b"Hello World";
+        let path = write_ffi_temp_file("sum_units_on", data);
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+
+        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, true) };
+        assert!(result.ok);
+        assert!(!result.units.is_null());
+
+        // Walk the NULL-terminated array — expect exactly 2 ISCC strings
+        let mut count = 0;
+        while !unsafe { *result.units.add(count) }.is_null() {
+            let s = unsafe { CStr::from_ptr(*result.units.add(count)) }
+                .to_str()
+                .unwrap();
+            assert!(
+                s.starts_with("ISCC:"),
+                "unit {count} should start with ISCC:"
+            );
+            count += 1;
+        }
+        assert_eq!(count, 2, "expected 2 unit strings");
+
+        unsafe { iscc_free_sum_code_result(result) };
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_units_disabled() {
+        let data = b"Hello World";
+        let path = write_ffi_temp_file("sum_units_off", data);
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+
+        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, false) };
+        assert!(result.ok);
+        assert!(
+            result.units.is_null(),
+            "units should be NULL when add_units=false"
+        );
+
+        unsafe { iscc_free_sum_code_result(result) };
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn test_gen_sum_code_v0_units_content() {
+        let data = b"Hello World";
+        let path = write_ffi_temp_file("sum_units_content", data);
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+
+        let result = unsafe { iscc_gen_sum_code_v0(path_c.as_ptr(), 64, false, true) };
+        assert!(result.ok);
+        assert!(!result.units.is_null());
+
+        // Decode both unit strings to verify maintype: Data-Code (3) and Instance-Code (4)
+        let unit0 = unsafe { CStr::from_ptr(*result.units.add(0)) };
+        let unit1 = unsafe { CStr::from_ptr(*result.units.add(1)) };
+
+        let dr0 = unsafe { iscc_decode(unit0.as_ptr()) };
+        assert!(dr0.ok);
+        let dr1 = unsafe { iscc_decode(unit1.as_ptr()) };
+        assert!(dr1.ok);
+
+        // Collect maintypes — should have one Data (3) and one Instance (4)
+        let mut maintypes = vec![dr0.maintype, dr1.maintype];
+        maintypes.sort();
+        assert_eq!(
+            maintypes,
+            vec![3, 4],
+            "expected Data-Code (3) and Instance-Code (4)"
+        );
+
+        unsafe { iscc_free_decode_result(dr0) };
+        unsafe { iscc_free_decode_result(dr1) };
+        unsafe { iscc_free_sum_code_result(result) };
         let _ = std::fs::remove_file(&path);
     }
 }

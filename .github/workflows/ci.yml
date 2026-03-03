@@ -32,8 +32,18 @@ jobs:
         run: cargo fmt --all --check
       - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Clippy iscc-lib (no default features)
+        run: cargo clippy -p iscc-lib --no-default-features -- -D warnings
+      - name: Clippy iscc-lib (all features)
+        run: cargo clippy -p iscc-lib --all-features -- -D warnings
       - name: Run tests
         run: cargo test --workspace
+      - name: Test iscc-lib (no default features)
+        run: cargo test -p iscc-lib --no-default-features
+      - name: Test iscc-lib (all features)
+        run: cargo test -p iscc-lib --all-features
+      - name: Test iscc-lib (text-processing only)
+        run: cargo test -p iscc-lib --no-default-features --features text-processing
   python-test:
     name: Python ${{ matrix.python-version }} (ruff, pytest)
     runs-on: ubuntu-latest
@@ -108,13 +118,16 @@ jobs:
         run: cargo install cbindgen
       - name: Build FFI crate
         run: cargo build -p iscc-ffi
-      - name: Generate C header
-        run: cbindgen --crate iscc-ffi -o crates/iscc-ffi/tests/iscc.h
+      - name: Check C header freshness
+        run: |
+          cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h
+          git diff --exit-code crates/iscc-ffi/include/iscc.h || \
+            (echo "::error::iscc.h is stale. Run: cbindgen --config crates/iscc-ffi/cbindgen.toml --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h" && exit 1)
       - name: Compile C test program
         run: >
           gcc -o test_iscc
           crates/iscc-ffi/tests/test_iscc.c
-          -I crates/iscc-ffi/tests
+          -I crates/iscc-ffi/include
           -L target/debug
           -liscc_ffi
           -lpthread -ldl -lm

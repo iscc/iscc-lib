@@ -235,3 +235,34 @@ def test_gen_sum_code_v0_wide_mode(tmp_path):
     result_normal = gen_sum_code_v0(str(file), bits=128, wide=False)
     result_wide = gen_sum_code_v0(str(file), bits=128, wide=True)
     assert result_normal["iscc"] != result_wide["iscc"]
+
+
+def test_gen_sum_code_v0_units_enabled(tmp_path):
+    """Verify add_units=True returns a list of 2 ISCC strings."""
+    file = tmp_path / "units.bin"
+    file.write_bytes(b"test data for units")
+    result = gen_sum_code_v0(file, add_units=True)
+    assert "units" in result
+    units = result["units"]
+    assert isinstance(units, list)
+    assert len(units) == 2
+    assert all(u.startswith("ISCC:") for u in units)
+
+
+def test_gen_sum_code_v0_units_disabled(tmp_path):
+    """Verify add_units=False (default) omits the units key."""
+    file = tmp_path / "no_units.bin"
+    file.write_bytes(b"test data for no units")
+    result = gen_sum_code_v0(file)
+    assert "units" not in result
+
+
+def test_gen_sum_code_v0_units_attribute_access(tmp_path):
+    """Verify attribute-style access works for units field."""
+    file = tmp_path / "attr_units.bin"
+    file.write_bytes(b"test data for attribute units")
+    result = gen_sum_code_v0(file, add_units=True)
+    assert result.units is not None
+    assert isinstance(result.units, list)
+    assert len(result.units) == 2
+    assert all(u.startswith("ISCC:") for u in result.units)

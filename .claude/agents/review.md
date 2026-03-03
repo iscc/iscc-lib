@@ -32,27 +32,27 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
 </issues>
 
 <recent-diff>
-!`git diff HEAD~2..HEAD~1 --stat 2>/dev/null || echo "(no advance commit)"`
+!`git diff HEAD~1..HEAD --stat 2>/dev/null || echo "(no advance commit)"`
 </recent-diff>
 
 ## Protocol
 
-1. **Read the handoff** — understand what the advance agent claims to have done.
-
-2. **Inspect the changes** — run `git diff HEAD~2..HEAD~1` to see the advance agent's diff (HEAD~1
-    is the advance commit, HEAD~2 is the define-next commit). Read the modified files in full.
-    Compare against what next.md asked for.
-
-3. **Launch independent review** — start a Codex code review of the advance agent's commit as a
-    background task. Run this command with `run_in_background: true` on the Bash tool (it may take
-    10–30 minutes):
+1. **Launch independent review** — start a Codex code review of the advance agent's commit as a
+    background task immediately. Run this command with `run_in_background: true` on the Bash tool
+    (it may take 10–30 minutes):
 
     ```
-    codex exec review --ephemeral --commit HEAD~1 > /tmp/codex-review.txt 2>&1
+    codex exec review --ephemeral --commit HEAD --json 2>/dev/null | jq -r 'select(.item.type == "agent_message") | .item.text' > /tmp/codex-review.txt
     ```
 
     Continue with the remaining steps while it runs. The output will be incorporated in step 8. If
     `codex` is not installed or the command fails immediately, skip this step.
+
+2. **Read the handoff** — understand what the advance agent claims to have done.
+
+3. **Inspect the changes** — run `git diff HEAD~1..HEAD` to see the advance agent's diff (HEAD is
+    the advance commit, HEAD~1 is the define-next commit). Read the modified files in full.
+    Compare against what next.md asked for.
 
 4. **Run verification** — run `mise run check` (runs all quality gates via pre-commit hooks). Then
     execute each specific check from next.md's `## Verification` section individually and record
@@ -108,17 +108,17 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     the next iteration. Include what was accomplished, what issues remain, and a concrete
     suggestion for the next step.
 
-    **Before writing, wait for the Codex review from step 3 to complete.** If you have not yet
+    **Before writing, wait for the Codex review from step 1 to complete.** If you have not yet
     received the background task completion notification, do not proceed — wait for it. Once
-    complete, extract the findings:
+    complete, read the findings:
 
     ```
-    sed -n '/^codex$/,$ p' /tmp/codex-review.txt | tail -n +2
+    cat /tmp/codex-review.txt
     ```
 
     Add a `**Codex review:**` section to the handoff with any actionable findings. Codex findings
     are advisory — use your judgment on whether each is relevant given the project conventions and
-    the work package scope. If step 3 was skipped (codex unavailable), omit this section.
+    the work package scope. If step 1 was skipped (codex unavailable), omit this section.
 
 9. **Fix minor issues** — if you find minor problems (formatting, missing docstring, unused
     import), fix them directly. Do not fix anything that would change behavior or architecture.
@@ -190,7 +190,7 @@ system. The review agent is responsible for both **protecting** and **maintainin
 
 ### Protection — check every diff for gate circumvention
 
-Scan `git diff HEAD~2..HEAD~1` for any of these patterns. If found, verdict is **NEEDS_WORK** — the
+Scan `git diff HEAD~1..HEAD` for any of these patterns. If found, verdict is **NEEDS_WORK** — the
 advance agent must fix the root cause instead:
 
 - **Lint suppression to silence warnings**: `#[allow(...)]`, `# noqa`, `# type: ignore`,

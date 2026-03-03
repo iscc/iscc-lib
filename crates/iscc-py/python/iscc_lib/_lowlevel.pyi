@@ -323,13 +323,19 @@ def gen_iscc_code_v0(codes: list[str], wide: bool = False) -> dict[str, Any]:
     """
     ...
 
-def gen_sum_code_v0(path: str, bits: int = 64, wide: bool = False) -> dict[str, Any]:
+def gen_sum_code_v0(
+    path: str, bits: int = 64, wide: bool = False, add_units: bool = False
+) -> dict[str, Any]:
     """Generate Data-Code + Instance-Code + ISCC-CODE from a file path in a single pass.
 
     :param path: File system path to the file.
     :param bits: Bit length for the Data-Code body (default 64).
     :param wide: Whether to produce a wide (256-bit) ISCC-CODE (default False).
-    :return: Dict with ``iscc``, ``datahash``, and ``filesize`` keys.
+    :param add_units: Whether to include individual Data-Code and Instance-Code
+        ISCC strings in the result (default False).
+    :return: Dict with ``iscc``, ``datahash``, ``filesize`` keys and optionally
+        ``units`` (list of Data-Code and Instance-Code strings) when ``add_units``
+        is True.
     """
     ...
 

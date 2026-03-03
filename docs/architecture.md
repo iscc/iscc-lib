@@ -128,7 +128,7 @@ pub fn gen_mixed_code_v0(codes, bits) -> IsccResult<String>
 pub fn gen_data_code_v0(data, bits) -> IsccResult<String>
 pub fn gen_instance_code_v0(data, bits) -> IsccResult<String>
 pub fn gen_iscc_code_v0(codes, wide) -> IsccResult<String>
-pub fn gen_sum_code_v0(path, bits, wide) -> IsccResult<SumCodeResult>
+pub fn gen_sum_code_v0(path, bits, wide, add_units) -> IsccResult<SumCodeResult>
 ```
 
 ### Tier 2 — Public Rust API

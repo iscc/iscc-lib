@@ -48,7 +48,7 @@ config format.
 
 - **Landing page** (`index.md`): overview, quick start, supported code types
 - **Tutorials**: getting started guide (installation, first ISCC code generation)
-- **How-to guides**: per-language usage guides (Python, Rust, Java, Node.js, WASM)
+- **How-to guides**: per-language usage guides (Python, Rust, Java, Node.js, WASM, C/C++)
 - **Explanation**: architecture (hub-and-spoke model, internal modules, streaming pattern)
 - **Reference**: Python API (mkdocstrings autodoc), Rust API, Java API, C FFI reference
 - **Benchmarks**: performance comparisons

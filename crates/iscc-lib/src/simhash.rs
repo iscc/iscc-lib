@@ -95,6 +95,7 @@ pub fn sliding_window(seq: &str, width: usize) -> IsccResult<Vec<String>> {
 /// Returns overlapping substrings of `width` Unicode characters as `&str`
 /// slices borrowing from the input, avoiding per-n-gram `String` allocation.
 /// If the input is shorter than `width`, returns a single slice of the full input.
+#[cfg(feature = "text-processing")]
 pub(crate) fn sliding_window_strs(seq: &str, width: usize) -> Vec<&str> {
     debug_assert!(width >= 2, "Sliding window width must be 2 or bigger.");
     let char_indices: Vec<usize> = seq.char_indices().map(|(i, _)| i).collect();
@@ -121,6 +122,7 @@ pub(crate) fn sliding_window_strs(seq: &str, width: usize) -> Vec<&str> {
 /// Returns overlapping sub-slices of `width` bytes, advancing by one byte
 /// at a time. If the input is shorter than `width`, returns a single slice
 /// of the full input.
+#[cfg(feature = "meta-code")]
 pub(crate) fn sliding_window_bytes(data: &[u8], width: usize) -> Vec<&[u8]> {
     debug_assert!(width >= 2, "Sliding window width must be 2 or bigger.");
     let len = data.len();
@@ -225,31 +227,37 @@ mod tests {
 
     // ---- sliding_window_strs tests ----
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_sliding_window_strs_basic() {
         assert_eq!(sliding_window_strs("Hello", 4), vec!["Hell", "ello"]);
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_sliding_window_strs_shorter_than_width() {
         assert_eq!(sliding_window_strs("ab", 3), vec!["ab"]);
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_sliding_window_strs_exact_width() {
         assert_eq!(sliding_window_strs("abc", 3), vec!["abc"]);
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_sliding_window_strs_empty() {
         assert_eq!(sliding_window_strs("", 3), vec![""]);
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_sliding_window_strs_unicode() {
         assert_eq!(sliding_window_strs("äöü", 2), vec!["äö", "öü"]);
     }
 
+    #[cfg(feature = "text-processing")]
     #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "width must be 2")]
@@ -257,6 +265,7 @@ mod tests {
         sliding_window_strs("test", 1);
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_sliding_window_strs_matches_sliding_window() {
         // Verify that sliding_window_strs produces identical content to sliding_window
@@ -289,6 +298,7 @@ mod tests {
 
     // ---- sliding_window_bytes tests ----
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_sliding_window_bytes_basic() {
         assert_eq!(
@@ -297,21 +307,25 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_sliding_window_bytes_shorter_than_width() {
         assert_eq!(sliding_window_bytes(b"ab", 3), vec![&b"ab"[..]]);
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_sliding_window_bytes_exact_width() {
         assert_eq!(sliding_window_bytes(b"abc", 3), vec![&b"abc"[..]]);
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_sliding_window_bytes_empty() {
         assert_eq!(sliding_window_bytes(b"", 3), vec![&b""[..]]);
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_sliding_window_bytes_width_4() {
         assert_eq!(
@@ -320,6 +334,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "meta-code")]
     #[cfg(debug_assertions)]
     #[test]
     #[should_panic(expected = "width must be 2")]

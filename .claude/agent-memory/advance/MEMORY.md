@@ -27,6 +27,8 @@ iterations.
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
 - CI workflow at `.github/workflows/ci.yml` has 9 jobs: version-check, rust, python, nodejs, wasm,
     c-ffi, java, go, bench. The `bench` job runs `cargo bench --no-run` (compile-only, no execution)
+- `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
+    `--all-features`, and `--no-default-features --features text-processing` (issue #16)
 - `version-check` job: lightweight (checkout + setup-python only), runs
     `python scripts/version_sync.py --check` to catch manifest version drift
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
@@ -38,8 +40,6 @@ iterations.
 
 - `iscc-wasm` has `[features] conformance = []` — gates `conformance_selftest` WASM export
 - wasm-pack `--features` must go AFTER the path, NOT after `--`
-- wasm-opt release flags: `[package.metadata.wasm-pack.profile.release]` with
-    `wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`
 
 ## Go Pure Go Rewrite (Summary)
 
@@ -53,37 +53,49 @@ iterations.
 
 ## gen_sum_code_v0
 
-- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>` in `lib.rs`
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult>`
+    in `lib.rs`
 - Single-pass file I/O: opens file, reads in `IO_READ_SIZE` chunks, feeds both `DataHasher` and
     `InstanceHasher`, composes ISCC-CODE via `gen_iscc_code_v0`
-- `SumCodeResult { iscc, datahash, filesize }` in `types.rs` — same `#[non_exhaustive]` pattern
+- `SumCodeResult { iscc, datahash, filesize, units }` in `types.rs` — `#[non_exhaustive]`,
+    `units: Option<Vec<String>>` contains `[Data-Code, Instance-Code]` when `add_units` is true
 - File I/O errors mapped to `IsccError::InvalidInput("Cannot open/read file: {e}")`
-- `units: Vec<String>` field deferred (not in scope for initial core implementation)
+- `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring in tests, not
+    field access. `MainType` is `pub(crate)` in `codec` module, not accessible from test module
 - 32nd and final Tier 1 symbol for Rust core — all 32 symbols now implemented
-- Python binding: PyO3 wrapper in `crates/iscc-py/src/lib.rs` accepts `&str` path, `SumCodeResult`
-    class in `__init__.py`, public wrapper accepts `str | os.PathLike` via `os.fspath()`, 6 tests in
-    `tests/test_smoke.py`
-- Node.js binding: `NapiSumCodeResult` struct (`#[napi(object)]`) + `gen_sum_code_v0` napi fn in
-    `crates/iscc-napi/src/lib.rs`. Uses `i64` for `filesize` (napi-rs no u64 support). 6 tests in
-    `__tests__/functions.test.mjs`
-- WASM binding: `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) +
-    `gen_sum_code_v0` fn in `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (no filesystem in WASM).
-    Uses `f64` for `filesize` (wasm-bindgen `u64` maps to `BigInt`, awkward for JS). Composes
-    internally via `DataHasher` + `InstanceHasher` + `gen_iscc_code_v0`. 6 tests in `tests/unit.rs`,
-    75 total WASM tests (9 conformance + 66 unit; 1 behind `conformance` feature gate)
-- C FFI binding: `IsccSumCodeResult` repr(C) struct with `ok: bool`, `iscc: *mut c_char`,
-    `datahash: *mut c_char`, `filesize: u64`. `iscc_gen_sum_code_v0(path, bits, wide)` extern "C"
-    function + `iscc_free_sum_code_result` free function in `crates/iscc-ffi/src/lib.rs`. Follows
-    `IsccDecodeResult` struct-return pattern. 4 Rust tests + 3 C tests. 82 total Rust tests, 57
-    total C test assertions
-- JNI binding: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`, `long filesize`)
-    - `Java_io_iscc_iscc_1lib_IsccLib_genSumCodeV0` in `crates/iscc-jni/src/lib.rs`. Returns `jobject`
-        via `env.find_class("io/iscc/iscc_lib/SumCodeResult")` + `env.new_object()` with signature
-        `(Ljava/lang/String;Ljava/lang/String;J)V`. 4 Maven tests. 62 total Maven tests
-- Go binding: `packages/go/code_sum.go` — `SumCodeResult` struct (`Iscc`, `Datahash`, `Filesize`) +
-    `GenSumCodeV0(path string, bits uint32, wide bool)`. Single-pass file I/O with `os.Open` +
-    `DataHasher` + `InstanceHasher` + `GenIsccCodeV0`. 4 tests in `code_sum_test.go`. 151 total Go
-    tests. ALL 7 bindings complete for issue #15
+- Python binding: PyO3 wrapper in `crates/iscc-py/src/lib.rs` accepts `&str` path + `add_units` bool
+    param, `SumCodeResult` class in `__init__.py` with `units: list[str] | None`, public wrapper
+    accepts `str | os.PathLike` via `os.fspath()` + `add_units: bool = False`. 9 tests in
+    `tests/test_smoke.py` (6 existing + 3 units tests). `add_units=True` sets `"units"` dict key,
+    `False` omits it (matching iscc-core optional field pattern)
+- Node.js binding: `NapiSumCodeResult` struct (`#[napi(object)]`) with `units: Option<Vec<String>>`
+    - `gen_sum_code_v0` napi fn with `add_units: Option<bool>` param in `crates/iscc-napi/src/lib.rs`.
+        Uses `i64` for `filesize` (napi-rs no u64 support). 9 tests in `__tests__/functions.test.mjs`
+        (6 existing + 3 units tests). `Option<Vec<String>>` maps to `string[] | undefined` in TS
+        automatically. 135 total NAPI tests
+- WASM binding: `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) with
+    `units: Option<Vec<String>>` + `gen_sum_code_v0` fn with `add_units: Option<bool>` param in
+    `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (no filesystem in WASM). Uses `f64` for
+    `filesize` (wasm-bindgen `u64` maps to `BigInt`, awkward for JS). Composes internally via
+    `DataHasher` + `InstanceHasher` + `gen_iscc_code_v0` (borrow-before-move pattern for units). 9
+    tests in `tests/unit.rs` (6 existing + 3 units). 78 total WASM tests (9 conformance + 69 unit; 1
+    behind `conformance` feature gate). `Option<Vec<String>>` maps to `string[] | undefined` in TS
+- C FFI binding: `IsccSumCodeResult` repr(C) struct with `ok`, `iscc`, `datahash`, `filesize`,
+    `units: *mut *mut c_char` (NULL-terminated array or NULL).
+    `iscc_gen_sum_code_v0(path, bits,   wide, add_units)` extern "C" function +
+    `iscc_free_sum_code_result` (frees units via `iscc_free_string_array`). 7 Rust sum tests + 5 C
+    sum tests. 85 total Rust tests, 65 total C test assertions
+- JNI binding: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`, `long filesize`,
+    `String[] units`) — `units` is nullable (`null` when `addUnits=false`, 2-element `String[]` when
+    true). JNI bridge uses `build_string_array` → `unsafe { JObject::from_raw(arr) }` for units
+    conversion. Constructor signature:
+    `(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V`. 7 Maven sum tests. 65 total Maven
+    tests
+- Go binding: `packages/go/code_sum.go` — `SumCodeResult` struct (`Iscc`, `Datahash`, `Filesize`,
+    `Units []string`) + `GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool)`.
+    Single-pass file I/O with `os.Open` + `DataHasher` + `InstanceHasher` + `GenIsccCodeV0`. Units
+    is nil when `addUnits=false`, `[]string{Data-Code, Instance-Code}` when true. 7 tests in
+    `code_sum_test.go`. ALL 7 bindings complete for issue #21 (add_units/units)
 
 ## Benchmarks
 
@@ -153,13 +165,30 @@ iterations.
 - 5 constants currently exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
     IO_READ_SIZE, TEXT_NGRAM_SIZE
 
-## Documentation Sweep Patterns
+## C FFI Documentation
 
-- "N gen" count references exist in: READMEs (9 files), docs/ (14 files), howto/ (6 files), crate
-    CLAUDE.md files (5), notes/ (2), source comments (.rs, .py, .mjs, .pyi), benchmarks/ (2)
-- The Edit tool requires a full Read call (not offset/limit) before the first edit per file
-- mdformat auto-reformats after edits — always run `mise run format` twice after doc changes
-- iscc-core-ts is external and may have different function counts than iscc-lib
+- `docs/howto/c-cpp.md` — C/C++ how-to guide with 12 sections (overview, build, cmake, quick start,
+    streaming, composing, error handling, memory mgmt, static/dynamic, cross-compile, RAII,
+    conformance)
+- `docs/c-ffi-api.md` — full API reference (types, constants, code gen, text utils, algorithms,
+    codec, streaming, diagnostics, memory mgmt, error handling)
+- zensical.toml nav: howto guides list includes `{ "C / C++" = "howto/c-cpp.md" }` after Java
+- CMake integration uses `find_library()` pattern (not `CMAKE_LIBRARY_PATH`)
+
+## Feature Flags
+
+- `crates/iscc-lib/Cargo.toml` defines: `default = ["meta-code"]`, `text-processing` (unicode deps),
+    `meta-code` (implies text-processing + JCS canonicalizer)
+- `text-processing` gates: `text_clean`, `text_collapse`, `gen_text_code_v0`, `sliding_window_strs`
+- `meta-code` gates: META_TRIM constants, meta helpers, `gen_meta_code_v0`, `json_to_data_url`,
+    `run_meta_tests` in conformance, `sliding_window_bytes`
+- `conformance` module is always available (not feature-gated). `conformance_selftest()` skips
+    disabled code types (meta, text) via `#[cfg]` blocks — does not fail for missing features
+- When gating `pub(crate)` functions, their tests must also be gated — dead-code lint fires in
+    library builds even if test modules use them
+- Integration tests in `crates/iscc-lib/tests/test_text_utils.rs` also need per-function gating
+- `serde_json` stays as a regular (non-optional) dep because `conformance.rs` uses it for parsing
+    `data.json`. Gating it requires restructuring conformance (future work)
 
 ## Gotchas
 

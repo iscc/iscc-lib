@@ -131,8 +131,8 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
 - Use `#[repr(C)]` only on types returned across the FFI boundary (`IsccByteBuffer`,
     `IsccByteBufferArray`)
 - Never expose `Vec`, `String`, `Box`, or any Rust-specific type across FFI
-- Use `shrink_to_fit()` before `mem::forget()` to ensure capacity equals length for reconstruction
-    via `Vec::from_raw_parts`
+- Use `into_boxed_slice()` + `Box::into_raw()` to transfer Vec ownership across FFI; reconstruct
+    with `Box::from_raw(slice::from_raw_parts_mut(ptr, len))` to free
 - Never let panics unwind across the FFI boundary (the workspace release profile uses
     `panic = "abort"`)
 
@@ -144,8 +144,9 @@ LD_LIBRARY_PATH=target/debug /tmp/test_iscc
     on the same thread. Document this for consumers.
 - **Forgetting to clear errors**: every exported function must call `clear_last_error()` at entry,
     even functions that cannot fail.
-- **Vec reconstruction mismatch**: when freeing via `Vec::from_raw_parts(ptr, len, cap)`, capacity
-    must match. The `shrink_to_fit` + `mem::forget` pattern ensures `cap == len`.
+- **Vec reconstruction mismatch**: never use `shrink_to_fit` + `mem::forget` to transfer Vec
+    ownership — `shrink_to_fit` does not guarantee `capacity == len`. Use `into_boxed_slice()` +
+    `Box::into_raw()` instead, which guarantees exact allocation.
 - **Missing free functions**: if you add a new return type, you must add a corresponding
     `iscc_free_*` function.
 - **cbindgen regeneration**: after adding or changing exported functions or `#[repr(C)]` types,

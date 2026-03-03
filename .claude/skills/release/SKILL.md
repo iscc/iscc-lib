@@ -210,7 +210,7 @@ gh pr create -B main -H develop --title "Release <version>" --body "$(cat <<'EOF
 
 Version bump and manifest sync for release <version>.
 
-Publishes to: crates.io, PyPI, npm (@iscc/lib, @iscc/wasm), Maven Central.
+Publishes to: crates.io, PyPI, npm (@iscc/lib, @iscc/wasm), Maven Central, GitHub Releases (FFI).
 EOF
 )"
 ```
@@ -342,6 +342,9 @@ curl -sf "https://search.maven.org/solrsearch/select?q=g:io.iscc+AND+a:iscc-lib+
 
 # Go proxy (auto-published via git tag, may take a few minutes)
 curl -sf "https://proxy.golang.org/github.com/iscc/iscc-lib/packages/go/@v/v<version>.info" > /dev/null && echo "Go proxy: OK"
+
+# GitHub Releases (FFI tarballs)
+gh release view v<version> --json assets --jq '.assets[].name' | grep -q "iscc-ffi" && echo "GitHub Releases (FFI): OK"
 ```
 
 Maven Central and Go proxy indexing can lag. If either shows "NOT FOUND" but the release workflow
@@ -370,6 +373,7 @@ Release <version> complete!
     npm @iscc/wasm <version>  OK
     Maven Central  <version>  OK / pending indexing
     Go proxy       <version>  OK / pending indexing
+    GitHub (FFI)   <version>  OK
 
   Post-release:
     uv run scripts/test_install.py --version <version>

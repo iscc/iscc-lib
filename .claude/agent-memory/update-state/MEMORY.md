@@ -33,8 +33,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench
-- `docs/howto/` — 6 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md (all complete,
-    including Sum-Code subsections as of iteration 15)
+- `docs/howto/` — 7 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, **c-cpp.md** ✅
+    (resolved issue #22); `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
@@ -59,14 +59,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 6cfae5e)
+## Current State (assessed-at: a49ac7d)
 
-- **TARGET DONE**: All target.md criteria met ✅; CI 11/11 SUCCESS ✅
-- **Iteration 16**: bench_sum_code (PASS) — added 10th criterion benchmark for gen_sum_code_v0;
-    `benchmarks.rs` docstring updated to "all 10"; `tempfile` crate added as workspace dev-dep
-- **Issues**: Only #16 remains (feature flags for minimal builds, low priority, GitHub issue filed)
-- **v0.0.3 released**: tags `v0.0.3` and `packages/go/v0.0.3`; all registries
-- **CI latest**: Run 22560748212 — all 11 CI jobs SUCCESS
+- **DONE**: All target criteria met. No open issues. CI fully green.
+- **Issue #16 COMPLETE**: Feature flags + code gating + conformance_selftest adaptation + CI matrix
+    ✅
+- **Feature flags**: `default = ["meta-code"]`,
+    `meta-code = ["text-processing", "dep:serde_json_canonicalizer"]`,
+    `text-processing = [dep:unicode-*]`
+- **CI feature matrix** (5 steps in rust job): clippy no-default-features, clippy all-features, test
+    no-default-features, test all-features, test text-processing-only
+- **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only), passes
+    (all-features)
+- **CI latest**: Run 22604187637 — all 11 CI jobs SUCCESS ✅
+- **release.yml**: workflow_dispatch with per-registry checkboxes (crates.io, PyPI, npm, Maven, FFI)
+    ✅; tag push triggers all jobs ✅
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 

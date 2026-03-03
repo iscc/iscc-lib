@@ -196,7 +196,15 @@ fn bench_sum_code(c: &mut Criterion) {
         BenchmarkId::new("throughput", "64KB"),
         &path_64k,
         |b, path| {
-            b.iter(|| gen_sum_code_v0(black_box(path), black_box(64), black_box(false)).unwrap())
+            b.iter(|| {
+                gen_sum_code_v0(
+                    black_box(path),
+                    black_box(64),
+                    black_box(false),
+                    black_box(false),
+                )
+                .unwrap()
+            })
         },
     );
 
@@ -211,7 +219,15 @@ fn bench_sum_code(c: &mut Criterion) {
         BenchmarkId::new("throughput", "1MB"),
         &path_1m,
         |b, path| {
-            b.iter(|| gen_sum_code_v0(black_box(path), black_box(64), black_box(false)).unwrap())
+            b.iter(|| {
+                gen_sum_code_v0(
+                    black_box(path),
+                    black_box(64),
+                    black_box(false),
+                    black_box(false),
+                )
+                .unwrap()
+            })
         },
     );
 

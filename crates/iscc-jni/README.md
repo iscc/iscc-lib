@@ -3,9 +3,6 @@
 [![CI](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml/badge.svg)](https://github.com/iscc/iscc-lib/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-> **Experimental:** This library is in early development (v0.0.x). APIs may change without notice.
-> Not recommended for production use yet.
-
 Java/JVM bindings for [ISO 24138:2024](https://www.iso.org/standard/77899.html) -- International
 Standard Content Code (ISCC). Built with Rust via JNI for near-native speed.
 
@@ -22,7 +19,7 @@ to create a composite identifier that exhibits similarity-preserving properties 
 <dependency>
   <groupId>io.iscc</groupId>
   <artifactId>iscc-lib</artifactId>
-  <version>0.0.4</version>
+  <version>0.1.0</version>
 </dependency>
 ```
 

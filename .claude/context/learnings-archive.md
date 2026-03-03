@@ -197,6 +197,86 @@ reference-only for humans.
     `crate-type = ["cdylib", "rlib"]` but only one can ship to crates.io. Use `crate-type = ["lib"]`
     for the core crate (iscc-lib), keep `["cdylib"]` for binding crates
 
+## Issue #21 — add_units/units Binding Patterns (COMPLETED)
+
+- Python binding pattern: PyO3 wrapper accepts `&str` path → `Path::new(path)`, public wrapper adds
+    `str | os.PathLike` via `os.fspath()`. `SumCodeResult(IsccResult)` class + `__all__` update.
+    Wide mode test requires `bits=128` since 64-bit codes produce identical output in both modes
+- Node.js binding pattern: `NapiSumCodeResult` struct with `#[napi(object)]` + `gen_sum_code_v0` fn
+    with `Option<u32>`/`Option<bool>` params. Uses `i64` for filesize (napi-rs lacks u64 support).
+    Tests use `node:test` + `node:assert` + temp files for I/O. Total: 135 tests (6 sum + 3 units)
+- WASM binding pattern: `WasmSumCodeResult` struct with `#[wasm_bindgen(getter_with_clone)]` +
+    `gen_sum_code_v0` fn accepting `&[u8]` (no filesystem in WASM). Uses `f64` for filesize (avoids
+    `u64` → BigInt friction in JS). `add_units: Option<bool>` param + `units: Option<Vec<String>>`
+    field (maps to `string[] | undefined` in TS). Total: 79 tests (9 conformance + 70 unit; 1 unit
+    test behind `conformance` feature gate)
+- C FFI binding pattern for units: `IsccSumCodeResult` uses `*mut *mut c_char` (NULL-terminated
+    string array) for `units` — same representation as `iscc_decompose`/`iscc_sliding_window`.
+    `vec_to_c_string_array` helper converts `Vec<String>` → C array; `iscc_free_string_array` cleans
+    up. Error path frees `iscc` + `datahash` before returning null result. 85 Rust tests, 65 C tests
+- JNI binding pattern: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`,
+    `long filesize`, `String[] units` nullable). JNI bridge returns `jobject` via `env.find_class` +
+    `env.new_object` with signature `(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V`.
+    `jboolean` is `u8` — compare `wide != 0`. Units via `build_string_array` →
+    `unsafe { JObject::from_raw(arr) }`. 7 Maven sum tests. 65 total Maven tests
+- Go binding pattern: `SumCodeResult` with `Units []string` + `addUnits bool` param. Pure Go (no
+    FFI). Conditional `[]string{dataResult.Iscc, instanceResult.Iscc}` when `addUnits=true`, nil
+    otherwise. 7 sum code tests total (4 existing + 3 units tests)
+
+## Go Bindings — Pure Go Rewrite (COMPLETED)
+
+- Go module path: `github.com/iscc/iscc-lib/packages/go`, package name `iscc`
+- Conformance test path: `../../crates/iscc-lib/tests/data.json` (relative from packages/go)
+- Go constants: `MetaTrimName`, `MetaTrimDescription`, `IoReadSize`, `TextNgramSize` are
+    package-level `const` (idiomatic Go)
+- `DecodeResult` struct: `Maintype`, `Subtype`, `Version`, `Length` (all `uint8`) + `Digest`
+    (`[]byte`). Returned as `*DecodeResult` from `IsccDecode`
+- Go uint32/uint64 arithmetic wraps naturally at overflow, matching Rust's wrapping_add/wrapping_mul
+- Go `%` and `&` have equal precedence (both multiplicative), so `x % mprime & maxH` evaluates
+    left-to-right as `(x % mprime) & maxH`, matching Rust
+- Use `const` (not `var`) for scalar constants — Go supports constant expressions with bit shifts
+- `golang.org/x/text/unicode/norm` for NFKC/NFD. `unicode.Is(unicode.C, c)` covers Cc, Cf, Co, Cs
+- `TextRemoveNewlines` = `strings.Join(strings.Fields(text), " ")` (one-liner)
+- `TextTrim` uses backward byte trimming until `utf8.ValidString` — simpler than Rust but identical
+- CDC: `cdcGear` table is `var` not `const` (Go no const arrays). `min()` builtin since Go 1.21+
+- MinHash: `mpa`/`mpb` arrays, `minhashFn` naming (avoids Go conflict). `maxi64`/`mprime`/`maxH` are
+    `var` not `const` (Go uint64 shift limitation)
+- SimHash: `AlgSimhash` returns `([]byte, error)`, `SlidingWindow` returns `([]string, error)`. Uses
+    `[]rune` for Unicode-correct SlidingWindow
+- DCT: `algDct` (unexported, `pub(crate)` in Rust). WTA-Hash: `AlgWtahash` (exported, `pub` in
+    Rust). `wtaVideoIdPermutations` is `var` (Go no const arrays). All 7 algorithm modules complete
+- DCT beta computation: Rust `/ cos / 2.0` vs Go `/ (cos * 2.0)` are numerically identical
+    (verified) — multiplying cos ∈ [-1,1] by 2.0 is exact in IEEE 754
+- Dependency order: codec → utils → algorithms → gen functions → streaming → conformance → cleanup
+- Gen function test naming: `TestPureGo*` prefix is historical (from WASM coexistence phase). Could
+    be renamed to `Test*` now that the WASM bridge is removed — cosmetic cleanup only
+- JCS canonicalization: Go's `json.Marshal` suffices for string-only JSON values (sorted keys,
+    compact format). A dedicated JCS library is needed only if float number formatting matters
+- `SlidingWindow`/`AlgSimhash` error suppression (`_, _`) is safe in gen functions: width params are
+    hardcoded valid constants (3 or 13), and AlgSimhash returns 32 zero bytes for empty input
+- Go `DataHasher`/`InstanceHasher` Finalize is single-use (mutates internal state). Mirrors Python
+    reference `_finalize()` which sets `self.tail = None`. Do not call Finalize twice
+- Go pure rewrite is COMPLETE: 30/30 Tier 1 symbols, all 46 conformance vectors pass, zero WASM
+    dependencies. Module deps: `github.com/zeebo/blake3`, `golang.org/x/text` (+ cpuid indirect)
+- `DecodeResult` struct and algorithm constants (`MetaTrimName`, etc.) live in `codec.go` — the
+    canonical location after WASM bridge removal
+
+## gen_sum_code_v0 (COMPLETED)
+
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` is the 10th gen function
+    and 32nd Tier 1 symbol. Single-pass file I/O feeds both `DataHasher` (CDC/MinHash) and
+    `InstanceHasher` (BLAKE3) from the same buffer, then composes ISCC-CODE via `gen_iscc_code_v0`
+- `SumCodeResult { iscc, datahash, filesize, units }` — `units: Option<Vec<String>>` contains
+    `[Data-Code, Instance-Code]` ISCC strings when `add_units` is true. Borrow-before-move pattern:
+    `gen_iscc_code_v0` borrows the strings, then they're moved into the vec (no clone needed)
+- Binding propagation order: Python first (primary consumer), then Node.js/WASM/C FFI/Java, Go last
+    (pure Go reimplementation needed — not a Rust wrapper)
+- **`.pyi` stub must be updated alongside binding changes.** When adding/modifying parameters in
+    `crates/iscc-py/src/lib.rs`, also update the corresponding signature in
+    `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`. `ty check` (pre-push hook) will fail otherwise
+- Binding-specific `add_units`/`units` patterns archived to `learnings-archive.md` (issue #21 fully
+    resolved: all 7 bindings complete)
+
 ## Go/wazero Bridge (OBSOLETE)
 
 - Go module path is `github.com/iscc/iscc-lib/packages/go`, package name `iscc`

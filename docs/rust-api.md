@@ -272,24 +272,25 @@ let iscc_code = gen_iscc_code_v0(codes, false)?;
 Generate an ISCC-SUM from a file path in a single pass.
 
 ```rust
-pub fn gen_sum_code_v0(path: &Path, bits: u32, wide: bool) -> IsccResult<SumCodeResult>
+pub fn gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult>
 ```
 
-| Parameter | Type    | Description                                        |
-| --------- | ------- | -------------------------------------------------- |
-| `path`    | `&Path` | Path to the file                                   |
-| `bits`    | `u32`   | Bit length of the generated code (default: 64)     |
-| `wide`    | `bool`  | Enable 256-bit wide mode for ISCC-CODE combination |
+| Parameter   | Type    | Description                                                           |
+| ----------- | ------- | --------------------------------------------------------------------- |
+| `path`      | `&Path` | Path to the file                                                      |
+| `bits`      | `u32`   | Bit length of the generated code (default: 64)                        |
+| `wide`      | `bool`  | Enable 256-bit wide mode for ISCC-CODE combination                    |
+| `add_units` | `bool`  | Include individual Data-Code and Instance-Code ISCC strings in result |
 
 Reads the file once, feeding both a `DataHasher` (CDC/MinHash) and an `InstanceHasher` (BLAKE3) from
 the same buffer, then composes the result into an ISCC-CODE. Returns a `SumCodeResult` with `iscc`,
-`datahash`, and `filesize` fields.
+`datahash`, `filesize`, and optionally `units` (when `add_units` is `true`).
 
 ```rust
 use iscc_lib::gen_sum_code_v0;
 use std::path::Path;
 
-let result = gen_sum_code_v0(Path::new("document.pdf"), 64, false)?;
+let result = gen_sum_code_v0(Path::new("document.pdf"), 64, false, false)?;
 println!("{}", result.iscc);      // Composite ISCC-CODE
 println!("{}", result.datahash);  // BLAKE3 multihash
 println!("{}", result.filesize);  // File size in bytes

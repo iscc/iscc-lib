@@ -214,27 +214,32 @@ pub struct NapiSumCodeResult {
     pub datahash: String,
     /// Byte length of the file.
     pub filesize: i64,
+    /// Data-Code and Instance-Code ISCC strings (when `add_units` is true).
+    pub units: Option<Vec<String>>,
 }
 
 /// Generate a composite ISCC-CODE from a file in a single pass.
 ///
 /// Reads the file at `path` and produces Data-Code + Instance-Code in one
 /// pass, then combines them into an ISCC-CODE. Returns an object with
-/// `iscc`, `datahash`, and `filesize` fields.
+/// `iscc`, `datahash`, `filesize`, and optionally `units` fields.
 #[napi(js_name = "gen_sum_code_v0")]
 pub fn gen_sum_code_v0(
     path: String,
     bits: Option<u32>,
     wide: Option<bool>,
+    add_units: Option<bool>,
 ) -> napi::Result<NapiSumCodeResult> {
     let bits = bits.unwrap_or(64);
     let wide = wide.unwrap_or(false);
-    let result = iscc_lib::gen_sum_code_v0(std::path::Path::new(&path), bits, wide)
+    let add_units = add_units.unwrap_or(false);
+    let result = iscc_lib::gen_sum_code_v0(std::path::Path::new(&path), bits, wide, add_units)
         .map_err(|e| napi::Error::from_reason(e.to_string()))?;
     Ok(NapiSumCodeResult {
         iscc: result.iscc,
         datahash: result.datahash,
         filesize: result.filesize as i64,
+        units: result.units,
     })
 }
 

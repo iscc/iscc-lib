@@ -100,14 +100,23 @@ all 9 entrypoints via wasm-bindgen. Published under the same `@iscc` npm scope.
 - Conformance tests pass in a WASM runtime
 - Package builds with `wasm-pack`
 
-## C FFI
+## C FFI — First-Class C/C++ Developer Experience
 
-A C-compatible shared library with generated headers, enabling Go/C# and other language bindings.
+A C-compatible shared library with generated headers, pre-built release artifacts, dedicated
+documentation, and standalone examples. C/C++ developers should be able to evaluate and integrate
+ISCC-SUM without installing a Rust toolchain.
+
+Detailed spec: `.claude/context/specs/c-ffi-dx.md`
 
 **Verified when:**
 
 - cbindgen generates valid C headers
 - A C test program can call the entrypoints and get correct results
+- `crates/iscc-ffi/include/iscc.h` is committed and CI checks freshness
+- `docs/howto/c-cpp.md` how-to guide exists with streaming, CMake, and RAII examples
+- `crates/iscc-ffi/examples/iscc_sum.c` + `CMakeLists.txt` compile and produce correct output
+- Pre-built FFI tarballs (shared + static + header) uploaded as GitHub Release assets for 5
+    platforms
 
 ## Java Bindings — Maven Central
 
@@ -200,7 +209,6 @@ C developers.
 
 **Structure** (modeled after iscc-core README):
 
-- **Experimental notice**: prominent warning that the library is v0.0.x and APIs may change
 - **Badges**: CI status, crate/package version badges for all published packages
 - **Tagline**: one-line description emphasizing polyglot, high-performance, ISO 24138
 - **Key Features**: similarity-preserving, multi-level identification, self-describing, ISO

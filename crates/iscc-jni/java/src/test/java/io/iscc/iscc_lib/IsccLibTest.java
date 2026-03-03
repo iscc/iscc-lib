@@ -10,6 +10,7 @@ package io.iscc.iscc_lib;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -354,7 +355,7 @@ class IsccLibTest {
         tmp.deleteOnExit();
         java.nio.file.Files.write(tmp.toPath(), content);
 
-        SumCodeResult result = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 64, false);
+        SumCodeResult result = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 64, false, false);
 
         // Compose manually: genDataCodeV0 + genInstanceCodeV0 -> genIsccCodeV0
         String dataCode = IsccLib.genDataCodeV0(content, 64);
@@ -373,7 +374,7 @@ class IsccLibTest {
         tmp.deleteOnExit();
         java.nio.file.Files.write(tmp.toPath(), content);
 
-        SumCodeResult result = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 64, false);
+        SumCodeResult result = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 64, false, false);
 
         assertNotNull(result.iscc, "iscc should not be null");
         assertTrue(result.iscc.length() > 0, "iscc should not be empty");
@@ -387,7 +388,7 @@ class IsccLibTest {
     void genSumCodeV0NonExistentFile() {
         assertThrows(
                 IllegalArgumentException.class,
-                () -> IsccLib.genSumCodeV0("/non/existent/path/to/file.bin", 64, false));
+                () -> IsccLib.genSumCodeV0("/non/existent/path/to/file.bin", 64, false, false));
     }
 
     /** Verify narrow and wide modes produce different ISCC but same datahash and filesize. */
@@ -398,12 +399,58 @@ class IsccLibTest {
         tmp.deleteOnExit();
         java.nio.file.Files.write(tmp.toPath(), content);
 
-        SumCodeResult narrow = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 128, false);
-        SumCodeResult wide = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 128, true);
+        SumCodeResult narrow = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 128, false, false);
+        SumCodeResult wide = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 128, true, false);
 
         assertTrue(!narrow.iscc.equals(wide.iscc), "narrow and wide ISCC should differ");
         assertEquals(narrow.datahash, wide.datahash, "datahash should be same regardless of wide");
         assertEquals(narrow.filesize, wide.filesize, "filesize should be same regardless of wide");
+    }
+
+    /** Verify genSumCodeV0 returns non-null units array with 2 elements when addUnits=true. */
+    @Test
+    void genSumCodeV0UnitsEnabled() throws Exception {
+        byte[] content = "Units enabled test".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.File tmp = java.io.File.createTempFile("iscc-jni-sum-units-", ".bin");
+        tmp.deleteOnExit();
+        java.nio.file.Files.write(tmp.toPath(), content);
+
+        SumCodeResult result = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 64, false, true);
+
+        assertNotNull(result.units, "units should not be null when addUnits=true");
+        assertEquals(2, result.units.length, "units should contain 2 elements");
+        assertTrue(result.units[0].startsWith("ISCC:"), "units[0] should start with ISCC:");
+        assertTrue(result.units[1].startsWith("ISCC:"), "units[1] should start with ISCC:");
+    }
+
+    /** Verify genSumCodeV0 returns null units when addUnits=false. */
+    @Test
+    void genSumCodeV0UnitsDisabled() throws Exception {
+        byte[] content = "Units disabled test".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.File tmp = java.io.File.createTempFile("iscc-jni-sum-nounits-", ".bin");
+        tmp.deleteOnExit();
+        java.nio.file.Files.write(tmp.toPath(), content);
+
+        SumCodeResult result = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 64, false, false);
+
+        assertNull(result.units, "units should be null when addUnits=false");
+    }
+
+    /** Verify genSumCodeV0 units contain Data-Code and Instance-Code ISCC strings. */
+    @Test
+    void genSumCodeV0UnitsContent() throws Exception {
+        byte[] content = "Units content verification".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        java.io.File tmp = java.io.File.createTempFile("iscc-jni-sum-unitscontent-", ".bin");
+        tmp.deleteOnExit();
+        java.nio.file.Files.write(tmp.toPath(), content);
+
+        SumCodeResult result = IsccLib.genSumCodeV0(tmp.getAbsolutePath(), 64, false, true);
+
+        assertNotNull(result.units, "units should not be null");
+        assertTrue(result.units[0].startsWith("ISCC:GA"),
+                "units[0] should be a Data-Code (starts with ISCC:GA)");
+        assertTrue(result.units[1].startsWith("ISCC:IA"),
+                "units[1] should be an Instance-Code (starts with ISCC:IA)");
     }
 
     // ── Negative jint validation ─────────────────────────────────────────────

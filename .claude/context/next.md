@@ -1,72 +1,58 @@
 # Next Work Package
 
-## Step: Add bench_sum_code criterion benchmark for gen_sum_code_v0
+## Step: Add CI feature matrix testing for issue #16
 
 ## Goal
 
-Add the missing criterion benchmark for `gen_sum_code_v0` to complete the target requirement that
-"criterion benchmarks exist for all Rust `gen_*_v0` functions". This is the last gap before full
-target completion — all other sections (core, bindings, docs, README, CI) are already met.
+Add feature combination test steps to `.github/workflows/ci.yml` so CI verifies that `iscc-lib`
+compiles and passes tests under `--no-default-features`, `--all-features`, and
+`--no-default-features --features text-processing`. This is the final sub-task to close issue #16.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `crates/iscc-lib/benches/benchmarks.rs` (add `bench_sum_code` function, update
-    docstring from "9" to "10", add import, register in `criterion_group!`),
-    `crates/iscc-lib/Cargo.toml` (add `tempfile` dev-dependency if not already present)
-- **Reference**: `crates/iscc-lib/src/lib.rs` (for `gen_sum_code_v0` signature:
-    `path: &Path,   bits: u32, wide: bool`), `Cargo.toml` (root workspace dependencies)
+- **Modify**: `.github/workflows/ci.yml`
+- **Reference**: `crates/iscc-lib/Cargo.toml` (feature definitions)
 
 ## Not In Scope
 
-- Adding benchmarks for `gen_sum_code_v0` to the Python benchmark suite (`benchmarks/python/`)
-- Updating `docs/benchmarks.md` with sum-code speedup numbers (no Python baseline exists yet)
-- Updating the "Bench (compile check)" CI job config — it already compiles all bench targets
-- Running actual benchmarks and collecting timing data
-- Working on issue #16 (feature flags for minimal builds)
+- Modifying any Rust source code — this is a YAML-only change
+- Adding a separate CI job — add steps to the existing `rust` job to avoid duplicating
+    checkout/toolchain/cache setup
+- Testing feature combinations for binding crates — only `iscc-lib` has feature flags
+- Changing the existing `cargo test --workspace` or `cargo clippy --workspace` steps — those stay
+    as-is for full workspace coverage
 
 ## Implementation Notes
 
-`gen_sum_code_v0` takes `path: &std::path::Path` (not `&[u8]`), so the benchmark must write temp
-files. Follow the same throughput pattern as `bench_data_code` and `bench_instance_code`:
+Add new steps to the existing `rust` job. After the current "Run clippy" step, add two clippy
+feature-flag checks:
 
-1. **Import**: Add `gen_sum_code_v0` to the `use iscc_lib::{...}` block. Add `use std::io::Write`
-    and `use tempfile::NamedTempFile` (or `std::env::temp_dir` + manual file creation).
+- `cargo clippy -p iscc-lib --no-default-features -- -D warnings`
+- `cargo clippy -p iscc-lib --all-features -- -D warnings`
 
-2. **Temp file approach**: Use `tempfile::NamedTempFile` if the `tempfile` crate is already a
-    dev-dependency. If not, add it. Check `Cargo.toml` dev-dependencies first. If adding `tempfile`
-    feels heavyweight, an alternative is `std::env::temp_dir()` with a unique filename — but
-    `tempfile` is the idiomatic Rust choice and auto-cleans up.
+After the current "Run tests" step, add three test steps:
 
-3. **Benchmark function** `bench_sum_code`:
+- `cargo test -p iscc-lib --no-default-features`
+- `cargo test -p iscc-lib --all-features`
+- `cargo test -p iscc-lib --no-default-features --features text-processing`
 
-    - Create a benchmark group `"gen_sum_code_v0"`
-    - Two sizes: 64KB and 1MB (matching `bench_data_code` pattern)
-    - For each size: write `deterministic_bytes(size)` to a temp file, set
-        `group.throughput(Throughput::Bytes(...))`, bench `gen_sum_code_v0(&path, 64, false)`
-    - The temp file must be created OUTSIDE the benchmark closure (file I/O setup is not part of what
-        we're measuring). Use `NamedTempFile::new()` + `write_all()` before the `bench_with_input`
-        call, then pass the path into the closure.
+Keep step names descriptive (e.g., "Test iscc-lib (no default features)"). No `shell: bash` needed
+since this job runs on `ubuntu-latest` only. Do NOT use `mise` in CI — call cargo directly.
 
-4. **Docstring**: Update line 1 from "9 `gen_*_v0`" to "10 `gen_*_v0`"
-
-5. **Registration**: Add `bench_sum_code` to the `criterion_group!` macro, after `bench_iscc_code`
-    and before `bench_data_hasher_streaming`.
-
-6. **Dev dependency**: If `tempfile` isn't already in dev-dependencies, add it to the workspace
-    `Cargo.toml` under `[workspace.dependencies]` and to `crates/iscc-lib/Cargo.toml` under
-    `[dev-dependencies]`. Use a recent stable version (e.g., `tempfile = "3"`).
+The existing workspace-level clippy and test steps remain unchanged. The new steps are additive and
+target only `iscc-lib` to verify feature-gated code paths.
 
 ## Verification
 
-- `cargo bench -p iscc-lib --bench benchmarks --no-run` exits 0 (benchmark compiles)
-- `grep -c 'gen_sum_code_v0' crates/iscc-lib/benches/benchmarks.rs` returns at least 2 (import +
-    function usage)
-- `grep 'all 10' crates/iscc-lib/benches/benchmarks.rs` matches the updated docstring
-- `cargo clippy -p iscc-lib -- -D warnings` clean
-- `cargo test -p iscc-lib` still passes (310 tests)
+- The YAML is valid: `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"`
+    exits 0
+- `grep -c 'no-default-features' .github/workflows/ci.yml` returns at least 2 (test + clippy)
+- `grep -c 'all-features' .github/workflows/ci.yml` returns at least 2 (test + clippy)
+- `grep 'text-processing' .github/workflows/ci.yml` shows the text-processing-only test step
+- No Rust source files modified: `git diff --name-only` shows only `.github/workflows/ci.yml`
 
 ## Done When
 
-All verification criteria pass — the benchmark file compiles with 10 `gen_*_v0` benchmarks, clippy
-is clean, and existing tests still pass.
+All verification criteria pass and the only file modified is `.github/workflows/ci.yml` with five
+new steps covering feature combination testing for `iscc-lib`.

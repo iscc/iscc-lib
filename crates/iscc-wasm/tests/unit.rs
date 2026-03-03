@@ -11,7 +11,7 @@ use wasm_bindgen_test::*;
 fn test_gen_sum_code_v0_equivalence() {
     // Result should match composing data + instance + iscc manually
     let data = b"Hello, ISCC World!";
-    let sum = iscc_wasm::gen_sum_code_v0(data, None, None).unwrap();
+    let sum = iscc_wasm::gen_sum_code_v0(data, None, None, None).unwrap();
     let data_code = iscc_wasm::gen_data_code_v0(data, None).unwrap();
     let instance_code = iscc_wasm::gen_instance_code_v0(data, None).unwrap();
     let codes = serde_wasm_bindgen::to_value(&[&data_code, &instance_code]).unwrap();
@@ -25,7 +25,7 @@ fn test_gen_sum_code_v0_equivalence() {
 #[wasm_bindgen_test]
 fn test_gen_sum_code_v0_result_shape() {
     let data = b"Test data for result shape";
-    let sum = iscc_wasm::gen_sum_code_v0(data, None, None).unwrap();
+    let sum = iscc_wasm::gen_sum_code_v0(data, None, None, None).unwrap();
     assert!(
         sum.iscc.starts_with("ISCC:"),
         "iscc should have ISCC: prefix"
@@ -44,7 +44,7 @@ fn test_gen_sum_code_v0_result_shape() {
 #[wasm_bindgen_test]
 fn test_gen_sum_code_v0_empty_input() {
     // Empty data should succeed and match empty equivalents
-    let sum = iscc_wasm::gen_sum_code_v0(&[], None, None).unwrap();
+    let sum = iscc_wasm::gen_sum_code_v0(&[], None, None, None).unwrap();
     let data_code = iscc_wasm::gen_data_code_v0(&[], None).unwrap();
     let instance_code = iscc_wasm::gen_instance_code_v0(&[], None).unwrap();
     let codes = serde_wasm_bindgen::to_value(&[&data_code, &instance_code]).unwrap();
@@ -60,8 +60,8 @@ fn test_gen_sum_code_v0_empty_input() {
 fn test_gen_sum_code_v0_default_params() {
     // None bits/wide should produce the same as explicit Some(64)/Some(false)
     let data = b"Default params test data";
-    let default_result = iscc_wasm::gen_sum_code_v0(data, None, None).unwrap();
-    let explicit_result = iscc_wasm::gen_sum_code_v0(data, Some(64), Some(false)).unwrap();
+    let default_result = iscc_wasm::gen_sum_code_v0(data, None, None, None).unwrap();
+    let explicit_result = iscc_wasm::gen_sum_code_v0(data, Some(64), Some(false), None).unwrap();
     assert_eq!(default_result.iscc, explicit_result.iscc);
     assert_eq!(default_result.datahash, explicit_result.datahash);
     assert_eq!(default_result.filesize, explicit_result.filesize);
@@ -71,8 +71,8 @@ fn test_gen_sum_code_v0_default_params() {
 fn test_gen_sum_code_v0_wide_mode() {
     // Wide and non-wide should produce different iscc but same datahash/filesize
     let data = b"Wide mode test data with enough bytes to make it meaningful";
-    let narrow = iscc_wasm::gen_sum_code_v0(data, Some(128), Some(false)).unwrap();
-    let wide = iscc_wasm::gen_sum_code_v0(data, Some(128), Some(true)).unwrap();
+    let narrow = iscc_wasm::gen_sum_code_v0(data, Some(128), Some(false), None).unwrap();
+    let wide = iscc_wasm::gen_sum_code_v0(data, Some(128), Some(true), None).unwrap();
     assert_ne!(narrow.iscc, wide.iscc, "wide and non-wide should differ");
     assert_eq!(
         narrow.datahash, wide.datahash,
@@ -87,8 +87,56 @@ fn test_gen_sum_code_v0_wide_mode() {
 #[wasm_bindgen_test]
 fn test_gen_sum_code_v0_filesize() {
     let data = vec![0xABu8; 1234];
-    let sum = iscc_wasm::gen_sum_code_v0(&data, None, None).unwrap();
+    let sum = iscc_wasm::gen_sum_code_v0(&data, None, None, None).unwrap();
     assert_eq!(sum.filesize, 1234.0, "filesize should equal data.len()");
+}
+
+// ── gen_sum_code_v0 units ────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_gen_sum_code_v0_units_enabled() {
+    // When add_units is true, units should contain exactly 2 ISCC strings
+    let data = b"Hello, ISCC World!";
+    let sum = iscc_wasm::gen_sum_code_v0(data, None, None, Some(true)).unwrap();
+    let units = sum.units.expect("units should be Some when add_units=true");
+    assert_eq!(units.len(), 2, "units should contain exactly 2 elements");
+    assert!(
+        units[0].starts_with("ISCC:"),
+        "data code unit should start with ISCC:"
+    );
+    assert!(
+        units[1].starts_with("ISCC:"),
+        "instance code unit should start with ISCC:"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_gen_sum_code_v0_units_disabled() {
+    // When add_units is omitted (None), units should be None
+    let data = b"Hello, ISCC World!";
+    let sum = iscc_wasm::gen_sum_code_v0(data, None, None, None).unwrap();
+    assert!(
+        sum.units.is_none(),
+        "units should be None when add_units is omitted"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_gen_sum_code_v0_units_content() {
+    // Unit strings should match independently computed Data-Code and Instance-Code
+    let data = b"Hello, ISCC World!";
+    let sum = iscc_wasm::gen_sum_code_v0(data, None, None, Some(true)).unwrap();
+    let units = sum.units.expect("units should be Some");
+    let data_code = iscc_wasm::gen_data_code_v0(data, None).unwrap();
+    let instance_code = iscc_wasm::gen_instance_code_v0(data, None).unwrap();
+    assert_eq!(
+        units[0], data_code,
+        "units[0] should match gen_data_code_v0"
+    );
+    assert_eq!(
+        units[1], instance_code,
+        "units[1] should match gen_instance_code_v0"
+    );
 }
 
 // ── text_clean ──────────────────────────────────────────────────────────────
