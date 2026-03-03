@@ -85,10 +85,22 @@ iterations.
     - `crates/iscc-wasm/tests/conformance.rs` — WASM (missed in iter 1, fixed iter 2)
     - Other bindings don't have hardcoded count assertions (they iterate dynamically)
 
+## Ruby Bindings (Magnus) — Dev Environment
+
+- Ruby 3.1.2 installed in devcontainer (system Ruby from Debian Bookworm)
+- Ruby headers at `/usr/include/ruby-3.1.0` (ruby-dev package)
+- `libclang-dev` NOT installed — needed by rb-sys/bindgen. Must add to Dockerfile
+- `bundler` available via user-install at `~/.local/share/gem/ruby/3.1.0/bin/bundle`
+- `gem install X --user-install` works (system gem dir is read-only)
+- Magnus latest stable: check crates.io. 0.7.x and 0.8.x lines exist
+- PyO3 bridge (iscc-py) is 648 lines for all 32 symbols — Magnus bridge should be similar size
+- New binding crate scaffold: many files to CREATE but only root Cargo.toml to MODIFY (well within
+    3-file limit since creates don't count)
+
 ## Project Status
 
 - Issue #16 fully resolved (iterations 13-15)
 - v0.1.0 released to all registries
-- Critical conformance issue resolved (iter 1: vendor v1.3.0 + Go fix)
-- 2 open issues: Ruby bindings (normal), README logos (low)
-- Current: fix WASM CI regression (iter 2), then Ruby bindings scaffold
+- WASM CI regression resolved (iter 2)
+- 2 open issues: Ruby bindings (normal, multi-iteration), README logos (low)
+- Current: Ruby bindings scaffold (iter 3)
