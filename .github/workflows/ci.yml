@@ -32,8 +32,18 @@ jobs:
         run: cargo fmt --all --check
       - name: Run clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Clippy iscc-lib (no default features)
+        run: cargo clippy -p iscc-lib --no-default-features -- -D warnings
+      - name: Clippy iscc-lib (all features)
+        run: cargo clippy -p iscc-lib --all-features -- -D warnings
       - name: Run tests
         run: cargo test --workspace
+      - name: Test iscc-lib (no default features)
+        run: cargo test -p iscc-lib --no-default-features
+      - name: Test iscc-lib (all features)
+        run: cargo test -p iscc-lib --all-features
+      - name: Test iscc-lib (text-processing only)
+        run: cargo test -p iscc-lib --no-default-features --features text-processing
   python-test:
     name: Python ${{ matrix.python-version }} (ruff, pytest)
     runs-on: ubuntu-latest

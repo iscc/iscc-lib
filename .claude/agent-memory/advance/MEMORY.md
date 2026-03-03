@@ -27,6 +27,8 @@ iterations.
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
 - CI workflow at `.github/workflows/ci.yml` has 9 jobs: version-check, rust, python, nodejs, wasm,
     c-ffi, java, go, bench. The `bench` job runs `cargo bench --no-run` (compile-only, no execution)
+- `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
+    `--all-features`, and `--no-default-features --features text-processing` (issue #16)
 - `version-check` job: lightweight (checkout + setup-python only), runs
     `python scripts/version_sync.py --check` to catch manifest version drift
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
@@ -38,8 +40,6 @@ iterations.
 
 - `iscc-wasm` has `[features] conformance = []` — gates `conformance_selftest` WASM export
 - wasm-pack `--features` must go AFTER the path, NOT after `--`
-- wasm-opt release flags: `[package.metadata.wasm-pack.profile.release]` with
-    `wasm-opt = ["-O", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`
 
 ## Go Pure Go Rewrite (Summary)
 

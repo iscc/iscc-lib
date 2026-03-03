@@ -1,36 +1,28 @@
-## 2026-03-03 — Review of: Adapt conformance_selftest to skip disabled features
+## 2026-03-03 — Add CI feature matrix testing for issue #16
 
-**Verdict:** PASS
+**Done:** Added 5 new steps to the `rust` job in `.github/workflows/ci.yml`: two clippy feature-flag
+checks (`--no-default-features`, `--all-features`) and three test steps (`--no-default-features`,
+`--all-features`, `--no-default-features --features text-processing`). This is a YAML-only change
+targeting `iscc-lib` feature combinations.
 
-**Summary:** The advance agent correctly made `conformance_selftest()` always available regardless
-of feature flags by removing the module-level `#[cfg(feature = "meta-code")]` gates from `lib.rs`
-and adding granular `#[cfg]` gates on the individual `run_meta_tests`/`run_text_tests` functions and
-their imports/calls in `conformance.rs`. The implementation is minimal, correct, and cleanly scoped.
+**Files changed:**
+
+- `.github/workflows/ci.yml`: Added 5 steps to the `rust` job — 2 clippy checks and 3 test runs for
+    feature flag combinations
 
 **Verification:**
 
-- [x] `cargo test -p iscc-lib` — 314 tests pass (258 unit + 31 streaming + 24 utils + 1 doctest)
-- [x] `cargo test -p iscc-lib --no-default-features` — 250 tests pass; conformance_selftest runs 7
-    of 9 sections
-- [x] `cargo test -p iscc-lib --no-default-features --features text-processing` — 284 tests pass;
-    runs 8 of 9 sections
-- [x] `cargo clippy -p iscc-lib -- -D warnings` — clean (default features)
-- [x] `cargo clippy -p iscc-lib --no-default-features -- -D warnings` — clean
-- [x] `cargo clippy -p iscc-lib --all-features -- -D warnings` — clean
+- [x] YAML valid: `python -c "import yaml; yaml.safe_load(...)"` exits 0
+- [x] `grep -c 'no-default-features'` returns 3 (2 test + 1 clippy = 3 lines with the flag)
+- [x] `grep -c 'all-features'` returns 2 (1 test + 1 clippy)
+- [x] `grep 'text-processing'` shows the text-processing-only test step
+- [x] Only `.github/workflows/ci.yml` modified (no Rust source changes)
 - [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] No quality gate circumvention (no `#[allow]`, `#[ignore]`, threshold changes)
 
-**Issues found:**
+**Next:** Issue #16 should now be fully resolved. The next step could be closing issue #16 and
+moving on to the next target item, or verifying CI passes on the pushed commit before closing.
 
-- (none)
-
-**Next:** Issue #16 has one remaining sub-task: add CI workflow jobs for feature matrix testing. The
-`.github/workflows/ci.yml` needs new steps (or a matrix expansion) to run
-`cargo test -p iscc-lib --no-default-features`, `cargo test -p iscc-lib --all-features`, and
-`cargo test -p iscc-lib --no-default-features --features text-processing`. This is a YAML-only
-change with no Rust code modifications. Completing this closes issue #16.
-
-**Notes:** The Codex review was run against the define-next commit (HEAD~1) and found no code issues
-(expected — that commit only changed context files). The advance commit at HEAD was independently
-verified through the 6 criteria above. The existing `test_conformance_selftest_passes` test works
-correctly across all feature combinations without modification.
+**Notes:** The `no-default-features` grep count is 3 (not 2) because there are 3 lines containing
+that flag: one clippy step, one test step, and the text-processing test step (which also uses
+`--no-default-features --features text-processing`). The verification criteria in next.md said "at
+least 2", so this is correct. No surprises or shortcuts taken.
