@@ -83,23 +83,29 @@ Detailed spec: `.claude/context/specs/python-bindings.md`
 
 ## Node.js Bindings — `@iscc/lib` on npm
 
-An npm package [`@iscc/lib`](https://www.npmjs.com/package/@iscc/lib) exposing all 9 entrypoints as
-native addon via napi-rs. Published under the `@iscc` npm org.
+An npm package [`@iscc/lib`](https://www.npmjs.com/package/@iscc/lib) exposing all 32 Tier 1 symbols
+as native addon via napi-rs. Published under the `@iscc` npm org.
+
+Detailed spec: `.claude/context/specs/nodejs-bindings.md`
 
 **Verified when:**
 
 - `npm test` passes conformance vectors from JavaScript
 - Package installs cleanly via `npm install`
+- All 32 Tier 1 symbols accessible with TypeScript declarations
 
 ## WASM Bindings — `@iscc/wasm` on npm
 
 A browser-compatible WASM package [`@iscc/wasm`](https://www.npmjs.com/package/@iscc/wasm) exposing
-all 9 entrypoints via wasm-bindgen. Published under the same `@iscc` npm scope.
+all 32 Tier 1 symbols via wasm-bindgen. Published under the same `@iscc` npm scope.
+
+Detailed spec: `.claude/context/specs/wasm-bindings.md`
 
 **Verified when:**
 
 - Conformance tests pass in a WASM runtime
 - Package builds with `wasm-pack`
+- All 32 Tier 1 symbols accessible from JavaScript/TypeScript
 
 ## C FFI — First-Class C/C++ Developer Experience
 
@@ -119,244 +125,108 @@ Detailed spec: `.claude/context/specs/c-ffi-dx.md`
 - Pre-built FFI tarballs (shared + static + header) uploaded as GitHub Release assets for 5
     platforms
 
-## Java Bindings — Maven Central
+## Java Bindings — `io.iscc:iscc-lib` on Maven Central
 
-A Java library published to Maven Central (e.g., `io.iscc:iscc-lib`) with bundled native libraries
-for all supported platforms. Java/JVM developers add a single dependency to their `pom.xml` or
-`build.gradle` and get idiomatic Java access to all ISCC functions — no manual native library
-management required.
+A Java library published to Maven Central as `io.iscc:iscc-lib` with platform-specific native
+libraries bundled inside the JAR. JNI bridge crate wrapping `iscc-lib` core.
 
-**Architecture:**
-
-- JNI bridge crate (`iscc-jni`) generates the native interface from the Rust core
-- Java wrapper provides idiomatic API (e.g., `IsccLib.genMetaCodeV0("title")`)
-- Platform-specific native libraries (linux-x64, linux-aarch64, macos-x64, macos-aarch64,
-    windows-x64) bundled inside the JAR under `META-INF/native/`
-- Loader class extracts and loads the correct native library at runtime
-
-**Dev environment:** Requires JDK 17+ and Maven (or Gradle) in the devcontainer. Add to
-`.devcontainer/Dockerfile` when work on Java bindings begins.
+Detailed spec: `.claude/context/specs/java-bindings.md`
 
 **Verified when:**
 
-- `mvn test` (or `gradle test`) passes conformance vectors from Java
-- JAR installs cleanly via Maven/Gradle dependency declaration
+- `mvn test` passes conformance vectors from Java
 - Native libraries load correctly on Linux, macOS, and Windows
-- All 9 `gen_*_v0` functions are accessible with idiomatic Java types
-- Devcontainer includes JDK and build tool for Java development
+- All 32 Tier 1 symbols accessible with idiomatic Java types
+- JAR published to Maven Central with source, Javadoc, and GPG signatures
 
-## Go Bindings — Go module
+## Go Bindings — Pure Go module
 
-A pure Go module consumable via `go get` (e.g., `go get github.com/iscc/iscc-lib/packages/go`)
-providing idiomatic, first-class Go access to all ISCC functions. This is a native Go implementation
-— not an FFI wrapper or WASM bridge.
+A pure Go module consumable via `go get` (e.g., `go get github.com/iscc/iscc-lib/packages/go`).
+Native Go implementation of all ISCC algorithms — no CGO, no WASM, no embedded binaries.
 
-**Architecture:**
-
-- Pure Go implementation of all ISCC algorithms (CDC, MinHash, SimHash, DCT, WTA-Hash)
-- No CGO, no WASM, no embedded binaries — just Go source code
-- Idiomatic Go API with Go naming conventions, `error` returns, `[]byte` slices, and `io.Reader`
-    support for streaming
-- Lives in this repository under `packages/go/` as a Go sub-module
-- Validated against the same conformance test vectors as all other bindings
-
-**Why pure Go (not WASM/wazero bridge):**
-
-- **Zero distribution friction** — `go get` fetches source code only, no binary artifacts in git
-- **Native performance** — compiled to machine code, no WASM interpreter overhead. BLAKE3 and xxHash
-    Go libraries have SIMD-optimized implementations
-- **First-class debugging** — Go developers can step into ISCC code, profile it, read the source
-- **Cross-compilation works** — `GOOS=linux GOARCH=arm64 go build` just works
-- **No build artifacts in git** — the WASM approach required committing a ~700KB binary to the
-    repository, polluting git history and weakening large-file guards
-
-**Go dependencies (all well-maintained, pure Go):**
-
-- `github.com/zeebo/blake3` — BLAKE3 cryptographic hash
-- `github.com/cespare/xxhash/v2` or equivalent — xxHash for feature hashing
-- `golang.org/x/text/unicode/norm` — Unicode NFKC/NFD normalization
-- `encoding/base32`, `encoding/base64`, `encoding/hex`, `encoding/json` — standard library
-
-**Implementation scope** (~6,300 lines of Rust to port):
-
-- Codec: header encode/decode, base32, component encoding, ISCC decomposition
-- Text utilities: Unicode normalization, cleaning, trimming, collapsing
-- Algorithms: CDC (gear rolling hash), MinHash (64-dim universal hash), SimHash (bit-vote), DCT
-    (Nayuki fast recursive), WTA-Hash (video fingerprinting)
-- 9 `gen_*_v0` code generation functions
-- Streaming: `DataHasher` and `InstanceHasher` with `io.Reader` support
-- Conformance selftest
+Detailed spec: `.claude/context/specs/go-bindings.md`
 
 **Verified when:**
 
 - `go test ./...` passes all conformance vectors from `iscc-core/data.json`
-- Output of every `gen_*_v0` function matches `iscc-core` reference for every test vector
-- Package installs cleanly via `go get` with no external dependencies beyond Go modules
+- All 32 Tier 1 symbols accessible with idiomatic Go types and error handling
 - No cgo required (`CGO_ENABLED=0` works)
-- Cross-compilation works (`GOOS`/`GOARCH` combinations)
-- All 30 Tier 1 symbols are accessible with idiomatic Go types and error handling
-- API uses Go conventions: `GenMetaCodeV0`, `GenTextCodeV0`, exported types with PascalCase, `error`
-    return values
-- No binary artifacts committed to the repository
-- `check-added-large-files` threshold at 256KB (no need for inflated limits)
 - `go vet ./...` clean
 
 ## Ruby Bindings — `iscc-lib` on RubyGems
 
 A Ruby gem installable from RubyGems as [`iscc-lib`](https://rubygems.org/gems/iscc-lib), providing
-native Rust-powered ISCC functions via Magnus (Rust ↔ Ruby bridge). Ruby developers get
-`gem install iscc-lib` with precompiled native extensions — no Rust toolchain required.
-
-**Architecture:**
-
-- Magnus-based native extension (same pattern as PyO3 for Python — Rust compiles directly into a
-    Ruby C extension, no intermediate C layer)
-- Two-layer design: Rust bridge (`crates/iscc-rb/src/lib.rs`) returns Ruby `Hash` objects, pure Ruby
-    wrapper (`lib/iscc_lib.rb`) provides typed result classes with attribute access
-- Precompiled gems via `rb_sys` + `rake-compiler-dock` for Linux (x86_64, aarch64), macOS (x86_64,
-    arm64), Windows (x64)
-- Source gem available for other platforms (requires Rust toolchain to compile)
+native Rust-powered ISCC functions via Magnus (Rust ↔ Ruby bridge). Precompiled native extensions
+for 5 platforms — no Rust toolchain required.
 
 Detailed spec: `.claude/context/specs/ruby-bindings.md`
 
-**Account setup required:**
-
-- RubyGems.org account registration and `iscc-lib` gem name reservation
-- OIDC trusted publisher configuration for the `iscc/iscc-lib` repository (RubyGems supports OIDC
-    since 2024), or `GEM_HOST_API_KEY` repository secret as fallback
-
-**DevContainer:** Add `ruby ruby-dev` to the Dockerfile apt-get install (system Ruby 3.1 from Debian
-Bookworm is sufficient for development).
-
 **Verified when:**
 
-- `gem install iscc-lib` succeeds with precompiled native gem (no Rust toolchain needed)
-- All 10 `gen_*_v0` functions return `Hash` with the same keys/values as iscc-core
-- `result["iscc"]` and `result.iscc` both work (Hash + attribute access)
-- Streaming functions accept IO objects (anything with `.read`)
+- `gem install iscc-lib` succeeds with precompiled native gem
+- All 32 Tier 1 symbols accessible with idiomatic Ruby types
 - Conformance tests pass against vendored `data.json` vectors
 - `bundle exec rake test` passes in CI
-- Precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64, Windows x64)
 - Version synced from root `Cargo.toml` via `mise run version:sync`
-- Per-crate README renders correctly on rubygems.org
-- DevContainer includes Ruby for development
-- Documentation site includes Ruby how-to guide and API reference
 
 ## C# / .NET Bindings — `Iscc.Lib` on NuGet
 
 A .NET library published to NuGet as [`Iscc.Lib`](https://www.nuget.org/packages/Iscc.Lib),
-providing idiomatic C# access to all ISCC functions via P/Invoke over the existing C FFI. .NET
-developers add a single package reference and get platform-specific native libraries auto-resolved
-at runtime — no manual DLL management required.
+providing idiomatic C# access via P/Invoke over the existing C FFI. Uses `csbindgen` for binding
+generation. Platform-specific native libraries bundled as NuGet runtime assets.
 
-**Architecture:**
-
-- P/Invoke bindings generated via `csbindgen` from the `iscc-ffi` C API (`iscc.h`)
-- .NET class library project in `packages/dotnet/` targeting .NET 8+ (current LTS)
-- Platform-specific native libraries bundled as NuGet runtime assets (RID-specific: linux-x64,
-    linux-arm64, osx-x64, osx-arm64, win-x64)
-- NativeLibrary loader selects the correct platform binary at runtime
-- Idiomatic C# API: `PascalCase` methods, exceptions for errors, `Span<byte>` / `Stream` for binary
-    data, nullable types
-
-**Dev environment:** Requires .NET SDK 8+ in the devcontainer.
+Detailed spec: `.claude/context/specs/dotnet-bindings.md`
 
 **Verified when:**
 
-- `dotnet add package Iscc.Lib` installs cleanly from NuGet
-- All 10 `gen_*_v0` functions accessible with idiomatic C# types
-- Conformance tests pass via `dotnet test`
+- `dotnet test` passes conformance vectors
+- All 32 Tier 1 symbols accessible with idiomatic C# types
 - Native libraries load correctly on Linux, macOS, and Windows
-- NuGet package includes runtime assets for 5 platforms
-- API uses C# conventions: `IsccLib.GenMetaCodeV0()`, `PascalCase`, exceptions, `Stream` for I/O
 - Version synced from root `Cargo.toml` via `mise run version:sync`
-- Per-package README renders correctly on nuget.org
 
 ## C++ Bindings — Idiomatic Header-Only Wrapper
 
-An idiomatic C++17 header-only wrapper (`iscc.hpp`) over the existing C FFI, distributed via vcpkg,
-Conan, and bundled with FFI release tarballs. C++ developers get RAII resource management,
-`std::string` / `std::vector<uint8_t>` types, and CMake `find_package(iscc)` integration — no manual
-memory management of C strings required.
+An idiomatic C++17 header-only wrapper (`iscc.hpp`) over the existing C FFI, providing RAII resource
+management, `std::string` types, and CMake integration. Distributed via vcpkg, Conan, and bundled
+with FFI release tarballs.
 
-**Architecture:**
-
-- Single header `iscc.hpp` wrapping all C FFI functions with C++ types and RAII
-- RAII wrappers auto-free C strings returned by the FFI (no manual `iscc_string_free` calls)
-- `std::string`, `std::vector<uint8_t>`, `std::optional`, `std::runtime_error` for errors
-- Requires only the C shared library (`libiscc_ffi`) + the C header (`iscc.h`)
-- Distribution: vcpkg port, Conan recipe, and header bundled in FFI release tarballs
-- CMake `find_package(iscc)` and `pkg-config` support
-- Lives in `packages/cpp/` (header, CMake config, vcpkg/Conan manifests, tests)
+Detailed spec: `.claude/context/specs/cpp-bindings.md`
 
 **Verified when:**
 
 - `#include <iscc/iscc.hpp>` compiles with C++17 on GCC, Clang, MSVC
-- All 10 `gen_*_v0` functions accessible with idiomatic C++ types
+- All 32 Tier 1 symbols accessible with idiomatic C++ types
 - RAII ensures no memory leaks (valgrind/ASAN clean)
 - Conformance tests pass (C++ test program)
-- CMake integration works (`find_package(iscc)`)
-- vcpkg port manifest available
-- Header bundled in FFI release tarballs alongside `iscc.h`
 
 ## Swift Bindings — Swift Package
 
-A Swift package providing idiomatic Swift access to all ISCC functions via UniFFI-generated
-bindings. Swift developers add the package via Swift Package Manager (SPM) and get native Apple
-platform support — iOS, macOS, tvOS, watchOS.
+A Swift package providing idiomatic Swift access via UniFFI-generated bindings. Shares the UniFFI
+scaffolding crate (`crates/iscc-uniffi/`) with Kotlin bindings. Distributed via Swift Package
+Manager (SPM) using Git tags.
 
-**Architecture:**
-
-- UniFFI scaffolding crate (`crates/iscc-uniffi/`) defines the shared interface used by both Swift
-    and Kotlin bindings
-- `uniffi-bindgen` generates idiomatic Swift code from the UniFFI definition
-- Swift package layout in `packages/swift/` with `Package.swift`
-- XCFramework with pre-built binaries for Apple platforms, or source distribution via SPM Git tags
-- Idiomatic Swift API: `camelCase`, `throws` for errors, `Data` for binary, `InputStream` for
-    streaming
-
-**Dev environment:** Requires Swift toolchain in the devcontainer (or macOS CI runner for Apple
-platform builds).
+Detailed spec: `.claude/context/specs/swift-bindings.md`
 
 **Verified when:**
 
 - `swift test` passes conformance vectors
-- Package resolves via SPM from Git tag (`.package(url:..., from:...)`)
-- All 10 `gen_*_v0` functions accessible with idiomatic Swift types
+- All 32 Tier 1 symbols accessible with idiomatic Swift types
 - Works on iOS and macOS targets
-- API uses Swift conventions: `genMetaCodeV0()`, `camelCase`, `throws`, `Data`
 - Version synced from root `Cargo.toml` via `mise run version:sync`
 
-## Kotlin Multiplatform Bindings — Maven Central
+## Kotlin Multiplatform Bindings — `io.iscc:iscc-lib-kotlin` on Maven Central
 
-A Kotlin Multiplatform (KMP) library published to Maven Central as `io.iscc:iscc-lib-kotlin`,
-extending ISCC support to Kotlin/Native targets (iOS, desktop) beyond the existing Java/JNI
-coverage. Shares the UniFFI scaffolding crate with Swift bindings — one interface definition serves
-both mobile platforms.
+A Kotlin Multiplatform (KMP) library published to Maven Central as `io.iscc:iscc-lib-kotlin`. Shares
+the UniFFI scaffolding crate with Swift bindings. Targets JVM, iOS (Kotlin/Native), and macOS
+(Kotlin/Native).
 
-**Architecture:**
-
-- Shares the UniFFI scaffolding crate (`crates/iscc-uniffi/`) with Swift bindings
-- `uniffi-bindgen` generates idiomatic Kotlin code from the shared UniFFI definition
-- KMP project in `packages/kotlin/` with Gradle build
-- Targets: JVM (idiomatic Kotlin alternative to Java/JNI), iOS (Kotlin/Native), macOS
-    (Kotlin/Native)
-- Platform-specific native libraries bundled per target
-- Idiomatic Kotlin API: `camelCase`, sealed classes for results, coroutine-friendly, null safety
-
-**Note:** The existing Java/JNI bindings (`crates/iscc-jni`) already serve Kotlin on the JVM. This
-KMP package adds Kotlin/Native support for iOS and desktop, plus a more idiomatic Kotlin API with
-null safety and sealed classes.
-
-**Dev environment:** Requires Kotlin compiler and Gradle in the devcontainer.
+Detailed spec: `.claude/context/specs/kotlin-bindings.md`
 
 **Verified when:**
 
 - Kotlin tests pass conformance vectors on JVM and Native targets
-- Published to Maven Central as `io.iscc:iscc-lib-kotlin`
-- All 10 `gen_*_v0` functions accessible with idiomatic Kotlin types
+- All 32 Tier 1 symbols accessible with idiomatic Kotlin types
 - Works from Kotlin/JVM and Kotlin/Native (iOS, macOS)
-- API uses Kotlin conventions: `genMetaCodeV0()`, `camelCase`, sealed classes, null safety
 - Version synced from root `Cargo.toml` via `mise run version:sync`
 
 ## README
