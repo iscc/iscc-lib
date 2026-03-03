@@ -30,7 +30,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Codebase Landmarks
 
 - `crates/` — 7 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni, **iscc-rb**
-    (16/32 symbols)
+    (19/32 symbols)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench
@@ -60,13 +60,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 24821e9)
+## Current State (assessed-at: 47f237d)
 
-- **IN_PROGRESS**: all 11 CI jobs green; Ruby bindings at 16/32 symbols
-- **Ruby bindings**: PARTIALLY MET — 16/32 symbols, 19 smoke tests (47 assertions) pass; missing 16
-    symbols, Standard Ruby linting, conformance tests, Ruby CI job, RubyGems release, version_sync,
-    docs/howto/ruby.md
-- **CI (run 22636249934)**: ALL SUCCESS — 11 jobs (no Ruby job yet; iscc-rb excluded from Rust job)
+- **IN_PROGRESS**: all 11 CI jobs green (run 22637279696); Ruby bindings at 19/32 symbols
+- **4 new binding targets** added to target.md: C# / .NET, C++, Swift, Kotlin — none started
+- **Ruby bindings**: PARTIALLY MET — 19/32 symbols, 25 smoke tests pass
+    - 4 gen functions (meta, text, image, audio), 4 text utilities, 6 codec/diagnostic, 5 constants
+    - Missing 13: 6 gen functions (video, mixed, data, instance, iscc, sum), 4 algo primitives, 1
+        utility, 2 streaming types
+    - Missing: conformance tests, Standard Ruby linting, Ruby CI job, RubyGems release, version_sync,
+        docs/howto/ruby.md
+- **CI (run 22637279696)**: ALL SUCCESS — 11 jobs (no Ruby job yet; iscc-rb excluded from Rust job)
 - **Ruby CI exclusion**: `--exclude iscc-rb` on both clippy and cargo test in Rust CI job
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **extconf.rb location**: crate root (not `ext/iscc_lib/`); rb_sys expects it next to Cargo.toml
@@ -74,12 +78,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Feature flags**: `default = ["meta-code"]`, 5 CI feature matrix steps
 - **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
 - **release.yml**: checkboxes for crates.io, PyPI, npm, Maven, FFI (not RubyGems yet)
-- **devcontainer**: `ruby ruby-dev` added ✅; spec `ruby-bindings.md` created ✅
 - **Standard Ruby spec**: `specs/ruby-bindings.md` added linting section (standard gem,
     rubocop-minitest, .standard.yml) — none yet implemented in Gemfile or CI
-- **Ruby 16/32 breakdown**: 11 functions + 5 constants. Remaining 16: 9 gen functions, 4 algorithm
-    primitives (sliding_window, alg_simhash, alg_minhash_256, alg_cdc_chunks), 1 utility
-    (alg_simhash_from_iscc), 2 streaming types (DataHasher, InstanceHasher)
+- **New packages path**: `packages/` only has `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do
+    NOT exist yet
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 

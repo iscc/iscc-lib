@@ -1,15 +1,16 @@
-<!-- assessed-at: 24821e97f8c1b11a241f5251fced55d5b4cb2b39 -->
+<!-- assessed-at: 47f237d800d66cbbeb4aaba66b1a784888a406d3 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings — 16/32 symbols; Standard Ruby linting not yet configured
+## Phase: Ruby bindings — 19/32 symbols; 4 new binding targets added (C#, C++, Swift, Kotlin)
 
-The Ruby Magnus bridge advanced from 10 to 16 of 32 Tier 1 symbols this iteration, adding 6 codec
-and diagnostic functions (`encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`,
-`json_to_data_url`, `conformance_selftest`). The Ruby bindings spec (`specs/ruby-bindings.md`) was
-expanded with Standard Ruby linting requirements. All 11 CI jobs remain green.
+The Ruby Magnus bridge advanced from 16 to 19 of 32 Tier 1 symbols, adding `gen_text_code_v0`,
+`gen_image_code_v0`, and `gen_audio_code_v0` with matching result classes in the pure Ruby wrapper.
+Target scope expanded significantly: C# / .NET, C++, Swift, and Kotlin bindings were added as new
+target sections in `target.md` along with corresponding issues. None of these new targets have any
+code started. All 11 CI jobs remain green.
 
 ## Rust Core Crate
 
@@ -43,7 +44,7 @@ expanded with Standard Ruby linting requirements. All 11 CI jobs remain green.
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22636249934 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22637279696 ✅
 
 ## C FFI
 
@@ -75,18 +76,21 @@ expanded with Standard Ruby linting requirements. All 11 CI jobs remain green.
 **Status**: partially met
 
 - `crates/iscc-rb/` scaffold with Magnus bridge (magnus 0.7.1, Ruby 3.1.2 compat) ✅
-- **16 of 32 Tier 1 symbols** exposed: `gen_meta_code_v0`, 4 text utilities, `encode_base64`,
-    `iscc_decompose`, `encode_component`, `iscc_decode`, `json_to_data_url`, `conformance_selftest`
-    \+ 5 constants (META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META, IO_READ_SIZE,
-    TEXT_NGRAM_SIZE) ✅
-- Pure Ruby wrapper: `MetaCodeResult < Result < Hash` pattern, keyword args ✅
-- 19 Minitest smoke tests pass (47 assertions); `bundle exec rake compile` builds in release profile
-    ✅
+- **19 of 32 Tier 1 symbols** exposed:
+    - Gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
+        (4)
+    - Text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse` (4)
+    - Codec/diagnostic: `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`,
+        `json_to_data_url`, `conformance_selftest` (6)
+    - Constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
+        `TEXT_NGRAM_SIZE` (5)
+- Pure Ruby wrapper: `TextCodeResult`, `ImageCodeResult`, `AudioCodeResult < Result < Hash` pattern,
+    keyword args ✅
+- 25 Minitest smoke tests; `bundle exec rake compile` builds in release profile ✅
 - `crates/iscc-rb/README.md` exists (stub) ✅
-- **Missing**: 16 remaining symbols: 9 gen functions (`gen_text_code_v0`, `gen_image_code_v0`,
-    `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
-    `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`), 4 algorithm primitives
-    (`sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`), 1 utility
+- **Missing**: 13 remaining symbols: 6 gen functions (`gen_video_code_v0`, `gen_mixed_code_v0`,
+    `gen_data_code_v0`, `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`), 4 algorithm
+    primitives (`sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`), 1 utility
     (`alg_simhash_from_iscc`), 2 streaming types (`DataHasher`, `InstanceHasher`)
 - **Missing**: No conformance tests against `data.json`
 - **Missing**: No dedicated `ruby` CI job (workspace Rust job uses `--exclude iscc-rb`)
@@ -95,21 +99,63 @@ expanded with Standard Ruby linting requirements. All 11 CI jobs remain green.
 - **Missing**: Standard Ruby linting not configured (no `standard` gem in Gemfile, no
     `.standard.yml`, not wired into pre-commit hooks or CI)
 
+## C# / .NET Bindings
+
+**Status**: not started
+
+- Target defined in `target.md`: P/Invoke bindings via `csbindgen`, `packages/dotnet/` directory,
+    NuGet package `Iscc.Lib` targeting .NET 8+
+- Issue filed in `issues.md` with full implementation scope ✅
+- **No code exists**: `packages/dotnet/` does not exist; no `csbindgen` integration; no CI job; no
+    devcontainer .NET SDK
+
+## C++ Bindings
+
+**Status**: not started
+
+- Target defined in `target.md`: header-only wrapper `iscc.hpp`, `packages/cpp/` directory,
+    distribution via vcpkg/Conan/FFI release tarballs
+- Issue filed in `issues.md` with full implementation scope ✅
+- **No code exists**: `packages/cpp/` does not exist; no `iscc.hpp`; no vcpkg/Conan manifests
+
+## Swift Bindings
+
+**Status**: not started
+
+- Target defined in `target.md`: UniFFI-generated Swift bindings, `packages/swift/` directory, SPM
+    package, `crates/iscc-uniffi/` scaffolding crate
+- Issue filed in `issues.md` with full implementation scope ✅
+- **No code exists**: `packages/swift/` does not exist; `crates/iscc-uniffi/` does not exist; no
+    UniFFI integration
+
+## Kotlin Multiplatform Bindings
+
+**Status**: not started
+
+- Target defined in `target.md`: UniFFI-generated KMP bindings, `packages/kotlin/` directory, shares
+    `crates/iscc-uniffi/` with Swift
+- Issue filed in `issues.md` with full implementation scope; depends on Swift ✅
+- **No code exists**: `packages/kotlin/` does not exist; depends on `iscc-uniffi` crate (also not
+    started)
+
 ## README
 
 **Status**: partially met
 
 - Public-facing polyglot README exists; CI badge, registry badges ✅
 - All 10 `gen_*_v0` functions listed; per-language install + quick-start examples ✅
-- **Gap**: Ruby install instructions and quickstart not present (target requires Ruby/gem section)
+- **Gap**: Ruby install instructions and quickstart not present
+- **Gap**: C#, C++, Swift, Kotlin sections not present (target now requires all 4)
 
 ## Per-Crate READMEs
 
 **Status**: partially met
 
-- READMEs present for all 8 crates/packages (including `crates/iscc-rb/README.md`) ✅
+- READMEs present for all existing 8 crates/packages (including `crates/iscc-rb/README.md`) ✅
 - **Gap**: `crates/iscc-rb/README.md` is a stub (31 lines); full installation/usage instructions not
-    yet complete per target requirements
+    yet complete
+- **Gap**: Target now requires READMEs for `packages/dotnet`, `packages/cpp`, `packages/swift`,
+    `packages/kotlin` — none of these directories exist yet
 
 ## Documentation
 
@@ -120,6 +166,7 @@ expanded with Standard Ruby linting requirements. All 11 CI jobs remain green.
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
 - **Gap**: No `docs/howto/ruby.md` guide; no `docs/ruby-api.md`; no Ruby tabs in multi-language
     examples
+- **Gap**: Target now requires C#, C++, Swift, Kotlin how-to guides and tabs (none started)
 
 ## Benchmarks
 
@@ -133,26 +180,24 @@ expanded with Standard Ruby linting requirements. All 11 CI jobs remain green.
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22636249934: all 11 jobs SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22636249934
+- **ALL PASSING** — latest CI run 22637279696: all 11 jobs SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22637279696
 - `release.yml` has `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven,
     FFI) ✅
 - `iscc-rb` excluded from workspace Rust CI job (`--exclude iscc-rb`) — no dedicated Ruby CI job
 - **Gap**: No `ruby` CI job; no `rubygems` publish step; Ruby not in `version_sync.py`
+- **Gap**: Target now requires CI jobs for C#, C++, Swift, Kotlin (none started)
 
 ## Next Milestone
 
-Implement the remaining 9 gen functions in the Ruby Magnus bridge — the largest and most impactful
-remaining batch. Suggested ordering within the batch:
+Continue advancing the Ruby bindings toward 32/32 symbols — this is the most immediate bottleneck
+before the new binding targets (C#, C++, Swift, Kotlin) can be tackled. Suggested next work package:
 
-1. **`gen_text_code_v0`**, **`gen_image_code_v0`**, **`gen_audio_code_v0`** — file-path-based gen
-    functions with straightforward `*CodeResult` return hashes; add matching result classes to
-    `lib/iscc_lib.rb`
-2. **`gen_video_code_v0`**, **`gen_mixed_code_v0`**, **`gen_data_code_v0`** — same pattern, one also
-    needs streaming IO wrapper in Ruby
-3. **`gen_instance_code_v0`**, **`gen_iscc_code_v0`**, **`gen_sum_code_v0`** — complete the set
+1. **`gen_video_code_v0`**, **`gen_mixed_code_v0`**, **`gen_data_code_v0`** — file/byte-based gen
+    functions following the established pattern; add matching `VideoCodeResult`, `MixedCodeResult`,
+    `DataCodeResult` result classes
+2. **`gen_instance_code_v0`**, **`gen_iscc_code_v0`**, **`gen_sum_code_v0`** — complete the gen
+    function set
 
-After all 9 gen functions: add algorithm primitives + streaming types (`sliding_window`,
-`alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`, `alg_simhash_from_iscc`, `DataHasher`,
-`InstanceHasher`) to reach 32/32, then add conformance tests, Standard Ruby linting, Ruby CI job,
-RubyGems release step, version sync, and documentation.
+After all 9 gen functions: add algorithm primitives + streaming types, then conformance tests,
+Standard Ruby linting, Ruby CI job, RubyGems release step, and documentation.
