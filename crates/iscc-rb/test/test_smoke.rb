@@ -164,6 +164,59 @@ class TestSmoke < Minitest::Test
     assert result.iscc.is_a?(String)
   end
 
+  def test_gen_video_code_v0_basic
+    # WTA-Hash requires at least 380 elements per frame signature
+    frame = (1..400).to_a
+    frame_sigs = [frame, frame.map { |x| x + 1 }]
+    result = IsccLib.gen_video_code_v0(frame_sigs)
+    assert_kind_of IsccLib::VideoCodeResult, result
+    assert result["iscc"].start_with?("ISCC:"), "ISCC should start with 'ISCC:'"
+  end
+
+  def test_gen_video_code_v0_attribute_access
+    frame = (1..400).to_a
+    frame_sigs = [frame, frame.reverse]
+    result = IsccLib.gen_video_code_v0(frame_sigs)
+    assert result.iscc.start_with?("ISCC:")
+    assert result.iscc.is_a?(String)
+  end
+
+  def test_gen_mixed_code_v0_basic
+    # gen_mixed_code_v0 requires Content-Codes (Text, Image, Audio, Video)
+    text = IsccLib.gen_text_code_v0("Hello World " * 100)
+    pixels = ("\x80" * 1024).b
+    image = IsccLib.gen_image_code_v0(pixels)
+    codes = [text.iscc, image.iscc]
+    result = IsccLib.gen_mixed_code_v0(codes)
+    assert_kind_of IsccLib::MixedCodeResult, result
+    assert result["iscc"].start_with?("ISCC:"), "ISCC should start with 'ISCC:'"
+    assert result["parts"].is_a?(Array), "parts should be an Array"
+  end
+
+  def test_gen_mixed_code_v0_attribute_access
+    text = IsccLib.gen_text_code_v0("Test Document " * 100)
+    pixels = ("\xFF" * 1024).b
+    image = IsccLib.gen_image_code_v0(pixels)
+    result = IsccLib.gen_mixed_code_v0([text.iscc, image.iscc])
+    assert result.iscc.start_with?("ISCC:")
+    assert result.parts.is_a?(Array)
+    assert result.parts.all? { |p| p.is_a?(String) }, "all parts should be Strings"
+  end
+
+  def test_gen_data_code_v0_basic
+    data = ("Hello World" * 100).b
+    result = IsccLib.gen_data_code_v0(data)
+    assert_kind_of IsccLib::DataCodeResult, result
+    assert result["iscc"].start_with?("ISCC:"), "ISCC should start with 'ISCC:'"
+  end
+
+  def test_gen_data_code_v0_attribute_access
+    data = ("x" * 1000).b
+    result = IsccLib.gen_data_code_v0(data)
+    assert result.iscc.start_with?("ISCC:")
+    assert result.iscc.is_a?(String)
+  end
+
   def test_version
     assert IsccLib::VERSION.is_a?(String)
     assert_match(/\A\d+\.\d+\.\d+\z/, IsccLib::VERSION)

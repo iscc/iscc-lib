@@ -37,6 +37,15 @@ module IsccLib
   # Result from gen_audio_code_v0.
   class AudioCodeResult < Result; end
 
+  # Result from gen_video_code_v0.
+  class VideoCodeResult < Result; end
+
+  # Result from gen_mixed_code_v0.
+  class MixedCodeResult < Result; end
+
+  # Result from gen_data_code_v0.
+  class DataCodeResult < Result; end
+
   # Generate a Meta-Code from name and optional metadata.
   #
   # @param name [String] content name (required, non-empty)
@@ -73,5 +82,32 @@ module IsccLib
   # @return [AudioCodeResult] hash with iscc
   def self.gen_audio_code_v0(cv, bits: 64)
     AudioCodeResult[_gen_audio_code_v0(cv, bits)]
+  end
+
+  # Generate a Video-Code from frame signature vectors.
+  #
+  # @param frame_sigs [Array<Array<Integer>>] nested array of frame signatures
+  # @param bits [Integer] bit length (default: 64)
+  # @return [VideoCodeResult] hash with iscc
+  def self.gen_video_code_v0(frame_sigs, bits: 64)
+    VideoCodeResult[_gen_video_code_v0(frame_sigs, bits)]
+  end
+
+  # Generate a Mixed-Code from multiple ISCC content code strings.
+  #
+  # @param codes [Array<String>] ISCC unit strings
+  # @param bits [Integer] bit length (default: 64)
+  # @return [MixedCodeResult] hash with iscc, parts
+  def self.gen_mixed_code_v0(codes, bits: 64)
+    MixedCodeResult[_gen_mixed_code_v0(codes, bits)]
+  end
+
+  # Generate a Data-Code from binary data.
+  #
+  # @param data [String] binary data
+  # @param bits [Integer] bit length (default: 64)
+  # @return [DataCodeResult] hash with iscc
+  def self.gen_data_code_v0(data, bits: 64)
+    DataCodeResult[_gen_data_code_v0(data, bits)]
   end
 end

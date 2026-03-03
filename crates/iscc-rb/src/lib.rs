@@ -4,15 +4,16 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Symbols (19 of 32):
+//! Symbols (22 of 32):
 //! - `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
+//! - `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`
 //! - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 //! - `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`
 //! - `json_to_data_url`, `conformance_selftest`
 //! - Constants: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
 //!   IO_READ_SIZE, TEXT_NGRAM_SIZE
 
-use magnus::{Error, RArray, RHash, RString, Ruby, function, prelude::*};
+use magnus::{Error, RArray, RHash, RString, Ruby, TryConvert, function, prelude::*};
 
 /// Map an `IsccError` to a Magnus `RuntimeError`.
 fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
@@ -78,6 +79,54 @@ fn gen_image_code_v0(pixels: RString, bits: u32) -> Result<RHash, Error> {
 /// Returns a Ruby Hash with key: `iscc`.
 fn gen_audio_code_v0(cv: Vec<i32>, bits: u32) -> Result<RHash, Error> {
     let r = iscc_lib::gen_audio_code_v0(&cv, bits).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
+    Ok(hash)
+}
+
+/// Generate a Video-Code from frame signature vectors.
+///
+/// Accepts a Ruby Array of Arrays of integers (nested `i32` frame signatures).
+/// Returns a Ruby Hash with key: `iscc`.
+fn gen_video_code_v0(frame_sigs: RArray, bits: u32) -> Result<RHash, Error> {
+    let frames: Vec<Vec<i32>> = frame_sigs
+        .into_iter()
+        .map(|frame| {
+            let arr: Vec<i32> = TryConvert::try_convert(frame)?;
+            Ok(arr)
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    let r = iscc_lib::gen_video_code_v0(&frames, bits).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
+    Ok(hash)
+}
+
+/// Generate a Mixed-Code from multiple ISCC content code strings.
+///
+/// Accepts a Ruby Array of ISCC unit strings.
+/// Returns a Ruby Hash with keys: `iscc`, `parts`.
+fn gen_mixed_code_v0(codes: Vec<String>, bits: u32) -> Result<RHash, Error> {
+    let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
+    let r = iscc_lib::gen_mixed_code_v0(&refs, bits).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
+    hash.aset("parts", r.parts)?;
+    Ok(hash)
+}
+
+/// Generate a Data-Code from binary data.
+///
+/// Accepts a binary Ruby String of raw bytes.
+/// Returns a Ruby Hash with key: `iscc`.
+fn gen_data_code_v0(data: RString, bits: u32) -> Result<RHash, Error> {
+    // Safety: the slice is passed directly to a pure Rust function
+    // and not held across any Ruby API calls.
+    let bytes = unsafe { data.as_slice() };
+    let r = iscc_lib::gen_data_code_v0(bytes, bits).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
     let hash = ruby.hash_new();
     hash.aset("iscc", r.iscc)?;
@@ -191,6 +240,9 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     module.define_module_function("_gen_text_code_v0", function!(gen_text_code_v0, 2))?;
     module.define_module_function("_gen_image_code_v0", function!(gen_image_code_v0, 2))?;
     module.define_module_function("_gen_audio_code_v0", function!(gen_audio_code_v0, 2))?;
+    module.define_module_function("_gen_video_code_v0", function!(gen_video_code_v0, 2))?;
+    module.define_module_function("_gen_mixed_code_v0", function!(gen_mixed_code_v0, 2))?;
+    module.define_module_function("_gen_data_code_v0", function!(gen_data_code_v0, 2))?;
 
     // Text utility functions
     module.define_module_function("text_clean", function!(text_clean, 1))?;

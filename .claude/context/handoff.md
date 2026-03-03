@@ -1,41 +1,45 @@
-## 2026-03-03 — Review of: Add gen_text/image/audio_code_v0 to Ruby bridge
+## 2026-03-03 — Add gen_video/mixed/data_code_v0 to Ruby bridge
 
-**Verdict:** PASS
+**Done:** Added `gen_video_code_v0`, `gen_mixed_code_v0`, and `gen_data_code_v0` to the Ruby Magnus
+bridge, advancing from 19/32 to 22/32 Tier 1 symbols. Each function follows the established pattern:
+Rust bridge function returning `RHash`, `_`-prefixed module registration, Ruby `Result` subclass,
+and keyword-arg wrapper with `bits: 64` default.
 
-**Summary:** Added 3 gen functions (`gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`) to
-the Ruby Magnus bridge, advancing from 16/32 to 19/32 Tier 1 symbols. Implementation follows the
-established patterns exactly — Rust bridge functions with `RHash` return, `_`-prefixed registration,
-Result subclasses, keyword-arg wrappers. Clean code with no issues.
+**Files changed:**
+
+- `crates/iscc-rb/src/lib.rs`: Added 3 bridge functions (`gen_video_code_v0` with `RArray` →
+    `Vec<Vec<i32>>` nested conversion via `into_iter()` + `TryConvert`, `gen_mixed_code_v0` with
+    `Vec<String>` → `Vec<&str>` conversion, `gen_data_code_v0` with `RString` binary slice pattern).
+    Registered all 3 in `init()`. Updated symbol count in docstring from 19 to 22.
+- `crates/iscc-rb/lib/iscc_lib.rb`: Added `VideoCodeResult`, `MixedCodeResult`, `DataCodeResult`
+    classes and corresponding `self.gen_video_code_v0`, `self.gen_mixed_code_v0`,
+    `self.gen_data_code_v0` wrapper methods.
+- `crates/iscc-rb/test/test_smoke.rb`: Added 6 smoke tests (basic + attribute access for each new
+    function). Video test uses 400-element frame arrays (WTA-Hash minimum is 380). Mixed test uses
+    Text-Code + Image-Code (Content-Codes required, not Meta-Codes).
 
 **Verification:**
 
-- [x] `cargo check -p iscc-rb` compiles successfully
-- [x] `cargo clippy -p iscc-rb -- -D warnings` — clean (0 warnings)
-- [x] `bundle exec rake compile` — builds native extension in release profile
-- [x] `bundle exec rake test` — 25 runs, 61 assertions, 0 failures, 0 errors, 0 skips
-- [x] `bundle exec ruby -e "require 'iscc_lib'; r = IsccLib.gen_text_code_v0('Hello World'); puts r.iscc"`
-    — prints `ISCC:EAASKDNZNYGUUF5A`
+- `cargo check -p iscc-rb` — compiles successfully
+- `cargo clippy -p iscc-rb -- -D warnings` — clean (0 warnings)
+- `bundle exec rake compile` — builds native extension in release profile
+- `bundle exec rake test` — 31 runs, 75 assertions, 0 failures, 0 errors, 0 skips
+- `gen_video_code_v0` one-liner — prints `ISCC:EMAVFD4RIMPXYSWS`
+- `gen_data_code_v0` one-liner — prints `ISCC:GAAY5EN4BF2LH3FW`
+- `mise run check` — all pre-commit hooks pass
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** No correctness, safety, or maintainability issues identified. Wrappers, bridge
-functions, and registrations are consistent with existing patterns.
-
-**Next:** Continue adding gen functions to Ruby bridge. Next batch should be `gen_video_code_v0`
-(nested `Vec<Vec<i32>>` frame signatures — needs special handling), `gen_mixed_code_v0`
-(`Vec<String>` input), and `gen_data_code_v0` (`&[u8]` binary data). These three have slightly more
-complex parameter types than the current batch.
+**Next:** Continue adding gen functions to Ruby bridge. Next batch should be `gen_instance_code_v0`
+(binary data → hash with `iscc`, `datahash`, `filesize`), `gen_iscc_code_v0` (string arrays + wide
+flag), and `gen_sum_code_v0` (file path + add_units flag). These have the most complex return types
+of the remaining functions.
 
 **Notes:**
 
-- Ruby bridge is now at 19/32 symbols. Remaining 13: 6 gen functions (`gen_video_code_v0`,
-    `gen_mixed_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`, `gen_iscc_code_v0`,
-    `gen_sum_code_v0`), 4 algorithm primitives (`sliding_window`, `alg_simhash`, `alg_minhash_256`,
-    `alg_cdc_chunks`), 1 utility (`alg_simhash_from_iscc`), 2 streaming types (`DataHasher`,
-    `InstanceHasher`).
-- `gen_video_code_v0` takes `Vec<Vec<i32>>` which may need explicit conversion in Magnus — verify
-    whether Magnus auto-converts nested arrays of integers.
-- `gen_data_code_v0` takes `&[u8]` — use `RString` + `unsafe { data.as_slice() }` pattern.
-- `gen_mixed_code_v0` takes `Vec<String>` — Magnus should auto-convert Ruby Array of Strings.
+- Magnus 0.7.1 `RArray::each()` is deprecated — must use `into_iter()` instead. The `next.md`
+    example code used the deprecated API.
+- `TryConvert::try_convert(val)` is an associated function in Magnus 0.7.1, not a method — cannot
+    call `val.try_convert()`. Required explicit import of `TryConvert` trait.
+- `gen_video_code_v0` requires frame signatures with ≥380 elements per frame (WTA-Hash minimum).
+    Small test arrays like `[[1,2,3]]` will error.
+- `gen_mixed_code_v0` only accepts Content-Codes (Text/Image/Audio/Video), not Meta-Codes. Passing
+    Meta-Code ISCCs results in "all codes must be Content-Codes" error.

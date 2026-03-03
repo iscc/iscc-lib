@@ -184,11 +184,19 @@ iterations.
     immediately before any Ruby API calls. Return binary data via `RString::from_slice(&bytes)`
 - Returning arrays: use `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays (e.g.,
     `iscc_decode` returns `[u8, u8, u8, u8, RString]`)
-- 19/32 Tier 1 symbols exposed: gen_meta_code_v0, gen_text_code_v0, gen_image_code_v0,
-    gen_audio_code_v0, 4 text utils, 5 constants, encode_base64, iscc_decompose, encode_component,
-    iscc_decode, json_to_data_url, conformance_selftest
+- 22/32 Tier 1 symbols exposed: gen_meta/text/image/audio/video/mixed/data_code_v0, 4 text utils, 5
+    constants, encode_base64, iscc_decompose, encode_component, iscc_decode, json_to_data_url,
+    conformance_selftest
 - `gen_image_code_v0` requires exactly 1024 pixels (32×32 image) — use `RString` for binary input
 - `gen_audio_code_v0` takes `Vec<i32>` — Magnus auto-converts Ruby Array of integers
+- `gen_video_code_v0`: `RArray` → `Vec<Vec<i32>>` via `into_iter()` +
+    `TryConvert::try_convert(val)`. Magnus 0.7.1 `RArray::each()` is deprecated — use `into_iter()`.
+    `TryConvert` is an associated fn, not a method — import trait, call
+    `TryConvert::try_convert(val)` not `val.try_convert()`
+- `gen_video_code_v0` requires ≥380 elements per frame (WTA-Hash minimum). Small test arrays error
+- `gen_mixed_code_v0`: `Vec<String>` auto-converts, then `Vec<&str>` for core. Only Content-Codes
+    (Text/Image/Audio/Video) accepted — Meta-Codes cause "all codes must be Content-Codes" error
+- `gen_data_code_v0`: same `RString` + `unsafe { data.as_slice() }` pattern as gen_image_code_v0
 
 ## Gotchas
 
