@@ -104,7 +104,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     false-positives about missing exports can be safely dismissed
 - FFI constant count in module docstring (line 5) must be updated when adding new constants (now 5)
 - CI has 11 jobs: version-check, rust, python-3.10, python-3.14, python-gate, nodejs, wasm, c-ffi,
-    java, go, bench — all passing
+    java, go, bench — all passing. Ruby CI job pending
+- **iscc-rb workspace exclusion**: CI `rust` job uses `--exclude iscc-rb` in workspace clippy/test
+    commands because the runner lacks Ruby headers. Remove when a dedicated `ruby` CI job is added
 
 ## Binding Propagation Review Shortcuts
 
@@ -185,6 +187,17 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `.pyi` stub at `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` must also be updated. `ty check`
     (pre-push) catches mismatches but `mise run check` (pre-commit) does not. Always verify
     `uv run ty check` for Python binding changes
+
+## Ruby Binding Review
+
+- Ruby tests:
+    `export PATH="$HOME/.local/share/gem/ruby/3.1.0/bin:$PATH" && cd crates/iscc-rb &&   bundle exec rake test`
+- `bundle` not on PATH by default — need gem user bin dir
+- Magnus 0.7.1 is pinned for Ruby 3.1 compat — Magnus 0.8 needs Ruby 3.2+
+- `rb-sys` build script needs Ruby headers — fails if `ruby-dev` not installed. This is why
+    `--exclude iscc-rb` was added to CI workspace commands
+- Codex flags about standalone Cargo.toml and gemspec runtime deps are valid for source gem builds
+    but moot for precompiled gem distribution (the intended model)
 
 ## Gotchas
 

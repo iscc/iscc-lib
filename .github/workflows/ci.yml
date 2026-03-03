@@ -31,13 +31,13 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings
       - name: Clippy iscc-lib (no default features)
         run: cargo clippy -p iscc-lib --no-default-features -- -D warnings
       - name: Clippy iscc-lib (all features)
         run: cargo clippy -p iscc-lib --all-features -- -D warnings
       - name: Run tests
-        run: cargo test --workspace
+        run: cargo test --workspace --exclude iscc-rb
       - name: Test iscc-lib (no default features)
         run: cargo test -p iscc-lib --no-default-features
       - name: Test iscc-lib (all features)

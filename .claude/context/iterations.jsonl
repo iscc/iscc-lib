@@ -704,3 +704,8 @@
 {"ts":"2026-03-03T14:48:12.427446+00:00","iteration":2,"role":"define-next","status":"OK","turns":16,"cost_usd":0.648964,"duration_s":116.6}
 {"ts":"2026-03-03T14:50:57.424161+00:00","iteration":2,"role":"advance","status":"OK","turns":15,"cost_usd":0.411225,"duration_s":165.0}
 {"iteration":2,"agent":"review","timestamp":"2026-03-03T00:00:00Z","summary":"PASS — WASM conformance assertion 16→20 verified. Compilation, clippy, grep checks all pass. No issues found. CI regression resolved.","verdict":"PASS"}
+{"ts":"2026-03-03T14:54:19.686565+00:00","iteration":2,"role":"review","status":"OK","turns":24,"cost_usd":0.468655,"duration_s":202.3}
+{"ts":"2026-03-03T15:15:50.359132+00:00","iteration":3,"role":"update-state","status":"OK","turns":12,"cost_usd":0.410305,"duration_s":159.6}
+{"ts":"2026-03-03T15:22:25.802053+00:00","iteration":3,"role":"define-next","status":"OK","turns":32,"cost_usd":1.240488,"duration_s":395.4}
+{"ts":"2026-03-03T15:40:02.310664+00:00","iteration":3,"role":"advance","status":"OK","turns":116,"cost_usd":6.107675,"duration_s":1056.5}
+{"iteration":3,"agent":"review","timestamp":"2026-03-03T00:00:00Z","summary":"PASS — Ruby scaffold verified: 10/32 symbols, 10 tests (24 assertions) pass, clippy clean, mise check clean. Fixed CI --exclude iscc-rb for workspace commands.","verdict":"PASS"}

@@ -9,8 +9,8 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Architecture
 
-- Hub-and-spoke: `iscc-lib` (pure Rust core) → 6 binding crates. Each binding depends only on
-    `iscc-lib`, never on another binding
+- Hub-and-spoke: `iscc-lib` (pure Rust core) → 7 binding crates (py, napi, wasm, ffi, jni, go, rb).
+    Each binding depends only on `iscc-lib`, never on another binding
 - Tier 1 API (32 symbols) exposed via `pub use` at crate root. Tier 2 is `pub(crate)` — internal
     only, never crosses FFI boundary
 - Sync core, async boundaries: Rust core is synchronous. Each binding adapts idiomatically
@@ -140,6 +140,18 @@ fully-met target sections to `learnings-archive.md`.
     constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
+
+## Ruby Bindings (Magnus)
+
+- Magnus 0.7.1 works with Rust edition 2024 and Ruby 3.1.2. Magnus 0.8 requires Ruby 3.2+
+- `extconf.rb` must be at crate root (not `ext/iscc_lib/`) — rb_sys `ExtensionTask` expects it next
+    to `Cargo.toml`
+- Cargo lib name must match package name (`iscc_rb`, not `iscc_lib`) — rb_sys derives the binary
+    name from the package name. Ruby loads via `require_relative "iscc_lib/iscc_rb"`
+- Root `.gitignore` has `lib/` pattern — need `!lib/` negation in `crates/iscc-rb/.gitignore`
+- `bundler` not on PATH by default in devcontainer — need `$HOME/.local/share/gem/ruby/3.1.0/bin` on
+    PATH
+- `libclang-dev` required for rb-sys/bindgen to compile
 
 ## CID Process
 

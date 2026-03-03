@@ -1,64 +1,61 @@
-## 2026-03-03 — Scaffold iscc-rb crate with Magnus bridge and gem infrastructure
+## 2026-03-03 — Review of: Scaffold iscc-rb crate with Magnus bridge and gem infrastructure
 
-**Done:** Created the `crates/iscc-rb/` Ruby bindings crate with a working Magnus 0.7.1 bridge, Ruby
-gem infrastructure, and 10 of 32 Tier 1 symbols. The full compile → load → call pipeline works
-end-to-end: `gen_meta_code_v0` returns a valid ISCC Hash from Ruby, and all 5 constants are
-accessible. 10 Minitest assertions pass covering gen function, text utilities, constants, and
-attribute-style access on Result objects.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-rb/Cargo.toml`: cdylib crate depending on `iscc-lib` + `magnus` (workspace dep)
-- `crates/iscc-rb/src/lib.rs`: Magnus bridge with 6 functions (`_gen_meta_code_v0`, `text_clean`,
-    `text_remove_newlines`, `text_trim`, `text_collapse`) and 5 constants
-- `crates/iscc-rb/extconf.rb`: rb_sys extension config (at crate root, not `ext/` — required by
-    rb_sys ExtensionTask)
-- `crates/iscc-rb/lib/iscc_lib.rb`: Pure Ruby wrapper with `Result` base class, `MetaCodeResult`,
-    and `gen_meta_code_v0` keyword-arg public API
-- `crates/iscc-rb/lib/iscc_lib/version.rb`: `VERSION = "0.1.0"` constant
-- `crates/iscc-rb/iscc-lib.gemspec`: Gem specification with proper metadata
-- `crates/iscc-rb/Gemfile`: Development dependencies (rake-compiler, rb_sys, minitest)
-- `crates/iscc-rb/Gemfile.lock`: Locked dependency versions
-- `crates/iscc-rb/Rakefile`: rb_sys ExtensionTask + Minitest task
-- `crates/iscc-rb/test/test_helper.rb`: Minitest setup
-- `crates/iscc-rb/test/test_smoke.rb`: 10 smoke tests (24 assertions)
-- `crates/iscc-rb/README.md`: Per-crate README for RubyGems
-- `crates/iscc-rb/.gitignore`: Ignores vendor/, tmp/, \*.so, .bundle/; re-includes lib/
-- `Cargo.toml` (root): Added `"crates/iscc-rb"` to workspace members,
-    `magnus = { version = "0.7",   features = ["rb-sys"] }` to workspace deps
-- `.devcontainer/Dockerfile`: Added `libclang-dev` to apt-get line (needed by rb-sys/bindgen)
+**Summary:** The advance agent created a fully functional Ruby bindings scaffold with 10 of 32 Tier
+1 symbols. The Magnus bridge compiles, `bundle exec rake compile` builds a ~750 KB native extension,
+`gen_meta_code_v0` returns valid ISCC codes from Ruby, and all 10 Minitest smoke tests (24
+assertions) pass. Code quality is clean — no clippy warnings, well-structured docstrings, idiomatic
+Ruby wrapper with `Result < Hash` pattern.
 
 **Verification:**
 
-- `cargo check -p iscc-rb` — compiles successfully
-- `cargo clippy -p iscc-rb -- -D warnings` — clean, zero warnings
-- `bundle exec rake compile` — builds native extension (release profile, ~750 KB .so)
-- `bundle exec ruby -e "require 'iscc_lib'; puts IsccLib.gen_meta_code_v0('Hello')['iscc']"` —
+- [x] `cargo check -p iscc-rb` compiles successfully
+- [x] `cargo clippy -p iscc-rb -- -D warnings` is clean (0 warnings)
+- [x] `bundle exec rake compile` succeeds (builds native extension in release profile)
+- [x] `bundle exec ruby -e "require 'iscc_lib'; puts IsccLib.gen_meta_code_v0('Hello')['iscc']"`
     prints `ISCC:AAAWKLHFXM75OAMK`
-- `bundle exec rake test` — 10 runs, 24 assertions, 0 failures, 0 errors, 0 skips
-- `mise run check` — all 14 pre-commit hooks pass
+- [x] `bundle exec rake test` — 10 runs, 24 assertions, 0 failures, 0 errors, 0 skips
+- [x] All files listed in Scope → Create exist at expected paths
+- [x] Root `Cargo.toml` includes `"crates/iscc-rb"` in workspace members
+- [x] `magnus` appears in `[workspace.dependencies]` with `version = "0.7"` +
+    `features = ["rb-sys"]`
+- [x] `mise run check` — all 14 pre-commit hooks pass
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean across entire workspace
 
-**Next:** Implement the remaining ~22 Tier 1 symbols in the Magnus bridge (all other `gen_*_v0`
-functions, codec functions, algorithm functions, streaming types). Then add CI job in `ci.yml` and
-conformance tests against `data.json`.
+**Issues found:**
+
+- CI `rust` job uses `cargo clippy --workspace` and `cargo test --workspace` — with `iscc-rb` now a
+    workspace member, these would fail on CI runners without Ruby dev headers (`ruby-dev`,
+    `libclang-dev`). **Fixed:** added `--exclude iscc-rb` to both commands in `ci.yml`. The proper
+    Ruby CI job will be added in a follow-up step, at which point the exclusion can be revisited.
+
+**Codex review:** Three findings, all evaluated:
+
+1. **P0 — Cargo.toml not standalone for gem builds**: Valid for source gem distribution, but
+    precompiled gem distribution (the intended model per spec) handles this differently. Deferred
+    to the release workflow step.
+2. **P1 — rb_sys not a gemspec runtime dependency**: Same as above — source gem compilation path.
+    Will be addressed when release infrastructure is set up.
+3. **P2 — Workspace builds depend on Ruby**: Valid and actionable. Fixed by adding
+    `--exclude iscc-rb` to CI workspace commands. Pre-push hooks work locally (devcontainer has
+    Ruby).
+
+**Next:** Implement the remaining ~22 Tier 1 symbols in the Magnus bridge. This includes all other
+`gen_*_v0` functions (text, image, audio, video, mixed, data, instance, iscc, sum), codec functions
+(`iscc_encode`, `iscc_decode`, `iscc_decompose`, `iscc_normalize`), algorithm functions
+(`alg_simhash_from_iscc`), and streaming types (`DataHasher`, `InstanceHasher` Ruby wrappers). After
+that, add conformance tests against `data.json` and a `ruby` CI job in `ci.yml`.
 
 **Notes:**
 
-- **Magnus version:** Used 0.7.1 (not 0.8) because Magnus 0.8 requires Ruby 3.2+ and the
-    devcontainer has Ruby 3.1.2. Magnus 0.7.1 works fine with Rust edition 2024 and Ruby 3.1.
-- **extconf.rb location:** rb_sys `ExtensionTask` expects `extconf.rb` at the Cargo manifest
-    directory (crate root), not in `ext/iscc_lib/`. Moved from the spec's suggested location.
-- **Cargo lib name:** Changed from `iscc_lib` to `iscc_rb` to match the Cargo package name
-    normalization. rb_sys ExtensionTask derives the binary name from the package name (`iscc-rb` →
-    `iscc_rb`), and it must match the compiled library name. Ruby loads via
-    `require_relative "iscc_lib/iscc_rb"`.
-- **Root `.gitignore` has `lib/` pattern:** This blocks all `lib/` directories at any depth. Added
-    `!lib/` negation in `crates/iscc-rb/.gitignore` to re-include the Ruby source directory.
-- **Bundler vendor path:** Gems installed to `vendor/bundle` (local path, not system gems) since the
-    devcontainer's system gem path (`/var/lib/gems/3.1.0`) is not writable by the dev user. The
-    `.bundle/config` and `vendor/` are gitignored.
-- **Magnus `function!` macro:** Does not accept `&Ruby` as a function parameter (unlike PyO3's
-    `Python<'_>`). Use `Ruby::get().expect("called from Ruby")` inside the function body to access
-    the Ruby runtime.
-- **Scope note:** Only `MetaCodeResult` is defined in the Ruby wrapper — the other 9 result classes
-    will be added when their corresponding gen functions are implemented.
+- **Magnus version choice**: 0.7.1 (not 0.8) because devcontainer Ruby is 3.1.2 and Magnus 0.8
+    requires Ruby 3.2+. This works fine with Rust edition 2024.
+- **extconf.rb location**: At crate root (not `ext/iscc_lib/`), as rb_sys `ExtensionTask` expects it
+    next to `Cargo.toml`. This deviates from the spec's suggested path but is functionally required.
+- **Cargo lib name**: `iscc_rb` (not `iscc_lib`) to match package name for rb_sys binary name
+    derivation. Ruby loads via `require_relative "iscc_lib/iscc_rb"`.
+- **PATH for bundler**: `~/.local/share/gem/ruby/3.1.0/bin` must be on PATH to use `bundle` in the
+    devcontainer. Not an issue for CI (uses `ruby/setup-ruby` action).
+- **Root `.gitignore` `lib/` pattern**: The `!lib/` negation in `crates/iscc-rb/.gitignore` is
+    essential — without it, Ruby source files under `lib/` would be gitignored.
