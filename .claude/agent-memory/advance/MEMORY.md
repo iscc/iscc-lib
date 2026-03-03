@@ -181,7 +181,9 @@ iterations.
     `meta-code` (implies text-processing + JCS canonicalizer)
 - `text-processing` gates: `text_clean`, `text_collapse`, `gen_text_code_v0`, `sliding_window_strs`
 - `meta-code` gates: META_TRIM constants, meta helpers, `gen_meta_code_v0`, `json_to_data_url`,
-    `conformance` module, `sliding_window_bytes`
+    `run_meta_tests` in conformance, `sliding_window_bytes`
+- `conformance` module is always available (not feature-gated). `conformance_selftest()` skips
+    disabled code types (meta, text) via `#[cfg]` blocks — does not fail for missing features
 - When gating `pub(crate)` functions, their tests must also be gated — dead-code lint fires in
     library builds even if test modules use them
 - Integration tests in `crates/iscc-lib/tests/test_text_utils.rs` also need per-function gating

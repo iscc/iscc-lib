@@ -1,24 +1,31 @@
 //! Conformance selftest for ISO 24138:2024 (ISCC).
 //!
-//! Runs all 9 gen functions against vendored conformance vectors from `data.json`
-//! and reports pass/fail. An application that claims ISCC conformance MUST pass
-//! all tests in this suite.
+//! Runs gen functions against vendored conformance vectors from `data.json`
+//! and reports pass/fail. Code types whose feature flags are disabled are
+//! skipped (not failed). With all features enabled, all 9 gen functions are
+//! tested. An application that claims ISCC conformance MUST pass all tests
+//! in this suite.
 
+#[cfg(feature = "meta-code")]
+use crate::gen_meta_code_v0;
+#[cfg(feature = "text-processing")]
+use crate::gen_text_code_v0;
 use crate::{
     gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0, gen_instance_code_v0, gen_iscc_code_v0,
-    gen_meta_code_v0, gen_mixed_code_v0, gen_text_code_v0, gen_video_code_v0,
+    gen_mixed_code_v0, gen_video_code_v0,
 };
 
 /// Embedded conformance test vectors (compile-time).
 const TEST_DATA: &str = include_str!("../tests/data.json");
 
-/// Run all conformance tests against vendored test vectors.
+/// Run conformance tests against vendored test vectors.
 ///
-/// Iterates through all 9 `gen_*_v0` function sections in the conformance data,
-/// calls each function with the specified inputs, and compares the `.iscc` field
-/// of the result against expected output. Returns `true` if all tests pass,
-/// `false` if any mismatch or error occurs. Does not panic — logs failures via
-/// `eprintln!` and continues through all test cases.
+/// Tests each `gen_*_v0` function section in the conformance data, calling each
+/// function with the specified inputs and comparing the `.iscc` field of the
+/// result against expected output. Code types whose feature flags are disabled
+/// are skipped. Returns `true` if all enabled tests pass, `false` if any
+/// mismatch or error occurs. Does not panic — logs failures via `eprintln!`
+/// and continues through all test cases.
 pub fn conformance_selftest() -> bool {
     let data: serde_json::Value = match serde_json::from_str(TEST_DATA) {
         Ok(v) => v,
@@ -30,8 +37,14 @@ pub fn conformance_selftest() -> bool {
 
     let mut passed = true;
 
-    passed &= run_meta_tests(&data);
-    passed &= run_text_tests(&data);
+    #[cfg(feature = "meta-code")]
+    {
+        passed &= run_meta_tests(&data);
+    }
+    #[cfg(feature = "text-processing")]
+    {
+        passed &= run_text_tests(&data);
+    }
     passed &= run_image_tests(&data);
     passed &= run_audio_tests(&data);
     passed &= run_video_tests(&data);
@@ -44,6 +57,7 @@ pub fn conformance_selftest() -> bool {
 }
 
 /// Run conformance tests for `gen_meta_code_v0`.
+#[cfg(feature = "meta-code")]
 fn run_meta_tests(data: &serde_json::Value) -> bool {
     let mut passed = true;
     let section = &data["gen_meta_code_v0"];
@@ -107,6 +121,7 @@ fn run_meta_tests(data: &serde_json::Value) -> bool {
 }
 
 /// Run conformance tests for `gen_text_code_v0`.
+#[cfg(feature = "text-processing")]
 fn run_text_tests(data: &serde_json::Value) -> bool {
     let mut passed = true;
     let section = &data["gen_text_code_v0"];
