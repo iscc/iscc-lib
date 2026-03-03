@@ -229,6 +229,56 @@ ruby:
 Add `rubygems` boolean input to `workflow_dispatch` and a build matrix producing precompiled gems
 for all 5 platforms. Publish via `gem push` with OIDC or API key authentication.
 
+## Code Quality & Linting
+
+**Philosophy:** Match the project's existing pattern — opinionated defaults with zero custom config.
+Just as we use `cargo fmt` (Rust), `ruff` (Python), and `biome` (JS), use Standard Ruby for the Ruby
+binding.
+
+### Standard Ruby (linter + formatter)
+
+Use [Standard Ruby](https://github.com/standardrb/standard) instead of raw RuboCop. Standard wraps
+RuboCop + rubocop-performance with opinionated, unconfigurable defaults — no bikeshedding. Add
+`rubocop-minitest` for test-specific cops.
+
+```ruby
+# Gemfile (development group)
+gem "standard", "~> 1.0"
+gem "rubocop-minitest", "~> 0.36"
+```
+
+```yaml
+# .standard.yml (in crates/iscc-rb/)
+plugins:
+  - rubocop-minitest
+```
+
+**Run:** `bundle exec standardrb` (check) / `bundle exec standardrb --fix` (auto-fix)
+
+### What we explicitly skip (and why)
+
+| Tool               | Decision | Rationale                                                                    |
+| ------------------ | -------- | ---------------------------------------------------------------------------- |
+| Sorbet / Steep+RBS | Skip     | Type safety lives in the Rust core; Ruby layer is ~100 lines of thin wrapper |
+| Reek / RubyCritic  | Skip     | Code smell analysis targets large Ruby codebases, not small FFI wrappers     |
+| SimpleCov          | Skip     | Test coverage for a thin wrapper adds noise; Rust core has coverage          |
+
+### Pre-commit / pre-push hooks
+
+Wire Standard Ruby into `.pre-commit-config.yaml` alongside the existing language-specific hooks:
+
+- **Pre-commit stage** (auto-fix): `standardrb --fix` on staged `.rb` files
+- **Pre-push stage** (quality gate): `standardrb` lint check + `bundle exec rake test`
+
+### CI integration
+
+Add `bundle exec standardrb` as a step in the Ruby CI job, before `rake test`:
+
+```yaml
+  - run: bundle exec standardrb
+    working-directory: crates/iscc-rb
+```
+
 ## DevContainer Setup
 
 Add Ruby to the devcontainer Dockerfile:
@@ -278,3 +328,7 @@ Ruby `VERSION` constant, which is synced by the version script.
 - [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
 - [ ] Per-crate README renders correctly on rubygems.org
 - [ ] Documentation site includes Ruby how-to guide and API reference
+- [ ] `bundle exec standardrb` passes with zero offenses
+- [ ] Standard Ruby + rubocop-minitest configured in Gemfile and `.standard.yml`
+- [ ] Ruby linting wired into pre-commit (auto-fix) and pre-push (check) hooks
+- [ ] Ruby linting step runs in CI before tests
