@@ -13,11 +13,8 @@ func TestPureGoGenAudioCodeV0(t *testing.T) {
 		t.Fatalf("read data.json: %v", err)
 	}
 
-	var allVectors map[string]map[string]struct {
-		Inputs  []json.RawMessage     `json:"inputs"`
-		Outputs map[string]interface{} `json:"outputs"`
-	}
-	if err := json.Unmarshal(data, &allVectors); err != nil {
+	allVectors, err := parseConformanceData(data)
+	if err != nil {
 		t.Fatalf("parse data.json: %v", err)
 	}
 

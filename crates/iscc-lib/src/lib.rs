@@ -1247,7 +1247,7 @@ mod tests {
             tested += 1;
         }
 
-        assert_eq!(tested, 16, "expected 16 conformance tests to run");
+        assert_eq!(tested, 20, "expected 20 conformance tests to run");
     }
 
     #[cfg(feature = "text-processing")]

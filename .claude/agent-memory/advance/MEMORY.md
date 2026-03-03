@@ -9,7 +9,7 @@ iterations.
 
 - Rust core: `crates/iscc-lib/src/` — lib.rs (crate root, Tier 1 re-exports), codec.rs, cdc.rs,
     minhash.rs, simhash.rs, dct.rs, wtahash.rs, utils.rs, streaming.rs, conformance.rs
-- Conformance vectors: `crates/iscc-lib/tests/data.json` (46 total: 16+5+3+5+3+2+4+3+5)
+- Conformance vectors: `crates/iscc-lib/tests/data.json` (50 total: 20+5+3+5+3+2+4+3+5, v1.3.0)
 - Python wrapper: `crates/iscc-py/python/iscc_lib/__init__.py`
 - Node.js: `crates/iscc-napi/src/lib.rs`
 - WASM: `crates/iscc-wasm/src/lib.rs`
@@ -49,7 +49,10 @@ iterations.
     `[]rune` for Unicode SlidingWindow, generics for `arraySplit[T]`
 - Conformance: `//go:embed testdata/data.json`, per-function tests use
     `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
-- 151 Go tests total. CI: 4 steps (checkout, setup-go, test, vet) — no Rust deps
+- 155 Go tests total. CI: 4 steps (checkout, setup-go, test, vet) — no Rust deps
+- Go conformance JSON parsing: `parseConformanceData()` in conformance.go uses two-pass parsing
+    (`map[string]json.RawMessage` → skip `_`-prefixed keys → unmarshal sections). Both embedded
+    conformance data and per-function test files use this helper
 
 ## gen_sum_code_v0
 
@@ -63,39 +66,10 @@ iterations.
 - `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring in tests, not
     field access. `MainType` is `pub(crate)` in `codec` module, not accessible from test module
 - 32nd and final Tier 1 symbol for Rust core — all 32 symbols now implemented
-- Python binding: PyO3 wrapper in `crates/iscc-py/src/lib.rs` accepts `&str` path + `add_units` bool
-    param, `SumCodeResult` class in `__init__.py` with `units: list[str] | None`, public wrapper
-    accepts `str | os.PathLike` via `os.fspath()` + `add_units: bool = False`. 9 tests in
-    `tests/test_smoke.py` (6 existing + 3 units tests). `add_units=True` sets `"units"` dict key,
-    `False` omits it (matching iscc-core optional field pattern)
-- Node.js binding: `NapiSumCodeResult` struct (`#[napi(object)]`) with `units: Option<Vec<String>>`
-    - `gen_sum_code_v0` napi fn with `add_units: Option<bool>` param in `crates/iscc-napi/src/lib.rs`.
-        Uses `i64` for `filesize` (napi-rs no u64 support). 9 tests in `__tests__/functions.test.mjs`
-        (6 existing + 3 units tests). `Option<Vec<String>>` maps to `string[] | undefined` in TS
-        automatically. 135 total NAPI tests
-- WASM binding: `WasmSumCodeResult` struct (`#[wasm_bindgen(getter_with_clone)]`) with
-    `units: Option<Vec<String>>` + `gen_sum_code_v0` fn with `add_units: Option<bool>` param in
-    `crates/iscc-wasm/src/lib.rs`. Accepts `&[u8]` (no filesystem in WASM). Uses `f64` for
-    `filesize` (wasm-bindgen `u64` maps to `BigInt`, awkward for JS). Composes internally via
-    `DataHasher` + `InstanceHasher` + `gen_iscc_code_v0` (borrow-before-move pattern for units). 9
-    tests in `tests/unit.rs` (6 existing + 3 units). 78 total WASM tests (9 conformance + 69 unit; 1
-    behind `conformance` feature gate). `Option<Vec<String>>` maps to `string[] | undefined` in TS
-- C FFI binding: `IsccSumCodeResult` repr(C) struct with `ok`, `iscc`, `datahash`, `filesize`,
-    `units: *mut *mut c_char` (NULL-terminated array or NULL).
-    `iscc_gen_sum_code_v0(path, bits,   wide, add_units)` extern "C" function +
-    `iscc_free_sum_code_result` (frees units via `iscc_free_string_array`). 7 Rust sum tests + 5 C
-    sum tests. 85 total Rust tests, 65 total C test assertions
-- JNI binding: `SumCodeResult.java` (immutable, `String iscc`, `String datahash`, `long filesize`,
-    `String[] units`) — `units` is nullable (`null` when `addUnits=false`, 2-element `String[]` when
-    true). JNI bridge uses `build_string_array` → `unsafe { JObject::from_raw(arr) }` for units
-    conversion. Constructor signature:
-    `(Ljava/lang/String;Ljava/lang/String;J[Ljava/lang/String;)V`. 7 Maven sum tests. 65 total Maven
-    tests
-- Go binding: `packages/go/code_sum.go` — `SumCodeResult` struct (`Iscc`, `Datahash`, `Filesize`,
-    `Units []string`) + `GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool)`.
-    Single-pass file I/O with `os.Open` + `DataHasher` + `InstanceHasher` + `GenIsccCodeV0`. Units
-    is nil when `addUnits=false`, `[]string{Data-Code, Instance-Code}` when true. 7 tests in
-    `code_sum_test.go`. ALL 7 bindings complete for issue #21 (add_units/units)
+- All 7 bindings implement `gen_sum_code_v0` with `add_units`/`units` (issue #21 complete): Python
+    (PyO3), Node.js (napi-rs, `i64` filesize), WASM (`f64` filesize, `&[u8]` input), C FFI
+    (NULL-terminated `*mut *mut c_char` for units), JNI (nullable `String[]`), Go (`code_sum.go`,
+    single-pass file I/O)
 
 ## Benchmarks
 
@@ -203,3 +177,6 @@ iterations.
 - JSON `{"x":""}` overhead is 8 bytes (not 7) — relevant for boundary tests on META_TRIM_META
 - META_TRIM_META validation: pre-decode check uses `META_TRIM_META * 4/3 + 256` (base64 inflation +
     media type header), post-decode check uses `META_TRIM_META` directly
+- data.json `_metadata` key (v1.3.0+): top-level metadata section with flat string values, not test
+    vectors. Rust `serde_json::Value` ignores it naturally; Go needed explicit skip logic. All
+    bindings that parse by section name (Python, Node.js, WASM, Java, C FFI) are unaffected
