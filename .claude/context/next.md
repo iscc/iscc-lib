@@ -1,83 +1,58 @@
 # Next Work Package
 
-## Step: Adapt conformance_selftest to skip disabled features
+## Step: Add CI feature matrix testing for issue #16
 
 ## Goal
 
-Make `conformance_selftest()` always available regardless of feature flags, skipping test sections
-for disabled code types instead of being entirely absent. This resolves the first remaining sub-task
-of issue #16.
+Add feature combination test steps to `.github/workflows/ci.yml` so CI verifies that `iscc-lib`
+compiles and passes tests under `--no-default-features`, `--all-features`, and
+`--no-default-features --features text-processing`. This is the final sub-task to close issue #16.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**:
-    - `crates/iscc-lib/src/lib.rs` — remove `#[cfg(feature = "meta-code")]` from the
-        `pub mod   conformance` declaration (line 9) and the
-        `pub use conformance::conformance_selftest` re-export (line 22)
-    - `crates/iscc-lib/src/conformance.rs` — gate `run_meta_tests` and `run_text_tests` behind their
-        respective features; update imports and the `conformance_selftest()` body to conditionally
-        call/skip these functions
-- **Reference**:
-    - `crates/iscc-lib/src/conformance.rs` — current implementation (all 9 run\_\*\_tests functions)
-    - `crates/iscc-lib/src/lib.rs` — current feature gates
-    - `.claude/context/issues.md` — issue #16 requirements
+- **Modify**: `.github/workflows/ci.yml`
+- **Reference**: `crates/iscc-lib/Cargo.toml` (feature definitions)
 
 ## Not In Scope
 
-- CI workflow changes for feature matrix testing — that's the next step after this
-- Changing the conformance test vectors or data.json
-- Modifying the existing `#[cfg(test)] mod tests` block in conformance.rs — the test there
-    (`test_conformance_selftest_passes`) should continue to work under all feature combinations
-- Propagating feature flag changes to binding crates (not needed — they always use default features)
-- Refactoring the repetitive `run_*_tests` functions into a generic helper
+- Modifying any Rust source code — this is a YAML-only change
+- Adding a separate CI job — add steps to the existing `rust` job to avoid duplicating
+    checkout/toolchain/cache setup
+- Testing feature combinations for binding crates — only `iscc-lib` has feature flags
+- Changing the existing `cargo test --workspace` or `cargo clippy --workspace` steps — those stay
+    as-is for full workspace coverage
 
 ## Implementation Notes
 
-**Changes to `lib.rs`:**
+Add new steps to the existing `rust` job. After the current "Run clippy" step, add two clippy
+feature-flag checks:
 
-- Remove `#[cfg(feature = "meta-code")]` from line 9 (`pub mod conformance`) and line 22
-    (`pub use   conformance::conformance_selftest`)
-- The module and its public symbol should always be available
+- `cargo clippy -p iscc-lib --no-default-features -- -D warnings`
+- `cargo clippy -p iscc-lib --all-features -- -D warnings`
 
-**Changes to `conformance.rs`:**
+After the current "Run tests" step, add three test steps:
 
-1. **Imports**: Gate `gen_meta_code_v0` behind `#[cfg(feature = "meta-code")]` and
-    `gen_text_code_v0` behind `#[cfg(feature = "text-processing")]`. All other 7 imports are always
-    available.
+- `cargo test -p iscc-lib --no-default-features`
+- `cargo test -p iscc-lib --all-features`
+- `cargo test -p iscc-lib --no-default-features --features text-processing`
 
-2. **`run_meta_tests`**: Gate the entire function behind `#[cfg(feature = "meta-code")]`.
+Keep step names descriptive (e.g., "Test iscc-lib (no default features)"). No `shell: bash` needed
+since this job runs on `ubuntu-latest` only. Do NOT use `mise` in CI — call cargo directly.
 
-3. **`run_text_tests`**: Gate the entire function behind `#[cfg(feature = "text-processing")]`.
-
-4. **`conformance_selftest()` body**: Use conditional compilation for the meta and text calls:
-
-    ```rust
-    #[cfg(feature = "meta-code")]
-    { passed &= run_meta_tests(&data); }
-    #[cfg(feature = "text-processing")]
-    { passed &= run_text_tests(&data); }
-    // remaining 7 always run unconditionally
-    ```
-
-5. **Module docstring**: Update to mention that disabled features are skipped, not failed.
-
-6. **Test in `mod tests`**: The existing `test_conformance_selftest_passes` test should work
-    unchanged — it calls `conformance_selftest()` and asserts true, which is correct regardless of
-    which features are enabled (skipped sections don't fail).
+The existing workspace-level clippy and test steps remain unchanged. The new steps are additive and
+target only `iscc-lib` to verify feature-gated code paths.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (314 tests, default features — conformance test still present)
-- `cargo test -p iscc-lib --no-default-features` passes — `conformance_selftest` is callable and
-    returns `true` (runs 7 of 9 test sections, skips meta and text)
-- `cargo test -p iscc-lib --no-default-features --features text-processing` passes —
-    `conformance_selftest` runs 8 of 9 test sections (skips meta only)
-- `cargo clippy -p iscc-lib -- -D warnings` clean (default features)
-- `cargo clippy -p iscc-lib --no-default-features -- -D warnings` clean
-- `cargo clippy -p iscc-lib --all-features -- -D warnings` clean
+- The YAML is valid: `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"`
+    exits 0
+- `grep -c 'no-default-features' .github/workflows/ci.yml` returns at least 2 (test + clippy)
+- `grep -c 'all-features' .github/workflows/ci.yml` returns at least 2 (test + clippy)
+- `grep 'text-processing' .github/workflows/ci.yml` shows the text-processing-only test step
+- No Rust source files modified: `git diff --name-only` shows only `.github/workflows/ci.yml`
 
 ## Done When
 
-All six verification commands pass — `conformance_selftest()` is always available and skips disabled
-code types gracefully under every feature combination.
+All verification criteria pass and the only file modified is `.github/workflows/ci.yml` with five
+new steps covering feature combination testing for `iscc-lib`.

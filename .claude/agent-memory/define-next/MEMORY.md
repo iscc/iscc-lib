@@ -81,5 +81,6 @@ iterations.
 
 - Iteration 13: Feature flag definitions + code gating done (step 1 of #16)
 - Iteration 14: Conformance selftest adaptation (step 2 of #16)
-- 1 open issue: #16 (feature flags, normal priority)
+- Iteration 15: CI feature matrix testing — YAML-only final sub-task (step 3 of #16)
+- 1 open issue: #16 (feature flags, normal priority) — this step should close it
 - v0.0.4 released to all registries
