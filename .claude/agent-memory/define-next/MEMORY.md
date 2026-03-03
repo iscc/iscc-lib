@@ -34,28 +34,24 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## Feature Flags Design (Issue #16)
+## Conformance Vector Loader Differences (critical for data.json updates)
 
-- **Dependency graph analysis** (iteration 13):
-    - `serde_json` is used by `conformance.rs` for parsing data.json — cannot be fully gated without
-        restructuring conformance. Stays as regular dep for now
-    - `serde_json_canonicalizer` only used by `gen_meta_code_v0` and `json_to_data_url` — gated behind
-        `meta-code`
-    - `unicode-normalization` + `unicode-general-category` only used in `utils.rs` by `text_clean` and
-        `text_collapse` — gated behind `text-processing`
-    - `gen_meta_code_v0` uses text_clean/text_collapse, so `meta-code` implies `text-processing`
-- **Cross-module dependencies**:
-    - `text_remove_newlines` and `text_trim` have NO unicode deps — always available
-    - `multi_hash_blake3` in utils.rs has no unicode deps — always available
-    - `gen_text_code_v0` uses `text_collapse` → needs `text-processing`
-    - `gen_meta_code_v0` uses `text_clean/trim/remove_newlines/collapse` + serde_json_canonicalizer →
-        needs `meta-code` (which brings `text-processing`)
-    - `conformance` module calls `gen_meta_code_v0` + `gen_text_code_v0` → initially gated at module
-        level behind `meta-code`; step 2 (iteration 14) adapts selftest to skip disabled sections
-- **Incremental plan**: Step 1 = define features + gate code ✅. Step 2 = adapt conformance_selftest
-    to skip disabled tests (iteration 14). Step 3 = CI workflow changes
-- **lib.rs test gating pattern**: Gate individual test functions with `#[cfg(feature)]`, NOT the
-    entire `mod tests` block, because it contains tests for both gated and ungated code
+- **Rust core** (`conformance.rs`): Uses `serde_json::Value`, accesses sections by name
+    (`data["gen_meta_code_v0"]`). Ignores unknown top-level keys. Auto-discovers new vectors.
+- **Python** (`test_conformance.py`): Accesses by name (`data[function_name]`). Safe.
+- **Node.js** (`conformance.test.mjs`): Accesses `data.gen_meta_code_v0`. Safe.
+- **WASM** (`conformance.rs`): Same as Rust core (uses `serde_json::Value`). Safe.
+- **Java** (`IsccLibTest.java`): Uses `data.getAsJsonObject("gen_meta_code_v0")`. Safe.
+- **Go** (`conformance.go`): Uses `map[string]map[string]vectorEntry` — parses ALL top-level keys.
+    **BREAKS** on non-vector entries like `_metadata`. Must use `json.RawMessage` intermediate step.
+- **C FFI**: No data.json loader (uses Rust core conformance_selftest).
+- **data.json copies**: `crates/iscc-lib/tests/data.json` (primary) and
+    `packages/go/testdata/data.json` (identical copy). Both must be updated together.
+
+## Feature Flags Design (Issue #16) — RESOLVED
+
+- Issue #16 fully resolved across iterations 13-15 (definitions, selftest, CI matrix)
+- `default = ["meta-code"]`, `text-processing` (unicode deps), `meta-code` (implies text-processing)
 
 ## Documentation Sweep Patterns
 
@@ -67,7 +63,7 @@ iterations.
 
 ## CI/Release Patterns
 
-- v0.0.4 released to all registries
+- v0.1.0 released to all registries
 - Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
 
 ## Gotchas
@@ -76,11 +72,13 @@ iterations.
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
 - Java `byte` is signed — values 128-255 wrap, JNI handles correctly
 - Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
+- Go `json.Marshal` for float64: uses 'f' format for values >= 1e-6 and < 1e21, otherwise 'e'
+    format. 1e20 < 1e21 → outputs "100000000000000000000". May or may not match JCS exactly for edge
+    cases. Risk area for test_0017/test_0018.
 
 ## Project Status
 
-- Iteration 13: Feature flag definitions + code gating done (step 1 of #16)
-- Iteration 14: Conformance selftest adaptation (step 2 of #16)
-- Iteration 15: CI feature matrix testing — YAML-only final sub-task (step 3 of #16)
-- 1 open issue: #16 (feature flags, normal priority) — this step should close it
-- v0.0.4 released to all registries
+- Issue #16 fully resolved (iterations 13-15)
+- v0.1.0 released to all registries
+- 3 open issues: iscc-core v1.3.0 conformance (critical), Ruby bindings (normal), README logos (low)
+- Current iteration: vendoring v1.3.0 data.json + Go loader fix
