@@ -175,6 +175,19 @@ iterations.
 - zensical.toml nav: howto guides list includes `{ "C / C++" = "howto/c-cpp.md" }` after Java
 - CMake integration uses `find_library()` pattern (not `CMAKE_LIBRARY_PATH`)
 
+## Feature Flags
+
+- `crates/iscc-lib/Cargo.toml` defines: `default = ["meta-code"]`, `text-processing` (unicode deps),
+    `meta-code` (implies text-processing + JCS canonicalizer)
+- `text-processing` gates: `text_clean`, `text_collapse`, `gen_text_code_v0`, `sliding_window_strs`
+- `meta-code` gates: META_TRIM constants, meta helpers, `gen_meta_code_v0`, `json_to_data_url`,
+    `conformance` module, `sliding_window_bytes`
+- When gating `pub(crate)` functions, their tests must also be gated — dead-code lint fires in
+    library builds even if test modules use them
+- Integration tests in `crates/iscc-lib/tests/test_text_utils.rs` also need per-function gating
+- `serde_json` stays as a regular (non-optional) dep because `conformance.rs` uses it for parsing
+    `data.json`. Gating it requires restructuring conformance (future work)
+
 ## Gotchas
 
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names

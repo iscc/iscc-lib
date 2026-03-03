@@ -6,12 +6,14 @@
 
 // ---- text_clean tests ----
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_clean_nfkc_normalization() {
     // Fullwidth "Ａ" (U+FF21) normalizes to ASCII "A" under NFKC
     assert_eq!(iscc_lib::text_clean("Ａ"), "A");
 }
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_clean_removes_control_chars_keeps_newlines() {
     // Tab (U+0009) is a control char and should be removed
@@ -20,6 +22,7 @@ fn test_text_clean_removes_control_chars_keeps_newlines() {
     assert_eq!(iscc_lib::text_clean("hello\nworld"), "hello\nworld");
 }
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_clean_collapses_consecutive_empty_lines() {
     // Three consecutive newlines → at most one empty line between content
@@ -28,16 +31,19 @@ fn test_text_clean_collapses_consecutive_empty_lines() {
     assert_eq!(iscc_lib::text_clean("a\n\n\n\nb"), "a\n\nb");
 }
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_clean_crlf_normalization() {
     assert_eq!(iscc_lib::text_clean("a\r\nb"), "a\nb");
 }
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_clean_strips_whitespace() {
     assert_eq!(iscc_lib::text_clean("  hello  "), "hello");
 }
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_clean_empty_input() {
     assert_eq!(iscc_lib::text_clean(""), "");
@@ -101,21 +107,25 @@ fn test_text_trim_strips_whitespace() {
 
 // ---- text_collapse tests ----
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_collapse_lowercasing() {
     assert_eq!(iscc_lib::text_collapse("HELLO"), "hello");
 }
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_collapse_whitespace_removal() {
     assert_eq!(iscc_lib::text_collapse("a b c"), "abc");
 }
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_collapse_punctuation_removal() {
     assert_eq!(iscc_lib::text_collapse("hello, world!"), "helloworld");
 }
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_collapse_diacritics_removal() {
     // NFD decomposes accented chars, then M-category marks are filtered
@@ -123,6 +133,7 @@ fn test_text_collapse_diacritics_removal() {
     assert_eq!(iscc_lib::text_collapse("naïve"), "naive");
 }
 
+#[cfg(feature = "text-processing")]
 #[test]
 fn test_text_collapse_empty_input() {
     assert_eq!(iscc_lib::text_collapse(""), "");
@@ -132,18 +143,30 @@ fn test_text_collapse_empty_input() {
 
 #[test]
 fn test_crate_root_imports() {
-    // Verify all 4 functions are callable via iscc_lib::<fn>
-    let _ = iscc_lib::text_clean("test");
+    // Verify ungated functions are callable via iscc_lib::<fn>
     let _ = iscc_lib::text_remove_newlines("test");
     let _ = iscc_lib::text_trim("test", 10);
+}
+
+#[cfg(feature = "text-processing")]
+#[test]
+fn test_crate_root_imports_text_processing() {
+    // Verify text-processing-gated functions are callable via iscc_lib::<fn>
+    let _ = iscc_lib::text_clean("test");
     let _ = iscc_lib::text_collapse("test");
 }
 
 #[test]
 fn test_module_path_imports() {
-    // Verify functions are also accessible via iscc_lib::utils::<fn>
-    let _ = iscc_lib::utils::text_clean("test");
+    // Verify ungated functions are accessible via iscc_lib::utils::<fn>
     let _ = iscc_lib::utils::text_remove_newlines("test");
     let _ = iscc_lib::utils::text_trim("test", 10);
+}
+
+#[cfg(feature = "text-processing")]
+#[test]
+fn test_module_path_imports_text_processing() {
+    // Verify text-processing-gated functions via iscc_lib::utils::<fn>
+    let _ = iscc_lib::utils::text_clean("test");
     let _ = iscc_lib::utils::text_collapse("test");
 }

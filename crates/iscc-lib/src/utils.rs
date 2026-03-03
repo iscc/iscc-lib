@@ -3,10 +3,13 @@
 //! Provides text cleaning, trimming, collapsing, and BLAKE3 multihash functions
 //! ported from `iscc-core` `code_meta.py` and `utils.py`.
 
+#[cfg(feature = "text-processing")]
 use unicode_general_category::{GeneralCategory, get_general_category};
+#[cfg(feature = "text-processing")]
 use unicode_normalization::UnicodeNormalization;
 
 /// Characters treated as newlines (preserved during control-char removal).
+#[cfg(feature = "text-processing")]
 const NEWLINES: &[char] = &[
     '\u{000A}', // LINE FEED
     '\u{000B}', // VERTICAL TAB
@@ -18,6 +21,7 @@ const NEWLINES: &[char] = &[
 ];
 
 /// Check if a character belongs to a Unicode "C" (control/format/etc) category.
+#[cfg(feature = "text-processing")]
 fn is_c_category(c: char) -> bool {
     matches!(
         get_general_category(c),
@@ -30,6 +34,7 @@ fn is_c_category(c: char) -> bool {
 }
 
 /// Check if a character belongs to Unicode "C", "M", or "P" categories.
+#[cfg(feature = "text-processing")]
 fn is_cmp_category(c: char) -> bool {
     matches!(
         get_general_category(c),
@@ -59,6 +64,7 @@ fn is_cmp_category(c: char) -> bool {
 /// Applies NFKC normalization, removes control characters (except newlines),
 /// normalizes `\r\n` to `\n`, collapses consecutive empty lines to at most
 /// one, and strips leading/trailing whitespace.
+#[cfg(feature = "text-processing")]
 pub fn text_clean(text: &str) -> String {
     // 1. NFKC normalize
     let text: String = text.nfkc().collect();
@@ -130,6 +136,7 @@ pub fn text_trim(text: &str, nbytes: usize) -> String {
 /// Applies NFD normalization, lowercasing, removes whitespace and characters
 /// in Unicode categories C (control), M (mark), and P (punctuation), then
 /// recombines with NFKC normalization.
+#[cfg(feature = "text-processing")]
 pub fn text_collapse(text: &str) -> String {
     // 1. NFD normalize and lowercase
     let nfd_lower: String = text.nfd().collect::<String>().to_lowercase();
@@ -163,37 +170,44 @@ mod tests {
 
     // ---- text_clean tests ----
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_clean_nfkc_normalization() {
         // ℍ (U+210D) should normalize to H under NFKC
         assert!(text_clean("ℍ").contains('H'));
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_clean_removes_control_chars() {
         assert_eq!(text_clean("hello\tworld"), "helloworld");
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_clean_preserves_newlines() {
         assert_eq!(text_clean("hello\nworld"), "hello\nworld");
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_clean_collapses_empty_lines() {
         assert_eq!(text_clean("a\n\n\nb"), "a\n\nb");
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_clean_strips_whitespace() {
         assert_eq!(text_clean("  hello  "), "hello");
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_clean_handles_crlf() {
         assert_eq!(text_clean("a\r\nb"), "a\nb");
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_clean_empty() {
         assert_eq!(text_clean(""), "");
@@ -241,22 +255,26 @@ mod tests {
 
     // ---- text_collapse tests ----
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_collapse_basic() {
         assert_eq!(text_collapse("Hello World"), "helloworld");
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_collapse_strips_accents() {
         // NFD decomposes accented chars, then M-category marks are filtered
         assert_eq!(text_collapse("café"), "cafe");
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_collapse_strips_punctuation() {
         assert_eq!(text_collapse("hello, world!"), "helloworld");
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_collapse_empty() {
         assert_eq!(text_collapse(""), "");

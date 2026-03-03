@@ -12,15 +12,20 @@ readme = "README.md"
 keywords = ["iscc", "content-id", "media", "fingerprint", "iso"]
 categories = ["multimedia", "encoding", "cryptography"]
 
+[features]
+default = ["meta-code"]
+text-processing = ["dep:unicode-normalization", "dep:unicode-general-category"]
+meta-code = ["text-processing", "dep:serde_json_canonicalizer"]
+
 [dependencies]
 blake3.workspace = true
 data-encoding.workspace = true
 hex.workspace = true
 serde_json.workspace = true
-serde_json_canonicalizer.workspace = true
+serde_json_canonicalizer = { workspace = true, optional = true }
 thiserror.workspace = true
-unicode-normalization.workspace = true
-unicode-general-category.workspace = true
+unicode-normalization = { workspace = true, optional = true }
+unicode-general-category = { workspace = true, optional = true }
 xxhash-rust.workspace = true
 
 [dev-dependencies]

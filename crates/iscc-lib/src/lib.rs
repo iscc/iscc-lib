@@ -6,6 +6,7 @@
 
 pub mod cdc;
 pub mod codec;
+#[cfg(feature = "meta-code")]
 pub mod conformance;
 pub(crate) mod dct;
 pub mod minhash;
@@ -18,20 +19,26 @@ pub(crate) mod wtahash;
 pub use cdc::alg_cdc_chunks;
 pub use codec::encode_base64;
 pub use codec::iscc_decompose;
+#[cfg(feature = "meta-code")]
 pub use conformance::conformance_selftest;
 pub use minhash::alg_minhash_256;
 pub use simhash::{alg_simhash, sliding_window};
 pub use streaming::{DataHasher, InstanceHasher};
 pub use types::*;
-pub use utils::{text_clean, text_collapse, text_remove_newlines, text_trim};
+#[cfg(feature = "text-processing")]
+pub use utils::{text_clean, text_collapse};
+pub use utils::{text_remove_newlines, text_trim};
 
 /// Max UTF-8 byte length for name metadata trimming.
+#[cfg(feature = "meta-code")]
 pub const META_TRIM_NAME: usize = 128;
 
 /// Max UTF-8 byte length for description metadata trimming.
+#[cfg(feature = "meta-code")]
 pub const META_TRIM_DESCRIPTION: usize = 4096;
 
 /// Max decoded payload size in bytes for the meta element.
+#[cfg(feature = "meta-code")]
 pub const META_TRIM_META: usize = 128_000;
 
 /// Buffer size in bytes for streaming file reads (4 MB).
@@ -56,6 +63,7 @@ pub type IsccResult<T> = Result<T, IsccError>;
 /// Takes the first 16 bytes of each digest and interleaves them into
 /// a 32-byte result: 4 bytes from `a`, 4 bytes from `b`, alternating
 /// for 4 rounds (8 chunks total).
+#[cfg(feature = "meta-code")]
 fn interleave_digests(a: &[u8], b: &[u8]) -> Vec<u8> {
     let mut result = vec![0u8; 32];
     for chunk in 0..4 {
@@ -72,6 +80,7 @@ fn interleave_digests(a: &[u8], b: &[u8]) -> Vec<u8> {
 ///
 /// Applies `text_collapse`, generates width-3 sliding window n-grams,
 /// hashes each with BLAKE3, and produces a SimHash.
+#[cfg(feature = "meta-code")]
 fn meta_name_simhash(name: &str) -> Vec<u8> {
     let collapsed_name = utils::text_collapse(name);
     let name_ngrams = simhash::sliding_window_strs(&collapsed_name, 3);
@@ -86,6 +95,7 @@ fn meta_name_simhash(name: &str) -> Vec<u8> {
 ///
 /// Produces a SimHash digest from `name` n-grams. When `extra` is provided,
 /// interleaves the name and extra SimHash digests in 4-byte chunks.
+#[cfg(feature = "meta-code")]
 fn soft_hash_meta_v0(name: &str, extra: Option<&str>) -> Vec<u8> {
     let name_simhash = meta_name_simhash(name);
 
@@ -110,6 +120,7 @@ fn soft_hash_meta_v0(name: &str, extra: Option<&str>) -> Vec<u8> {
 /// Like `soft_hash_meta_v0` but the extra data is raw bytes instead of text.
 /// Uses width-4 byte n-grams (no `text_collapse`) for the bytes path,
 /// and interleaves name/bytes SimHash digests in 4-byte chunks.
+#[cfg(feature = "meta-code")]
 fn soft_hash_meta_v0_with_bytes(name: &str, extra: &[u8]) -> Vec<u8> {
     let name_simhash = meta_name_simhash(name);
 
@@ -132,6 +143,7 @@ fn soft_hash_meta_v0_with_bytes(name: &str, extra: &[u8]) -> Vec<u8> {
 /// Expects a string starting with `"data:"`. Splits on the first `,` and
 /// decodes the remainder as standard base64. Returns `InvalidInput` on
 /// missing comma or invalid base64.
+#[cfg(feature = "meta-code")]
 fn decode_data_url(data_url: &str) -> IsccResult<Vec<u8>> {
     let payload_b64 = data_url
         .split_once(',')
@@ -143,6 +155,7 @@ fn decode_data_url(data_url: &str) -> IsccResult<Vec<u8>> {
 }
 
 /// Parse a meta string as JSON and re-serialize to RFC 8785 (JCS) canonical bytes.
+#[cfg(feature = "meta-code")]
 fn parse_meta_json(meta_str: &str) -> IsccResult<Vec<u8>> {
     let parsed: serde_json::Value = serde_json::from_str(meta_str)
         .map_err(|e| IsccError::InvalidInput(format!("invalid JSON in meta: {e}")))?;
@@ -156,6 +169,7 @@ fn parse_meta_json(meta_str: &str) -> IsccResult<Vec<u8>> {
 ///
 /// Uses `application/ld+json` media type if the JSON has an `@context` key,
 /// otherwise `application/json`. Encodes payload as standard base64 with padding.
+#[cfg(feature = "meta-code")]
 fn build_meta_data_url(json_bytes: &[u8], json_value: &serde_json::Value) -> String {
     let media_type = if json_value.get("@context").is_some() {
         "application/ld+json"
@@ -260,6 +274,7 @@ pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
 /// let ld_url = json_to_data_url(r#"{"@context": "https://schema.org"}"#).unwrap();
 /// assert!(ld_url.starts_with("data:application/ld+json;base64,"));
 /// ```
+#[cfg(feature = "meta-code")]
 pub fn json_to_data_url(json: &str) -> IsccResult<String> {
     let parsed: serde_json::Value = serde_json::from_str(json)
         .map_err(|e| IsccError::InvalidInput(format!("invalid JSON: {e}")))?;
@@ -276,6 +291,7 @@ pub fn json_to_data_url(json: &str) -> IsccResult<String> {
 /// it is treated as either a Data-URL (if starting with `"data:"`) or a JSON
 /// string, and the decoded/serialized bytes are used for similarity hashing
 /// and metahash computation.
+#[cfg(feature = "meta-code")]
 pub fn gen_meta_code_v0(
     name: &str,
     description: Option<&str>,
@@ -405,6 +421,7 @@ pub fn gen_meta_code_v0(
 ///
 /// Generates character n-grams with a sliding window of width 13,
 /// hashes each with xxh32, then applies MinHash to produce a 32-byte digest.
+#[cfg(feature = "text-processing")]
 fn soft_hash_text_v0(text: &str) -> Vec<u8> {
     let ngrams = simhash::sliding_window_strs(text, TEXT_NGRAM_SIZE);
     let features: Vec<u32> = ngrams
@@ -419,6 +436,7 @@ fn soft_hash_text_v0(text: &str) -> Vec<u8> {
 /// Produces an ISCC Content-Code for text by collapsing the input,
 /// extracting character n-gram features, and applying MinHash to
 /// create a similarity-preserving fingerprint.
+#[cfg(feature = "text-processing")]
 pub fn gen_text_code_v0(text: &str, bits: u32) -> IsccResult<TextCodeResult> {
     let collapsed = utils::text_collapse(text);
     let characters = collapsed.chars().count();
@@ -1017,6 +1035,7 @@ pub fn gen_sum_code_v0(
 mod tests {
     use super::*;
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_title_only() {
         let result = gen_meta_code_v0("Die Unendliche Geschichte", None, None, 64).unwrap();
@@ -1026,6 +1045,7 @@ mod tests {
         assert_eq!(result.meta, None);
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_title_description() {
         let result = gen_meta_code_v0(
@@ -1041,6 +1061,7 @@ mod tests {
         assert_eq!(result.meta, None);
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_json_meta() {
         let result = gen_meta_code_v0("Hello", None, Some(r#"{"some":"object"}"#), 64).unwrap();
@@ -1054,6 +1075,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_data_url_meta() {
         let result = gen_meta_code_v0(
@@ -1076,6 +1098,7 @@ mod tests {
     /// JCS serializes `1.0` as `1` (integer form), while `serde_json` preserves `1.0`.
     /// This causes different canonical bytes, different metahash, and different ISCC codes.
     /// Expected values generated by `iscc-core` with `jcs.canonicalize({"value": 1.0})`.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_jcs_float_canonicalization() {
         // JCS canonicalizes {"value": 1.0} → {"value":1} (integer form)
@@ -1102,6 +1125,7 @@ mod tests {
     ///
     /// JCS serializes `1e20` as `100000000000000000000` (expanded integer form).
     /// Expected values generated by `iscc-core` with `jcs.canonicalize({"value": 1e20})`.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_jcs_large_float_canonicalization() {
         let result = gen_meta_code_v0("Test", None, Some(r#"{"value":1e20}"#), 64).unwrap();
@@ -1124,6 +1148,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_invalid_json() {
         assert!(matches!(
@@ -1132,6 +1157,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_invalid_data_url() {
         assert!(matches!(
@@ -1140,6 +1166,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_conformance() {
         let json_str = include_str!("../tests/data.json");
@@ -1225,6 +1252,7 @@ mod tests {
         assert_eq!(tested, 16, "expected 16 conformance tests to run");
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_gen_text_code_v0_empty() {
         let result = gen_text_code_v0("", 64).unwrap();
@@ -1232,6 +1260,7 @@ mod tests {
         assert_eq!(result.characters, 0);
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_gen_text_code_v0_hello_world() {
         let result = gen_text_code_v0("Hello World", 64).unwrap();
@@ -1239,6 +1268,7 @@ mod tests {
         assert_eq!(result.characters, 10); // "helloworld" after collapse
     }
 
+    #[cfg(feature = "text-processing")]
     #[test]
     fn test_gen_text_code_v0_conformance() {
         let json_str = include_str!("../tests/data.json");
@@ -1719,6 +1749,7 @@ mod tests {
     /// string), so it enters the meta branch with `payload = b""`. The result must have
     /// `meta = Some(...)` containing the original Data-URL and `metahash` equal to
     /// `multi_hash_blake3(&[])` (BLAKE3 of empty bytes).
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_empty_data_url_enters_meta_branch() {
         let result =
@@ -1747,6 +1778,7 @@ mod tests {
     ///
     /// Python reference (`code_meta.py:142`): `if extra in {None, "", b""}:` returns
     /// name-only simhash without interleaving for all empty-like values.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_soft_hash_meta_v0_with_bytes_empty_equals_name_only() {
         let name_only = soft_hash_meta_v0("test", None);
@@ -1759,11 +1791,13 @@ mod tests {
 
     // ---- Algorithm constants tests ----
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_meta_trim_name_value() {
         assert_eq!(META_TRIM_NAME, 128);
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_meta_trim_description_value() {
         assert_eq!(META_TRIM_DESCRIPTION, 4096);
@@ -1992,6 +2026,7 @@ mod tests {
     // --- json_to_data_url tests ---
 
     /// Basic JSON object produces a data URL with application/json media type.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_json_to_data_url_basic() {
         let url = json_to_data_url(r#"{"key": "value"}"#).unwrap();
@@ -2002,6 +2037,7 @@ mod tests {
     }
 
     /// JSON with `@context` key uses application/ld+json media type.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_json_to_data_url_ld_json() {
         let url = json_to_data_url(r#"{"@context": "https://schema.org"}"#).unwrap();
@@ -2012,6 +2048,7 @@ mod tests {
     }
 
     /// JCS canonicalization reorders keys alphabetically.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_json_to_data_url_jcs_ordering() {
         let url = json_to_data_url(r#"{"b":1,"a":2}"#).unwrap();
@@ -2024,6 +2061,7 @@ mod tests {
 
     /// Round-trip: json_to_data_url output fed into decode_data_url recovers
     /// the JCS-canonical bytes.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_json_to_data_url_round_trip() {
         let input = r#"{"hello": "world", "num": 42}"#;
@@ -2037,6 +2075,7 @@ mod tests {
     }
 
     /// Invalid JSON string returns an error.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_json_to_data_url_invalid_json() {
         let result = json_to_data_url("not json");
@@ -2060,6 +2099,7 @@ mod tests {
     ///
     /// We verify: (a) correct media type prefix, and (b) decoded payload equals
     /// JCS-canonical form of the same JSON input.
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_json_to_data_url_conformance_0016() {
         let url = json_to_data_url(r#"{"some": "object"}"#).unwrap();
@@ -2078,11 +2118,13 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_meta_trim_meta_value() {
         assert_eq!(META_TRIM_META, 128_000);
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_meta_at_limit() {
         // Create a JSON payload that decodes to exactly 128,000 bytes
@@ -2097,6 +2139,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_meta_over_limit() {
         // Create a JSON payload that decodes to 128,001 bytes (one over limit)
@@ -2109,6 +2152,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "meta-code")]
     #[test]
     fn test_gen_meta_code_v0_data_url_pre_decode_reject() {
         // Create a Data-URL string exceeding the pre-decode limit
