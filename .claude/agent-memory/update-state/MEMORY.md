@@ -59,23 +59,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: a6a241f)
+## Current State (assessed-at: a49ac7d)
 
-- **IN_PROGRESS**: issue #16 one sub-task remains (CI feature matrix)
-- **Issue #21 COMPLETE**: All 7 bindings expose `add_units`/`units`; all 5 doc files updated
-- **Issue #16 PARTIAL**: Feature flags + code gating + conformance_selftest adaptation ✅; CI matrix
-    ❌
-- **Feature flags implemented**: `default = ["meta-code"]`,
+- **DONE**: All target criteria met. No open issues. CI fully green.
+- **Issue #16 COMPLETE**: Feature flags + code gating + conformance_selftest adaptation + CI matrix
+    ✅
+- **Feature flags**: `default = ["meta-code"]`,
     `meta-code = ["text-processing", "dep:serde_json_canonicalizer"]`,
     `text-processing = [dep:unicode-*]`
-- **Code gating done**: `gen_meta_code_v0`, `json_to_data_url`, `META_TRIM_*` → `meta-code`;
-    `gen_text_code_v0`, `text_clean`, `text_collapse` → `text-processing`
-- **conformance_selftest() FIXED**: `pub mod conformance;` and `pub use conformance_selftest;` no
-    longer gated; granular `#[cfg]` on `run_meta_tests`/`run_text_tests` only
-- **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
-- **CI gap**: no `--no-default-features`, `--all-features`, or per-feature steps in ci.yml
-- **CI latest**: Run 22603382763 — all 11 CI jobs SUCCESS ✅
-- **Next priority**: Add feature matrix steps to `.github/workflows/ci.yml` (YAML-only change)
+- **CI feature matrix** (5 steps in rust job): clippy no-default-features, clippy all-features, test
+    no-default-features, test all-features, test text-processing-only
+- **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only), passes
+    (all-features)
+- **CI latest**: Run 22604187637 — all 11 CI jobs SUCCESS ✅
+- **release.yml**: workflow_dispatch with per-registry checkboxes (crates.io, PyPI, npm, Maven, FFI)
+    ✅; tag push triggers all jobs ✅
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
