@@ -29,7 +29,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Codebase Landmarks
 
-- `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
+- `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni (iscc-rb NOT YET
+    CREATED)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench
@@ -59,21 +60,27 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: a49ac7d)
+## Current State (assessed-at: a6a942c)
 
-- **DONE**: All target criteria met. No open issues. CI fully green.
-- **Issue #16 COMPLETE**: Feature flags + code gating + conformance_selftest adaptation + CI matrix
-    ✅
-- **Feature flags**: `default = ["meta-code"]`,
-    `meta-code = ["text-processing", "dep:serde_json_canonicalizer"]`,
-    `text-processing = [dep:unicode-*]`
-- **CI feature matrix** (5 steps in rust job): clippy no-default-features, clippy all-features, test
-    no-default-features, test all-features, test text-processing-only
-- **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only), passes
-    (all-features)
-- **CI latest**: Run 22604187637 — all 11 CI jobs SUCCESS ✅
-- **release.yml**: workflow_dispatch with per-registry checkboxes (crates.io, PyPI, npm, Maven, FFI)
-    ✅; tag push triggers all jobs ✅
+- **IN_PROGRESS**: v0.1.0 released. Target extended with Ruby bindings. 3 open issues.
+- **Issues open**: critical (iscc-core v1.3.0: 4 new vectors, META_TRIM_META 128k limit), normal
+    (Ruby bindings not started), low (language logos)
+- **Ruby bindings**: NOT STARTED — `crates/iscc-rb` absent, no CI job, no release step
+- **CI (run 22626200126)**: all 11 jobs SUCCESS ✅ (no Ruby job yet)
+- **Feature flags**: `default = ["meta-code"]`, `meta-code = ["text-processing", ...]`,
+    `text-processing = [dep:unicode-*]`; 5 CI feature matrix steps
+- **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
+- **release.yml**: checkboxes for crates.io, PyPI, npm, Maven, FFI (not RubyGems yet) ✅
+- **devcontainer**: `ruby ruby-dev` added ✅; spec `ruby-bindings.md` created ✅
+
+## iscc-core v1.3.0 Conformance Gap
+
+- 4 new test vectors: test_0017 (JCS float→int), test_0018 (JCS large float), test_0019 (description
+    trim ASCII), test_0020 (description trim UTF-8)
+- New `META_TRIM_META = 128_000` byte limit in gen_meta_code_v0 (raises ValueError if exceeded)
+- `data.json` now has top-level `_metadata` object — vector loader must skip it
+- Codec validation tightening (check `(MainType, Version)` combos)
+- Reference clone at `reference/iscc-core/` needs update from v1.2.2 → v1.3.0
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
