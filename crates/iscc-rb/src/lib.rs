@@ -4,8 +4,8 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Symbols (16 of 32):
-//! - `gen_meta_code_v0` (flagship gen function with Hash return + optional params)
+//! Symbols (19 of 32):
+//! - `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
 //! - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 //! - `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`
 //! - `json_to_data_url`, `conformance_selftest`
@@ -42,6 +42,45 @@ fn gen_meta_code_v0(
     if let Some(meta) = r.meta {
         hash.aset("meta", meta)?;
     }
+    Ok(hash)
+}
+
+/// Generate a Text-Code from plain text content.
+///
+/// Returns a Ruby Hash with keys: `iscc`, `characters`.
+fn gen_text_code_v0(text: String, bits: u32) -> Result<RHash, Error> {
+    let r = iscc_lib::gen_text_code_v0(&text, bits).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
+    hash.aset("characters", r.characters)?;
+    Ok(hash)
+}
+
+/// Generate an Image-Code from pixel data.
+///
+/// Accepts a binary Ruby String of raw pixel bytes.
+/// Returns a Ruby Hash with key: `iscc`.
+fn gen_image_code_v0(pixels: RString, bits: u32) -> Result<RHash, Error> {
+    // Safety: the slice is passed directly to a pure Rust function
+    // and not held across any Ruby API calls.
+    let bytes = unsafe { pixels.as_slice() };
+    let r = iscc_lib::gen_image_code_v0(bytes, bits).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
+    Ok(hash)
+}
+
+/// Generate an Audio-Code from a Chromaprint feature vector.
+///
+/// Accepts a Ruby Array of integers (i32 Chromaprint fingerprints).
+/// Returns a Ruby Hash with key: `iscc`.
+fn gen_audio_code_v0(cv: Vec<i32>, bits: u32) -> Result<RHash, Error> {
+    let r = iscc_lib::gen_audio_code_v0(&cv, bits).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let hash = ruby.hash_new();
+    hash.aset("iscc", r.iscc)?;
     Ok(hash)
 }
 
@@ -149,6 +188,9 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
 
     // Gen functions (prefixed with _ for Ruby wrapper layer)
     module.define_module_function("_gen_meta_code_v0", function!(gen_meta_code_v0, 4))?;
+    module.define_module_function("_gen_text_code_v0", function!(gen_text_code_v0, 2))?;
+    module.define_module_function("_gen_image_code_v0", function!(gen_image_code_v0, 2))?;
+    module.define_module_function("_gen_audio_code_v0", function!(gen_audio_code_v0, 2))?;
 
     // Text utility functions
     module.define_module_function("text_clean", function!(text_clean, 1))?;

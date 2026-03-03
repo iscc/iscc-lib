@@ -122,6 +122,48 @@ class TestSmoke < Minitest::Test
     assert_equal true, IsccLib.conformance_selftest
   end
 
+  def test_gen_text_code_v0_basic
+    result = IsccLib.gen_text_code_v0("Hello World")
+    assert_kind_of IsccLib::TextCodeResult, result
+    assert result["iscc"].start_with?("ISCC:"), "ISCC should start with 'ISCC:'"
+    assert result.key?("characters"), "Result should contain characters"
+  end
+
+  def test_gen_text_code_v0_attribute_access
+    result = IsccLib.gen_text_code_v0("Hello World")
+    assert result.iscc.start_with?("ISCC:")
+    assert result.characters.is_a?(Integer)
+    assert result.characters.positive?, "characters should be > 0"
+  end
+
+  def test_gen_image_code_v0_basic
+    pixels = ("\x00" * 1024).b
+    result = IsccLib.gen_image_code_v0(pixels)
+    assert_kind_of IsccLib::ImageCodeResult, result
+    assert result["iscc"].start_with?("ISCC:"), "ISCC should start with 'ISCC:'"
+  end
+
+  def test_gen_image_code_v0_attribute_access
+    pixels = ("\xFF" * 1024).b
+    result = IsccLib.gen_image_code_v0(pixels)
+    assert result.iscc.start_with?("ISCC:")
+    assert result.iscc.is_a?(String)
+  end
+
+  def test_gen_audio_code_v0_basic
+    cv = [1, 2, 3, 4, 5, 6, 7, 8]
+    result = IsccLib.gen_audio_code_v0(cv)
+    assert_kind_of IsccLib::AudioCodeResult, result
+    assert result["iscc"].start_with?("ISCC:"), "ISCC should start with 'ISCC:'"
+  end
+
+  def test_gen_audio_code_v0_attribute_access
+    cv = [100, 200, 300, 400]
+    result = IsccLib.gen_audio_code_v0(cv)
+    assert result.iscc.start_with?("ISCC:")
+    assert result.iscc.is_a?(String)
+  end
+
   def test_version
     assert IsccLib::VERSION.is_a?(String)
     assert_match(/\A\d+\.\d+\.\d+\z/, IsccLib::VERSION)
