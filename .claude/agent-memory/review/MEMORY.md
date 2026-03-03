@@ -88,6 +88,14 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     dismissed because Go faithfully mirrors Rust reference. When reviewing Go ports, always validate
     Codex findings against the Rust implementation before acting on them
 
+## Feature Flag Review
+
+- Feature flag changes are Rust-internal (no binding changes) — use the Rust-only review shortcut
+- Verify all 3 feature configurations: default, `--no-default-features`,
+    `--no-default-features   --features text-processing`
+- `pub(crate)` functions must be gated if their only callers are gated — clippy dead-code fires
+- `serde_json` remains non-optional (conformance.rs dependency) — don't flag as an issue
+
 ## Binding State
 
 - **Issues #15 + #21 fully resolved** — all 7 bindings + all docs have gen_sum_code_v0 with
@@ -177,14 +185,6 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `.pyi` stub at `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` must also be updated. `ty check`
     (pre-push) catches mismatches but `mise run check` (pre-commit) does not. Always verify
     `uv run ty check` for Python binding changes
-
-## Benchmark Review
-
-- `NamedTempFile` wraps unbuffered `std::fs::File` — no explicit flush needed after `write_all`.
-    `File::open` in Rust uses shared access on Windows, so concurrent read-while-write-handle-open
-    works. Codex false-positive about Windows exclusive access can be dismissed
-- `group.throughput()` called per-size within the same benchmark group is the established pattern in
-    this codebase (used by `bench_data_code`, `bench_instance_code`, and now `bench_sum_code`)
 
 ## Gotchas
 

@@ -90,43 +90,15 @@ fully-met target sections to `learnings-archive.md`.
 - Never force-push to develop during a CID loop — agents commit incrementally
 - Tag releases on `main` after merging from `develop`: `git tag vX.Y.Z && git push origin vX.Y.Z`
 
-## Go Bindings — Pure Go Rewrite
+## Feature Flags
 
-- Go module path: `github.com/iscc/iscc-lib/packages/go`, package name `iscc`
-- Conformance test path: `../../crates/iscc-lib/tests/data.json` (relative from packages/go)
-- Go constants: `MetaTrimName`, `MetaTrimDescription`, `IoReadSize`, `TextNgramSize` are
-    package-level `const` (idiomatic Go)
-- `DecodeResult` struct: `Maintype`, `Subtype`, `Version`, `Length` (all `uint8`) + `Digest`
-    (`[]byte`). Returned as `*DecodeResult` from `IsccDecode`
-- Go uint32/uint64 arithmetic wraps naturally at overflow, matching Rust's wrapping_add/wrapping_mul
-- Go `%` and `&` have equal precedence (both multiplicative), so `x % mprime & maxH` evaluates
-    left-to-right as `(x % mprime) & maxH`, matching Rust
-- Use `const` (not `var`) for scalar constants — Go supports constant expressions with bit shifts
-- `golang.org/x/text/unicode/norm` for NFKC/NFD. `unicode.Is(unicode.C, c)` covers Cc, Cf, Co, Cs
-- `TextRemoveNewlines` = `strings.Join(strings.Fields(text), " ")` (one-liner)
-- `TextTrim` uses backward byte trimming until `utf8.ValidString` — simpler than Rust but identical
-- CDC: `cdcGear` table is `var` not `const` (Go no const arrays). `min()` builtin since Go 1.21+
-- MinHash: `mpa`/`mpb` arrays, `minhashFn` naming (avoids Go conflict). `maxi64`/`mprime`/`maxH` are
-    `var` not `const` (Go uint64 shift limitation)
-- SimHash: `AlgSimhash` returns `([]byte, error)`, `SlidingWindow` returns `([]string, error)`. Uses
-    `[]rune` for Unicode-correct SlidingWindow
-- DCT: `algDct` (unexported, `pub(crate)` in Rust). WTA-Hash: `AlgWtahash` (exported, `pub` in
-    Rust). `wtaVideoIdPermutations` is `var` (Go no const arrays). All 7 algorithm modules complete
-- DCT beta computation: Rust `/ cos / 2.0` vs Go `/ (cos * 2.0)` are numerically identical
-    (verified) — multiplying cos ∈ [-1,1] by 2.0 is exact in IEEE 754
-- Dependency order: codec → utils → algorithms → gen functions → streaming → conformance → cleanup
-- Gen function test naming: `TestPureGo*` prefix is historical (from WASM coexistence phase). Could
-    be renamed to `Test*` now that the WASM bridge is removed — cosmetic cleanup only
-- JCS canonicalization: Go's `json.Marshal` suffices for string-only JSON values (sorted keys,
-    compact format). A dedicated JCS library is needed only if float number formatting matters
-- `SlidingWindow`/`AlgSimhash` error suppression (`_, _`) is safe in gen functions: width params are
-    hardcoded valid constants (3 or 13), and AlgSimhash returns 32 zero bytes for empty input
-- Go `DataHasher`/`InstanceHasher` Finalize is single-use (mutates internal state). Mirrors Python
-    reference `_finalize()` which sets `self.tail = None`. Do not call Finalize twice
-- Go pure rewrite is COMPLETE: 30/30 Tier 1 symbols, all 46 conformance vectors pass, zero WASM
-    dependencies. Module deps: `github.com/zeebo/blake3`, `golang.org/x/text` (+ cpuid indirect)
-- `DecodeResult` struct and algorithm constants (`MetaTrimName`, etc.) live in `codec.go` — the
-    canonical location after WASM bridge removal
+- `iscc-lib` features: `default = ["meta-code"]`, `text-processing` (unicode deps), `meta-code`
+    (implies text-processing + JCS canonicalizer). Three deps are optional
+- When gating `pub(crate)` functions behind features, their tests must also be gated — clippy
+    `-D warnings` catches dead code in library builds even if test modules reference them
+- Gate individual test functions with `#[cfg(feature = "...")]`, not the whole `mod tests` block,
+    when the block contains both gated and ungated tests
+- `serde_json` stays non-optional because `conformance.rs` uses it for parsing data.json vectors
 
 ## Documentation Maintenance
 
@@ -168,22 +140,6 @@ fully-met target sections to `learnings-archive.md`.
     constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
-
-## gen_sum_code_v0
-
-- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` is the 10th gen function
-    and 32nd Tier 1 symbol. Single-pass file I/O feeds both `DataHasher` (CDC/MinHash) and
-    `InstanceHasher` (BLAKE3) from the same buffer, then composes ISCC-CODE via `gen_iscc_code_v0`
-- `SumCodeResult { iscc, datahash, filesize, units }` — `units: Option<Vec<String>>` contains
-    `[Data-Code, Instance-Code]` ISCC strings when `add_units` is true. Borrow-before-move pattern:
-    `gen_iscc_code_v0` borrows the strings, then they're moved into the vec (no clone needed)
-- Binding propagation order: Python first (primary consumer), then Node.js/WASM/C FFI/Java, Go last
-    (pure Go reimplementation needed — not a Rust wrapper)
-- **`.pyi` stub must be updated alongside binding changes.** When adding/modifying parameters in
-    `crates/iscc-py/src/lib.rs`, also update the corresponding signature in
-    `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`. `ty check` (pre-push hook) will fail otherwise
-- Binding-specific `add_units`/`units` patterns archived to `learnings-archive.md` (issue #21 fully
-    resolved: all 7 bindings complete)
 
 ## CID Process
 

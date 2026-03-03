@@ -1,46 +1,41 @@
-## 2026-03-03 — Define feature flags and gate meta-code + text-processing
+## 2026-03-03 — Review of: Define feature flags and gate meta-code + text-processing
 
-**Done:** Added Cargo feature flags (`meta-code`, `text-processing`) to `iscc-lib` so embedded
-consumers can opt out of heavy dependencies (serde_json_canonicalizer, unicode-normalization,
-unicode-general-category). Default behavior unchanged — all features on. Dependencies made optional,
-all code and tests properly gated behind `#[cfg(feature = "...")]` attributes.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/Cargo.toml`: Added `[features]` section with `default = ["meta-code"]`,
-    `text-processing` (unicode deps), `meta-code` (implies text-processing + JCS). Made 3 deps
-    optional.
-- `crates/iscc-lib/src/utils.rs`: Gated `text_clean`, `text_collapse`, `NEWLINES`, `is_c_category`,
-    `is_cmp_category`, and their imports behind `text-processing`. Gated individual test functions.
-- `crates/iscc-lib/src/lib.rs`: Gated meta-code items (constants, helpers, `gen_meta_code_v0`,
-    `json_to_data_url`, `conformance` module) behind `meta-code`. Gated `gen_text_code_v0` and
-    `soft_hash_text_v0` behind `text-processing`. Split `pub use utils::` into gated/ungated lines.
-    Gated individual test functions.
-- `crates/iscc-lib/src/simhash.rs`: Gated `sliding_window_strs` behind `text-processing` and
-    `sliding_window_bytes` behind `meta-code` (both `pub(crate)` with no ungated callers — dead code
-    without gating). Gated their test functions.
-- `crates/iscc-lib/tests/test_text_utils.rs`: Gated integration tests for `text_clean`/
-    `text_collapse` behind `text-processing`. Split
-    `test_crate_root_imports`/`test_module_path_imports` into ungated + gated variants.
+**Summary:** Clean, well-structured feature flag implementation matching the next.md spec exactly.
+Three deps made optional, all code and tests properly gated behind `#[cfg(feature = "...")]`, and
+default behavior is unchanged (all features on). The additional `simhash.rs` modification was
+necessary and justified (clippy dead-code compliance).
 
 **Verification:**
 
-- `cargo test -p iscc-lib` — 314 tests pass (312 original + 2 new from split import tests)
-- `cargo test -p iscc-lib --no-default-features` — 249 tests pass (gated tests excluded)
-- `cargo test -p iscc-lib --no-default-features --features text-processing` — 283 tests pass
-- `cargo clippy -p iscc-lib -- -D warnings` — clean
-- `cargo clippy -p iscc-lib --no-default-features -- -D warnings` — clean
-- `cargo check -p iscc-lib --no-default-features` — succeeds
-- `mise run check` — all 14 pre-commit hooks pass
-- `uv run prek run --stage pre-push --all-files` — all 15 pre-push hooks pass
+- [x] `cargo test -p iscc-lib` passes — 314 tests (258 unit + 31 streaming + 24 utils + 1 doctest)
+- [x] `cargo test -p iscc-lib --no-default-features` compiles and passes — 249 tests
+- [x] `cargo test -p iscc-lib --features text-processing` compiles and passes — 314 tests (with
+    defaults); `--no-default-features --features text-processing` variant: 283 tests
+- [x] `cargo clippy -p iscc-lib -- -D warnings` clean (default features)
+- [x] `cargo clippy -p iscc-lib --no-default-features -- -D warnings` clean
+- [x] `cargo check -p iscc-lib --no-default-features` succeeds
+- [x] `mise run check` — 14/14 pre-commit hooks pass
+- [x] No quality gate circumvention — no `#[allow]`, `#[ignore]`, threshold changes, or hook
+    weakening in diff
 
-**Next:** CI workflow changes — add `--no-default-features` and per-feature CI jobs to validate
-feature flag combinations in CI. Also, adapting `conformance_selftest()` to work with partial
-features (skip disabled code types instead of being entirely gated) is a follow-up step.
+**Issues found:**
 
-**Notes:** Had to modify `simhash.rs` (4th file, beyond the 3-file scope in next.md) because
-`sliding_window_strs` and `sliding_window_bytes` are `pub(crate)` functions whose only callers are
-gated code. Without gating them, `cargo clippy --no-default-features -- -D warnings` fails with
-dead-code errors. The changes are minimal (2 `#[cfg]` attributes + gating their test functions). The
-doctest for `json_to_data_url` is automatically excluded when the feature is off (Rust handles this
-via the `#[cfg]` on the function).
+- (none)
+
+**Codex review:** Feature-gating changes are internally consistent (Cargo features, optional deps,
+`#[cfg]` usage all align). Builds and tests pass under all three configurations. No actionable
+findings.
+
+**Next:** Issue #16 has two remaining parts: (1) adapt `conformance_selftest()` to work with partial
+features (skip disabled code types instead of being entirely gated behind `meta-code`), and (2) add
+CI workflow jobs for `--no-default-features` and per-feature testing. Suggest tackling the
+conformance adaptation next since it's a code change, then CI as a separate step.
+
+**Notes:** Issue #16 is partially resolved — feature flag definitions and code gating are complete,
+but conformance adaptation and CI integration remain. The test count increased from 312 to 314 due
+to splitting 2 import tests into gated/ungated variants (correct behavior). The `simhash.rs` 4th
+file modification was out of the 3-file scope but necessary — `pub(crate)` functions
+`sliding_window_strs` and `sliding_window_bytes` have no ungated callers, so clippy flags them as
+dead code without feature gates.
