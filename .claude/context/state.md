@@ -1,16 +1,17 @@
-<!-- assessed-at: 54e5a16ee60e6da631a962e6d74400950462f6f8 -->
+<!-- assessed-at: c8016888a90a3b24f22ee53e56abbe0e71ec5fe2 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings — 32/32 symbols complete; infrastructure and docs remaining
+## Phase: Ruby bindings — conformance tests complete; CI job and docs remaining
 
-The Ruby Magnus bridge now exposes all 32 Tier 1 symbols, including the newly added `DataHasher` and
-`InstanceHasher` streaming classes. Review passed cleanly: 61 tests, 152 assertions, 0 failures. All
-11 CI jobs are green on the latest run (22645106695). The remaining Ruby work is infrastructure and
-documentation: conformance tests, Ruby CI job, RubyGems publish step, `version_sync.py` gemspec
-update, `docs/howto/ruby.md`, and full `iscc-rb/README.md`.
+The Ruby Magnus bridge exposes all 32 Tier 1 symbols with conformance tests now complete: 111
+Minitest tests, 295 assertions, 0 failures (50 conformance vectors covering 9 gen functions + 61
+existing smoke/streaming tests). All 11 CI jobs are green on run 22646899223. The remaining Ruby
+work is infrastructure and documentation: a dedicated Ruby CI job, RubyGems publish step,
+`version_sync.py` gemspec update, Standard Ruby linting, `docs/howto/ruby.md`, and a full
+`crates/iscc-rb/README.md`.
 
 ## Rust Core Crate
 
@@ -44,7 +45,7 @@ update, `docs/howto/ruby.md`, and full `iscc-rb/README.md`.
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22645106695 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22646899223 ✅
 
 ## C FFI
 
@@ -90,10 +91,11 @@ update, `docs/howto/ruby.md`, and full `iscc-rb/README.md`.
     - Streaming types: `DataHasher`, `InstanceHasher` (2) ✅
 - Pure Ruby wrapper: 10 result classes (`*CodeResult < Result < Hash`), keyword args, method
     chaining for streaming types ✅
-- 61 Minitest tests (152 assertions, 0 failures): 46 smoke + 15 streaming type tests ✅
+- **Conformance tests**: `test/test_conformance.rb` — 50 dynamically generated test methods covering
+    all 9 gen\_\*\_v0 functions against official data.json vectors ✅
+- 111 Minitest tests total (295 assertions, 0 failures): 46 smoke + 15 streaming + 50 conformance ✅
 - `bundle exec rake compile` builds in release profile ✅
 - `crates/iscc-rb/README.md` exists (stub, ~31 lines) ✅
-- **Missing**: No conformance tests against `data.json` (`test/test_conformance.rb` absent)
 - **Missing**: No dedicated `ruby` CI job (workspace Rust job still uses `--exclude iscc-rb`)
 - **Missing**: No RubyGems step in `release.yml`
 - **Missing**: `scripts/version_sync.py` does not include gemspec
@@ -172,8 +174,8 @@ update, `docs/howto/ruby.md`, and full `iscc-rb/README.md`.
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22645106695: all 11 jobs SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22645106695
+- **ALL PASSING** — latest CI run 22646899223: all 11 jobs SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22646899223
 - `release.yml` has `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven,
     FFI) ✅
 - `iscc-rb` excluded from workspace Rust CI job (`--exclude iscc-rb`) — no dedicated Ruby CI job
@@ -182,18 +184,15 @@ update, `docs/howto/ruby.md`, and full `iscc-rb/README.md`.
 
 ## Next Milestone
 
-Ruby symbol surface is complete (32/32). The next work package should complete the Ruby binding
-infrastructure:
+Ruby conformance tests are complete (50/50 vectors, all 9 gen functions). The next work package
+should add the Ruby CI job to unblock automated verification on every push:
 
-1. **Conformance tests** — `test/test_conformance.rb` loading `data.json` and asserting all 9
-    gen-function section results match expected ISCC codes (mirrors the Go/Python/Java/Node
-    pattern)
-2. **Ruby CI job** — add a `ruby` job to `.github/workflows/ci.yml` that runs
-    `bundle exec rake  compile && bundle exec rake test`; remove `--exclude iscc-rb` from the Rust
-    CI job
-3. **Standard Ruby linting** — add `standard` gem to Gemfile, create `.standard.yml`, wire into
+1. **Ruby CI job** — add a `ruby` job to `.github/workflows/ci.yml` that runs
+    `bundle exec rake compile && bundle exec rake test`; remove `--exclude iscc-rb` from the Rust
+    CI job so clippy covers the Ruby bridge crate too
+2. **Standard Ruby linting** — add `standard` gem to Gemfile, create `.standard.yml`, wire into
     `Rakefile` and CI
-4. **RubyGems release** — add `rubygems` checkbox to `release.yml`; update `version_sync.py` to sync
+3. **RubyGems release** — add `rubygems` checkbox to `release.yml`; update `version_sync.py` to sync
     gemspec version from Cargo.toml
-5. **Documentation** — write `docs/howto/ruby.md`; expand `crates/iscc-rb/README.md`; add Ruby
+4. **Documentation** — write `docs/howto/ruby.md`; expand `crates/iscc-rb/README.md`; add Ruby
     section to root `README.md`

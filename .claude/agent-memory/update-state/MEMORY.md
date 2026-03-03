@@ -62,18 +62,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 54e5a16)
+## Current State (assessed-at: c8016888)
 
-- **IN_PROGRESS**: all 11 CI jobs green (run 22645106695); Ruby bindings at 32/32 symbols
+- **IN_PROGRESS**: all 11 CI jobs green (run 22646899223); Ruby 32/32 + conformance tests done
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
-- **Ruby bindings**: PARTIALLY MET — 32/32 symbols ✅; 61 tests (152 assertions) pass
+- **Ruby bindings**: PARTIALLY MET — 32/32 symbols ✅; 111 tests (295 assertions) pass
     - ALL 10 gen functions ✅; 4 text ✅; 6 codec/diagnostic ✅; 5 constants ✅
     - ALL 5 algo primitives ✅; DataHasher + InstanceHasher streaming types ✅
-    - Ruby test files: test_smoke.rb (46 tests, 115 assertions) + test_iscc_lib.rb (15 tests, 31
-        assertions)
-    - Missing: conformance tests (test_conformance.rb), Standard Ruby linting, Ruby CI job, RubyGems
-        release, version_sync gemspec, docs/howto/ruby.md, full iscc-rb/README.md
-- **CI (run 22645106695)**: ALL SUCCESS — 11 jobs (no Ruby job yet; iscc-rb excluded from Rust job)
+    - Ruby test files: test_smoke.rb (46 tests) + test_iscc_lib.rb (15 tests) + test_conformance.rb
+        (50 vectors, 9 gen functions) ✅
+    - Missing: Standard Ruby linting, Ruby CI job, RubyGems release, version_sync gemspec,
+        docs/howto/ruby.md, full iscc-rb/README.md
+- **CI (run 22646899223)**: ALL SUCCESS — 11 jobs (no Ruby job yet; iscc-rb excluded from Rust job)
 - **Ruby CI exclusion**: `--exclude iscc-rb` on both clippy and cargo test in Rust CI job
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **extconf.rb location**: crate root (not `ext/iscc_lib/`); rb_sys expects it next to Cargo.toml
@@ -133,3 +133,6 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     `assert_eq!(tested, N, ...)` guards. When data.json gains new vectors, BOTH lib.rs AND the WASM
     conformance test must be updated. Review agents may miss this (check grep result:
     `grep -n "assert_eq.*tested" crates/iscc-wasm/tests/conformance.rs`)
+- **Ruby JSON sort_keys no-op**: `JSON.generate(hash, sort_keys: true)` silently ignores `sort_keys`
+    in Ruby's stdlib json gem. Use `JSON.generate(hash.sort.to_h)` instead for deterministic key
+    ordering (required for JCS-compatible meta serialization)
