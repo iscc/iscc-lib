@@ -27,8 +27,10 @@ iterations.
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
-- CI workflow at `.github/workflows/ci.yml` has 9 jobs: version-check, rust, python, nodejs, wasm,
-    c-ffi, java, go, bench. The `bench` job runs `cargo bench --no-run` (compile-only, no execution)
+- CI workflow at `.github/workflows/ci.yml` has 10 jobs: version-check, rust, python, nodejs, wasm,
+    c-ffi, java, go, ruby, bench. The `bench` job runs `cargo bench --no-run` (compile-only)
+- Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
+    param (not step-level), bundler-cache auto-installs gems
 - `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
     `--all-features`, and `--no-default-features --features text-processing` (issue #16)
 - `version-check` job: lightweight (checkout + setup-python only), runs
@@ -191,17 +193,12 @@ iterations.
     native class to add `update` (returns self for chaining) and `finalize(bits: 64)` (default +
     result wrapping). **Key lesson:** `_` prefix works for methods but NOT class names — Ruby
     constants must start with uppercase. Use method prefixing instead of class prefixing
-- Binary data: `RString` param + `unsafe { data.as_slice() }` for arbitrary bytes. Copy bytes
-    immediately before any Ruby API calls. Return binary data via `RString::from_slice(&bytes)`
-- `gen_video_code_v0`: `RArray` → `Vec<Vec<i32>>` via `into_iter()` +
-    `TryConvert::try_convert(val)`. Requires ≥380 elements per frame (WTA-Hash minimum)
-- Test files: `test/test_smoke.rb` (46 tests, gen/codec/utils), `test/test_iscc_lib.rb` (15 tests,
-    streaming). Total: 61 runs, 152 assertions
+- Test files: `test/test_smoke.rb`, `test/test_iscc_lib.rb`, `test/test_conformance.rb` — 111 total
+    tests (61 unit + 50 conformance)
 
 ## Gotchas
 
-- Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name. Use valid
-    class names + method prefixing for internal methods
+- Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
 - After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work

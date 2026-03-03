@@ -162,6 +162,30 @@ jobs:
       - name: Run Go vet
         run: go vet ./...
         working-directory: packages/go
+  ruby:
+    name: Ruby (magnus build, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install libclang-dev
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+          working-directory: crates/iscc-rb
+          bundler-cache: true
+      - name: Run clippy
+        run: cargo clippy -p iscc-rb -- -D warnings
+      - name: Compile native extension
+        run: bundle exec rake compile
+        working-directory: crates/iscc-rb
+      - name: Run tests
+        run: bundle exec rake test
+        working-directory: crates/iscc-rb
   bench:
     name: Bench (compile check)
     runs-on: ubuntu-latest
