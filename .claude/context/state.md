@@ -1,15 +1,16 @@
-<!-- assessed-at: f322e55b84286a3c36a96e5df5167f56a004e714 -->
+<!-- assessed-at: 4b55245e6f8f57dc02e52e5bd4fcf2a3b7dc9bc7 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings — 25/32 symbols; low-priority targets (C#, C++, Swift, Kotlin) deferred
+## Phase: Ruby bindings — 30/32 symbols; streaming types (DataHasher, InstanceHasher) remaining
 
-The Ruby Magnus bridge advanced from 22 to 25 of 32 Tier 1 symbols, adding `gen_instance_code_v0`,
-`gen_iscc_code_v0`, and `gen_sum_code_v0` with matching `InstanceCodeResult`, `IsccCodeResult`, and
-`SumCodeResult` result classes. All 11 CI jobs remain green on the new run (22640865894). The
-remaining 7 missing symbols are algorithm primitives and streaming types.
+The Ruby Magnus bridge advanced from 25 to 30 of 32 Tier 1 symbols by adding all 5 algorithm
+primitives (`sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+`soft_hash_video_v0`). The review passed cleanly: 46 tests, 121 assertions, 0 failures. All 11 CI
+jobs remain green on the new run (22642920793). Only 2 streaming types remain before the symbol
+surface is complete.
 
 ## Rust Core Crate
 
@@ -43,7 +44,7 @@ remaining 7 missing symbols are algorithm primitives and streaming types.
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22640865894 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22642920793 ✅
 
 ## C FFI
 
@@ -75,21 +76,22 @@ remaining 7 missing symbols are algorithm primitives and streaming types.
 **Status**: partially met
 
 - `crates/iscc-rb/` scaffold with Magnus bridge (magnus 0.7.1, Ruby 3.1.2 compat) ✅
-- **25 of 32 Tier 1 symbols** exposed:
+- **30 of 32 Tier 1 symbols** exposed:
     - Gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`,
         `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`,
         `gen_iscc_code_v0`, `gen_sum_code_v0` (10) ✅
-    - Text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse` (4)
+    - Text utilities: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse` (4) ✅
     - Codec/diagnostic: `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`,
-        `json_to_data_url`, `conformance_selftest` (6)
+        `json_to_data_url`, `conformance_selftest` (6) ✅
+    - Algorithm primitives: `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+        `soft_hash_video_v0` (5) ✅
     - Constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
-        `TEXT_NGRAM_SIZE` (5)
+        `TEXT_NGRAM_SIZE` (5) ✅
 - Pure Ruby wrapper: 10 result classes (`*CodeResult < Result < Hash`), keyword args ✅
-- 37 Minitest smoke tests; `bundle exec rake compile` builds in release profile ✅
+- 46 Minitest smoke tests (121 assertions, 0 failures); `bundle exec rake compile` builds in release
+    profile ✅
 - `crates/iscc-rb/README.md` exists (stub) ✅
-- **Missing** (7 symbols): 5 algorithm primitives (`sliding_window`, `alg_simhash`,
-    `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`), 2 streaming types (`DataHasher`,
-    `InstanceHasher`)
+- **Missing** (2 symbols): streaming types `DataHasher` and `InstanceHasher`
 - **Missing**: No conformance tests against `data.json`
 - **Missing**: No dedicated `ruby` CI job (workspace Rust job uses `--exclude iscc-rb`)
 - **Missing**: No RubyGems step in `release.yml`
@@ -168,8 +170,8 @@ remaining 7 missing symbols are algorithm primitives and streaming types.
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22640865894: all 11 jobs SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22640865894
+- **ALL PASSING** — latest CI run 22642920793: all 11 jobs SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22642920793
 - `release.yml` has `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven,
     FFI) ✅
 - `iscc-rb` excluded from workspace Rust CI job (`--exclude iscc-rb`) — no dedicated Ruby CI job
@@ -178,13 +180,11 @@ remaining 7 missing symbols are algorithm primitives and streaming types.
 
 ## Next Milestone
 
-Continue advancing the Ruby bindings toward 32/32 symbols. All 10 gen functions are now complete.
-Suggested next work package:
+Complete the Ruby bindings by adding the 2 remaining streaming types. Suggested work package:
 
-1. **Algorithm primitives** (5 symbols) — `sliding_window`, `alg_simhash`, `alg_minhash_256`,
-    `alg_cdc_chunks`, `soft_hash_video_v0`
-2. **Streaming types** (2 symbols) — `DataHasher` and `InstanceHasher` with `push`/`finalize`
-    interface
+1. **Streaming types** (2 symbols) — `DataHasher` and `InstanceHasher` with `push`/`finalize`
+    interface (Magnus class bridge; follow `DataHasher/InstanceHasher API` pattern from Go
+    bindings: `push(&[u8])` + `finalize(bits) -> Result`)
 
 After all 32 symbols: add conformance tests against `data.json`, Standard Ruby linting, Ruby CI job,
-RubyGems release step, version_sync, and documentation.
+RubyGems release step, `version_sync.py` update, `docs/howto/ruby.md`, and full `iscc-rb/README.md`.
