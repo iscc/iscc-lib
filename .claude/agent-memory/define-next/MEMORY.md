@@ -16,26 +16,15 @@ iterations.
 - State assessments can go stale — always verify claimed gaps by reading the actual files
 - New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
     steps. Core + tests in one step, bindings in subsequent steps
-- When previous next.md already contains correct scoping, verify line references are still accurate
-    and refresh rather than rewrite from scratch — avoid unnecessary churn
 - Repetitive doc additions across language guides: all 6 howto files follow identical structure
     (heading, 1-line description, fenced code block). Safe to batch all in one step
 
 ## Signature Change Propagation
 
 - When a Rust core function signature changes, ALL Rust-based binding crates must be updated in the
-    SAME step to keep CI green. The 3-file guideline can be exceeded when the additional files are
-    mechanical 1-line call-site fixes (e.g., adding `, false` to 4 binding calls)
-- WASM binding (`iscc-wasm`) has its OWN inline implementation of `gen_sum_code_v0` using
-    `DataHasher`/`InstanceHasher` directly (no filesystem in WASM) — it does NOT call
-    `iscc_lib::gen_sum_code_v0`, so signature changes don't break it
+    SAME step to keep CI green
+- WASM binding has its OWN inline `gen_sum_code_v0` (no filesystem in WASM)
 - Go binding is pure Go — completely independent of Rust core signatures
-- Binding call sites for `gen_sum_code_v0`:
-    - `iscc-py/src/lib.rs:335`
-    - `iscc-napi/src/lib.rs:232`
-    - `iscc-ffi/src/lib.rs:847`
-    - `iscc-jni/src/lib.rs:414`
-    - `benchmarks.rs:199,214` (test-adjacent, excluded from file count)
 
 ## Architecture Decisions
 
@@ -45,20 +34,32 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
-## gen_sum_code_v0 Units Design
+## Feature Flags Design (Issue #16)
 
-- `data_result.iscc` and `instance_result.iscc` are ALREADY computed internally (needed for
-    `gen_iscc_code_v0` call). When `add_units=false`, these strings are computed but dropped
-- `SumCodeResult` has `#[non_exhaustive]` — adding fields is backward compatible for consumers but
-    NOT for constructors (only the crate itself constructs it, so this is fine)
-- Issue #21 specifies `Option<Vec<String>>` gated by `add_units: bool` — respect this design even
-    though always-populating would be zero-cost (FFI/WASM string marshalling overhead matters)
-- Propagation order for units: Rust core → Python → Node.js/WASM/JNI/FFI → Go (each a step)
+- **Dependency graph analysis** (iteration 13):
+    - `serde_json` is used by `conformance.rs` for parsing data.json — cannot be fully gated without
+        restructuring conformance. Stays as regular dep for now
+    - `serde_json_canonicalizer` only used by `gen_meta_code_v0` and `json_to_data_url` — gated behind
+        `meta-code`
+    - `unicode-normalization` + `unicode-general-category` only used in `utils.rs` by `text_clean` and
+        `text_collapse` — gated behind `text-processing`
+    - `gen_meta_code_v0` uses text_clean/text_collapse, so `meta-code` implies `text-processing`
+- **Cross-module dependencies**:
+    - `text_remove_newlines` and `text_trim` have NO unicode deps — always available
+    - `multi_hash_blake3` in utils.rs has no unicode deps — always available
+    - `gen_text_code_v0` uses `text_collapse` → needs `text-processing`
+    - `gen_meta_code_v0` uses `text_clean/trim/remove_newlines/collapse` + serde_json_canonicalizer →
+        needs `meta-code` (which brings `text-processing`)
+    - `conformance` module calls `gen_meta_code_v0` + `gen_text_code_v0` → gated at module level
+        behind `meta-code` for now; adaptation to partial features is follow-up
+- **Incremental plan**: Step 1 = define features + gate code. Step 2 = adapt conformance_selftest to
+    skip disabled tests. Step 3 = CI workflow changes
+- **lib.rs test gating pattern**: Gate individual test functions with `#[cfg(feature)]`, NOT the
+    entire `mod tests` block, because it contains tests for both gated and ungated code
 
 ## Documentation Sweep Patterns
 
-- `crates/iscc-wasm/pkg/README.md` must always be identical to `crates/iscc-wasm/README.md` — both
-    are published to npm
+- `crates/iscc-wasm/pkg/README.md` must always be identical to `crates/iscc-wasm/README.md`
 - When updating "9 gen functions" to "10", distinguish context: data.json has 9 function sections
     (no gen_sum_code_v0), so conformance/benchmark code correctly says "9"
 - Two docs pages (architecture.md, development.md) share identical directory tree and crate summary
@@ -66,7 +67,7 @@ iterations.
 
 ## CI/Release Patterns
 
-- v0.0.4 released to all registries. Next release after units support is complete.
+- v0.0.4 released to all registries
 - Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
 
 ## Gotchas
@@ -78,7 +79,6 @@ iterations.
 
 ## Project Status
 
-- Iteration 12: Issue #21 (units support) RESOLVED across all 7 bindings. Docs update in progress
-- After docs update: only issue #16 (feature flags for embedded/minimal builds) remains
+- Iteration 13: Starting issue #16 (feature flags). All other work complete
 - 1 open issue: #16 (feature flags, normal priority)
 - v0.0.4 released to all registries

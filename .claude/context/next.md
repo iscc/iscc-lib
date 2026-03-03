@@ -1,107 +1,115 @@
 # Next Work Package
 
-## Step: Update docs for 4-parameter gen_sum_code_v0
+## Step: Define feature flags and gate meta-code + text-processing
 
 ## Goal
 
-Update all documentation files that still reference the old 3-parameter
-`gen_sum_code_v0(path, bits, wide)` signature to reflect the current 4-parameter signature with
-`add_units` and the `units` result field. This unblocks the Documentation section from "partially
-met" to "met."
+Add Cargo feature flags (`meta-code`, `text-processing`) to `iscc-lib` so embedded consumers can opt
+out of heavy dependencies (serde_json_canonicalizer, unicode-normalization,
+unicode-general-category). Default behavior is unchanged (all features on). This is the first step
+toward resolving issue #16.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `docs/architecture.md` — line 131: add `add_units` to pseudocode signature
-    - `docs/rust-api.md` — lines 270-296: update signature, add `add_units` parameter row, mention
-        `units` field in description and `SumCodeResult` struct, update code example to pass 4th arg
-    - `docs/howto/rust.md` — line 166: add `false` 4th argument to code example
-    - `docs/c-ffi-api.md` — lines 328-362: update C signature to include `bool add_units`, add
-        parameter row, add `units` field (`char **units`) to `IsccSumCodeResult` struct docs, update
-        `iscc_free_sum_code_result` doc to mention freeing `units`
-    - `docs/howto/c-cpp.md` — lines 101, 231: add `false` 4th argument to both C code examples
+    - `crates/iscc-lib/Cargo.toml` — define `[features]` section, make deps optional
+    - `crates/iscc-lib/src/utils.rs` — gate unicode-dependent code behind `text-processing`
+    - `crates/iscc-lib/src/lib.rs` — gate exports, gen functions, helpers, constants, conformance
+        module, and tests behind features
 - **Reference**:
-    - `crates/iscc-lib/src/lib.rs` lines 968-975 — actual Rust signature
-    - `crates/iscc-lib/src/types.rs` lines 98-107 — `SumCodeResult` struct definition
-    - `crates/iscc-ffi/include/iscc.h` lines 31-52, 528-531 — actual C signature and struct
+    - `crates/iscc-lib/src/conformance.rs` — understand what it imports (do NOT modify; gate at module
+        level from lib.rs)
+    - `.claude/context/issues.md` — issue #16 requirements
 
 ## Not In Scope
 
-- Updating Python/Node.js/WASM howto examples (they use keyword args or defaults — `add_units`
-    defaults to `false` and the examples are correct as-is)
-- Updating per-crate READMEs (they reference `gen_sum_code_v0` by name only, not signature)
-- Updating `docs/index.md` (only has function name in table, not signature)
-- Regenerating `llms.txt` / `llms-full.txt` (automated by build pipeline)
-- Any source code changes
+- **Conformance selftest adaptation** — `conformance_selftest()` is gated behind `meta-code` for now
+    (the entire module). Making it adapt to partial features (skip disabled code types while
+    remaining available) is a follow-up step
+- **CI workflow changes** — adding `--no-default-features` and per-feature CI jobs is a separate
+    step
+- **Binding crate changes** — binding crates always use default features; no changes needed
+- **Gating `serde_json` itself** — it stays as a regular (non-optional) dependency because
+    `conformance.rs` uses it for parsing `data.json` test vectors. Fully gating it requires
+    restructuring conformance (future work)
+- **Documentation updates** for the new features
 
 ## Implementation Notes
 
-### docs/architecture.md (line 131)
+### Feature definitions in Cargo.toml
 
-Change:
-
-```
-pub fn gen_sum_code_v0(path, bits, wide) -> IsccResult<SumCodeResult>
-```
-
-to:
-
-```
-pub fn gen_sum_code_v0(path, bits, wide, add_units) -> IsccResult<SumCodeResult>
+```toml
+[features]
+default = ["meta-code"]
+text-processing = ["dep:unicode-normalization", "dep:unicode-general-category"]
+meta-code = ["text-processing", "dep:serde_json_canonicalizer"]
 ```
 
-### docs/rust-api.md (lines 270-296)
+Make the three dependencies optional:
 
-1. **Signature** (line 275): change to
-    `pub fn gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult>`
-2. **Parameter table** (after line 282): add row for `add_units` | `bool` |
-    `Include individual Data-Code and Instance-Code ISCC strings in the result`
-3. **Description** (lines 284-286): update to mention `units` field: "Returns a `SumCodeResult` with
-    `iscc`, `datahash`, `filesize`, and optionally `units` (when `add_units` is `true`)."
-4. **Code example** (line 292): `gen_sum_code_v0(Path::new("document.pdf"), 64, false, false)?;`
-
-### docs/howto/rust.md (line 166)
-
-Change:
-
-```rust
-let result = gen_sum_code_v0(Path::new("example.bin"), 64, false)?;
+```toml
+unicode-normalization = { workspace = true, optional = true }
+unicode-general-category = { workspace = true, optional = true }
+serde_json_canonicalizer = { workspace = true, optional = true }
 ```
 
-to:
+Keep `serde_json`, `blake3`, `data-encoding`, `hex`, `xxhash-rust`, `thiserror` as regular
+(always-required) dependencies.
 
-```rust
-let result = gen_sum_code_v0(Path::new("example.bin"), 64, false, false)?;
-```
+### Gates in utils.rs
 
-### docs/c-ffi-api.md (lines 328-362)
+Gate these items behind `#[cfg(feature = "text-processing")]`:
 
-1. **C signature** (lines 328-332): add `bool add_units` parameter
-2. **Parameter table** (after line 339): add row for `add_units` | `bool` |
-    `Include individual Data-Code and Instance-Code strings in the result`
-3. **Struct** (lines 344-349): add `char **units` field with doc:
-    `NULL-terminated array of Data-Code and Instance-Code ISCC strings, or NULL when add_units is false`
-4. **Free doc** (line 361): update to mention releasing `units` array
+- `use unicode_general_category::...` and `use unicode_normalization::...` imports
+- `NEWLINES` constant
+- `is_c_category()` and `is_cmp_category()` helper functions
+- `pub fn text_clean()` and `pub fn text_collapse()`
+- All tests for the above functions (wrap the test functions, not the entire `mod tests`)
 
-### docs/howto/c-cpp.md (lines 101, 231)
+Keep ungated (always available): `text_remove_newlines`, `text_trim`, `multi_hash_blake3`, and their
+tests.
 
-Both C examples need `false` added as 4th argument:
+### Gates in lib.rs
 
-- Line 101: `iscc_gen_sum_code_v0("document.pdf", 64, false, false);`
-- Line 231: `iscc_gen_sum_code_v0("file.bin", 64, false, false);`
+**`#[cfg(feature = "text-processing")]`** on:
+
+- `pub use utils::{text_clean, text_collapse}` — split the existing single `pub use` line into two:
+    one ungated for `text_remove_newlines, text_trim` and one gated for
+    `text_clean,   text_collapse`
+- `pub fn gen_text_code_v0(...)` and all its tests (`test_gen_text_code_v0_*`)
+
+**`#[cfg(feature = "meta-code")]`** on:
+
+- Constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`
+- Private helper functions: `interleave_digests`, `meta_name_simhash`, `soft_hash_meta_v0`,
+    `soft_hash_meta_v0_with_bytes`, `decode_data_url`, `parse_meta_json`, `build_meta_data_url`
+- Public functions: `pub fn json_to_data_url(...)`, `pub fn gen_meta_code_v0(...)`
+- Module: `pub mod conformance` and `pub use conformance::conformance_selftest`
+- All tests for the above items (`test_gen_meta_code_v0_*`, `test_json_to_data_url_*`,
+    `test_soft_hash_meta_v0_*`)
+
+**Pattern for gating test functions**: Use `#[cfg(feature = "...")]` on individual test functions
+(not the whole `mod tests` block), since the test module contains tests for both gated and ungated
+code.
+
+### Important: `serde_json` in tests
+
+Many test functions in lib.rs use `serde_json::Value` for parsing test data JSON (e.g.,
+`test_gen_image_code_v0_conformance`). These are NOT gated — they work because `serde_json` stays as
+a regular dependency. Only tests that CALL gated functions need `#[cfg]`.
 
 ## Verification
 
-- `grep -n 'gen_sum_code_v0.*bits.*wide' docs/rust-api.md docs/architecture.md docs/howto/rust.md docs/c-ffi-api.md docs/howto/c-cpp.md | grep -v add_units`
-    returns no matches (all signatures include `add_units`)
-- `grep -c 'add_units' docs/rust-api.md` returns at least 2 (signature + parameter table row)
-- `grep -c 'add_units' docs/c-ffi-api.md` returns at least 2 (signature + parameter table row)
-- `grep 'units' docs/c-ffi-api.md | grep -c 'char \*\*'` returns at least 1 (struct field)
-- `uv run zensical build` exits 0 (docs site builds cleanly)
-- `mise run check` passes (pre-commit hooks: formatting, YAML, TOML, markdown)
+- `cargo test -p iscc-lib` passes (default features = all on, same 312 tests)
+- `cargo test -p iscc-lib --no-default-features` compiles and passes (gated tests excluded)
+- `cargo test -p iscc-lib --features text-processing` compiles and passes (text but no meta)
+- `cargo clippy -p iscc-lib -- -D warnings` clean (default features)
+- `cargo clippy -p iscc-lib --no-default-features -- -D warnings` clean
+- `cargo check -p iscc-lib --no-default-features` succeeds (proves deps are properly optional)
 
 ## Done When
 
-All verification criteria pass — every `gen_sum_code_v0` reference in docs shows the 4-parameter
-signature with `add_units`, and the documentation site builds cleanly.
+All six verification commands pass — the crate compiles and tests pass with default features, with
+`--no-default-features`, and with `--features text-processing`, and clippy is clean for both default
+and no-default configurations.
