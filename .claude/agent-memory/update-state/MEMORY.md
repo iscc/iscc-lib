@@ -29,8 +29,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Codebase Landmarks
 
-- `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni (iscc-rb NOT YET
-    CREATED)
+- `crates/` — 7 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni, **iscc-rb**
+    (scaffold; 10/32 symbols)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench
@@ -60,17 +60,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 370ee1f)
+## Current State (assessed-at: 3bd8d86)
 
-- **IN_PROGRESS**: all 11 CI jobs green; WASM regression resolved (16→20); 2 open issues (Ruby
-    bindings not started, language logos low priority)
-- **Ruby bindings**: NOT STARTED — `crates/iscc-rb` absent, no CI job, no release step
-- **CI (run 22628594682)**: ALL SUCCESS — WASM, Rust, Python (both), Node.js, Go, Java, C FFI,
-    Bench, Version all pass
-- **Feature flags**: `default = ["meta-code"]`, `meta-code = ["text-processing", ...]`,
-    `text-processing = [dep:unicode-*]`; 5 CI feature matrix steps
+- **IN_PROGRESS**: all 11 CI jobs green; Ruby bindings scaffold done (10/32 symbols)
+- **Ruby bindings**: PARTIALLY MET — scaffold exists, 10/32 symbols, 10 smoke tests pass; missing 22
+    symbols, conformance tests, Ruby CI job, RubyGems release, version_sync, docs/howto/ruby.md
+- **CI (run 22635315189)**: ALL SUCCESS — 11 jobs (no Ruby job yet; iscc-rb excluded from Rust job)
+- **Ruby CI exclusion**: `--exclude iscc-rb` on both clippy and cargo test in Rust CI job
+- **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
+- **extconf.rb location**: crate root (not `ext/iscc_lib/`); rb_sys expects it next to Cargo.toml
+- **Ruby `_` prefix**: gen functions exposed as `_gen_*_v0`; Ruby wrapper provides public API
+- **Feature flags**: `default = ["meta-code"]`, 5 CI feature matrix steps
 - **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
-- **release.yml**: checkboxes for crates.io, PyPI, npm, Maven, FFI (not RubyGems yet) ✅
+- **release.yml**: checkboxes for crates.io, PyPI, npm, Maven, FFI (not RubyGems yet)
 - **devcontainer**: `ruby ruby-dev` added ✅; spec `ruby-bindings.md` created ✅
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
