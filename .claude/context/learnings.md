@@ -151,6 +151,10 @@ fully-met target sections to `learnings-archive.md`.
 - Root `.gitignore` has `lib/` pattern — need `!lib/` negation in `crates/iscc-rb/.gitignore`
 - `bundler` not on PATH by default in devcontainer — need `$HOME/.local/share/gem/ruby/3.1.0/bin` on
     PATH
+- Streaming classes use `#[magnus::wrap(class = "IsccLib::ClassName")]` + `RefCell<Option<inner>>`
+    (Magnus gives `&self`, not `&mut self`). Ruby `class ClassName` inside `module IsccLib` reopens
+    the native class. Method prefix `_update`/`_finalize` works; class prefix `_DataHasher` does NOT
+    (Ruby constants must start with uppercase)
 - `libclang-dev` required for rb-sys/bindgen to compile
 
 ## Ruby Algorithm Primitives
