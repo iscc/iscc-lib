@@ -1,57 +1,43 @@
-## 2026-03-03 — Review of: Add 5 algorithm primitives to Ruby bridge
+## 2026-03-03 — Add DataHasher and InstanceHasher streaming types to Ruby bridge
 
-**Verdict:** PASS
+**Done:** Added `DataHasher` and `InstanceHasher` streaming classes to the Ruby Magnus bridge,
+completing all 32/32 Tier 1 symbols. Both follow the `new → update → finalize` pattern with one-shot
+finalize semantics via `RefCell<Option<inner>>`. Ruby wrapper reopens the native classes to add
+`bits: 64` default, result wrapping (`DataCodeResult`/`InstanceCodeResult`), and method chaining on
+`update`.
 
-**Summary:** Added 5 algorithm primitive functions (`sliding_window`, `alg_simhash`,
-`alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`) to the Ruby Magnus bridge, advancing from
-25/32 to 30/32 Tier 1 symbols. Implementation is clean, follows established patterns exactly, and
-all tests pass (46 runs, 121 assertions, 0 failures). All functions correctly use direct module
-registration (no `_` prefix, no Ruby wrapper).
+**Files changed:**
 
-**Verification:**
+- `crates/iscc-rb/src/lib.rs`: Added `RbDataHasher` and `RbInstanceHasher` structs with
+    `#[magnus::wrap]`, `rb_new`, `update`, and `finalize` methods. Registered as classes under
+    `IsccLib` module with `_update`/`_finalize` method names (Ruby wrapper provides public API).
+    Updated docstring symbol count from 30→32.
+- `crates/iscc-rb/lib/iscc_lib.rb`: Reopened native `DataHasher` and `InstanceHasher` classes to add
+    `update` (returns `self` for chaining), `finalize(bits: 64)` (default bits, wraps return in
+    result class).
+- `crates/iscc-rb/test/test_iscc_lib.rb`: Added 15 new tests covering basic usage, streaming
+    equivalence with one-shot, multi-update, double-finalize error, update-after-finalize error,
+    method chaining, attribute access, datahash/filesize fields.
 
-- [x] `cargo check -p iscc-rb` compiles successfully
-- [x] `cargo clippy -p iscc-rb -- -D warnings` — clean (0 warnings)
-- [x] `bundle exec rake compile` — builds native extension in release profile
-- [x] `bundle exec rake test` — 46 runs, 121 assertions, 0 failures, 0 errors, 0 skips
-- [x] `IsccLib.sliding_window("Hello World", 3)` returns Array of 9 Strings
-- [x] `IsccLib.alg_simhash` returns binary String matching input digest length (4 bytes)
-- [x] `IsccLib.alg_minhash_256` returns 32-byte binary String
-- [x] `IsccLib.alg_cdc_chunks` returns Array of binary Strings that reassemble to original
-- [x] `IsccLib.soft_hash_video_v0` returns binary String of correct size (bits/8)
-- [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] No quality gate circumvention in diff
+**Verification:** 61 tests, 152 assertions, 0 failures, 0 errors, 0 skips. `cargo check -p iscc-rb`
+clean, `cargo clippy -p iscc-rb -- -D warnings` clean (0 warnings), `bundle exec rake compile`
+builds, `bundle exec rake test` all pass, `mise run check` all 14 pre-commit hooks pass,
+`cargo test -p iscc-lib` 314 tests all pass.
 
-**Issues found:**
-
-- Minor scope deviation: advance agent updated docstring symbol count (25→30) despite next.md
-    listing "Updating the docstring symbol count" as Not In Scope. Trivially beneficial — no action
-    needed.
-- `alg_cdc_chunks` safety comment says slice is "not held across any Ruby API calls that could
-    trigger GC", but chunk sub-slices ARE used during `arr.push` calls. Practically safe for Ruby
-    3.1 (non-compacting GC, RString pinned on stack), but comment is slightly imprecise.
-
-**Codex review:** Two findings, both advisory:
-
-1. **P1: `avg_chunk_size=0` hang** — valid concern but this is a Rust core issue, not Ruby-specific.
-    All bindings share the same vulnerability. Filed as issue in issues.md for the core.
-2. **P2: Unsafe slice across Ruby API calls** — technically correct that chunk sub-slices reference
-    the original `bytes` during `arr.push` calls. Practically safe: `data` RString is stack-pinned
-    (function parameter), MRI Ruby 3.1 uses non-compacting GC. Would only become a real issue with
-    Ruby 3.2+ auto-compaction + Magnus 0.8. Not actionable for current target.
-
-**Next:** The remaining 2/32 Tier 1 symbols are `DataHasher` and `InstanceHasher` streaming types.
-These require Ruby class wrappers (not module functions) — a different pattern from all 30 prior
-symbols. This should be a dedicated step with careful design for the `new → update → finalize`
-interface.
+**Next:** Ruby binding is now feature-complete (32/32 Tier 1 symbols). Next steps could be:
+conformance tests against `data.json`, Ruby CI job in `ci.yml`, Ruby how-to guide
+(`docs/howto/ruby.md`), `version_sync.py` update for gemspec, or RubyGems publishing setup.
 
 **Notes:**
 
-- 30/32 symbols complete. Only streaming types remain, which need Ruby class wrappers (different
-    from all prior module function patterns).
-- All algorithm primitives follow the same conventions: `RString` + `unsafe { as_slice() }` for
-    binary input, `RString::from_slice` for binary output, `RArray` + `TryConvert` for nested
-    arrays, `to_magnus_err` for error mapping.
-- `alg_minhash_256` is correctly infallible (no `Result` return) — the only such function.
-- Test quality is high: 9 new tests cover return types, binary encoding, output sizes, error
-    handling (width < 2, mismatched digest lengths), and chunk reassembly verification.
+- Chose option B variant from next.md: Rust classes registered directly as `DataHasher`/
+    `InstanceHasher` (no `_` prefix on class names — Ruby constants must start with uppercase).
+    Methods registered as `_update`/`_finalize` (valid method names with `_` prefix). Ruby reopens
+    the native class to wrap methods with defaults and result types.
+- The `_` prefix pattern that works for gen functions (module methods) doesn't work for class names
+    because Ruby constants must start with an uppercase letter. `_DataHasher` would be treated as a
+    method/variable name, causing `NameError`.
+- `#[magnus::wrap(class = "IsccLib::DataHasher")]` creates the Ruby class during native extension
+    loading. Ruby's `class DataHasher` inside `module IsccLib` reopens (not shadows) the existing
+    class, allowing method additions/overrides. This is a clean pattern for adding Ruby-level
+    convenience to native classes.

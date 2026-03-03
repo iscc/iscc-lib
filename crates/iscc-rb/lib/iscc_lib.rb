@@ -148,4 +148,62 @@ module IsccLib
   def self.gen_sum_code_v0(path, bits: 64, wide: false, add_units: false)
     SumCodeResult[_gen_sum_code_v0(path, bits, wide, add_units)]
   end
+
+  # Streaming Data-Code generator (reopens native class).
+  #
+  # Incrementally processes data with content-defined chunking and MinHash
+  # to produce results identical to gen_data_code_v0.
+  #
+  # @example
+  #   hasher = IsccLib::DataHasher.new
+  #   hasher.update(chunk1).update(chunk2)
+  #   result = hasher.finalize(bits: 64)
+  class DataHasher
+    # Push binary data into the hasher.
+    #
+    # @param data [String] binary data
+    # @return [self] for method chaining
+    def update(data)
+      _update(data)
+      self
+    end
+
+    # Consume the hasher and produce a Data-Code result.
+    #
+    # @param bits [Integer] bit length (default: 64)
+    # @return [DataCodeResult] hash with iscc
+    # @raise [RuntimeError] if called more than once
+    def finalize(bits: 64)
+      DataCodeResult[_finalize(bits)]
+    end
+  end
+
+  # Streaming Instance-Code generator (reopens native class).
+  #
+  # Incrementally hashes data with BLAKE3 to produce results identical
+  # to gen_instance_code_v0.
+  #
+  # @example
+  #   hasher = IsccLib::InstanceHasher.new
+  #   hasher.update(chunk1).update(chunk2)
+  #   result = hasher.finalize(bits: 64)
+  class InstanceHasher
+    # Push binary data into the hasher.
+    #
+    # @param data [String] binary data
+    # @return [self] for method chaining
+    def update(data)
+      _update(data)
+      self
+    end
+
+    # Consume the hasher and produce an Instance-Code result.
+    #
+    # @param bits [Integer] bit length (default: 64)
+    # @return [InstanceCodeResult] hash with iscc, datahash, filesize
+    # @raise [RuntimeError] if called more than once
+    def finalize(bits: 64)
+      InstanceCodeResult[_finalize(bits)]
+    end
+  end
 end

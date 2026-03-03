@@ -4,7 +4,7 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Symbols (30 of 32):
+//! Symbols (32 of 32):
 //! - `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
 //! - `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`
 //! - `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
@@ -13,10 +13,12 @@
 //! - `json_to_data_url`, `conformance_selftest`
 //! - `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
 //!   `soft_hash_video_v0`
+//! - `DataHasher`, `InstanceHasher` (streaming classes)
 //! - Constants: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
 //!   IO_READ_SIZE, TEXT_NGRAM_SIZE
 
-use magnus::{Error, RArray, RHash, RString, Ruby, TryConvert, function, prelude::*};
+use magnus::{Error, RArray, RHash, RString, Ruby, TryConvert, function, method, prelude::*};
+use std::cell::RefCell;
 
 /// Map an `IsccError` to a Magnus `RuntimeError`.
 fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
@@ -349,6 +351,116 @@ fn soft_hash_video_v0(frame_sigs: RArray, bits: u32) -> Result<RString, Error> {
     Ok(RString::from_slice(&result))
 }
 
+/// Streaming Data-Code generator for Ruby.
+///
+/// Wraps `iscc_lib::DataHasher` with `RefCell<Option<...>>` for one-shot
+/// finalize semantics (Magnus instance methods receive `&self`, not `&mut self`).
+#[magnus::wrap(class = "IsccLib::DataHasher")]
+struct RbDataHasher {
+    inner: RefCell<Option<iscc_lib::DataHasher>>,
+}
+
+impl RbDataHasher {
+    /// Create a new `RbDataHasher`.
+    fn rb_new() -> Self {
+        Self {
+            inner: RefCell::new(Some(iscc_lib::DataHasher::new())),
+        }
+    }
+
+    /// Push binary data into the hasher.
+    ///
+    /// Raises `RuntimeError` if called after `finalize`.
+    fn update(&self, data: RString) -> Result<(), Error> {
+        let mut inner = self.inner.borrow_mut();
+        let hasher = inner.as_mut().ok_or_else(|| {
+            Error::new(
+                magnus::exception::runtime_error(),
+                "DataHasher already finalized",
+            )
+        })?;
+        // Safety: the slice is passed directly to a pure Rust function
+        // and not held across any Ruby API calls.
+        let bytes = unsafe { data.as_slice() };
+        hasher.update(bytes);
+        Ok(())
+    }
+
+    /// Consume the hasher and produce a Data-Code result hash.
+    ///
+    /// Returns an `RHash` with key `"iscc"`. Raises `RuntimeError` if
+    /// called more than once.
+    fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+        let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
+            Error::new(
+                magnus::exception::runtime_error(),
+                "DataHasher already finalized",
+            )
+        })?;
+        let r = hasher.finalize(bits).map_err(to_magnus_err)?;
+        let ruby = Ruby::get().expect("called from Ruby");
+        let hash = ruby.hash_new();
+        hash.aset("iscc", r.iscc)?;
+        Ok(hash)
+    }
+}
+
+/// Streaming Instance-Code generator for Ruby.
+///
+/// Wraps `iscc_lib::InstanceHasher` with `RefCell<Option<...>>` for one-shot
+/// finalize semantics.
+#[magnus::wrap(class = "IsccLib::InstanceHasher")]
+struct RbInstanceHasher {
+    inner: RefCell<Option<iscc_lib::InstanceHasher>>,
+}
+
+impl RbInstanceHasher {
+    /// Create a new `RbInstanceHasher`.
+    fn rb_new() -> Self {
+        Self {
+            inner: RefCell::new(Some(iscc_lib::InstanceHasher::new())),
+        }
+    }
+
+    /// Push binary data into the hasher.
+    ///
+    /// Raises `RuntimeError` if called after `finalize`.
+    fn update(&self, data: RString) -> Result<(), Error> {
+        let mut inner = self.inner.borrow_mut();
+        let hasher = inner.as_mut().ok_or_else(|| {
+            Error::new(
+                magnus::exception::runtime_error(),
+                "InstanceHasher already finalized",
+            )
+        })?;
+        // Safety: the slice is passed directly to a pure Rust function
+        // and not held across any Ruby API calls.
+        let bytes = unsafe { data.as_slice() };
+        hasher.update(bytes);
+        Ok(())
+    }
+
+    /// Consume the hasher and produce an Instance-Code result hash.
+    ///
+    /// Returns an `RHash` with keys `"iscc"`, `"datahash"`, `"filesize"`.
+    /// Raises `RuntimeError` if called more than once.
+    fn finalize(&self, bits: u32) -> Result<RHash, Error> {
+        let hasher = self.inner.borrow_mut().take().ok_or_else(|| {
+            Error::new(
+                magnus::exception::runtime_error(),
+                "InstanceHasher already finalized",
+            )
+        })?;
+        let r = hasher.finalize(bits).map_err(to_magnus_err)?;
+        let ruby = Ruby::get().expect("called from Ruby");
+        let hash = ruby.hash_new();
+        hash.aset("iscc", r.iscc)?;
+        hash.aset("datahash", r.datahash)?;
+        hash.aset("filesize", r.filesize)?;
+        Ok(hash)
+    }
+}
+
 /// Initialize the IsccLib Ruby module with all bridge functions and constants.
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
@@ -386,6 +498,17 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     module.define_module_function("alg_minhash_256", function!(alg_minhash_256, 1))?;
     module.define_module_function("alg_cdc_chunks", function!(alg_cdc_chunks, 3))?;
     module.define_module_function("soft_hash_video_v0", function!(soft_hash_video_v0, 2))?;
+
+    // Streaming hasher classes (Ruby wrapper reopens to add defaults + result wrapping)
+    let data_hasher = module.define_class("DataHasher", ruby.class_object())?;
+    data_hasher.define_singleton_method("new", function!(RbDataHasher::rb_new, 0))?;
+    data_hasher.define_method("_update", method!(RbDataHasher::update, 1))?;
+    data_hasher.define_method("_finalize", method!(RbDataHasher::finalize, 1))?;
+
+    let instance_hasher = module.define_class("InstanceHasher", ruby.class_object())?;
+    instance_hasher.define_singleton_method("new", function!(RbInstanceHasher::rb_new, 0))?;
+    instance_hasher.define_method("_update", method!(RbInstanceHasher::update, 1))?;
+    instance_hasher.define_method("_finalize", method!(RbInstanceHasher::finalize, 1))?;
 
     // Constants
     module.const_set("META_TRIM_NAME", iscc_lib::META_TRIM_NAME)?;

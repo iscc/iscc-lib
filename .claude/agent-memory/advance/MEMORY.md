@@ -184,25 +184,24 @@ iterations.
     immediately before any Ruby API calls. Return binary data via `RString::from_slice(&bytes)`
 - Returning arrays: use `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays (e.g.,
     `iscc_decode` returns `[u8, u8, u8, u8, RString]`)
-- 25/32 Tier 1 symbols exposed: all 10 gen functions (meta/text/image/audio/video/mixed/data/
-    instance/iscc/sum_code_v0), 4 text utils, 5 constants, encode_base64, iscc_decompose,
-    encode_component, iscc_decode, json_to_data_url, conformance_selftest
-- `gen_image_code_v0` requires exactly 1024 pixels (32×32 image) — use `RString` for binary input
-- `gen_audio_code_v0` takes `Vec<i32>` — Magnus auto-converts Ruby Array of integers
+- 32/32 Tier 1 symbols exposed: all 10 gen functions, 4 text utils, 5 constants, 6 codec/encoding
+    functions, 5 algorithm primitives, `DataHasher`, `InstanceHasher` streaming classes
+- Streaming classes use `#[magnus::wrap(class = "IsccLib::DataHasher")]` + `RefCell<Option<inner>>`
+    for one-shot finalize. Methods registered as `_update`/`_finalize` (prefixed). Ruby reopens the
+    native class to add `update` (returns self for chaining) and `finalize(bits: 64)` (default +
+    result wrapping). **Key lesson:** `_` prefix works for methods but NOT class names — Ruby
+    constants must start with uppercase. Use method prefixing instead of class prefixing
+- Binary data: `RString` param + `unsafe { data.as_slice() }` for arbitrary bytes. Copy bytes
+    immediately before any Ruby API calls. Return binary data via `RString::from_slice(&bytes)`
 - `gen_video_code_v0`: `RArray` → `Vec<Vec<i32>>` via `into_iter()` +
-    `TryConvert::try_convert(val)`. Magnus 0.7.1 `RArray::each()` is deprecated — use `into_iter()`.
-    `TryConvert` is an associated fn, not a method — import trait, call
-    `TryConvert::try_convert(val)` not `val.try_convert()`
-- `gen_video_code_v0` requires ≥380 elements per frame (WTA-Hash minimum). Small test arrays error
-- `gen_mixed_code_v0`: `Vec<String>` auto-converts, then `Vec<&str>` for core. Only Content-Codes
-    (Text/Image/Audio/Video) accepted — Meta-Codes cause "all codes must be Content-Codes" error
-- `gen_data_code_v0`/`gen_instance_code_v0`: same `RString` + `unsafe { data.as_slice() }` pattern
-- `gen_iscc_code_v0`: `Vec<String>` + `bool` wide — same pattern as `gen_mixed_code_v0`
-- `gen_sum_code_v0`: `String` path → `std::path::Path::new(&path)`, 4 positional args. `units` is
-    conditionally included in hash (only when `Some`). Tests use `Tempfile` with ensure cleanup
+    `TryConvert::try_convert(val)`. Requires ≥380 elements per frame (WTA-Hash minimum)
+- Test files: `test/test_smoke.rb` (46 tests, gen/codec/utils), `test/test_iscc_lib.rb` (15 tests,
+    streaming). Total: 61 runs, 152 assertions
 
 ## Gotchas
 
+- Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name. Use valid
+    class names + method prefixing for internal methods
 - JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
 - After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
