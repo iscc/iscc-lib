@@ -99,15 +99,15 @@ iterations.
 
 ## Ruby Bindings — Symbol Implementation Plan
 
-Remaining 10 of 32 Tier 1 symbols (gen batches 1-2 done in iters 5-6). Now by complexity:
+Remaining 7 of 32 Tier 1 symbols (gen batches 1-3 done in iters 5-8). Now by complexity:
 
-1. **Gen functions batch 3** (3 symbols): `gen_instance_code_v0`, `gen_iscc_code_v0`,
-    `gen_sum_code_v0` (file path) — iter 7 (current)
+1. ~~**Gen functions batch 3** (3 symbols): done in iter 8 → 25/32~~
 2. **Algorithm primitives** (5 symbols, array types): `sliding_window`, `alg_simhash`,
-    `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`
+    `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0` — iter 9 (current)
 3. **Streaming types** (2 types): `DataHasher`, `InstanceHasher`
 
-Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it.
+Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it. Handoff review
+agent incorrectly listed it — always verify against target.md's 32-symbol list.
 
 ## Ruby Bridge Patterns
 
@@ -121,6 +121,10 @@ Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include
 - `gen_instance_code_v0` accepts `bits` for API consistency but always produces 256-bit output
 - `gen_iscc_code_v0` return type has only `iscc` field (no `units` — that's `gen_sum_code_v0`)
 - `gen_sum_code_v0` return: `units` key only present when `add_units: true` (Option\<Vec<String>>)
+- Algorithm primitives: exposed directly (no `_` prefix, no Ruby wrapper, no result class). Return
+    binary `RString` for byte outputs. `alg_minhash_256` is infallible (no Result). `alg_cdc_chunks`
+    returns `RArray` of binary `RString` (must copy slices to owned). `soft_hash_video_v0` reuses
+    the same `RArray → Vec<Vec<i32>>` pattern as `gen_video_code_v0`
 
 ## Project Status
 
@@ -133,4 +137,5 @@ Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include
 - Ruby codec/encoding/diagnostic done (iter 4): 16/32 symbols
 - Ruby gen batch 1 done (iter 5): text/image/audio → 19/32
 - Ruby gen batch 2 done (iter 6): video/mixed/data → 22/32
-- Current: Ruby gen batch 3 (iter 7): instance/iscc/sum → 25/32
+- Ruby gen batch 3 done (iter 8): instance/iscc/sum → 25/32
+- Current: Ruby algorithm primitives (iter 9): sliding_window/simhash/minhash/cdc/video → 30/32
