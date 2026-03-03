@@ -22,7 +22,7 @@
 
 use std::cell::RefCell;
 use std::ffi::{CStr, CString, c_char};
-use std::{mem, ptr};
+use std::ptr;
 
 thread_local! {
     /// Thread-local storage for the last error message.
@@ -168,9 +168,7 @@ fn vec_to_c_string_array(v: Vec<String>) -> *mut *mut c_char {
         }
     }
     ptrs.push(ptr::null_mut()); // NULL terminator
-    ptrs.shrink_to_fit();
-    let ptr = ptrs.as_mut_ptr();
-    mem::forget(ptrs);
+    let ptr = Box::into_raw(ptrs.into_boxed_slice()) as *mut *mut c_char;
     ptr
 }
 
@@ -219,13 +217,11 @@ fn null_byte_buffer_array() -> IsccByteBufferArray {
 
 /// Convert an owned `Vec<u8>` to a C-compatible `IsccByteBuffer`.
 ///
-/// Uses `shrink_to_fit` + `as_mut_ptr` + `mem::forget` so the caller
-/// can reconstruct with `Vec::from_raw_parts(data, len, len)`.
-fn vec_to_byte_buffer(mut v: Vec<u8>) -> IsccByteBuffer {
-    v.shrink_to_fit();
+/// Uses `into_boxed_slice` to guarantee capacity equals length, then
+/// transfers ownership via `Box::into_raw`.
+fn vec_to_byte_buffer(v: Vec<u8>) -> IsccByteBuffer {
     let len = v.len();
-    let data = v.as_mut_ptr();
-    mem::forget(v);
+    let data = Box::into_raw(v.into_boxed_slice()) as *mut u8;
     IsccByteBuffer { data, len }
 }
 
@@ -1202,14 +1198,12 @@ pub unsafe extern "C" fn iscc_alg_cdc_chunks(
         unsafe { std::slice::from_raw_parts(data, data_len) }
     };
     let chunks = iscc_lib::alg_cdc_chunks(slice, utf32, avg_chunk_size);
-    let mut buffers: Vec<IsccByteBuffer> = chunks
+    let buffers: Vec<IsccByteBuffer> = chunks
         .iter()
         .map(|chunk| vec_to_byte_buffer(chunk.to_vec()))
         .collect();
-    buffers.shrink_to_fit();
     let count = buffers.len();
-    let ptr = buffers.as_mut_ptr();
-    mem::forget(buffers);
+    let ptr = Box::into_raw(buffers.into_boxed_slice()) as *mut IsccByteBuffer;
     IsccByteBufferArray {
         buffers: ptr,
         count,
@@ -1526,10 +1520,9 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
         drop(unsafe { CString::from_raw(*arr.add(count)) });
         count += 1;
     }
-    // Reconstruct the Vec to free the array itself.
-    // shrink_to_fit guarantees capacity == len, and len == count + 1 (including NULL terminator)
-    // SAFETY: arr was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget
-    drop(unsafe { Vec::from_raw_parts(arr, count + 1, count + 1) });
+    // Reconstruct the boxed slice to free the array itself.
+    // SAFETY: arr was produced by Box::into_raw() of a boxed slice with count + 1 elements
+    drop(unsafe { Box::from_raw(std::slice::from_raw_parts_mut(arr, count + 1)) });
 }
 
 /// Free a byte buffer returned by `iscc_alg_simhash`, `iscc_alg_minhash_256`,
@@ -1544,9 +1537,8 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn iscc_free_byte_buffer(buf: IsccByteBuffer) {
     if !buf.data.is_null() {
-        // SAFETY: buf.data was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget.
-        // Capacity equals len because of shrink_to_fit.
-        drop(unsafe { Vec::from_raw_parts(buf.data, buf.len, buf.len) });
+        // SAFETY: buf.data was produced by Box::into_raw() of a boxed slice with buf.len elements
+        drop(unsafe { Box::from_raw(std::slice::from_raw_parts_mut(buf.data, buf.len)) });
     }
 }
 
@@ -1564,12 +1556,12 @@ pub unsafe extern "C" fn iscc_free_byte_buffer_array(arr: IsccByteBufferArray) {
     if arr.buffers.is_null() {
         return;
     }
-    // SAFETY: arr.buffers was produced by Vec::as_mut_ptr() after shrink_to_fit + mem::forget
-    let buffers = unsafe { Vec::from_raw_parts(arr.buffers, arr.count, arr.count) };
-    for buf in buffers {
+    // SAFETY: arr.buffers was produced by Box::into_raw() of a boxed slice with arr.count elements
+    let buffers = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(arr.buffers, arr.count)) };
+    for buf in buffers.iter() {
         if !buf.data.is_null() {
-            // SAFETY: each buf.data was produced by vec_to_byte_buffer
-            drop(unsafe { Vec::from_raw_parts(buf.data, buf.len, buf.len) });
+            // SAFETY: each buf.data was produced by vec_to_byte_buffer (Box::into_raw of boxed slice)
+            drop(unsafe { Box::from_raw(std::slice::from_raw_parts_mut(buf.data, buf.len)) });
         }
     }
 }
