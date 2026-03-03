@@ -97,10 +97,32 @@ iterations.
 - New binding crate scaffold: many files to CREATE but only root Cargo.toml to MODIFY (well within
     3-file limit since creates don't count)
 
+## Ruby Bindings — Symbol Implementation Plan
+
+Remaining 22 of 32 Tier 1 symbols to add. Batched by return-type complexity:
+
+1. **Codec/Encoding/Diagnostic** (6 symbols, simple types): `encode_base64`, `iscc_decompose`,
+    `encode_component`, `iscc_decode`, `json_to_data_url`, `conformance_selftest` — iter 4
+2. **Algorithm primitives** (5 symbols, array types): `sliding_window`, `alg_simhash`,
+    `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`
+3. **Gen functions** (9 symbols, need Result classes): `gen_text_code_v0` through `gen_sum_code_v0`
+4. **Streaming types** (2 symbols, need Ruby class wrappers): `DataHasher`, `InstanceHasher`
+
+Note: Handoff mentioned `iscc_encode` and `iscc_normalize` but these don't exist in Tier 1 API. The
+actual codec symbols are `iscc_decompose`, `encode_component`, `iscc_decode`.
+
+## Ruby Bridge Patterns
+
+- Gen functions use `_` prefix (e.g., `_gen_meta_code_v0`) with Ruby wrapper providing keyword args
+- Utility/codec functions exposed directly (no prefix, no Ruby wrapper needed)
+- Binary data: Ruby `String` holds bytes; in Magnus use `String` type + `.as_bytes()` for input
+- `iscc_decode` returns tuple → use Ruby Array in Magnus
+
 ## Project Status
 
 - Issue #16 fully resolved (iterations 13-15)
 - v0.1.0 released to all registries
 - WASM CI regression resolved (iter 2)
 - 2 open issues: Ruby bindings (normal, multi-iteration), README logos (low)
-- Current: Ruby bindings scaffold (iter 3)
+- Ruby scaffold complete (iter 3): 10/32 symbols
+- Current: Ruby codec/encoding/diagnostic functions (iter 4)

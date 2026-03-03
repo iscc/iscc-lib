@@ -1,155 +1,121 @@
 # Next Work Package
 
-## Step: Scaffold iscc-rb crate with Magnus bridge and gem infrastructure
+## Step: Add codec, encoding, and diagnostic functions to Ruby bridge
 
 ## Goal
 
-Create the Ruby bindings crate (`crates/iscc-rb/`) with a working Magnus bridge, Ruby gem
-infrastructure, and a subset of Tier 1 symbols. This proves the full compile → load → call pipeline
-end-to-end before investing in all 32 symbols. Addresses the "Implement Ruby bindings via Magnus"
-issue.
+Expose the 6 non-gen, non-algorithm utility symbols — `encode_base64`, `iscc_decompose`,
+`encode_component`, `iscc_decode`, `json_to_data_url`, and `conformance_selftest` — in the Ruby
+Magnus bridge with smoke tests. This brings the Ruby binding from 10/32 to 16/32 Tier 1 symbols,
+covering all codec/encoding operations and the diagnostic function.
 
 ## Scope
 
-- **Create**:
-    - `crates/iscc-rb/Cargo.toml` — cdylib crate depending on `iscc-lib` + `magnus`
-    - `crates/iscc-rb/src/lib.rs` — Magnus bridge with initial symbols (~10 of 32)
-    - `crates/iscc-rb/ext/iscc_lib/extconf.rb` — rb_sys extension config
-    - `crates/iscc-rb/lib/iscc_lib.rb` — Pure Ruby wrapper (result classes + public API for
-        implemented symbols)
-    - `crates/iscc-rb/lib/iscc_lib/version.rb` — VERSION constant
-    - `crates/iscc-rb/iscc-lib.gemspec` — Gem specification
-    - `crates/iscc-rb/Gemfile` — Development dependencies
-    - `crates/iscc-rb/Rakefile` — rb_sys build tasks
-    - `crates/iscc-rb/test/test_helper.rb` — Test setup (Minitest)
-    - `crates/iscc-rb/test/test_smoke.rb` — Smoke test for implemented symbols
-    - `crates/iscc-rb/README.md` — Per-crate README for RubyGems
+- **Create**: (none)
 - **Modify**:
-    - `Cargo.toml` (root) — add `"crates/iscc-rb"` to workspace members, add `magnus` to
-        `[workspace.dependencies]`
-    - `.devcontainer/Dockerfile` — add `libclang-dev` to apt-get line (needed by rb-sys/bindgen)
+    - `crates/iscc-rb/src/lib.rs` — add 6 bridge functions, register in `init()`
+    - `crates/iscc-rb/test/test_smoke.rb` — add smoke tests for each new function
 - **Reference**:
-    - `.claude/context/specs/ruby-bindings.md` — full spec with code patterns
-    - `crates/iscc-py/src/lib.rs` — PyO3 bridge (pattern to follow)
-    - `crates/iscc-py/Cargo.toml` — binding crate config pattern
-    - `crates/iscc-jni/Cargo.toml` — another binding crate config pattern
+    - `crates/iscc-py/src/lib.rs` — Python bridge patterns for `encode_base64`, `iscc_decompose`,
+        `encode_component`, `iscc_decode`, `json_to_data_url`, `conformance_selftest`
+    - `crates/iscc-lib/src/lib.rs` — core API signatures (lines 190–283)
+    - `crates/iscc-lib/src/codec.rs` — `encode_base64` (line 442), `iscc_decompose` (line 484)
+    - `crates/iscc-lib/src/conformance.rs` — `conformance_selftest` (line 29)
 
 ## Not In Scope
 
-- Implementing all 32 Tier 1 symbols (only ~10 in this step; remaining symbols in a follow-up)
-- CI job in `ci.yml` (separate step after the crate compiles and tests pass locally)
-- Release workflow changes in `release.yml`
-- Version sync in `scripts/version_sync.py`
-- Documentation (`docs/howto/ruby.md`, `docs/ruby-api.md`)
-- README update with Ruby install/quickstart section
-- Precompiled gem cross-compilation setup (rake-compiler-dock)
-- Streaming types (`DataHasher`, `InstanceHasher` Ruby wrappers) — defer to a later step
+- Algorithm primitive functions (`sliding_window`, `alg_simhash`, `alg_minhash_256`,
+    `alg_cdc_chunks`) — these have more complex array-of-array argument types and belong in a
+    subsequent step
+- `soft_hash_video_v0` — needs nested array handling
+- Gen functions (`gen_text_code_v0` through `gen_sum_code_v0`) — each needs a Ruby Result class
+- Streaming types (`DataHasher`, `InstanceHasher`) — need Ruby class wrappers
+- Conformance tests against `data.json` — premature until all 32 symbols are exposed
+- Changes to `lib/iscc_lib.rb` Ruby wrapper — these 6 functions are direct utilities that don't need
+    Result class wrappers or keyword argument adapters
+- CI job or release workflow changes
 
 ## Implementation Notes
 
-### Initial Symbols (~10 of 32)
+### Bridge functions to add (6 total)
 
-Implement these to prove the binding pattern:
+All functions are exposed directly on the `IsccLib` module (no `_` prefix — the underscore prefix
+convention is for gen functions that need Ruby wrapper indirection).
 
-1. **`gen_meta_code_v0(name, description, meta, bits)`** → Ruby Hash (the flagship function, proves
-    Hash return + optional params)
-2. **`text_clean(text)`** → String
-3. **`text_remove_newlines(text)`** → String
-4. **`text_trim(text, max_bytes)`** → String
-5. **`text_collapse(text)`** → String
-6. **Constants**: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
-    `TEXT_NGRAM_SIZE`
+1. **`encode_base64(data)`** — `String → String`. Accept a Ruby String (which holds binary data),
+    pass `.as_bytes()` to `iscc_lib::encode_base64`. Returns a URL-safe base64 string.
 
-### Magnus Bridge Pattern
+2. **`iscc_decompose(iscc_code)`** — `String → Array<String>`. Pass to `iscc_lib::iscc_decompose`.
+    Returns a Ruby Array of base32-encoded ISCC unit strings. Map `IsccError` to `RuntimeError`.
 
-Follow the spec in `ruby-bindings.md`. Key pattern:
+3. **`encode_component(mtype, stype, version, bit_length, digest)`** —
+    `(u32, u32, u32, u32, String) → String`. Accept 4 integers + binary String. Cast the integers
+    to `u8`/`u32` as needed. Pass `digest.as_bytes()` to `iscc_lib::encode_component`. Returns a
+    base32 ISCC unit string.
+
+4. **`iscc_decode(iscc)`** — `String → Array`. Returns a 5-element Ruby Array:
+    `[maintype, subtype, version, length_index, digest_bytes]`. Use `ruby.ary_new_from_values()` or
+    build with `RArray`. The digest is a binary Ruby String. The Python bridge returns
+    `(u8, u8, u8, u8, bytes)`.
+
+5. **`json_to_data_url(json)`** — `String → String`. Pass to `iscc_lib::json_to_data_url`. Returns a
+    `data:` URL string. This function is gated behind `meta-code` feature, which is enabled by
+    default in the `iscc-rb` dependency on `iscc-lib`.
+
+6. **`conformance_selftest()`** — `() → bool`. Calls `iscc_lib::conformance_selftest()`. No error
+    mapping needed.
+
+### Binary data in Magnus
+
+Ruby `String` holds arbitrary binary data. In Magnus:
+
+- **Accepting bytes**: Take `String` parameter and call `.as_bytes()` to get `&[u8]`
+- **Returning bytes**: For `iscc_decode`'s digest, create a Ruby String from `Vec<u8>`. Use Magnus's
+    `RString::from_slice` or equivalent to return binary data. Set encoding to `ASCII-8BIT` (Ruby's
+    binary encoding) if needed.
+
+### Registration pattern
+
+Follow the existing pattern in `init()`:
 
 ```rust
-use magnus::{function, prelude::*, Error, Ruby, RHash};
-
-fn gen_meta_code_v0(name: String, description: Option<String>, meta: Option<String>, bits: u32) -> Result<RHash, Error> {
-    let result = iscc_lib::gen_meta_code_v0(&name, description.as_deref(), meta.as_deref(), bits);
-    let hash = RHash::new();
-    hash.aset("iscc", result.iscc)?;
-    // ... set other fields
-    Ok(hash)
-}
-
-#[magnus::init]
-fn init(ruby: &Ruby) -> Result<(), Error> {
-    let module = ruby.define_module("IsccLib")?;
-    module.define_module_function("_gen_meta_code_v0", function!(gen_meta_code_v0, 4))?;
-    // ...
-    Ok(())
-}
+// Codec and encoding functions
+module.define_module_function("encode_base64", function!(encode_base64, 1))?;
+module.define_module_function("iscc_decompose", function!(iscc_decompose, 1))?;
+module.define_module_function("encode_component", function!(encode_component, 5))?;
+module.define_module_function("iscc_decode", function!(iscc_decode, 1))?;
+module.define_module_function("json_to_data_url", function!(json_to_data_url, 1))?;
+module.define_module_function("conformance_selftest", function!(conformance_selftest, 0))?;
 ```
 
-### Cargo.toml Pattern
+### Test patterns
 
-```toml
-[package]
-name = "iscc-rb"
-version.workspace = true
-edition.workspace = true
-publish = false
+Add tests in `test_smoke.rb` following the existing style. Key assertions:
 
-[lib]
-name = "iscc_lib"
-crate-type = ["cdylib"]
+- `encode_base64("Hello".b)` returns a non-empty String
+- `iscc_decompose("ISCC:...")` returns an Array of Strings
+- `encode_component(0, 0, 0, 64, digest_bytes)` returns a String starting with expected prefix
+- `iscc_decode(some_iscc_code)` returns a 5-element Array with integers and a binary String
+- `json_to_data_url('{"key":"value"}')` returns a String starting with
+    `"data:application/json;base64,"`
+- `conformance_selftest` returns `true`
+- Round-trip: `encode_component` → `iscc_decode` produces matching components
 
-[dependencies]
-iscc-lib = { path = "../iscc-lib" }
-magnus = { workspace = true }
-```
+### Docstring update
 
-### Ruby Gem Infrastructure
-
-- `extconf.rb`: Use `require "mkmf"` + `require "rb_sys/mkmf"` to configure the Rust extension
-    build. Call `create_rust_makefile("iscc_lib/iscc_lib")`.
-- `Gemfile`: `gem "rake-compiler"`, `gem "rb_sys"`, `gem "minitest"`
-- `Rakefile`: `require "rb_sys/extensiontask"` to define the compile task
-- `iscc-lib.gemspec`: See spec for metadata. `spec.extensions = ["ext/iscc_lib/extconf.rb"]`
-- `lib/iscc_lib/version.rb`: `module IsccLib; VERSION = "0.1.0"; end`
-- `lib/iscc_lib.rb`: Require the native extension, define Result classes (see spec), define public
-    API wrappers that call `_gen_meta_code_v0` etc.
-
-### Dev Environment Setup
-
-1. `libclang-dev` is needed by rb-sys/bindgen to generate Ruby C extension bindings. Add to
-    Dockerfile apt-get line. For immediate use:
-    `sudo apt-get update && sudo apt-get install -y  libclang-dev`
-2. `bundler` is available at `~/.local/share/gem/ruby/3.1.0/bin/bundle` (user-install). Run
-    `gem install bundler --user-install` if not present, and add
-    `$HOME/.local/share/gem/ruby/3.1.0/bin` to PATH.
-3. Ruby headers are at `/usr/include/ruby-3.1.0` (ruby-dev package already installed).
-4. `rb_sys` gem must be installed: `gem install rb_sys --user-install`
-
-### Important: Magnus Version
-
-Use `magnus = "0.7"` (latest 0.7.x). The 0.7 line is the stable release supporting Ruby 3.1+. Check
-crates.io for the latest patch version. The 0.8.x line exists but verify Ruby 3.1 compatibility. If
-0.7.x has issues with Rust edition 2024, try 0.8.x instead.
-
-### rb-sys Build Flow
-
-The compile flow is: `bundle exec rake compile` → runs extconf.rb → invokes `cargo build` on the
-Rust crate → produces a `.so` (Linux) / `.bundle` (macOS) / `.dll` (Windows) → copies to
-`lib/iscc_lib/`. The Rakefile's `RbSys::ExtensionTask` handles this automatically.
+Update the module docstring at the top of `lib.rs` to reflect 16 symbols (was 10).
 
 ## Verification
 
 - `cargo check -p iscc-rb` compiles successfully
 - `cargo clippy -p iscc-rb -- -D warnings` is clean
-- `bundle exec rake compile` succeeds in `crates/iscc-rb/` (compiles the native extension)
-- `bundle exec ruby -e "require 'iscc_lib'; puts IsccLib.gen_meta_code_v0('Hello')['iscc']"` prints
-    a valid ISCC string starting with `ISCC:`
-- `bundle exec rake test` passes the smoke test
-- All files listed in Scope → Create exist at their expected paths
-- Root `Cargo.toml` includes `"crates/iscc-rb"` in workspace members
-- `magnus` appears in `[workspace.dependencies]`
+- `bundle exec rake compile` succeeds (in `crates/iscc-rb/`)
+- `bundle exec rake test` passes with ≥16 runs (was 10)
+- `bundle exec ruby -e "require 'iscc_lib'; puts IsccLib.conformance_selftest"` prints `true`
+- `bundle exec ruby -e "require 'iscc_lib'; puts IsccLib.iscc_decompose('ISCC:AAAWKLHFXM75OAMK').length"`
+    prints a positive integer
 
 ## Done When
 
-The advance agent is done when `cargo check -p iscc-rb` compiles, `bundle exec rake compile` builds
-the native extension, and `bundle exec rake test` passes the smoke test confirming
-`gen_meta_code_v0` returns a valid ISCC Hash from Ruby.
+All 6 new bridge functions are callable from Ruby, smoke tests pass (≥16 test runs), clippy is
+clean, and `conformance_selftest` returns `true` from Ruby.
