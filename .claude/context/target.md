@@ -13,7 +13,8 @@ patterns natural to their ecosystem.
 **Guiding rules:**
 
 - **Zero-friction install**: `cargo add`, `pip install`, `npm install`, `go get`, `gem install`,
-    Maven dependency — one command, no external toolchains or manual library management required
+    `dotnet add package`, Maven/Gradle dependency, SPM dependency — one command, no external
+    toolchains or manual library management required
 - **Idiomatic API surface**: naming conventions, error handling, types, and patterns follow each
     language's conventions (e.g., `snake_case` in Python/Rust, `camelCase` in JS, `PascalCase` in
     Go/Java, `Result<T>` in Rust, exceptions in Python/Java, `error` returns in Go)
@@ -241,6 +242,123 @@ Bookworm is sufficient for development).
 - DevContainer includes Ruby for development
 - Documentation site includes Ruby how-to guide and API reference
 
+## C# / .NET Bindings — `Iscc.Lib` on NuGet
+
+A .NET library published to NuGet as [`Iscc.Lib`](https://www.nuget.org/packages/Iscc.Lib),
+providing idiomatic C# access to all ISCC functions via P/Invoke over the existing C FFI. .NET
+developers add a single package reference and get platform-specific native libraries auto-resolved
+at runtime — no manual DLL management required.
+
+**Architecture:**
+
+- P/Invoke bindings generated via `csbindgen` from the `iscc-ffi` C API (`iscc.h`)
+- .NET class library project in `packages/dotnet/` targeting .NET 8+ (current LTS)
+- Platform-specific native libraries bundled as NuGet runtime assets (RID-specific: linux-x64,
+    linux-arm64, osx-x64, osx-arm64, win-x64)
+- NativeLibrary loader selects the correct platform binary at runtime
+- Idiomatic C# API: `PascalCase` methods, exceptions for errors, `Span<byte>` / `Stream` for binary
+    data, nullable types
+
+**Dev environment:** Requires .NET SDK 8+ in the devcontainer.
+
+**Verified when:**
+
+- `dotnet add package Iscc.Lib` installs cleanly from NuGet
+- All 10 `gen_*_v0` functions accessible with idiomatic C# types
+- Conformance tests pass via `dotnet test`
+- Native libraries load correctly on Linux, macOS, and Windows
+- NuGet package includes runtime assets for 5 platforms
+- API uses C# conventions: `IsccLib.GenMetaCodeV0()`, `PascalCase`, exceptions, `Stream` for I/O
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- Per-package README renders correctly on nuget.org
+
+## C++ Bindings — Idiomatic Header-Only Wrapper
+
+An idiomatic C++17 header-only wrapper (`iscc.hpp`) over the existing C FFI, distributed via vcpkg,
+Conan, and bundled with FFI release tarballs. C++ developers get RAII resource management,
+`std::string` / `std::vector<uint8_t>` types, and CMake `find_package(iscc)` integration — no manual
+memory management of C strings required.
+
+**Architecture:**
+
+- Single header `iscc.hpp` wrapping all C FFI functions with C++ types and RAII
+- RAII wrappers auto-free C strings returned by the FFI (no manual `iscc_string_free` calls)
+- `std::string`, `std::vector<uint8_t>`, `std::optional`, `std::runtime_error` for errors
+- Requires only the C shared library (`libiscc_ffi`) + the C header (`iscc.h`)
+- Distribution: vcpkg port, Conan recipe, and header bundled in FFI release tarballs
+- CMake `find_package(iscc)` and `pkg-config` support
+- Lives in `packages/cpp/` (header, CMake config, vcpkg/Conan manifests, tests)
+
+**Verified when:**
+
+- `#include <iscc/iscc.hpp>` compiles with C++17 on GCC, Clang, MSVC
+- All 10 `gen_*_v0` functions accessible with idiomatic C++ types
+- RAII ensures no memory leaks (valgrind/ASAN clean)
+- Conformance tests pass (C++ test program)
+- CMake integration works (`find_package(iscc)`)
+- vcpkg port manifest available
+- Header bundled in FFI release tarballs alongside `iscc.h`
+
+## Swift Bindings — Swift Package
+
+A Swift package providing idiomatic Swift access to all ISCC functions via UniFFI-generated
+bindings. Swift developers add the package via Swift Package Manager (SPM) and get native Apple
+platform support — iOS, macOS, tvOS, watchOS.
+
+**Architecture:**
+
+- UniFFI scaffolding crate (`crates/iscc-uniffi/`) defines the shared interface used by both Swift
+    and Kotlin bindings
+- `uniffi-bindgen` generates idiomatic Swift code from the UniFFI definition
+- Swift package layout in `packages/swift/` with `Package.swift`
+- XCFramework with pre-built binaries for Apple platforms, or source distribution via SPM Git tags
+- Idiomatic Swift API: `camelCase`, `throws` for errors, `Data` for binary, `InputStream` for
+    streaming
+
+**Dev environment:** Requires Swift toolchain in the devcontainer (or macOS CI runner for Apple
+platform builds).
+
+**Verified when:**
+
+- `swift test` passes conformance vectors
+- Package resolves via SPM from Git tag (`.package(url:..., from:...)`)
+- All 10 `gen_*_v0` functions accessible with idiomatic Swift types
+- Works on iOS and macOS targets
+- API uses Swift conventions: `genMetaCodeV0()`, `camelCase`, `throws`, `Data`
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+
+## Kotlin Multiplatform Bindings — Maven Central
+
+A Kotlin Multiplatform (KMP) library published to Maven Central as `io.iscc:iscc-lib-kotlin`,
+extending ISCC support to Kotlin/Native targets (iOS, desktop) beyond the existing Java/JNI
+coverage. Shares the UniFFI scaffolding crate with Swift bindings — one interface definition serves
+both mobile platforms.
+
+**Architecture:**
+
+- Shares the UniFFI scaffolding crate (`crates/iscc-uniffi/`) with Swift bindings
+- `uniffi-bindgen` generates idiomatic Kotlin code from the shared UniFFI definition
+- KMP project in `packages/kotlin/` with Gradle build
+- Targets: JVM (idiomatic Kotlin alternative to Java/JNI), iOS (Kotlin/Native), macOS
+    (Kotlin/Native)
+- Platform-specific native libraries bundled per target
+- Idiomatic Kotlin API: `camelCase`, sealed classes for results, coroutine-friendly, null safety
+
+**Note:** The existing Java/JNI bindings (`crates/iscc-jni`) already serve Kotlin on the JVM. This
+KMP package adds Kotlin/Native support for iOS and desktop, plus a more idiomatic Kotlin API with
+null safety and sealed classes.
+
+**Dev environment:** Requires Kotlin compiler and Gradle in the devcontainer.
+
+**Verified when:**
+
+- Kotlin tests pass conformance vectors on JVM and Native targets
+- Published to Maven Central as `io.iscc:iscc-lib-kotlin`
+- All 10 `gen_*_v0` functions accessible with idiomatic Kotlin types
+- Works from Kotlin/JVM and Kotlin/Native (iOS, macOS)
+- API uses Kotlin conventions: `genMetaCodeV0()`, `camelCase`, sealed classes, null safety
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+
 ## README
 
 The repository README (`README.md`) is the project's public-facing entry point, written for
@@ -253,15 +371,16 @@ C developers.
 - **Badges**: CI status, crate/package version badges for all published packages
 - **Tagline**: one-line description emphasizing polyglot, high-performance, ISO 24138
 - **Key Features**: similarity-preserving, multi-level identification, self-describing, ISO
-    standardized, polyglot (Rust + Python + Ruby + Java + Go + Node.js + WASM + C FFI),
-    conformance-tested
+    standardized, polyglot (Rust + Python + Ruby + Java + Go + Node.js + WASM + C FFI + C# + C++ +
+    Swift + Kotlin), conformance-tested
 - **What is the ISCC**: brief explanation of ISCC purpose and capabilities (reuse iscc-core text)
 - **What is iscc-lib**: explains this is a high-performance polyglot implementation, relationship to
     `iscc-core` reference, and which ecosystems it serves
 - **ISCC Architecture**: architecture diagram (reuse iscc-core diagram or link to docs site)
 - **ISCC MainTypes**: table of main types (reuse from iscc-core)
 - **Installation**: per-language install instructions (Rust/cargo, Python/pip, Ruby/gem, Java/Maven,
-    Go/go get, Node.js/npm, WASM/npm) — use tabbed or sectioned format
+    Go/go get, Node.js/npm, WASM/npm, C#/dotnet, C++/vcpkg, Swift/SPM, Kotlin/Gradle) — use tabbed
+    or sectioned format
 - **Quick Start**: minimal code examples showing `gen_meta_code_v0` in each language
 - **Implementors Guide**: link to conformance test vectors and the 9 `gen_*_v0` entry points (same
     list as iscc-core), link to documentation site for detailed per-language guides
@@ -276,7 +395,8 @@ setup, quality gates). Those belong in the documentation site under a Developmen
 **Verified when:**
 
 - README exists and renders correctly on GitHub
-- Contains per-language installation instructions (Rust, Python, Ruby, Java, Go, Node.js, WASM)
+- Contains per-language installation instructions (Rust, Python, Ruby, Java, Go, Node.js, WASM, C#,
+    C++, Swift, Kotlin)
 - Contains per-language quick start code examples
 - Links to documentation site (`lib.iscc.codes`)
 - Does not contain development workflow content (CID loop, dev container, pre-commit hooks)
@@ -298,9 +418,13 @@ must stand alone without requiring the reader to visit the repository.
 | `crates/iscc-napi` | npm                        | Node.js developers      |
 | `crates/iscc-wasm` | npm                        | Browser/WASM developers |
 | `crates/iscc-rb`   | RubyGems                   | Ruby developers         |
-| `crates/iscc-ffi`  | (not published separately) | C/C# integrators        |
+| `crates/iscc-ffi`  | (not published separately) | C integrators           |
 | `crates/iscc-jni`  | Maven Central              | Java/JVM developers     |
 | `packages/go`      | Go module proxy            | Go developers           |
+| `packages/dotnet`  | NuGet                      | C# / .NET developers    |
+| `packages/cpp`     | vcpkg / Conan              | C++ developers          |
+| `packages/swift`   | Swift Package (Git tags)   | Swift developers        |
+| `packages/kotlin`  | Maven Central              | Kotlin developers       |
 
 **Each per-crate README contains:**
 
@@ -342,7 +466,8 @@ Detailed spec: `.claude/context/specs/documentation.md`
 - Site builds and deploys via GitHub Pages
 - ISCC branding (colors, logo, favicon, dark mode) matches iscc-usearch
 - Covers Rust API, Python API, architecture, and per-language how-to guides
-- All code examples use tabbed multi-language format (Python, Rust, Ruby, Java, Go, Node.js, WASM)
+- All code examples use tabbed multi-language format (Python, Rust, Ruby, Java, Go, Node.js, WASM,
+    C#, C++, Swift, Kotlin)
 - Copy-page feature and `llms-full.txt` generation for agent consumption
 - Navigation follows Diátaxis framework (tutorials, howto, explanation, reference)
 - Development section covers: dev container setup, CID workflow, quality gates, project structure
@@ -365,9 +490,10 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 
 **Verified when:**
 
-- All quality gates run automatically on push/PR (Rust, Python, Ruby, Node.js, WASM, C FFI, Java,
-    Go)
-- `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven, RubyGems) works
+- All quality gates run automatically on push/PR (Rust, Python, Ruby, Node.js, WASM, C FFI, C++,
+    Java, Go, C#, Swift, Kotlin)
+- `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven, RubyGems, NuGet)
+    works
 - Tag push `v*.*.*` triggers all publish jobs
 - crates.io and PyPI publishing via OIDC trusted publishing (no API keys)
 - npm publishing via `NPM_TOKEN` secret for `@iscc/lib` and `@iscc/wasm`
@@ -375,7 +501,7 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 - Publishing an already-published version skips gracefully
 - All CI workflows green
 - All packages share coordinated version from root `Cargo.toml`
-- `mise run version:sync` propagates version to all 9 sync targets
+- `mise run version:sync` propagates version to all 12 sync targets
 - `mise run version:check` validates consistency (run in CI)
 
 ## Key Resources
