@@ -59,25 +59,22 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 58ab8d1)
+## Current State (assessed-at: 38d0eaf)
 
-- **IN_PROGRESS**: 1 open issue remains (#16 feature flags); issue #21 fully resolved (all bindings
-    - docs)
-- **Issue #21 COMPLETE** (iterations 5–13): All 7 bindings expose `add_units`/`units` and all 5 doc
-    files updated to 4-parameter signature
-- **Documentation gap RESOLVED**: `docs/rust-api.md` line 275, `docs/architecture.md` line 131,
-    `docs/c-ffi-api.md`, `docs/howto/rust.md`, `docs/howto/c-cpp.md` — all updated ✅
-- **Go binding complete**: `GenSumCodeV0(path, bits, wide, addUnits bool)`;
-    `SumCodeResult.Units []string` (nil when false); 154 Go tests; review PASS
-- **Java/JNI binding complete**: `genSumCodeV0(path, bits, wide, addUnits)`;
-    `SumCodeResult.units: String[]`; 65 mvn tests
-- **C FFI binding complete**: `iscc_gen_sum_code_v0(path, bits, wide, add_units: bool)`;
-    `IsccSumCodeResult.units: char **`; 85 Rust tests + 65 C tests
-- **WASM binding complete**: 79 wasm-bindgen tests; accepts `Uint8Array` not path
-- **Node.js binding complete**: 135 mocha tests
-- **Python binding complete**: 207 py tests
-- **CI latest**: Run 22600934621 — all 11 CI jobs SUCCESS ✅
-- **Next priority**: issue #16 (feature flags: `meta-code`, `text-processing` Cargo features)
+- **IN_PROGRESS**: issue #16 partially resolved; 2 sub-tasks remain
+- **Issue #21 COMPLETE**: All 7 bindings expose `add_units`/`units`; all 5 doc files updated
+- **Issue #16 PARTIAL**: Feature flag defs + code gating ✅; conformance adaptation + CI matrix ❌
+- **Feature flags implemented** (iteration 14): `default = ["meta-code"]`,
+    `meta-code =   ["text-processing", "dep:serde_json_canonicalizer"]`,
+    `text-processing = [dep:unicode-*]`
+- **Code gating done**: `gen_meta_code_v0`, `json_to_data_url`, `META_TRIM_*` → `meta-code`;
+    `gen_text_code_v0`, `text_clean`, `text_collapse` → `text-processing`
+- **Test counts**: 314 (default features), 249 (no-default-features), 283 (text-processing only)
+- **conformance_selftest() gap**: entire module gated `#[cfg(feature = "meta-code")]` — doesn't
+    exist without meta-code; must be adapted to skip disabled types instead
+- **CI gap**: no `--no-default-features` or `--all-features` CI jobs (required by issue #16)
+- **CI latest**: Run 22602425198 — all 11 CI jobs SUCCESS ✅
+- **Next priority**: conformance_selftest adaptation, then CI feature matrix jobs
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
