@@ -285,6 +285,75 @@ class TestSmoke < Minitest::Test
     file&.unlink
   end
 
+  def test_sliding_window_basic
+    result = IsccLib.sliding_window("Hello World", 3)
+    assert result.is_a?(Array), "sliding_window should return an Array"
+    assert result.all? { |s| s.is_a?(String) }, "all elements should be Strings"
+    assert_equal 9, result.length, "should produce 9 trigrams from 11 chars"
+    assert_equal "Hel", result.first
+    assert_equal "rld", result.last
+  end
+
+  def test_sliding_window_error
+    assert_raises(RuntimeError) { IsccLib.sliding_window("test", 1) }
+  end
+
+  def test_alg_simhash_basic
+    digest = ("\xFF" * 4).b
+    result = IsccLib.alg_simhash([digest, digest])
+    assert result.is_a?(String), "alg_simhash should return a String"
+    assert_equal Encoding::ASCII_8BIT, result.encoding, "should be binary"
+    assert_equal 4, result.bytesize, "output length should match input digest length"
+    assert_equal digest, result, "identical digests should produce same hash"
+  end
+
+  def test_alg_simhash_mismatched_error
+    assert_raises(RuntimeError) do
+      IsccLib.alg_simhash([("\x00" * 4).b, ("\x00" * 8).b])
+    end
+  end
+
+  def test_alg_minhash_256_basic
+    result = IsccLib.alg_minhash_256([1, 2, 3, 4, 5])
+    assert result.is_a?(String), "alg_minhash_256 should return a String"
+    assert_equal Encoding::ASCII_8BIT, result.encoding, "should be binary"
+    assert_equal 32, result.bytesize, "should return 32 bytes (256 bits)"
+  end
+
+  def test_alg_cdc_chunks_basic
+    data = ("Hello World " * 200).b
+    result = IsccLib.alg_cdc_chunks(data, false, 1024)
+    assert result.is_a?(Array), "alg_cdc_chunks should return an Array"
+    assert result.length.positive?, "should produce at least one chunk"
+    assert result.all? { |c| c.is_a?(String) }, "all chunks should be Strings"
+    assert result.all? { |c| c.encoding == Encoding::ASCII_8BIT }, "chunks should be binary"
+    reassembled = result.join
+    assert_equal data, reassembled, "chunks should reassemble to original data"
+  end
+
+  def test_alg_cdc_chunks_empty
+    result = IsccLib.alg_cdc_chunks("".b, false, 1024)
+    assert result.is_a?(Array)
+    assert_equal 1, result.length, "empty input should produce one empty chunk"
+  end
+
+  def test_soft_hash_video_v0_basic
+    frame = (1..400).to_a
+    frame_sigs = [frame, frame.map { |x| x + 1 }]
+    result = IsccLib.soft_hash_video_v0(frame_sigs, 64)
+    assert result.is_a?(String), "soft_hash_video_v0 should return a String"
+    assert_equal Encoding::ASCII_8BIT, result.encoding, "should be binary"
+    assert_equal 8, result.bytesize, "64 bits = 8 bytes"
+  end
+
+  def test_soft_hash_video_v0_256_bits
+    frame = (1..400).to_a
+    frame_sigs = [frame, frame.reverse]
+    result = IsccLib.soft_hash_video_v0(frame_sigs, 256)
+    assert result.is_a?(String)
+    assert_equal 32, result.bytesize, "256 bits = 32 bytes"
+  end
+
   def test_version
     assert IsccLib::VERSION.is_a?(String)
     assert_match(/\A\d+\.\d+\.\d+\z/, IsccLib::VERSION)

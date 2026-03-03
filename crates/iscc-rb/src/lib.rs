@@ -4,13 +4,15 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Symbols (25 of 32):
+//! Symbols (30 of 32):
 //! - `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`, `gen_audio_code_v0`
 //! - `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`
 //! - `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`
 //! - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
 //! - `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`
 //! - `json_to_data_url`, `conformance_selftest`
+//! - `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+//!   `soft_hash_video_v0`
 //! - Constants: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
 //!   IO_READ_SIZE, TEXT_NGRAM_SIZE
 
@@ -280,6 +282,73 @@ fn conformance_selftest() -> bool {
     iscc_lib::conformance_selftest()
 }
 
+/// Generate sliding window n-grams from a string.
+///
+/// Returns overlapping substrings of `width` Unicode characters.
+/// Raises `RuntimeError` if `width < 2`.
+fn sliding_window(seq: String, width: usize) -> Result<Vec<String>, Error> {
+    iscc_lib::sliding_window(&seq, width).map_err(to_magnus_err)
+}
+
+/// Compute a SimHash from a sequence of equal-length hash digests.
+///
+/// Accepts a Ruby Array of binary Strings, returns a binary String.
+/// Raises `RuntimeError` on mismatched digest lengths.
+fn alg_simhash(hash_digests: RArray) -> Result<RString, Error> {
+    let digests: Vec<Vec<u8>> = hash_digests
+        .into_iter()
+        .map(|val| {
+            let s: RString = TryConvert::try_convert(val)?;
+            // Safety: we copy the bytes immediately before any Ruby API calls.
+            let bytes = unsafe { s.as_slice() }.to_vec();
+            Ok(bytes)
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    let result = iscc_lib::alg_simhash(&digests).map_err(to_magnus_err)?;
+    Ok(RString::from_slice(&result))
+}
+
+/// Compute a 256-bit MinHash digest from 32-bit integer features.
+///
+/// Returns a 32-byte binary String.
+fn alg_minhash_256(features: Vec<u32>) -> RString {
+    let result = iscc_lib::alg_minhash_256(&features);
+    RString::from_slice(&result)
+}
+
+/// Split data into content-defined chunks using gear rolling hash.
+///
+/// Accepts a binary Ruby String, a `utf32` flag, and an `avg_chunk_size`.
+/// Returns a Ruby Array of binary Strings (one per chunk).
+fn alg_cdc_chunks(data: RString, utf32: bool, avg_chunk_size: u32) -> Result<RArray, Error> {
+    // Safety: the slice is passed directly to a pure Rust function
+    // and not held across any Ruby API calls that could trigger GC.
+    let bytes = unsafe { data.as_slice() };
+    let chunks = iscc_lib::alg_cdc_chunks(bytes, utf32, avg_chunk_size);
+    let ruby = Ruby::get().expect("called from Ruby");
+    let arr = ruby.ary_new_capa(chunks.len());
+    for chunk in chunks {
+        arr.push(RString::from_slice(chunk))?;
+    }
+    Ok(arr)
+}
+
+/// Compute a similarity-preserving hash from video frame signatures.
+///
+/// Accepts a Ruby Array of Arrays of integers (nested `i32` frame signatures)
+/// and a bit length. Returns a binary String of length `bits / 8`.
+fn soft_hash_video_v0(frame_sigs: RArray, bits: u32) -> Result<RString, Error> {
+    let frames: Vec<Vec<i32>> = frame_sigs
+        .into_iter()
+        .map(|frame| {
+            let arr: Vec<i32> = TryConvert::try_convert(frame)?;
+            Ok(arr)
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    let result = iscc_lib::soft_hash_video_v0(&frames, bits).map_err(to_magnus_err)?;
+    Ok(RString::from_slice(&result))
+}
+
 /// Initialize the IsccLib Ruby module with all bridge functions and constants.
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
@@ -310,6 +379,13 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     module.define_module_function("iscc_decode", function!(iscc_decode, 1))?;
     module.define_module_function("json_to_data_url", function!(json_to_data_url, 1))?;
     module.define_module_function("conformance_selftest", function!(conformance_selftest, 0))?;
+
+    // Algorithm primitives
+    module.define_module_function("sliding_window", function!(sliding_window, 2))?;
+    module.define_module_function("alg_simhash", function!(alg_simhash, 1))?;
+    module.define_module_function("alg_minhash_256", function!(alg_minhash_256, 1))?;
+    module.define_module_function("alg_cdc_chunks", function!(alg_cdc_chunks, 3))?;
+    module.define_module_function("soft_hash_video_v0", function!(soft_hash_video_v0, 2))?;
 
     // Constants
     module.const_set("META_TRIM_NAME", iscc_lib::META_TRIM_NAME)?;
