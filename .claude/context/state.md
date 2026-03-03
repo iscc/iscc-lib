@@ -1,17 +1,15 @@
-<!-- assessed-at: 1e56791 -->
+<!-- assessed-at: 370ee1f -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings + fix WASM CI regression
+## Phase: Ruby bindings scaffold
 
-CID iteration 1 vendored the iscc-core v1.3.0 conformance vectors (4 new Meta-Code tests:
-test_0017–test_0020) into both Rust and Go, and fixed the Go conformance loader to skip the new
-`_metadata` top-level key. The critical conformance issue is resolved in Rust and Go. However, the
-advance agent introduced a CI regression: the WASM conformance test still asserts `tested == 16`
-while data.json now supplies 20 Meta-Code vectors — `WASM (wasm-pack test)` fails in both CI runs
-triggered after the vendoring commit. Two open issues remain (Ruby bindings, language logos).
+The WASM CI regression introduced in CID iteration 1 has been resolved:
+`crates/iscc-wasm/tests/conformance.rs` line 66 now asserts `tested == 20` (was 16), and all 11 CI
+jobs pass on the latest run. The project is now unblocked for Ruby bindings work. Two open issues
+remain: Ruby bindings (not started) and language logos (low priority).
 
 ## Rust Core Crate
 
@@ -22,7 +20,7 @@ triggered after the vendoring commit. Two open issues remain (Ruby bindings, lan
 - Rust conformance assertion updated: `assert_eq!(tested, 20, ...)` in `lib.rs` ✅
 - 314 tests pass with default features (per review agent verification) ✅
 - `_metadata` key in data.json: ignored silently by `serde_json` (unknown fields skipped) ✅
-- Feature matrix CI (5 steps) passed in the prior green run ✅
+- Feature matrix CI (5 steps) passed in the latest green run ✅
 
 ## Python Bindings
 
@@ -42,15 +40,12 @@ triggered after the vendoring commit. Two open issues remain (Ruby bindings, lan
 
 ## WASM Bindings
 
-**Status**: partially met
+**Status**: met
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
-- **CI REGRESSION**: `test_gen_meta_code_v0_conformance` fails in
-    `crates/iscc-wasm/tests/conformance.rs`
-- Root cause: line 66 still asserts `assert_eq!(tested, 16, "expected 16 conformance tests to run")`
-    but data.json now has 20 Meta-Code vectors — assertion must be updated to `20`
-- CI run 22627307003: `WASM (wasm-pack test)` = FAILURE; all other 10 jobs = SUCCESS ❌
-- The advance agent forgot to update this assertion when it updated the equivalent in `lib.rs`
+- **CI REGRESSION RESOLVED**: `crates/iscc-wasm/tests/conformance.rs` line 66 updated to
+    `assert_eq!(tested, 20, ...)` ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22628594682 ✅
 
 ## C FFI
 
@@ -109,7 +104,8 @@ triggered after the vendoring commit. Two open issues remain (Ruby bindings, lan
 **Status**: partially met
 
 - 17 pages deployed to lib.iscc.codes; all navigation sections complete ✅
-- All 5 language howto guides current ✅
+- All 5 language howto guides current (c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md,
+    java.md) ✅
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
 - **Gap**: No `docs/howto/ruby.md` guide; no `docs/ruby-api.md`; no Ruby tabs in multi-language
     examples
@@ -126,25 +122,17 @@ triggered after the vendoring commit. Two open issues remain (Ruby bindings, lan
 
 **Status**: partially met
 
-- **FAILING** — latest CI run 22627307003: `WASM (wasm-pack test)` = FAILURE ❌
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22627307003
-- Failed job: `WASM (wasm-pack test)` — `test_gen_meta_code_v0_conformance` panics with
-    `assertion left == right failed: expected 16 conformance tests to run` (left=20, right=16)
-- All other 10 jobs in the latest run succeed ✅
+- **ALL PASSING** — latest CI run 22628594682: all 11 jobs SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22628594682
 - `release.yml` has `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven,
     FFI) ✅
 - **Gap**: No `ruby` CI job; no `rubygems` publish step; Ruby not in `version_sync.py`
 
 ## Next Milestone
 
-**Immediate (fixes CI first)**: Update `crates/iscc-wasm/tests/conformance.rs` line 66 to change
-`assert_eq!(tested, 16, ...)` → `assert_eq!(tested, 20, ...)`. This is a one-line fix that unblocks
-the WASM CI job. Verify that no other binding test files (Python, Node.js, Java, C FFI) have similar
-hardcoded count assertions that also need updating (grep shows none — confirmed already).
-
-**Then**: Begin Ruby bindings (`crates/iscc-rb/`): scaffold the Magnus crate per the spec at
+Begin Ruby bindings (`crates/iscc-rb/`): scaffold the Magnus crate per the spec at
 `.claude/context/specs/ruby-bindings.md`, implement all 32 Tier 1 symbols, add Minitest conformance
-suite, add Ruby CI job, add RubyGems release step, update version_sync, add docs/howto/ruby.md,
+suite, add Ruby CI job, add RubyGems release step, update version_sync, add `docs/howto/ruby.md`,
 update README and Per-Crate READMEs.
 
 **Low priority**: Language logos for README and docs (deferred until Ruby is done).

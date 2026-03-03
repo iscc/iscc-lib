@@ -60,27 +60,26 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 1e56791)
+## Current State (assessed-at: 370ee1f)
 
-- **IN_PROGRESS**: v1.3.0 conformance resolved in Rust+Go; WASM CI regression introduced; 2 open
-    issues (Ruby bindings normal, language logos low)
+- **IN_PROGRESS**: all 11 CI jobs green; WASM regression resolved (16→20); 2 open issues (Ruby
+    bindings not started, language logos low priority)
 - **Ruby bindings**: NOT STARTED — `crates/iscc-rb` absent, no CI job, no release step
-- **CI (run 22627307003)**: WASM FAILURE — `test_gen_meta_code_v0_conformance` (count 20 vs 16)
-- **WASM fix needed**: `crates/iscc-wasm/tests/conformance.rs` line 66: change 16 → 20
+- **CI (run 22628594682)**: ALL SUCCESS — WASM, Rust, Python (both), Node.js, Go, Java, C FFI,
+    Bench, Version all pass
 - **Feature flags**: `default = ["meta-code"]`, `meta-code = ["text-processing", ...]`,
     `text-processing = [dep:unicode-*]`; 5 CI feature matrix steps
 - **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
 - **release.yml**: checkboxes for crates.io, PyPI, npm, Maven, FFI (not RubyGems yet) ✅
 - **devcontainer**: `ruby ruby-dev` added ✅; spec `ruby-bindings.md` created ✅
 
-## iscc-core v1.3.0 Conformance (RESOLVED in Rust+Go, WASM regression pending)
+## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
 - 4 new test vectors vendored: test_0017–test_0020 in both `crates/iscc-lib/tests/data.json` and
     `packages/go/testdata/data.json` (50 total vectors)
 - `data.json` has top-level `_metadata` object — Go uses `parseConformanceData()` to skip it; Rust
     `serde_json` silently ignores unknown fields
-- Rust lib.rs assertion updated: 16 → 20; Go all 9 test files use `parseConformanceData()`
-- **WASM regression**: `crates/iscc-wasm/tests/conformance.rs:66` still says 16 (must change to 20)
+- Rust lib.rs assertion: 20; WASM conformance.rs line 66: 20 ✅; Go all 9 test files updated ✅
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
