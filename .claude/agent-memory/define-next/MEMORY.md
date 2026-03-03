@@ -76,9 +76,19 @@ iterations.
     format. 1e20 < 1e21 → outputs "100000000000000000000". May or may not match JCS exactly for edge
     cases. Risk area for test_0017/test_0018.
 
+## Propagation Gotchas
+
+- When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
+    must be updated. Iteration 1 missed the WASM binding assertion (fixed in iteration 2).
+    Checklist:
+    - `crates/iscc-lib/src/lib.rs` — Rust core (updated in iter 1)
+    - `crates/iscc-wasm/tests/conformance.rs` — WASM (missed in iter 1, fixed iter 2)
+    - Other bindings don't have hardcoded count assertions (they iterate dynamically)
+
 ## Project Status
 
 - Issue #16 fully resolved (iterations 13-15)
 - v0.1.0 released to all registries
-- 3 open issues: iscc-core v1.3.0 conformance (critical), Ruby bindings (normal), README logos (low)
-- Current iteration: vendoring v1.3.0 data.json + Go loader fix
+- Critical conformance issue resolved (iter 1: vendor v1.3.0 + Go fix)
+- 2 open issues: Ruby bindings (normal), README logos (low)
+- Current: fix WASM CI regression (iter 2), then Ruby bindings scaffold
