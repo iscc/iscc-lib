@@ -168,8 +168,7 @@ fn vec_to_c_string_array(v: Vec<String>) -> *mut *mut c_char {
         }
     }
     ptrs.push(ptr::null_mut()); // NULL terminator
-    let ptr = Box::into_raw(ptrs.into_boxed_slice()) as *mut *mut c_char;
-    ptr
+    Box::into_raw(ptrs.into_boxed_slice()) as *mut *mut c_char
 }
 
 // ── Byte buffer types ────────────────────────────────────────────────────
@@ -1522,7 +1521,7 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
     }
     // Reconstruct the boxed slice to free the array itself.
     // SAFETY: arr was produced by Box::into_raw() of a boxed slice with count + 1 elements
-    drop(unsafe { Box::from_raw(std::slice::from_raw_parts_mut(arr, count + 1)) });
+    drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(arr, count + 1)) });
 }
 
 /// Free a byte buffer returned by `iscc_alg_simhash`, `iscc_alg_minhash_256`,
@@ -1538,7 +1537,7 @@ pub unsafe extern "C" fn iscc_free_string_array(arr: *mut *mut c_char) {
 pub unsafe extern "C" fn iscc_free_byte_buffer(buf: IsccByteBuffer) {
     if !buf.data.is_null() {
         // SAFETY: buf.data was produced by Box::into_raw() of a boxed slice with buf.len elements
-        drop(unsafe { Box::from_raw(std::slice::from_raw_parts_mut(buf.data, buf.len)) });
+        drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(buf.data, buf.len)) });
     }
 }
 
@@ -1557,11 +1556,12 @@ pub unsafe extern "C" fn iscc_free_byte_buffer_array(arr: IsccByteBufferArray) {
         return;
     }
     // SAFETY: arr.buffers was produced by Box::into_raw() of a boxed slice with arr.count elements
-    let buffers = unsafe { Box::from_raw(std::slice::from_raw_parts_mut(arr.buffers, arr.count)) };
+    let buffers =
+        unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(arr.buffers, arr.count)) };
     for buf in buffers.iter() {
         if !buf.data.is_null() {
             // SAFETY: each buf.data was produced by vec_to_byte_buffer (Box::into_raw of boxed slice)
-            drop(unsafe { Box::from_raw(std::slice::from_raw_parts_mut(buf.data, buf.len)) });
+            drop(unsafe { Box::from_raw(std::ptr::slice_from_raw_parts_mut(buf.data, buf.len)) });
         }
     }
 }
