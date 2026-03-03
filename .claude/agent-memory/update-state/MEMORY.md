@@ -59,22 +59,23 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 38d0eaf)
+## Current State (assessed-at: a6a241f)
 
-- **IN_PROGRESS**: issue #16 partially resolved; 2 sub-tasks remain
+- **IN_PROGRESS**: issue #16 one sub-task remains (CI feature matrix)
 - **Issue #21 COMPLETE**: All 7 bindings expose `add_units`/`units`; all 5 doc files updated
-- **Issue #16 PARTIAL**: Feature flag defs + code gating ✅; conformance adaptation + CI matrix ❌
-- **Feature flags implemented** (iteration 14): `default = ["meta-code"]`,
-    `meta-code =   ["text-processing", "dep:serde_json_canonicalizer"]`,
+- **Issue #16 PARTIAL**: Feature flags + code gating + conformance_selftest adaptation ✅; CI matrix
+    ❌
+- **Feature flags implemented**: `default = ["meta-code"]`,
+    `meta-code = ["text-processing", "dep:serde_json_canonicalizer"]`,
     `text-processing = [dep:unicode-*]`
 - **Code gating done**: `gen_meta_code_v0`, `json_to_data_url`, `META_TRIM_*` → `meta-code`;
     `gen_text_code_v0`, `text_clean`, `text_collapse` → `text-processing`
-- **Test counts**: 314 (default features), 249 (no-default-features), 283 (text-processing only)
-- **conformance_selftest() gap**: entire module gated `#[cfg(feature = "meta-code")]` — doesn't
-    exist without meta-code; must be adapted to skip disabled types instead
-- **CI gap**: no `--no-default-features` or `--all-features` CI jobs (required by issue #16)
-- **CI latest**: Run 22602425198 — all 11 CI jobs SUCCESS ✅
-- **Next priority**: conformance_selftest adaptation, then CI feature matrix jobs
+- **conformance_selftest() FIXED**: `pub mod conformance;` and `pub use conformance_selftest;` no
+    longer gated; granular `#[cfg]` on `run_meta_tests`/`run_text_tests` only
+- **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
+- **CI gap**: no `--no-default-features`, `--all-features`, or per-feature steps in ci.yml
+- **CI latest**: Run 22603382763 — all 11 CI jobs SUCCESS ✅
+- **Next priority**: Add feature matrix steps to `.github/workflows/ci.yml` (YAML-only change)
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 

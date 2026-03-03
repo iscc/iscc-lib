@@ -1,35 +1,39 @@
-<!-- assessed-at: 38d0eaf2964535f3354d70a42c54f0471afaf440 -->
+<!-- assessed-at: a6a241f4a09a7a8203b26cf20ccf354b58950500 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Issue #16 partially resolved — feature flag gating done; conformance adaptation + CI matrix remain
+## Phase: Issue #16 — conformance_selftest adaptation done; CI feature matrix remains
 
-Commits `3f3606f`/`38d0eaf` (review PASS) completed the feature flag definitions and code gating for
-issue #16. Three deps made optional, all code and tests properly gated behind
-`#[cfg(feature = "...")]`. Two sub-tasks remain: (1) `conformance_selftest()` must work without
-`meta-code` by skipping disabled code types rather than being completely absent; (2) CI must test
-`--no-default-features` and per-feature combinations.
+Commit `0736cce` (review PASS at `a6a241f`) made `conformance_selftest()` always callable by
+removing the module-level `#[cfg(feature = "meta-code")]` gate and adding granular `#[cfg]` guards
+on the individual `run_meta_tests`/`run_text_tests` functions. One sub-task remains: the CI workflow
+does not yet test `--no-default-features`, `--all-features`, or per-feature combinations. Adding
+those steps is a YAML-only change that closes issue #16.
 
 ## Rust Core Crate
 
-**Status**: partially met — feature flags done; conformance selftest adaptation incomplete
+**Status**: partially met — conformance_selftest adaptation complete; CI feature matrix absent
 
 - All 32 Tier 1 symbols present with correct feature-gating:
     - `gen_meta_code_v0`, `json_to_data_url`, `META_TRIM_*` constants: `#[cfg(feature = "meta-code")]`
     - `gen_text_code_v0`, `text_clean`, `text_collapse`: `#[cfg(feature = "text-processing")]`
     - All other symbols always available (no feature gate required)
 - `Cargo.toml` features: `default = ["meta-code"]`,
-    `meta-code = ["text-processing",   "dep:serde_json_canonicalizer"]`,
-    `text-processing = ["dep:unicode-normalization",   "dep:unicode-general-category"]` ✅
+    `meta-code = ["text-processing", "dep:serde_json_canonicalizer"]`,
+    `text-processing = ["dep:unicode-normalization", "dep:unicode-general-category"]` ✅
 - Optional deps: `serde_json_canonicalizer`, `unicode-normalization`, `unicode-general-category` ✅
+- ✅ `conformance_selftest()` is **always callable** — `pub mod conformance;` and
+    `pub use conformance::conformance_selftest;` in `lib.rs` have no `#[cfg]` gate
+- ✅ Inside `conformance_selftest()`: meta-code section gated `#[cfg(feature = "meta-code")]`, text
+    section gated `#[cfg(feature = "text-processing")]`; remaining 7 sections always run
 - 314 tests with default features (258 unit + 31 streaming + 24 utils + 1 doctest) ✅
-- `--no-default-features`: 249 tests pass ✅; `--features text-processing` w/ no-defaults: 283 ✅
+- `--no-default-features`: 250 tests pass; conformance_selftest runs 7 of 9 sections ✅
+- `--no-default-features --features text-processing`: 284 tests pass; 8 of 9 sections ✅
 - `cargo clippy -p iscc-lib -- -D warnings` clean (all feature combos) ✅
-- ❌ **`conformance_selftest()` is entirely absent when `meta-code` is disabled** — the whole
-    `conformance` module is gated behind `#[cfg(feature = "meta-code")]`; it does not gracefully
-    skip disabled code types as issue #16 requires
+- ❌ **CI does not test feature combinations** — no `--no-default-features`, `--all-features`, or
+    per-feature steps in `.github/workflows/ci.yml`
 
 ## Python Bindings
 
@@ -123,26 +127,22 @@ issue #16. Three deps made optional, all code and tests properly gated behind
 **Status**: partially met
 
 - **All 11 CI jobs SUCCESS** on latest push — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22602425198
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22603382763
 - Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10, Python 3.14, Python (gate),
     Node.js, WASM, C FFI, Java, Go, Bench — all SUCCESS ✅
 - v0.0.4 released to all registries; OIDC trusted publishing configured ✅
 - ❌ **CI does not test feature combinations**: no `--no-default-features`, `--all-features`, or
-    per-feature jobs — required by issue #16
-- Open issue #16 (partially resolved) blocks DONE status
+    per-feature steps in `.github/workflows/ci.yml` — required by issue #16
 
 ## Next Milestone
 
-**Issue #16 — Remaining two sub-tasks:**
+**Issue #16 — Final sub-task: CI feature matrix**
 
-1. **`conformance_selftest()` adaptation**: Currently the entire `conformance` module is gated
-    behind `#[cfg(feature = "meta-code")]`, making `conformance_selftest()` completely absent
-    without that feature. The function must always be callable but skip code types whose feature is
-    disabled (e.g., skip `gen_meta_code_v0` tests when `meta-code` is off, skip `gen_text_code_v0`
-    when `text-processing` is off).
+Add steps to the existing `Rust (fmt, clippy, test)` job in `.github/workflows/ci.yml` to run:
 
-2. **CI feature matrix**: Add jobs (or steps within the Rust job) to run:
-    `cargo test -p iscc-lib --no-default-features`, `cargo test -p iscc-lib --all-features`,
-    `cargo test -p iscc-lib --no-default-features --features text-processing`
+- `cargo test -p iscc-lib --no-default-features`
+- `cargo test -p iscc-lib --all-features`
+- `cargo test -p iscc-lib --no-default-features --features text-processing`
 
-Completing these two items closes issue #16 and unblocks DONE status.
+This is a YAML-only change. No Rust code modifications needed. Completing this closes issue #16 and
+unblocks DONE status.
