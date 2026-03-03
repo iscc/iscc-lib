@@ -81,8 +81,8 @@ fn text_collapse(text: String) -> String {
 ///
 /// Accepts a Ruby String (binary data) and returns a URL-safe base64 string.
 fn encode_base64(data: RString) -> String {
-    // Safety: we copy the bytes immediately and do not hold the slice
-    // across any Ruby API calls.
+    // Safety: the slice is passed directly to a pure Rust function
+    // and not held across any Ruby API calls.
     let bytes = unsafe { data.as_slice() };
     iscc_lib::encode_base64(bytes)
 }
