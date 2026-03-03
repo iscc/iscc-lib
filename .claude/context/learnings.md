@@ -153,6 +153,15 @@ fully-met target sections to `learnings-archive.md`.
     PATH
 - `libclang-dev` required for rb-sys/bindgen to compile
 
+## Ruby Algorithm Primitives
+
+- Algorithm primitives registered without `_` prefix (direct call) and without Ruby wrapper —
+    matching `text_clean`, `encode_base64` pattern, NOT the gen function pattern
+- `alg_cdc_chunks` returns `Vec<&[u8]>` (borrowed slices) — Ruby bridge must copy each chunk to
+    `RString::from_slice` before returning. The unsafe slice is safe for Ruby 3.1 (non-compacting
+    GC, RString pinned as function parameter) but would need review for Ruby 3.2+ auto-compaction
+- `alg_minhash_256` is the only infallible Tier 1 function (no `Result`, no error mapping)
+
 ## CID Process
 
 - **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current

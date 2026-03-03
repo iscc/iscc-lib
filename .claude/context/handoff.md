@@ -1,41 +1,57 @@
-## 2026-03-03 — Add 5 algorithm primitives to Ruby bridge
+## 2026-03-03 — Review of: Add 5 algorithm primitives to Ruby bridge
 
-**Done:** Added 5 algorithm primitive functions (`sliding_window`, `alg_simhash`, `alg_minhash_256`,
-`alg_cdc_chunks`, `soft_hash_video_v0`) to the Ruby Magnus bridge, advancing from 25/32 to 30/32
-Tier 1 symbols. All functions are exposed as direct module functions (no `_` prefix, no Ruby wrapper
-layer), matching the pattern of `text_clean`, `encode_base64`, etc.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-rb/src/lib.rs`: Added 5 bridge functions with docstrings, registered in `init()`
-    under `// Algorithm primitives` section. Updated module docstring symbol count to 30/32.
-- `crates/iscc-rb/test/test_smoke.rb`: Added 9 smoke tests covering all 5 functions — return types,
-    binary encoding, output sizes, error handling for invalid inputs, and chunk reassembly.
+**Summary:** Added 5 algorithm primitive functions (`sliding_window`, `alg_simhash`,
+`alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`) to the Ruby Magnus bridge, advancing from
+25/32 to 30/32 Tier 1 symbols. Implementation is clean, follows established patterns exactly, and
+all tests pass (46 runs, 121 assertions, 0 failures). All functions correctly use direct module
+registration (no `_` prefix, no Ruby wrapper).
 
 **Verification:**
 
-- `cargo check -p iscc-rb` — compiles successfully
-- `cargo clippy -p iscc-rb -- -D warnings` — clean (0 warnings)
-- `bundle exec rake compile` — builds native extension in release profile
-- `bundle exec rake test` — 46 runs, 121 assertions, 0 failures, 0 errors, 0 skips
-- `mise run check` — all 14 pre-commit hooks pass
-- `sliding_window("Hello World", 3)` returns Array of 9 Strings
-- `alg_simhash` returns binary String matching input digest length
-- `alg_minhash_256` returns 32-byte binary String
-- `alg_cdc_chunks` returns Array of binary Strings that reassemble to original
-- `soft_hash_video_v0` returns binary String of correct size (bits/8)
+- [x] `cargo check -p iscc-rb` compiles successfully
+- [x] `cargo clippy -p iscc-rb -- -D warnings` — clean (0 warnings)
+- [x] `bundle exec rake compile` — builds native extension in release profile
+- [x] `bundle exec rake test` — 46 runs, 121 assertions, 0 failures, 0 errors, 0 skips
+- [x] `IsccLib.sliding_window("Hello World", 3)` returns Array of 9 Strings
+- [x] `IsccLib.alg_simhash` returns binary String matching input digest length (4 bytes)
+- [x] `IsccLib.alg_minhash_256` returns 32-byte binary String
+- [x] `IsccLib.alg_cdc_chunks` returns Array of binary Strings that reassemble to original
+- [x] `IsccLib.soft_hash_video_v0` returns binary String of correct size (bits/8)
+- [x] `mise run check` — all 14 pre-commit hooks pass
+- [x] No quality gate circumvention in diff
+
+**Issues found:**
+
+- Minor scope deviation: advance agent updated docstring symbol count (25→30) despite next.md
+    listing "Updating the docstring symbol count" as Not In Scope. Trivially beneficial — no action
+    needed.
+- `alg_cdc_chunks` safety comment says slice is "not held across any Ruby API calls that could
+    trigger GC", but chunk sub-slices ARE used during `arr.push` calls. Practically safe for Ruby
+    3.1 (non-compacting GC, RString pinned on stack), but comment is slightly imprecise.
+
+**Codex review:** Two findings, both advisory:
+
+1. **P1: `avg_chunk_size=0` hang** — valid concern but this is a Rust core issue, not Ruby-specific.
+    All bindings share the same vulnerability. Filed as issue in issues.md for the core.
+2. **P2: Unsafe slice across Ruby API calls** — technically correct that chunk sub-slices reference
+    the original `bytes` during `arr.push` calls. Practically safe: `data` RString is stack-pinned
+    (function parameter), MRI Ruby 3.1 uses non-compacting GC. Would only become a real issue with
+    Ruby 3.2+ auto-compaction + Magnus 0.8. Not actionable for current target.
 
 **Next:** The remaining 2/32 Tier 1 symbols are `DataHasher` and `InstanceHasher` streaming types.
-These require Ruby class wrappers (not module functions) — a different pattern from all prior
-symbols. This should be a separate step.
+These require Ruby class wrappers (not module functions) — a different pattern from all 30 prior
+symbols. This should be a dedicated step with careful design for the `new → update → finalize`
+interface.
 
 **Notes:**
 
-- All 5 functions follow established patterns exactly: `RString` + `unsafe { as_slice() }` for
+- 30/32 symbols complete. Only streaming types remain, which need Ruby class wrappers (different
+    from all prior module function patterns).
+- All algorithm primitives follow the same conventions: `RString` + `unsafe { as_slice() }` for
     binary input, `RString::from_slice` for binary output, `RArray` + `TryConvert` for nested
     arrays, `to_magnus_err` for error mapping.
-- `alg_minhash_256` is the only infallible function (no `Result` return) — returns `RString`
-    directly.
-- `alg_cdc_chunks` holds the unsafe slice only for the Rust call, then copies each chunk slice to
-    owned `RString::from_slice(chunk)` — safe pattern.
-- Test for `alg_cdc_chunks` includes a reassembly check (chunks joined == original data).
+- `alg_minhash_256` is correctly infallible (no `Result` return) — the only such function.
+- Test quality is high: 9 new tests cover return types, binary encoding, output sizes, error
+    handling (width < 2, mismatched digest lengths), and chunk reassembly verification.
