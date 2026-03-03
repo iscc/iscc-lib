@@ -76,8 +76,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Constants: `module.const_set("NAME", value)` in Magnus init
 - `rb-sys` needs Ruby headers + `libclang-dev` — why `--exclude iscc-rb` in CI
 - Codex flags about standalone Cargo.toml / gemspec runtime deps: moot for precompiled gem model
-- When reviewing remaining symbol additions: verify each gen function returns correct Result
-    subclass and all Hash keys match the Rust struct fields
+- Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate. Codex caught
+    this correctly in iteration 7
 - Binary data: `RString` param + `unsafe { data.as_slice() }` for byte inputs. Safety comment must
     say "passed to pure Rust function" (not "copied") unless `.to_vec()` is used
 - Codec/utility functions registered without `_` prefix (direct call); gen functions use `_` prefix

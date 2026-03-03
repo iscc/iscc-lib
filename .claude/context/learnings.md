@@ -156,6 +156,8 @@ fully-met target sections to `learnings-archive.md`.
     the native class. Method prefix `_update`/`_finalize` works; class prefix `_DataHasher` does NOT
     (Ruby constants must start with uppercase)
 - `libclang-dev` required for rb-sys/bindgen to compile
+- Ruby `JSON.generate` silently ignores `sort_keys: true` — use `meta_val.sort.to_h` before
+    `JSON.generate` for sorted-key output. Python `json.dumps(sort_keys=True)` works as expected
 
 ## Ruby Algorithm Primitives
 

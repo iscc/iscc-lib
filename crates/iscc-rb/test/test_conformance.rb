@@ -19,8 +19,8 @@ class TestConformance < Minitest::Test
     return meta_val if meta_val.is_a?(String)
 
     if meta_val.is_a?(Hash)
-      # Sort keys for JCS-compatible JSON string
-      return JSON.generate(meta_val, sort_keys: true)
+      # Sort keys for JCS-compatible JSON string (Ruby's json gem ignores sort_keys option)
+      return JSON.generate(meta_val.sort.to_h)
     end
 
     raise "unexpected meta type: #{meta_val.class}"
