@@ -4,13 +4,15 @@
 //! under the `IsccLib` module. The pure Ruby wrapper in `lib/iscc_lib.rb`
 //! provides idiomatic result classes and keyword arguments.
 //!
-//! Initial symbols (~10 of 32):
+//! Symbols (16 of 32):
 //! - `gen_meta_code_v0` (flagship gen function with Hash return + optional params)
 //! - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
+//! - `encode_base64`, `iscc_decompose`, `encode_component`, `iscc_decode`
+//! - `json_to_data_url`, `conformance_selftest`
 //! - Constants: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
 //!   IO_READ_SIZE, TEXT_NGRAM_SIZE
 
-use magnus::{Error, RHash, Ruby, function, prelude::*};
+use magnus::{Error, RArray, RHash, RString, Ruby, function, prelude::*};
 
 /// Map an `IsccError` to a Magnus `RuntimeError`.
 fn to_magnus_err(e: iscc_lib::IsccError) -> Error {
@@ -75,6 +77,71 @@ fn text_collapse(text: String) -> String {
     iscc_lib::text_collapse(&text)
 }
 
+/// Encode bytes as base64url (RFC 4648 §5, no padding).
+///
+/// Accepts a Ruby String (binary data) and returns a URL-safe base64 string.
+fn encode_base64(data: RString) -> String {
+    // Safety: we copy the bytes immediately and do not hold the slice
+    // across any Ruby API calls.
+    let bytes = unsafe { data.as_slice() };
+    iscc_lib::encode_base64(bytes)
+}
+
+/// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
+///
+/// Returns a Ruby Array of base32-encoded ISCC-UNIT strings (without prefix).
+fn iscc_decompose(iscc_code: String) -> Result<Vec<String>, Error> {
+    iscc_lib::iscc_decompose(&iscc_code).map_err(to_magnus_err)
+}
+
+/// Encode raw digest components into a base32 ISCC unit string.
+///
+/// Takes integer type identifiers (mtype, stype, version), a bit_length,
+/// and a binary digest String. Returns a base32-encoded ISCC unit string.
+fn encode_component(
+    mtype: u8,
+    stype: u8,
+    version: u8,
+    bit_length: u32,
+    digest: RString,
+) -> Result<String, Error> {
+    // Safety: we copy the bytes immediately and do not hold the slice
+    // across any Ruby API calls.
+    let bytes = unsafe { digest.as_slice() }.to_vec();
+    iscc_lib::encode_component(mtype, stype, version, bit_length, &bytes).map_err(to_magnus_err)
+}
+
+/// Decode an ISCC unit string into header components and raw digest.
+///
+/// Returns a 5-element Ruby Array: `[maintype, subtype, version, length_index, digest_bytes]`
+/// where digest_bytes is a binary Ruby String.
+fn iscc_decode(iscc: String) -> Result<RArray, Error> {
+    let (mt, st, vs, li, digest) = iscc_lib::iscc_decode(&iscc).map_err(to_magnus_err)?;
+    let ruby = Ruby::get().expect("called from Ruby");
+    let arr = ruby.ary_new_capa(5);
+    arr.push(mt)?;
+    arr.push(st)?;
+    arr.push(vs)?;
+    arr.push(li)?;
+    arr.push(RString::from_slice(&digest))?;
+    Ok(arr)
+}
+
+/// Convert a JSON string into a `data:` URL with JCS canonicalization.
+///
+/// Uses `application/ld+json` media type when the JSON contains an `@context`
+/// key, otherwise `application/json`.
+fn json_to_data_url(json: String) -> Result<String, Error> {
+    iscc_lib::json_to_data_url(&json).map_err(to_magnus_err)
+}
+
+/// Run conformance self-test against vendored test vectors.
+///
+/// Returns `true` if all tests pass, `false` if any fail.
+fn conformance_selftest() -> bool {
+    iscc_lib::conformance_selftest()
+}
+
 /// Initialize the IsccLib Ruby module with all bridge functions and constants.
 #[magnus::init]
 fn init(ruby: &Ruby) -> Result<(), Error> {
@@ -88,6 +155,14 @@ fn init(ruby: &Ruby) -> Result<(), Error> {
     module.define_module_function("text_remove_newlines", function!(text_remove_newlines, 1))?;
     module.define_module_function("text_trim", function!(text_trim, 2))?;
     module.define_module_function("text_collapse", function!(text_collapse, 1))?;
+
+    // Codec and encoding functions
+    module.define_module_function("encode_base64", function!(encode_base64, 1))?;
+    module.define_module_function("iscc_decompose", function!(iscc_decompose, 1))?;
+    module.define_module_function("encode_component", function!(encode_component, 5))?;
+    module.define_module_function("iscc_decode", function!(iscc_decode, 1))?;
+    module.define_module_function("json_to_data_url", function!(json_to_data_url, 1))?;
+    module.define_module_function("conformance_selftest", function!(conformance_selftest, 0))?;
 
     // Constants
     module.const_set("META_TRIM_NAME", iscc_lib::META_TRIM_NAME)?;

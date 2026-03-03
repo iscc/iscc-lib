@@ -179,6 +179,13 @@ iterations.
     keyword-arg public API (e.g., `gen_meta_code_v0(name, description: nil, ...)`)
 - Ruby `Result < Hash` enables both `result["iscc"]` and `result.iscc` access via `method_missing`
 - Constants set via `module.const_set("NAME", value)` in Magnus init
+- Binary data: Magnus `String` validates UTF-8 — use `RString` param + `unsafe { data.as_slice() }`
+    for functions accepting arbitrary bytes (e.g., `encode_base64`, `encode_component`). Copy bytes
+    immediately before any Ruby API calls. Return binary data via `RString::from_slice(&bytes)`
+- Returning arrays: use `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays (e.g.,
+    `iscc_decode` returns `[u8, u8, u8, u8, RString]`)
+- 16/32 Tier 1 symbols exposed: gen_meta_code_v0, 4 text utils, 5 constants, encode_base64,
+    iscc_decompose, encode_component, iscc_decode, json_to_data_url, conformance_selftest
 
 ## Gotchas
 
