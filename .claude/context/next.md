@@ -1,121 +1,120 @@
 # Next Work Package
 
-## Step: Add codec, encoding, and diagnostic functions to Ruby bridge
+## Step: Add gen_text/image/audio_code_v0 to Ruby bridge
 
 ## Goal
 
-Expose the 6 non-gen, non-algorithm utility symbols — `encode_base64`, `iscc_decompose`,
-`encode_component`, `iscc_decode`, `json_to_data_url`, and `conformance_selftest` — in the Ruby
-Magnus bridge with smoke tests. This brings the Ruby binding from 10/32 to 16/32 Tier 1 symbols,
-covering all codec/encoding operations and the diagnostic function.
+Add the first batch of 3 gen functions (`gen_text_code_v0`, `gen_image_code_v0`,
+`gen_audio_code_v0`) to the Ruby Magnus bridge, advancing from 16/32 to 19/32 Tier 1 symbols. These
+three share the simplest parameter/return patterns among the gen functions and establish the Result
+class template for the remaining 6.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `crates/iscc-rb/src/lib.rs` — add 6 bridge functions, register in `init()`
-    - `crates/iscc-rb/test/test_smoke.rb` — add smoke tests for each new function
+    - `crates/iscc-rb/src/lib.rs` — add 3 bridge functions + register in `init()`
+    - `crates/iscc-rb/lib/iscc_lib.rb` — add 3 Result classes + 3 Ruby wrapper methods
+    - `crates/iscc-rb/test/test_smoke.rb` — add smoke tests for the 3 new functions
 - **Reference**:
-    - `crates/iscc-py/src/lib.rs` — Python bridge patterns for `encode_base64`, `iscc_decompose`,
-        `encode_component`, `iscc_decode`, `json_to_data_url`, `conformance_selftest`
-    - `crates/iscc-lib/src/lib.rs` — core API signatures (lines 190–283)
-    - `crates/iscc-lib/src/codec.rs` — `encode_base64` (line 442), `iscc_decompose` (line 484)
-    - `crates/iscc-lib/src/conformance.rs` — `conformance_selftest` (line 29)
+    - `crates/iscc-py/src/lib.rs` lines 130-169 — PyO3 equivalents (pattern to follow)
+    - `crates/iscc-lib/src/types.rs` — return type structs (`TextCodeResult`, `ImageCodeResult`,
+        `AudioCodeResult`)
+    - `crates/iscc-lib/src/lib.rs` — core function signatures
 
 ## Not In Scope
 
-- Algorithm primitive functions (`sliding_window`, `alg_simhash`, `alg_minhash_256`,
-    `alg_cdc_chunks`) — these have more complex array-of-array argument types and belong in a
-    subsequent step
-- `soft_hash_video_v0` — needs nested array handling
-- Gen functions (`gen_text_code_v0` through `gen_sum_code_v0`) — each needs a Ruby Result class
-- Streaming types (`DataHasher`, `InstanceHasher`) — need Ruby class wrappers
-- Conformance tests against `data.json` — premature until all 32 symbols are exposed
-- Changes to `lib/iscc_lib.rb` Ruby wrapper — these 6 functions are direct utilities that don't need
-    Result class wrappers or keyword argument adapters
-- CI job or release workflow changes
+- The remaining 6 gen functions (`gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
+    `gen_instance_code_v0`, `gen_iscc_code_v0`, `gen_sum_code_v0`) — separate steps
+- Algorithm primitives (`sliding_window`, `alg_simhash`, etc.) — later batch
+- Streaming types (`DataHasher`, `InstanceHasher`) — later batch
+- Conformance tests against `data.json` — separate step after all 32 symbols are exposed
+- Standard Ruby linting configuration — separate step
+- Ruby CI job or RubyGems release workflow — separate step
 
 ## Implementation Notes
 
-### Bridge functions to add (6 total)
+### Rust bridge functions (lib.rs)
 
-All functions are exposed directly on the `IsccLib` module (no `_` prefix — the underscore prefix
-convention is for gen functions that need Ruby wrapper indirection).
+Follow the exact pattern of existing `gen_meta_code_v0`. Each function:
 
-1. **`encode_base64(data)`** — `String → String`. Accept a Ruby String (which holds binary data),
-    pass `.as_bytes()` to `iscc_lib::encode_base64`. Returns a URL-safe base64 string.
+1. Takes positional parameters matching the core API
+2. Calls the `iscc_lib::gen_*_v0` function, mapping errors via `to_magnus_err`
+3. Builds an `RHash` with string keys matching the Python dict keys
+4. Returns `Result<RHash, Error>`
 
-2. **`iscc_decompose(iscc_code)`** — `String → Array<String>`. Pass to `iscc_lib::iscc_decompose`.
-    Returns a Ruby Array of base32-encoded ISCC unit strings. Map `IsccError` to `RuntimeError`.
+**`gen_text_code_v0(text: String, bits: u32)`**:
 
-3. **`encode_component(mtype, stype, version, bit_length, digest)`** —
-    `(u32, u32, u32, u32, String) → String`. Accept 4 integers + binary String. Cast the integers
-    to `u8`/`u32` as needed. Pass `digest.as_bytes()` to `iscc_lib::encode_component`. Returns a
-    base32 ISCC unit string.
+- Core returns `TextCodeResult { iscc: String, characters: usize }`
+- Hash keys: `"iscc"`, `"characters"`
 
-4. **`iscc_decode(iscc)`** — `String → Array`. Returns a 5-element Ruby Array:
-    `[maintype, subtype, version, length_index, digest_bytes]`. Use `ruby.ary_new_from_values()` or
-    build with `RArray`. The digest is a binary Ruby String. The Python bridge returns
-    `(u8, u8, u8, u8, bytes)`.
+**`gen_image_code_v0(pixels: RString, bits: u32)`**:
 
-5. **`json_to_data_url(json)`** — `String → String`. Pass to `iscc_lib::json_to_data_url`. Returns a
-    `data:` URL string. This function is gated behind `meta-code` feature, which is enabled by
-    default in the `iscc-rb` dependency on `iscc-lib`.
+- Use `RString` for binary data (same pattern as `encode_base64`): `unsafe { pixels.as_slice() }`
+- Core returns `ImageCodeResult { iscc: String }`
+- Hash key: `"iscc"`
 
-6. **`conformance_selftest()`** — `() → bool`. Calls `iscc_lib::conformance_selftest()`. No error
-    mapping needed.
+**`gen_audio_code_v0(cv: Vec<i32>, bits: u32)`**:
 
-### Binary data in Magnus
+- Magnus can convert Ruby Array of integers to `Vec<i32>` automatically
+- Core returns `AudioCodeResult { iscc: String }`
+- Hash key: `"iscc"`
 
-Ruby `String` holds arbitrary binary data. In Magnus:
-
-- **Accepting bytes**: Take `String` parameter and call `.as_bytes()` to get `&[u8]`
-- **Returning bytes**: For `iscc_decode`'s digest, create a Ruby String from `Vec<u8>`. Use Magnus's
-    `RString::from_slice` or equivalent to return binary data. Set encoding to `ASCII-8BIT` (Ruby's
-    binary encoding) if needed.
-
-### Registration pattern
-
-Follow the existing pattern in `init()`:
+Register all three with `_` prefix in `init()`:
 
 ```rust
-// Codec and encoding functions
-module.define_module_function("encode_base64", function!(encode_base64, 1))?;
-module.define_module_function("iscc_decompose", function!(iscc_decompose, 1))?;
-module.define_module_function("encode_component", function!(encode_component, 5))?;
-module.define_module_function("iscc_decode", function!(iscc_decode, 1))?;
-module.define_module_function("json_to_data_url", function!(json_to_data_url, 1))?;
-module.define_module_function("conformance_selftest", function!(conformance_selftest, 0))?;
+module.define_module_function("_gen_text_code_v0", function!(gen_text_code_v0, 2))?;
+module.define_module_function("_gen_image_code_v0", function!(gen_image_code_v0, 2))?;
+module.define_module_function("_gen_audio_code_v0", function!(gen_audio_code_v0, 2))?;
 ```
 
-### Test patterns
+Update the module docstring symbol count: "16 of 32" → "19 of 32", and add these three to the symbol
+list.
 
-Add tests in `test_smoke.rb` following the existing style. Key assertions:
+### Ruby wrapper (lib/iscc_lib.rb)
 
-- `encode_base64("Hello".b)` returns a non-empty String
-- `iscc_decompose("ISCC:...")` returns an Array of Strings
-- `encode_component(0, 0, 0, 64, digest_bytes)` returns a String starting with expected prefix
-- `iscc_decode(some_iscc_code)` returns a 5-element Array with integers and a binary String
-- `json_to_data_url('{"key":"value"}')` returns a String starting with
-    `"data:application/json;base64,"`
-- `conformance_selftest` returns `true`
-- Round-trip: `encode_component` → `iscc_decode` produces matching components
+Add three Result subclasses and three wrapper methods:
 
-### Docstring update
+```ruby
+class TextCodeResult < Result; end
+class ImageCodeResult < Result; end
+class AudioCodeResult < Result; end
 
-Update the module docstring at the top of `lib.rs` to reflect 16 symbols (was 10).
+def self.gen_text_code_v0(text, bits: 64)
+  TextCodeResult[_gen_text_code_v0(text, bits)]
+end
+
+def self.gen_image_code_v0(pixels, bits: 64)
+  ImageCodeResult[_gen_image_code_v0(pixels, bits)]
+end
+
+def self.gen_audio_code_v0(cv, bits: 64)
+  AudioCodeResult[_gen_audio_code_v0(cv, bits)]
+end
+```
+
+### Tests (test_smoke.rb)
+
+Add tests verifying:
+
+- `gen_text_code_v0("Hello World")` returns a Hash with `"iscc"` and `"characters"` keys
+- `gen_text_code_v0("Hello World").iscc` returns a non-empty string starting with "ISCC:"
+- `gen_text_code_v0("Hello World").characters` returns an integer > 0
+- `gen_image_code_v0` with a small pixel buffer (e.g., `"\x00" * 100`) returns Hash with `"iscc"`
+- `gen_audio_code_v0` with a short integer array returns Hash with `"iscc"`
+- All three result types respond to attribute access (`.iscc`)
+- Result types are correct subclass (`TextCodeResult`, `ImageCodeResult`, `AudioCodeResult`)
 
 ## Verification
 
 - `cargo check -p iscc-rb` compiles successfully
-- `cargo clippy -p iscc-rb -- -D warnings` is clean
-- `bundle exec rake compile` succeeds (in `crates/iscc-rb/`)
-- `bundle exec rake test` passes with ≥16 runs (was 10)
-- `bundle exec ruby -e "require 'iscc_lib'; puts IsccLib.conformance_selftest"` prints `true`
-- `bundle exec ruby -e "require 'iscc_lib'; puts IsccLib.iscc_decompose('ISCC:AAAWKLHFXM75OAMK').length"`
-    prints a positive integer
+- `cargo clippy -p iscc-rb -- -D warnings` clean (0 warnings)
+- `bundle exec rake compile` builds native extension (run from `crates/iscc-rb/`)
+- `bundle exec rake test` passes all tests with 0 failures (run from `crates/iscc-rb/`)
+- `bundle exec ruby -e "require 'iscc_lib'; r = IsccLib.gen_text_code_v0('Hello World'); puts r.iscc"`
+    prints an ISCC string starting with "ISCC:"
 
 ## Done When
 
-All 6 new bridge functions are callable from Ruby, smoke tests pass (≥16 test runs), clippy is
-clean, and `conformance_selftest` returns `true` from Ruby.
+All five verification commands pass — the three new gen functions are callable from Ruby with
+keyword arguments and typed Result objects.

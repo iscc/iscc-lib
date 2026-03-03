@@ -99,17 +99,19 @@ iterations.
 
 ## Ruby Bindings — Symbol Implementation Plan
 
-Remaining 22 of 32 Tier 1 symbols to add. Batched by return-type complexity:
+Remaining 16 of 32 Tier 1 symbols (codec/encoding/diagnostic batch done in iter 4). Now by
+complexity:
 
-1. **Codec/Encoding/Diagnostic** (6 symbols, simple types): `encode_base64`, `iscc_decompose`,
-    `encode_component`, `iscc_decode`, `json_to_data_url`, `conformance_selftest` — iter 4
-2. **Algorithm primitives** (5 symbols, array types): `sliding_window`, `alg_simhash`,
+1. **Gen functions batch 1** (3 symbols, simple params): `gen_text_code_v0`, `gen_image_code_v0`,
+    `gen_audio_code_v0` — iter 5 (current)
+2. **Gen functions batch 2** (3 symbols, complex params): `gen_video_code_v0` (nested arrays),
+    `gen_mixed_code_v0` (string arrays), `gen_data_code_v0` (binary data)
+3. **Gen functions batch 3** (3 symbols): `gen_instance_code_v0`, `gen_iscc_code_v0`,
+    `gen_sum_code_v0` (file path)
+4. **Algorithm primitives** (5 symbols, array types): `sliding_window`, `alg_simhash`,
     `alg_minhash_256`, `alg_cdc_chunks`, `soft_hash_video_v0`
-3. **Gen functions** (9 symbols, need Result classes): `gen_text_code_v0` through `gen_sum_code_v0`
-4. **Streaming types** (2 symbols, need Ruby class wrappers): `DataHasher`, `InstanceHasher`
-
-Note: Handoff mentioned `iscc_encode` and `iscc_normalize` but these don't exist in Tier 1 API. The
-actual codec symbols are `iscc_decompose`, `encode_component`, `iscc_decode`.
+5. **Algorithms + streaming** (1 utility + 2 types): `alg_simhash_from_iscc`, `DataHasher`,
+    `InstanceHasher`
 
 ## Ruby Bridge Patterns
 
@@ -125,4 +127,5 @@ actual codec symbols are `iscc_decompose`, `encode_component`, `iscc_decode`.
 - WASM CI regression resolved (iter 2)
 - 2 open issues: Ruby bindings (normal, multi-iteration), README logos (low)
 - Ruby scaffold complete (iter 3): 10/32 symbols
-- Current: Ruby codec/encoding/diagnostic functions (iter 4)
+- Ruby codec/encoding/diagnostic done (iter 4): 16/32 symbols
+- Current: Ruby gen functions batch 1 (iter 5): text/image/audio → 19/32
