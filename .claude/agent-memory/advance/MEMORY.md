@@ -15,11 +15,13 @@ iterations.
 - WASM: `crates/iscc-wasm/src/lib.rs`
 - C FFI: `crates/iscc-ffi/src/lib.rs`
 - JNI: `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
-- Go pure: `packages/go/` — codec.go (types + constants + DecodeResult + codec functions), utils.go,
-    cdc.go, minhash.go, simhash.go, dct.go, wtahash.go, xxh32.go, code_content_text.go,
-    code_meta.go, code_data.go, code_instance.go, code_content_image.go, code_content_audio.go,
-    code_content_video.go, code_content_mixed.go, code_iscc.go, conformance.go (+ test files,
-    testdata/data.json embedded via go:embed). WASM bridge removed — pure Go only
+- Ruby: `crates/iscc-rb/` — src/lib.rs (Magnus bridge), lib/iscc_lib.rb (Ruby wrapper + Result
+    classes), lib/iscc_lib/version.rb, extconf.rb, Rakefile, Gemfile, iscc-lib.gemspec,
+    test/test_smoke.rb. Cargo lib name `iscc_rb` (not `iscc_lib` — matches package name for rb_sys)
+- Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go,
+    xxh32.go, code_content_text.go, code_meta.go, code_data.go, code_instance.go,
+    code_content_image.go, code_content_audio.go, code_content_video.go, code_content_mixed.go,
+    code_iscc.go, conformance.go. WASM bridge removed — pure Go only
 
 ## Build and Tooling
 
@@ -41,18 +43,11 @@ iterations.
 - `iscc-wasm` has `[features] conformance = []` — gates `conformance_selftest` WASM export
 - wasm-pack `--features` must go AFTER the path, NOT after `--`
 
-## Go Pure Go Rewrite (Summary)
+## Go Pure Go (Summary)
 
 - Pure Go in `packages/go/` — all 10 gen functions + codec + algorithms. Zero WASM deps
-- Dependencies: `github.com/zeebo/blake3`, `golang.org/x/text`. Indirect: `cpuid/v2`
-- Go idioms: unexported helpers (lowercase), `var` for arrays/large uint64 (Go const limitations),
-    `[]rune` for Unicode SlidingWindow, generics for `arraySplit[T]`
-- Conformance: `//go:embed testdata/data.json`, per-function tests use
-    `os.ReadFile("../../crates/iscc-lib/tests/data.json")`
 - 155 Go tests total. CI: 4 steps (checkout, setup-go, test, vet) — no Rust deps
-- Go conformance JSON parsing: `parseConformanceData()` in conformance.go uses two-pass parsing
-    (`map[string]json.RawMessage` → skip `_`-prefixed keys → unmarshal sections). Both embedded
-    conformance data and per-function test files use this helper
+- Conformance: `//go:embed testdata/data.json`, `parseConformanceData()` with two-pass parsing
 
 ## gen_sum_code_v0
 
@@ -163,6 +158,27 @@ iterations.
 - Integration tests in `crates/iscc-lib/tests/test_text_utils.rs` also need per-function gating
 - `serde_json` stays as a regular (non-optional) dep because `conformance.rs` uses it for parsing
     `data.json`. Gating it requires restructuring conformance (future work)
+
+## Ruby Bindings (Magnus)
+
+- Magnus 0.7.1 used (not 0.8) — Magnus 0.8 requires Ruby 3.2+, devcontainer has Ruby 3.1.2. Magnus
+    0.7.1 works with Rust edition 2024 and Ruby 3.1
+- `function!` macro does NOT accept `&Ruby` parameter — use `Ruby::get().expect("called from Ruby")`
+    inside the function body to get the Ruby runtime handle
+- rb_sys `ExtensionTask.new("iscc-rb")` — task name must match Cargo package name (not lib name).
+    Binary derived as `"iscc-rb".tr("-", "_")` = `"iscc_rb"`. Cargo `[lib] name` must match
+- `extconf.rb` must be at Cargo manifest directory (crate root), not `ext/iscc_lib/`. rb_sys
+    hardcodes `File.join(cargo_metadata.manifest_directory, "extconf.rb")`
+- Root `.gitignore` has `lib/` pattern (from Python template) — blocks all `lib/` directories. Ruby
+    crate's `.gitignore` needs `!lib/` negation to re-include `crates/iscc-rb/lib/`
+- Bundler must use local vendor path (`bundle config set --local path vendor/bundle`) since system
+    gem path `/var/lib/gems/3.1.0` is not writable by dev user
+- PATH for bundle commands: `/home/dev/.local/share/gem/ruby/3.1.0/bin` must be in PATH
+- `bundle exec rake compile` builds release profile by default (rb_sys sets `RB_SYS_CARGO_PROFILE`)
+- Gen functions prefixed with `_` in Rust bridge (e.g., `_gen_meta_code_v0`), Ruby wrapper provides
+    keyword-arg public API (e.g., `gen_meta_code_v0(name, description: nil, ...)`)
+- Ruby `Result < Hash` enables both `result["iscc"]` and `result.iscc` access via `method_missing`
+- Constants set via `module.const_set("NAME", value)` in Magnus init
 
 ## Gotchas
 

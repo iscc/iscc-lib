@@ -1,0 +1,14 @@
+# Build artifacts
+tmp/
+*.so
+*.bundle
+*.dll
+
+# Bundler vendor directory
+vendor/
+
+# Bundler config
+.bundle/
+
+# Re-include lib/ (overrides root .gitignore pattern)
+!lib/

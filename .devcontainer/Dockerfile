@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     less procps sudo fzf zsh man-db unzip gnupg2 jq nano vim \
     build-essential pkg-config libssl-dev \
     openjdk-17-jdk-headless maven \
-    ruby ruby-dev \
+    ruby ruby-dev libclang-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Go (for Go bindings — version matches packages/go/go.mod)

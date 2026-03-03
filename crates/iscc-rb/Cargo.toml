@@ -1,0 +1,14 @@
+[package]
+name = "iscc-rb"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false               # Published via RubyGems, not crates.io
+
+[lib]
+name = "iscc_rb"
+crate-type = ["cdylib"]
+
+[dependencies]
+iscc-lib = { path = "../iscc-lib" }
+magnus = { workspace = true }
