@@ -12,8 +12,8 @@ patterns natural to their ecosystem.
 
 **Guiding rules:**
 
-- **Zero-friction install**: `cargo add`, `pip install`, `npm install`, `go get`, Maven dependency —
-    one command, no external toolchains or manual library management required
+- **Zero-friction install**: `cargo add`, `pip install`, `npm install`, `go get`, `gem install`,
+    Maven dependency — one command, no external toolchains or manual library management required
 - **Idiomatic API surface**: naming conventions, error handling, types, and patterns follow each
     language's conventions (e.g., `snake_case` in Python/Rust, `camelCase` in JS, `PascalCase` in
     Go/Java, `Result<T>` in Rust, exceptions in Python/Java, `error` returns in Go)
@@ -200,6 +200,47 @@ providing idiomatic, first-class Go access to all ISCC functions. This is a nati
 - `check-added-large-files` threshold at 256KB (no need for inflated limits)
 - `go vet ./...` clean
 
+## Ruby Bindings — `iscc-lib` on RubyGems
+
+A Ruby gem installable from RubyGems as [`iscc-lib`](https://rubygems.org/gems/iscc-lib), providing
+native Rust-powered ISCC functions via Magnus (Rust ↔ Ruby bridge). Ruby developers get
+`gem install iscc-lib` with precompiled native extensions — no Rust toolchain required.
+
+**Architecture:**
+
+- Magnus-based native extension (same pattern as PyO3 for Python — Rust compiles directly into a
+    Ruby C extension, no intermediate C layer)
+- Two-layer design: Rust bridge (`crates/iscc-rb/src/lib.rs`) returns Ruby `Hash` objects, pure Ruby
+    wrapper (`lib/iscc_lib.rb`) provides typed result classes with attribute access
+- Precompiled gems via `rb_sys` + `rake-compiler-dock` for Linux (x86_64, aarch64), macOS (x86_64,
+    arm64), Windows (x64)
+- Source gem available for other platforms (requires Rust toolchain to compile)
+
+Detailed spec: `.claude/context/specs/ruby-bindings.md`
+
+**Account setup required:**
+
+- RubyGems.org account registration and `iscc-lib` gem name reservation
+- OIDC trusted publisher configuration for the `iscc/iscc-lib` repository (RubyGems supports OIDC
+    since 2024), or `GEM_HOST_API_KEY` repository secret as fallback
+
+**DevContainer:** Add `ruby ruby-dev` to the Dockerfile apt-get install (system Ruby 3.1 from Debian
+Bookworm is sufficient for development).
+
+**Verified when:**
+
+- `gem install iscc-lib` succeeds with precompiled native gem (no Rust toolchain needed)
+- All 10 `gen_*_v0` functions return `Hash` with the same keys/values as iscc-core
+- `result["iscc"]` and `result.iscc` both work (Hash + attribute access)
+- Streaming functions accept IO objects (anything with `.read`)
+- Conformance tests pass against vendored `data.json` vectors
+- `bundle exec rake test` passes in CI
+- Precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64, Windows x64)
+- Version synced from root `Cargo.toml` via `mise run version:sync`
+- Per-crate README renders correctly on rubygems.org
+- DevContainer includes Ruby for development
+- Documentation site includes Ruby how-to guide and API reference
+
 ## README
 
 The repository README (`README.md`) is the project's public-facing entry point, written for
@@ -212,14 +253,15 @@ C developers.
 - **Badges**: CI status, crate/package version badges for all published packages
 - **Tagline**: one-line description emphasizing polyglot, high-performance, ISO 24138
 - **Key Features**: similarity-preserving, multi-level identification, self-describing, ISO
-    standardized, polyglot (Rust + Python + Java + Node.js + WASM + C FFI), conformance-tested
+    standardized, polyglot (Rust + Python + Ruby + Java + Go + Node.js + WASM + C FFI),
+    conformance-tested
 - **What is the ISCC**: brief explanation of ISCC purpose and capabilities (reuse iscc-core text)
 - **What is iscc-lib**: explains this is a high-performance polyglot implementation, relationship to
     `iscc-core` reference, and which ecosystems it serves
 - **ISCC Architecture**: architecture diagram (reuse iscc-core diagram or link to docs site)
 - **ISCC MainTypes**: table of main types (reuse from iscc-core)
-- **Installation**: per-language install instructions (Rust/cargo, Python/pip, Java/Maven, Go/go
-    get, Node.js/npm, WASM/npm) — use tabbed or sectioned format
+- **Installation**: per-language install instructions (Rust/cargo, Python/pip, Ruby/gem, Java/Maven,
+    Go/go get, Node.js/npm, WASM/npm) — use tabbed or sectioned format
 - **Quick Start**: minimal code examples showing `gen_meta_code_v0` in each language
 - **Implementors Guide**: link to conformance test vectors and the 9 `gen_*_v0` entry points (same
     list as iscc-core), link to documentation site for detailed per-language guides
@@ -234,7 +276,7 @@ setup, quality gates). Those belong in the documentation site under a Developmen
 **Verified when:**
 
 - README exists and renders correctly on GitHub
-- Contains per-language installation instructions (Rust, Python, Java, Go, Node.js, WASM)
+- Contains per-language installation instructions (Rust, Python, Ruby, Java, Go, Node.js, WASM)
 - Contains per-language quick start code examples
 - Links to documentation site (`lib.iscc.codes`)
 - Does not contain development workflow content (CID loop, dev container, pre-commit hooks)
@@ -255,6 +297,7 @@ must stand alone without requiring the reader to visit the repository.
 | `crates/iscc-py`   | PyPI                       | Python developers       |
 | `crates/iscc-napi` | npm                        | Node.js developers      |
 | `crates/iscc-wasm` | npm                        | Browser/WASM developers |
+| `crates/iscc-rb`   | RubyGems                   | Ruby developers         |
 | `crates/iscc-ffi`  | (not published separately) | C/C# integrators        |
 | `crates/iscc-jni`  | Maven Central              | Java/JVM developers     |
 | `packages/go`      | Go module proxy            | Go developers           |
@@ -299,7 +342,7 @@ Detailed spec: `.claude/context/specs/documentation.md`
 - Site builds and deploys via GitHub Pages
 - ISCC branding (colors, logo, favicon, dark mode) matches iscc-usearch
 - Covers Rust API, Python API, architecture, and per-language how-to guides
-- All code examples use tabbed multi-language format (Python, Rust, Java, Go, Node.js, WASM)
+- All code examples use tabbed multi-language format (Python, Rust, Ruby, Java, Go, Node.js, WASM)
 - Copy-page feature and `llms-full.txt` generation for agent consumption
 - Navigation follows Diátaxis framework (tutorials, howto, explanation, reference)
 - Development section covers: dev container setup, CID workflow, quality gates, project structure
@@ -322,8 +365,9 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 
 **Verified when:**
 
-- All quality gates run automatically on push/PR (Rust, Python, Node.js, WASM, C FFI, Java, Go)
-- `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven) works
+- All quality gates run automatically on push/PR (Rust, Python, Ruby, Node.js, WASM, C FFI, Java,
+    Go)
+- `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven, RubyGems) works
 - Tag push `v*.*.*` triggers all publish jobs
 - crates.io and PyPI publishing via OIDC trusted publishing (no API keys)
 - npm publishing via `NPM_TOKEN` secret for `@iscc/lib` and `@iscc/wasm`
