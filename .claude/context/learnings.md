@@ -47,7 +47,7 @@ fully-met target sections to `learnings-archive.md`.
     content code's SubType (TEXT/IMAGE/AUDIO/VIDEO/MIXED). When no content code is provided, SubType
     is NONE (0). SubType SUM (5) is used for `iscc_sum` (multi-asset aggregation, not in gen_iscc)
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty
-    after prefix = empty bytes. 46 total vectors: 16+5+3+5+3+2+4+3+5
+    after prefix = empty bytes. 50 total vectors (v1.3.0): 20+5+3+5+3+2+4+3+5
 - `soft_hash_meta_v0` interleaves name and description features at the nibble level. Trim lengths
     are in bytes, not characters. The returned bytes are the raw SimHash digest
 - `gen_text_code_v0` uses MinHash (not SimHash) for the content hash portion. `alg_minhash_256`

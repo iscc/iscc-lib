@@ -39,11 +39,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `cargo test -p   iscc-lib` + `cargo clippy -p iscc-lib -- -D warnings` + `mise run check` is
     sufficient — skip Maven/Go/Node/WASM tests
 
-- For Java conformance test reviews: verify vector count matches expected (46 total:
-    16+5+3+5+3+2+4+3+5), check `mvn test` output for 0 failures, compare structure against Node.js
+- For Java conformance test reviews: verify vector count matches expected (50 total, v1.3.0:
+    20+5+3+5+3+2+4+3+5), check `mvn test` output for 0 failures, compare structure against Node.js
     conformance tests in `crates/iscc-napi/__tests__/conformance.test.mjs`
 
-- For Go conformance test reviews: same 46 vector count, check `go test -v` output shows all
+- For Go conformance test reviews: same 50 vector count, check `go test -v` output shows all
     subtests pass, verify memory helpers handle empty/nil inputs correctly
 
 - Clippy workspace check is fast (~2s) after initial build — always run it

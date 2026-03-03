@@ -1,55 +1,49 @@
-## 2026-03-03 — Vendor iscc-core v1.3.0 data.json and fix Go conformance loader
+## 2026-03-03 — Review of: Vendor iscc-core v1.3.0 data.json and fix Go conformance loader
 
-**Done:** Vendored iscc-core v1.3.0 conformance test vectors (50 total, up from 46 — 4 new Meta-Code
-tests) to both Rust and Go test data locations. Fixed Go conformance loader (`conformance.go`) to
-tolerate the new `_metadata` top-level key via two-pass JSON parsing. Also fixed all 9 Go
-per-function test files that had the same parsing pattern, and updated the Rust meta conformance
-test assertion from 16 to 20 expected vectors.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/tests/data.json`: Replaced with v1.3.0 vectors (50 tests, `_metadata` header)
-- `packages/go/testdata/data.json`: Same replacement
-- `packages/go/conformance.go`: Added `parseConformanceData()` helper using
-    `map[string]json.RawMessage` intermediate parsing to skip `_`-prefixed keys; updated
-    `ConformanceSelftest` to use it; updated doc comment from 46 to 50 vectors
-- `crates/iscc-lib/src/lib.rs`: Updated meta conformance test assertion from 16 to 20 expected tests
-- `packages/go/code_meta_test.go`: Replaced inline struct + `json.Unmarshal` with
-    `parseConformanceData()`
-- `packages/go/code_content_text_test.go`: Same fix
-- `packages/go/code_content_image_test.go`: Same fix
-- `packages/go/code_content_audio_test.go`: Same fix
-- `packages/go/code_content_video_test.go`: Same fix
-- `packages/go/code_content_mixed_test.go`: Same fix
-- `packages/go/code_data_test.go`: Same fix
-- `packages/go/code_instance_test.go`: Same fix
-- `packages/go/code_iscc_test.go`: Same fix
+**Summary:** Vendored iscc-core v1.3.0 conformance vectors (50 total, 4 new Meta-Code tests) to both
+Rust and Go test data locations. Fixed Go conformance loader and all 9 per-function test files to
+tolerate the new `_metadata` top-level key via a clean `parseConformanceData()` helper. Updated Rust
+meta conformance assertion from 16 to 20. All tests pass across Rust (314) and Go (155).
 
 **Verification:**
 
-- `cargo test -p iscc-lib`: 314 tests pass (258 lib + 31 integration + 24 text utils + 1 doctest).
-    The 4 new meta vectors are auto-discovered within the existing
-    `test_gen_meta_code_v0_conformance` test function (iterates 20 vectors now)
-- `cargo clippy -p iscc-lib -- -D warnings`: clean
-- `cd packages/go && go test ./...`: all pass (155 tests including 4 new meta vectors)
-- `cd packages/go && go vet ./...`: clean
-- `grep -c 'test_0017\|test_0018\|test_0019\|test_0020' crates/iscc-lib/tests/data.json`: returns 4
-- `grep '_metadata' crates/iscc-lib/tests/data.json`: found
-- `mise run check`: all 14 pre-commit hooks pass
+- [x] `cargo test -p iscc-lib` passes — 314 tests (258+31+24+1), all green. Note: next.md predicted
+    318+ but the 4 new vectors are iterated within the existing single test function, not separate
+    test entries
+- [x] `cargo clippy -p iscc-lib -- -D warnings` — clean
+- [x] `cd packages/go && go test ./...` — passes (155 tests including 4 new meta vectors as
+    subtests)
+- [x] `cd packages/go && go vet ./...` — clean
+- [x] `grep -c 'test_0017\|test_0018\|test_0019\|test_0020' crates/iscc-lib/tests/data.json` —
+    returns 4 (new vectors present)
+- [x] `grep '_metadata' crates/iscc-lib/tests/data.json` — found (confirms v1.3.0)
+- [x] `mise run check` — all 14 pre-commit hooks pass
+- [x] No quality gate circumvention — no lint suppressions, test skips, or threshold changes
+- [x] Both data.json copies are byte-identical (verified with `diff`)
 
-**Next:** The critical iscc-core v1.3.0 conformance issue is now resolved at the data foundation
-level. The Rust core and Go implementation both pass all 50 vectors. Next steps could include:
-verifying that binding conformance tests (Python, Node.js, WASM, Java, C FFI) also pass with the new
-data.json (they should — they access sections by name), or addressing other items from issues.md.
+**Issues found:**
+
+- (none)
+
+**Codex review:** Clean — Codex confirmed the changes correctly handle the `_metadata` key and the
+Rust test expectation update matches the new vector count. No actionable findings.
+
+**Next:** The critical iscc-core v1.3.0 conformance issue is now fully resolved — all 50 vectors
+pass in Rust and Go. Other binding tests (Python, Node.js, WASM, Java, C FFI) access data.json by
+section name and will naturally pick up the new vectors without code changes. Next priority is the
+Ruby bindings implementation (`normal` issue) — scaffold the `iscc-rb` Magnus crate per the spec at
+`.claude/context/specs/ruby-bindings.md`. A good first step would be crate setup (Cargo.toml,
+src/lib.rs skeleton, Gemfile, Rakefile) before implementing the 32 Tier 1 symbols.
 
 **Notes:**
 
-- The Go per-function test files (`code_*_test.go`) had the same `_metadata` parsing issue as
-    `conformance.go` — they used `map[string]map[string]struct{...}` to parse data.json directly via
-    `os.ReadFile`. This was not called out in next.md's scope but was essential to fix — Go tests
-    would fail without it. The fix reuses the new `parseConformanceData()` helper from
-    `conformance.go`, which is DRY and idiomatic
-- Rust conformance.rs needed no changes (uses `serde_json::Value` which ignores unknown keys), but
-    `lib.rs` had a hardcoded assertion `tested == 16` that needed updating to 20
-- The `end-of-file-fixer` hook added trailing newlines to both data.json files during
-    `mise run   format` — the upstream v1.3.0 data.json was missing a final newline
+- The advance agent went slightly beyond next.md scope by fixing 9 Go per-function test files and
+    the lib.rs assertion — both were necessary for tests to pass and the fixes are minimal/correct
+- The `_metadata` key handling in Go uses a well-designed two-pass parsing approach
+    (`parseConformanceData()`) that is reused across all test files (DRY)
+- Other bindings (Python, Node.js, WASM, Java, C FFI) use the updated data.json from
+    `crates/iscc-lib/tests/` and parse by section name — no changes needed
+- `iscc_validate` codec validation tightening and `iscc_nph_compare` from v1.3.0 are not
+    conformance-critical and were correctly deferred

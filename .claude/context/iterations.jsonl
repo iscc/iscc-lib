@@ -695,3 +695,7 @@
 {"ts":"2026-03-03T01:33:06.372543+00:00","iteration":15,"role":"advance","status":"OK","turns":23,"cost_usd":0.479299,"duration_s":132.5}
 {"ts":"2026-03-03T01:36:27.923882+00:00","iteration":15,"role":"review","status":"OK","turns":33,"cost_usd":0.638409,"duration_s":201.5}
 {"ts":"2026-03-03T01:59:26.241376+00:00","iteration":16,"role":"update-state","status":"OK","turns":18,"cost_usd":0.60603,"duration_s":184.7}
+{"ts":"2026-03-03T13:59:15.573356+00:00","iteration":1,"role":"update-state","status":"OK","turns":31,"cost_usd":0.980318,"duration_s":206.0}
+{"ts":"2026-03-03T14:05:51.658158+00:00","iteration":1,"role":"define-next","status":"OK","turns":56,"cost_usd":2.059469,"duration_s":396.1}
+{"ts":"2026-03-03T14:14:39.243141+00:00","iteration":1,"role":"advance","status":"OK","turns":73,"cost_usd":2.309266,"duration_s":527.5}
+{"iteration":1,"phase":"review","timestamp":"2026-03-03T14:19:07Z","verdict":"PASS","step":"Vendor iscc-core v1.3.0 data.json and fix Go conformance loader","summary":"All 50 conformance vectors pass in Rust (314 tests) and Go (155 tests). Go parseConformanceData() helper correctly handles _metadata key. Critical iscc-core v1.3.0 issue resolved."}
