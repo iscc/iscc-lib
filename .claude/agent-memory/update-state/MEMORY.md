@@ -62,26 +62,23 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 5f55123)
+## Current State (assessed-at: b5b4688)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22662032256); 2 `normal`-priority gaps now open
-- **Iter 17 changes** (5f55123, f880841, 73dbadf, 1e5b7a2 since 064a4328):
-    - `alg_cdc_chunks` Rust core now returns `IsccResult` (validates `avg_chunk_size < 2`)
-    - `alg_cdc_chunks_unchecked` added as `pub(crate)` for internal callers
-    - All binding crates updated to handle Result (Python, NAPI, WASM, FFI, JNI, Ruby)
-    - JNI: `avgChunkSize < 2` validation added (was `< 0`)
-    - WASM: wasm-opt upgraded from `-O` to `-O3`
-    - `release.yml`: `cargo test --workspace --exclude iscc-rb`
-    - `crates/iscc-rb/LICENSE` (Apache 2.0) added
-    - `docs/howto/rust.md`: `alg_cdc_chunks` return type corrected
+- **IN_PROGRESS**: all 12 CI jobs green (run 22662906194); 2 `normal`-priority gaps remain
+- **Iter 2 (CID round 2) changes** (b5b4688, e15faff, 800f29d since 5f55123):
+    - Go `AlgCdcChunks` validation added — returns `error` for `avgChunkSize < 2` ✅
+    - `algCdcChunksUnchecked` added for internal callers (DataHasher.Push, code_data.go) ✅
+    - `TestCdcChunksInvalidAvgChunkSize` test added ✅
+    - `docs/howto/go.md` updated — `([][]byte, error)` return type ✅
+    - Go tests: 155 pass
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
 - **Ruby bindings**: MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
-- **CI (run 22662032256)**: ALL SUCCESS — 12 jobs
+- **CI (run 22662906194)**: ALL SUCCESS — 12 jobs
 - **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, rubygems ✅
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
-- **Test counts**: 316 (default; added alg_cdc_chunks validation tests)
-- **Normal-priority gaps now open**:
-    1. Go `AlgCdcChunks` missing `avgChunkSize < 2` validation (`packages/go/cdc.go`)
+- **Test counts (Rust)**: 316 (default features)
+- **Normal-priority gaps remaining**:
+    1. README missing badges: RubyGems (`iscc-rb`), Maven Central (`iscc-jni`), npm `@iscc/wasm`
     2. Release smoke tests before publish (target.md requirement; no implementation yet)
 - **docs/**: 8 howto files; `docs/ruby-api.md` ✅; `docs/c-ffi-api.md` ✅
 - **packages/**: only `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do NOT exist yet
@@ -138,5 +135,6 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     ordering (required for JCS-compatible meta serialization)
 - **alg_cdc_chunks API**: public fn returns `IsccResult<Vec<&[u8]>>` (validates
     `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked` (no validation, always
-    valid constant). All 6 binding crates handle the Result. Go `AlgCdcChunks` has no validation
-    (normal-priority gap).
+    valid constant). All 6 binding crates (Python, NAPI, WASM, FFI, JNI, Ruby) handle the Result. Go
+    `AlgCdcChunks` also validates `avgChunkSize < 2` (returns `error`; internal caller uses
+    `algCdcChunksUnchecked`) — gap now closed.
