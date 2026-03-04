@@ -130,6 +130,15 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 Fixed in Rust core: `alg_cdc_chunks` now panics with a clear message if `avg_chunk_size < 2`. Filed
 upstream: https://github.com/iscc/iscc-core/issues/134
 
+## Go `AlgCdcChunks` missing `avgChunkSize` validation `normal` [human]
+
+`packages/go/cdc.go:AlgCdcChunks` has no validation on `avgChunkSize`. When 0 is passed,
+`algCdcParams` computes degenerate parameters and the chunking loop hangs (same bug as the Rust core
+had). The Rust core now returns `IsccError::InvalidInput` for `avg_chunk_size < 2` — the Go
+implementation should match with an early `error` return.
+
+**Upstream:** https://github.com/iscc/iscc-core/issues/134
+
 ## Add programming language logos to README and docs `low` [human]
 
 Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and
