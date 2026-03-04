@@ -1,47 +1,39 @@
-## 2026-03-04 — Review of: Add RubyGems publish step to release.yml
+## 2026-03-04 — Add Ruby documentation (howto guide, README, root README)
 
-**Verdict:** PASS
+**Done:** Created the Ruby how-to guide at `docs/howto/ruby.md` (422 lines) covering all 10 gen
+functions, streaming API, codec/diagnostics, text utilities, algorithm primitives, constants, and
+error handling. Expanded `crates/iscc-rb/README.md` from a 31-line stub to a 93-line full guide with
+badges, ISCC explanation, installation, quick start, API overview table, and links. Added Ruby
+install and quickstart sections to root `README.md` (after Go, before WASM) and updated the polyglot
+language lists. Added Ruby nav entry to `zensical.toml` after Python.
 
-**Summary:** Added `rubygems` workflow dispatch input, cross-platform `build-gem` job (5 platforms
-via `oxidize-rb/actions/cross-gem@v1`), and `publish-rubygems` job with version-exists idempotency
-check and `GEM_HOST_API_KEY` secret. Clean, well-structured diff that follows the exact pattern of
-the 5 existing registry publish jobs. All 7 verification criteria pass.
+**Files changed:**
 
-**Verification:**
+- `docs/howto/ruby.md`: Created — comprehensive Ruby how-to guide following Go guide structure
+- `crates/iscc-rb/README.md`: Expanded from stub to full guide with badges, API table, links
+- `README.md`: Added Ruby install section, quickstart example, updated language lists in Key
+    Features and What is iscc-lib paragraphs
+- `zensical.toml`: Added `{ "Ruby" = "howto/ruby.md" }` to How-to Guides nav after Python
 
-- [x] `python -c "import yaml; yaml.safe_load(...)"` exits 0 — valid YAML (also confirmed by
-    `check   yaml` pre-commit hook)
-- [x] `grep -c 'rubygems'` returns 5 (≥3 required) — input + job name + two conditions + needs
-- [x] `grep 'publish-rubygems'` finds the publish job
-- [x] `grep 'build-gem'` finds the build job (and its `needs` reference)
-- [x] `grep 'GEM_HOST_API_KEY'` finds the secret reference in the env block
-- [x] `grep 'cross-gem'` finds `oxidize-rb/actions/cross-gem@v1`
-- [x] `grep 'x86_64-linux'` finds the platform in the build matrix
-- [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean (2.84s)
-- [x] No quality gate circumvention in diff
+**Verification:** All 8 verification criteria pass:
 
-**Issues found:**
+- howto guide exists (422 lines, ≥300 required)
+- crate README expanded (93 lines, ≥60 required)
+- `gem install iscc-lib` in root README
+- `ruby.md` in zensical.toml nav
+- howto contains `gen_meta_code_v0`, `DataHasher`, `conformance_selftest`
+- `mise run check` exits 0 — all 14 pre-commit hooks pass
 
-- (none)
-
-**Codex review:** No actionable findings. Codex confirmed the jobs follow the existing tag-or-input
-gating and version-exists skip pattern with no correctness bugs.
-
-**Next:** The Ruby binding issue has 2 remaining infrastructure items: (1) `docs/howto/ruby.md`
-how-to guide + expand `crates/iscc-rb/README.md` from stub to full guide, (2) Ruby section in root
-`README.md`. These are documentation tasks that can be grouped into a single step. Standard Ruby
-linting (`standard` gem) is also listed in state.md but is lower priority than docs.
+**Next:** The Ruby binding issue's documentation deliverables are complete. Remaining items from
+state.md: standard Ruby linting (`standard` gem, `.standard.yml`, CI wiring) — this is lower
+priority infrastructure work. The root README's Go quickstart example still uses the old WASM-bridge
+API (`NewRuntime`, `rt.GenMetaCodeV0`) instead of the pure Go API (`iscc.GenMetaCodeV0`) — this is
+an out-of-scope stale documentation issue.
 
 **Notes:**
 
-- All cross-compilation runs on `ubuntu-latest` via Docker (rake-compiler-dock). No Windows or macOS
-    runners needed for the `build-gem` job.
-- RubyGems uses API key authentication (not OIDC). The `GEM_HOST_API_KEY` environment variable is
-    the standard mechanism `gem push` reads. Human action still required: RubyGems.org account
-    setup, gem name reservation, and API key secret configuration.
-- The `publish-rubygems` job's version check (`curl -sf` to RubyGems API) correctly falls through to
-    publish when the gem doesn't exist yet (404 → curl fails → grep fails → `skip=false`).
-- Source gem is built and pushed alongside precompiled platform gems as a fallback for unsupported
-    platforms.
-- Release workflow now has 6 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems.
+- The howto guide follows the Go guide structure (closest analog: package-level functions, typed
+    results) with Ruby-specific patterns (keyword args, attribute-style access, method chaining).
+- mdformat auto-fixed table column widths on first format run — second run was clean.
+- Root README Go quickstart example is stale (uses WASM-bridge API) — noted for future cleanup but
+    not touched since it's out of scope.
