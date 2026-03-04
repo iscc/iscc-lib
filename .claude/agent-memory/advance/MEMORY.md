@@ -39,6 +39,10 @@ iterations.
 - Go CI uses `actions/setup-go@v5` with `go-version-file: packages/go/go.mod`
 - Version sync: `scripts/version_sync.py` — `--check` mode exits 1 on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
+- Release workflow (`release.yml`): 6 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems).
+    Pattern: boolean input → build job (cross-platform matrix) → publish job (version-exists skip).
+    Ruby uses `oxidize-rb/actions/cross-gem@v1` (all on ubuntu-latest via Docker, not
+    `cross-gem-action` which is archived). `GEM_HOST_API_KEY` for auth (not OIDC)
 
 ## WASM/WASI
 
@@ -53,34 +57,24 @@ iterations.
 
 ## gen_sum_code_v0
 
-- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult>`
-    in `lib.rs`
-- Single-pass file I/O: opens file, reads in `IO_READ_SIZE` chunks, feeds both `DataHasher` and
-    `InstanceHasher`, composes ISCC-CODE via `gen_iscc_code_v0`
-- `SumCodeResult { iscc, datahash, filesize, units }` in `types.rs` — `#[non_exhaustive]`,
-    `units: Option<Vec<String>>` contains `[Data-Code, Instance-Code]` when `add_units` is true
-- File I/O errors mapped to `IsccError::InvalidInput("Cannot open/read file: {e}")`
-- `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring in tests, not
-    field access. `MainType` is `pub(crate)` in `codec` module, not accessible from test module
-- 32nd and final Tier 1 symbol for Rust core — all 32 symbols now implemented
-- All 7 bindings implement `gen_sum_code_v0` with `add_units`/`units` (issue #21 complete): Python
-    (PyO3), Node.js (napi-rs, `i64` filesize), WASM (`f64` filesize, `&[u8]` input), C FFI
-    (NULL-terminated `*mut *mut c_char` for units), JNI (nullable `String[]`), Go (`code_sum.go`,
-    single-pass file I/O)
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` in `lib.rs`. Single-pass
+    file I/O, feeds DataHasher + InstanceHasher, composes via `gen_iscc_code_v0`
+- `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring, not field
+    access. `MainType` is `pub(crate)`, not accessible from test modules
+- All 32 Tier 1 symbols implemented. All 7 bindings implement `gen_sum_code_v0`
 
 ## Benchmarks
 
 - `crates/iscc-lib/benches/benchmarks.rs` — all 10 `gen_*_v0` + DataHasher streaming + CDC chunks
 - `bench_sum_code` uses `tempfile::NamedTempFile` since `gen_sum_code_v0` takes `&Path` (not
     `&[u8]`)
-- Temp files created outside bench closure (setup cost excluded from measurement)
 - `tempfile` is a dev-dependency only (workspace dep `tempfile = "3"`)
 
 ## Codec Internals
 
 - `decode_header` and `decode_varnibble_from_bytes` operate directly on `&[u8]` with bitwise
     extraction — no intermediate `Vec<bool>`. `get_bit`/`extract_bits` helpers (MSB-first)
-- `encode_header` still uses `Vec<bool>` internally (encode path less performance-sensitive)
+- `encode_header` still uses `Vec<bool>` internally (less perf-sensitive)
 
 ## Streaming
 

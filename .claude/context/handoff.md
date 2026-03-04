@@ -1,44 +1,41 @@
-## 2026-03-04 — Review of: Add Ruby gemspec version to version_sync.py
+## 2026-03-04 — Add RubyGems publish step to release.yml
 
-**Verdict:** PASS
+**Done:** Added `rubygems` workflow dispatch input, `build-gem` cross-platform build job using
+`oxidize-rb/actions/cross-gem@v1` (5 platforms: x86_64-linux, aarch64-linux, x86_64-darwin,
+arm64-darwin, x64-mingw-ucrt), and `publish-rubygems` publish job with RubyGems version-exists
+idempotency check and `GEM_HOST_API_KEY` secret. Source gem is built and published alongside
+precompiled platform gems as a fallback.
 
-**Summary:** Added `_get_ruby_version` and `_sync_ruby_version` to `scripts/version_sync.py`,
-registered the `crates/iscc-rb/lib/iscc_lib/version.rb` target in `TARGETS`, and updated the module
-docstring. Clean, minimal diff — follows the exact pattern of existing sync functions. All 4
-verification criteria pass, no quality gate circumvention.
+**Files changed:**
 
-**Verification:**
+- `.github/workflows/release.yml`: Added `rubygems` boolean input, `build-gem` job (5-platform
+    matrix, Docker-based cross-compilation on ubuntu-latest), and `publish-rubygems` job (version
+    check via RubyGems API, artifact download, source gem build, gem push with API key)
 
-- [x] `uv run scripts/version_sync.py --check` exits 0 — all 10 targets OK including Ruby version.rb
-    = 0.1.0
-- [x] `grep -c "version.rb" scripts/version_sync.py` returns 2 — target registered (docstring +
-    TARGETS entry)
-- [x] `uv run scripts/version_sync.py --check 2>&1 | grep "iscc-rb"` shows
-    `OK: crates/iscc-rb/lib/iscc_lib/version.rb = 0.1.0`
-- [x] `mise run check` passes — all 14 pre-commit hooks clean
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean (2.79s)
-- [x] No quality gate circumvention in diff
+**Verification:** All 7 criteria pass — valid YAML, `rubygems` appears 5 times (≥3 required),
+`publish-rubygems` job present, `build-gem` job present, `GEM_HOST_API_KEY` secret referenced,
+`oxidize-rb/actions/cross-gem@v1` action used, `x86_64-linux` platform in matrix. All pre-commit
+hooks pass (`mise run check` clean after yamlfix auto-formatting).
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** One P2 finding — Ruby `VERSION` regex is unanchored and could theoretically match
-other `VERSION`-containing identifiers in version.rb. Risk is negligible because version.rb is a
-controlled single-purpose file with only one `VERSION` constant. The unanchored pattern is
-consistent with other sync functions in the same file (`_get_mise_version`,
-`_get_test_install_version`). No action needed.
-
-**Next:** The Ruby binding issue (issues.md) has 3 remaining infrastructure items before Ruby is
-fully "met": (1) RubyGems publish step in `release.yml`, (2) `docs/howto/ruby.md` how-to guide +
-expand `crates/iscc-rb/README.md`, (3) Ruby section in root `README.md`. Of these, the RubyGems
-release step is the highest-value next step — it enables publishing the gem. Documentation can
-follow after release infrastructure is in place.
+**Next:** The Ruby binding issue has 2 remaining infrastructure items: (1) `docs/howto/ruby.md`
+how-to guide + expand `crates/iscc-rb/README.md`, (2) Ruby section in root `README.md`. These are
+documentation tasks that can be grouped into a single step.
 
 **Notes:**
 
-- Version sync item 5 from the Ruby bindings issue is now complete. State.md gap "version_sync.py
-    does not sync gemspec version" is resolved.
-- The Ruby binding issue should remain open — release, documentation, and README items still
-    pending.
-- 12 CI jobs all green on the latest run.
+- `oxidize-rb/cross-gem-action` (standalone repo) is archived since May 2023. Used the maintained
+    `oxidize-rb/actions/cross-gem@v1` (monorepo action) instead, as recommended by the maintainers.
+- All cross-compilation runs on `ubuntu-latest` via Docker (rake-compiler-dock). No Windows or macOS
+    runners needed for the build-gem job — Docker handles all cross-compilation internally.
+- `ruby-versions: 3.1, 3.2, 3.3` — yamlfix strips quotes from this value (changes `'3.1, 3.2, 3.3'`
+    to `3.1, 3.2, 3.3`). This is fine — the action accepts comma-separated strings and YAML will
+    treat the unquoted value as a string due to commas.
+- The `cross-gem` action outputs `gem-path` pointing to the compiled gem. The path pattern used for
+    artifact upload is `crates/iscc-rb/pkg/*-${{ matrix.platform }}.gem` which matches rb-sys-dock's
+    output convention.
+- `fail-fast: false` on the build matrix ensures all platform builds complete even if one fails
+    (matching the pattern of providing maximum artifacts from a single workflow run).
+- RubyGems API key authentication (not OIDC) is used per next.md spec. The `GEM_HOST_API_KEY`
+    environment variable is the standard mechanism that `gem push` reads automatically.
+- Human action still required: RubyGems.org account setup, gem name reservation, and API key
+    configuration as a GitHub repository secret.
