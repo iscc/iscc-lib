@@ -104,72 +104,28 @@ iterations.
     - `crates/iscc-wasm/tests/conformance.rs` — WASM (missed in iter 1, fixed iter 2)
     - Other bindings don't have hardcoded count assertions (they iterate dynamically)
 
-## Ruby Bindings (Magnus) — Dev Environment
+## Ruby Bindings — COMPLETE (archived to MEMORY-archive.md)
 
-- Ruby 3.1.2 installed in devcontainer (system Ruby from Debian Bookworm)
-- Ruby headers at `/usr/include/ruby-3.1.0` (ruby-dev package)
-- `libclang-dev` NOT installed — needed by rb-sys/bindgen. Must add to Dockerfile
-- `bundler` available via user-install at `~/.local/share/gem/ruby/3.1.0/bin/bundle`
-- `gem install X --user-install` works (system gem dir is read-only)
-- Magnus latest stable: check crates.io. 0.7.x and 0.8.x lines exist
-- PyO3 bridge (iscc-py) is 648 lines for all 32 symbols — Magnus bridge should be similar size
-- New binding crate scaffold: many files to CREATE but only root Cargo.toml to MODIFY (well within
-    3-file limit since creates don't count)
+- Ruby bindings fully met as of iter 13: all 32 symbols, conformance, CI, docs, linting, release
+- Key ref: Magnus 0.7.1, `crates/iscc-rb/`, `docs/ruby-api.md` (781 lines), `docs/howto/ruby.md`
+- `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols
 
-## Ruby Bindings — Infrastructure Remaining
+## Documentation Drift Detection
 
-All 32/32 Tier 1 symbols + conformance tests complete (111 tests, 295 assertions). Remaining:
-
-1. ~~**Conformance tests**~~ — done (iter 7)
-2. ~~**Ruby CI job**~~ — done (iter 8)
-3. ~~**Version sync**~~ — done (iter 9)
-4. ~~**RubyGems release**~~ — done (iter 10)
-5. ~~**Documentation**~~ — done (iter 11): howto, README, root README
-6. ~~**Standard Ruby linting**~~ — done (iter 12): standard gem + CI + pre-commit hooks
-7. **`docs/ruby-api.md`** — API reference page (iter 13 target; last item before Ruby = "met")
-
-Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it.
-
-## Ruby Bridge Patterns
-
-- Gen functions use `_` prefix (e.g., `_gen_meta_code_v0`) with Ruby wrapper providing keyword args
-- Utility/codec functions exposed directly (no prefix, no Ruby wrapper needed)
-- Binary data: Ruby `String` holds bytes; in Magnus use `RString` + `unsafe { .as_slice() }` for
-    input (same safety comment pattern as gen_image/data_code_v0)
-- `iscc_decode` returns tuple → use Ruby Array in Magnus
-- `gen_sum_code_v0` takes a file path String → convert to `std::path::Path` in bridge. Smoke tests
-    need `require "tempfile"` to create temp files
-- `gen_instance_code_v0` accepts `bits` for API consistency but always produces 256-bit output
-- `gen_iscc_code_v0` return type has only `iscc` field (no `units` — that's `gen_sum_code_v0`)
-- `gen_sum_code_v0` return: `units` key only present when `add_units: true` (Option\<Vec<String>>)
-- Algorithm primitives: exposed directly (no `_` prefix, no Ruby wrapper, no result class). Return
-    binary `RString` for byte outputs. `alg_minhash_256` is infallible (no Result). `alg_cdc_chunks`
-    returns `RArray` of binary `RString` (must copy slices to owned). `soft_hash_video_v0` reuses
-    the same `RArray → Vec<Vec<i32>>` pattern as `gen_video_code_v0`
-- Streaming types (`DataHasher`, `InstanceHasher`): use `#[magnus::wrap(class = "...")]` +
-    `RefCell<Option<inner>>` for one-shot finalize. Instance methods use `method!` macro (not
-    `function!`). Register via `define_class` + `define_method`. This is a different Magnus pattern
-    from all 30 prior module functions. Python binding uses same `Option<inner>` pattern in PyO3
+- **Go quickstart in README was completely stale** (used old WASM/wazero runtime pattern, caught
+    iter 14). After major architecture changes (WASM→pure Go), always verify README quickstart
+    snippets against actual function signatures
+- **GenSumCodeV0 4-arg signature**: Go's `GenSumCodeV0(path, bits, wide, addUnits)` has 4 required
+    params. Docs showed 3 args (missing `addUnits`). Always cross-check doc examples against actual
+    Go source signatures in `packages/go/code_*.go`
+- After fixing doc drift, remaining work is ALL low-priority (C#, C++, Swift, Kotlin bindings). CID
+    loop approaches idle state
 
 ## Project Status
 
-- Issue #16 fully resolved (iterations 13-15)
-- v0.1.0 released to all registries
-- WASM CI regression resolved (iter 2)
-- 6 open issues: Ruby bindings (normal), C# (low), C++ (low), Swift (low), Kotlin (low), README
-    logos (low)
-- Ruby scaffold complete (iter 3): 10/32 symbols
-- Ruby codec/encoding/diagnostic done (iter 4): 16/32 symbols
-- Ruby gen batch 1 done (iter 5): text/image/audio → 19/32
-- Ruby gen batch 2 done (iter 6): video/mixed/data → 22/32
-- Ruby gen batch 3 done (iter 8): instance/iscc/sum → 25/32
-- Ruby algo primitives done (iter 9): sliding_window/simhash/minhash/cdc/video → 30/32
-- Ruby streaming types done (iter 10): DataHasher/InstanceHasher → 32/32
-- Ruby conformance tests done (iter 11): 50 vectors, 111 tests total
-- Ruby CI job done (iter 12): 12 CI jobs all green
-- Version sync done (iter 13): version_sync.py Ruby integration
-- RubyGems release done (iter 10): release.yml updated with build-gem + publish-rubygems
-- Ruby docs done (iter 11): howto guide (422 lines), README (93 lines), root README Ruby section
-- Standard Ruby linting done (iter 12): standard gem + CI + pre-commit hooks
-- Current (iter 13): docs/ruby-api.md API reference page (last Ruby gap)
-- After ruby-api.md: Ruby issue can close → Go quickstart stale example fix
+- All critical and normal priority work complete
+- Ruby bindings fully met (iter 13)
+- 5 open issues remaining: C# (low), C++ (low), Swift (low), Kotlin (low), CDC edge case (low),
+    README logos (low)
+- Current (iter 14): Fix stale Go code examples in README + howto guide
+- After Go doc fix: CID loop enters idle state (all remaining gaps are low-priority)

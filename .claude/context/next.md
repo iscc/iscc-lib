@@ -1,87 +1,80 @@
 # Next Work Package
 
-## Step: Create Ruby API reference page
+## Step: Fix stale Go code examples in README and howto guide
 
 ## Goal
 
-Create `docs/ruby-api.md` — the Ruby API reference page listing all 32 Tier 1 public methods with
-signatures, parameter tables, return types, and usage examples. This is the last item required
-before Ruby bindings reach "met" status (spec line 310).
+Fix two verified documentation bugs where Go code examples use outdated function signatures that
+would cause compilation errors for developers following the docs. The README Go quickstart uses a
+completely obsolete WASM-based runtime pattern, and the howto guide's `GenSumCodeV0` example is
+missing a required parameter.
 
 ## Scope
 
-- **Create**: `docs/ruby-api.md`
-- **Modify**: `zensical.toml` (add `{ "Ruby API" = "ruby-api.md" }` to Reference nav section)
+- **Create**: (none)
+- **Modify**:
+    - `README.md` — rewrite Go quickstart section (lines 160-188) to use pure Go package-level
+        function pattern matching the actual `GenMetaCodeV0` signature
+    - `docs/howto/go.md` — fix `GenSumCodeV0` call on line 206 to include the missing `addUnits`
+        parameter
 - **Reference**:
-    - `docs/java-api.md` — primary structural template (677 lines, most comprehensive)
-    - `docs/rust-api.md` — concise style reference (377 lines)
-    - `docs/c-ffi-api.md` — additional pattern reference (745 lines)
-    - `docs/howto/ruby.md` — existing Ruby content, examples, and API surface (422 lines)
-    - `crates/iscc-rb/lib/iscc_lib.rb` — actual Ruby wrapper with method signatures and result classes
+    - `packages/go/code_meta.go` — actual `GenMetaCodeV0` signature:
+        `func GenMetaCodeV0(name string, description, meta *string, bits uint32) (*MetaCodeResult, error)`
+    - `packages/go/code_sum.go` — actual `GenSumCodeV0` signature:
+        `func GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool) (*SumCodeResult, error)`
+    - `docs/howto/go.md` lines 30-50 — correct Go quickstart pattern (use as model for README fix)
 
 ## Not In Scope
 
-- Updating `state.md` — the update-state agent handles that
-- RubyGems account setup or publishing — human action item
-- Fixing the stale Go quickstart example in root README — separate future step
-- Expanding the howto guide — `docs/howto/ruby.md` is already complete (422 lines)
-- Adding Ruby examples to multi-language tabbed sections in other doc pages
+- Rewriting any other language's quickstart examples in the README
+- Adding new Go examples or expanding the Go howto guide beyond the signature fix
+- Creating a `docs/go-api.md` API reference page (no Go API page exists yet — separate step)
+- Updating the Go section format or structure — only fix the code accuracy
 
 ## Implementation Notes
 
-Follow the structural pattern of `docs/java-api.md` (the most complete reference page):
+**README.md Go quickstart** (lines 160-188): The current code shows:
 
-1. **Front matter**: YAML header with `icon: lucide/book-open` and description
+```go
+ctx := context.Background()
+rt, err := iscc.NewRuntime(ctx)
+defer rt.Close(ctx)
+code, err := rt.GenMetaCodeV0(ctx, "ISCC Test Document!", nil, nil, 64)
+```
 
-2. **Introduction**: 2-3 sentences about the Ruby gem, require/install snippet
+This pattern is from when Go used WASM via wazero. The Go bindings are now pure Go with
+package-level functions. Replace with the same pattern used in `docs/howto/go.md` lines 30-35:
 
-3. **Sections** (in this order):
+```go
+result, err := iscc.GenMetaCodeV0("ISCC Test Document!", nil, nil, 64)
+```
 
-    - **Constants** — table with name, type, value, description for all 5 constants
-        (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
-        `TEXT_NGRAM_SIZE`)
-    - **Result Classes** — brief table of the 10 `*CodeResult` classes (subclass of `Hash`),
-        explaining dual access (`result.iscc` and `result["iscc"]`)
-    - **Code Generation Functions** — all 10 `gen_*_v0` functions, each with:
-        - Ruby method signature (keyword args with defaults)
-        - Parameter table (Parameter | Type | Description)
-        - 1-2 sentence description of the algorithm
-        - Short code example
-        - `---` separator between functions
-    - **Text Utilities** — `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
-    - **Encoding & Codec** — `encode_base64`, `json_to_data_url`, `encode_component`,
-        `iscc_decompose`, `iscc_decode`
-    - **Algorithm Primitives** — `sliding_window`, `alg_simhash`, `alg_minhash_256`,
-        `alg_cdc_chunks`, `soft_hash_video_v0`
-    - **Streaming Hashers** — `DataHasher` and `InstanceHasher` with lifecycle examples (new →
-        push/update → finalize)
-    - **Diagnostics** — `conformance_selftest`
-    - **Error Handling** — `IsccLib::Error` exception pattern
+Remove the `"context"` import. Keep the `iscc` import path as
+`github.com/iscc/iscc-lib/packages/go`. Print `result.Iscc` (not bare `code`).
 
-4. **Ruby-specific API details** to get right:
+**docs/howto/go.md line 206**: Change:
 
-    - All functions called as `IsccLib.function_name(...)` (module-level)
-    - Keyword arguments with defaults: `bits: 64`, `add_units: false`, `wide: false`
-    - Result objects: `Hash` subclass with attribute-style access (`result.iscc`)
-    - Binary data: Ruby strings with `.b` encoding
-    - Streaming: `DataHasher.new` / `InstanceHasher.new`, method chaining via `self` return
-    - Constants: `IsccLib::CONSTANT_NAME`
+```go
+result, err := iscc.GenSumCodeV0("example.bin", 64, false)
+```
 
-5. **Do NOT duplicate howto guide content verbatim** — the API reference is terse and technical
-    (signatures + tables + minimal examples). The howto guide has narrative explanations.
+to:
 
-6. Target length: ~500-700 lines (between rust-api.md's 377 and c-ffi-api.md's 745).
+```go
+result, err := iscc.GenSumCodeV0("example.bin", 64, false, false)
+```
+
+This adds the missing `addUnits bool` 4th parameter.
 
 ## Verification
 
-- `test -f docs/ruby-api.md` exits 0 (file exists)
-- `grep -q 'ruby-api.md' zensical.toml` exits 0 (nav entry added)
-- `grep -c 'gen_.*_code_v0' docs/ruby-api.md` returns 10 (all gen functions documented)
-- `grep -c 'IsccLib' docs/ruby-api.md` returns ≥30 (Ruby module referenced throughout)
-- `uv run zensical build 2>&1 | tail -1` contains "Documentation built" (site builds cleanly)
-- `wc -l < docs/ruby-api.md` returns between 400 and 800 (appropriate reference page size)
+- `grep -c 'NewRuntime\|rt\.Close\|rt\.Gen' README.md` returns 0 (no stale runtime pattern)
+- `grep 'GenMetaCodeV0' README.md` shows package-level call matching actual signature
+- `grep 'GenSumCodeV0' docs/howto/go.md` shows 4-argument call matching actual signature
+- `uv run zensical build` exits 0 (docs site builds cleanly)
+- `mise run check` passes (all pre-commit hooks green)
 
 ## Done When
 
-All verification criteria pass — `docs/ruby-api.md` exists with all 32 Tier 1 symbols documented,
-navigation entry is in `zensical.toml`, and the documentation site builds successfully.
+All five verification criteria pass — Go code examples in README.md and docs/howto/go.md match
+actual function signatures in packages/go/.
