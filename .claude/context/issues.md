@@ -125,17 +125,10 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
     install/quickstart
 
-## `alg_cdc_chunks` hangs on `avg_chunk_size=0` `low` [review]
+## ~~`alg_cdc_chunks` hangs on `avg_chunk_size=0`~~ RESOLVED [review]
 
-`alg_cdc_chunks` in `crates/iscc-lib/src/cdc.rs` does not validate `avg_chunk_size`. When 0 is
-passed, `alg_cdc_params` produces degenerate parameters (min=0, max=0, center=0), and
-`alg_cdc_offset` returns 0, causing an infinite loop in the chunking while-loop (`pos` never
-advances). In release mode, `alg_cdc_params` also hits wrapping arithmetic on `bits - 1` underflow.
-This affects all bindings, not just Ruby. The Python reference (`iscc-core`) likely has the same
-behavior. Fix: add an early validation/clamp in the Rust core function.
-
-**HUMAN REVIEW REQUESTED**: Confirm whether upstream `iscc-core` validates `avg_chunk_size` or if
-this should be filed upstream.
+Fixed in Rust core: `alg_cdc_chunks` now panics with a clear message if `avg_chunk_size < 2`. Filed
+upstream: https://github.com/iscc/iscc-core/issues/134
 
 ## Add programming language logos to README and docs `low` [human]
 

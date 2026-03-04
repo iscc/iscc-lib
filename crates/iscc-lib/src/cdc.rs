@@ -168,7 +168,17 @@ pub(crate) fn alg_cdc_offset(
 /// Uses the gear rolling hash CDC algorithm to find content-dependent
 /// boundaries. Returns at least one chunk (empty slice for empty input).
 /// When `utf32` is true, aligns cut points to 4-byte boundaries.
+///
+/// # Panics
+///
+/// Panics if `avg_chunk_size < 2`. The mask calculation requires
+/// `log2(avg_chunk_size) >= 1`.
 pub fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<&[u8]> {
+    assert!(
+        avg_chunk_size >= 2,
+        "avg_chunk_size must be >= 2, got {avg_chunk_size}"
+    );
+
     if data.is_empty() {
         return vec![&data[0..0]];
     }
@@ -347,5 +357,25 @@ mod tests {
         let chunks = alg_cdc_chunks(b"", true, 1024);
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].len(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "avg_chunk_size must be >= 2")]
+    fn test_alg_cdc_chunks_zero_avg_chunk_size() {
+        alg_cdc_chunks(b"hello", false, 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "avg_chunk_size must be >= 2")]
+    fn test_alg_cdc_chunks_one_avg_chunk_size() {
+        alg_cdc_chunks(b"hello", false, 1);
+    }
+
+    #[test]
+    fn test_alg_cdc_chunks_min_valid_avg_chunk_size() {
+        // avg_chunk_size=2 should work without panicking
+        let chunks = alg_cdc_chunks(b"hello world", false, 2);
+        let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
+        assert_eq!(reassembled, b"hello world");
     }
 }
