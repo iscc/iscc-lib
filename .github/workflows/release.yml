@@ -730,6 +730,9 @@ jobs:
           platform: ${{ matrix.platform }}
           ruby-versions: 3.1, 3.2, 3.3
           working-directory: crates/iscc-rb
+          # Pin to 0.9.123 (Ruby 3.4 build tool). The 0.9.124 image has Ruby 4.0
+          # which breaks RbSys::ExtensionTask. Must match rb_sys in Gemfile.lock.
+          tag: 0.9.123
       - name: Upload gem
         uses: actions/upload-artifact@v4
         with:
