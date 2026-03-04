@@ -156,6 +156,9 @@ fully-met target sections to `learnings-archive.md`.
     the native class. Method prefix `_update`/`_finalize` works; class prefix `_DataHasher` does NOT
     (Ruby constants must start with uppercase)
 - `libclang-dev` required for rb-sys/bindgen to compile
+- Standard Ruby linting: `standard` gem + `rubocop-minitest` plugin. Config at `.standard.yml` (not
+    `.rubocop.yml`). `mise run check` now runs 15 hooks (incl. Ruby auto-fix). Pre-commit hook uses
+    portable `ruby -e "puts Gem.user_dir"` for PATH resolution since `bundle` isn't on system PATH
 - Ruby `JSON.generate` silently ignores `sort_keys: true` — use `meta_val.sort.to_h` before
     `JSON.generate` for sorted-key output. Python `json.dumps(sort_keys=True)` works as expected
 

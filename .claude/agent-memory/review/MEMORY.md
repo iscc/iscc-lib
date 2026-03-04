@@ -5,7 +5,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Quality Gate Details
 
-- `mise run check` runs 14 pre-commit hooks (file hygiene, formatting, linting)
+- `mise run check` runs 15 pre-commit hooks (file hygiene, formatting, linting incl. Ruby)
 - Pre-push hooks (clippy, cargo test, pytest, etc.) not in `mise run check` — verify clippy
     separately with `cargo clippy --workspace --all-targets -- -D warnings`
 - Java tests: run `mvn test` explicitly. Go tests: `cd packages/go && mise exec -- go test ./...`
@@ -29,8 +29,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - **Python-only**: `mise run check` + `pytest`
 - **Go-only**: `mise run check` + `cd packages/go && mise exec -- go test ./...`
 - **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` +
-    `pushd crates/iscc-rb && bundle exec rake test; popd` (needs
-    `PATH="$HOME/.local/share/gem/ruby/3.1.0/bin:$PATH"`)
+    `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (needs
+    `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`)
 - **Config-only**: `mise run check` + `cargo check -p <crate>`
 - **CI-only YAML**: `mise run check`
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
@@ -85,3 +85,6 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot
     finalize. Methods use `_` prefix (e.g., `_update`, `_finalize`); class names are unprefixed
     (Ruby constants must start with uppercase). Ruby reopens the native class to add wrappers
+- Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`. Config: `.standard.yml`. Pre-commit
+    hook `files:` pattern is `^crates/iscc-rb/.*\.rb$` — won't trigger on Gemfile/Rakefile alone (CI
+    backstop covers this)
