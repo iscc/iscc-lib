@@ -167,6 +167,18 @@ symbols, and packaging errors before they reach end users.
 downloads the artifact, installs it into a clean environment, runs the binding's conformance test
 suite, and gates the `publish-*` job via `needs: [test-<artifact>]`.
 
+## Ensure all packages have registry badges in global README `normal` [human]
+
+The global `README.md` has registry badges for Rust (crates.io), Python (PyPI), npm (@iscc/lib), and
+Go (pkg.go.dev), but is missing badges for:
+
+- **RubyGems** (`iscc-rb`) — add `img.shields.io/gem/v/iscc-rb` badge
+- **Maven Central** (`iscc-jni`) — add Maven Central version badge
+- **npm @iscc/wasm** — add `img.shields.io/npm/v/@iscc/wasm` badge
+
+Individual crate/package READMEs already have appropriate badges. The global README should link to
+all published registries so users can quickly find their platform's package.
+
 ## Add programming language logos to README and docs `low` [human]
 
 Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and
