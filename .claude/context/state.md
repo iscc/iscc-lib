@@ -1,4 +1,4 @@
-<!-- assessed-at: 6b80089de1d4aa8e77efd14ac4c5794be4b86200 -->
+<!-- assessed-at: 4831d12ad2479bda2b622d0883c31ac6d396d7b0 -->
 
 # Project State
 
@@ -6,10 +6,9 @@
 
 ## Phase: All normal-priority gaps resolved; only low-priority bindings remain
 
-All 12 CI jobs pass (run 22666893212). Release smoke tests are implemented across all 6 publish
-pipelines — the sole `normal`-priority gap from the previous iteration is resolved. The only
-remaining open issues are `low`-priority (C#, C++, Swift, Kotlin bindings; language logos in
-README/docs); the CID loop skips these by policy.
+All 12 CI jobs pass (run 22667738685). No codebase changes since last assessment — only `.claude/`
+context files updated. The sole remaining open issues are `low`-priority (C#, C++, Swift, Kotlin
+bindings; language logos in README/docs); the CID loop skips these by policy.
 
 ## Rust Core Crate
 
@@ -48,7 +47,7 @@ README/docs); the CID loop skips these by policy.
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22666893212 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22667738685 ✅
 
 ## C FFI
 
@@ -166,10 +165,10 @@ README/docs); the CID loop skips these by policy.
 
 **Status**: met
 
-- **ALL PASSING** — latest CI run 22666893212: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22666893212
-- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
-    Java, Go, Bench, Ruby — all SUCCESS ✅
+- **ALL PASSING** — latest CI run 22667738685: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22667738685
+- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest), Node.js, WASM, C
+    FFI, Java, Go, Bench, Ruby — all SUCCESS ✅
 - `release.yml` has 6 registry `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
     RubyGems ✅
 - **6 smoke test jobs implemented** — each gates its publish job ✅:
@@ -185,8 +184,9 @@ README/docs); the CID loop skips these by policy.
 
 ## Next Milestone
 
-All `normal`-priority and `critical`-priority gaps are resolved. CI is fully green. The only
-remaining open issues are `low`-priority (CID loop skips these by policy):
+All `normal`-priority and `critical`-priority gaps are resolved. CI is fully green (3 consecutive
+successful runs). The only remaining open issues are `low`-priority (CID loop skips these by
+policy):
 
 1. C# / .NET bindings (`packages/dotnet/`)
 2. C++ header-only wrapper (`packages/cpp/`)
