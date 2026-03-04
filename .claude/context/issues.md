@@ -125,34 +125,6 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
     install/quickstart
 
-## Add release smoke tests for all binding publish pipelines `normal` [human]
-
-The release workflow (`release.yml`) builds platform-specific artifacts (wheels, gems, napi addons,
-JARs, WASM packages, FFI tarballs) but publishes most of them without verifying they actually work.
-Only `publish-crates-io` runs `cargo test` before publishing. All other pipelines go straight from
-build to push.
-
-Add a smoke-test job between each build and publish stage that installs the built artifact and runs
-the binding's conformance tests against it. This catches cross-compilation failures, missing
-symbols, and packaging errors before they reach end users.
-
-**Affected pipelines (missing smoke tests):**
-
-- **PyPI** (`build-wheels` → `publish-pypi`): install wheel, run `pytest` conformance
-- **npm @iscc/lib** (`build-napi` → `publish-npm-lib`): install `.node` addon, run `npm test`
-- **npm @iscc/wasm** (`build-wasm` → `publish-npm-wasm`): install WASM pkg, run conformance
-- **RubyGems** (`build-gem` → `publish-rubygems`): install x86_64-linux gem, run `rake test`
-- **Maven Central** (`build-jni` → `publish-maven`): install JAR with native libs, run `mvn test`
-- **FFI** (`build-ffi` → `publish-ffi`): compile and run C test program against built shared library
-
-**Not affected:**
-
-- **crates.io** (`publish-crates-io`): already runs `cargo test --workspace` before publish
-
-**Implementation pattern** (per pipeline): add a `test-<artifact>` job that `needs: [build-*]`,
-downloads the artifact, installs it into a clean environment, runs the binding's conformance test
-suite, and gates the `publish-*` job via `needs: [test-<artifact>]`.
-
 ## Add programming language logos to README and docs `low` [human]
 
 Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and

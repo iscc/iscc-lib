@@ -82,6 +82,14 @@ fully-met target sections to `learnings-archive.md`.
     `grep`, `sed`) MUST specify `shell: bash`. Existing publish jobs avoid this by only running
     version extraction on `ubuntu-latest`, but per-matrix version steps (like in `build-ffi`) hit
     Windows. Always check `shell:` declarations when adding `run:` steps to cross-platform matrices
+- **Release pipeline pattern**: boolean input → build job → smoke test job → publish job. 6 smoke
+    test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish. Each
+    tests linux-x86_64 artifact on ubuntu-latest
+- **WASM conformance_selftest**: requires `--features conformance` in `wasm-pack build` — the export
+    is gated behind `#[cfg(feature = "conformance")]` in the WASM crate. NAPI and Python export it
+    unconditionally
+- **NAPI js_name**: binding uses `#[napi(js_name = "conformance_selftest")]` — snake_case is
+    preserved in the raw .node export. Smoke test can `require()` the .node file directly
 
 ## Branching
 
