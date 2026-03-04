@@ -1,46 +1,37 @@
-## 2026-03-04 — Review of: Configure Standard Ruby linting
+## 2026-03-04 — Create Ruby API reference page
 
-**Verdict:** PASS
+**Done:** Created `docs/ruby-api.md` — the Ruby API reference page documenting all 32 Tier 1 public
+symbols (5 constants, 10 gen functions, 4 text utilities, 5 encoding/codec functions, 5 algorithm
+primitives, 2 streaming hashers, 1 diagnostic function). Added `{ "Ruby API" = "ruby-api.md" }` nav
+entry to `zensical.toml` under the Reference section.
 
-**Summary:** Standard Ruby linting fully configured with `.standard.yml`, `rubocop-minitest` plugin,
-CI enforcement, and both pre-commit (auto-fix) and pre-push (check) hooks. Eight mechanical lint
-fixes across test files are correct and semantically equivalent. All verification criteria pass —
-`standardrb` exits 0, 111 tests / 299 assertions pass, `mise run check` shows 15 hooks green, clippy
-clean.
+**Files changed:**
+
+- `docs/ruby-api.md`: Created — 780-line API reference with method signatures, parameter tables,
+    return types, code examples, result classes table, constants table, and error handling section.
+    Follows the structural pattern of `docs/java-api.md` adapted for Ruby conventions (keyword
+    arguments, module-level methods, Hash subclass results).
+- `zensical.toml`: Added `{ "Ruby API" = "ruby-api.md" }` to the Reference nav section after Java
+    API.
 
 **Verification:**
 
-- [x] `bundle exec standardrb` exits 0 — all Ruby files pass linting
-- [x] `bundle exec rake test` — 111 runs, 299 assertions, 0 failures, 0 errors, 0 skips
-- [x] `grep 'standard' crates/iscc-rb/Gemfile` — finds `gem "standard", "~> 1.0"`
-- [x] `test -f crates/iscc-rb/.standard.yml` — config file exists (3 lines: plugins + ignore)
-- [x] `grep 'standardrb' .pre-commit-config.yaml` — finds both `standardrb-fix` and `standardrb`
-- [x] `grep 'standardrb' .github/workflows/ci.yml` — finds `Run standardrb` step
-- [x] `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` — clean
-- [x] `mise run check` — all 15 pre-commit hooks pass (including new Ruby linting hook)
-- [x] No quality gate circumvention in diff — hooks added, not weakened
+- `test -f docs/ruby-api.md` → PASS (file exists)
+- `grep -q 'ruby-api.md' zensical.toml` → PASS (nav entry found)
+- `grep -c 'gen_.*_code_v0' docs/ruby-api.md` → 46 (≥10, all gen functions documented multiple times
+    across signatures, tables, result classes)
+- `grep -c 'IsccLib' docs/ruby-api.md` → 78 (≥30, Ruby module referenced throughout)
+- `wc -l < docs/ruby-api.md` → 780 (within 400-800 range)
+- `uv run zensical build` → "Build finished in 4.42s" (site builds cleanly, `/ruby-api/` appears in
+    output)
+- `mise run check` → all 15 hooks pass (including mdformat, TOML check)
 
-**Issues found:**
+**Next:** With the Ruby API reference page complete, the Ruby bindings should now meet all spec
+requirements (spec line 310). Remaining items: (1) RubyGems account setup (human action), (2) root
+README Go quickstart example is stale (uses old WASM-bridge API).
 
-- (none)
-
-**Codex review:** Codex flagged that the `files: ^crates/iscc-rb/.*\.rb$` pattern won't trigger
-hooks for `Gemfile`/`Rakefile` (no `.rb` suffix). Technically correct: if ONLY `Gemfile` is edited,
-the hook won't fire. However, the hook uses `pass_filenames: false` so when it does run (any `.rb`
-change in the same commit), it checks all files including `Gemfile`/`Rakefile`. CI runs `standardrb`
-unconditionally as the ultimate backstop. Low-impact — `Gemfile`/`Rakefile` changes are rare and
-typically paired with `.rb` changes.
-
-**Next:** The Ruby bindings are now substantially complete with linting. Remaining Ruby items: (1)
-`docs/ruby-api.md` API reference page (spec line 310), (2) RubyGems account setup (human action).
-Non-Ruby: the root README Go quickstart example is stale (uses old WASM-bridge API).
-
-**Notes:**
-
-- Pre-commit hook count is now 15 (was 14) — update any documentation referencing the count.
-- next.md predicted 295 assertions but actual count is 299. The difference comes from Minitest
-    counting `refute_includes` / `refute_empty` differently than the manual `refute x.include?` /
-    `refute x.empty?` they replaced.
-- The Ruby linting item from state.md "Missing" list is now addressed. After `docs/ruby-api.md` is
-    created, Ruby can move from "partially met" to "met" (assuming linting is also reflected in
-    state.md).
+**Notes:** No surprises. The page is 780 lines, near the upper end of the 400-800 target range. This
+is due to the Ruby API having keyword arguments on gen functions and result class documentation that
+Java doesn't need (Java uses positional args and a single decode result class). The howto guide
+error section says `RuntimeError` (not a custom error class) which matches the actual Magnus bridge
+implementation.

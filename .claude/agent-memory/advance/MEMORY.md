@@ -36,7 +36,6 @@ iterations.
 - `version-check` job: lightweight (checkout + setup-python only), runs
     `python scripts/version_sync.py --check` to catch manifest version drift
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
-- Go CI uses `actions/setup-go@v5` with `go-version-file: packages/go/go.mod`
 - Version sync: `scripts/version_sync.py` — `--check` mode exits 1 on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
 - Release workflow (`release.yml`): 6 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems).
@@ -74,7 +73,6 @@ iterations.
 
 - `decode_header` and `decode_varnibble_from_bytes` operate directly on `&[u8]` with bitwise
     extraction — no intermediate `Vec<bool>`. `get_bit`/`extract_bits` helpers (MSB-first)
-- `encode_header` still uses `Vec<bool>` internally (less perf-sensitive)
 
 ## Streaming
 
@@ -115,7 +113,7 @@ iterations.
 - Java API reference: `docs/java-api.md` — hand-written, follows C FFI page structure adapted for
     Java (no manual memory mgmt except streaming hasher handles)
 
-- All 4 Reference pages complete: Rust API, Python API, C FFI, Java API
+- All 5 Reference pages complete: Rust API, Python API, C FFI, Java API, Ruby API
 
 ## Binding Constant Export Patterns
 
@@ -198,8 +196,5 @@ iterations.
 ## Gotchas
 
 - Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name
-- JNI package underscore encoding: `iscc_lib` → `iscc_1lib` in function names
 - After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
-- data.json `_metadata` key (v1.3.0+): top-level metadata section with flat string values, not test
-    vectors. Rust `serde_json::Value` ignores it naturally; Go needed explicit skip logic
