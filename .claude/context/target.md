@@ -369,6 +369,8 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 - npm publishing via `NPM_TOKEN` secret for `@iscc/lib` and `@iscc/wasm`
 - Maven Central publishing via GPG signing + Sonatype Central Portal credentials
 - Publishing an already-published version skips gracefully
+- Release workflow smoke-tests built artifacts before publishing (install the built package and run
+    conformance tests on it)
 - All CI workflows green
 - All packages share coordinated version from root `Cargo.toml`
 - `mise run version:sync` propagates version to all 12 sync targets

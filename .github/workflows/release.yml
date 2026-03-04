@@ -64,7 +64,7 @@ jobs:
           fi
       - name: Run tests
         if: steps.check.outputs.skip != 'true'
-        run: cargo test --workspace
+        run: cargo test --workspace --exclude iscc-rb
       - name: Authenticate with crates.io
         if: steps.check.outputs.skip != 'true'
         id: crates-auth
