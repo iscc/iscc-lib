@@ -62,12 +62,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 815045f)
+## Current State (assessed-at: 0be8bda)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22668622839); **0 normal-priority gaps remain**
-- **Iter 7 (CID round 7)**: no codebase changes — idle iteration (only .claude/ context files)
+- **IN_PROGRESS**: all 12 CI jobs green (run 22669472925); **0 normal-priority gaps remain**
+- **Iter 8 (CID round 8)**: no codebase changes — idle iteration (only .claude/ context files)
 - **Only low-priority gaps remain**: C#, C++, Swift, Kotlin bindings; language logos — CID skips
-- **CI (run 22668622839)**: ALL SUCCESS — 12 jobs (5+ consecutive green runs)
+- **CI (run 22669472925)**: ALL SUCCESS — 12 jobs (6+ consecutive green runs)
 - **release.yml**: 6 checkboxes + 6 smoke test jobs: test-wheels/napi/wasm/jni/ffi/gem ✅
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **Test counts (Rust)**: 316 (default features)
