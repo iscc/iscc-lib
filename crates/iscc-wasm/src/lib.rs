@@ -399,6 +399,7 @@ pub fn alg_cdc_chunks(
 ) -> Result<JsValue, JsError> {
     let avg = avg_chunk_size.unwrap_or(1024);
     let chunks: Vec<Vec<u8>> = iscc_lib::alg_cdc_chunks(data, utf32, avg)
+        .map_err(|e| JsError::new(&e.to_string()))?
         .iter()
         .map(|c| c.to_vec())
         .collect();

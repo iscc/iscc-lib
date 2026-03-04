@@ -326,7 +326,7 @@ fn alg_cdc_chunks(data: RString, utf32: bool, avg_chunk_size: u32) -> Result<RAr
     // Safety: the slice is passed directly to a pure Rust function
     // and not held across any Ruby API calls that could trigger GC.
     let bytes = unsafe { data.as_slice() };
-    let chunks = iscc_lib::alg_cdc_chunks(bytes, utf32, avg_chunk_size);
+    let chunks = iscc_lib::alg_cdc_chunks(bytes, utf32, avg_chunk_size).map_err(to_magnus_err)?;
     let ruby = Ruby::get().expect("called from Ruby");
     let arr = ruby.ary_new_capa(chunks.len());
     for chunk in chunks {

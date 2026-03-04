@@ -492,11 +492,12 @@ fn alg_minhash_256(features: Vec<u32>) -> Vec<u8> {
 /// is true, aligns cut points to 4-byte boundaries.
 #[pyfunction]
 #[pyo3(signature = (data, utf32, avg_chunk_size=1024))]
-fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<Vec<u8>> {
-    iscc_lib::alg_cdc_chunks(data, utf32, avg_chunk_size)
+fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> PyResult<Vec<Vec<u8>>> {
+    Ok(iscc_lib::alg_cdc_chunks(data, utf32, avg_chunk_size)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?
         .into_iter()
         .map(|c| c.to_vec())
-        .collect()
+        .collect())
 }
 
 /// Compute a similarity-preserving hash from video frame signatures.

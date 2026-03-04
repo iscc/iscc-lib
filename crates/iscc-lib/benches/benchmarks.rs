@@ -268,7 +268,7 @@ fn bench_cdc_chunks(c: &mut Criterion) {
         };
         group.throughput(Throughput::Bytes(size as u64));
         group.bench_with_input(BenchmarkId::new("throughput", label), &data, |b, data| {
-            b.iter(|| alg_cdc_chunks(black_box(data), black_box(false), black_box(1024)))
+            b.iter(|| alg_cdc_chunks(black_box(data), black_box(false), black_box(1024)).unwrap())
         });
     }
 

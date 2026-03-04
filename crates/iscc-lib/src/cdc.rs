@@ -4,6 +4,8 @@
 //! Splits byte data into variable-size chunks with content-dependent boundaries,
 //! enabling similarity detection across different versions of binary data.
 
+use crate::{IsccError, IsccResult};
+
 /// Gear rolling hash lookup table (256 entries).
 ///
 /// Fixed constant from iscc-core `cdc_gear` option. Each byte value maps to
@@ -169,16 +171,28 @@ pub(crate) fn alg_cdc_offset(
 /// boundaries. Returns at least one chunk (empty slice for empty input).
 /// When `utf32` is true, aligns cut points to 4-byte boundaries.
 ///
-/// # Panics
+/// # Errors
 ///
-/// Panics if `avg_chunk_size < 2`. The mask calculation requires
-/// `log2(avg_chunk_size) >= 1`.
-pub fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> Vec<&[u8]> {
-    assert!(
-        avg_chunk_size >= 2,
-        "avg_chunk_size must be >= 2, got {avg_chunk_size}"
-    );
+/// Returns `IsccError::InvalidInput` if `avg_chunk_size < 2`. The mask
+/// calculation requires `log2(avg_chunk_size) >= 1`.
+pub fn alg_cdc_chunks(data: &[u8], utf32: bool, avg_chunk_size: u32) -> IsccResult<Vec<&[u8]>> {
+    if avg_chunk_size < 2 {
+        return Err(IsccError::InvalidInput(format!(
+            "avg_chunk_size must be >= 2, got {avg_chunk_size}"
+        )));
+    }
+    Ok(alg_cdc_chunks_unchecked(data, utf32, avg_chunk_size))
+}
 
+/// Split data into content-defined chunks without validating `avg_chunk_size`.
+///
+/// Internal helper used by `DataHasher` and `gen_data_code_v0` where the
+/// chunk size is always the validated constant `DATA_AVG_CHUNK_SIZE`.
+pub(crate) fn alg_cdc_chunks_unchecked(
+    data: &[u8],
+    utf32: bool,
+    avg_chunk_size: u32,
+) -> Vec<&[u8]> {
     if data.is_empty() {
         return vec![&data[0..0]];
     }
@@ -252,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_alg_cdc_chunks_empty() {
-        let chunks = alg_cdc_chunks(b"", false, 1024);
+        let chunks = alg_cdc_chunks(b"", false, 1024).unwrap();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].len(), 0);
     }
@@ -261,7 +275,7 @@ mod tests {
     fn test_alg_cdc_chunks_small_data() {
         // Data smaller than min_size → one chunk containing all data
         let data = vec![42u8; 100];
-        let chunks = alg_cdc_chunks(&data, false, 1024);
+        let chunks = alg_cdc_chunks(&data, false, 1024).unwrap();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].len(), 100);
     }
@@ -270,7 +284,7 @@ mod tests {
     fn test_alg_cdc_chunks_reassembly() {
         // Chunks must reassemble to original data
         let data: Vec<u8> = (0..=255).cycle().take(4096).collect();
-        let chunks = alg_cdc_chunks(&data, false, 1024);
+        let chunks = alg_cdc_chunks(&data, false, 1024).unwrap();
         let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
         assert_eq!(reassembled, data);
     }
@@ -278,8 +292,8 @@ mod tests {
     #[test]
     fn test_alg_cdc_chunks_deterministic() {
         let data: Vec<u8> = (0..=255).cycle().take(4096).collect();
-        let chunks1 = alg_cdc_chunks(&data, false, 1024);
-        let chunks2 = alg_cdc_chunks(&data, false, 1024);
+        let chunks1 = alg_cdc_chunks(&data, false, 1024).unwrap();
+        let chunks2 = alg_cdc_chunks(&data, false, 1024).unwrap();
         assert_eq!(chunks1.len(), chunks2.len());
         for (a, b) in chunks1.iter().zip(chunks2.iter()) {
             assert_eq!(a, b);
@@ -290,7 +304,7 @@ mod tests {
     fn test_alg_cdc_chunks_multiple_chunks() {
         // Large data produces multiple chunks
         let data: Vec<u8> = (0..=255).cycle().take(8192).collect();
-        let chunks = alg_cdc_chunks(&data, false, 1024);
+        let chunks = alg_cdc_chunks(&data, false, 1024).unwrap();
         assert!(
             chunks.len() > 1,
             "expected multiple chunks, got {}",
@@ -304,7 +318,7 @@ mod tests {
         // Primary regression test for the infinite loop bug where
         // cut_point % 4 == cut_point reduced cut_point to 0.
         let data = [0xAA, 0xBB, 0xCC];
-        let chunks = alg_cdc_chunks(&data, true, 1024);
+        let chunks = alg_cdc_chunks(&data, true, 1024).unwrap();
         assert!(!chunks.is_empty(), "must return at least one chunk");
         let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
         assert_eq!(reassembled, data);
@@ -314,7 +328,7 @@ mod tests {
     fn test_alg_cdc_chunks_utf32_exact_4_bytes() {
         // Exactly 4 bytes with utf32=true must return one 4-byte chunk.
         let data = [0x01, 0x02, 0x03, 0x04];
-        let chunks = alg_cdc_chunks(&data, true, 1024);
+        let chunks = alg_cdc_chunks(&data, true, 1024).unwrap();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0], &data[..]);
     }
@@ -323,7 +337,7 @@ mod tests {
     fn test_alg_cdc_chunks_utf32_7_bytes() {
         // 7 bytes (4+3) with utf32=true verifies non-aligned tail handling.
         let data = [0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70];
-        let chunks = alg_cdc_chunks(&data, true, 1024);
+        let chunks = alg_cdc_chunks(&data, true, 1024).unwrap();
         assert!(!chunks.is_empty(), "must return at least one chunk");
         let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
         assert_eq!(reassembled, data);
@@ -335,7 +349,7 @@ mod tests {
         // and all chunks except possibly the last must be 4-byte aligned.
         let data: Vec<u8> = (0..=255).cycle().take(4096).collect();
         assert_eq!(data.len() % 4, 0, "test data must be 4-byte aligned");
-        let chunks = alg_cdc_chunks(&data, true, 1024);
+        let chunks = alg_cdc_chunks(&data, true, 1024).unwrap();
         let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
         assert_eq!(reassembled, data);
         // All chunks except the last must be 4-byte aligned
@@ -354,27 +368,26 @@ mod tests {
     #[test]
     fn test_alg_cdc_chunks_utf32_empty() {
         // Empty input with utf32=true must not loop and must return one empty chunk.
-        let chunks = alg_cdc_chunks(b"", true, 1024);
+        let chunks = alg_cdc_chunks(b"", true, 1024).unwrap();
         assert_eq!(chunks.len(), 1);
         assert_eq!(chunks[0].len(), 0);
     }
 
     #[test]
-    #[should_panic(expected = "avg_chunk_size must be >= 2")]
     fn test_alg_cdc_chunks_zero_avg_chunk_size() {
-        alg_cdc_chunks(b"hello", false, 0);
+        let err = alg_cdc_chunks(b"hello", false, 0).unwrap_err();
+        assert!(err.to_string().contains("avg_chunk_size must be >= 2"));
     }
 
     #[test]
-    #[should_panic(expected = "avg_chunk_size must be >= 2")]
     fn test_alg_cdc_chunks_one_avg_chunk_size() {
-        alg_cdc_chunks(b"hello", false, 1);
+        let err = alg_cdc_chunks(b"hello", false, 1).unwrap_err();
+        assert!(err.to_string().contains("avg_chunk_size must be >= 2"));
     }
 
     #[test]
     fn test_alg_cdc_chunks_min_valid_avg_chunk_size() {
-        // avg_chunk_size=2 should work without panicking
-        let chunks = alg_cdc_chunks(b"hello world", false, 2);
+        let chunks = alg_cdc_chunks(b"hello world", false, 2).unwrap();
         let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
         assert_eq!(reassembled, b"hello world");
     }

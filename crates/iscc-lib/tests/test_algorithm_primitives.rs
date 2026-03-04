@@ -173,7 +173,7 @@ fn test_alg_minhash_256_different_features_different_digests() {
 fn test_alg_cdc_chunks_basic_chunking() {
     // Known data of sufficient size produces multiple chunks
     let data: Vec<u8> = (0..=255).cycle().take(8192).collect();
-    let chunks = iscc_lib::alg_cdc_chunks(&data, false, 1024);
+    let chunks = iscc_lib::alg_cdc_chunks(&data, false, 1024).unwrap();
     assert!(
         chunks.len() > 1,
         "expected multiple chunks, got {}",
@@ -184,7 +184,7 @@ fn test_alg_cdc_chunks_basic_chunking() {
 #[test]
 fn test_alg_cdc_chunks_empty_input() {
     // Empty input returns a single empty chunk
-    let chunks = iscc_lib::alg_cdc_chunks(b"", false, 1024);
+    let chunks = iscc_lib::alg_cdc_chunks(b"", false, 1024).unwrap();
     assert_eq!(chunks.len(), 1);
     assert_eq!(chunks[0].len(), 0);
 }
@@ -193,7 +193,7 @@ fn test_alg_cdc_chunks_empty_input() {
 fn test_alg_cdc_chunks_reassembly() {
     // Concatenating chunks must reproduce the original data
     let data: Vec<u8> = (0..=255).cycle().take(4096).collect();
-    let chunks = iscc_lib::alg_cdc_chunks(&data, false, 1024);
+    let chunks = iscc_lib::alg_cdc_chunks(&data, false, 1024).unwrap();
     let reassembled: Vec<u8> = chunks.iter().flat_map(|c| c.iter().copied()).collect();
     assert_eq!(reassembled, data);
 }
@@ -202,7 +202,7 @@ fn test_alg_cdc_chunks_reassembly() {
 fn test_alg_cdc_chunks_utf32_alignment() {
     // With utf32=true, all chunk boundaries must be 4-byte aligned
     let data: Vec<u8> = (0..=255).cycle().take(8192).collect();
-    let chunks = iscc_lib::alg_cdc_chunks(&data, true, 1024);
+    let chunks = iscc_lib::alg_cdc_chunks(&data, true, 1024).unwrap();
     let mut offset = 0;
     for chunk in &chunks {
         offset += chunk.len();
@@ -218,8 +218,8 @@ fn test_alg_cdc_chunks_utf32_alignment() {
 fn test_alg_cdc_chunks_smaller_avg_more_chunks() {
     // Smaller avg_chunk_size produces more chunks for the same data
     let data: Vec<u8> = (0..=255).cycle().take(16384).collect();
-    let chunks_large = iscc_lib::alg_cdc_chunks(&data, false, 2048);
-    let chunks_small = iscc_lib::alg_cdc_chunks(&data, false, 512);
+    let chunks_large = iscc_lib::alg_cdc_chunks(&data, false, 2048).unwrap();
+    let chunks_small = iscc_lib::alg_cdc_chunks(&data, false, 512).unwrap();
     assert!(
         chunks_small.len() > chunks_large.len(),
         "smaller avg_chunk_size ({}) should produce more chunks than larger ({})",
@@ -293,7 +293,7 @@ fn test_flat_crate_root_imports() {
     let empty: &[Vec<u8>] = &[];
     let _ = iscc_lib::alg_simhash(empty).unwrap();
     let _ = iscc_lib::alg_minhash_256(&[]);
-    let _ = iscc_lib::alg_cdc_chunks(b"", false, 1024);
+    let _ = iscc_lib::alg_cdc_chunks(b"", false, 1024).unwrap();
     let frame = vec![0i32; 380];
     let _ = iscc_lib::soft_hash_video_v0(&[frame], 64);
 }
@@ -315,5 +315,5 @@ fn test_module_path_imports_minhash() {
 #[test]
 fn test_module_path_imports_cdc() {
     // Verify function is accessible via iscc_lib::cdc::<fn>
-    let _ = iscc_lib::cdc::alg_cdc_chunks(b"", false, 1024);
+    let _ = iscc_lib::cdc::alg_cdc_chunks(b"", false, 1024).unwrap();
 }

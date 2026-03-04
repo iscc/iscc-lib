@@ -801,7 +801,7 @@ pub fn gen_mixed_code_v0(codes: &[&str], bits: u32) -> IsccResult<MixedCodeResul
 /// hashing each chunk with xxh32, and applying MinHash to create a
 /// similarity-preserving fingerprint.
 pub fn gen_data_code_v0(data: &[u8], bits: u32) -> IsccResult<DataCodeResult> {
-    let chunks = cdc::alg_cdc_chunks(data, false, cdc::DATA_AVG_CHUNK_SIZE);
+    let chunks = cdc::alg_cdc_chunks_unchecked(data, false, cdc::DATA_AVG_CHUNK_SIZE);
     let mut features: Vec<u32> = chunks
         .iter()
         .map(|chunk| xxhash_rust::xxh32::xxh32(chunk, 0))

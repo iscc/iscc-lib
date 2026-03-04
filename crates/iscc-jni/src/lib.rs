@@ -831,7 +831,10 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algCdcChunks(
         Ok(b) => b,
         Err(e) => return throw_and_default(&mut env, &e),
     };
-    let chunks = iscc_lib::alg_cdc_chunks(&bytes, utf32 != 0, avg_chunk_size as u32);
+    let chunks = match iscc_lib::alg_cdc_chunks(&bytes, utf32 != 0, avg_chunk_size as u32) {
+        Ok(c) => c,
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
     let byte_array_class = match env.find_class("[B") {
         Ok(c) => c,
         Err(e) => return throw_and_default(&mut env, &e.to_string()),
