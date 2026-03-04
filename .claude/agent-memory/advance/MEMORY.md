@@ -39,13 +39,15 @@ iterations.
 - Version sync: `scripts/version_sync.py` — `--check` mode exits 1 on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
 - Release workflow (`release.yml`): 6 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems).
-    Pattern: boolean input → build job (cross-platform matrix) → publish job (version-exists skip).
-    Ruby uses `oxidize-rb/actions/cross-gem@v1` (all on ubuntu-latest via Docker, not
-    `cross-gem-action` which is archived). `GEM_HOST_API_KEY` for auth (not OIDC)
+    Pattern: boolean input → build job → **smoke test job** → publish job (version-exists skip). 6
+    smoke test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish.
+    Each tests linux-x86_64 artifact on ubuntu-latest. Ruby uses `oxidize-rb/actions/cross-gem@v1`
+    (all on ubuntu-latest via Docker). `GEM_HOST_API_KEY` for auth (not OIDC)
 
 ## WASM/WASI
 
-- `iscc-wasm` has `[features] conformance = []` — gates `conformance_selftest` WASM export
+- `iscc-wasm` has `[features] conformance = []` — gates `conformance_selftest` WASM export. Release
+    build uses `--features conformance` so smoke test can call `conformance_selftest()`
 - wasm-pack `--features` must go AFTER the path, NOT after `--`
 
 ## Go Pure Go (Summary)
