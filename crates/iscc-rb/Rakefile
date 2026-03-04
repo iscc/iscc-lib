@@ -8,6 +8,8 @@ require "rb_sys/extensiontask"
 
 RbSys::ExtensionTask.new("iscc-rb") do |ext|
   ext.lib_dir = "lib/iscc_lib"
+  ext.cross_compile = true
+  ext.cross_platform = %w[x86_64-linux aarch64-linux x86_64-darwin arm64-darwin x64-mingw-ucrt]
 end
 
 Rake::TestTask.new(:test) do |t|
