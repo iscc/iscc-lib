@@ -19,7 +19,7 @@ to create a composite identifier that exhibits similarity-preserving properties 
 <dependency>
   <groupId>io.iscc</groupId>
   <artifactId>iscc-lib</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
