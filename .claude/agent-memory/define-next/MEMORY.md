@@ -70,6 +70,11 @@ iterations.
 - `ruby/setup-ruby@v1` supports `working-directory` input for bundler cache (Gemfile location)
 - Ruby CI pattern: checkout → rust toolchain (with clippy) → rust-cache → apt libclang-dev →
     setup-ruby → clippy → rake compile → rake test
+- RubyGems release: use `oxidize-rb/actions/cross-gem@v1` for cross-platform precompiled gems. Runs
+    on ubuntu via Docker (rake-compiler-dock). Secret: `GEM_HOST_API_KEY`. Version check via
+    RubyGems API: `https://rubygems.org/api/v1/versions/iscc-lib.json`
+- Reordered linting after release (handoff recommendation) — release infrastructure is higher value
+    since it unblocks publishing
 
 ## Gotchas
 
@@ -109,9 +114,9 @@ infrastructure (in recommended order):
 
 1. ~~**Conformance tests**~~ — done (iter 11, 50 vectors)
 2. ~~**Ruby CI job**~~ — done (iter 12, 12 CI jobs all green)
-3. **Version sync** — add version.rb to `scripts/version_sync.py` (iter 13)
-4. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into Rakefile and CI
-5. **RubyGems release** — add `rubygems` checkbox to `release.yml`
+3. ~~**Version sync**~~ — done (iter 13, version_sync.py updated)
+4. **RubyGems release** — add `rubygems` checkbox to `release.yml` (iter 14)
+5. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into Rakefile and CI
 6. **Documentation** — `docs/howto/ruby.md`, expand `crates/iscc-rb/README.md`, add Ruby to root
     README
 
@@ -154,5 +159,6 @@ Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include
 - Ruby streaming types done (iter 10): DataHasher/InstanceHasher → 32/32
 - Ruby conformance tests done (iter 11): 50 vectors, 111 tests total
 - Ruby CI job done (iter 12): 12 CI jobs all green
-- Current (iter 13): version_sync.py Ruby integration
-- After version sync: linting, release pipeline, docs (multiple future steps)
+- Version sync done (iter 13): version_sync.py Ruby integration
+- Current (iter 14): RubyGems release step in release.yml
+- After release: linting, docs (multiple future steps)
