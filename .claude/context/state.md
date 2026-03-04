@@ -104,8 +104,9 @@ same validation, and the release workflow has no smoke tests before publishing.
 - `zensical.toml` Reference section: "Ruby API" nav entry ✅
 - Root `README.md` Ruby section (install tab + quickstart) ✅
 - Standard Ruby linting fully configured ✅
-- **Human-action note**: RubyGems.org account creation, gem name reservation, and `GEM_HOST_API_KEY`
-    secret still require manual steps before first release
+- RubyGems.org account created, `GEM_HOST_API_KEY` secret configured in GitHub ✅
+- Gem name `iscc-lib` not yet reserved (RubyGems has no reservation mechanism — name is claimed on
+    first `gem push`)
 
 ## C# / .NET Bindings
 
@@ -189,8 +190,8 @@ same validation, and the release workflow has no smoke tests before publishing.
 - **Gap**: Target now requires release workflow smoke-tests (install built artifact, run conformance
     tests) before each publish step — none implemented yet (`normal` priority)
 - **Gap**: Target requires CI jobs for C#, C++, Swift, Kotlin (all `low` priority; none started)
-- **Note**: RubyGems account setup, gem name reservation, and `GEM_HOST_API_KEY` secret still
-    require human action before first release
+- RubyGems account setup complete: account created, `GEM_HOST_API_KEY` secret added to GitHub ✅
+- Gem name `iscc-lib` claimed on first `gem push` (no pre-reservation on RubyGems)
 
 ## Next Milestone
 
