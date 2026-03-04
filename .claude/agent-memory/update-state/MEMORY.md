@@ -62,34 +62,29 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 94ac742f)
+## Current State (assessed-at: 3c029e87)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22653432970); Standard Ruby linting added in iter 13
+- **IN_PROGRESS**: all 12 CI jobs green (run 22654833788); Ruby bindings now MET (iter 14)
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
-- **Ruby bindings**: PARTIALLY MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
+- **Ruby bindings**: MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
     - ALL 10 gen functions ✅; 4 text ✅; 6 codec/diagnostic ✅; 5 constants ✅
     - ALL 5 algo primitives ✅; DataHasher + InstanceHasher streaming types ✅
     - `docs/howto/ruby.md` ✅ (422 lines); `crates/iscc-rb/README.md` ✅ (93 lines)
     - Root README.md Ruby section ✅; `zensical.toml` Ruby nav entry ✅
-    - Standard Ruby linting ✅: `.standard.yml`, Gemfile (`standard ~> 1.0`,
-        `rubocop-minitest   ~> 0.36`), CI step (`bundle exec standardrb`), pre-commit + pre-push hooks
-        ✅
-    - Missing: `docs/ruby-api.md` (spec line 310) — ONLY remaining gap
-- **CI (run 22653432970)**: ALL SUCCESS — 12 jobs
-- **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, **rubygems** ✅
-    - `build-gem` job: 5 platforms via `oxidize-rb/actions/cross-gem@v1` (Ruby 3.1/3.2/3.3)
-    - `publish-rubygems` job: idempotency check, source gem fallback, `GEM_HOST_API_KEY` secret
+    - Standard Ruby linting ✅: `.standard.yml`, Gemfile, CI step, pre-commit + pre-push hooks
+    - **`docs/ruby-api.md`** ✅ (781 lines — all 32 symbols with signatures, param tables, examples)
+    - `zensical.toml` Reference: "Ruby API" entry added after "Java API" ✅
     - Human action still required: RubyGems.org account, gem name reservation, secret setup
+- **CI (run 22654833788)**: ALL SUCCESS — 12 jobs
+- **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, **rubygems** ✅
 - **Ruby CI design**: dedicated `ruby` job runs standardrb+clippy+compile+test; Rust job excludes
     iscc-rb
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
-- **extconf.rb location**: crate root (not `ext/iscc_lib/`); rb_sys expects it next to Cargo.toml
-- **Ruby `_` prefix**: gen functions exposed as `_gen_*_v0`; Ruby wrapper provides public API
+- **CID loop status**: IDLE — no `critical`/`normal` issues remain; all remaining gaps are `low`
 - **Feature flags**: `default = ["meta-code"]`, 5 CI feature matrix steps
 - **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
-- **docs/howto/**: now 8 files (added ruby.md); `docs/howto/ruby.md` sections checked ✅
-- **New packages path**: `packages/` only has `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do
-    NOT exist yet
+- **docs/**: 8 howto files; `docs/ruby-api.md` added; `docs/c-ffi-api.md` ✅
+- **packages/**: only `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do NOT exist yet
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
