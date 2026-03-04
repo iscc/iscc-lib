@@ -1,15 +1,15 @@
-<!-- assessed-at: ad7400df7d5aa908450cfbb9fae851459434bb1e -->
+<!-- assessed-at: 2011e2333bae681991629e7e884635045a462b9d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Registry badges resolved; release smoke tests remain as sole normal-priority gap
+## Phase: All normal-priority gaps resolved; only low-priority bindings remain
 
-All 7 registry badges (Rust, Python, Ruby, Maven, Go, npm @iscc/lib, npm @iscc/wasm) are now in the
-global README. All 12 CI jobs pass (run 22664053215). One `normal`-priority gap remains: release
-smoke tests before publish steps in `release.yml`. C#, C++, Swift, and Kotlin bindings are not
-started and tracked as `low`-priority issues (CID loop skips them).
+All 12 CI jobs pass (run 22665835771). Release smoke tests are implemented across all 6 publish
+pipelines — the sole `normal`-priority gap from the previous iteration is resolved. The only
+remaining open issues are `low`-priority (C#, C++, Swift, Kotlin bindings; language logos in
+README/docs); the CID loop skips these by policy.
 
 ## Rust Core Crate
 
@@ -47,7 +47,8 @@ started and tracked as `low`-priority issues (CID loop skips them).
 - `alg_cdc_chunks` maps `IsccResult` to `JsError` ✅
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22664053215 ✅
+- `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22665835771 ✅
 
 ## C FFI
 
@@ -132,6 +133,7 @@ started and tracked as `low`-priority issues (CID loop skips them).
 - Ruby install instructions and quickstart present ✅
 - **Gap**: Missing C#, C++, Swift, Kotlin install + quickstart sections (target requires all 4; all
     `low` priority)
+- **Gap**: Language logos/icons not added yet (`low` priority)
 
 ## Per-Crate READMEs
 
@@ -162,28 +164,37 @@ started and tracked as `low`-priority issues (CID loop skips them).
 
 ## CI/CD and Publishing
 
-**Status**: partially met
+**Status**: met
 
-- **ALL PASSING** — latest CI run 22664053215: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22664053215
+- **ALL PASSING** — latest CI run 22665835771: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22665835771
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
     Java, Go, Bench, Ruby — all SUCCESS ✅
 - `release.yml` has 6 registry `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
     RubyGems ✅
+- **6 smoke test jobs implemented** — each gates its publish job ✅:
+    - `test-wheels` → gates `publish-pypi` (installs wheel, runs `conformance_selftest()`)
+    - `test-napi` → gates `publish-npm-lib` (loads `.node`, runs `conformance_selftest()`)
+    - `test-wasm` → gates `publish-npm-wasm` (ESM import, runs `conformance_selftest()`)
+    - `test-jni` → gates `publish-maven` (runs `mvn test` with native libs)
+    - `test-ffi` → gates `publish-ffi` (compiles `test_iscc.c`, runs binary)
+    - `test-gem` → gates `publish-rubygems` (installs gem, runs `conformance_selftest`)
 - `build-gem` job: 5 platforms via `oxidize-rb/actions/cross-gem@v1` ✅
 - RubyGems account setup complete: account created, `GEM_HOST_API_KEY` secret added to GitHub ✅
-- **Gap**: Target requires release workflow smoke-tests (install built artifact, run conformance
-    tests) before each publish step — none implemented yet (`normal` priority)
 - **Gap**: Target requires CI jobs for C#, C++, Swift, Kotlin (all `low` priority; none started)
 
 ## Next Milestone
 
-One `normal`-priority issue remains actionable by the CID loop (CI is green — no CI fix required):
+All `normal`-priority and `critical`-priority gaps are resolved. CI is fully green. The only
+remaining open issues are `low`-priority (CID loop skips these by policy):
 
-**Add release smoke tests** (`release.yml`): add `test-<artifact>` jobs between each `build-*` and
-`publish-*` step (6 pipelines: PyPI, npm-lib, npm-wasm, RubyGems, Maven, FFI). Each job installs the
-built artifact and runs the binding's conformance suite before gating publish. The
-`publish-crates-io` pipeline already runs `cargo test` and does not need a smoke test.
+1. C# / .NET bindings (`packages/dotnet/`)
+2. C++ header-only wrapper (`packages/cpp/`)
+3. Swift bindings (`packages/swift/` + `crates/iscc-uniffi/`)
+4. Kotlin Multiplatform bindings (`packages/kotlin/`)
+5. Language logos/icons in README and docs
 
-After smoke tests are implemented, the only remaining gaps are `low`-priority bindings (C#, C++,
-Swift, Kotlin). At that point, consider creating a PR from `develop` → `main` for a stable release.
+**Recommended action (human-directed):** Create a PR from `develop` → `main` for a stable release
+(`mise run pr:main` or `gh pr create -B main -H develop`). The project is feature-complete for all
+`normal`-priority bindings with full CI/CD, smoke-tested release pipeline, and comprehensive
+documentation.

@@ -62,23 +62,22 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: ad7400d)
+## Current State (assessed-at: 2011e23)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22664053215); 1 `normal`-priority gap remains
-- **Iter 3 (CID round 3) changes** (a659a41, ad7400d since b5b4688):
-    - `README.md`: added RubyGems, Maven Central, npm @iscc/wasm badges ✅
-    - All 7 registry badges now present (Rust, Python, Ruby, Maven, Go, npm @iscc/lib, npm @iscc/wasm)
-    - Registry badges issue resolved and deleted from issues.md ✅
-- **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
-- **Ruby bindings**: MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
-- **CI (run 22664053215)**: ALL SUCCESS — 12 jobs
-- **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, rubygems ✅
+- **IN_PROGRESS**: all 12 CI jobs green (run 22665835771); **0 normal-priority gaps remain**
+- **Iter 4 (CID round 4) changes** (6404294, 8ada155, 2011e23 since ad7400d):
+    - `release.yml`: 6 smoke test jobs added — `test-wheels`, `test-napi`, `test-wasm`, `test-jni`,
+        `test-ffi`, `test-gem`; each gates its publish job ✅
+    - `--features conformance` added to `build-wasm` so `conformance_selftest` is exported in WASM
+    - Release smoke tests issue resolved and deleted from issues.md ✅
+- **Only low-priority gaps remain**: C#, C++, Swift, Kotlin bindings; language logos — CID skips
+- **CI (run 22665835771)**: ALL SUCCESS — 12 jobs
+- **release.yml**: 6 checkboxes + 6 smoke test jobs: test-wheels/napi/wasm/jni/ffi/gem ✅
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **Test counts (Rust)**: 316 (default features)
-- **Normal-priority gaps remaining**:
-    1. Release smoke tests before publish (target.md requirement; no implementation yet)
 - **docs/**: 8 howto files; `docs/ruby-api.md` ✅; `docs/c-ffi-api.md` ✅
 - **packages/**: only `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do NOT exist yet
+- **Recommended next action**: PR from `develop` → `main` for stable release (human-directed)
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
