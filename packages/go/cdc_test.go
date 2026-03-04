@@ -72,7 +72,10 @@ func TestCdcOffsetReturnsAtMostMax(t *testing.T) {
 // ---- AlgCdcChunks tests ----
 
 func TestCdcChunksEmpty(t *testing.T) {
-	chunks := AlgCdcChunks([]byte{}, false, 1024)
+	chunks, err := AlgCdcChunks([]byte{}, false, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(chunks) != 1 {
 		t.Fatalf("empty input: got %d chunks, want 1", len(chunks))
 	}
@@ -87,7 +90,10 @@ func TestCdcChunksSmallData(t *testing.T) {
 	for i := range data {
 		data[i] = 42
 	}
-	chunks := AlgCdcChunks(data, false, 1024)
+	chunks, err := AlgCdcChunks(data, false, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(chunks) != 1 {
 		t.Fatalf("small data: got %d chunks, want 1", len(chunks))
 	}
@@ -102,7 +108,10 @@ func TestCdcChunksReassembly(t *testing.T) {
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
-	chunks := AlgCdcChunks(data, false, 1024)
+	chunks, err := AlgCdcChunks(data, false, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	var reassembled []byte
 	for _, c := range chunks {
 		reassembled = append(reassembled, c...)
@@ -122,8 +131,14 @@ func TestCdcChunksDeterministic(t *testing.T) {
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
-	chunks1 := AlgCdcChunks(data, false, 1024)
-	chunks2 := AlgCdcChunks(data, false, 1024)
+	chunks1, err := AlgCdcChunks(data, false, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	chunks2, err := AlgCdcChunks(data, false, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(chunks1) != len(chunks2) {
 		t.Fatalf("determinism: got %d and %d chunks", len(chunks1), len(chunks2))
 	}
@@ -140,9 +155,39 @@ func TestCdcChunksMultipleChunks(t *testing.T) {
 	for i := range data {
 		data[i] = byte(i % 256)
 	}
-	chunks := AlgCdcChunks(data, false, 1024)
+	chunks, err := AlgCdcChunks(data, false, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(chunks) <= 1 {
 		t.Errorf("expected multiple chunks, got %d", len(chunks))
+	}
+}
+
+// ---- AlgCdcChunks validation tests ----
+
+func TestCdcChunksInvalidAvgChunkSize(t *testing.T) {
+	data := []byte{1, 2, 3, 4}
+
+	// avgChunkSize=0 must return error
+	_, err := AlgCdcChunks(data, false, 0)
+	if err == nil {
+		t.Error("avgChunkSize=0: expected error, got nil")
+	}
+
+	// avgChunkSize=1 must return error
+	_, err = AlgCdcChunks(data, false, 1)
+	if err == nil {
+		t.Error("avgChunkSize=1: expected error, got nil")
+	}
+
+	// avgChunkSize=2 is the boundary — must succeed
+	chunks, err := AlgCdcChunks(data, false, 2)
+	if err != nil {
+		t.Errorf("avgChunkSize=2: unexpected error: %v", err)
+	}
+	if len(chunks) == 0 {
+		t.Error("avgChunkSize=2: expected at least one chunk")
 	}
 }
 
@@ -152,7 +197,10 @@ func TestCdcChunksUtf32SmallBuffer(t *testing.T) {
 	// 3 bytes with utf32=true must terminate and reassemble to original.
 	// Regression test for the infinite loop bug.
 	data := []byte{0xAA, 0xBB, 0xCC}
-	chunks := AlgCdcChunks(data, true, 1024)
+	chunks, err := AlgCdcChunks(data, true, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(chunks) == 0 {
 		t.Fatal("must return at least one chunk")
 	}
@@ -173,7 +221,10 @@ func TestCdcChunksUtf32SmallBuffer(t *testing.T) {
 func TestCdcChunksUtf32Exact4Bytes(t *testing.T) {
 	// Exactly 4 bytes with utf32=true must return one 4-byte chunk.
 	data := []byte{0x01, 0x02, 0x03, 0x04}
-	chunks := AlgCdcChunks(data, true, 1024)
+	chunks, err := AlgCdcChunks(data, true, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(chunks) != 1 {
 		t.Fatalf("got %d chunks, want 1", len(chunks))
 	}
@@ -185,7 +236,10 @@ func TestCdcChunksUtf32Exact4Bytes(t *testing.T) {
 func TestCdcChunksUtf327Bytes(t *testing.T) {
 	// 7 bytes (4+3) with utf32=true verifies non-aligned tail handling.
 	data := []byte{0x10, 0x20, 0x30, 0x40, 0x50, 0x60, 0x70}
-	chunks := AlgCdcChunks(data, true, 1024)
+	chunks, err := AlgCdcChunks(data, true, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(chunks) == 0 {
 		t.Fatal("must return at least one chunk")
 	}
@@ -213,7 +267,10 @@ func TestCdcChunksUtf32Reassembly(t *testing.T) {
 	if len(data)%4 != 0 {
 		t.Fatal("test data must be 4-byte aligned")
 	}
-	chunks := AlgCdcChunks(data, true, 1024)
+	chunks, err := AlgCdcChunks(data, true, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	var reassembled []byte
 	for _, c := range chunks {
 		reassembled = append(reassembled, c...)
@@ -238,7 +295,10 @@ func TestCdcChunksUtf32Reassembly(t *testing.T) {
 
 func TestCdcChunksUtf32Empty(t *testing.T) {
 	// Empty input with utf32=true must not loop and must return one empty chunk.
-	chunks := AlgCdcChunks([]byte{}, true, 1024)
+	chunks, err := AlgCdcChunks([]byte{}, true, 1024)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 	if len(chunks) != 1 {
 		t.Fatalf("got %d chunks, want 1", len(chunks))
 	}

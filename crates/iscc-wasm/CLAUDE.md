@@ -84,8 +84,8 @@ wasm-pack build crates/iscc-wasm --target nodejs
 wasm-pack build crates/iscc-wasm --release --target bundler
 ```
 
-The release profile uses `wasm-opt = ["-Os"]` for size optimization (configured via
-`[package.metadata.wasm-pack.profile.release]` in Cargo.toml -- add this if missing).
+The release profile uses `wasm-opt = ["-O3"]` for maximum runtime speed optimization (configured via
+`[package.metadata.wasm-pack.profile.release]` in Cargo.toml).
 
 ## Test Commands
 

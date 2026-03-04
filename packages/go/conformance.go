@@ -22,13 +22,36 @@ type vectorEntry struct {
 	Outputs map[string]interface{} `json:"outputs"`
 }
 
-// ConformanceSelftest validates all 46 conformance vectors from data.json.
+// parseConformanceData unmarshals data.json into a map of function sections.
+// Top-level keys starting with "_" (e.g., "_metadata") are skipped since they
+// contain metadata, not test vectors.
+func parseConformanceData(raw []byte) (map[string]map[string]vectorEntry, error) {
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &sections); err != nil {
+		return nil, fmt.Errorf("could not parse conformance data: %w", err)
+	}
+
+	data := make(map[string]map[string]vectorEntry, len(sections))
+	for key, rawSection := range sections {
+		if strings.HasPrefix(key, "_") {
+			continue
+		}
+		var cases map[string]vectorEntry
+		if err := json.Unmarshal(rawSection, &cases); err != nil {
+			return nil, fmt.Errorf("could not parse section %s: %w", key, err)
+		}
+		data[key] = cases
+	}
+	return data, nil
+}
+
+// ConformanceSelftest validates all 50 conformance vectors from data.json.
 // Returns (true, nil) if all vectors pass, (false, nil) if any mismatch,
 // and (false, error) if data.json cannot be parsed.
 func ConformanceSelftest() (bool, error) {
-	var data map[string]map[string]vectorEntry
-	if err := json.Unmarshal([]byte(conformanceData), &data); err != nil {
-		return false, fmt.Errorf("could not parse conformance data: %w", err)
+	data, err := parseConformanceData([]byte(conformanceData))
+	if err != nil {
+		return false, err
 	}
 
 	passed := true

@@ -24,6 +24,7 @@ merge.
 | **C FFI**   | cbindgen header generation, gcc compile, C test run                                   |
 | **Java**    | JNI `cargo build`, `mvn test` (49 tests including conformance vectors)                |
 | **Go**      | `CGO_ENABLED=0 go test`, `go vet` (pure Go, no Rust toolchain)                        |
+| **Ruby**    | `bundle exec rake compile`, `bundle exec rake test`                                   |
 | **Version** | `python scripts/version_sync.py --check` for manifest version consistency             |
 | **Bench**   | `cargo bench --no-run` compile-only benchmark verification                            |
 
@@ -73,6 +74,10 @@ on:
         description: Publish iscc-lib to Maven Central
         type: boolean
         default: false
+      rubygems:
+        description: Publish iscc-lib to RubyGems
+        type: boolean
+        default: false
 ```
 
 ### Job Conditions
@@ -86,6 +91,8 @@ Each job chain activates on either a tag push or its corresponding checkbox:
     `if: startsWith(github.ref, 'refs/tags/v') || inputs.npm`
 - **Maven jobs** (build-jni, assemble-jar, publish-maven):
     `if: startsWith(github.ref, 'refs/tags/v') || inputs.maven`
+- **RubyGems jobs** (build-ruby-gems, publish-rubygems):
+    `if: startsWith(github.ref, 'refs/tags/v') || inputs.rubygems`
 
 Tag pushes activate all jobs (no inputs are set, but the tag condition passes for all).
 
@@ -97,6 +104,7 @@ Tag pushes activate all jobs (no inputs are set, but the tag condition passes fo
 | **PyPI**          | OIDC trusted publishing      | `pypa/gh-action-pypi-publish@release/v1`                                            |
 | **npm**           | Token (`NPM_TOKEN` secret)   | `NODE_AUTH_TOKEN` env var                                                           |
 | **Maven Central** | GPG signing + Sonatype token | `MAVEN_GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE`, `MAVEN_USERNAME`, `MAVEN_PASSWORD` |
+| **RubyGems**      | OIDC trusted publishing      | RubyGems trusted publisher config (or `GEM_HOST_API_KEY` secret fallback)           |
 
 All jobs that use OIDC require `permissions: id-token: write`. Maven Central uses the Sonatype
 Central Portal via `central-publishing-maven-plugin` with GPG-signed artifacts.
@@ -183,6 +191,7 @@ Single build on ubuntu-latest, platform-independent.
 | Node.js   | npm           | `@iscc/lib`                                                        |
 | WASM      | npm           | `@iscc/wasm`                                                       |
 | Java      | Maven Central | `io.iscc:iscc-lib`                                                 |
+| Ruby      | RubyGems      | `iscc-lib`                                                         |
 | Go        | pkg.go.dev    | `github.com/iscc/iscc-lib/packages/go` (tag-based, no publish job) |
 
 ### Java JNI native libraries (cargo + Maven)
@@ -217,17 +226,18 @@ automatically at build time; others require explicit synchronization.
 
 ### Manual propagation (sync script required)
 
-| Target                          | What is synced                       |
-| ------------------------------- | ------------------------------------ |
-| `pyproject.toml`                | Root project version (dev workspace) |
-| `crates/iscc-napi/package.json` | npm package version                  |
-| `crates/iscc-jni/java/pom.xml`  | Maven artifact version               |
-| `mise.toml`                     | Default `--version` flag             |
-| `scripts/test_install.py`       | Registry check fallback version      |
-| `README.md`                     | Maven dependency snippet             |
-| `crates/iscc-jni/README.md`     | Maven dependency snippet             |
-| `docs/howto/java.md`            | Maven dependency snippet             |
-| `docs/java-api.md`              | Maven + Gradle dependency snippets   |
+| Target                                   | What is synced                       |
+| ---------------------------------------- | ------------------------------------ |
+| `pyproject.toml`                         | Root project version (dev workspace) |
+| `crates/iscc-napi/package.json`          | npm package version                  |
+| `crates/iscc-rb/lib/iscc_lib/version.rb` | Ruby gem VERSION constant            |
+| `crates/iscc-jni/java/pom.xml`           | Maven artifact version               |
+| `mise.toml`                              | Default `--version` flag             |
+| `scripts/test_install.py`                | Registry check fallback version      |
+| `README.md`                              | Maven dependency snippet             |
+| `crates/iscc-jni/README.md`              | Maven dependency snippet             |
+| `docs/howto/java.md`                     | Maven dependency snippet             |
+| `docs/java-api.md`                       | Maven + Gradle dependency snippets   |
 
 Go modules use git tags for versioning — no manifest version field to sync.
 
@@ -290,6 +300,7 @@ workflow triggers on push to `main`.
 - [x] C FFI job generates headers, compiles, and runs C test program
 - [x] Java job builds JNI crate and runs Maven tests
 - [x] Go job runs CGO_ENABLED=0 go test and go vet (pure Go, no Rust toolchain)
+- [ ] Ruby job compiles native extension and runs conformance tests
 - [x] Version job runs scripts/version_sync.py --check for manifest consistency
 - [x] Bench job runs cargo bench --no-run for compile-only benchmark verification
 - [x] CI does not use `mise` — calls tools directly
@@ -303,13 +314,17 @@ workflow triggers on push to `main`.
 - [x] `workflow_dispatch` with only `crates-io: true` publishes only to crates.io
 - [x] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
 - [x] `workflow_dispatch` with only `maven: true` builds and publishes only to Maven Central
+- [ ] `workflow_dispatch` with only `rubygems: true` builds and publishes only to RubyGems
 - [x] Each registry's jobs are independent — failure in one does not block others
 - [x] crates.io uses OIDC trusted publishing (no API key secret)
 - [x] PyPI uses OIDC trusted publishing (no API key secret)
 - [x] npm uses `NPM_TOKEN` repository secret
 - [x] Maven Central uses GPG signing + Sonatype Central Portal credentials
+- [ ] RubyGems uses OIDC trusted publishing (or `GEM_HOST_API_KEY` fallback)
 - [x] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
 - [x] Java JAR bundles 5-platform native libraries under `META-INF/native/`
+- [ ] Ruby precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64,
+    Windows x64)
 - [x] Publishing an existing version skips gracefully instead of failing
 - [x] All build artifacts uploaded via `actions/upload-artifact@v4`
 

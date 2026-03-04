@@ -1,42 +1,33 @@
-<!-- assessed-at: a49ac7d19dbf8c65b4023fd153c4bf69863929c8 -->
+<!-- assessed-at: 0be8bda9a93bbfebe5573abfa3f99e95ce653b6f -->
 
 # Project State
 
-## Status: DONE
+## Status: IN_PROGRESS
 
-## Phase: All target criteria met — CI green, no open issues
+## Phase: All normal-priority gaps resolved; only low-priority bindings remain
 
-Issue #16 (CI feature matrix) was the last remaining gap. Iteration 15 added 5 steps to the `Rust`
-CI job: 2 clippy checks (`--no-default-features`, `--all-features`) and 3 test runs
-(`--no-default-features`, `--all-features`, `--no-default-features --features text-processing`). All
-11 CI jobs pass on HEAD `a49ac7d`. `issues.md` is empty.
+All 12 CI jobs pass (latest run 22669472925). No codebase changes since iter 7 — only `.claude/`
+context files updated across iter 8. The sole remaining open issues are `low`-priority (C#, C++,
+Swift, Kotlin bindings; language logos in README/docs); the CID loop skips these by policy.
 
 ## Rust Core Crate
 
 **Status**: met
 
 - All 32 Tier 1 symbols present with correct feature-gating ✅
-    - `gen_meta_code_v0`, `json_to_data_url`, `META_TRIM_*` constants: `#[cfg(feature = "meta-code")]`
-    - `gen_text_code_v0`, `text_clean`, `text_collapse`: `#[cfg(feature = "text-processing")]`
-    - All other symbols always available
-- `Cargo.toml` features: `default = ["meta-code"]`,
-    `meta-code = ["text-processing", "dep:serde_json_canonicalizer"]`,
-    `text-processing = ["dep:unicode-normalization", "dep:unicode-general-category"]` ✅
-- `conformance_selftest()` always callable; meta/text sections gated internally ✅
-- 314 tests with default features (258 unit + 31 streaming + 24 utils + 1 doctest) ✅
-- `--no-default-features`: 250 tests pass ✅
-- `--all-features`: passes ✅
-- `--no-default-features --features text-processing`: 284 tests pass ✅
-- `cargo clippy -p iscc-lib -- -D warnings` clean (all feature combos) ✅
-- **CI feature matrix**: all 5 steps in `.github/workflows/ci.yml` verified and passing ✅
+- `alg_cdc_chunks` public API returns `IsccResult<Vec<&[u8]>>` — validates `avg_chunk_size < 2` ✅
+- `alg_cdc_chunks_unchecked` as `pub(crate)` for internal callers ✅
+- `data.json` at iscc-core v1.3.0 (50 total vectors) ✅
+- Rust conformance assertion: `assert_eq!(tested, 20, ...)` ✅
+- 316 tests pass with default features ✅
+- Feature matrix CI (5 steps) passed in latest green run ✅
 
 ## Python Bindings
 
 **Status**: met
 
 - All 32 Tier 1 symbols accessible via `__all__` (48 entries) ✅
-- `gen_sum_code_v0(path, bits=64, wide=False, add_units=False)` — `add_units` wired ✅
-- `SumCodeResult.units: list[str] | None` annotation; `_lowlevel.pyi` stub updated ✅
+- `alg_cdc_chunks` propagates `IsccResult` from Rust core via `PyResult` ✅
 - 207 Python tests pass; `ty check` passes; `cargo clippy -p iscc-py` clean ✅
 
 ## Node.js Bindings
@@ -44,101 +35,166 @@ CI job: 2 clippy checks (`--no-default-features`, `--all-features`) and 3 test r
 **Status**: met
 
 - All 32 Tier 1 symbols exported ✅
-- `gen_sum_code_v0(path, bits?, wide?, addUnits?)` wired ✅
-- Auto-generated `index.d.ts` shows `units?: Array<string>` ✅
+- `alg_cdc_chunks` propagates `IsccResult` error from Rust core ✅
 - 135 mocha tests pass; `cargo clippy -p iscc-napi -- -D warnings` clean ✅
 
 ## WASM Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols exported ✅
-- `gen_sum_code_v0(data, bits?, wide?, add_units?)` accepts `Uint8Array` ✅
-- `WasmSumCodeResult.units: Option<Vec<String>>` set when `add_units=true` ✅
-- 79 wasm-bindgen tests pass; `cargo clippy -p iscc-wasm -- -D warnings` clean ✅
+- All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
+- `alg_cdc_chunks` maps `IsccResult` to `JsError` ✅
+- `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance ✅
+- `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
+- `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22669472925 ✅
 
 ## C FFI
 
 **Status**: met
 
-- `iscc_gen_sum_code_v0(path, bits, wide, add_units: bool)` — 4-parameter signature ✅
-- `iscc_IsccSumCodeResult.units: char **` — NULL-terminated array or `NULL` ✅
-- 85 Rust tests + 65 C tests pass; `cargo clippy -p iscc-ffi -- -D warnings` clean ✅
-- `iscc_sum.c` example compiles; `docs/howto/c-cpp.md` linked in nav ✅
-- `cbindgen` header freshness checked in CI ✅
+- 85 Rust tests + 65 C tests pass (per last green CI run) ✅
+- `iscc_alg_cdc_chunks` propagates `IsccResult` error via null return ✅
+- `cbindgen` header freshness check in CI passed ✅
 
 ## Java Bindings
 
 **Status**: met
 
 - All 32 Tier 1 symbols via JNI ✅
-- `genSumCodeV0(String path, int bits, boolean wide, boolean addUnits)` — 4-parameter ✅
-- `SumCodeResult.units: String[]` — `null` when `addUnits=false` ✅
-- 65 Maven tests pass; `cargo clippy -p iscc-jni -- -D warnings` clean ✅
+- `AlgCdcChunks` JNI validates `avgChunkSize < 2` with `IllegalArgumentException` ✅
+- 65 Maven tests pass (per last green CI run) ✅
 
 ## Go Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols via pure Go ✅; 154 Go tests pass; `go vet` clean ✅
-- `GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool) (*SumCodeResult, error)` ✅
-- `SumCodeResult.Units []string` — `nil` when false; `[]string{dataCode, instanceCode}` when true ✅
-- Pure Go (no cgo); CGO_ENABLED=0 works ✅
+- All 32 Tier 1 symbols via pure Go ✅
+- `AlgCdcChunks` validates `avgChunkSize < 2` — returns `error`, delegates to
+    `algCdcChunksUnchecked` for internal callers ✅
+- `TestCdcChunksInvalidAvgChunkSize` test covers avgChunkSize=0, 1 (error), 2 (OK) ✅
+- `docs/howto/go.md` updated to reflect `([][]byte, error)` return type ✅
+- 155 Go tests pass; `go vet` clean ✅
+
+## Ruby Bindings
+
+**Status**: met
+
+- `crates/iscc-rb/` with Magnus bridge (magnus 0.7.1, Ruby 3.1.2 compat) ✅
+- All 32 of 32 Tier 1 symbols exposed (10 gen, 4 text, 6 codec/diagnostic, 5 algo, 5 constants, 2
+    streaming types) ✅
+- 111 Minitest tests (295 assertions, 0 failures): 46 smoke + 15 streaming + 50 conformance ✅
+- `bundle exec rake compile` builds in release profile ✅
+- Dedicated `ruby` CI job — runs standardrb, clippy, compile, and test ✅
+- `docs/howto/ruby.md` (422 lines) ✅; `docs/ruby-api.md` (781 lines — all 32 symbols) ✅
+- `zensical.toml` Reference section: "Ruby API" nav entry ✅
+- Root `README.md` Ruby section (install tab + quickstart) ✅
+- Standard Ruby linting fully configured ✅
+- RubyGems.org account created, `GEM_HOST_API_KEY` secret configured in GitHub ✅
+
+## C# / .NET Bindings
+
+**Status**: not started
+
+- Target defined in `target.md`; issue filed as `low` priority (CID loop skips) ✅
+- **No code exists**: `packages/dotnet/` does not exist; no `csbindgen` integration; no CI job
+
+## C++ Bindings
+
+**Status**: not started
+
+- Target defined in `target.md`; issue filed as `low` priority (CID loop skips) ✅
+- **No code exists**: `packages/cpp/` does not exist; no `iscc.hpp`; no vcpkg/Conan manifests
+
+## Swift Bindings
+
+**Status**: not started
+
+- Target defined in `target.md`; issue filed as `low` priority (CID loop skips) ✅
+- **No code exists**: `packages/swift/` does not exist; `crates/iscc-uniffi/` does not exist
+
+## Kotlin Multiplatform Bindings
+
+**Status**: not started
+
+- Target defined in `target.md`; issue filed as `low` priority (CID loop skips) ✅
+- **No code exists**: `packages/kotlin/` does not exist; depends on `iscc-uniffi` crate (not
+    started)
 
 ## README
 
-**Status**: met
+**Status**: partially met
 
-- Public-facing polyglot README; all 6 bindings, CI badge, registry badges ✅
+- Public-facing polyglot README exists; CI badge, all 7 registry badges present ✅
+    - Rust (crates.io), Python (PyPI), Ruby (RubyGems), Java (Maven Central), Go (pkg.go.dev), Node.js
+        (npm @iscc/lib), WASM (npm @iscc/wasm)
 - All 10 `gen_*_v0` functions listed; per-language install + quick-start examples ✅
+- Ruby install instructions and quickstart present ✅
+- **Gap**: Missing C#, C++, Swift, Kotlin install + quickstart sections (target requires all 4; all
+    `low` priority)
+- **Gap**: Language logos/icons not added yet (`low` priority)
 
 ## Per-Crate READMEs
 
-**Status**: met
+**Status**: partially met
 
-- All 7 per-crate READMEs present; all mention `gen_sum_code_v0` in API overview tables ✅
+- READMEs present for all existing 8 crates/packages including `crates/iscc-rb/README.md` (93 lines)
+    ✅
+- **Gap**: Target requires READMEs for `packages/dotnet`, `packages/cpp`, `packages/swift`,
+    `packages/kotlin` — none of these directories exist yet (all `low` priority)
 
 ## Documentation
 
-**Status**: met
+**Status**: partially met
 
-- 17 pages deployed to lib.iscc.codes; all navigation sections complete ✅
-- All 5 doc files updated to 4-parameter `gen_sum_code_v0` signature ✅
-- `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
-- All howto guides have Sum-Code subsections ✅
-- `uv run zensical build` exits 0 ✅
+- 17+ pages deployed to lib.iscc.codes; all navigation sections complete ✅
+- 8 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, ruby.md
+    ✅
+- `docs/ruby-api.md` API reference page (781 lines) ✅; `docs/c-ffi-api.md` ✅
+- **Gap**: Target requires C#, C++, Swift, Kotlin how-to guides (all `low` priority; none started)
 
 ## Benchmarks
 
 **Status**: met
 
-- Criterion benchmarks for all 10 `gen_*_v0` functions; `bench_sum_code` uses 4-arg call ✅
+- Criterion benchmarks for all 10 `gen_*_v0` functions ✅
 - `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks ✅
-- pytest-benchmark comparison files; speedup factors in `docs/benchmarks.md` ✅
 - `Bench (compile check)` CI job SUCCESS ✅
 
 ## CI/CD and Publishing
 
 **Status**: met
 
-- **All 11 CI jobs SUCCESS** on HEAD `a49ac7d` — **PASSING** ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22604187637
-- Jobs: Version consistency, Rust (fmt, clippy, test), Python 3.10, Python 3.14, Python (gate),
-    Node.js, WASM, C FFI, Java, Go, Bench — all SUCCESS ✅
-- `Rust` job now includes 5 feature matrix steps (2 clippy + 3 test combos) ✅
-- `release.yml` has `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven,
-    FFI) ✅
-- Tag push `v*.*.*` triggers all publish jobs ✅
-- v0.0.4 released to all registries; OIDC trusted publishing configured ✅
-- `mise run version:sync` / `version:check` in CI ✅
+- **ALL PASSING** — latest CI run 22669472925: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22669472925
+- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest), Node.js, WASM, C
+    FFI, Java, Go, Bench, Ruby — all SUCCESS ✅
+- `release.yml` has 6 registry `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
+    RubyGems ✅
+- **6 smoke test jobs implemented** — each gates its publish job ✅:
+    - `test-wheels` → gates `publish-pypi` (installs wheel, runs `conformance_selftest()`)
+    - `test-napi` → gates `publish-npm-lib` (loads `.node`, runs `conformance_selftest()`)
+    - `test-wasm` → gates `publish-npm-wasm` (ESM import, runs `conformance_selftest()`)
+    - `test-jni` → gates `publish-maven` (runs `mvn test` with native libs)
+    - `test-ffi` → gates `publish-ffi` (compiles `test_iscc.c`, runs binary)
+    - `test-gem` → gates `publish-rubygems` (installs gem, runs `conformance_selftest`)
+- `build-gem` job: 5 platforms via `oxidize-rb/actions/cross-gem@v1` ✅
+- RubyGems account setup complete: account created, `GEM_HOST_API_KEY` secret added to GitHub ✅
+- **Gap**: Target requires CI jobs for C#, C++, Swift, Kotlin (all `low` priority; none started)
 
 ## Next Milestone
 
-**All target criteria met.** No open issues. CI fully green.
+All `normal`-priority and `critical`-priority gaps are resolved. CI is fully green (6 consecutive
+successful runs, latest 22669472925). The only remaining open issues are `low`-priority (CID loop
+skips these by policy):
 
-The project has reached its DONE state. Possible next directions (if the target is extended):
+1. C# / .NET bindings (`packages/dotnet/`)
+2. C++ header-only wrapper (`packages/cpp/`)
+3. Swift bindings (`packages/swift/` + `crates/iscc-uniffi/`)
+4. Kotlin Multiplatform bindings (`packages/kotlin/`)
+5. Language logos/icons in README and docs
 
-- Bump to v0.1.0 for a stable experimental release
-- Add more howto guide content or interactive documentation pages
-- Expand CI to test on macOS/Windows runners
-- Performance regression tracking in CI
+**Recommended action (human-directed):** Create a PR from `develop` → `main` for a stable release
+(`mise run pr:main` or `gh pr create -B main -H develop`). The project is feature-complete for all
+`normal`-priority bindings with full CI/CD, smoke-tested release pipeline, and comprehensive
+documentation.

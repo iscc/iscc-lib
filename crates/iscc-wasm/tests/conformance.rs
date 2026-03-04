@@ -63,7 +63,7 @@ fn test_gen_meta_code_v0_conformance() {
         tested += 1;
     }
 
-    assert_eq!(tested, 16, "expected 16 conformance tests to run");
+    assert_eq!(tested, 20, "expected 20 conformance tests to run");
 }
 
 // ── gen_text_code_v0 ─────────────────────────────────────────────────────────

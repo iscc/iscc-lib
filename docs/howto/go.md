@@ -203,7 +203,7 @@ Generate a composite ISCC-CODE from a file in a single pass:
 ```go
 os.WriteFile("example.bin", bytes.Repeat([]byte("Hello World"), 1000), 0644)
 
-result, err := iscc.GenSumCodeV0("example.bin", 64, false)
+result, err := iscc.GenSumCodeV0("example.bin", 64, false, false)
 if err != nil {
 	log.Fatal(err)
 }
@@ -323,7 +323,7 @@ fmt.Println(windows) // ["Hell", "ello", "llo ", "lo W", "o Wo", " Wor", "Worl",
 Additional primitives:
 
 - `AlgMinhash256(features []uint32) []byte` — compute a 256-bit MinHash digest from features
-- `AlgCdcChunks(data []byte, utf32 bool, avgChunkSize uint32) [][]byte` — split data into
+- `AlgCdcChunks(data []byte, utf32 bool, avgChunkSize uint32) ([][]byte, error)` — split data into
     content-defined chunks
 - `AlgSimhash(digests [][]byte) ([]byte, error)` — compute a SimHash from equal-length byte digests
 

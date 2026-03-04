@@ -35,6 +35,7 @@ HANDOFF_FILE = CONTEXT_DIR / "handoff.md"
 LOG_FILE = CONTEXT_DIR / "iterations.jsonl"
 DONE_MARKER = "## Status: DONE"
 HUMAN_REVIEW_MARKER = "**HUMAN REVIEW REQUESTED**"
+IDLE_MARKER = "**IDLE**"
 
 
 # --- CLI discovery ---
@@ -222,14 +223,30 @@ def check_human_review(cwd):
     return None
 
 
+def check_idle(cwd):
+    """Check if handoff.md indicates no actionable work remains.
+
+    Returns the reason string if found, None otherwise.
+    """
+    handoff_path = cwd / HANDOFF_FILE
+    if not handoff_path.exists():
+        return None
+    for line in handoff_path.read_text(encoding="utf-8").splitlines():
+        if IDLE_MARKER in line:
+            reason = line.split(IDLE_MARKER, 1)[1].lstrip(":").strip()
+            return reason or "no actionable work remains"
+    return None
+
+
 # --- Iteration logic ---
 
 
 def run_iteration(claude_cmd, iteration, cwd, skip_permissions=False):
     """Run one CID iteration (all 4 roles in sequence).
 
-    Returns 'done' if the project reached target, 'ok' if iteration succeeded,
-    'pause' if human review was requested, or 'fail' if a role failed.
+    Returns 'done' if the project reached target, 'idle' if no actionable work remains,
+    'ok' if iteration succeeded, 'pause' if human review was requested, or 'fail' if a
+    role failed.
     """
     for role in ROLES:
         print(f"\n{'─' * 60}")
@@ -256,6 +273,12 @@ def run_iteration(claude_cmd, iteration, cwd, skip_permissions=False):
                     "  Pausing CID loop. Review handoff.md, then resume with cid:run."
                 )
                 return "pause"
+
+            # Check for idle state (no actionable work remaining)
+            idle_reason = check_idle(cwd)
+            if idle_reason:
+                print(f"\n  *** IDLE: {idle_reason} ***")
+                return "idle"
 
     return "ok"
 
@@ -306,6 +329,9 @@ def cmd_run(args):
 
         if result == "done":
             print(f"\nProject complete after {i} iteration(s).")
+            break
+        elif result == "idle":
+            print(f"\nNo actionable work after iteration {i}. Exiting CID loop.")
             break
         elif result == "pause":
             print(f"\nPaused after iteration {i} — human review needed.")
@@ -567,6 +593,13 @@ def cmd_orchestrate(args):
         if reason:
             print(f"\n  *** HUMAN REVIEW REQUESTED: {reason} ***")
             print("  Pausing CID loop. Review handoff.md, then resume.")
+            break
+
+        # Check for idle state (no actionable work remaining)
+        idle_reason = check_idle(cwd)
+        if idle_reason:
+            print(f"\n  *** IDLE: {idle_reason} ***")
+            print(f"\nNo actionable work after iteration {i}. Exiting CID loop.")
             break
 
         if i < max_iter and pause:

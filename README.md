@@ -7,6 +7,9 @@
 [![PyPI](https://img.shields.io/pypi/v/iscc-lib.svg)](https://pypi.org/project/iscc-lib/)
 [![npm](https://img.shields.io/npm/v/@iscc/lib.svg)](https://www.npmjs.com/package/@iscc/lib)
 [![Go Reference](https://pkg.go.dev/badge/github.com/iscc/iscc-lib/packages/go.svg)](https://pkg.go.dev/github.com/iscc/iscc-lib/packages/go)
+[![Gem](https://img.shields.io/gem/v/iscc-lib.svg)](https://rubygems.org/gems/iscc-lib)
+[![Maven Central](https://img.shields.io/maven-central/v/io.iscc/iscc-lib.svg)](https://central.sonatype.com/artifact/io.iscc/iscc-lib)
+[![npm wasm](https://img.shields.io/npm/v/@iscc/wasm.svg)](https://www.npmjs.com/package/@iscc/wasm)
 
 **High-performance polyglot implementation of
 [ISO 24138:2024](https://www.iso.org/standard/77899.html) — International Standard Content Code
@@ -19,7 +22,7 @@
     levels
 - **Self-Describing**: Each component contains its own type and version information
 - **ISO Standardized**: Implements the official ISO 24138:2024 specification
-- **Polyglot**: Rust core with bindings for Python, Java, Go, Node.js, WASM, and C FFI
+- **Polyglot**: Rust core with bindings for Python, Java, Go, Ruby, Node.js, WASM, and C FFI
 - **Conformance-Tested**: Validated against the official
     [iscc-core](https://github.com/iscc/iscc-core) reference implementation
 
@@ -43,8 +46,8 @@ and general digital asset management use-cases.
 
 `iscc-lib` is a high-performance polyglot implementation of the ISCC core algorithms
 ([ISO 24138](https://www.iso.org/standard/77899.html)). Built in Rust with language bindings for
-Python, Java, Go, Node.js, WebAssembly, and C, it serves developers across multiple ecosystems who
-need fast, reliable content identification.
+Python, Java, Go, Ruby, Node.js, WebAssembly, and C, it serves developers across multiple ecosystems
+who need fast, reliable content identification.
 
 `iscc-lib` is conformance-tested against the official Python reference implementation
 [iscc-core](https://github.com/iscc/iscc-core) and produces identical results for all test vectors.
@@ -95,7 +98,7 @@ npm install @iscc/lib
 <dependency>
   <groupId>io.iscc</groupId>
   <artifactId>iscc-lib</artifactId>
-  <version>0.1.0</version>
+  <version>0.2.0</version>
 </dependency>
 ```
 
@@ -105,6 +108,12 @@ The native library must be available on `java.library.path` at runtime.
 
 ```bash
 go get github.com/iscc/iscc-lib/packages/go
+```
+
+### Ruby
+
+```bash
+gem install iscc-lib
 ```
 
 ### WASM
@@ -157,7 +166,6 @@ System.out.println("Meta-Code: " + result);
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 
@@ -165,20 +173,21 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
-
-	rt, err := iscc.NewRuntime(ctx)
+	result, err := iscc.GenMetaCodeV0("ISCC Test Document!", nil, nil, 64)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer rt.Close(ctx)
-
-	code, err := rt.GenMetaCodeV0(ctx, "ISCC Test Document!", nil, nil, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Meta-Code:", code)
+	fmt.Println("Meta-Code:", result.Iscc)
 }
+```
+
+### Ruby
+
+```ruby
+require "iscc_lib"
+
+result = IsccLib.gen_meta_code_v0("ISCC Test Document!")
+puts "Meta-Code: #{result.iscc}"
 ```
 
 ### WASM

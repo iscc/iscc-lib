@@ -9,8 +9,8 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Architecture
 
-- Hub-and-spoke: `iscc-lib` (pure Rust core) → 6 binding crates. Each binding depends only on
-    `iscc-lib`, never on another binding
+- Hub-and-spoke: `iscc-lib` (pure Rust core) → 7 binding crates (py, napi, wasm, ffi, jni, go, rb).
+    Each binding depends only on `iscc-lib`, never on another binding
 - Tier 1 API (32 symbols) exposed via `pub use` at crate root. Tier 2 is `pub(crate)` — internal
     only, never crosses FFI boundary
 - Sync core, async boundaries: Rust core is synchronous. Each binding adapts idiomatically
@@ -47,7 +47,7 @@ fully-met target sections to `learnings-archive.md`.
     content code's SubType (TEXT/IMAGE/AUDIO/VIDEO/MIXED). When no content code is provided, SubType
     is NONE (0). SubType SUM (5) is used for `iscc_sum` (multi-asset aggregation, not in gen_iscc)
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty
-    after prefix = empty bytes. 46 total vectors: 16+5+3+5+3+2+4+3+5
+    after prefix = empty bytes. 50 total vectors (v1.3.0): 20+5+3+5+3+2+4+3+5
 - `soft_hash_meta_v0` interleaves name and description features at the nibble level. Trim lengths
     are in bytes, not characters. The returned bytes are the raw SimHash digest
 - `gen_text_code_v0` uses MinHash (not SimHash) for the content hash portion. `alg_minhash_256`
@@ -82,6 +82,14 @@ fully-met target sections to `learnings-archive.md`.
     `grep`, `sed`) MUST specify `shell: bash`. Existing publish jobs avoid this by only running
     version extraction on `ubuntu-latest`, but per-matrix version steps (like in `build-ffi`) hit
     Windows. Always check `shell:` declarations when adding `run:` steps to cross-platform matrices
+- **Release pipeline pattern**: boolean input → build job → smoke test job → publish job. 6 smoke
+    test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish. Each
+    tests linux-x86_64 artifact on ubuntu-latest
+- **WASM conformance_selftest**: requires `--features conformance` in `wasm-pack build` — the export
+    is gated behind `#[cfg(feature = "conformance")]` in the WASM crate. NAPI and Python export it
+    unconditionally
+- **NAPI js_name**: binding uses `#[napi(js_name = "conformance_selftest")]` — snake_case is
+    preserved in the raw .node export. Smoke test can `require()` the .node file directly
 
 ## Branching
 
@@ -140,6 +148,36 @@ fully-met target sections to `learnings-archive.md`.
     constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
+
+## Ruby Bindings (Magnus)
+
+- Magnus 0.7.1 works with Rust edition 2024 and Ruby 3.1.2. Magnus 0.8 requires Ruby 3.2+
+- `extconf.rb` must be at crate root (not `ext/iscc_lib/`) — rb_sys `ExtensionTask` expects it next
+    to `Cargo.toml`
+- Cargo lib name must match package name (`iscc_rb`, not `iscc_lib`) — rb_sys derives the binary
+    name from the package name. Ruby loads via `require_relative "iscc_lib/iscc_rb"`
+- Root `.gitignore` has `lib/` pattern — need `!lib/` negation in `crates/iscc-rb/.gitignore`
+- `bundler` not on PATH by default in devcontainer — need `$HOME/.local/share/gem/ruby/3.1.0/bin` on
+    PATH
+- Streaming classes use `#[magnus::wrap(class = "IsccLib::ClassName")]` + `RefCell<Option<inner>>`
+    (Magnus gives `&self`, not `&mut self`). Ruby `class ClassName` inside `module IsccLib` reopens
+    the native class. Method prefix `_update`/`_finalize` works; class prefix `_DataHasher` does NOT
+    (Ruby constants must start with uppercase)
+- `libclang-dev` required for rb-sys/bindgen to compile
+- Standard Ruby linting: `standard` gem + `rubocop-minitest` plugin. Config at `.standard.yml` (not
+    `.rubocop.yml`). `mise run check` now runs 15 hooks (incl. Ruby auto-fix). Pre-commit hook uses
+    portable `ruby -e "puts Gem.user_dir"` for PATH resolution since `bundle` isn't on system PATH
+- Ruby `JSON.generate` silently ignores `sort_keys: true` — use `meta_val.sort.to_h` before
+    `JSON.generate` for sorted-key output. Python `json.dumps(sort_keys=True)` works as expected
+
+## Ruby Algorithm Primitives
+
+- Algorithm primitives registered without `_` prefix (direct call) and without Ruby wrapper —
+    matching `text_clean`, `encode_base64` pattern, NOT the gen function pattern
+- `alg_cdc_chunks` returns `Vec<&[u8]>` (borrowed slices) — Ruby bridge must copy each chunk to
+    `RString::from_slice` before returning. The unsafe slice is safe for Ruby 3.1 (non-compacting
+    GC, RString pinned as function parameter) but would need review for Ruby 3.2+ auto-compaction
+- `alg_minhash_256` is the only infallible Tier 1 function (no `Result`, no error mapping)
 
 ## CID Process
 

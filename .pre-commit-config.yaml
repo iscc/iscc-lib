@@ -59,6 +59,14 @@ repos:
         language: system
         types: [yaml]
         stages: [pre-commit]
+      - id: standardrb-fix
+        name: Ruby linting (fix)
+        entry: bash -c 'export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH" &&
+          cd crates/iscc-rb && bundle exec standardrb --fix'
+        language: system
+        files: ^crates/iscc-rb/.*\.rb$
+        stages: [pre-commit]
+        pass_filenames: false
 
       # Pre-push hooks (thorough quality gates)
       - id: cargo-clippy
@@ -94,6 +102,14 @@ repos:
         entry: uv run ruff check --select C901 --force-exclude
         language: system
         always_run: true
+        stages: [pre-push]
+        pass_filenames: false
+      - id: standardrb
+        name: Ruby linting
+        entry: bash -c 'export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH" &&
+          cd crates/iscc-rb && bundle exec standardrb'
+        language: system
+        files: ^crates/iscc-rb/.*\.rb$
         stages: [pre-push]
         pass_filenames: false
       - id: pytest

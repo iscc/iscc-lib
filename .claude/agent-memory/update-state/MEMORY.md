@@ -29,12 +29,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Codebase Landmarks
 
-- `crates/` — 6 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni
+- `crates/` — 7 crates: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni, **iscc-rb**
+    (32/32 symbols — COMPLETE)
+- `.claude/context/specs/` — per-binding spec files (ruby, go, java, nodejs, wasm, cpp, dotnet,
+    swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
-    (gate), Node.js, WASM, C FFI, Java, Go, Bench
-- `docs/howto/` — 7 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, **c-cpp.md** ✅
-    (resolved issue #22); `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
+    (gate), Node.js, WASM, C FFI, Java, Go, Bench, **Ruby** (12 total)
+- `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
+    **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
@@ -59,21 +62,26 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: a49ac7d)
+## Current State (assessed-at: 0be8bda)
 
-- **DONE**: All target criteria met. No open issues. CI fully green.
-- **Issue #16 COMPLETE**: Feature flags + code gating + conformance_selftest adaptation + CI matrix
-    ✅
-- **Feature flags**: `default = ["meta-code"]`,
-    `meta-code = ["text-processing", "dep:serde_json_canonicalizer"]`,
-    `text-processing = [dep:unicode-*]`
-- **CI feature matrix** (5 steps in rust job): clippy no-default-features, clippy all-features, test
-    no-default-features, test all-features, test text-processing-only
-- **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only), passes
-    (all-features)
-- **CI latest**: Run 22604187637 — all 11 CI jobs SUCCESS ✅
-- **release.yml**: workflow_dispatch with per-registry checkboxes (crates.io, PyPI, npm, Maven, FFI)
-    ✅; tag push triggers all jobs ✅
+- **IN_PROGRESS**: all 12 CI jobs green (run 22669472925); **0 normal-priority gaps remain**
+- **Iter 8 (CID round 8)**: no codebase changes — idle iteration (only .claude/ context files)
+- **Only low-priority gaps remain**: C#, C++, Swift, Kotlin bindings; language logos — CID skips
+- **CI (run 22669472925)**: ALL SUCCESS — 12 jobs (6+ consecutive green runs)
+- **release.yml**: 6 checkboxes + 6 smoke test jobs: test-wheels/napi/wasm/jni/ffi/gem ✅
+- **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
+- **Test counts (Rust)**: 316 (default features)
+- **docs/**: 8 howto files; `docs/ruby-api.md` ✅; `docs/c-ffi-api.md` ✅
+- **packages/**: only `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do NOT exist yet
+- **Recommended next action**: PR from `develop` → `main` for stable release (human-directed)
+
+## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
+
+- 4 new test vectors vendored: test_0017–test_0020 in both `crates/iscc-lib/tests/data.json` and
+    `packages/go/testdata/data.json` (50 total vectors)
+- `data.json` has top-level `_metadata` object — Go uses `parseConformanceData()` to skip it; Rust
+    `serde_json` silently ignores unknown fields
+- Rust lib.rs assertion: 20; WASM conformance.rs line 66: 20 ✅; Go all 9 test files updated ✅
 
 ## Go Package Tier 1 Coverage (32/32 — COMPLETE)
 
@@ -92,7 +100,10 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     `wtaVideoIdPermutations` is `var`
 - **JCS gotcha**: Go `json.Marshal` passes current vectors. If future vectors have floats, a proper
     RFC 8785 JCS library may be needed
-- **DataHasher/InstanceHasher API**: Go uses `Push([]byte)` + `Finalize(bits)` pattern
+- **DataHasher/InstanceHasher API (Go)**: `Push([]byte)` + `Finalize(bits)` pattern
+- **DataHasher/InstanceHasher API (Ruby)**: `RefCell<Option<inner>>` for interior mutability (Magnus
+    `&self`); Ruby wrapper reopens native class, adds `update(data)` (chaining) +
+    `finalize(bits: 64)`
 - **GenIsccCodeV0 key details**: `encode_units` produces a bitfield; `wide` param always false in
     test vectors; SubType from content code's SubType (or NONE if absent); 5 conformance vectors
 - **gen_sum_code_v0 WASM**: path-based I/O doesn't exist in browser WASM context — accepts
@@ -107,3 +118,15 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     and benchmarks file say "10"
 - **gen_sum_code_v0 benchmark**: uses NamedTempFile (tempfile crate); temp files created outside
     criterion closure so file setup is not measured; cleanup via Drop
+- **WASM count assertions**: `crates/iscc-wasm/tests/conformance.rs` has per-function
+    `assert_eq!(tested, N, ...)` guards. When data.json gains new vectors, BOTH lib.rs AND the WASM
+    conformance test must be updated. Review agents may miss this (check grep result:
+    `grep -n "assert_eq.*tested" crates/iscc-wasm/tests/conformance.rs`)
+- **Ruby JSON sort_keys no-op**: `JSON.generate(hash, sort_keys: true)` silently ignores `sort_keys`
+    in Ruby's stdlib json gem. Use `JSON.generate(hash.sort.to_h)` instead for deterministic key
+    ordering (required for JCS-compatible meta serialization)
+- **alg_cdc_chunks API**: public fn returns `IsccResult<Vec<&[u8]>>` (validates
+    `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked` (no validation, always
+    valid constant). All 6 binding crates (Python, NAPI, WASM, FFI, JNI, Ruby) handle the Result. Go
+    `AlgCdcChunks` also validates `avgChunkSize < 2` (returns `error`; internal caller uses
+    `algCdcChunksUnchecked`) — gap now closed.

@@ -7,10 +7,11 @@ members = [
   "crates/iscc-wasm",
   "crates/iscc-ffi",
   "crates/iscc-jni",
+  "crates/iscc-rb",
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Titusz Pan <tp@py7.de>"]
@@ -40,6 +41,7 @@ serde-wasm-bindgen = "0.6"
 criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3"
 jni = "0.21"
+magnus = { version = "0.7", features = ["rb-sys"] }
 
 [profile.release]
 lto = true

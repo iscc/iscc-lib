@@ -824,14 +824,20 @@ pub extern "system" fn Java_io_iscc_iscc_1lib_IsccLib_algCdcChunks(
     utf32: jboolean,
     avg_chunk_size: jint,
 ) -> jobjectArray {
-    if avg_chunk_size < 0 {
-        return throw_and_default(&mut env, "avg_chunk_size must be non-negative");
+    if avg_chunk_size < 2 {
+        return throw_and_default(
+            &mut env,
+            &format!("avg_chunk_size must be >= 2, got {avg_chunk_size}"),
+        );
     }
     let bytes = match extract_byte_array(&env, data) {
         Ok(b) => b,
         Err(e) => return throw_and_default(&mut env, &e),
     };
-    let chunks = iscc_lib::alg_cdc_chunks(&bytes, utf32 != 0, avg_chunk_size as u32);
+    let chunks = match iscc_lib::alg_cdc_chunks(&bytes, utf32 != 0, avg_chunk_size as u32) {
+        Ok(c) => c,
+        Err(e) => return throw_and_default(&mut env, &e.to_string()),
+    };
     let byte_array_class = match env.find_class("[B") {
         Ok(c) => c,
         Err(e) => return throw_and_default(&mut env, &e.to_string()),

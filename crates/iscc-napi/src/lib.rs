@@ -345,12 +345,17 @@ pub fn alg_minhash_256(features: Vec<u32>) -> Buffer {
 /// is true, aligns cut points to 4-byte boundaries. Default
 /// `avg_chunk_size` is 1024.
 #[napi(js_name = "alg_cdc_chunks")]
-pub fn alg_cdc_chunks(data: Buffer, utf32: bool, avg_chunk_size: Option<u32>) -> Vec<Buffer> {
+pub fn alg_cdc_chunks(
+    data: Buffer,
+    utf32: bool,
+    avg_chunk_size: Option<u32>,
+) -> napi::Result<Vec<Buffer>> {
     let avg = avg_chunk_size.unwrap_or(1024);
-    iscc_lib::alg_cdc_chunks(data.as_ref(), utf32, avg)
+    Ok(iscc_lib::alg_cdc_chunks(data.as_ref(), utf32, avg)
+        .map_err(|e| napi::Error::from_reason(e.to_string()))?
         .into_iter()
         .map(Buffer::from)
-        .collect()
+        .collect())
 }
 
 /// Compute a similarity-preserving hash from video frame signatures.

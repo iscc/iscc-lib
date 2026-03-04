@@ -90,7 +90,7 @@ impl DataHasher {
     pub fn update(&mut self, data: &[u8]) {
         self.buf.extend_from_slice(data);
 
-        let chunks = cdc::alg_cdc_chunks(&self.buf, false, cdc::DATA_AVG_CHUNK_SIZE);
+        let chunks = cdc::alg_cdc_chunks_unchecked(&self.buf, false, cdc::DATA_AVG_CHUNK_SIZE);
 
         // Process all chunks except the last (which becomes the new tail).
         // This mirrors the Python `push()` method's `prev_chunk` pattern.

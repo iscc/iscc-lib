@@ -17,6 +17,7 @@ nav = [
   { "How-to Guides" = [
     { "Rust" = "howto/rust.md" },
     { "Python" = "howto/python.md" },
+    { "Ruby" = "howto/ruby.md" },
     { "Node.js" = "howto/nodejs.md" },
     { "WebAssembly" = "howto/wasm.md" },
     { "Go" = "howto/go.md" },
@@ -32,6 +33,7 @@ nav = [
     { "Python API" = "api.md" },
     { "C FFI" = "c-ffi-api.md" },
     { "Java API" = "java-api.md" },
+    { "Ruby API" = "ruby-api.md" },
   ] },
   { "Benchmarks" = "benchmarks.md" },
   { "Development" = "development.md" },

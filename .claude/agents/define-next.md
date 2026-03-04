@@ -48,7 +48,8 @@ recurring patterns. This builds up institutional knowledge across iterations.
 3. **Check issues** — scan issues.md for open issues. If any `critical` issue exists, it takes
     priority over the handoff suggestion and normal gap analysis. For `normal` issues, weigh them
     against the state→target gap — prefer finishing a coherent feature set before switching to a
-    normal issue. `low` issues are picked up only when no other work remains.
+    normal issue. **Skip `low` priority issues entirely** — they are reserved for human-directed
+    work and must not be picked up by the CID loop.
 
 4. **Consult learnings** — check learnings.md for pitfalls, failed approaches, or architectural
     constraints that affect your choice.

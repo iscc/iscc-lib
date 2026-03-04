@@ -31,13 +31,13 @@ jobs:
       - name: Check formatting
         run: cargo fmt --all --check
       - name: Run clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings
       - name: Clippy iscc-lib (no default features)
         run: cargo clippy -p iscc-lib --no-default-features -- -D warnings
       - name: Clippy iscc-lib (all features)
         run: cargo clippy -p iscc-lib --all-features -- -D warnings
       - name: Run tests
-        run: cargo test --workspace
+        run: cargo test --workspace --exclude iscc-rb
       - name: Test iscc-lib (no default features)
         run: cargo test -p iscc-lib --no-default-features
       - name: Test iscc-lib (all features)
@@ -162,6 +162,33 @@ jobs:
       - name: Run Go vet
         run: go vet ./...
         working-directory: packages/go
+  ruby:
+    name: Ruby (magnus build, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install libclang-dev
+        run: sudo apt-get update && sudo apt-get install -y libclang-dev
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.1'
+          working-directory: crates/iscc-rb
+          bundler-cache: true
+      - name: Run standardrb
+        run: bundle exec standardrb
+        working-directory: crates/iscc-rb
+      - name: Run clippy
+        run: cargo clippy -p iscc-rb -- -D warnings
+      - name: Compile native extension
+        run: bundle exec rake compile
+        working-directory: crates/iscc-rb
+      - name: Run tests
+        run: bundle exec rake test
+        working-directory: crates/iscc-rb
   bench:
     name: Bench (compile check)
     runs-on: ubuntu-latest

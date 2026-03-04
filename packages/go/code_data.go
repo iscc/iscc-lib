@@ -35,7 +35,7 @@ func (h *DataHasher) Push(data []byte) {
 		data = combined
 	}
 
-	chunks := AlgCdcChunks(data, false, 1024)
+	chunks := algCdcChunksUnchecked(data, false, 1024)
 
 	// Process all chunks except the last (which becomes the new tail).
 	// This mirrors the Python push() method's prev_chunk pattern.

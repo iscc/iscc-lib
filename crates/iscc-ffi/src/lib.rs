@@ -1196,7 +1196,13 @@ pub unsafe extern "C" fn iscc_alg_cdc_chunks(
         // SAFETY: caller guarantees data is valid for data_len bytes
         unsafe { std::slice::from_raw_parts(data, data_len) }
     };
-    let chunks = iscc_lib::alg_cdc_chunks(slice, utf32, avg_chunk_size);
+    let chunks = match iscc_lib::alg_cdc_chunks(slice, utf32, avg_chunk_size) {
+        Ok(c) => c,
+        Err(e) => {
+            set_last_error(&e.to_string());
+            return null_byte_buffer_array();
+        }
+    };
     let buffers: Vec<IsccByteBuffer> = chunks
         .iter()
         .map(|chunk| vec_to_byte_buffer(chunk.to_vec()))
