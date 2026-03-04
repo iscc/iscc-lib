@@ -501,11 +501,12 @@ IsccLib.iscc_decode(iscc_unit)
 | ----------- | -------- | ---------------- |
 | `iscc_unit` | `String` | ISCC unit string |
 
-Returns a 5-element `Array`: `[maintype, subtype, version, length, digest]` where `digest` is a
-binary `String`. Raises `RuntimeError` on invalid input.
+Returns a 5-element `Array`: `[maintype, subtype, version, length_index, digest]` where
+`length_index` is the encoded length code (not the bit length) and `digest` is a binary `String`.
+Raises `RuntimeError` on invalid input.
 
 ```ruby
-maintype, subtype, version, length, digest = IsccLib.iscc_decode("ISCC:EAASKDNZNYGUUF5A")
+maintype, subtype, version, length_index, digest = IsccLib.iscc_decode("ISCC:EAASKDNZNYGUUF5A")
 puts "Maintype: #{maintype}, Subtype: #{subtype}" # "Maintype: 2, Subtype: 0"
 puts "Digest: #{digest.unpack1("H*")}"
 ```
@@ -595,7 +596,7 @@ IsccLib.alg_cdc_chunks(data, utf32, avg_chunk_size)
 | ---------------- | --------- | ------------------------------------------------ |
 | `data`           | `String`  | Raw binary data                                  |
 | `utf32`          | `Boolean` | If `true`, align cut points to 4-byte boundaries |
-| `avg_chunk_size` | `Integer` | Target average chunk size (default 1024)         |
+| `avg_chunk_size` | `Integer` | Target average chunk size in bytes (required)    |
 
 Returns `Array<String>` of binary chunk strings.
 

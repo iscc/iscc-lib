@@ -1,37 +1,44 @@
-## 2026-03-04 — Create Ruby API reference page
+## 2026-03-04 — Review of: Create Ruby API reference page
 
-**Done:** Created `docs/ruby-api.md` — the Ruby API reference page documenting all 32 Tier 1 public
-symbols (5 constants, 10 gen functions, 4 text utilities, 5 encoding/codec functions, 5 algorithm
-primitives, 2 streaming hashers, 1 diagnostic function). Added `{ "Ruby API" = "ruby-api.md" }` nav
-entry to `zensical.toml` under the Reference section.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `docs/ruby-api.md`: Created — 780-line API reference with method signatures, parameter tables,
-    return types, code examples, result classes table, constants table, and error handling section.
-    Follows the structural pattern of `docs/java-api.md` adapted for Ruby conventions (keyword
-    arguments, module-level methods, Hash subclass results).
-- `zensical.toml`: Added `{ "Ruby API" = "ruby-api.md" }` to the Reference nav section after Java
-    API.
+**Summary:** The advance agent created `docs/ruby-api.md` (780 lines) documenting all 32 Tier 1
+public symbols with signatures, parameter tables, return types, and code examples. Navigation entry
+added to `zensical.toml`. The doc is well-structured, follows the Java API reference pattern adapted
+for Ruby conventions, and the site builds cleanly. Two minor accuracy issues (Codex-caught) were
+fixed during review.
 
 **Verification:**
 
-- `test -f docs/ruby-api.md` → PASS (file exists)
-- `grep -q 'ruby-api.md' zensical.toml` → PASS (nav entry found)
-- `grep -c 'gen_.*_code_v0' docs/ruby-api.md` → 46 (≥10, all gen functions documented multiple times
-    across signatures, tables, result classes)
-- `grep -c 'IsccLib' docs/ruby-api.md` → 78 (≥30, Ruby module referenced throughout)
-- `wc -l < docs/ruby-api.md` → 780 (within 400-800 range)
-- `uv run zensical build` → "Build finished in 4.42s" (site builds cleanly, `/ruby-api/` appears in
-    output)
-- `mise run check` → all 15 hooks pass (including mdformat, TOML check)
+- [x] `test -f docs/ruby-api.md` exits 0 — file exists
+- [x] `grep -q 'ruby-api.md' zensical.toml` exits 0 — nav entry added after Java API
+- [x] `grep -c 'gen_.*_code_v0' docs/ruby-api.md` returns ≥10 — got 46 (each function referenced
+    multiple times across headings, signatures, result class table)
+- [x] `grep -c 'IsccLib' docs/ruby-api.md` returns ≥30 — got 78
+- [x] `uv run zensical build` succeeds — "Build finished", `/ruby-api/` in output
+- [x] `wc -l < docs/ruby-api.md` between 400 and 800 — got 781 (one line added by review fix)
+- [x] `mise run check` — all 15 hooks pass
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
 
-**Next:** With the Ruby API reference page complete, the Ruby bindings should now meet all spec
-requirements (spec line 310). Remaining items: (1) RubyGems account setup (human action), (2) root
-README Go quickstart example is stale (uses old WASM-bridge API).
+**Issues found:**
 
-**Notes:** No surprises. The page is 780 lines, near the upper end of the 400-800 target range. This
-is due to the Ruby API having keyword arguments on gen functions and result class documentation that
-Java doesn't need (Java uses positional args and a single decode result class). The howto guide
-error section says `RuntimeError` (not a custom error class) which matches the actual Magnus bridge
-implementation.
+- (fixed) `iscc_decode` return description said "length" — should be "length_index" (the encoded
+    length code, not the actual bit length). Fixed to match the howto guide's correct description
+- (fixed) `alg_cdc_chunks` parameter table said "default 1024" for `avg_chunk_size` — this is a
+    required positional argument in the Ruby API (no wrapper provides a default). Fixed to say
+    "required"
+
+**Codex review:** Two actionable P2 findings, both valid and fixed during review: (1) misleading
+`length` vs `length_index` in `iscc_decode` return description; (2) false "default 1024" for
+required `avg_chunk_size` parameter in `alg_cdc_chunks`.
+
+**Next:** With `docs/ruby-api.md` now complete, the Ruby bindings section should reach "met" status
+(all spec requirements fulfilled except human-action items like RubyGems account setup). The
+remaining `normal` priority work is now fully resolved. The Ruby bindings issue can be considered
+complete. Possible next steps: (1) update-state to reflect Ruby "met", (2) address any remaining
+non-`low` gaps or move to maintenance mode.
+
+**Notes:** The Ruby bindings implementation is now feature-complete from a CID perspective. The only
+remaining item is RubyGems account setup (human action). All `normal` and `critical` priority issues
+are resolved. The remaining issues in issues.md are all `low` priority (C#, C++, Swift, Kotlin
+bindings, CDC validation edge case, logo additions) which CID skips by policy.
