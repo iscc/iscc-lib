@@ -8,6 +8,7 @@ Synced targets:
 - `pyproject.toml` — root project version (dev workspace)
 - `crates/iscc-napi/package.json` — npm package version
 - `crates/iscc-jni/java/pom.xml` — Maven artifact version
+- `crates/iscc-rb/lib/iscc_lib/version.rb` — Ruby gem version constant
 - `mise.toml` — default `--version` flag for test_install task
 - `scripts/test_install.py` — fallback version for registry checks
 - Maven/Gradle version snippets in docs and READMEs
@@ -126,6 +127,21 @@ def _sync_test_install(text, version):
     return text
 
 
+def _get_ruby_version(text):
+    """Extract version from Ruby VERSION constant."""
+    m = re.search(r'VERSION\s*=\s*"(\d+\.\d+\.\d+)"', text)
+    return m.group(1) if m else ""
+
+
+def _sync_ruby_version(text, version):
+    """Update Ruby VERSION constant."""
+    return re.sub(
+        r'(VERSION\s*=\s*")\d+\.\d+\.\d+(")',
+        rf"\g<1>{version}\2",
+        text,
+    )
+
+
 def _get_maven_doc_version(text):
     """Extract Maven dependency version from a doc/README file."""
     m = MAVEN_DEP_RE.search(text)
@@ -146,6 +162,7 @@ TARGETS = [
     ("crates/iscc-jni/java/pom.xml", _get_pom_version, _sync_pom),
     ("mise.toml", _get_mise_version, _sync_mise),
     ("scripts/test_install.py", _get_test_install_version, _sync_test_install),
+    ("crates/iscc-rb/lib/iscc_lib/version.rb", _get_ruby_version, _sync_ruby_version),
     ("README.md", _get_maven_doc_version, _sync_maven_doc),
     ("crates/iscc-jni/README.md", _get_maven_doc_version, _sync_maven_doc),
     ("docs/howto/java.md", _get_maven_doc_version, _sync_maven_doc),

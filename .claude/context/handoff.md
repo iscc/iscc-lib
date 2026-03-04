@@ -1,41 +1,27 @@
-## 2026-03-03 — Review of: Add Ruby CI job to ci.yml
+## 2026-03-04 — Add Ruby gemspec version to version_sync.py
 
-**Verdict:** PASS
+**Done:** Added Ruby `version.rb` as a sync target in `scripts/version_sync.py`. Two new functions
+(`_get_ruby_version`, `_sync_ruby_version`) extract and update the `VERSION = "X.Y.Z"` constant in
+`crates/iscc-rb/lib/iscc_lib/version.rb`. The target is registered in the `TARGETS` list and the
+module docstring lists it.
 
-**Summary:** Added a dedicated `ruby` CI job to `.github/workflows/ci.yml` with all 8 required steps
-(checkout, rust-toolchain+clippy, rust-cache, libclang-dev, ruby/setup-ruby, clippy, compile, test).
-Clean implementation matching next.md exactly — no out-of-scope changes, no quality gate
-circumvention. All 7 verification criteria pass.
+**Files changed:**
+
+- `scripts/version_sync.py`: Added `_get_ruby_version` and `_sync_ruby_version` functions, added
+    Ruby target to `TARGETS` list, updated module docstring to mention `version.rb`
 
 **Verification:**
 
-- [x] `grep -c 'name: Ruby' .github/workflows/ci.yml` returns 1 — confirmed
-- [x] `grep 'cargo clippy -p iscc-rb'` finds the clippy step — confirmed
-- [x] `grep 'bundle exec rake test'` finds the test step — confirmed
-- [x] `grep 'libclang-dev'` finds the dependency install step — confirmed
-- [x] `grep -c 'exclude iscc-rb'` returns 2 — Rust job keeps its excludes, as required
-- [x] YAML is valid — `yaml.safe_load` exits 0
-- [x] `mise run check` passes — all 14 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
-- [x] No quality gate circumvention in diff
+- `uv run scripts/version_sync.py --check` exits 0 — all 10 targets OK including Ruby version.rb
+- `grep -c "version.rb" scripts/version_sync.py` returns 2 (docstring + TARGETS entry)
+- `uv run scripts/version_sync.py --check 2>&1 | grep "iscc-rb"` shows
+    `OK: crates/iscc-rb/lib/iscc_lib/version.rb = 0.1.0`
+- `mise run check` passes — all 14 pre-commit hooks clean
 
-**Issues found:**
+**Next:** The next logical step for the Ruby binding infrastructure is adding a RubyGems publish job
+to `release.yml`, or writing the `docs/howto/ruby.md` how-to guide. The version sync prerequisite
+for RubyGems publishing is now met.
 
-- (none)
-
-**Codex review:** No functional, security, or maintainability bugs found. Clean pass.
-
-**Next:** Ruby binding infrastructure is progressing. The next logical step is
-`scripts/version_sync.py` gemspec integration (adding `crates/iscc-rb/lib/iscc_lib/version.rb` to
-sync targets), the `release.yml` RubyGems publish job, or `docs/howto/ruby.md` documentation. The
-version_sync integration is a small, well-scoped step that enables correct version management before
-the release workflow is added.
-
-**Notes:**
-
-- The `--exclude iscc-rb` in the Rust CI job is permanent — the Rust job lacks Ruby headers and
-    libclang-dev. The dedicated Ruby job handles iscc-rb clippy/compile/test instead.
-- CI now has 12 jobs (version-check, rust, python-test, python, nodejs, wasm, c-ffi, java, go, ruby,
-    bench) — wait for the next CI run to confirm the Ruby job passes in GitHub Actions.
-- The Ruby issues.md entry (item 3: CI) is partially addressed by this iteration. Remaining items:
-    release.yml, version_sync, documentation, account setup.
+**Notes:** Straightforward implementation — no surprises or technical debt. The functions follow the
+exact same pattern as `_get_pyproject_version`/`_sync_pyproject`. No tests needed beyond the
+script's own `--check` mode, which serves as the integration test.
