@@ -123,11 +123,13 @@ iterations.
 
 ## Project Status
 
-- **Iter 20** — Registry badges resolved (iter 19). 1 `normal` issue remains: Release smoke tests
-    for all binding publish pipelines (release.yml) — scoped for iter 20
-- 12 CI jobs green (run 22664053215), all existing bindings "met"
-- 4 `low` issues: C# (low), C++ (low), Swift (low), Kotlin (low) + README logos (low)
-- After smoke tests, only `low` issues remain → CID approaches idle / PR develop → main
+- **CID loop IDLE as of iter 21** — all `normal`/`critical` work complete. Smoke tests resolved
+    (iter 20). 12 CI jobs green. All 7 bindings "met". 5 `low` issues remain (C#, C++, Swift,
+    Kotlin, logos) — CID skips by policy
+- **Next human action**: PR develop → main (`mise run pr:main`), or promote a `low` issue to
+    `normal` to resume CID work
+- When CID reaches idle with only `low` issues, write an idle signal in next.md — the advance agent
+    should make no code changes and the iteration completes cleanly
 
 ## Release Smoke Test Architecture
 
