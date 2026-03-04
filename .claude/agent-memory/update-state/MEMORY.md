@@ -62,9 +62,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 3c029e87)
+## Current State (assessed-at: 134f279f)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22654833788); Ruby bindings now MET (iter 14)
+- **IN_PROGRESS**: all 12 CI jobs green (run 22656100948); CID loop IDLE (iter 15 = doc fix only)
+- **Iter 15 changes**: Go doc fixes only — `GenSumCodeV0` 4-arg signature in `docs/howto/go.md`;
+    README.md Go quickstart corrected (direct `iscc.GenMetaCodeV0(...)` call, no WASM runtime)
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
 - **Ruby bindings**: MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
     - ALL 10 gen functions ✅; 4 text ✅; 6 codec/diagnostic ✅; 5 constants ✅
@@ -75,7 +77,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     - **`docs/ruby-api.md`** ✅ (781 lines — all 32 symbols with signatures, param tables, examples)
     - `zensical.toml` Reference: "Ruby API" entry added after "Java API" ✅
     - Human action still required: RubyGems.org account, gem name reservation, secret setup
-- **CI (run 22654833788)**: ALL SUCCESS — 12 jobs
+- **CI (run 22656100948)**: ALL SUCCESS — 12 jobs
 - **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, **rubygems** ✅
 - **Ruby CI design**: dedicated `ruby` job runs standardrb+clippy+compile+test; Rust job excludes
     iscc-rb

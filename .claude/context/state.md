@@ -1,4 +1,4 @@
-<!-- assessed-at: 3c029e874221bd49b6b597e2e5edac9d1fbba677 -->
+<!-- assessed-at: 134f279f5e325d3a6872e2b827a40487e56a20a8 -->
 
 # Project State
 
@@ -6,10 +6,11 @@
 
 ## Phase: Ruby bindings complete; only low-priority work remains
 
-All high-priority binding work is complete. Ruby bindings reached "met" in this iteration with the
-addition of `docs/ruby-api.md` (781 lines) and its navigation entry in `zensical.toml`. All 12 CI
-jobs pass (run 22654833788). The only remaining gaps are low-priority targets (C#, C++, Swift,
-Kotlin bindings) which the CID loop skips by policy.
+All high-priority binding work is complete. Ruby bindings have been fully met since iteration 14.
+Iteration 15 fixed stale Go code examples: `GenSumCodeV0` in `docs/howto/go.md` (4-arg signature)
+and the README Go quickstart (direct call pattern, no WASM runtime). All 12 CI jobs pass in the
+latest run (22656100948). The only remaining gaps are low-priority targets (C#, C++, Swift, Kotlin
+bindings) which the CID loop skips by policy.
 
 ## Rust Core Crate
 
@@ -43,7 +44,7 @@ Kotlin bindings) which the CID loop skips by policy.
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22654833788 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22656100948 ✅
 
 ## C FFI
 
@@ -69,6 +70,8 @@ Kotlin bindings) which the CID loop skips by policy.
 - `parseConformanceData()` helper skips `_metadata` key in data.json ✅
 - `packages/go/testdata/data.json` updated to iscc-core v1.3.0 (50 vectors) ✅
 - 155 Go tests pass; `go vet` clean ✅; CGO_ENABLED=0 confirmed ✅
+- `docs/howto/go.md` code examples corrected (GenSumCodeV0 4-arg signature) ✅
+- README.md Go quickstart corrected (direct `iscc.GenMetaCodeV0(...)` call, no WASM runtime) ✅
 
 ## Ruby Bindings
 
@@ -145,6 +148,7 @@ Kotlin bindings) which the CID loop skips by policy.
 - Public-facing polyglot README exists; CI badge, registry badges ✅
 - All 10 `gen_*_v0` functions listed; per-language install + quick-start examples ✅
 - Ruby install instructions and quickstart now present ✅
+- Go quickstart fixed (direct function call, no stale WASM runtime pattern) ✅
 - **Gap**: C#, C++, Swift, Kotlin sections not present (target requires all 4; all `low` priority)
 
 ## Per-Crate READMEs
@@ -163,6 +167,7 @@ Kotlin bindings) which the CID loop skips by policy.
 - 17+ pages deployed to lib.iscc.codes; all navigation sections complete ✅
 - 8 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, ruby.md
     ✅
+- `docs/howto/go.md` updated with correct `GenSumCodeV0` 4-arg signature ✅
 - `docs/ruby-api.md` API reference page (781 lines); nav entry in zensical.toml ✅
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
 - **Gap**: Target requires C#, C++, Swift, Kotlin how-to guides (all `low` priority; none started)
@@ -179,8 +184,8 @@ Kotlin bindings) which the CID loop skips by policy.
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22654833788: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22654833788
+- **ALL PASSING** — latest CI run 22656100948: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22656100948
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
     Java, Go, Bench, Ruby (standardrb + clippy + compile + test) ✅
 - `release.yml` has **6 registry** `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
