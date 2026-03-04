@@ -1,24 +1,34 @@
-## 2026-03-04 — Add avgChunkSize validation to Go AlgCdcChunks
+## 2026-03-04 — Review of: Add avgChunkSize validation to Go AlgCdcChunks
 
-**Done:** Added input validation to Go's `AlgCdcChunks` so it returns `([][]byte, error)` and
-rejects `avgChunkSize < 2`, matching the Rust core pattern. Extracted `algCdcChunksUnchecked` for
-internal callers. Updated `DataHasher.Push` to use the unchecked variant. Updated howto docs.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean implementation that adds `avgChunkSize < 2` validation to Go's `AlgCdcChunks`,
+exactly mirroring the Rust core pattern. The public function now returns `([][]byte, error)`, an
+unexported `algCdcChunksUnchecked` serves internal callers, and `DataHasher.Push` correctly uses the
+unchecked variant. All verification criteria pass; code is minimal and correct.
 
-- `packages/go/cdc.go`: Split `AlgCdcChunks` into validating wrapper plus `algCdcChunksUnchecked`.
-    Added `fmt` import.
-- `packages/go/code_data.go`: Changed `Push` to call `algCdcChunksUnchecked` (constant 1024 always
-    valid).
-- `packages/go/cdc_test.go`: Updated all 12 existing `AlgCdcChunks` test calls to handle error
-    return. Added `TestCdcChunksInvalidAvgChunkSize` testing sizes 0, 1 (error), and 2 (boundary).
-- `docs/howto/go.md`: Updated `AlgCdcChunks` signature in Algorithm primitives section.
+**Verification:**
 
-**Verification:** All 5 checks from next.md pass: go test (156 tests), go vet clean, validation
-guard present, unchecked variant used in code_data.go, doc updated.
+- [x] `cd packages/go && go test ./... -count=1` passes — 155 tests, all green
+- [x] `cd packages/go && go vet ./...` clean — no output
+- [x] `grep -q 'avgChunkSize < 2' packages/go/cdc.go` exits 0 — validation guard present
+- [x] `grep -q 'algCdcChunksUnchecked' packages/go/code_data.go` exits 0 — internal caller uses
+    unchecked variant
+- [x] `grep -q '([][]byte, error)' docs/howto/go.md` exits 0 — doc updated with error return
+- [x] `mise run check` passes — all 15 pre-commit hooks green
 
-**Next:** All issues in issues.md are low priority. Consider elevating one to normal or creating a
-release PR from develop to main.
+**Issues found:**
 
-**Notes:** The `fmt` import was added to cdc.go for `fmt.Errorf`. No surprises. Formatting hooks
-modified some unrelated files on first run but settled on second pass.
+- (none)
+
+**Codex review:** No correctness, security, or maintainability issues identified. Codex confirmed
+the validation cleanly rejects `avgChunkSize < 2` without affecting existing valid call paths.
+
+**Next:** The Go `AlgCdcChunks` validation issue is resolved. The only remaining `normal`-priority
+issue is "Add release smoke tests for all binding publish pipelines." All other issues are `low`
+priority. Consider working on the release smoke tests issue next, or creating a PR from develop →
+main.
+
+**Notes:** Advance agent claimed 156 Go tests but actual count is 155 (known pattern — advance agent
+test counts are often slightly inaccurate). All tests pass regardless. The resolved issue was
+`[human]` sourced with no `**Spec:**` field, so no spec update needed.

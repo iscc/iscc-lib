@@ -125,20 +125,6 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
     install/quickstart
 
-## ~~`alg_cdc_chunks` hangs on `avg_chunk_size=0`~~ RESOLVED [review]
-
-Fixed in Rust core: `alg_cdc_chunks` now panics with a clear message if `avg_chunk_size < 2`. Filed
-upstream: https://github.com/iscc/iscc-core/issues/134
-
-## Go `AlgCdcChunks` missing `avgChunkSize` validation `normal` [human]
-
-`packages/go/cdc.go:AlgCdcChunks` has no validation on `avgChunkSize`. When 0 is passed,
-`algCdcParams` computes degenerate parameters and the chunking loop hangs (same bug as the Rust core
-had). The Rust core now returns `IsccError::InvalidInput` for `avg_chunk_size < 2` — the Go
-implementation should match with an early `error` return.
-
-**Upstream:** https://github.com/iscc/iscc-core/issues/134
-
 ## Add release smoke tests for all binding publish pipelines `normal` [human]
 
 The release workflow (`release.yml`) builds platform-specific artifacts (wheels, gems, napi addons,
