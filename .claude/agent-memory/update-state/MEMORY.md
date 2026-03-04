@@ -62,16 +62,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 2011e23)
+## Current State (assessed-at: 6b80089)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22665835771); **0 normal-priority gaps remain**
-- **Iter 4 (CID round 4) changes** (6404294, 8ada155, 2011e23 since ad7400d):
-    - `release.yml`: 6 smoke test jobs added — `test-wheels`, `test-napi`, `test-wasm`, `test-jni`,
-        `test-ffi`, `test-gem`; each gates its publish job ✅
-    - `--features conformance` added to `build-wasm` so `conformance_selftest` is exported in WASM
-    - Release smoke tests issue resolved and deleted from issues.md ✅
+- **IN_PROGRESS**: all 12 CI jobs green (run 22666893212); **0 normal-priority gaps remain**
+- **Iter 5 (CID round 5)**: no codebase changes — idle iteration (only .claude/ context files)
 - **Only low-priority gaps remain**: C#, C++, Swift, Kotlin bindings; language logos — CID skips
-- **CI (run 22665835771)**: ALL SUCCESS — 12 jobs
+- **CI (run 22666893212)**: ALL SUCCESS — 12 jobs (3 consecutive green runs)
 - **release.yml**: 6 checkboxes + 6 smoke test jobs: test-wheels/napi/wasm/jni/ffi/gem ✅
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **Test counts (Rust)**: 316 (default features)
