@@ -109,16 +109,17 @@ iterations.
 
 ## Ruby Bindings — Infrastructure Remaining
 
-All 32/32 Tier 1 symbols + conformance tests complete (111 tests, 295 assertions). Remaining
-infrastructure (in recommended order):
+All 32/32 Tier 1 symbols + conformance tests complete (111 tests, 295 assertions). Remaining:
 
-1. ~~**Conformance tests**~~ — done (iter 7, 50 vectors)
-2. ~~**Ruby CI job**~~ — done (iter 8, 12 CI jobs all green)
-3. ~~**Version sync**~~ — done (iter 9, version_sync.py updated)
-4. ~~**RubyGems release**~~ — done (iter 10, release.yml updated)
-5. **Documentation** — `docs/howto/ruby.md`, expand `crates/iscc-rb/README.md`, add Ruby to root
-    README (iter 11)
-6. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into Rakefile and CI
+1. ~~**Conformance tests**~~ — done (iter 7)
+2. ~~**Ruby CI job**~~ — done (iter 8)
+3. ~~**Version sync**~~ — done (iter 9)
+4. ~~**RubyGems release**~~ — done (iter 10)
+5. ~~**Documentation**~~ — done (iter 11): howto, README, root README
+6. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into pre-commit and CI (iter 12
+    target)
+7. **`docs/ruby-api.md`** — API reference page (spec requires it but not all languages have one;
+    deprioritized after linting)
 
 Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it.
 
@@ -161,5 +162,6 @@ Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include
 - Ruby CI job done (iter 12): 12 CI jobs all green
 - Version sync done (iter 13): version_sync.py Ruby integration
 - RubyGems release done (iter 10): release.yml updated with build-gem + publish-rubygems
-- Current (iter 11): Ruby documentation (howto, README, root README)
-- After docs: Standard Ruby linting (final Ruby infra step)
+- Ruby docs done (iter 11): howto guide (422 lines), README (93 lines), root README Ruby section
+- Current (iter 12): Standard Ruby linting (standard gem + CI + pre-commit)
+- After linting: ruby-api.md API reference page, then Go quickstart stale example fix

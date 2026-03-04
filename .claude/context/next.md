@@ -1,117 +1,101 @@
 # Next Work Package
 
-## Step: Add Ruby documentation (howto guide, README, root README)
+## Step: Configure Standard Ruby linting
 
 ## Goal
 
-Write the Ruby how-to guide, expand the per-crate README from stub to full guide, and add Ruby
-install/quickstart sections to the root README. This completes the documentation deliverables for
-the Ruby bindings issue and makes Ruby a first-class documented language alongside the existing 7.
+Set up Standard Ruby (`standard` gem) as the linter/formatter for the Ruby binding crate, with CI
+enforcement and pre-commit hook integration. This brings Ruby code quality tooling to parity with
+the Rust (clippy), Python (ruff), and TOML (taplo) linting already in place.
 
 ## Scope
 
-- **Create**: `docs/howto/ruby.md`
-- **Modify**: `crates/iscc-rb/README.md`, `README.md`, `zensical.toml` (add Ruby nav entry)
+- **Create**: `crates/iscc-rb/.standard.yml` (Standard Ruby config with rubocop-minitest plugin)
+- **Modify**: `crates/iscc-rb/Gemfile` (add `standard` and `rubocop-minitest` gems)
+- **Modify**: `.github/workflows/ci.yml` (add `bundle exec standardrb` step in the `ruby` job)
+- **Modify**: `.pre-commit-config.yaml` (add standardrb hooks for pre-commit auto-fix and pre-push
+    check)
+- **Fix**: Any Ruby source files (`lib/iscc_lib.rb`, `Rakefile`, test files) that fail `standardrb`
+    — these are mechanical lint fixes, not feature work
 - **Reference**:
-    - `docs/howto/go.md` — closest structural template (package-level functions, typed results)
-    - `docs/howto/java.md` — bridge analog (compiled native extension, similar install story)
-    - `docs/howto/python.md` — PyO3 bridge analog (similar wrapper pattern)
-    - `crates/iscc-rb/lib/iscc_lib.rb` — Ruby wrapper API (result classes, keyword args)
-    - `crates/iscc-rb/src/lib.rs` — Magnus bridge (function signatures)
-    - `crates/iscc-rb/test/` — smoke tests (working code examples to adapt)
-    - `README.md` — existing Install/Quick Start sections to add Ruby alongside
+    - `.pre-commit-config.yaml` — existing hook patterns (ruff-check --fix, cargo-clippy)
+    - `.github/workflows/ci.yml` lines 165-188 — existing Ruby CI job
+    - `crates/iscc-rb/Gemfile` — current gem dependencies
+    - `crates/iscc-rb/lib/iscc_lib.rb` — main Ruby source (209 lines)
+    - `crates/iscc-rb/test/test_smoke.rb` — largest test file (361 lines)
 
 ## Not In Scope
 
-- Standard Ruby linting (`standard` gem, `.standard.yml`, CI wiring) — separate future step
-- Ruby API reference page (`docs/ruby-api.md`) — not required by target
-- Updating multi-language tabbed examples on other docs pages — separate step if needed
-- Expanding smoke/unit tests or adding new test coverage
+- Creating `docs/ruby-api.md` API reference page — that's a separate documentation step
+- Modifying Ruby bridge Rust code (`src/lib.rs`) — the linter only applies to `.rb` files
+- Adding custom RuboCop rules beyond what Standard Ruby provides by default
+- Upgrading Magnus or other Rust/Ruby dependencies
+- Any changes to the Ruby API surface or test coverage
 
 ## Implementation Notes
 
-### `docs/howto/ruby.md` (~370-430 lines, following existing guide pattern)
+1. **Gemfile additions** — add to `crates/iscc-rb/Gemfile`:
 
-Use `docs/howto/go.md` as the primary structural template. Sections:
+    ```ruby
+    gem "standard", "~> 1.0"
+    gem "rubocop-minitest", "~> 0.36"
+    ```
 
-1. **Frontmatter**: `icon: lucide/gem`, description line
-2. **Intro paragraph**: Native Rust extension via Magnus, precompiled gems, `gem install`
-3. **Installation**: `gem install iscc-lib` + Bundler `Gemfile` alternative + "Build from source"
-    admonition (like Java's "Build from source" note — `bundle exec rake compile`)
-4. **Code generation**: All 10 `gen_*_v0` functions with Ruby examples using keyword args. Group:
-    - Meta-Code (with description, meta JSON examples)
-    - Text-Code, Image-Code, Audio-Code, Video-Code, Mixed-Code
-    - Data-Code, Instance-Code (byte data via `File.binread`)
-    - ISCC-Code (combining units)
-    - Sum-Code (file path)
-5. **Streaming API**: `DataHasher` and `InstanceHasher` with method chaining
-6. **Codec and diagnostics**: `iscc_decode`, `iscc_decompose`, `encode_component`, `encode_base64`,
-    `json_to_data_url`, `conformance_selftest`
-7. **Text utilities**: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
-8. **Algorithm primitives**: `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
-    `soft_hash_video_v0`
-9. **Constants**: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
-    `TEXT_NGRAM_SIZE`
+2. **`.standard.yml`** — create at `crates/iscc-rb/.standard.yml`:
 
-Key Ruby API patterns to show:
+    ```yaml
+    plugins:
+      - rubocop-minitest
+    ```
 
-- Result classes use attribute-style access: `result.iscc`, `result.name`, `result.metahash`
-- Keyword arguments: `gen_meta_code_v0("name", description: "desc", bits: 64)`
-- Binary data as Ruby strings: `data = File.binread("file.bin")`
-- Streaming: `hasher = IsccLib::DataHasher.new.update(chunk1).update(chunk2).finalize`
+    Standard Ruby uses its own config format (not `.rubocop.yml`). The `plugins` key loads the
+    minitest extension for test-specific lint rules.
 
-### `crates/iscc-rb/README.md` (expand from 31 lines to ~80-100 lines)
+3. **CI integration** — add a step in the `ruby` job in `.github/workflows/ci.yml`, BEFORE
+    `rake compile` (linting doesn't need compiled extensions):
 
-Follow the pattern of other per-crate READMEs (e.g., `crates/iscc-py/README.md`):
+    ```yaml
+      - name: Run standardrb
+        run: bundle exec standardrb
+        working-directory: crates/iscc-rb
+    ```
 
-- Badges (RubyGems version, CI, license)
-- What is ISCC (2-3 sentences)
-- Installation (gem install + Bundler)
-- Quick start (gen_meta_code_v0 + streaming example)
-- API overview (list of 10 gen functions + key utilities)
-- Links (lib.iscc.codes, repository, ISCC spec)
-- License
+    This follows the pattern of clippy running before compile in the same job.
 
-### `README.md` (add Ruby sections)
+4. **Pre-commit hooks** — add two local hooks in `.pre-commit-config.yaml`:
 
-Add Ruby in two places, maintaining the current ordering pattern:
+    - Pre-commit stage (auto-fix): `standardrb --fix` on Ruby files, matching the `ruff-check --fix`
+        pattern
+    - Pre-push stage (check): `standardrb` without --fix, matching the `cargo-clippy` pattern
+    - Use `language: system`, `types: [ruby]`
+    - The hooks need `bundle exec` and must run from `crates/iscc-rb/`. Use a
+        `bash -c 'cd crates/iscc-rb && bundle exec standardrb ...'` wrapper or the prek `entry` with
+        `pass_filenames: false` + `files: ^crates/iscc-rb/` pattern. Note: prek is a pre-commit
+        drop-in — it supports the same config keys
 
-1. **Installation section**: Add `### Ruby` with `gem install iscc-lib` after Go and before WASM
-    (current order: Rust, Python, Node.js, Java, Go, WASM — insert Ruby after Go)
-2. **Quick Start section**: Add `### Ruby` with a `gen_meta_code_v0` example after Go and before
-    WASM
+5. **Fix lint issues** — run `cd crates/iscc-rb && bundle exec standardrb --fix` to auto-fix issues.
+    Review any remaining non-auto-fixable issues. Standard Ruby defaults:
 
-Ruby example for Quick Start:
+    - Double quotes for strings (Ruby convention)
+    - Frozen string literal comments (`# frozen_string_literal: true`)
+    - Consistent indentation (2 spaces)
+    - No trailing whitespace (already handled by pre-commit hygiene hooks)
 
-```ruby
-require "iscc_lib"
-
-result = IsccLib.gen_meta_code_v0("ISCC Test Document!")
-puts "Meta-Code: #{result.iscc}"
-```
-
-### `zensical.toml` (add Ruby nav entry)
-
-Add `{ "Ruby" = "howto/ruby.md" }` to the How-to Guides navigation list. Insert after Python
-(current order: Rust, Python, Node.js, WASM, Go, Java, C/C++). Place Ruby after Python to group
-scripting languages together.
+6. **Verify bundle install works** — after adding gems, run `cd crates/iscc-rb && bundle install` to
+    ensure the Gemfile.lock updates cleanly. Commit the updated `Gemfile.lock`.
 
 ## Verification
 
-- `test -f docs/howto/ruby.md && echo "EXISTS"` — howto guide created
-- `wc -l docs/howto/ruby.md | awk '{print ($1 >= 300) ? "PASS" : "FAIL"}'` — substantial content
-    (≥300 lines)
-- `wc -l crates/iscc-rb/README.md | awk '{print ($1 >= 60) ? "PASS" : "FAIL"}'` — expanded from stub
-    (≥60 lines)
-- `grep -q 'gem install iscc-lib' README.md && echo "PASS"` — Ruby install in root README
-- `grep -q 'ruby.md' zensical.toml && echo "PASS"` — Ruby in docs navigation
-- `grep -q 'gen_meta_code_v0' docs/howto/ruby.md && echo "PASS"` — howto has code examples
-- `grep -q 'DataHasher' docs/howto/ruby.md && echo "PASS"` — howto covers streaming API
-- `grep -q 'conformance_selftest' docs/howto/ruby.md && echo "PASS"` — howto covers diagnostics
-- `mise run check` exits 0 — all pre-commit hooks pass (formatting, YAML, etc.)
+- `cd crates/iscc-rb && bundle exec standardrb` exits 0 (all Ruby files pass linting)
+- `cd crates/iscc-rb && bundle exec rake compile && bundle exec rake test` still passes (111 tests,
+    295 assertions)
+- `grep 'standard' crates/iscc-rb/Gemfile` finds the gem entry
+- `test -f crates/iscc-rb/.standard.yml` — config file exists
+- `grep 'standardrb' .pre-commit-config.yaml` finds the hook entries
+- `grep 'standardrb' .github/workflows/ci.yml` finds the CI step
+- `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` remains clean
 
 ## Done When
 
-All verification commands pass: Ruby howto guide exists with comprehensive API coverage (≥300
-lines), per-crate README expanded from stub, root README includes Ruby install and quickstart, docs
-navigation updated, and all formatting hooks clean.
+All verification criteria pass — `standardrb` runs clean on all Ruby files, CI has the lint step,
+pre-commit hooks are configured, and existing tests still pass.
