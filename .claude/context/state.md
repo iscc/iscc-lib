@@ -1,4 +1,4 @@
-<!-- assessed-at: 134f279f5e325d3a6872e2b827a40487e56a20a8 -->
+<!-- assessed-at: 064a4328011eee201ee3423725824a331057e8d8 -->
 
 # Project State
 
@@ -7,10 +7,9 @@
 ## Phase: Ruby bindings complete; only low-priority work remains
 
 All high-priority binding work is complete. Ruby bindings have been fully met since iteration 14.
-Iteration 15 fixed stale Go code examples: `GenSumCodeV0` in `docs/howto/go.md` (4-arg signature)
-and the README Go quickstart (direct call pattern, no WASM runtime). All 12 CI jobs pass in the
-latest run (22656100948). The only remaining gaps are low-priority targets (C#, C++, Swift, Kotlin
-bindings) which the CID loop skips by policy.
+Iterations 15–16 made no source code changes; only CID loop administrative context files were
+updated. All 12 CI jobs pass in the latest run (22657251138). The only remaining gaps are
+low-priority targets (C#, C++, Swift, Kotlin bindings) which the CID loop skips by policy.
 
 ## Rust Core Crate
 
@@ -44,7 +43,7 @@ bindings) which the CID loop skips by policy.
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22656100948 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22657251138 ✅
 
 ## C FFI
 
@@ -184,8 +183,8 @@ bindings) which the CID loop skips by policy.
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22656100948: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22656100948
+- **ALL PASSING** — latest CI run 22657251138: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22657251138
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
     Java, Go, Bench, Ruby (standardrb + clippy + compile + test) ✅
 - `release.yml` has **6 registry** `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
