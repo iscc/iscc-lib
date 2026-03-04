@@ -1,17 +1,15 @@
-<!-- assessed-at: 83027fc5caebb12c41cf28f781c52bcf820fc1a5 -->
+<!-- assessed-at: 94ac742f222e7e4493d74a400aca20fc1aa01bd8 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings — docs mostly done; ruby-api.md and linting remain
+## Phase: Ruby bindings — linting done; only ruby-api.md remains
 
-The Ruby Magnus bridge exposes all 32 Tier 1 symbols with full conformance tests (111 tests, 295
-assertions, 50 vectors). This iteration added Ruby documentation: `docs/howto/ruby.md` (422 lines,
-comprehensive), expanded `crates/iscc-rb/README.md` (93 lines), and a Ruby section in the root
-`README.md`. All 12 CI jobs remain green (run 22651712030). Remaining gaps: `docs/ruby-api.md` API
-reference page and Standard Ruby linting (standard gem, rubocop-minitest, .standard.yml, pre-commit
-hooks, CI step).
+Standard Ruby linting is now fully configured: `standard ~> 1.0` and `rubocop-minitest ~> 0.36` in
+Gemfile, `.standard.yml` in `crates/iscc-rb/`, `bundle exec standardrb` step in CI ruby job, and
+both pre-commit (auto-fix) and pre-push (check) hooks in `.pre-commit-config.yaml`. All 12 CI jobs
+pass (run 22653432970). The single remaining gap before Ruby reaches "met" is `docs/ruby-api.md`.
 
 ## Rust Core Crate
 
@@ -45,7 +43,7 @@ hooks, CI step).
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22651712030 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22653432970 ✅
 
 ## C FFI
 
@@ -95,7 +93,8 @@ hooks, CI step).
     all 9 gen\_\*\_v0 functions against official data.json vectors ✅
 - 111 Minitest tests total (295 assertions, 0 failures): 46 smoke + 15 streaming + 50 conformance ✅
 - `bundle exec rake compile` builds in release profile ✅
-- **Dedicated `ruby` CI job** — runs clippy, compile, and test on ubuntu-latest / Ruby 3.1 ✅
+- **Dedicated `ruby` CI job** — runs standardrb, clippy, compile, and test on ubuntu-latest / Ruby
+    3.1 ✅
 - `crates/iscc-rb/lib/iscc_lib/version.rb` exists; synced by `version_sync.py` ✅
 - `crates/iscc-rb/README.md` expanded to 93 lines (installation, quickstart, API overview) ✅
 - **RubyGems publish step** in `release.yml`: `build-gem` (5 platforms, Ruby 3.1/3.2/3.3 via
@@ -105,10 +104,14 @@ hooks, CI step).
     codec/diagnostics, text utilities, algorithm primitives, constants, error handling ✅
 - Root `README.md` Ruby section added: install tab + quickstart snippet ✅
 - `zensical.toml` navigation updated with Ruby howto entry ✅
+- **Standard Ruby linting** fully configured ✅:
+    - `crates/iscc-rb/.standard.yml` (plugins: rubocop-minitest; ignore: vendor) ✅
+    - `Gemfile`: `standard ~> 1.0` + `rubocop-minitest ~> 0.36` ✅
+    - `ci.yml` Ruby job: `bundle exec standardrb` step (before clippy) ✅
+    - `.pre-commit-config.yaml`: `standardrb-fix` (pre-commit) + `standardrb` (pre-push) hooks ✅
+    - Tests reformatted for standardrb compliance (`refute_includes`, `refute_empty`, etc.) ✅
 - **Missing**: `docs/ruby-api.md` API reference page — required by spec
     (`.claude/context/specs/ruby-bindings.md` line 310)
-- **Missing**: Standard Ruby linting not configured (no `standard`/`rubocop-minitest` in Gemfile, no
-    `.standard.yml`, not wired into pre-commit hooks or CI ruby job)
 
 ## C# / .NET Bindings
 
@@ -180,10 +183,10 @@ hooks, CI step).
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22651712030: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22651712030
+- **ALL PASSING** — latest CI run 22653432970: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22653432970
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
-    Java, Go, Bench, Ruby ✅
+    Java, Go, Bench, Ruby (standardrb + clippy + compile + test) ✅
 - `release.yml` has **6 registry** `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
     **RubyGems** ✅
 - `build-gem` job: 5 platforms (x86_64-linux, aarch64-linux, x86_64-darwin, arm64-darwin,
@@ -196,12 +199,9 @@ hooks, CI step).
 
 ## Next Milestone
 
-Ruby docs are mostly complete. Two items remain before Ruby reaches "met":
+One item remains before Ruby reaches "met":
 
-1. **`docs/ruby-api.md`** — create the Ruby API reference page (all public methods with signatures
-    and examples; follow pattern of `docs/java-api.md` and `docs/rust-api.md`). Add to
-    `zensical.toml` nav under Reference section.
-2. **Standard Ruby linting** — add `standard` (~> 1.0) + `rubocop-minitest` (~> 0.36) to
-    `crates/iscc-rb/Gemfile`; create `crates/iscc-rb/.standard.yml` (plugin: rubocop-minitest); add
-    `standardrb --fix` to pre-commit auto-fix stage and `standardrb` check to pre-push gate; add
-    `bundle exec standardrb` step in the `ruby` CI job before `rake test`.
+**`docs/ruby-api.md`** — create the Ruby API reference page listing all public methods with
+signatures, parameter descriptions, return types, and usage examples. Follow the pattern of
+`docs/java-api.md` and `docs/rust-api.md`. Add navigation entry to `zensical.toml` under the
+Reference section.
