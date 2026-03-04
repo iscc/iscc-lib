@@ -50,8 +50,8 @@ class TestSmoke < Minitest::Test
   def test_text_collapse
     result = IsccLib.text_collapse("Hello, World!")
     assert result.is_a?(String)
-    refute result.include?(","), "Punctuation should be removed"
-    refute result.include?("!"), "Punctuation should be removed"
+    refute_includes result, ",", "Punctuation should be removed"
+    refute_includes result, "!", "Punctuation should be removed"
   end
 
   def test_constants
@@ -65,7 +65,7 @@ class TestSmoke < Minitest::Test
   def test_encode_base64
     result = IsccLib.encode_base64("Hello".b)
     assert result.is_a?(String)
-    refute result.empty?, "base64 output should not be empty"
+    refute_empty result, "base64 output should not be empty"
     assert_equal "SGVsbG8", result
   end
 
@@ -84,7 +84,7 @@ class TestSmoke < Minitest::Test
     digest = ("\x00" * 8).b
     result = IsccLib.encode_component(0, 0, 0, 64, digest)
     assert result.is_a?(String)
-    refute result.empty?
+    refute_empty result
   end
 
   def test_iscc_decode
@@ -119,7 +119,7 @@ class TestSmoke < Minitest::Test
   end
 
   def test_conformance_selftest
-    assert_equal true, IsccLib.conformance_selftest
+    assert IsccLib.conformance_selftest
   end
 
   def test_gen_text_code_v0_basic

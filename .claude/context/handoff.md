@@ -1,48 +1,49 @@
-## 2026-03-04 — Review of: Add Ruby documentation (howto guide, README, root README)
+## 2026-03-04 — Configure Standard Ruby linting
 
-**Verdict:** PASS
+**Done:** Set up Standard Ruby (`standard` gem v1.54.0) with `rubocop-minitest` plugin as the
+linter/formatter for the Ruby binding crate. Added CI enforcement step, pre-commit auto-fix hook
+(pre-commit stage), and pre-push check hook. Fixed 8 mechanical lint issues across test files
+(argument alignment, minitest assertion style).
 
-**Summary:** Created comprehensive Ruby how-to guide (422 lines), expanded per-crate README from
-31-line stub to 93-line full guide, added Ruby install/quickstart to root README, and wired Ruby
-into the docs nav. Clean documentation-only diff — no code changes, no quality gate issues. All API
-examples verified against the Ruby wrapper source.
+**Files changed:**
+
+- `crates/iscc-rb/.standard.yml`: Created — Standard Ruby config with rubocop-minitest plugin and
+    vendor directory exclusion
+- `crates/iscc-rb/Gemfile`: Added `standard ~> 1.0` and `rubocop-minitest ~> 0.36` gems
+- `crates/iscc-rb/Gemfile.lock`: Updated by bundle install (new gems: standard, rubocop,
+    rubocop-minitest, rubocop-performance, and transitive deps)
+- `.github/workflows/ci.yml`: Added `bundle exec standardrb` step in Ruby job before clippy
+- `.pre-commit-config.yaml`: Added `standardrb-fix` hook (pre-commit stage, auto-fix) and
+    `standardrb` hook (pre-push stage, check-only). Both use portable `ruby -e "puts Gem.user_dir"`
+    for PATH resolution
+- `crates/iscc-rb/test/test_smoke.rb`: Fixed 5 lint issues — `refute_includes` instead of
+    `refute result.include?`, `refute_empty` instead of `refute result.empty?`, `assert` instead of
+    `assert_equal true`
+- `crates/iscc-rb/test/test_conformance.rb`: Fixed 3 argument alignment issues (multi-line method
+    calls use one level of indentation per Standard Ruby style)
 
 **Verification:**
 
-- [x] `test -f docs/howto/ruby.md` — EXISTS
-- [x] `wc -l docs/howto/ruby.md` — PASS (422 lines, ≥300 required)
-- [x] `wc -l crates/iscc-rb/README.md` — PASS (93 lines, ≥60 required)
-- [x] `grep 'gem install iscc-lib' README.md` — PASS
-- [x] `grep 'ruby.md' zensical.toml` — PASS
-- [x] `grep 'gen_meta_code_v0' docs/howto/ruby.md` — PASS
-- [x] `grep 'DataHasher' docs/howto/ruby.md` — PASS
-- [x] `grep 'conformance_selftest' docs/howto/ruby.md` — PASS
-- [x] `mise run check` — all 14 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` — clean
-- [x] No quality gate circumvention in diff
+- `bundle exec standardrb` exits 0 — all Ruby files pass
+- `bundle exec rake test` — 111 runs, 299 assertions, 0 failures, 0 errors, 0 skips
+- `mise run check` — all 15 pre-commit hooks pass (including new Ruby linting hook)
+- `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` — clean
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** Codex flagged the `iscc_decode` example variable name `length` vs `length_index`.
-Cross-checked: all 4 other language guides (Python, Node.js, WASM, Go) use the same `length`
-variable name for the 4th return value. The Ruby guide's description text correctly says
-`length_index`. This is a cross-guide naming convention, not a Ruby-specific issue.
-
-**Next:** The Ruby bindings issue is substantially complete — all code, tests, CI, release infra,
-and documentation are in place. Remaining items are lower priority: (1) Standard Ruby linting
-(`standard` gem, `.standard.yml`, CI wiring), (2) `docs/ruby-api.md` API reference page (not all
-languages have one). The root README Go quickstart example is stale (uses old WASM-bridge API) —
-worth fixing in a separate housekeeping step.
+**Next:** The Ruby bindings linting setup is complete. Remaining Ruby items are: (1)
+`docs/ruby-api.md` API reference page, (2) RubyGems account setup for publishing. The root README Go
+quickstart example is stale (uses old WASM-bridge API) — worth fixing in a housekeeping step.
 
 **Notes:**
 
-- The howto guide follows the Go guide structure with Ruby-specific patterns (keyword args,
-    attribute-style access, method chaining). Coverage is comprehensive: all 10 gen functions,
-    streaming, codec/diagnostics, text utilities, algorithm primitives, constants, and error
-    handling.
-- Ruby is now inserted after Python in the docs nav (grouping scripting languages) and after Go in
-    the root README install/quickstart sections (before WASM).
-- The Ruby bindings issue in issues.md still has uncompleted items (linting, ruby-api.md, account
-    setup) but the core functionality and documentation are done.
+- The `standardrb --fix` auto-fixed 7 of 8 issues. The remaining one (`Minitest/AssertTruthy`:
+    `assert_equal true, x` → `assert x`) was flagged as "unsafe" auto-fix because it changes
+    assertion semantics (truthy vs strict equality). Fixed manually since `conformance_selftest`
+    returns a boolean — `assert` is the correct idiom.
+- Pre-commit hook uses `bash -c '...'` wrapper with `pass_filenames: false` and `files:` pattern to
+    scope to Ruby files. The PATH issue (`bundle` not on system PATH in devcontainer) is solved
+    portably via `ruby -e "puts Gem.user_dir"` to locate the gem bin directory at runtime.
+- yamlfix reformatted the long `entry:` strings into multi-line YAML scalars — this is expected
+    behavior and the hooks work correctly with the wrapped format.
+- The `.standard.yml` includes `ignore: vendor/**/*` to skip vendored gem files in
+    `crates/iscc-rb/vendor/bundle/`. Standard Ruby ignores `vendor/` by default, but explicit config
+    ensures clarity.

@@ -57,10 +57,10 @@ class TestConformance < Minitest::Test
 
       if outputs.key?("description")
         assert_equal outputs["description"], result["description"],
-                     "description mismatch for #{vector_name}"
+          "description mismatch for #{vector_name}"
       else
         refute result.key?("description"),
-               "description should be absent for #{vector_name}"
+          "description should be absent for #{vector_name}"
       end
 
       if outputs.key?("meta")
@@ -80,7 +80,7 @@ class TestConformance < Minitest::Test
       result = IsccLib.gen_text_code_v0(inputs[0], bits: inputs[1])
       assert_equal outputs["iscc"], result["iscc"], "iscc mismatch for #{vector_name}"
       assert_equal outputs["characters"], result["characters"],
-                   "characters mismatch for #{vector_name}"
+        "characters mismatch for #{vector_name}"
     end
   end
 

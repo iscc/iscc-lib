@@ -189,6 +189,11 @@ iterations.
     constants must start with uppercase. Use method prefixing instead of class prefixing
 - Test files: `test/test_smoke.rb`, `test/test_iscc_lib.rb`, `test/test_conformance.rb` — 111 total
     tests (61 unit + 50 conformance)
+- Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`. Config at `.standard.yml`. Run via
+    `bundle exec standardrb` (auto-fix: `--fix`). Vendor dir excluded in `.standard.yml`
+- Pre-commit hooks for Ruby use `bash -c` wrapper with portable PATH:
+    `export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"` — needed because `bundle` is not on
+    system PATH in devcontainer
 
 ## Gotchas
 
