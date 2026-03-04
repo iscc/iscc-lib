@@ -62,24 +62,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: b5b4688)
+## Current State (assessed-at: ad7400d)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22662906194); 2 `normal`-priority gaps remain
-- **Iter 2 (CID round 2) changes** (b5b4688, e15faff, 800f29d since 5f55123):
-    - Go `AlgCdcChunks` validation added — returns `error` for `avgChunkSize < 2` ✅
-    - `algCdcChunksUnchecked` added for internal callers (DataHasher.Push, code_data.go) ✅
-    - `TestCdcChunksInvalidAvgChunkSize` test added ✅
-    - `docs/howto/go.md` updated — `([][]byte, error)` return type ✅
-    - Go tests: 155 pass
+- **IN_PROGRESS**: all 12 CI jobs green (run 22664053215); 1 `normal`-priority gap remains
+- **Iter 3 (CID round 3) changes** (a659a41, ad7400d since b5b4688):
+    - `README.md`: added RubyGems, Maven Central, npm @iscc/wasm badges ✅
+    - All 7 registry badges now present (Rust, Python, Ruby, Maven, Go, npm @iscc/lib, npm @iscc/wasm)
+    - Registry badges issue resolved and deleted from issues.md ✅
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
 - **Ruby bindings**: MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
-- **CI (run 22662906194)**: ALL SUCCESS — 12 jobs
+- **CI (run 22664053215)**: ALL SUCCESS — 12 jobs
 - **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, rubygems ✅
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **Test counts (Rust)**: 316 (default features)
 - **Normal-priority gaps remaining**:
-    1. README missing badges: RubyGems (`iscc-rb`), Maven Central (`iscc-jni`), npm `@iscc/wasm`
-    2. Release smoke tests before publish (target.md requirement; no implementation yet)
+    1. Release smoke tests before publish (target.md requirement; no implementation yet)
 - **docs/**: 8 howto files; `docs/ruby-api.md` ✅; `docs/c-ffi-api.md` ✅
 - **packages/**: only `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do NOT exist yet
 
