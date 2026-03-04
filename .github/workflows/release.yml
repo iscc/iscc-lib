@@ -728,11 +728,21 @@ jobs:
         uses: oxidize-rb/actions/cross-gem@v1
         with:
           platform: ${{ matrix.platform }}
-          ruby-versions: 3.1, 3.2, 3.3
+          # Use "default" to skip --ruby-versions flag; rb-sys-dock reads
+          # RUBY_CC_VERSION directly, bypassing the host-side cross_rubies
+          # lookup that misresolves "3.3" -> "3.3.10" (rake-compiler-dock
+          # 1.11.0 from rb_sys 0.9.124 installed by the action's configure
+          # step, which fails to find crates/iscc-rb/Gemfile.lock).
+          ruby-versions: default
           working-directory: crates/iscc-rb
-          # Pin to 0.9.123 (Ruby 3.4 build tool). The 0.9.124 image has Ruby 4.0
-          # which breaks RbSys::ExtensionTask. Must match rb_sys in Gemfile.lock.
+          # Pin to 0.9.123 Docker image (Ruby 3.4 build tool, rbconfigs for
+          # 3.1.7/3.2.9/3.3.9). The 0.9.124 image has Ruby 4.0 which breaks
+          # RbSys::ExtensionTask.
           tag: 0.9.123
+        env:
+          # Explicit patch versions matching the 0.9.123 image's rbconfigs.
+          # Bypasses cross_rubies resolution entirely.
+          RUBY_CC_VERSION: 3.3.9:3.2.9:3.1.7
       - name: Upload gem
         uses: actions/upload-artifact@v4
         with:
