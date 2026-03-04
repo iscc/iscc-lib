@@ -123,9 +123,19 @@ iterations.
 
 ## Project Status
 
-- **CID IDLE as of iter 15** — all critical and normal priority work complete
-- 12 CI jobs green (run 22656100948), all existing bindings "met"
-- 6 open issues remaining, ALL `low` priority: C# (low), C++ (low), Swift (low), Kotlin (low), CDC
-    edge case (low), README logos (low)
-- To resume: human must elevate an issue to `normal`+ priority or add new work to target.md
-- Go doc drift fixed in iter 15 (README + howto/go.md)
+- **CID resumed iter 17** — 2 `normal` priority issues filed after codex review:
+    1. Go `AlgCdcChunks` missing `avgChunkSize` validation (packages/go/cdc.go)
+    2. Release smoke tests for all binding publish pipelines (release.yml)
+- 12 CI jobs green (run 22662032256), all existing bindings "met"
+- 4 `low` issues: C# (low), C++ (low), Swift (low), Kotlin (low) + README logos (low)
+- Go fix is smaller/self-contained — do first, then smoke tests
+
+## Go AlgCdcChunks Signature Change Pattern
+
+- Go `AlgCdcChunks` is a public API — changing return type to `([][]byte, error)` is a breaking
+    change for external callers
+- Internal caller `DataHasher.Push` always passes `avgChunkSize=1024` — use unexported
+    `algCdcChunksUnchecked` to avoid changing Push's signature
+- This mirrors Rust core pattern: `alg_cdc_chunks` (public, Result) + `alg_cdc_chunks_unchecked`
+    (pub(crate))
+- Doc update needed in `docs/howto/go.md` (signature in algorithm primitives section)
