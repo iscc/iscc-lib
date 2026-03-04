@@ -203,7 +203,7 @@ Generate a composite ISCC-CODE from a file in a single pass:
 ```go
 os.WriteFile("example.bin", bytes.Repeat([]byte("Hello World"), 1000), 0644)
 
-result, err := iscc.GenSumCodeV0("example.bin", 64, false)
+result, err := iscc.GenSumCodeV0("example.bin", 64, false, false)
 if err != nil {
 	log.Fatal(err)
 }

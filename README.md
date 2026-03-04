@@ -163,7 +163,6 @@ System.out.println("Meta-Code: " + result);
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
 
@@ -171,19 +170,11 @@ import (
 )
 
 func main() {
-	ctx := context.Background()
-
-	rt, err := iscc.NewRuntime(ctx)
+	result, err := iscc.GenMetaCodeV0("ISCC Test Document!", nil, nil, 64)
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer rt.Close(ctx)
-
-	code, err := rt.GenMetaCodeV0(ctx, "ISCC Test Document!", nil, nil, 64)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("Meta-Code:", code)
+	fmt.Println("Meta-Code:", result.Iscc)
 }
 ```
 
