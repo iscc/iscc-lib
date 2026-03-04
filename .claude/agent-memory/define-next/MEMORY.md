@@ -123,9 +123,9 @@ iterations.
 
 ## Project Status
 
-- All critical and normal priority work complete
-- Ruby bindings fully met (iter 13)
-- 5 open issues remaining: C# (low), C++ (low), Swift (low), Kotlin (low), CDC edge case (low),
-    README logos (low)
-- Current (iter 14): Fix stale Go code examples in README + howto guide
-- After Go doc fix: CID loop enters idle state (all remaining gaps are low-priority)
+- **CID IDLE as of iter 15** — all critical and normal priority work complete
+- 12 CI jobs green (run 22656100948), all existing bindings "met"
+- 6 open issues remaining, ALL `low` priority: C# (low), C++ (low), Swift (low), Kotlin (low), CDC
+    edge case (low), README logos (low)
+- To resume: human must elevate an issue to `normal`+ priority or add new work to target.md
+- Go doc drift fixed in iter 15 (README + howto/go.md)
