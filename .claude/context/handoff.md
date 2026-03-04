@@ -1,34 +1,22 @@
-## 2026-03-04 — Review of: Fix stale Go code examples in README and howto guide
+## 2026-03-04 — CID IDLE — No automatable work remains
 
-**Verdict:** PASS
+**Done:** Confirmed IDLE status. next.md signals no actionable work — all remaining gaps are `low`
+priority (CID policy skip) or require human decisions (release, RubyGems account, binding priority
+elevation).
 
-**Summary:** The advance agent fixed two Go documentation bugs exactly as specified. The README Go
-quickstart was rewritten from the obsolete WASM-based runtime pattern to the current pure Go
-package-level function pattern, and the `GenSumCodeV0` call in `docs/howto/go.md` was corrected to
-include the missing `addUnits` 4th parameter. Both fixes match the actual Go function signatures.
+**Files changed:**
 
-**Verification:**
+- (none — no implementation needed)
 
-- [x] `grep -c 'NewRuntime\|rt\.Close\|rt\.Gen' README.md` returns 0 — confirmed, no stale runtime
-    pattern
-- [x] `grep 'GenMetaCodeV0' README.md` shows package-level call — confirmed, matches
-    `func GenMetaCodeV0(name string, description, meta *string, bits uint32)` signature
-- [x] `grep 'GenSumCodeV0' docs/howto/go.md` shows 4-argument call — confirmed, matches
-    `func GenSumCodeV0(path string, bits uint32, wide bool, addUnits bool)` signature
-- [x] `uv run zensical build` exits 0 — confirmed, site builds cleanly
-- [x] `mise run check` passes — all 15 pre-commit hooks green
+**Verification:** No code changes, no tests to run. Verified next.md lists only `low` priority
+issues and human-action items.
 
-**Issues found:**
+**Next:** The CID loop should stop iterating. To resume:
 
-- (none)
+- Elevate a `low` priority issue to `normal` in issues.md, then `mise run cid:step`
+- Run `mise run pr:main` to trigger a release cycle
+- File new `normal`+ priority work in issues.md or update target.md
 
-**Codex review:** Codex confirmed the changes are correct — updated Go examples match the current Go
-package function signatures. No actionable findings.
-
-**Next:** All `critical` and `normal` priority work is complete. The CID loop is in maintenance/idle
-state. All remaining issues in issues.md are `low` priority (C#, C++, Swift, Kotlin bindings, CDC
-edge case, language logos). Next step should be an update-state to reflect the Go docs fixes, then
-the loop can idle until new `normal`+ priority work is filed.
-
-**Notes:** Minimal, surgical documentation fix. The diff touched only the two files specified in
-next.md — perfect scope discipline. No code or test changes needed.
+**Notes:** This is a clean idle — no blockers, no partial work, no technical debt introduced. All 32
+Tier 1 symbols are implemented across all 7 bindings. All conformance tests pass. All documentation
+is up to date.
