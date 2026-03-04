@@ -123,12 +123,22 @@ iterations.
 
 ## Project Status
 
-- **Iter 18** — Go `AlgCdcChunks` validation resolved (iter 17). 2 `normal` issues remain:
-    1. Missing registry badges in global README (README.md) — scoped for iter 18
-    2. Release smoke tests for all binding publish pipelines (release.yml) — next after badges
-- 12 CI jobs green (run 22662906194), all existing bindings "met"
+- **Iter 20** — Registry badges resolved (iter 19). 1 `normal` issue remains: Release smoke tests
+    for all binding publish pipelines (release.yml) — scoped for iter 20
+- 12 CI jobs green (run 22664053215), all existing bindings "met"
 - 4 `low` issues: C# (low), C++ (low), Swift (low), Kotlin (low) + README logos (low)
-- After badges + smoke tests, only `low` issues remain → CID approaches idle
+- After smoke tests, only `low` issues remain → CID approaches idle / PR develop → main
+
+## Release Smoke Test Architecture
+
+- ALL 6 bindings export `conformance_selftest()` — simplest smoke test is a one-liner per language
+- C FFI: `iscc_conformance_selftest()` (bool), Java JNI: `IsccLib.conformanceSelftest()` (boolean)
+- WASM `--target web` requires workaround for Node.js: pass wasm bytes to `init()` instead of
+    relying on `fetch()`
+- napi .node files can be `require()`'d directly without index.js generation
+- All 6 smoke tests can run on ubuntu-latest with linux-x86_64 artifacts only
+- Single file modification (`release.yml`) — well within 3-file limit even for 6 new jobs
+- Each test job must copy the `if:` condition from its corresponding build job
 
 ## Go AlgCdcChunks Signature Change Pattern
 
