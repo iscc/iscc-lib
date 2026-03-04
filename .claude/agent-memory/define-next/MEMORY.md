@@ -108,10 +108,9 @@ All 32/32 Tier 1 symbols + conformance tests complete (111 tests, 295 assertions
 infrastructure (in recommended order):
 
 1. ~~**Conformance tests**~~ — done (iter 11, 50 vectors)
-2. **Ruby CI job** — add to `ci.yml` (iter 12). Do NOT remove `--exclude iscc-rb` from the Rust job
-    — iscc-rb needs Ruby headers + libclang-dev to compile. Run clippy in the Ruby job instead.
-3. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into Rakefile and CI
-4. **Version sync** — add gemspec to `scripts/version_sync.py`
+2. ~~**Ruby CI job**~~ — done (iter 12, 12 CI jobs all green)
+3. **Version sync** — add version.rb to `scripts/version_sync.py` (iter 13)
+4. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into Rakefile and CI
 5. **RubyGems release** — add `rubygems` checkbox to `release.yml`
 6. **Documentation** — `docs/howto/ruby.md`, expand `crates/iscc-rb/README.md`, add Ruby to root
     README
@@ -154,5 +153,6 @@ Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include
 - Ruby algo primitives done (iter 9): sliding_window/simhash/minhash/cdc/video → 30/32
 - Ruby streaming types done (iter 10): DataHasher/InstanceHasher → 32/32
 - Ruby conformance tests done (iter 11): 50 vectors, 111 tests total
-- Current (iter 12): Ruby CI job in ci.yml
-- After CI: linting, version sync, release pipeline, docs (multiple future steps)
+- Ruby CI job done (iter 12): 12 CI jobs all green
+- Current (iter 13): version_sync.py Ruby integration
+- After version sync: linting, release pipeline, docs (multiple future steps)
