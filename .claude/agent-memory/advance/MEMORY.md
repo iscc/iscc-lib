@@ -51,7 +51,7 @@ iterations.
 ## Go Pure Go (Summary)
 
 - Pure Go in `packages/go/` — all 10 gen functions + codec + algorithms. Zero WASM deps
-- 155 Go tests total. CI: 4 steps (checkout, setup-go, test, vet) — no Rust deps
+- 156 Go tests total. CI: 4 steps (checkout, setup-go, test, vet) — no Rust deps
 - Conformance: `//go:embed testdata/data.json`, `parseConformanceData()` with two-pass parsing
 
 ## gen_sum_code_v0

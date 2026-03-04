@@ -3,7 +3,10 @@
 // variable-size chunks with content-dependent boundaries.
 package iscc
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 // cdcGear is the gear rolling hash lookup table (256 entries).
 // Fixed constant from iscc-core `cdc_gear` option.
@@ -99,8 +102,17 @@ func algCdcOffset(buffer []byte, mi, ma, cs int, maskS, maskL uint32) int {
 // AlgCdcChunks splits data into content-defined chunks.
 // Uses the gear rolling hash CDC algorithm. Returns at least one chunk
 // (empty slice for empty input). When utf32 is true, aligns cut points
-// to 4-byte boundaries.
-func AlgCdcChunks(data []byte, utf32 bool, avgChunkSize uint32) [][]byte {
+// to 4-byte boundaries. Returns an error if avgChunkSize < 2.
+func AlgCdcChunks(data []byte, utf32 bool, avgChunkSize uint32) ([][]byte, error) {
+	if avgChunkSize < 2 {
+		return nil, fmt.Errorf("iscc: avgChunkSize must be >= 2, got %d", avgChunkSize)
+	}
+	return algCdcChunksUnchecked(data, utf32, avgChunkSize), nil
+}
+
+// algCdcChunksUnchecked splits data into content-defined chunks without
+// validating avgChunkSize. Used by internal callers that guarantee valid input.
+func algCdcChunksUnchecked(data []byte, utf32 bool, avgChunkSize uint32) [][]byte {
 	if len(data) == 0 {
 		return [][]byte{data[0:0]}
 	}
