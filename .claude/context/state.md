@@ -1,17 +1,16 @@
-<!-- assessed-at: c8016888a90a3b24f22ee53e56abbe0e71ec5fe2 -->
+<!-- assessed-at: 043f4335bed2912f859daf9c49f8c1ae95020b69 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings — conformance tests complete; CI job and docs remaining
+## Phase: Ruby bindings — CI job complete; linting, release, docs remaining
 
-The Ruby Magnus bridge exposes all 32 Tier 1 symbols with conformance tests now complete: 111
-Minitest tests, 295 assertions, 0 failures (50 conformance vectors covering 9 gen functions + 61
-existing smoke/streaming tests). All 11 CI jobs are green on run 22646899223. The remaining Ruby
-work is infrastructure and documentation: a dedicated Ruby CI job, RubyGems publish step,
-`version_sync.py` gemspec update, Standard Ruby linting, `docs/howto/ruby.md`, and a full
-`crates/iscc-rb/README.md`.
+The Ruby Magnus bridge exposes all 32 Tier 1 symbols with full conformance tests (111 tests, 295
+assertions, 50 vectors). A dedicated `ruby` CI job was added in this iteration — all 12 CI jobs are
+now green on run 22647363116. Remaining Ruby work: Standard Ruby linting, RubyGems release step,
+`version_sync.py` gemspec integration, `docs/howto/ruby.md`, full `iscc-rb/README.md`, and Ruby
+section in root `README.md`.
 
 ## Rust Core Crate
 
@@ -45,7 +44,7 @@ work is infrastructure and documentation: a dedicated Ruby CI job, RubyGems publ
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22646899223 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22647363116 ✅
 
 ## C FFI
 
@@ -95,13 +94,16 @@ work is infrastructure and documentation: a dedicated Ruby CI job, RubyGems publ
     all 9 gen\_\*\_v0 functions against official data.json vectors ✅
 - 111 Minitest tests total (295 assertions, 0 failures): 46 smoke + 15 streaming + 50 conformance ✅
 - `bundle exec rake compile` builds in release profile ✅
+- **Dedicated `ruby` CI job** added — runs clippy, compile, and test on ubuntu-latest / Ruby 3.1 ✅
 - `crates/iscc-rb/README.md` exists (stub, ~31 lines) ✅
-- **Missing**: No dedicated `ruby` CI job (workspace Rust job still uses `--exclude iscc-rb`)
 - **Missing**: No RubyGems step in `release.yml`
 - **Missing**: `scripts/version_sync.py` does not include gemspec
 - **Missing**: Standard Ruby linting not configured (no `standard` gem in Gemfile, no
     `.standard.yml`, not wired into pre-commit hooks or CI)
 - **Missing**: `docs/howto/ruby.md` guide does not exist; no `docs/ruby-api.md`
+- **Missing**: No Ruby section in root `README.md`
+- **Missing**: `crates/iscc-rb/README.md` is a stub — full installation/usage instructions not
+    complete
 
 ## C# / .NET Bindings
 
@@ -174,25 +176,26 @@ work is infrastructure and documentation: a dedicated Ruby CI job, RubyGems publ
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22646899223: all 11 jobs SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22646899223
+- **ALL PASSING** — latest CI run 22647363116: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22647363116
+- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
+    Java, Go, Bench, **Ruby** ✅
 - `release.yml` has `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven,
     FFI) ✅
-- `iscc-rb` excluded from workspace Rust CI job (`--exclude iscc-rb`) — no dedicated Ruby CI job
-- **Gap**: No `ruby` CI job; no `rubygems` publish step; Ruby not in `version_sync.py`
+- Rust CI job still uses `--exclude iscc-rb` — Ruby clippy covered by dedicated ruby job
+- **Gap**: No `rubygems` publish step in `release.yml`
+- **Gap**: `version_sync.py` does not sync gemspec version
 - **Gap**: Target requires CI jobs for C#, C++, Swift, Kotlin (all `low` priority; none started)
 
 ## Next Milestone
 
-Ruby conformance tests are complete (50/50 vectors, all 9 gen functions). The next work package
-should add the Ruby CI job to unblock automated verification on every push:
+The Ruby CI job is now in place and all 12 CI jobs are green. The next work package should focus on
+Ruby release infrastructure and documentation:
 
-1. **Ruby CI job** — add a `ruby` job to `.github/workflows/ci.yml` that runs
-    `bundle exec rake compile && bundle exec rake test`; remove `--exclude iscc-rb` from the Rust
-    CI job so clippy covers the Ruby bridge crate too
-2. **Standard Ruby linting** — add `standard` gem to Gemfile, create `.standard.yml`, wire into
-    `Rakefile` and CI
-3. **RubyGems release** — add `rubygems` checkbox to `release.yml`; update `version_sync.py` to sync
-    gemspec version from Cargo.toml
+1. **Standard Ruby linting** — add `standard` gem + `rubocop-minitest` to Gemfile; create
+    `.standard.yml`; wire `standardrb` step into the `ruby` CI job
+2. **RubyGems release** — add `rubygems` checkbox to `release.yml`; add publish step
+3. **`version_sync.py` gemspec** — add `crates/iscc-rb/lib/iscc_lib/version.rb` and
+    `crates/iscc-rb/iscc_lib.gemspec` to sync targets
 4. **Documentation** — write `docs/howto/ruby.md`; expand `crates/iscc-rb/README.md`; add Ruby
     section to root `README.md`

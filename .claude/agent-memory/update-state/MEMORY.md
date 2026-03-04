@@ -35,7 +35,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
-    (gate), Node.js, WASM, C FFI, Java, Go, Bench
+    (gate), Node.js, WASM, C FFI, Java, Go, Bench, **Ruby** (12 total)
 - `docs/howto/` — 7 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, **c-cpp.md** ✅
     (resolved issue #22); `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -62,19 +62,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: c8016888)
+## Current State (assessed-at: 043f4335)
 
-- **IN_PROGRESS**: all 11 CI jobs green (run 22646899223); Ruby 32/32 + conformance tests done
+- **IN_PROGRESS**: all 12 CI jobs green (run 22647363116); Ruby CI job added in iter 9
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
-- **Ruby bindings**: PARTIALLY MET — 32/32 symbols ✅; 111 tests (295 assertions) pass
+- **Ruby bindings**: PARTIALLY MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
     - ALL 10 gen functions ✅; 4 text ✅; 6 codec/diagnostic ✅; 5 constants ✅
     - ALL 5 algo primitives ✅; DataHasher + InstanceHasher streaming types ✅
     - Ruby test files: test_smoke.rb (46 tests) + test_iscc_lib.rb (15 tests) + test_conformance.rb
         (50 vectors, 9 gen functions) ✅
-    - Missing: Standard Ruby linting, Ruby CI job, RubyGems release, version_sync gemspec,
-        docs/howto/ruby.md, full iscc-rb/README.md
-- **CI (run 22646899223)**: ALL SUCCESS — 11 jobs (no Ruby job yet; iscc-rb excluded from Rust job)
-- **Ruby CI exclusion**: `--exclude iscc-rb` on both clippy and cargo test in Rust CI job
+    - Missing: Standard Ruby linting, RubyGems release, version_sync gemspec, docs/howto/ruby.md, full
+        iscc-rb/README.md, Ruby section in root README.md
+- **CI (run 22647363116)**: ALL SUCCESS — 12 jobs (Ruby job added; Rust job keeps
+    `--exclude iscc-rb`)
+- **Ruby CI design**: dedicated `ruby` job runs clippy+compile+test; by design Rust job excludes
+    iscc-rb
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **extconf.rb location**: crate root (not `ext/iscc_lib/`); rb_sys expects it next to Cargo.toml
 - **Ruby `_` prefix**: gen functions exposed as `_gen_*_v0`; Ruby wrapper provides public API
