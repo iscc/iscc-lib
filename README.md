@@ -7,6 +7,9 @@
 [![PyPI](https://img.shields.io/pypi/v/iscc-lib.svg)](https://pypi.org/project/iscc-lib/)
 [![npm](https://img.shields.io/npm/v/@iscc/lib.svg)](https://www.npmjs.com/package/@iscc/lib)
 [![Go Reference](https://pkg.go.dev/badge/github.com/iscc/iscc-lib/packages/go.svg)](https://pkg.go.dev/github.com/iscc/iscc-lib/packages/go)
+[![Gem](https://img.shields.io/gem/v/iscc-lib.svg)](https://rubygems.org/gems/iscc-lib)
+[![Maven Central](https://img.shields.io/maven-central/v/io.iscc/iscc-lib.svg)](https://central.sonatype.com/artifact/io.iscc/iscc-lib)
+[![npm wasm](https://img.shields.io/npm/v/@iscc/wasm.svg)](https://www.npmjs.com/package/@iscc/wasm)
 
 **High-performance polyglot implementation of
 [ISO 24138:2024](https://www.iso.org/standard/77899.html) — International Standard Content Code

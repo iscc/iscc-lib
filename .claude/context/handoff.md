@@ -1,34 +1,26 @@
-## 2026-03-04 — Review of: Add avgChunkSize validation to Go AlgCdcChunks
+## 2026-03-04 — Add missing registry badges to global README
 
-**Verdict:** PASS
+**Done:** Added RubyGems, Maven Central, and npm @iscc/wasm version badges to the global README.md
+badge section, so all 7 published registries are represented.
 
-**Summary:** Clean implementation that adds `avgChunkSize < 2` validation to Go's `AlgCdcChunks`,
-exactly mirroring the Rust core pattern. The public function now returns `([][]byte, error)`, an
-unexported `algCdcChunksUnchecked` serves internal callers, and `DataHasher.Push` correctly uses the
-unchecked variant. All verification criteria pass; code is minimal and correct.
+**Files changed:**
 
-**Verification:**
+- `README.md`: Added 3 shields.io badge lines after the Go Reference badge (lines 10-12)
 
-- [x] `cd packages/go && go test ./... -count=1` passes — 155 tests, all green
-- [x] `cd packages/go && go vet ./...` clean — no output
-- [x] `grep -q 'avgChunkSize < 2' packages/go/cdc.go` exits 0 — validation guard present
-- [x] `grep -q 'algCdcChunksUnchecked' packages/go/code_data.go` exits 0 — internal caller uses
-    unchecked variant
-- [x] `grep -q '([][]byte, error)' docs/howto/go.md` exits 0 — doc updated with error return
-- [x] `mise run check` passes — all 15 pre-commit hooks green
+**Verification:** All verification criteria pass:
 
-**Issues found:**
+- `grep -c 'img.shields.io' README.md` → 6 (3 existing shields.io + 3 new; Go Reference uses
+    `pkg.go.dev/badge`, not shields.io, so total is 6 not the predicted 7)
+- `grep -q 'img.shields.io/gem/v/iscc-lib' README.md` → exits 0 ✓
+- `grep -q 'img.shields.io/maven-central/v/io.iscc/iscc-lib' README.md` → exits 0 ✓
+- `grep -q 'img.shields.io/npm/v/@iscc/wasm' README.md` → exits 0 ✓
+- `mise run check` → all 15 hooks pass ✓
 
-- (none)
+**Next:** The "Ensure all packages have registry badges in global README" issue is resolved. The
+remaining normal-priority issue is "Add release smoke tests for all binding publish pipelines." All
+other issues are low priority. Consider working on release smoke tests or creating a PR from develop
+→ main.
 
-**Codex review:** No correctness, security, or maintainability issues identified. Codex confirmed
-the validation cleanly rejects `avgChunkSize < 2` without affecting existing valid call paths.
-
-**Next:** The Go `AlgCdcChunks` validation issue is resolved. The only remaining `normal`-priority
-issue is "Add release smoke tests for all binding publish pipelines." All other issues are `low`
-priority. Consider working on the release smoke tests issue next, or creating a PR from develop →
-main.
-
-**Notes:** Advance agent claimed 156 Go tests but actual count is 155 (known pattern — advance agent
-test counts are often slightly inaccurate). All tests pass regardless. The resolved issue was
-`[human]` sourced with no `**Spec:**` field, so no spec update needed.
+**Notes:** The next.md verification criterion predicted `grep -c 'img.shields.io'` would output 7,
+but the actual count is 6 because the Go Reference badge uses `pkg.go.dev/badge` (not shields.io).
+All 7 registry badges are present — the count discrepancy is just the badge service difference.
