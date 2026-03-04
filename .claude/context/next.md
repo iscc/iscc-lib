@@ -1,121 +1,117 @@
 # Next Work Package
 
-## Step: Add RubyGems publish step to release.yml
+## Step: Add Ruby documentation (howto guide, README, root README)
 
 ## Goal
 
-Add a `rubygems` checkbox and cross-platform gem build/publish jobs to the release workflow,
-enabling the `iscc-lib` Ruby gem to be published to RubyGems.org alongside the existing registry
-targets. This is the critical path for users to `gem install iscc-lib` with precompiled native
-extensions.
+Write the Ruby how-to guide, expand the per-crate README from stub to full guide, and add Ruby
+install/quickstart sections to the root README. This completes the documentation deliverables for
+the Ruby bindings issue and makes Ruby a first-class documented language alongside the existing 7.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: `.github/workflows/release.yml`
+- **Create**: `docs/howto/ruby.md`
+- **Modify**: `crates/iscc-rb/README.md`, `README.md`, `zensical.toml` (add Ruby nav entry)
 - **Reference**:
-    - `.github/workflows/release.yml` (existing publish job patterns — crates.io, PyPI, npm, Maven,
-        FFI)
-    - `crates/iscc-rb/iscc-lib.gemspec` (gem metadata, file list, extension config)
-    - `crates/iscc-rb/Rakefile` (rb_sys extension task, compile target)
-    - `crates/iscc-rb/Gemfile` (build dependencies: rake-compiler, rb_sys)
-    - `crates/iscc-rb/Cargo.toml` (cdylib crate config)
-    - `.claude/context/specs/ruby-bindings.md` (spec for release approach)
+    - `docs/howto/go.md` — closest structural template (package-level functions, typed results)
+    - `docs/howto/java.md` — bridge analog (compiled native extension, similar install story)
+    - `docs/howto/python.md` — PyO3 bridge analog (similar wrapper pattern)
+    - `crates/iscc-rb/lib/iscc_lib.rb` — Ruby wrapper API (result classes, keyword args)
+    - `crates/iscc-rb/src/lib.rs` — Magnus bridge (function signatures)
+    - `crates/iscc-rb/test/` — smoke tests (working code examples to adapt)
+    - `README.md` — existing Install/Quick Start sections to add Ruby alongside
 
 ## Not In Scope
 
-- Standard Ruby linting (`standard` gem, `.standard.yml`) — separate future step
-- Documentation (`docs/howto/ruby.md`, expanded README, root README Ruby section) — separate step
-- RubyGems.org account setup, gem name reservation, API key configuration — manual human action
-- Testing the workflow end-to-end (requires credentials and manual dispatch)
-- Adding `rake-compiler-dock` or other cross-compilation infrastructure to the devcontainer
+- Standard Ruby linting (`standard` gem, `.standard.yml`, CI wiring) — separate future step
+- Ruby API reference page (`docs/ruby-api.md`) — not required by target
+- Updating multi-language tabbed examples on other docs pages — separate step if needed
+- Expanding smoke/unit tests or adding new test coverage
 
 ## Implementation Notes
 
-### Pattern to follow
+### `docs/howto/ruby.md` (~370-430 lines, following existing guide pattern)
 
-Follow the existing release.yml structure exactly. Each registry has: (1) an `inputs.*` boolean
-checkbox, (2) a build job with cross-platform matrix, (3) a publish job with version-exists check
-and idempotent skip.
+Use `docs/howto/go.md` as the primary structural template. Sections:
 
-### Workflow dispatch input
+1. **Frontmatter**: `icon: lucide/gem`, description line
+2. **Intro paragraph**: Native Rust extension via Magnus, precompiled gems, `gem install`
+3. **Installation**: `gem install iscc-lib` + Bundler `Gemfile` alternative + "Build from source"
+    admonition (like Java's "Build from source" note — `bundle exec rake compile`)
+4. **Code generation**: All 10 `gen_*_v0` functions with Ruby examples using keyword args. Group:
+    - Meta-Code (with description, meta JSON examples)
+    - Text-Code, Image-Code, Audio-Code, Video-Code, Mixed-Code
+    - Data-Code, Instance-Code (byte data via `File.binread`)
+    - ISCC-Code (combining units)
+    - Sum-Code (file path)
+5. **Streaming API**: `DataHasher` and `InstanceHasher` with method chaining
+6. **Codec and diagnostics**: `iscc_decode`, `iscc_decompose`, `encode_component`, `encode_base64`,
+    `json_to_data_url`, `conformance_selftest`
+7. **Text utilities**: `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
+8. **Algorithm primitives**: `sliding_window`, `alg_simhash`, `alg_minhash_256`, `alg_cdc_chunks`,
+    `soft_hash_video_v0`
+9. **Constants**: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
+    `TEXT_NGRAM_SIZE`
 
-Add a `rubygems` boolean input (default: false) after the `ffi` input:
+Key Ruby API patterns to show:
 
-```yaml
-rubygems:
-  description: Publish iscc-lib to RubyGems
-  type: boolean
-  default: false
+- Result classes use attribute-style access: `result.iscc`, `result.name`, `result.metahash`
+- Keyword arguments: `gen_meta_code_v0("name", description: "desc", bits: 64)`
+- Binary data as Ruby strings: `data = File.binread("file.bin")`
+- Streaming: `hasher = IsccLib::DataHasher.new.update(chunk1).update(chunk2).finalize`
+
+### `crates/iscc-rb/README.md` (expand from 31 lines to ~80-100 lines)
+
+Follow the pattern of other per-crate READMEs (e.g., `crates/iscc-py/README.md`):
+
+- Badges (RubyGems version, CI, license)
+- What is ISCC (2-3 sentences)
+- Installation (gem install + Bundler)
+- Quick start (gen_meta_code_v0 + streaming example)
+- API overview (list of 10 gen functions + key utilities)
+- Links (lib.iscc.codes, repository, ISCC spec)
+- License
+
+### `README.md` (add Ruby sections)
+
+Add Ruby in two places, maintaining the current ordering pattern:
+
+1. **Installation section**: Add `### Ruby` with `gem install iscc-lib` after Go and before WASM
+    (current order: Rust, Python, Node.js, Java, Go, WASM — insert Ruby after Go)
+2. **Quick Start section**: Add `### Ruby` with a `gen_meta_code_v0` example after Go and before
+    WASM
+
+Ruby example for Quick Start:
+
+```ruby
+require "iscc_lib"
+
+result = IsccLib.gen_meta_code_v0("ISCC Test Document!")
+puts "Meta-Code: #{result.iscc}"
 ```
 
-### Build job: `build-gem`
+### `zensical.toml` (add Ruby nav entry)
 
-Use `oxidize-rb/actions/cross-gem@v1` — the official rb-sys GitHub Action for building precompiled
-native gems from Magnus/rb_sys crates. This handles `rake-compiler-dock` internally.
-
-**Platform matrix** — build for 5 Ruby platforms (matching the project's standard 5-platform set):
-
-| Ruby platform    | Equivalent Rust target      |
-| ---------------- | --------------------------- |
-| `x86_64-linux`   | `x86_64-unknown-linux-gnu`  |
-| `aarch64-linux`  | `aarch64-unknown-linux-gnu` |
-| `x86_64-darwin`  | `x86_64-apple-darwin`       |
-| `arm64-darwin`   | `aarch64-apple-darwin`      |
-| `x64-mingw-ucrt` | `x86_64-pc-windows-msvc`    |
-
-The `cross-gem` action takes `platform` and `ruby-versions` inputs. Target Ruby versions:
-`3.1, 3.2, 3.3` (gem supports `>= 3.1.0` per gemspec).
-
-Upload each platform gem as an artifact (pattern: `gem-<platform>`).
-
-**Working directory**: `crates/iscc-rb` — the gemspec, Rakefile, and Cargo.toml are all here.
-
-### Publish job: `publish-rubygems`
-
-Depends on `build-gem`. Steps:
-
-1. **Get workspace version** — same `grep` pattern as other jobs
-2. **Check version on RubyGems** — `curl -sf "https://rubygems.org/api/v1/versions/iscc-lib.json"`
-    and check if the version already exists. If yes, skip
-3. **Download gem artifacts** — `actions/download-artifact@v4` with `pattern: gem-*`
-4. **Publish each gem** — `gem push *.gem` with `GEM_HOST_API_KEY` secret. Push all platform gems
-
-The publish job should also build and push a **source gem** (fallback for platforms without
-precompiled gems). Use `gem build iscc-lib.gemspec` in the publish job after checkout.
-
-### Trigger condition
-
-Same pattern as all other jobs: `startsWith(github.ref, 'refs/tags/v') || inputs.rubygems`
-
-### Permissions
-
-The publish job only needs `contents: read`. RubyGems uses an API key secret, not OIDC (unlike
-crates.io/PyPI). The secret name should be `GEM_HOST_API_KEY` (the standard env var that `gem push`
-reads).
-
-### Important: shell: bash on Windows
-
-If any step runs on Windows runners, ensure `shell: bash` is set (per learnings). The build matrix
-includes `x64-mingw-ucrt` which may run on `windows-latest`. Check whether
-`oxidize-rb/actions/cross-gem` runs on ubuntu with Docker (likely — rake-compiler-dock is
-Docker-based) or requires platform-native runners. If all cross-compilation happens on ubuntu via
-Docker, no Windows runner is needed.
+Add `{ "Ruby" = "howto/ruby.md" }` to the How-to Guides navigation list. Insert after Python
+(current order: Rust, Python, Node.js, WASM, Go, Java, C/C++). Place Ruby after Python to group
+scripting languages together.
 
 ## Verification
 
-- `python -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 (valid
-    YAML)
-- `grep -c 'rubygems' .github/workflows/release.yml` returns at least 3 (input + job name +
-    condition)
-- `grep 'publish-rubygems' .github/workflows/release.yml` finds the publish job
-- `grep 'build-gem' .github/workflows/release.yml` finds the build job
-- `grep 'GEM_HOST_API_KEY' .github/workflows/release.yml` finds the secret reference
-- `grep 'cross-gem' .github/workflows/release.yml` finds the cross-compilation action reference
-- `grep 'x86_64-linux' .github/workflows/release.yml` finds a platform in the build matrix
+- `test -f docs/howto/ruby.md && echo "EXISTS"` — howto guide created
+- `wc -l docs/howto/ruby.md | awk '{print ($1 >= 300) ? "PASS" : "FAIL"}'` — substantial content
+    (≥300 lines)
+- `wc -l crates/iscc-rb/README.md | awk '{print ($1 >= 60) ? "PASS" : "FAIL"}'` — expanded from stub
+    (≥60 lines)
+- `grep -q 'gem install iscc-lib' README.md && echo "PASS"` — Ruby install in root README
+- `grep -q 'ruby.md' zensical.toml && echo "PASS"` — Ruby in docs navigation
+- `grep -q 'gen_meta_code_v0' docs/howto/ruby.md && echo "PASS"` — howto has code examples
+- `grep -q 'DataHasher' docs/howto/ruby.md && echo "PASS"` — howto covers streaming API
+- `grep -q 'conformance_selftest' docs/howto/ruby.md && echo "PASS"` — howto covers diagnostics
+- `mise run check` exits 0 — all pre-commit hooks pass (formatting, YAML, etc.)
 
 ## Done When
 
-All verification criteria pass — the release.yml contains a complete `rubygems` input, a
-cross-platform `build-gem` job using `oxidize-rb/actions/cross-gem`, and a `publish-rubygems` job
-with version-exists idempotency check and `GEM_HOST_API_KEY` secret.
+All verification commands pass: Ruby howto guide exists with comprehensive API coverage (≥300
+lines), per-crate README expanded from stub, root README includes Ruby install and quickstart, docs
+navigation updated, and all formatting hooks clean.

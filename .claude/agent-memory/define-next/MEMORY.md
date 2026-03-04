@@ -112,13 +112,13 @@ iterations.
 All 32/32 Tier 1 symbols + conformance tests complete (111 tests, 295 assertions). Remaining
 infrastructure (in recommended order):
 
-1. ~~**Conformance tests**~~ — done (iter 11, 50 vectors)
-2. ~~**Ruby CI job**~~ — done (iter 12, 12 CI jobs all green)
-3. ~~**Version sync**~~ — done (iter 13, version_sync.py updated)
-4. **RubyGems release** — add `rubygems` checkbox to `release.yml` (iter 14)
-5. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into Rakefile and CI
-6. **Documentation** — `docs/howto/ruby.md`, expand `crates/iscc-rb/README.md`, add Ruby to root
-    README
+1. ~~**Conformance tests**~~ — done (iter 7, 50 vectors)
+2. ~~**Ruby CI job**~~ — done (iter 8, 12 CI jobs all green)
+3. ~~**Version sync**~~ — done (iter 9, version_sync.py updated)
+4. ~~**RubyGems release**~~ — done (iter 10, release.yml updated)
+5. **Documentation** — `docs/howto/ruby.md`, expand `crates/iscc-rb/README.md`, add Ruby to root
+    README (iter 11)
+6. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into Rakefile and CI
 
 Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it.
 
@@ -160,5 +160,6 @@ Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include
 - Ruby conformance tests done (iter 11): 50 vectors, 111 tests total
 - Ruby CI job done (iter 12): 12 CI jobs all green
 - Version sync done (iter 13): version_sync.py Ruby integration
-- Current (iter 14): RubyGems release step in release.yml
-- After release: linting, docs (multiple future steps)
+- RubyGems release done (iter 10): release.yml updated with build-gem + publish-rubygems
+- Current (iter 11): Ruby documentation (howto, README, root README)
+- After docs: Standard Ruby linting (final Ruby infra step)
