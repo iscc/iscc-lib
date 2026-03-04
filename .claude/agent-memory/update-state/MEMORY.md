@@ -62,9 +62,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 9a833d1e)
+## Current State (assessed-at: f1304248)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22648749932); Ruby version sync added in iter 10
+- **IN_PROGRESS**: all 12 CI jobs green (run 22650345378); RubyGems release step added in iter 11
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
 - **Ruby bindings**: PARTIALLY MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
     - ALL 10 gen functions ✅; 4 text ✅; 6 codec/diagnostic ✅; 5 constants ✅
@@ -72,9 +72,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     - Ruby test files: test_smoke.rb (46 tests) + test_iscc_lib.rb (15 tests) + test_conformance.rb
         (50 vectors, 9 gen functions) ✅
     - `crates/iscc-rb/lib/iscc_lib/version.rb` — VERSION constant; synced by version_sync.py ✅
-    - Missing: Standard Ruby linting, RubyGems release, docs/howto/ruby.md, full iscc-rb/README.md,
-        Ruby section in root README.md
-- **CI (run 22648749932)**: ALL SUCCESS — 12 jobs
+    - Missing: Standard Ruby linting, docs/howto/ruby.md, full iscc-rb/README.md, Ruby section in root
+        README.md
+- **CI (run 22650345378)**: ALL SUCCESS — 12 jobs
+- **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, **rubygems** ✅
+    - `build-gem` job: 5 platforms via `oxidize-rb/actions/cross-gem@v1` (Ruby 3.1/3.2/3.3)
+    - `publish-rubygems` job: idempotency check, source gem fallback, `GEM_HOST_API_KEY` secret
+    - Human action still required: RubyGems.org account, gem name reservation, secret setup
 - **Ruby CI design**: dedicated `ruby` job runs clippy+compile+test; by design Rust job excludes
     iscc-rb
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
@@ -82,7 +86,6 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Ruby `_` prefix**: gen functions exposed as `_gen_*_v0`; Ruby wrapper provides public API
 - **Feature flags**: `default = ["meta-code"]`, 5 CI feature matrix steps
 - **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
-- **release.yml**: checkboxes for crates.io, PyPI, npm, Maven, FFI (not RubyGems yet)
 - **Standard Ruby spec**: `specs/ruby-bindings.md` added linting section (standard gem,
     rubocop-minitest, .standard.yml) — none yet implemented in Gemfile or CI
 - **New packages path**: `packages/` only has `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do
