@@ -4,10 +4,11 @@
 
 ## Goal
 
-Signal that the CID loop has completed all `normal` and `critical` priority work. All 12 CI jobs
-pass, all 7 existing bindings are fully met, release smoke tests gate all 6 publish pipelines, and
-comprehensive documentation covers every binding. The only remaining gaps are `low`-priority issues
-(C#, C++, Swift, Kotlin bindings; language logos), which the CID loop skips by policy.
+Signal that the CID loop has reached steady state. All `normal` and `critical` priority work is
+complete. All 12 CI jobs pass (run 22666893212), all 7 bindings are "met", release smoke tests gate
+all 6 publish pipelines, and documentation covers every binding. The 5 remaining issues are all
+`low` priority (C#, C++, Swift, Kotlin bindings; language logos) — reserved for human-directed work
+per CID policy.
 
 ## Scope
 
