@@ -62,29 +62,28 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 064a4328)
+## Current State (assessed-at: 5f55123)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22657251138); CID loop IDLE (iter 16 = no code changes)
-- **Iter 15–16 changes**: Go doc fixes in iter 15; iter 16 = only CID admin context files updated
+- **IN_PROGRESS**: all 12 CI jobs green (run 22662032256); 2 `normal`-priority gaps now open
+- **Iter 17 changes** (5f55123, f880841, 73dbadf, 1e5b7a2 since 064a4328):
+    - `alg_cdc_chunks` Rust core now returns `IsccResult` (validates `avg_chunk_size < 2`)
+    - `alg_cdc_chunks_unchecked` added as `pub(crate)` for internal callers
+    - All binding crates updated to handle Result (Python, NAPI, WASM, FFI, JNI, Ruby)
+    - JNI: `avgChunkSize < 2` validation added (was `< 0`)
+    - WASM: wasm-opt upgraded from `-O` to `-O3`
+    - `release.yml`: `cargo test --workspace --exclude iscc-rb`
+    - `crates/iscc-rb/LICENSE` (Apache 2.0) added
+    - `docs/howto/rust.md`: `alg_cdc_chunks` return type corrected
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
 - **Ruby bindings**: MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
-    - ALL 10 gen functions ✅; 4 text ✅; 6 codec/diagnostic ✅; 5 constants ✅
-    - ALL 5 algo primitives ✅; DataHasher + InstanceHasher streaming types ✅
-    - `docs/howto/ruby.md` ✅ (422 lines); `crates/iscc-rb/README.md` ✅ (93 lines)
-    - Root README.md Ruby section ✅; `zensical.toml` Ruby nav entry ✅
-    - Standard Ruby linting ✅: `.standard.yml`, Gemfile, CI step, pre-commit + pre-push hooks
-    - **`docs/ruby-api.md`** ✅ (781 lines — all 32 symbols with signatures, param tables, examples)
-    - `zensical.toml` Reference: "Ruby API" entry added after "Java API" ✅
-    - Human action still required: RubyGems.org account, gem name reservation, secret setup
-- **CI (run 22657251138)**: ALL SUCCESS — 12 jobs
-- **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, **rubygems** ✅
-- **Ruby CI design**: dedicated `ruby` job runs standardrb+clippy+compile+test; Rust job excludes
-    iscc-rb
+- **CI (run 22662032256)**: ALL SUCCESS — 12 jobs
+- **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, rubygems ✅
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
-- **CID loop status**: IDLE — no `critical`/`normal` issues remain; all remaining gaps are `low`
-- **Feature flags**: `default = ["meta-code"]`, 5 CI feature matrix steps
-- **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
-- **docs/**: 8 howto files; `docs/ruby-api.md` added; `docs/c-ffi-api.md` ✅
+- **Test counts**: 316 (default; added alg_cdc_chunks validation tests)
+- **Normal-priority gaps now open**:
+    1. Go `AlgCdcChunks` missing `avgChunkSize < 2` validation (`packages/go/cdc.go`)
+    2. Release smoke tests before publish (target.md requirement; no implementation yet)
+- **docs/**: 8 howto files; `docs/ruby-api.md` ✅; `docs/c-ffi-api.md` ✅
 - **packages/**: only `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do NOT exist yet
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
@@ -137,3 +136,7 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
 - **Ruby JSON sort_keys no-op**: `JSON.generate(hash, sort_keys: true)` silently ignores `sort_keys`
     in Ruby's stdlib json gem. Use `JSON.generate(hash.sort.to_h)` instead for deterministic key
     ordering (required for JCS-compatible meta serialization)
+- **alg_cdc_chunks API**: public fn returns `IsccResult<Vec<&[u8]>>` (validates
+    `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked` (no validation, always
+    valid constant). All 6 binding crates handle the Result. Go `AlgCdcChunks` has no validation
+    (normal-priority gap).
