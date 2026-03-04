@@ -6,7 +6,9 @@
 require "rake/testtask"
 require "rb_sys/extensiontask"
 
-RbSys::ExtensionTask.new("iscc-rb") do |ext|
+GEMSPEC = Gem::Specification.load("iscc-lib.gemspec")
+
+RbSys::ExtensionTask.new("iscc-rb", GEMSPEC) do |ext|
   ext.lib_dir = "lib/iscc_lib"
 end
 
