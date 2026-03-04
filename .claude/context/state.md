@@ -1,4 +1,4 @@
-<!-- assessed-at: 4831d12ad2479bda2b622d0883c31ac6d396d7b0 -->
+<!-- assessed-at: 815045f22619adc0e26316be8ef24652b810cdb2 -->
 
 # Project State
 
@@ -6,9 +6,9 @@
 
 ## Phase: All normal-priority gaps resolved; only low-priority bindings remain
 
-All 12 CI jobs pass (run 22667738685). No codebase changes since last assessment — only `.claude/`
-context files updated. The sole remaining open issues are `low`-priority (C#, C++, Swift, Kotlin
-bindings; language logos in README/docs); the CID loop skips these by policy.
+All 12 CI jobs pass (run 22668622839). No codebase changes since last assessment (iter 7) — only
+`.claude/` context files updated. The sole remaining open issues are `low`-priority (C#, C++, Swift,
+Kotlin bindings; language logos in README/docs); the CID loop skips these by policy.
 
 ## Rust Core Crate
 
@@ -47,7 +47,7 @@ bindings; language logos in README/docs); the CID loop skips these by policy.
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22667738685 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22668622839 ✅
 
 ## C FFI
 
@@ -165,8 +165,8 @@ bindings; language logos in README/docs); the CID loop skips these by policy.
 
 **Status**: met
 
-- **ALL PASSING** — latest CI run 22667738685: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22667738685
+- **ALL PASSING** — latest CI run 22668622839: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22668622839
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest), Node.js, WASM, C
     FFI, Java, Go, Bench, Ruby — all SUCCESS ✅
 - `release.yml` has 6 registry `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
@@ -184,7 +184,7 @@ bindings; language logos in README/docs); the CID loop skips these by policy.
 
 ## Next Milestone
 
-All `normal`-priority and `critical`-priority gaps are resolved. CI is fully green (3 consecutive
+All `normal`-priority and `critical`-priority gaps are resolved. CI is fully green (5 consecutive
 successful runs). The only remaining open issues are `low`-priority (CID loop skips these by
 policy):
 
