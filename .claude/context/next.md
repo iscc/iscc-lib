@@ -1,101 +1,87 @@
 # Next Work Package
 
-## Step: Configure Standard Ruby linting
+## Step: Create Ruby API reference page
 
 ## Goal
 
-Set up Standard Ruby (`standard` gem) as the linter/formatter for the Ruby binding crate, with CI
-enforcement and pre-commit hook integration. This brings Ruby code quality tooling to parity with
-the Rust (clippy), Python (ruff), and TOML (taplo) linting already in place.
+Create `docs/ruby-api.md` — the Ruby API reference page listing all 32 Tier 1 public methods with
+signatures, parameter tables, return types, and usage examples. This is the last item required
+before Ruby bindings reach "met" status (spec line 310).
 
 ## Scope
 
-- **Create**: `crates/iscc-rb/.standard.yml` (Standard Ruby config with rubocop-minitest plugin)
-- **Modify**: `crates/iscc-rb/Gemfile` (add `standard` and `rubocop-minitest` gems)
-- **Modify**: `.github/workflows/ci.yml` (add `bundle exec standardrb` step in the `ruby` job)
-- **Modify**: `.pre-commit-config.yaml` (add standardrb hooks for pre-commit auto-fix and pre-push
-    check)
-- **Fix**: Any Ruby source files (`lib/iscc_lib.rb`, `Rakefile`, test files) that fail `standardrb`
-    — these are mechanical lint fixes, not feature work
+- **Create**: `docs/ruby-api.md`
+- **Modify**: `zensical.toml` (add `{ "Ruby API" = "ruby-api.md" }` to Reference nav section)
 - **Reference**:
-    - `.pre-commit-config.yaml` — existing hook patterns (ruff-check --fix, cargo-clippy)
-    - `.github/workflows/ci.yml` lines 165-188 — existing Ruby CI job
-    - `crates/iscc-rb/Gemfile` — current gem dependencies
-    - `crates/iscc-rb/lib/iscc_lib.rb` — main Ruby source (209 lines)
-    - `crates/iscc-rb/test/test_smoke.rb` — largest test file (361 lines)
+    - `docs/java-api.md` — primary structural template (677 lines, most comprehensive)
+    - `docs/rust-api.md` — concise style reference (377 lines)
+    - `docs/c-ffi-api.md` — additional pattern reference (745 lines)
+    - `docs/howto/ruby.md` — existing Ruby content, examples, and API surface (422 lines)
+    - `crates/iscc-rb/lib/iscc_lib.rb` — actual Ruby wrapper with method signatures and result classes
 
 ## Not In Scope
 
-- Creating `docs/ruby-api.md` API reference page — that's a separate documentation step
-- Modifying Ruby bridge Rust code (`src/lib.rs`) — the linter only applies to `.rb` files
-- Adding custom RuboCop rules beyond what Standard Ruby provides by default
-- Upgrading Magnus or other Rust/Ruby dependencies
-- Any changes to the Ruby API surface or test coverage
+- Updating `state.md` — the update-state agent handles that
+- RubyGems account setup or publishing — human action item
+- Fixing the stale Go quickstart example in root README — separate future step
+- Expanding the howto guide — `docs/howto/ruby.md` is already complete (422 lines)
+- Adding Ruby examples to multi-language tabbed sections in other doc pages
 
 ## Implementation Notes
 
-1. **Gemfile additions** — add to `crates/iscc-rb/Gemfile`:
+Follow the structural pattern of `docs/java-api.md` (the most complete reference page):
 
-    ```ruby
-    gem "standard", "~> 1.0"
-    gem "rubocop-minitest", "~> 0.36"
-    ```
+1. **Front matter**: YAML header with `icon: lucide/book-open` and description
 
-2. **`.standard.yml`** — create at `crates/iscc-rb/.standard.yml`:
+2. **Introduction**: 2-3 sentences about the Ruby gem, require/install snippet
 
-    ```yaml
-    plugins:
-      - rubocop-minitest
-    ```
+3. **Sections** (in this order):
 
-    Standard Ruby uses its own config format (not `.rubocop.yml`). The `plugins` key loads the
-    minitest extension for test-specific lint rules.
+    - **Constants** — table with name, type, value, description for all 5 constants
+        (`META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`,
+        `TEXT_NGRAM_SIZE`)
+    - **Result Classes** — brief table of the 10 `*CodeResult` classes (subclass of `Hash`),
+        explaining dual access (`result.iscc` and `result["iscc"]`)
+    - **Code Generation Functions** — all 10 `gen_*_v0` functions, each with:
+        - Ruby method signature (keyword args with defaults)
+        - Parameter table (Parameter | Type | Description)
+        - 1-2 sentence description of the algorithm
+        - Short code example
+        - `---` separator between functions
+    - **Text Utilities** — `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
+    - **Encoding & Codec** — `encode_base64`, `json_to_data_url`, `encode_component`,
+        `iscc_decompose`, `iscc_decode`
+    - **Algorithm Primitives** — `sliding_window`, `alg_simhash`, `alg_minhash_256`,
+        `alg_cdc_chunks`, `soft_hash_video_v0`
+    - **Streaming Hashers** — `DataHasher` and `InstanceHasher` with lifecycle examples (new →
+        push/update → finalize)
+    - **Diagnostics** — `conformance_selftest`
+    - **Error Handling** — `IsccLib::Error` exception pattern
 
-3. **CI integration** — add a step in the `ruby` job in `.github/workflows/ci.yml`, BEFORE
-    `rake compile` (linting doesn't need compiled extensions):
+4. **Ruby-specific API details** to get right:
 
-    ```yaml
-      - name: Run standardrb
-        run: bundle exec standardrb
-        working-directory: crates/iscc-rb
-    ```
+    - All functions called as `IsccLib.function_name(...)` (module-level)
+    - Keyword arguments with defaults: `bits: 64`, `add_units: false`, `wide: false`
+    - Result objects: `Hash` subclass with attribute-style access (`result.iscc`)
+    - Binary data: Ruby strings with `.b` encoding
+    - Streaming: `DataHasher.new` / `InstanceHasher.new`, method chaining via `self` return
+    - Constants: `IsccLib::CONSTANT_NAME`
 
-    This follows the pattern of clippy running before compile in the same job.
+5. **Do NOT duplicate howto guide content verbatim** — the API reference is terse and technical
+    (signatures + tables + minimal examples). The howto guide has narrative explanations.
 
-4. **Pre-commit hooks** — add two local hooks in `.pre-commit-config.yaml`:
-
-    - Pre-commit stage (auto-fix): `standardrb --fix` on Ruby files, matching the `ruff-check --fix`
-        pattern
-    - Pre-push stage (check): `standardrb` without --fix, matching the `cargo-clippy` pattern
-    - Use `language: system`, `types: [ruby]`
-    - The hooks need `bundle exec` and must run from `crates/iscc-rb/`. Use a
-        `bash -c 'cd crates/iscc-rb && bundle exec standardrb ...'` wrapper or the prek `entry` with
-        `pass_filenames: false` + `files: ^crates/iscc-rb/` pattern. Note: prek is a pre-commit
-        drop-in — it supports the same config keys
-
-5. **Fix lint issues** — run `cd crates/iscc-rb && bundle exec standardrb --fix` to auto-fix issues.
-    Review any remaining non-auto-fixable issues. Standard Ruby defaults:
-
-    - Double quotes for strings (Ruby convention)
-    - Frozen string literal comments (`# frozen_string_literal: true`)
-    - Consistent indentation (2 spaces)
-    - No trailing whitespace (already handled by pre-commit hygiene hooks)
-
-6. **Verify bundle install works** — after adding gems, run `cd crates/iscc-rb && bundle install` to
-    ensure the Gemfile.lock updates cleanly. Commit the updated `Gemfile.lock`.
+6. Target length: ~500-700 lines (between rust-api.md's 377 and c-ffi-api.md's 745).
 
 ## Verification
 
-- `cd crates/iscc-rb && bundle exec standardrb` exits 0 (all Ruby files pass linting)
-- `cd crates/iscc-rb && bundle exec rake compile && bundle exec rake test` still passes (111 tests,
-    295 assertions)
-- `grep 'standard' crates/iscc-rb/Gemfile` finds the gem entry
-- `test -f crates/iscc-rb/.standard.yml` — config file exists
-- `grep 'standardrb' .pre-commit-config.yaml` finds the hook entries
-- `grep 'standardrb' .github/workflows/ci.yml` finds the CI step
-- `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` remains clean
+- `test -f docs/ruby-api.md` exits 0 (file exists)
+- `grep -q 'ruby-api.md' zensical.toml` exits 0 (nav entry added)
+- `grep -c 'gen_.*_code_v0' docs/ruby-api.md` returns 10 (all gen functions documented)
+- `grep -c 'IsccLib' docs/ruby-api.md` returns ≥30 (Ruby module referenced throughout)
+- `uv run zensical build 2>&1 | tail -1` contains "Documentation built" (site builds cleanly)
+- `wc -l < docs/ruby-api.md` returns between 400 and 800 (appropriate reference page size)
 
 ## Done When
 
-All verification criteria pass — `standardrb` runs clean on all Ruby files, CI has the lint step,
-pre-commit hooks are configured, and existing tests still pass.
+All verification criteria pass — `docs/ruby-api.md` exists with all 32 Tier 1 symbols documented,
+navigation entry is in `zensical.toml`, and the documentation site builds successfully.

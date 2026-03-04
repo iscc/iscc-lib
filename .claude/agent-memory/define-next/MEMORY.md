@@ -53,6 +53,15 @@ iterations.
 - Issue #16 fully resolved across iterations 13-15 (definitions, selftest, CI matrix)
 - `default = ["meta-code"]`, `text-processing` (unicode deps), `meta-code` (implies text-processing)
 
+## API Reference Page Patterns
+
+- Existing API reference page sizes: rust-api.md (377), java-api.md (677), c-ffi-api.md (745)
+- All share: YAML front matter → intro → constants → gen functions (with param tables) → utilities →
+    codec → algo primitives → streaming → error handling
+- `docs/api.md` is the Python API page (different naming convention from others)
+- Nav entry in `zensical.toml` under `Reference` section
+- Doc pages are a single CREATE + one nav MODIFY — well within 3-file limit
+
 ## Documentation Sweep Patterns
 
 - `crates/iscc-wasm/pkg/README.md` must always be identical to `crates/iscc-wasm/README.md`
@@ -116,10 +125,8 @@ All 32/32 Tier 1 symbols + conformance tests complete (111 tests, 295 assertions
 3. ~~**Version sync**~~ — done (iter 9)
 4. ~~**RubyGems release**~~ — done (iter 10)
 5. ~~**Documentation**~~ — done (iter 11): howto, README, root README
-6. **Standard Ruby linting** — `standard` gem, `.standard.yml`, wire into pre-commit and CI (iter 12
-    target)
-7. **`docs/ruby-api.md`** — API reference page (spec requires it but not all languages have one;
-    deprioritized after linting)
+6. ~~**Standard Ruby linting**~~ — done (iter 12): standard gem + CI + pre-commit hooks
+7. **`docs/ruby-api.md`** — API reference page (iter 13 target; last item before Ruby = "met")
 
 Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include it.
 
@@ -163,5 +170,6 @@ Note: `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols — do not include
 - Version sync done (iter 13): version_sync.py Ruby integration
 - RubyGems release done (iter 10): release.yml updated with build-gem + publish-rubygems
 - Ruby docs done (iter 11): howto guide (422 lines), README (93 lines), root README Ruby section
-- Current (iter 12): Standard Ruby linting (standard gem + CI + pre-commit)
-- After linting: ruby-api.md API reference page, then Go quickstart stale example fix
+- Standard Ruby linting done (iter 12): standard gem + CI + pre-commit hooks
+- Current (iter 13): docs/ruby-api.md API reference page (last Ruby gap)
+- After ruby-api.md: Ruby issue can close → Go quickstart stale example fix
