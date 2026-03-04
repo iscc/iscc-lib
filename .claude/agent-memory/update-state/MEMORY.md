@@ -36,8 +36,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench, **Ruby** (12 total)
-- `docs/howto/` — 7 files: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, **c-cpp.md** ✅
-    (resolved issue #22); `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
+- `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
+    **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
@@ -62,19 +62,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: f1304248)
+## Current State (assessed-at: 83027fc5)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22650345378); RubyGems release step added in iter 11
+- **IN_PROGRESS**: all 12 CI jobs green (run 22651712030); Ruby docs added in iter 12
 - **C#, C++, Swift, Kotlin issues**: all marked `low` priority — CID loop skips them
 - **Ruby bindings**: PARTIALLY MET — 32/32 symbols ✅; 111 tests (295 assertions) pass; CI ✅
     - ALL 10 gen functions ✅; 4 text ✅; 6 codec/diagnostic ✅; 5 constants ✅
     - ALL 5 algo primitives ✅; DataHasher + InstanceHasher streaming types ✅
-    - Ruby test files: test_smoke.rb (46 tests) + test_iscc_lib.rb (15 tests) + test_conformance.rb
-        (50 vectors, 9 gen functions) ✅
-    - `crates/iscc-rb/lib/iscc_lib/version.rb` — VERSION constant; synced by version_sync.py ✅
-    - Missing: Standard Ruby linting, docs/howto/ruby.md, full iscc-rb/README.md, Ruby section in root
-        README.md
-- **CI (run 22650345378)**: ALL SUCCESS — 12 jobs
+    - `docs/howto/ruby.md` ✅ (422 lines); `crates/iscc-rb/README.md` ✅ (93 lines)
+    - Root README.md Ruby section ✅; `zensical.toml` Ruby nav entry ✅
+    - Missing: `docs/ruby-api.md` (spec line 310); Standard Ruby linting (Gemfile, .standard.yml,
+        pre-commit hooks, CI step)
+- **CI (run 22651712030)**: ALL SUCCESS — 12 jobs
 - **release.yml**: 6 checkboxes: crates-io, pypi, npm, maven, ffi, **rubygems** ✅
     - `build-gem` job: 5 platforms via `oxidize-rb/actions/cross-gem@v1` (Ruby 3.1/3.2/3.3)
     - `publish-rubygems` job: idempotency check, source gem fallback, `GEM_HOST_API_KEY` secret
@@ -86,8 +85,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Ruby `_` prefix**: gen functions exposed as `_gen_*_v0`; Ruby wrapper provides public API
 - **Feature flags**: `default = ["meta-code"]`, 5 CI feature matrix steps
 - **Test counts**: 314 (default), 250 (no-default-features), 284 (text-processing only)
-- **Standard Ruby spec**: `specs/ruby-bindings.md` added linting section (standard gem,
-    rubocop-minitest, .standard.yml) — none yet implemented in Gemfile or CI
+- **docs/howto/**: now 8 files (added ruby.md); `docs/howto/ruby.md` sections checked ✅
 - **New packages path**: `packages/` only has `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do
     NOT exist yet
 

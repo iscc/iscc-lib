@@ -1,16 +1,17 @@
-<!-- assessed-at: f1304248acb603e627d24e76d75c84c78b917bc4 -->
+<!-- assessed-at: 83027fc5caebb12c41cf28f781c52bcf820fc1a5 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Ruby bindings — release infra complete; linting, docs remaining
+## Phase: Ruby bindings — docs mostly done; ruby-api.md and linting remain
 
 The Ruby Magnus bridge exposes all 32 Tier 1 symbols with full conformance tests (111 tests, 295
-assertions, 50 vectors). This iteration added the RubyGems publish step to `release.yml` (6-platform
-`build-gem` job + `publish-rubygems` job with idempotency check), completing release infrastructure.
-All 12 CI jobs remain green (run 22650345378). Remaining Ruby work: Standard Ruby linting,
-`docs/howto/ruby.md`, full `crates/iscc-rb/README.md`, and Ruby section in root `README.md`.
+assertions, 50 vectors). This iteration added Ruby documentation: `docs/howto/ruby.md` (422 lines,
+comprehensive), expanded `crates/iscc-rb/README.md` (93 lines), and a Ruby section in the root
+`README.md`. All 12 CI jobs remain green (run 22651712030). Remaining gaps: `docs/ruby-api.md` API
+reference page and Standard Ruby linting (standard gem, rubocop-minitest, .standard.yml, pre-commit
+hooks, CI step).
 
 ## Rust Core Crate
 
@@ -44,7 +45,7 @@ All 12 CI jobs remain green (run 22650345378). Remaining Ruby work: Standard Rub
 
 - All 32 Tier 1 symbols exported via `#[wasm_bindgen]` ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22650345378 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22651712030 ✅
 
 ## C FFI
 
@@ -96,17 +97,18 @@ All 12 CI jobs remain green (run 22650345378). Remaining Ruby work: Standard Rub
 - `bundle exec rake compile` builds in release profile ✅
 - **Dedicated `ruby` CI job** — runs clippy, compile, and test on ubuntu-latest / Ruby 3.1 ✅
 - `crates/iscc-rb/lib/iscc_lib/version.rb` exists; synced by `version_sync.py` ✅
-- `version_sync.py --check` reports `OK: crates/iscc-rb/lib/iscc_lib/version.rb = 0.1.0` ✅
-- `crates/iscc-rb/README.md` exists (stub, 31 lines) ✅
-- **RubyGems publish step** added to `release.yml`: `build-gem` (5 platforms, Ruby 3.1/3.2/3.3 via
+- `crates/iscc-rb/README.md` expanded to 93 lines (installation, quickstart, API overview) ✅
+- **RubyGems publish step** in `release.yml`: `build-gem` (5 platforms, Ruby 3.1/3.2/3.3 via
     `oxidize-rb/actions/cross-gem@v1`) + `publish-rubygems` (idempotency check, `GEM_HOST_API_KEY`)
     ✅
-- **Missing**: Standard Ruby linting not configured (no `standard` gem in Gemfile, no
-    `.standard.yml`, not wired into pre-commit hooks or CI)
-- **Missing**: `docs/howto/ruby.md` guide does not exist; no `docs/ruby-api.md`
-- **Missing**: No Ruby section in root `README.md`
-- **Missing**: `crates/iscc-rb/README.md` is a stub — full installation/usage instructions not
-    complete
+- `docs/howto/ruby.md` created (422 lines) — installation, all 10 gen functions, streaming,
+    codec/diagnostics, text utilities, algorithm primitives, constants, error handling ✅
+- Root `README.md` Ruby section added: install tab + quickstart snippet ✅
+- `zensical.toml` navigation updated with Ruby howto entry ✅
+- **Missing**: `docs/ruby-api.md` API reference page — required by spec
+    (`.claude/context/specs/ruby-bindings.md` line 310)
+- **Missing**: Standard Ruby linting not configured (no `standard`/`rubocop-minitest` in Gemfile, no
+    `.standard.yml`, not wired into pre-commit hooks or CI ruby job)
 
 ## C# / .NET Bindings
 
@@ -143,16 +145,15 @@ All 12 CI jobs remain green (run 22650345378). Remaining Ruby work: Standard Rub
 
 - Public-facing polyglot README exists; CI badge, registry badges ✅
 - All 10 `gen_*_v0` functions listed; per-language install + quick-start examples ✅
-- **Gap**: Ruby install instructions and quickstart not present
+- Ruby install instructions and quickstart now present ✅
 - **Gap**: C#, C++, Swift, Kotlin sections not present (target requires all 4; all `low` priority)
 
 ## Per-Crate READMEs
 
 **Status**: partially met
 
-- READMEs present for all existing 8 crates/packages (including `crates/iscc-rb/README.md`) ✅
-- **Gap**: `crates/iscc-rb/README.md` is a stub (31 lines); full installation/usage instructions not
-    yet complete
+- READMEs present for all existing 8 crates/packages including `crates/iscc-rb/README.md` (93 lines)
+    ✅
 - **Gap**: Target requires READMEs for `packages/dotnet`, `packages/cpp`, `packages/swift`,
     `packages/kotlin` — none of these directories exist yet (all `low` priority)
 
@@ -160,11 +161,11 @@ All 12 CI jobs remain green (run 22650345378). Remaining Ruby work: Standard Rub
 
 **Status**: partially met
 
-- 17 pages deployed to lib.iscc.codes; all navigation sections complete ✅
-- 7 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md ✅
+- 17+ pages deployed to lib.iscc.codes; all navigation sections complete ✅
+- 8 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
+    **ruby.md** (422 lines) ✅
 - `docs/llms.txt` and `scripts/gen_llms_full.py` in place ✅
-- **Gap**: No `docs/howto/ruby.md` guide; no `docs/ruby-api.md`; no Ruby tabs in multi-language
-    examples
+- **Gap**: `docs/ruby-api.md` API reference does not exist (spec requires it at line 310)
 - **Gap**: Target requires C#, C++, Swift, Kotlin how-to guides (all `low` priority; none started)
 
 ## Benchmarks
@@ -179,12 +180,12 @@ All 12 CI jobs remain green (run 22650345378). Remaining Ruby work: Standard Rub
 
 **Status**: partially met
 
-- **ALL PASSING** — latest CI run 22650345378: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22650345378
+- **ALL PASSING** — latest CI run 22651712030: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22651712030
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (gate), Node.js, WASM, C FFI,
     Java, Go, Bench, Ruby ✅
-- `release.yml` now has **6 registry** `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven,
-    FFI, **RubyGems** ✅
+- `release.yml` has **6 registry** `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
+    **RubyGems** ✅
 - `build-gem` job: 5 platforms (x86_64-linux, aarch64-linux, x86_64-darwin, arm64-darwin,
     x64-mingw-ucrt) via `oxidize-rb/actions/cross-gem@v1` ✅
 - `publish-rubygems` job: idempotency check, source gem fallback, `GEM_HOST_API_KEY` secret ✅
@@ -195,14 +196,12 @@ All 12 CI jobs remain green (run 22650345378). Remaining Ruby work: Standard Rub
 
 ## Next Milestone
 
-Release infrastructure for Ruby is now complete. The next work package should focus on Ruby
-documentation:
+Ruby docs are mostly complete. Two items remain before Ruby reaches "met":
 
-1. **How-to guide** — write `docs/howto/ruby.md` (installation via Bundler, gem usage examples,
-    streaming API, conformance selftest; follow the pattern of existing `go.md` / `java.md`)
-2. **Expand README** — `crates/iscc-rb/README.md` stub (31 lines) → full guide with install,
-    quickstart, API overview, contributing notes
-3. **Root README Ruby section** — add Ruby install badge + quickstart snippet alongside the other 6
-    languages
-4. **Standard Ruby linting** (lower priority) — add `standard` gem + `rubocop-minitest` to Gemfile;
-    create `.standard.yml`; wire `standardrb` check into the `ruby` CI job
+1. **`docs/ruby-api.md`** — create the Ruby API reference page (all public methods with signatures
+    and examples; follow pattern of `docs/java-api.md` and `docs/rust-api.md`). Add to
+    `zensical.toml` nav under Reference section.
+2. **Standard Ruby linting** — add `standard` (~> 1.0) + `rubocop-minitest` (~> 0.36) to
+    `crates/iscc-rb/Gemfile`; create `crates/iscc-rb/.standard.yml` (plugin: rubocop-minitest); add
+    `standardrb --fix` to pre-commit auto-fix stage and `standardrb` check to pre-push gate; add
+    `bundle exec standardrb` step in the `ruby` CI job before `rake test`.
