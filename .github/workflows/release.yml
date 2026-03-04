@@ -724,25 +724,23 @@ jobs:
           ruby-version: '3.3'
           bundler-cache: true
           working-directory: crates/iscc-rb
+      - name: Link Gemfile.lock for rb_sys version detection
+        # The cross-gem action's configure step runs `grep rb_sys Gemfile.lock`
+        # in the repo root (not working-directory). Without this symlink it
+        # falls back to `gem info rb_sys --remote` -> 0.9.124, which installs
+        # rake-compiler-dock 1.11.0 (maps "3.3" -> "3.3.10" -- missing from
+        # the 0.9.123 Docker image that only has rbconfig for 3.3.9).
+        run: ln -sf crates/iscc-rb/Gemfile.lock Gemfile.lock
       - name: Cross-compile gem
         uses: oxidize-rb/actions/cross-gem@v1
         with:
           platform: ${{ matrix.platform }}
-          # Use "default" to skip --ruby-versions flag; rb-sys-dock reads
-          # RUBY_CC_VERSION directly, bypassing the host-side cross_rubies
-          # lookup that misresolves "3.3" -> "3.3.10" (rake-compiler-dock
-          # 1.11.0 from rb_sys 0.9.124 installed by the action's configure
-          # step, which fails to find crates/iscc-rb/Gemfile.lock).
-          ruby-versions: default
+          ruby-versions: 3.1, 3.2, 3.3
           working-directory: crates/iscc-rb
           # Pin to 0.9.123 Docker image (Ruby 3.4 build tool, rbconfigs for
           # 3.1.7/3.2.9/3.3.9). The 0.9.124 image has Ruby 4.0 which breaks
-          # RbSys::ExtensionTask.
+          # RbSys::ExtensionTask. Must match rb_sys in Gemfile.lock.
           tag: 0.9.123
-        env:
-          # Explicit patch versions matching the 0.9.123 image's rbconfigs.
-          # Bypasses cross_rubies resolution entirely.
-          RUBY_CC_VERSION: 3.3.9:3.2.9:3.1.7
       - name: Upload gem
         uses: actions/upload-artifact@v4
         with:
