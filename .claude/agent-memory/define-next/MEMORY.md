@@ -123,12 +123,12 @@ iterations.
 
 ## Project Status
 
-- **CID resumed iter 17** — 2 `normal` priority issues filed after codex review:
-    1. Go `AlgCdcChunks` missing `avgChunkSize` validation (packages/go/cdc.go)
-    2. Release smoke tests for all binding publish pipelines (release.yml)
-- 12 CI jobs green (run 22662032256), all existing bindings "met"
+- **Iter 18** — Go `AlgCdcChunks` validation resolved (iter 17). 2 `normal` issues remain:
+    1. Missing registry badges in global README (README.md) — scoped for iter 18
+    2. Release smoke tests for all binding publish pipelines (release.yml) — next after badges
+- 12 CI jobs green (run 22662906194), all existing bindings "met"
 - 4 `low` issues: C# (low), C++ (low), Swift (low), Kotlin (low) + README logos (low)
-- Go fix is smaller/self-contained — do first, then smoke tests
+- After badges + smoke tests, only `low` issues remain → CID approaches idle
 
 ## Go AlgCdcChunks Signature Change Pattern
 
