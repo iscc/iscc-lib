@@ -217,6 +217,19 @@ section so define-next can scope them as work packages:
 - Dependency updates needed for hook tool versions
 - Hook performance degradation (a hook taking too long slows the cycle)
 
+## Idle Iterations
+
+When the advance agent made no code changes because there is no actionable work (all remaining
+issues are `low` priority and no normal/critical gaps exist), signal idle state by including this
+line in handoff.md:
+
+```markdown
+**IDLE**: All remaining issues are low priority — no actionable work for CID.
+```
+
+The CID runner checks for `**IDLE**` and exits the loop automatically. This prevents wasting
+iterations and cost on repeated idle cycles.
+
 ## Flagging Concerns
 
 If you find serious problems, prepend this to handoff.md:
