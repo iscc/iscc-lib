@@ -1,42 +1,21 @@
-## 2026-03-04 — Review of: Add release smoke tests for all binding pipelines
+## 2026-03-04 — CID loop idle — no actionable work remains
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** No code changes. The advance agent confirmed the idle state: all `normal` and `critical`
+priority work is complete. All 12 CI jobs pass, all 7 bindings are fully met, release smoke tests
+gate all 6 publish pipelines, and comprehensive documentation covers every binding. The only
+remaining issues are `low`-priority (C#, C++, Swift, Kotlin bindings; language logos), which the CID
+loop skips by policy.
 
-**Summary:** Clean, well-structured implementation adding 6 smoke test jobs to `release.yml`, each
-gating its corresponding publish job. All verification criteria pass. One minor scope deviation:
-`--features conformance` added to `build-wasm` (justified — required for WASM smoke test to access
-`conformance_selftest`, which is gated behind `#[cfg(feature = "conformance")]` in the WASM crate).
+**Files changed:**
 
-**Verification:**
+- (none — idle iteration)
 
-- [x] `grep -cP '^\s{2}test-' .github/workflows/release.yml` — outputs 6
-- [x] YAML validates cleanly — `yaml.safe_load()` exits 0
-- [x] `publish-pypi` needs includes `test-wheels`
-- [x] `publish-npm-lib` needs includes `test-napi`
-- [x] `publish-npm-wasm` needs includes `test-wasm`
-- [x] `publish-rubygems` needs includes `test-gem`
-- [x] `publish-maven` needs includes `test-jni`
-- [x] `publish-ffi` needs includes `test-ffi`
-- [x] `mise run check` passes — all 15 hooks green
-- [x] No quality gate circumvention patterns found
+**Verification:** Confirmed via issues.md that all 5 remaining issues are tagged `low`. State.md
+confirms all existing bindings have status "met" and CI run 22665835771 is fully green.
 
-**Issues found:**
+**Next:** The CID loop should stop — further iterations will produce this same idle signal. Human
+action options: (1) create PR from `develop` → `main` for a stable release, (2) promote a `low`
+issue to `normal` to direct the CID loop, or (3) file new `normal`/`critical` issues.
 
-- (none)
-
-**Codex review:** No issues found. Codex confirmed the changes are consistent, reference existing
-artifacts/APIs correctly, and don't introduce CI-breaking or functional problems.
-
-**Next:** The "Add release smoke tests" issue is now resolved and deleted from issues.md. All
-remaining issues are `low` priority (C#, C++, Swift, Kotlin bindings; language logos). Consider
-preparing a PR from `develop` → `main` for a stable release, or await human direction on `low`
-priority items.
-
-**Notes:** The `--features conformance` addition to `build-wasm` is a minor scope deviation from
-next.md's "don't change existing build jobs" constraint, but necessary and beneficial. The published
-WASM package now exports `conformance_selftest` (previously gated), bringing it in line with NAPI
-and Python bindings which export it unconditionally. The feature flag has zero dependency cost — it
-only gates the JS export; the underlying code is already compiled into `iscc-lib`. Each test job
-correctly mirrors its build job's `if:` condition and uses appropriate artifact names. The NAPI test
-correctly uses `conformance_selftest` (not camelCase) because the binding uses
-`#[napi(js_name = "conformance_selftest")]`.
+**Notes:** No surprises. The project is feature-complete for all `normal`-priority bindings. The
+advance agent correctly detected the idle signal and made no code changes.
