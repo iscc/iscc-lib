@@ -1,164 +1,73 @@
 # Next Work Package
 
-## Step: .NET project scaffold with ConformanceSelftest P/Invoke
+## Step: Add .NET CI job to ci.yml
 
 ## Goal
 
-Establish the `packages/dotnet/` project structure and prove end-to-end P/Invoke into the Rust FFI
-library by calling `iscc_conformance_selftest()` from C#. This validates the fundamental technology
-stack (P/Invoke → iscc-ffi shared library) before expanding to all 32 symbols. Part of the
-"Implement C# / .NET bindings via csbindgen" `normal` issue.
+Add a `dotnet` CI job that builds the FFI shared library and runs the .NET smoke tests, validating
+the scaffold end-to-end in CI before expanding the P/Invoke surface. This unblocks all future .NET
+changes by giving them CI coverage from day one. Part of the "Implement C# / .NET bindings via
+csbindgen" `normal` issue.
 
 ## Scope
 
-- **Create**:
-    - `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET 8 class library
-    - `packages/dotnet/Iscc.Lib/IsccLib.cs` — public static class with `ConformanceSelftest()` method
-        and inline `[DllImport]` P/Invoke declaration for `iscc_conformance_selftest`
-    - `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` — xUnit test project (excluded from
-        3-file limit)
-    - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — single test asserting `ConformanceSelftest()`
-        returns `true` (excluded from 3-file limit)
-- **Modify**:
-    - `.devcontainer/Dockerfile` — add .NET 8 SDK installation
-- **Reference**:
-    - `.claude/context/specs/dotnet-bindings.md` — full spec for package structure, API design, CI
-    - `crates/iscc-ffi/include/iscc.h` — C FFI header (source of truth for P/Invoke signatures)
-    - `crates/iscc-ffi/src/lib.rs` — Rust FFI source (for understanding function signatures)
+- **Create**: (none)
+- **Modify**: `.github/workflows/ci.yml` (add `dotnet` job)
+- **Reference**: `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj`,
+    `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`, `packages/dotnet/Iscc.Lib/IsccLib.cs`,
+    `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`
 
 ## Not In Scope
 
-- Full `csbindgen` binding generation of all P/Invoke declarations — separate step after scaffold
-    works; this step uses one manual `[DllImport]` declaration to prove the pipeline
-- Idiomatic C# wrappers for the other 31 Tier 1 symbols — future step
-- Result record types (`MetaCodeResult`, `DataCodeResult`, etc.) — future step
-- SafeHandle subclasses and memory management patterns — future step
-- Streaming types (`IsccDataHasher`, `IsccInstanceHasher`) — future step
-- Conformance tests against `data.json` — future step (this step only tests selftest)
-- `Directory.Build.props` shared build properties — add when needed
-- `.sln` solution file — `dotnet test` works with project files directly
-- CI job in `ci.yml` — future step
-- Release pipeline / NuGet packaging — future step
-- Version sync integration — future step
-- Documentation (`docs/howto/dotnet.md`, README C# section) — future step
+- Expanding the P/Invoke surface (csbindgen, NativeMethods.g.cs) — that's the next step after CI
+- Adding idiomatic C# wrappers or record result types
+- Adding conformance tests against `data.json`
+- Pinning NuGet package versions — advisory for now, pin when adding conformance tests
+- Adding `dotnet` to `release.yml` — no NuGet publishing pipeline yet
+- Version sync integration for .NET project version
+- Documentation (`docs/howto/dotnet.md`, README C# section)
 
 ## Implementation Notes
 
-### .NET SDK in Dockerfile
+Follow the pattern of existing CI jobs (especially `c-ffi` which also builds `iscc-ffi`):
 
-The Dockerfile uses `node:20-bookworm` (Debian 12). .NET 8 SDK is NOT in default Debian repos. Use
-Microsoft's install script for a clean, version-pinned install. Place in the root section (before
-`USER $USERNAME`) since it installs system-wide:
+**Job structure**: Name `dotnet`, display name `C# / .NET (dotnet build, test)`, runs on
+`ubuntu-latest`. Place after the `c-ffi` job in the YAML since it also depends on the FFI crate.
 
-```dockerfile
-# Install .NET SDK 8 (for C# bindings)
-RUN curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir /usr/share/dotnet
-ENV DOTNET_ROOT=/usr/share/dotnet
-ENV PATH="$DOTNET_ROOT:$PATH"
-```
+**Steps** (in order):
 
-### Runtime .NET installation
+1. `actions/checkout@v4`
+2. `dtolnay/rust-toolchain@stable` (for building `iscc-ffi`)
+3. `Swatinem/rust-cache@v2`
+4. `actions/setup-dotnet@v4` with `dotnet-version: '8.0'` — use the official GHA action (NOT the
+    Microsoft install script used in the devcontainer Dockerfile)
+5. `cargo build -p iscc-ffi` — step name: "Build FFI native library" — builds `libiscc_ffi.so` to
+    `target/debug/`
+6. `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` — step name: "Build .NET
+    projects" — builds both library and test projects since test references library
+7. `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=${{ github.workspace }}/target/debug`
+    — step name: "Run .NET tests"
 
-Since the devcontainer won't be rebuilt during this CID iteration, the advance agent must install
-.NET SDK at runtime before testing:
+**Key detail from learnings**: `dotnet test` requires the `-e LD_LIBRARY_PATH=<path>` flag to pass
+the library path to the vstest host child process. Shell-level `env:` on the step alone is NOT
+sufficient because dotnet's test host spawns a child process that doesn't inherit the shell env
+vars. Use the `-e` flag directly on the `dotnet test` command.
 
-```bash
-curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir $HOME/.dotnet
-export DOTNET_ROOT=$HOME/.dotnet
-export PATH="$DOTNET_ROOT:$PATH"
-dotnet --version  # verify
-```
-
-### Class library `.csproj`
-
-Minimal SDK-style project targeting .NET 8:
-
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <PackageId>Iscc.Lib</PackageId>
-    <RootNamespace>Iscc.Lib</RootNamespace>
-    <AssemblyName>Iscc.Lib</AssemblyName>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-</Project>
-```
-
-### P/Invoke for ConformanceSelftest
-
-The C declaration in `iscc.h`:
-
-```c
-bool iscc_conformance_selftest(void);
-```
-
-The C# P/Invoke mapping:
-
-```csharp
-using System.Runtime.InteropServices;
-
-namespace Iscc.Lib;
-
-/// <summary>ISCC library — ISO 24138:2024 International Standard Content Code.</summary>
-public static partial class IsccLib
-{
-    [DllImport("iscc_ffi", CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    private static extern bool iscc_conformance_selftest();
-
-    /// <summary>Run all conformance tests against vendored test vectors.</summary>
-    public static bool ConformanceSelftest() => iscc_conformance_selftest();
-}
-```
-
-Key details:
-
-- DLL name `"iscc_ffi"` matches `libiscc_ffi.so` (Linux), `iscc_ffi.dll` (Windows),
-    `libiscc_ffi.dylib` (macOS) — .NET resolves platform-specific names automatically
-- `[return: MarshalAs(UnmanagedType.U1)]` for C `bool` → C# `bool` marshaling
-- `CallingConvention.Cdecl` matches Rust's `extern "C"`
-
-### Test project `.csproj`
-
-```xml
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <IsPackable>false</IsPackable>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.*" />
-    <PackageReference Include="xunit" Version="2.*" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.*" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Iscc.Lib\Iscc.Lib.csproj" />
-  </ItemGroup>
-</Project>
-```
-
-### Running the test
-
-The Rust FFI shared library must be built first and discoverable via `LD_LIBRARY_PATH`:
-
-```bash
-cargo build -p iscc-ffi
-LD_LIBRARY_PATH=target/debug dotnet test packages/dotnet/Iscc.Lib.Tests/
-```
+**CI env path**: Use `${{ github.workspace }}/target/debug` for the absolute path (not relative).
 
 ## Verification
 
-- `cargo build -p iscc-ffi` succeeds (builds the native library)
-- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds (compiles the C# library)
-- `LD_LIBRARY_PATH=target/debug dotnet test packages/dotnet/Iscc.Lib.Tests/` passes
-    (ConformanceSelftest returns true)
-- `.devcontainer/Dockerfile` contains `dotnet` installation commands
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` exits 0 (valid YAML)
+- `.github/workflows/ci.yml` contains a job named `dotnet`
+- The `dotnet` job includes steps: checkout, rust-toolchain, rust-cache, setup-dotnet,
+    `cargo build -p iscc-ffi`, `dotnet build`, and `dotnet test`
+- `dotnet test` command uses `-e LD_LIBRARY_PATH` flag
+- Local smoke:
+    `cargo build -p iscc-ffi && dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=target/debug`
+    passes (1 test, 0 failures)
+- `mise run check` passes (pre-commit hooks including YAML validation)
 
 ## Done When
 
-All verification criteria pass — `dotnet test` calls `iscc_conformance_selftest()` via P/Invoke into
-the Rust FFI shared library and the test passes.
+All verification criteria pass — the `dotnet` CI job is syntactically correct, follows existing CI
+patterns, and the same build+test sequence succeeds locally.

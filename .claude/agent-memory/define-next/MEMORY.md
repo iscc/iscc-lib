@@ -123,11 +123,14 @@ iterations.
 
 ## Project Status
 
-- **C#/.NET bindings phase started** — issue promoted from `low` to `normal` by human (commit
-    `db921b9`). v0.2.0 released, 12 CI jobs green, all 7 existing bindings "met"
+- **C#/.NET bindings: scaffold committed, CI job next** — issue promoted from `low` to `normal` by
+    human (commit `db921b9`). v0.2.0 released, 12 CI jobs green, all 7 existing bindings "met"
 - C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
-- Multi-step implementation: scaffold → csbindgen → wrappers → conformance → CI → release → docs
-- First step: prove P/Invoke pipeline with `iscc_conformance_selftest()` only
+- Multi-step sequence: scaffold ✅ → CI job → csbindgen → wrappers → conformance → release → docs
+- Scaffold proved: 1 P/Invoke (`ConformanceSelftest`) + 1 xUnit smoke test passes locally
+- **CI before csbindgen**: lower risk — validates scaffold end-to-end in CI before expanding surface
+- .NET CI pattern: `actions/setup-dotnet@v4` (not Microsoft install script),
+    `cargo build -p   iscc-ffi`, `dotnet build`, `dotnet test -e LD_LIBRARY_PATH=...`
 
 ## C# / .NET Binding Architecture
 
