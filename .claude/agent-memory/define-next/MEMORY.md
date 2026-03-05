@@ -123,13 +123,23 @@ iterations.
 
 ## Project Status
 
-- **CID loop IDLE as of iter 21** — all `normal`/`critical` work complete. Smoke tests resolved
-    (iter 20). 12 CI jobs green. All 7 bindings "met". 5 `low` issues remain (C#, C++, Swift,
-    Kotlin, logos) — CID skips by policy
-- **Next human action**: PR develop → main (`mise run pr:main`), or promote a `low` issue to
-    `normal` to resume CID work
-- When CID reaches idle with only `low` issues, write an idle signal in next.md — the advance agent
-    should make no code changes and the iteration completes cleanly
+- **C#/.NET bindings phase started** — issue promoted from `low` to `normal` by human (commit
+    `db921b9`). v0.2.0 released, 12 CI jobs green, all 7 existing bindings "met"
+- C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
+- Multi-step implementation: scaffold → csbindgen → wrappers → conformance → CI → release → docs
+- First step: prove P/Invoke pipeline with `iscc_conformance_selftest()` only
+
+## C# / .NET Binding Architecture
+
+- Three layers: C FFI (existing) → P/Invoke (`NativeMethods.g.cs`, csbindgen) → Idiomatic wrapper
+    (`IsccLib.cs`, PascalCase)
+- Package lives in `packages/dotnet/` (not `crates/`), similar to Go's `packages/go/`
+- DLL name for P/Invoke: `"iscc_ffi"` — .NET auto-resolves to `libiscc_ffi.so`/`.dylib`/`.dll`
+- `[return: MarshalAs(UnmanagedType.U1)]` needed for C `bool` → C# `bool` marshaling
+- `CallingConvention.Cdecl` required for Rust `extern "C"` functions
+- .NET 8 SDK not in default Debian Bookworm repos — use Microsoft install script
+    (`https://dot.net/v1/dotnet-install.sh`)
+- Tests need `LD_LIBRARY_PATH=target/debug` to find the FFI shared library
 
 ## Release Smoke Test Architecture
 
