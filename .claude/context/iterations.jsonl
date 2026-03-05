@@ -827,3 +827,8 @@
 {"ts":"2026-03-05T08:22:56.909756+00:00","iteration":1,"role":"define-next","status":"OK","turns":24,"cost_usd":1.175982,"duration_s":234.9}
 {"ts":"2026-03-05T08:32:13.801736+00:00","iteration":1,"role":"advance","status":"OK","turns":53,"cost_usd":2.317512,"duration_s":556.9}
 {"ts":"2026-03-05T08:37:37.863371+00:00","iteration":1,"role":"review","status":"OK","verdict":"PASS","summary":".NET scaffold PASS — all verification criteria met, ConformanceSelftest P/Invoke works end-to-end"}
+{"ts":"2026-03-05T08:40:20.941833+00:00","iteration":1,"role":"review","status":"OK","turns":46,"cost_usd":1.62078,"duration_s":487.1}
+{"ts":"2026-03-05T09:20:22.162504+00:00","iteration":2,"role":"update-state","status":"OK","turns":23,"cost_usd":0.867358,"duration_s":184.2}
+{"ts":"2026-03-05T09:22:58.605779+00:00","iteration":2,"role":"define-next","status":"OK","turns":20,"cost_usd":0.709032,"duration_s":156.4}
+{"ts":"2026-03-05T09:28:23.273857+00:00","iteration":2,"role":"advance","status":"OK","turns":33,"cost_usd":0.946788,"duration_s":324.7}
+{"ts":"2026-03-05T09:35:00.000000+00:00","iteration":2,"role":"review","status":"OK","verdict":"PASS","summary":".NET CI job PASS — clean 18-line YAML addition, all verification criteria met, local smoke test green"}

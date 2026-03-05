@@ -1,35 +1,44 @@
-## 2026-03-05 — Add .NET CI job to ci.yml
+## 2026-03-05 — Review of: Add .NET CI job to ci.yml
 
-**Done:** Added a `dotnet` CI job to `.github/workflows/ci.yml` that builds the FFI shared library
-and runs the .NET smoke tests. The job follows the same pattern as existing CI jobs (checkout, rust
-toolchain, rust cache, language setup, build, test) and is placed after the `c-ffi` job.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.github/workflows/ci.yml`: Added `dotnet` job with 7 steps — checkout, rust-toolchain,
-    rust-cache, setup-dotnet (v8.0), `cargo build -p iscc-ffi`, `dotnet build` (test .csproj which
-    pulls in library), and `dotnet test` with `-e LD_LIBRARY_PATH` flag
+**Summary:** Clean, minimal addition of the `dotnet` CI job to `ci.yml`. The 18-line YAML block
+follows existing CI job patterns exactly (checkout, rust-toolchain, rust-cache, language setup,
+build, test). All 6 verification criteria pass — YAML valid, job structure correct, local smoke test
+green, pre-commit hooks pass.
 
 **Verification:**
 
-- YAML validation passes (PyYAML `safe_load` exits 0)
-- Job structure verified: `dotnet` job present with correct name, runs-on, and all 7 steps
-- `dotnet test` command uses `-e LD_LIBRARY_PATH=${{ github.workspace }}/target/debug` (absolute
-    path via GHA expression)
-- Local smoke: `cargo build -p iscc-ffi` succeeds, `dotnet test` with absolute `LD_LIBRARY_PATH`
-    passes (1 test, 0 failures)
-- `mise run check` passes — all 15 pre-commit hooks green
+- [x] YAML validation — `yaml.safe_load` exits 0
+- [x] `dotnet` job present with correct name (`C# / .NET (dotnet build, test)`),
+    `runs-on:   ubuntu-latest`, and all 7 steps
+- [x] Steps match spec: checkout, rust-toolchain, rust-cache, setup-dotnet (8.0),
+    `cargo build -p   iscc-ffi`, `dotnet build` (test csproj), `dotnet test`
+- [x] `dotnet test` uses `-e LD_LIBRARY_PATH=${{ github.workspace }}/target/debug` (absolute path)
+- [x] Local smoke: `cargo build -p iscc-ffi` + `dotnet test` passes (1 test, 0 failures)
+- [x] `mise run check` — all 15 pre-commit hooks pass
+- [x] `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` — clean
 
-**Next:** Expand the P/Invoke surface — either via csbindgen auto-generation of `NativeMethods.g.cs`
-from `iscc.h`, or by manually adding idiomatic C# wrappers for gen functions with record result
-types. csbindgen approach recommended first as it creates the complete P/Invoke layer.
+**Issues found:**
+
+- (none)
+
+**Codex review:** One P1 finding dismissed — Codex flagged `dotnet-version: '8.0'` as potentially
+invalid, suggesting `'8.0.x'` instead. This is incorrect: `actions/setup-dotnet@v4` accepts channel
+versions like `'8.0'` and resolves to the latest `8.0.x` SDK. The format is documented and widely
+used. No change needed.
+
+**Next:** Expand the P/Invoke surface. Recommended approach: add `csbindgen` to auto-generate
+`NativeMethods.g.cs` from `iscc.h`, giving the complete P/Invoke layer for all FFI functions. Then
+build idiomatic C# wrappers on top. Alternatively, manual P/Invoke declarations can be written
+incrementally (start with gen functions that have simple signatures).
 
 **Notes:**
 
-- Local `dotnet` is installed at `$HOME/.dotnet` (not on PATH by default in devcontainer). CI uses
-    `actions/setup-dotnet@v4` which handles PATH setup automatically.
-- Relative `LD_LIBRARY_PATH=target/debug` does NOT work with `dotnet test -e` — the vstest host
-    child process resolves it relative to its own CWD. Absolute path is required. CI uses
-    `${{ github.workspace }}/target/debug` which expands to an absolute path.
-- The CI workflow now has 12 jobs: version-check, rust, python-test, python, nodejs, wasm, c-ffi,
-    dotnet, java, go, ruby, bench.
+- CI workflow now has 12 jobs (version-check, rust, python-test, python, nodejs, wasm, c-ffi,
+    dotnet, java, go, ruby, bench). The `dotnet` job is placed after `c-ffi` since both build
+    `iscc-ffi`.
+- `dotnet test -e LD_LIBRARY_PATH` with absolute path is critical — relative paths fail because
+    vstest spawns a child process with a different CWD.
+- The .NET issue in issues.md is partially addressed (CI job done). The larger issue (csbindgen,
+    wrappers, conformance tests, release pipeline, version sync, docs) remains.
