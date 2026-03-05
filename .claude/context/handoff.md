@@ -1,28 +1,37 @@
-## 2026-03-05 — C# wrappers for remaining gen functions + encoding utilities
+## 2026-03-05 — Review of: C# wrappers — remaining gen functions + encoding utilities
 
-**Done:** Added idiomatic C# wrappers for the 6 remaining gen functions (GenImageCodeV0,
-GenAudioCodeV0, GenVideoCodeV0, GenMixedCodeV0, GenIsccCodeV0, GenSumCodeV0) plus 2 encoding
-utilities (EncodeBase64, JsonToDataUrl). Introduced SumCodeResult record type and 4 new marshaling
-patterns: int[] input, int[][] jagged array, string[] input, and struct return+free.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, well-scoped implementation adding 8 public methods and the SumCodeResult record
+type. Four new marshaling patterns (int[], int[][] jagged array, string[], struct return+free) are
+correctly implemented with proper GCHandle pinning and finally-block cleanup. All 10 gen functions
+are now callable from C#. 25/25 tests pass, builds are clean, hooks pass.
 
-- `packages/dotnet/Iscc.Lib/IsccLib.cs`: Added 8 public methods (GenImageCodeV0, GenAudioCodeV0,
-    GenVideoCodeV0, GenMixedCodeV0, GenIsccCodeV0, GenSumCodeV0, EncodeBase64, JsonToDataUrl) and
-    SumCodeResult record type. All 10 gen functions are now wrapped.
-- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`: Added 9 smoke tests for all 8 new symbols
-    (GenSumCodeV0 has 2 tests: basic and with units). Total: 25 tests.
+**Verification:**
 
-**Verification:** cargo build -p iscc-ffi OK, dotnet build 0 errors 0 warnings, 25/25 tests pass (16
-existing + 9 new), grep confirms 10 gen functions and 1 SumCodeResult record, mise run check all
-hooks pass.
+- [x] `cargo build -p iscc-ffi` — succeeds (no Rust changes)
+- [x] `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — 0 errors, 0 warnings
+- [x] `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` — succeeds
+- [x] `dotnet test ... -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug` — 25 passed, 0 failed
+- [x] `grep` for gen function signatures — returns 10 (all 10 gen functions wrapped)
+- [x] `grep` for SumCodeResult record — returns 1
+- [x] `mise run check` — all 15 hooks pass
 
-**Next:** Codec functions (IsccDecode, IsccDecompose, EncodeComponent) with DecodeResult record type
-and string-array return marshaling, or algorithm primitives (AlgSimhash, AlgMinhash256,
-AlgCdcChunks, SoftHashVideoV0) with IsccByteBuffer struct marshaling.
+**Issues found:**
 
-**Notes:** The CallWithStringArray generic helper was attempted but C# does not allow pointer types
-(byte\*\*) as generic type arguments, so the string array marshaling pattern is inlined in
-GenMixedCodeV0 and GenIsccCodeV0. The IsccSumCodeResult struct is at the namespace level in
-NativeMethods.g.cs (not nested inside the NativeMethods class), so it is referenced without the
-NativeMethods prefix.
+- Minor: `GenMixedCodeV0` and `GenIsccCodeV0` have near-identical string array marshaling code (~25
+    lines each). C# language limitation (no pointer types in generics) prevents extraction to a
+    shared helper. Acceptable technical debt — documented in learnings.
+
+**Next:** Codec functions (`IsccDecode`, `IsccDecompose`, `EncodeComponent`) with `DecodeResult`
+record type and string-array return marshaling, or algorithm primitives (`AlgSimhash`,
+`AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`) with `IsccByteBuffer` struct marshaling. The
+jagged array and struct return patterns from this iteration are reusable foundations.
+
+**Notes:**
+
+- The `IsccSumCodeResult` struct is at namespace level in `NativeMethods.g.cs` (not nested in the
+    `NativeMethods` class), so it is referenced without the `NativeMethods.` prefix
+- 22 of 32 Tier 1 symbols are now wrapped in C# (5 constants, 4 text utilities, 10 gen functions, 2
+    encoding utilities, 1 conformance selftest). Remaining: 3 codec functions, 4 algorithm
+    primitives, 1 sliding window, 2 streaming types

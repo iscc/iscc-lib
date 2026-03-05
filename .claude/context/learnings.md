@@ -200,6 +200,11 @@ fully-met target sections to `learnings-archive.md`.
     `fixed (byte* p = nullArray)` sets pointer to null for optional parameters
 - `dotnet test -e LD_LIBRARY_PATH=target/debug` with relative path fails in devcontainer — must use
     absolute path. CI is unaffected (uses `env:` which resolves correctly)
+- C# disallows pointer types (e.g., `byte**`) as generic type arguments — string array marshaling
+    (`GCHandle.Alloc` + `fixed byte**`) must be inlined per-method, not extracted to a generic
+    helper. `GenMixedCodeV0` and `GenIsccCodeV0` share near-identical patterns as a result
+- `IsccSumCodeResult` struct is at the namespace level in `NativeMethods.g.cs` (not nested in the
+    `NativeMethods` class) — reference it without the `NativeMethods.` prefix in wrapper code
 
 ## CID Process
 

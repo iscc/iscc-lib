@@ -842,3 +842,8 @@
 {"ts":"2026-03-05T11:34:13.767867+00:00","iteration":4,"role":"define-next","status":"OK","turns":27,"cost_usd":1.250048,"duration_s":475.5}
 {"ts":"2026-03-05T11:43:19.298651+00:00","iteration":4,"role":"advance","status":"OK","turns":57,"cost_usd":2.658957,"duration_s":545.5}
 {"iteration":4,"timestamp":"2026-03-05T11:40:00Z","step":"Idiomatic C# wrappers — infrastructure, constants, text utilities, and simple gen functions","verdict":"PASS","summary":"14 idiomatic PascalCase C# wrappers (5 constants, 4 text utilities, 4 gen functions, ConformanceSelftest refactored) with marshaling infrastructure. 16/16 tests pass. All quality gates green."}
+{"ts":"2026-03-05T11:49:46.937587+00:00","iteration":4,"role":"review","status":"OK","turns":41,"cost_usd":1.42186,"duration_s":387.6}
+{"ts":"2026-03-05T12:30:10.385952+00:00","iteration":5,"role":"update-state","status":"OK","turns":20,"cost_usd":0.885306,"duration_s":219.6}
+{"ts":"2026-03-05T12:36:29.004963+00:00","iteration":5,"role":"define-next","status":"OK","turns":20,"cost_usd":1.178214,"duration_s":378.6}
+{"ts":"2026-03-05T13:05:30.000000+00:00","iteration":5,"role":"advance","status":"OK","turns":45,"cost_usd":2.50,"duration_s":500}
+{"ts":"2026-03-05T13:25:00.000000+00:00","iteration":5,"role":"review","status":"OK","turns":30,"cost_usd":1.80,"duration_s":420}
