@@ -1,49 +1,28 @@
-## 2026-03-05 — Review of: Idiomatic C# wrappers — infrastructure, constants, text utilities, and simple gen functions
+## 2026-03-05 — C# wrappers for remaining gen functions + encoding utilities
 
-**Verdict:** PASS
+**Done:** Added idiomatic C# wrappers for the 6 remaining gen functions (GenImageCodeV0,
+GenAudioCodeV0, GenVideoCodeV0, GenMixedCodeV0, GenIsccCodeV0, GenSumCodeV0) plus 2 encoding
+utilities (EncodeBase64, JsonToDataUrl). Introduced SumCodeResult record type and 4 new marshaling
+patterns: int[] input, int[][] jagged array, string[] input, and struct return+free.
 
-**Summary:** Clean, well-scoped implementation that exactly matches the next.md specification. Added
-`IsccException.cs`, rewrote `IsccLib.cs` with 3 private marshaling helpers and 14 idiomatic
-PascalCase public wrappers (5 constants, 4 text utilities, 4 gen functions, 1 refactored
-ConformanceSelftest), and expanded tests from 1 to 16. All verification criteria pass.
+**Files changed:**
 
-**Verification:**
+- `packages/dotnet/Iscc.Lib/IsccLib.cs`: Added 8 public methods (GenImageCodeV0, GenAudioCodeV0,
+    GenVideoCodeV0, GenMixedCodeV0, GenIsccCodeV0, GenSumCodeV0, EncodeBase64, JsonToDataUrl) and
+    SumCodeResult record type. All 10 gen functions are now wrapped.
+- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`: Added 9 smoke tests for all 8 new symbols
+    (GenSumCodeV0 has 2 tests: basic and with units). Total: 25 tests.
 
-- [x] `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds with 0 errors, 0 warnings
-- [x] `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` succeeds
-- [x] `dotnet test ... -e LD_LIBRARY_PATH=target/debug` — 16 passed, 0 failed (note: requires
-    absolute path in devcontainer; CI uses `env:` on the test step which handles this)
-- [x] `IsccLib.cs` contains all required public methods: `ConformanceSelftest`, `TextClean`,
-    `TextRemoveNewlines`, `TextTrim`, `TextCollapse`, `GenMetaCodeV0`, `GenTextCodeV0`,
-    `GenDataCodeV0`, `GenInstanceCodeV0`
-- [x] `IsccLib.cs` contains all required public properties: `MetaTrimName`, `MetaTrimDescription`,
-    `MetaTrimMeta`, `IoReadSize`, `TextNgramSize`
-- [x] `IsccException.cs` exists in `packages/dotnet/Iscc.Lib/`
-- [x] No `DllImport` declarations in `IsccLib.cs` — all P/Invoke through `NativeMethods` (grep
-    returns 0 matches)
-- [x] `cargo clippy -p iscc-ffi -- -D warnings` — clean (no Rust changes)
-- [x] `mise run check` — all 15 hooks pass
+**Verification:** cargo build -p iscc-ffi OK, dotnet build 0 errors 0 warnings, 25/25 tests pass (16
+existing + 9 new), grep confirms 10 gen functions and 1 SumCodeResult record, mise run check all
+hooks pass.
 
-**Issues found:**
+**Next:** Codec functions (IsccDecode, IsccDecompose, EncodeComponent) with DecodeResult record type
+and string-array return marshaling, or algorithm primitives (AlgSimhash, AlgMinhash256,
+AlgCdcChunks, SoftHashVideoV0) with IsccByteBuffer struct marshaling.
 
-- (none)
-
-**Codex review:** No correctness, security, or maintainability bugs found. Marshaling patterns
-(UTF-8 conversion, `iscc_free_string` for owned strings, `iscc_last_error` left unfreed) are all
-correct.
-
-**Next:** Add remaining Tier 1 symbols to complete the C# wrapper layer: result record types
-(`MetaCodeResult`, `SumCodeResult`, `DecodeResult`), complex gen functions (`GenVideoCodeV0`,
-`GenMixedCodeV0`, `GenIsccCodeV0`, `GenSumCodeV0`), codec functions (`IsccDecode`, `IsccDecompose`,
-`EncodeComponent`), algorithm primitives, encoding utilities, and streaming types (`IsccDataHasher`,
-`IsccInstanceHasher` with `IDisposable`). The marshaling infrastructure established in this
-iteration makes these additions mechanical.
-
-**Notes:**
-
-- `dotnet test` with relative `LD_LIBRARY_PATH=target/debug` fails in devcontainer — must use
-    absolute path `/workspace/iscc-lib/target/debug`. CI is unaffected (uses `env:` on the step)
-- The `ToNativeUtf8` + `ConsumeNativeString` + `GetLastError` helpers are a clean, reusable
-    foundation for all remaining string-returning wrappers
-- Constants are expression-bodied properties (`=>`) calling NativeMethods — correct for values that
-    could theoretically change across library versions (no hardcoded values in C#)
+**Notes:** The CallWithStringArray generic helper was attempted but C# does not allow pointer types
+(byte\*\*) as generic type arguments, so the string array marshaling pattern is inlined in
+GenMixedCodeV0 and GenIsccCodeV0. The IsccSumCodeResult struct is at the namespace level in
+NativeMethods.g.cs (not nested inside the NativeMethods class), so it is referenced without the
+NativeMethods prefix.

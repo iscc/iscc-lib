@@ -6,6 +6,13 @@ using System.Text;
 
 namespace Iscc.Lib;
 
+/// <summary>Result of GenSumCodeV0 — composite ISCC-CODE with file metadata.</summary>
+public sealed record SumCodeResult(
+    string Iscc,
+    string Datahash,
+    ulong Filesize,
+    string[]? Units);
+
 /// <summary>ISCC library — ISO 24138:2024 International Standard Content Code.</summary>
 public static partial class IsccLib
 {
@@ -123,6 +130,147 @@ public static partial class IsccLib
         }
     }
 
+    /// <summary>Generate an Image-Code from raw pixel data.</summary>
+    public static string GenImageCodeV0(ReadOnlySpan<byte> pixels, uint bits = 64)
+    {
+        unsafe
+        {
+            fixed (byte* pPixels = pixels)
+            {
+                byte* result = NativeMethods.iscc_gen_image_code_v0(
+                    pPixels, (nuint)pixels.Length, bits);
+                return ConsumeNativeString(result);
+            }
+        }
+    }
+
+    /// <summary>Generate an Audio-Code from a Chromaprint feature vector.</summary>
+    public static string GenAudioCodeV0(ReadOnlySpan<int> cv, uint bits = 64)
+    {
+        unsafe
+        {
+            fixed (int* pCv = cv)
+            {
+                byte* result = NativeMethods.iscc_gen_audio_code_v0(
+                    pCv, (nuint)cv.Length, bits);
+                return ConsumeNativeString(result);
+            }
+        }
+    }
+
+    /// <summary>Generate a Video-Code from frame signature data.</summary>
+    public static string GenVideoCodeV0(int[][] frameSigs, uint bits = 64)
+    {
+        int numFrames = frameSigs.Length;
+        GCHandle[] handles = new GCHandle[numFrames];
+        try
+        {
+            unsafe
+            {
+                int*[] ptrs = new int*[numFrames];
+                nuint[] lens = new nuint[numFrames];
+                for (int i = 0; i < numFrames; i++)
+                {
+                    handles[i] = GCHandle.Alloc(frameSigs[i], GCHandleType.Pinned);
+                    ptrs[i] = (int*)handles[i].AddrOfPinnedObject();
+                    lens[i] = (nuint)frameSigs[i].Length;
+                }
+
+                fixed (int** pPtrs = ptrs)
+                fixed (nuint* pLens = lens)
+                {
+                    byte* result = NativeMethods.iscc_gen_video_code_v0(
+                        pPtrs, pLens, (nuint)numFrames, bits);
+                    return ConsumeNativeString(result);
+                }
+            }
+        }
+        finally
+        {
+            for (int i = 0; i < numFrames; i++)
+            {
+                if (handles[i].IsAllocated)
+                    handles[i].Free();
+            }
+        }
+    }
+
+    /// <summary>Generate a Mixed-Code from multiple Content-Code strings.</summary>
+    public static string GenMixedCodeV0(string[] codes, uint bits = 64)
+    {
+        int count = codes.Length;
+        byte[][] nativeStrings = new byte[count][];
+        GCHandle[] handles = new GCHandle[count];
+        for (int i = 0; i < count; i++)
+            nativeStrings[i] = ToNativeUtf8(codes[i])!;
+
+        try
+        {
+            unsafe
+            {
+                byte*[] ptrs = new byte*[count];
+                for (int i = 0; i < count; i++)
+                {
+                    handles[i] = GCHandle.Alloc(nativeStrings[i], GCHandleType.Pinned);
+                    ptrs[i] = (byte*)handles[i].AddrOfPinnedObject();
+                }
+
+                fixed (byte** pPtrs = ptrs)
+                {
+                    byte* result = NativeMethods.iscc_gen_mixed_code_v0(
+                        pPtrs, (nuint)count, bits);
+                    return ConsumeNativeString(result);
+                }
+            }
+        }
+        finally
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (handles[i].IsAllocated)
+                    handles[i].Free();
+            }
+        }
+    }
+
+    /// <summary>Generate a composite ISCC-CODE from multiple unit code strings.</summary>
+    public static string GenIsccCodeV0(string[] codes, bool wide = false)
+    {
+        int count = codes.Length;
+        byte[][] nativeStrings = new byte[count][];
+        GCHandle[] handles = new GCHandle[count];
+        for (int i = 0; i < count; i++)
+            nativeStrings[i] = ToNativeUtf8(codes[i])!;
+
+        try
+        {
+            unsafe
+            {
+                byte*[] ptrs = new byte*[count];
+                for (int i = 0; i < count; i++)
+                {
+                    handles[i] = GCHandle.Alloc(nativeStrings[i], GCHandleType.Pinned);
+                    ptrs[i] = (byte*)handles[i].AddrOfPinnedObject();
+                }
+
+                fixed (byte** pPtrs = ptrs)
+                {
+                    byte* result = NativeMethods.iscc_gen_iscc_code_v0(
+                        pPtrs, (nuint)count, wide);
+                    return ConsumeNativeString(result);
+                }
+            }
+        }
+        finally
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (handles[i].IsAllocated)
+                    handles[i].Free();
+            }
+        }
+    }
+
     /// <summary>Generate a Data-Code from raw byte data.</summary>
     public static string GenDataCodeV0(ReadOnlySpan<byte> data, uint bits = 64)
     {
@@ -146,6 +294,78 @@ public static partial class IsccLib
             {
                 byte* result = NativeMethods.iscc_gen_instance_code_v0(
                     pData, (nuint)data.Length, bits);
+                return ConsumeNativeString(result);
+            }
+        }
+    }
+
+    /// <summary>Generate a composite ISCC-CODE from a file path (Data-Code + Instance-Code).</summary>
+    public static SumCodeResult GenSumCodeV0(
+        string path,
+        uint bits = 64,
+        bool wide = false,
+        bool addUnits = false)
+    {
+        byte[] nativePath = ToNativeUtf8(path)!;
+        unsafe
+        {
+            IsccSumCodeResult result;
+            fixed (byte* pPath = nativePath)
+            {
+                result = NativeMethods.iscc_gen_sum_code_v0(pPath, bits, wide, addUnits);
+            }
+
+            try
+            {
+                if (!result.ok)
+                    throw new IsccException(GetLastError());
+
+                string iscc = Marshal.PtrToStringUTF8((IntPtr)result.iscc) ?? string.Empty;
+                string datahash = Marshal.PtrToStringUTF8((IntPtr)result.datahash) ?? string.Empty;
+
+                string[]? units = null;
+                if (result.units != null)
+                {
+                    List<string> unitsList = new();
+                    for (int i = 0; result.units[i] != null; i++)
+                        unitsList.Add(Marshal.PtrToStringUTF8((IntPtr)result.units[i])!);
+                    units = unitsList.ToArray();
+                }
+
+                return new SumCodeResult(iscc, datahash, result.filesize, units);
+            }
+            finally
+            {
+                NativeMethods.iscc_free_sum_code_result(result);
+            }
+        }
+    }
+
+    // ── Encoding Utilities ──────────────────────────────────────────────────
+
+    /// <summary>Encode raw bytes to a base64url string (no padding).</summary>
+    public static string EncodeBase64(ReadOnlySpan<byte> data)
+    {
+        unsafe
+        {
+            fixed (byte* pData = data)
+            {
+                byte* result = NativeMethods.iscc_encode_base64(
+                    pData, (nuint)data.Length);
+                return ConsumeNativeString(result);
+            }
+        }
+    }
+
+    /// <summary>Convert a JSON string into a data: URL with JCS canonicalization.</summary>
+    public static string JsonToDataUrl(string json)
+    {
+        byte[] nativeJson = ToNativeUtf8(json)!;
+        unsafe
+        {
+            fixed (byte* pJson = nativeJson)
+            {
+                byte* result = NativeMethods.iscc_json_to_data_url(pJson);
                 return ConsumeNativeString(result);
             }
         }
