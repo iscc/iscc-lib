@@ -1,30 +1,42 @@
-## 2026-03-04 — Review of: CID loop idle — no actionable work remains
+## 2026-03-05 — .NET project scaffold with ConformanceSelftest P/Invoke
 
-**Verdict:** PASS
+**Done:** Created the `packages/dotnet/` project structure with an `Iscc.Lib` class library and
+`Iscc.Lib.Tests` xUnit test project. The library exposes `IsccLib.ConformanceSelftest()` via a
+manual `[DllImport]` P/Invoke declaration targeting `iscc_conformance_selftest` in `libiscc_ffi.so`.
+Added .NET 8 SDK installation to the Dockerfile.
 
-**Summary:** Sixth consecutive idle iteration. The advance agent correctly identified steady state,
-made no code changes, and updated only handoff.md. All remaining issues are `low` priority — the CID
-loop has no autonomous work left. Recommend stopping the CID loop immediately.
+**Files changed:**
+
+- `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj`: SDK-style .NET 8 class library project
+- `packages/dotnet/Iscc.Lib/IsccLib.cs`: Public static class with P/Invoke for
+    `iscc_conformance_selftest` and `ConformanceSelftest()` wrapper method
+- `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`: xUnit test project referencing the class
+    library
+- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`: Single test asserting `ConformanceSelftest()`
+    returns `true`
+- `.devcontainer/Dockerfile`: Added .NET 8 SDK installation via Microsoft's install script
+    (system-wide under `/usr/share/dotnet`)
 
 **Verification:**
 
-- [x] `grep -c 'normal\|critical' .claude/context/issues.md` — returns 1, but the sole match is the
-    header description line (line 3), not an actual issue entry. All 5 real issues have
-    `**Priority:** low`. Criterion effectively met
-- [x] No files modified outside `.claude/context/` — only `handoff.md` changed in the advance diff
+- `cargo build -p iscc-ffi` — succeeds (builds `libiscc_ffi.so`)
+- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — succeeds (0 warnings, 0 errors)
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=.../target/debug` — 1 passed, 0
+    failed. `ConformanceSelftest()` correctly calls into Rust FFI and returns `true`
+- `mise run check` — all 15 pre-commit hooks pass
+- Pre-push hooks — all pass (clippy, cargo test, pytest, security scan, etc.)
 
-**Issues found:**
+**Next:** Expand the .NET bindings to cover all 32 Tier 1 symbols. The next step should either (a)
+set up csbindgen auto-generation of `NativeMethods.g.cs` from `iscc.h`, or (b) add idiomatic C#
+wrappers for the gen functions with record result types. Option (a) is recommended first since it
+creates the full P/Invoke layer that wrappers build on. CI job for .NET should also be added.
 
-- (none)
+**Notes:**
 
-**Codex review:** No issues. Codex confirms the commit only updates `.claude/context/handoff.md`
-with status/verification notes and introduces no correctness, security, or maintainability concerns.
-
-**Next:** **Stop the CID loop.** Six consecutive idle iterations (3–8) confirm no autonomous
-progress is possible. Human action options: (1) `mise run pr:main` to create PR from `develop` →
-`main` for a stable release, (2) promote a `low` issue to `normal` to resume CID work on
-C#/C++/Swift/Kotlin bindings, or (3) file new `normal`/`critical` issues.
-
-**Notes:** Project is feature-complete for all `normal`-priority bindings (Python, Node.js, WASM, C
-FFI, Java, Ruby, Go). All 12 CI jobs pass, release pipeline has smoke tests for all 6 registries,
-documentation covers all languages. No further autonomous progress without human direction.
+- The `dotnet test` command requires `-e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug` to pass
+    the library path to the vstest host process. Just setting `LD_LIBRARY_PATH` in the shell
+    environment is not sufficient — the test host spawns a child process that doesn't inherit it. CI
+    will need `env: LD_LIBRARY_PATH: ${{ github.workspace }}/target/debug` on the test step.
+- .NET 8 SDK is installed at runtime in the current devcontainer (via `dotnet-install.sh` to
+    `$HOME/.dotnet`). The Dockerfile change will take effect on next container rebuild.
+- No `.sln` solution file was created per next.md — `dotnet test` works with project files directly.

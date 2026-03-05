@@ -31,3 +31,16 @@ See MEMORY.md for current active entries.
 - Unix includes 2 files: shared lib + static lib. Both also include `iscc.h` + `LICENSE`
 - `publish-ffi` needs `contents: write` (top-level is `contents: read`)
 - Uses `softprops/action-gh-release@v2` with tag_name ternary for tag push vs manual dispatch
+
+## Archived 2026-03-05 — Ruby Bindings (Magnus) Full Details
+
+- Root `.gitignore` has `lib/` pattern — Ruby crate needs `!lib/` negation in `.gitignore`
+- Bundler: local vendor path (`bundle config set --local path vendor/bundle`)
+- PATH: `/home/dev/.local/share/gem/ruby/3.1.0/bin` must be in PATH for bundle commands
+- `bundle exec rake compile` builds release profile (rb_sys `RB_SYS_CARGO_PROFILE`)
+- Gen functions: `_` prefix in Rust bridge, Ruby wrapper provides keyword-arg public API
+- Ruby `Result < Hash` enables `result["iscc"]` and `result.iscc` via `method_missing`
+- Constants: `module.const_set("NAME", value)` in Magnus init
+- Binary data: `RString` param + `unsafe { data.as_slice() }` — copy bytes before Ruby API calls
+- Returning arrays: `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays
+- Test files: `test/test_smoke.rb`, `test/test_iscc_lib.rb`, `test/test_conformance.rb`

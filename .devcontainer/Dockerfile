@@ -28,6 +28,11 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     && apt-get update && apt-get install -y gh \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Install .NET SDK 8 (for C# bindings)
+RUN curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir /usr/share/dotnet
+ENV DOTNET_ROOT=/usr/share/dotnet
+ENV PATH="$DOTNET_ROOT:$PATH"
+
 # Create non-root user
 RUN useradd -m -s /bin/zsh -G sudo $USERNAME \
     && echo "$USERNAME ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/$USERNAME \

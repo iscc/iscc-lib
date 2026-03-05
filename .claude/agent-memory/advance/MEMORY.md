@@ -155,45 +155,26 @@ iterations.
 - `serde_json` stays as a regular (non-optional) dep because `conformance.rs` uses it for parsing
     `data.json`. Gating it requires restructuring conformance (future work)
 
-## Ruby Bindings (Magnus)
+## Ruby Bindings (Magnus) — see MEMORY-archive.md for full details
 
-- Magnus 0.7.1 used (not 0.8) — Magnus 0.8 requires Ruby 3.2+, devcontainer has Ruby 3.1.2. Magnus
-    0.7.1 works with Rust edition 2024 and Ruby 3.1
-- `function!` macro does NOT accept `&Ruby` parameter — use `Ruby::get().expect("called from Ruby")`
-    inside the function body to get the Ruby runtime handle
-- rb_sys `ExtensionTask.new("iscc-rb")` — task name must match Cargo package name (not lib name).
-    Binary derived as `"iscc-rb".tr("-", "_")` = `"iscc_rb"`. Cargo `[lib] name` must match
-- `extconf.rb` must be at Cargo manifest directory (crate root), not `ext/iscc_lib/`. rb_sys
-    hardcodes `File.join(cargo_metadata.manifest_directory, "extconf.rb")`
-- Root `.gitignore` has `lib/` pattern (from Python template) — blocks all `lib/` directories. Ruby
-    crate's `.gitignore` needs `!lib/` negation to re-include `crates/iscc-rb/lib/`
-- Bundler must use local vendor path (`bundle config set --local path vendor/bundle`) since system
-    gem path `/var/lib/gems/3.1.0` is not writable by dev user
-- PATH for bundle commands: `/home/dev/.local/share/gem/ruby/3.1.0/bin` must be in PATH
-- `bundle exec rake compile` builds release profile by default (rb_sys sets `RB_SYS_CARGO_PROFILE`)
-- Gen functions prefixed with `_` in Rust bridge (e.g., `_gen_meta_code_v0`), Ruby wrapper provides
-    keyword-arg public API (e.g., `gen_meta_code_v0(name, description: nil, ...)`)
-- Ruby `Result < Hash` enables both `result["iscc"]` and `result.iscc` access via `method_missing`
-- Constants set via `module.const_set("NAME", value)` in Magnus init
-- Binary data: Magnus `String` validates UTF-8 — use `RString` param + `unsafe { data.as_slice() }`
-    for functions accepting arbitrary bytes (e.g., `encode_base64`, `encode_component`). Copy bytes
-    immediately before any Ruby API calls. Return binary data via `RString::from_slice(&bytes)`
-- Returning arrays: use `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays (e.g.,
-    `iscc_decode` returns `[u8, u8, u8, u8, RString]`)
-- 32/32 Tier 1 symbols exposed: all 10 gen functions, 4 text utils, 5 constants, 6 codec/encoding
-    functions, 5 algorithm primitives, `DataHasher`, `InstanceHasher` streaming classes
-- Streaming classes use `#[magnus::wrap(class = "IsccLib::DataHasher")]` + `RefCell<Option<inner>>`
-    for one-shot finalize. Methods registered as `_update`/`_finalize` (prefixed). Ruby reopens the
-    native class to add `update` (returns self for chaining) and `finalize(bits: 64)` (default +
-    result wrapping). **Key lesson:** `_` prefix works for methods but NOT class names — Ruby
-    constants must start with uppercase. Use method prefixing instead of class prefixing
-- Test files: `test/test_smoke.rb`, `test/test_iscc_lib.rb`, `test/test_conformance.rb` — 111 total
-    tests (61 unit + 50 conformance)
-- Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`. Config at `.standard.yml`. Run via
-    `bundle exec standardrb` (auto-fix: `--fix`). Vendor dir excluded in `.standard.yml`
-- Pre-commit hooks for Ruby use `bash -c` wrapper with portable PATH:
-    `export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"` — needed because `bundle` is not on
-    system PATH in devcontainer
+- Magnus 0.7.1 (not 0.8) — Ruby 3.1 compat. `function!` macro: no `&Ruby` param, use `Ruby::get()`
+- rb_sys: `ExtensionTask.new("iscc-rb")` — task name = Cargo package name. `extconf.rb` at crate
+    root
+- 32/32 Tier 1 symbols exposed. 111 tests (61 unit + 50 conformance)
+- Streaming: `RefCell<Option<inner>>` for one-shot finalize. `_` prefix for methods, NOT class names
+- Linting: Standard Ruby + rubocop-minitest. Pre-commit hook needs portable PATH for `bundle`
+
+## .NET Bindings (P/Invoke)
+
+- Package: `packages/dotnet/Iscc.Lib/` (class library) + `packages/dotnet/Iscc.Lib.Tests/` (xUnit)
+- P/Invoke DLL name: `"iscc_ffi"` — .NET resolves to `libiscc_ffi.so` / `iscc_ffi.dll` / `.dylib`
+- `[return: MarshalAs(UnmanagedType.U1)]` required for C `bool` → C# `bool` marshaling
+- `CallingConvention.Cdecl` matches Rust's `extern "C"`
+- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` to pass lib path to vstest host child process;
+    shell-level `LD_LIBRARY_PATH` alone is NOT sufficient
+- Dockerfile: .NET 8 SDK via Microsoft install script to `/usr/share/dotnet` (system-wide, root
+    section)
+- No `.sln` file — `dotnet test` works with project files directly
 
 ## Gotchas
 
