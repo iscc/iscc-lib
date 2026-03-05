@@ -1,44 +1,50 @@
-## 2026-03-05 — Review of: Add .NET CI job to ci.yml
+## 2026-03-05 — Set up csbindgen to generate full .NET P/Invoke surface
 
-**Verdict:** PASS
+**Done:** Added csbindgen (v1.9.7) integration to `crates/iscc-ffi/` that auto-generates
+`NativeMethods.g.cs` with complete P/Invoke declarations for all 43 FFI functions. The generated
+file includes struct definitions (`IsccByteBuffer`, `IsccByteBufferArray`, `IsccSumCodeResult`,
+`IsccDecodeResult`, `FfiDataHasher`, `FfiInstanceHasher`) with proper `[StructLayout]` attributes
+and type mappings.
 
-**Summary:** Clean, minimal addition of the `dotnet` CI job to `ci.yml`. The 18-line YAML block
-follows existing CI job patterns exactly (checkout, rust-toolchain, rust-cache, language setup,
-build, test). All 6 verification criteria pass — YAML valid, job structure correct, local smoke test
-green, pre-commit hooks pass.
+**Files changed:**
+
+- `crates/iscc-ffi/Cargo.toml`: Added `[build-dependencies] csbindgen = "1.9.7"`
+- `crates/iscc-ffi/build.rs`: New file — csbindgen builder configuration targeting
+    `NativeMethods.g.cs` in the dotnet project
+- `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj`: Added `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` to
+    enable compilation of csbindgen's unsafe pointer code
+- `packages/dotnet/Iscc.Lib/NativeMethods.g.cs`: Generated file — 929 lines of P/Invoke declarations
+    covering all FFI functions, structs, and opaque types
 
 **Verification:**
 
-- [x] YAML validation — `yaml.safe_load` exits 0
-- [x] `dotnet` job present with correct name (`C# / .NET (dotnet build, test)`),
-    `runs-on:   ubuntu-latest`, and all 7 steps
-- [x] Steps match spec: checkout, rust-toolchain, rust-cache, setup-dotnet (8.0),
-    `cargo build -p   iscc-ffi`, `dotnet build` (test csproj), `dotnet test`
-- [x] `dotnet test` uses `-e LD_LIBRARY_PATH=${{ github.workspace }}/target/debug` (absolute path)
-- [x] Local smoke: `cargo build -p iscc-ffi` + `dotnet test` passes (1 test, 0 failures)
-- [x] `mise run check` — all 15 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` — clean
+- `cargo build -p iscc-ffi` — succeeds, generates `NativeMethods.g.cs` (929 lines)
+- `NativeMethods.g.cs` contains all required functions: `iscc_gen_meta_code_v0`,
+    `iscc_gen_data_code_v0`, `iscc_gen_instance_code_v0`, `iscc_decode`,
+    `iscc_conformance_selftest`, `iscc_free_string`, plus 37 more
+- `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` — succeeds (0 warnings, 0
+    errors)
+- `dotnet test ... -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug` — 1 passed, 0 failed
+    (existing `ConformanceSelftest` smoke test still works)
+- `cargo clippy -p iscc-ffi -- -D warnings` — clean
+- `mise run check` — all 15 hooks pass
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** One P1 finding dismissed — Codex flagged `dotnet-version: '8.0'` as potentially
-invalid, suggesting `'8.0.x'` instead. This is incorrect: `actions/setup-dotnet@v4` accepts channel
-versions like `'8.0'` and resolves to the latest `8.0.x` SDK. The format is documented and widely
-used. No change needed.
-
-**Next:** Expand the P/Invoke surface. Recommended approach: add `csbindgen` to auto-generate
-`NativeMethods.g.cs` from `iscc.h`, giving the complete P/Invoke layer for all FFI functions. Then
-build idiomatic C# wrappers on top. Alternatively, manual P/Invoke declarations can be written
-incrementally (start with gen functions that have simple signatures).
+**Next:** Build idiomatic C# wrappers in `IsccLib.cs` that delegate to `NativeMethods` — PascalCase
+methods, string marshaling, record result types, SafeHandle for streaming hashers, and proper memory
+management (auto-free returned strings). Start with the gen functions that return simple strings
+(`GenMetaCodeV0`, `GenTextCodeV0`, etc.) since those have the simplest marshaling.
 
 **Notes:**
 
-- CI workflow now has 12 jobs (version-check, rust, python-test, python, nodejs, wasm, c-ffi,
-    dotnet, java, go, ruby, bench). The `dotnet` job is placed after `c-ffi` since both build
-    `iscc-ffi`.
-- `dotnet test -e LD_LIBRARY_PATH` with absolute path is critical — relative paths fail because
-    vstest spawns a child process with a different CWD.
-- The .NET issue in issues.md is partially addressed (CI job done). The larger issue (csbindgen,
-    wrappers, conformance tests, release pipeline, version sync, docs) remains.
+- csbindgen parsed `#[unsafe(no_mangle)]` (Rust 2024 edition syntax) without issues — no need for
+    the `input_bindgen_file` fallback mentioned in the implementation notes
+- The `NativeMethods` class is `internal` (not public) — this is correct, as idiomatic C# wrappers
+    in `IsccLib.cs` will be the public API surface
+- The generated file uses `byte*` for C strings (not `IntPtr`) and includes `[MarshalAs]` for bool
+    fields — good type safety
+- `IsccLib.cs` still has its own manual `DllImport` for `iscc_conformance_selftest` — this creates a
+    harmless duplicate with `NativeMethods.iscc_conformance_selftest`. The next step should refactor
+    `IsccLib.cs` to delegate to `NativeMethods` instead
+- No tests were added for the generated file itself — the existing smoke test validates that the
+    generated code compiles and the native library loads correctly. Conformance tests against
+    `data.json` are planned for a future step

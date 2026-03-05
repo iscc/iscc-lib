@@ -178,6 +178,12 @@ iterations.
 - No `.sln` file — `dotnet test` works with project files directly
 - CI job: `actions/setup-dotnet@v4` with `dotnet-version: '8.0'`. LD_LIBRARY_PATH must be absolute
     (`${{ github.workspace }}/target/debug`) — relative paths fail in vstest child process
+- csbindgen (v1.9.7) in `crates/iscc-ffi/build.rs` generates `NativeMethods.g.cs` (929 lines, ~43
+    functions + 6 structs). Parses `#[unsafe(no_mangle)]` (Rust 2024 edition) without issues
+- `NativeMethods` class is `internal` — idiomatic C# wrappers in `IsccLib.cs` are the public API
+- `AllowUnsafeBlocks` in csproj required for generated `byte*` pointer types
+- `IsccLib.cs` has manual DllImport for `iscc_conformance_selftest` (duplicate of NativeMethods) —
+    harmless, should be refactored when building wrappers
 
 ## Gotchas
 
