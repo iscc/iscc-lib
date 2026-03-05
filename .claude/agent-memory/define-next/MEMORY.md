@@ -123,10 +123,11 @@ iterations.
 
 ## Project Status
 
-- **C#/.NET bindings: scaffold + CI done, csbindgen P/Invoke next**
+- **C#/.NET bindings: P/Invoke layer done, idiomatic wrappers in progress**
 - v0.2.0 released, 13 CI jobs green, all 7 existing bindings "met"
 - C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
-- Multi-step sequence: scaffold ✅ → CI job ✅ → csbindgen → wrappers → conformance → release → docs
+- Multi-step sequence: scaffold ✅ → CI job ✅ → csbindgen ✅ → wrappers (in progress) → conformance →
+    release → docs
 - .NET CI pattern: `actions/setup-dotnet@v4` (not Microsoft install script),
     `cargo build -p iscc-ffi`, `dotnet build`, `dotnet test -e LD_LIBRARY_PATH=...`
 
@@ -142,17 +143,24 @@ iterations.
     (`https://dot.net/v1/dotnet-install.sh`)
 - Tests need `LD_LIBRARY_PATH=target/debug` to find the FFI shared library
 
-## csbindgen Integration Notes
+## csbindgen Integration Notes — DONE
 
-- csbindgen 1.9.7 is a library crate (not CLI) — must be used in build.rs or a standalone binary
-- No build.rs exists for `crates/iscc-ffi/` — cbindgen runs as CLI in CI only (freshness check)
-- All FFI code is in single `crates/iscc-ffi/src/lib.rs` (~48 `extern "C"` functions)
-- Rust 2024 edition uses `#[unsafe(no_mangle)]` — csbindgen parses `extern "C" fn` signatures,
-    should still work. Fallback: use `input_bindgen_file` with iscc.h
-- csbindgen generates `unsafe` code — .csproj needs `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>`
-- Generated NativeMethods.g.cs should be committed (like iscc.h) for standalone .NET builds
-- Duplicate P/Invoke declarations across classes (IsccLib.cs + NativeMethods.g.cs) are harmless —
-    each class has its own declaration resolved independently at runtime
+- csbindgen ✅ in build.rs, NativeMethods.g.cs committed (929 lines, 47 externs, 6 structs)
+- `#[unsafe(no_mangle)]` (Rust 2024) parsed correctly — no workaround needed
+- `AllowUnsafeBlocks` already in .csproj
+
+## C# Wrapper Scoping Pattern
+
+- **Batch by marshaling complexity**: string→string is simplest (text utilities, meta/text gen),
+    then byte[]→string (data/instance gen), then struct returns (decode, sum), then array inputs
+    (video, mixed, iscc), then streaming types (IDisposable)
+- **Infrastructure first**: IsccException + marshaling helpers (ToNativeUtf8, ConsumeNativeString,
+    GetLastError) enable all subsequent wrappers — invest in these in the first wrapper step
+- NativeMethods.g.cs string functions use `byte*` — need manual UTF-8 marshaling via
+    `System.Text.Encoding.UTF8`, not `Marshal.StringToHGlobalAnsi` (which is ANSI, not UTF-8)
+- `iscc_last_error()` returns thread-local static pointer — do NOT free with `iscc_free_string()`
+- Estimated wrapper sequence: 14 symbols (step 1) → ~10 (step 2: remaining gen + codec + encoding) →
+    ~8 (step 3: streaming types + algorithm primitives)
 
 ## Release Smoke Test Architecture
 
