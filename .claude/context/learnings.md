@@ -188,6 +188,12 @@ fully-met target sections to `learnings-archive.md`.
     process; shell-level env var alone is insufficient. CI needs `env:` on the test step
 - .NET 8 SDK install in Dockerfile: Microsoft install script to `/usr/share/dotnet` (system-wide,
     before non-root user section)
+- csbindgen (v1.9.7) in `build.rs` generates C# bindings from `extern "C"` functions. Uses
+    `input_extern_file("src/lib.rs")` — parses `#[unsafe(no_mangle)]` (Rust 2024 edition) correctly.
+    Unlike cbindgen (CLI tool), csbindgen runs in build.rs and writes directly to repo path
+- `NativeMethods.g.cs` is `internal` class with 47 P/Invoke declarations, 6 struct types. Generated
+    file uses `byte*` for C strings, `nuint` for `usize`, `[MarshalAs(UnmanagedType.U1)]` for bools
+- `AllowUnsafeBlocks` required in `.csproj` for csbindgen's `byte*` pointer types
 
 ## CID Process
 

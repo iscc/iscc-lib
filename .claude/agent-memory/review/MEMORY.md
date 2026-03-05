@@ -57,8 +57,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     ruby, bench)
 - **iscc-rb workspace exclusion**: `--exclude iscc-rb` in CI `rust` job is permanent — Rust job
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
-- .NET scaffold in `packages/dotnet/` — `Iscc.Lib` (class library) + `Iscc.Lib.Tests` (xUnit).
-    Currently only `ConformanceSelftest` P/Invoke. CI `dotnet` job added
+- .NET in `packages/dotnet/` — `Iscc.Lib` + `Iscc.Lib.Tests` (xUnit). CI `dotnet` job added.
+    csbindgen (v1.9.7) generates `NativeMethods.g.cs` (47 functions, 6 structs) via `build.rs`
+- csbindgen runs in `build.rs` (unlike cbindgen CLI) — writes to repo-relative path. `dotnet` not
+    available locally — CI is the .NET validation backstop. Codex flags build robustness (advisory)
 
 ## Binding Propagation Shortcuts
 
