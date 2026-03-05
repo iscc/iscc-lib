@@ -1,43 +1,35 @@
-## 2026-03-05 — Review of: .NET project scaffold with ConformanceSelftest P/Invoke
+## 2026-03-05 — Add .NET CI job to ci.yml
 
-**Verdict:** PASS
+**Done:** Added a `dotnet` CI job to `.github/workflows/ci.yml` that builds the FFI shared library
+and runs the .NET smoke tests. The job follows the same pattern as existing CI jobs (checkout, rust
+toolchain, rust cache, language setup, build, test) and is placed after the `c-ffi` job.
 
-**Summary:** Clean, well-scoped scaffold establishing the `packages/dotnet/` project structure and
-proving end-to-end P/Invoke into the Rust FFI library. `ConformanceSelftest()` calls
-`iscc_conformance_selftest` via `[DllImport]` and returns `true`. All verification criteria pass,
-code is minimal and correct, no gate circumvention.
+**Files changed:**
+
+- `.github/workflows/ci.yml`: Added `dotnet` job with 7 steps — checkout, rust-toolchain,
+    rust-cache, setup-dotnet (v8.0), `cargo build -p iscc-ffi`, `dotnet build` (test .csproj which
+    pulls in library), and `dotnet test` with `-e LD_LIBRARY_PATH` flag
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi` succeeds — builds `libiscc_ffi.so`
-- [x] `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds — 0 warnings, 0 errors
-- [x] `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=target/debug` — 1 passed, 0
-    failed. `ConformanceSelftest()` correctly calls into Rust FFI and returns `true`
-- [x] `.devcontainer/Dockerfile` contains .NET 8 SDK installation via Microsoft install script
-- [x] `mise run check` — all 15 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` — clean
+- YAML validation passes (PyYAML `safe_load` exits 0)
+- Job structure verified: `dotnet` job present with correct name, runs-on, and all 7 steps
+- `dotnet test` command uses `-e LD_LIBRARY_PATH=${{ github.workspace }}/target/debug` (absolute
+    path via GHA expression)
+- Local smoke: `cargo build -p iscc-ffi` succeeds, `dotnet test` with absolute `LD_LIBRARY_PATH`
+    passes (1 test, 0 failures)
+- `mise run check` passes — all 15 pre-commit hooks green
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** One P2 finding — floating NuGet package versions (`17.*`, `2.*`) in the test
-`.csproj` make restores non-deterministic. Advisory: acceptable for the scaffold phase since these
-match the next.md template exactly. Should be pinned when adding full conformance tests and CI job.
-
-**Next:** Two parallel tracks for the next step: (1) Set up `csbindgen` auto-generation of
-`NativeMethods.g.cs` from `iscc.h` to create the full P/Invoke layer, OR (2) Add idiomatic C#
-wrappers for gen functions with record result types. Track (1) is recommended first — it creates the
-complete P/Invoke surface that wrappers build on. The CI job (`dotnet` in `ci.yml`) should also be
-added soon since the scaffold now has a working test.
+**Next:** Expand the P/Invoke surface — either via csbindgen auto-generation of `NativeMethods.g.cs`
+from `iscc.h`, or by manually adding idiomatic C# wrappers for gen functions with record result
+types. csbindgen approach recommended first as it creates the complete P/Invoke layer.
 
 **Notes:**
 
-- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` to pass the library path to the vstest host
-    child process. Shell-level `LD_LIBRARY_PATH` alone is insufficient. CI will need
-    `env: LD_LIBRARY_PATH: ${{ github.workspace }}/target/debug` on the test step.
-- .NET SDK installed at runtime in current devcontainer (`$HOME/.dotnet`). The Dockerfile change
-    takes effect on next container rebuild.
-- `IsccLib` class is declared `partial` — ready for generated `NativeMethods` in a future step.
-- Pin NuGet versions (`Microsoft.NET.Test.Sdk`, `xunit`, `xunit.runner.visualstudio`) to specific
-    versions when solidifying the test project.
+- Local `dotnet` is installed at `$HOME/.dotnet` (not on PATH by default in devcontainer). CI uses
+    `actions/setup-dotnet@v4` which handles PATH setup automatically.
+- Relative `LD_LIBRARY_PATH=target/debug` does NOT work with `dotnet test -e` — the vstest host
+    child process resolves it relative to its own CWD. Absolute path is required. CI uses
+    `${{ github.workspace }}/target/debug` which expands to an absolute path.
+- The CI workflow now has 12 jobs: version-check, rust, python-test, python, nodejs, wasm, c-ffi,
+    dotnet, java, go, ruby, bench.

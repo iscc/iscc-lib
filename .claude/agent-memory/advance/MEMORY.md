@@ -27,8 +27,9 @@ iterations.
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
-- CI workflow at `.github/workflows/ci.yml` has 10 jobs: version-check, rust, python, nodejs, wasm,
-    c-ffi, java, go, ruby, bench. The `bench` job runs `cargo bench --no-run` (compile-only)
+- CI workflow at `.github/workflows/ci.yml` has 12 jobs: version-check, rust, python-test, python,
+    nodejs, wasm, c-ffi, dotnet, java, go, ruby, bench. The `bench` job runs `cargo bench --no-run`
+    (compile-only)
 - Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
     param (not step-level), bundler-cache auto-installs gems
 - `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
@@ -175,6 +176,8 @@ iterations.
 - Dockerfile: .NET 8 SDK via Microsoft install script to `/usr/share/dotnet` (system-wide, root
     section)
 - No `.sln` file — `dotnet test` works with project files directly
+- CI job: `actions/setup-dotnet@v4` with `dotnet-version: '8.0'`. LD_LIBRARY_PATH must be absolute
+    (`${{ github.workspace }}/target/debug`) — relative paths fail in vstest child process
 
 ## Gotchas
 
