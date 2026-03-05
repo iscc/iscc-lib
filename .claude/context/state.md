@@ -1,15 +1,14 @@
-<!-- assessed-at: 2ca9901c13a1fe1d60e8f16db7c1ef03d534a18e -->
+<!-- assessed-at: bd4eed5fc9de7d758f6df1e156b47a694d9e7d6d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: .NET CI job added; csbindgen P/Invoke layer is next
+## Phase: csbindgen P/Invoke layer complete; idiomatic C# wrappers next
 
-v0.2.0 released across all 8 registries. The CID loop completed its second C#/.NET iteration, adding
-a `C# / .NET (dotnet build, test)` CI job that passes on every push. The scaffold (1 P/Invoke
-function, 1 smoke test) is now validated in CI. The next step is expanding to the full P/Invoke
-surface via csbindgen plus idiomatic C# wrappers.
+v0.2.0 released across all 8 registries. The csbindgen P/Invoke surface is now auto-generated:
+`NativeMethods.g.cs` (929 lines, 47 extern declarations) covers every FFI function. The remaining
+C#/.NET work is idiomatic wrappers, conformance tests, docs, and NuGet publishing.
 
 ## Rust Core Crate
 
@@ -48,7 +47,7 @@ surface via csbindgen plus idiomatic C# wrappers.
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22711616491 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22714072781 ✅
 
 ## C FFI
 
@@ -57,6 +56,7 @@ surface via csbindgen plus idiomatic C# wrappers.
 - 85 Rust tests + 65 C tests pass (per last green CI run) ✅
 - `iscc_alg_cdc_chunks` propagates `IsccResult` error via null return ✅
 - `cbindgen` header freshness check in CI passed ✅
+- `build.rs` now also runs `csbindgen` to generate `NativeMethods.g.cs` ✅
 
 ## Java Bindings
 
@@ -95,25 +95,32 @@ surface via csbindgen plus idiomatic C# wrappers.
 
 ## C# / .NET Bindings
 
-**Status**: partially met (scaffold + CI job committed; full P/Invoke surface and wrappers missing)
+**Status**: partially met (P/Invoke layer complete; idiomatic wrappers, tests, docs, publish
+missing)
 
 - `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET 8 class library project ✅
-- `packages/dotnet/Iscc.Lib/IsccLib.cs` — `public static partial class IsccLib` with one P/Invoke:
-    `ConformanceSelftest()` → `iscc_conformance_selftest` ✅
+- `packages/dotnet/Iscc.Lib/IsccLib.cs` — `public static partial class IsccLib` with 1 hand-written
+    P/Invoke: `ConformanceSelftest()` → `iscc_conformance_selftest` ✅
 - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — 1 xUnit smoke test (passes) ✅
 - `packages/dotnet/.gitignore` — excludes `bin/` and `obj/` artifacts ✅
 - `.devcontainer/Dockerfile` — .NET SDK 8 installation via Microsoft install script ✅
-- CI job `C# / .NET (dotnet build, test)` — added to `ci.yml`; passes in run 22711616491 ✅
-- **Missing**: csbindgen auto-generation of `NativeMethods.g.cs` from `iscc.h` — the full P/Invoke
-    surface (31 remaining functions) is not yet wired up
-- **Missing**: Idiomatic C# wrappers for all 32 Tier 1 symbols (PascalCase, exceptions, Stream
-    support, result record types)
+- CI job `C# / .NET (dotnet build, test)` — passes in run 22714072781 ✅
+- `crates/iscc-ffi/build.rs` — csbindgen auto-generates `NativeMethods.g.cs` on every `cargo build`
+    ✅
+- `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` — 929 lines, **47 P/Invoke extern declarations**
+    covering all FFI functions (10 gen functions, 5 constants, alloc/dealloc, decode, decompose,
+    streaming hashers, text utilities, alg functions, free helpers) ✅
+- 6 structs generated: `IsccByteBuffer`, `IsccByteBufferArray`, `IsccSumCodeResult`,
+    `IsccDecodeResult`, `FfiDataHasher`, `FfiInstanceHasher` — all `[StructLayout(Sequential)]` ✅
+- **Missing**: Idiomatic C# wrappers for all 32 Tier 1 symbols (PascalCase, string marshaling,
+    memory management via `iscc_free_*`, exceptions, Stream support, result record types) — only
+    `ConformanceSelftest()` is wrapped
 - **Missing**: Conformance tests against `data.json` (xUnit)
 - **Missing**: Release pipeline (`release.yml` `nuget` input, multi-platform NuGet pack + publish)
 - **Missing**: Version sync integration for .NET project version
 - **Missing**: Documentation (`docs/howto/dotnet.md`, README C# install/quickstart section)
-- **Note**: NuGet package versions in test `.csproj` use floating (`17.*`, `2.*`) — advisory to pin
-    when adding full conformance tests
+- **Advisory**: `build.rs` writes generated file into repo on every `cargo build`; consider gating
+    behind env var in future iteration (not blocking — consistent with csbindgen design)
 
 ## C++ Bindings
 
@@ -178,8 +185,8 @@ surface via csbindgen plus idiomatic C# wrappers.
 
 **Status**: met (for existing bindings; NuGet + C++/Swift/Kotlin publish not yet added)
 
-- **ALL PASSING** — latest CI run 22711616491: all **13 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22711616491
+- **ALL PASSING** — latest CI run 22714072781: all **13 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22714072781
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** — all SUCCESS ✅
 - `release.yml` has 6 registry `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
@@ -193,15 +200,18 @@ surface via csbindgen plus idiomatic C# wrappers.
 
 ## Next Milestone
 
-**C#/.NET full P/Invoke layer** — the scaffold (1 function + 1 smoke test) and CI job are committed
-and green. The next CID step should expand the P/Invoke surface.
+**C#/.NET idiomatic wrappers** — the full P/Invoke surface (47 extern declarations in
+`NativeMethods.g.cs`) is auto-generated and committed. The next CID step should add idiomatic C#
+wrappers in `IsccLib.cs`.
 
 Recommended next work package:
 
-1. **csbindgen P/Invoke layer**: Add `csbindgen` build step in `crates/iscc-ffi/build.rs` (or a
-    dedicated tool crate) to auto-generate `NativeMethods.g.cs` from `iscc.h` covering all 10
-    `gen_*_v0` functions plus supporting types (`IsccDecodeResult`, `IsccSumCodeResult`, etc.)
-2. **Idiomatic C# wrappers**: `IsccLib` PascalCase static methods wrapping the P/Invoke layer, with
-    exceptions instead of error codes, `Stream` support for streaming calls, and result record
-    types (`IsccResult`, `IsccDecodeResult`)
-3. **Conformance tests**: xUnit tests reading `data.json` and verifying all 10 `gen_*_v0` vectors
+1. **Idiomatic C# wrappers**: Expand `IsccLib.cs` with PascalCase static methods that delegate to
+    `NativeMethods` — string marshaling (UTF-8 `byte*` ↔ `string` via `Marshal.StringToHGlobalAnsi`
+    or `stackalloc`), `iscc_free_string` called after every string return, record result types for
+    `IsccDecodeResult` and `IsccSumCodeResult`, `Stream` support for streaming hasher classes
+    (`DataHasher`, `InstanceHasher`), and proper error surfacing via `IsccException`. Refactor the
+    existing manual `DllImport` in `IsccLib.cs` to delegate to `NativeMethods` as part of this
+    step.
+2. **Conformance tests**: xUnit tests reading `data.json` and verifying all 10 `gen_*_v0` vectors
+    against expected ISCC codes
