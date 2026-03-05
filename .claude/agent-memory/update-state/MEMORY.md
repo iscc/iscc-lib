@@ -62,18 +62,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 0be8bda)
+## Current State (assessed-at: db921b9)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22669472925); **0 normal-priority gaps remain**
-- **Iter 8 (CID round 8)**: no codebase changes — idle iteration (only .claude/ context files)
-- **Only low-priority gaps remain**: C#, C++, Swift, Kotlin bindings; language logos — CID skips
-- **CI (run 22669472925)**: ALL SUCCESS — 12 jobs (6+ consecutive green runs)
+- **IN_PROGRESS**: all 12 CI jobs green (run 22708331786); **C#/.NET now normal-priority gap**
+- **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
+- **C#/.NET priority elevated**: `low` → `normal` by human directive (commit db921b9)
+- **RubyGems OIDC**: switched from API key to OIDC trusted publishing
+    (`rubygems/configure-rubygems-credentials@main`)
+- **CI (run 22708331786)**: ALL SUCCESS — 12 jobs
 - **release.yml**: 6 checkboxes + 6 smoke test jobs: test-wheels/napi/wasm/jni/ffi/gem ✅
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **Test counts (Rust)**: 316 (default features)
 - **docs/**: 8 howto files; `docs/ruby-api.md` ✅; `docs/c-ffi-api.md` ✅
 - **packages/**: only `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do NOT exist yet
-- **Recommended next action**: PR from `develop` → `main` for stable release (human-directed)
+- **crates/iscc-rb/CLAUDE.md**: added with detailed cross-compilation guidance
+- **Next action**: implement C#/.NET bindings (`packages/dotnet/` + CI + release + docs)
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 

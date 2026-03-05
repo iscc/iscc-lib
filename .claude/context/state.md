@@ -1,14 +1,15 @@
-<!-- assessed-at: 0be8bda9a93bbfebe5573abfa3f99e95ce653b6f -->
+<!-- assessed-at: db921b97452170c799544c90880fbaf73321a593 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All normal-priority gaps resolved; only low-priority bindings remain
+## Phase: C#/.NET bindings elevated to normal priority; v0.2.0 released
 
-All 12 CI jobs pass (latest run 22669472925). No codebase changes since iter 7 — only `.claude/`
-context files updated across iter 8. The sole remaining open issues are `low`-priority (C#, C++,
-Swift, Kotlin bindings; language logos in README/docs); the CID loop skips these by policy.
+v0.2.0 released successfully across all 8 registries including RubyGems (now via OIDC trusted
+publishing). C#/.NET bindings priority was elevated from `low` to `normal` by human directive — this
+is now the CID loop's next implementation target. All other normal-priority gaps remain resolved
+with CI green (12/12 jobs, latest run 22708331786).
 
 ## Rust Core Crate
 
@@ -47,7 +48,7 @@ Swift, Kotlin bindings; language logos in README/docs); the CID loop skips these
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22669472925 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22708331786 ✅
 
 ## C FFI
 
@@ -81,23 +82,30 @@ Swift, Kotlin bindings; language logos in README/docs); the CID loop skips these
 **Status**: met
 
 - `crates/iscc-rb/` with Magnus bridge (magnus 0.7.1, Ruby 3.1.2 compat) ✅
-- All 32 of 32 Tier 1 symbols exposed (10 gen, 4 text, 6 codec/diagnostic, 5 algo, 5 constants, 2
-    streaming types) ✅
+- All 32 of 32 Tier 1 symbols exposed ✅
 - 111 Minitest tests (295 assertions, 0 failures): 46 smoke + 15 streaming + 50 conformance ✅
 - `bundle exec rake compile` builds in release profile ✅
 - Dedicated `ruby` CI job — runs standardrb, clippy, compile, and test ✅
 - `docs/howto/ruby.md` (422 lines) ✅; `docs/ruby-api.md` (781 lines — all 32 symbols) ✅
 - `zensical.toml` Reference section: "Ruby API" nav entry ✅
 - Root `README.md` Ruby section (install tab + quickstart) ✅
-- Standard Ruby linting fully configured ✅
-- RubyGems.org account created, `GEM_HOST_API_KEY` secret configured in GitHub ✅
+- `crates/iscc-rb/CLAUDE.md` added with detailed cross-compilation guidance ✅
+- Cross-compilation fixes for v0.2.0: Rakefile gemspec, native loader path, Gemfile.lock symlink ✅
+- RubyGems publish switched to OIDC trusted publishing (no API key needed) ✅
 
 ## C# / .NET Bindings
 
-**Status**: not started
+**Status**: not started — **NORMAL PRIORITY** (CID loop must address)
 
-- Target defined in `target.md`; issue filed as `low` priority (CID loop skips) ✅
+- Priority elevated from `low` to `normal` by human directive (commit `db921b9`) ✅
 - **No code exists**: `packages/dotnet/` does not exist; no `csbindgen` integration; no CI job
+- Issue in `issues.md` with full implementation scope:
+    - `packages/dotnet/` — .csproj targeting .NET 8+, csbindgen P/Invoke, xUnit conformance tests
+    - DevContainer: .NET SDK 8+ needed in Dockerfile
+    - CI: `dotnet` job (`dotnet build` + `dotnet test`)
+    - Release: `nuget` boolean input, NuGet publish via OIDC or API key
+    - Docs: `docs/howto/dotnet.md`, README C# section
+    - Version sync target needed for .NET project
 
 ## C++ Bindings
 
@@ -126,22 +134,18 @@ Swift, Kotlin bindings; language logos in README/docs); the CID loop skips these
 **Status**: partially met
 
 - Public-facing polyglot README exists; CI badge, all 7 registry badges present ✅
-    - Rust (crates.io), Python (PyPI), Ruby (RubyGems), Java (Maven Central), Go (pkg.go.dev), Node.js
-        (npm @iscc/lib), WASM (npm @iscc/wasm)
 - All 10 `gen_*_v0` functions listed; per-language install + quick-start examples ✅
 - Ruby install instructions and quickstart present ✅
-- **Gap**: Missing C#, C++, Swift, Kotlin install + quickstart sections (target requires all 4; all
-    `low` priority)
-- **Gap**: Language logos/icons not added yet (`low` priority)
+- **Gap**: Missing C#, C++, Swift, Kotlin install + quickstart sections (C# now `normal` priority)
+- **Gap**: Language logos/icons not added yet (C++/Swift/Kotlin `low` priority)
 
 ## Per-Crate READMEs
 
 **Status**: partially met
 
-- READMEs present for all existing 8 crates/packages including `crates/iscc-rb/README.md` (93 lines)
-    ✅
+- READMEs present for all existing 8 crates/packages including `crates/iscc-rb/README.md` ✅
 - **Gap**: Target requires READMEs for `packages/dotnet`, `packages/cpp`, `packages/swift`,
-    `packages/kotlin` — none of these directories exist yet (all `low` priority)
+    `packages/kotlin` — none of these directories exist yet (C# now `normal`, rest `low`)
 
 ## Documentation
 
@@ -151,7 +155,8 @@ Swift, Kotlin bindings; language logos in README/docs); the CID loop skips these
 - 8 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, ruby.md
     ✅
 - `docs/ruby-api.md` API reference page (781 lines) ✅; `docs/c-ffi-api.md` ✅
-- **Gap**: Target requires C#, C++, Swift, Kotlin how-to guides (all `low` priority; none started)
+- **Gap**: Target requires C# how-to guide (`normal` priority; not started)
+- **Gap**: Target requires C++, Swift, Kotlin how-to guides (all `low` priority; none started)
 
 ## Benchmarks
 
@@ -165,36 +170,36 @@ Swift, Kotlin bindings; language logos in README/docs); the CID loop skips these
 
 **Status**: met
 
-- **ALL PASSING** — latest CI run 22669472925: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22669472925
+- **ALL PASSING** — latest CI run 22708331786: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22708331786
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest), Node.js, WASM, C
     FFI, Java, Go, Bench, Ruby — all SUCCESS ✅
 - `release.yml` has 6 registry `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
     RubyGems ✅
-- **6 smoke test jobs implemented** — each gates its publish job ✅:
-    - `test-wheels` → gates `publish-pypi` (installs wheel, runs `conformance_selftest()`)
-    - `test-napi` → gates `publish-npm-lib` (loads `.node`, runs `conformance_selftest()`)
-    - `test-wasm` → gates `publish-npm-wasm` (ESM import, runs `conformance_selftest()`)
-    - `test-jni` → gates `publish-maven` (runs `mvn test` with native libs)
-    - `test-ffi` → gates `publish-ffi` (compiles `test_iscc.c`, runs binary)
-    - `test-gem` → gates `publish-rubygems` (installs gem, runs `conformance_selftest`)
+- **6 smoke test jobs implemented** — each gates its publish job ✅
 - `build-gem` job: 5 platforms via `oxidize-rb/actions/cross-gem@v1` ✅
-- RubyGems account setup complete: account created, `GEM_HOST_API_KEY` secret added to GitHub ✅
-- **Gap**: Target requires CI jobs for C#, C++, Swift, Kotlin (all `low` priority; none started)
+- **RubyGems publish switched to OIDC** trusted publishing via
+    `rubygems/configure-rubygems-credentials@main` ✅ (replaces `GEM_HOST_API_KEY` — no long-lived
+    API key needed, consistent with crates.io + PyPI)
+- v0.2.0 released successfully across all 8 registries ✅
+- **Gap**: Target requires CI jobs for C# (now `normal` priority), C++, Swift, Kotlin (rest `low`)
 
 ## Next Milestone
 
-All `normal`-priority and `critical`-priority gaps are resolved. CI is fully green (6 consecutive
-successful runs, latest 22669472925). The only remaining open issues are `low`-priority (CID loop
-skips these by policy):
+**C#/.NET bindings** — priority elevated to `normal` by human directive; CID loop must now address
+this gap.
 
-1. C# / .NET bindings (`packages/dotnet/`)
-2. C++ header-only wrapper (`packages/cpp/`)
-3. Swift bindings (`packages/swift/` + `crates/iscc-uniffi/`)
-4. Kotlin Multiplatform bindings (`packages/kotlin/`)
-5. Language logos/icons in README and docs
+Full implementation scope (from `issues.md`):
 
-**Recommended action (human-directed):** Create a PR from `develop` → `main` for a stable release
-(`mise run pr:main` or `gh pr create -B main -H develop`). The project is feature-complete for all
-`normal`-priority bindings with full CI/CD, smoke-tested release pipeline, and comprehensive
-documentation.
+1. `packages/dotnet/` package: .csproj (.NET 8+), `csbindgen`-generated P/Invoke wrappers from
+    `iscc.h`, idiomatic C# wrapper (PascalCase, exceptions, Stream support), xUnit conformance
+    tests against `data.json`, NuGet packaging spec
+2. DevContainer: add .NET SDK 8+ to Dockerfile
+3. CI (`ci.yml`): add `dotnet` job — `dotnet build` + `dotnet test`
+4. Release (`release.yml`): `nuget` boolean input, build/pack NuGet with native libs for 5
+    platforms, publish via `dotnet nuget push` (OIDC or API key), idempotency check
+5. Version sync: add .NET project version to sync targets
+6. Documentation: `docs/howto/dotnet.md`, README C# install/quickstart section
+
+Account setup for NuGet is a manual human action (register nuget.org, reserve `Iscc.Lib`, configure
+OIDC trusted publisher).
