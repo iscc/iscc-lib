@@ -130,7 +130,7 @@ design decisions — don't guess.
 - Python bindings use `abi3-py310` (one wheel per platform)
 - Release profile: `lto = true`, `codegen-units = 1`, `strip = true`, `panic = "abort"`
 - No network access in tests (conformance vectors vendored as files)
-- OIDC trusted publishing for crates.io and PyPI (no long-lived API keys)
+- OIDC trusted publishing for crates.io, PyPI, and RubyGems (no long-lived API keys)
 - Cross-platform support required (Linux, macOS, Windows)
 
 ## Build Commands

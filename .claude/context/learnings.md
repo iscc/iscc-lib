@@ -90,6 +90,15 @@ fully-met target sections to `learnings-archive.md`.
     unconditionally
 - **NAPI js_name**: binding uses `#[napi(js_name = "conformance_selftest")]` — snake_case is
     preserved in the raw .node export. Smoke test can `require()` the .node file directly
+- **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
+    out the tag's code, NOT the latest `main`. Hotfixes pushed to `main` after tagging require
+    `--ref main` to pick up. When re-triggering individual registries, always use `--ref main`
+- **RubyGems trusted publishing (OIDC)**: uses `rubygems/configure-rubygems-credentials@main` with
+    `id-token: write` permission. No API keys needed. Configured on rubygems.org as trusted
+    publisher
+- **Ruby cross-gem action quirk**: `oxidize-rb/actions/cross-gem@v1` configure step greps
+    `Gemfile.lock` in repo root (ignores `working-directory`). For subdirectory gems, symlink the
+    lockfile: `ln -sf crates/iscc-rb/Gemfile.lock Gemfile.lock`
 
 ## Branching
 

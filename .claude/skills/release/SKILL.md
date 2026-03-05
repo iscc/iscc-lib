@@ -210,7 +210,7 @@ gh pr create -B main -H develop --title "Release <version>" --body "$(cat <<'EOF
 
 Version bump and manifest sync for release <version>.
 
-Publishes to: crates.io, PyPI, npm (@iscc/lib, @iscc/wasm), Maven Central, GitHub Releases (FFI).
+Publishes to: crates.io, PyPI, npm (@iscc/lib, @iscc/wasm), Maven Central, GitHub Releases (FFI), RubyGems, Go proxy.
 EOF
 )"
 ```
@@ -343,6 +343,9 @@ curl -sf "https://search.maven.org/solrsearch/select?q=g:io.iscc+AND+a:iscc-lib+
 # Go proxy (auto-published via git tag, may take a few minutes)
 curl -sf "https://proxy.golang.org/github.com/iscc/iscc-lib/packages/go/@v/v<version>.info" > /dev/null && echo "Go proxy: OK"
 
+# RubyGems
+curl -sf "https://rubygems.org/api/v1/versions/iscc-lib.json" | grep -q "\"number\":\"<version>\"" && echo "RubyGems: OK"
+
 # GitHub Releases (FFI tarballs)
 gh release view v<version> --json assets --jq '.assets[].name' | grep -q "iscc-ffi" && echo "GitHub Releases (FFI): OK"
 ```
@@ -373,6 +376,7 @@ Release <version> complete!
     npm @iscc/wasm <version>  OK
     Maven Central  <version>  OK / pending indexing
     Go proxy       <version>  OK / pending indexing
+    RubyGems       <version>  OK
     GitHub (FFI)   <version>  OK
 
   Post-release:
@@ -391,10 +395,30 @@ When any step fails:
 6. **Never skip a failing step silently** — every failure must be reported
 7. **Never force-push or use destructive git operations** — ask the user first
 
+## Re-triggering Individual Registries
+
+If the tag-triggered release workflow fails for specific registries (while others succeed),
+individual registries can be re-triggered via `workflow_dispatch`:
+
+```
+gh workflow run release.yml --ref main -f <registry>=true
+```
+
+Available registry flags: `rubygems`, `pypi`, `npm`, `maven`, `crates_io`, `ffi`.
+
+**Critical:** Always use `--ref main` (not `--ref v<version>`). The tag ref points to the code at
+the time of tagging — hotfixes pushed to `main` after tagging are not included in the tag. Using
+`--ref main` ensures the workflow checks out the latest code with all fixes applied.
+
+When re-triggering, the publish steps have version-existence checks that skip already-published
+registries (idempotent). Only the failed registry will actually publish.
+
 ## Important Constraints
 
 - This skill handles real releases with real side effects. Be careful and precise
-- Never guess registry credentials or authentication — they are configured via GitHub secrets
+- Never guess registry credentials or authentication — they are configured via GitHub secrets and
+    OIDC trusted publishing (PyPI, crates.io, RubyGems use OIDC; npm uses automation tokens; Maven
+    uses GPG + OSSRH credentials)
 - Never modify files outside the release scope without asking. Release scope includes: version bump
     files, formatting/lint fixes from quality gates, and any files the pre-commit hooks auto-fix
 - The `develop` branch is never deleted — it's the long-lived working branch
