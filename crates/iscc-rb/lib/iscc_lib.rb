@@ -6,7 +6,15 @@
 # Result classes wrap the native Hash returns with attribute-style access.
 
 require_relative "iscc_lib/version"
-require_relative "iscc_lib/iscc_rb"
+
+# Load native extension from version-specific subdirectory (precompiled gems)
+# or flat path (source-compiled).
+begin
+  RUBY_VERSION =~ /(\d+\.\d+)/
+  require_relative "iscc_lib/#{$1}/iscc_rb"
+rescue LoadError
+  require_relative "iscc_lib/iscc_rb"
+end
 
 module IsccLib
   # Base result class providing both Hash-style and attribute-style access.
