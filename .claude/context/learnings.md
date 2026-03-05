@@ -194,6 +194,12 @@ fully-met target sections to `learnings-archive.md`.
 - `NativeMethods.g.cs` is `internal` class with 47 P/Invoke declarations, 6 struct types. Generated
     file uses `byte*` for C strings, `nuint` for `usize`, `[MarshalAs(UnmanagedType.U1)]` for bools
 - `AllowUnsafeBlocks` required in `.csproj` for csbindgen's `byte*` pointer types
+- Marshaling pattern: `ToNativeUtf8` (C# string → null-terminated UTF-8 `byte[]`),
+    `ConsumeNativeString` (native `byte*` → managed `string` + `iscc_free_string`), `GetLastError`
+    (reads `iscc_last_error()` without freeing — thread-local storage).
+    `fixed (byte* p = nullArray)` sets pointer to null for optional parameters
+- `dotnet test -e LD_LIBRARY_PATH=target/debug` with relative path fails in devcontainer — must use
+    absolute path. CI is unaffected (uses `env:` which resolves correctly)
 
 ## CID Process
 

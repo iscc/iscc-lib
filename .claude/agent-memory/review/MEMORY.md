@@ -70,7 +70,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java JNI: `cargo build -p iscc-jni` + clippy + `mvn test`
 - Ruby: `pushd crates/iscc-rb && bundle exec rake compile && bundle exec rake test; popd`
 - .NET: `cargo build -p iscc-ffi` + `dotnet build packages/dotnet/Iscc.Lib/` +
-    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=target/debug` + `mise run check`
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug`
+    - `mise run check`. NOTE: relative path `target/debug` fails in devcontainer — use absolute path.
+        Need `PATH="/home/dev/.dotnet:$PATH"` for dotnet CLI
 
 ## Environment
 
