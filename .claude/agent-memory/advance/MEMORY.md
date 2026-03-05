@@ -182,8 +182,13 @@ iterations.
     functions + 6 structs). Parses `#[unsafe(no_mangle)]` (Rust 2024 edition) without issues
 - `NativeMethods` class is `internal` — idiomatic C# wrappers in `IsccLib.cs` are the public API
 - `AllowUnsafeBlocks` in csproj required for generated `byte*` pointer types
-- `IsccLib.cs` has manual DllImport for `iscc_conformance_selftest` (duplicate of NativeMethods) —
-    harmless, should be refactored when building wrappers
+- `IsccLib.cs` wrappers: 3 private helpers (ToNativeUtf8, ConsumeNativeString, GetLastError) +
+    PascalCase public methods. `fixed (byte* p = nullArray)` sets pointer to null for optional
+    params
+- `IsccException` for error reporting from ConsumeNativeString. `iscc_last_error()` returns
+    thread-local storage pointer — do NOT free it (use `Marshal.PtrToStringUTF8` without free)
+- `META_TRIM_META` = 128,000 (not 16,384). All 5 constant values: 128, 4096, 128000, 4194304, 13
+- `dotnet` available at `/home/dev/.dotnet` in devcontainer (not on PATH by default)
 
 ## Gotchas
 
