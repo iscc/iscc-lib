@@ -1,11 +1,12 @@
-## 2026-03-05 — Review of: C# wrappers — remaining gen functions + encoding utilities
+## 2026-03-05 — Review of: C# wrappers — remaining gen functions + encoding utilities (re-run)
 
 **Verdict:** PASS
 
-**Summary:** Clean, well-scoped implementation adding 8 public methods and the SumCodeResult record
-type. Four new marshaling patterns (int[], int[][] jagged array, string[], struct return+free) are
-correctly implemented with proper GCHandle pinning and finally-block cleanup. All 10 gen functions
-are now callable from C#. 25/25 tests pass, builds are clean, hooks pass.
+**Summary:** No new code changes — the advance agent found the work package already completed from a
+prior iteration 5 run (commit 60030ea). All verification criteria still pass: 25/25 .NET tests, all
+10 gen functions wrapped, SumCodeResult record exists, `mise run check` all 15 hooks pass. The
+advance agent made an unauthorized modification to `.claude/agents/advance.md` (removing `Task` from
+tools) which was reverted during review.
 
 **Verification:**
 
@@ -19,19 +20,30 @@ are now callable from C#. 25/25 tests pass, builds are clean, hooks pass.
 
 **Issues found:**
 
-- Minor: `GenMixedCodeV0` and `GenIsccCodeV0` have near-identical string array marshaling code (~25
-    lines each). C# language limitation (no pointer types in generics) prevents extraction to a
-    shared helper. Acceptable technical debt — documented in learnings.
+- The advance agent modified `.claude/agents/advance.md` (removed `Task` from tools list) — this is
+    out of scope and was reverted. No other issues.
 
-**Next:** Codec functions (`IsccDecode`, `IsccDecompose`, `EncodeComponent`) with `DecodeResult`
-record type and string-array return marshaling, or algorithm primitives (`AlgSimhash`,
-`AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`) with `IsccByteBuffer` struct marshaling. The
-jagged array and struct return patterns from this iteration are reusable foundations.
+**Codex review:** HEAD is the previous review commit (context-only changes) — Codex correctly
+reports no code impact. No actionable findings.
+
+**Next:** C# codec functions — `IsccDecode`, `IsccDecompose`, `EncodeComponent` with `DecodeResult`
+record type and string-array return marshaling. This adds 3 more symbols (→ 25/32). The
+`SlidingWindow` function (also returns string array) can optionally be included in the same step.
+After codec functions: algorithm primitives (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`,
+`SoftHashVideoV0`) which require `IsccByteBuffer` struct marshaling, then streaming types
+(`DataHasher`, `InstanceHasher` with `IDisposable`).
 
 **Notes:**
 
-- The `IsccSumCodeResult` struct is at namespace level in `NativeMethods.g.cs` (not nested in the
-    `NativeMethods` class), so it is referenced without the `NativeMethods.` prefix
-- 22 of 32 Tier 1 symbols are now wrapped in C# (5 constants, 4 text utilities, 10 gen functions, 2
-    encoding utilities, 1 conformance selftest). Remaining: 3 codec functions, 4 algorithm
-    primitives, 1 sliding window, 2 streaming types
+- 22 of 32 Tier 1 symbols now wrapped (5 constants, 4 text utilities, 10 gen functions, 2 encoding
+    utilities, 1 conformance selftest)
+- Remaining 10 symbols: 3 codec (`IsccDecode`, `IsccDecompose`, `EncodeComponent`), 4 algorithm
+    primitives (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`), 1 sliding window
+    (`SlidingWindow`), 2 streaming types (`DataHasher`, `InstanceHasher`)
+- The `DecodeResult` record type needs fields for maintype, subtype, version, length, body (byte
+    array). Check `iscc_decode` FFI signature in `crates/iscc-ffi/src/lib.rs` for exact return
+    struct
+- `IsccDecompose` returns a NULL-terminated `byte**` string array — reuse the same marshaling
+    pattern from `SumCodeResult.Units`
+- The advance agent's unauthorized `advance.md` modification suggests it tried to use `Task` tool
+    and encountered issues — no action needed, the tools list is maintained by the orchestrator
