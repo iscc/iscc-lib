@@ -1,15 +1,15 @@
-<!-- assessed-at: db921b97452170c799544c90880fbaf73321a593 -->
+<!-- assessed-at: 62253dbfae0ec97247eb887a3eab875ffd3f9839 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C#/.NET bindings elevated to normal priority; v0.2.0 released
+## Phase: C#/.NET scaffold committed; csbindgen P/Invoke layer is next
 
-v0.2.0 released successfully across all 8 registries including RubyGems (now via OIDC trusted
-publishing). C#/.NET bindings priority was elevated from `low` to `normal` by human directive — this
-is now the CID loop's next implementation target. All other normal-priority gaps remain resolved
-with CI green (12/12 jobs, latest run 22708331786).
+v0.2.0 released across all 8 registries. The CID loop completed its first C#/.NET iteration,
+committing a minimal `packages/dotnet/` scaffold that proves end-to-end P/Invoke into `iscc-ffi` via
+`ConformanceSelftest()`. The next step is expanding to the full P/Invoke surface (csbindgen or
+manual) plus CI job. All 12 CI jobs remain green.
 
 ## Rust Core Crate
 
@@ -48,7 +48,7 @@ with CI green (12/12 jobs, latest run 22708331786).
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22708331786 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22709532828 ✅
 
 ## C FFI
 
@@ -95,17 +95,24 @@ with CI green (12/12 jobs, latest run 22708331786).
 
 ## C# / .NET Bindings
 
-**Status**: not started — **NORMAL PRIORITY** (CID loop must address)
+**Status**: partially met (scaffold committed; major gaps remain)
 
-- Priority elevated from `low` to `normal` by human directive (commit `db921b9`) ✅
-- **No code exists**: `packages/dotnet/` does not exist; no `csbindgen` integration; no CI job
-- Issue in `issues.md` with full implementation scope:
-    - `packages/dotnet/` — .csproj targeting .NET 8+, csbindgen P/Invoke, xUnit conformance tests
-    - DevContainer: .NET SDK 8+ needed in Dockerfile
-    - CI: `dotnet` job (`dotnet build` + `dotnet test`)
-    - Release: `nuget` boolean input, NuGet publish via OIDC or API key
-    - Docs: `docs/howto/dotnet.md`, README C# section
-    - Version sync target needed for .NET project
+- `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET 8 class library project ✅
+- `packages/dotnet/Iscc.Lib/IsccLib.cs` — `public static partial class IsccLib` with one P/Invoke:
+    `ConformanceSelftest()` → `iscc_conformance_selftest` ✅
+- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — 1 xUnit smoke test (passes) ✅
+- `.devcontainer/Dockerfile` — .NET SDK 8 installation via Microsoft install script ✅
+- **Missing**: csbindgen auto-generation of `NativeMethods.g.cs` from `iscc.h` — the full P/Invoke
+    surface (31 remaining functions) is not yet wired up
+- **Missing**: Idiomatic C# wrappers for all 32 Tier 1 symbols (PascalCase, exceptions, Stream
+    support, result record types)
+- **Missing**: Conformance tests against `data.json` (xUnit)
+- **Missing**: CI job in `ci.yml` (dotnet build + dotnet test)
+- **Missing**: Release pipeline (`release.yml` `nuget` input, multi-platform NuGet pack + publish)
+- **Missing**: Version sync integration for .NET project version
+- **Missing**: Documentation (`docs/howto/dotnet.md`, README C# install/quickstart section)
+- **Note**: NuGet package versions in test `.csproj` use floating (`17.*`, `2.*`) — advisory to pin
+    when adding full conformance tests
 
 ## C++ Bindings
 
@@ -145,7 +152,7 @@ with CI green (12/12 jobs, latest run 22708331786).
 
 - READMEs present for all existing 8 crates/packages including `crates/iscc-rb/README.md` ✅
 - **Gap**: Target requires READMEs for `packages/dotnet`, `packages/cpp`, `packages/swift`,
-    `packages/kotlin` — none of these directories exist yet (C# now `normal`, rest `low`)
+    `packages/kotlin` — none of these directories are complete yet (C# now `normal`, rest `low`)
 
 ## Documentation
 
@@ -168,38 +175,33 @@ with CI green (12/12 jobs, latest run 22708331786).
 
 ## CI/CD and Publishing
 
-**Status**: met
+**Status**: met (for existing bindings; dotnet CI job not yet added)
 
-- **ALL PASSING** — latest CI run 22708331786: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22708331786
+- **ALL PASSING** — latest CI run 22709532828: all **12 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22709532828
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest), Node.js, WASM, C
     FFI, Java, Go, Bench, Ruby — all SUCCESS ✅
 - `release.yml` has 6 registry `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
     RubyGems ✅
 - **6 smoke test jobs implemented** — each gates its publish job ✅
 - `build-gem` job: 5 platforms via `oxidize-rb/actions/cross-gem@v1` ✅
-- **RubyGems publish switched to OIDC** trusted publishing via
-    `rubygems/configure-rubygems-credentials@main` ✅ (replaces `GEM_HOST_API_KEY` — no long-lived
-    API key needed, consistent with crates.io + PyPI)
+- **RubyGems publish switched to OIDC** trusted publishing ✅
 - v0.2.0 released successfully across all 8 registries ✅
-- **Gap**: Target requires CI jobs for C# (now `normal` priority), C++, Swift, Kotlin (rest `low`)
+- **Gap**: No `dotnet` CI job yet (`normal` priority); no C++/Swift/Kotlin CI jobs (`low` priority)
 
 ## Next Milestone
 
-**C#/.NET bindings** — priority elevated to `normal` by human directive; CID loop must now address
-this gap.
+**C#/.NET full P/Invoke layer + CI job** — the scaffold (1 function + 1 smoke test) is committed.
+The next CID step should expand the P/Invoke surface and add the CI job.
 
-Full implementation scope (from `issues.md`):
+Recommended next work package (either order):
 
-1. `packages/dotnet/` package: .csproj (.NET 8+), `csbindgen`-generated P/Invoke wrappers from
-    `iscc.h`, idiomatic C# wrapper (PascalCase, exceptions, Stream support), xUnit conformance
-    tests against `data.json`, NuGet packaging spec
-2. DevContainer: add .NET SDK 8+ to Dockerfile
-3. CI (`ci.yml`): add `dotnet` job — `dotnet build` + `dotnet test`
-4. Release (`release.yml`): `nuget` boolean input, build/pack NuGet with native libs for 5
-    platforms, publish via `dotnet nuget push` (OIDC or API key), idempotency check
-5. Version sync: add .NET project version to sync targets
-6. Documentation: `docs/howto/dotnet.md`, README C# install/quickstart section
+1. **CI job** (`ci.yml`): Add `dotnet` job — `cargo build -p iscc-ffi`, then `dotnet build` +
+    `dotnet test` with `env: LD_LIBRARY_PATH: ${{ github.workspace }}/target/debug`. This validates
+    the scaffold in CI and unblocks later steps.
+2. **csbindgen P/Invoke layer** (`NativeMethods.g.cs`): Add `csbindgen` build step in
+    `crates/iscc-ffi/build.rs` or a separate tool crate to auto-generate P/Invoke declarations from
+    `iscc.h` for all 10 `gen_*_v0` functions + supporting types. Then add idiomatic C# wrappers.
 
-Account setup for NuGet is a manual human action (register nuget.org, reserve `Iscc.Lib`, configure
-OIDC trusted publisher).
+Adding the CI job first is lower risk — it validates the existing scaffold end-to-end in CI before
+expanding the P/Invoke surface.

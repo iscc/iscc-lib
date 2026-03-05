@@ -35,7 +35,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
-    (gate), Node.js, WASM, C FFI, Java, Go, Bench, **Ruby** (12 total)
+    (gate), Node.js, WASM, C FFI, Java, Go, Bench, **Ruby** (12 total); no dotnet job yet
+- `packages/dotnet/` — scaffold: `Iscc.Lib/IsccLib.cs` (partial class, ConformanceSelftest only),
+    `Iscc.Lib.Tests/SmokeTests.cs` (1 xUnit test); `dotnet test` needs
+    `-e LD_LIBRARY_PATH=target/debug` (shell-level alone insufficient for vstest host)
 - `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -62,21 +65,20 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: db921b9)
+## Current State (assessed-at: 62253db)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22708331786); **C#/.NET now normal-priority gap**
+- **IN_PROGRESS**: all 12 CI jobs green (run 22709532828); **C#/.NET scaffold committed**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET priority elevated**: `low` → `normal` by human directive (commit db921b9)
-- **RubyGems OIDC**: switched from API key to OIDC trusted publishing
-    (`rubygems/configure-rubygems-credentials@main`)
-- **CI (run 22708331786)**: ALL SUCCESS — 12 jobs
+- **C#/.NET scaffold**: `packages/dotnet/` created — `IsccLib.cs` (ConformanceSelftest via
+    DllImport), xUnit smoke test (1 test), .devcontainer/Dockerfile .NET 8 SDK install
+- **CI (run 22709532828)**: ALL SUCCESS — 12 jobs (no dotnet job yet)
 - **release.yml**: 6 checkboxes + 6 smoke test jobs: test-wheels/napi/wasm/jni/ffi/gem ✅
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **Test counts (Rust)**: 316 (default features)
 - **docs/**: 8 howto files; `docs/ruby-api.md` ✅; `docs/c-ffi-api.md` ✅
-- **packages/**: only `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do NOT exist yet
+- **packages/**: `go/` + `dotnet/` (scaffold only); `cpp/`, `swift/`, `kotlin/` do NOT exist
 - **crates/iscc-rb/CLAUDE.md**: added with detailed cross-compilation guidance
-- **Next action**: implement C#/.NET bindings (`packages/dotnet/` + CI + release + docs)
+- **Next action**: .NET CI job in ci.yml + expand P/Invoke surface (csbindgen or manual)
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
