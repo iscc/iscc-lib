@@ -54,6 +54,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - CI: 12 jobs (version-check, rust, python-test, python, nodejs, wasm, c-ffi, java, go, ruby, bench)
 - **iscc-rb workspace exclusion**: `--exclude iscc-rb` in CI `rust` job is permanent — Rust job
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
+- .NET scaffold in `packages/dotnet/` — `Iscc.Lib` (class library) + `Iscc.Lib.Tests` (xUnit).
+    Currently only `ConformanceSelftest` P/Invoke. No CI job yet
 
 ## Binding Propagation Shortcuts
 
@@ -62,6 +64,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - C FFI: `cargo test -p iscc-ffi` + clippy. Header tracked in git
 - Java JNI: `cargo build -p iscc-jni` + clippy + `mvn test`
 - Ruby: `pushd crates/iscc-rb && bundle exec rake compile && bundle exec rake test; popd`
+- .NET: `cargo build -p iscc-ffi` + `dotnet build packages/dotnet/Iscc.Lib/` +
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=target/debug` + `mise run check`
 
 ## Environment
 

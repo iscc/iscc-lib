@@ -823,3 +823,7 @@
 {"ts":"2026-03-04T12:55:24.630703+00:00","iteration":8,"role":"advance","status":"OK","turns":9,"cost_usd":0.222563,"duration_s":49.6}
 {"ts":"2026-03-04T12:56:41.566904+00:00","iteration":8,"role":"review","status":"OK","turns":8,"cost_usd":0.10,"duration_s":60}
 {"ts":"2026-03-04T12:58:43.929670+00:00","iteration":8,"role":"review","status":"OK","turns":21,"cost_usd":0.582389,"duration_s":199.3}
+{"ts":"2026-03-05T08:19:02.005569+00:00","iteration":1,"role":"update-state","status":"OK","turns":17,"cost_usd":0.706055,"duration_s":171.4}
+{"ts":"2026-03-05T08:22:56.909756+00:00","iteration":1,"role":"define-next","status":"OK","turns":24,"cost_usd":1.175982,"duration_s":234.9}
+{"ts":"2026-03-05T08:32:13.801736+00:00","iteration":1,"role":"advance","status":"OK","turns":53,"cost_usd":2.317512,"duration_s":556.9}
+{"ts":"2026-03-05T08:37:37.863371+00:00","iteration":1,"role":"review","status":"OK","verdict":"PASS","summary":".NET scaffold PASS — all verification criteria met, ConformanceSelftest P/Invoke works end-to-end"}
