@@ -7,7 +7,7 @@
 Add idiomatic C# wrappers for the 6 remaining gen functions (`GenImageCodeV0`, `GenAudioCodeV0`,
 `GenVideoCodeV0`, `GenMixedCodeV0`, `GenIsccCodeV0`, `GenSumCodeV0`) plus 2 encoding utilities
 (`EncodeBase64`, `JsonToDataUrl`). This completes all 10 gen functions in C# and introduces 4 new
-marshaling patterns (int arrays, string arrays, jagged int arrays, struct returns) that enable the
+marshaling patterns (int arrays, jagged int arrays, string arrays, struct returns) that enable the
 remaining wrapper steps.
 
 ## Scope
@@ -41,7 +41,7 @@ remaining wrapper steps.
 ### New marshaling patterns needed
 
 1. **`int[]` input** (`GenAudioCodeV0`): Pin with `fixed (int* pCv = cv)`, pass length as
-    `(nuint)cv.Length`. Same pattern as `byte[]` in `GenDataCodeV0`.
+    `(nuint)cv.Length`. Same pattern as `byte[]` in `GenDataCodeV0` but with `int*` pointer type.
 
 2. **`int[][]` jagged array** (`GenVideoCodeV0`): Most complex pattern. Each inner `int[]` must be
     pinned simultaneously. Use `GCHandle.Alloc(arr, GCHandleType.Pinned)` for each inner array,
@@ -56,9 +56,10 @@ remaining wrapper steps.
 
 4. **Struct return + free** (`GenSumCodeV0`): Returns `IsccSumCodeResult` struct (defined in
     NativeMethods.g.cs). Create a managed `SumCodeResult` record class to hold the result. Marshal
-    fields: check `ok` field (throw on false), read `iscc`/`datahash` strings via
-    `Marshal.PtrToStringUTF8`, read `filesize`, optionally read `units` NULL-terminated string
-    array. Always call `iscc_free_sum_code_result()` in a `finally` block.
+    fields: check `ok` field (throw on false via `GetLastError`), read `iscc`/`datahash` strings
+    via `Marshal.PtrToStringUTF8`, read `filesize`, optionally read `units` NULL-terminated string
+    array. Always call `iscc_free_sum_code_result(result)` in a `finally` block — this function
+    takes the struct **by value** (not by pointer).
 
 ### SumCodeResult record type
 
@@ -80,6 +81,11 @@ public sealed record SumCodeResult(
 - **`EncodeBase64(ReadOnlySpan<byte> data)`**: Same pattern — `fixed`, call, consume.
 - **`JsonToDataUrl(string json)`**: Same pattern as text utilities — `ToNativeUtf8`, `fixed`, call,
     consume.
+
+### GenAudioCodeV0 signature
+
+Takes `ReadOnlySpan<int> cv` + `uint bits = 64`. NativeMethods signature:
+`iscc_gen_audio_code_v0(int* cv, nuint cv_len, uint bits)`.
 
 ### GenIsccCodeV0 signature note
 
@@ -113,7 +119,7 @@ specific input data (pixels, audio features, video frames), use small synthetic 
 to verify P/Invoke marshaling works, not to test algorithm correctness (that's `ConformanceSelftest`
 and future data.json conformance tests). Examples:
 
-- `GenImageCodeV0`: 1024-byte array of zeros (32×32 grayscale)
+- `GenImageCodeV0`: 1024-byte array of zeros (32x32 grayscale)
 - `GenAudioCodeV0`: small `int[]` of arbitrary values (minimum ~32 elements)
 - `GenVideoCodeV0`: 2-3 frames of small `int[]` arrays
 - `GenMixedCodeV0`/`GenIsccCodeV0`: use outputs from other gen functions as input codes
