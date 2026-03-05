@@ -35,10 +35,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
-    (gate), Node.js, WASM, C FFI, Java, Go, Bench, **Ruby** (12 total); no dotnet job yet
+    (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** (**13 total**) ✅
 - `packages/dotnet/` — scaffold: `Iscc.Lib/IsccLib.cs` (partial class, ConformanceSelftest only),
-    `Iscc.Lib.Tests/SmokeTests.cs` (1 xUnit test); `dotnet test` needs
-    `-e LD_LIBRARY_PATH=target/debug` (shell-level alone insufficient for vstest host)
+    `Iscc.Lib.Tests/SmokeTests.cs` (1 xUnit test), `.gitignore` (bin/obj excluded); `dotnet test`
+    needs `-e LD_LIBRARY_PATH=target/debug` (shell-level alone insufficient for vstest host)
 - `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -65,20 +65,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 62253db)
+## Current State (assessed-at: 2ca9901)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22709532828); **C#/.NET scaffold committed**
+- **IN_PROGRESS**: all 13 CI jobs green (run 22711616491); **.NET CI job added**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET scaffold**: `packages/dotnet/` created — `IsccLib.cs` (ConformanceSelftest via
-    DllImport), xUnit smoke test (1 test), .devcontainer/Dockerfile .NET 8 SDK install
-- **CI (run 22709532828)**: ALL SUCCESS — 12 jobs (no dotnet job yet)
+- **C#/.NET**: scaffold + CI job committed; full P/Invoke surface (csbindgen) is next
+- **CI (run 22711616491)**: ALL SUCCESS — 13 jobs including `C# / .NET (dotnet build, test)` ✅
 - **release.yml**: 6 checkboxes + 6 smoke test jobs: test-wheels/napi/wasm/jni/ffi/gem ✅
 - **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
 - **Test counts (Rust)**: 316 (default features)
 - **docs/**: 8 howto files; `docs/ruby-api.md` ✅; `docs/c-ffi-api.md` ✅
 - **packages/**: `go/` + `dotnet/` (scaffold only); `cpp/`, `swift/`, `kotlin/` do NOT exist
 - **crates/iscc-rb/CLAUDE.md**: added with detailed cross-compilation guidance
-- **Next action**: .NET CI job in ci.yml + expand P/Invoke surface (csbindgen or manual)
+- **Next action**: csbindgen P/Invoke layer (NativeMethods.g.cs) + idiomatic C# wrappers
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 

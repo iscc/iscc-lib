@@ -1,15 +1,15 @@
-<!-- assessed-at: 62253dbfae0ec97247eb887a3eab875ffd3f9839 -->
+<!-- assessed-at: 2ca9901c13a1fe1d60e8f16db7c1ef03d534a18e -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C#/.NET scaffold committed; csbindgen P/Invoke layer is next
+## Phase: .NET CI job added; csbindgen P/Invoke layer is next
 
-v0.2.0 released across all 8 registries. The CID loop completed its first C#/.NET iteration,
-committing a minimal `packages/dotnet/` scaffold that proves end-to-end P/Invoke into `iscc-ffi` via
-`ConformanceSelftest()`. The next step is expanding to the full P/Invoke surface (csbindgen or
-manual) plus CI job. All 12 CI jobs remain green.
+v0.2.0 released across all 8 registries. The CID loop completed its second C#/.NET iteration, adding
+a `C# / .NET (dotnet build, test)` CI job that passes on every push. The scaffold (1 P/Invoke
+function, 1 smoke test) is now validated in CI. The next step is expanding to the full P/Invoke
+surface via csbindgen plus idiomatic C# wrappers.
 
 ## Rust Core Crate
 
@@ -48,7 +48,7 @@ manual) plus CI job. All 12 CI jobs remain green.
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance ✅
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20` ✅
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported ✅
-- `WASM (wasm-pack test)` = SUCCESS in CI run 22709532828 ✅
+- `WASM (wasm-pack test)` = SUCCESS in CI run 22711616491 ✅
 
 ## C FFI
 
@@ -95,19 +95,20 @@ manual) plus CI job. All 12 CI jobs remain green.
 
 ## C# / .NET Bindings
 
-**Status**: partially met (scaffold committed; major gaps remain)
+**Status**: partially met (scaffold + CI job committed; full P/Invoke surface and wrappers missing)
 
 - `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET 8 class library project ✅
 - `packages/dotnet/Iscc.Lib/IsccLib.cs` — `public static partial class IsccLib` with one P/Invoke:
     `ConformanceSelftest()` → `iscc_conformance_selftest` ✅
 - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — 1 xUnit smoke test (passes) ✅
+- `packages/dotnet/.gitignore` — excludes `bin/` and `obj/` artifacts ✅
 - `.devcontainer/Dockerfile` — .NET SDK 8 installation via Microsoft install script ✅
+- CI job `C# / .NET (dotnet build, test)` — added to `ci.yml`; passes in run 22711616491 ✅
 - **Missing**: csbindgen auto-generation of `NativeMethods.g.cs` from `iscc.h` — the full P/Invoke
     surface (31 remaining functions) is not yet wired up
 - **Missing**: Idiomatic C# wrappers for all 32 Tier 1 symbols (PascalCase, exceptions, Stream
     support, result record types)
 - **Missing**: Conformance tests against `data.json` (xUnit)
-- **Missing**: CI job in `ci.yml` (dotnet build + dotnet test)
 - **Missing**: Release pipeline (`release.yml` `nuget` input, multi-platform NuGet pack + publish)
 - **Missing**: Version sync integration for .NET project version
 - **Missing**: Documentation (`docs/howto/dotnet.md`, README C# install/quickstart section)
@@ -175,33 +176,32 @@ manual) plus CI job. All 12 CI jobs remain green.
 
 ## CI/CD and Publishing
 
-**Status**: met (for existing bindings; dotnet CI job not yet added)
+**Status**: met (for existing bindings; NuGet + C++/Swift/Kotlin publish not yet added)
 
-- **ALL PASSING** — latest CI run 22709532828: all **12 jobs** SUCCESS ✅
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22709532828
-- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest), Node.js, WASM, C
-    FFI, Java, Go, Bench, Ruby — all SUCCESS ✅
+- **ALL PASSING** — latest CI run 22711616491: all **13 jobs** SUCCESS ✅
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22711616491
+- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
+    WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** — all SUCCESS ✅
 - `release.yml` has 6 registry `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
     RubyGems ✅
 - **6 smoke test jobs implemented** — each gates its publish job ✅
 - `build-gem` job: 5 platforms via `oxidize-rb/actions/cross-gem@v1` ✅
 - **RubyGems publish switched to OIDC** trusted publishing ✅
 - v0.2.0 released successfully across all 8 registries ✅
-- **Gap**: No `dotnet` CI job yet (`normal` priority); no C++/Swift/Kotlin CI jobs (`low` priority)
+- **Gap**: No `nuget` publish job in `release.yml` yet (`normal` priority)
+- **Gap**: No C++/Swift/Kotlin CI or publish jobs (`low` priority)
 
 ## Next Milestone
 
-**C#/.NET full P/Invoke layer + CI job** — the scaffold (1 function + 1 smoke test) is committed.
-The next CID step should expand the P/Invoke surface and add the CI job.
+**C#/.NET full P/Invoke layer** — the scaffold (1 function + 1 smoke test) and CI job are committed
+and green. The next CID step should expand the P/Invoke surface.
 
-Recommended next work package (either order):
+Recommended next work package:
 
-1. **CI job** (`ci.yml`): Add `dotnet` job — `cargo build -p iscc-ffi`, then `dotnet build` +
-    `dotnet test` with `env: LD_LIBRARY_PATH: ${{ github.workspace }}/target/debug`. This validates
-    the scaffold in CI and unblocks later steps.
-2. **csbindgen P/Invoke layer** (`NativeMethods.g.cs`): Add `csbindgen` build step in
-    `crates/iscc-ffi/build.rs` or a separate tool crate to auto-generate P/Invoke declarations from
-    `iscc.h` for all 10 `gen_*_v0` functions + supporting types. Then add idiomatic C# wrappers.
-
-Adding the CI job first is lower risk — it validates the existing scaffold end-to-end in CI before
-expanding the P/Invoke surface.
+1. **csbindgen P/Invoke layer**: Add `csbindgen` build step in `crates/iscc-ffi/build.rs` (or a
+    dedicated tool crate) to auto-generate `NativeMethods.g.cs` from `iscc.h` covering all 10
+    `gen_*_v0` functions plus supporting types (`IsccDecodeResult`, `IsccSumCodeResult`, etc.)
+2. **Idiomatic C# wrappers**: `IsccLib` PascalCase static methods wrapping the P/Invoke layer, with
+    exceptions instead of error codes, `Stream` support for streaming calls, and result record
+    types (`IsccResult`, `IsccDecodeResult`)
+3. **Conformance tests**: xUnit tests reading `data.json` and verifying all 10 `gen_*_v0` vectors
