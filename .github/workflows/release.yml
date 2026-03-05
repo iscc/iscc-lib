@@ -775,11 +775,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
+      - name: Configure RubyGems credentials (OIDC trusted publishing)
+        uses: rubygems/configure-rubygems-credentials@main
       - name: Get workspace version
         id: version
         run: |
@@ -808,7 +811,7 @@ jobs:
         working-directory: crates/iscc-rb
       - name: Publish gems
         if: steps.check.outputs.skip != 'true'
-        run: |
+        run: |-
           # Publish precompiled platform gems
           for gem in gems/*.gem; do
             echo "Publishing $gem"
@@ -819,5 +822,3 @@ jobs:
             echo "Publishing $gem"
             gem push "$gem"
           done
-        env:
-          GEM_HOST_API_KEY: ${{ secrets.GEM_HOST_API_KEY }}
