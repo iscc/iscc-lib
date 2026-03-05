@@ -123,14 +123,12 @@ iterations.
 
 ## Project Status
 
-- **C#/.NET bindings: scaffold committed, CI job next** — issue promoted from `low` to `normal` by
-    human (commit `db921b9`). v0.2.0 released, 12 CI jobs green, all 7 existing bindings "met"
+- **C#/.NET bindings: scaffold + CI done, csbindgen P/Invoke next**
+- v0.2.0 released, 13 CI jobs green, all 7 existing bindings "met"
 - C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
-- Multi-step sequence: scaffold ✅ → CI job → csbindgen → wrappers → conformance → release → docs
-- Scaffold proved: 1 P/Invoke (`ConformanceSelftest`) + 1 xUnit smoke test passes locally
-- **CI before csbindgen**: lower risk — validates scaffold end-to-end in CI before expanding surface
+- Multi-step sequence: scaffold ✅ → CI job ✅ → csbindgen → wrappers → conformance → release → docs
 - .NET CI pattern: `actions/setup-dotnet@v4` (not Microsoft install script),
-    `cargo build -p   iscc-ffi`, `dotnet build`, `dotnet test -e LD_LIBRARY_PATH=...`
+    `cargo build -p iscc-ffi`, `dotnet build`, `dotnet test -e LD_LIBRARY_PATH=...`
 
 ## C# / .NET Binding Architecture
 
@@ -143,6 +141,18 @@ iterations.
 - .NET 8 SDK not in default Debian Bookworm repos — use Microsoft install script
     (`https://dot.net/v1/dotnet-install.sh`)
 - Tests need `LD_LIBRARY_PATH=target/debug` to find the FFI shared library
+
+## csbindgen Integration Notes
+
+- csbindgen 1.9.7 is a library crate (not CLI) — must be used in build.rs or a standalone binary
+- No build.rs exists for `crates/iscc-ffi/` — cbindgen runs as CLI in CI only (freshness check)
+- All FFI code is in single `crates/iscc-ffi/src/lib.rs` (~48 `extern "C"` functions)
+- Rust 2024 edition uses `#[unsafe(no_mangle)]` — csbindgen parses `extern "C" fn` signatures,
+    should still work. Fallback: use `input_bindgen_file` with iscc.h
+- csbindgen generates `unsafe` code — .csproj needs `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>`
+- Generated NativeMethods.g.cs should be committed (like iscc.h) for standalone .NET builds
+- Duplicate P/Invoke declarations across classes (IsccLib.cs + NativeMethods.g.cs) are harmless —
+    each class has its own declaration resolved independently at runtime
 
 ## Release Smoke Test Architecture
 
