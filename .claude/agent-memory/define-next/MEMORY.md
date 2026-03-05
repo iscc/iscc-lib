@@ -159,8 +159,15 @@ iterations.
 - NativeMethods.g.cs string functions use `byte*` — need manual UTF-8 marshaling via
     `System.Text.Encoding.UTF8`, not `Marshal.StringToHGlobalAnsi` (which is ANSI, not UTF-8)
 - `iscc_last_error()` returns thread-local static pointer — do NOT free with `iscc_free_string()`
-- Estimated wrapper sequence: 14 symbols (step 1) → ~10 (step 2: remaining gen + codec + encoding) →
-    ~8 (step 3: streaming types + algorithm primitives)
+- Actual wrapper sequence: 14 symbols (step 1 ✅) → 8 (step 2: remaining gen + encoding) → 6 (step 3:
+    codec + sliding_window) → 4 (step 4: algo primitives returning byte buffers) → 2 (step 5:
+    streaming IDisposable)
+- **Jagged array marshaling** (`int[][]` → `int**`): Use `GCHandle.Alloc` per inner array, build
+    pointer array, `fixed` on outer. Must free handles in `finally` block
+- **String array input** (`string[]` → `byte**`): Same GCHandle pattern as jagged arrays —
+    ToNativeUtf8 each string, pin each byte[], build byte\*[] from addresses
+- **Struct return** (IsccSumCodeResult): Always free with corresponding `iscc_free_*()` in finally.
+    Check `ok` field before reading other fields. `units` is NULL-terminated `byte**` array
 
 ## Release Smoke Test Architecture
 

@@ -1,182 +1,141 @@
 # Next Work Package
 
-## Step: Idiomatic C# wrappers — infrastructure, constants, text utilities, and simple gen functions
+## Step: C# wrappers — remaining gen functions + encoding utilities
 
 ## Goal
 
-Establish the C# marshaling infrastructure (exception type, UTF-8 string conversion helpers, error
-checking) and wrap the first 14 of 32 Tier 1 symbols with idiomatic PascalCase static methods. This
-is the foundation — subsequent steps add remaining symbols mechanically.
+Add idiomatic C# wrappers for the 6 remaining gen functions (`GenImageCodeV0`, `GenAudioCodeV0`,
+`GenVideoCodeV0`, `GenMixedCodeV0`, `GenIsccCodeV0`, `GenSumCodeV0`) plus 2 encoding utilities
+(`EncodeBase64`, `JsonToDataUrl`). This completes all 10 gen functions in C# and introduces 4 new
+marshaling patterns (int arrays, string arrays, jagged int arrays, struct returns) that enable the
+remaining wrapper steps.
 
 ## Scope
 
-- **Create**: `packages/dotnet/Iscc.Lib/IsccException.cs`
-- **Modify**: `packages/dotnet/Iscc.Lib/IsccLib.cs`
-- **Reference**: `packages/dotnet/Iscc.Lib/NativeMethods.g.cs`,
-    `.claude/context/specs/dotnet-bindings.md`, `crates/iscc-ffi/src/lib.rs`
+- **Create**: (none)
+- **Modify**:
+    1. `packages/dotnet/Iscc.Lib/IsccLib.cs` — add 8 new public methods + `SumCodeResult` record type
+        \+ private helpers for new marshaling patterns
+    2. `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — add tests for all 8 new symbols
+- **Reference**:
+    - `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` — P/Invoke signatures and struct definitions
+    - `packages/dotnet/Iscc.Lib/IsccException.cs` — exception type (already exists)
+    - `crates/iscc-ffi/src/lib.rs` — FFI implementation for behavior reference
+    - `crates/iscc-jni/src/lib.rs` — Java JNI wrappers for pattern reference (especially
+        GenVideoCodeV0 jagged array handling)
 
 ## Not In Scope
 
-- Result record types (`MetaCodeResult`, `SumCodeResult`, etc.) — those are needed for
-    `GenSumCodeV0` and `IsccDecode`, which are more complex and belong in a separate step
-- Streaming types (`IsccDataHasher`, `IsccInstanceHasher` implementing `IDisposable`) — separate
-    step after all static methods are wrapped
-- Complex gen functions that take array-of-arrays or return structs: `GenVideoCodeV0`,
-    `GenMixedCodeV0`, `GenIsccCodeV0`, `GenSumCodeV0` — defer to next step
-- Codec functions (`IsccDecode`, `IsccDecompose`, `EncodeComponent`) — defer to next step
-- Algorithm primitives (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`) — defer
-- Encoding utilities (`EncodeBase64`, `JsonToDataUrl`) — defer
-- `SlidingWindow` — defer
-- Conformance tests against `data.json` — separate step (needs result records for Gen functions)
-- SafeHandle pattern — needed for streaming types, not for string-returning functions
-- NuGet packaging and release pipeline
-- Documentation (howto guide, README section)
+- Codec functions (`IsccDecode`, `IsccDecompose`, `EncodeComponent`) — separate step with
+    `DecodeResult` record type and string-array return marshaling
+- Algorithm primitives (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`) — these
+    return `IsccByteBuffer` structs, different marshaling from gen functions
+- `SlidingWindow` — returns string array (same step as codec)
+- Streaming types (`DataHasher`, `InstanceHasher` with `IDisposable`) — separate step
+- Conformance tests against `data.json` — separate step after all 32 symbols are wrapped
+- Documentation (`docs/howto/dotnet.md`, README C# section) — after wrapper layer is complete
+- NuGet packaging and release pipeline — separate step
 
 ## Implementation Notes
 
-### IsccException.cs
+### New marshaling patterns needed
 
-Simple exception class for ISCC errors:
+1. **`int[]` input** (`GenAudioCodeV0`): Pin with `fixed (int* pCv = cv)`, pass length as
+    `(nuint)cv.Length`. Same pattern as `byte[]` in `GenDataCodeV0`.
 
-```csharp
-namespace Iscc.Lib;
+2. **`int[][]` jagged array** (`GenVideoCodeV0`): Most complex pattern. Each inner `int[]` must be
+    pinned simultaneously. Use `GCHandle.Alloc(arr, GCHandleType.Pinned)` for each inner array,
+    build `int*[]` and `nuint[]` arrays from pinned addresses, then `fixed` on those outer arrays.
+    Free all handles in a `finally` block. NativeMethods signature:
+    `iscc_gen_video_code_v0(int** frame_sigs, nuint* frame_lens, nuint num_frames, uint bits)`
 
-public class IsccException : Exception
-{
-    public IsccException(string message) : base(message) { }
-}
-```
+3. **`string[]` input** (`GenMixedCodeV0`, `GenIsccCodeV0`): Convert each string to UTF-8 `byte[]`
+    via `ToNativeUtf8`, pin each with `GCHandle`, build `byte*[]` from pinned addresses, `fixed` on
+    the pointer array. Free handles in `finally`. NativeMethods signatures use
+    `byte** codes, nuint num_codes`.
 
-### Marshaling Infrastructure in IsccLib.cs
+4. **Struct return + free** (`GenSumCodeV0`): Returns `IsccSumCodeResult` struct (defined in
+    NativeMethods.g.cs). Create a managed `SumCodeResult` record class to hold the result. Marshal
+    fields: check `ok` field (throw on false), read `iscc`/`datahash` strings via
+    `Marshal.PtrToStringUTF8`, read `filesize`, optionally read `units` NULL-terminated string
+    array. Always call `iscc_free_sum_code_result()` in a `finally` block.
 
-Add private helper methods inside the `IsccLib` class. All string-returning FFI functions follow the
-same pattern: call native → check null → marshal UTF-8 → free native string → return managed string.
+### SumCodeResult record type
 
-**Key helpers (private, inside IsccLib):**
-
-1. **`ToNativeUtf8(string? s)`** — converts a C# string to a pinned UTF-8 `byte[]` for passing to
-    native code. Returns `null` for null input. Uses `System.Text.Encoding.UTF8.GetBytes` + null
-    terminator.
-
-2. **`ConsumeNativeString(byte* ptr)`** — marshals a native UTF-8 `byte*` to a managed `string`,
-    then calls `NativeMethods.iscc_free_string(ptr)`. Throws `IsccException` if ptr is null (reads
-    `NativeMethods.iscc_last_error()` for the message).
-
-3. **`GetLastError()`** — reads `NativeMethods.iscc_last_error()`, returns the error string or a
-    generic fallback.
-
-**Pattern for every string-returning wrapper:**
+Define inside or alongside `IsccLib` in `IsccLib.cs`:
 
 ```csharp
-public static string GenTextCodeV0(string text, uint bits = 64)
-{
-    byte[] nativeText = ToNativeUtf8(text);
-    unsafe
-    {
-        fixed (byte* pText = nativeText)
-        {
-            byte* result = NativeMethods.iscc_gen_text_code_v0(pText, bits);
-            return ConsumeNativeString(result);
-        }
-    }
-}
+/// <summary>Result of GenSumCodeV0 — composite ISCC-CODE with file metadata.</summary>
+public sealed record SumCodeResult(
+    string Iscc,
+    string Datahash,
+    ulong Filesize,
+    string[]? Units);
 ```
 
-### Constants (5 symbols)
+### Simple wrappers (follow existing patterns)
 
-Expose as `public static uint` read-only properties delegating to `NativeMethods`:
+- **`GenImageCodeV0(ReadOnlySpan<byte> pixels, uint bits = 64)`**: Same pattern as `GenDataCodeV0` —
+    `fixed (byte* p = pixels)`, call native, `ConsumeNativeString`.
+- **`EncodeBase64(ReadOnlySpan<byte> data)`**: Same pattern — `fixed`, call, consume.
+- **`JsonToDataUrl(string json)`**: Same pattern as text utilities — `ToNativeUtf8`, `fixed`, call,
+    consume.
 
-- `MetaTrimName` → `NativeMethods.iscc_meta_trim_name()`
-- `MetaTrimDescription` → `NativeMethods.iscc_meta_trim_description()`
-- `MetaTrimMeta` → `NativeMethods.iscc_meta_trim_meta()`
-- `IoReadSize` → `NativeMethods.iscc_io_read_size()`
-- `TextNgramSize` → `NativeMethods.iscc_text_ngram_size()`
+### GenIsccCodeV0 signature note
 
-### Text Utilities (4 symbols)
+Unlike other gen functions, `GenIsccCodeV0` takes `bool wide` instead of `uint bits`. The
+NativeMethods signature is: `iscc_gen_iscc_code_v0(byte** codes, nuint num_codes, bool wide)`.
+Default: `wide = false`.
 
-All take `string` input, return `string`:
+### GenSumCodeV0 signature
 
-- `TextClean(string text)` → `iscc_text_clean`
-- `TextRemoveNewlines(string text)` → `iscc_text_remove_newlines`
-- `TextTrim(string text, uint nbytes)` → `iscc_text_trim`
-- `TextCollapse(string text)` → `iscc_text_collapse`
+Takes file path (string) + bits + wide + addUnits. NativeMethods signature:
+`iscc_gen_sum_code_v0(byte* path, uint bits, bool wide, bool add_units)`. Returns
+`IsccSumCodeResult` struct. Must free with `iscc_free_sum_code_result()`. Default:
+`bits = 64, wide = false, addUnits = false`.
 
-### Gen Functions (4 symbols)
+### Units array marshaling in SumCodeResult
 
-String-returning gen functions with simple input types:
-
-- `GenMetaCodeV0(string name, string? description, string? meta, uint bits)` — 3 string inputs
-    (description and meta are nullable, pass null pointer for null C# string)
-- `GenTextCodeV0(string text, uint bits)` — single string input
-- `GenDataCodeV0(ReadOnlySpan<byte> data, uint bits)` — byte span input, uses `fixed` pinning
-- `GenInstanceCodeV0(ReadOnlySpan<byte> data, uint bits)` — same pattern as DataCode
-
-### ConformanceSelftest Refactoring
-
-Refactor the existing hand-written `DllImport` in `IsccLib.cs` to delegate to
-`NativeMethods.iscc_conformance_selftest()` instead of its own `DllImport`. Remove the duplicate
-`DllImport` and `LibName` constant.
-
-### AllowUnsafeBlocks
-
-The `.csproj` already has `<AllowUnsafeBlocks>true</AllowUnsafeBlocks>` — no change needed.
-
-### Using Directives
-
-Add `using System.Text;` for `Encoding.UTF8` and `using System.Runtime.InteropServices;` (already
-present). Also add `using System.Runtime.CompilerServices;` if using `Unsafe.` helpers (likely not
-needed).
-
-### Byte Span to Native Pointer
-
-For `GenDataCodeV0` and `GenInstanceCodeV0`, accept `ReadOnlySpan<byte>`:
+The `units` field is `byte** units` — a NULL-terminated array of UTF-8 strings. Walk until null:
 
 ```csharp
-public static string GenDataCodeV0(ReadOnlySpan<byte> data, uint bits = 64)
-{
-    unsafe
-    {
-        fixed (byte* pData = data)
-        {
-            byte* result = NativeMethods.iscc_gen_data_code_v0(pData, (nuint)data.Length, bits);
-            return ConsumeNativeString(result);
-        }
-    }
-}
+List<string> unitsList = new();
+for (int i = 0; result.units[i] != null; i++)
+    unitsList.Add(Marshal.PtrToStringUTF8((IntPtr)result.units[i])!);
 ```
 
-### Default Parameter Values
+Pass `null` for `Units` when `addUnits` is `false` (units pointer will be NULL).
 
-Match other bindings: `bits = 64` default for all gen/text functions. `GenMetaCodeV0` has
-`description = null, meta = null, bits = 64`.
+### Test patterns
 
-### Error Handling
+Each new wrapper should have at least one smoke test. For content-code gen functions that need
+specific input data (pixels, audio features, video frames), use small synthetic arrays — the goal is
+to verify P/Invoke marshaling works, not to test algorithm correctness (that's `ConformanceSelftest`
+and future data.json conformance tests). Examples:
 
-All FFI functions that return `byte*` (string) return NULL on error and set a thread-local error
-message readable via `iscc_last_error()`. The `ConsumeNativeString` helper must check for null, read
-the error, and throw `IsccException`.
-
-`iscc_last_error()` returns a pointer that must NOT be freed — it's thread-local static storage. Use
-`Marshal.PtrToStringUTF8` to read it without freeing.
+- `GenImageCodeV0`: 1024-byte array of zeros (32×32 grayscale)
+- `GenAudioCodeV0`: small `int[]` of arbitrary values (minimum ~32 elements)
+- `GenVideoCodeV0`: 2-3 frames of small `int[]` arrays
+- `GenMixedCodeV0`/`GenIsccCodeV0`: use outputs from other gen functions as input codes
+- `GenSumCodeV0`: create a temp file with some content, pass its path — verify `SumCodeResult`
+    fields are populated (Iscc starts with "ISCC:", Filesize > 0)
+- `EncodeBase64`: encode known bytes, verify output matches expected base64url string
+- `JsonToDataUrl`: pass valid JSON, verify result starts with `data:`
 
 ## Verification
 
+- `cargo build -p iscc-ffi` succeeds (no Rust changes expected, confirms FFI lib builds)
 - `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds with 0 errors, 0 warnings
 - `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` succeeds
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj -e LD_LIBRARY_PATH=target/debug`
-    passes (existing ConformanceSelftest smoke test still works after refactoring to NativeMethods)
-- `IsccLib.cs` contains at least these public methods: `ConformanceSelftest`, `TextClean`,
-    `TextRemoveNewlines`, `TextTrim`, `TextCollapse`, `GenMetaCodeV0`, `GenTextCodeV0`,
-    `GenDataCodeV0`, `GenInstanceCodeV0`
-- `IsccLib.cs` contains at least these public properties: `MetaTrimName`, `MetaTrimDescription`,
-    `MetaTrimMeta`, `IoReadSize`, `TextNgramSize`
-- `IsccException.cs` exists in `packages/dotnet/Iscc.Lib/`
-- No duplicate `DllImport` declarations in `IsccLib.cs` — all P/Invoke calls go through
-    `NativeMethods`
-- `cargo clippy -p iscc-ffi -- -D warnings` is still clean (no Rust changes in this step)
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug` — all tests
+    pass (16 existing + at least 8 new = 24+ total)
+- `grep -c 'public static string Gen.*CodeV0\|public static SumCodeResult Gen' packages/dotnet/Iscc.Lib/IsccLib.cs`
+    returns 10 (all 10 gen functions wrapped)
+- `grep -c 'public sealed record SumCodeResult' packages/dotnet/Iscc.Lib/IsccLib.cs` returns 1
+- `mise run check` — all hooks pass
 
 ## Done When
 
-All seven verification criteria pass — the C# project builds, the existing smoke test still passes,
-and 14 Tier 1 symbols (5 constants + 4 text utilities + 4 gen functions + ConformanceSelftest) are
-wrapped with idiomatic PascalCase methods delegating to `NativeMethods`.
+All verification criteria pass — all 10 gen functions and 2 encoding utilities are callable from C#
+with correct marshaling, `SumCodeResult` record type exists, and 24+ tests pass including smoke
+tests for all 8 new symbols.
