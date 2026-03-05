@@ -7,7 +7,7 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Implement C# / .NET bindings via csbindgen `low` [human]
+## Implement C# / .NET bindings via csbindgen `normal` [human]
 
 Add C# / .NET bindings as a new package in `packages/dotnet/` using `csbindgen` to generate P/Invoke
 wrappers from the existing `iscc-ffi` C API. Published to NuGet as `Iscc.Lib`.
