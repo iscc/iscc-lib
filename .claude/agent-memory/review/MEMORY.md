@@ -93,7 +93,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - `iscc.hpp` bundled in FFI release tarballs (iteration 12) — flat layout alongside `iscc.h`
 - Codex include-path finding on flat tarball layout: dismiss when scope explicitly constrains
     layout. Tarball consumers use `#include "iscc.hpp"`, CMake/vcpkg users get `<iscc/iscc.hpp>`
-    from proper include dirs. Document distinction in `docs/howto/c-cpp.md`
+    from proper include dirs. Now documented in `docs/howto/c-cpp.md` (iteration 13)
+- C++ docs complete (iteration 13): `packages/cpp/README.md`, howto `iscc.hpp` section, root README
+    C++ install/quickstart. Remaining C++ issue items: vcpkg.json, conanfile.py, gen_mixed_code_v0
+    test, nested vector null-safety
 
 ## Environment
 

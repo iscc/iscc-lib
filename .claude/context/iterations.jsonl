@@ -904,3 +904,8 @@
 {"ts":"2026-03-07T21:46:45.643759+00:00","iteration":12,"role":"define-next","status":"OK","turns":21,"cost_usd":0.750177,"duration_s":167.0}
 {"ts":"2026-03-07T21:50:12.231894+00:00","iteration":12,"role":"advance","status":"OK","turns":17,"cost_usd":0.399761,"duration_s":206.6}
 {"iteration":12,"phase":"review","timestamp":"2026-03-07T21:53:22Z","verdict":"PASS","step":"Bundle iscc.hpp in FFI release tarballs","summary":"2-line YAML change adds iscc.hpp to Unix and Windows FFI staging steps. All 3 verification criteria pass. No scope issues."}
+{"ts":"2026-03-07T21:55:46.383349+00:00","iteration":12,"role":"review","status":"OK","turns":1,"cost_usd":0.880477,"duration_s":334.1}
+{"ts":"2026-03-07T22:36:55.915204+00:00","iteration":13,"role":"update-state","status":"OK","turns":23,"cost_usd":0.797874,"duration_s":287.7}
+{"ts":"2026-03-07T22:40:05.599865+00:00","iteration":13,"role":"define-next","status":"OK","turns":23,"cost_usd":0.889697,"duration_s":189.7}
+{"ts":"2026-03-07T22:47:54.237202+00:00","iteration":13,"role":"advance","status":"OK","turns":40,"cost_usd":1.430016,"duration_s":468.6}
+{"iteration":13,"phase":"review","timestamp":"2026-03-07T22:52:32Z","verdict":"PASS","step":"Add C++ documentation (README, howto, root README)","summary":"Docs-only step. packages/cpp/README.md created, docs/howto/c-cpp.md C++ section replaced with iscc.hpp docs, README.md updated with C++ install/quickstart. All 10 verification criteria pass."}
