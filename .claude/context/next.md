@@ -1,147 +1,89 @@
 # Next Work Package
 
-## Step: C# structured result records (Results.cs + gen function return type refactor)
+## Step: C# streaming hasher Finalize() return types
 
 ## Goal
 
-Refactor all 9 `string`-returning gen functions in `IsccLib.cs` to return typed result records,
-matching the Rust core's structured return types. This establishes the idiomatic C# API surface
-specified in the dotnet-bindings spec and also fixes the 4 remaining empty-span NULL pointer bugs.
+Change `IsccDataHasher.Finalize()` and `IsccInstanceHasher.Finalize()` to return typed result
+records (`DataCodeResult` / `InstanceCodeResult`) instead of raw `string`, aligning streaming
+hashers with the structured return pattern already used by all 10 gen functions.
 
 ## Scope
 
-- **Create**:
-    - `packages/dotnet/Iscc.Lib/Results.cs` — 11 `sealed record` types: 9 new gen-function results
-        (`MetaCodeResult`, `TextCodeResult`, `ImageCodeResult`, `AudioCodeResult`, `VideoCodeResult`,
-        `MixedCodeResult`, `DataCodeResult`, `InstanceCodeResult`, `IsccCodeResult`) + 2 relocated
-        from `IsccLib.cs` (`SumCodeResult`, `DecodeResult`)
+- **Create**: (none)
 - **Modify**:
-    - `packages/dotnet/Iscc.Lib/IsccLib.cs` — (a) change 9 gen function return types from `string` to
-        their respective record types; (b) remove the `SumCodeResult` and `DecodeResult` definitions
-        (moved to `Results.cs`); (c) fix 4 remaining empty-span NULL pointer bugs in `GenImageCodeV0`,
-        `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64`
+    - `packages/dotnet/Iscc.Lib/IsccDataHasher.cs` — change `Finalize()` return type from `string` to
+        `DataCodeResult`, wrap the consumed native string in `new DataCodeResult(...)`, update
+        docstring
+    - `packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs` — change `Finalize()` return type from `string`
+        to `InstanceCodeResult`, wrap the consumed native string in `new InstanceCodeResult(...)`,
+        update docstring
+    - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — update test methods to use `.Iscc` property on
+        results (tests are excluded from 3-file limit)
 - **Reference**:
-    - `crates/iscc-lib/src/types.rs` — Rust core result struct definitions (field names and types)
-    - `packages/dotnet/Iscc.Lib/IsccLib.cs` — current implementation and existing empty-span fix
-        pattern (see `GenAudioCodeV0`, `GenDataCodeV0`, `GenInstanceCodeV0`)
-    - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — tests that will need `.Iscc` accessor
-    - `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — conformance tests that will need `.Iscc`
-        accessor
-    - `.claude/context/specs/dotnet-bindings.md` — target API shape and record type examples
+    - `packages/dotnet/Iscc.Lib/Results.cs` — `DataCodeResult` and `InstanceCodeResult` record
+        definitions (already exist, read-only)
+    - `packages/dotnet/Iscc.Lib/IsccLib.cs` — for the pattern used by `GenDataCodeV0` /
+        `GenInstanceCodeV0` (they already return typed records)
 
 ## Not In Scope
 
-- **Streaming hasher `Finalize()` return types** — `IsccDataHasher.Finalize()` and
-    `IsccInstanceHasher.Finalize()` currently return `string`; changing them to return
-    `DataCodeResult`/`InstanceCodeResult` is a separate step (would exceed the 3-file limit)
-- **FFI-level structured results** — the C FFI currently returns only the ISCC string via
-    `.map(|r| r.iscc)`. Adding FFI structs to expose additional fields (e.g., `MetaCodeResult.Name`,
-    `TextCodeResult.Characters`, `InstanceCodeResult.DataHash`) requires
-    `crates/iscc-ffi/src/lib.rs` changes + csbindgen regeneration — separate step(s)
-- **Populating additional record fields** — for records whose Rust core type has extra fields (Meta,
-    Text, Mixed, Instance), only the `Iscc` field is populated from FFI. Additional fields will be
-    added when FFI structured result support is implemented
-- **Documentation** — `docs/howto/dotnet.md`, `packages/dotnet/README.md`, README C# section
-- **NuGet publish pipeline** — separate step
+- Adding extra fields (DataHash, FileSize) to `DataCodeResult` or `InstanceCodeResult` — these
+    require C FFI struct changes first and are a separate future step
+- Extracting SafeHandle subclasses to a separate `Native/SafeHandles.cs` file
+- Documentation (`docs/howto/dotnet.md`, `packages/dotnet/README.md`, README C# section)
+- NuGet publish pipeline or version sync
+- Modifying `Results.cs` — the record types already have the correct definitions
 
 ## Implementation Notes
 
-### Record Type Design
+The change is mechanical — each hasher's `Finalize()` method already calls
+`IsccLib.ConsumeNativeString(result)` which returns a `string`. Wrap that string in the record
+constructor:
 
-Use positional `sealed record` syntax matching the existing `SumCodeResult` pattern. All 9 new
-records start with only the `Iscc` field since the C FFI only provides the ISCC string:
-
-```csharp
-/// <summary>Result of GenMetaCodeV0.</summary>
-public sealed record MetaCodeResult(string Iscc);
-
-/// <summary>Result of GenTextCodeV0.</summary>
-public sealed record TextCodeResult(string Iscc);
-
-/// <summary>Result of GenImageCodeV0.</summary>
-public sealed record ImageCodeResult(string Iscc);
-
-/// <summary>Result of GenAudioCodeV0.</summary>
-public sealed record AudioCodeResult(string Iscc);
-
-/// <summary>Result of GenVideoCodeV0.</summary>
-public sealed record VideoCodeResult(string Iscc);
-
-/// <summary>Result of GenMixedCodeV0.</summary>
-public sealed record MixedCodeResult(string Iscc);
-
-/// <summary>Result of GenDataCodeV0.</summary>
-public sealed record DataCodeResult(string Iscc);
-
-/// <summary>Result of GenInstanceCodeV0.</summary>
-public sealed record InstanceCodeResult(string Iscc);
-
-/// <summary>Result of GenIsccCodeV0.</summary>
-public sealed record IsccCodeResult(string Iscc);
-```
-
-For Image, Audio, Video, Data, and IsccCode — these match the Rust core exactly (the Rust types only
-have `iscc`). For Meta, Text, Mixed, and Instance — these are intentionally incomplete and will be
-expanded when FFI structured result support is added.
-
-Also relocate the existing `SumCodeResult` and `DecodeResult` from `IsccLib.cs` into `Results.cs`
-unchanged. They remain in the `Iscc.Lib` namespace so no consumer code breaks.
-
-### Gen Function Return Type Changes
-
-Each gen function wraps its string return in the corresponding record:
+**IsccDataHasher.cs** (line 42-56):
 
 ```csharp
-// Before:
-public static string GenMetaCodeV0(...) { ... return ConsumeNativeString(result); }
-
-// After:
-public static MetaCodeResult GenMetaCodeV0(...)
+// Change return type and docstring
+/// <summary>Finalize the hasher and return the ISCC Data-Code result.</summary>
+public DataCodeResult Finalize(uint bits = 64)
 {
-    ...
-    return new MetaCodeResult(ConsumeNativeString(result));
+    // ... existing validation unchanged ...
+    _finalized = true;
+    unsafe
+    {
+        byte* result = NativeMethods.iscc_data_hasher_finalize(
+            (FfiDataHasher*)(void*)_handle.DangerousGetHandle(), bits);
+        return new DataCodeResult(IsccLib.ConsumeNativeString(result));
+    }
 }
 ```
 
-### Empty-Span NULL Pointer Fixes
+**IsccInstanceHasher.cs** — identical pattern with `InstanceCodeResult`.
 
-Apply the same guard pattern already used in `GenAudioCodeV0`, `GenDataCodeV0`, and
-`GenInstanceCodeV0` to the 4 remaining affected functions:
+**SmokeTests.cs** — test methods that need updates:
 
-- `GenImageCodeV0` — `ReadOnlySpan<byte> pixels`
-- `AlgMinhash256` — `ReadOnlySpan<uint> features`
-- `AlgCdcChunks` — `ReadOnlySpan<byte> data`
-- `EncodeBase64` — `ReadOnlySpan<byte> data`
-
-Pattern: check `span.IsEmpty`, if so use a stack-allocated sentinel variable instead of `fixed`.
-
-### Test Updates (excluded from file count)
-
-Both `SmokeTests.cs` and `ConformanceTests.cs` need updates:
-
-- **SmokeTests.cs**: Change `string result = IsccLib.GenFooV0(...)` to
-    `var result = IsccLib.GenFooV0(...)` and assertions from `result` to `result.Iscc`. The
-    `GenMixedCodeV0` and `GenIsccCodeV0` tests use intermediate gen calls — those intermediate
-    results also need `.Iscc` to extract the string for input to the next function.
-- **ConformanceTests.cs**: Change `string result = IsccLib.GenFooV0(...)` to
-    `var result = IsccLib.GenFooV0(...)` and `Assert.Equal(expected, result)` to
-    `Assert.Equal(expected, result.Iscc)`.
-- **Streaming hasher comparison tests**: `DataHasher_MatchesGenDataCodeV0` and
-    `InstanceHasher_MatchesGenInstanceCodeV0` compare gen result with hasher result. Since hasher
-    still returns `string`, use `expected.Iscc` in the comparison.
+1. `DataHasher_MatchesGenDataCodeV0` (line 358-359): `string result = hasher.Finalize()` →
+    `var result = hasher.Finalize()`, assert `Assert.Equal(expected.Iscc, result.Iscc)`
+2. `DataHasher_ChunkedUpdate_MatchesSingleUpdate` (lines 367-374): both `Finalize()` calls return
+    records now, use `var` and compare `.Iscc` properties
+3. `InstanceHasher_MatchesGenInstanceCodeV0` (line 384-385): same pattern as DataHasher test
+4. `DataHasher_UpdateAfterFinalize_Throws` and `DataHasher_FinalizeAfterFinalize_Throws`: these call
+    `Finalize()` but don't inspect the return value — no change needed (the lambda throws before
+    returning)
 
 ## Verification
 
-- `cargo build -p iscc-ffi` succeeds (no Rust changes, but confirms FFI library builds)
-- `dotnet build packages/dotnet/Iscc.Lib/` succeeds (new Results.cs compiles, modified IsccLib.cs
-    compiles)
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug`
-    passes — all 91 tests (41 smoke + 50 conformance)
-- `grep -c 'sealed record' packages/dotnet/Iscc.Lib/Results.cs` outputs `11` (9 new + 2 relocated)
-- `grep -c 'sealed record' packages/dotnet/Iscc.Lib/IsccLib.cs` outputs `0` (all moved to
-    Results.cs)
+- `cargo build -p iscc-ffi` succeeds (native library unchanged)
+- `dotnet build packages/dotnet/Iscc.Lib/` succeeds with 0 errors
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug` — 91 passed,
+    0 failed
+- `grep -c 'DataCodeResult Finalize' packages/dotnet/Iscc.Lib/IsccDataHasher.cs` returns 1
+- `grep -c 'InstanceCodeResult Finalize' packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs` returns 1
+- `grep -c 'string Finalize' packages/dotnet/Iscc.Lib/IsccDataHasher.cs packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs`
+    returns 0
 
 ## Done When
 
-All verification criteria pass — 9 gen functions return typed result records, 4 empty-span bugs
-fixed, all 91 tests pass with the new return types.
+All 91 .NET tests pass with both `Finalize()` methods returning typed result records instead of
+strings, and no `string Finalize` signatures remain in the hasher files.
