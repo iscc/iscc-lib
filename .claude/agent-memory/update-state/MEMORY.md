@@ -39,11 +39,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** (**13 total**) ✅
-- `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (**30/32 symbols**: 5 consts, 4 text, 10 gen, 2 encode,
-    3 codec, 1 sliding window, 4 alg primitives, 1 diag + SumCodeResult + DecodeResult records),
-    `Iscc.Lib/IsccException.cs`, `Iscc.Lib.Tests/SmokeTests.cs` (**35 tests**), `NativeMethods.g.cs`
-    (csbindgen, 47 externs); `dotnet test` needs `-e LD_LIBRARY_PATH=<abs-path>/target/debug`
-    (vstest host ignores env)
+- `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (**32/32 Tier 1 symbols**: 5 consts, 4 text, 10 gen, 2
+    encode, 3 codec, 1 sliding window, 4 alg primitives, 1 diag + SumCodeResult + DecodeResult
+    records), `IsccDataHasher.cs` + `IsccInstanceHasher.cs` (both IDisposable + SafeHandle),
+    `IsccException.cs`, `SmokeTests.cs` (**41 tests**), `NativeMethods.g.cs` (csbindgen, 47
+    externs); `dotnet test` needs `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores
+    env)
 - `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -70,18 +71,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 20a4624518fc1c8ea20b5b3340739ab5c88c0b79)
+## Current State (assessed-at: 7c52606f5876d174b7c1aa7e35d9c9e9cf3f4067)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22798685708); **C# 30/32 symbols wrapped**
+- **IN_PROGRESS**: all 13 CI jobs green (run 22799496183); **C# 32/32 symbols wrapped**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET**: 4 algorithm primitives added (AlgSimhash, AlgMinhash256, AlgCdcChunks,
-    SoftHashVideoV0) with `IsccByteBuffer`/`IsccByteBufferArray` marshaling; 35 xUnit tests; gen
-    functions still return `string` (9 of 10) — spec requires structured record return types
-- **CI (run 22798685708)**: ALL SUCCESS — 13 jobs ✅
-- **packages/dotnet/**: `IsccLib.cs` (30/32), `IsccException.cs`, `SmokeTests.cs` (35 tests),
-    `NativeMethods.g.cs` (929 lines, 47 externs); `cpp/`, `swift/`, `kotlin/` do NOT exist
-- **Next action**: C# streaming types (IsccDataHasher, IsccInstanceHasher) with `IDisposable` +
-    SafeHandle pattern → 32/32, then structured return types + conformance tests + docs + NuGet
+- **C#/.NET**: streaming hashers added (IsccDataHasher, IsccInstanceHasher); 41 xUnit tests; gen
+    functions still return `string` (9 of 10) — spec requires structured record return types;
+    `Finalize()` returns `string` not `DataCodeResult`/`InstanceCodeResult`
+- **CI (run 22799496183)**: ALL SUCCESS — 13 jobs ✅
+- **packages/dotnet/Iscc.Lib/**: `IsccLib.cs`, `IsccException.cs`, `IsccDataHasher.cs`,
+    `IsccInstanceHasher.cs`, `NativeMethods.g.cs` — `Results.cs` and `Native/SafeHandles.cs` missing
+- **Next action**: structured record return types (`Results.cs` + refactor 9 gen functions + both
+    `Finalize()` methods) → conformance tests → docs → NuGet publish
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
@@ -124,11 +125,9 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     and benchmarks file say "10"
 - **WASM count assertions**: `crates/iscc-wasm/tests/conformance.rs` has per-function
     `assert_eq!(tested, N, ...)` guards. When data.json gains new vectors, BOTH lib.rs AND the WASM
-    conformance test must be updated. Review agents may miss this (check grep result:
-    `grep -n "assert_eq.*tested" crates/iscc-wasm/tests/conformance.rs`)
+    conformance test must be updated.
 - **Ruby JSON sort_keys no-op**: `JSON.generate(hash, sort_keys: true)` silently ignores `sort_keys`
-    in Ruby's stdlib json gem. Use `JSON.generate(hash.sort.to_h)` instead for deterministic key
-    ordering (required for JCS-compatible meta serialization)
+    in Ruby's stdlib json gem. Use `JSON.generate(hash.sort.to_h)` instead.
 - **alg_cdc_chunks API**: public fn returns `IsccResult<Vec<&[u8]>>` (validates
     `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked`
 - **csbindgen**: `crates/iscc-ffi/build.rs` runs csbindgen on every `cargo build`, writing
@@ -139,13 +138,12 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
 - **C# gen function return types**: spec (`dotnet-bindings.md`) requires each `gen_*_v0` to return a
     record type with structured fields — currently 9 of 10 return plain `string`; only
     `GenSumCodeV0` returns `SumCodeResult`. Refactoring needed before spec is fully met.
+- **C# streaming Finalize() return types**: spec says `DataCodeResult`/`InstanceCodeResult` from
+    `Finalize()`; current implementation returns `string`. Must change when `Results.cs` is added.
 - **C# ConsumeNativeStringArray**: private helper marshals `byte**` (NULL-terminated string array)
     from FFI, then calls `iscc_free_string_array`. Reuse for any future `byte**`-returning function.
-- **C# ConsumeByteBuffer/ConsumeByteBufferArray**: private helpers added in iteration 3; marshal
-    `IsccByteBuffer`/`IsccByteBufferArray` structs from FFI (null check + data copy + free). Follow
-    same pattern as `ConsumeNativeString`. Used by `AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`,
-    `SoftHashVideoV0`. Jagged-array inputs use `GCHandle` pinning (same as `GenVideoCodeV0`).
-- **C# streaming next**: `IsccDataHasher`/`IsccInstanceHasher` require `IDisposable` + `SafeHandle`
-    pattern for the opaque native handle. FFI functions: `iscc_data_hasher_new`, `_update`,
-    `_finalize`, `_free` (similarly for instance hasher). Check NativeMethods.g.cs for exact extern
-    signatures.
+- **C# ConsumeByteBuffer/ConsumeByteBufferArray**: marshal `IsccByteBuffer`/`IsccByteBufferArray`
+    structs from FFI (null check + data copy + free). Used by AlgSimhash, AlgMinhash256,
+    AlgCdcChunks, SoftHashVideoV0. Jagged-array inputs use `GCHandle` pinning.
+- **C# DangerousGetHandle() note**: streaming hashers use `DangerousGetHandle()` without
+    `DangerousAddRef/Release` — acceptable for single-threaded use; no concurrent thread safety.
