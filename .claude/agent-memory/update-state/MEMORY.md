@@ -32,6 +32,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **C# conformance test count**:
     `grep -c "\[Theory\]" packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs`
 - **C# record types**: `grep -c "sealed record" packages/dotnet/Iscc.Lib/Results.cs`
+- **C# streaming Finalize check**:
+    `grep -n "public.*Finalize" packages/dotnet/Iscc.Lib/IsccDataHasher.cs packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs`
 
 ## Codebase Landmarks
 
@@ -43,10 +45,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** (**13 total**) ✅
 - `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (**32/32 Tier 1 symbols**), `Results.cs` (**11 sealed
-    records**), `IsccDataHasher.cs` + `IsccInstanceHasher.cs` (IDisposable + SafeHandle),
-    `IsccException.cs`, `SmokeTests.cs` (**41 tests**), `ConformanceTests.cs` (**9 Theory tests, 50
-    vectors**), `testdata/data.json` (84KB vendored), `NativeMethods.g.cs` (csbindgen, 47 externs);
-    `dotnet test` needs `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores env)
+    records**), `IsccDataHasher.cs` + `IsccInstanceHasher.cs` (IDisposable + SafeHandle; both
+    **`Finalize()` returns typed record**), `IsccException.cs`, `SmokeTests.cs` (**41 tests**),
+    `ConformanceTests.cs` (**9 Theory tests, 50 vectors**), `testdata/data.json` (84KB vendored),
+    `NativeMethods.g.cs` (csbindgen, 47 externs); `dotnet test` needs
+    `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores env)
 - `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -73,18 +76,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: a74dfc61dfc6f946c59e18efdeb7259961ff7367)
+## Current State (assessed-at: 109686fcb90d038b4254d8e01ab6ff6d72ce30c7)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22801424050); **C# structured result records complete**
+- **IN_PROGRESS**: all 13 CI jobs green (run 22802326852); **C# streaming Finalize() typed returns
+    DONE**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET**: `Results.cs` created (11 sealed records); all 10 gen functions return typed records;
-    ALL 7 empty-span null pointer bugs fixed; **91 total tests** (41 smoke + 50 conformance);
-    streaming `Finalize()` still returns `string` (not DataCodeResult/InstanceCodeResult)
-- **CI (run 22801424050)**: ALL SUCCESS — 13 jobs ✅
+- **C#/.NET API surface COMPLETE**: `Results.cs` (11 sealed records); all 10 gen functions + both
+    streaming hashers return typed records; ALL 7 empty-span null pointer bugs fixed; **91 total
+    tests** (41 smoke + 50 conformance)
+- **CI (run 22802326852)**: ALL SUCCESS — 13 jobs ✅
 - **packages/dotnet/Iscc.Lib/**: `IsccLib.cs`, `IsccException.cs`, `IsccDataHasher.cs`,
-    `IsccInstanceHasher.cs`, `NativeMethods.g.cs`, **`Results.cs`** — `Native/SafeHandles.cs`
-    missing
-- **Next action**: streaming Finalize() return types → docs → NuGet publish
+    `IsccInstanceHasher.cs`, `NativeMethods.g.cs`, `Results.cs` — `Native/SafeHandles.cs` missing
+- **Next action**: docs (dotnet.md, README, main README C# section) → NuGet publish → version sync
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
@@ -141,8 +144,8 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     simplified — MetaCodeResult, TextCodeResult, InstanceCodeResult only carry `(string Iscc)`. Spec
     requires additional fields (Name/MetaHash/Description/Meta, Characters, DataHash/FileSize) which
     need C FFI struct changes first.
-- **C# streaming Finalize() return types**: spec says `DataCodeResult`/`InstanceCodeResult` from
-    `Finalize()`; current implementation still returns `string`. Next to fix.
+- **C# streaming Finalize() return types**: DONE — `IsccDataHasher.Finalize()` → `DataCodeResult`,
+    `IsccInstanceHasher.Finalize()` → `InstanceCodeResult`. Completed in iteration 7.
 - **C# ConsumeNativeStringArray**: private helper marshals `byte**` (NULL-terminated string array)
     from FFI, then calls `iscc_free_string_array`. Reuse for any future `byte**`-returning function.
 - **C# ConsumeByteBuffer/ConsumeByteBufferArray**: marshal `IsccByteBuffer`/`IsccByteBufferArray`
