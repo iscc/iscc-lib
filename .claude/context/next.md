@@ -1,122 +1,107 @@
 # Next Work Package
 
-## Step: C# codec + sliding window wrappers (4 symbols → 26/32)
+## Step: C# algorithm primitives (4 symbols → 30/32)
 
 ## Goal
 
-Add idiomatic C# wrappers for `IsccDecode`, `IsccDecompose`, `EncodeComponent`, and `SlidingWindow`
-— the codec and utility functions that bring the .NET binding from 22 to 26 of 32 Tier 1 symbols.
-This introduces a `DecodeResult` record type and a shared NULL-terminated string array marshaling
-helper.
+Add the 4 remaining algorithm primitive wrappers (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`,
+`SoftHashVideoV0`) to the C# binding, advancing from 26 to 30 of 32 Tier 1 symbols. These require
+new `IsccByteBuffer` / `IsccByteBufferArray` marshaling helpers that return `byte[]` and `byte[][]`
+instead of strings.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `packages/dotnet/Iscc.Lib/IsccLib.cs` — add `DecodeResult` record, 4 new public methods, and a
-        private `ConsumeNativeStringArray` helper
-    - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — add smoke tests for the 4 new wrappers
+    - `packages/dotnet/Iscc.Lib/IsccLib.cs` — add 4 public methods + 2 private helpers
+    - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — add tests for each new method
 - **Reference**:
-    - `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` — P/Invoke signatures for `iscc_decode`,
-        `iscc_decompose`, `iscc_sliding_window`, `iscc_encode_component`, `iscc_free_decode_result`,
-        `iscc_free_string_array`, and struct types `IsccDecodeResult`, `IsccByteBuffer`
-    - `crates/iscc-ffi/src/lib.rs` — Rust FFI function implementations (for understanding semantics)
+    - `crates/iscc-ffi/src/lib.rs` — FFI signatures for `iscc_alg_simhash`, `iscc_alg_minhash_256`,
+        `iscc_alg_cdc_chunks`, `iscc_soft_hash_video_v0`, `iscc_free_byte_buffer`,
+        `iscc_free_byte_buffer_array`
+    - `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` — generated P/Invoke declarations and
+        `IsccByteBuffer` / `IsccByteBufferArray` struct definitions
 
 ## Not In Scope
 
-- Structured result records for gen functions (`MetaCodeResult`, `TextCodeResult`, etc.) — these are
-    a separate refactoring step that changes existing API surface
-- Algorithm primitives (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`) — these
-    need `IsccByteBuffer` / `IsccByteBufferArray` marshaling and are a separate step
-- Streaming types (`IsccDataHasher`, `IsccInstanceHasher`) — require `IDisposable` + `SafeHandle`
-    pattern, separate step
-- Conformance tests, NuGet publishing, or documentation pages
-- Refactoring existing `GenSumCodeV0` to use the new `ConsumeNativeStringArray` helper (nice-to-have
-    but out of scope to keep the diff focused)
+- Streaming types (`IsccDataHasher`, `IsccInstanceHasher`) — that's the next step (symbols 31-32)
+- Structured result records for gen functions (`MetaCodeResult`, `TextCodeResult`, etc.)
+- Conformance tests (`ConformanceTests.cs` + vendored `data.json`)
+- Documentation (`docs/howto/dotnet.md`, README C# section)
+- Refactoring existing `GenSumCodeV0` to use the new helpers — it has its own inline marshaling that
+    works fine
 
 ## Implementation Notes
 
-### `DecodeResult` record
+### New private helpers (add to IsccLib.cs private section)
 
-Add at namespace level (next to `SumCodeResult`):
+1. **`ConsumeByteBuffer(IsccByteBuffer buf)`** → `byte[]`: Check `buf.data` for null (throw
+    `IsccException(GetLastError())`), copy `buf.len` bytes via
+    `new Span<byte>(buf.data,  (int)buf.len).ToArray()`, then call
+    `NativeMethods.iscc_free_byte_buffer(buf)` in `finally`. Pattern mirrors `ConsumeNativeString`
+    but returns `byte[]` instead of `string`.
 
-```csharp
-public sealed record DecodeResult(
-    byte Maintype, byte Subtype, byte Version, byte Length, byte[] Digest);
-```
+2. **`ConsumeByteBufferArray(IsccByteBufferArray arr)`** → `byte[][]`: Check `arr.buffers` for null
+    (throw), iterate `arr.count` elements copying each buffer's data to `byte[]`, then call
+    `NativeMethods.iscc_free_byte_buffer_array(arr)` in `finally`.
 
-### `IsccDecode` wrapper
+### 4 public wrapper methods
 
-- Call `NativeMethods.iscc_decode(pIscc)` → returns `IsccDecodeResult` struct
-- Check `.ok` field — throw `IsccException(GetLastError())` on failure
-- Copy `.digest.data` to managed `byte[]` using
-    `new Span<byte>(result.digest.data, (int)result.digest.len).ToArray()`
-- Free with `NativeMethods.iscc_free_decode_result(result)` in `finally` block
-- Return
-    `new DecodeResult(result.maintype, result.subtype, result.version, result.length, digestBytes)`
+1. **`AlgSimhash(byte[][] digests)`** → `byte[]`:
 
-### `ConsumeNativeStringArray` private helper
+    - Pin each inner `byte[]` with `GCHandle.Alloc(GCHandleType.Pinned)` (same pattern as
+        `GenVideoCodeV0` but with `byte**` instead of `int**`)
+    - Build `byte*[]` pointer array and `nuint[]` lengths array
+    - Call `NativeMethods.iscc_alg_simhash(pPtrs, pLens, numDigests)`
+    - Return via `ConsumeByteBuffer`
+    - Free GCHandles in `finally`
 
-Extract the NULL-terminated `byte**` → `string[]` pattern (already inlined in `GenSumCodeV0`):
+2. **`AlgMinhash256(ReadOnlySpan<uint> features)`** → `byte[]`:
 
-```csharp
-private static unsafe string[] ConsumeNativeStringArray(byte** arr)
-{
-    if (arr is null)
-        throw new IsccException(GetLastError());
-    try
-    {
-        var list = new List<string>();
-        for (int i = 0; arr[i] != null; i++)
-            list.Add(Marshal.PtrToStringUTF8((IntPtr)arr[i])!);
-        return list.ToArray();
-    }
-    finally
-    {
-        NativeMethods.iscc_free_string_array(arr);
-    }
-}
-```
+    - Simplest — just `fixed (uint* pFeatures = features)` and call
+        `NativeMethods.iscc_alg_minhash_256(pFeatures, (nuint)features.Length)`
+    - Return via `ConsumeByteBuffer`
 
-### `IsccDecompose` and `SlidingWindow` wrappers
+3. **`AlgCdcChunks(ReadOnlySpan<byte> data, bool utf32 = false, uint avgChunkSize = 1024)`** →
+    `byte[][]`:
 
-Both return `string[]` via the `ConsumeNativeStringArray` helper:
+    - `fixed (byte* pData = data)` and call
+        `NativeMethods.iscc_alg_cdc_chunks(pData, (nuint)data.Length, utf32, avgChunkSize)`
+    - Return via `ConsumeByteBufferArray`
 
-- `IsccDecompose(string isccCode)` → `iscc_decompose(pCode)` → `ConsumeNativeStringArray`
-- `SlidingWindow(string seq, uint width)` → `iscc_sliding_window(pSeq, width)` →
-    `ConsumeNativeStringArray`
+4. **`SoftHashVideoV0(int[][] frameSigs, uint bits = 64)`** → `byte[]`:
 
-### `EncodeComponent` wrapper
+    - Same GCHandle pinning pattern as `GenVideoCodeV0` (already implemented)
+    - Call `NativeMethods.iscc_soft_hash_video_v0(pPtrs, pLens, numFrames, bits)`
+    - Return via `ConsumeByteBuffer`
 
-- Signature:
-    `EncodeComponent(byte mtype, byte stype, byte version, uint bitLength,   ReadOnlySpan<byte> digest)`
-- Call `iscc_encode_component(mtype, stype, version, bitLength, pDigest, digestLen)`
-- Use existing `ConsumeNativeString` pattern — standard string return
+### Section organization
 
-### Tests to add (~4 tests)
+Add a new `// ── Algorithm Primitives ──` section in IsccLib.cs between Utilities and Diagnostics.
+Place the 4 methods in order: `AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`.
 
-- `IsccDecode_ReturnsDecodedComponents`: decode a known ISCC string (e.g., from `GenMetaCodeV0`),
-    verify maintype/subtype are reasonable bytes, digest is non-empty byte array
-- `IsccDecompose_ReturnsUnitArray`: compose an ISCC-CODE from data+instance codes, decompose it,
-    verify result has 2+ entries each starting with "ISCC:"
-- `EncodeComponent_ReturnsIsccString`: encode a component with known params (e.g., mtype=0, stype=0,
-    version=0, bitLength=64, digest=8 zero bytes), verify result is a non-empty string
-- `SlidingWindow_ReturnsNgrams`: call with "Hello World" and width 4, verify returns 8 n-grams
-    ("Hell", "ello", "llo ", ...)
+### Tests
+
+Add to SmokeTests.cs an `// ── Algorithm Primitives ──` section with tests:
+
+- `AlgSimhash_ReturnsByteArray` — 2 digests of 4 bytes each → result is 4 bytes (matches input
+    digest length)
+- `AlgSimhash_EmptyInput_Returns32Bytes` — empty array → 32 zero bytes
+- `AlgMinhash256_ReturnsByteArray` — `[1u, 2u, 3u, 4u, 5u]` features → 32 bytes result
+- `AlgCdcChunks_SplitsData` — "Hello World" → at least 1 chunk, concatenated chunks == original
+- `AlgCdcChunks_EmptyData` — empty span → 1 chunk of 0 bytes
+- `SoftHashVideoV0_ReturnsByteArray` — 2 frames of 380 i32 each, bits=64 → 8 bytes result
 
 ## Verification
 
-- `cargo build -p iscc-ffi` succeeds (no Rust changes, just confirming FFI library builds)
+- `cargo build -p iscc-ffi` succeeds (FFI lib must compile)
 - `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds with 0 errors, 0 warnings
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj -e LD_LIBRARY_PATH=$(pwd)/target/debug`
-    — all tests pass (25 existing + 4+ new)
-- `grep -c 'public static' packages/dotnet/Iscc.Lib/IsccLib.cs` shows 26+ (22 existing + 4 new
-    public methods)
-- `grep 'DecodeResult' packages/dotnet/Iscc.Lib/IsccLib.cs` finds the record definition
-- `mise run check` passes (all pre-commit/pre-push hooks green)
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug`
+    — all tests pass (29 existing + 6 new = 35 total)
+- `grep -c 'public static' packages/dotnet/Iscc.Lib/IsccLib.cs` shows 31 (30 symbols + 1 class decl)
+- `mise run check` — all hooks pass (formatting, clippy, etc.)
 
 ## Done When
 
-All verification criteria pass: the .NET binding has 26 of 32 Tier 1 symbols wrapped with passing
-smoke tests, including `IsccDecode` returning a `DecodeResult` record, `IsccDecompose` and
-`SlidingWindow` returning `string[]`, and `EncodeComponent` returning a string.
+All 5 verification criteria pass, confirming the C# binding has 30 of 32 Tier 1 symbols with clean
+builds, passing tests, and clean linting.

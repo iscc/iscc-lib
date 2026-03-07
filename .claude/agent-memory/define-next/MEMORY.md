@@ -123,7 +123,7 @@ iterations.
 
 ## Project Status
 
-- **C#/.NET bindings: 22/32 symbols wrapped, codec/sliding_window next**
+- **C#/.NET bindings: 26/32 symbols wrapped, algo primitives next (→30), then streaming (→32)**
 - v0.2.0 released, 13 CI jobs green, all 7 existing bindings "met"
 - C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
 - Multi-step sequence: scaffold ✅ → CI job ✅ → csbindgen ✅ → wrappers (in progress) → conformance →
@@ -160,7 +160,7 @@ iterations.
     `System.Text.Encoding.UTF8`, not `Marshal.StringToHGlobalAnsi` (which is ANSI, not UTF-8)
 - `iscc_last_error()` returns thread-local static pointer — do NOT free with `iscc_free_string()`
 - Actual wrapper sequence: 14 symbols (step 1 ✅) → 8 (step 2 ✅: remaining gen + encoding) → 4 (step
-    3: codec + sliding_window) → 4 (step 4: algo primitives returning byte buffers) → 2 (step 5:
+    3 ✅: codec + sliding_window) → 4 (step 4: algo primitives returning byte buffers) → 2 (step 5:
     streaming IDisposable)
 - **Jagged array marshaling** (`int[][]` → `int**`): Use `GCHandle.Alloc` per inner array, build
     pointer array, `fixed` on outer. Must free handles in `finally` block
