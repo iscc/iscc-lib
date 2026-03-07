@@ -36,9 +36,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** (**13 total**) ✅
-- `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (14/32 symbols), `Iscc.Lib/IsccException.cs`,
-    `Iscc.Lib.Tests/SmokeTests.cs` (16 tests), `NativeMethods.g.cs` (csbindgen, 47 externs);
-    `dotnet test` needs `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores env)
+- `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (22/32 symbols: 5 consts, 4 text, 10 gen, 2 encode, 1
+    diag + SumCodeResult record), `Iscc.Lib/IsccException.cs`, `Iscc.Lib.Tests/SmokeTests.cs` (25
+    tests), `NativeMethods.g.cs` (csbindgen, 47 externs); `dotnet test` needs
+    `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores env)
 - `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -65,17 +66,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 837d19b3c03b25ea59d09e922618bce19a755580)
+## Current State (assessed-at: 3a44652f1caa32e659c2c562f88cca2a90641f78)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22716535745); **C# 14/32 symbols wrapped**
+- **IN_PROGRESS**: all 13 CI jobs green (run 22719988100); **C# 22/32 symbols wrapped**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET CID#5**: `IsccLib.cs` now has 14 idiomatic wrappers (5 const, 4 text, 4 gen,
-    ConformanceSelftest) + `IsccException.cs`; 16 xUnit tests; marshaling infra in place
-- **CI (run 22716535745)**: ALL SUCCESS — 13 jobs ✅
-- **packages/dotnet/**: `IsccLib.cs` (14/32), `IsccException.cs`, `SmokeTests.cs` (16 tests),
+- **C#/.NET expanded**: all 10 gen functions + 2 encoding utilities added (EncodeBase64,
+    JsonToDataUrl); SumCodeResult record added; 25 xUnit tests; gen functions still return `string`
+    (not records) for 9 of 10 — spec requires structured record return types
+- **CI (run 22719988100)**: ALL SUCCESS — 13 jobs ✅
+- **packages/dotnet/**: `IsccLib.cs` (22/32), `IsccException.cs`, `SmokeTests.cs` (25 tests),
     `NativeMethods.g.cs` (929 lines, 47 externs); `cpp/`, `swift/`, `kotlin/` do NOT exist
-- **Next action**: remaining 18 C# symbols — result records, complex gen functions, codec, alg
-    primitives, streaming classes (`DataHasher`, `InstanceHasher`)
+- **Next action**: C# structured records for gen return types, algorithm primitives, codec ops,
+    streaming classes (`IsccDataHasher`, `IsccInstanceHasher`), conformance tests
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
@@ -137,3 +139,7 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     `internal static unsafe partial class NativeMethods` — idiomatic wrappers in `IsccLib.cs` are
     the public surface. `dotnet test` requires `-e LD_LIBRARY_PATH=target/debug` (vstest host does
     not inherit shell env).
+- **C# gen function return types**: spec (`dotnet-bindings.md`) requires each `gen_*_v0` to return a
+    record type with structured fields (MetaCodeResult, TextCodeResult, DataCodeResult,
+    InstanceCodeResult, SumCodeResult, etc.) — currently 9 of 10 return plain `string`; only
+    `GenSumCodeV0` returns `SumCodeResult`. Refactoring needed before spec is fully met.
