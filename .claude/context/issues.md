@@ -14,21 +14,10 @@ management and distribution via vcpkg, Conan, and FFI release tarballs.
 
 **Implementation scope:**
 
-1. **Package setup** (`packages/cpp/`):
+Remaining items (all others completed):
 
-    - `include/iscc/iscc.hpp` — header-only C++ wrapper with RAII, std types, exceptions
-    - `CMakeLists.txt` — CMake config with `find_package(iscc)` support
-    - `vcpkg.json` + `portfile.cmake` — vcpkg port manifest
-    - `conanfile.py` — Conan recipe
-    - `tests/` — C++ conformance tests against `data.json`
-    - `README.md` for the package
-
-2. **CI** (`ci.yml`): Add `cpp` job — compile C++ test program, run conformance tests, ASAN check
-
-3. **Release** (`release.yml`): Bundle `iscc.hpp` in existing FFI release tarballs alongside
-    `iscc.h`
-
-4. **Documentation**: Update `docs/howto/c-cpp.md` with C++ wrapper examples, RAII patterns
+- `vcpkg.json` + `portfile.cmake` — vcpkg port manifest
+- `conanfile.py` — Conan recipe
 
 ## Implement Swift bindings via UniFFI `low` [human]
 

@@ -162,10 +162,9 @@ fully-met target sections to `learnings-archive.md`.
 ## C++ Wrapper
 
 - C++ `std::vector<T>::data()` returns nullptr for empty vectors on some implementations
-    (libstdc++). The `safe_data()` helper covers top-level `uint8_t` vectors but NOT inner elements
-    of nested vectors (e.g., `vector<vector<int32_t>>` for video frame sigs). Functions marshaling
-    nested arrays (`alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0`) need per-element null
-    protection
+    (libstdc++). The `safe_data()` helper has two overloads (uint8_t and int32_t) in `detail`
+    namespace. All nested vector loops now use `detail::safe_data()` — both top-level and inner
+    elements are covered (10 total call sites in iscc.hpp)
 - C++ wrapper lives in `packages/cpp/` — header-only, depends on `iscc-ffi` shared library. No
     separate Rust crate. CMake references `iscc.h` from `crates/iscc-ffi/include/` via include paths
 - C++ CI job: `cmake` needs explicit `apt-get install`, `g++` is pre-installed on `ubuntu-latest`.

@@ -87,16 +87,15 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - C++ wrapper in `packages/cpp/` — header-only, no Rust crate. CMake + INTERFACE library
 - Review shortcut: `cargo build -p iscc-ffi` + CMake configure/build/test + ASAN rebuild + clippy +
     `mise run check`
-- `safe_data()` only covers `uint8_t` top-level vectors. Nested vector marshaling needs per-element
-    null protection (Codex correctly flagged this in iteration 10)
-- CI `cpp` job added (iteration 11): cmake + ASAN + test on ubuntu-latest. 13 total CI jobs now
-- `iscc.hpp` bundled in FFI release tarballs (iteration 12) — flat layout alongside `iscc.h`
-- Codex include-path finding on flat tarball layout: dismiss when scope explicitly constrains
-    layout. Tarball consumers use `#include "iscc.hpp"`, CMake/vcpkg users get `<iscc/iscc.hpp>`
-    from proper include dirs. Now documented in `docs/howto/c-cpp.md` (iteration 13)
-- C++ docs complete (iteration 13): `packages/cpp/README.md`, howto `iscc.hpp` section, root README
-    C++ install/quickstart. Remaining C++ issue items: vcpkg.json, conanfile.py, gen_mixed_code_v0
-    test, nested vector null-safety
+- `safe_data()` has two overloads (uint8_t + int32_t). All nested vector loops use it — 10 call
+    sites total. Nested vector null-safety resolved in iteration 14
+- CI `cpp` job: cmake + ASAN + test on ubuntu-latest. 14 total CI jobs
+- `iscc.hpp` bundled in FFI release tarballs — flat layout alongside `iscc.h`
+- C++ docs complete: `packages/cpp/README.md`, howto section, root README tabs
+- C++ test suite: 53 tests (34 numbered blocks). All gen functions covered including mixed
+- **Remaining C++ issue**: vcpkg.json + conanfile.py (package manager manifests only)
+- **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`,
+    NOT `cmake -B build -S tests` (tests CMakeLists.txt lacks project() and include paths)
 
 ## Environment
 
