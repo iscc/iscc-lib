@@ -37,17 +37,20 @@ iterations.
 - **Rust core** (`conformance.rs`): Uses `serde_json::Value`, auto-discovers new vectors.
 - **Go** (`conformance.go`): Uses `map[string]map[string]vectorEntry` — parses ALL top-level keys.
     **BREAKS** on non-vector entries like `_metadata`. Must use `json.RawMessage` intermediate step.
-- **C FFI / C# .NET**: No data.json loader (uses Rust core `conformance_selftest`).
-- **data.json copies**: `crates/iscc-lib/tests/data.json` (primary) and
-    `packages/go/testdata/data.json` (identical copy). Both must be updated together.
+- **C# .NET**: `ConformanceTests.cs` uses `System.Text.Json`, loads from vendored
+    `testdata/data.json`. Must skip `_metadata` key.
+- **C FFI**: No data.json loader (uses Rust core `conformance_selftest`).
+- **data.json copies**: `crates/iscc-lib/tests/data.json` (primary),
+    `packages/go/testdata/data.json`, and `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` (all
+    identical). Must be updated together.
 
 ## Project Status
 
-- **C#/.NET bindings: 30/32 symbols wrapped, streaming classes next (→32/32)**
+- **C#/.NET bindings: 32/32 symbols wrapped, conformance tests next**
 - v0.2.0 released, 13 CI jobs green, all 7 existing bindings "met"
 - C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
-- Multi-step sequence: scaffold ✅ → CI job ✅ → csbindgen ✅ → wrappers (30/32 ✅) → streaming →
-    conformance → release → docs
+- Multi-step sequence: scaffold ✅ → CI job ✅ → csbindgen ✅ → wrappers ✅ → streaming ✅ → conformance
+    → structured records → docs → release
 - .NET CI pattern: `actions/setup-dotnet@v4`, `cargo build -p iscc-ffi`, `dotnet build`,
     `dotnet test -e LD_LIBRARY_PATH=...`
 
@@ -77,14 +80,10 @@ iterations.
 - C# disallows pointer types as generic type args — string/byte array marshaling inlined per-method
 - `ConsumeByteBuffer`/`ConsumeByteBufferArray` helpers follow `ConsumeNativeString` pattern
 
-## C# Streaming Types Pattern (for advance agent)
+## C# Streaming Types — DONE
 
-- FFI streaming API: `*_new()` → `*_update()` → `*_finalize()` → `*_free()`
-- P/Invoke already generated for all 8 functions (4 per hasher type)
-- `FfiDataHasher`/`FfiInstanceHasher` are opaque empty structs in NativeMethods.g.cs
-- SafeHandle pattern: private nested class, stores `FfiDataHasher*` as IntPtr, casts back for free
-- `GetLastError()` and `ConsumeNativeString()` in IsccLib.cs need `private` → `internal` to reuse
-- `ObjectDisposedException.ThrowIf(_handle.IsInvalid || _handle.IsClosed, this)` for disposed check
+- Both `IsccDataHasher` and `IsccInstanceHasher` implemented with SafeHandle + IDisposable
+- `GetLastError()` and `ConsumeNativeString()` already `internal` in IsccLib.cs
 
 ## CI/Release Patterns
 
@@ -114,5 +113,14 @@ iterations.
 
 ## Post-C#-Symbols Roadmap
 
-After 32/32 symbols: conformance tests → docs (howto/dotnet.md, README C# section) → NuGet publish →
-version sync. Then only low-priority items remain (C++, Swift, Kotlin).
+After 32/32 symbols ✅: conformance tests → structured records → docs (howto/dotnet.md, README C#
+section) → NuGet publish → version sync. Then only low-priority items remain (C++, Swift, Kotlin).
+
+## C# Conformance Test Notes
+
+- 50 vectors across 9 function groups in data.json (no gen_sum_code_v0 vectors)
+- Current gen API returns `string` — conformance tests compare return value directly to
+    `outputs["iscc"]`. When structured records are added, change to `result.Iscc`
+- xUnit `[Theory]` + `[MemberData]` for per-vector test results
+- `System.Text.Json` (built-in) for JSON parsing — no Newtonsoft dependency
+- data.json needs `<Content CopyToOutputDirectory="PreserveNewest">` in test .csproj

@@ -1,143 +1,139 @@
 # Next Work Package
 
-## Step: C# streaming hashers (IsccDataHasher, IsccInstanceHasher) — 32/32 symbols
+## Step: C# conformance tests (ConformanceTests.cs + vendored data.json)
 
 ## Goal
 
-Implement the final 2 of 32 Tier 1 symbols for the C# binding: `IsccDataHasher` and
-`IsccInstanceHasher` streaming classes. This completes the full Tier 1 API surface for C#/.NET.
+Add xUnit conformance tests for the C# binding that validate all 9 gen functions (50 vectors)
+against the official `data.json` test vectors. This ensures the .NET binding produces correct ISCC
+codes matching the iscc-core reference implementation before further API refactoring.
 
 ## Scope
 
-- **Create**: `packages/dotnet/Iscc.Lib/IsccDataHasher.cs`,
-    `packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs`
-- **Modify**: `packages/dotnet/Iscc.Lib/IsccLib.cs` (change `GetLastError` and `ConsumeNativeString`
-    visibility from `private` to `internal`), `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` (add
-    streaming tests)
-- **Reference**: `crates/iscc-ffi/src/lib.rs` (lines 1279-1478 — FFI streaming API),
-    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (lines 631-727, 910-925 — P/Invoke declarations
-    and opaque struct defs), `packages/dotnet/Iscc.Lib/IsccLib.cs` (existing marshaling patterns)
+- **Create**:
+    - `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — xUnit test class, one `[Theory]` per gen
+        function
+    - `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` — vendored copy of
+        `crates/iscc-lib/tests/data.json`
+- **Modify**:
+    - `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` — add `<Content>` item for
+        `testdata/data.json` with `CopyToOutputDirectory` so xUnit can load it at test runtime
+- **Reference**:
+    - `crates/iscc-rb/test/test_conformance.rb` — pattern for conformance test structure, input
+        decoding, output assertions per function group
+    - `crates/iscc-lib/tests/data.json` — source vectors (50 total, 9 function groups + `_metadata`)
+    - `packages/dotnet/Iscc.Lib/IsccLib.cs` — current C# API signatures (all gen functions return
+        `string` except `GenSumCodeV0` → `SumCodeResult`)
+    - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — existing test patterns
 
 ## Not In Scope
 
-- Structured result records (`MetaCodeResult`, `TextCodeResult`, etc.) — separate future step
-- Conformance tests (`ConformanceTests.cs` + `testdata/data.json`) — separate future step
-- Documentation (`docs/howto/dotnet.md`, `packages/dotnet/README.md`) — separate future step
-- NuGet publish job in `release.yml` — separate future step
-- Refactoring existing `IsccLib.cs` wrappers — no changes to working code
-- `Stream`-based overloads (accepting `System.IO.Stream` instead of `ReadOnlySpan<byte>`) — nice to
-    have but not in the 32 Tier 1 symbols
-- SafeHandle subclass in a separate `Native/SafeHandles.cs` file — keep SafeHandle as private nested
-    class inside each hasher for simplicity
+- **Structured record return types** (`Results.cs`, `MetaCodeResult`, etc.) — the conformance tests
+    validate the ISCC string output using the current string-returning API; structured records are a
+    separate future step
+- **Modifying `IsccLib.cs`** — no API changes; tests work against the current public surface
+- **Adding `gen_sum_code_v0` conformance tests** — no conformance vectors exist for this function in
+    data.json (it's the 10th gen function but only 9 have vectors)
+- **Documentation updates** — `docs/howto/dotnet.md`, README C# section, etc. are separate steps
+- **NuGet publish pipeline** — separate step
 
 ## Implementation Notes
 
-### Pattern: SafeHandle + IDisposable
+### data.json Structure
 
-Each streaming class wraps an opaque native pointer via a private nested `SafeHandle` subclass for
-deterministic cleanup with finalization safety net:
+Top-level keys: `_metadata` (skip), then 9 function groups (`gen_meta_code_v0`..`gen_iscc_code_v0`).
+Each function group maps vector names to `{"inputs": [...], "outputs": {...}}` objects. Total: 50
+vectors.
+
+### Input Decoding Per Function
+
+Follow the Ruby conformance test (`test_conformance.rb`) pattern for input decoding:
+
+- **`gen_meta_code_v0`**: `inputs[0]` = name (string), `inputs[1]` = description (string, empty →
+    `null`), `inputs[2]` = meta (null, string, or JSON object — if object, serialize to JSON
+    string), `inputs[3]` = bits (uint). Call `IsccLib.GenMetaCodeV0(name, description, meta, bits)`.
+- **`gen_text_code_v0`**: `inputs[0]` = text, `inputs[1]` = bits. Call
+    `IsccLib.GenTextCodeV0(text, bits)`.
+- **`gen_image_code_v0`**: `inputs[0]` = JSON array of integers → `byte[]` pixels (cast each int to
+    byte), `inputs[1]` = bits. Call `IsccLib.GenImageCodeV0(pixels, bits)`.
+- **`gen_audio_code_v0`**: `inputs[0]` = JSON array of integers → `int[]` cv, `inputs[1]` = bits.
+    Call `IsccLib.GenAudioCodeV0(cv, bits)`.
+- **`gen_video_code_v0`**: `inputs[0]` = 2D JSON array → `int[][]` frameSigs, `inputs[1]` = bits.
+    Call `IsccLib.GenVideoCodeV0(frameSigs, bits)`.
+- **`gen_mixed_code_v0`**: `inputs[0]` = string array of ISCC codes, `inputs[1]` = bits. Call
+    `IsccLib.GenMixedCodeV0(codes, bits)`.
+- **`gen_data_code_v0`**: `inputs[0]` = `"stream:<hex>"` string → decode hex to `byte[]`,
+    `inputs[1]` = bits. Call `IsccLib.GenDataCodeV0(data, bits)`.
+- **`gen_instance_code_v0`**: Same `"stream:<hex>"` decoding as data code. Call
+    `IsccLib.GenInstanceCodeV0(data, bits)`.
+- **`gen_iscc_code_v0`**: `inputs[0]` = string array of ISCC codes. No `wide` param in vectors —
+    call `IsccLib.GenIsccCodeV0(codes)`.
+
+### Output Assertions
+
+All functions: assert `result == outputs["iscc"]` (the returned string IS the ISCC code since
+current API returns `string`). When structured records are added later, tests will need to assert
+`result.Iscc` instead.
+
+### xUnit Pattern
+
+Use `[Theory]` with `[MemberData]` for each function group. Load `data.json` from a static helper.
+Each theory test receives the vector name and test case data. This produces one test result per
+vector for clear diagnostics.
 
 ```csharp
-public sealed class IsccDataHasher : IDisposable
+public static IEnumerable<object[]> MetaCodeVectors()
 {
-    private readonly DataHasherHandle _handle;
-    private bool _finalized;
+    var data = LoadDataJson();
+    foreach (var kv in data["gen_meta_code_v0"].EnumerateObject())
+        yield return new object[] { kv.Name, kv.Value };
+}
 
-    public IsccDataHasher() { ... }
-    public void Update(ReadOnlySpan<byte> data) { ... }
-    public string Finalize(uint bits = 64) { ... }
-    public void Dispose() { _handle.Dispose(); }
+[Theory]
+[MemberData(nameof(MetaCodeVectors))]
+public void GenMetaCodeV0(string vectorName, JsonElement tc) { ... }
+```
 
-    private sealed class DataHasherHandle : SafeHandle { ... }
+Use `System.Text.Json` (built-in, no extra dependency) rather than Newtonsoft.Json.
+
+### .csproj Content Item
+
+```xml
+<ItemGroup>
+  <Content Include="testdata\data.json">
+    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+  </Content>
+</ItemGroup>
+```
+
+### Stream Hex Decoding
+
+```csharp
+static byte[] DecodeStream(string streamStr)
+{
+    var hex = streamStr["stream:".Length..];
+    if (hex.Length == 0) return Array.Empty<byte>();
+    return Convert.FromHexString(hex);
 }
 ```
 
-### SafeHandle subclass
+### Meta Parameter Handling
 
-Use a private nested class (e.g., `DataHasherHandle : SafeHandle`) that:
-
-- Inherits from `SafeHandle` (from `System.Runtime.InteropServices`)
-- Stores the native `FfiDataHasher*` as `IntPtr` (SafeHandle base class field `handle`)
-- Override `IsInvalid` → `handle == IntPtr.Zero`
-- Override `ReleaseHandle()` → casts `IntPtr` back to `FfiDataHasher*` via
-    `(FfiDataHasher*)(void*)handle` and calls `NativeMethods.iscc_data_hasher_free()`
-- Constructor accepts `FfiDataHasher*` from `iscc_data_hasher_new()`, stores as `(IntPtr)ptr`
-
-### P/Invoke declarations already exist in NativeMethods.g.cs
-
-- `iscc_data_hasher_new()` → `FfiDataHasher*`
-- `iscc_data_hasher_update(FfiDataHasher*, byte*, nuint)` → `bool`
-- `iscc_data_hasher_finalize(FfiDataHasher*, uint)` → `byte*`
-- `iscc_data_hasher_free(FfiDataHasher*)` → `void`
-- Same 4 for `iscc_instance_hasher_*`
-- `FfiDataHasher` and `FfiInstanceHasher` are empty structs (opaque pointers)
-
-### Key behaviors
-
-- `Update()` after `Finalize()` → `InvalidOperationException("Hasher already finalized")`
-- `Update()` after `Dispose()` → `ObjectDisposedException`
-- `Finalize()` after `Finalize()` → `InvalidOperationException("Hasher already finalized")`
-- `Finalize()` after `Dispose()` → `ObjectDisposedException`
-- `Dispose()` is idempotent (SafeHandle handles this)
-- Streaming results must match `GenDataCodeV0`/`GenInstanceCodeV0` for the same input data
-
-### Error helper reuse
-
-`GetLastError()` and `ConsumeNativeString()` are `private` in `IsccLib.cs`. Change both to
-`internal` so the hasher classes (in the same assembly) can reuse them. This is a one-word
-visibility change each — `private` → `internal`. No behavioral modification.
-
-The hasher's `Finalize()` method calls `iscc_data_hasher_finalize()` which returns `byte*` (an ISCC
-string). Use `ConsumeNativeString()` to marshal it and free the native pointer. On null return,
-`ConsumeNativeString` already throws `IsccException(GetLastError())`.
-
-### IntPtr ↔ typed pointer casting
-
-SafeHandle stores `IntPtr`. NativeMethods uses `FfiDataHasher*`. Cast pattern:
-
-```csharp
-// Store: (IntPtr)ptr  (where ptr is FfiDataHasher*)
-// Retrieve: (FfiDataHasher*)(void*)handle
-```
-
-### Disposed check pattern
-
-Before any operation on the native handle:
-
-```csharp
-ObjectDisposedException.ThrowIf(_handle.IsInvalid || _handle.IsClosed, this);
-```
-
-This covers both never-initialized and already-disposed cases.
-
-### InstanceHasher note
-
-`gen_instance_code_v0` always produces 256-bit output regardless of `bits` parameter. The
-`InstanceHasher.Finalize(bits)` should still accept the parameter and pass it through — the Rust
-core handles the semantics.
-
-### Tests to add (in SmokeTests.cs)
-
-1. `DataHasher_MatchesGenDataCodeV0` — feed "Hello World" bytes via Update, verify Finalize result
-    matches `GenDataCodeV0` with same data
-2. `DataHasher_ChunkedUpdate_MatchesSingleUpdate` — feed data in 2 chunks, verify same result as
-    single update
-3. `InstanceHasher_MatchesGenInstanceCodeV0` — same equivalence check
-4. `DataHasher_DisposeIsIdempotent` — call Dispose twice, no crash
-5. `DataHasher_UpdateAfterFinalize_Throws` — verify `InvalidOperationException`
-6. `DataHasher_FinalizeAfterFinalize_Throws` — verify `InvalidOperationException`
+If `inputs[2]` is a JSON object (not null, not a string), serialize it to a JSON string using
+`JsonSerializer.Serialize` with default options. The C FFI layer handles JCS canonicalization
+internally.
 
 ## Verification
 
-- `cargo build -p iscc-ffi` succeeds (no FFI changes, just confirming lib compiles)
-- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — 0 errors, 0 warnings
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug`
-    — all tests pass (35 existing + ~6 new streaming tests)
-- `grep -c 'public sealed class Iscc' packages/dotnet/Iscc.Lib/IsccDataHasher.cs` returns 1
-- `grep -c 'public sealed class Iscc' packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs` returns 1
-- `mise run check` — all hooks pass (formatting + lint)
+- `dotnet test packages/dotnet -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug` passes — all 41
+    existing smoke tests + 50 new conformance tests (91 total)
+- `grep -c '\[Theory\]' packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` outputs `9` (one per gen
+    function)
+- `diff crates/iscc-lib/tests/data.json packages/dotnet/Iscc.Lib.Tests/testdata/data.json` shows no
+    differences (identical copy)
+- `cargo clippy --workspace --all-targets -- -D warnings` remains clean
 
 ## Done When
 
-All verification criteria pass: both streaming hasher classes compile, pass tests including
-equivalence checks against `GenDataCodeV0`/`GenInstanceCodeV0`, completing 32/32 Tier 1 symbols.
+All verification criteria pass — 50 conformance vectors validate correct ISCC output for all 9 gen
+functions through the C# P/Invoke bridge.
