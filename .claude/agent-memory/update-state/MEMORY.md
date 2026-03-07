@@ -36,6 +36,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `grep -n "public.*Finalize" packages/dotnet/Iscc.Lib/IsccDataHasher.cs packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs`
 - **NuGet pipeline check**:
     `grep -n 'pack-nuget\|test-nuget\|publish-nuget\|NUGET_API_KEY' .github/workflows/release.yml`
+- **C++ package files**: `find packages/cpp -type f | sort`
+- **C++ CI job check**: `grep -n "cpp\|C++" .github/workflows/ci.yml`
+- **C++ hpp symbol check**:
+    `grep -n "^inline\|^struct\|^class\|// ---" packages/cpp/include/iscc/iscc.hpp`
 
 ## Codebase Landmarks
 
@@ -80,16 +84,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 9ca509f6b3730f6f8c46310e5d82c970db3777e3)
+## Current State (assessed-at: cbe38eed126e41065ab61b447ba230dbc911b75f)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22805216743); **C# bindings COMPLETE**
-- **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET NuGet pipeline (iteration 10)**: `pack-nuget` + `test-nuget` + `publish-nuget` in
-    `release.yml`; 7 registry workflow_dispatch inputs (incl. nuget); cross-arch find bug fixed;
-    README path fixed; issue fully resolved and deleted from issues.md ✅
-- **CI (run 22805216743)**: ALL SUCCESS — 13 jobs ✅
-- **C# issue CLOSED**: SafeHandles.cs cosmetic refactor deferred indefinitely (no functional impact)
-- **Next action**: C++ idiomatic header-only wrapper (`iscc.hpp`) — `normal` priority in issues.md
+- **IN_PROGRESS**: all 13 CI jobs green (run 22806295406); **C++ wrapper PARTIALLY DONE**
+- **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
+- **C++ wrapper (iteration 11)**: `packages/cpp/include/iscc/iscc.hpp` (681 lines, 32 symbols,
+    RAII), `CMakeLists.txt`, `tests/` (52 passing tests, ASAN clean) ✅
+- **C++ STILL MISSING**: CI job in `ci.yml`, `iscc.hpp` in FFI tarballs, vcpkg.json, portfile.cmake,
+    conanfile.py, `packages/cpp/README.md`, `docs/howto/c-cpp.md` `iscc.hpp` section, README C++
+    tab, `gen_mixed_code_v0` test
+- **CI (run 22806295406)**: ALL SUCCESS — 13 jobs ✅ (no C++ job yet)
 
 ## NuGet Pipeline Details (iteration 10)
 
@@ -166,3 +170,12 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     Use stack sentinel pattern (`byte sentinel; func(&sentinel, 0, ...)`). FIXED in all 7 locations.
 - **C# ConformanceTests xUnit1026 warnings**: 9 Theory methods have unused `vectorName` parameter —
     pre-existing; serves test identification in output. Not worth suppressing.
+- **C++ iscc.hpp**: `packages/cpp/include/iscc/iscc.hpp` — 681-line C++17 header-only wrapper. RAII
+    guards: `UniqueString`, `UniqueStringArray`, `UniqueByteBuffer`, `UniqueByteBufferArray`.
+    `IsccError : std::runtime_error`. `detail::safe_data()` for empty vector null protection.
+    `detail::check_error()` and `detail::check_ptr()`. All 32 Tier 1 symbols in `namespace iscc`.
+    `DataHasher` + `InstanceHasher` RAII classes (move-only). `cmake` and `g++` must be
+    `apt-get install`ed in CI — they're not in the default ubuntu runner.
+- **C++ nested vector gotcha**: `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0` marshal
+    nested `vector<vector<T>>` by extracting `.data()` from inner elements. Empty inner vectors
+    yield `nullptr` — `safe_data()` covers top-level but not nested. Edge case for hardening.
