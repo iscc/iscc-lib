@@ -61,7 +61,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     csbindgen (v1.9.7) generates `NativeMethods.g.cs` (47 functions, 6 structs) via `build.rs`
 - csbindgen runs in `build.rs` (unlike cbindgen CLI) — writes to repo-relative path. `dotnet` not
     available locally — CI is the .NET validation backstop. Codex flags build robustness (advisory)
-- .NET now at 30/32 symbols. Remaining 2: streaming types (DataHasher, InstanceHasher)
+- .NET now at 32/32 Tier 1 symbols complete. Remaining: conformance tests, NuGet publish, docs
+- .NET streaming hashers: SafeHandle + IDisposable, `DangerousGetHandle()` is fine for
+    single-threaded use. Codex P1 about DangerousAddRef is advisory — dismiss for non-threadsafe
+    classes
 
 ## Binding Propagation Shortcuts
 

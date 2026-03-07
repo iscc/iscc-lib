@@ -187,6 +187,10 @@ fully-met target sections to `learnings-archive.md`.
 - `ConsumeNativeStringArray`: shared helper for NULL-terminated `byte**` → `string[]` marshaling.
     Used by `IsccDecompose` and `SlidingWindow`. Frees via `iscc_free_string_array` in `finally`
 - `IsccDecode` returns `DecodeResult` record; digest copied via `Span<byte>` before native free
+- Streaming hashers (`IsccDataHasher`, `IsccInstanceHasher`): `SafeHandle` nested class +
+    `IDisposable` on the outer class. `DangerousGetHandle()` is acceptable for single-threaded use
+    (no concurrent Dispose scenario). csbindgen typed pointers prevent passing SafeHandle directly
+    to P/Invoke
 
 ## CID Process
 
