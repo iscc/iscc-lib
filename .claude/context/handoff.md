@@ -1,33 +1,42 @@
-## 2026-03-07 — C# structured result records (Results.cs + gen function return type refactor)
+## 2026-03-07 — Review of: C# structured result records (Results.cs + gen function return type refactor)
 
-**Done:** Created `Results.cs` with 11 sealed record types (9 gen-function results + relocated
-`SumCodeResult` and `DecodeResult`). Refactored all 9 gen functions in `IsccLib.cs` to return typed
-result records instead of raw strings. Fixed 4 remaining empty-span NULL pointer bugs in
-`GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, and `EncodeBase64`.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Clean, well-scoped implementation. Created `Results.cs` with 11 sealed record types,
+refactored all 9 gen functions to return typed records instead of `string`, fixed 4 remaining
+empty-span NULL pointer bugs, and updated all tests. All 91 tests pass. No quality gate
+circumvention, no scope overreach.
 
-- `packages/dotnet/Iscc.Lib/Results.cs`: Created — 11 sealed record types in the `Iscc.Lib`
-    namespace
-- `packages/dotnet/Iscc.Lib/IsccLib.cs`: Removed `SumCodeResult` and `DecodeResult` definitions
-    (moved to Results.cs); changed 9 gen function return types from `string` to typed records; added
-    empty-span guards to 4 functions
-- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`: Updated 14 tests to use `.Iscc` accessor on gen
-    function results, including streaming hasher comparison tests and codec tests that chain gen
-    calls
-- `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs`: Updated all 9 Theory tests to use `.Iscc`
-    accessor
+**Verification:**
 
-**Verification:** All 91 tests pass (41 smoke + 50 conformance). `grep -c 'sealed record'` returns
-11 for Results.cs and 0 for IsccLib.cs. `cargo build -p iscc-ffi` succeeds. `dotnet build` succeeds.
-`mise run check` passes all 15 hooks.
+- [x] `cargo build -p iscc-ffi` succeeds — compiled in 1.13s
+- [x] `dotnet build packages/dotnet/Iscc.Lib/` succeeds — 0 warnings, 0 errors
+- [x] `dotnet test packages/dotnet/Iscc.Lib.Tests/` — 91 passed (41 smoke + 50 conformance), 0
+    failed, 0 skipped
+- [x] `grep -c 'sealed record' Results.cs` → 11 (9 new + 2 relocated)
+- [x] `grep -c 'sealed record' IsccLib.cs` → 0 (all moved to Results.cs)
+- [x] `mise run check` — all 15 pre-commit hooks pass
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
 
-**Next:** Streaming hasher `Finalize()` return types — change `IsccDataHasher.Finalize()` and
-`IsccInstanceHasher.Finalize()` to return `DataCodeResult`/`InstanceCodeResult` instead of `string`.
-Then NuGet publish pipeline in release.yml, version sync integration, and documentation
-(docs/howto/dotnet.md, packages/dotnet/README.md, README C# section).
+**Issues found:**
 
-**Notes:** The streaming hashers still return `string` from `Finalize()` — intentionally deferred
-per next.md scope (would exceed 3-file limit). The 9 new gen-function records only have `Iscc` field
-since the C FFI only returns the ISCC string; additional fields (Name, Characters, DataHash, etc.)
-will be populated when FFI structured result support is added.
+- (none)
+
+**Next:** Continue C# binding completion. Priority order: (1) Streaming hasher `Finalize()` return
+types — change `IsccDataHasher.Finalize()` and `IsccInstanceHasher.Finalize()` to return
+`DataCodeResult`/`InstanceCodeResult` instead of `string`; (2) Documentation
+(`docs/howto/dotnet.md`, `packages/dotnet/README.md`, README C# section); (3) NuGet publish pipeline
+in `release.yml`; (4) Version sync integration for .NET project version. The streaming hasher change
+is small (2 files, 2 return type changes + 2 test updates) and should be paired with another item
+for efficiency.
+
+**Notes:**
+
+- The 9 xUnit1026 warnings (unused `vectorName` parameter in Theory methods) are pre-existing from
+    the conformance tests — `vectorName` provides test identification in output but xUnit flags it.
+    Not worth suppressing since the parameter serves a purpose (test discoverability).
+- state.md still lists the 4 empty-span functions as having the latent bug — the update-state agent
+    will correct this in the next cycle.
+- All 9 gen-function records currently only have `Iscc` field. Additional fields (Name, Characters,
+    DataHash, etc.) will be populated when FFI structured result support is added — this is
+    correctly documented as out of scope.

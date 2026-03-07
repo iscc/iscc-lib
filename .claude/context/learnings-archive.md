@@ -304,3 +304,17 @@ reference-only for humans.
 
 - `text_clean` does NOT collapse double spaces within a line — use NFKC ligature normalization
     (e.g., fi ligature U+FB01 → "fi") for test cases instead of space-collapsing expectations
+
+## CI/CD — Binding-Specific Release Details (archived iteration 5)
+
+- **WASM conformance_selftest**: requires `--features conformance` in `wasm-pack build` — the export
+    is gated behind `#[cfg(feature = "conformance")]` in the WASM crate. NAPI and Python export it
+    unconditionally
+- **NAPI js_name**: binding uses `#[napi(js_name = "conformance_selftest")]` — snake_case is
+    preserved in the raw .node export. Smoke test can `require()` the .node file directly
+- **RubyGems trusted publishing (OIDC)**: uses `rubygems/configure-rubygems-credentials@main` with
+    `id-token: write` permission. No API keys needed. Configured on rubygems.org as trusted
+    publisher
+- **Ruby cross-gem action quirk**: `oxidize-rb/actions/cross-gem@v1` configure step greps
+    `Gemfile.lock` in repo root (ignores `working-directory`). For subdirectory gems, symlink the
+    lockfile: `ln -sf crates/iscc-rb/Gemfile.lock Gemfile.lock`

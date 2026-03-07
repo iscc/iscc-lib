@@ -85,20 +85,9 @@ fully-met target sections to `learnings-archive.md`.
 - **Release pipeline pattern**: boolean input → build job → smoke test job → publish job. 6 smoke
     test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish. Each
     tests linux-x86_64 artifact on ubuntu-latest
-- **WASM conformance_selftest**: requires `--features conformance` in `wasm-pack build` — the export
-    is gated behind `#[cfg(feature = "conformance")]` in the WASM crate. NAPI and Python export it
-    unconditionally
-- **NAPI js_name**: binding uses `#[napi(js_name = "conformance_selftest")]` — snake_case is
-    preserved in the raw .node export. Smoke test can `require()` the .node file directly
 - **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
     out the tag's code, NOT the latest `main`. Hotfixes pushed to `main` after tagging require
     `--ref main` to pick up. When re-triggering individual registries, always use `--ref main`
-- **RubyGems trusted publishing (OIDC)**: uses `rubygems/configure-rubygems-credentials@main` with
-    `id-token: write` permission. No API keys needed. Configured on rubygems.org as trusted
-    publisher
-- **Ruby cross-gem action quirk**: `oxidize-rb/actions/cross-gem@v1` configure step greps
-    `Gemfile.lock` in repo root (ignores `working-directory`). For subdirectory gems, symlink the
-    lockfile: `ln -sf crates/iscc-rb/Gemfile.lock Gemfile.lock`
 
 ## Branching
 
@@ -162,39 +151,57 @@ fully-met target sections to `learnings-archive.md`.
 
 - DLL name `"iscc_ffi"` — .NET auto-resolves to `libiscc_ffi.so` (Linux), `iscc_ffi.dll` (Windows),
     `libiscc_ffi.dylib` (macOS). No platform-specific code needed
+
 - `[return: MarshalAs(UnmanagedType.U1)]` required for C `bool` → C# `bool` marshaling
+
 - `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` to pass library path to vstest host child
     process; shell-level env var alone is insufficient. CI needs `env:` on the test step
+
 - .NET 8 SDK install in Dockerfile: Microsoft install script to `/usr/share/dotnet` (system-wide,
     before non-root user section)
+
 - csbindgen (v1.9.7) in `build.rs` generates C# bindings from `extern "C"` functions. Uses
     `input_extern_file("src/lib.rs")` — parses `#[unsafe(no_mangle)]` (Rust 2024 edition) correctly.
     Unlike cbindgen (CLI tool), csbindgen runs in build.rs and writes directly to repo path
+
 - `NativeMethods.g.cs` is `internal` class with 47 P/Invoke declarations, 6 struct types. Generated
     file uses `byte*` for C strings, `nuint` for `usize`, `[MarshalAs(UnmanagedType.U1)]` for bools
+
 - `AllowUnsafeBlocks` required in `.csproj` for csbindgen's `byte*` pointer types
+
 - Marshaling pattern: `ToNativeUtf8` (C# string → null-terminated UTF-8 `byte[]`),
     `ConsumeNativeString` (native `byte*` → managed `string` + `iscc_free_string`), `GetLastError`
     (reads `iscc_last_error()` without freeing — thread-local storage).
     `fixed (byte* p = nullArray)` sets pointer to null for optional parameters
+
 - `dotnet test -e LD_LIBRARY_PATH=target/debug` with relative path fails in devcontainer — must use
     absolute path. CI is unaffected (uses `env:` which resolves correctly)
+
 - **Empty span `fixed` null pointer**: C# `fixed (T* p = emptySpan)` produces NULL — FFI layer
     rejects NULL. Guard with `if (span.IsEmpty) { T sentinel; use &sentinel with length 0 }`.
-    Applied to `GenAudioCodeV0`, `GenDataCodeV0`, `GenInstanceCodeV0`; same bug latent in
-    `GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64`
+    Applied to all 7 affected functions: `GenImageCodeV0`, `GenAudioCodeV0`, `GenDataCodeV0`,
+    `GenInstanceCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64`
+
 - C# disallows pointer types (e.g., `byte**`) as generic type arguments — string array marshaling
     (`GCHandle.Alloc` + `fixed byte**`) must be inlined per-method, not extracted to a generic
     helper. `GenMixedCodeV0` and `GenIsccCodeV0` share near-identical patterns as a result
+
 - `IsccSumCodeResult` struct is at the namespace level in `NativeMethods.g.cs` (not nested in the
     `NativeMethods` class) — reference it without the `NativeMethods.` prefix in wrapper code
+
 - `ConsumeNativeStringArray`: shared helper for NULL-terminated `byte**` → `string[]` marshaling.
     Used by `IsccDecompose` and `SlidingWindow`. Frees via `iscc_free_string_array` in `finally`
+
 - `IsccDecode` returns `DecodeResult` record; digest copied via `Span<byte>` before native free
+
 - Streaming hashers (`IsccDataHasher`, `IsccInstanceHasher`): `SafeHandle` nested class +
     `IDisposable` on the outer class. `DangerousGetHandle()` is acceptable for single-threaded use
     (no concurrent Dispose scenario). csbindgen typed pointers prevent passing SafeHandle directly
     to P/Invoke
+
+- **C# structured result records**: `Results.cs` holds all 11 sealed record types (9 gen-function
+    results, SumCodeResult, DecodeResult). Gen records only have `Iscc` field until FFI structured
+    result support is added. Streaming hashers still return `string` from `Finalize()`
 
 ## CID Process
 
