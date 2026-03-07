@@ -46,11 +46,11 @@ iterations.
 
 ## Project Status
 
-- **C#/.NET bindings: 32/32 symbols + typed returns ✅ (including streaming hashers), docs next**
+- **C#/.NET bindings: 32/32 symbols + typed returns + docs ✅; version sync + NuGet publish pending**
 - v0.2.0 released, 13 CI jobs green, all 8 bindings (incl. C#) CI green
 - C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
 - Multi-step sequence: scaffold ✅ → CI ✅ → csbindgen ✅ → wrappers ✅ → streaming ✅ → conformance ✅ →
-    structured records ✅ → hasher return types ✅ → **docs** → version sync → NuGet → release
+    structured records ✅ → hasher return types ✅ → docs ✅ → **version sync** → NuGet → release
 - .NET CI pattern: `actions/setup-dotnet@v4`, `cargo build -p iscc-ffi`, `dotnet build`,
     `dotnet test -e LD_LIBRARY_PATH=...`
 
@@ -113,9 +113,9 @@ iterations.
 
 ## Post-C#-Symbols Roadmap
 
-After hasher return types ✅: **docs** (howto/dotnet.md, README C# section, package README) → version
-sync → NuGet publish pipeline. FFI structured fields (Meta/Text/Mixed/Instance extra fields)
-deferred. Then only low-priority items remain (C++, Swift, Kotlin).
+After hasher return types ✅: docs ✅ → **version sync** → NuGet publish pipeline. FFI structured
+fields (Meta/Text/Mixed/Instance extra fields) deferred. Then only normal-priority C++ wrapper
+remains before low-priority items (Swift, Kotlin).
 
 ## C# Conformance Test Notes
 
