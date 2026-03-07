@@ -90,6 +90,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - `safe_data()` only covers `uint8_t` top-level vectors. Nested vector marshaling needs per-element
     null protection (Codex correctly flagged this in iteration 10)
 - CI `cpp` job added (iteration 11): cmake + ASAN + test on ubuntu-latest. 13 total CI jobs now
+- `iscc.hpp` bundled in FFI release tarballs (iteration 12) — flat layout alongside `iscc.h`
+- Codex include-path finding on flat tarball layout: dismiss when scope explicitly constrains
+    layout. Tarball consumers use `#include "iscc.hpp"`, CMake/vcpkg users get `<iscc/iscc.hpp>`
+    from proper include dirs. Document distinction in `docs/howto/c-cpp.md`
 
 ## Environment
 

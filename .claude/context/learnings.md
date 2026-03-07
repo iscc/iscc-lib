@@ -170,6 +170,10 @@ fully-met target sections to `learnings-archive.md`.
     separate Rust crate. CMake references `iscc.h` from `crates/iscc-ffi/include/` via include paths
 - C++ CI job: `cmake` needs explicit `apt-get install`, `g++` is pre-installed on `ubuntu-latest`.
     Uses `working-directory: packages/cpp` for cmake steps. CI job count is now 13 total
+- **FFI tarball flat layout vs CMake include path**: `iscc.hpp` and `iscc.h` are flat in FFI
+    tarballs. CMake project uses `#include <iscc/iscc.hpp>` (needs `iscc/` subdirectory). Tarball
+    consumers use `#include "iscc.hpp"` with `-I <tarball-dir>`. Document this distinction in
+    `docs/howto/c-cpp.md` when updating
 
 ## CID Process
 
