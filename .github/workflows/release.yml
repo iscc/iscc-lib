@@ -635,6 +635,7 @@ jobs:
           cp "target/${TARGET}/release/${{ matrix.lib-shared }}" "$DIR/"
           cp "target/${TARGET}/release/${{ matrix.lib-static }}" "$DIR/"
           cp crates/iscc-ffi/include/iscc.h "$DIR/"
+          cp packages/cpp/include/iscc/iscc.hpp "$DIR/"
           cp LICENSE "$DIR/"
           tar czf "${DIR}.tar.gz" "$DIR"
       - name: Stage artifacts (Windows)
@@ -649,6 +650,7 @@ jobs:
           Copy-Item "target/${TARGET}/release/iscc_ffi.dll.lib" "$DIR/"
           Copy-Item "target/${TARGET}/release/iscc_ffi.lib" "$DIR/"
           Copy-Item "crates/iscc-ffi/include/iscc.h" "$DIR/"
+          Copy-Item "packages/cpp/include/iscc/iscc.hpp" "$DIR/"
           Copy-Item "LICENSE" "$DIR/"
           Compress-Archive -Path "$DIR" -DestinationPath "${DIR}.zip"
       - name: Upload artifact
