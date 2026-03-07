@@ -13,4 +13,9 @@
   <ItemGroup>
     <ProjectReference Include="..\Iscc.Lib\Iscc.Lib.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="testdata\data.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>

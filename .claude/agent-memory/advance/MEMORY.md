@@ -185,8 +185,20 @@ iterations.
 - `AlgSimhash`/`SoftHashVideoV0` use `GCHandle.Alloc(GCHandleType.Pinned)` for jagged arrays (same
     pattern as `GenVideoCodeV0`)
 
+## .NET Conformance Tests
+
+- `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — 9 `[Theory]` + `[MemberData]` tests, 50
+    vectors total. Uses `System.Text.Json` (built-in), `Lazy<JsonElement>` for cached loading
+- `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` — vendored copy, `CopyToOutputDirectory` in
+    csproj. Loaded via `AppContext.BaseDirectory`
+- Empty span fix: C# `fixed (byte* p = emptySpan)` gives NULL — 3 gen functions (`GenAudioCodeV0`,
+    `GenDataCodeV0`, `GenInstanceCodeV0`) use stack sentinel for empty inputs. Same bug exists in
+    `GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64` (untriggered)
+
 ## Gotchas
 
 - Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name
 - After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
+- C# `fixed` on empty `ReadOnlySpan<T>` produces NULL pointer — FFI layer rejects NULL. Use
+    `if (span.IsEmpty) { T sentinel; use &sentinel with length 0 }` pattern
