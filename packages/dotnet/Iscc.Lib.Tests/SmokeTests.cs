@@ -346,6 +346,71 @@ public class SmokeTests
         Assert.Equal(8, result.Length);
     }
 
+    // ── Streaming Hashers ──────────────────────────────────────────────────
+
+    [Fact]
+    public void DataHasher_MatchesGenDataCodeV0()
+    {
+        byte[] data = "Hello World"u8.ToArray();
+        string expected = IsccLib.GenDataCodeV0(data);
+        using var hasher = new IsccDataHasher();
+        hasher.Update(data);
+        string result = hasher.Finalize();
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void DataHasher_ChunkedUpdate_MatchesSingleUpdate()
+    {
+        byte[] data = "Hello World"u8.ToArray();
+        using var single = new IsccDataHasher();
+        single.Update(data);
+        string expected = single.Finalize();
+
+        using var chunked = new IsccDataHasher();
+        chunked.Update(data.AsSpan(0, 5));
+        chunked.Update(data.AsSpan(5));
+        string result = chunked.Finalize();
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void InstanceHasher_MatchesGenInstanceCodeV0()
+    {
+        byte[] data = "Hello World"u8.ToArray();
+        string expected = IsccLib.GenInstanceCodeV0(data);
+        using var hasher = new IsccInstanceHasher();
+        hasher.Update(data);
+        string result = hasher.Finalize();
+        Assert.Equal(expected, result);
+    }
+
+    [Fact]
+    public void DataHasher_DisposeIsIdempotent()
+    {
+        var hasher = new IsccDataHasher();
+        hasher.Dispose();
+        hasher.Dispose(); // Should not throw
+    }
+
+    [Fact]
+    public void DataHasher_UpdateAfterFinalize_Throws()
+    {
+        using var hasher = new IsccDataHasher();
+        hasher.Update("data"u8);
+        hasher.Finalize();
+        Assert.Throws<InvalidOperationException>(() => hasher.Update("more"u8));
+    }
+
+    [Fact]
+    public void DataHasher_FinalizeAfterFinalize_Throws()
+    {
+        using var hasher = new IsccDataHasher();
+        hasher.Update("data"u8);
+        hasher.Finalize();
+        Assert.Throws<InvalidOperationException>(() => hasher.Finalize());
+    }
+
     // ── Error Handling ──────────────────────────────────────────────────────
 
     [Fact]

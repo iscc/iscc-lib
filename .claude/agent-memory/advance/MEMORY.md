@@ -165,11 +165,14 @@ iterations.
     functions + 6 structs). Parses `#[unsafe(no_mangle)]` (Rust 2024 edition) without issues
 - `NativeMethods` class is `internal` — idiomatic C# wrappers in `IsccLib.cs` are the public API
 - `AllowUnsafeBlocks` in csproj required for generated `byte*` pointer types
-- `IsccLib.cs` wrappers: 6 private helpers (ToNativeUtf8, ConsumeNativeString,
-    ConsumeNativeStringArray, ConsumeByteBuffer, ConsumeByteBufferArray, GetLastError) + PascalCase
-    public methods. `fixed (byte* p = nullArray)` sets pointer to null for optional params
-- 30/32 Tier 1 symbols wrapped (5 constants, 4 text utils, 10 gen, 2 encoding utils, 3 codec, 1
-    sliding window, 4 algorithm primitives, 1 conformance). Remaining 2: streaming types
+- `IsccLib.cs` wrappers: 4 private + 2 internal helpers (ToNativeUtf8 private, ConsumeNativeString
+    internal, ConsumeNativeStringArray private, ConsumeByteBuffer private, ConsumeByteBufferArray
+    private, GetLastError internal) + PascalCase public methods
+- 32/32 Tier 1 symbols complete: 5 constants, 4 text utils, 10 gen, 2 encoding utils, 3 codec, 1
+    sliding window, 4 algorithm primitives, 1 conformance, 2 streaming types
+- Streaming: `IsccDataHasher.cs` + `IsccInstanceHasher.cs` — SafeHandle + IDisposable pattern,
+    nested private `DataHasherHandle`/`InstanceHasherHandle : SafeHandle`. IntPtr ↔ typed pointer
+    cast: `(FfiDataHasher*)(void*)handle`. `_finalized` bool for one-shot semantics
 - `encode_component` and `iscc_decompose` return raw component strings WITHOUT "ISCC:" prefix
 - `IsccDecode` returns `DecodeResult` record; marshals `IsccByteBuffer` digest via `Span<byte>`
 - `ConsumeNativeStringArray`: iterates NULL-terminated `byte**`, frees via `iscc_free_string_array`

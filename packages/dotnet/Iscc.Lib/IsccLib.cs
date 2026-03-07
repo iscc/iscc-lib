@@ -580,7 +580,7 @@ public static partial class IsccLib
     }
 
     /// <summary>Marshal a native UTF-8 string to managed, free the native pointer, or throw on null.</summary>
-    private static unsafe string ConsumeNativeString(byte* ptr)
+    internal static unsafe string ConsumeNativeString(byte* ptr)
     {
         if (ptr is null)
             throw new IsccException(GetLastError());
@@ -644,7 +644,7 @@ public static partial class IsccLib
     }
 
     /// <summary>Read the last error message from the native library.</summary>
-    private static unsafe string GetLastError()
+    internal static unsafe string GetLastError()
     {
         byte* err = NativeMethods.iscc_last_error();
         if (err is null)

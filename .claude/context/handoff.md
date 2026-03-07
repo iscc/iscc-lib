@@ -1,42 +1,41 @@
-## 2026-03-07 — Review of: C# algorithm primitives (4 symbols → 30/32)
+## 2026-03-07 — C# streaming hashers (IsccDataHasher, IsccInstanceHasher) — 32/32 symbols
 
-**Verdict:** PASS
+**Done:** Implemented `IsccDataHasher` and `IsccInstanceHasher` streaming classes using SafeHandle +
+IDisposable pattern for deterministic native resource cleanup. Changed `GetLastError` and
+`ConsumeNativeString` visibility from `private` to `internal` in `IsccLib.cs` so the hasher classes
+can reuse them. This completes 32/32 Tier 1 symbols for the C#/.NET binding.
 
-**Summary:** Clean implementation of 4 algorithm primitive wrappers (`AlgSimhash`, `AlgMinhash256`,
-`AlgCdcChunks`, `SoftHashVideoV0`) plus 2 private helpers (`ConsumeByteBuffer`,
-`ConsumeByteBufferArray`). All 5 verification criteria pass: 35/35 .NET tests green,
-`mise run check` all 15 hooks pass, clippy clean. Code follows established marshaling patterns
-consistently. Scope discipline is perfect — only the two specified files modified.
+**Files changed:**
+
+- `packages/dotnet/Iscc.Lib/IsccDataHasher.cs`: New file — streaming Data-Code hasher with nested
+    `DataHasherHandle : SafeHandle`, `Update(ReadOnlySpan<byte>)`, `Finalize(uint bits = 64)`,
+    `IDisposable`
+- `packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs`: New file — streaming Instance-Code hasher with
+    nested `InstanceHasherHandle : SafeHandle`, same API pattern as DataHasher
+- `packages/dotnet/Iscc.Lib/IsccLib.cs`: Changed `ConsumeNativeString` and `GetLastError` from
+    `private` to `internal` (one-word change each, no behavioral modification)
+- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`: Added 6 streaming tests
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi` succeeds — 0 errors
-- [x] `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — 0 errors, 0 warnings
-- [x] `dotnet test ... -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug` — 35 passed, 0 failed
-    (29 existing + 6 new)
-- [x] `grep -c 'public static' IsccLib.cs` — 31 (30 symbols + 1 class decl = correct)
-- [x] `mise run check` — all 15 hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- `cargo build -p iscc-ffi` — succeeds (no FFI changes)
+- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — 0 errors, 0 warnings
+- `dotnet test ... -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug` — 41 passed, 0 failed (35
+    existing + 6 new streaming tests)
+- `grep -c 'public sealed class Iscc' IsccDataHasher.cs` — 1
+- `grep -c 'public sealed class Iscc' IsccInstanceHasher.cs` — 1
+- `mise run check` — all 15 hooks pass
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** P3 finding about `SoftHashVideoV0` empty-input edge case: C# `fixed` on
-zero-length arrays produces null pointers, so the FFI would return "frame_sigs must not be NULL"
-instead of the Rust core's "frame_sigs must not be empty" error. This is the same behavior as the
-existing `GenVideoCodeV0` wrapper and all other jagged-array functions — the error path still
-triggers correctly, only the message differs. Not actionable for this iteration.
-
-**Next:** Streaming types (`IsccDataHasher`, `IsccInstanceHasher`) requiring `IDisposable` +
-`SafeHandle` pattern for the final 2 of 32 Tier 1 symbols. After that: conformance tests
-(`ConformanceTests.cs` + vendored `data.json`), howto documentation, and API reference page.
+**Next:** Conformance tests (`ConformanceTests.cs` + vendored `testdata/data.json`) to validate all
+10 gen functions against official test vectors. After that: howto documentation
+(`docs/howto/dotnet.md`), API reference page, and NuGet publish job in `release.yml`.
 
 **Notes:**
 
-- .NET binding now at 30/32 Tier 1 symbols (5 constants, 4 text utils, 10 gen, 2 encoding utils, 3
-    codec, 1 sliding window, 4 algorithm primitives, 1 conformance)
-- Remaining 2 symbols: streaming types (`DataHasher`, `InstanceHasher`)
-- `ConsumeByteBuffer`/`ConsumeByteBufferArray` helpers follow established `ConsumeNativeString`
-    pattern — null check + data copy + free in finally
-- `AlgSimhash`/`SoftHashVideoV0` use same `GCHandle` pinning pattern as `GenVideoCodeV0`
+- .NET binding now at 32/32 Tier 1 symbols: 5 constants, 4 text utils, 10 gen, 2 encoding utils, 3
+    codec, 1 sliding window, 4 algorithm primitives, 1 conformance, 2 streaming types
+- Both hashers use `ObjectDisposedException.ThrowIf` for disposed checks and
+    `InvalidOperationException` for finalized checks — consistent with .NET conventions
+- The `_finalized` flag is checked before the disposed check in `Update`/`Finalize` — order is
+    disposed-first because `ObjectDisposedException.ThrowIf` is checked first in code flow, matching
+    the behavior specified in next.md
