@@ -158,27 +158,6 @@ fully-met target sections to `learnings-archive.md`.
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
 
-## Ruby Bindings (Magnus)
-
-- Magnus 0.7.1 works with Rust edition 2024 and Ruby 3.1.2. Magnus 0.8 requires Ruby 3.2+
-- `extconf.rb` must be at crate root (not `ext/iscc_lib/`) — rb_sys `ExtensionTask` expects it next
-    to `Cargo.toml`
-- Cargo lib name must match package name (`iscc_rb`, not `iscc_lib`) — rb_sys derives the binary
-    name from the package name. Ruby loads via `require_relative "iscc_lib/iscc_rb"`
-- Root `.gitignore` has `lib/` pattern — need `!lib/` negation in `crates/iscc-rb/.gitignore`
-- `bundler` not on PATH by default in devcontainer — need `$HOME/.local/share/gem/ruby/3.1.0/bin` on
-    PATH
-- Streaming classes use `#[magnus::wrap(class = "IsccLib::ClassName")]` + `RefCell<Option<inner>>`
-    (Magnus gives `&self`, not `&mut self`). Ruby `class ClassName` inside `module IsccLib` reopens
-    the native class. Method prefix `_update`/`_finalize` works; class prefix `_DataHasher` does NOT
-    (Ruby constants must start with uppercase)
-- `libclang-dev` required for rb-sys/bindgen to compile
-- Standard Ruby linting: `standard` gem + `rubocop-minitest` plugin. Config at `.standard.yml` (not
-    `.rubocop.yml`). `mise run check` now runs 15 hooks (incl. Ruby auto-fix). Pre-commit hook uses
-    portable `ruby -e "puts Gem.user_dir"` for PATH resolution since `bundle` isn't on system PATH
-- Ruby `JSON.generate` silently ignores `sort_keys: true` — use `meta_val.sort.to_h` before
-    `JSON.generate` for sorted-key output. Python `json.dumps(sort_keys=True)` works as expected
-
 ## .NET Bindings (P/Invoke)
 
 - DLL name `"iscc_ffi"` — .NET auto-resolves to `libiscc_ffi.so` (Linux), `iscc_ffi.dll` (Windows),
@@ -205,6 +184,9 @@ fully-met target sections to `learnings-archive.md`.
     helper. `GenMixedCodeV0` and `GenIsccCodeV0` share near-identical patterns as a result
 - `IsccSumCodeResult` struct is at the namespace level in `NativeMethods.g.cs` (not nested in the
     `NativeMethods` class) — reference it without the `NativeMethods.` prefix in wrapper code
+- `ConsumeNativeStringArray`: shared helper for NULL-terminated `byte**` → `string[]` marshaling.
+    Used by `IsccDecompose` and `SlidingWindow`. Frees via `iscc_free_string_array` in `finally`
+- `IsccDecode` returns `DecodeResult` record; digest copied via `Span<byte>` before native free
 
 ## CID Process
 

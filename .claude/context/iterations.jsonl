@@ -848,3 +848,8 @@
 {"ts":"2026-03-05T13:05:30.000000+00:00","iteration":5,"role":"advance","status":"OK","turns":45,"cost_usd":2.50,"duration_s":500}
 {"ts":"2026-03-05T13:25:00.000000+00:00","iteration":5,"role":"review","status":"OK","turns":30,"cost_usd":1.80,"duration_s":420}
 {"ts":"2026-03-05T13:18:01.898514+00:00","iteration":5,"role":"advance","status":"OK","turns":27,"cost_usd":7.239174,"duration_s":2492.8}
+{"ts":"2026-03-05T13:24:59.270734+00:00","iteration":5,"role":"review","status":"OK","turns":34,"cost_usd":1.075511,"duration_s":417.4}
+{"ts":"2026-03-07T10:40:35.601671+00:00","iteration":1,"role":"update-state","status":"OK","turns":25,"cost_usd":1.101208,"duration_s":294.7}
+{"ts":"2026-03-07T10:44:24.792896+00:00","iteration":1,"role":"define-next","status":"OK","turns":23,"cost_usd":1.251344,"duration_s":229.2}
+{"ts":"2026-03-07T10:51:18.528688+00:00","iteration":1,"role":"advance","status":"OK","turns":49,"cost_usd":2.001396,"duration_s":413.7}
+{"ts":"2026-03-07T11:00:00.000000+00:00","iteration":1,"role":"review","status":"OK","turns":15,"cost_usd":0.5,"duration_s":300}

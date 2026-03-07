@@ -61,6 +61,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     csbindgen (v1.9.7) generates `NativeMethods.g.cs` (47 functions, 6 structs) via `build.rs`
 - csbindgen runs in `build.rs` (unlike cbindgen CLI) — writes to repo-relative path. `dotnet` not
     available locally — CI is the .NET validation backstop. Codex flags build robustness (advisory)
+- .NET now at 26/32 symbols. Remaining 6: 4 algorithm primitives + 2 streaming types
 
 ## Binding Propagation Shortcuts
 
