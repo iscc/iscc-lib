@@ -1,35 +1,42 @@
-## 2026-03-07 — Review of: Bundle `iscc.hpp` in FFI release tarballs
+## 2026-03-07 — Add C++ documentation (README, howto, root README)
 
-**Verdict:** PASS
+**Done:** Created `packages/cpp/README.md` following the .NET README pattern, updated
+`docs/howto/c-cpp.md` to replace the hand-written RAII wrapper section with comprehensive `iscc.hpp`
+documentation (include paths, gen functions, streaming, error handling, codec, conformance), and
+updated `README.md` to add C++ to the polyglot bullet, ecosystem list, install section, and
+quickstart.
 
-**Summary:** The advance agent added exactly two lines to `release.yml` — one Unix `cp` and one
-Windows `Copy-Item` — to include `iscc.hpp` alongside `iscc.h` in FFI release tarballs. The change
-is minimal, correctly scoped, and all verification criteria pass. No quality gate circumvention.
+**Files changed:**
+
+- `packages/cpp/README.md`: Created — badges, "What is ISCC", installation (tarball + source), quick
+    start, API overview tables (10 gen functions, streaming, utilities), links, license
+- `docs/howto/c-cpp.md`: Updated intro to mention `iscc.hpp` as recommended C++ approach; updated
+    pre-built binaries tip to mention `iscc.hpp`; replaced lines 327-411 (old hand-written RAII
+    wrapper) with comprehensive `iscc.hpp` section covering include paths (tarball flat vs
+    CMake/source), quick start, gen functions, dual-hasher streaming, error handling,
+    codec/utilities, and conformance verification
+- `README.md`: Added "C++" to polyglot bullet (line 26) and ecosystem paragraph (line 50); added "C
+    / C++" install section with GitHub Release link mentioning `iscc.hpp`; added C++ quickstart with
+    `iscc::gen_meta_code_v0` example
 
 **Verification:**
 
-- [x] `grep -c 'iscc.hpp' .github/workflows/release.yml` returns `2` — Unix and Windows lines
-    present
-- [x] `mise run check` passes — all 15 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean (no Rust changes)
+- `grep -c 'iscc.hpp' docs/howto/c-cpp.md` → 12 (≥5 required) ✓
+- `grep -c 'iscc::gen_meta_code_v0' docs/howto/c-cpp.md` → 2 (≥1 required) ✓
+- `grep -c 'iscc::DataHasher' docs/howto/c-cpp.md` → 2 (≥1 required) ✓
+- `grep 'C++' README.md` → shows C++ in install and quickstart sections ✓
+- `grep -c 'iscc.hpp' README.md` → 2 (≥1 required) ✓
+- `test -f packages/cpp/README.md` → exits 0 ✓
+- `grep -c 'gen_meta_code_v0' packages/cpp/README.md` → 2 (≥1 required) ✓
+- `grep -c 'What is ISCC' packages/cpp/README.md` → 1 ✓
+- `mise run check` → all 15 pre-commit hooks pass ✓
+- Pre-push hooks → all pass (clippy, cargo test, pytest, type check, security, complexity, Ruby) ✓
 
-**Issues found:**
+**Next:** Remaining C++ issue sub-items: package manager manifests (`vcpkg.json`, `conanfile.py`),
+`gen_mixed_code_v0` test gap in `test_iscc.cpp`, and nested vector null-safety hardening
+(`safe_data` for inner elements). These are all explicitly listed as "Not In Scope" for this step.
 
-- (none)
-
-**Codex review:** Codex flagged that the flat tarball layout (`iscc.hpp` in root, not under `iscc/`)
-breaks the `#include <iscc/iscc.hpp>` pattern used in the CMake project's test file. This is
-technically correct but explicitly out of scope — next.md said "keep flat layout matching current
-`iscc.h` placement." Tarball consumers use `#include "iscc.hpp"` with `-I <dir>`. The
-`docs/howto/c-cpp.md` update step (still pending) should document both include path conventions.
-
-**Next:** Continue with remaining C++ issue sub-items: package manager manifests (`vcpkg.json`,
-`conanfile.py`), `packages/cpp/README.md`, and `docs/howto/c-cpp.md` documentation update. The
-README and docs update are good candidates to combine since they're both documentation. The
-`gen_mixed_code_v0` test gap in `test_iscc.cpp` is also outstanding. The C++ issue stays open until
-all sub-items are done.
-
-**Notes:** This was a 2-line YAML-only change with perfect scope discipline. The Codex finding about
-include paths is tracked as a learning for the future docs update — when writing the C++ section of
-`c-cpp.md`, explain that tarball users should use flat includes (`#include "iscc.hpp"`) while
-CMake/vcpkg/conan users get the `<iscc/iscc.hpp>` path from proper include directory setup.
+**Notes:** The tarball flat layout vs `<iscc/iscc.hpp>` CMake include path distinction is now
+documented in the howto guide as requested — tarball users use `#include "iscc.hpp"` with
+`-I/path/to/tarball`, CMake/source users use `#include <iscc/iscc.hpp>`. mdformat reformatted some
+line wrapping in the admonition blocks. No code changes — purely documentation.

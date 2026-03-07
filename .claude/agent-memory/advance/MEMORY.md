@@ -120,7 +120,10 @@ iterations.
 - API reference: `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`
 - `docs/howto/dotnet.md` — C# / .NET howto (~370 lines). PascalCase methods, `using Iscc.Lib;`,
     typed result records, IDisposable streaming, IsccException error handling
-- `packages/dotnet/README.md` — NuGet package README
+- `docs/howto/c-cpp.md` — C FFI sections (building, CMake, pkg-config, streaming, error handling,
+    memory management, linking, cross-compilation, conformance) + C++ `iscc.hpp` section (include
+    paths, gen functions, streaming, error handling, codec, conformance)
+- Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`
 - zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++
 
 ## Feature Flags

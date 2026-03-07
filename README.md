@@ -23,7 +23,8 @@
     levels
 - **Self-Describing**: Each component contains its own type and version information
 - **ISO Standardized**: Implements the official ISO 24138:2024 specification
-- **Polyglot**: Rust core with bindings for Python, Java, Go, Ruby, C#, Node.js, WASM, and C FFI
+- **Polyglot**: Rust core with bindings for Python, Java, Go, Ruby, C#, C++, Node.js, WASM, and C
+    FFI
 - **Conformance-Tested**: Validated against the official
     [iscc-core](https://github.com/iscc/iscc-core) reference implementation
 
@@ -47,7 +48,7 @@ and general digital asset management use-cases.
 
 `iscc-lib` is a high-performance polyglot implementation of the ISCC core algorithms
 ([ISO 24138](https://www.iso.org/standard/77899.html)). Built in Rust with language bindings for
-Python, Java, Go, Ruby, C#, Node.js, WebAssembly, and C, it serves developers across multiple
+Python, Java, Go, Ruby, C#, C++, Node.js, WebAssembly, and C, it serves developers across multiple
 ecosystems who need fast, reliable content identification.
 
 `iscc-lib` is conformance-tested against the official Python reference implementation
@@ -122,6 +123,12 @@ gem install iscc-lib
 ```bash
 dotnet add package Iscc.Lib
 ```
+
+### C / C++
+
+Pre-built release tarballs are attached to each
+[GitHub Release](https://github.com/iscc/iscc-lib/releases). Download for your platform — includes
+shared library, static library, `iscc.h` header, and `iscc.hpp` C++ wrapper.
 
 ### WASM
 
@@ -204,6 +211,18 @@ using Iscc.Lib;
 
 var result = IsccLib.GenMetaCodeV0("ISCC Test Document!");
 Console.WriteLine($"Meta-Code: {result.Iscc}");
+```
+
+### C++
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+
+int main() {
+    auto result = iscc::gen_meta_code_v0("ISCC Test Document!");
+    std::cout << "Meta-Code: " << result.iscc << std::endl;
+}
 ```
 
 ### WASM
