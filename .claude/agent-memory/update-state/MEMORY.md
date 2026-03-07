@@ -34,6 +34,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **C# record types**: `grep -c "sealed record" packages/dotnet/Iscc.Lib/Results.cs`
 - **C# streaming Finalize check**:
     `grep -n "public.*Finalize" packages/dotnet/Iscc.Lib/IsccDataHasher.cs packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs`
+- **NuGet pipeline check**:
+    `grep -n 'pack-nuget\|test-nuget\|publish-nuget\|NUGET_API_KEY' .github/workflows/release.yml`
 
 ## Codebase Landmarks
 
@@ -53,7 +55,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `docs/howto/` — **9 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     ruby.md (422 lines), **dotnet.md** (417 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c`
     - `CMakeLists.txt` ✅
-- `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
+- `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
+    **Iscc.Lib.csproj** (added in iteration 9)
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
     MetaTrimMeta, IoReadSize, TextNgramSize)
@@ -77,16 +80,25 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: b92af0235fbb7e051e147df46ff90ae7833b32f7)
+## Current State (assessed-at: 9ca509f6b3730f6f8c46310e5d82c970db3777e3)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22804181997); **C# version sync COMPLETE**
+- **IN_PROGRESS**: all 13 CI jobs green (run 22805216743); **C# bindings COMPLETE**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET version sync (iteration 9)**: `Iscc.Lib.csproj` has `<Version>0.2.0</Version>`;
-    `scripts/version_sync.py` has `_get_csproj_version` / `_sync_csproj` in TARGETS ✅
-- **CI (run 22804181997)**: ALL SUCCESS — 13 jobs ✅
-- **packages/dotnet/Iscc.Lib/**: `IsccLib.cs`, `IsccException.cs`, `IsccDataHasher.cs`,
-    `IsccInstanceHasher.cs`, `NativeMethods.g.cs`, `Results.cs` — `Native/SafeHandles.cs` missing
-- **Next action**: NuGet publish pipeline (`release.yml`) → SafeHandles.cs (cosmetic)
+- **C#/.NET NuGet pipeline (iteration 10)**: `pack-nuget` + `test-nuget` + `publish-nuget` in
+    `release.yml`; 7 registry workflow_dispatch inputs (incl. nuget); cross-arch find bug fixed;
+    README path fixed; issue fully resolved and deleted from issues.md ✅
+- **CI (run 22805216743)**: ALL SUCCESS — 13 jobs ✅
+- **C# issue CLOSED**: SafeHandles.cs cosmetic refactor deferred indefinitely (no functional impact)
+- **Next action**: C++ idiomatic header-only wrapper (`iscc.hpp`) — `normal` priority in issues.md
+
+## NuGet Pipeline Details (iteration 10)
+
+- `release.yml` has `nuget` input; `build-ffi` shared between FFI and NuGet
+- `pack-nuget`: downloads cross-compiled FFI artifacts, organizes as `runtimes/<rid>/native/`, runs
+    `dotnet pack -c Release`; cross-arch find uses `-path "*-${target}/*"` to avoid wrong lib
+- `test-nuget`: installs from local nupkg, runs smoke test console app
+- `publish-nuget`: idempotent (skips if version already on NuGet.org); uses `NUGET_API_KEY` secret
+- **Manual action still needed**: NuGet.org account, NUGET_API_KEY secret, package ID reservation
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
@@ -139,10 +151,10 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     `internal static unsafe partial class NativeMethods` — idiomatic wrappers in `IsccLib.cs` are
     the public surface. `dotnet test` requires `-e LD_LIBRARY_PATH=target/debug` (vstest host does
     not inherit shell env).
-- **C# gen function return types**: All 10 `gen_*_v0` now return typed records. BUT records are
+- **C# gen function return types**: All 10 `gen_*_v0` return typed records. BUT records are
     simplified — MetaCodeResult, TextCodeResult, InstanceCodeResult only carry `(string Iscc)`. Spec
     requires additional fields (Name/MetaHash/Description/Meta, Characters, DataHash/FileSize) which
-    need C FFI struct changes first.
+    need C FFI struct changes first. NOT a blocking gap for current conformance criteria.
 - **C# streaming Finalize() return types**: DONE — `IsccDataHasher.Finalize()` → `DataCodeResult`,
     `IsccInstanceHasher.Finalize()` → `InstanceCodeResult`. Completed in iteration 7.
 - **C# ConsumeNativeStringArray**: private helper marshals `byte**` (NULL-terminated string array)
@@ -150,11 +162,7 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
 - **C# ConsumeByteBuffer/ConsumeByteBufferArray**: marshal `IsccByteBuffer`/`IsccByteBufferArray`
     structs from FFI (null check + data copy + free). Used by AlgSimhash, AlgMinhash256,
     AlgCdcChunks, SoftHashVideoV0. Jagged-array inputs use `GCHandle` pinning.
-- **C# DangerousGetHandle() note**: streaming hashers use `DangerousGetHandle()` without
-    `DangerousAddRef/Release` — acceptable for single-threaded use; no concurrent thread safety.
 - **C# empty-span null pointer**: `fixed` on empty `ReadOnlySpan<T>` produces NULL pointer in .NET.
-    Use stack sentinel pattern (`byte sentinel; func(&sentinel, 0, ...)`). NOW FIXED in all 7
-    locations: GenImageCodeV0, GenAudioCodeV0, GenDataCodeV0, GenInstanceCodeV0, AlgMinhash256,
-    AlgCdcChunks, EncodeBase64.
+    Use stack sentinel pattern (`byte sentinel; func(&sentinel, 0, ...)`). FIXED in all 7 locations.
 - **C# ConformanceTests xUnit1026 warnings**: 9 Theory methods have unused `vectorName` parameter —
     pre-existing; serves test identification in output. Not worth suppressing.
