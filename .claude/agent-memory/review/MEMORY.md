@@ -89,7 +89,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `mise run check`
 - `safe_data()` only covers `uint8_t` top-level vectors. Nested vector marshaling needs per-element
     null protection (Codex correctly flagged this in iteration 10)
-- No CI job yet for C++ — tests only run locally. Next step adds `cpp` job to ci.yml
+- CI `cpp` job added (iteration 11): cmake + ASAN + test on ubuntu-latest. 13 total CI jobs now
 
 ## Environment
 

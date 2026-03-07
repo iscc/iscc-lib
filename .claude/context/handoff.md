@@ -1,28 +1,35 @@
-## 2026-03-07 — Add C++ CI job to ci.yml
+## 2026-03-07 — Review of: Add C++ CI job to ci.yml
 
-**Done:** Added a `cpp` CI job to `.github/workflows/ci.yml` that builds and tests the C++
-header-only wrapper with AddressSanitizer enabled. The job follows the standard preamble pattern
-(checkout + rust-toolchain + rust-cache), installs cmake, builds the FFI shared library, configures
-CMake with ASAN, builds, and runs the C++ test binary. Placed after `ruby` and before `bench`.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.github/workflows/ci.yml`: Added `cpp` job (C++ cmake, ASAN, test) — 22 lines between `ruby` and
-    `bench` jobs
+**Summary:** The advance agent added a 22-line `cpp` CI job to `ci.yml` that matches the YAML
+template from next.md verbatim. The job follows the established preamble pattern (checkout +
+rust-toolchain + rust-cache), installs cmake, builds FFI, configures CMake with ASAN, builds, and
+runs C++ tests. All verification criteria pass. Scope discipline is perfect — only `ci.yml` was
+modified.
 
 **Verification:**
 
-- `mise run check` — all 15 pre-commit hooks pass (YAML valid, formatting clean)
-- Local simulation: `cargo build -p iscc-ffi` + cmake configure/build/run with ASAN — all 52 C++
-    tests pass, zero ASAN errors
-- `grep -c 'cpp:' .github/workflows/ci.yml` returns 1 (job key exists)
-- `grep 'SANITIZE_ADDRESS=ON' .github/workflows/ci.yml` finds the ASAN flag
+- [x] `mise run check` passes — all 15 pre-commit hooks pass (YAML valid, formatting clean)
+- [x] Local simulation succeeds — `cargo build -p iscc-ffi` + cmake configure/build/run with ASAN:
+    all 52 C++ tests pass, zero ASAN errors
+- [x] `grep -c 'cpp:' .github/workflows/ci.yml` returns 1 — job key exists
+- [x] `grep 'SANITIZE_ADDRESS=ON' .github/workflows/ci.yml` finds the ASAN flag
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- [ ] CI push triggers `cpp` job and it passes — deferred to push step (cannot verify pre-push)
 
-**Next:** Push to trigger CI and verify the `cpp` job passes on GitHub Actions. Then proceed to
-release bundling — add `iscc.hpp` to FFI release tarballs in `release.yml`. After that, package
-manager manifests (vcpkg.json, conanfile.py) and documentation (README.md, howto/c-cpp.md).
+**Issues found:**
 
-**Notes:** The YAML template from next.md was used verbatim — it matched the existing job patterns
-perfectly. g++ is pre-installed on `ubuntu-latest` so only cmake needs explicit installation. The CI
-job count is now 13 (was 12): version-check, rust, python-test, python, nodejs, wasm, c-ffi, dotnet,
-java, go, ruby, cpp, bench.
+- (none)
+
+**Codex review:** No issues found. Codex confirmed the workflow matches the project layout and
+reproduces the intended CMake build/test flow.
+
+**Next:** Continue with the C++ issue — next logical step is release bundling: add `iscc.hpp` to FFI
+release tarballs in `release.yml`. After that: package manager manifests (`vcpkg.json`,
+`conanfile.py`), `packages/cpp/README.md`, and `docs/howto/c-cpp.md` documentation update. The C++
+issue in issues.md remains open until all 4 sub-items are done.
+
+**Notes:** CI job count is now 13 (was 12). The `cpp` job is placed between `ruby` and `bench` for
+logical grouping. The YAML was used verbatim from the define-next template — no deviation. The
+deferred CI verification criterion will be confirmed when we push.

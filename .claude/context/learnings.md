@@ -168,6 +168,8 @@ fully-met target sections to `learnings-archive.md`.
     protection
 - C++ wrapper lives in `packages/cpp/` — header-only, depends on `iscc-ffi` shared library. No
     separate Rust crate. CMake references `iscc.h` from `crates/iscc-ffi/include/` via include paths
+- C++ CI job: `cmake` needs explicit `apt-get install`, `g++` is pre-installed on `ubuntu-latest`.
+    Uses `working-directory: packages/cpp` for cmake steps. CI job count is now 13 total
 
 ## CID Process
 
