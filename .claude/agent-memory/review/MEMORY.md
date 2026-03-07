@@ -82,6 +82,15 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     - `mise run check`. NOTE: relative path `target/debug` fails in devcontainer — use absolute path.
         `dotnet` is at `/usr/share/dotnet/dotnet` (on PATH in devcontainer)
 
+## C++ Wrapper Review
+
+- C++ wrapper in `packages/cpp/` — header-only, no Rust crate. CMake + INTERFACE library
+- Review shortcut: `cargo build -p iscc-ffi` + CMake configure/build/test + ASAN rebuild + clippy +
+    `mise run check`
+- `safe_data()` only covers `uint8_t` top-level vectors. Nested vector marshaling needs per-element
+    null protection (Codex correctly flagged this in iteration 10)
+- No CI job yet for C++ — tests only run locally. Next step adds `cpp` job to ci.yml
+
 ## Environment
 
 - Python `iscc_lib`: compile with `cd crates/iscc-py && uv run maturin develop --release`

@@ -159,6 +159,16 @@ fully-met target sections to `learnings-archive.md`.
     Count `../` carefully — `packages/dotnet/Iscc.Lib/../../README.md` = `packages/README.md` (NOT
     `packages/dotnet/README.md`)
 
+## C++ Wrapper
+
+- C++ `std::vector<T>::data()` returns nullptr for empty vectors on some implementations
+    (libstdc++). The `safe_data()` helper covers top-level `uint8_t` vectors but NOT inner elements
+    of nested vectors (e.g., `vector<vector<int32_t>>` for video frame sigs). Functions marshaling
+    nested arrays (`alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0`) need per-element null
+    protection
+- C++ wrapper lives in `packages/cpp/` — header-only, depends on `iscc-ffi` shared library. No
+    separate Rust crate. CMake references `iscc.h` from `crates/iscc-ffi/include/` via include paths
+
 ## CID Process
 
 - **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current

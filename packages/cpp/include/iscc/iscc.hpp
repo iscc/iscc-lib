@@ -17,7 +17,6 @@ extern "C" {
 }
 
 #include <cstdint>
-#include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
