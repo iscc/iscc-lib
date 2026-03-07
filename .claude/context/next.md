@@ -1,107 +1,143 @@
 # Next Work Package
 
-## Step: C# algorithm primitives (4 symbols → 30/32)
+## Step: C# streaming hashers (IsccDataHasher, IsccInstanceHasher) — 32/32 symbols
 
 ## Goal
 
-Add the 4 remaining algorithm primitive wrappers (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`,
-`SoftHashVideoV0`) to the C# binding, advancing from 26 to 30 of 32 Tier 1 symbols. These require
-new `IsccByteBuffer` / `IsccByteBufferArray` marshaling helpers that return `byte[]` and `byte[][]`
-instead of strings.
+Implement the final 2 of 32 Tier 1 symbols for the C# binding: `IsccDataHasher` and
+`IsccInstanceHasher` streaming classes. This completes the full Tier 1 API surface for C#/.NET.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `packages/dotnet/Iscc.Lib/IsccLib.cs` — add 4 public methods + 2 private helpers
-    - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — add tests for each new method
-- **Reference**:
-    - `crates/iscc-ffi/src/lib.rs` — FFI signatures for `iscc_alg_simhash`, `iscc_alg_minhash_256`,
-        `iscc_alg_cdc_chunks`, `iscc_soft_hash_video_v0`, `iscc_free_byte_buffer`,
-        `iscc_free_byte_buffer_array`
-    - `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` — generated P/Invoke declarations and
-        `IsccByteBuffer` / `IsccByteBufferArray` struct definitions
+- **Create**: `packages/dotnet/Iscc.Lib/IsccDataHasher.cs`,
+    `packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs`
+- **Modify**: `packages/dotnet/Iscc.Lib/IsccLib.cs` (change `GetLastError` and `ConsumeNativeString`
+    visibility from `private` to `internal`), `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` (add
+    streaming tests)
+- **Reference**: `crates/iscc-ffi/src/lib.rs` (lines 1279-1478 — FFI streaming API),
+    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (lines 631-727, 910-925 — P/Invoke declarations
+    and opaque struct defs), `packages/dotnet/Iscc.Lib/IsccLib.cs` (existing marshaling patterns)
 
 ## Not In Scope
 
-- Streaming types (`IsccDataHasher`, `IsccInstanceHasher`) — that's the next step (symbols 31-32)
-- Structured result records for gen functions (`MetaCodeResult`, `TextCodeResult`, etc.)
-- Conformance tests (`ConformanceTests.cs` + vendored `data.json`)
-- Documentation (`docs/howto/dotnet.md`, README C# section)
-- Refactoring existing `GenSumCodeV0` to use the new helpers — it has its own inline marshaling that
-    works fine
+- Structured result records (`MetaCodeResult`, `TextCodeResult`, etc.) — separate future step
+- Conformance tests (`ConformanceTests.cs` + `testdata/data.json`) — separate future step
+- Documentation (`docs/howto/dotnet.md`, `packages/dotnet/README.md`) — separate future step
+- NuGet publish job in `release.yml` — separate future step
+- Refactoring existing `IsccLib.cs` wrappers — no changes to working code
+- `Stream`-based overloads (accepting `System.IO.Stream` instead of `ReadOnlySpan<byte>`) — nice to
+    have but not in the 32 Tier 1 symbols
+- SafeHandle subclass in a separate `Native/SafeHandles.cs` file — keep SafeHandle as private nested
+    class inside each hasher for simplicity
 
 ## Implementation Notes
 
-### New private helpers (add to IsccLib.cs private section)
+### Pattern: SafeHandle + IDisposable
 
-1. **`ConsumeByteBuffer(IsccByteBuffer buf)`** → `byte[]`: Check `buf.data` for null (throw
-    `IsccException(GetLastError())`), copy `buf.len` bytes via
-    `new Span<byte>(buf.data,  (int)buf.len).ToArray()`, then call
-    `NativeMethods.iscc_free_byte_buffer(buf)` in `finally`. Pattern mirrors `ConsumeNativeString`
-    but returns `byte[]` instead of `string`.
+Each streaming class wraps an opaque native pointer via a private nested `SafeHandle` subclass for
+deterministic cleanup with finalization safety net:
 
-2. **`ConsumeByteBufferArray(IsccByteBufferArray arr)`** → `byte[][]`: Check `arr.buffers` for null
-    (throw), iterate `arr.count` elements copying each buffer's data to `byte[]`, then call
-    `NativeMethods.iscc_free_byte_buffer_array(arr)` in `finally`.
+```csharp
+public sealed class IsccDataHasher : IDisposable
+{
+    private readonly DataHasherHandle _handle;
+    private bool _finalized;
 
-### 4 public wrapper methods
+    public IsccDataHasher() { ... }
+    public void Update(ReadOnlySpan<byte> data) { ... }
+    public string Finalize(uint bits = 64) { ... }
+    public void Dispose() { _handle.Dispose(); }
 
-1. **`AlgSimhash(byte[][] digests)`** → `byte[]`:
+    private sealed class DataHasherHandle : SafeHandle { ... }
+}
+```
 
-    - Pin each inner `byte[]` with `GCHandle.Alloc(GCHandleType.Pinned)` (same pattern as
-        `GenVideoCodeV0` but with `byte**` instead of `int**`)
-    - Build `byte*[]` pointer array and `nuint[]` lengths array
-    - Call `NativeMethods.iscc_alg_simhash(pPtrs, pLens, numDigests)`
-    - Return via `ConsumeByteBuffer`
-    - Free GCHandles in `finally`
+### SafeHandle subclass
 
-2. **`AlgMinhash256(ReadOnlySpan<uint> features)`** → `byte[]`:
+Use a private nested class (e.g., `DataHasherHandle : SafeHandle`) that:
 
-    - Simplest — just `fixed (uint* pFeatures = features)` and call
-        `NativeMethods.iscc_alg_minhash_256(pFeatures, (nuint)features.Length)`
-    - Return via `ConsumeByteBuffer`
+- Inherits from `SafeHandle` (from `System.Runtime.InteropServices`)
+- Stores the native `FfiDataHasher*` as `IntPtr` (SafeHandle base class field `handle`)
+- Override `IsInvalid` → `handle == IntPtr.Zero`
+- Override `ReleaseHandle()` → casts `IntPtr` back to `FfiDataHasher*` via
+    `(FfiDataHasher*)(void*)handle` and calls `NativeMethods.iscc_data_hasher_free()`
+- Constructor accepts `FfiDataHasher*` from `iscc_data_hasher_new()`, stores as `(IntPtr)ptr`
 
-3. **`AlgCdcChunks(ReadOnlySpan<byte> data, bool utf32 = false, uint avgChunkSize = 1024)`** →
-    `byte[][]`:
+### P/Invoke declarations already exist in NativeMethods.g.cs
 
-    - `fixed (byte* pData = data)` and call
-        `NativeMethods.iscc_alg_cdc_chunks(pData, (nuint)data.Length, utf32, avgChunkSize)`
-    - Return via `ConsumeByteBufferArray`
+- `iscc_data_hasher_new()` → `FfiDataHasher*`
+- `iscc_data_hasher_update(FfiDataHasher*, byte*, nuint)` → `bool`
+- `iscc_data_hasher_finalize(FfiDataHasher*, uint)` → `byte*`
+- `iscc_data_hasher_free(FfiDataHasher*)` → `void`
+- Same 4 for `iscc_instance_hasher_*`
+- `FfiDataHasher` and `FfiInstanceHasher` are empty structs (opaque pointers)
 
-4. **`SoftHashVideoV0(int[][] frameSigs, uint bits = 64)`** → `byte[]`:
+### Key behaviors
 
-    - Same GCHandle pinning pattern as `GenVideoCodeV0` (already implemented)
-    - Call `NativeMethods.iscc_soft_hash_video_v0(pPtrs, pLens, numFrames, bits)`
-    - Return via `ConsumeByteBuffer`
+- `Update()` after `Finalize()` → `InvalidOperationException("Hasher already finalized")`
+- `Update()` after `Dispose()` → `ObjectDisposedException`
+- `Finalize()` after `Finalize()` → `InvalidOperationException("Hasher already finalized")`
+- `Finalize()` after `Dispose()` → `ObjectDisposedException`
+- `Dispose()` is idempotent (SafeHandle handles this)
+- Streaming results must match `GenDataCodeV0`/`GenInstanceCodeV0` for the same input data
 
-### Section organization
+### Error helper reuse
 
-Add a new `// ── Algorithm Primitives ──` section in IsccLib.cs between Utilities and Diagnostics.
-Place the 4 methods in order: `AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`.
+`GetLastError()` and `ConsumeNativeString()` are `private` in `IsccLib.cs`. Change both to
+`internal` so the hasher classes (in the same assembly) can reuse them. This is a one-word
+visibility change each — `private` → `internal`. No behavioral modification.
 
-### Tests
+The hasher's `Finalize()` method calls `iscc_data_hasher_finalize()` which returns `byte*` (an ISCC
+string). Use `ConsumeNativeString()` to marshal it and free the native pointer. On null return,
+`ConsumeNativeString` already throws `IsccException(GetLastError())`.
 
-Add to SmokeTests.cs an `// ── Algorithm Primitives ──` section with tests:
+### IntPtr ↔ typed pointer casting
 
-- `AlgSimhash_ReturnsByteArray` — 2 digests of 4 bytes each → result is 4 bytes (matches input
-    digest length)
-- `AlgSimhash_EmptyInput_Returns32Bytes` — empty array → 32 zero bytes
-- `AlgMinhash256_ReturnsByteArray` — `[1u, 2u, 3u, 4u, 5u]` features → 32 bytes result
-- `AlgCdcChunks_SplitsData` — "Hello World" → at least 1 chunk, concatenated chunks == original
-- `AlgCdcChunks_EmptyData` — empty span → 1 chunk of 0 bytes
-- `SoftHashVideoV0_ReturnsByteArray` — 2 frames of 380 i32 each, bits=64 → 8 bytes result
+SafeHandle stores `IntPtr`. NativeMethods uses `FfiDataHasher*`. Cast pattern:
+
+```csharp
+// Store: (IntPtr)ptr  (where ptr is FfiDataHasher*)
+// Retrieve: (FfiDataHasher*)(void*)handle
+```
+
+### Disposed check pattern
+
+Before any operation on the native handle:
+
+```csharp
+ObjectDisposedException.ThrowIf(_handle.IsInvalid || _handle.IsClosed, this);
+```
+
+This covers both never-initialized and already-disposed cases.
+
+### InstanceHasher note
+
+`gen_instance_code_v0` always produces 256-bit output regardless of `bits` parameter. The
+`InstanceHasher.Finalize(bits)` should still accept the parameter and pass it through — the Rust
+core handles the semantics.
+
+### Tests to add (in SmokeTests.cs)
+
+1. `DataHasher_MatchesGenDataCodeV0` — feed "Hello World" bytes via Update, verify Finalize result
+    matches `GenDataCodeV0` with same data
+2. `DataHasher_ChunkedUpdate_MatchesSingleUpdate` — feed data in 2 chunks, verify same result as
+    single update
+3. `InstanceHasher_MatchesGenInstanceCodeV0` — same equivalence check
+4. `DataHasher_DisposeIsIdempotent` — call Dispose twice, no crash
+5. `DataHasher_UpdateAfterFinalize_Throws` — verify `InvalidOperationException`
+6. `DataHasher_FinalizeAfterFinalize_Throws` — verify `InvalidOperationException`
 
 ## Verification
 
-- `cargo build -p iscc-ffi` succeeds (FFI lib must compile)
-- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds with 0 errors, 0 warnings
+- `cargo build -p iscc-ffi` succeeds (no FFI changes, just confirming lib compiles)
+- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — 0 errors, 0 warnings
 - `dotnet test packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug`
-    — all tests pass (29 existing + 6 new = 35 total)
-- `grep -c 'public static' packages/dotnet/Iscc.Lib/IsccLib.cs` shows 31 (30 symbols + 1 class decl)
-- `mise run check` — all hooks pass (formatting, clippy, etc.)
+    — all tests pass (35 existing + ~6 new streaming tests)
+- `grep -c 'public sealed class Iscc' packages/dotnet/Iscc.Lib/IsccDataHasher.cs` returns 1
+- `grep -c 'public sealed class Iscc' packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs` returns 1
+- `mise run check` — all hooks pass (formatting + lint)
 
 ## Done When
 
-All 5 verification criteria pass, confirming the C# binding has 30 of 32 Tier 1 symbols with clean
-builds, passing tests, and clean linting.
+All verification criteria pass: both streaming hasher classes compile, pass tests including
+equivalence checks against `GenDataCodeV0`/`GenInstanceCodeV0`, completing 32/32 Tier 1 symbols.

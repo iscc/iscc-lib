@@ -16,8 +16,6 @@ iterations.
 - State assessments can go stale — always verify claimed gaps by reading the actual files
 - New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
     steps. Core + tests in one step, bindings in subsequent steps
-- Repetitive doc additions across language guides: all 6 howto files follow identical structure
-    (heading, 1-line description, fenced code block). Safe to batch all in one step
 
 ## Signature Change Propagation
 
@@ -36,100 +34,22 @@ iterations.
 
 ## Conformance Vector Loader Differences (critical for data.json updates)
 
-- **Rust core** (`conformance.rs`): Uses `serde_json::Value`, accesses sections by name
-    (`data["gen_meta_code_v0"]`). Ignores unknown top-level keys. Auto-discovers new vectors.
-- **Python** (`test_conformance.py`): Accesses by name (`data[function_name]`). Safe.
-- **Node.js** (`conformance.test.mjs`): Accesses `data.gen_meta_code_v0`. Safe.
-- **WASM** (`conformance.rs`): Same as Rust core (uses `serde_json::Value`). Safe.
-- **Java** (`IsccLibTest.java`): Uses `data.getAsJsonObject("gen_meta_code_v0")`. Safe.
+- **Rust core** (`conformance.rs`): Uses `serde_json::Value`, auto-discovers new vectors.
 - **Go** (`conformance.go`): Uses `map[string]map[string]vectorEntry` — parses ALL top-level keys.
     **BREAKS** on non-vector entries like `_metadata`. Must use `json.RawMessage` intermediate step.
-- **C FFI**: No data.json loader (uses Rust core conformance_selftest).
+- **C FFI / C# .NET**: No data.json loader (uses Rust core `conformance_selftest`).
 - **data.json copies**: `crates/iscc-lib/tests/data.json` (primary) and
     `packages/go/testdata/data.json` (identical copy). Both must be updated together.
 
-## Feature Flags Design (Issue #16) — RESOLVED
-
-- Issue #16 fully resolved across iterations 13-15 (definitions, selftest, CI matrix)
-- `default = ["meta-code"]`, `text-processing` (unicode deps), `meta-code` (implies text-processing)
-
-## API Reference Page Patterns
-
-- Existing API reference page sizes: rust-api.md (377), java-api.md (677), c-ffi-api.md (745)
-- All share: YAML front matter → intro → constants → gen functions (with param tables) → utilities →
-    codec → algo primitives → streaming → error handling
-- `docs/api.md` is the Python API page (different naming convention from others)
-- Nav entry in `zensical.toml` under `Reference` section
-- Doc pages are a single CREATE + one nav MODIFY — well within 3-file limit
-
-## Documentation Sweep Patterns
-
-- `crates/iscc-wasm/pkg/README.md` must always be identical to `crates/iscc-wasm/README.md`
-- When updating "9 gen functions" to "10", distinguish context: data.json has 9 function sections
-    (no gen_sum_code_v0), so conformance/benchmark code correctly says "9"
-- Two docs pages (architecture.md, development.md) share identical directory tree and crate summary
-    table — edits must be synced between them
-
-## CI/Release Patterns
-
-- v0.1.0 released to all registries
-- Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
-- `iscc-rb` requires `libclang-dev` + Ruby headers to compile — cannot remove `--exclude iscc-rb`
-    from Rust CI job without adding those deps. Cleaner to run clippy in the dedicated Ruby job
-- `ruby/setup-ruby@v1` supports `working-directory` input for bundler cache (Gemfile location)
-- Ruby CI pattern: checkout → rust toolchain (with clippy) → rust-cache → apt libclang-dev →
-    setup-ruby → clippy → rake compile → rake test
-- RubyGems release: use `oxidize-rb/actions/cross-gem@v1` for cross-platform precompiled gems. Runs
-    on ubuntu via Docker (rake-compiler-dock). Secret: `GEM_HOST_API_KEY`. Version check via
-    RubyGems API: `https://rubygems.org/api/v1/versions/iscc-lib.json`
-- Reordered linting after release (handoff recommendation) — release infrastructure is higher value
-    since it unblocks publishing
-
-## Gotchas
-
-- JNI function names encode Java package underscores as `_1`
-- WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
-- Java `byte` is signed — values 128-255 wrap, JNI handles correctly
-- Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
-- Go `json.Marshal` for float64: uses 'f' format for values >= 1e-6 and < 1e21, otherwise 'e'
-    format. 1e20 < 1e21 → outputs "100000000000000000000". May or may not match JCS exactly for edge
-    cases. Risk area for test_0017/test_0018.
-
-## Propagation Gotchas
-
-- When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
-    must be updated. Iteration 1 missed the WASM binding assertion (fixed in iteration 2).
-    Checklist:
-    - `crates/iscc-lib/src/lib.rs` — Rust core (updated in iter 1)
-    - `crates/iscc-wasm/tests/conformance.rs` — WASM (missed in iter 1, fixed iter 2)
-    - Other bindings don't have hardcoded count assertions (they iterate dynamically)
-
-## Ruby Bindings — COMPLETE (archived to MEMORY-archive.md)
-
-- Ruby bindings fully met as of iter 13: all 32 symbols, conformance, CI, docs, linting, release
-- Key ref: Magnus 0.7.1, `crates/iscc-rb/`, `docs/ruby-api.md` (781 lines), `docs/howto/ruby.md`
-- `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols
-
-## Documentation Drift Detection
-
-- **Go quickstart in README was completely stale** (used old WASM/wazero runtime pattern, caught
-    iter 14). After major architecture changes (WASM→pure Go), always verify README quickstart
-    snippets against actual function signatures
-- **GenSumCodeV0 4-arg signature**: Go's `GenSumCodeV0(path, bits, wide, addUnits)` has 4 required
-    params. Docs showed 3 args (missing `addUnits`). Always cross-check doc examples against actual
-    Go source signatures in `packages/go/code_*.go`
-- After fixing doc drift, remaining work is ALL low-priority (C#, C++, Swift, Kotlin bindings). CID
-    loop approaches idle state
-
 ## Project Status
 
-- **C#/.NET bindings: 26/32 symbols wrapped, algo primitives next (→30), then streaming (→32)**
+- **C#/.NET bindings: 30/32 symbols wrapped, streaming classes next (→32/32)**
 - v0.2.0 released, 13 CI jobs green, all 7 existing bindings "met"
 - C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
-- Multi-step sequence: scaffold ✅ → CI job ✅ → csbindgen ✅ → wrappers (in progress) → conformance →
-    release → docs
-- .NET CI pattern: `actions/setup-dotnet@v4` (not Microsoft install script),
-    `cargo build -p iscc-ffi`, `dotnet build`, `dotnet test -e LD_LIBRARY_PATH=...`
+- Multi-step sequence: scaffold ✅ → CI job ✅ → csbindgen ✅ → wrappers (30/32 ✅) → streaming →
+    conformance → release → docs
+- .NET CI pattern: `actions/setup-dotnet@v4`, `cargo build -p iscc-ffi`, `dotnet build`,
+    `dotnet test -e LD_LIBRARY_PATH=...`
 
 ## C# / .NET Binding Architecture
 
@@ -138,10 +58,7 @@ iterations.
 - Package lives in `packages/dotnet/` (not `crates/`), similar to Go's `packages/go/`
 - DLL name for P/Invoke: `"iscc_ffi"` — .NET auto-resolves to `libiscc_ffi.so`/`.dylib`/`.dll`
 - `[return: MarshalAs(UnmanagedType.U1)]` needed for C `bool` → C# `bool` marshaling
-- `CallingConvention.Cdecl` required for Rust `extern "C"` functions
-- .NET 8 SDK not in default Debian Bookworm repos — use Microsoft install script
-    (`https://dot.net/v1/dotnet-install.sh`)
-- Tests need `LD_LIBRARY_PATH=target/debug` to find the FFI shared library
+- Tests need `LD_LIBRARY_PATH=target/debug` (absolute path in devcontainer)
 
 ## csbindgen Integration Notes — DONE
 
@@ -151,41 +68,51 @@ iterations.
 
 ## C# Wrapper Scoping Pattern
 
-- **Batch by marshaling complexity**: string→string is simplest (text utilities, meta/text gen),
-    then byte[]→string (data/instance gen), then struct returns (decode, sum), then array inputs
-    (video, mixed, iscc), then streaming types (IDisposable)
-- **Infrastructure first**: IsccException + marshaling helpers (ToNativeUtf8, ConsumeNativeString,
-    GetLastError) enable all subsequent wrappers — invest in these in the first wrapper step
-- NativeMethods.g.cs string functions use `byte*` — need manual UTF-8 marshaling via
-    `System.Text.Encoding.UTF8`, not `Marshal.StringToHGlobalAnsi` (which is ANSI, not UTF-8)
-- `iscc_last_error()` returns thread-local static pointer — do NOT free with `iscc_free_string()`
-- Actual wrapper sequence: 14 symbols (step 1 ✅) → 8 (step 2 ✅: remaining gen + encoding) → 4 (step
-    3 ✅: codec + sliding_window) → 4 (step 4: algo primitives returning byte buffers) → 2 (step 5:
-    streaming IDisposable)
-- **Jagged array marshaling** (`int[][]` → `int**`): Use `GCHandle.Alloc` per inner array, build
-    pointer array, `fixed` on outer. Must free handles in `finally` block
-- **String array input** (`string[]` → `byte**`): Same GCHandle pattern as jagged arrays —
-    ToNativeUtf8 each string, pin each byte[], build byte\*[] from addresses
-- **Struct return** (IsccSumCodeResult): Always free with corresponding `iscc_free_*()` in finally.
-    Check `ok` field before reading other fields. `units` is NULL-terminated `byte**` array
+- **Batch by marshaling complexity**: string→string → byte[]→string → struct returns → array inputs
+    → streaming types (IDisposable)
+- Actual wrapper sequence: 14 symbols (step 1 ✅) → 8 (step 2 ✅) → 4 (step 3 ✅) → 4 (step 4 ✅: algo
+    primitives) → 2 (step 5: streaming IDisposable)
+- **Jagged array marshaling**: `GCHandle.Alloc` per inner array, build pointer array, `fixed` on
+    outer. Must free handles in `finally` block
+- C# disallows pointer types as generic type args — string/byte array marshaling inlined per-method
+- `ConsumeByteBuffer`/`ConsumeByteBufferArray` helpers follow `ConsumeNativeString` pattern
 
-## Release Smoke Test Architecture
+## C# Streaming Types Pattern (for advance agent)
 
-- ALL 6 bindings export `conformance_selftest()` — simplest smoke test is a one-liner per language
-- C FFI: `iscc_conformance_selftest()` (bool), Java JNI: `IsccLib.conformanceSelftest()` (boolean)
-- WASM `--target web` requires workaround for Node.js: pass wasm bytes to `init()` instead of
-    relying on `fetch()`
-- napi .node files can be `require()`'d directly without index.js generation
-- All 6 smoke tests can run on ubuntu-latest with linux-x86_64 artifacts only
-- Single file modification (`release.yml`) — well within 3-file limit even for 6 new jobs
-- Each test job must copy the `if:` condition from its corresponding build job
+- FFI streaming API: `*_new()` → `*_update()` → `*_finalize()` → `*_free()`
+- P/Invoke already generated for all 8 functions (4 per hasher type)
+- `FfiDataHasher`/`FfiInstanceHasher` are opaque empty structs in NativeMethods.g.cs
+- SafeHandle pattern: private nested class, stores `FfiDataHasher*` as IntPtr, casts back for free
+- `GetLastError()` and `ConsumeNativeString()` in IsccLib.cs need `private` → `internal` to reuse
+- `ObjectDisposedException.ThrowIf(_handle.IsInvalid || _handle.IsClosed, this)` for disposed check
 
-## Go AlgCdcChunks Signature Change Pattern
+## CI/Release Patterns
 
-- Go `AlgCdcChunks` is a public API — changing return type to `([][]byte, error)` is a breaking
-    change for external callers
-- Internal caller `DataHasher.Push` always passes `avgChunkSize=1024` — use unexported
-    `algCdcChunksUnchecked` to avoid changing Push's signature
-- This mirrors Rust core pattern: `alg_cdc_chunks` (public, Result) + `alg_cdc_chunks_unchecked`
-    (pub(crate))
-- Doc update needed in `docs/howto/go.md` (signature in algorithm primitives section)
+- v0.2.0 released to all registries
+- Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
+- `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
+- 6 smoke test jobs gate 6 publish jobs in release.yml
+
+## Gotchas
+
+- JNI function names encode Java package underscores as `_1`
+- WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
+- Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
+- `dotnet test -e LD_LIBRARY_PATH=target/debug` with relative path fails in devcontainer — use
+    absolute path
+
+## Propagation Gotchas
+
+- When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
+    must be updated (Rust core + WASM)
+
+## Documentation Drift Detection
+
+- After major architecture changes, always verify README quickstart snippets against actual source
+- After fixing doc drift, remaining work is ALL low-priority (C++, Swift, Kotlin bindings). CID loop
+    approaches idle state after C# completion
+
+## Post-C#-Symbols Roadmap
+
+After 32/32 symbols: conformance tests → docs (howto/dotnet.md, README C# section) → NuGet publish →
+version sync. Then only low-priority items remain (C++, Swift, Kotlin).
