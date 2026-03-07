@@ -1,16 +1,16 @@
-<!-- assessed-at: ffba0c810bd21a0e65f9845e229480b888c5b217 -->
+<!-- assessed-at: 6ee0ab1b1cb513df173c5f5a8d62430fa3bba7bc -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C++ bindings — release bundling done; manifests, docs, and tests pending
+## Phase: C++ bindings — documentation complete; package manager manifests and test gaps pending
 
-v0.2.0 released across all 8 registries. C# / .NET bindings are complete. A C++17 header-only
-wrapper (`iscc.hpp`) was created in iteration 11 with all 32 Tier 1 symbols, RAII guards, and 52
-passing tests (ASAN clean). In iteration 13 `iscc.hpp` was bundled into FFI release tarballs (both
-Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/README.md`,
-`docs/howto/c-cpp.md` update, and `gen_mixed_code_v0` test.
+v0.2.0 released across all 8 registries. C# / .NET bindings are complete. The C++17 header-only
+wrapper (`iscc.hpp`) has 32 symbols, RAII guards, 52 passing tests, CI job, and FFI tarball
+bundling. In iteration 14 all documentation gaps were closed: `packages/cpp/README.md`,
+`docs/howto/c-cpp.md` iscc.hpp section, and root README C++ install/quickstart tab. Remaining C++
+gaps: package manager manifests (vcpkg, Conan) and `gen_mixed_code_v0` test.
 
 ## Rust Core Crate
 
@@ -49,7 +49,7 @@ Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20`
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported
-- WASM CI job = SUCCESS in run 22808041731
+- WASM CI job = SUCCESS in run 22808974429
 
 ## C FFI
 
@@ -99,7 +99,7 @@ Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/
 - `IsccDataHasher.Finalize()` → `DataCodeResult`; `IsccInstanceHasher.Finalize()` →
     `InstanceCodeResult` ✅
 - 41 xUnit `[Fact]` smoke tests + 9 `[Theory]` conformance methods (50 vectors) = 91 total ✅
-- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22808041731
+- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22808974429
 - `pack-nuget` + `test-nuget` + `publish-nuget` pipeline in `release.yml` ✅
 - `docs/howto/dotnet.md` — 417 lines; `packages/dotnet/README.md` — 82 lines ✅
 - **Known limitation**: `MetaCodeResult`, `TextCodeResult`, `InstanceCodeResult` carry only
@@ -115,18 +115,17 @@ Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/
 - `packages/cpp/CMakeLists.txt` — CMake config ✅
 - `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — 52 passing tests, ASAN clean ✅
 - `conformance_selftest()` passes; `gen_meta_code_v0` exact match verified ✅
-- CI job `C++ (cmake, ASAN, test)` — SUCCESS in run 22808041731 ✅
-- `iscc.hpp` now bundled in FFI release tarballs (Unix `cp` + Windows `Copy-Item`) ✅
+- CI job `C++ (cmake, ASAN, test)` — SUCCESS in run 22808974429 ✅
+- `iscc.hpp` bundled in FFI release tarballs (Unix `cp` + Windows `Copy-Item`) ✅
+- `packages/cpp/README.md` — 105 lines with install, quickstart, API overview, links ✅
+- `docs/howto/c-cpp.md` — 497 lines; iscc.hpp section added at line 328 covering include paths,
+    quick start, gen functions, streaming, error handling, codec, conformance ✅
+- Root `README.md` — C++ install tab (line 127) + quickstart snippet (line 216) ✅
 - **Missing**: `packages/cpp/vcpkg.json`, `portfile.cmake`, `conanfile.py`, `iscc-config.cmake.in`,
     `pkg-config/iscc.pc.in` — no package manager manifests ❌
-- **Missing**: `packages/cpp/README.md` — no per-package README ❌
-- **Missing**: `docs/howto/c-cpp.md` not updated with `#include <iscc/iscc.hpp>` section ❌
 - **Missing**: `gen_mixed_code_v0` has no test coverage in `test_iscc.cpp` ❌
 - **Known edge case**: nested vector `safe_data()` not applied for inner elements in `alg_simhash`,
     `soft_hash_video_v0`, `gen_video_code_v0` — not blocking but should be hardened
-- **Note on include paths**: tarball layout is flat (`iscc.hpp` in root alongside `iscc.h`), so
-    tarball users use `#include "iscc.hpp"` while CMake/vcpkg/conan users use `<iscc/iscc.hpp>` via
-    proper include directory setup — the docs update should explain both conventions
 
 ## Swift Bindings
 
@@ -149,8 +148,7 @@ Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/
 
 - Public-facing polyglot README exists; CI badge, all 8 registry badges present (incl. NuGet)
 - All 10 `gen_*_v0` functions listed; per-language install + quick-start examples
-- Ruby + C# / .NET install + quickstart present ✅
-- **Gap**: No C++ install tab or quickstart section (`normal` priority — not yet added)
+- Ruby + C# / .NET + C++ install + quickstart present ✅
 - **Gap**: Missing Swift, Kotlin install + quickstart sections (`low` priority)
 - **Gap**: Language logos/icons not added yet (C++/Swift/Kotlin `low` priority)
 
@@ -158,10 +156,9 @@ Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/
 
 **Status**: partially met
 
-- READMEs present for all existing 9 crates/packages: `crates/iscc-lib`, `crates/iscc-py`,
+- READMEs present for all 10 existing crates/packages: `crates/iscc-lib`, `crates/iscc-py`,
     `crates/iscc-napi`, `crates/iscc-wasm`, `crates/iscc-ffi`, `crates/iscc-jni`, `crates/iscc-rb`,
-    `packages/go`, `packages/dotnet` ✅
-- **Gap**: `packages/cpp/README.md` missing (`normal` priority)
+    `packages/go`, `packages/dotnet`, `packages/cpp` ✅
 - **Gap**: `packages/swift/README.md`, `packages/kotlin/README.md` missing (those bindings not
     started; `low` priority)
 
@@ -172,11 +169,10 @@ Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/
 - 17+ pages deployed to lib.iscc.codes; all navigation sections complete
 - 9 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
     ruby.md, dotnet.md ✅
+- `docs/howto/c-cpp.md` — 497 lines; includes full C++ wrapper section with both include conventions
+    (tarball flat `#include "iscc.hpp"` vs CMake/vcpkg `<iscc/iscc.hpp>`), gen functions, streaming
+    RAII, error handling, codec utilities ✅
 - `zensical.toml` "C / C++" nav entry present ✅
-- **Gap**: `docs/howto/c-cpp.md` does NOT include `iscc.hpp` wrapper section (`normal` priority);
-    current content shows raw `iscc.h` usage only, not `#include <iscc/iscc.hpp>` idioms; should
-    explain flat-tarball include path (`#include "iscc.hpp"`) vs CMake/vcpkg path
-    (`<iscc/iscc.hpp>`)
 - **Gap**: Swift, Kotlin how-to guides (all `low` priority; none started)
 
 ## Benchmarks
@@ -185,14 +181,14 @@ Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/
 
 - Criterion benchmarks for all 10 `gen_*_v0` functions
 - `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks
-- `Bench (compile check)` CI job SUCCESS in run 22808041731
+- `Bench (compile check)` CI job SUCCESS in run 22808974429
 
 ## CI/CD and Publishing
 
 **Status**: met (for existing bindings)
 
-- **ALL PASSING** — latest CI run 22808041731: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22808041731
+- **ALL PASSING** — latest CI run 22808974429: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22808974429
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS
 - `release.yml` has **7 registry** `workflow_dispatch` inputs including `nuget` ✅
@@ -204,14 +200,15 @@ Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/
 
 ## Next Milestone
 
-**Continue completing the C++ bindings** — the open `normal`-priority issue. CI and release bundling
-now pass; remaining steps:
+**Complete remaining C++ issue items** — still `normal` priority in issues.md. Documentation gaps
+are now closed. Remaining implementation tasks:
 
-1. **`docs/howto/c-cpp.md`**: Add section documenting `#include <iscc/iscc.hpp>` idioms — all 32
-    symbols, RAII streaming, gen functions with std types. Explain both include conventions:
-    flat-tarball users use `#include "iscc.hpp"`; CMake/vcpkg/conan users use `<iscc/iscc.hpp>`.
-2. **`packages/cpp/README.md`**: per-package README with install + quickstart
-3. **README.md**: Add C++ install tab (`vcpkg install iscc`) + quickstart code snippet
-4. **Package manager manifests**: `vcpkg.json`, `portfile.cmake`, `conanfile.py`,
-    `iscc-config.cmake.in`, `pkg-config/iscc.pc.in`
-5. **`gen_mixed_code_v0` test**: add missing test in `test_iscc.cpp`
+1. **`gen_mixed_code_v0` test**: Add missing test in `packages/cpp/tests/test_iscc.cpp` — currently
+    the only gen function without test coverage in the C++ test suite
+2. **Package manager manifests**: `packages/cpp/vcpkg.json` + `portfile.cmake` (vcpkg port),
+    `conanfile.py` (Conan recipe), `iscc-config.cmake.in` (CMake find-package support),
+    `pkg-config/iscc.pc.in`
+3. **Nested vector null safety**: Harden `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0` in
+    `iscc.hpp` to apply `safe_data()` on inner vector elements (edge case, not blocking)
+4. After all C++ items done: only `low`-priority issues remain (Swift, Kotlin, logos) — these are
+    CID-loop-skipped until explicitly promoted

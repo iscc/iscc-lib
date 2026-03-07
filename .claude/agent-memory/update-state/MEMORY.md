@@ -86,15 +86,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: ffba0c810bd21a0e65f9845e229480b888c5b217)
+## Current State (assessed-at: 6ee0ab1b1cb513df173c5f5a8d62430fa3bba7bc)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 22808041731); **C++ wrapper PARTIALLY DONE**
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22808974429); **C++ wrapper PARTIALLY DONE**
 - **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
-- **C++ wrapper (iterations 11-13)**: `iscc.hpp` (681 lines, 32 symbols, RAII), `CMakeLists.txt`,
-    `tests/` (52 passing tests, ASAN clean), **CI job** ✅, **`iscc.hpp` in FFI tarballs** ✅
-- **C++ STILL MISSING**: vcpkg.json, portfile.cmake, conanfile.py, `packages/cpp/README.md`,
-    `docs/howto/c-cpp.md` `iscc.hpp` section, README C++ tab, `gen_mixed_code_v0` test
-- **CI (run 22808041731)**: ALL SUCCESS — 14 jobs ✅
+- **C++ wrapper (iterations 11-14)**: `iscc.hpp` (681 lines, 32 symbols, RAII), `CMakeLists.txt`,
+    `tests/` (52 passing tests, ASAN clean), **CI job** ✅, **`iscc.hpp` in FFI tarballs** ✅,
+    **`packages/cpp/README.md`** (105 lines) ✅, **`docs/howto/c-cpp.md` iscc.hpp section** ✅, **root
+    README C++ tab + quickstart** ✅
+- **C++ STILL MISSING**: vcpkg.json, portfile.cmake, conanfile.py, `gen_mixed_code_v0` test
+- **CI (run 22808974429)**: ALL SUCCESS — 14 jobs ✅
 
 ## NuGet Pipeline Details (iteration 10)
 
@@ -179,8 +180,8 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     `apt-get install`ed in CI — they're not in the default ubuntu runner.
 - **C++ tarball layout**: flat — `iscc.hpp` placed alongside `iscc.h` in tarball root (not under
     `iscc/` subdir). Tarball users: `#include "iscc.hpp"`. CMake/vcpkg/conan users:
-    `<iscc/iscc.hpp>` via proper include dir setup. The `docs/howto/c-cpp.md` update must explain
-    both conventions.
+    `<iscc/iscc.hpp>` via proper include dir setup. Both conventions documented in
+    `docs/howto/c-cpp.md` line 340-343 ✅ (done iteration 14).
 - **C++ nested vector gotcha**: `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0` marshal
     nested `vector<vector<T>>` by extracting `.data()` from inner elements. Empty inner vectors
     yield `nullptr` — `safe_data()` covers top-level but not nested. Edge case for hardening.
