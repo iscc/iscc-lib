@@ -39,8 +39,8 @@ public sealed class IsccInstanceHasher : IDisposable
         }
     }
 
-    /// <summary>Finalize the hasher and return the ISCC Instance-Code string.</summary>
-    public string Finalize(uint bits = 64)
+    /// <summary>Finalize the hasher and return the ISCC Instance-Code result.</summary>
+    public InstanceCodeResult Finalize(uint bits = 64)
     {
         ObjectDisposedException.ThrowIf(_handle.IsInvalid || _handle.IsClosed, this);
         if (_finalized)
@@ -51,7 +51,7 @@ public sealed class IsccInstanceHasher : IDisposable
         {
             byte* result = NativeMethods.iscc_instance_hasher_finalize(
                 (FfiInstanceHasher*)(void*)_handle.DangerousGetHandle(), bits);
-            return IsccLib.ConsumeNativeString(result);
+            return new InstanceCodeResult(IsccLib.ConsumeNativeString(result));
         }
     }
 

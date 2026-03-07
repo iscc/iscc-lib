@@ -355,8 +355,8 @@ public class SmokeTests
         var expected = IsccLib.GenDataCodeV0(data);
         using var hasher = new IsccDataHasher();
         hasher.Update(data);
-        string result = hasher.Finalize();
-        Assert.Equal(expected.Iscc, result);
+        var result = hasher.Finalize();
+        Assert.Equal(expected.Iscc, result.Iscc);
     }
 
     [Fact]
@@ -365,13 +365,13 @@ public class SmokeTests
         byte[] data = "Hello World"u8.ToArray();
         using var single = new IsccDataHasher();
         single.Update(data);
-        string expected = single.Finalize();
+        var expected = single.Finalize();
 
         using var chunked = new IsccDataHasher();
         chunked.Update(data.AsSpan(0, 5));
         chunked.Update(data.AsSpan(5));
-        string result = chunked.Finalize();
-        Assert.Equal(expected, result);
+        var result = chunked.Finalize();
+        Assert.Equal(expected.Iscc, result.Iscc);
     }
 
     [Fact]
@@ -381,8 +381,8 @@ public class SmokeTests
         var expected = IsccLib.GenInstanceCodeV0(data);
         using var hasher = new IsccInstanceHasher();
         hasher.Update(data);
-        string result = hasher.Finalize();
-        Assert.Equal(expected.Iscc, result);
+        var result = hasher.Finalize();
+        Assert.Equal(expected.Iscc, result.Iscc);
     }
 
     [Fact]

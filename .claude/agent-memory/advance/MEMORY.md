@@ -188,8 +188,8 @@ iterations.
     vectors total. Uses `System.Text.Json` (built-in), `Lazy<JsonElement>` for cached loading
 - `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` — vendored copy, `CopyToOutputDirectory` in
     csproj. Loaded via `AppContext.BaseDirectory`
-- `Results.cs`: 11 sealed records (9 gen + SumCodeResult + DecodeResult). All 9 gen functions return
-    typed records (only `Iscc` field populated via FFI). Streaming hashers still return `string`
+- `Results.cs`: 11 sealed records (9 gen + SumCodeResult + DecodeResult). All 9 gen functions and
+    both streaming hashers return typed records (only `Iscc` field populated via FFI)
 - Empty span fix applied to all 7 affected functions: `GenAudioCodeV0`, `GenDataCodeV0`,
     `GenInstanceCodeV0`, `GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64`
 
