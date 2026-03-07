@@ -62,8 +62,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - csbindgen runs in `build.rs` (unlike cbindgen CLI) — writes to repo-relative path. `dotnet` not
     available locally — CI is the .NET validation backstop. Codex flags build robustness (advisory)
 - .NET now at 32/32 Tier 1 symbols + 91 tests (41 smoke + 50 conformance) + 11 structured result
-    records. All gen functions + streaming hashers return typed records. Remaining: NuGet publish,
-    version sync, docs
+    records. All gen functions + streaming hashers return typed records. Docs complete
+    (`docs/howto/dotnet.md`, `packages/dotnet/README.md`, README sections). Remaining: NuGet
+    publish, version sync
 - .NET streaming hashers: SafeHandle + IDisposable, `DangerousGetHandle()` is fine for
     single-threaded use. Codex P1 about DangerousAddRef is advisory — dismiss for non-threadsafe
     classes

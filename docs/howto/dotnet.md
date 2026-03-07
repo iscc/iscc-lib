@@ -137,6 +137,8 @@ Console.WriteLine(result.Iscc); // "ISCC:EQA..."
 Generate a Data-Code from raw bytes using content-defined chunking and MinHash:
 
 ```csharp
+using System.Text;
+
 byte[] data = Encoding.UTF8.GetBytes(
     string.Concat(Enumerable.Repeat("Hello World", 1000))
 );
