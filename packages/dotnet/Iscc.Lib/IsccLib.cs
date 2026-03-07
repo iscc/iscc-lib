@@ -439,6 +439,111 @@ public static partial class IsccLib
         }
     }
 
+    // ── Algorithm Primitives ────────────────────────────────────────────────
+
+    /// <summary>Compute a SimHash digest from a set of byte-array digests.</summary>
+    public static byte[] AlgSimhash(byte[][] digests)
+    {
+        int count = digests.Length;
+        GCHandle[] handles = new GCHandle[count];
+        try
+        {
+            unsafe
+            {
+                byte*[] ptrs = new byte*[count];
+                nuint[] lens = new nuint[count];
+                for (int i = 0; i < count; i++)
+                {
+                    handles[i] = GCHandle.Alloc(digests[i], GCHandleType.Pinned);
+                    ptrs[i] = (byte*)handles[i].AddrOfPinnedObject();
+                    lens[i] = (nuint)digests[i].Length;
+                }
+
+                fixed (byte** pPtrs = ptrs)
+                fixed (nuint* pLens = lens)
+                {
+                    IsccByteBuffer buf = NativeMethods.iscc_alg_simhash(
+                        pPtrs, pLens, (nuint)count);
+                    return ConsumeByteBuffer(buf);
+                }
+            }
+        }
+        finally
+        {
+            for (int i = 0; i < count; i++)
+            {
+                if (handles[i].IsAllocated)
+                    handles[i].Free();
+            }
+        }
+    }
+
+    /// <summary>Compute a 256-bit MinHash digest from 32-bit integer features.</summary>
+    public static byte[] AlgMinhash256(ReadOnlySpan<uint> features)
+    {
+        unsafe
+        {
+            fixed (uint* pFeatures = features)
+            {
+                IsccByteBuffer buf = NativeMethods.iscc_alg_minhash_256(
+                    pFeatures, (nuint)features.Length);
+                return ConsumeByteBuffer(buf);
+            }
+        }
+    }
+
+    /// <summary>Split data into content-defined chunks using gear rolling hash.</summary>
+    public static byte[][] AlgCdcChunks(
+        ReadOnlySpan<byte> data, bool utf32 = false, uint avgChunkSize = 1024)
+    {
+        unsafe
+        {
+            fixed (byte* pData = data)
+            {
+                IsccByteBufferArray arr = NativeMethods.iscc_alg_cdc_chunks(
+                    pData, (nuint)data.Length, utf32, avgChunkSize);
+                return ConsumeByteBufferArray(arr);
+            }
+        }
+    }
+
+    /// <summary>Compute a similarity-preserving hash from video frame signatures.</summary>
+    public static byte[] SoftHashVideoV0(int[][] frameSigs, uint bits = 64)
+    {
+        int numFrames = frameSigs.Length;
+        GCHandle[] handles = new GCHandle[numFrames];
+        try
+        {
+            unsafe
+            {
+                int*[] ptrs = new int*[numFrames];
+                nuint[] lens = new nuint[numFrames];
+                for (int i = 0; i < numFrames; i++)
+                {
+                    handles[i] = GCHandle.Alloc(frameSigs[i], GCHandleType.Pinned);
+                    ptrs[i] = (int*)handles[i].AddrOfPinnedObject();
+                    lens[i] = (nuint)frameSigs[i].Length;
+                }
+
+                fixed (int** pPtrs = ptrs)
+                fixed (nuint* pLens = lens)
+                {
+                    IsccByteBuffer buf = NativeMethods.iscc_soft_hash_video_v0(
+                        pPtrs, pLens, (nuint)numFrames, bits);
+                    return ConsumeByteBuffer(buf);
+                }
+            }
+        }
+        finally
+        {
+            for (int i = 0; i < numFrames; i++)
+            {
+                if (handles[i].IsAllocated)
+                    handles[i].Free();
+            }
+        }
+    }
+
     // ── Utilities ──────────────────────────────────────────────────────────
 
     /// <summary>Generate sliding window n-grams of the given width from a string.</summary>
@@ -482,6 +587,42 @@ public static partial class IsccLib
         string result = Marshal.PtrToStringUTF8((IntPtr)ptr) ?? string.Empty;
         NativeMethods.iscc_free_string(ptr);
         return result;
+    }
+
+    /// <summary>Marshal a native byte buffer to managed byte array, then free the buffer.</summary>
+    private static unsafe byte[] ConsumeByteBuffer(IsccByteBuffer buf)
+    {
+        if (buf.data is null)
+            throw new IsccException(GetLastError());
+        try
+        {
+            return new Span<byte>(buf.data, (int)buf.len).ToArray();
+        }
+        finally
+        {
+            NativeMethods.iscc_free_byte_buffer(buf);
+        }
+    }
+
+    /// <summary>Marshal a native byte buffer array to managed jagged array, then free.</summary>
+    private static unsafe byte[][] ConsumeByteBufferArray(IsccByteBufferArray arr)
+    {
+        if (arr.buffers is null)
+            throw new IsccException(GetLastError());
+        try
+        {
+            byte[][] result = new byte[(int)arr.count][];
+            for (int i = 0; i < (int)arr.count; i++)
+            {
+                IsccByteBuffer buf = arr.buffers[i];
+                result[i] = new Span<byte>(buf.data, (int)buf.len).ToArray();
+            }
+            return result;
+        }
+        finally
+        {
+            NativeMethods.iscc_free_byte_buffer_array(arr);
+        }
     }
 
     /// <summary>Marshal a NULL-terminated native string array to managed, then free the array.</summary>

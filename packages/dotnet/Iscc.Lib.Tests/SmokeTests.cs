@@ -282,6 +282,70 @@ public class SmokeTests
         Assert.Equal("orld", ngrams[7]);
     }
 
+    // ── Algorithm Primitives ──────────────────────────────────────────────
+
+    [Fact]
+    public void AlgSimhash_ReturnsByteArray()
+    {
+        byte[] d1 = [0xFF, 0x00, 0xAA, 0x55];
+        byte[] d2 = [0x00, 0xFF, 0x55, 0xAA];
+        byte[][] digests = [d1, d2];
+        byte[] result = IsccLib.AlgSimhash(digests);
+        Assert.Equal(4, result.Length);
+    }
+
+    [Fact]
+    public void AlgSimhash_EmptyInput_Returns32Bytes()
+    {
+        byte[][] digests = [];
+        byte[] result = IsccLib.AlgSimhash(digests);
+        Assert.Equal(32, result.Length);
+        Assert.All(result, b => Assert.Equal(0, b));
+    }
+
+    [Fact]
+    public void AlgMinhash256_ReturnsByteArray()
+    {
+        uint[] features = [1u, 2u, 3u, 4u, 5u];
+        byte[] result = IsccLib.AlgMinhash256(features);
+        Assert.Equal(32, result.Length);
+    }
+
+    [Fact]
+    public void AlgCdcChunks_SplitsData()
+    {
+        byte[] data = "Hello World"u8.ToArray();
+        byte[][] chunks = IsccLib.AlgCdcChunks(data);
+        Assert.True(chunks.Length >= 1);
+        // Concatenated chunks must equal original data
+        byte[] reassembled = chunks.SelectMany(c => c).ToArray();
+        Assert.Equal(data, reassembled);
+    }
+
+    [Fact]
+    public void AlgCdcChunks_EmptyData_ReturnsOneChunk()
+    {
+        byte[] data = [];
+        byte[][] chunks = IsccLib.AlgCdcChunks(data);
+        Assert.Single(chunks);
+        Assert.Empty(chunks[0]);
+    }
+
+    [Fact]
+    public void SoftHashVideoV0_ReturnsByteArray()
+    {
+        int[] frame1 = new int[380];
+        int[] frame2 = new int[380];
+        for (int i = 0; i < 380; i++)
+        {
+            frame1[i] = i;
+            frame2[i] = 380 - i;
+        }
+        int[][] frameSigs = [frame1, frame2];
+        byte[] result = IsccLib.SoftHashVideoV0(frameSigs, bits: 64);
+        Assert.Equal(8, result.Length);
+    }
+
     // ── Error Handling ──────────────────────────────────────────────────────
 
     [Fact]

@@ -96,26 +96,9 @@ iterations.
 ## Documentation
 
 - Tabbed syntax: `=== "Language"` with 4-space indent, blank line before code block
-
-- Tab order for tutorial: Python, Rust, Node.js, Java, Go, WASM (6 tabs)
-
-- Landing page (`docs/index.md`) tab order: Rust, Python, Node.js, Java, Go, WASM
-
-- mdformat reformats JS imports to multi-line `import { ... } from` style — run format before commit
-
-- Landing page Go example updated to pure Go API (`result, _ := iscc.GenTextCodeV0(...)` pattern)
-
-- Node.js/Java/WASM gen functions return plain strings; Python/Rust/Go return result objects
-
-- `docs/architecture.md` and `docs/development.md` share identical directory trees and crate summary
-    tables — keep them in sync when editing either file
-
-- Go shown in Mermaid diagram as standalone disconnected node with green style (not connected to
-    CORE) — reflects pure Go reimplementation. Five Rust-dependent binding crates shown with arrows
-
-- Java API reference: `docs/java-api.md` — hand-written, follows C FFI page structure adapted for
-    Java (no manual memory mgmt except streaming hasher handles)
-
+- Tab order: tutorial (Python, Rust, Node.js, Java, Go, WASM), landing (Rust, Python, ...)
+- mdformat reformats JS imports to multi-line style — run format before commit
+- `docs/architecture.md` and `docs/development.md` share identical trees — keep in sync
 - All 5 Reference pages complete: Rust API, Python API, C FFI, Java API, Ruby API
 
 ## Binding Constant Export Patterns
@@ -182,18 +165,22 @@ iterations.
     functions + 6 structs). Parses `#[unsafe(no_mangle)]` (Rust 2024 edition) without issues
 - `NativeMethods` class is `internal` — idiomatic C# wrappers in `IsccLib.cs` are the public API
 - `AllowUnsafeBlocks` in csproj required for generated `byte*` pointer types
-- `IsccLib.cs` wrappers: 4 private helpers (ToNativeUtf8, ConsumeNativeString,
-    ConsumeNativeStringArray, GetLastError) + PascalCase public methods.
-    `fixed (byte* p =   nullArray)` sets pointer to null for optional params
-- 26/32 Tier 1 symbols wrapped (5 constants, 4 text utils, 10 gen, 2 encoding utils, 3 codec, 1
-    sliding window, 1 conformance). Remaining 6: 4 algorithm primitives, 2 streaming types
+- `IsccLib.cs` wrappers: 6 private helpers (ToNativeUtf8, ConsumeNativeString,
+    ConsumeNativeStringArray, ConsumeByteBuffer, ConsumeByteBufferArray, GetLastError) + PascalCase
+    public methods. `fixed (byte* p = nullArray)` sets pointer to null for optional params
+- 30/32 Tier 1 symbols wrapped (5 constants, 4 text utils, 10 gen, 2 encoding utils, 3 codec, 1
+    sliding window, 4 algorithm primitives, 1 conformance). Remaining 2: streaming types
 - `encode_component` and `iscc_decompose` return raw component strings WITHOUT "ISCC:" prefix
 - `IsccDecode` returns `DecodeResult` record; marshals `IsccByteBuffer` digest via `Span<byte>`
 - `ConsumeNativeStringArray`: iterates NULL-terminated `byte**`, frees via `iscc_free_string_array`
 - `IsccException` for error reporting from ConsumeNativeString. `iscc_last_error()` returns
     thread-local storage pointer — do NOT free it (use `Marshal.PtrToStringUTF8` without free)
 - `META_TRIM_META` = 128,000 (not 16,384). All 5 constant values: 128, 4096, 128000, 4194304, 13
-- `dotnet` available at `/home/dev/.dotnet` in devcontainer (not on PATH by default)
+- `dotnet` available at `/usr/share/dotnet/dotnet` in devcontainer (on PATH as `dotnet`)
+- `ConsumeByteBuffer`: null check on `.data` → copy via `Span<byte>.ToArray()` → free in finally
+- `ConsumeByteBufferArray`: null check on `.buffers` → iterate `.count` elements → free in finally
+- `AlgSimhash`/`SoftHashVideoV0` use `GCHandle.Alloc(GCHandleType.Pinned)` for jagged arrays (same
+    pattern as `GenVideoCodeV0`)
 
 ## Gotchas
 
