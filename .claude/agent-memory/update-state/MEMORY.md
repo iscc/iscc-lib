@@ -7,7 +7,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Exploration Shortcuts
 
 - **Java files**: `find crates/iscc-jni -type f | sort`
-- **Per-crate READMEs**: `ls crates/*/README.md packages/go/README.md 2>&1`
+- **Per-crate READMEs**: `ls crates/*/README.md packages/*/README.md 2>&1`
 - **CI jobs in a run**: `gh run view <id> --json jobs --jq '.jobs[] | {name, conclusion}'`
 - **Latest CI runs**:
     `gh run list --branch "$(git branch --show-current)" --limit 3 --json status,conclusion,url,databaseId`
@@ -50,8 +50,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `ConformanceTests.cs` (**9 Theory tests, 50 vectors**), `testdata/data.json` (84KB vendored),
     `NativeMethods.g.cs` (csbindgen, 47 externs); `dotnet test` needs
     `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores env)
-- `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
-    **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
+- `docs/howto/` — **9 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
+    ruby.md (422 lines), **dotnet.md** (417 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c`
+    - `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
@@ -76,18 +77,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 109686fcb90d038b4254d8e01ab6ff6d72ce30c7)
+## Current State (assessed-at: 6a988d94457376eff91dbff6b4286d8d70f2a4aa)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22802326852); **C# streaming Finalize() typed returns
-    DONE**
+- **IN_PROGRESS**: all 13 CI jobs green (run 22803269184); **C# documentation COMPLETE**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET API surface COMPLETE**: `Results.cs` (11 sealed records); all 10 gen functions + both
-    streaming hashers return typed records; ALL 7 empty-span null pointer bugs fixed; **91 total
-    tests** (41 smoke + 50 conformance)
-- **CI (run 22802326852)**: ALL SUCCESS — 13 jobs ✅
+- **C#/.NET docs added (iteration 8)**: `docs/howto/dotnet.md` (417 lines),
+    `packages/dotnet/README.md` (82 lines), README NuGet badge + C# install + quickstart,
+    `zensical.toml` nav entry ✅
+- **CI (run 22803269184)**: ALL SUCCESS — 13 jobs ✅
 - **packages/dotnet/Iscc.Lib/**: `IsccLib.cs`, `IsccException.cs`, `IsccDataHasher.cs`,
     `IsccInstanceHasher.cs`, `NativeMethods.g.cs`, `Results.cs` — `Native/SafeHandles.cs` missing
-- **Next action**: docs (dotnet.md, README, main README C# section) → NuGet publish → version sync
+- **Next action**: NuGet publish pipeline (`release.yml`) → version sync → SafeHandles.cs
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
