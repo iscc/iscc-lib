@@ -46,11 +46,11 @@ iterations.
 
 ## Project Status
 
-- **C#/.NET bindings: 32/32 symbols wrapped, conformance tests next**
+- **C#/.NET bindings: 32/32 symbols wrapped, conformance tests ✅, structured records next**
 - v0.2.0 released, 13 CI jobs green, all 7 existing bindings "met"
 - C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
 - Multi-step sequence: scaffold ✅ → CI job ✅ → csbindgen ✅ → wrappers ✅ → streaming ✅ → conformance
-    → structured records → docs → release
+    ✅ → structured records → docs → release
 - .NET CI pattern: `actions/setup-dotnet@v4`, `cargo build -p iscc-ffi`, `dotnet build`,
     `dotnet test -e LD_LIBRARY_PATH=...`
 
@@ -113,14 +113,25 @@ iterations.
 
 ## Post-C#-Symbols Roadmap
 
-After 32/32 symbols ✅: conformance tests → structured records → docs (howto/dotnet.md, README C#
-section) → NuGet publish → version sync. Then only low-priority items remain (C++, Swift, Kotlin).
+After 32/32 symbols ✅ + conformance ✅: structured records → hasher return types → FFI structured
+fields (Meta/Text/Mixed/Instance extra fields) → docs (howto/dotnet.md, README C# section) → NuGet
+publish → version sync. Then only low-priority items remain (C++, Swift, Kotlin).
 
 ## C# Conformance Test Notes
 
 - 50 vectors across 9 function groups in data.json (no gen_sum_code_v0 vectors)
-- Current gen API returns `string` — conformance tests compare return value directly to
-    `outputs["iscc"]`. When structured records are added, change to `result.Iscc`
 - xUnit `[Theory]` + `[MemberData]` for per-vector test results
 - `System.Text.Json` (built-in) for JSON parsing — no Newtonsoft dependency
 - data.json needs `<Content CopyToOutputDirectory="PreserveNewest">` in test .csproj
+
+## C# Structured Records Architecture Decision
+
+- C FFI only returns ISCC string (`.map(|r| r.iscc)`), not full result structs
+- C# records initially contain only `Iscc` field — complete for Image/Audio/Video/Data/IsccCode
+    (Rust core also only has `iscc`), partial for Meta/Text/Mixed/Instance (need FFI enhancement)
+- To expose additional fields (MetaCodeResult.Name, TextCodeResult.Characters, etc.), must first add
+    `#[repr(C)]` result structs to `crates/iscc-ffi/src/lib.rs` + regenerate NativeMethods.g.cs
+- Hasher `Finalize()` return types (string → record) require touching IsccDataHasher.cs +
+    IsccInstanceHasher.cs — separate step to stay within 3-file limit
+- `SumCodeResult` already works via FFI struct (`IsccSumCodeResult`) — the pattern exists for future
+    FFI struct additions
