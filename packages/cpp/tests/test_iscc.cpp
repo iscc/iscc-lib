@@ -363,7 +363,17 @@ int main() {
         assert_starts_with(r.iscc, "ISCC:", "gen_video_code_v0");
     }
 
-    // 33. DataHasher move semantics
+    // 33. gen_mixed_code_v0
+    {
+        auto text_code = iscc::gen_text_code_v0("Hello World");
+        std::vector<uint8_t> pixels(1024, 0);
+        auto image_code = iscc::gen_image_code_v0(pixels);
+        std::vector<std::string> codes = {text_code.iscc, image_code.iscc};
+        auto r = iscc::gen_mixed_code_v0(codes);
+        assert_starts_with(r.iscc, "ISCC:", "gen_mixed_code_v0");
+    }
+
+    // 34. DataHasher move semantics
     {
         iscc::DataHasher dh1;
         dh1.update(reinterpret_cast<const uint8_t*>("Hello"), 5);

@@ -44,6 +44,13 @@ inline const uint8_t* safe_data(const std::vector<uint8_t>& v) {
     return v.empty() ? &sentinel : v.data();
 }
 
+/// Return a non-null pointer for empty int32 vectors.
+/// Some C FFI functions require non-null data pointers even for zero length.
+inline const int32_t* safe_data(const std::vector<int32_t>& v) {
+    static const int32_t sentinel = 0;
+    return v.empty() ? &sentinel : v.data();
+}
+
 /// Check the thread-local error from the C FFI and throw if set.
 inline void check_error() {
     const char* err = iscc_last_error();
@@ -352,7 +359,7 @@ inline std::vector<uint8_t> alg_simhash(const std::vector<std::vector<uint8_t>>&
     ptrs.reserve(digests.size());
     lens.reserve(digests.size());
     for (const auto& d : digests) {
-        ptrs.push_back(d.data());
+        ptrs.push_back(detail::safe_data(d));
         lens.push_back(d.size());
     }
     detail::UniqueByteBuffer buf(iscc_alg_simhash(ptrs.data(), lens.data(), digests.size()));
@@ -406,7 +413,7 @@ inline std::vector<uint8_t> soft_hash_video_v0(
     ptrs.reserve(frame_sigs.size());
     lens.reserve(frame_sigs.size());
     for (const auto& f : frame_sigs) {
-        ptrs.push_back(f.data());
+        ptrs.push_back(detail::safe_data(f));
         lens.push_back(f.size());
     }
     detail::UniqueByteBuffer buf(
@@ -475,7 +482,7 @@ inline VideoCodeResult gen_video_code_v0(
     ptrs.reserve(frame_sigs.size());
     lens.reserve(frame_sigs.size());
     for (const auto& f : frame_sigs) {
-        ptrs.push_back(f.data());
+        ptrs.push_back(detail::safe_data(f));
         lens.push_back(f.size());
     }
     detail::UniqueString s(
