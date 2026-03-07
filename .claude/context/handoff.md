@@ -1,35 +1,38 @@
-## 2026-03-07 — Review of: C# streaming hasher Finalize() return types
+## 2026-03-07 — C# / .NET documentation (howto guide, package README, root README section)
 
-**Verdict:** PASS
+**Done:** Created complete C# / .NET documentation: `docs/howto/dotnet.md` howto guide (~370 lines
+covering all 10 gen functions, streaming, codec, text utils, encoding utils, algorithm primitives,
+constants, conformance, and error handling), `packages/dotnet/README.md` for NuGet (~80 lines), C#
+sections in root `README.md` (install + quickstart + NuGet badge + polyglot bullet), and nav entry
+in `zensical.toml`.
 
-**Summary:** Clean, minimal, exactly-scoped change. Both streaming hashers now return typed result
-records (`DataCodeResult` / `InstanceCodeResult`) instead of raw `string`, completing the structured
-return type pattern across the entire .NET API surface. All 91 tests pass, all quality gates green.
+**Files changed:**
+
+- `docs/howto/dotnet.md`: New howto guide following ruby.md/java.md pattern, with PascalCase C#
+    examples matching actual IsccLib API surface
+- `packages/dotnet/README.md`: New package README following iscc-rb README pattern
+- `README.md`: Added NuGet badge, C# to polyglot bullet and "What is iscc-lib" paragraph, C# / .NET
+    install subsection, C# / .NET quickstart subsection
+- `zensical.toml`: Added `{ "C# / .NET" = "howto/dotnet.md" }` nav entry after Java
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi` succeeds — compiled in 1.01s
-- [x] `dotnet build packages/dotnet/Iscc.Lib/` succeeds — 0 warnings, 0 errors
-- [x] `dotnet test packages/dotnet/Iscc.Lib.Tests/` — 91 passed, 0 failed, 0 skipped
-- [x] `grep -c 'DataCodeResult Finalize' IsccDataHasher.cs` → 1
-- [x] `grep -c 'InstanceCodeResult Finalize' IsccInstanceHasher.cs` → 1
-- [x] `grep -c 'string Finalize' IsccDataHasher.cs IsccInstanceHasher.cs` → 0:0 (none remain)
-- [x] `mise run check` — all 15 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- `uv run zensical build` exits 0 — docs site builds including `/howto/dotnet/` page
+- `test -f docs/howto/dotnet.md` — OK
+- `test -f packages/dotnet/README.md` — OK
+- `grep -c 'C# / .NET' README.md` → 2 (install + quickstart sections)
+- `grep -c 'NuGet' README.md` → 1 (badge)
+- `grep -c 'dotnet.md' zensical.toml` → 1 (nav entry)
+- `grep -c 'GenMetaCodeV0' docs/howto/dotnet.md` → 4
+- `grep -c 'IsccDataHasher' docs/howto/dotnet.md` → 3
+- `grep -c 'GenMetaCodeV0' packages/dotnet/README.md` → 2
+- `mise run check` — all 15 pre-commit hooks pass
+- `mise run lint` — all checks pass
 
-**Issues found:**
+**Next:** NuGet publish pipeline in `release.yml`, or version sync integration for `.csproj`, or C#
+API reference page (`docs/dotnet-api.md`).
 
-- (none)
-
-**Codex review:** No defects found. Codex confirmed the change is consistent and the public API
-change is intentional. No actionable findings.
-
-**Next:** .NET bindings are now feature-complete for the current API surface. Priority order for
-next steps: (1) Documentation — `docs/howto/dotnet.md`, `packages/dotnet/README.md`, and README C#
-section; (2) NuGet publish pipeline in `release.yml`; (3) Version sync integration for .NET project
-version. Documentation is the natural next step since it's self-contained and the API is now stable.
-
-**Notes:** The 9 pre-existing xUnit1026 warnings (unused `vectorName` parameter in conformance test
-Theory methods) remain harmless — the parameter provides test identification in output. The .NET
-binding now has complete typed returns for all 9 gen functions + 2 streaming hashers, with 91 tests
-covering conformance and smoke scenarios.
+**Notes:** All code examples use the actual API signatures from `IsccLib.cs`, `Results.cs`,
+`IsccDataHasher.cs`, and `IsccInstanceHasher.cs`. Verified against `SmokeTests.cs` usage patterns.
+The howto uses `using Iscc.Lib;` namespace consistently and PascalCase method names matching the
+actual public API. No source code was modified — documentation only.

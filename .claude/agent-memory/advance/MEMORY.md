@@ -114,15 +114,14 @@ iterations.
 - 5 constants currently exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
     IO_READ_SIZE, TEXT_NGRAM_SIZE
 
-## C FFI Documentation
+## Documentation Files
 
-- `docs/howto/c-cpp.md` — C/C++ how-to guide with 12 sections (overview, build, cmake, quick start,
-    streaming, composing, error handling, memory mgmt, static/dynamic, cross-compile, RAII,
-    conformance)
-- `docs/c-ffi-api.md` — full API reference (types, constants, code gen, text utils, algorithms,
-    codec, streaming, diagnostics, memory mgmt, error handling)
-- zensical.toml nav: howto guides list includes `{ "C / C++" = "howto/c-cpp.md" }` after Java
-- CMake integration uses `find_library()` pattern (not `CMAKE_LIBRARY_PATH`)
+- Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp}.md`
+- API reference: `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`
+- `docs/howto/dotnet.md` — C# / .NET howto (~370 lines). PascalCase methods, `using Iscc.Lib;`,
+    typed result records, IDisposable streaming, IsccException error handling
+- `packages/dotnet/README.md` — NuGet package README
+- zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++
 
 ## Feature Flags
 
