@@ -26,6 +26,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `grep -n "### Sum-Code\|gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0" docs/howto/*.md`
 - **Benchmark functions**:
     `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
+- **C# public symbols**:
+    `grep -n "public static\|public sealed record" packages/dotnet/Iscc.Lib/IsccLib.cs | grep -v "private\|internal\|partial class"`
+- **C# test count**: `grep -c "\[Fact\]" packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`
 
 ## Codebase Landmarks
 
@@ -36,10 +39,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** (**13 total**) ✅
-- `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (22/32 symbols: 5 consts, 4 text, 10 gen, 2 encode, 1
-    diag + SumCodeResult record), `Iscc.Lib/IsccException.cs`, `Iscc.Lib.Tests/SmokeTests.cs` (25
-    tests), `NativeMethods.g.cs` (csbindgen, 47 externs); `dotnet test` needs
-    `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores env)
+- `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (**26/32 symbols**: 5 consts, 4 text, 10 gen, 2 encode,
+    3 codec, 1 sliding window, 1 diag + SumCodeResult + DecodeResult records),
+    `Iscc.Lib/IsccException.cs`, `Iscc.Lib.Tests/SmokeTests.cs` (**29 tests**), `NativeMethods.g.cs`
+    (csbindgen, 47 externs); `dotnet test` needs `-e LD_LIBRARY_PATH=<abs-path>/target/debug`
+    (vstest host ignores env)
 - `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -66,18 +70,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 3a44652f1caa32e659c2c562f88cca2a90641f78)
+## Current State (assessed-at: efde0e270e60c72238ac0b41ed9956ebb68b774a)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22719988100); **C# 22/32 symbols wrapped**
+- **IN_PROGRESS**: all 13 CI jobs green (run 22797846016); **C# 26/32 symbols wrapped**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET expanded**: all 10 gen functions + 2 encoding utilities added (EncodeBase64,
-    JsonToDataUrl); SumCodeResult record added; 25 xUnit tests; gen functions still return `string`
-    (not records) for 9 of 10 — spec requires structured record return types
-- **CI (run 22719988100)**: ALL SUCCESS — 13 jobs ✅
-- **packages/dotnet/**: `IsccLib.cs` (22/32), `IsccException.cs`, `SmokeTests.cs` (25 tests),
+- **C#/.NET expanded**: codec ops (IsccDecode, IsccDecompose, EncodeComponent) + SlidingWindow
+    added; DecodeResult record added; 29 xUnit tests; gen functions still return `string` (not
+    records) for 9 of 10 — spec requires structured record return types
+- **CI (run 22797846016)**: ALL SUCCESS — 13 jobs ✅
+- **packages/dotnet/**: `IsccLib.cs` (26/32), `IsccException.cs`, `SmokeTests.cs` (29 tests),
     `NativeMethods.g.cs` (929 lines, 47 externs); `cpp/`, `swift/`, `kotlin/` do NOT exist
-- **Next action**: C# structured records for gen return types, algorithm primitives, codec ops,
-    streaming classes (`IsccDataHasher`, `IsccInstanceHasher`), conformance tests
+- **Next action**: C# algorithm primitives (AlgSimhash, AlgMinhash256, AlgCdcChunks,
+    SoftHashVideoV0) — need `IsccByteBuffer` / `IsccByteBufferArray` marshaling (→ 30/32), then
+    streaming types (DataHasher, InstanceHasher → 32/32), then structured return types + conformance
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
@@ -100,8 +105,6 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
 - WASM constant name gotcha: `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` exports uppercase
 - `state.md` section order must include Go Bindings, README, Per-Crate READMEs sections
 - Python ruff format check can fail in CI even if local `mise run check` passes
-- `dct.go`: `algDct` is unexported. `AlgWtahash` is exported. Go has no const arrays so
-    `wtaVideoIdPermutations` is `var`
 - **JCS gotcha**: Go `json.Marshal` passes current vectors. If future vectors have floats, a proper
     RFC 8785 JCS library may be needed
 - **DataHasher/InstanceHasher API (Go)**: `Push([]byte)` + `Finalize(bits)` pattern
@@ -120,8 +123,6 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
 - **9 vs 10 distinction**: data.json has 9 conformance sections (no gen_sum_code_v0 vectors);
     iscc-lib has 10 gen functions. Test/conformance docstrings correctly say "9"; user-facing docs
     and benchmarks file say "10"
-- **gen_sum_code_v0 benchmark**: uses NamedTempFile (tempfile crate); temp files created outside
-    criterion closure so file setup is not measured; cleanup via Drop
 - **WASM count assertions**: `crates/iscc-wasm/tests/conformance.rs` has per-function
     `assert_eq!(tested, N, ...)` guards. When data.json gains new vectors, BOTH lib.rs AND the WASM
     conformance test must be updated. Review agents may miss this (check grep result:
@@ -130,16 +131,18 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     in Ruby's stdlib json gem. Use `JSON.generate(hash.sort.to_h)` instead for deterministic key
     ordering (required for JCS-compatible meta serialization)
 - **alg_cdc_chunks API**: public fn returns `IsccResult<Vec<&[u8]>>` (validates
-    `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked` (no validation, always
-    valid constant). All 6 binding crates (Python, NAPI, WASM, FFI, JNI, Ruby) handle the Result. Go
-    `AlgCdcChunks` also validates `avgChunkSize < 2` (returns `error`; internal caller uses
-    `algCdcChunksUnchecked`) — gap now closed.
+    `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked`. All 7 binding crates
+    handle the Result (including C#, which is still missing AlgCdcChunks wrapper).
 - **csbindgen**: `crates/iscc-ffi/build.rs` runs csbindgen on every `cargo build`, writing
     `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (929 lines, 47 externs, 6 structs). Class is
     `internal static unsafe partial class NativeMethods` — idiomatic wrappers in `IsccLib.cs` are
     the public surface. `dotnet test` requires `-e LD_LIBRARY_PATH=target/debug` (vstest host does
     not inherit shell env).
 - **C# gen function return types**: spec (`dotnet-bindings.md`) requires each `gen_*_v0` to return a
-    record type with structured fields (MetaCodeResult, TextCodeResult, DataCodeResult,
-    InstanceCodeResult, SumCodeResult, etc.) — currently 9 of 10 return plain `string`; only
+    record type with structured fields — currently 9 of 10 return plain `string`; only
     `GenSumCodeV0` returns `SumCodeResult`. Refactoring needed before spec is fully met.
+- **C# ConsumeNativeStringArray**: private helper marshals `byte**` (NULL-terminated string array)
+    from FFI, then calls `iscc_free_string_array`. Reuse for any future `byte**`-returning function.
+- **C# algorithm primitives next**: `AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`
+    need `IsccByteBuffer` / `IsccByteBufferArray` marshaling — different from scalar inputs/outputs.
+    Check NativeMethods.g.cs for the exact csbindgen struct types before implementing.
