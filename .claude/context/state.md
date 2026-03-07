@@ -1,16 +1,16 @@
-<!-- assessed-at: eaff853b5a2c9034eb924e1e9e7974d2127d386d -->
+<!-- assessed-at: ffba0c810bd21a0e65f9845e229480b888c5b217 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C++ bindings — CI job done; release bundling, manifests, docs, and tests pending
+## Phase: C++ bindings — release bundling done; manifests, docs, and tests pending
 
 v0.2.0 released across all 8 registries. C# / .NET bindings are complete. A C++17 header-only
 wrapper (`iscc.hpp`) was created in iteration 11 with all 32 Tier 1 symbols, RAII guards, and 52
-passing tests (ASAN clean). In iteration 12 the C++ CI job was added to `ci.yml` and passes (14/14
-jobs green). Remaining C++ gaps: release bundling, package manager manifests,
-`packages/cpp/README.md`, `docs/howto/c-cpp.md` update, and `gen_mixed_code_v0` test.
+passing tests (ASAN clean). In iteration 13 `iscc.hpp` was bundled into FFI release tarballs (both
+Unix and Windows). Remaining C++ gaps: package manager manifests, `packages/cpp/README.md`,
+`docs/howto/c-cpp.md` update, and `gen_mixed_code_v0` test.
 
 ## Rust Core Crate
 
@@ -49,7 +49,7 @@ jobs green). Remaining C++ gaps: release bundling, package manager manifests,
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20`
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported
-- WASM CI job = SUCCESS in run 22807206688
+- WASM CI job = SUCCESS in run 22808041731
 
 ## C FFI
 
@@ -99,7 +99,7 @@ jobs green). Remaining C++ gaps: release bundling, package manager manifests,
 - `IsccDataHasher.Finalize()` → `DataCodeResult`; `IsccInstanceHasher.Finalize()` →
     `InstanceCodeResult` ✅
 - 41 xUnit `[Fact]` smoke tests + 9 `[Theory]` conformance methods (50 vectors) = 91 total ✅
-- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22807206688
+- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22808041731
 - `pack-nuget` + `test-nuget` + `publish-nuget` pipeline in `release.yml` ✅
 - `docs/howto/dotnet.md` — 417 lines; `packages/dotnet/README.md` — 82 lines ✅
 - **Known limitation**: `MetaCodeResult`, `TextCodeResult`, `InstanceCodeResult` carry only
@@ -115,8 +115,8 @@ jobs green). Remaining C++ gaps: release bundling, package manager manifests,
 - `packages/cpp/CMakeLists.txt` — CMake config ✅
 - `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — 52 passing tests, ASAN clean ✅
 - `conformance_selftest()` passes; `gen_meta_code_v0` exact match verified ✅
-- CI job `C++ (cmake, ASAN, test)` added to `ci.yml` — SUCCESS in run 22807206688 ✅
-- **Missing**: `iscc.hpp` not bundled in FFI release tarballs in `release.yml` ❌
+- CI job `C++ (cmake, ASAN, test)` — SUCCESS in run 22808041731 ✅
+- `iscc.hpp` now bundled in FFI release tarballs (Unix `cp` + Windows `Copy-Item`) ✅
 - **Missing**: `packages/cpp/vcpkg.json`, `portfile.cmake`, `conanfile.py`, `iscc-config.cmake.in`,
     `pkg-config/iscc.pc.in` — no package manager manifests ❌
 - **Missing**: `packages/cpp/README.md` — no per-package README ❌
@@ -124,6 +124,9 @@ jobs green). Remaining C++ gaps: release bundling, package manager manifests,
 - **Missing**: `gen_mixed_code_v0` has no test coverage in `test_iscc.cpp` ❌
 - **Known edge case**: nested vector `safe_data()` not applied for inner elements in `alg_simhash`,
     `soft_hash_video_v0`, `gen_video_code_v0` — not blocking but should be hardened
+- **Note on include paths**: tarball layout is flat (`iscc.hpp` in root alongside `iscc.h`), so
+    tarball users use `#include "iscc.hpp"` while CMake/vcpkg/conan users use `<iscc/iscc.hpp>` via
+    proper include directory setup — the docs update should explain both conventions
 
 ## Swift Bindings
 
@@ -171,7 +174,9 @@ jobs green). Remaining C++ gaps: release bundling, package manager manifests,
     ruby.md, dotnet.md ✅
 - `zensical.toml` "C / C++" nav entry present ✅
 - **Gap**: `docs/howto/c-cpp.md` does NOT include `iscc.hpp` wrapper section (`normal` priority);
-    current content shows raw `iscc.h` usage only, not `#include <iscc/iscc.hpp>` idioms
+    current content shows raw `iscc.h` usage only, not `#include <iscc/iscc.hpp>` idioms; should
+    explain flat-tarball include path (`#include "iscc.hpp"`) vs CMake/vcpkg path
+    (`<iscc/iscc.hpp>`)
 - **Gap**: Swift, Kotlin how-to guides (all `low` priority; none started)
 
 ## Benchmarks
@@ -180,34 +185,33 @@ jobs green). Remaining C++ gaps: release bundling, package manager manifests,
 
 - Criterion benchmarks for all 10 `gen_*_v0` functions
 - `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks
-- `Bench (compile check)` CI job SUCCESS in run 22807206688
+- `Bench (compile check)` CI job SUCCESS in run 22808041731
 
 ## CI/CD and Publishing
 
 **Status**: met (for existing bindings)
 
-- **ALL PASSING** — latest CI run 22807206688: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22807206688
+- **ALL PASSING** — latest CI run 22808041731: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22808041731
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
-    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, **C++ (cmake, ASAN, test)** — all SUCCESS
+    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS
 - `release.yml` has **7 registry** `workflow_dispatch` inputs including `nuget` ✅
 - `pack-nuget` → `test-nuget` → `publish-nuget` pipeline in place ✅
 - v0.2.0 released successfully across all 8 registries
-- **Gap**: `iscc.hpp` not bundled in FFI release tarballs in `release.yml` ❌
+- `iscc.hpp` bundled in FFI release tarballs (both Unix `cp` and Windows `Copy-Item` steps) ✅
 - **Manual action still needed**: NuGet.org account setup (NUGET_API_KEY secret, package ID
     reservation) before NuGet publish job can be triggered
 
 ## Next Milestone
 
-**Continue completing the C++ bindings** — the open `normal`-priority issue. CI job now passes; the
-remaining steps are:
+**Continue completing the C++ bindings** — the open `normal`-priority issue. CI and release bundling
+now pass; remaining steps:
 
-1. **Release bundling** (`release.yml`): Copy `packages/cpp/include/iscc/iscc.hpp` into existing FFI
-    release tarballs alongside `iscc.h`
-2. **Package manager manifests**: `vcpkg.json`, `portfile.cmake`, `conanfile.py`,
+1. **`docs/howto/c-cpp.md`**: Add section documenting `#include <iscc/iscc.hpp>` idioms — all 32
+    symbols, RAII streaming, gen functions with std types. Explain both include conventions:
+    flat-tarball users use `#include "iscc.hpp"`; CMake/vcpkg/conan users use `<iscc/iscc.hpp>`.
+2. **`packages/cpp/README.md`**: per-package README with install + quickstart
+3. **README.md**: Add C++ install tab (`vcpkg install iscc`) + quickstart code snippet
+4. **Package manager manifests**: `vcpkg.json`, `portfile.cmake`, `conanfile.py`,
     `iscc-config.cmake.in`, `pkg-config/iscc.pc.in`
-3. **`packages/cpp/README.md`**: per-package README with install + quickstart
-4. **`docs/howto/c-cpp.md`**: add section documenting `#include <iscc/iscc.hpp>` idioms (all 32
-    symbols, RAII streaming, gen functions with std types)
 5. **`gen_mixed_code_v0` test**: add missing test in `test_iscc.cpp`
-6. **README.md**: Add C++ install tab (`vcpkg install iscc`) + quickstart
