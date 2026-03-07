@@ -32,6 +32,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (needs
     `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`)
 - **Config-only**: `mise run check` + `cargo check -p <crate>`
+- **Script-only (Python)**: `mise run check` + `uv run scripts/<script>.py --check` (if applicable)
 - **CI-only YAML**: `mise run check`
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
 
@@ -63,8 +64,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     available locally — CI is the .NET validation backstop. Codex flags build robustness (advisory)
 - .NET now at 32/32 Tier 1 symbols + 91 tests (41 smoke + 50 conformance) + 11 structured result
     records. All gen functions + streaming hashers return typed records. Docs complete
-    (`docs/howto/dotnet.md`, `packages/dotnet/README.md`, README sections). Remaining: NuGet
-    publish, version sync
+    (`docs/howto/dotnet.md`, `packages/dotnet/README.md`, README sections). Version sync done
+    (iteration 8). Remaining: NuGet publish pipeline
 - .NET streaming hashers: SafeHandle + IDisposable, `DangerousGetHandle()` is fine for
     single-threaded use. Codex P1 about DangerousAddRef is advisory — dismiss for non-threadsafe
     classes
