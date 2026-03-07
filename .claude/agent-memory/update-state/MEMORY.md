@@ -49,7 +49,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
-    (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** (**13 total**) ✅
+    (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, **C++ (cmake, ASAN, test)**
+    (**14 total**) ✅
 - `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (**32/32 Tier 1 symbols**), `Results.cs` (**11 sealed
     records**), `IsccDataHasher.cs` + `IsccInstanceHasher.cs` (IDisposable + SafeHandle; both
     **`Finalize()` returns typed record**), `IsccException.cs`, `SmokeTests.cs` (**41 tests**),
@@ -84,16 +85,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: cbe38eed126e41065ab61b447ba230dbc911b75f)
+## Current State (assessed-at: eaff853b5a2c9034eb924e1e9e7974d2127d386d)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22806295406); **C++ wrapper PARTIALLY DONE**
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22807206688); **C++ wrapper PARTIALLY DONE**
 - **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
-- **C++ wrapper (iteration 11)**: `packages/cpp/include/iscc/iscc.hpp` (681 lines, 32 symbols,
-    RAII), `CMakeLists.txt`, `tests/` (52 passing tests, ASAN clean) ✅
-- **C++ STILL MISSING**: CI job in `ci.yml`, `iscc.hpp` in FFI tarballs, vcpkg.json, portfile.cmake,
-    conanfile.py, `packages/cpp/README.md`, `docs/howto/c-cpp.md` `iscc.hpp` section, README C++
-    tab, `gen_mixed_code_v0` test
-- **CI (run 22806295406)**: ALL SUCCESS — 13 jobs ✅ (no C++ job yet)
+- **C++ wrapper (iterations 11-12)**: `iscc.hpp` (681 lines, 32 symbols, RAII), `CMakeLists.txt`,
+    `tests/` (52 passing tests, ASAN clean), **CI job** `C++ (cmake, ASAN, test)` ✅
+- **C++ STILL MISSING**: `iscc.hpp` in FFI tarballs, vcpkg.json, portfile.cmake, conanfile.py,
+    `packages/cpp/README.md`, `docs/howto/c-cpp.md` `iscc.hpp` section, README C++ tab,
+    `gen_mixed_code_v0` test
+- **CI (run 22807206688)**: ALL SUCCESS — 14 jobs ✅
 
 ## NuGet Pipeline Details (iteration 10)
 

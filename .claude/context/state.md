@@ -1,15 +1,16 @@
-<!-- assessed-at: cbe38eed126e41065ab61b447ba230dbc911b75f -->
+<!-- assessed-at: eaff853b5a2c9034eb924e1e9e7974d2127d386d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C++ bindings — core wrapper done; CI, release, docs, and package manager manifests pending
+## Phase: C++ bindings — CI job done; release bundling, manifests, docs, and tests pending
 
 v0.2.0 released across all 8 registries. C# / .NET bindings are complete. A C++17 header-only
 wrapper (`iscc.hpp`) was created in iteration 11 with all 32 Tier 1 symbols, RAII guards, and 52
-passing tests (ASAN clean). However, the C++ CI job, release bundling, vcpkg/Conan manifests,
-`packages/cpp/README.md`, and `docs/howto/c-cpp.md` update are still pending.
+passing tests (ASAN clean). In iteration 12 the C++ CI job was added to `ci.yml` and passes (14/14
+jobs green). Remaining C++ gaps: release bundling, package manager manifests,
+`packages/cpp/README.md`, `docs/howto/c-cpp.md` update, and `gen_mixed_code_v0` test.
 
 ## Rust Core Crate
 
@@ -48,7 +49,7 @@ passing tests (ASAN clean). However, the C++ CI job, release bundling, vcpkg/Con
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20`
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported
-- WASM CI job = SUCCESS in run 22806295406
+- WASM CI job = SUCCESS in run 22807206688
 
 ## C FFI
 
@@ -98,7 +99,7 @@ passing tests (ASAN clean). However, the C++ CI job, release bundling, vcpkg/Con
 - `IsccDataHasher.Finalize()` → `DataCodeResult`; `IsccInstanceHasher.Finalize()` →
     `InstanceCodeResult` ✅
 - 41 xUnit `[Fact]` smoke tests + 9 `[Theory]` conformance methods (50 vectors) = 91 total ✅
-- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22806295406
+- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22807206688
 - `pack-nuget` + `test-nuget` + `publish-nuget` pipeline in `release.yml` ✅
 - `docs/howto/dotnet.md` — 417 lines; `packages/dotnet/README.md` — 82 lines ✅
 - **Known limitation**: `MetaCodeResult`, `TextCodeResult`, `InstanceCodeResult` carry only
@@ -114,7 +115,7 @@ passing tests (ASAN clean). However, the C++ CI job, release bundling, vcpkg/Con
 - `packages/cpp/CMakeLists.txt` — CMake config ✅
 - `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — 52 passing tests, ASAN clean ✅
 - `conformance_selftest()` passes; `gen_meta_code_v0` exact match verified ✅
-- **Missing**: No CI job in `ci.yml` for C++ (no `cpp` job added) ❌
+- CI job `C++ (cmake, ASAN, test)` added to `ci.yml` — SUCCESS in run 22807206688 ✅
 - **Missing**: `iscc.hpp` not bundled in FFI release tarballs in `release.yml` ❌
 - **Missing**: `packages/cpp/vcpkg.json`, `portfile.cmake`, `conanfile.py`, `iscc-config.cmake.in`,
     `pkg-config/iscc.pc.in` — no package manager manifests ❌
@@ -170,7 +171,7 @@ passing tests (ASAN clean). However, the C++ CI job, release bundling, vcpkg/Con
     ruby.md, dotnet.md ✅
 - `zensical.toml` "C / C++" nav entry present ✅
 - **Gap**: `docs/howto/c-cpp.md` does NOT include `iscc.hpp` wrapper section (`normal` priority);
-    current RAII section shows raw `iscc.h` usage only, not `#include <iscc/iscc.hpp>` idioms
+    current content shows raw `iscc.h` usage only, not `#include <iscc/iscc.hpp>` idioms
 - **Gap**: Swift, Kotlin how-to guides (all `low` priority; none started)
 
 ## Benchmarks
@@ -179,37 +180,34 @@ passing tests (ASAN clean). However, the C++ CI job, release bundling, vcpkg/Con
 
 - Criterion benchmarks for all 10 `gen_*_v0` functions
 - `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks
-- `Bench (compile check)` CI job SUCCESS in run 22806295406
+- `Bench (compile check)` CI job SUCCESS in run 22807206688
 
 ## CI/CD and Publishing
 
-**Status**: met (for existing bindings; C++ CI job not yet added)
+**Status**: met (for existing bindings)
 
-- **ALL PASSING** — latest CI run 22806295406: all **13 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22806295406
+- **ALL PASSING** — latest CI run 22807206688: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22807206688
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
-    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET — all SUCCESS
+    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, **C++ (cmake, ASAN, test)** — all SUCCESS
 - `release.yml` has **7 registry** `workflow_dispatch` inputs including `nuget` ✅
 - `pack-nuget` → `test-nuget` → `publish-nuget` pipeline in place ✅
 - v0.2.0 released successfully across all 8 registries
-- **Gap**: No `cpp` CI job in `ci.yml` — C++ wrapper is not CI-gated ❌
 - **Gap**: `iscc.hpp` not bundled in FFI release tarballs in `release.yml` ❌
 - **Manual action still needed**: NuGet.org account setup (NUGET_API_KEY secret, package ID
     reservation) before NuGet publish job can be triggered
 
 ## Next Milestone
 
-**Complete the C++ bindings** — the open `normal`-priority issue. Core wrapper is done; the
+**Continue completing the C++ bindings** — the open `normal`-priority issue. CI job now passes; the
 remaining steps are:
 
-1. **CI job** (`ci.yml`): Add `cpp` job — `apt-get install cmake g++`, `cargo build -p iscc-ffi`,
-    `cd packages/cpp/tests && cmake -B build -DSANITIZE_ADDRESS=ON && cmake --build build &&  ./build/test_iscc`
-2. **Release bundling** (`release.yml`): Copy `packages/cpp/include/iscc/iscc.hpp` into existing FFI
+1. **Release bundling** (`release.yml`): Copy `packages/cpp/include/iscc/iscc.hpp` into existing FFI
     release tarballs alongside `iscc.h`
-3. **Package manager manifests**: `vcpkg.json`, `portfile.cmake`, `conanfile.py`,
+2. **Package manager manifests**: `vcpkg.json`, `portfile.cmake`, `conanfile.py`,
     `iscc-config.cmake.in`, `pkg-config/iscc.pc.in`
-4. **`packages/cpp/README.md`**: per-package README with install + quickstart
-5. **`docs/howto/c-cpp.md`**: add section documenting `#include <iscc/iscc.hpp>` idioms (all 32
+3. **`packages/cpp/README.md`**: per-package README with install + quickstart
+4. **`docs/howto/c-cpp.md`**: add section documenting `#include <iscc/iscc.hpp>` idioms (all 32
     symbols, RAII streaming, gen functions with std types)
-6. **`gen_mixed_code_v0` test**: add missing test in `test_iscc.cpp`
-7. **README.md**: Add C++ install tab (`vcpkg install iscc`) + quickstart
+5. **`gen_mixed_code_v0` test**: add missing test in `test_iscc.cpp`
+6. **README.md**: Add C++ install tab (`vcpkg install iscc`) + quickstart
