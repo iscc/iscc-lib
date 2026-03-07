@@ -179,6 +179,10 @@ fully-met target sections to `learnings-archive.md`.
     `fixed (byte* p = nullArray)` sets pointer to null for optional parameters
 - `dotnet test -e LD_LIBRARY_PATH=target/debug` with relative path fails in devcontainer — must use
     absolute path. CI is unaffected (uses `env:` which resolves correctly)
+- **Empty span `fixed` null pointer**: C# `fixed (T* p = emptySpan)` produces NULL — FFI layer
+    rejects NULL. Guard with `if (span.IsEmpty) { T sentinel; use &sentinel with length 0 }`.
+    Applied to `GenAudioCodeV0`, `GenDataCodeV0`, `GenInstanceCodeV0`; same bug latent in
+    `GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64`
 - C# disallows pointer types (e.g., `byte**`) as generic type arguments — string array marshaling
     (`GCHandle.Alloc` + `fixed byte**`) must be inlined per-method, not extracted to a generic
     helper. `GenMixedCodeV0` and `GenIsccCodeV0` share near-identical patterns as a result
