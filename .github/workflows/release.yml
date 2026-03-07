@@ -874,8 +874,8 @@ jobs:
               unzip -o "$artifact_dir"/*.zip
             fi
 
-            # Find and copy the shared library
-            find . -maxdepth 2 -name "$lib" -path "*/iscc-ffi-v*/*" -exec cp {} "$dest/" \;
+            # Find and copy the shared library (scope by target to avoid cross-arch matches)
+            find . -maxdepth 2 -name "$lib" -path "*-${target}/*" -exec cp {} "$dest/" \;
             echo "Copied $lib -> $dest/"
           done
           echo "Runtime layout:"

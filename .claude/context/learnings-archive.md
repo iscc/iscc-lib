@@ -318,3 +318,41 @@ reference-only for humans.
 - **Ruby cross-gem action quirk**: `oxidize-rb/actions/cross-gem@v1` configure step greps
     `Gemfile.lock` in repo root (ignores `working-directory`). For subdirectory gems, symlink the
     lockfile: `ln -sf crates/iscc-rb/Gemfile.lock Gemfile.lock`
+
+## .NET Bindings (P/Invoke) — Completed Phase (Iteration 9)
+
+- DLL name `"iscc_ffi"` — .NET auto-resolves to `libiscc_ffi.so` (Linux), `iscc_ffi.dll` (Windows),
+    `libiscc_ffi.dylib` (macOS). No platform-specific code needed
+- `[return: MarshalAs(UnmanagedType.U1)]` required for C `bool` → C# `bool` marshaling
+- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` to pass library path to vstest host child
+    process; shell-level env var alone is insufficient. CI needs `env:` on the test step
+- .NET 8 SDK install in Dockerfile: Microsoft install script to `/usr/share/dotnet` (system-wide,
+    before non-root user section)
+- csbindgen (v1.9.7) in `build.rs` generates C# bindings from `extern "C"` functions. Uses
+    `input_extern_file("src/lib.rs")` — parses `#[unsafe(no_mangle)]` (Rust 2024 edition) correctly.
+    Unlike cbindgen (CLI tool), csbindgen runs in build.rs and writes directly to repo path
+- `NativeMethods.g.cs` is `internal` class with 47 P/Invoke declarations, 6 struct types. Generated
+    file uses `byte*` for C strings, `nuint` for `usize`, `[MarshalAs(UnmanagedType.U1)]` for bools
+- `AllowUnsafeBlocks` required in `.csproj` for csbindgen's `byte*` pointer types
+- Marshaling pattern: `ToNativeUtf8` (C# string → null-terminated UTF-8 `byte[]`),
+    `ConsumeNativeString` (native `byte*` → managed `string` + `iscc_free_string`), `GetLastError`
+    (reads `iscc_last_error()` without freeing — thread-local storage).
+    `fixed (byte* p = nullArray)` sets pointer to null for optional parameters
+- `dotnet test -e LD_LIBRARY_PATH=target/debug` with relative path fails in devcontainer — must use
+    absolute path. CI is unaffected (uses `env:` which resolves correctly)
+- **Empty span `fixed` null pointer**: C# `fixed (T* p = emptySpan)` produces NULL — FFI layer
+    rejects NULL. Guard with `if (span.IsEmpty) { T sentinel; use &sentinel with length 0 }`.
+    Applied to all 7 affected functions
+- C# disallows pointer types (e.g., `byte**`) as generic type arguments — string array marshaling
+    must be inlined per-method
+- `IsccSumCodeResult` struct is at the namespace level in `NativeMethods.g.cs` (not nested)
+- `ConsumeNativeStringArray`: shared helper for NULL-terminated `byte**` → `string[]` marshaling
+- `IsccDecode` returns `DecodeResult` record; digest copied via `Span<byte>` before native free
+- Streaming hashers (`IsccDataHasher`, `IsccInstanceHasher`): `SafeHandle` nested class +
+    `IDisposable` on the outer class. `DangerousGetHandle()` is acceptable for single-threaded use
+- **C# structured result records**: `Results.cs` holds all 11 sealed record types
+- **NuGet .csproj README path**: `Include="../../README.md"` from `packages/dotnet/Iscc.Lib/`
+    resolves to `packages/README.md` (wrong), not `packages/dotnet/README.md`. Use `../README.md`
+- **NuGet native lib packaging**: cross-architecture find pattern must scope by target name
+    (`-path "*-${target}/*"`) to avoid copying wrong-arch libraries when multiple targets share the
+    same lib name (e.g., both linux-x64 and linux-arm64 produce `libiscc_ffi.so`)

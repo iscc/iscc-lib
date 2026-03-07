@@ -17,7 +17,7 @@
     <PackageTags>iscc;content-identification;hash;fingerprint;iso-24138</PackageTags>
   </PropertyGroup>
   <ItemGroup>
-    <None Include="../../README.md" Pack="true" PackagePath="" />
+    <None Include="../README.md" Pack="true" PackagePath="" />
     <Content Include="runtimes/**" Pack="true" PackagePath="runtimes" CopyToOutputDirectory="PreserveNewest" Condition="Exists('runtimes')" />
   </ItemGroup>
 </Project>

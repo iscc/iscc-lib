@@ -147,61 +147,17 @@ fully-met target sections to `learnings-archive.md`.
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
 
-## .NET Bindings (P/Invoke)
+## .NET Bindings
 
-- DLL name `"iscc_ffi"` — .NET auto-resolves to `libiscc_ffi.so` (Linux), `iscc_ffi.dll` (Windows),
-    `libiscc_ffi.dylib` (macOS). No platform-specific code needed
-
-- `[return: MarshalAs(UnmanagedType.U1)]` required for C `bool` → C# `bool` marshaling
-
-- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` to pass library path to vstest host child
-    process; shell-level env var alone is insufficient. CI needs `env:` on the test step
-
-- .NET 8 SDK install in Dockerfile: Microsoft install script to `/usr/share/dotnet` (system-wide,
-    before non-root user section)
-
-- csbindgen (v1.9.7) in `build.rs` generates C# bindings from `extern "C"` functions. Uses
-    `input_extern_file("src/lib.rs")` — parses `#[unsafe(no_mangle)]` (Rust 2024 edition) correctly.
-    Unlike cbindgen (CLI tool), csbindgen runs in build.rs and writes directly to repo path
-
-- `NativeMethods.g.cs` is `internal` class with 47 P/Invoke declarations, 6 struct types. Generated
-    file uses `byte*` for C strings, `nuint` for `usize`, `[MarshalAs(UnmanagedType.U1)]` for bools
-
-- `AllowUnsafeBlocks` required in `.csproj` for csbindgen's `byte*` pointer types
-
-- Marshaling pattern: `ToNativeUtf8` (C# string → null-terminated UTF-8 `byte[]`),
-    `ConsumeNativeString` (native `byte*` → managed `string` + `iscc_free_string`), `GetLastError`
-    (reads `iscc_last_error()` without freeing — thread-local storage).
-    `fixed (byte* p = nullArray)` sets pointer to null for optional parameters
-
-- `dotnet test -e LD_LIBRARY_PATH=target/debug` with relative path fails in devcontainer — must use
-    absolute path. CI is unaffected (uses `env:` which resolves correctly)
-
-- **Empty span `fixed` null pointer**: C# `fixed (T* p = emptySpan)` produces NULL — FFI layer
-    rejects NULL. Guard with `if (span.IsEmpty) { T sentinel; use &sentinel with length 0 }`.
-    Applied to all 7 affected functions: `GenImageCodeV0`, `GenAudioCodeV0`, `GenDataCodeV0`,
-    `GenInstanceCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64`
-
-- C# disallows pointer types (e.g., `byte**`) as generic type arguments — string array marshaling
-    (`GCHandle.Alloc` + `fixed byte**`) must be inlined per-method, not extracted to a generic
-    helper. `GenMixedCodeV0` and `GenIsccCodeV0` share near-identical patterns as a result
-
-- `IsccSumCodeResult` struct is at the namespace level in `NativeMethods.g.cs` (not nested in the
-    `NativeMethods` class) — reference it without the `NativeMethods.` prefix in wrapper code
-
-- `ConsumeNativeStringArray`: shared helper for NULL-terminated `byte**` → `string[]` marshaling.
-    Used by `IsccDecompose` and `SlidingWindow`. Frees via `iscc_free_string_array` in `finally`
-
-- `IsccDecode` returns `DecodeResult` record; digest copied via `Span<byte>` before native free
-
-- Streaming hashers (`IsccDataHasher`, `IsccInstanceHasher`): `SafeHandle` nested class +
-    `IDisposable` on the outer class. `DangerousGetHandle()` is acceptable for single-threaded use
-    (no concurrent Dispose scenario). csbindgen typed pointers prevent passing SafeHandle directly
-    to P/Invoke
-
-- **C# structured result records**: `Results.cs` holds all 11 sealed record types (9 gen-function
-    results, SumCodeResult, DecodeResult). All 9 gen functions and both streaming hashers return
-    typed records (only `Iscc` field populated via FFI until structured result support is added)
+- Detailed P/Invoke patterns archived to `learnings-archive.md` (iteration 9 — .NET bindings
+    completed). Key reference items preserved here for CI/release workflows only
+- NuGet publish pipeline: 7 registry inputs total (crates-io, pypi, npm, maven, ffi, rubygems,
+    nuget). `build-ffi` shared between FFI and NuGet via `inputs.ffi || inputs.nuget`
+- **Cross-architecture find bug pattern**: when extracting multi-target archives to the same CWD,
+    `find -path "*/prefix-v*/*"` matches ALL targets. Scope by target name: `-path "*-${target}/*"`
+- **.csproj relative paths**: `Include` paths are relative to csproj location, not project root.
+    Count `../` carefully — `packages/dotnet/Iscc.Lib/../../README.md` = `packages/README.md` (NOT
+    `packages/dotnet/README.md`)
 
 ## CID Process
 
