@@ -67,8 +67,8 @@ iterations.
 ## C++ Scoping: Step Breakdown
 
 1. ✅ `iscc.hpp` + CMake + smoke test (done — 52 tests, ASAN clean)
-2. ✏️ CI job in `ci.yml` (compile + ASAN) — current step
-3. Release: bundle `iscc.hpp` in FFI tarballs
+2. ✅ CI job in `ci.yml` (compile + ASAN) — done, 14/14 jobs green
+3. ✏️ Release: bundle `iscc.hpp` in FFI tarballs — current step
 4. Package managers: vcpkg.json, conanfile.py, pkg-config
 5. Documentation: README, howto/c-cpp.md update, root README C++ sections
 6. Minor: `gen_mixed_code_v0` test + nested vector null-safety (can batch with any step)
@@ -79,6 +79,9 @@ iterations.
 - Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
 - 6 smoke test jobs gate 6 publish jobs in release.yml
+- FFI tarball staging: Unix uses `cp` + `tar czf`, Windows uses `Copy-Item` + `Compress-Archive`.
+    Both need parallel changes when adding files. `publish-ffi` globs `iscc-ffi-v*.*` — auto-picks
+    up new files in the staged directory
 
 ## Gotchas
 

@@ -1,107 +1,82 @@
 # Next Work Package
 
-## Step: Add C++ CI job to ci.yml
+## Step: Bundle `iscc.hpp` in FFI release tarballs
 
 ## Goal
 
-Add a `cpp` CI job to `.github/workflows/ci.yml` that builds and tests the C++ header-only wrapper
-(`iscc.hpp`) with AddressSanitizer enabled. This gates C++ quality on every push/PR and is a
-prerequisite for the release bundling step.
+Add the C++ header-only wrapper (`iscc.hpp`) to the FFI release tarballs in `release.yml` so that
+C++ developers who download the pre-built FFI package get both `iscc.h` (C) and `iscc.hpp` (C++)
+headers without needing to clone the repository.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/ci.yml` — add `cpp` job
+- **Modify**: `.github/workflows/release.yml` — add `iscc.hpp` copy lines in both Unix and Windows
+    staging steps
 - **Reference**:
-    - `packages/cpp/CMakeLists.txt` — top-level CMake config (shows include paths, project setup)
-    - `packages/cpp/tests/CMakeLists.txt` — test build config (shows ASAN option, link deps)
-    - `.github/workflows/ci.yml` — existing job patterns (c-ffi, dotnet) for FFI-dependent builds
+    - `packages/cpp/include/iscc/iscc.hpp` — the header to bundle (verify it exists, check its
+        `#include "iscc.h"` directive)
+    - `.github/workflows/release.yml` lines 628-658 — existing FFI artifact staging logic (Unix +
+        Windows)
 
 ## Not In Scope
 
-- Adding `gen_mixed_code_v0` test coverage to `test_iscc.cpp` — separate improvement
-- Nested vector null-safety hardening in `iscc.hpp` — separate improvement
-- Release bundling (`release.yml`) — next step after CI is green
-- Package manager manifests (`vcpkg.json`, `conanfile.py`) — later step
-- Documentation (`packages/cpp/README.md`, `docs/howto/c-cpp.md`) — later step
-- Multi-platform CI matrix (macOS, Windows) — Linux-only is sufficient initially
+- Adding a C++ compilation smoke test to the `test-ffi` job — the existing test is C-only and
+    sufficient; a C++ smoke test can be added later
+- Package manager manifests (`vcpkg.json`, `conanfile.py`, `pkg-config`) — separate step
+- `packages/cpp/README.md` creation — separate step
+- `docs/howto/c-cpp.md` documentation update — separate step
+- `gen_mixed_code_v0` test coverage in `test_iscc.cpp` — separate step
+- Changing the tarball directory structure (e.g., `include/` subdirectory) — keep flat layout
+    matching current `iscc.h` placement
 
 ## Implementation Notes
 
-### Job structure
+### Changes needed
 
-Follow the `c-ffi` and `dotnet` job patterns. The `cpp` job should:
+Two copy commands, one in each staging step:
 
-1. **Checkout + Rust toolchain + cache** (standard 3-step preamble)
-2. **Install cmake** — `sudo apt-get update && sudo apt-get install -y cmake` (g++ is pre-installed
-    on `ubuntu-latest`)
-3. **Build FFI shared library** — `cargo build -p iscc-ffi` (debug mode is fine for CI tests)
-4. **CMake configure** — from `packages/cpp/`:
-    ```
-    cmake -B build -DCMAKE_BUILD_TYPE=Debug -DFFI_LIB_DIR=../../target/debug -DSANITIZE_ADDRESS=ON
-    ```
-5. **CMake build** — `cmake --build build`
-6. **Run tests** — with `LD_LIBRARY_PATH` pointing to FFI lib:
-    ```
-    LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc
-    ```
+**Unix staging step** (after the `cp crates/iscc-ffi/include/iscc.h "$DIR/"` line):
 
-### Key details
-
-- Use `working-directory: packages/cpp` for cmake steps (configure, build, run)
-- ASAN enabled by default in CI — catches memory bugs early. The test suite already passes under
-    ASAN (verified in the wrapper creation step)
-- The `cmake` package may already be on `ubuntu-latest` but install it explicitly for version
-    stability — same pattern as `apt-get install -y libclang-dev` in the Ruby job
-- Job name: `C++ (cmake, ASAN, test)` — signals what the job does
-- Place the job after `dotnet` and before `bench` in the file for logical grouping with other
-    binding jobs
-- No `needs:` dependency on other jobs — the C++ job is self-contained (builds its own FFI lib)
-
-### YAML template
-
-```yaml
-cpp:
-  name: C++ (cmake, ASAN, test)
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2
-    - name: Install cmake
-      run: sudo apt-get update && sudo apt-get install -y cmake
-    - name: Build FFI native library
-      run: cargo build -p iscc-ffi
-    - name: Configure CMake
-      run: >
-        cmake -B build -DCMAKE_BUILD_TYPE=Debug
-        -DFFI_LIB_DIR=../../target/debug -DSANITIZE_ADDRESS=ON
-      working-directory: packages/cpp
-    - name: Build C++ tests
-      run: cmake --build build
-      working-directory: packages/cpp
-    - name: Run C++ tests
-      run: LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc
-      working-directory: packages/cpp
+```bash
+cp packages/cpp/include/iscc/iscc.hpp "$DIR/"
 ```
+
+**Windows staging step** (after the `Copy-Item "crates/iscc-ffi/include/iscc.h" "$DIR/"` line):
+
+```powershell
+Copy-Item "packages/cpp/include/iscc/iscc.hpp" "$DIR/"
+```
+
+### Why flat layout works
+
+The `iscc.hpp` header uses `#include "iscc.h"` (quotes, not angle brackets), so both headers being
+in the same directory works correctly. Users extracting the tarball get:
+
+```
+iscc-ffi-vX.Y.Z-target/
+  libiscc_ffi.so (or .dylib / .dll)
+  libiscc_ffi.a (or .lib)
+  iscc.h          ← C header (existing)
+  iscc.hpp        ← C++ wrapper (new)
+  LICENSE
+```
+
+### No other changes needed
+
+- The `test-ffi` job doesn't need modification — it tests C functionality only
+- The `publish-ffi` job uses glob patterns (`iscc-ffi-v*.*`) that automatically pick up the new file
+- The `pack-nuget` job only extracts shared libraries — unaffected
 
 ## Verification
 
-- `mise run check` passes (formatting, lint — YAML must be valid)
-- CI push triggers `cpp` job and it passes — verify with: `git push && gh run watch --exit-status`
-    or check the workflow run on GitHub
-- Local simulation: the following commands succeed:
-    ```
-    cargo build -p iscc-ffi
-    cd packages/cpp && cmake -B build -DCMAKE_BUILD_TYPE=Debug \
-        -DFFI_LIB_DIR=../../target/debug -DSANITIZE_ADDRESS=ON && \
-    cmake --build build && \
-    LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc
-    ```
-- `grep -c 'cpp:' .github/workflows/ci.yml` returns at least 1 (job key exists)
-- `grep 'SANITIZE_ADDRESS=ON' .github/workflows/ci.yml` finds the ASAN flag
+- `grep -c 'iscc.hpp' .github/workflows/release.yml` returns `2` (one Unix cp, one Windows
+    Copy-Item)
+- `mise run check` passes (YAML validation, formatting)
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean (no Rust changes, but confirms no
+    regressions)
 
 ## Done When
 
-The `cpp` job exists in `ci.yml`, passes locally, and the CI workflow file passes all pre-commit
-checks (`mise run check`).
+Both the Unix and Windows FFI staging steps in `release.yml` copy `iscc.hpp` alongside `iscc.h`, and
+all pre-commit checks pass.
