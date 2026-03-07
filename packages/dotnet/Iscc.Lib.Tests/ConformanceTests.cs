@@ -60,8 +60,8 @@ public class ConformanceTests
         string? meta = PrepareMeta(inputs[2]);
         uint bits = inputs[3].GetUInt32();
 
-        string result = IsccLib.GenMetaCodeV0(name, description: description, meta: meta, bits: bits);
-        Assert.Equal(outputs.GetProperty("iscc").GetString(), result);
+        var result = IsccLib.GenMetaCodeV0(name, description: description, meta: meta, bits: bits);
+        Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
     }
 
     // ── gen_text_code_v0 ─────────────────────────────────────────────────────
@@ -83,8 +83,8 @@ public class ConformanceTests
         string text = inputs[0].GetString()!;
         uint bits = inputs[1].GetUInt32();
 
-        string result = IsccLib.GenTextCodeV0(text, bits: bits);
-        Assert.Equal(outputs.GetProperty("iscc").GetString(), result);
+        var result = IsccLib.GenTextCodeV0(text, bits: bits);
+        Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
     }
 
     // ── gen_image_code_v0 ────────────────────────────────────────────────────
@@ -109,8 +109,8 @@ public class ConformanceTests
             pixels[i] = (byte)pixelArray[i].GetInt32();
         uint bits = inputs[1].GetUInt32();
 
-        string result = IsccLib.GenImageCodeV0(pixels, bits: bits);
-        Assert.Equal(outputs.GetProperty("iscc").GetString(), result);
+        var result = IsccLib.GenImageCodeV0(pixels, bits: bits);
+        Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
     }
 
     // ── gen_audio_code_v0 ────────────────────────────────────────────────────
@@ -135,8 +135,8 @@ public class ConformanceTests
             cv[i] = cvArray[i].GetInt32();
         uint bits = inputs[1].GetUInt32();
 
-        string result = IsccLib.GenAudioCodeV0(cv, bits: bits);
-        Assert.Equal(outputs.GetProperty("iscc").GetString(), result);
+        var result = IsccLib.GenAudioCodeV0(cv, bits: bits);
+        Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
     }
 
     // ── gen_video_code_v0 ────────────────────────────────────────────────────
@@ -166,8 +166,8 @@ public class ConformanceTests
         }
         uint bits = inputs[1].GetUInt32();
 
-        string result = IsccLib.GenVideoCodeV0(frameSigs, bits: bits);
-        Assert.Equal(outputs.GetProperty("iscc").GetString(), result);
+        var result = IsccLib.GenVideoCodeV0(frameSigs, bits: bits);
+        Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
     }
 
     // ── gen_mixed_code_v0 ────────────────────────────────────────────────────
@@ -192,8 +192,8 @@ public class ConformanceTests
             codes[i] = codesArray[i].GetString()!;
         uint bits = inputs[1].GetUInt32();
 
-        string result = IsccLib.GenMixedCodeV0(codes, bits: bits);
-        Assert.Equal(outputs.GetProperty("iscc").GetString(), result);
+        var result = IsccLib.GenMixedCodeV0(codes, bits: bits);
+        Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
     }
 
     // ── gen_data_code_v0 ─────────────────────────────────────────────────────
@@ -215,8 +215,8 @@ public class ConformanceTests
         byte[] data = DecodeStream(inputs[0].GetString()!);
         uint bits = inputs[1].GetUInt32();
 
-        string result = IsccLib.GenDataCodeV0(data, bits: bits);
-        Assert.Equal(outputs.GetProperty("iscc").GetString(), result);
+        var result = IsccLib.GenDataCodeV0(data, bits: bits);
+        Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
     }
 
     // ── gen_instance_code_v0 ─────────────────────────────────────────────────
@@ -238,8 +238,8 @@ public class ConformanceTests
         byte[] data = DecodeStream(inputs[0].GetString()!);
         uint bits = inputs[1].GetUInt32();
 
-        string result = IsccLib.GenInstanceCodeV0(data, bits: bits);
-        Assert.Equal(outputs.GetProperty("iscc").GetString(), result);
+        var result = IsccLib.GenInstanceCodeV0(data, bits: bits);
+        Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
     }
 
     // ── gen_iscc_code_v0 ─────────────────────────────────────────────────────
@@ -263,7 +263,7 @@ public class ConformanceTests
         for (int i = 0; i < codes.Length; i++)
             codes[i] = codesArray[i].GetString()!;
 
-        string result = IsccLib.GenIsccCodeV0(codes);
-        Assert.Equal(outputs.GetProperty("iscc").GetString(), result);
+        var result = IsccLib.GenIsccCodeV0(codes);
+        Assert.Equal(outputs.GetProperty("iscc").GetString(), result.Iscc);
     }
 }

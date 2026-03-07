@@ -6,17 +6,6 @@ using System.Text;
 
 namespace Iscc.Lib;
 
-/// <summary>Result of GenSumCodeV0 — composite ISCC-CODE with file metadata.</summary>
-public sealed record SumCodeResult(
-    string Iscc,
-    string Datahash,
-    ulong Filesize,
-    string[]? Units);
-
-/// <summary>Result of IsccDecode — decoded ISCC header fields and raw digest bytes.</summary>
-public sealed record DecodeResult(
-    byte Maintype, byte Subtype, byte Version, byte Length, byte[] Digest);
-
 /// <summary>ISCC library — ISO 24138:2024 International Standard Content Code.</summary>
 public static partial class IsccLib
 {
@@ -98,7 +87,7 @@ public static partial class IsccLib
     // ── Gen Functions ───────────────────────────────────────────────────────
 
     /// <summary>Generate a Meta-Code from name and optional metadata.</summary>
-    public static string GenMetaCodeV0(
+    public static MetaCodeResult GenMetaCodeV0(
         string name,
         string? description = null,
         string? meta = null,
@@ -115,13 +104,13 @@ public static partial class IsccLib
             {
                 byte* result = NativeMethods.iscc_gen_meta_code_v0(
                     pName, pDesc, pMeta, bits);
-                return ConsumeNativeString(result);
+                return new MetaCodeResult(ConsumeNativeString(result));
             }
         }
     }
 
     /// <summary>Generate a Text-Code from plain text content.</summary>
-    public static string GenTextCodeV0(string text, uint bits = 64)
+    public static TextCodeResult GenTextCodeV0(string text, uint bits = 64)
     {
         byte[] nativeText = ToNativeUtf8(text)!;
         unsafe
@@ -129,27 +118,35 @@ public static partial class IsccLib
             fixed (byte* pText = nativeText)
             {
                 byte* result = NativeMethods.iscc_gen_text_code_v0(pText, bits);
-                return ConsumeNativeString(result);
+                return new TextCodeResult(ConsumeNativeString(result));
             }
         }
     }
 
     /// <summary>Generate an Image-Code from raw pixel data.</summary>
-    public static string GenImageCodeV0(ReadOnlySpan<byte> pixels, uint bits = 64)
+    public static ImageCodeResult GenImageCodeV0(ReadOnlySpan<byte> pixels, uint bits = 64)
     {
         unsafe
         {
+            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
+            if (pixels.IsEmpty)
+            {
+                byte sentinel;
+                byte* result = NativeMethods.iscc_gen_image_code_v0(&sentinel, 0, bits);
+                return new ImageCodeResult(ConsumeNativeString(result));
+            }
+
             fixed (byte* pPixels = pixels)
             {
                 byte* result = NativeMethods.iscc_gen_image_code_v0(
                     pPixels, (nuint)pixels.Length, bits);
-                return ConsumeNativeString(result);
+                return new ImageCodeResult(ConsumeNativeString(result));
             }
         }
     }
 
     /// <summary>Generate an Audio-Code from a Chromaprint feature vector.</summary>
-    public static string GenAudioCodeV0(ReadOnlySpan<int> cv, uint bits = 64)
+    public static AudioCodeResult GenAudioCodeV0(ReadOnlySpan<int> cv, uint bits = 64)
     {
         unsafe
         {
@@ -158,20 +155,20 @@ public static partial class IsccLib
             {
                 int sentinel;
                 byte* result = NativeMethods.iscc_gen_audio_code_v0(&sentinel, 0, bits);
-                return ConsumeNativeString(result);
+                return new AudioCodeResult(ConsumeNativeString(result));
             }
 
             fixed (int* pCv = cv)
             {
                 byte* result = NativeMethods.iscc_gen_audio_code_v0(
                     pCv, (nuint)cv.Length, bits);
-                return ConsumeNativeString(result);
+                return new AudioCodeResult(ConsumeNativeString(result));
             }
         }
     }
 
     /// <summary>Generate a Video-Code from frame signature data.</summary>
-    public static string GenVideoCodeV0(int[][] frameSigs, uint bits = 64)
+    public static VideoCodeResult GenVideoCodeV0(int[][] frameSigs, uint bits = 64)
     {
         int numFrames = frameSigs.Length;
         GCHandle[] handles = new GCHandle[numFrames];
@@ -193,7 +190,7 @@ public static partial class IsccLib
                 {
                     byte* result = NativeMethods.iscc_gen_video_code_v0(
                         pPtrs, pLens, (nuint)numFrames, bits);
-                    return ConsumeNativeString(result);
+                    return new VideoCodeResult(ConsumeNativeString(result));
                 }
             }
         }
@@ -208,7 +205,7 @@ public static partial class IsccLib
     }
 
     /// <summary>Generate a Mixed-Code from multiple Content-Code strings.</summary>
-    public static string GenMixedCodeV0(string[] codes, uint bits = 64)
+    public static MixedCodeResult GenMixedCodeV0(string[] codes, uint bits = 64)
     {
         int count = codes.Length;
         byte[][] nativeStrings = new byte[count][];
@@ -231,7 +228,7 @@ public static partial class IsccLib
                 {
                     byte* result = NativeMethods.iscc_gen_mixed_code_v0(
                         pPtrs, (nuint)count, bits);
-                    return ConsumeNativeString(result);
+                    return new MixedCodeResult(ConsumeNativeString(result));
                 }
             }
         }
@@ -246,7 +243,7 @@ public static partial class IsccLib
     }
 
     /// <summary>Generate a composite ISCC-CODE from multiple unit code strings.</summary>
-    public static string GenIsccCodeV0(string[] codes, bool wide = false)
+    public static IsccCodeResult GenIsccCodeV0(string[] codes, bool wide = false)
     {
         int count = codes.Length;
         byte[][] nativeStrings = new byte[count][];
@@ -269,7 +266,7 @@ public static partial class IsccLib
                 {
                     byte* result = NativeMethods.iscc_gen_iscc_code_v0(
                         pPtrs, (nuint)count, wide);
-                    return ConsumeNativeString(result);
+                    return new IsccCodeResult(ConsumeNativeString(result));
                 }
             }
         }
@@ -284,7 +281,7 @@ public static partial class IsccLib
     }
 
     /// <summary>Generate a Data-Code from raw byte data.</summary>
-    public static string GenDataCodeV0(ReadOnlySpan<byte> data, uint bits = 64)
+    public static DataCodeResult GenDataCodeV0(ReadOnlySpan<byte> data, uint bits = 64)
     {
         unsafe
         {
@@ -293,20 +290,20 @@ public static partial class IsccLib
             {
                 byte sentinel;
                 byte* result = NativeMethods.iscc_gen_data_code_v0(&sentinel, 0, bits);
-                return ConsumeNativeString(result);
+                return new DataCodeResult(ConsumeNativeString(result));
             }
 
             fixed (byte* pData = data)
             {
                 byte* result = NativeMethods.iscc_gen_data_code_v0(
                     pData, (nuint)data.Length, bits);
-                return ConsumeNativeString(result);
+                return new DataCodeResult(ConsumeNativeString(result));
             }
         }
     }
 
     /// <summary>Generate an Instance-Code from raw byte data.</summary>
-    public static string GenInstanceCodeV0(ReadOnlySpan<byte> data, uint bits = 64)
+    public static InstanceCodeResult GenInstanceCodeV0(ReadOnlySpan<byte> data, uint bits = 64)
     {
         unsafe
         {
@@ -315,14 +312,14 @@ public static partial class IsccLib
             {
                 byte sentinel;
                 byte* result = NativeMethods.iscc_gen_instance_code_v0(&sentinel, 0, bits);
-                return ConsumeNativeString(result);
+                return new InstanceCodeResult(ConsumeNativeString(result));
             }
 
             fixed (byte* pData = data)
             {
                 byte* result = NativeMethods.iscc_gen_instance_code_v0(
                     pData, (nuint)data.Length, bits);
-                return ConsumeNativeString(result);
+                return new InstanceCodeResult(ConsumeNativeString(result));
             }
         }
     }
@@ -376,6 +373,14 @@ public static partial class IsccLib
     {
         unsafe
         {
+            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
+            if (data.IsEmpty)
+            {
+                byte sentinel;
+                byte* result = NativeMethods.iscc_encode_base64(&sentinel, 0);
+                return ConsumeNativeString(result);
+            }
+
             fixed (byte* pData = data)
             {
                 byte* result = NativeMethods.iscc_encode_base64(
@@ -507,6 +512,14 @@ public static partial class IsccLib
     {
         unsafe
         {
+            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
+            if (features.IsEmpty)
+            {
+                uint sentinel;
+                IsccByteBuffer buf = NativeMethods.iscc_alg_minhash_256(&sentinel, 0);
+                return ConsumeByteBuffer(buf);
+            }
+
             fixed (uint* pFeatures = features)
             {
                 IsccByteBuffer buf = NativeMethods.iscc_alg_minhash_256(
@@ -522,6 +535,15 @@ public static partial class IsccLib
     {
         unsafe
         {
+            // Empty spans produce null pointers via fixed — use a stack sentinel instead.
+            if (data.IsEmpty)
+            {
+                byte sentinel;
+                IsccByteBufferArray arr = NativeMethods.iscc_alg_cdc_chunks(
+                    &sentinel, 0, utf32, avgChunkSize);
+                return ConsumeByteBufferArray(arr);
+            }
+
             fixed (byte* pData = data)
             {
                 IsccByteBufferArray arr = NativeMethods.iscc_alg_cdc_chunks(

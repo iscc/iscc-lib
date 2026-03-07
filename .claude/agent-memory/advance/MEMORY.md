@@ -158,7 +158,6 @@ iterations.
     shell-level `LD_LIBRARY_PATH` alone is NOT sufficient
 - Dockerfile: .NET 8 SDK via Microsoft install script to `/usr/share/dotnet` (system-wide, root
     section)
-- No `.sln` file — `dotnet test` works with project files directly
 - CI job: `actions/setup-dotnet@v4` with `dotnet-version: '8.0'`. LD_LIBRARY_PATH must be absolute
     (`${{ github.workspace }}/target/debug`) — relative paths fail in vstest child process
 - csbindgen (v1.9.7) in `crates/iscc-ffi/build.rs` generates `NativeMethods.g.cs` (929 lines, ~43
@@ -180,25 +179,22 @@ iterations.
     thread-local storage pointer — do NOT free it (use `Marshal.PtrToStringUTF8` without free)
 - `META_TRIM_META` = 128,000 (not 16,384). All 5 constant values: 128, 4096, 128000, 4194304, 13
 - `dotnet` available at `/usr/share/dotnet/dotnet` in devcontainer (on PATH as `dotnet`)
-- `ConsumeByteBuffer`: null check on `.data` → copy via `Span<byte>.ToArray()` → free in finally
-- `ConsumeByteBufferArray`: null check on `.buffers` → iterate `.count` elements → free in finally
-- `AlgSimhash`/`SoftHashVideoV0` use `GCHandle.Alloc(GCHandleType.Pinned)` for jagged arrays (same
-    pattern as `GenVideoCodeV0`)
+- `GCHandle.Alloc(GCHandleType.Pinned)` for jagged arrays (`GenVideoCodeV0`, `AlgSimhash`,
+    `SoftHashVideoV0`). `ConsumeByteBuffer`/`ConsumeByteBufferArray`: null check → copy → free
 
-## .NET Conformance Tests
+## .NET Conformance Tests + Result Types
 
 - `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — 9 `[Theory]` + `[MemberData]` tests, 50
     vectors total. Uses `System.Text.Json` (built-in), `Lazy<JsonElement>` for cached loading
 - `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` — vendored copy, `CopyToOutputDirectory` in
     csproj. Loaded via `AppContext.BaseDirectory`
-- Empty span fix: C# `fixed (byte* p = emptySpan)` gives NULL — 3 gen functions (`GenAudioCodeV0`,
-    `GenDataCodeV0`, `GenInstanceCodeV0`) use stack sentinel for empty inputs. Same bug exists in
-    `GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64` (untriggered)
+- `Results.cs`: 11 sealed records (9 gen + SumCodeResult + DecodeResult). All 9 gen functions return
+    typed records (only `Iscc` field populated via FFI). Streaming hashers still return `string`
+- Empty span fix applied to all 7 affected functions: `GenAudioCodeV0`, `GenDataCodeV0`,
+    `GenInstanceCodeV0`, `GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64`
 
 ## Gotchas
 
 - Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name
 - After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
-- C# `fixed` on empty `ReadOnlySpan<T>` produces NULL pointer — FFI layer rejects NULL. Use
-    `if (span.IsEmpty) { T sentinel; use &sentinel with length 0 }` pattern

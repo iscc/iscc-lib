@@ -84,31 +84,31 @@ public class SmokeTests
     [Fact]
     public void GenMetaCodeV0_ReturnsIsccString()
     {
-        string result = IsccLib.GenMetaCodeV0("Test Title");
-        Assert.StartsWith("ISCC:", result);
+        var result = IsccLib.GenMetaCodeV0("Test Title");
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
     public void GenMetaCodeV0_WithDescription()
     {
-        string result = IsccLib.GenMetaCodeV0("Test Title", description: "A test description");
-        Assert.StartsWith("ISCC:", result);
+        var result = IsccLib.GenMetaCodeV0("Test Title", description: "A test description");
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
     public void GenTextCodeV0_ReturnsIsccString()
     {
-        string result = IsccLib.GenTextCodeV0(
+        var result = IsccLib.GenTextCodeV0(
             "This is a reasonably long text that should be enough for generating a text code.");
-        Assert.StartsWith("ISCC:", result);
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
     public void GenImageCodeV0_ReturnsIsccString()
     {
         byte[] pixels = new byte[1024];
-        string result = IsccLib.GenImageCodeV0(pixels);
-        Assert.StartsWith("ISCC:", result);
+        var result = IsccLib.GenImageCodeV0(pixels);
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
@@ -117,8 +117,8 @@ public class SmokeTests
         int[] cv = new int[64];
         for (int i = 0; i < cv.Length; i++)
             cv[i] = i * 1000;
-        string result = IsccLib.GenAudioCodeV0(cv);
-        Assert.StartsWith("ISCC:", result);
+        var result = IsccLib.GenAudioCodeV0(cv);
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
@@ -132,47 +132,47 @@ public class SmokeTests
             frame2[i] = 380 - i;
         }
         int[][] frameSigs = [frame1, frame2];
-        string result = IsccLib.GenVideoCodeV0(frameSigs);
-        Assert.StartsWith("ISCC:", result);
+        var result = IsccLib.GenVideoCodeV0(frameSigs);
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
     public void GenMixedCodeV0_ReturnsIsccString()
     {
-        string textCode = IsccLib.GenTextCodeV0(
+        var textCode = IsccLib.GenTextCodeV0(
             "This is a reasonably long text that should be enough for generating a text code.");
         byte[] pixels = new byte[1024];
-        string imageCode = IsccLib.GenImageCodeV0(pixels);
-        string[] codes = [textCode, imageCode];
-        string result = IsccLib.GenMixedCodeV0(codes);
-        Assert.StartsWith("ISCC:", result);
+        var imageCode = IsccLib.GenImageCodeV0(pixels);
+        string[] codes = [textCode.Iscc, imageCode.Iscc];
+        var result = IsccLib.GenMixedCodeV0(codes);
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
     public void GenIsccCodeV0_ReturnsIsccString()
     {
         byte[] data = "Hello World"u8.ToArray();
-        string dataCode = IsccLib.GenDataCodeV0(data);
-        string instanceCode = IsccLib.GenInstanceCodeV0(data);
-        string[] codes = [dataCode, instanceCode];
-        string result = IsccLib.GenIsccCodeV0(codes);
-        Assert.StartsWith("ISCC:", result);
+        var dataCode = IsccLib.GenDataCodeV0(data);
+        var instanceCode = IsccLib.GenInstanceCodeV0(data);
+        string[] codes = [dataCode.Iscc, instanceCode.Iscc];
+        var result = IsccLib.GenIsccCodeV0(codes);
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
     public void GenDataCodeV0_ReturnsIsccString()
     {
         byte[] data = "Hello World"u8.ToArray();
-        string result = IsccLib.GenDataCodeV0(data);
-        Assert.StartsWith("ISCC:", result);
+        var result = IsccLib.GenDataCodeV0(data);
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
     public void GenInstanceCodeV0_ReturnsIsccString()
     {
         byte[] data = "Hello World"u8.ToArray();
-        string result = IsccLib.GenInstanceCodeV0(data);
-        Assert.StartsWith("ISCC:", result);
+        var result = IsccLib.GenInstanceCodeV0(data);
+        Assert.StartsWith("ISCC:", result.Iscc);
     }
 
     [Fact]
@@ -236,8 +236,8 @@ public class SmokeTests
     [Fact]
     public void IsccDecode_ReturnsDecodedComponents()
     {
-        string metaCode = IsccLib.GenMetaCodeV0("Test Title");
-        DecodeResult decoded = IsccLib.IsccDecode(metaCode);
+        var metaCode = IsccLib.GenMetaCodeV0("Test Title");
+        DecodeResult decoded = IsccLib.IsccDecode(metaCode.Iscc);
         Assert.Equal(0, decoded.Maintype); // META = 0
         Assert.NotEmpty(decoded.Digest);
         Assert.True(decoded.Digest.Length > 0);
@@ -247,11 +247,11 @@ public class SmokeTests
     public void IsccDecompose_ReturnsUnitArray()
     {
         byte[] data = "Hello World"u8.ToArray();
-        string dataCode = IsccLib.GenDataCodeV0(data);
-        string instanceCode = IsccLib.GenInstanceCodeV0(data);
-        string[] codes = [dataCode, instanceCode];
-        string isccCode = IsccLib.GenIsccCodeV0(codes);
-        string[] units = IsccLib.IsccDecompose(isccCode);
+        var dataCode = IsccLib.GenDataCodeV0(data);
+        var instanceCode = IsccLib.GenInstanceCodeV0(data);
+        string[] codes = [dataCode.Iscc, instanceCode.Iscc];
+        var isccCode = IsccLib.GenIsccCodeV0(codes);
+        string[] units = IsccLib.IsccDecompose(isccCode.Iscc);
         Assert.True(units.Length >= 2);
         foreach (string unit in units)
             Assert.NotEmpty(unit);
@@ -352,11 +352,11 @@ public class SmokeTests
     public void DataHasher_MatchesGenDataCodeV0()
     {
         byte[] data = "Hello World"u8.ToArray();
-        string expected = IsccLib.GenDataCodeV0(data);
+        var expected = IsccLib.GenDataCodeV0(data);
         using var hasher = new IsccDataHasher();
         hasher.Update(data);
         string result = hasher.Finalize();
-        Assert.Equal(expected, result);
+        Assert.Equal(expected.Iscc, result);
     }
 
     [Fact]
@@ -378,11 +378,11 @@ public class SmokeTests
     public void InstanceHasher_MatchesGenInstanceCodeV0()
     {
         byte[] data = "Hello World"u8.ToArray();
-        string expected = IsccLib.GenInstanceCodeV0(data);
+        var expected = IsccLib.GenInstanceCodeV0(data);
         using var hasher = new IsccInstanceHasher();
         hasher.Update(data);
         string result = hasher.Finalize();
-        Assert.Equal(expected, result);
+        Assert.Equal(expected.Iscc, result);
     }
 
     [Fact]

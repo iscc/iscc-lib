@@ -1,41 +1,33 @@
-## 2026-03-07 — Review of: C# conformance tests (ConformanceTests.cs + vendored data.json)
+## 2026-03-07 — C# structured result records (Results.cs + gen function return type refactor)
 
-**Verdict:** PASS
+**Done:** Created `Results.cs` with 11 sealed record types (9 gen-function results + relocated
+`SumCodeResult` and `DecodeResult`). Refactored all 9 gen functions in `IsccLib.cs` to return typed
+result records instead of raw strings. Fixed 4 remaining empty-span NULL pointer bugs in
+`GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, and `EncodeBase64`.
 
-**Summary:** Clean, well-structured implementation of 50 xUnit conformance tests across 9 gen
-functions. All tests pass (91 total: 41 smoke + 50 conformance). The advance agent also fixed a real
-bug in `IsccLib.cs` where `fixed` on empty `ReadOnlySpan<T>` produces NULL pointers — this was
-technically out of scope but was a necessary bug fix to pass 3 conformance vectors. The fix is
-minimal, well-commented, and doesn't change any API signatures.
+**Files changed:**
 
-**Verification:**
+- `packages/dotnet/Iscc.Lib/Results.cs`: Created — 11 sealed record types in the `Iscc.Lib`
+    namespace
+- `packages/dotnet/Iscc.Lib/IsccLib.cs`: Removed `SumCodeResult` and `DecodeResult` definitions
+    (moved to Results.cs); changed 9 gen function return types from `string` to typed records; added
+    empty-span guards to 4 functions
+- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`: Updated 14 tests to use `.Iscc` accessor on gen
+    function results, including streaming hasher comparison tests and codec tests that chain gen
+    calls
+- `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs`: Updated all 9 Theory tests to use `.Iscc`
+    accessor
 
-- [x] `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=...` — 91 passed (41 smoke +
-    50 conformance), 0 failed
-- [x] `grep -c '\[Theory\]' ConformanceTests.cs` → 9 (one per gen function)
-- [x] `diff data.json` — no differences (identical copy, 579 lines each)
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
-- [x] `mise run check` — all 15 hooks pass
+**Verification:** All 91 tests pass (41 smoke + 50 conformance). `grep -c 'sealed record'` returns
+11 for Results.cs and 0 for IsccLib.cs. `cargo build -p iscc-ffi` succeeds. `dotnet build` succeeds.
+`mise run check` passes all 15 hooks.
 
-**Issues found:**
+**Next:** Streaming hasher `Finalize()` return types — change `IsccDataHasher.Finalize()` and
+`IsccInstanceHasher.Finalize()` to return `DataCodeResult`/`InstanceCodeResult` instead of `string`.
+Then NuGet publish pipeline in release.yml, version sync integration, and documentation
+(docs/howto/dotnet.md, packages/dotnet/README.md, README C# section).
 
-- (none) — the out-of-scope `IsccLib.cs` modification is a legitimate bug fix (empty spans → NULL
-    pointers via `fixed`), not an API change. Pragmatic and well-justified.
-
-**Codex review:** No correctness issues identified. The empty-span fix is consistent with the native
-FFI contract that rejects NULL pointers.
-
-**Next:** Continue C# binding completion. Priority order: (1) Structured result record types
-(`Results.cs` — `MetaCodeResult`, `TextCodeResult`, etc.) so gen functions return records instead of
-`string`; (2) NuGet publish job in `release.yml`; (3) Version sync integration; (4) Documentation
-(`docs/howto/dotnet.md`, `packages/dotnet/README.md`, README C# section). Note: `GenImageCodeV0`,
-`AlgMinhash256`, `AlgCdcChunks`, and `EncodeBase64` have the same latent empty-span NULL pointer bug
-— can be fixed as part of the structured records refactor.
-
-**Notes:**
-
-- The `JsonDocument` in `LoadDataJson()` is not explicitly disposed (returned `RootElement` outlives
-    parent). This is acceptable in test code — the `Lazy<>` keeps the document alive for the process
-    lifetime and GC handles cleanup.
-- The `dotnet test` command requires the project path, not the solution directory
-    (`packages/dotnet/Iscc.Lib.Tests/` not `packages/dotnet/`).
+**Notes:** The streaming hashers still return `string` from `Finalize()` — intentionally deferred
+per next.md scope (would exceed 3-file limit). The 9 new gen-function records only have `Iscc` field
+since the C FFI only returns the ISCC string; additional fields (Name, Characters, DataHash, etc.)
+will be populated when FFI structured result support is added.
