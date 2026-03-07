@@ -39,11 +39,11 @@ iterations.
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
 - Version sync: `scripts/version_sync.py` — `--check` mode exits 1 on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
-- Release workflow (`release.yml`): 6 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems).
-    Pattern: boolean input → build job → **smoke test job** → publish job (version-exists skip). 6
-    smoke test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish.
-    Each tests linux-x86_64 artifact on ubuntu-latest. Ruby uses `oxidize-rb/actions/cross-gem@v1`
-    (all on ubuntu-latest via Docker). `GEM_HOST_API_KEY` for auth (not OIDC)
+- Release workflow (`release.yml`): 7 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems,
+    nuget). Pattern: boolean input → build job → **smoke test job** → publish job (version-exists
+    skip). 7 smoke test jobs gate publish. NuGet reuses `build-ffi` artifacts (shared `if` condition
+    `inputs.ffi || inputs.nuget`), then `pack-nuget` → `test-nuget` → `publish-nuget`. NuGet uses
+    `NUGET_API_KEY` secret (not OIDC). Ruby uses `GEM_HOST_API_KEY` for auth (not OIDC)
 
 ## WASM/WASI
 

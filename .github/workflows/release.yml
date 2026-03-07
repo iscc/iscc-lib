@@ -29,6 +29,10 @@ on:
         description: Publish iscc-lib to RubyGems
         type: boolean
         default: false
+      nuget:
+        description: Publish Iscc.Lib to NuGet
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -575,7 +579,7 @@ jobs:
   # Build FFI shared/static libraries for C/C++ consumers
   build-ffi:
     name: Build FFI (${{ matrix.target }})
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.ffi
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.ffi || inputs.nuget
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -822,3 +826,132 @@ jobs:
             echo "Publishing $gem"
             gem push "$gem"
           done
+
+  # Pack NuGet package with bundled native libraries for 5 platforms
+  pack-nuget:
+    name: Pack NuGet package
+    needs: [build-ffi]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.nuget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0'
+      - name: Download FFI artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ffi-*
+          path: ffi-staging
+      - name: Extract and map native libraries to NuGet RIDs
+        run: |
+          PROJ_DIR="packages/dotnet/Iscc.Lib"
+          declare -A TARGET_RID=(
+            ["x86_64-unknown-linux-gnu"]="linux-x64"
+            ["aarch64-unknown-linux-gnu"]="linux-arm64"
+            ["aarch64-apple-darwin"]="osx-arm64"
+            ["x86_64-apple-darwin"]="osx-x64"
+            ["x86_64-pc-windows-msvc"]="win-x64"
+          )
+          declare -A TARGET_LIB=(
+            ["x86_64-unknown-linux-gnu"]="libiscc_ffi.so"
+            ["aarch64-unknown-linux-gnu"]="libiscc_ffi.so"
+            ["aarch64-apple-darwin"]="libiscc_ffi.dylib"
+            ["x86_64-apple-darwin"]="libiscc_ffi.dylib"
+            ["x86_64-pc-windows-msvc"]="iscc_ffi.dll"
+          )
+          for target in "${!TARGET_RID[@]}"; do
+            rid="${TARGET_RID[$target]}"
+            lib="${TARGET_LIB[$target]}"
+            dest="$PROJ_DIR/runtimes/$rid/native"
+            mkdir -p "$dest"
+
+            # Extract archive (tar.gz for Unix, zip for Windows)
+            artifact_dir="ffi-staging/ffi-$target"
+            if ls "$artifact_dir"/*.tar.gz 1>/dev/null 2>&1; then
+              tar xzf "$artifact_dir"/*.tar.gz
+            elif ls "$artifact_dir"/*.zip 1>/dev/null 2>&1; then
+              unzip -o "$artifact_dir"/*.zip
+            fi
+
+            # Find and copy the shared library
+            find . -maxdepth 2 -name "$lib" -path "*/iscc-ffi-v*/*" -exec cp {} "$dest/" \;
+            echo "Copied $lib -> $dest/"
+          done
+          echo "Runtime layout:"
+          find "$PROJ_DIR/runtimes" -type f
+      - name: Pack NuGet package
+        run: dotnet pack -c Release -o nupkg
+        working-directory: packages/dotnet/Iscc.Lib
+      - name: Upload NuGet package
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: packages/dotnet/Iscc.Lib/nupkg/*.nupkg
+
+  # Smoke test NuGet package on Linux before publishing
+  test-nuget:
+    name: Test NuGet package
+    needs: [pack-nuget]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.nuget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0'
+      - name: Download NuGet package
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: nupkg
+      - name: Create and run smoke test
+        run: |
+          dotnet new console -o smoke
+          cd smoke
+          dotnet nuget add source "$PWD/../nupkg" -n local
+          dotnet add package Iscc.Lib --source local
+          cat > Program.cs << 'EOF'
+          using Iscc.Lib;
+          if (!IsccLib.ConformanceSelftest())
+              throw new Exception("Conformance selftest failed");
+          Console.WriteLine("NuGet smoke test passed");
+          EOF
+          dotnet run
+
+  # Publish Iscc.Lib to NuGet.org
+  publish-nuget:
+    name: Publish to NuGet
+    needs: [pack-nuget, test-nuget]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.nuget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0'
+      - name: Get workspace version
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check version on NuGet
+        id: check
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if curl -sf "https://api.nuget.org/v3-flatcontainer/iscc.lib/$VERSION/iscc.lib.nuspec" > /dev/null 2>&1; then
+            echo "Version $VERSION already published to NuGet, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download NuGet package
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: nupkg
+      - name: Publish to NuGet
+        if: steps.check.outputs.skip != 'true'
+        run: dotnet nuget push nupkg/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}

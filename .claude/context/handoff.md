@@ -1,38 +1,41 @@
-## 2026-03-07 — Review of: Add .NET project version to version sync pipeline
+## 2026-03-07 — NuGet publish pipeline in release.yml
 
-**Verdict:** PASS
+**Done:** Added the NuGet publish pipeline to `release.yml` with 3 new jobs (`pack-nuget`,
+`test-nuget`, `publish-nuget`) following the existing build→smoke-test→publish pattern. Extended
+`build-ffi` to also trigger on `inputs.nuget` so native libraries for all 5 platforms are reused.
+Updated `.csproj` with NuGet package metadata and runtime asset includes.
 
-**Summary:** Clean, focused implementation that adds the .NET `.csproj` version to the centralized
-version sync system. Two new functions (`_get_csproj_version`, `_sync_csproj`) follow the existing
-pattern exactly. All verification criteria pass, quality gates are green, and the round-trip
-get→sync→get cycle works correctly.
+**Files changed:**
+
+- `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj`: Added NuGet metadata (Description, Authors, License,
+    URLs, ReadmeFile, Tags) and `<ItemGroup>` for packaging README and `runtimes/` native libraries
+- `.github/workflows/release.yml`: Added `nuget` boolean input; extended `build-ffi` `if` condition
+    with `|| inputs.nuget`; added `pack-nuget` (downloads FFI artifacts, extracts shared libs into
+    NuGet RID layout, runs `dotnet pack`), `test-nuget` (creates temp console app, installs from
+    local source, runs conformance selftest), `publish-nuget` (version check against nuget.org API,
+    `dotnet nuget push` with `NUGET_API_KEY` secret)
 
 **Verification:**
 
-- [x] `uv run scripts/version_sync.py --check` exits 0, output includes
-    `OK: packages/dotnet/Iscc.Lib/Iscc.Lib.csproj = 0.2.0`
-- [x] `grep '<Version>0.2.0</Version>' packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` exits 0
-- [x] `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds (0 warnings, 0 errors)
-- [x] `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` clean
-- [x] `mise run check` — all 15 pre-commit hooks pass
+- `grep -c 'nuget'` returns 16 (>0) — input exists
+- `grep 'pack-nuget\|test-nuget\|publish-nuget'` returns 5 (>=3) — all 3 job names present
+- `grep 'inputs.nuget'` returns 4 — input used in build-ffi condition + 3 new jobs
+- `grep 'PackageReadmeFile'` exits 0 — NuGet metadata present
+- `grep 'runtimes'` exits 0 — runtime content include present
+- `grep 'NUGET_API_KEY'` exits 0 — secret reference present
+- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds (0 warnings, 0 errors)
+- YAML validation passes (`yaml.safe_load`)
+- `mise run check` — all pre-commit and pre-push hooks pass
 
-**Issues found:**
+**Next:** The .NET bindings issue is now functionally complete (NuGet pipeline was the last major
+deliverable). Remaining items: SafeHandles.cs extraction (cosmetic refactor, deferred), and
+NuGet.org account setup (manual human action — API key as `NUGET_API_KEY` secret, package ID
+reservation). The .NET issue in issues.md can be mostly closed. Consider moving to other tracked
+issues or documentation updates.
 
-- (none)
-
-**Codex review:** One P2 finding: `_get_csproj_version` returns empty string on parse failure,
-causing `check_mode`/`sync_mode` to silently skip the file. This is a pre-existing pattern shared by
-ALL sync targets (pyproject.toml, package.json, pom.xml, etc.) — not introduced by this change. The
-advance agent correctly followed the existing convention per next.md instructions. If this
-"fail-open" behavior should be hardened, it would be a separate enhancement to the entire version
-sync script. Advisory — no action required for this iteration.
-
-**Next:** NuGet publish pipeline in `release.yml`. This is the last major item for the .NET bindings
-issue: add `nuget` boolean input, build/pack NuGet package with native libraries for 5 platforms,
-publish via `dotnet nuget push`, and add a smoke test job. After that, the C# issue can be mostly
-closed (only SafeHandles.cs extraction remains as a cosmetic refactor).
-
-**Notes:** The .NET bindings issue in issues.md still tracks the full scope (NuGet publish is the
-remaining `normal`-priority work). State.md lists "Missing: Version sync integration for .NET
-project version" — this is now resolved by this iteration. The state file will be updated in the
-next update-state cycle.
+**Notes:** The `pack-nuget` job uses bash associative arrays (`declare -A`) for the target→RID and
+target→lib mappings — this is fine since it runs on `ubuntu-latest` (bash 5+). The extraction step
+handles both `.tar.gz` (Unix) and `.zip` (Windows) archives. The smoke test follows the exact
+pattern from next.md — creates a temp console app, adds local package source, installs, runs
+conformance selftest. The `find` command for copying shared libraries uses `-maxdepth 2` since
+tarballs extract to a single-level directory.
