@@ -1,147 +1,122 @@
 # Next Work Package
 
-## Step: C# wrappers — remaining gen functions + encoding utilities
+## Step: C# codec + sliding window wrappers (4 symbols → 26/32)
 
 ## Goal
 
-Add idiomatic C# wrappers for the 6 remaining gen functions (`GenImageCodeV0`, `GenAudioCodeV0`,
-`GenVideoCodeV0`, `GenMixedCodeV0`, `GenIsccCodeV0`, `GenSumCodeV0`) plus 2 encoding utilities
-(`EncodeBase64`, `JsonToDataUrl`). This completes all 10 gen functions in C# and introduces 4 new
-marshaling patterns (int arrays, jagged int arrays, string arrays, struct returns) that enable the
-remaining wrapper steps.
+Add idiomatic C# wrappers for `IsccDecode`, `IsccDecompose`, `EncodeComponent`, and `SlidingWindow`
+— the codec and utility functions that bring the .NET binding from 22 to 26 of 32 Tier 1 symbols.
+This introduces a `DecodeResult` record type and a shared NULL-terminated string array marshaling
+helper.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    1. `packages/dotnet/Iscc.Lib/IsccLib.cs` — add 8 new public methods + `SumCodeResult` record type
-        \+ private helpers for new marshaling patterns
-    2. `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — add tests for all 8 new symbols
+    - `packages/dotnet/Iscc.Lib/IsccLib.cs` — add `DecodeResult` record, 4 new public methods, and a
+        private `ConsumeNativeStringArray` helper
+    - `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — add smoke tests for the 4 new wrappers
 - **Reference**:
-    - `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` — P/Invoke signatures and struct definitions
-    - `packages/dotnet/Iscc.Lib/IsccException.cs` — exception type (already exists)
-    - `crates/iscc-ffi/src/lib.rs` — FFI implementation for behavior reference
-    - `crates/iscc-jni/src/lib.rs` — Java JNI wrappers for pattern reference (especially
-        GenVideoCodeV0 jagged array handling)
+    - `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` — P/Invoke signatures for `iscc_decode`,
+        `iscc_decompose`, `iscc_sliding_window`, `iscc_encode_component`, `iscc_free_decode_result`,
+        `iscc_free_string_array`, and struct types `IsccDecodeResult`, `IsccByteBuffer`
+    - `crates/iscc-ffi/src/lib.rs` — Rust FFI function implementations (for understanding semantics)
 
 ## Not In Scope
 
-- Codec functions (`IsccDecode`, `IsccDecompose`, `EncodeComponent`) — separate step with
-    `DecodeResult` record type and string-array return marshaling
+- Structured result records for gen functions (`MetaCodeResult`, `TextCodeResult`, etc.) — these are
+    a separate refactoring step that changes existing API surface
 - Algorithm primitives (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`) — these
-    return `IsccByteBuffer` structs, different marshaling from gen functions
-- `SlidingWindow` — returns string array (same step as codec)
-- Streaming types (`DataHasher`, `InstanceHasher` with `IDisposable`) — separate step
-- Conformance tests against `data.json` — separate step after all 32 symbols are wrapped
-- Documentation (`docs/howto/dotnet.md`, README C# section) — after wrapper layer is complete
-- NuGet packaging and release pipeline — separate step
+    need `IsccByteBuffer` / `IsccByteBufferArray` marshaling and are a separate step
+- Streaming types (`IsccDataHasher`, `IsccInstanceHasher`) — require `IDisposable` + `SafeHandle`
+    pattern, separate step
+- Conformance tests, NuGet publishing, or documentation pages
+- Refactoring existing `GenSumCodeV0` to use the new `ConsumeNativeStringArray` helper (nice-to-have
+    but out of scope to keep the diff focused)
 
 ## Implementation Notes
 
-### New marshaling patterns needed
+### `DecodeResult` record
 
-1. **`int[]` input** (`GenAudioCodeV0`): Pin with `fixed (int* pCv = cv)`, pass length as
-    `(nuint)cv.Length`. Same pattern as `byte[]` in `GenDataCodeV0` but with `int*` pointer type.
-
-2. **`int[][]` jagged array** (`GenVideoCodeV0`): Most complex pattern. Each inner `int[]` must be
-    pinned simultaneously. Use `GCHandle.Alloc(arr, GCHandleType.Pinned)` for each inner array,
-    build `int*[]` and `nuint[]` arrays from pinned addresses, then `fixed` on those outer arrays.
-    Free all handles in a `finally` block. NativeMethods signature:
-    `iscc_gen_video_code_v0(int** frame_sigs, nuint* frame_lens, nuint num_frames, uint bits)`
-
-3. **`string[]` input** (`GenMixedCodeV0`, `GenIsccCodeV0`): Convert each string to UTF-8 `byte[]`
-    via `ToNativeUtf8`, pin each with `GCHandle`, build `byte*[]` from pinned addresses, `fixed` on
-    the pointer array. Free handles in `finally`. NativeMethods signatures use
-    `byte** codes, nuint num_codes`.
-
-4. **Struct return + free** (`GenSumCodeV0`): Returns `IsccSumCodeResult` struct (defined in
-    NativeMethods.g.cs). Create a managed `SumCodeResult` record class to hold the result. Marshal
-    fields: check `ok` field (throw on false via `GetLastError`), read `iscc`/`datahash` strings
-    via `Marshal.PtrToStringUTF8`, read `filesize`, optionally read `units` NULL-terminated string
-    array. Always call `iscc_free_sum_code_result(result)` in a `finally` block — this function
-    takes the struct **by value** (not by pointer).
-
-### SumCodeResult record type
-
-Define inside or alongside `IsccLib` in `IsccLib.cs`:
+Add at namespace level (next to `SumCodeResult`):
 
 ```csharp
-/// <summary>Result of GenSumCodeV0 — composite ISCC-CODE with file metadata.</summary>
-public sealed record SumCodeResult(
-    string Iscc,
-    string Datahash,
-    ulong Filesize,
-    string[]? Units);
+public sealed record DecodeResult(
+    byte Maintype, byte Subtype, byte Version, byte Length, byte[] Digest);
 ```
 
-### Simple wrappers (follow existing patterns)
+### `IsccDecode` wrapper
 
-- **`GenImageCodeV0(ReadOnlySpan<byte> pixels, uint bits = 64)`**: Same pattern as `GenDataCodeV0` —
-    `fixed (byte* p = pixels)`, call native, `ConsumeNativeString`.
-- **`EncodeBase64(ReadOnlySpan<byte> data)`**: Same pattern — `fixed`, call, consume.
-- **`JsonToDataUrl(string json)`**: Same pattern as text utilities — `ToNativeUtf8`, `fixed`, call,
-    consume.
+- Call `NativeMethods.iscc_decode(pIscc)` → returns `IsccDecodeResult` struct
+- Check `.ok` field — throw `IsccException(GetLastError())` on failure
+- Copy `.digest.data` to managed `byte[]` using
+    `new Span<byte>(result.digest.data, (int)result.digest.len).ToArray()`
+- Free with `NativeMethods.iscc_free_decode_result(result)` in `finally` block
+- Return
+    `new DecodeResult(result.maintype, result.subtype, result.version, result.length, digestBytes)`
 
-### GenAudioCodeV0 signature
+### `ConsumeNativeStringArray` private helper
 
-Takes `ReadOnlySpan<int> cv` + `uint bits = 64`. NativeMethods signature:
-`iscc_gen_audio_code_v0(int* cv, nuint cv_len, uint bits)`.
-
-### GenIsccCodeV0 signature note
-
-Unlike other gen functions, `GenIsccCodeV0` takes `bool wide` instead of `uint bits`. The
-NativeMethods signature is: `iscc_gen_iscc_code_v0(byte** codes, nuint num_codes, bool wide)`.
-Default: `wide = false`.
-
-### GenSumCodeV0 signature
-
-Takes file path (string) + bits + wide + addUnits. NativeMethods signature:
-`iscc_gen_sum_code_v0(byte* path, uint bits, bool wide, bool add_units)`. Returns
-`IsccSumCodeResult` struct. Must free with `iscc_free_sum_code_result()`. Default:
-`bits = 64, wide = false, addUnits = false`.
-
-### Units array marshaling in SumCodeResult
-
-The `units` field is `byte** units` — a NULL-terminated array of UTF-8 strings. Walk until null:
+Extract the NULL-terminated `byte**` → `string[]` pattern (already inlined in `GenSumCodeV0`):
 
 ```csharp
-List<string> unitsList = new();
-for (int i = 0; result.units[i] != null; i++)
-    unitsList.Add(Marshal.PtrToStringUTF8((IntPtr)result.units[i])!);
+private static unsafe string[] ConsumeNativeStringArray(byte** arr)
+{
+    if (arr is null)
+        throw new IsccException(GetLastError());
+    try
+    {
+        var list = new List<string>();
+        for (int i = 0; arr[i] != null; i++)
+            list.Add(Marshal.PtrToStringUTF8((IntPtr)arr[i])!);
+        return list.ToArray();
+    }
+    finally
+    {
+        NativeMethods.iscc_free_string_array(arr);
+    }
+}
 ```
 
-Pass `null` for `Units` when `addUnits` is `false` (units pointer will be NULL).
+### `IsccDecompose` and `SlidingWindow` wrappers
 
-### Test patterns
+Both return `string[]` via the `ConsumeNativeStringArray` helper:
 
-Each new wrapper should have at least one smoke test. For content-code gen functions that need
-specific input data (pixels, audio features, video frames), use small synthetic arrays — the goal is
-to verify P/Invoke marshaling works, not to test algorithm correctness (that's `ConformanceSelftest`
-and future data.json conformance tests). Examples:
+- `IsccDecompose(string isccCode)` → `iscc_decompose(pCode)` → `ConsumeNativeStringArray`
+- `SlidingWindow(string seq, uint width)` → `iscc_sliding_window(pSeq, width)` →
+    `ConsumeNativeStringArray`
 
-- `GenImageCodeV0`: 1024-byte array of zeros (32x32 grayscale)
-- `GenAudioCodeV0`: small `int[]` of arbitrary values (minimum ~32 elements)
-- `GenVideoCodeV0`: 2-3 frames of small `int[]` arrays
-- `GenMixedCodeV0`/`GenIsccCodeV0`: use outputs from other gen functions as input codes
-- `GenSumCodeV0`: create a temp file with some content, pass its path — verify `SumCodeResult`
-    fields are populated (Iscc starts with "ISCC:", Filesize > 0)
-- `EncodeBase64`: encode known bytes, verify output matches expected base64url string
-- `JsonToDataUrl`: pass valid JSON, verify result starts with `data:`
+### `EncodeComponent` wrapper
+
+- Signature:
+    `EncodeComponent(byte mtype, byte stype, byte version, uint bitLength,   ReadOnlySpan<byte> digest)`
+- Call `iscc_encode_component(mtype, stype, version, bitLength, pDigest, digestLen)`
+- Use existing `ConsumeNativeString` pattern — standard string return
+
+### Tests to add (~4 tests)
+
+- `IsccDecode_ReturnsDecodedComponents`: decode a known ISCC string (e.g., from `GenMetaCodeV0`),
+    verify maintype/subtype are reasonable bytes, digest is non-empty byte array
+- `IsccDecompose_ReturnsUnitArray`: compose an ISCC-CODE from data+instance codes, decompose it,
+    verify result has 2+ entries each starting with "ISCC:"
+- `EncodeComponent_ReturnsIsccString`: encode a component with known params (e.g., mtype=0, stype=0,
+    version=0, bitLength=64, digest=8 zero bytes), verify result is a non-empty string
+- `SlidingWindow_ReturnsNgrams`: call with "Hello World" and width 4, verify returns 8 n-grams
+    ("Hell", "ello", "llo ", ...)
 
 ## Verification
 
-- `cargo build -p iscc-ffi` succeeds (no Rust changes expected, confirms FFI lib builds)
+- `cargo build -p iscc-ffi` succeeds (no Rust changes, just confirming FFI library builds)
 - `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds with 0 errors, 0 warnings
-- `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` succeeds
-- `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=$(pwd)/target/debug` — all tests
-    pass (16 existing + at least 8 new = 24+ total)
-- `grep -c 'public static string Gen.*CodeV0\|public static SumCodeResult Gen' packages/dotnet/Iscc.Lib/IsccLib.cs`
-    returns 10 (all 10 gen functions wrapped)
-- `grep -c 'public sealed record SumCodeResult' packages/dotnet/Iscc.Lib/IsccLib.cs` returns 1
-- `mise run check` — all hooks pass
+- `dotnet test packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj -e LD_LIBRARY_PATH=$(pwd)/target/debug`
+    — all tests pass (25 existing + 4+ new)
+- `grep -c 'public static' packages/dotnet/Iscc.Lib/IsccLib.cs` shows 26+ (22 existing + 4 new
+    public methods)
+- `grep 'DecodeResult' packages/dotnet/Iscc.Lib/IsccLib.cs` finds the record definition
+- `mise run check` passes (all pre-commit/pre-push hooks green)
 
 ## Done When
 
-All verification criteria pass — all 10 gen functions and 2 encoding utilities are callable from C#
-with correct marshaling, `SumCodeResult` record type exists, and 24+ tests pass including smoke
-tests for all 8 new symbols.
+All verification criteria pass: the .NET binding has 26 of 32 Tier 1 symbols wrapped with passing
+smoke tests, including `IsccDecode` returning a `DecodeResult` record, `IsccDecompose` and
+`SlidingWindow` returning `string[]`, and `EncodeComponent` returning a string.
