@@ -182,9 +182,14 @@ iterations.
     functions + 6 structs). Parses `#[unsafe(no_mangle)]` (Rust 2024 edition) without issues
 - `NativeMethods` class is `internal` — idiomatic C# wrappers in `IsccLib.cs` are the public API
 - `AllowUnsafeBlocks` in csproj required for generated `byte*` pointer types
-- `IsccLib.cs` wrappers: 3 private helpers (ToNativeUtf8, ConsumeNativeString, GetLastError) +
-    PascalCase public methods. `fixed (byte* p = nullArray)` sets pointer to null for optional
-    params
+- `IsccLib.cs` wrappers: 4 private helpers (ToNativeUtf8, ConsumeNativeString,
+    ConsumeNativeStringArray, GetLastError) + PascalCase public methods.
+    `fixed (byte* p =   nullArray)` sets pointer to null for optional params
+- 26/32 Tier 1 symbols wrapped (5 constants, 4 text utils, 10 gen, 2 encoding utils, 3 codec, 1
+    sliding window, 1 conformance). Remaining 6: 4 algorithm primitives, 2 streaming types
+- `encode_component` and `iscc_decompose` return raw component strings WITHOUT "ISCC:" prefix
+- `IsccDecode` returns `DecodeResult` record; marshals `IsccByteBuffer` digest via `Span<byte>`
+- `ConsumeNativeStringArray`: iterates NULL-terminated `byte**`, frees via `iscc_free_string_array`
 - `IsccException` for error reporting from ConsumeNativeString. `iscc_last_error()` returns
     thread-local storage pointer — do NOT free it (use `Marshal.PtrToStringUTF8` without free)
 - `META_TRIM_META` = 128,000 (not 16,384). All 5 constant values: 128, 4096, 128000, 4194304, 13

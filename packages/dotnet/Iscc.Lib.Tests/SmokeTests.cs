@@ -231,6 +231,57 @@ public class SmokeTests
         Assert.StartsWith("data:", result);
     }
 
+    // ── Codec ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void IsccDecode_ReturnsDecodedComponents()
+    {
+        string metaCode = IsccLib.GenMetaCodeV0("Test Title");
+        DecodeResult decoded = IsccLib.IsccDecode(metaCode);
+        Assert.Equal(0, decoded.Maintype); // META = 0
+        Assert.NotEmpty(decoded.Digest);
+        Assert.True(decoded.Digest.Length > 0);
+    }
+
+    [Fact]
+    public void IsccDecompose_ReturnsUnitArray()
+    {
+        byte[] data = "Hello World"u8.ToArray();
+        string dataCode = IsccLib.GenDataCodeV0(data);
+        string instanceCode = IsccLib.GenInstanceCodeV0(data);
+        string[] codes = [dataCode, instanceCode];
+        string isccCode = IsccLib.GenIsccCodeV0(codes);
+        string[] units = IsccLib.IsccDecompose(isccCode);
+        Assert.True(units.Length >= 2);
+        foreach (string unit in units)
+            Assert.NotEmpty(unit);
+    }
+
+    [Fact]
+    public void EncodeComponent_ReturnsIsccString()
+    {
+        byte[] digest = new byte[8];
+        string result = IsccLib.EncodeComponent(0, 0, 0, 64, digest);
+        Assert.NotEmpty(result);
+    }
+
+    // ── Utilities ──────────────────────────────────────────────────────────
+
+    [Fact]
+    public void SlidingWindow_ReturnsNgrams()
+    {
+        string[] ngrams = IsccLib.SlidingWindow("Hello World", 4);
+        Assert.Equal(8, ngrams.Length);
+        Assert.Equal("Hell", ngrams[0]);
+        Assert.Equal("ello", ngrams[1]);
+        Assert.Equal("llo ", ngrams[2]);
+        Assert.Equal("lo W", ngrams[3]);
+        Assert.Equal("o Wo", ngrams[4]);
+        Assert.Equal(" Wor", ngrams[5]);
+        Assert.Equal("Worl", ngrams[6]);
+        Assert.Equal("orld", ngrams[7]);
+    }
+
     // ── Error Handling ──────────────────────────────────────────────────────
 
     [Fact]

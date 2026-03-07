@@ -13,6 +13,10 @@ public sealed record SumCodeResult(
     ulong Filesize,
     string[]? Units);
 
+/// <summary>Result of IsccDecode — decoded ISCC header fields and raw digest bytes.</summary>
+public sealed record DecodeResult(
+    byte Maintype, byte Subtype, byte Version, byte Length, byte[] Digest);
+
 /// <summary>ISCC library — ISO 24138:2024 International Standard Content Code.</summary>
 public static partial class IsccLib
 {
@@ -371,6 +375,86 @@ public static partial class IsccLib
         }
     }
 
+    // ── Codec ────────────────────────────────────────────────────────────
+
+    /// <summary>Decode an ISCC string into its header fields and raw digest bytes.</summary>
+    public static DecodeResult IsccDecode(string iscc)
+    {
+        byte[] nativeIscc = ToNativeUtf8(iscc)!;
+        unsafe
+        {
+            IsccDecodeResult result;
+            fixed (byte* pIscc = nativeIscc)
+            {
+                result = NativeMethods.iscc_decode(pIscc);
+            }
+
+            try
+            {
+                if (!result.ok)
+                    throw new IsccException(GetLastError());
+
+                byte[] digestBytes = new Span<byte>(
+                    result.digest.data, (int)result.digest.len).ToArray();
+
+                return new DecodeResult(
+                    result.maintype, result.subtype,
+                    result.version, result.length, digestBytes);
+            }
+            finally
+            {
+                NativeMethods.iscc_free_decode_result(result);
+            }
+        }
+    }
+
+    /// <summary>Decompose a composite ISCC-CODE into individual ISCC-UNIT strings.</summary>
+    public static string[] IsccDecompose(string isccCode)
+    {
+        byte[] nativeCode = ToNativeUtf8(isccCode)!;
+        unsafe
+        {
+            fixed (byte* pCode = nativeCode)
+            {
+                byte** arr = NativeMethods.iscc_decompose(pCode);
+                return ConsumeNativeStringArray(arr);
+            }
+        }
+    }
+
+    /// <summary>Encode ISCC header fields and digest bytes into an ISCC string.</summary>
+    public static string EncodeComponent(
+        byte mtype, byte stype, byte version, uint bitLength,
+        ReadOnlySpan<byte> digest)
+    {
+        unsafe
+        {
+            fixed (byte* pDigest = digest)
+            {
+                byte* result = NativeMethods.iscc_encode_component(
+                    mtype, stype, version, bitLength,
+                    pDigest, (nuint)digest.Length);
+                return ConsumeNativeString(result);
+            }
+        }
+    }
+
+    // ── Utilities ──────────────────────────────────────────────────────────
+
+    /// <summary>Generate sliding window n-grams of the given width from a string.</summary>
+    public static string[] SlidingWindow(string seq, uint width)
+    {
+        byte[] nativeSeq = ToNativeUtf8(seq)!;
+        unsafe
+        {
+            fixed (byte* pSeq = nativeSeq)
+            {
+                byte** arr = NativeMethods.iscc_sliding_window(pSeq, width);
+                return ConsumeNativeStringArray(arr);
+            }
+        }
+    }
+
     // ── Diagnostics ────────────────────────────────────────────────────────
 
     /// <summary>Run all conformance tests against vendored test vectors.</summary>
@@ -398,6 +482,24 @@ public static partial class IsccLib
         string result = Marshal.PtrToStringUTF8((IntPtr)ptr) ?? string.Empty;
         NativeMethods.iscc_free_string(ptr);
         return result;
+    }
+
+    /// <summary>Marshal a NULL-terminated native string array to managed, then free the array.</summary>
+    private static unsafe string[] ConsumeNativeStringArray(byte** arr)
+    {
+        if (arr is null)
+            throw new IsccException(GetLastError());
+        try
+        {
+            var list = new List<string>();
+            for (int i = 0; arr[i] != null; i++)
+                list.Add(Marshal.PtrToStringUTF8((IntPtr)arr[i])!);
+            return list.ToArray();
+        }
+        finally
+        {
+            NativeMethods.iscc_free_string_array(arr);
+        }
     }
 
     /// <summary>Read the last error message from the native library.</summary>

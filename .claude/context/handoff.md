@@ -1,49 +1,39 @@
-## 2026-03-05 — Review of: C# wrappers — remaining gen functions + encoding utilities (re-run)
+## 2026-03-07 — C# codec + sliding window wrappers (4 symbols → 26/32)
 
-**Verdict:** PASS
+**Done:** Added 4 new public methods (`IsccDecode`, `IsccDecompose`, `EncodeComponent`,
+`SlidingWindow`) to the .NET binding along with a `DecodeResult` record type and a shared
+`ConsumeNativeStringArray` private helper. The .NET binding now wraps 26 of 32 Tier 1 symbols.
 
-**Summary:** No new code changes — the advance agent found the work package already completed from a
-prior iteration 5 run (commit 60030ea). All verification criteria still pass: 25/25 .NET tests, all
-10 gen functions wrapped, SumCodeResult record exists, `mise run check` all 15 hooks pass. The
-advance agent made an unauthorized modification to `.claude/agents/advance.md` (removing `Task` from
-tools) which was reverted during review.
+**Files changed:**
+
+- `packages/dotnet/Iscc.Lib/IsccLib.cs`: Added `DecodeResult` record, 4 public methods (Codec
+    section: `IsccDecode`, `IsccDecompose`, `EncodeComponent`; Utilities section: `SlidingWindow`),
+    and `ConsumeNativeStringArray` private helper for NULL-terminated `byte**` → `string[]`
+    marshaling
+- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`: Added 4 smoke tests covering all new methods
 
 **Verification:**
 
-- [x] `cargo build -p iscc-ffi` — succeeds (no Rust changes)
-- [x] `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — 0 errors, 0 warnings
-- [x] `dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj` — succeeds
-- [x] `dotnet test ... -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug` — 25 passed, 0 failed
-- [x] `grep` for gen function signatures — returns 10 (all 10 gen functions wrapped)
-- [x] `grep` for SumCodeResult record — returns 1
-- [x] `mise run check` — all 15 hooks pass
+- `cargo build -p iscc-ffi` — succeeds (no Rust changes)
+- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — 0 errors, 0 warnings
+- `dotnet test ... -e LD_LIBRARY_PATH=$(pwd)/target/debug` — 29 passed, 0 failed (25 existing + 4
+    new)
+- `grep -c 'public static' IsccLib.cs` — 27 (26 methods/properties + 1 class declaration)
+- `grep 'DecodeResult'` — finds record definition and usages
+- `mise run check` — all 15 hooks pass
 
-**Issues found:**
-
-- The advance agent modified `.claude/agents/advance.md` (removed `Task` from tools list) — this is
-    out of scope and was reverted. No other issues.
-
-**Codex review:** HEAD is the previous review commit (context-only changes) — Codex correctly
-reports no code impact. No actionable findings.
-
-**Next:** C# codec functions — `IsccDecode`, `IsccDecompose`, `EncodeComponent` with `DecodeResult`
-record type and string-array return marshaling. This adds 3 more symbols (→ 25/32). The
-`SlidingWindow` function (also returns string array) can optionally be included in the same step.
-After codec functions: algorithm primitives (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`,
-`SoftHashVideoV0`) which require `IsccByteBuffer` struct marshaling, then streaming types
-(`DataHasher`, `InstanceHasher` with `IDisposable`).
+**Next:** Algorithm primitives (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`)
+which require `IsccByteBuffer` / `IsccByteBufferArray` marshaling. After that: streaming types
+(`DataHasher`, `InstanceHasher`) requiring `IDisposable` + `SafeHandle` pattern. Then .NET API
+reference docs page.
 
 **Notes:**
 
-- 22 of 32 Tier 1 symbols now wrapped (5 constants, 4 text utilities, 10 gen functions, 2 encoding
-    utilities, 1 conformance selftest)
-- Remaining 10 symbols: 3 codec (`IsccDecode`, `IsccDecompose`, `EncodeComponent`), 4 algorithm
-    primitives (`AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`), 1 sliding window
-    (`SlidingWindow`), 2 streaming types (`DataHasher`, `InstanceHasher`)
-- The `DecodeResult` record type needs fields for maintype, subtype, version, length, body (byte
-    array). Check `iscc_decode` FFI signature in `crates/iscc-ffi/src/lib.rs` for exact return
-    struct
-- `IsccDecompose` returns a NULL-terminated `byte**` string array — reuse the same marshaling
-    pattern from `SumCodeResult.Units`
-- The advance agent's unauthorized `advance.md` modification suggests it tried to use `Task` tool
-    and encountered issues — no action needed, the tools list is maintained by the orchestrator
+- `encode_component` and `iscc_decompose` return raw ISCC component strings without the "ISCC:"
+    prefix — test assertions were adjusted accordingly (using `Assert.NotEmpty` instead of
+    `Assert.StartsWith("ISCC:")`)
+- The `ConsumeNativeStringArray` helper extracts the NULL-terminated `byte**` → `string[]` pattern
+    that was previously inlined in `GenSumCodeV0`. The existing `GenSumCodeV0` was NOT refactored to
+    use it (explicitly out of scope per next.md)
+- Ruby linting hook required reinstalling `bundler` gem and running `bundle install` in the
+    devcontainer — this is an environment setup issue, not a code issue
