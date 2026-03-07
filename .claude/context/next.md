@@ -1,62 +1,166 @@
 # Next Work Package
 
-## Step: Add .NET project version to version sync pipeline
+## Step: NuGet publish pipeline in release.yml
 
 ## Goal
 
-Add the .NET `Iscc.Lib.csproj` project version to the centralized version sync system so that
-`mise run version:sync` and `mise run version:check` keep the .NET package version consistent with
-the workspace version from root `Cargo.toml`. This is a prerequisite for NuGet publishing.
+Add the NuGet publish pipeline to `release.yml` so that `Iscc.Lib` can be published to nuget.org
+with bundled native libraries for 5 platforms. This is the last major deliverable for the C# / .NET
+bindings issue.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — add `<Version>0.2.0</Version>` to PropertyGroup
-    - `scripts/version_sync.py` — add .NET sync target (get/sync functions + TARGETS entry), update
-        module docstring to list the new target
+    - `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — add NuGet package metadata (Description, Authors,
+        License, PackageReadmeFile, RepositoryUrl, PackageTags) and `runtimes/**` content include for
+        native library bundling
+    - `.github/workflows/release.yml` — add `nuget` boolean input to `workflow_dispatch`; extend
+        `build-ffi` job's `if` condition to also trigger on `inputs.nuget`; add 3 new jobs:
+        `pack-nuget`, `test-nuget`, `publish-nuget`
 - **Reference**:
-    - `scripts/version_sync.py` — existing sync target pattern (get/sync function pairs)
-    - `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — current .csproj structure
+    - `.claude/context/specs/dotnet-bindings.md` — spec for distribution/publishing section
+    - `.github/workflows/release.yml` — existing pipeline patterns (build-ffi, test-ffi, publish-ffi;
+        build-jni, test-jni, publish-maven) as templates
+    - `packages/dotnet/README.md` — the per-package README to reference in PackageReadmeFile
 
 ## Not In Scope
 
-- NuGet publish pipeline (`release.yml` changes) — that's a separate, larger step
-- SafeHandles.cs extraction — cosmetic refactor, not blocking anything
-- Adding `<Version>` to the test project (`Iscc.Lib.Tests.csproj`) — test projects aren't published
-- Adding NuGet packaging metadata (`<Authors>`, `<Description>`, `<PackageLicenseExpression>`,
-    `<RepositoryUrl>`, etc.) — save for the NuGet publish step
+- **SafeHandles.cs extraction** — cosmetic refactor moving SafeHandle subclasses to a separate file;
+    deferred as it has no functional impact
+- **NuGet.org account setup** — manual human action (API key as `NUGET_API_KEY` secret, package
+    reservation); the pipeline should be built assuming the secret exists
+- **OIDC trusted publishing for NuGet** — NuGet doesn't natively support OIDC like PyPI/crates.io;
+    use `NUGET_API_KEY` secret per spec
+- **Testing the actual publish** — we can't test the publish without the API key; verification
+    focuses on pipeline structure and local smoke test pattern
+- **Multi-targeting (.NET 6, .NET 9)** — keep `net8.0` only for now
 
 ## Implementation Notes
 
-Follow the existing pattern in `version_sync.py`:
+### .csproj NuGet metadata
 
-1. **`.csproj` Version property**: Add `<Version>0.2.0</Version>` inside the existing
-    `<PropertyGroup>`. The .NET SDK uses this property for both assembly version and NuGet package
-    version.
+Add to the existing `<PropertyGroup>`:
 
-2. **Get function** (`_get_csproj_version`): Extract version from `<Version>X.Y.Z</Version>` using
-    regex. Pattern: `r'<Version>(\d+\.\d+\.\d+)</Version>'`.
+```xml
+<Description>High-performance ISCC (ISO 24138) library for .NET</Description>
+<Authors>ISCC Foundation</Authors>
+<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+<PackageProjectUrl>https://lib.iscc.codes</PackageProjectUrl>
+<RepositoryUrl>https://github.com/iscc/iscc-lib</RepositoryUrl>
+<PackageReadmeFile>README.md</PackageReadmeFile>
+<PackageTags>iscc;content-identification;hash;fingerprint;iso-24138</PackageTags>
+```
 
-3. **Sync function** (`_sync_csproj`): Replace the version string inside `<Version>` tags. Pattern:
-    `r'(<Version>)\d+\.\d+\.\d+(</Version>)'` → `rf'\g<1>{version}\2'`.
+Add an `<ItemGroup>` for packaging:
 
-4. **TARGETS entry**: Add
-    `("packages/dotnet/Iscc.Lib/Iscc.Lib.csproj", _get_csproj_version, _sync_csproj)` to the
-    TARGETS list.
+```xml
+<ItemGroup>
+  <None Include="../../README.md" Pack="true" PackagePath="" />
+  <Content Include="runtimes/**" Pack="true" PackagePath="runtimes" CopyToOutputDirectory="PreserveNewest" Condition="Exists('runtimes')" />
+</ItemGroup>
+```
 
-5. **Docstring**: Add `- packages/dotnet/Iscc.Lib/Iscc.Lib.csproj — .NET package version` to the
-    module docstring's "Synced targets" list.
+The `README.md` path is relative: `../../README.md` = `packages/dotnet/README.md` (the per-package
+README, not the root README). The `runtimes/` directory only exists during CI release builds. The
+`Condition` prevents build errors when it's absent during local dev.
+
+### release.yml changes
+
+**1. Add `nuget` input** (after `rubygems`):
+
+```yaml
+nuget:
+  description: Publish Iscc.Lib to NuGet
+  type: boolean
+  default: false
+```
+
+**2. Extend `build-ffi` condition** to also trigger for NuGet:
+
+```yaml
+if: startsWith(github.ref, 'refs/tags/v') || inputs.ffi || inputs.nuget
+```
+
+This reuses existing FFI cross-compilation for all 5 platforms without duplication.
+
+**3. Add `pack-nuget` job** (needs: `build-ffi`):
+
+- Download all 5 FFI artifacts via `actions/download-artifact@v4` with `pattern: ffi-*`
+- Extract shared libraries from tarballs/zips. Handle both `.tar.gz` (Unix) and `.zip` (Windows)
+- Map Rust targets to NuGet RIDs and copy shared libs:
+    - `x86_64-unknown-linux-gnu` → `runtimes/linux-x64/native/libiscc_ffi.so`
+    - `aarch64-unknown-linux-gnu` → `runtimes/linux-arm64/native/libiscc_ffi.so`
+    - `aarch64-apple-darwin` → `runtimes/osx-arm64/native/libiscc_ffi.dylib`
+    - `x86_64-apple-darwin` → `runtimes/osx-x64/native/libiscc_ffi.dylib`
+    - `x86_64-pc-windows-msvc` → `runtimes/win-x64/native/iscc_ffi.dll`
+- All `runtimes/` subdirs go under `packages/dotnet/Iscc.Lib/runtimes/`
+- Setup .NET SDK 8 via `actions/setup-dotnet@v4`
+- `dotnet pack -c Release -o nupkg` in `packages/dotnet`
+- Upload `.nupkg` as artifact `nuget-package`
+
+**4. Add `test-nuget` smoke test job** (needs: `pack-nuget`):
+
+Follow the same pattern as other smoke tests. On `ubuntu-latest`:
+
+```bash
+# Create temp console app
+dotnet new console -o smoke
+cd smoke
+# Add local package source pointing to the downloaded nupkg
+dotnet nuget add source "$PWD/../nupkg" -n local
+dotnet add package Iscc.Lib --source local
+# Write smoke test
+cat > Program.cs << 'EOF'
+using Iscc.Lib;
+if (!IsccLib.ConformanceSelftest())
+    throw new Exception("Conformance selftest failed");
+Console.WriteLine("NuGet smoke test passed");
+EOF
+dotnet run
+```
+
+**5. Add `publish-nuget` job** (needs: `pack-nuget`, `test-nuget`):
+
+- Get workspace version from `Cargo.toml`
+- Version check against nuget.org API for idempotency:
+    `curl -sf "https://api.nuget.org/v3-flatcontainer/iscc.lib/$VERSION/iscc.lib.nuspec"` — if this
+    succeeds, version is already published, set `skip=true`
+- Download `.nupkg` artifact
+- `dotnet nuget push *.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json`
+- Uses `secrets.NUGET_API_KEY`
+
+### Windows artifact handling
+
+The `build-ffi` Windows job produces a `.zip` (not `.tar.gz`). The `pack-nuget` job runs on
+`ubuntu-latest` and must handle both: `tar xzf` for `.tar.gz` files, `unzip` for `.zip` files. The
+extraction step should iterate over downloaded artifacts and use the correct tool per extension.
+
+### README path for PackageReadmeFile
+
+The `<PackageReadmeFile>README.md</PackageReadmeFile>` requires the file to be included as a
+`<None Include="..." Pack="true" PackagePath="">` item. The path `../../README.md` resolves from the
+`.csproj` location (`packages/dotnet/Iscc.Lib/`) to `packages/dotnet/README.md`.
 
 ## Verification
 
-- `uv run scripts/version_sync.py --check` exits 0 and output includes
-    `OK: packages/dotnet/Iscc.Lib/Iscc.Lib.csproj = 0.2.0`
-- `grep '<Version>0.2.0</Version>' packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` exits 0
-- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds
-- `cargo clippy --workspace --all-targets --exclude iscc-rb -- -D warnings` clean
+- `grep -c 'nuget' .github/workflows/release.yml | grep -v '^0$'` — `nuget` input exists
+- `grep 'pack-nuget\|test-nuget\|publish-nuget' .github/workflows/release.yml | wc -l` returns at
+    least 3 — all 3 job names present
+- `grep 'inputs.nuget' .github/workflows/release.yml | wc -l` returns at least 4 — input used in
+    build-ffi condition + 3 new jobs
+- `grep 'PackageReadmeFile' packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` exits 0 — NuGet metadata
+    present
+- `grep 'runtimes' packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` exits 0 — runtime content include
+    present
+- `grep 'NUGET_API_KEY' .github/workflows/release.yml` exits 0 — secret reference present
+- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds — .csproj changes don't break
+    local build (runtimes/ absent is OK)
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 — valid
+    YAML
 
 ## Done When
 
-All verification criteria pass — `version:check` reports .NET version as OK, the .csproj builds, and
-lint is clean.
+All verification criteria pass — release.yml has `nuget` input with pack/test/publish jobs following
+the existing pipeline pattern, and the .csproj has NuGet package metadata with runtime asset
+includes.

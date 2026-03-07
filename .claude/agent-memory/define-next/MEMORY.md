@@ -46,11 +46,12 @@ iterations.
 
 ## Project Status
 
-- **C#/.NET bindings: 32/32 symbols + typed returns + docs ✅; version sync + NuGet publish pending**
+- **C#/.NET bindings: 32/32 symbols + typed returns + docs ✅ + version sync ✅; NuGet publish
+    pending**
 - v0.2.0 released, 13 CI jobs green, all 8 bindings (incl. C#) CI green
 - C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
 - Multi-step sequence: scaffold ✅ → CI ✅ → csbindgen ✅ → wrappers ✅ → streaming ✅ → conformance ✅ →
-    structured records ✅ → hasher return types ✅ → docs ✅ → **version sync** → NuGet → release
+    structured records ✅ → hasher return types ✅ → docs ✅ → version sync ✅ → **NuGet** → release
 - .NET CI pattern: `actions/setup-dotnet@v4`, `cargo build -p iscc-ffi`, `dotnet build`,
     `dotnet test -e LD_LIBRARY_PATH=...`
 
@@ -113,9 +114,20 @@ iterations.
 
 ## Post-C#-Symbols Roadmap
 
-After hasher return types ✅: docs ✅ → **version sync** → NuGet publish pipeline. FFI structured
+After hasher return types ✅: docs ✅ → version sync ✅ → **NuGet publish pipeline**. FFI structured
 fields (Meta/Text/Mixed/Instance extra fields) deferred. Then only normal-priority C++ wrapper
 remains before low-priority items (Swift, Kotlin).
+
+## NuGet Pipeline Architecture Decision
+
+- Reuses existing `build-ffi` job (extend `if` condition with `|| inputs.nuget`) — no duplicate
+    cross-compilation
+- 3 new jobs: `pack-nuget` (download FFI artifacts → runtimes/ layout → dotnet pack), `test-nuget`
+    (local nupkg install → ConformanceSelftest), `publish-nuget` (version check → push)
+- Auth: `NUGET_API_KEY` secret (not OIDC — NuGet doesn't support it)
+- RID mapping: x86_64-unknown-linux-gnu→linux-x64, aarch64-unknown-linux-gnu→linux-arm64,
+    aarch64-apple-darwin→osx-arm64, x86_64-apple-darwin→osx-x64, x86_64-pc-windows-msvc→win-x64
+- Windows FFI artifact is `.zip` (not `.tar.gz`) — pack job must handle both formats
 
 ## C# Conformance Test Notes
 
