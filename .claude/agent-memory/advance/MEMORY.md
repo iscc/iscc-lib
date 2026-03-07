@@ -147,50 +147,30 @@ iterations.
 - Streaming: `RefCell<Option<inner>>` for one-shot finalize. `_` prefix for methods, NOT class names
 - Linting: Standard Ruby + rubocop-minitest. Pre-commit hook needs portable PATH for `bundle`
 
-## .NET Bindings (P/Invoke)
+## .NET Bindings (P/Invoke) — Summary (details in MEMORY-archive.md)
 
-- Package: `packages/dotnet/Iscc.Lib/` (class library) + `packages/dotnet/Iscc.Lib.Tests/` (xUnit)
-- P/Invoke DLL name: `"iscc_ffi"` — .NET resolves to `libiscc_ffi.so` / `iscc_ffi.dll` / `.dylib`
-- `[return: MarshalAs(UnmanagedType.U1)]` required for C `bool` → C# `bool` marshaling
-- `CallingConvention.Cdecl` matches Rust's `extern "C"`
-- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` to pass lib path to vstest host child process;
-    shell-level `LD_LIBRARY_PATH` alone is NOT sufficient
-- Dockerfile: .NET 8 SDK via Microsoft install script to `/usr/share/dotnet` (system-wide, root
-    section)
-- CI job: `actions/setup-dotnet@v4` with `dotnet-version: '8.0'`. LD_LIBRARY_PATH must be absolute
-    (`${{ github.workspace }}/target/debug`) — relative paths fail in vstest child process
-- csbindgen (v1.9.7) in `crates/iscc-ffi/build.rs` generates `NativeMethods.g.cs` (929 lines, ~43
-    functions + 6 structs). Parses `#[unsafe(no_mangle)]` (Rust 2024 edition) without issues
-- `NativeMethods` class is `internal` — idiomatic C# wrappers in `IsccLib.cs` are the public API
-- `AllowUnsafeBlocks` in csproj required for generated `byte*` pointer types
-- `IsccLib.cs` wrappers: 4 private + 2 internal helpers (ToNativeUtf8 private, ConsumeNativeString
-    internal, ConsumeNativeStringArray private, ConsumeByteBuffer private, ConsumeByteBufferArray
-    private, GetLastError internal) + PascalCase public methods
-- 32/32 Tier 1 symbols complete: 5 constants, 4 text utils, 10 gen, 2 encoding utils, 3 codec, 1
-    sliding window, 4 algorithm primitives, 1 conformance, 2 streaming types
-- Streaming: `IsccDataHasher.cs` + `IsccInstanceHasher.cs` — SafeHandle + IDisposable pattern,
-    nested private `DataHasherHandle`/`InstanceHasherHandle : SafeHandle`. IntPtr ↔ typed pointer
-    cast: `(FfiDataHasher*)(void*)handle`. `_finalized` bool for one-shot semantics
-- `encode_component` and `iscc_decompose` return raw component strings WITHOUT "ISCC:" prefix
-- `IsccDecode` returns `DecodeResult` record; marshals `IsccByteBuffer` digest via `Span<byte>`
-- `ConsumeNativeStringArray`: iterates NULL-terminated `byte**`, frees via `iscc_free_string_array`
-- `IsccException` for error reporting from ConsumeNativeString. `iscc_last_error()` returns
-    thread-local storage pointer — do NOT free it (use `Marshal.PtrToStringUTF8` without free)
-- `META_TRIM_META` = 128,000 (not 16,384). All 5 constant values: 128, 4096, 128000, 4194304, 13
-- `dotnet` available at `/usr/share/dotnet/dotnet` in devcontainer (on PATH as `dotnet`)
-- `GCHandle.Alloc(GCHandleType.Pinned)` for jagged arrays (`GenVideoCodeV0`, `AlgSimhash`,
-    `SoftHashVideoV0`). `ConsumeByteBuffer`/`ConsumeByteBufferArray`: null check → copy → free
+- Package: `packages/dotnet/Iscc.Lib/` + `packages/dotnet/Iscc.Lib.Tests/`
+- 32/32 Tier 1 symbols. P/Invoke over `iscc_ffi` shared library
+- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` (absolute, not relative)
+- CI: `actions/setup-dotnet@v4`, `dotnet-version: '8.0'`
+- Empty span fix for 7 functions (same pattern as C++ `safe_data`)
 
-## .NET Conformance Tests + Result Types
+## C++ Bindings (Header-Only)
 
-- `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — 9 `[Theory]` + `[MemberData]` tests, 50
-    vectors total. Uses `System.Text.Json` (built-in), `Lazy<JsonElement>` for cached loading
-- `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` — vendored copy, `CopyToOutputDirectory` in
-    csproj. Loaded via `AppContext.BaseDirectory`
-- `Results.cs`: 11 sealed records (9 gen + SumCodeResult + DecodeResult). All 9 gen functions and
-    both streaming hashers return typed records (only `Iscc` field populated via FFI)
-- Empty span fix applied to all 7 affected functions: `GenAudioCodeV0`, `GenDataCodeV0`,
-    `GenInstanceCodeV0`, `GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64`
+- `packages/cpp/include/iscc/iscc.hpp` — header-only C++17 wrapper in `namespace iscc`
+- `packages/cpp/CMakeLists.txt` — INTERFACE library, includes C header from
+    `crates/iscc-ffi/include`
+- `packages/cpp/tests/test_iscc.cpp` — 52-assertion smoke test, all patterns covered
+- `packages/cpp/tests/CMakeLists.txt` — `FFI_LIB_DIR` var, `SANITIZE_ADDRESS` option
+- RAII guards in `detail::`: UniqueString, UniqueStringArray, UniqueByteBuffer,
+    UniqueByteBufferArray
+- `detail::safe_data()` returns non-null sentinel for empty vectors (C FFI rejects nullptr)
+- Result types: MetaCodeResult, TextCodeResult, ..., SumCodeResult, DecodeResult
+- Streaming: `DataHasher` / `InstanceHasher` classes (move-only, destructor frees handle)
+- IsccError exception (inherits std::runtime_error), thrown on FFI errors
+- Build: `cmake -B build -DFFI_LIB_DIR=../../target/debug && cmake --build build`
+- Run: `LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc`
+- cmake + g++ NOT pre-installed in devcontainer — `sudo apt-get install cmake g++`
 
 ## Gotchas
 

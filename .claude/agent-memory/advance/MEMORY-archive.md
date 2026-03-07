@@ -3,6 +3,22 @@
 Archived implementation patterns from completed project phases. Moved here to reduce per-invocation
 context loading. Full history preserved in git.
 
+## .NET Bindings (P/Invoke) — Detailed (archived iteration 10)
+
+- Package: `packages/dotnet/Iscc.Lib/` (class library) + `packages/dotnet/Iscc.Lib.Tests/` (xUnit)
+- P/Invoke DLL name: `"iscc_ffi"` — .NET resolves to `libiscc_ffi.so` / `iscc_ffi.dll` / `.dylib`
+- `[return: MarshalAs(UnmanagedType.U1)]` required for C `bool` → C# `bool` marshaling
+- `CallingConvention.Cdecl` matches Rust's `extern "C"`
+- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` to pass lib path to vstest host child process
+- csbindgen (v1.9.7) generates `NativeMethods.g.cs`. `NativeMethods` is `internal`
+- `IsccLib.cs` wrappers: PascalCase public methods, 4 private + 2 internal helpers
+- Streaming: SafeHandle + IDisposable pattern, `_finalized` bool for one-shot semantics
+- `GCHandle.Alloc(GCHandleType.Pinned)` for jagged arrays
+- Empty span fix for 7 functions: GenAudioCodeV0, GenDataCodeV0, GenInstanceCodeV0, GenImageCodeV0,
+    AlgMinhash256, AlgCdcChunks, EncodeBase64
+- `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — 9 `[Theory]` + `[MemberData]` tests
+- `Results.cs`: 11 sealed records (9 gen + SumCodeResult + DecodeResult)
+
 See MEMORY.md for current active entries.
 
 ## Archived 2026-03-02 — Documentation Sweep Patterns
