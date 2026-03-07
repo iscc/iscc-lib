@@ -1,166 +1,160 @@
 # Next Work Package
 
-## Step: NuGet publish pipeline in release.yml
+## Step: Create C++ header-only wrapper (iscc.hpp) with all 32 Tier 1 symbols
 
 ## Goal
 
-Add the NuGet publish pipeline to `release.yml` so that `Iscc.Lib` can be published to nuget.org
-with bundled native libraries for 5 platforms. This is the last major deliverable for the C# / .NET
-bindings issue.
+Create the idiomatic C++17 header-only wrapper over the existing C FFI, exposing all 32 Tier 1
+symbols with RAII resource management, `std::string`/`std::vector<uint8_t>` types, and exception-
+based error handling. Include a smoke test that verifies compilation and basic functionality. This
+is the first step toward resolving the "Implement C++ idiomatic header-only wrapper" `normal` issue.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — add NuGet package metadata (Description, Authors,
-        License, PackageReadmeFile, RepositoryUrl, PackageTags) and `runtimes/**` content include for
-        native library bundling
-    - `.github/workflows/release.yml` — add `nuget` boolean input to `workflow_dispatch`; extend
-        `build-ffi` job's `if` condition to also trigger on `inputs.nuget`; add 3 new jobs:
-        `pack-nuget`, `test-nuget`, `publish-nuget`
+- **Create**:
+    - `packages/cpp/include/iscc/iscc.hpp` — header-only C++17 wrapper (all 32 symbols)
+    - `packages/cpp/CMakeLists.txt` — top-level CMake config
+    - `packages/cpp/tests/test_iscc.cpp` — smoke test with hardcoded expected values
+    - `packages/cpp/tests/CMakeLists.txt` — test build config
+- **Modify**: (none)
 - **Reference**:
-    - `.claude/context/specs/dotnet-bindings.md` — spec for distribution/publishing section
-    - `.github/workflows/release.yml` — existing pipeline patterns (build-ffi, test-ffi, publish-ffi;
-        build-jni, test-jni, publish-maven) as templates
-    - `packages/dotnet/README.md` — the per-package README to reference in PackageReadmeFile
+    - `crates/iscc-ffi/include/iscc.h` — C API surface to wrap (882 lines, all functions/types)
+    - `crates/iscc-ffi/tests/test_iscc.c` — C test patterns (hardcoded expected values to reuse)
+    - `.claude/context/specs/cpp-bindings.md` — full C++ binding specification
+    - `crates/iscc-ffi/CLAUDE.md` — FFI conventions and memory management rules
 
 ## Not In Scope
 
-- **SafeHandles.cs extraction** — cosmetic refactor moving SafeHandle subclasses to a separate file;
-    deferred as it has no functional impact
-- **NuGet.org account setup** — manual human action (API key as `NUGET_API_KEY` secret, package
-    reservation); the pipeline should be built assuming the secret exists
-- **OIDC trusted publishing for NuGet** — NuGet doesn't natively support OIDC like PyPI/crates.io;
-    use `NUGET_API_KEY` secret per spec
-- **Testing the actual publish** — we can't test the publish without the API key; verification
-    focuses on pipeline structure and local smoke test pattern
-- **Multi-targeting (.NET 6, .NET 9)** — keep `net8.0` only for now
+- CI job addition (`ci.yml` changes) — separate step after wrapper compiles locally
+- Release integration (bundling `iscc.hpp` in FFI tarballs via `release.yml`) — separate step
+- Package manager manifests: `vcpkg.json`, `portfile.cmake`, `conanfile.py` — separate step
+- `pkg-config` template (`iscc.pc.in`) — separate step
+- CMake install config (`iscc-config.cmake.in`, `find_package()` support) — separate step
+- `packages/cpp/README.md` — documentation step
+- `docs/howto/c-cpp.md` updates with C++ examples — documentation step
+- Full `data.json` conformance test parsing (requires JSON library like nlohmann/json) — the smoke
+    test uses hardcoded values and `conformance_selftest()` instead
+- Root `README.md` C++ sections — documentation step
 
 ## Implementation Notes
 
-### .csproj NuGet metadata
+### Header structure (`iscc.hpp`)
 
-Add to the existing `<PropertyGroup>`:
+The header wraps the C FFI with zero runtime overhead. Structure:
 
-```xml
-<Description>High-performance ISCC (ISO 24138) library for .NET</Description>
-<Authors>ISCC Foundation</Authors>
-<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
-<PackageProjectUrl>https://lib.iscc.codes</PackageProjectUrl>
-<RepositoryUrl>https://github.com/iscc/iscc-lib</RepositoryUrl>
-<PackageReadmeFile>README.md</PackageReadmeFile>
-<PackageTags>iscc;content-identification;hash;fingerprint;iso-24138</PackageTags>
+1. **Include guard + C header inclusion**: `#pragma once`, then include `iscc.h` via
+    `extern "C" { }` block. The C header lives at `crates/iscc-ffi/include/iscc.h` — do NOT copy
+    it; use CMake include paths to find it from its existing location.
+
+2. **`iscc` namespace**: All C++ API lives in `namespace iscc`.
+
+3. **Error handling**: `IsccError` exception class (inherits `std::runtime_error`). Internal
+    `detail::check_error()` calls `iscc_last_error()` after each C call and throws if non-null.
+
+4. **RAII helpers** (in `namespace iscc::detail`):
+
+    - `UniqueString` wraps `char*` with `iscc_free_string` destructor
+    - `UniqueStringArray` wraps `char**` with `iscc_free_string_array`
+    - `UniqueByteBuffer` wraps `iscc_IsccByteBuffer` with `iscc_free_byte_buffer`
+    - `UniqueByteBufferArray` wraps `iscc_IsccByteBufferArray` with `iscc_free_byte_buffer_array`
+    - `UniqueSumCodeResult` wraps `iscc_IsccSumCodeResult` with `iscc_free_sum_code_result`
+    - `UniqueDecodeResult` wraps `iscc_IsccDecodeResult` with `iscc_free_decode_result`
+
+5. **Result types** (simple structs):
+
+    - Most gen functions: C FFI only returns ISCC string, so result types have only
+        `std::string iscc`
+    - `SumCodeResult`: `iscc`, `datahash` (string), `filesize` (uint64_t)
+    - `DecodeResult`: `maintype`, `subtype`, `version`, `length` (uint8_t), `digest`
+        (vector\<uint8_t>)
+
+6. **Public API functions**: Each wraps the corresponding `iscc_*` C function:
+
+    - Convert `std::string` → `const char*` via `.c_str()`
+    - Convert `std::vector<uint8_t>` → `const uint8_t*` + `size_t`
+    - Call C function, check error, convert result to C++ types, RAII auto-frees C memory
+    - Use `std::optional<std::string>` for optional string parameters (pass `nullptr` when nullopt)
+
+7. **Streaming types**: `DataHasher` and `InstanceHasher` classes with RAII (call
+    `iscc_data_hasher_free`/`iscc_instance_hasher_free` in destructor). Move-only (delete copy
+    ctor/assign). Methods: `update(const uint8_t*, size_t)`, `update(const std::vector<uint8_t>&)`,
+    `finalize(uint32_t bits = 64)`.
+
+8. **Constants**: Inline functions wrapping `iscc_meta_trim_name()`, etc.
+
+### Key C FFI wrapping patterns
+
+- **String return**: Call C fn → get `char*` → wrap in UniqueString RAII guard → convert to
+    `std::string` → guard auto-frees on scope exit
+- **String array return**: `char**` → wrap in UniqueStringArray → iterate until NULL → build
+    `std::vector<std::string>` → guard auto-frees
+- **ByteBuffer return**: `iscc_IsccByteBuffer` → wrap in UniqueByteBuffer → copy data to
+    `std::vector<uint8_t>` → guard auto-frees
+- **ByteBufferArray return**: iterate buffers → build `std::vector<std::vector<uint8_t>>` → free
+- **Struct return**: `iscc_IsccSumCodeResult` → check `.ok` → extract fields → free struct
+- **Array input** (e.g., `gen_video_code_v0`, `alg_simhash`): build parallel arrays of pointers and
+    lengths from `std::vector<std::vector<T>>`
+- **Error check**: After every C call that can fail (returns NULL or `.ok == false`), call
+    `iscc_last_error()` — if non-null, throw `IsccError` with the message
+
+### CMakeLists.txt (top-level)
+
+```cmake
+cmake_minimum_required(VERSION 3.14)
+project(iscc-cpp LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_library(iscc INTERFACE)
+add_library(iscc::iscc ALIAS iscc)
+target_include_directories(iscc INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../crates/iscc-ffi/include
+)
+
+add_subdirectory(tests)
 ```
 
-Add an `<ItemGroup>` for packaging:
+### Test CMakeLists.txt
 
-```xml
-<ItemGroup>
-  <None Include="../../README.md" Pack="true" PackagePath="" />
-  <Content Include="runtimes/**" Pack="true" PackagePath="runtimes" CopyToOutputDirectory="PreserveNewest" Condition="Exists('runtimes')" />
-</ItemGroup>
-```
+Accept `FFI_LIB_DIR` as a CMake variable for the path to the compiled FFI shared library. Link
+against `iscc::iscc` and the `iscc_ffi` library. Enable ASAN via option.
 
-The `README.md` path is relative: `../../README.md` = `packages/dotnet/README.md` (the per-package
-README, not the root README). The `runtimes/` directory only exists during CI release builds. The
-`Condition` prevents build errors when it's absent during local dev.
+### Smoke test patterns (test_iscc.cpp)
 
-### release.yml changes
+Follow the existing C test structure (`test_iscc.c`). Use `<cassert>` and `<iostream>`:
 
-**1. Add `nuget` input** (after `rubygems`):
+- `conformance_selftest()` returns true
+- `gen_meta_code_v0("Hello")` produces expected ISCC string
+- `text_clean(...)` produces expected output
+- `text_collapse(...)` produces expected output
+- `encode_base64(...)` produces expected output
+- `DataHasher` streaming: create, update, finalize
+- `InstanceHasher` streaming: create, update, finalize
+- `iscc_decode(...)` returns correct fields
+- `sliding_window(...)` returns expected n-grams
+- Constants (meta_trim_name, etc.) return expected values
+- At least 15 tests covering different wrapper patterns
 
-```yaml
-nuget:
-  description: Publish Iscc.Lib to NuGet
-  type: boolean
-  default: false
-```
-
-**2. Extend `build-ffi` condition** to also trigger for NuGet:
-
-```yaml
-if: startsWith(github.ref, 'refs/tags/v') || inputs.ffi || inputs.nuget
-```
-
-This reuses existing FFI cross-compilation for all 5 platforms without duplication.
-
-**3. Add `pack-nuget` job** (needs: `build-ffi`):
-
-- Download all 5 FFI artifacts via `actions/download-artifact@v4` with `pattern: ffi-*`
-- Extract shared libraries from tarballs/zips. Handle both `.tar.gz` (Unix) and `.zip` (Windows)
-- Map Rust targets to NuGet RIDs and copy shared libs:
-    - `x86_64-unknown-linux-gnu` → `runtimes/linux-x64/native/libiscc_ffi.so`
-    - `aarch64-unknown-linux-gnu` → `runtimes/linux-arm64/native/libiscc_ffi.so`
-    - `aarch64-apple-darwin` → `runtimes/osx-arm64/native/libiscc_ffi.dylib`
-    - `x86_64-apple-darwin` → `runtimes/osx-x64/native/libiscc_ffi.dylib`
-    - `x86_64-pc-windows-msvc` → `runtimes/win-x64/native/iscc_ffi.dll`
-- All `runtimes/` subdirs go under `packages/dotnet/Iscc.Lib/runtimes/`
-- Setup .NET SDK 8 via `actions/setup-dotnet@v4`
-- `dotnet pack -c Release -o nupkg` in `packages/dotnet`
-- Upload `.nupkg` as artifact `nuget-package`
-
-**4. Add `test-nuget` smoke test job** (needs: `pack-nuget`):
-
-Follow the same pattern as other smoke tests. On `ubuntu-latest`:
-
-```bash
-# Create temp console app
-dotnet new console -o smoke
-cd smoke
-# Add local package source pointing to the downloaded nupkg
-dotnet nuget add source "$PWD/../nupkg" -n local
-dotnet add package Iscc.Lib --source local
-# Write smoke test
-cat > Program.cs << 'EOF'
-using Iscc.Lib;
-if (!IsccLib.ConformanceSelftest())
-    throw new Exception("Conformance selftest failed");
-Console.WriteLine("NuGet smoke test passed");
-EOF
-dotnet run
-```
-
-**5. Add `publish-nuget` job** (needs: `pack-nuget`, `test-nuget`):
-
-- Get workspace version from `Cargo.toml`
-- Version check against nuget.org API for idempotency:
-    `curl -sf "https://api.nuget.org/v3-flatcontainer/iscc.lib/$VERSION/iscc.lib.nuspec"` — if this
-    succeeds, version is already published, set `skip=true`
-- Download `.nupkg` artifact
-- `dotnet nuget push *.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json`
-- Uses `secrets.NUGET_API_KEY`
-
-### Windows artifact handling
-
-The `build-ffi` Windows job produces a `.zip` (not `.tar.gz`). The `pack-nuget` job runs on
-`ubuntu-latest` and must handle both: `tar xzf` for `.tar.gz` files, `unzip` for `.zip` files. The
-extraction step should iterate over downloaded artifacts and use the correct tool per extension.
-
-### README path for PackageReadmeFile
-
-The `<PackageReadmeFile>README.md</PackageReadmeFile>` requires the file to be included as a
-`<None Include="..." Pack="true" PackagePath="">` item. The path `../../README.md` resolves from the
-`.csproj` location (`packages/dotnet/Iscc.Lib/`) to `packages/dotnet/README.md`.
+Get expected values from the existing C tests in `crates/iscc-ffi/tests/test_iscc.c`.
 
 ## Verification
 
-- `grep -c 'nuget' .github/workflows/release.yml | grep -v '^0$'` — `nuget` input exists
-- `grep 'pack-nuget\|test-nuget\|publish-nuget' .github/workflows/release.yml | wc -l` returns at
-    least 3 — all 3 job names present
-- `grep 'inputs.nuget' .github/workflows/release.yml | wc -l` returns at least 4 — input used in
-    build-ffi condition + 3 new jobs
-- `grep 'PackageReadmeFile' packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` exits 0 — NuGet metadata
-    present
-- `grep 'runtimes' packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` exits 0 — runtime content include
-    present
-- `grep 'NUGET_API_KEY' .github/workflows/release.yml` exits 0 — secret reference present
-- `dotnet build packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` succeeds — .csproj changes don't break
-    local build (runtimes/ absent is OK)
-- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 — valid
-    YAML
+- `cargo build -p iscc-ffi` succeeds (builds the shared library the C++ wrapper depends on)
+- C++ test compiles and all tests pass:
+    ```
+    cd packages/cpp && cmake -B build \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DFFI_LIB_DIR=../../target/debug && \
+    cmake --build build && \
+    LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc
+    ```
+- `conformance_selftest()` test passes in the C++ test output
+- At least one `gen_*_v0` function test passes with expected ISCC string
+- ASAN clean: rebuild with `-DSANITIZE_ADDRESS=ON` and test passes without ASAN errors
 
 ## Done When
 
-All verification criteria pass — release.yml has `nuget` input with pack/test/publish jobs following
-the existing pipeline pattern, and the .csproj has NuGet package metadata with runtime asset
-includes.
+All verification commands pass: the C++ header-only wrapper compiles with C++17, links against the
+FFI shared library, and all smoke tests (including conformance_selftest and ASAN) pass with exit
+code 0.

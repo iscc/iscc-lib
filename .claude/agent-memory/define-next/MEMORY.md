@@ -16,6 +16,8 @@ iterations.
 - State assessments can go stale — always verify claimed gaps by reading the actual files
 - New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
     steps. Core + tests in one step, bindings in subsequent steps
+- Header-only wrappers (C++) are mechanical: all 32 symbols can fit in one step since each wrapper
+    function is 5-10 lines of boilerplate
 
 ## Signature Change Propagation
 
@@ -40,51 +42,35 @@ iterations.
 - **C# .NET**: `ConformanceTests.cs` uses `System.Text.Json`, loads from vendored
     `testdata/data.json`. Must skip `_metadata` key.
 - **C FFI**: No data.json loader (uses Rust core `conformance_selftest`).
+- **C++ wrapper**: Same as C FFI — uses `conformance_selftest()` call, no data.json parsing.
 - **data.json copies**: `crates/iscc-lib/tests/data.json` (primary),
     `packages/go/testdata/data.json`, and `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` (all
     identical). Must be updated together.
 
 ## Project Status
 
-- **C#/.NET bindings: 32/32 symbols + typed returns + docs ✅ + version sync ✅; NuGet publish
-    pending**
-- v0.2.0 released, 13 CI jobs green, all 8 bindings (incl. C#) CI green
-- C# bindings use P/Invoke over existing C FFI (`crates/iscc-ffi/`), not a new Rust binding crate
-- Multi-step sequence: scaffold ✅ → CI ✅ → csbindgen ✅ → wrappers ✅ → streaming ✅ → conformance ✅ →
-    structured records ✅ → hasher return types ✅ → docs ✅ → version sync ✅ → **NuGet** → release
-- .NET CI pattern: `actions/setup-dotnet@v4`, `cargo build -p iscc-ffi`, `dotnet build`,
-    `dotnet test -e LD_LIBRARY_PATH=...`
+- **C#/.NET bindings complete** (32/32 symbols, typed returns, docs, version sync, NuGet pipeline)
+- v0.2.0 released, 13 CI jobs green, all 8 bindings CI green
+- **Current work: C++ idiomatic header-only wrapper** (`normal` priority issue)
+- After C++: only `low`-priority items remain (Swift, Kotlin, logos) — CID loop approaches idle
 
-## C# / .NET Binding Architecture
+## C++ Wrapper Architecture
 
-- Three layers: C FFI (existing) → P/Invoke (`NativeMethods.g.cs`, csbindgen) → Idiomatic wrapper
-    (`IsccLib.cs`, PascalCase)
-- Package lives in `packages/dotnet/` (not `crates/`), similar to Go's `packages/go/`
-- DLL name for P/Invoke: `"iscc_ffi"` — .NET auto-resolves to `libiscc_ffi.so`/`.dylib`/`.dll`
-- `[return: MarshalAs(UnmanagedType.U1)]` needed for C `bool` → C# `bool` marshaling
-- Tests need `LD_LIBRARY_PATH=target/debug` (absolute path in devcontainer)
+- Header-only C++17 wrapper over existing C FFI (`iscc.h`)
+- Lives in `packages/cpp/` (like Go in `packages/go/`, .NET in `packages/dotnet/`)
+- No separate Rust crate needed — purely C++ header + CMake
+- Distribution: vcpkg port, Conan recipe, bundled with FFI release tarballs
+- C FFI returns ISCC string for most gen functions (not full structs) — C++ result types mostly have
+    only `iscc` field. `SumCodeResult` and `DecodeResult` are the exceptions with extra fields
+- Multi-step sequence: **iscc.hpp + tests** → CI job → release integration → pkg managers → docs
 
-## csbindgen Integration Notes — DONE
+## C++ Scoping: Step Breakdown
 
-- csbindgen ✅ in build.rs, NativeMethods.g.cs committed (929 lines, 47 externs, 6 structs)
-- `#[unsafe(no_mangle)]` (Rust 2024) parsed correctly — no workaround needed
-- `AllowUnsafeBlocks` already in .csproj
-
-## C# Wrapper Scoping Pattern
-
-- **Batch by marshaling complexity**: string→string → byte[]→string → struct returns → array inputs
-    → streaming types (IDisposable)
-- Actual wrapper sequence: 14 symbols (step 1 ✅) → 8 (step 2 ✅) → 4 (step 3 ✅) → 4 (step 4 ✅: algo
-    primitives) → 2 (step 5: streaming IDisposable)
-- **Jagged array marshaling**: `GCHandle.Alloc` per inner array, build pointer array, `fixed` on
-    outer. Must free handles in `finally` block
-- C# disallows pointer types as generic type args — string/byte array marshaling inlined per-method
-- `ConsumeByteBuffer`/`ConsumeByteBufferArray` helpers follow `ConsumeNativeString` pattern
-
-## C# Streaming Types — DONE
-
-- Both `IsccDataHasher` and `IsccInstanceHasher` implemented with SafeHandle + IDisposable
-- `GetLastError()` and `ConsumeNativeString()` already `internal` in IsccLib.cs
+1. ✏️ `iscc.hpp` + CMake + smoke test (current step)
+2. CI job in `ci.yml` (compile + ASAN)
+3. Release: bundle `iscc.hpp` in FFI tarballs
+4. Package managers: vcpkg.json, conanfile.py, pkg-config
+5. Documentation: README, howto/c-cpp.md update, root README C++ sections
 
 ## CI/Release Patterns
 
@@ -98,8 +84,8 @@ iterations.
 - JNI function names encode Java package underscores as `_1`
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
 - Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
-- `dotnet test -e LD_LIBRARY_PATH=target/debug` with relative path fails in devcontainer — use
-    absolute path
+- `cbindgen` export prefix `iscc_` on types but not on functions — C++ wrapper must use
+    `iscc_FfiDataHasher`, `iscc_IsccSumCodeResult` etc. for type names
 
 ## Propagation Gotchas
 
@@ -109,41 +95,5 @@ iterations.
 ## Documentation Drift Detection
 
 - After major architecture changes, always verify README quickstart snippets against actual source
-- After fixing doc drift, remaining work is ALL low-priority (C++, Swift, Kotlin bindings). CID loop
-    approaches idle state after C# completion
-
-## Post-C#-Symbols Roadmap
-
-After hasher return types ✅: docs ✅ → version sync ✅ → **NuGet publish pipeline**. FFI structured
-fields (Meta/Text/Mixed/Instance extra fields) deferred. Then only normal-priority C++ wrapper
-remains before low-priority items (Swift, Kotlin).
-
-## NuGet Pipeline Architecture Decision
-
-- Reuses existing `build-ffi` job (extend `if` condition with `|| inputs.nuget`) — no duplicate
-    cross-compilation
-- 3 new jobs: `pack-nuget` (download FFI artifacts → runtimes/ layout → dotnet pack), `test-nuget`
-    (local nupkg install → ConformanceSelftest), `publish-nuget` (version check → push)
-- Auth: `NUGET_API_KEY` secret (not OIDC — NuGet doesn't support it)
-- RID mapping: x86_64-unknown-linux-gnu→linux-x64, aarch64-unknown-linux-gnu→linux-arm64,
-    aarch64-apple-darwin→osx-arm64, x86_64-apple-darwin→osx-x64, x86_64-pc-windows-msvc→win-x64
-- Windows FFI artifact is `.zip` (not `.tar.gz`) — pack job must handle both formats
-
-## C# Conformance Test Notes
-
-- 50 vectors across 9 function groups in data.json (no gen_sum_code_v0 vectors)
-- xUnit `[Theory]` + `[MemberData]` for per-vector test results
-- `System.Text.Json` (built-in) for JSON parsing — no Newtonsoft dependency
-- data.json needs `<Content CopyToOutputDirectory="PreserveNewest">` in test .csproj
-
-## C# Structured Records Architecture Decision
-
-- C FFI only returns ISCC string (`.map(|r| r.iscc)`), not full result structs
-- C# records initially contain only `Iscc` field — complete for Image/Audio/Video/Data/IsccCode
-    (Rust core also only has `iscc`), partial for Meta/Text/Mixed/Instance (need FFI enhancement)
-- To expose additional fields (MetaCodeResult.Name, TextCodeResult.Characters, etc.), must first add
-    `#[repr(C)]` result structs to `crates/iscc-ffi/src/lib.rs` + regenerate NativeMethods.g.cs
-- Hasher `Finalize()` return types (string → record) require touching IsccDataHasher.cs +
-    IsccInstanceHasher.cs — separate step to stay within 3-file limit
-- `SumCodeResult` already works via FFI struct (`IsccSumCodeResult`) — the pattern exists for future
-    FFI struct additions
+- After C++ completion, remaining work is ALL low-priority (Swift, Kotlin bindings). CID loop
+    approaches idle state
