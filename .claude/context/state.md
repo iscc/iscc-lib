@@ -1,17 +1,16 @@
-<!-- assessed-at: 35703620dc88998760945d46e3474b77a09f8e90 -->
+<!-- assessed-at: a74dfc61dfc6f946c59e18efdeb7259961ff7367 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C# idiomatic wrappers — conformance tests complete; structured return types + docs + NuGet pending
+## Phase: C# bindings — structured result records complete; streaming Finalize() + docs + NuGet pending
 
-v0.2.0 released across all 8 registries. This iteration added C# conformance tests
-(`ConformanceTests.cs`, 9 Theory methods covering all 9 gen functions, 50 vectors against vendored
-`testdata/data.json`) and fixed a latent empty-span null pointer bug in `GenAudioCodeV0`,
-`GenDataCodeV0`, and `GenInstanceCodeV0`. Total C# test count is now 91 (41 smoke + 50 conformance).
-CI is fully green at run 22800445669. Remaining gaps: structured `record` return types for 9 of 10
-gen functions, streaming `Finalize()` return types, documentation, and NuGet publish pipeline.
+v0.2.0 released across all 8 registries. This iteration completed the C# structured result records:
+`Results.cs` created with 11 sealed record types, all 10 gen functions refactored to return typed
+records instead of `string`, and all remaining empty-span null pointer bugs fixed across 7
+locations. CI is fully green (run 22801424050). Remaining C# gaps: streaming `Finalize()` return
+types, docs, and NuGet publish pipeline.
 
 ## Rust Core Crate
 
@@ -50,7 +49,7 @@ gen functions, streaming `Finalize()` return types, documentation, and NuGet pub
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20`
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported
-- WASM CI job = SUCCESS in run 22800445669
+- WASM CI job = SUCCESS in run 22801424050
 
 ## C FFI
 
@@ -99,43 +98,46 @@ gen functions, streaming `Finalize()` return types, documentation, and NuGet pub
 ## C# / .NET Bindings
 
 **Status**: partially met (32/32 Tier 1 symbols wrapped; conformance tests complete; structured
-return types, docs, NuGet publish still missing)
+return records added but simplified; streaming Finalize(), docs, NuGet publish still missing)
 
 - `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET 8 class library project
 - `packages/dotnet/Iscc.Lib/IsccException.cs` — `IsccException : Exception`
+- `packages/dotnet/Iscc.Lib/Results.cs` — **NEW**: 11 `sealed record` types: `MetaCodeResult`,
+    `TextCodeResult`, `ImageCodeResult`, `AudioCodeResult`, `VideoCodeResult`, `MixedCodeResult`,
+    `DataCodeResult`, `InstanceCodeResult`, `IsccCodeResult`, `SumCodeResult`, `DecodeResult`
+    (relocated from IsccLib.cs)
 - `packages/dotnet/Iscc.Lib/IsccLib.cs` — **32 public symbols accessible** (methods + classes):
     - 5 constants: `MetaTrimName`, `MetaTrimDescription`, `MetaTrimMeta`, `IoReadSize`,
         `TextNgramSize`
     - 4 text utilities: `TextClean`, `TextRemoveNewlines`, `TextTrim`, `TextCollapse`
-    - 10 gen functions: all 10 `gen_*_v0` including `GenSumCodeV0`
+    - 10 gen functions: **all 10 now return typed records** (`MetaCodeResult`, `TextCodeResult`, etc.)
     - 2 encoding utilities: `EncodeBase64`, `JsonToDataUrl`
     - 3 codec operations: `IsccDecode`, `IsccDecompose`, `EncodeComponent`
     - 1 utility: `SlidingWindow`
     - 4 algorithm primitives: `AlgSimhash`, `AlgMinhash256`, `AlgCdcChunks`, `SoftHashVideoV0`
     - 1 diagnostic: `ConformanceSelftest`
-    - 2 result records: `SumCodeResult`, `DecodeResult`
 - `packages/dotnet/Iscc.Lib/IsccDataHasher.cs` — `IDisposable` + `SafeHandle` pattern;
-    `Update(ReadOnlySpan<byte>)` + `Finalize(uint bits = 64)` → `string`
-- `packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs` — same pattern as DataHasher
-- **IsccLib.cs bugfix**: empty-span null pointer fix added for `GenAudioCodeV0`, `GenDataCodeV0`,
-    `GenInstanceCodeV0` — `fixed` on empty `ReadOnlySpan<T>` produces NULL; uses stack sentinel
-    instead (same latent bug remains in `GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`,
-    `EncodeBase64`)
-- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — **41 xUnit tests** (smoke + streaming)
-- `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — **NEW**: 9 `[Theory]` methods, 50 vectors
-    (one Theory per gen function: MetaCode, TextCode, ImageCode, AudioCode, VideoCode, MixedCode,
-    IsccCode, DataCode, InstanceCode) covering all 9 conformance sections in `data.json`
-- `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` — **NEW**: vendored (84KB, 50 vectors)
+    `Update(ReadOnlySpan<byte>)` + `Finalize(uint bits = 64)` → `string` (**still returns string,
+    not `DataCodeResult`**)
+- `packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs` — same pattern; `Finalize()` → `string` (**still
+    returns string, not `InstanceCodeResult`**)
+- **Empty-span null pointer**: ALL 7 locations now fixed with stack sentinel pattern —
+    `GenImageCodeV0`, `GenAudioCodeV0`, `GenDataCodeV0`, `GenInstanceCodeV0`, `AlgMinhash256`,
+    `AlgCdcChunks`, `EncodeBase64`
+- `packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs` — **41 xUnit tests** (updated to use `.Iscc`
+    property on all structured result returns)
+- `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — 9 `[Theory]` methods, 50 vectors (updated
+    to use `.Iscc` property on all structured result returns)
+- `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` — vendored (84KB, 50 vectors)
 - **Total tests: 91** (41 smoke + 50 conformance), 0 failed
-- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22800445669
+- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22801424050
 - `NativeMethods.g.cs` — 929 lines, 47 P/Invoke extern declarations (auto-generated by csbindgen)
-- **Missing — structured record return types** (`Results.cs`): 9 of 10 gen functions return
-    `string`; spec requires `MetaCodeResult`, `TextCodeResult`, `DataCodeResult`,
-    `InstanceCodeResult`, `ImageCodeResult`, `AudioCodeResult`, `VideoCodeResult`,
-    `MixedCodeResult`, `IsccCodeResult`. Only `GenSumCodeV0` returns `SumCodeResult`.
+- **Simplified record types**: `MetaCodeResult`, `TextCodeResult`, `InstanceCodeResult` currently
+    only carry `(string Iscc)` — spec requires additional fields (`Name`, `MetaHash`, `Description`,
+    `Meta`; `Characters`; `DataHash`, `FileSize`). These require C FFI struct changes first.
 - **Missing — streaming `Finalize()` return types**: spec requires `DataCodeResult` /
     `InstanceCodeResult`; both hashers currently return `string`.
-- **Missing files** per spec: `Results.cs`, `Native/SafeHandles.cs`
+- **Missing files** per spec: `Native/SafeHandles.cs`
 - **Missing**: Release pipeline (`nuget` publish job in `release.yml`)
 - **Missing**: Version sync integration for .NET project version
 - **Missing**: Documentation (`docs/howto/dotnet.md`, `packages/dotnet/README.md`, README C#
@@ -197,14 +199,14 @@ return types, docs, NuGet publish still missing)
 
 - Criterion benchmarks for all 10 `gen_*_v0` functions
 - `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks
-- `Bench (compile check)` CI job SUCCESS in run 22800445669
+- `Bench (compile check)` CI job SUCCESS in run 22801424050
 
 ## CI/CD and Publishing
 
 **Status**: met (for existing bindings; NuGet + C++/Swift/Kotlin publish not yet added)
 
-- **ALL PASSING** — latest CI run 22800445669: all **13 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22800445669
+- **ALL PASSING** — latest CI run 22801424050: all **13 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22801424050
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** — all SUCCESS
 - `release.yml` has 6 registry `workflow_dispatch` checkboxes: crates.io, PyPI, npm, Maven, FFI,
@@ -218,15 +220,15 @@ return types, docs, NuGet publish still missing)
 
 ## Next Milestone
 
-**C#/.NET structured return types + docs + NuGet publish** — conformance tests passing (91/91), CI
-green. Priority order:
+**C#/.NET streaming Finalize() + docs + NuGet publish** — structured records done (91/91 tests
+pass), CI green. Priority order:
 
-1. **Structured result records** (`Results.cs`): `MetaCodeResult`, `TextCodeResult`,
-    `DataCodeResult`, `InstanceCodeResult`, `ImageCodeResult`, `AudioCodeResult`,
-    `VideoCodeResult`, `MixedCodeResult`, `IsccCodeResult` — refactor 9 gen functions to return
-    records instead of `string`; update `Finalize()` on both streaming hashers to return
-    `DataCodeResult` / `InstanceCodeResult`. Also fix remaining empty-span null pointer bug in
-    `GenImageCodeV0`, `AlgMinhash256`, `AlgCdcChunks`, `EncodeBase64`.
+1. **Streaming `Finalize()` return types**: Change `IsccDataHasher.Finalize()` → `DataCodeResult`
+    and `IsccInstanceHasher.Finalize()` → `InstanceCodeResult` (2 files, 2 type changes + update
+    streaming tests). Small change, efficient to pair with another item.
 2. **Documentation**: `docs/howto/dotnet.md`, `packages/dotnet/README.md`, README C# section.
 3. **NuGet publish job** in `release.yml`.
 4. **Version sync**: add `.NET` project to `mise run version:sync`.
+5. **SafeHandles.cs**: `Native/SafeHandles.cs` with `SafeHandle` subclasses (RAII for native
+    resources). Currently handles are managed inline; extracting them to proper `SafeHandle`
+    subclasses matches the spec file layout.
