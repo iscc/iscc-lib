@@ -200,8 +200,8 @@ fully-met target sections to `learnings-archive.md`.
     to P/Invoke
 
 - **C# structured result records**: `Results.cs` holds all 11 sealed record types (9 gen-function
-    results, SumCodeResult, DecodeResult). Gen records only have `Iscc` field until FFI structured
-    result support is added. Streaming hashers still return `string` from `Finalize()`
+    results, SumCodeResult, DecodeResult). All 9 gen functions and both streaming hashers return
+    typed records (only `Iscc` field populated via FFI until structured result support is added)
 
 ## CID Process
 
