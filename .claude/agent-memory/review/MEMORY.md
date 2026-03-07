@@ -61,7 +61,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     csbindgen (v1.9.7) generates `NativeMethods.g.cs` (47 functions, 6 structs) via `build.rs`
 - csbindgen runs in `build.rs` (unlike cbindgen CLI) — writes to repo-relative path. `dotnet` not
     available locally — CI is the .NET validation backstop. Codex flags build robustness (advisory)
-- .NET now at 26/32 symbols. Remaining 6: 4 algorithm primitives + 2 streaming types
+- .NET now at 30/32 symbols. Remaining 2: streaming types (DataHasher, InstanceHasher)
 
 ## Binding Propagation Shortcuts
 
@@ -73,7 +73,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - .NET: `cargo build -p iscc-ffi` + `dotnet build packages/dotnet/Iscc.Lib/` +
     `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug`
     - `mise run check`. NOTE: relative path `target/debug` fails in devcontainer — use absolute path.
-        Need `PATH="/home/dev/.dotnet:$PATH"` for dotnet CLI
+        `dotnet` is at `/usr/share/dotnet/dotnet` (on PATH in devcontainer)
 
 ## Environment
 
