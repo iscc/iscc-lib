@@ -1,82 +1,116 @@
 # Next Work Package
 
-## Step: Bundle `iscc.hpp` in FFI release tarballs
+## Step: Add C++ documentation (README, howto, root README)
 
 ## Goal
 
-Add the C++ header-only wrapper (`iscc.hpp`) to the FFI release tarballs in `release.yml` so that
-C++ developers who download the pre-built FFI package get both `iscc.h` (C) and `iscc.hpp` (C++)
-headers without needing to clone the repository.
+Add comprehensive C++ documentation: a per-package `README.md` for `packages/cpp/`, update the
+`docs/howto/c-cpp.md` guide to showcase `iscc.hpp` as the recommended C++ approach, and add C++
+install + quickstart sections to the root `README.md`. This makes the C++ wrapper discoverable and
+usable by developers.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: `.github/workflows/release.yml` — add `iscc.hpp` copy lines in both Unix and Windows
-    staging steps
-- **Reference**:
-    - `packages/cpp/include/iscc/iscc.hpp` — the header to bundle (verify it exists, check its
-        `#include "iscc.h"` directive)
-    - `.github/workflows/release.yml` lines 628-658 — existing FFI artifact staging logic (Unix +
-        Windows)
+- **Create**: `packages/cpp/README.md`
+- **Modify**: `docs/howto/c-cpp.md`, `README.md`
+- **Reference**: `packages/cpp/include/iscc/iscc.hpp` (C++ API surface), `packages/dotnet/README.md`
+    (per-package README pattern), `docs/howto/dotnet.md` (howto guide pattern)
 
 ## Not In Scope
 
-- Adding a C++ compilation smoke test to the `test-ffi` job — the existing test is C-only and
-    sufficient; a C++ smoke test can be added later
-- Package manager manifests (`vcpkg.json`, `conanfile.py`, `pkg-config`) — separate step
-- `packages/cpp/README.md` creation — separate step
-- `docs/howto/c-cpp.md` documentation update — separate step
-- `gen_mixed_code_v0` test coverage in `test_iscc.cpp` — separate step
-- Changing the tarball directory structure (e.g., `include/` subdirectory) — keep flat layout
-    matching current `iscc.h` placement
+- Package manager manifests (`vcpkg.json`, `conanfile.py`, `pkg-config/iscc.pc.in`) — separate step
+- Adding `gen_mixed_code_v0` test to `test_iscc.cpp` — separate step
+- Nested vector null-safety hardening (`safe_data` for inner elements) — separate step
+- Swift/Kotlin documentation placeholders — those bindings don't exist yet
+- Modifying `iscc.hpp` or any C++ source code — this is a docs-only step
 
 ## Implementation Notes
 
-### Changes needed
+### `packages/cpp/README.md` (create)
 
-Two copy commands, one in each staging step:
+Follow the `packages/dotnet/README.md` pattern:
 
-**Unix staging step** (after the `cp crates/iscc-ffi/include/iscc.h "$DIR/"` line):
+- Badges: CI status, license
+- Tagline: "Idiomatic C++17 header-only wrapper for ISO 24138 (ISCC)"
+- "What is ISCC" section (reuse standard text from other READMEs)
+- Installation: explain two paths — (1) download pre-built FFI release tarball from GitHub Releases,
+    (2) build from source with `cargo build -p iscc-ffi --release`
+- Quick start: show `#include <iscc/iscc.hpp>` with `iscc::gen_meta_code_v0("Title")`
+- API overview: table of all 10 gen functions + streaming + utilities (matching .NET README format)
+- Links: docs site, howto guide, repository, ISCC specification
+- License: Apache-2.0
 
-```bash
-cp packages/cpp/include/iscc/iscc.hpp "$DIR/"
-```
+### `docs/howto/c-cpp.md` (modify)
 
-**Windows staging step** (after the `Copy-Item "crates/iscc-ffi/include/iscc.h" "$DIR/"` line):
+The existing guide (433 lines) covers the raw C FFI thoroughly. The C++ section currently (lines
+327-411) shows a **hand-written** RAII wrapper class for `DataHasher`. This must be replaced with
+content showing the **actual `iscc.hpp` wrapper** that now exists.
 
-```powershell
-Copy-Item "packages/cpp/include/iscc/iscc.hpp" "$DIR/"
-```
+Changes needed:
 
-### Why flat layout works
+1. **Update the intro** (lines 8-11) to mention `iscc.hpp` as the recommended C++ approach
 
-The `iscc.hpp` header uses `#include "iscc.h"` (quotes, not angle brackets), so both headers being
-in the same directory works correctly. Users extracting the tarball get:
+2. **Update the pre-built binaries tip** (line 40-44) to mention `iscc.hpp` is included in tarballs
 
-```
-iscc-ffi-vX.Y.Z-target/
-  libiscc_ffi.so (or .dylib / .dll)
-  libiscc_ffi.a (or .lib)
-  iscc.h          ← C header (existing)
-  iscc.hpp        ← C++ wrapper (new)
-  LICENSE
-```
+3. **Replace the "C++ RAII wrapper" section** (lines 327-411) with comprehensive `iscc.hpp`
+    documentation:
 
-### No other changes needed
+    - Explain include path conventions: tarball users use `#include "iscc.hpp"` (flat layout);
+        CMake/source users use `#include <iscc/iscc.hpp>` (via include directory setup)
+    - Quick start: `iscc::gen_meta_code_v0()` returning a result struct with `.iscc`
+    - Gen functions: show a few key ones (meta, text, sum) with `iscc::` namespace
+    - Streaming: `iscc::DataHasher` with RAII — `update()` / `finalize()` pattern. Show dual-hasher
+        streaming as C++ equivalent of the C streaming section above
+    - Error handling: `iscc::IsccError` exception class (replaces NULL checks)
+    - Codec/utility: `iscc::iscc_decode()`, `iscc::iscc_decompose()`
+    - Conformance: `iscc::conformance_selftest()`
 
-- The `test-ffi` job doesn't need modification — it tests C functionality only
-- The `publish-ffi` job uses glob patterns (`iscc-ffi-v*.*`) that automatically pick up the new file
-- The `pack-nuget` job only extracts shared libraries — unaffected
+4. Keep ALL existing C sections unchanged (building, CMake, pkg-config, C quick start, C streaming,
+    C error handling, C memory management, static/dynamic linking, cross-compilation, C
+    conformance)
+
+### `README.md` (modify)
+
+1. **Update "Polyglot" bullet** (line 26): Add "C++" to the list — currently says "Python, Java, Go,
+    Ruby, C#, Node.js, WASM, and C FFI"
+
+2. **Update "What is iscc-lib" paragraph** (line 50): Add "C++" to the ecosystem list
+
+3. **Add C++ installation section** between "C# / .NET" and "WASM":
+
+    ```markdown
+    ### C / C++
+
+    Pre-built release tarballs are attached to each
+    [GitHub Release](https://github.com/iscc/iscc-lib/releases). Download for your platform —
+    includes shared library, static library, `iscc.h` header, and `iscc.hpp` C++ wrapper.
+    ```
+
+4. **Add C++ quickstart** between "C# / .NET" and "WASM":
+
+    ```cpp
+    #include <iscc/iscc.hpp>
+    #include <iostream>
+
+    int main() {
+        auto result = iscc::gen_meta_code_v0("ISCC Test Document!");
+        std::cout << "Meta-Code: " << result.iscc << std::endl;
+    }
+    ```
 
 ## Verification
 
-- `grep -c 'iscc.hpp' .github/workflows/release.yml` returns `2` (one Unix cp, one Windows
-    Copy-Item)
-- `mise run check` passes (YAML validation, formatting)
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean (no Rust changes, but confirms no
-    regressions)
+- `grep -c 'iscc.hpp' docs/howto/c-cpp.md` returns at least 5 (multiple references to the header)
+- `grep -c 'iscc::gen_meta_code_v0' docs/howto/c-cpp.md` returns at least 1
+- `grep -c 'iscc::DataHasher' docs/howto/c-cpp.md` returns at least 1
+- `grep 'C++' README.md | head -5` shows C++ mentioned in install and quickstart sections
+- `grep -c 'iscc.hpp' README.md` returns at least 1
+- `test -f packages/cpp/README.md` exits 0
+- `grep -c 'gen_meta_code_v0' packages/cpp/README.md` returns at least 1
+- `grep -c 'What is ISCC' packages/cpp/README.md` returns 1
+- `mise run check` passes (formatting, lint, pre-commit hooks)
 
 ## Done When
 
-Both the Unix and Windows FFI staging steps in `release.yml` copy `iscc.hpp` alongside `iscc.h`, and
-all pre-commit checks pass.
+All verification criteria pass — three documentation files exist with correct C++ wrapper content,
+and `mise run check` is clean.

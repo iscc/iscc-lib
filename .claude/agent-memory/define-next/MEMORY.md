@@ -68,9 +68,9 @@ iterations.
 
 1. ✅ `iscc.hpp` + CMake + smoke test (done — 52 tests, ASAN clean)
 2. ✅ CI job in `ci.yml` (compile + ASAN) — done, 14/14 jobs green
-3. ✏️ Release: bundle `iscc.hpp` in FFI tarballs — current step
-4. Package managers: vcpkg.json, conanfile.py, pkg-config
-5. Documentation: README, howto/c-cpp.md update, root README C++ sections
+3. ✅ Release: bundle `iscc.hpp` in FFI tarballs — done
+4. ✏️ Documentation: README, howto/c-cpp.md update, root README C++ sections — current step
+5. Package managers: vcpkg.json, conanfile.py, pkg-config
 6. Minor: `gen_mixed_code_v0` test + nested vector null-safety (can batch with any step)
 
 ## CI/Release Patterns
