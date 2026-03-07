@@ -77,17 +77,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 6a988d94457376eff91dbff6b4286d8d70f2a4aa)
+## Current State (assessed-at: b92af0235fbb7e051e147df46ff90ae7833b32f7)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22803269184); **C# documentation COMPLETE**
+- **IN_PROGRESS**: all 13 CI jobs green (run 22804181997); **C# version sync COMPLETE**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET docs added (iteration 8)**: `docs/howto/dotnet.md` (417 lines),
-    `packages/dotnet/README.md` (82 lines), README NuGet badge + C# install + quickstart,
-    `zensical.toml` nav entry ✅
-- **CI (run 22803269184)**: ALL SUCCESS — 13 jobs ✅
+- **C#/.NET version sync (iteration 9)**: `Iscc.Lib.csproj` has `<Version>0.2.0</Version>`;
+    `scripts/version_sync.py` has `_get_csproj_version` / `_sync_csproj` in TARGETS ✅
+- **CI (run 22804181997)**: ALL SUCCESS — 13 jobs ✅
 - **packages/dotnet/Iscc.Lib/**: `IsccLib.cs`, `IsccException.cs`, `IsccDataHasher.cs`,
     `IsccInstanceHasher.cs`, `NativeMethods.g.cs`, `Results.cs` — `Native/SafeHandles.cs` missing
-- **Next action**: NuGet publish pipeline (`release.yml`) → version sync → SafeHandles.cs
+- **Next action**: NuGet publish pipeline (`release.yml`) → SafeHandles.cs (cosmetic)
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
