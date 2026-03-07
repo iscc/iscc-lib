@@ -1,6 +1,6 @@
 module github.com/iscc/iscc-lib/packages/go
 
-go 1.24.0
+go 1.26.1
 
 require (
 	github.com/zeebo/blake3 v0.2.4
