@@ -29,6 +29,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **C# public symbols**:
     `grep -n "public static\|public sealed record" packages/dotnet/Iscc.Lib/IsccLib.cs | grep -v "private\|internal\|partial class"`
 - **C# test count**: `grep -c "\[Fact\]" packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`
+- **C# conformance test count**:
+    `grep -c "\[Theory\]" packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs`
 
 ## Codebase Landmarks
 
@@ -39,12 +41,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, **C# / .NET** (**13 total**) ✅
-- `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (**32/32 Tier 1 symbols**: 5 consts, 4 text, 10 gen, 2
-    encode, 3 codec, 1 sliding window, 4 alg primitives, 1 diag + SumCodeResult + DecodeResult
-    records), `IsccDataHasher.cs` + `IsccInstanceHasher.cs` (both IDisposable + SafeHandle),
-    `IsccException.cs`, `SmokeTests.cs` (**41 tests**), `NativeMethods.g.cs` (csbindgen, 47
-    externs); `dotnet test` needs `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores
-    env)
+- `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (**32/32 Tier 1 symbols**), `IsccDataHasher.cs` +
+    `IsccInstanceHasher.cs` (IDisposable + SafeHandle), `IsccException.cs`, `SmokeTests.cs` (**41
+    tests**), `ConformanceTests.cs` (**9 Theory tests, 50 vectors**), `testdata/data.json` (84KB
+    vendored), `NativeMethods.g.cs` (csbindgen, 47 externs); `dotnet test` needs
+    `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores env)
 - `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
@@ -71,18 +72,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 7c52606f5876d174b7c1aa7e35d9c9e9cf3f4067)
+## Current State (assessed-at: 35703620dc88998760945d46e3474b77a09f8e90)
 
-- **IN_PROGRESS**: all 13 CI jobs green (run 22799496183); **C# 32/32 symbols wrapped**
+- **IN_PROGRESS**: all 13 CI jobs green (run 22800445669); **C# 32/32 symbols + conformance tests**
 - **v0.2.0 released** — all 8 registries including RubyGems (OIDC trusted publishing)
-- **C#/.NET**: streaming hashers added (IsccDataHasher, IsccInstanceHasher); 41 xUnit tests; gen
-    functions still return `string` (9 of 10) — spec requires structured record return types;
-    `Finalize()` returns `string` not `DataCodeResult`/`InstanceCodeResult`
-- **CI (run 22799496183)**: ALL SUCCESS — 13 jobs ✅
+- **C#/.NET**: conformance tests added (ConformanceTests.cs, 9 Theory tests, 50 vectors); empty-span
+    null pointer bug fixed for GenAudioCodeV0, GenDataCodeV0, GenInstanceCodeV0 (latent bug remains
+    in GenImageCodeV0, AlgMinhash256, AlgCdcChunks, EncodeBase64); **91 total tests** (41 smoke + 50
+    conformance); gen functions still return `string` (9 of 10) — spec requires structured records
+- **CI (run 22800445669)**: ALL SUCCESS — 13 jobs ✅
 - **packages/dotnet/Iscc.Lib/**: `IsccLib.cs`, `IsccException.cs`, `IsccDataHasher.cs`,
     `IsccInstanceHasher.cs`, `NativeMethods.g.cs` — `Results.cs` and `Native/SafeHandles.cs` missing
 - **Next action**: structured record return types (`Results.cs` + refactor 9 gen functions + both
-    `Finalize()` methods) → conformance tests → docs → NuGet publish
+    `Finalize()` methods) → docs → NuGet publish
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
@@ -147,3 +149,7 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
     AlgCdcChunks, SoftHashVideoV0. Jagged-array inputs use `GCHandle` pinning.
 - **C# DangerousGetHandle() note**: streaming hashers use `DangerousGetHandle()` without
     `DangerousAddRef/Release` — acceptable for single-threaded use; no concurrent thread safety.
+- **C# empty-span null pointer**: `fixed` on empty `ReadOnlySpan<T>` produces NULL pointer in .NET.
+    Use stack sentinel pattern (`byte sentinel; func(&sentinel, 0, ...)`) for zero-length inputs.
+    Fixed in GenAudioCodeV0, GenDataCodeV0, GenInstanceCodeV0; still latent in GenImageCodeV0,
+    AlgMinhash256, AlgCdcChunks, EncodeBase64.
