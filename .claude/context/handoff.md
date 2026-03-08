@@ -1,27 +1,36 @@
-## 2026-03-08 — Add language logos to README
+## 2026-03-08 — Review of: Add language logos to README
 
-**Done:** Added inline `<img>` tags with Simple Icons CDN logos to all 18 language section headers
-in README.md (9 Installation + 9 Quick Start). Each header has consistent `width="20" height="20"`
-sizing and `alt` text for accessibility.
+**Verdict:** PASS
 
-**Files changed:**
+**IDLE**: All remaining issues are low priority — no actionable work for CID.
 
-- `README.md`: Added `<img>` logo tags to 18 `###` headers using Simple Icons CDN URLs
+**Summary:** The advance agent added inline `<img>` tags with Simple Icons CDN logos to all 18
+language section headers in README.md (9 Installation + 9 Quick Start). The implementation is clean,
+minimal, and exactly matches the next.md scope. All verification criteria pass. The Rust logo color
+was changed from `000000` (black) to `CE412B` (orange-red) — a justified deviation since black is
+invisible on GitHub's dark mode.
 
 **Verification:**
 
-- `grep -c '<img src=.*simpleicons.*width=' README.md` → 18 (pass)
-- `grep -c 'alt="' README.md` → 18 (pass)
-- `grep -cP '(rust|python|nodedotjs|openjdk|go/|ruby|dotnet|cplusplus|webassembly)' README.md` → 23
-    (≥18, pass — extra matches from code blocks and URLs)
-- `mise run format` → exits 0 (pass)
-- `mise run check` → all 15 hooks pass
+- [x] `grep -c '<img src=.*simpleicons.*width=' README.md` returns `18` — confirmed
+- [x] `grep -c 'alt="' README.md` returns `18` — confirmed
+- [x] All 9 language slugs appear: `grep -cP` returns `23` (≥18) — confirmed
+- [x] `mise run format` exits 0 — confirmed
+- [x] `mise run check` exits 0 — all 15 hooks pass
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
 
-**Next:** All normal-priority issues are resolved. Only low-priority items remain (Swift/Kotlin
-bindings). The CID loop should signal idle or move to the docs site logo follow-up if desired.
+**Issues found:**
 
-**Notes:** Used `CE412B` (Rust's classic orange-red) instead of `000000` (black) for the Rust logo
-color. Black is invisible on GitHub's dark mode background, making it genuinely unusable. The
-orange-red is the color most associated with Rust (ferris crab, original logo) and has sufficient
-contrast on both light and dark backgrounds. All other colors used as suggested in next.md. The
-`openjdk` slug was used for Java as recommended.
+- (none) — clean implementation
+
+**Codex review:** "The commit only changes README presentation and an internal handoff note... this
+patch appears safe." No actionable findings.
+
+**Next:** All normal-priority issues are now resolved. Only low-priority items remain (Swift/Kotlin
+bindings, docs site logos). The CID loop should signal idle. The README logos issue has been
+downgraded to `low` (docs-only follow-up remaining).
+
+**Notes:** The original issue asked for logos in "README and docs." The README part is complete. The
+docs site follow-up was explicitly out of scope in next.md and has been captured as a separate `low`
+issue entry. State.md still shows the README as "partially met" with the logo gap — update-state
+will pick this up next cycle if one runs.

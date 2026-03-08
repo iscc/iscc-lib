@@ -64,8 +64,7 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
     install/quickstart
 
-## Add programming language logos to README and docs `normal` [human]
+## Add programming language logos to docs site `low` [human]
 
-Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and
-documentation pages where appropriate. Visual language indicators help users quickly identify
-binding availability and make the project more approachable.
+README language logos added (iteration 3). Consider adding matching logos to `docs/index.md` and
+howto guide headers on the documentation site for visual consistency. Purely cosmetic follow-up.
