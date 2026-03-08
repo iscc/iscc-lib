@@ -86,15 +86,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: eea33005a0b4c28f09b9b2e1ad72b3c63243e848)
+## Current State (assessed-at: 3205ef5d39280a59ecdc9ecea768365f81ac5b86)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 22816887024); **C++ wrapper PARTIALLY DONE**
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22817198364); **C++ wrapper PARTIALLY DONE**
 - **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
-- **C++ audio fix (iteration 17)**: `gen_audio_code_v0` now uses `detail::safe_data(cv)` ✅; test 35
-    added; 54 C++ tests pass; audio null-ptr issue closed in issues.md
-- **3 normal-priority issues remain**: Conan recipe, dotnet.md NuGet stale text, docs "View as
-    Markdown" 404
-- **CI (run 22816887024)**: ALL SUCCESS — 14 jobs ✅
+- **dotnet.md stale text fixed (iteration 2 CID cycle 2)**: "NuGet publishing is not yet available"
+    removed; build-from-source section now a collapsible `??? tip` admonition ✅
+- **2 normal-priority issues remain**: Conan recipe, docs "View as Markdown" 404
+- **CI (run 22817198364)**: ALL SUCCESS — 14 jobs ✅
 
 ## NuGet Pipeline Details (iteration 10)
 

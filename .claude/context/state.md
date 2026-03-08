@@ -1,4 +1,4 @@
-<!-- assessed-at: eea33005a0b4c28f09b9b2e1ad72b3c63243e848 -->
+<!-- assessed-at: 3205ef5d39280a59ecdc9ecea768365f81ac5b86 -->
 
 # Project State
 
@@ -6,10 +6,10 @@
 
 ## Phase: normal-priority bug fixes (Conan recipe, docs)
 
-v0.2.0 released across all 8 registries. The C++ audio NULL-pointer crash (`gen_audio_code_v0` with
-empty vector) was fixed in this iteration — `detail::safe_data(cv)` now used, 54 C++ tests pass.
-Three `normal`-priority issues remain: a broken Conan recipe, stale .NET docs, and a broken "View as
-Markdown" feature on the docs site.
+v0.2.0 released across all 8 registries. The stale .NET docs issue (NuGet unavailability claim) was
+resolved in this iteration — `docs/howto/dotnet.md` now correctly describes the package as
+installable from NuGet. Two `normal`-priority issues remain: a broken Conan recipe and a broken
+"View as Markdown" feature on the docs site.
 
 ## Rust Core Crate
 
@@ -102,11 +102,12 @@ Markdown" feature on the docs site.
 - xUnit1026 warnings fixed — `vectorName` renamed to `_` in all 9 `[Theory]` methods ✅
 - CI job `C# / .NET (dotnet build, test)` — SUCCESS in latest CI run ✅
 - `pack-nuget` + `test-nuget` + `publish-nuget` pipeline in `release.yml` ✅
-- `docs/howto/dotnet.md` — 417 lines; `packages/dotnet/README.md` — 82 lines ✅
+- `docs/howto/dotnet.md` — 417 lines; stale NuGet unavailability note removed ✅
+- `packages/dotnet/README.md` — 82 lines ✅
 - **Known limitation**: `MetaCodeResult`, `TextCodeResult`, `InstanceCodeResult` carry only
     `(string Iscc)` — extra fields require C FFI struct changes first; not blocking
-- **Open issue** (`normal`): `docs/howto/dotnet.md:21` still says NuGet publishing unavailable —
-    needs update
+- **Manual action still needed**: NuGet.org account setup (NUGET_API_KEY secret, package ID
+    reservation) before NuGet publish job can be triggered
 
 ## C++ Bindings
 
@@ -117,10 +118,8 @@ Markdown" feature on the docs site.
     `UniqueByteBufferArray`), `IsccError` exception class, full namespace `iscc` ✅
 - `packages/cpp/CMakeLists.txt` — CMake config ✅
 - `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — **54 passing tests**, ASAN clean ✅
-- `safe_data` int32_t overload; `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0`, and now
+- `safe_data` int32_t overload; `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0`, and
     `gen_audio_code_v0` all use `detail::safe_data()` for nested/empty vector null-safety ✅
-- `gen_audio_code_v0` empty-vector crash fixed: uses `detail::safe_data(cv)` instead of `cv.data()`
-    — test 35 added and passes (empty → `ISCC:EIAQAAAAAAAAAAAA`) ✅
 - `conformance_selftest()` passes; all 10 gen functions tested ✅
 - CI job `C++ (cmake, ASAN, test)` — SUCCESS in latest CI run ✅
 - `iscc.hpp` bundled in FFI release tarballs ✅
@@ -178,9 +177,8 @@ Markdown" feature on the docs site.
 - 17+ pages deployed to lib.iscc.codes; all navigation sections complete
 - 9 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
     ruby.md, dotnet.md ✅
-- `docs/howto/c-cpp.md` — 497 lines; includes full C++ wrapper section ✅
-- **Open issue** (`normal`): `docs/howto/dotnet.md:21` says "NuGet publishing is not yet available"
-    — stale; needs update now that publish pipeline exists
+- `docs/howto/dotnet.md` — stale NuGet unavailability note removed; build-from-source section is now
+    a collapsible tip (`??? tip`) ✅
 - **Open issue** (`normal`): "View as Markdown" / "Copy Page" button on docs site returns 404 —
     needs Zensical fix (see `iscc-usearch` implementation)
 - **Gap**: Swift, Kotlin how-to guides (all `low` priority; none started)
@@ -197,8 +195,8 @@ Markdown" feature on the docs site.
 
 **Status**: met (for existing bindings)
 
-- **LATEST COMPLETED RUN** — run 22816887024: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22816887024
+- **LATEST COMPLETED RUN** — run 22817198364: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22817198364
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS ✅
 - `release.yml` has 7 registry `workflow_dispatch` inputs including `nuget` ✅
@@ -210,14 +208,12 @@ Markdown" feature on the docs site.
 
 ## Next Milestone
 
-Three `normal`-priority issues remain open. Fix in order of impact:
+Two `normal`-priority issues remain open. Fix in order of impact:
 
-1. **Stale .NET docs** — `docs/howto/dotnet.md:21` says NuGet publishing is unavailable; update to
-    reflect the `pack-nuget` / `publish-nuget` pipeline now in `release.yml`.
+1. **Docs "View as Markdown" 404** — clicking "View as Markdown" on lib.iscc.codes navigates to a
+    404\. Investigate how `iscc/iscc-usearch` solves this; apply the same Zensical fix.
 2. **Conan recipe contract** — `conanfile.py` declares `shared-library` but `package()` never copies
     the `iscc_ffi` binary. Fix: package pre-built binary or reclassify as `header-library`.
-3. **Docs "View as Markdown" 404** — clicking "View as Markdown" on lib.iscc.codes navigates to a
-    404\. Investigate how `iscc/iscc-usearch` solves this; apply the same Zensical fix.
 
-After these three, only `low`-priority issues remain (vcpkg SHA512, version sync, Swift, Kotlin,
+After these two, only `low`-priority issues remain (vcpkg SHA512, version sync, Swift, Kotlin,
 logos) — the CID loop skips `low` by default.
