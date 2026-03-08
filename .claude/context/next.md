@@ -1,59 +1,80 @@
 # Next Work Package
 
-## Step: Fix stale .NET docs claiming NuGet is unavailable
+## Step: Fix "View as Markdown" 404 on docs site
 
 ## Goal
 
-Update `docs/howto/dotnet.md` to remove the misleading "NuGet publishing is not yet available" note
-block (lines 21-39). The NuGet publish pipeline (`pack-nuget` / `test-nuget` / `publish-nuget`)
-already exists in `release.yml`, so the documentation is stale and actively misleading developers.
+Fix the broken "View as Markdown" and "Copy page" features on lib.iscc.codes by updating
+`scripts/gen_llms_full.py` to generate per-page `.md` files for ALL documentation pages, not just
+the original subset. This addresses the `normal` priority issue "Fix 'View as Markdown' (Copy Page)
+on Zensical docs site".
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `docs/howto/dotnet.md`
-- **Reference**: `docs/howto/dotnet.md` (current content), `.github/workflows/release.yml` (to
-    confirm NuGet pipeline exists)
+- **Modify**: `scripts/gen_llms_full.py` — update PAGES list to include all pages from zensical.toml
+    nav, or better: auto-discover pages from `docs/` to prevent future drift
+- **Reference**: `zensical.toml` (nav structure — lists all pages), `docs/javascripts/copypage.js`
+    (URL construction logic), `.github/workflows/docs.yml` (build pipeline)
 
 ## Not In Scope
 
-- Adding NuGet.org account setup instructions (that's an infrastructure task, not a docs fix)
-- Updating `packages/dotnet/README.md` (it does not have this stale claim)
-- Fixing the Conan recipe or "View as Markdown" issues (separate normal-priority issues)
-- Adding version badges or other README enhancements
+- Changing `copypage.js` — the URL construction logic is correct; only the missing `.md` files are
+    the problem
+- Changing the docs.yml workflow — `gen_llms_full.py` is already called there
+- Fixing the Conan recipe issue — separate normal-priority issue for next iteration
+- Adding new docs pages or changing docs content
 
 ## Implementation Notes
 
-Current lines 21-39 contain a `!!! note "Build from source"` admonition that says "NuGet publishing
-is not yet available" and provides build-from-source instructions as the primary install path.
+**Root cause**: `scripts/gen_llms_full.py` has a hardcoded `PAGES` list with only 14 entries. Six
+pages added since the script was written are missing:
 
-**Fix approach:**
+- `howto/ruby.md`
+- `howto/dotnet.md`
+- `howto/c-cpp.md`
+- `c-ffi-api.md`
+- `java-api.md`
+- `ruby-api.md`
 
-1. Remove the `!!! note "Build from source"` admonition block entirely (lines 21-39)
-2. Replace it with a `??? tip "Build from source"` collapsible admonition (collapsed by default)
-    that keeps the build-from-source instructions for contributors who want to build from source,
-    but reframes it as an optional developer workflow rather than the primary install method
-3. The `dotnet add package Iscc.Lib` command on line 18 should stand alone as the primary
-    installation instruction (no warning/caveat note undermining it)
+The script generates per-page `.md` files into `site/` during the docs build pipeline
+(`.github/workflows/docs.yml`). The `copypage.js` JavaScript constructs URLs like `/howto/ruby.md` —
+but since `gen_llms_full.py` never writes that file to `site/`, it 404s.
 
-**Admonition syntax reference** (MkDocs Material):
+**Recommended approach**: Replace the hardcoded `PAGES` list with auto-discovery. Glob
+`docs/**/*.md` (excluding `includes/` directory which contains partial snippets like
+`abbreviations.md`) to find all markdown files. This ensures new pages are automatically included
+without manual list maintenance.
 
-- `!!! note "Title"` = always-open note
-- `??? tip "Title"` = collapsible, closed by default
-- `???+ tip "Title"` = collapsible, open by default
+**Alternative approach** (simpler but less robust): Just add the 6 missing pages to the PAGES list.
+This fixes the immediate issue but will drift again when new pages are added.
 
-Use `??? tip "Build from source"` (collapsed by default) to keep the build instructions accessible
-but de-emphasized.
+Either approach is acceptable. Auto-discovery is preferred if it doesn't add complexity.
+
+**Key constraint**: The `clean_content()` function strips YAML frontmatter and snippet definitions.
+This must still work correctly for all discovered files. Test that the generated `.md` files are
+clean (no frontmatter, no `*[...]: ...` lines).
+
+**`llms-full.txt` ordering**: If using auto-discovery, maintain a sensible concatenation order for
+`llms-full.txt`. Options: (1) parse zensical.toml nav for ordering, (2) use alphabetical order, (3)
+keep a hardcoded order list for `llms-full.txt` but auto-discover for per-page `.md` files. Option
+(3) is pragmatic — the per-page files just need to exist (order doesn't matter for "View as
+Markdown"), while `llms-full.txt` benefits from logical ordering. Any approach that ensures all
+per-page `.md` files are generated is acceptable.
 
 ## Verification
 
-- `grep -c "not yet available" docs/howto/dotnet.md` exits with code 1 (string not found)
-- `grep -c "Build from source" docs/howto/dotnet.md` exits with code 0 (build-from-source section
-    still exists for contributors)
-- `uv run zensical build 2>&1 | tail -1` shows successful build (no broken page)
-- `mise run check` passes (formatting hooks)
+- `uv run zensical build && uv run python scripts/gen_llms_full.py` exits 0
+- `test -f site/howto/ruby.md` exits 0 (the specific page from the issue report)
+- `test -f site/howto/dotnet.md` exits 0
+- `test -f site/howto/c-cpp.md` exits 0
+- `test -f site/c-ffi-api.md` exits 0
+- `test -f site/java-api.md` exits 0
+- `test -f site/ruby-api.md` exits 0
+- `wc -l site/llms-full.txt` shows increased line count (more pages included)
+- `mise run check` passes (formatting, lint)
 
 ## Done When
 
-All four verification commands pass, confirming the stale NuGet claim is removed while
-build-from-source instructions remain available in a de-emphasized form.
+All verification criteria pass — per-page `.md` files exist for every documentation page in the nav,
+and `llms-full.txt` includes the full documentation corpus.

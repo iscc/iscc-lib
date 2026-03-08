@@ -16,8 +16,6 @@ iterations.
 - State assessments can go stale — always verify claimed gaps by reading the actual files
 - New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
     steps. Core + tests in one step, bindings in subsequent steps
-- Header-only wrappers (C++) are mechanical: all 32 symbols can fit in one step since each wrapper
-    function is 5-10 lines of boilerplate
 
 ## Signature Change Propagation
 
@@ -49,39 +47,27 @@ iterations.
 
 ## Project Status
 
-- **C#/.NET bindings complete** (32/32 symbols, typed returns, docs, version sync, NuGet pipeline)
-- v0.2.0 released, 14 CI jobs green, all 8 bindings CI green
-- **C++ wrapper feature-complete** (32 symbols, CI, release, docs, pkg managers all done)
-- **3 normal-priority bug fixes remain** (Conan recipe, .NET docs, View-as-Markdown)
-- After these 3: only `low`-priority items remain (Swift, Kotlin, logos) — CID loop approaches idle
-- **Watch out**: review agent incorrectly claimed IDLE after C++ pkg managers — always cross-check
-    issues.md against handoff claims
+- **All 8 bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++)
+- v0.2.0 released, 14 CI jobs green
+- **2 normal-priority bug fixes remain**: View-as-Markdown 404, Conan recipe
+- .NET docs stale NuGet claim: FIXED (iteration 2)
+- After these 2: only `low`-priority items remain — CID loop approaches idle
 
-## C++ Wrapper Architecture
+## Docs Site Architecture (View-as-Markdown)
 
-- Header-only C++17 wrapper over existing C FFI (`iscc.h`)
-- Lives in `packages/cpp/` (like Go in `packages/go/`, .NET in `packages/dotnet/`)
-- No separate Rust crate needed — purely C++ header + CMake
-- Distribution: vcpkg port, Conan recipe, bundled with FFI release tarballs
-- C FFI returns ISCC string for most gen functions (not full structs) — C++ result types mostly have
-    only `iscc` field. `SumCodeResult` and `DecodeResult` are the exceptions with extra fields
-- Multi-step sequence: **iscc.hpp + tests** → CI job → release integration → pkg managers → docs
-
-## C++ Scoping: Step Breakdown (all complete)
-
-1. ✅ `iscc.hpp` + CMake + smoke test (done — 52 tests, ASAN clean)
-2. ✅ CI job in `ci.yml` (compile + ASAN) — done, 14/14 jobs green
-3. ✅ Release: bundle `iscc.hpp` in FFI tarballs — done
-4. ✅ Documentation: README, howto/c-cpp.md update, root README C++ sections — done
-5. ✅ Code quality: gen_mixed_code_v0 test + nested vector null-safety — done (53 tests)
-6. ✅ Package managers: vcpkg.json, portfile.cmake, conanfile.py — done
+- `scripts/gen_llms_full.py` generates per-page `.md` files into `site/` AND concatenated
+    `llms-full.txt`
+- `docs/javascripts/copypage.js` constructs URLs like `/howto/ruby.md` for "View as Markdown"
+- `docs.yml` pipeline: `zensical build` → `gen_llms_full.py` → deploy to GitHub Pages
+- **Root cause of 404**: hardcoded PAGES list in gen_llms_full.py was missing 6 pages added later
+- `docs/includes/` contains partial snippets (abbreviations.md) — exclude from auto-discovery
 
 ## Normal-Priority Bug Fix Queue
 
 1. ✅ C++ audio NULL pointer — fixed (safe_data(cv))
-2. ✏️ .NET docs — says NuGet unavailable but pipeline exists (scoped as next step)
-3. Conan recipe — declares shared-library but never packages the binary
-4. View-as-Markdown 404 — docs site copy page feature broken
+2. ✅ .NET docs — says NuGet unavailable but pipeline exists — fixed
+3. ⏳ View-as-Markdown 404 — docs site copy page feature broken (scoped as next)
+4. Conan recipe — declares shared-library but never packages the binary
 
 ## CI/Release Patterns
 
@@ -89,17 +75,14 @@ iterations.
 - Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
 - 6 smoke test jobs gate 6 publish jobs in release.yml
-- FFI tarball staging: Unix uses `cp` + `tar czf`, Windows uses `Copy-Item` + `Compress-Archive`.
-    Both need parallel changes when adding files. `publish-ffi` globs `iscc-ffi-v*.*` — auto-picks
-    up new files in the staged directory
+- FFI tarball staging: Unix uses `cp` + `tar czf`, Windows uses `Copy-Item` + `Compress-Archive`
 
 ## Gotchas
 
 - JNI function names encode Java package underscores as `_1`
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
 - Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
-- `cbindgen` export prefix `iscc_` on types but not on functions — C++ wrapper must use
-    `iscc_FfiDataHasher`, `iscc_IsccSumCodeResult` etc. for type names
+- `cbindgen` export prefix `iscc_` on types but not on functions
 
 ## Propagation Gotchas
 
@@ -112,9 +95,3 @@ iterations.
 - Flat layout inside: `iscc.hpp`, `iscc.h`, `libiscc_ffi.so`/`.dylib`/`.dll`, static lib
 - vcpkg triplet → Rust target mapping needed: `x64-linux` → `x86_64-unknown-linux-gnu`, etc.
 - Version 0.2.0 is current
-
-## Documentation Drift Detection
-
-- After major architecture changes, always verify README quickstart snippets against actual source
-- After C++ completion, remaining work is ALL low-priority (Swift, Kotlin bindings). CID loop
-    approaches idle state
