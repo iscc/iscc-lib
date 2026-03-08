@@ -18,9 +18,9 @@ are static calls on the `IsccLib` class in the `Iscc.Lib` namespace — add the 
 dotnet add package Iscc.Lib
 ```
 
-!!! note "Build from source"
+??? tip "Build from source"
 
-    NuGet publishing is not yet available. Currently, the native library must be built from source:
+    To build from source instead of using the NuGet package:
 
     ```bash
     # Build the native FFI shared library
