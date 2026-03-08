@@ -7,7 +7,7 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Add vcpkg.json and conanfile.py to version sync script `low` [review]
+## Add vcpkg.json and conanfile.py to version sync script `normal` [review]
 
 The `scripts/version_sync.py` does not check `packages/cpp/vcpkg.json` or
 `packages/cpp/conanfile.py` for version consistency. Both files hardcode `"0.2.0"` and will go stale
@@ -70,21 +70,21 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
     install/quickstart
 
-## Conan recipe cxxflags invalid for MSVC consumers `low` [review]
+## Conan recipe cxxflags invalid for MSVC consumers `normal` [review]
 
 `packages/cpp/conanfile.py` sets `cpp_info.cxxflags = ["-std=c++17"]` unconditionally, but
 `-std=c++17` is a GCC/Clang flag — MSVC uses `/std:c++17`. Since `compiler` is not in `settings`
 (correct for pre-built binaries), the recipe can't differentiate. Options: remove the `cxxflags`
 entirely and document C++17 as a requirement, or use CMake's `CMAKE_CXX_STANDARD` property instead.
 
-## vcpkg portfile skips SHA512 verification `low` [human]
+## vcpkg portfile skips SHA512 verification `normal` [human]
 
 `packages/cpp/portfile.cmake:42` uses `SKIP_SHA512` in `vcpkg_download_distfile`, so consumers
 download release tarballs without a pinned checksum. This weakens supply-chain integrity and
 reproducibility. Fix by computing and storing SHA512 checksums per release and passing them to
 `vcpkg_download_distfile`.
 
-## Add programming language logos to README and docs `low` [human]
+## Add programming language logos to README and docs `normal` [human]
 
 Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and
 documentation pages where appropriate. Visual language indicators help users quickly identify
