@@ -1,91 +1,84 @@
 # Next Work Package
 
-## Step: Fix Conan recipe to package pre-built FFI shared library
+## Step: Fix Conan cxxflags and add vcpkg/conan to version sync
 
 ## Goal
 
-Fix the broken Conan recipe (`packages/cpp/conanfile.py`) which declares
-`package_type = "shared-library"` and advertises `libs = ["iscc_ffi"]` but never packages the actual
-native binary. Consumers get a package that cannot link. This addresses the `normal` priority issue
-"Fix Conan recipe: shared-library contract without actual library".
+Fix the MSVC-incompatible `cxxflags` in the Conan recipe and add `vcpkg.json` + `conanfile.py` to
+the version sync script, resolving 2 of the 4 remaining normal-priority issues in one step.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `packages/cpp/conanfile.py` — rewrite to download and package pre-built FFI binaries
-    from GitHub Releases, following the same platform-mapping pattern as the vcpkg portfile
-- **Reference**: `packages/cpp/portfile.cmake` (platform→target triple mapping, tarball URL pattern,
-    installation layout), `packages/cpp/vcpkg.json` (metadata reference)
+- **Modify**:
+    - `packages/cpp/conanfile.py` — remove the `cxxflags` line and its comment
+    - `scripts/version_sync.py` — add sync targets for `packages/cpp/vcpkg.json` and
+        `packages/cpp/conanfile.py`, update module docstring
+- **Reference**:
+    - `packages/cpp/vcpkg.json` — JSON format with `"version"` field (currently `"0.2.0"`)
+    - `packages/cpp/conanfile.py` — Python class attribute `version = "0.2.0"` (line 18, indented)
+    - `scripts/version_sync.py` — existing sync target patterns (get/sync function pairs, TARGETS
+        list)
 
 ## Not In Scope
 
-- Adding Conan install instructions to `docs/howto/c-cpp.md` — Conan is not documented there today;
-    adding docs is a separate concern
-- Fixing vcpkg `SKIP_SHA512` (`low` priority issue)
-- Adding `conanfile.py` version to `scripts/version_sync.py` (`low` priority issue)
-- Adding Conan to the CI matrix — no Conan CI job exists today; adding one is future work
-- Modifying `portfile.cmake` or `vcpkg.json`
+- Fixing the vcpkg portfile SHA512 checksums — separate normal-priority issue requiring release
+    artifact access and release workflow automation
+- Adding language logos to README/docs — separate cosmetic issue
+- Adding a Conan CI test job — no Conan CLI in dev environment
+- Modifying `portfile.cmake` — version sync only covers vcpkg.json, not the portfile download URLs
+    (those embed the version in URL patterns, not a standalone version field)
 
 ## Implementation Notes
 
-**Problem**: The current recipe has `exports_sources`, a CMake `build()` step, and a `package()`
-that only copies headers — it never downloads or installs the `iscc_ffi` shared library that
-`package_info()` promises to consumers.
+### 1. Conan cxxflags fix (conanfile.py)
 
-**Fix approach**: Rewrite as a pre-built binary recipe that downloads platform-specific FFI tarballs
-from GitHub Releases (the same tarballs the vcpkg portfile already consumes).
+Remove line 163 (`# Require C++17`) and line 164 (`self.cpp_info.cxxflags = ["-std=c++17"]`). This
+flag is GCC/Clang-specific and invalid for MSVC consumers. C++17 is a documented requirement —
+consumers set it in their build system (`CMAKE_CXX_STANDARD 17` or equivalent). The recipe's
+`settings` only has `os` and `arch` (no `compiler`), so conditional logic isn't possible anyway.
 
-**Platform mapping** (mirror `portfile.cmake` logic):
+### 2. Version sync for vcpkg.json (version_sync.py)
 
-| Conan settings (`os`, `arch`) | GitHub Release target triple | Lib name            | Archive ext |
-| ----------------------------- | ---------------------------- | ------------------- | ----------- |
-| `Linux`, `x86_64`             | `x86_64-unknown-linux-gnu`   | `libiscc_ffi.so`    | `.tar.gz`   |
-| `Linux`, `armv8` / `aarch64`  | `aarch64-unknown-linux-gnu`  | `libiscc_ffi.so`    | `.tar.gz`   |
-| `Macos`, `armv8` / `aarch64`  | `aarch64-apple-darwin`       | `libiscc_ffi.dylib` | `.tar.gz`   |
-| `Macos`, `x86_64`             | `x86_64-apple-darwin`        | `libiscc_ffi.dylib` | `.tar.gz`   |
-| `Windows`, `x86_64`           | `x86_64-pc-windows-msvc`     | `iscc_ffi.dll`      | `.zip`      |
+`vcpkg.json` is JSON with a `"version"` field — structurally identical to `package.json`. The
+existing `_get_package_json_version` and `_sync_package_json` functions handle this exact format.
+**Reuse them directly** as a new TARGETS entry — no new functions needed:
 
-**Tarball URL pattern**:
-`https://github.com/iscc/iscc-lib/releases/download/v{version}/iscc-ffi-v{version}-{target}{ext}`
+```python
+(("packages/cpp/vcpkg.json", _get_package_json_version, _sync_package_json),)
+```
 
-**Tarball contents** (flat layout inside `iscc-ffi-v{ver}-{target}/`): `iscc.hpp`, `iscc.h`, shared
-lib, static lib, `LICENSE`.
+### 3. Version sync for conanfile.py (version_sync.py)
 
-**Recipe structure** (Conan 2.x pattern for pre-built binaries):
+`conanfile.py` has `    version = "0.2.0"` as an indented class attribute (line 18). The existing
+`_get_pyproject_version` regex uses `^version` which won't match indented lines. Create a new
+function pair:
 
-1. Remove `exports_sources` — no local source files needed
-2. Remove CMake `generators` — no build step
-3. Keep `settings = "os", "arch"` (drop `compiler`, `build_type` — irrelevant for pre-built)
-4. Add helper method `_target_triple()` mapping Conan settings to GitHub Release target/lib/ext
-5. `build()` — use `conan.tools.files.download` + `conan.tools.files.unzip` to fetch and extract the
-    platform-specific tarball
-6. `package()` — copy headers into `include/iscc/`, shared libs into `lib/` (or `bin/` for DLLs on
-    Windows), static/import libs into `lib/`, license into `licenses/`
-7. `package_info()` — keep `libs = ["iscc_ffi"]`, add `bindirs` for Windows DLLs, keep C++17
-    cxxflags and cmake properties
+- `_get_conanfile_version(text)`: regex `r'version\s*=\s*"(\d+\.\d+\.\d+)"'` (no `^` anchor)
+- `_sync_conanfile(text, version)`: `re.sub(r'(version\s*=\s*")\d+\.\d+\.\d+(")', ...)`
 
-**Key Conan 2.x imports**: `conan.tools.files.download`, `conan.tools.files.unzip`,
-`conan.tools.files.copy`.
+**Important**: The regex must NOT have the `^` anchor since the version line is indented in the
+Python class body. Add `count=1` to `re.sub` to only replace the first match (the class attribute,
+not anything in URLs or other strings).
 
-**Validation note**: Since Conan CLI is not installed in the dev environment and GitHub Release
-tarballs require a real release, we verify via syntax validation, linting, and structural checks
-(grep for required patterns).
+### 4. Update module docstring
+
+Update the docstring at the top of `version_sync.py` to list the two new targets:
+
+- `packages/cpp/vcpkg.json` — vcpkg manifest version
+- `packages/cpp/conanfile.py` — Conan recipe version
 
 ## Verification
 
 - `python -c "import ast; ast.parse(open('packages/cpp/conanfile.py').read())"` exits 0 (valid
     Python syntax)
-- `grep -q 'download' packages/cpp/conanfile.py` exits 0 (downloads pre-built binary)
-- `grep -q 'x86_64-unknown-linux-gnu' packages/cpp/conanfile.py` exits 0 (has platform mapping)
-- `grep -q 'aarch64-apple-darwin' packages/cpp/conanfile.py` exits 0 (has macOS ARM mapping)
-- `grep -q 'x86_64-pc-windows-msvc' packages/cpp/conanfile.py` exits 0 (has Windows mapping)
-- `grep -qv 'exports_sources' packages/cpp/conanfile.py` exits 0 (no longer exports local sources)
-- `grep -q 'iscc_ffi' packages/cpp/conanfile.py` exits 0 (still declares the lib)
-- `grep -q 'package_type.*shared-library' packages/cpp/conanfile.py` exits 0 (still shared-library)
-- `mise run format && mise run check` passes (formatting and lint hooks clean)
+- `! grep -q 'cxxflags' packages/cpp/conanfile.py` exits 0 (cxxflags line removed)
+- `grep -q 'vcpkg.json' scripts/version_sync.py` exits 0 (vcpkg target added)
+- `grep -q 'conanfile.py' scripts/version_sync.py` exits 0 (conan target added)
+- `uv run python scripts/version_sync.py --check` exits 0 (all targets in sync including new ones)
+- `mise run check` passes (all pre-commit/pre-push hooks clean)
 
 ## Done When
 
-All verification criteria pass — `conanfile.py` is a valid Conan 2.x recipe that downloads
-platform-specific pre-built FFI tarballs from GitHub Releases and packages the shared library,
-headers, and license correctly.
+All verification criteria pass — cxxflags removed from Conan recipe, both C++ packaging files synced
+via `version_sync.py --check`, and all quality gates green.

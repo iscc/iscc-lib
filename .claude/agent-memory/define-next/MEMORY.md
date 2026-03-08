@@ -16,6 +16,8 @@ iterations.
 - State assessments can go stale — always verify claimed gaps by reading the actual files
 - New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
     steps. Core + tests in one step, bindings in subsequent steps
+- **Handoff "IDLE" can be stale** — state assessment may create new normal-priority issues AFTER the
+    handoff. Always check issues.md directly rather than trusting handoff "IDLE" signals
 
 ## Signature Change Propagation
 
@@ -49,15 +51,20 @@ iterations.
 
 - **All 8 bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++)
 - v0.2.0 released, 14 CI jobs green
-- **1 normal-priority bug fix remains**: Conan recipe (scoped as next step)
-- After Conan fix: only `low`-priority items remain — CID loop should signal idle
+- **4 normal-priority issues remain** (post Conan recipe fix):
+    1. ⏳ Conan cxxflags MSVC incompatibility — one-line removal
+    2. ⏳ Version sync for vcpkg.json + conanfile.py — add to sync script
+    3. vcpkg portfile SHA512 pinning — needs release artifact checksums
+    4. Language logos in README/docs — cosmetic
 
-## Normal-Priority Bug Fix Queue
+## Version Sync Script Patterns
 
-1. ✅ C++ audio NULL pointer — fixed (safe_data(cv))
-2. ✅ .NET docs — says NuGet unavailable but pipeline exists — fixed
-3. ✅ View-as-Markdown 404 — fixed (gen_llms_full.py ORDERED_PAGES + auto-discovery)
-4. ⏳ Conan recipe — declares shared-library but never packages the binary (scoped)
+- `scripts/version_sync.py` uses `(file_path, get_fn, sync_fn)` triples in TARGETS list
+- JSON targets (package.json, vcpkg.json): can reuse
+    `_get_package_json_version`/`_sync_package_json`
+- Python targets (pyproject.toml): use `^version` anchored regex — won't work for indented lines
+- `conanfile.py` has `    version = "0.2.0"` INDENTED — needs non-anchored regex
+- `version_sync.py --check` runs in CI (`version-check` job)
 
 ## CI/Release Patterns
 
@@ -74,9 +81,7 @@ iterations.
     `libiscc_ffi.so`/`.dylib`/`.dll`, static lib, `LICENSE`
 - 5 targets: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin,
     x86_64-apple-darwin, x86_64-pc-windows-msvc
-- vcpkg portfile (`portfile.cmake`) already downloads these correctly — Conan recipe should mirror
 - `conanfile.py` is excluded from `ty check` in `pyproject.toml` (conan not a project dep)
-- Version 0.2.0 is current
 
 ## Gotchas
 
