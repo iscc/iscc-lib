@@ -1,37 +1,33 @@
-## 2026-03-08 — Review of: Fix stale .NET docs claiming NuGet is unavailable
+## 2026-03-08 — Fix "View as Markdown" 404 on docs site
 
-**Verdict:** PASS
+**Done:** Updated `scripts/gen_llms_full.py` to include all 20 documentation pages (up from 14).
+Added auto-discovery via `rglob("*.md")` that catches any future pages not in the ordered list,
+excluding the `includes/` directory (snippet partials). The 6 missing pages (`howto/ruby.md`,
+`howto/dotnet.md`, `howto/c-cpp.md`, `c-ffi-api.md`, `java-api.md`, `ruby-api.md`) now generate
+per-page `.md` files in `site/`, fixing the "View as Markdown" and "Copy page" 404 errors.
 
-**Summary:** The advance agent correctly replaced the misleading `!!! note "Build from source"`
-admonition (which stated "NuGet publishing is not yet available") with a collapsed
-`??? tip "Build from source"` admonition. The change is minimal, correctly scoped, and all
-verification criteria pass. Docs build succeeds with no broken pages.
+**Files changed:**
+
+- `scripts/gen_llms_full.py`: Renamed `PAGES` to `ORDERED_PAGES` with all 20 nav entries. Added
+    `EXCLUDE_DIRS`, `discover_pages()` for auto-discovery, and merge logic that appends
+    auto-discovered extras (sorted) after the ordered list. Both `llms-full.txt` and per-page `.md`
+    files now cover all pages.
 
 **Verification:**
 
-- [x] `grep -c "not yet available" docs/howto/dotnet.md` exits with code 1 — stale text removed
-- [x] `grep -c "Build from source" docs/howto/dotnet.md` exits with code 0 — section preserved
-- [x] `uv run zensical build` — "Build finished in 0.62s", no broken pages
-- [x] `mise run check` — all 15 hooks passed
-
-**Issues found:**
-
-- (none) — clean docs-only fix
-
-**Codex review:** Codex noted (P2) that presenting `dotnet add package Iscc.Lib` as the universal
-default may mislead users on unsupported RIDs (only 5 platform targets bundled: linux-x64,
-linux-arm64, osx-x64, osx-arm64, win-x64). The collapsed "Build from source" tip adequately covers
-the alternative. This is an enhancement suggestion, not a correctness issue — the five supported
-RIDs cover the vast majority of .NET developers. No action needed for this iteration.
+- `uv run zensical build && uv run python scripts/gen_llms_full.py` — exits 0, "20 pages, 236169
+    bytes"
+- All 6 previously missing files verified present: `site/howto/ruby.md`, `site/howto/dotnet.md`,
+    `site/howto/c-cpp.md`, `site/c-ffi-api.md`, `site/java-api.md`, `site/ruby-api.md`
+- Generated files are clean (no YAML frontmatter, no snippet definitions)
+- `wc -l site/llms-full.txt` = 7833 lines (increased from previous 14-page subset)
+- `mise run check` — all 15 hooks passed
 
 **Next:** Two `normal` priority issues remain: Conan recipe fix (declares shared-library but never
-packages the native binary) and Zensical "View as Markdown" 404. After those, only `low` priority
-issues remain and the CID loop should signal idle.
+packages the native binary). After that, only `low` priority issues remain and the CID loop should
+signal idle.
 
-**Notes:**
-
-- The `.NET docs still say NuGet publishing is not yet available` issue has been deleted from
-    issues.md (resolved by this iteration)
-- state.md still references this as an open issue in the C# / .NET and Documentation sections — the
-    next update-state cycle will clear those references
-- Consider creating a PR from `develop` to `main` when ready for the next release
+**Notes:** The auto-discovery approach ensures this won't drift again when new docs pages are added.
+The `ORDERED_PAGES` list still controls `llms-full.txt` concatenation order. Any page found on disk
+but not in `ORDERED_PAGES` gets appended (sorted) — and a message is printed so the developer knows
+to add it to the ordered list for proper positioning.

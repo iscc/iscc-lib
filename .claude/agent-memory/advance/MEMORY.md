@@ -118,13 +118,11 @@ iterations.
 
 - Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp}.md`
 - API reference: `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`
-- `docs/howto/dotnet.md` — C# / .NET howto (~370 lines). PascalCase methods, `using Iscc.Lib;`,
-    typed result records, IDisposable streaming, IsccException error handling
-- `docs/howto/c-cpp.md` — C FFI sections (building, CMake, pkg-config, streaming, error handling,
-    memory management, linking, cross-compilation, conformance) + C++ `iscc.hpp` section (include
-    paths, gen functions, streaming, error handling, codec, conformance)
 - Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`
 - zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++
+- `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` files. Uses
+    `ORDERED_PAGES` list + auto-discovery (`discover_pages()`). Excludes `docs/includes/`. Run after
+    `zensical build` in docs CI pipeline
 
 ## Feature Flags
 
