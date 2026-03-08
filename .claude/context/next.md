@@ -1,80 +1,91 @@
 # Next Work Package
 
-## Step: Fix "View as Markdown" 404 on docs site
+## Step: Fix Conan recipe to package pre-built FFI shared library
 
 ## Goal
 
-Fix the broken "View as Markdown" and "Copy page" features on lib.iscc.codes by updating
-`scripts/gen_llms_full.py` to generate per-page `.md` files for ALL documentation pages, not just
-the original subset. This addresses the `normal` priority issue "Fix 'View as Markdown' (Copy Page)
-on Zensical docs site".
+Fix the broken Conan recipe (`packages/cpp/conanfile.py`) which declares
+`package_type = "shared-library"` and advertises `libs = ["iscc_ffi"]` but never packages the actual
+native binary. Consumers get a package that cannot link. This addresses the `normal` priority issue
+"Fix Conan recipe: shared-library contract without actual library".
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `scripts/gen_llms_full.py` — update PAGES list to include all pages from zensical.toml
-    nav, or better: auto-discover pages from `docs/` to prevent future drift
-- **Reference**: `zensical.toml` (nav structure — lists all pages), `docs/javascripts/copypage.js`
-    (URL construction logic), `.github/workflows/docs.yml` (build pipeline)
+- **Modify**: `packages/cpp/conanfile.py` — rewrite to download and package pre-built FFI binaries
+    from GitHub Releases, following the same platform-mapping pattern as the vcpkg portfile
+- **Reference**: `packages/cpp/portfile.cmake` (platform→target triple mapping, tarball URL pattern,
+    installation layout), `packages/cpp/vcpkg.json` (metadata reference)
 
 ## Not In Scope
 
-- Changing `copypage.js` — the URL construction logic is correct; only the missing `.md` files are
-    the problem
-- Changing the docs.yml workflow — `gen_llms_full.py` is already called there
-- Fixing the Conan recipe issue — separate normal-priority issue for next iteration
-- Adding new docs pages or changing docs content
+- Adding Conan install instructions to `docs/howto/c-cpp.md` — Conan is not documented there today;
+    adding docs is a separate concern
+- Fixing vcpkg `SKIP_SHA512` (`low` priority issue)
+- Adding `conanfile.py` version to `scripts/version_sync.py` (`low` priority issue)
+- Adding Conan to the CI matrix — no Conan CI job exists today; adding one is future work
+- Modifying `portfile.cmake` or `vcpkg.json`
 
 ## Implementation Notes
 
-**Root cause**: `scripts/gen_llms_full.py` has a hardcoded `PAGES` list with only 14 entries. Six
-pages added since the script was written are missing:
+**Problem**: The current recipe has `exports_sources`, a CMake `build()` step, and a `package()`
+that only copies headers — it never downloads or installs the `iscc_ffi` shared library that
+`package_info()` promises to consumers.
 
-- `howto/ruby.md`
-- `howto/dotnet.md`
-- `howto/c-cpp.md`
-- `c-ffi-api.md`
-- `java-api.md`
-- `ruby-api.md`
+**Fix approach**: Rewrite as a pre-built binary recipe that downloads platform-specific FFI tarballs
+from GitHub Releases (the same tarballs the vcpkg portfile already consumes).
 
-The script generates per-page `.md` files into `site/` during the docs build pipeline
-(`.github/workflows/docs.yml`). The `copypage.js` JavaScript constructs URLs like `/howto/ruby.md` —
-but since `gen_llms_full.py` never writes that file to `site/`, it 404s.
+**Platform mapping** (mirror `portfile.cmake` logic):
 
-**Recommended approach**: Replace the hardcoded `PAGES` list with auto-discovery. Glob
-`docs/**/*.md` (excluding `includes/` directory which contains partial snippets like
-`abbreviations.md`) to find all markdown files. This ensures new pages are automatically included
-without manual list maintenance.
+| Conan settings (`os`, `arch`) | GitHub Release target triple | Lib name            | Archive ext |
+| ----------------------------- | ---------------------------- | ------------------- | ----------- |
+| `Linux`, `x86_64`             | `x86_64-unknown-linux-gnu`   | `libiscc_ffi.so`    | `.tar.gz`   |
+| `Linux`, `armv8` / `aarch64`  | `aarch64-unknown-linux-gnu`  | `libiscc_ffi.so`    | `.tar.gz`   |
+| `Macos`, `armv8` / `aarch64`  | `aarch64-apple-darwin`       | `libiscc_ffi.dylib` | `.tar.gz`   |
+| `Macos`, `x86_64`             | `x86_64-apple-darwin`        | `libiscc_ffi.dylib` | `.tar.gz`   |
+| `Windows`, `x86_64`           | `x86_64-pc-windows-msvc`     | `iscc_ffi.dll`      | `.zip`      |
 
-**Alternative approach** (simpler but less robust): Just add the 6 missing pages to the PAGES list.
-This fixes the immediate issue but will drift again when new pages are added.
+**Tarball URL pattern**:
+`https://github.com/iscc/iscc-lib/releases/download/v{version}/iscc-ffi-v{version}-{target}{ext}`
 
-Either approach is acceptable. Auto-discovery is preferred if it doesn't add complexity.
+**Tarball contents** (flat layout inside `iscc-ffi-v{ver}-{target}/`): `iscc.hpp`, `iscc.h`, shared
+lib, static lib, `LICENSE`.
 
-**Key constraint**: The `clean_content()` function strips YAML frontmatter and snippet definitions.
-This must still work correctly for all discovered files. Test that the generated `.md` files are
-clean (no frontmatter, no `*[...]: ...` lines).
+**Recipe structure** (Conan 2.x pattern for pre-built binaries):
 
-**`llms-full.txt` ordering**: If using auto-discovery, maintain a sensible concatenation order for
-`llms-full.txt`. Options: (1) parse zensical.toml nav for ordering, (2) use alphabetical order, (3)
-keep a hardcoded order list for `llms-full.txt` but auto-discover for per-page `.md` files. Option
-(3) is pragmatic — the per-page files just need to exist (order doesn't matter for "View as
-Markdown"), while `llms-full.txt` benefits from logical ordering. Any approach that ensures all
-per-page `.md` files are generated is acceptable.
+1. Remove `exports_sources` — no local source files needed
+2. Remove CMake `generators` — no build step
+3. Keep `settings = "os", "arch"` (drop `compiler`, `build_type` — irrelevant for pre-built)
+4. Add helper method `_target_triple()` mapping Conan settings to GitHub Release target/lib/ext
+5. `build()` — use `conan.tools.files.download` + `conan.tools.files.unzip` to fetch and extract the
+    platform-specific tarball
+6. `package()` — copy headers into `include/iscc/`, shared libs into `lib/` (or `bin/` for DLLs on
+    Windows), static/import libs into `lib/`, license into `licenses/`
+7. `package_info()` — keep `libs = ["iscc_ffi"]`, add `bindirs` for Windows DLLs, keep C++17
+    cxxflags and cmake properties
+
+**Key Conan 2.x imports**: `conan.tools.files.download`, `conan.tools.files.unzip`,
+`conan.tools.files.copy`.
+
+**Validation note**: Since Conan CLI is not installed in the dev environment and GitHub Release
+tarballs require a real release, we verify via syntax validation, linting, and structural checks
+(grep for required patterns).
 
 ## Verification
 
-- `uv run zensical build && uv run python scripts/gen_llms_full.py` exits 0
-- `test -f site/howto/ruby.md` exits 0 (the specific page from the issue report)
-- `test -f site/howto/dotnet.md` exits 0
-- `test -f site/howto/c-cpp.md` exits 0
-- `test -f site/c-ffi-api.md` exits 0
-- `test -f site/java-api.md` exits 0
-- `test -f site/ruby-api.md` exits 0
-- `wc -l site/llms-full.txt` shows increased line count (more pages included)
-- `mise run check` passes (formatting, lint)
+- `python -c "import ast; ast.parse(open('packages/cpp/conanfile.py').read())"` exits 0 (valid
+    Python syntax)
+- `grep -q 'download' packages/cpp/conanfile.py` exits 0 (downloads pre-built binary)
+- `grep -q 'x86_64-unknown-linux-gnu' packages/cpp/conanfile.py` exits 0 (has platform mapping)
+- `grep -q 'aarch64-apple-darwin' packages/cpp/conanfile.py` exits 0 (has macOS ARM mapping)
+- `grep -q 'x86_64-pc-windows-msvc' packages/cpp/conanfile.py` exits 0 (has Windows mapping)
+- `grep -qv 'exports_sources' packages/cpp/conanfile.py` exits 0 (no longer exports local sources)
+- `grep -q 'iscc_ffi' packages/cpp/conanfile.py` exits 0 (still declares the lib)
+- `grep -q 'package_type.*shared-library' packages/cpp/conanfile.py` exits 0 (still shared-library)
+- `mise run format && mise run check` passes (formatting and lint hooks clean)
 
 ## Done When
 
-All verification criteria pass — per-page `.md` files exist for every documentation page in the nav,
-and `llms-full.txt` includes the full documentation corpus.
+All verification criteria pass — `conanfile.py` is a valid Conan 2.x recipe that downloads
+platform-specific pre-built FFI tarballs from GitHub Releases and packages the shared library,
+headers, and license correctly.

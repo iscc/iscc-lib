@@ -49,25 +49,15 @@ iterations.
 
 - **All 8 bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++)
 - v0.2.0 released, 14 CI jobs green
-- **2 normal-priority bug fixes remain**: View-as-Markdown 404, Conan recipe
-- .NET docs stale NuGet claim: FIXED (iteration 2)
-- After these 2: only `low`-priority items remain — CID loop approaches idle
-
-## Docs Site Architecture (View-as-Markdown)
-
-- `scripts/gen_llms_full.py` generates per-page `.md` files into `site/` AND concatenated
-    `llms-full.txt`
-- `docs/javascripts/copypage.js` constructs URLs like `/howto/ruby.md` for "View as Markdown"
-- `docs.yml` pipeline: `zensical build` → `gen_llms_full.py` → deploy to GitHub Pages
-- **Root cause of 404**: hardcoded PAGES list in gen_llms_full.py was missing 6 pages added later
-- `docs/includes/` contains partial snippets (abbreviations.md) — exclude from auto-discovery
+- **1 normal-priority bug fix remains**: Conan recipe (scoped as next step)
+- After Conan fix: only `low`-priority items remain — CID loop should signal idle
 
 ## Normal-Priority Bug Fix Queue
 
 1. ✅ C++ audio NULL pointer — fixed (safe_data(cv))
 2. ✅ .NET docs — says NuGet unavailable but pipeline exists — fixed
-3. ⏳ View-as-Markdown 404 — docs site copy page feature broken (scoped as next)
-4. Conan recipe — declares shared-library but never packages the binary
+3. ✅ View-as-Markdown 404 — fixed (gen_llms_full.py ORDERED_PAGES + auto-discovery)
+4. ⏳ Conan recipe — declares shared-library but never packages the binary (scoped)
 
 ## CI/Release Patterns
 
@@ -76,6 +66,17 @@ iterations.
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
 - 6 smoke test jobs gate 6 publish jobs in release.yml
 - FFI tarball staging: Unix uses `cp` + `tar czf`, Windows uses `Copy-Item` + `Compress-Archive`
+
+## FFI Tarball Layout (for vcpkg portfile AND Conan recipe)
+
+- Tarballs named `iscc-ffi-v{VERSION}-{TARGET}.tar.gz` (5 platforms, `.zip` for Windows)
+- Flat layout inside `iscc-ffi-v{ver}-{target}/`: `iscc.hpp`, `iscc.h`,
+    `libiscc_ffi.so`/`.dylib`/`.dll`, static lib, `LICENSE`
+- 5 targets: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin,
+    x86_64-apple-darwin, x86_64-pc-windows-msvc
+- vcpkg portfile (`portfile.cmake`) already downloads these correctly — Conan recipe should mirror
+- `conanfile.py` is excluded from `ty check` in `pyproject.toml` (conan not a project dep)
+- Version 0.2.0 is current
 
 ## Gotchas
 
@@ -89,9 +90,11 @@ iterations.
 - When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
     must be updated (Rust core + WASM)
 
-## FFI Tarball Layout (for vcpkg portfile)
+## Conan 2.x Pre-Built Binary Pattern
 
-- Tarballs named `iscc-ffi-v{VERSION}-{TARGET}.tar.gz` (5 platforms)
-- Flat layout inside: `iscc.hpp`, `iscc.h`, `libiscc_ffi.so`/`.dylib`/`.dll`, static lib
-- vcpkg triplet → Rust target mapping needed: `x64-linux` → `x86_64-unknown-linux-gnu`, etc.
-- Version 0.2.0 is current
+- `source()` has no `self.settings` access — platform-specific downloads must go in `build()`
+- Use `conan.tools.files.download` + `conan.tools.files.unzip` (not urllib/zipfile)
+- Drop `exports_sources`, `generators`, `compiler`/`build_type` settings for pre-built recipes
+- Keep `os` + `arch` settings for platform mapping
+- Windows DLLs go in `bin/`, import libs in `lib/`; Unix shared libs go in `lib/`
+- No Conan CLI in dev environment — verification via syntax check + grep patterns
