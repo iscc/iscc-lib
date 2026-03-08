@@ -93,11 +93,6 @@ download release tarballs without a pinned checksum. This weakens supply-chain i
 reproducibility. Fix by computing and storing SHA512 checksums per release and passing them to
 `vcpkg_download_distfile`.
 
-## .NET docs still say NuGet publishing is not yet available `normal` [human]
-
-`docs/howto/dotnet.md:21` says "NuGet publishing is not yet available" even though the NuGet publish
-pipeline has been added to `release.yml`. Update the documentation to reflect current state.
-
 ## Add programming language logos to README and docs `low` [human]
 
 Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and
