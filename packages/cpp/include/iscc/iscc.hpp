@@ -469,7 +469,7 @@ inline ImageCodeResult gen_image_code_v0(const uint8_t* pixels, size_t len,
 /// Generate an Audio-Code from a Chromaprint feature vector.
 inline AudioCodeResult gen_audio_code_v0(const std::vector<int32_t>& cv,
                                           uint32_t bits = 64) {
-    detail::UniqueString s(iscc_gen_audio_code_v0(cv.data(), cv.size(), bits));
+    detail::UniqueString s(iscc_gen_audio_code_v0(detail::safe_data(cv), cv.size(), bits));
     detail::check_ptr(s.ptr);
     return AudioCodeResult{s.to_string()};
 }

@@ -383,6 +383,13 @@ int main() {
         assert_starts_with(r.iscc, "ISCC:", "DataHasher move semantics");
     }
 
+    // 35. gen_audio_code_v0 with empty vector (regression: cv.data() NULL crash)
+    {
+        auto r = iscc::gen_audio_code_v0({});
+        assert_str_eq(r.iscc, "ISCC:EIAQAAAAAAAAAAAA",
+                       "gen_audio_code_v0 empty vector");
+    }
+
     // Summary
     std::printf("\n%d passed, %d failed\n", tests_passed, tests_failed);
     return tests_failed > 0 ? 1 : 0;
