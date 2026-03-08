@@ -151,6 +151,9 @@ files were actually modified, then stage only those. Expected candidates:
 ```
 Cargo.toml Cargo.lock pyproject.toml mise.toml
 crates/iscc-napi/package.json crates/iscc-jni/java/pom.xml
+crates/iscc-rb/lib/iscc_lib/version.rb
+packages/dotnet/Iscc.Lib/Iscc.Lib.csproj
+packages/cpp/vcpkg.json packages/cpp/conanfile.py
 scripts/test_install.py README.md crates/iscc-jni/README.md
 docs/howto/java.md docs/java-api.md
 ```
@@ -210,7 +213,7 @@ gh pr create -B main -H develop --title "Release <version>" --body "$(cat <<'EOF
 
 Version bump and manifest sync for release <version>.
 
-Publishes to: crates.io, PyPI, npm (@iscc/lib, @iscc/wasm), Maven Central, GitHub Releases (FFI), RubyGems, Go proxy.
+Publishes to: crates.io, PyPI, npm (@iscc/lib, @iscc/wasm), Maven Central, GitHub Releases (FFI), RubyGems, Go proxy, NuGet.
 EOF
 )"
 ```
@@ -348,6 +351,9 @@ curl -sf "https://rubygems.org/api/v1/versions/iscc-lib.json" | grep -q "\"numbe
 
 # GitHub Releases (FFI tarballs)
 gh release view v<version> --json assets --jq '.assets[].name' | grep -q "iscc-ffi" && echo "GitHub Releases (FFI): OK"
+
+# NuGet
+curl -sf "https://api.nuget.org/v3-flatcontainer/iscc.lib/<version>/iscc.lib.nuspec" > /dev/null && echo "NuGet: OK"
 ```
 
 Maven Central and Go proxy indexing can lag. If either shows "NOT FOUND" but the release workflow
@@ -378,6 +384,7 @@ Release <version> complete!
     Go proxy       <version>  OK / pending indexing
     RubyGems       <version>  OK
     GitHub (FFI)   <version>  OK
+    NuGet          <version>  OK
 
   Post-release:
     uv run scripts/test_install.py --version <version>
@@ -404,7 +411,7 @@ individual registries can be re-triggered via `workflow_dispatch`:
 gh workflow run release.yml --ref main -f <registry>=true
 ```
 
-Available registry flags: `rubygems`, `pypi`, `npm`, `maven`, `crates_io`, `ffi`.
+Available registry flags: `rubygems`, `pypi`, `npm`, `maven`, `crates_io`, `ffi`, `nuget`.
 
 **Critical:** Always use `--ref main` (not `--ref v<version>`). The tag ref points to the code at
 the time of tagging — hotfixes pushed to `main` after tagging are not included in the tag. Using
@@ -418,7 +425,7 @@ registries (idempotent). Only the failed registry will actually publish.
 - This skill handles real releases with real side effects. Be careful and precise
 - Never guess registry credentials or authentication — they are configured via GitHub secrets and
     OIDC trusted publishing (PyPI, crates.io, RubyGems use OIDC; npm uses automation tokens; Maven
-    uses GPG + OSSRH credentials)
+    uses GPG + OSSRH credentials; NuGet uses API key via `NUGET_API_KEY` secret)
 - Never modify files outside the release scope without asking. Release scope includes: version bump
     files, formatting/lint fixes from quality gates, and any files the pre-commit hooks auto-fix
 - The `develop` branch is never deleted — it's the long-lived working branch
