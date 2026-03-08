@@ -8,7 +8,9 @@
 `vcpkg.json`, `portfile.cmake`, and `conanfile.py`. All files have valid syntax, correct metadata,
 and accurate target mapping matching the `build-ffi` release workflow. The implementation is
 well-structured and correctly handles platform-specific library naming and Windows DLL conventions.
-This completes the last `normal` priority item in the C++ issue.
+This completes the last `normal` priority item in the C++ issue. The review agent also fixed a
+pre-push failure: `ty check` couldn't resolve `conan` imports in `conanfile.py` — added
+`[tool.ty.src] exclude` in `pyproject.toml` to skip this external tool recipe.
 
 **Verification:**
 
@@ -22,6 +24,7 @@ This completes the last `normal` priority item in the C++ issue.
 - [x] `grep -q 'class IsccConan' packages/cpp/conanfile.py` exits 0
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
 - [x] `mise run check` — all 15 hooks pass
+- [x] `uv run ty check` — passes (after adding `[tool.ty.src] exclude` for conanfile.py)
 
 **Issues found:**
 
@@ -29,6 +32,8 @@ This completes the last `normal` priority item in the C++ issue.
     `normal` priority items
 - Added `low` priority issue for version sync: `vcpkg.json` and `conanfile.py` hardcode `"0.2.0"`
     but `scripts/version_sync.py` doesn't check them
+- Fixed pre-push `ty check` failure by adding `[tool.ty.src] exclude` for `conanfile.py` in
+    `pyproject.toml` — `conan` is not a project dependency and should not be type-checked
 
 **Codex review:** Codex raised three findings — all are valid observations about consumption
 scenarios but do not affect the work package scope (which explicitly excludes registry submission):

@@ -174,6 +174,13 @@ fully-met target sections to `learnings-archive.md`.
     consumers use `#include "iscc.hpp"` with `-I <tarball-dir>`. Document this distinction in
     `docs/howto/c-cpp.md` when updating
 
+## Quality Gates
+
+- **`ty check` and external Python recipes**: adding Python files that import packages not in the
+    project's venv (e.g., `conanfile.py` importing `conan`) will fail the `ty check` pre-push hook.
+    Fix: add `[tool.ty.src] exclude = ["path/to/file.py"]` in `pyproject.toml`. This is appropriate
+    scope exclusion, not gate circumvention
+
 ## CID Process
 
 - **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current

@@ -8,6 +8,10 @@ dependencies = []
 testpaths = ["tests"]
 timeout = 120
 
+[tool.ty.src]
+# Exclude Conan recipe — conan is not a project dependency
+exclude = ["packages/cpp/conanfile.py"]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 15
 

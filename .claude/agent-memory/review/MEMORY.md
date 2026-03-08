@@ -11,6 +11,13 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Java tests: run `mvn test` explicitly. Go tests: `cd packages/go && mise exec -- go test ./...`
 - `check-added-large-files` threshold is `--maxkb=256`
 
+## Pre-push Hook Gotchas
+
+- **`ty check` external Python files**: Python files importing packages not in project venv (e.g.,
+    `conanfile.py` importing `conan`) fail `ty check`. Fix: `[tool.ty.src] exclude` in
+    `pyproject.toml`. This is proper scope exclusion, not gate circumvention. Advance agents should
+    add this when creating Python files with external deps
+
 ## Common Issues
 
 - Go `go get` adds deps as `// indirect` — run `go mod tidy` after
