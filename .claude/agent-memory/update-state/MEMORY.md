@@ -44,6 +44,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **gen_llms_full.py page count**: `grep -c "^\s*\"" scripts/gen_llms_full.py` (ORDERED_PAGES list)
 - **Conan recipe check**:
     `grep -n 'download\|package_type\|cxxflags\|_target_triple' packages/cpp/conanfile.py`
+- **vcpkg SHA512 check**: `grep -n 'SKIP_SHA512\|ISCC_SHA512' packages/cpp/portfile.cmake`
 
 ## Codebase Landmarks
 
@@ -67,9 +68,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `scripts/gen_llms_full.py` — **20 entries** in `ORDERED_PAGES`; `discover_pages()` via `rglob`
     with `as_posix()` (cross-platform); "View as Markdown" 404 RESOLVED (CID cycle 2 iter 3)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
-    Iscc.Lib.csproj, **vcpkg.json** and **conanfile.py** (added CID cycle 2 iter 2); uses
-    `_get_package_json_version/_sync_package_json` for vcpkg.json;
-    `_get_conanfile_version/   _sync_conanfile` (regex on `version = "X.Y.Z"`) for conanfile.py
+    Iscc.Lib.csproj, **vcpkg.json** and **conanfile.py** (added CID cycle 2 iter 2)
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
     MetaTrimMeta, IoReadSize, TextNgramSize)
@@ -89,21 +88,20 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `gh run list` does NOT need `--repo` when running from within the workspace; but `--json` fields
     are needed to avoid GraphQL deprecation error
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
-    missing symbol rather than trusting handoff verdict counts. Handoff claimed "only low issues
-    remain" but issues.md had 4 normal-priority issues — always verify issues.md directly.
+    missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 561e1a1bdc2843a4e2264d0e6f4d26e603d66d51)
+## Current State (assessed-at: 81f4e65f9b291be84b53760209c5182bf02c1eac)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 22819171045)
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22819696003)
 - **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
-- **Conan cxxflags FIXED** (CID cycle 2 iter 2): `cpp_info.cxxflags = ["-std=c++17"]` removed ✅
-- **version_sync.py FIXED** (CID cycle 2 iter 2): now syncs vcpkg.json + conanfile.py ✅
-- **2 normal-priority issues remain** in issues.md:
-    1. `portfile.cmake` uses SKIP_SHA512 (no checksum pinning) [human]
-    2. Language logos missing from README and docs [human]
-- **CI (run 22819171045)**: ALL SUCCESS — 14 jobs ✅
+- **vcpkg SHA512 FIXED** (CID cycle 3 iter 3): `SKIP_SHA512` replaced with per-platform checksums ✅
+- **1 normal-priority issue remains** in issues.md:
+    1. Language logos missing from README and docs [human]
+- **2 low-priority issues** (Swift bindings, Kotlin bindings) — CID loop skips
+- **C++ section** now fully "met" — vcpkg SHA512 was the last gap
+- **CI (run 22819696003)**: ALL SUCCESS — 14 jobs ✅
 
 ## NuGet Pipeline Details (iteration 10)
 

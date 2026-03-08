@@ -1,16 +1,14 @@
-<!-- assessed-at: 561e1a1bdc2843a4e2264d0e6f4d26e603d66d51 -->
+<!-- assessed-at: 81f4e65f9b291be84b53760209c5182bf02c1eac -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: normal-priority issue cleanup (vcpkg SHA512, logos)
+## Phase: normal-priority issue cleanup (logos only)
 
-v0.2.0 released across all 8 registries. Two of the four previous normal-priority issues were
-resolved this iteration: the Conan `cxxflags` MSVC incompatibility was fixed (line removed from
-`conanfile.py`) and `version_sync.py` was extended to sync both `vcpkg.json` and `conanfile.py`. Two
-`normal`-priority issues remain: missing SHA512 checksums in the vcpkg portfile, and language logos
-absent from README/docs.
+v0.2.0 released across all 8 registries. The vcpkg portfile SHA512 issue is now resolved: all 5
+platform checksums have been added to `packages/cpp/portfile.cmake` and `SKIP_SHA512` removed. One
+`normal`-priority issue remains: language logos absent from README/docs.
 
 ## Rust Core Crate
 
@@ -112,7 +110,7 @@ absent from README/docs.
 
 ## C++ Bindings
 
-**Status**: partially met
+**Status**: met
 
 - `packages/cpp/include/iscc/iscc.hpp` — 681-line C++17 header-only wrapper with all 32 Tier 1
     symbols, RAII resource management (`UniqueString`, `UniqueStringArray`, `UniqueByteBuffer`,
@@ -128,12 +126,13 @@ absent from README/docs.
 - `docs/howto/c-cpp.md` — 497 lines with full C++ wrapper section ✅
 - Root `README.md` — C++ install tab + quickstart snippet ✅
 - `packages/cpp/vcpkg.json` — vcpkg manifest (version synced by `version_sync.py`) ✅
-- `packages/cpp/portfile.cmake` — vcpkg portfile (87 lines, maps triplets to GitHub Releases) ✅
+- `packages/cpp/portfile.cmake` — SHA512 checksums present for all 5 platforms; `SKIP_SHA512`
+    removed ✅
 - `packages/cpp/conanfile.py` — Conan 2.x recipe (150 lines); downloads and packages pre-built FFI
-    binaries for all 5 platforms; `cxxflags = ["-std=c++17"]` **removed** (MSVC fix) ✅; version
-    synced by `version_sync.py` ✅
-- **Open issue** (`normal`): `portfile.cmake` uses `SKIP_SHA512` — no checksum pinning; weakens
-    supply-chain integrity for vcpkg consumers
+    binaries for all 5 platforms; `cxxflags = ["-std=c++17"]` removed (MSVC fix) ✅; version synced
+    by `version_sync.py` ✅
+- **Note**: `conanfile.py` does not pin SHA512 checksums for downloads — no issue filed; acceptable
+    for Conan recipes which typically rely on registry integrity
 
 ## Swift Bindings
 
@@ -195,8 +194,8 @@ absent from README/docs.
 
 **Status**: met (for existing bindings)
 
-- **LATEST COMPLETED RUN** — run 22819171045: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22819171045
+- **LATEST COMPLETED RUN** — run 22819696003: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22819696003
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS ✅
 - `release.yml` has 7 registry `workflow_dispatch` inputs including `nuget` ✅
@@ -208,13 +207,11 @@ absent from README/docs.
 
 ## Next Milestone
 
-Two `normal`-priority issues remain. Address them in order of effort (smallest first):
+One `normal`-priority issue remains open:
 
-1. **vcpkg portfile SHA512 pinning** — `packages/cpp/portfile.cmake` uses `SKIP_SHA512`. Compute and
-    store SHA512 checksums for the v0.2.0 release tarballs and pass them to
-    `vcpkg_download_distfile`. Add automation to the release workflow so future versions update the
-    checksums automatically.
+**Language logos in README/docs** — Add programming language logos/icons for all 9+ supported
+languages (Rust, Python, Node.js, WASM, Go, Java, Ruby, C#/.NET, C++) to the README and
+documentation pages. Visual language indicators help users quickly identify binding availability.
 
-2. **Language logos in README/docs** — Add programming language logos/icons for all 9+ supported
-    languages (Rust, Python, Node.js, WASM, Go, Java, Ruby, C#/.NET, C++) to the README and
-    documentation pages.
+After this is addressed, only `low`-priority items remain (Swift/Kotlin bindings), which the CID
+loop skips unless directed by the human. The project will be effectively idle at that point.
