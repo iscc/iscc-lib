@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 namespace Iscc.Lib;
 
 /// <summary>Streaming hasher for generating ISCC Data-Codes incrementally.</summary>
+/// <remarks>This type is not thread-safe. Do not call methods from multiple threads concurrently.</remarks>
 public sealed class IsccDataHasher : IDisposable
 {
     private readonly DataHasherHandle _handle;

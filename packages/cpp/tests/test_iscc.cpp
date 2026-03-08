@@ -10,6 +10,7 @@
 #include <cassert>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
@@ -299,7 +300,7 @@ int main() {
 
     // 28. gen_sum_code_v0 — temp file
     {
-        const char* tmppath = "/tmp/iscc_cpp_test_sum.bin";
+        auto tmppath = (std::filesystem::temp_directory_path() / "iscc_cpp_test_sum.bin").string();
         {
             std::ofstream f(tmppath, std::ios::binary);
             f.write("Hello World", 11);
@@ -309,12 +310,12 @@ int main() {
         assert_true(!r.datahash.empty(), "gen_sum_code_v0 datahash not empty");
         assert_eq(r.filesize, 11, "gen_sum_code_v0 filesize == 11");
         assert_true(r.units.empty(), "gen_sum_code_v0 units empty when disabled");
-        std::remove(tmppath);
+        std::filesystem::remove(tmppath);
     }
 
     // 29. gen_sum_code_v0 — add_units=true
     {
-        const char* tmppath = "/tmp/iscc_cpp_test_sum_units.bin";
+        auto tmppath = (std::filesystem::temp_directory_path() / "iscc_cpp_test_sum_units.bin").string();
         {
             std::ofstream f(tmppath, std::ios::binary);
             f.write("Hello World", 11);
@@ -325,7 +326,7 @@ int main() {
             assert_starts_with(r.units[0], "ISCC:", "gen_sum_code_v0 units[0]");
             assert_starts_with(r.units[1], "ISCC:", "gen_sum_code_v0 units[1]");
         }
-        std::remove(tmppath);
+        std::filesystem::remove(tmppath);
     }
 
     // 30. gen_sum_code_v0 — nonexistent path throws

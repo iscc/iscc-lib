@@ -322,16 +322,21 @@ inline DecodeResult iscc_decode(const std::string& code) {
         detail::check_error();
         throw IsccError("ISCC decode failed");
     }
-    DecodeResult result;
-    result.maintype = dr.maintype;
-    result.subtype = dr.subtype;
-    result.version = dr.version;
-    result.length = dr.length;
-    if (dr.digest.data && dr.digest.len > 0) {
-        result.digest.assign(dr.digest.data, dr.digest.data + dr.digest.len);
+    try {
+        DecodeResult result;
+        result.maintype = dr.maintype;
+        result.subtype = dr.subtype;
+        result.version = dr.version;
+        result.length = dr.length;
+        if (dr.digest.data && dr.digest.len > 0) {
+            result.digest.assign(dr.digest.data, dr.digest.data + dr.digest.len);
+        }
+        iscc_free_decode_result(dr);
+        return result;
+    } catch (...) {
+        iscc_free_decode_result(dr);
+        throw;
     }
-    iscc_free_decode_result(dr);
-    return result;
 }
 
 /// Decompose a composite ISCC-CODE into individual ISCC-UNITs.
@@ -559,17 +564,22 @@ inline SumCodeResult gen_sum_code_v0(const std::string& path, uint32_t bits = 64
         detail::check_error();
         throw IsccError("gen_sum_code_v0 failed");
     }
-    SumCodeResult result;
-    result.iscc = sr.iscc ? std::string(sr.iscc) : std::string();
-    result.datahash = sr.datahash ? std::string(sr.datahash) : std::string();
-    result.filesize = sr.filesize;
-    if (sr.units) {
-        for (char** p = sr.units; *p != nullptr; ++p) {
-            result.units.emplace_back(*p);
+    try {
+        SumCodeResult result;
+        result.iscc = sr.iscc ? std::string(sr.iscc) : std::string();
+        result.datahash = sr.datahash ? std::string(sr.datahash) : std::string();
+        result.filesize = sr.filesize;
+        if (sr.units) {
+            for (char** p = sr.units; *p != nullptr; ++p) {
+                result.units.emplace_back(*p);
+            }
         }
+        iscc_free_sum_code_result(sr);
+        return result;
+    } catch (...) {
+        iscc_free_sum_code_result(sr);
+        throw;
     }
-    iscc_free_sum_code_result(sr);
-    return result;
 }
 
 // ---------------------------------------------------------------------------
