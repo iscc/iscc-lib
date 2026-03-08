@@ -49,7 +49,7 @@ public class ConformanceTests
 
     [Theory]
     [MemberData(nameof(MetaCodeVectors))]
-    public void GenMetaCodeV0(string vectorName, JsonElement tc)
+    public void GenMetaCodeV0(string _, JsonElement tc)
     {
         JsonElement inputs = tc.GetProperty("inputs");
         JsonElement outputs = tc.GetProperty("outputs");
@@ -75,7 +75,7 @@ public class ConformanceTests
 
     [Theory]
     [MemberData(nameof(TextCodeVectors))]
-    public void GenTextCodeV0(string vectorName, JsonElement tc)
+    public void GenTextCodeV0(string _, JsonElement tc)
     {
         JsonElement inputs = tc.GetProperty("inputs");
         JsonElement outputs = tc.GetProperty("outputs");
@@ -98,7 +98,7 @@ public class ConformanceTests
 
     [Theory]
     [MemberData(nameof(ImageCodeVectors))]
-    public void GenImageCodeV0(string vectorName, JsonElement tc)
+    public void GenImageCodeV0(string _, JsonElement tc)
     {
         JsonElement inputs = tc.GetProperty("inputs");
         JsonElement outputs = tc.GetProperty("outputs");
@@ -124,7 +124,7 @@ public class ConformanceTests
 
     [Theory]
     [MemberData(nameof(AudioCodeVectors))]
-    public void GenAudioCodeV0(string vectorName, JsonElement tc)
+    public void GenAudioCodeV0(string _, JsonElement tc)
     {
         JsonElement inputs = tc.GetProperty("inputs");
         JsonElement outputs = tc.GetProperty("outputs");
@@ -150,7 +150,7 @@ public class ConformanceTests
 
     [Theory]
     [MemberData(nameof(VideoCodeVectors))]
-    public void GenVideoCodeV0(string vectorName, JsonElement tc)
+    public void GenVideoCodeV0(string _, JsonElement tc)
     {
         JsonElement inputs = tc.GetProperty("inputs");
         JsonElement outputs = tc.GetProperty("outputs");
@@ -181,7 +181,7 @@ public class ConformanceTests
 
     [Theory]
     [MemberData(nameof(MixedCodeVectors))]
-    public void GenMixedCodeV0(string vectorName, JsonElement tc)
+    public void GenMixedCodeV0(string _, JsonElement tc)
     {
         JsonElement inputs = tc.GetProperty("inputs");
         JsonElement outputs = tc.GetProperty("outputs");
@@ -207,7 +207,7 @@ public class ConformanceTests
 
     [Theory]
     [MemberData(nameof(DataCodeVectors))]
-    public void GenDataCodeV0(string vectorName, JsonElement tc)
+    public void GenDataCodeV0(string _, JsonElement tc)
     {
         JsonElement inputs = tc.GetProperty("inputs");
         JsonElement outputs = tc.GetProperty("outputs");
@@ -230,7 +230,7 @@ public class ConformanceTests
 
     [Theory]
     [MemberData(nameof(InstanceCodeVectors))]
-    public void GenInstanceCodeV0(string vectorName, JsonElement tc)
+    public void GenInstanceCodeV0(string _, JsonElement tc)
     {
         JsonElement inputs = tc.GetProperty("inputs");
         JsonElement outputs = tc.GetProperty("outputs");
@@ -253,7 +253,7 @@ public class ConformanceTests
 
     [Theory]
     [MemberData(nameof(IsccCodeVectors))]
-    public void GenIsccCodeV0(string vectorName, JsonElement tc)
+    public void GenIsccCodeV0(string _, JsonElement tc)
     {
         JsonElement inputs = tc.GetProperty("inputs");
         JsonElement outputs = tc.GetProperty("outputs");
