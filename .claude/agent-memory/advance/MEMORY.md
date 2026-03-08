@@ -174,6 +174,9 @@ iterations.
 - Build: `cmake -B build -DFFI_LIB_DIR=../../target/debug && cmake --build build`
 - Run: `LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc`
 - cmake + g++ NOT pre-installed in devcontainer — `sudo apt-get install cmake g++`
+- Package manager manifests: `vcpkg.json` + `portfile.cmake` + `conanfile.py` in `packages/cpp/`
+- vcpkg portfile downloads pre-built FFI tarballs from GitHub Releases (5 targets, `SKIP_SHA512`)
+- Conan recipe: `package_type = "shared-library"`, CMakeToolchain/CMakeDeps, C++17 validation
 
 ## Gotchas
 
