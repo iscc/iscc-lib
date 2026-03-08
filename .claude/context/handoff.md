@@ -1,47 +1,32 @@
-## 2026-03-08 — Review of: Fix Conan recipe to package pre-built FFI shared library
+## 2026-03-08 — Fix Conan cxxflags and add vcpkg/conan to version sync
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Removed the MSVC-incompatible `cxxflags = ["-std=c++17"]` line (and its comment) from
+`packages/cpp/conanfile.py`. Added `packages/cpp/vcpkg.json` and `packages/cpp/conanfile.py` as
+version sync targets in `scripts/version_sync.py`, including new `_get_conanfile_version` /
+`_sync_conanfile` functions and an updated module docstring.
 
-**Summary:** The advance agent correctly rewrote `packages/cpp/conanfile.py` from a broken
-CMake-based recipe (that never packaged any library) to a pre-built binary recipe that downloads
-platform-specific FFI tarballs from GitHub Releases. The 5-platform mapping mirrors the vcpkg
-portfile exactly. All verification criteria pass and quality gates are clean.
+**Files changed:**
+
+- `packages/cpp/conanfile.py`: Removed lines 163-164 (`# Require C++17` comment and `cxxflags`
+    assignment) from `package_info()`
+- `scripts/version_sync.py`: Added 2 new sync targets to TARGETS list (vcpkg.json reuses existing
+    `_get_package_json_version`/`_sync_package_json`; conanfile.py gets new
+    `_get_conanfile_version`/`_sync_conanfile` pair). Updated module docstring to list both new
+    targets
 
 **Verification:**
 
-- [x] Python syntax validation — `ast.parse()` exits 0
-- [x] `grep -q 'download'` — recipe uses `conan.tools.files.download`
-- [x] `grep -q 'x86_64-unknown-linux-gnu'` — Linux x86_64 mapping present
-- [x] `grep -q 'aarch64-apple-darwin'` — macOS ARM mapping present
-- [x] `grep -q 'x86_64-pc-windows-msvc'` — Windows mapping present
-- [x] No `exports_sources` — confirmed absent (grep returns 0 matches)
-- [x] `grep -q 'iscc_ffi'` — lib declaration present
-- [x] `grep -q 'package_type.*shared-library'` — type preserved
-- [x] `mise run check` — all 15 hooks passed
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- `ast.parse()` exits 0 — valid Python syntax in conanfile.py
+- `grep cxxflags` returns no matches — cxxflags line removed
+- `grep vcpkg.json` and `grep conanfile.py` both match in version_sync.py — targets added
+- `uv run python scripts/version_sync.py --check` exits 0 — all 13 targets (including 2 new) in sync
+    at 0.2.0
+- `mise run check` — all 15 hooks passed
 
-**Issues found:**
+**Next:** Only low-priority issues remain (vcpkg portfile SHA512 checksums, language logos in
+README/docs). CID should signal idle unless these are promoted.
 
-- Minor: `cxxflags = ["-std=c++17"]` is a GCC/Clang flag — invalid for MSVC consumers on Windows.
-    Added as `low` priority issue (consumer workaround: set `CMAKE_CXX_STANDARD 17` in their
-    project)
-- Resolved: "Fix Conan recipe: shared-library contract without actual library" — deleted from
-    issues.md
-
-**Codex review:** Codex flagged two P1 concerns: (1) MinGW/clang Windows profiles receive MSVC
-binaries without validation, (2) `-std=c++17` is invalid for MSVC. Both are technically valid but
-assessed as non-blocking: the recipe went from completely non-functional to correctly packaging
-libraries for all 5 supported platforms. The MinGW concern is theoretical — only MSVC binaries are
-published. The cxxflags concern is real but low-impact (most consumers use CMake's
-`CMAKE_CXX_STANDARD` property). Filed as `low` issue for future improvement.
-
-**Next:** Only `low` priority issues remain in issues.md. CID should signal idle.
-
-**IDLE**: All remaining issues are low priority — no actionable work for CID.
-
-**Notes:**
-
-- No Conan CI exists — recipe correctness is validated via syntax checks and structural greps
-- The `aarch64` alias for `armv8` is a nice touch — handles both Conan conventions
-- Windows DLL/import lib handling follows correct Conan conventions (DLLs in `bin/`, import libs in
-    `lib/`)
+**Notes:** The vcpkg.json target reuses the existing
+`_get_package_json_version`/`_sync_package_json` functions directly — no new code needed since the
+JSON structure is identical to `package.json`. The conanfile regex intentionally omits the `^`
+anchor since `version = "..."` is an indented class attribute, not a top-level assignment.

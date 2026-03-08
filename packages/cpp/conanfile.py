@@ -160,5 +160,3 @@ class IsccConan(ConanFile):
         self.cpp_info.set_property("cmake_target_name", "iscc::iscc")
         self.cpp_info.set_property("cmake_find_mode", "config")
         self.cpp_info.set_property("pkg_config_name", "iscc")
-        # Require C++17
-        self.cpp_info.cxxflags = ["-std=c++17"]
