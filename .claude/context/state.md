@@ -1,16 +1,16 @@
-<!-- assessed-at: 6ee0ab1b1cb513df173c5f5a8d62430fa3bba7bc -->
+<!-- assessed-at: 5b877fa472e92ffb8af8cfb25f1b753fb501e832 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: C++ bindings — documentation complete; package manager manifests and test gaps pending
+## Phase: C++ bindings — package manager manifests pending
 
 v0.2.0 released across all 8 registries. C# / .NET bindings are complete. The C++17 header-only
-wrapper (`iscc.hpp`) has 32 symbols, RAII guards, 52 passing tests, CI job, and FFI tarball
-bundling. In iteration 14 all documentation gaps were closed: `packages/cpp/README.md`,
-`docs/howto/c-cpp.md` iscc.hpp section, and root README C++ install/quickstart tab. Remaining C++
-gaps: package manager manifests (vcpkg, Conan) and `gen_mixed_code_v0` test.
+wrapper (`iscc.hpp`) has 32 symbols, RAII guards, 53 passing tests (including `gen_mixed_code_v0`),
+ASAN clean, CI job, and FFI tarball bundling. Iteration 15 resolved nested vector null-safety and
+added the `gen_mixed_code_v0` test. Remaining C++ gap: package manager manifests (`vcpkg.json`,
+`portfile.cmake`, `conanfile.py`).
 
 ## Rust Core Crate
 
@@ -49,7 +49,7 @@ gaps: package manager manifests (vcpkg, Conan) and `gen_mixed_code_v0` test.
 - `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance
 - `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20`
 - `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported
-- WASM CI job = SUCCESS in run 22808974429
+- WASM CI job = SUCCESS in run 22809816121
 
 ## C FFI
 
@@ -99,7 +99,7 @@ gaps: package manager manifests (vcpkg, Conan) and `gen_mixed_code_v0` test.
 - `IsccDataHasher.Finalize()` → `DataCodeResult`; `IsccInstanceHasher.Finalize()` →
     `InstanceCodeResult` ✅
 - 41 xUnit `[Fact]` smoke tests + 9 `[Theory]` conformance methods (50 vectors) = 91 total ✅
-- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22808974429
+- CI job `C# / .NET (dotnet build, test)` — SUCCESS in run 22809816121
 - `pack-nuget` + `test-nuget` + `publish-nuget` pipeline in `release.yml` ✅
 - `docs/howto/dotnet.md` — 417 lines; `packages/dotnet/README.md` — 82 lines ✅
 - **Known limitation**: `MetaCodeResult`, `TextCodeResult`, `InstanceCodeResult` carry only
@@ -113,19 +113,20 @@ gaps: package manager manifests (vcpkg, Conan) and `gen_mixed_code_v0` test.
     symbols, RAII resource management (`UniqueString`, `UniqueStringArray`, `UniqueByteBuffer`,
     `UniqueByteBufferArray`), `IsccError` exception class, full namespace `iscc` ✅
 - `packages/cpp/CMakeLists.txt` — CMake config ✅
-- `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — 52 passing tests, ASAN clean ✅
+- `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — **53 passing tests**, ASAN clean ✅
+    (iteration 15: added `gen_mixed_code_v0` test; all 10 gen functions now covered)
+- `safe_data` int32_t overload added; inner loops in `alg_simhash`, `soft_hash_video_v0`,
+    `gen_video_code_v0` now use `detail::safe_data()` for nested vector null-safety ✅
 - `conformance_selftest()` passes; `gen_meta_code_v0` exact match verified ✅
-- CI job `C++ (cmake, ASAN, test)` — SUCCESS in run 22808974429 ✅
+- CI job `C++ (cmake, ASAN, test)` — SUCCESS in run 22809816121 ✅
 - `iscc.hpp` bundled in FFI release tarballs (Unix `cp` + Windows `Copy-Item`) ✅
 - `packages/cpp/README.md` — 105 lines with install, quickstart, API overview, links ✅
-- `docs/howto/c-cpp.md` — 497 lines; iscc.hpp section added at line 328 covering include paths,
-    quick start, gen functions, streaming, error handling, codec, conformance ✅
-- Root `README.md` — C++ install tab (line 127) + quickstart snippet (line 216) ✅
-- **Missing**: `packages/cpp/vcpkg.json`, `portfile.cmake`, `conanfile.py`, `iscc-config.cmake.in`,
-    `pkg-config/iscc.pc.in` — no package manager manifests ❌
-- **Missing**: `gen_mixed_code_v0` has no test coverage in `test_iscc.cpp` ❌
-- **Known edge case**: nested vector `safe_data()` not applied for inner elements in `alg_simhash`,
-    `soft_hash_video_v0`, `gen_video_code_v0` — not blocking but should be hardened
+- `docs/howto/c-cpp.md` — 497 lines; full C++ wrapper section ✅
+- Root `README.md` — C++ install tab + quickstart snippet ✅
+- **Missing**: `packages/cpp/vcpkg.json`, `portfile.cmake` — vcpkg port manifest ❌
+- **Missing**: `packages/cpp/conanfile.py` — Conan recipe ❌
+- **Missing**: `packages/cpp/iscc-config.cmake.in` — CMake find_package config template (per spec
+    but scoped out of issues.md) ❌
 
 ## Swift Bindings
 
@@ -169,9 +170,7 @@ gaps: package manager manifests (vcpkg, Conan) and `gen_mixed_code_v0` test.
 - 17+ pages deployed to lib.iscc.codes; all navigation sections complete
 - 9 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
     ruby.md, dotnet.md ✅
-- `docs/howto/c-cpp.md` — 497 lines; includes full C++ wrapper section with both include conventions
-    (tarball flat `#include "iscc.hpp"` vs CMake/vcpkg `<iscc/iscc.hpp>`), gen functions, streaming
-    RAII, error handling, codec utilities ✅
+- `docs/howto/c-cpp.md` — 497 lines; includes full C++ wrapper section ✅
 - `zensical.toml` "C / C++" nav entry present ✅
 - **Gap**: Swift, Kotlin how-to guides (all `low` priority; none started)
 
@@ -181,14 +180,14 @@ gaps: package manager manifests (vcpkg, Conan) and `gen_mixed_code_v0` test.
 
 - Criterion benchmarks for all 10 `gen_*_v0` functions
 - `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks
-- `Bench (compile check)` CI job SUCCESS in run 22808974429
+- `Bench (compile check)` CI job SUCCESS in run 22809816121
 
 ## CI/CD and Publishing
 
 **Status**: met (for existing bindings)
 
-- **ALL PASSING** — latest CI run 22808974429: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22808974429
+- **ALL PASSING** — latest CI run 22809816121: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22809816121
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS
 - `release.yml` has **7 registry** `workflow_dispatch` inputs including `nuget` ✅
@@ -200,15 +199,12 @@ gaps: package manager manifests (vcpkg, Conan) and `gen_mixed_code_v0` test.
 
 ## Next Milestone
 
-**Complete remaining C++ issue items** — still `normal` priority in issues.md. Documentation gaps
-are now closed. Remaining implementation tasks:
+**Complete remaining C++ issue items** — still `normal` priority in issues.md. All other C++ work is
+done (tests 53/53, ASAN clean, docs, CI). Remaining tasks:
 
-1. **`gen_mixed_code_v0` test**: Add missing test in `packages/cpp/tests/test_iscc.cpp` — currently
-    the only gen function without test coverage in the C++ test suite
-2. **Package manager manifests**: `packages/cpp/vcpkg.json` + `portfile.cmake` (vcpkg port),
-    `conanfile.py` (Conan recipe), `iscc-config.cmake.in` (CMake find-package support),
-    `pkg-config/iscc.pc.in`
-3. **Nested vector null safety**: Harden `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0` in
-    `iscc.hpp` to apply `safe_data()` on inner vector elements (edge case, not blocking)
-4. After all C++ items done: only `low`-priority issues remain (Swift, Kotlin, logos) — these are
-    CID-loop-skipped until explicitly promoted
+1. **`vcpkg.json` + `portfile.cmake`**: vcpkg port manifest for `vcpkg install iscc`
+2. **`conanfile.py`**: Conan recipe for ConanCenter distribution
+
+After these two items, only `low`-priority issues remain (Swift, Kotlin, logos) — the CID loop skips
+these until explicitly promoted. The project effectively reaches the `normal`-priority target
+completion state at that point.
