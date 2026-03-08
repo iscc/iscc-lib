@@ -21,7 +21,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 ## Common Issues
 
 - Go `go get` adds deps as `// indirect` — run `go mod tidy` after
-- Verification grep patterns may false-positive — verify match specificity
+- Verification grep patterns may false-positive — verify match specificity. `grep -qv 'pattern'` is
+    always true for multi-line files (matches ANY line not containing pattern) — use
+    `! grep -q 'pattern'` to verify absence
 - next.md test specs may have wrong expected values — verify against Rust implementation
 - Advance agent test counts often inaccurate — always run tests to verify
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix — cross-check doc examples
@@ -54,6 +56,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go codec Codex findings: dismiss — Go mirrors Rust reference faithfully
 - Codex `.NET version` findings: `dotnet-version: '8.0'` is valid for `actions/setup-dotnet@v4` —
     resolves to latest 8.0.x SDK. Dismiss "use `8.0.x`" suggestions
+- Codex Conan recipe findings: MinGW ABI and MSVC cxxflags concerns are valid but non-blocking when
+    recipe went from completely broken to functional. Assess severity relative to baseline
 
 ## Feature Flag Review
 
@@ -101,9 +105,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - C++ docs complete: `packages/cpp/README.md`, howto section, root README tabs
 - C++ test suite: 54 tests (35 numbered blocks). All gen functions covered including mixed + empty
     audio
-- C++ issue fully resolved (iteration 15): vcpkg.json + portfile.cmake + conanfile.py created. Codex
-    notes about Conan recipe incompleteness (missing tests/, FFI lib, LICENSE) are valid for
-    registry submission but out-of-scope for templates
+- C++ package managers: vcpkg.json + portfile.cmake + conanfile.py in `packages/cpp/`. Conan recipe
+    rewritten (iteration 3/phase 2) to download pre-built FFI tarballs — mirrors portfile.cmake
+    platform mapping. Known: cxxflags `-std=c++17` invalid for MSVC (low priority)
 - **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`,
     NOT `cmake -B build -S tests` (tests CMakeLists.txt lacks project() and include paths)
 - **Config-only review shortcut**: for pure manifest/config files (JSON, CMake, Python recipes),

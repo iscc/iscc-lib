@@ -70,14 +70,12 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
     install/quickstart
 
-## Fix Conan recipe: shared-library contract without actual library `normal` [human]
+## Conan recipe cxxflags invalid for MSVC consumers `low` [review]
 
-`packages/cpp/conanfile.py` declares `package_type = "shared-library"` and
-`self.cpp_info.libs = ["iscc_ffi"]`, but `package()` only copies headers and LICENSE — it never
-packages the native `iscc_ffi` binary or `iscc.h` from the FFI tree. Consumers get a package that
-cannot link. Fix by either packaging the pre-built `iscc_ffi` binaries plus
-`crates/iscc-ffi/include/iscc.h`, or reclassifying as `header-library` and removing the `libs`
-contract. See `packages/cpp/conanfile.py:21` and `packages/cpp/conanfile.py:43`.
+`packages/cpp/conanfile.py` sets `cpp_info.cxxflags = ["-std=c++17"]` unconditionally, but
+`-std=c++17` is a GCC/Clang flag — MSVC uses `/std:c++17`. Since `compiler` is not in `settings`
+(correct for pre-built binaries), the recipe can't differentiate. Options: remove the `cxxflags`
+entirely and document C++17 as a requirement, or use CMake's `CMAKE_CXX_STANDARD` property instead.
 
 ## vcpkg portfile skips SHA512 verification `low` [human]
 
