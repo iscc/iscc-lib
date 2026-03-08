@@ -1,15 +1,15 @@
-<!-- assessed-at: 3205ef5d39280a59ecdc9ecea768365f81ac5b86 -->
+<!-- assessed-at: 262e8d6e67cf8f9fbbc59c622b6fb5201bc6d421 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: normal-priority bug fixes (Conan recipe, docs)
+## Phase: normal-priority bug fix (Conan recipe)
 
-v0.2.0 released across all 8 registries. The stale .NET docs issue (NuGet unavailability claim) was
-resolved in this iteration — `docs/howto/dotnet.md` now correctly describes the package as
-installable from NuGet. Two `normal`-priority issues remain: a broken Conan recipe and a broken
-"View as Markdown" feature on the docs site.
+v0.2.0 released across all 8 registries. The "View as Markdown" 404 issue was resolved this
+iteration — `scripts/gen_llms_full.py` now lists all 20 doc pages in `ORDERED_PAGES` and uses
+auto-discovery (`rglob`) with cross-platform `as_posix()` path handling. One `normal`-priority issue
+remains: the broken Conan recipe. All other open issues are `low` priority.
 
 ## Rust Core Crate
 
@@ -133,7 +133,6 @@ installable from NuGet. Two `normal`-priority issues remain: a broken Conan reci
     `self.cpp_info.libs = ["iscc_ffi"]`, but `package()` only copies headers — never packages the
     native `iscc_ffi` binary. Consumers cannot link. Needs fix.
 - **Open issue** (`low`): `portfile.cmake` uses `SKIP_SHA512` — no checksum pinning
-- **Missing**: `packages/cpp/iscc-config.cmake.in` (CMake find_package template — scoped out)
 
 ## Swift Bindings
 
@@ -172,15 +171,14 @@ installable from NuGet. Two `normal`-priority issues remain: a broken Conan reci
 
 ## Documentation
 
-**Status**: partially met
+**Status**: met
 
-- 17+ pages deployed to lib.iscc.codes; all navigation sections complete
+- 20 pages deployed to lib.iscc.codes; all navigation sections complete
 - 9 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
     ruby.md, dotnet.md ✅
-- `docs/howto/dotnet.md` — stale NuGet unavailability note removed; build-from-source section is now
-    a collapsible tip (`??? tip`) ✅
-- **Open issue** (`normal`): "View as Markdown" / "Copy Page" button on docs site returns 404 —
-    needs Zensical fix (see `iscc-usearch` implementation)
+- `scripts/gen_llms_full.py` — `ORDERED_PAGES` updated to 20 entries (all pages); `discover_pages()`
+    auto-discovery via `rglob("*.md")` with `as_posix()` (cross-platform) ✅
+- "View as Markdown" / "Copy Page" 404 issue — **RESOLVED** (iteration 3, CID cycle 2) ✅
 - **Gap**: Swift, Kotlin how-to guides (all `low` priority; none started)
 
 ## Benchmarks
@@ -195,8 +193,8 @@ installable from NuGet. Two `normal`-priority issues remain: a broken Conan reci
 
 **Status**: met (for existing bindings)
 
-- **LATEST COMPLETED RUN** — run 22817198364: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22817198364
+- **LATEST COMPLETED RUN** — run 22817778599: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22817778599
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS ✅
 - `release.yml` has 7 registry `workflow_dispatch` inputs including `nuget` ✅
@@ -208,12 +206,11 @@ installable from NuGet. Two `normal`-priority issues remain: a broken Conan reci
 
 ## Next Milestone
 
-Two `normal`-priority issues remain open. Fix in order of impact:
+One `normal`-priority issue remains. After it, only `low`-priority issues remain and the CID loop
+should signal idle.
 
-1. **Docs "View as Markdown" 404** — clicking "View as Markdown" on lib.iscc.codes navigates to a
-    404\. Investigate how `iscc/iscc-usearch` solves this; apply the same Zensical fix.
-2. **Conan recipe contract** — `conanfile.py` declares `shared-library` but `package()` never copies
-    the `iscc_ffi` binary. Fix: package pre-built binary or reclassify as `header-library`.
-
-After these two, only `low`-priority issues remain (vcpkg SHA512, version sync, Swift, Kotlin,
-logos) — the CID loop skips `low` by default.
+1. **Conan recipe contract** — `conanfile.py` declares `package_type = "shared-library"` and
+    `self.cpp_info.libs = ["iscc_ffi"]`, but `package()` only copies headers and LICENSE — it never
+    packages the native `iscc_ffi` binary or `iscc.h`. Consumers get a package that cannot link.
+    Fix: either package the pre-built `iscc_ffi` binaries plus `crates/iscc-ffi/include/iscc.h`, or
+    reclassify as `header-library` and remove the `libs` contract.

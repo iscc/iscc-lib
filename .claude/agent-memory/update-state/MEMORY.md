@@ -41,6 +41,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **C++ hpp symbol check**:
     `grep -n "^inline\|^struct\|^class\|// ---" packages/cpp/include/iscc/iscc.hpp`
 - **C++ iscc.hpp in release.yml**: `grep -n 'iscc.hpp' .github/workflows/release.yml`
+- **gen_llms_full.py page count**: `grep -c "^\s*\"" scripts/gen_llms_full.py` (ORDERED_PAGES list)
 
 ## Codebase Landmarks
 
@@ -61,8 +62,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `docs/howto/` — **9 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     ruby.md (422 lines), **dotnet.md** (417 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c`
     - `CMakeLists.txt` ✅
+- `scripts/gen_llms_full.py` — **20 entries** in `ORDERED_PAGES`; `discover_pages()` via `rglob`
+    with `as_posix()` (cross-platform); "View as Markdown" 404 RESOLVED (CID cycle 2 iter 3)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
-    **Iscc.Lib.csproj** (added in iteration 9)
+    **Iscc.Lib.csproj** (added in iteration 9); does NOT yet sync vcpkg.json/conanfile.py (`low`)
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
     MetaTrimMeta, IoReadSize, TextNgramSize)
@@ -86,14 +89,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 3205ef5d39280a59ecdc9ecea768365f81ac5b86)
+## Current State (assessed-at: 262e8d6e67cf8f9fbbc59c622b6fb5201bc6d421)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 22817198364); **C++ wrapper PARTIALLY DONE**
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22817778599); **C++ wrapper PARTIALLY DONE**
 - **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
-- **dotnet.md stale text fixed (iteration 2 CID cycle 2)**: "NuGet publishing is not yet available"
-    removed; build-from-source section now a collapsible `??? tip` admonition ✅
-- **2 normal-priority issues remain**: Conan recipe, docs "View as Markdown" 404
-- **CI (run 22817198364)**: ALL SUCCESS — 14 jobs ✅
+- **View as Markdown RESOLVED (CID cycle 2, iter 3)**: gen_llms_full.py updated to 20 pages ✅
+- **1 normal-priority issue remains**: Conan recipe (shared-library without actual library binary)
+- **CI (run 22817778599)**: ALL SUCCESS — 14 jobs ✅
 
 ## NuGet Pipeline Details (iteration 10)
 
