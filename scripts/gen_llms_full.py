@@ -67,7 +67,7 @@ def discover_pages():
         # Skip files in excluded directories (e.g., includes/)
         if rel.parts[0] in EXCLUDE_DIRS:
             continue
-        pages.add(str(rel))
+        pages.add(rel.as_posix())
     return pages
 
 
