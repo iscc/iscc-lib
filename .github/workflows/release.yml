@@ -915,7 +915,7 @@ jobs:
           dotnet new console -o smoke
           cd smoke
           dotnet nuget add source "$PWD/../nupkg" -n local
-          dotnet add package Iscc.Lib --source local
+          dotnet add package Iscc.Lib
           cat > Program.cs << 'EOF'
           using Iscc.Lib;
           if (!IsccLib.ConformanceSelftest())
@@ -930,7 +930,7 @@ jobs:
           dotnet new console -o smoke
           cd smoke
           dotnet nuget add source "$PWD\..\nupkg" -n local
-          dotnet add package Iscc.Lib --source local
+          dotnet add package Iscc.Lib
           @"
           using Iscc.Lib;
           if (!IsccLib.ConformanceSelftest())
