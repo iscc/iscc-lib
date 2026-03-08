@@ -1,16 +1,16 @@
-<!-- assessed-at: 5aff4b1e5d45e134f354e1b032278a4c76ff9906 -->
+<!-- assessed-at: 561e1a1bdc2843a4e2264d0e6f4d26e603d66d51 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: normal-priority issue cleanup (Conan cxxflags, vcpkg SHA512, version sync, logos)
+## Phase: normal-priority issue cleanup (vcpkg SHA512, logos)
 
-v0.2.0 released across all 8 registries. The broken Conan recipe was fixed this iteration —
-`packages/cpp/conanfile.py` now downloads and packages pre-built FFI binaries for all 5 supported
-platforms. Four `normal`-priority issues remain: MSVC-incompatible cxxflags in the Conan recipe,
-missing version sync for vcpkg/conan manifests, missing SHA512 checksums in the vcpkg portfile, and
-language logos absent from README/docs.
+v0.2.0 released across all 8 registries. Two of the four previous normal-priority issues were
+resolved this iteration: the Conan `cxxflags` MSVC incompatibility was fixed (line removed from
+`conanfile.py`) and `version_sync.py` was extended to sync both `vcpkg.json` and `conanfile.py`. Two
+`normal`-priority issues remain: missing SHA512 checksums in the vcpkg portfile, and language logos
+absent from README/docs.
 
 ## Rust Core Crate
 
@@ -127,18 +127,13 @@ language logos absent from README/docs.
 - `packages/cpp/README.md` — 105 lines ✅
 - `docs/howto/c-cpp.md` — 497 lines with full C++ wrapper section ✅
 - Root `README.md` — C++ install tab + quickstart snippet ✅
-- `packages/cpp/vcpkg.json` — vcpkg manifest ✅
+- `packages/cpp/vcpkg.json` — vcpkg manifest (version synced by `version_sync.py`) ✅
 - `packages/cpp/portfile.cmake` — vcpkg portfile (87 lines, maps triplets to GitHub Releases) ✅
-- `packages/cpp/conanfile.py` — Conan 2.x recipe (152 lines); **downloads and packages pre-built FFI
-    binaries** for all 5 platforms via GitHub Releases ✅ (broken packaging FIXED)
-- **Open issue** (`normal`): `conanfile.py` sets `cpp_info.cxxflags = ["-std=c++17"]`
-    unconditionally — this is a GCC/Clang flag and invalid for MSVC consumers. Options: remove the
-    flag entirely (C++17 is documented as a requirement, not enforced by the recipe) or
-    conditionalize on compiler detection.
+- `packages/cpp/conanfile.py` — Conan 2.x recipe (150 lines); downloads and packages pre-built FFI
+    binaries for all 5 platforms; `cxxflags = ["-std=c++17"]` **removed** (MSVC fix) ✅; version
+    synced by `version_sync.py` ✅
 - **Open issue** (`normal`): `portfile.cmake` uses `SKIP_SHA512` — no checksum pinning; weakens
     supply-chain integrity for vcpkg consumers
-- **Open issue** (`normal`): `scripts/version_sync.py` does not sync `packages/cpp/vcpkg.json` or
-    `packages/cpp/conanfile.py` — both will go stale on next version bump
 
 ## Swift Bindings
 
@@ -163,7 +158,7 @@ language logos absent from README/docs.
 - All 10 `gen_*_v0` functions listed; per-language install + quick-start examples
 - Ruby + C# / .NET + C++ install + quickstart present ✅
 - **Open issue** (`normal`): Language logos/icons missing from README and docs for all supported
-    languages — filed as `normal` priority (previously `low`)
+    languages — filed as `normal` priority
 - **Gap** (`low`): Missing Swift, Kotlin install + quickstart sections
 
 ## Per-Crate READMEs
@@ -200,8 +195,8 @@ language logos absent from README/docs.
 
 **Status**: met (for existing bindings)
 
-- **LATEST COMPLETED RUN** — run 22818410289: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22818410289
+- **LATEST COMPLETED RUN** — run 22819171045: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22819171045
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS ✅
 - `release.yml` has 7 registry `workflow_dispatch` inputs including `nuget` ✅
@@ -213,22 +208,13 @@ language logos absent from README/docs.
 
 ## Next Milestone
 
-Four `normal`-priority issues remain. Address them in order of effort (smallest first):
+Two `normal`-priority issues remain. Address them in order of effort (smallest first):
 
-1. **Conan cxxflags MSVC incompatibility** — `packages/cpp/conanfile.py` sets
-    `cpp_info.cxxflags = ["-std=c++17"]` unconditionally. Remove the `cxxflags` line entirely
-    (C++17 is a documented requirement; consumers set `CMAKE_CXX_STANDARD 17` in their CMake
-    project). This is a one-line fix.
-
-2. **Version sync for vcpkg/conan** — `scripts/version_sync.py` does not update
-    `packages/cpp/vcpkg.json` or `packages/cpp/conanfile.py` on version bumps. Add both files to
-    the sync targets so they stay consistent with root `Cargo.toml`.
-
-3. **vcpkg portfile SHA512 pinning** — `packages/cpp/portfile.cmake` uses `SKIP_SHA512`. Compute and
+1. **vcpkg portfile SHA512 pinning** — `packages/cpp/portfile.cmake` uses `SKIP_SHA512`. Compute and
     store SHA512 checksums for the v0.2.0 release tarballs and pass them to
     `vcpkg_download_distfile`. Add automation to the release workflow so future versions update the
-    checksums.
+    checksums automatically.
 
-4. **Language logos in README/docs** — Add programming language logos/icons for all 9+ supported
+2. **Language logos in README/docs** — Add programming language logos/icons for all 9+ supported
     languages (Rust, Python, Node.js, WASM, Go, Java, Ruby, C#/.NET, C++) to the README and
     documentation pages.

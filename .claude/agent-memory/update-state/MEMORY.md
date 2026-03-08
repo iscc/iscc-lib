@@ -67,8 +67,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `scripts/gen_llms_full.py` — **20 entries** in `ORDERED_PAGES`; `discover_pages()` via `rglob`
     with `as_posix()` (cross-platform); "View as Markdown" 404 RESOLVED (CID cycle 2 iter 3)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
-    **Iscc.Lib.csproj** (added in iteration 9); does NOT yet sync vcpkg.json/conanfile.py (`normal`
-    issue)
+    Iscc.Lib.csproj, **vcpkg.json** and **conanfile.py** (added CID cycle 2 iter 2); uses
+    `_get_package_json_version/_sync_package_json` for vcpkg.json;
+    `_get_conanfile_version/   _sync_conanfile` (regex on `version = "X.Y.Z"`) for conanfile.py
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
     MetaTrimMeta, IoReadSize, TextNgramSize)
@@ -93,17 +94,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 5aff4b1e5d45e134f354e1b032278a4c76ff9906)
+## Current State (assessed-at: 561e1a1bdc2843a4e2264d0e6f4d26e603d66d51)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 22818410289)
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22819171045)
 - **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
-- **Conan recipe FIXED (CID cycle 2, iter 1)**: package() now downloads pre-built FFI binaries ✅
-- **4 normal-priority issues remain** in issues.md:
-    1. Conan recipe `cxxflags = ["-std=c++17"]` invalid for MSVC consumers [review]
-    2. `version_sync.py` doesn't sync vcpkg.json/conanfile.py [review]
-    3. `portfile.cmake` uses SKIP_SHA512 (no checksum pinning) [human]
-    4. Language logos missing from README and docs [human]
-- **CI (run 22818410289)**: ALL SUCCESS — 14 jobs ✅
+- **Conan cxxflags FIXED** (CID cycle 2 iter 2): `cpp_info.cxxflags = ["-std=c++17"]` removed ✅
+- **version_sync.py FIXED** (CID cycle 2 iter 2): now syncs vcpkg.json + conanfile.py ✅
+- **2 normal-priority issues remain** in issues.md:
+    1. `portfile.cmake` uses SKIP_SHA512 (no checksum pinning) [human]
+    2. Language logos missing from README and docs [human]
+- **CI (run 22819171045)**: ALL SUCCESS — 14 jobs ✅
 
 ## NuGet Pipeline Details (iteration 10)
 
@@ -145,9 +145,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **C++ tarball layout**: flat — `iscc.hpp` placed alongside `iscc.h` in tarball root.
 - **C++ nested vector null-safety**: safe_data int32_t overload; alg_simhash, soft_hash_video_v0,
     gen_video_code_v0, gen_audio_code_v0 all use detail::safe_data() for nested vector protection.
-- **Conan cxxflags gotcha**: `cpp_info.cxxflags = ["-std=c++17"]` is GCC/Clang only — MSVC uses
-    `/std:c++17`. Since `compiler` not in `settings`, can't differentiate. Best fix: remove
-    cxxflags, document C++17 requirement, let consumers handle via CMAKE_CXX_STANDARD.
+- **Conan cxxflags**: was GCC/Clang-only (`-std=c++17`), now removed. C++17 is a documented
+    requirement; consumers set `CMAKE_CXX_STANDARD 17` in their own CMake project.
 - **WASM count assertions**: when data.json gains new vectors, BOTH lib.rs AND conformance.rs need
     updates.
 - **Ruby JSON sort_keys no-op**: use `JSON.generate(hash.sort.to_h)` not `sort_keys: true`.
