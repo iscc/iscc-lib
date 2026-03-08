@@ -50,9 +50,12 @@ iterations.
 ## Project Status
 
 - **C#/.NET bindings complete** (32/32 symbols, typed returns, docs, version sync, NuGet pipeline)
-- v0.2.0 released, 13 CI jobs green, all 8 bindings CI green
-- **Current work: C++ idiomatic header-only wrapper** (`normal` priority issue)
-- After C++: only `low`-priority items remain (Swift, Kotlin, logos) — CID loop approaches idle
+- v0.2.0 released, 14 CI jobs green, all 8 bindings CI green
+- **C++ wrapper feature-complete** (32 symbols, CI, release, docs, pkg managers all done)
+- **4 normal-priority bug fixes remain** (C++ audio NULL, Conan recipe, .NET docs, View-as-Markdown)
+- After these 4: only `low`-priority items remain (Swift, Kotlin, logos) — CID loop approaches idle
+- **Watch out**: review agent incorrectly claimed IDLE after C++ pkg managers — always cross-check
+    issues.md against handoff claims
 
 ## C++ Wrapper Architecture
 
@@ -64,14 +67,21 @@ iterations.
     only `iscc` field. `SumCodeResult` and `DecodeResult` are the exceptions with extra fields
 - Multi-step sequence: **iscc.hpp + tests** → CI job → release integration → pkg managers → docs
 
-## C++ Scoping: Step Breakdown
+## C++ Scoping: Step Breakdown (all complete)
 
 1. ✅ `iscc.hpp` + CMake + smoke test (done — 52 tests, ASAN clean)
 2. ✅ CI job in `ci.yml` (compile + ASAN) — done, 14/14 jobs green
 3. ✅ Release: bundle `iscc.hpp` in FFI tarballs — done
 4. ✅ Documentation: README, howto/c-cpp.md update, root README C++ sections — done
 5. ✅ Code quality: gen_mixed_code_v0 test + nested vector null-safety — done (53 tests)
-6. ✏️ Package managers: vcpkg.json, portfile.cmake, conanfile.py — final C++ step
+6. ✅ Package managers: vcpkg.json, portfile.cmake, conanfile.py — done
+
+## Normal-Priority Bug Fix Queue
+
+1. ✏️ C++ audio NULL pointer — `gen_audio_code_v0` uses `cv.data()` instead of `safe_data(cv)`
+2. Conan recipe — declares shared-library but never packages the binary
+3. .NET docs — says NuGet unavailable but pipeline exists
+4. View-as-Markdown 404 — docs site copy page feature broken
 
 ## CI/Release Patterns
 

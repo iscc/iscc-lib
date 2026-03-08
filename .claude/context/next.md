@@ -1,90 +1,60 @@
 # Next Work Package
 
-## Step: Add C++ package manager manifests (vcpkg + Conan)
+## Step: Fix C++ gen_audio_code_v0 NULL pointer crash on empty vector
 
 ## Goal
 
-Create vcpkg port manifest (`vcpkg.json` + `portfile.cmake`) and Conan recipe (`conanfile.py`) for
-the C++ header-only wrapper. This completes the last remaining `normal` priority items in the C++
-issue, bringing the project to its normal-priority target completion state.
+Fix the `gen_audio_code_v0` wrapper in `iscc.hpp` that crashes when passed an empty
+`std::vector<int32_t>` because `cv.data()` returns NULL on some implementations. This is a real
+crash bug — the Rust core and C# binding both handle empty vectors correctly.
 
 ## Scope
 
-- **Create**: `packages/cpp/vcpkg.json`, `packages/cpp/portfile.cmake`, `packages/cpp/conanfile.py`
-- **Modify**: (none)
-- **Reference**: `packages/cpp/CMakeLists.txt`, `packages/cpp/include/iscc/iscc.hpp`,
-    `.claude/context/specs/cpp-bindings.md`, `.github/workflows/release.yml` (lines 630-660 for
-    tarball layout)
+- **Modify**: `packages/cpp/include/iscc/iscc.hpp` (line 472: `cv.data()` → `detail::safe_data(cv)`)
+- **Modify**: `packages/cpp/tests/test_iscc.cpp` (add empty-vector smoke test)
+- **Reference**: `packages/cpp/include/iscc/iscc.hpp` lines 42-56 (existing `safe_data` overloads)
 
 ## Not In Scope
 
-- Submitting the vcpkg port to the vcpkg-registry or the Conan recipe to ConanCenter — those are
-    registry submissions that require upstream approval processes
-- Creating `iscc-config.cmake.in` (CMake find_package config template) — not in issues.md
-- Creating `pkg-config/iscc.pc.in` — not in issues.md
-- Modifying CI to test vcpkg/Conan installation flows
-- Modifying any documentation (README, howto) — the docs already mention vcpkg/Conan as distribution
-    channels
+- Fixing the Conan recipe (`conanfile.py`) — separate `normal` issue, separate step
+- Updating .NET docs (`docs/howto/dotnet.md`) — separate `normal` issue
+- Fixing "View as Markdown" 404 on docs site — separate `normal` issue
+- Refactoring other functions that already use `safe_data` correctly
+- Adding conformance test vectors for audio — existing smoke test pattern is sufficient
 
 ## Implementation Notes
 
-### vcpkg.json
+The fix is a single token change on line 472 of `iscc.hpp`:
 
-Standard vcpkg manifest. Key fields:
+```cpp
+// Before (line 472):
+detail::UniqueString s(iscc_gen_audio_code_v0(cv.data(), cv.size(), bits));
 
-```json
-{
-  "name": "iscc",
-  "version": "0.2.0",
-  "description": "ISCC - International Standard Content Code (ISO 24138:2024)",
-  "homepage": "https://github.com/iscc/iscc-lib",
-  "license": "Apache-2.0",
-  "dependencies": []
-}
+// After:
+detail::UniqueString s(iscc_gen_audio_code_v0(detail::safe_data(cv), cv.size(), bits));
 ```
 
-No dependencies because the C FFI shared library is pre-built and bundled — not built by vcpkg.
+The `detail::safe_data` helper already has an `int32_t` overload (line 49) that returns a static
+empty array pointer instead of NULL for empty vectors. This is the same pattern used by
+`gen_video_code_v0`, `alg_simhash`, `soft_hash_video_v0`, and other functions.
 
-### portfile.cmake
+For the test, add a new numbered test block (35) after the existing DataHasher move semantics test
+(34). The test should:
 
-The portfile downloads pre-built FFI tarballs from GitHub Releases. Key approach:
+1. Call `iscc::gen_audio_code_v0({})` with an empty vector
+2. Assert the result starts with `"ISCC:"` (matching the C# behavior which returns
+    `ISCC:EIAQAAAAAAAAAAAA` for empty input)
 
-- Use `vcpkg_from_github` or `vcpkg_download_distfile` to fetch the FFI release tarball for the
-    current platform (the tarballs are named `iscc-ffi-v{VERSION}-{TARGET}.tar.gz`)
-- Install `iscc.hpp` and `iscc.h` headers to `${CURRENT_PACKAGES_DIR}/include/iscc/`
-- Install the shared library (`.so` / `.dylib` / `.dll`) to the appropriate lib directory
-- Install license file
-- The tarballs contain flat layout: `iscc.hpp`, `iscc.h`, `libiscc_ffi.so` (etc.) all in one
-    directory
-- Map vcpkg triplets to GitHub Release target names: `x64-linux` → `x86_64-unknown-linux-gnu`,
-    `x64-osx` → `x86_64-apple-darwin`, `arm64-osx` → `aarch64-apple-darwin`, `x64-windows` →
-    `x86_64-pc-windows-msvc`, `arm64-windows` → `aarch64-pc-windows-msvc`
-
-### conanfile.py
-
-Conan 2.x recipe (`ConanFile` class). Key approach:
-
-- `package_type = "shared-library"` (the wrapper is header-only but requires the FFI shared lib)
-- `exports_sources` includes `include/*`, `CMakeLists.txt`
-- For ConanCenter distribution, source would be fetched from GitHub Release tarballs
-- Use `CMakeToolchain` and `CMakeDeps` generators
-- `package_info()` sets `self.cpp_info.libs`, `self.cpp_info.includedirs`, and requires C++17
-- Keep it as a local recipe template that works for overlay/local usage — ConanCenter submission is
-    out of scope
+Follow the existing test pattern: numbered comment, scoped block, `assert_starts_with` helper.
 
 ## Verification
 
-- `python3 -c "import json; json.load(open('packages/cpp/vcpkg.json'))"` exits 0 (valid JSON)
-- `grep -q '"name": "iscc"' packages/cpp/vcpkg.json` exits 0
-- `grep -q '"version": "0.2.0"' packages/cpp/vcpkg.json` exits 0
-- `test -f packages/cpp/portfile.cmake` exits 0
-- `grep -q 'vcpkg_from_github\|vcpkg_download_distfile' packages/cpp/portfile.cmake` exits 0
-- `python3 -c "import ast; ast.parse(open('packages/cpp/conanfile.py').read())"` exits 0 (valid
-    Python)
-- `grep -q 'class IsccConan\|class Iscc' packages/cpp/conanfile.py` exits 0
-- `cargo clippy --workspace --all-targets -- -D warnings` clean (no regressions)
+- `cmake --build build-ci && ./build-ci/tests/test_iscc` passes with 54 tests (was 53)
+- The empty-vector test produces `ISCC:EIAQAAAAAAAAAAAA` (matching C# behavior)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean
+- `grep -c 'detail::safe_data' packages/cpp/include/iscc/iscc.hpp` returns 11 (was 10)
 
 ## Done When
 
-All 8 verification commands exit 0 — the three package manager manifest files exist with valid
-syntax and correct metadata.
+All verification criteria pass — the empty-vector audio test succeeds and no regressions in the
+existing 53 tests.
