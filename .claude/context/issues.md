@@ -77,6 +77,35 @@ The "Copy Page" drop-down button on the documentation site (lib.iscc.codes) does
 https://lib.iscc.codes/howto/ruby.md which returns a 404. The `iscc/iscc-usearch` repository has a
 working implementation of this feature — check how it's solved there and apply the same fix.
 
+## Fix Conan recipe: shared-library contract without actual library `normal` [human]
+
+`packages/cpp/conanfile.py` declares `package_type = "shared-library"` and
+`self.cpp_info.libs = ["iscc_ffi"]`, but `package()` only copies headers and LICENSE — it never
+packages the native `iscc_ffi` binary or `iscc.h` from the FFI tree. Consumers get a package that
+cannot link. Fix by either packaging the pre-built `iscc_ffi` binaries plus
+`crates/iscc-ffi/include/iscc.h`, or reclassifying as `header-library` and removing the `libs`
+contract. See `packages/cpp/conanfile.py:21` and `packages/cpp/conanfile.py:43`.
+
+## C++ gen_audio_code_v0 rejects empty vector (NULL pointer) `normal` [human]
+
+`gen_audio_code_v0` in `iscc.hpp:472` passes `cv.data()` directly. For an empty vector this can be
+NULL, causing the FFI layer to reject it with "cv must not be NULL". The Rust core supports
+`gen_audio_code_v0(&[], 64)` and C# correctly returns `ISCC:EIAQAAAAAAAAAAAA` for the empty case.
+Fix by using the existing `detail::safe_data(cv)` helper (already used by other functions) and add a
+smoke test for the empty-vector case. See `packages/cpp/include/iscc/iscc.hpp:472`.
+
+## vcpkg portfile skips SHA512 verification `low` [human]
+
+`packages/cpp/portfile.cmake:42` uses `SKIP_SHA512` in `vcpkg_download_distfile`, so consumers
+download release tarballs without a pinned checksum. This weakens supply-chain integrity and
+reproducibility. Fix by computing and storing SHA512 checksums per release and passing them to
+`vcpkg_download_distfile`.
+
+## .NET docs still say NuGet publishing is not yet available `normal` [human]
+
+`docs/howto/dotnet.md:21` says "NuGet publishing is not yet available" even though the NuGet publish
+pipeline has been added to `release.yml`. Update the documentation to reflect current state.
+
 ## Add programming language logos to README and docs `low` [human]
 
 Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and
