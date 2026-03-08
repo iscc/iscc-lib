@@ -51,9 +51,8 @@ iterations.
 
 - **All 8 bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++)
 - v0.2.0 released, 14 CI jobs green
-- **2 normal-priority issues remain**:
-    1. vcpkg portfile SHA512 pinning — needs release artifact checksums (in progress)
-    2. Language logos in README/docs — cosmetic
+- **1 normal-priority issue remains**: Language logos in README/docs — cosmetic
+- After logos, only `low`-priority items remain (Swift/Kotlin) — CID loop will go idle
 
 ## Version Sync Script Patterns
 
