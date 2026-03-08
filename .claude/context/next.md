@@ -1,84 +1,99 @@
 # Next Work Package
 
-## Step: Fix Conan cxxflags and add vcpkg/conan to version sync
+## Step: Add SHA512 checksums to vcpkg portfile
 
 ## Goal
 
-Fix the MSVC-incompatible `cxxflags` in the Conan recipe and add `vcpkg.json` + `conanfile.py` to
-the version sync script, resolving 2 of the 4 remaining normal-priority issues in one step.
+Replace `SKIP_SHA512` in `packages/cpp/portfile.cmake` with actual SHA512 checksums for each of the
+5 platform tarballs from the v0.2.0 release, strengthening supply-chain integrity for vcpkg
+consumers. This resolves the "vcpkg portfile skips SHA512 verification" normal-priority issue.
 
 ## Scope
 
 - **Create**: (none)
 - **Modify**:
-    - `packages/cpp/conanfile.py` — remove the `cxxflags` line and its comment
-    - `scripts/version_sync.py` — add sync targets for `packages/cpp/vcpkg.json` and
-        `packages/cpp/conanfile.py`, update module docstring
+    - `packages/cpp/portfile.cmake` — add per-platform `ISCC_SHA512` variable in each if/elseif
+        branch; replace `SKIP_SHA512` with `SHA512 "${ISCC_SHA512}"`
 - **Reference**:
-    - `packages/cpp/vcpkg.json` — JSON format with `"version"` field (currently `"0.2.0"`)
-    - `packages/cpp/conanfile.py` — Python class attribute `version = "0.2.0"` (line 18, indented)
-    - `scripts/version_sync.py` — existing sync target patterns (get/sync function pairs, TARGETS
-        list)
+    - `packages/cpp/portfile.cmake` — current structure with 5 platform branches and
+        `vcpkg_download_distfile` call
+    - v0.2.0 release assets (download via `gh release download v0.2.0`)
 
 ## Not In Scope
 
-- Fixing the vcpkg portfile SHA512 checksums — separate normal-priority issue requiring release
-    artifact access and release workflow automation
-- Adding language logos to README/docs — separate cosmetic issue
-- Adding a Conan CI test job — no Conan CLI in dev environment
-- Modifying `portfile.cmake` — version sync only covers vcpkg.json, not the portfile download URLs
-    (those embed the version in URL patterns, not a standalone version field)
+- Release workflow automation to compute SHA512 on future releases — that's a follow-up step
+- Adding SHA512 verification to the Conan recipe (`conanfile.py`) — no issue filed, separate concern
+- Creating a separate SHA512 manifest file or lookup table — keep it simple in the portfile itself
+- Modifying `vcpkg.json` or any other file — this is a single-file change to `portfile.cmake`
 
 ## Implementation Notes
 
-### 1. Conan cxxflags fix (conanfile.py)
+### 1. Compute SHA512 checksums
 
-Remove line 163 (`# Require C++17`) and line 164 (`self.cpp_info.cxxflags = ["-std=c++17"]`). This
-flag is GCC/Clang-specific and invalid for MSVC consumers. C++17 is a documented requirement —
-consumers set it in their build system (`CMAKE_CXX_STANDARD 17` or equivalent). The recipe's
-`settings` only has `os` and `arch` (no `compiler`), so conditional logic isn't possible anyway.
+Download all 5 v0.2.0 release tarballs and compute SHA512 for each:
 
-### 2. Version sync for vcpkg.json (version_sync.py)
-
-`vcpkg.json` is JSON with a `"version"` field — structurally identical to `package.json`. The
-existing `_get_package_json_version` and `_sync_package_json` functions handle this exact format.
-**Reuse them directly** as a new TARGETS entry — no new functions needed:
-
-```python
-(("packages/cpp/vcpkg.json", _get_package_json_version, _sync_package_json),)
+```bash
+gh release download v0.2.0 --pattern 'iscc-ffi-v0.2.0-*' --dir /tmp/iscc-ffi-checksums
+sha512sum /tmp/iscc-ffi-checksums/*
 ```
 
-### 3. Version sync for conanfile.py (version_sync.py)
+The 5 files are:
 
-`conanfile.py` has `    version = "0.2.0"` as an indented class attribute (line 18). The existing
-`_get_pyproject_version` regex uses `^version` which won't match indented lines. Create a new
-function pair:
+- `iscc-ffi-v0.2.0-x86_64-unknown-linux-gnu.tar.gz`
+- `iscc-ffi-v0.2.0-aarch64-unknown-linux-gnu.tar.gz`
+- `iscc-ffi-v0.2.0-aarch64-apple-darwin.tar.gz`
+- `iscc-ffi-v0.2.0-x86_64-apple-darwin.tar.gz`
+- `iscc-ffi-v0.2.0-x86_64-pc-windows-msvc.zip`
 
-- `_get_conanfile_version(text)`: regex `r'version\s*=\s*"(\d+\.\d+\.\d+)"'` (no `^` anchor)
-- `_sync_conanfile(text, version)`: `re.sub(r'(version\s*=\s*")\d+\.\d+\.\d+(")', ...)`
+### 2. Update portfile.cmake
 
-**Important**: The regex must NOT have the `^` anchor since the version line is indented in the
-Python class body. Add `count=1` to `re.sub` to only replace the first match (the class attribute,
-not anything in URLs or other strings).
+Add a `set(ISCC_SHA512 "...")` line inside each platform's if/elseif block, right after the existing
+`set()` calls. Example structure:
 
-### 4. Update module docstring
+```cmake
+if(VCPKG_TARGET_IS_LINUX AND VCPKG_TARGET_ARCHITECTURE STREQUAL "x64")
+    set(ISCC_TARGET "x86_64-unknown-linux-gnu")
+    set(ISCC_LIB_NAME "libiscc_ffi.so")
+    set(ISCC_STATIC_LIB_NAME "libiscc_ffi.a")
+    set(ISCC_ARCHIVE_EXT ".tar.gz")
+    set(ISCC_SHA512 "<computed-hash-here>")
+elseif(...)
+    ...
+    set(ISCC_SHA512 "<computed-hash-here>")
+```
 
-Update the docstring at the top of `version_sync.py` to list the two new targets:
+### 3. Replace SKIP_SHA512
 
-- `packages/cpp/vcpkg.json` — vcpkg manifest version
-- `packages/cpp/conanfile.py` — Conan recipe version
+Change the `vcpkg_download_distfile` call from:
+
+```cmake
+    SKIP_SHA512
+```
+
+to:
+
+```cmake
+    SHA512 "${ISCC_SHA512}"
+```
+
+### 4. Important details
+
+- The SHA512 hash is of the tarball/zip **file itself** (not of its contents)
+- Use lowercase hex for the SHA512 hash (vcpkg convention)
+- Do NOT change anything else in the portfile — no structural refactoring
 
 ## Verification
 
-- `python -c "import ast; ast.parse(open('packages/cpp/conanfile.py').read())"` exits 0 (valid
-    Python syntax)
-- `! grep -q 'cxxflags' packages/cpp/conanfile.py` exits 0 (cxxflags line removed)
-- `grep -q 'vcpkg.json' scripts/version_sync.py` exits 0 (vcpkg target added)
-- `grep -q 'conanfile.py' scripts/version_sync.py` exits 0 (conan target added)
-- `uv run python scripts/version_sync.py --check` exits 0 (all targets in sync including new ones)
-- `mise run check` passes (all pre-commit/pre-push hooks clean)
+- `! grep -q 'SKIP_SHA512' packages/cpp/portfile.cmake` exits 0 (SKIP_SHA512 removed)
+- `grep -c 'ISCC_SHA512' packages/cpp/portfile.cmake` returns 6 (5 `set()` + 1 `SHA512` usage)
+- `grep -q 'SHA512 "\${ISCC_SHA512}"' packages/cpp/portfile.cmake` exits 0 (SHA512 variable used in
+    download call)
+- Each SHA512 hash is 128 hex characters:
+    `grep -cP 'set\(ISCC_SHA512 "[0-9a-f]{128}"\)' packages/cpp/portfile.cmake` returns 5
+- `cmake -P packages/cpp/portfile.cmake 2>&1 | head -1` does NOT error on CMake syntax (may fail on
+    vcpkg functions, but should not fail on syntax)
 
 ## Done When
 
-All verification criteria pass — cxxflags removed from Conan recipe, both C++ packaging files synced
-via `version_sync.py --check`, and all quality gates green.
+All verification criteria pass — `SKIP_SHA512` replaced with real SHA512 checksums for all 5
+platform tarballs, and the portfile uses the `SHA512 "${ISCC_SHA512}"` pattern.

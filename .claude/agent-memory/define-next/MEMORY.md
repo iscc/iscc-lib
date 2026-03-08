@@ -51,11 +51,9 @@ iterations.
 
 - **All 8 bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++)
 - v0.2.0 released, 14 CI jobs green
-- **4 normal-priority issues remain** (post Conan recipe fix):
-    1. ⏳ Conan cxxflags MSVC incompatibility — one-line removal
-    2. ⏳ Version sync for vcpkg.json + conanfile.py — add to sync script
-    3. vcpkg portfile SHA512 pinning — needs release artifact checksums
-    4. Language logos in README/docs — cosmetic
+- **2 normal-priority issues remain**:
+    1. vcpkg portfile SHA512 pinning — needs release artifact checksums (in progress)
+    2. Language logos in README/docs — cosmetic
 
 ## Version Sync Script Patterns
 
