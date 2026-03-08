@@ -180,11 +180,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends dotnet-sdk-8.0 
 - .NET built-in Roslyn analyzers with `TreatWarningsAsErrors`
 - No external linting tools needed for thin wrapper
 
-## Account Setup Required
+## Account Setup
 
-1. **NuGet.org account**: Register under ISCC organization
-2. **Package reservation**: Reserve `Iscc.Lib` package ID prefix
-3. **API key**: Create scoped NuGet API key, store as `NUGET_API_KEY`
+- **NuGet.org account**: Registered ✅
+- **API key**: Scoped NuGet API key stored as `NUGET_API_KEY` GitHub Actions secret ✅
 
 ## Verification Criteria
 

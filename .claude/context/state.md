@@ -105,8 +105,7 @@ platform checksums have been added to `packages/cpp/portfile.cmake` and `SKIP_SH
 - `packages/dotnet/README.md` — 82 lines ✅
 - **Known limitation**: `MetaCodeResult`, `TextCodeResult`, `InstanceCodeResult` carry only
     `(string Iscc)` — extra fields require C FFI struct changes first; not blocking
-- **Manual action still needed**: NuGet.org account setup (NUGET_API_KEY secret, package ID
-    reservation) before NuGet publish job can be triggered
+- `NUGET_API_KEY` GitHub Actions secret configured; NuGet publishing pipeline ready
 
 ## C++ Bindings
 
@@ -202,8 +201,7 @@ platform checksums have been added to `packages/cpp/portfile.cmake` and `SKIP_SH
 - `pack-nuget` → `test-nuget` → `publish-nuget` pipeline in place ✅
 - v0.2.0 released successfully across all 8 registries
 - `iscc.hpp` bundled in FFI release tarballs (both Unix `cp` and Windows `Copy-Item` steps) ✅
-- **Manual action still needed**: NuGet.org account setup (NUGET_API_KEY secret, package ID
-    reservation) before NuGet publish job can be triggered
+- `NUGET_API_KEY` GitHub Actions secret configured; NuGet publishing pipeline ready
 
 ## Next Milestone
 
