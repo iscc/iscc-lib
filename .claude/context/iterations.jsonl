@@ -914,3 +914,8 @@
 {"ts":"2026-03-07T23:37:44.776598+00:00","iteration":14,"role":"define-next","status":"OK","turns":32,"cost_usd":1.112075,"duration_s":224.7}
 {"ts":"2026-03-07T23:42:11.782454+00:00","iteration":14,"role":"advance","status":"OK","turns":29,"cost_usd":1.022358,"duration_s":267.0}
 {"ts":"2026-03-08T00:00:00.000000+00:00","iteration":14,"role":"review","status":"PASS","turns":15,"cost_usd":0.5,"duration_s":180}
+{"ts":"2026-03-07T23:48:28.029724+00:00","iteration":14,"role":"review","status":"OK","turns":1,"cost_usd":1.375515,"duration_s":376.2}
+{"ts":"2026-03-08T00:28:36.148480+00:00","iteration":15,"role":"update-state","status":"OK","turns":28,"cost_usd":0.973903,"duration_s":226.3}
+{"ts":"2026-03-08T00:31:44.453961+00:00","iteration":15,"role":"define-next","status":"OK","turns":24,"cost_usd":0.84327,"duration_s":188.3}
+{"ts":"2026-03-08T00:37:04.881280+00:00","iteration":15,"role":"advance","status":"OK","turns":37,"cost_usd":0.985629,"duration_s":320.4}
+{"ts":"2026-03-08T00:42:38.412968+00:00","iteration":15,"role":"review","status":"PASS_WITH_NOTES","turns":0,"cost_usd":0.0,"duration_s":0}

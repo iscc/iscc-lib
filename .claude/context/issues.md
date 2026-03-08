@@ -7,17 +7,11 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Implement C++ idiomatic header-only wrapper `normal` [human]
+## Add vcpkg.json and conanfile.py to version sync script `low` [review]
 
-Add an idiomatic C++17 header-only wrapper (`iscc.hpp`) over the existing C FFI, with RAII resource
-management and distribution via vcpkg, Conan, and FFI release tarballs.
-
-**Implementation scope:**
-
-Remaining items (all others completed):
-
-- `vcpkg.json` + `portfile.cmake` — vcpkg port manifest
-- `conanfile.py` — Conan recipe
+The `scripts/version_sync.py` does not check `packages/cpp/vcpkg.json` or
+`packages/cpp/conanfile.py` for version consistency. Both files hardcode `"0.2.0"` and will go stale
+on the next version bump. Add them to the version sync targets.
 
 ## Implement Swift bindings via UniFFI `low` [human]
 

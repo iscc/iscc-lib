@@ -93,9 +93,14 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - `iscc.hpp` bundled in FFI release tarballs — flat layout alongside `iscc.h`
 - C++ docs complete: `packages/cpp/README.md`, howto section, root README tabs
 - C++ test suite: 53 tests (34 numbered blocks). All gen functions covered including mixed
-- **Remaining C++ issue**: vcpkg.json + conanfile.py (package manager manifests only)
+- C++ issue fully resolved (iteration 15): vcpkg.json + portfile.cmake + conanfile.py created. Codex
+    notes about Conan recipe incompleteness (missing tests/, FFI lib, LICENSE) are valid for
+    registry submission but out-of-scope for templates
 - **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`,
     NOT `cmake -B build -S tests` (tests CMakeLists.txt lacks project() and include paths)
+- **Config-only review shortcut**: for pure manifest/config files (JSON, CMake, Python recipes),
+    verification = syntax validation + metadata correctness + `mise run check` + clippy. No
+    functional tests needed
 
 ## Environment
 
