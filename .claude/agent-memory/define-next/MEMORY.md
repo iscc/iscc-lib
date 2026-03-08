@@ -70,8 +70,8 @@ iterations.
 2. ✅ CI job in `ci.yml` (compile + ASAN) — done, 14/14 jobs green
 3. ✅ Release: bundle `iscc.hpp` in FFI tarballs — done
 4. ✅ Documentation: README, howto/c-cpp.md update, root README C++ sections — done
-5. ✏️ Code quality: gen_mixed_code_v0 test + nested vector null-safety — current step
-6. Package managers: vcpkg.json, conanfile.py, pkg-config — final C++ step
+5. ✅ Code quality: gen_mixed_code_v0 test + nested vector null-safety — done (53 tests)
+6. ✏️ Package managers: vcpkg.json, portfile.cmake, conanfile.py — final C++ step
 
 ## CI/Release Patterns
 
@@ -95,6 +95,13 @@ iterations.
 
 - When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
     must be updated (Rust core + WASM)
+
+## FFI Tarball Layout (for vcpkg portfile)
+
+- Tarballs named `iscc-ffi-v{VERSION}-{TARGET}.tar.gz` (5 platforms)
+- Flat layout inside: `iscc.hpp`, `iscc.h`, `libiscc_ffi.so`/`.dylib`/`.dll`, static lib
+- vcpkg triplet → Rust target mapping needed: `x64-linux` → `x86_64-unknown-linux-gnu`, etc.
+- Version 0.2.0 is current
 
 ## Documentation Drift Detection
 

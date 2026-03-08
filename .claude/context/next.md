@@ -1,85 +1,90 @@
 # Next Work Package
 
-## Step: C++ gen_mixed_code_v0 test + nested vector null-safety
+## Step: Add C++ package manager manifests (vcpkg + Conan)
 
 ## Goal
 
-Close the two remaining C++ code quality gaps: add the missing `gen_mixed_code_v0` smoke test and
-harden nested vector marshaling against nullptr from empty inner vectors. This leaves only package
-manager manifests as the final C++ issue item.
+Create vcpkg port manifest (`vcpkg.json` + `portfile.cmake`) and Conan recipe (`conanfile.py`) for
+the C++ header-only wrapper. This completes the last remaining `normal` priority items in the C++
+issue, bringing the project to its normal-priority target completion state.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `packages/cpp/include/iscc/iscc.hpp` — add `safe_data` overloads for inner vector elements in
-        `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0`
-    - `packages/cpp/tests/test_iscc.cpp` — add `gen_mixed_code_v0` smoke test
-- **Reference**:
-    - `crates/iscc-ffi/src/lib.rs` lines 466-488 (gen_mixed_code_v0 FFI implementation)
-    - `crates/iscc-ffi/include/iscc.h` line 305 (C signature)
-    - `packages/cpp/include/iscc/iscc.hpp` lines 42-45 (existing `safe_data` for `uint8_t`)
+- **Create**: `packages/cpp/vcpkg.json`, `packages/cpp/portfile.cmake`, `packages/cpp/conanfile.py`
+- **Modify**: (none)
+- **Reference**: `packages/cpp/CMakeLists.txt`, `packages/cpp/include/iscc/iscc.hpp`,
+    `.claude/context/specs/cpp-bindings.md`, `.github/workflows/release.yml` (lines 630-660 for
+    tarball layout)
 
 ## Not In Scope
 
-- Package manager manifests (vcpkg.json, conanfile.py, pkg-config) — separate step
-- Adding conformance vector loading from data.json to C++ tests (C++ uses `conformance_selftest()`)
-- Refactoring the test framework (e.g., switching to GoogleTest)
-- Documentation updates (no API changes, just bug hardening)
+- Submitting the vcpkg port to the vcpkg-registry or the Conan recipe to ConanCenter — those are
+    registry submissions that require upstream approval processes
+- Creating `iscc-config.cmake.in` (CMake find_package config template) — not in issues.md
+- Creating `pkg-config/iscc.pc.in` — not in issues.md
+- Modifying CI to test vcpkg/Conan installation flows
+- Modifying any documentation (README, howto) — the docs already mention vcpkg/Conan as distribution
+    channels
 
 ## Implementation Notes
 
-### gen_mixed_code_v0 test
+### vcpkg.json
 
-The function takes `vector<string>` of ISCC content code strings. To test it:
+Standard vcpkg manifest. Key fields:
 
-1. Generate two or more content codes using existing gen functions (e.g., `gen_text_code_v0` and
-    `gen_image_code_v0` — these already have tests with known working inputs)
-2. Pass the resulting ISCC strings to `gen_mixed_code_v0`
-3. Assert the result starts with `"ISCC:"`
-
-Follow the existing test pattern (see tests 31-32 for audio/video — use `assert_starts_with`).
-Insert after the gen_video_code_v0 test (currently test 32) and before DataHasher move test (33).
-Renumber subsequent tests.
-
-### Nested vector null-safety
-
-Three functions iterate over inner vectors and call `.data()` which returns nullptr for empty
-vectors on some libstdc++ implementations:
-
-1. **`alg_simhash`** (line 349-364): iterates `vector<vector<uint8_t>>`, pushes `d.data()`
-2. **`soft_hash_video_v0`** (line 402-418): iterates `vector<vector<int32_t>>`, pushes `f.data()`
-3. **`gen_video_code_v0`** (line 471-485): iterates `vector<vector<int32_t>>`, pushes `f.data()`
-
-Fix: Add a `safe_data` overload for `int32_t` vectors in `detail` namespace (matching the existing
-`uint8_t` pattern at line 42). Then use `safe_data(d)` / `safe_data(f)` instead of `d.data()` /
-`f.data()` in the three iteration loops. For `alg_simhash`, use the existing `uint8_t` overload.
-
-```cpp
-// In detail namespace, add alongside existing safe_data:
-inline const int32_t* safe_data(const std::vector<int32_t>& v) {
-    static const int32_t sentinel = 0;
-    return v.empty() ? &sentinel : v.data();
+```json
+{
+  "name": "iscc",
+  "version": "0.2.0",
+  "description": "ISCC - International Standard Content Code (ISO 24138:2024)",
+  "homepage": "https://github.com/iscc/iscc-lib",
+  "license": "Apache-2.0",
+  "dependencies": []
 }
 ```
 
-Then update the three loops to use `detail::safe_data(d)` / `detail::safe_data(f)` instead of
-`d.data()` / `f.data()`.
+No dependencies because the C FFI shared library is pre-built and bundled — not built by vcpkg.
+
+### portfile.cmake
+
+The portfile downloads pre-built FFI tarballs from GitHub Releases. Key approach:
+
+- Use `vcpkg_from_github` or `vcpkg_download_distfile` to fetch the FFI release tarball for the
+    current platform (the tarballs are named `iscc-ffi-v{VERSION}-{TARGET}.tar.gz`)
+- Install `iscc.hpp` and `iscc.h` headers to `${CURRENT_PACKAGES_DIR}/include/iscc/`
+- Install the shared library (`.so` / `.dylib` / `.dll`) to the appropriate lib directory
+- Install license file
+- The tarballs contain flat layout: `iscc.hpp`, `iscc.h`, `libiscc_ffi.so` (etc.) all in one
+    directory
+- Map vcpkg triplets to GitHub Release target names: `x64-linux` → `x86_64-unknown-linux-gnu`,
+    `x64-osx` → `x86_64-apple-darwin`, `arm64-osx` → `aarch64-apple-darwin`, `x64-windows` →
+    `x86_64-pc-windows-msvc`, `arm64-windows` → `aarch64-pc-windows-msvc`
+
+### conanfile.py
+
+Conan 2.x recipe (`ConanFile` class). Key approach:
+
+- `package_type = "shared-library"` (the wrapper is header-only but requires the FFI shared lib)
+- `exports_sources` includes `include/*`, `CMakeLists.txt`
+- For ConanCenter distribution, source would be fetched from GitHub Release tarballs
+- Use `CMakeToolchain` and `CMakeDeps` generators
+- `package_info()` sets `self.cpp_info.libs`, `self.cpp_info.includedirs`, and requires C++17
+- Keep it as a local recipe template that works for overlay/local usage — ConanCenter submission is
+    out of scope
 
 ## Verification
 
-- `cargo build -p iscc-ffi` succeeds (prerequisite for C++ tests)
-- C++ test suite compiles and passes with new test:
-    ```
-    cd packages/cpp && cmake -B build -S tests && cmake --build build && ./build/test_iscc
-    ```
-    Expected: 53 passed (52 existing + 1 new), 0 failed
-- `grep -c 'gen_mixed_code_v0' packages/cpp/tests/test_iscc.cpp` returns ≥1
-- `grep -c 'safe_data' packages/cpp/include/iscc/iscc.hpp` returns ≥5 (was 3: definition + 2 uses;
-    now: 2 overloads + 5 uses)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean (no Rust changes, but verify)
+- `python3 -c "import json; json.load(open('packages/cpp/vcpkg.json'))"` exits 0 (valid JSON)
+- `grep -q '"name": "iscc"' packages/cpp/vcpkg.json` exits 0
+- `grep -q '"version": "0.2.0"' packages/cpp/vcpkg.json` exits 0
+- `test -f packages/cpp/portfile.cmake` exits 0
+- `grep -q 'vcpkg_from_github\|vcpkg_download_distfile' packages/cpp/portfile.cmake` exits 0
+- `python3 -c "import ast; ast.parse(open('packages/cpp/conanfile.py').read())"` exits 0 (valid
+    Python)
+- `grep -q 'class IsccConan\|class Iscc' packages/cpp/conanfile.py` exits 0
+- `cargo clippy --workspace --all-targets -- -D warnings` clean (no regressions)
 
 ## Done When
 
-All verification criteria pass: C++ test suite reports 53 passed / 0 failed with the new
-gen_mixed_code_v0 test, and all three nested vector functions use safe_data for inner elements.
+All 8 verification commands exit 0 — the three package manager manifest files exist with valid
+syntax and correct metadata.
