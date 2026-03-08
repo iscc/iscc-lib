@@ -1,47 +1,82 @@
 # Next Work Package
 
-## Step: CID loop idle — no actionable work remains
+## Step: Add language logos to README
 
 ## Goal
 
-Signal that the CID loop has no autonomous work remaining. All `normal` and `critical` priority gaps
-are resolved. Only `low` priority issues exist (C#, C++, Swift, Kotlin bindings; language logos),
-which CID skips by policy. This is the **6th consecutive idle iteration** (iterations 3–8). The
-review agent recommended stopping the CID loop at iteration 5.
-
-## Status: IDLE
-
-**Human action required to resume CID work:**
-
-1. **Stop the CID loop** — 6 consecutive idle iterations confirm no progress is possible
-2. `mise run pr:main` — create PR from `develop` → `main` for a stable release
-3. Promote a `low` issue to `normal` in `issues.md` to resume CID work on new bindings
-4. File new `normal` or `critical` issues for new work
+Add programming language logo icons to the README's Installation and Quick Start section headers,
+resolving the "Add programming language logos to README and docs" normal-priority issue. Visual
+language indicators help developers quickly identify and navigate to their language's section.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: (none)
-- **Reference**: `.claude/context/state.md`, `.claude/context/issues.md`
+- **Create**: (none — use CDN-hosted logos, no vendored files)
+- **Modify**: `README.md`
+- **Reference**: `docs/index.md` (for context on docs site — NOT modified this step)
 
 ## Not In Scope
 
-- Implementing any `low` priority issues (C#, C++, Swift, Kotlin, logos)
-- Making any code changes
-- Creating PRs or releases (human-directed)
-- Refactoring, optimization, or speculative improvements without a filed issue
+- Updating the docs site (`docs/index.md`, howto guides) with logos — that's a follow-up step if
+    desired after reviewing how the README logos look
+- Fixing the stale "Available Bindings" table in `docs/index.md` (missing Ruby, C#/.NET, C++)
+- Adding a visual language grid/banner at the top of the README — keep changes minimal
+- Vendoring logo SVG/PNG files into the repo — use a CDN instead for zero maintenance
 
 ## Implementation Notes
 
-The advance agent should recognize this as an idle signal. No code changes are needed. No further
-iterations will produce different results until new `normal`/`critical` work is filed or a `low`
-issue is promoted.
+**Approach:** Add small inline `<img>` tags to each `### Language` header in both the Installation
+and Quick Start sections. Use [Simple Icons](https://simpleicons.org/) via their CDN
+(`https://cdn.simpleicons.org/{slug}/{color}`) for clean, consistent SVG logos.
+
+**Language → Simple Icons mapping (9 languages):**
+
+| Section Header | Simple Icons slug | Suggested color |
+| -------------- | ----------------- | --------------- |
+| Rust           | `rust`            | `000000`        |
+| Python         | `python`          | `3776AB`        |
+| Node.js        | `nodedotjs`       | `5FA04E`        |
+| Java           | (see below)       | `ED8B00`        |
+| Go             | `go`              | `00ADD8`        |
+| Ruby           | `ruby`            | `CC342D`        |
+| C# / .NET      | `dotnet`          | `512BD4`        |
+| C / C++        | `cplusplus`       | `00599C`        |
+| WASM           | `webassembly`     | `654FF0`        |
+
+**Java logo:** Simple Icons has `openjdk` (slug: `openjdk`). Use that or the generic coffee cup
+icon. Check `https://cdn.simpleicons.org/openjdk/ED8B00`.
+
+**Header format pattern:**
+
+```markdown
+### <img src="https://cdn.simpleicons.org/rust/000000" width="20" height="20" alt="Rust"> Rust
+```
+
+Use `width="20" height="20"` for consistent sizing. Include `alt` text for accessibility.
+
+**Dark mode consideration:** Simple Icons SVGs are single-color. The colors chosen should be
+readable on both white and dark backgrounds. GitHub renders README in both light and dark mode.
+Consider using the official brand colors as listed above — they generally have sufficient contrast.
+If a color is too light for dark mode, the advance agent may use the `<picture>` element approach
+with `prefers-color-scheme` media queries, but this adds complexity. Start with simple `<img>` tags
+and only add dark mode variants if colors genuinely don't work.
+
+**Sections to update (18 headers total):**
+
+1. Installation section: 9 headers (Rust, Python, Node.js, Java, Go, Ruby, C# / .NET, C / C++, WASM)
+2. Quick Start section: 9 headers (same languages)
 
 ## Verification
 
-- `grep -c 'normal\|critical' .claude/context/issues.md` returns 0 (no actionable issues)
-- No files modified outside `.claude/context/`
+- `grep -c '<img src=.*simpleicons.*width=' README.md` returns `18` (9 Installation + 9 Quick Start
+    headers)
+- `grep -c 'alt="' README.md` returns at least `18` (accessibility alt text on each logo)
+- All 9 language slugs appear:
+    `grep -cP '(rust|python|nodedotjs|openjdk|go/|ruby|dotnet|cplusplus|webassembly)' README.md`
+    returns at least `18`
+- `mise run format` exits 0 (README passes formatting checks)
+- `mise run check` exits 0 (all pre-commit hooks pass)
 
 ## Done When
 
-The advance agent acknowledges the idle state without making code changes.
+All verification criteria pass — every Installation and Quick Start language header has an inline
+logo image from Simple Icons CDN with consistent sizing and alt text.

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <PackageId>Iscc.Lib</PackageId>
+    <RootNamespace>Iscc.Lib</RootNamespace>
+    <AssemblyName>Iscc.Lib</AssemblyName>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Version>0.3.0</Version>
+    <Description>High-performance ISCC (ISO 24138) library for .NET</Description>
+    <Authors>ISCC Foundation</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://lib.iscc.codes</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/iscc/iscc-lib</RepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>iscc;content-identification;hash;fingerprint;iso-24138</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <None Include="../README.md" Pack="true" PackagePath="" />
+    <Content Include="runtimes/**" Pack="true" PackagePath="runtimes" CopyToOutputDirectory="PreserveNewest" Condition="Exists('runtimes')" />
+  </ItemGroup>
+</Project>

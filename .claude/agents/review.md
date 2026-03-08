@@ -219,9 +219,16 @@ section so define-next can scope them as work packages:
 
 ## Idle Iterations
 
-When the advance agent made no code changes because there is no actionable work (all remaining
-issues are `low` priority and no normal/critical gaps exist), signal idle state by including this
-line in handoff.md:
+Signal idle state by including the line below in handoff.md — but **only when ALL of these
+conditions are true**:
+
+1. The advance agent made no code changes in this iteration
+2. Every issue in issues.md has `low` priority — no `critical` or `normal` issues exist
+3. No unmet gaps in state.md require `normal` or higher priority work
+
+**Important:** The source tag (`[human]`, `[review]`) indicates who filed the issue — it does NOT
+affect priority. A `normal` `[human]` issue is fully actionable for CID. Only the `low` priority
+level means "CID must skip."
 
 ```markdown
 **IDLE**: All remaining issues are low priority — no actionable work for CID.

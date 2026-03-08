@@ -27,8 +27,9 @@ iterations.
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
-- CI workflow at `.github/workflows/ci.yml` has 10 jobs: version-check, rust, python, nodejs, wasm,
-    c-ffi, java, go, ruby, bench. The `bench` job runs `cargo bench --no-run` (compile-only)
+- CI workflow at `.github/workflows/ci.yml` has 13 jobs: version-check, rust, python-test, python,
+    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, bench. The `bench` job runs
+    `cargo bench --no-run` (compile-only). The `cpp` job builds FFI + cmake with ASAN
 - Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
     param (not step-level), bundler-cache auto-installs gems
 - `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
@@ -38,11 +39,11 @@ iterations.
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
 - Version sync: `scripts/version_sync.py` — `--check` mode exits 1 on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
-- Release workflow (`release.yml`): 6 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems).
-    Pattern: boolean input → build job → **smoke test job** → publish job (version-exists skip). 6
-    smoke test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish.
-    Each tests linux-x86_64 artifact on ubuntu-latest. Ruby uses `oxidize-rb/actions/cross-gem@v1`
-    (all on ubuntu-latest via Docker). `GEM_HOST_API_KEY` for auth (not OIDC)
+- Release workflow (`release.yml`): 7 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems,
+    nuget). Pattern: boolean input → build job → **smoke test job** → publish job (version-exists
+    skip). 7 smoke test jobs gate publish. NuGet reuses `build-ffi` artifacts (shared `if` condition
+    `inputs.ffi || inputs.nuget`), then `pack-nuget` → `test-nuget` → `publish-nuget`. NuGet uses
+    `NUGET_API_KEY` secret (not OIDC). Ruby uses `GEM_HOST_API_KEY` for auth (not OIDC)
 
 ## WASM/WASI
 
@@ -95,26 +96,9 @@ iterations.
 ## Documentation
 
 - Tabbed syntax: `=== "Language"` with 4-space indent, blank line before code block
-
-- Tab order for tutorial: Python, Rust, Node.js, Java, Go, WASM (6 tabs)
-
-- Landing page (`docs/index.md`) tab order: Rust, Python, Node.js, Java, Go, WASM
-
-- mdformat reformats JS imports to multi-line `import { ... } from` style — run format before commit
-
-- Landing page Go example updated to pure Go API (`result, _ := iscc.GenTextCodeV0(...)` pattern)
-
-- Node.js/Java/WASM gen functions return plain strings; Python/Rust/Go return result objects
-
-- `docs/architecture.md` and `docs/development.md` share identical directory trees and crate summary
-    tables — keep them in sync when editing either file
-
-- Go shown in Mermaid diagram as standalone disconnected node with green style (not connected to
-    CORE) — reflects pure Go reimplementation. Five Rust-dependent binding crates shown with arrows
-
-- Java API reference: `docs/java-api.md` — hand-written, follows C FFI page structure adapted for
-    Java (no manual memory mgmt except streaming hasher handles)
-
+- Tab order: tutorial (Python, Rust, Node.js, Java, Go, WASM), landing (Rust, Python, ...)
+- mdformat reformats JS imports to multi-line style — run format before commit
+- `docs/architecture.md` and `docs/development.md` share identical trees — keep in sync
 - All 5 Reference pages complete: Rust API, Python API, C FFI, Java API, Ruby API
 
 ## Binding Constant Export Patterns
@@ -130,15 +114,15 @@ iterations.
 - 5 constants currently exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
     IO_READ_SIZE, TEXT_NGRAM_SIZE
 
-## C FFI Documentation
+## Documentation Files
 
-- `docs/howto/c-cpp.md` — C/C++ how-to guide with 12 sections (overview, build, cmake, quick start,
-    streaming, composing, error handling, memory mgmt, static/dynamic, cross-compile, RAII,
-    conformance)
-- `docs/c-ffi-api.md` — full API reference (types, constants, code gen, text utils, algorithms,
-    codec, streaming, diagnostics, memory mgmt, error handling)
-- zensical.toml nav: howto guides list includes `{ "C / C++" = "howto/c-cpp.md" }` after Java
-- CMake integration uses `find_library()` pattern (not `CMAKE_LIBRARY_PATH`)
+- Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp}.md`
+- API reference: `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`
+- Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`
+- zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++
+- `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` files. Uses
+    `ORDERED_PAGES` list + auto-discovery (`discover_pages()`). Excludes `docs/includes/`. Run after
+    `zensical build` in docs CI pipeline
 
 ## Feature Flags
 
@@ -155,45 +139,43 @@ iterations.
 - `serde_json` stays as a regular (non-optional) dep because `conformance.rs` uses it for parsing
     `data.json`. Gating it requires restructuring conformance (future work)
 
-## Ruby Bindings (Magnus)
+## Ruby Bindings (Magnus) — see MEMORY-archive.md for full details
 
-- Magnus 0.7.1 used (not 0.8) — Magnus 0.8 requires Ruby 3.2+, devcontainer has Ruby 3.1.2. Magnus
-    0.7.1 works with Rust edition 2024 and Ruby 3.1
-- `function!` macro does NOT accept `&Ruby` parameter — use `Ruby::get().expect("called from Ruby")`
-    inside the function body to get the Ruby runtime handle
-- rb_sys `ExtensionTask.new("iscc-rb")` — task name must match Cargo package name (not lib name).
-    Binary derived as `"iscc-rb".tr("-", "_")` = `"iscc_rb"`. Cargo `[lib] name` must match
-- `extconf.rb` must be at Cargo manifest directory (crate root), not `ext/iscc_lib/`. rb_sys
-    hardcodes `File.join(cargo_metadata.manifest_directory, "extconf.rb")`
-- Root `.gitignore` has `lib/` pattern (from Python template) — blocks all `lib/` directories. Ruby
-    crate's `.gitignore` needs `!lib/` negation to re-include `crates/iscc-rb/lib/`
-- Bundler must use local vendor path (`bundle config set --local path vendor/bundle`) since system
-    gem path `/var/lib/gems/3.1.0` is not writable by dev user
-- PATH for bundle commands: `/home/dev/.local/share/gem/ruby/3.1.0/bin` must be in PATH
-- `bundle exec rake compile` builds release profile by default (rb_sys sets `RB_SYS_CARGO_PROFILE`)
-- Gen functions prefixed with `_` in Rust bridge (e.g., `_gen_meta_code_v0`), Ruby wrapper provides
-    keyword-arg public API (e.g., `gen_meta_code_v0(name, description: nil, ...)`)
-- Ruby `Result < Hash` enables both `result["iscc"]` and `result.iscc` access via `method_missing`
-- Constants set via `module.const_set("NAME", value)` in Magnus init
-- Binary data: Magnus `String` validates UTF-8 — use `RString` param + `unsafe { data.as_slice() }`
-    for functions accepting arbitrary bytes (e.g., `encode_base64`, `encode_component`). Copy bytes
-    immediately before any Ruby API calls. Return binary data via `RString::from_slice(&bytes)`
-- Returning arrays: use `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays (e.g.,
-    `iscc_decode` returns `[u8, u8, u8, u8, RString]`)
-- 32/32 Tier 1 symbols exposed: all 10 gen functions, 4 text utils, 5 constants, 6 codec/encoding
-    functions, 5 algorithm primitives, `DataHasher`, `InstanceHasher` streaming classes
-- Streaming classes use `#[magnus::wrap(class = "IsccLib::DataHasher")]` + `RefCell<Option<inner>>`
-    for one-shot finalize. Methods registered as `_update`/`_finalize` (prefixed). Ruby reopens the
-    native class to add `update` (returns self for chaining) and `finalize(bits: 64)` (default +
-    result wrapping). **Key lesson:** `_` prefix works for methods but NOT class names — Ruby
-    constants must start with uppercase. Use method prefixing instead of class prefixing
-- Test files: `test/test_smoke.rb`, `test/test_iscc_lib.rb`, `test/test_conformance.rb` — 111 total
-    tests (61 unit + 50 conformance)
-- Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`. Config at `.standard.yml`. Run via
-    `bundle exec standardrb` (auto-fix: `--fix`). Vendor dir excluded in `.standard.yml`
-- Pre-commit hooks for Ruby use `bash -c` wrapper with portable PATH:
-    `export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"` — needed because `bundle` is not on
-    system PATH in devcontainer
+- Magnus 0.7.1 (not 0.8) — Ruby 3.1 compat. `function!` macro: no `&Ruby` param, use `Ruby::get()`
+- rb_sys: `ExtensionTask.new("iscc-rb")` — task name = Cargo package name. `extconf.rb` at crate
+    root
+- 32/32 Tier 1 symbols exposed. 111 tests (61 unit + 50 conformance)
+- Streaming: `RefCell<Option<inner>>` for one-shot finalize. `_` prefix for methods, NOT class names
+- Linting: Standard Ruby + rubocop-minitest. Pre-commit hook needs portable PATH for `bundle`
+
+## .NET Bindings (P/Invoke) — Summary (details in MEMORY-archive.md)
+
+- Package: `packages/dotnet/Iscc.Lib/` + `packages/dotnet/Iscc.Lib.Tests/`
+- 32/32 Tier 1 symbols. P/Invoke over `iscc_ffi` shared library
+- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` (absolute, not relative)
+- CI: `actions/setup-dotnet@v4`, `dotnet-version: '8.0'`
+- Empty span fix for 7 functions (same pattern as C++ `safe_data`)
+
+## C++ Bindings (Header-Only)
+
+- `packages/cpp/include/iscc/iscc.hpp` — header-only C++17 wrapper in `namespace iscc`
+- `packages/cpp/CMakeLists.txt` — INTERFACE library, includes C header from
+    `crates/iscc-ffi/include`
+- `packages/cpp/tests/test_iscc.cpp` — 52-assertion smoke test, all patterns covered
+- `packages/cpp/tests/CMakeLists.txt` — `FFI_LIB_DIR` var, `SANITIZE_ADDRESS` option
+- RAII guards in `detail::`: UniqueString, UniqueStringArray, UniqueByteBuffer,
+    UniqueByteBufferArray
+- `detail::safe_data()` returns non-null sentinel for empty vectors (C FFI rejects nullptr)
+- Result types: MetaCodeResult, TextCodeResult, ..., SumCodeResult, DecodeResult
+- Streaming: `DataHasher` / `InstanceHasher` classes (move-only, destructor frees handle)
+- IsccError exception (inherits std::runtime_error), thrown on FFI errors
+- Build: `cmake -B build -DFFI_LIB_DIR=../../target/debug && cmake --build build`
+- Run: `LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc`
+- cmake + g++ NOT pre-installed in devcontainer — `sudo apt-get install cmake g++`
+- Package manager manifests: `vcpkg.json` + `portfile.cmake` + `conanfile.py` in `packages/cpp/`
+- vcpkg portfile downloads pre-built FFI tarballs from GitHub Releases (5 targets, `SKIP_SHA512`)
+- Conan recipe: pre-built binary download (mirrors portfile.cmake), `settings = "os", "arch"` only,
+    `_target_triple()` maps to 5 platform targets, `conan.tools.files.download`/`unzip` in `build()`
 
 ## Gotchas
 

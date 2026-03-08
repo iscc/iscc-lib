@@ -9,6 +9,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/iscc/iscc-lib/packages/go.svg)](https://pkg.go.dev/github.com/iscc/iscc-lib/packages/go)
 [![Gem](https://img.shields.io/gem/v/iscc-lib.svg)](https://rubygems.org/gems/iscc-lib)
 [![Maven Central](https://img.shields.io/maven-central/v/io.iscc/iscc-lib.svg)](https://central.sonatype.com/artifact/io.iscc/iscc-lib)
+[![NuGet](https://img.shields.io/nuget/v/Iscc.Lib.svg)](https://www.nuget.org/packages/Iscc.Lib)
 [![npm wasm](https://img.shields.io/npm/v/@iscc/wasm.svg)](https://www.npmjs.com/package/@iscc/wasm)
 
 **High-performance polyglot implementation of
@@ -22,7 +23,8 @@
     levels
 - **Self-Describing**: Each component contains its own type and version information
 - **ISO Standardized**: Implements the official ISO 24138:2024 specification
-- **Polyglot**: Rust core with bindings for Python, Java, Go, Ruby, Node.js, WASM, and C FFI
+- **Polyglot**: Rust core with bindings for Python, Java, Go, Ruby, C#, C++, Node.js, WASM, and C
+    FFI
 - **Conformance-Tested**: Validated against the official
     [iscc-core](https://github.com/iscc/iscc-core) reference implementation
 
@@ -46,8 +48,8 @@ and general digital asset management use-cases.
 
 `iscc-lib` is a high-performance polyglot implementation of the ISCC core algorithms
 ([ISO 24138](https://www.iso.org/standard/77899.html)). Built in Rust with language bindings for
-Python, Java, Go, Ruby, Node.js, WebAssembly, and C, it serves developers across multiple ecosystems
-who need fast, reliable content identification.
+Python, Java, Go, Ruby, C#, C++, Node.js, WebAssembly, and C, it serves developers across multiple
+ecosystems who need fast, reliable content identification.
 
 `iscc-lib` is conformance-tested against the official Python reference implementation
 [iscc-core](https://github.com/iscc/iscc-core) and produces identical results for all test vectors.
@@ -74,49 +76,61 @@ who need fast, reliable content identification.
 
 ## Installation
 
-### Rust
+### <img src="https://cdn.simpleicons.org/rust/CE412B" width="20" height="20" alt="Rust"> Rust
 
 ```bash
 cargo add iscc-lib
 ```
 
-### Python
+### <img src="https://cdn.simpleicons.org/python/3776AB" width="20" height="20" alt="Python"> Python
 
 ```bash
 pip install iscc-lib
 ```
 
-### Node.js
+### <img src="https://cdn.simpleicons.org/nodedotjs/5FA04E" width="20" height="20" alt="Node.js"> Node.js
 
 ```bash
 npm install @iscc/lib
 ```
 
-### Java
+### <img src="https://cdn.simpleicons.org/openjdk/ED8B00" width="20" height="20" alt="Java"> Java
 
 ```xml
 <dependency>
   <groupId>io.iscc</groupId>
   <artifactId>iscc-lib</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
 </dependency>
 ```
 
 The native library must be available on `java.library.path` at runtime.
 
-### Go
+### <img src="https://cdn.simpleicons.org/go/00ADD8" width="20" height="20" alt="Go"> Go
 
 ```bash
 go get github.com/iscc/iscc-lib/packages/go
 ```
 
-### Ruby
+### <img src="https://cdn.simpleicons.org/ruby/CC342D" width="20" height="20" alt="Ruby"> Ruby
 
 ```bash
 gem install iscc-lib
 ```
 
-### WASM
+### <img src="https://cdn.simpleicons.org/dotnet/512BD4" width="20" height="20" alt="C# / .NET"> C# / .NET
+
+```bash
+dotnet add package Iscc.Lib
+```
+
+### <img src="https://cdn.simpleicons.org/cplusplus/00599C" width="20" height="20" alt="C / C++"> C / C++
+
+Pre-built release tarballs are attached to each
+[GitHub Release](https://github.com/iscc/iscc-lib/releases). Download for your platform — includes
+shared library, static library, `iscc.h` header, and `iscc.hpp` C++ wrapper.
+
+### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM
 
 ```bash
 npm install @iscc/wasm
@@ -124,7 +138,7 @@ npm install @iscc/wasm
 
 ## Quick Start
 
-### Rust
+### <img src="https://cdn.simpleicons.org/rust/CE412B" width="20" height="20" alt="Rust"> Rust
 
 ```rust
 use iscc_lib::gen_meta_code_v0;
@@ -133,7 +147,7 @@ let result = gen_meta_code_v0("ISCC Test Document!", None, None, 64).unwrap();
 println!("Meta-Code: {}", result.iscc);
 ```
 
-### Python
+### <img src="https://cdn.simpleicons.org/python/3776AB" width="20" height="20" alt="Python"> Python
 
 ```python
 import iscc_lib as ic
@@ -142,7 +156,7 @@ result = ic.gen_meta_code_v0("ISCC Test Document!")
 print(f"Meta-Code: {result['iscc']}")
 ```
 
-### Node.js
+### <img src="https://cdn.simpleicons.org/nodedotjs/5FA04E" width="20" height="20" alt="Node.js"> Node.js
 
 ```javascript
 const ic = require("@iscc/lib");
@@ -151,7 +165,7 @@ const result = ic.gen_meta_code_v0("ISCC Test Document!");
 console.log(`Meta-Code: ${result.iscc}`);
 ```
 
-### Java
+### <img src="https://cdn.simpleicons.org/openjdk/ED8B00" width="20" height="20" alt="Java"> Java
 
 ```java
 import io.iscc.iscc_lib.IsccLib;
@@ -160,7 +174,7 @@ String result = IsccLib.genMetaCodeV0("ISCC Test Document!", null, null, 64);
 System.out.println("Meta-Code: " + result);
 ```
 
-### Go
+### <img src="https://cdn.simpleicons.org/go/00ADD8" width="20" height="20" alt="Go"> Go
 
 ```go
 package main
@@ -181,7 +195,7 @@ func main() {
 }
 ```
 
-### Ruby
+### <img src="https://cdn.simpleicons.org/ruby/CC342D" width="20" height="20" alt="Ruby"> Ruby
 
 ```ruby
 require "iscc_lib"
@@ -190,7 +204,28 @@ result = IsccLib.gen_meta_code_v0("ISCC Test Document!")
 puts "Meta-Code: #{result.iscc}"
 ```
 
-### WASM
+### <img src="https://cdn.simpleicons.org/dotnet/512BD4" width="20" height="20" alt="C# / .NET"> C# / .NET
+
+```csharp
+using Iscc.Lib;
+
+var result = IsccLib.GenMetaCodeV0("ISCC Test Document!");
+Console.WriteLine($"Meta-Code: {result.Iscc}");
+```
+
+### <img src="https://cdn.simpleicons.org/cplusplus/00599C" width="20" height="20" alt="C++"> C++
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+
+int main() {
+    auto result = iscc::gen_meta_code_v0("ISCC Test Document!");
+    std::cout << "Meta-Code: " << result.iscc << std::endl;
+}
+```
+
+### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM
 
 ```javascript
 import {

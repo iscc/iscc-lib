@@ -1,12 +1,16 @@
 [project]
 name = "iscc-lib"
-version = "0.2.0"
+version = "0.3.0"
 requires-python = ">=3.10"
 dependencies = []
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 timeout = 120
+
+[tool.ty.src]
+# Exclude Conan recipe — conan is not a project dependency
+exclude = ["packages/cpp/conanfile.py"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15

@@ -133,6 +133,24 @@ jobs:
           -lpthread -ldl -lm
       - name: Run C test program
         run: LD_LIBRARY_PATH=target/debug ./test_iscc
+  dotnet:
+    name: C# / .NET (dotnet build, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0'
+      - name: Build FFI native library
+        run: cargo build -p iscc-ffi
+      - name: Build .NET projects
+        run: dotnet build packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj
+      - name: Run .NET tests
+        run: >
+          dotnet test packages/dotnet/Iscc.Lib.Tests/
+          -e LD_LIBRARY_PATH=${{ github.workspace }}/target/debug
   java:
     name: Java (JNI build, mvn test)
     runs-on: ubuntu-latest
@@ -189,6 +207,28 @@ jobs:
       - name: Run tests
         run: bundle exec rake test
         working-directory: crates/iscc-rb
+  cpp:
+    name: C++ (cmake, ASAN, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cmake
+        run: sudo apt-get update && sudo apt-get install -y cmake
+      - name: Build FFI native library
+        run: cargo build -p iscc-ffi
+      - name: Configure CMake
+        run: >
+          cmake -B build -DCMAKE_BUILD_TYPE=Debug
+          -DFFI_LIB_DIR=../../target/debug -DSANITIZE_ADDRESS=ON
+        working-directory: packages/cpp
+      - name: Build C++ tests
+        run: cmake --build build
+        working-directory: packages/cpp
+      - name: Run C++ tests
+        run: LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc
+        working-directory: packages/cpp
   bench:
     name: Bench (compile check)
     runs-on: ubuntu-latest

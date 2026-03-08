@@ -16,8 +16,8 @@ iterations.
 - State assessments can go stale — always verify claimed gaps by reading the actual files
 - New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
     steps. Core + tests in one step, bindings in subsequent steps
-- Repetitive doc additions across language guides: all 6 howto files follow identical structure
-    (heading, 1-line description, fenced code block). Safe to batch all in one step
+- **Handoff "IDLE" can be stale** — state assessment may create new normal-priority issues AFTER the
+    handoff. Always check issues.md directly rather than trusting handoff "IDLE" signals
 
 ## Signature Change Propagation
 
@@ -36,118 +36,67 @@ iterations.
 
 ## Conformance Vector Loader Differences (critical for data.json updates)
 
-- **Rust core** (`conformance.rs`): Uses `serde_json::Value`, accesses sections by name
-    (`data["gen_meta_code_v0"]`). Ignores unknown top-level keys. Auto-discovers new vectors.
-- **Python** (`test_conformance.py`): Accesses by name (`data[function_name]`). Safe.
-- **Node.js** (`conformance.test.mjs`): Accesses `data.gen_meta_code_v0`. Safe.
-- **WASM** (`conformance.rs`): Same as Rust core (uses `serde_json::Value`). Safe.
-- **Java** (`IsccLibTest.java`): Uses `data.getAsJsonObject("gen_meta_code_v0")`. Safe.
+- **Rust core** (`conformance.rs`): Uses `serde_json::Value`, auto-discovers new vectors.
 - **Go** (`conformance.go`): Uses `map[string]map[string]vectorEntry` — parses ALL top-level keys.
     **BREAKS** on non-vector entries like `_metadata`. Must use `json.RawMessage` intermediate step.
-- **C FFI**: No data.json loader (uses Rust core conformance_selftest).
-- **data.json copies**: `crates/iscc-lib/tests/data.json` (primary) and
-    `packages/go/testdata/data.json` (identical copy). Both must be updated together.
+- **C# .NET**: `ConformanceTests.cs` uses `System.Text.Json`, loads from vendored
+    `testdata/data.json`. Must skip `_metadata` key.
+- **C FFI**: No data.json loader (uses Rust core `conformance_selftest`).
+- **C++ wrapper**: Same as C FFI — uses `conformance_selftest()` call, no data.json parsing.
+- **data.json copies**: `crates/iscc-lib/tests/data.json` (primary),
+    `packages/go/testdata/data.json`, and `packages/dotnet/Iscc.Lib.Tests/testdata/data.json` (all
+    identical). Must be updated together.
 
-## Feature Flags Design (Issue #16) — RESOLVED
+## Project Status
 
-- Issue #16 fully resolved across iterations 13-15 (definitions, selftest, CI matrix)
-- `default = ["meta-code"]`, `text-processing` (unicode deps), `meta-code` (implies text-processing)
+- **All 8 bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++)
+- v0.2.0 released, 14 CI jobs green
+- **1 normal-priority issue remains**: Language logos in README/docs — cosmetic
+- After logos, only `low`-priority items remain (Swift/Kotlin) — CID loop will go idle
 
-## API Reference Page Patterns
+## Version Sync Script Patterns
 
-- Existing API reference page sizes: rust-api.md (377), java-api.md (677), c-ffi-api.md (745)
-- All share: YAML front matter → intro → constants → gen functions (with param tables) → utilities →
-    codec → algo primitives → streaming → error handling
-- `docs/api.md` is the Python API page (different naming convention from others)
-- Nav entry in `zensical.toml` under `Reference` section
-- Doc pages are a single CREATE + one nav MODIFY — well within 3-file limit
-
-## Documentation Sweep Patterns
-
-- `crates/iscc-wasm/pkg/README.md` must always be identical to `crates/iscc-wasm/README.md`
-- When updating "9 gen functions" to "10", distinguish context: data.json has 9 function sections
-    (no gen_sum_code_v0), so conformance/benchmark code correctly says "9"
-- Two docs pages (architecture.md, development.md) share identical directory tree and crate summary
-    table — edits must be synced between them
+- `scripts/version_sync.py` uses `(file_path, get_fn, sync_fn)` triples in TARGETS list
+- JSON targets (package.json, vcpkg.json): can reuse
+    `_get_package_json_version`/`_sync_package_json`
+- Python targets (pyproject.toml): use `^version` anchored regex — won't work for indented lines
+- `conanfile.py` has `    version = "0.2.0"` INDENTED — needs non-anchored regex
+- `version_sync.py --check` runs in CI (`version-check` job)
 
 ## CI/Release Patterns
 
-- v0.1.0 released to all registries
+- v0.2.0 released to all registries
 - Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
-- `iscc-rb` requires `libclang-dev` + Ruby headers to compile — cannot remove `--exclude iscc-rb`
-    from Rust CI job without adding those deps. Cleaner to run clippy in the dedicated Ruby job
-- `ruby/setup-ruby@v1` supports `working-directory` input for bundler cache (Gemfile location)
-- Ruby CI pattern: checkout → rust toolchain (with clippy) → rust-cache → apt libclang-dev →
-    setup-ruby → clippy → rake compile → rake test
-- RubyGems release: use `oxidize-rb/actions/cross-gem@v1` for cross-platform precompiled gems. Runs
-    on ubuntu via Docker (rake-compiler-dock). Secret: `GEM_HOST_API_KEY`. Version check via
-    RubyGems API: `https://rubygems.org/api/v1/versions/iscc-lib.json`
-- Reordered linting after release (handoff recommendation) — release infrastructure is higher value
-    since it unblocks publishing
+- `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
+- 6 smoke test jobs gate 6 publish jobs in release.yml
+- FFI tarball staging: Unix uses `cp` + `tar czf`, Windows uses `Copy-Item` + `Compress-Archive`
+
+## FFI Tarball Layout (for vcpkg portfile AND Conan recipe)
+
+- Tarballs named `iscc-ffi-v{VERSION}-{TARGET}.tar.gz` (5 platforms, `.zip` for Windows)
+- Flat layout inside `iscc-ffi-v{ver}-{target}/`: `iscc.hpp`, `iscc.h`,
+    `libiscc_ffi.so`/`.dylib`/`.dll`, static lib, `LICENSE`
+- 5 targets: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin,
+    x86_64-apple-darwin, x86_64-pc-windows-msvc
+- `conanfile.py` is excluded from `ty check` in `pyproject.toml` (conan not a project dep)
 
 ## Gotchas
 
 - JNI function names encode Java package underscores as `_1`
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
-- Java `byte` is signed — values 128-255 wrap, JNI handles correctly
 - Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
-- Go `json.Marshal` for float64: uses 'f' format for values >= 1e-6 and < 1e21, otherwise 'e'
-    format. 1e20 < 1e21 → outputs "100000000000000000000". May or may not match JCS exactly for edge
-    cases. Risk area for test_0017/test_0018.
+- `cbindgen` export prefix `iscc_` on types but not on functions
 
 ## Propagation Gotchas
 
 - When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
-    must be updated. Iteration 1 missed the WASM binding assertion (fixed in iteration 2).
-    Checklist:
-    - `crates/iscc-lib/src/lib.rs` — Rust core (updated in iter 1)
-    - `crates/iscc-wasm/tests/conformance.rs` — WASM (missed in iter 1, fixed iter 2)
-    - Other bindings don't have hardcoded count assertions (they iterate dynamically)
+    must be updated (Rust core + WASM)
 
-## Ruby Bindings — COMPLETE (archived to MEMORY-archive.md)
+## Conan 2.x Pre-Built Binary Pattern
 
-- Ruby bindings fully met as of iter 13: all 32 symbols, conformance, CI, docs, linting, release
-- Key ref: Magnus 0.7.1, `crates/iscc-rb/`, `docs/ruby-api.md` (781 lines), `docs/howto/ruby.md`
-- `alg_simhash_from_iscc` is NOT in the 32 Tier 1 symbols
-
-## Documentation Drift Detection
-
-- **Go quickstart in README was completely stale** (used old WASM/wazero runtime pattern, caught
-    iter 14). After major architecture changes (WASM→pure Go), always verify README quickstart
-    snippets against actual function signatures
-- **GenSumCodeV0 4-arg signature**: Go's `GenSumCodeV0(path, bits, wide, addUnits)` has 4 required
-    params. Docs showed 3 args (missing `addUnits`). Always cross-check doc examples against actual
-    Go source signatures in `packages/go/code_*.go`
-- After fixing doc drift, remaining work is ALL low-priority (C#, C++, Swift, Kotlin bindings). CID
-    loop approaches idle state
-
-## Project Status
-
-- **CID loop IDLE as of iter 21** — all `normal`/`critical` work complete. Smoke tests resolved
-    (iter 20). 12 CI jobs green. All 7 bindings "met". 5 `low` issues remain (C#, C++, Swift,
-    Kotlin, logos) — CID skips by policy
-- **Next human action**: PR develop → main (`mise run pr:main`), or promote a `low` issue to
-    `normal` to resume CID work
-- When CID reaches idle with only `low` issues, write an idle signal in next.md — the advance agent
-    should make no code changes and the iteration completes cleanly
-
-## Release Smoke Test Architecture
-
-- ALL 6 bindings export `conformance_selftest()` — simplest smoke test is a one-liner per language
-- C FFI: `iscc_conformance_selftest()` (bool), Java JNI: `IsccLib.conformanceSelftest()` (boolean)
-- WASM `--target web` requires workaround for Node.js: pass wasm bytes to `init()` instead of
-    relying on `fetch()`
-- napi .node files can be `require()`'d directly without index.js generation
-- All 6 smoke tests can run on ubuntu-latest with linux-x86_64 artifacts only
-- Single file modification (`release.yml`) — well within 3-file limit even for 6 new jobs
-- Each test job must copy the `if:` condition from its corresponding build job
-
-## Go AlgCdcChunks Signature Change Pattern
-
-- Go `AlgCdcChunks` is a public API — changing return type to `([][]byte, error)` is a breaking
-    change for external callers
-- Internal caller `DataHasher.Push` always passes `avgChunkSize=1024` — use unexported
-    `algCdcChunksUnchecked` to avoid changing Push's signature
-- This mirrors Rust core pattern: `alg_cdc_chunks` (public, Result) + `alg_cdc_chunks_unchecked`
-    (pub(crate))
-- Doc update needed in `docs/howto/go.md` (signature in algorithm primitives section)
+- `source()` has no `self.settings` access — platform-specific downloads must go in `build()`
+- Use `conan.tools.files.download` + `conan.tools.files.unzip` (not urllib/zipfile)
+- Drop `exports_sources`, `generators`, `compiler`/`build_type` settings for pre-built recipes
+- Keep `os` + `arch` settings for platform mapping
+- Windows DLLs go in `bin/`, import libs in `lib/`; Unix shared libs go in `lib/`
+- No Conan CLI in dev environment — verification via syntax check + grep patterns

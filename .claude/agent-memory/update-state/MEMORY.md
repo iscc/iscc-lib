@@ -7,7 +7,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 ## Exploration Shortcuts
 
 - **Java files**: `find crates/iscc-jni -type f | sort`
-- **Per-crate READMEs**: `ls crates/*/README.md packages/go/README.md 2>&1`
+- **Per-crate READMEs**: `ls crates/*/README.md packages/*/README.md 2>&1`
 - **CI jobs in a run**: `gh run view <id> --json jobs --jq '.jobs[] | {name, conclusion}'`
 - **Latest CI runs**:
     `gh run list --branch "$(git branch --show-current)" --limit 3 --json status,conclusion,url,databaseId`
@@ -26,6 +26,25 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `grep -n "### Sum-Code\|gen_sum_code_v0\|GenSumCodeV0\|genSumCodeV0" docs/howto/*.md`
 - **Benchmark functions**:
     `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
+- **C# public symbols**:
+    `grep -n "public static\|public sealed record" packages/dotnet/Iscc.Lib/IsccLib.cs | grep -v "private\|internal\|partial class"`
+- **C# test count**: `grep -c "\[Fact\]" packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`
+- **C# conformance test count**:
+    `grep -c "\[Theory\]" packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs`
+- **C# record types**: `grep -c "sealed record" packages/dotnet/Iscc.Lib/Results.cs`
+- **C# streaming Finalize check**:
+    `grep -n "public.*Finalize" packages/dotnet/Iscc.Lib/IsccDataHasher.cs packages/dotnet/Iscc.Lib/IsccInstanceHasher.cs`
+- **NuGet pipeline check**:
+    `grep -n 'pack-nuget\|test-nuget\|publish-nuget\|NUGET_API_KEY' .github/workflows/release.yml`
+- **C++ package files**: `find packages/cpp -type f | sort`
+- **C++ CI job check**: `grep -n "cpp\|C++" .github/workflows/ci.yml`
+- **C++ hpp symbol check**:
+    `grep -n "^inline\|^struct\|^class\|// ---" packages/cpp/include/iscc/iscc.hpp`
+- **C++ iscc.hpp in release.yml**: `grep -n 'iscc.hpp' .github/workflows/release.yml`
+- **gen_llms_full.py page count**: `grep -c "^\s*\"" scripts/gen_llms_full.py` (ORDERED_PAGES list)
+- **Conan recipe check**:
+    `grep -n 'download\|package_type\|cxxflags\|_target_triple' packages/cpp/conanfile.py`
+- **vcpkg SHA512 check**: `grep -n 'SKIP_SHA512\|ISCC_SHA512' packages/cpp/portfile.cmake`
 
 ## Codebase Landmarks
 
@@ -35,10 +54,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
-    (gate), Node.js, WASM, C FFI, Java, Go, Bench, **Ruby** (12 total)
-- `docs/howto/` — **8 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
-    **ruby.md** (422 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c` + `CMakeLists.txt` ✅
-- `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml
+    (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, **C++ (cmake, ASAN, test)**
+    (**14 total**) ✅
+- `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (**32/32 Tier 1 symbols**), `Results.cs` (**11 sealed
+    records**), `IsccDataHasher.cs` + `IsccInstanceHasher.cs` (IDisposable + SafeHandle; both
+    **`Finalize()` returns typed record**), `IsccException.cs`, `SmokeTests.cs` (**41 tests**),
+    `ConformanceTests.cs` (**9 Theory tests, 50 vectors**), `testdata/data.json` (84KB vendored),
+    `NativeMethods.g.cs` (csbindgen, 47 externs); `dotnet test` needs
+    `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores env)
+- `docs/howto/` — **9 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
+    ruby.md (422 lines), **dotnet.md** (417 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c`
+    - `CMakeLists.txt` ✅
+- `scripts/gen_llms_full.py` — **20 entries** in `ORDERED_PAGES`; `discover_pages()` via `rglob`
+    with `as_posix()` (cross-platform); "View as Markdown" 404 RESOLVED (CID cycle 2 iter 3)
+- `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
+    Iscc.Lib.csproj, **vcpkg.json** and **conanfile.py** (added CID cycle 2 iter 2)
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
     MetaTrimMeta, IoReadSize, TextNgramSize)
@@ -58,22 +88,29 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `gh run list` does NOT need `--repo` when running from within the workspace; but `--json` fields
     are needed to avoid GraphQL deprecation error
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
-    missing symbol rather than trusting handoff verdict counts
+    missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 0be8bda)
+## Current State (assessed-at: 81f4e65f9b291be84b53760209c5182bf02c1eac)
 
-- **IN_PROGRESS**: all 12 CI jobs green (run 22669472925); **0 normal-priority gaps remain**
-- **Iter 8 (CID round 8)**: no codebase changes — idle iteration (only .claude/ context files)
-- **Only low-priority gaps remain**: C#, C++, Swift, Kotlin bindings; language logos — CID skips
-- **CI (run 22669472925)**: ALL SUCCESS — 12 jobs (6+ consecutive green runs)
-- **release.yml**: 6 checkboxes + 6 smoke test jobs: test-wheels/napi/wasm/jni/ffi/gem ✅
-- **Magnus version**: 0.7.1 (not 0.8) — devcontainer Ruby is 3.1.2; Magnus 0.8 requires Ruby 3.2+
-- **Test counts (Rust)**: 316 (default features)
-- **docs/**: 8 howto files; `docs/ruby-api.md` ✅; `docs/c-ffi-api.md` ✅
-- **packages/**: only `go/`; `dotnet/`, `cpp/`, `swift/`, `kotlin/` dirs do NOT exist yet
-- **Recommended next action**: PR from `develop` → `main` for stable release (human-directed)
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22819696003)
+- **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
+- **vcpkg SHA512 FIXED** (CID cycle 3 iter 3): `SKIP_SHA512` replaced with per-platform checksums ✅
+- **1 normal-priority issue remains** in issues.md:
+    1. Language logos missing from README and docs [human]
+- **2 low-priority issues** (Swift bindings, Kotlin bindings) — CID loop skips
+- **C++ section** now fully "met" — vcpkg SHA512 was the last gap
+- **CI (run 22819696003)**: ALL SUCCESS — 14 jobs ✅
+
+## NuGet Pipeline Details (iteration 10)
+
+- `release.yml` has `nuget` input; `build-ffi` shared between FFI and NuGet
+- `pack-nuget`: downloads cross-compiled FFI artifacts, organizes as `runtimes/<rid>/native/`, runs
+    `dotnet pack -c Release`; cross-arch find uses `-path "*-${target}/*"` to avoid wrong lib
+- `test-nuget`: installs from local nupkg, runs smoke test console app
+- `publish-nuget`: idempotent (skips if version already on NuGet.org); uses `NUGET_API_KEY` secret
+- **Manual action still needed**: NuGet.org account, NUGET_API_KEY secret, package ID reservation
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
@@ -83,50 +120,31 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `serde_json` silently ignores unknown fields
 - Rust lib.rs assertion: 20; WASM conformance.rs line 66: 20 ✅; Go all 9 test files updated ✅
 
-## Go Package Tier 1 Coverage (32/32 — COMPLETE)
-
-All 32 symbols: 10 gen functions (including GenSumCodeV0), ConformanceSelftest, DataHasher,
-InstanceHasher, 4 text utilities, SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash,
-SoftHashVideoV0, EncodeBase64, EncodeComponent, IsccDecode, IsccDecompose, JsonToDataUrl, **5
-constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNgramSize).
-
 ## Gotchas
 
 - Go target requires pure Go (no WASM, no wazero, no binary artifacts)
 - WASM constant name gotcha: `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` exports uppercase
 - `state.md` section order must include Go Bindings, README, Per-Crate READMEs sections
-- Python ruff format check can fail in CI even if local `mise run check` passes
-- `dct.go`: `algDct` is unexported. `AlgWtahash` is exported. Go has no const arrays so
-    `wtaVideoIdPermutations` is `var`
 - **JCS gotcha**: Go `json.Marshal` passes current vectors. If future vectors have floats, a proper
     RFC 8785 JCS library may be needed
-- **DataHasher/InstanceHasher API (Go)**: `Push([]byte)` + `Finalize(bits)` pattern
 - **DataHasher/InstanceHasher API (Ruby)**: `RefCell<Option<inner>>` for interior mutability (Magnus
     `&self`); Ruby wrapper reopens native class, adds `update(data)` (chaining) +
     `finalize(bits: 64)`
-- **GenIsccCodeV0 key details**: `encode_units` produces a bitfield; `wide` param always false in
-    test vectors; SubType from content code's SubType (or NONE if absent); 5 conformance vectors
-- **gen_sum_code_v0 WASM**: path-based I/O doesn't exist in browser WASM context — accepts
-    Uint8Array/&[u8] instead; WASM and Go both solve this differently from Rust/Python/Node.js/C FFI
-- **META_TRIM_META validation**: pre-decode fast check on Data-URL string length AND post-decode
-    payload check; both needed in gen_meta_code_v0
-- **Java META_TRIM_META**: added as compile-time `public static final int` (no JNI function needed)
-- **C FFI IsccSumCodeResult**: struct-return pattern (not output-pointer); matches IsccDecodeResult
-    pattern precisely; partial allocation failure handled (free iscc before returning null)
-- **9 vs 10 distinction**: data.json has 9 conformance sections (no gen_sum_code_v0 vectors);
-    iscc-lib has 10 gen functions. Test/conformance docstrings correctly say "9"; user-facing docs
-    and benchmarks file say "10"
-- **gen_sum_code_v0 benchmark**: uses NamedTempFile (tempfile crate); temp files created outside
-    criterion closure so file setup is not measured; cleanup via Drop
-- **WASM count assertions**: `crates/iscc-wasm/tests/conformance.rs` has per-function
-    `assert_eq!(tested, N, ...)` guards. When data.json gains new vectors, BOTH lib.rs AND the WASM
-    conformance test must be updated. Review agents may miss this (check grep result:
-    `grep -n "assert_eq.*tested" crates/iscc-wasm/tests/conformance.rs`)
-- **Ruby JSON sort_keys no-op**: `JSON.generate(hash, sort_keys: true)` silently ignores `sort_keys`
-    in Ruby's stdlib json gem. Use `JSON.generate(hash.sort.to_h)` instead for deterministic key
-    ordering (required for JCS-compatible meta serialization)
 - **alg_cdc_chunks API**: public fn returns `IsccResult<Vec<&[u8]>>` (validates
-    `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked` (no validation, always
-    valid constant). All 6 binding crates (Python, NAPI, WASM, FFI, JNI, Ruby) handle the Result. Go
-    `AlgCdcChunks` also validates `avgChunkSize < 2` (returns `error`; internal caller uses
-    `algCdcChunksUnchecked`) — gap now closed.
+    `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked`
+- **csbindgen**: `crates/iscc-ffi/build.rs` runs csbindgen on every `cargo build`, writing
+    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (929 lines, 47 externs, 6 structs). `dotnet test`
+    requires `-e LD_LIBRARY_PATH=target/debug` (vstest host does not inherit shell env).
+- **C# gen function return types**: simplified records — MetaCodeResult, TextCodeResult,
+    InstanceCodeResult carry only `(string Iscc)`. Extra fields need C FFI struct changes first.
+- **C++ iscc.hpp**: 681-line C++17 header-only wrapper. RAII: UniqueString, UniqueStringArray,
+    UniqueByteBuffer, UniqueByteBufferArray. IsccError. detail::safe_data() (2 overloads, 9 call
+    sites). cmake and g++ must be apt-get installed in CI (not in default ubuntu runner).
+- **C++ tarball layout**: flat — `iscc.hpp` placed alongside `iscc.h` in tarball root.
+- **C++ nested vector null-safety**: safe_data int32_t overload; alg_simhash, soft_hash_video_v0,
+    gen_video_code_v0, gen_audio_code_v0 all use detail::safe_data() for nested vector protection.
+- **Conan cxxflags**: was GCC/Clang-only (`-std=c++17`), now removed. C++17 is a documented
+    requirement; consumers set `CMAKE_CXX_STANDARD 17` in their own CMake project.
+- **WASM count assertions**: when data.json gains new vectors, BOTH lib.rs AND conformance.rs need
+    updates.
+- **Ruby JSON sort_keys no-op**: use `JSON.generate(hash.sort.to_h)` not `sort_keys: true`.

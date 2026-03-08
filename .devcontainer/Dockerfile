@@ -1,4 +1,4 @@
-FROM node:20-bookworm
+FROM node:22-bookworm
 
 ARG TZ
 ENV TZ="$TZ"
@@ -15,7 +15,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install Go (for Go bindings — version matches packages/go/go.mod)
-ARG GO_VERSION=1.24.0
+ARG GO_VERSION=1.26.1
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz" \
     | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:$PATH"
@@ -27,6 +27,11 @@ RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
     | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
     && apt-get update && apt-get install -y gh \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install .NET SDK 8 (for C# bindings)
+RUN curl -fsSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0 --install-dir /usr/share/dotnet
+ENV DOTNET_ROOT=/usr/share/dotnet
+ENV PATH="$DOTNET_ROOT:$PATH"
 
 # Create non-root user
 RUN useradd -m -s /bin/zsh -G sudo $USERNAME \
@@ -75,8 +80,8 @@ RUN curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh \
 # Install uv (Python package manager)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install Python 3.12 via uv
-RUN uv python install 3.12
+# Install Python 3.13 via uv
+RUN uv python install 3.13
 
 # Install mise (tool version manager + task runner)
 RUN curl https://mise.run | sh

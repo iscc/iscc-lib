@@ -5,10 +5,10 @@ description: Guide to using iscc-lib from C/C++ — building, linking, streaming
 
 # C / C++
 
-A guide to using iscc-lib from C and C++. The `iscc-ffi` crate provides a shared library and
-generated C header for integrating ISCC code generation into C/C++ projects. Target audience:
-systems-level teams, embedded firmware, and C++ services that need ISCC-SUM (Data-Code +
-Instance-Code) via C interop.
+A guide to using iscc-lib from C and C++. For C++, the recommended approach is the header-only
+`iscc.hpp` wrapper — see the [C++ section](#c-wrapper-iscc-hpp) below. For C, the `iscc-ffi` crate
+provides a shared library and generated C header. Target audience: systems-level teams, embedded
+firmware, and C++ services that need ISCC code generation via native interop.
 
 For the full function reference, see the [C FFI API Reference](../c-ffi-api.md).
 
@@ -39,9 +39,10 @@ cbindgen --crate iscc-ffi --output crates/iscc-ffi/include/iscc.h
 
 !!! tip "Pre-built binaries"
 
-    Pre-built release tarballs (shared library + static library + header) for Linux, macOS, and Windows
-    are attached to each [GitHub Release](https://github.com/iscc/iscc-lib/releases). Download the
-    tarball for your platform to get started without a Rust toolchain.
+    Pre-built release tarballs (shared library + static library + `iscc.h` header + `iscc.hpp` C++
+    wrapper) for Linux, macOS, and Windows are attached to each
+    [GitHub Release](https://github.com/iscc/iscc-lib/releases). Download the tarball for your platform
+    to get started without a Rust toolchain.
 
 ## Build system integration
 
@@ -82,7 +83,7 @@ includedir=${prefix}/include
 
 Name: iscc-ffi
 Description: ISCC (ISO 24138) shared library
-Version: 0.0.4
+Version: 0.2.0
 Libs: -L${libdir} -liscc_ffi
 Cflags: -I${includedir}
 ```
@@ -324,91 +325,154 @@ linker = "aarch64-linux-gnu-gcc"
 This is relevant for ARM-based embedded devices and single-board computers (Raspberry Pi, NVIDIA
 Jetson).
 
-## C++ RAII wrapper
+## C++ wrapper (`iscc.hpp`)
 
-In C++, wrap the C hasher lifecycle in a move-only class to prevent resource leaks. The constructor
-calls `_new()`, the destructor calls `_free()`, and copy operations are deleted:
+The `iscc.hpp` header-only wrapper provides an idiomatic C++17 interface to the ISCC library. It
+wraps all C FFI functions with RAII resource management, `std::string` / `std::vector<uint8_t>`
+types, and `iscc::IsccError` exceptions — eliminating manual memory management and NULL checks.
+
+All functions and types live in the `iscc::` namespace.
+
+### Include path
+
+The include path depends on how you obtained the library:
+
+- **Pre-built tarball**: Headers are in a flat layout. Use `#include "iscc.hpp"` with
+    `-I/path/to/tarball`.
+- **CMake / source build**: The project uses `packages/cpp/include/iscc/` as the include directory.
+    Use `#include <iscc/iscc.hpp>` with the include directory on your compiler's search path.
+
+### Quick start
 
 ```cpp
-#include "iscc.h"
-#include <stdexcept>
-#include <string>
-#include <utility>
+#include <iscc/iscc.hpp>
+#include <iostream>
 
-class IsccDataHasher {
-public:
-    IsccDataHasher() : handle_(iscc_data_hasher_new()) {
-        if (!handle_) throw std::runtime_error("Failed to create DataHasher");
-    }
-
-    ~IsccDataHasher() {
-        if (handle_) iscc_data_hasher_free(handle_);
-    }
-
-    /* Move-only: transfer ownership */
-    IsccDataHasher(IsccDataHasher&& other) noexcept : handle_(other.handle_) {
-        other.handle_ = nullptr;
-    }
-    IsccDataHasher& operator=(IsccDataHasher&& other) noexcept {
-        if (this != &other) {
-            if (handle_) iscc_data_hasher_free(handle_);
-            handle_ = other.handle_;
-            other.handle_ = nullptr;
-        }
-        return *this;
-    }
-
-    /* No copies */
-    IsccDataHasher(const IsccDataHasher&) = delete;
-    IsccDataHasher& operator=(const IsccDataHasher&) = delete;
-
-    void update(const uint8_t* data, size_t len) {
-        if (!iscc_data_hasher_update(handle_, data, len)) {
-            throw std::runtime_error(iscc_last_error() ? iscc_last_error()
-                                                       : "update failed");
-        }
-    }
-
-    std::string finalize(uint32_t bits = 64) {
-        char* result = iscc_data_hasher_finalize(handle_, bits);
-        if (!result) {
-            throw std::runtime_error(iscc_last_error() ? iscc_last_error()
-                                                       : "finalize failed");
-        }
-        std::string code(result);
-        iscc_free_string(result);
-        return code;
-    }
-
-private:
-    iscc_FfiDataHasher* handle_;
-};
+int main() {
+    auto result = iscc::gen_meta_code_v0("ISCC Test Document!");
+    std::cout << "Meta-Code: " << result.iscc << std::endl;
+}
 ```
 
-Usage:
+### Gen functions
+
+Each `gen_*_v0` function returns a typed result struct with an `.iscc` string field:
 
 ```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+
+// Meta-Code from metadata
+auto meta = iscc::gen_meta_code_v0("Title", "Description");
+std::cout << meta.iscc << std::endl;
+
+// Text-Code from plain text
+auto text = iscc::gen_text_code_v0("Hello World");
+std::cout << text.iscc << std::endl;
+
+// Data-Code from byte data
+std::vector<uint8_t> data = {0x01, 0x02, 0x03};
+auto dc = iscc::gen_data_code_v0(data);
+std::cout << dc.iscc << std::endl;
+
+// ISCC-SUM from a file path (Data-Code + Instance-Code in one pass)
+auto sum = iscc::gen_sum_code_v0("document.pdf");
+std::cout << sum.iscc << std::endl;
+std::cout << sum.datahash << std::endl;
+std::cout << sum.filesize << std::endl;
+```
+
+### Streaming
+
+`iscc::DataHasher` and `iscc::InstanceHasher` are RAII move-only classes. The constructor allocates,
+the destructor frees, and copy operations are deleted. Call `update()` to feed data incrementally,
+then `finalize()` to produce the result.
+
+The dual-hasher pattern feeds both hashers from the same read loop — one pass over the file produces
+both a Data-Code and an Instance-Code:
+
+```cpp
+#include <iscc/iscc.hpp>
 #include <fstream>
 #include <iostream>
 #include <vector>
 
 int main() {
-    IsccDataHasher hasher;
+    iscc::DataHasher dh;
+    iscc::InstanceHasher ih;
 
     std::ifstream file("document.pdf", std::ios::binary);
-    std::vector<uint8_t> buf(4 * 1024 * 1024);
-    while (file.read(reinterpret_cast<char*>(buf.data()), buf.size()) || file.gcount()) {
-        hasher.update(buf.data(), static_cast<size_t>(file.gcount()));
+    std::vector<char> buf(4 * 1024 * 1024);
+    while (file.read(buf.data(), buf.size()) || file.gcount()) {
+        auto n = static_cast<size_t>(file.gcount());
+        dh.update(reinterpret_cast<const uint8_t*>(buf.data()), n);
+        ih.update(reinterpret_cast<const uint8_t*>(buf.data()), n);
     }
 
-    std::string code = hasher.finalize(64);
-    std::cout << "Data-Code: " << code << std::endl;
-    return 0;
+    auto data_result = dh.finalize();
+    auto inst_result = ih.finalize();
+    std::cout << "Data-Code:     " << data_result.iscc << std::endl;
+    std::cout << "Instance-Code: " << inst_result.iscc << std::endl;
 }
 ```
 
-The same RAII pattern applies to `IsccInstanceHasher` — replace `iscc_data_hasher_*` with
-`iscc_instance_hasher_*`.
+!!! warning "Finalize is single-use"
+
+    After calling `finalize()`, the hasher's internal state is consumed. Subsequent `update()` or
+    `finalize()` calls will throw `iscc::IsccError`. The destructor still runs to release the wrapper
+    memory.
+
+### Error handling
+
+All `iscc::` functions throw `iscc::IsccError` (inherits `std::runtime_error`) on failure — no NULL
+checks needed:
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+
+try {
+    auto result = iscc::gen_text_code_v0("Hello World");
+    std::cout << result.iscc << std::endl;
+} catch (const iscc::IsccError& e) {
+    std::cerr << "ISCC error: " << e.what() << std::endl;
+}
+```
+
+### Codec and utilities
+
+```cpp
+#include <iscc/iscc.hpp>
+
+// Decode an ISCC string into header components and raw digest
+auto decoded = iscc::iscc_decode("ISCC:AAAWN77F727NXSUS");
+std::cout << "MainType: " << (int)decoded.maintype << std::endl;
+std::cout << "Digest length: " << decoded.digest.size() << std::endl;
+
+// Decompose a composite ISCC-CODE into individual ISCC-UNITs
+auto units = iscc::iscc_decompose("ISCC:KEC...");
+for (const auto& unit : units) {
+    std::cout << unit << std::endl;
+}
+```
+
+### Conformance verification
+
+Validate that the library produces correct results for all official test vectors:
+
+```cpp
+#include <iscc/iscc.hpp>
+#include <iostream>
+
+int main() {
+    if (iscc::conformance_selftest()) {
+        std::cout << "All conformance tests passed." << std::endl;
+    } else {
+        std::cerr << "Conformance test FAILED." << std::endl;
+        return 1;
+    }
+}
+```
 
 ## Conformance verification
 

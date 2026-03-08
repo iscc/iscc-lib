@@ -14,3 +14,6 @@ crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
 iscc-lib = { path = "../iscc-lib" }
+
+[build-dependencies]
+csbindgen = "1.9.7"

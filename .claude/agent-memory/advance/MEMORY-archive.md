@@ -3,6 +3,22 @@
 Archived implementation patterns from completed project phases. Moved here to reduce per-invocation
 context loading. Full history preserved in git.
 
+## .NET Bindings (P/Invoke) — Detailed (archived iteration 10)
+
+- Package: `packages/dotnet/Iscc.Lib/` (class library) + `packages/dotnet/Iscc.Lib.Tests/` (xUnit)
+- P/Invoke DLL name: `"iscc_ffi"` — .NET resolves to `libiscc_ffi.so` / `iscc_ffi.dll` / `.dylib`
+- `[return: MarshalAs(UnmanagedType.U1)]` required for C `bool` → C# `bool` marshaling
+- `CallingConvention.Cdecl` matches Rust's `extern "C"`
+- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` to pass lib path to vstest host child process
+- csbindgen (v1.9.7) generates `NativeMethods.g.cs`. `NativeMethods` is `internal`
+- `IsccLib.cs` wrappers: PascalCase public methods, 4 private + 2 internal helpers
+- Streaming: SafeHandle + IDisposable pattern, `_finalized` bool for one-shot semantics
+- `GCHandle.Alloc(GCHandleType.Pinned)` for jagged arrays
+- Empty span fix for 7 functions: GenAudioCodeV0, GenDataCodeV0, GenInstanceCodeV0, GenImageCodeV0,
+    AlgMinhash256, AlgCdcChunks, EncodeBase64
+- `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — 9 `[Theory]` + `[MemberData]` tests
+- `Results.cs`: 11 sealed records (9 gen + SumCodeResult + DecodeResult)
+
 See MEMORY.md for current active entries.
 
 ## Archived 2026-03-02 — Documentation Sweep Patterns
@@ -31,3 +47,16 @@ See MEMORY.md for current active entries.
 - Unix includes 2 files: shared lib + static lib. Both also include `iscc.h` + `LICENSE`
 - `publish-ffi` needs `contents: write` (top-level is `contents: read`)
 - Uses `softprops/action-gh-release@v2` with tag_name ternary for tag push vs manual dispatch
+
+## Archived 2026-03-05 — Ruby Bindings (Magnus) Full Details
+
+- Root `.gitignore` has `lib/` pattern — Ruby crate needs `!lib/` negation in `.gitignore`
+- Bundler: local vendor path (`bundle config set --local path vendor/bundle`)
+- PATH: `/home/dev/.local/share/gem/ruby/3.1.0/bin` must be in PATH for bundle commands
+- `bundle exec rake compile` builds release profile (rb_sys `RB_SYS_CARGO_PROFILE`)
+- Gen functions: `_` prefix in Rust bridge, Ruby wrapper provides keyword-arg public API
+- Ruby `Result < Hash` enables `result["iscc"]` and `result.iscc` via `method_missing`
+- Constants: `module.const_set("NAME", value)` in Magnus init
+- Binary data: `RString` param + `unsafe { data.as_slice() }` — copy bytes before Ruby API calls
+- Returning arrays: `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays
+- Test files: `test/test_smoke.rb`, `test/test_iscc_lib.rb`, `test/test_conformance.rb`

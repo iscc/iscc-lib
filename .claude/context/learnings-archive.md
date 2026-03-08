@@ -277,9 +277,82 @@ reference-only for humans.
 - Binding-specific `add_units`/`units` patterns archived to `learnings-archive.md` (issue #21 fully
     resolved: all 7 bindings complete)
 
+## Ruby Bindings — Magnus (COMPLETED)
+
+- Magnus 0.7.1 works with Rust edition 2024 and Ruby 3.1.2. Magnus 0.8 requires Ruby 3.2+
+- `extconf.rb` must be at crate root (not `ext/iscc_lib/`) — rb_sys `ExtensionTask` expects it next
+    to `Cargo.toml`
+- Cargo lib name must match package name (`iscc_rb`, not `iscc_lib`) — rb_sys derives the binary
+    name from the package name. Ruby loads via `require_relative "iscc_lib/iscc_rb"`
+- Root `.gitignore` has `lib/` pattern — need `!lib/` negation in `crates/iscc-rb/.gitignore`
+- `bundler` not on PATH by default in devcontainer — need `$HOME/.local/share/gem/ruby/3.1.0/bin` on
+    PATH
+- Streaming classes use `#[magnus::wrap(class = "IsccLib::ClassName")]` + `RefCell<Option<inner>>`
+    (Magnus gives `&self`, not `&mut self`). Ruby `class ClassName` inside `module IsccLib` reopens
+    the native class. Method prefix `_update`/`_finalize` works; class prefix `_DataHasher` does NOT
+    (Ruby constants must start with uppercase)
+- `libclang-dev` required for rb-sys/bindgen to compile
+- Standard Ruby linting: `standard` gem + `rubocop-minitest` plugin. Config at `.standard.yml` (not
+    `.rubocop.yml`). `mise run check` now runs 15 hooks (incl. Ruby auto-fix). Pre-commit hook uses
+    portable `ruby -e "puts Gem.user_dir"` for PATH resolution since `bundle` isn't on system PATH
+- Ruby `JSON.generate` silently ignores `sort_keys: true` — use `meta_val.sort.to_h` before
+    `JSON.generate` for sorted-key output. Python `json.dumps(sort_keys=True)` works as expected
+
 ## Go/wazero Bridge (OBSOLETE)
 
 - Go module path is `github.com/iscc/iscc-lib/packages/go`, package name `iscc`
 
 - `text_clean` does NOT collapse double spaces within a line — use NFKC ligature normalization
     (e.g., fi ligature U+FB01 → "fi") for test cases instead of space-collapsing expectations
+
+## CI/CD — Binding-Specific Release Details (archived iteration 5)
+
+- **WASM conformance_selftest**: requires `--features conformance` in `wasm-pack build` — the export
+    is gated behind `#[cfg(feature = "conformance")]` in the WASM crate. NAPI and Python export it
+    unconditionally
+- **NAPI js_name**: binding uses `#[napi(js_name = "conformance_selftest")]` — snake_case is
+    preserved in the raw .node export. Smoke test can `require()` the .node file directly
+- **RubyGems trusted publishing (OIDC)**: uses `rubygems/configure-rubygems-credentials@main` with
+    `id-token: write` permission. No API keys needed. Configured on rubygems.org as trusted
+    publisher
+- **Ruby cross-gem action quirk**: `oxidize-rb/actions/cross-gem@v1` configure step greps
+    `Gemfile.lock` in repo root (ignores `working-directory`). For subdirectory gems, symlink the
+    lockfile: `ln -sf crates/iscc-rb/Gemfile.lock Gemfile.lock`
+
+## .NET Bindings (P/Invoke) — Completed Phase (Iteration 9)
+
+- DLL name `"iscc_ffi"` — .NET auto-resolves to `libiscc_ffi.so` (Linux), `iscc_ffi.dll` (Windows),
+    `libiscc_ffi.dylib` (macOS). No platform-specific code needed
+- `[return: MarshalAs(UnmanagedType.U1)]` required for C `bool` → C# `bool` marshaling
+- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` to pass library path to vstest host child
+    process; shell-level env var alone is insufficient. CI needs `env:` on the test step
+- .NET 8 SDK install in Dockerfile: Microsoft install script to `/usr/share/dotnet` (system-wide,
+    before non-root user section)
+- csbindgen (v1.9.7) in `build.rs` generates C# bindings from `extern "C"` functions. Uses
+    `input_extern_file("src/lib.rs")` — parses `#[unsafe(no_mangle)]` (Rust 2024 edition) correctly.
+    Unlike cbindgen (CLI tool), csbindgen runs in build.rs and writes directly to repo path
+- `NativeMethods.g.cs` is `internal` class with 47 P/Invoke declarations, 6 struct types. Generated
+    file uses `byte*` for C strings, `nuint` for `usize`, `[MarshalAs(UnmanagedType.U1)]` for bools
+- `AllowUnsafeBlocks` required in `.csproj` for csbindgen's `byte*` pointer types
+- Marshaling pattern: `ToNativeUtf8` (C# string → null-terminated UTF-8 `byte[]`),
+    `ConsumeNativeString` (native `byte*` → managed `string` + `iscc_free_string`), `GetLastError`
+    (reads `iscc_last_error()` without freeing — thread-local storage).
+    `fixed (byte* p = nullArray)` sets pointer to null for optional parameters
+- `dotnet test -e LD_LIBRARY_PATH=target/debug` with relative path fails in devcontainer — must use
+    absolute path. CI is unaffected (uses `env:` which resolves correctly)
+- **Empty span `fixed` null pointer**: C# `fixed (T* p = emptySpan)` produces NULL — FFI layer
+    rejects NULL. Guard with `if (span.IsEmpty) { T sentinel; use &sentinel with length 0 }`.
+    Applied to all 7 affected functions
+- C# disallows pointer types (e.g., `byte**`) as generic type arguments — string array marshaling
+    must be inlined per-method
+- `IsccSumCodeResult` struct is at the namespace level in `NativeMethods.g.cs` (not nested)
+- `ConsumeNativeStringArray`: shared helper for NULL-terminated `byte**` → `string[]` marshaling
+- `IsccDecode` returns `DecodeResult` record; digest copied via `Span<byte>` before native free
+- Streaming hashers (`IsccDataHasher`, `IsccInstanceHasher`): `SafeHandle` nested class +
+    `IDisposable` on the outer class. `DangerousGetHandle()` is acceptable for single-threaded use
+- **C# structured result records**: `Results.cs` holds all 11 sealed record types
+- **NuGet .csproj README path**: `Include="../../README.md"` from `packages/dotnet/Iscc.Lib/`
+    resolves to `packages/README.md` (wrong), not `packages/dotnet/README.md`. Use `../README.md`
+- **NuGet native lib packaging**: cross-architecture find pattern must scope by target name
+    (`-path "*-${target}/*"`) to avoid copying wrong-arch libraries when multiple targets share the
+    same lib name (e.g., both linux-x64 and linux-arm64 produce `libiscc_ffi.so`)

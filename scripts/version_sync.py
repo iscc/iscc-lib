@@ -9,6 +9,9 @@ Synced targets:
 - `crates/iscc-napi/package.json` — npm package version
 - `crates/iscc-jni/java/pom.xml` — Maven artifact version
 - `crates/iscc-rb/lib/iscc_lib/version.rb` — Ruby gem version constant
+- `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET package version
+- `packages/cpp/vcpkg.json` — vcpkg manifest version
+- `packages/cpp/conanfile.py` — Conan recipe version
 - `mise.toml` — default `--version` flag for test_install task
 - `scripts/test_install.py` — fallback version for registry checks
 - Maven/Gradle version snippets in docs and READMEs
@@ -142,6 +145,37 @@ def _sync_ruby_version(text, version):
     )
 
 
+def _get_csproj_version(text):
+    """Extract version from .NET .csproj <Version> element."""
+    m = re.search(r"<Version>(\d+\.\d+\.\d+)</Version>", text)
+    return m.group(1) if m else ""
+
+
+def _sync_csproj(text, version):
+    """Update .NET .csproj <Version> element."""
+    return re.sub(
+        r"(<Version>)\d+\.\d+\.\d+(</Version>)",
+        rf"\g<1>{version}\2",
+        text,
+    )
+
+
+def _get_conanfile_version(text):
+    """Extract version from Conan recipe class attribute."""
+    m = re.search(r'version\s*=\s*"(\d+\.\d+\.\d+)"', text)
+    return m.group(1) if m else ""
+
+
+def _sync_conanfile(text, version):
+    """Update version in Conan recipe class attribute."""
+    return re.sub(
+        r'(version\s*=\s*")\d+\.\d+\.\d+(")',
+        rf"\g<1>{version}\2",
+        text,
+        count=1,
+    )
+
+
 def _get_maven_doc_version(text):
     """Extract Maven dependency version from a doc/README file."""
     m = MAVEN_DEP_RE.search(text)
@@ -163,6 +197,9 @@ TARGETS = [
     ("mise.toml", _get_mise_version, _sync_mise),
     ("scripts/test_install.py", _get_test_install_version, _sync_test_install),
     ("crates/iscc-rb/lib/iscc_lib/version.rb", _get_ruby_version, _sync_ruby_version),
+    ("packages/dotnet/Iscc.Lib/Iscc.Lib.csproj", _get_csproj_version, _sync_csproj),
+    ("packages/cpp/vcpkg.json", _get_package_json_version, _sync_package_json),
+    ("packages/cpp/conanfile.py", _get_conanfile_version, _sync_conanfile),
     ("README.md", _get_maven_doc_version, _sync_maven_doc),
     ("crates/iscc-jni/README.md", _get_maven_doc_version, _sync_maven_doc),
     ("docs/howto/java.md", _get_maven_doc_version, _sync_maven_doc),

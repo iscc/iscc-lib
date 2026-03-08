@@ -78,6 +78,10 @@ on:
         description: Publish iscc-lib to RubyGems
         type: boolean
         default: false
+      nuget:
+        description: Publish Iscc.Lib to NuGet
+        type: boolean
+        default: false
 ```
 
 ### Job Conditions
@@ -93,6 +97,8 @@ Each job chain activates on either a tag push or its corresponding checkbox:
     `if: startsWith(github.ref, 'refs/tags/v') || inputs.maven`
 - **RubyGems jobs** (build-ruby-gems, publish-rubygems):
     `if: startsWith(github.ref, 'refs/tags/v') || inputs.rubygems`
+- **NuGet jobs** (pack-nuget, test-nuget, publish-nuget):
+    `if: startsWith(github.ref, 'refs/tags/v') || inputs.nuget`
 
 Tag pushes activate all jobs (no inputs are set, but the tag condition passes for all).
 
@@ -104,6 +110,7 @@ Tag pushes activate all jobs (no inputs are set, but the tag condition passes fo
 | **PyPI**          | OIDC trusted publishing      | `pypa/gh-action-pypi-publish@release/v1`                                            |
 | **npm**           | Token (`NPM_TOKEN` secret)   | `NODE_AUTH_TOKEN` env var                                                           |
 | **Maven Central** | GPG signing + Sonatype token | `MAVEN_GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE`, `MAVEN_USERNAME`, `MAVEN_PASSWORD` |
+| **NuGet**         | API key (`NUGET_API_KEY`)    | Scoped NuGet.org API key as GitHub Actions secret                                   |
 | **RubyGems**      | OIDC trusted publishing      | RubyGems trusted publisher config (or `GEM_HOST_API_KEY` secret fallback)           |
 
 All jobs that use OIDC require `permissions: id-token: write`. Maven Central uses the Sonatype
@@ -192,6 +199,7 @@ Single build on ubuntu-latest, platform-independent.
 | WASM      | npm           | `@iscc/wasm`                                                       |
 | Java      | Maven Central | `io.iscc:iscc-lib`                                                 |
 | Ruby      | RubyGems      | `iscc-lib`                                                         |
+| C# / .NET | NuGet         | `Iscc.Lib`                                                         |
 | Go        | pkg.go.dev    | `github.com/iscc/iscc-lib/packages/go` (tag-based, no publish job) |
 
 ### Java JNI native libraries (cargo + Maven)
@@ -315,12 +323,14 @@ workflow triggers on push to `main`.
 - [x] `workflow_dispatch` with only `npm: true` builds and publishes only npm packages
 - [x] `workflow_dispatch` with only `maven: true` builds and publishes only to Maven Central
 - [ ] `workflow_dispatch` with only `rubygems: true` builds and publishes only to RubyGems
+- [x] `workflow_dispatch` with only `nuget: true` builds and publishes only to NuGet
 - [x] Each registry's jobs are independent — failure in one does not block others
 - [x] crates.io uses OIDC trusted publishing (no API key secret)
 - [x] PyPI uses OIDC trusted publishing (no API key secret)
 - [x] npm uses `NPM_TOKEN` repository secret
 - [x] Maven Central uses GPG signing + Sonatype Central Portal credentials
 - [ ] RubyGems uses OIDC trusted publishing (or `GEM_HOST_API_KEY` fallback)
+- [x] NuGet uses scoped API key (`NUGET_API_KEY` secret)
 - [x] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
 - [x] Java JAR bundles 5-platform native libraries under `META-INF/native/`
 - [ ] Ruby precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64,
