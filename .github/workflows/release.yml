@@ -240,7 +240,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: napi-${{ matrix.target }}
-          path: crates/iscc-napi/*.node
+          path: |
+            crates/iscc-napi/*.node
+            crates/iscc-napi/index.js
+            crates/iscc-napi/index.d.ts
 
   # Smoke test NAPI native addon on Linux before publishing
   test-napi:
