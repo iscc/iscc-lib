@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
     <Description>High-performance ISCC (ISO 24138) library for .NET</Description>
     <Authors>ISCC Foundation</Authors>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
