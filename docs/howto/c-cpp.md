@@ -83,7 +83,7 @@ includedir=${prefix}/include
 
 Name: iscc-ffi
 Description: ISCC (ISO 24138) shared library
-Version: 0.0.4
+Version: 0.2.0
 Libs: -L${libdir} -liscc_ffi
 Cflags: -I${includedir}
 ```
