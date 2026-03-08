@@ -1,42 +1,39 @@
-## 2026-03-08 — Review of: Fix "View as Markdown" 404 on docs site
+## 2026-03-08 — Fix Conan recipe to package pre-built FFI shared library
 
-**Verdict:** PASS
+**Done:** Rewrote `packages/cpp/conanfile.py` from a broken CMake-based recipe to a pre-built binary
+recipe that downloads platform-specific FFI tarballs from GitHub Releases. The recipe now mirrors
+the vcpkg portfile's platform mapping (5 targets), downloads and extracts archives in `build()`, and
+correctly installs headers into `include/iscc/`, shared libs into `lib/` (or `bin/` for Windows
+DLLs), static/import libs into `lib/`, and license into `licenses/`.
 
-**Summary:** The advance agent correctly updated `scripts/gen_llms_full.py` to include all 20
-documentation pages (up from 14) by adding the 6 missing entries to `ORDERED_PAGES` and implementing
-auto-discovery via `rglob("*.md")`. The fix is well-scoped (single file), solves the root cause, and
-prevents future drift. One minor cross-platform fix applied (reviewer step 9).
+**Files changed:**
+
+- `packages/cpp/conanfile.py`: Complete rewrite — removed `exports_sources`, CMake generators,
+    `compiler`/`build_type` settings, and CMake build step. Added `_target_triple()` helper with
+    5-platform mapping, `build()` using `conan.tools.files.download`/`unzip`, `package()` with
+    correct platform-aware library installation (DLLs to `bin/`, import libs to `lib/`), and
+    `validate()` that rejects unsupported platforms. `package_info()` retains `libs = ["iscc_ffi"]`
+    and adds `bindirs` for Windows.
 
 **Verification:**
 
-- [x] `uv run zensical build && uv run python scripts/gen_llms_full.py` exits 0 — "20 pages, 236169
-    bytes"
-- [x] `test -f site/howto/ruby.md` exits 0
-- [x] `test -f site/howto/dotnet.md` exits 0
-- [x] `test -f site/howto/c-cpp.md` exits 0
-- [x] `test -f site/c-ffi-api.md` exits 0
-- [x] `test -f site/java-api.md` exits 0
-- [x] `test -f site/ruby-api.md` exits 0
-- [x] `wc -l site/llms-full.txt` shows 7833 lines (increased from prior ~5000)
-- [x] `mise run check` — all 15 hooks passed
+- Python syntax validation: PASS
+- All 7 grep checks: PASS (download, all 3 platform triples, no exports_sources, iscc_ffi lib,
+    shared-library type)
+- `mise run check`: all 15 hooks passed
 
-**Issues found:**
-
-- Minor: `str(rel)` in `discover_pages()` produces backslash paths on Windows, causing set
-    comparison with `ORDERED_PAGES` (forward slashes) to fail — all pages would appear twice in
-    `all_pages`. Fixed in review step 9 by using `rel.as_posix()` instead. No behavior change on
-    Linux/macOS.
-
-**Codex review:** Codex identified the same Windows path separator issue (P3). Already fixed by the
-reviewer's minor fix (`str(rel)` → `rel.as_posix()`). No other findings.
-
-**Next:** One `normal` priority issue remains: Conan recipe fix (`conanfile.py` declares
-`shared-library` but `package()` never copies the native `iscc_ffi` binary). After that, only `low`
-priority issues remain and the CID loop should signal idle.
+**Next:** Only `low` priority issues remain in issues.md (vcpkg SKIP_SHA512, Conan version sync).
+The CID loop should signal idle or pick up low-priority items if policy allows.
 
 **Notes:**
 
-- The "View as Markdown" issue has been deleted from issues.md (resolved by this iteration)
-- The auto-discovery approach (`discover_pages()`) prints a message when extra pages are found on
-    disk but not in `ORDERED_PAGES`, so developers know to add them for proper ordering
-- The `ORDERED_PAGES` list now matches `zensical.toml` nav exactly (20 entries)
+- No tests written for this step — Conan CLI is not installed in the dev environment and the recipe
+    requires real GitHub Release tarballs to test. Verification is via syntax validation and
+    structural grep checks as specified in next.md.
+- The recipe accepts both `armv8` and `aarch64` as arch values (Conan uses `armv8` by convention for
+    ARM64, but `aarch64` is also common).
+- Removed `check_min_cppstd` validation since we're packaging pre-built binaries — C++ standard
+    requirements are enforced by the `cxxflags` in `package_info()`, not at recipe validation time.
+- The `cxxflags` no longer special-cases MSVC (`/std:c++17`) since `compiler` is not in settings.
+    Consumers using MSVC will need to set C++17 via their own project settings, which is standard
+    Conan practice for pre-built binary packages.

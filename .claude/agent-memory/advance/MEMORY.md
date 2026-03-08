@@ -174,7 +174,8 @@ iterations.
 - cmake + g++ NOT pre-installed in devcontainer — `sudo apt-get install cmake g++`
 - Package manager manifests: `vcpkg.json` + `portfile.cmake` + `conanfile.py` in `packages/cpp/`
 - vcpkg portfile downloads pre-built FFI tarballs from GitHub Releases (5 targets, `SKIP_SHA512`)
-- Conan recipe: `package_type = "shared-library"`, CMakeToolchain/CMakeDeps, C++17 validation
+- Conan recipe: pre-built binary download (mirrors portfile.cmake), `settings = "os", "arch"` only,
+    `_target_triple()` maps to 5 platform targets, `conan.tools.files.download`/`unzip` in `build()`
 
 ## Gotchas
 
