@@ -42,6 +42,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `grep -n "^inline\|^struct\|^class\|// ---" packages/cpp/include/iscc/iscc.hpp`
 - **C++ iscc.hpp in release.yml**: `grep -n 'iscc.hpp' .github/workflows/release.yml`
 - **gen_llms_full.py page count**: `grep -c "^\s*\"" scripts/gen_llms_full.py` (ORDERED_PAGES list)
+- **Conan recipe check**:
+    `grep -n 'download\|package_type\|cxxflags\|_target_triple' packages/cpp/conanfile.py`
 
 ## Codebase Landmarks
 
@@ -65,7 +67,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `scripts/gen_llms_full.py` — **20 entries** in `ORDERED_PAGES`; `discover_pages()` via `rglob`
     with `as_posix()` (cross-platform); "View as Markdown" 404 RESOLVED (CID cycle 2 iter 3)
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
-    **Iscc.Lib.csproj** (added in iteration 9); does NOT yet sync vcpkg.json/conanfile.py (`low`)
+    **Iscc.Lib.csproj** (added in iteration 9); does NOT yet sync vcpkg.json/conanfile.py (`normal`
+    issue)
 - `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
     EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
     MetaTrimMeta, IoReadSize, TextNgramSize)
@@ -85,17 +88,22 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `gh run list` does NOT need `--repo` when running from within the workspace; but `--json` fields
     are needed to avoid GraphQL deprecation error
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
-    missing symbol rather than trusting handoff verdict counts
+    missing symbol rather than trusting handoff verdict counts. Handoff claimed "only low issues
+    remain" but issues.md had 4 normal-priority issues — always verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 262e8d6e67cf8f9fbbc59c622b6fb5201bc6d421)
+## Current State (assessed-at: 5aff4b1e5d45e134f354e1b032278a4c76ff9906)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 22817778599); **C++ wrapper PARTIALLY DONE**
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22818410289)
 - **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
-- **View as Markdown RESOLVED (CID cycle 2, iter 3)**: gen_llms_full.py updated to 20 pages ✅
-- **1 normal-priority issue remains**: Conan recipe (shared-library without actual library binary)
-- **CI (run 22817778599)**: ALL SUCCESS — 14 jobs ✅
+- **Conan recipe FIXED (CID cycle 2, iter 1)**: package() now downloads pre-built FFI binaries ✅
+- **4 normal-priority issues remain** in issues.md:
+    1. Conan recipe `cxxflags = ["-std=c++17"]` invalid for MSVC consumers [review]
+    2. `version_sync.py` doesn't sync vcpkg.json/conanfile.py [review]
+    3. `portfile.cmake` uses SKIP_SHA512 (no checksum pinning) [human]
+    4. Language logos missing from README and docs [human]
+- **CI (run 22818410289)**: ALL SUCCESS — 14 jobs ✅
 
 ## NuGet Pipeline Details (iteration 10)
 
@@ -114,76 +122,32 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `serde_json` silently ignores unknown fields
 - Rust lib.rs assertion: 20; WASM conformance.rs line 66: 20 ✅; Go all 9 test files updated ✅
 
-## Go Package Tier 1 Coverage (32/32 — COMPLETE)
-
-All 32 symbols: 10 gen functions (including GenSumCodeV0), ConformanceSelftest, DataHasher,
-InstanceHasher, 4 text utilities, SlidingWindow, AlgMinhash256, AlgCdcChunks, AlgSimhash,
-SoftHashVideoV0, EncodeBase64, EncodeComponent, IsccDecode, IsccDecompose, JsonToDataUrl, **5
-constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNgramSize).
-
 ## Gotchas
 
 - Go target requires pure Go (no WASM, no wazero, no binary artifacts)
 - WASM constant name gotcha: `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` exports uppercase
 - `state.md` section order must include Go Bindings, README, Per-Crate READMEs sections
-- Python ruff format check can fail in CI even if local `mise run check` passes
 - **JCS gotcha**: Go `json.Marshal` passes current vectors. If future vectors have floats, a proper
     RFC 8785 JCS library may be needed
-- **DataHasher/InstanceHasher API (Go)**: `Push([]byte)` + `Finalize(bits)` pattern
 - **DataHasher/InstanceHasher API (Ruby)**: `RefCell<Option<inner>>` for interior mutability (Magnus
     `&self`); Ruby wrapper reopens native class, adds `update(data)` (chaining) +
     `finalize(bits: 64)`
-- **GenIsccCodeV0 key details**: `encode_units` produces a bitfield; `wide` param always false in
-    test vectors; SubType from content code's SubType (or NONE if absent); 5 conformance vectors
-- **gen_sum_code_v0 WASM**: path-based I/O doesn't exist in browser WASM context — accepts
-    Uint8Array/&[u8] instead; WASM and Go both solve this differently from Rust/Python/Node.js/C FFI
-- **META_TRIM_META validation**: pre-decode fast check on Data-URL string length AND post-decode
-    payload check; both needed in gen_meta_code_v0
-- **Java META_TRIM_META**: added as compile-time `public static final int` (no JNI function needed)
-- **C FFI IsccSumCodeResult**: struct-return pattern (not output-pointer); matches IsccDecodeResult
-    pattern precisely; partial allocation failure handled (free iscc before returning null)
-- **9 vs 10 distinction**: data.json has 9 conformance sections (no gen_sum_code_v0 vectors);
-    iscc-lib has 10 gen functions. Test/conformance docstrings correctly say "9"; user-facing docs
-    and benchmarks file say "10"
-- **WASM count assertions**: `crates/iscc-wasm/tests/conformance.rs` has per-function
-    `assert_eq!(tested, N, ...)` guards. When data.json gains new vectors, BOTH lib.rs AND the WASM
-    conformance test must be updated.
-- **Ruby JSON sort_keys no-op**: `JSON.generate(hash, sort_keys: true)` silently ignores `sort_keys`
-    in Ruby's stdlib json gem. Use `JSON.generate(hash.sort.to_h)` instead.
 - **alg_cdc_chunks API**: public fn returns `IsccResult<Vec<&[u8]>>` (validates
     `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked`
 - **csbindgen**: `crates/iscc-ffi/build.rs` runs csbindgen on every `cargo build`, writing
-    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (929 lines, 47 externs, 6 structs). Class is
-    `internal static unsafe partial class NativeMethods` — idiomatic wrappers in `IsccLib.cs` are
-    the public surface. `dotnet test` requires `-e LD_LIBRARY_PATH=target/debug` (vstest host does
-    not inherit shell env).
-- **C# gen function return types**: All 10 `gen_*_v0` return typed records. BUT records are
-    simplified — MetaCodeResult, TextCodeResult, InstanceCodeResult only carry `(string Iscc)`. Spec
-    requires additional fields (Name/MetaHash/Description/Meta, Characters, DataHash/FileSize) which
-    need C FFI struct changes first. NOT a blocking gap for current conformance criteria.
-- **C# streaming Finalize() return types**: DONE — `IsccDataHasher.Finalize()` → `DataCodeResult`,
-    `IsccInstanceHasher.Finalize()` → `InstanceCodeResult`. Completed in iteration 7.
-- **C# ConsumeNativeStringArray**: private helper marshals `byte**` (NULL-terminated string array)
-    from FFI, then calls `iscc_free_string_array`. Reuse for any future `byte**`-returning function.
-- **C# ConsumeByteBuffer/ConsumeByteBufferArray**: marshal `IsccByteBuffer`/`IsccByteBufferArray`
-    structs from FFI (null check + data copy + free). Used by AlgSimhash, AlgMinhash256,
-    AlgCdcChunks, SoftHashVideoV0. Jagged-array inputs use `GCHandle` pinning.
-- **C# empty-span null pointer**: `fixed` on empty `ReadOnlySpan<T>` produces NULL pointer in .NET.
-    Use stack sentinel pattern (`byte sentinel; func(&sentinel, 0, ...)`). FIXED in all 7 locations.
-- **C# ConformanceTests xUnit1026 warnings**: FIXED in iteration 16 — `vectorName` renamed to `_` in
-    all 9 `[Theory]` methods in `ConformanceTests.cs`.
-- **C++ iscc.hpp**: `packages/cpp/include/iscc/iscc.hpp` — 681-line C++17 header-only wrapper. RAII
-    guards: `UniqueString`, `UniqueStringArray`, `UniqueByteBuffer`, `UniqueByteBufferArray`.
-    `IsccError : std::runtime_error`. `detail::safe_data()` for empty vector null protection.
-    `detail::check_error()` and `detail::check_ptr()`. All 32 Tier 1 symbols in `namespace iscc`.
-    `DataHasher` + `InstanceHasher` RAII classes (move-only). `cmake` and `g++` must be
-    `apt-get install`ed in CI — they're not in the default ubuntu runner.
-- **C++ tarball layout**: flat — `iscc.hpp` placed alongside `iscc.h` in tarball root (not under
-    `iscc/` subdir). Tarball users: `#include "iscc.hpp"`. CMake/vcpkg/conan users:
-    `<iscc/iscc.hpp>` via proper include dir setup. Both conventions documented in
-    `docs/howto/c-cpp.md` line 340-343 ✅ (done iteration 14).
-- **C++ nested vector null-safety**: `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0`
-    marshal nested `vector<vector<T>>` by extracting `.data()` from inner elements. Fixed in
-    iteration 15: `safe_data` int32_t overload added; all three functions now use
-    `detail::safe_data(inner_v)` for empty-vector protection. `gen_audio_code_v0` also fixed
-    (iteration 17). `safe_data` in `iscc.hpp`: 2 overloads + 9 call sites (11 total occurrences).
+    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (929 lines, 47 externs, 6 structs). `dotnet test`
+    requires `-e LD_LIBRARY_PATH=target/debug` (vstest host does not inherit shell env).
+- **C# gen function return types**: simplified records — MetaCodeResult, TextCodeResult,
+    InstanceCodeResult carry only `(string Iscc)`. Extra fields need C FFI struct changes first.
+- **C++ iscc.hpp**: 681-line C++17 header-only wrapper. RAII: UniqueString, UniqueStringArray,
+    UniqueByteBuffer, UniqueByteBufferArray. IsccError. detail::safe_data() (2 overloads, 9 call
+    sites). cmake and g++ must be apt-get installed in CI (not in default ubuntu runner).
+- **C++ tarball layout**: flat — `iscc.hpp` placed alongside `iscc.h` in tarball root.
+- **C++ nested vector null-safety**: safe_data int32_t overload; alg_simhash, soft_hash_video_v0,
+    gen_video_code_v0, gen_audio_code_v0 all use detail::safe_data() for nested vector protection.
+- **Conan cxxflags gotcha**: `cpp_info.cxxflags = ["-std=c++17"]` is GCC/Clang only — MSVC uses
+    `/std:c++17`. Since `compiler` not in `settings`, can't differentiate. Best fix: remove
+    cxxflags, document C++17 requirement, let consumers handle via CMAKE_CXX_STANDARD.
+- **WASM count assertions**: when data.json gains new vectors, BOTH lib.rs AND conformance.rs need
+    updates.
+- **Ruby JSON sort_keys no-op**: use `JSON.generate(hash.sort.to_h)` not `sort_keys: true`.
