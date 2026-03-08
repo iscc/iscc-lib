@@ -86,18 +86,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: ab8a4c3876afa2b32e41d89102becfe969d1b54d)
+## Current State (assessed-at: eea33005a0b4c28f09b9b2e1ad72b3c63243e848)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 22816479556); **C++ wrapper PARTIALLY DONE**
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22816887024); **C++ wrapper PARTIALLY DONE**
 - **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
-- **C++ wrapper (iterations 11-16)**: all manifests added — `vcpkg.json` ✅, `portfile.cmake` ✅,
-    `conanfile.py` ✅. But 2 `normal`-priority bugs remain open:
-    - `gen_audio_code_v0` at `iscc.hpp:472` uses `cv.data()` directly (NULL for empty vec)
-    - `conanfile.py` declares `shared-library` but `package()` never copies the `.so/.dylib/.dll`
-- **C# xUnit1026 warnings fixed**: `vectorName` renamed to `_` in all 9 `[Theory]` methods
-- **4 normal-priority issues**: audio null ptr, Conan recipe, dotnet.md NuGet stale text, docs "View
-    as Markdown" 404
-- **CI (run 22816479556)**: ALL SUCCESS — 14 jobs ✅
+- **C++ audio fix (iteration 17)**: `gen_audio_code_v0` now uses `detail::safe_data(cv)` ✅; test 35
+    added; 54 C++ tests pass; audio null-ptr issue closed in issues.md
+- **3 normal-priority issues remain**: Conan recipe, dotnet.md NuGet stale text, docs "View as
+    Markdown" 404
+- **CI (run 22816887024)**: ALL SUCCESS — 14 jobs ✅
 
 ## NuGet Pipeline Details (iteration 10)
 
@@ -187,5 +184,5 @@ constants** (MetaTrimName, MetaTrimDescription, MetaTrimMeta, IoReadSize, TextNg
 - **C++ nested vector null-safety**: `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0`
     marshal nested `vector<vector<T>>` by extracting `.data()` from inner elements. Fixed in
     iteration 15: `safe_data` int32_t overload added; all three functions now use
-    `detail::safe_data(inner_v)` for empty-vector protection. `safe_data` count in `iscc.hpp`: 10 (2
-    overloads + 8 uses).
+    `detail::safe_data(inner_v)` for empty-vector protection. `gen_audio_code_v0` also fixed
+    (iteration 17). `safe_data` in `iscc.hpp`: 2 overloads + 9 call sites (11 total occurrences).

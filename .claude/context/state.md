@@ -1,15 +1,14 @@
-<!-- assessed-at: ab8a4c3876afa2b32e41d89102becfe969d1b54d -->
+<!-- assessed-at: eea33005a0b4c28f09b9b2e1ad72b3c63243e848 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: normal-priority bug fixes (Conan recipe, C++ audio, docs)
+## Phase: normal-priority bug fixes (Conan recipe, docs)
 
-v0.2.0 released across all 8 registries. The C++ package manager manifests (`vcpkg.json`,
-`portfile.cmake`, `conanfile.py`) were added in iteration 16. Four `normal`-priority issues remain
-open: a broken Conan recipe (missing shared library), `gen_audio_code_v0` null-pointer crash on
-empty vector in `iscc.hpp`, stale `.NET docs` mentioning NuGet is unavailable, and a broken "View as
+v0.2.0 released across all 8 registries. The C++ audio NULL-pointer crash (`gen_audio_code_v0` with
+empty vector) was fixed in this iteration — `detail::safe_data(cv)` now used, 54 C++ tests pass.
+Three `normal`-priority issues remain: a broken Conan recipe, stale .NET docs, and a broken "View as
 Markdown" feature on the docs site.
 
 ## Rust Core Crate
@@ -31,7 +30,7 @@ Markdown" feature on the docs site.
 - All 32 Tier 1 symbols accessible via `__all__` (48 entries)
 - `alg_cdc_chunks` propagates `IsccResult` from Rust core via `PyResult`
 - 207 Python tests pass; `ty check` passes; `cargo clippy -p iscc-py` clean
-- `pyproject.toml` now excludes `packages/cpp/conanfile.py` from `ty` type-check scope
+- `pyproject.toml` excludes `packages/cpp/conanfile.py` from `ty` type-check scope
 
 ## Node.js Bindings
 
@@ -117,24 +116,23 @@ Markdown" feature on the docs site.
     symbols, RAII resource management (`UniqueString`, `UniqueStringArray`, `UniqueByteBuffer`,
     `UniqueByteBufferArray`), `IsccError` exception class, full namespace `iscc` ✅
 - `packages/cpp/CMakeLists.txt` — CMake config ✅
-- `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — 53 passing tests, ASAN clean ✅
-- `safe_data` int32_t overload; `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0` use
-    `detail::safe_data()` for nested vector null-safety ✅
+- `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — **54 passing tests**, ASAN clean ✅
+- `safe_data` int32_t overload; `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0`, and now
+    `gen_audio_code_v0` all use `detail::safe_data()` for nested/empty vector null-safety ✅
+- `gen_audio_code_v0` empty-vector crash fixed: uses `detail::safe_data(cv)` instead of `cv.data()`
+    — test 35 added and passes (empty → `ISCC:EIAQAAAAAAAAAAAA`) ✅
 - `conformance_selftest()` passes; all 10 gen functions tested ✅
 - CI job `C++ (cmake, ASAN, test)` — SUCCESS in latest CI run ✅
 - `iscc.hpp` bundled in FFI release tarballs ✅
 - `packages/cpp/README.md` — 105 lines ✅
 - `docs/howto/c-cpp.md` — 497 lines with full C++ wrapper section ✅
 - Root `README.md` — C++ install tab + quickstart snippet ✅
-- `packages/cpp/vcpkg.json` — vcpkg manifest ✅ (added iteration 16)
+- `packages/cpp/vcpkg.json` — vcpkg manifest ✅
 - `packages/cpp/portfile.cmake` — vcpkg portfile (87 lines, maps triplets to GitHub Releases) ✅
-    (added iteration 16)
-- `packages/cpp/conanfile.py` — Conan 2.x recipe (76 lines) ✅ (added iteration 16)
+- `packages/cpp/conanfile.py` — Conan 2.x recipe (76 lines) ✅
 - **Open issue** (`normal`): `conanfile.py` declares `package_type = "shared-library"` and
     `self.cpp_info.libs = ["iscc_ffi"]`, but `package()` only copies headers — never packages the
     native `iscc_ffi` binary. Consumers cannot link. Needs fix.
-- **Open issue** (`normal`): `gen_audio_code_v0` in `iscc.hpp:472` passes `cv.data()` directly; for
-    empty vector this is NULL → FFI rejects it. Fix: use `detail::safe_data(cv)`.
 - **Open issue** (`low`): `portfile.cmake` uses `SKIP_SHA512` — no checksum pinning
 - **Missing**: `packages/cpp/iscc-config.cmake.in` (CMake find_package template — scoped out)
 
@@ -199,11 +197,10 @@ Markdown" feature on the docs site.
 
 **Status**: met (for existing bindings)
 
-- **LATEST COMPLETED RUN** — run 22816479556: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22816479556
+- **LATEST COMPLETED RUN** — run 22816887024: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/22816887024
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
-    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS
-- Run 22816480092 in-progress at assessment time (12/14 jobs SUCCESS, Bench + Python gate pending)
+    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS ✅
 - `release.yml` has 7 registry `workflow_dispatch` inputs including `nuget` ✅
 - `pack-nuget` → `test-nuget` → `publish-nuget` pipeline in place ✅
 - v0.2.0 released successfully across all 8 registries
@@ -213,16 +210,14 @@ Markdown" feature on the docs site.
 
 ## Next Milestone
 
-Fix the four open `normal`-priority issues, in order of impact:
+Three `normal`-priority issues remain open. Fix in order of impact:
 
-1. **C++ audio null pointer** — `gen_audio_code_v0` in `iscc.hpp:472` uses `cv.data()` directly;
-    empty vector makes this NULL. Fix: use `detail::safe_data(cv)`. Add smoke test.
+1. **Stale .NET docs** — `docs/howto/dotnet.md:21` says NuGet publishing is unavailable; update to
+    reflect the `pack-nuget` / `publish-nuget` pipeline now in `release.yml`.
 2. **Conan recipe contract** — `conanfile.py` declares `shared-library` but `package()` never copies
     the `iscc_ffi` binary. Fix: package pre-built binary or reclassify as `header-library`.
-3. **Stale .NET docs** — `docs/howto/dotnet.md:21` says NuGet publishing is unavailable; update to
-    reflect the `pack-nuget` / `publish-nuget` pipeline now in `release.yml`.
-4. **Docs "View as Markdown" 404** — clicking "View as Markdown" on lib.iscc.codes navigates to a
+3. **Docs "View as Markdown" 404** — clicking "View as Markdown" on lib.iscc.codes navigates to a
     404\. Investigate how `iscc/iscc-usearch` solves this; apply the same Zensical fix.
 
-After these four, only `low`-priority issues remain (vcpkg SHA512, version sync, Swift, Kotlin,
+After these three, only `low`-priority issues remain (vcpkg SHA512, version sync, Swift, Kotlin,
 logos) — the CID loop skips `low` by default.
