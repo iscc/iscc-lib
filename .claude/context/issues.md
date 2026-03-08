@@ -64,13 +64,6 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
     install/quickstart
 
-## vcpkg portfile skips SHA512 verification `normal` [human]
-
-`packages/cpp/portfile.cmake:42` uses `SKIP_SHA512` in `vcpkg_download_distfile`, so consumers
-download release tarballs without a pinned checksum. This weakens supply-chain integrity and
-reproducibility. Fix by computing and storing SHA512 checksums per release and passing them to
-`vcpkg_download_distfile`.
-
 ## Add programming language logos to README and docs `normal` [human]
 
 Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and
