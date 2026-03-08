@@ -1,60 +1,59 @@
 # Next Work Package
 
-## Step: Fix C++ gen_audio_code_v0 NULL pointer crash on empty vector
+## Step: Fix stale .NET docs claiming NuGet is unavailable
 
 ## Goal
 
-Fix the `gen_audio_code_v0` wrapper in `iscc.hpp` that crashes when passed an empty
-`std::vector<int32_t>` because `cv.data()` returns NULL on some implementations. This is a real
-crash bug — the Rust core and C# binding both handle empty vectors correctly.
+Update `docs/howto/dotnet.md` to remove the misleading "NuGet publishing is not yet available" note
+block (lines 21-39). The NuGet publish pipeline (`pack-nuget` / `test-nuget` / `publish-nuget`)
+already exists in `release.yml`, so the documentation is stale and actively misleading developers.
 
 ## Scope
 
-- **Modify**: `packages/cpp/include/iscc/iscc.hpp` (line 472: `cv.data()` → `detail::safe_data(cv)`)
-- **Modify**: `packages/cpp/tests/test_iscc.cpp` (add empty-vector smoke test)
-- **Reference**: `packages/cpp/include/iscc/iscc.hpp` lines 42-56 (existing `safe_data` overloads)
+- **Create**: (none)
+- **Modify**: `docs/howto/dotnet.md`
+- **Reference**: `docs/howto/dotnet.md` (current content), `.github/workflows/release.yml` (to
+    confirm NuGet pipeline exists)
 
 ## Not In Scope
 
-- Fixing the Conan recipe (`conanfile.py`) — separate `normal` issue, separate step
-- Updating .NET docs (`docs/howto/dotnet.md`) — separate `normal` issue
-- Fixing "View as Markdown" 404 on docs site — separate `normal` issue
-- Refactoring other functions that already use `safe_data` correctly
-- Adding conformance test vectors for audio — existing smoke test pattern is sufficient
+- Adding NuGet.org account setup instructions (that's an infrastructure task, not a docs fix)
+- Updating `packages/dotnet/README.md` (it does not have this stale claim)
+- Fixing the Conan recipe or "View as Markdown" issues (separate normal-priority issues)
+- Adding version badges or other README enhancements
 
 ## Implementation Notes
 
-The fix is a single token change on line 472 of `iscc.hpp`:
+Current lines 21-39 contain a `!!! note "Build from source"` admonition that says "NuGet publishing
+is not yet available" and provides build-from-source instructions as the primary install path.
 
-```cpp
-// Before (line 472):
-detail::UniqueString s(iscc_gen_audio_code_v0(cv.data(), cv.size(), bits));
+**Fix approach:**
 
-// After:
-detail::UniqueString s(iscc_gen_audio_code_v0(detail::safe_data(cv), cv.size(), bits));
-```
+1. Remove the `!!! note "Build from source"` admonition block entirely (lines 21-39)
+2. Replace it with a `??? tip "Build from source"` collapsible admonition (collapsed by default)
+    that keeps the build-from-source instructions for contributors who want to build from source,
+    but reframes it as an optional developer workflow rather than the primary install method
+3. The `dotnet add package Iscc.Lib` command on line 18 should stand alone as the primary
+    installation instruction (no warning/caveat note undermining it)
 
-The `detail::safe_data` helper already has an `int32_t` overload (line 49) that returns a static
-empty array pointer instead of NULL for empty vectors. This is the same pattern used by
-`gen_video_code_v0`, `alg_simhash`, `soft_hash_video_v0`, and other functions.
+**Admonition syntax reference** (MkDocs Material):
 
-For the test, add a new numbered test block (35) after the existing DataHasher move semantics test
-(34). The test should:
+- `!!! note "Title"` = always-open note
+- `??? tip "Title"` = collapsible, closed by default
+- `???+ tip "Title"` = collapsible, open by default
 
-1. Call `iscc::gen_audio_code_v0({})` with an empty vector
-2. Assert the result starts with `"ISCC:"` (matching the C# behavior which returns
-    `ISCC:EIAQAAAAAAAAAAAA` for empty input)
-
-Follow the existing test pattern: numbered comment, scoped block, `assert_starts_with` helper.
+Use `??? tip "Build from source"` (collapsed by default) to keep the build instructions accessible
+but de-emphasized.
 
 ## Verification
 
-- `cmake --build build-ci && ./build-ci/tests/test_iscc` passes with 54 tests (was 53)
-- The empty-vector test produces `ISCC:EIAQAAAAAAAAAAAA` (matching C# behavior)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean
-- `grep -c 'detail::safe_data' packages/cpp/include/iscc/iscc.hpp` returns 11 (was 10)
+- `grep -c "not yet available" docs/howto/dotnet.md` exits with code 1 (string not found)
+- `grep -c "Build from source" docs/howto/dotnet.md` exits with code 0 (build-from-source section
+    still exists for contributors)
+- `uv run zensical build 2>&1 | tail -1` shows successful build (no broken page)
+- `mise run check` passes (formatting hooks)
 
 ## Done When
 
-All verification criteria pass — the empty-vector audio test succeeds and no regressions in the
-existing 53 tests.
+All four verification commands pass, confirming the stale NuGet claim is removed while
+build-from-source instructions remain available in a de-emphasized form.
