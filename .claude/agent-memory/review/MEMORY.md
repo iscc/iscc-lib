@@ -33,6 +33,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `../../README.md` counting wrong). Always verify relative paths by `realpath` during review
 - **CI find cross-arch bug**: when multiple targets extract to same CWD with same lib name, `find`
     patterns must include target name. Generic wildcards match all extracted dirs
+- **Advance agent idle claims**: always verify remaining issue priorities independently — advance
+    agents may incorrectly claim "only low-priority issues remain" when normal issues still exist
 
 ## Review Shortcuts
 
@@ -106,8 +108,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - C++ test suite: 54 tests (35 numbered blocks). All gen functions covered including mixed + empty
     audio
 - C++ package managers: vcpkg.json + portfile.cmake + conanfile.py in `packages/cpp/`. Conan recipe
-    rewritten (iteration 3/phase 2) to download pre-built FFI tarballs — mirrors portfile.cmake
-    platform mapping. Known: cxxflags `-std=c++17` invalid for MSVC (low priority)
+    downloads pre-built FFI tarballs — mirrors portfile.cmake platform mapping. cxxflags removed
+    (iteration 1/phase 3). Both vcpkg.json and conanfile.py now in version_sync.py (13 targets)
 - **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`,
     NOT `cmake -B build -S tests` (tests CMakeLists.txt lacks project() and include paths)
 - **Config-only review shortcut**: for pure manifest/config files (JSON, CMake, Python recipes),

@@ -7,12 +7,6 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Add vcpkg.json and conanfile.py to version sync script `normal` [review]
-
-The `scripts/version_sync.py` does not check `packages/cpp/vcpkg.json` or
-`packages/cpp/conanfile.py` for version consistency. Both files hardcode `"0.2.0"` and will go stale
-on the next version bump. Add them to the version sync targets.
-
 ## Implement Swift bindings via UniFFI `low` [human]
 
 Add Swift bindings as a Swift Package in `packages/swift/` using UniFFI-generated code. Requires a
@@ -69,13 +63,6 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 
 5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
     install/quickstart
-
-## Conan recipe cxxflags invalid for MSVC consumers `normal` [review]
-
-`packages/cpp/conanfile.py` sets `cpp_info.cxxflags = ["-std=c++17"]` unconditionally, but
-`-std=c++17` is a GCC/Clang flag — MSVC uses `/std:c++17`. Since `compiler` is not in `settings`
-(correct for pre-built binaries), the recipe can't differentiate. Options: remove the `cxxflags`
-entirely and document C++17 as a requirement, or use CMake's `CMAKE_CXX_STANDARD` property instead.
 
 ## vcpkg portfile skips SHA512 verification `normal` [human]
 
