@@ -1,47 +1,29 @@
-## 2026-03-08 — Review of: Fix Conan cxxflags and add vcpkg/conan to version sync
+## 2026-03-08 — Add SHA512 checksums to vcpkg portfile
 
-**Verdict:** PASS
+**Done:** Downloaded all 5 v0.2.0 FFI release tarballs from GitHub Releases, computed SHA512
+checksums for each, added `set(ISCC_SHA512 "...")` lines in each platform branch of
+`portfile.cmake`, and replaced `SKIP_SHA512` with `SHA512 "${ISCC_SHA512}"` in the
+`vcpkg_download_distfile` call.
 
-**Summary:** The advance agent correctly removed the MSVC-incompatible `cxxflags` line from the
-Conan recipe and added both `vcpkg.json` and `conanfile.py` as version sync targets. The
-implementation is clean, minimal, and well-scoped — vcpkg.json reuses existing JSON sync functions,
-and the conanfile.py gets a properly anchored regex pair. All 6 verification criteria pass, all 15
-pre-commit hooks pass, and clippy is clean.
+**Files changed:**
 
-**Verification:**
+- `packages/cpp/portfile.cmake`: Added per-platform SHA512 checksums (5 `set()` calls) and replaced
+    `SKIP_SHA512` with `SHA512 "${ISCC_SHA512}"` in the download call
 
-- [x] `ast.parse()` exits 0 — valid Python syntax in conanfile.py
-- [x] `cxxflags` absent from conanfile.py — `grep -c` returns 0 matches
-- [x] `vcpkg.json` target present in version_sync.py
-- [x] `conanfile.py` target present in version_sync.py
-- [x] `uv run python scripts/version_sync.py --check` exits 0 — all 13 targets in sync at 0.2.0
-- [x] `mise run check` passes — all 15 hooks clean
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+**Verification:** All 5 criteria pass:
 
-**Issues found:**
+- `SKIP_SHA512` no longer present in the file
+- `ISCC_SHA512` appears exactly 6 times (5 `set()` + 1 `SHA512` usage)
+- `SHA512 "${ISCC_SHA512}"` pattern present in download call
+- All 5 SHA512 hashes are 128 lowercase hex characters
+- CMake syntax is valid (errors on vcpkg functions as expected, not on syntax)
+- All 15 pre-commit hooks pass
 
-- Resolved: "Conan recipe cxxflags invalid for MSVC consumers" — deleted from issues.md
-- Resolved: "Add vcpkg.json and conanfile.py to version sync script" — deleted from issues.md
-- Note: advance agent's handoff incorrectly claimed "only low-priority issues remain" — 2 `normal`
-    issues remain (SHA512 portfile, language logos). CID should NOT signal idle
+**Next:** Only one `normal` priority issue remains: language logos in README/docs. After that, the
+CID loop should check issues.md for any remaining items or signal idle.
 
-**Codex review:** Codex flagged P1 concern about removing the C++17 requirement entirely (consumers
-might fail to compile without explicit `compiler.cppstd=17`). This is a valid observation but
-non-blocking: the recipe's `settings` only has `os` and `arch` (no `compiler`), so Conan's proper
-`minimum_cppstd` validation isn't available. C++17 is documented in README and docs. Adding compiler
-settings would be a larger scope change inappropriate for a pre-built binary recipe. Accepted as-is.
-
-**Next:** Two `normal` priority issues remain. The next work package should address one:
-
-1. **vcpkg portfile SHA512 pinning** (`normal` [human]) — requires computing SHA512 checksums from
-    v0.2.0 release tarballs and updating `portfile.cmake`. May also need release workflow
-    automation
-2. **Language logos in README/docs** (`normal` [human]) — cosmetic improvement, adding language
-    icons/logos to README and documentation pages
-
-The SHA512 issue is the more impactful one (supply-chain integrity) but requires access to release
-artifacts. The logos issue is more self-contained.
-
-**Notes:** The conanfile regex has `count=1` for safety, though currently only 1 match exists in the
-file. The vcpkg.json sync correctly reuses the package.json functions since the JSON structure is
-identical.
+**Notes:** The SHA512 checksums are pinned to the v0.2.0 release tarballs. Future releases will need
+these checksums updated — the next.md explicitly noted that release workflow automation for
+computing SHA512 on future releases is out of scope and should be a follow-up step. The Conan recipe
+(`conanfile.py`) also lacks SHA512 verification but that's a separate concern per the scope
+definition.
