@@ -1,6 +1,6 @@
 {
   "name": "iscc",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "ISCC - International Standard Content Code (ISO 24138:2024)",
   "homepage": "https://github.com/iscc/iscc-lib",
   "license": "Apache-2.0",

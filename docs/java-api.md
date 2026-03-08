@@ -17,14 +17,14 @@ static methods on the `IsccLib` class. The native library is loaded automaticall
     <dependency>
       <groupId>io.iscc</groupId>
       <artifactId>iscc-lib</artifactId>
-      <version>0.3.0</version>
+      <version>0.3.1</version>
     </dependency>
     ```
 
 === "Gradle"
 
     ```groovy
-    implementation 'io.iscc:iscc-lib:0.3.0'
+    implementation 'io.iscc:iscc-lib:0.3.1'
     ```
 
 ## Quick Example
