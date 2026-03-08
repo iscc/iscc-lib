@@ -70,6 +70,13 @@ shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-
 5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
     install/quickstart
 
+## Fix "View as Markdown" (Copy Page) on Zensical docs site `normal` [human]
+
+The "Copy Page" drop-down button on the documentation site (lib.iscc.codes) does not work. Clicking
+"View as Markdown" on e.g. https://lib.iscc.codes/howto/ruby/ navigates to
+https://lib.iscc.codes/howto/ruby.md which returns a 404. The `iscc/iscc-usearch` repository has a
+working implementation of this feature — check how it's solved there and apply the same fix.
+
 ## Add programming language logos to README and docs `low` [human]
 
 Add logos/icons for the supported programming languages (Rust, Python, etc.) to the README and
