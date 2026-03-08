@@ -164,7 +164,7 @@ fully-met target sections to `learnings-archive.md`.
 - C++ `std::vector<T>::data()` returns nullptr for empty vectors on some implementations
     (libstdc++). The `safe_data()` helper has two overloads (uint8_t and int32_t) in `detail`
     namespace. All nested vector loops now use `detail::safe_data()` — both top-level and inner
-    elements are covered (10 total call sites in iscc.hpp)
+    elements are covered (11 total occurrences in iscc.hpp: 2 definitions + 9 call sites)
 - C++ wrapper lives in `packages/cpp/` — header-only, depends on `iscc-ffi` shared library. No
     separate Rust crate. CMake references `iscc.h` from `crates/iscc-ffi/include/` via include paths
 - C++ CI job: `cmake` needs explicit `apt-get install`, `g++` is pre-installed on `ubuntu-latest`.

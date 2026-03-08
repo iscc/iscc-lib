@@ -86,14 +86,6 @@ cannot link. Fix by either packaging the pre-built `iscc_ffi` binaries plus
 `crates/iscc-ffi/include/iscc.h`, or reclassifying as `header-library` and removing the `libs`
 contract. See `packages/cpp/conanfile.py:21` and `packages/cpp/conanfile.py:43`.
 
-## C++ gen_audio_code_v0 rejects empty vector (NULL pointer) `normal` [human]
-
-`gen_audio_code_v0` in `iscc.hpp:472` passes `cv.data()` directly. For an empty vector this can be
-NULL, causing the FFI layer to reject it with "cv must not be NULL". The Rust core supports
-`gen_audio_code_v0(&[], 64)` and C# correctly returns `ISCC:EIAQAAAAAAAAAAAA` for the empty case.
-Fix by using the existing `detail::safe_data(cv)` helper (already used by other functions) and add a
-smoke test for the empty-vector case. See `packages/cpp/include/iscc/iscc.hpp:472`.
-
 ## vcpkg portfile skips SHA512 verification `low` [human]
 
 `packages/cpp/portfile.cmake:42` uses `SKIP_SHA512` in `vcpkg_download_distfile`, so consumers
