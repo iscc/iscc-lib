@@ -26,7 +26,7 @@ decentralized, content-based identification without a central registry.
 - **Complete ISO 24138 coverage** — all 10 `gen_*_v0` functions implemented
 - **Full conformance** — passes all official test vectors from iscc-core
 - **High performance** — pure Rust core delivers significant speedups over the Python reference
-- **Multi-language** — use from Rust, Python, Java, Go, Node.js, WebAssembly, or C
+- **Multi-language** — use from Rust, Python, Java, Go, Ruby, C#, C++, Node.js, WebAssembly, or C
 - **Cross-platform** — runs on Linux, macOS, and Windows
 
 ## Supported Code Types
@@ -89,9 +89,12 @@ decentralized, content-based identification without a central registry.
 
 === "Java"
 
-    ```bash
-    # Build from source (Maven Central not yet available)
-    cargo build -p iscc-jni --release
+    ```xml
+    <dependency>
+      <groupId>io.iscc</groupId>
+      <artifactId>iscc-lib</artifactId>
+      <version>0.3.1</version>
+    </dependency>
     ```
 
     ```java
@@ -132,15 +135,17 @@ decentralized, content-based identification without a central registry.
 
 ## Available Bindings
 
-| Platform    | Package                                         | Install                                       |
-| ----------- | ----------------------------------------------- | --------------------------------------------- |
-| Rust        | [crates.io](https://crates.io/crates/iscc-lib)  | `cargo add iscc-lib`                          |
-| Python      | [PyPI](https://pypi.org/project/iscc-lib/)      | `pip install iscc-lib`                        |
-| Node.js     | [npm](https://www.npmjs.com/package/@iscc/lib)  | `npm install @iscc/lib`                       |
-| Java        | Maven Central (planned)                         | Build from source (`cargo build -p iscc-jni`) |
-| Go          | Go module                                       | `go get github.com/iscc/iscc-lib/packages/go` |
-| WebAssembly | [npm](https://www.npmjs.com/package/@iscc/wasm) | `npm install @iscc/wasm`                      |
-| C / C++     | Source                                          | Via C FFI header (`iscc.h`)                   |
+| Platform    | Package                                                                 | Install                                       |
+| ----------- | ----------------------------------------------------------------------- | --------------------------------------------- |
+| Rust        | [crates.io](https://crates.io/crates/iscc-lib)                          | `cargo add iscc-lib`                          |
+| Python      | [PyPI](https://pypi.org/project/iscc-lib/)                              | `pip install iscc-lib`                        |
+| Node.js     | [npm](https://www.npmjs.com/package/@iscc/lib)                          | `npm install @iscc/lib`                       |
+| Java        | [Maven Central](https://central.sonatype.com/artifact/io.iscc/iscc-lib) | See Quick Start above                         |
+| Go          | [Go module](https://pkg.go.dev/github.com/iscc/iscc-lib/packages/go)    | `go get github.com/iscc/iscc-lib/packages/go` |
+| Ruby        | [RubyGems](https://rubygems.org/gems/iscc-lib)                          | `gem install iscc-lib`                        |
+| C# / .NET   | [NuGet](https://www.nuget.org/packages/Iscc.Lib)                        | `dotnet add package Iscc.Lib`                 |
+| C / C++     | [GitHub Releases](https://github.com/iscc/iscc-lib/releases)            | Pre-built tarballs per platform               |
+| WebAssembly | [npm](https://www.npmjs.com/package/@iscc/wasm)                         | `npm install @iscc/wasm`                      |
 
 ## Links
 
