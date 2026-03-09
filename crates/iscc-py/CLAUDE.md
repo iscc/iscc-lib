@@ -25,7 +25,7 @@ crates/iscc-py/
   Cargo.toml              # cdylib crate, lib name = "_lowlevel"
   pyproject.toml           # maturin build backend, module-name = "iscc_lib._lowlevel"
   src/
-    lib.rs                 # All PyO3 bindings: 21 #[pyfunction]s + 2 #[pyclass]es + #[pymodule]
+    lib.rs                 # All PyO3 bindings: 27 #[pyfunction]s + 2 #[pyclass]es + #[pymodule]
   python/iscc_lib/
     __init__.py            # Public API: wrapper functions, IsccResult classes, re-exports
     _lowlevel.pyi          # Type stubs for the native Rust extension module
@@ -45,31 +45,39 @@ crates/iscc-py/
 
 - Imports `_lowlevel` functions as private names (e.g., `_gen_meta_code_v0`)
 - Wraps each in a public function that returns a typed `IsccResult` subclass
-- `gen_data_code_v0` and `gen_instance_code_v0` accept `bytes | BinaryIO` (call `.read()` for
-    streams)
+- `gen_meta_code_v0` accepts `meta: str | dict | None` (dicts are serialized via `json_to_data_url`)
+- `gen_image_code_v0` accepts `bytes | bytearray | memoryview | Sequence[int]` (coerced to `bytes`)
+- `gen_data_code_v0` and `gen_instance_code_v0` accept `bytes | bytearray | memoryview | BinaryIO`
+    (streams read in 64 KiB chunks via the streaming hashers)
+- `gen_sum_code_v0` accepts `str | os.PathLike` (converted via `os.fspath`)
+- `iscc_decode` is wrapped to return `MT`, `ST`, `VS` IntEnum values instead of raw ints
+- `MT`, `ST`, `VS` are IntEnum classes for MainType, SubType, and Version identifiers
+- `core_opts` is a `SimpleNamespace` exposing algorithm configuration constants
 - `DataHasher` and `InstanceHasher` are Python wrapper classes that delegate to `_lowlevel`
-    counterparts
+    counterparts; constructors accept optional initial data (`bytes | BinaryIO`), and `update()`
+    accepts `bytes | bytearray | memoryview | BinaryIO`
 - Algorithm functions and utilities re-exported directly (no wrapping needed)
 
 ## Type Mapping: Rust to Python
 
-| Rust type (core API)                                      | PyO3 binding                                                            | Python public API                                  |
-| --------------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------- |
-| `MetaCodeResult` struct                                   | `PyDict` with `iscc`, `name`, `metahash`, optional `description`/`meta` | `MetaCodeResult(IsccResult)`                       |
-| `TextCodeResult` struct                                   | `PyDict` with `iscc`, `characters`                                      | `TextCodeResult(IsccResult)`                       |
-| `DataCodeResult` struct                                   | `PyDict` with `iscc`                                                    | `DataCodeResult(IsccResult)`                       |
-| `InstanceCodeResult` struct                               | `PyDict` with `iscc`, `datahash`, `filesize`                            | `InstanceCodeResult(IsccResult)`                   |
-| `IsccCodeResult` struct                                   | `PyDict` with `iscc`                                                    | `IsccCodeResult(IsccResult)`                       |
-| `MixedCodeResult` struct                                  | `PyDict` with `iscc`, `parts`                                           | `MixedCodeResult(IsccResult)`                      |
-| `ImageCodeResult` / `AudioCodeResult` / `VideoCodeResult` | `PyDict` with `iscc`                                                    | Corresponding `IsccResult` subclass                |
-| `iscc_lib::Error`                                         | `PyValueError`                                                          | `ValueError`                                       |
-| `Vec<u8>` (from `soft_hash_video_v0`)                     | `PyBytes`                                                               | `bytes`                                            |
-| `DataHasher` / `InstanceHasher`                           | `#[pyclass]` with `Option<inner>`                                       | Python wrapper class accepting `bytes \| BinaryIO` |
+| Rust type (core API)                                      | PyO3 binding                                                            | Python public API                                               |
+| --------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------- |
+| `MetaCodeResult` struct                                   | `PyDict` with `iscc`, `name`, `metahash`, optional `description`/`meta` | `MetaCodeResult(IsccResult)`                                    |
+| `TextCodeResult` struct                                   | `PyDict` with `iscc`, `characters`                                      | `TextCodeResult(IsccResult)`                                    |
+| `DataCodeResult` struct                                   | `PyDict` with `iscc`                                                    | `DataCodeResult(IsccResult)`                                    |
+| `InstanceCodeResult` struct                               | `PyDict` with `iscc`, `datahash`, `filesize`                            | `InstanceCodeResult(IsccResult)`                                |
+| `IsccCodeResult` struct                                   | `PyDict` with `iscc`                                                    | `IsccCodeResult(IsccResult)`                                    |
+| `MixedCodeResult` struct                                  | `PyDict` with `iscc`, `parts`                                           | `MixedCodeResult(IsccResult)`                                   |
+| `ImageCodeResult` / `AudioCodeResult` / `VideoCodeResult` | `PyDict` with `iscc`                                                    | Corresponding `IsccResult` subclass                             |
+| `SumCodeResult` struct                                    | `PyDict` with `iscc`, `datahash`, `filesize`, optional `units`          | `SumCodeResult(IsccResult)`                                     |
+| `iscc_lib::Error`                                         | `PyValueError`                                                          | `ValueError`                                                    |
+| `Vec<u8>` (from `soft_hash_video_v0` / `*_flat` variants) | `PyBytes`                                                               | `bytes`                                                         |
+| `DataHasher` / `InstanceHasher`                           | `#[pyclass]` with `Option<inner>`                                       | Python wrapper class accepting `bytes \| bytearray \| BinaryIO` |
 
 ### IsccResult hierarchy
 
 - `IsccResult(dict)` base class with `__getattr__` for attribute-style access
-- 9 typed subclasses with class-level annotations for IDE completion
+- 10 typed subclasses with class-level annotations for IDE completion
 - `isinstance(result, dict)` is `True` -- full dict protocol compatibility
 - `json.dumps(result)` works without custom serializer
 
@@ -82,7 +90,8 @@ crates/iscc-py/
 - Optional keys (`description`, `meta`) must be absent (not `None`) when not provided
 - Bindings must NOT define semantics -- they translate the core API only
 - Conformance vectors from `crates/iscc-lib/tests/data.json` are the correctness baseline
-- All 10 `gen_*_v0` functions must match iscc-core output for every vector
+- All 9 conformance `gen_*_v0` functions must match iscc-core output for every vector
+- `gen_sum_code_v0` is iscc-lib-only (not in iscc-core) and has no conformance vectors
 
 ## Build Commands
 
@@ -106,11 +115,14 @@ mise run format
 ## Test Patterns
 
 - Tests live in `/workspace/iscc-lib/tests/` (project root), not inside the crate
-- `test_conformance.py` -- parametrized tests for all 10 `gen_*_v0` against `data.json` vectors
+- `test_conformance.py` -- parametrized tests for all 9 conformance `gen_*_v0` against `data.json`
+    vectors
 - `test_smoke.py` -- basic functionality, IsccResult hierarchy, attribute access, BinaryIO streaming
 - `test_text_utils.py` -- text utility functions
 - `test_algo.py` -- algorithm primitives
 - `test_streaming.py` -- DataHasher and InstanceHasher streaming
+- `test_new_symbols.py` -- constants, encode/decode roundtrips, dict meta, PIL pixel data, IntEnums,
+    core_opts
 - All tests use `from iscc_lib import ...` (the public Python API, not `_lowlevel`)
 - Tests verify both `result["key"]` dict access and `result.key` attribute access
 - Stream tests verify `BytesIO` input produces identical output to `bytes` input
@@ -125,9 +137,9 @@ mise run format
 
 - OIDC trusted publishing to PyPI (no long-lived API keys)
 - One wheel per platform via `abi3-py310`
-- Build matrix: Linux (i686, x86_64, armv7l, aarch64), macOS (universal2), Windows (x64, x86)
+- Build matrix: Linux (x86_64), macOS (universal2), Windows (x64)
 - sdist also published
-- Tag-triggered: `git tag v*` triggers `.github/workflows/build-wheels.yml`
+- Tag-triggered: `git tag v*.*.*` triggers `.github/workflows/release.yml`
 - Release profile: `lto = true`, `codegen-units = 1`, `strip = true`, `panic = "abort"`
 
 ## Common Pitfalls
@@ -144,4 +156,4 @@ mise run format
 - Do NOT use `serde_json` for dict construction -- use `PyDict::new()` and `set_item()`
 - When adding a Tier 1 function: add to `lib.rs` (#[pyfunction] + register in module),
     `_lowlevel.pyi` (stub), `__init__.py` (wrapper + re-export + `__all__`), and tests
-- The `sliding_window` width < 2 check is in the PyO3 layer (not core) to raise `ValueError`
+- The `sliding_window` width < 2 check is in the Rust core; the PyO3 layer passes through the error
