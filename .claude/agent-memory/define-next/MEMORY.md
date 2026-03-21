@@ -13,7 +13,8 @@ iterations.
     step since they follow identical patterns
 - When CI is red, formatting/lint fixes are always the first priority regardless of handoff "Next"
 - Prefer concrete deliverables over research tasks when both are available
-- State assessments can go stale — always verify claimed gaps by reading the actual files
+- **State assessments can go stale** — always verify claimed gaps by reading the actual files. E.g.,
+    state claimed "speedup factors not yet published" but `docs/benchmarks.md` already had them
 - New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
     steps. Core + tests in one step, bindings in subsequent steps
 - **Handoff "IDLE" can be stale** — state assessment may create new normal-priority issues AFTER the
@@ -28,6 +29,7 @@ iterations.
 - **Target gaps vs low issues** — when state.md says "IDLE" but target.md has unmet verification
     criteria that aren't filed as `low` issues in issues.md, they're legitimate gaps to work on. The
     target is the source of truth for what needs to be done
+- **Review agent can miscount issues** — always read issues.md directly to check priorities
 
 ## Signature Change Propagation
 
@@ -56,9 +58,28 @@ iterations.
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
     `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
+## Swift XCFramework Implementation Plan
+
+Multi-step effort, tracked as normal-priority issue. Steps:
+
+1. Build script + root Package.swift restructure (in progress)
+2. Release workflow integration (build-xcframework job, force-update tag)
+3. CI integration (test with local XCFramework build)
+4. Docs/howto update
+5. Version sync for releaseTag/releaseChecksum
+
+Key constraints:
+
+- Two Package.swift files: root (SPM consumers) and `packages/swift/Package.swift` (CI/dev)
+- CI Swift job uses packages/swift/Package.swift — root changes don't break CI
+- Build script only runs on macOS (lipo, xcodebuild, ditto are macOS tools)
+- `cargo build -p iscc-uniffi` (not iscc-lib) produces `libiscc_uniffi.a`
+- Ferrostar pattern: `useLocalFramework` variable toggle, force-update tag for checksum
+
 ## Dev Environment Constraints
 
 - **No Swift toolchain** in Linux devcontainer — `swift test` can only run on macOS (CI)
+- **No shellcheck** in Linux devcontainer — can't lint shell scripts locally
 - `uniffi-bindgen` not pre-installed — use in-crate binary via
     `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen`
 
@@ -74,16 +95,11 @@ iterations.
 - v0.3.1 released, 16/16 CI jobs green
 - All 12 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift,
     Kotlin)
-- 2 low-priority issues remain: Swift XCFramework, language logos in docs
-- **Remaining target gaps**: pytest-benchmark (iscc-lib vs iscc-core), speedup factors in docs
-
-## Benchmark Infrastructure (verified 2026-03-21)
-
-- `pytest-benchmark` already in pyproject.toml dev deps
-- `iscc-core` v1.2.2 installed as dev dependency
-- All 9 `gen_*_v0` available at `iscc_core` top level (import `iscc_core as ic`)
-- iscc-core data/instance functions need `io.BytesIO` wrapper (not raw bytes)
-- iscc-core returns `dict`, iscc-lib returns typed result objects — both have `["iscc"]`/`.iscc`
+- pytest-benchmark done (18 functions), speedup factors already in `docs/benchmarks.md`
+- 1 normal issue: Swift XCFramework distribution
+- 1 low issue: language logos in docs
+- `docs/benchmarks.md` reproduction commands reference wrong path (`pytest benchmarks/python/`
+    should be `tests/test_benchmarks.py`) — minor doc bug for future cleanup
 
 ## Version Sync Script Patterns
 
