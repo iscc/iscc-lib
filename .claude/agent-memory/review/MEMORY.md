@@ -149,6 +149,13 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - C++ package managers: vcpkg.json + portfile.cmake + conanfile.py in `packages/cpp/`
 - **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`
 
+## Python Benchmark Review
+
+- pytest-benchmark tests in `tests/test_benchmarks.py`: 18 benchmarks (9 fn x 2 impls)
+- Benchmarks run in default pytest collection (~11s overhead). Known optimization: add
+    `--benchmark-disable` to CI/hooks. Already documented in learnings-archive.md
+- Review shortcut: `mise run check` + ruff check/format + clippy (Python-only shortcut)
+
 ## Environment
 
 - Python `iscc_lib`: compile with `cd crates/iscc-py && uv run maturin develop --release`

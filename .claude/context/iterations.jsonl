@@ -1020,3 +1020,5 @@
 {"ts":"2026-03-21T20:22:38.325927+00:00","iteration":5,"role":"define-next","status":"OK","turns":28,"cost_usd":1.252026,"duration_s":349.6}
 {"ts":"2026-03-21T20:29:15.755509+00:00","iteration":5,"role":"advance","status":"OK","turns":52,"cost_usd":1.558075,"duration_s":397.4}
 {"ts": "2026-03-21T20:36:27.683188+00:00", "iteration": 5, "role": "review", "status": "PASS_WITH_NOTES", "verdict_notes": "Fixed wrong docs URL. Issue 1 resolved, issue 2 downgraded to low. IDLE \u2014 all remaining issues low priority."}
+{"ts":"2026-03-21T21:04:12.785695+00:00","iteration":1,"role":"advance","status":"OK","turns":42,"cost_usd":1.566273,"duration_s":726.3}
+{"ts": "2026-03-21T21:35:00.000000+00:00", "iteration": 1, "role": "review", "status": "PASS", "verdict_notes": "18 benchmarks pass, all quality gates clean, no scope violations. Codex notes benchmark overhead in default pytest — advisory."}

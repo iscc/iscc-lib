@@ -1,38 +1,44 @@
-## 2026-03-21 — Add pytest-benchmark comparing iscc-lib vs iscc-core
+## 2026-03-21 — Review of: Add pytest-benchmark comparing iscc-lib vs iscc-core
 
-**Done:** Created `tests/test_benchmarks.py` with 18 benchmark functions (9 functions x 2
-implementations) comparing iscc-lib (Rust bindings) against iscc-core (Python reference) using
-pytest-benchmark. Each benchmark pair uses the same conformance vector input and asserts that both
-implementations produce matching ISCC codes.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `tests/test_benchmarks.py`: New file with 18 benchmarks covering all 9 `gen_*_v0` functions. Uses
-    representative conformance vectors, grouped by function name for side-by-side comparison.
+**Summary:** Clean, well-scoped implementation adding 18 pytest-benchmark functions (9 gen\_\*\_v0
+functions x 2 implementations) comparing iscc-lib vs iscc-core. All verification criteria pass, all
+quality gates clean, no suppressions or scope violations. Code is simple, correct, and uses real
+conformance data with output assertions.
 
 **Verification:**
 
-- `uv run pytest tests/test_benchmarks.py --benchmark-only -q` exits 0, all 18 benchmarks pass
-- `grep -c "bench_"` on benchmark output shows 18 entries
-- `uv run pytest tests/ --benchmark-disable -q` passes (229 tests including existing tests)
-- `uv run ruff check tests/test_benchmarks.py` clean
-- `uv run ruff format --check tests/test_benchmarks.py` clean
-- `cargo clippy --workspace --all-targets -- -D warnings` clean
-- `cargo test -p iscc-lib` clean
-- `mise run check` fails due to pre-existing trailing whitespace in
-    `.claude/context/specs/swift-bindings.md` and mdformat oscillation — not related to this change
+- [x] `uv run pytest tests/test_benchmarks.py --benchmark-only -q` exits 0 — 18 passed in 12.38s
+- [x] benchmark output grep shows 18 `bench_` entries
+- [x] `uv run pytest tests/ --benchmark-disable -q` — 229 passed in 0.92s
+- [x] `uv run ruff check tests/test_benchmarks.py` — clean
+- [x] `uv run ruff format --check tests/test_benchmarks.py` — clean
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- [x] `mise run check` — all 15 pre-commit hooks pass
 
-**Next:** All target verification criteria for benchmarks are met. Consider publishing speedup
-factors in documentation as a future step, or adding a benchmark CI job for tracking regressions.
+**Issues found:**
+
+- (none)
+
+**Codex review:** One P2 finding — benchmarks are collected by default `uv run pytest` (CI and
+pre-push hook), adding ~11s calibration overhead per run. Valid observation. Mitigations for future:
+add `--benchmark-disable` to CI pytest step or `addopts` in pyproject.toml, and use
+`--benchmark-only` for dedicated benchmark runs. Not blocking — the overhead is acceptable and
+doesn't cause timeouts.
+
+**Next:** The "Benchmarks" target section has one remaining unmet criterion: "Speedup factors
+published in documentation." This could be a natural next step — add a performance comparison table
+to `docs/` showing the speedup factors observed (meta ~20x, text ~33x, image ~15x, audio ~50x,
+etc.). Additionally, consider adding `--benchmark-disable` to the CI pytest command and pre-push
+hook to avoid the ~11s overhead on every run. Both remaining issues in issues.md are `low` priority.
 
 **Notes:**
 
-- For `gen_data_code_v0` and `gen_instance_code_v0`, iscc-core requires `io.BytesIO` streams which
-    get consumed after the first read. The benchmark wrapper creates a fresh `BytesIO` each
-    iteration to ensure correct results across all benchmark rounds.
-- For `gen_image_code_v0`, iscc-core expects `list[int]` while iscc-lib expects `bytes` — the
-    benchmark passes `list(_image_pixels)` to iscc-core and `_image_pixels` (bytes) to iscc-lib.
-- Representative speedups observed: meta ~20x, text ~33x, image ~15x, audio ~50x, video ~13x, mixed
-    ~30x, data ~11x, instance ~62x, iscc ~20x.
-- Pre-existing `mise run check` issue: `.claude/context/specs/swift-bindings.md` has trailing
-    whitespace that hooks keep fixing on each run. This is out of scope (context file).
+- The advance agent incorrectly claimed `mise run check` fails due to trailing whitespace in
+    `swift-bindings.md` — it passes cleanly. The pre-existing issue may have been auto-fixed by
+    hooks in a prior commit
+- Representative speedups: meta ~20x, text ~33x, image ~15x, audio ~50x, video ~13x, mixed ~30x,
+    data ~11x, instance ~62x, iscc ~20x
+- `load_vectors()` re-parses data.json 9 times at module load — minor inefficiency, happens once,
+    doesn't affect benchmark results
