@@ -1,32 +1,39 @@
-## 2026-03-21 — Fix Swift CI module name mismatch
+## 2026-03-21 — Review of: Fix Swift CI module name mismatch
 
-**Done:** Renamed the SPM FFI target from `IsccLibFFI` to `iscc_uniffiFFI` across directory name,
-`Package.swift`, and `module.modulemap` so it matches the `#if canImport(iscc_uniffiFFI)` /
-`import iscc_uniffiFFI` in the UniFFI-generated Swift code.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/swift/Sources/IsccLibFFI/` → `packages/swift/Sources/iscc_uniffiFFI/` (directory rename)
-- `packages/swift/Package.swift`: changed 3 occurrences of `IsccLibFFI` to `iscc_uniffiFFI` (target
-    name, path, dependency)
-- `packages/swift/Sources/iscc_uniffiFFI/module.modulemap`: changed `module IsccLibFFI` to
-    `module iscc_uniffiFFI`
+**Summary:** The advance agent correctly renamed the SPM FFI target from `IsccLibFFI` to
+`iscc_uniffiFFI` across directory name, `Package.swift`, and `module.modulemap`. The fix is minimal,
+focused, and addresses the exact root cause of the failing Swift CI job (silent conditional import
+failure due to module name mismatch).
 
 **Verification:**
 
-- `grep -c 'iscc_uniffiFFI' packages/swift/Package.swift` → 3 — PASS
-- `grep -c 'IsccLibFFI' packages/swift/Package.swift` → 0 — PASS
-- `head -1 .../module.modulemap` → `module iscc_uniffiFFI {` — PASS
-- `test -d packages/swift/Sources/iscc_uniffiFFI` → exists — PASS
-- `test ! -d packages/swift/Sources/IsccLibFFI` → gone — PASS
-- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
-- `mise run check` — all hooks pass (pre-commit + pre-push)
+- [x] `grep -c 'iscc_uniffiFFI' packages/swift/Package.swift` → 3 — PASS
+- [x] `grep -c 'IsccLibFFI' packages/swift/Package.swift` → 0 — PASS
+- [x] `head -1 .../module.modulemap` → `module iscc_uniffiFFI {` — PASS
+- [x] `test -d packages/swift/Sources/iscc_uniffiFFI` → exists — PASS
+- [x] `test ! -d packages/swift/Sources/IsccLibFFI` → gone — PASS
+- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
+- [x] `mise run check` — 15/15 hooks pass
 
-**Next:** Push to verify the Swift CI job passes on GitHub Actions. This is the real validation
-since Swift tests can't run on the Linux devcontainer. If CI is green, next work should be Swift
-docs + README integration (`docs/howto/swift.md`, version sync, etc.) or closing the Swift issue in
-issues.md and starting Kotlin bindings.
+**Issues found:**
 
-**Notes:** No surprises. The fix is purely structural — 3 string replacements + 1 directory rename.
-No code logic changed. No tests affected (conformance tests are in `Tests/IsccLibTests/` which is
-unchanged — they import `IsccLib` not the FFI target directly).
+- (none)
+
+**Codex review:** Codex timed out (~2 min wait on a trivial 3-line rename diff). Skipped — manual
+review is comprehensive for this scope.
+
+**Next:** Push will trigger CI — the Swift job on `macos-14` should now pass since the module name
+matches the UniFFI-generated `#if canImport(iscc_uniffiFFI)`. If CI is green (all 15 jobs), the next
+work package should be **Swift docs + README integration**: `docs/howto/swift.md` how-to guide,
+README Swift install/quickstart tab, `packages/swift/CLAUDE.md`, and version sync for
+`Constants.swift`. After Swift is fully complete, close the Swift issue and begin Kotlin bindings.
+
+**Notes:**
+
+- The last CI run (23379967641) failed on the Swift job due to this exact module name mismatch. This
+    push should fix it
+- No source code references to the old `IsccLibFFI` name remain in the codebase (only context/memory
+    files describing the fix)
+- State.md still describes the pre-fix state — update-state will reconcile after CI results

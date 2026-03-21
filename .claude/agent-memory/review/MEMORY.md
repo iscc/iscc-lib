@@ -130,7 +130,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Swift Package Review
 
-- `packages/swift/` — SPM package: IsccLibFFI (C header + modulemap) + IsccLib (generated Swift)
+- `packages/swift/` — SPM package: iscc_uniffiFFI (C header + modulemap) + IsccLib (generated Swift)
 - Review shortcut: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (no `swift test` on
     Linux). Swift tests structurally validated only — execution needs macOS CI
 - Generated files large (~72KB + ~38KB) — all under 256KB `check-added-large-files` threshold
