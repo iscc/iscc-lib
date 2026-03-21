@@ -1,15 +1,15 @@
-<!-- assessed-at: 4324d38895b5cebb6f0700dac3acf5f472570f8f -->
+<!-- assessed-at: 820683158771ad4d7cca3d32f7e8cacf0c2bccec -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All 16/16 CI jobs green; Kotlin docs/README/release workflow missing
+## Phase: Kotlin docs complete; release workflow is last Kotlin gap
 
-v0.3.1 released across all 8 registries. Kotlin CI is now **fully green** — the Gson Maven groupId
-fix (`com.google.code.gson:gson:2.11.0`) resolved the last CI failure. All 16/16 CI jobs pass in run
-23385568446\. Remaining Kotlin work is documentation (howto guide, README, CLAUDE.md), root README
-integration (install/quickstart sections), and release workflow (maven-kotlin in release.yml).
+v0.3.1 released across all 8 registries. All 16/16 CI jobs pass (run 23386397907). Kotlin
+documentation is now **complete** — howto guide, package README/CLAUDE.md, root README integration,
+zensical.toml nav, and gen_llms_full.py entry all verified. The sole remaining Kotlin sub-task is
+the release workflow (maven-kotlin in release.yml). Four open issues remain.
 
 ## Rust Core Crate
 
@@ -17,9 +17,7 @@ integration (install/quickstart sections), and release workflow (maven-kotlin in
 
 - All 32 Tier 1 symbols present with correct feature-gating
 - alg_cdc_chunks public API returns IsccResult\<Vec\<&[u8]>> — validates avg_chunk_size < 2
-- alg_cdc_chunks_unchecked as pub(crate) for internal callers
 - data.json at iscc-core v1.3.0 (50 total vectors)
-- Rust conformance assertion: assert_eq!(tested, 20, ...)
 - 316 tests pass with default features
 - Feature matrix CI (5 steps) passed in latest green run
 
@@ -28,36 +26,27 @@ integration (install/quickstart sections), and release workflow (maven-kotlin in
 **Status**: met
 
 - All 32 Tier 1 symbols accessible via __all__ (48 entries)
-- alg_cdc_chunks propagates IsccResult from Rust core via PyResult
 - 207 Python tests pass; ty check passes; cargo clippy -p iscc-py clean
-- pyproject.toml excludes packages/cpp/conanfile.py from ty type-check scope
 
 ## Node.js Bindings
 
 **Status**: met
 
 - All 32 Tier 1 symbols exported
-- alg_cdc_chunks propagates IsccResult error from Rust core
 - 135 mocha tests pass; cargo clippy -p iscc-napi -- -D warnings clean
-- release.yml NAPI upload now includes index.js + index.d.ts alongside \*.node
 
 ## WASM Bindings
 
 **Status**: met
 
 - All 32 Tier 1 symbols exported via #[wasm_bindgen]
-- alg_cdc_chunks maps IsccResult to JsError
-- wasm-opt upgraded from -O to -O3 for max runtime performance
-- crates/iscc-wasm/tests/conformance.rs asserts tested == 20
-- --features conformance added to build-wasm release job so conformance_selftest is exported
-- WASM CI job = SUCCESS in latest completed run
+- wasm-opt -O3; conformance.rs asserts tested == 20
 
 ## C FFI
 
 **Status**: met
 
-- 85 Rust tests + 65 C tests pass (per last green CI run)
-- iscc_alg_cdc_chunks propagates IsccResult error via null return
+- 85 Rust tests + 65 C tests pass
 - cbindgen header freshness check in CI passed
 - build.rs runs csbindgen to generate NativeMethods.g.cs
 
@@ -66,163 +55,121 @@ integration (install/quickstart sections), and release workflow (maven-kotlin in
 **Status**: met
 
 - All 32 Tier 1 symbols via JNI
-- AlgCdcChunks JNI validates avgChunkSize < 2 with IllegalArgumentException
-- 65 Maven tests pass (per last green CI run)
+- 65 Maven tests pass
 
 ## Go Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols via pure Go
-- AlgCdcChunks validates avgChunkSize < 2 — returns error, delegates to algCdcChunksUnchecked for
-    internal callers
+- All 32 Tier 1 symbols via pure Go (no CGO)
 - 155 Go tests pass; go vet clean
 
 ## Ruby Bindings
 
 **Status**: met
 
-- crates/iscc-rb/ with Magnus bridge (magnus 0.7.1, Ruby 3.1.2 compat)
-- All 32 of 32 Tier 1 symbols exposed
-- 111 Minitest tests (295 assertions, 0 failures): 46 smoke + 15 streaming + 50 conformance
-- bundle exec rake compile builds in release profile
-- Dedicated ruby CI job — runs standardrb, clippy, compile, and test
+- 32 of 32 Tier 1 symbols exposed via Magnus bridge
+- 111 Minitest tests (295 assertions, 0 failures)
 
 ## C# / .NET Bindings
 
 **Status**: met
 
-- packages/dotnet/Iscc.Lib/Iscc.Lib.csproj — .NET 8 class library; full NuGet metadata
-- packages/dotnet/Iscc.Lib/IsccLib.cs — 32 public symbols
-- packages/dotnet/Iscc.Lib/Results.cs — 11 sealed record types
-- IsccDataHasher.Finalize() -> DataCodeResult; IsccInstanceHasher.Finalize() -> InstanceCodeResult
-- 41 xUnit [Fact] smoke tests + 9 [Theory] conformance methods (50 vectors) = 91 total
-- CI job C# / .NET (dotnet build, test) — SUCCESS in latest CI run
-- pack-nuget + test-nuget (3 platforms) + publish-nuget in release.yml
+- 32 public symbols; 11 sealed record types
+- 91 total tests (41 smoke + 50 conformance vectors)
+- CI job SUCCESS
 
 ## C++ Bindings
 
 **Status**: met
 
-- packages/cpp/include/iscc/iscc.hpp — 681-line C++17 header-only wrapper with all 32 Tier 1
-    symbols, RAII resource management, IsccError exception class, full namespace iscc
-- 54 passing tests, ASAN clean; conformance_selftest() passes
-- CI job C++ (cmake, ASAN, test) — SUCCESS in latest CI run
-- iscc.hpp bundled in FFI release tarballs
-- vcpkg manifest + Conan 2.x recipe; version synced by version_sync.py
+- 681-line C++17 header-only wrapper with all 32 Tier 1 symbols
+- 54 passing tests, ASAN clean
+- vcpkg manifest + Conan 2.x recipe
 
 ## UniFFI Scaffolding Crate
 
 **Status**: complete (internal, not published)
 
-- crates/iscc-uniffi/ — 704-line lib.rs with publish = false
-- 32 #[uniffi::export] annotations: 30 free functions + 2 impl blocks (DataHasher, InstanceHasher)
-- 11 uniffi::Record types for all result structs + DecodeResult
-- 2 uniffi::Object types with Mutex\<Option\<Inner>> for thread-safe streaming
-- 5 constant getter functions (UniFFI does not support const exports)
-- Error mapping via #[derive(uniffi::Error)] enum IsccUniError
-- 21 #[test] functions pass
-- cargo clippy -p iscc-uniffi -- -D warnings clean
-- Uses proc macro approach — no uniffi.toml or build.rs needed
+- 32 `#[uniffi::export]` annotations, 21 `#[test]` functions pass
+- Proc macro approach — no uniffi.toml or build.rs needed
 - Dependencies: iscc-lib (with meta-code feature), uniffi 0.31, thiserror
-- bindgen feature added with [[bin]] section for uniffi-bindgen CLI
 
 ## Swift Bindings
 
 **Status**: met
 
-- packages/swift/ with complete SPM package structure:
-    - Package.swift — SPM manifest (swift-tools-version: 5.9), 3 targets (iscc_uniffiFFI, IsccLib,
-        IsccLibTests)
-    - Sources/IsccLib/iscc_uniffi.swift — 2400-line UniFFI-generated Swift bindings with all 32 Tier 1
-        symbols (camelCase, throws, Swift Data types)
-    - Sources/IsccLib/Constants.swift — version constant synced from root Cargo.toml
-    - Sources/iscc_uniffiFFI/iscc_uniffiFFI.h — 935-line generated C header
-    - Sources/iscc_uniffiFFI/module.modulemap — module iscc_uniffiFFI (matches generated code)
-    - Tests/IsccLibTests/ConformanceTests.swift — 9 test methods covering 50 vectors across all 9
-        gen\_\*\_v0 functions (correct per-function counts: 20+5+3+5+3+2+4+3+5)
-    - Tests/IsccLibTests/data.json — vendored conformance vectors (matches iscc-lib copy)
-    - README.md — installation, usage examples, build-from-source instructions
-- CI job Swift (swift build, swift test) on macos-14 — SUCCESS
-- docs/howto/swift.md — 425-line howto guide with 25 sections
-- README Swift install/quickstart sections present
-- packages/swift/CLAUDE.md — per-package agent guidance
-- zensical.toml nav entry + gen_llms_full.py entry (21 total pages)
-- Version sync: Constants.swift managed as target in version_sync.py
+- SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
+- 9 conformance test methods covering 50 vectors
+- CI job SUCCESS on macos-14
+- docs/howto/swift.md (425 lines), README, CLAUDE.md
 
 ## Kotlin Multiplatform Bindings
 
-**Status**: partially met (scaffold + tests + CI green; docs/README/release workflow missing)
+**Status**: partially met (scaffold + tests + CI + docs complete; release workflow missing)
 
-- **Scaffold created** — packages/kotlin/ exists with:
-    - build.gradle.kts — Kotlin/JVM 2.1.10 plugin, group , JNA 5.16.0, JUnit 5.11.4 + Gson 2.11.0
-        (corrected groupId: ) test deps
-    - settings.gradle.kts, gradle.properties (version=0.3.1)
-    - Gradle 8.12.1 wrapper (gradlew 100755)
-    - src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt — 3214-line UniFFI-generated bindings
+- **Scaffold complete** — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
+- **3214-line UniFFI-generated bindings** in src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt
 - **Conformance tests complete** — 9 @Test methods covering all gen\_\*\_v0 functions (50 vectors)
 - **Version sync** — gradle.properties added as 15th target in version_sync.py
-- **CI job green** — passes in run 23385568446
-- **Missing — documentation**: No docs/howto/kotlin.md, no packages/kotlin/README.md, no
-    packages/kotlin/CLAUDE.md
-- **Missing — README integration**: No Kotlin install/quickstart sections in root README
-- **Missing — release workflow**: No maven-kotlin in release.yml
-- **Missing — nav/llms integration**: No kotlin.md in zensical.toml nav or gen_llms_full.py
+- **CI job green** — passes in run 23386397907
+- **Documentation complete**:
+    - docs/howto/kotlin.md — 451-line howto guide
+    - packages/kotlin/README.md — 89-line package README
+    - packages/kotlin/CLAUDE.md — 101-line agent guidance
+    - Root README: 4 Kotlin mentions (install + quickstart sections)
+    - zensical.toml nav entry + gen_llms_full.py entry (now 22 total pages)
+- **Missing — release workflow**: No `maven-kotlin` in release.yml
 
 ## README
 
-**Status**: partially met
+**Status**: met
 
-- Public-facing polyglot README exists with CI badge and 8 registry badges including NuGet
+- Public-facing polyglot README with CI badge and 8 registry badges
 - Language logos: 18 inline img tags from cdn.simpleicons.org
-- Installation and Quick Start sections for 11 implemented languages (including Swift)
-- ISCC Architecture section, ISCC MainTypes table, Implementors Guide
-- All 10 gen\_\*\_v0 functions listed
-- **Gap** (downstream of Kotlin issue): Missing Kotlin installation + quickstart sections
+- Installation and Quick Start sections for all 12 languages (Rust, Python, Ruby, Java, Go, Node.js,
+    WASM, C#, C++, Swift, Kotlin, C/C++)
+- ISCC Architecture section, MainTypes table, Implementors Guide
 
 ## Per-Crate READMEs
 
-**Status**: partially met
+**Status**: met
 
-- READMEs present for all 10 existing crates/packages + Swift package (11 total)
-- CLAUDE.md files created for all 10 crates/packages + Swift (11 total)
-- **Gap**: packages/kotlin/README.md and packages/kotlin/CLAUDE.md missing
+- READMEs present for all 12 crates/packages (7 crates + 5 packages)
+- CLAUDE.md files present for all 12 crates/packages
 
 ## Documentation
 
 **Status**: partially met
 
-- 21 pages in gen_llms_full.py ORDERED_PAGES; all navigation sections complete
-- 10 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
-    ruby.md, dotnet.md, swift.md
+- 22 pages in gen_llms_full.py ORDERED_PAGES; all navigation sections complete
+- 11 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
+    ruby.md, dotnet.md, swift.md, kotlin.md
 - **Gap** (low, CID skips): Language logos in docs howto headers
-- **Gap** (normal, downstream): Kotlin how-to guide not yet written
 
 ## Benchmarks
 
 **Status**: met
 
-- Criterion benchmarks for all 10 gen\_\*\_v0 functions
-- bench_data_hasher_streaming + bench_cdc_chunks additional benchmarks
-- Bench (compile check) CI job SUCCESS in latest completed run
+- Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional
+- Bench (compile check) CI job SUCCESS
 
 ## CI/CD and Publishing
 
 **Status**: partially met (Kotlin release workflow missing)
 
-- **LATEST COMPLETED RUN** — run 23385568446: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23385568446
+- **LATEST COMPLETED RUN** — run 23386397907: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23386397907
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
-    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin — all SUCCESS
-- v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
-    GitHub Releases)
-- version_sync.py manages 15 sync targets (including Kotlin gradle.properties)
-- 16 CI jobs total (15 definitions + Python matrix expansion)
-- **Gap**: No maven-kotlin in release.yml
+    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
+- v0.3.1 released across all 8 registries
+- version_sync.py manages 15 sync targets
+- **Gap**: No `maven-kotlin` in release.yml
 
 ## Open Issues (4 total)
 
-1. **Kotlin bindings** `normal` — scaffold + tests + CI done; docs/README/release workflow missing
+1. **Kotlin bindings** `normal` — scaffold + tests + CI + docs all done; release workflow only
+    remaining sub-task
 2. **Swift SPM install instructions incorrect** `normal` — Package.swift in subdirectory, SPM URL
     won't resolve from repo root
 3. **Swift package does not vend native library** `normal` — linkedLibrary declared but no dylib
@@ -231,13 +178,13 @@ integration (install/quickstart sections), and release workflow (maven-kotlin in
 
 ## Next Milestone
 
-**Complete Kotlin integration** (CI is green — proceed with remaining Kotlin sub-tasks):
+**Add `maven-kotlin` to release.yml** — the last remaining Kotlin sub-task:
 
-1. **Documentation** — Create docs/howto/kotlin.md howto guide, packages/kotlin/README.md,
-    packages/kotlin/CLAUDE.md
-2. **README integration** — Add Kotlin install/quickstart sections to root README.md
-3. **Nav + llms integration** — Add kotlin.md to zensical.toml nav and gen_llms_full.py
-4. **Release workflow** — Add maven-kotlin input to release.yml
+1. Add `maven-kotlin` boolean input to `workflow_dispatch` in release.yml
+2. Add Kotlin/Maven Central publish job (GPG signing + Sonatype credentials, same pattern as Java)
+3. After release workflow is added, the Kotlin issue can be fully resolved
 
-All of these can likely be done in a single iteration since they follow established patterns from
-Swift and other language bindings.
+Secondary (after Kotlin is closed):
+
+- Address Swift SPM issues (install instructions + native library vending)
+- pytest-benchmark comparisons vs iscc-core (target spec mentions these)
