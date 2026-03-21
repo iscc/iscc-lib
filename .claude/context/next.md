@@ -1,146 +1,155 @@
 # Next Work Package
 
-## Step: Create UniFFI scaffolding crate with all 32 Tier 1 symbols
+## Step: Generate Swift bindings and create SPM package structure
 
 ## Goal
 
-Create `crates/iscc-uniffi/` — the shared UniFFI scaffolding crate that exposes all 32 Tier 1
-symbols from `iscc-lib` via UniFFI proc macros. This is the foundation for both Swift and Kotlin
-bindings; neither can proceed without it. Addresses the "Implement Swift bindings via UniFFI"
-normal-priority issue.
+Create `packages/swift/` with UniFFI-generated Swift bindings, SPM manifest, and XCTest conformance
+tests. This establishes the Swift package foundation — the key deliverable of the Swift bindings
+issue.
 
 ## Scope
 
-- **Create**: `crates/iscc-uniffi/Cargo.toml`, `crates/iscc-uniffi/src/lib.rs`
-- **Modify**: `Cargo.toml` (root workspace — add `crates/iscc-uniffi` to `members` and add `uniffi`
-    to `workspace.dependencies`)
+- **Create**:
+    - `crates/iscc-uniffi/uniffi-bindgen.rs` — 3-line entry point for binding generation
+    - `packages/swift/Package.swift` — SPM manifest with IsccLibFFI + IsccLib + test targets
+    - `packages/swift/Sources/IsccLibFFI/iscc_uniffiFFI.h` — generated C header (uniffi-bindgen
+        output)
+    - `packages/swift/Sources/IsccLibFFI/module.modulemap` — module map for FFI target (rename from
+        generated `iscc_uniffiFFI.modulemap`)
+    - `packages/swift/Sources/IsccLib/iscc_uniffi.swift` — generated Swift bindings (uniffi-bindgen
+        output)
+    - `packages/swift/Tests/IsccLibTests/ConformanceTests.swift` — XCTest against data.json vectors
+    - `packages/swift/Tests/IsccLibTests/data.json` — vendored conformance vectors (copy from
+        `crates/iscc-lib/tests/data.json`)
+    - `packages/swift/README.md` — per-package README
+- **Modify**:
+    - `crates/iscc-uniffi/Cargo.toml` — add `[[bin]]` section and `bindgen` feature for CLI
 - **Reference**:
-    - `crates/iscc-lib/src/lib.rs` (Tier 1 function signatures)
-    - `crates/iscc-lib/src/types.rs` (result struct definitions)
-    - `crates/iscc-lib/src/streaming.rs` (DataHasher/InstanceHasher)
-    - `crates/iscc-ffi/src/lib.rs` (binding wrapping pattern — how FFI maps iscc-lib types)
-    - `.claude/context/specs/swift-bindings.md` (UniFFI interface design)
+    - `crates/iscc-uniffi/src/lib.rs` — UniFFI interface definition (all 32 symbols)
+    - `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — reference conformance test pattern
+    - `packages/go/conformance_test.go` — alternate conformance test pattern
+    - `.claude/context/specs/swift-bindings.md` — full Swift spec
+    - `crates/iscc-lib/tests/data.json` — conformance vectors source
 
 ## Not In Scope
 
-- Swift package (`packages/swift/`) — separate step after UniFFI crate compiles
-- Kotlin package (`packages/kotlin/`) — depends on Swift being done first
-- `uniffi.toml` config — only needed for binding generation customization, not for compilation
-- `build.rs` — not needed with proc macro approach (`#[uniffi::export]`)
-- CI job for UniFFI crate — will be added with Swift CI job
-- Binding generation (`uniffi-bindgen generate`) — separate step
-- Version sync targets — will be added with Swift package
-- Documentation (`docs/howto/swift.md`, README updates) — separate step
-- Tests beyond basic compilation — conformance testing will happen in Swift/Kotlin test suites
+- CI job (macOS runner, `swift build` + `swift test`) — separate step after package verified
+- Documentation (`docs/howto/swift.md`, README Swift install/quickstart sections)
+- Version sync integration (`scripts/version_sync.py` target for Swift)
+- XCFramework build for release distribution
+- Idiomatic Swift wrapper layer (`IsccLib.swift` with `Codable`/`Sendable`) — the generated UniFFI
+    code already provides `camelCase`, `throws`, and reasonable Swift types; extra wrapper can come
+    later if needed
+- SwiftFormat/SwiftLint integration
+- Release workflow updates
 
 ## Implementation Notes
 
-### Crate setup (`Cargo.toml`)
+### Binding generation mechanism
 
-- `crate-type = ["cdylib", "staticlib", "lib"]` — `cdylib` for dynamic loading, `staticlib` for
-    XCFramework, `lib` for tests
-- Dependencies: `iscc-lib` (path, all features), `uniffi` (workspace)
-- Add `uniffi = "0.31"` to `[workspace.dependencies]` in root Cargo.toml
-- `publish = false` — this crate is not published to crates.io (only used to generate bindings)
+Add a `bindgen` feature to `iscc-uniffi` that enables `uniffi/cli`, and a `[[bin]]` with
+`required-features = ["bindgen"]`:
 
-### UniFFI interface (`src/lib.rs`)
+```toml
+[features]
+bindgen = ["uniffi/cli"]
 
-Use **proc macros only** (no UDL files, no `build.rs`). The pattern:
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["bindgen"]
+```
 
-1. **Scaffolding setup**: `uniffi::setup_scaffolding!();` at top of lib.rs.
+The binary is trivial:
 
-2. **Error type**: `#[derive(Debug, thiserror::Error, uniffi::Error)]` enum `IsccUniError` with a
-    single `IsccError { msg: String }` variant. Map from `iscc_lib::IsccError` via `From` impl.
+```rust
+fn main() {
+    uniffi::uniffi_bindgen_main()
+}
+```
 
-3. **Result records**: `#[derive(uniffi::Record)]` for each result type. UniFFI records map to Swift
-    structs and Kotlin data classes. Mirror all fields from `iscc_lib::types`:
+### Generating Swift code
 
-    - `MetaCodeResult` — `iscc`, `name`, `description` (Option), `meta` (Option), `metahash`
-    - `TextCodeResult` — `iscc`, `characters` (as `u64`, UniFFI doesn't support `usize`)
-    - `ImageCodeResult` — `iscc`
-    - `AudioCodeResult` — `iscc`
-    - `VideoCodeResult` — `iscc`
-    - `MixedCodeResult` — `iscc`, `parts` (Vec<String>)
-    - `DataCodeResult` — `iscc`
-    - `InstanceCodeResult` — `iscc`, `datahash`, `filesize` (u64)
-    - `IsccCodeResult` — `iscc`
-    - `SumCodeResult` — `iscc`, `datahash`, `filesize` (u64), `units` (Option\<Vec<String>>)
-    - `DecodeResult` — `maintype` (u8), `subtype` (u8), `version` (u8), `length` (u8), `digest`
-        (Vec<u8>)
+1. Build the cdylib first: `cargo build -p iscc-uniffi` (produces `target/debug/libiscc_uniffi.so`)
+2. Run:
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate --library target/debug/libiscc_uniffi.so --language swift --out-dir /tmp/swift-gen/`
+3. This generates three files: `iscc_uniffi.swift`, `iscc_uniffiFFI.h`, `iscc_uniffiFFI.modulemap`
+4. Place them in the package structure:
+    - `iscc_uniffi.swift` → `packages/swift/Sources/IsccLib/`
+    - `iscc_uniffiFFI.h` → `packages/swift/Sources/IsccLibFFI/`
+    - `iscc_uniffiFFI.modulemap` → rename to `module.modulemap` in
+        `packages/swift/Sources/IsccLibFFI/`
 
-4. **Gen functions**: `#[uniffi::export]` on free functions. Each wraps the `iscc_lib` call,
-    converts the result type, and maps errors:
+### Package.swift structure
 
-    - `gen_meta_code_v0(name: String, description: Option<String>, meta: Option<String>, bits: u32)`
-    - `gen_text_code_v0(text: String, bits: u32)`
-    - `gen_image_code_v0(pixels: Vec<u8>, bits: u32)`
-    - `gen_audio_code_v0(cv: Vec<i32>, bits: u32)`
-    - `gen_video_code_v0(frame_sigs: Vec<Vec<i32>>, bits: u32)` — flatten generics for UniFFI
-    - `gen_mixed_code_v0(codes: Vec<String>, bits: u32)`
-    - `gen_data_code_v0(data: Vec<u8>, bits: u32)`
-    - `gen_instance_code_v0(data: Vec<u8>, bits: u32)`
-    - `gen_iscc_code_v0(codes: Vec<String>, wide: bool)`
-    - `gen_sum_code_v0(path: String, bits: u32, wide: bool, add_units: bool)` — takes String path
+```swift
+// swift-tools-version: 5.9
+import PackageDescription
 
-5. **Utility functions**: `#[uniffi::export]` wrappers for:
+let package = Package(
+    name: "IsccLib",
+    products: [
+        .library(name: "IsccLib", targets: ["IsccLib"]),
+    ],
+    targets: [
+        .target(
+            name: "IsccLibFFI",
+            path: "Sources/IsccLibFFI",
+            publicHeadersPath: ".",
+            linkerSettings: [
+                .linkedLibrary("iscc_uniffi"),
+            ]
+        ),
+        .target(
+            name: "IsccLib",
+            dependencies: ["IsccLibFFI"],
+            path: "Sources/IsccLib"
+        ),
+        .testTarget(
+            name: "IsccLibTests",
+            dependencies: ["IsccLib"],
+            path: "Tests/IsccLibTests",
+            resources: [.copy("data.json")]
+        ),
+    ]
+)
+```
 
-    - `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`
-    - `sliding_window` (returns `Vec<String>`)
-    - `alg_minhash_256` (features: `Vec<u32>`, returns `Vec<u8>`)
-    - `alg_cdc_chunks` — returns `Vec<Vec<u8>>` (UniFFI can't do borrowed slices)
-    - `alg_simhash` — takes `Vec<Vec<u8>>`, returns `Vec<u8>`
-    - `soft_hash_video_v0` — takes `Vec<Vec<i32>>`, returns `Vec<u8>`
-    - `encode_base64`, `json_to_data_url`, `iscc_decompose`, `encode_component`, `iscc_decode`
-    - `conformance_selftest`
+### Conformance tests pattern
 
-6. **Constants as getter functions**: UniFFI doesn't support `const` exports. Use:
+Follow the .NET/Go pattern: load `data.json`, iterate per-function groups, decode inputs per
+function signature, compare `.iscc` output. Key considerations:
 
-    ```rust
-    #[uniffi::export]
-    fn meta_trim_name() -> u32 { iscc_lib::META_TRIM_NAME as u32 }
-    ```
+- Use `JSONSerialization` for flexible JSON parsing (like .NET's `JsonElement`)
+- `"stream:<hex>"` prefix: extract hex after prefix, convert to `Data`
+- `gen_iscc_code_v0` vectors have no `wide` parameter — always pass `false`
+- `_metadata` key in data.json: skip non-vector top-level keys
+- Empty `description`/`meta` strings → pass `nil` (not empty string)
+- 9 test functions covering 50 vectors (no `gen_sum_code_v0` vectors in data.json)
+- Test method per gen function (9 methods) — each iterates its vectors and asserts `.iscc` match
 
-    Same for `META_TRIM_DESCRIPTION`, `META_TRIM_META`, `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`.
+### data.json note
 
-7. **Streaming types**: `#[derive(uniffi::Object)]` on wrapper structs with interior
-    `Mutex<Option<Inner>>`. UniFFI Objects map to classes in Swift/Kotlin with reference counting:
-
-    ```rust
-    #[derive(uniffi::Object)]
-    pub struct DataHasher {
-        inner: std::sync::Mutex<Option<iscc_lib::DataHasher>>,
-    }
-    #[uniffi::export]
-    impl DataHasher {
-        #[uniffi::constructor]
-        pub fn new() -> Self { ... }
-        pub fn update(&self, data: Vec<u8>) { ... }
-        pub fn finalize(&self, bits: u32) -> Result<DataCodeResult, IsccUniError> { ... }
-    }
-    ```
-
-    Same pattern for `InstanceHasher`.
-
-### Key type mapping notes
-
-- `usize` -> `u64` (UniFFI supports u64 but not usize)
-- `&str` -> `String` (UniFFI uses owned types)
-- `&[u8]` -> `Vec<u8>` (UniFFI uses owned types)
-- `&[&str]` -> `Vec<String>`
-- Generic `<S: AsRef<[i32]> + Ord>` -> concrete `Vec<Vec<i32>>`
-- `std::path::Path` -> `String` (convert in wrapper)
-- `Vec<&[u8]>` (from `alg_cdc_chunks`) -> `Vec<Vec<u8>>` (copy to owned)
-- `Result<T, IsccError>` -> `Result<T, IsccUniError>`
+Copy from `crates/iscc-lib/tests/data.json`. This is the same file vendored by Go and .NET. All
+copies must stay identical.
 
 ## Verification
 
-- `cargo build -p iscc-uniffi` compiles successfully
-- `cargo test -p iscc-uniffi` passes (at minimum: any doc tests or unit tests)
+- `cargo build -p iscc-uniffi` compiles successfully (existing crate unaffected)
+- `cargo test -p iscc-uniffi` passes (21 existing tests)
 - `cargo clippy -p iscc-uniffi -- -D warnings` is clean
-- `cargo build -p iscc-lib` still passes (no regressions)
-- `cargo test -p iscc-lib` still passes (316+ tests)
+- `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- --help` shows usage
+    (uniffi-bindgen binary works)
+- `packages/swift/Package.swift` exists
+- `packages/swift/Sources/IsccLib/iscc_uniffi.swift` exists and contains `genMetaCodeV0`
+- `packages/swift/Sources/IsccLibFFI/iscc_uniffiFFI.h` exists
+- `packages/swift/Sources/IsccLibFFI/module.modulemap` exists
+- `packages/swift/Tests/IsccLibTests/ConformanceTests.swift` exists
+- `packages/swift/Tests/IsccLibTests/data.json` exists and is identical to
+    `crates/iscc-lib/tests/data.json`
 
 ## Done When
 
-All verification criteria pass — the UniFFI scaffolding crate compiles, all 32 Tier 1 symbols are
-exposed via UniFFI proc macros, and the existing workspace builds and tests are unaffected.
+All verification criteria pass — the Swift package structure is complete with generated bindings,
+conformance tests, and vendored vectors, ready for CI validation on a macOS runner.
