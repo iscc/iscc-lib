@@ -1,17 +1,17 @@
-<!-- assessed-at: 488ada55778b93db03454eaf6064e85ac0fc3ab5 -->
+<!-- assessed-at: 6e8291db1c4c8733f8ec00e40c065eb1a7aa1dbf -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Swift bindings — SPM package created, CI and docs remaining
+## Phase: Swift bindings — CI job added but FAILING, needs module name fix
 
-v0.3.1 released across all 8 registries. The Swift package (`packages/swift/`) now exists with
-UniFFI-generated bindings, SPM manifest, and XCTest conformance tests (9 methods, 50 vectors). All
-32 Tier 1 symbols are accessible from Swift. However, no Swift CI job exists yet (needs macOS
-runner), no `docs/howto/swift.md`, and README lacks Swift install/quickstart sections. Two
-`normal`-priority issues remain: Swift bindings (in progress) and Kotlin bindings (not started,
-depends on Swift).
+v0.3.1 released across all 8 registries. The Swift package (`packages/swift/`) exists with
+UniFFI-generated bindings, SPM manifest, and XCTest conformance tests (9 methods, 50 vectors). A
+Swift CI job was added to `ci.yml` on `macos-14`, but it **fails** because the generated Swift code
+uses `#if canImport(iscc_uniffiFFI)` while the SPM target is named `IsccLibFFI` — the conditional
+import silently fails, leaving all FFI symbols unresolved. Two `normal`-priority issues remain:
+Swift bindings (in progress) and Kotlin bindings (not started, depends on Swift).
 
 ## Rust Core Crate
 
@@ -130,11 +130,10 @@ depends on Swift).
 - Uses proc macro approach — no `uniffi.toml` or `build.rs` needed
 - Dependencies: `iscc-lib` (with `meta-code` feature), `uniffi` 0.31, `thiserror`
 - `bindgen` feature added with `[[bin]]` section for `uniffi-bindgen` CLI
-- Review verdict: PASS (iteration 1), PASS again with bindgen additions (iteration 2)
 
 ## Swift Bindings
 
-**Status**: partially met (SPM package created, CI/docs/release not done)
+**Status**: partially met (SPM package created, CI FAILING, docs/release not done)
 
 - **Exists**: `packages/swift/` with complete SPM package structure:
     - `Package.swift` — SPM manifest (swift-tools-version: 5.9), 3 targets (IsccLibFFI, IsccLib,
@@ -147,13 +146,21 @@ depends on Swift).
         `gen_*_v0` functions (correct per-function counts: 20+5+3+5+3+2+4+3+5)
     - `Tests/IsccLibTests/data.json` — vendored conformance vectors (matches iscc-lib copy)
     - `README.md` — installation, usage examples, build-from-source instructions
-- **Not done**: Swift CI job (needs macOS runner for `swift build` + `swift test`)
+- **CI job exists but FAILING** (run 23379967641): `swift:` job on `macos-14` runs
+    `cargo build -p iscc-uniffi` then `swift build` / `swift test` with `-Xlinker` flags. The
+    `swift build` step fails with ~40 "cannot find" errors for all FFI symbols.
+- **Root cause**: Module name mismatch. The generated `iscc_uniffi.swift` uses
+    `#if canImport(iscc_uniffiFFI)` / `import iscc_uniffiFFI`, but the SPM target is named
+    `IsccLibFFI` (with modulemap `module IsccLibFFI`). The conditional import silently fails, so
+    `RustBuffer`, all `uniffi_iscc_uniffi_fn_*` symbols, etc. are unresolved.
+- **Fix options**: (a) rename the SPM target/module from `IsccLibFFI` to `iscc_uniffiFFI` to match
+    the generated code's expectation, OR (b) modify the generated Swift source to import
+    `IsccLibFFI` instead. Option (a) is simpler and avoids editing generated code.
 - **Not done**: `docs/howto/swift.md` how-to guide
 - **Not done**: README Swift install/quickstart sections
 - **Not done**: Version sync integration (`Constants.swift` with version string)
 - **Not done**: `packages/swift/CLAUDE.md`
 - **Not done**: XCFramework pre-built binaries (release distribution)
-- **Note**: Tests cannot be executed in Linux devcontainer — require macOS with Swift toolchain
 
 ## Kotlin Multiplatform Bindings
 
@@ -205,30 +212,34 @@ depends on Swift).
 
 ## CI/CD and Publishing
 
-**Status**: met (for existing bindings)
+**Status**: partially met (Swift CI job failing)
 
-- **LATEST COMPLETED RUN** — run 23379381405: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23379381405
-- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
-    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS
+- **LATEST COMPLETED RUN** — run 23379967641: **14/15 jobs SUCCESS, 1 FAILURE**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23379967641
+- **FAILED**: `Swift (swift build, swift test)` — module name mismatch (see Swift section)
+- Passing jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js, WASM, C
+    FFI, Java, Go, Bench, Ruby, C# / .NET, C++ — all SUCCESS
 - v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
     GitHub Releases)
 - `iscc.hpp` bundled in FFI release tarballs
 - `NUGET_API_KEY` GitHub Actions secret configured
-- **Gap**: No CI job yet for Swift (needs macOS runner) or `iscc-uniffi` crate
+- **Gap**: Swift CI job exists but broken; no Kotlin CI job
 
 ## Next Milestone
 
-Complete the Swift bindings — the SPM package structure is done with generated bindings and
-conformance tests, but CI/docs/README integration is still missing:
+**Fix the failing Swift CI job** (highest priority — CI must be green before any feature work):
 
-- **Swift CI job** (highest priority) — Add `swift` job to `ci.yml` on `macos-14` runner:
-    `cargo build -p iscc-uniffi --release`, then `swift test -Xlinker -L<path>`. This is the only
-    way to validate the conformance tests actually pass.
-- **`docs/howto/swift.md`** — Swift how-to guide for the documentation site
-- **README** — Add Swift installation and quickstart sections
-- **Version sync** — Add `Constants.swift` with version string, update `version_sync.py`
-- **`packages/swift/CLAUDE.md`** — Per-package agent guidance
+1. **Module name mismatch fix** — The generated `iscc_uniffi.swift` does
+    `#if canImport(iscc_uniffiFFI)` but the SPM target is `IsccLibFFI`. Either:
 
-Once Swift is fully done (CI green, docs complete), the Swift issue in issues.md can be closed and
-Kotlin can begin.
+    - **(a) Rename SPM target** from `IsccLibFFI` to `iscc_uniffiFFI`: update `Package.swift` target
+        name, rename `Sources/IsccLibFFI/` directory to `Sources/iscc_uniffiFFI/`, and update the
+        modulemap's `module` declaration from `IsccLibFFI` to `iscc_uniffiFFI`. This avoids editing
+        generated code.
+    - **(b) Edit generated Swift** to `import IsccLibFFI` — works but requires maintaining a patch on
+        generated code. Option (a) is recommended.
+
+2. **Push and verify CI is green** — all 15 jobs must pass.
+
+Once CI is green, remaining Swift work: `docs/howto/swift.md`, README sections, version sync,
+`packages/swift/CLAUDE.md`. Then close the Swift issue and begin Kotlin.

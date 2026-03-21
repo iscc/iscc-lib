@@ -35,6 +35,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin package check**: `ls packages/kotlin/ 2>&1`
 - **state.md Write workaround**: Write tool gets permission errors on state.md — use Python script
     via Bash tool instead: `python3 /tmp/write_state.py`
+- **Swift CI failure logs**: `gh run view <id> --log-failed 2>&1 | tail -100`
 
 ## Codebase Landmarks
 
@@ -44,8 +45,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `packages/swift/` — SPM package with UniFFI-generated bindings (2400-line iscc_uniffi.swift)
-- `.github/workflows/ci.yml` — **14 CI jobs** (version-check, Rust, python-test matrix, python gate,
-    Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C#/.NET, C++) — no Swift job yet
+- `.github/workflows/ci.yml` — **15 CI jobs** (version-check, Rust, python-test matrix, python gate,
+    Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C#/.NET, C++, **Swift**)
 - `crates/iscc-uniffi/` — UniFFI scaffolding crate: 32 exports, 21 tests, `bindgen` feature for CLI;
     `publish = false`; proc macro approach; depends on uniffi 0.31, thiserror, iscc-lib
 - `docs/howto/` — **9 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
@@ -67,17 +68,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review
 
-## Current State (assessed-at: 488ada55778b93db03454eaf6064e85ac0fc3ab5)
+## Current State (assessed-at: 6e8291db1c4c8733f8ec00e40c065eb1a7aa1dbf)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 23379381405)
+- **IN_PROGRESS**: **14/15 CI jobs** green, **Swift FAILING** (run 23379967641)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
 - **2 normal-priority issues** in issues.md: Swift bindings (in progress), Kotlin bindings (not
     started, depends on Swift)
-- **Swift package created** — `packages/swift/` with SPM manifest, generated bindings (all 32
-    symbols), XCTest conformance tests (9 methods, 50 vectors), README
-- **Swift gaps**: no CI job (macOS runner needed), no docs/howto/swift.md, no README Swift sections,
-    no version sync, tests not yet validated on macOS
-- **Next**: Add Swift CI job, docs, README integration; then Kotlin
+- **Swift CI failure root cause**: Module name mismatch. Generated `iscc_uniffi.swift` uses
+    `#if canImport(iscc_uniffiFFI)` but SPM target is named `IsccLibFFI`. Conditional import
+    silently fails → all FFI symbols unresolved. Fix: rename SPM target to `iscc_uniffiFFI`.
+- **Next**: Fix Swift module name mismatch → get CI green → docs/README/version sync → Kotlin
 
 ## Gotchas
 
@@ -93,8 +93,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **UniFFI proc macro approach**: no uniffi.toml or build.rs needed; constants exposed as getter
     functions since UniFFI doesn't support const exports; streaming types use `Mutex<Option<Inner>>`
     for Send+Sync
+- **Swift module name mismatch**: UniFFI-generated Swift code uses `#if canImport(iscc_uniffiFFI)` —
+    SPM target MUST be named `iscc_uniffiFFI` (not `IsccLibFFI`) to match. The conditional import
+    silently fails when module names don't match.
 - **Swift tests need macOS**: ConformanceTests.swift cannot run in Linux devcontainer — needs macOS
     runner with Swift toolchain + `libiscc_uniffi` linked via `-Xlinker -L<path>`
-- **mdformat trailing space bug**: inline code with trailing space (e.g., `` `^public func ` ``)
-    triggers mdformat "renders to different HTML" error. Remove trailing spaces from inline code.
-    Always run `uv run mdformat <file>` before staging to catch this.
+- **mdformat trailing space bug**: inline code with trailing space triggers mdformat "renders to
+    different HTML" error. Remove trailing spaces from inline code.
