@@ -36,6 +36,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin package check**: `ls packages/kotlin/ 2>&1`
 - **Kotlin build test**: `cd packages/kotlin && ./gradlew compileKotlin`
 - **Kotlin test check**: `ls packages/kotlin/src/test/ 2>&1`
+- **Kotlin test count**: Grep for `@Test` in ConformanceTest.kt
 - **state.md Write workaround**: Write tool gets permission errors on state.md — use Python script
     via Bash tool instead: `python3 /tmp/write_state.py` (write content via pathlib.Path.write_text
     in a heredoc-delimited Python script using raw strings)
@@ -53,7 +54,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/swift/` — SPM package with UniFFI-generated bindings (2400-line iscc_uniffi.swift); FFI
     target is `iscc_uniffiFFI` (must match UniFFI-generated `#if canImport(...)`)
 - `packages/kotlin/` — Kotlin/JVM project with Gradle 8.12.1, UniFFI-generated bindings (3214-line
-    iscc_uniffi.kt), JNA 5.16.0; scaffold only — no tests yet
+    iscc_uniffi.kt), JNA 5.16.0; conformance tests complete (9 methods, 50 vectors)
 - `.github/workflows/ci.yml` — **15 CI jobs** (version-check, Rust, python-test matrix, python gate,
     Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C#/.NET, C++, **Swift**) — no Kotlin yet
 - `crates/iscc-uniffi/` — UniFFI scaffolding crate: 32 exports, 21 tests, `bindgen` feature for CLI;
@@ -77,16 +78,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review
 
-## Current State (assessed-at: 105ea83)
+## Current State (assessed-at: a4a5cef)
 
-- **IN_PROGRESS**: **15/15 CI jobs green** (run 23382720181)
+- **IN_PROGRESS**: **15/15 CI jobs green** (run 23383837044)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
-- **Kotlin scaffold created** — packages/kotlin/ with build.gradle.kts, Gradle wrapper, 3214-line
-    iscc_uniffi.kt; compileKotlin succeeds
-- **Kotlin still missing**: conformance tests, CI job, docs, README, version sync, release workflow
-- **1 normal-priority issue** in issues.md: Kotlin bindings (partially started)
+- **Kotlin scaffold + conformance tests done** — 9 @Test methods, 50 vectors, all passing locally
+- **Kotlin still missing**: CI job, docs, README, CLAUDE.md, version sync, release workflow
+- **1 normal-priority issue** in issues.md: Kotlin bindings (partially done — tests complete)
 - **1 low-priority issue**: Language logos in docs (CID skips)
-- **Next**: Add Kotlin conformance tests (JUnit 5, data.json, ConformanceTest.kt)
+- **Next**: Add Kotlin CI job to ci.yml
 
 ## Gotchas
 
@@ -105,5 +105,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `#if canImport(iscc_uniffiFFI)` — SPM target MUST be named `iscc_uniffiFFI` to match.
 - **Kotlin UniFFI bindings**: Uses JNA (not JNI) — `net.java.dev.jna:jna:5.16.0`; generated code
     uses `package uniffi.iscc_uniffi`; needs `libiscc_uniffi.so` at runtime via java.library.path
+    AND jna.library.path (java.library.path alone insufficient for JNA's `Native.register()`)
+- **Kotlin CI will need**: cargo build -p iscc-uniffi (to produce libiscc_uniffi.so), then gradlew
+    test with LD_LIBRARY_PATH set to target/debug
 - **mdformat trailing space bug**: inline code with trailing space triggers mdformat "renders to
     different HTML" error. Remove trailing spaces from inline code.

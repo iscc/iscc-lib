@@ -1,15 +1,15 @@
-<!-- assessed-at: 105ea835cbe8479cb93ca2d89b2525840191297a -->
+<!-- assessed-at: a4a5cef13d48b0106e4223fb733db9d4597e3781 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Kotlin JVM scaffold created; conformance tests and CI next
+## Phase: Kotlin conformance tests done; CI job and integration next
 
-v0.3.1 released across all 8 registries. Kotlin JVM project scaffold is now in place —
-build.gradle.kts, Gradle 8.12.1 wrapper, and 3214-line UniFFI-generated iscc_uniffi.kt all compile
-successfully. Still needs: conformance tests, CI job, docs, README, version sync, and release
-workflow. All 15/15 CI jobs pass (run 23382720181).
+v0.3.1 released across all 8 registries. Kotlin JVM project scaffold and conformance tests are
+complete — 9 test methods covering all gen\_\*\_v0 functions against 50 vectors pass locally. Still
+needs: CI job, version sync, documentation, README integration, and release workflow. All 15/15 CI
+jobs pass (run 23383837044).
 
 ## Rust Core Crate
 
@@ -152,18 +152,24 @@ workflow. All 15/15 CI jobs pass (run 23382720181).
 
 ## Kotlin Multiplatform Bindings
 
-**Status**: partially met (scaffold only)
+**Status**: partially met (scaffold + tests done; CI/docs/release missing)
 
 - **Scaffold created** — packages/kotlin/ exists with:
-    - build.gradle.kts — Kotlin/JVM 2.1.10 plugin, group `io.iscc`, JNA 5.16.0 dependency,
-        JUnitPlatform config with java.library.path pointing to target/debug
+    - build.gradle.kts — Kotlin/JVM 2.1.10 plugin, group `io.iscc`, JNA 5.16.0, JUnit 5.11.4 + Gson
+        2.8.9 test deps, JUnitPlatform config with java.library.path + jna.library.path +
+        LD_LIBRARY_PATH pointing to target/debug
     - settings.gradle.kts, gradle.properties (version=0.3.1)
     - Gradle 8.12.1 wrapper (gradlew, gradle-wrapper.jar)
     - src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt — 3214-line UniFFI-generated bindings
-    - `./gradlew compileKotlin` succeeds (verified by review agent)
-- **Missing — conformance tests**: No src/test/ directory, no ConformanceTest.kt, no data.json
-- **Missing — CI job**: No kotlin job in ci.yml (still 15 jobs, no Kotlin)
-- **Missing — documentation**: No docs/howto/kotlin.md, no README.md, no CLAUDE.md
+    - compileKotlin succeeds (verified by review agent)
+- **Conformance tests complete** — src/test/ exists with:
+    - src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt — 237 lines, 9 @Test methods covering all
+        gen\_\*\_v0 functions (20+5+3+5+3+2+4+3+5 = 50 vectors)
+    - src/test/resources/data.json — vendored conformance vectors (SHA256 matches iscc-lib copy)
+    - gradlew test passes: 9 tests, 0 failures (verified by review agent)
+- **Missing — CI job**: No kotlin job in ci.yml (still 15 jobs)
+- **Missing — documentation**: No docs/howto/kotlin.md, no packages/kotlin/README.md, no
+    packages/kotlin/CLAUDE.md
 - **Missing — README integration**: No Kotlin install/quickstart sections in root README
 - **Missing — version sync**: gradle.properties not in version_sync.py targets (still 14 targets)
 - **Missing — release workflow**: No maven-kotlin in release.yml
@@ -209,8 +215,8 @@ workflow. All 15/15 CI jobs pass (run 23382720181).
 
 **Status**: partially met (no Kotlin CI job)
 
-- **LATEST COMPLETED RUN** — run 23382720181: **15/15 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23382720181
+- **LATEST COMPLETED RUN** — run 23383837044: **15/15 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23383837044
 - All jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js, WASM,
     C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift — all SUCCESS
 - v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
@@ -221,11 +227,11 @@ workflow. All 15/15 CI jobs pass (run 23382720181).
 
 ## Next Milestone
 
-**Continue Kotlin bindings** — add conformance tests (highest impact next step):
+**Add Kotlin CI job** (highest-impact next step — tests exist but are not gated in CI):
 
-1. Add JUnit 5 test dependency to build.gradle.kts
-2. Vendor data.json into src/test/resources/
-3. Create ConformanceTest.kt with tests for all 9 gen\_\*\_v0 functions against 50 vectors
-4. Build libiscc_uniffi.so and verify tests pass with `./gradlew test`
+1. Add `kotlin` job to `.github/workflows/ci.yml` — build libiscc_uniffi.so, run gradlew test
+2. Verify 16/16 CI jobs pass
 
-After tests pass: CI job, version sync, documentation, README, release workflow.
+Then continue Kotlin integration: version sync (add gradle.properties to version_sync.py),
+documentation (docs/howto/kotlin.md), README (Kotlin install/quickstart sections), per-package
+README + CLAUDE.md, and release workflow (maven-kotlin in release.yml).
