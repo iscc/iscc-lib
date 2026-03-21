@@ -1,42 +1,44 @@
-## 2026-03-21 — Swift documentation and README integration
+## 2026-03-21 — Review of: Swift documentation and README integration
 
-**Done:** Created Swift howto guide (`docs/howto/swift.md`) covering all 10 gen functions, streaming
-hashers, codec operations, text/encoding utilities, algorithm primitives, constants, conformance
-testing, and error handling. Created `packages/swift/CLAUDE.md` with package role, file layout,
-build commands, test patterns, CI notes, and common pitfalls. Added Swift to README.md
-(installation, quick start, Key Features polyglot list), zensical.toml nav, and gen_llms_full.py
-ORDERED_PAGES.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** The advance agent created comprehensive Swift documentation (howto guide, CLAUDE.md,
+README sections, nav entries) that accurately reflects the UniFFI-generated API. All API signatures,
+result types, and parameter types were verified against the actual generated Swift source
+(`iscc_uniffi.swift`). No quality gate circumvention, no out-of-scope changes.
 
-- `docs/howto/swift.md`: New file — full Swift howto guide (25 sections, matches dotnet.md
-    structure)
-- `packages/swift/CLAUDE.md`: New file — per-package agent docs for Swift bindings
-- `README.md`: Added Swift installation (SPM Package.swift snippet), quick start example, and
-    "Swift" to polyglot language list
-- `zensical.toml`: Added `{ "Swift" = "howto/swift.md" }` after C / C++ in How-to Guides nav
-- `scripts/gen_llms_full.py`: Added `"howto/swift.md"` after `"howto/c-cpp.md"` in ORDERED_PAGES
+**Verification:**
 
-**Verification:** All 9 verification criteria pass:
+- [x] `test -f docs/howto/swift.md` exits 0 — PASS
+- [x] `test -f packages/swift/CLAUDE.md` exits 0 — PASS
+- [x] `grep -q 'Swift' zensical.toml` exits 0 — PASS
+- [x] `grep -q 'howto/swift.md' zensical.toml` exits 0 — PASS
+- [x] `grep -q 'howto/swift.md' scripts/gen_llms_full.py` exits 0 — PASS
+- [x] `grep -q 'swift' README.md` exits 0 — PASS (install, quickstart, and polyglot list)
+- [x] `grep -q 'genMetaCodeV0' docs/howto/swift.md` exits 0 — PASS
+- [x] `grep -q 'DataHasher' docs/howto/swift.md` exits 0 — PASS
+- [x] `grep -c '##' docs/howto/swift.md` → 25 (≥ 10) — PASS
+- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
+- [x] `mise run check` — 15/15 hooks pass
 
-- `test -f docs/howto/swift.md` — PASS
-- `test -f packages/swift/CLAUDE.md` — PASS
-- `grep -q 'Swift' zensical.toml` — PASS
-- `grep -q 'howto/swift.md' zensical.toml` — PASS
-- `grep -q 'howto/swift.md' scripts/gen_llms_full.py` — PASS
-- `grep -q 'swift' README.md` — PASS
-- `grep -q 'genMetaCodeV0' docs/howto/swift.md` — PASS
-- `grep -q 'DataHasher' docs/howto/swift.md` — PASS
-- `grep -c '##' docs/howto/swift.md` → 25 (≥ 10) — PASS
-- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
-- `mise run check` — 15/15 hooks pass
+**Issues found:**
 
-**Next:** Swift documentation is complete. The remaining Swift gap is version sync integration
-(`Constants.swift` + `scripts/version_sync.py`), which was explicitly out of scope. After that, the
-Swift issue can be closed and Kotlin bindings work can begin.
+- (none)
 
-**Notes:** Swift API uses all free functions (not methods on a class), Data type for binary data,
-and getter functions for constants. The howto guide accurately reflects the actual UniFFI-generated
-API signatures from `iscc_uniffi.swift`. The `InstanceCodeResult` struct has `datahash` and
-`filesize` fields (unlike the C#/.NET version which only has `iscc`) — this matches the actual
-UniFFI binding definition.
+**Codex review:** No actionable issues found. Codex confirmed: "no concrete regressions affecting
+repository behavior, tests, or documented consumers."
+
+**Next:** The remaining Swift gap is **version sync integration** — add `Constants.swift` to
+`scripts/version_sync.py` targets so the Swift package version stays in sync with releases. After
+that, the Swift issue in issues.md can be closed. Then Kotlin bindings work can begin (the other
+`normal` priority issue).
+
+**Notes:**
+
+- Swift howto guide (425 lines, 25 sections) follows the dotnet.md structural template faithfully
+- All Swift API signatures verified against `packages/swift/Sources/IsccLib/iscc_uniffi.swift`
+- `InstanceCodeResult` has `datahash` and `filesize` fields (matches UniFFI definition, differs from
+    .NET which only has `iscc`)
+- README Swift sections correctly placed after C/C++ and before WASM in both install and quickstart
+- `packages/swift/CLAUDE.md` includes all critical pitfalls (module name matching, macOS-only
+    testing, generated file rules)
