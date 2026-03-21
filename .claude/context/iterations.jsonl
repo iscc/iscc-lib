@@ -1015,3 +1015,8 @@
 {"ts":"2026-03-21T19:25:11.289632+00:00","iteration":4,"role":"define-next","status":"OK","turns":28,"cost_usd":1.557818,"duration_s":404.5}
 {"ts":"2026-03-21T19:39:34.613379+00:00","iteration":4,"role":"advance","status":"OK","turns":56,"cost_usd":3.359435,"duration_s":863.3}
 {"timestamp":"2026-03-21T19:50:00Z","iteration":4,"agent":"review","action":"review","verdict":"PASS","summary":"maven-kotlin release workflow — 4 jobs in release.yml + Gradle maven-publish/signing in build.gradle.kts. All 9+ verification checks pass. Kotlin bindings issue resolved and deleted from issues.md."}
+{"ts":"2026-03-21T19:54:58.539384+00:00","iteration":4,"role":"review","status":"OK","turns":1,"cost_usd":3.246477,"duration_s":923.9}
+{"ts":"2026-03-21T20:16:48.742675+00:00","iteration":5,"role":"update-state","status":"OK","turns":24,"cost_usd":0.655382,"duration_s":187.7}
+{"ts":"2026-03-21T20:22:38.325927+00:00","iteration":5,"role":"define-next","status":"OK","turns":28,"cost_usd":1.252026,"duration_s":349.6}
+{"ts":"2026-03-21T20:29:15.755509+00:00","iteration":5,"role":"advance","status":"OK","turns":52,"cost_usd":1.558075,"duration_s":397.4}
+{"ts": "2026-03-21T20:36:27.683188+00:00", "iteration": 5, "role": "review", "status": "PASS_WITH_NOTES", "verdict_notes": "Fixed wrong docs URL. Issue 1 resolved, issue 2 downgraded to low. IDLE \u2014 all remaining issues low priority."}

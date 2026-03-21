@@ -141,7 +141,7 @@ dependencies: [
 ```
 
 > **Note:** The native `libiscc_uniffi` library must be built from source and linked at build time.
-> See the [Swift howto guide](https://iscc-lib.iscc.io/howto/swift/) for build instructions.
+> See the [Swift howto guide](https://lib.iscc.codes/howto/swift/) for build instructions.
 
 ### <img src="https://cdn.simpleicons.org/kotlin/7F52FF" width="20" height="20" alt="Kotlin"> Kotlin
 

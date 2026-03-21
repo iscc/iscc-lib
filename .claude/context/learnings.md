@@ -181,12 +181,14 @@ fully-met target sections to `learnings-archive.md`.
     - `[[bin]] required-features = ["bindgen"]` pattern. Generates `.swift`/`.kt` + `.h` +
         `.modulemap`
 - Swift tests require macOS runner — cannot execute in Linux devcontainer
-- Kotlin bindings: UniFFI generates `package uniffi.iscc_uniffi` — JVM project uses
-    `src/main/kotlin/` (not KMP `src/commonMain/kotlin/`). Gradle wrapper (gradle-wrapper.jar ~44KB)
-    and generated `iscc_uniffi.kt` (~112KB) both under 256KB large-file threshold
-- Kotlin conformance tests: JUnit 5 + Gson deps in build.gradle.kts. JNA native lib loading requires
-    `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var — `java.library.path` alone does
-    NOT work for JNA `Native.register()`. `HexFormat` requires Java 17+
+
+## Swift Package
+
+- Two `Package.swift` files coexist: root (SPM consumers) and `packages/swift/Package.swift` (CI/
+    local dev). SPM reads root for dependency resolution; `cd packages/swift && swift build` uses
+    the subdirectory one
+- Docs site URL is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/`. Advance agents must
+    use correct hostname when linking to howto guides
 
 ## CID Process
 

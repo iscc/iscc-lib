@@ -108,10 +108,15 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 ## Swift Package Review
 
 - `packages/swift/` — SPM package: iscc_uniffiFFI (C header + modulemap) + IsccLib (generated Swift)
+- Two `Package.swift` files: root (SPM consumers) + `packages/swift/Package.swift` (CI/local dev).
+    Root omits testTarget. Both coexist without conflict
 - Review shortcut: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (no `swift test` on
     Linux). Swift tests structurally validated only — execution needs macOS CI
+- Docs-only Swift changes: `mise run check` + clippy (no Swift-specific tests needed on Linux)
 - Codex review on large generated diffs may be confused — findings advisory as always
 - Swift CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test`
+- **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
+    consistently get this wrong — always verify in review
 
 ## Kotlin Binding Review
 

@@ -368,3 +368,12 @@ reference-only for humans.
 - **.csproj relative paths**: `Include` paths are relative to csproj location, not project root.
     Count `../` carefully — `packages/dotnet/Iscc.Lib/../../README.md` = `packages/README.md` (NOT
     `packages/dotnet/README.md`)
+
+## UniFFI Bindings (Kotlin-specific, archived iteration 5)
+
+- Kotlin bindings: UniFFI generates `package uniffi.iscc_uniffi` — JVM project uses
+    `src/main/kotlin/` (not KMP `src/commonMain/kotlin/`). Gradle wrapper (gradle-wrapper.jar ~44KB)
+    and generated `iscc_uniffi.kt` (~112KB) both under 256KB large-file threshold
+- Kotlin conformance tests: JUnit 5 + Gson deps in build.gradle.kts. JNA native lib loading requires
+    `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var — `java.library.path` alone does
+    NOT work for JNA `Native.register()`. `HexFormat` requires Java 17+
