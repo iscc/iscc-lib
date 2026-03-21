@@ -1,44 +1,42 @@
-## 2026-03-21 — Review of: Add pytest-benchmark comparing iscc-lib vs iscc-core
+## 2026-03-21 — Create XCFramework build script and restructure root Package.swift
 
-**Verdict:** PASS
+**Done:** Created `scripts/build_xcframework.sh` — a portable bash script that cross-compiles
+`iscc-uniffi` for 5 Apple targets, creates fat binaries via `lipo`, assembles an XCFramework via
+`xcodebuild`, zips with `ditto`, and prints the SHA256 checksum. Restructured root `Package.swift`
+to use the Ferrostar-style variable toggle pattern with `useLocalFramework`, `releaseTag`, and
+`releaseChecksum`, replacing the old `.target`/`.linkedLibrary` approach with `.binaryTarget`.
 
-**Summary:** Clean, well-scoped implementation adding 18 pytest-benchmark functions (9 gen\_\*\_v0
-functions x 2 implementations) comparing iscc-lib vs iscc-core. All verification criteria pass, all
-quality gates clean, no suppressions or scope violations. Code is simple, correct, and uses real
-conformance data with output assertions.
+**Files changed:**
+
+- `scripts/build_xcframework.sh`: New file — complete XCFramework build pipeline (cross-compile,
+    lipo, stage headers, xcodebuild, ditto zip, compute-checksum)
+- `Package.swift`: Rewritten — variable toggle (`useLocalFramework`), conditional `binaryTarget`
+    (local path vs GitHub Releases URL), platform constraints (macOS 13, iOS 16), placeholder
+    `releaseTag`/`releaseChecksum`
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_benchmarks.py --benchmark-only -q` exits 0 — 18 passed in 12.38s
-- [x] benchmark output grep shows 18 `bench_` entries
-- [x] `uv run pytest tests/ --benchmark-disable -q` — 229 passed in 0.92s
-- [x] `uv run ruff check tests/test_benchmarks.py` — clean
-- [x] `uv run ruff format --check tests/test_benchmarks.py` — clean
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
-- [x] `mise run check` — all 15 pre-commit hooks pass
+- All 12 grep-based verification criteria pass (5 script checks + 5 Package.swift checks + unchanged
+    dev Package.swift + platform check)
+- `bash -n` syntax check passes
+- Script is executable (`chmod +x`)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean
+- `cargo test -p iscc-lib` — 317 tests pass (261 unit + 31 integration + 24 text utils + 1 doctest)
+- `mise run check` — all 15 pre-commit hooks pass
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** One P2 finding — benchmarks are collected by default `uv run pytest` (CI and
-pre-push hook), adding ~11s calibration overhead per run. Valid observation. Mitigations for future:
-add `--benchmark-disable` to CI pytest step or `addopts` in pyproject.toml, and use
-`--benchmark-only` for dedicated benchmark runs. Not blocking — the overhead is acceptable and
-doesn't cause timeouts.
-
-**Next:** The "Benchmarks" target section has one remaining unmet criterion: "Speedup factors
-published in documentation." This could be a natural next step — add a performance comparison table
-to `docs/` showing the speedup factors observed (meta ~20x, text ~33x, image ~15x, audio ~50x,
-etc.). Additionally, consider adding `--benchmark-disable` to the CI pytest command and pre-push
-hook to avoid the ~11s overhead on every run. Both remaining issues in issues.md are `low` priority.
+**Next:** Two follow-up steps remain before Swift XCFramework is end-to-end functional: (1) Add
+`build-xcframework` job to `release.yml` with force-update tag pattern and XCFramework upload, and
+add `swift` checkbox input. (2) Add `releaseTag` entry to `version_sync.py` so version bumps
+propagate to `Package.swift`. Documentation update (`docs/howto/swift.md`) should follow after the
+release workflow is verified working on macOS CI.
 
 **Notes:**
 
-- The advance agent incorrectly claimed `mise run check` fails due to trailing whitespace in
-    `swift-bindings.md` — it passes cleanly. The pre-existing issue may have been auto-fixed by
-    hooks in a prior commit
-- Representative speedups: meta ~20x, text ~33x, image ~15x, audio ~50x, video ~13x, mixed ~30x,
-    data ~11x, instance ~62x, iscc ~20x
-- `load_vectors()` re-parses data.json 9 times at module load — minor inefficiency, happens once,
-    doesn't affect benchmark results
+- `releaseTag` placeholder set to `"0.3.1"` (current version) and `releaseChecksum` to
+    `"PLACEHOLDER"` — these will be updated by CI during the first release that includes Swift
+- The script cannot be tested in the Linux devcontainer (requires macOS toolchain: `lipo`,
+    `xcodebuild`, `ditto`, `swift`). Syntax validation via `bash -n` is the maximum verification
+    possible here
+- The root `Package.swift` no longer has a `testTarget` — tests remain exclusively in
+    `packages/swift/Package.swift` for CI, matching the existing pattern noted in agent memory
+- `packages/swift/Package.swift` is completely unchanged (verified via git diff)

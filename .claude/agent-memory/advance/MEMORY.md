@@ -160,14 +160,16 @@ iterations.
 - Two `Package.swift` files coexist: root (for SPM consumers adding the repo URL) and
     `packages/swift/Package.swift` (for CI and local dev). SPM always reads root for dependency
     resolution; `cd packages/swift && swift build` uses the subdirectory one. No conflict
+- Root `Package.swift` uses Ferrostar-style variable toggle: `useLocalFramework` (bool),
+    `releaseTag`, `releaseChecksum`. `binaryTarget` for distribution, local path for dev
 - Root `Package.swift` omits testTarget — tests stay in `packages/swift/` for CI only
+- `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` fat binaries →
+    `xcodebuild   -create-xcframework` → `ditto` zip → `swift package compute-checksum`. Output:
+    `target/ios/IsccLib.xcframework.zip`. Accepts `--release` (default) or `--debug`
 - Version constant: `packages/swift/Sources/IsccLib/Constants.swift` — `public let isccLibVersion`
     synced by `scripts/version_sync.py`
-- Conformance tests: `ConformanceTests.swift` — 9 test methods, 50 vectors. Requires macOS runner
 - CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
     `-Xlinker -L` (link-time) and `-Xlinker -rpath` (runtime) pointing to `target/debug`
-- `module.modulemap` simplified from generated version (removed Darwin-specific `use` directives)
-- Swift install docs reference version `0.3.1` (when Swift package was first added)
 
 ## Kotlin Bindings (UniFFI/JVM)
 
@@ -190,20 +192,7 @@ iterations.
     `darwin-x86-64`, `win32-x86-64` (matches JNA `Platform.RESOURCE_PREFIX`). JNA discovers libs
     from classpath even when `jna.library.path` points to a missing directory
 
-## Python Benchmarks
+## Python Benchmarks — see MEMORY-archive.md for details
 
-- `tests/test_benchmarks.py`: 18 benchmarks (9 fn x 2 impls) via pytest-benchmark
-- iscc-core `gen_data_code_v0`/`gen_instance_code_v0` require `io.BytesIO` wrapper (stream-based) —
-    must create fresh BytesIO per iteration or stream gets consumed after first read
-- iscc-core `gen_image_code_v0` takes `list[int]`, iscc-lib takes `bytes` — convert accordingly
-- Run: `uv run pytest tests/test_benchmarks.py --benchmark-only` (benchmarks only)
+- Run: `uv run pytest tests/test_benchmarks.py --benchmark-only`
 - Skip: `uv run pytest tests/ --benchmark-disable` (normal tests, no benchmarks)
-
-## Gotchas
-
-- Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name
-- After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
-    `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
-- Gradle `wrapper` task requires `settings.gradle.kts` to exist first — create it before running
-- `.claude/context/specs/swift-bindings.md` has recurring trailing whitespace — causes
-    `mise run   check` to fail on every run (pre-existing, not related to code changes)
