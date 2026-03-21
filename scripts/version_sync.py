@@ -10,6 +10,7 @@ Synced targets:
 - `crates/iscc-jni/java/pom.xml` — Maven artifact version
 - `crates/iscc-rb/lib/iscc_lib/version.rb` — Ruby gem version constant
 - `packages/swift/Sources/IsccLib/Constants.swift` — Swift package version constant
+- `packages/kotlin/gradle.properties` — Gradle project version
 - `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET package version
 - `packages/cpp/vcpkg.json` — vcpkg manifest version
 - `packages/cpp/conanfile.py` — Conan recipe version
@@ -161,6 +162,23 @@ def _sync_swift_version(text, version):
     )
 
 
+def _get_gradle_properties_version(text):
+    """Extract version from Gradle properties file."""
+    m = re.search(r"^version=(\d+\.\d+\.\d+)", text, re.MULTILINE)
+    return m.group(1) if m else ""
+
+
+def _sync_gradle_properties(text, version):
+    """Update version in Gradle properties file."""
+    return re.sub(
+        r"^(version=)\d+\.\d+\.\d+",
+        rf"\g<1>{version}",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
+
+
 def _get_csproj_version(text):
     """Extract version from .NET .csproj <Version> element."""
     m = re.search(r"<Version>(\d+\.\d+\.\d+)</Version>", text)
@@ -217,6 +235,11 @@ TARGETS = [
         "packages/swift/Sources/IsccLib/Constants.swift",
         _get_swift_version,
         _sync_swift_version,
+    ),
+    (
+        "packages/kotlin/gradle.properties",
+        _get_gradle_properties_version,
+        _sync_gradle_properties,
     ),
     ("packages/dotnet/Iscc.Lib/Iscc.Lib.csproj", _get_csproj_version, _sync_csproj),
     ("packages/cpp/vcpkg.json", _get_package_json_version, _sync_package_json),

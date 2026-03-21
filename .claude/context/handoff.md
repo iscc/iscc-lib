@@ -1,41 +1,31 @@
-## 2026-03-21 — Review of: Add Kotlin CI job to ci.yml
+## 2026-03-21 — Fix Kotlin CI (gradlew permissions) and add Kotlin version sync
 
-**Verdict:** PASS
+**Done:** Fixed `packages/kotlin/gradlew` git permissions from `100644` to `100755` via
+`git update-index --chmod=+x`, and added `packages/kotlin/gradle.properties` as a version sync
+target in `scripts/version_sync.py` (new `_get_gradle_properties_version` /
+`_sync_gradle_properties` functions + TARGETS entry + docstring update).
 
-**Summary:** The Kotlin CI job was added correctly to `ci.yml`, following the established Java CI
-job pattern exactly. The diff is minimal and well-scoped — only `ci.yml` was modified. All
-verification criteria pass, all pre-commit hooks pass, and clippy is clean across the workspace.
+**Files changed:**
+
+- `packages/kotlin/gradlew`: git permission metadata changed from `100644` to `100755` (no content
+    change)
+- `scripts/version_sync.py`: added `_get_gradle_properties_version` and `_sync_gradle_properties`
+    functions, added TARGETS entry for `packages/kotlin/gradle.properties` (after Swift, before
+    .NET), updated module docstring to list the new target
 
 **Verification:**
 
-- [x] `grep -c 'kotlin:' .github/workflows/ci.yml` returns 1
-- [x] `grep 'cargo build -p iscc-uniffi' .github/workflows/ci.yml` finds build step (2 matches:
-    swift + kotlin)
-- [x] `grep 'gradlew test' .github/workflows/ci.yml` finds test step (1 match)
-- [x] `grep -c 'java-version.*17' .github/workflows/ci.yml` returns 2 (java + kotlin)
-- [x] YAML valid: `python -c "import yaml; yaml.safe_load(open(...))"` exits 0
-- [x] `mise run check` — all 15 hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- `git ls-files -s packages/kotlin/gradlew` shows `100755` — PASS
+- `uv run scripts/version_sync.py --check` exits 0 with
+    `OK: packages/kotlin/gradle.properties = 0.3.1` — PASS
+- `grep 'gradle.properties' scripts/version_sync.py` finds 6 matches (docstring + 2 functions + 3
+    TARGETS lines) — PASS
+- `mise run check` — all 15 hooks pass
+- `mise run lint` — formatting, clippy, ruff all clean
 
-**Issues found:**
+**Next:** Continue Kotlin integration. Remaining sub-tasks: documentation (howto guide, README,
+CLAUDE.md), release workflow (`maven-kotlin` input in `release.yml`).
 
-- (none)
-
-**Codex review:** Skipped — Codex sandbox (bwrap) cannot create namespaces in this devcontainer.
-
-**Next:** Continue Kotlin integration. The remaining sub-tasks from the Kotlin issue are:
-
-1. **Version sync** — add `packages/kotlin/gradle.properties` to `scripts/version_sync.py`
-2. **Documentation** — `docs/howto/kotlin.md` howto guide
-3. **README integration** — Kotlin install/quickstart sections in root README
-4. **Per-package docs** — `packages/kotlin/README.md` + `packages/kotlin/CLAUDE.md`
-5. **Release workflow** — `maven-kotlin` input in `release.yml`
-
-Version sync is the smallest and most mechanical — good candidate for next step.
-
-**Notes:**
-
-- CI now has 15 YAML job entries (16 actual jobs when counting python-test matrix expansion)
-- Kotlin issue in issues.md remains open — CI sub-task done, but version sync, docs, README, and
-    release workflow still pending
-- No quality gate circumvention detected in diff
+**Notes:** No tests needed for this step — `version_sync.py` is a standalone script validated by
+`--check` mode (which is itself tested in CI via the `version-check` job). The gradlew fix is
+metadata-only — git will record the permission change in the next commit.
