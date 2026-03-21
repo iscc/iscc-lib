@@ -29,9 +29,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **UniFFI export count**: Use Grep for `#\[uniffi::export\]` in `crates/iscc-uniffi/src/lib.rs`
 - **UniFFI test count**: Use Grep for `#\[test\]` in `crates/iscc-uniffi/src/lib.rs`
 - **Swift package check**: `ls packages/swift/Package.swift 2>&1`
+- **Swift symbol count**: Grep for `^public func` in
+    `packages/swift/Sources/IsccLib/iscc_uniffi.swift`
+- **Swift test methods**: Grep for `func test` in ConformanceTests.swift
 - **Kotlin package check**: `ls packages/kotlin/ 2>&1`
 - **state.md Write workaround**: Write tool gets permission errors on state.md — use Python script
-    via Bash tool instead: `python3 /tmp/state_content.py`
+    via Bash tool instead: `python3 /tmp/write_state.py`
 
 ## Codebase Landmarks
 
@@ -40,16 +43,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `.claude/context/specs/` — per-binding spec files (ruby, go, java, nodejs, wasm, cpp, dotnet,
     swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
+- `packages/swift/` — SPM package with UniFFI-generated bindings (2400-line iscc_uniffi.swift)
 - `.github/workflows/ci.yml` — **14 CI jobs** (version-check, Rust, python-test matrix, python gate,
-    Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C#/.NET, C++)
-- `crates/iscc-uniffi/` — 704-line UniFFI scaffolding crate: 32 `#[uniffi::export]` (30 free fns + 2
-    impl blocks), 11 Record types, 2 Object types, 21 tests; `publish = false`; proc macro approach
-    (no uniffi.toml, no build.rs); depends on uniffi 0.31, thiserror, iscc-lib
+    Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C#/.NET, C++) — no Swift job yet
+- `crates/iscc-uniffi/` — UniFFI scaffolding crate: 32 exports, 21 tests, `bindgen` feature for CLI;
+    `publish = false`; proc macro approach; depends on uniffi 0.31, thiserror, iscc-lib
 - `docs/howto/` — **9 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
-    ruby.md, dotnet.md
+    ruby.md, dotnet.md (no swift.md or kotlin.md yet)
 - `scripts/gen_llms_full.py` — **20 entries** in `ORDERED_PAGES`
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
-    Iscc.Lib.csproj, vcpkg.json and conanfile.py
+    Iscc.Lib.csproj, vcpkg.json and conanfile.py (no Swift target yet)
 - `crates/iscc-lib/benches/benchmarks.rs` — 277 lines; 12 benches in `criterion_group!`
 
 ## Recurring Patterns
@@ -64,15 +67,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review
 
-## Current State (assessed-at: 9abb15e6edaa27c100ccf80bca8217f40ef0a9bd)
+## Current State (assessed-at: 488ada55778b93db03454eaf6064e85ac0fc3ab5)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 23378717217)
+- **IN_PROGRESS**: all **14 CI jobs** green (run 23379381405)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
 - **2 normal-priority issues** in issues.md: Swift bindings (in progress), Kotlin bindings (not
     started, depends on Swift)
-- **UniFFI scaffolding crate complete** — `crates/iscc-uniffi/` with 32 exports, 21 tests, PASS
-    review
-- **Next**: Create Swift package (`packages/swift/`) with generated bindings, XCTest tests, CI job
+- **Swift package created** — `packages/swift/` with SPM manifest, generated bindings (all 32
+    symbols), XCTest conformance tests (9 methods, 50 vectors), README
+- **Swift gaps**: no CI job (macOS runner needed), no docs/howto/swift.md, no README Swift sections,
+    no version sync, tests not yet validated on macOS
+- **Next**: Add Swift CI job, docs, README integration; then Kotlin
 
 ## Gotchas
 
@@ -88,3 +93,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **UniFFI proc macro approach**: no uniffi.toml or build.rs needed; constants exposed as getter
     functions since UniFFI doesn't support const exports; streaming types use `Mutex<Option<Inner>>`
     for Send+Sync
+- **Swift tests need macOS**: ConformanceTests.swift cannot run in Linux devcontainer — needs macOS
+    runner with Swift toolchain + `libiscc_uniffi` linked via `-Xlinker -L<path>`
+- **mdformat trailing space bug**: inline code with trailing space (e.g., `` `^public func ` ``)
+    triggers mdformat "renders to different HTML" error. Remove trailing spaces from inline code.
+    Always run `uv run mdformat <file>` before staging to catch this.

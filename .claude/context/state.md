@@ -1,16 +1,17 @@
-<!-- assessed-at: 9abb15e6edaa27c100ccf80bca8217f40ef0a9bd -->
+<!-- assessed-at: 488ada55778b93db03454eaf6064e85ac0fc3ab5 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Swift bindings — UniFFI scaffolding done, Swift package next
+## Phase: Swift bindings — SPM package created, CI and docs remaining
 
-v0.3.1 released across all 8 registries. The UniFFI scaffolding crate (`crates/iscc-uniffi/`) is now
-complete with all 32 Tier 1 symbols exposed via proc macros and 21 unit tests passing. Next step is
-creating the Swift package (`packages/swift/`) with generated bindings and XCTest conformance tests.
-Two `normal`-priority issues drive the CID loop: Swift bindings (in progress) and Kotlin bindings
-(not started, depends on Swift).
+v0.3.1 released across all 8 registries. The Swift package (`packages/swift/`) now exists with
+UniFFI-generated bindings, SPM manifest, and XCTest conformance tests (9 methods, 50 vectors). All
+32 Tier 1 symbols are accessible from Swift. However, no Swift CI job exists yet (needs macOS
+runner), no `docs/howto/swift.md`, and README lacks Swift install/quickstart sections. Two
+`normal`-priority issues remain: Swift bindings (in progress) and Kotlin bindings (not started,
+depends on Swift).
 
 ## Rust Core Crate
 
@@ -128,17 +129,31 @@ Two `normal`-priority issues drive the CID loop: Swift bindings (in progress) an
 - `cargo clippy -p iscc-uniffi -- -D warnings` clean
 - Uses proc macro approach — no `uniffi.toml` or `build.rs` needed
 - Dependencies: `iscc-lib` (with `meta-code` feature), `uniffi` 0.31, `thiserror`
-- Review verdict: PASS (iteration 1)
+- `bindgen` feature added with `[[bin]]` section for `uniffi-bindgen` CLI
+- Review verdict: PASS (iteration 1), PASS again with bindgen additions (iteration 2)
 
 ## Swift Bindings
 
-**Status**: partially met (UniFFI scaffolding done, Swift package not started)
+**Status**: partially met (SPM package created, CI/docs/release not done)
 
-- UniFFI scaffolding crate complete (see above)
-- **Not started**: `packages/swift/` does not exist — needs `Package.swift`, generated Swift
-    bindings via `uniffi-bindgen generate`, XCTest conformance tests, `README.md`
-- **Not started**: CI job (macOS runner for `swift build` + `swift test`)
-- **Not started**: `docs/howto/swift.md`, README Swift install/quickstart sections
+- **Exists**: `packages/swift/` with complete SPM package structure:
+    - `Package.swift` — SPM manifest (swift-tools-version: 5.9), 3 targets (IsccLibFFI, IsccLib,
+        IsccLibTests)
+    - `Sources/IsccLib/iscc_uniffi.swift` — 2400-line UniFFI-generated Swift bindings with all 32 Tier
+        1 symbols (camelCase, `throws`, Swift `Data` types)
+    - `Sources/IsccLibFFI/iscc_uniffiFFI.h` — 935-line generated C header
+    - `Sources/IsccLibFFI/module.modulemap` — simplified (no Darwin-specific directives)
+    - `Tests/IsccLibTests/ConformanceTests.swift` — 9 test methods covering 50 vectors across all 9
+        `gen_*_v0` functions (correct per-function counts: 20+5+3+5+3+2+4+3+5)
+    - `Tests/IsccLibTests/data.json` — vendored conformance vectors (matches iscc-lib copy)
+    - `README.md` — installation, usage examples, build-from-source instructions
+- **Not done**: Swift CI job (needs macOS runner for `swift build` + `swift test`)
+- **Not done**: `docs/howto/swift.md` how-to guide
+- **Not done**: README Swift install/quickstart sections
+- **Not done**: Version sync integration (`Constants.swift` with version string)
+- **Not done**: `packages/swift/CLAUDE.md`
+- **Not done**: XCFramework pre-built binaries (release distribution)
+- **Note**: Tests cannot be executed in Linux devcontainer — require macOS with Swift toolchain
 
 ## Kotlin Multiplatform Bindings
 
@@ -165,10 +180,9 @@ Two `normal`-priority issues drive the CID loop: Swift bindings (in progress) an
 
 **Status**: partially met
 
-- READMEs present for all 10 existing crates/packages
-- CLAUDE.md files created for all 10 crates/packages
-- **Gap**: `packages/swift/README.md`, `packages/kotlin/README.md` missing (those bindings not
-    started)
+- READMEs present for all 10 existing crates/packages + Swift package
+- CLAUDE.md files created for all 10 crates/packages (not yet for Swift)
+- **Gap**: `packages/kotlin/README.md` missing (Kotlin bindings not started)
 
 ## Documentation
 
@@ -193,22 +207,28 @@ Two `normal`-priority issues drive the CID loop: Swift bindings (in progress) an
 
 **Status**: met (for existing bindings)
 
-- **LATEST COMPLETED RUN** — run 23378717217: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23378717217
+- **LATEST COMPLETED RUN** — run 23379381405: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23379381405
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS
 - v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
     GitHub Releases)
 - `iscc.hpp` bundled in FFI release tarballs
 - `NUGET_API_KEY` GitHub Actions secret configured
-- **Note**: No CI job yet for `iscc-uniffi` crate — will be added with Swift CI job
+- **Gap**: No CI job yet for Swift (needs macOS runner) or `iscc-uniffi` crate
 
 ## Next Milestone
 
-Continue the Swift bindings issue — the UniFFI scaffolding crate is done, so the next step is
-creating the Swift package:
+Complete the Swift bindings — the SPM package structure is done with generated bindings and
+conformance tests, but CI/docs/README integration is still missing:
 
-**Swift package (`packages/swift/`)** — Generate Swift bindings via `uniffi-bindgen generate`,
-create `Package.swift` (SPM manifest), write XCTest conformance tests against vendored `data.json`,
-and add a `swift` CI job (macOS runner). Also needs `docs/howto/swift.md` and README Swift
-install/quickstart. Once Swift is complete, Kotlin can follow using the same UniFFI crate.
+- **Swift CI job** (highest priority) — Add `swift` job to `ci.yml` on `macos-14` runner:
+    `cargo build -p iscc-uniffi --release`, then `swift test -Xlinker -L<path>`. This is the only
+    way to validate the conformance tests actually pass.
+- **`docs/howto/swift.md`** — Swift how-to guide for the documentation site
+- **README** — Add Swift installation and quickstart sections
+- **Version sync** — Add `Constants.swift` with version string, update `version_sync.py`
+- **`packages/swift/CLAUDE.md`** — Per-package agent guidance
+
+Once Swift is fully done (CI green, docs complete), the Swift issue in issues.md can be closed and
+Kotlin can begin.
