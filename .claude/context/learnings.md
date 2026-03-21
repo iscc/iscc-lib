@@ -91,21 +91,9 @@ fully-met target sections to `learnings-archive.md`.
     `--ref main` re-trigger convention does not work for Swift — needs spec fix to derive version
     from `Cargo.toml` instead
 - **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift). `build-xcframework` job is independent (no `needs`) out the tag's code,
-    NOT the latest `main`. Hotfixes pushed to `main` after tagging require
-- **Swift release job is tag-dependent**: Unlike all other release jobs (which derive version from
-    `Cargo.toml`), `build-xcframework` uses `GITHUB_REF_NAME` for version and tag operations. The
-    `--ref main` re-trigger convention does not work for Swift — needs spec fix to derive version
-    from `Cargo.toml` instead
-- **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift). `build-xcframework` job is independent (no `needs`) `--ref main` to pick
-    up. When re-triggering individual registries, always use `--ref main`
-- **Swift release job is tag-dependent**: Unlike all other release jobs (which derive version from
-    `Cargo.toml`), `build-xcframework` uses `GITHUB_REF_NAME` for version and tag operations. The
-    `--ref main` re-trigger convention does not work for Swift — needs spec fix to derive version
-    from `Cargo.toml` instead
-- **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift). `build-xcframework` job is independent (no `needs`)
+    maven-kotlin, swift). When re-triggering individual registries, always use `--ref main`
+- **Version sync**: `version_sync.py` manages 16 targets (including root `Package.swift`
+    releaseTag). `--check` mode exits 1 on mismatch
 
 ## Branching
 

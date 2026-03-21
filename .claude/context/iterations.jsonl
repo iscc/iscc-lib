@@ -1032,3 +1032,8 @@
 {"ts":"2026-03-21T22:26:37.700409+00:00","iteration":3,"role":"define-next","status":"OK","turns":20,"cost_usd":1.166034,"duration_s":236.3}
 {"ts":"2026-03-21T22:31:46.965903+00:00","iteration":3,"role":"advance","status":"OK","turns":37,"cost_usd":1.368358,"duration_s":309.3}
 {"ts": "2026-03-21T22:45:00.000000+00:00", "iteration": 3, "role": "review", "status": "PASS_WITH_NOTES", "verdict_notes": "Swift XCFramework release workflow job. All 10 verification criteria pass, 15 pre-commit hooks clean, clippy clean. Advisory: GITHUB_REF_NAME usage makes --ref main re-trigger incompatible (filed as issue)."}
+{"ts":"2026-03-21T22:41:03.731330+00:00","iteration":3,"role":"review","status":"OK","turns":1,"cost_usd":2.36588,"duration_s":556.8}
+{"ts":"2026-03-21T23:02:46.929441+00:00","iteration":4,"role":"update-state","status":"OK","turns":24,"cost_usd":0.600039,"duration_s":188.5}
+{"ts":"2026-03-21T23:08:05.518823+00:00","iteration":4,"role":"define-next","status":"OK","turns":27,"cost_usd":1.234537,"duration_s":318.6}
+{"ts":"2026-03-21T23:14:28.600171+00:00","iteration":4,"role":"advance","status":"OK","turns":37,"cost_usd":1.216821,"duration_s":383.1}
+{"ts": "2026-03-21T23:30:00.000000+00:00", "iteration": 4, "role": "review", "status": "PASS", "verdict_notes": "Package.swift version sync + Swift docs update. All 5 criteria pass. Resolved Swift vend issue. Cleaned triplicate learnings.md entries. Remaining normal issue (GITHUB_REF_NAME) blocked on human review."}

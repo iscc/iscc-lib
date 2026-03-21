@@ -7,13 +7,6 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Swift package does not vend the native library `normal` [human]
-
-The Swift package declares `.linkedLibrary("iscc_uniffi")` but does not include or build the native
-dylib. Promoted to `normal` — prebuilt XCFramework distribution is now a target outcome. See
-`.claude/context/specs/swift-bindings.md` for the full design (XCFramework with `.binaryTarget`,
-Ferrostar-style force-update tag, caching, release workflow integration).
-
 ## Swift release job `--ref main` re-trigger incompatible `normal` [review]
 
 The `build-xcframework` job uses `GITHUB_REF_NAME` for version extraction and tag operations, but
