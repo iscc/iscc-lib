@@ -22,6 +22,9 @@ iterations.
     created by running a tool, not hand-written
 - **CI red always first** — even if handoff suggests feature work, a failing CI job takes priority.
     Green CI is a prerequisite for all other work
+- **Root cause before fix** — when CI fails with a dependency error, check the actual coordinates
+    (groupId, artifactId, version) against known-good references in the project before suggesting
+    environment fixes
 
 ## Signature Change Propagation
 
@@ -50,7 +53,7 @@ iterations.
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
     `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
-## Kotlin Bindings (in progress — CI job added but failing, version sync + docs remaining)
+## Kotlin Bindings (in progress — CI Gson fix pending, then docs/release)
 
 - **UniFFI Kotlin output is JVM-only** — uses JNA (`com.sun.jna.*`), NOT Kotlin/Native cinterop
 - Generated file: 3214 lines, package `uniffi.iscc_uniffi`, loads `libiscc_uniffi.so` via JNA
@@ -58,15 +61,16 @@ iterations.
     by UniFFI's Kotlin generator. Start JVM-only, KMP is a future enhancement
 - `kotlin("jvm")` plugin, Gradle 8.12.1 wrapper, JNA 5.16.0 — all working
 - JDK 17 in devcontainer; `./gradlew compileKotlin` verified passing
-- Kotlin step sequence: ~~scaffold+compile~~ -> ~~conformance tests~~ -> ~~CI job~~ -> gradlew fix +
-    version sync -> docs + README + CLAUDE.md -> release workflow -> publishing
-- **CI job failing**: `./gradlew: Permission denied` — tracked as 100644, needs
-    `git update-index --chmod=+x packages/kotlin/gradlew`
+- Kotlin step sequence: ~~scaffold+compile~~ -> ~~conformance tests~~ -> ~~CI job~~ -> ~~gradlew fix
+    \+ version sync~~ -> Gson fix -> docs + README + CLAUDE.md -> release workflow -> publishing
+- **Gson Maven coordinates**: groupId is `com.google.code.gson` (NOT `com.google.gson`). The Java
+    *package* name is `com.google.gson.*` but the Maven *artifact* groupId has an extra `.code.`
+    segment. Java pom.xml uses 2.11.0
 - Conformance tests: use Gson for JSON parsing (matches Java JNI tests), JUnit 5, load data.json
     from `src/test/resources/` via classloader. `java.library.path` already set in build.gradle.kts
 - **CI job pattern**: same as Swift (build iscc-uniffi, run tests) but on ubuntu-latest (not macOS)
-- **gradle.properties** format: `version=0.3.1` (no quotes, no spaces) — needs version_sync.py
-    target
+- **gradle.properties** format: `version=0.3.1` (no quotes, no spaces) — version_sync.py target
+    added
 
 ## Swift Bindings (COMPLETE)
 
@@ -89,10 +93,10 @@ iterations.
 
 ## Project Status
 
-- v0.3.1 released, 15/16 CI jobs green (Kotlin failing — gradlew permissions)
+- v0.3.1 released, 15/16 CI jobs green (Kotlin failing — wrong Gson groupId)
 - All 11 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift)
-- Kotlin bindings in progress: scaffold + tests + CI job done; gradlew fix, version sync, docs,
-    release workflow remaining
+- Kotlin bindings in progress: scaffold + tests + CI job + gradlew + version sync done; Gson fix,
+    docs, release workflow remaining
 - 2 normal-priority Swift issues: SPM install instructions incorrect, package doesn't vend native
     lib
 
@@ -123,3 +127,5 @@ iterations.
 - Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
 - When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
     must be updated (Rust core + WASM)
+- **Gson groupId trap**: Maven groupId is `com.google.code.gson`, NOT `com.google.gson`. The Java
+    import package `com.google.gson.*` differs from the Maven coordinate — easy to confuse

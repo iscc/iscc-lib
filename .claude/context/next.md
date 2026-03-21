@@ -1,86 +1,63 @@
 # Next Work Package
 
-## Step: Fix Kotlin CI (gradlew permissions) and add Kotlin version sync
+## Step: Fix Kotlin CI — wrong Gson Maven groupId
 
 ## Goal
 
-Fix the failing Kotlin CI job by correcting the `gradlew` file permissions in git, and add
-`packages/kotlin/gradle.properties` to the version sync script — restoring CI green (16/16) and
-ensuring Kotlin version stays coordinated with the workspace.
+Fix the Kotlin CI failure (`Could not find com.google.gson:gson:2.8.9`) by correcting the Maven
+groupId from `com.google.gson` to `com.google.code.gson` and upgrading to 2.11.0 to match the Java
+binding.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**:
-    - `packages/kotlin/gradlew` — git permission fix via `git update-index --chmod=+x` (not a content
-        change, just git metadata)
-    - `scripts/version_sync.py` — add `gradle.properties` get/sync functions and a new TARGETS entry;
-        update the docstring to list the new target
-- **Reference**:
-    - `packages/kotlin/gradle.properties` — current format: `version=0.3.1` (key=value, no quotes)
-    - `scripts/version_sync.py` — existing target patterns (especially `_get_ruby_version` /
-        `_sync_ruby_version` for simple `key = "value"` pattern, and `_get_pyproject_version` for
-        key=value without quotes)
+- **Modify**: `packages/kotlin/build.gradle.kts` (fix Gson coordinates)
+- **Reference**: `crates/iscc-jni/java/pom.xml` (correct Gson coordinates:
+    `com.google.code.gson:gson:2.11.0`)
 
 ## Not In Scope
 
-- Kotlin howto guide (`docs/howto/kotlin.md`) — separate documentation step
-- Kotlin README or CLAUDE.md — separate documentation step
-- Root README Kotlin sections — separate documentation step
-- Release workflow (`release.yml`) maven-kotlin input — separate step
-- Fixing the two Swift packaging issues — unrelated normal-priority issues
+- Switching from Gson to kotlinx-serialization — Gson works fine with the correct groupId and
+    matches the Java binding's choice
+- Adding `gradle/actions/setup-gradle@v4` to CI — not needed; the dependency resolution failure is
+    purely a wrong coordinate, not a Gradle setup issue
+- Kotlin documentation, README, release workflow — those come after CI is green
+- Modifying the conformance test code — the Java import `com.google.gson.*` is the Java *package*
+    name (correct); only the Maven *artifact* coordinate in build.gradle.kts is wrong
 
 ## Implementation Notes
 
-The `gradle.properties` format is `version=0.3.1` (no quotes, no spaces around `=`). The get/sync
-functions should:
+**Root cause**: The Kotlin `build.gradle.kts` declares
+`testImplementation("com.google.gson:gson:2.8.9")` but Gson's Maven groupId is
+`com.google.code.gson`, not `com.google.gson`. The Java import statements use `com.google.gson.*`
+(Java package name) which is different from Maven coordinates. The Java binding's `pom.xml`
+correctly uses `com.google.code.gson:gson:2.11.0`.
 
-```python
-def _get_gradle_properties_version(text):
-    """Extract version from Gradle properties file."""
-    m = re.search(r"^version=(\d+\.\d+\.\d+)", text, re.MULTILINE)
-    return m.group(1) if m else ""
+**Fix**: In `packages/kotlin/build.gradle.kts`, change line 16 from:
 
-
-def _sync_gradle_properties(text, version):
-    """Update version in Gradle properties file."""
-    return re.sub(
-        r"^(version=)\d+\.\d+\.\d+",
-        rf"\g<1>{version}",
-        text,
-        count=1,
-        flags=re.MULTILINE,
-    )
+```kotlin
+testImplementation("com.google.gson:gson:2.8.9")
 ```
 
-Add to TARGETS list (after the Swift entry, before the .NET entry):
+to:
 
-```python
-(
-    (
-        "packages/kotlin/gradle.properties",
-        _get_gradle_properties_version,
-        _sync_gradle_properties,
-    ),
-)
+```kotlin
+testImplementation("com.google.code.gson:gson:2.11.0")
 ```
 
-For the gradlew fix: run `git update-index --chmod=+x packages/kotlin/gradlew` before committing.
-This changes the git tree entry from `100644` to `100755` without modifying file content.
-
-Update the module docstring (lines 7-18) to include
-`- packages/kotlin/gradle.properties — Gradle project version` in the synced targets list.
+This is a 1-line fix. No other files need changes. The Kotlin test source code imports
+`com.google.gson.JsonParser` etc. — those are Java package names and remain correct.
 
 ## Verification
 
-- `git ls-files -s packages/kotlin/gradlew` shows `100755` (not `100644`)
-- `uv run scripts/version_sync.py --check` exits 0 (all targets including new Kotlin one match)
-- `grep 'gradle.properties' scripts/version_sync.py` finds the TARGETS entry
-- `uv run scripts/version_sync.py` includes `OK: packages/kotlin/gradle.properties = 0.3.1` in
-    output
-- `mise run lint` passes (formatting + clippy + ruff clean)
+- `cd packages/kotlin && ./gradlew compileTestKotlin` succeeds (dependency resolves from Maven
+    Central)
+- `cd packages/kotlin && ./gradlew test` passes all 9 conformance tests (requires
+    `cargo build -p iscc-uniffi` first)
+- `grep 'com.google.code.gson:gson:2.11.0' packages/kotlin/build.gradle.kts` finds the corrected
+    dependency
 
 ## Done When
 
-All verification criteria pass — gradlew is executable in git, Kotlin gradle.properties is a version
-sync target, and all quality gates are green.
+All verification criteria pass — `./gradlew test` succeeds with the corrected Gson dependency,
+confirming the CI failure was caused by the wrong Maven groupId.
