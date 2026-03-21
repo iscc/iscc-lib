@@ -183,13 +183,16 @@ iterations.
 
 - `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA
 - Generated file: `src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (~3217 lines,
-    `package   uniffi.iscc_uniffi`). Do NOT manually edit — regenerate via uniffi-bindgen
+    `package uniffi.iscc_uniffi`). Do NOT manually edit — regenerate via uniffi-bindgen
 - Generate Kotlin:
     `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate   --language kotlin --no-format --out-dir packages/kotlin/src/main/kotlin/   target/debug/libiscc_uniffi.so`
 - Gradle wrapper must be bootstrapped AFTER settings.gradle.kts exists (fails without it)
 - Gradle 8.12.1 via mise, Kotlin 2.1.10, JNA 5.16.0
 - `build/` covered by root `.gitignore`; `.gradle/` needs local `.gitignore`
-- Tests use `java.library.path` pointing to `../../target/debug` for native lib loading
+- JNA native lib loading: `java.library.path` alone is NOT sufficient for JNA `Native.register()`.
+    Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
+- Conformance tests: `ConformanceTest.kt` — 9 test methods, 50 vectors. JUnit 5 + Gson for JSON
+- Test deps: JUnit 5.11.4, Gson 2.8.9 (version available in devcontainer cache)
 
 ## Gotchas
 

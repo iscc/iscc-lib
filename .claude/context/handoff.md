@@ -1,42 +1,37 @@
-## 2026-03-21 — Review of: Create Kotlin JVM project scaffold with UniFFI-generated bindings
+## 2026-03-21 — Add Kotlin conformance tests for all 9 gen\_\*\_v0 functions
 
-**Verdict:** PASS
+**Done:** Created JUnit 5 conformance tests for the Kotlin JVM package that verify all 9 `gen_*_v0`
+functions against the vendored `data.json` test vectors (50 vectors total). Added JUnit 5 and Gson
+test dependencies to build.gradle.kts, and fixed native library loading by adding `jna.library.path`
+and `LD_LIBRARY_PATH` environment to the test task.
 
-**Summary:** The advance agent created a clean Kotlin JVM project scaffold in `packages/kotlin/`
-with UniFFI-generated bindings. All files match the next.md specification exactly —
-build.gradle.kts, settings.gradle.kts, gradle.properties, Gradle 8.12.1 wrapper, and the generated
-`iscc_uniffi.kt` (3214 lines). `./gradlew compileKotlin` succeeds and all quality gates pass.
+**Files changed:**
 
-**Verification:**
+- `packages/kotlin/build.gradle.kts`: Added `mavenLocal()` repository, JUnit 5 + Gson test deps,
+    `jna.library.path` + `LD_LIBRARY_PATH` for native lib loading
+- `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt`: New — 9 test methods
+    covering all conformance vectors (20+5+3+5+3+2+4+3+5 = 50 vectors)
+- `packages/kotlin/src/test/resources/data.json`: New — copied from
+    `crates/iscc-lib/tests/data.json`
 
-- [x] `test -d packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi` exits 0 — PASS
-- [x] `test -f packages/kotlin/build.gradle.kts` exits 0 — PASS
-- [x] `test -f packages/kotlin/gradlew` exits 0 — PASS
-- [x] `cd packages/kotlin && ./gradlew compileKotlin` exits 0 — BUILD SUCCESSFUL in 10s
-- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
-- [x] `mise run check` — 15/15 hooks pass
+**Verification:** `./gradlew clean test` produces 9 tests, 0 failures, 0 errors. `mise run check`
+passes all 15 hooks. `cargo build -p iscc-uniffi` exits 0. All verification criteria from next.md
+met.
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** No actionable findings. Codex was confused by the large generated Kotlin diff
-(misidentified the change as "language logos") but reported no correctness issues.
-
-**Next:** Continue the Kotlin bindings issue — add conformance tests. Create
-`src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt` with JUnit 5 tests running against vendored
-`data.json` vectors. Tests require `libiscc_uniffi.so` at runtime (already configured via
-`java.library.path` in build.gradle.kts). After tests: CI job, version sync, documentation.
+**Next:** Add Kotlin CI job to `.github/workflows/ci.yml`, then version sync, docs, and howto guide
+for Kotlin.
 
 **Notes:**
 
-- The generated `iscc_uniffi.kt` uses `package uniffi.iscc_uniffi` (UniFFI default). The spec
-    envisions an `io.iscc.lib` wrapper package — that's a later step (explicitly out of scope per
-    next.md)
-- File sizes safe: gradle-wrapper.jar (44KB), iscc_uniffi.kt (112KB) — both under 256KB threshold
-- `java.library.path` in build.gradle.kts resolves to `/workspace/iscc-lib/target/debug` — verified
-    correct via `realpath`
-- The `@file:Suppress("NAME_SHADOWING")` in the generated file is UniFFI boilerplate, not a quality
-    gate circumvention
-- JUnit 5 test dependency not yet in build.gradle.kts — will need to be added with the test step
-    (`testImplementation("org.junit.jupiter:junit-jupiter:5.x.y")`)
+- Maven Central was unreachable from the devcontainer, so Gson 2.8.9 (the version cached in
+    `~/.gradle/caches`) was used instead of 2.11.0 specified in next.md. It was installed into Maven
+    local repository (`~/.m2/repository`) manually. The `mavenLocal()` repository was added to
+    build.gradle.kts to resolve it. In CI (with network), `mavenCentral()` will resolve the
+    dependency normally. The version should be bumped to 2.11.0 once Maven Central connectivity is
+    available.
+- JNA's `Native.register()` (used by UniFFI-generated code) does NOT reliably use
+    `java.library.path` alone. It needs `jna.library.path` JVM property AND/OR `LD_LIBRARY_PATH` env
+    var. Both were added to the test task configuration. The original `java.library.path` was also
+    retained for completeness.
+- Test structure follows the Swift `ConformanceTests.swift` pattern exactly: one test method per gen
+    function, companion object helpers for JSON parsing, hex decoding, and meta preparation.
