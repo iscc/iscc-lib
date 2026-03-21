@@ -1,15 +1,15 @@
-<!-- assessed-at: 94ce7f6d3f6ca0088c213a70ac7dfc4c84570bd9 -->
+<!-- assessed-at: 9abb15e6edaa27c100ccf80bca8217f40ef0a9bd -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Swift / Kotlin bindings (normal-priority issues)
+## Phase: Swift bindings — UniFFI scaffolding done, Swift package next
 
-v0.3.1 released across all 8 registries. All previously `normal`-priority issues are resolved:
-language logos added to README (18 inline SVG icons), docs Available Bindings table updated, NuGet
-smoke test extended to 3 platforms, and C#/C++ minor correctness fixes applied. Two
-`normal`-priority issues now drive the CID loop: Swift bindings (not started) and Kotlin bindings
+v0.3.1 released across all 8 registries. The UniFFI scaffolding crate (`crates/iscc-uniffi/`) is now
+complete with all 32 Tier 1 symbols exposed via proc macros and 21 unit tests passing. Next step is
+creating the Swift package (`packages/swift/`) with generated bindings and XCTest conformance tests.
+Two `normal`-priority issues drive the CID loop: Swift bindings (in progress) and Kotlin bindings
 (not started, depends on Swift).
 
 ## Rust Core Crate
@@ -93,91 +93,82 @@ smoke test extended to 3 platforms, and C#/C++ minor correctness fixes applied. 
 
 **Status**: met
 
-- `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET 8 class library; full NuGet metadata ✅
-- `packages/dotnet/Iscc.Lib/IsccLib.cs` — 32 public symbols; sentinel variables initialized to `0`
-    (correctness fix for empty-span fast paths) ✅
-- `packages/dotnet/Iscc.Lib/Results.cs` — 11 `sealed record` types ✅
-- `IsccDataHasher.Finalize()` → `DataCodeResult`; `IsccInstanceHasher.Finalize()` →
-    `InstanceCodeResult` ✅
-- 41 xUnit `[Fact]` smoke tests + 9 `[Theory]` conformance methods (50 vectors) = 91 total ✅
-- CI job `C# / .NET (dotnet build, test)` — SUCCESS in latest CI run ✅
-- `pack-nuget` + `test-nuget` (3 platforms: ubuntu, macos, windows) + `publish-nuget` in
-    `release.yml` ✅
-- `docs/howto/dotnet.md` — 417 lines ✅
-- `packages/dotnet/README.md` — 82 lines ✅
-- **Known limitation**: `MetaCodeResult`, `TextCodeResult`, `InstanceCodeResult` carry only
-    `(string Iscc)` — extra fields require C FFI struct changes first; not blocking
-- `NUGET_API_KEY` GitHub Actions secret configured; NuGet publishing pipeline ready
+- `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET 8 class library; full NuGet metadata
+- `packages/dotnet/Iscc.Lib/IsccLib.cs` — 32 public symbols
+- `packages/dotnet/Iscc.Lib/Results.cs` — 11 `sealed record` types
+- `IsccDataHasher.Finalize()` -> `DataCodeResult`; `IsccInstanceHasher.Finalize()` ->
+    `InstanceCodeResult`
+- 41 xUnit `[Fact]` smoke tests + 9 `[Theory]` conformance methods (50 vectors) = 91 total
+- CI job `C# / .NET (dotnet build, test)` — SUCCESS in latest CI run
+- `pack-nuget` + `test-nuget` (3 platforms) + `publish-nuget` in `release.yml`
 
 ## C++ Bindings
 
 **Status**: met
 
 - `packages/cpp/include/iscc/iscc.hpp` — 681-line C++17 header-only wrapper with all 32 Tier 1
-    symbols, RAII resource management, `IsccError` exception class, full namespace `iscc` ✅
-- `iscc_decode` and `gen_sum_code_v0` use exception-safe try/catch to guarantee `iscc_free_*` called
-    even if `std::string` or `vector::emplace_back` throws ✅
-- `packages/cpp/tests/test_iscc.cpp` — cross-platform temp paths via `std::filesystem` ✅
-- `packages/cpp/CMakeLists.txt` — CMake config ✅
-- `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — 54 passing tests, ASAN clean ✅
-- `conformance_selftest()` passes; all 10 gen functions tested ✅
-- CI job `C++ (cmake, ASAN, test)` — SUCCESS in latest CI run ✅
-- `iscc.hpp` bundled in FFI release tarballs ✅
-- `packages/cpp/README.md` — 105 lines ✅
-- `docs/howto/c-cpp.md` — 497 lines with full C++ wrapper section ✅
-- Root `README.md` — C++ install tab + quickstart snippet ✅
-- `packages/cpp/vcpkg.json` — vcpkg manifest (version synced by `version_sync.py`) ✅
-- `packages/cpp/portfile.cmake` — SHA512 checksums present for all 5 platforms; `SKIP_SHA512`
-    removed ✅
-- `packages/cpp/conanfile.py` — Conan 2.x recipe (150 lines); downloads and packages pre-built FFI
-    binaries for all 5 platforms; `cxxflags = ["-std=c++17"]` removed (MSVC fix) ✅; version synced
-    by `version_sync.py` ✅
-- **Note**: `conanfile.py` does not pin SHA512 checksums for downloads — no issue filed; acceptable
-    for Conan recipes which typically rely on registry integrity
+    symbols, RAII resource management, `IsccError` exception class, full namespace `iscc`
+- 54 passing tests, ASAN clean; `conformance_selftest()` passes
+- CI job `C++ (cmake, ASAN, test)` — SUCCESS in latest CI run
+- `iscc.hpp` bundled in FFI release tarballs
+- vcpkg manifest + Conan 2.x recipe; version synced by `version_sync.py`
+
+## UniFFI Scaffolding Crate
+
+**Status**: complete (internal, not published)
+
+- `crates/iscc-uniffi/` — 704-line `lib.rs` with `publish = false`
+- 32 `#[uniffi::export]` annotations: 30 free functions + 2 `impl` blocks (DataHasher,
+    InstanceHasher)
+- 11 `uniffi::Record` types for all result structs + `DecodeResult`
+- 2 `uniffi::Object` types with `Mutex<Option<Inner>>` for thread-safe streaming
+- 5 constant getter functions (UniFFI doesn't support const exports)
+- Error mapping via `#[derive(uniffi::Error)]` enum `IsccUniError`
+- 21 `#[test]` functions pass
+- `cargo clippy -p iscc-uniffi -- -D warnings` clean
+- Uses proc macro approach — no `uniffi.toml` or `build.rs` needed
+- Dependencies: `iscc-lib` (with `meta-code` feature), `uniffi` 0.31, `thiserror`
+- Review verdict: PASS (iteration 1)
 
 ## Swift Bindings
 
-**Status**: not started
+**Status**: partially met (UniFFI scaffolding done, Swift package not started)
 
-- Target defined in `target.md`; issue filed as `normal` priority -- CID loop works on this
-- **No code exists**: `packages/swift/` does not exist; `crates/iscc-uniffi/` does not exist
-- Requires: UniFFI crate, Swift Package, XCTest conformance tests, macOS CI runner,
-    `docs/howto/swift.md`, README update
+- UniFFI scaffolding crate complete (see above)
+- **Not started**: `packages/swift/` does not exist — needs `Package.swift`, generated Swift
+    bindings via `uniffi-bindgen generate`, XCTest conformance tests, `README.md`
+- **Not started**: CI job (macOS runner for `swift build` + `swift test`)
+- **Not started**: `docs/howto/swift.md`, README Swift install/quickstart sections
 
 ## Kotlin Multiplatform Bindings
 
 **Status**: not started
 
-- Target defined in `target.md`; issue filed as `normal` priority -- depends on Swift
-- **No code exists**: `packages/kotlin/` does not exist; depends on `iscc-uniffi` crate (not
-    started)
-- Requires: UniFFI crate (shared with Swift), KMP Gradle project, Maven Central publishing,
-    `docs/howto/kotlin.md`, README update
+- Target defined in `target.md`; issue filed as `normal` priority — depends on Swift
+- **No code exists**: `packages/kotlin/` does not exist
+- UniFFI scaffolding crate (shared dependency) is now complete
+- Requires: KMP Gradle project, Maven Central publishing, `docs/howto/kotlin.md`, README update
 
 ## README
 
 **Status**: partially met
 
-- Public-facing polyglot README exists with CI badge and 8 registry badges including NuGet ✅
-- Language logos: 18 inline img tags from cdn.simpleicons.org (9 Installation + 9 Quick Start
-    headers) ✅
-- Installation and Quick Start sections for 9 implemented languages (Rust, Python, Node.js, Java,
-    Go, Ruby, C#/.NET, C/C++, WASM) ✅
-- ISCC Architecture section, ISCC MainTypes table, Implementors Guide ✅
-- All 10 `gen_*_v0` functions listed ✅
+- Public-facing polyglot README exists with CI badge and 8 registry badges including NuGet
+- Language logos: 18 inline img tags from cdn.simpleicons.org
+- Installation and Quick Start sections for 9 implemented languages
+- ISCC Architecture section, ISCC MainTypes table, Implementors Guide
+- All 10 `gen_*_v0` functions listed
 - **Gap** (downstream of Swift/Kotlin `normal` issues): Missing Swift and Kotlin installation +
-    quickstart sections -- will be added when those bindings are implemented
+    quickstart sections
 
 ## Per-Crate READMEs
 
 **Status**: partially met
 
-- READMEs present for all 10 existing crates/packages: `crates/iscc-lib`, `crates/iscc-py`,
-    `crates/iscc-napi`, `crates/iscc-wasm`, `crates/iscc-ffi`, `crates/iscc-jni`, `crates/iscc-rb`,
-    `packages/go`, `packages/dotnet`, `packages/cpp` ✅
-- CLAUDE.md files created for all 10 crates/packages (commit a47c934) ✅
+- READMEs present for all 10 existing crates/packages
+- CLAUDE.md files created for all 10 crates/packages
 - **Gap**: `packages/swift/README.md`, `packages/kotlin/README.md` missing (those bindings not
-    started; will be created as part of Swift/Kotlin implementation)
+    started)
 
 ## Documentation
 
@@ -185,11 +176,8 @@ smoke test extended to 3 platforms, and C#/C++ minor correctness fixes applied. 
 
 - 20 pages deployed to lib.iscc.codes; all navigation sections complete
 - 9 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
-    ruby.md, dotnet.md ✅
-- `docs/index.md` Available Bindings table updated: Java links to Maven Central, Ruby + C#/.NET +
-    C/C++ added, Java install shows dependency snippet (commit b97b0f0) ✅
-- `scripts/gen_llms_full.py` — `ORDERED_PAGES` has 20 entries ✅
-- View as Markdown / Copy Page 404 issue — RESOLVED ✅
+    ruby.md, dotnet.md
+- `scripts/gen_llms_full.py` — `ORDERED_PAGES` has 20 entries
 - **Gap** (`low`, CID skips): Language logos in docs howto headers
 - **Gap** (`normal`, downstream): Swift, Kotlin how-to guides not yet written
 
@@ -205,22 +193,22 @@ smoke test extended to 3 platforms, and C#/C++ minor correctness fixes applied. 
 
 **Status**: met (for existing bindings)
 
-- **LATEST COMPLETED RUN** — run 22858622397: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22858622397
+- **LATEST COMPLETED RUN** — run 23378717217: all **14 jobs** SUCCESS
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23378717217
 - Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
-    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS ✅
-- `release.yml` has `nuget` boolean input; NuGet workflow activates on tag or `inputs.nuget` ✅
-- `test-nuget` now runs on 3-OS matrix (ubuntu, macos, windows) ✅
+    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS
 - v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
-    GitHub Releases) ✅
-- `iscc.hpp` bundled in FFI release tarballs ✅
-- `NUGET_API_KEY` GitHub Actions secret configured ✅
+    GitHub Releases)
+- `iscc.hpp` bundled in FFI release tarballs
+- `NUGET_API_KEY` GitHub Actions secret configured
+- **Note**: No CI job yet for `iscc-uniffi` crate — will be added with Swift CI job
 
 ## Next Milestone
 
-Two `normal`-priority issues are open in issues.md — CID loop should begin Swift bindings:
+Continue the Swift bindings issue — the UniFFI scaffolding crate is done, so the next step is
+creating the Swift package:
 
-**Swift bindings via UniFFI** — Create `crates/iscc-uniffi/` (shared UniFFI scaffolding crate),
-`packages/swift/` (Swift Package Manager package), XCTest conformance tests against vendored
-`data.json`, macOS CI runner job in `ci.yml`, and `docs/howto/swift.md`. This also unblocks Kotlin
-Multiplatform. Once Swift is complete, Kotlin can follow using the same UniFFI crate.
+**Swift package (`packages/swift/`)** — Generate Swift bindings via `uniffi-bindgen generate`,
+create `Package.swift` (SPM manifest), write XCTest conformance tests against vendored `data.json`,
+and add a `swift` CI job (macOS runner). Also needs `docs/howto/swift.md` and README Swift
+install/quickstart. Once Swift is complete, Kotlin can follow using the same UniFFI crate.
