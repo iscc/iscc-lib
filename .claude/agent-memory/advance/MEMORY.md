@@ -86,7 +86,7 @@ iterations.
 ## Documentation
 
 - Tabbed syntax: `=== "Language"` with 4-space indent, blank line before code block
-- Tab order: tutorial (Python, Rust, Node.js, Java, Go, WASM), landing (Rust, Python, ...)
+- Landing page tab order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
 - mdformat reformats JS imports to multi-line style — run format before commit
 - `docs/architecture.md` and `docs/development.md` share identical trees — keep in sync
 - All 5 Reference pages complete: Rust API, Python API, C FFI, Java API, Ruby API

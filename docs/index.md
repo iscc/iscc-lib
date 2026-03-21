@@ -26,7 +26,8 @@ decentralized, content-based identification without a central registry.
 - **Complete ISO 24138 coverage** — all 10 `gen_*_v0` functions implemented
 - **Full conformance** — passes all official test vectors from iscc-core
 - **High performance** — pure Rust core delivers significant speedups over the Python reference
-- **Multi-language** — use from Rust, Python, Java, Go, Ruby, C#, C++, Node.js, WebAssembly, or C
+- **Multi-language** — use from Rust, Python, Java, Go, Ruby, C#, C++, Swift, Kotlin, Node.js,
+    WebAssembly, or C
 - **Cross-platform** — runs on Linux, macOS, and Windows
 
 ## Supported Code Types
@@ -72,6 +73,19 @@ decentralized, content-based identification without a central registry.
     println!("{}", result.iscc);
     ```
 
+=== "Ruby"
+
+    ```bash
+    gem install iscc-lib
+    ```
+
+    ```ruby
+    require "iscc_lib"
+
+    result = IsccLib.gen_text_code_v0("Hello World")
+    puts result.iscc # "ISCC:EAA..."
+    ```
+
 === "Node.js"
 
     ```bash
@@ -85,6 +99,35 @@ decentralized, content-based identification without a central registry.
 
     const iscc = gen_text_code_v0("Hello World");
     console.log(iscc); // "ISCC:EAA..."
+    ```
+
+=== "WASM"
+
+    ```bash
+    npm install @iscc/wasm
+    ```
+
+    ```javascript
+    import init, {
+        gen_text_code_v0
+    } from "@iscc/wasm";
+
+    await init();
+    const iscc = gen_text_code_v0("Hello World");
+    console.log(iscc); // "ISCC:EAA..."
+    ```
+
+=== "Go"
+
+    ```bash
+    go get github.com/iscc/iscc-lib/packages/go
+    ```
+
+    ```go
+    import iscc "github.com/iscc/iscc-lib/packages/go"
+
+    result, _ := iscc.GenTextCodeV0("Hello World", 64)
+    fmt.Println(result.Iscc) // "ISCC:EAA..."
     ```
 
 === "Java"
@@ -104,48 +147,73 @@ decentralized, content-based identification without a central registry.
     System.out.println(iscc); // "ISCC:EAA..."
     ```
 
-=== "Go"
+=== "C#"
 
     ```bash
-    go get github.com/iscc/iscc-lib/packages/go
+    dotnet add package Iscc.Lib
     ```
 
-    ```go
-    import iscc "github.com/iscc/iscc-lib/packages/go"
+    ```csharp
+    using Iscc.Lib;
 
-    result, _ := iscc.GenTextCodeV0("Hello World", 64)
-    fmt.Println(result.Iscc) // "ISCC:EAA..."
+    var result = IsccLib.GenTextCodeV0("Hello World");
+    Console.WriteLine(result.Iscc); // "ISCC:EAA..."
     ```
 
-=== "WASM"
+=== "C++"
 
-    ```bash
-    npm install @iscc/wasm
+    Download pre-built libraries from [GitHub Releases](https://github.com/iscc/iscc-lib/releases).
+
+    ```cpp
+    #include <iscc/iscc.hpp>
+
+    auto result = iscc::gen_text_code_v0("Hello World");
+    std::cout << result.iscc << std::endl; // "ISCC:EAA..."
     ```
 
-    ```javascript
-    import init, {
-        gen_text_code_v0
-    } from "@iscc/wasm";
+=== "Swift"
 
-    await init();
-    const iscc = gen_text_code_v0("Hello World");
-    console.log(iscc); // "ISCC:EAA..."
+    ```swift
+    // Package.swift dependency
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.1")
+    ```
+
+    ```swift
+    import IsccLib
+
+    let result = try genTextCodeV0(text: "Hello World", bits: 64)
+    print(result.iscc) // "ISCC:EAA..."
+    ```
+
+=== "Kotlin"
+
+    ```kotlin
+    // build.gradle.kts
+    implementation("io.iscc:iscc-lib-kotlin:0.3.1")
+    ```
+
+    ```kotlin
+    import uniffi.iscc_uniffi.*
+
+    val result = genTextCodeV0(text = "Hello World", bits = 64u)
+    println(result.iscc) // "ISCC:EAA..."
     ```
 
 ## Available Bindings
 
-| Platform    | Package                                                                 | Install                                       |
-| ----------- | ----------------------------------------------------------------------- | --------------------------------------------- |
-| Rust        | [crates.io](https://crates.io/crates/iscc-lib)                          | `cargo add iscc-lib`                          |
-| Python      | [PyPI](https://pypi.org/project/iscc-lib/)                              | `pip install iscc-lib`                        |
-| Node.js     | [npm](https://www.npmjs.com/package/@iscc/lib)                          | `npm install @iscc/lib`                       |
-| Java        | [Maven Central](https://central.sonatype.com/artifact/io.iscc/iscc-lib) | See Quick Start above                         |
-| Go          | [Go module](https://pkg.go.dev/github.com/iscc/iscc-lib/packages/go)    | `go get github.com/iscc/iscc-lib/packages/go` |
-| Ruby        | [RubyGems](https://rubygems.org/gems/iscc-lib)                          | `gem install iscc-lib`                        |
-| C# / .NET   | [NuGet](https://www.nuget.org/packages/Iscc.Lib)                        | `dotnet add package Iscc.Lib`                 |
-| C / C++     | [GitHub Releases](https://github.com/iscc/iscc-lib/releases)            | Pre-built tarballs per platform               |
-| WebAssembly | [npm](https://www.npmjs.com/package/@iscc/wasm)                         | `npm install @iscc/wasm`                      |
+| Platform    | Package                                                                        | Install                                         |
+| ----------- | ------------------------------------------------------------------------------ | ----------------------------------------------- |
+| Rust        | [crates.io](https://crates.io/crates/iscc-lib)                                 | `cargo add iscc-lib`                            |
+| Python      | [PyPI](https://pypi.org/project/iscc-lib/)                                     | `pip install iscc-lib`                          |
+| Node.js     | [npm](https://www.npmjs.com/package/@iscc/lib)                                 | `npm install @iscc/lib`                         |
+| Java        | [Maven Central](https://central.sonatype.com/artifact/io.iscc/iscc-lib)        | See Quick Start above                           |
+| Go          | [Go module](https://pkg.go.dev/github.com/iscc/iscc-lib/packages/go)           | `go get github.com/iscc/iscc-lib/packages/go`   |
+| Ruby        | [RubyGems](https://rubygems.org/gems/iscc-lib)                                 | `gem install iscc-lib`                          |
+| C# / .NET   | [NuGet](https://www.nuget.org/packages/Iscc.Lib)                               | `dotnet add package Iscc.Lib`                   |
+| C / C++     | [GitHub Releases](https://github.com/iscc/iscc-lib/releases)                   | Pre-built tarballs per platform                 |
+| Swift       | [SPM](https://github.com/iscc/iscc-lib)                                        | `.package(url: "...", from: "0.3.1")`           |
+| Kotlin      | [Maven Central](https://central.sonatype.com/artifact/io.iscc/iscc-lib-kotlin) | `implementation("io.iscc:iscc-lib-kotlin:...")` |
+| WebAssembly | [npm](https://www.npmjs.com/package/@iscc/wasm)                                | `npm install @iscc/wasm`                        |
 
 ## Links
 
