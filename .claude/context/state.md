@@ -1,16 +1,15 @@
-<!-- assessed-at: 6988a92baaaae0c245211399ff247cbd8b664b73 -->
+<!-- assessed-at: 543ef81ae951ca1dbb5ab914e81f5045ddb6e66c -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Swift bindings — version sync remaining; Kotlin bindings not started
+## Phase: Swift complete; Kotlin Multiplatform bindings not started
 
-v0.3.1 released across all 8 registries. Swift bindings are nearly complete: SPM package, CI job,
-conformance tests, howto guide, README sections, and CLAUDE.md are all done. The only remaining
-Swift gap is **version sync integration** (scripts/version_sync.py has no Swift target). All 15/15
-CI jobs pass (run 23381174052). Two normal-priority issues remain: Swift bindings (nearly done) and
-Kotlin bindings (not started, depends on Swift).
+v0.3.1 released across all 8 registries. Swift bindings are now **fully complete** — SPM package, CI
+job, conformance tests, howto guide, README sections, CLAUDE.md, and version sync all done. All
+15/15 CI jobs pass (run 23381890569). One normal-priority issue remains: Kotlin Multiplatform
+bindings (not started; UniFFI scaffolding dependency is satisfied).
 
 ## Rust Core Crate
 
@@ -130,34 +129,34 @@ Kotlin bindings (not started, depends on Swift).
 
 ## Swift Bindings
 
-**Status**: partially met (version sync not done)
+**Status**: met
 
-- **Exists**: packages/swift/ with complete SPM package structure:
+- packages/swift/ with complete SPM package structure:
     - Package.swift — SPM manifest (swift-tools-version: 5.9), 3 targets (iscc_uniffiFFI, IsccLib,
         IsccLibTests)
     - Sources/IsccLib/iscc_uniffi.swift — 2400-line UniFFI-generated Swift bindings with all 32 Tier 1
         symbols (camelCase, throws, Swift Data types)
+    - Sources/IsccLib/Constants.swift — version constant synced from root Cargo.toml
     - Sources/iscc_uniffiFFI/iscc_uniffiFFI.h — 935-line generated C header
     - Sources/iscc_uniffiFFI/module.modulemap — module iscc_uniffiFFI (matches generated code)
     - Tests/IsccLibTests/ConformanceTests.swift — 9 test methods covering 50 vectors across all 9
         gen\_\*\_v0 functions (correct per-function counts: 20+5+3+5+3+2+4+3+5)
     - Tests/IsccLibTests/data.json — vendored conformance vectors (matches iscc-lib copy)
     - README.md — installation, usage examples, build-from-source instructions
-- **CI job PASSING** (run 23381174052): Swift (swift build, swift test) on macos-14 — SUCCESS
-- **Done**: docs/howto/swift.md — 425-line howto guide with 25 sections
-- **Done**: README Swift install/quickstart sections (verified in README.md)
-- **Done**: packages/swift/CLAUDE.md — per-package agent guidance
-- **Done**: zensical.toml nav entry + gen_llms_full.py entry (21 total pages)
-- **Not done**: Version sync integration — scripts/version_sync.py has no Swift target
-    (Constants.swift with version string or similar)
+- CI job Swift (swift build, swift test) on macos-14 — SUCCESS (run 23381890569)
+- docs/howto/swift.md — 425-line howto guide with 25 sections
+- README Swift install/quickstart sections present
+- packages/swift/CLAUDE.md — per-package agent guidance
+- zensical.toml nav entry + gen_llms_full.py entry (21 total pages)
+- Version sync: Constants.swift managed as 14th target in version_sync.py
 
 ## Kotlin Multiplatform Bindings
 
 **Status**: not started
 
-- Target defined in target.md; issue filed as normal priority — depends on Swift
+- Target defined in target.md; issue filed as normal priority
 - **No code exists**: packages/kotlin/ does not exist
-- UniFFI scaffolding crate (shared dependency) is now complete
+- UniFFI scaffolding crate (shared dependency) is complete
 - Requires: KMP Gradle project, Maven Central publishing, docs/howto/kotlin.md, README update
 
 ## README
@@ -166,7 +165,7 @@ Kotlin bindings (not started, depends on Swift).
 
 - Public-facing polyglot README exists with CI badge and 8 registry badges including NuGet
 - Language logos: 18 inline img tags from cdn.simpleicons.org
-- Installation and Quick Start sections for 10 implemented languages (including Swift)
+- Installation and Quick Start sections for 11 implemented languages (including Swift)
 - ISCC Architecture section, ISCC MainTypes table, Implementors Guide
 - All 10 gen\_\*\_v0 functions listed
 - **Gap** (downstream of Kotlin normal issue): Missing Kotlin installation + quickstart sections
@@ -175,7 +174,7 @@ Kotlin bindings (not started, depends on Swift).
 
 **Status**: partially met
 
-- READMEs present for all 10 existing crates/packages + Swift package
+- READMEs present for all 10 existing crates/packages + Swift package (11 total)
 - CLAUDE.md files created for all 10 crates/packages + Swift (11 total)
 - **Gap**: packages/kotlin/README.md missing (Kotlin bindings not started)
 
@@ -185,7 +184,7 @@ Kotlin bindings (not started, depends on Swift).
 
 - 21 pages in gen_llms_full.py ORDERED_PAGES; all navigation sections complete
 - 10 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
-    ruby.md, dotnet.md, **swift.md** (new — 425 lines, 25 sections)
+    ruby.md, dotnet.md, swift.md
 - **Gap** (low, CID skips): Language logos in docs howto headers
 - **Gap** (normal, downstream): Kotlin how-to guide not yet written
 
@@ -201,28 +200,23 @@ Kotlin bindings (not started, depends on Swift).
 
 **Status**: partially met (no Kotlin CI job)
 
-- **LATEST COMPLETED RUN** — run 23381174052: **15/15 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23381174052
+- **LATEST COMPLETED RUN** — run 23381890569: **15/15 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23381890569
 - All jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js, WASM,
-    C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, **Swift** — all SUCCESS
+    C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift — all SUCCESS
 - v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
     GitHub Releases)
-- iscc.hpp bundled in FFI release tarballs
-- NUGET_API_KEY GitHub Actions secret configured
+- version_sync.py manages 14 sync targets (including Swift Constants.swift)
 - **Gap**: No Kotlin CI job (Kotlin bindings not started)
 
 ## Next Milestone
 
-**Complete Swift version sync** (last remaining item before closing the Swift issue):
+**Begin Kotlin Multiplatform bindings** (the sole remaining `normal` priority issue):
 
-1. **Version sync** — add Swift target to scripts/version_sync.py (e.g., Constants.swift with
-    version string, or update Package.swift version metadata)
-
-After Swift issue is closed, begin **Kotlin bindings** (normal priority issue):
-
-1. KMP Gradle project in packages/kotlin/
-2. UniFFI-generated Kotlin bindings
-3. Conformance tests
-4. CI job
-5. docs/howto/kotlin.md + README sections
+1. KMP Gradle project in packages/kotlin/ with build.gradle.kts
+2. UniFFI-generated Kotlin bindings via uniffi-bindgen
+3. Conformance tests via kotlin.test against data.json
+4. CI job in ci.yml (Kotlin build + test)
+5. docs/howto/kotlin.md + README Kotlin install/quickstart sections
 6. Maven Central publishing in release.yml
+7. Version sync target in version_sync.py

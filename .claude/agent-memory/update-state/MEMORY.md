@@ -39,6 +39,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Swift CI failure logs**: `gh run view <id> --log-failed 2>&1 | tail -100`
 - **CLAUDE.md files**: `ls packages/*/CLAUDE.md crates/*/CLAUDE.md 2>&1`
 - **Howto guides**: `ls docs/howto/*.md | sort`
+- **Version sync targets**: `uv run scripts/version_sync.py --check 2>&1 | tail -5`
 
 ## Codebase Landmarks
 
@@ -54,10 +55,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `crates/iscc-uniffi/` — UniFFI scaffolding crate: 32 exports, 21 tests, `bindgen` feature for CLI;
     `publish = false`; proc macro approach; depends on uniffi 0.31, thiserror, iscc-lib
 - `docs/howto/` — **10 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
-    ruby.md, dotnet.md, **swift.md** (no kotlin.md yet)
+    ruby.md, dotnet.md, swift.md (no kotlin.md yet)
 - `scripts/gen_llms_full.py` — **21 entries** in `ORDERED_PAGES`
-- `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
-    Iscc.Lib.csproj, vcpkg.json and conanfile.py (**no Swift target yet**)
+- `scripts/version_sync.py` — **14 sync targets** including Swift Constants.swift (added iteration
+    7\)
 - `crates/iscc-lib/benches/benchmarks.rs` — 277 lines; 12 benches in `criterion_group!`
 - **CLAUDE.md files**: 11 total (10 crates/packages + packages/swift/CLAUDE.md)
 
@@ -73,15 +74,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review
 
-## Current State (assessed-at: 6988a92baaaae0c245211399ff247cbd8b664b73)
+## Current State (assessed-at: 543ef81)
 
-- **IN_PROGRESS**: **15/15 CI jobs green** (run 23381174052)
+- **IN_PROGRESS**: **15/15 CI jobs green** (run 23381890569)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
-- **2 normal-priority issues** in issues.md: Swift bindings (nearly done), Kotlin bindings (not
-    started, depends on Swift)
-- **Swift nearly done**: docs/howto/swift.md, README sections, CLAUDE.md all added — only version
-    sync remains (scripts/version_sync.py has no Swift target)
-- **Next**: Complete Swift version sync → close Swift issue → begin Kotlin
+- **Swift fully complete** — all sub-tasks done including version sync (14th target in
+    version_sync.py)
+- **1 normal-priority issue** in issues.md: Kotlin bindings (not started; UniFFI dependency
+    satisfied)
+- **1 low-priority issue**: Language logos in docs (CID skips)
+- **Next**: Begin Kotlin Multiplatform bindings (KMP Gradle project, UniFFI-generated bindings,
+    conformance tests, CI job, docs, README, Maven Central publishing, version sync)
 
 ## Gotchas
 
@@ -98,8 +101,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     functions since UniFFI doesn't support const exports; streaming types use `Mutex<Option<Inner>>`
     for Send+Sync
 - **Swift module name mismatch** (RESOLVED): UniFFI-generated Swift code uses
-    `#if canImport(iscc_uniffiFFI)` — SPM target MUST be named `iscc_uniffiFFI` to match. Fixed in
-    commit 7d9a4fd.
+    `#if canImport(iscc_uniffiFFI)` — SPM target MUST be named `iscc_uniffiFFI` to match.
 - **Swift tests need macOS**: ConformanceTests.swift cannot run in Linux devcontainer — needs macOS
     runner with Swift toolchain + `libiscc_uniffi` linked via `-Xlinker -L<path>`
 - **mdformat trailing space bug**: inline code with trailing space triggers mdformat "renders to
