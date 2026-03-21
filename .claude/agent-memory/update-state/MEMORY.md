@@ -92,25 +92,25 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
     and spec requirements can increase
 
-## Current State (assessed-at: 81f4e65f9b291be84b53760209c5182bf02c1eac)
+## Current State (assessed-at: a47c9341c26f737298af860a7f93f4e1d21f156d)
 
-- **IN_PROGRESS**: all **14 CI jobs** green (run 22819696003)
-- **v0.2.0 released** — all 8 registries including RubyGems and NuGet pipeline in place
-- **vcpkg SHA512 FIXED** (CID cycle 3 iter 3): `SKIP_SHA512` replaced with per-platform checksums ✅
-- **1 normal-priority issue remains** in issues.md:
-    1. Language logos missing from README and docs [human]
-- **2 low-priority issues** (Swift bindings, Kotlin bindings) — CID loop skips
-- **C++ section** now fully "met" — vcpkg SHA512 was the last gap
-- **CI (run 22819696003)**: ALL SUCCESS — 14 jobs ✅
+- **IN_PROGRESS**: all **14 CI jobs** green (run 22858622397)
+- **v0.3.1 released** — all 8 registries including RubyGems and NuGet
+- **2 normal-priority issues** in issues.md: Swift bindings, Kotlin bindings (both not started)
+- **0 critical/other normal issues** — logos resolved, SHA512 fixed, all previous issues closed
+- **CI (run 22858622397)**: ALL SUCCESS — 14 jobs ✅
+- **test-nuget** now 3-OS matrix (ubuntu, macos, windows) since v0.3.0 release
+- **CLAUDE.md files** created for all 10 crates/packages (commit a47c934)
+- **npm artifacts** now include index.js + index.d.ts (fix for publish issue in v0.3.1)
 
-## NuGet Pipeline Details (iteration 10)
+## NuGet Pipeline Details
 
-- `release.yml` has `nuget` input; `build-ffi` shared between FFI and NuGet
+- `release.yml` has `nuget` boolean input; activates on tag or `inputs.nuget`
 - `pack-nuget`: downloads cross-compiled FFI artifacts, organizes as `runtimes/<rid>/native/`, runs
     `dotnet pack -c Release`; cross-arch find uses `-path "*-${target}/*"` to avoid wrong lib
-- `test-nuget`: installs from local nupkg, runs smoke test console app
+- `test-nuget`: 3-OS matrix (ubuntu, macos, windows); no `--source local` flag needed
 - `publish-nuget`: idempotent (skips if version already on NuGet.org); uses `NUGET_API_KEY` secret
-- **Manual action still needed**: NuGet.org account, NUGET_API_KEY secret, package ID reservation
+- **Account setup complete**: NuGet.org account registered, `NUGET_API_KEY` secret configured ✅
 
 ## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
 
@@ -122,6 +122,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 
 ## Gotchas
 
+- **Bash tool backtick issue**: The Bash tool interprets backtick chars in commands as command
+    substitution even inside single-quoted heredocs. To write files with backtick content: use the
+    Write tool to create a temp Python script, then run via `uv run python tmp_patch_state.py`.
+    PowerShell works for simple ops. Do NOT use shell heredocs with backtick content.
+- **state.md encoding**: Always use `git checkout -- .claude/context/state.md` to get clean UTF-8
+    (no BOM) before patching. PowerShell `Set-Content -Encoding UTF8` adds a BOM which corrupts
+    Unicode chars (checkmarks, em dashes) when re-read as UTF-8.
 - Go target requires pure Go (no WASM, no wazero, no binary artifacts)
 - WASM constant name gotcha: `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` exports uppercase
 - `state.md` section order must include Go Bindings, README, Per-Crate READMEs sections
