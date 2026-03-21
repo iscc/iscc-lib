@@ -199,19 +199,25 @@ Detailed spec: `.claude/context/specs/cpp-bindings.md`
 - RAII ensures no memory leaks (valgrind/ASAN clean)
 - Conformance tests pass (C++ test program)
 
-## Swift Bindings — Swift Package
+## Swift Bindings — Swift Package with Prebuilt XCFramework
 
-A Swift package providing idiomatic Swift access via UniFFI-generated bindings. Shares the UniFFI
-scaffolding crate (`crates/iscc-uniffi/`) with Kotlin bindings. Distributed via Swift Package
-Manager (SPM) using Git tags.
+A Swift package providing idiomatic Swift access via UniFFI-generated bindings with a prebuilt
+XCFramework for zero-friction installation. Shares the UniFFI scaffolding crate
+(`crates/iscc-uniffi/`) with Kotlin bindings. Distributed via Swift Package Manager (SPM) using Git
+tags and `.binaryTarget` — no Rust toolchain required for consumers. Follows the Ferrostar monorepo
+pattern (variable toggle in root `Package.swift`, force-update tag for checksum).
 
 Detailed spec: `.claude/context/specs/swift-bindings.md`
 
 **Verified when:**
 
-- `swift test` passes conformance vectors
+- `swift test` passes conformance vectors on macOS
+- SPM resolves the package from Git tag with zero external toolchains required
 - All 32 Tier 1 symbols accessible with idiomatic Swift types
-- Works on iOS and macOS targets
+- XCFramework bundles static libraries for macOS (arm64, x86_64) and iOS (device + simulator)
+- Root `Package.swift` uses `.binaryTarget(url:checksum:)` with local/remote toggle variable
+- XCFramework build is cached — unchanged sources skip the expensive native build
+- Release workflow force-updates the tag after updating checksum in `Package.swift`
 - Version synced from root `Cargo.toml` via `mise run version:sync`
 
 ## Kotlin Multiplatform Bindings — `io.iscc:iscc-lib-kotlin` on Maven Central

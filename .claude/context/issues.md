@@ -7,16 +7,12 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Swift package does not vend the native library `low` [human]
+## Swift package does not vend the native library `normal` [human]
 
 The Swift package declares `.linkedLibrary("iscc_uniffi")` but does not include or build the native
-dylib. Build-from-source is now clearly documented in all three install docs (README.md,
-packages/swift/README.md, docs/howto/swift.md) — users will not get surprise link failures.
-
-Remaining work for zero-friction install: add a `.binaryTarget` with prebuilt XCFrameworks (uploaded
-as release artifacts). Requires CI infrastructure to build universal frameworks for macOS (arm64,
-x86_64) and optionally iOS. This is a larger infrastructure step — downgraded to `low` since the
-documentation workaround is in place.
+dylib. Promoted to `normal` — prebuilt XCFramework distribution is now a target outcome. See
+`.claude/context/specs/swift-bindings.md` for the full design (XCFramework with `.binaryTarget`,
+Ferrostar-style force-update tag, caching, release workflow integration).
 
 ## Add programming language logos to docs site `low` [human]
 
