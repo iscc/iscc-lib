@@ -1,4 +1,4 @@
-module IsccLibFFI {
+module iscc_uniffiFFI {
     header "iscc_uniffiFFI.h"
     export *
 }

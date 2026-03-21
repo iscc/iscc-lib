@@ -8,8 +8,8 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "IsccLibFFI",
-            path: "Sources/IsccLibFFI",
+            name: "iscc_uniffiFFI",
+            path: "Sources/iscc_uniffiFFI",
             publicHeadersPath: ".",
             linkerSettings: [
                 .linkedLibrary("iscc_uniffi"),
@@ -17,7 +17,7 @@ let package = Package(
         ),
         .target(
             name: "IsccLib",
-            dependencies: ["IsccLibFFI"],
+            dependencies: ["iscc_uniffiFFI"],
             path: "Sources/IsccLib"
         ),
         .testTarget(

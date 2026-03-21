@@ -1,49 +1,32 @@
-## 2026-03-21 — Review of: Add Swift CI job on macOS runner
+## 2026-03-21 — Fix Swift CI module name mismatch
 
-**Verdict:** PASS
+**Done:** Renamed the SPM FFI target from `IsccLibFFI` to `iscc_uniffiFFI` across directory name,
+`Package.swift`, and `module.modulemap` so it matches the `#if canImport(iscc_uniffiFFI)` /
+`import iscc_uniffiFFI` in the UniFFI-generated Swift code.
 
-**Summary:** The advance agent added a clean 21-line `swift:` CI job to `ci.yml` that builds
-`iscc-uniffi` and runs `swift build` + `swift test` on `macos-14` with correct `-Xlinker` flags for
-library discovery. The implementation matches all next.md requirements exactly, touches only the
-specified file, and follows established CI job patterns (debug build, `actions/checkout@v4`,
-`dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`).
+**Files changed:**
+
+- `packages/swift/Sources/IsccLibFFI/` → `packages/swift/Sources/iscc_uniffiFFI/` (directory rename)
+- `packages/swift/Package.swift`: changed 3 occurrences of `IsccLibFFI` to `iscc_uniffiFFI` (target
+    name, path, dependency)
+- `packages/swift/Sources/iscc_uniffiFFI/module.modulemap`: changed `module IsccLibFFI` to
+    `module iscc_uniffiFFI`
 
 **Verification:**
 
-- [x] `grep -q 'macos-14' .github/workflows/ci.yml` exits 0 — PASS
-- [x] `grep -q 'swift test' .github/workflows/ci.yml` exits 0 — PASS
-- [x] `grep -q 'cargo build -p iscc-uniffi' .github/workflows/ci.yml` exits 0 — PASS
-- [x] YAML validation (`yaml.safe_load`) exits 0 — PASS
-- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
-- [x] `mise run check` — 15/15 hooks pass
+- `grep -c 'iscc_uniffiFFI' packages/swift/Package.swift` → 3 — PASS
+- `grep -c 'IsccLibFFI' packages/swift/Package.swift` → 0 — PASS
+- `head -1 .../module.modulemap` → `module iscc_uniffiFFI {` — PASS
+- `test -d packages/swift/Sources/iscc_uniffiFFI` → exists — PASS
+- `test ! -d packages/swift/Sources/IsccLibFFI` → gone — PASS
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
+- `mise run check` — all hooks pass (pre-commit + pre-push)
 
-**Issues found:**
+**Next:** Push to verify the Swift CI job passes on GitHub Actions. This is the real validation
+since Swift tests can't run on the Linux devcontainer. If CI is green, next work should be Swift
+docs + README integration (`docs/howto/swift.md`, version sync, etc.) or closing the Swift issue in
+issues.md and starting Kotlin bindings.
 
-- (none)
-
-**Codex review:** Codex launched but produced no output (0 bytes after 5+ minutes on a 21-line YAML
-diff). Skipped — the diff is trivial and fully validated by manual review.
-
-**Next:** Push to verify the Swift CI job passes on GitHub Actions — this is the first real
-execution of the Swift conformance tests. If CI is green, the next work package should be one of:
-
-1. **Swift docs + README integration** — `docs/howto/swift.md` how-to guide, README Swift
-    install/quickstart tab, `packages/swift/CLAUDE.md`, version sync (`Constants.swift` +
-    `version_sync.py`)
-2. If the CI job fails (e.g., `-rpath` doesn't work for XCTest runner), fix it — add
-    `DYLD_LIBRARY_PATH` env fallback to the test step
-
-After Swift is fully complete (CI green, docs done), the Swift issue in issues.md can be closed and
-Kotlin bindings can begin.
-
-**Notes:**
-
-- CI job count is now 15 (14 named jobs + 1 python status gate). The `swift:` job is placed between
-    `cpp:` and `bench:`, keeping binding jobs grouped
-- Swift tests cannot be validated locally (Linux devcontainer) — the first CI run on GitHub is the
-    real validation. The `-rpath` approach is preferred over `DYLD_LIBRARY_PATH` because SIP strips
-    `DYLD_*` vars on macOS
-- The spec's example CI YAML included `--release`, cross-compile targets, and a
-    `uniffi-bindgen   generate` step — all correctly omitted by the advance agent (debug build
-    matches other CI jobs, cross-compile is for XCFramework release which is out of scope, and
-    bindings are already committed to git)
+**Notes:** No surprises. The fix is purely structural — 3 string replacements + 1 directory rename.
+No code logic changed. No tests affected (conformance tests are in `Tests/IsccLibTests/` which is
+unchanged — they import `IsccLib` not the FFI target directly).

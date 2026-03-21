@@ -186,7 +186,8 @@ iterations.
 
 ## Swift Package
 
-- `packages/swift/` — SPM package with IsccLibFFI (C header + modulemap) + IsccLib (Swift bindings)
+- `packages/swift/` — SPM package with iscc_uniffiFFI (C header + modulemap) + IsccLib (Swift
+    bindings)
 - Conformance tests: `ConformanceTests.swift` — 9 test methods, 50 vectors. Requires macOS runner
 - CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
     `-Xlinker -L` (link-time) and `-Xlinker -rpath` (runtime) pointing to `target/debug`
