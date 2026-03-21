@@ -1,155 +1,92 @@
 # Next Work Package
 
-## Step: Generate Swift bindings and create SPM package structure
+## Step: Add Swift CI job on macOS runner
 
 ## Goal
 
-Create `packages/swift/` with UniFFI-generated Swift bindings, SPM manifest, and XCTest conformance
-tests. This establishes the Swift package foundation — the key deliverable of the Swift bindings
-issue.
+Add a `swift` CI job to `ci.yml` that builds the UniFFI native library and runs `swift test` on a
+macOS runner. This is the only way to validate that the Swift conformance tests (50 vectors across 9
+functions) actually pass — they cannot run in the Linux devcontainer.
 
 ## Scope
 
-- **Create**:
-    - `crates/iscc-uniffi/uniffi-bindgen.rs` — 3-line entry point for binding generation
-    - `packages/swift/Package.swift` — SPM manifest with IsccLibFFI + IsccLib + test targets
-    - `packages/swift/Sources/IsccLibFFI/iscc_uniffiFFI.h` — generated C header (uniffi-bindgen
-        output)
-    - `packages/swift/Sources/IsccLibFFI/module.modulemap` — module map for FFI target (rename from
-        generated `iscc_uniffiFFI.modulemap`)
-    - `packages/swift/Sources/IsccLib/iscc_uniffi.swift` — generated Swift bindings (uniffi-bindgen
-        output)
-    - `packages/swift/Tests/IsccLibTests/ConformanceTests.swift` — XCTest against data.json vectors
-    - `packages/swift/Tests/IsccLibTests/data.json` — vendored conformance vectors (copy from
-        `crates/iscc-lib/tests/data.json`)
-    - `packages/swift/README.md` — per-package README
-- **Modify**:
-    - `crates/iscc-uniffi/Cargo.toml` — add `[[bin]]` section and `bindgen` feature for CLI
+- **Create**: (none)
+- **Modify**: `.github/workflows/ci.yml` — add `swift:` job
 - **Reference**:
-    - `crates/iscc-uniffi/src/lib.rs` — UniFFI interface definition (all 32 symbols)
-    - `packages/dotnet/Iscc.Lib.Tests/ConformanceTests.cs` — reference conformance test pattern
-    - `packages/go/conformance_test.go` — alternate conformance test pattern
-    - `.claude/context/specs/swift-bindings.md` — full Swift spec
-    - `crates/iscc-lib/tests/data.json` — conformance vectors source
+    - `packages/swift/Package.swift` — SPM manifest with `linkedLibrary("iscc_uniffi")`
+    - `packages/swift/Tests/IsccLibTests/ConformanceTests.swift` — 9 test methods, 50 vectors
+    - `.claude/context/specs/swift-bindings.md` — CI section with example YAML
+    - `.github/workflows/ci.yml` — existing job patterns (esp. `c-ffi`, `dotnet`, `cpp`)
 
 ## Not In Scope
 
-- CI job (macOS runner, `swift build` + `swift test`) — separate step after package verified
-- Documentation (`docs/howto/swift.md`, README Swift install/quickstart sections)
-- Version sync integration (`scripts/version_sync.py` target for Swift)
-- XCFramework build for release distribution
-- Idiomatic Swift wrapper layer (`IsccLib.swift` with `Codable`/`Sendable`) — the generated UniFFI
-    code already provides `camelCase`, `throws`, and reasonable Swift types; extra wrapper can come
-    later if needed
-- SwiftFormat/SwiftLint integration
-- Release workflow updates
+- `docs/howto/swift.md` how-to guide (separate step after CI is green)
+- README Swift installation/quickstart sections (separate step)
+- Version sync (`Constants.swift`, `version_sync.py`) — separate step
+- `packages/swift/CLAUDE.md` — separate step
+- XCFramework pre-built binaries — future release step
+- Release workflow (`release.yml`) Swift publishing — separate step
+- SwiftFormat/SwiftLint integration — premature before CI validates tests pass
+- Adding `iscc-uniffi` to the Rust CI clippy/test job (it already runs in workspace)
 
 ## Implementation Notes
 
-### Binding generation mechanism
+**Runner:** Use `macos-14` (Apple Silicon M1, has Xcode 15+ with Swift 5.9+ pre-installed). This
+matches the `swift-tools-version: 5.9` in `Package.swift`.
 
-Add a `bindgen` feature to `iscc-uniffi` that enables `uniffi/cli`, and a `[[bin]]` with
-`required-features = ["bindgen"]`:
+**Job structure** (follow existing patterns from `c-ffi`, `dotnet`, `cpp`):
 
-```toml
-[features]
-bindgen = ["uniffi/cli"]
-
-[[bin]]
-name = "uniffi-bindgen"
-path = "uniffi-bindgen.rs"
-required-features = ["bindgen"]
+```yaml
+swift:
+  name: Swift (swift build, swift test)
+  runs-on: macos-14
+  steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - name: Build UniFFI native library
+      run: cargo build -p iscc-uniffi
+    - name: Build Swift package
+      run: >
+        swift build
+        -Xlinker -L${{ github.workspace }}/target/debug
+      working-directory: packages/swift
+    - name: Run Swift tests
+      run: >
+        swift test
+        -Xlinker -L${{ github.workspace }}/target/debug
+        -Xlinker -rpath
+        -Xlinker ${{ github.workspace }}/target/debug
+      working-directory: packages/swift
 ```
 
-The binary is trivial:
+**Key details:**
 
-```rust
-fn main() {
-    uniffi::uniffi_bindgen_main()
-}
-```
+1. **Debug build** for speed — consistent with `c-ffi`, `dotnet`, `cpp` jobs (none use `--release`)
+2. **Linker flags**: `-Xlinker -L<path>` tells the linker where to find `libiscc_uniffi.dylib`. The
+    `-Xlinker -rpath -Xlinker <path>` embeds the library search path into the test binary so it
+    finds the dylib at runtime without needing `DYLD_LIBRARY_PATH` (which can be stripped by SIP on
+    macOS)
+3. **Library name**: `cargo build -p iscc-uniffi` produces `target/debug/libiscc_uniffi.dylib` on
+    macOS. The `Package.swift` already has `.linkedLibrary("iscc_uniffi")` which SPM translates to
+    `-liscc_uniffi`
+4. **Separate build + test steps** for clearer error diagnosis (build failure vs test failure)
+5. **`Swatinem/rust-cache@v2`** works on macOS runners — no compatibility issues
+6. **Place the job** after `cpp:` and before `bench:` (keeps binding jobs grouped before bench)
 
-### Generating Swift code
-
-1. Build the cdylib first: `cargo build -p iscc-uniffi` (produces `target/debug/libiscc_uniffi.so`)
-2. Run:
-    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate --library target/debug/libiscc_uniffi.so --language swift --out-dir /tmp/swift-gen/`
-3. This generates three files: `iscc_uniffi.swift`, `iscc_uniffiFFI.h`, `iscc_uniffiFFI.modulemap`
-4. Place them in the package structure:
-    - `iscc_uniffi.swift` → `packages/swift/Sources/IsccLib/`
-    - `iscc_uniffiFFI.h` → `packages/swift/Sources/IsccLibFFI/`
-    - `iscc_uniffiFFI.modulemap` → rename to `module.modulemap` in
-        `packages/swift/Sources/IsccLibFFI/`
-
-### Package.swift structure
-
-```swift
-// swift-tools-version: 5.9
-import PackageDescription
-
-let package = Package(
-    name: "IsccLib",
-    products: [
-        .library(name: "IsccLib", targets: ["IsccLib"]),
-    ],
-    targets: [
-        .target(
-            name: "IsccLibFFI",
-            path: "Sources/IsccLibFFI",
-            publicHeadersPath: ".",
-            linkerSettings: [
-                .linkedLibrary("iscc_uniffi"),
-            ]
-        ),
-        .target(
-            name: "IsccLib",
-            dependencies: ["IsccLibFFI"],
-            path: "Sources/IsccLib"
-        ),
-        .testTarget(
-            name: "IsccLibTests",
-            dependencies: ["IsccLib"],
-            path: "Tests/IsccLibTests",
-            resources: [.copy("data.json")]
-        ),
-    ]
-)
-```
-
-### Conformance tests pattern
-
-Follow the .NET/Go pattern: load `data.json`, iterate per-function groups, decode inputs per
-function signature, compare `.iscc` output. Key considerations:
-
-- Use `JSONSerialization` for flexible JSON parsing (like .NET's `JsonElement`)
-- `"stream:<hex>"` prefix: extract hex after prefix, convert to `Data`
-- `gen_iscc_code_v0` vectors have no `wide` parameter — always pass `false`
-- `_metadata` key in data.json: skip non-vector top-level keys
-- Empty `description`/`meta` strings → pass `nil` (not empty string)
-- 9 test functions covering 50 vectors (no `gen_sum_code_v0` vectors in data.json)
-- Test method per gen function (9 methods) — each iterates its vectors and asserts `.iscc` match
-
-### data.json note
-
-Copy from `crates/iscc-lib/tests/data.json`. This is the same file vendored by Go and .NET. All
-copies must stay identical.
+**If `-rpath` alone doesn't work** (in case `swift test`'s XCTest runner doesn't propagate it), add
+`env: DYLD_LIBRARY_PATH: ${{ github.workspace }}/target/debug` to the test step as fallback. Try
+`-rpath` first — it's the cleaner solution.
 
 ## Verification
 
-- `cargo build -p iscc-uniffi` compiles successfully (existing crate unaffected)
-- `cargo test -p iscc-uniffi` passes (21 existing tests)
-- `cargo clippy -p iscc-uniffi -- -D warnings` is clean
-- `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- --help` shows usage
-    (uniffi-bindgen binary works)
-- `packages/swift/Package.swift` exists
-- `packages/swift/Sources/IsccLib/iscc_uniffi.swift` exists and contains `genMetaCodeV0`
-- `packages/swift/Sources/IsccLibFFI/iscc_uniffiFFI.h` exists
-- `packages/swift/Sources/IsccLibFFI/module.modulemap` exists
-- `packages/swift/Tests/IsccLibTests/ConformanceTests.swift` exists
-- `packages/swift/Tests/IsccLibTests/data.json` exists and is identical to
-    `crates/iscc-lib/tests/data.json`
+- `grep -q 'macos-14' .github/workflows/ci.yml` exits 0 (macOS runner present)
+- `grep -q 'swift test' .github/workflows/ci.yml` exits 0 (swift test command present)
+- `grep -q 'cargo build -p iscc-uniffi' .github/workflows/ci.yml` exits 0 (UniFFI build step)
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` exits 0 (valid YAML)
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` passes (no regressions)
 
 ## Done When
 
-All verification criteria pass — the Swift package structure is complete with generated bindings,
-conformance tests, and vendored vectors, ready for CI validation on a macOS runner.
+All verification commands pass and the `swift:` job is properly defined in `ci.yml` with macOS
+runner, UniFFI library build, and `swift test` execution with correct linker flags.

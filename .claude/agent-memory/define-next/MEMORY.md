@@ -47,17 +47,28 @@ iterations.
 - Constants must be wrapped as getter functions — UniFFI can't export `const` directly
 - Streaming types use `Mutex<Option<Inner>>` pattern for interior mutability with `&self` methods
 - `crate-type = ["cdylib", "staticlib", "lib"]` needed for both dynamic and static linking
-- Swift bindings step sequence: UniFFI crate -> binding generation -> Swift package -> CI -> docs
+- Swift bindings step sequence: UniFFI crate -> binding generation -> Swift package -> **CI** ->
+    docs
 - Kotlin depends on Swift (shares UniFFI crate), so Swift must be done first
 - **Binding generation**: add `bindgen` feature (`uniffi/cli`) + `[[bin]]` with `required-features`.
     Build cdylib first, then `uniffi-bindgen generate --library libiscc_uniffi.so --language swift`
 - **Generated outputs**: `iscc_uniffi.swift`, `iscc_uniffiFFI.h`, `iscc_uniffiFFI.modulemap`
 
+## Swift CI Job Details
+
+- **macOS runner required** — `macos-14` (Apple Silicon, Xcode 15+, Swift 5.9+ pre-installed)
+- `cargo build -p iscc-uniffi` produces `libiscc_uniffi.dylib` on macOS (`.so` on Linux)
+- SPM needs `-Xlinker -L<path>` to find the dylib at link time
+- Runtime discovery: use `-Xlinker -rpath -Xlinker <path>` (cleaner than `DYLD_LIBRARY_PATH` which
+    SIP can strip on macOS)
+- `Swatinem/rust-cache@v2` works on macOS runners
+- After Swift CI: remaining items are docs, README sections, version sync, CLAUDE.md, release
+
 ## Dev Environment Constraints
 
 - **No Swift toolchain** in Linux devcontainer — `swift test` can only run on macOS (CI)
 - `uniffi-bindgen` not pre-installed — use in-crate binary via
-    `cargo run -p iscc-uniffi --features   bindgen --bin uniffi-bindgen`
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen`
 - `cargo build -p iscc-uniffi` produces `target/debug/libiscc_uniffi.so` on Linux (verified)
 
 ## Conformance Vector Loader Differences (critical for data.json updates)
@@ -69,8 +80,8 @@ iterations.
     `testdata/data.json`. Must skip `_metadata` key.
 - **C FFI**: No data.json loader (uses Rust core `conformance_selftest`).
 - **C++ wrapper**: Same as C FFI — uses `conformance_selftest()` call, no data.json parsing.
-- **Swift** (planned): XCTest with `JSONSerialization`, skip `_metadata` key, vendor data.json in
-    Tests directory with SPM `.copy()` resource.
+- **Swift**: XCTest with `JSONSerialization`, skip `_metadata` key, vendor data.json in Tests
+    directory with SPM `.copy()` resource.
 - **data.json copies**: `crates/iscc-lib/tests/data.json` (primary),
     `packages/go/testdata/data.json`, `packages/dotnet/Iscc.Lib.Tests/testdata/data.json`, and
     `packages/swift/Tests/IsccLibTests/data.json` (all identical). Must be updated together.
@@ -81,8 +92,9 @@ iterations.
     C++)
 - v0.3.1 released, 14 CI jobs green
 - **UniFFI scaffolding crate complete** (iteration 1, PASS)
-- **2 normal-priority issues**: Swift bindings (in progress — package next), Kotlin bindings
-    (depends on Swift)
+- **Swift SPM package created** (iteration 2, PASS) — CI job is next
+- **2 normal-priority issues**: Swift bindings (in progress — CI next), Kotlin bindings (depends on
+    Swift)
 
 ## Version Sync Script Patterns
 
