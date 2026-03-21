@@ -1,14 +1,15 @@
-<!-- assessed-at: 5fbc1118c946a41224891becf4ce74b8b63379c7 -->
+<!-- assessed-at: e628c4dbedaf96386fe104dad106019897ba1310 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: All bindings complete; only low-priority gaps remain
+## Phase: Swift XCFramework distribution — normal priority gap
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23388354690). All 12 language
-bindings fully scaffolded, tested, documented, and shipping. Root `Package.swift` added for SPM URL
-resolution. Two open issues remain, both `low` priority (CID skips).
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23388971191). All 12 language
+bindings scaffolded, tested, documented, and shipping. pytest-benchmark added (18 functions, 9
+gen\_\*\_v0 x 2 implementations). Swift XCFramework issue promoted to `normal` — target.md and spec
+updated to require prebuilt XCFramework for zero-friction SPM install.
 
 ## Rust Core Crate
 
@@ -96,16 +97,19 @@ resolution. Two open issues remain, both `low` priority (CID skips).
 
 ## Swift Bindings
 
-**Status**: met
+**Status**: partially met
 
 - SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
-- Root `Package.swift` added for SPM URL resolution (mirrors subdirectory manifest with adjusted
-    paths)
-- 9 conformance test methods covering 50 vectors
-- CI job SUCCESS on macos-14
-- docs/howto/swift.md updated with build-from-source instructions, README, CLAUDE.md
-- **Low-priority gap**: Native library not bundled (XCFramework) — documented build-from-source
-    workaround in place
+- Root `Package.swift` for SPM URL resolution (uses `.linkedLibrary("iscc_uniffi")`)
+- 9 conformance test methods covering 50 vectors; CI job SUCCESS on macos-14
+- docs/howto/swift.md, README, CLAUDE.md all present
+- **Missing (normal priority)**: No XCFramework distribution. Current `Package.swift` requires
+    consumers to manually provide the native library. Target now requires prebuilt XCFramework with
+    `.binaryTarget(url:checksum:)`, three-layer SPM target structure (binary target + FFI bridge +
+    public API), and release workflow integration. Comprehensive spec written at
+    `.claude/context/specs/swift-bindings.md` (460+ lines). This is a significant implementation
+    effort: build scripts, XCFramework creation, Package.swift restructuring, CI updates, release
+    workflow changes.
 
 ## Kotlin Multiplatform Bindings
 
@@ -119,8 +123,7 @@ resolution. Two open issues remain, both `low` priority (CID skips).
 - **Documentation complete** — howto guide (451 lines), package README (89 lines), CLAUDE.md (101
     lines), root README integration, zensical.toml nav, gen_llms_full.py (22 pages)
 - **Release workflow complete** — `maven-kotlin` input + build-kotlin-native + smoke-test-kotlin +
-    publish-maven-kotlin jobs in release.yml. GPG signing via `useInMemoryPgpKeys`, Central Portal
-    upload via curl REST API
+    publish-maven-kotlin jobs in release.yml
 
 ## README
 
@@ -128,9 +131,7 @@ resolution. Two open issues remain, both `low` priority (CID skips).
 
 - Public-facing polyglot README with CI badge and 8 registry badges
 - Language logos: 18 inline img tags from cdn.simpleicons.org
-- Installation and Quick Start sections for all 12 languages (Rust, Python, Ruby, Java, Go, Node.js,
-    WASM, C#, C++, Swift, Kotlin, C/C++)
-- Swift section updated with build-from-source note and version 0.3.1
+- Installation and Quick Start sections for all 12 languages
 - ISCC Architecture section, MainTypes table, Implementors Guide
 
 ## Per-Crate READMEs
@@ -153,17 +154,20 @@ resolution. Two open issues remain, both `low` priority (CID skips).
 
 **Status**: partially met
 
-- Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional (12 total)
+- Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional (12 total in Rust)
 - Bench (compile check) CI job SUCCESS
-- **Missing**: No pytest-benchmark setup comparing Python bindings vs iscc-core
-- **Missing**: No speedup factors published in documentation
+- **pytest-benchmark added**: 18 functions (9 gen\_\*\_v0 x 2 — iscc-lib vs iscc-core) in
+    `tests/test_benchmarks.py`. Review agent verified all 18 pass. Representative speedups: meta
+    ~20x, text ~33x, image ~15x, audio ~50x, video ~13x, mixed ~30x, data ~11x, instance ~62x, iscc
+    ~20x
+- **Missing**: Speedup factors not yet published in documentation
 
 ## CI/CD and Publishing
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23388354690: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23388354690
+- **LATEST COMPLETED RUN** — run 23388971191: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23388971191
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries (maven-kotlin to be exercised on next release)
@@ -171,20 +175,27 @@ resolution. Two open issues remain, both `low` priority (CID skips).
     maven-kotlin
 - version_sync.py manages 15 sync targets
 
-## Open Issues (2 total, both low)
+## Open Issues (2 total — 1 normal, 1 low)
 
-1. **Swift package does not vend native library** `low` — XCFramework distribution is future work;
-    build-from-source documented as workaround
+1. **Swift package does not vend native library** `normal` — Prebuilt XCFramework distribution
+    required by target. Comprehensive spec written. Requires: XCFramework build script,
+    Package.swift restructuring to three-layer targets, release workflow integration, CI updates.
 2. **Language logos in docs** `low` — CID skips
 
 ## Next Milestone
 
-**All remaining issues are `low` priority — CID should idle.** No `critical` or `normal` issues
-remain. All 12 language bindings are complete with passing CI.
+**Swift XCFramework distribution** — the only `normal` priority issue. The spec at
+`.claude/context/specs/swift-bindings.md` provides a detailed design. This is a multi-step effort:
+
+1. Create XCFramework build script (compile for macOS arm64/x86_64, iOS device/simulator, lipo +
+    xcodebuild -create-xcframework)
+2. Restructure `Package.swift` to three-layer targets (`.binaryTarget` + FFI bridge + public API)
+3. Add local/remote toggle variable (Ferrostar pattern)
+4. Update release workflow to build, upload, and checksum XCFramework
+5. Update CI to test with local XCFramework build
+6. Update docs/howto/swift.md to reflect zero-friction install
 
 Remaining `low`-priority work (human-directed only):
 
-- Swift XCFramework binary distribution for zero-friction install
 - Language logos in docs howto headers
-- pytest-benchmark comparisons vs iscc-core (target spec mentions these)
-- Speedup factors in documentation
+- Speedup factors published in documentation

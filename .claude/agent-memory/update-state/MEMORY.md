@@ -17,6 +17,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
 - **Benchmark functions**:
     `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
+- **pytest-benchmark functions**: `grep -c "def test_bench_" tests/test_benchmarks.py`
 - **gen_llms_full.py page count**: Python ast.literal_eval on ORDERED_PAGES list (now 22 entries)
 - **UniFFI export count**: Use Grep for `#\[uniffi::export\]` in `crates/iscc-uniffi/src/lib.rs`
 - **state.md Write workaround**: Write tool = permission error. Use heredoc:
@@ -46,6 +47,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `scripts/gen_llms_full.py` — **22 entries** in ORDERED_PAGES
 - `scripts/version_sync.py` — **15 sync targets**
 - `crates/iscc-lib/benches/benchmarks.rs` — 12 benches in criterion_group!
+- `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
 - **CLAUDE.md files**: 12 total (all crates + all packages)
 - **Per-crate READMEs**: 12 total (all crates + all packages)
 
@@ -59,14 +61,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review.
 - **Handoff predictions may be wrong**: always verify CI independently.
 
-## Current State (assessed-at: 5fbc111)
+## Current State (assessed-at: e628c4d)
 
 - **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN
-- Latest CI run: 23388354690 (SUCCESS)
+- Latest CI run: 23388971191 (SUCCESS)
 - **All 12 language bindings complete**: scaffold, tests, CI, docs, release workflows
-- **2 open issues** (both `low`): Swift XCFramework, language logos in docs
-- **CID should idle**: no `critical` or `normal` issues remain
-- **Benchmark gaps**: No pytest-benchmark, no speedup factors in docs
+- **1 normal issue**: Swift XCFramework distribution (spec written, not implemented)
+- **1 low issue**: language logos in docs
+- **Benchmarks**: pytest-benchmark done (18 funcs), speedup factors not in docs yet
+- **Swift XCFramework**: major implementation effort — build script, Package.swift restructuring,
+    three-layer targets, release workflow, CI updates
 
 ## Gotchas
 
@@ -82,3 +86,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **mdformat trailing space bug**: inline code with trailing space triggers error
 - **Root Package.swift**: Two manifests coexist — SPM reads root for dependency resolution, CI uses
     subdirectory. `from: "0.3.1"` only works after next release tag is cut
+- **Swift XCFramework spec**: `.claude/context/specs/swift-bindings.md` (460+ lines) — comprehensive
+    design doc with three-layer target structure, Ferrostar reference model, build scripts,
+    CI/release workflow integration
+- **pytest-benchmark naming**: functions use `test_bench_*` prefix (not bare `bench_*`)
