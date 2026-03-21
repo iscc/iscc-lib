@@ -14,23 +14,15 @@ iterations.
 - When CI is red, formatting/lint fixes are always the first priority regardless of handoff "Next"
 - Prefer concrete deliverables over research tasks when both are available
 - **State assessments can go stale** — always verify claimed gaps by reading the actual files
-- New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
-    steps. Core + tests in one step, bindings in subsequent steps
 - **Handoff "IDLE" can be stale** — always check issues.md directly
 - **Generated files (tool output) don't count toward the 3-file modification limit**
 - **CI red always first** — green CI is a prerequisite for all other work
-- **Root cause before fix** — check actual coordinates against known-good references
 - **Target gaps vs low issues** — target is source of truth for what needs to be done
 - **Review agent can miscount issues** — always read issues.md directly
 - **Batch related small changes** — version sync + docs update for same feature can combine into one
     step (1 code file + 1 doc file excluded from limit)
-
-## Signature Change Propagation
-
-- When a Rust core function signature changes, ALL Rust-based binding crates must be updated in the
-    SAME step to keep CI green
-- WASM binding has its OWN inline `gen_sum_code_v0` (no filesystem in WASM)
-- Go binding is pure Go — completely independent of Rust core signatures
+- **When blocked issues dominate** — look for target verification criteria gaps rather than
+    accepting "idle". Docs completeness (tabbed examples, tables) is often missed
 
 ## Architecture Decisions
 
@@ -44,30 +36,18 @@ iterations.
 
 - UniFFI v0.31.0 is the latest stable version (checked 2026-03-21)
 - Proc macro approach: `#[uniffi::export]`, `#[derive(uniffi::Record)]`, `#[derive(uniffi::Object)]`
-    — no UDL files or `build.rs` needed
 - Key type constraints: no `usize` (use `u64`), no borrowed types, no generics on exported functions
 - Constants are getter functions (UniFFI can't export `const`)
-- Streaming types use `Mutex<Option<Inner>>` pattern
 - **SPM module name MUST match generated code**: `iscc_uniffiFFI`
 
-## Swift XCFramework Implementation Plan
+## Swift XCFramework — COMPLETE except GITHUB_REF_NAME
 
-Multi-step effort, tracked as normal-priority issue. Progress:
-
-1. ~~Build script + root Package.swift restructure~~ (DONE — iteration 2)
-2. ~~Release workflow integration (build-xcframework job)~~ (DONE — iteration 3)
-3. Version sync + docs update — **current step** (iteration 4)
-
-Key constraints:
+All 3 implementation steps done. Only remaining issue is GITHUB_REF_NAME bug (HUMAN REVIEW). Key
+constraints:
 
 - Two Package.swift files: root (SPM consumers) and `packages/swift/Package.swift` (CI/dev)
-- CI Swift job uses packages/swift/Package.swift — root changes don't break CI
-- Build script only runs on macOS (lipo, xcodebuild, ditto are macOS tools)
-- `cargo build -p iscc-uniffi` (not iscc-lib) produces `libiscc_uniffi.a`
-- Ferrostar pattern: `useLocalFramework` variable toggle, force-update tag for checksum
-- macOS sed uses `sed -E -i ''` (empty backup ext) — differs from GNU `sed -i`
-- `build-xcframework` job is independent (no `needs`) — builds from source on macOS
 - GITHUB_REF_NAME bug flagged `HUMAN REVIEW REQUESTED` — CID must not fix without human input
+- Version sync now manages 16 targets including Package.swift releaseTag
 
 ## Dev Environment Constraints
 
@@ -83,28 +63,28 @@ Key constraints:
     `packages/swift/Tests/IsccLibTests/data.json`, and
     `packages/kotlin/src/test/resources/data.json` (all identical). Must be updated together.
 
-## Project Status
+## Project Status (iteration 5)
 
 - v0.3.1 released, 16/16 CI jobs green
-- All 12 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift,
-    Kotlin)
-- pytest-benchmark done (18 functions), speedup factors already in `docs/benchmarks.md`
-- 2 normal issues: Swift XCFramework vend (version sync + docs remain), Swift GITHUB_REF_NAME bug
-    (HUMAN REVIEW)
+- All 12 bindings complete
+- pytest-benchmark done, speedup factors already in `docs/benchmarks.md` (state.md is STALE on this)
+- 1 normal issue: Swift GITHUB_REF_NAME bug (HUMAN REVIEW — CID blocked)
 - 1 low issue: language logos in docs
+- **Remaining target gaps**: docs tabbed code examples missing 5 languages (Ruby, C#, C++, Swift,
+    Kotlin) on index.md and tutorials/getting-started.md
 
-## Version Sync Script Patterns
+## Docs Tabbed Examples Gap
 
-- `scripts/version_sync.py` uses `(file_path, get_fn, sync_fn)` triples in TARGETS list
-- JSON targets (package.json, vcpkg.json): can reuse
-    `_get_package_json_version`/`_sync_package_json`
-- `version_sync.py --check` runs in CI (`version-check` job)
-- Currently 15 targets; adding Package.swift releaseTag will make 16
+- `docs/index.md` Quick Start: 6 tabs (Python, Rust, Node.js, Java, Go, WASM) — missing 5
+- `docs/index.md` Available Bindings table: 9 rows — missing Swift, Kotlin
+- `docs/tutorials/getting-started.md`: 7 tab groups × 6 tabs — missing same 5 languages
+- Target requirement: "All code examples use tabbed multi-language format" with all 11 languages
+- Scoping: index.md first (1 file, high impact), tutorial as follow-up (1 file, high volume)
 
 ## CI/Release Patterns
 
 - v0.3.1 released to all registries
-- Release workflow has `workflow_dispatch` with 9 per-registry checkboxes + `ffi` boolean
+- Release workflow has `workflow_dispatch` with 9 per-registry checkboxes
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
 
 ## Docs Infrastructure
@@ -112,7 +92,6 @@ Key constraints:
 - `zensical.toml` has `nav` array for howto guides — must add entry when creating new guide
 - `scripts/gen_llms_full.py` has `ORDERED_PAGES` list — must add entry for llms-full.txt generation
 - All howto guides follow identical structure (see `docs/howto/dotnet.md` as template)
-- Per-package CLAUDE.md files follow `packages/dotnet/CLAUDE.md` structure
 - Howto install sections use collapsible `??? tip "Build from source"` pattern
 
 ## Gotchas
@@ -123,3 +102,11 @@ Key constraints:
 - When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
     must be updated (Rust core + WASM)
 - **Gson groupId trap**: Maven groupId is `com.google.code.gson`, NOT `com.google.gson`
+
+## Language API Patterns (for doc examples)
+
+- Ruby: `IsccLib.gen_text_code_v0("text")` — snake_case module methods
+- C#: `IsccLib.GenTextCodeV0("text")` — PascalCase static methods
+- C++: `iscc::gen_text_code_v0("text")` — namespace free functions, RAII
+- Swift: `genTextCodeV0(text: "text", bits: 64)` — camelCase free functions, named params
+- Kotlin: `genTextCodeV0(text = "text", bits = 64u)` — camelCase free functions, UInt params
