@@ -25,6 +25,9 @@ iterations.
 - **Root cause before fix** — when CI fails with a dependency error, check the actual coordinates
     (groupId, artifactId, version) against known-good references in the project before suggesting
     environment fixes
+- **Target gaps vs low issues** — when state.md says "IDLE" but target.md has unmet verification
+    criteria that aren't filed as `low` issues in issues.md, they're legitimate gaps to work on. The
+    target is the source of truth for what needs to be done
 
 ## Signature Change Propagation
 
@@ -53,24 +56,6 @@ iterations.
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
     `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
-## Kotlin Bindings (COMPLETE)
-
-- All sub-tasks done: scaffold, tests, CI, docs, release workflow
-- UniFFI Kotlin is JVM-only (JNA, not Kotlin/Native)
-- Gradle 8.12.1 wrapper, JNA 5.16.0, Gson `com.google.code.gson`
-
-## Swift Bindings (packaging issues open)
-
-- Bindings code complete: UniFFI crate, SPM package, CI job, conformance tests, howto guide
-- **Two packaging issues remain**: SPM URL doesn't resolve (Package.swift in subdirectory), native
-    library not bundled (users get link failures)
-- **Root Package.swift approach**: SPM resolves from repo root only. Root Package.swift with
-    adjusted paths (`packages/swift/Sources/...`) coexists with subdirectory Package.swift. No
-    conflict — SPM uses root, CI uses `working-directory: packages/swift`
-- **XCFramework = future step**: Full native library vending requires building universal
-    XCFrameworks in CI, uploading as release assets, referencing as `.binaryTarget`. Too large for
-    one step. Document build-from-source first, then add XCFramework later
-
 ## Dev Environment Constraints
 
 - **No Swift toolchain** in Linux devcontainer — `swift test` can only run on macOS (CI)
@@ -89,9 +74,16 @@ iterations.
 - v0.3.1 released, 16/16 CI jobs green
 - All 12 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift,
     Kotlin)
-- 2 normal-priority Swift issues: SPM install instructions incorrect, package doesn't vend native
-    lib
-- 1 low-priority issue: language logos in docs (CID skips)
+- 2 low-priority issues remain: Swift XCFramework, language logos in docs
+- **Remaining target gaps**: pytest-benchmark (iscc-lib vs iscc-core), speedup factors in docs
+
+## Benchmark Infrastructure (verified 2026-03-21)
+
+- `pytest-benchmark` already in pyproject.toml dev deps
+- `iscc-core` v1.2.2 installed as dev dependency
+- All 9 `gen_*_v0` available at `iscc_core` top level (import `iscc_core as ic`)
+- iscc-core data/instance functions need `io.BytesIO` wrapper (not raw bytes)
+- iscc-core returns `dict`, iscc-lib returns typed result objects — both have `["iscc"]`/`.iscc`
 
 ## Version Sync Script Patterns
 
