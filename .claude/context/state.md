@@ -1,14 +1,14 @@
-<!-- assessed-at: 105ed4d7e12fc5c878f2abfb4453eda742320e17 -->
+<!-- assessed-at: 5fbc1118c946a41224891becf4ce74b8b63379c7 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Kotlin fully complete; Swift packaging issues remain
+## Phase: All bindings complete; only low-priority gaps remain
 
-v0.3.1 released across all 9 registries (8 previous + maven-kotlin added). All 16/16 CI jobs pass
-(run 23387467886). Kotlin bindings are **fully complete** — scaffold, tests, CI, docs, AND release
-workflow all verified. Three open issues remain (2 Swift packaging, 1 cosmetic).
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23388354690). All 12 language
+bindings fully scaffolded, tested, documented, and shipping. Root `Package.swift` added for SPM URL
+resolution. Two open issues remain, both `low` priority (CID skips).
 
 ## Rust Core Crate
 
@@ -99,9 +99,13 @@ workflow all verified. Three open issues remain (2 Swift packaging, 1 cosmetic).
 **Status**: met
 
 - SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
+- Root `Package.swift` added for SPM URL resolution (mirrors subdirectory manifest with adjusted
+    paths)
 - 9 conformance test methods covering 50 vectors
 - CI job SUCCESS on macos-14
-- docs/howto/swift.md (425 lines), README, CLAUDE.md
+- docs/howto/swift.md updated with build-from-source instructions, README, CLAUDE.md
+- **Low-priority gap**: Native library not bundled (XCFramework) — documented build-from-source
+    workaround in place
 
 ## Kotlin Multiplatform Bindings
 
@@ -126,6 +130,7 @@ workflow all verified. Three open issues remain (2 Swift packaging, 1 cosmetic).
 - Language logos: 18 inline img tags from cdn.simpleicons.org
 - Installation and Quick Start sections for all 12 languages (Rust, Python, Ruby, Java, Go, Node.js,
     WASM, C#, C++, Swift, Kotlin, C/C++)
+- Swift section updated with build-from-source note and version 0.3.1
 - ISCC Architecture section, MainTypes table, Implementors Guide
 
 ## Per-Crate READMEs
@@ -157,34 +162,29 @@ workflow all verified. Three open issues remain (2 Swift packaging, 1 cosmetic).
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23387467886: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23387467886
+- **LATEST COMPLETED RUN** — run 23388354690: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23388354690
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
-- v0.3.1 released across all 8 registries (maven-kotlin to be exercised on next release)
+- v0.3.1 released across all 9 registries (maven-kotlin to be exercised on next release)
 - Release workflow has 8 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin
 - version_sync.py manages 15 sync targets
 
-## Open Issues (3 total)
+## Open Issues (2 total, both low)
 
-1. **Swift SPM install instructions incorrect** `normal` — Package.swift in subdirectory, SPM URL
-    won't resolve from repo root
-2. **Swift package does not vend native library** `normal` — linkedLibrary declared but no dylib
-    bundled; users get link failures
-3. **Language logos in docs** `low` — CID skips
+1. **Swift package does not vend native library** `low` — XCFramework distribution is future work;
+    build-from-source documented as workaround
+2. **Language logos in docs** `low` — CID skips
 
 ## Next Milestone
 
-**Address Swift packaging issues** — the two `normal` Swift issues are interconnected:
+**All remaining issues are `low` priority — CID should idle.** No `critical` or `normal` issues
+remain. All 12 language bindings are complete with passing CI.
 
-1. Fix native library vending (XCFramework binary target, build plugin, or documented
-    build-from-source)
-2. Fix SPM install instructions to match the chosen distribution approach
-3. These should be tackled together since the library distribution approach determines the install
-    instructions
+Remaining `low`-priority work (human-directed only):
 
-Secondary (lower priority):
-
+- Swift XCFramework binary distribution for zero-friction install
+- Language logos in docs howto headers
 - pytest-benchmark comparisons vs iscc-core (target spec mentions these)
 - Speedup factors in documentation

@@ -33,6 +33,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `.claude/context/specs/` — per-binding spec files
 - `packages/go/` — pure Go module (no WASM, no binary artifacts)
 - `packages/swift/` — SPM package with UniFFI-generated bindings (2400-line iscc_uniffi.swift)
+- `Package.swift` — **root manifest** for SPM URL resolution (mirrors packages/swift/ with adjusted
+    paths)
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
 - `.github/workflows/ci.yml` — **16 CI jobs**
@@ -57,13 +59,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review.
 - **Handoff predictions may be wrong**: always verify CI independently.
 
-## Current State (assessed-at: 105ed4d)
+## Current State (assessed-at: 5fbc111)
 
 - **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN
-- Latest CI run: 23387467886 (SUCCESS)
-- **Kotlin**: FULLY COMPLETE — scaffold, tests, CI, docs, release workflow all done
-- **3 open issues**: Swift SPM install, Swift native lib, language logos (low)
-- **Next**: Address Swift packaging issues (interconnected: native lib vending + install docs)
+- Latest CI run: 23388354690 (SUCCESS)
+- **All 12 language bindings complete**: scaffold, tests, CI, docs, release workflows
+- **2 open issues** (both `low`): Swift XCFramework, language logos in docs
+- **CID should idle**: no `critical` or `normal` issues remain
 - **Benchmark gaps**: No pytest-benchmark, no speedup factors in docs
 
 ## Gotchas
@@ -78,3 +80,5 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin release workflow**: Uses `useInMemoryPgpKeys` (env vars) instead of Java's GPG keyring;
     Central Portal upload via curl REST API (no Gradle plugin)
 - **mdformat trailing space bug**: inline code with trailing space triggers error
+- **Root Package.swift**: Two manifests coexist — SPM reads root for dependency resolution, CI uses
+    subdirectory. `from: "0.3.1"` only works after next release tag is cut
