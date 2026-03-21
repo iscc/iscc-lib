@@ -60,13 +60,12 @@ iterations.
 
 ## Swift XCFramework Implementation Plan
 
-Multi-step effort, tracked as normal-priority issue. Steps:
+Multi-step effort, tracked as normal-priority issue. Progress:
 
-1. Build script + root Package.swift restructure (in progress)
-2. Release workflow integration (build-xcframework job, force-update tag)
-3. CI integration (test with local XCFramework build)
-4. Docs/howto update
-5. Version sync for releaseTag/releaseChecksum
+1. ~~Build script + root Package.swift restructure~~ (DONE — iteration 2)
+2. Release workflow integration (build-xcframework job, force-update tag) — **in progress**
+3. Version sync for releaseTag in version_sync.py
+4. Docs/howto update (swift.md SPM install docs)
 
 Key constraints:
 
@@ -75,6 +74,8 @@ Key constraints:
 - Build script only runs on macOS (lipo, xcodebuild, ditto are macOS tools)
 - `cargo build -p iscc-uniffi` (not iscc-lib) produces `libiscc_uniffi.a`
 - Ferrostar pattern: `useLocalFramework` variable toggle, force-update tag for checksum
+- macOS sed uses `sed -E -i ''` (empty backup ext) — differs from GNU `sed -i`
+- `build-xcframework` job is independent (no `needs`) — builds from source on macOS
 
 ## Dev Environment Constraints
 
