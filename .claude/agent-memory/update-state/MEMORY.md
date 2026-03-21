@@ -25,7 +25,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **C# test count**: `grep -c "\[Fact\]" packages/dotnet/Iscc.Lib.Tests/SmokeTests.cs`
 - **C++ hpp symbol check**:
     `grep -n "^inline\|^struct\|^class\|// ---" packages/cpp/include/iscc/iscc.hpp`
-- **gen_llms_full.py page count**: `grep -c "^\s*\"" scripts/gen_llms_full.py` (ORDERED_PAGES list)
+- **gen_llms_full.py page count**: `grep -c "^\s*\"" scripts/gen_llms_full.py` (includes non-page
+    strings — actual ORDERED_PAGES count is 21)
 - **UniFFI export count**: Use Grep for `#\[uniffi::export\]` in `crates/iscc-uniffi/src/lib.rs`
 - **UniFFI test count**: Use Grep for `#\[test\]` in `crates/iscc-uniffi/src/lib.rs`
 - **Swift package check**: `ls packages/swift/Package.swift 2>&1`
@@ -36,6 +37,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **state.md Write workaround**: Write tool gets permission errors on state.md — use Python script
     via Bash tool instead: `python3 /tmp/write_state.py`
 - **Swift CI failure logs**: `gh run view <id> --log-failed 2>&1 | tail -100`
+- **CLAUDE.md files**: `ls packages/*/CLAUDE.md crates/*/CLAUDE.md 2>&1`
+- **Howto guides**: `ls docs/howto/*.md | sort`
 
 ## Codebase Landmarks
 
@@ -50,12 +53,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C#/.NET, C++, **Swift**)
 - `crates/iscc-uniffi/` — UniFFI scaffolding crate: 32 exports, 21 tests, `bindgen` feature for CLI;
     `publish = false`; proc macro approach; depends on uniffi 0.31, thiserror, iscc-lib
-- `docs/howto/` — **9 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
-    ruby.md, dotnet.md (no swift.md or kotlin.md yet)
-- `scripts/gen_llms_full.py` — **20 entries** in `ORDERED_PAGES`
+- `docs/howto/` — **10 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
+    ruby.md, dotnet.md, **swift.md** (no kotlin.md yet)
+- `scripts/gen_llms_full.py` — **21 entries** in `ORDERED_PAGES`
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
-    Iscc.Lib.csproj, vcpkg.json and conanfile.py (no Swift target yet)
+    Iscc.Lib.csproj, vcpkg.json and conanfile.py (**no Swift target yet**)
 - `crates/iscc-lib/benches/benchmarks.rs` — 277 lines; 12 benches in `criterion_group!`
+- **CLAUDE.md files**: 11 total (10 crates/packages + packages/swift/CLAUDE.md)
 
 ## Recurring Patterns
 
@@ -69,15 +73,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review
 
-## Current State (assessed-at: a518c5dc24dd67855df6b6b6c8a3be665484eab4)
+## Current State (assessed-at: 6988a92baaaae0c245211399ff247cbd8b664b73)
 
-- **IN_PROGRESS**: **15/15 CI jobs green** (run 23380398819)
+- **IN_PROGRESS**: **15/15 CI jobs green** (run 23381174052)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
-- **2 normal-priority issues** in issues.md: Swift bindings (in progress), Kotlin bindings (not
+- **2 normal-priority issues** in issues.md: Swift bindings (nearly done), Kotlin bindings (not
     started, depends on Swift)
-- **Swift CI fixed**: module name mismatch resolved by renaming SPM target to `iscc_uniffiFFI`
-- **Swift remaining**: docs/howto/swift.md, README sections, CLAUDE.md, version sync
-- **Next**: Complete Swift docs/integration → close Swift issue → begin Kotlin
+- **Swift nearly done**: docs/howto/swift.md, README sections, CLAUDE.md all added — only version
+    sync remains (scripts/version_sync.py has no Swift target)
+- **Next**: Complete Swift version sync → close Swift issue → begin Kotlin
 
 ## Gotchas
 
