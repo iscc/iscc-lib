@@ -101,13 +101,14 @@ iterations.
 
 ## Documentation Files
 
-- Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp,swift}.md`
+- Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp,swift,kotlin}.md`
 - API reference: `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`
 - Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`,
-    `packages/swift/README.md`
-- Per-package CLAUDE.md: `packages/dotnet/CLAUDE.md`, `packages/swift/CLAUDE.md`
+    `packages/swift/README.md`, `packages/kotlin/README.md`
+- Per-package CLAUDE.md: `packages/dotnet/CLAUDE.md`, `packages/swift/CLAUDE.md`,
+    `packages/kotlin/CLAUDE.md`
 - zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++,
-    Swift
+    Swift, Kotlin
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` files. Uses
     `ORDERED_PAGES` list + auto-discovery (`discover_pages()`). Excludes `docs/includes/`. Run after
     `zensical build` in docs CI pipeline
@@ -193,7 +194,7 @@ iterations.
 - JNA native lib loading: `java.library.path` alone is NOT sufficient for JNA `Native.register()`.
     Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
 - Conformance tests: `ConformanceTest.kt` — 9 test methods, 50 vectors. JUnit 5 + Gson for JSON
-- Test deps: JUnit 5.11.4, Gson 2.8.9 (version available in devcontainer cache)
+- Test deps: JUnit 5.11.4, Gson 2.11.0 (`com.google.code.gson` groupId, NOT `com.google.gson`)
 
 ## Gotchas
 

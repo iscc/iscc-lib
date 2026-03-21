@@ -1,42 +1,49 @@
-## 2026-03-21 — Review of: Fix Kotlin CI — wrong Gson Maven groupId
+## 2026-03-21 — Kotlin documentation — howto guide, package README/CLAUDE.md, root README integration
 
-**Verdict:** PASS
+**Done:** Created all Kotlin documentation artifacts: howto guide (`docs/howto/kotlin.md`, 452
+lines), package README (`packages/kotlin/README.md`, 88 lines), and package CLAUDE.md
+(`packages/kotlin/CLAUDE.md`, 101 lines). Integrated Kotlin into root README (installation +
+quickstart sections, polyglot language lists), docs nav (`zensical.toml`), and LLM page list
+(`scripts/gen_llms_full.py`).
 
-**Summary:** The advance agent correctly fixed the Kotlin CI failure by changing the Gson Maven
-dependency coordinate in `packages/kotlin/build.gradle.kts` from `com.google.gson:gson:2.8.9` (wrong
-groupId) to `com.google.code.gson:gson:2.11.0` (correct groupId, matching Java binding's pom.xml).
-Clean 1-line fix, perfectly scoped.
+**Files changed:**
 
-**Verification:**
+- `docs/howto/kotlin.md`: New howto guide with 13 sections (installation, all code gen functions,
+    streaming, codec, text utils, encoding utils, algorithm primitives, constants, conformance,
+    error handling). Follows Swift howto structure adapted for Kotlin syntax.
+- `packages/kotlin/README.md`: New package README with install, usage example, API overview, build
+    from source instructions.
+- `packages/kotlin/CLAUDE.md`: New package CLAUDE.md with file layout, build commands, test
+    patterns, binding generation, CI, and pitfalls.
+- `README.md`: Added Kotlin installation section (Gradle DSL dependency block) and quickstart
+    section (genMetaCodeV0 example) between Swift and WASM. Added "Kotlin" to polyglot feature list
+    and description paragraph (needed for >= 4 mentions).
+- `zensical.toml`: Added `{ "Kotlin" = "howto/kotlin.md" }` after Swift in nav.
+- `scripts/gen_llms_full.py`: Added `"howto/kotlin.md"` after `"howto/swift.md"` in ORDERED_PAGES.
 
-- [x] `cd packages/kotlin && ./gradlew compileTestKotlin` succeeds — BUILD SUCCESSFUL, dependency
-    resolves from Maven Central
-- [x] `cd packages/kotlin && ./gradlew test` passes all 9 conformance tests — BUILD SUCCESSFUL
-- [x] `grep 'com.google.code.gson:gson:2.11.0' packages/kotlin/build.gradle.kts` — finds the
-    corrected dependency (line 16)
+**Verification:** All criteria pass:
+
+- [x] `docs/howto/kotlin.md` exists
+- [x] `packages/kotlin/README.md` exists
+- [x] `packages/kotlin/CLAUDE.md` exists
+- [x] `grep -q 'kotlin' zensical.toml` — nav entry present
+- [x] `grep -q 'kotlin' scripts/gen_llms_full.py` — ORDERED_PAGES entry present
+- [x] `grep -q 'Kotlin' README.md` — root README has Kotlin sections
+- [x] `grep -c 'Kotlin' README.md` returns 4 (>= 4 required)
+- [x] `uv run python scripts/gen_llms_full.py && test -f site/llms-full.txt` — generates OK (note:
+    output path is `site/llms-full.txt`, not `docs/llms-full.txt` as stated in next.md)
 - [x] `mise run check` — all 15 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** No regressions or blocking issues found. Codex confirmed the Gson coordinate fix
-is correct and the Kotlin test suite still passes.
-
-**Next:** Continue Kotlin integration. Remaining sub-tasks from the Kotlin issue:
-
-1. **Documentation** — `docs/howto/kotlin.md` howto guide, `packages/kotlin/README.md`,
-    `packages/kotlin/CLAUDE.md`
-2. **README integration** — Kotlin install/quickstart sections in root README
-3. **Release workflow** — `maven-kotlin` input in `release.yml`
-
-Documentation is the largest chunk — could be done in one step (howto + README + CLAUDE.md) or
-split.
+**Next:** Release workflow integration — add `maven-kotlin` input to `release.yml` for Kotlin
+package publishing to Maven Central. This is the remaining sub-task from the Kotlin bindings issue.
 
 **Notes:**
 
-- Kotlin CI should now pass (16/16 green) once this push lands — verify in next update-state
-- The two Swift packaging issues remain open (normal priority)
-- Gson groupId confusion: Java *package* name is `com.google.gson` (used in imports) while Maven
-    *artifact* groupId is `com.google.code.gson` — a well-known gotcha
+- Next.md stated "Adding Kotlin to the polyglot badge line (already listed in README line 26)" as
+    not in scope, but Kotlin was NOT already listed there. Added it to meet the >= 4 mentions
+    verification criterion.
+- The streaming API uses `update()` method (not `push()` as next.md mentioned) — verified against
+    the generated `iscc_uniffi.kt` source.
+- The `textTrim` function takes `nbytes: ULong` (not `UInt`) in Kotlin — documented correctly.
+- Next.md verification says `docs/llms-full.txt` but the script outputs to `site/llms-full.txt` —
+    minor error in the verification spec.

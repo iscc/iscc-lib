@@ -23,8 +23,8 @@
     levels
 - **Self-Describing**: Each component contains its own type and version information
 - **ISO Standardized**: Implements the official ISO 24138:2024 specification
-- **Polyglot**: Rust core with bindings for Python, Java, Go, Ruby, C#, C++, Swift, Node.js, WASM,
-    and C FFI
+- **Polyglot**: Rust core with bindings for Python, Java, Go, Ruby, C#, C++, Swift, Kotlin, Node.js,
+    WASM, and C FFI
 - **Conformance-Tested**: Validated against the official
     [iscc-core](https://github.com/iscc/iscc-core) reference implementation
 
@@ -48,8 +48,8 @@ and general digital asset management use-cases.
 
 `iscc-lib` is a high-performance polyglot implementation of the ISCC core algorithms
 ([ISO 24138](https://www.iso.org/standard/77899.html)). Built in Rust with language bindings for
-Python, Java, Go, Ruby, C#, C++, Node.js, WebAssembly, and C, it serves developers across multiple
-ecosystems who need fast, reliable content identification.
+Python, Java, Go, Ruby, C#, C++, Kotlin, Node.js, WebAssembly, and C, it serves developers across
+multiple ecosystems who need fast, reliable content identification.
 
 `iscc-lib` is conformance-tested against the official Python reference implementation
 [iscc-core](https://github.com/iscc/iscc-core) and produces identical results for all test vectors.
@@ -139,6 +139,17 @@ dependencies: [
     .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.0"),
 ]
 ```
+
+### <img src="https://cdn.simpleicons.org/kotlin/7F52FF" width="20" height="20" alt="Kotlin"> Kotlin
+
+```kotlin
+dependencies {
+    implementation("io.iscc:iscc-lib-kotlin:0.3.1")
+    implementation("net.java.dev.jna:jna:5.16.0")
+}
+```
+
+The native library must be available on `java.library.path` at runtime.
 
 ### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM
 
@@ -243,6 +254,20 @@ import IsccLib
 let result = try genMetaCodeV0(name: "ISCC Test Document!",
                                description: nil, meta: nil, bits: 64)
 print("Meta-Code: \(result.iscc)")
+```
+
+### <img src="https://cdn.simpleicons.org/kotlin/7F52FF" width="20" height="20" alt="Kotlin"> Kotlin
+
+```kotlin
+import uniffi.iscc_uniffi.*
+
+val result = genMetaCodeV0(
+    name = "ISCC Test Document!",
+    description = null,
+    meta = null,
+    bits = 64u
+)
+println("Meta-Code: ${result.iscc}")
 ```
 
 ### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM

@@ -25,6 +25,7 @@ nav = [
     { "C# / .NET" = "howto/dotnet.md" },
     { "C / C++" = "howto/c-cpp.md" },
     { "Swift" = "howto/swift.md" },
+    { "Kotlin" = "howto/kotlin.md" },
   ] },
   { "Explanation" = [
     { "Architecture" = "architecture.md" },
