@@ -181,6 +181,14 @@ fully-met target sections to `learnings-archive.md`.
     Fix: add `[tool.ty.src] exclude = ["path/to/file.py"]` in `pyproject.toml`. This is appropriate
     scope exclusion, not gate circumvention
 
+## UniFFI Bindings
+
+- `crates/iscc-uniffi/` uses proc macros only — no UDL files, no `build.rs`. `uniffi.toml` only
+    needed for binding gen customization, not compilation
+- UniFFI requires owned types (`String`, `Vec<u8>`), no `usize` or `const` exports — use `u64` for
+    sizes and getter functions for constants
+- UniFFI Objects need `Send + Sync` — use `Mutex<Option<Inner>>` (not `RefCell`)
+
 ## CID Process
 
 - **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current
