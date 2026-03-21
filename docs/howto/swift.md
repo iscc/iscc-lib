@@ -32,32 +32,24 @@ Then add `"IsccLib"` to your target's dependencies:
 )
 ```
 
-### Build the native library
+??? tip "Build from source"
 
-The Swift package depends on a native Rust library (`libiscc_uniffi`) that must be built from source
-and linked at build time. Pre-built XCFramework distribution is planned for a future release.
+    To build from source instead of using the prebuilt XCFramework:
 
-```bash
-# Clone the repository and build the native library
-git clone https://github.com/iscc/iscc-lib.git
-cd iscc-lib
-cargo build -p iscc-uniffi --release
-```
+    ```bash
+    # Clone and build the native library
+    git clone https://github.com/iscc/iscc-lib.git
+    cd iscc-lib
 
-Then point the Swift linker at the build output when building your project:
+    # Build the XCFramework (macOS only)
+    ./scripts/build_xcframework.sh
 
-```bash
-swift build -Xlinker -L/path/to/iscc-lib/target/release
-```
+    # Or build just the native library for local development
+    cargo build -p iscc-uniffi --release
+    ```
 
-The native library (`libiscc_uniffi.so` on Linux, `libiscc_uniffi.dylib` on macOS) must also be
-available at runtime. Use `-Xlinker -rpath` to embed the library search path:
-
-```bash
-swift build \
-    -Xlinker -L/path/to/iscc-lib/target/release \
-    -Xlinker -rpath -Xlinker /path/to/iscc-lib/target/release
-```
+    Then toggle `useLocalFramework = true` in the root `Package.swift` and reference the local package
+    in your project.
 
 ## Code generation
 

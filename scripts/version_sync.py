@@ -16,6 +16,7 @@ Synced targets:
 - `packages/cpp/conanfile.py` — Conan recipe version
 - `mise.toml` — default `--version` flag for test_install task
 - `scripts/test_install.py` — fallback version for registry checks
+- Package.swift — SPM release tag version
 - Maven/Gradle version snippets in docs and READMEs
 
 Usage:
@@ -210,6 +211,22 @@ def _sync_conanfile(text, version):
     )
 
 
+def _get_package_swift_release_tag(text):
+    """Extract releaseTag version from root Package.swift."""
+    m = re.search(r'releaseTag\s*=\s*"(\d+\.\d+\.\d+)"', text)
+    return m.group(1) if m else ""
+
+
+def _sync_package_swift_release_tag(text, version):
+    """Update releaseTag version in root Package.swift."""
+    return re.sub(
+        r'(releaseTag\s*=\s*")\d+\.\d+\.\d+(")',
+        rf"\g<1>{version}\2",
+        text,
+        count=1,
+    )
+
+
 def _get_maven_doc_version(text):
     """Extract Maven dependency version from a doc/README file."""
     m = MAVEN_DEP_RE.search(text)
@@ -244,6 +261,7 @@ TARGETS = [
     ("packages/dotnet/Iscc.Lib/Iscc.Lib.csproj", _get_csproj_version, _sync_csproj),
     ("packages/cpp/vcpkg.json", _get_package_json_version, _sync_package_json),
     ("packages/cpp/conanfile.py", _get_conanfile_version, _sync_conanfile),
+    ("Package.swift", _get_package_swift_release_tag, _sync_package_swift_release_tag),
     ("README.md", _get_maven_doc_version, _sync_maven_doc),
     ("crates/iscc-jni/README.md", _get_maven_doc_version, _sync_maven_doc),
     ("docs/howto/java.md", _get_maven_doc_version, _sync_maven_doc),

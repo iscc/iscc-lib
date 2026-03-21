@@ -1,57 +1,32 @@
-## 2026-03-21 — Review of: Add Swift XCFramework build-and-publish job to release workflow
+## 2026-03-21 — Add Package.swift version sync and update Swift install docs
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Added `Package.swift` `releaseTag` as the 16th version sync target in
+`scripts/version_sync.py`, and replaced the manual native library build section in
+`docs/howto/swift.md` with a collapsible "Build from source" tip following the dotnet pattern.
 
-**Summary:** Clean, well-scoped YAML addition. The `build-xcframework` job and `swift` input
-faithfully follow the spec's YAML snippet in `swift-bindings.md`. All 10 verification criteria pass,
-all 15 pre-commit hooks pass, clippy clean. One advisory note: the `--ref main` re-trigger
-convention won't work for this job (see issues.md).
+**Files changed:**
 
-**Verification:**
+- `scripts/version_sync.py`: Added `_get_package_swift_release_tag` /
+    `_sync_package_swift_release_tag` functions, added TARGETS entry for `Package.swift`, updated
+    module docstring to mention Package.swift
+- `docs/howto/swift.md`: Replaced lines 35-60 (manual "Build the native library" section with
+    cargo/linker instructions and "planned for a future release" text) with collapsible
+    `??? tip "Build from source"` admonition pointing to `build_xcframework.sh` and
+    `useLocalFramework` toggle
 
-- [x] YAML valid (`uv run python -c "import yaml; yaml.safe_load(...)"` exits 0)
-- [x] `swift:` input present
-- [x] `build-xcframework` job name present
-- [x] `build_xcframework.sh` script invoked
-- [x] `swift package compute-checksum` step present
-- [x] `force` tag update present
-- [x] `IsccLib.xcframework.zip` artifact name correct
-- [x] `contents: write` permission present
-- [x] 9 boolean inputs (was 8, now +1 for swift)
-- [x] `mise run check` — all 15 pre-commit hooks pass
+**Verification:** All 5 criteria pass:
 
-**Issues found:**
+- `uv run scripts/version_sync.py --check` exits 0 — 16 targets all match (was 15)
+- `grep -c "Package.swift" scripts/version_sync.py` returns 4 (≥2: docstring + TARGETS entry + 2
+    function names)
+- `grep "planned for a future release" docs/howto/swift.md` returns no matches (old text removed)
+- `grep "Build from source" docs/howto/swift.md` returns a match (new collapsible section present)
+- `mise run check` passes — all 15 pre-commit hooks green
 
-- Advisory: `build-xcframework` uses `GITHUB_REF_NAME` for version extraction, unlike all other
-    release jobs which use `Cargo.toml`. Manual re-trigger with `--ref main -f swift=true` would set
-    `releaseTag` to `main` and try to tag the branch name. Added to issues.md for resolution.
+**Next:** The Swift vend issue in issues.md can be closed after this is merged. Remaining work
+items: the `GITHUB_REF_NAME` bug in the Swift release job (filed in issues.md, marked HUMAN REVIEW
+REQUESTED) is out of scope for this step and requires a spec update.
 
-**Codex review:** Three findings, all evaluated:
-
-1. **P1** (checkout `ref: main` instead of tag): Intentional per spec — Ferrostar pattern. Tags are
-    always on `main` in this project. The force-update tag step ensures consistency. Dismissed.
-2. **P1** (`workflow_dispatch` from branch breaks): Valid. `GITHUB_REF_NAME` is the branch name when
-    dispatched from `--ref main`, making version/tag operations fail. Filed as issue.
-3. **P2** (cache key misses `build_xcframework.sh`): Valid minor point. Spec-faithful implementation
-    — the spec's cache key only includes Rust sources and Cargo.lock. Low risk since build script
-    changes are rare and would typically accompany Rust source changes. Advisory only.
-
-**Next:** Two remaining steps for Swift XCFramework completion:
-
-1. **Version sync** (higher priority): Add `releaseTag` to `version_sync.py` so version bumps
-    propagate to root `Package.swift`. This is target 16.
-2. **Docs update**: Update `docs/howto/swift.md` to document zero-friction SPM install using the
-    binary target pattern.
-
-After both: the Swift vend issue can be closed. Also consider fixing the `--ref main` re-trigger
-convention for the Swift release job (derive version from Cargo.toml instead of GITHUB_REF_NAME).
-
-**Notes:**
-
-- The Swift vend issue in issues.md stays open — release workflow integration is done but version
-    sync and docs update remain
-- Release input count is now 9 (was 8). State.md will need updating to reflect this
-- The cache path `target/ios/IsccLib.xcframework.zip` correctly matches the build script output
-    (spec had `IsccLib.xcframework.zip` in the root — implementation improved this)
-- `Swatinem/rust-cache@v2` added per spec's caching strategy section (not in the YAML snippet but
-    called for in the prose)
+**Notes:** mdformat auto-rewrapped a long line in the collapsible section (line 51-52) — normal
+behavior, no manual intervention needed. No tests needed for this step (Python script changes are
+verified by `--check` mode; docs changes are verified by grep).

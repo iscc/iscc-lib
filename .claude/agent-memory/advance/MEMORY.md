@@ -41,8 +41,8 @@ iterations.
 - `version-check` job: lightweight (checkout + setup-python only), runs
     `python scripts/version_sync.py --check` to catch manifest version drift
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
-- Version sync: `scripts/version_sync.py` — 15 targets (incl. Swift, Kotlin). `--check` mode exits 1
-    on mismatch
+- Version sync: `scripts/version_sync.py` — 16 targets (incl. Swift Constants, Package.swift
+    releaseTag, Kotlin). `--check` mode exits 1 on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
 - Release workflow (`release.yml`): 9 inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift). Pattern: boolean input → build job → **smoke test job** → publish job
