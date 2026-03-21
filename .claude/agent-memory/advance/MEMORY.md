@@ -119,10 +119,13 @@ iterations.
 
 ## Documentation Files
 
-- Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp}.md`
+- Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp,swift}.md`
 - API reference: `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`
-- Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`
-- zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++
+- Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`,
+    `packages/swift/README.md`
+- Per-package CLAUDE.md: `packages/dotnet/CLAUDE.md`, `packages/swift/CLAUDE.md`
+- zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++,
+    Swift
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` files. Uses
     `ORDERED_PAGES` list + auto-discovery (`discover_pages()`). Excludes `docs/includes/`. Run after
     `zensical build` in docs CI pipeline

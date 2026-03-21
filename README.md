@@ -23,8 +23,8 @@
     levels
 - **Self-Describing**: Each component contains its own type and version information
 - **ISO Standardized**: Implements the official ISO 24138:2024 specification
-- **Polyglot**: Rust core with bindings for Python, Java, Go, Ruby, C#, C++, Node.js, WASM, and C
-    FFI
+- **Polyglot**: Rust core with bindings for Python, Java, Go, Ruby, C#, C++, Swift, Node.js, WASM,
+    and C FFI
 - **Conformance-Tested**: Validated against the official
     [iscc-core](https://github.com/iscc/iscc-core) reference implementation
 
@@ -130,6 +130,16 @@ Pre-built release tarballs are attached to each
 [GitHub Release](https://github.com/iscc/iscc-lib/releases). Download for your platform — includes
 shared library, static library, `iscc.h` header, and `iscc.hpp` C++ wrapper.
 
+### <img src="https://cdn.simpleicons.org/swift/F05138" width="20" height="20" alt="Swift"> Swift
+
+Add the package dependency to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.0"),
+]
+```
+
 ### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM
 
 ```bash
@@ -223,6 +233,16 @@ int main() {
     auto result = iscc::gen_meta_code_v0("ISCC Test Document!");
     std::cout << "Meta-Code: " << result.iscc << std::endl;
 }
+```
+
+### <img src="https://cdn.simpleicons.org/swift/F05138" width="20" height="20" alt="Swift"> Swift
+
+```swift
+import IsccLib
+
+let result = try genMetaCodeV0(name: "ISCC Test Document!",
+                               description: nil, meta: nil, bits: 64)
+print("Meta-Code: \(result.iscc)")
 ```
 
 ### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM

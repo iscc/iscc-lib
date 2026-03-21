@@ -1,39 +1,42 @@
-## 2026-03-21 — Review of: Fix Swift CI module name mismatch
+## 2026-03-21 — Swift documentation and README integration
 
-**Verdict:** PASS
+**Done:** Created Swift howto guide (`docs/howto/swift.md`) covering all 10 gen functions, streaming
+hashers, codec operations, text/encoding utilities, algorithm primitives, constants, conformance
+testing, and error handling. Created `packages/swift/CLAUDE.md` with package role, file layout,
+build commands, test patterns, CI notes, and common pitfalls. Added Swift to README.md
+(installation, quick start, Key Features polyglot list), zensical.toml nav, and gen_llms_full.py
+ORDERED_PAGES.
 
-**Summary:** The advance agent correctly renamed the SPM FFI target from `IsccLibFFI` to
-`iscc_uniffiFFI` across directory name, `Package.swift`, and `module.modulemap`. The fix is minimal,
-focused, and addresses the exact root cause of the failing Swift CI job (silent conditional import
-failure due to module name mismatch).
+**Files changed:**
 
-**Verification:**
+- `docs/howto/swift.md`: New file — full Swift howto guide (25 sections, matches dotnet.md
+    structure)
+- `packages/swift/CLAUDE.md`: New file — per-package agent docs for Swift bindings
+- `README.md`: Added Swift installation (SPM Package.swift snippet), quick start example, and
+    "Swift" to polyglot language list
+- `zensical.toml`: Added `{ "Swift" = "howto/swift.md" }` after C / C++ in How-to Guides nav
+- `scripts/gen_llms_full.py`: Added `"howto/swift.md"` after `"howto/c-cpp.md"` in ORDERED_PAGES
 
-- [x] `grep -c 'iscc_uniffiFFI' packages/swift/Package.swift` → 3 — PASS
-- [x] `grep -c 'IsccLibFFI' packages/swift/Package.swift` → 0 — PASS
-- [x] `head -1 .../module.modulemap` → `module iscc_uniffiFFI {` — PASS
-- [x] `test -d packages/swift/Sources/iscc_uniffiFFI` → exists — PASS
-- [x] `test ! -d packages/swift/Sources/IsccLibFFI` → gone — PASS
-- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
-- [x] `mise run check` — 15/15 hooks pass
+**Verification:** All 9 verification criteria pass:
 
-**Issues found:**
+- `test -f docs/howto/swift.md` — PASS
+- `test -f packages/swift/CLAUDE.md` — PASS
+- `grep -q 'Swift' zensical.toml` — PASS
+- `grep -q 'howto/swift.md' zensical.toml` — PASS
+- `grep -q 'howto/swift.md' scripts/gen_llms_full.py` — PASS
+- `grep -q 'swift' README.md` — PASS
+- `grep -q 'genMetaCodeV0' docs/howto/swift.md` — PASS
+- `grep -q 'DataHasher' docs/howto/swift.md` — PASS
+- `grep -c '##' docs/howto/swift.md` → 25 (≥ 10) — PASS
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
+- `mise run check` — 15/15 hooks pass
 
-- (none)
+**Next:** Swift documentation is complete. The remaining Swift gap is version sync integration
+(`Constants.swift` + `scripts/version_sync.py`), which was explicitly out of scope. After that, the
+Swift issue can be closed and Kotlin bindings work can begin.
 
-**Codex review:** Codex timed out (~2 min wait on a trivial 3-line rename diff). Skipped — manual
-review is comprehensive for this scope.
-
-**Next:** Push will trigger CI — the Swift job on `macos-14` should now pass since the module name
-matches the UniFFI-generated `#if canImport(iscc_uniffiFFI)`. If CI is green (all 15 jobs), the next
-work package should be **Swift docs + README integration**: `docs/howto/swift.md` how-to guide,
-README Swift install/quickstart tab, `packages/swift/CLAUDE.md`, and version sync for
-`Constants.swift`. After Swift is fully complete, close the Swift issue and begin Kotlin bindings.
-
-**Notes:**
-
-- The last CI run (23379967641) failed on the Swift job due to this exact module name mismatch. This
-    push should fix it
-- No source code references to the old `IsccLibFFI` name remain in the codebase (only context/memory
-    files describing the fix)
-- State.md still describes the pre-fix state — update-state will reconcile after CI results
+**Notes:** Swift API uses all free functions (not methods on a class), Data type for binary data,
+and getter functions for constants. The howto guide accurately reflects the actual UniFFI-generated
+API signatures from `iscc_uniffi.swift`. The `InstanceCodeResult` struct has `datahash` and
+`filesize` fields (unlike the C#/.NET version which only has `iscc`) — this matches the actual
+UniFFI binding definition.
