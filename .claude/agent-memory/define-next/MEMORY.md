@@ -34,6 +34,20 @@ iterations.
 - `gen_iscc_code_v0` test vectors have no `wide` parameter — always pass `false`
 - `"stream:<hex>"` prefix denotes hex-encoded byte data for Data/Instance-Code tests
 
+## UniFFI Scaffolding (Swift/Kotlin foundation)
+
+- UniFFI v0.31.0 is the latest stable version (checked 2026-03-21)
+- Proc macro approach: `#[uniffi::export]`, `#[derive(uniffi::Record)]`, `#[derive(uniffi::Object)]`
+    — no UDL files or `build.rs` needed
+- `uniffi::setup_scaffolding!()` required at crate root
+- Key type constraints: no `usize` (use `u64`), no borrowed types (use owned `String`, `Vec<u8>`),
+    no generics on exported functions (use concrete types like `Vec<Vec<i32>>`)
+- Constants must be wrapped as getter functions — UniFFI can't export `const` directly
+- Streaming types use `Mutex<Option<Inner>>` pattern for interior mutability with `&self` methods
+- `crate-type = ["cdylib", "staticlib", "lib"]` needed for both dynamic and static linking
+- Swift bindings step sequence: UniFFI crate -> binding generation -> Swift package -> CI -> docs
+- Kotlin depends on Swift (shares UniFFI crate), so Swift must be done first
+
 ## Conformance Vector Loader Differences (critical for data.json updates)
 
 - **Rust core** (`conformance.rs`): Uses `serde_json::Value`, auto-discovers new vectors.
@@ -49,10 +63,11 @@ iterations.
 
 ## Project Status
 
-- **All 8 bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++)
-- v0.2.0 released, 14 CI jobs green
-- **1 normal-priority issue remains**: Language logos in README/docs — cosmetic
-- After logos, only `low`-priority items remain (Swift/Kotlin) — CID loop will go idle
+- **All 8 existing bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET,
+    C++)
+- v0.3.1 released, 14 CI jobs green
+- **2 normal-priority issues**: Swift bindings (not started), Kotlin bindings (depends on Swift)
+- CID loop now working on Swift/Kotlin via UniFFI
 
 ## Version Sync Script Patterns
 
@@ -65,20 +80,11 @@ iterations.
 
 ## CI/Release Patterns
 
-- v0.2.0 released to all registries
+- v0.3.1 released to all registries
 - Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
 - 6 smoke test jobs gate 6 publish jobs in release.yml
 - FFI tarball staging: Unix uses `cp` + `tar czf`, Windows uses `Copy-Item` + `Compress-Archive`
-
-## FFI Tarball Layout (for vcpkg portfile AND Conan recipe)
-
-- Tarballs named `iscc-ffi-v{VERSION}-{TARGET}.tar.gz` (5 platforms, `.zip` for Windows)
-- Flat layout inside `iscc-ffi-v{ver}-{target}/`: `iscc.hpp`, `iscc.h`,
-    `libiscc_ffi.so`/`.dylib`/`.dll`, static lib, `LICENSE`
-- 5 targets: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin,
-    x86_64-apple-darwin, x86_64-pc-windows-msvc
-- `conanfile.py` is excluded from `ty check` in `pyproject.toml` (conan not a project dep)
 
 ## Gotchas
 
@@ -91,12 +97,3 @@ iterations.
 
 - When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
     must be updated (Rust core + WASM)
-
-## Conan 2.x Pre-Built Binary Pattern
-
-- `source()` has no `self.settings` access — platform-specific downloads must go in `build()`
-- Use `conan.tools.files.download` + `conan.tools.files.unzip` (not urllib/zipfile)
-- Drop `exports_sources`, `generators`, `compiler`/`build_type` settings for pre-built recipes
-- Keep `os` + `arch` settings for platform mapping
-- Windows DLLs go in `bin/`, import libs in `lib/`; Unix shared libs go in `lib/`
-- No Conan CLI in dev environment — verification via syntax check + grep patterns
