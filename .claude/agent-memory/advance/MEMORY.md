@@ -44,11 +44,13 @@ iterations.
 - Version sync: `scripts/version_sync.py` — 15 targets (incl. Swift, Kotlin). `--check` mode exits 1
     on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
-- Release workflow (`release.yml`): 7 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems,
-    nuget). Pattern: boolean input → build job → **smoke test job** → publish job (version-exists
-    skip). 7 smoke test jobs gate publish. NuGet reuses `build-ffi` artifacts (shared `if` condition
-    `inputs.ffi || inputs.nuget`), then `pack-nuget` → `test-nuget` → `publish-nuget`. NuGet uses
-    `NUGET_API_KEY` secret (not OIDC). Ruby uses `GEM_HOST_API_KEY` for auth (not OIDC)
+- Release workflow (`release.yml`): 8 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems,
+    nuget, maven-kotlin). Pattern: boolean input → build job → **smoke test job** → publish job
+    (version-exists skip). NuGet uses `NUGET_API_KEY` secret (not OIDC). Ruby uses OIDC
+- Kotlin Maven Central: `build-kotlin-native` (5-platform matrix) → `assemble-kotlin` +
+    `test-kotlin-release` → `publish-maven-kotlin`. Publish uses Gradle `maven-publish` to local
+    staging dir + curl bundle upload to Sonatype Central Portal REST API. Signing via
+    `useInMemoryPgpKeys` (env vars `SIGNING_KEY`/`SIGNING_PASSWORD`)
 
 ## WASM/WASI
 
@@ -86,18 +88,10 @@ iterations.
 - `docs/architecture.md` and `docs/development.md` share identical trees — keep in sync
 - All 5 Reference pages complete: Rust API, Python API, C FFI, Java API, Ruby API
 
-## Binding Constant Export Patterns
+## Binding Constant Export Patterns — see MEMORY-archive.md for per-binding details
 
-- NAPI: `#[napi(js_name = "CONST_NAME")] pub const CONST_NAME: u32 = iscc_lib::CONST_NAME as u32;`
-- WASM: `#[wasm_bindgen(js_name = "CONST_NAME")] pub fn const_name() -> u32 { ... }` (getter fn, not
-    const — wasm-bindgen limitation)
-- C FFI: `#[unsafe(no_mangle)] pub extern "C" fn iscc_const_name() -> u32 { ... }` + inline
-    `#[test]` in same file. cbindgen auto-generates the C header
-- NAPI JS tests: `describe('CONST_NAME', () => { it('equals X'); it('is a number'); })`
-- WASM tests: `#[wasm_bindgen_test]` in `tests/unit.rs` (requires wasm-pack to run)
-- C tests: `ASSERT_EQ(iscc_const_name(), value, "label")` in `tests/test_iscc.c`
-- 5 constants currently exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
-    IO_READ_SIZE, TEXT_NGRAM_SIZE
+- 5 constants exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META, IO_READ_SIZE,
+    TEXT_NGRAM_SIZE
 
 ## Documentation Files
 
@@ -137,19 +131,10 @@ iterations.
 - Streaming: `RefCell<Option<inner>>` for one-shot finalize. `_` prefix for methods, NOT class names
 - Linting: Standard Ruby + rubocop-minitest. Pre-commit hook needs portable PATH for `bundle`
 
-## .NET Bindings (P/Invoke) — Summary (details in MEMORY-archive.md)
+## .NET / C++ Bindings — see MEMORY-archive.md for full details
 
-- Package: `packages/dotnet/Iscc.Lib/` + `packages/dotnet/Iscc.Lib.Tests/`
-- 32/32 Tier 1 symbols. P/Invoke over `iscc_ffi` shared library
-- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` (absolute, not relative)
-- CI: `actions/setup-dotnet@v4`, `dotnet-version: '8.0'`
-- Empty span fix for 7 functions (same pattern as C++ `safe_data`)
-
-## C++ Bindings (Header-Only) — see MEMORY-archive.md for full details
-
-- `packages/cpp/` — header-only C++17, depends on `iscc-ffi`. CMake build + ASAN tests
-- `detail::safe_data()` returns non-null sentinel for empty vectors (C FFI rejects nullptr)
-- Package manager manifests: `vcpkg.json` + `portfile.cmake` + `conanfile.py`
+- .NET: `packages/dotnet/` — P/Invoke over `iscc_ffi`, 32/32 Tier 1 symbols, `dotnet-version: 8.0`
+- C++: `packages/cpp/` — header-only C++17, depends on `iscc-ffi`, CMake + ASAN tests
 
 ## UniFFI Bindings (Swift/Kotlin)
 
@@ -195,6 +180,12 @@ iterations.
     Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
 - Conformance tests: `ConformanceTest.kt` — 9 test methods, 50 vectors. JUnit 5 + Gson for JSON
 - Test deps: JUnit 5.11.4, Gson 2.11.0 (`com.google.code.gson` groupId, NOT `com.google.gson`)
+- Maven Central publishing: `build.gradle.kts` has `maven-publish` + `signing` plugins, POM with
+    `io.iscc:iscc-lib-kotlin`. Staging repo at `build/staging-deploy/`. Central Portal bundle upload
+    via curl (`https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC`)
+- JNA resource paths for bundled native libs: `linux-x86-64`, `linux-aarch64`, `darwin-aarch64`,
+    `darwin-x86-64`, `win32-x86-64` (matches JNA `Platform.RESOURCE_PREFIX`). JNA discovers libs
+    from classpath even when `jna.library.path` points to a missing directory
 
 ## Gotchas
 

@@ -1,48 +1,50 @@
-## 2026-03-21 — Review of: Kotlin documentation — howto guide, package README/CLAUDE.md, root README integration
+## 2026-03-21 — Add maven-kotlin release workflow for Kotlin package publishing
 
-**Verdict:** PASS
+**Done:** Added `maven-kotlin` boolean input to `release.yml` with 4 jobs (build-kotlin-native,
+assemble-kotlin, test-kotlin-release, publish-maven-kotlin) following the existing Java Maven
+Central pattern. Updated `build.gradle.kts` with `maven-publish` and `signing` plugins, POM
+metadata, sources/javadoc JARs, and Sonatype Central Portal publishing via bundle upload.
 
-**Summary:** All Kotlin documentation artifacts created correctly — 451-line howto guide, 89-line
-package README, 101-line package CLAUDE.md. Root README integration (install + quickstart sections),
-zensical.toml nav entry, and gen_llms_full.py entry all verified. API names, types, and signatures
-in the howto match the generated `iscc_uniffi.kt` bindings. Minor fix applied: added
-`jna.library.path` to README library path notes (found by Codex review).
+**Files changed:**
+
+- `.github/workflows/release.yml`: Added `maven-kotlin` input + 4 new jobs (~180 lines). Build job
+    compiles `iscc-uniffi` for 5 platforms. Assemble job bundles native libs as JNA resources in
+    JAR. Test job smoke-tests linux-x86-64. Publish job stages signed artifacts then uploads bundle
+    to Central Portal REST API via curl.
+- `packages/kotlin/build.gradle.kts`: Added `maven-publish` and `signing` plugins,
+    `java { withSourcesJar(); withJavadocJar() }`, publishing block with Maven POM metadata (groupId
+    `io.iscc`, artifactId `iscc-lib-kotlin`), local staging repository, and in-memory PGP key
+    signing (env-var driven, skipped for local builds).
 
 **Verification:**
 
-- [x] `test -f docs/howto/kotlin.md` — howto guide exists (451 lines)
-- [x] `test -f packages/kotlin/README.md` — package README exists (89 lines)
-- [x] `test -f packages/kotlin/CLAUDE.md` — package CLAUDE.md exists (101 lines)
-- [x] `grep -q 'kotlin' zensical.toml` — nav entry present
-- [x] `grep -q 'kotlin' scripts/gen_llms_full.py` — ORDERED_PAGES entry present
-- [x] `grep -q 'Kotlin' README.md` — root README has Kotlin sections
-- [x] `grep -c 'Kotlin' README.md` returns 4 (>= 4 required)
-- [x] `uv run python scripts/gen_llms_full.py && test -f site/llms-full.txt` — generates OK (output
-    path is `site/llms-full.txt`, not `docs/llms-full.txt` as next.md stated)
-- [x] `mise run check` — all 15 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- All 7 grep checks pass (maven-kotlin, build-kotlin-native, publish-maven-kotlin, maven-publish,
+    signing, io.iscc, iscc-lib-kotlin)
+- `cd packages/kotlin && ./gradlew build` passes (tests + JAR + sources + javadoc)
+- `./gradlew publishMavenPublicationToStagingRepository` produces correct Maven repo layout (POM +
+    JAR + sources + javadoc + checksums)
+- `cargo clippy --workspace --all-targets -- -D warnings` clean
+- `mise run check` — all 15 pre-commit hooks pass
+- YAML syntax validated via `yaml.safe_load()`
 
-**Issues found:**
-
-- (none) — all scope items completed correctly
-
-**Codex review:** Two findings, both advisory:
-
-1. **P1** (Maven Central snippet before publishing): README shows aspirational install snippet for
-    an unpublished package. Assessed as consistent with project pattern (Swift has the same). The
-    detailed howto has a "Not yet published" admonition. No action needed.
-2. **P2** (Missing `jna.library.path` in READMEs): Valid — both READMEs mentioned only
-    `java.library.path` but JNA needs `jna.library.path` too. Fixed in this review commit.
-
-**Next:** Add `maven-kotlin` input to `release.yml` for Kotlin package publishing to Maven Central.
-This is the last remaining sub-task of the Kotlin bindings issue. After that, the Kotlin issue can
-be fully resolved (docs + CI + tests + version sync + release workflow all complete).
+**Next:** The Kotlin bindings issue is now complete (CI + tests + conformance + version sync + docs
+\+ release workflow all done). Consider closing issue #18 (Kotlin bindings) and starting on the next
+target objective, or performing a release to test the maven-kotlin workflow end-to-end.
 
 **Notes:**
 
-- next.md's "Not In Scope" stated Kotlin was "already listed in README line 26" — this was incorrect
-    (Kotlin had 0 mentions). Advance agent correctly added it to the polyglot feature list to meet
-    the >= 4 mentions criterion.
-- next.md verification said `docs/llms-full.txt` but script outputs to `site/llms-full.txt`.
-- Streaming API uses `update()` (not `push()` as next.md mentioned) — advance agent used the correct
-    name after checking the generated bindings.
+- **Publishing approach:** Chose `useInMemoryPgpKeys` (env var `SIGNING_KEY`/`SIGNING_PASSWORD`)
+    over `useGpgCmd()` to avoid GPG system keyring setup in CI. Signing is skipped entirely when env
+    vars are absent (local development). This differs slightly from Java (which imports GPG key into
+    system keyring) but is functionally equivalent and simpler for Gradle.
+- **Central Portal upload:** Uses direct curl-based REST API upload to
+    `https://central.sonatype.com/api/v1/publisher/upload` with basic auth from existing
+    `MAVEN_USERNAME`/`MAVEN_PASSWORD` secrets. This avoids adding a third-party Gradle plugin and
+    matches the authentication mechanism used by the Java `central-publishing-maven-plugin`.
+- **JNA resource loading in CI:** Native libs are placed at JNA `Platform.RESOURCE_PREFIX` paths
+    (e.g., `linux-x86-64/libiscc_uniffi.so`) inside `src/main/resources/`. JNA discovers these from
+    the classpath even though `jna.library.path` points to the non-existent `../../target/debug`
+    (JNA falls through path-based search to classpath resource search).
+- **Matrix native-dir naming:** Uses JNA conventions (`linux-x86-64`, `darwin-aarch64`,
+    `win32-x86-64`) which differ from JNI conventions (`linux-x86_64`, `macos-aarch64`,
+    `windows-x86_64`). This is intentional — JNA loads from `Platform.RESOURCE_PREFIX` paths.

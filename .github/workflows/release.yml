@@ -33,6 +33,10 @@ on:
         description: Publish Iscc.Lib to NuGet
         type: boolean
         default: false
+      maven-kotlin:
+        description: Publish iscc-lib-kotlin to Maven Central
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -979,3 +983,182 @@ jobs:
         run: dotnet nuget push nupkg/*.nupkg --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+
+  # Build UniFFI native libraries for Kotlin JVM JAR packaging
+  build-kotlin-native:
+    name: Build Kotlin native (${{ matrix.native-dir }})
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            native-dir: linux-x86-64
+            lib-name: libiscc_uniffi.so
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            native-dir: linux-aarch64
+            lib-name: libiscc_uniffi.so
+          - os: macos-14
+            target: aarch64-apple-darwin
+            native-dir: darwin-aarch64
+            lib-name: libiscc_uniffi.dylib
+          - os: macos-14
+            target: x86_64-apple-darwin
+            native-dir: darwin-x86-64
+            lib-name: libiscc_uniffi.dylib
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            native-dir: win32-x86-64
+            lib-name: iscc_uniffi.dll
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cross-compiler
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build UniFFI library
+        run: cargo build -p iscc-uniffi --release --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-native-${{ matrix.native-dir }}
+          path: target/${{ matrix.target }}/release/${{ matrix.lib-name }}
+
+  # Assemble Kotlin JAR with bundled native libraries for JNA
+  assemble-kotlin:
+    name: Assemble Kotlin JAR
+    needs: [build-kotlin-native]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: kotlin-native-*
+          path: kotlin-staging
+      - name: Copy native libraries to JNA resource paths
+        run: |
+          for dir in kotlin-staging/kotlin-native-*/; do
+            native_dir=$(basename "$dir" | sed 's/^kotlin-native-//')
+            dest="packages/kotlin/src/main/resources/$native_dir"
+            mkdir -p "$dest"
+            cp "$dir"* "$dest/"
+          done
+          echo "JNA resource layout:"
+          find packages/kotlin/src/main/resources -type f
+      - name: Build JAR
+        run: ./gradlew build
+        working-directory: packages/kotlin
+      - name: Upload JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-jar
+          path: packages/kotlin/build/libs/*.jar
+
+  # Smoke test Kotlin native libraries on Linux before publishing
+  test-kotlin-release:
+    name: Test Kotlin libraries
+    needs: [build-kotlin-native]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download linux-x86-64 native artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: kotlin-native-linux-x86-64
+          path: native-lib
+      - name: Copy native library to JNA resource path
+        run: |
+          mkdir -p packages/kotlin/src/main/resources/linux-x86-64
+          cp native-lib/* packages/kotlin/src/main/resources/linux-x86-64/
+      - name: Run tests
+        run: ./gradlew test
+        working-directory: packages/kotlin
+
+  # Publish Kotlin JAR to Maven Central via Sonatype Central Portal
+  publish-maven-kotlin:
+    name: Publish Kotlin to Maven Central
+    needs: [assemble-kotlin, test-kotlin-release]
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Get workspace version
+        id: version
+        run: |
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check version on Maven Central
+        id: check
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          if curl -sf "https://search.maven.org/solrsearch/select?q=g:io.iscc+AND+a:iscc-lib-kotlin+AND+v:$VERSION&rows=1&wt=json" | grep -q '"numFound":1'; then
+            echo "Version $VERSION already published to Maven Central, skipping"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Download native artifacts
+        if: steps.check.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          pattern: kotlin-native-*
+          path: kotlin-staging
+      - name: Copy native libraries to JNA resource paths
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          for dir in kotlin-staging/kotlin-native-*/; do
+            native_dir=$(basename "$dir" | sed 's/^kotlin-native-//')
+            dest="packages/kotlin/src/main/resources/$native_dir"
+            mkdir -p "$dest"
+            cp "$dir"* "$dest/"
+          done
+      - name: Publish to staging with signatures
+        if: steps.check.outputs.skip != 'true'
+        run: ./gradlew publishMavenPublicationToStagingRepository
+        working-directory: packages/kotlin
+        env:
+          SIGNING_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+          SIGNING_PASSWORD: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      - name: Upload bundle to Central Portal
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          cd packages/kotlin/build/staging-deploy
+          zip -r "$GITHUB_WORKSPACE/bundle.zip" .
+          cd "$GITHUB_WORKSPACE"
+          HTTP_CODE=$(curl -s -o response.txt -w "%{http_code}" \
+            -X POST "https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC" \
+            -u "$MAVEN_USERNAME:$MAVEN_PASSWORD" \
+            -F "bundle=@bundle.zip")
+          if [ "$HTTP_CODE" -ne 201 ]; then
+            echo "Upload failed with HTTP $HTTP_CODE"
+            cat response.txt
+            exit 1
+          fi
+          echo "Upload successful: $(cat response.txt)"
+        env:
+          MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
