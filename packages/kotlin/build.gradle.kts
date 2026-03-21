@@ -13,7 +13,7 @@ repositories {
 dependencies {
     implementation("net.java.dev.jna:jna:5.16.0")
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testImplementation("com.google.gson:gson:2.8.9")
+    testImplementation("com.google.code.gson:gson:2.11.0")
 }
 
 tasks.withType<Test> {
