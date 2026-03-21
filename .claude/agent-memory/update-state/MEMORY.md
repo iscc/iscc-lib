@@ -49,7 +49,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `docs/howto/` — **11 files**: rust, python, nodejs, wasm, go, java, c-cpp, ruby, dotnet, swift,
     kotlin
 - `scripts/gen_llms_full.py` — **22 entries** in ORDERED_PAGES
-- `scripts/version_sync.py` — **15 sync targets** (releaseTag NOT yet added)
+- `scripts/version_sync.py` — **16 sync targets** (releaseTag added for Package.swift)
 - `crates/iscc-lib/benches/benchmarks.rs` — 12 benches in criterion_group!
 - `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
 - **CLAUDE.md files**: 12 total (all crates + all packages)
@@ -65,18 +65,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review.
 - **Handoff predictions may be wrong**: always verify CI independently.
 
-## Current State (assessed-at: ad566e1)
+## Current State (assessed-at: 4cfb6ab)
 
 - **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN
-- Latest CI run: 23390387523 (SUCCESS)
+- Latest CI run: 23391076552 (SUCCESS)
 - **All 12 language bindings complete**: scaffold, tests, CI, docs, release workflows
-- **2 normal issues**: Swift XCFramework vend (version sync + docs remaining), Swift release job
-    GITHUB_REF_NAME bug
+- **1 normal issue**: Swift release job GITHUB_REF_NAME bug (HUMAN REVIEW REQUESTED — blocked)
 - **1 low issue**: language logos in docs
-- **XCFramework progress**: Steps 1-2 of multi-step effort complete. Remaining:
-    - version_sync.py: add releaseTag as 16th target
-    - docs/howto/swift.md: update for zero-friction SPM install
-    - Fix GITHUB_REF_NAME → Cargo.toml version derivation (HUMAN REVIEW REQUESTED)
+- **CID effectively idle**: normal issue blocked on human, low issues skipped by policy
+- **Version sync**: 16 targets, all OK (Package.swift releaseTag added this iteration)
 
 ## Gotchas
 

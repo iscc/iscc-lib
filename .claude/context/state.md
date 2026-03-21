@@ -1,15 +1,16 @@
-<!-- assessed-at: ad566e1ca05d8181a7e5acbcd7f680b48ecfde0b -->
+<!-- assessed-at: 4cfb6abfb314c2322c4ca5c3f836a85eea15a8b8 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Swift XCFramework — version sync + docs update + release job fix
+## Phase: Swift GITHUB_REF_NAME fix — blocked on human review
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23390387523). All 12 language
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23391076552). All 12 language
 bindings scaffolded, tested, documented, and shipping. XCFramework build script, root Package.swift,
-and release workflow job all complete. Remaining: version sync for releaseTag, docs/howto/swift.md
-update, and fix for GITHUB_REF_NAME bug in the Swift release job.
+release workflow, version sync (16 targets), and Swift install docs all complete. Only remaining
+`normal` issue is the GITHUB_REF_NAME bug in the Swift release job — blocked on
+`HUMAN REVIEW REQUESTED` (spec prescribes `GITHUB_REF_NAME`, fix requires spec update).
 
 ## Rust Core Crate
 
@@ -101,21 +102,15 @@ update, and fix for GITHUB_REF_NAME bug in the Swift release job.
 
 - SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
 - 9 conformance test methods covering 50 vectors; CI job SUCCESS on macos-14
-- docs/howto/swift.md, README, CLAUDE.md all present
-- **XCFramework build script** (`scripts/build_xcframework.sh`): executable, valid shell syntax, 5
-    Apple targets, lipo fat binaries, XCFramework assembly, zip + checksum
-- **Root `Package.swift` restructured**: Ferrostar-style `useLocalFramework` toggle,
-    `.binaryTarget(url:checksum:)` for distribution, `releaseTag = "0.3.1"`,
-    `releaseChecksum = "PLACEHOLDER"`
-- **Release workflow integrated**: `swift` checkbox input added (9th boolean input),
-    `build-xcframework` job added to release.yml — macOS runner, build script invocation, checksum
-    update via sed, force-update tag, upload zip as GitHub Release asset
-- **Missing**:
-    1. Version sync — `releaseTag` not yet in `version_sync.py` (still 15 targets, not 16)
-    2. docs/howto/swift.md not yet updated for zero-friction SPM install (still says "planned for a
-        future release")
-    3. GITHUB_REF_NAME bug — Swift release job derives version from `GITHUB_REF_NAME` instead of
-        Cargo.toml, breaking `--ref main` re-trigger convention (filed as normal issue)
+- docs/howto/swift.md updated with SPM install instructions + collapsible "Build from source" tip
+- XCFramework build script executable, valid shell, 5 Apple targets
+- Root `Package.swift` restructured: Ferrostar-style toggle, `releaseTag = "0.3.1"`
+- Release workflow: `swift` checkbox input (9th), `build-xcframework` job integrated
+- Version sync: `releaseTag` now managed by `version_sync.py` (16th target, confirmed OK)
+- **Remaining issue**: `GITHUB_REF_NAME` bug at line 1198 of release.yml — derives version from
+    `GITHUB_REF_NAME` instead of Cargo.toml, breaking `--ref main` re-trigger. Flagged
+    `HUMAN REVIEW REQUESTED` — spec explicitly prescribes `GITHUB_REF_NAME`; fix requires spec
+    update. CID cannot proceed autonomously.
 
 ## Kotlin Multiplatform Bindings
 
@@ -163,40 +158,35 @@ update, and fix for GITHUB_REF_NAME bug in the Swift release job.
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23390387523: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23390387523
+- **LATEST COMPLETED RUN** — run 23391076552: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23391076552
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries (maven-kotlin to be exercised on next release)
 - Release workflow has 9 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift
-- version_sync.py manages 15 sync targets
+- version_sync.py manages 16 sync targets (all OK)
 
-## Open Issues (3 total — 2 normal, 1 low)
+## Open Issues (2 total — 1 normal, 1 low)
 
-1. **Swift package does not vend native library** `normal` — Build script, Package.swift, and
-    release workflow all done. Remaining: version sync (releaseTag in version_sync.py) and
-    docs/howto/swift.md update for zero-friction SPM install.
-2. **Swift release job `--ref main` re-trigger incompatible** `normal` — `build-xcframework` uses
-    `GITHUB_REF_NAME` for version extraction. Re-triggering with `--ref main -f swift=true` would
-    set `releaseTag = "main"` and corrupt the repo. Fix: derive version from Cargo.toml. Flagged
-    `HUMAN REVIEW REQUESTED` — spec explicitly uses `GITHUB_REF_NAME`.
-3. **Language logos in docs** `low` — CID skips
+1. **Swift release job `--ref main` re-trigger incompatible** `normal` — `build-xcframework` uses
+    `GITHUB_REF_NAME` for version extraction (line 1198 of release.yml). Re-triggering with
+    `--ref main -f swift=true` would set `releaseTag = "main"`. Fix: derive version from
+    Cargo.toml. `HUMAN REVIEW REQUESTED` — spec explicitly uses `GITHUB_REF_NAME`; CID blocked.
+2. **Language logos in docs** `low` — CID skips
 
 ## Next Milestone
 
-**Fix Swift GITHUB_REF_NAME bug + version sync + docs update** — three remaining tasks to close the
-Swift XCFramework issues:
+**Blocked on human review** — the only `normal`-priority issue (GITHUB_REF_NAME bug) has
+`HUMAN REVIEW REQUESTED` because the spec explicitly prescribes `GITHUB_REF_NAME` and fixing it
+requires a spec change. CID cannot proceed autonomously on this item. The `low`-priority issues
+(docs logos, speedup factors in docs) are human-directed only.
 
-1. **Fix GITHUB_REF_NAME bug** (`normal` issue) — update `build-xcframework` job to derive version
-    from `Cargo.toml` (like all other release jobs) and construct tag as `v$VERSION`. Requires spec
-    update since spec explicitly uses `GITHUB_REF_NAME`. **HUMAN REVIEW REQUESTED** flag is set.
-2. **Add `releaseTag` to `version_sync.py`** — target 16, so `mise run version:sync` propagates
-    version to root `Package.swift`
-3. **Update `docs/howto/swift.md`** — replace "planned for a future release" with zero-friction SPM
-    install instructions using the binary target pattern
+**When human approves:** Update spec to use Cargo.toml-derived version, then fix line 1198 of
+`release.yml` to `VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')` and
+construct tag as `v$VERSION`.
 
-Remaining `low`-priority work (human-directed only):
+**Remaining low-priority work** (human-directed only):
 
 - Language logos in docs howto headers
 - Speedup factors published in documentation
