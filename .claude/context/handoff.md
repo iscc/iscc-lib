@@ -1,38 +1,49 @@
-## 2026-03-21 — Add Swift CI job on macOS runner
+## 2026-03-21 — Review of: Add Swift CI job on macOS runner
 
-**Done:** Added a `swift:` CI job to `.github/workflows/ci.yml` that runs on `macos-14` (Apple
-Silicon M1). The job builds the UniFFI native library (`cargo build -p iscc-uniffi`), builds the
-Swift package (`swift build` with linker flags), and runs conformance tests (`swift test` with
-`-rpath` for runtime library discovery).
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.github/workflows/ci.yml`: Added `swift:` job between `cpp:` and `bench:` jobs. Uses `macos-14`
-    runner, `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, debug build, `-Xlinker -L`
-    for link-time library path, `-Xlinker -rpath` for runtime library path. CI now has 15 jobs
-    total.
+**Summary:** The advance agent added a clean 21-line `swift:` CI job to `ci.yml` that builds
+`iscc-uniffi` and runs `swift build` + `swift test` on `macos-14` with correct `-Xlinker` flags for
+library discovery. The implementation matches all next.md requirements exactly, touches only the
+specified file, and follows established CI job patterns (debug build, `actions/checkout@v4`,
+`dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`).
 
 **Verification:**
 
-- `grep -q 'macos-14' .github/workflows/ci.yml` — PASS
-- `grep -q 'swift test' .github/workflows/ci.yml` — PASS
-- `grep -q 'cargo build -p iscc-uniffi' .github/workflows/ci.yml` — PASS
-- YAML validation via `yaml.safe_load()` — PASS
-- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — PASS (clean)
-- `mise run check` — 15/15 hooks pass
+- [x] `grep -q 'macos-14' .github/workflows/ci.yml` exits 0 — PASS
+- [x] `grep -q 'swift test' .github/workflows/ci.yml` exits 0 — PASS
+- [x] `grep -q 'cargo build -p iscc-uniffi' .github/workflows/ci.yml` exits 0 — PASS
+- [x] YAML validation (`yaml.safe_load`) exits 0 — PASS
+- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
+- [x] `mise run check` — 15/15 hooks pass
 
-**Next:** Push to `develop` and verify the Swift CI job passes on GitHub Actions. If `-rpath` alone
-doesn't work for the XCTest runner, add `DYLD_LIBRARY_PATH` env fallback. After CI is green:
-`docs/howto/swift.md`, README Swift sections, version sync integration (`Constants.swift` +
-`version_sync.py`), and `packages/swift/CLAUDE.md`.
+**Issues found:**
+
+- (none)
+
+**Codex review:** Codex launched but produced no output (0 bytes after 5+ minutes on a 21-line YAML
+diff). Skipped — the diff is trivial and fully validated by manual review.
+
+**Next:** Push to verify the Swift CI job passes on GitHub Actions — this is the first real
+execution of the Swift conformance tests. If CI is green, the next work package should be one of:
+
+1. **Swift docs + README integration** — `docs/howto/swift.md` how-to guide, README Swift
+    install/quickstart tab, `packages/swift/CLAUDE.md`, version sync (`Constants.swift` +
+    `version_sync.py`)
+2. If the CI job fails (e.g., `-rpath` doesn't work for XCTest runner), fix it — add
+    `DYLD_LIBRARY_PATH` env fallback to the test step
+
+After Swift is fully complete (CI green, docs done), the Swift issue in issues.md can be closed and
+Kotlin bindings can begin.
 
 **Notes:**
 
-- The CI job count is now 15 (was 14 after cpp was added; memory says 13 which is stale — it was 13
-    before dotnet+cpp were added). Jobs: version-check, rust, python-test, python, nodejs, wasm,
-    c-ffi, dotnet, java, go, ruby, cpp, swift, bench = 14 named jobs + python status gate = 15 total
-- Swift tests cannot be validated locally (Linux devcontainer). The first CI run on GitHub will be
-    the real validation. The `-rpath` approach is preferred over `DYLD_LIBRARY_PATH` because SIP can
-    strip `DYLD_*` vars on macOS
-- No tests written locally since the only change is a CI workflow YAML addition — verification is
-    via grep checks and YAML parsing
+- CI job count is now 15 (14 named jobs + 1 python status gate). The `swift:` job is placed between
+    `cpp:` and `bench:`, keeping binding jobs grouped
+- Swift tests cannot be validated locally (Linux devcontainer) — the first CI run on GitHub is the
+    real validation. The `-rpath` approach is preferred over `DYLD_LIBRARY_PATH` because SIP strips
+    `DYLD_*` vars on macOS
+- The spec's example CI YAML included `--release`, cross-compile targets, and a
+    `uniffi-bindgen   generate` step — all correctly omitted by the advance agent (debug build
+    matches other CI jobs, cross-compile is for XCFramework release which is out of scope, and
+    bindings are already committed to git)
