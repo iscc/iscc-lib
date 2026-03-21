@@ -44,7 +44,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `.claude/context/specs/` — per-binding spec files (ruby, go, java, nodejs, wasm, cpp, dotnet,
     swift, kotlin, rust-core, c-ffi-dx, documentation, ci-cd)
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
-- `packages/swift/` — SPM package with UniFFI-generated bindings (2400-line iscc_uniffi.swift)
+- `packages/swift/` — SPM package with UniFFI-generated bindings (2400-line iscc_uniffi.swift); FFI
+    target is `iscc_uniffiFFI` (must match UniFFI-generated `#if canImport(...)`)
 - `.github/workflows/ci.yml` — **15 CI jobs** (version-check, Rust, python-test matrix, python gate,
     Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C#/.NET, C++, **Swift**)
 - `crates/iscc-uniffi/` — UniFFI scaffolding crate: 32 exports, 21 tests, `bindgen` feature for CLI;
@@ -68,16 +69,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review
 
-## Current State (assessed-at: 6e8291db1c4c8733f8ec00e40c065eb1a7aa1dbf)
+## Current State (assessed-at: a518c5dc24dd67855df6b6b6c8a3be665484eab4)
 
-- **IN_PROGRESS**: **14/15 CI jobs** green, **Swift FAILING** (run 23379967641)
+- **IN_PROGRESS**: **15/15 CI jobs green** (run 23380398819)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
 - **2 normal-priority issues** in issues.md: Swift bindings (in progress), Kotlin bindings (not
     started, depends on Swift)
-- **Swift CI failure root cause**: Module name mismatch. Generated `iscc_uniffi.swift` uses
-    `#if canImport(iscc_uniffiFFI)` but SPM target is named `IsccLibFFI`. Conditional import
-    silently fails → all FFI symbols unresolved. Fix: rename SPM target to `iscc_uniffiFFI`.
-- **Next**: Fix Swift module name mismatch → get CI green → docs/README/version sync → Kotlin
+- **Swift CI fixed**: module name mismatch resolved by renaming SPM target to `iscc_uniffiFFI`
+- **Swift remaining**: docs/howto/swift.md, README sections, CLAUDE.md, version sync
+- **Next**: Complete Swift docs/integration → close Swift issue → begin Kotlin
 
 ## Gotchas
 
@@ -93,9 +93,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **UniFFI proc macro approach**: no uniffi.toml or build.rs needed; constants exposed as getter
     functions since UniFFI doesn't support const exports; streaming types use `Mutex<Option<Inner>>`
     for Send+Sync
-- **Swift module name mismatch**: UniFFI-generated Swift code uses `#if canImport(iscc_uniffiFFI)` —
-    SPM target MUST be named `iscc_uniffiFFI` (not `IsccLibFFI`) to match. The conditional import
-    silently fails when module names don't match.
+- **Swift module name mismatch** (RESOLVED): UniFFI-generated Swift code uses
+    `#if canImport(iscc_uniffiFFI)` — SPM target MUST be named `iscc_uniffiFFI` to match. Fixed in
+    commit 7d9a4fd.
 - **Swift tests need macOS**: ConformanceTests.swift cannot run in Linux devcontainer — needs macOS
     runner with Swift toolchain + `libiscc_uniffi` linked via `-Xlinker -L<path>`
 - **mdformat trailing space bug**: inline code with trailing space triggers mdformat "renders to
