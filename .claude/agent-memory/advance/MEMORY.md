@@ -30,9 +30,10 @@ iterations.
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
-- CI workflow at `.github/workflows/ci.yml` has 15 jobs: version-check, rust, python-test, python,
-    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, bench. `bench` runs
-    `cargo bench --no-run` (compile-only). `swift` runs on `macos-14` (Apple Silicon)
+- CI workflow at `.github/workflows/ci.yml` has 16 jobs: version-check, rust, python-test, python,
+    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench. `bench` runs
+    `cargo bench --no-run` (compile-only). `swift` runs on `macos-14` (Apple Silicon). `kotlin` runs
+    on `ubuntu-latest` with JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
 - Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
     param (not step-level), bundler-cache auto-installs gems
 - `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
