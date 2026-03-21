@@ -110,7 +110,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     audio
 - C++ package managers: vcpkg.json + portfile.cmake + conanfile.py in `packages/cpp/`. Conan recipe
     downloads pre-built FFI tarballs — mirrors portfile.cmake platform mapping. cxxflags removed
-    (iteration 1/phase 3). Both vcpkg.json and conanfile.py now in version_sync.py (13 targets)
+    (iteration 1/phase 3). Both vcpkg.json and conanfile.py now in version_sync.py (14 targets)
 - **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`,
     NOT `cmake -B build -S tests` (tests CMakeLists.txt lacks project() and include paths)
 - **Config-only review shortcut**: for pure manifest/config files (JSON, CMake, Python recipes),
@@ -140,6 +140,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Codex review on large generated diffs may be confused — findings advisory as always
 - Swift CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test`
     with `-Xlinker -L` (link-time) and `-Xlinker -rpath` (runtime) for dylib discovery. 15th CI job
+- Swift version sync: `Constants.swift` with `public let isccLibVersion` — 14th version_sync target
+- Swift bindings fully complete (iteration 6): all sub-tasks done, issue resolved
 
 ## Environment
 

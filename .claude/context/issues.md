@@ -7,39 +7,13 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Implement Swift bindings via UniFFI `normal` [human]
-
-Add Swift bindings as a Swift Package in `packages/swift/` using UniFFI-generated code. Requires a
-shared UniFFI scaffolding crate (`crates/iscc-uniffi/`) that also serves Kotlin bindings.
-
-**Implementation scope:**
-
-1. **UniFFI crate** (`crates/iscc-uniffi/`):
-
-    - `Cargo.toml` (cdylib, depends on `iscc-lib` + `uniffi`)
-    - `src/lib.rs` — UniFFI interface definition (proc macros or UDL) exposing all 32 Tier 1 symbols
-    - `uniffi.toml` — binding generation config
-
-2. **Swift package** (`packages/swift/`):
-
-    - `Package.swift` — SPM manifest
-    - Generated Swift bindings via `uniffi-bindgen`
-    - Conformance tests via XCTest against `data.json`
-    - `README.md` for the package
-
-3. **CI** (`ci.yml`): Add `swift` job — `swift build` + `swift test` (may require macOS runner)
-
-4. **Release**: Publish via Git tags (SPM resolves from Git repos, no upload registry)
-
-5. **Documentation**: `docs/howto/swift.md` how-to guide, update README with Swift
-    install/quickstart
-
 ## Implement Kotlin Multiplatform bindings via UniFFI `normal` [human]
 
 Add Kotlin Multiplatform (KMP) bindings in `packages/kotlin/` using UniFFI-generated code from the
 shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-lib-kotlin`.
 
-**Depends on:** Swift bindings (shares the UniFFI scaffolding crate)
+**Depends on:** ~~Swift bindings (shares the UniFFI scaffolding crate)~~ Resolved — UniFFI crate
+complete.
 
 **Implementation scope:**
 
