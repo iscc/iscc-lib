@@ -12,7 +12,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential pkg-config libssl-dev \
     openjdk-17-jdk-headless maven \
     ruby ruby-dev libclang-dev \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && gem install bundler
 
 # Install Go (for Go bindings — version matches packages/go/go.mod)
 ARG GO_VERSION=1.26.1
