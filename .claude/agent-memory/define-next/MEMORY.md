@@ -50,7 +50,7 @@ iterations.
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
     `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
-## Kotlin Bindings (in progress — scaffold + tests done, CI job next)
+## Kotlin Bindings (in progress — CI job added but failing, version sync + docs remaining)
 
 - **UniFFI Kotlin output is JVM-only** — uses JNA (`com.sun.jna.*`), NOT Kotlin/Native cinterop
 - Generated file: 3214 lines, package `uniffi.iscc_uniffi`, loads `libiscc_uniffi.so` via JNA
@@ -58,11 +58,15 @@ iterations.
     by UniFFI's Kotlin generator. Start JVM-only, KMP is a future enhancement
 - `kotlin("jvm")` plugin, Gradle 8.12.1 wrapper, JNA 5.16.0 — all working
 - JDK 17 in devcontainer; `./gradlew compileKotlin` verified passing
-- Kotlin step sequence: ~~scaffold+compile~~ -> ~~conformance tests~~ -> CI job -> docs -> version
-    sync -> README -> publishing
+- Kotlin step sequence: ~~scaffold+compile~~ -> ~~conformance tests~~ -> ~~CI job~~ -> gradlew fix +
+    version sync -> docs + README + CLAUDE.md -> release workflow -> publishing
+- **CI job failing**: `./gradlew: Permission denied` — tracked as 100644, needs
+    `git update-index --chmod=+x packages/kotlin/gradlew`
 - Conformance tests: use Gson for JSON parsing (matches Java JNI tests), JUnit 5, load data.json
     from `src/test/resources/` via classloader. `java.library.path` already set in build.gradle.kts
 - **CI job pattern**: same as Swift (build iscc-uniffi, run tests) but on ubuntu-latest (not macOS)
+- **gradle.properties** format: `version=0.3.1` (no quotes, no spaces) — needs version_sync.py
+    target
 
 ## Swift Bindings (COMPLETE)
 
@@ -85,9 +89,12 @@ iterations.
 
 ## Project Status
 
-- v0.3.1 released, 15/15 CI jobs green
+- v0.3.1 released, 15/16 CI jobs green (Kotlin failing — gradlew permissions)
 - All 11 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift)
-- 1 normal-priority issue: Kotlin bindings (in progress — scaffold + tests done, CI job next)
+- Kotlin bindings in progress: scaffold + tests + CI job done; gradlew fix, version sync, docs,
+    release workflow remaining
+- 2 normal-priority Swift issues: SPM install instructions incorrect, package doesn't vend native
+    lib
 
 ## Version Sync Script Patterns
 

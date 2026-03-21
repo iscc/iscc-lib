@@ -1,75 +1,86 @@
 # Next Work Package
 
-## Step: Add Kotlin CI job to ci.yml
+## Step: Fix Kotlin CI (gradlew permissions) and add Kotlin version sync
 
 ## Goal
 
-Add a `kotlin` job to `.github/workflows/ci.yml` that builds the UniFFI native library and runs
-Kotlin conformance tests via Gradle, bringing CI coverage to 16/16 jobs. This gates the Kotlin
-binding quality in CI — tests exist locally but are not yet enforced on every push.
+Fix the failing Kotlin CI job by correcting the `gradlew` file permissions in git, and add
+`packages/kotlin/gradle.properties` to the version sync script — restoring CI green (16/16) and
+ensuring Kotlin version stays coordinated with the workspace.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/ci.yml` (add `kotlin` job)
-- **Reference**: `.github/workflows/ci.yml` (existing `swift` and `java` jobs as patterns),
-    `packages/kotlin/build.gradle.kts` (native lib path config)
+- **Modify**:
+    - `packages/kotlin/gradlew` — git permission fix via `git update-index --chmod=+x` (not a content
+        change, just git metadata)
+    - `scripts/version_sync.py` — add `gradle.properties` get/sync functions and a new TARGETS entry;
+        update the docstring to list the new target
+- **Reference**:
+    - `packages/kotlin/gradle.properties` — current format: `version=0.3.1` (key=value, no quotes)
+    - `scripts/version_sync.py` — existing target patterns (especially `_get_ruby_version` /
+        `_sync_ruby_version` for simple `key = "value"` pattern, and `_get_pyproject_version` for
+        key=value without quotes)
 
 ## Not In Scope
 
-- Version sync (adding `gradle.properties` to `version_sync.py`) — separate step
-- Documentation (`docs/howto/kotlin.md`, README Kotlin sections) — separate step
-- Release workflow (`maven-kotlin` in `release.yml`) — separate step
-- Removing `mavenLocal()` from `build.gradle.kts` — harmless, CI resolves from `mavenCentral()`
-- Bumping Gson from 2.8.9 to 2.11.0 — not needed for CI functionality
-- Modifying `build.gradle.kts` — it already has correct `LD_LIBRARY_PATH` and `java.library.path`
+- Kotlin howto guide (`docs/howto/kotlin.md`) — separate documentation step
+- Kotlin README or CLAUDE.md — separate documentation step
+- Root README Kotlin sections — separate documentation step
+- Release workflow (`release.yml`) maven-kotlin input — separate step
+- Fixing the two Swift packaging issues — unrelated normal-priority issues
 
 ## Implementation Notes
 
-Model the Kotlin job after the Swift CI job (both use UniFFI) but run on `ubuntu-latest` (Kotlin/JVM
-doesn't need macOS). Use JDK 17 setup from the existing Java/JNI job.
+The `gradle.properties` format is `version=0.3.1` (no quotes, no spaces around `=`). The get/sync
+functions should:
 
-Add the job between `swift` and `bench` to maintain logical grouping:
+```python
+def _get_gradle_properties_version(text):
+    """Extract version from Gradle properties file."""
+    m = re.search(r"^version=(\d+\.\d+\.\d+)", text, re.MULTILINE)
+    return m.group(1) if m else ""
 
-```yaml
-kotlin:
-  name: Kotlin (gradle build, test)
-  runs-on: ubuntu-latest
-  steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2
-    - uses: actions/setup-java@v4
-      with:
-        distribution: temurin
-        java-version: '17'
-    - name: Build UniFFI native library
-      run: cargo build -p iscc-uniffi
-    - name: Run Gradle tests
-      run: ./gradlew test
-      working-directory: packages/kotlin
+
+def _sync_gradle_properties(text, version):
+    """Update version in Gradle properties file."""
+    return re.sub(
+        r"^(version=)\d+\.\d+\.\d+",
+        rf"\g<1>{version}",
+        text,
+        count=1,
+        flags=re.MULTILINE,
+    )
 ```
 
-Key details:
+Add to TARGETS list (after the Swift entry, before the .NET entry):
 
-- Build `iscc-uniffi` (NOT `iscc-ffi` or `iscc-jni`) — Kotlin uses UniFFI bindings
-- `build.gradle.kts` sets `nativeLibDir = "${rootProject.rootDir}/../../target/debug"` — this
-    resolves correctly because `working-directory: packages/kotlin` makes `rootProject.rootDir` =
-    `packages/kotlin`, so `../../target/debug` = repo-root `target/debug/`
-- `LD_LIBRARY_PATH` and `jna.library.path` are already configured in `build.gradle.kts` task config
-- No Gradle wrapper caching action needed — Gradle wrapper downloads are fast and the project is
-    small (~1 test class)
-- Use `./gradlew test` (not `./gradlew build`) — tests include compilation
+```python
+(
+    (
+        "packages/kotlin/gradle.properties",
+        _get_gradle_properties_version,
+        _sync_gradle_properties,
+    ),
+)
+```
+
+For the gradlew fix: run `git update-index --chmod=+x packages/kotlin/gradlew` before committing.
+This changes the git tree entry from `100644` to `100755` without modifying file content.
+
+Update the module docstring (lines 7-18) to include
+`- packages/kotlin/gradle.properties — Gradle project version` in the synced targets list.
 
 ## Verification
 
-- `grep -c 'kotlin:' .github/workflows/ci.yml` returns at least 1
-- `grep 'cargo build -p iscc-uniffi' .github/workflows/ci.yml` finds the build step
-- `grep 'gradlew test' .github/workflows/ci.yml` finds the test step
-- `grep 'java-version.*17' .github/workflows/ci.yml` matches at least 2 (existing java + new kotlin)
-- YAML is valid: `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` exits 0
+- `git ls-files -s packages/kotlin/gradlew` shows `100755` (not `100644`)
+- `uv run scripts/version_sync.py --check` exits 0 (all targets including new Kotlin one match)
+- `grep 'gradle.properties' scripts/version_sync.py` finds the TARGETS entry
+- `uv run scripts/version_sync.py` includes `OK: packages/kotlin/gradle.properties = 0.3.1` in
+    output
+- `mise run lint` passes (formatting + clippy + ruff clean)
 
 ## Done When
 
-All verification criteria pass — the `kotlin` job is defined in `ci.yml` with UniFFI native library
-build, JDK 17 setup, and Gradle test execution.
+All verification criteria pass — gradlew is executable in git, Kotlin gradle.properties is a version
+sync target, and all quality gates are green.
