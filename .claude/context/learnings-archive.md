@@ -356,3 +356,15 @@ reference-only for humans.
 - **NuGet native lib packaging**: cross-architecture find pattern must scope by target name
     (`-path "*-${target}/*"`) to avoid copying wrong-arch libraries when multiple targets share the
     same lib name (e.g., both linux-x64 and linux-arm64 produce `libiscc_ffi.so`)
+
+## .NET Bindings
+
+- Detailed P/Invoke patterns archived to `learnings-archive.md` (iteration 9 — .NET bindings
+    completed). Key reference items preserved here for CI/release workflows only
+- NuGet publish pipeline: 7 registry inputs total (crates-io, pypi, npm, maven, ffi, rubygems,
+    nuget). `build-ffi` shared between FFI and NuGet via `inputs.ffi || inputs.nuget`
+- **Cross-architecture find bug pattern**: when extracting multi-target archives to the same CWD,
+    `find -path "*/prefix-v*/*"` matches ALL targets. Scope by target name: `-path "*-${target}/*"`
+- **.csproj relative paths**: `Include` paths are relative to csproj location, not project root.
+    Count `../` carefully — `packages/dotnet/Iscc.Lib/../../README.md` = `packages/README.md` (NOT
+    `packages/dotnet/README.md`)

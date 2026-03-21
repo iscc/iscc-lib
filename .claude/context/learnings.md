@@ -147,18 +147,6 @@ fully-met target sections to `learnings-archive.md`.
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
 
-## .NET Bindings
-
-- Detailed P/Invoke patterns archived to `learnings-archive.md` (iteration 9 — .NET bindings
-    completed). Key reference items preserved here for CI/release workflows only
-- NuGet publish pipeline: 7 registry inputs total (crates-io, pypi, npm, maven, ffi, rubygems,
-    nuget). `build-ffi` shared between FFI and NuGet via `inputs.ffi || inputs.nuget`
-- **Cross-architecture find bug pattern**: when extracting multi-target archives to the same CWD,
-    `find -path "*/prefix-v*/*"` matches ALL targets. Scope by target name: `-path "*-${target}/*"`
-- **.csproj relative paths**: `Include` paths are relative to csproj location, not project root.
-    Count `../` carefully — `packages/dotnet/Iscc.Lib/../../README.md` = `packages/README.md` (NOT
-    `packages/dotnet/README.md`)
-
 ## C++ Wrapper
 
 - C++ `std::vector<T>::data()` returns nullptr for empty vectors on some implementations
@@ -188,6 +176,13 @@ fully-met target sections to `learnings-archive.md`.
 - UniFFI requires owned types (`String`, `Vec<u8>`), no `usize` or `const` exports — use `u64` for
     sizes and getter functions for constants
 - UniFFI Objects need `Send + Sync` — use `Mutex<Option<Inner>>` (not `RefCell`)
+- Binding generation: `uniffi-bindgen.rs` (3-line entry point) +
+    `[features] bindgen = ["uniffi/cli"]`
+    - `[[bin]] required-features = ["bindgen"]` pattern. Generates `.swift` + `.h` + `.modulemap`
+- Generated `iscc_uniffiFFI.modulemap` has Darwin-specific `use` directives — must simplify to just
+    `header + export *` for SPM `module.modulemap`
+- Swift tests require macOS runner — cannot execute in Linux devcontainer. Review shortcut for Swift
+    package: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (structural review only)
 
 ## CID Process
 

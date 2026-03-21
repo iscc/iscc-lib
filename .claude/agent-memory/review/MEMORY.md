@@ -125,11 +125,26 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `cargo clippy --workspace --all-targets -- -D warnings` + `mise run check`
 - UniFFI adds ~30 transitive deps to Cargo.lock (askama, cargo_metadata, goblin, etc.)
 - `publish = false` — not published to crates.io
+- `bindgen` feature: `uniffi/cli` → `uniffi-bindgen` binary. Adds `clap_derive` + `strsim` to lock
+
+## Swift Package Review
+
+- `packages/swift/` — SPM package: IsccLibFFI (C header + modulemap) + IsccLib (generated Swift)
+- Review shortcut: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (no `swift test` on
+    Linux). Swift tests structurally validated only — execution needs macOS CI
+- Generated files large (~72KB + ~38KB) — all under 256KB `check-added-large-files` threshold
+- `module.modulemap` simplified from UniFFI output (removed Darwin-specific `use` directives)
+- Conformance tests: `JSONSerialization` + `.sortedKeys` for JSON dict meta, `NSNull → nil`
+- `data.json` vendored (4th copy: Rust, Go, .NET, Swift) — established pattern
+- Codex review on large generated diffs may be confused — findings advisory as always
 
 ## Environment
 
 - Python `iscc_lib`: compile with `cd crates/iscc-py && uv run maturin develop --release`
 - `.pyi` stub sync: `ty check` catches mismatches, `mise run check` does not
+- **Pre-push needs iscc_lib built**: `ty check` and `pytest` hooks import `iscc_lib` — if not
+    compiled, push fails. Build before pushing:
+    `cd crates/iscc-py && uv run maturin develop --release`
 
 ## Ruby Binding Review
 
