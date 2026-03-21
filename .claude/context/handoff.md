@@ -1,44 +1,28 @@
-## 2026-03-21 — Review of: Swift documentation and README integration
+## 2026-03-21 — Add Swift version sync to version_sync.py
 
-**Verdict:** PASS
+**Done:** Created `Constants.swift` with a `public let isccLibVersion = "0.3.1"` constant, and added
+it as a sync target in `scripts/version_sync.py` with `_get_swift_version` / `_sync_swift_version`
+helper functions. The Swift package version now stays in sync with the workspace version from root
+Cargo.toml.
 
-**Summary:** The advance agent created comprehensive Swift documentation (howto guide, CLAUDE.md,
-README sections, nav entries) that accurately reflects the UniFFI-generated API. All API signatures,
-result types, and parameter types were verified against the actual generated Swift source
-(`iscc_uniffi.swift`). No quality gate circumvention, no out-of-scope changes.
+**Files changed:**
 
-**Verification:**
+- `packages/swift/Sources/IsccLib/Constants.swift`: New file — Swift version constant
+- `scripts/version_sync.py`: Added Swift sync target (getter, sync fn, TARGETS entry, docstring)
 
-- [x] `test -f docs/howto/swift.md` exits 0 — PASS
-- [x] `test -f packages/swift/CLAUDE.md` exits 0 — PASS
-- [x] `grep -q 'Swift' zensical.toml` exits 0 — PASS
-- [x] `grep -q 'howto/swift.md' zensical.toml` exits 0 — PASS
-- [x] `grep -q 'howto/swift.md' scripts/gen_llms_full.py` exits 0 — PASS
-- [x] `grep -q 'swift' README.md` exits 0 — PASS (install, quickstart, and polyglot list)
-- [x] `grep -q 'genMetaCodeV0' docs/howto/swift.md` exits 0 — PASS
-- [x] `grep -q 'DataHasher' docs/howto/swift.md` exits 0 — PASS
-- [x] `grep -c '##' docs/howto/swift.md` → 25 (≥ 10) — PASS
-- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
-- [x] `mise run check` — 15/15 hooks pass
+**Verification:** All criteria pass:
 
-**Issues found:**
+- `test -f packages/swift/Sources/IsccLib/Constants.swift` exits 0
+- `grep -q '0.3.1' packages/swift/Sources/IsccLib/Constants.swift` exits 0
+- `grep -q 'swift' scripts/version_sync.py` exits 0
+- `uv run scripts/version_sync.py --check` exits 0 (all 14 targets in sync)
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` clean
+- `mise run check` passes (15/15 hooks)
 
-- (none)
+**Next:** The Swift bindings issue can now be closed — all sub-tasks (UniFFI crate, Swift package,
+CI, documentation, version sync) are complete. The next priority issue is Kotlin bindings.
 
-**Codex review:** No actionable issues found. Codex confirmed: "no concrete regressions affecting
-repository behavior, tests, or documented consumers."
-
-**Next:** The remaining Swift gap is **version sync integration** — add `Constants.swift` to
-`scripts/version_sync.py` targets so the Swift package version stays in sync with releases. After
-that, the Swift issue in issues.md can be closed. Then Kotlin bindings work can begin (the other
-`normal` priority issue).
-
-**Notes:**
-
-- Swift howto guide (425 lines, 25 sections) follows the dotnet.md structural template faithfully
-- All Swift API signatures verified against `packages/swift/Sources/IsccLib/iscc_uniffi.swift`
-- `InstanceCodeResult` has `datahash` and `filesize` fields (matches UniFFI definition, differs from
-    .NET which only has `iscc`)
-- README Swift sections correctly placed after C/C++ and before WASM in both install and quickstart
-- `packages/swift/CLAUDE.md` includes all critical pitfalls (module name matching, macOS-only
-    testing, generated file rules)
+**Notes:** Simple, clean implementation. Used top-level `public let isccLibVersion` (matching the
+UniFFI free-function style) rather than an enum namespace — simpler and consistent with the project
+pattern. The regex matches `isccLibVersion = "X.Y.Z"` which is specific enough to avoid false
+matches with the UniFFI-generated code.
