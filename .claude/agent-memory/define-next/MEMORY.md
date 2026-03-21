@@ -53,7 +53,7 @@ iterations.
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
     `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
-## Kotlin Bindings (in progress — CI Gson fix pending, then docs/release)
+## Kotlin Bindings (in progress — docs next, then release workflow)
 
 - **UniFFI Kotlin output is JVM-only** — uses JNA (`com.sun.jna.*`), NOT Kotlin/Native cinterop
 - Generated file: 3214 lines, package `uniffi.iscc_uniffi`, loads `libiscc_uniffi.so` via JNA
@@ -62,7 +62,7 @@ iterations.
 - `kotlin("jvm")` plugin, Gradle 8.12.1 wrapper, JNA 5.16.0 — all working
 - JDK 17 in devcontainer; `./gradlew compileKotlin` verified passing
 - Kotlin step sequence: ~~scaffold+compile~~ -> ~~conformance tests~~ -> ~~CI job~~ -> ~~gradlew fix
-    \+ version sync~~ -> Gson fix -> docs + README + CLAUDE.md -> release workflow -> publishing
+    \+ version sync~~ -> ~~Gson fix~~ -> docs + README + CLAUDE.md -> release workflow -> publishing
 - **Gson Maven coordinates**: groupId is `com.google.code.gson` (NOT `com.google.gson`). The Java
     *package* name is `com.google.gson.*` but the Maven *artifact* groupId has an extra `.code.`
     segment. Java pom.xml uses 2.11.0
@@ -71,6 +71,7 @@ iterations.
 - **CI job pattern**: same as Swift (build iscc-uniffi, run tests) but on ubuntu-latest (not macOS)
 - **gradle.properties** format: `version=0.3.1` (no quotes, no spaces) — version_sync.py target
     added
+- **Kotlin SimpleIcons color**: `#7F52FF` (official Kotlin brand purple)
 
 ## Swift Bindings (COMPLETE)
 
@@ -93,10 +94,10 @@ iterations.
 
 ## Project Status
 
-- v0.3.1 released, 15/16 CI jobs green (Kotlin failing — wrong Gson groupId)
+- v0.3.1 released, 16/16 CI jobs green (Kotlin Gson fix landed)
 - All 11 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift)
-- Kotlin bindings in progress: scaffold + tests + CI job + gradlew + version sync done; Gson fix,
-    docs, release workflow remaining
+- Kotlin bindings in progress: scaffold + tests + CI + Gson fix done; docs + release workflow
+    remaining
 - 2 normal-priority Swift issues: SPM install instructions incorrect, package doesn't vend native
     lib
 
