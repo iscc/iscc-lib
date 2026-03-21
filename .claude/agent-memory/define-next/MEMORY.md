@@ -13,23 +13,17 @@ iterations.
     step since they follow identical patterns
 - When CI is red, formatting/lint fixes are always the first priority regardless of handoff "Next"
 - Prefer concrete deliverables over research tasks when both are available
-- **State assessments can go stale** — always verify claimed gaps by reading the actual files. E.g.,
-    state claimed "speedup factors not yet published" but `docs/benchmarks.md` already had them
+- **State assessments can go stale** — always verify claimed gaps by reading the actual files
 - New Tier 1 symbols: always implement in Rust core first, then propagate to bindings in separate
     steps. Core + tests in one step, bindings in subsequent steps
-- **Handoff "IDLE" can be stale** — state assessment may create new normal-priority issues AFTER the
-    handoff. Always check issues.md directly rather than trusting handoff "IDLE" signals
-- **Generated files (tool output) don't count toward the 3-file modification limit** — they're
-    created by running a tool, not hand-written
-- **CI red always first** — even if handoff suggests feature work, a failing CI job takes priority.
-    Green CI is a prerequisite for all other work
-- **Root cause before fix** — when CI fails with a dependency error, check the actual coordinates
-    (groupId, artifactId, version) against known-good references in the project before suggesting
-    environment fixes
-- **Target gaps vs low issues** — when state.md says "IDLE" but target.md has unmet verification
-    criteria that aren't filed as `low` issues in issues.md, they're legitimate gaps to work on. The
-    target is the source of truth for what needs to be done
-- **Review agent can miscount issues** — always read issues.md directly to check priorities
+- **Handoff "IDLE" can be stale** — always check issues.md directly
+- **Generated files (tool output) don't count toward the 3-file modification limit**
+- **CI red always first** — green CI is a prerequisite for all other work
+- **Root cause before fix** — check actual coordinates against known-good references
+- **Target gaps vs low issues** — target is source of truth for what needs to be done
+- **Review agent can miscount issues** — always read issues.md directly
+- **Batch related small changes** — version sync + docs update for same feature can combine into one
+    step (1 code file + 1 doc file excluded from limit)
 
 ## Signature Change Propagation
 
@@ -51,21 +45,18 @@ iterations.
 - UniFFI v0.31.0 is the latest stable version (checked 2026-03-21)
 - Proc macro approach: `#[uniffi::export]`, `#[derive(uniffi::Record)]`, `#[derive(uniffi::Object)]`
     — no UDL files or `build.rs` needed
-- Key type constraints: no `usize` (use `u64`), no borrowed types (use owned `String`, `Vec<u8>`),
-    no generics on exported functions (use concrete types like `Vec<Vec<i32>>`)
+- Key type constraints: no `usize` (use `u64`), no borrowed types, no generics on exported functions
 - Constants are getter functions (UniFFI can't export `const`)
-- Streaming types use `Mutex<Option<Inner>>` pattern for interior mutability with `&self` methods
-- **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
-    `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
+- Streaming types use `Mutex<Option<Inner>>` pattern
+- **SPM module name MUST match generated code**: `iscc_uniffiFFI`
 
 ## Swift XCFramework Implementation Plan
 
 Multi-step effort, tracked as normal-priority issue. Progress:
 
 1. ~~Build script + root Package.swift restructure~~ (DONE — iteration 2)
-2. Release workflow integration (build-xcframework job, force-update tag) — **in progress**
-3. Version sync for releaseTag in version_sync.py
-4. Docs/howto update (swift.md SPM install docs)
+2. ~~Release workflow integration (build-xcframework job)~~ (DONE — iteration 3)
+3. Version sync + docs update — **current step** (iteration 4)
 
 Key constraints:
 
@@ -76,6 +67,7 @@ Key constraints:
 - Ferrostar pattern: `useLocalFramework` variable toggle, force-update tag for checksum
 - macOS sed uses `sed -E -i ''` (empty backup ext) — differs from GNU `sed -i`
 - `build-xcframework` job is independent (no `needs`) — builds from source on macOS
+- GITHUB_REF_NAME bug flagged `HUMAN REVIEW REQUESTED` — CID must not fix without human input
 
 ## Dev Environment Constraints
 
@@ -97,10 +89,9 @@ Key constraints:
 - All 12 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift,
     Kotlin)
 - pytest-benchmark done (18 functions), speedup factors already in `docs/benchmarks.md`
-- 1 normal issue: Swift XCFramework distribution
+- 2 normal issues: Swift XCFramework vend (version sync + docs remain), Swift GITHUB_REF_NAME bug
+    (HUMAN REVIEW)
 - 1 low issue: language logos in docs
-- `docs/benchmarks.md` reproduction commands reference wrong path (`pytest benchmarks/python/`
-    should be `tests/test_benchmarks.py`) — minor doc bug for future cleanup
 
 ## Version Sync Script Patterns
 
@@ -108,11 +99,12 @@ Key constraints:
 - JSON targets (package.json, vcpkg.json): can reuse
     `_get_package_json_version`/`_sync_package_json`
 - `version_sync.py --check` runs in CI (`version-check` job)
+- Currently 15 targets; adding Package.swift releaseTag will make 16
 
 ## CI/Release Patterns
 
 - v0.3.1 released to all registries
-- Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
+- Release workflow has `workflow_dispatch` with 9 per-registry checkboxes + `ffi` boolean
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
 
 ## Docs Infrastructure
@@ -121,6 +113,7 @@ Key constraints:
 - `scripts/gen_llms_full.py` has `ORDERED_PAGES` list — must add entry for llms-full.txt generation
 - All howto guides follow identical structure (see `docs/howto/dotnet.md` as template)
 - Per-package CLAUDE.md files follow `packages/dotnet/CLAUDE.md` structure
+- Howto install sections use collapsible `??? tip "Build from source"` pattern
 
 ## Gotchas
 
@@ -129,5 +122,4 @@ Key constraints:
 - Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
 - When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
     must be updated (Rust core + WASM)
-- **Gson groupId trap**: Maven groupId is `com.google.code.gson`, NOT `com.google.gson`. The Java
-    import package `com.google.gson.*` differs from the Maven coordinate — easy to confuse
+- **Gson groupId trap**: Maven groupId is `com.google.code.gson`, NOT `com.google.gson`
