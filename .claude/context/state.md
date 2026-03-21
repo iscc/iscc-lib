@@ -1,15 +1,15 @@
-<!-- assessed-at: a4a5cef13d48b0106e4223fb733db9d4597e3781 -->
+<!-- assessed-at: 0f2149cdbb7a2188e73faadabf192ec721b93a37 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Kotlin conformance tests done; CI job and integration next
+## Phase: Kotlin CI job added but failing; fix + remaining integration needed
 
-v0.3.1 released across all 8 registries. Kotlin JVM project scaffold and conformance tests are
-complete — 9 test methods covering all gen\_\*\_v0 functions against 50 vectors pass locally. Still
-needs: CI job, version sync, documentation, README integration, and release workflow. All 15/15 CI
-jobs pass (run 23383837044).
+v0.3.1 released across all 8 registries. Kotlin CI job was added to ci.yml (now 16 jobs) but
+**fails** with `./gradlew: Permission denied` — the file is tracked in git as mode 100644
+(non-executable). Fix requires `git update-index --chmod=+x packages/kotlin/gradlew`. Two new Swift
+packaging issues filed. 15/16 CI jobs pass; fixing the Kotlin CI failure is the top priority.
 
 ## Rust Core Crate
 
@@ -152,7 +152,7 @@ jobs pass (run 23383837044).
 
 ## Kotlin Multiplatform Bindings
 
-**Status**: partially met (scaffold + tests done; CI/docs/release missing)
+**Status**: partially met (scaffold + tests + CI job exist; CI failing + docs/release missing)
 
 - **Scaffold created** — packages/kotlin/ exists with:
     - build.gradle.kts — Kotlin/JVM 2.1.10 plugin, group `io.iscc`, JNA 5.16.0, JUnit 5.11.4 + Gson
@@ -166,8 +166,11 @@ jobs pass (run 23383837044).
     - src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt — 237 lines, 9 @Test methods covering all
         gen\_\*\_v0 functions (20+5+3+5+3+2+4+3+5 = 50 vectors)
     - src/test/resources/data.json — vendored conformance vectors (SHA256 matches iscc-lib copy)
-    - gradlew test passes: 9 tests, 0 failures (verified by review agent)
-- **Missing — CI job**: No kotlin job in ci.yml (still 15 jobs)
+    - gradlew test passes locally: 9 tests, 0 failures
+- **CI job added** — `kotlin:` job in ci.yml (cargo build -p iscc-uniffi + gradlew test)
+- **CI FAILING** — `./gradlew: Permission denied` — file tracked as git mode 100644
+    (non-executable). Root cause: `git ls-files -s packages/kotlin/gradlew` shows `100644`. Fix:
+    `git update-index --chmod=+x packages/kotlin/gradlew`
 - **Missing — documentation**: No docs/howto/kotlin.md, no packages/kotlin/README.md, no
     packages/kotlin/CLAUDE.md
 - **Missing — README integration**: No Kotlin install/quickstart sections in root README
@@ -213,23 +216,36 @@ jobs pass (run 23383837044).
 
 ## CI/CD and Publishing
 
-**Status**: partially met (no Kotlin CI job)
+**Status**: partially met (Kotlin CI job failing)
 
-- **LATEST COMPLETED RUN** — run 23383837044: **15/15 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23383837044
-- All jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js, WASM,
-    C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift — all SUCCESS
+- **LATEST COMPLETED RUN** — run 23384451846: **15/16 jobs SUCCESS, 1 FAILING**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23384451846
+- **FAILING**: `Kotlin (gradle build, test)` — step "Run Gradle tests" fails with
+    `./gradlew: Permission denied` (exit code 126). Root cause: gradlew tracked as 100644 in git.
+- All other 15 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate,
+    Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift — all SUCCESS
 - v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
     GitHub Releases)
 - version_sync.py manages 14 sync targets (including Swift Constants.swift)
-- **Gap**: No Kotlin CI job yet
+- 16 CI jobs total (15 definitions + Python matrix expansion)
+- **Gap**: Kotlin CI failing (permission fix needed)
 - **Gap**: No Kotlin in release.yml
+- **Gap**: No Kotlin in version_sync.py
+
+## Open Issues (4 total)
+
+1. **Kotlin bindings** `normal` — scaffold + tests done, CI added but failing; docs/release missing
+2. **Swift SPM install instructions incorrect** `normal` — Package.swift in subdirectory, SPM URL
+    won't resolve from repo root
+3. **Swift package does not vend native library** `normal` — linkedLibrary declared but no dylib
+    bundled; users get link failures
+4. **Language logos in docs** `low` — CID skips
 
 ## Next Milestone
 
-**Add Kotlin CI job** (highest-impact next step — tests exist but are not gated in CI):
+**Fix Kotlin CI failure** (CI is broken — top priority before any feature work):
 
-1. Add `kotlin` job to `.github/workflows/ci.yml` — build libiscc_uniffi.so, run gradlew test
+1. Fix `gradlew` git permissions: `git update-index --chmod=+x packages/kotlin/gradlew`
 2. Verify 16/16 CI jobs pass
 
 Then continue Kotlin integration: version sync (add gradle.properties to version_sync.py),

@@ -37,6 +37,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin build test**: `cd packages/kotlin && ./gradlew compileKotlin`
 - **Kotlin test check**: `ls packages/kotlin/src/test/ 2>&1`
 - **Kotlin test count**: Grep for `@Test` in ConformanceTest.kt
+- **Kotlin gradlew permissions**: `git ls-files -s packages/kotlin/gradlew` — must be 100755
 - **state.md Write workaround**: Write tool gets permission errors on state.md — use Python script
     via Bash tool instead: `python3 /tmp/write_state.py` (write content via pathlib.Path.write_text
     in a heredoc-delimited Python script using raw strings)
@@ -55,8 +56,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     target is `iscc_uniffiFFI` (must match UniFFI-generated `#if canImport(...)`)
 - `packages/kotlin/` — Kotlin/JVM project with Gradle 8.12.1, UniFFI-generated bindings (3214-line
     iscc_uniffi.kt), JNA 5.16.0; conformance tests complete (9 methods, 50 vectors)
-- `.github/workflows/ci.yml` — **15 CI jobs** (version-check, Rust, python-test matrix, python gate,
-    Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C#/.NET, C++, **Swift**) — no Kotlin yet
+- `.github/workflows/ci.yml` — **16 CI jobs** (version-check, Rust, python-test matrix, python gate,
+    Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C#/.NET, C++, Swift, **Kotlin**)
 - `crates/iscc-uniffi/` — UniFFI scaffolding crate: 32 exports, 21 tests, `bindgen` feature for CLI;
     `publish = false`; proc macro approach; depends on uniffi 0.31, thiserror, iscc-lib
 - `docs/howto/` — **10 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
@@ -77,16 +78,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
 - **Target may change**: always re-read target.md diff when doing incremental review
+- **Check CI logs for failures**: `gh run view <id> --log-failed 2>&1 | tail -60` gives the actual
+    error message quickly
 
-## Current State (assessed-at: a4a5cef)
+## Current State (assessed-at: 0f2149c)
 
-- **IN_PROGRESS**: **15/15 CI jobs green** (run 23383837044)
+- **IN_PROGRESS**: **15/16 CI jobs pass, 1 FAILING** (Kotlin — gradlew permission denied)
+- Latest CI run: 23384451846 (FAILURE)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
-- **Kotlin scaffold + conformance tests done** — 9 @Test methods, 50 vectors, all passing locally
-- **Kotlin still missing**: CI job, docs, README, CLAUDE.md, version sync, release workflow
-- **1 normal-priority issue** in issues.md: Kotlin bindings (partially done — tests complete)
-- **1 low-priority issue**: Language logos in docs (CID skips)
-- **Next**: Add Kotlin CI job to ci.yml
+- **Kotlin CI job added** but fails: `gradlew` tracked as 100644 in git (non-executable)
+- **4 open issues**: Kotlin bindings (normal), Swift SPM install (normal), Swift native lib
+    (normal), language logos (low)
+- **Next**: Fix gradlew permissions to unblock Kotlin CI
 
 ## Gotchas
 
@@ -106,7 +109,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin UniFFI bindings**: Uses JNA (not JNI) — `net.java.dev.jna:jna:5.16.0`; generated code
     uses `package uniffi.iscc_uniffi`; needs `libiscc_uniffi.so` at runtime via java.library.path
     AND jna.library.path (java.library.path alone insufficient for JNA's `Native.register()`)
-- **Kotlin CI will need**: cargo build -p iscc-uniffi (to produce libiscc_uniffi.so), then gradlew
-    test with LD_LIBRARY_PATH set to target/debug
+- **Kotlin gradlew permission bug**: git tracked gradlew as 100644 (non-executable). CI fails with
+    "Permission denied". Fix: `git update-index --chmod=+x packages/kotlin/gradlew` OR use
+    `chmod +x ./gradlew && ./gradlew test` in ci.yml step.
 - **mdformat trailing space bug**: inline code with trailing space triggers mdformat "renders to
     different HTML" error. Remove trailing spaces from inline code.
