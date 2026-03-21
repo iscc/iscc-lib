@@ -149,7 +149,7 @@ dependencies {
 }
 ```
 
-The native library must be available on `java.library.path` at runtime.
+The native library must be available on `java.library.path` and `jna.library.path` at runtime.
 
 ### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM
 

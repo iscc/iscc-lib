@@ -1,49 +1,48 @@
-## 2026-03-21 — Kotlin documentation — howto guide, package README/CLAUDE.md, root README integration
+## 2026-03-21 — Review of: Kotlin documentation — howto guide, package README/CLAUDE.md, root README integration
 
-**Done:** Created all Kotlin documentation artifacts: howto guide (`docs/howto/kotlin.md`, 452
-lines), package README (`packages/kotlin/README.md`, 88 lines), and package CLAUDE.md
-(`packages/kotlin/CLAUDE.md`, 101 lines). Integrated Kotlin into root README (installation +
-quickstart sections, polyglot language lists), docs nav (`zensical.toml`), and LLM page list
-(`scripts/gen_llms_full.py`).
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** All Kotlin documentation artifacts created correctly — 451-line howto guide, 89-line
+package README, 101-line package CLAUDE.md. Root README integration (install + quickstart sections),
+zensical.toml nav entry, and gen_llms_full.py entry all verified. API names, types, and signatures
+in the howto match the generated `iscc_uniffi.kt` bindings. Minor fix applied: added
+`jna.library.path` to README library path notes (found by Codex review).
 
-- `docs/howto/kotlin.md`: New howto guide with 13 sections (installation, all code gen functions,
-    streaming, codec, text utils, encoding utils, algorithm primitives, constants, conformance,
-    error handling). Follows Swift howto structure adapted for Kotlin syntax.
-- `packages/kotlin/README.md`: New package README with install, usage example, API overview, build
-    from source instructions.
-- `packages/kotlin/CLAUDE.md`: New package CLAUDE.md with file layout, build commands, test
-    patterns, binding generation, CI, and pitfalls.
-- `README.md`: Added Kotlin installation section (Gradle DSL dependency block) and quickstart
-    section (genMetaCodeV0 example) between Swift and WASM. Added "Kotlin" to polyglot feature list
-    and description paragraph (needed for >= 4 mentions).
-- `zensical.toml`: Added `{ "Kotlin" = "howto/kotlin.md" }` after Swift in nav.
-- `scripts/gen_llms_full.py`: Added `"howto/kotlin.md"` after `"howto/swift.md"` in ORDERED_PAGES.
+**Verification:**
 
-**Verification:** All criteria pass:
-
-- [x] `docs/howto/kotlin.md` exists
-- [x] `packages/kotlin/README.md` exists
-- [x] `packages/kotlin/CLAUDE.md` exists
+- [x] `test -f docs/howto/kotlin.md` — howto guide exists (451 lines)
+- [x] `test -f packages/kotlin/README.md` — package README exists (89 lines)
+- [x] `test -f packages/kotlin/CLAUDE.md` — package CLAUDE.md exists (101 lines)
 - [x] `grep -q 'kotlin' zensical.toml` — nav entry present
 - [x] `grep -q 'kotlin' scripts/gen_llms_full.py` — ORDERED_PAGES entry present
 - [x] `grep -q 'Kotlin' README.md` — root README has Kotlin sections
 - [x] `grep -c 'Kotlin' README.md` returns 4 (>= 4 required)
-- [x] `uv run python scripts/gen_llms_full.py && test -f site/llms-full.txt` — generates OK (note:
-    output path is `site/llms-full.txt`, not `docs/llms-full.txt` as stated in next.md)
+- [x] `uv run python scripts/gen_llms_full.py && test -f site/llms-full.txt` — generates OK (output
+    path is `site/llms-full.txt`, not `docs/llms-full.txt` as next.md stated)
 - [x] `mise run check` — all 15 pre-commit hooks pass
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
 
-**Next:** Release workflow integration — add `maven-kotlin` input to `release.yml` for Kotlin
-package publishing to Maven Central. This is the remaining sub-task from the Kotlin bindings issue.
+**Issues found:**
+
+- (none) — all scope items completed correctly
+
+**Codex review:** Two findings, both advisory:
+
+1. **P1** (Maven Central snippet before publishing): README shows aspirational install snippet for
+    an unpublished package. Assessed as consistent with project pattern (Swift has the same). The
+    detailed howto has a "Not yet published" admonition. No action needed.
+2. **P2** (Missing `jna.library.path` in READMEs): Valid — both READMEs mentioned only
+    `java.library.path` but JNA needs `jna.library.path` too. Fixed in this review commit.
+
+**Next:** Add `maven-kotlin` input to `release.yml` for Kotlin package publishing to Maven Central.
+This is the last remaining sub-task of the Kotlin bindings issue. After that, the Kotlin issue can
+be fully resolved (docs + CI + tests + version sync + release workflow all complete).
 
 **Notes:**
 
-- Next.md stated "Adding Kotlin to the polyglot badge line (already listed in README line 26)" as
-    not in scope, but Kotlin was NOT already listed there. Added it to meet the >= 4 mentions
-    verification criterion.
-- The streaming API uses `update()` method (not `push()` as next.md mentioned) — verified against
-    the generated `iscc_uniffi.kt` source.
-- The `textTrim` function takes `nbytes: ULong` (not `UInt`) in Kotlin — documented correctly.
-- Next.md verification says `docs/llms-full.txt` but the script outputs to `site/llms-full.txt` —
-    minor error in the verification spec.
+- next.md's "Not In Scope" stated Kotlin was "already listed in README line 26" — this was incorrect
+    (Kotlin had 0 mentions). Advance agent correctly added it to the polyglot feature list to meet
+    the >= 4 mentions criterion.
+- next.md verification said `docs/llms-full.txt` but script outputs to `site/llms-full.txt`.
+- Streaming API uses `update()` (not `push()` as next.md mentioned) — advance agent used the correct
+    name after checking the generated bindings.

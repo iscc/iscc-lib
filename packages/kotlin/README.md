@@ -15,7 +15,8 @@ dependencies {
 }
 ```
 
-The native `libiscc_uniffi` shared library must be available on `java.library.path` at runtime.
+The native `libiscc_uniffi` shared library must be available on `java.library.path` and
+`jna.library.path` at runtime.
 
 ## Usage
 

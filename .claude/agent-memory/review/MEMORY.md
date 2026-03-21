@@ -128,8 +128,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Conformance tests: 9 methods, 50 vectors, JUnit 5 + Gson. `HexFormat` requires Java 17+
 - `mavenLocal()` in build.gradle.kts — devcontainer workaround. CI resolves from `mavenCentral()`
 - Codex confused by large generated Kotlin diffs (same as Swift) — findings advisory
-- Kotlin CI job added + gradlew permissions fixed + version sync added (iteration 1). Remaining:
-    docs, README, release workflow
+- Kotlin CI job added + gradlew permissions fixed + version sync added (iteration 1). Docs/README
+    completed (iteration 3). Remaining: release workflow (maven-kotlin in release.yml)
 
 ## C++ Wrapper Review
 

@@ -1005,3 +1005,8 @@
 {"ts":"2026-03-21T17:58:33.190172+00:00","iteration":2,"role":"define-next","status":"OK","turns":29,"cost_usd":1.275248,"duration_s":350.7}
 {"ts":"2026-03-21T18:02:30.073778+00:00","iteration":2,"role":"advance","status":"OK","turns":1,"cost_usd":0.710301,"duration_s":236.9}
 {"ts":"2026-03-21T18:05:55.219083+00:00","iteration":2,"role":"review","status":"PASS","summary":"Kotlin CI Gson fix verified — 1-line groupId correction, all tests pass, no scope creep"}
+{"ts":"2026-03-21T18:08:10.266453+00:00","iteration":2,"role":"review","status":"OK","turns":1,"cost_usd":1.067354,"duration_s":340.2}
+{"ts":"2026-03-21T18:30:00.988824+00:00","iteration":3,"role":"update-state","status":"OK","turns":23,"cost_usd":0.889751,"duration_s":187.5}
+{"ts":"2026-03-21T18:33:47.189478+00:00","iteration":3,"role":"define-next","status":"OK","turns":33,"cost_usd":1.132846,"duration_s":226.2}
+{"ts":"2026-03-21T18:43:08.069387+00:00","iteration":3,"role":"advance","status":"OK","turns":65,"cost_usd":2.630119,"duration_s":560.9}
+{"ts":"2026-03-21T18:52:19.599121+00:00","iteration":3,"role":"review","status":"PASS","summary":"Kotlin docs verified — howto, READMEs, CLAUDE.md, nav/llms entries all correct. Minor fix: added jna.library.path to README notes"}
