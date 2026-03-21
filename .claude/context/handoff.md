@@ -1,42 +1,62 @@
-## 2026-03-21 — Create XCFramework build script and restructure root Package.swift
+## 2026-03-21 — Review of: Create XCFramework build script and restructure root Package.swift
 
-**Done:** Created `scripts/build_xcframework.sh` — a portable bash script that cross-compiles
-`iscc-uniffi` for 5 Apple targets, creates fat binaries via `lipo`, assembles an XCFramework via
-`xcodebuild`, zips with `ditto`, and prints the SHA256 checksum. Restructured root `Package.swift`
-to use the Ferrostar-style variable toggle pattern with `useLocalFramework`, `releaseTag`, and
-`releaseChecksum`, replacing the old `.target`/`.linkedLibrary` approach with `.binaryTarget`.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `scripts/build_xcframework.sh`: New file — complete XCFramework build pipeline (cross-compile,
-    lipo, stage headers, xcodebuild, ditto zip, compute-checksum)
-- `Package.swift`: Rewritten — variable toggle (`useLocalFramework`), conditional `binaryTarget`
-    (local path vs GitHub Releases URL), platform constraints (macOS 13, iOS 16), placeholder
-    `releaseTag`/`releaseChecksum`
+**Summary:** Clean, well-scoped implementation adding `scripts/build_xcframework.sh` and
+restructuring root `Package.swift` with the Ferrostar-style variable toggle pattern. Both files
+faithfully follow the spec at `.claude/context/specs/swift-bindings.md`. All 15 verification
+criteria pass, all quality gates clean, no suppressions or scope violations.
 
 **Verification:**
 
-- All 12 grep-based verification criteria pass (5 script checks + 5 Package.swift checks + unchanged
-    dev Package.swift + platform check)
-- `bash -n` syntax check passes
-- Script is executable (`chmod +x`)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean
-- `cargo test -p iscc-lib` — 317 tests pass (261 unit + 31 integration + 24 text utils + 1 doctest)
-- `mise run check` — all 15 pre-commit hooks pass
+- [x] `test -x scripts/build_xcframework.sh` — script exists and is executable
+- [x] `bash -n scripts/build_xcframework.sh` — valid shell syntax
+- [x] `grep -q 'aarch64-apple-darwin'` — macOS arm64 target present
+- [x] `grep -q 'x86_64-apple-ios'` — iOS simulator x86_64 target present
+- [x] `grep -q 'xcodebuild -create-xcframework'` — XCFramework assembly present
+- [x] `grep -q 'ditto'` — ditto zip present
+- [x] `grep -q 'swift package compute-checksum'` — checksum computation present
+- [x] `grep -q 'useLocalFramework' Package.swift` — variable toggle present
+- [x] `grep -q 'binaryTarget' Package.swift` — uses binary target
+- [x] `grep -q 'releaseTag' Package.swift` — release tag variable present
+- [x] `grep -q 'releaseChecksum' Package.swift` — checksum variable present
+- [x] `grep -q '.macOS' Package.swift` — platform constraints present
+- [x] `diff packages/swift/Package.swift` — development Package.swift unchanged
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- [x] `cargo test -p iscc-lib` — all tests pass
+- [x] `mise run check` — all 15 pre-commit hooks pass
 
-**Next:** Two follow-up steps remain before Swift XCFramework is end-to-end functional: (1) Add
-`build-xcframework` job to `release.yml` with force-update tag pattern and XCFramework upload, and
-add `swift` checkbox input. (2) Add `releaseTag` entry to `version_sync.py` so version bumps
-propagate to `Package.swift`. Documentation update (`docs/howto/swift.md`) should follow after the
-release workflow is verified working on macOS CI.
+**Issues found:**
+
+- (none)
+
+**Codex review:** Two findings, both about the intentional intermediate state:
+
+1. **P1** (root Package.swift defaults to nonexistent remote XCFramework): Expected — the
+    `PLACEHOLDER` checksum is temporary. The root Package.swift on `develop` isn't consumed by any
+    tagged release yet. The v0.3.1 tag still has the old Package.swift. The release workflow (next
+    step) will replace the placeholder with a real checksum and upload the XCFramework.
+2. **P2** (`releaseTag` not in version sync): Explicitly deferred per next.md's "Not In Scope" —
+    version sync entry is a planned follow-up step.
+
+Both findings are valid observations about intermediate state, not defects.
+
+**Next:** Continue the Swift XCFramework multi-step effort. Two remaining steps:
+
+1. **Release workflow integration** (higher priority): Add `build-xcframework` job to `release.yml`
+    with: macOS runner, XCFramework build + zip, `sed` to update `releaseTag`/`releaseChecksum` in
+    Package.swift, auto-commit, force-update tag, upload to GitHub Release, `swift` checkbox input.
+    Reference: spec section "Release Workflow Integration".
+2. **Version sync**: Add `releaseTag` entry to `version_sync.py` so version bumps propagate to
+    `Package.swift`. The `releaseChecksum` is CI-only (not in version sync).
+
+After both: update `docs/howto/swift.md` to document zero-friction SPM install.
 
 **Notes:**
 
-- `releaseTag` placeholder set to `"0.3.1"` (current version) and `releaseChecksum` to
-    `"PLACEHOLDER"` — these will be updated by CI during the first release that includes Swift
-- The script cannot be tested in the Linux devcontainer (requires macOS toolchain: `lipo`,
-    `xcodebuild`, `ditto`, `swift`). Syntax validation via `bash -n` is the maximum verification
-    possible here
-- The root `Package.swift` no longer has a `testTarget` — tests remain exclusively in
-    `packages/swift/Package.swift` for CI, matching the existing pattern noted in agent memory
-- `packages/swift/Package.swift` is completely unchanged (verified via git diff)
+- The Swift vend issue in issues.md stays open — this iteration completed step 1 (build script +
+    Package.swift restructure) of a multi-step effort
+- Script cannot be tested on Linux (requires macOS toolchain) — `bash -n` is the maximum
+    verification possible. Real validation happens when the release workflow runs on macOS CI
+- `releaseTag` is set to `"0.3.1"` (current version) and `releaseChecksum` to `"PLACEHOLDER"` — CI
+    will replace both during the first release that includes Swift

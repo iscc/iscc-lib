@@ -108,12 +108,15 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 ## Swift Package Review
 
 - `packages/swift/` — SPM package: iscc_uniffiFFI (C header + modulemap) + IsccLib (generated Swift)
-- Two `Package.swift` files: root (SPM consumers) + `packages/swift/Package.swift` (CI/local dev).
-    Root omits testTarget. Both coexist without conflict
+- Two `Package.swift` files: root (SPM consumers, binaryTarget) + `packages/swift/Package.swift`
+    (CI/local dev, linkedLibrary). Root omits testTarget. Both coexist without conflict
+- Root `Package.swift` uses Ferrostar-style variable toggle: `useLocalFramework` (bool),
+    `releaseTag`, `releaseChecksum`. Default `false` → remote binaryTarget from GitHub Releases
+- `scripts/build_xcframework.sh`: 5 Rust targets → lipo fat binaries → xcodebuild → ditto zip →
+    swift package compute-checksum. Cannot test on Linux — `bash -n` syntax check only
 - Review shortcut: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (no `swift test` on
     Linux). Swift tests structurally validated only — execution needs macOS CI
-- Docs-only Swift changes: `mise run check` + clippy (no Swift-specific tests needed on Linux)
-- Codex review on large generated diffs may be confused — findings advisory as always
+- **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - Swift CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test`
 - **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
     consistently get this wrong — always verify in review

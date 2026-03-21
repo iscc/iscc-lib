@@ -1022,3 +1022,8 @@
 {"ts": "2026-03-21T20:36:27.683188+00:00", "iteration": 5, "role": "review", "status": "PASS_WITH_NOTES", "verdict_notes": "Fixed wrong docs URL. Issue 1 resolved, issue 2 downgraded to low. IDLE \u2014 all remaining issues low priority."}
 {"ts":"2026-03-21T21:04:12.785695+00:00","iteration":1,"role":"advance","status":"OK","turns":42,"cost_usd":1.566273,"duration_s":726.3}
 {"ts": "2026-03-21T21:35:00.000000+00:00", "iteration": 1, "role": "review", "status": "PASS", "verdict_notes": "18 benchmarks pass, all quality gates clean, no scope violations. Codex notes benchmark overhead in default pytest — advisory."}
+{"ts":"2026-03-21T21:16:39.388353+00:00","iteration":1,"role":"review","status":"OK","turns":1,"cost_usd":2.294473,"duration_s":746.6}
+{"ts":"2026-03-21T21:38:33.044444+00:00","iteration":2,"role":"update-state","status":"OK","turns":31,"cost_usd":0.843475,"duration_s":196.6}
+{"ts":"2026-03-21T21:45:34.105438+00:00","iteration":2,"role":"define-next","status":"OK","turns":33,"cost_usd":1.533415,"duration_s":421.0}
+{"ts":"2026-03-21T21:52:26.597377+00:00","iteration":2,"role":"advance","status":"OK","turns":1,"cost_usd":1.819314,"duration_s":412.5}
+{"ts": "2026-03-21T22:00:00.000000+00:00", "iteration": 2, "role": "review", "status": "PASS", "verdict_notes": "XCFramework build script + Package.swift restructure. All 15 verification criteria pass, all quality gates clean. Codex findings about intermediate state (placeholder checksum, missing version sync) are expected — both deferred by scope."}
