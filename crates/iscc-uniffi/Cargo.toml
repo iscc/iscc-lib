@@ -1,0 +1,19 @@
+[package]
+name = "iscc-uniffi"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+description = "UniFFI scaffolding for iscc-lib (Swift and Kotlin bindings)"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[dependencies]
+iscc-lib = { path = "../iscc-lib", features = ["meta-code"] }
+uniffi = { workspace = true }
+thiserror = { workspace = true }

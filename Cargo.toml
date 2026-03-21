@@ -8,6 +8,7 @@ members = [
   "crates/iscc-ffi",
   "crates/iscc-jni",
   "crates/iscc-rb",
+  "crates/iscc-uniffi",
 ]
 
 [workspace.package]
@@ -42,6 +43,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3"
 jni = "0.21"
 magnus = { version = "0.7", features = ["rb-sys"] }
+uniffi = "0.31"
 
 [profile.release]
 lto = true

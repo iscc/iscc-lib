@@ -18,6 +18,9 @@ iterations.
 - Ruby: `crates/iscc-rb/` — src/lib.rs (Magnus bridge), lib/iscc_lib.rb (Ruby wrapper + Result
     classes), lib/iscc_lib/version.rb, extconf.rb, Rakefile, Gemfile, iscc-lib.gemspec,
     test/test_smoke.rb. Cargo lib name `iscc_rb` (not `iscc_lib` — matches package name for rb_sys)
+- UniFFI: `crates/iscc-uniffi/` — src/lib.rs (proc macro interface for Swift/Kotlin). 32 Tier 1
+    symbols, 11 result Records, IsccUniError enum, DataHasher/InstanceHasher Objects. Uses
+    `uniffi::setup_scaffolding!()`, no UDL or build.rs. `publish = false`
 - Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go,
     xxh32.go, code_content_text.go, code_meta.go, code_data.go, code_instance.go,
     code_content_image.go, code_content_audio.go, code_content_video.go, code_content_mixed.go,
@@ -176,6 +179,19 @@ iterations.
 - vcpkg portfile downloads pre-built FFI tarballs from GitHub Releases (5 targets, `SKIP_SHA512`)
 - Conan recipe: pre-built binary download (mirrors portfile.cmake), `settings = "os", "arch"` only,
     `_target_triple()` maps to 5 platform targets, `conan.tools.files.download`/`unzip` in `build()`
+
+## UniFFI Bindings (Swift/Kotlin)
+
+- `crates/iscc-uniffi/` — shared scaffolding crate, `uniffi = "0.31"` (workspace dep)
+- Proc macro approach only: `#[uniffi::export]`, `#[derive(uniffi::Record)]`,
+    `#[derive(uniffi::Object)]`, `#[uniffi::constructor]`. No UDL files, no build.rs
+- `crate-type = ["cdylib", "staticlib", "lib"]` — cdylib for dynamic, staticlib for XCFramework
+- Error: `#[derive(uniffi::Error)] enum IsccUniError` with `From<iscc_lib::IsccError>` impl
+- Streaming: `Mutex<Option<Inner>>` pattern (same as Ruby's `RefCell<Option<Inner>>` but
+    thread-safe)
+- UniFFI doesn't support: `const` exports (use getter fns), `usize` (use u64), borrowed refs (owned)
+- Result records need `Debug` derive for test `unwrap_err()`. Hashers need `Default` impl (clippy)
+- 21 unit tests in-crate. Conformance testing happens in Swift/Kotlin test suites
 
 ## Gotchas
 
