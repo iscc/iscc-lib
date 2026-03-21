@@ -39,11 +39,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin test count**: Grep for `@Test` in ConformanceTest.kt
 - **Kotlin gradlew permissions**: `git ls-files -s packages/kotlin/gradlew` — must be 100755
 - **state.md Write workaround**: Write tool gets permission errors on state.md — use Python script
-    via Bash tool instead: `python3 /tmp/write_state.py` (write content via pathlib.Path.write_text
-    in a heredoc-delimited Python script using raw strings)
+    via Bash tool instead: `python3 -c "..."` (write content via pathlib.Path.write_text using raw
+    strings)
 - **CLAUDE.md files**: `ls packages/*/CLAUDE.md crates/*/CLAUDE.md 2>&1`
 - **Howto guides**: `ls docs/howto/*.md | sort`
-- **Version sync targets**: `uv run scripts/version_sync.py --check 2>&1 | tail -5`
+- **Version sync targets**: `uv run scripts/version_sync.py --check 2>&1 | grep "^OK:" | wc -l`
 
 ## Codebase Landmarks
 
@@ -63,7 +63,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `docs/howto/` — **10 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
     ruby.md, dotnet.md, swift.md (no kotlin.md yet)
 - `scripts/gen_llms_full.py` — **21 entries** in `ORDERED_PAGES`
-- `scripts/version_sync.py` — **14 sync targets** including Swift Constants.swift (no Kotlin yet)
+- `scripts/version_sync.py` — **15 sync targets** including Swift Constants.swift AND Kotlin
+    gradle.properties
 - `crates/iscc-lib/benches/benchmarks.rs` — 277 lines; 12 benches in `criterion_group!`
 - **CLAUDE.md files**: 11 total (10 crates/packages + packages/swift/CLAUDE.md)
 
@@ -80,16 +81,20 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review
 - **Check CI logs for failures**: `gh run view <id> --log-failed 2>&1 | tail -60` gives the actual
     error message quickly
+- **Handoff predictions may be wrong**: handoff claimed Kotlin CI would be green after gradlew fix,
+    but a new error appeared (Gson dependency resolution). Always verify CI independently.
 
-## Current State (assessed-at: 0f2149c)
+## Current State (assessed-at: 7997cfb)
 
-- **IN_PROGRESS**: **15/16 CI jobs pass, 1 FAILING** (Kotlin — gradlew permission denied)
-- Latest CI run: 23384451846 (FAILURE)
+- **IN_PROGRESS**: **15/16 CI jobs pass, 1 FAILING** (Kotlin — Gson dependency not found)
+- Latest CI run: 23384852935 (FAILURE)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
-- **Kotlin CI job added** but fails: `gradlew` tracked as 100644 in git (non-executable)
+- **Kotlin CI**: gradlew permission FIXED (100755), but now fails at `compileTestKotlin` with
+    `Could not find com.google.gson:gson:2.8.9` despite mavenCentral() in repos
+- Version sync: 15 targets (gradle.properties added this iteration)
 - **4 open issues**: Kotlin bindings (normal), Swift SPM install (normal), Swift native lib
     (normal), language logos (low)
-- **Next**: Fix gradlew permissions to unblock Kotlin CI
+- **Next**: Fix Kotlin Gradle dependency resolution, then Kotlin docs/release
 
 ## Gotchas
 
@@ -109,8 +114,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin UniFFI bindings**: Uses JNA (not JNI) — `net.java.dev.jna:jna:5.16.0`; generated code
     uses `package uniffi.iscc_uniffi`; needs `libiscc_uniffi.so` at runtime via java.library.path
     AND jna.library.path (java.library.path alone insufficient for JNA's `Native.register()`)
-- **Kotlin gradlew permission bug**: git tracked gradlew as 100644 (non-executable). CI fails with
-    "Permission denied". Fix: `git update-index --chmod=+x packages/kotlin/gradlew` OR use
-    `chmod +x ./gradlew && ./gradlew test` in ci.yml step.
+- **Kotlin gradlew permission bug** (RESOLVED): was 100644, now fixed to 100755
+- **Kotlin Gson CI failure**: `compileTestKotlin` fails with
+    `Could not find   com.google.gson:gson:2.8.9` despite `mavenCentral()` in repositories. Both CI
+    runs at same timestamp — may be transient, or may need `google()` repo or kotlinx-serialization
+    instead.
 - **mdformat trailing space bug**: inline code with trailing space triggers mdformat "renders to
     different HTML" error. Remove trailing spaces from inline code.

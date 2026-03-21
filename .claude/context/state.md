@@ -1,15 +1,16 @@
-<!-- assessed-at: 0f2149cdbb7a2188e73faadabf192ec721b93a37 -->
+<!-- assessed-at: 7997cfb7eb2a77779e8b9e0b2fd7394e348111fb -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Kotlin CI job added but failing; fix + remaining integration needed
+## Phase: Kotlin CI still failing (Gradle dependency resolution); docs/release missing
 
-v0.3.1 released across all 8 registries. Kotlin CI job was added to ci.yml (now 16 jobs) but
-**fails** with `./gradlew: Permission denied` — the file is tracked in git as mode 100644
-(non-executable). Fix requires `git update-index --chmod=+x packages/kotlin/gradlew`. Two new Swift
-packaging issues filed. 15/16 CI jobs pass; fixing the Kotlin CI failure is the top priority.
+v0.3.1 released across all 8 registries. The `gradlew` permission issue from the previous iteration
+is **fixed** (100755), but Kotlin CI now fails with a new error:
+`Could not find com.google.gson:gson:2.8.9` during `compileTestKotlin`. This affects both recent CI
+runs (23384852935, 23384851999). Version sync now has 15 targets (gradle.properties added). 15/16 CI
+jobs pass; fixing the Kotlin dependency resolution failure is the top priority.
 
 ## Rust Core Crate
 
@@ -148,18 +149,18 @@ packaging issues filed. 15/16 CI jobs pass; fixing the Kotlin CI failure is the 
 - README Swift install/quickstart sections present
 - packages/swift/CLAUDE.md — per-package agent guidance
 - zensical.toml nav entry + gen_llms_full.py entry (21 total pages)
-- Version sync: Constants.swift managed as 14th target in version_sync.py
+- Version sync: Constants.swift managed as target in version_sync.py
 
 ## Kotlin Multiplatform Bindings
 
-**Status**: partially met (scaffold + tests + CI job exist; CI failing + docs/release missing)
+**Status**: partially met (scaffold + tests exist; CI job present but failing; docs/release missing)
 
 - **Scaffold created** — packages/kotlin/ exists with:
     - build.gradle.kts — Kotlin/JVM 2.1.10 plugin, group `io.iscc`, JNA 5.16.0, JUnit 5.11.4 + Gson
         2.8.9 test deps, JUnitPlatform config with java.library.path + jna.library.path +
         LD_LIBRARY_PATH pointing to target/debug
     - settings.gradle.kts, gradle.properties (version=0.3.1)
-    - Gradle 8.12.1 wrapper (gradlew, gradle-wrapper.jar)
+    - Gradle 8.12.1 wrapper (gradlew now 100755 — **permission fix landed**)
     - src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt — 3214-line UniFFI-generated bindings
     - compileKotlin succeeds (verified by review agent)
 - **Conformance tests complete** — src/test/ exists with:
@@ -167,14 +168,18 @@ packaging issues filed. 15/16 CI jobs pass; fixing the Kotlin CI failure is the 
         gen\_\*\_v0 functions (20+5+3+5+3+2+4+3+5 = 50 vectors)
     - src/test/resources/data.json — vendored conformance vectors (SHA256 matches iscc-lib copy)
     - gradlew test passes locally: 9 tests, 0 failures
+- **Version sync** — gradle.properties added as 15th target in version_sync.py (was 14, now 15)
 - **CI job added** — `kotlin:` job in ci.yml (cargo build -p iscc-uniffi + gradlew test)
-- **CI FAILING** — `./gradlew: Permission denied` — file tracked as git mode 100644
-    (non-executable). Root cause: `git ls-files -s packages/kotlin/gradlew` shows `100644`. Fix:
-    `git update-index --chmod=+x packages/kotlin/gradlew`
+- **CI FAILING — NEW ERROR** — `compileTestKotlin` fails with
+    `Could not find   com.google.gson:gson:2.8.9`. The `compileKotlin` task (main sources + JNA)
+    succeeds, but test dependency resolution fails. Reproduced in both run 23384852935 and
+    23384851999\. The `repositories` block has `mavenLocal()` + `mavenCentral()` which should work —
+    root cause unclear (possibly transient Maven Central issue, or Gradle dependency resolution
+    bug).
 - **Missing — documentation**: No docs/howto/kotlin.md, no packages/kotlin/README.md, no
     packages/kotlin/CLAUDE.md
-- **Missing — README integration**: No Kotlin install/quickstart sections in root README
-- **Missing — version sync**: gradle.properties not in version_sync.py targets (still 14 targets)
+- **Missing — README integration**: No Kotlin install/quickstart sections in root README (grep for
+    kotlin returns 0 matches)
 - **Missing — release workflow**: No maven-kotlin in release.yml
 
 ## README
@@ -218,25 +223,26 @@ packaging issues filed. 15/16 CI jobs pass; fixing the Kotlin CI failure is the 
 
 **Status**: partially met (Kotlin CI job failing)
 
-- **LATEST COMPLETED RUN** — run 23384451846: **15/16 jobs SUCCESS, 1 FAILING**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23384451846
-- **FAILING**: `Kotlin (gradle build, test)` — step "Run Gradle tests" fails with
-    `./gradlew: Permission denied` (exit code 126). Root cause: gradlew tracked as 100644 in git.
+- **LATEST COMPLETED RUN** — run 23384852935: **15/16 jobs SUCCESS, 1 FAILING**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23384852935
+- **FAILING**: `Kotlin (gradle build, test)` — step `compileTestKotlin` fails with
+    `Could not find   com.google.gson:gson:2.8.9` (exit code 1). The gradlew permission issue from
+    previous iteration is **resolved** — this is a new failure mode (Gradle dependency resolution).
 - All other 15 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate,
     Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift — all SUCCESS
 - v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
     GitHub Releases)
-- version_sync.py manages 14 sync targets (including Swift Constants.swift)
+- version_sync.py manages 15 sync targets (including Kotlin gradle.properties — up from 14)
 - 16 CI jobs total (15 definitions + Python matrix expansion)
-- **Gap**: Kotlin CI failing (permission fix needed)
+- **Gap**: Kotlin CI failing (dependency resolution fix needed)
 - **Gap**: No Kotlin in release.yml
-- **Gap**: No Kotlin in version_sync.py
 
 ## Open Issues (4 total)
 
-1. **Kotlin bindings** `normal` — scaffold + tests done, CI added but failing; docs/release missing
+1. **Kotlin bindings** `normal` — scaffold + tests done, CI added but failing (new error);
+    docs/release missing
 2. **Swift SPM install instructions incorrect** `normal` — Package.swift in subdirectory, SPM URL
-    won't resolve from repo root
+    won'''t resolve from repo root
 3. **Swift package does not vend native library** `normal` — linkedLibrary declared but no dylib
     bundled; users get link failures
 4. **Language logos in docs** `low` — CID skips
@@ -245,9 +251,15 @@ packaging issues filed. 15/16 CI jobs pass; fixing the Kotlin CI failure is the 
 
 **Fix Kotlin CI failure** (CI is broken — top priority before any feature work):
 
-1. Fix `gradlew` git permissions: `git update-index --chmod=+x packages/kotlin/gradlew`
+1. Fix Gradle dependency resolution: `compileTestKotlin` fails with
+    `Could not find  com.google.gson:gson:2.8.9` despite `mavenCentral()` in repositories block.
+    Possible fixes:
+    - Retry CI (may be transient Maven Central issue — both failed runs were at same timestamp)
+    - Add `google()` repository as fallback
+    - Upgrade Gson to a newer version (2.11.x)
+    - Switch JSON parsing to kotlinx-serialization (eliminates external dependency)
 2. Verify 16/16 CI jobs pass
 
-Then continue Kotlin integration: version sync (add gradle.properties to version_sync.py),
-documentation (docs/howto/kotlin.md), README (Kotlin install/quickstart sections), per-package
-README + CLAUDE.md, and release workflow (maven-kotlin in release.yml).
+Then continue Kotlin integration: documentation (docs/howto/kotlin.md, packages/kotlin/README.md,
+packages/kotlin/CLAUDE.md), README (Kotlin install/quickstart sections), and release workflow
+(maven-kotlin in release.yml).
