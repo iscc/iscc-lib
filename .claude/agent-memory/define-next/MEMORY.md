@@ -50,22 +50,26 @@ iterations.
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
     `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
-## Swift Bindings Status
+## Kotlin Bindings (in progress)
 
-- **CI green** (15/15 jobs) — docs/README/CLAUDE.md all done
-- Swift step sequence: UniFFI crate -> binding gen -> Swift package -> CI fix -> docs -> **version
-    sync** (current)
-- Version sync is the LAST remaining Swift item — after this, the Swift issue can be closed
+- **UniFFI Kotlin output is JVM-only** — uses JNA (`com.sun.jna.*`), NOT Kotlin/Native cinterop
+- Generated file: 3217 lines, package `uniffi.iscc_uniffi`, loads `libiscc_uniffi.so` via JNA
+- KMP with Kotlin/Native targets (iOS, macOS) would need separate cinterop approach — NOT supported
+    by UniFFI's Kotlin generator. Start JVM-only, KMP is a future enhancement
+- Use `kotlin("jvm")` plugin, NOT `kotlin("multiplatform")` for initial scaffold
+- JNA dependency: `net.java.dev.jna:jna:5.16.0`
+- Gradle 8.12.1 available via `mise exec gradle@8.12.1 -- gradle wrapper`
+- JDK 17 is installed in devcontainer (openjdk-17-jdk-headless)
+- Generated Kotlin uses `--no-format` flag since ktlint is not installed in devcontainer
+- Kotlin step sequence: scaffold+compile -> conformance tests -> CI job -> docs -> version sync ->
+    README -> publishing
+- data.json will need to be copied to `packages/kotlin/` for conformance tests (future step)
+
+## Swift Bindings (COMPLETE)
+
+- All sub-tasks done: UniFFI crate, SPM package, CI job, conformance tests, howto guide, README,
+    CLAUDE.md, version sync. Issue resolved
 - SPM distribution via Git tags (no registry upload needed)
-
-## Swift API Patterns (for docs)
-
-- All functions are camelCase free functions (not methods on a class)
-- Binary data uses `Data` type (from Foundation)
-- Functions that can fail use `throws` with `IsccUniError`
-- Constants are getter functions: `metaTrimName()`, `ioReadSize()`, `textNgramSize()`
-- `DataHasher`/`InstanceHasher` are classes (not structs) with `update(data:)`/`finalize(bits:)`
-- Swift simpleicons logo URL: `https://cdn.simpleicons.org/swift/F05138`
 
 ## Dev Environment Constraints
 
@@ -82,9 +86,8 @@ iterations.
 ## Project Status
 
 - v0.3.1 released, 15/15 CI jobs green
-- All 10 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++)
-- Swift CI green — docs/README/version-sync remaining
-- 2 normal-priority issues: Swift bindings (in progress), Kotlin bindings (depends on Swift)
+- All 11 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift)
+- 1 normal-priority issue: Kotlin bindings (in progress — scaffold step)
 
 ## Version Sync Script Patterns
 
