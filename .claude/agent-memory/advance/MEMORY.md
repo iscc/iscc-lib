@@ -157,14 +157,17 @@ iterations.
 
 ## Swift Package
 
-- `packages/swift/` — SPM package with iscc_uniffiFFI (C header + modulemap) + IsccLib (Swift
-    bindings)
+- Two `Package.swift` files coexist: root (for SPM consumers adding the repo URL) and
+    `packages/swift/Package.swift` (for CI and local dev). SPM always reads root for dependency
+    resolution; `cd packages/swift && swift build` uses the subdirectory one. No conflict
+- Root `Package.swift` omits testTarget — tests stay in `packages/swift/` for CI only
 - Version constant: `packages/swift/Sources/IsccLib/Constants.swift` — `public let isccLibVersion`
     synced by `scripts/version_sync.py`
 - Conformance tests: `ConformanceTests.swift` — 9 test methods, 50 vectors. Requires macOS runner
 - CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
     `-Xlinker -L` (link-time) and `-Xlinker -rpath` (runtime) pointing to `target/debug`
 - `module.modulemap` simplified from generated version (removed Darwin-specific `use` directives)
+- Swift install docs reference version `0.3.1` (when Swift package was first added)
 
 ## Kotlin Bindings (UniFFI/JVM)
 

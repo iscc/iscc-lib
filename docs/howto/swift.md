@@ -13,11 +13,11 @@ the package dependency and `import IsccLib` to get started.
 
 ## Installation
 
-Add the package dependency to your `Package.swift`:
+Add the SPM package dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.0"),
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.1"),
 ]
 ```
 
@@ -32,23 +32,32 @@ Then add `"IsccLib"` to your target's dependencies:
 )
 ```
 
-??? tip "Build from source"
+### Build the native library
 
-    To build from source instead of using the Swift package:
+The Swift package depends on a native Rust library (`libiscc_uniffi`) that must be built from source
+and linked at build time. Pre-built XCFramework distribution is planned for a future release.
 
-    ```bash
-    # Build the Rust UniFFI library
-    cargo build -p iscc-uniffi
+```bash
+# Clone the repository and build the native library
+git clone https://github.com/iscc/iscc-lib.git
+cd iscc-lib
+cargo build -p iscc-uniffi --release
+```
 
-    # Run Swift tests (link against the Rust library)
-    cd packages/swift
-    swift test \
-        -Xlinker -L../../target/debug \
-        -Xlinker -rpath -Xlinker ../../target/debug
-    ```
+Then point the Swift linker at the build output when building your project:
 
-    The native library (`libiscc_uniffi.so` on Linux, `libiscc_uniffi.dylib` on macOS) must be available
-    at runtime. Swift resolves the library via the linker search path.
+```bash
+swift build -Xlinker -L/path/to/iscc-lib/target/release
+```
+
+The native library (`libiscc_uniffi.so` on Linux, `libiscc_uniffi.dylib` on macOS) must also be
+available at runtime. Use `-Xlinker -rpath` to embed the library search path:
+
+```bash
+swift build \
+    -Xlinker -L/path/to/iscc-lib/target/release \
+    -Xlinker -rpath -Xlinker /path/to/iscc-lib/target/release
+```
 
 ## Code generation
 

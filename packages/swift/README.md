@@ -10,11 +10,15 @@ Add the package dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.0"),
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.1"),
 ]
 ```
 
 Then add `"IsccLib"` to your target's dependencies.
+
+> **Note:** The native `libiscc_uniffi` library must be built from source before building your
+> project. See [Building from Source](#building-from-source) below for instructions. Pre-built
+> XCFramework distribution is planned for a future release.
 
 ## Usage
 
@@ -44,24 +48,30 @@ assert(conformanceSelftest())
 
 - Swift 5.9+
 - macOS 13+ / iOS 16+
-- Pre-built `libiscc_uniffi` static library (XCFramework)
+- Rust toolchain (for building the native `libiscc_uniffi` library from source)
 
 ## Building from Source
 
-The Swift package requires the UniFFI-generated native library. To build from source:
+The Swift package requires the native `libiscc_uniffi` library. Build it from the repository root:
 
 ```bash
-# Build the Rust library
+# 1. Build the Rust native library
 cargo build -p iscc-uniffi --release
 
-# Generate Swift bindings
-cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- \
-    generate --library target/release/libiscc_uniffi.so \
-    --language swift --out-dir packages/swift/Sources/IsccLib/
-
-# Run tests (requires libiscc_uniffi in library path)
+# 2. Build the Swift package (link against the native library)
 cd packages/swift
-swift test -Xlinker -L../../target/release
+swift build -Xlinker -L../../target/release
+
+# 3. Run tests
+swift test \
+    -Xlinker -L../../target/release \
+    -Xlinker -rpath -Xlinker ../../target/release
+```
+
+For your own project, point the linker at the directory containing `libiscc_uniffi`:
+
+```bash
+swift build -Xlinker -L/path/to/target/release
 ```
 
 ## License

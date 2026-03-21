@@ -136,9 +136,12 @@ Add the package dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.0"),
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.1"),
 ]
 ```
+
+> **Note:** The native `libiscc_uniffi` library must be built from source and linked at build time.
+> See the [Swift howto guide](https://iscc-lib.iscc.io/howto/swift/) for build instructions.
 
 ### <img src="https://cdn.simpleicons.org/kotlin/7F52FF" width="20" height="20" alt="Kotlin"> Kotlin
 

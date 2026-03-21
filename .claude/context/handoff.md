@@ -1,56 +1,44 @@
-## 2026-03-21 — Review of: Add maven-kotlin release workflow for Kotlin package publishing
+## 2026-03-21 — Add root Package.swift and fix Swift install documentation
 
-**Verdict:** PASS
+**Done:** Created a root-level `Package.swift` that mirrors the subdirectory manifest with adjusted
+paths (no test target), enabling SPM dependency resolution via `https://github.com/iscc/iscc-lib`.
+Updated all three Swift documentation files to use version `0.3.1` and honestly document the
+build-from-source requirement for the native `libiscc_uniffi` library.
 
-**Summary:** Clean, well-structured addition of the maven-kotlin release workflow to release.yml (4
-jobs, ~180 lines) and Gradle publishing config in build.gradle.kts (~50 lines). Follows the
-established Java Maven Central pattern faithfully. All 9+ verification checks pass. The Kotlin
-bindings issue is now fully resolved — all sub-tasks complete (package, CI, conformance tests,
-version sync, documentation, release workflow).
+**Files changed:**
 
-**Verification:**
+- `Package.swift` (new): Root SPM manifest with paths pointing to `packages/swift/Sources/`. Two
+    targets (`iscc_uniffiFFI`, `IsccLib`), one library product, no test target
+- `README.md`: Swift install section updated from `0.3.0` to `0.3.1`, added note about native
+    library requirement with link to howto guide
+- `packages/swift/README.md`: Version `0.3.0` to `0.3.1`, added build-from-source prerequisite note
+    in Installation section, updated Requirements to list Rust toolchain instead of "Pre-built
+    XCFramework", expanded Building from Source section with clearer step-by-step instructions
+- `docs/howto/swift.md`: Version `0.3.0` to `0.3.1`, restructured Installation section -- promoted
+    build-from-source from a collapsible tip to a subsection ("Build the native library") with
+    clone/build/link instructions, noted XCFramework distribution is planned for future release
 
-- [x] `grep -q 'maven-kotlin' .github/workflows/release.yml` — input added
-- [x] `grep -q 'build-kotlin-native' .github/workflows/release.yml` — build job added
-- [x] `grep -q 'publish-maven-kotlin' .github/workflows/release.yml` — publish job added
-- [x] `grep -q 'maven-publish' packages/kotlin/build.gradle.kts` — plugin added
-- [x] `grep -q 'signing' packages/kotlin/build.gradle.kts` — signing plugin added
-- [x] `grep -q 'io.iscc' packages/kotlin/build.gradle.kts` — groupId in publishing block
-- [x] `grep -q 'iscc-lib-kotlin' packages/kotlin/build.gradle.kts` — artifactId present
-- [x] `cd packages/kotlin && ./gradlew build` — BUILD SUCCESSFUL (7 tasks, signing skipped locally)
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
-- [x] `mise run check` — all 15 pre-commit hooks pass
-- [x] YAML syntax validated via `yaml.safe_load()`
-- [x] Staging publish produces correct Maven repo layout (POM + JAR + sources + javadoc + checksums)
-- [x] No quality gate circumvention patterns in diff
+**Verification:** All 11 verification criteria pass:
 
-**Issues found:**
+- `Package.swift` exists with correct `swift-tools-version` header
+- Paths point to `packages/swift/Sources/IsccLib` and `packages/swift/Sources/iscc_uniffiFFI`
+- No `testTarget` in root manifest
+- Version `0.3.1` present in all three docs, `0.3.0` removed from all three
+- `cargo build` documented in both `packages/swift/README.md` and `docs/howto/swift.md`
+- `cargo clippy --workspace --all-targets -- -D warnings` exits 0
+- All 15 pre-commit hooks pass (`mise run check`)
 
-- (none) — Kotlin bindings issue deleted from issues.md (all sub-tasks verified complete)
-
-**Codex review:** Two P3 findings, both addressed:
-
-1. **SCM `git://` URL in POM** — Kotlin used `scm:git:git://` but GitHub deprecated `git://`
-    protocol. Java POM uses `https://`. Fixed in review commit (one-line change to match Java).
-2. **Sources JAR includes native libs** — When CI copies native libs to `src/main/resources/` before
-    build, `withSourcesJar()` bundles them into the sources JAR too. This is a packaging quality
-    issue (sources JAR ~doubles in size), not a correctness issue. Could be fixed by excluding
-    resources from the sources JAR task, but not blocking for initial release. Worth addressing if
-    the combined native lib size becomes significant.
-
-**Next:** The Kotlin bindings are fully complete. The remaining `normal` issues are the two Swift
-packaging problems (SPM install instructions + native library vending). These are interconnected —
-fixing the native library distribution (XCFramework or build-from-source) will inform the correct
-install instructions. Consider tackling these together, or assess whether there are higher-priority
-gaps in target.md first.
+**Next:** The two Swift packaging issues (SPM URL resolution + install documentation) are now
+resolved. The remaining open work is likely XCFramework binary distribution (enabling zero-friction
+install without Rust toolchain), but that's a larger infrastructure step. Check `issues.md` and
+`target.md` for the next priority.
 
 **Notes:**
 
-- Release workflow now has 8 registry inputs (was 7). All follow the same pattern: boolean input →
-    build → smoke test → publish with version-exists skip
-- The `useInMemoryPgpKeys` approach for Kotlin (env vars) differs from Java's GPG system keyring
-    import but is functionally equivalent and simpler for Gradle
-- Central Portal upload uses curl REST API directly — no third-party Gradle plugin needed
-- JNA resource paths use JNA conventions (linux-x86-64, darwin-aarch64, win32-x86-64) which differ
-    from JNI conventions (linux-x86_64, macos-aarch64, windows-x86_64). This is intentional and
-    correct
+- The two `Package.swift` files coexist without conflict: SPM always reads from root for dependency
+    resolution; `cd packages/swift && swift build` uses the subdirectory one. CI is unaffected -- it
+    uses `working-directory: packages/swift`
+- The root manifest intentionally omits the test target -- conformance tests have a `data.json`
+    resource dependency that would need path adjustment, and SPM consumers don't need tests
+- The `.linkedLibrary("iscc_uniffi")` linker setting is preserved in the root manifest -- it
+    accurately reflects the native library dependency
