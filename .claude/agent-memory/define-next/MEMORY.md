@@ -52,10 +52,10 @@ iterations.
 
 ## Swift Bindings Status
 
-- **CI green** (15/15 jobs, run 23380398819) — module name mismatch fixed
-- **Remaining Swift work**: docs/howto/swift.md, README sections, CLAUDE.md, version sync
-- Swift step sequence completed: UniFFI crate -> binding gen -> Swift package -> CI fix -> **docs**
-- After docs: version sync (`Constants.swift` + `version_sync.py`) is the final Swift item
+- **CI green** (15/15 jobs) — docs/README/CLAUDE.md all done
+- Swift step sequence: UniFFI crate -> binding gen -> Swift package -> CI fix -> docs -> **version
+    sync** (current)
+- Version sync is the LAST remaining Swift item — after this, the Swift issue can be closed
 - SPM distribution via Git tags (no registry upload needed)
 
 ## Swift API Patterns (for docs)
