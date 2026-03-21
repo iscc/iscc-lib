@@ -1,69 +1,119 @@
 # Next Work Package
 
-## Step: Fix Swift CI module name mismatch
+## Step: Swift documentation and README integration
 
 ## Goal
 
-Fix the failing Swift CI job by renaming the SPM FFI target from `IsccLibFFI` to `iscc_uniffiFFI` so
-it matches the `#if canImport(iscc_uniffiFFI)` / `import iscc_uniffiFFI` in the UniFFI-generated
-Swift code. This restores CI to green (all 15 jobs passing).
+Complete the Swift bindings documentation: howto guide, README install/quickstart sections, docs nav
+entry, ORDERED_PAGES registration, and per-package CLAUDE.md. This closes the remaining docs gap for
+the Swift issue (CI is already green).
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**: `packages/swift/Package.swift`, `packages/swift/Sources/IsccLibFFI/module.modulemap`
-- **Rename**: `packages/swift/Sources/IsccLibFFI/` → `packages/swift/Sources/iscc_uniffiFFI/`
-- **Reference**: `packages/swift/Sources/IsccLib/iscc_uniffi.swift` (lines 10-11 — the
-    `canImport`/`import` that dictates the required module name)
+- **Create**: `docs/howto/swift.md`, `packages/swift/CLAUDE.md`
+- **Modify**: `README.md` (add Swift install + quickstart), `zensical.toml` (add Swift to nav),
+    `scripts/gen_llms_full.py` (add `howto/swift.md` to ORDERED_PAGES)
+- **Reference**: `docs/howto/dotnet.md` (structural template — same pattern for all howto guides),
+    `packages/dotnet/CLAUDE.md` (structural template for per-package agent docs),
+    `packages/swift/Sources/IsccLib/iscc_uniffi.swift` (Swift API signatures and types),
+    `packages/swift/README.md` (existing Swift package README with usage examples)
 
 ## Not In Scope
 
-- Editing the generated `iscc_uniffi.swift` file (option (b) — we use option (a) instead)
-- Swift docs (`docs/howto/swift.md`), README Swift sections, or version sync
-- `packages/swift/CLAUDE.md` creation
-- XCFramework or release distribution setup
-- Any Kotlin bindings work
+- Version sync integration (`Constants.swift` + `scripts/version_sync.py` target) — separate step
+- Kotlin bindings or documentation — depends on Swift being fully complete
+- Swift API reference page in docs (e.g., `docs/swift-api.md`) — not present for other UniFFI
+    bindings
+- Updating the "Polyglot" bullet in Key Features beyond adding "Swift" to the language list
 
 ## Implementation Notes
 
-The root cause is a module name mismatch. UniFFI generates Swift code that does:
+### `docs/howto/swift.md`
 
-```swift
-#if canImport(iscc_uniffiFFI)
-import iscc_uniffiFFI
-```
+Follow the exact structure of `docs/howto/dotnet.md`:
 
-But the SPM target is named `IsccLibFFI` with `module IsccLibFFI` in the modulemap. The conditional
-import silently fails, leaving all FFI symbols unresolved (~40 "cannot find" errors).
+1. **Frontmatter**: `icon: lucide/compass`, description mentioning Swift
+2. **Intro paragraph**: Swift bindings via UniFFI, `import IsccLib` to get started
+3. **Installation**: SPM dependency in `Package.swift` (from `packages/swift/README.md`)
+4. **Build from source** (collapsible tip): `cargo build -p iscc-uniffi` + `swift test` commands
+5. **Code generation**: All 10 gen functions with Swift examples. Use Swift API names from
+    `iscc_uniffi.swift`:
+    - `genMetaCodeV0(name:description:meta:bits:)` → `MetaCodeResult`
+    - `genTextCodeV0(text:bits:)` → `TextCodeResult`
+    - `genImageCodeV0(pixels:bits:)` → `ImageCodeResult`
+    - `genAudioCodeV0(cv:bits:)` → `AudioCodeResult`
+    - `genVideoCodeV0(frameSigs:bits:)` → `VideoCodeResult`
+    - `genMixedCodeV0(codes:bits:)` → `MixedCodeResult`
+    - `genDataCodeV0(data:bits:)` → `DataCodeResult`
+    - `genInstanceCodeV0(data:bits:)` → `InstanceCodeResult`
+    - `genIsccCodeV0(codes:wide:)` → `IsccCodeResult`
+    - `genSumCodeV0(path:bits:wide:addUnits:)` → `SumCodeResult`
+6. **Structured results**: Table of result types with fields
+7. **Streaming**: `DataHasher` and `InstanceHasher` — reference class (not struct, UniFFI objects
+    are classes). Show `update(data:)` / `finalize(bits:)` pattern
+8. **Codec operations**: `encodeComponent`, `isccDecode`, `isccDecompose`
+9. **Text utilities**: `textClean`, `textRemoveNewlines`, `textTrim`, `textCollapse`
+10. **Encoding utilities**: `encodeBase64`, `jsonToDataUrl`
+11. **Algorithm primitives**: `slidingWindow`, `algSimhash`, `algMinhash256`, `algCdcChunks`,
+    `softHashVideoV0`
+12. **Constants**: getter functions `metaTrimName()`, `metaTrimDescription()`, `metaTrimMeta()`,
+    `ioReadSize()`, `textNgramSize()` — note these are functions (UniFFI constraint), not
+    properties
+13. **Conformance testing**: `conformanceSelftest()`
+14. **Error handling**: `IsccUniError` thrown by functions marked `throws`
 
-**Fix (3 changes):**
+Key Swift API patterns:
 
-1. **Rename directory**: `Sources/IsccLibFFI/` → `Sources/iscc_uniffiFFI/`
+- All functions are camelCase free functions (not methods on a class)
+- Binary data uses `Data` type (from Foundation)
+- Functions that can fail use `throws` with `IsccUniError`
+- Constants are getter functions (UniFFI can't export `const`)
+- `DataHasher`/`InstanceHasher` are classes with `update(data:)`/`finalize(bits:)` methods
 
-2. **Update `Package.swift`** — change 3 occurrences of `IsccLibFFI` to `iscc_uniffiFFI`:
+### `README.md`
 
-    - Line 11: target name `"IsccLibFFI"` → `"iscc_uniffiFFI"`
-    - Line 12: path `"Sources/IsccLibFFI"` → `"Sources/iscc_uniffiFFI"`
-    - Line 20: dependency `"IsccLibFFI"` → `"iscc_uniffiFFI"`
+Add Swift sections in two places:
 
-3. **Update `module.modulemap`** (inside the renamed directory):
+1. **Installation** (after C / C++ section, before WASM): Use Swift logo from simpleicons
+    (`https://cdn.simpleicons.org/swift/F05138`). Show SPM `Package.swift` dependency snippet
+2. **Quick Start** (after C++ section, before WASM): Show `import IsccLib` +
+    `try genMetaCodeV0(name:...)` example
+3. **Key Features** "Polyglot" bullet: Add "Swift" to the language list
 
-    - Line 1: `module IsccLibFFI` → `module iscc_uniffiFFI`
+### `zensical.toml`
 
-This is the recommended fix from state.md — option (a): rename the SPM target to match the generated
-code's expectation, avoiding edits to generated code.
+Add `{ "Swift" = "howto/swift.md" }` to the How-to Guides nav section (after C / C++, before the
+closing bracket).
+
+### `scripts/gen_llms_full.py`
+
+Add `"howto/swift.md"` to `ORDERED_PAGES` list (after `"howto/c-cpp.md"`).
+
+### `packages/swift/CLAUDE.md`
+
+Follow `packages/dotnet/CLAUDE.md` structure: package role, file layout, build commands, test
+patterns, publishing notes, common pitfalls. Key content:
+
+- UniFFI-generated bindings (not P/Invoke)
+- SPM distribution via Git tags (not registry upload)
+- macOS runner required for CI (Swift not available on Linux CI)
+- No `libiscc_uniffi` in devcontainer — Swift tests can only run on macOS
 
 ## Verification
 
-- `grep -c 'iscc_uniffiFFI' packages/swift/Package.swift` outputs `3`
-- `grep -c 'IsccLibFFI' packages/swift/Package.swift` outputs `0`
-- `head -1 packages/swift/Sources/iscc_uniffiFFI/module.modulemap` contains `module iscc_uniffiFFI`
-- `test -d packages/swift/Sources/iscc_uniffiFFI` exits 0 (directory exists)
-- `test ! -d packages/swift/Sources/IsccLibFFI` exits 0 (old directory gone)
-- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` clean
-- `mise run check` passes (all pre-commit/pre-push hooks)
+- `test -f docs/howto/swift.md` exits 0
+- `test -f packages/swift/CLAUDE.md` exits 0
+- `grep -q 'Swift' zensical.toml` exits 0
+- `grep -q 'howto/swift.md' zensical.toml` exits 0
+- `grep -q 'howto/swift.md' scripts/gen_llms_full.py` exits 0
+- `grep -q 'swift' README.md` exits 0 (Swift install section added)
+- `grep -q 'genMetaCodeV0' docs/howto/swift.md` exits 0
+- `grep -q 'DataHasher' docs/howto/swift.md` exits 0
+- `grep -c '##' docs/howto/swift.md` returns at least 10 (matching dotnet.md section count)
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` clean (no code changes,
+    sanity check)
 
 ## Done When
 
-All verification criteria pass — the module name mismatch is resolved and the Swift package
-structure is consistent with the UniFFI-generated imports.
+All verification criteria pass — Swift howto guide, CLAUDE.md, README sections, nav config, and
+ORDERED_PAGES entry are all in place and consistent.

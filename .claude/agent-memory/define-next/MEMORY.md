@@ -43,72 +43,54 @@ iterations.
 - UniFFI v0.31.0 is the latest stable version (checked 2026-03-21)
 - Proc macro approach: `#[uniffi::export]`, `#[derive(uniffi::Record)]`, `#[derive(uniffi::Object)]`
     — no UDL files or `build.rs` needed
-- `uniffi::setup_scaffolding!()` required at crate root
 - Key type constraints: no `usize` (use `u64`), no borrowed types (use owned `String`, `Vec<u8>`),
     no generics on exported functions (use concrete types like `Vec<Vec<i32>>`)
-- Constants must be wrapped as getter functions — UniFFI can't export `const` directly
+- Constants are getter functions (UniFFI can't export `const`)
 - Streaming types use `Mutex<Option<Inner>>` pattern for interior mutability with `&self` methods
-- `crate-type = ["cdylib", "staticlib", "lib"]` needed for both dynamic and static linking
-- Swift bindings step sequence: UniFFI crate -> binding generation -> Swift package -> **CI** ->
-    docs
-- Kotlin depends on Swift (shares UniFFI crate), so Swift must be done first
-- **Binding generation**: add `bindgen` feature (`uniffi/cli`) + `[[bin]]` with `required-features`.
-    Build cdylib first, then `uniffi-bindgen generate --library libiscc_uniffi.so --language swift`
-- **Generated outputs**: `iscc_uniffi.swift`, `iscc_uniffiFFI.h`, `iscc_uniffiFFI.modulemap`
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
-    `import iscc_uniffiFFI`. The SPM FFI target and modulemap module declaration must use
-    `iscc_uniffiFFI` (not a custom name like `IsccLibFFI`). Mismatch causes silent import failure
-    and ~40 unresolved symbol errors
+    `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
-## Swift CI Job Details
+## Swift Bindings Status
 
-- **macOS runner required** — `macos-14` (Apple Silicon, Xcode 15+, Swift 5.9+ pre-installed)
-- `cargo build -p iscc-uniffi` produces `libiscc_uniffi.dylib` on macOS (`.so` on Linux)
-- SPM needs `-Xlinker -L<path>` to find the dylib at link time
-- Runtime discovery: use `-Xlinker -rpath -Xlinker <path>` (cleaner than `DYLD_LIBRARY_PATH` which
-    SIP can strip on macOS)
-- `Swatinem/rust-cache@v2` works on macOS runners
-- After Swift CI green: remaining items are docs, README sections, version sync, CLAUDE.md
+- **CI green** (15/15 jobs, run 23380398819) — module name mismatch fixed
+- **Remaining Swift work**: docs/howto/swift.md, README sections, CLAUDE.md, version sync
+- Swift step sequence completed: UniFFI crate -> binding gen -> Swift package -> CI fix -> **docs**
+- After docs: version sync (`Constants.swift` + `version_sync.py`) is the final Swift item
+- SPM distribution via Git tags (no registry upload needed)
+
+## Swift API Patterns (for docs)
+
+- All functions are camelCase free functions (not methods on a class)
+- Binary data uses `Data` type (from Foundation)
+- Functions that can fail use `throws` with `IsccUniError`
+- Constants are getter functions: `metaTrimName()`, `ioReadSize()`, `textNgramSize()`
+- `DataHasher`/`InstanceHasher` are classes (not structs) with `update(data:)`/`finalize(bits:)`
+- Swift simpleicons logo URL: `https://cdn.simpleicons.org/swift/F05138`
 
 ## Dev Environment Constraints
 
 - **No Swift toolchain** in Linux devcontainer — `swift test` can only run on macOS (CI)
 - `uniffi-bindgen` not pre-installed — use in-crate binary via
     `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen`
-- `cargo build -p iscc-uniffi` produces `target/debug/libiscc_uniffi.so` on Linux (verified)
 
 ## Conformance Vector Loader Differences (critical for data.json updates)
 
-- **Rust core** (`conformance.rs`): Uses `serde_json::Value`, auto-discovers new vectors.
-- **Go** (`conformance.go`): Uses `map[string]map[string]vectorEntry` — parses ALL top-level keys.
-    **BREAKS** on non-vector entries like `_metadata`. Must use `json.RawMessage` intermediate step.
-- **C# .NET**: `ConformanceTests.cs` uses `System.Text.Json`, loads from vendored
-    `testdata/data.json`. Must skip `_metadata` key.
-- **C FFI**: No data.json loader (uses Rust core `conformance_selftest`).
-- **C++ wrapper**: Same as C FFI — uses `conformance_selftest()` call, no data.json parsing.
-- **Swift**: XCTest with `JSONSerialization`, skip `_metadata` key, vendor data.json in Tests
-    directory with SPM `.copy()` resource.
 - **data.json copies**: `crates/iscc-lib/tests/data.json` (primary),
     `packages/go/testdata/data.json`, `packages/dotnet/Iscc.Lib.Tests/testdata/data.json`, and
     `packages/swift/Tests/IsccLibTests/data.json` (all identical). Must be updated together.
 
 ## Project Status
 
-- **All 8 existing bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET,
-    C++)
-- v0.3.1 released, 14 CI jobs green, Swift CI job added but FAILING (module name mismatch)
-- **UniFFI scaffolding crate complete** (iteration 1, PASS)
-- **Swift SPM package created** (iteration 2, PASS)
-- **Swift CI job added** (iteration 3, PASS structurally but CI fails — module name mismatch)
-- **2 normal-priority issues**: Swift bindings (in progress), Kotlin bindings (depends on Swift)
+- v0.3.1 released, 15/15 CI jobs green
+- All 10 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++)
+- Swift CI green — docs/README/version-sync remaining
+- 2 normal-priority issues: Swift bindings (in progress), Kotlin bindings (depends on Swift)
 
 ## Version Sync Script Patterns
 
 - `scripts/version_sync.py` uses `(file_path, get_fn, sync_fn)` triples in TARGETS list
 - JSON targets (package.json, vcpkg.json): can reuse
     `_get_package_json_version`/`_sync_package_json`
-- Python targets (pyproject.toml): use `^version` anchored regex — won't work for indented lines
-- `conanfile.py` has `    version = "0.2.0"` INDENTED — needs non-anchored regex
 - `version_sync.py --check` runs in CI (`version-check` job)
 
 ## CI/Release Patterns
@@ -116,17 +98,18 @@ iterations.
 - v0.3.1 released to all registries
 - Release workflow has `workflow_dispatch` with per-registry checkboxes + `ffi` boolean
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
-- 6 smoke test jobs gate 6 publish jobs in release.yml
-- FFI tarball staging: Unix uses `cp` + `tar czf`, Windows uses `Copy-Item` + `Compress-Archive`
+
+## Docs Infrastructure
+
+- `zensical.toml` has `nav` array for howto guides — must add entry when creating new guide
+- `scripts/gen_llms_full.py` has `ORDERED_PAGES` list — must add entry for llms-full.txt generation
+- All howto guides follow identical structure (see `docs/howto/dotnet.md` as template)
+- Per-package CLAUDE.md files follow `packages/dotnet/CLAUDE.md` structure
 
 ## Gotchas
 
 - JNI function names encode Java package underscores as `_1`
 - WASM howto uses `@iscc/wasm` (not `@iscc/iscc-wasm`). npm lib is `@iscc/lib`
 - Windows GHA runners default to `pwsh` — always add `shell: bash` for bash syntax
-- `cbindgen` export prefix `iscc_` on types but not on functions
-
-## Propagation Gotchas
-
 - When vendoring new data.json vectors, ALL binding crates with hardcoded vector count assertions
     must be updated (Rust core + WASM)
