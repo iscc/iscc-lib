@@ -1,15 +1,15 @@
-<!-- assessed-at: e628c4dbedaf96386fe104dad106019897ba1310 -->
+<!-- assessed-at: 556cb35853d8a52ec11b66b6e203260504a839b1 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Swift XCFramework distribution — normal priority gap
+## Phase: Swift XCFramework distribution — release workflow integration
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23388971191). All 12 language
-bindings scaffolded, tested, documented, and shipping. pytest-benchmark added (18 functions, 9
-gen\_\*\_v0 x 2 implementations). Swift XCFramework issue promoted to `normal` — target.md and spec
-updated to require prebuilt XCFramework for zero-friction SPM install.
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23389725584). All 12 language
+bindings scaffolded, tested, documented, and shipping. XCFramework build script and root
+Package.swift restructure completed (step 1 of multi-step effort). Remaining: release workflow
+integration, version sync for releaseTag, docs update.
 
 ## Rust Core Crate
 
@@ -100,16 +100,22 @@ updated to require prebuilt XCFramework for zero-friction SPM install.
 **Status**: partially met
 
 - SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
-- Root `Package.swift` for SPM URL resolution (uses `.linkedLibrary("iscc_uniffi")`)
 - 9 conformance test methods covering 50 vectors; CI job SUCCESS on macos-14
 - docs/howto/swift.md, README, CLAUDE.md all present
-- **Missing (normal priority)**: No XCFramework distribution. Current `Package.swift` requires
-    consumers to manually provide the native library. Target now requires prebuilt XCFramework with
-    `.binaryTarget(url:checksum:)`, three-layer SPM target structure (binary target + FFI bridge +
-    public API), and release workflow integration. Comprehensive spec written at
-    `.claude/context/specs/swift-bindings.md` (460+ lines). This is a significant implementation
-    effort: build scripts, XCFramework creation, Package.swift restructuring, CI updates, release
-    workflow changes.
+- **XCFramework build script created** (`scripts/build_xcframework.sh`): executable, valid shell
+    syntax, compiles for 5 Apple targets (aarch64-apple-darwin, x86_64-apple-darwin,
+    aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios), creates fat binaries with lipo,
+    assembles XCFramework, zips with ditto, computes checksum via `swift package compute-checksum`
+- **Root `Package.swift` restructured** with Ferrostar-style toggle: `useLocalFramework` variable,
+    `.binaryTarget(url:checksum:)` for distribution, `.binaryTarget(path:)` for local dev. Three
+    targets: binaryTarget (iscc_uniffiFFI) + IsccLib. `releaseTag = "0.3.1"`,
+    `releaseChecksum = "PLACEHOLDER"`.
+- **Missing (normal priority)**:
+    1. Release workflow integration — no `swift` checkbox input, no `build-xcframework` job in
+        `release.yml`. Needs: macOS runner, XCFramework build+zip, sed to update
+        releaseTag/releaseChecksum, auto-commit, force-update tag, upload to GitHub Release.
+    2. Version sync — `releaseTag` not yet in `version_sync.py` (still 15 targets, not 16).
+    3. docs/howto/swift.md not yet updated to reflect zero-friction SPM install.
 
 ## Kotlin Multiplatform Bindings
 
@@ -166,8 +172,8 @@ updated to require prebuilt XCFramework for zero-friction SPM install.
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23388971191: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23388971191
+- **LATEST COMPLETED RUN** — run 23389725584: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23389725584
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries (maven-kotlin to be exercised on next release)
@@ -177,23 +183,25 @@ updated to require prebuilt XCFramework for zero-friction SPM install.
 
 ## Open Issues (2 total — 1 normal, 1 low)
 
-1. **Swift package does not vend native library** `normal` — Prebuilt XCFramework distribution
-    required by target. Comprehensive spec written. Requires: XCFramework build script,
-    Package.swift restructuring to three-layer targets, release workflow integration, CI updates.
+1. **Swift package does not vend native library** `normal` — XCFramework build script and
+    Package.swift restructuring DONE. Remaining: release workflow integration (build-xcframework
+    job, swift checkbox, checksum update, force-update tag, upload), version sync (releaseTag in
+    version_sync.py), docs update.
 2. **Language logos in docs** `low` — CID skips
 
 ## Next Milestone
 
-**Swift XCFramework distribution** — the only `normal` priority issue. The spec at
-`.claude/context/specs/swift-bindings.md` provides a detailed design. This is a multi-step effort:
+**Swift XCFramework release workflow integration** — the critical remaining step for the `normal`
+priority issue. The build script and Package.swift are ready; now the release workflow needs to
+actually build, upload, and distribute the XCFramework:
 
-1. Create XCFramework build script (compile for macOS arm64/x86_64, iOS device/simulator, lipo +
-    xcodebuild -create-xcframework)
-2. Restructure `Package.swift` to three-layer targets (`.binaryTarget` + FFI bridge + public API)
-3. Add local/remote toggle variable (Ferrostar pattern)
-4. Update release workflow to build, upload, and checksum XCFramework
-5. Update CI to test with local XCFramework build
-6. Update docs/howto/swift.md to reflect zero-friction install
+1. Add `swift` checkbox input to `release.yml` `workflow_dispatch`
+2. Add `build-xcframework` job: macOS runner, run `scripts/build_xcframework.sh`, upload zip as
+    GitHub Release asset
+3. Add checksum update step: `sed` to replace `releaseTag`/`releaseChecksum` in root
+    `Package.swift`, auto-commit, force-update the Git tag so SPM picks up the new checksum
+4. Add `releaseTag` entry to `version_sync.py` (target 16)
+5. Update `docs/howto/swift.md` to document zero-friction SPM install
 
 Remaining `low`-priority work (human-directed only):
 

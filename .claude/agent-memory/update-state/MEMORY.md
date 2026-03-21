@@ -26,6 +26,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Howto guides**: `ls docs/howto/*.md | sort`
 - **Version sync targets**: `uv run scripts/version_sync.py --check 2>&1 | grep "^OK:" | wc -l`
 - **Release workflow inputs**: `grep "^      [a-z]" .github/workflows/release.yml | head -10`
+- **XCFramework verify**:
+    `test -x scripts/build_xcframework.sh && bash -n scripts/build_xcframework.sh`
+- **Swift release workflow check**: `grep -i 'swift\|xcframework' .github/workflows/release.yml`
 
 ## Codebase Landmarks
 
@@ -34,18 +37,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `.claude/context/specs/` — per-binding spec files
 - `packages/go/` — pure Go module (no WASM, no binary artifacts)
 - `packages/swift/` — SPM package with UniFFI-generated bindings (2400-line iscc_uniffi.swift)
-- `Package.swift` — **root manifest** for SPM URL resolution (mirrors packages/swift/ with adjusted
-    paths)
+- `Package.swift` — **root manifest** — Ferrostar toggle (`useLocalFramework`), `.binaryTarget` with
+    `releaseTag`/`releaseChecksum`, two targets (iscc_uniffiFFI binary + IsccLib)
+- `scripts/build_xcframework.sh` — builds XCF for 5 Apple targets, lipo fat binaries, ditto zip
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
 - `.github/workflows/ci.yml` — **16 CI jobs**
 - `.github/workflows/release.yml` — **8 registry inputs**: crates-io, pypi, npm, maven, ffi,
-    rubygems, nuget, maven-kotlin
+    rubygems, nuget, maven-kotlin (NO swift yet)
 - `crates/iscc-uniffi/` — UniFFI scaffolding: 32 exports, 21 tests; `publish = false`
 - `docs/howto/` — **11 files**: rust, python, nodejs, wasm, go, java, c-cpp, ruby, dotnet, swift,
     kotlin
 - `scripts/gen_llms_full.py` — **22 entries** in ORDERED_PAGES
-- `scripts/version_sync.py` — **15 sync targets**
+- `scripts/version_sync.py` — **15 sync targets** (releaseTag NOT yet added)
 - `crates/iscc-lib/benches/benchmarks.rs` — 12 benches in criterion_group!
 - `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
 - **CLAUDE.md files**: 12 total (all crates + all packages)
@@ -61,16 +65,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review.
 - **Handoff predictions may be wrong**: always verify CI independently.
 
-## Current State (assessed-at: e628c4d)
+## Current State (assessed-at: 556cb35)
 
 - **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN
-- Latest CI run: 23388971191 (SUCCESS)
+- Latest CI run: 23389725584 (SUCCESS)
 - **All 12 language bindings complete**: scaffold, tests, CI, docs, release workflows
-- **1 normal issue**: Swift XCFramework distribution (spec written, not implemented)
+- **1 normal issue**: Swift XCFramework — build script + Package.swift DONE, release workflow NOT
+    YET
 - **1 low issue**: language logos in docs
-- **Benchmarks**: pytest-benchmark done (18 funcs), speedup factors not in docs yet
-- **Swift XCFramework**: major implementation effort — build script, Package.swift restructuring,
-    three-layer targets, release workflow, CI updates
+- **XCFramework progress**: Step 1 of multi-step effort complete. Remaining:
+    - release.yml: `swift` input + `build-xcframework` job (macOS runner, checksum update, tag
+        force-update, upload asset)
+    - version_sync.py: add releaseTag as 16th target
+    - docs/howto/swift.md: update for zero-friction SPM install
 
 ## Gotchas
 
@@ -84,9 +91,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin release workflow**: Uses `useInMemoryPgpKeys` (env vars) instead of Java's GPG keyring;
     Central Portal upload via curl REST API (no Gradle plugin)
 - **mdformat trailing space bug**: inline code with trailing space triggers error
-- **Root Package.swift**: Two manifests coexist — SPM reads root for dependency resolution, CI uses
-    subdirectory. `from: "0.3.1"` only works after next release tag is cut
+- **Root Package.swift**: Two manifests coexist — root for distribution (binaryTarget),
+    packages/swift for CI development. `releaseChecksum = "PLACEHOLDER"` until first release with
+    swift input
 - **Swift XCFramework spec**: `.claude/context/specs/swift-bindings.md` (460+ lines) — comprehensive
-    design doc with three-layer target structure, Ferrostar reference model, build scripts,
-    CI/release workflow integration
+    design doc. Key sections: "Release Workflow Integration", "Version Sync"
 - **pytest-benchmark naming**: functions use `test_bench_*` prefix (not bare `bench_*`)
