@@ -53,7 +53,7 @@ publishing {
                     }
                 }
                 scm {
-                    connection.set("scm:git:git://github.com/iscc/iscc-lib.git")
+                    connection.set("scm:git:https://github.com/iscc/iscc-lib.git")
                     url.set("https://github.com/iscc/iscc-lib")
                 }
             }
