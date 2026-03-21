@@ -1,15 +1,15 @@
-<!-- assessed-at: 543ef81ae951ca1dbb5ab914e81f5045ddb6e66c -->
+<!-- assessed-at: 105ea835cbe8479cb93ca2d89b2525840191297a -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Swift complete; Kotlin Multiplatform bindings not started
+## Phase: Kotlin JVM scaffold created; conformance tests and CI next
 
-v0.3.1 released across all 8 registries. Swift bindings are now **fully complete** — SPM package, CI
-job, conformance tests, howto guide, README sections, CLAUDE.md, and version sync all done. All
-15/15 CI jobs pass (run 23381890569). One normal-priority issue remains: Kotlin Multiplatform
-bindings (not started; UniFFI scaffolding dependency is satisfied).
+v0.3.1 released across all 8 registries. Kotlin JVM project scaffold is now in place —
+build.gradle.kts, Gradle 8.12.1 wrapper, and 3214-line UniFFI-generated iscc_uniffi.kt all compile
+successfully. Still needs: conformance tests, CI job, docs, README, version sync, and release
+workflow. All 15/15 CI jobs pass (run 23382720181).
 
 ## Rust Core Crate
 
@@ -118,8 +118,8 @@ bindings (not started; UniFFI scaffolding dependency is satisfied).
 - crates/iscc-uniffi/ — 704-line lib.rs with publish = false
 - 32 #[uniffi::export] annotations: 30 free functions + 2 impl blocks (DataHasher, InstanceHasher)
 - 11 uniffi::Record types for all result structs + DecodeResult
-- 2 uniffi::Object types with Mutex\<Option<Inner>> for thread-safe streaming
-- 5 constant getter functions (UniFFI doesn't support const exports)
+- 2 uniffi::Object types with Mutex\<Option\<Inner>> for thread-safe streaming
+- 5 constant getter functions (UniFFI does not support const exports)
 - Error mapping via #[derive(uniffi::Error)] enum IsccUniError
 - 21 #[test] functions pass
 - cargo clippy -p iscc-uniffi -- -D warnings clean
@@ -143,7 +143,7 @@ bindings (not started; UniFFI scaffolding dependency is satisfied).
         gen\_\*\_v0 functions (correct per-function counts: 20+5+3+5+3+2+4+3+5)
     - Tests/IsccLibTests/data.json — vendored conformance vectors (matches iscc-lib copy)
     - README.md — installation, usage examples, build-from-source instructions
-- CI job Swift (swift build, swift test) on macos-14 — SUCCESS (run 23381890569)
+- CI job Swift (swift build, swift test) on macos-14 — SUCCESS
 - docs/howto/swift.md — 425-line howto guide with 25 sections
 - README Swift install/quickstart sections present
 - packages/swift/CLAUDE.md — per-package agent guidance
@@ -152,12 +152,21 @@ bindings (not started; UniFFI scaffolding dependency is satisfied).
 
 ## Kotlin Multiplatform Bindings
 
-**Status**: not started
+**Status**: partially met (scaffold only)
 
-- Target defined in target.md; issue filed as normal priority
-- **No code exists**: packages/kotlin/ does not exist
-- UniFFI scaffolding crate (shared dependency) is complete
-- Requires: KMP Gradle project, Maven Central publishing, docs/howto/kotlin.md, README update
+- **Scaffold created** — packages/kotlin/ exists with:
+    - build.gradle.kts — Kotlin/JVM 2.1.10 plugin, group `io.iscc`, JNA 5.16.0 dependency,
+        JUnitPlatform config with java.library.path pointing to target/debug
+    - settings.gradle.kts, gradle.properties (version=0.3.1)
+    - Gradle 8.12.1 wrapper (gradlew, gradle-wrapper.jar)
+    - src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt — 3214-line UniFFI-generated bindings
+    - `./gradlew compileKotlin` succeeds (verified by review agent)
+- **Missing — conformance tests**: No src/test/ directory, no ConformanceTest.kt, no data.json
+- **Missing — CI job**: No kotlin job in ci.yml (still 15 jobs, no Kotlin)
+- **Missing — documentation**: No docs/howto/kotlin.md, no README.md, no CLAUDE.md
+- **Missing — README integration**: No Kotlin install/quickstart sections in root README
+- **Missing — version sync**: gradle.properties not in version_sync.py targets (still 14 targets)
+- **Missing — release workflow**: No maven-kotlin in release.yml
 
 ## README
 
@@ -168,7 +177,7 @@ bindings (not started; UniFFI scaffolding dependency is satisfied).
 - Installation and Quick Start sections for 11 implemented languages (including Swift)
 - ISCC Architecture section, ISCC MainTypes table, Implementors Guide
 - All 10 gen\_\*\_v0 functions listed
-- **Gap** (downstream of Kotlin normal issue): Missing Kotlin installation + quickstart sections
+- **Gap** (downstream of Kotlin issue): Missing Kotlin installation + quickstart sections
 
 ## Per-Crate READMEs
 
@@ -176,7 +185,7 @@ bindings (not started; UniFFI scaffolding dependency is satisfied).
 
 - READMEs present for all 10 existing crates/packages + Swift package (11 total)
 - CLAUDE.md files created for all 10 crates/packages + Swift (11 total)
-- **Gap**: packages/kotlin/README.md missing (Kotlin bindings not started)
+- **Gap**: packages/kotlin/README.md missing
 
 ## Documentation
 
@@ -200,23 +209,23 @@ bindings (not started; UniFFI scaffolding dependency is satisfied).
 
 **Status**: partially met (no Kotlin CI job)
 
-- **LATEST COMPLETED RUN** — run 23381890569: **15/15 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23381890569
+- **LATEST COMPLETED RUN** — run 23382720181: **15/15 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23382720181
 - All jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js, WASM,
     C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift — all SUCCESS
 - v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
     GitHub Releases)
 - version_sync.py manages 14 sync targets (including Swift Constants.swift)
-- **Gap**: No Kotlin CI job (Kotlin bindings not started)
+- **Gap**: No Kotlin CI job yet
+- **Gap**: No Kotlin in release.yml
 
 ## Next Milestone
 
-**Begin Kotlin Multiplatform bindings** (the sole remaining `normal` priority issue):
+**Continue Kotlin bindings** — add conformance tests (highest impact next step):
 
-1. KMP Gradle project in packages/kotlin/ with build.gradle.kts
-2. UniFFI-generated Kotlin bindings via uniffi-bindgen
-3. Conformance tests via kotlin.test against data.json
-4. CI job in ci.yml (Kotlin build + test)
-5. docs/howto/kotlin.md + README Kotlin install/quickstart sections
-6. Maven Central publishing in release.yml
-7. Version sync target in version_sync.py
+1. Add JUnit 5 test dependency to build.gradle.kts
+2. Vendor data.json into src/test/resources/
+3. Create ConformanceTest.kt with tests for all 9 gen\_\*\_v0 functions against 50 vectors
+4. Build libiscc_uniffi.so and verify tests pass with `./gradlew test`
+
+After tests pass: CI job, version sync, documentation, README, release workflow.
