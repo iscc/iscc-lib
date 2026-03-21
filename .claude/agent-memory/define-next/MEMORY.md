@@ -50,7 +50,7 @@ iterations.
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
     `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
-## Kotlin Bindings (in progress — scaffold done, conformance tests next)
+## Kotlin Bindings (in progress — scaffold + tests done, CI job next)
 
 - **UniFFI Kotlin output is JVM-only** — uses JNA (`com.sun.jna.*`), NOT Kotlin/Native cinterop
 - Generated file: 3214 lines, package `uniffi.iscc_uniffi`, loads `libiscc_uniffi.so` via JNA
@@ -58,10 +58,11 @@ iterations.
     by UniFFI's Kotlin generator. Start JVM-only, KMP is a future enhancement
 - `kotlin("jvm")` plugin, Gradle 8.12.1 wrapper, JNA 5.16.0 — all working
 - JDK 17 in devcontainer; `./gradlew compileKotlin` verified passing
-- Kotlin step sequence: ~~scaffold+compile~~ -> conformance tests -> CI job -> docs -> version sync
-    -> README -> publishing
+- Kotlin step sequence: ~~scaffold+compile~~ -> ~~conformance tests~~ -> CI job -> docs -> version
+    sync -> README -> publishing
 - Conformance tests: use Gson for JSON parsing (matches Java JNI tests), JUnit 5, load data.json
     from `src/test/resources/` via classloader. `java.library.path` already set in build.gradle.kts
+- **CI job pattern**: same as Swift (build iscc-uniffi, run tests) but on ubuntu-latest (not macOS)
 
 ## Swift Bindings (COMPLETE)
 
@@ -86,7 +87,7 @@ iterations.
 
 - v0.3.1 released, 15/15 CI jobs green
 - All 11 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift)
-- 1 normal-priority issue: Kotlin bindings (in progress — scaffold done, conformance tests next)
+- 1 normal-priority issue: Kotlin bindings (in progress — scaffold + tests done, CI job next)
 
 ## Version Sync Script Patterns
 

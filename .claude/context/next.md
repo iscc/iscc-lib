@@ -1,91 +1,75 @@
 # Next Work Package
 
-## Step: Add Kotlin conformance tests for all 9 gen\_\*\_v0 functions
+## Step: Add Kotlin CI job to ci.yml
 
 ## Goal
 
-Add JUnit 5 conformance tests to the Kotlin JVM package that verify all 9 `gen_*_v0` functions
-against the vendored `data.json` test vectors (50 vectors total). This is the highest-impact next
-step for the Kotlin bindings issue — proving the UniFFI-generated Kotlin code produces correct
-results.
+Add a `kotlin` job to `.github/workflows/ci.yml` that builds the UniFFI native library and runs
+Kotlin conformance tests via Gradle, bringing CI coverage to 16/16 jobs. This gates the Kotlin
+binding quality in CI — tests exist locally but are not yet enforced on every push.
 
 ## Scope
 
-- **Create**: `packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt`,
-    `packages/kotlin/src/test/resources/data.json` (copy from `crates/iscc-lib/tests/data.json`)
-- **Modify**: `packages/kotlin/build.gradle.kts` (add JUnit 5 + Gson test dependencies)
-- **Reference**: `packages/swift/Tests/IsccLibTests/ConformanceTests.swift` (UniFFI sibling
-    pattern), `crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/IsccLibTest.java` (JVM JSON
-    parsing pattern), `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (API
-    signatures)
+- **Create**: (none)
+- **Modify**: `.github/workflows/ci.yml` (add `kotlin` job)
+- **Reference**: `.github/workflows/ci.yml` (existing `swift` and `java` jobs as patterns),
+    `packages/kotlin/build.gradle.kts` (native lib path config)
 
 ## Not In Scope
 
-- CI job for Kotlin — that's a separate step after tests pass locally
-- Smoke/unit tests beyond conformance vectors — keep scope minimal
-- `io.iscc.lib` idiomatic wrapper package — tests call UniFFI-generated functions directly
-- Version sync, documentation, README, or release workflow — all later steps
-- KMP/Kotlin Native targets — JVM only for now
+- Version sync (adding `gradle.properties` to `version_sync.py`) — separate step
+- Documentation (`docs/howto/kotlin.md`, README Kotlin sections) — separate step
+- Release workflow (`maven-kotlin` in `release.yml`) — separate step
+- Removing `mavenLocal()` from `build.gradle.kts` — harmless, CI resolves from `mavenCentral()`
+- Bumping Gson from 2.8.9 to 2.11.0 — not needed for CI functionality
+- Modifying `build.gradle.kts` — it already has correct `LD_LIBRARY_PATH` and `java.library.path`
 
 ## Implementation Notes
 
-**Dependencies to add to `build.gradle.kts`:**
+Model the Kotlin job after the Swift CI job (both use UniFFI) but run on `ubuntu-latest` (Kotlin/JVM
+doesn't need macOS). Use JDK 17 setup from the existing Java/JNI job.
 
-```kotlin
-testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-testImplementation("com.google.gson:gson:2.11.0")
+Add the job between `swift` and `bench` to maintain logical grouping:
+
+```yaml
+kotlin:
+  name: Kotlin (gradle build, test)
+  runs-on: ubuntu-latest
+  steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - name: Build UniFFI native library
+      run: cargo build -p iscc-uniffi
+    - name: Run Gradle tests
+      run: ./gradlew test
+      working-directory: packages/kotlin
 ```
 
-The `useJUnitPlatform()` and `jvmArgs` for `java.library.path` are already present in
-`build.gradle.kts`.
+Key details:
 
-**Test file structure:** Follow the Swift conformance tests pattern — one test method per `gen_*_v0`
-function, each loading vectors from the corresponding JSON key. Use Kotlin idioms but keep the
-structure parallel to Swift for consistency across UniFFI bindings.
-
-**UniFFI-generated function signatures (all in `uniffi.iscc_uniffi` package):**
-
-- `genMetaCodeV0(name: String, description: String?, meta: String?, bits: UInt): MetaCodeResult`
-- `genTextCodeV0(text: String, bits: UInt): TextCodeResult`
-- `genImageCodeV0(pixels: ByteArray, bits: UInt): ImageCodeResult`
-- `genAudioCodeV0(cv: List<Int>, bits: UInt): AudioCodeResult`
-- `genVideoCodeV0(frameSigs: List<List<Int>>, bits: UInt): VideoCodeResult`
-- `genMixedCodeV0(codes: List<String>, bits: UInt): MixedCodeResult`
-- `genDataCodeV0(data: ByteArray, bits: UInt): DataCodeResult`
-- `genInstanceCodeV0(data: ByteArray, bits: UInt): InstanceCodeResult`
-- `genIsccCodeV0(codes: List<String>, wide: Boolean): IsccCodeResult`
-
-All result types have an `iscc: String` field.
-
-**Key type mappings for data.json parsing:**
-
-- `bits` → `UInt` (Gson reads as Number, convert with `.toInt().toUInt()`)
-- `pixels` (image) → `ByteArray` (JSON array of 0-255 ints, each cast to byte)
-- `cv` (audio) → `List<Int>` (JSON array of i32 values)
-- `frameSigs` (video) → `List<List<Int>>` (JSON 2D array of i32 values)
-- `"stream:<hex>"` prefix → `ByteArray` (hex decode after stripping prefix, use `HexFormat`)
-- `meta` → `String?` (null, string, or JSON object serialized with sorted keys via `TreeMap`)
-- `gen_iscc_code_v0` vectors have no `wide` parameter — always pass `false`
-
-**Expected vector counts:** 20+5+3+5+3+2+4+3+5 = 50 total.
-
-**data.json:** Copy `crates/iscc-lib/tests/data.json` to
-`packages/kotlin/src/test/resources/data.json`. Load in tests via
-`javaClass.classLoader.getResourceAsStream("data.json")`.
-
-**Runtime prerequisite:** `cargo build -p iscc-uniffi` must run before `./gradlew test` to produce
-`libiscc_uniffi.so` in `target/debug/`. The `build.gradle.kts` already sets `java.library.path` to
-`../../target/debug`.
+- Build `iscc-uniffi` (NOT `iscc-ffi` or `iscc-jni`) — Kotlin uses UniFFI bindings
+- `build.gradle.kts` sets `nativeLibDir = "${rootProject.rootDir}/../../target/debug"` — this
+    resolves correctly because `working-directory: packages/kotlin` makes `rootProject.rootDir` =
+    `packages/kotlin`, so `../../target/debug` = repo-root `target/debug/`
+- `LD_LIBRARY_PATH` and `jna.library.path` are already configured in `build.gradle.kts` task config
+- No Gradle wrapper caching action needed — Gradle wrapper downloads are fast and the project is
+    small (~1 test class)
+- Use `./gradlew test` (not `./gradlew build`) — tests include compilation
 
 ## Verification
 
-- `cargo build -p iscc-uniffi` exits 0 (produces `target/debug/libiscc_uniffi.so`)
-- `cd packages/kotlin && ./gradlew test` exits 0 with all 9 test methods passing (50 vectors)
-- `./gradlew test` output shows `9 tests successful`
-- `test -f packages/kotlin/src/test/resources/data.json` exits 0
-- `test -f packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt` exits 0
+- `grep -c 'kotlin:' .github/workflows/ci.yml` returns at least 1
+- `grep 'cargo build -p iscc-uniffi' .github/workflows/ci.yml` finds the build step
+- `grep 'gradlew test' .github/workflows/ci.yml` finds the test step
+- `grep 'java-version.*17' .github/workflows/ci.yml` matches at least 2 (existing java + new kotlin)
+- YAML is valid: `python -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` exits 0
 
 ## Done When
 
-All 9 conformance test methods pass against the vendored data.json vectors using `./gradlew test`,
-confirming the UniFFI-generated Kotlin bindings produce correct ISCC codes.
+All verification criteria pass — the `kotlin` job is defined in `ci.yml` with UniFFI native library
+build, JDK 17 setup, and Gradle test execution.
