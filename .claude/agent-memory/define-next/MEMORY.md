@@ -50,20 +50,18 @@ iterations.
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
     `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
-## Kotlin Bindings (in progress)
+## Kotlin Bindings (in progress — scaffold done, conformance tests next)
 
 - **UniFFI Kotlin output is JVM-only** — uses JNA (`com.sun.jna.*`), NOT Kotlin/Native cinterop
-- Generated file: 3217 lines, package `uniffi.iscc_uniffi`, loads `libiscc_uniffi.so` via JNA
+- Generated file: 3214 lines, package `uniffi.iscc_uniffi`, loads `libiscc_uniffi.so` via JNA
 - KMP with Kotlin/Native targets (iOS, macOS) would need separate cinterop approach — NOT supported
     by UniFFI's Kotlin generator. Start JVM-only, KMP is a future enhancement
-- Use `kotlin("jvm")` plugin, NOT `kotlin("multiplatform")` for initial scaffold
-- JNA dependency: `net.java.dev.jna:jna:5.16.0`
-- Gradle 8.12.1 available via `mise exec gradle@8.12.1 -- gradle wrapper`
-- JDK 17 is installed in devcontainer (openjdk-17-jdk-headless)
-- Generated Kotlin uses `--no-format` flag since ktlint is not installed in devcontainer
-- Kotlin step sequence: scaffold+compile -> conformance tests -> CI job -> docs -> version sync ->
-    README -> publishing
-- data.json will need to be copied to `packages/kotlin/` for conformance tests (future step)
+- `kotlin("jvm")` plugin, Gradle 8.12.1 wrapper, JNA 5.16.0 — all working
+- JDK 17 in devcontainer; `./gradlew compileKotlin` verified passing
+- Kotlin step sequence: ~~scaffold+compile~~ -> conformance tests -> CI job -> docs -> version sync
+    -> README -> publishing
+- Conformance tests: use Gson for JSON parsing (matches Java JNI tests), JUnit 5, load data.json
+    from `src/test/resources/` via classloader. `java.library.path` already set in build.gradle.kts
 
 ## Swift Bindings (COMPLETE)
 
@@ -80,14 +78,15 @@ iterations.
 ## Conformance Vector Loader Differences (critical for data.json updates)
 
 - **data.json copies**: `crates/iscc-lib/tests/data.json` (primary),
-    `packages/go/testdata/data.json`, `packages/dotnet/Iscc.Lib.Tests/testdata/data.json`, and
-    `packages/swift/Tests/IsccLibTests/data.json` (all identical). Must be updated together.
+    `packages/go/testdata/data.json`, `packages/dotnet/Iscc.Lib.Tests/testdata/data.json`,
+    `packages/swift/Tests/IsccLibTests/data.json`, and
+    `packages/kotlin/src/test/resources/data.json` (all identical). Must be updated together.
 
 ## Project Status
 
 - v0.3.1 released, 15/15 CI jobs green
 - All 11 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift)
-- 1 normal-priority issue: Kotlin bindings (in progress — scaffold step)
+- 1 normal-priority issue: Kotlin bindings (in progress — scaffold done, conformance tests next)
 
 ## Version Sync Script Patterns
 
