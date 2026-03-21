@@ -51,15 +51,7 @@ iterations.
 
 ## WASM/WASI
 
-- `iscc-wasm` has `[features] conformance = []` — gates `conformance_selftest` WASM export. Release
-    build uses `--features conformance` so smoke test can call `conformance_selftest()`
 - wasm-pack `--features` must go AFTER the path, NOT after `--`
-
-## Go Pure Go (Summary)
-
-- Pure Go in `packages/go/` — all 10 gen functions + codec + algorithms. Zero WASM deps
-- 156 Go tests total. CI: 4 steps (checkout, setup-go, test, vet) — no Rust deps
-- Conformance: `//go:embed testdata/data.json`, `parseConformanceData()` with two-pass parsing
 
 ## gen_sum_code_v0
 
@@ -68,18 +60,6 @@ iterations.
 - `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring, not field
     access. `MainType` is `pub(crate)`, not accessible from test modules
 - All 32 Tier 1 symbols implemented. All 7 bindings implement `gen_sum_code_v0`
-
-## Benchmarks
-
-- `crates/iscc-lib/benches/benchmarks.rs` — all 10 `gen_*_v0` + DataHasher streaming + CDC chunks
-- `bench_sum_code` uses `tempfile::NamedTempFile` since `gen_sum_code_v0` takes `&Path` (not
-    `&[u8]`)
-- `tempfile` is a dev-dependency only (workspace dep `tempfile = "3"`)
-
-## Codec Internals
-
-- `decode_header` and `decode_varnibble_from_bytes` operate directly on `&[u8]` with bitwise
-    extraction — no intermediate `Vec<bool>`. `get_bit`/`extract_bits` helpers (MSB-first)
 
 ## Streaming
 
@@ -199,8 +179,21 @@ iterations.
     `-Xlinker -L` (link-time) and `-Xlinker -rpath` (runtime) pointing to `target/debug`
 - `module.modulemap` simplified from generated version (removed Darwin-specific `use` directives)
 
+## Kotlin Bindings (UniFFI/JVM)
+
+- `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA
+- Generated file: `src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (~3217 lines,
+    `package   uniffi.iscc_uniffi`). Do NOT manually edit — regenerate via uniffi-bindgen
+- Generate Kotlin:
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate   --language kotlin --no-format --out-dir packages/kotlin/src/main/kotlin/   target/debug/libiscc_uniffi.so`
+- Gradle wrapper must be bootstrapped AFTER settings.gradle.kts exists (fails without it)
+- Gradle 8.12.1 via mise, Kotlin 2.1.10, JNA 5.16.0
+- `build/` covered by root `.gitignore`; `.gradle/` needs local `.gitignore`
+- Tests use `java.library.path` pointing to `../../target/debug` for native lib loading
+
 ## Gotchas
 
 - Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name
 - After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
+- Gradle `wrapper` task requires `settings.gradle.kts` to exist first — create it before running
