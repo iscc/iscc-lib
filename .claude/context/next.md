@@ -1,92 +1,69 @@
 # Next Work Package
 
-## Step: Add Swift CI job on macOS runner
+## Step: Fix Swift CI module name mismatch
 
 ## Goal
 
-Add a `swift` CI job to `ci.yml` that builds the UniFFI native library and runs `swift test` on a
-macOS runner. This is the only way to validate that the Swift conformance tests (50 vectors across 9
-functions) actually pass — they cannot run in the Linux devcontainer.
+Fix the failing Swift CI job by renaming the SPM FFI target from `IsccLibFFI` to `iscc_uniffiFFI` so
+it matches the `#if canImport(iscc_uniffiFFI)` / `import iscc_uniffiFFI` in the UniFFI-generated
+Swift code. This restores CI to green (all 15 jobs passing).
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/ci.yml` — add `swift:` job
-- **Reference**:
-    - `packages/swift/Package.swift` — SPM manifest with `linkedLibrary("iscc_uniffi")`
-    - `packages/swift/Tests/IsccLibTests/ConformanceTests.swift` — 9 test methods, 50 vectors
-    - `.claude/context/specs/swift-bindings.md` — CI section with example YAML
-    - `.github/workflows/ci.yml` — existing job patterns (esp. `c-ffi`, `dotnet`, `cpp`)
+- **Modify**: `packages/swift/Package.swift`, `packages/swift/Sources/IsccLibFFI/module.modulemap`
+- **Rename**: `packages/swift/Sources/IsccLibFFI/` → `packages/swift/Sources/iscc_uniffiFFI/`
+- **Reference**: `packages/swift/Sources/IsccLib/iscc_uniffi.swift` (lines 10-11 — the
+    `canImport`/`import` that dictates the required module name)
 
 ## Not In Scope
 
-- `docs/howto/swift.md` how-to guide (separate step after CI is green)
-- README Swift installation/quickstart sections (separate step)
-- Version sync (`Constants.swift`, `version_sync.py`) — separate step
-- `packages/swift/CLAUDE.md` — separate step
-- XCFramework pre-built binaries — future release step
-- Release workflow (`release.yml`) Swift publishing — separate step
-- SwiftFormat/SwiftLint integration — premature before CI validates tests pass
-- Adding `iscc-uniffi` to the Rust CI clippy/test job (it already runs in workspace)
+- Editing the generated `iscc_uniffi.swift` file (option (b) — we use option (a) instead)
+- Swift docs (`docs/howto/swift.md`), README Swift sections, or version sync
+- `packages/swift/CLAUDE.md` creation
+- XCFramework or release distribution setup
+- Any Kotlin bindings work
 
 ## Implementation Notes
 
-**Runner:** Use `macos-14` (Apple Silicon M1, has Xcode 15+ with Swift 5.9+ pre-installed). This
-matches the `swift-tools-version: 5.9` in `Package.swift`.
+The root cause is a module name mismatch. UniFFI generates Swift code that does:
 
-**Job structure** (follow existing patterns from `c-ffi`, `dotnet`, `cpp`):
-
-```yaml
-swift:
-  name: Swift (swift build, swift test)
-  runs-on: macos-14
-  steps:
-    - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@stable
-    - uses: Swatinem/rust-cache@v2
-    - name: Build UniFFI native library
-      run: cargo build -p iscc-uniffi
-    - name: Build Swift package
-      run: >
-        swift build
-        -Xlinker -L${{ github.workspace }}/target/debug
-      working-directory: packages/swift
-    - name: Run Swift tests
-      run: >
-        swift test
-        -Xlinker -L${{ github.workspace }}/target/debug
-        -Xlinker -rpath
-        -Xlinker ${{ github.workspace }}/target/debug
-      working-directory: packages/swift
+```swift
+#if canImport(iscc_uniffiFFI)
+import iscc_uniffiFFI
 ```
 
-**Key details:**
+But the SPM target is named `IsccLibFFI` with `module IsccLibFFI` in the modulemap. The conditional
+import silently fails, leaving all FFI symbols unresolved (~40 "cannot find" errors).
 
-1. **Debug build** for speed — consistent with `c-ffi`, `dotnet`, `cpp` jobs (none use `--release`)
-2. **Linker flags**: `-Xlinker -L<path>` tells the linker where to find `libiscc_uniffi.dylib`. The
-    `-Xlinker -rpath -Xlinker <path>` embeds the library search path into the test binary so it
-    finds the dylib at runtime without needing `DYLD_LIBRARY_PATH` (which can be stripped by SIP on
-    macOS)
-3. **Library name**: `cargo build -p iscc-uniffi` produces `target/debug/libiscc_uniffi.dylib` on
-    macOS. The `Package.swift` already has `.linkedLibrary("iscc_uniffi")` which SPM translates to
-    `-liscc_uniffi`
-4. **Separate build + test steps** for clearer error diagnosis (build failure vs test failure)
-5. **`Swatinem/rust-cache@v2`** works on macOS runners — no compatibility issues
-6. **Place the job** after `cpp:` and before `bench:` (keeps binding jobs grouped before bench)
+**Fix (3 changes):**
 
-**If `-rpath` alone doesn't work** (in case `swift test`'s XCTest runner doesn't propagate it), add
-`env: DYLD_LIBRARY_PATH: ${{ github.workspace }}/target/debug` to the test step as fallback. Try
-`-rpath` first — it's the cleaner solution.
+1. **Rename directory**: `Sources/IsccLibFFI/` → `Sources/iscc_uniffiFFI/`
+
+2. **Update `Package.swift`** — change 3 occurrences of `IsccLibFFI` to `iscc_uniffiFFI`:
+
+    - Line 11: target name `"IsccLibFFI"` → `"iscc_uniffiFFI"`
+    - Line 12: path `"Sources/IsccLibFFI"` → `"Sources/iscc_uniffiFFI"`
+    - Line 20: dependency `"IsccLibFFI"` → `"iscc_uniffiFFI"`
+
+3. **Update `module.modulemap`** (inside the renamed directory):
+
+    - Line 1: `module IsccLibFFI` → `module iscc_uniffiFFI`
+
+This is the recommended fix from state.md — option (a): rename the SPM target to match the generated
+code's expectation, avoiding edits to generated code.
 
 ## Verification
 
-- `grep -q 'macos-14' .github/workflows/ci.yml` exits 0 (macOS runner present)
-- `grep -q 'swift test' .github/workflows/ci.yml` exits 0 (swift test command present)
-- `grep -q 'cargo build -p iscc-uniffi' .github/workflows/ci.yml` exits 0 (UniFFI build step)
-- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` exits 0 (valid YAML)
-- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` passes (no regressions)
+- `grep -c 'iscc_uniffiFFI' packages/swift/Package.swift` outputs `3`
+- `grep -c 'IsccLibFFI' packages/swift/Package.swift` outputs `0`
+- `head -1 packages/swift/Sources/iscc_uniffiFFI/module.modulemap` contains `module iscc_uniffiFFI`
+- `test -d packages/swift/Sources/iscc_uniffiFFI` exits 0 (directory exists)
+- `test ! -d packages/swift/Sources/IsccLibFFI` exits 0 (old directory gone)
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` clean
+- `mise run check` passes (all pre-commit/pre-push hooks)
 
 ## Done When
 
-All verification commands pass and the `swift:` job is properly defined in `ci.yml` with macOS
-runner, UniFFI library build, and `swift test` execution with correct linker flags.
+All verification criteria pass — the module name mismatch is resolved and the Swift package
+structure is consistent with the UniFFI-generated imports.

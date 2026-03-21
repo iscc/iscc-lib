@@ -20,6 +20,8 @@ iterations.
     handoff. Always check issues.md directly rather than trusting handoff "IDLE" signals
 - **Generated files (tool output) don't count toward the 3-file modification limit** — they're
     created by running a tool, not hand-written
+- **CI red always first** — even if handoff suggests feature work, a failing CI job takes priority.
+    Green CI is a prerequisite for all other work
 
 ## Signature Change Propagation
 
@@ -53,6 +55,10 @@ iterations.
 - **Binding generation**: add `bindgen` feature (`uniffi/cli`) + `[[bin]]` with `required-features`.
     Build cdylib first, then `uniffi-bindgen generate --library libiscc_uniffi.so --language swift`
 - **Generated outputs**: `iscc_uniffi.swift`, `iscc_uniffiFFI.h`, `iscc_uniffiFFI.modulemap`
+- **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
+    `import iscc_uniffiFFI`. The SPM FFI target and modulemap module declaration must use
+    `iscc_uniffiFFI` (not a custom name like `IsccLibFFI`). Mismatch causes silent import failure
+    and ~40 unresolved symbol errors
 
 ## Swift CI Job Details
 
@@ -62,7 +68,7 @@ iterations.
 - Runtime discovery: use `-Xlinker -rpath -Xlinker <path>` (cleaner than `DYLD_LIBRARY_PATH` which
     SIP can strip on macOS)
 - `Swatinem/rust-cache@v2` works on macOS runners
-- After Swift CI: remaining items are docs, README sections, version sync, CLAUDE.md, release
+- After Swift CI green: remaining items are docs, README sections, version sync, CLAUDE.md
 
 ## Dev Environment Constraints
 
@@ -90,11 +96,11 @@ iterations.
 
 - **All 8 existing bindings complete** (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET,
     C++)
-- v0.3.1 released, 14 CI jobs green
+- v0.3.1 released, 14 CI jobs green, Swift CI job added but FAILING (module name mismatch)
 - **UniFFI scaffolding crate complete** (iteration 1, PASS)
-- **Swift SPM package created** (iteration 2, PASS) — CI job is next
-- **2 normal-priority issues**: Swift bindings (in progress — CI next), Kotlin bindings (depends on
-    Swift)
+- **Swift SPM package created** (iteration 2, PASS)
+- **Swift CI job added** (iteration 3, PASS structurally but CI fails — module name mismatch)
+- **2 normal-priority issues**: Swift bindings (in progress), Kotlin bindings (depends on Swift)
 
 ## Version Sync Script Patterns
 
