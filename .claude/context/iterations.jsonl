@@ -1027,3 +1027,8 @@
 {"ts":"2026-03-21T21:45:34.105438+00:00","iteration":2,"role":"define-next","status":"OK","turns":33,"cost_usd":1.533415,"duration_s":421.0}
 {"ts":"2026-03-21T21:52:26.597377+00:00","iteration":2,"role":"advance","status":"OK","turns":1,"cost_usd":1.819314,"duration_s":412.5}
 {"ts": "2026-03-21T22:00:00.000000+00:00", "iteration": 2, "role": "review", "status": "PASS", "verdict_notes": "XCFramework build script + Package.swift restructure. All 15 verification criteria pass, all quality gates clean. Codex findings about intermediate state (placeholder checksum, missing version sync) are expected — both deferred by scope."}
+{"ts":"2026-03-21T22:00:48.456245+00:00","iteration":2,"role":"review","status":"OK","turns":1,"cost_usd":1.831166,"duration_s":501.9}
+{"ts":"2026-03-21T22:22:41.434664+00:00","iteration":3,"role":"update-state","status":"OK","turns":23,"cost_usd":0.635854,"duration_s":195.2}
+{"ts":"2026-03-21T22:26:37.700409+00:00","iteration":3,"role":"define-next","status":"OK","turns":20,"cost_usd":1.166034,"duration_s":236.3}
+{"ts":"2026-03-21T22:31:46.965903+00:00","iteration":3,"role":"advance","status":"OK","turns":37,"cost_usd":1.368358,"duration_s":309.3}
+{"ts": "2026-03-21T22:45:00.000000+00:00", "iteration": 3, "role": "review", "status": "PASS_WITH_NOTES", "verdict_notes": "Swift XCFramework release workflow job. All 10 verification criteria pass, 15 pre-commit hooks clean, clippy clean. Advisory: GITHUB_REF_NAME usage makes --ref main re-trigger incompatible (filed as issue)."}

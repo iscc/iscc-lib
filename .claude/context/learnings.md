@@ -86,8 +86,26 @@ fully-met target sections to `learnings-archive.md`.
     test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish. Each
     tests linux-x86_64 artifact on ubuntu-latest
 - **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
-    out the tag's code, NOT the latest `main`. Hotfixes pushed to `main` after tagging require
-    `--ref main` to pick up. When re-triggering individual registries, always use `--ref main`
+- **Swift release job is tag-dependent**: Unlike all other release jobs (which derive version from
+    `Cargo.toml`), `build-xcframework` uses `GITHUB_REF_NAME` for version and tag operations. The
+    `--ref main` re-trigger convention does not work for Swift — needs spec fix to derive version
+    from `Cargo.toml` instead
+- **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift). `build-xcframework` job is independent (no `needs`) out the tag's code,
+    NOT the latest `main`. Hotfixes pushed to `main` after tagging require
+- **Swift release job is tag-dependent**: Unlike all other release jobs (which derive version from
+    `Cargo.toml`), `build-xcframework` uses `GITHUB_REF_NAME` for version and tag operations. The
+    `--ref main` re-trigger convention does not work for Swift — needs spec fix to derive version
+    from `Cargo.toml` instead
+- **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift). `build-xcframework` job is independent (no `needs`) `--ref main` to pick
+    up. When re-triggering individual registries, always use `--ref main`
+- **Swift release job is tag-dependent**: Unlike all other release jobs (which derive version from
+    `Cargo.toml`), `build-xcframework` uses `GITHUB_REF_NAME` for version and tag operations. The
+    `--ref main` re-trigger convention does not work for Swift — needs spec fix to derive version
+    from `Cargo.toml` instead
+- **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift). `build-xcframework` job is independent (no `needs`)
 
 ## Branching
 
@@ -146,41 +164,6 @@ fully-met target sections to `learnings-archive.md`.
     constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
-
-## C++ Wrapper
-
-- C++ `std::vector<T>::data()` returns nullptr for empty vectors on some implementations
-    (libstdc++). The `safe_data()` helper has two overloads (uint8_t and int32_t) in `detail`
-    namespace. All nested vector loops now use `detail::safe_data()` — both top-level and inner
-    elements are covered (11 total occurrences in iscc.hpp: 2 definitions + 9 call sites)
-- C++ wrapper lives in `packages/cpp/` — header-only, depends on `iscc-ffi` shared library. No
-    separate Rust crate. CMake references `iscc.h` from `crates/iscc-ffi/include/` via include paths
-- C++ CI job: `cmake` needs explicit `apt-get install`, `g++` is pre-installed on `ubuntu-latest`.
-    Uses `working-directory: packages/cpp` for cmake steps. CI job count is now 13 total
-- **FFI tarball flat layout vs CMake include path**: `iscc.hpp` and `iscc.h` are flat in FFI
-    tarballs. CMake project uses `#include <iscc/iscc.hpp>` (needs `iscc/` subdirectory). Tarball
-    consumers use `#include "iscc.hpp"` with `-I <tarball-dir>`. Document this distinction in
-    `docs/howto/c-cpp.md` when updating
-
-## Quality Gates
-
-- **`ty check` and external Python recipes**: adding Python files that import packages not in the
-    project's venv (e.g., `conanfile.py` importing `conan`) will fail the `ty check` pre-push hook.
-    Fix: add `[tool.ty.src] exclude = ["path/to/file.py"]` in `pyproject.toml`. This is appropriate
-    scope exclusion, not gate circumvention
-
-## UniFFI Bindings
-
-- `crates/iscc-uniffi/` uses proc macros only — no UDL files, no `build.rs`. `uniffi.toml` only
-    needed for binding gen customization, not compilation
-- UniFFI requires owned types (`String`, `Vec<u8>`), no `usize` or `const` exports — use `u64` for
-    sizes and getter functions for constants
-- UniFFI Objects need `Send + Sync` — use `Mutex<Option<Inner>>` (not `RefCell`)
-- Binding generation: `uniffi-bindgen.rs` (3-line entry point) +
-    `[features] bindgen = ["uniffi/cli"]`
-    - `[[bin]] required-features = ["bindgen"]` pattern. Generates `.swift`/`.kt` + `.h` +
-        `.modulemap`
-- Swift tests require macOS runner — cannot execute in Linux devcontainer
 
 ## Swift Package
 
