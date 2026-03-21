@@ -43,7 +43,7 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     (it may take 10–30 minutes):
 
     ```
-    codex exec review --ephemeral --commit HEAD --sandbox danger-full-access --json 2>/dev/null | jq -r 'select(.item.type == "agent_message") | .item.text' > /tmp/codex-review.txt
+    codex exec review --ephemeral --commit HEAD --dangerously-bypass-approvals-and-sandbox --json 2>/dev/null | jq -r 'select(.item.type == "agent_message") | .item.text' > /tmp/codex-review.txt
     ```
 
     Continue with the remaining steps while it runs. The output will be incorporated in step 8. If
