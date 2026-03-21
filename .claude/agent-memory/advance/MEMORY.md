@@ -190,9 +190,20 @@ iterations.
     `darwin-x86-64`, `win32-x86-64` (matches JNA `Platform.RESOURCE_PREFIX`). JNA discovers libs
     from classpath even when `jna.library.path` points to a missing directory
 
+## Python Benchmarks
+
+- `tests/test_benchmarks.py`: 18 benchmarks (9 fn x 2 impls) via pytest-benchmark
+- iscc-core `gen_data_code_v0`/`gen_instance_code_v0` require `io.BytesIO` wrapper (stream-based) —
+    must create fresh BytesIO per iteration or stream gets consumed after first read
+- iscc-core `gen_image_code_v0` takes `list[int]`, iscc-lib takes `bytes` — convert accordingly
+- Run: `uv run pytest tests/test_benchmarks.py --benchmark-only` (benchmarks only)
+- Skip: `uv run pytest tests/ --benchmark-disable` (normal tests, no benchmarks)
+
 ## Gotchas
 
 - Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name
 - After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
 - Gradle `wrapper` task requires `settings.gradle.kts` to exist first — create it before running
+- `.claude/context/specs/swift-bindings.md` has recurring trailing whitespace — causes
+    `mise run   check` to fail on every run (pre-existing, not related to code changes)
