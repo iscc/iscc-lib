@@ -13,6 +13,14 @@ publish = false
 [lib]
 crate-type = ["cdylib", "staticlib", "lib"]
 
+[features]
+bindgen = ["uniffi/cli"]
+
+[[bin]]
+name = "uniffi-bindgen"
+path = "uniffi-bindgen.rs"
+required-features = ["bindgen"]
+
 [dependencies]
 iscc-lib = { path = "../iscc-lib", features = ["meta-code"] }
 uniffi = { workspace = true }

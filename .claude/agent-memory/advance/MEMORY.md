@@ -192,6 +192,21 @@ iterations.
 - UniFFI doesn't support: `const` exports (use getter fns), `usize` (use u64), borrowed refs (owned)
 - Result records need `Debug` derive for test `unwrap_err()`. Hashers need `Default` impl (clippy)
 - 21 unit tests in-crate. Conformance testing happens in Swift/Kotlin test suites
+- Binding generation: `uniffi-bindgen.rs` (3-line main), `[features] bindgen = ["uniffi/cli"]`,
+    `[[bin]] required-features = ["bindgen"]`
+- Generate Swift:
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate   --library target/debug/libiscc_uniffi.so --language swift --out-dir <dir>`
+- Generated files: `iscc_uniffi.swift` (~72KB), `iscc_uniffiFFI.h` (~38KB),
+    `iscc_uniffiFFI.modulemap` (rename to `module.modulemap` for SPM)
+
+## Swift Package
+
+- `packages/swift/` — SPM package with IsccLibFFI (C header + modulemap) + IsccLib (Swift bindings)
+- UniFFI generates `Data` for `Vec<u8>`, camelCase for all function names, `throws` for fallible fns
+- `Sendable` conformance auto-generated for result structs (Swift compiler >= 6)
+- Conformance tests: `ConformanceTests.swift` with `JSONSerialization`, 9 test methods, 50 vectors
+- `module.modulemap` is simplified from generated version (removed Darwin-specific `use` directives)
+- Swift tests require macOS runner — cannot run in Linux devcontainer
 
 ## Gotchas
 

@@ -1,47 +1,56 @@
-## 2026-03-21 — Review of: Create UniFFI scaffolding crate with all 32 Tier 1 symbols
+## 2026-03-21 — Generate Swift bindings and create SPM package structure
 
-**Verdict:** PASS
+**Done:** Created the Swift package at `packages/swift/` with UniFFI-generated bindings, SPM
+manifest, XCTest conformance tests (50 vectors across 9 gen functions), and vendored data.json. Also
+added the `bindgen` feature and `[[bin]]` section to `iscc-uniffi` for the `uniffi-bindgen` CLI.
 
-**Summary:** The advance agent created `crates/iscc-uniffi/` exposing all 32 Tier 1 symbols via
-UniFFI proc macros, with proper error mapping, result records, streaming Object types, and 21 unit
-tests. The implementation is clean, well-documented, and stays strictly within scope. All
-verification criteria pass.
+**Files changed:**
+
+- `crates/iscc-uniffi/Cargo.toml`: Added `[features] bindgen = ["uniffi/cli"]` and `[[bin]]` section
+    for `uniffi-bindgen` binary
+- `crates/iscc-uniffi/uniffi-bindgen.rs`: 3-line entry point for UniFFI binding generation CLI
+- `packages/swift/Package.swift`: SPM manifest with IsccLibFFI + IsccLib + IsccLibTests targets
+- `packages/swift/Sources/IsccLib/iscc_uniffi.swift`: Generated Swift bindings (~2260 lines) with
+    all 32 Tier 1 symbols in camelCase
+- `packages/swift/Sources/IsccLibFFI/iscc_uniffiFFI.h`: Generated C header for FFI layer
+- `packages/swift/Sources/IsccLibFFI/module.modulemap`: Module map for IsccLibFFI target (simplified
+    from generated `iscc_uniffiFFI.modulemap`)
+- `packages/swift/Tests/IsccLibTests/ConformanceTests.swift`: XCTest class with 9 test methods
+    covering all 50 conformance vectors
+- `packages/swift/Tests/IsccLibTests/data.json`: Vendored conformance vectors (identical copy from
+    `crates/iscc-lib/tests/data.json`)
+- `packages/swift/README.md`: Per-package README with install, usage, and build-from-source
+    instructions
 
 **Verification:**
 
-- [x] `cargo build -p iscc-uniffi` compiles successfully
-- [x] `cargo test -p iscc-uniffi` passes — 21 tests (constants, gen functions, text utilities,
-    algorithm primitives, streaming, codec, conformance selftest)
-- [x] `cargo clippy -p iscc-uniffi -- -D warnings` is clean
-- [x] `cargo build -p iscc-lib` still passes (no regressions)
-- [x] `cargo test -p iscc-lib` still passes — 317 tests (261+31+24+1)
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` is clean
-- [x] `mise run check` passes (14/15 hooks — Ruby `standardrb-fix` fails due to pre-existing
-    `bundle` not on PATH, unrelated to this change)
+- `cargo build -p iscc-uniffi` — compiles successfully
+- `cargo test -p iscc-uniffi` — 21 tests pass (existing tests unaffected)
+- `cargo clippy -p iscc-uniffi -- -D warnings` — clean
+- `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- --help` — shows usage
+- All 8 file existence checks pass
+- `data.json` is identical to source
+- `mise run check` — 14/15 hooks pass (Ruby `standardrb-fix` fails due to pre-existing `bundle` not
+    on PATH, unrelated to this change)
 
-**Issues found:**
-
-- (none)
-
-**Codex review:** Codex found no actionable issues — confirmed the change is limited to internal
-scaffolding and does not affect existing runtime code paths.
-
-**Next:** Create the Swift package (`packages/swift/`) with `Package.swift`, generated Swift
-bindings via `uniffi-bindgen generate`, idiomatic Swift wrapper, and XCTest conformance tests. This
-is the natural next step now that the UniFFI scaffolding crate compiles and all 32 Tier 1 symbols
-are verified.
+**Next:** Add CI job for Swift on macOS runner (`swift build` + `swift test`). The Swift tests
+cannot be run in this Linux devcontainer — they need a macOS runner with Swift toolchain and the
+compiled `libiscc_uniffi` native library. The CI job would: (1) build `iscc-uniffi` with Rust, (2)
+run `swift test -Xlinker -L<path>` in `packages/swift/`.
 
 **Notes:**
 
-- UniFFI 0.31 adds ~30 transitive dependencies to Cargo.lock (askama, cargo_metadata, goblin,
-    uniffi_bindgen, etc.) — expected for a code generation framework
-- The `iscc-uniffi` crate uses `publish = false` — it won't be published to crates.io
-- Streaming types use `Mutex<Option<Inner>>` (thread-safe) vs Ruby's `RefCell<Option<Inner>>`
-    (single-threaded) — correct choice for UniFFI which requires `Send + Sync`
-- 32 `#[uniffi::export]` annotations: 30 on free functions + 2 on `impl` blocks (DataHasher,
-    InstanceHasher) matching the 32 Tier 1 symbol count
-- The swift-bindings spec mentions `uniffi.toml` and `build.rs` but next.md correctly excluded them
-    — proc macro approach works without either. They may be needed later for binding generation
-    customization
-- `iscc-uniffi` workspace exclusion in CI `rust` job may be needed (like `iscc-rb`) if it pulls in
-    dependencies that aren't available in the CI Rust job. Watch for this when adding CI
+- The generated `iscc_uniffiFFI.modulemap` references `"Darwin"` and `"_Builtin_stdbool"` modules
+    which are macOS-specific. The `module.modulemap` placed in the package was simplified to just
+    reference the header and export all — this is the standard pattern for SPM C targets
+- UniFFI generates `Data` (not `[UInt8]`) for Rust `Vec<u8>` — this is idiomatic Swift
+- UniFFI auto-generates `Sendable` conformance for result structs (compiler >= 6)
+- The generated Swift file is ~72KB / ~2260 lines — includes all internal FFI converters, not just
+    the public API surface
+- Swift conformance tests use `JSONSerialization` for flexible JSON parsing, matching the .NET
+    `JsonElement` pattern. The `prepareMeta` helper handles null/string/dict meta variants
+- The `Cargo.lock` gains 2 new transitive deps (`clap_derive`, `strsim`) from the `uniffi/cli`
+    feature, but only when `bindgen` feature is active
+- Cannot run `swift test` in this environment (Linux devcontainer without Swift toolchain) — tests
+    are structurally validated but not executed. Execution requires the macOS CI job
