@@ -44,9 +44,12 @@ iterations.
 - Version sync: `scripts/version_sync.py` — 15 targets (incl. Swift, Kotlin). `--check` mode exits 1
     on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
-- Release workflow (`release.yml`): 8 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems,
-    nuget, maven-kotlin). Pattern: boolean input → build job → **smoke test job** → publish job
+- Release workflow (`release.yml`): 9 inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift). Pattern: boolean input → build job → **smoke test job** → publish job
     (version-exists skip). NuGet uses `NUGET_API_KEY` secret (not OIDC). Ruby uses OIDC
+- `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Builds XCFramework →
+    checksum → `sed` updates Package.swift → auto-commit → force-update tag → upload to GH Release.
+    Uses macOS BSD `sed -E -i ''` (not GNU). Dual cache: `Swatinem/rust-cache` + `actions/cache`
 - Kotlin Maven Central: `build-kotlin-native` (5-platform matrix) → `assemble-kotlin` +
     `test-kotlin-release` → `publish-maven-kotlin`. Publish uses Gradle `maven-publish` to local
     staging dir + curl bundle upload to Sonatype Central Portal REST API. Signing via

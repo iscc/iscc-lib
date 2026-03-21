@@ -37,6 +37,10 @@ on:
         description: Publish iscc-lib-kotlin to Maven Central
         type: boolean
         default: false
+      swift:
+        description: Build and publish Swift XCFramework to GitHub Releases
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -1162,3 +1166,50 @@ jobs:
         env:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+
+  # Build Swift XCFramework for all Apple platforms and publish to GitHub Releases
+  build-xcframework:
+    name: Build XCFramework
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.swift
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: >-
+            aarch64-apple-darwin,x86_64-apple-darwin,
+            aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        id: xcf-cache
+        with:
+          path: target/ios/IsccLib.xcframework.zip
+          key: xcf-${{ hashFiles('crates/iscc-*/src/**', 'Cargo.lock') }}
+      - name: Build XCFramework
+        if: steps.xcf-cache.outputs.cache-hit != 'true'
+        run: ./scripts/build_xcframework.sh --release
+      - name: Update Package.swift checksum
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          CHECKSUM=$(swift package compute-checksum target/ios/IsccLib.xcframework.zip)
+          sed -E -i '' \
+            "s/(let releaseTag = \")[^\"]+/\1$VERSION/" Package.swift
+          sed -E -i '' \
+            "s/(let releaseChecksum = \")[^\"]+/\1$CHECKSUM/" Package.swift
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: update Swift XCFramework checksum'
+      - name: Force-update tag
+        run: |
+          git tag -fa ${{ github.ref_name }} -m "Swift Package checksum"
+          git push origin ${{ github.ref_name }} --force
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: target/ios/IsccLib.xcframework.zip
