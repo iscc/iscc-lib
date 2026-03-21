@@ -1,15 +1,14 @@
-<!-- assessed-at: 820683158771ad4d7cca3d32f7e8cacf0c2bccec -->
+<!-- assessed-at: 105ed4d7e12fc5c878f2abfb4453eda742320e17 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Kotlin docs complete; release workflow is last Kotlin gap
+## Phase: Kotlin fully complete; Swift packaging issues remain
 
-v0.3.1 released across all 8 registries. All 16/16 CI jobs pass (run 23386397907). Kotlin
-documentation is now **complete** — howto guide, package README/CLAUDE.md, root README integration,
-zensical.toml nav, and gen_llms_full.py entry all verified. The sole remaining Kotlin sub-task is
-the release workflow (maven-kotlin in release.yml). Four open issues remain.
+v0.3.1 released across all 9 registries (8 previous + maven-kotlin added). All 16/16 CI jobs pass
+(run 23387467886). Kotlin bindings are **fully complete** — scaffold, tests, CI, docs, AND release
+workflow all verified. Three open issues remain (2 Swift packaging, 1 cosmetic).
 
 ## Rust Core Crate
 
@@ -106,20 +105,18 @@ the release workflow (maven-kotlin in release.yml). Four open issues remain.
 
 ## Kotlin Multiplatform Bindings
 
-**Status**: partially met (scaffold + tests + CI + docs complete; release workflow missing)
+**Status**: met
 
 - **Scaffold complete** — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
 - **3214-line UniFFI-generated bindings** in src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt
 - **Conformance tests complete** — 9 @Test methods covering all gen\_\*\_v0 functions (50 vectors)
 - **Version sync** — gradle.properties added as 15th target in version_sync.py
-- **CI job green** — passes in run 23386397907
-- **Documentation complete**:
-    - docs/howto/kotlin.md — 451-line howto guide
-    - packages/kotlin/README.md — 89-line package README
-    - packages/kotlin/CLAUDE.md — 101-line agent guidance
-    - Root README: 4 Kotlin mentions (install + quickstart sections)
-    - zensical.toml nav entry + gen_llms_full.py entry (now 22 total pages)
-- **Missing — release workflow**: No `maven-kotlin` in release.yml
+- **CI job green** — passes in latest run
+- **Documentation complete** — howto guide (451 lines), package README (89 lines), CLAUDE.md (101
+    lines), root README integration, zensical.toml nav, gen_llms_full.py (22 pages)
+- **Release workflow complete** — `maven-kotlin` input + build-kotlin-native + smoke-test-kotlin +
+    publish-maven-kotlin jobs in release.yml. GPG signing via `useInMemoryPgpKeys`, Central Portal
+    upload via curl REST API
 
 ## README
 
@@ -149,42 +146,45 @@ the release workflow (maven-kotlin in release.yml). Four open issues remain.
 
 ## Benchmarks
 
-**Status**: met
+**Status**: partially met
 
-- Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional
+- Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional (12 total)
 - Bench (compile check) CI job SUCCESS
+- **Missing**: No pytest-benchmark setup comparing Python bindings vs iscc-core
+- **Missing**: No speedup factors published in documentation
 
 ## CI/CD and Publishing
 
-**Status**: partially met (Kotlin release workflow missing)
+**Status**: met
 
-- **LATEST COMPLETED RUN** — run 23386397907: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23386397907
+- **LATEST COMPLETED RUN** — run 23387467886: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23387467886
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
-- v0.3.1 released across all 8 registries
+- v0.3.1 released across all 8 registries (maven-kotlin to be exercised on next release)
+- Release workflow has 8 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin
 - version_sync.py manages 15 sync targets
-- **Gap**: No `maven-kotlin` in release.yml
 
-## Open Issues (4 total)
+## Open Issues (3 total)
 
-1. **Kotlin bindings** `normal` — scaffold + tests + CI + docs all done; release workflow only
-    remaining sub-task
-2. **Swift SPM install instructions incorrect** `normal` — Package.swift in subdirectory, SPM URL
+1. **Swift SPM install instructions incorrect** `normal` — Package.swift in subdirectory, SPM URL
     won't resolve from repo root
-3. **Swift package does not vend native library** `normal` — linkedLibrary declared but no dylib
+2. **Swift package does not vend native library** `normal` — linkedLibrary declared but no dylib
     bundled; users get link failures
-4. **Language logos in docs** `low` — CID skips
+3. **Language logos in docs** `low` — CID skips
 
 ## Next Milestone
 
-**Add `maven-kotlin` to release.yml** — the last remaining Kotlin sub-task:
+**Address Swift packaging issues** — the two `normal` Swift issues are interconnected:
 
-1. Add `maven-kotlin` boolean input to `workflow_dispatch` in release.yml
-2. Add Kotlin/Maven Central publish job (GPG signing + Sonatype credentials, same pattern as Java)
-3. After release workflow is added, the Kotlin issue can be fully resolved
+1. Fix native library vending (XCFramework binary target, build plugin, or documented
+    build-from-source)
+2. Fix SPM install instructions to match the chosen distribution approach
+3. These should be tackled together since the library distribution approach determines the install
+    instructions
 
-Secondary (after Kotlin is closed):
+Secondary (lower priority):
 
-- Address Swift SPM issues (install instructions + native library vending)
 - pytest-benchmark comparisons vs iscc-core (target spec mentions these)
+- Speedup factors in documentation

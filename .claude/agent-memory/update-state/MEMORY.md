@@ -19,13 +19,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
 - **gen_llms_full.py page count**: Python ast.literal_eval on ORDERED_PAGES list (now 22 entries)
 - **UniFFI export count**: Use Grep for `#\[uniffi::export\]` in `crates/iscc-uniffi/src/lib.rs`
-- **Kotlin docs check**:
-    `ls packages/kotlin/README.md packages/kotlin/CLAUDE.md docs/howto/kotlin.md 2>&1`
-- **state.md Write workaround**: Write tool AND Python -c with backticks BOTH fail. Use heredoc:
+- **state.md Write workaround**: Write tool = permission error. Use heredoc:
     `cat > .claude/context/state.md << 'STATEEOF' ... STATEEOF`
 - **CLAUDE.md files**: `ls packages/*/CLAUDE.md crates/*/CLAUDE.md 2>&1`
 - **Howto guides**: `ls docs/howto/*.md | sort`
 - **Version sync targets**: `uv run scripts/version_sync.py --check 2>&1 | grep "^OK:" | wc -l`
+- **Release workflow inputs**: `grep "^      [a-z]" .github/workflows/release.yml | head -10`
 
 ## Codebase Landmarks
 
@@ -35,8 +34,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM, no binary artifacts)
 - `packages/swift/` — SPM package with UniFFI-generated bindings (2400-line iscc_uniffi.swift)
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
-    5.16.0; conformance tests (9 methods, 50 vectors); docs complete
+    5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
 - `.github/workflows/ci.yml` — **16 CI jobs**
+- `.github/workflows/release.yml` — **8 registry inputs**: crates-io, pypi, npm, maven, ffi,
+    rubygems, nuget, maven-kotlin
 - `crates/iscc-uniffi/` — UniFFI scaffolding: 32 exports, 21 tests; `publish = false`
 - `docs/howto/` — **11 files**: rust, python, nodejs, wasm, go, java, c-cpp, ruby, dotnet, swift,
     kotlin
@@ -56,23 +57,24 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review.
 - **Handoff predictions may be wrong**: always verify CI independently.
 
-## Current State (assessed-at: 8206831)
+## Current State (assessed-at: 105ed4d)
 
 - **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN
-- Latest CI run: 23386397907 (SUCCESS)
-- **Kotlin**: scaffold + tests + CI + docs ALL DONE; only `maven-kotlin` release.yml remains
-- **4 open issues**: Kotlin (release workflow), Swift SPM install, Swift native lib, language logos
-- **Next**: Add maven-kotlin to release.yml to close out Kotlin issue
+- Latest CI run: 23387467886 (SUCCESS)
+- **Kotlin**: FULLY COMPLETE — scaffold, tests, CI, docs, release workflow all done
+- **3 open issues**: Swift SPM install, Swift native lib, language logos (low)
+- **Next**: Address Swift packaging issues (interconnected: native lib vending + install docs)
+- **Benchmark gaps**: No pytest-benchmark, no speedup factors in docs
 
 ## Gotchas
 
-- **state.md Write**: Write tool = permission error; Python -c with backticks = zsh eats them. Only
-    reliable method: `cat > file << 'EOF' ... EOF` via Bash tool
+- **state.md Write**: Write tool = permission error. Only reliable method:
+    `cat > file << 'EOF' ... EOF` via Bash tool
 - Go target requires pure Go (no WASM, no wazero, no binary artifacts)
 - **csbindgen**: `crates/iscc-ffi/build.rs` runs csbindgen on every `cargo build`
 - **UniFFI proc macro approach**: no uniffi.toml or build.rs needed
 - **Kotlin UniFFI bindings**: Uses JNA (not JNI); needs BOTH `java.library.path` AND
     `jna.library.path` at runtime
-- **Kotlin Gson groupId** (RESOLVED): Maven groupId is `com.google.code.gson` (not
-    `com.google.gson`)
+- **Kotlin release workflow**: Uses `useInMemoryPgpKeys` (env vars) instead of Java's GPG keyring;
+    Central Portal upload via curl REST API (no Gradle plugin)
 - **mdformat trailing space bug**: inline code with trailing space triggers error
