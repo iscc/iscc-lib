@@ -1,15 +1,15 @@
-<!-- assessed-at: 556cb35853d8a52ec11b66b6e203260504a839b1 -->
+<!-- assessed-at: ad566e1ca05d8181a7e5acbcd7f680b48ecfde0b -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Swift XCFramework distribution — release workflow integration
+## Phase: Swift XCFramework — version sync + docs update + release job fix
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23389725584). All 12 language
-bindings scaffolded, tested, documented, and shipping. XCFramework build script and root
-Package.swift restructure completed (step 1 of multi-step effort). Remaining: release workflow
-integration, version sync for releaseTag, docs update.
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23390387523). All 12 language
+bindings scaffolded, tested, documented, and shipping. XCFramework build script, root Package.swift,
+and release workflow job all complete. Remaining: version sync for releaseTag, docs/howto/swift.md
+update, and fix for GITHUB_REF_NAME bug in the Swift release job.
 
 ## Rust Core Crate
 
@@ -102,34 +102,28 @@ integration, version sync for releaseTag, docs update.
 - SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
 - 9 conformance test methods covering 50 vectors; CI job SUCCESS on macos-14
 - docs/howto/swift.md, README, CLAUDE.md all present
-- **XCFramework build script created** (`scripts/build_xcframework.sh`): executable, valid shell
-    syntax, compiles for 5 Apple targets (aarch64-apple-darwin, x86_64-apple-darwin,
-    aarch64-apple-ios, aarch64-apple-ios-sim, x86_64-apple-ios), creates fat binaries with lipo,
-    assembles XCFramework, zips with ditto, computes checksum via `swift package compute-checksum`
-- **Root `Package.swift` restructured** with Ferrostar-style toggle: `useLocalFramework` variable,
-    `.binaryTarget(url:checksum:)` for distribution, `.binaryTarget(path:)` for local dev. Three
-    targets: binaryTarget (iscc_uniffiFFI) + IsccLib. `releaseTag = "0.3.1"`,
-    `releaseChecksum = "PLACEHOLDER"`.
-- **Missing (normal priority)**:
-    1. Release workflow integration — no `swift` checkbox input, no `build-xcframework` job in
-        `release.yml`. Needs: macOS runner, XCFramework build+zip, sed to update
-        releaseTag/releaseChecksum, auto-commit, force-update tag, upload to GitHub Release.
-    2. Version sync — `releaseTag` not yet in `version_sync.py` (still 15 targets, not 16).
-    3. docs/howto/swift.md not yet updated to reflect zero-friction SPM install.
+- **XCFramework build script** (`scripts/build_xcframework.sh`): executable, valid shell syntax, 5
+    Apple targets, lipo fat binaries, XCFramework assembly, zip + checksum
+- **Root `Package.swift` restructured**: Ferrostar-style `useLocalFramework` toggle,
+    `.binaryTarget(url:checksum:)` for distribution, `releaseTag = "0.3.1"`,
+    `releaseChecksum = "PLACEHOLDER"`
+- **Release workflow integrated**: `swift` checkbox input added (9th boolean input),
+    `build-xcframework` job added to release.yml — macOS runner, build script invocation, checksum
+    update via sed, force-update tag, upload zip as GitHub Release asset
+- **Missing**:
+    1. Version sync — `releaseTag` not yet in `version_sync.py` (still 15 targets, not 16)
+    2. docs/howto/swift.md not yet updated for zero-friction SPM install (still says "planned for a
+        future release")
+    3. GITHUB_REF_NAME bug — Swift release job derives version from `GITHUB_REF_NAME` instead of
+        Cargo.toml, breaking `--ref main` re-trigger convention (filed as normal issue)
 
 ## Kotlin Multiplatform Bindings
 
 **Status**: met
 
-- **Scaffold complete** — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
-- **3214-line UniFFI-generated bindings** in src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt
-- **Conformance tests complete** — 9 @Test methods covering all gen\_\*\_v0 functions (50 vectors)
-- **Version sync** — gradle.properties added as 15th target in version_sync.py
-- **CI job green** — passes in latest run
-- **Documentation complete** — howto guide (451 lines), package README (89 lines), CLAUDE.md (101
-    lines), root README integration, zensical.toml nav, gen_llms_full.py (22 pages)
-- **Release workflow complete** — `maven-kotlin` input + build-kotlin-native + smoke-test-kotlin +
-    publish-maven-kotlin jobs in release.yml
+- Scaffold complete — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
+- 3214-line UniFFI-generated bindings, conformance tests (9 methods, 50 vectors)
+- Version sync, CI job, docs, release workflow all complete
 
 ## README
 
@@ -162,46 +156,45 @@ integration, version sync for releaseTag, docs update.
 
 - Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional (12 total in Rust)
 - Bench (compile check) CI job SUCCESS
-- **pytest-benchmark added**: 18 functions (9 gen\_\*\_v0 x 2 — iscc-lib vs iscc-core) in
-    `tests/test_benchmarks.py`. Review agent verified all 18 pass. Representative speedups: meta
-    ~20x, text ~33x, image ~15x, audio ~50x, video ~13x, mixed ~30x, data ~11x, instance ~62x, iscc
-    ~20x
+- pytest-benchmark: 18 functions (9 gen\_\*\_v0 x 2 — iscc-lib vs iscc-core)
 - **Missing**: Speedup factors not yet published in documentation
 
 ## CI/CD and Publishing
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23389725584: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23389725584
+- **LATEST COMPLETED RUN** — run 23390387523: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23390387523
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries (maven-kotlin to be exercised on next release)
-- Release workflow has 8 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin
+- Release workflow has 9 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift
 - version_sync.py manages 15 sync targets
 
-## Open Issues (2 total — 1 normal, 1 low)
+## Open Issues (3 total — 2 normal, 1 low)
 
-1. **Swift package does not vend native library** `normal` — XCFramework build script and
-    Package.swift restructuring DONE. Remaining: release workflow integration (build-xcframework
-    job, swift checkbox, checksum update, force-update tag, upload), version sync (releaseTag in
-    version_sync.py), docs update.
-2. **Language logos in docs** `low` — CID skips
+1. **Swift package does not vend native library** `normal` — Build script, Package.swift, and
+    release workflow all done. Remaining: version sync (releaseTag in version_sync.py) and
+    docs/howto/swift.md update for zero-friction SPM install.
+2. **Swift release job `--ref main` re-trigger incompatible** `normal` — `build-xcframework` uses
+    `GITHUB_REF_NAME` for version extraction. Re-triggering with `--ref main -f swift=true` would
+    set `releaseTag = "main"` and corrupt the repo. Fix: derive version from Cargo.toml. Flagged
+    `HUMAN REVIEW REQUESTED` — spec explicitly uses `GITHUB_REF_NAME`.
+3. **Language logos in docs** `low` — CID skips
 
 ## Next Milestone
 
-**Swift XCFramework release workflow integration** — the critical remaining step for the `normal`
-priority issue. The build script and Package.swift are ready; now the release workflow needs to
-actually build, upload, and distribute the XCFramework:
+**Fix Swift GITHUB_REF_NAME bug + version sync + docs update** — three remaining tasks to close the
+Swift XCFramework issues:
 
-1. Add `swift` checkbox input to `release.yml` `workflow_dispatch`
-2. Add `build-xcframework` job: macOS runner, run `scripts/build_xcframework.sh`, upload zip as
-    GitHub Release asset
-3. Add checksum update step: `sed` to replace `releaseTag`/`releaseChecksum` in root
-    `Package.swift`, auto-commit, force-update the Git tag so SPM picks up the new checksum
-4. Add `releaseTag` entry to `version_sync.py` (target 16)
-5. Update `docs/howto/swift.md` to document zero-friction SPM install
+1. **Fix GITHUB_REF_NAME bug** (`normal` issue) — update `build-xcframework` job to derive version
+    from `Cargo.toml` (like all other release jobs) and construct tag as `v$VERSION`. Requires spec
+    update since spec explicitly uses `GITHUB_REF_NAME`. **HUMAN REVIEW REQUESTED** flag is set.
+2. **Add `releaseTag` to `version_sync.py`** — target 16, so `mise run version:sync` propagates
+    version to root `Package.swift`
+3. **Update `docs/howto/swift.md`** — replace "planned for a future release" with zero-friction SPM
+    install instructions using the binary target pattern
 
 Remaining `low`-priority work (human-directed only):
 

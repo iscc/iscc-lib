@@ -25,7 +25,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **CLAUDE.md files**: `ls packages/*/CLAUDE.md crates/*/CLAUDE.md 2>&1`
 - **Howto guides**: `ls docs/howto/*.md | sort`
 - **Version sync targets**: `uv run scripts/version_sync.py --check 2>&1 | grep "^OK:" | wc -l`
-- **Release workflow inputs**: `grep "^      [a-z]" .github/workflows/release.yml | head -10`
+- **Release workflow inputs**: `grep "type: boolean" .github/workflows/release.yml | wc -l`
 - **XCFramework verify**:
     `test -x scripts/build_xcframework.sh && bash -n scripts/build_xcframework.sh`
 - **Swift release workflow check**: `grep -i 'swift\|xcframework' .github/workflows/release.yml`
@@ -43,8 +43,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
 - `.github/workflows/ci.yml` — **16 CI jobs**
-- `.github/workflows/release.yml` — **8 registry inputs**: crates-io, pypi, npm, maven, ffi,
-    rubygems, nuget, maven-kotlin (NO swift yet)
+- `.github/workflows/release.yml` — **9 registry inputs**: crates-io, pypi, npm, maven, ffi,
+    rubygems, nuget, maven-kotlin, swift
 - `crates/iscc-uniffi/` — UniFFI scaffolding: 32 exports, 21 tests; `publish = false`
 - `docs/howto/` — **11 files**: rust, python, nodejs, wasm, go, java, c-cpp, ruby, dotnet, swift,
     kotlin
@@ -65,19 +65,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Target may change**: always re-read target.md diff when doing incremental review.
 - **Handoff predictions may be wrong**: always verify CI independently.
 
-## Current State (assessed-at: 556cb35)
+## Current State (assessed-at: ad566e1)
 
 - **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN
-- Latest CI run: 23389725584 (SUCCESS)
+- Latest CI run: 23390387523 (SUCCESS)
 - **All 12 language bindings complete**: scaffold, tests, CI, docs, release workflows
-- **1 normal issue**: Swift XCFramework — build script + Package.swift DONE, release workflow NOT
-    YET
+- **2 normal issues**: Swift XCFramework vend (version sync + docs remaining), Swift release job
+    GITHUB_REF_NAME bug
 - **1 low issue**: language logos in docs
-- **XCFramework progress**: Step 1 of multi-step effort complete. Remaining:
-    - release.yml: `swift` input + `build-xcframework` job (macOS runner, checksum update, tag
-        force-update, upload asset)
+- **XCFramework progress**: Steps 1-2 of multi-step effort complete. Remaining:
     - version_sync.py: add releaseTag as 16th target
     - docs/howto/swift.md: update for zero-friction SPM install
+    - Fix GITHUB_REF_NAME → Cargo.toml version derivation (HUMAN REVIEW REQUESTED)
 
 ## Gotchas
 
@@ -97,3 +96,6 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Swift XCFramework spec**: `.claude/context/specs/swift-bindings.md` (460+ lines) — comprehensive
     design doc. Key sections: "Release Workflow Integration", "Version Sync"
 - **pytest-benchmark naming**: functions use `test_bench_*` prefix (not bare `bench_*`)
+- **Swift GITHUB_REF_NAME bug**: `build-xcframework` job line 1198 uses `GITHUB_REF_NAME` for
+    version — breaks `--ref main` re-trigger. All other jobs use Cargo.toml. Issue has
+    `HUMAN REVIEW REQUESTED` flag because spec explicitly prescribes `GITHUB_REF_NAME`.
