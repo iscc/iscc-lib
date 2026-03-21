@@ -46,6 +46,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` +
     `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (needs
     `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`)
+- **Kotlin-only**: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
+    workspace + `mise run check`
 - **Config-only**: `mise run check` + `cargo check -p <crate>`
 - **Script-only (Python)**: `mise run check` + `uv run scripts/<script>.py --check` (if applicable)
 - **CI-only YAML**: `mise run check`
@@ -75,14 +77,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     maven, ffi, rubygems, nuget)
 - **iscc-rb workspace exclusion**: `--exclude iscc-rb` in CI `rust` job is permanent — Rust job
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
-- .NET in `packages/dotnet/` — `Iscc.Lib` + `Iscc.Lib.Tests` (xUnit). CI `dotnet` job added.
-    csbindgen (v1.9.7) generates `NativeMethods.g.cs` (47 functions, 6 structs) via `build.rs`
-- csbindgen runs in `build.rs` (unlike cbindgen CLI) — writes to repo-relative path. `dotnet` not
-    available locally — CI is the .NET validation backstop. Codex flags build robustness (advisory)
 - .NET bindings fully complete (iteration 9): 32/32 Tier 1 symbols, 91 tests, NuGet publish
     pipeline, version sync, docs. C# issue resolved and deleted from issues.md
-- .NET NuGet pipeline: `pack-nuget` → `test-nuget` → `publish-nuget`. Reuses `build-ffi` artifacts.
-    `NUGET_API_KEY` secret (not OIDC). Manual account setup still needed (human action)
+- Swift bindings fully complete (iteration 6): all sub-tasks done, issue resolved
 
 ## Binding Propagation Shortcuts
 
@@ -93,29 +90,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Ruby: `pushd crates/iscc-rb && bundle exec rake compile && bundle exec rake test; popd`
 - .NET: `cargo build -p iscc-ffi` + `dotnet build packages/dotnet/Iscc.Lib/` +
     `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug`
-    - `mise run check`. NOTE: relative path `target/debug` fails in devcontainer — use absolute path.
-        `dotnet` is at `/usr/share/dotnet/dotnet` (on PATH in devcontainer)
-
-## C++ Wrapper Review
-
-- C++ wrapper in `packages/cpp/` — header-only, no Rust crate. CMake + INTERFACE library
-- Review shortcut: `cargo build -p iscc-ffi` + CMake configure/build/test + ASAN rebuild + clippy +
-    `mise run check`
-- `safe_data()` has two overloads (uint8_t + int32_t). All vector params now use it — 9 call sites +
-    2 definitions = 11 total occurrences. `gen_audio_code_v0` fixed in iteration 17
-- CI `cpp` job: cmake + ASAN + test on ubuntu-latest
-- `iscc.hpp` bundled in FFI release tarballs — flat layout alongside `iscc.h`
-- C++ docs complete: `packages/cpp/README.md`, howto section, root README tabs
-- C++ test suite: 54 tests (35 numbered blocks). All gen functions covered including mixed + empty
-    audio
-- C++ package managers: vcpkg.json + portfile.cmake + conanfile.py in `packages/cpp/`. Conan recipe
-    downloads pre-built FFI tarballs — mirrors portfile.cmake platform mapping. cxxflags removed
-    (iteration 1/phase 3). Both vcpkg.json and conanfile.py now in version_sync.py (14 targets)
-- **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`,
-    NOT `cmake -B build -S tests` (tests CMakeLists.txt lacks project() and include paths)
-- **Config-only review shortcut**: for pure manifest/config files (JSON, CMake, Python recipes),
-    verification = syntax validation + metadata correctness + `mise run check` + clippy. No
-    functional tests needed
+    - `mise run check`
+- Kotlin: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy workspace
+    - `mise run check`
 
 ## UniFFI Review
 
@@ -124,39 +101,43 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - 32 `#[uniffi::export]` annotations: 30 free functions + 2 impl blocks (DataHasher, InstanceHasher)
 - Review shortcut: `cargo test -p iscc-uniffi` + `cargo clippy -p iscc-uniffi -- -D warnings` +
     `cargo clippy --workspace --all-targets -- -D warnings` + `mise run check`
-- UniFFI adds ~30 transitive deps to Cargo.lock (askama, cargo_metadata, goblin, etc.)
 - `publish = false` — not published to crates.io
-- `bindgen` feature: `uniffi/cli` → `uniffi-bindgen` binary. Adds `clap_derive` + `strsim` to lock
+- `bindgen` feature: `uniffi/cli` → `uniffi-bindgen` binary
 
 ## Swift Package Review
 
 - `packages/swift/` — SPM package: iscc_uniffiFFI (C header + modulemap) + IsccLib (generated Swift)
 - Review shortcut: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (no `swift test` on
     Linux). Swift tests structurally validated only — execution needs macOS CI
-- Generated files large (~72KB + ~38KB) — all under 256KB `check-added-large-files` threshold
-- `module.modulemap` simplified from UniFFI output (removed Darwin-specific `use` directives)
-- Conformance tests: `JSONSerialization` + `.sortedKeys` for JSON dict meta, `NSNull → nil`
-- `data.json` vendored (4th copy: Rust, Go, .NET, Swift) — established pattern
 - Codex review on large generated diffs may be confused — findings advisory as always
 - Swift CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test`
-    with `-Xlinker -L` (link-time) and `-Xlinker -rpath` (runtime) for dylib discovery. 15th CI job
-- Swift version sync: `Constants.swift` with `public let isccLibVersion` — 14th version_sync target
-- Swift bindings fully complete (iteration 6): all sub-tasks done, issue resolved
 
 ## Kotlin Binding Review
 
 - `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA
 - Generated `iscc_uniffi.kt` (~112KB, 3214 lines) — do NOT manually edit, regenerate via
     uniffi-bindgen. `@file:Suppress("NAME_SHADOWING")` is UniFFI boilerplate, not gate circumvention
-- Review shortcut: `cd packages/kotlin && ./gradlew compileKotlin` + clippy workspace +
-    `mise run check`
+- Review shortcut: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
+    workspace + `mise run check`
 - Gradle wrapper (gradle-wrapper.jar ~44KB) committed per convention — under 256KB threshold
 - `build/` covered by root `.gitignore`; `.gradle/` in local `.gitignore`
-- `java.library.path` uses `${rootProject.rootDir}/../../target/debug` — resolves correctly from
-    `packages/kotlin/` to workspace root's `target/debug`
-- JUnit 5 test dep not in scaffold — add when creating tests
-- data.json will be 5th vendored copy (Rust, Go, .NET, Swift, Kotlin) — established pattern
+- JNA native lib loading: `java.library.path` alone NOT sufficient for JNA `Native.register()`. Must
+    also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
+- data.json is 5th vendored copy (Rust, Go, .NET, Swift, Kotlin) — established pattern
+- Conformance tests: 9 methods, 50 vectors, JUnit 5 + Gson. `HexFormat` requires Java 17+
+- `mavenLocal()` in build.gradle.kts — devcontainer workaround. CI resolves from `mavenCentral()`
 - Codex confused by large generated Kotlin diffs (same as Swift) — findings advisory
+- Kotlin CI job not yet added — next step after conformance tests pass
+
+## C++ Wrapper Review
+
+- C++ wrapper in `packages/cpp/` — header-only, no Rust crate. CMake + INTERFACE library
+- Review shortcut: `cargo build -p iscc-ffi` + CMake configure/build/test + ASAN rebuild + clippy +
+    `mise run check`
+- CI `cpp` job: cmake + ASAN + test on ubuntu-latest
+- `iscc.hpp` bundled in FFI release tarballs — flat layout alongside `iscc.h`
+- C++ package managers: vcpkg.json + portfile.cmake + conanfile.py in `packages/cpp/`
+- **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`
 
 ## Environment
 
@@ -170,19 +151,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 - Magnus 0.7.1 pinned for Ruby 3.1 compat — 0.8 needs Ruby 3.2+
 - `function!` macro does NOT accept `&Ruby` — use `Ruby::get().expect("called from Ruby")`
-- Gen functions use `_` prefix in Rust bridge; Ruby wrapper provides keyword-arg public API
-- `Result < Hash` pattern: both `result["key"]` and `result.key` access
-- Constants: `module.const_set("NAME", value)` in Magnus init
 - `rb-sys` needs Ruby headers + `libclang-dev` — why `--exclude iscc-rb` in CI
-- Codex flags about standalone Cargo.toml / gemspec runtime deps: moot for precompiled gem model
-- Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate. Codex caught
-    this correctly in iteration 7
-- Binary data: `RString` param + `unsafe { data.as_slice() }` for byte inputs. Safety comment must
-    say "passed to pure Rust function" (not "copied") unless `.to_vec()` is used
-- Codec/utility functions registered without `_` prefix (direct call); gen functions use `_` prefix
+- Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate
 - Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot
-    finalize. Methods use `_` prefix (e.g., `_update`, `_finalize`); class names are unprefixed
-    (Ruby constants must start with uppercase). Ruby reopens the native class to add wrappers
-- Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`. Config: `.standard.yml`. Pre-commit
-    hook `files:` pattern is `^crates/iscc-rb/.*\.rb$` — won't trigger on Gemfile/Rakefile alone (CI
-    backstop covers this)
+    finalize
+- Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`. Config: `.standard.yml`

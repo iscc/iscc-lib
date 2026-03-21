@@ -184,8 +184,9 @@ fully-met target sections to `learnings-archive.md`.
 - Kotlin bindings: UniFFI generates `package uniffi.iscc_uniffi` — JVM project uses
     `src/main/kotlin/` (not KMP `src/commonMain/kotlin/`). Gradle wrapper (gradle-wrapper.jar ~44KB)
     and generated `iscc_uniffi.kt` (~112KB) both under 256KB large-file threshold
-- Kotlin test deps: JUnit 5 not in scaffold build.gradle.kts — must add
-    `testImplementation("org.junit.jupiter:junit-jupiter:5.x.y")` when creating tests
+- Kotlin conformance tests: JUnit 5 + Gson deps in build.gradle.kts. JNA native lib loading requires
+    `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var — `java.library.path` alone does
+    NOT work for JNA `Native.register()`. `HexFormat` requires Java 17+
 
 ## CID Process
 
