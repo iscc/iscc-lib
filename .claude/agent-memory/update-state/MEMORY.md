@@ -45,6 +45,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Conan recipe check**:
     `grep -n 'download\|package_type\|cxxflags\|_target_triple' packages/cpp/conanfile.py`
 - **vcpkg SHA512 check**: `grep -n 'SKIP_SHA512\|ISCC_SHA512' packages/cpp/portfile.cmake`
+- **UniFFI crate check**: `ls crates/iscc-uniffi/src/lib.rs 2>&1` (does not exist yet)
+- **Swift package check**: `ls packages/swift/Package.swift 2>&1` (does not exist yet)
 
 ## Codebase Landmarks
 
@@ -55,29 +57,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/go/` — pure Go module (no WASM bridge, no binary artifacts)
 - `.github/workflows/ci.yml` — jobs: version-check, Rust, python-test (matrix 3.10+3.14), python
     (gate), Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, **C++ (cmake, ASAN, test)**
-    (**14 total**) ✅
+    (**14 total**)
 - `packages/dotnet/` — `Iscc.Lib/IsccLib.cs` (**32/32 Tier 1 symbols**), `Results.cs` (**11 sealed
     records**), `IsccDataHasher.cs` + `IsccInstanceHasher.cs` (IDisposable + SafeHandle; both
     **`Finalize()` returns typed record**), `IsccException.cs`, `SmokeTests.cs` (**41 tests**),
     `ConformanceTests.cs` (**9 Theory tests, 50 vectors**), `testdata/data.json` (84KB vendored),
-    `NativeMethods.g.cs` (csbindgen, 47 externs); `dotnet test` needs
-    `-e LD_LIBRARY_PATH=<abs-path>/target/debug` (vstest host ignores env)
+    `NativeMethods.g.cs` (csbindgen, 47 externs)
 - `docs/howto/` — **9 files**: rust.md, python.md, nodejs.md, wasm.md, go.md, java.md, c-cpp.md,
-    ruby.md (422 lines), **dotnet.md** (417 lines) ✅; `crates/iscc-ffi/examples/` has `iscc_sum.c`
-    - `CMakeLists.txt` ✅
-- `scripts/gen_llms_full.py` — **20 entries** in `ORDERED_PAGES`; `discover_pages()` via `rglob`
-    with `as_posix()` (cross-platform); "View as Markdown" 404 RESOLVED (CID cycle 2 iter 3)
+    ruby.md, **dotnet.md**
+- `scripts/gen_llms_full.py` — **20 entries** in `ORDERED_PAGES`
 - `scripts/version_sync.py` — syncs workspace version across Cargo.toml, package.json, pom.xml,
-    Iscc.Lib.csproj, **vcpkg.json** and **conanfile.py** (added CID cycle 2 iter 2)
-- `packages/go/codec.go` — codec enums, varnibble, header, base32/64, JsonToDataUrl,
-    EncodeComponent, IsccDecompose, IsccDecode, **5 constants** (MetaTrimName, MetaTrimDescription,
-    MetaTrimMeta, IoReadSize, TextNgramSize)
-- `docs/c-ffi-api.md` — C FFI API reference (fully updated with iscc_gen_sum_code_v0)
-- `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/IsccLib.java` — Java class (subpath:
-    `iscc_lib/`); has META_TRIM_META as `public static final int`
-- `crates/iscc-ffi/src/lib.rs` line 3 — module docstring says "10 `gen_*_v0` functions"
-- `crates/iscc-lib/benches/benchmarks.rs` — 277 lines; docstring says "all 10 gen\_\*\_v0"; has
-    `bench_sum_code` (64KB+1MB using NamedTempFile); `criterion_group!` lists 12 benches
+    Iscc.Lib.csproj, **vcpkg.json** and **conanfile.py**
+- `crates/iscc-lib/benches/benchmarks.rs` — 277 lines; 12 benches in `criterion_group!`
 
 ## Recurring Patterns
 
@@ -89,69 +80,24 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     are needed to avoid GraphQL deprecation error
 - **Verify claims independently**: review agents can make incorrect claims. Always grep for each
     missing symbol rather than trusting handoff verdict counts. Verify issues.md directly.
-- **Target may change**: always re-read target.md diff when doing incremental review; symbol counts
-    and spec requirements can increase
+- **Target may change**: always re-read target.md diff when doing incremental review
 
-## Current State (assessed-at: a47c9341c26f737298af860a7f93f4e1d21f156d)
+## Current State (assessed-at: 94ce7f6d3f6ca0088c213a70ac7dfc4c84570bd9)
 
 - **IN_PROGRESS**: all **14 CI jobs** green (run 22858622397)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
 - **2 normal-priority issues** in issues.md: Swift bindings, Kotlin bindings (both not started)
-- **0 critical/other normal issues** — logos resolved, SHA512 fixed, all previous issues closed
-- **CI (run 22858622397)**: ALL SUCCESS — 14 jobs ✅
-- **test-nuget** now 3-OS matrix (ubuntu, macos, windows) since v0.3.0 release
-- **CLAUDE.md files** created for all 10 crates/packages (commit a47c934)
-- **npm artifacts** now include index.js + index.d.ts (fix for publish issue in v0.3.1)
-
-## NuGet Pipeline Details
-
-- `release.yml` has `nuget` boolean input; activates on tag or `inputs.nuget`
-- `pack-nuget`: downloads cross-compiled FFI artifacts, organizes as `runtimes/<rid>/native/`, runs
-    `dotnet pack -c Release`; cross-arch find uses `-path "*-${target}/*"` to avoid wrong lib
-- `test-nuget`: 3-OS matrix (ubuntu, macos, windows); no `--source local` flag needed
-- `publish-nuget`: idempotent (skips if version already on NuGet.org); uses `NUGET_API_KEY` secret
-- **Account setup complete**: NuGet.org account registered, `NUGET_API_KEY` secret configured ✅
-
-## iscc-core v1.3.0 Conformance (FULLY RESOLVED — all bindings)
-
-- 4 new test vectors vendored: test_0017–test_0020 in both `crates/iscc-lib/tests/data.json` and
-    `packages/go/testdata/data.json` (50 total vectors)
-- `data.json` has top-level `_metadata` object — Go uses `parseConformanceData()` to skip it; Rust
-    `serde_json` silently ignores unknown fields
-- Rust lib.rs assertion: 20; WASM conformance.rs line 66: 20 ✅; Go all 9 test files updated ✅
+- **0 critical/other normal issues** — all previous issues closed
+- Swift/Kotlin issues bumped from `low` to `normal` (commit 94ce7f6) — now CID-eligible
 
 ## Gotchas
 
-- **Bash tool backtick issue**: The Bash tool interprets backtick chars in commands as command
-    substitution even inside single-quoted heredocs. To write files with backtick content: use the
-    Write tool to create a temp Python script, then run via `uv run python tmp_patch_state.py`.
-    PowerShell works for simple ops. Do NOT use shell heredocs with backtick content.
-- **state.md encoding**: Always use `git checkout -- .claude/context/state.md` to get clean UTF-8
-    (no BOM) before patching. PowerShell `Set-Content -Encoding UTF8` adds a BOM which corrupts
-    Unicode chars (checkmarks, em dashes) when re-read as UTF-8.
+- **Bash tool backtick issue**: Use Write tool to create temp Python script for backtick content
+- **state.md encoding**: Use `git checkout` for clean UTF-8; PowerShell adds BOM
 - Go target requires pure Go (no WASM, no wazero, no binary artifacts)
 - WASM constant name gotcha: `#[wasm_bindgen(js_name = "META_TRIM_NAME")]` exports uppercase
-- `state.md` section order must include Go Bindings, README, Per-Crate READMEs sections
-- **JCS gotcha**: Go `json.Marshal` passes current vectors. If future vectors have floats, a proper
-    RFC 8785 JCS library may be needed
-- **DataHasher/InstanceHasher API (Ruby)**: `RefCell<Option<inner>>` for interior mutability (Magnus
-    `&self`); Ruby wrapper reopens native class, adds `update(data)` (chaining) +
-    `finalize(bits: 64)`
-- **alg_cdc_chunks API**: public fn returns `IsccResult<Vec<&[u8]>>` (validates
-    `avg_chunk_size < 2`); internal callers use `alg_cdc_chunks_unchecked`
-- **csbindgen**: `crates/iscc-ffi/build.rs` runs csbindgen on every `cargo build`, writing
-    `packages/dotnet/Iscc.Lib/NativeMethods.g.cs` (929 lines, 47 externs, 6 structs). `dotnet test`
-    requires `-e LD_LIBRARY_PATH=target/debug` (vstest host does not inherit shell env).
-- **C# gen function return types**: simplified records — MetaCodeResult, TextCodeResult,
-    InstanceCodeResult carry only `(string Iscc)`. Extra fields need C FFI struct changes first.
-- **C++ iscc.hpp**: 681-line C++17 header-only wrapper. RAII: UniqueString, UniqueStringArray,
-    UniqueByteBuffer, UniqueByteBufferArray. IsccError. detail::safe_data() (2 overloads, 9 call
-    sites). cmake and g++ must be apt-get installed in CI (not in default ubuntu runner).
-- **C++ tarball layout**: flat — `iscc.hpp` placed alongside `iscc.h` in tarball root.
-- **C++ nested vector null-safety**: safe_data int32_t overload; alg_simhash, soft_hash_video_v0,
-    gen_video_code_v0, gen_audio_code_v0 all use detail::safe_data() for nested vector protection.
-- **Conan cxxflags**: was GCC/Clang-only (`-std=c++17`), now removed. C++17 is a documented
-    requirement; consumers set `CMAKE_CXX_STANDARD 17` in their own CMake project.
 - **WASM count assertions**: when data.json gains new vectors, BOTH lib.rs AND conformance.rs need
-    updates.
-- **Ruby JSON sort_keys no-op**: use `JSON.generate(hash.sort.to_h)` not `sort_keys: true`.
+    updates
+- **csbindgen**: `crates/iscc-ffi/build.rs` runs csbindgen on every `cargo build`
+- **C++ iscc.hpp**: 681-line C++17 header-only. cmake/g++ must be apt-get installed in CI
+- **Ruby JSON sort_keys no-op**: use `JSON.generate(hash.sort.to_h)` not `sort_keys: true`
