@@ -7,37 +7,6 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Implement Kotlin Multiplatform bindings via UniFFI `normal` [human]
-
-Add Kotlin Multiplatform (KMP) bindings in `packages/kotlin/` using UniFFI-generated code from the
-shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-lib-kotlin`.
-
-**Depends on:** ~~Swift bindings (shares the UniFFI scaffolding crate)~~ Resolved — UniFFI crate
-complete.
-
-**Implementation scope:**
-
-1. **Kotlin package** (`packages/kotlin/`):
-
-    - `build.gradle.kts` — KMP project targeting JVM + iOS + macOS
-    - Generated Kotlin bindings via `uniffi-bindgen`
-    - Platform-specific native libraries per target
-    - Conformance tests via kotlin.test against `data.json`
-    - `README.md` for the package
-
-2. **CI** (`ci.yml`): Add `kotlin` job — Gradle build + test
-
-3. **Release** (`release.yml`):
-
-    - Add `maven-kotlin` boolean input to `workflow_dispatch`
-    - Publish to Maven Central as `io.iscc:iscc-lib-kotlin`
-    - GPG signing + Sonatype credentials (same as Java/JNI)
-
-4. **Version sync**: Add Kotlin project version to sync targets
-
-5. **Documentation**: `docs/howto/kotlin.md` how-to guide, update README with Kotlin
-    install/quickstart
-
 ## Swift SPM install instructions are incorrect `normal` [human]
 
 README.md (line 135) and packages/swift/README.md (line 9) advertise a SwiftPM dependency URL

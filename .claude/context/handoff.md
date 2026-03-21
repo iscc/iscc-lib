@@ -1,50 +1,46 @@
-## 2026-03-21 — Add maven-kotlin release workflow for Kotlin package publishing
+## 2026-03-21 — Review of: Add maven-kotlin release workflow for Kotlin package publishing
 
-**Done:** Added `maven-kotlin` boolean input to `release.yml` with 4 jobs (build-kotlin-native,
-assemble-kotlin, test-kotlin-release, publish-maven-kotlin) following the existing Java Maven
-Central pattern. Updated `build.gradle.kts` with `maven-publish` and `signing` plugins, POM
-metadata, sources/javadoc JARs, and Sonatype Central Portal publishing via bundle upload.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.github/workflows/release.yml`: Added `maven-kotlin` input + 4 new jobs (~180 lines). Build job
-    compiles `iscc-uniffi` for 5 platforms. Assemble job bundles native libs as JNA resources in
-    JAR. Test job smoke-tests linux-x86-64. Publish job stages signed artifacts then uploads bundle
-    to Central Portal REST API via curl.
-- `packages/kotlin/build.gradle.kts`: Added `maven-publish` and `signing` plugins,
-    `java { withSourcesJar(); withJavadocJar() }`, publishing block with Maven POM metadata (groupId
-    `io.iscc`, artifactId `iscc-lib-kotlin`), local staging repository, and in-memory PGP key
-    signing (env-var driven, skipped for local builds).
+**Summary:** Clean, well-structured addition of the maven-kotlin release workflow to release.yml (4
+jobs, ~180 lines) and Gradle publishing config in build.gradle.kts (~50 lines). Follows the
+established Java Maven Central pattern faithfully. All 9 verification checks pass. The Kotlin
+bindings issue is now fully resolved — all sub-tasks complete (package, CI, conformance tests,
+version sync, documentation, release workflow).
 
 **Verification:**
 
-- All 7 grep checks pass (maven-kotlin, build-kotlin-native, publish-maven-kotlin, maven-publish,
-    signing, io.iscc, iscc-lib-kotlin)
-- `cd packages/kotlin && ./gradlew build` passes (tests + JAR + sources + javadoc)
-- `./gradlew publishMavenPublicationToStagingRepository` produces correct Maven repo layout (POM +
-    JAR + sources + javadoc + checksums)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean
-- `mise run check` — all 15 pre-commit hooks pass
-- YAML syntax validated via `yaml.safe_load()`
+- [x] `grep -q 'maven-kotlin' .github/workflows/release.yml` — input added
+- [x] `grep -q 'build-kotlin-native' .github/workflows/release.yml` — build job added
+- [x] `grep -q 'publish-maven-kotlin' .github/workflows/release.yml` — publish job added
+- [x] `grep -q 'maven-publish' packages/kotlin/build.gradle.kts` — plugin added
+- [x] `grep -q 'signing' packages/kotlin/build.gradle.kts` — signing plugin added
+- [x] `grep -q 'io.iscc' packages/kotlin/build.gradle.kts` — groupId in publishing block
+- [x] `grep -q 'iscc-lib-kotlin' packages/kotlin/build.gradle.kts` — artifactId present
+- [x] `cd packages/kotlin && ./gradlew build` — BUILD SUCCESSFUL (7 tasks, signing skipped locally)
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- [x] `mise run check` — all 15 pre-commit hooks pass
+- [x] YAML syntax validated via `yaml.safe_load()`
+- [x] Staging publish produces correct Maven repo layout (POM + JAR + sources + javadoc + checksums)
+- [x] No quality gate circumvention patterns in diff
 
-**Next:** The Kotlin bindings issue is now complete (CI + tests + conformance + version sync + docs
-\+ release workflow all done). Consider closing issue #18 (Kotlin bindings) and starting on the next
-target objective, or performing a release to test the maven-kotlin workflow end-to-end.
+**Issues found:**
+
+- (none) — Kotlin bindings issue deleted from issues.md (all sub-tasks verified complete)
+
+**Next:** The Kotlin bindings are fully complete. The remaining `normal` issues are the two Swift
+packaging problems (SPM install instructions + native library vending). These are interconnected —
+fixing the native library distribution (XCFramework or build-from-source) will inform the correct
+install instructions. Consider tackling these together, or assess whether there are higher-priority
+gaps in target.md first.
 
 **Notes:**
 
-- **Publishing approach:** Chose `useInMemoryPgpKeys` (env var `SIGNING_KEY`/`SIGNING_PASSWORD`)
-    over `useGpgCmd()` to avoid GPG system keyring setup in CI. Signing is skipped entirely when env
-    vars are absent (local development). This differs slightly from Java (which imports GPG key into
-    system keyring) but is functionally equivalent and simpler for Gradle.
-- **Central Portal upload:** Uses direct curl-based REST API upload to
-    `https://central.sonatype.com/api/v1/publisher/upload` with basic auth from existing
-    `MAVEN_USERNAME`/`MAVEN_PASSWORD` secrets. This avoids adding a third-party Gradle plugin and
-    matches the authentication mechanism used by the Java `central-publishing-maven-plugin`.
-- **JNA resource loading in CI:** Native libs are placed at JNA `Platform.RESOURCE_PREFIX` paths
-    (e.g., `linux-x86-64/libiscc_uniffi.so`) inside `src/main/resources/`. JNA discovers these from
-    the classpath even though `jna.library.path` points to the non-existent `../../target/debug`
-    (JNA falls through path-based search to classpath resource search).
-- **Matrix native-dir naming:** Uses JNA conventions (`linux-x86-64`, `darwin-aarch64`,
-    `win32-x86-64`) which differ from JNI conventions (`linux-x86_64`, `macos-aarch64`,
-    `windows-x86_64`). This is intentional — JNA loads from `Platform.RESOURCE_PREFIX` paths.
+- Release workflow now has 8 registry inputs (was 7). All follow the same pattern: boolean input →
+    build → smoke test → publish with version-exists skip
+- The `useInMemoryPgpKeys` approach for Kotlin (env vars) differs from Java's GPG system keyring
+    import but is functionally equivalent and simpler for Gradle
+- Central Portal upload uses curl REST API directly — no third-party Gradle plugin needed
+- JNA resource paths use JNA conventions (linux-x86-64, darwin-aarch64, win32-x86-64) which differ
+    from JNI conventions (linux-x86_64, macos-aarch64, windows-x86_64). This is intentional and
+    correct

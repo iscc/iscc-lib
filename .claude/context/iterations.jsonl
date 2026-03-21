@@ -1010,3 +1010,8 @@
 {"ts":"2026-03-21T18:33:47.189478+00:00","iteration":3,"role":"define-next","status":"OK","turns":33,"cost_usd":1.132846,"duration_s":226.2}
 {"ts":"2026-03-21T18:43:08.069387+00:00","iteration":3,"role":"advance","status":"OK","turns":65,"cost_usd":2.630119,"duration_s":560.9}
 {"ts":"2026-03-21T18:52:19.599121+00:00","iteration":3,"role":"review","status":"PASS","summary":"Kotlin docs verified — howto, READMEs, CLAUDE.md, nav/llms entries all correct. Minor fix: added jna.library.path to README notes"}
+{"ts":"2026-03-21T18:54:52.200470+00:00","iteration":3,"role":"review","status":"OK","turns":1,"cost_usd":2.809356,"duration_s":704.1}
+{"ts":"2026-03-21T19:18:26.759457+00:00","iteration":4,"role":"update-state","status":"OK","turns":34,"cost_usd":1.230967,"duration_s":291.5}
+{"ts":"2026-03-21T19:25:11.289632+00:00","iteration":4,"role":"define-next","status":"OK","turns":28,"cost_usd":1.557818,"duration_s":404.5}
+{"ts":"2026-03-21T19:39:34.613379+00:00","iteration":4,"role":"advance","status":"OK","turns":56,"cost_usd":3.359435,"duration_s":863.3}
+{"timestamp":"2026-03-21T19:50:00Z","iteration":4,"agent":"review","action":"review","verdict":"PASS","summary":"maven-kotlin release workflow — 4 jobs in release.yml + Gradle maven-publish/signing in build.gradle.kts. All 9+ verification checks pass. Kotlin bindings issue resolved and deleted from issues.md."}
