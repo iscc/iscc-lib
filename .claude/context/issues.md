@@ -7,7 +7,7 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Implement Swift bindings via UniFFI `low` [human]
+## Implement Swift bindings via UniFFI `normal` [human]
 
 Add Swift bindings as a Swift Package in `packages/swift/` using UniFFI-generated code. Requires a
 shared UniFFI scaffolding crate (`crates/iscc-uniffi/`) that also serves Kotlin bindings.
@@ -34,7 +34,7 @@ shared UniFFI scaffolding crate (`crates/iscc-uniffi/`) that also serves Kotlin 
 5. **Documentation**: `docs/howto/swift.md` how-to guide, update README with Swift
     install/quickstart
 
-## Implement Kotlin Multiplatform bindings via UniFFI `low` [human]
+## Implement Kotlin Multiplatform bindings via UniFFI `normal` [human]
 
 Add Kotlin Multiplatform (KMP) bindings in `packages/kotlin/` using UniFFI-generated code from the
 shared `crates/iscc-uniffi/` crate. Published to Maven Central as `io.iscc:iscc-lib-kotlin`.

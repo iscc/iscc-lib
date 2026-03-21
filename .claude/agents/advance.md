@@ -2,6 +2,7 @@
 name: advance
 description: Implement the work package defined in next.md
 model: opus
+effort: high
 tools: Read, Grep, Glob, Bash, Edit, Write, Task
 memory: project
 ---

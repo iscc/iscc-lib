@@ -2,6 +2,7 @@
 name: review
 description: Review work done by advance agent and update project learnings
 model: opus
+effort: high
 tools: Read, Grep, Glob, Bash, Edit, Write
 memory: project
 ---
