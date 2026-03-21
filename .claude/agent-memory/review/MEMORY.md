@@ -143,6 +143,21 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Swift version sync: `Constants.swift` with `public let isccLibVersion` — 14th version_sync target
 - Swift bindings fully complete (iteration 6): all sub-tasks done, issue resolved
 
+## Kotlin Binding Review
+
+- `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA
+- Generated `iscc_uniffi.kt` (~112KB, 3214 lines) — do NOT manually edit, regenerate via
+    uniffi-bindgen. `@file:Suppress("NAME_SHADOWING")` is UniFFI boilerplate, not gate circumvention
+- Review shortcut: `cd packages/kotlin && ./gradlew compileKotlin` + clippy workspace +
+    `mise run check`
+- Gradle wrapper (gradle-wrapper.jar ~44KB) committed per convention — under 256KB threshold
+- `build/` covered by root `.gitignore`; `.gradle/` in local `.gitignore`
+- `java.library.path` uses `${rootProject.rootDir}/../../target/debug` — resolves correctly from
+    `packages/kotlin/` to workspace root's `target/debug`
+- JUnit 5 test dep not in scaffold — add when creating tests
+- data.json will be 5th vendored copy (Rust, Go, .NET, Swift, Kotlin) — established pattern
+- Codex confused by large generated Kotlin diffs (same as Swift) — findings advisory
+
 ## Environment
 
 - Python `iscc_lib`: compile with `cd crates/iscc-py && uv run maturin develop --release`

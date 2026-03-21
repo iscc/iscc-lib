@@ -178,11 +178,14 @@ fully-met target sections to `learnings-archive.md`.
 - UniFFI Objects need `Send + Sync` — use `Mutex<Option<Inner>>` (not `RefCell`)
 - Binding generation: `uniffi-bindgen.rs` (3-line entry point) +
     `[features] bindgen = ["uniffi/cli"]`
-    - `[[bin]] required-features = ["bindgen"]` pattern. Generates `.swift` + `.h` + `.modulemap`
-- Generated `iscc_uniffiFFI.modulemap` has Darwin-specific `use` directives — must simplify to just
-    `header + export *` for SPM `module.modulemap`
-- Swift tests require macOS runner — cannot execute in Linux devcontainer. Review shortcut for Swift
-    package: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (structural review only)
+    - `[[bin]] required-features = ["bindgen"]` pattern. Generates `.swift`/`.kt` + `.h` +
+        `.modulemap`
+- Swift tests require macOS runner — cannot execute in Linux devcontainer
+- Kotlin bindings: UniFFI generates `package uniffi.iscc_uniffi` — JVM project uses
+    `src/main/kotlin/` (not KMP `src/commonMain/kotlin/`). Gradle wrapper (gradle-wrapper.jar ~44KB)
+    and generated `iscc_uniffi.kt` (~112KB) both under 256KB large-file threshold
+- Kotlin test deps: JUnit 5 not in scaffold build.gradle.kts — must add
+    `testImplementation("org.junit.jupiter:junit-jupiter:5.x.y")` when creating tests
 
 ## CID Process
 

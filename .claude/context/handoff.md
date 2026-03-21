@@ -1,40 +1,42 @@
-## 2026-03-21 — Create Kotlin JVM project scaffold with UniFFI-generated bindings
+## 2026-03-21 — Review of: Create Kotlin JVM project scaffold with UniFFI-generated bindings
 
-**Done:** Created `packages/kotlin/` with a Gradle JVM project containing UniFFI-generated Kotlin
-bindings. The generated `iscc_uniffi.kt` (3217 lines) provides all 32 Tier 1 symbols via JNA.
-`./gradlew compileKotlin` compiles successfully.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `packages/kotlin/build.gradle.kts`: Kotlin JVM plugin, JNA 5.16.0 dependency, JUnit test config
-    with `java.library.path` pointing to `target/debug`
-- `packages/kotlin/settings.gradle.kts`: Root project name `iscc-lib-kotlin`
-- `packages/kotlin/gradle.properties`: Version 0.3.1, official Kotlin code style
-- `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`: UniFFI-generated Kotlin
-    bindings (3217 lines, package `uniffi.iscc_uniffi`)
-- `packages/kotlin/gradlew`, `gradlew.bat`, `gradle/wrapper/`: Gradle 8.12.1 wrapper
-- `packages/kotlin/.gitignore`: Excludes `.gradle/` (the `build/` pattern already covered by root
-    `.gitignore`)
+**Summary:** The advance agent created a clean Kotlin JVM project scaffold in `packages/kotlin/`
+with UniFFI-generated bindings. All files match the next.md specification exactly —
+build.gradle.kts, settings.gradle.kts, gradle.properties, Gradle 8.12.1 wrapper, and the generated
+`iscc_uniffi.kt` (3214 lines). `./gradlew compileKotlin` succeeds and all quality gates pass.
 
 **Verification:**
 
-- `test -d packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi` — PASS
-- `test -f packages/kotlin/build.gradle.kts` — PASS
-- `test -f packages/kotlin/gradlew` — PASS
-- `./gradlew compileKotlin` — PASS (BUILD SUCCESSFUL)
-- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
-- `mise run check` — 15/15 hooks pass
+- [x] `test -d packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi` exits 0 — PASS
+- [x] `test -f packages/kotlin/build.gradle.kts` exits 0 — PASS
+- [x] `test -f packages/kotlin/gradlew` exits 0 — PASS
+- [x] `cd packages/kotlin && ./gradlew compileKotlin` exits 0 — BUILD SUCCESSFUL in 10s
+- [x] `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — clean
+- [x] `mise run check` — 15/15 hooks pass
 
-**Next:** Add Kotlin conformance tests (the next step in the Kotlin bindings issue). This would
-involve a `src/test/kotlin/` directory with JUnit 5 tests running against `data.json` vectors,
-requiring the native `libiscc_uniffi.so` at test time. After that: CI job, version sync integration,
-documentation.
+**Issues found:**
+
+- (none)
+
+**Codex review:** No actionable findings. Codex was confused by the large generated Kotlin diff
+(misidentified the change as "language logos") but reported no correctness issues.
+
+**Next:** Continue the Kotlin bindings issue — add conformance tests. Create
+`src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt` with JUnit 5 tests running against vendored
+`data.json` vectors. Tests require `libiscc_uniffi.so` at runtime (already configured via
+`java.library.path` in build.gradle.kts). After tests: CI job, version sync, documentation.
 
 **Notes:**
 
-- The generated `iscc_uniffi.kt` is UniFFI output — should not be manually modified
-- The `gradle-wrapper.jar` (~43KB binary) is committed per Gradle convention
-- `build/` is already covered by the root `.gitignore` pattern; only `.gradle/` needed a local
-    `.gitignore` entry
-- No tests in this step (per next.md scope). Tests come in the subsequent step
-- Kotlin version 2.1.10, JNA 5.16.0, Gradle 8.12.1 — all current stable versions
+- The generated `iscc_uniffi.kt` uses `package uniffi.iscc_uniffi` (UniFFI default). The spec
+    envisions an `io.iscc.lib` wrapper package — that's a later step (explicitly out of scope per
+    next.md)
+- File sizes safe: gradle-wrapper.jar (44KB), iscc_uniffi.kt (112KB) — both under 256KB threshold
+- `java.library.path` in build.gradle.kts resolves to `/workspace/iscc-lib/target/debug` — verified
+    correct via `realpath`
+- The `@file:Suppress("NAME_SHADOWING")` in the generated file is UniFFI boilerplate, not a quality
+    gate circumvention
+- JUnit 5 test dependency not yet in build.gradle.kts — will need to be added with the test step
+    (`testImplementation("org.junit.jupiter:junit-jupiter:5.x.y")`)
