@@ -1,199 +1,122 @@
 # Next Work Package
 
-## Step: Add maven-kotlin release workflow for Kotlin package publishing
+## Step: Add root Package.swift and fix Swift install documentation
 
 ## Goal
 
-Add the `maven-kotlin` input and corresponding build/test/publish jobs to `release.yml`, plus
-configure Gradle maven-publish and signing in `build.gradle.kts`. This is the last remaining
-sub-task for the Kotlin bindings issue — completing it enables publishing `io.iscc:iscc-lib-kotlin`
-to Maven Central.
+Fix the two open Swift packaging issues by adding a root-level `Package.swift` (so SPM URL
+resolution works with `https://github.com/iscc/iscc-lib`) and updating all install documentation to
+accurately describe the current build-from-source requirement for the native library.
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `.github/workflows/release.yml` — add `maven-kotlin` boolean input + 4 jobs (build native libs,
-        assemble JAR, smoke test, publish)
-    - `packages/kotlin/build.gradle.kts` — add `maven-publish` plugin, `signing` plugin, POM metadata,
-        Sonatype Central repository config, native library resource bundling
-- **Reference**:
-    - `.github/workflows/release.yml` lines 414-580 (Java Maven Central pattern: build-jni →
-        assemble-jar → test-jni → publish-maven)
-    - `crates/iscc-jni/java/pom.xml` (POM metadata structure: groupId, artifactId, developers,
-        licenses, SCM)
-    - `packages/kotlin/build.gradle.kts` (current Gradle config)
-    - `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` lines 350-360
-        (`findLibraryName` — JNA loads library named `iscc_uniffi`)
-    - `packages/kotlin/CLAUDE.md` (package context, JNA library path behavior)
+- **Create**: `Package.swift` (repo root)
+- **Modify**: `README.md` (Swift install section ~lines 133-141), `packages/swift/README.md`
+    (install section ~lines 7-17), `docs/howto/swift.md` (install section ~lines 14-48)
+- **Reference**: `packages/swift/Package.swift` (existing subdirectory manifest — the template),
+    `packages/swift/CLAUDE.md` (build commands and layout), `.github/workflows/ci.yml` (Swift CI job
+    ~line 232, uses `working-directory: packages/swift`)
 
 ## Not In Scope
 
-- Publishing the actual package to Maven Central (this just adds the workflow — actual publish
-    happens on next release tag or manual dispatch)
-- Kotlin/Native or KMP targets — this is JVM-only, matching the current project setup
-- Updating the Kotlin CI job in `ci.yml` (already working, separate concern)
-- Changing `settings.gradle.kts` (current config is fine)
-- Adding a 9th registry badge to the README (wait for successful first publish)
+- XCFramework binary target builds — that's a separate, larger step requiring CI infrastructure to
+    build universal frameworks, upload as release assets, and reference as `.binaryTarget`
+- CI workflow changes — existing CI uses `working-directory: packages/swift` and will continue to
+    use the subdirectory Package.swift unchanged
+- Removing or modifying `packages/swift/Package.swift` — it remains the local dev/CI manifest
+- Adding Swift to the release workflow (currently SPM uses Git tags, no registry publish needed)
+- Resolving issue 2 fully (native library vending) — this step documents the requirement honestly;
+    full fix requires XCFramework support in a future step
 
 ## Implementation Notes
 
-### release.yml additions
+### Root Package.swift
 
-Follow the existing Java Maven pattern (build-jni → assemble-jar → test-jni → publish-maven) but
-adapted for UniFFI/JNA:
+Create a root-level `Package.swift` mirroring the subdirectory manifest with adjusted paths:
 
-1. **Input**: Add `maven-kotlin` boolean input (description: "Publish iscc-lib-kotlin to Maven
-    Central", default: false)
+```swift
+// swift-tools-version: 5.9
+import PackageDescription
 
-2. **`build-kotlin-native` job** — Build `iscc-uniffi` crate for 5 platforms (same matrix structure
-    as `build-jni`):
-
-    - Targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`, `aarch64-apple-darwin`,
-        `x86_64-apple-darwin`, `x86_64-pc-windows-msvc`
-    - Library names: `libiscc_uniffi.so` (Linux), `libiscc_uniffi.dylib` (macOS), `iscc_uniffi.dll`
-        (Windows)
-    - Command: `cargo build -p iscc-uniffi --release --target ${{ matrix.target }}`
-    - Upload artifacts as `kotlin-native-{native-dir}`
-    - **Windows shell**: version extraction step needs `shell: bash` (Windows runners default to
-        `pwsh`)
-
-3. **`assemble-kotlin` job** — Download native libs, place in JNA resource paths inside the Gradle
-    source tree, run `./gradlew build`:
-
-    - JNA loads native libs from JAR resources at `{platform}/` paths following JNA's
-        `Platform.RESOURCE_PREFIX` convention:
-        - `linux-x86-64/libiscc_uniffi.so`
-        - `linux-aarch64/libiscc_uniffi.so`
-        - `darwin-aarch64/libiscc_uniffi.dylib`
-        - `darwin-x86-64/libiscc_uniffi.dylib`
-        - `win32-x86-64/iscc_uniffi.dll`
-    - Copy native libs to `packages/kotlin/src/main/resources/{platform}/` before `./gradlew build`
-    - Also needs `cargo build -p iscc-uniffi` for the test step (tests use debug build for
-        `java.library.path`). Alternatively, copy the linux-x86-64 release lib to the right path and
-        adjust `LD_LIBRARY_PATH`
-    - Upload the built JAR artifact (from `packages/kotlin/build/libs/`)
-
-4. **`test-kotlin-release` job** — Smoke test on ubuntu-latest:
-
-    - Download assembled JAR + linux-x86-64 native lib
-    - Set up JDK 17
-    - Run a minimal Java/Kotlin program that calls `conformanceSelftest()` from the JAR
-    - Or: re-run `./gradlew test` with the native lib available
-
-5. **`publish-maven-kotlin` job** — Publish to Maven Central:
-
-    - Condition: `startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin`
-    - needs: `[assemble-kotlin, test-kotlin-release]`
-    - Check if version already published (Maven Central search API for
-        `g:io.iscc+AND+a:iscc-lib-kotlin`)
-    - Import GPG key (same `MAVEN_GPG_PRIVATE_KEY` secret as Java)
-    - Run `./gradlew publishMavenPublicationToSonatypeRepository` with env vars
-    - Use same `MAVEN_USERNAME` and `MAVEN_PASSWORD` secrets as the Java publish job
-
-### build.gradle.kts additions
-
-Add publishing infrastructure following standard Gradle Maven Central publishing:
-
-**Plugins**:
-
-```kotlin
-plugins {
-    kotlin("jvm") version "2.1.10"
-    `maven-publish`
-    signing
-}
+let package = Package(
+    name: "IsccLib",
+    products: [
+        .library(name: "IsccLib", targets: ["IsccLib"]),
+    ],
+    targets: [
+        .target(
+            name: "iscc_uniffiFFI",
+            path: "packages/swift/Sources/iscc_uniffiFFI",
+            publicHeadersPath: ".",
+            linkerSettings: [
+                .linkedLibrary("iscc_uniffi"),
+            ]
+        ),
+        .target(
+            name: "IsccLib",
+            dependencies: ["iscc_uniffiFFI"],
+            path: "packages/swift/Sources/IsccLib"
+        ),
+    ]
+)
 ```
 
-**Sources + Javadoc JARs** (Maven Central requires these):
+Key decisions:
 
-```kotlin
-java {
-    withSourcesJar()
-    withJavadocJar()
-}
-```
+- **Omit the test target** — tests stay in `packages/swift/` for CI. SPM consumers don't need them
+- **Keep `.linkedLibrary("iscc_uniffi")`** — accurate; the native library IS required
+- **swift-tools-version: 5.9** — matches the subdirectory manifest
+- **No conflict with subdirectory Package.swift** — SPM dependency resolution only looks at root;
+    `cd packages/swift && swift build` uses the subdirectory one
 
-**Publishing block**:
+### Documentation Updates (3 doc files)
 
-```kotlin
-publishing {
-    publications {
-        create<MavenPublication>("maven") {
-            groupId = "io.iscc"
-            artifactId = "iscc-lib-kotlin"
-            from(components["java"])
-            pom {
-                name.set("iscc-lib-kotlin")
-                description.set("Kotlin bindings for iscc-lib - ISO 24138 ISCC")
-                url.set("https://github.com/iscc/iscc-lib")
-                licenses { license { name.set("Apache-2.0"); url.set("https://www.apache.org/licenses/LICENSE-2.0") } }
-                developers { developer { id.set("titusz"); name.set("Titusz Pan") } }
-                scm {
-                    connection.set("scm:git:git://github.com/iscc/iscc-lib.git")
-                    url.set("https://github.com/iscc/iscc-lib")
-                }
-            }
-        }
-    }
-    repositories {
-        maven {
-            name = "sonatype"
-            url = uri(System.getenv("MAVEN_REPO_URL") ?: "https://repo1.maven.org/maven2/")
-            credentials {
-                username = System.getenv("MAVEN_USERNAME") ?: ""
-                password = System.getenv("MAVEN_PASSWORD") ?: ""
-            }
-        }
-    }
-}
-```
+All three docs need the same conceptual change:
 
-**Signing** (only when publishing):
+1. **Fix version**: Change `from: "0.3.0"` to `from: "0.3.1"` everywhere (Swift package was added in
+    0.3.1, not 0.3.0)
 
-```kotlin
-signing {
-    useGpgCmd()
-    sign(publishing.publications["maven"])
-}
-tasks.withType<Sign>().configureEach {
-    onlyIf { gradle.taskGraph.hasTask("publish") }
-}
-```
+2. **Add build-from-source prerequisite**: After the SPM dependency snippet, add a clear note
+    explaining that the native `libiscc_uniffi` library must be built from source with
+    `cargo build -p iscc-uniffi --release`, and the linker must be told where to find it via
+    `-Xlinker -L<path-to-target/release>`
 
-**Important Sonatype Central Portal consideration**: The existing Java publish uses
-`central-publishing-maven-plugin` which uploads a bundle to `https://central.sonatype.com`. For
-Gradle, the recommended approach is either:
+3. **README.md** (lines 133-141): Keep concise — show SPM dependency snippet with correct version,
+    add a brief note about the native library requirement and link to the howto guide for details
 
-1. The `central-portal-plus` Gradle plugin (`tech.yanand.maven-central-publish`)
-2. Manual bundle upload via the Central Portal REST API (curl-based)
-3. The OSSRH staging approach with `io.github.gradle-nexus.publish-plugin`
+4. **packages/swift/README.md** (lines 7-17): Expand the Requirements section to list the native
+    library build as a prerequisite. The "Building from Source" section already exists but should
+    be referenced more prominently from the install section
 
-The advance agent should research which approach works with the existing `MAVEN_USERNAME` and
-`MAVEN_PASSWORD` secrets (these are Sonatype Central Portal token credentials). If the
-`central-publishing-maven-plugin` uses the Central Portal API, the Gradle equivalent should too.
-Option 1 or 2 is preferred. If using a Gradle plugin, add it to the plugins block. If using
-curl-based upload, add a step in the publish job that creates a signed bundle zip and uploads it.
+5. **docs/howto/swift.md** (lines 14-48): Promote the "Build from source" admonition from a tip to
+    the primary installation path. The existing content is good — restructure so the
+    build-from-source steps are the main flow, with a note that XCFramework distribution (enabling
+    zero-friction install) is planned for a future release
 
-### Cross-compiler setup
+### Two Package.swift files coexist correctly
 
-The `aarch64-unknown-linux-gnu` target needs `gcc-aarch64-linux-gnu` (same as Java). Copy the
-install step pattern from `build-jni`.
+- Root `Package.swift` — for SPM consumers who add `https://github.com/iscc/iscc-lib`
+- `packages/swift/Package.swift` — for CI and local development
+    (`working-directory: packages/swift`)
+- No conflict: SPM resolution always starts from root; local builds start from current directory
 
 ## Verification
 
-- `grep -q 'maven-kotlin' .github/workflows/release.yml` exits 0 (input added)
-- `grep -q 'build-kotlin-native' .github/workflows/release.yml` exits 0 (build job added)
-- `grep -q 'publish-maven-kotlin' .github/workflows/release.yml` exits 0 (publish job added)
-- `grep -q 'maven-publish' packages/kotlin/build.gradle.kts` exits 0 (plugin added)
-- `grep -q 'signing' packages/kotlin/build.gradle.kts` exits 0 (signing plugin added)
-- `grep -q 'io.iscc' packages/kotlin/build.gradle.kts` exits 0 (groupId in publishing block)
-- `grep -q 'iscc-lib-kotlin' packages/kotlin/build.gradle.kts` exits 0 (artifactId)
-- `cd packages/kotlin && ./gradlew build` passes (publishing config doesn't break local builds)
-- `cargo clippy --workspace --all-targets -- -D warnings` clean
+- `test -f Package.swift` — root Package.swift exists
+- `head -1 Package.swift | grep -q 'swift-tools-version'` — valid Swift manifest
+- `grep -q 'packages/swift/Sources/IsccLib' Package.swift` — paths point to subdirectory
+- `grep -q 'packages/swift/Sources/iscc_uniffiFFI' Package.swift` — FFI target path correct
+- `! grep -q 'testTarget' Package.swift` — no test target in root manifest
+- `grep -q '0.3.1' README.md` — Swift version updated from 0.3.0
+- `! grep -q 'from: "0.3.0"' README.md` — old version removed
+- `! grep -q 'from: "0.3.0"' packages/swift/README.md` — old version removed
+- `! grep -q 'from: "0.3.0"' docs/howto/swift.md` — old version removed
+- `grep -q 'cargo build' packages/swift/README.md` — build-from-source in install section
+- `grep -q 'cargo build' docs/howto/swift.md` — build-from-source documented
+- `cargo clippy --workspace --all-targets -- -D warnings` exits 0 (no Rust changes, sanity check)
 
 ## Done When
 
-The advance agent is done when `release.yml` contains a `maven-kotlin` input with corresponding
-build/test/publish jobs, `build.gradle.kts` has maven-publish + signing configuration, and all
-verification commands pass.
+All verification criteria pass: root Package.swift exists with correct subdirectory paths, all three
+documentation files have accurate Swift install instructions referencing version 0.3.1 and the
+build-from-source requirement, and no CI regressions.

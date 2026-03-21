@@ -53,32 +53,23 @@ iterations.
 - **SPM module name MUST match generated code**: UniFFI generates `#if canImport(iscc_uniffiFFI)` /
     `import iscc_uniffiFFI`. The SPM FFI target must use `iscc_uniffiFFI` (not custom names)
 
-## Kotlin Bindings (in progress — release workflow is last sub-task)
+## Kotlin Bindings (COMPLETE)
 
-- **UniFFI Kotlin output is JVM-only** — uses JNA (`com.sun.jna.*`), NOT Kotlin/Native cinterop
-- Generated file: 3214 lines, package `uniffi.iscc_uniffi`, loads `libiscc_uniffi.so` via JNA
-- `kotlin("jvm")` plugin, Gradle 8.12.1 wrapper, JNA 5.16.0 — all working
-- Kotlin step sequence: ~~scaffold~~ -> ~~tests~~ -> ~~CI~~ -> ~~gradlew fix~~ -> ~~Gson fix~~ ->
-    ~~docs~~ -> **release workflow** -> publishing
-- **Gson Maven coordinates**: groupId is `com.google.code.gson` (NOT `com.google.gson`)
-- **CI job pattern**: same as Swift (build iscc-uniffi, run tests) but on ubuntu-latest (not macOS)
-- **gradle.properties** format: `version=0.3.1` (no quotes, no spaces) — version_sync.py target
-    added
-- **JNA native lib loading from JAR**: JNA `Native.register()` searches classpath resources at
-    `{platform}/` paths following `Platform.RESOURCE_PREFIX` convention (e.g., `linux-x86-64/`,
-    `darwin-aarch64/`, `win32-x86-64/`). No extra JNA config needed — just place libs at those paths
-    in the JAR
-- **Maven Central publishing from Gradle**: existing Java uses `central-publishing-maven-plugin`.
-    For Gradle, need either `tech.yanand.maven-central-publish` plugin, manual Central Portal API
-    upload, or `io.github.gradle-nexus.publish-plugin`. Same `MAVEN_USERNAME`/`MAVEN_PASSWORD`
-    secrets
-- **Kotlin SimpleIcons color**: `#7F52FF` (official Kotlin brand purple)
+- All sub-tasks done: scaffold, tests, CI, docs, release workflow
+- UniFFI Kotlin is JVM-only (JNA, not Kotlin/Native)
+- Gradle 8.12.1 wrapper, JNA 5.16.0, Gson `com.google.code.gson`
 
-## Swift Bindings (COMPLETE)
+## Swift Bindings (packaging issues open)
 
-- All sub-tasks done: UniFFI crate, SPM package, CI job, conformance tests, howto guide, README,
-    CLAUDE.md, version sync. Issue resolved
-- SPM distribution via Git tags (no registry upload needed)
+- Bindings code complete: UniFFI crate, SPM package, CI job, conformance tests, howto guide
+- **Two packaging issues remain**: SPM URL doesn't resolve (Package.swift in subdirectory), native
+    library not bundled (users get link failures)
+- **Root Package.swift approach**: SPM resolves from repo root only. Root Package.swift with
+    adjusted paths (`packages/swift/Sources/...`) coexists with subdirectory Package.swift. No
+    conflict — SPM uses root, CI uses `working-directory: packages/swift`
+- **XCFramework = future step**: Full native library vending requires building universal
+    XCFrameworks in CI, uploading as release assets, referencing as `.binaryTarget`. Too large for
+    one step. Document build-from-source first, then add XCFramework later
 
 ## Dev Environment Constraints
 
@@ -96,10 +87,11 @@ iterations.
 ## Project Status
 
 - v0.3.1 released, 16/16 CI jobs green
-- All 11 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift)
-- Kotlin bindings: scaffold + tests + CI + docs all done; **release workflow is the last sub-task**
+- All 12 bindings complete (Rust, Python, Node.js, WASM, C FFI, Java, Go, Ruby, C#/.NET, C++, Swift,
+    Kotlin)
 - 2 normal-priority Swift issues: SPM install instructions incorrect, package doesn't vend native
     lib
+- 1 low-priority issue: language logos in docs (CID skips)
 
 ## Version Sync Script Patterns
 
