@@ -1,27 +1,41 @@
-## 2026-03-21 — Add Kotlin CI job to ci.yml
+## 2026-03-21 — Review of: Add Kotlin CI job to ci.yml
 
-**Done:** Added a `kotlin` job to `.github/workflows/ci.yml` between `swift` and `bench`. The job
-runs on `ubuntu-latest`, sets up JDK 17 (Temurin), builds the UniFFI native library, and runs Gradle
-tests against the Kotlin conformance test suite.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.github/workflows/ci.yml`: Added `kotlin:` job (lines 253-268) with 6 steps: checkout, rust
-    toolchain, rust cache, setup-java (temurin 17), `cargo build -p iscc-uniffi`, `./gradlew test`
+**Summary:** The Kotlin CI job was added correctly to `ci.yml`, following the established Java CI
+job pattern exactly. The diff is minimal and well-scoped — only `ci.yml` was modified. All
+verification criteria pass, all pre-commit hooks pass, and clippy is clean across the workspace.
 
 **Verification:**
 
-- `grep -c 'kotlin:' ci.yml` → 1 (pass)
-- `grep 'cargo build -p iscc-uniffi' ci.yml` → 2 matches: swift + kotlin (pass)
-- `grep 'gradlew test' ci.yml` → 1 match (pass)
-- `grep -c 'java-version.*17' ci.yml` → 2 matches: java + kotlin (pass)
-- YAML validation → exits 0 (pass)
-- `mise run check` → all 15 hooks pass
+- [x] `grep -c 'kotlin:' .github/workflows/ci.yml` returns 1
+- [x] `grep 'cargo build -p iscc-uniffi' .github/workflows/ci.yml` finds build step (2 matches:
+    swift + kotlin)
+- [x] `grep 'gradlew test' .github/workflows/ci.yml` finds test step (1 match)
+- [x] `grep -c 'java-version.*17' .github/workflows/ci.yml` returns 2 (java + kotlin)
+- [x] YAML valid: `python -c "import yaml; yaml.safe_load(open(...))"` exits 0
+- [x] `mise run check` — all 15 hooks pass
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
 
-**Next:** Version sync — add `packages/kotlin/gradle.properties` to `scripts/version_sync.py` so
-Kotlin package version stays in sync with the workspace. Then documentation (`docs/howto/kotlin.md`,
-README Kotlin sections) and release workflow.
+**Issues found:**
 
-**Notes:** Straightforward addition. The `build.gradle.kts` already has correct `LD_LIBRARY_PATH`,
-`jna.library.path`, and `java.library.path` configuration, so no modifications to the Kotlin project
-were needed. CI job count is now 16 (version-check + 15 language/tool jobs).
+- (none)
+
+**Codex review:** Skipped — Codex sandbox (bwrap) cannot create namespaces in this devcontainer.
+
+**Next:** Continue Kotlin integration. The remaining sub-tasks from the Kotlin issue are:
+
+1. **Version sync** — add `packages/kotlin/gradle.properties` to `scripts/version_sync.py`
+2. **Documentation** — `docs/howto/kotlin.md` howto guide
+3. **README integration** — Kotlin install/quickstart sections in root README
+4. **Per-package docs** — `packages/kotlin/README.md` + `packages/kotlin/CLAUDE.md`
+5. **Release workflow** — `maven-kotlin` input in `release.yml`
+
+Version sync is the smallest and most mechanical — good candidate for next step.
+
+**Notes:**
+
+- CI now has 15 YAML job entries (16 actual jobs when counting python-test matrix expansion)
+- Kotlin issue in issues.md remains open — CI sub-task done, but version sync, docs, README, and
+    release workflow still pending
+- No quality gate circumvention detected in diff
