@@ -38,6 +38,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin test check**: `ls packages/kotlin/src/test/ 2>&1`
 - **Kotlin test count**: Grep for `@Test` in ConformanceTest.kt
 - **Kotlin gradlew permissions**: `git ls-files -s packages/kotlin/gradlew` — must be 100755
+- **Kotlin docs check**:
+    `ls packages/kotlin/README.md packages/kotlin/CLAUDE.md docs/howto/kotlin.md 2>&1`
 - **state.md Write workaround**: Write tool gets permission errors on state.md — use Python script
     via Bash tool instead: `python3 -c "..."` (write content via pathlib.Path.write_text using raw
     strings)
@@ -84,17 +86,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Handoff predictions may be wrong**: handoff claimed Kotlin CI would be green after gradlew fix,
     but a new error appeared (Gson dependency resolution). Always verify CI independently.
 
-## Current State (assessed-at: 7997cfb)
+## Current State (assessed-at: 4324d38)
 
-- **IN_PROGRESS**: **15/16 CI jobs pass, 1 FAILING** (Kotlin — Gson dependency not found)
-- Latest CI run: 23384852935 (FAILURE)
+- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN
+- Latest CI run: 23385568446 (SUCCESS)
 - **v0.3.1 released** — all 8 registries including RubyGems and NuGet
-- **Kotlin CI**: gradlew permission FIXED (100755), but now fails at `compileTestKotlin` with
-    `Could not find com.google.gson:gson:2.8.9` despite mavenCentral() in repos
-- Version sync: 15 targets (gradle.properties added this iteration)
+- **Kotlin CI**: FIXED — Gson groupId corrected from `com.google.gson` to `com.google.code.gson`
+- Version sync: 15 targets (gradle.properties added)
 - **4 open issues**: Kotlin bindings (normal), Swift SPM install (normal), Swift native lib
     (normal), language logos (low)
-- **Next**: Fix Kotlin Gradle dependency resolution, then Kotlin docs/release
+- **Next**: Kotlin docs/README/CLAUDE.md, README integration, release workflow
 
 ## Gotchas
 
@@ -109,15 +110,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **UniFFI proc macro approach**: no uniffi.toml or build.rs needed; constants exposed as getter
     functions since UniFFI doesn't support const exports; streaming types use `Mutex<Option<Inner>>`
     for Send+Sync
-- **Swift module name mismatch** (RESOLVED): UniFFI-generated Swift code uses
-    `#if canImport(iscc_uniffiFFI)` — SPM target MUST be named `iscc_uniffiFFI` to match.
 - **Kotlin UniFFI bindings**: Uses JNA (not JNI) — `net.java.dev.jna:jna:5.16.0`; generated code
     uses `package uniffi.iscc_uniffi`; needs `libiscc_uniffi.so` at runtime via java.library.path
     AND jna.library.path (java.library.path alone insufficient for JNA's `Native.register()`)
-- **Kotlin gradlew permission bug** (RESOLVED): was 100644, now fixed to 100755
-- **Kotlin Gson CI failure**: `compileTestKotlin` fails with
-    `Could not find   com.google.gson:gson:2.8.9` despite `mavenCentral()` in repositories. Both CI
-    runs at same timestamp — may be transient, or may need `google()` repo or kotlinx-serialization
-    instead.
+- **Kotlin Gson groupId gotcha** (RESOLVED): Java *package* name is `com.google.gson` (used in
+    imports) while Maven *artifact* groupId is `com.google.code.gson` — a well-known gotcha
 - **mdformat trailing space bug**: inline code with trailing space triggers mdformat "renders to
     different HTML" error. Remove trailing spaces from inline code.

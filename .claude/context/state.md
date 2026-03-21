@@ -1,16 +1,15 @@
-<!-- assessed-at: 7997cfb7eb2a77779e8b9e0b2fd7394e348111fb -->
+<!-- assessed-at: 4324d38895b5cebb6f0700dac3acf5f472570f8f -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Kotlin CI still failing (Gradle dependency resolution); docs/release missing
+## Phase: All 16/16 CI jobs green; Kotlin docs/README/release workflow missing
 
-v0.3.1 released across all 8 registries. The `gradlew` permission issue from the previous iteration
-is **fixed** (100755), but Kotlin CI now fails with a new error:
-`Could not find com.google.gson:gson:2.8.9` during `compileTestKotlin`. This affects both recent CI
-runs (23384852935, 23384851999). Version sync now has 15 targets (gradle.properties added). 15/16 CI
-jobs pass; fixing the Kotlin dependency resolution failure is the top priority.
+v0.3.1 released across all 8 registries. Kotlin CI is now **fully green** — the Gson Maven groupId
+fix (`com.google.code.gson:gson:2.11.0`) resolved the last CI failure. All 16/16 CI jobs pass in run
+23385568446\. Remaining Kotlin work is documentation (howto guide, README, CLAUDE.md), root README
+integration (install/quickstart sections), and release workflow (maven-kotlin in release.yml).
 
 ## Rust Core Crate
 
@@ -153,34 +152,22 @@ jobs pass; fixing the Kotlin dependency resolution failure is the top priority.
 
 ## Kotlin Multiplatform Bindings
 
-**Status**: partially met (scaffold + tests exist; CI job present but failing; docs/release missing)
+**Status**: partially met (scaffold + tests + CI green; docs/README/release workflow missing)
 
 - **Scaffold created** — packages/kotlin/ exists with:
-    - build.gradle.kts — Kotlin/JVM 2.1.10 plugin, group `io.iscc`, JNA 5.16.0, JUnit 5.11.4 + Gson
-        2.8.9 test deps, JUnitPlatform config with java.library.path + jna.library.path +
-        LD_LIBRARY_PATH pointing to target/debug
+    - build.gradle.kts — Kotlin/JVM 2.1.10 plugin, group , JNA 5.16.0, JUnit 5.11.4 + Gson 2.11.0
+        (corrected groupId: ) test deps
     - settings.gradle.kts, gradle.properties (version=0.3.1)
-    - Gradle 8.12.1 wrapper (gradlew now 100755 — **permission fix landed**)
+    - Gradle 8.12.1 wrapper (gradlew 100755)
     - src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt — 3214-line UniFFI-generated bindings
-    - compileKotlin succeeds (verified by review agent)
-- **Conformance tests complete** — src/test/ exists with:
-    - src/test/kotlin/uniffi/iscc_uniffi/ConformanceTest.kt — 237 lines, 9 @Test methods covering all
-        gen\_\*\_v0 functions (20+5+3+5+3+2+4+3+5 = 50 vectors)
-    - src/test/resources/data.json — vendored conformance vectors (SHA256 matches iscc-lib copy)
-    - gradlew test passes locally: 9 tests, 0 failures
-- **Version sync** — gradle.properties added as 15th target in version_sync.py (was 14, now 15)
-- **CI job added** — `kotlin:` job in ci.yml (cargo build -p iscc-uniffi + gradlew test)
-- **CI FAILING — NEW ERROR** — `compileTestKotlin` fails with
-    `Could not find   com.google.gson:gson:2.8.9`. The `compileKotlin` task (main sources + JNA)
-    succeeds, but test dependency resolution fails. Reproduced in both run 23384852935 and
-    23384851999\. The `repositories` block has `mavenLocal()` + `mavenCentral()` which should work —
-    root cause unclear (possibly transient Maven Central issue, or Gradle dependency resolution
-    bug).
+- **Conformance tests complete** — 9 @Test methods covering all gen\_\*\_v0 functions (50 vectors)
+- **Version sync** — gradle.properties added as 15th target in version_sync.py
+- **CI job green** — passes in run 23385568446
 - **Missing — documentation**: No docs/howto/kotlin.md, no packages/kotlin/README.md, no
     packages/kotlin/CLAUDE.md
-- **Missing — README integration**: No Kotlin install/quickstart sections in root README (grep for
-    kotlin returns 0 matches)
+- **Missing — README integration**: No Kotlin install/quickstart sections in root README
 - **Missing — release workflow**: No maven-kotlin in release.yml
+- **Missing — nav/llms integration**: No kotlin.md in zensical.toml nav or gen_llms_full.py
 
 ## README
 
@@ -199,7 +186,7 @@ jobs pass; fixing the Kotlin dependency resolution failure is the top priority.
 
 - READMEs present for all 10 existing crates/packages + Swift package (11 total)
 - CLAUDE.md files created for all 10 crates/packages + Swift (11 total)
-- **Gap**: packages/kotlin/README.md missing
+- **Gap**: packages/kotlin/README.md and packages/kotlin/CLAUDE.md missing
 
 ## Documentation
 
@@ -221,45 +208,36 @@ jobs pass; fixing the Kotlin dependency resolution failure is the top priority.
 
 ## CI/CD and Publishing
 
-**Status**: partially met (Kotlin CI job failing)
+**Status**: partially met (Kotlin release workflow missing)
 
-- **LATEST COMPLETED RUN** — run 23384852935: **15/16 jobs SUCCESS, 1 FAILING**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23384852935
-- **FAILING**: `Kotlin (gradle build, test)` — step `compileTestKotlin` fails with
-    `Could not find   com.google.gson:gson:2.8.9` (exit code 1). The gradlew permission issue from
-    previous iteration is **resolved** — this is a new failure mode (Gradle dependency resolution).
-- All other 15 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate,
-    Node.js, WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift — all SUCCESS
+- **LATEST COMPLETED RUN** — run 23385568446: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23385568446
+- All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
+    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin — all SUCCESS
 - v0.3.1 released across all 8 registries (crates.io, PyPI, npm x2, Maven Central, RubyGems, NuGet,
     GitHub Releases)
-- version_sync.py manages 15 sync targets (including Kotlin gradle.properties — up from 14)
+- version_sync.py manages 15 sync targets (including Kotlin gradle.properties)
 - 16 CI jobs total (15 definitions + Python matrix expansion)
-- **Gap**: Kotlin CI failing (dependency resolution fix needed)
-- **Gap**: No Kotlin in release.yml
+- **Gap**: No maven-kotlin in release.yml
 
 ## Open Issues (4 total)
 
-1. **Kotlin bindings** `normal` — scaffold + tests done, CI added but failing (new error);
-    docs/release missing
+1. **Kotlin bindings** `normal` — scaffold + tests + CI done; docs/README/release workflow missing
 2. **Swift SPM install instructions incorrect** `normal` — Package.swift in subdirectory, SPM URL
-    won'''t resolve from repo root
+    won't resolve from repo root
 3. **Swift package does not vend native library** `normal` — linkedLibrary declared but no dylib
     bundled; users get link failures
 4. **Language logos in docs** `low` — CID skips
 
 ## Next Milestone
 
-**Fix Kotlin CI failure** (CI is broken — top priority before any feature work):
+**Complete Kotlin integration** (CI is green — proceed with remaining Kotlin sub-tasks):
 
-1. Fix Gradle dependency resolution: `compileTestKotlin` fails with
-    `Could not find  com.google.gson:gson:2.8.9` despite `mavenCentral()` in repositories block.
-    Possible fixes:
-    - Retry CI (may be transient Maven Central issue — both failed runs were at same timestamp)
-    - Add `google()` repository as fallback
-    - Upgrade Gson to a newer version (2.11.x)
-    - Switch JSON parsing to kotlinx-serialization (eliminates external dependency)
-2. Verify 16/16 CI jobs pass
+1. **Documentation** — Create docs/howto/kotlin.md howto guide, packages/kotlin/README.md,
+    packages/kotlin/CLAUDE.md
+2. **README integration** — Add Kotlin install/quickstart sections to root README.md
+3. **Nav + llms integration** — Add kotlin.md to zensical.toml nav and gen_llms_full.py
+4. **Release workflow** — Add maven-kotlin input to release.yml
 
-Then continue Kotlin integration: documentation (docs/howto/kotlin.md, packages/kotlin/README.md,
-packages/kotlin/CLAUDE.md), README (Kotlin install/quickstart sections), and release workflow
-(maven-kotlin in release.yml).
+All of these can likely be done in a single iteration since they follow established patterns from
+Swift and other language bindings.
