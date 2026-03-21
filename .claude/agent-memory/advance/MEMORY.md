@@ -30,9 +30,9 @@ iterations.
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
-- CI workflow at `.github/workflows/ci.yml` has 13 jobs: version-check, rust, python-test, python,
-    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, bench. The `bench` job runs
-    `cargo bench --no-run` (compile-only). The `cpp` job builds FFI + cmake with ASAN
+- CI workflow at `.github/workflows/ci.yml` has 15 jobs: version-check, rust, python-test, python,
+    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, bench. `bench` runs
+    `cargo bench --no-run` (compile-only). `swift` runs on `macos-14` (Apple Silicon)
 - Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
     param (not step-level), bundler-cache auto-installs gems
 - `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
@@ -159,26 +159,11 @@ iterations.
 - CI: `actions/setup-dotnet@v4`, `dotnet-version: '8.0'`
 - Empty span fix for 7 functions (same pattern as C++ `safe_data`)
 
-## C++ Bindings (Header-Only)
+## C++ Bindings (Header-Only) — see MEMORY-archive.md for full details
 
-- `packages/cpp/include/iscc/iscc.hpp` — header-only C++17 wrapper in `namespace iscc`
-- `packages/cpp/CMakeLists.txt` — INTERFACE library, includes C header from
-    `crates/iscc-ffi/include`
-- `packages/cpp/tests/test_iscc.cpp` — 52-assertion smoke test, all patterns covered
-- `packages/cpp/tests/CMakeLists.txt` — `FFI_LIB_DIR` var, `SANITIZE_ADDRESS` option
-- RAII guards in `detail::`: UniqueString, UniqueStringArray, UniqueByteBuffer,
-    UniqueByteBufferArray
+- `packages/cpp/` — header-only C++17, depends on `iscc-ffi`. CMake build + ASAN tests
 - `detail::safe_data()` returns non-null sentinel for empty vectors (C FFI rejects nullptr)
-- Result types: MetaCodeResult, TextCodeResult, ..., SumCodeResult, DecodeResult
-- Streaming: `DataHasher` / `InstanceHasher` classes (move-only, destructor frees handle)
-- IsccError exception (inherits std::runtime_error), thrown on FFI errors
-- Build: `cmake -B build -DFFI_LIB_DIR=../../target/debug && cmake --build build`
-- Run: `LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc`
-- cmake + g++ NOT pre-installed in devcontainer — `sudo apt-get install cmake g++`
-- Package manager manifests: `vcpkg.json` + `portfile.cmake` + `conanfile.py` in `packages/cpp/`
-- vcpkg portfile downloads pre-built FFI tarballs from GitHub Releases (5 targets, `SKIP_SHA512`)
-- Conan recipe: pre-built binary download (mirrors portfile.cmake), `settings = "os", "arch"` only,
-    `_target_triple()` maps to 5 platform targets, `conan.tools.files.download`/`unzip` in `build()`
+- Package manager manifests: `vcpkg.json` + `portfile.cmake` + `conanfile.py`
 
 ## UniFFI Bindings (Swift/Kotlin)
 
@@ -202,11 +187,10 @@ iterations.
 ## Swift Package
 
 - `packages/swift/` — SPM package with IsccLibFFI (C header + modulemap) + IsccLib (Swift bindings)
-- UniFFI generates `Data` for `Vec<u8>`, camelCase for all function names, `throws` for fallible fns
-- `Sendable` conformance auto-generated for result structs (Swift compiler >= 6)
-- Conformance tests: `ConformanceTests.swift` with `JSONSerialization`, 9 test methods, 50 vectors
-- `module.modulemap` is simplified from generated version (removed Darwin-specific `use` directives)
-- Swift tests require macOS runner — cannot run in Linux devcontainer
+- Conformance tests: `ConformanceTests.swift` — 9 test methods, 50 vectors. Requires macOS runner
+- CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
+    `-Xlinker -L` (link-time) and `-Xlinker -rpath` (runtime) pointing to `target/debug`
+- `module.modulemap` simplified from generated version (removed Darwin-specific `use` directives)
 
 ## Gotchas
 

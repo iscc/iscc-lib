@@ -229,6 +229,27 @@ jobs:
       - name: Run C++ tests
         run: LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc
         working-directory: packages/cpp
+  swift:
+    name: Swift (swift build, swift test)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build UniFFI native library
+        run: cargo build -p iscc-uniffi
+      - name: Build Swift package
+        run: >
+          swift build
+          -Xlinker -L${{ github.workspace }}/target/debug
+        working-directory: packages/swift
+      - name: Run Swift tests
+        run: >
+          swift test
+          -Xlinker -L${{ github.workspace }}/target/debug
+          -Xlinker -rpath
+          -Xlinker ${{ github.workspace }}/target/debug
+        working-directory: packages/swift
   bench:
     name: Bench (compile check)
     runs-on: ubuntu-latest
