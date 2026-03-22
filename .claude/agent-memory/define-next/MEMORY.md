@@ -27,6 +27,8 @@ iterations.
 - **HUMAN REVIEW REQUESTED issues**: When evidence is overwhelming (bytecode-verified), scope the
     fix — the review agent will verify. Don't block the CID loop on human confirmation for
     well-understood bugs.
+- **IDLE is valid** — when all target sections are met and only low issues remain, signal IDLE.
+    Don't invent work. The CID loop ran 7 iterations and correctly reached completion.
 
 ## Architecture Decisions
 
@@ -91,11 +93,13 @@ iterations.
 - Swift: `genTextCodeV0(text: "text", bits: 64)` — camelCase free functions, named params
 - Kotlin: `genTextCodeV0(text = "text", bits = 64u)` — camelCase free functions, UInt params
 
-## Remaining Target Gaps (after iteration 6)
+## CID Loop History (for context if restarted)
 
-- Benchmarks: FULLY MET — docs/benchmarks.md has full speedup table (1.3×–158×), in nav, in
-    llms-full. State.md was stale about this
-- Docs: Language logos (low priority, CID skips)
-- Issues resolved: JAR smoke test (iter 3), Cache key (iter 4), ref:main race (iter 5)
-- Root Package.swift CI: SCOPED for iteration 6
-- After iteration 6 resolves, only the low-priority logos issue remains — CID may reach IDLE
+- **Iteration 1**: Kotlin bindings scaffold
+- **Iteration 2**: Kotlin release workflow
+- **Iteration 3**: JAR smoke test fix
+- **Iteration 4**: XCFramework cache key fix
+- **Iteration 5**: Swift ref:main provenance guard
+- **Iteration 6**: Root Package.swift CI smoke test
+- **Iteration 7**: IDLE — all target sections met, only low-priority logos issue remains
+- Total: 7 iterations to reach completion from Kotlin scaffold through full CI hardening
