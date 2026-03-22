@@ -1,4 +1,4 @@
-<!-- assessed-at: 0d8e6a911c007dfc9674b89ba7ba71f218f82f93 -->
+<!-- assessed-at: f2a891760c0e25ce089cce4cbf3c1ee1d7dd8753 -->
 
 # Project State
 
@@ -6,10 +6,10 @@
 
 ## Phase: Release workflow hardening + benchmark documentation gap
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23400579618). All 12 language
-bindings scaffolded, tested, and documented. The Kotlin JAR smoke test was added to the release
-workflow (issue resolved). Three normal-priority release workflow hardening issues remain, plus a
-benchmarks documentation gap and a low-priority cosmetic issue.
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23401141511). All 12 language
+bindings scaffolded, tested, and documented. XCFramework cache key issue resolved (iteration 5). Two
+normal-priority release workflow hardening issues remain, plus a benchmarks documentation gap and a
+low-priority cosmetic issue.
 
 ## Rust Core Crate
 
@@ -160,32 +160,29 @@ benchmarks documentation gap and a low-priority cosmetic issue.
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23400579618: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23400579618
+- **LATEST COMPLETED RUN** — run 23401141511: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23401141511
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries
 - Release workflow has 9 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift
+- XCFramework cache key expanded to include build script, Swift headers, and all Cargo.toml files
 - version_sync.py manages 16 sync targets (all OK)
 
-## Open Issues (4 total — 0 critical, 3 normal, 1 low)
+## Open Issues (3 total — 0 critical, 2 normal, 1 low)
 
-1. **XCFramework release cache key incomplete** `normal` — Cache key only hashes crate sources and
-    Cargo.lock, missing build script and Swift headers.
-2. **Swift release job checks out `ref: main` instead of tag SHA** `normal` — race window if main
+1. **Swift release job checks out `ref: main` instead of tag SHA** `normal` — race window if main
     moves after tag creation.
-3. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
+2. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
     consumer-facing root manifest never validated.
-4. **Language logos in docs** `low` — CID skips.
+3. **Language logos in docs** `low` — CID skips.
 
 ## Next Milestone
 
 All 12 bindings are complete and CI is green. The remaining gaps are:
 
 1. **Publish speedup factors in documentation** (benchmarks gap) — most impactful actionable item
-    since all 3 normal issues are release workflow hardening that the CID loop may not prioritize
-    over feature completeness.
-2. **Release workflow hardening** (3 normal issues) — XCF cache key, Swift ref:main race, root
-    Package.swift CI.
+    since both normal issues are release workflow hardening that is architecturally complex.
+2. **Release workflow hardening** (2 normal issues) — Swift ref:main race, root Package.swift CI.
 3. **Language logos in docs** (low) — CID skips, human-directed only.

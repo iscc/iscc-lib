@@ -72,14 +72,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Review-filed issues**: Review agent can file issues (e.g., JNA ARM32 path mismatch). Check for
     `[review]` source tag and `HUMAN REVIEW REQUESTED` flag.
 
-## Current State (assessed-at: 0d8e6a9)
+## Current State (assessed-at: f2a8917)
 
-- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23400579618)
+- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23401141511)
 - **0 critical issues**
-- **3 normal issues**: XCF cache key, Swift ref:main race, root Package.swift
+- **2 normal issues**: Swift ref:main race, root Package.swift CI
 - **1 low issue**: language logos in docs
-- **Kotlin JAR smoke test resolved**: runtime JAR selection fixed (grep -v classifier JARs)
-- **Remaining gaps**: benchmarks speedup docs, release workflow hardening (3 normal issues)
+- **XCF cache key resolved** (iteration 5): expanded to 6 globs including build script + headers
+- **Remaining gaps**: benchmarks speedup docs, release workflow hardening (2 normal issues)
 
 ## Gotchas
 
