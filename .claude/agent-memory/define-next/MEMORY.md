@@ -24,6 +24,9 @@ iterations.
 - **When blocked issues dominate** — look for target verification criteria gaps rather than
     accepting "idle". Docs completeness (tabbed examples, tables) is often missed
 - **next.md is a sensitive file** — Write tool may be blocked; use `cat > file << 'EOF'` via Bash
+- **HUMAN REVIEW REQUESTED issues**: When evidence is overwhelming (bytecode-verified), scope the
+    fix — the review agent will verify. Don't block the CID loop on human confirmation for
+    well-understood bugs.
 
 ## Architecture Decisions
 
@@ -60,17 +63,18 @@ issues (cache key, ref:main race, JAR smoke test, root Package.swift CI).
     `packages/swift/Tests/IsccLibTests/data.json`, and
     `packages/kotlin/src/test/resources/data.json` (all identical). Must be updated together.
 
-## Kotlin Android Cross-Compilation
+## Kotlin Android Cross-Compilation — NDK done, ARM32 path fix in progress
 
-- Critical issue: published JAR has no Android native libs — unusable on Android
-- 4 Android ABIs needed: arm64-v8a, armeabi-v7a, x86_64, x86
+- Android NDK cross-compilation added to release workflow (4 ABIs + 5 desktop = 9 targets)
+- 4 Android ABIs: arm64-v8a, armeabi-v7a, x86_64, x86
 - Rust targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android,
     i686-linux-android
-- JNA resource paths: android-aarch64/, android-armv7/, android-x86-64/, android-x86/
-- `assemble-kotlin` and `publish-maven-kotlin` already use wildcard `kotlin-native-*` pattern — new
-    artifacts picked up automatically
-- Multi-step plan: (1) release.yml matrix + NDK + cargo-ndk, (2) devcontainer NDK, (3) docs update
+- **Correct JNA resource paths**: android-aarch64/, **android-arm/** (NOT android-armv7!),
+    android-x86-64/, android-x86/
+- JNA 5.16.0 canonicalizes ARM32 arch: `if (arch.startsWith("arm")) arch = "arm"` → `android-arm`
+- `assemble-kotlin` and `publish-maven-kotlin` already use wildcard `kotlin-native-*` pattern
 - `cargo ndk` outputs to `target/<rust-triple>/release/` — same path as desktop builds
+- Remaining after ARM32 fix: docs/howto/kotlin.md Android install instructions
 
 ## CI/Release Patterns
 
@@ -101,3 +105,10 @@ issues (cache key, ref:main race, JAR smoke test, root Package.swift CI).
 - C++: `iscc::gen_text_code_v0("text")` — namespace free functions, RAII
 - Swift: `genTextCodeV0(text: "text", bits: 64)` — camelCase free functions, named params
 - Kotlin: `genTextCodeV0(text = "text", bits = 64u)` — camelCase free functions, UInt params
+
+## Remaining Target Gaps (after ARM32 fix)
+
+- Kotlin: Android install docs in howto/kotlin.md
+- Benchmarks: Speedup factors not published in documentation
+- Docs: Language logos (low priority, CID skips)
+- Release pipeline: 4 normal issues (cache key, ref:main, JAR smoke test, root Package.swift)

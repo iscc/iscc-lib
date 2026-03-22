@@ -1,121 +1,72 @@
 # Next Work Package
 
-## Step: Add Android NDK cross-compilation to Kotlin release workflow
+## Step: Fix JNA ARM32 resource path mismatch (`android-armv7` → `android-arm`)
 
 ## Goal
 
-Add 4 Android ABI targets to the `build-kotlin-native` matrix in `release.yml` so the published
-Kotlin JAR bundles native libraries for Android devices. This directly resolves the critical issue
-"Kotlin bindings missing Android native libraries" — without this, the JAR is unusable on Android.
+Fix the JNA ARM32 native library resource path so that ARMv7 Android devices can load the native
+library at runtime. JNA 5.16.0 canonicalizes ARM32 to `arm` (not `armv7`), so the directory must be
+`android-arm/` — verified by bytecode decompilation of `Platform.class`.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/release.yml`
-- **Reference**: `.claude/context/specs/kotlin-bindings.md` (Android target table, cargo-ndk usage),
-    `.github/workflows/release.yml` lines 992-1038 (existing `build-kotlin-native` job)
+- **Modify**: `.github/workflows/release.yml` (line 1026: `android-armv7` → `android-arm`),
+    `.claude/context/specs/kotlin-bindings.md` (lines 59, 90: fix table and package structure tree)
+- **Reference**: `.claude/context/issues.md` (JNA ARM32 issue description with bytecode evidence),
+    `.claude/context/learnings.md` (JNA ARM32 section confirming the correct prefix)
 
 ## Not In Scope
 
-- DevContainer Dockerfile changes (Android NDK for local dev) — separate step
-- `docs/howto/kotlin.md` Android install instructions — follow-up step after CI is verified
-- Android emulator integration tests — resource-path verification is sufficient for now
-- Fixing the "Kotlin release smoke test doesn't validate assembled JAR" normal issue — separate
-- Dropping `x86` (i686) Android ABI — include all 4 per spec even though x86 is rare
-- Changes to `assemble-kotlin` or `publish-maven-kotlin` jobs — they already handle
-    `kotlin-native-*` artifacts generically via wildcard pattern
+- Adding Android-specific install instructions to `docs/howto/kotlin.md` — follow-up step
+- Changing the Kotlin release smoke test to validate the assembled JAR — separate issue
+- Adding Android emulator CI tests to verify native loading — excessive for a path fix
+- Updating any other matrix fields (the `android-abi`, `target`, `lib-name` fields are all correct)
+- Fixing other normal issues (XCFramework cache key, Swift ref:main race, root Package.swift CI)
 
 ## Implementation Notes
 
-### Matrix entries to add
+### release.yml change
 
-Add 4 Android entries to the `build-kotlin-native` strategy matrix. All run on `ubuntu-latest`:
+Line 1026 currently reads:
 
-| Rust Target               | `native-dir`      | `lib-name`          | `android-abi` |
-| ------------------------- | ----------------- | ------------------- | ------------- |
-| `aarch64-linux-android`   | `android-aarch64` | `libiscc_uniffi.so` | `arm64-v8a`   |
-| `armv7-linux-androideabi` | `android-armv7`   | `libiscc_uniffi.so` | `armeabi-v7a` |
-| `x86_64-linux-android`    | `android-x86-64`  | `libiscc_uniffi.so` | `x86_64`      |
-| `i686-linux-android`      | `android-x86`     | `libiscc_uniffi.so` | `x86`         |
+```yaml
+native-dir: android-armv7
+```
 
-### NDK setup and build approach
+Change to:
 
-Use `cargo-ndk` for ergonomic cross-compilation. Add conditional steps that only run for Android
-matrix entries (detected via `contains(matrix.target, 'android')`):
+```yaml
+native-dir: android-arm
+```
 
-1. **Setup Android NDK** — use `nttld/setup-ndk@v1` action:
+This is the only change needed in release.yml. The `target` field (`armv7-linux-androideabi`),
+`lib-name` (`libiscc_uniffi.so`), and `android-abi` (`armeabi-v7a`) are all correct. The
+`assemble-kotlin` job uses `native-dir` to set the JNA resource directory name inside the JAR.
 
-    ```yaml
-      - name: Setup Android NDK
-        if: contains(matrix.target, 'android')
-        uses: nttld/setup-ndk@v1
-        id: setup-ndk
-        with:
-          ndk-version: r27c
-          add-to-path: false
-    ```
+### Spec changes (kotlin-bindings.md)
 
-2. **Install cargo-ndk** (binary cached by `Swatinem/rust-cache` in `~/.cargo/bin`):
+1. **Package structure tree** (line 59): Change `android-armv7/` to `android-arm/` and update
+    comment to say "JNA resource path for Android ARM32"
+2. **Android target table** (line 90): Change `android-armv7/` to `android-arm/` in the JNA Resource
+    Dir column
 
-    ```yaml
-      - name: Install cargo-ndk
-        if: contains(matrix.target, 'android')
-        run: cargo install cargo-ndk
-    ```
+### Why this is correct
 
-3. **Split build step** — desktop keeps existing logic, Android uses cargo-ndk:
-
-    ```yaml
-      - name: Build UniFFI library
-        if: "!contains(matrix.target, 'android')"
-        run: cargo build -p iscc-uniffi --release --target ${{ matrix.target }}
-        env:
-          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
-
-      - name: Build UniFFI library (Android)
-        if: contains(matrix.target, 'android')
-        run: cargo ndk --target ${{ matrix.android-abi }} build -p iscc-uniffi
-          --release
-        env:
-          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
-    ```
-
-    `cargo ndk` outputs to `target/<rust-triple>/release/` (same path convention as desktop), so the
-    artifact upload step (`target/${{ matrix.target }}/release/${{ matrix.lib-name }}`) works
-    unchanged.
-
-### How existing jobs handle the new artifacts
-
-- **`assemble-kotlin`**: Already copies all `kotlin-native-*` artifacts to JNA resource paths via
-    `for dir in kotlin-staging/kotlin-native-*/; do ...`. New `kotlin-native-android-aarch64/` etc.
-    artifacts are picked up automatically — no changes needed.
-- **`publish-maven-kotlin`**: Same wildcard copy pattern — no changes needed.
-- **`test-kotlin-release`**: Only tests `linux-x86-64` — acceptable for now (Android testing is out
-    of scope).
-
-### Key constraints
-
-- `android-abi` is a new matrix field needed only by Android entries (maps Rust triple to cargo-ndk
-    ABI name). Desktop entries don't need it.
-- NDK version `r27c` matches the spec's NDK 27.x recommendation.
-- `Swatinem/rust-cache@v2` caches `~/.cargo/bin`, so `cargo-ndk` binary is cached after first run.
-- Existing `Install cross-compiler` step for `aarch64-unknown-linux-gnu` stays unchanged (it's
-    conditional on that specific target).
+JNA 5.16.0's `Platform.getNativeLibraryResourcePrefix()` bytecode shows:
+`if (arch.startsWith("arm")) arch = "arm"`, then returns `"android-" + arch` → `android-arm`. Other
+Android prefixes (`android-aarch64`, `android-x86-64`, `android-x86`) are unaffected.
 
 ## Verification
 
+- `grep 'native-dir: android-arm$' .github/workflows/release.yml` finds exactly 1 match
+- `grep -c 'android-armv7' .github/workflows/release.yml` returns 0
+- `grep 'android-arm/' .claude/context/specs/kotlin-bindings.md` finds matches (table + tree)
+- `grep -c 'android-armv7' .claude/context/specs/kotlin-bindings.md` returns 0
 - `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0
-- `grep -c 'android' .github/workflows/release.yml` returns 8 or more
-- `grep 'aarch64-linux-android' .github/workflows/release.yml` finds a match
-- `grep 'armv7-linux-androideabi' .github/workflows/release.yml` finds a match
-- `grep 'x86_64-linux-android' .github/workflows/release.yml` finds a match
-- `grep 'i686-linux-android' .github/workflows/release.yml` finds a match
-- `grep 'android-aarch64' .github/workflows/release.yml` finds a match (JNA resource dir)
-- `grep 'cargo-ndk\|cargo ndk' .github/workflows/release.yml` finds a match
-- `grep 'setup-ndk' .github/workflows/release.yml` finds a match
 - `mise run format` produces no changes
 
 ## Done When
 
-All verification criteria pass and the release workflow matrix includes 4 Android ABI targets with
-NDK setup and cargo-ndk build steps, with clean formatting.
+All verification criteria pass — the ARM32 JNA resource path is `android-arm` in both the release
+workflow and the Kotlin bindings spec, with no remaining `android-armv7` references.
