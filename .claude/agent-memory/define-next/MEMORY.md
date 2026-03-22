@@ -63,7 +63,7 @@ issues (cache key, ref:main race, JAR smoke test, root Package.swift CI).
     `packages/swift/Tests/IsccLibTests/data.json`, and
     `packages/kotlin/src/test/resources/data.json` (all identical). Must be updated together.
 
-## Kotlin Android Cross-Compilation — NDK done, ARM32 path fix in progress
+## Kotlin Android Cross-Compilation — NDK done, ARM32 path FIXED
 
 - Android NDK cross-compilation added to release workflow (4 ABIs + 5 desktop = 9 targets)
 - 4 Android ABIs: arm64-v8a, armeabi-v7a, x86_64, x86
@@ -109,6 +109,7 @@ issues (cache key, ref:main race, JAR smoke test, root Package.swift CI).
 ## Remaining Target Gaps (after ARM32 fix)
 
 - Kotlin: Android install docs in howto/kotlin.md
-- Benchmarks: Speedup factors not published in documentation
+- ~~Benchmarks: Speedup factors not published~~ — STALE, already in docs/benchmarks.md with full
+    speedup table (1.3×–158×), in nav, builds correctly
 - Docs: Language logos (low priority, CID skips)
 - Release pipeline: 4 normal issues (cache key, ref:main, JAR smoke test, root Package.swift)
