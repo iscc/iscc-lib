@@ -63,7 +63,9 @@ iterations.
 - v0.3.1 released to all registries
 - Release workflow has `workflow_dispatch` with 9 per-registry checkboxes
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
-- XCFramework cache key at release.yml:1269 — must hash ALL build inputs (see issue)
+- XCFramework cache key at release.yml:1269 — must hash ALL build inputs
+- `swift package dump-package` validates manifest syntax without downloading binary targets — safe
+    to use with PLACEHOLDER checksum on develop
 
 ## Docs Infrastructure
 
@@ -89,13 +91,11 @@ iterations.
 - Swift: `genTextCodeV0(text: "text", bits: 64)` — camelCase free functions, named params
 - Kotlin: `genTextCodeV0(text = "text", bits = 64u)` — camelCase free functions, UInt params
 
-## Remaining Target Gaps (after iteration 5)
+## Remaining Target Gaps (after iteration 6)
 
 - Benchmarks: FULLY MET — docs/benchmarks.md has full speedup table (1.3×–158×), in nav, in
     llms-full. State.md was stale about this
 - Docs: Language logos (low priority, CID skips)
-- Release pipeline: 2 normal issues remaining
-    - JAR smoke test: RESOLVED (iteration 3)
-    - Cache key: RESOLVED (iteration 4)
-    - ref:main race: SCOPED for iteration 5
-    - Root Package.swift CI: still open
+- Issues resolved: JAR smoke test (iter 3), Cache key (iter 4), ref:main race (iter 5)
+- Root Package.swift CI: SCOPED for iteration 6
+- After iteration 6 resolves, only the low-priority logos issue remains — CID may reach IDLE

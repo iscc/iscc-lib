@@ -1,90 +1,84 @@
 # Next Work Package
 
-## Step: Guard Swift release build against main/tag SHA mismatch
+## Step: Add root Package.swift manifest smoke test to CI
 
 ## Goal
 
-Add a provenance guard to the `build-xcframework` release job that fails on tag-triggered releases
-if `main` HEAD has diverged from the tag's commit SHA. This prevents building XCFramework binaries
-from source code different than what was tagged, addressing the "Swift release job checks out
-`ref: main` instead of tag SHA" normal issue.
+Add a CI step that validates the consumer-facing root `Package.swift` manifest parses correctly,
+addressing the normal-priority issue "CI does not exercise root Package.swift." This catches
+structural regressions (syntax errors, invalid target names, broken paths) in the manifest that real
+SPM consumers resolve.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/release.yml` (add a guard step after the checkout in
-    `build-xcframework` job, ~lines 1255-1258)
-- **Reference**: `.claude/context/issues.md` (issue description and suggested fixes),
-    `.github/workflows/release.yml` (full `build-xcframework` job, lines 1248-1296)
+- **Modify**: `.github/workflows/ci.yml` (add a step to the `swift` job that runs
+    `swift package dump-package` at the repo root)
+- **Reference**: `Package.swift` (root manifest structure), `.claude/context/issues.md` (issue
+    description), `.github/workflows/ci.yml` (existing `swift` job, lines 232-252)
 
 ## Not In Scope
 
-- Rearchitecting the checksum-commit-back flow (too complex for one step — the guard is a safe
-    fail-fast approach that prevents the race without redesigning the workflow)
-- Changing `ref: main` to `${{ github.sha }}` for the checkout (this would break the
-    git-auto-commit-action which commits back to main)
-- Adding a root `Package.swift` CI smoke test (separate issue)
-- Modifying any other release job or the build script
-- Changing the XCFramework cache key (already fixed in iteration 4)
+- Full `swift package resolve` at the repo root — the checksum is `PLACEHOLDER` on develop, so
+    binary-target resolution would fail. Manifest parsing validation is the appropriate check
+- Changing the root `Package.swift` checksum or URL pattern
+- Adding a separate CI job for the root manifest — reuse the existing `swift` macOS-14 job
+- Modifying the release workflow
+- Validating that `releaseTag` matches `Cargo.toml` version — this is already handled by
+    `version_sync.py --check` in the Version Consistency CI job
 
 ## Implementation Notes
 
-The `build-xcframework` job currently checks out `ref: main` (line 1258) because it needs to:
+The existing `swift` CI job (lines 232-252) runs on `macos-14` and already has:
 
-1. Build the XCFramework from source
-2. Compute the checksum
-3. Commit the checksum update back to main (via git-auto-commit-action)
-4. Force-update the tag to include the checksum commit
+1. `actions/checkout@v4`
+2. `dtolnay/rust-toolchain@stable`
+3. `rust-cache`
+4. `cargo build -p iscc-uniffi`
+5. `swift build` (in `packages/swift/`)
+6. `swift test` (in `packages/swift/`)
 
-The race condition: if `main` moves after the tag is created (concurrent merge, hotfix), the
-XCFramework is built from different source than what was tagged.
-
-**Fix: Add a guard step immediately after checkout** that compares `github.sha` (the tag's commit
-SHA) with `HEAD` (main's current HEAD after checkout). If they differ, the job fails with a clear
-error message.
+**Add a new step** after checkout (early, before the expensive Rust build) that validates the root
+`Package.swift`:
 
 ```yaml
-  - name: Verify main matches tag
-    if: startsWith(github.ref, 'refs/tags/v')
-    run: |
-      TAG_SHA="${{ github.sha }}"
-      MAIN_SHA=$(git rev-parse HEAD)
-      if [ "$TAG_SHA" != "$MAIN_SHA" ]; then
-        echo "::error::main HEAD ($MAIN_SHA) differs from tag SHA ($TAG_SHA)."
-        echo "::error::This means main has moved since the tag was created."
-        echo "::error::Re-tag after main stabilizes, or re-trigger with workflow_dispatch."
-        exit 1
-      fi
+  - name: Validate root Package.swift manifest
+    run: swift package dump-package
 ```
 
-**Key design decisions:**
+No `working-directory` needed — the default is the repo root, which is exactly where the
+consumer-facing `Package.swift` lives.
 
-- **Conditional on tag trigger** (`if: startsWith(github.ref, 'refs/tags/v')`): For
-    `workflow_dispatch` re-triggers (e.g., `--ref main -f swift=true`), we intentionally use current
-    main — no guard needed
-- **Placed after checkout**: Must be after `actions/checkout@v4` so `git rev-parse HEAD` works
-- **Placed before cache/build steps**: Fails fast before expensive operations
-- **Uses `github.sha`**: On tag-triggered runs, this is the commit the tag points to — exactly what
-    we want to compare against
-- **Clear error messages**: Uses `::error::` annotations so the failure is obvious in the GHA UI
+**Why `dump-package`:**
 
-The guard step should go between the checkout step (line 1255-1258) and the rust-toolchain step
-(line 1259).
+- Parses the `Package.swift` and outputs its structure as JSON
+- Validates Swift syntax, target names, dependency references, platform requirements
+- Does NOT attempt to download binary targets (so PLACEHOLDER checksum is fine)
+- Fast (< 1 second) — no network, no compilation
+- Available on all macOS runners with Swift toolchain
+
+**Placement:** Insert after the `Swatinem/rust-cache@v2` step (line 238) and before the "Build
+UniFFI native library" step (line 239-240). The rust-toolchain and rust-cache steps are cheap and we
+want them available for subsequent steps regardless. This validates manifest structure early and
+fails fast without wasting time on Rust compilation.
+
+**Output verification:** The step succeeds (exit 0) if the manifest parses. It fails (exit 1) with a
+Swift error if there's a syntax or structural problem. The JSON output goes to stdout but doesn't
+need to be captured.
 
 ## Verification
 
-- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 (valid
-    YAML)
-- `grep -c 'Verify main matches tag' .github/workflows/release.yml` returns `1` (guard step exists)
-- `grep -A2 'Verify main matches tag' .github/workflows/release.yml | grep "startsWith(github.ref"`
-    confirms the step is conditional on tag triggers only
-- `grep -A10 'Verify main matches tag' .github/workflows/release.yml | grep 'github.sha'` confirms
-    the tag SHA comparison is present
-- `grep -A10 'Verify main matches tag' .github/workflows/release.yml | grep 'git rev-parse HEAD'`
-    confirms main HEAD is compared
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` exits 0 (valid YAML)
+- `grep -c 'dump-package' .github/workflows/ci.yml` returns `1` (new step exists)
+- `grep -B2 'dump-package' .github/workflows/ci.yml | grep -c 'working-directory'` returns `0` (runs
+    at repo root, not in a subdirectory)
+- `grep -B5 'dump-package' .github/workflows/ci.yml | grep 'Validate root'` confirms the step name
+    references the root manifest
+- The `dump-package` step appears BEFORE the "Build UniFFI native library" step in the `swift` job
+    (visual inspection of step ordering in the YAML)
 - `mise run format` produces no changes
 
 ## Done When
 
-All verification criteria pass — the `build-xcframework` job has a guard step that fails fast on
-tag-triggered releases if main HEAD has diverged from the tagged commit.
+All verification criteria pass — the `swift` CI job includes a manifest-parsing smoke test for the
+root `Package.swift` that runs before the expensive build steps.
