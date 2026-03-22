@@ -178,3 +178,10 @@ fully-met target sections to `learnings-archive.md`.
 - **Context growth**: learnings.md and agent memory files grow monotonically. No agent autonomously
     prunes. Manual cleanup required periodically. Archive completed-phase entries to prevent token
     bloat
+
+## Kotlin JAR Artifact Selection
+
+- Gradle `withSourcesJar()` + `withJavadocJar()` produces 3 JARs in `build/libs/`. When uploading
+    `*.jar` globs and then selecting with `ls | head -1`, alphabetical ordering picks `-javadoc.jar`
+    before the runtime JAR. Always filter out classifier JARs (`-sources`, `-javadoc`) when
+    selecting the runtime artifact

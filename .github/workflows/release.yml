@@ -1140,7 +1140,8 @@ jobs:
           path: kotlin-jar
       - name: Validate JAR contains all native libraries
         run: |
-          JAR=$(ls kotlin-jar/*.jar | head -1)
+          # Select the runtime JAR (exclude -sources and -javadoc classifier JARs)
+          JAR=$(ls kotlin-jar/*.jar | grep -v '\-sources\.jar$\|\-javadoc\.jar$' | head -1)
           echo "Inspecting JAR: $JAR"
           JAR_CONTENTS=$(jar tf "$JAR")
           EXPECTED_PATHS=(

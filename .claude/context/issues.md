@@ -25,15 +25,6 @@ force-updates the tag, but this creates a race window. Fix: on tag runs, check o
 `${{ github.sha }}` and commit the checksum update to a temporary ref, or add a guard that fails if
 `main` HEAD differs from the tag SHA.
 
-## Kotlin release smoke test does not validate assembled JAR `normal` [human]
-
-`release.yml:1079` — `test-kotlin-release` depends on `build-kotlin-native` (raw `.so`/`.dylib`
-files) but not `assemble-kotlin`. It runs Gradle tests from source with raw native libs on the
-library path, never consuming the assembled JAR. Resource-packaging mistakes (wrong JNA resource
-paths, missing platform libs in JAR) can ship undetected. Fix: make the smoke test depend on
-`assemble-kotlin`, download the built JAR, verify expected resource paths exist inside it (e.g.,
-`linux-x86-64/libiscc_uniffi.so`), and run a consumer-style load test against it.
-
 ## CI does not exercise root Package.swift `normal` [human]
 
 CI tests only `packages/swift/Package.swift` (the dev manifest). The root `Package.swift` that real

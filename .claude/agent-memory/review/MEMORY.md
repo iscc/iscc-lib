@@ -128,6 +128,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Kotlin Binding Review
 
+- **Gradle multi-JAR artifact**: `withSourcesJar()` + `withJavadocJar()` produce 3 JARs in
+    `build/libs/`. When selecting runtime JAR from glob, filter out `-sources.jar`/`-javadoc.jar` —
+    alphabetical `head -1` picks `-javadoc.jar` first
 - `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA
 - Generated `iscc_uniffi.kt` (~112KB, 3214 lines) — do NOT manually edit, regenerate via
     uniffi-bindgen. `@file:Suppress("NAME_SHADOWING")` is UniFFI boilerplate, not gate circumvention
