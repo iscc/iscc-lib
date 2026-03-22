@@ -33,6 +33,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Android target check**: `grep "android" .github/workflows/release.yml`
 - **Issue count**: `grep -c '^## .* \`\(critical\|normal\|low\)\`' .claude/context/issues.md\`
 - **Provenance guard check**: `grep -c 'Verify main matches tag' .github/workflows/release.yml`
+- **Benchmarks doc check**: `grep -i "speedup" docs/benchmarks.md | head -5`
 
 ## Codebase Landmarks
 
@@ -46,13 +47,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `scripts/build_xcframework.sh` — builds XCF for 5 Apple targets, lipo fat binaries, ditto zip
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
-- `.github/workflows/ci.yml` — **16 CI jobs**
+- `.github/workflows/ci.yml` — **16 CI jobs** (includes root Package.swift dump-package smoke test)
 - `.github/workflows/release.yml` — **9 registry inputs**: crates-io, pypi, npm, maven, ffi,
     rubygems, nuget, maven-kotlin, swift; **provenance guard** on build-xcframework
 - `crates/iscc-uniffi/` — UniFFI scaffolding: 32 exports, 21 tests; `publish = false`
 - `docs/howto/` — **11 files**: rust, python, nodejs, wasm, go, java, c-cpp, ruby, dotnet, swift,
     kotlin
-- `scripts/gen_llms_full.py` — **22 entries** in ORDERED_PAGES
+- `docs/benchmarks.md` — full speedup comparison (1.3x-158x), Criterion native results, methodology
+- `scripts/gen_llms_full.py` — **22 entries** in ORDERED_PAGES (includes benchmarks.md)
 - `scripts/version_sync.py` — **16 sync targets** (releaseTag added for Package.swift)
 - `crates/iscc-lib/benches/benchmarks.rs` — 12 benches in criterion_group!
 - `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
@@ -72,14 +74,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     diff for new entries, especially critical ones that change priorities.
 - **Review-filed issues**: Review agent can file issues (e.g., JNA ARM32 path mismatch). Check for
     `[review]` source tag and `HUMAN REVIEW REQUESTED` flag.
+- **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
+    existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: 77d5a6c)
+## Current State (assessed-at: e19aeae)
 
-- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23401713119)
-- **0 critical issues**
-- **1 normal issue**: root Package.swift CI (Swift ref:main race RESOLVED with provenance guard)
-- **1 low issue**: language logos in docs
-- **Remaining gaps**: benchmarks speedup docs (partially met), 1 normal issue
+- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23402159613)
+- **0 critical issues, 0 normal issues**
+- **1 low issue**: language logos in docs (CID skips)
+- **All target sections met** — all 12 bindings, docs, benchmarks, CI/CD complete
+- **Only blocker to DONE**: 1 low-priority open issue in issues.md
 
 ## Gotchas
 
@@ -98,6 +102,5 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     packages/swift for CI development. `releaseChecksum = "PLACEHOLDER"` until first release with
     swift input
 - **pytest-benchmark naming**: functions use `test_bench_*` prefix (not bare `bench_*`)
-- **GITHUB_REF_NAME fixed**: commit d29a1b3 derives version from Cargo.toml (was spec conflict)
 - **Kotlin JAR selection**: `ls *.jar | head -1` picks `-javadoc.jar` alphabetically; must `grep -v`
     classifier JARs first

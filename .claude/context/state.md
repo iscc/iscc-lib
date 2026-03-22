@@ -1,15 +1,15 @@
-<!-- assessed-at: 77d5a6c -->
+<!-- assessed-at: e19aeae -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Benchmark documentation gap + final hardening issue
+## Phase: Near-complete — 1 low-priority issue remaining
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23401713119). All 12 language
-bindings scaffolded, tested, and documented. Swift release provenance guard added (iteration 5-6),
-resolving the ref:main race condition. One normal-priority issue remains (root Package.swift CI),
-plus a benchmarks documentation gap and a low-priority cosmetic issue.
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23402159613). All 12 language
+bindings scaffolded, tested, and documented. All previously open normal/critical issues resolved.
+Benchmarks documentation with speedup factors is published. Only one low-priority cosmetic issue
+remains (language logos in docs), which CID is configured to skip.
 
 ## Rust Core Crate
 
@@ -104,9 +104,10 @@ plus a benchmarks documentation gap and a low-priority cosmetic issue.
 - XCFramework build script executable, valid shell, 5 Apple targets
 - Root `Package.swift` restructured: Ferrostar-style toggle, `releaseTag = "0.3.1"`
 - Release workflow: `swift` checkbox input (9th), `build-xcframework` job integrated
-- **Provenance guard added** (iteration 6): `build-xcframework` job now verifies main HEAD matches
-    tag SHA before building, blocking stale-main releases; `workflow_dispatch` path bypasses guard
+- **Provenance guard**: `build-xcframework` verifies main HEAD matches tag SHA
 - Version sync: `releaseTag` managed by `version_sync.py` (16th target, confirmed OK)
+- **Root manifest smoke test**: `swift package dump-package` step in CI validates consumer-facing
+    Package.swift parses correctly (added iteration 7)
 
 ## Kotlin Bindings
 
@@ -136,29 +137,31 @@ plus a benchmarks documentation gap and a low-priority cosmetic issue.
 
 ## Documentation
 
-**Status**: partially met
+**Status**: met
 
 - 22 pages in gen_llms_full.py ORDERED_PAGES; all navigation sections complete
 - 11 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
     ruby.md, dotnet.md, swift.md, kotlin.md
 - docs/index.md: 11 language tabs in Quick Start, Swift+Kotlin in Available Bindings table
+- docs/benchmarks.md: full speedup comparison table (1.3x to 158x), Criterion native results,
+    methodology, key findings, reproduction commands
 - **Gap** (low, CID skips): Language logos in docs howto headers
 
 ## Benchmarks
 
-**Status**: partially met
+**Status**: met
 
 - Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional (12 total in Rust)
 - Bench (compile check) CI job SUCCESS
 - pytest-benchmark: 18 functions (9 gen\_\*\_v0 x 2 — iscc-lib vs iscc-core)
-- **Missing**: Speedup factors not yet published in documentation
+- Speedup factors published in docs/benchmarks.md (1.3x to 158x across 10 functions)
 
 ## CI/CD and Publishing
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23401713119: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23401713119
+- **LATEST COMPLETED RUN** — run 23402159613: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23402159613
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries
@@ -166,21 +169,21 @@ plus a benchmarks documentation gap and a low-priority cosmetic issue.
     maven-kotlin, swift
 - XCFramework cache key expanded to include build script, Swift headers, and all Cargo.toml files
 - Swift release provenance guard: verifies main HEAD == tag SHA before XCF build
+- Root Package.swift smoke test: `dump-package` validates manifest in CI
 - version_sync.py manages 16 sync targets (all OK)
 
-## Open Issues (2 total — 0 critical, 1 normal, 1 low)
+## Open Issues (1 total — 0 critical, 0 normal, 1 low)
 
-1. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
-    consumer-facing root manifest never validated.
-2. **Language logos in docs** `low` — CID skips.
+1. **Language logos in docs** `low` — CID skips, human-directed only.
 
 ## Next Milestone
 
-All 12 bindings are complete and CI is green. The remaining gaps are:
+All 12 bindings are complete, CI is green (16/16), benchmarks are documented, and all
+normal/critical issues are resolved. The project is functionally complete per target.md criteria.
 
-1. **Publish speedup factors in documentation** (benchmarks gap) — most impactful actionable item.
-    Run the pytest-benchmark comparisons, compute speedup factors, and add them to the docs site
-    (e.g., a performance page or benchmark section).
-2. **Root Package.swift CI smoke test** (1 normal issue) — add a manifest-resolution check on the
-    macOS CI runner to validate the consumer-facing `Package.swift`.
-3. **Language logos in docs** (low) — CID skips, human-directed only.
+The only remaining item is the low-priority cosmetic issue (language logos in docs howto headers),
+which CID is configured to skip. This requires human direction to proceed.
+
+**Note:** Status remains IN_PROGRESS because 1 open issue exists in issues.md (even though it's low
+priority and CID-skipped). The human may choose to close it as won't-fix, address it interactively,
+or leave it — at which point the project can move to DONE.
