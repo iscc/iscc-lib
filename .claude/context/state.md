@@ -1,15 +1,15 @@
-<!-- assessed-at: f2a891760c0e25ce089cce4cbf3c1ee1d7dd8753 -->
+<!-- assessed-at: 77d5a6c -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Release workflow hardening + benchmark documentation gap
+## Phase: Benchmark documentation gap + final hardening issue
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23401141511). All 12 language
-bindings scaffolded, tested, and documented. XCFramework cache key issue resolved (iteration 5). Two
-normal-priority release workflow hardening issues remain, plus a benchmarks documentation gap and a
-low-priority cosmetic issue.
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23401713119). All 12 language
+bindings scaffolded, tested, and documented. Swift release provenance guard added (iteration 5-6),
+resolving the ref:main race condition. One normal-priority issue remains (root Package.swift CI),
+plus a benchmarks documentation gap and a low-priority cosmetic issue.
 
 ## Rust Core Crate
 
@@ -104,6 +104,8 @@ low-priority cosmetic issue.
 - XCFramework build script executable, valid shell, 5 Apple targets
 - Root `Package.swift` restructured: Ferrostar-style toggle, `releaseTag = "0.3.1"`
 - Release workflow: `swift` checkbox input (9th), `build-xcframework` job integrated
+- **Provenance guard added** (iteration 6): `build-xcframework` job now verifies main HEAD matches
+    tag SHA before building, blocking stale-main releases; `workflow_dispatch` path bypasses guard
 - Version sync: `releaseTag` managed by `version_sync.py` (16th target, confirmed OK)
 
 ## Kotlin Bindings
@@ -114,12 +116,7 @@ low-priority cosmetic issue.
 - 3214-line UniFFI-generated bindings, conformance tests (9 methods, 50 vectors)
 - Version sync, CI job, docs, release workflow all complete
 - Release workflow builds **9 targets**: 5 desktop/server + 4 Android ABIs
-    - Desktop: linux-x86-64, linux-aarch64, darwin-aarch64, darwin-x86-64, win32-x86-64
-    - Android: android-aarch64 (arm64-v8a), android-arm (armeabi-v7a), android-x86-64 (x86_64),
-        android-x86 (x86)
-- Uses `cargo-ndk` with NDK r27c for Android builds
-- JNA ARM32 resource path fix verified: `android-arm` in release.yml, no `android-armv7` remnants
-- JAR smoke test added: validates runtime JAR contains all 9 native library paths via `jar tf`
+- JAR smoke test validates runtime JAR contains all 9 native library paths
 
 ## README
 
@@ -160,29 +157,30 @@ low-priority cosmetic issue.
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23401141511: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23401141511
+- **LATEST COMPLETED RUN** — run 23401713119: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23401713119
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries
 - Release workflow has 9 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift
 - XCFramework cache key expanded to include build script, Swift headers, and all Cargo.toml files
+- Swift release provenance guard: verifies main HEAD == tag SHA before XCF build
 - version_sync.py manages 16 sync targets (all OK)
 
-## Open Issues (3 total — 0 critical, 2 normal, 1 low)
+## Open Issues (2 total — 0 critical, 1 normal, 1 low)
 
-1. **Swift release job checks out `ref: main` instead of tag SHA** `normal` — race window if main
-    moves after tag creation.
-2. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
+1. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
     consumer-facing root manifest never validated.
-3. **Language logos in docs** `low` — CID skips.
+2. **Language logos in docs** `low` — CID skips.
 
 ## Next Milestone
 
 All 12 bindings are complete and CI is green. The remaining gaps are:
 
-1. **Publish speedup factors in documentation** (benchmarks gap) — most impactful actionable item
-    since both normal issues are release workflow hardening that is architecturally complex.
-2. **Release workflow hardening** (2 normal issues) — Swift ref:main race, root Package.swift CI.
+1. **Publish speedup factors in documentation** (benchmarks gap) — most impactful actionable item.
+    Run the pytest-benchmark comparisons, compute speedup factors, and add them to the docs site
+    (e.g., a performance page or benchmark section).
+2. **Root Package.swift CI smoke test** (1 normal issue) — add a manifest-resolution check on the
+    macOS CI runner to validate the consumer-facing `Package.swift`.
 3. **Language logos in docs** (low) — CID skips, human-directed only.

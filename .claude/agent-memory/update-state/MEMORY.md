@@ -32,6 +32,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Kotlin native targets**: `grep -A 20 "build-kotlin-native:" .github/workflows/release.yml`
 - **Android target check**: `grep "android" .github/workflows/release.yml`
 - **Issue count**: `grep -c '^## .* \`\(critical\|normal\|low\)\`' .claude/context/issues.md\`
+- **Provenance guard check**: `grep -c 'Verify main matches tag' .github/workflows/release.yml`
 
 ## Codebase Landmarks
 
@@ -47,7 +48,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
 - `.github/workflows/ci.yml` — **16 CI jobs**
 - `.github/workflows/release.yml` — **9 registry inputs**: crates-io, pypi, npm, maven, ffi,
-    rubygems, nuget, maven-kotlin, swift
+    rubygems, nuget, maven-kotlin, swift; **provenance guard** on build-xcframework
 - `crates/iscc-uniffi/` — UniFFI scaffolding: 32 exports, 21 tests; `publish = false`
 - `docs/howto/` — **11 files**: rust, python, nodejs, wasm, go, java, c-cpp, ruby, dotnet, swift,
     kotlin
@@ -72,14 +73,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Review-filed issues**: Review agent can file issues (e.g., JNA ARM32 path mismatch). Check for
     `[review]` source tag and `HUMAN REVIEW REQUESTED` flag.
 
-## Current State (assessed-at: f2a8917)
+## Current State (assessed-at: 77d5a6c)
 
-- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23401141511)
+- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23401713119)
 - **0 critical issues**
-- **2 normal issues**: Swift ref:main race, root Package.swift CI
+- **1 normal issue**: root Package.swift CI (Swift ref:main race RESOLVED with provenance guard)
 - **1 low issue**: language logos in docs
-- **XCF cache key resolved** (iteration 5): expanded to 6 globs including build script + headers
-- **Remaining gaps**: benchmarks speedup docs, release workflow hardening (2 normal issues)
+- **Remaining gaps**: benchmarks speedup docs (partially met), 1 normal issue
 
 ## Gotchas
 
