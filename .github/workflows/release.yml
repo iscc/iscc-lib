@@ -1194,8 +1194,10 @@ jobs:
         if: steps.xcf-cache.outputs.cache-hit != 'true'
         run: ./scripts/build_xcframework.sh --release
       - name: Update Package.swift checksum
+        id: swift-version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           CHECKSUM=$(swift package compute-checksum target/ios/IsccLib.xcframework.zip)
           sed -E -i '' \
             "s/(let releaseTag = \")[^\"]+/\1$VERSION/" Package.swift
@@ -1206,10 +1208,10 @@ jobs:
           commit_message: 'chore: update Swift XCFramework checksum'
       - name: Force-update tag
         run: |
-          git tag -fa ${{ github.ref_name }} -m "Swift Package checksum"
-          git push origin ${{ github.ref_name }} --force
+          git tag -fa "v${{ steps.swift-version.outputs.version }}" -m "Swift Package checksum"
+          git push origin "v${{ steps.swift-version.outputs.version }}" --force
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: v${{ steps.swift-version.outputs.version }}
           files: target/ios/IsccLib.xcframework.zip
