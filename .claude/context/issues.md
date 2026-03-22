@@ -7,16 +7,6 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Swift release job checks out `ref: main` instead of tag SHA `normal` [human]
-
-`release.yml:1181` — the `build-xcframework` job always checks out `ref: main`, even on
-tag-triggered releases. If `main` has moved since the tag (concurrent merge, hotfix), the
-XCFramework is built from different source than what was tagged, breaking source/binary provenance.
-The `ref: main` is needed because the job commits the computed checksum back to main and
-force-updates the tag, but this creates a race window. Fix: on tag runs, check out
-`${{ github.sha }}` and commit the checksum update to a temporary ref, or add a guard that fails if
-`main` HEAD differs from the tag SHA.
-
 ## CI does not exercise root Package.swift `normal` [human]
 
 CI tests only `packages/swift/Package.swift` (the dev manifest). The root `Package.swift` that real

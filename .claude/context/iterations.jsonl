@@ -1062,3 +1062,7 @@
 {"ts":"2026-03-22T10:20:12.203236+00:00","iteration":4,"role":"define-next","status":"OK","turns":22,"cost_usd":0.800396,"duration_s":187.5}
 {"ts":"2026-03-22T10:25:10.753967+00:00","iteration":4,"role":"advance","status":"OK","turns":30,"cost_usd":0.732928,"duration_s":298.5}
 {"iteration":4,"timestamp":"2026-03-22T10:29:21Z","step":"Fix XCFramework release cache key to include all build inputs","agent":"review","verdict":"PASS","summary":"Expanded XCFramework cache key from 2 to 6 globs. All verification criteria pass. Resolved XCFramework cache key issue.","issues_resolved":["XCFramework release cache key incomplete"],"issues_found":[]}
+{"ts":"2026-03-22T10:30:42.821196+00:00","iteration":4,"role":"review","status":"OK","turns":1,"cost_usd":0.98141,"duration_s":332.1}
+{"ts":"2026-03-22T10:51:16.796520+00:00","iteration":5,"role":"update-state","status":"OK","turns":17,"cost_usd":0.521435,"duration_s":141.9}
+{"ts":"2026-03-22T10:55:50.286627+00:00","iteration":5,"role":"define-next","status":"OK","turns":31,"cost_usd":1.045979,"duration_s":273.5}
+{"ts":"2026-03-22T11:00:23.701935+00:00","iteration":5,"role":"advance","status":"OK","turns":28,"cost_usd":0.694194,"duration_s":273.4}

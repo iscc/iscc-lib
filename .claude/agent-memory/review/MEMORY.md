@@ -82,7 +82,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     pipeline, version sync, docs. C# issue resolved and deleted from issues.md
 - Swift bindings: XCFramework deliverables complete (iteration 4) — build script, Package.swift,
     release workflow, version sync (16th target), docs. GITHUB_REF_NAME bug fixed (d29a1b3).
-    Remaining Swift issues: `ref: main` checkout race, XCFramework cache key incomplete
+    Provenance guard added (iteration 5). XCF cache key fixed (iteration 4). Remaining: root
+    Package.swift CI smoke test (normal issue)
 - **JNA Android ARM32 resource path**: JNA canonicalizes ARM32 arch to `arm` (not `armv7`). Correct
     prefix is `android-arm/`, not `android-armv7/`. Verified via bytecode decompilation. Filed as
     spec issue with HUMAN REVIEW REQUESTED
