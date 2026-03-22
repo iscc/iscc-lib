@@ -1,37 +1,24 @@
-## 2026-03-22 — Review of: Add root Package.swift manifest smoke test to CI
+## 2026-03-22 — IDLE — No actionable work remaining
 
-**Verdict:** PASS
+**Done:** No implementation performed. The next.md work package is IDLE — all target.md sections are
+verified as "met" by the state agent. All 12 bindings are complete, CI is green (16/16 jobs), all
+normal/critical issues resolved, benchmarks documented, and documentation complete. Only one
+low-priority cosmetic issue remains (language logos in docs), which CID is configured to skip.
 
-**Summary:** The advance agent added exactly 2 lines to ci.yml — a `swift package dump-package` step
-in the `swift` job that validates the root `Package.swift` manifest parses correctly. The change is
-minimal, correctly placed (after rust-cache, before the expensive UniFFI build), and all 6
-verification criteria pass. The resolved "CI does not exercise root Package.swift" issue has been
-deleted from issues.md.
+**Files changed:**
 
-**Verification:**
+- (none — no implementation work)
 
-- [x] `yaml.safe_load` exits 0 — valid YAML confirmed
-- [x] `grep -c 'dump-package'` returns 1 — step exists exactly once
-- [x] `grep -B2 'dump-package' | grep -c 'working-directory'` returns 0 — runs at repo root
-- [x] `grep -B5 'dump-package' | grep 'Validate root'` — step name confirmed
-- [x] `dump-package` step (line 240) appears BEFORE "Build UniFFI native library" (line 241)
-- [x] `mise run format` — no changes (clean)
+**Verification:** N/A — no code changes to verify. Project state confirmed: all sections in state.md
+show "met" status.
 
-**Issues found:**
+**Next:** The CID loop should stop. To resume development, either:
 
-- (none)
+- Promote the `low` logos issue to `normal` priority in issues.md
+- Add new target criteria to target.md
+- File new `normal` or `critical` issues in issues.md
+- Or address the logos issue interactively outside the CID loop
 
-**Codex review:** One P2 finding: `dump-package` doesn't validate the remote XCFramework
-URL/checksum. This is by design — the work package explicitly scoped this as `dump-package` (not
-`swift package resolve`) because the root manifest has a PLACEHOLDER checksum on develop. Binary
-target resolution would fail. The release workflow patches the checksum at publish time. This is the
-correct level of validation for the develop branch. Finding dismissed.
-
-**Next:** Only one low-priority issue remains (docs language logos), which CID skips. The benchmarks
-documentation gap (state.md: "partially met" — speedup factors not published) is the last actionable
-gap for CID. The next step should run the pytest-benchmark comparisons, compute speedup factors, and
-publish them to the docs site.
-
-**Notes:** All 12 bindings complete, all CI green, all issues resolved except the low cosmetic one.
-The project is approaching full completion — only the benchmarks docs gap prevents Documentation and
-Benchmarks from reaching "met" status.
+**Notes:** This is a clean idle state. The advance agent correctly identifies there is no work to
+perform. The project is functionally complete per target.md criteria (v0.3.1 released across all 9
+registries). The review agent should confirm IDLE and signal the CID loop to terminate.
