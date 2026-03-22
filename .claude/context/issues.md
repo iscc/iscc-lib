@@ -7,14 +7,6 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## XCFramework release cache key incomplete `normal` [human]
-
-`release.yml:1192` — the XCFramework build cache key only hashes `crates/iscc-*/src/**` and
-`Cargo.lock`. Changes to `scripts/build_xcframework.sh`, the Swift headers/modulemap under
-`packages/swift/Sources/iscc_uniffiFFI/`, or Cargo.toml feature flags will not invalidate the cache.
-This can cause the release job to skip rebuilding and publish a stale XCFramework zip. Fix: expand
-the cache key to include all packaging inputs, or remove caching from the release path entirely.
-
 ## Swift release job checks out `ref: main` instead of tag SHA `normal` [human]
 
 `release.yml:1181` — the `build-xcframework` job always checks out `ref: main`, even on

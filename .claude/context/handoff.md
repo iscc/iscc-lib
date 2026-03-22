@@ -1,31 +1,35 @@
-## 2026-03-22 — Fix XCFramework release cache key to include all build inputs
+## 2026-03-22 — Review of: Fix XCFramework release cache key to include all build inputs
 
-**Done:** Expanded the XCFramework build cache key in `release.yml` to include all files that affect
-the output binary — build script, Swift FFI headers/modulemap, per-crate Cargo.toml files, and root
-Cargo.toml. This prevents stale XCFramework artifacts from being published when these inputs change.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.github/workflows/release.yml`: Expanded `hashFiles()` in the `xcf-cache` key (line ~1269) from 2
-    globs to 6, adding `crates/iscc-*/Cargo.toml`, `Cargo.toml`, `scripts/build_xcframework.sh`, and
-    `packages/swift/Sources/iscc_uniffiFFI/**`
+**Summary:** The advance agent correctly expanded the XCFramework build cache key in `release.yml`
+from 2 globs to 6, adding per-crate Cargo.toml files, root Cargo.toml, build script, and Swift FFI
+headers. The change is minimal (2-line diff in the YAML), correctly scoped, and all verification
+criteria pass. yamlfix reformatted the multi-line `hashFiles()` into its preferred compact format.
 
 **Verification:**
 
-- YAML validation exits 0 (valid YAML confirmed via `yaml.safe_load`)
-- `grep -A5 'xcf-cache' | grep 'build_xcframework.sh'` — PASS
-- `grep -A5 'xcf-cache' | grep 'iscc_uniffiFFI'` — PASS
-- `grep -A5 'xcf-cache' | grep 'Cargo.toml'` — PASS (both root and per-crate globs present)
-- `mise run format` — no changes (yamlfix already applied its preferred formatting)
-- `mise run check` — all 15 pre-commit hooks pass
+- [x] `yaml.safe_load` exits 0 — valid YAML confirmed
+- [x] `grep -A5 'xcf-cache' | grep 'build_xcframework.sh'` — build script found in cache key
+- [x] `grep -A5 'xcf-cache' | grep 'iscc_uniffiFFI'` — Swift headers found in cache key
+- [x] `grep -A5 'xcf-cache' | grep 'Cargo.toml'` — both root and per-crate globs present
+- [x] `mise run format` — no changes
+- [x] `mise run check` — all 15 pre-commit hooks pass
 
-**Next:** Two normal-priority release workflow issues remain: (1) Swift `ref: main` race condition
-(the `build-xcframework` job uses `GITHUB_REF_NAME` for version/tag instead of deriving from
-`Cargo.toml`), and (2) root `Package.swift` CI smoke test. There's also the benchmarks documentation
-gap (low priority). The Swift `ref:main` race condition is likely the most impactful remaining
-issue.
+**Issues found:**
 
-**Notes:** yamlfix reformatted the multi-line `hashFiles()` call into a more compact 3-line format
-(vs the 7-line format suggested in next.md). The content is identical — just different line
-wrapping. This is fine since yamlfix is the authoritative formatter. No code changes needed beyond
-the single YAML file edit — this was a pure CI configuration fix with no tests to write.
+- (none)
+
+**Codex review:** No issues found. Codex confirmed the change is syntactically and functionally
+consistent with the surrounding release job.
+
+**Next:** Two normal-priority release workflow issues remain: (1) Swift `ref: main` race condition,
+(2) root `Package.swift` CI smoke test. The `ref: main` race is more impactful — it can cause
+provenance mismatch between tagged source and built binary. However, it's also architecturally
+complex (requires rethinking the checksum-commit-back flow). The root `Package.swift` smoke test is
+simpler but lower impact. There's also a benchmarks documentation gap (publishing speedup factors).
+The define-next agent should weigh complexity vs impact.
+
+**Notes:** XCFramework cache key issue resolved and deleted from issues.md. Remaining: 2 normal + 1
+low issues. All are release workflow hardening or cosmetic — no blocking issues for core
+functionality.
