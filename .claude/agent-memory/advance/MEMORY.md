@@ -50,10 +50,10 @@ iterations.
 - `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Builds XCFramework →
     checksum → `sed` updates Package.swift → auto-commit → force-update tag → upload to GH Release.
     Uses macOS BSD `sed -E -i ''` (not GNU). Dual cache: `Swatinem/rust-cache` + `actions/cache`
-- Kotlin Maven Central: `build-kotlin-native` (5-platform matrix) → `assemble-kotlin` +
-    `test-kotlin-release` → `publish-maven-kotlin`. Publish uses Gradle `maven-publish` to local
-    staging dir + curl bundle upload to Sonatype Central Portal REST API. Signing via
-    `useInMemoryPgpKeys` (env vars `SIGNING_KEY`/`SIGNING_PASSWORD`)
+- Kotlin Maven Central: `build-kotlin-native` (9-platform matrix: 5 desktop + 4 Android) →
+    `assemble-kotlin` + `test-kotlin-release` → `publish-maven-kotlin`. Android uses `cargo-ndk` +
+    `nttld/setup-ndk@v1` (r27c). Publish uses Gradle `maven-publish` to local staging dir + curl
+    bundle upload to Sonatype Central Portal REST API. Signing via `useInMemoryPgpKeys`
 
 ## WASM/WASI
 
@@ -192,8 +192,9 @@ iterations.
     `io.iscc:iscc-lib-kotlin`. Staging repo at `build/staging-deploy/`. Central Portal bundle upload
     via curl (`https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC`)
 - JNA resource paths for bundled native libs: `linux-x86-64`, `linux-aarch64`, `darwin-aarch64`,
-    `darwin-x86-64`, `win32-x86-64` (matches JNA `Platform.RESOURCE_PREFIX`). JNA discovers libs
-    from classpath even when `jna.library.path` points to a missing directory
+    `darwin-x86-64`, `win32-x86-64`, `android-aarch64`, `android-armv7`, `android-x86-64`,
+    `android-x86`. JNA discovers libs from classpath even when `jna.library.path` points to missing
+    dir
 
 ## Python Benchmarks — see MEMORY-archive.md for details
 
