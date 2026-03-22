@@ -44,11 +44,6 @@ iterations.
 - Constants are getter functions (UniFFI can't export `const`)
 - **SPM module name MUST match generated code**: `iscc_uniffiFFI`
 
-## Swift XCFramework — COMPLETE except release pipeline issues
-
-All implementation done. GITHUB_REF_NAME bug fixed (d29a1b3). Remaining: 4 normal release pipeline
-issues (cache key, ref:main race, JAR smoke test, root Package.swift CI).
-
 ## Dev Environment Constraints
 
 - **No Swift toolchain** in Linux devcontainer — `swift test` can only run on macOS (CI)
@@ -63,24 +58,12 @@ issues (cache key, ref:main race, JAR smoke test, root Package.swift CI).
     `packages/swift/Tests/IsccLibTests/data.json`, and
     `packages/kotlin/src/test/resources/data.json` (all identical). Must be updated together.
 
-## Kotlin Android Cross-Compilation — NDK done, ARM32 path FIXED
-
-- Android NDK cross-compilation added to release workflow (4 ABIs + 5 desktop = 9 targets)
-- 4 Android ABIs: arm64-v8a, armeabi-v7a, x86_64, x86
-- Rust targets: aarch64-linux-android, armv7-linux-androideabi, x86_64-linux-android,
-    i686-linux-android
-- **Correct JNA resource paths**: android-aarch64/, **android-arm/** (NOT android-armv7!),
-    android-x86-64/, android-x86/
-- JNA 5.16.0 canonicalizes ARM32 arch: `if (arch.startsWith("arm")) arch = "arm"` → `android-arm`
-- `assemble-kotlin` and `publish-maven-kotlin` already use wildcard `kotlin-native-*` pattern
-- `cargo ndk` outputs to `target/<rust-triple>/release/` — same path as desktop builds
-- Remaining after ARM32 fix: docs/howto/kotlin.md Android install instructions
-
 ## CI/Release Patterns
 
 - v0.3.1 released to all registries
 - Release workflow has `workflow_dispatch` with 9 per-registry checkboxes
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
+- XCFramework cache key at release.yml:1269 — must hash ALL build inputs (see issue)
 
 ## Docs Infrastructure
 
@@ -106,10 +89,11 @@ issues (cache key, ref:main race, JAR smoke test, root Package.swift CI).
 - Swift: `genTextCodeV0(text: "text", bits: 64)` — camelCase free functions, named params
 - Kotlin: `genTextCodeV0(text = "text", bits = 64u)` — camelCase free functions, UInt params
 
-## Remaining Target Gaps (after ARM32 fix)
+## Remaining Target Gaps (after JAR smoke test)
 
-- Kotlin: Android install docs in howto/kotlin.md
 - ~~Benchmarks: Speedup factors not published~~ — STALE, already in docs/benchmarks.md with full
     speedup table (1.3×–158×), in nav, builds correctly
 - Docs: Language logos (low priority, CID skips)
-- Release pipeline: 4 normal issues (cache key, ref:main, JAR smoke test, root Package.swift)
+- Release pipeline: 3 normal issues (cache key, ref:main race, root Package.swift CI)
+    - JAR smoke test: RESOLVED (iteration 3)
+    - Cache key: SCOPED for iteration 4

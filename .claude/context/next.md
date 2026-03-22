@@ -1,82 +1,81 @@
 # Next Work Package
 
-## Step: Validate assembled JAR in Kotlin release smoke test
+## Step: Fix XCFramework release cache key to include all build inputs
 
 ## Goal
 
-Make the `test-kotlin-release` job in `release.yml` depend on `assemble-kotlin` and validate that
-the assembled JAR contains native libraries for all 9 expected JNA resource paths. This catches
-resource-packaging mistakes (wrong directory names, missing platform libs) before publishing — the
-kind of bug the ARM32 path mismatch (`android-armv7` → `android-arm`) exemplified.
+Expand the XCFramework build cache key in `release.yml` to include all files that affect the output
+binary — preventing stale XCFramework artifacts from being published when build scripts, headers, or
+UniFFI scaffolding change. Addresses the "XCFramework release cache key incomplete" normal issue.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/release.yml` (the `test-kotlin-release` job)
-- **Reference**:
-    - `.github/workflows/release.yml` lines 991–1135 (build-kotlin-native matrix, assemble-kotlin,
-        test-kotlin-release)
-    - `.claude/context/issues.md` (the "Kotlin release smoke test does not validate assembled JAR"
-        issue)
+- **Modify**: `.github/workflows/release.yml` (line ~1269, the `key:` field of the XCFramework cache
+    step)
+- **Reference**: `scripts/build_xcframework.sh`, `packages/swift/Sources/iscc_uniffiFFI/`,
+    `.claude/context/issues.md`
 
 ## Not In Scope
 
-- Changing the `assemble-kotlin` job itself — it works correctly
-- Adding a consumer-project integration test (running Java/Kotlin against the JAR classpath) — too
-    complex for this step
-- Fixing the other 3 normal release workflow issues (XCFramework cache key, Swift ref:main, root
-    Package.swift CI)
-- Removing the existing Gradle source-level test — keep it for functional validation alongside the
-    new structural check
+- Fixing the Swift `ref: main` race condition (separate issue, more complex architectural change)
+- Adding a root `Package.swift` CI smoke test (separate issue)
+- Changing the caching strategy (e.g., removing caching entirely) — just expand the key
+- Modifying the build script itself or any non-cache-key parts of the workflow
 
 ## Implementation Notes
 
-The `test-kotlin-release` job currently depends only on `build-kotlin-native` and tests with a
-manually-placed raw native library for linux-x86-64 only. It never validates the actual assembled
-JAR that gets published.
+The current cache key at line 1269 is:
 
-**Changes to `test-kotlin-release`:**
+```yaml
+key: xcf-${{ hashFiles('crates/iscc-*/src/**', 'Cargo.lock') }}
+```
 
-1. **Change `needs`** from `[build-kotlin-native]` to `[build-kotlin-native, assemble-kotlin]`
-2. **Add JAR content validation steps** after the existing Gradle test:
-    - Download the `kotlin-jar` artifact (uploaded by `assemble-kotlin`)
-    - Use `jar tf` or `unzip -l` to list JAR contents
-    - Verify all 9 expected native library resource paths are present:
-        - `linux-x86-64/libiscc_uniffi.so`
-        - `linux-aarch64/libiscc_uniffi.so`
-        - `darwin-aarch64/libiscc_uniffi.dylib`
-        - `darwin-x86-64/libiscc_uniffi.dylib`
-        - `win32-x86-64/iscc_uniffi.dll`
-        - `android-aarch64/libiscc_uniffi.so`
-        - `android-arm/libiscc_uniffi.so`
-        - `android-x86-64/libiscc_uniffi.so`
-        - `android-x86/libiscc_uniffi.so`
-    - Fail the job if any expected path is missing
+This misses several inputs that affect the XCFramework output:
 
-The validation script should be a straightforward shell loop that checks
-`jar tf $JAR | grep "$path"` for each expected path, collecting any missing paths and failing with a
-clear error message listing what's absent.
+1. **`scripts/build_xcframework.sh`** — changes to the build process (targets, flags, lipo
+    configuration, zip method) produce different binaries
+2. **`packages/swift/Sources/iscc_uniffiFFI/iscc_uniffiFFI.h`** and **`module.modulemap`** — these
+    headers are copied into the XCFramework; stale headers cause compile failures for consumers
+3. **`crates/iscc-uniffi/src/**`** — the UniFFI scaffolding crate source that generates the Swift
+    bindings (already covered by `crates/iscc-*/src/**` glob since `iscc-*` matches `iscc-uniffi`)
+4. **Root `Cargo.toml`** and per-crate **`Cargo.toml`** files — workspace dependency versions and
+    feature flag changes affect compilation
 
-**Note:** The publish job (`publish-maven-kotlin`) already depends on both `assemble-kotlin` and
-`test-kotlin-release`, so adding `assemble-kotlin` to the test's `needs` doesn't change the overall
-dependency graph for publishing — it just ensures the test runs after assembly completes.
+The fix: expand the `hashFiles()` call to explicitly include these paths. Use a multi-line format
+for readability:
+
+```yaml
+key: xcf-${{ hashFiles(
+  'crates/iscc-*/src/**',
+  'crates/iscc-*/Cargo.toml',
+  'Cargo.lock',
+  'Cargo.toml',
+  'scripts/build_xcframework.sh',
+  'packages/swift/Sources/iscc_uniffiFFI/**'
+) }}
+```
+
+**Important YAML formatting note**: `hashFiles()` accepts multiple glob arguments as a single
+function call. Keep the YAML valid — test with a YAML parser after editing.
+
+Verify that `crates/iscc-*/src/**` already matches `crates/iscc-uniffi/src/` (it does, since the
+glob `iscc-*` matches `iscc-uniffi`).
 
 ## Verification
 
-- `python -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 (valid
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 (valid
     YAML)
-- `grep -A2 'test-kotlin-release' .github/workflows/release.yml | grep 'assemble-kotlin'` finds a
-    match (dependency added)
-- `grep 'kotlin-jar' .github/workflows/release.yml` returns at least 2 matches (upload in
-    assemble-kotlin + download in test-kotlin-release)
-- `grep -c 'android-arm/' .github/workflows/release.yml` returns at least 2 (build matrix +
-    validation)
-- `grep 'jar tf\|unzip -l' .github/workflows/release.yml` finds the JAR inspection command
+- `grep -A5 'xcf-cache' .github/workflows/release.yml | grep 'build_xcframework.sh'` finds the build
+    script in the cache key
+- `grep -A5 'xcf-cache' .github/workflows/release.yml | grep 'iscc_uniffiFFI'` finds the headers in
+    the cache key
+- `grep -A5 'xcf-cache' .github/workflows/release.yml | grep 'Cargo.toml'` finds Cargo.toml in the
+    cache key (beyond just Cargo.lock)
 - `mise run format` produces no changes
-- `mise run check` passes all pre-commit hooks
+- `mise run check` passes (all pre-commit hooks)
 
 ## Done When
 
-All verification criteria pass, confirming that `test-kotlin-release` structurally validates the
-assembled JAR's native library resource paths for all 9 platforms before the publish job can
-proceed.
+All verification criteria pass — the XCFramework cache key includes build script, Swift headers,
+Cargo.toml files, and all crate sources, ensuring cache invalidation on any input change.
