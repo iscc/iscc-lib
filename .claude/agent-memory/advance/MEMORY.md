@@ -18,6 +18,9 @@ iterations.
 - Ruby: `crates/iscc-rb/` — src/lib.rs (Magnus bridge), lib/iscc_lib.rb (Ruby wrapper + Result
     classes), lib/iscc_lib/version.rb, extconf.rb, Rakefile, Gemfile, iscc-lib.gemspec,
     test/test_smoke.rb. Cargo lib name `iscc_rb` (not `iscc_lib` — matches package name for rb_sys)
+- UniFFI: `crates/iscc-uniffi/` — src/lib.rs (proc macro interface for Swift/Kotlin). 32 Tier 1
+    symbols, 11 result Records, IsccUniError enum, DataHasher/InstanceHasher Objects. Uses
+    `uniffi::setup_scaffolding!()`, no UDL or build.rs. `publish = false`
 - Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go,
     xxh32.go, code_content_text.go, code_meta.go, code_data.go, code_instance.go,
     code_content_image.go, code_content_audio.go, code_content_video.go, code_content_mixed.go,
@@ -27,9 +30,10 @@ iterations.
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
-- CI workflow at `.github/workflows/ci.yml` has 13 jobs: version-check, rust, python-test, python,
-    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, bench. The `bench` job runs
-    `cargo bench --no-run` (compile-only). The `cpp` job builds FFI + cmake with ASAN
+- CI workflow at `.github/workflows/ci.yml` has 16 jobs: version-check, rust, python-test, python,
+    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench. `bench` runs
+    `cargo bench --no-run` (compile-only). `swift` runs on `macos-14` (Apple Silicon). `kotlin` runs
+    on `ubuntu-latest` with JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
 - Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
     param (not step-level), bundler-cache auto-installs gems
 - `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
@@ -37,25 +41,25 @@ iterations.
 - `version-check` job: lightweight (checkout + setup-python only), runs
     `python scripts/version_sync.py --check` to catch manifest version drift
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
-- Version sync: `scripts/version_sync.py` — `--check` mode exits 1 on mismatch
+- Version sync: `scripts/version_sync.py` — 16 targets (incl. Swift Constants, Package.swift
+    releaseTag, Kotlin). `--check` mode exits 1 on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
-- Release workflow (`release.yml`): 7 registry inputs (crates-io, pypi, npm, maven, ffi, rubygems,
-    nuget). Pattern: boolean input → build job → **smoke test job** → publish job (version-exists
-    skip). 7 smoke test jobs gate publish. NuGet reuses `build-ffi` artifacts (shared `if` condition
-    `inputs.ffi || inputs.nuget`), then `pack-nuget` → `test-nuget` → `publish-nuget`. NuGet uses
-    `NUGET_API_KEY` secret (not OIDC). Ruby uses `GEM_HOST_API_KEY` for auth (not OIDC)
+- Release workflow (`release.yml`): 9 inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift). Pattern: boolean input → build job → **smoke test job** → publish job
+    (version-exists skip). NuGet uses `NUGET_API_KEY` secret (not OIDC). Ruby uses OIDC
+- `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Has provenance guard
+    (tag-only) that fails if main HEAD != tag SHA. Builds XCFramework → checksum → `sed` updates
+    Package.swift → auto-commit → force-update tag → upload to GH Release. Uses macOS BSD
+    `sed -E -i ''` (not GNU). Dual cache: `Swatinem/rust-cache` + `actions/cache`. XCF cache key
+    includes: crate sources, crate Cargo.tomls, Cargo.lock, root Cargo.toml, build script, Swift FFI
+    headers
+- Kotlin Maven Central: `build-kotlin-native` (9-platform matrix) → `assemble-kotlin` +
+    `test-kotlin-release` (validates JAR has all 9 JNA native lib paths) → `publish-maven-kotlin`.
+    Publish uses Gradle `maven-publish` + curl bundle upload to Sonatype Central Portal REST API
 
 ## WASM/WASI
 
-- `iscc-wasm` has `[features] conformance = []` — gates `conformance_selftest` WASM export. Release
-    build uses `--features conformance` so smoke test can call `conformance_selftest()`
 - wasm-pack `--features` must go AFTER the path, NOT after `--`
-
-## Go Pure Go (Summary)
-
-- Pure Go in `packages/go/` — all 10 gen functions + codec + algorithms. Zero WASM deps
-- 156 Go tests total. CI: 4 steps (checkout, setup-go, test, vet) — no Rust deps
-- Conformance: `//go:embed testdata/data.json`, `parseConformanceData()` with two-pass parsing
 
 ## gen_sum_code_v0
 
@@ -64,18 +68,6 @@ iterations.
 - `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring, not field
     access. `MainType` is `pub(crate)`, not accessible from test modules
 - All 32 Tier 1 symbols implemented. All 7 bindings implement `gen_sum_code_v0`
-
-## Benchmarks
-
-- `crates/iscc-lib/benches/benchmarks.rs` — all 10 `gen_*_v0` + DataHasher streaming + CDC chunks
-- `bench_sum_code` uses `tempfile::NamedTempFile` since `gen_sum_code_v0` takes `&Path` (not
-    `&[u8]`)
-- `tempfile` is a dev-dependency only (workspace dep `tempfile = "3"`)
-
-## Codec Internals
-
-- `decode_header` and `decode_varnibble_from_bytes` operate directly on `&[u8]` with bitwise
-    extraction — no intermediate `Vec<bool>`. `get_bit`/`extract_bits` helpers (MSB-first)
 
 ## Streaming
 
@@ -96,30 +88,26 @@ iterations.
 ## Documentation
 
 - Tabbed syntax: `=== "Language"` with 4-space indent, blank line before code block
-- Tab order: tutorial (Python, Rust, Node.js, Java, Go, WASM), landing (Rust, Python, ...)
+- Landing page tab order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
 - mdformat reformats JS imports to multi-line style — run format before commit
 - `docs/architecture.md` and `docs/development.md` share identical trees — keep in sync
 - All 5 Reference pages complete: Rust API, Python API, C FFI, Java API, Ruby API
 
-## Binding Constant Export Patterns
+## Binding Constant Export Patterns — see MEMORY-archive.md for per-binding details
 
-- NAPI: `#[napi(js_name = "CONST_NAME")] pub const CONST_NAME: u32 = iscc_lib::CONST_NAME as u32;`
-- WASM: `#[wasm_bindgen(js_name = "CONST_NAME")] pub fn const_name() -> u32 { ... }` (getter fn, not
-    const — wasm-bindgen limitation)
-- C FFI: `#[unsafe(no_mangle)] pub extern "C" fn iscc_const_name() -> u32 { ... }` + inline
-    `#[test]` in same file. cbindgen auto-generates the C header
-- NAPI JS tests: `describe('CONST_NAME', () => { it('equals X'); it('is a number'); })`
-- WASM tests: `#[wasm_bindgen_test]` in `tests/unit.rs` (requires wasm-pack to run)
-- C tests: `ASSERT_EQ(iscc_const_name(), value, "label")` in `tests/test_iscc.c`
-- 5 constants currently exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META,
-    IO_READ_SIZE, TEXT_NGRAM_SIZE
+- 5 constants exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META, IO_READ_SIZE,
+    TEXT_NGRAM_SIZE
 
 ## Documentation Files
 
-- Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp}.md`
+- Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp,swift,kotlin}.md`
 - API reference: `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`
-- Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`
-- zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++
+- Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`,
+    `packages/swift/README.md`, `packages/kotlin/README.md`
+- Per-package CLAUDE.md: `packages/dotnet/CLAUDE.md`, `packages/swift/CLAUDE.md`,
+    `packages/kotlin/CLAUDE.md`
+- zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++,
+    Swift, Kotlin
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` files. Uses
     `ORDERED_PAGES` list + auto-discovery (`discover_pages()`). Excludes `docs/includes/`. Run after
     `zensical build` in docs CI pipeline
@@ -148,37 +136,66 @@ iterations.
 - Streaming: `RefCell<Option<inner>>` for one-shot finalize. `_` prefix for methods, NOT class names
 - Linting: Standard Ruby + rubocop-minitest. Pre-commit hook needs portable PATH for `bundle`
 
-## .NET Bindings (P/Invoke) — Summary (details in MEMORY-archive.md)
+## .NET / C++ Bindings — see MEMORY-archive.md for full details
 
-- Package: `packages/dotnet/Iscc.Lib/` + `packages/dotnet/Iscc.Lib.Tests/`
-- 32/32 Tier 1 symbols. P/Invoke over `iscc_ffi` shared library
-- `dotnet test` requires `-e LD_LIBRARY_PATH=<path>` (absolute, not relative)
-- CI: `actions/setup-dotnet@v4`, `dotnet-version: '8.0'`
-- Empty span fix for 7 functions (same pattern as C++ `safe_data`)
+- .NET: `packages/dotnet/` — P/Invoke over `iscc_ffi`, 32/32 Tier 1 symbols, `dotnet-version: 8.0`
+- C++: `packages/cpp/` — header-only C++17, depends on `iscc-ffi`, CMake + ASAN tests
 
-## C++ Bindings (Header-Only)
+## UniFFI Bindings (Swift/Kotlin)
 
-- `packages/cpp/include/iscc/iscc.hpp` — header-only C++17 wrapper in `namespace iscc`
-- `packages/cpp/CMakeLists.txt` — INTERFACE library, includes C header from
-    `crates/iscc-ffi/include`
-- `packages/cpp/tests/test_iscc.cpp` — 52-assertion smoke test, all patterns covered
-- `packages/cpp/tests/CMakeLists.txt` — `FFI_LIB_DIR` var, `SANITIZE_ADDRESS` option
-- RAII guards in `detail::`: UniqueString, UniqueStringArray, UniqueByteBuffer,
-    UniqueByteBufferArray
-- `detail::safe_data()` returns non-null sentinel for empty vectors (C FFI rejects nullptr)
-- Result types: MetaCodeResult, TextCodeResult, ..., SumCodeResult, DecodeResult
-- Streaming: `DataHasher` / `InstanceHasher` classes (move-only, destructor frees handle)
-- IsccError exception (inherits std::runtime_error), thrown on FFI errors
-- Build: `cmake -B build -DFFI_LIB_DIR=../../target/debug && cmake --build build`
-- Run: `LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc`
-- cmake + g++ NOT pre-installed in devcontainer — `sudo apt-get install cmake g++`
-- Package manager manifests: `vcpkg.json` + `portfile.cmake` + `conanfile.py` in `packages/cpp/`
-- vcpkg portfile downloads pre-built FFI tarballs from GitHub Releases (5 targets, `SKIP_SHA512`)
-- Conan recipe: pre-built binary download (mirrors portfile.cmake), `settings = "os", "arch"` only,
-    `_target_triple()` maps to 5 platform targets, `conan.tools.files.download`/`unzip` in `build()`
+- `crates/iscc-uniffi/` — shared scaffolding crate, `uniffi = "0.31"` (workspace dep)
+- Proc macro approach only: `#[uniffi::export]`, `#[derive(uniffi::Record)]`,
+    `#[derive(uniffi::Object)]`, `#[uniffi::constructor]`. No UDL files, no build.rs
+- `crate-type = ["cdylib", "staticlib", "lib"]` — cdylib for dynamic, staticlib for XCFramework
+- Error: `#[derive(uniffi::Error)] enum IsccUniError` with `From<iscc_lib::IsccError>` impl
+- Streaming: `Mutex<Option<Inner>>` pattern (same as Ruby's `RefCell<Option<Inner>>` but
+    thread-safe)
+- UniFFI doesn't support: `const` exports (use getter fns), `usize` (use u64), borrowed refs (owned)
+- Result records need `Debug` derive for test `unwrap_err()`. Hashers need `Default` impl (clippy)
+- 21 unit tests in-crate. Conformance testing happens in Swift/Kotlin test suites
+- Binding generation: `uniffi-bindgen.rs` (3-line main), `[features] bindgen = ["uniffi/cli"]`,
+    `[[bin]] required-features = ["bindgen"]`
+- Generate Swift:
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate   --library target/debug/libiscc_uniffi.so --language swift --out-dir <dir>`
+- Generated files: `iscc_uniffi.swift` (~72KB), `iscc_uniffiFFI.h` (~38KB),
+    `iscc_uniffiFFI.modulemap` (rename to `module.modulemap` for SPM)
 
-## Gotchas
+## Swift Package
 
-- Ruby constants must start with uppercase — `_DataHasher` is NOT a valid constant name
-- After adding new symbols to `crates/iscc-py/src/lib.rs`, MUST rebuild the `.so` with
-    `uv run maturin develop -m crates/iscc-py/Cargo.toml` before `pytest` will work
+- Two `Package.swift` files coexist: root (for SPM consumers adding the repo URL) and
+    `packages/swift/Package.swift` (for CI and local dev). SPM always reads root for dependency
+    resolution; `cd packages/swift && swift build` uses the subdirectory one. No conflict
+- Root `Package.swift` uses Ferrostar-style variable toggle: `useLocalFramework` (bool),
+    `releaseTag`, `releaseChecksum`. `binaryTarget` for distribution, local path for dev
+- Root `Package.swift` omits testTarget — tests stay in `packages/swift/` for CI only
+- `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` fat binaries →
+    `xcodebuild   -create-xcframework` → `ditto` zip → `swift package compute-checksum`. Output:
+    `target/ios/IsccLib.xcframework.zip`. Accepts `--release` (default) or `--debug`
+- Version constant: `packages/swift/Sources/IsccLib/Constants.swift` — `public let isccLibVersion`
+    synced by `scripts/version_sync.py`
+- CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
+    `-Xlinker -L` (link-time) and `-Xlinker -rpath` (runtime) pointing to `target/debug`
+
+## Kotlin Bindings (UniFFI/JVM)
+
+- `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA
+- Generated file: `src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (~3217 lines,
+    `package uniffi.iscc_uniffi`). Do NOT manually edit — regenerate via uniffi-bindgen
+- Generate Kotlin:
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate   --language kotlin --no-format --out-dir packages/kotlin/src/main/kotlin/   target/debug/libiscc_uniffi.so`
+- Gradle wrapper must be bootstrapped AFTER settings.gradle.kts exists (fails without it)
+- Gradle 8.12.1 via mise, Kotlin 2.1.10, JNA 5.16.0
+- `build/` covered by root `.gitignore`; `.gradle/` needs local `.gitignore`
+- JNA native lib loading: `java.library.path` alone is NOT sufficient for JNA `Native.register()`.
+    Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
+- Conformance tests: `ConformanceTest.kt` — 9 test methods, 50 vectors. JUnit 5 + Gson for JSON
+- Test deps: JUnit 5.11.4, Gson 2.11.0 (`com.google.code.gson` groupId, NOT `com.google.gson`)
+- Maven Central publishing: `build.gradle.kts` has `maven-publish` + `signing` plugins, POM with
+    `io.iscc:iscc-lib-kotlin`. Staging repo at `build/staging-deploy/`. Central Portal bundle upload
+    via curl (`https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC`)
+- JNA resource paths for bundled native libs: `linux-x86-64`, `linux-aarch64`, `darwin-aarch64`,
+    `darwin-x86-64`, `win32-x86-64`, `android-aarch64`, `android-arm`, `android-x86-64`,
+    `android-x86`. JNA 5.16.0 canonicalizes ARM32 to `arm` (not `armv7`). JNA discovers libs from
+    classpath even when `jna.library.path` points to missing dir
+
+## Python Benchmarks — see MEMORY-archive.md for details

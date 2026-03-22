@@ -21,6 +21,8 @@ ORDERED_PAGES = [
     "howto/java.md",
     "howto/dotnet.md",
     "howto/c-cpp.md",
+    "howto/swift.md",
+    "howto/kotlin.md",
     "architecture.md",
     "ecosystem.md",
     "rust-api.md",

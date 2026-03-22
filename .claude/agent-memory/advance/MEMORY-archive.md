@@ -21,6 +21,15 @@ context loading. Full history preserved in git.
 
 See MEMORY.md for current active entries.
 
+## Archived 2026-03-21 — Binding Constant Export Patterns (per-binding details)
+
+- NAPI: `#[napi(js_name = "CONST_NAME")] pub const CONST_NAME: u32 = iscc_lib::CONST_NAME as u32;`
+- WASM: `#[wasm_bindgen(js_name = "CONST_NAME")] pub fn const_name() -> u32 { ... }` (getter fn)
+- C FFI: `#[unsafe(no_mangle)] pub extern "C" fn iscc_const_name() -> u32 { ... }` + inline test
+- NAPI JS tests: `describe('CONST_NAME', () => { it('equals X'); it('is a number'); })`
+- WASM tests: `#[wasm_bindgen_test]` in `tests/unit.rs` (requires wasm-pack to run)
+- C tests: `ASSERT_EQ(iscc_const_name(), value, "label")` in `tests/test_iscc.c`
+
 ## Archived 2026-03-02 — Documentation Sweep Patterns
 
 - "N gen" count references exist in: READMEs (9 files), docs/ (14 files), howto/ (6 files), crate

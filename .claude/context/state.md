@@ -1,24 +1,22 @@
-<!-- assessed-at: 81f4e65f9b291be84b53760209c5182bf02c1eac -->
+<!-- assessed-at: e19aeae -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: normal-priority issue cleanup (logos only)
+## Phase: Near-complete — 1 low-priority issue remaining
 
-v0.2.0 released across all 8 registries. The vcpkg portfile SHA512 issue is now resolved: all 5
-platform checksums have been added to `packages/cpp/portfile.cmake` and `SKIP_SHA512` removed. One
-`normal`-priority issue remains: language logos absent from README/docs.
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23402159613). All 12 language
+bindings scaffolded, tested, and documented. All previously open normal/critical issues resolved.
+Benchmarks documentation with speedup factors is published. Only one low-priority cosmetic issue
+remains (language logos in docs), which CID is configured to skip.
 
 ## Rust Core Crate
 
 **Status**: met
 
 - All 32 Tier 1 symbols present with correct feature-gating
-- `alg_cdc_chunks` public API returns `IsccResult<Vec<&[u8]>>` — validates `avg_chunk_size < 2`
-- `alg_cdc_chunks_unchecked` as `pub(crate)` for internal callers
-- `data.json` at iscc-core v1.3.0 (50 total vectors)
-- Rust conformance assertion: `assert_eq!(tested, 20, ...)`
+- data.json at iscc-core v1.3.0 (50 total vectors)
 - 316 tests pass with default features
 - Feature matrix CI (5 steps) passed in latest green run
 
@@ -26,190 +24,166 @@ platform checksums have been added to `packages/cpp/portfile.cmake` and `SKIP_SH
 
 **Status**: met
 
-- All 32 Tier 1 symbols accessible via `__all__` (48 entries)
-- `alg_cdc_chunks` propagates `IsccResult` from Rust core via `PyResult`
-- 207 Python tests pass; `ty check` passes; `cargo clippy -p iscc-py` clean
-- `pyproject.toml` excludes `packages/cpp/conanfile.py` from `ty` type-check scope
+- All 32 Tier 1 symbols accessible via __all__ (48 entries)
+- 207 Python tests pass; ty check passes; cargo clippy -p iscc-py clean
 
 ## Node.js Bindings
 
 **Status**: met
 
 - All 32 Tier 1 symbols exported
-- `alg_cdc_chunks` propagates `IsccResult` error from Rust core
-- 135 mocha tests pass; `cargo clippy -p iscc-napi -- -D warnings` clean
+- 135 mocha tests pass; cargo clippy -p iscc-napi -- -D warnings clean
 
 ## WASM Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols exported via `#[wasm_bindgen]`
-- `alg_cdc_chunks` maps `IsccResult` to `JsError`
-- `wasm-opt` upgraded from `-O` to `-O3` for max runtime performance
-- `crates/iscc-wasm/tests/conformance.rs` asserts `tested == 20`
-- `--features conformance` added to `build-wasm` release job so `conformance_selftest` is exported
-- WASM CI job = SUCCESS in latest completed run
+- All 32 Tier 1 symbols exported via #[wasm_bindgen]
+- wasm-opt -O3; conformance.rs asserts tested == 20
 
 ## C FFI
 
 **Status**: met
 
-- 85 Rust tests + 65 C tests pass (per last green CI run)
-- `iscc_alg_cdc_chunks` propagates `IsccResult` error via null return
-- `cbindgen` header freshness check in CI passed
-- `build.rs` runs `csbindgen` to generate `NativeMethods.g.cs`
+- 85 Rust tests + 65 C tests pass
+- cbindgen header freshness check in CI passed
+- build.rs runs csbindgen to generate NativeMethods.g.cs
 
 ## Java Bindings
 
 **Status**: met
 
 - All 32 Tier 1 symbols via JNI
-- `AlgCdcChunks` JNI validates `avgChunkSize < 2` with `IllegalArgumentException`
-- 65 Maven tests pass (per last green CI run)
+- 65 Maven tests pass
 
 ## Go Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols via pure Go
-- `AlgCdcChunks` validates `avgChunkSize < 2` — returns `error`, delegates to
-    `algCdcChunksUnchecked` for internal callers
-- 155 Go tests pass; `go vet` clean
+- All 32 Tier 1 symbols via pure Go (no CGO)
+- 155 Go tests pass; go vet clean
 
 ## Ruby Bindings
 
 **Status**: met
 
-- `crates/iscc-rb/` with Magnus bridge (magnus 0.7.1, Ruby 3.1.2 compat)
-- All 32 of 32 Tier 1 symbols exposed
-- 111 Minitest tests (295 assertions, 0 failures): 46 smoke + 15 streaming + 50 conformance
-- `bundle exec rake compile` builds in release profile
-- Dedicated `ruby` CI job — runs standardrb, clippy, compile, and test
+- 32 of 32 Tier 1 symbols exposed via Magnus bridge
+- 111 Minitest tests (295 assertions, 0 failures)
 
 ## C# / .NET Bindings
 
 **Status**: met
 
-- `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` — .NET 8 class library; full NuGet metadata ✅
-- `packages/dotnet/Iscc.Lib/IsccLib.cs` — 32 public symbols accessible (all 10 gen functions, 5
-    constants, 4 text utilities, 2 encoding, 3 codec, 1 utility, 4 algorithm primitives, 1
-    diagnostic) ✅
-- `packages/dotnet/Iscc.Lib/Results.cs` — 11 `sealed record` types ✅
-- `IsccDataHasher.Finalize()` → `DataCodeResult`; `IsccInstanceHasher.Finalize()` →
-    `InstanceCodeResult` ✅
-- 41 xUnit `[Fact]` smoke tests + 9 `[Theory]` conformance methods (50 vectors) = 91 total ✅
-- xUnit1026 warnings fixed — `vectorName` renamed to `_` in all 9 `[Theory]` methods ✅
-- CI job `C# / .NET (dotnet build, test)` — SUCCESS in latest CI run ✅
-- `pack-nuget` + `test-nuget` + `publish-nuget` pipeline in `release.yml` ✅
-- `docs/howto/dotnet.md` — 417 lines; stale NuGet unavailability note removed ✅
-- `packages/dotnet/README.md` — 82 lines ✅
-- **Known limitation**: `MetaCodeResult`, `TextCodeResult`, `InstanceCodeResult` carry only
-    `(string Iscc)` — extra fields require C FFI struct changes first; not blocking
-- `NUGET_API_KEY` GitHub Actions secret configured; NuGet publishing pipeline ready
+- 32 public symbols; 11 sealed record types
+- 91 total tests (41 smoke + 50 conformance vectors)
+- CI job SUCCESS
 
 ## C++ Bindings
 
 **Status**: met
 
-- `packages/cpp/include/iscc/iscc.hpp` — 681-line C++17 header-only wrapper with all 32 Tier 1
-    symbols, RAII resource management (`UniqueString`, `UniqueStringArray`, `UniqueByteBuffer`,
-    `UniqueByteBufferArray`), `IsccError` exception class, full namespace `iscc` ✅
-- `packages/cpp/CMakeLists.txt` — CMake config ✅
-- `packages/cpp/tests/CMakeLists.txt` + `test_iscc.cpp` — 54 passing tests, ASAN clean ✅
-- `safe_data` int32_t overload; `alg_simhash`, `soft_hash_video_v0`, `gen_video_code_v0`, and
-    `gen_audio_code_v0` all use `detail::safe_data()` for nested/empty vector null-safety ✅
-- `conformance_selftest()` passes; all 10 gen functions tested ✅
-- CI job `C++ (cmake, ASAN, test)` — SUCCESS in latest CI run ✅
-- `iscc.hpp` bundled in FFI release tarballs ✅
-- `packages/cpp/README.md` — 105 lines ✅
-- `docs/howto/c-cpp.md` — 497 lines with full C++ wrapper section ✅
-- Root `README.md` — C++ install tab + quickstart snippet ✅
-- `packages/cpp/vcpkg.json` — vcpkg manifest (version synced by `version_sync.py`) ✅
-- `packages/cpp/portfile.cmake` — SHA512 checksums present for all 5 platforms; `SKIP_SHA512`
-    removed ✅
-- `packages/cpp/conanfile.py` — Conan 2.x recipe (150 lines); downloads and packages pre-built FFI
-    binaries for all 5 platforms; `cxxflags = ["-std=c++17"]` removed (MSVC fix) ✅; version synced
-    by `version_sync.py` ✅
-- **Note**: `conanfile.py` does not pin SHA512 checksums for downloads — no issue filed; acceptable
-    for Conan recipes which typically rely on registry integrity
+- 681-line C++17 header-only wrapper with all 32 Tier 1 symbols
+- 54 passing tests, ASAN clean
+- vcpkg manifest + Conan 2.x recipe
+
+## UniFFI Scaffolding Crate
+
+**Status**: complete (internal, not published)
+
+- 32 `#[uniffi::export]` annotations, 21 `#[test]` functions pass
+- Proc macro approach — no uniffi.toml or build.rs needed
+- Dependencies: iscc-lib (with meta-code feature), uniffi 0.31, thiserror
 
 ## Swift Bindings
 
-**Status**: not started
+**Status**: met
 
-- Target defined in `target.md`; issue filed as `low` priority (CID loop skips)
-- **No code exists**: `packages/swift/` does not exist; `crates/iscc-uniffi/` does not exist
+- SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
+- 9 conformance test methods covering 50 vectors; CI job SUCCESS on macos-14
+- docs/howto/swift.md updated with SPM install instructions + collapsible "Build from source" tip
+- XCFramework build script executable, valid shell, 5 Apple targets
+- Root `Package.swift` restructured: Ferrostar-style toggle, `releaseTag = "0.3.1"`
+- Release workflow: `swift` checkbox input (9th), `build-xcframework` job integrated
+- **Provenance guard**: `build-xcframework` verifies main HEAD matches tag SHA
+- Version sync: `releaseTag` managed by `version_sync.py` (16th target, confirmed OK)
+- **Root manifest smoke test**: `swift package dump-package` step in CI validates consumer-facing
+    Package.swift parses correctly (added iteration 7)
 
-## Kotlin Multiplatform Bindings
+## Kotlin Bindings
 
-**Status**: not started
+**Status**: met
 
-- Target defined in `target.md`; issue filed as `low` priority (CID loop skips)
-- **No code exists**: `packages/kotlin/` does not exist; depends on `iscc-uniffi` crate (not
-    started)
+- Scaffold complete — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
+- 3214-line UniFFI-generated bindings, conformance tests (9 methods, 50 vectors)
+- Version sync, CI job, docs, release workflow all complete
+- Release workflow builds **9 targets**: 5 desktop/server + 4 Android ABIs
+- JAR smoke test validates runtime JAR contains all 9 native library paths
 
 ## README
 
-**Status**: partially met
+**Status**: met
 
-- Public-facing polyglot README exists; CI badge, all 8 registry badges present (incl. NuGet)
-- All 10 `gen_*_v0` functions listed; per-language install + quick-start examples
-- Ruby + C# / .NET + C++ install + quickstart present ✅
-- **Open issue** (`normal`): Language logos/icons missing from README and docs for all supported
-    languages — filed as `normal` priority
-- **Gap** (`low`): Missing Swift, Kotlin install + quickstart sections
+- Public-facing polyglot README with CI badge and 8 registry badges
+- Language logos: 18 inline img tags from cdn.simpleicons.org
+- Installation and Quick Start sections for all 12 languages
+- ISCC Architecture section, MainTypes table, Implementors Guide
 
 ## Per-Crate READMEs
 
-**Status**: partially met
+**Status**: met
 
-- READMEs present for all 10 existing crates/packages: `crates/iscc-lib`, `crates/iscc-py`,
-    `crates/iscc-napi`, `crates/iscc-wasm`, `crates/iscc-ffi`, `crates/iscc-jni`, `crates/iscc-rb`,
-    `packages/go`, `packages/dotnet`, `packages/cpp` ✅
-- **Gap**: `packages/swift/README.md`, `packages/kotlin/README.md` missing (those bindings not
-    started; `low` priority)
+- READMEs present for all 12 crates/packages (7 crates + 5 packages)
+- CLAUDE.md files present for all 12 crates/packages
 
 ## Documentation
 
 **Status**: met
 
-- 20 pages deployed to lib.iscc.codes; all navigation sections complete
-- 9 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
-    ruby.md, dotnet.md ✅
-- `scripts/gen_llms_full.py` — `ORDERED_PAGES` updated to 20 entries (all pages); `discover_pages()`
-    auto-discovery via `rglob("*.md")` with `as_posix()` (cross-platform) ✅
-- "View as Markdown" / "Copy Page" 404 issue — **RESOLVED** (iteration 3, CID cycle 2) ✅
-- **Gap** (`low`): Swift, Kotlin how-to guides not started
+- 22 pages in gen_llms_full.py ORDERED_PAGES; all navigation sections complete
+- 11 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
+    ruby.md, dotnet.md, swift.md, kotlin.md
+- docs/index.md: 11 language tabs in Quick Start, Swift+Kotlin in Available Bindings table
+- docs/benchmarks.md: full speedup comparison table (1.3x to 158x), Criterion native results,
+    methodology, key findings, reproduction commands
+- **Gap** (low, CID skips): Language logos in docs howto headers
 
 ## Benchmarks
 
 **Status**: met
 
-- Criterion benchmarks for all 10 `gen_*_v0` functions
-- `bench_data_hasher_streaming` + `bench_cdc_chunks` additional benchmarks
-- `Bench (compile check)` CI job SUCCESS in latest completed run
+- Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional (12 total in Rust)
+- Bench (compile check) CI job SUCCESS
+- pytest-benchmark: 18 functions (9 gen\_\*\_v0 x 2 — iscc-lib vs iscc-core)
+- Speedup factors published in docs/benchmarks.md (1.3x to 158x across 10 functions)
 
 ## CI/CD and Publishing
 
-**Status**: met (for existing bindings)
+**Status**: met
 
-- **LATEST COMPLETED RUN** — run 22819696003: all **14 jobs** SUCCESS
-- URL: https://github.com/iscc/iscc-lib/actions/runs/22819696003
-- Jobs: Version consistency, Rust, Python 3.10, Python 3.14, Python (ruff/pytest gate), Node.js,
-    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++ (cmake, ASAN, test) — all SUCCESS ✅
-- `release.yml` has 7 registry `workflow_dispatch` inputs including `nuget` ✅
-- `pack-nuget` → `test-nuget` → `publish-nuget` pipeline in place ✅
-- v0.2.0 released successfully across all 8 registries
-- `iscc.hpp` bundled in FFI release tarballs (both Unix `cp` and Windows `Copy-Item` steps) ✅
-- `NUGET_API_KEY` GitHub Actions secret configured; NuGet publishing pipeline ready
+- **LATEST COMPLETED RUN** — run 23402159613: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23402159613
+- All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
+    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
+- v0.3.1 released across all 9 registries
+- Release workflow has 9 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift
+- XCFramework cache key expanded to include build script, Swift headers, and all Cargo.toml files
+- Swift release provenance guard: verifies main HEAD == tag SHA before XCF build
+- Root Package.swift smoke test: `dump-package` validates manifest in CI
+- version_sync.py manages 16 sync targets (all OK)
+
+## Open Issues (1 total — 0 critical, 0 normal, 1 low)
+
+1. **Language logos in docs** `low` — CID skips, human-directed only.
 
 ## Next Milestone
 
-One `normal`-priority issue remains open:
+All 12 bindings are complete, CI is green (16/16), benchmarks are documented, and all
+normal/critical issues are resolved. The project is functionally complete per target.md criteria.
 
-**Language logos in README/docs** — Add programming language logos/icons for all 9+ supported
-languages (Rust, Python, Node.js, WASM, Go, Java, Ruby, C#/.NET, C++) to the README and
-documentation pages. Visual language indicators help users quickly identify binding availability.
+The only remaining item is the low-priority cosmetic issue (language logos in docs howto headers),
+which CID is configured to skip. This requires human direction to proceed.
 
-After this is addressed, only `low`-priority items remain (Swift/Kotlin bindings), which the CID
-loop skips unless directed by the human. The project will be effectively idle at that point.
+**Note:** Status remains IN_PROGRESS because 1 open issue exists in issues.md (even though it's low
+priority and CID-skipped). The human may choose to close it as won't-fix, address it interactively,
+or leave it — at which point the project can move to DONE.

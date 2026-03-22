@@ -10,17 +10,20 @@ Magnus 0.7.1 bridge between Rust `iscc-lib` core and Ruby. Compiled as a native 
 
 ## Key Files
 
-| File                       | Purpose                                                         |
-| -------------------------- | --------------------------------------------------------------- |
-| `src/lib.rs`               | Magnus bindings — `#[magnus::init]` entry point                 |
-| `lib/iscc_lib.rb`          | Ruby API wrapper — version-aware native extension loader        |
-| `lib/iscc_lib/version.rb`  | `IsccLib::VERSION` constant                                     |
-| `iscc-lib.gemspec`         | Gem specification (name: `iscc-lib`)                            |
-| `Rakefile`                 | Build tasks — `RbSys::ExtensionTask` with gemspec               |
-| `extconf.rb`               | Extension config — must be at crate root (next to `Cargo.toml`) |
-| `Gemfile` / `Gemfile.lock` | Dependencies pinned to specific rb_sys version                  |
-| `.standard.yml`            | Ruby linting config (standard gem + rubocop-minitest)           |
-| `test/`                    | Minitest tests (smoke, streaming, conformance)                  |
+| File                       | Purpose                                                        |
+| -------------------------- | -------------------------------------------------------------- |
+| `src/lib.rs`               | Magnus bindings — `#[magnus::init]` entry point                |
+| `lib/iscc_lib.rb`          | Ruby API wrapper — Result classes, keyword args, native loader |
+| `lib/iscc_lib/version.rb`  | `IsccLib::VERSION` constant                                    |
+| `iscc-lib.gemspec`         | Gem specification (name: `iscc-lib`)                           |
+| `Rakefile`                 | Build tasks — `RbSys::ExtensionTask` with gemspec              |
+| `extconf.rb`               | Extension config — must be at crate root (next to Cargo.toml)  |
+| `Gemfile` / `Gemfile.lock` | Dependencies pinned to specific rb_sys version                 |
+| `.standard.yml`            | Ruby linting config (standard gem + rubocop-minitest)          |
+| `test/test_smoke.rb`       | Smoke tests — all functions, constants, attribute access       |
+| `test/test_iscc_lib.rb`    | Streaming hasher tests — DataHasher, InstanceHasher            |
+| `test/test_conformance.rb` | Conformance tests against data.json vectors                    |
+| `test/test_helper.rb`      | Test setup — load path and minitest require                    |
 
 ## Cross-Compilation (Critical Knowledge)
 
@@ -94,8 +97,11 @@ publisher is registered on rubygems.org for `iscc/iscc-lib` + `release.yml`.
 
 - `#[magnus::wrap(class = "IsccLib::ClassName")]` for streaming classes
 - `RefCell<Option<inner>>` pattern (Magnus gives `&self`, not `&mut self`)
-- Method prefix `_update`/`_finalize` avoids collision; class prefix `_DataHasher` does NOT work
-    (Ruby constants must start with uppercase)
+- All native functions use `_` prefix (`_gen_meta_code_v0`, `_update`, `_finalize`) to avoid
+    collision with Ruby wrapper methods; class prefix `_DataHasher` does NOT work (Ruby constants
+    must start with uppercase)
+- `unsafe { data.as_slice() }` for zero-copy binary data from `RString` — safe only when the slice
+    is consumed immediately without intervening Ruby API calls that could trigger GC
 - `RString::from_slice` to copy borrowed Rust slices into Ruby strings
 
 ## Local Development

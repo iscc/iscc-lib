@@ -5,7 +5,7 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 ## Crate Role
 
 - This is the **core crate** that all binding crates (`iscc-py`, `iscc-napi`, `iscc-wasm`,
-    `iscc-ffi`, `iscc-jni`) depend on
+    `iscc-ffi`, `iscc-jni`, `iscc-rb`) depend on
 - Must remain **pure Rust** -- zero binding dependencies (no PyO3, napi, wasm-bindgen)
 - Publishable to crates.io as `iscc-lib`
 - All ISCC algorithm logic lives here; binding crates only translate the API
@@ -28,7 +28,7 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 
 ## API Tier Rules
 
-**Tier 1 -- public API, bound in all languages (30 symbols at crate root):**
+**Tier 1 -- public API, bound in all languages (32 symbols at crate root):**
 
 - 10 gen functions: `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
     `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`, `gen_data_code_v0`,
@@ -38,10 +38,15 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 - 1 soft hash: `soft_hash_video_v0`
 - 2 encoding utilities: `encode_base64`, `json_to_data_url`
 - 3 codec operations: `iscc_decompose`, `encode_component`, `iscc_decode`
-- 4 algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `IO_READ_SIZE`,
-    `TEXT_NGRAM_SIZE`
+- 5 algorithm constants: `META_TRIM_NAME`, `META_TRIM_DESCRIPTION`, `META_TRIM_META`,
+    `IO_READ_SIZE`, `TEXT_NGRAM_SIZE`
 - 2 streaming types: `DataHasher`, `InstanceHasher`
 - 1 diagnostic: `conformance_selftest`
+
+Note: some Tier 1 symbols are feature-gated. `text_clean`, `text_collapse`, and `gen_text_code_v0`
+require the `text-processing` feature. `gen_meta_code_v0`, `json_to_data_url`, `META_TRIM_NAME`,
+`META_TRIM_DESCRIPTION`, and `META_TRIM_META` require the `meta-code` feature (which implies
+`text-processing`). The `default` feature set includes `meta-code`.
 
 **Tier 2 -- `pub mod codec`, Rust-only, not exposed through bindings:**
 
@@ -52,8 +57,9 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 **Internal -- `pub(crate)` or private, free to change:**
 
 - `dct::alg_dct`, `wtahash::alg_wtahash`
-- Helper functions in `lib.rs` (`interleave_digests`, `soft_hash_meta_v0`, `soft_hash_text_v0`,
-    `soft_hash_audio_v0`, `soft_hash_codes_v0`, etc.)
+- Helper functions in `lib.rs` (`interleave_digests`, `meta_name_simhash`, `soft_hash_meta_v0`,
+    `soft_hash_meta_v0_with_bytes`, `soft_hash_text_v0`, `soft_hash_image_v0`, `soft_hash_audio_v0`,
+    `soft_hash_codes_v0`, etc.)
 - `utils::multi_hash_blake3`
 
 **Rules:**
@@ -86,13 +92,15 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
 - `*CodeResult` structs in `types.rs` -- each `gen_*_v0` returns a dedicated struct
     - All carry an `iscc: String` field (the ISCC code with `"ISCC:"` prefix)
     - Some carry additional fields: `name`, `description`, `meta`, `metahash`, `characters`,
-        `datahash`, `filesize`, `parts`
+        `datahash`, `filesize`, `parts`, `units`
 - `codec::MainType`, `codec::SubType`, `codec::Version` -- `#[repr(u8)]` enums with `TryFrom<u8>`
 
 ## Conformance Rules
 
 - Correctness baseline: vendored `tests/data.json` from `iscc-core`
-- All 10 `gen_*_v0` functions must match `iscc-core` output for every test vector
+- 9 of 10 `gen_*_v0` functions must match `iscc-core` output for every test vector
+    (`gen_sum_code_v0` has no conformance vectors — it composes Data-Code + Instance-Code
+    internally)
 - `conformance_selftest()` runs all vectors at runtime (non-panicking, returns bool)
 - Each `gen_*_v0` also has `#[test]` functions that run the same vectors and panic on mismatch
 - Streaming types (`DataHasher`/`InstanceHasher`) are tested against one-shot functions at multiple
@@ -116,13 +124,14 @@ cargo bench -p iscc-lib                     # Criterion benchmarks
 - `xxhash-rust` -- xxh32 feature hashing (Data-Code, Text-Code)
 - `data-encoding` -- base32/base64 encoding
 - `hex` -- hex encode/decode for conformance vector parsing
-- `unicode-normalization` -- NFKC/NFD normalization
-- `unicode-general-category` -- Unicode category classification for text filtering
+- `unicode-normalization` -- NFKC/NFD normalization (optional, `text-processing` feature)
+- `unicode-general-category` -- Unicode category classification for text filtering (optional,
+    `text-processing` feature)
 - `thiserror` -- error derive macro
 - `serde_json` -- JSON parsing for meta processing and conformance vectors
 - `serde_json_canonicalizer` -- RFC 8785 (JCS) compliant JSON serialization for metadata
-    canonicalization
-- `serde` + `criterion` -- dev-dependencies only
+    canonicalization (optional, `meta-code` feature)
+- `serde`, `criterion`, `tempfile` -- dev-dependencies only
 
 ## Common Pitfalls
 

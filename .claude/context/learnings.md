@@ -76,6 +76,15 @@ fully-met target sections to `learnings-archive.md`.
 - C FFI decode: length index for 64-bit codes is 1 (not 0) — `decode_length` uses
     `(length_index + 1) * 32`
 
+## JNA / Kotlin Android
+
+- **JNA ARM32 resource prefix is `android-arm`, NOT `android-armv7`**: JNA 5.16.0's
+    `Platform.getNativeLibraryResourcePrefix()` canonicalizes all `arm*` architectures to `arm`.
+    Verified by decompiling `Platform.class`. Other Android prefixes are correct: `android-aarch64`,
+    `android-x86-64`, `android-x86`
+- `cargo-ndk` outputs to `target/<rust-triple>/release/` — same path convention as desktop builds,
+    so artifact upload steps work unchanged
+
 ## CI/CD
 
 - Windows GHA runners default to `pwsh` shell. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
@@ -86,8 +95,14 @@ fully-met target sections to `learnings-archive.md`.
     test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish. Each
     tests linux-x86_64 artifact on ubuntu-latest
 - **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
-    out the tag's code, NOT the latest `main`. Hotfixes pushed to `main` after tagging require
-    `--ref main` to pick up. When re-triggering individual registries, always use `--ref main`
+- **Swift release job is tag-dependent**: Unlike all other release jobs (which derive version from
+    `Cargo.toml`), `build-xcframework` uses `GITHUB_REF_NAME` for version and tag operations. The
+    `--ref main` re-trigger convention does not work for Swift — needs spec fix to derive version
+    from `Cargo.toml` instead
+- **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift). When re-triggering individual registries, always use `--ref main`
+- **Version sync**: `version_sync.py` manages 16 targets (including root `Package.swift`
+    releaseTag). `--check` mode exits 1 on mismatch
 
 ## Branching
 
@@ -147,39 +162,13 @@ fully-met target sections to `learnings-archive.md`.
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
 
-## .NET Bindings
+## Swift Package
 
-- Detailed P/Invoke patterns archived to `learnings-archive.md` (iteration 9 — .NET bindings
-    completed). Key reference items preserved here for CI/release workflows only
-- NuGet publish pipeline: 7 registry inputs total (crates-io, pypi, npm, maven, ffi, rubygems,
-    nuget). `build-ffi` shared between FFI and NuGet via `inputs.ffi || inputs.nuget`
-- **Cross-architecture find bug pattern**: when extracting multi-target archives to the same CWD,
-    `find -path "*/prefix-v*/*"` matches ALL targets. Scope by target name: `-path "*-${target}/*"`
-- **.csproj relative paths**: `Include` paths are relative to csproj location, not project root.
-    Count `../` carefully — `packages/dotnet/Iscc.Lib/../../README.md` = `packages/README.md` (NOT
-    `packages/dotnet/README.md`)
-
-## C++ Wrapper
-
-- C++ `std::vector<T>::data()` returns nullptr for empty vectors on some implementations
-    (libstdc++). The `safe_data()` helper has two overloads (uint8_t and int32_t) in `detail`
-    namespace. All nested vector loops now use `detail::safe_data()` — both top-level and inner
-    elements are covered (11 total occurrences in iscc.hpp: 2 definitions + 9 call sites)
-- C++ wrapper lives in `packages/cpp/` — header-only, depends on `iscc-ffi` shared library. No
-    separate Rust crate. CMake references `iscc.h` from `crates/iscc-ffi/include/` via include paths
-- C++ CI job: `cmake` needs explicit `apt-get install`, `g++` is pre-installed on `ubuntu-latest`.
-    Uses `working-directory: packages/cpp` for cmake steps. CI job count is now 13 total
-- **FFI tarball flat layout vs CMake include path**: `iscc.hpp` and `iscc.h` are flat in FFI
-    tarballs. CMake project uses `#include <iscc/iscc.hpp>` (needs `iscc/` subdirectory). Tarball
-    consumers use `#include "iscc.hpp"` with `-I <tarball-dir>`. Document this distinction in
-    `docs/howto/c-cpp.md` when updating
-
-## Quality Gates
-
-- **`ty check` and external Python recipes**: adding Python files that import packages not in the
-    project's venv (e.g., `conanfile.py` importing `conan`) will fail the `ty check` pre-push hook.
-    Fix: add `[tool.ty.src] exclude = ["path/to/file.py"]` in `pyproject.toml`. This is appropriate
-    scope exclusion, not gate circumvention
+- Two `Package.swift` files coexist: root (SPM consumers) and `packages/swift/Package.swift` (CI/
+    local dev). SPM reads root for dependency resolution; `cd packages/swift && swift build` uses
+    the subdirectory one
+- Docs site URL is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/`. Advance agents must
+    use correct hostname when linking to howto guides
 
 ## CID Process
 
@@ -189,3 +178,10 @@ fully-met target sections to `learnings-archive.md`.
 - **Context growth**: learnings.md and agent memory files grow monotonically. No agent autonomously
     prunes. Manual cleanup required periodically. Archive completed-phase entries to prevent token
     bloat
+
+## Kotlin JAR Artifact Selection
+
+- Gradle `withSourcesJar()` + `withJavadocJar()` produces 3 JARs in `build/libs/`. When uploading
+    `*.jar` globs and then selecting with `ls | head -1`, alphabetical ordering picks `-javadoc.jar`
+    before the runtime JAR. Always filter out classifier JARs (`-sources`, `-javadoc`) when
+    selecting the runtime artifact

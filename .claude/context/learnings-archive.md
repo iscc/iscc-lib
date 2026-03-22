@@ -356,3 +356,48 @@ reference-only for humans.
 - **NuGet native lib packaging**: cross-architecture find pattern must scope by target name
     (`-path "*-${target}/*"`) to avoid copying wrong-arch libraries when multiple targets share the
     same lib name (e.g., both linux-x64 and linux-arm64 produce `libiscc_ffi.so`)
+
+## .NET Bindings
+
+- Detailed P/Invoke patterns archived to `learnings-archive.md` (iteration 9 — .NET bindings
+    completed). Key reference items preserved here for CI/release workflows only
+- NuGet publish pipeline: 7 registry inputs total (crates-io, pypi, npm, maven, ffi, rubygems,
+    nuget). `build-ffi` shared between FFI and NuGet via `inputs.ffi || inputs.nuget`
+- **Cross-architecture find bug pattern**: when extracting multi-target archives to the same CWD,
+    `find -path "*/prefix-v*/*"` matches ALL targets. Scope by target name: `-path "*-${target}/*"`
+- **.csproj relative paths**: `Include` paths are relative to csproj location, not project root.
+    Count `../` carefully — `packages/dotnet/Iscc.Lib/../../README.md` = `packages/README.md` (NOT
+    `packages/dotnet/README.md`)
+
+## UniFFI Bindings (Kotlin-specific, archived iteration 5)
+
+- Kotlin bindings: UniFFI generates `package uniffi.iscc_uniffi` — JVM project uses
+    `src/main/kotlin/` (not KMP `src/commonMain/kotlin/`). Gradle wrapper (gradle-wrapper.jar ~44KB)
+    and generated `iscc_uniffi.kt` (~112KB) both under 256KB large-file threshold
+- Kotlin conformance tests: JUnit 5 + Gson deps in build.gradle.kts. JNA native lib loading requires
+    `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var — `java.library.path` alone does
+    NOT work for JNA `Native.register()`. `HexFormat` requires Java 17+
+
+## C++ Wrapper (archived from learnings.md — section fully met)
+
+- C++ `std::vector<T>::data()` returns nullptr for empty vectors on some implementations
+    (libstdc++). The `safe_data()` helper has two overloads (uint8_t and int32_t) in `detail`
+    namespace. All nested vector loops now use `detail::safe_data()` — both top-level and inner
+    elements are covered (11 total occurrences in iscc.hpp: 2 definitions + 9 call sites)
+- C++ wrapper lives in `packages/cpp/` — header-only, depends on `iscc-ffi` shared library. No
+    separate Rust crate. CMake references `iscc.h` from `crates/iscc-ffi/include/` via include paths
+- C++ CI job: `cmake` needs explicit `apt-get install`, `g++` is pre-installed on `ubuntu-latest`.
+    Uses `working-directory: packages/cpp` for cmake steps
+- FFI tarball flat layout vs CMake include path: `iscc.hpp` and `iscc.h` are flat in FFI tarballs.
+    CMake uses `#include <iscc/iscc.hpp>`. Tarball consumers use `#include "iscc.hpp"` with `-I`
+
+## UniFFI Bindings (archived from learnings.md — section fully met)
+
+- `crates/iscc-uniffi/` uses proc macros only — no UDL files, no `build.rs`. `uniffi.toml` only
+    needed for binding gen customization, not compilation
+- UniFFI requires owned types (`String`, `Vec<u8>`), no `usize` or `const` exports — use `u64` for
+    sizes and getter functions for constants
+- UniFFI Objects need `Send + Sync` — use `Mutex<Option<Inner>>` (not `RefCell`)
+- Binding generation: `uniffi-bindgen.rs` (3-line entry point) +
+    `[features] bindgen = ["uniffi/cli"]`+`[[bin]] required-features = ["bindgen"]` pattern
+- Swift tests require macOS runner — cannot execute in Linux devcontainer
