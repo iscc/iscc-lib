@@ -31,6 +31,7 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Swift release workflow check**: `grep -i 'swift\|xcframework' .github/workflows/release.yml`
 - **Kotlin native targets**: `grep -A 20 "build-kotlin-native:" .github/workflows/release.yml`
 - **Android target check**: `grep "android" .github/workflows/release.yml`
+- **Issue count**: `grep -c '^## .* \`\(critical\|normal\|low\)\`' .claude/context/issues.md\`
 
 ## Codebase Landmarks
 
@@ -71,16 +72,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Review-filed issues**: Review agent can file issues (e.g., JNA ARM32 path mismatch). Check for
     `[review]` source tag and `HUMAN REVIEW REQUESTED` flag.
 
-## Current State (assessed-at: 3eff852)
+## Current State (assessed-at: aa60377)
 
-- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23399364458)
-- **0 critical issues** (Kotlin Android NDK added — critical resolved)
-- **5 normal issues**: JNA ARM32 path (HUMAN REVIEW), XCF cache key, Swift ref:main race, Kotlin JAR
-    smoke test, root Package.swift
+- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23399952416)
+- **0 critical issues**
+- **4 normal issues**: XCF cache key, Swift ref:main race, Kotlin JAR smoke test, root Package.swift
 - **1 low issue**: language logos in docs
-- **Kotlin release workflow**: Now 9 targets (5 desktop + 4 Android), uses cargo-ndk + NDK r27c
-- **JNA ARM32 bug**: `android-armv7` in matrix but JNA expects `android-arm` — bytecode verified
-- **Version sync**: 16 targets, all OK
+- **JNA ARM32 fix verified**: `android-arm` in release.yml, no `android-armv7` remnants
+- **Remaining gaps**: benchmarks speedup docs, release workflow hardening (4 normal issues)
 
 ## Gotchas
 

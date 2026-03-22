@@ -1,16 +1,16 @@
-<!-- assessed-at: 3eff852f0ce525fddf61b404747fd6b40c4e45eb -->
+<!-- assessed-at: aa6037798bcb99c0ce6a11580d3e79ea510502cd -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Kotlin Android — JNA ARM32 path fix + remaining normal issues
+## Phase: Release workflow hardening + benchmark documentation gap
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23399364458). All 12 language
-bindings scaffolded, tested, and documented. Android NDK cross-compilation added to the Kotlin
-release workflow (4 Android ABIs + 5 desktop targets = 9 total). The former critical issue (missing
-Android native libraries) is resolved. However, a JNA ARM32 resource path mismatch was discovered
-(`android-armv7` should be `android-arm`) — filed as normal priority pending human review.
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23399952416). All 12 language
+bindings scaffolded, tested, and documented. The JNA ARM32 resource path mismatch was fixed
+(`android-armv7` → `android-arm` in release.yml and kotlin-bindings.md spec). Four normal-priority
+release workflow hardening issues remain, plus a benchmarks documentation gap and a low-priority
+cosmetic issue.
 
 ## Rust Core Crate
 
@@ -109,20 +109,17 @@ Android native libraries) is resolved. However, a JNA ARM32 resource path mismat
 
 ## Kotlin Bindings
 
-**Status**: partially met
+**Status**: met
 
 - Scaffold complete — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
 - 3214-line UniFFI-generated bindings, conformance tests (9 methods, 50 vectors)
 - Version sync, CI job, docs, release workflow all complete
-- Release workflow now builds **9 targets**: 5 desktop/server + 4 Android ABIs
+- Release workflow builds **9 targets**: 5 desktop/server + 4 Android ABIs
     - Desktop: linux-x86-64, linux-aarch64, darwin-aarch64, darwin-x86-64, win32-x86-64
-    - Android: android-aarch64 (arm64-v8a), android-armv7 (armeabi-v7a), android-x86-64 (x86_64),
+    - Android: android-aarch64 (arm64-v8a), android-arm (armeabi-v7a), android-x86-64 (x86_64),
         android-x86 (x86)
-- Uses `cargo-ndk` with NDK r27c for Android builds, conditional steps via
-    `contains(matrix.target, 'android')`
-- **Known bug**: JNA ARM32 resource path mismatch — `android-armv7` in matrix but JNA expects
-    `android-arm` at runtime. Filed as issue, awaiting human review.
-- **Missing**: docs/howto/kotlin.md Android-specific install instructions not yet added
+- Uses `cargo-ndk` with NDK r27c for Android builds
+- JNA ARM32 resource path fix verified: `android-arm` in release.yml, no `android-armv7` remnants
 
 ## README
 
@@ -163,8 +160,8 @@ Android native libraries) is resolved. However, a JNA ARM32 resource path mismat
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23399364458: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23399364458
+- **LATEST COMPLETED RUN** — run 23399952416: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23399952416
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries
@@ -172,30 +169,26 @@ Android native libraries) is resolved. However, a JNA ARM32 resource path mismat
     maven-kotlin, swift
 - version_sync.py manages 16 sync targets (all OK)
 
-## Open Issues (6 total — 0 critical, 5 normal, 1 low)
+## Open Issues (5 total — 0 critical, 4 normal, 1 low)
 
-1. **JNA ARM32 resource path mismatch** `normal` [review] `HUMAN REVIEW REQUESTED` — `android-armv7`
-    in release.yml matrix but JNA 5.16.0 canonicalizes ARM32 to `android-arm` at runtime. ARMv7
-    Android devices would fail to load the native library. Requires 1-line fix in release.yml
-    matrix
-    - spec update. Bytecode-verified.
-2. **XCFramework release cache key incomplete** `normal` — Cache key only hashes crate sources and
+1. **XCFramework release cache key incomplete** `normal` — Cache key only hashes crate sources and
     Cargo.lock, missing build script and Swift headers.
-3. **Swift release job checks out `ref: main` instead of tag SHA** `normal` — race window if main
+2. **Swift release job checks out `ref: main` instead of tag SHA** `normal` — race window if main
     moves after tag creation.
-4. **Kotlin release smoke test doesn't validate assembled JAR** `normal` — Tests run against raw
+3. **Kotlin release smoke test doesn't validate assembled JAR** `normal` — Tests run against raw
     native libs, not the packaged JAR.
-5. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
+4. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
     consumer-facing root manifest never validated.
-6. **Language logos in docs** `low` — CID skips.
+5. **Language logos in docs** `low` — CID skips.
 
 ## Next Milestone
 
-**Fix JNA ARM32 resource path mismatch** (`android-armv7` → `android-arm`). This is a 1-line fix in
-the release.yml matrix + spec update. Marked `HUMAN REVIEW REQUESTED` — the define-next agent should
-pick this up if the human approves. After that:
+All 12 bindings are complete and CI is green. The remaining gaps are:
 
-1. Update `docs/howto/kotlin.md` with Android-specific install instructions
-2. Publish speedup factors in documentation (benchmarks gap)
-3. Address remaining normal release workflow issues (cache key, ref:main race, JAR smoke test, root
-    Package.swift CI)
+1. **Publish speedup factors in documentation** (benchmarks gap) — most impactful actionable item
+    since all 4 normal issues are release workflow hardening that the CID loop may not prioritize
+    over feature completeness.
+2. **Release workflow hardening** (4 normal issues) — XCF cache key, Swift ref:main race, Kotlin JAR
+    smoke test, root Package.swift CI. The Kotlin JAR smoke test is most impactful since it would
+    catch resource-path errors like the one just fixed.
+3. **Language logos in docs** (low) — CID skips, human-directed only.
