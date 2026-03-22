@@ -1112,7 +1112,7 @@ jobs:
   # Smoke test Kotlin native libraries on Linux before publishing
   test-kotlin-release:
     name: Test Kotlin libraries
-    needs: [build-kotlin-native]
+    needs: [build-kotlin-native, assemble-kotlin]
     if: startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin
     runs-on: ubuntu-latest
     steps:
@@ -1133,6 +1133,46 @@ jobs:
       - name: Run tests
         run: ./gradlew test
         working-directory: packages/kotlin
+      - name: Download assembled JAR
+        uses: actions/download-artifact@v4
+        with:
+          name: kotlin-jar
+          path: kotlin-jar
+      - name: Validate JAR contains all native libraries
+        run: |
+          JAR=$(ls kotlin-jar/*.jar | head -1)
+          echo "Inspecting JAR: $JAR"
+          JAR_CONTENTS=$(jar tf "$JAR")
+          EXPECTED_PATHS=(
+            "linux-x86-64/libiscc_uniffi.so"
+            "linux-aarch64/libiscc_uniffi.so"
+            "darwin-aarch64/libiscc_uniffi.dylib"
+            "darwin-x86-64/libiscc_uniffi.dylib"
+            "win32-x86-64/iscc_uniffi.dll"
+            "android-aarch64/libiscc_uniffi.so"
+            "android-arm/libiscc_uniffi.so"
+            "android-x86-64/libiscc_uniffi.so"
+            "android-x86/libiscc_uniffi.so"
+          )
+          MISSING=()
+          for path in "${EXPECTED_PATHS[@]}"; do
+            if echo "$JAR_CONTENTS" | grep -q "$path"; then
+              echo "OK: $path"
+            else
+              echo "MISSING: $path"
+              MISSING+=("$path")
+            fi
+          done
+          if [ ${#MISSING[@]} -ne 0 ]; then
+            echo ""
+            echo "ERROR: JAR is missing ${#MISSING[@]} native library path(s):"
+            for m in "${MISSING[@]}"; do
+              echo "  - $m"
+            done
+            exit 1
+          fi
+          echo ""
+          echo "All 9 native library resource paths present in JAR"
 
   # Publish Kotlin JAR to Maven Central via Sonatype Central Portal
   publish-maven-kotlin:

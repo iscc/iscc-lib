@@ -50,10 +50,9 @@ iterations.
 - `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Builds XCFramework →
     checksum → `sed` updates Package.swift → auto-commit → force-update tag → upload to GH Release.
     Uses macOS BSD `sed -E -i ''` (not GNU). Dual cache: `Swatinem/rust-cache` + `actions/cache`
-- Kotlin Maven Central: `build-kotlin-native` (9-platform matrix: 5 desktop + 4 Android) →
-    `assemble-kotlin` + `test-kotlin-release` → `publish-maven-kotlin`. Android uses `cargo-ndk` +
-    `nttld/setup-ndk@v1` (r27c). Publish uses Gradle `maven-publish` to local staging dir + curl
-    bundle upload to Sonatype Central Portal REST API. Signing via `useInMemoryPgpKeys`
+- Kotlin Maven Central: `build-kotlin-native` (9-platform matrix) → `assemble-kotlin` +
+    `test-kotlin-release` (validates JAR has all 9 JNA native lib paths) → `publish-maven-kotlin`.
+    Publish uses Gradle `maven-publish` + curl bundle upload to Sonatype Central Portal REST API
 
 ## WASM/WASI
 
@@ -197,6 +196,3 @@ iterations.
     classpath even when `jna.library.path` points to missing dir
 
 ## Python Benchmarks — see MEMORY-archive.md for details
-
-- Run: `uv run pytest tests/test_benchmarks.py --benchmark-only`
-- Skip: `uv run pytest tests/ --benchmark-disable` (normal tests, no benchmarks)

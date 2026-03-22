@@ -1,41 +1,37 @@
-## 2026-03-22 — Review of: Fix JNA ARM32 resource path mismatch (`android-armv7` → `android-arm`)
+## 2026-03-22 — Validate assembled JAR in Kotlin release smoke test
 
-**Verdict:** PASS
+**Done:** Added JAR content validation to the `test-kotlin-release` job in `release.yml`. The job
+now depends on `assemble-kotlin` (in addition to `build-kotlin-native`), downloads the assembled JAR
+artifact, and verifies all 9 expected JNA native library resource paths are present before the
+publish job can proceed.
 
-**Summary:** Clean, minimal fix that changes the JNA ARM32 native library resource directory from
-`android-armv7` to `android-arm` in both the release workflow and the Kotlin bindings spec. The fix
-is factually correct per bytecode verification of JNA 5.16.0's `Platform.class`. All verification
-criteria pass, all quality gates green, no scope violations.
+**Files changed:**
+
+- `.github/workflows/release.yml`: Modified `test-kotlin-release` job — added `assemble-kotlin` to
+    `needs`, added two new steps: "Download assembled JAR" and "Validate JAR contains all native
+    libraries". The validation checks all 9 platform paths (linux-x86-64, linux-aarch64,
+    darwin-aarch64, darwin-x86-64, win32-x86-64, android-aarch64, android-arm, android-x86-64,
+    android-x86) and fails with a clear error listing missing paths.
 
 **Verification:**
 
-- [x] `grep 'native-dir: android-arm$' .github/workflows/release.yml` — 1 match
-- [x] `grep -c 'android-armv7' .github/workflows/release.yml` — returns 0
-- [x] `grep 'android-arm/' .claude/context/specs/kotlin-bindings.md` — 2 matches (tree + table)
-- [x] `grep -c 'android-armv7' .claude/context/specs/kotlin-bindings.md` — returns 0
-- [x] YAML validation — exits 0
-- [x] `mise run format` — no changes
-- [x] `mise run check` — all 15 pre-commit hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- YAML validation: exits 0
+- `grep -A2 'test-kotlin-release' | grep 'assemble-kotlin'`: 2 matches (test needs + publish needs)
+- `grep -c 'kotlin-jar'`: 4 matches (upload name, upload path in assemble-kotlin; download name,
+    download path in test-kotlin-release)
+- `grep 'jar tf'`: 1 match (validation step)
+- `grep -c 'android-arm/'`: 1 match (validation script only — build matrix uses `android-arm`
+    without trailing slash, so the next.md criterion of "at least 2" is slightly off, but the
+    functional intent is met)
+- `mise run format`: no changes
+- `mise run check`: all 15 pre-commit hooks pass
 
-**Issues found:**
+**Next:** Three remaining normal-priority release workflow issues: XCFramework cache key, Swift
+ref:main race, root Package.swift CI. The Kotlin JAR smoke test issue can be marked resolved. The
+XCFramework cache key issue is probably the next most impactful — a stale cache could publish wrong
+binaries.
 
-- (none)
-
-**Codex review:** No regressions or breakage identified. Confirms the change matches JNA 5.16.0's
-resource prefix logic and is consistent with the surrounding artifact workflow.
-
-**Next:** The remaining 4 normal-priority issues are all release workflow hardening: XCFramework
-cache key, Swift ref:main race, Kotlin JAR smoke test, root Package.swift CI. The Kotlin JAR smoke
-test is the most impactful — it would catch resource-path errors like the one just fixed. Consider
-tackling it next. Alternatively, the benchmarks speedup documentation gap is a lighter task.
-
-**Notes:**
-
-- The JNA ARM32 issue (source: `[review]`, `HUMAN REVIEW REQUESTED`) was resolved and deleted from
-    issues.md. The spec change to `kotlin-bindings.md` fixes a factual error — the spec had
-    `android-armv7` but JNA always resolves to `android-arm`. The advance agent also correctly
-    updated its own agent memory to reflect the fix.
-- State.md still lists `android-armv7` in the Kotlin section — the next update-state pass will
-    correct this.
-- 4 normal issues remain (all `[human]`-sourced release workflow issues) + 1 low (docs logos).
+**Notes:** The existing Gradle source-level test is preserved (runs before the JAR validation). The
+overall dependency graph for `publish-maven-kotlin` is unchanged — it already depended on both
+`assemble-kotlin` and `test-kotlin-release`. The new `assemble-kotlin` dependency on the test job
+just ensures the JAR artifact exists before the test tries to download it.
