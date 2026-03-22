@@ -1037,3 +1037,8 @@
 {"ts":"2026-03-21T23:08:05.518823+00:00","iteration":4,"role":"define-next","status":"OK","turns":27,"cost_usd":1.234537,"duration_s":318.6}
 {"ts":"2026-03-21T23:14:28.600171+00:00","iteration":4,"role":"advance","status":"OK","turns":37,"cost_usd":1.216821,"duration_s":383.1}
 {"ts": "2026-03-21T23:30:00.000000+00:00", "iteration": 4, "role": "review", "status": "PASS", "verdict_notes": "Package.swift version sync + Swift docs update. All 5 criteria pass. Resolved Swift vend issue. Cleaned triplicate learnings.md entries. Remaining normal issue (GITHUB_REF_NAME) blocked on human review."}
+{"ts":"2026-03-21T23:23:06.961410+00:00","iteration":4,"role":"review","status":"OK","turns":1,"cost_usd":2.287793,"duration_s":518.4}
+{"ts":"2026-03-21T23:44:28.271624+00:00","iteration":5,"role":"update-state","status":"OK","turns":22,"cost_usd":0.658231,"duration_s":167.8}
+{"ts":"2026-03-21T23:50:07.011663+00:00","iteration":5,"role":"define-next","status":"OK","turns":42,"cost_usd":1.320707,"duration_s":338.7}
+{"ts":"2026-03-21T23:57:04.600116+00:00","iteration":5,"role":"advance","status":"OK","turns":35,"cost_usd":1.408731,"duration_s":417.6}
+{"ts":"2026-03-22T00:10:00.000000+00:00","iteration":5,"role":"review","status":"PASS","turns":12,"cost_usd":0.45,"duration_s":300.0}
