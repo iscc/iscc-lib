@@ -89,11 +89,13 @@ iterations.
 - Swift: `genTextCodeV0(text: "text", bits: 64)` — camelCase free functions, named params
 - Kotlin: `genTextCodeV0(text = "text", bits = 64u)` — camelCase free functions, UInt params
 
-## Remaining Target Gaps (after JAR smoke test)
+## Remaining Target Gaps (after iteration 5)
 
-- ~~Benchmarks: Speedup factors not published~~ — STALE, already in docs/benchmarks.md with full
-    speedup table (1.3×–158×), in nav, builds correctly
+- Benchmarks: FULLY MET — docs/benchmarks.md has full speedup table (1.3×–158×), in nav, in
+    llms-full. State.md was stale about this
 - Docs: Language logos (low priority, CID skips)
-- Release pipeline: 3 normal issues (cache key, ref:main race, root Package.swift CI)
+- Release pipeline: 2 normal issues remaining
     - JAR smoke test: RESOLVED (iteration 3)
-    - Cache key: SCOPED for iteration 4
+    - Cache key: RESOLVED (iteration 4)
+    - ref:main race: SCOPED for iteration 5
+    - Root Package.swift CI: still open

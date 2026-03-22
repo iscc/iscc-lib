@@ -1,81 +1,90 @@
 # Next Work Package
 
-## Step: Fix XCFramework release cache key to include all build inputs
+## Step: Guard Swift release build against main/tag SHA mismatch
 
 ## Goal
 
-Expand the XCFramework build cache key in `release.yml` to include all files that affect the output
-binary — preventing stale XCFramework artifacts from being published when build scripts, headers, or
-UniFFI scaffolding change. Addresses the "XCFramework release cache key incomplete" normal issue.
+Add a provenance guard to the `build-xcframework` release job that fails on tag-triggered releases
+if `main` HEAD has diverged from the tag's commit SHA. This prevents building XCFramework binaries
+from source code different than what was tagged, addressing the "Swift release job checks out
+`ref: main` instead of tag SHA" normal issue.
 
 ## Scope
 
 - **Create**: (none)
-- **Modify**: `.github/workflows/release.yml` (line ~1269, the `key:` field of the XCFramework cache
-    step)
-- **Reference**: `scripts/build_xcframework.sh`, `packages/swift/Sources/iscc_uniffiFFI/`,
-    `.claude/context/issues.md`
+- **Modify**: `.github/workflows/release.yml` (add a guard step after the checkout in
+    `build-xcframework` job, ~lines 1255-1258)
+- **Reference**: `.claude/context/issues.md` (issue description and suggested fixes),
+    `.github/workflows/release.yml` (full `build-xcframework` job, lines 1248-1296)
 
 ## Not In Scope
 
-- Fixing the Swift `ref: main` race condition (separate issue, more complex architectural change)
+- Rearchitecting the checksum-commit-back flow (too complex for one step — the guard is a safe
+    fail-fast approach that prevents the race without redesigning the workflow)
+- Changing `ref: main` to `${{ github.sha }}` for the checkout (this would break the
+    git-auto-commit-action which commits back to main)
 - Adding a root `Package.swift` CI smoke test (separate issue)
-- Changing the caching strategy (e.g., removing caching entirely) — just expand the key
-- Modifying the build script itself or any non-cache-key parts of the workflow
+- Modifying any other release job or the build script
+- Changing the XCFramework cache key (already fixed in iteration 4)
 
 ## Implementation Notes
 
-The current cache key at line 1269 is:
+The `build-xcframework` job currently checks out `ref: main` (line 1258) because it needs to:
+
+1. Build the XCFramework from source
+2. Compute the checksum
+3. Commit the checksum update back to main (via git-auto-commit-action)
+4. Force-update the tag to include the checksum commit
+
+The race condition: if `main` moves after the tag is created (concurrent merge, hotfix), the
+XCFramework is built from different source than what was tagged.
+
+**Fix: Add a guard step immediately after checkout** that compares `github.sha` (the tag's commit
+SHA) with `HEAD` (main's current HEAD after checkout). If they differ, the job fails with a clear
+error message.
 
 ```yaml
-key: xcf-${{ hashFiles('crates/iscc-*/src/**', 'Cargo.lock') }}
+  - name: Verify main matches tag
+    if: startsWith(github.ref, 'refs/tags/v')
+    run: |
+      TAG_SHA="${{ github.sha }}"
+      MAIN_SHA=$(git rev-parse HEAD)
+      if [ "$TAG_SHA" != "$MAIN_SHA" ]; then
+        echo "::error::main HEAD ($MAIN_SHA) differs from tag SHA ($TAG_SHA)."
+        echo "::error::This means main has moved since the tag was created."
+        echo "::error::Re-tag after main stabilizes, or re-trigger with workflow_dispatch."
+        exit 1
+      fi
 ```
 
-This misses several inputs that affect the XCFramework output:
+**Key design decisions:**
 
-1. **`scripts/build_xcframework.sh`** — changes to the build process (targets, flags, lipo
-    configuration, zip method) produce different binaries
-2. **`packages/swift/Sources/iscc_uniffiFFI/iscc_uniffiFFI.h`** and **`module.modulemap`** — these
-    headers are copied into the XCFramework; stale headers cause compile failures for consumers
-3. **`crates/iscc-uniffi/src/**`** — the UniFFI scaffolding crate source that generates the Swift
-    bindings (already covered by `crates/iscc-*/src/**` glob since `iscc-*` matches `iscc-uniffi`)
-4. **Root `Cargo.toml`** and per-crate **`Cargo.toml`** files — workspace dependency versions and
-    feature flag changes affect compilation
+- **Conditional on tag trigger** (`if: startsWith(github.ref, 'refs/tags/v')`): For
+    `workflow_dispatch` re-triggers (e.g., `--ref main -f swift=true`), we intentionally use current
+    main — no guard needed
+- **Placed after checkout**: Must be after `actions/checkout@v4` so `git rev-parse HEAD` works
+- **Placed before cache/build steps**: Fails fast before expensive operations
+- **Uses `github.sha`**: On tag-triggered runs, this is the commit the tag points to — exactly what
+    we want to compare against
+- **Clear error messages**: Uses `::error::` annotations so the failure is obvious in the GHA UI
 
-The fix: expand the `hashFiles()` call to explicitly include these paths. Use a multi-line format
-for readability:
-
-```yaml
-key: xcf-${{ hashFiles(
-  'crates/iscc-*/src/**',
-  'crates/iscc-*/Cargo.toml',
-  'Cargo.lock',
-  'Cargo.toml',
-  'scripts/build_xcframework.sh',
-  'packages/swift/Sources/iscc_uniffiFFI/**'
-) }}
-```
-
-**Important YAML formatting note**: `hashFiles()` accepts multiple glob arguments as a single
-function call. Keep the YAML valid — test with a YAML parser after editing.
-
-Verify that `crates/iscc-*/src/**` already matches `crates/iscc-uniffi/src/` (it does, since the
-glob `iscc-*` matches `iscc-uniffi`).
+The guard step should go between the checkout step (line 1255-1258) and the rust-toolchain step
+(line 1259).
 
 ## Verification
 
 - `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/release.yml'))"` exits 0 (valid
     YAML)
-- `grep -A5 'xcf-cache' .github/workflows/release.yml | grep 'build_xcframework.sh'` finds the build
-    script in the cache key
-- `grep -A5 'xcf-cache' .github/workflows/release.yml | grep 'iscc_uniffiFFI'` finds the headers in
-    the cache key
-- `grep -A5 'xcf-cache' .github/workflows/release.yml | grep 'Cargo.toml'` finds Cargo.toml in the
-    cache key (beyond just Cargo.lock)
+- `grep -c 'Verify main matches tag' .github/workflows/release.yml` returns `1` (guard step exists)
+- `grep -A2 'Verify main matches tag' .github/workflows/release.yml | grep "startsWith(github.ref"`
+    confirms the step is conditional on tag triggers only
+- `grep -A10 'Verify main matches tag' .github/workflows/release.yml | grep 'github.sha'` confirms
+    the tag SHA comparison is present
+- `grep -A10 'Verify main matches tag' .github/workflows/release.yml | grep 'git rev-parse HEAD'`
+    confirms main HEAD is compared
 - `mise run format` produces no changes
-- `mise run check` passes (all pre-commit hooks)
 
 ## Done When
 
-All verification criteria pass — the XCFramework cache key includes build script, Swift headers,
-Cargo.toml files, and all crate sources, ensuring cache invalidation on any input change.
+All verification criteria pass — the `build-xcframework` job has a guard step that fails fast on
+tag-triggered releases if main HEAD has diverged from the tagged commit.
