@@ -1,29 +1,37 @@
-## 2026-03-22 — Add root Package.swift manifest smoke test to CI
+## 2026-03-22 — Review of: Add root Package.swift manifest smoke test to CI
 
-**Done:** Added a `swift package dump-package` step to the `swift` CI job that validates the
-consumer-facing root `Package.swift` manifest parses correctly. The step runs early (after
-rust-cache, before the expensive UniFFI build) and requires no `working-directory` since it targets
-the repo root.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.github/workflows/ci.yml`: Added "Validate root Package.swift manifest" step at line 239-240 in
-    the `swift` job, between `Swatinem/rust-cache@v2` and "Build UniFFI native library"
+**Summary:** The advance agent added exactly 2 lines to ci.yml — a `swift package dump-package` step
+in the `swift` job that validates the root `Package.swift` manifest parses correctly. The change is
+minimal, correctly placed (after rust-cache, before the expensive UniFFI build), and all 6
+verification criteria pass. The resolved "CI does not exercise root Package.swift" issue has been
+deleted from issues.md.
 
 **Verification:**
 
-- YAML valid: `yaml.safe_load()` exits 0
-- `grep -c 'dump-package'` returns 1 (step exists exactly once)
-- `grep -B2 'dump-package' | grep -c 'working-directory'` returns 0 (runs at repo root)
-- `grep -B5 'dump-package' | grep 'Validate root'` confirms step name
-- `dump-package` step appears BEFORE "Build UniFFI native library" (visual inspection confirmed)
-- `mise run format` produces no changes
-- `mise run check` — all 15 pre-commit hooks pass
+- [x] `yaml.safe_load` exits 0 — valid YAML confirmed
+- [x] `grep -c 'dump-package'` returns 1 — step exists exactly once
+- [x] `grep -B2 'dump-package' | grep -c 'working-directory'` returns 0 — runs at repo root
+- [x] `grep -B5 'dump-package' | grep 'Validate root'` — step name confirmed
+- [x] `dump-package` step (line 240) appears BEFORE "Build UniFFI native library" (line 241)
+- [x] `mise run format` — no changes (clean)
 
-**Next:** The "CI does not exercise root Package.swift" issue in issues.md should be marked resolved
-by the review agent. The only remaining issues are "Add programming language logos to docs site"
-(low priority, CID-skipped) and the benchmarks documentation gap.
+**Issues found:**
 
-**Notes:** No tests to write — this is a CI-only YAML change. The `dump-package` command parses the
-manifest and outputs JSON but does NOT resolve/download binary targets, so the PLACEHOLDER checksum
-on develop is fine. This is exactly the right level of validation for the develop branch.
+- (none)
+
+**Codex review:** One P2 finding: `dump-package` doesn't validate the remote XCFramework
+URL/checksum. This is by design — the work package explicitly scoped this as `dump-package` (not
+`swift package resolve`) because the root manifest has a PLACEHOLDER checksum on develop. Binary
+target resolution would fail. The release workflow patches the checksum at publish time. This is the
+correct level of validation for the develop branch. Finding dismissed.
+
+**Next:** Only one low-priority issue remains (docs language logos), which CID skips. The benchmarks
+documentation gap (state.md: "partially met" — speedup factors not published) is the last actionable
+gap for CID. The next step should run the pytest-benchmark comparisons, compute speedup factors, and
+publish them to the docs site.
+
+**Notes:** All 12 bindings complete, all CI green, all issues resolved except the low cosmetic one.
+The project is approaching full completion — only the benchmarks docs gap prevents Documentation and
+Benchmarks from reaching "met" status.

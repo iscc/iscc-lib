@@ -80,10 +80,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
 - .NET bindings fully complete (iteration 9): 32/32 Tier 1 symbols, 91 tests, NuGet publish
     pipeline, version sync, docs. C# issue resolved and deleted from issues.md
-- Swift bindings: XCFramework deliverables complete (iteration 4) — build script, Package.swift,
-    release workflow, version sync (16th target), docs. GITHUB_REF_NAME bug fixed (d29a1b3).
-    Provenance guard added (iteration 5). XCF cache key fixed (iteration 4). Remaining: root
-    Package.swift CI smoke test (normal issue)
+- Swift bindings fully complete: XCFramework, Package.swift, release workflow, version sync, docs,
+    provenance guard (iteration 5), root Package.swift CI smoke test (iteration 6)
 - **JNA Android ARM32 resource path**: JNA canonicalizes ARM32 arch to `arm` (not `armv7`). Correct
     prefix is `android-arm/`, not `android-armv7/`. Verified via bytecode decompilation. Filed as
     spec issue with HUMAN REVIEW REQUESTED
@@ -123,7 +121,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Review shortcut: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (no `swift test` on
     Linux). Swift tests structurally validated only — execution needs macOS CI
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
-- Swift CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test`
+- Swift CI job (`swift:`) on `macos-14`: `dump-package` (root) → `cargo build -p iscc-uniffi` →
+    `swift build` → `swift test`
 - **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
     consistently get this wrong — always verify in review
 
