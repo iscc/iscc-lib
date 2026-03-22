@@ -1,4 +1,4 @@
-<!-- assessed-at: aa6037798bcb99c0ce6a11580d3e79ea510502cd -->
+<!-- assessed-at: 0d8e6a911c007dfc9674b89ba7ba71f218f82f93 -->
 
 # Project State
 
@@ -6,11 +6,10 @@
 
 ## Phase: Release workflow hardening + benchmark documentation gap
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23399952416). All 12 language
-bindings scaffolded, tested, and documented. The JNA ARM32 resource path mismatch was fixed
-(`android-armv7` → `android-arm` in release.yml and kotlin-bindings.md spec). Four normal-priority
-release workflow hardening issues remain, plus a benchmarks documentation gap and a low-priority
-cosmetic issue.
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23400579618). All 12 language
+bindings scaffolded, tested, and documented. The Kotlin JAR smoke test was added to the release
+workflow (issue resolved). Three normal-priority release workflow hardening issues remain, plus a
+benchmarks documentation gap and a low-priority cosmetic issue.
 
 ## Rust Core Crate
 
@@ -120,6 +119,7 @@ cosmetic issue.
         android-x86 (x86)
 - Uses `cargo-ndk` with NDK r27c for Android builds
 - JNA ARM32 resource path fix verified: `android-arm` in release.yml, no `android-armv7` remnants
+- JAR smoke test added: validates runtime JAR contains all 9 native library paths via `jar tf`
 
 ## README
 
@@ -160,8 +160,8 @@ cosmetic issue.
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23399952416: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23399952416
+- **LATEST COMPLETED RUN** — run 23400579618: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23400579618
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries
@@ -169,26 +169,23 @@ cosmetic issue.
     maven-kotlin, swift
 - version_sync.py manages 16 sync targets (all OK)
 
-## Open Issues (5 total — 0 critical, 4 normal, 1 low)
+## Open Issues (4 total — 0 critical, 3 normal, 1 low)
 
 1. **XCFramework release cache key incomplete** `normal` — Cache key only hashes crate sources and
     Cargo.lock, missing build script and Swift headers.
 2. **Swift release job checks out `ref: main` instead of tag SHA** `normal` — race window if main
     moves after tag creation.
-3. **Kotlin release smoke test doesn't validate assembled JAR** `normal` — Tests run against raw
-    native libs, not the packaged JAR.
-4. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
+3. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
     consumer-facing root manifest never validated.
-5. **Language logos in docs** `low` — CID skips.
+4. **Language logos in docs** `low` — CID skips.
 
 ## Next Milestone
 
 All 12 bindings are complete and CI is green. The remaining gaps are:
 
 1. **Publish speedup factors in documentation** (benchmarks gap) — most impactful actionable item
-    since all 4 normal issues are release workflow hardening that the CID loop may not prioritize
+    since all 3 normal issues are release workflow hardening that the CID loop may not prioritize
     over feature completeness.
-2. **Release workflow hardening** (4 normal issues) — XCF cache key, Swift ref:main race, Kotlin JAR
-    smoke test, root Package.swift CI. The Kotlin JAR smoke test is most impactful since it would
-    catch resource-path errors like the one just fixed.
+2. **Release workflow hardening** (3 normal issues) — XCF cache key, Swift ref:main race, root
+    Package.swift CI.
 3. **Language logos in docs** (low) — CID skips, human-directed only.

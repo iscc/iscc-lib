@@ -72,14 +72,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Review-filed issues**: Review agent can file issues (e.g., JNA ARM32 path mismatch). Check for
     `[review]` source tag and `HUMAN REVIEW REQUESTED` flag.
 
-## Current State (assessed-at: aa60377)
+## Current State (assessed-at: 0d8e6a9)
 
-- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23399952416)
+- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23400579618)
 - **0 critical issues**
-- **4 normal issues**: XCF cache key, Swift ref:main race, Kotlin JAR smoke test, root Package.swift
+- **3 normal issues**: XCF cache key, Swift ref:main race, root Package.swift
 - **1 low issue**: language logos in docs
-- **JNA ARM32 fix verified**: `android-arm` in release.yml, no `android-armv7` remnants
-- **Remaining gaps**: benchmarks speedup docs, release workflow hardening (4 normal issues)
+- **Kotlin JAR smoke test resolved**: runtime JAR selection fixed (grep -v classifier JARs)
+- **Remaining gaps**: benchmarks speedup docs, release workflow hardening (3 normal issues)
 
 ## Gotchas
 
@@ -99,3 +99,5 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     swift input
 - **pytest-benchmark naming**: functions use `test_bench_*` prefix (not bare `bench_*`)
 - **GITHUB_REF_NAME fixed**: commit d29a1b3 derives version from Cargo.toml (was spec conflict)
+- **Kotlin JAR selection**: `ls *.jar | head -1` picks `-javadoc.jar` alphabetically; must `grep -v`
+    classifier JARs first
