@@ -199,13 +199,14 @@ Detailed spec: `.claude/context/specs/cpp-bindings.md`
 - RAII ensures no memory leaks (valgrind/ASAN clean)
 - Conformance tests pass (C++ test program)
 
-## Swift Bindings — Swift Package with Prebuilt XCFramework
+## Swift Bindings — iOS and macOS via SPM
 
 A Swift package providing idiomatic Swift access via UniFFI-generated bindings with a prebuilt
-XCFramework for zero-friction installation. Shares the UniFFI scaffolding crate
-(`crates/iscc-uniffi/`) with Kotlin bindings. Distributed via Swift Package Manager (SPM) using Git
-tags and `.binaryTarget` — no Rust toolchain required for consumers. Follows the Ferrostar monorepo
-pattern (variable toggle in root `Package.swift`, force-update tag for checksum).
+XCFramework for zero-friction installation. **Primary audience: iOS and macOS developers.** Shares
+the UniFFI scaffolding crate (`crates/iscc-uniffi/`) with Kotlin bindings. Distributed via Swift
+Package Manager (SPM) using Git tags and `.binaryTarget` — no Rust toolchain required for consumers.
+Follows the Ferrostar monorepo pattern (variable toggle in root `Package.swift`, force-update tag
+for checksum).
 
 Detailed spec: `.claude/context/specs/swift-bindings.md`
 
@@ -220,19 +221,26 @@ Detailed spec: `.claude/context/specs/swift-bindings.md`
 - Release workflow force-updates the tag after updating checksum in `Package.swift`
 - Version synced from root `Cargo.toml` via `mise run version:sync`
 
-## Kotlin Multiplatform Bindings — `io.iscc:iscc-lib-kotlin` on Maven Central
+## Kotlin Bindings — Android and JVM via Maven Central
 
-A Kotlin Multiplatform (KMP) library published to Maven Central as `io.iscc:iscc-lib-kotlin`. Shares
-the UniFFI scaffolding crate with Swift bindings. Targets JVM, iOS (Kotlin/Native), and macOS
-(Kotlin/Native).
+A Kotlin/JVM library published to Maven Central as `io.iscc:iscc-lib-kotlin`. **Primary audience:
+Android developers.** Also works on server/desktop JVM. Shares the UniFFI scaffolding crate with
+Swift bindings. Uses JNA for native library loading (UniFFI's Kotlin backend generates JVM-only
+code).
+
+**Mobile DX story:** iOS developers use the Swift bindings (XCFramework via SPM). Android developers
+use the Kotlin bindings (AAR/JAR with bundled native libraries via Maven Central). Together they
+provide zero-friction ISCC integration for both mobile platforms.
 
 Detailed spec: `.claude/context/specs/kotlin-bindings.md`
 
 **Verified when:**
 
-- Kotlin tests pass conformance vectors on JVM and Native targets
+- Kotlin tests pass conformance vectors on JVM
 - All 32 Tier 1 symbols accessible with idiomatic Kotlin types
-- Works from Kotlin/JVM and Kotlin/Native (iOS, macOS)
+- Native libraries bundled for Android ABIs (arm64-v8a, armeabi-v7a, x86_64, x86)
+- Native libraries bundled for desktop (linux-x86-64, darwin-aarch64, darwin-x86-64, win32-x86-64)
+- Android app can add the Maven dependency and call ISCC functions without manual native lib setup
 - Version synced from root `Cargo.toml` via `mise run version:sync`
 
 ## README
