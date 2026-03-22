@@ -29,6 +29,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **XCFramework verify**:
     `test -x scripts/build_xcframework.sh && bash -n scripts/build_xcframework.sh`
 - **Swift release workflow check**: `grep -i 'swift\|xcframework' .github/workflows/release.yml`
+- **Kotlin native targets**: `grep -A 20 "build-kotlin-native:" .github/workflows/release.yml`
+- **Android target check**: `grep "android" .github/workflows/release.yml`
 
 ## Codebase Landmarks
 
@@ -64,16 +66,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Verify claims independently**: always grep rather than trusting handoff.
 - **Target may change**: always re-read target.md diff when doing incremental review.
 - **Handoff predictions may be wrong**: always verify CI independently.
+- **Issues filed by human**: Human filed 5 new issues from Codex PR review — always check issues.md
+    diff for new entries, especially critical ones that change priorities.
 
-## Current State (assessed-at: 4cfb6ab)
+## Current State (assessed-at: 366f36a)
 
-- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN
-- Latest CI run: 23391076552 (SUCCESS)
-- **All 12 language bindings complete**: scaffold, tests, CI, docs, release workflows
-- **1 normal issue**: Swift release job GITHUB_REF_NAME bug (HUMAN REVIEW REQUESTED — blocked)
+- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23398247400)
+- **1 critical issue**: Kotlin missing Android native libraries (4 ABIs)
+- **4 normal issues**: XCF cache key, Swift ref:main race, Kotlin JAR smoke test, root Package.swift
 - **1 low issue**: language logos in docs
-- **CID effectively idle**: normal issue blocked on human, low issues skipped by policy
-- **Version sync**: 16 targets, all OK (Package.swift releaseTag added this iteration)
+- **GITHUB_REF_NAME bug fixed**: commit d29a1b3 (resolved)
+- **Target refocused**: Kotlin = "Android and JVM"; Swift = "iOS and macOS"
+- **Version sync**: 16 targets, all OK
 
 ## Gotchas
 
@@ -86,13 +90,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `jna.library.path` at runtime
 - **Kotlin release workflow**: Uses `useInMemoryPgpKeys` (env vars) instead of Java's GPG keyring;
     Central Portal upload via curl REST API (no Gradle plugin)
-- **mdformat trailing space bug**: inline code with trailing space triggers error
+- **Kotlin Android gap**: build-kotlin-native has 5 desktop targets, 0 Android. Spec requires 4
+    Android ABIs via cargo-ndk. JNA resource paths: android-aarch64/, android-armv7/,
+    android-x86-64/
 - **Root Package.swift**: Two manifests coexist — root for distribution (binaryTarget),
     packages/swift for CI development. `releaseChecksum = "PLACEHOLDER"` until first release with
     swift input
-- **Swift XCFramework spec**: `.claude/context/specs/swift-bindings.md` (460+ lines) — comprehensive
-    design doc. Key sections: "Release Workflow Integration", "Version Sync"
+- **Swift XCFramework spec**: `.claude/context/specs/swift-bindings.md` (460+ lines)
 - **pytest-benchmark naming**: functions use `test_bench_*` prefix (not bare `bench_*`)
-- **Swift GITHUB_REF_NAME bug**: `build-xcframework` job line 1198 uses `GITHUB_REF_NAME` for
-    version — breaks `--ref main` re-trigger. All other jobs use Cargo.toml. Issue has
-    `HUMAN REVIEW REQUESTED` flag because spec explicitly prescribes `GITHUB_REF_NAME`.
+- **GITHUB_REF_NAME fixed**: commit d29a1b3 derives version from Cargo.toml (was spec conflict)

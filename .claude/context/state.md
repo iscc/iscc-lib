@@ -1,23 +1,22 @@
-<!-- assessed-at: 4cfb6abfb314c2322c4ca5c3f836a85eea15a8b8 -->
+<!-- assessed-at: 366f36a264ce8633b41b347a3f252ce192a25eaf -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Swift GITHUB_REF_NAME fix — blocked on human review
+## Phase: Kotlin Android native libraries — critical gap
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23391076552). All 12 language
-bindings scaffolded, tested, documented, and shipping. XCFramework build script, root Package.swift,
-release workflow, version sync (16 targets), and Swift install docs all complete. Only remaining
-`normal` issue is the GITHUB_REF_NAME bug in the Swift release job — blocked on
-`HUMAN REVIEW REQUESTED` (spec prescribes `GITHUB_REF_NAME`, fix requires spec update).
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23398247400). All 12 language
+bindings scaffolded, tested, and documented. The GITHUB_REF_NAME bug was fixed (commit d29a1b3).
+However, the target was refocused: Kotlin bindings now target Android developers as the primary
+audience, requiring native libraries for 4 Android ABIs. This is filed as a `critical` issue — the
+published JAR is unusable on Android because no Android native libraries are bundled.
 
 ## Rust Core Crate
 
 **Status**: met
 
 - All 32 Tier 1 symbols present with correct feature-gating
-- alg_cdc_chunks public API returns IsccResult\<Vec\<&[u8]>> — validates avg_chunk_size < 2
 - data.json at iscc-core v1.3.0 (50 total vectors)
 - 316 tests pass with default features
 - Feature matrix CI (5 steps) passed in latest green run
@@ -98,7 +97,7 @@ release workflow, version sync (16 targets), and Swift install docs all complete
 
 ## Swift Bindings
 
-**Status**: partially met
+**Status**: met
 
 - SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
 - 9 conformance test methods covering 50 vectors; CI job SUCCESS on macos-14
@@ -106,19 +105,21 @@ release workflow, version sync (16 targets), and Swift install docs all complete
 - XCFramework build script executable, valid shell, 5 Apple targets
 - Root `Package.swift` restructured: Ferrostar-style toggle, `releaseTag = "0.3.1"`
 - Release workflow: `swift` checkbox input (9th), `build-xcframework` job integrated
-- Version sync: `releaseTag` now managed by `version_sync.py` (16th target, confirmed OK)
-- **Remaining issue**: `GITHUB_REF_NAME` bug at line 1198 of release.yml — derives version from
-    `GITHUB_REF_NAME` instead of Cargo.toml, breaking `--ref main` re-trigger. Flagged
-    `HUMAN REVIEW REQUESTED` — spec explicitly prescribes `GITHUB_REF_NAME`; fix requires spec
-    update. CID cannot proceed autonomously.
+- Version sync: `releaseTag` managed by `version_sync.py` (16th target, confirmed OK)
+- GITHUB_REF_NAME bug fixed (commit d29a1b3) — now derives version from Cargo.toml
 
-## Kotlin Multiplatform Bindings
+## Kotlin Bindings
 
-**Status**: met
+**Status**: partially met
 
 - Scaffold complete — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
 - 3214-line UniFFI-generated bindings, conformance tests (9 methods, 50 vectors)
 - Version sync, CI job, docs, release workflow all complete
+- Release workflow builds 5 desktop/server targets (linux-x86-64, linux-aarch64, darwin-aarch64,
+    darwin-x86-64, win32-x86-64) — **no Android ABIs**
+- **Critical gap**: Target now requires Android native libraries for 4 ABIs (arm64-v8a, armeabi-v7a,
+    x86_64, x86). Published JAR is unusable on Android. Spec updated in
+    `.claude/context/specs/kotlin-bindings.md` with Android cross-compilation details.
 
 ## README
 
@@ -143,6 +144,7 @@ release workflow, version sync (16 targets), and Swift install docs all complete
 - 22 pages in gen_llms_full.py ORDERED_PAGES; all navigation sections complete
 - 11 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
     ruby.md, dotnet.md, swift.md, kotlin.md
+- docs/index.md: 11 language tabs in Quick Start, Swift+Kotlin in Available Bindings table
 - **Gap** (low, CID skips): Language logos in docs howto headers
 
 ## Benchmarks
@@ -158,35 +160,42 @@ release workflow, version sync (16 targets), and Swift install docs all complete
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23391076552: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23391076552
+- **LATEST COMPLETED RUN** — run 23398247400: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23398247400
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
-- v0.3.1 released across all 9 registries (maven-kotlin to be exercised on next release)
+- v0.3.1 released across all 9 registries
 - Release workflow has 9 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift
 - version_sync.py manages 16 sync targets (all OK)
 
-## Open Issues (2 total — 1 normal, 1 low)
+## Open Issues (6 total — 1 critical, 4 normal, 1 low)
 
-1. **Swift release job `--ref main` re-trigger incompatible** `normal` — `build-xcframework` uses
-    `GITHUB_REF_NAME` for version extraction (line 1198 of release.yml). Re-triggering with
-    `--ref main -f swift=true` would set `releaseTag = "main"`. Fix: derive version from
-    Cargo.toml. `HUMAN REVIEW REQUESTED` — spec explicitly uses `GITHUB_REF_NAME`; CID blocked.
-2. **Language logos in docs** `low` — CID skips
+1. **Kotlin bindings missing Android native libraries** `critical` — Release workflow only builds 5
+    desktop/server targets. No Android ABIs (aarch64-linux-android, armv7-linux-androideabi,
+    x86_64-linux-android, i686-linux-android) are cross-compiled. Published JAR unusable on
+    Android. Requires: NDK setup, cargo-ndk, release workflow matrix expansion, JNA resource path
+    mapping.
+2. **XCFramework release cache key incomplete** `normal` — Cache key at release.yml:1192 only hashes
+    crate sources and Cargo.lock, missing build script and Swift headers.
+3. **Swift release job checks out `ref: main` instead of tag SHA** `normal` — race window if main
+    moves after tag creation.
+4. **Kotlin release smoke test doesn't validate assembled JAR** `normal` — Tests run against raw
+    native libs, not the packaged JAR.
+5. **CI does not exercise root Package.swift** `normal` — Only packages/swift manifest tested,
+    consumer-facing root manifest never validated.
+6. **Language logos in docs** `low` — CID skips.
 
 ## Next Milestone
 
-**Blocked on human review** — the only `normal`-priority issue (GITHUB_REF_NAME bug) has
-`HUMAN REVIEW REQUESTED` because the spec explicitly prescribes `GITHUB_REF_NAME` and fixing it
-requires a spec change. CID cannot proceed autonomously on this item. The `low`-priority issues
-(docs logos, speedup factors in docs) are human-directed only.
+**Critical priority: Kotlin Android native libraries.** The target was refocused to make Android the
+primary audience for Kotlin bindings. Required work:
 
-**When human approves:** Update spec to use Cargo.toml-derived version, then fix line 1198 of
-`release.yml` to `VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)"/\1/')` and
-construct tag as `v$VERSION`.
+1. Add Android NDK + Rust Android targets + `cargo-ndk` to devcontainer (or CI-only)
+2. Add 4 Android ABI targets to `build-kotlin-native` matrix in `release.yml`
+3. Map Android Rust targets to JNA resource paths in `assemble-kotlin` job
+4. Add Android smoke test or resource-path verification
+5. Update `docs/howto/kotlin.md` with Android-specific install instructions
 
-**Remaining low-priority work** (human-directed only):
-
-- Language logos in docs howto headers
-- Speedup factors published in documentation
+After Android support: address the 4 `normal` release workflow issues (cache key, ref:main race, JAR
+smoke test, root Package.swift CI).
