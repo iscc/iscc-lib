@@ -1256,6 +1256,17 @@ jobs:
         with:
           fetch-depth: 0
           ref: main
+      - name: Verify main matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_SHA="${{ github.sha }}"
+          MAIN_SHA=$(git rev-parse HEAD)
+          if [ "$TAG_SHA" != "$MAIN_SHA" ]; then
+            echo "::error::main HEAD ($MAIN_SHA) differs from tag SHA ($TAG_SHA)."
+            echo "::error::This means main has moved since the tag was created."
+            echo "::error::Re-tag after main stabilizes, or re-trigger with workflow_dispatch."
+            exit 1
+          fi
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: >-
