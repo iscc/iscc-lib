@@ -1,40 +1,31 @@
-## 2026-03-22 — Review of: Validate assembled JAR in Kotlin release smoke test
+## 2026-03-22 — Fix XCFramework release cache key to include all build inputs
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Expanded the XCFramework build cache key in `release.yml` to include all files that affect
+the output binary — build script, Swift FFI headers/modulemap, per-crate Cargo.toml files, and root
+Cargo.toml. This prevents stale XCFramework artifacts from being published when these inputs change.
 
-**Summary:** The advance agent correctly added JAR content validation to the `test-kotlin-release`
-job in `release.yml`, adding `assemble-kotlin` as a dependency and checking all 9 JNA native library
-resource paths. The Codex review caught a real bug (JAR selection picking `-javadoc.jar` instead of
-the runtime JAR) which the reviewer fixed directly.
+**Files changed:**
+
+- `.github/workflows/release.yml`: Expanded `hashFiles()` in the `xcf-cache` key (line ~1269) from 2
+    globs to 6, adding `crates/iscc-*/Cargo.toml`, `Cargo.toml`, `scripts/build_xcframework.sh`, and
+    `packages/swift/Sources/iscc_uniffiFFI/**`
 
 **Verification:**
 
-- [x] YAML validation exits 0
-- [x] `grep -A2 'test-kotlin-release' | grep 'assemble-kotlin'` — 2 matches (test needs + publish
-    needs)
-- [x] `grep 'kotlin-jar'` — 4 matches (upload name/path + download name/path)
-- [x] `grep -c 'android-arm/'` — 1 match (validation only; build matrix uses `android-arm` without
-    trailing `/`, so next.md's "at least 2" criterion was slightly inaccurate, but functional intent
-    met)
-- [x] `grep 'jar tf'` — 1 match (validation step)
-- [x] `mise run format` — no changes
-- [x] `mise run check` — all 15 pre-commit hooks pass
+- YAML validation exits 0 (valid YAML confirmed via `yaml.safe_load`)
+- `grep -A5 'xcf-cache' | grep 'build_xcframework.sh'` — PASS
+- `grep -A5 'xcf-cache' | grep 'iscc_uniffiFFI'` — PASS
+- `grep -A5 'xcf-cache' | grep 'Cargo.toml'` — PASS (both root and per-crate globs present)
+- `mise run format` — no changes (yamlfix already applied its preferred formatting)
+- `mise run check` — all 15 pre-commit hooks pass
 
-**Issues found:**
+**Next:** Two normal-priority release workflow issues remain: (1) Swift `ref: main` race condition
+(the `build-xcframework` job uses `GITHUB_REF_NAME` for version/tag instead of deriving from
+`Cargo.toml`), and (2) root `Package.swift` CI smoke test. There's also the benchmarks documentation
+gap (low priority). The Swift `ref:main` race condition is likely the most impactful remaining
+issue.
 
-- (fixed) JAR selection bug: `ls *.jar | head -1` picks `-javadoc.jar` alphabetically instead of the
-    runtime JAR. Fixed by adding `grep -v` to exclude `-sources.jar` and `-javadoc.jar` classifier
-    JARs before `head -1`
-
-**Codex review:** Codex correctly identified that `withSourcesJar()` and `withJavadocJar()` in
-`build.gradle.kts` cause 3 JARs to be uploaded, and `head -1` selects the wrong one. This was a
-legitimate P1 finding — fixed in the review commit.
-
-**Next:** Three normal-priority release workflow issues remain: XCFramework cache key, Swift
-ref:main race, root Package.swift CI. The XCFramework cache key issue is probably most impactful
-(stale cache could publish wrong binaries). Alternatively, the benchmarks documentation gap
-(publishing speedup factors) could be addressed — it's more visible to users.
-
-**Notes:** The Kotlin JAR smoke test issue is resolved and deleted from issues.md. After this fix, 3
-normal-priority issues + 1 low-priority issue remain. All are release workflow hardening or cosmetic
-— no blocking issues.
+**Notes:** yamlfix reformatted the multi-line `hashFiles()` call into a more compact 3-line format
+(vs the 7-line format suggested in next.md). The content is identical — just different line
+wrapping. This is fine since yamlfix is the authoritative formatter. No code changes needed beyond
+the single YAML file edit — this was a pure CI configuration fix with no tests to write.

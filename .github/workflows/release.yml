@@ -1266,7 +1266,9 @@ jobs:
         id: xcf-cache
         with:
           path: target/ios/IsccLib.xcframework.zip
-          key: xcf-${{ hashFiles('crates/iscc-*/src/**', 'Cargo.lock') }}
+          key: xcf-${{ hashFiles( 'crates/iscc-*/src/**', 'crates/iscc-*/Cargo.toml',
+            'Cargo.lock', 'Cargo.toml', 'scripts/build_xcframework.sh', 'packages/swift/Sources/iscc_uniffiFFI/**'
+            ) }}
       - name: Build XCFramework
         if: steps.xcf-cache.outputs.cache-hit != 'true'
         run: ./scripts/build_xcframework.sh --release

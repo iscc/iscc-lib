@@ -49,7 +49,9 @@ iterations.
     (version-exists skip). NuGet uses `NUGET_API_KEY` secret (not OIDC). Ruby uses OIDC
 - `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Builds XCFramework →
     checksum → `sed` updates Package.swift → auto-commit → force-update tag → upload to GH Release.
-    Uses macOS BSD `sed -E -i ''` (not GNU). Dual cache: `Swatinem/rust-cache` + `actions/cache`
+    Uses macOS BSD `sed -E -i ''` (not GNU). Dual cache: `Swatinem/rust-cache` + `actions/cache`.
+    XCF cache key includes: crate sources, crate Cargo.tomls, Cargo.lock, root Cargo.toml, build
+    script, Swift FFI headers
 - Kotlin Maven Central: `build-kotlin-native` (9-platform matrix) → `assemble-kotlin` +
     `test-kotlin-release` (validates JAR has all 9 JNA native lib paths) → `publish-maven-kotlin`.
     Publish uses Gradle `maven-publish` + curl bundle upload to Sonatype Central Portal REST API
