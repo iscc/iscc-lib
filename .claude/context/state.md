@@ -1,16 +1,16 @@
-<!-- assessed-at: 366f36a264ce8633b41b347a3f252ce192a25eaf -->
+<!-- assessed-at: 3eff852f0ce525fddf61b404747fd6b40c4e45eb -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Kotlin Android native libraries — critical gap
+## Phase: Kotlin Android — JNA ARM32 path fix + remaining normal issues
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23398247400). All 12 language
-bindings scaffolded, tested, and documented. The GITHUB_REF_NAME bug was fixed (commit d29a1b3).
-However, the target was refocused: Kotlin bindings now target Android developers as the primary
-audience, requiring native libraries for 4 Android ABIs. This is filed as a `critical` issue — the
-published JAR is unusable on Android because no Android native libraries are bundled.
+v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23399364458). All 12 language
+bindings scaffolded, tested, and documented. Android NDK cross-compilation added to the Kotlin
+release workflow (4 Android ABIs + 5 desktop targets = 9 total). The former critical issue (missing
+Android native libraries) is resolved. However, a JNA ARM32 resource path mismatch was discovered
+(`android-armv7` should be `android-arm`) — filed as normal priority pending human review.
 
 ## Rust Core Crate
 
@@ -106,7 +106,6 @@ published JAR is unusable on Android because no Android native libraries are bun
 - Root `Package.swift` restructured: Ferrostar-style toggle, `releaseTag = "0.3.1"`
 - Release workflow: `swift` checkbox input (9th), `build-xcframework` job integrated
 - Version sync: `releaseTag` managed by `version_sync.py` (16th target, confirmed OK)
-- GITHUB_REF_NAME bug fixed (commit d29a1b3) — now derives version from Cargo.toml
 
 ## Kotlin Bindings
 
@@ -115,11 +114,15 @@ published JAR is unusable on Android because no Android native libraries are bun
 - Scaffold complete — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
 - 3214-line UniFFI-generated bindings, conformance tests (9 methods, 50 vectors)
 - Version sync, CI job, docs, release workflow all complete
-- Release workflow builds 5 desktop/server targets (linux-x86-64, linux-aarch64, darwin-aarch64,
-    darwin-x86-64, win32-x86-64) — **no Android ABIs**
-- **Critical gap**: Target now requires Android native libraries for 4 ABIs (arm64-v8a, armeabi-v7a,
-    x86_64, x86). Published JAR is unusable on Android. Spec updated in
-    `.claude/context/specs/kotlin-bindings.md` with Android cross-compilation details.
+- Release workflow now builds **9 targets**: 5 desktop/server + 4 Android ABIs
+    - Desktop: linux-x86-64, linux-aarch64, darwin-aarch64, darwin-x86-64, win32-x86-64
+    - Android: android-aarch64 (arm64-v8a), android-armv7 (armeabi-v7a), android-x86-64 (x86_64),
+        android-x86 (x86)
+- Uses `cargo-ndk` with NDK r27c for Android builds, conditional steps via
+    `contains(matrix.target, 'android')`
+- **Known bug**: JNA ARM32 resource path mismatch — `android-armv7` in matrix but JNA expects
+    `android-arm` at runtime. Filed as issue, awaiting human review.
+- **Missing**: docs/howto/kotlin.md Android-specific install instructions not yet added
 
 ## README
 
@@ -160,8 +163,8 @@ published JAR is unusable on Android because no Android native libraries are bun
 
 **Status**: met
 
-- **LATEST COMPLETED RUN** — run 23398247400: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23398247400
+- **LATEST COMPLETED RUN** — run 23399364458: **16/16 jobs SUCCESS**
+- URL: https://github.com/iscc/iscc-lib/actions/runs/23399364458
 - All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
     WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
 - v0.3.1 released across all 9 registries
@@ -169,15 +172,15 @@ published JAR is unusable on Android because no Android native libraries are bun
     maven-kotlin, swift
 - version_sync.py manages 16 sync targets (all OK)
 
-## Open Issues (6 total — 1 critical, 4 normal, 1 low)
+## Open Issues (6 total — 0 critical, 5 normal, 1 low)
 
-1. **Kotlin bindings missing Android native libraries** `critical` — Release workflow only builds 5
-    desktop/server targets. No Android ABIs (aarch64-linux-android, armv7-linux-androideabi,
-    x86_64-linux-android, i686-linux-android) are cross-compiled. Published JAR unusable on
-    Android. Requires: NDK setup, cargo-ndk, release workflow matrix expansion, JNA resource path
-    mapping.
-2. **XCFramework release cache key incomplete** `normal` — Cache key at release.yml:1192 only hashes
-    crate sources and Cargo.lock, missing build script and Swift headers.
+1. **JNA ARM32 resource path mismatch** `normal` [review] `HUMAN REVIEW REQUESTED` — `android-armv7`
+    in release.yml matrix but JNA 5.16.0 canonicalizes ARM32 to `android-arm` at runtime. ARMv7
+    Android devices would fail to load the native library. Requires 1-line fix in release.yml
+    matrix
+    - spec update. Bytecode-verified.
+2. **XCFramework release cache key incomplete** `normal` — Cache key only hashes crate sources and
+    Cargo.lock, missing build script and Swift headers.
 3. **Swift release job checks out `ref: main` instead of tag SHA** `normal` — race window if main
     moves after tag creation.
 4. **Kotlin release smoke test doesn't validate assembled JAR** `normal` — Tests run against raw
@@ -188,14 +191,11 @@ published JAR is unusable on Android because no Android native libraries are bun
 
 ## Next Milestone
 
-**Critical priority: Kotlin Android native libraries.** The target was refocused to make Android the
-primary audience for Kotlin bindings. Required work:
+**Fix JNA ARM32 resource path mismatch** (`android-armv7` → `android-arm`). This is a 1-line fix in
+the release.yml matrix + spec update. Marked `HUMAN REVIEW REQUESTED` — the define-next agent should
+pick this up if the human approves. After that:
 
-1. Add Android NDK + Rust Android targets + `cargo-ndk` to devcontainer (or CI-only)
-2. Add 4 Android ABI targets to `build-kotlin-native` matrix in `release.yml`
-3. Map Android Rust targets to JNA resource paths in `assemble-kotlin` job
-4. Add Android smoke test or resource-path verification
-5. Update `docs/howto/kotlin.md` with Android-specific install instructions
-
-After Android support: address the 4 `normal` release workflow issues (cache key, ref:main race, JAR
-smoke test, root Package.swift CI).
+1. Update `docs/howto/kotlin.md` with Android-specific install instructions
+2. Publish speedup factors in documentation (benchmarks gap)
+3. Address remaining normal release workflow issues (cache key, ref:main race, JAR smoke test, root
+    Package.swift CI)

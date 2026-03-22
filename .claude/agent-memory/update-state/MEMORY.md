@@ -68,15 +68,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Handoff predictions may be wrong**: always verify CI independently.
 - **Issues filed by human**: Human filed 5 new issues from Codex PR review — always check issues.md
     diff for new entries, especially critical ones that change priorities.
+- **Review-filed issues**: Review agent can file issues (e.g., JNA ARM32 path mismatch). Check for
+    `[review]` source tag and `HUMAN REVIEW REQUESTED` flag.
 
-## Current State (assessed-at: 366f36a)
+## Current State (assessed-at: 3eff852)
 
-- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23398247400)
-- **1 critical issue**: Kotlin missing Android native libraries (4 ABIs)
-- **4 normal issues**: XCF cache key, Swift ref:main race, Kotlin JAR smoke test, root Package.swift
+- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23399364458)
+- **0 critical issues** (Kotlin Android NDK added — critical resolved)
+- **5 normal issues**: JNA ARM32 path (HUMAN REVIEW), XCF cache key, Swift ref:main race, Kotlin JAR
+    smoke test, root Package.swift
 - **1 low issue**: language logos in docs
-- **GITHUB_REF_NAME bug fixed**: commit d29a1b3 (resolved)
-- **Target refocused**: Kotlin = "Android and JVM"; Swift = "iOS and macOS"
+- **Kotlin release workflow**: Now 9 targets (5 desktop + 4 Android), uses cargo-ndk + NDK r27c
+- **JNA ARM32 bug**: `android-armv7` in matrix but JNA expects `android-arm` — bytecode verified
 - **Version sync**: 16 targets, all OK
 
 ## Gotchas
@@ -90,12 +93,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `jna.library.path` at runtime
 - **Kotlin release workflow**: Uses `useInMemoryPgpKeys` (env vars) instead of Java's GPG keyring;
     Central Portal upload via curl REST API (no Gradle plugin)
-- **Kotlin Android gap**: build-kotlin-native has 5 desktop targets, 0 Android. Spec requires 4
-    Android ABIs via cargo-ndk. JNA resource paths: android-aarch64/, android-armv7/,
-    android-x86-64/
+- **JNA ARM32 canonicalization**: JNA 5.16.0 `Platform.getNativeLibraryResourcePrefix()` maps
+    `armv7` → `arm`, so resource dir must be `android-arm/` not `android-armv7/`
 - **Root Package.swift**: Two manifests coexist — root for distribution (binaryTarget),
     packages/swift for CI development. `releaseChecksum = "PLACEHOLDER"` until first release with
     swift input
-- **Swift XCFramework spec**: `.claude/context/specs/swift-bindings.md` (460+ lines)
 - **pytest-benchmark naming**: functions use `test_bench_*` prefix (not bare `bench_*`)
 - **GITHUB_REF_NAME fixed**: commit d29a1b3 derives version from Cargo.toml (was spec conflict)
