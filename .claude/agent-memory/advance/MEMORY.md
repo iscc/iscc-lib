@@ -192,9 +192,9 @@ iterations.
     `io.iscc:iscc-lib-kotlin`. Staging repo at `build/staging-deploy/`. Central Portal bundle upload
     via curl (`https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC`)
 - JNA resource paths for bundled native libs: `linux-x86-64`, `linux-aarch64`, `darwin-aarch64`,
-    `darwin-x86-64`, `win32-x86-64`, `android-aarch64`, `android-armv7`, `android-x86-64`,
-    `android-x86`. JNA discovers libs from classpath even when `jna.library.path` points to missing
-    dir
+    `darwin-x86-64`, `win32-x86-64`, `android-aarch64`, `android-arm`, `android-x86-64`,
+    `android-x86`. JNA 5.16.0 canonicalizes ARM32 to `arm` (not `armv7`). JNA discovers libs from
+    classpath even when `jna.library.path` points to missing dir
 
 ## Python Benchmarks — see MEMORY-archive.md for details
 

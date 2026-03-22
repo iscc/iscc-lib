@@ -1023,7 +1023,7 @@ jobs:
             android-abi: arm64-v8a
           - os: ubuntu-latest
             target: armv7-linux-androideabi
-            native-dir: android-armv7
+            native-dir: android-arm
             lib-name: libiscc_uniffi.so
             android-abi: armeabi-v7a
           - os: ubuntu-latest

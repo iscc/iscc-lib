@@ -56,7 +56,7 @@ packages/kotlin/
 │   │   ├── darwin-x86-64/            # JNA resource path for macOS x86_64
 │   │   ├── win32-x86-64/            # JNA resource path for Windows x86_64
 │   │   ├── android-aarch64/          # JNA resource path for Android ARM64
-│   │   ├── android-armv7/            # JNA resource path for Android ARM32
+│   │   ├── android-arm/              # JNA resource path for Android ARM32
 │   │   └── android-x86-64/           # JNA resource path for Android x86_64
 │   └── test/
 │       ├── kotlin/uniffi/iscc_uniffi/
@@ -87,7 +87,7 @@ automatically from classpath resources using the `<os>-<arch>/` directory conven
 | Platform       | Rust Target               | JNA Resource Path  | Android ABI   |
 | -------------- | ------------------------- | ------------------ | ------------- |
 | Android ARM64  | `aarch64-linux-android`   | `android-aarch64/` | `arm64-v8a`   |
-| Android ARM32  | `armv7-linux-androideabi` | `android-armv7/`   | `armeabi-v7a` |
+| Android ARM32  | `armv7-linux-androideabi` | `android-arm/`     | `armeabi-v7a` |
 | Android x86_64 | `x86_64-linux-android`    | `android-x86-64/`  | `x86_64`      |
 | Android x86    | `i686-linux-android`      | `android-x86/`     | `x86`         |
 
