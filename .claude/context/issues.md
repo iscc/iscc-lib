@@ -42,25 +42,23 @@ regressions (wrong URL pattern, checksum format) can land unnoticed. Low priorit
 release workflow patches the checksum at publish time, but a manifest-resolution smoke check on
 macOS CI would add defense in depth.
 
-## Kotlin bindings missing Android native libraries `critical` [human]
+## JNA ARM32 resource path mismatch: `android-armv7` should be `android-arm` `normal` [review]
 
 **Spec:** `.claude/context/specs/kotlin-bindings.md`
 
-The Kotlin bindings were created to provide excellent mobile DX for Android developers, but the
-release workflow only cross-compiles `iscc-uniffi` for 5 desktop/server targets. No Android ABIs are
-built (`aarch64-linux-android`, `armv7-linux-androideabi`, `x86_64-linux-android`,
-`i686-linux-android`). The published JAR is unusable on Android — JNA cannot find a native library
-for any Android ABI.
+`HUMAN REVIEW REQUESTED`
 
-Required work:
+JNA 5.16.0's `Platform.getNativeLibraryResourcePrefix()` canonicalizes ARM32 architectures to `arm`
+(not `armv7`). Bytecode verification of `Platform.class` confirms:
+`if (arch.startsWith("arm")) arch = "arm"`, then returns `"android-" + arch` → `android-arm`. The
+spec's Android target table says `android-armv7/` for the ARMv7 JNA resource path, and
+`release.yml:1027` implements this faithfully. At runtime on ARM32 Android devices, JNA will look
+for `android-arm/libiscc_uniffi.so` but the JAR will contain `android-armv7/libiscc_uniffi.so` —
+load failure.
 
-1. Add Android NDK + Rust Android targets + `cargo-ndk` to devcontainer Dockerfile
-2. Add Android NDK cross-compilation to the `build-kotlin-native` matrix in `release.yml` (use
-    `cargo-ndk` or manual `CARGO_TARGET_*_LINKER` configuration)
-3. Map Android Rust targets to JNA resource paths (`android-aarch64/`, `android-armv7/`,
-    `android-x86-64/`, `android-x86/`) in the `assemble-kotlin` job
-4. Add Android smoke test (emulator or resource-path verification)
-5. Update `docs/howto/kotlin.md` with Android-specific install instructions (JNA AAR dependency)
+Fix: change `native-dir` from `android-armv7` to `android-arm` in (1) the spec table, (2) the spec's
+Package Structure tree, (3) `release.yml` matrix, and (4) the advance agent memory's JNA resource
+path list.
 
 ## Add programming language logos to docs site `low` [human]
 

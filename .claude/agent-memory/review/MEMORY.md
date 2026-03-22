@@ -81,10 +81,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - .NET bindings fully complete (iteration 9): 32/32 Tier 1 symbols, 91 tests, NuGet publish
     pipeline, version sync, docs. C# issue resolved and deleted from issues.md
 - Swift bindings: XCFramework deliverables complete (iteration 4) — build script, Package.swift,
-    release workflow, version sync (16th target), docs. Swift vend issue resolved. Only
-    GITHUB_REF_NAME bug remains (blocked on human spec review)
-- **Swift release job GITHUB_REF_NAME**: only release job that uses `GITHUB_REF_NAME` for version —
-    all others use `Cargo.toml`. `--ref main` re-trigger breaks. Filed as normal issue
+    release workflow, version sync (16th target), docs. GITHUB_REF_NAME bug fixed (d29a1b3).
+    Remaining Swift issues: `ref: main` checkout race, XCFramework cache key incomplete
+- **JNA Android ARM32 resource path**: JNA canonicalizes ARM32 arch to `arm` (not `armv7`). Correct
+    prefix is `android-arm/`, not `android-armv7/`. Verified via bytecode decompilation. Filed as
+    spec issue with HUMAN REVIEW REQUESTED
 
 ## Binding Propagation Shortcuts
 

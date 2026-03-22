@@ -1,38 +1,56 @@
-## 2026-03-22 — Add Android NDK cross-compilation to Kotlin release workflow
+## 2026-03-22 — Review of: Add Android NDK cross-compilation to Kotlin release workflow
 
-**Done:** Added 4 Android ABI targets (aarch64, armv7, x86_64, i686) to the `build-kotlin-native`
-matrix in `release.yml`. Added conditional NDK setup (`nttld/setup-ndk@v1` with r27c) and
-`cargo-ndk` install steps, plus split the build step into desktop (existing) and Android
-(`cargo ndk`) variants.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `.github/workflows/release.yml`: Added 4 Android matrix entries with `android-abi` field, 3 new
-    conditional steps (Setup Android NDK, Install cargo-ndk, Build UniFFI library (Android)), and
-    added `if` condition to existing Build step to skip Android targets.
+**Summary:** Clean, well-scoped CI change that adds 4 Android ABI targets to the Kotlin release
+workflow exactly as specified in next.md and the Kotlin bindings spec. The implementation correctly
+uses `cargo-ndk` with NDK r27c and conditional build steps. All verification criteria pass. However,
+Codex review uncovered a JNA resource path mismatch for ARM32 that exists in the spec itself — filed
+as a new issue.
 
 **Verification:**
 
-- YAML valid: `python3 -c "import yaml; yaml.safe_load(...)"` exits 0
-- `grep -c 'android'` returns 17 (>= 8 required)
-- All 4 Rust targets found: `aarch64-linux-android`, `armv7-linux-androideabi`,
-    `x86_64-linux-android`, `i686-linux-android`
-- `android-aarch64` JNA resource dir found
-- `cargo-ndk` / `cargo ndk` references found
-- `setup-ndk` references found
-- `mise run format` — no changes
-- `mise run check` — all 15 pre-commit hooks pass
+- [x] `python3 -c "import yaml; yaml.safe_load(...)"` exits 0 — YAML valid
+- [x] `grep -c 'android' .github/workflows/release.yml` returns 17 (≥8 required)
+- [x] `grep 'aarch64-linux-android'` — match found
+- [x] `grep 'armv7-linux-androideabi'` — match found
+- [x] `grep 'x86_64-linux-android'` — match found
+- [x] `grep 'i686-linux-android'` — match found
+- [x] `grep 'android-aarch64'` — match found (JNA resource dir)
+- [x] `grep 'cargo-ndk\|cargo ndk'` — match found
+- [x] `grep 'setup-ndk'` — match found
+- [x] `mise run format` — no changes
+- [x] `mise run check` — all 15 pre-commit hooks pass
 
-**Next:** The `assemble-kotlin` and `publish-maven-kotlin` jobs already handle new artifacts via
-wildcard patterns — no changes needed there. Next logical step would be DevContainer Dockerfile
-changes (Android NDK for local dev) or docs updates for Android installation instructions.
+**Issues found:**
+
+- JNA ARM32 resource path mismatch: spec says `android-armv7/` but JNA 5.16.0's
+    `getNativeLibraryResourcePrefix()` canonicalizes ARM32 to `android-arm/`. Verified by
+    decompiling `Platform.class` from the JNA JAR — the bytecode shows
+    `if (arch.startsWith("arm")) arch = "arm"`, then returns `"android-" + arch`. This means the
+    ARMv7 native lib will be placed in a directory JNA won't search on ARM32 devices. Filed as new
+    issue. The advance agent correctly followed the spec, so this is a spec error, not an
+    implementation error.
+
+**Codex review:** One P2 finding — confirmed valid after bytecode verification:
+
+1. **[P2] `android-armv7` → `android-arm` JNA prefix mismatch**: JNA canonicalizes ARM32 arch to
+    `arm`, so the resource prefix should be `android-arm/`, not `android-armv7/`. The spec and
+    implementation both use `android-armv7/`, which means ARMv7 Android devices won't find the
+    native library. Requires spec fix + implementation update (1-line change in release.yml
+    matrix).
+
+**Next:** Fix the JNA ARM32 resource path (`android-armv7` → `android-arm`) in both the spec and
+release.yml. This is a 1-line fix in the matrix + spec update. Then continue with Kotlin Android
+docs update (`docs/howto/kotlin.md` Android install instructions).
 
 **Notes:**
 
-- The `android-abi` matrix field is only used by Android entries — desktop entries don't set it,
-    which is fine since `cargo ndk` step is conditional on `contains(matrix.target, 'android')`.
-- `cargo ndk` outputs to `target/<rust-triple>/release/` (same path as desktop builds), so the
-    artifact upload step works unchanged.
-- The existing `CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER` env var on the desktop build step is
-    harmless for non-aarch64 desktop targets (it's only used when the env var name matches the
-    target).
+- The `assemble-kotlin` job handles new Android artifacts automatically via its wildcard pattern
+    (`kotlin-staging/kotlin-native-*/`) — no changes needed there.
+- The critical issue "Kotlin bindings missing Android native libraries" is resolved — the next
+    release will bundle Android native libs in the JAR. Deleted the critical issue entry.
+- Remaining follow-up from the original issue (devcontainer Dockerfile, docs update) is organic
+    next-step work, not blocking.
+- The GITHUB_REF_NAME bug referenced in agent memory was fixed (commit d29a1b3 per state.md). The
+    remaining Swift issue in issues.md is about a different concern (`ref: main` checkout race).

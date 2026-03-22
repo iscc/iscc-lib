@@ -76,6 +76,15 @@ fully-met target sections to `learnings-archive.md`.
 - C FFI decode: length index for 64-bit codes is 1 (not 0) — `decode_length` uses
     `(length_index + 1) * 32`
 
+## JNA / Kotlin Android
+
+- **JNA ARM32 resource prefix is `android-arm`, NOT `android-armv7`**: JNA 5.16.0's
+    `Platform.getNativeLibraryResourcePrefix()` canonicalizes all `arm*` architectures to `arm`.
+    Verified by decompiling `Platform.class`. Other Android prefixes are correct: `android-aarch64`,
+    `android-x86-64`, `android-x86`
+- `cargo-ndk` outputs to `target/<rust-triple>/release/` — same path convention as desktop builds,
+    so artifact upload steps work unchanged
+
 ## CI/CD
 
 - Windows GHA runners default to `pwsh` shell. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
