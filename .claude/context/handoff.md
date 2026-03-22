@@ -1,33 +1,41 @@
-## 2026-03-22 — Fix JNA ARM32 resource path mismatch (`android-armv7` → `android-arm`)
+## 2026-03-22 — Review of: Fix JNA ARM32 resource path mismatch (`android-armv7` → `android-arm`)
 
-**Done:** Changed the JNA ARM32 native library resource directory from `android-armv7` to
-`android-arm` in the release workflow matrix and the Kotlin bindings spec. JNA 5.16.0 canonicalizes
-ARM32 arch to `arm`, so the previous `android-armv7` directory would never be found by JNA on ARMv7
-Android devices.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.github/workflows/release.yml`: Changed `native-dir: android-armv7` to `native-dir: android-arm`
-    (line 1026)
-- `.claude/context/specs/kotlin-bindings.md`: Updated package structure tree and Android target
-    table to use `android-arm/` instead of `android-armv7/` (lines 59, 90)
+**Summary:** Clean, minimal fix that changes the JNA ARM32 native library resource directory from
+`android-armv7` to `android-arm` in both the release workflow and the Kotlin bindings spec. The fix
+is factually correct per bytecode verification of JNA 5.16.0's `Platform.class`. All verification
+criteria pass, all quality gates green, no scope violations.
 
 **Verification:**
 
-- `grep 'native-dir: android-arm$' .github/workflows/release.yml` — 1 match (PASS)
-- `grep -c 'android-armv7' .github/workflows/release.yml` — 0 (PASS)
-- `grep 'android-arm/' .claude/context/specs/kotlin-bindings.md` — 2 matches in tree and table
-    (PASS)
-- `grep -c 'android-armv7' .claude/context/specs/kotlin-bindings.md` — 0 (PASS)
-- YAML validation via `yaml.safe_load()` — exits 0 (PASS)
-- `mise run format` — no changes (PASS)
-- `mise run check` — all 15 pre-commit hooks pass (PASS)
+- [x] `grep 'native-dir: android-arm$' .github/workflows/release.yml` — 1 match
+- [x] `grep -c 'android-armv7' .github/workflows/release.yml` — returns 0
+- [x] `grep 'android-arm/' .claude/context/specs/kotlin-bindings.md` — 2 matches (tree + table)
+- [x] `grep -c 'android-armv7' .claude/context/specs/kotlin-bindings.md` — returns 0
+- [x] YAML validation — exits 0
+- [x] `mise run format` — no changes
+- [x] `mise run check` — all 15 pre-commit hooks pass
+- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
 
-**Next:** The JNA ARM32 issue in `issues.md` can be deleted (resolved). Next work could be adding
-Android-specific install instructions to `docs/howto/kotlin.md`, or tackling the Kotlin release
-smoke test issue (validating the assembled JAR's resource paths).
+**Issues found:**
 
-**Notes:** No surprises. This was a clean 1-line fix in release.yml plus 2-line spec update. The
-issue was a spec error (JNA's ARM32 canonicalization behavior was not accounted for when the spec
-was written), not an implementation error — the advance agent correctly followed the spec in the
-prior iteration.
+- (none)
+
+**Codex review:** No regressions or breakage identified. Confirms the change matches JNA 5.16.0's
+resource prefix logic and is consistent with the surrounding artifact workflow.
+
+**Next:** The remaining 4 normal-priority issues are all release workflow hardening: XCFramework
+cache key, Swift ref:main race, Kotlin JAR smoke test, root Package.swift CI. The Kotlin JAR smoke
+test is the most impactful — it would catch resource-path errors like the one just fixed. Consider
+tackling it next. Alternatively, the benchmarks speedup documentation gap is a lighter task.
+
+**Notes:**
+
+- The JNA ARM32 issue (source: `[review]`, `HUMAN REVIEW REQUESTED`) was resolved and deleted from
+    issues.md. The spec change to `kotlin-bindings.md` fixes a factual error — the spec had
+    `android-armv7` but JNA always resolves to `android-arm`. The advance agent also correctly
+    updated its own agent memory to reflect the fix.
+- State.md still lists `android-armv7` in the Kotlin section — the next update-state pass will
+    correct this.
+- 4 normal issues remain (all `[human]`-sourced release workflow issues) + 1 low (docs logos).

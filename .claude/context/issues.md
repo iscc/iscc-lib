@@ -42,24 +42,6 @@ regressions (wrong URL pattern, checksum format) can land unnoticed. Low priorit
 release workflow patches the checksum at publish time, but a manifest-resolution smoke check on
 macOS CI would add defense in depth.
 
-## JNA ARM32 resource path mismatch: `android-armv7` should be `android-arm` `normal` [review]
-
-**Spec:** `.claude/context/specs/kotlin-bindings.md`
-
-`HUMAN REVIEW REQUESTED`
-
-JNA 5.16.0's `Platform.getNativeLibraryResourcePrefix()` canonicalizes ARM32 architectures to `arm`
-(not `armv7`). Bytecode verification of `Platform.class` confirms:
-`if (arch.startsWith("arm")) arch = "arm"`, then returns `"android-" + arch` → `android-arm`. The
-spec's Android target table says `android-armv7/` for the ARMv7 JNA resource path, and
-`release.yml:1027` implements this faithfully. At runtime on ARM32 Android devices, JNA will look
-for `android-arm/libiscc_uniffi.so` but the JAR will contain `android-armv7/libiscc_uniffi.so` —
-load failure.
-
-Fix: change `native-dir` from `android-armv7` to `android-arm` in (1) the spec table, (2) the spec's
-Package Structure tree, (3) `release.yml` matrix, and (4) the advance agent memory's JNA resource
-path list.
-
 ## Add programming language logos to docs site `low` [human]
 
 README language logos added (iteration 3). Consider adding matching logos to `docs/index.md` and
