@@ -1,39 +1,29 @@
-## 2026-03-22 — Review of: Guard Swift release build against main/tag SHA mismatch
+## 2026-03-22 — Add root Package.swift manifest smoke test to CI
 
-**Verdict:** PASS
+**Done:** Added a `swift package dump-package` step to the `swift` CI job that validates the
+consumer-facing root `Package.swift` manifest parses correctly. The step runs early (after
+rust-cache, before the expensive UniFFI build) and requires no `working-directory` since it targets
+the repo root.
 
-**Summary:** The advance agent correctly added a provenance guard step to the `build-xcframework`
-job in `release.yml`. The guard is minimal (11 lines of YAML), correctly placed after checkout and
-before expensive build steps, and properly conditioned on tag-triggered runs only. All verification
-criteria pass. The resolved "Swift release job checks out `ref: main`" issue has been deleted from
-issues.md.
+**Files changed:**
+
+- `.github/workflows/ci.yml`: Added "Validate root Package.swift manifest" step at line 239-240 in
+    the `swift` job, between `Swatinem/rust-cache@v2` and "Build UniFFI native library"
 
 **Verification:**
 
-- [x] `yaml.safe_load` exits 0 — valid YAML confirmed
-- [x] `grep -c 'Verify main matches tag'` returns 1 — guard step exists exactly once
-- [x] `startsWith(github.ref, 'refs/tags/v')` confirmed — step conditional on tag triggers only
-- [x] `github.sha` present in step — tag SHA comparison confirmed
-- [x] `git rev-parse HEAD` present in step — main HEAD comparison confirmed
-- [x] `mise run format` — no changes (clean)
-- [x] `mise run check` — all 15 pre-commit hooks pass
+- YAML valid: `yaml.safe_load()` exits 0
+- `grep -c 'dump-package'` returns 1 (step exists exactly once)
+- `grep -B2 'dump-package' | grep -c 'working-directory'` returns 0 (runs at repo root)
+- `grep -B5 'dump-package' | grep 'Validate root'` confirms step name
+- `dump-package` step appears BEFORE "Build UniFFI native library" (visual inspection confirmed)
+- `mise run format` produces no changes
+- `mise run check` — all 15 pre-commit hooks pass
 
-**Issues found:**
+**Next:** The "CI does not exercise root Package.swift" issue in issues.md should be marked resolved
+by the review agent. The only remaining issues are "Add programming language logos to docs site"
+(low priority, CID-skipped) and the benchmarks documentation gap.
 
-- (none)
-
-**Codex review:** One advisory finding: if a tag-triggered build fails for transient reasons and
-main advances before "Re-run failed jobs" is clicked, the guard blocks the retry. This is by design
-— the `workflow_dispatch` re-trigger path (`--ref main -f swift=true`) bypasses the guard because
-`github.ref` is `refs/heads/main`, not a tag. The error message explicitly guides operators to this
-recovery path. No action needed.
-
-**Next:** One normal-priority issue remains: "CI does not exercise root Package.swift." This would
-add a manifest-resolution smoke check on the macOS CI runner to validate the consumer-facing
-`Package.swift` at the repo root. There's also the benchmarks documentation gap (speedup factors not
-published). The root `Package.swift` CI smoke test is the last normal issue.
-
-**Notes:** With the `ref: main` race condition resolved, the Swift release workflow is hardened
-against provenance mismatch. The remaining normal issue (root Package.swift CI) is defense-in-depth
-— the release workflow already patches the checksum at publish time, so regressions are caught at
-release even without CI. The low-priority docs logo issue remains, CID-skipped.
+**Notes:** No tests to write — this is a CI-only YAML change. The `dump-package` command parses the
+manifest and outputs JSON but does NOT resolve/download binary targets, so the PLACEHOLDER checksum
+on develop is fine. This is exactly the right level of validation for the develop branch.
