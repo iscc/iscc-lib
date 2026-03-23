@@ -1,10 +1,15 @@
 ---
 name: Release
 on:
-  push:
-    tags: [v*.*.*]
   workflow_dispatch:
     inputs:
+      version:
+        description: >-
+          Release version (e.g. 0.3.1). Triggers full release: builds Swift
+          XCFramework, updates Package.swift, creates tag, publishes all
+          registries. Leave empty to re-trigger individual registries.
+        type: string
+        default: ''
       crates-io:
         description: Publish iscc-lib to crates.io
         type: boolean
@@ -37,20 +42,90 @@ on:
         description: Publish iscc-lib-kotlin to Maven Central
         type: boolean
         default: false
-      swift:
-        description: Build and publish Swift XCFramework to GitHub Releases
-        type: boolean
-        default: false
 permissions:
   contents: read
 concurrency:
   group: release
   cancel-in-progress: false  # Never cancel a release in progress
 jobs:
+  # Build Swift XCFramework, update Package.swift checksum, commit to main,
+  # create release tag and GitHub Release. Runs only for full releases (version
+  # input provided). All other publish jobs wait for this to complete so the tag
+  # exists before they start.
+  prepare-release:
+    name: Prepare release
+    if: inputs.version != ''
+    runs-on: macos-14
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      - name: Validate version
+        id: version
+        run: |
+          CARGO_VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
+          if [ "$CARGO_VERSION" != "${{ inputs.version }}" ]; then
+            echo "::error::Cargo.toml version ($CARGO_VERSION) != input version (${{ inputs.version }})"
+            exit 1
+          fi
+          echo "version=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: >-
+            aarch64-apple-darwin,x86_64-apple-darwin,
+            aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/cache@v4
+        id: xcf-cache
+        with:
+          path: target/ios/IsccLib.xcframework.zip
+          key: xcf-${{ hashFiles( 'crates/iscc-*/src/**', 'crates/iscc-*/Cargo.toml',
+            'Cargo.lock', 'Cargo.toml', 'scripts/build_xcframework.sh', 'packages/swift/Sources/iscc_uniffiFFI/**'
+            ) }}
+      - name: Build XCFramework
+        if: steps.xcf-cache.outputs.cache-hit != 'true'
+        run: ./scripts/build_xcframework.sh --release
+      - name: Update Package.swift checksum
+        run: |
+          VERSION="${{ inputs.version }}"
+          CHECKSUM=$(swift package compute-checksum target/ios/IsccLib.xcframework.zip)
+          sed -E -i '' \
+            "s/(let releaseTag = \")[^\"]+/\1$VERSION/" Package.swift
+          sed -E -i '' \
+            "s/(let releaseChecksum = \")[^\"]+/\1$CHECKSUM/" Package.swift
+      - name: Commit Package.swift
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Package.swift
+          if git diff --cached --quiet; then
+            echo "Package.swift unchanged, skipping commit"
+          else
+            git commit -m "chore: update Swift XCFramework checksum for v${{ inputs.version }}"
+            git push origin main
+          fi
+      - name: Create tags
+        run: |
+          git tag "v${{ inputs.version }}" 2>/dev/null || echo "Tag v${{ inputs.version }} already exists"
+          git tag "packages/go/v${{ inputs.version }}" 2>/dev/null || echo "Tag packages/go/v${{ inputs.version }} already exists"
+          git push origin "v${{ inputs.version }}" "packages/go/v${{ inputs.version }}" --force
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          files: target/ios/IsccLib.xcframework.zip
+          generate_release_notes: true
+
   # Publish Rust core crate to crates.io via OIDC trusted publishing
   publish-crates-io:
     name: Publish to crates.io
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.crates-io
+    needs: [prepare-release]
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.crates-io) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -90,7 +165,8 @@ jobs:
   # Build cross-platform Python wheels using maturin
   build-wheels:
     name: Build wheels (${{ matrix.target }})
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi
+    needs: [prepare-release]
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.pypi) }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -130,7 +206,8 @@ jobs:
   # Build source distribution
   build-sdist:
     name: Build sdist
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi
+    needs: [prepare-release]
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.pypi) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -149,7 +226,7 @@ jobs:
   test-wheels:
     name: Test Python wheel
     needs: [build-wheels]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi
+    if: inputs.version != '' || inputs.pypi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-python@v5
@@ -169,7 +246,7 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     needs: [build-wheels, build-sdist, test-wheels]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.pypi
+    if: inputs.version != '' || inputs.pypi
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -207,7 +284,8 @@ jobs:
   # Build napi-rs native addons for cross-platform npm publishing
   build-napi:
     name: Build napi (${{ matrix.target }})
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
+    needs: [prepare-release]
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -257,7 +335,7 @@ jobs:
   test-napi:
     name: Test NAPI addon
     needs: [build-napi]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
+    if: inputs.version != '' || inputs.npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-node@v4
@@ -276,7 +354,7 @@ jobs:
   publish-npm-lib:
     name: Publish @iscc/lib to npm
     needs: [build-napi, test-napi]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
+    if: inputs.version != '' || inputs.npm
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -324,7 +402,8 @@ jobs:
   # Build WASM package for npm publishing
   build-wasm:
     name: Build WASM package
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
+    needs: [prepare-release]
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -356,7 +435,7 @@ jobs:
   test-wasm:
     name: Test WASM package
     needs: [build-wasm]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
+    if: inputs.version != '' || inputs.npm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-node@v4
@@ -382,7 +461,7 @@ jobs:
   publish-npm-wasm:
     name: Publish @iscc/wasm to npm
     needs: [build-wasm, test-wasm]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.npm
+    if: inputs.version != '' || inputs.npm
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -422,7 +501,8 @@ jobs:
   # Build JNI native libraries for cross-platform JAR packaging
   build-jni:
     name: Build JNI (${{ matrix.native-dir }})
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven
+    needs: [prepare-release]
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven) }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -472,7 +552,7 @@ jobs:
   assemble-jar:
     name: Assemble JAR
     needs: [build-jni]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven
+    if: inputs.version != '' || inputs.maven
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -505,7 +585,7 @@ jobs:
   test-jni:
     name: Test JNI libraries
     needs: [build-jni]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven
+    if: inputs.version != '' || inputs.maven
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -533,7 +613,7 @@ jobs:
   publish-maven:
     name: Publish to Maven Central
     needs: [build-jni, test-jni]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven
+    if: inputs.version != '' || inputs.maven
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -590,7 +670,8 @@ jobs:
   # Build FFI shared/static libraries for C/C++ consumers
   build-ffi:
     name: Build FFI (${{ matrix.target }})
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.ffi || inputs.nuget
+    needs: [prepare-release]
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.ffi || inputs.nuget) }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -674,7 +755,7 @@ jobs:
   test-ffi:
     name: Test FFI library
     needs: [build-ffi]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.ffi
+    if: inputs.version != '' || inputs.ffi
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -695,7 +776,7 @@ jobs:
   publish-ffi:
     name: Publish FFI to GitHub Releases
     needs: [build-ffi, test-ffi]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.ffi
+    if: inputs.version != '' || inputs.ffi
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -717,13 +798,14 @@ jobs:
       - name: Upload release assets
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', steps.version.outputs.version) }}
+          tag_name: v${{ steps.version.outputs.version }}
           files: ffi-staging/iscc-ffi-v*.*
 
   # Build cross-platform precompiled Ruby gems via rb-sys-dock
   build-gem:
     name: Build gem (${{ matrix.platform }})
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.rubygems
+    needs: [prepare-release]
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.rubygems) }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -768,7 +850,7 @@ jobs:
   test-gem:
     name: Test Ruby gem
     needs: [build-gem]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.rubygems
+    if: inputs.version != '' || inputs.rubygems
     runs-on: ubuntu-latest
     steps:
       - uses: ruby/setup-ruby@v1
@@ -788,7 +870,7 @@ jobs:
   publish-rubygems:
     name: Publish to RubyGems
     needs: [build-gem, test-gem]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.rubygems
+    if: inputs.version != '' || inputs.rubygems
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -844,7 +926,7 @@ jobs:
   pack-nuget:
     name: Pack NuGet package
     needs: [build-ffi]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.nuget
+    if: inputs.version != '' || inputs.nuget
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -906,7 +988,7 @@ jobs:
   test-nuget:
     name: Test NuGet (${{ matrix.os }})
     needs: [pack-nuget]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.nuget
+    if: inputs.version != '' || inputs.nuget
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -954,7 +1036,7 @@ jobs:
   publish-nuget:
     name: Publish to NuGet
     needs: [pack-nuget, test-nuget]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.nuget
+    if: inputs.version != '' || inputs.nuget
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -991,7 +1073,8 @@ jobs:
   # Build UniFFI native libraries for Kotlin JVM JAR packaging
   build-kotlin-native:
     name: Build Kotlin native (${{ matrix.native-dir }})
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin
+    needs: [prepare-release]
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven-kotlin) }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -1077,7 +1160,7 @@ jobs:
   assemble-kotlin:
     name: Assemble Kotlin JAR
     needs: [build-kotlin-native]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin
+    if: inputs.version != '' || inputs.maven-kotlin
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1113,7 +1196,7 @@ jobs:
   test-kotlin-release:
     name: Test Kotlin libraries
     needs: [build-kotlin-native, assemble-kotlin]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin
+    if: inputs.version != '' || inputs.maven-kotlin
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1179,7 +1262,7 @@ jobs:
   publish-maven-kotlin:
     name: Publish Kotlin to Maven Central
     needs: [assemble-kotlin, test-kotlin-release]
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.maven-kotlin
+    if: inputs.version != '' || inputs.maven-kotlin
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1243,65 +1326,3 @@ jobs:
         env:
           MAVEN_USERNAME: ${{ secrets.MAVEN_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
-
-  # Build Swift XCFramework for all Apple platforms and publish to GitHub Releases
-  build-xcframework:
-    name: Build XCFramework
-    if: startsWith(github.ref, 'refs/tags/v') || inputs.swift
-    runs-on: macos-14
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: main
-      - name: Verify main matches tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          TAG_SHA="${{ github.sha }}"
-          MAIN_SHA=$(git rev-parse HEAD)
-          if [ "$TAG_SHA" != "$MAIN_SHA" ]; then
-            echo "::error::main HEAD ($MAIN_SHA) differs from tag SHA ($TAG_SHA)."
-            echo "::error::This means main has moved since the tag was created."
-            echo "::error::Re-tag after main stabilizes, or re-trigger with workflow_dispatch."
-            exit 1
-          fi
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: >-
-            aarch64-apple-darwin,x86_64-apple-darwin,
-            aarch64-apple-ios,aarch64-apple-ios-sim,x86_64-apple-ios
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/cache@v4
-        id: xcf-cache
-        with:
-          path: target/ios/IsccLib.xcframework.zip
-          key: xcf-${{ hashFiles( 'crates/iscc-*/src/**', 'crates/iscc-*/Cargo.toml',
-            'Cargo.lock', 'Cargo.toml', 'scripts/build_xcframework.sh', 'packages/swift/Sources/iscc_uniffiFFI/**'
-            ) }}
-      - name: Build XCFramework
-        if: steps.xcf-cache.outputs.cache-hit != 'true'
-        run: ./scripts/build_xcframework.sh --release
-      - name: Update Package.swift checksum
-        id: swift-version
-        run: |
-          VERSION=$(grep -m1 '^version' Cargo.toml | sed 's/.*"\(.*\)"/\1/')
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          CHECKSUM=$(swift package compute-checksum target/ios/IsccLib.xcframework.zip)
-          sed -E -i '' \
-            "s/(let releaseTag = \")[^\"]+/\1$VERSION/" Package.swift
-          sed -E -i '' \
-            "s/(let releaseChecksum = \")[^\"]+/\1$CHECKSUM/" Package.swift
-      - uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: 'chore: update Swift XCFramework checksum'
-      - name: Force-update tag
-        run: |
-          git tag -fa "v${{ steps.swift-version.outputs.version }}" -m "Swift Package checksum"
-          git push origin "v${{ steps.swift-version.outputs.version }}" --force
-      - name: Upload to release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.swift-version.outputs.version }}
-          files: target/ios/IsccLib.xcframework.zip

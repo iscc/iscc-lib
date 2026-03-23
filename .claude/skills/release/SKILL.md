@@ -19,8 +19,7 @@ Execute a robust, self-healing release workflow. The version argument is require
 
 - `--dry-run` — run all checks but do NOT commit, push, create PR, tag, or publish. Reports what
     would happen at each skipped step
-- `--skip-publish` — do everything through PR merge but do NOT push the tag (which triggers
-    publishing)
+- `--skip-publish` — do everything through PR merge but do NOT trigger the release workflow
 
 ## Phase 1: Pre-flight Checks
 
@@ -244,64 +243,36 @@ gh pr merge <pr-number> --merge
 
 (The default is to not delete the branch, which is what we want — `develop` stays alive.)
 
-## Phase 6: Tag and Release
+## Phase 6: Trigger Release Workflow
 
 If `--dry-run`, skip this phase entirely. Report a dry-run summary: version bump was applied to
 working tree files but not committed (Step 4.2 skipped the commit). The user can inspect the changes
 with `git diff` and discard them with `git checkout -- .` if desired. Then jump to the final summary
 (Phase 7 also skips in dry-run).
 
-### Step 6.1 — Switch to main and pull
+### Step 6.1 — Trigger the release workflow
+
+If `--skip-publish`, skip this step and Step 6.2. Report that the PR was merged and the release can
+be triggered later with `gh workflow run release.yml --ref main -f version=<version>`.
+
+Trigger the release workflow via `workflow_dispatch`. The workflow handles everything: building the
+Swift XCFramework, updating `Package.swift` with the correct checksum, committing to `main`,
+creating the `v<version>` and `packages/go/v<version>` tags, creating the GitHub Release, and
+publishing to all registries.
 
 ```
-git checkout main
-git pull --ff-only
+gh workflow run release.yml --ref main -f version=<version>
 ```
 
-### Step 6.2 — Create tags
-
-Create both the release tag and the Go module tag. The Go module lives in `packages/go/` and
-requires a prefixed tag (`packages/go/v<version>`) for the Go proxy to resolve the version.
-
-First check if the tags already exist (idempotency for partial reruns):
+Wait a few seconds for the run to appear, then find it:
 
 ```
-git tag -l v<version>
-git tag -l packages/go/v<version>
+gh run list --workflow release.yml --event workflow_dispatch --limit 1 --json databaseId,status,conclusion,url
 ```
 
-If the tags exist locally, skip creation. If they also exist on the remote
-(`git ls-remote --tags origin v<version>`), skip to Step 6.4 to monitor the release workflow.
+### Step 6.2 — Monitor release workflow
 
-```
-git tag v<version>
-git tag packages/go/v<version>
-```
-
-### Step 6.3 — Push tags
-
-If `--skip-publish`, skip this step and Step 6.4. Report that the tags were created locally and can
-be pushed later. Then go directly to Step 6.5.
-
-```
-git push origin v<version> packages/go/v<version>
-```
-
-The `v<version>` tag triggers `.github/workflows/release.yml` which publishes to all registries. The
-`packages/go/v<version>` tag enables the Go proxy to resolve the versioned module.
-
-### Step 6.4 — Monitor release workflow
-
-Find the release workflow run triggered by the tag push. Use `--event push` to avoid matching
-`workflow_dispatch` runs:
-
-```
-gh run list --workflow release.yml --event push --limit 1 --json databaseId,status,conclusion,url,headBranch
-```
-
-Verify `headBranch` matches `v<version>` (tag-triggered runs report the tag name here). If the run
-hasn't appeared yet, wait a few seconds and retry (tags may take a moment to trigger). Once found,
-extract the `databaseId` and watch it:
+Once the run is found, watch it:
 
 ```
 gh run watch <databaseId>
@@ -309,7 +280,7 @@ gh run watch <databaseId>
 
 Report progress. If the workflow fails, show the URL and which job failed.
 
-### Step 6.5 — Switch back to develop
+### Step 6.3 — Switch back to develop
 
 ```
 git checkout develop
@@ -349,8 +320,12 @@ curl -sf "https://proxy.golang.org/github.com/iscc/iscc-lib/packages/go/@v/v<ver
 # RubyGems
 curl -sf "https://rubygems.org/api/v1/versions/iscc-lib.json" | grep -q "\"number\":\"<version>\"" && echo "RubyGems: OK"
 
-# GitHub Releases (FFI tarballs)
+# GitHub Releases (FFI tarballs + Swift XCFramework)
 gh release view v<version> --json assets --jq '.assets[].name' | grep -q "iscc-ffi" && echo "GitHub Releases (FFI): OK"
+gh release view v<version> --json assets --jq '.assets[].name' | grep -q "IsccLib.xcframework" && echo "GitHub Releases (Swift): OK"
+
+# Kotlin Maven Central (may take up to 30 minutes to index)
+curl -sf "https://search.maven.org/solrsearch/select?q=g:io.iscc+AND+a:iscc-lib-kotlin+AND+v:<version>&rows=1&wt=json" | grep -q '"numFound":1' && echo "Maven Central (Kotlin): OK"
 
 # NuGet
 curl -sf "https://api.nuget.org/v3-flatcontainer/iscc.lib/<version>/iscc.lib.nuspec" > /dev/null && echo "NuGet: OK"
@@ -376,15 +351,17 @@ Release <version> complete!
   PR:       <url>
 
   Registries:
-    crates.io      <version>  OK
-    PyPI           <version>  OK
-    npm @iscc/lib  <version>  OK
-    npm @iscc/wasm <version>  OK
-    Maven Central  <version>  OK / pending indexing
-    Go proxy       <version>  OK / pending indexing
-    RubyGems       <version>  OK
-    GitHub (FFI)   <version>  OK
-    NuGet          <version>  OK
+    crates.io          <version>  OK
+    PyPI               <version>  OK
+    npm @iscc/lib      <version>  OK
+    npm @iscc/wasm     <version>  OK
+    Maven Central      <version>  OK / pending indexing
+    Maven (Kotlin)     <version>  OK / pending indexing
+    Go proxy           <version>  OK / pending indexing
+    RubyGems           <version>  OK
+    GitHub (FFI)       <version>  OK
+    GitHub (Swift)     <version>  OK
+    NuGet              <version>  OK
 
   Post-release:
     uv run scripts/test_install.py --version <version>
@@ -404,18 +381,19 @@ When any step fails:
 
 ## Re-triggering Individual Registries
 
-If the tag-triggered release workflow fails for specific registries (while others succeed),
-individual registries can be re-triggered via `workflow_dispatch`:
+If the release workflow fails for specific registries (while others succeed), individual registries
+can be re-triggered via `workflow_dispatch` without the `version` input (which would re-run the full
+release including XCFramework build and tagging):
 
 ```
 gh workflow run release.yml --ref main -f <registry>=true
 ```
 
-Available registry flags: `rubygems`, `pypi`, `npm`, `maven`, `crates_io`, `ffi`, `nuget`.
+Available registry flags: `crates-io`, `pypi`, `npm`, `maven`, `ffi`, `rubygems`, `nuget`,
+`maven-kotlin`.
 
-**Critical:** Always use `--ref main` (not `--ref v<version>`). The tag ref points to the code at
-the time of tagging — hotfixes pushed to `main` after tagging are not included in the tag. Using
-`--ref main` ensures the workflow checks out the latest code with all fixes applied.
+**Critical:** Always use `--ref main`. Do NOT pass `-f version=<version>` for re-triggers — that
+would attempt to recreate tags and the GitHub Release, which already exist.
 
 When re-triggering, the publish steps have version-existence checks that skip already-published
 registries (idempotent). Only the failed registry will actually publish.
