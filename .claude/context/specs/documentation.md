@@ -65,6 +65,14 @@ example are included. The landing page quick start and all how-to guides use thi
 
 `docs/CNAME` contains `lib.iscc.codes`.
 
+## Bindings Table Consistency
+
+The "Available Bindings" table in `docs/index.md` and the Quick Start tabbed examples MUST stay in
+sync with the README's Installation section. Whenever a new binding is released or an install method
+changes (e.g., a package graduates from "build from source" to a published registry), both the
+README and the docs landing page must be updated together. The README is the source of truth — the
+docs table must list the same set of languages, registry links, and install commands.
+
 ## Verification Criteria
 
 - [ ] `uv run zensical build` succeeds
@@ -81,3 +89,5 @@ example are included. The landing page quick start and all how-to guides use thi
 - [ ] Abbreviations expand on hover
 - [ ] `docs/CNAME` contains `lib.iscc.codes`
 - [ ] Docs workflow generates `llms-full.txt` during build
+- [ ] "Available Bindings" table lists all languages from README (Rust, Python, Node.js, Java, Go,
+    Ruby, C#/.NET, C/C++, WASM) with correct registry links and install commands

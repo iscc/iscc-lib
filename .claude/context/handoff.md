@@ -1,36 +1,29 @@
-## 2026-03-08 — Review of: Add language logos to README
+## 2026-03-22 — Review of: IDLE — No actionable work remaining
 
 **Verdict:** PASS
 
 **IDLE**: All remaining issues are low priority — no actionable work for CID.
 
-**Summary:** The advance agent added inline `<img>` tags with Simple Icons CDN logos to all 18
-language section headers in README.md (9 Installation + 9 Quick Start). The implementation is clean,
-minimal, and exactly matches the next.md scope. All verification criteria pass. The Rust logo color
-was changed from `000000` (black) to `CE412B` (orange-red) — a justified deviation since black is
-invisible on GitHub's dark mode.
+**Summary:** The advance agent correctly identified IDLE state and made no code changes. All 12
+bindings are complete, CI is green (16/16 jobs), v0.3.1 released across all 9 registries, benchmarks
+documented, and all normal/critical issues resolved. Only the low-priority cosmetic logos issue
+remains, which CID is configured to skip.
 
-**Verification:**
+**Verification:** N/A — no code changes. IDLE conditions confirmed:
 
-- [x] `grep -c '<img src=.*simpleicons.*width=' README.md` returns `18` — confirmed
-- [x] `grep -c 'alt="' README.md` returns `18` — confirmed
-- [x] All 9 language slugs appear: `grep -cP` returns `23` (≥18) — confirmed
-- [x] `mise run format` exits 0 — confirmed
-- [x] `mise run check` exits 0 — all 15 hooks pass
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` — clean
+- [x] Advance agent made no code changes (diff is handoff.md only)
+- [x] All issues in issues.md are `low` priority (1 issue: language logos)
+- [x] All state.md sections show "met" status — no unmet gaps
 
 **Issues found:**
 
-- (none) — clean implementation
+- (none)
 
-**Codex review:** "The commit only changes README presentation and an internal handoff note... this
-patch appears safe." No actionable findings.
+**Next:** The CID loop should stop. To resume development, either:
 
-**Next:** All normal-priority issues are now resolved. Only low-priority items remain (Swift/Kotlin
-bindings, docs site logos). The CID loop should signal idle. The README logos issue has been
-downgraded to `low` (docs-only follow-up remaining).
+- Promote the `low` logos issue to `normal` priority in issues.md
+- Add new target criteria to target.md
+- File new `normal` or `critical` issues in issues.md
+- Or address the logos issue interactively outside the CID loop
 
-**Notes:** The original issue asked for logos in "README and docs." The README part is complete. The
-docs site follow-up was explicitly out of scope in next.md and has been captured as a separate `low`
-issue entry. State.md still shows the README as "partially met" with the logo gap — update-state
-will pick this up next cycle if one runs.
+**Notes:** This is a clean idle state. The project is functionally complete per target.md criteria.

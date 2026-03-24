@@ -229,6 +229,45 @@ jobs:
       - name: Run C++ tests
         run: LD_LIBRARY_PATH=../../target/debug ./build/tests/test_iscc
         working-directory: packages/cpp
+  swift:
+    name: Swift (swift build, swift test)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Validate root Package.swift manifest
+        run: swift package dump-package
+      - name: Build UniFFI native library
+        run: cargo build -p iscc-uniffi
+      - name: Build Swift package
+        run: >
+          swift build
+          -Xlinker -L${{ github.workspace }}/target/debug
+        working-directory: packages/swift
+      - name: Run Swift tests
+        run: >
+          swift test
+          -Xlinker -L${{ github.workspace }}/target/debug
+          -Xlinker -rpath
+          -Xlinker ${{ github.workspace }}/target/debug
+        working-directory: packages/swift
+  kotlin:
+    name: Kotlin (gradle build, test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build UniFFI native library
+        run: cargo build -p iscc-uniffi
+      - name: Run Gradle tests
+        run: ./gradlew test
+        working-directory: packages/kotlin
   bench:
     name: Bench (compile check)
     runs-on: ubuntu-latest
