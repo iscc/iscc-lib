@@ -15,7 +15,7 @@ class IsccConan(ConanFile):
     """Conan recipe for the ISCC C++ header-only wrapper over the FFI shared library."""
 
     name = "iscc"
-    version = "0.3.1"
+    version = "0.4.0"
     license = "Apache-2.0"
     url = "https://github.com/iscc/iscc-lib"
     homepage = "https://github.com/iscc/iscc-lib"
