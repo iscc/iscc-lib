@@ -1300,13 +1300,19 @@ jobs:
             mkdir -p "$dest"
             cp "$dir"* "$dest/"
           done
+      - name: Import GPG key
+        if: steps.check.outputs.skip != 'true'
+        run: |
+          echo "${{ secrets.MAVEN_GPG_PRIVATE_KEY }}" | gpg --batch --import || true
+          gpg --list-secret-keys --keyid-format LONG | grep -q "sec" || { echo "GPG key import failed"; exit 1; }
       - name: Publish to staging with signatures
         if: steps.check.outputs.skip != 'true'
-        run: ./gradlew publishMavenPublicationToStagingRepository
+        run: >-
+          ./gradlew publishMavenPublicationToStagingRepository
+          -Psigning.gnupg.passphrase="${MAVEN_GPG_PASSPHRASE}"
         working-directory: packages/kotlin
         env:
-          SIGNING_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
-          SIGNING_PASSWORD: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
       - name: Upload bundle to Central Portal
         if: steps.check.outputs.skip != 'true'
         run: |

@@ -68,14 +68,13 @@ publishing {
 }
 
 signing {
-    val signingKey: String? = System.getenv("SIGNING_KEY")
-    val signingPassword: String? = System.getenv("SIGNING_PASSWORD")
-    if (signingKey != null) {
-        useInMemoryPgpKeys(signingKey, signingPassword)
+    val passphrase: String? = System.getenv("MAVEN_GPG_PASSPHRASE")
+    if (passphrase != null) {
+        useGpgCmd()
     }
     sign(publishing.publications["maven"])
 }
 
 tasks.withType<Sign>().configureEach {
-    onlyIf { System.getenv("SIGNING_KEY") != null }
+    onlyIf { System.getenv("MAVEN_GPG_PASSPHRASE") != null }
 }
