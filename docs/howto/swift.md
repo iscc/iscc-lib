@@ -17,7 +17,7 @@ Add the SPM package dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.1"),
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.4.0"),
 ]
 ```
 

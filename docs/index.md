@@ -136,7 +136,7 @@ decentralized, content-based identification without a central registry.
     <dependency>
       <groupId>io.iscc</groupId>
       <artifactId>iscc-lib</artifactId>
-      <version>0.3.1</version>
+      <version>0.4.0</version>
     </dependency>
     ```
 
@@ -175,7 +175,7 @@ decentralized, content-based identification without a central registry.
 
     ```swift
     // Package.swift dependency
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.3.1")
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.4.0")
     ```
 
     ```swift
@@ -189,7 +189,7 @@ decentralized, content-based identification without a central registry.
 
     ```kotlin
     // build.gradle.kts
-    implementation("io.iscc:iscc-lib-kotlin:0.3.1")
+    implementation("io.iscc:iscc-lib-kotlin:0.4.0")
     ```
 
     ```kotlin
@@ -211,7 +211,7 @@ decentralized, content-based identification without a central registry.
 | Ruby        | [RubyGems](https://rubygems.org/gems/iscc-lib)                                 | `gem install iscc-lib`                          |
 | C# / .NET   | [NuGet](https://www.nuget.org/packages/Iscc.Lib)                               | `dotnet add package Iscc.Lib`                   |
 | C / C++     | [GitHub Releases](https://github.com/iscc/iscc-lib/releases)                   | Pre-built tarballs per platform                 |
-| Swift       | [SPM](https://github.com/iscc/iscc-lib)                                        | `.package(url: "...", from: "0.3.1")`           |
+| Swift       | [SPM](https://github.com/iscc/iscc-lib)                                        | `.package(url: "...", from: "0.4.0")`           |
 | Kotlin      | [Maven Central](https://central.sonatype.com/artifact/io.iscc/iscc-lib-kotlin) | `implementation("io.iscc:iscc-lib-kotlin:...")` |
 | WebAssembly | [npm](https://www.npmjs.com/package/@iscc/wasm)                                | `npm install @iscc/wasm`                        |
 

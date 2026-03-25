@@ -17,7 +17,7 @@ Synced targets:
 - `mise.toml` — default `--version` flag for test_install task
 - `scripts/test_install.py` — fallback version for registry checks
 - Package.swift — SPM release tag version
-- Maven/Gradle version snippets in docs and READMEs
+- Maven/Gradle/SPM version snippets in docs and READMEs
 
 Usage:
     uv run scripts/version_sync.py           # Sync all targets
@@ -42,9 +42,14 @@ MAVEN_DEP_RE = re.compile(
     re.DOTALL,
 )
 
-# Gradle version pattern: 'io.iscc:iscc-lib:X.Y.Z' or "io.iscc:iscc-lib:X.Y.Z"
+# Gradle version pattern: 'io.iscc:iscc-lib:X.Y.Z' or 'io.iscc:iscc-lib-kotlin:X.Y.Z'
 GRADLE_DEP_RE = re.compile(
-    r"(io\.iscc:iscc-lib:)\d+\.\d+\.\d+",
+    r"(io\.iscc:iscc-lib(?:-kotlin)?:)\d+\.\d+\.\d+",
+)
+
+# Swift SPM version pattern: from: "X.Y.Z"
+SPM_DEP_RE = re.compile(
+    r'(from:\s*")\d+\.\d+\.\d+(")',
 )
 
 
@@ -227,16 +232,26 @@ def _sync_package_swift_release_tag(text, version):
     )
 
 
-def _get_maven_doc_version(text):
-    """Extract Maven dependency version from a doc/README file."""
+def _get_doc_dep_version(text):
+    """Extract dependency version from a doc/README file (Maven, Gradle, or SPM)."""
     m = MAVEN_DEP_RE.search(text)
-    return m.group(0).split("<version>")[1].split("</version>")[0] if m else ""
+    if m:
+        return m.group(0).split("<version>")[1].split("</version>")[0]
+    m = GRADLE_DEP_RE.search(text)
+    if m:
+        return m.group(0).rsplit(":", 1)[1]
+    m = SPM_DEP_RE.search(text)
+    if m:
+        v = re.search(r"\d+\.\d+\.\d+", m.group(0))
+        return v.group(0) if v else ""
+    return ""
 
 
-def _sync_maven_doc(text, version):
-    """Update Maven dependency versions in a doc/README file."""
+def _sync_doc_deps(text, version):
+    """Update dependency versions in a doc/README file (Maven, Gradle, SPM)."""
     text = MAVEN_DEP_RE.sub(rf"\g<1>{version}\2", text)
     text = GRADLE_DEP_RE.sub(rf"\g<1>{version}", text)
+    text = SPM_DEP_RE.sub(rf"\g<1>{version}\2", text)
     return text
 
 
@@ -262,10 +277,14 @@ TARGETS = [
     ("packages/cpp/vcpkg.json", _get_package_json_version, _sync_package_json),
     ("packages/cpp/conanfile.py", _get_conanfile_version, _sync_conanfile),
     ("Package.swift", _get_package_swift_release_tag, _sync_package_swift_release_tag),
-    ("README.md", _get_maven_doc_version, _sync_maven_doc),
-    ("crates/iscc-jni/README.md", _get_maven_doc_version, _sync_maven_doc),
-    ("docs/howto/java.md", _get_maven_doc_version, _sync_maven_doc),
-    ("docs/java-api.md", _get_maven_doc_version, _sync_maven_doc),
+    ("README.md", _get_doc_dep_version, _sync_doc_deps),
+    ("crates/iscc-jni/README.md", _get_doc_dep_version, _sync_doc_deps),
+    ("docs/howto/java.md", _get_doc_dep_version, _sync_doc_deps),
+    ("docs/java-api.md", _get_doc_dep_version, _sync_doc_deps),
+    ("docs/index.md", _get_doc_dep_version, _sync_doc_deps),
+    ("docs/howto/swift.md", _get_doc_dep_version, _sync_doc_deps),
+    ("docs/howto/kotlin.md", _get_doc_dep_version, _sync_doc_deps),
+    ("packages/swift/README.md", _get_doc_dep_version, _sync_doc_deps),
 ]
 
 
