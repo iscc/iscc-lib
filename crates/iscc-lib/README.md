@@ -56,6 +56,22 @@ println!("Meta-Code: {}", result.iscc);
 - **Streaming:** `DataHasher`, `InstanceHasher` for incremental processing
 - **Diagnostics:** `conformance_selftest`
 
+## Feature Flags
+
+| Feature           | Default | Adds                                                                       |
+| ----------------- | ------- | -------------------------------------------------------------------------- |
+| `meta-code`       | yes     | `gen_meta_code_v0`, `json_to_data_url`, meta constants                     |
+| `text-processing` | yes     | `gen_text_code_v0`, `text_clean`, `text_collapse` (implied by `meta-code`) |
+
+Data-Code, Instance-Code, ISCC-SUM, Image/Audio/Video/Mixed-Code, codec, and streaming are always
+available regardless of feature flags.
+
+For a minimal build with only ISCC-SUM support (Data-Code + Instance-Code):
+
+```toml
+iscc-lib = { version = "0.4", default-features = false }
+```
+
 ## Links
 
 - [Documentation](https://lib.iscc.codes)

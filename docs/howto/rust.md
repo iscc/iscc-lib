@@ -18,6 +18,22 @@ cargo add iscc-lib
 
 iscc-lib is a pure Rust crate with no system dependencies.
 
+## Feature flags
+
+| Feature           | Default | Adds                                                                       |
+| ----------------- | ------- | -------------------------------------------------------------------------- |
+| `meta-code`       | yes     | `gen_meta_code_v0`, `json_to_data_url`, meta constants                     |
+| `text-processing` | yes     | `gen_text_code_v0`, `text_clean`, `text_collapse` (implied by `meta-code`) |
+
+Data-Code, Instance-Code, ISCC-SUM, Image/Audio/Video/Mixed-Code, codec, and streaming are always
+available regardless of feature flags.
+
+For a minimal build with only ISCC-SUM support (Data-Code + Instance-Code):
+
+```toml
+iscc-lib = { version = "0.4", default-features = false }
+```
+
 ## Code generation
 
 All 10 `gen_*_v0` functions follow the same pattern: pass content-specific input and a `bits`
