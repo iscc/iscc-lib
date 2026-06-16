@@ -1,12 +1,13 @@
 //! Streaming hash types for incremental ISCC code generation.
 //!
-//! Provides `DataHasher` and `InstanceHasher` — streaming counterparts to
-//! `gen_data_code_v0` and `gen_instance_code_v0`. Both follow the
+//! Provides `DataHasher`, `InstanceHasher`, and `SumHasher` — streaming
+//! counterparts to `gen_data_code_v0`, `gen_instance_code_v0`, and
+//! `gen_sum_code_v0`. All follow the
 //! `new() → update(&[u8]) → finalize()` pattern for incremental processing
 //! of large files without loading entire contents into memory.
 
-use crate::types::{DataCodeResult, InstanceCodeResult};
-use crate::{IsccResult, cdc, codec, minhash};
+use crate::types::{DataCodeResult, InstanceCodeResult, SumCodeResult};
+use crate::{IsccResult, cdc, codec, gen_iscc_code_v0, minhash};
 
 /// Streaming Instance-Code generator.
 ///
@@ -147,10 +148,72 @@ impl Default for DataHasher {
     }
 }
 
+/// Streaming composite ISCC-CODE (Sum) generator.
+///
+/// Runs the Data-Code (CDC/MinHash) and Instance-Code (BLAKE3) algorithms in a
+/// single pass over the input by feeding the same bytes to an inner
+/// `DataHasher` and `InstanceHasher`, then composes the final ISCC-CODE.
+/// Produces output identical to `gen_sum_code_v0` for the same byte stream.
+pub struct SumHasher {
+    data_hasher: DataHasher,
+    instance_hasher: InstanceHasher,
+}
+
+impl SumHasher {
+    /// Create a new `SumHasher`.
+    pub fn new() -> Self {
+        Self {
+            data_hasher: DataHasher::new(),
+            instance_hasher: InstanceHasher::new(),
+        }
+    }
+
+    /// Push data into both inner hashers in a single pass.
+    pub fn update(&mut self, data: &[u8]) {
+        self.data_hasher.update(data);
+        self.instance_hasher.update(data);
+    }
+
+    /// Consume the hasher and produce a composite ISCC-CODE result.
+    ///
+    /// Finalizes the inner Data-Code and Instance-Code, then composes them via
+    /// `gen_iscc_code_v0`. When `add_units` is `true`, the result includes the
+    /// individual Data-Code and Instance-Code ISCC strings at the requested
+    /// `bits` precision. Equivalent to calling `gen_sum_code_v0` on a file
+    /// containing the concatenation of all data passed to `update`.
+    pub fn finalize(self, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult> {
+        let data_result = self.data_hasher.finalize(bits)?;
+        let instance_result = self.instance_hasher.finalize(bits)?;
+
+        // Borrow strings for gen_iscc_code_v0 before potentially moving them into units.
+        let iscc_result = gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)?;
+
+        let units = if add_units {
+            Some(vec![data_result.iscc, instance_result.iscc])
+        } else {
+            None
+        };
+
+        Ok(SumCodeResult {
+            iscc: iscc_result.iscc,
+            datahash: instance_result.datahash,
+            filesize: instance_result.filesize,
+            units,
+        })
+    }
+}
+
+impl Default for SumHasher {
+    /// Create a new `SumHasher` (delegates to `new()`).
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{gen_data_code_v0, gen_instance_code_v0};
+    use crate::{gen_data_code_v0, gen_instance_code_v0, gen_iscc_code_v0, gen_sum_code_v0};
 
     // ---- InstanceHasher tests ----
 
@@ -432,6 +495,171 @@ mod tests {
                 streaming3.iscc, oneshot.iscc,
                 "byte-at-a-time ISCC mismatch in test case {name}"
             );
+        }
+    }
+
+    // ---- SumHasher tests ----
+
+    /// Compose the expected composite ISCC-CODE for `data` from the one-shot
+    /// Data-Code and Instance-Code functions (the streaming source of truth).
+    fn expected_sum(data: &[u8], bits: u32, wide: bool) -> SumCodeResult {
+        let data_result = gen_data_code_v0(data, bits).unwrap();
+        let instance_result = gen_instance_code_v0(data, bits).unwrap();
+        let iscc_result =
+            gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide).unwrap();
+        SumCodeResult {
+            iscc: iscc_result.iscc,
+            datahash: instance_result.datahash,
+            filesize: instance_result.filesize,
+            units: None,
+        }
+    }
+
+    #[test]
+    fn test_sum_hasher_empty() {
+        let streaming = SumHasher::new().finalize(64, false, false).unwrap();
+        let expected = expected_sum(b"", 64, false);
+
+        assert_eq!(streaming.iscc, expected.iscc);
+        assert_eq!(streaming.datahash, expected.datahash);
+        assert_eq!(streaming.filesize, expected.filesize);
+        assert_eq!(streaming.filesize, 0);
+        assert_eq!(streaming.units, None);
+    }
+
+    #[test]
+    fn test_sum_hasher_small_data() {
+        let data = b"Hello, ISCC World!";
+        let mut sh = SumHasher::new();
+        sh.update(data);
+        let streaming = sh.finalize(64, false, false).unwrap();
+        let expected = expected_sum(data, 64, false);
+
+        assert_eq!(streaming.iscc, expected.iscc);
+        assert_eq!(streaming.datahash, expected.datahash);
+        assert_eq!(streaming.filesize, expected.filesize);
+    }
+
+    #[test]
+    fn test_sum_hasher_multi_update_invariance() {
+        // Large enough to span multiple CDC chunks.
+        let data: Vec<u8> = (0..20_000).map(|i| (i % 256) as u8).collect();
+
+        let mut single = SumHasher::new();
+        single.update(&data);
+        let single_result = single.finalize(64, false, false).unwrap();
+
+        // Split the same bytes across three update calls.
+        let mut multi = SumHasher::new();
+        multi.update(&data[..3000]);
+        multi.update(&data[3000..12_000]);
+        multi.update(&data[12_000..]);
+        let multi_result = multi.finalize(64, false, false).unwrap();
+
+        assert_eq!(single_result.iscc, multi_result.iscc);
+        assert_eq!(single_result.datahash, multi_result.datahash);
+        assert_eq!(single_result.filesize, multi_result.filesize);
+
+        // And both match the one-shot composition.
+        let expected = expected_sum(&data, 64, false);
+        assert_eq!(multi_result.iscc, expected.iscc);
+    }
+
+    #[test]
+    fn test_sum_hasher_units_toggle() {
+        let data = b"unit toggle test data";
+
+        let mut sh_on = SumHasher::new();
+        sh_on.update(data);
+        let with_units = sh_on.finalize(64, false, true).unwrap();
+
+        let data_result = gen_data_code_v0(data, 64).unwrap();
+        let instance_result = gen_instance_code_v0(data, 64).unwrap();
+        assert_eq!(
+            with_units.units,
+            Some(vec![data_result.iscc, instance_result.iscc])
+        );
+
+        let mut sh_off = SumHasher::new();
+        sh_off.update(data);
+        let without_units = sh_off.finalize(64, false, false).unwrap();
+        assert_eq!(without_units.units, None);
+    }
+
+    #[test]
+    fn test_sum_hasher_wide_mode() {
+        let data = b"wide mode comparison test data";
+
+        let mut narrow = SumHasher::new();
+        narrow.update(data);
+        let narrow_result = narrow.finalize(128, false, false).unwrap();
+
+        let mut wide = SumHasher::new();
+        wide.update(data);
+        let wide_result = wide.finalize(128, true, false).unwrap();
+
+        // Wide mode at 128 bits produces a different (longer) composite code.
+        assert_ne!(narrow_result.iscc, wide_result.iscc);
+        // datahash and filesize are unaffected by wide mode.
+        assert_eq!(narrow_result.datahash, wide_result.datahash);
+        assert_eq!(narrow_result.filesize, wide_result.filesize);
+
+        // Each matches its one-shot composition.
+        assert_eq!(narrow_result.iscc, expected_sum(data, 128, false).iscc);
+        assert_eq!(wide_result.iscc, expected_sum(data, 128, true).iscc);
+    }
+
+    #[test]
+    fn test_sum_hasher_datahash_filesize_match_instance() {
+        let data = b"datahash and filesize parity check";
+        let mut sh = SumHasher::new();
+        sh.update(data);
+        let streaming = sh.finalize(64, false, false).unwrap();
+
+        let instance_result = gen_instance_code_v0(data, 64).unwrap();
+        assert_eq!(streaming.datahash, instance_result.datahash);
+        assert_eq!(streaming.filesize, instance_result.filesize);
+        assert_eq!(streaming.filesize, data.len() as u64);
+    }
+
+    #[test]
+    fn test_sum_hasher_default() {
+        let from_default = SumHasher::default().finalize(64, false, false).unwrap();
+        let from_new = SumHasher::new().finalize(64, false, false).unwrap();
+        assert_eq!(from_default.iscc, from_new.iscc);
+    }
+
+    #[test]
+    fn test_sum_hasher_matches_gen_sum_code_v0() {
+        use std::io::Write;
+
+        // Large enough to span multiple CDC chunks.
+        let data: Vec<u8> = (0..20_000).map(|i| (i % 256) as u8).collect();
+
+        let mut tmp = tempfile::NamedTempFile::new().unwrap();
+        tmp.write_all(&data).unwrap();
+        tmp.flush().unwrap();
+
+        // Confirm SumHasher is the single source of truth across parameter
+        // combinations: same iscc/datahash/filesize/units as the file-based path.
+        for &(bits, wide, add_units) in &[
+            (64u32, false, false),
+            (64u32, false, true),
+            (128u32, true, true),
+        ] {
+            let mut sh = SumHasher::new();
+            sh.update(&data);
+            let streaming = sh.finalize(bits, wide, add_units).unwrap();
+
+            let file_based = gen_sum_code_v0(tmp.path(), bits, wide, add_units).unwrap();
+
+            assert_eq!(
+                streaming.iscc, file_based.iscc,
+                "iscc mismatch (bits={bits}, wide={wide}, add_units={add_units})"
+            );
+            assert_eq!(streaming.datahash, file_based.datahash);
+            assert_eq!(streaming.filesize, file_based.filesize);
+            assert_eq!(streaming.units, file_based.units);
         }
     }
 }

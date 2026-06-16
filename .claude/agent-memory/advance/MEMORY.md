@@ -47,24 +47,20 @@ iterations.
 - Release workflow (`release.yml`): 9 inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift). Pattern: boolean input → build job → **smoke test job** → publish job
     (version-exists skip). NuGet uses `NUGET_API_KEY` secret (not OIDC). Ruby uses OIDC
-- `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Has provenance guard
-    (tag-only) that fails if main HEAD != tag SHA. Builds XCFramework → checksum → `sed` updates
-    Package.swift → auto-commit → force-update tag → upload to GH Release. Uses macOS BSD
-    `sed -E -i ''` (not GNU). Dual cache: `Swatinem/rust-cache` + `actions/cache`. XCF cache key
-    includes: crate sources, crate Cargo.tomls, Cargo.lock, root Cargo.toml, build script, Swift FFI
-    headers
+- `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Provenance guard (tag-only)
+    fails if main HEAD != tag SHA. Builds XCFramework → checksum → `sed` updates Package.swift →
+    auto-commit → force-update tag → upload to GH Release. Uses macOS BSD `sed -E -i ''` (not GNU).
+    Dual cache: `Swatinem/rust-cache` + `actions/cache` (key from crate sources/Cargo manifests)
 - Kotlin Maven Central: `build-kotlin-native` (9-platform matrix) → `assemble-kotlin` +
-    `test-kotlin-release` (validates JAR has all 9 JNA native lib paths) → `publish-maven-kotlin`.
-    Publish uses Gradle `maven-publish` + curl bundle upload to Sonatype Central Portal REST API
-
-## WASM/WASI
-
+    `test-kotlin-release` (validates JAR has all 9 JNA paths) → `publish-maven-kotlin` (Gradle
+    `maven-publish` + curl bundle upload to Sonatype Central Portal REST API)
 - wasm-pack `--features` must go AFTER the path, NOT after `--`
 
 ## gen_sum_code_v0
 
-- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` in `lib.rs`. Single-pass
-    file I/O, feeds DataHasher + InstanceHasher, composes via `gen_iscc_code_v0`
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` in `lib.rs`. Now a thin
+    file-I/O wrapper: reads `IO_READ_SIZE` chunks into one `streaming::SumHasher`, then
+    `hasher.finalize(bits, wide, add_units)`. Composition logic lives solely in `SumHasher`
 - `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring, not field
     access. `MainType` is `pub(crate)`, not accessible from test modules
 - All 32 Tier 1 symbols implemented. All 7 bindings implement `gen_sum_code_v0`
@@ -74,6 +70,10 @@ iterations.
 - `DataHasher`: persistent `buf: Vec<u8>` reused across `update()` calls. CDC → BLAKE3 chunk hash →
     MinHash pipeline. Tail: `copy_within` + `truncate`. ~1.1 GiB/s at 64 KiB chunks
 - `InstanceHasher`: wraps BLAKE3, outputs ISCC multihash format (64-byte digest truncated)
+- `SumHasher` (issue #37 core-first): holds inner `DataHasher` + `InstanceHasher`, `update` feeds
+    same slice to both. `finalize(bits, wide, add_units) -> SumCodeResult` composes via
+    `gen_iscc_code_v0`. Not yet a crate-root Tier 1 re-export — reachable via
+    `iscc_lib::streaming::SumHasher`. Bindings (py/wasm) + Tier 1 promotion are the #37 follow-up
 
 ## API Design
 
@@ -91,7 +91,6 @@ iterations.
 - Landing page tab order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
 - mdformat reformats JS imports to multi-line style — run format before commit
 - `docs/architecture.md` and `docs/development.md` share identical trees — keep in sync
-- All 5 Reference pages complete: Rust API, Python API, C FFI, Java API, Ruby API
 
 ## Binding Constant Export Patterns — see MEMORY-archive.md for per-binding details
 
@@ -188,11 +187,11 @@ iterations.
 - `build/` covered by root `.gitignore`; `.gradle/` needs local `.gitignore`
 - JNA native lib loading: `java.library.path` alone is NOT sufficient for JNA `Native.register()`.
     Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
-- Conformance tests: `ConformanceTest.kt` — 9 test methods, 50 vectors. JUnit 5 + Gson for JSON
-- Test deps: JUnit 5.11.4, Gson 2.11.0 (`com.google.code.gson` groupId, NOT `com.google.gson`)
-- Maven Central publishing: `build.gradle.kts` has `maven-publish` + `signing` plugins, POM with
-    `io.iscc:iscc-lib-kotlin`. Staging repo at `build/staging-deploy/`. Central Portal bundle upload
-    via curl (`https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC`)
+- Conformance tests: `ConformanceTest.kt` — 9 methods, 50 vectors. JUnit 5.11.4 + Gson 2.11.0
+    (`com.google.code.gson` groupId, NOT `com.google.gson`)
+- Maven Central publishing: `build.gradle.kts` has `maven-publish` + `signing` plugins, POM
+    `io.iscc:iscc-lib-kotlin`, staging repo `build/staging-deploy/`, Central Portal bundle upload
+    via curl (`.../api/v1/publisher/upload?publishingType=AUTOMATIC`)
 - JNA resource paths for bundled native libs: `linux-x86-64`, `linux-aarch64`, `darwin-aarch64`,
     `darwin-x86-64`, `win32-x86-64`, `android-aarch64`, `android-arm`, `android-x86-64`,
     `android-x86`. JNA 5.16.0 canonicalizes ARM32 to `arm` (not `armv7`). JNA discovers libs from
