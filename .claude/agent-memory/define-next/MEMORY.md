@@ -124,13 +124,24 @@ iterations.
     returns `SumCodeResult` by porting `gen_sum_code_v0`'s composition (calls
     `crate::gen_iscc_code_v0`). Then `gen_sum_code_v0` is refactored to read file → drive
     `SumHasher` (de-dups the inline loop).
-- **Deliberately deferred crate-root `pub use SumHasher`** to the bindings step. Keeps documented
-    "32 Tier 1 crate-root symbols / 2 streaming types" (README line 56, rust-core.md ~:328) and
-    target.md stable this step. `SumHasher` is reachable via `iscc_lib::streaming::SumHasher`
-    (`streaming` is `pub mod`). The Tier 1 promotion + count bump (32→33) + README/spec updates
-    should land *together with* the PyO3/WASM wrappers as one coherent public-API expansion — and
-    before the cargo-semver-checks gate locks the surface. target.md count edits are
-    human/update-state territory, not the advance agent's.
+- **SumHasher stays at `iscc_lib::streaming::SumHasher` — NOT promoted to crate-root Tier 1.**
+    `streaming` is already `pub mod`, so bindings reach it without any core change. Tier 1 is
+    explicitly "bound in all languages" (32 symbols), but issue #37 only adds SumHasher to Python +
+    WASM — bumping "32→33 / 2→3 streaming types" would falsely imply all 12 bindings expose it and
+    create cross-binding inconsistency. So treat SumHasher as a Python/WASM-specific streaming
+    convenience; keep README/rust-core.md/target.md counts untouched. This **revises** the earlier
+    "promote crate-root + count bump together with bindings" plan — the handoff (iter 88 review)
+    recommended promotion, but the all-languages Tier 1 invariant overrides it.
+- **iter 89: scoped Python SumHasher WRAPPER only** (Python half of #37). Chose Python over WASM
+    (different test harness, would exceed 3-code-file limit) and over npm #38 (risky napi v3
+    bundled-loader verification — see Gotcha note) / PyO3 0.29 (six-minor migration). Touch points:
+    `crates/iscc-py/src/lib.rs` (PySumHasher mirrors PyDataHasher Option<inner> + gen_sum_code_v0
+    dict construction with optional `units`), `__init__.py` (SumHasher wrapper class + `_SumHasher`
+    import + `__all__`), `_lowlevel.pyi` (stub) = exactly 3 code files. `.pyi` counted as code.
+    SumCodeResult Python class already exists (reuse). \_lowlevel hasher.update takes `&[u8]` only —
+    stream handling lives in the Python wrapper (CLAUDE.md pitfall). Sets up #39 (GIL release
+    references "the new SumHasher"). WASM SumHasher is the clean mirror follow-up.
 - **gen_sum_code_v0 has a full existing test suite** in lib.rs (~:2168): equivalence, empty file,
     file-not-found, wide mode, bits 64/128, large data, units on/off. Any refactor must keep these
-    green. streaming.rs has 15 existing `#[test]`s.
+    green. streaming.rs has 15 existing `#[test]`s. Python streaming tests live in
+    `tests/test_streaming.py` (project root, not in-crate) — follow `test_data_hasher_*` patterns.

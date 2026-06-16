@@ -1,107 +1,105 @@
 # Next Work Package
 
-## Step: Add core `streaming::SumHasher` struct and drive `gen_sum_code_v0` from it
+## Step: Add streaming `SumHasher` to the Python bindings
 
 ## Goal
 
-Add a reusable single-pass `streaming::SumHasher` to the `iscc-lib` core crate (the "core first"
-prerequisite of issue #37, "Add streaming `SumHasher` to Python and WASM bindings"). This gives
-streaming consumers a `new() → update(&[u8]) → finalize(...)` hasher that runs the Data-Code and
-Instance-Code algorithms in a single pass, and de-duplicates the inline loop inside the path-based
-`gen_sum_code_v0`.
+Expose a single-pass `SumHasher` class in the `iscc_lib` Python package (PyO3 wrapper over the core
+`streaming::SumHasher` added in iteration 88), so streaming consumers can compute an ISCC-SUM
+incrementally without driving two hashers and feeding every chunk twice. This closes the Python half
+of issue #37 ("Add streaming `SumHasher` to Python and WASM bindings").
 
 ## Scope
 
-- **Create**: (none)
-- **Modify**:
-    - `crates/iscc-lib/src/streaming.rs` — add a `pub struct SumHasher` plus unit tests.
-    - `crates/iscc-lib/src/lib.rs` — refactor `gen_sum_code_v0` to read the file and drive a
-        `SumHasher` (replacing the duplicated dual-hasher read loop).
+- **Create**: (none — new tests go in the existing `tests/test_streaming.py`)
+- **Modify** (code, 3 files):
+    - `crates/iscc-py/src/lib.rs` — add a `#[pyclass(name = "SumHasher")]` `PySumHasher` backed by
+        `iscc_lib::streaming::SumHasher`; register it with `m.add_class::<PySumHasher>()` in the
+        `#[pymodule]`.
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — import `SumHasher as _SumHasher` from
+        `._lowlevel`; add a public `SumHasher` wrapper class mirroring `DataHasher`/`InstanceHasher`;
+        add `"SumHasher"` to `__all__`.
+    - `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — add a `class SumHasher` type stub.
+- **Modify** (docs):
+    - `docs/howto/python.md` — add a `SumHasher` streaming example alongside the existing
+        `DataHasher`/`InstanceHasher` sections.
+    - `crates/iscc-py/README.md` — add `SumHasher` to the "Streaming:" line (~line 57).
+    - `crates/iscc-py/CLAUDE.md` — update the streaming-type mentions (Module Layout note + Type
+        Mapping row + pitfalls) to include `SumHasher`.
+- **Modify** (tests): `tests/test_streaming.py` — add `SumHasher` tests.
 - **Reference**:
-    - `.claude/context/issues.md` → "Add streaming `SumHasher` to Python and WASM bindings" (issue
-        #37) — the "Core first" bullet defines this step.
-    - `crates/iscc-lib/src/streaming.rs` — existing `DataHasher` / `InstanceHasher` (pattern to
-        mirror).
-    - `crates/iscc-lib/src/lib.rs` ~:986 `gen_sum_code_v0`, ~:859 `gen_iscc_code_v0` (composition
-        logic to port).
-    - `crates/iscc-lib/src/types.rs` ~:98 `SumCodeResult` (return type).
+    - `crates/iscc-lib/src/streaming.rs` (lines ~155-210) — core `SumHasher` API (`new` /
+        `update(&[u8])` / `finalize(bits, wide, add_units) -> SumCodeResult`).
+    - `crates/iscc-py/src/lib.rs` — `PyDataHasher`/`PyInstanceHasher` (lines ~520-609) and the
+        `gen_sum_code_v0` PyO3 wrapper (lines ~334-351) for the `units`-optional dict construction.
+    - `crates/iscc-py/python/iscc_lib/__init__.py` — `DataHasher`/`InstanceHasher` wrapper classes
+        (lines ~288-345) and `SumCodeResult` (line ~185).
+    - `.claude/context/specs/python-bindings.md` → "Streaming SumHasher" (lines ~237-267).
 
 ## Not In Scope
 
-- **No PyO3 wrapper** (`crates/iscc-py`) and **no wasm-bindgen wrapper** (`crates/iscc-wasm`) for
-    `SumHasher` — those are the remainder of issue #37 and land in a dedicated follow-up step.
-- **No GIL release** (`py.allow_threads`, issue #39) — separate step.
-- **No crate-root `pub use streaming::SumHasher`** re-export and **no Tier 1 symbol-count change**
-    (keep the documented 32 crate-root Tier 1 symbols / "2 streaming types" intact). `SumHasher` is
-    reachable for the next step via `iscc_lib::streaming::SumHasher` (the `streaming` module is
-    already `pub mod`). Promotion to a crate-root Tier 1 export — together with README /
-    rust-core.md count updates — happens in the bindings step that actually exposes it to foreign
-    languages.
-- No changes to `DataHasher` / `InstanceHasher` public behavior.
-- Do not touch CI, release workflows, or push/branch state.
+- **WASM `SumHasher` wrapper** (the other half of issue #37) — separate follow-up step; it uses a
+    different test harness and would push past the 3-code-file limit. Do NOT touch
+    `crates/iscc-wasm`.
+- **Promoting `SumHasher` to a crate-root Tier 1 `pub use`** or bumping the documented "32 Tier 1
+    symbols / 2 streaming types" count. `streaming` is already a `pub mod`, so
+    `iscc_lib::streaming::SumHasher` is reachable without a core change. SumHasher is a Python/WASM
+    streaming convenience (issue #37 is binding-specific), not a symbol bound in all 12 languages,
+    so it must NOT be folded into the "bound in all languages" Tier 1 count. Do NOT modify
+    `crates/iscc-lib/`.
+- **GIL release (`py.allow_threads`)** for the new `SumHasher.update()` — that is issue #39, a
+    separate step.
+- Changing `gen_sum_code_v0` or any existing hasher behavior.
 
 ## Implementation Notes
 
-- `SumHasher` composes the two existing hashers — hold a `DataHasher` and an `InstanceHasher` as
-    fields:
-
-    ```rust
-    pub struct SumHasher {
-        data_hasher: DataHasher,
-        instance_hasher: InstanceHasher,
-    }
-    ```
-
-    `new()` constructs both; `update(&mut self, data: &[u8])` feeds the *same* slice to both inner
-    hashers (single pass over the caller's chunk).
-
-- `finalize` takes `(self, bits: u32, wide: bool, add_units: bool) -> IsccResult<SumCodeResult>` so
-    it fully replaces the body of `gen_sum_code_v0`. Port the exact composition currently in
-    `gen_sum_code_v0`:
-
-    1. `let data_result = self.data_hasher.finalize(bits)?;`
-    2. `let instance_result = self.instance_hasher.finalize(bits)?;`
-    3. `let iscc_result = crate::gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)?;`
-    4. `units = if add_units { Some(vec![data_result.iscc, instance_result.iscc]) } else { None };`
-    5. Return
-        `SumCodeResult { iscc: iscc_result.iscc, datahash: instance_result.datahash,  filesize: instance_result.filesize, units }`.
-
-- Add `Default` impl delegating to `new()` (matches `DataHasher` / `InstanceHasher`).
-
-- `streaming.rs` will need `crate::gen_iscc_code_v0` and `crate::types::SumCodeResult` in scope —
-    extend the existing `use crate::{...}` line; `gen_iscc_code_v0` is a `pub fn` at the crate root,
-    so `crate::gen_iscc_code_v0` resolves.
-
-- Refactor `gen_sum_code_v0` (lib.rs) to: open the file, create `streaming::SumHasher::new()`, read
-    in `IO_READ_SIZE` chunks feeding `hasher.update(&buf[..n])`, then
-    `hasher.finalize(bits, wide, add_units)`. Keep the existing `File::open` / `read` error mapping
-    to `IsccError::InvalidInput`. The existing `gen_sum_code_v0` test suite (equivalence, empty
-    file, file-not-found, wide mode, bits 64/128, large data, units enabled/disabled) must stay
-    green.
-
-- New unit tests in `streaming.rs` (no file I/O — compare against the in-memory two-hasher pattern):
-
-    - Empty input: `SumHasher::new().finalize(64, false, false)` equals the manual composition of
-        `gen_data_code_v0(b"", 64)` + `gen_instance_code_v0(b"", 64)` → `gen_iscc_code_v0(.., false)`.
-    - Small data single `update`.
-    - Multi-`update` (split the same bytes across 2–3 `update` calls) produces an identical result to
-        a single `update` of the whole slice (streaming invariance).
-    - `add_units = true` yields `Some([data_iscc, instance_iscc])`; `add_units = false` yields `None`.
-    - `wide = true` vs `wide = false` produce the expected differing composite codes.
-    - `datahash` / `filesize` match `gen_instance_code_v0` for the same bytes.
+- **Rust layer (`PySumHasher`)**: copy the `PyDataHasher` shape exactly — `inner: Option<...>`,
+    `#[new]` constructs `Some(iscc_lib::streaming::SumHasher::new())`,
+    `update(&mut self, data:   &[u8])` uses
+    `as_mut().ok_or_else(|| PyValueError::new_err("SumHasher already finalized"))?`, and `finalize`
+    uses `take().ok_or_else(...)?`. Use
+    `#[pyo3(signature = (bits=64, wide=false, add_units=false))]` and build the return `PyDict`
+    exactly like the `gen_sum_code_v0` wrapper: always set `iscc`, `datahash`, `filesize`, and set
+    `units` only when `r.units` is `Some` (omit the key otherwise — do not set `None`).
+- **Do NOT** add `__init__` params to the `_lowlevel` `PySumHasher` — stream/initial-data handling
+    lives in the Python wrapper (per `crates/iscc-py/CLAUDE.md` pitfalls). `_lowlevel.update` takes
+    `&[u8]` only.
+- **Python wrapper (`SumHasher`)**: mirror `DataHasher` — constructor takes optional
+    `bytes | bytearray | memoryview | BinaryIO`; `update()` accepts the same union and reads
+    file-likes in `_CHUNK_SIZE` (64 KiB) loops;
+    `finalize(self, bits: int = 64, wide: bool = False,   add_units: bool = False) -> SumCodeResult`
+    returns `SumCodeResult(self._inner.finalize(bits,   wide, add_units))`. `SumCodeResult` already
+    exists (line ~185) — reuse it.
+- **`.pyi` stub**: mirror the existing `DataHasher` stub but add `wide`/`add_units` params to
+    `finalize` returning `dict[str, Any]`.
+- **Tests** (`tests/test_streaming.py`): follow the existing `test_data_hasher_*` patterns:
+    - Single-update and multi-chunk results match `gen_sum_code_v0` on a `tempfile` written with the
+        same bytes, across `(bits, wide, add_units)` combinations (64/128/256, wide on/off, units
+        on/off).
+    - Result also matches the manual two-hasher path (`DataHasher` + `InstanceHasher` →
+        `gen_iscc_code_v0`).
+    - `BinaryIO` (`io.BytesIO`) input produces identical output to `bytes` input.
+    - Constructor with initial data and with `BinaryIO`.
+    - Finalize-once: a second `finalize()` raises `ValueError`; an `update()` after `finalize()`
+        raises `ValueError`.
+    - `from iscc_lib import SumHasher` works and `"SumHasher" in iscc_lib.__all__`.
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes (all existing tests, including the `gen_sum_code_v0` suite, plus
-    the new `SumHasher` unit tests).
-- `cargo clippy -p iscc-lib -- -D warnings` clean.
-- `cargo fmt -p iscc-lib --check` clean.
-- A test asserts `iscc_lib::streaming::SumHasher::new()` fed bytes B and finalized with
-    `(bits, wide, add_units)` yields the same `iscc`, `datahash`, and `filesize` as
-    `gen_sum_code_v0` run on a temp file containing B (single source of truth confirmed).
-- `gen_sum_code_v0` no longer contains its own dual-hasher read loop (it delegates to `SumHasher`).
+- `maturin develop -m crates/iscc-py/Cargo.toml` builds the extension successfully.
+- `cargo clippy -p iscc-py -- -D warnings` clean.
+- `pytest tests/test_streaming.py` passes (existing tests + new `SumHasher` tests).
+- `pytest` (full Python suite) passes.
+- `python -c "import iscc_lib; assert 'SumHasher' in iscc_lib.__all__; assert iscc_lib.SumHasher"`
+    exits 0.
+- A test asserts `SumHasher(...).finalize(bits, wide, add_units)` equals
+    `gen_sum_code_v0(tempfile, bits, wide, add_units)` for the same bytes across the parameter grid.
+- A test asserts a second `finalize()` and a post-`finalize()` `update()` each raise `ValueError`.
+- `ruff check` and `ruff format --check` clean; `ty check` clean (stub present).
 
 ## Done When
 
-`streaming::SumHasher` exists with `new()/update()/finalize(bits, wide, add_units)`,
-`gen_sum_code_v0` is refactored to drive it, and all verification checks above pass.
+The Python `SumHasher` class is importable from `iscc_lib`, streams data incrementally, produces
+output identical to `gen_sum_code_v0` and the two-hasher pattern across all
+`(bits, wide, add_units)` combinations, enforces finalize-once semantics, is listed in `__all__`,
+and all verification checks pass.
