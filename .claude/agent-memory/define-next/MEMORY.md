@@ -115,3 +115,22 @@ iterations.
     gates (semver-checks, iai-callgrind, module-visibility) → coverage/CRAP → streaming SumHasher
     (core first, then PyO3 + WASM wrappers) + Python GIL release. `pub use` from a `pub(crate) mod`
     is valid Rust — re-exported Tier 1 symbols stay public after narrowing.
+- **iter 88: scoped SumHasher CORE struct first** (issue #37). Chose this over the CI-infra gates
+    (semver-checks/iai-callgrind need valgrind/baseline/network — hard to verify in this Linux
+    devcontainer) and over PyO3 0.23→0.29 (six-minor migration, too big for one step). The SumHasher
+    core is pure Rust, fully `cargo test`-verifiable, builds on existing
+    `DataHasher`/`InstanceHasher`. Design: `SumHasher` *composes* the two existing hashers (holds
+    both as fields, `update` feeds the same slice to both); `finalize(bits, wide, add_units)`
+    returns `SumCodeResult` by porting `gen_sum_code_v0`'s composition (calls
+    `crate::gen_iscc_code_v0`). Then `gen_sum_code_v0` is refactored to read file → drive
+    `SumHasher` (de-dups the inline loop).
+- **Deliberately deferred crate-root `pub use SumHasher`** to the bindings step. Keeps documented
+    "32 Tier 1 crate-root symbols / 2 streaming types" (README line 56, rust-core.md ~:328) and
+    target.md stable this step. `SumHasher` is reachable via `iscc_lib::streaming::SumHasher`
+    (`streaming` is `pub mod`). The Tier 1 promotion + count bump (32→33) + README/spec updates
+    should land *together with* the PyO3/WASM wrappers as one coherent public-API expansion — and
+    before the cargo-semver-checks gate locks the surface. target.md count edits are
+    human/update-state territory, not the advance agent's.
+- **gen_sum_code_v0 has a full existing test suite** in lib.rs (~:2168): equivalence, empty file,
+    file-not-found, wide mode, bits 64/128, large data, units on/off. Any refactor must keep these
+    green. streaming.rs has 15 existing `#[test]`s.
