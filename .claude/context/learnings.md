@@ -120,6 +120,12 @@ fully-met target sections to `learnings-archive.md`.
 - Gate individual test functions with `#[cfg(feature = "...")]`, not the whole `mod tests` block,
     when the block contains both gated and ungated tests
 - `serde_json` stays non-optional because `conformance.rs` uses it for parsing data.json vectors
+- **`--no-default-features --all-targets` fails on the `benchmarks` bench** (pre-existing):
+    `benches` import `gen_meta_code_v0`/`gen_text_code_v0`, which need the
+    `meta-code`/`text-processing` features. The lib + tests build fine with `--no-default-features`;
+    only the bench target breaks. When verifying feature configs, scope clippy to the lib
+    (`--no-default-features -- -D warnings`, no `--all-targets`) or it reports a false regression.
+    CI never runs this combo
 
 ## Documentation Maintenance
 

@@ -68,6 +68,12 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 - Use Rust-only shortcut. Verify 3 configs: default, no-default, text-processing only
 - `serde_json` non-optional (conformance.rs dependency)
+- **`--no-default-features --all-targets` fails on `benchmarks` bench** (pre-existing, NOT a
+    regression): benches import `gen_meta`/`gen_text` needing default features. Scope no-default
+    clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`). CI never runs it
+- `streaming::SumHasher` exists in core (issue #37 core-first, iter 88) but is NOT a crate-root Tier
+    1 re-export — only `iscc_lib::streaming::SumHasher`. Tier 1 promotion + py/wasm wrappers are the
+    #37 follow-up. `gen_sum_code_v0` is now a thin wrapper delegating to `SumHasher::finalize`
 
 ## Binding State
 

@@ -1,48 +1,65 @@
-## 2026-06-16 — Add core `streaming::SumHasher` struct and drive `gen_sum_code_v0` from it
+## 2026-06-16 — Review of: Add core `streaming::SumHasher` struct and drive `gen_sum_code_v0` from it
 
-**Done:** Added a reusable single-pass `streaming::SumHasher` to the `iscc-lib` core crate
-(`new() → update(&[u8]) → finalize(bits, wide, add_units)`). It composes an inner `DataHasher` and
-`InstanceHasher`, feeding the same slice to both per `update`. Refactored `gen_sum_code_v0` to drive
-the new hasher, removing the duplicated dual-hasher read loop. This is the "core first" prerequisite
-of issue #37.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-lib/src/streaming.rs`: added `pub struct SumHasher` + `Default` impl; extended module
-    docstring and `use` imports (`SumCodeResult`, `gen_iscc_code_v0`); added 8 unit tests (empty,
-    small data, multi-update streaming invariance, units toggle, wide vs narrow, datahash/filesize
-    parity, default, and a cross-check that `SumHasher` equals file-based `gen_sum_code_v0` across
-    `(bits, wide, add_units)` combinations using a `tempfile::NamedTempFile`).
-- `crates/iscc-lib/src/lib.rs`: `gen_sum_code_v0` now opens the file, reads in `IO_READ_SIZE` chunks
-    into a single `streaming::SumHasher`, and delegates composition to
-    `hasher.finalize(bits, wide, add_units)`. Error mapping for open/read unchanged.
+**Summary:** The advance agent added a single-pass `streaming::SumHasher`
+(`new() → update(&[u8]) → finalize(bits, wide, add_units)`) that composes inner `DataHasher` +
+`InstanceHasher`, and refactored `gen_sum_code_v0` into a thin file-I/O wrapper that delegates all
+composition to it. Clean, in-scope, well-tested (8 new unit tests incl. a temp-file cross-check that
+`SumHasher` equals the file-based path), and the "core first" prerequisite of issue #37 is met. No
+public API break.
 
 **Verification:**
 
-- `cargo test -p iscc-lib`: 269 passed (incl. 8 new `SumHasher` tests + the existing 9-test
-    `gen_sum_code_v0` suite, all green).
-- `cargo clippy -p iscc-lib -- -D warnings`: clean.
-- `cargo fmt -p iscc-lib --check`: clean.
-- `--no-default-features` and `--all-features`: tests/clippy clean — `SumHasher` is
-    feature-independent.
-- Full `mise run check` (pre-commit) and `prek --hook-stage pre-push` (clippy, cargo test, ty, ruff,
-    pytest, ruby): all green.
+- [x] `cargo test -p iscc-lib` passes — 269 unit + 28 integration + 22 + 1 doctest, all green
+- [x] `cargo clippy -p iscc-lib -- -D warnings` clean (also `--all-targets`)
+- [x] `cargo fmt -p iscc-lib --check` clean
+- [x] Test asserts `SumHasher` == `gen_sum_code_v0` on a temp file across `(bits, wide, add_units)`
+    — `test_sum_hasher_matches_gen_sum_code_v0` present and passing (single source of truth
+    confirmed)
+- [x] `gen_sum_code_v0` no longer contains its own dual-hasher loop — delegates to
+    `SumHasher::finalize`
+- [x] Feature configs: `--no-default-features` (219 tests) + `--all-features` (269 tests) green
+- [x] `mise run check` (15 pre-commit hooks) all Passed
 
-**Next:** The remainder of issue #37 — expose `SumHasher` in the PyO3 wrapper (`crates/iscc-py`) and
-the wasm-bindgen wrapper (`crates/iscc-wasm`). That step should also promote `SumHasher` to a
-crate-root Tier 1 `pub use` (currently reachable only via `iscc_lib::streaming::SumHasher`) and bump
-the documented Tier 1 count ("2 streaming types" → 3) in `crates/iscc-lib/CLAUDE.md`,
-`docs/rust-api.md`, and any README symbol tables. Issue #39 (GIL release via `py.allow_threads`) is
-a separate follow-up.
+**Issues found:**
+
+- (none) — scope discipline is exact: only `streaming.rs` + `lib.rs` touched. No crate-root
+    `pub use SumHasher` re-export, no Tier 1 count change, no PyO3/wasm wrapper, no GIL release —
+    all correctly deferred per "Not In Scope". `finalize` takes `add_units` (vs the issue's terse
+    `finalize(bits, wide)`) because `gen_sum_code_v0` needs it — a sensible, necessary deviation.
+
+**Codex review:** No introduced correctness, security, or maintainability issues. Confirmed the
+refactor preserves `gen_sum_code_v0` behavior and the new composition matches the previous path.
+
+**Issue housekeeping:** Swept the stale **"Narrow internal module visibility to `pub(crate)`"**
+issue — that work landed in commit `3f6a61d` (iteration 86) and `lib.rs` now declares
+`pub(crate) mod cdc/conformance/minhash/simhash/utils` exactly as specified. No cross-crate
+module-path imports remain (the `iscc_lib::conformance_selftest()` calls in bindings use the Tier 1
+crate-root re-export, not the private `conformance` module path). The issue's `**Spec:**` already
+described `pub(crate) mod` as the target, so no spec edit was needed — the code was brought into
+conformance.
+
+**Next:** Continue issue #37 — the **PyO3 + wasm-bindgen `SumHasher` wrappers** (the binding half).
+That step should expose `SumHasher` mirroring the `DataHasher`/`InstanceHasher` finalize-once
+(`Option<inner>`) pattern in `crates/iscc-py` and `crates/iscc-wasm`, **promote `SumHasher` to a
+crate-root Tier 1 `pub use`** (currently only `iscc_lib::streaming::SumHasher`), and bump the
+documented Tier 1 "2 streaming types → 3" wording in `crates/iscc-lib/CLAUDE.md`,
+`docs/rust-api.md`, and any README symbol tables. Alternatively, pick the highest-impact backlog
+item: npm `optionalDependencies` fix (#38, actively breaks downstream `npm ci`) or the PyO3 0.23 →
+0.29 security migration.
 
 **Notes:**
 
-- Per next.md "Not In Scope", I intentionally did NOT re-export `SumHasher` at the crate root and
-    did NOT change the documented 32 crate-root Tier 1 symbol count / "2 streaming types" wording.
-    `SumHasher` is reachable for the bindings step via the already-`pub mod streaming`.
-- `gen_sum_code_v0` is now a thin file-I/O wrapper; the dual-hasher composition logic lives solely
-    in `SumHasher::finalize` (single source of truth, confirmed by
-    `test_sum_hasher_matches_gen_sum_code_v0`).
-- No public API change: `gen_sum_code_v0` signature/return type untouched; no Tier 1/Tier 2 symbol
-    altered. Hot path unchanged (same hashers, same single-pass read loop) — no benchmark regression
-    expected. </content> </invoke>
+- **Pre-existing (not a regression):**
+    `cargo clippy/test -p iscc-lib --no-default-features   --all-targets` fails to compile the
+    `benchmarks` bench — it imports `gen_meta_code_v0` / `gen_text_code_v0` which need the default
+    `meta-code`/`text-processing` features. The lib + tests build fine without default features; CI
+    never runs the `--no-default-features --all-targets` combo. Scope feature-config clippy to the
+    lib only. Recorded in learnings.md.
+- **Push state:** this review pushes 10 unpushed `develop` commits as one batch, including the
+    module-narrowing change `3f6a61d` (not yet CI-verified) and the mise-task migration `b1127ed`.
+    Pre-push hooks + CI provide the verification the local run could not. Pre-push needs `iscc_lib`
+    compiled (`ty check`/`pytest` import it) — it is built from this review's cargo runs.
+- Hot path unchanged: `SumHasher::update` calls the same two inner hashers as before (one extra
+    inlined call layer); no benchmark regression expected.
