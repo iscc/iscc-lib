@@ -29,6 +29,13 @@ iterations.
     well-understood bugs.
 - **IDLE is valid** — when all target sections are met and only low issues remain, signal IDLE.
     Don't invent work. The CID loop ran 7 iterations and correctly reached completion.
+- **Prefer boolean-verifiable prerequisites over high-impact-but-risky infra fixes** when both are
+    available and there's no in-progress feature. A single-file `pub`→`pub(crate)` change with grep
+    \+ `cargo test` checks beats an infra fix whose real verification needs publishing/CI.
+- **The npm `optionalDependencies` fix (#38) is high user-impact but risky to autonomously verify**:
+    dropping `napi prepublish -t npm` may leave the napi-generated `index.js` loader referencing
+    unpublished optional-dep packages. Needs investigation of napi v3's bundled-loader behavior — do
+    not scope as a trivial one-line release.yml edit. Better as a dedicated/interactive step.
 
 ## Architecture Decisions
 
@@ -93,13 +100,18 @@ iterations.
 - Swift: `genTextCodeV0(text: "text", bits: 64)` — camelCase free functions, named params
 - Kotlin: `genTextCodeV0(text = "text", bits = 64u)` — camelCase free functions, UInt params
 
-## CID Loop History (for context if restarted)
+## v1.0.0 Hardening Phase (post-v0.4.0, started ~iter 86)
 
-- **Iteration 1**: Kotlin bindings scaffold
-- **Iteration 2**: Kotlin release workflow
-- **Iteration 3**: JAR smoke test fix
-- **Iteration 4**: XCFramework cache key fix
-- **Iteration 5**: Swift ref:main provenance guard
-- **Iteration 6**: Root Package.swift CI smoke test
-- **Iteration 7**: IDLE — all target sections met, only low-priority logos issue remains
-- Total: 7 iterations to reach completion from Kotlin scaffold through full CI hardening
+- v0.4.0 shipped to all registries; CI green 16/16. Human added 7 `normal` issues toward v1.0.0 and
+    raised target.md bar. No critical issues. Module-visibility narrowing started at iter 86.
+- **Tier 1 surface = 32 crate-root re-exports.** Internal modules (`cdc`, `minhash`, `simhash`,
+    `utils`, `conformance`) only leak their *paths*; narrowing them to `pub(crate) mod` is a pre-1.0
+    breaking change that must land BEFORE the `cargo-semver-checks` gate locks the surface.
+- **Integration tests in `crates/iscc-lib/tests/` deliberately assert module-path access** —
+    `test_module_path_imports*` in test_algorithm_primitives.rs + test_text_utils.rs. They break
+    when modules go `pub(crate)`; delete them (crate-root `test_flat_crate_root_imports` /
+    `test_crate_root_imports*` already cover the same functions). Tests excluded from 3-file limit.
+- **v1.0.0 backlog ordering** (per state.md Next Milestone): npm #38 fix → PyO3 0.23→0.29 → v1.0.0
+    gates (semver-checks, iai-callgrind, module-visibility) → coverage/CRAP → streaming SumHasher
+    (core first, then PyO3 + WASM wrappers) + Python GIL release. `pub use` from a `pub(crate) mod`
+    is valid Rust — re-exported Tier 1 symbols stay public after narrowing.
