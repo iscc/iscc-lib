@@ -16,7 +16,9 @@ exclude = ["packages/cpp/conanfile.py"]
 max-complexity = 15
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]
+# Tests assert freely (S101) and shell out to git with trusted literal args
+# (S603 untrusted-input, S607 partial-path) — both are noise in test helpers.
+"tests/**" = ["S101", "S603", "S607"]
 
 [dependency-groups]
 dev = [
