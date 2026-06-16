@@ -45,6 +45,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     injection still present); source `crates/iscc-napi/package.json` uses bundled
     `files: ["*.node"]`
 - **Module visibility check**: `grep -n "pub mod\|pub(crate) mod" crates/iscc-lib/src/lib.rs`
+- **Issue count (correct)**: `grep -cE` for a label counts the header legend line too — subtract 1
+    from each. Header line has `critical`+`normal`+`low` once each.
+- **Unpushed check**: `git log --oneline origin/develop..HEAD` — CID commits locally; origin may
+    lag. If code commits sit after the last CI run sha, they are UNVERIFIED. Always cross-check
+    `git log --oneline <last-CI-sha>..HEAD` against the diff.
 
 ## Codebase Landmarks
 
@@ -88,22 +93,26 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: b1127ed)
+## Current State (assessed-at: b7ff4c2)
 
-- **IN_PROGRESS** — project came OUT of idle: v0.4.0 released, then human re-injected work toward
-    v1.0.0. Workspace version = `0.4.0`.
-- **CI GREEN**: 16/16 jobs (run 27629376698, sha 63523ba). HEAD is 2 commits ahead but they only
-    touch context/mise.toml (CI doesn't use mise) — green status holds.
-- **0 critical, 7 normal, 2 low issues** (human triaged GitHub issues #37/#38/#39 + v1.0.0 prep).
-- **Normal gaps**: PyO3 0.23→0.29 (RustSec), npm optionalDeps bug (#38), streaming SumHasher (#37,
-    core+py+wasm), GIL allow_threads (#39), CRAP coverage gate, cargo-semver-checks gate,
-    iai-callgrind perf gate, narrow lib.rs modules to pub(crate).
+- **IN_PROGRESS** — v0.4.0 released; human re-scoped toward v1.0.0. Workspace version = `0.4.0`.
+- **CI**: last run green 16/16 (run 27629376698, sha 63523ba) but HEAD `b7ff4c2` is **7 commits
+    ahead of origin/develop** (origin still at 63523ba). The module-narrowing code change `3f6a61d`
+    (lib.rs + 2 test files removed) is UNPUSHED & UNVERIFIED. CI not failing — just hasn't run.
+- **10 issues: 0 critical, 8 normal, 2 low** (prior state.md miscounted as 7 normal/9 total).
+- **DONE in code (iteration 86, commit 3f6a61d)**: narrowed `cdc/conformance/minhash/simhash/utils`
+    to `pub(crate) mod`; only `codec/types/streaming` stay `pub mod`. All 10 crate-root `pub use`
+    re-exports intact; redundant module-path tests dropped; no remaining `iscc_lib::<mod>::` refs.
+    The "Narrow internal module visibility" issue is still in issues.md awaiting review deletion.
+- **Open normal gaps**: npm optionalDeps bug (#38), PyO3 0.23→0.29 (RustSec), streaming SumHasher
+    (#37 core+py+wasm), GIL allow_threads (#39), CRAP coverage gate, cargo-semver-checks gate,
+    iai-callgrind perf gate.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
-- **Partially-met sections now**: Rust Core (semver+perf gates, module visibility), Python (PyO3,
-    SumHasher, GIL), Node.js (npm optionalDeps), WASM (SumHasher), CI/CD (3 new gates + npm fix).
-    All 12 bindings still functionally met for v0.4.0; the bar was raised, not regressed.
-- **target.md/specs grew**: rust-core.md + ci-cd.md added "API Stability & Performance" and "CRAP"
-    sections with new "verified when" checklists. Always re-read on incremental review.
+- **Partially-met sections**: Rust Core (semver+perf gates only — module visibility now done),
+    Python (PyO3, SumHasher, GIL), Node.js (npm optionalDeps), WASM (SumHasher), CI/CD. All 12
+    bindings functionally met for v0.4.0.
+- **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
+    with "verified when" checklists. Re-read on incremental review.
 
 ## Pattern: idle→active reactivation
 
