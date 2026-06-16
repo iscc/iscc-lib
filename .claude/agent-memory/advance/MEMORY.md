@@ -72,8 +72,11 @@ iterations.
 - `InstanceHasher`: wraps BLAKE3, outputs ISCC multihash format (64-byte digest truncated)
 - `SumHasher` (issue #37 core-first): holds inner `DataHasher` + `InstanceHasher`, `update` feeds
     same slice to both. `finalize(bits, wide, add_units) -> SumCodeResult` composes via
-    `gen_iscc_code_v0`. Not yet a crate-root Tier 1 re-export — reachable via
-    `iscc_lib::streaming::SumHasher`. Bindings (py/wasm) + Tier 1 promotion are the #37 follow-up
+    `gen_iscc_code_v0`. Not yet a crate-root Tier 1 re-export — reach it via
+    `iscc_lib::streaming::SumHasher` (full path) in bindings, NOT bare `iscc_lib::SumHasher`
+- Python `SumHasher` binding done (iter 89): `PySumHasher` in `crates/iscc-py/src/lib.rs`
+    (`Option<inner>` finalize-once, dict with optional `units`) + wrapper in `__init__.py` + `.pyi`
+    stub + `__all__`. WASM binding + crate-root Tier 1 promotion remain for #37
 
 ## API Design
 

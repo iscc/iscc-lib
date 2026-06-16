@@ -25,7 +25,7 @@ crates/iscc-py/
   Cargo.toml              # cdylib crate, lib name = "_lowlevel"
   pyproject.toml           # maturin build backend, module-name = "iscc_lib._lowlevel"
   src/
-    lib.rs                 # All PyO3 bindings: 27 #[pyfunction]s + 2 #[pyclass]es + #[pymodule]
+    lib.rs                 # All PyO3 bindings: 27 #[pyfunction]s + 3 #[pyclass]es + #[pymodule]
   python/iscc_lib/
     __init__.py            # Public API: wrapper functions, IsccResult classes, re-exports
     _lowlevel.pyi          # Type stubs for the native Rust extension module
@@ -39,7 +39,8 @@ crates/iscc-py/
 - `#[pymodule(name = "_lowlevel")]` entry point registers all symbols
 - All `gen_*_v0` functions return `PyDict` (not structured Rust types)
 - Errors map to `PyValueError` via `.map_err(|e| PyValueError::new_err(e.to_string()))`
-- Streaming types (`DataHasher`, `InstanceHasher`) use `Option<inner>` pattern for one-shot finalize
+- Streaming types (`DataHasher`, `InstanceHasher`, `SumHasher`) use `Option<inner>` pattern for
+    one-shot finalize
 
 ### Python layer (`python/iscc_lib/__init__.py`)
 
@@ -53,9 +54,10 @@ crates/iscc-py/
 - `iscc_decode` is wrapped to return `MT`, `ST`, `VS` IntEnum values instead of raw ints
 - `MT`, `ST`, `VS` are IntEnum classes for MainType, SubType, and Version identifiers
 - `core_opts` is a `SimpleNamespace` exposing algorithm configuration constants
-- `DataHasher` and `InstanceHasher` are Python wrapper classes that delegate to `_lowlevel`
-    counterparts; constructors accept optional initial data (`bytes | BinaryIO`), and `update()`
-    accepts `bytes | bytearray | memoryview | BinaryIO`
+- `DataHasher`, `InstanceHasher`, and `SumHasher` are Python wrapper classes that delegate to
+    `_lowlevel` counterparts; constructors accept optional initial data (`bytes | BinaryIO`), and
+    `update()` accepts `bytes | bytearray | memoryview | BinaryIO`. `SumHasher.finalize` also takes
+    `wide` and `add_units` flags
 - Algorithm functions and utilities re-exported directly (no wrapping needed)
 
 ## Type Mapping: Rust to Python
@@ -72,7 +74,7 @@ crates/iscc-py/
 | `SumCodeResult` struct                                    | `PyDict` with `iscc`, `datahash`, `filesize`, optional `units`          | `SumCodeResult(IsccResult)`                                     |
 | `iscc_lib::Error`                                         | `PyValueError`                                                          | `ValueError`                                                    |
 | `Vec<u8>` (from `soft_hash_video_v0` / `*_flat` variants) | `PyBytes`                                                               | `bytes`                                                         |
-| `DataHasher` / `InstanceHasher`                           | `#[pyclass]` with `Option<inner>`                                       | Python wrapper class accepting `bytes \| bytearray \| BinaryIO` |
+| `DataHasher` / `InstanceHasher` / `SumHasher`             | `#[pyclass]` with `Option<inner>`                                       | Python wrapper class accepting `bytes \| bytearray \| BinaryIO` |
 
 ### IsccResult hierarchy
 
@@ -150,8 +152,8 @@ mise run format
 - Do NOT add keys to result dicts beyond what iscc-core returns
 - Do NOT return `None` for optional keys -- omit the key entirely (no `set_item` call)
 - Do NOT change `_lowlevel` to return structured types -- it must return plain `PyDict`
-- Do NOT add `__init__` params to `_lowlevel` DataHasher/InstanceHasher -- stream handling is in the
-    Python wrapper
+- Do NOT add `__init__` params to `_lowlevel` DataHasher/InstanceHasher/SumHasher -- stream handling
+    is in the Python wrapper
 - Do NOT let Rust panics cross FFI boundary -- always convert errors with `.map_err()`
 - Do NOT use `serde_json` for dict construction -- use `PyDict::new()` and `set_item()`
 - When adding a Tier 1 function: add to `lib.rs` (#[pyfunction] + register in module),

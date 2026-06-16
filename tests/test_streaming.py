@@ -6,13 +6,18 @@ from pathlib import Path
 
 import pytest
 
+import iscc_lib
 from iscc_lib import (
     DataCodeResult,
     DataHasher,
     InstanceCodeResult,
     InstanceHasher,
+    SumCodeResult,
+    SumHasher,
     gen_data_code_v0,
     gen_instance_code_v0,
+    gen_iscc_code_v0,
+    gen_sum_code_v0,
     soft_hash_video_v0,
 )
 
@@ -429,3 +434,135 @@ def test_gen_instance_code_v0_stream_chunked():
     assert result["iscc"] == expected["iscc"]
     assert result["datahash"] == expected["datahash"]
     assert result["filesize"] == expected["filesize"]
+
+
+# ── SumHasher ───────────────────────────────────────────────────────────────
+
+
+_SUM_PARAM_GRID = [
+    (64, False, False),
+    (64, False, True),
+    (128, False, False),
+    (128, True, True),
+    (256, False, True),
+]
+
+
+def _expected_sum_dict(data, bits, wide, add_units):
+    """Compose the expected ISCC-SUM via the manual two-hasher path."""
+    data_result = gen_data_code_v0(data, bits=bits)
+    instance_result = gen_instance_code_v0(data, bits=bits)
+    iscc_result = gen_iscc_code_v0(
+        [data_result["iscc"], instance_result["iscc"]], wide=wide
+    )
+    expected = {
+        "iscc": iscc_result["iscc"],
+        "datahash": instance_result["datahash"],
+        "filesize": instance_result["filesize"],
+    }
+    if add_units:
+        expected["units"] = [data_result["iscc"], instance_result["iscc"]]
+    return expected
+
+
+@pytest.mark.parametrize(("bits", "wide", "add_units"), _SUM_PARAM_GRID)
+def test_sum_hasher_matches_gen_sum_code_v0(tmp_path, bits, wide, add_units):
+    """Verify SumHasher matches gen_sum_code_v0 on a file with the same bytes."""
+    data = bytes(i % 256 for i in range(20_000))
+    file_path = tmp_path / "data.bin"
+    file_path.write_bytes(data)
+
+    sh = SumHasher()
+    sh.update(data)
+    result = sh.finalize(bits=bits, wide=wide, add_units=add_units)
+    assert isinstance(result, SumCodeResult)
+
+    file_based = gen_sum_code_v0(file_path, bits=bits, wide=wide, add_units=add_units)
+    assert result["iscc"] == file_based["iscc"]
+    assert result["datahash"] == file_based["datahash"]
+    assert result["filesize"] == file_based["filesize"]
+    assert result.get("units") == file_based.get("units")
+
+
+@pytest.mark.parametrize(("bits", "wide", "add_units"), _SUM_PARAM_GRID)
+def test_sum_hasher_multi_chunk_matches_two_hasher(bits, wide, add_units):
+    """Verify multi-chunk SumHasher matches the manual two-hasher path."""
+    data = bytes(i % 256 for i in range(20_000))
+
+    sh = SumHasher()
+    sh.update(data[:3000])
+    sh.update(data[3000:12_000])
+    sh.update(data[12_000:])
+    result = sh.finalize(bits=bits, wide=wide, add_units=add_units)
+
+    expected = _expected_sum_dict(data, bits, wide, add_units)
+    assert result["iscc"] == expected["iscc"]
+    assert result["datahash"] == expected["datahash"]
+    assert result["filesize"] == expected["filesize"]
+    assert result.get("units") == expected.get("units")
+
+
+def test_sum_hasher_units_omitted_when_disabled():
+    """Verify the units key is absent (not None) when add_units is False."""
+    sh = SumHasher()
+    sh.update(b"omit units test")
+    result = sh.finalize(add_units=False)
+    assert "units" not in result
+
+
+def test_sum_hasher_binaryio_input():
+    """Verify SumHasher.update() accepts BinaryIO and matches bytes input."""
+    data = b"Hello ISCC-SUM via stream" * 100
+    sh_bytes = SumHasher()
+    sh_bytes.update(data)
+    expected = sh_bytes.finalize(add_units=True)
+
+    sh_stream = SumHasher()
+    sh_stream.update(io.BytesIO(data))
+    result = sh_stream.finalize(add_units=True)
+    assert result["iscc"] == expected["iscc"]
+    assert result["datahash"] == expected["datahash"]
+    assert result["filesize"] == expected["filesize"]
+    assert result["units"] == expected["units"]
+
+
+def test_sum_hasher_constructor_with_data():
+    """Verify SumHasher(data=...) processes initial data."""
+    data = b"constructor sum data"
+    sh = SumHasher(data=data)
+    result = sh.finalize()
+
+    expected = _expected_sum_dict(data, 64, False, False)
+    assert result["iscc"] == expected["iscc"]
+
+
+def test_sum_hasher_constructor_with_binaryio():
+    """Verify SumHasher(data=BytesIO(...)) processes initial stream."""
+    data = b"constructor sum stream data"
+    sh = SumHasher(data=io.BytesIO(data))
+    result = sh.finalize()
+
+    expected = _expected_sum_dict(data, 64, False, False)
+    assert result["iscc"] == expected["iscc"]
+
+
+def test_sum_hasher_double_finalize_raises():
+    """Verify calling finalize() twice raises ValueError."""
+    sh = SumHasher()
+    sh.finalize()
+    with pytest.raises(ValueError, match="already finalized"):
+        sh.finalize()
+
+
+def test_sum_hasher_update_after_finalize_raises():
+    """Verify calling update() after finalize raises ValueError."""
+    sh = SumHasher()
+    sh.finalize()
+    with pytest.raises(ValueError, match="already finalized"):
+        sh.update(b"more data")
+
+
+def test_sum_hasher_exported():
+    """Verify SumHasher is importable and listed in __all__."""
+    assert "SumHasher" in iscc_lib.__all__
+    assert iscc_lib.SumHasher is SumHasher

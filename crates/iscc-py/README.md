@@ -54,7 +54,7 @@ print(f"Meta-Code: {result['iscc']}")
 - **Soft hashing:** `soft_hash_video_v0`
 - **Encoding:** `encode_base64`
 - **Codec:** `iscc_decompose`
-- **Streaming:** `DataHasher`, `InstanceHasher` for incremental processing
+- **Streaming:** `DataHasher`, `InstanceHasher`, `SumHasher` for incremental processing
 - **Diagnostics:** `conformance_selftest`
 
 Streaming functions (`gen_data_code_v0`, `gen_instance_code_v0`) accept both `bytes` and file-like

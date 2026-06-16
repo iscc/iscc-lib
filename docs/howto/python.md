@@ -238,8 +238,8 @@ Fields marked with `?` are optional and only present when the corresponding inpu
 
 ## Streaming
 
-For large files, use `DataHasher` and `InstanceHasher` to process data incrementally without loading
-everything into memory. Both follow the `new() -> update() -> finalize()` pattern.
+For large files, use `DataHasher`, `InstanceHasher`, and `SumHasher` to process data incrementally
+without loading everything into memory. All follow the `new() -> update() -> finalize()` pattern.
 
 ### DataHasher
 
@@ -289,7 +289,29 @@ print(result.datahash)  # Multihash of the complete data
 print(result.filesize)  # Total bytes processed
 ```
 
-Both hashers accept `bytes` or file-like objects in `update()`. After calling `finalize()`, the
+### SumHasher
+
+`SumHasher` computes an ISCC-SUM (Data-Code + Instance-Code) in a single pass, so streaming
+consumers need only one hasher instead of driving a `DataHasher` and `InstanceHasher` and feeding
+every chunk twice. The result is identical to `gen_sum_code_v0` on a file with the same bytes.
+
+```python
+from iscc_lib import SumHasher
+
+hasher = SumHasher()
+
+with open("large_file.bin", "rb") as f:
+    while chunk := f.read(65536):
+        hasher.update(chunk)
+
+result = hasher.finalize(bits=256, wide=True, add_units=True)
+print(result.iscc)  # Composite ISCC-CODE
+print(result.datahash)  # Multihash of the complete data
+print(result.filesize)  # Total bytes processed
+print(result.units)  # [Data-Code, Instance-Code] (only when add_units=True)
+```
+
+All three hashers accept `bytes` or file-like objects in `update()`. After calling `finalize()`, the
 hasher is consumed and further calls to `update()` or `finalize()` raise an error.
 
 ## Text utilities

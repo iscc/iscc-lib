@@ -608,6 +608,65 @@ impl PyInstanceHasher {
     }
 }
 
+/// Streaming composite ISCC-CODE (Sum) generator.
+///
+/// Runs the Data-Code and Instance-Code algorithms in a single pass over the
+/// input to produce results identical to `gen_sum_code_v0`.
+#[pyclass(name = "SumHasher")]
+struct PySumHasher {
+    inner: Option<iscc_lib::streaming::SumHasher>,
+}
+
+#[pymethods]
+impl PySumHasher {
+    /// Create a new `SumHasher`.
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: Some(iscc_lib::streaming::SumHasher::new()),
+        }
+    }
+
+    /// Push data into both inner hashers in a single pass.
+    fn update(&mut self, data: &[u8]) -> PyResult<()> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("SumHasher already finalized"))?
+            .update(data);
+        Ok(())
+    }
+
+    /// Consume the hasher and produce a composite ISCC-CODE result dict.
+    ///
+    /// Returns a dict with keys `iscc`, `datahash`, `filesize`, and optionally
+    /// `units` (list of Data-Code and Instance-Code strings) when `add_units`
+    /// is true.
+    #[pyo3(signature = (bits=64, wide=false, add_units=false))]
+    fn finalize(
+        &mut self,
+        py: Python<'_>,
+        bits: u32,
+        wide: bool,
+        add_units: bool,
+    ) -> PyResult<PyObject> {
+        let hasher = self
+            .inner
+            .take()
+            .ok_or_else(|| PyValueError::new_err("SumHasher already finalized"))?;
+        let r = hasher
+            .finalize(bits, wide, add_units)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let dict = PyDict::new(py);
+        dict.set_item("iscc", r.iscc)?;
+        dict.set_item("datahash", r.datahash)?;
+        dict.set_item("filesize", r.filesize)?;
+        if let Some(units) = r.units {
+            dict.set_item("units", units)?;
+        }
+        Ok(dict.into())
+    }
+}
+
 /// Python module `iscc_lib._lowlevel` backed by Rust.
 #[pymodule(name = "_lowlevel")]
 fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -645,5 +704,6 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(soft_hash_video_v0_flat, m)?)?;
     m.add_class::<PyDataHasher>()?;
     m.add_class::<PyInstanceHasher>()?;
+    m.add_class::<PySumHasher>()?;
     Ok(())
 }

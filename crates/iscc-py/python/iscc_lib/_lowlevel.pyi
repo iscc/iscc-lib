@@ -439,3 +439,38 @@ class InstanceHasher:
         :raises ValueError: If the hasher has already been finalized.
         """
         ...
+
+class SumHasher:
+    """Streaming composite ISCC-CODE (Sum) generator backed by Rust.
+
+    Runs the Data-Code and Instance-Code algorithms in a single pass over the
+    input to produce results identical to ``gen_sum_code_v0``.
+    """
+
+    def __init__(self) -> None:
+        """Create a new SumHasher."""
+        ...
+
+    def update(self, data: bytes) -> None:
+        """Push data into both inner hashers in a single pass.
+
+        :param data: Raw binary data to process.
+        :raises ValueError: If the hasher has already been finalized.
+        """
+        ...
+
+    def finalize(
+        self, bits: int = 64, wide: bool = False, add_units: bool = False
+    ) -> dict[str, Any]:
+        """Consume the hasher and produce a composite ISCC-CODE result dict.
+
+        :param bits: Bit length of the code body (default 64).
+        :param wide: Whether to produce a wide (256-bit) ISCC-CODE (default False).
+        :param add_units: Whether to include individual Data-Code and Instance-Code
+            ISCC strings in the result (default False).
+        :return: Dict with ``iscc``, ``datahash``, ``filesize`` keys and optionally
+            ``units`` (list of Data-Code and Instance-Code strings) when ``add_units``
+            is True.
+        :raises ValueError: If the hasher has already been finalized.
+        """
+        ...
