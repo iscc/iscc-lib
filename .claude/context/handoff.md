@@ -1,62 +1,59 @@
-## 2026-06-16 — Add streaming `SumHasher` to the Python bindings
+## 2026-06-16 — Review of: Add streaming `SumHasher` to the Python bindings
 
-**Done:** Exposed a single-pass `SumHasher` class in the `iscc_lib` Python package — a PyO3 wrapper
-(`#[pyclass] PySumHasher`) over the core `iscc_lib::streaming::SumHasher` plus a Pythonic wrapper
-class mirroring `DataHasher`/`InstanceHasher`. Streaming consumers can now compute an ISCC-SUM
-incrementally with one hasher instead of driving two and feeding every chunk twice. Closes the
-Python half of issue #37.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `crates/iscc-py/src/lib.rs`: added `#[pyclass(name = "SumHasher")] PySumHasher` backed by
-    `iscc_lib::streaming::SumHasher` (`Option<inner>` finalize-once pattern, copied from
-    `PyDataHasher`); `finalize(bits=64, wide=false, add_units=false)` builds a `PyDict` with `iscc`,
-    `datahash`, `filesize`, and `units` only when `Some` (matching the `gen_sum_code_v0` wrapper).
-    Registered with `m.add_class::<PySumHasher>()`.
-- `crates/iscc-py/python/iscc_lib/__init__.py`: imported `SumHasher as _SumHasher`; added public
-    `SumHasher` wrapper (optional initial `bytes | bytearray | memoryview | BinaryIO`, `update()`
-    reads file-likes in 64 KiB chunks, `finalize(bits, wide, add_units) -> SumCodeResult` reusing
-    the existing `SumCodeResult`); added `"SumHasher"` to `__all__`.
-- `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: added `class SumHasher` stub.
-- `crates/iscc-py/README.md`: added `SumHasher` to the "Streaming:" line.
-- `crates/iscc-py/CLAUDE.md`: updated `#[pyclass]` count (2→3), Module Layout streaming note, Python
-    layer note, Type Mapping row, and the `__init__`-params pitfall to include `SumHasher`.
-- `docs/howto/python.md`: added a `SumHasher` streaming example + updated the Streaming section
-    intro.
-- `tests/test_streaming.py`: added 11 `SumHasher` tests.
+**Summary:** The advance agent added a PyO3 `PySumHasher` (`#[pyclass(name = "SumHasher")]`) backed
+by the core `iscc_lib::streaming::SumHasher`, plus a Pythonic `SumHasher` wrapper mirroring
+`DataHasher`/`InstanceHasher`, a `.pyi` stub, docs, and 11 new tests. The implementation faithfully
+copies the established `gen_sum_code_v0` dict-construction pattern (omitting `units` when `None`)
+and the finalize-once `Option<inner>` pattern. Scope was clean — no WASM, core, GIL, or Tier 1
+changes. This closes the Python half of issue #37.
 
 **Verification:**
 
-- `cargo clippy -p iscc-py -- -D warnings` — clean.
-- `maturin develop -m crates/iscc-py/Cargo.toml` — builds successfully.
-- `pytest tests/test_streaming.py` — 58 passed (47 prior + 11 new).
-- `pytest` (full suite) — 279 passed.
-- `python -c "import iscc_lib; assert 'SumHasher' in iscc_lib.__all__; assert iscc_lib.SumHasher"` —
-    exits 0.
-- `ruff check` / `ruff format --check` / `ty check` — all clean.
-- `mise run check` (15 pre-commit hooks) — all Passed (mdformat auto-reflowed the new doc prose on
-    first run, re-ran clean).
+- [x] `cargo clippy -p iscc-py -- -D warnings` — clean
+- [x] `maturin develop --release -m crates/iscc-py/Cargo.toml` — builds successfully (abi3-py310
+    wheel)
+- [x] `pytest tests/test_streaming.py` — 58 passed (47 prior + 11 new)
+- [x] `pytest` (full suite) — 279 passed
+- [x] `python -c "import iscc_lib; assert 'SumHasher' in iscc_lib.__all__; assert iscc_lib.SumHasher"`
+    — exits 0
+- [x] Test asserts `SumHasher(...).finalize(bits, wide, add_units)` ==
+    `gen_sum_code_v0(tempfile, ...)` across the (64/128/256, wide on/off, units on/off) grid —
+    present and passing
+- [x] Test asserts second `finalize()` and post-`finalize()` `update()` each raise `ValueError` —
+    present and passing
+- [x] `ruff check` / `ruff format --check` / `ty check` — all clean
+- [x] `mise run check` (15 pre-commit hooks) — all Passed
 
-New tests cover: parametrized `(bits, wide, add_units)` grid (64/128/256, wide on/off, units on/off)
-matching `gen_sum_code_v0` on a `tmp_path` file; multi-chunk matching the manual two-hasher path
-(`DataHasher` + `InstanceHasher` → `gen_iscc_code_v0`); `units` key omitted when disabled; `BytesIO`
-== `bytes` input; constructor with initial data and `BinaryIO`; double-finalize and
-update-after-finalize each raise `ValueError`; `SumHasher` in `__all__`.
+**Issues found:**
 
-**Next:** The WASM `SumHasher` wrapper — the remaining half of issue #37 (different test harness,
-`crates/iscc-wasm`). After that, consider promoting `SumHasher` to a crate-root Tier 1 `pub use` and
-bumping the documented "2 streaming types → 3" wording across all bindings (deliberately deferred
-per this step's "Not In Scope"), or picking the highest-impact backlog item (npm
-`optionalDependencies` #38, PyO3 0.23→0.29 migration, or GIL release #39).
+- (none) — implementation matches the core API (`SumHasher::finalize(bits, wide, add_units)`) and
+    the `gen_sum_code_v0` reference exactly. Tests use real data and verify against both the
+    path-based `gen_sum_code_v0` and the manual two-hasher path.
+- Minor doc fix applied directly by reviewer: the "Result types and their fields" table in
+    `docs/howto/python.md` listed `SumCodeResult` without its optional `units?` field — now that the
+    new SumHasher example demonstrates `add_units=True`, the table was inconsistent. Added `units?`
+    (the same `?`-suffix convention used for other optional fields). No behavior change.
+
+**Codex review:** No introduced correctness issues found. Codex confirmed the binding follows the
+existing streaming-wrapper patterns, is registered and exported, and that tests cover the main
+behavior and finalize-once semantics. No actionable findings.
+
+**Next:** The WASM `SumHasher` wrapper — the **only remaining half of issue #37** (the issue entry
+in issues.md has been rescoped to "WASM bindings" with a progress note). Add a `SumHasher` class to
+`crates/iscc-wasm` over the shared core struct, mirroring the WASM `DataHasher`/`InstanceHasher`
+finalize-once pattern; verify with `wasm-pack test --node` against `gen_sum_code_v0` and the
+two-hasher path. After that, the highest-impact backlog items are: npm `optionalDependencies` fix
+(#38), PyO3 0.23→0.29 security migration, or GIL release (#39).
 
 **Notes:**
 
-- Used `iscc_lib::streaming::SumHasher` (full module path) since `SumHasher` is intentionally NOT a
-    crate-root re-export yet (per "Not In Scope"). `DataHasher`/`InstanceHasher` use the bare
-    `iscc_lib::DataHasher` form because they ARE Tier 1 re-exports — this asymmetry is expected.
-- The "Structured results" table in `docs/howto/python.md` (line ~235) lists `SumCodeResult` as
-    `iscc, datahash, filesize` and omits the optional `units` field. This predates this step and was
-    out of scope, so left untouched — flagging for the review agent in case it wants a follow-up.
-- No core crate (`iscc-lib`) changes, no WASM changes, no GIL release, no Tier 1 count change — all
-    correctly deferred. `_lowlevel` `PySumHasher` has no `__init__` data params (stream handling
-    lives in the Python wrapper, per the crate pitfalls).
+- `SumHasher` is intentionally NOT a crate-root Tier 1 re-export (it's a Python/WASM streaming
+    convenience, not a symbol bound in all languages). The binding correctly uses the full path
+    `iscc_lib::streaming::SumHasher`. Do NOT bump the documented "32 Tier 1 symbols / 2 streaming
+    types" counts for it.
+- GIL release (#39) is still open and untouched — when that work lands it should also cover the new
+    `PySumHasher.update()` alongside `PyDataHasher`/`PyInstanceHasher`.
+- learnings.md was pruned to 200 lines (archived the full devcontainer exec-bit incident write-up to
+    learnings-archive.md, kept the actionable one-liner).

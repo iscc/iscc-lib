@@ -55,29 +55,26 @@ bundling all five costs little and removes the whole `optionalDependencies` frag
 **Spec:** `.claude/context/specs/nodejs-bindings.md` → "Native Binary Distribution" (rewritten to
 the bundled-package model with a revisit trigger if the bundle grows past ~30 MB)
 
-## Add streaming `SumHasher` to Python and WASM bindings `normal` [human]
+## Add streaming `SumHasher` to WASM bindings `normal` [human]
 
 GitHub: https://github.com/iscc/iscc-lib/issues/37 (Titusz +1'd extending it to WASM in the thread)
 
 Streaming consumers that need an ISCC-SUM code must currently run two hashers (`DataHasher` +
 `InstanceHasher`), feed every chunk to both, and combine with `gen_iscc_code_v0` — crossing the
-language→Rust boundary twice per chunk (in WASM, copying each chunk into linear memory twice). The
-single-pass logic exists only inside the path-based `gen_sum_code_v0`
-(`crates/iscc-lib/src/lib.rs:986`), which drives `streaming::DataHasher` +
-`streaming::InstanceHasher` internally — there is **no reusable streaming struct**. Work:
+language→Rust boundary twice per chunk (in WASM, copying each chunk into linear memory twice).
 
-- **Core first:** add a `streaming::SumHasher` to `crates/iscc-lib` — one struct (`new()` /
-    `update(&[u8])` / `finalize(bits, wide) -> SumCodeResult`), running both algorithms in a single
-    pass per chunk. `gen_sum_code_v0` can then drive it too (de-duplicates the inline loop).
-- **PyO3 wrapper** (`crates/iscc-py`): expose `SumHasher` mirroring the
-    `DataHasher`/`InstanceHasher` finalize-once (`Option<inner>`) pattern; export in `__all__`.
-- **wasm-bindgen wrapper** (`crates/iscc-wasm`): expose the same `SumHasher` class over the shared
-    core struct.
-- Verify output matches the two-hasher pattern and the path-based `gen_sum_code_v0` for identical
-    data, across Python and WASM, with finalize-once semantics.
+**Progress:** Core `streaming::SumHasher` landed in iteration 88
+(`crates/iscc-lib/src/streaming.rs`; `gen_sum_code_v0` now drives it). The PyO3 `SumHasher` wrapper
+landed in iteration 89 (`crates/iscc-py`, exported in `__all__`, 11 tests). **Remaining work is the
+WASM half only.**
 
-**Spec:** `.claude/context/specs/python-bindings.md` → "Streaming SumHasher";
-`.claude/context/specs/wasm-bindings.md` → "Streaming Hashers"
+- **wasm-bindgen wrapper** (`crates/iscc-wasm`): expose a `SumHasher` class over the shared core
+    `iscc_lib::streaming::SumHasher`, mirroring the existing WASM `DataHasher`/`InstanceHasher`
+    finalize-once pattern.
+- Verify WASM output matches the two-hasher pattern and the path-based `gen_sum_code_v0` for
+    identical data, with finalize-once semantics (`wasm-pack test --node`).
+
+**Spec:** `.claude/context/specs/wasm-bindings.md` → "Streaming Hashers"
 
 ## Release the GIL during Python hashing (`allow_threads`) `normal` [human]
 

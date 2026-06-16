@@ -232,7 +232,7 @@ Result types and their fields:
 | `DataCodeResult`     | `iscc`                                              |
 | `InstanceCodeResult` | `iscc`, `datahash`, `filesize`                      |
 | `IsccCodeResult`     | `iscc`                                              |
-| `SumCodeResult`      | `iscc`, `datahash`, `filesize`                      |
+| `SumCodeResult`      | `iscc`, `datahash`, `filesize`, `units`?            |
 
 Fields marked with `?` are optional and only present when the corresponding input was provided.
 

@@ -401,3 +401,18 @@ reference-only for humans.
 - Binding generation: `uniffi-bindgen.rs` (3-line entry point) +
     `[features] bindgen = ["uniffi/cli"]`+`[[bin]] required-features = ["bindgen"]` pattern
 - Swift tests require macOS runner — cannot execute in Linux devcontainer
+
+## Devcontainer Scripts (exec bit / Windows bind mount) — full incident (archived from learnings.md)
+
+- The working tree lives on a Windows bind mount with `core.fileMode = false`, so git ignores
+    on-disk exec bits and keeps the indexed mode (e.g. `100755`). When an agent rewrites a script
+    via Edit/Write, the new on-disk file is `0644` (no exec bit) but `git status` stays clean — the
+    lost exec bit is invisible to git. Commit `e848887` did exactly this to
+    `.devcontainer/setup-codex.sh`, so `postCreateCommand` hit "Permission denied" (exit 126) when
+    invoking it as `.devcontainer/setup-codex.sh`. Because of `&&` chaining, that aborted everything
+    after it (mise trust → untrusted error, uv sync → missing venv) and left codex unseeded (login
+    prompt).
+- Rule: in `postCreateCommand`, invoke shell scripts via `bash .devcontainer/foo.sh`, never
+    `.devcontainer/foo.sh` — `bash <file>` needs only read permission, so it is immune to the
+    dropped exec bit. Make convenience steps (e.g. codex auth seeding) non-fatal
+    (`{ bash ... || echo skipped; }`) so they can never abort the critical setup chain.

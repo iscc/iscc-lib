@@ -130,11 +130,10 @@ fully-met target sections to `learnings-archive.md`.
 ## Documentation Maintenance
 
 - **"10 gen functions" vs "9 conformance functions"**: iscc-lib has 10 `gen_*_v0` functions, but
-    `data.json` conformance vectors only cover 9 (no gen_sum_code_v0). Files that test/benchmark
-    against data.json should say "9", while general library descriptions should say "10". The
-    advance agent's blanket find-and-replace of "9→10" introduced errors in conformance-scoped files
-- iscc-core-ts implements 9 of the 10 gen functions (no gen_sum_code_v0) — do not claim "all 10" for
-    external projects without verifying their function table
+    `data.json` conformance vectors cover only 9 (no gen_sum_code_v0). Files that test/benchmark
+    against data.json should say "9"; general library descriptions should say "10". Avoid blanket
+    "9→10" find-and-replace — it corrupts conformance-scoped files. iscc-core-ts also implements
+    only 9 (no gen_sum_code_v0) — verify external projects' function tables before claiming "all 10"
 - After major architecture changes (e.g., WASM→pure Go), CI workflows, READMEs, and howto guides go
     stale simultaneously — group the cleanup into a single step targeting all affected files
 - Java requires JDK 17+ (pom.xml `maven.compiler.source/target` = 17), not 11+. Always cross-check
@@ -194,15 +193,8 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Devcontainer Scripts (exec bit / Windows bind mount)
 
-- The working tree lives on a Windows bind mount with `core.fileMode = false`, so git ignores
-    on-disk exec bits and keeps the indexed mode (e.g. `100755`). When an agent rewrites a script
-    via Edit/Write, the new on-disk file is `0644` (no exec bit) but `git status` stays clean — the
-    lost exec bit is invisible to git. Commit `e848887` did exactly this to
-    `.devcontainer/setup-codex.sh`, so `postCreateCommand` hit "Permission denied" (exit 126) when
-    invoking it as `.devcontainer/setup-codex.sh`. Because of `&&` chaining, that aborted everything
-    after it (mise trust → untrusted error, uv sync → missing venv) and left codex unseeded (login
-    prompt).
-- Rule: in `postCreateCommand`, invoke shell scripts via `bash .devcontainer/foo.sh`, never
-    `.devcontainer/foo.sh` — `bash <file>` needs only read permission, so it is immune to the
-    dropped exec bit. Make convenience steps (e.g. codex auth seeding) non-fatal
-    (`{ bash ... || echo skipped; }`) so they can never abort the critical setup chain.
+- Windows bind mount uses `core.fileMode = false`, so git ignores on-disk exec bits — an Edit/Write
+    that drops a script's exec bit leaves `git status` clean while breaking direct invocation. Rule:
+    in `postCreateCommand`, invoke scripts via `bash .devcontainer/foo.sh` (read-only, immune to the
+    dropped bit), and make convenience steps non-fatal (`{ bash ... || echo skipped; }`). Full
+    incident write-up archived in `learnings-archive.md`.

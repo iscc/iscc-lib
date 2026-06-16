@@ -72,8 +72,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     regression): benches import `gen_meta`/`gen_text` needing default features. Scope no-default
     clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`). CI never runs it
 - `streaming::SumHasher` exists in core (issue #37 core-first, iter 88) but is NOT a crate-root Tier
-    1 re-export — only `iscc_lib::streaming::SumHasher`. Tier 1 promotion + py/wasm wrappers are the
-    #37 follow-up. `gen_sum_code_v0` is now a thin wrapper delegating to `SumHasher::finalize`
+    1 re-export — only `iscc_lib::streaming::SumHasher`. `gen_sum_code_v0` is a thin wrapper
+    delegating to `SumHasher::finalize`. PyO3 `SumHasher` wrapper landed iter 89 (mirrors
+    `PyDataHasher` `Option<inner>`, `finalize(bits,wide,add_units)` builds dict like the
+    `gen_sum_code_v0` wrapper — `units` omitted when None). **#37 remaining: WASM wrapper only.**
 
 ## Binding State
 
