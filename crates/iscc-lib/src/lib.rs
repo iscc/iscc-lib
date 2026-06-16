@@ -4,15 +4,15 @@
 //! functions are the public Tier 1 API surface, designed to be compatible with
 //! the `iscc-core` Python reference implementation.
 
-pub mod cdc;
+pub(crate) mod cdc;
 pub mod codec;
-pub mod conformance;
+pub(crate) mod conformance;
 pub(crate) mod dct;
-pub mod minhash;
-pub mod simhash;
+pub(crate) mod minhash;
+pub(crate) mod simhash;
 pub mod streaming;
 pub mod types;
-pub mod utils;
+pub(crate) mod utils;
 pub(crate) mod wtahash;
 
 pub use cdc::alg_cdc_chunks;
