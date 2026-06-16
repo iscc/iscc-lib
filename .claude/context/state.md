@@ -1,4 +1,4 @@
-<!-- assessed-at: b7ff4c25ee011f2c97a0eff30a42f551485e98cd -->
+<!-- assessed-at: af0556414c57b7eed65002d782874a8dbef4cbc4 -->
 
 # Project State
 
@@ -7,25 +7,32 @@
 ## Phase: Post-v0.4.0 hardening toward v1.0.0 stability commitment
 
 v0.4.0 is released across all registries; all 12 language bindings are functionally met. Incremental
-review since `b1127ed`: the only code change was iteration 86's narrowing of 5 internal modules to
-`pub(crate)` (commit `3f6a61d`), which closes one of the v1.0.0 backlog items in code. The remaining
-v1.0.0 hardening backlog (SemVer + perf gates, PyO3 bump, npm fix, SumHasher, GIL release, coverage
-gate) is still open. Note: local `develop` is **7 commits ahead of `origin/develop`** and the
-module-narrowing code change has **not yet been CI-verified**.
+review since `b7ff4c2`: iteration 88 added a reusable core `streaming::SumHasher` and refactored
+`gen_sum_code_v0` to drive it (de-duplicating the inline loop). The review PASSED and swept the
+now-resolved "Narrow internal module visibility" issue. CI is green 16/16 on the latest pushed code
+(`a194ae2`), so the prior "unpushed/unverified" caveat is resolved. The remaining v1.0.0 hardening
+backlog (SemVer + perf gates, PyO3 bump, npm fix, SumHasher bindings, GIL release, coverage gate) is
+still open.
 
 ## Rust Core Crate
 
 **Status**: partially met
 
 - Core API met: all 10 `gen_*_v0` functions (incl. `gen_sum_code_v0`), 32 Tier 1 symbols,
-    conformance vs `iscc-core/data.json` passing on last green CI run.
-- **Resolved in code (this iteration)**: internal module visibility narrowed. `lib.rs` now declares
-    `pub(crate) mod cdc / conformance / minhash / simhash / utils` (joining `dct` and `wtahash`);
-    only `codec`, `types`, `streaming` remain `pub mod`. All 10 crate-root `pub use` re-exports are
-    intact (Tier 1 surface preserved); redundant module-path tests were dropped, and no crate or
-    package still imports via the now-private module paths (grep-verified). The matching "Narrow
-    internal module visibility" issue is still listed in issues.md pending review-agent verification
-    \+ deletion.
+    conformance vs `iscc-core/data.json` passing on the latest green CI run (`a194ae2`).
+- **New this iteration (`3fc44d2`)**: a reusable `pub struct SumHasher` in `streaming.rs` (`new()` /
+    `update(&[u8])` / `finalize(bits, wide, add_units) -> SumCodeResult` / `Default`), running the
+    Data-Code and Instance-Code algorithms in a single pass and composing via `gen_iscc_code_v0`.
+    `gen_sum_code_v0` (lib.rs:997) now drives this struct instead of the inline loop. ~21 SumHasher
+    test references in `streaming.rs`. The struct is reachable as `iscc_lib::streaming::SumHasher`
+    (module is `pub mod`) but is **not** re-exported at the crate root — only `DataHasher` /
+    `InstanceHasher` are (`lib.rs:24`). This unblocks the Python + WASM binding wrappers (issue #37,
+    still open).
+- **Resolved & now CI-verified**: internal module visibility narrowed. `lib.rs` declares
+    `pub(crate) mod cdc / conformance / dct / minhash / simhash / utils / wtahash`; only `codec`,
+    `streaming`, `types` remain `pub mod`. All 10 crate-root `pub use` re-exports intact (Tier 1
+    surface preserved). The matching "Narrow internal module visibility" issue was swept from
+    issues.md by the review agent in `a194ae2`.
 - **Gap (normal)**: no `cargo-semver-checks` public-API backward-compat gate against the last
     release.
 - **Gap (normal)**: no `iai-callgrind` instruction-count perf gate with committed baseline (> 10%
@@ -39,10 +46,13 @@ module-narrowing code change has **not yet been CI-verified**.
 - Existing criteria met: all symbols exported, Python 3.10 + 3.14 CI jobs green, ruff clean.
 - **Gap (normal)**: PyO3 still pinned to `0.23` in root `Cargo.toml` (`workspace.dependencies`);
     issue requires migration to `0.29.0` to clear two RustSec advisories shipped inside the wheel.
-- **Gap (normal)**: no streaming `SumHasher` — `grep SumHasher crates/iscc-py/src` returns nothing.
-    Requires a core `streaming::SumHasher` first, then the PyO3 wrapper.
-- **Gap (normal)**: GIL held for the entire hash duration — `grep allow_threads crates/iscc-py/`
-    returns nothing. Threaded consumers serialize on CPU-bound work.
+- **Gap (normal, #37)**: no streaming `SumHasher` wrapper — `grep SumHasher crates/iscc-py/src`
+    returns nothing. The core `streaming::SumHasher` now exists, so the remaining work is the PyO3
+    wrapper (mirroring the `DataHasher`/`InstanceHasher` finalize-once pattern, export in
+    `__all__`).
+- **Gap (normal, #39)**: GIL held for the entire hash duration —
+    `grep allow_threads crates/iscc-py/` returns nothing. Threaded consumers serialize on CPU-bound
+    work.
 
 ## Node.js Bindings
 
@@ -61,8 +71,9 @@ module-narrowing code change has **not yet been CI-verified**.
 **Status**: partially met
 
 - Existing criteria met: all 32 Tier 1 symbols via `#[wasm_bindgen]`, WASM CI job green.
-- **Gap (normal)**: no streaming `SumHasher` class — same gap as Python. Spec (`wasm-bindings.md` →
-    "Streaming Hashers") requires it over the shared core struct.
+- **Gap (normal, #37)**: no streaming `SumHasher` class — `grep SumHasher crates/iscc-wasm/src`
+    returns nothing. The shared core struct now exists; the remaining work is the wasm-bindgen
+    wrapper class over it.
 
 ## C FFI
 
@@ -156,13 +167,13 @@ module-narrowing code change has **not yet been CI-verified**.
 
 **Status**: partially met
 
-- **LATEST CI RUN** — run 27629376698 (sha `63523ba` on develop): **16/16 jobs SUCCESS** (all
-    green). URL: https://github.com/iscc/iscc-lib/actions/runs/27629376698
-- **Caveat**: HEAD (`b7ff4c2`) is **7 commits ahead of `origin/develop`** (which is still at
-    `63523ba`). The local commits — including the module-narrowing code change `3f6a61d` (touches
-    `lib.rs` + removes two test files) and the mise task migration `b1127ed` — are **unpushed and
-    not yet CI-verified**. The code change should compile (no remaining module-path refs), but CI
-    has not run on it. CI is not failing; it simply hasn't seen the latest work.
+- **LATEST CI RUN** — run 27651149808 (sha `a194ae2` on develop): **16/16 jobs SUCCESS** (all
+    green). URL: https://github.com/iscc/iscc-lib/actions/runs/27651149808 — this run **includes**
+    the core SumHasher refactor (`3fc44d2`) and the module-narrowing change (`3f6a61d`), so both are
+    now CI-verified.
+- **Push state**: HEAD (`af05564`) is only 1 commit ahead of `origin/develop` (`a194ae2`); that
+    commit is `cid(log): iteration 88` (touches only `iterations.jsonl`). All code is pushed and
+    verified. The prior "7 unpushed/unverified commits" caveat is resolved.
 - v0.4.0 published; 9-registry release workflow + version sync (16 targets) in place.
 - **Gap (normal)**: no Rust coverage / CRAP gate — `.cargo-crap.toml` absent, no `cargo llvm-cov` /
     `cargo crap` step in ci.yml, no `mise run coverage` / `mise run crap` tasks.
@@ -170,19 +181,18 @@ module-narrowing code change has **not yet been CI-verified**.
 - **Gap (normal)**: no `iai-callgrind` perf-regression CI job with committed baseline.
 - **Gap (normal)**: npm `optionalDependencies` injection bug in release.yml (see Node.js above).
 
-## Open Issues (10 total — 0 critical, 8 normal, 2 low)
+## Open Issues (9 total — 0 critical, 7 normal, 2 low)
 
 Normal (CID-actionable):
 
 1. **Remove dangling npm `optionalDependencies`** (#38) — breaks downstream `npm ci`.
 2. **Update PyO3 0.23 → 0.29** — security advisories in shipped wheel; incremental migration.
-3. **Add streaming `SumHasher` to Python + WASM** (#37) — core struct first, then wrappers.
+3. **Add streaming `SumHasher` to Python + WASM** (#37) — core struct landed (`3fc44d2`); only the
+    PyO3 + wasm-bindgen wrappers remain.
 4. **Release the GIL during Python hashing** (#39) — `py.allow_threads(...)`.
 5. **Add Rust coverage + CRAP-metric quality gate** — phased CI job.
 6. **Add `cargo-semver-checks` API backward-compat CI gate**.
 7. **Add `iai-callgrind` performance-regression CI gate**.
-8. **Narrow internal module visibility to `pub(crate)`** — code change landed in `3f6a61d`; awaiting
-    CI verification + review-agent deletion. No longer actionable as feature work.
 
 Low (human-directed, CID skips):
 
@@ -191,19 +201,20 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-CI is green on the last run, but the loop should **push the 7 local commits** so CI verifies the
-module-narrowing change (`3f6a61d`) before further work stacks on top of it. With that confirmed,
-proceed on the `normal` backlog toward v1.0.0, suggested order by impact:
+CI is green and the latest code is verified, so the loop can proceed directly on the `normal`
+backlog toward v1.0.0. Suggested order by impact:
 
 1. **Remove dangling npm `optionalDependencies`** (#38) — actively breaks downstream `npm ci` in
     production; highest user impact, contained fix in release.yml.
-2. **Update PyO3 to 0.29** — clears two RustSec advisories shipped inside the published wheel; large
+2. **Add streaming `SumHasher` to Python + WASM** (#37) — the core struct now exists, so only the
+    two thin binding wrappers remain; relatively cheap and closes a tracked issue across two
+    bindings.
+3. **Update PyO3 to 0.29** — clears two RustSec advisories shipped inside the published wheel; large
     but well-scoped six-minor-version migration.
-3. **v1.0.0 stability gates** — `cargo-semver-checks` job and `iai-callgrind` perf gate + baseline.
+4. **v1.0.0 stability gates** — `cargo-semver-checks` job and `iai-callgrind` perf gate + baseline.
     These must land before v1.0.0 so the (now-narrowed) API is locked under enforcement.
-4. **Rust coverage + CRAP gate** — phased report-only → regression CI job.
-5. **Streaming `SumHasher` (core + Python + WASM) and Python GIL release** — DX/perf improvements;
-    the SumHasher core struct unblocks both bindings.
+5. **Rust coverage + CRAP gate** — phased report-only → regression CI job.
+6. **Python GIL release** (#39) — DX/perf improvement for threaded consumers.
 
 The two `low` issues (v1.0.0 release cut, docs logos) are human-directed and remain out of CID
 scope.

@@ -72,6 +72,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `docs/benchmarks.md` — full speedup comparison (1.3x-158x), Criterion native results, methodology
 - `scripts/gen_llms_full.py` — **22 entries** in ORDERED_PAGES (includes benchmarks.md)
 - `scripts/version_sync.py` — **16 sync targets** (releaseTag added for Package.swift)
+- `crates/iscc-lib/src/streaming.rs` — `DataHasher`, `InstanceHasher`, `SumHasher` (core struct
+    added iter 88, line ~157); `gen_sum_code_v0` drives SumHasher (lib.rs:997). Only DataHasher +
+    InstanceHasher re-exported at crate root (lib.rs:24); SumHasher reachable via `streaming::`.
 - `crates/iscc-lib/benches/benchmarks.rs` — 12 benches in criterion_group!
 - `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
 - **CLAUDE.md files**: 12 total (all crates + all packages)
@@ -93,24 +96,30 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: b7ff4c2)
+## Current State (assessed-at: af05564)
 
-- **IN_PROGRESS** — v0.4.0 released; human re-scoped toward v1.0.0. Workspace version = `0.4.0`.
-- **CI**: last run green 16/16 (run 27629376698, sha 63523ba) but HEAD `b7ff4c2` is **7 commits
-    ahead of origin/develop** (origin still at 63523ba). The module-narrowing code change `3f6a61d`
-    (lib.rs + 2 test files removed) is UNPUSHED & UNVERIFIED. CI not failing — just hasn't run.
-- **10 issues: 0 critical, 8 normal, 2 low** (prior state.md miscounted as 7 normal/9 total).
-- **DONE in code (iteration 86, commit 3f6a61d)**: narrowed `cdc/conformance/minhash/simhash/utils`
-    to `pub(crate) mod`; only `codec/types/streaming` stay `pub mod`. All 10 crate-root `pub use`
-    re-exports intact; redundant module-path tests dropped; no remaining `iscc_lib::<mod>::` refs.
-    The "Narrow internal module visibility" issue is still in issues.md awaiting review deletion.
+- **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
+- **CI**: green 16/16 (run 27651149808, sha `a194ae2` = origin/develop HEAD). This run **includes**
+    the SumHasher core refactor (`3fc44d2`) AND the module-narrowing change (`3f6a61d`) — both now
+    verified. HEAD `af05564` is only 1 commit ahead (just `cid(log): iteration 88`, iterations.jsonl
+    only). The prior "7 unpushed/unverified" caveat is RESOLVED.
+- **9 issues: 0 critical, 7 normal, 2 low** (module-visibility issue swept by review in `a194ae2`).
+- **DONE in code (iteration 88, commit 3fc44d2)**: added `pub struct SumHasher` in
+    `crates/iscc-lib/src/streaming.rs` (new/update/finalize(bits,wide,add_units)/Default, ~21 test
+    refs). `gen_sum_code_v0` (lib.rs:997) now drives it. Reachable as
+    `iscc_lib::streaming::SumHasher` but NOT re-exported at crate root (only
+    `DataHasher`/`InstanceHasher` are, lib.rs:24). Core part of issue #37 done — Python + WASM
+    wrappers still open.
+- **Module visibility (iteration 86, `3f6a61d`)**:
+    `cdc/conformance/dct/minhash/simhash/utils/wtahash` = `pub(crate) mod`; only
+    `codec/streaming/types` = `pub mod`. Issue swept.
 - **Open normal gaps**: npm optionalDeps bug (#38), PyO3 0.23→0.29 (RustSec), streaming SumHasher
-    (#37 core+py+wasm), GIL allow_threads (#39), CRAP coverage gate, cargo-semver-checks gate,
-    iai-callgrind perf gate.
+    bindings (#37 py+wasm — core done), GIL allow_threads (#39), CRAP coverage gate,
+    cargo-semver-checks gate, iai-callgrind perf gate.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
-- **Partially-met sections**: Rust Core (semver+perf gates only — module visibility now done),
-    Python (PyO3, SumHasher, GIL), Node.js (npm optionalDeps), WASM (SumHasher), CI/CD. All 12
-    bindings functionally met for v0.4.0.
+- **Partially-met sections**: Rust Core (semver+perf gates only), Python (PyO3, SumHasher, GIL),
+    Node.js (npm optionalDeps), WASM (SumHasher), CI/CD. All 12 bindings functionally met for
+    v0.4.0.
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists. Re-read on incremental review.
 
