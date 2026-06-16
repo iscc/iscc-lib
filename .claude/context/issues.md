@@ -51,10 +51,27 @@ and to refresh the baseline.
 Human-driven release: cut **v1.0.0** as the first stability-committed release of the lockstep
 workspace (per the 1.0.0 decision). This is the one release allowed to break the 0.4.0 API freely;
 afterward 1.x is locked under strict SemVer. Drive via the `/release` skill — do NOT let the CID
-loop cut this release autonomously. Ideally land both gate issues above first so 1.0.0 ships with
-enforcement active.
+loop cut this release autonomously. Ideally land both the `cargo-semver-checks` and `iai-callgrind`
+gate issues above first so 1.0.0 ships with enforcement active.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
+
+## Narrow internal module visibility to `pub(crate)` before v1.0.0 `normal` [human]
+
+`crates/iscc-lib/src/lib.rs` declares the internal algorithm modules as `pub mod cdc`,
+`pub mod minhash`, `pub mod simhash`, `pub mod utils`, and `pub mod conformance`, but only their
+crate-root re-exports (`alg_cdc_chunks`, `alg_minhash_256`, `alg_simhash`/`sliding_window`, the four
+`text_*` helpers, `conformance_selftest`) are intended Tier 1 API. Each of these modules exposes
+only its re-exported function(s), so the practical effect is that the module *paths*
+(`iscc_lib::cdc::alg_cdc_chunks`, etc.) leak into the public surface. Once v1.0.0 +
+`cargo-semver-checks` lock the API, removing those incidental paths becomes a breaking change.
+Change these five modules to `pub(crate) mod` (keep `pub mod codec`, `pub mod types`,
+`pub mod streaming`) so only the curated crate-root entrypoints are public. No binding crate imports
+via the module path (verified) and conformance vectors are unaffected; land this before the v1.0.0
+release.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants";
+`notes/04-api-compatibility-safety.md` → Tiered API model (modules shown as `pub(crate) mod`)
 
 ## Add programming language logos to docs site `low` [human]
 

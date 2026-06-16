@@ -15,12 +15,12 @@ across languages.
 | Tier                                   | Scope                                      | Rule                                        |
 | -------------------------------------- | ------------------------------------------ | ------------------------------------------- |
 | **Tier 1** (crate root `pub` fns)      | Stable entrypoints, bound in all languages | SemVer-governed, changes require MAJOR bump |
-| **Tier 2** (`pub mod codec`)           | Rust-only (enums, header encode/decode)    | May change in MINOR releases                |
+| **Tier 2** (`pub mod codec`)           | Rust-only (enums, header encode/decode)    | MINOR pre-1.0.0; locked (MAJOR) from v1.0.0 |
 | **Internal** (`pub(crate)` or private) | Never exposed to bindings                  | Free to change                              |
 
-Tier 1 includes 23 public symbols: 10 gen functions, 4 text utilities, 4 algorithm primitives, 1
-soft hash, 1 encoding utility, 1 codec operation, 2 streaming types, and 1 diagnostic function. See
-`specs/rust-core.md` for the complete listing.
+Tier 1 includes 32 public symbols: 10 gen functions, 4 text utilities, 4 algorithm primitives, 1
+soft hash, 2 encoding utilities, 3 codec operations, 5 constants, 2 streaming types, and 1
+diagnostic function. See `specs/rust-core.md` for the complete listing.
 
 **Concrete pattern:**
 
