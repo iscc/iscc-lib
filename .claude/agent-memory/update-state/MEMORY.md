@@ -31,7 +31,6 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Swift release workflow check**: `grep -i 'swift\|xcframework' .github/workflows/release.yml`
 - **Kotlin native targets**: `grep -A 20 "build-kotlin-native:" .github/workflows/release.yml`
 - **Android target check**: `grep "android" .github/workflows/release.yml`
-- **Issue count**: `grep -c '^## .* \`\(critical\|normal\|low\)\`' .claude/context/issues.md\`
 - **Provenance guard check**: `grep -c 'Verify main matches tag' .github/workflows/release.yml`
 - **Benchmarks doc check**: `grep -i "speedup" docs/benchmarks.md | head -5`
 - **PyO3 version**: `grep -n "pyo3" Cargo.toml` (workspace.dependencies — one place)
@@ -45,8 +44,9 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     injection still present); source `crates/iscc-napi/package.json` uses bundled
     `files: ["*.node"]`
 - **Module visibility check**: `grep -n "pub mod\|pub(crate) mod" crates/iscc-lib/src/lib.rs`
-- **Issue count (correct)**: `grep -cE` for a label counts the header legend line too — subtract 1
-    from each. Header line has `critical`+`normal`+`low` once each.
+- **Issue count (correct)**: anchor the grep to headers with a leading `^##` before the priority
+    label. That anchor excludes the legend line (plain prose), so NO -1 adjustment is needed. Do NOT
+    use a bare label grep — it also matches the legend line and over-counts by 1.
 - **Unpushed check**: `git log --oneline origin/develop..HEAD` — CID commits locally; origin may
     lag. If code commits sit after the last CI run sha, they are UNVERIFIED. Always cross-check
     `git log --oneline <last-CI-sha>..HEAD` against the diff.
@@ -96,26 +96,30 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: af05564)
+## Current State (assessed-at: 2a0e78d)
 
 - **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **CI**: green 16/16 (run 27651149808, sha `a194ae2` = origin/develop HEAD). This run **includes**
-    the SumHasher core refactor (`3fc44d2`) AND the module-narrowing change (`3f6a61d`) — both now
-    verified. HEAD `af05564` is only 1 commit ahead (just `cid(log): iteration 88`, iterations.jsonl
-    only). The prior "7 unpushed/unverified" caveat is RESOLVED.
-- **9 issues: 0 critical, 7 normal, 2 low** (module-visibility issue swept by review in `a194ae2`).
-- **DONE in code (iteration 88, commit 3fc44d2)**: added `pub struct SumHasher` in
-    `crates/iscc-lib/src/streaming.rs` (new/update/finalize(bits,wide,add_units)/Default, ~21 test
-    refs). `gen_sum_code_v0` (lib.rs:997) now drives it. Reachable as
-    `iscc_lib::streaming::SumHasher` but NOT re-exported at crate root (only
-    `DataHasher`/`InstanceHasher` are, lib.rs:24). Core part of issue #37 done — Python + WASM
-    wrappers still open.
+- **CI**: green 16/16 (run 27654149923, sha `d333c56` = origin/develop HEAD). This run **includes**
+    the Python SumHasher binding (advance `742759b`). HEAD `2a0e78d` is only 1 commit ahead (just
+    `cid(log): iteration 89`, iterations.jsonl only). All code pushed and verified.
+- **9 issues: 0 critical, 7 normal, 2 low** (count by grepping header lines anchored with a leading
+    `##` before the priority label — that excludes the legend line, so no -1 adjustment needed).
+- **Python SumHasher DONE (iteration 89, `742759b`)**: `#[pyclass(name="SumHasher")]` =
+    `PySumHasher` at `crates/iscc-py/src/lib.rs:615` over `iscc_lib::streaming::SumHasher`; Pythonic
+    wrapper class at `__init__.py:349`, exported in `__all__` (line 402); `.pyi` stub + 11 new tests
+    (`tests/test_streaming.py`, 19 SumHasher refs). Closes Python half of #37.
+- **Core SumHasher (iteration 88, `3fc44d2`)**: `pub struct SumHasher` in `streaming.rs:157`
+    (new/update/finalize(bits,wide,add_units)/Default). `gen_sum_code_v0` (lib.rs:997) drives it.
+    Reachable as `iscc_lib::streaming::SumHasher` but NOT a crate-root re-export (only
+    `DataHasher`/`InstanceHasher` are, lib.rs:24).
+- **#37 now WASM-ONLY** — only the wasm-bindgen `SumHasher` class remains
+    (`grep SumHasher crates/iscc-wasm/src` = empty). Core + Python both done.
 - **Module visibility (iteration 86, `3f6a61d`)**:
     `cdc/conformance/dct/minhash/simhash/utils/wtahash` = `pub(crate) mod`; only
     `codec/streaming/types` = `pub mod`. Issue swept.
-- **Open normal gaps**: npm optionalDeps bug (#38), PyO3 0.23→0.29 (RustSec), streaming SumHasher
-    bindings (#37 py+wasm — core done), GIL allow_threads (#39), CRAP coverage gate,
-    cargo-semver-checks gate, iai-callgrind perf gate.
+- **Open normal gaps**: npm optionalDeps bug (#38, release.yml:378), PyO3 0.23→0.29 (RustSec, still
+    `Cargo.toml:35`), WASM SumHasher (#37), GIL allow_threads (#39, none in iscc-py/src), CRAP
+    coverage gate, cargo-semver-checks gate, iai-callgrind perf gate.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
 - **Partially-met sections**: Rust Core (semver+perf gates only), Python (PyO3, SumHasher, GIL),
     Node.js (npm optionalDeps), WASM (SumHasher), CI/CD. All 12 bindings functionally met for
