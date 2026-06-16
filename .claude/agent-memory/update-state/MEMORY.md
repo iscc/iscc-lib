@@ -34,6 +34,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Issue count**: `grep -c '^## .* \`\(critical\|normal\|low\)\`' .claude/context/issues.md\`
 - **Provenance guard check**: `grep -c 'Verify main matches tag' .github/workflows/release.yml`
 - **Benchmarks doc check**: `grep -i "speedup" docs/benchmarks.md | head -5`
+- **PyO3 version**: `grep -n "pyo3" Cargo.toml` (workspace.dependencies — one place)
+- **v1.0.0 gates check** (all should appear when done):
+    `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml` + `ls .cargo-crap.toml`
+    - `grep -iE "coverage|crap|semver|callgrind" mise.toml`
+- **GIL release check**: `grep -rn "allow_threads" crates/iscc-py/src/`
+- **SumHasher check**:
+    `grep -rn "SumHasher" crates/iscc-lib/src/ crates/iscc-py/src/ crates/iscc-wasm/src/`
+- **npm optionalDeps bug**: `grep -n "napi prepublish" .github/workflows/release.yml` (line ~378 =
+    injection still present); source `crates/iscc-napi/package.json` uses bundled
+    `files: ["*.node"]`
+- **Module visibility check**: `grep -n "pub mod\|pub(crate) mod" crates/iscc-lib/src/lib.rs`
 
 ## Codebase Landmarks
 
@@ -77,13 +88,29 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: e19aeae)
+## Current State (assessed-at: b1127ed)
 
-- **IN_PROGRESS**: **16/16 CI jobs pass** — ALL GREEN (run 23402159613)
-- **0 critical issues, 0 normal issues**
-- **1 low issue**: language logos in docs (CID skips)
-- **All target sections met** — all 12 bindings, docs, benchmarks, CI/CD complete
-- **Only blocker to DONE**: 1 low-priority open issue in issues.md
+- **IN_PROGRESS** — project came OUT of idle: v0.4.0 released, then human re-injected work toward
+    v1.0.0. Workspace version = `0.4.0`.
+- **CI GREEN**: 16/16 jobs (run 27629376698, sha 63523ba). HEAD is 2 commits ahead but they only
+    touch context/mise.toml (CI doesn't use mise) — green status holds.
+- **0 critical, 7 normal, 2 low issues** (human triaged GitHub issues #37/#38/#39 + v1.0.0 prep).
+- **Normal gaps**: PyO3 0.23→0.29 (RustSec), npm optionalDeps bug (#38), streaming SumHasher (#37,
+    core+py+wasm), GIL allow_threads (#39), CRAP coverage gate, cargo-semver-checks gate,
+    iai-callgrind perf gate, narrow lib.rs modules to pub(crate).
+- **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
+- **Partially-met sections now**: Rust Core (semver+perf gates, module visibility), Python (PyO3,
+    SumHasher, GIL), Node.js (npm optionalDeps), WASM (SumHasher), CI/CD (3 new gates + npm fix).
+    All 12 bindings still functionally met for v0.4.0; the bar was raised, not regressed.
+- **target.md/specs grew**: rust-core.md + ci-cd.md added "API Stability & Performance" and "CRAP"
+    sections with new "verified when" checklists. Always re-read on incremental review.
+
+## Pattern: idle→active reactivation
+
+- When state.md shows near-complete/idle but `git diff <hash>..HEAD --stat` shows large
+    issues.md/target.md/specs growth, the human likely re-scoped. Treat as a near-full re-review of
+    affected sections, not a parrot of the diff. Commit that triggered this: 7463ef8 "docs(cid):
+    triage GitHub issues into context".
 
 ## Gotchas
 

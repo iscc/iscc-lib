@@ -1,189 +1,205 @@
-<!-- assessed-at: e19aeae -->
+<!-- assessed-at: b1127ed6c517fae431f3aaecf00007c93f2bd25d -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Near-complete — 1 low-priority issue remaining
+## Phase: Post-v0.4.0 hardening toward v1.0.0 stability commitment
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23402159613). All 12 language
-bindings scaffolded, tested, and documented. All previously open normal/critical issues resolved.
-Benchmarks documentation with speedup factors is published. Only one low-priority cosmetic issue
-remains (language logos in docs), which CID is configured to skip.
+v0.4.0 is released across all registries and all 12 language bindings are green in CI (16/16 jobs).
+However, the project is **no longer near-complete**: the human triaged GitHub issues into the
+backlog, adding **7 new `normal` issues** and tightening `target.md`/specs with new v1.0.0
+acceptance criteria (API-stability + performance CI gates, Rust coverage/CRAP gate). Several
+sections that were "met" for v0.4.0 are now "partially met" against the raised bar. CI is green, so
+work can proceed directly on the backlog.
 
 ## Rust Core Crate
 
-**Status**: met
+**Status**: partially met
 
-- All 32 Tier 1 symbols present with correct feature-gating
-- data.json at iscc-core v1.3.0 (50 total vectors)
-- 316 tests pass with default features
-- Feature matrix CI (5 steps) passed in latest green run
+- Core API met: all 10 `gen_*_v0` functions present (including `gen_sum_code_v0`), 32 Tier 1
+    symbols, conformance against `iscc-core/data.json` passing (Rust CI job green).
+- Workspace version is `0.4.0`; next target is v1.0.0 (stability-committed under strict SemVer).
+- **Gap (normal)**: new `target.md` "verified when" criteria not yet met — no `cargo-semver-checks`
+    API backward-compat gate, no `iai-callgrind` instruction-count perf gate with committed
+    baseline.
+- **Gap (normal)**: internal modules still over-exposed. `crates/iscc-lib/src/lib.rs` declares
+    `pub mod cdc / conformance / minhash / simhash / utils` — these should be `pub(crate) mod`
+    before v1.0.0 locks the API surface (only `codec`, `types`, `streaming` stay public). `dct` and
+    `wtahash` are already `pub(crate)`.
 
 ## Python Bindings
 
-**Status**: met
+**Status**: partially met
 
-- All 32 Tier 1 symbols accessible via __all__ (48 entries)
-- 207 Python tests pass; ty check passes; cargo clippy -p iscc-py clean
+- Existing criteria met: all symbols exported, both Python 3.10 and 3.14 CI jobs green, ruff clean.
+- **Gap (normal)**: PyO3 still pinned to `0.23` in root `Cargo.toml` (`workspace.dependencies`);
+    issue requires migration to `0.29.0` to clear two RustSec advisories shipped inside the wheel.
+- **Gap (normal)**: no streaming `SumHasher` — `grep SumHasher crates/iscc-py/src` returns nothing.
+    Requires a core `streaming::SumHasher` first, then the PyO3 wrapper.
+- **Gap (normal)**: GIL is held for the entire hash duration — `grep allow_threads crates/iscc-py/`
+    returns nothing. Threaded consumers serialize on CPU-bound work.
 
 ## Node.js Bindings
 
-**Status**: met
+**Status**: partially met
 
-- All 32 Tier 1 symbols exported
-- 135 mocha tests pass; cargo clippy -p iscc-napi -- -D warnings clean
+- Existing criteria met: all 32 Tier 1 symbols exported, Node.js CI job green.
+- **Gap (normal, external bug report #38)**: the release workflow injects broken
+    `optionalDependencies`. Source `crates/iscc-napi/package.json` uses the bundled model
+    (`files: ["*.node"]`, no `optionalDependencies`), but `release.yml:378` runs
+    `npx napi prepublish -t npm`, which injects five per-platform `@iscc/lib-<triple>` deps that are
+    never published — causing `npm ci` (`EUSAGE`) failures for downstream consumers of `@iscc/lib`.
+    Fix: drop the prepublish injection, keep the single bundled package.
 
 ## WASM Bindings
 
-**Status**: met
+**Status**: partially met
 
-- All 32 Tier 1 symbols exported via #[wasm_bindgen]
-- wasm-opt -O3; conformance.rs asserts tested == 20
+- Existing criteria met: all 32 Tier 1 symbols via `#[wasm_bindgen]`, WASM CI job green.
+- **Gap (normal)**: no streaming `SumHasher` class — same gap as Python. Spec (`wasm-bindings.md` →
+    "Streaming Hashers") now requires it over the shared core struct.
 
 ## C FFI
 
 **Status**: met
 
-- 85 Rust tests + 65 C tests pass
-- cbindgen header freshness check in CI passed
-- build.rs runs csbindgen to generate NativeMethods.g.cs
+- cbindgen header committed + freshness check in CI; C test program passes; csbindgen generates
+    `NativeMethods.g.cs`. C FFI CI job green. No new issues.
 
 ## Java Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols via JNI
-- 65 Maven tests pass
+- All 32 Tier 1 symbols via JNI; Java (Maven) CI job green; native libs bundled in JAR. No issues.
 
 ## Go Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols via pure Go (no CGO)
-- 155 Go tests pass; go vet clean
+- Pure Go (no CGO), all 32 Tier 1 symbols, go vet clean, Go CI job green. No issues.
 
 ## Ruby Bindings
 
 **Status**: met
 
-- 32 of 32 Tier 1 symbols exposed via Magnus bridge
-- 111 Minitest tests (295 assertions, 0 failures)
+- 32 Tier 1 symbols via Magnus; Ruby CI job green; version synced. No issues.
 
 ## C# / .NET Bindings
 
 **Status**: met
 
-- 32 public symbols; 11 sealed record types
-- 91 total tests (41 smoke + 50 conformance vectors)
-- CI job SUCCESS
+- 32 public symbols via P/Invoke over C FFI; C#/.NET CI job green. No issues.
 
 ## C++ Bindings
 
 **Status**: met
 
-- 681-line C++17 header-only wrapper with all 32 Tier 1 symbols
-- 54 passing tests, ASAN clean
-- vcpkg manifest + Conan 2.x recipe
+- C++17 header-only wrapper, all 32 Tier 1 symbols, ASAN clean, vcpkg + Conan; C++ CI job green.
 
 ## UniFFI Scaffolding Crate
 
 **Status**: complete (internal, not published)
 
-- 32 `#[uniffi::export]` annotations, 21 `#[test]` functions pass
-- Proc macro approach — no uniffi.toml or build.rs needed
-- Dependencies: iscc-lib (with meta-code feature), uniffi 0.31, thiserror
+- 32 `#[uniffi::export]` annotations, proc-macro approach; shared by Swift + Kotlin. No issues.
 
 ## Swift Bindings
 
 **Status**: met
 
-- SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
-- 9 conformance test methods covering 50 vectors; CI job SUCCESS on macos-14
-- docs/howto/swift.md updated with SPM install instructions + collapsible "Build from source" tip
-- XCFramework build script executable, valid shell, 5 Apple targets
-- Root `Package.swift` restructured: Ferrostar-style toggle, `releaseTag = "0.3.1"`
-- Release workflow: `swift` checkbox input (9th), `build-xcframework` job integrated
-- **Provenance guard**: `build-xcframework` verifies main HEAD matches tag SHA
-- Version sync: `releaseTag` managed by `version_sync.py` (16th target, confirmed OK)
-- **Root manifest smoke test**: `swift package dump-package` step in CI validates consumer-facing
-    Package.swift parses correctly (added iteration 7)
+- SPM package with UniFFI-generated bindings, all 32 Tier 1 symbols, XCFramework build, Swift CI job
+    green on macos-14. Release provenance guard + root Package.swift dump-package smoke test
+    present.
 
 ## Kotlin Bindings
 
 **Status**: met
 
-- Scaffold complete — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
-- 3214-line UniFFI-generated bindings, conformance tests (9 methods, 50 vectors)
-- Version sync, CI job, docs, release workflow all complete
-- Release workflow builds **9 targets**: 5 desktop/server + 4 Android ABIs
-- JAR smoke test validates runtime JAR contains all 9 native library paths
+- packages/kotlin/ with JNA-loaded UniFFI bindings, 9 desktop+Android targets in release workflow,
+    Kotlin CI job green. No issues.
 
 ## README
 
 **Status**: met
 
-- Public-facing polyglot README with CI badge and 8 registry badges
-- Language logos: 18 inline img tags from cdn.simpleicons.org
-- Installation and Quick Start sections for all 12 languages
-- ISCC Architecture section, MainTypes table, Implementors Guide
+- Polyglot public README with CI + registry badges, per-language install + quick start for all 12
+    languages, architecture section, MainTypes table. No issues.
 
 ## Per-Crate READMEs
 
 **Status**: met
 
-- READMEs present for all 12 crates/packages (7 crates + 5 packages)
-- CLAUDE.md files present for all 12 crates/packages
+- READMEs present for all 12 crates/packages; registry metadata references them. No issues.
 
 ## Documentation
 
-**Status**: met
+**Status**: met (one low-priority cosmetic gap)
 
-- 22 pages in gen_llms_full.py ORDERED_PAGES; all navigation sections complete
-- 11 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
-    ruby.md, dotnet.md, swift.md, kotlin.md
-- docs/index.md: 11 language tabs in Quick Start, Swift+Kotlin in Available Bindings table
-- docs/benchmarks.md: full speedup comparison table (1.3x to 158x), Criterion native results,
-    methodology, key findings, reproduction commands
-- **Gap** (low, CID skips): Language logos in docs howto headers
+- Docs site, 11 language howto guides, tabbed multi-language examples, llms-full.txt generation,
+    benchmarks page with speedup factors all present.
+- **Gap (low, CID skips)**: language logos in `docs/index.md` and howto headers — cosmetic only.
 
 ## Benchmarks
 
-**Status**: met
+**Status**: met (CI perf gate is a separate v1.0.0 item)
 
-- Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional (12 total in Rust)
-- Bench (compile check) CI job SUCCESS
-- pytest-benchmark: 18 functions (9 gen\_\*\_v0 x 2 — iscc-lib vs iscc-core)
-- Speedup factors published in docs/benchmarks.md (1.3x to 158x across 10 functions)
+- Criterion benches for all 10 `gen_*_v0` (+2) functions, Bench (compile check) CI job green,
+    pytest-benchmark 18 functions, speedup factors published (1.3x–158x) in docs/benchmarks.md.
+- Note: the new `iai-callgrind` *regression gate* (distinct from criterion local profiling) is
+    tracked under Rust Core / CI/CD below.
 
 ## CI/CD and Publishing
 
-**Status**: met
+**Status**: partially met
 
-- **LATEST COMPLETED RUN** — run 23402159613: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23402159613
-- All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
-    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
-- v0.3.1 released across all 9 registries
-- Release workflow has 9 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift
-- XCFramework cache key expanded to include build script, Swift headers, and all Cargo.toml files
-- Swift release provenance guard: verifies main HEAD == tag SHA before XCF build
-- Root Package.swift smoke test: `dump-package` validates manifest in CI
-- version_sync.py manages 16 sync targets (all OK)
+- **LATEST CI RUN** — run 27629376698 (sha 63523ba on develop): **16/16 jobs SUCCESS** (all green).
+    URL: https://github.com/iscc/iscc-lib/actions/runs/27629376698
+- HEAD (b1127ed) is 2 commits ahead of that run, but both commits
+    (`docs(cid): triage GitHub   issues`, `fix(mise): migrate task args`) touch only
+    context/dev-tooling files — no CI-tested code changed, so green status holds.
+- v0.4.0 published; 9-registry release workflow + version sync (16 targets) in place.
+- **Gap (normal)**: no Rust coverage / CRAP gate — `.cargo-crap.toml` absent, no `cargo llvm-cov` or
+    `cargo crap` step in ci.yml, no `mise run coverage` / `mise run crap` tasks.
+- **Gap (normal)**: no `cargo-semver-checks` API backward-compat CI job.
+- **Gap (normal)**: no `iai-callgrind` perf-regression CI job with committed baseline.
+- **Gap (normal)**: npm `optionalDependencies` injection bug in release.yml (see Node.js above).
 
-## Open Issues (1 total — 0 critical, 0 normal, 1 low)
+## Open Issues (9 total — 0 critical, 7 normal, 2 low)
 
-1. **Language logos in docs** `low` — CID skips, human-directed only.
+Normal (CID-actionable):
+
+1. **Update PyO3 0.23 → 0.29** — security advisories in shipped wheel; incremental migration.
+2. **Remove dangling npm `optionalDependencies`** (#38) — breaks downstream `npm ci`.
+3. **Add streaming `SumHasher` to Python + WASM** (#37) — core struct first, then wrappers.
+4. **Release the GIL during Python hashing** (#39) — `py.allow_threads(...)`.
+5. **Add Rust coverage + CRAP-metric quality gate** — phased CI job.
+6. **Add `cargo-semver-checks` API backward-compat CI gate**.
+7. **Add `iai-callgrind` performance-regression CI gate**.
+8. **Narrow internal module visibility to `pub(crate)`** before v1.0.0 (lib.rs).
+
+(That is 8 normal entries; #2 and #4 share the same DX cluster — count them as listed in issues.md.)
+
+Low (human-directed, CID skips):
+
+- **Release core as v1.0.0** — human-driven via `/release` skill; land semver + perf gates first.
+- **Add programming language logos to docs site** — cosmetic.
 
 ## Next Milestone
 
-All 12 bindings are complete, CI is green (16/16), benchmarks are documented, and all
-normal/critical issues are resolved. The project is functionally complete per target.md criteria.
+CI is green, so no CI-fix priority — proceed directly on the `normal` backlog toward v1.0.0.
+Suggested order by impact:
 
-The only remaining item is the low-priority cosmetic issue (language logos in docs howto headers),
-which CID is configured to skip. This requires human direction to proceed.
+1. **Remove dangling npm `optionalDependencies`** — actively breaks downstream `npm ci` in
+    production (external consumer report #38); highest user impact, contained fix in release.yml.
+2. **Update PyO3 to 0.29** — clears two RustSec advisories shipped inside the published wheel; large
+    but well-scoped six-minor-version migration.
+3. **v1.0.0 stability gates** — `cargo-semver-checks` job, `iai-callgrind` perf gate + baseline, and
+    narrow internal module visibility to `pub(crate)`. These must land before v1.0.0 so the API is
+    locked under enforcement; the module-visibility change is itself a (last allowed) breaking
+    change that belongs in the pre-1.0 window.
+4. **Rust coverage + CRAP gate** — phased report-only → regression CI job.
+5. **Streaming `SumHasher` (core + Python + WASM) and Python GIL release** — DX/perf improvements
+    for streaming consumers; the SumHasher core struct unblocks both bindings.
 
-**Note:** Status remains IN_PROGRESS because 1 open issue exists in issues.md (even though it's low
-priority and CID-skipped). The human may choose to close it as won't-fix, address it interactively,
-or leave it — at which point the project can move to DONE.
+The two `low` issues (v1.0.0 release cut, docs logos) are human-directed and remain out of CID
+scope.
