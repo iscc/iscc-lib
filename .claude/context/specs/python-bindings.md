@@ -234,6 +234,61 @@ def gen_sum_code_v0(
 - [ ] `SumCodeResult` supports both dict-style and attribute-style access
 - [ ] `gen_sum_code_v0` exported in `__all__`
 
+### Streaming SumHasher
+
+GitHub: https://github.com/iscc/iscc-lib/issues/37
+
+A `SumHasher` class exposes the single-pass ISCC-SUM (Data-Code + Instance-Code) computation for
+**streaming** input, so callers feeding data incrementally (e.g. bioimage planes) no longer maintain
+two hashers and feed every chunk twice. Today the single-pass logic exists only inside the
+path-based `gen_sum_code_v0`, which drives `streaming::DataHasher` + `streaming::InstanceHasher`
+internally — there is no reusable streaming struct. This requires **first adding a
+`streaming::SumHasher` to the Rust core** (one struct: `new() -> update(&[u8]) -> finalize()`
+running both algorithms in a single pass over each chunk), then a thin PyO3 wrapper mirroring the
+`DataHasher`/`InstanceHasher` finalize-once (`Option<inner>`) pattern. Implementing it in the core
+also lets the WASM binding expose the same class (see `wasm-bindings.md`).
+
+```python
+hasher = iscc_lib.SumHasher()
+for chunk in data_source:
+    hasher.update(chunk)
+result = hasher.finalize(bits=256, wide=True)
+# result: SumCodeResult with iscc, datahash, filesize, optional units
+```
+
+**Verified when:**
+
+- [ ] Rust core exposes a streaming `streaming::SumHasher` (single pass, both algorithms per chunk)
+- [ ] `SumHasher().update(chunk)...finalize(bits, wide)` returns a `SumCodeResult` (`iscc`,
+    `datahash`, `filesize`, optional `units`)
+- [ ] Output matches the two-hasher pattern (`DataHasher` + `InstanceHasher` → `gen_iscc_code_v0`)
+    and the path-based `gen_sum_code_v0` for identical data
+- [ ] Finalize-once semantics: a second `finalize()` or post-finalize `update()` raises
+- [ ] `SumHasher` exported in `__all__`
+
+### GIL Release During Hashing
+
+GitHub: https://github.com/iscc/iscc-lib/issues/39
+
+The streaming hasher `update()` methods (`DataHasher`, `InstanceHasher`, `SumHasher`) and the
+one-shot byte-data hashing functions (`gen_data_code_v0`, `gen_instance_code_v0`,
+`gen_image_code_v0`, `gen_sum_code_v0`) wrap the pure-Rust compute in `py.allow_threads(...)` so
+CPU-bound hashing overlaps across Python threads instead of serializing on the GIL. Output bytes are
+identical, so conformance is unaffected; this is purely a concurrency improvement that benefits
+threaded consumers (e.g. `iscc-sdk`'s `ThreadPoolExecutor` overlap). Adding the injected
+`py: Python<'_>` parameter does not change the Python-facing signature. The borrow of the Python
+buffer must satisfy PyO3's `Ungil`/`Send` bounds across the release — confirm soundness for
+immutable `bytes`, and copy the slice before releasing if the borrow checker objects. Consider a
+small-input size threshold to avoid GIL release/reacquire overhead regressing tiny `update()` calls.
+
+**Verified when:**
+
+- [ ] Streaming `update()` and one-shot byte-data hashing functions release the GIL around the
+    pure-Rust compute (no GIL held during CDC/BLAKE3/MinHash work)
+- [ ] Two Python threads each hashing a multi-GB buffer approach ~2× throughput vs. serialized
+    (memory-bandwidth permitting)
+- [ ] Conformance vectors and the self-test suite are unchanged (identical output)
+
 ### core_opts Algorithm Constants
 
 GitHub: https://github.com/iscc/iscc-lib/issues/8

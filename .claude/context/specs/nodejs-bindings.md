@@ -104,20 +104,32 @@ contains the Rust error description.
 - **Package**: `@iscc/lib`
 - **Authentication**: `NPM_TOKEN` GitHub Actions secret
 
-### Platform-Specific Packages
+### Native Binary Distribution
 
-napi-rs uses optional dependencies for platform-specific native addons:
+`@iscc/lib` ships as a **single self-contained package** that bundles every platform's native addon
+in the published tarball via `files: ["*.node"]`. The auto-generated `index.js` loader detects the
+host platform at runtime and `require`s the matching `iscc-lib.<triple>.node`:
 
-| Platform        | Optional Dependency Package |
-| --------------- | --------------------------- |
-| linux-x64-gnu   | `@iscc/lib-linux-x64-gnu`   |
-| linux-arm64-gnu | `@iscc/lib-linux-arm64-gnu` |
-| darwin-x64      | `@iscc/lib-darwin-x64`      |
-| darwin-arm64    | `@iscc/lib-darwin-arm64`    |
-| win32-x64-msvc  | `@iscc/lib-win32-x64-msvc`  |
+| Platform        | Bundled binary                  |
+| --------------- | ------------------------------- |
+| linux-x64-gnu   | `iscc-lib.linux-x64-gnu.node`   |
+| linux-arm64-gnu | `iscc-lib.linux-arm64-gnu.node` |
+| darwin-x64      | `iscc-lib.darwin-x64.node`      |
+| darwin-arm64    | `iscc-lib.darwin-arm64.node`    |
+| win32-x64-msvc  | `iscc-lib.win32-x64-msvc.node`  |
 
-The main `@iscc/lib` package declares these as `optionalDependencies`. npm installs only the
-matching platform package automatically.
+The package declares **no `optionalDependencies`** and publishes **no per-platform sibling
+packages**. This is a deliberate departure from napi-rs's default per-platform distribution model:
+each stripped addon is only ~1.1 MB, so bundling all five (~5.5 MB) costs little, and it eliminates
+the `optionalDependencies` fragility class (placeholder lockfile entries, `npm ci` vs `npm install`
+divergence, inconsistent npm/pnpm/yarn/bun handling). The release workflow must therefore **not**
+inject `optionalDependencies` (i.e. do not run `napi prepublish -t npm`, or strip the injected block
+before `npm publish`) and publishes only the single `@iscc/lib` package.
+
+**Revisit trigger:** if the bundled binaries grow large (e.g. total tarball > ~30 MB from added SIMD
+variants or many more target triples), switch to the standard napi per-platform model — publish each
+`@iscc/lib-<triple>` package, declare them as `optionalDependencies`, and drop `*.node` from `files`
+so consumers download only their platform's binary.
 
 ## CI Integration
 
@@ -161,6 +173,8 @@ nodejs:
 - [ ] `DataHasher` and `InstanceHasher` streaming types work correctly
 - [ ] TypeScript declarations provide accurate type information
 - [ ] Package installs cleanly via `npm install @iscc/lib`
-- [ ] Platform-specific native addons resolve correctly on all 5 platforms
+- [ ] Bundled native addons resolve correctly on all 5 platforms
+- [ ] Published package declares no `optionalDependencies` and ships no dangling sibling packages
+    (`npm ci` succeeds in consumer projects)
 - [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
 - [ ] Per-crate README renders correctly on npmjs.com
