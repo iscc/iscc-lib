@@ -6,7 +6,11 @@
 
 [tasks."cid:run"]
 description = "Run CID loop until done or max iterations (default: 20)"
-run = "uv run tools/cid.py --skip-permissions run --max-iterations {{arg(name='n', i=0, default='20')}} --pause {{arg(name='pause', i=1, default='1200')}}"
+usage = '''
+arg "<n>" help="Max iterations" default="20"
+arg "<pause>" help="Pause in seconds between iterations" default="1200"
+'''
+run = 'uv run tools/cid.py --skip-permissions run --max-iterations "${usage_n}" --pause "${usage_pause}"'
 
 [tasks."cid:step"]
 description = "Run one full CID iteration (update-state → define-next → advance → review)"
@@ -44,7 +48,11 @@ run = "uv run tools/cid.py --skip-permissions role review"
 
 [tasks."pr:main"]
 description = "Create a PR from develop to main"
-run = "gh pr create -B main -H develop --title '{{arg(name=\"title\", i=0, default=\"Merge develop into main\")}}' --body '{{arg(name=\"body\", i=1, default=\"Merge CID loop progress from develop into main.\")}}'"
+usage = '''
+arg "<title>" help="PR title" default="Merge develop into main"
+arg "<body>" help="PR body" default="Merge CID loop progress from develop into main."
+'''
+run = 'gh pr create -B main -H develop --title "${usage_title}" --body "${usage_body}"'
 
 # --- Quality ---
 
@@ -76,7 +84,10 @@ uv run pytest
 
 [tasks."test:install"]
 description = "Test published packages are installable from registries"
-run = "uv run scripts/test_install.py {{arg(name='flags', i=0, default='--version 0.4.0')}}"
+usage = '''
+arg "[flags]" var=#true help="Flags forwarded to test_install.py (default: --version 0.4.0)"
+'''
+run = 'uv run scripts/test_install.py ${usage_flags:---version 0.4.0}'
 
 # --- Version ---
 
