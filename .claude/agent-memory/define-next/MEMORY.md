@@ -145,3 +145,13 @@ iterations.
     file-not-found, wide mode, bits 64/128, large data, units on/off. Any refactor must keep these
     green. streaming.rs has 15 existing `#[test]`s. Python streaming tests live in
     `tests/test_streaming.py` (project root, not in-crate) — follow `test_data_hasher_*` patterns.
+- **iter 90: scoped WASM SumHasher WRAPPER — closes #37 across all bindings.** Single-code-file
+    change (`crates/iscc-wasm/src/lib.rs`). The WASM crate already has `WasmSumCodeResult` and a
+    one-shot `gen_sum_code_v0` (lib.rs:163–224) plus the `DataHasher`/`InstanceHasher`
+    `Option<inner>` finalize-once pattern (lib.rs:421–523) to mirror exactly. New `SumHasher` holds
+    `Option<iscc_lib::streaming::SumHasher>` (**full path** — no crate-root re-export);
+    `finalize(bits, wide, add_units)` maps core `SumCodeResult` → `WasmSumCodeResult` (cast
+    `filesize: u64 as f64`, like the existing fn at lib.rs:221). Tests go in `tests/unit.rs`
+    (`#[wasm_bindgen_test]`), verified via `wasm-pack test --node crates/iscc-wasm`. Docs:
+    `docs/howto/wasm.md` `## Streaming` section + WASM `CLAUDE.md` "2 streaming types → 3". Kept
+    Tier 1 count (32 symbols) UNCHANGED — same NOT-promoted reasoning as iters 88/89.
