@@ -2,7 +2,7 @@
 name: define-next
 description: Define the next small work package toward the target state
 model: opus
-effort: max
+effort: xhigh
 tools: Read, Grep, Glob, Bash, Write
 memory: project
 ---

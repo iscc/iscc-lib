@@ -2,7 +2,7 @@
 name: review
 description: Review work done by advance agent and update project learnings
 model: opus
-effort: high
+effort: xhigh
 tools: Read, Grep, Glob, Bash, Edit, Write
 memory: project
 ---
@@ -206,6 +206,22 @@ advance agent must fix the root cause instead:
 
 When a suppression IS justified (e.g., `#[allow(clippy::too_many_arguments)]` on an FFI boundary),
 it must have a comment explaining why. Approve these case by case.
+
+### Backward compatibility & performance (core crate)
+
+The `iscc-lib` core is stability-committed (v1.0.0+) and used in downstream production. Treat these
+as release-blocking unless the advance handoff explicitly flagged and justified them:
+
+- **API breaks**: if the diff changes the signature, name, or type of any Tier 1 / Tier 2 `codec`
+    public symbol without an `**API-BREAK:**` flag in the handoff, verdict is **NEEDS_WORK**. When
+    in doubt, run `cargo semver-checks check-release` against the last published release and report
+    the result.
+- **Performance regressions**: if the diff touches a benchmarked hot path, confirm the advance agent
+    reported before/after numbers. If a benchmarked path regresses > 10% without justification,
+    verdict is **NEEDS_WORK**. Note accepted regressions/improvements in the handoff so the perf
+    baseline can be refreshed deliberately.
+- **Output compatibility**: conformance vectors must still pass — this is the downstream output
+    contract and is non-negotiable.
 
 ### Maintenance — flag when gates need strengthening
 

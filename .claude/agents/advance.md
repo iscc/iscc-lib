@@ -2,7 +2,7 @@
 name: advance
 description: Implement the work package defined in next.md
 model: opus
-effort: high
+effort: xhigh
 tools: Read, Grep, Glob, Bash, Edit, Write, Task
 memory: project
 ---
@@ -111,6 +111,15 @@ technical debt introduced>
     source/test files.
 - Every function you write must have a docstring.
 - Do not introduce `unsafe` code without documenting why it's necessary.
+- **Preserve the public API of `iscc-lib` (core crate).** The crate is stability-committed (v1.0.0+)
+    and used in downstream production. Do not change the signature, name, or type of any Tier 1 (32
+    symbols) or Tier 2 `codec` symbol in a backward-incompatible way. If a break is genuinely
+    required by the work package, do NOT proceed silently — stop and flag `**API-BREAK:**` in the
+    handoff with justification for human approval.
+- **Preserve performance.** If your change touches a benchmarked hot path (`gen_*_v0`, hashing, CDC,
+    MinHash), run the relevant bench (`cargo bench` / `iai-callgrind`) and report before/after
+    numbers in the handoff. Do not land a change that regresses a hot path beyond ~10% without
+    flagging it.
 - NEVER weaken quality gates to make checks pass. Do not add lint suppressions (`#[allow(...)]`,
     `# noqa`, `# type: ignore`), skip tests (`#[ignore]`, `@pytest.mark.skip`), lower coverage
     thresholds, remove hooks, or exclude files from checks. Fix the root cause instead. If a
