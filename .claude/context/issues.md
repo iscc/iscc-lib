@@ -44,18 +44,6 @@ install via `cargo binstall`, configure via `.cargo-crap.toml`, and add `mise ru
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Rust Coverage and CRAP Quality Gate"
 
-## Add `cargo-semver-checks` API backward-compat CI gate `normal` [human]
-
-Add a CI job that runs [`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks) on
-the public API of the `iscc-lib` core crate, comparing the working tree against the last published
-release. Catches renamed/removed/retyped public items (Tier 1 + Tier 2 `codec`) that conformance
-vectors cannot see. Install via `cargo binstall cargo-semver-checks`. During the 0.4.0 → 1.0.0
-transition the check is informational; from v1.0.0 it must fail the build on any breaking change not
-matched by a major bump. Add a `mise` task to run it locally.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants";
-`.claude/context/specs/ci-cd.md` → "API Stability and Performance Gates"
-
 ## Add `iai-callgrind` performance-regression CI gate `normal` [human]
 
 Add a Linux CI job with [`iai-callgrind`](https://github.com/iai-callgrind/iai-callgrind)

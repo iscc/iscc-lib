@@ -76,15 +76,6 @@ fully-met target sections to `learnings-archive.md`.
 - C FFI decode: length index for 64-bit codes is 1 (not 0) — `decode_length` uses
     `(length_index + 1) * 32`
 
-## JNA / Kotlin Android
-
-- **JNA ARM32 resource prefix is `android-arm`, NOT `android-armv7`**: JNA 5.16.0's
-    `Platform.getNativeLibraryResourcePrefix()` canonicalizes all `arm*` architectures to `arm`.
-    Verified by decompiling `Platform.class`. Other Android prefixes are correct: `android-aarch64`,
-    `android-x86-64`, `android-x86`
-- `cargo-ndk` outputs to `target/<rust-triple>/release/` — same path convention as desktop builds,
-    so artifact upload steps work unchanged
-
 ## CI/CD
 
 - Windows GHA runners default to `pwsh` shell. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
@@ -102,6 +93,12 @@ fully-met target sections to `learnings-archive.md`.
     maven-kotlin, swift). When re-triggering individual registries, always use `--ref main`
 - **Version sync**: `version_sync.py` manages 16 targets (including root `Package.swift`
     releaseTag). `--check` mode exits 1 on mismatch
+- **`semver` CI job** (`ci.yml`, iter 93): `obi1kenobi/cargo-semver-checks-action@v2`,
+    `package: iscc-lib`, baseline = last crates.io release (auto-detected). INFORMATIONAL pre-1.0
+    via `continue-on-error: true` — it reports the post-0.4.0 `pub(crate)` narrowing of
+    cdc/conformance/minhash/simhash/utils as `module_missing`/`function_missing` (2 major checks
+    failed; expected, not a regression). `mise run semver` runs it locally. Becomes enforcing at
+    v1.0.0 by dropping `continue-on-error`; `rust-core.md` line 372 checkbox stays `[ ]` until then
 
 ## Branching
 
@@ -187,6 +184,14 @@ fully-met target sections to `learnings-archive.md`.
     should scan all issues.md entries against state.md "met" sections after reviewing advance work
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
+- **Pre-push mdformat blocks on non-conforming context files**: the pre-push hook runs mdformat
+    (`--wrap 100 --number`, isolated `mdformat-mkdocs[recommended]` env) on every file changed in
+    the push range — including `next.md` and per-agent `MEMORY*.md`. A non-conforming
+    `next.md`/memory (wrong wrap width, misindented fenced code) rejects the whole batch push even
+    though `git commit` (staged-only hooks) passed. define-next MUST run
+    `uv run mdformat --wrap 100 --number` (or `mise run format`) before committing. Review can
+    unblock by reformatting those files (mechanical, no semantic change) and amending — but local
+    `uv run mdformat` uses a different plugin set, so match the hook args exactly
 
 ## Devcontainer Scripts (exec bit / Windows bind mount)
 

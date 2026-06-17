@@ -29,8 +29,8 @@ See MEMORY.md for current active entries.
     languages", but #37 only adds it to Python+WASM, so a count bump would imply false cross-binding
     parity. Kept README/rust-core.md/target.md counts at 32.
 - **iter 89: Python SumHasher WRAPPER** — `crates/iscc-py/src/lib.rs` (PySumHasher mirrors
-    PyDataHasher `Option<inner>`), `__init__.py` (wrapper class + `__all__`), `_lowlevel.pyi`. Stream
-    handling lives in the Python wrapper; `_lowlevel` update takes `&[u8]` only.
+    PyDataHasher `Option<inner>`), `__init__.py` (wrapper class + `__all__`), `_lowlevel.pyi`.
+    Stream handling lives in the Python wrapper; `_lowlevel` update takes `&[u8]` only.
 - **iter 90: WASM SumHasher WRAPPER** — `crates/iscc-wasm/src/lib.rs`. Holds
     `Option<iscc_lib::streaming::SumHasher>` (full path, no re-export); finalize maps core
     `SumCodeResult` → `WasmSumCodeResult` (cast `filesize: u64 as f64`). Tests in `tests/unit.rs`

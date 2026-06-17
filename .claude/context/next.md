@@ -5,10 +5,10 @@
 ## Goal
 
 Stand up the `cargo-semver-checks` public-API backward-compatibility gate for the `iscc-lib` core
-crate (issue: *Add `cargo-semver-checks` API backward-compat CI gate*). This is the smallest,
-most self-contained of the four v1.0.0 hardening gates and locks the now-narrowed Tier 1 / Tier 2
-surface under enforcement before the v1.0.0 stability commitment. It runs **informational** during
-the 0.4.0 → 1.0.0 transition and becomes enforcing once v1.0.0 ships.
+crate (issue: *Add `cargo-semver-checks` API backward-compat CI gate*). This is the smallest, most
+self-contained of the four v1.0.0 hardening gates and locks the now-narrowed Tier 1 / Tier 2 surface
+under enforcement before the v1.0.0 stability commitment. It runs **informational** during the 0.4.0
+→ 1.0.0 transition and becomes enforcing once v1.0.0 ships.
 
 ## Scope
 
@@ -19,8 +19,8 @@ the 0.4.0 → 1.0.0 transition and becomes enforcing once v1.0.0 ships.
 - **Reference**: `.claude/context/specs/ci-cd.md` → "API Stability and Performance Gates" and the
     "CRAP" job style; `.claude/context/specs/rust-core.md` → "API Stability & Performance
     Invariants"; existing `c-ffi` / `wasm` jobs in `ci.yml` for the toolchain + caching action
-    pattern (`dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`); `crates/iscc-lib/Cargo.toml`
-    (crate name `iscc-lib`, `default = ["meta-code"]`).
+    pattern (`dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`);
+    `crates/iscc-lib/Cargo.toml` (crate name `iscc-lib`, `default = ["meta-code"]`).
 
 ## Not In Scope
 
@@ -30,8 +30,8 @@ the 0.4.0 → 1.0.0 transition and becomes enforcing once v1.0.0 ships.
     those are separate issues / future steps.
 - Do NOT start the PyO3 0.23 → 0.29 migration.
 - Do NOT bump the workspace version or cut v1.0.0.
-- Do NOT add `cargo-semver-checks` to the `prek` pre-push hooks — like the coverage gate, it is a
-    CI / on-demand tool, not a local push gate.
+- Do NOT add `cargo-semver-checks` to the `prek` pre-push hooks — like the coverage gate, it is a CI
+    / on-demand tool, not a local push gate.
 - Do NOT re-widen any `pub(crate) mod` back to `pub mod` to "satisfy" the check — the narrowing is
     intentional pre-1.0 API cleanup.
 
@@ -43,19 +43,19 @@ the 0.4.0 → 1.0.0 transition and becomes enforcing once v1.0.0 ships.
 - **Recommended CI implementation** — use the maintainer-blessed action, which installs via
     `binstall` internally (spec-aligned) and handles baseline + rustdoc + caching:
     ```yaml
-      semver:
-        name: Semver (cargo-semver-checks)
-        runs-on: ubuntu-latest
+    semver:
+      name: Semver (cargo-semver-checks)
+      runs-on: ubuntu-latest
         # Informational during the 0.4.0 -> 1.0.0 transition; enforcing from v1.0.0.
-        continue-on-error: true
-        steps:
-          - uses: actions/checkout@v4
-          - uses: dtolnay/rust-toolchain@stable
-          - uses: Swatinem/rust-cache@v2
-          - name: Check semver
-            uses: obi1kenobi/cargo-semver-checks-action@v2
-            with:
-              package: iscc-lib
+      continue-on-error: true
+      steps:
+        - uses: actions/checkout@v4
+        - uses: dtolnay/rust-toolchain@stable
+        - uses: Swatinem/rust-cache@v2
+        - name: Check semver
+          uses: obi1kenobi/cargo-semver-checks-action@v2
+          with:
+            package: iscc-lib
     ```
     A manual fallback (`cargo install cargo-semver-checks --locked` then
     `cargo semver-checks check-release -p iscc-lib`) is equivalent if the action is undesirable.

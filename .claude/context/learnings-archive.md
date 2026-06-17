@@ -432,3 +432,12 @@ reference-only for humans.
     `*.jar` globs and then selecting with `ls | head -1`, alphabetical ordering picks `-javadoc.jar`
     before the runtime JAR. Always filter out classifier JARs (`-sources`, `-javadoc`) when
     selecting the runtime artifact.
+
+## JNA / Kotlin Android — archived from learnings.md (Kotlin/Android bindings fully met)
+
+- **JNA ARM32 resource prefix is `android-arm`, NOT `android-armv7`**: JNA 5.16.0's
+    `Platform.getNativeLibraryResourcePrefix()` canonicalizes all `arm*` architectures to `arm`.
+    Verified by decompiling `Platform.class`. Other Android prefixes are correct: `android-aarch64`,
+    `android-x86-64`, `android-x86`
+- `cargo-ndk` outputs to `target/<rust-triple>/release/` — same path convention as desktop builds,
+    so artifact upload steps work unchanged

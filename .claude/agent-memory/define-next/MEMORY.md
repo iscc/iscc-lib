@@ -121,33 +121,32 @@ iterations.
     gates (semver-checks, iai-callgrind, module-visibility) → coverage/CRAP → streaming SumHasher
     (core first, then PyO3 + WASM wrappers) + Python GIL release. `pub use` from a `pub(crate) mod`
     is valid Rust — re-exported Tier 1 symbols stay public after narrowing.
-- **#37 SumHasher (iters 88–90) and #39 Python GIL release (iter 91) are CLOSED** — detailed
-    scoping notes archived to `MEMORY-archive.md`. SumHasher lives at `iscc_lib::streaming::SumHasher`
-    (NOT crate-root Tier 1; Tier 1 count stays 32). Python/WASM wrappers ship it; core counts
-    untouched.
-- **iter 92: scoped npm #38 (CLOSED)** — removed the `napi prepublish` step from `release.yml`
-    (the only injector of dangling `@iscc/lib-<triple>` optionalDependencies). Doc realignment to the
+- **#37 SumHasher (iters 88–90) and #39 Python GIL release (iter 91) are CLOSED** — detailed scoping
+    notes archived to `MEMORY-archive.md`. SumHasher lives at `iscc_lib::streaming::SumHasher` (NOT
+    crate-root Tier 1; Tier 1 count stays 32). Python/WASM wrappers ship it; core counts untouched.
+- **iter 92: scoped npm #38 (CLOSED)** — removed the `napi prepublish` step from `release.yml` (the
+    only injector of dangling `@iscc/lib-<triple>` optionalDependencies). Doc realignment to the
     bundled model in iscc-napi CLAUDE.md + notes 02/06. See the corrected Scope-Calibration bullet.
 - **iter 93: scoped the `cargo-semver-checks` API backward-compat CI gate.** All code-only issues
-    (#37/#38/#39) are closed; the 4 remaining `normal` issues are ALL CI-infra
-    (semver-checks, iai-callgrind, CRAP/coverage, PyO3 0.23→0.29). Can no longer defer the gates —
-    deferring would force a false IDLE while real backlog remains. Picked semver-checks: smallest,
-    most self-contained, direct v1.0.0 enabler, recommended #1 by both handoff and state.md. Scope =
-    2 files (`ci.yml` new `semver` job + `mise.toml` `semver` task) + ci-cd.md checkbox (doc).
+    (#37/#38/#39) are closed; the 4 remaining `normal` issues are ALL CI-infra (semver-checks,
+    iai-callgrind, CRAP/coverage, PyO3 0.23→0.29). Can no longer defer the gates — deferring would
+    force a false IDLE while real backlog remains. Picked semver-checks: smallest, most
+    self-contained, direct v1.0.0 enabler, recommended #1 by both handoff and state.md. Scope = 2
+    files (`ci.yml` new `semver` job + `mise.toml` `semver` task) + ci-cd.md checkbox (doc).
     **CRITICAL**: the job MUST be informational (`continue-on-error: true`) — the post-0.4.0
     `pub mod`→`pub(crate) mod` narrowing (cdc/conformance/dct/minhash/simhash/utils/wtahash) is a
     breaking change vs published 0.4.0, so semver-checks WILL flag it; enforcing mode would turn CI
     red. Baseline auto-detected from crates.io 0.4.0 (published). Recommend
     `obi1kenobi/cargo-semver-checks-action@v2` (installs via binstall internally, handles baseline).
     Default features cover feature-gated Tier 1 symbols (`default = ["meta-code"]`).
-- **CORRECTION (iter 93): cargo registry network IS available in this environment.** `cargo search
-    cargo-semver-checks` returned live results; the earlier `curl https://crates.io` 403 was just
-    Cloudflare blocking curl's user-agent, NOT a network block. This **revises** the repeated
-    "CI gates need network — unverifiable locally" assumption from iters 88/91/92: the advance agent
-    CAN `cargo install cargo-semver-checks` and run it locally, CAN fetch new crate versions for the
-    PyO3 bump, CAN install cargo-llvm-cov. The genuine local blockers are only: no valgrind
-    (apt, iai-callgrind), no preinstalled CI dev tools. So semver-checks and PyO3 are now fully
-    locally verifiable; iai-callgrind remains the hardest (valgrind).
+- **CORRECTION (iter 93): cargo registry network IS available in this environment.**
+    `cargo search   cargo-semver-checks` returned live results; the earlier `curl https://crates.io`
+    403 was just Cloudflare blocking curl's user-agent, NOT a network block. This **revises** the
+    repeated "CI gates need network — unverifiable locally" assumption from iters 88/91/92: the
+    advance agent CAN `cargo install cargo-semver-checks` and run it locally, CAN fetch new crate
+    versions for the PyO3 bump, CAN install cargo-llvm-cov. The genuine local blockers are only: no
+    valgrind (apt, iai-callgrind), no preinstalled CI dev tools. So semver-checks and PyO3 are now
+    fully locally verifiable; iai-callgrind remains the hardest (valgrind).
 - **CI-infra step verification pattern**: pre-commit hooks (`mise run check`) validate YAML/TOML
     syntax of edited workflow/manifest files locally — a solid automated check even without
     actionlint. Pair with grep assertions + the next CI run (review agent confirms the new job
