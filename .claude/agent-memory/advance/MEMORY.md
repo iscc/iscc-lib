@@ -68,7 +68,16 @@ iterations.
 - `version-check` job (checkout + setup-python only): `scripts/version_sync.py --check` (16 targets
     incl. Swift Constants, Package.swift releaseTag, Kotlin; exits 1 on mismatch)
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
-- `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
+- `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds. `maturin` is not on
+    PATH — always invoke via `uv run maturin`. Builds a single `cp310-abi3` wheel (abi3-py310)
+- PyO3 pin = single source: root `Cargo.toml` `[workspace.dependencies]`
+    `pyo3 = { version, features   = ["abi3-py310"] }`. ONLY `crates/iscc-py` consumes it
+    (`features = ["extension-module"]`); blast radius = `crates/iscc-py/src/lib.rs` only. Migration
+    in progress 0.23→0.29 (RustSec advisories clear at 0.29), incremental one-minor-per-step.
+    0.23→0.24 (iter 98) needed ZERO src changes — the
+    `dict.into()`/`PyBytes::new(py,_).into()`/`.into_pyobject(py)?.into()`/raw `pyo3::ffi::*`
+    +`Bound::from_owned_ptr` idioms in lib.rs all compile clean on 0.24. After bump:
+    `cargo update -p   pyo3` → build/clippy/fmt → `uv run maturin develop` → `uv run pytest`
 - Release workflow (`release.yml`): 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems,
     nuget, maven-kotlin, swift). Pattern: input → build → **smoke test** → publish (version-exists
     skip). NuGet uses `NUGET_API_KEY` secret (not OIDC); Ruby uses OIDC
