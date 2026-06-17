@@ -196,3 +196,11 @@ iterations.
     optimism: network helps cargo/crates.io installs, but apt packages absent from the sources
     (valgrind) still can't be had. iai-callgrind is a ship-to-CI feature; split it (bench harness
     first, then CI job + baseline) if/when picked up.
+- **iter 99: scoped PyO3 0.24 → 0.25 (next migration hop).** 0.23→0.24 PASSED (handoff `27680364506`
+    CI green, pin now `0.24`/lock `0.24.2`). Chose this OVER CRAP `--fail-above 30` (HUMAN REVIEW
+    REQUESTED + CI-infra, verify needs CI) and iai-callgrind (valgrind-blocked). Same single-crate
+    recipe; unlike 0.24, **expect REAL source edits at 0.25** — likely touchpoints are the ~14
+    `Ok(dict.into())` returns + `into_pyobject(py)?.into()` near lib.rs:452 (0.25 tightens
+    `IntoPyObject`/lifetimes). `maturin develop -m crates/iscc-py/Cargo.toml` via `uv run`; baseline
+    is 286 pytest. Advisories DON'T clear until 0.29 — not a 0.25 criterion. Remaining `normal`
+    backlog after this: 0.25→…→0.29, CRAP `--fail-above 30`, iai-callgrind.
