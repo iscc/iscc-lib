@@ -35,12 +35,16 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     patterns must include target name. Generic wildcards match all extracted dirs
 - **Advance agent idle claims**: always verify remaining issue priorities independently — advance
     agents may incorrectly claim "only low-priority issues remain" when normal issues still exist
+- **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
+    consistently get this wrong — always verify in review
 - **`mise run check` mdformat Failure on context files**: recurring — define-next writes `next.md`
     and `define-next/MEMORY.md` non-mdformat-conforming, so `prek --all-files` reformats them every
-    cycle. NOT a regression in advance work. Revert with
-    `git checkout -- .claude/context/next.md   .claude/agent-memory/define-next/MEMORY.md` (and
-    never stage `iterations.jsonl` — runner-owned). Real `git commit` only runs hooks on staged
-    files, so the actual review commit is unaffected
+    cycle. NOT a regression in advance work. `git commit` (staged-only) is unaffected, BUT the
+    pre-push mdformat hook runs on the whole push range and WILL reject the batch (those files were
+    committed non-conforming by define-next). Fix (iter 101): STAGE the mdformat-reformatted
+    `next.md` + `define-next/MEMORY.md` into the review commit (mechanical 100-col rewrap, zero
+    semantic change) so HEAD is conforming and push passes. Never stage `iterations.jsonl`
+    (runner-owned)
 - **Concurrent CID loops (iter 97, resolved iter 98)**: spurious `mise run check` "files were
     modified by this hook" on a file the advance never touched (e.g. `standardrb-fix` flagging when
     NO `.rb` is dirty) + a working-tree `state.md`/context change appearing mid-review = a SECOND
@@ -66,6 +70,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - **Config-only**: `mise run check` + `cargo check -p <crate>`
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **CI-only YAML**: `mise run check`
+- **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
 - **Semver gate review** (iter 93): `semver` job is informational (`continue-on-error: true`)
     pre-1.0 — it adds a gate, doesn't weaken one. Verify locally:
@@ -142,15 +147,6 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Review shortcut: `cargo test -p iscc-uniffi` + `cargo clippy -p iscc-uniffi -- -D warnings` +
     `cargo clippy --workspace --all-targets -- -D warnings` + `mise run check`
 
-## Swift Package Review
-
-Swift bindings fully complete — detailed mechanics archived to `MEMORY-archive.md` (iter 94). Still
-active:
-
-- **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
-    consistently get this wrong — always verify in review
-- **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
-
 ## Kotlin Binding Review
 
 - **Gradle multi-JAR artifact**: `withSourcesJar()` + `withJavadocJar()` produce 3 JARs in
@@ -183,13 +179,14 @@ active:
 - `.pyi` stub sync: `ty check` catches mismatches, `mise run check` does not
 - **Pre-push needs iscc_lib built**: `ty check` and `pytest` hooks import `iscc_lib` — build before
     pushing (same maturin command above), else push fails
-- PyO3 GIL-release review pattern (#39 closed, iter 91): full technique archived in
-    `learnings-archive.md`. Verify via `allow_threads` grep count + `ty check` (`.pyi` unchanged)
+- PyO3 GIL-release pattern (#39, iter 91): technique archived in `learnings-archive.md`. Post-0.26
+    the GIL-release call is `Python::detach` (was `allow_threads`) — grep `detach` to count sites
 - **PyO3 minor migration** (0.23→0.29, one minor per CID step; advisories clear only at 0.29): pin
     is root `Cargo.toml` `[workspace.dependencies]`, used by `iscc-py` alone. Python-only review +
-    `cargo tree -p iscc-py -i pyo3` for resolved version. 0.23→0.24 AND 0.24→0.25 both zero-source —
-    the predicted `IntoPyObject`/lifetime breaks have NOT hit yet (be skeptical of "real work at
-    0.26+" too, but watch `-D warnings`). Build `uv run maturin develop` then `uv run pytest` (286)
+    `cargo tree -p iscc-py -i pyo3` for resolved version. 0.23→0.24 AND 0.24→0.25 zero-source;
+    0.25→0.26 FIRST hop needing edits: `allow_threads`→`detach` (7 sites) + `PyObject` alias →
+    `Py<PyAny>` returns (17 sites), both mechanical. `uv run maturin develop` then `uv run pytest`
+    (286). Watch `-D warnings` each hop
 
 ## Ruby Binding Review
 

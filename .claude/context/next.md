@@ -4,10 +4,10 @@
 
 ## Goal
 
-Advance the incremental PyO3 migration one minor version (0.25 → 0.26) so the published
-Python wheel moves closer to 0.29, where two RustSec advisories clear. This is the in-progress
-v1.0.0 hardening item (issue #1: "Update PyO3 to latest release"); one reviewed minor per step
-keeps each breaking-change surface small and verifiable.
+Advance the incremental PyO3 migration one minor version (0.25 → 0.26) so the published Python wheel
+moves closer to 0.29, where two RustSec advisories clear. This is the in-progress v1.0.0 hardening
+item (issue #1: "Update PyO3 to latest release"); one reviewed minor per step keeps each
+breaking-change surface small and verifiable.
 
 ## Scope
 
@@ -28,8 +28,8 @@ keeps each breaking-change surface small and verifiable.
     presence at 0.26 is EXPECTED and is NOT a failure of this step. Do not add advisory-clearance as
     a pass/fail gate here.
 - Do NOT touch the `iscc-lib` core crate (it carries no PyO3 dependency), nor any other binding.
-- Do NOT refactor `lib.rs` beyond the minimum needed to clear deprecation warnings (no rewriting
-    the raw `pyo3::ffi::*` call sites unless 0.26 actually breaks them).
+- Do NOT refactor `lib.rs` beyond the minimum needed to clear deprecation warnings (no rewriting the
+    raw `pyo3::ffi::*` call sites unless 0.26 actually breaks them).
 - Do NOT change the CRAP gate or start the `iai-callgrind` perf gate (separate open issues).
 - Do NOT alter `abi3-py310` or the `extension-module` feature wiring.
 

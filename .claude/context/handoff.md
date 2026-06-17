@@ -1,70 +1,56 @@
-## 2026-06-17 — Migrate PyO3 0.25 → 0.26 (issue #1, incremental toward 0.29)
+## 2026-06-17 — Review of: Migrate PyO3 0.25 → 0.26 (issue #1, incremental toward 0.29)
 
-**Done:** Bumped the `pyo3` workspace dependency pin from `0.25` → `0.26` (preserving
-`features = ["abi3-py310"]`), regenerated `Cargo.lock`, and cleared the two new 0.26 deprecations in
-`crates/iscc-py/src/lib.rs` so the build is warning-free under `-D warnings`. Unlike the 0.23→0.24
-and 0.24→0.25 hops (which needed zero source changes), 0.26 deprecated two APIs that the bindings
-use, so minimal idiomatic fixes were required.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** Bumped the `pyo3` workspace pin `0.25 → 0.26`, regenerated `Cargo.lock`, and cleared
+the two new 0.26 deprecations in `crates/iscc-py/src/lib.rs` (the only binding file). Scope was
+tight (Cargo.toml + Cargo.lock + lib.rs), the fixes are idiomatic, and every verification criterion
+is green. Unlike the prior two zero-source hops, 0.26 was the first to require source changes.
 
-- `Cargo.toml`: pyo3 pin `0.25` → `0.26` (line 35), `abi3-py310` intact.
-- `Cargo.lock`: regenerated via `cargo update -p pyo3` (pyo3 + pyo3-build-config + pyo3-ffi +
-    pyo3-macros + pyo3-macros-backend all `0.25.1` → `0.26.0`). Generated file, does not count
-    toward the 3-file limit.
-- `crates/iscc-py/src/lib.rs`: two deprecation fixes —
-    1. `Python::allow_threads` → `Python::detach` (7 call sites; same semantics, just renamed in
-        0.26). Affected: `gen_image_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`,
-        `gen_sum_code_v0`, and the three streaming `update()` methods.
-    2. `PyResult<PyObject>` → `PyResult<Py<PyAny>>` (17 return-type sites). The `pyo3::PyObject` type
-        alias is deprecated in 0.26 in favor of `Py<PyAny>`; `Py` and `PyAny` are already in scope
-        via `pyo3::prelude::*`. The `Ok(dict.into())` / `.into_pyobject(py)?.into()` bodies still
-        compile unchanged — `Bound<PyDict>::into()` infers `Py<PyAny>` exactly as it did for the
-        alias.
-    - rustfmt collapsed the now-single-expression `gen_sum_code_v0` `.detach(...)` closure to one line
-        (no semantic change).
+**Verification:**
 
-**Verification:** All next.md criteria green.
+- [x] `pyo3 = { version = "0.26", features = ["abi3-py310"] }` — line 35, single match
+- [x] `Cargo.lock` shows `pyo3 0.26.0` (+ pyo3-ffi/build-config/macros/macros-backend all 0.26.0)
+- [x] `abi3-py310` preserved on the pyo3 workspace dep
+- [x] `cargo build -p iscc-py` — exit 0
+- [x] `cargo clippy -p iscc-py -- -D warnings` — exit 0, clean
+- [x] `cargo fmt --all --check` — exit 0
+- [x] `uv run maturin develop -m crates/iscc-py/Cargo.toml` — exit 0, `cp310-abi3` wheel installed
+- [x] `uv run pytest` — 286 passed, 1 pre-existing warning (iscc_core Pydantic-V1 / Py3.14,
+    unrelated)
+- [x] No deprecated APIs remain — 0 `allow_threads`/`PyResult<PyObject>`; 7 `detach`, 17 `Py<PyAny>`
+- [x] `cargo tree -p iscc-py -i pyo3` resolves to a single pyo3 v0.26.0
 
-- `grep 'pyo3 = { version = "0.26"' Cargo.toml` → 1 match (line 35); `abi3-py310` still present.
-- `grep -A1 'name = "pyo3"' Cargo.lock` → `version = "0.26.0"`.
-- `cargo build -p iscc-py` → exit 0, no warnings.
-- `cargo clippy -p iscc-py -- -D warnings` → exit 0, clean.
-- `cargo fmt --all --check` → exit 0.
-- `uv run maturin develop -m crates/iscc-py/Cargo.toml` → built `cp310-abi3` wheel, installed.
-- `uv run pytest` → **286 passed**, 1 warning (pre-existing, unrelated — `iscc_core`'s Pydantic V1 /
-    Python 3.14 `UserWarning`, surfaced only by the benchmark comparison against the reference
-    impl).
+**Issues found:**
 
-No public API change to `iscc-lib` (core has no PyO3 dep — untouched). No hot-path perf change (only
-the GIL-release call was renamed, not its behavior). No API-BREAK.
+- (none in the advance work — clean, minimal, correct)
 
-**Next:** Continue the incremental PyO3 migration **0.26 → 0.27** (issue #1). The pattern now has a
-proven recipe even when source changes are needed: bump pin → `cargo update -p pyo3` →
-build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests). Watch for
-further 0.27 deprecations — the raw `pyo3::ffi::*` C-API call sites (`PySequence_List`,
-`PyList_GetItem`, `PyLong_AsLong`, `Bound::from_owned_ptr`, `downcast_into_unchecked`) and the
-`#[pyo3(signature = ...)]` macros have survived every hop so far, but the deprecation churn at 0.26
-suggests later hops may also touch source. RustSec advisories still only clear at 0.29 (3 hops away;
-expected, not a failure). Also still open: CRAP `--fail-above 30` hardening ([review] issue, HUMAN
-REVIEW REQUESTED) and the `iai-callgrind` perf-regression CI gate.
+**Codex review:** No findings. "The PyO3 bump is accompanied by the necessary deprecation fixes, and
+the affected crate builds and passes its Python test suite. No introduced correctness,
+compatibility, or maintainability issues."
+
+**Next:** Continue the incremental migration **PyO3 0.26 → 0.27** (issue #1). Recipe is proven, and
+0.26 confirmed source changes can be required: bump pin → `cargo update -p pyo3` →
+build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286). Watch 0.27
+deprecations — the raw `pyo3::ffi::*` C-API sites (`PySequence_List`, `PyList_GetItem`,
+`PyLong_AsLong`, `Bound::from_owned_ptr`, `downcast_into_unchecked`) and `#[pyo3(signature = ...)]`
+macros have survived every hop incl. 0.26, but the 0.26 deprecation churn says later hops may also
+touch source. RustSec advisories still clear only at 0.29 (3 hops away — expected, not a failure).
+Also open and unstarted: CRAP `--fail-above 30` hardening ([review], HUMAN REVIEW REQUESTED on the
+spec edit) and the `iai-callgrind` perf-regression CI gate.
 
 **Notes:**
 
-- **Out-of-scope working-tree noise (not mine):** running `mise run check` (which runs prek
+- **Recurring define-next mdformat gap (NOT an advance defect):** `mise run check` (prek
     `--all-files`) reformatted `.claude/context/next.md` and
     `.claude/agent-memory/define-next/MEMORY.md` via the mdformat hook — both were committed
-    non-conforming by the prior `cid(define-next)` commit (dcf57f1). Per scope I do NOT own those
-    files, so I reverted the mdformat changes (`git checkout   --`) to keep my commit clean.
-    **Heads-up for review/push:** the pre-push mdformat hook runs on all files in the push range, so
-    the non-conforming `next.md`/`define-next/MEMORY.md` may block the push (see learnings "Pre-push
-    mdformat blocks on non-conforming context files"). If the push is rejected, reformat those two
-    context files with `uv run mdformat --wrap 100 --number` and amend the define-next commit
-    (mechanical, no semantic change) — this is the recurring define-next formatting gap, not a fault
-    of this advance step.
-- `mise run check` otherwise passes: all code-relevant hooks (Rust formatting, TOML formatting,
-    Ruff, YAML, etc.) are green. The only "Failed" hook was mdformat on the two non-owned context
-    files above.
-- `Python::detach` is the 0.26 rename of `allow_threads` (identical GIL-release semantics on
-    standard abi3 builds); docstrings say "Releases the GIL" which remains accurate, so they were
-    left as-is.
+    non-conforming by the define-next commit (dcf57f1). Changes are purely line-rewrapping to 100
+    cols, zero semantic change. To prevent the pre-push mdformat hook from rejecting the batch push,
+    I staged the reformatted versions of those two files into this review commit (mechanical fix per
+    protocol step 9). define-next should run `uv run mdformat --wrap 100 --number` (or
+    `mise run format`) before committing to close this gap at the source. All code-relevant hooks
+    (Rust fmt, TOML, Ruff, YAML, Ruby) passed.
+- `Python::detach` is the 0.26 rename of `allow_threads` (identical GIL-release semantics on abi3
+    builds). Docstrings saying "Releases the GIL" remain accurate and were correctly left unchanged.
+- Single CID loop confirmed running (one `mise run cid:run`, one `iteration 101` agent) — no
+    concurrency race this iteration.

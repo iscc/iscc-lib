@@ -183,14 +183,15 @@ iterations.
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` → `uv run pytest` (~286 tests). Verified
     iter 101: root tests/ has 232 `def test` fns (conformance params expand to ~286 collected);
     `crates/iscc-py/pyproject.toml` (NOT root pyproject) holds the maturin config
-    (`features = ["pyo3/extension-module"]`, `python-source = "python"`, module `iscc_lib._lowlevel`).
+    (`features = ["pyo3/extension-module"]`, `python-source = "python"`, module
+    `iscc_lib._lowlevel`).
 - **iai-callgrind stays CI-only**: `valgrind` has NO apt install candidate in the devcontainer
     (re-confirmed iter 98; `sudo` IS passwordless but the package is absent from sources), so
     benches CANNOT run locally — baseline must come from CI. Split it (bench harness first, then CI
     job + committed baseline) if/when picked up.
-- **iter 100→101: cargo-crap install-flake fix LANDED, CI confirmed GREEN** (run 27685108728).
-    Rule reaffirmed: **CI red always preempts feature work, even a clean handoff "Next".** Root
-    cause: `Swatinem/rust-cache@v2` restores cargo's `.crates.toml` metadata WITHOUT the
+- **iter 100→101: cargo-crap install-flake fix LANDED, CI confirmed GREEN** (run 27685108728). Rule
+    reaffirmed: **CI red always preempts feature work, even a clean handoff "Next".** Root cause:
+    `Swatinem/rust-cache@v2` restores cargo's `.crates.toml` metadata WITHOUT the
     `~/.cargo/bin/cargo-crap` binary, so `cargo binstall cargo-crap@0.2.2` (no `--force`) skipped
     install → next `cargo crap` step died `no such command: crap`. Fix = `--force` on that binstall
     line (ci.yml:314). With CI green, iter 101 resumed PyO3 0.25→0.26 (handoff "Next").

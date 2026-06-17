@@ -30,12 +30,15 @@ fully-met target sections to `learnings-archive.md`.
 - Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
 - **PyO3 minor bumps** (incremental migration 0.23→0.29, one minor per CID step): `pyo3` lives only
     in root `Cargo.toml` `[workspace.dependencies]` (used by `iscc-py` alone). 0.23→0.24 AND
-    0.24→0.25 both needed ZERO source changes — `dict.into()`, raw `pyo3::ffi::*` +
-    `Bound::from_owned_ptr` stable through 0.25. Per hop: bump pin → `cargo update -p pyo3` →
+    0.24→0.25 needed ZERO source changes; **0.25→0.26 was the FIRST hop requiring source edits** —
+    two deprecations: `Python::allow_threads` → `Python::detach` (pure rename, same GIL-release
+    semantics; 7 call sites) and the `pyo3::PyObject` type alias → `Py<PyAny>` return type (17
+    sites; `Ok(dict.into())` bodies infer `Py<PyAny>` unchanged). raw `pyo3::ffi::*` +
+    `Bound::from_owned_ptr` STILL stable through 0.26. Per hop: bump pin → `cargo update -p pyo3` →
     build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests). The
-    predicted `IntoPyObject`/lifetime breaks did NOT materialize at 0.24 or 0.25 — treat that
-    prediction skeptically for 0.26+ too, but keep watching `-D warnings` for deprecations. RustSec
-    advisories only clear at 0.29
+    predicted `IntoPyObject`/lifetime breaks have NOT materialized through 0.26 — but the 0.26
+    deprecation churn means later hops may also touch source; treat `-D warnings` as the gate.
+    RustSec advisories only clear at 0.29
 
 ## ISCC Algorithm Knowledge
 
