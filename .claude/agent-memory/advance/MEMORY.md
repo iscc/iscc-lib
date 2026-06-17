@@ -54,15 +54,16 @@ iterations.
 - Kotlin Maven Central: `build-kotlin-native` (9-platform matrix) → `assemble-kotlin` +
     `test-kotlin-release` (validates JAR has all 9 JNA paths) → `publish-maven-kotlin` (Gradle
     `maven-publish` + curl bundle upload to Sonatype Central Portal REST API)
-- wasm-pack `--features` must go AFTER the path, NOT after `--`
+- wasm-pack `--features` must go AFTER the path, NOT after `--`. Test-target filter
+    (`-- --test unit`) does NOT work — runner rejects `--test`, only a positional FILTER. Run full
+    suite
 
 ## gen_sum_code_v0
 
 - `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` in `lib.rs`. Now a thin
     file-I/O wrapper: reads `IO_READ_SIZE` chunks into one `streaming::SumHasher`, then
     `hasher.finalize(bits, wide, add_units)`. Composition logic lives solely in `SumHasher`
-- `iscc_decode` returns tuple `(u8, u8, u8, u8, Vec<u8>)` — use tuple destructuring, not field
-    access. `MainType` is `pub(crate)`, not accessible from test modules
+- `iscc_decode` returns tuple `(u8,u8,u8,u8,Vec<u8>)` — destructure; `MainType` is `pub(crate)`
 - All 32 Tier 1 symbols implemented. All 7 bindings implement `gen_sum_code_v0`
 
 ## Streaming
@@ -74,9 +75,10 @@ iterations.
     same slice to both. `finalize(bits, wide, add_units) -> SumCodeResult` composes via
     `gen_iscc_code_v0`. Not yet a crate-root Tier 1 re-export — reach it via
     `iscc_lib::streaming::SumHasher` (full path) in bindings, NOT bare `iscc_lib::SumHasher`
-- Python `SumHasher` binding done (iter 89): `PySumHasher` in `crates/iscc-py/src/lib.rs`
-    (`Option<inner>` finalize-once, dict with optional `units`) + wrapper in `__init__.py` + `.pyi`
-    stub + `__all__`. WASM binding + crate-root Tier 1 promotion remain for #37
+- `SumHasher` bindings done: Python (`PySumHasher`, iter 89) + WASM (`SumHasher`, iter 90). Both use
+    `Option<inner>` finalize-once + full path `iscc_lib::streaming::SumHasher` (NOT a crate-root
+    Tier 1 re-export — intentional). WASM reuses `WasmSumCodeResult`, casts `filesize u64→f64`,
+    `finalize(bits?, wide?, add_units?)`. Issue #37 fully closed across all bindings (core+py+wasm)
 
 ## API Design
 
@@ -164,19 +166,16 @@ iterations.
 
 ## Swift Package
 
-- Two `Package.swift` files coexist: root (for SPM consumers adding the repo URL) and
-    `packages/swift/Package.swift` (for CI and local dev). SPM always reads root for dependency
-    resolution; `cd packages/swift && swift build` uses the subdirectory one. No conflict
-- Root `Package.swift` uses Ferrostar-style variable toggle: `useLocalFramework` (bool),
-    `releaseTag`, `releaseChecksum`. `binaryTarget` for distribution, local path for dev
-- Root `Package.swift` omits testTarget — tests stay in `packages/swift/` for CI only
-- `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` fat binaries →
-    `xcodebuild   -create-xcframework` → `ditto` zip → `swift package compute-checksum`. Output:
-    `target/ios/IsccLib.xcframework.zip`. Accepts `--release` (default) or `--debug`
-- Version constant: `packages/swift/Sources/IsccLib/Constants.swift` — `public let isccLibVersion`
-    synced by `scripts/version_sync.py`
+- Two `Package.swift` coexist: root (SPM consumers, reads for dep resolution) +
+    `packages/swift/Package.swift` (CI/local dev). Root uses Ferrostar toggle `useLocalFramework`
+    - `releaseTag`/`releaseChecksum`, `binaryTarget` for distribution; omits testTarget
+- `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` → `xcodebuild -create-xcframework` →
+    `ditto` zip → `compute-checksum`. Output `target/ios/IsccLib.xcframework.zip`
+    (`--release`/`--debug`)
+- Version constant: `packages/swift/Sources/IsccLib/Constants.swift` (`isccLibVersion`,
+    version_sync.py)
 - CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
-    `-Xlinker -L` (link-time) and `-Xlinker -rpath` (runtime) pointing to `target/debug`
+    `-Xlinker -L`/`-rpath` → `target/debug`
 
 ## Kotlin Bindings (UniFFI/JVM)
 

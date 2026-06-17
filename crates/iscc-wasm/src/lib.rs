@@ -521,3 +521,72 @@ impl InstanceHasher {
             .map_err(|e| JsError::new(&e.to_string()))
     }
 }
+
+/// Streaming composite ISCC-CODE (Sum) generator.
+///
+/// Runs the Data-Code (CDC/MinHash) and Instance-Code (BLAKE3) algorithms in a
+/// single pass over the input, then composes the final ISCC-CODE. Produces
+/// results identical to `gen_sum_code_v0` for the same byte stream, but lets
+/// callers feed data in chunks. Follows the
+/// `new() → update() → finalize()` pattern.
+#[wasm_bindgen]
+pub struct SumHasher {
+    inner: Option<iscc_lib::streaming::SumHasher>,
+}
+
+impl Default for SumHasher {
+    /// Create a new `SumHasher` (delegates to `new()`).
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[wasm_bindgen]
+impl SumHasher {
+    /// Create a new `SumHasher`.
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Self {
+            inner: Some(iscc_lib::streaming::SumHasher::new()),
+        }
+    }
+
+    /// Push data into the hasher.
+    pub fn update(&mut self, data: &[u8]) -> Result<(), JsError> {
+        self.inner
+            .as_mut()
+            .ok_or_else(|| JsError::new("SumHasher already finalized"))
+            .map(|h| h.update(data))
+    }
+
+    /// Consume the hasher and produce a composite ISCC-CODE result.
+    ///
+    /// After calling `finalize`, subsequent calls to `update` or `finalize`
+    /// will throw. Defaults: `bits` 64, `wide` false, `add_units` false. When
+    /// `add_units` is `true`, the result includes the individual Data-Code and
+    /// Instance-Code ISCC strings.
+    pub fn finalize(
+        &mut self,
+        bits: Option<u32>,
+        wide: Option<bool>,
+        add_units: Option<bool>,
+    ) -> Result<WasmSumCodeResult, JsError> {
+        let hasher = self
+            .inner
+            .take()
+            .ok_or_else(|| JsError::new("SumHasher already finalized"))?;
+        let result = hasher
+            .finalize(
+                bits.unwrap_or(64),
+                wide.unwrap_or(false),
+                add_units.unwrap_or(false),
+            )
+            .map_err(|e| JsError::new(&e.to_string()))?;
+        Ok(WasmSumCodeResult {
+            iscc: result.iscc,
+            datahash: result.datahash,
+            filesize: result.filesize as f64,
+            units: result.units,
+        })
+    }
+}

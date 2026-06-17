@@ -124,7 +124,7 @@ wasm-pack test --node crates/iscc-wasm -- --test unit
 
 ## Exported API Surface
 
-All 30 Tier 1 functions are bound, plus 2 result structs and 2 streaming types. Every
+All 30 Tier 1 functions are bound, plus 2 result structs and 3 streaming types. Every
 `#[wasm_bindgen]` export in `lib.rs` maps 1:1 to an `iscc_lib` public symbol:
 
 - **10 gen functions:** `gen_meta_code_v0`, `gen_text_code_v0`, `gen_image_code_v0`,
@@ -141,11 +141,14 @@ All 30 Tier 1 functions are bound, plus 2 result structs and 2 streaming types. 
 - **1 diagnostic:** `conformance_selftest` (feature-gated behind `conformance` Cargo feature)
 - **1 result struct:** `WasmSumCodeResult` (returned by `gen_sum_code_v0`, with `iscc`, `datahash`,
     `filesize`, and optional `units` fields)
-- **2 streaming types:** `DataHasher`, `InstanceHasher`
+- **3 streaming types:** `DataHasher`, `InstanceHasher`, `SumHasher`
 
-`DataHasher` and `InstanceHasher` are bound as `#[wasm_bindgen]` structs with `constructor`,
-`update()`, and `finalize()` methods. They use the `Option<Inner>` finalize-once pattern (consistent
-with the Python, napi, and JNI binding crates).
+`DataHasher`, `InstanceHasher`, and `SumHasher` are bound as `#[wasm_bindgen]` structs with
+`constructor`, `update()`, and `finalize()` methods. They use the `Option<Inner>` finalize-once
+pattern (consistent with the Python, napi, and JNI binding crates). `SumHasher` wraps the core
+`iscc_lib::streaming::SumHasher` (reached via its full module path — it is intentionally not a
+crate-root Tier 1 re-export) and its `finalize(bits?, wide?, add_units?)` returns the shared
+`WasmSumCodeResult`.
 
 ## Common Pitfalls
 

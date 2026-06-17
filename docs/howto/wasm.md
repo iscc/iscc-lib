@@ -301,7 +301,41 @@ const iscc = hasher.finalize();
 console.log(iscc);
 ```
 
-Both hashers accept `Uint8Array` input. After calling `finalize()`, the hasher is consumed and
+### SumHasher
+
+Produce a composite ISCC-CODE (Data-Code + Instance-Code) from a chunked stream in a single pass,
+without running two separate hashers. `finalize()` returns a `WasmSumCodeResult` with `iscc`,
+`datahash`, `filesize`, and optional `units` fields — the same shape as `gen_sum_code_v0`:
+
+```javascript
+import {
+    SumHasher
+} from "@iscc/wasm";
+
+const hasher = new SumHasher();
+
+// Process file in chunks (e.g., from a ReadableStream)
+const response = await fetch("https://example.com/large_file.bin");
+const reader = response.body.getReader();
+
+while (true) {
+    const {
+        done,
+        value
+    } = await reader.read();
+    if (done) break;
+    hasher.update(value); // value is a Uint8Array
+}
+
+// finalize(bits?, wide?, add_units?) — pass add_units=true to include units
+const result = hasher.finalize(undefined, undefined, true);
+console.log(result.iscc); // "ISCC:KAA..."
+console.log(result.datahash); // Multihash of the data
+console.log(result.filesize); // Size in bytes
+console.log(result.units); // [dataCode, instanceCode]
+```
+
+All three hashers accept `Uint8Array` input. After calling `finalize()`, the hasher is consumed and
 further calls throw an error.
 
 ## Text utilities
