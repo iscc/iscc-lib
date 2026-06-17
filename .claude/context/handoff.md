@@ -1,57 +1,53 @@
-## 2026-06-17 — Review of: PyO3 incremental bump 0.23 → 0.24 (first migration increment)
+## 2026-06-17 — PyO3 incremental bump 0.24 → 0.25
 
-**Verdict:** PASS
+**Done:** Bumped the workspace `pyo3` pin from `0.24` to `0.25` (preserving
+`features = ["abi3-py310"]`) and refreshed `Cargo.lock` to `0.25.1`. Like the 0.23→0.24 hop, this
+needed **zero source changes** — the next.md prediction that 0.25 would force
+`IntoPyObject`/lifetime edits did not materialize for this codebase. Build, clippy (`-D warnings`),
+fmt, the maturin abi3 wheel, and all 286 pytest tests pass green.
 
-**Summary:** The advance agent bumped the workspace `pyo3` pin from `0.23` to `0.24` (preserving
-`features = ["abi3-py310"]`) and refreshed `Cargo.lock` — a clean, minimal, behavior-preserving
-dependency bump that needed zero source changes. All verification is green: build, clippy, fmt,
-maturin wheel, 286 pytest, and all 15 pre-commit hooks pass. Scope matches next.md exactly (only
-`Cargo.toml` + generated `Cargo.lock`; `crates/iscc-py/src/lib.rs` untouched).
+**Files changed:**
 
-**Concurrency note (resolved):** The iter-97 handoff carried a HUMAN REVIEW REQUESTED banner about
-two CID loops racing `develop`. `ps aux` now shows a single `mise run cid:run` tree (pts/6, pid
-78441\) — the duplicate is gone. The hazard is cleared, so this review pushes the accumulated
-backlog.
+- `Cargo.toml`: `pyo3` pin `0.24` → `0.25` in `[workspace.dependencies]` (line 35),
+    `features = ["abi3-py310"]` unchanged.
+- `Cargo.lock`: refreshed via `cargo update -p pyo3` — `pyo3`, `pyo3-build-config`, `pyo3-ffi`,
+    `pyo3-macros`, `pyo3-macros-backend` all `0.24.2` → `0.25.1` (5 packages).
+- `crates/iscc-py/src/lib.rs`: **untouched** (no API changes required).
 
 **Verification:**
 
-- [x] `grep 'pyo3 = { version = "0.24"' Cargo.toml` matches & `cargo tree -p iscc-py -i pyo3` →
-    `pyo3 v0.24.2`
-- [x] `cargo build -p iscc-py` — clean (finished in ~23s)
-- [x] `cargo clippy -p iscc-py -- -D warnings` — clean, no deprecations
-- [x] `cargo fmt --check` — clean
-- [x] `maturin develop` + `uv run pytest` — abi3 wheel built
-    (`iscc_lib-0.4.0-cp310-abi3-linux_x86_64.whl`), **286 passed**, no count regression; benchmarks
-    still well ahead of iscc-core (no perf concern)
-- [x] `abi3-py310` still present in `Cargo.toml` & `crates/iscc-py/pyproject.toml` still
+- `grep 'pyo3 = { version = "0.25"' Cargo.toml` matches; `cargo tree -p iscc-py -i pyo3` →
+    `pyo3 v0.25.1`
+- `cargo build -p iscc-py` — clean
+- `cargo clippy -p iscc-py -- -D warnings` — clean, no new deprecation warnings
+- `cargo fmt --check` — clean (exit 0)
+- `uv run maturin develop` — built `iscc_lib-0.4.0-cp310-abi3-linux_x86_64.whl`
+- `uv run pytest` — **286 passed**, no count regression vs the 0.24 baseline. (The single warning is
+    the pre-existing `iscc_core` Pydantic-V1/Python-3.14 `UserWarning` from the reference package
+    used in comparison tests — unrelated to pyo3.)
+- `abi3-py310` still present in `Cargo.toml`; `crates/iscc-py/pyproject.toml` still
     `requires-python = ">=3.10"`
-- [x] `mise run check` — all 15 pre-commit hooks pass
+- `mise run check` — all 15 pre-commit hooks pass
+- pre-push stage (`uv run prek run --hook-stage pre-push --all-files`) — all pass (Rust linting,
+    Rust tests, Python type checking, Ruff S/C901, Ruby linting, Python tests), exit 0
+- Benchmarks (in pytest run) still well ahead of iscc-core — no perf concern.
 
-**Issues found:**
-
-- (none) — no API break (no codec public symbol touched), no gate circumvention in any of the 9
-    unpushed commits (verified `git diff @{upstream}..HEAD`; line-284 `continue-on-error` is the
-    informational `semver` job, the CRAP `coverage` job remains enforcing), no perf regression.
-
-**Codex review:** No blocking regressions. Codex confirmed the commit "only bumps PyO3 and its
-lockfile dependencies plus internal handoff notes … builds cleanly and the Python bindings remain
-compatible with the configured abi3 Python targets."
-
-**Next:** Continue the incremental PyO3 migration: **0.24 → 0.25**. Same self-contained recipe (bump
+**Next:** Continue the incremental PyO3 migration: **0.25 → 0.26**. Same self-contained recipe (bump
 pin in root `Cargo.toml` → `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt →
-`uv run maturin develop` → `uv run pytest`). Watch for real source work starting at 0.25 (PyO3 0.25+
-tightens `IntoPyObject`/lifetime rules that 0.24 did not require). RustSec advisories only clear at
-0.29 — keep going one minor per step. Other open `normal` work: the CRAP `--fail-above 30` hardening
-([review] issue) and the `iai-callgrind` perf-regression CI gate.
+`uv run maturin develop` → `uv run pytest`). RustSec advisories only clear at 0.29, so keep going
+one minor per step. Note: the predicted `IntoPyObject`/lifetime breaking changes have not appeared
+at 0.24 or 0.25 — they may still hit at 0.26+, so keep watching `-D warnings` for deprecations.
+Other open `normal` work unchanged: CRAP `--fail-above 30` hardening and the `iai-callgrind` perf
+gate.
 
 **Notes:**
 
-- This push sends a **9-commit batch** (origin/develop is 9 behind; local is 9 ahead, 0 behind — a
-    clean fast-forward). It includes the iter-97 CRAP Phase 3 work (reviewed PASS_WITH_NOTES in iter
-    97 but never pushed because of the duplicate-loop hazard). CI on this push verifies the CRAP
-    Phase 3 enforcing gate **and** the PyO3 0.24 bump together for the first time — watch the
-    `Coverage + CRAP` and `Python` jobs on the resulting CI run.
-- `maturin`/`prek` are not on PATH directly — invoke via `uv run maturin` / `uv run prek` (uv warns
-    `VIRTUAL_ENV` differs from the project venv `/home/dev/.venvs/iscc-lib`; harmless).
-- No `unsafe` introduced; the pre-existing raw-FFI `unsafe` blocks in `lib.rs` still compile on
-    0.24, confirming `Bound::from_owned_ptr` / `downcast_into_unchecked` remain in the 0.24 API.
+- No `unsafe` introduced; the pre-existing raw-FFI `unsafe` blocks in `lib.rs`
+    (`Bound::from_owned_ptr`, `downcast_into_unchecked`, raw `pyo3::ffi::*`) all still compile on
+    0.25, confirming those APIs remain stable through this minor.
+- No API break (no codec/Tier 1 public symbol touched); binding semantics (result-dict keys/value
+    types) unchanged.
+- `maturin`/`prek` are not on PATH — invoke via `uv run`; uv warns `VIRTUAL_ENV` differs from the
+    project venv `/home/dev/.venvs/iscc-lib` (harmless).
+- Working tree also shows `.claude/context/iterations.jsonl` modified (CID loop bookkeeping) — NOT
+    staged in this commit per protocol.
