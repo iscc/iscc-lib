@@ -37,6 +37,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **v1.0.0 gates check** (all should appear when done):
     `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml` + `ls .cargo-crap.toml`
     - `grep -iE "coverage|crap|semver|callgrind" mise.toml`
+- **Coverage gate Phase 1 present iter 94** (`0697195`/`f61efa0`): `Coverage (cargo llvm-cov)` job
+    at ci.yml:293, no `needs:`, NO `continue-on-error`. `dtolnay/rust-toolchain@stable` +
+    `components: llvm-tools-preview` → `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) →
+    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`).
+    Mirrored `mise run coverage` at mise.toml:110. `lcov.info` gitignored (137KB). ARTIFACT ONLY —
+    no score gate. Phase 2 (`cargo crap` report-only + SARIF) + Phase 3 (`--fail-regression`
+    baseline) remain → CRAP issue stays OPEN. ci-cd.md "Coverage job ... (Phase 1)" checkbox now
+    `[x]`.
 - **Semver gate present iter 93** (`9d42077`): `Semver (cargo-semver-checks)` job at ci.yml:280,
     `obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, **`continue-on-error: true`**
     (informational until v1.0.0). Mirrored `mise run semver` at mise.toml:104. CAUTION: the job
@@ -71,8 +79,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `scripts/build_xcframework.sh` — builds XCF for 5 Apple targets, lipo fat binaries, ditto zip
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
-- `.github/workflows/ci.yml` — **17 CI jobs** (16 functional incl. root Package.swift dump-package
-    smoke test + the non-blocking `Semver` job added iter 93)
+- `.github/workflows/ci.yml` — **17 YAML job entries → 18 actual jobs** (`python-test` matrix
+    expands 3.10 + 3.14): 16 functional jobs (incl. root Package.swift dump-package smoke test) +
+    the non-blocking `Semver` job (iter 93) + the `Coverage (cargo llvm-cov)` artifact job (iter
+    94). `push:` under `on:` is NOT a job; a bare `^  [a-z].*:$` grep over-counts — read the job
+    names.
 - `.github/workflows/release.yml` — **8 registry input toggles** (`type: boolean`): crates-io, pypi,
     npm, maven, ffi, rubygems, nuget, maven-kotlin. Swift XCFramework is NOT a toggle — it builds in
     `prepare-release` (line ~55). **provenance guard** on build-xcframework. After #38 fix (iter 92)
@@ -109,19 +120,23 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: 96558ca)
+## Current State (assessed-at: 140aeba)
 
 - **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **CI**: overall green (run 27664286163, sha `758fc31`). 16 functional jobs green + non-blocking
-    `Semver` job (reports `failure` but `continue-on-error` keeps run green). This run **includes**
-    the semver-gate addition (advance `9d42077`, review `758fc31`). HEAD `96558ca` == origin/develop
-    is `cid(log): iteration 93` (iterations.jsonl/memory/context only). All code pushed and
-    verified.
+- **CI**: overall green (run 27666337100, sha `f61efa0`). 18 actual jobs: 16 functional + Coverage
+    (green, artifact-only) + non-blocking `Semver` (reports `failure` but `continue-on-error` keeps
+    run green). This run **includes** the Phase 1 coverage-job addition (advance `0697195`, review
+    `f61efa0`). HEAD `140aeba` is ONE commit ahead of origin/develop (`f61efa0`); the lead is
+    `cid(log): iteration 94` (iterations.jsonl/memory/context only). All code pushed and verified.
 - **5 issues: 0 critical, 3 normal, 2 low** (count by grepping header lines anchored with a leading
     `##` before the priority label — that excludes the legend line, so no -1 adjustment needed).
+- **Coverage gate Phase 1 ADDED (iteration 94, `0697195`/`f61efa0`)** — `Coverage (cargo llvm-cov)`
+    CI job + `mise run coverage` + `lcov.info` gitignored. Phase 1 (LCOV artifact) of the 3-phase
+    "Rust coverage + CRAP gate" issue; Phase 2 (`cargo crap` report-only + SARIF) and Phase 3
+    (`--fail-regression`) remain → issue STAYS OPEN. CI/config/doc only — no source/API surface.
 - **Informational semver gate ADDED (iteration 93, `9d42077`/`758fc31`)** — closes the
-    cargo-semver-checks issue (deleted). One of four normal backlog items done. CI/config/doc only —
-    no source/API/conformance/perf surface touched.
+    cargo-semver-checks issue (deleted). CI/config/doc only — no source/API/conformance/perf
+    surface.
 - **npm optionalDeps #38 CLOSED (iteration 92, `5d8ecb7`/`fa59c0b`)** — `napi prepublish` step
     deleted from `release.yml`; npm ships single bundled package. Node.js now MET. Docs updated
     (iscc-napi CLAUDE.md, notes 02/06). No code/API/conformance surface touched.
@@ -137,20 +152,17 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Python SumHasher (iteration 89, `742759b`)**: `#[pyclass(name="SumHasher")]` = `PySumHasher` at
     `crates/iscc-py/src/lib.rs:631` over `iscc_lib::streaming::SumHasher`; Pythonic wrapper class at
     `__init__.py:349`, exported in `__all__` (line 402); `.pyi` stub + 11 tests.
-- **Core SumHasher (iteration 88, `3fc44d2`)**: `pub struct SumHasher` in `streaming.rs:157`
-    (new/update/finalize(bits,wide,add_units)/Default). `gen_sum_code_v0` (lib.rs:997) drives it.
-    Reachable as `iscc_lib::streaming::SumHasher` but NOT a crate-root re-export (only
-    `DataHasher`/`InstanceHasher` are, lib.rs:24). SumHasher NOT promoted to Tier 1 — counts stay
-    32\.
-- **Module visibility (iteration 86, `3f6a61d`)**:
-    `cdc/conformance/dct/minhash/simhash/utils/wtahash` = `pub(crate) mod`; only
-    `codec/streaming/types` = `pub mod`. Issue swept.
-- **Open normal gaps (3)**: PyO3 0.23→0.29 (RustSec, still pinned at `Cargo.toml`), CRAP coverage
-    gate, iai-callgrind perf gate. (cargo-semver-checks gate now present — informational.)
+- (Core SumHasher iter 88 + Module visibility iter 86 details archived — both fully closed; see
+    Codebase Landmarks for the live SumHasher / module-visibility facts.)
+- **Open normal gaps (3)**: PyO3 0.23→0.29 (RustSec, still pinned at `Cargo.toml`), CRAP gate Phases
+    2–3 (Phase 1 coverage LCOV DONE iter 94), iai-callgrind perf gate. (cargo-semver-checks gate
+    present — informational.) Next incremental step = CRAP Phase 2 (`cargo crap` report-only +
+    SARIF, builds on the `lcov.info` artifact).
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
-- **Partially-met sections**: Rust Core (semver gate now informational; perf gate still missing;
-    enforcing-semver needs v1.0.0), Python (**PyO3 only — GIL MET**), CI/CD (2 v1.0.0 tooling gates:
-    CRAP + iai-callgrind). Node.js MET. WASM MET. All 12 bindings functionally met.
+- **Partially-met sections**: Rust Core (semver gate informational; perf gate missing;
+    enforcing-semver needs v1.0.0), Python (**PyO3 only — GIL MET**), CI/CD (Coverage Phase 1 done;
+    CRAP Phases 2–3 + iai-callgrind remain). Node.js MET. WASM MET. All 12 bindings functionally
+    met.
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists; python-bindings.md "GIL Release During Hashing" now all `[x]`.
     Re-read on incremental review.
