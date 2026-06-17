@@ -29,21 +29,6 @@ Constraints / verification:
 - Update `Cargo.lock`; re-run the supply-chain check (`cargo deny check` / `cargo audit`, per
     `notes/07-security-versioning.md`) to confirm the advisories clear.
 
-## Add Rust coverage + CRAP-metric quality gate `normal` [human]
-
-Stand up Rust test-coverage measurement (`cargo llvm-cov` → LCOV) for the core `iscc-lib` crate and
-gate it with the CRAP (Change Risk Anti-Patterns) metric via
-[`cargo-crap`](https://github.com/minikin/cargo-crap). Today Rust complexity is gated (clippy
-`cognitive-complexity-threshold = 15`) but coverage is unmeasured; CRAP combines both to surface
-functions that are complex *and* undertested. Implement as a CI job — not a pre-push hook, since
-instrumented coverage runs would roughly double local push time. Phase it in: (1) `cargo llvm-cov`
-LCOV artifact, (2) report-only `cargo crap` with GitHub annotations + SARIF upload, (3)
-`--fail-regression` against a baseline refreshed on merges to `develop`. Pin `cargo-crap` (pre-1.0),
-install via `cargo binstall`, configure via `.cargo-crap.toml`, and add `mise run coverage` /
-`mise run crap` local tasks.
-
-**Spec:** `.claude/context/specs/ci-cd.md` → "Rust Coverage and CRAP Quality Gate"
-
 ## CRAP gate does not fail on new high-CRAP functions `normal` [review]
 
 The Phase 3 CRAP gate (`cargo crap --baseline .crap-baseline.json --fail-regression`, ci.yml) only

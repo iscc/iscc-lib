@@ -186,8 +186,9 @@ active:
     `learnings-archive.md`. Verify via `allow_threads` grep count + `ty check` (`.pyi` unchanged)
 - **PyO3 minor migration** (0.23→0.29, one minor per CID step; advisories clear only at 0.29): pin
     is root `Cargo.toml` `[workspace.dependencies]`, used by `iscc-py` alone. Python-only review +
-    `cargo tree -p iscc-py -i pyo3` for resolved version. 0.23→0.24 was zero-source; expect real
-    source work at 0.25+. Build `uv run maturin develop` then `uv run pytest` (286 tests)
+    `cargo tree -p iscc-py -i pyo3` for resolved version. 0.23→0.24 AND 0.24→0.25 both zero-source —
+    the predicted `IntoPyObject`/lifetime breaks have NOT hit yet (be skeptical of "real work at
+    0.26+" too, but watch `-D warnings`). Build `uv run maturin develop` then `uv run pytest` (286)
 
 ## Ruby Binding Review
 

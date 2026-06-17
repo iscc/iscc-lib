@@ -29,11 +29,13 @@ fully-met target sections to `learnings-archive.md`.
 - `cargo clippy -- -D warnings` runs in pre-push stage (not pre-commit)
 - Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
 - **PyO3 minor bumps** (incremental migration 0.23→0.29, one minor per CID step): `pyo3` lives only
-    in root `Cargo.toml` `[workspace.dependencies]` (used by `iscc-py` alone). 0.23→0.24 needed ZERO
-    source changes — `dict.into()`, raw `pyo3::ffi::*` + `Bound::from_owned_ptr` stable on 0.24. Per
-    hop: bump pin → `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt →
-    `uv run maturin develop` → `uv run pytest` (286 tests). Expect real source work at 0.25+
-    (tighter `IntoPyObject`/lifetimes); RustSec advisories only clear at 0.29
+    in root `Cargo.toml` `[workspace.dependencies]` (used by `iscc-py` alone). 0.23→0.24 AND
+    0.24→0.25 both needed ZERO source changes — `dict.into()`, raw `pyo3::ffi::*` +
+    `Bound::from_owned_ptr` stable through 0.25. Per hop: bump pin → `cargo update -p pyo3` →
+    build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests). The
+    predicted `IntoPyObject`/lifetime breaks did NOT materialize at 0.24 or 0.25 — treat that
+    prediction skeptically for 0.26+ too, but keep watching `-D warnings` for deprecations. RustSec
+    advisories only clear at 0.29
 
 ## ISCC Algorithm Knowledge
 
