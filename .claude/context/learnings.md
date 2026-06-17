@@ -35,12 +35,19 @@ fully-met target sections to `learnings-archive.md`.
     `pyo3::PyObject` alias → `Py<PyAny>` return type (17 sites). **0.26→0.27 was the SECOND hop with
     edits** — the cast-family rename in `to_pylist`: `Bound::downcast` → `Bound::cast` and
     `downcast_into_unchecked` → `cast_into_unchecked` (identical signatures/semantics; error type
-    `DowncastError` → `CastError` but discarded by `if let Ok`). raw `pyo3::ffi::*` +
-    `Bound::from_owned_ptr` STILL stable through 0.27. Per hop: bump pin → `cargo update -p pyo3` →
-    build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests). The
-    predicted `IntoPyObject`/lifetime breaks have NOT materialized through 0.27 — two consecutive
-    hops were small deprecation renames; treat `-D warnings` as the gate. RustSec advisories only
-    clear at 0.29 (now 2 hops away)
+    `DowncastError` → `CastError` but discarded by `if let Ok`). **0.27→0.28 (iter 104) compiled
+    clean (zero deprecation edits) BUT carried a SILENT behavior change `-D warnings` does NOT
+    catch**: PyO3 0.28 flipped the unspecified `#[pymodule]` `gil_used` default from `true`
+    (macros-backend 0.27 `map_or(true,…)`) to `false` (0.28 `is_some_and(…)`). With it `false`, on
+    free-threaded CPython source builds the module imports WITHOUT re-enabling the GIL — unsafe for
+    the raw borrowed `PyList_GetItem` pointers in `extract_frame_sigs`. Fix applied in review:
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` to restore pre-0.28 semantics (no-op on
+    GIL-enabled/abi3-published wheels; only matters for from-source free-threaded builds). raw
+    `pyo3::ffi::*` + `Bound::from_owned_ptr` STILL stable through 0.28. Per hop: bump pin →
+    `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt → `uv run maturin develop` →
+    `uv run pytest` (286 tests) — AND diff the macros-backend default-handling, not just compiler
+    warnings. NEXT HOP 0.28→0.29 is FINAL (RustSec advisories clear; closes issue #1); verify
+    `cargo audit` after
 
 ## ISCC Algorithm Knowledge
 

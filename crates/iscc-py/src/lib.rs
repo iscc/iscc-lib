@@ -687,7 +687,14 @@ impl PySumHasher {
 }
 
 /// Python module `iscc_lib._lowlevel` backed by Rust.
-#[pymodule(name = "_lowlevel")]
+///
+/// `gil_used = true` preserves the pre-PyO3-0.28 default: PyO3 0.28 flipped the
+/// unspecified `#[pymodule]` default from `true` to `false`, so on free-threaded
+/// CPython builds the module would import without re-enabling the GIL. The raw
+/// borrowed `PyList_GetItem` pointers in `extract_frame_sigs` are not
+/// free-threading-safe, so this opts back into GIL protection. Only set `false`
+/// after auditing those FFI paths for free-threaded soundness.
+#[pymodule(name = "_lowlevel", gil_used = true)]
 fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(gen_meta_code_v0, m)?)?;
     m.add_function(wrap_pyfunction!(gen_text_code_v0, m)?)?;

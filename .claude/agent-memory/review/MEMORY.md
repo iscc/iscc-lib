@@ -187,8 +187,17 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     0.25→0.26 FIRST hop needing edits: `allow_threads`→`detach` (7 sites) + `PyObject` alias →
     `Py<PyAny>` returns (17 sites); 0.26→0.27 SECOND hop: `to_pylist` cast rename
     `downcast`/`downcast_into_unchecked` → `cast`/`cast_into_unchecked` (mechanical, error type
-    discarded). Verify deprecated APIs gone: grep `allow_threads`/`downcast`/`PyResult<PyObject>` =
-    0\. `uv run maturin develop` then `uv run pytest` (286). Watch `-D warnings` each hop
+    discarded). 0.27→0.28 (iter 104) compiled ZERO-edit clean BUT carried a SILENT runtime flip
+    `-D warnings` can't catch: PyO3 0.28 changed the unspecified `#[pymodule]` `gil_used` default
+    `true`→`false` (macros-backend `module.rs`: 0.27 `map_or(true,…)` → 0.28 `is_some_and(…)`). On
+    free-threaded CPython source builds the module then imports WITHOUT re-enabling the GIL — unsafe
+    for the raw borrowed `PyList_GetItem` ptrs in `extract_frame_sigs`. Review fixed by adding
+    `gil_used = true` to the `#[pymodule]` (no-op on abi3 wheels/GIL builds; restores 0.27
+    behavior). LESSON: each pyo3 hop, diff the macros-backend default handling — "compiles clean" ≠
+    behavior-neutral. Verify deprecated APIs gone: grep
+    `allow_threads`/`downcast`/`PyResult<PyObject>` = 0. `uv run maturin develop` then
+    `uv run pytest` (286). NEXT 0.28→0.29 is FINAL (advisories clear, closes issue #1; `cargo audit`
+    after). Watch `-D warnings` each hop
 
 ## Ruby Binding Review
 
