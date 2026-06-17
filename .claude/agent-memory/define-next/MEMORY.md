@@ -159,15 +159,15 @@ iterations.
     handoff's #38 recommendation (npm `optionalDependencies` fix is in `release.yml`, only runs via
     `workflow_dispatch`, and verifying it needs a real `npm publish`/`npm ci` + napi v3 loader
     investigation — see Gotcha note), over CI gates (semver-checks/iai-callgrind/coverage need
-    network/valgrind — unverifiable locally), and over PyO3 0.23→0.29 (six-minor migration).
-    #39 is code-only (1 file: `crates/iscc-py/src/lib.rs`), now-ready (SumHasher landed), and
+    network/valgrind — unverifiable locally), and over PyO3 0.23→0.29 (six-minor migration). #39 is
+    code-only (1 file: `crates/iscc-py/src/lib.rs`), now-ready (SumHasher landed), and
     compile-verifiable. Implementation: wrap pure-Rust compute in `py.allow_threads(...)` at 7 sites
     — 4 one-shot fns (`gen_data/instance/image/sum_code_v0`, all already take `py: Python<'_>`) + 3
-    `update()` methods (ADD `py: Python<'_>` param — invisible to Python, `.pyi` unchanged). `&[u8]`,
-    `&str`, `&mut iscc_lib::DataHasher`, and the result structs are all `Ungil + Send`, so closures
-    type-check; keep `PyDict` construction OUTSIDE the closure (needs GIL). Public `__init__.py`
-    wrapper already coerces inputs to immutable `bytes`, so the borrowed buffer is sound across the
-    release. NOT in scope: `finalize()` (issue scopes only update + one-shot), size-threshold (YAGNI;
-    wrapper feeds 64 KiB chunks), perf microbench (non-deterministic). Verify: `cargo build -p
-    iscc-py` + `grep -c allow_threads >=7` + `maturin develop` then `pytest`. `allow_threads` is the
-    correct API name in PyO3 0.23 (NOT `detach`, which is 0.25+).
+    `update()` methods (ADD `py: Python<'_>` param — invisible to Python, `.pyi` unchanged).
+    `&[u8]`, `&str`, `&mut iscc_lib::DataHasher`, and the result structs are all `Ungil + Send`, so
+    closures type-check; keep `PyDict` construction OUTSIDE the closure (needs GIL). Public
+    `__init__.py` wrapper already coerces inputs to immutable `bytes`, so the borrowed buffer is
+    sound across the release. NOT in scope: `finalize()` (issue scopes only update + one-shot),
+    size-threshold (YAGNI; wrapper feeds 64 KiB chunks), perf microbench (non-deterministic).
+    Verify: `cargo build -p   iscc-py` + `grep -c allow_threads >=7` + `maturin develop` then
+    `pytest`. `allow_threads` is the correct API name in PyO3 0.23 (NOT `detach`, which is 0.25+).

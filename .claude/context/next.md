@@ -64,14 +64,14 @@ unaffected — this is purely a concurrency improvement.
     finalized-error check stays GIL-held (it touches `self`).
 - **Soundness of the `&[u8]` borrow**: the public Python wrapper in `__init__.py` already coerces
     inputs to immutable `bytes` before calling `_lowlevel`, so the borrowed buffer cannot be mutated
-    by another thread during the release. Prefer the borrowed `&[u8]` if it compiles; only copy to an
-    owned `Vec<u8>` before the closure if the borrow checker objects.
+    by another thread during the release. Prefer the borrowed `&[u8]` if it compiles; only copy to
+    an owned `Vec<u8>` before the closure if the borrow checker objects.
 - `tests/test_gil.py`: spin up N threads (e.g., via `concurrent.futures.ThreadPoolExecutor` or
-    `threading.Thread`), each hashing the same and/or distinct byte payloads through `gen_data_code_v0`,
-    `gen_instance_code_v0`, a streaming `DataHasher`/`InstanceHasher`/`SumHasher`, and assert outputs
-    equal the single-threaded results. This verifies correctness-under-concurrency deterministically
-    (it does not assert a speedup). Use `from iscc_lib import ...` (public API), per the crate's test
-    convention.
+    `threading.Thread`), each hashing the same and/or distinct byte payloads through
+    `gen_data_code_v0`, `gen_instance_code_v0`, a streaming
+    `DataHasher`/`InstanceHasher`/`SumHasher`, and assert outputs equal the single-threaded results.
+    This verifies correctness-under-concurrency deterministically (it does not assert a speedup).
+    Use `from iscc_lib import ...` (public API), per the crate's test convention.
 
 ## Verification
 

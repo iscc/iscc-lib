@@ -69,8 +69,8 @@ fully-met target sections to `learnings-archive.md`.
     WTA-Hash across blocks. Video-Code: per-frame DCT → WTA-Hash per frame → SimHash across frames
 - JSON `meta` parameter: uses JCS (RFC 8785) canonicalization. `@context` key triggers
     `application/ld+json` media type, otherwise `application/json`
-- `conformance_selftest` bitwise AND masking for truncated codes — do NOT compare full strings when
-    bit_length < 256
+- `conformance_selftest` uses bitwise-AND masking for truncated codes — do NOT compare full strings
+    when bit_length < 256
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID
 - C FFI decode: length index for 64-bit codes is 1 (not 0) — `decode_length` uses
@@ -95,10 +95,9 @@ fully-met target sections to `learnings-archive.md`.
     test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish. Each
     tests linux-x86_64 artifact on ubuntu-latest
 - **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
-- **Swift release job is tag-dependent**: Unlike all other release jobs (which derive version from
-    `Cargo.toml`), `build-xcframework` uses `GITHUB_REF_NAME` for version and tag operations. The
-    `--ref main` re-trigger convention does not work for Swift — needs spec fix to derive version
-    from `Cargo.toml` instead
+- **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
+    `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger
+    convention breaks for Swift — needs a spec fix to derive version from `Cargo.toml`
 - **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift). When re-triggering individual registries, always use `--ref main`
 - **Version sync**: `version_sync.py` manages 16 targets (including root `Package.swift`
@@ -138,9 +137,8 @@ fully-met target sections to `learnings-archive.md`.
     stale simultaneously — group the cleanup into a single step targeting all affected files
 - Java requires JDK 17+ (pom.xml `maven.compiler.source/target` = 17), not 11+. Always cross-check
     version claims in docs against actual build config files
-- WASM tab snippets should include `await init()` when showing standalone examples — it's required
-    before any WASM function call. Can omit for brevity in sequential examples where init was shown
-    earlier
+- WASM tab snippets need `await init()` before any WASM call in standalone examples (omit only in
+    sequential examples where init was already shown)
 - **cbindgen `iscc_` prefix on types**: `cbindgen.toml` has `[export] prefix = "iscc_"` but
     `[fn] prefix = ""`. All type names in C code examples must use `iscc_`-prefixed forms
     (`iscc_FfiDataHasher`, `iscc_IsccSumCodeResult`, etc.) while function names are un-prefixed
@@ -166,6 +164,13 @@ fully-met target sections to `learnings-archive.md`.
     constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
+- **PyO3 GIL release (`py.allow_threads`)**: inject `py: Python<'_>` into a `#[pymethods]`
+    `update()` — PyO3 auto-supplies it, so it's invisible to Python and `_lowlevel.pyi` stays
+    unchanged (`ty   check` confirms). Take the `&mut inner` borrow + finalized check BEFORE
+    releasing; release only around the pure compute (keep `PyDict` build outside).
+    `&[u8]`/`&mut *Hasher` are `Ungil + Send`, no copy needed. Sound because `__init__.py` coerces
+    inputs to immutable `bytes` and `_lowlevel` is private (no public path hands a mutable buffer to
+    the released borrow)
 
 ## Swift Package
 
@@ -180,9 +185,8 @@ fully-met target sections to `learnings-archive.md`.
 - **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current
     iteration's advance step — it does NOT sweep the full issues.md backlog. Fix: review agent
     should scan all issues.md entries against state.md "met" sections after reviewing advance work
-- **Context growth**: learnings.md and agent memory files grow monotonically. No agent autonomously
-    prunes. Manual cleanup required periodically. Archive completed-phase entries to prevent token
-    bloat
+- **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
+    Archive completed-phase entries periodically to prevent token bloat
 
 ## Kotlin JAR Artifact Selection
 
@@ -193,8 +197,6 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Devcontainer Scripts (exec bit / Windows bind mount)
 
-- Windows bind mount uses `core.fileMode = false`, so git ignores on-disk exec bits — an Edit/Write
-    that drops a script's exec bit leaves `git status` clean while breaking direct invocation. Rule:
-    in `postCreateCommand`, invoke scripts via `bash .devcontainer/foo.sh` (read-only, immune to the
-    dropped bit), and make convenience steps non-fatal (`{ bash ... || echo skipped; }`). Full
-    incident write-up archived in `learnings-archive.md`.
+- Windows bind mount uses `core.fileMode = false`, so git ignores on-disk exec bits — invoke
+    devcontainer scripts via `bash foo.sh` and keep convenience steps non-fatal. Full write-up in
+    `learnings-archive.md`.

@@ -55,27 +55,6 @@ bundling all five costs little and removes the whole `optionalDependencies` frag
 **Spec:** `.claude/context/specs/nodejs-bindings.md` → "Native Binary Distribution" (rewritten to
 the bundled-package model with a revisit trigger if the bundle grows past ~30 MB)
 
-## Release the GIL during Python hashing (`allow_threads`) `normal` [human]
-
-GitHub: https://github.com/iscc/iscc-lib/issues/39
-
-`crates/iscc-py/src/lib.rs` holds the GIL for the entire duration of hashing —
-`grep allow_threads crates/iscc-py/src/` returns nothing (confirmed). Two Python threads each
-driving a hasher therefore serialize on the CPU-bound hash work instead of running in parallel,
-bottlenecking threaded consumers (e.g. `iscc-sdk`'s `ThreadPoolExecutor` overlap of
-`code_sum`/`code_meta`/`code_image`). Wrap the pure-Rust compute in `py.allow_threads(...)` for the
-streaming `update()` methods (`PyDataHasher` ~:541, `PyInstanceHasher` ~:585, and the new
-`SumHasher`) and the one-shot byte-data functions (`gen_data_code_v0`, `gen_instance_code_v0`,
-`gen_image_code_v0`, `gen_sum_code_v0`). Output is byte-identical, so conformance is unaffected.
-Caveats: the `data: &[u8]` borrow of the Python buffer must satisfy PyO3's `Ungil`/`Send` bounds
-across the release (confirm soundness for immutable `bytes`, else copy the slice first); consider a
-small-input size threshold so releasing the GIL doesn't regress tiny `update()` calls. Injecting
-`py: Python<'_>` does not change the Python-facing signature (non-breaking). Validate with a
-2-thread multi-GB microbenchmark (expect ~2× on the streaming hashers) and an unchanged self-test
-suite.
-
-**Spec:** `.claude/context/specs/python-bindings.md` → "GIL Release During Hashing"
-
 ## Add Rust coverage + CRAP-metric quality gate `normal` [human]
 
 Stand up Rust test-coverage measurement (`cargo llvm-cov` → LCOV) for the core `iscc-lib` crate and

@@ -35,6 +35,12 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     patterns must include target name. Generic wildcards match all extracted dirs
 - **Advance agent idle claims**: always verify remaining issue priorities independently — advance
     agents may incorrectly claim "only low-priority issues remain" when normal issues still exist
+- **`mise run check` mdformat Failure on context files**: recurring — define-next writes `next.md`
+    and `define-next/MEMORY.md` non-mdformat-conforming, so `prek --all-files` reformats them every
+    cycle. NOT a regression in advance work. Revert with
+    `git checkout -- .claude/context/next.md   .claude/agent-memory/define-next/MEMORY.md` (and
+    never stage `iterations.jsonl` — runner-owned). Real `git commit` only runs hooks on staged
+    files, so the actual review commit is unaffected
 
 ## Review Shortcuts
 
@@ -73,9 +79,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`). CI never runs it
 - `streaming::SumHasher` is core-only, NOT a crate-root Tier 1 re-export — reach via full path
     `iscc_lib::streaming::SumHasher`. `gen_sum_code_v0` is a thin wrapper delegating to
-    `SumHasher::finalize(bits,wide,add_units)`. **#37 fully closed across all bindings: core iter
-    88, PyO3 `PySumHasher` iter 89, WASM `SumHasher` iter 90 (reuses `WasmSumCodeResult`,
-    `filesize u64→f64`). Deleted from issues.md; wasm-bindings.md spec updated.**
+    `SumHasher::finalize(bits,wide,add_units)`. **#37 fully closed across all bindings** (core iter
+    88, PyO3 iter 89, WASM iter 90); issue deleted, wasm-bindings.md spec updated
 
 ## Binding State
 
@@ -180,9 +185,12 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 - Python `iscc_lib`: compile with `cd crates/iscc-py && uv run maturin develop --release`
 - `.pyi` stub sync: `ty check` catches mismatches, `mise run check` does not
-- **Pre-push needs iscc_lib built**: `ty check` and `pytest` hooks import `iscc_lib` — if not
-    compiled, push fails. Build before pushing:
-    `cd crates/iscc-py && uv run maturin develop --release`
+- **Pre-push needs iscc_lib built**: `ty check` and `pytest` hooks import `iscc_lib` — build before
+    pushing (same maturin command above), else push fails
+- **PyO3 GIL-release review** (iter 91, #39): grep `allow_threads` count matches expected sites,
+    `ty check` confirms `.pyi` unchanged (injected `py: Python<'_>` is invisible to Python), and
+    `pytest` is byte-identical. `finalize()` stays GIL-held (builds `PyDict`). Codex confirmed
+    object creation remains GIL-held — no correctness regression
 
 ## Ruby Binding Review
 

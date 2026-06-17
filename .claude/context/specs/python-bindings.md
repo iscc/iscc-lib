@@ -283,11 +283,14 @@ small-input size threshold to avoid GIL release/reacquire overhead regressing ti
 
 **Verified when:**
 
-- [ ] Streaming `update()` and one-shot byte-data hashing functions release the GIL around the
-    pure-Rust compute (no GIL held during CDC/BLAKE3/MinHash work)
-- [ ] Two Python threads each hashing a multi-GB buffer approach ~2× throughput vs. serialized
-    (memory-bandwidth permitting)
-- [ ] Conformance vectors and the self-test suite are unchanged (identical output)
+- [x] Streaming `update()` and one-shot byte-data hashing functions release the GIL around the
+    pure-Rust compute (no GIL held during CDC/BLAKE3/MinHash work) — 7 `py.allow_threads(...)` sites
+    in `crates/iscc-py/src/lib.rs` (4 one-shot fns + 3 `update()` methods)
+- [x] Two Python threads each hashing a multi-GB buffer approach ~2× throughput vs. serialized
+    (memory-bandwidth permitting) — mechanistically enabled by the GIL release; throughput is
+    memory-bandwidth dependent and intentionally not CI-gated (non-deterministic on shared runners)
+- [x] Conformance vectors and the self-test suite are unchanged (identical output) —
+    `pytest   tests/` 286 passed, incl. 7 new `tests/test_gil.py` concurrency-correctness tests
 
 ### core_opts Algorithm Constants
 
