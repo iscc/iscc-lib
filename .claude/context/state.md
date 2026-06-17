@@ -1,4 +1,4 @@
-<!-- assessed-at: 140aebaf92b6b695c3479b47264f1b86d84a8225 -->
+<!-- assessed-at: e95f57b30053e6350d65419995d15263f282a9f2 -->
 
 # Project State
 
@@ -7,11 +7,12 @@
 ## Phase: Post-v0.4.0 hardening toward v1.0.0 stability commitment
 
 v0.4.0 is released across all registries; all 12 language bindings are functionally met. Incremental
-review since `96558ca`: iteration 94 added **Phase 1** of the Rust coverage / CRAP quality gate — a
-standalone `Coverage (cargo llvm-cov)` CI job that builds and uploads an LCOV report for `iscc-lib`,
-mirrored as `mise run coverage` (advance `0697195`, reviewed `f61efa0`). CI is overall green on the
-latest pushed code (`f61efa0`); the remaining v1.0.0 hardening backlog (PyO3 bump, iai-callgrind
-perf gate, CRAP Phases 2–3) is all `normal`/`low` tooling work — no functional binding gaps remain.
+review since `140aeba`: **no code changed** — the only commits are CID context/log/define-next
+bookkeeping. The `define-next` agent scoped CRAP gate **Phase 2** (report-only `cargo crap` + SARIF)
+as the next work package, but no `advance` has implemented it yet. The latest pushed code
+(`f61efa0`, which carries the iteration-94 Phase 1 coverage job) is CI-green. The remaining v1.0.0
+backlog (PyO3 bump, iai-callgrind perf gate, CRAP Phases 2–3) is all `normal`/`low` tooling — no
+functional binding gaps remain.
 
 ## Rust Core Crate
 
@@ -168,23 +169,28 @@ perf gate, CRAP Phases 2–3) is all `normal`/`low` tooling work — no function
 **Status**: partially met
 
 - **LATEST CI RUN** — run 27666337100 (sha `f61efa0` on develop): **overall SUCCESS**. URL:
-    https://github.com/iscc/iscc-lib/actions/runs/27666337100 — covers the Phase 1 coverage-job
-    addition (advance `0697195`, review `f61efa0`).
+    https://github.com/iscc/iscc-lib/actions/runs/27666337100 — this is the most recent run because
+    every commit since (`140aeba`, `6f90953`, `59ec67f`, `e95f57b`) is context/log-only and
+    unpushed; no newer code has reached CI.
 - **18 actual jobs** (17 YAML entries; `python-test` matrix expands 3.10 + 3.14): 16 functional jobs
     all green (version-check, rust, python-test x2, python, nodejs, wasm, c-ffi, dotnet, java, go,
-    ruby, cpp, swift, kotlin, bench) + the **new `Coverage (cargo llvm-cov)` job** (green,
-    artifact-only) + the **non-blocking `Semver` job**. The Semver job reports individual `failure`
-    (2 expected breaking changes from the post-0.4.0 `pub(crate)` narrowing), but
-    `continue-on-error: true` keeps the run green — by design during the 0.4.0 → 1.0.0 transition.
-- **Coverage gate Phase 1 landed**: new `coverage` job (no `needs:`, no `continue-on-error`) runs
-    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` and uploads the LCOV as the `lcov`
-    artifact; mirrored locally by `mise run coverage`; `lcov.info` gitignored. This is Phase 1
-    (measurement) of the 3-phase "Add Rust coverage + CRAP-metric quality gate" issue — Phase 2
-    (`cargo crap` report-only + SARIF) and Phase 3 (`--fail-regression` baseline) remain, so the
-    issue stays open and the CRAP *gate* is still unmet.
-- **Push state**: HEAD (`140aeba`) is one commit ahead of `origin/develop` (`f61efa0`); the local
-    lead is `cid(log): iteration 94`, which touches only `iterations.jsonl` / memory / context. All
-    code is pushed and CI-verified at `f61efa0`.
+    ruby, cpp, swift, kotlin, bench) + the `Coverage (cargo llvm-cov)` job (green, artifact-only) +
+    the non-blocking `Semver` job. The Semver job reports individual `failure` (2 expected breaking
+    changes from the post-0.4.0 `pub(crate)` narrowing), but `continue-on-error: true` keeps the run
+    green — by design during the 0.4.0 → 1.0.0 transition.
+- **Coverage gate Phase 1 landed (iter 94)**: the `coverage` job (no `needs:`, no
+    `continue-on-error`) runs `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info`
+    (ci.yml:307) and uploads the LCOV as the `lcov` artifact; mirrored locally by
+    `mise run coverage`; `lcov.info` gitignored. This is Phase 1 (measurement) of the 3-phase "Add
+    Rust coverage + CRAP-metric quality gate" issue.
+- **CRAP Phase 2 scoped, NOT implemented**: `next.md` defines Phase 2 (report-only `cargo crap` +
+    GitHub annotations + SARIF upload, `.cargo-crap.toml`, `mise run crap`), but VERIFIED absent —
+    `.cargo-crap.toml` does not exist, ci.yml has 0 `cargo crap` references, mise.toml has no `crap`
+    task. The coverage/CRAP issue stays open (Phases 2–3 remain); the CRAP *gate* is still unmet.
+- **Push state**: HEAD (`e95f57b`) is **4 commits ahead** of `origin/develop` (`f61efa0`). All four
+    leading commits — `140aeba` (log), `6f90953` (update-state), `59ec67f` (define-next), `e95f57b`
+    (log) — touch only `.claude/` context, memory, and iteration-log files. No source/CI/config code
+    is unpushed; the latest code is fully pushed and CI-verified at `f61efa0`.
 - v0.4.0 published; release workflow with 8 registry input toggles (crates.io, PyPI, npm, Maven,
     FFI, RubyGems, NuGet, Maven-Kotlin; Swift XCFramework built in `prepare-release`) + version sync
     (16 targets) in place.
@@ -199,7 +205,8 @@ Normal (CID-actionable):
 
 1. **Update PyO3 0.23 → 0.29** — security advisories in shipped wheel; incremental migration.
 2. **Add Rust coverage + CRAP-metric quality gate** — Phase 1 (LCOV artifact) DONE; Phase 2
-    (`cargo crap` report-only + SARIF) and Phase 3 (`--fail-regression` baseline) remain.
+    (`cargo crap` report-only + SARIF, currently scoped in next.md) and Phase 3
+    (`--fail-regression` baseline) remain.
 3. **Add `iai-callgrind` performance-regression CI gate** — committed baseline, > 10% fails CI.
 
 Low (human-directed, CID skips):
@@ -210,17 +217,18 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-CI is overall green and the latest code is verified. Coverage Phase 1 (LCOV artifact) landed,
-leaving the CRAP gate's later phases plus two other `normal` v1.0.0-hardening items. Suggested order
-by incrementality:
+CI is overall green and the latest code is verified at `f61efa0`. The immediate next step is already
+scoped in `next.md` and awaiting an `advance`:
 
-1. **CRAP Phase 2 (report-only `cargo crap`)** — builds directly on the `lcov.info` artifact just
-    landed: install pinned `cargo-crap` via `cargo binstall`, run report-only with
-    `--format github` annotations + SARIF upload to Code Scanning, add `.cargo-crap.toml` and the
-    `mise run crap` task (non-failing). Most self-contained next step.
+1. **CRAP Phase 2 (report-only `cargo crap`)** — builds directly on the `lcov.info` artifact from
+    Phase 1: add `.cargo-crap.toml`, install pinned `cargo-crap` via `cargo binstall`, run
+    report-only with `--format github` annotations + SARIF upload to Code Scanning (add
+    `permissions` for SARIF), and add the `mise run crap` task (non-failing). Most self-contained
+    next step.
 2. **`iai-callgrind` perf-regression CI gate + committed baseline** — the remaining v1.0.0 stability
     gate; pairs with the now-present semver gate. Deterministic instruction counts on shared
-    runners, > 10% regression fails CI.
+    runners,
+    > 10% regression fails CI.
 3. **Update PyO3 to 0.29** — clears two RustSec advisories shipped inside the published wheel;
     security-relevant but a six-minor-version jump with breaking changes per minor, so split it
     (start 0.23 → 0.24) and scope to `crates/iscc-py/` only (core has no PyO3 dep).

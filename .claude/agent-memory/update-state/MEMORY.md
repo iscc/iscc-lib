@@ -120,14 +120,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: 140aeba)
+## Current State (assessed-at: e95f57b)
 
 - **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **CI**: overall green (run 27666337100, sha `f61efa0`). 18 actual jobs: 16 functional + Coverage
-    (green, artifact-only) + non-blocking `Semver` (reports `failure` but `continue-on-error` keeps
-    run green). This run **includes** the Phase 1 coverage-job addition (advance `0697195`, review
-    `f61efa0`). HEAD `140aeba` is ONE commit ahead of origin/develop (`f61efa0`); the lead is
-    `cid(log): iteration 94` (iterations.jsonl/memory/context only). All code pushed and verified.
+- **Iter 95/96 = NO CODE CHANGE.** Diff `140aeba..HEAD` touches ONLY `.claude/` (context, memory,
+    iterations.jsonl). `define-next` scoped CRAP gate **Phase 2** in next.md but no `advance` ran.
+    Codebase functionally identical to last assessment — all binding sections carried forward.
+- **CI**: overall green (run 27666337100, sha `f61efa0`) — still the latest run because everything
+    since is unpushed context-only. 18 actual jobs: 16 functional + Coverage (green, artifact-only)
+    \+ non-blocking `Semver` (reports `failure` but `continue-on-error` keeps run green). HEAD
+    `e95f57b` is **4 commits ahead** of origin/develop (`f61efa0`): `140aeba`/`e95f57b` (logs),
+    `6f90953` (update-state), `59ec67f` (define-next) — all `.claude/`-only. Latest code
+    pushed+verified at `f61efa0`.
+- **CRAP Phase 2 SCOPED-NOT-DONE**: VERIFIED absent — `.cargo-crap.toml` does not exist, ci.yml has
+    0 `cargo crap` refs, mise.toml has no `crap` task. next.md (commit `59ec67f`) defines it. Phase
+    1 coverage (`Coverage (cargo llvm-cov)` job) still present at ci.yml:294/307.
 - **5 issues: 0 critical, 3 normal, 2 low** (count by grepping header lines anchored with a leading
     `##` before the priority label — that excludes the legend line, so no -1 adjustment needed).
 - **Coverage gate Phase 1 ADDED (iteration 94, `0697195`/`f61efa0`)** — `Coverage (cargo llvm-cov)`
