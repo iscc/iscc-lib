@@ -174,25 +174,23 @@ iterations.
 - **Remaining v1.0.0 normal backlog after iter 97 (2 issues)**: iai-callgrind perf gate
     (valgrind-blocked locally → CI-only, defer verification to the run), PyO3 0.23→0.29 (no security
     benefit until full 0.29).
-- **PyO3 migration progress: 0.23→0.24 (iter 98) and 0.24→0.25 (iter 99) both PASSED, each ZERO
-    source changes** (`Ok(dict.into())`, raw `pyo3::ffi::*` stable through 0.25). Pin now
-    `0.25`/lock `0.25.1`. The predicted `IntoPyObject`/lifetime breaks have NOT materialized — treat
-    skeptically for 0.26+ too. One reviewed minor per step; advisories clear ONLY at 0.29 (not a
-    per-hop criterion). Recipe: bump pin in root `Cargo.toml` → `cargo update -p pyo3` →
-    build/clippy(`-D warnings`)/fmt → `uv run maturin develop -m crates/iscc-py/Cargo.toml` →
-    `uv run pytest` (286 tests).
+- **PyO3 migration progress: 0.23→0.24 (iter 98), 0.24→0.25 (iter 99) PASSED ZERO source changes;
+    0.25→0.26 SCOPED iter 101** (`Ok(dict.into())`, raw `pyo3::ffi::*` stable through 0.25). Pin
+    `0.25`/lock `0.25.1` at scope time. The predicted `IntoPyObject`/lifetime breaks have NOT
+    materialized — treat skeptically for 0.26+ too. One reviewed minor per step; advisories clear
+    ONLY at 0.29 (NOT a per-hop criterion — do not gate a hop on advisory clearance). Recipe: bump
+    pin in root `Cargo.toml` line 35 → `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt →
+    `uv run maturin develop -m crates/iscc-py/Cargo.toml` → `uv run pytest` (~286 tests). Verified
+    iter 101: root tests/ has 232 `def test` fns (conformance params expand to ~286 collected);
+    `crates/iscc-py/pyproject.toml` (NOT root pyproject) holds the maturin config
+    (`features = ["pyo3/extension-module"]`, `python-source = "python"`, module `iscc_lib._lowlevel`).
 - **iai-callgrind stays CI-only**: `valgrind` has NO apt install candidate in the devcontainer
     (re-confirmed iter 98; `sudo` IS passwordless but the package is absent from sources), so
     benches CANNOT run locally — baseline must come from CI. Split it (bench harness first, then CI
     job + committed baseline) if/when picked up.
-- **iter 100: CI went RED — scoped the cargo-crap install-flake fix, NOT the PyO3 0.25→0.26
-    handoff.** Rule reaffirmed: **CI red always preempts feature work, even a clean handoff
-    "Next".** Root cause (per state.md): `Swatinem/rust-cache@v2` restores cargo's
-    `.crates.toml`/`.crates2.json` metadata WITHOUT the `~/.cargo/bin/cargo-crap` binary, so
-    `cargo binstall -y cargo-crap@0.2.2` (ci.yml:314, no `--force`) logs "already installed" + skips
-    → next `cargo crap` step dies `no such command:   crap` (recurs every run; first green run
-    poisoned the cache). Fix = add `--force` to that one binstall line. Single-file
-    (`.github/workflows/ci.yml`), boolean-verifiable locally via grep +
-    `python3 -c "import yaml; yaml.safe_load(...)"`; real proof is next CI run (review confirms).
-    Spec `ci-cd.md:57,419` describes install generically ("via `cargo binstall`") → stays accurate,
-    NO doc edit. After green: resume PyO3 0.25→0.26.
+- **iter 100→101: cargo-crap install-flake fix LANDED, CI confirmed GREEN** (run 27685108728).
+    Rule reaffirmed: **CI red always preempts feature work, even a clean handoff "Next".** Root
+    cause: `Swatinem/rust-cache@v2` restores cargo's `.crates.toml` metadata WITHOUT the
+    `~/.cargo/bin/cargo-crap` binary, so `cargo binstall cargo-crap@0.2.2` (no `--force`) skipped
+    install → next `cargo crap` step died `no such command: crap`. Fix = `--force` on that binstall
+    line (ci.yml:314). With CI green, iter 101 resumed PyO3 0.25→0.26 (handoff "Next").
