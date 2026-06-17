@@ -40,9 +40,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **GIL release check**: `grep -rn "allow_threads" crates/iscc-py/src/`
 - **SumHasher check**:
     `grep -rn "SumHasher" crates/iscc-lib/src/ crates/iscc-py/src/ crates/iscc-wasm/src/`
-- **npm optionalDeps bug**: `grep -n "napi prepublish" .github/workflows/release.yml` (line ~378 =
-    injection still present); source `crates/iscc-napi/package.json` uses bundled
-    `files: ["*.node"]`
+- **npm optionalDeps bug (#38 FIXED iter 92)**:
+    `grep -c "napi prepublish" .github/workflows/release.yml` now `0` — the `Prepare npm packages`
+    step was removed. Source `crates/iscc-napi/package.json` uses bundled `files: ["*.node"]`, no
+    `optionalDependencies`. Node.js now MET.
 - **Module visibility check**: `grep -n "pub mod\|pub(crate) mod" crates/iscc-lib/src/lib.rs`
 - **Issue count (correct)**: anchor the grep to headers with a leading `^##` before the priority
     label. That anchor excludes the legend line (plain prose), so NO -1 adjustment is needed. Do NOT
@@ -64,8 +65,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
 - `.github/workflows/ci.yml` — **16 CI jobs** (includes root Package.swift dump-package smoke test)
-- `.github/workflows/release.yml` — **9 registry inputs**: crates-io, pypi, npm, maven, ffi,
-    rubygems, nuget, maven-kotlin, swift; **provenance guard** on build-xcframework
+- `.github/workflows/release.yml` — **8 registry input toggles** (`type: boolean`): crates-io, pypi,
+    npm, maven, ffi, rubygems, nuget, maven-kotlin. Swift XCFramework is NOT a toggle — it builds in
+    `prepare-release` (line ~55). **provenance guard** on build-xcframework. After #38 fix (iter 92)
+    the `publish-npm-lib` job has NO `napi prepublish` step.
 - `crates/iscc-uniffi/` — UniFFI scaffolding: 32 exports, 21 tests; `publish = false`
 - `docs/howto/` — **11 files**: rust, python, nodejs, wasm, go, java, c-cpp, ruby, dotnet, swift,
     kotlin
@@ -98,14 +101,18 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: 894c80d)
+## Current State (assessed-at: a8f1ffc)
 
 - **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **CI**: green 16/16 (run 27659562371, sha `d2d7e7e` = origin/develop HEAD). This run **includes**
-    the Python GIL release (advance `534b531`, review `d2d7e7e`). HEAD `894c80d` is only 1 commit
-    ahead (just `cid(log): iteration 91`, iterations.jsonl only). All code pushed and verified.
-- **7 issues: 0 critical, 5 normal, 2 low** (count by grepping header lines anchored with a leading
+- **CI**: green 16/16 (run 27661715835, sha `fa59c0b` = origin/develop HEAD). This run **includes**
+    the npm optionalDeps removal (advance `5d8ecb7`, review `fa59c0b`). HEAD `a8f1ffc` is only 1
+    commit ahead (just `cid(log): iteration 92`, iterations.jsonl only). All code pushed and
+    verified.
+- **6 issues: 0 critical, 4 normal, 2 low** (count by grepping header lines anchored with a leading
     `##` before the priority label — that excludes the legend line, so no -1 adjustment needed).
+- **npm optionalDeps #38 CLOSED (iteration 92, `5d8ecb7`/`fa59c0b`)** — `napi prepublish` step
+    deleted from `release.yml`; npm ships single bundled package. Node.js now MET. Docs updated
+    (iscc-napi CLAUDE.md, notes 02/06). No code/API/conformance surface touched.
 - **GIL release DONE / #39 CLOSED (iteration 91, `534b531`/`d2d7e7e`)** — `py.allow_threads(...)`
     wraps pure-Rust compute at all **7** sites in `crates/iscc-py/src/lib.rs`: 4 one-shot byte fns
     (image:152, data:295, instance:309, +346) + 3 streaming `update()` (DataHasher:551,
@@ -126,13 +133,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Module visibility (iteration 86, `3f6a61d`)**:
     `cdc/conformance/dct/minhash/simhash/utils/wtahash` = `pub(crate) mod`; only
     `codec/streaming/types` = `pub mod`. Issue swept.
-- **Open normal gaps**: npm optionalDeps bug (#38, release.yml:378), PyO3 0.23→0.29 (RustSec, still
-    pinned at `Cargo.toml:35`), CRAP coverage gate, cargo-semver-checks gate, iai-callgrind perf
-    gate.
+- **Open normal gaps (4)**: PyO3 0.23→0.29 (RustSec, still pinned at `Cargo.toml`), CRAP coverage
+    gate, cargo-semver-checks gate, iai-callgrind perf gate.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
-- **Partially-met sections**: Rust Core (semver+perf gates only), Python (**PyO3 only — GIL now
-    MET**), Node.js (npm optionalDeps), CI/CD. WASM MET. All 12 bindings functionally met for
-    v0.4.0.
+- **Partially-met sections**: Rust Core (semver+perf gates only), Python (**PyO3 only — GIL MET**),
+    CI/CD (3 v1.0.0 tooling gates). Node.js now MET. WASM MET. All 12 bindings functionally met.
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists; python-bindings.md "GIL Release During Hashing" now all `[x]`.
     Re-read on incremental review.
