@@ -374,9 +374,6 @@ jobs:
           pattern: napi-*
           path: crates/iscc-napi
           merge-multiple: true
-      - name: Prepare npm packages
-        run: npx napi prepublish -t npm
-        working-directory: crates/iscc-napi
       - name: Get workspace version
         id: version
         run: |

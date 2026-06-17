@@ -47,6 +47,13 @@ iterations.
 - Release workflow (`release.yml`): 9 inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift). Pattern: boolean input → build job → **smoke test job** → publish job
     (version-exists skip). NuGet uses `NUGET_API_KEY` secret (not OIDC). Ruby uses OIDC
+- npm `@iscc/lib` (issue #38, iter 92): BUNDLED single-package model — `package.json` ships all 5
+    `.node` via `files: ["*.node"]`, NO `optionalDependencies`, NO per-platform sibling packages, NO
+    `npm/` subdir. `publish-npm-lib` job must NOT run `napi prepublish -t npm` (it injects the
+    dangling optional-deps that 404/break `npm ci`). Generated `index.js` loader requires local
+    `./iscc-lib.<triple>.node` FIRST, sibling `@iscc/lib-<triple>` only as fallback. Job flow:
+    checkout → setup-node → npm install → download merged `napi-*` → version → check → npm publish.
+    Spec: `nodejs-bindings.md` "Native Binary Distribution" (revisit per-platform model if >~30 MB)
 - `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Provenance guard (tag-only)
     fails if main HEAD != tag SHA. Builds XCFramework → checksum → `sed` updates Package.swift →
     auto-commit → force-update tag → upload to GH Release. Uses macOS BSD `sed -E -i ''` (not GNU).

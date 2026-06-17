@@ -282,10 +282,15 @@ jobs:
     needs: build
     steps:
       - uses: actions/download-artifact@v4
-      - run: npx napi artifacts  # Moves binaries into platform packages
-      - run: npm publish --access public
+        with: {pattern: napi-*, merge-multiple: true}    # All .node into the crate dir
+      - run: npm publish --provenance --access public
 ```
 
-Each platform produces a `.node` file that gets packaged into a platform-specific npm package (e.g.,
-`@iscc/lib-darwin-arm64`). The main `@iscc/lib` package uses `optionalDependencies` to pull in only
-the matching platform binary at install time.
+Each platform produces a `.node` file. All of them are bundled into a **single self-contained
+`@iscc/lib` package** via `files: ["*.node"]` — the published tarball ships every platform's binary
+and the auto-generated `index.js` loader requires the matching local `iscc-lib.<triple>.node` at
+runtime. The package declares **no `optionalDependencies`** and publishes **no per-platform sibling
+packages**; the workflow does not inject `optionalDependencies` or move binaries into per-platform
+packages. Each stripped addon is ~1.1 MB, so bundling all five (~5.5 MB) is cheap and avoids the
+`optionalDependencies` fragility class (404 sibling installs, `npm ci` lockfile failures). Revisit
+the per-platform model only if the bundle grows large (e.g. > ~30 MB).

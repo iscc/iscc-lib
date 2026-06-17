@@ -110,10 +110,16 @@ cargo build -p iscc-napi
     - `x86_64-pc-windows-msvc`
 - npm auth uses `NPM_TOKEN` secret (not OIDC -- npm does not support trusted publishing); publishes
     with `--provenance` flag for supply-chain transparency
-- Platform-specific `npm/` subdirectory and `optionalDependencies` are generated at publish time by
-    `npx napi prepublish -t npm` -- they do not exist in the source tree
-- Version must stay in sync with workspace version (`0.3.1`) -- coordinated by
-    `scripts/sync_versions.py`
+- **Single self-contained package, no `optionalDependencies`:** `@iscc/lib` bundles every platform's
+    native addon in the published tarball via `files: ["*.node"]`. The release workflow merges all 5
+    `napi-*` artifacts into the crate directory and runs `npm publish` directly -- it does **not**
+    inject `optionalDependencies` into `package.json` and publishes **no** per-platform
+    `@iscc/lib-<triple>` sibling packages. The `index.js` loader requires the bundled local
+    `iscc-lib.<triple>.node` first, so no `optionalDependencies` are needed at install or runtime.
+    There is no generated `npm/` subdirectory in the source tree. (Each stripped addon is ~1.1 MB;
+    bundling all five removes the `optionalDependencies` fragility class -- 404 sibling installs,
+    `npm ci` lockfile failures.)
+- Version must stay in sync with workspace version -- coordinated by `scripts/version_sync.py`
 
 ## Common Pitfalls
 
