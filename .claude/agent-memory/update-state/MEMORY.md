@@ -37,21 +37,29 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **v1.0.0 gates check** (all should appear when done):
     `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml` + `ls .cargo-crap.toml`
     - `grep -iE "coverage|crap|semver|callgrind" mise.toml`
-- **Coverage + CRAP gate Phases 1+2 present iter 94/96**: ONE job named
-    `Coverage + CRAP (cargo llvm-cov + cargo crap)` at ci.yml:293 (renamed from
-    `Coverage (cargo llvm-cov)` in iter 96), no `needs:`, NO `continue-on-error`, job-level
-    `security-events: write`. Pipeline: rust-toolchain@stable + `llvm-tools-preview` → install
-    cargo-llvm-cov → install cargo-binstall → `cargo binstall -y   cargo-crap@0.2.2` →
-    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`) →
-    `cargo crap --lcov lcov.info --format github` → `--format sarif --output   crap.sarif` →
-    `codeql-action/upload-sarif@v3`. REPORT-ONLY: no `fail-above`/`fail-regression`, so steps exit 0
-    (highest CRAP `gen_meta_code_v0`=22.3 < threshold 30 → zero annotations in practice).
-    `.cargo-crap.toml` (repo root): threshold 30, `missing="pessimistic"`, excludes all 7 binding
-    crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`. Mirrored
-    `mise run coverage` (mise.toml:110) + `mise run crap` (depends=["coverage"]). `lcov.info` +
-    `crap.sarif` gitignored. Phase 1 (LCOV) iter 94 (`0697195`); Phase 2 (report-only crap+SARIF)
-    iter 96 (`6ed51c5`/`cbc0d14`). Phase 3 (`--fail-regression` baseline refreshed on develop
-    merges) REMAINS → CRAP issue stays OPEN. ci-cd.md Phase 2 checkboxes now `[x]`; Phase 3 `[ ]`.
+- **Coverage + CRAP gate ALL 3 PHASES present iter 94/96/97**: ONE job named
+    `Coverage + CRAP (cargo llvm-cov + cargo crap)` at ci.yml:294, no `needs:`, NO
+    `continue-on-error`, job-level `security-events: write`. Pipeline: rust-toolchain@stable +
+    `llvm-tools-preview` → install cargo-llvm-cov → install cargo-binstall →
+    `cargo binstall -y cargo-crap@0.2.2` → `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info`
+    → upload-artifact (`name: lcov`) → **Phase 2 (report-only)**:
+    `cargo crap --lcov lcov.info   --format github` (ci.yml:324) +
+    `--format sarif --output crap.sarif` (326) + `codeql-action/upload-sarif@v3` (327) → **Phase 3
+    (enforcing, iter 97 `3912039`)**: `CRAP regression gate` step
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json   --fail-regression`
+    (ci.yml:335-336), NOT continue-on-error, runs LAST. Report-only steps exit 0 (highest CRAP
+    `gen_meta_code_v0`=22.3 < threshold 30). `.crap-baseline.json` (repo root, NOT gitignored — only
+    `lcov.info`+`crap.sarif` are): envelope `{$schema, version:"0.2.2",   entries:[...]}`, 97
+    entries / 10 `crates/iscc-lib/src/` files. Regen via `mise run crap:baseline` (mise.toml:119,
+    `depends=["coverage"]`, `--format json --output .crap-baseline.json`) — reviewed commit, NOT CI
+    auto-commit. `.cargo-crap.toml` (repo root): threshold 30, `missing="pessimistic"`, excludes all
+    7 binding crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`.
+    `mise run coverage` (110) + `mise run crap` (114, depends=coverage). Phase 1 iter 94
+    (`0697195`); Phase 2 iter 96 (`6ed51c5`/`cbc0d14`); Phase 3 iter 97 (`3912039`, UNPUSHED at iter
+    98 assess). ci-cd.md Phases 1+2+3 checkboxes all `[x]`. CRAP issue STILL OPEN until Phase 3 is
+    pushed + CI-green + review-deleted. CROSS-ENV RISK: baseline from devcontainer, CI regen on
+    @stable; if first CI run flaps, regen baseline from CI's lcov artifact — do NOT widen
+    `--epsilon`.
 - **Semver gate present iter 93** (`9d42077`): `Semver (cargo-semver-checks)` job at ci.yml:280,
     `obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, **`continue-on-error: true`**
     (informational until v1.0.0). Mirrored `mise run semver` at mise.toml:104. CAUTION: the job
@@ -89,8 +97,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `.github/workflows/ci.yml` — **17 YAML job entries → 18 actual jobs** (`python-test` matrix
     expands 3.10 + 3.14): 16 functional jobs (incl. root Package.swift dump-package smoke test) +
     the non-blocking `Semver` job (iter 93) + the `Coverage + CRAP (cargo llvm-cov + cargo crap)`
-    job (iter 94 Phase 1, iter 96 Phase 2). `push:` under `on:` is NOT a job; a bare `^  [a-z].*:$`
-    grep over-counts — read the job names.
+    job (Phase 1 iter 94, Phase 2 iter 96, Phase 3 enforcing step iter 97). `push:` under `on:` is
+    NOT a job; a bare `^  [a-z].*:$` grep over-counts — read the job names.
 - `.github/workflows/release.yml` — **8 registry input toggles** (`type: boolean`): crates-io, pypi,
     npm, maven, ffi, rubygems, nuget, maven-kotlin. Swift XCFramework is NOT a toggle — it builds in
     `prepare-release` (line ~55). **provenance guard** on build-xcframework. After #38 fix (iter 92)
@@ -127,36 +135,39 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: 150c778)
+## Current State (assessed-at: 3912039)
 
 - **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **Iter 96 = CRAP Phase 2 LANDED** (`6ed51c5` advance, `cbc0d14` review PASS). Diff `e95f57b..HEAD`
-    code-bearing files: `.cargo-crap.toml` (new), `ci.yml` (+20: rename job, install binstall+crap,
-    2 crap runs, SARIF upload), `mise.toml` (+5: crap task), `.gitignore` (+crap.sarif). Rest is
-    `.claude/` context/memory. See Coverage+CRAP landmark for the live facts.
-- **CI**: overall green (run 27675312942, sha `cbc0d14`). 18 actual jobs: 16 functional, the
-    `Coverage + CRAP` job (green), and non-blocking `Semver` (reports `failure` but
-    `continue-on-error` keeps run green — NOT a CI failure). HEAD `150c778` ("cid(log): iteration
-    96") is **1 commit ahead** of origin/develop (`cbc0d14`), context/log-only & unpushed. Latest
-    code pushed+verified at `cbc0d14`.
-- **5 issues: 0 critical, 3 normal, 2 low** (count by grepping header lines anchored with a leading
-    `##` before the priority label — excludes the legend line, no -1 adjustment).
-- **Open normal gaps (3)**: PyO3 0.23→0.29 (RustSec, still pinned at `Cargo.toml`), CRAP gate
-    **Phase 3** (`--fail-regression` baseline — Phases 1+2 DONE), iai-callgrind perf gate.
-    (cargo-semver-checks gate present — informational.) Next incremental step = CRAP Phase 3
-    (capture `cargo crap --format json` baseline, `--fail-regression --baseline`, refresh on develop
-    merges); closes the CRAP issue.
+- **Iter 97 = CRAP Phase 3 LANDED LOCALLY** (`3912039` advance). Incremental diff `150c778..HEAD`
+    code-bearing files: `.crap-baseline.json` (new, 782 lines), `ci.yml` (+6: enforcing
+    `CRAP regression gate` step), `mise.toml` (+5: `crap:baseline` task), `ci-cd.md` (+16: Phase 3
+    checkbox `[x]` + rollout text rewrite). Rest is `.claude/` context/memory. See Coverage+CRAP
+    landmark for live facts.
+- **CRITICAL CI/PUSH GAP**: HEAD `3912039` is **4 commits ahead** of origin/develop (`cbc0d14`), ALL
+    UNPUSHED (`4840a40` state, `e1ad69e` next, `3912039` advance, `150c778` log). NO CI run exists
+    for any of them — the new enforcing CRAP regression gate has NEVER run in CI. Latest CI run
+    (27675312942, `cbc0d14`) = SUCCESS but only Phase 2. No FAILING CI; gap is "unverified," not
+    "broken." Top Next-Milestone item = push + confirm CI green.
+- **CI green state at cbc0d14**: 18 actual jobs: 16 functional, `Coverage + CRAP` (green), non-
+    blocking `Semver` (reports `failure` but `continue-on-error` keeps run green — NOT a CI
+    failure).
+- **5 issues: 0 critical, 3 normal, 2 low** (grep `^## .+\`(critical|normal|low)\`\` for headers,
+    excludes legend line — no -1 adjustment).
+- **Open normal gaps (3)**: PyO3 0.23→0.29 (RustSec, still pinned at `Cargo.toml`), CRAP gate (all 3
+    phases coded — stays OPEN until pushed+CI-green+review-deleted), iai-callgrind perf gate (the
+    only v1.0.0 CI gate with ZERO implementation). (cargo-semver-checks gate present —
+    informational.)
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
 - **Partially-met sections**: Rust Core (semver gate informational; perf gate missing;
-    enforcing-semver needs v1.0.0), Python (**PyO3 only — GIL MET**), CI/CD (Coverage+CRAP Phases
-    1+2 done; CRAP Phase 3 + iai-callgrind remain). Node.js MET. WASM MET. All 12 bindings
+    enforcing-semver needs v1.0.0), Python (**PyO3 only — GIL MET**), CI/CD (CRAP all 3 phases coded
+    but Phase 3 unpushed/unverified; iai-callgrind remains). Node.js MET. WASM MET. All 12 bindings
     functionally met.
 - **Recently closed (don't re-flag)**: semver gate (iter 93, informational), npm #38 (iter 92), GIL
     #39 (iter 91), streaming SumHasher #37 (iters 88-90, core+Python+WASM). See Codebase Landmarks
     for live SumHasher / module-visibility facts.
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
-    with "verified when" checklists; ci-cd.md Phase 2 boxes flipped `[x]`, Phase 3 `[ ]`. Re-read on
-    incremental review.
+    with "verified when" checklists; ci-cd.md Phases 1+2+3 boxes all `[x]`; rust-core perf criterion
+    - enforcing-semver still `[ ]`. Re-read on incremental review.
 
 ## Pattern: idle→active reactivation
 
