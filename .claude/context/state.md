@@ -1,4 +1,4 @@
-<!-- assessed-at: 3912039a9631bb50c0649ffa8fa3e4c068ac7d10 -->
+<!-- assessed-at: eead1d6a95f90a549774e4744f29523d2748f49f -->
 
 # Project State
 
@@ -7,17 +7,17 @@
 ## Phase: Post-v0.4.0 hardening toward v1.0.0 stability commitment
 
 v0.4.0 is released across all registries; all 12 language bindings are functionally met. Incremental
-review since `150c778`: the **CRAP gate Phase 3** (enforcing `--fail-regression` against a committed
-`.crap-baseline.json`) was implemented in commit `3912039` — the only code change. It is committed
-**locally but not yet pushed**: HEAD is 4 commits ahead of `origin/develop` (`cbc0d14`), and the new
-enforcing gate has **never run in CI**. The latest CI run is green but reflects only Phase 2.
+review since `3912039`: the **CRAP gate Phase 3** enforcing step was pushed and is now **CI-verified
+green** (run `27680364506`, sha `cb8b7e9`), and the **PyO3 migration started** (0.23 → 0.24, CI
+green). Remaining v1.0.0 hardening: finish the PyO3 bump to 0.29, add the `iai-callgrind` perf gate,
+add a `--fail-above` guard to the CRAP gate, and flip the semver gate to enforcing at the 1.0.0 cut.
 
 ## Rust Core Crate
 
 **Status**: partially met
 
 - Core API met: all 10 `gen_*_v0` functions (incl. `gen_sum_code_v0`), 32 Tier 1 symbols,
-    conformance vs `iscc-core/data.json` passing on the latest green CI run (`cbc0d14`).
+    conformance vs `iscc-core/data.json` passing on the latest green CI run (`cb8b7e9`).
 - Reusable `pub struct SumHasher` in `streaming.rs` (`new()` / `update(&[u8])` /
     `finalize(bits, wide, add_units) -> SumCodeResult` / `Default`) runs the Data-Code and
     Instance-Code algorithms in a single pass; `gen_sum_code_v0` (lib.rs:997) drives it. Reachable
@@ -29,11 +29,12 @@ enforcing gate has **never run in CI**. The latest CI run is green but reflects 
     `streaming`, `types` are `pub mod`. All 10 crate-root `pub use` re-exports intact.
 - **Semver gate present (informational)**: a `Semver (cargo-semver-checks)` CI job
     (`obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, `continue-on-error: true`,
-    ci.yml:280) checks the public API against the last release. It currently *reports* 2 expected
-    breaking changes (the post-0.4.0 `pub(crate)` narrowing) without failing the run. The target's
-    **enforcing** criterion stays unmet — `rust-core.md` "verified when" still `[ ]` because it
-    requires the gate to *fail* on unsanctioned breaks AND the crate to be >= 1.0.0. Flip
-    `continue-on-error` off only at the v1.0.0 cut.
+    ci.yml:280) checks the public API against the last release. On the latest run it *reports*
+    `failure` (2 expected breaking changes from the post-0.4.0 `pub(crate)` narrowing) but the
+    run-level conclusion stays SUCCESS — NOT a CI failure. The target's **enforcing** criterion
+    stays unmet — `rust-core.md` "verified when" still `[ ]` because it requires the gate to *fail*
+    on unsanctioned breaks AND the crate to be >= 1.0.0. Flip `continue-on-error` off only at the
+    v1.0.0 cut.
 - **Gap (normal)**: no `iai-callgrind` instruction-count perf gate with committed baseline (> 10%
     regression must fail CI). This is now the only outstanding v1.0.0 CI quality gate that has no
     implementation at all.
@@ -47,9 +48,11 @@ enforcing gate has **never run in CI**. The latest CI run is green but reflects 
     streaming `SumHasher` wrapper present (`__init__.py:349`, exported in `__all__` at line 402).
 - GIL release done (closed #39): `py.allow_threads(...)` wraps the pure-Rust CPU-bound compute at
     all 7 call sites in `crates/iscc-py/src/lib.rs`. `tests/test_gil.py` adds 7 concurrency tests.
-- **Gap (normal)**: PyO3 still pinned to `0.23` in root `Cargo.toml` (`workspace.dependencies`);
-    issue requires incremental migration to `0.29.0` to clear two RustSec advisories shipped inside
-    the wheel.
+- **PyO3 migration in progress (normal, was #1)**: the workspace `pyo3` pin advanced `0.23 → 0.24`
+    (`Cargo.toml`, `abi3-py310` preserved; CI green, 286 pytest pass, zero source changes). Five
+    more minor steps remain to reach `0.29.0`, which is where the two RustSec advisories shipped
+    inside the wheel actually clear. PyO3 0.25+ tightens `IntoPyObject`/lifetime rules, so real
+    source work is expected to begin at the 0.24 → 0.25 increment.
 
 ## Node.js Bindings
 
@@ -162,25 +165,25 @@ enforcing gate has **never run in CI**. The latest CI run is green but reflects 
 
 **Status**: partially met
 
-- **LATEST CI RUN** — run 27675312942 (sha `cbc0d14` on `origin/develop`): **overall SUCCESS**. URL:
-    https://github.com/iscc/iscc-lib/actions/runs/27675312942 — this is the most recent run and it
-    reflects only Phase 2. No failing CI exists.
-- **CRAP gate Phase 3 IMPLEMENTED LOCALLY (iter 97, commit `3912039`) — NOT YET CI-VERIFIED**: the
-    `Coverage + CRAP` job gains a final enforcing step `CRAP regression gate`
+- **LATEST CI RUN** — run 27680364506 (sha `cb8b7e9` on `origin/develop`): **overall SUCCESS**. URL:
+    https://github.com/iscc/iscc-lib/actions/runs/27680364506 — 18 jobs: 16 functional (all green) +
+    `Coverage + CRAP` (green) + non-blocking `Semver` (reports `failure` but `continue-on-error`
+    keeps the run green — NOT a CI failure). HEAD (`eead1d6`) adds only `iterations.jsonl` beyond
+    `cb8b7e9`, so this run fully covers HEAD's code state.
+- **CRAP gate Phase 3 PUSHED + CI-VERIFIED GREEN (was the top open risk; now resolved)**: the
+    `Coverage + CRAP` job's final enforcing step `CRAP regression gate`
     (`cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression`, ci.yml:335-336,
-    NOT `continue-on-error`). A committed `.crap-baseline.json` sits at the repo root (envelope
-    `{$schema, version: "0.2.2", entries:[...]}`, 97 entries across 10 `crates/iscc-lib/src/` files,
-    NOT gitignored — only `lcov.info` + `crap.sarif` are). A `mise run crap:baseline`
-    (`depends=["coverage"]`) task regenerates it. ci-cd.md Phase 3 checkbox flipped `[x]`; the
-    rollout text now describes a reviewed-commit baseline refresh (not CI auto-commit). The
-    report-only Phase 2 steps (GitHub annotations + SARIF upload) are unchanged.
-- **PUSH/VERIFY GAP (top priority)**: HEAD (`3912039`) is **4 commits ahead of `origin/develop`
-    (`cbc0d14`)**, all unpushed (`4840a40` update-state, `e1ad69e` define-next, `3912039` advance,
-    plus the older `150c778` log commit). No CI run exists for any of them. The new enforcing CRAP
-    regression gate has therefore **never executed in CI**, and there is a known cross-environment
-    determinism risk: the baseline was generated in the devcontainer while CI regenerates coverage
-    on `@stable`. If the first CI run flaps, the documented fix is to regenerate
-    `.crap-baseline.json` from CI's `lcov` artifact — NOT to widen `--epsilon`.
+    NOT `continue-on-error`) ran for the first time in CI on `cb8b7e9` and **passed**. The committed
+    `.crap-baseline.json` (repo root, 97 entries across 10 `crates/iscc-lib/src/` files) held up on
+    `@stable` — no cross-environment determinism flap occurred. A `mise run crap:baseline`
+    (`depends=["coverage"]`) task regenerates it; baseline refreshes are reviewed commits. The
+    push/verify gap noted in the prior state is closed.
+- **CRAP gate hardening gap (NEW issue, normal, [review])**: the Phase 3 gate is regression-only — a
+    brand-new or renamed function has no baseline entry, so it reports `★ N new` and the step still
+    exits 0. Codex (iter 97) verified a new uncovered CC=21 function at CRAP 462 bypassed the gate.
+    Fix is to add `--fail-above 30` alongside `--fail-regression` (current baseline max ~22.3 is
+    well below 30, so it would not break existing code). Flagged HUMAN REVIEW REQUESTED before
+    mandating in the spec.
 - v0.4.0 published; release workflow with 8 registry input toggles (crates.io, PyPI, npm, Maven,
     FFI, RubyGems, NuGet, Maven-Kotlin; Swift XCFramework built in `prepare-release`) + version sync
     (16 targets) in place.
@@ -188,16 +191,19 @@ enforcing gate has **never run in CI**. The latest CI run is green but reflects 
     v1.0.0 CI gate with zero implementation.
 - Note: `cargo-semver-checks` CI gate EXISTS (informational); becomes enforcing at v1.0.0.
 
-## Open Issues (5 total — 0 critical, 3 normal, 2 low)
+## Open Issues (6 total — 0 critical, 4 normal, 2 low)
 
 Normal (CID-actionable):
 
-1. **Update PyO3 0.23 → 0.29** — security advisories in shipped wheel; incremental migration.
-2. **Add Rust coverage + CRAP-metric quality gate** — all three phases now implemented locally
-    (Phase 1 LCOV, Phase 2 report-only crap+SARIF, Phase 3 enforcing `--fail-regression`). Stays
-    OPEN until the Phase 3 work is pushed, the enforcing gate runs green in CI, and the review
-    agent verifies + deletes it.
-3. **Add `iai-callgrind` performance-regression CI gate** — committed baseline, > 10% fails CI. Not
+1. **Update PyO3 0.23 → 0.29** — security advisories in shipped wheel; incremental migration **in
+    progress** (now at 0.24; advisories clear only at 0.29). Next increment 0.24 → 0.25.
+2. **Add Rust coverage + CRAP-metric quality gate** — all three phases implemented and now
+    CI-verified green (Phase 1 LCOV, Phase 2 report-only crap+SARIF, Phase 3 enforcing
+    `--fail-regression`). Still listed open in issues.md; awaiting review-agent deletion (the
+    follow-up hardening below is tracked separately).
+3. **CRAP gate does not fail on new high-CRAP functions** [review] — regression-only gate lets new
+    uncovered high-complexity functions through; add `--fail-above 30`. HUMAN REVIEW REQUESTED.
+4. **Add `iai-callgrind` performance-regression CI gate** — committed baseline, > 10% fails CI. Not
     started.
 
 Low (human-directed, CID skips):
@@ -208,20 +214,22 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-CI is green on the last pushed commit, but the just-completed CRAP Phase 3 work (a NEW enforcing CI
-gate) is committed locally and unverified. The immediate priorities, in order:
+CI is green on the latest pushed commit, the CRAP Phase 3 enforcing gate is now CI-verified, and the
+duplicate-CID-loop concurrency hazard is cleared. No CI failures to fix. The immediate priorities,
+in order:
 
-1. **Push the Phase 3 work and confirm CI green.** The enforcing `CRAP regression gate` step has
-    never run in CI. Because the baseline was captured in the devcontainer and CI regenerates
-    coverage on `@stable`, the first run could flap on float noise; if it does, regenerate
-    `.crap-baseline.json` from CI's `lcov` artifact (do not widen `--epsilon`). This must be
-    verified before the CRAP issue can be closed.
-2. **`iai-callgrind` perf-regression CI gate + committed baseline** — the last remaining v1.0.0
-    stability gate, mirroring the reviewed-baseline pattern just established for CRAP.
-    Deterministic instruction counts on shared runners; > 10% regression fails CI.
-3. **Update PyO3 to 0.29** — clears two RustSec advisories shipped inside the published wheel; a
-    six-minor-version jump with breaking changes per minor, so split it (start 0.23 → 0.24) and
-    scope to `crates/iscc-py/` only (core has no PyO3 dep).
+1. **Continue the PyO3 migration: 0.24 → 0.25.** Same self-contained recipe (bump the pin in root
+    `Cargo.toml` → `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt →
+    `uv run maturin develop` → `uv run pytest`). Watch for real source work starting at 0.25
+    (tightened `IntoPyObject`/lifetime rules). RustSec advisories only clear at 0.29 — keep going
+    one minor per step, scoped to `crates/iscc-py/` (core has no PyO3 dep).
+2. **Harden the CRAP gate with `--fail-above 30`** (review-sourced follow-up) so new uncovered
+    high-complexity functions also fail CI, closing the regression-only bypass. Confirm
+    `cargo-crap 0.2.2` accepts `--fail-above` and `--fail-regression` together; HUMAN REVIEW
+    REQUESTED before amending the spec.
+3. **`iai-callgrind` perf-regression CI gate + committed baseline** — the last remaining v1.0.0
+    stability gate with zero implementation, mirroring the reviewed-baseline pattern established
+    for CRAP. Deterministic instruction counts on shared runners; > 10% regression fails CI.
 
 The two `low` issues (v1.0.0 release cut, docs logos) are human-directed and remain out of CID
 scope. The semver gate becoming *enforcing* (drop `continue-on-error`) is a deliberate one-line
