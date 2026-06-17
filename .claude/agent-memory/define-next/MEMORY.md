@@ -132,17 +132,16 @@ iterations.
     actionlint. Pair with grep assertions + the next CI run (review agent confirms the new job
     appears and existing jobs stay green). (iter 93/94 network + Phase 1 detail archived to
     MEMORY-archive.md.)
-- **iscc-py is ONE file (`crates/iscc-py/src/lib.rs`, 730 lines) — pyo3 used by NO other crate**
-    (grep `crates/*/Cargo.toml` → only iscc-py; version pin lives ONLY at root `Cargo.toml` line ~35
-    `pyo3 = { version = "0.23", features = ["abi3-py310"] }`; iscc-py consumes via
-    `workspace = true, features = ["extension-module"]`; `pyproject.toml` lists
-    `pyo3/extension-module` maturin feature, NO version). Already on modern Bound API
-    (`Bound<'py, PyAny>`, `.into_pyobject(py)?`, `.allow_threads`), BUT also has raw `pyo3::ffi::*`
-    CPython-C-API calls (`PySequence_List`, `PyList_GetItem`, `PyLong_AsLong`,
-    `Bound::from_owned_ptr`, `downcast_into_unchecked`) — those map to stable CPython C API and
-    rarely break across pyo3 minors. ~14 `Ok(dict.into())` → `PyObject` returns are the most likely
-    0.24 migration touchpoint. Local verify = `maturin develop -m crates/iscc-py/Cargo.toml`
-    (maturin 1.12.4 via uv) + `uv run pytest`.
+- **iscc-py is ONE file (`crates/iscc-py/src/lib.rs`, 735 lines) — pyo3 used by NO other crate**
+    (grep `crates/*/Cargo.toml` → only iscc-py; version pin lives ONLY at root `Cargo.toml` line 35;
+    iscc-py consumes via `workspace = true, features = ["extension-module"]`;
+    `crates/iscc-py/pyproject.toml` line 38 holds the maturin config
+    `features = ["pyo3/extension-module"]`, NO version → never edited on a hop). Has raw
+    `pyo3::ffi::*` CPython-C-API calls (8 sites: `PySequence_List`, `PyList_GetItem`, `PyList_Size`,
+    `PyLong_AsLong`, `PyErr_Occurred`, `PyList_Check`) +
+    `Bound::from_owned_ptr().cast_into_unchecked()` (lib.rs:24) — map to stable CPython C API,
+    rarely break across pyo3 minors. Local verify = `maturin develop -m crates/iscc-py/Cargo.toml`
+    (maturin 1.12.4 via uv) + `uv run pytest` (286).
 - **CRAP gate Phases 1+2 LANDED** (iters 94–96; Phase 2 `6ed51c5`, reviewed PASS `cbc0d14`). The
     `coverage` job (`ci.yml:293-331`, renamed "Coverage + CRAP") installs cargo-llvm-cov +
     cargo-binstall + `cargo-crap@0.2.2`, generates+uploads `lcov.info`, then runs report-only
@@ -174,22 +173,19 @@ iterations.
 - **Remaining v1.0.0 normal backlog after iter 97 (2 issues)**: iai-callgrind perf gate
     (valgrind-blocked locally → CI-only, defer verification to the run), PyO3 0.23→0.29 (no security
     benefit until full 0.29).
-- **PyO3 migration progress: 0.23→0.24 (iter 98), 0.24→0.25 (iter 99) PASSED ZERO source changes;
-    0.25→0.26 (iter 101, review PASS iter 102) was the FIRST source-touching hop (7
-    `allow_threads`→`detach` + 17 `PyObject`→`Py<PyAny>`); 0.26→0.27 (review PASS iter 103) was the
-    SECOND source-touching hop (2 sites in `to_pylist`: `downcast`→`cast`,
-    `downcast_into_unchecked`→`cast_into_unchecked`); 0.27→0.28 SCOPED iter 104.** Pin now at `0.27`
-    / lock `0.27.2` at iter 104 scope time. Two consecutive source-touching hops (0.26, 0.27) prove
-    later hops CAN touch source — watch `-D warnings` EVERY hop and port exactly what it flags. One
-    reviewed minor per step; advisories clear ONLY at 0.29 (NOT a per-hop criterion — do not gate a
-    hop on advisory clearance). Recipe: bump pin in root `Cargo.toml` line 35 →
-    `cargo update -p   pyo3` → build/clippy(`-D warnings`)/fmt →
-    `uv run maturin develop -m crates/iscc-py/Cargo.toml` → `uv run pytest` (286 collected).
-    `crates/iscc-py/pyproject.toml` (NOT root pyproject) holds the maturin config
-    (`features = ["pyo3/extension-module"]`); carries NO pyo3 version, so no edit on a hop. NO docs
-    reference the pyo3 version (grepped docs/, README, crate README iter 104) — pure internal
-    binding change, no doc files in scope. Current lib.rs: 728 lines, 7 `detach` + 17 `Py<PyAny>`, 0
-    `allow_threads`; raw `pyo3::ffi::*` C-API sites intact (~10).
+- **PyO3 #1 migration: now at 0.28 (lock 0.28.3); FINAL hop 0.28→0.29 SCOPED iter 105.** Hop-by-hop
+    history (0.23→0.28) archived to MEMORY-archive.md. Key facts that recur: source-touching hops
+    happen (0.26 = `allow_threads`→`detach` + `PyObject`→`Py<PyAny>`; 0.27 = `downcast*`→`cast*`),
+    so **watch `-D warnings` EVERY hop, port exactly what it flags**. **0.28 hop compiled clean yet
+    silently flipped the unspecified `#[pymodule]` `gil_used` default `true`→`false`** — the
+    0.27→0.28 review restored it with `#[pymodule(name = "_lowlevel", gil_used = true)]`
+    (lib.rs:697). So do NOT trust "compiles clean" as behavior-neutral — read each migration guide's
+    default-handling section. Recipe: bump root `Cargo.toml` line 35 → `cargo update -p pyo3` →
+    build / clippy(`-D warnings`) / fmt → `uv run maturin develop -m crates/iscc-py/Cargo.toml` →
+    `uv run pytest` (286). **The two RustSec advisories clear ONLY at 0.29** (endpoint of #1).
+    **cargo-audit AND cargo-deny are absent locally AND not wired into CI/mise** (verified iter 105)
+    — cannot tool-verify advisory clearance; mechanical proxy = `Cargo.lock` resolves pyo3 0.29.x
+    with no pyo3 `< 0.29` entries. NO docs/README reference the pyo3 version (re-grepped iter 105).
 - **iai-callgrind stays CI-only**: `valgrind` has NO apt install candidate in the devcontainer
     (re-confirmed iter 98; `sudo` IS passwordless but the package is absent from sources), so
     benches CANNOT run locally — baseline must come from CI. Split it (bench harness first, then CI

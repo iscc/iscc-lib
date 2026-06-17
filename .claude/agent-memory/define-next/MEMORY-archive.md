@@ -89,3 +89,19 @@ See MEMORY.md for current active entries.
 - **Env fact (iter 94)**: devcontainer has the `llvm-tools-x86_64-unknown-linux-gnu` rustup
     component preinstalled, so `cargo install cargo-llvm-cov` + `cargo llvm-cov -p iscc-lib` works
     locally.
+
+## PyO3 #1 incremental migration hop-by-hop (iters 98–104; archived iter 105)
+
+- 0.23→0.24 (iter 98), 0.24→0.25 (iter 99): PASSED with ZERO source changes.
+- 0.25→0.26 (iter 101, review PASS iter 102): FIRST source-touching hop — 7 `allow_threads`→`detach`
+    - 17 `PyObject`→`Py<PyAny>`.
+- 0.26→0.27 (review PASS iter 103): SECOND source-touching hop — 2 sites in `to_pylist`:
+    `downcast`→`cast`, `downcast_into_unchecked`→`cast_into_unchecked`.
+- 0.27→0.28 (scoped iter 104, review PASS iter 104/12eb49f): compiled clean but PyO3 0.28 silently
+    flipped the unspecified `#[pymodule]` `gil_used` default `true`→`false` (macros-backend
+    `module.rs`: 0.27 `map_or(true,…)` → 0.28 `is_some_and(…)`). Review restored
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) to keep the raw-FFI
+    `extract_frame_sigs` path safe. Impact narrow (ships abi3 wheel, no free-threaded target) but
+    bumps must be behavior-neutral.
+- Lesson carried forward to the current entry: each minor is one reviewed step; advisories clear
+    ONLY at 0.29; "compiles clean" ≠ behavior-neutral.
