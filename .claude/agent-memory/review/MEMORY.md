@@ -41,6 +41,12 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `git checkout -- .claude/context/next.md   .claude/agent-memory/define-next/MEMORY.md` (and
     never stage `iterations.jsonl` — runner-owned). Real `git commit` only runs hooks on staged
     files, so the actual review commit is unaffected
+- **Concurrent CID loops (iter 97)**: spurious `mise run check` "files were modified by this hook"
+    on a file the advance never touched (e.g. `standardrb-fix` flagging when NO `.rb` is dirty) + a
+    working-tree `state.md`/context change appearing mid-review = a SECOND CID loop racing the
+    branch. Confirm with `ps aux | grep -E 'cid:run|claude -p CID iteration'` (two
+    `mise run cid:run` trees / two different `iteration N` agents). Two loops clobber context + race
+    pushes. Flag HUMAN REVIEW REQUESTED, do NOT push, do NOT kill processes yourself
 
 ## Review Shortcuts
 
@@ -95,23 +101,20 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - CI: 17 YAML job entries + python-test matrix (`['3.10','3.14']`) → **18 actual jobs** (`semver`
     iter 93, `coverage` iter 94). Advance handoffs count YAML entries (17), not matrix expansion.
     Version sync: 16 targets (incl. Package.swift releaseTag). Release: 9 registry inputs
-- **`coverage`+CRAP CI job** (iter 94 Phase 1 + iter 96 Phase 2, ci-cd.md): standalone, no `needs:`,
-    no `continue-on-error`. `cargo-llvm-cov` 0.8.7 + `cargo-crap` 0.2.2 in devcontainer (binstall
-    not preinstalled — advance uses `cargo install cargo-crap@0.2.2`). Verify from repo root:
-    `mise run crap` (exit 0, regenerates lcov via `depends=["coverage"]`, "97 functions analyzed;
-    none exceed threshold 30") + SARIF (`jq '.runs[0].tool.driver.name'` → "cargo-crap") + grep
-    ci.yml has `cargo-crap`/`upload-sarif`/`security-events`, ABSENT `fail-above`/`fail-regression`/
-    `baseline` + `lcov.info`/`crap.sarif` gitignored. KEY GOTCHA: `.cargo-crap.toml` MUST exclude
-    `crates/iscc-lib/benches/**` (built-in `benches/**` default matches only repo-root) else
-    `bench_cdc_chunks` leaks at CRAP 42.0. Phase 2 report-only; Phase 3 (`--fail-regression`) open
+- **`Coverage + CRAP` CI job** (Phase 1 iter 94, Phase 2 iter 96, Phase 3 iter 97, ci-cd.md):
+    standalone, no `needs:`, no `continue-on-error`. `cargo-llvm-cov` 0.8.7 + `cargo-crap` 0.2.2 in
+    devcontainer. Verify from repo root: `mise run crap` (exit 0, "97 functions; none exceed 30") +
+    enforcing gate `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression`
+    (pass=`0 regressed/97 unchanged` exit 0; inflate baseline coverage → `N regressed` exit 1 — do
+    NOT pipe to tail, masks `$?`) + `mise run crap:baseline` regenerates `.crap-baseline.json`
+    byte-identical (97 entries, 10 iscc-lib files, COMMITTED, not gitignored). KEY GOTCHA:
+    `.cargo-crap.toml` MUST exclude `crates/iscc-lib/benches/**` (built-in `benches/**` matches only
+    repo-root) else `bench_cdc_chunks` leaks at CRAP 42. CAVEAT (Codex): `--fail-regression` exits 0
+    for NEW high-CRAP funcs — filed [review] issue to add `--fail-above 30`
 - **iscc-rb workspace exclusion**: `--exclude iscc-rb` in CI `rust` job is permanent — Rust job
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
-- .NET bindings fully complete: 32/32 Tier 1 symbols, 91 tests, NuGet pipeline, version sync, docs
-- Swift bindings fully complete: XCFramework, release workflow, version sync, docs, provenance
-    guard, root Package.swift CI smoke test
-- **JNA Android ARM32 resource path**: JNA canonicalizes ARM32 arch to `arm` (not `armv7`). Correct
-    prefix is `android-arm/`, not `android-armv7/`. Verified via bytecode decompilation. Filed as
-    spec issue with HUMAN REVIEW REQUESTED
+- .NET + Swift bindings fully complete (32/32 Tier 1, CI, version sync, docs, release). JNA Android
+    ARM32 resource-path fix (`android-arm/` not `android-armv7/`) archived to `MEMORY-archive.md`
 
 ## Binding Propagation Shortcuts
 

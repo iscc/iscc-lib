@@ -105,19 +105,20 @@ fully-met target sections to `learnings-archive.md`.
     `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`).
     `mise run coverage` mirrors it locally; `lcov.info` is gitignored (137KB / 5156 lines). CI job
     entries now 17 (python-test matrix → 18 actual)
-- **CRAP gate Phase 2 done** (iter 96, ci-cd.md Phase 2): `coverage` job renamed `Coverage + CRAP`,
-    job-level `permissions: {contents: read, security-events: write}` for the SARIF upload, installs
-    `cargo-binstall` (taiki-e/install-action) then `cargo binstall -y cargo-crap@0.2.2`, runs two
-    report-only steps (`--format github`, `--format sarif --output crap.sarif`) + `upload-sarif@v3`.
-    `.cargo-crap.toml` (repo root): `threshold=30.0`, `missing="pessimistic"`, exclude globs for all
-    7 binding crates + `packages/**` + `scripts/**`. `mise run crap` (`depends=["coverage"]`).
-    Report-only — NO `fail-above`/`fail-regression`. Phase 3 (`--fail-regression` baseline) remains
-- **cargo-crap `benches/**` default exclude only matches repo-root path** — nested
-    `crates/iscc-lib/benches/**` is NOT covered and leaks `bench_cdc_chunks` in at CRAP 42.0 (#1
-    crappiest, no coverage = pure harness noise). Must add `crates/iscc-lib/benches/**` to
-    `.cargo-crap.toml` `exclude` explicitly. With it, highest CRAP is `gen_meta_code_v0` at 22.3 (\<
-    threshold 30) so report-only emits zero GitHub annotations. `.cargo-crap.toml` is read only when
-    `cargo crap` runs from the repo root (config path is `.`-relative)
+- **CRAP gate (iter 96 Phase 2 + iter 97 Phase 3, ci-cd.md)**: `Coverage + CRAP` job installs
+    `cargo binstall -y cargo-crap@0.2.2`, runs report-only `--format github` + `--format sarif`
+    (`upload-sarif@v3`, job-level `security-events: write`), then an ENFORCING final step
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` (NOT
+    continue-on-error). `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored — only
+    `lcov.info`/`crap.sarif` are): envelope `{$schema, version, entries}`, 97 iscc-lib functions /
+    10 files. `mise run crap:baseline` regenerates it byte-identical (idempotent).
+    `.cargo-crap.toml` `threshold=30`, `missing="pessimistic"`, MUST list
+    `crates/iscc-lib/benches/**` explicitly (the built-in `benches/**` default only matches
+    repo-root, else `bench_cdc_chunks` leaks at CRAP 42)
+- **`--fail-regression` does NOT catch NEW high-CRAP functions** (Codex, iter 97): a brand-new
+    uncovered function has no baseline entry, so it reports `★ N new` and exits 0 — the gate only
+    blocks WORSENING of existing entries. To also block new risky code, pair with `--fail-above 30`
+    (current max CRAP ~22.3, safely below 30). Filed as a [review] issue
 
 ## Branching
 
@@ -183,6 +184,13 @@ fully-met target sections to `learnings-archive.md`.
     should scan all issues.md entries against state.md "met" sections after reviewing advance work
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
+- **Detect concurrent CID loops** (iter 97): if `state.md`/context files change in the working tree
+    mid-review, or `mise run check` reports spurious "files were modified by this hook" on a file
+    the advance never touched (e.g. `standardrb-fix` flagging when no `.rb` is dirty), suspect a
+    race. Check `ps aux | grep -E 'cid:run|claude -p CID iteration'`: TWO `mise run cid:run` or two
+    different `iteration N` agents = duplicate loops racing the same branch — they clobber context
+    files and race pushes. Flag HUMAN REVIEW REQUESTED so a human kills the duplicate; do NOT kill
+    processes yourself, and do NOT push (the second loop will collide)
 - **Pre-push mdformat blocks on non-conforming context files**: the pre-push hook runs mdformat
     (`--wrap 100 --number`, isolated `mdformat-mkdocs[recommended]` env) on every file changed in
     the push range — including `next.md` and per-agent `MEMORY*.md`. A non-conforming

@@ -22,3 +22,9 @@ the agent automatically — reference for humans and occasional lookup only.
     Linux). Swift tests structurally validated only — execution needs macOS CI
 - Swift CI job (`swift:`) on `macos-14`: `dump-package` (root) → `cargo build -p iscc-uniffi` →
     `swift build` → `swift test`
+
+## JNA Android ARM32 (archived iter 97)
+
+- **JNA Android ARM32 resource path**: JNA canonicalizes ARM32 arch to `arm` (not `armv7`). Correct
+    prefix is `android-arm/`, not `android-armv7/`. Verified via bytecode decompilation. Filed as
+    spec issue with HUMAN REVIEW REQUESTED.

@@ -44,6 +44,24 @@ install via `cargo binstall`, configure via `.cargo-crap.toml`, and add `mise ru
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Rust Coverage and CRAP Quality Gate"
 
+## CRAP gate does not fail on new high-CRAP functions `normal` [review]
+
+The Phase 3 CRAP gate (`cargo crap --baseline .crap-baseline.json --fail-regression`, ci.yml) only
+exits non-zero when an *existing* baseline entry's score worsens. A brand-new (or renamed) function
+has no baseline entry, so it is reported as `★ N new` and the step still exits 0 — a new uncovered,
+high-complexity function bypasses the enforced gate entirely. Verified by Codex (iter 97): a new
+uncovered CC=21 function reported `★ 1 new` at CRAP 462 and the gate returned success; the
+report-only `--format github`/`--format sarif` steps are non-failing too, so nothing blocks it.
+
+This was a deliberate scope choice for Phase 3 (regression-only, no absolute `--fail-above`), so it
+is a follow-up hardening item, not a Phase 3 defect. Fix: add `--fail-above 30` alongside
+`--fail-regression` so new code above the configured threshold also fails. The current baseline max
+is ~22.3 (well below 30), so this would not break existing code. Confirm `cargo-crap 0.2.2` accepts
+both flags together before wiring it in.
+
+**Spec:** `.claude/context/specs/ci-cd.md` → "Rust Coverage and CRAP Quality Gate" — HUMAN REVIEW
+REQUESTED before amending the spec to mandate `--fail-above` (review-sourced).
+
 ## Add `iai-callgrind` performance-regression CI gate `normal` [human]
 
 Add a Linux CI job with [`iai-callgrind`](https://github.com/iai-callgrind/iai-callgrind)
