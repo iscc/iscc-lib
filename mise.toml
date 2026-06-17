@@ -115,3 +115,8 @@ run = "cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info"
 description = "Report per-function CRAP scores for iscc-lib (cargo crap, report-only)"
 depends = ["coverage"]
 run = "cargo crap --lcov lcov.info"
+
+[tasks."crap:baseline"]
+description = "Regenerate the committed CRAP regression baseline (.crap-baseline.json)"
+depends = ["coverage"]
+run = "cargo crap --lcov lcov.info --format json --output .crap-baseline.json"

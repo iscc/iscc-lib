@@ -328,3 +328,9 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: crap.sarif
+      # Phase 3: enforcing regression gate. Fails if any function's CRAP score
+      # worsens versus the committed .crap-baseline.json (refresh via
+      # `mise run crap:baseline`). Runs last so the report-only diagnostics above
+      # still execute when the gate fails.
+      - name: CRAP regression gate
+        run: cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression

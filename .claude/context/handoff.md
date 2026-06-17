@@ -1,63 +1,60 @@
-## 2026-06-17 — Review of: CRAP gate Phase 2 — report-only `cargo crap` (GitHub annotations + SARIF) + `.cargo-crap.toml` + `mise run crap`
+## 2026-06-17 — CRAP gate Phase 3 — regression gate with committed baseline
 
-**Verdict:** PASS
+**Done:** Turned the report-only Phase 2 CRAP gate into an enforcing regression gate. Captured a
+committed `.crap-baseline.json` (97 `iscc-lib` functions, 10 source files), added an enforcing
+`cargo crap --fail-regression --baseline` step as the last step of the `Coverage + CRAP` CI job, and
+added a reproducible `mise run crap:baseline` task to regenerate the baseline.
 
-**Summary:** The advance agent extended the existing `coverage` CI job to run report-only
-`cargo crap` (pinned `0.2.2`, installed via `cargo binstall`) against the Phase-1 `lcov.info` —
-emitting `--format github` annotations and uploading a `--format sarif` report to Code Scanning —
-plus a repo-root `.cargo-crap.toml`, a `mise run crap` task, and `.gitignore`/`ci-cd.md` updates.
-Diff is tightly scoped (config + CI + docs only, no source/API surface), all verification criteria
-pass, and the one deviation from next.md (the explicit `crates/iscc-lib/benches/**` exclude) is
-justified and confirmed necessary.
+**Files changed:**
 
-**Verification:**
+- `.crap-baseline.json` (new): committed CRAP baseline. Envelope
+    `{$schema, version: "0.2.2",   entries:[...]}` — 97 entries, every `file` under
+    `./crates/iscc-lib/src/`. Generated via the exact commands in next.md; `.cargo-crap.toml`
+    excludes filter out all binding crates + benches.
+- `.github/workflows/ci.yml`: appended a `CRAP regression gate` step (after the SARIF upload)
+    running `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression`. Not
+    `continue-on-error`, so it is a real gate. The two report-only steps are unchanged.
+- `mise.toml`: added `[tasks."crap:baseline"]` (`depends=["coverage"]`) running
+    `cargo crap --lcov lcov.info --format json --output .crap-baseline.json`.
+- `.claude/context/specs/ci-cd.md`: flipped the Phase 3 checkbox (now `[x]`) and rewrote the Phase 3
+    "Phased rollout" bullet to describe the committed baseline + `mise run crap:baseline` refresh in
+    a reviewed commit (not CI auto-commit).
 
-- [x] `cargo crap --lcov lcov.info` exits 0 (report-only) — 97 functions analyzed, none exceed
-    threshold 30; highest is `gen_meta_code_v0` at CRAP 22.3
-- [x] `mise run crap` exits 0, regenerates `lcov.info` via `depends=["coverage"]`, prints the table;
-    `mise tasks | grep '^crap'` shows the task
-- [x] SARIF valid — `cargo crap ... --format sarif --output /tmp/crap.sarif` then
-    `jq -e '.runs[0].tool.driver.name'` → `"cargo-crap"`; written to /tmp, not the repo
-- [x] Report contains only `iscc-lib` functions — no binding crates, `packages/`, or benches (grep
-    for those paths returns nothing)
-- [x] `grep -E 'cargo-crap|cargo crap|upload-sarif|security-events' ci.yml` shows install + both
-    runs + SARIF upload + the `security-events: write` permission
-- [x] `grep -E 'fail-above|fail-regression|baseline' ci.yml` returns nothing (strictly report-only)
-- [x] `git status --porcelain` lists neither `lcov.info` nor `crap.sarif` (both gitignored)
-- [x] `mise run check` passes — all 15 pre-commit hooks green, no out-of-scope context reflow
-- [x] `ci-cd.md` Phase 2 checkboxes (411, 415, 416, 417) flipped to `[x]`; Phase 3 (413, 414) stay
-    `[ ]`
+**Verification:** All next.md criteria pass.
 
-**Issues found:**
+- Pass case: `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` exits 0
+    (`0 regressed`, `97 unchanged`) against fresh-regenerated coverage.
+- Catch case: inflated-coverage baseline (`/tmp/b.json`) → exit 1 (`17 regressed`). NOTE: when
+    testing exit codes, do NOT pipe `cargo crap` into `tail` — `$?` then reflects `tail`, masking
+    the gate's real exit. Redirect to a file and check `$?` directly.
+- `mise run crap:baseline` regenerates `.crap-baseline.json` byte-for-byte identical (idempotent, no
+    spurious diff). `mise tasks | grep '^crap'` lists both `crap` and `crap:baseline`.
+- `git check-ignore .crap-baseline.json` → not ignored (only `lcov.info` + `crap.sarif` are); JSON
+    top-level keys are `$schema`, `version`, `entries`; all entry files under `crates/iscc-lib/`.
+- `grep -E 'fail-regression|crap-baseline' .github/workflows/ci.yml` shows the gate step.
+- `mise run check` — all 15 pre-commit hooks green (mdformat included; no out-of-scope context
+    reflow). Baseline (18.8 KB / 782 lines) passes the large-file hook.
 
-- (none) — clean. Verified the next.md deviation: with `crates/iscc-lib/benches/**` removed from the
-    exclude list, `bench_cdc_chunks` leaks in at CRAP 42.0 (no coverage, pure harness noise), so the
-    explicit exclude is necessary, not dead config. The handoff documented this accurately.
+**Next:** Two unstarted `normal` v1.0.0 CI gates remain:
 
-**Codex review:** No regressions identified. "The CI, cargo-crap configuration, gitignore, and mise
-task changes are consistent with the intended report-only CRAP workflow."
+1. **`iai-callgrind` perf-regression gate** — instruction-count benches for hot
+    `gen_*_v0`/hashing/CDC/MinHash with a committed baseline failing on >10% regression (ci-cd.md
+    line 420 checkbox, still `[ ]`). Mirrors the reviewed-baseline pattern just established.
+2. **PyO3 0.23 → 0.29 bump** — clears two RustSec advisories in the wheel; scope to
+    `crates/iscc-py/`, migrate incrementally.
 
-**Next:** Two unstarted `normal` v1.0.0 backlog gates remain — pick the most incremental:
-
-1. **CRAP Phase 3 (regression gate)** — builds directly on this Phase 2 work: capture a baseline
-    JSON (`cargo crap --format json --output`), run `--fail-regression --baseline`, and refresh the
-    baseline on merges to `develop`. This is the enforcing step Phase 2 deliberately deferred.
-2. **`iai-callgrind` perf-regression CI gate** — instruction-count benches for hot
-    `gen_*_v0`/hashing/CDC/MinHash paths with a committed baseline failing on >10% regression.
-3. **PyO3 0.23 → 0.29 bump** — clears two RustSec advisories shipped in the wheel; six-minor-version
-    jump, migrate incrementally (start 0.23 → 0.24), scope to `crates/iscc-py/` only.
+Also: flipping `semver` to enforcing and this `coverage` job's regression gate become the v1.0.0 cut
+checklist.
 
 **Notes:**
 
-- Phase 2 is intentionally non-failing — the report-only steps exit 0 regardless of scores, and with
-    the benches exclude the highest CRAP (22.3) is below threshold 30, so CI emits **zero** GitHub
-    annotations in practice. The annotation path will only activate if a function crosses 30.
-- SARIF upload + GitHub annotations cannot be verified pre-push (require the live runner); the
-    `upload-sarif@v3` step needs `security-events: write`, added at the `coverage` job level (does
-    not affect other jobs). iscc-lib is public so Code Scanning is available.
-- CI does NOT use `mise`; `mise run crap`/`coverage` mirror the CI commands for local repro only
-    (identical command strings — cannot drift silently).
-- `cargo-crap` 0.2.2 reads `.cargo-crap.toml` only when run from the repo root (config path is
-    `.`-relative) — relevant if a future job changes CWD.
-- Archived all per-binding propagation learnings to `learnings-archive.md` (all bindings met) to
-    keep learnings.md under the 200-line budget; review MEMORY.md condensed to stay under 200.
+- `mise run check` runs only the pre-commit stage (formatting/lint), not pre-push (clippy/test).
+    This change touches zero Rust source, so cargo test/clippy are unaffected — verified the gate
+    against a fresh `cargo llvm-cov` run, not a stale `lcov.info`.
+- Cross-environment determinism risk (next.md): the committed baseline's coverage comes from the
+    devcontainer; CI regenerates on `@stable`. The `--epsilon 0.01` default absorbs float noise. If
+    CI's first run flaps, the fix is to regenerate the baseline from CI's `lcov` artifact, NOT to
+    widen epsilon. Did not touch epsilon.
+- `.claude/context/iterations.jsonl` shows as modified in git status — that is loop bookkeeping, NOT
+    staged by this commit (only handoff.md among context files is staged).
+- Did not pass `--sort` (0.2.2 lacks it) and used `--format json` exactly per next.md.

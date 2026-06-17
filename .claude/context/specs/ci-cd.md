@@ -86,10 +86,13 @@ To avoid blocking CI on pre-existing untested code, the gate is introduced in st
 2. **Report-only CRAP** — run `cargo crap` against `lcov.info` with `--format github` (inline PR
     annotations) and upload `--format sarif` output to GitHub Code Scanning. **Non-failing** —
     establishes the score distribution without breaking builds.
-3. **Regression gate** — once a baseline JSON is captured, run with `--fail-regression` against that
-    `--baseline`. Regression mode is preferred over an absolute `--fail-above` threshold: it blocks
-    PRs that *worsen* risk while tolerating existing debt. The baseline is refreshed on merges to
-    `develop`.
+3. **Regression gate** — a baseline JSON (`.crap-baseline.json`) is committed at the repo root, and
+    the job runs `cargo crap --fail-regression --baseline .crap-baseline.json` as an enforcing
+    (non-`continue-on-error`) step. Regression mode is preferred over an absolute `--fail-above`
+    threshold: it blocks PRs that *worsen* risk while tolerating existing debt. The baseline is
+    regenerated via `mise run crap:baseline` and committed in a deliberate reviewed commit when
+    merging work into `develop` (mirroring the `iai-callgrind` reviewed-baseline pattern) — it is
+    **not** auto-committed by CI, which would race the CID loop's own pushes.
 
 ### Local task
 
@@ -410,8 +413,9 @@ workflow triggers on push to `main`.
     1\)
 - [x] CRAP job runs `cargo crap` in report-only mode with `--format github` annotations and uploads
     SARIF to GitHub Code Scanning (Phase 2)
-- [ ] CRAP job fails on CRAP-score regression vs a baseline (`--fail-regression --baseline`), with
-    the baseline refreshed on merges to `develop` (Phase 3)
+- [x] CRAP job fails on CRAP-score regression vs the committed `.crap-baseline.json`
+    (`--fail-regression --baseline`), refreshed via `mise run crap:baseline` in a reviewed commit
+    (Phase 3)
 - [x] `cargo-crap` is pinned to a specific version and installed via `cargo binstall`
 - [x] `.cargo-crap.toml` configures threshold, excluded binding crates, and missing-coverage policy
 - [x] `mise run coverage` and `mise run crap` reproduce the gate locally

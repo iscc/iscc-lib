@@ -96,3 +96,10 @@ See MEMORY.md for current active entries.
 - Kotlin JNA resource paths (9, bundled native libs): `linux-x86-64`, `linux-aarch64`,
     `darwin-aarch64`, `darwin-x86-64`, `win32-x86-64`, `android-{aarch64,arm,x86-64,x86}`. JNA
     5.16.0 canonicalizes ARM32 to `arm` (see learnings.md); discovers libs from classpath
+
+## Release / npm packaging (archived iter 97 — stable, also in learnings.md)
+
+- npm `@iscc/lib` (issue #38, iter 92): BUNDLED single-package — ships all 5 `.node` via
+    `files: ["*.node"]`, NO `optionalDependencies`/sibling packages. `publish-npm-lib` must NOT run
+    `napi prepublish -t npm` (injects dangling optional-deps that break `npm ci`). `index.js` loader
+    requires local `./iscc-lib.<triple>.node` first

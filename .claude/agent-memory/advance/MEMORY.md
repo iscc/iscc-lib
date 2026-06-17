@@ -21,58 +21,59 @@ iterations.
 - UniFFI: `crates/iscc-uniffi/` — src/lib.rs (proc macro interface for Swift/Kotlin). 32 Tier 1
     symbols, 11 result Records, IsccUniError enum, DataHasher/InstanceHasher Objects. Uses
     `uniffi::setup_scaffolding!()`, no UDL or build.rs. `publish = false`
-- Go pure: `packages/go/` — codec.go, utils.go, cdc.go, minhash.go, simhash.go, dct.go, wtahash.go,
-    xxh32.go, code_content_text.go, code_meta.go, code_data.go, code_instance.go,
-    code_content_image.go, code_content_audio.go, code_content_video.go, code_content_mixed.go,
-    code_iscc.go, conformance.go. WASM bridge removed — pure Go only
+- Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
+    dct, wtahash, xxh32, `code_*.go`, conformance.go). WASM bridge removed — pure Go only
 
 ## Build and Tooling
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
-- CI workflow `.github/workflows/ci.yml` has 17 job entries: version-check, rust, python-test,
+- CI workflow `.github/workflows/ci.yml` has 17 job entries (version-check, rust, python-test,
     python, nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, semver,
-    coverage. `bench` = `cargo bench --no-run`. `swift` on `macos-14`. `kotlin` on `ubuntu-latest`
-    JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
-- `coverage` CI job (iter 94 Phase 1, iter 96 Phase 2; named `Coverage + CRAP`): standalone, no
-    `needs:`, NO `continue-on-error`. toolchain+`llvm-tools-preview` → install `cargo-llvm-cov` +
-    `cargo-binstall` (`taiki-e/install-action@v2`) → `cargo binstall -y cargo-crap@0.2.2` →
-    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`) →
-    `cargo crap --lcov lcov.info --format github` → `--format sarif --output crap.sarif` →
-    `github/codeql-action/upload-sarif@v3`. Job-level
-    `permissions: {contents: read,   security-events: write}` (the SARIF upload needs
-    `security-events: write`). Both `cargo crap` runs report-only (no `--fail-above`) → exit 0.
-    Local: `mise run coverage` + `mise run crap` (`depends=["coverage"]`). `lcov.info`+`crap.sarif`
-    gitignored. Phase 3 (`--fail-regression --baseline`) NOT done
+    coverage). `bench` = `cargo bench --no-run`. `swift` on `macos-14`; `kotlin` on `ubuntu` JDK 17
+    \+ `cargo build -p iscc-uniffi` + `./gradlew test`
+- `coverage` CI job (named `Coverage + CRAP`): standalone, no `needs:`, NO `continue-on-error`.
+    toolchain+`llvm-tools-preview` → install `cargo-llvm-cov` + `cargo-binstall`
+    (`taiki-e/install-action@v2`) → `cargo binstall -y cargo-crap@0.2.2` →
+    `cargo llvm-cov -p   iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`) →
+    report-only `cargo crap --format github` + `--format sarif --output crap.sarif` →
+    `upload-sarif@v3`. Job-level `permissions: {contents: read, security-events: write}` (SARIF
+    upload). Local mirror tasks `coverage`, `crap`, `crap:baseline` (all `depends=["coverage"]`).
+    `lcov.info`+`crap.sarif` gitignored. Phase 3 (iter 97): enforcing `CRAP regression gate` (LAST
+    step, after SARIF upload):
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json   --fail-regression` — exits 1 if
+    any function's CRAP rose beyond `--epsilon` (default 0.01)
+- `.crap-baseline.json` (repo root, iter 97): COMMITTED CRAP baseline, NOT gitignored (only
+    `lcov.info`+`crap.sarif` are). Envelope `{$schema, version:"0.2.2", entries:[...]}` — 97
+    `iscc-lib` functions, 10 src files (excludes filter binding crates+benches). 18.8KB/782 lines.
+    Generated: `cargo crap --lcov lcov.info --format json --output .crap-baseline.json`. Do NOT pass
+    `--sort` (only on cargo-crap `main`, not 0.2.2). Refreshed in a reviewed commit, NOT CI
+    auto-commit (would race CID loop pushes). GOTCHA: when checking gate exit codes, never pipe
+    `cargo crap` into `tail`/`head` — `$?` reflects the pager, masking exit 1. Redirect to file then
+    check `$?`
 - `.cargo-crap.toml` (repo root, iter 96): keys `threshold=30.0`, `missing="pessimistic"`, `exclude`
     globs — excludes 7 binding crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`.
     GOTCHA: built-in default excludes skip nested `tests/**` but NOT nested `benches/**` (matches
-    repo-root only) → bench harness leaks at CRAP ~42 unless excluded. Not preinstalled:
-    `cargo install cargo-crap@0.2.2 --locked` (~1.5min). `--format github` silent below threshold
+    repo-root only) → bench harness leaks at CRAP ~42 unless excluded. `--format github` silent
+    below threshold
 - `semver` CI job (iter 93): `obi1kenobi/cargo-semver-checks-action@v2` with `package: iscc-lib`,
     baseline = last crates.io release (auto-detected). `continue-on-error: true` — INFORMATIONAL
     pre-1.0 (post-0.4.0 `pub(crate)` narrowing of cdc/conformance/minhash/simhash/utils reports as
     breaking; expected). Drop `continue-on-error` at v1.0.0 to enforce. Local: `mise run semver`
-    (`cargo semver-checks check-release -p iscc-lib`). mdformat reformats out-of-scope context files
-    (next.md, define-next memory) → `mise run check` red on those, NOT on edited files
+    (`cargo semver-checks check-release -p iscc-lib`)
 - Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
     param (not step-level), bundler-cache auto-installs gems
-- `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
-    `--all-features`, and `--no-default-features --features text-processing` (issue #16)
-- `version-check` job: lightweight (checkout + setup-python only), runs
-    `python scripts/version_sync.py --check` to catch manifest version drift
+- `rust` CI job feature matrix: clippy + test for `--no-default-features`, `--all-features`, and
+    `--no-default-features --features text-processing` (issue #16)
+- `version-check` job (checkout + setup-python only): `scripts/version_sync.py --check` (16 targets
+    incl. Swift Constants, Package.swift releaseTag, Kotlin; exits 1 on mismatch)
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
-- Version sync: `scripts/version_sync.py` — 16 targets (incl. Swift Constants, Package.swift
-    releaseTag, Kotlin). `--check` mode exits 1 on mismatch
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds
-- Release workflow (`release.yml`): 9 inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift). Pattern: boolean input → build job → **smoke test job** → publish job
-    (version-exists skip). NuGet uses `NUGET_API_KEY` secret (not OIDC). Ruby uses OIDC
-- npm `@iscc/lib` (issue #38, iter 92): BUNDLED single-package — ships all 5 `.node` via
-    `files: ["*.node"]`, NO `optionalDependencies`/sibling packages. `publish-npm-lib` must NOT run
-    `napi prepublish -t npm` (injects dangling optional-deps that break `npm ci`). `index.js` loader
-    requires local `./iscc-lib.<triple>.node` first (also in learnings.md)
-- Release-job CI internals (`build-xcframework`, Kotlin Maven Central) → MEMORY-archive.md
+- Release workflow (`release.yml`): 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems,
+    nuget, maven-kotlin, swift). Pattern: input → build → **smoke test** → publish (version-exists
+    skip). NuGet uses `NUGET_API_KEY` secret (not OIDC); Ruby uses OIDC
+- npm `@iscc/lib` bundled single-package model, release-job CI internals (`build-xcframework`,
+    Kotlin Maven Central) → MEMORY-archive.md
 - wasm-pack `--features` goes AFTER the path, NOT after `--`. Test-target filter (`-- --test unit`)
     fails — runner only accepts a positional FILTER; run full suite
 
