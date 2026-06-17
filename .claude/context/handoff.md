@@ -1,64 +1,58 @@
-## 2026-06-17 — Review of: Add streaming `SumHasher` to the WASM bindings
+## 2026-06-17 — Release the GIL during Python hashing (`py.allow_threads`)
 
-**Verdict:** PASS
+**Done:** Wrapped the pure-Rust CPU-bound compute in `py.allow_threads(...)` at all 7 call sites in
+`crates/iscc-py/src/lib.rs` — the 4 one-shot byte-data functions (`gen_image_code_v0`,
+`gen_data_code_v0`, `gen_instance_code_v0`, `gen_sum_code_v0`) and the 3 streaming `update()`
+methods (`DataHasher`, `InstanceHasher`, `SumHasher`). Resolves issue #39. Output bytes are
+unchanged; this is purely a concurrency improvement so threaded consumers can overlap hashing
+instead of serializing on the GIL.
 
-**Summary:** The advance agent added a `#[wasm_bindgen]` `SumHasher` class to `crates/iscc-wasm`,
-wrapping the shared core `iscc_lib::streaming::SumHasher` with the established `Option<inner>`
-finalize-once pattern and reusing the existing `WasmSumCodeResult`. It is a pure translation layer —
-no algorithm logic, output verified equal to the one-shot `gen_sum_code_v0`. Scope was clean (WASM
-crate only; no core, Python, other bindings, or Tier 1 changes), and this fully closes issue #37
-across all bindings (core + Python + WASM).
+**Files changed:**
+
+- `crates/iscc-py/src/lib.rs`: 4 one-shot functions now compute inside `py.allow_threads(|| ...)`
+    with `PyDict` construction kept outside the closure (GIL held). The 3 `update()` methods gained
+    an injected `py: Python<'_>` parameter (invisible to Python, no `.pyi` change), take the
+    `&mut inner` borrow with the finalized-error check while the GIL is held, then release the GIL
+    around `inner.update(data)`.
+- `tests/test_gil.py` (new): 7 deterministic concurrency-correctness tests using a 16-thread
+    `ThreadPoolExecutor`. Cover all 7 release sites — identical-payload and distinct-payload
+    one-shot runs plus chunked streaming through each hasher — asserting byte-identical output to
+    the single-threaded path. They verify correctness under concurrency, not a speedup.
 
 **Verification:**
 
-- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` — 78 passed, 0 failed (70
-    prior + 8 new `test_sum_hasher_*`, all confirmed present)
-- [x] `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` — clean
-- [x] `cargo fmt -p iscc-wasm --check` — clean
-- [x] `grep -q "pub struct SumHasher" crates/iscc-wasm/src/lib.rs` — exit 0
-- [x] `grep -q "SumHasher" docs/howto/wasm.md` — exit 0
-- [x] "32 Tier 1 symbols" count unchanged in README.md / rust-core.md / target.md — SumHasher not
-    promoted to Tier 1 (no crate-root re-export); only the WASM crate's own CLAUDE.md bumped to "3
-    streaming types"
-- [x] `mise run check` (15 pre-commit hooks) — all passed
+- `cargo build -p iscc-py` compiles (proves `Ungil`/`Send` bounds hold at every call site — the
+    borrowed `&[u8]` and `&mut iscc_lib::*Hasher` are `Ungil + Send`, no copy needed).
+- `cargo clippy -p iscc-py -- -D warnings` clean.
+- `cargo fmt -p iscc-py --check` clean.
+- `grep -c "allow_threads" crates/iscc-py/src/lib.rs` → 7.
+- `maturin develop` succeeds; `pytest tests/` → 286 passed (existing conformance/smoke/streaming
+    suites unchanged + 7 new `test_gil.py`).
+- `ruff check tests/test_gil.py` and `ruff format --check tests/test_gil.py` clean.
+- `mise run check`: all hooks Passed for my files (Rust formatting, Ruff linting/formatting). The
+    only "Failed" hook is `mdformat`, which reformats pre-existing CID context files (`next.md`,
+    define-next memory) — no markdown is in my implementation scope; reverted those files (see
+    Notes).
 
-**Issues found:**
-
-- (none in the advance work) — implementation matches the `gen_sum_code_v0` reference exactly
-    (`filesize: u64 → f64` cast, `units` mapped directly, errors via `JsError`, finalize-once via
-    `inner.take()`). Tests use real byte data and assert against both `gen_sum_code_v0` and the
-    individual `gen_data_code_v0`/`gen_instance_code_v0` units.
-- Reviewer minor fix applied: the WASM crate `CLAUDE.md` "Test Commands" listed
-    `wasm-pack test ... -- --test unit` (the runner rejects `--test` after `--`). Corrected to put
-    `--test <name>` before the `--` (passed to cargo) — verified `--test unit` runs the 77 unit
-    tests. The advance agent had flagged this as stale but left it out of scope.
-
-**Codex review:** Completed, no findings. "The new WASM SumHasher binding follows the existing
-streaming wrapper pattern, delegates to the core implementation, and is covered by passing WASM
-tests. I did not find any introduced correctness issues."
-
-**Next:** Issue #37 is fully closed (deleted from issues.md; `wasm-bindings.md` spec updated and its
-verification box checked). Remaining `normal`-priority backlog, in suggested order:
-
-1. **npm `optionalDependencies` fix (#38)** — confirmed downstream-breaking bug: published
-    `@iscc/lib@0.4.0` declares five unpublished per-platform `optionalDependencies` that 404 and
-    break `npm ci`. The fix decision is already recorded (keep bundled-package model; drop the
-    `napi prepublish -t npm` injection). Well-scoped, user-facing, touches the release workflow +
-    `crates/iscc-napi/package.json`.
-2. **PyO3 0.23 → 0.29 security migration** — closes two RustSec advisories; six-minor-version jump,
-    migrate incrementally per the PyO3 migration guide. Larger but security-relevant.
-3. **GIL release (#39)** — perf; when it lands it must also cover the new `PySumHasher.update()`.
-
-I recommend #38 next: it is a confirmed install-breaking bug for downstream consumers with a clear,
-pre-recorded fix decision.
+**Next:** With #39 closed, the highest-value remaining backlog item is the **npm
+`optionalDependencies` fix (#38)** — a confirmed install-breaking bug for downstream consumers with
+a pre-recorded fix decision (drop the `napi prepublish -t npm` injection, keep the bundled-package
+model). It touches the release workflow + `crates/iscc-napi/package.json`. After that, the **PyO3
+0.23 → 0.29 security migration** (closes two RustSec advisories) is the next normal-priority item.
 
 **Notes:**
 
-- `SumHasher` remains intentionally NOT a crate-root Tier 1 re-export — it is a Python/WASM
-    streaming convenience reached via `iscc_lib::streaming::SumHasher`. Do not bump the "32 Tier 1 /
-    2 streaming types" counts in README/rust-core/target for it.
-- 4 unpushed commits (update-state, iteration-89 log, define-next, advance) will push as one batch
-    with this review — normal: the iteration-89 log commit is written by the runner after the prior
-    review's push, so it trails until the next push.
-- The `WasmSumCodeResult` was reused (no new result struct), so the WASM CLAUDE.md "2 result
-    structs" count is unchanged and correct.
+- No Python-facing signature changed: PyO3 auto-injects the `py: Python<'_>` parameter on the
+    `update()` methods, so it is not visible from Python and `_lowlevel.pyi` stays untouched.
+- Borrow soundness: kept the borrowed `&[u8]` (no owned `Vec<u8>` copy) — it compiled, and the
+    public `__init__.py` wrapper already coerces inputs to immutable `bytes` before calling
+    `_lowlevel`, so the buffer cannot be mutated by another thread during the release.
+- No size-threshold optimization added (next.md flagged it as premature; the wrapper already feeds
+    64 KiB chunks). Unconditional release is the simplest correct choice.
+- The `finalize()` methods were intentionally left GIL-held (out of scope per #39 — the bulk compute
+    is in `update()`/the one-shot path; `finalize()` builds a `PyDict` which needs the GIL).
+- **CID process friction (out of scope):** `mise run format`/`check` runs `prek --all-files`, and
+    `mdformat` reformats `.claude/context/next.md` and `.claude/agent-memory/define-next/MEMORY.md`
+    every time because they were committed in a non-mdformat-conforming state. I reverted them so
+    they are not staged. The define-next agent writes these without mdformat; consider running
+    mdformat on them when authored to stop this recurring churn during advance/review.

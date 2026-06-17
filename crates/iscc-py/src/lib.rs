@@ -148,7 +148,8 @@ fn gen_text_code_v0(py: Python<'_>, text: &str, bits: u32) -> PyResult<PyObject>
 #[pyfunction]
 #[pyo3(signature = (pixels, bits=64))]
 fn gen_image_code_v0(py: Python<'_>, pixels: &[u8], bits: u32) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_image_code_v0(pixels, bits)
+    let r = py
+        .allow_threads(|| iscc_lib::gen_image_code_v0(pixels, bits))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
@@ -290,8 +291,9 @@ fn gen_mixed_code_v0(py: Python<'_>, codes: Vec<String>, bits: u32) -> PyResult<
 #[pyfunction]
 #[pyo3(signature = (data, bits=64))]
 fn gen_data_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<PyObject> {
-    let r =
-        iscc_lib::gen_data_code_v0(data, bits).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let r = py
+        .allow_threads(|| iscc_lib::gen_data_code_v0(data, bits))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
     Ok(dict.into())
@@ -303,7 +305,8 @@ fn gen_data_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<PyObject
 #[pyfunction]
 #[pyo3(signature = (data, bits=64))]
 fn gen_instance_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_instance_code_v0(data, bits)
+    let r = py
+        .allow_threads(|| iscc_lib::gen_instance_code_v0(data, bits))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
@@ -339,7 +342,10 @@ fn gen_sum_code_v0(
     wide: bool,
     add_units: bool,
 ) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_sum_code_v0(std::path::Path::new(path), bits, wide, add_units)
+    let r = py
+        .allow_threads(|| {
+            iscc_lib::gen_sum_code_v0(std::path::Path::new(path), bits, wide, add_units)
+        })
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
@@ -538,11 +544,16 @@ impl PyDataHasher {
     }
 
     /// Push data into the hasher.
-    fn update(&mut self, data: &[u8]) -> PyResult<()> {
-        self.inner
+    ///
+    /// Releases the GIL around the pure-Rust CDC/MinHash compute so threaded
+    /// Python consumers can overlap hashing. The injected `py` parameter is not
+    /// part of the Python-facing signature.
+    fn update(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<()> {
+        let inner = self
+            .inner
             .as_mut()
-            .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?
-            .update(data);
+            .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?;
+        py.allow_threads(|| inner.update(data));
         Ok(())
     }
 
@@ -582,11 +593,16 @@ impl PyInstanceHasher {
     }
 
     /// Push data into the hasher.
-    fn update(&mut self, data: &[u8]) -> PyResult<()> {
-        self.inner
+    ///
+    /// Releases the GIL around the pure-Rust BLAKE3 compute so threaded Python
+    /// consumers can overlap hashing. The injected `py` parameter is not part of
+    /// the Python-facing signature.
+    fn update(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<()> {
+        let inner = self
+            .inner
             .as_mut()
-            .ok_or_else(|| PyValueError::new_err("InstanceHasher already finalized"))?
-            .update(data);
+            .ok_or_else(|| PyValueError::new_err("InstanceHasher already finalized"))?;
+        py.allow_threads(|| inner.update(data));
         Ok(())
     }
 
@@ -628,11 +644,16 @@ impl PySumHasher {
     }
 
     /// Push data into both inner hashers in a single pass.
-    fn update(&mut self, data: &[u8]) -> PyResult<()> {
-        self.inner
+    ///
+    /// Releases the GIL around the pure-Rust CDC/MinHash/BLAKE3 compute so
+    /// threaded Python consumers can overlap hashing. The injected `py`
+    /// parameter is not part of the Python-facing signature.
+    fn update(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<()> {
+        let inner = self
+            .inner
             .as_mut()
-            .ok_or_else(|| PyValueError::new_err("SumHasher already finalized"))?
-            .update(data);
+            .ok_or_else(|| PyValueError::new_err("SumHasher already finalized"))?;
+        py.allow_threads(|| inner.update(data));
         Ok(())
     }
 

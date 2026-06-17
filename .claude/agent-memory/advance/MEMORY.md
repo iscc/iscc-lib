@@ -68,17 +68,17 @@ iterations.
 
 ## Streaming
 
-- `DataHasher`: persistent `buf: Vec<u8>` reused across `update()` calls. CDC → BLAKE3 chunk hash →
-    MinHash pipeline. Tail: `copy_within` + `truncate`. ~1.1 GiB/s at 64 KiB chunks
-- `InstanceHasher`: wraps BLAKE3, outputs ISCC multihash format (64-byte digest truncated)
-- `SumHasher` (issue #37 core-first): holds inner `DataHasher` + `InstanceHasher`, `update` feeds
-    same slice to both. `finalize(bits, wide, add_units) -> SumCodeResult` composes via
-    `gen_iscc_code_v0`. Not yet a crate-root Tier 1 re-export — reach it via
-    `iscc_lib::streaming::SumHasher` (full path) in bindings, NOT bare `iscc_lib::SumHasher`
-- `SumHasher` bindings done: Python (`PySumHasher`, iter 89) + WASM (`SumHasher`, iter 90). Both use
-    `Option<inner>` finalize-once + full path `iscc_lib::streaming::SumHasher` (NOT a crate-root
-    Tier 1 re-export — intentional). WASM reuses `WasmSumCodeResult`, casts `filesize u64→f64`,
-    `finalize(bits?, wide?, add_units?)`. Issue #37 fully closed across all bindings (core+py+wasm)
+- `DataHasher`: persistent `buf: Vec<u8>` reused across `update()`. CDC → BLAKE3 chunk hash →
+    MinHash. Tail: `copy_within` + `truncate`. ~1.1 GiB/s at 64 KiB. `InstanceHasher`: wraps BLAKE3
+    → ISCC multihash (64-byte digest truncated)
+- `SumHasher` (issue #37): inner `DataHasher` + `InstanceHasher`, `update` feeds same slice to both;
+    `finalize(bits, wide, add_units)` composes via `gen_iscc_code_v0`. Reach via full path
+    `iscc_lib::streaming::SumHasher` (NOT crate-root Tier 1). Bindings: Python `PySumHasher`, WASM
+    `SumHasher` (reuses `WasmSumCodeResult`, `filesize u64→f64`), both `Option<inner>` finalize-once
+- Python GIL release (issue #39, iter 91): 3 streaming `update()` + 4 one-shot byte funcs
+    (`gen_image/data/instance/sum_code_v0`) wrap compute in `py.allow_threads(|| ...)`. `update`
+    gains injected `py: Python<'_>` (no `.pyi` change); borrow `&mut inner` BEFORE release. Borrowed
+    slice and core hashers are `Ungil+Send` (no copy); `finalize` stays GIL-held
 
 ## API Design
 
@@ -94,7 +94,6 @@ iterations.
 
 - Tabbed syntax: `=== "Language"` with 4-space indent, blank line before code block
 - Landing page tab order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
-- mdformat reformats JS imports to multi-line style — run format before commit
 - `docs/architecture.md` and `docs/development.md` share identical trees — keep in sync
 
 ## Binding Constant Export Patterns — see MEMORY-archive.md for per-binding details
@@ -198,5 +197,3 @@ iterations.
     `darwin-x86-64`, `win32-x86-64`, `android-aarch64`, `android-arm`, `android-x86-64`,
     `android-x86`. JNA 5.16.0 canonicalizes ARM32 to `arm` (not `armv7`). JNA discovers libs from
     classpath even when `jna.library.path` points to missing dir
-
-## Python Benchmarks — see MEMORY-archive.md for details
