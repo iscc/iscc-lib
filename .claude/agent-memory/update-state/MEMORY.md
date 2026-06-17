@@ -42,44 +42,37 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     0.26.
 - **v1.0.0 gates check**: `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml`
     - `ls .cargo-crap.toml` + `grep -iE "coverage|crap|semver|callgrind" mise.toml`
-- **Coverage + CRAP gate ALL 3 PHASES present; CI FLAKY (green iter 99, RED iter 100)**: ONE job
-    named `Coverage + CRAP (cargo llvm-cov + cargo crap)` at ci.yml:294, no `needs:`, NO
+- **Coverage + CRAP gate ALL 3 PHASES present; install flake FIXED iter 101**: ONE job named
+    `Coverage + CRAP (cargo llvm-cov + cargo crap)` at ci.yml:294, no `needs:`, NO
     `continue-on-error`, job-level `security-events: write`. Pipeline: rust-toolchain@stable +
-    `llvm-tools-preview` → install cargo-llvm-cov → install cargo-binstall →
-    `cargo binstall -y cargo-crap@0.2.2` → `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info`
-    → upload-artifact (`name: lcov`) → **Phase 2 (report-only)**:
-    `cargo crap --lcov lcov.info   --format github` (ci.yml:324) +
-    `--format sarif --output crap.sarif` (326) + `codeql-action/upload-sarif@v3` (327) → **Phase 3
-    (enforcing, iter 97 `3912039`)**: `CRAP regression gate` step
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json   --fail-regression`
-    (ci.yml:335-336), NOT continue-on-error, runs LAST. **Phase 3 ran GREEN once on run 27680364506
-    (sha `cb8b7e9`, iter 98) — but FLAPPED RED on the very next run 27683405546 (sha `e5ff328`, iter
-    100): the job is the ONLY non-continue-on-error gate, so its failure flips the whole run.** ⚠️
-    **cargo-crap install flake (iter 100)**: `Install cargo-crap` (ci.yml:313-314,
-    `cargo binstall -y cargo-crap@0.2.2`, **no `--force`**) logged
-    `cargo-crap v0.2.2 is already   installed, use --force to override` and SKIPPED installing — but
-    `Swatinem/rust-cache@v2` (ci.yml:304) restored cargo's `.crates` metadata WITHOUT the
-    `~/.cargo/bin/cargo-crap` binary, so the next step `cargo crap --lcov ... --format github` (step
-    10, report-only) died with `error: no such command: crap` (exit 101).
-    SARIF/upload/enforcing-gate steps 11-13 all SKIPPED — Phase 3 enforcement never even ran. The
-    FIRST green run populated the poisoned cache, so this RECURS every run until fixed. Fix: add
-    `--force` to the binstall, or stop trusting the cached install record. Coverage build + lcov
-    upload succeed; failure is infra, NOT a code regression. Report-only steps exit 0 when crap IS
-    present (highest CRAP `gen_meta_code_v0`=22.3 < threshold 30). `.crap-baseline.json` (repo root,
-    NOT gitignored — only `lcov.info`+`crap.sarif` are): envelope
-    `{$schema, version:"0.2.2",   entries:[...]}`, 97 entries / 10 `crates/iscc-lib/src/` files.
-    Regen via `mise run crap:baseline` (mise.toml:119, `depends=["coverage"]`,
+    `llvm-tools-preview` → cargo-llvm-cov → cargo-binstall → `Install cargo-crap` (ci.yml:314, now
+    `cargo binstall -y --force cargo-crap@0.2.2`) →
+    `cargo llvm-cov -p iscc-lib --lcov --output-path   lcov.info` → upload-artifact (`name: lcov`) →
+    **Phase 2 (report-only)**: `cargo crap --lcov lcov.info --format github` +
+    `--format sarif --output crap.sarif` + `codeql-action/upload-sarif@v3` → **Phase 3 (enforcing,
+    iter 97)**: `CRAP regression gate`
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` (ci.yml:335-336),
+    NOT continue-on-error, runs LAST. **⚠️ cargo-crap install flake (iter 100, FIXED iter 101
+    `628c5d9`)**: the install step lacked `--force`; `Swatinem/rust-cache@v2` (ci.yml:304) restored
+    cargo's `.crates` metadata WITHOUT the `~/.cargo/bin/cargo-crap` binary, so binstall SKIPPED
+    ("already installed") and the next step died `error: no such command: crap` (exit 101), skipping
+    the SARIF/upload/enforcing steps. The FIRST green run poisons the cache → RECURS every run. Fix
+    = `--force` on the binstall (verified green run 27685108728 sha `b3c064b`: Install step + all
+    CRAP steps incl. enforcing gate all `success`, none skipped). General lesson: if a binstalled
+    tool flakes "already installed" under rust-cache, add `--force`. `.crap-baseline.json` (repo
+    root, NOT gitignored — only `lcov.info`+`crap.sarif` are): envelope
+    `{$schema, version:"0.2.2", entries:[...]}`, 97 entries / 10 `crates/iscc-lib/src/` files. Regen
+    via `mise run crap:baseline` (mise.toml:119, `depends=["coverage"]`,
     `--format json --output .crap-baseline.json`) — reviewed commit, NOT CI auto-commit.
     `.cargo-crap.toml` (repo root): threshold 30, `missing="pessimistic"`, excludes all 7 binding
     crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`. `mise run coverage` (110)
-    \+ `mise run crap` (114, depends=coverage). Phase 1 iter 94 (`0697195`); Phase 2 iter 96
-    (`6ed51c5`/`cbc0d14`); Phase 3 iter 97 (`3912039`, pushed+CI-green iter 99). ci-cd.md Phases
-    1+2+3 boxes all `[x]`. CRAP base issue DELETED from issues.md by review sweep iter 100.
+    \+ `mise run crap` (114, depends=coverage). Phase 1 iter 94; Phase 2 iter 96; Phase 3 iter 97.
+    ci-cd.md Phases 1+2+3 boxes all `[x]`. CRAP base issue DELETED by review sweep iter 100.
     **[review] hardening issue (iter 97, still open)**: Phase 3 is regression-ONLY — a new/renamed
     fn has no baseline entry → reports `★ N new` & exits 0 (Codex verified new CC=21 fn @ CRAP 462
     bypassed). Fix: add `--fail-above 30` (baseline max ~22.3 < 30, safe). HUMAN REVIEW REQUESTED
-    before spec change. If a future CI run flaps, regen baseline from CI's lcov artifact — do NOT
-    widen `--epsilon`.
+    before spec change. If a future run flaps, regen baseline from CI's lcov artifact — do NOT widen
+    `--epsilon`.
 - **Semver gate present iter 93** (`9d42077`): `Semver (cargo-semver-checks)` job at ci.yml:280,
     `obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, **`continue-on-error: true`**
     (informational until v1.0.0). Mirrored `mise run semver` at mise.toml:104. CAUTION: the job
@@ -148,31 +141,31 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Issues diff**: check issues.md for NEW entries each cycle (human AND `[review]`-sourced). Watch
     `[review]` + `HUMAN REVIEW REQUESTED` flags and any critical ones that reshuffle priorities.
 
-## Current State (assessed-at: 9cf84be)
+## Current State (assessed-at: f7f3689)
 
-- **IN_PROGRESS — CI RED.** v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **Iter 100 incremental** (diff `eead1d6..HEAD`). Only code-bearing change: `Cargo.toml:35` +
-    `Cargo.lock` (PyO3 0.24→0.25, lock 0.25.1). Everything else is `.claude/` context/memory.
-- **⚠️ CI FAILING on latest pushed commit.** Latest run 27683405546 (sha `e5ff328`) = **FAILURE**.
-    HEAD `9cf84be` adds only `iterations.jsonl` on top, so the failing run covers HEAD's code. No
-    newer/green re-run. 16/18 jobs green; 2 red: (1) `Coverage + CRAP` = REAL failure (cargo-crap
-    install/cache flake, see CRAP gate entry above) — flips the run; (2) `Semver` = job-level
-    failure but continue-on-error, does NOT flip. The PyO3 0.25 bump itself is fine (Rust job green,
-    review PASS); the CRAP break is infra, unrelated to the bump.
+- **IN_PROGRESS — CI GREEN.** v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
+- **Iter 101 incremental** (diff `9cf84be..HEAD`). Only code-bearing change:
+    `.github/workflows/   ci.yml` 1-line `--force` fix (628c5d9) for the cargo-crap install flake.
+    Everything else is `.claude/` context/memory. PyO3 stays at 0.25 (lock 0.25.1) — bumped last
+    cycle, not this one.
+- **✅ CI PASSING.** Latest run 27685108728 (sha `b3c064b`) = **SUCCESS**. HEAD `f7f3689` adds only
+    `iterations.jsonl` on top, so the green run covers HEAD's code. All 16 functional jobs +
+    Coverage+CRAP green; only `Semver` shows job-level failure but continue-on-error (does NOT
+    flip). Coverage+CRAP install flake resolved — enforcing Phase 3 gate ran & passed.
 - **5 issues: 0 critical, 3 normal, 2 low** (grep `^## .+\`(critical|normal|low)\`\` for headers,
-    excludes legend line — no -1 adjustment). Review sweep iter 100 DELETED the resolved "Add Rust
-    coverage + CRAP-metric quality gate" issue.
+    excludes legend line — no -1 adjustment).
 - **Open normal gaps (3)**: PyO3 migration (now at 0.25, continue to 0.29 for RustSec), CRAP
     `--fail-above` hardening [review, HUMAN REVIEW REQUESTED], iai-callgrind perf gate (only v1.0.0
     CI gate w/ ZERO impl). cargo-semver-checks gate present — informational.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
 - **Partially-met sections**: Rust Core (semver gate informational; perf gate missing;
-    enforcing-semver needs v1.0.0), Python (**PyO3 migration in progress — GIL MET**), CI/CD (**RED
-    — fix cargo-crap install first**; `--fail-above` hardening + iai-callgrind remain). Node.js MET.
-    WASM MET. All 12 bindings functionally met.
-- **Recently closed/landed (don't re-flag)**: PyO3 0.25 (iter 100), CRAP base issue swept (iter
-    100), CRAP Phase 3 first green (iter 99 cb8b7e9), PyO3 0.24 (iter 98), semver gate (iter 93,
-    informational), npm #38 (iter 92), GIL #39 (iter 91), streaming SumHasher #37 (iters 88-90).
+    enforcing-semver needs v1.0.0), Python (**PyO3 migration in progress — GIL MET**), CI/CD
+    (**GREEN**; `--fail-above` hardening + iai-callgrind remain). Node.js MET. WASM MET. All 12
+    bindings met.
+- **Recently closed/landed (don't re-flag)**: cargo-crap `--force` flake fix (iter 101 `628c5d9`),
+    PyO3 0.25 (iter 100), CRAP base issue swept (iter 100), CRAP Phase 3 first green (iter 99), PyO3
+    0.24 (iter 98), semver gate (iter 93, informational), npm #38 (iter 92), GIL #39 (iter 91),
+    streaming SumHasher #37 (iters 88-90).
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists; ci-cd.md Phases 1+2+3 boxes all `[x]`; rust-core perf criterion
     - enforcing-semver still `[ ]`. Re-read on incremental review.
