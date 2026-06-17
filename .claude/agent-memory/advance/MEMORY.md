@@ -81,12 +81,14 @@ iterations.
     alias→`Py<PyAny>` (17 `PyResult<PyObject>` sites; `Ok(dict.into())` bodies unchanged); 0.27
     (iter 102, →0.27.2) in `to_pylist`: `Bound::downcast`→`Bound::cast` +
     `downcast_into_unchecked`→`cast_into_unchecked` (same sigs; err `DowncastError`→`CastError` but
-    discarded by `if let Ok`). Raw
+    discarded by `if let Ok`); 0.28 (iter 104, →0.28.3) ZERO src changes — clean lockfile-only bump
+    (also dropped transitive `indoc`/`memoffset`/`unindent` from Cargo.lock). Raw
     `pyo3::ffi::*`+`Bound::from_owned_ptr`+`.into_pyobject(py)?.into()`+`#[pyo3(signature=...)]`
-    still clean through 0.27. Recipe per hop: bump pin → `cargo update -p pyo3` (regens 5 pyo3
+    still clean through 0.28. Recipe per hop: bump pin → `cargo update -p pyo3` (regens 5 pyo3
     crates) → build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286
-    tests, 1 pre-existing unrelated iscc_core Pydantic-V1/py3.14 warning). NEXT HOP: 0.27→0.28
-    (treat `-D warnings` as the gate)
+    tests, 1 pre-existing unrelated iscc_core Pydantic-V1/py3.14 warning). NEXT HOP: 0.28→0.29 —
+    FINAL hop (`0.29.0` already shows as available; RustSec advisories clear here, closes issue #1);
+    treat `-D warnings` as the gate, verify `cargo audit` after
 - Release workflow (`release.yml`): 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems,
     nuget, maven-kotlin, swift). Pattern: input → build → **smoke test** → publish. NuGet uses
     `NUGET_API_KEY` (not OIDC); Ruby uses OIDC. npm `@iscc/lib` bundled single-package + release-job
