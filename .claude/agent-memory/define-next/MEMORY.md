@@ -175,17 +175,20 @@ iterations.
     (valgrind-blocked locally → CI-only, defer verification to the run), PyO3 0.23→0.29 (no security
     benefit until full 0.29).
 - **PyO3 migration progress: 0.23→0.24 (iter 98), 0.24→0.25 (iter 99) PASSED ZERO source changes;
-    0.25→0.26 (iter 101, review PASS iter 102) was the FIRST hop needing source edits (7
-    `allow_threads`→`detach` rename + 17 `PyObject`→`Py<PyAny>` returns); 0.26→0.27 SCOPED iter
-    102.** Pin now at `0.26`/lock `0.26.0` at iter 102 scope time. The predicted
-    `IntoPyObject`/lifetime breaks still have NOT materialized — but 0.26 proved later hops CAN
-    touch source, so watch `-D warnings` every hop. One reviewed minor per step; advisories clear
-    ONLY at 0.29 (NOT a per-hop criterion — do not gate a hop on advisory clearance). Recipe: bump
-    pin in root `Cargo.toml` line 35 → `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt →
+    0.25→0.26 (iter 101, review PASS iter 102) was the FIRST source-touching hop (7
+    `allow_threads`→`detach` + 17 `PyObject`→`Py<PyAny>`); 0.26→0.27 (review PASS iter 103) was the
+    SECOND source-touching hop (2 sites in `to_pylist`: `downcast`→`cast`,
+    `downcast_into_unchecked`→`cast_into_unchecked`); 0.27→0.28 SCOPED iter 104.** Pin now at `0.27`
+    / lock `0.27.2` at iter 104 scope time. Two consecutive source-touching hops (0.26, 0.27) prove
+    later hops CAN touch source — watch `-D warnings` EVERY hop and port exactly what it flags. One
+    reviewed minor per step; advisories clear ONLY at 0.29 (NOT a per-hop criterion — do not gate a
+    hop on advisory clearance). Recipe: bump pin in root `Cargo.toml` line 35 →
+    `cargo update -p   pyo3` → build/clippy(`-D warnings`)/fmt →
     `uv run maturin develop -m crates/iscc-py/Cargo.toml` → `uv run pytest` (286 collected).
     `crates/iscc-py/pyproject.toml` (NOT root pyproject) holds the maturin config
-    (`features = ["pyo3/extension-module"]`, module `iscc_lib._lowlevel`); carries NO pyo3 version,
-    so it needs no edit on a hop. Current lib.rs: 728 lines, 7 `detach` + 17 `Py<PyAny>`, 0
+    (`features = ["pyo3/extension-module"]`); carries NO pyo3 version, so no edit on a hop. NO docs
+    reference the pyo3 version (grepped docs/, README, crate README iter 104) — pure internal
+    binding change, no doc files in scope. Current lib.rs: 728 lines, 7 `detach` + 17 `Py<PyAny>`, 0
     `allow_threads`; raw `pyo3::ffi::*` C-API sites intact (~10).
 - **iai-callgrind stays CI-only**: `valgrind` has NO apt install candidate in the devcontainer
     (re-confirmed iter 98; `sudo` IS passwordless but the package is absent from sources), so
