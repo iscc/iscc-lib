@@ -124,21 +124,9 @@ iterations.
 - **#37 SumHasher (iters 88–90) and #39 Python GIL release (iter 91) are CLOSED** — detailed scoping
     notes archived to `MEMORY-archive.md`. SumHasher lives at `iscc_lib::streaming::SumHasher` (NOT
     crate-root Tier 1; Tier 1 count stays 32). Python/WASM wrappers ship it; core counts untouched.
-- **iter 92: scoped npm #38 (CLOSED)** — removed the `napi prepublish` step from `release.yml` (the
-    only injector of dangling `@iscc/lib-<triple>` optionalDependencies). Doc realignment to the
-    bundled model in iscc-napi CLAUDE.md + notes 02/06. See the corrected Scope-Calibration bullet.
-- **iter 93: scoped the `cargo-semver-checks` API backward-compat CI gate.** All code-only issues
-    (#37/#38/#39) are closed; the 4 remaining `normal` issues are ALL CI-infra (semver-checks,
-    iai-callgrind, CRAP/coverage, PyO3 0.23→0.29). Can no longer defer the gates — deferring would
-    force a false IDLE while real backlog remains. Picked semver-checks: smallest, most
-    self-contained, direct v1.0.0 enabler, recommended #1 by both handoff and state.md. Scope = 2
-    files (`ci.yml` new `semver` job + `mise.toml` `semver` task) + ci-cd.md checkbox (doc).
-    **CRITICAL**: the job MUST be informational (`continue-on-error: true`) — the post-0.4.0
-    `pub mod`→`pub(crate) mod` narrowing (cdc/conformance/dct/minhash/simhash/utils/wtahash) is a
-    breaking change vs published 0.4.0, so semver-checks WILL flag it; enforcing mode would turn CI
-    red. Baseline auto-detected from crates.io 0.4.0 (published). Recommend
-    `obi1kenobi/cargo-semver-checks-action@v2` (installs via binstall internally, handles baseline).
-    Default features cover feature-gated Tier 1 symbols (`default = ["meta-code"]`).
+- **#38 (npm, iter 92) and the `cargo-semver-checks` gate (iter 93) both LANDED** — detailed scoping
+    notes archived to `MEMORY-archive.md`. semver job is informational (`continue-on-error: true`)
+    until the v1.0.0 cut; do NOT flip it before then.
 - **CORRECTION (iter 93): cargo registry network IS available in this environment.**
     `cargo search   cargo-semver-checks` returned live results; the earlier `curl https://crates.io`
     403 was just Cloudflare blocking curl's user-agent, NOT a network block. This **revises** the
@@ -172,3 +160,32 @@ iterations.
 - **Remaining v1.0.0 normal backlog after iter 94 (3 issues)**: PyO3 0.23→0.29 bump, iai-callgrind
     perf gate (valgrind-blocked locally → scope as CI-only, defer verification to the run),
     coverage/CRAP Phases 2+3.
+- **iter 95: scoped CRAP gate Phase 2 (report-only `cargo crap`).** Chose this over iai-callgrind
+    (valgrind-blocked) and PyO3 (no security benefit until full 0.29) — recommended #1 by handoff +
+    state.md, builds directly on the Phase 1 `lcov.info`, fully locally verifiable. Scope = 3 files
+    (`.cargo-crap.toml` create, `ci.yml` crap steps added to the existing `coverage` job,
+    `mise.toml` `[tasks.crap]`) + ci-cd.md Phase 2 checkboxes (411/415/416/417, doc). Phase 3
+    (`--fail-above` / `--fail-regression` / committed baseline) explicitly deferred.
+- **cargo-crap facts (verified iter 95 via `gh api repos/minikin/cargo-crap`)**: latest PUBLISHED
+    release is **v0.2.2** (pin this — README on `main` shows a v0.3.0 badge but no v0.3.0 release/
+    crate exists yet; `cargo search` confirms 0.2.2). v0.2.2 supports `--lcov <FILE>`,
+    `--format {human,json,github,markdown,pr-comment,sarif}` (`github` = `::warning` annotations;
+    `sarif` = SARIF 2.1.0 for Code Scanning, rejects `--baseline`), `--threshold` (default 30),
+    `--missing {pessimistic,optimistic,skip}` (default pessimistic), `--exclude <GLOB>` (repeatable,
+    appends to default excludes `tests/**`/`benches/**`/`examples/**`), `--allow`, `--output`,
+    `--path` (default `.`, walks repo respecting .gitignore), `--fail-above`, `--baseline`,
+    `--fail-regression`, `--epsilon`. **Config file `.cargo-crap.toml` at repo root IS supported**
+    (keys: `threshold`, `missing`, `exclude`, `default-excludes`, `allow`, `fail-above`, `epsilon`,
+    `jobs`, `sort`, `show_unchanged` — note mixed kebab/snake case; unknown keys rejected). CLI
+    flags override the file. Spec install path = `cargo binstall cargo-crap` (pre-built bins).
+    MIT/Apache.
+- **CRAP Phase 2 exclude rationale**: LCOV is generated `-p iscc-lib` only, so `cargo crap` from
+    `--path .` would mark all binding-crate functions 0% (pessimistic) = noise. Exclude
+    `crates/iscc-{py,napi,wasm,ffi,jni,rb,uniffi}/**`, `packages/**`, `scripts/**` in
+    `.cargo-crap.toml`. Use exclude globs (NOT `--path crates/iscc-lib`) to satisfy ci-cd.md's
+    "`.cargo-crap.toml` configures excluded binding crates" checkbox (416).
+- **SARIF upload needs `permissions: security-events: write`** on the job (ci.yml `coverage` job
+    currently has none); use `github/codeql-action/upload-sarif@v3`. iscc-lib is public → Code
+    Scanning is free. Phase 2 stays non-failing: NO `--fail-above`/`--fail-regression`, so
+    `cargo crap` exits 0 in report mode. Local SARIF verification → write to `/tmp/crap.sarif` to
+    keep the working tree clean (the `mise run crap` task itself uses human format, no file output).

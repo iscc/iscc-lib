@@ -1,86 +1,106 @@
 # Next Work Package
 
-## Step: Add Phase 1 Rust coverage CI job (`cargo llvm-cov` LCOV artifact) + `mise run coverage` task
+## Step: CRAP gate Phase 2 — report-only `cargo crap` (GitHub annotations + SARIF) + `.cargo-crap.toml` + `mise run crap`
 
 ## Goal
 
-Stand up Phase 1 of the "Add Rust coverage + CRAP-metric quality gate" issue: produce a reusable
-LCOV coverage report for the `iscc-lib` core crate in CI and make the same run reproducible locally.
-This closes the first phased checkbox toward the target's CI/CD coverage criterion without yet
-adding any gating, so it is low-risk and fully verifiable before push.
+Extend the existing Phase 1 coverage CI job so it computes per-function CRAP scores for `iscc-lib`
+from `lcov.info` in **report-only** mode — emitting inline `::warning` annotations and uploading a
+SARIF report to GitHub Code Scanning — backed by a pinned `cargo-crap`, a `.cargo-crap.toml` config,
+and a local `mise run crap` task. This is Phase 2 of the "Add Rust coverage + CRAP-metric quality
+gate" issue (Phase 1 LCOV artifact already landed; Phase 3 regression gate stays out of scope).
 
 ## Scope
 
-- **Modify**: `.github/workflows/ci.yml` (add a `coverage` job that generates and uploads
-    `lcov.info`)
-- **Modify**: `mise.toml` (add a `[tasks.coverage]` task)
-- **Modify**: `.gitignore` (ignore the generated `lcov.info`)
-- **Modify (doc, excluded from file limit)**: `.claude/context/specs/ci-cd.md` (flip the Phase 1
-    checkbox, line 409, to `[x]`; reword to the artifact-only state)
-- **Reference**: `.claude/context/specs/ci-cd.md` → "Rust Coverage and CRAP Quality Gate" / "Phased
-    rollout"; the existing `semver` job in `.github/workflows/ci.yml` (added iter 93) and
-    `[tasks.semver]` in `mise.toml` as structural templates; `crates/iscc-lib` (coverage target)
+- **Create**: `.cargo-crap.toml` (repo root) — `threshold`, `missing`, and binding-crate `exclude`
+    globs.
+- **Modify**: `.github/workflows/ci.yml` — add `cargo-crap` install + report-only `cargo crap` steps
+    (GitHub + SARIF) and a SARIF upload to the existing `coverage` job; add `permissions` for SARIF.
+- **Modify**: `mise.toml` — add a `[tasks.crap]` task mirroring the local check.
+- **Reference**: `.claude/context/specs/ci-cd.md` (→ "Rust Coverage and CRAP Quality Gate" + the CI
+    verification checkboxes at lines 411/415/416/417 — flip the ones Phase 2 satisfies); the
+    existing `coverage` job (`ci.yml:293-312`) and `coverage` task (`mise.toml:110-112`) as the
+    pattern to follow.
 
 ## Not In Scope
 
-- **Phase 2 (report-only `cargo crap`)** — no `cargo-crap` install, no `--format github`
-    annotations, no SARIF upload to GitHub Code Scanning. Defer to a future step.
-- **Phase 3 (`--fail-regression` gate + committed baseline)** — no score gating, no baseline JSON,
-    no `develop`-merge baseline refresh. Defer.
-- `.cargo-crap.toml` and the `mise run crap` task — both belong to Phase 2/3.
-- Do NOT make coverage a failing threshold or add a coverage badge wiring in this step.
-- The `iai-callgrind` perf gate and the PyO3 0.23→0.29 bump are separate issues — leave untouched.
-- Do not add coverage instrumentation to the binding crates (PyO3/napi/wasm/etc.); Phase 1 targets
-    `iscc-lib` only (`cargo llvm-cov -p iscc-lib`).
+- **Phase 3** — no `--fail-above`, no `--fail-regression`, no `--baseline`, no committed baseline
+    JSON, no baseline-refresh-on-`develop` workflow. Phase 2 must NOT fail the build on CRAP score.
+- The `iai-callgrind` performance-regression gate (separate `normal` issue).
+- The PyO3 0.23 → 0.29 bump (separate `normal` issue).
+- Do NOT flip the `semver` job's `continue-on-error` to enforcing — that is tied to the v1.0.0 cut.
+- Do NOT change `cargo llvm-cov` scope/flags or commit `lcov.info` / `crap.sarif` (both stay out of
+    the working tree).
 
 ## Implementation Notes
 
-- **CI job** (`.github/workflows/ci.yml`): add a top-level job named `coverage`
-    (`name: Coverage (cargo llvm-cov)`, `runs-on: ubuntu-latest`). Steps:
-    1. `actions/checkout@v4`
-    2. `dtolnay/rust-toolchain@stable` with `components: llvm-tools-preview` (cargo-llvm-cov requires
-        the `llvm-tools-preview` rustup component).
-    3. `Swatinem/rust-cache@v2` (matches existing jobs).
-    4. Install the tool with `taiki-e/install-action@v2` using `tool: cargo-llvm-cov` (the
-        maintainer-blessed installer — fetches a prebuilt binary, mirrors how `semver` uses the
-        cargo-semver-checks wrapper action).
-    5. Run `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info`.
-    6. Upload with `actions/upload-artifact@v4` (`name: lcov`, `path: lcov.info`). Recommendation: do
-        NOT set `continue-on-error` — Phase 1 has no score gate, so its only failure mode is the test
-        suite failing under instrumentation, which should be visible. (If llvm-cov proves flaky on
-        the shared runner, `continue-on-error: true` is the fallback, but try plain first.) Keep the
-        job standalone (no `needs:`), consistent with the other independent jobs.
-- **mise task** (`mise.toml`): add `[tasks.coverage]` with
-    `run = "cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info"` and a one-line
-    `description`, placed alongside the existing `[tasks.semver]` block. Note: CI calls `cargo`
-    directly (it does NOT use `mise`), so the task is for local reproducibility only — mirror
-    exactly the command the CI step runs.
-- **.gitignore**: add `lcov.info` under the existing "Unit test / coverage reports" section (line
-    ~40) so the generated report is never committed.
-- **ci-cd.md**: flip only the Phase 1 checkbox (line 409, "CRAP job generates an LCOV report for
-    `iscc-lib` via `cargo llvm-cov` (Phase 1)") to `[x]`. Leave the Phase 2, Phase 3,
-    `.cargo-crap.toml`, and `mise run crap`/`mise run coverage` combined-task checkboxes unchecked —
-    the `mise run crap` half of line 416 is not delivered yet.
+- **Tool version**: pin `cargo-crap@0.2.2` (latest published release; the README on `main` shows a
+    v0.3.0 badge but no v0.3.0 release exists yet). v0.2.2 supports everything needed:
+    `--lcov <FILE>`, `--format {human,json,github,markdown,pr-comment,sarif}`, `--threshold`,
+    `--missing {pessimistic,optimistic,skip}`, `--exclude <GLOB>`, `--output <FILE>`, and a
+    `.cargo-crap.toml` config file at the project root.
+- **CI install (spec mandates `cargo binstall`)**: in the `coverage` job, install cargo-binstall
+    (e.g. `uses: taiki-e/install-action@v2` with `tool: cargo-binstall`), then
+    `run: cargo binstall -y cargo-crap@0.2.2`. (The README also publishes prebuilt linux-x86_64
+    tarballs if binstall proves flaky — a documented fallback, not the primary path.)
+- **CI steps (add after the existing LCOV-generation step, reusing the `lcov.info` already in the
+    workspace)**:
+    1. `cargo crap --lcov lcov.info --format github` — inline `::warning` annotations. No
+        `--fail-above`, so it exits 0 (report-only).
+    2. `cargo crap --lcov lcov.info --format sarif --output crap.sarif` — SARIF 2.1.0 document.
+    3. Upload via `github/codeql-action/upload-sarif@v3` with `sarif_file: crap.sarif`. Add job-level
+        `permissions: { contents: read, security-events: write }` (the job currently has none;
+        `security-events: write` is required for Code Scanning upload). iscc-lib is a public repo, so
+        Code Scanning is available.
+- Consider renaming the job's `name:` to reflect both tools (e.g.
+    `Coverage + CRAP (cargo llvm-cov + cargo crap)`); keeping the `coverage:` job key avoids churn.
+- **`.cargo-crap.toml`** (report-only — do NOT set `fail-above`): set `threshold = 30.0`,
+    `missing = "pessimistic"`, and `exclude` globs for every binding crate so they don't flood the
+    report with 0%-coverage noise (the LCOV only covers `iscc-lib`). Exclude `crates/iscc-py/**`,
+    `crates/iscc-napi/**`, `crates/iscc-wasm/**`, `crates/iscc-ffi/**`, `crates/iscc-jni/**`,
+    `crates/iscc-rb/**`, `crates/iscc-uniffi/**`, `packages/**`, `scripts/**`. The built-in default
+    excludes already skip `tests/**` / `benches/**` / `examples/**`. (Leaving `--path` at its `.`
+    default + exclude globs is what satisfies the spec's "excluded binding crates" checkbox — do not
+    narrow with `--path crates/iscc-lib` instead.)
+- **`mise.toml`**: add `[tasks.crap]` running `cargo crap --lcov lcov.info` (human format, no file
+    output → clean working tree). A `depends = ["coverage"]` makes `mise run crap` regenerate
+    `lcov.info` first for one-command local repro.
+- **Local install for verification**: cargo-binstall is not preinstalled in the devcontainer; the
+    advance agent can `cargo install cargo-crap@0.2.2 --locked` (network available, compiles from
+    source) or download the prebuilt linux-x86_64 tarball. When testing the SARIF format locally,
+    write to `--output /tmp/crap.sarif` so nothing lands in the working tree.
+- **Doc sync**: in `ci-cd.md`, flip the Phase 2 checkbox (line 411), the `cargo-crap` pinned +
+    binstall checkbox (415), the `.cargo-crap.toml` config checkbox (416), and the
+    `mise run coverage` / `mise run crap` checkbox (417). Leave the Phase 3 checkboxes (413/414)
+    unchecked.
 - **Markdown formatting**: run `uv run mdformat --wrap 100 --number` (or `mise run format`) on any
-    edited markdown before committing — the pre-push hook reflows changed markdown and will reject a
-    push otherwise (root cause noted in the iter-93 review).
+    edited markdown before committing — the pre-push hook reflows changed markdown and rejects a
+    push otherwise.
 
 ## Verification
 
-- `cargo install cargo-llvm-cov` (network is available) succeeds, then
-    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` exits 0 and writes a non-empty
-    `lcov.info` (e.g., `test -s lcov.info`).
-- `mise run coverage` exits 0 and produces `lcov.info`.
-- `mise tasks | grep '^coverage'` shows the new task.
-- `git status --porcelain` does NOT list `lcov.info` (confirms it is gitignored).
-- `mise run check` passes on the edited files (ci.yml YAML, mise.toml TOML, ci-cd.md markdown all
-    valid; no unrelated regressions).
-- `grep -n "cargo-llvm-cov\|llvm-cov" .github/workflows/ci.yml` shows the new `coverage` job wiring.
-- Deferred to next CI run (review agent confirms): the new `Coverage` job appears and the existing
-    17 jobs stay green (18 jobs total).
+- `cargo crap --lcov lcov.info` exits 0 locally after `mise run coverage` generates `lcov.info`
+    (report-only; non-failing).
+- `mise run crap` exits 0 and prints the CRAP table; `mise tasks | grep '^crap'` shows the task.
+- `cargo crap --lcov lcov.info --format sarif --output /tmp/crap.sarif` produces valid JSON
+    (`jq -e '.runs[0].tool.driver.name' /tmp/crap.sarif` exits 0); SARIF is written to `/tmp`, not
+    the repo.
+- The report contains only `iscc-lib` functions — no `crates/iscc-{py,napi,wasm,ffi,jni,rb,uniffi}`
+    or `packages/` entries (confirms `.cargo-crap.toml` `exclude` globs apply).
+- `grep -E 'cargo-crap|cargo crap|upload-sarif|security-events' .github/workflows/ci.yml` shows the
+    install, both `cargo crap` runs (`--format github` and `--format sarif`), the SARIF upload, and
+    the `security-events: write` permission.
+- `grep -E 'fail-above|fail-regression|baseline' .github/workflows/ci.yml` returns nothing (Phase 2
+    is strictly report-only).
+- `git status --porcelain` does NOT list `lcov.info` or `crap.sarif` (both stay untracked/ignored).
+- `mise run check` passes on the edited files (YAML/TOML/Markdown hygiene; no out-of-scope reflow of
+    context files).
+- `ci-cd.md` Phase 2 checkboxes (lines 411, 415, 416, 417) are flipped to `[x]`; Phase 3 (413/414)
+    remain `[ ]`.
 
 ## Done When
 
-A `coverage` CI job and a `mise run coverage` task both produce a `lcov.info` LCOV report for
-`iscc-lib`, `lcov.info` is gitignored, the Phase 1 checkbox in ci-cd.md is flipped, and all local
-verification commands above pass.
+The `coverage` CI job runs report-only `cargo crap` (pinned `0.2.2`) emitting GitHub annotations and
+uploading a SARIF report, `.cargo-crap.toml` scopes scoring to `iscc-lib`, `mise run crap`
+reproduces the check locally, all verification criteria pass, and the Phase 2 checkboxes in
+`ci-cd.md` are flipped — with no build-failing CRAP behavior introduced.

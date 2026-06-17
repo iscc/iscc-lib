@@ -41,3 +41,17 @@ See MEMORY.md for current active entries.
     closure. `allow_threads` is the PyO3 0.23 name (NOT `detach`, which is 0.25+).
 - `gen_sum_code_v0` has a full test suite in lib.rs; streaming.rs has its own `#[test]`s; Python
     streaming tests live in project-root `tests/test_streaming.py`.
+
+## npm #38 fix (iter 92) + semver-checks gate scoping (iter 93) — archived iter 95, both landed
+
+- **iter 92: npm #38 (CLOSED)** — removed the `napi prepublish` step from `release.yml`, the only
+    injector of dangling `@iscc/lib-<triple>` optionalDependencies. The bundled model ships all 5
+    `.node` via `files: ["*.node"]`; the generated `index.js` loader `require`s the local
+    `./iscc-lib.<triple>.node` first. Doc realignment in iscc-napi CLAUDE.md + notes 02/06.
+- **iter 93: `cargo-semver-checks` gate (LANDED, informational)** — `ci.yml` `semver` job uses
+    `obi1kenobi/cargo-semver-checks-action@v2` (`package: iscc-lib`, baseline auto-detected from
+    crates.io 0.4.0) with `continue-on-error: true`. It WILL report the post-0.4.0
+    `pub mod`→`pub(crate) mod` narrowing (cdc/conformance/dct/minhash/simhash/utils/wtahash) as
+    breaking — expected; enforcing mode would turn CI red. Flip `continue-on-error` off only at the
+    v1.0.0 cut. `mise run semver` mirrors it. Default features cover feature-gated Tier 1 symbols
+    (`default = ["meta-code"]`).
