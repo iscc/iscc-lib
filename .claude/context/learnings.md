@@ -113,9 +113,16 @@ fully-met target sections to `learnings-archive.md`.
     `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`).
     `mise run coverage` mirrors it locally; `lcov.info` is gitignored (137KB / 5156 lines). CI job
     entries now 17 (python-test matrix → 18 actual)
+- **`cargo binstall` + `Swatinem/rust-cache` poisoning** (iter 100): rust-cache restores cargo's
+    `.crates.toml`/`.crates2.json` install *metadata* WITHOUT the `~/.cargo/bin/<tool>` binary, so a
+    plain `cargo binstall -y <tool>` sees "already installed", skips, and the next invocation dies
+    with `error: no such command: <tool>` → CI RED on every run. Fix: add `--force` so binstall
+    always reinstalls regardless of the cached record (small binary = negligible re-download). This
+    is gate *strengthening*, not circumvention
 - **CRAP gate (iter 96 Phase 2 + iter 97 Phase 3, ci-cd.md)**: `Coverage + CRAP` job installs
-    `cargo binstall -y cargo-crap@0.2.2`, runs report-only `--format github` + `--format sarif`
-    (`upload-sarif@v3`, job-level `security-events: write`), then an ENFORCING final step
+    `cargo binstall -y --force cargo-crap@0.2.2` (`--force` LOAD-BEARING, see entry above), runs
+    report-only `--format github` + `--format sarif` (`upload-sarif@v3`, job-level
+    `security-events: write`), then an ENFORCING final step
     `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` (NOT
     continue-on-error). `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored — only
     `lcov.info`/`crap.sarif` are): envelope `{$schema, version, entries}`, 97 iscc-lib functions /
@@ -158,8 +165,6 @@ fully-met target sections to `learnings-archive.md`.
     against data.json should say "9"; general library descriptions should say "10". Avoid blanket
     "9→10" find-and-replace — it corrupts conformance-scoped files. iscc-core-ts also implements
     only 9 (no gen_sum_code_v0) — verify external projects' function tables before claiming "all 10"
-- Completed doc one-offs (WASM→pure Go cleanup, JDK 17+ in pom.xml, WASM `await init()`, cbindgen
-    `iscc_` type prefix) archived to `learnings-archive.md` (iter 98)
 
 ## State Verification
 
@@ -167,11 +172,6 @@ fully-met target sections to `learnings-archive.md`.
     frequently stale. Verify each independently against the source (`cargo search`, `npm view`,
     Maven Central API, `pip index versions`, Go module proxy); don't batch-assume "all works"/"not
     published"
-
-## Binding Propagation
-
-- All bindings met — per-binding propagation details (NAPI gitignored gen files, Java/Go consts, FFI
-    constant count, napi bundled single-package model) archived to `learnings-archive.md` (iter 96)
 
 ## CID Process
 

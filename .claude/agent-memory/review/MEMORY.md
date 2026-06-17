@@ -105,8 +105,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     Version sync: 16 targets (incl. Package.swift releaseTag). Release: 9 registry inputs
 - **`Coverage + CRAP` CI job** (Phase 1 iter 94, Phase 2 iter 96, Phase 3 iter 97, ci-cd.md):
     standalone, no `needs:`, no `continue-on-error`. `cargo-llvm-cov` 0.8.7 + `cargo-crap` 0.2.2 in
-    devcontainer. Verify from repo root: `mise run crap` (exit 0, "97 functions; none exceed 30") +
-    enforcing gate `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression`
+    devcontainer. CI install MUST be `cargo binstall -y --force cargo-crap@0.2.2` (iter 100):
+    `--force` is load-bearing — rust-cache restores `.crates.toml` metadata WITHOUT the binary, so
+    plain binstall skips → `cargo crap` dies "no such command" → CI RED every run. Verify from repo
+    root: `mise run crap` (exit 0, "97 functions; none exceed 30") + enforcing gate
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression`
     (pass=`0 regressed/97 unchanged` exit 0; inflate baseline coverage → `N regressed` exit 1 — do
     NOT pipe to tail, masks `$?`) + `mise run crap:baseline` regenerates `.crap-baseline.json`
     byte-identical (97 entries, 10 iscc-lib files, COMMITTED, not gitignored). KEY GOTCHA:
@@ -153,15 +156,13 @@ active:
 - **Gradle multi-JAR artifact**: `withSourcesJar()` + `withJavadocJar()` produce 3 JARs in
     `build/libs/`. When selecting runtime JAR from glob, filter out `-sources.jar`/`-javadoc.jar` —
     alphabetical `head -1` picks `-javadoc.jar` first
-- `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA
 - Generated `iscc_uniffi.kt` (~112KB, 3214 lines) — do NOT manually edit, regenerate via
     uniffi-bindgen. `@file:Suppress("NAME_SHADOWING")` is UniFFI boilerplate, not gate circumvention
-- Review shortcut: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
-    workspace + `mise run check`
+    (review shortcut in Binding Propagation Shortcuts above)
 - JNA native lib loading: `java.library.path` alone NOT sufficient for JNA `Native.register()`. Must
     also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
-- Codex confused by large generated Kotlin diffs (same as Swift) — findings advisory
-- Kotlin bindings fully complete: CI job, gradlew perms, version sync, docs/README, release workflow
+- Kotlin bindings fully complete: CI job, gradlew perms, version sync, docs/README, release
+    workflow. Codex is confused by large generated Kotlin/Swift diffs — findings advisory
 - Kotlin Maven Central: `useInMemoryPgpKeys` (not `useGpgCmd`), staging to `build/staging-deploy/`,
     curl bundle upload to Central Portal REST API. JNA resource dirs differ from JNI (linux-x86-64
     vs linux-x86_64)
