@@ -73,3 +73,19 @@ See MEMORY.md for current active entries.
     - `scripts/**` + `crates/iscc-lib/benches/**` (nested benches not covered by default exclude;
         leaked `bench_cdc_chunks` at CRAP 42.0). Use exclude globs NOT `--path crates/iscc-lib` to
         satisfy the "configures excluded binding crates" checkbox.
+
+## Coverage/CRAP gate Phase 1 + network/env corrections (archived iter 98 — phases landed)
+
+- **CORRECTION (iter 93): cargo registry network IS available.** `cargo search` returned live
+    results; earlier `curl https://crates.io` 403 was Cloudflare blocking curl's user-agent, NOT a
+    network block. The advance agent CAN `cargo install` tools + fetch new crate versions locally.
+    Genuine local blockers: no valgrind (apt has no candidate — re-confirmed iter 98), no
+    preinstalled CI dev tools. (Superseded/consolidated by the iter-98 env fact in MEMORY.md.)
+- **iter 94: scoped Phase 1 of the coverage/CRAP gate (`cargo llvm-cov` LCOV +
+    `mise run coverage`).** Chose this over iai-callgrind (no valgrind locally). Scope = 3 files
+    (ci.yml `coverage` job, mise.toml `[tasks.coverage]`, .gitignore `lcov.info`) + ci-cd.md Phase 1
+    checkbox. Used `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) +
+    `components: llvm-tools-preview` in CI.
+- **Env fact (iter 94)**: devcontainer has the `llvm-tools-x86_64-unknown-linux-gnu` rustup
+    component preinstalled, so `cargo install cargo-llvm-cov` + `cargo llvm-cov -p iscc-lib` works
+    locally.

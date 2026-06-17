@@ -127,36 +127,22 @@ iterations.
 - **#38 (npm, iter 92) and the `cargo-semver-checks` gate (iter 93) both LANDED** — detailed scoping
     notes archived to `MEMORY-archive.md`. semver job is informational (`continue-on-error: true`)
     until the v1.0.0 cut; do NOT flip it before then.
-- **CORRECTION (iter 93): cargo registry network IS available in this environment.**
-    `cargo search   cargo-semver-checks` returned live results; the earlier `curl https://crates.io`
-    403 was just Cloudflare blocking curl's user-agent, NOT a network block. This **revises** the
-    repeated "CI gates need network — unverifiable locally" assumption from iters 88/91/92: the
-    advance agent CAN `cargo install cargo-semver-checks` and run it locally, CAN fetch new crate
-    versions for the PyO3 bump, CAN install cargo-llvm-cov. The genuine local blockers are only: no
-    valgrind (apt, iai-callgrind), no preinstalled CI dev tools. So semver-checks and PyO3 are now
-    fully locally verifiable; iai-callgrind remains the hardest (valgrind).
 - **CI-infra step verification pattern**: pre-commit hooks (`mise run check`) validate YAML/TOML
     syntax of edited workflow/manifest files locally — a solid automated check even without
     actionlint. Pair with grep assertions + the next CI run (review agent confirms the new job
-    appears and existing jobs stay green).
-- **iter 94: scoped Phase 1 of the coverage/CRAP gate (`cargo llvm-cov` LCOV artifact +
-    `mise run   coverage`).** Chose this OVER the handoff's #1 (iai-callgrind): env check confirmed
-    NO valgrind in the devcontainer, and instruction-count baselines must be generated on CI runners
-    anyway, so iai-callgrind is NOT locally verifiable for a single CID step — defer it.
-    cargo-llvm-cov IS installable (`llvm-tools` rustup component present, network available) → Phase
-    1 fully locally verifiable. Scope = 3 files (ci.yml `coverage` job, mise.toml
-    `[tasks.coverage]`, .gitignore `lcov.info`) + ci-cd.md Phase 1 checkbox (line 409, doc). Phases
-    2/3 (cargo-crap report-only, `--fail-regression` baseline) and
-    `.cargo-crap.toml`/`mise run crap` explicitly deferred. Use `taiki-e/install-action@v2`
-    (`tool: cargo-llvm-cov`) + `components: llvm-tools-preview` in CI.
-- **Env fact (verified iter 94)**: devcontainer has NO valgrind and NO cargo-llvm-cov/cargo-binstall
-    preinstalled, but the `llvm-tools-x86_64-unknown-linux-gnu` rustup component IS present, so
-    `cargo install cargo-llvm-cov` + `cargo llvm-cov -p iscc-lib` works locally.
-- **iscc-py is ONE file (`crates/iscc-py/src/lib.rs`) already on the modern PyO3 Bound API**
-    (`Bound<'py, PyAny>`, `Python<'_>`, `PyDict::new(py)`, `PyBytes::new(py, ...)`,
-    `.allow_threads`). Per-minor code churn for the 0.23→0.29 bump is likely small, BUT a single
-    0.23→0.24 step yields NO security benefit (advisories clear only at 0.29) — lower value-per-step
-    than self-contained gates, so deprioritized at iter 94.
+    appears and existing jobs stay green). (iter 93/94 network + Phase 1 detail archived to
+    MEMORY-archive.md.)
+- **iscc-py is ONE file (`crates/iscc-py/src/lib.rs`, 730 lines) — pyo3 used by NO other crate**
+    (grep `crates/*/Cargo.toml` → only iscc-py; version pin lives ONLY at root `Cargo.toml` line ~35
+    `pyo3 = { version = "0.23", features = ["abi3-py310"] }`; iscc-py consumes via
+    `workspace = true, features = ["extension-module"]`; `pyproject.toml` lists
+    `pyo3/extension-module` maturin feature, NO version). Already on modern Bound API
+    (`Bound<'py, PyAny>`, `.into_pyobject(py)?`, `.allow_threads`), BUT also has raw `pyo3::ffi::*`
+    CPython-C-API calls (`PySequence_List`, `PyList_GetItem`, `PyLong_AsLong`,
+    `Bound::from_owned_ptr`, `downcast_into_unchecked`) — those map to stable CPython C API and
+    rarely break across pyo3 minors. ~14 `Ok(dict.into())` → `PyObject` returns are the most likely
+    0.24 migration touchpoint. Local verify = `maturin develop -m crates/iscc-py/Cargo.toml`
+    (maturin 1.12.4 via uv) + `uv run pytest`.
 - **CRAP gate Phases 1+2 LANDED** (iters 94–96; Phase 2 `6ed51c5`, reviewed PASS `cbc0d14`). The
     `coverage` job (`ci.yml:293-331`, renamed "Coverage + CRAP") installs cargo-llvm-cov +
     cargo-binstall + `cargo-crap@0.2.2`, generates+uploads `lcov.info`, then runs report-only
@@ -192,3 +178,21 @@ iterations.
 - **Remaining v1.0.0 normal backlog after iter 97 (2 issues)**: iai-callgrind perf gate
     (valgrind-blocked locally → CI-only, defer verification to the run), PyO3 0.23→0.29 (no security
     benefit until full 0.29).
+- **iter 98: scoped PyO3 0.23 → 0.24 (first increment of the migration).** Chose this OVER
+    iai-callgrind (#2 by state) because: (a) `sudo apt-get install valgrind` → "no installation
+    candidate" in this devcontainer, so iai-callgrind benches CANNOT run locally (baseline must come
+    from CI) — NOT single-step locally verifiable; (b) iai-callgrind needs a new ci.yml job, which
+    would compound with the CRAP Phase 3 gate that was coded iter 97 but is STILL unpushed/not
+    CI-verified (HEAD was 5 commits ahead of origin/develop `cbc0d14`; Phase 3 gate has never run in
+    CI). PyO3 0.23→0.24 is single-crate, touches ZERO CI infra, and is boolean-verifiable
+    (`cargo build -p iscc-py` + `maturin develop` + `pytest`). State.md explicitly recommends "start
+    0.23 → 0.24"; human issue mandates INCREMENTAL migration (one minor per reviewed step) — so do
+    NOT jump to 0.29 in one step. Advisories only clear at 0.29, so "advisories cleared" is NOT a
+    verification criterion for the 0.24 step (criterion = builds+tests stay green). No
+    `deny.toml`/cargo-audit/cargo-deny config exists in repo (not a CI gate today).
+- **Env fact (verified iter 98): `sudo` IS passwordless in the devcontainer, but `valgrind` has NO
+    apt install candidate** → iai-callgrind remains genuinely NOT locally verifiable. This
+    re-confirms the iter-94 finding against the iter-93 "network available, so installable"
+    optimism: network helps cargo/crates.io installs, but apt packages absent from the sources
+    (valgrind) still can't be had. iai-callgrind is a ship-to-CI feature; split it (bench harness
+    first, then CI job + baseline) if/when picked up.
