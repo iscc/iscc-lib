@@ -93,8 +93,15 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `files: ["*.node"]` ships all 5 binaries, NO `optionalDependencies`/siblings.
     `napi prepublish -t npm` (the injector) must NOT run in `publish-npm-lib`. #38 closed
 - FFI constant count in module docstring must match when adding constants (now 5)
-- CI: 17 jobs (16 YAML entries + python-test matrix expansion; `semver` added iter 93). Version
-    sync: 16 targets (incl. Package.swift releaseTag). Release: 9 registry inputs
+- CI: 17 YAML job entries + python-test matrix (`['3.10','3.14']`) → **18 actual jobs** (`semver`
+    iter 93, `coverage` iter 94). Advance handoffs count YAML entries (17), not matrix expansion —
+    reconcile before flagging. Version sync: 16 targets (incl. Package.swift releaseTag). Release: 9
+    registry inputs
+- **`coverage` CI job review** (iter 94, ci-cd.md Phase 1): standalone, no `needs:`, NO
+    `continue-on-error`. `cargo-llvm-cov` 0.8.7 installed in devcontainer. Verify:
+    `mise run coverage` (exit 0, 22 lib tests, 5156-line/137KB `lcov.info`) + `lcov.info` gitignored
+    (`git status --porcelain | grep -i lcov` → empty) + `mise run check`. Artifact-only, no score
+    gate. Phase 2 (`cargo crap` + SARIF) + Phase 3 (`--fail-regression` baseline) still open
 - **iscc-rb workspace exclusion**: `--exclude iscc-rb` in CI `rust` job is permanent — Rust job
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
 - .NET bindings fully complete: 32/32 Tier 1 symbols, 91 tests, NuGet pipeline, version sync, docs
@@ -130,20 +137,12 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## Swift Package Review
 
-- `packages/swift/` — SPM package: iscc_uniffiFFI (C header + modulemap) + IsccLib (generated Swift)
-- Two `Package.swift` files: root (SPM consumers, binaryTarget) + `packages/swift/Package.swift`
-    (CI/local dev, linkedLibrary). Root omits testTarget. Both coexist without conflict
-- Root `Package.swift` uses Ferrostar-style variable toggle: `useLocalFramework` (bool),
-    `releaseTag`, `releaseChecksum`. Default `false` → remote binaryTarget from GitHub Releases
-- `scripts/build_xcframework.sh`: 5 Rust targets → lipo fat binaries → xcodebuild → ditto zip →
-    swift package compute-checksum. Cannot test on Linux — `bash -n` syntax check only
-- Review shortcut: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (no `swift test` on
-    Linux). Swift tests structurally validated only — execution needs macOS CI
-- **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
-- Swift CI job (`swift:`) on `macos-14`: `dump-package` (root) → `cargo build -p iscc-uniffi` →
-    `swift build` → `swift test`
+Swift bindings fully complete — detailed mechanics archived to `MEMORY-archive.md` (iter 94). Still
+active:
+
 - **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
     consistently get this wrong — always verify in review
+- **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 
 ## Kotlin Binding Review
 

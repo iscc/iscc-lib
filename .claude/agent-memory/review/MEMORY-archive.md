@@ -8,3 +8,17 @@ the agent automatically — reference for humans and occasional lookup only.
 - pytest-benchmark tests in `tests/test_benchmarks.py`: 18 benchmarks (9 fn x 2 impls), ~11s
     collection overhead (`--benchmark-disable` optimization noted in learnings-archive.md)
 - Review shortcut: `mise run check` + ruff check/format + clippy (Python-only shortcut)
+
+## Swift Package Review (archived iter 94 — Swift bindings fully complete)
+
+- `packages/swift/` — SPM package: iscc_uniffiFFI (C header + modulemap) + IsccLib (generated Swift)
+- Two `Package.swift` files: root (SPM consumers, binaryTarget) + `packages/swift/Package.swift`
+    (CI/local dev, linkedLibrary). Root omits testTarget. Both coexist without conflict
+- Root `Package.swift` uses Ferrostar-style variable toggle: `useLocalFramework` (bool),
+    `releaseTag`, `releaseChecksum`. Default `false` → remote binaryTarget from GitHub Releases
+- `scripts/build_xcframework.sh`: 5 Rust targets → lipo fat binaries → xcodebuild → ditto zip →
+    swift package compute-checksum. Cannot test on Linux — `bash -n` syntax check only
+- Review shortcut: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (no `swift test` on
+    Linux). Swift tests structurally validated only — execution needs macOS CI
+- Swift CI job (`swift:`) on `macos-14`: `dump-package` (root) → `cargo build -p iscc-uniffi` →
+    `swift build` → `swift test`

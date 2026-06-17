@@ -441,3 +441,11 @@ reference-only for humans.
     `android-x86-64`, `android-x86`
 - `cargo-ndk` outputs to `target/<rust-triple>/release/` — same path convention as desktop builds,
     so artifact upload steps work unchanged
+
+## Swift Package (archived iter 94 — Swift bindings fully met)
+
+- Two `Package.swift` files coexist: root (SPM consumers) and `packages/swift/Package.swift` (CI/
+    local dev). SPM reads root for dependency resolution; `cd packages/swift && swift build` uses
+    the subdirectory one
+- Docs site URL is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/`. Advance agents must
+    use correct hostname when linking to howto guides

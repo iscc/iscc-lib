@@ -99,6 +99,13 @@ fully-met target sections to `learnings-archive.md`.
     cdc/conformance/minhash/simhash/utils as `module_missing`/`function_missing` (2 major checks
     failed; expected, not a regression). `mise run semver` runs it locally. Becomes enforcing at
     v1.0.0 by dropping `continue-on-error`; `rust-core.md` line 372 checkbox stays `[ ]` until then
+- **`coverage` CI job** (`ci.yml`, iter 94, ci-cd.md Phase 1): standalone, no `needs:`, NO
+    `continue-on-error`. `dtolnay/rust-toolchain@stable` w/ `components: llvm-tools-preview` →
+    `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) →
+    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`).
+    `mise run coverage` mirrors it locally; `lcov.info` is gitignored (137KB / 5156 lines). Artifact
+    only — no score gate yet. Phase 2 (`cargo crap` report-only + SARIF) + Phase 3
+    (`--fail-regression` baseline) remain. CI job entries now 17 (python-test matrix → 18 actual)
 
 ## Branching
 
@@ -168,14 +175,6 @@ fully-met target sections to `learnings-archive.md`.
     `index.js` loader `require`s the local `./iscc-lib.<triple>.node` first. Do NOT run prepublish.
     Revisit per-platform model only if tarball > ~30 MB (spec: `nodejs-bindings.md`). PyO3
     GIL-release detail archived (#39 closed)
-
-## Swift Package
-
-- Two `Package.swift` files coexist: root (SPM consumers) and `packages/swift/Package.swift` (CI/
-    local dev). SPM reads root for dependency resolution; `cd packages/swift && swift build` uses
-    the subdirectory one
-- Docs site URL is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/`. Advance agents must
-    use correct hostname when linking to howto guides
 
 ## CID Process
 
