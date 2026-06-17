@@ -37,12 +37,14 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     (iter 102 bump, `Cargo.lock` 0.26.0). Migrating one minor per CID step toward `0.29` (where 2
     RustSec advisories clear). Recipe: bump pin → `cargo update -p pyo3` → build/clippy(-D
     warnings)/ fmt → `uv run maturin develop` → `uv run pytest` (286 tests). 0.23→0.24 AND 0.24→0.25
-    = ZERO source changes; **0.25→0.26 was the FIRST hop needing source edits**: `allow_threads` →
-    `detach` (pure rename, 7 sites; verify `grep -c allow_threads crates/iscc-py/src/lib.rs` == 0) +
-    `PyObject` → `Py<PyAny>` return types (17 sites). Predicted `IntoPyObject`/lifetime breaks STILL
-    not materialized through 0.26 — but 0.26 churn means later hops may also touch source; treat
-    `-D   warnings` as the gate. Core has NO PyO3 dep — scope edits to `crates/iscc-py/`. Next: 0.26
-    → 0.27.
+    = ZERO source changes; **0.25→0.26 = FIRST source-touching hop**: `allow_threads` → `detach`
+    (pure rename, 7 sites; verify `grep -c allow_threads crates/iscc-py/src/lib.rs` == 0) +
+    `PyObject` → `Py<PyAny>` return types (17 sites). **0.26→0.27 = SECOND source hop** (iter
+    102/103 `acf9277`): `downcast` → `cast` / `downcast_into_unchecked` → `cast_into_unchecked`
+    rename, only 2 sites in `to_pylist` (`crates/iscc-py/src/lib.rs:16,24`). Predicted
+    `IntoPyObject`/lifetime breaks STILL not materialized through 0.27 — but both 0.26 & 0.27
+    touched source; treat `-D   warnings` as the gate. Cargo.lock now `pyo3 0.27.2`. Core has NO
+    PyO3 dep — scope edits to `crates/iscc-py/`. Next: 0.27 → 0.28.
 - **v1.0.0 gates check**: `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml`
     - `ls .cargo-crap.toml` + `grep -iE "coverage|crap|semver|callgrind" mise.toml`
 - **Coverage + CRAP gate ALL 3 PHASES present; install flake FIXED iter 101**: ONE job named
@@ -145,19 +147,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Issues diff**: check issues.md for NEW entries each cycle (human AND `[review]`-sourced). Watch
     `[review]` + `HUMAN REVIEW REQUESTED` flags and any critical ones that reshuffle priorities.
 
-## Current State (assessed-at: fe1618f)
+## Current State (assessed-at: e9865b4)
 
 - **IN_PROGRESS — CI GREEN.** v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **Iter 102 incremental** (diff `f7f3689..HEAD`). Only code-bearing change: PyO3 `0.25 → 0.26`
-    (Cargo.toml:35 `0.26`, Cargo.lock `0.26.0`, crates/iscc-py/src/lib.rs detach + `Py<PyAny>`).
-    Everything else is `.claude/` context/memory.
-- **✅ CI PASSING.** Latest run 27687282645 (sha `03aacbd`) = **SUCCESS**. HEAD `fe1618f` adds only
-    `iterations.jsonl` on top, so the green run covers HEAD's code. All 17 functional jobs +
-    Coverage+CRAP green; only `Semver` shows job-level failure but continue-on-error (does NOT
-    flip). Coverage+CRAP enforcing Phase 3 gate ran & passed.
+- **Iter 104 incremental** (diff `fe1618f..HEAD`). Only code-bearing change: PyO3 `0.26 → 0.27`
+    (Cargo.toml:35 `0.27`, Cargo.lock `0.27.2`, crates/iscc-py/src/lib.rs `downcast`→`cast` 2
+    sites). Everything else is `.claude/` context/memory.
+- **✅ CI PASSING.** Latest run 27688989956 (sha `64a425d`) = **SUCCESS**. HEAD `e9865b4` adds only
+    two `iterations.jsonl` log commits on top of `64a425d`, so the green run covers HEAD's code. All
+    17 functional jobs + Coverage+CRAP green; only `Semver` shows job-level failure but
+    continue-on-error (does NOT flip). Coverage+CRAP enforcing Phase 3 gate ran & passed.
 - **5 issues: 0 critical, 3 normal, 2 low** (grep `^## .+\`(critical|normal|low)\`\` for headers,
     excludes legend line — no -1 adjustment).
-- **Open normal gaps (3)**: PyO3 migration (now at 0.26, continue to 0.29 for RustSec), CRAP
+- **Open normal gaps (3)**: PyO3 migration (now at 0.27, continue to 0.29 for RustSec), CRAP
     `--fail-above` hardening [review, HUMAN REVIEW REQUESTED], iai-callgrind perf gate (only v1.0.0
     CI gate w/ ZERO impl). cargo-semver-checks gate present — informational.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
@@ -165,10 +167,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     enforcing-semver needs v1.0.0), Python (**PyO3 migration in progress — GIL MET**), CI/CD
     (**GREEN**; `--fail-above` hardening + iai-callgrind remain). Node.js MET. WASM MET. All 12
     bindings met.
-- **Recently closed/landed (don't re-flag)**: PyO3 0.26 (iter 102, first source-touching hop),
-    cargo-crap `--force` flake fix (iter 101 `628c5d9`), PyO3 0.25 (iter 100), CRAP base issue swept
-    (iter 100), CRAP Phase 3 first green (iter 99), PyO3 0.24 (iter 98), semver gate (iter 93,
-    informational), npm #38 (iter 92), GIL #39 (iter 91), streaming SumHasher #37 (iters 88-90).
+- **Recently closed/landed (don't re-flag)**: PyO3 0.27 (iter 102/103 `acf9277`, second
+    source-touching hop), PyO3 0.26 (iter 102, first source-touching hop), cargo-crap `--force`
+    flake fix (iter 101 `628c5d9`), PyO3 0.25 (iter 100), CRAP base issue swept (iter 100), CRAP
+    Phase 3 first green (iter 99), PyO3 0.24 (iter 98), semver gate (iter 93, informational), npm
+    #38 (iter 92), GIL #39 (iter 91), streaming SumHasher #37 (iters 88-90).
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists; ci-cd.md Phases 1+2+3 boxes all `[x]`; rust-core perf criterion
     - enforcing-semver still `[ ]`. Re-read on incremental review.
