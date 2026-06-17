@@ -449,3 +449,20 @@ reference-only for humans.
     the subdirectory one
 - Docs site URL is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/`. Advance agents must
     use correct hostname when linking to howto guides
+
+## Binding Propagation (archived iter 96 — all bindings met)
+
+- Java `META_TRIM_*` constants are pure Java `public static final int` (no JNI call needed). Go
+    constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
+- When adding FFI constants, update the algorithm constant count in the module docstring
+    (`crates/iscc-ffi/src/lib.rs` line 5)
+- **napi bundled single-package model (no `optionalDependencies`)**: `napi prepublish -t npm` is the
+    *only* thing that injects per-platform `optionalDependencies` (`@iscc/lib-<triple>`) into
+    `package.json` at publish time — never published, so they 404 on install and break `npm ci`. The
+    bundled model ships all 5 `.node` in one tarball via `files: ["*.node"]`; the generated
+    `index.js` loader `require`s the local `./iscc-lib.<triple>.node` first. Do NOT run prepublish.
+    Revisit per-platform model only if tarball > ~30 MB (spec: `nodejs-bindings.md`). PyO3
+    GIL-release detail archived (#39 closed)
+- NAPI `index.js` and `index.d.ts` are gitignored (`crates/iscc-napi/.gitignore`) and auto-generated
+    by `napi build`. CI runs `napi build` before `npm test`. Do NOT manually edit or commit these
+    files — they regenerate with new constants automatically

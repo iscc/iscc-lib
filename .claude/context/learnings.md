@@ -103,9 +103,21 @@ fully-met target sections to `learnings-archive.md`.
     `continue-on-error`. `dtolnay/rust-toolchain@stable` w/ `components: llvm-tools-preview` →
     `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) →
     `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`).
-    `mise run coverage` mirrors it locally; `lcov.info` is gitignored (137KB / 5156 lines). Artifact
-    only — no score gate yet. Phase 2 (`cargo crap` report-only + SARIF) + Phase 3
-    (`--fail-regression` baseline) remain. CI job entries now 17 (python-test matrix → 18 actual)
+    `mise run coverage` mirrors it locally; `lcov.info` is gitignored (137KB / 5156 lines). CI job
+    entries now 17 (python-test matrix → 18 actual)
+- **CRAP gate Phase 2 done** (iter 96, ci-cd.md Phase 2): `coverage` job renamed `Coverage + CRAP`,
+    job-level `permissions: {contents: read, security-events: write}` for the SARIF upload, installs
+    `cargo-binstall` (taiki-e/install-action) then `cargo binstall -y cargo-crap@0.2.2`, runs two
+    report-only steps (`--format github`, `--format sarif --output crap.sarif`) + `upload-sarif@v3`.
+    `.cargo-crap.toml` (repo root): `threshold=30.0`, `missing="pessimistic"`, exclude globs for all
+    7 binding crates + `packages/**` + `scripts/**`. `mise run crap` (`depends=["coverage"]`).
+    Report-only — NO `fail-above`/`fail-regression`. Phase 3 (`--fail-regression` baseline) remains
+- **cargo-crap `benches/**` default exclude only matches repo-root path** — nested
+    `crates/iscc-lib/benches/**` is NOT covered and leaks `bench_cdc_chunks` in at CRAP 42.0 (#1
+    crappiest, no coverage = pure harness noise). Must add `crates/iscc-lib/benches/**` to
+    `.cargo-crap.toml` `exclude` explicitly. With it, highest CRAP is `gen_meta_code_v0` at 22.3 (\<
+    threshold 30) so report-only emits zero GitHub annotations. `.cargo-crap.toml` is read only when
+    `cargo crap` runs from the repo root (config path is `.`-relative)
 
 ## Branching
 
@@ -161,20 +173,8 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Binding Propagation
 
-- NAPI `index.js` and `index.d.ts` are gitignored (`crates/iscc-napi/.gitignore`) and auto-generated
-    by `napi build`. CI runs `napi build` before `npm test`. Do NOT manually edit or commit these
-    files — they regenerate with new constants automatically
-- Java `META_TRIM_*` constants are pure Java `public static final int` (no JNI call needed). Go
-    constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
-- When adding FFI constants, update the algorithm constant count in the module docstring
-    (`crates/iscc-ffi/src/lib.rs` line 5)
-- **napi bundled single-package model (no `optionalDependencies`)**: `napi prepublish -t npm` is the
-    *only* thing that injects per-platform `optionalDependencies` (`@iscc/lib-<triple>`) into
-    `package.json` at publish time — never published, so they 404 on install and break `npm ci`. The
-    bundled model ships all 5 `.node` in one tarball via `files: ["*.node"]`; the generated
-    `index.js` loader `require`s the local `./iscc-lib.<triple>.node` first. Do NOT run prepublish.
-    Revisit per-platform model only if tarball > ~30 MB (spec: `nodejs-bindings.md`). PyO3
-    GIL-release detail archived (#39 closed)
+- All bindings met — per-binding propagation details (NAPI gitignored gen files, Java/Go consts, FFI
+    constant count, napi bundled single-package model) archived to `learnings-archive.md` (iter 96)
 
 ## CID Process
 
