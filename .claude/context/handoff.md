@@ -1,58 +1,64 @@
-## 2026-06-16 — Add streaming `SumHasher` to the WASM bindings
+## 2026-06-17 — Review of: Add streaming `SumHasher` to the WASM bindings
 
-**Done:** Added a `#[wasm_bindgen]` `SumHasher` streaming class to `crates/iscc-wasm/src/lib.rs`,
+**Verdict:** PASS
+
+**Summary:** The advance agent added a `#[wasm_bindgen]` `SumHasher` class to `crates/iscc-wasm`,
 wrapping the shared core `iscc_lib::streaming::SumHasher` with the established `Option<inner>`
-finalize-once pattern (mirroring the WASM `DataHasher`/`InstanceHasher`). Its
-`finalize(bits?, wide?, add_units?)` returns the existing `WasmSumCodeResult`. This closes the only
-remaining half of issue #37 (WASM bindings) — the core struct (iter 88) and Python wrapper (iter 89)
-already existed.
-
-**Files changed:**
-
-- `crates/iscc-wasm/src/lib.rs`: added `SumHasher` struct + `Default` impl + `#[wasm_bindgen] impl`
-    (`new()`, `update()`, `finalize()`) after `InstanceHasher`. Pure translation layer — no
-    algorithm logic; casts `filesize: u64 → f64`, maps `units: Option<Vec<String>>` directly, maps
-    all errors via `JsError::new(&e.to_string())`, never panics across the boundary.
-- `crates/iscc-wasm/tests/unit.rs`: added 8 `#[wasm_bindgen_test]` functions in a new `── SumHasher`
-    section (matches gen_sum_code_v0, multi-update invariance vs one-shot, empty input, result
-    shape, units enabled with content check, units disabled, wide-mode 128-bit differs from narrow,
-    finalize-once: second finalize + post-finalize update both error). Real byte data, no mocks.
-- `docs/howto/wasm.md`: added a `### SumHasher` subsection under `## Streaming` showing
-    `import { SumHasher }`, chunked `update()` from a `ReadableStream`, and
-    `finalize(undefined, undefined, true)` reading `result.iscc`/`result.datahash`/`result.units`.
-    Updated the trailing "Both hashers" sentence to "All three hashers".
-- `crates/iscc-wasm/CLAUDE.md`: bumped "2 streaming types" → "3 streaming types" in both the summary
-    line and the enumeration, with a note that `SumHasher` wraps `iscc_lib::streaming::SumHasher`
-    (full path, not a crate-root Tier 1 re-export) and returns the shared `WasmSumCodeResult`.
+finalize-once pattern and reusing the existing `WasmSumCodeResult`. It is a pure translation layer —
+no algorithm logic, output verified equal to the one-shot `gen_sum_code_v0`. Scope was clean (WASM
+crate only; no core, Python, other bindings, or Tier 1 changes), and this fully closes issue #37
+across all bindings (core + Python + WASM).
 
 **Verification:**
 
-- `wasm-pack test --node crates/iscc-wasm --features conformance` — **78 passed, 0 failed** (70
-    prior
-    - 8 new `test_sum_hasher_*`). All 8 new tests confirmed present in output.
-- `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` — clean.
-- `cargo clippy -p iscc-wasm --all-targets -- -D warnings` (host) — clean.
-- `cargo fmt -p iscc-wasm --check` — clean (fmt auto-fix applied to one assert! in unit.rs).
-- `mise run check` (15 pre-commit hooks) — all Passed.
-- `grep -q "pub struct SumHasher" crates/iscc-wasm/src/lib.rs` — exit 0.
-- `grep -q "SumHasher" docs/howto/wasm.md` — exit 0.
-- README.md / `.claude/context/specs/rust-core.md` / `target.md` "32 Tier 1 symbols" counts
-    untouched (those files were not modified; SumHasher is not promoted to Tier 1).
+- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` — 78 passed, 0 failed (70
+    prior + 8 new `test_sum_hasher_*`, all confirmed present)
+- [x] `cargo clippy -p iscc-wasm --target wasm32-unknown-unknown -- -D warnings` — clean
+- [x] `cargo fmt -p iscc-wasm --check` — clean
+- [x] `grep -q "pub struct SumHasher" crates/iscc-wasm/src/lib.rs` — exit 0
+- [x] `grep -q "SumHasher" docs/howto/wasm.md` — exit 0
+- [x] "32 Tier 1 symbols" count unchanged in README.md / rust-core.md / target.md — SumHasher not
+    promoted to Tier 1 (no crate-root re-export); only the WASM crate's own CLAUDE.md bumped to "3
+    streaming types"
+- [x] `mise run check` (15 pre-commit hooks) — all passed
 
-**Next:** Issue #37 is now fully closed across all bindings (core + Python + WASM). The reviewer
-should mark/close the #37 entry in issues.md. Highest-impact remaining backlog items: npm
-`optionalDependencies` fix (#38), PyO3 0.23→0.29 security migration, GIL release (#39 — when it
-lands it should also cover the new `PySumHasher.update()`).
+**Issues found:**
+
+- (none in the advance work) — implementation matches the `gen_sum_code_v0` reference exactly
+    (`filesize: u64 → f64` cast, `units` mapped directly, errors via `JsError`, finalize-once via
+    `inner.take()`). Tests use real byte data and assert against both `gen_sum_code_v0` and the
+    individual `gen_data_code_v0`/`gen_instance_code_v0` units.
+- Reviewer minor fix applied: the WASM crate `CLAUDE.md` "Test Commands" listed
+    `wasm-pack test ... -- --test unit` (the runner rejects `--test` after `--`). Corrected to put
+    `--test <name>` before the `--` (passed to cargo) — verified `--test unit` runs the 77 unit
+    tests. The advance agent had flagged this as stale but left it out of scope.
+
+**Codex review:** Completed, no findings. "The new WASM SumHasher binding follows the existing
+streaming wrapper pattern, delegates to the core implementation, and is covered by passing WASM
+tests. I did not find any introduced correctness issues."
+
+**Next:** Issue #37 is fully closed (deleted from issues.md; `wasm-bindings.md` spec updated and its
+verification box checked). Remaining `normal`-priority backlog, in suggested order:
+
+1. **npm `optionalDependencies` fix (#38)** — confirmed downstream-breaking bug: published
+    `@iscc/lib@0.4.0` declares five unpublished per-platform `optionalDependencies` that 404 and
+    break `npm ci`. The fix decision is already recorded (keep bundled-package model; drop the
+    `napi prepublish -t npm` injection). Well-scoped, user-facing, touches the release workflow +
+    `crates/iscc-napi/package.json`.
+2. **PyO3 0.23 → 0.29 security migration** — closes two RustSec advisories; six-minor-version jump,
+    migrate incrementally per the PyO3 migration guide. Larger but security-relevant.
+3. **GIL release (#39)** — perf; when it lands it must also cover the new `PySumHasher.update()`.
+
+I recommend #38 next: it is a confirmed install-breaking bug for downstream consumers with a clear,
+pre-recorded fix decision.
 
 **Notes:**
 
-- `SumHasher` is intentionally NOT a crate-root Tier 1 re-export — it is a Python/WASM streaming
-    convenience reached via the full path `iscc_lib::streaming::SumHasher`. The documented "32 Tier
-    1 symbols / 2 streaming types" counts in README/rust-core/target were deliberately left
-    unchanged per next.md scope. Only the WASM crate's own CLAUDE.md enumeration was bumped to "3".
-- The `WasmSumCodeResult` struct was reused (no new result struct introduced), so the crate's "2
-    result structs" count in CLAUDE.md is unchanged.
-- Test-target filtering via `wasm-pack test ... -- --test unit` does NOT work
-    (wasm-bindgen-test-runner rejects `--test`; only a positional FILTER is accepted). Ran the full
-    suite instead — the documented CLAUDE.md command `-- --test conformance` appears stale on
-    wasm-pack 0.13.1. Left unchanged (out of scope), but worth a doc fix later.
+- `SumHasher` remains intentionally NOT a crate-root Tier 1 re-export — it is a Python/WASM
+    streaming convenience reached via `iscc_lib::streaming::SumHasher`. Do not bump the "32 Tier 1 /
+    2 streaming types" counts in README/rust-core/target for it.
+- 4 unpushed commits (update-state, iteration-89 log, define-next, advance) will push as one batch
+    with this review — normal: the iteration-89 log commit is written by the runner after the prior
+    review's push, so it trails until the next push.
+- The `WasmSumCodeResult` was reused (no new result struct), so the WASM CLAUDE.md "2 result
+    structs" count is unchanged and correct.

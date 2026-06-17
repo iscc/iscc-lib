@@ -71,11 +71,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - **`--no-default-features --all-targets` fails on `benchmarks` bench** (pre-existing, NOT a
     regression): benches import `gen_meta`/`gen_text` needing default features. Scope no-default
     clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`). CI never runs it
-- `streaming::SumHasher` exists in core (issue #37 core-first, iter 88) but is NOT a crate-root Tier
-    1 re-export — only `iscc_lib::streaming::SumHasher`. `gen_sum_code_v0` is a thin wrapper
-    delegating to `SumHasher::finalize`. PyO3 `SumHasher` wrapper landed iter 89 (mirrors
-    `PyDataHasher` `Option<inner>`, `finalize(bits,wide,add_units)` builds dict like the
-    `gen_sum_code_v0` wrapper — `units` omitted when None). **#37 remaining: WASM wrapper only.**
+- `streaming::SumHasher` is core-only, NOT a crate-root Tier 1 re-export — reach via full path
+    `iscc_lib::streaming::SumHasher`. `gen_sum_code_v0` is a thin wrapper delegating to
+    `SumHasher::finalize(bits,wide,add_units)`. **#37 fully closed across all bindings: core iter
+    88, PyO3 `PySumHasher` iter 89, WASM `SumHasher` iter 90 (reuses `WasmSumCodeResult`,
+    `filesize u64→f64`). Deleted from issues.md; wasm-bindings.md spec updated.**
 
 ## Binding State
 
@@ -97,7 +97,8 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 ## Binding Propagation Shortcuts
 
 - napi-rs: `npm test` + clippy + `mise run check`
-- WASM: `wasm-pack test --node` (with and without `--features conformance`) + clippy
+- WASM: `wasm-pack test --node` (with and without `--features conformance`) + clippy. To run one
+    test file: `--test <name>` goes BEFORE the `--` (cargo arg); after `--` the runner rejects it
 - C FFI: `cargo test -p iscc-ffi` + clippy. Header tracked in git
 - Java JNI: `cargo build -p iscc-jni` + clippy + `mvn test`
 - Ruby: `pushd crates/iscc-rb && bundle exec rake compile && bundle exec rake test; popd`

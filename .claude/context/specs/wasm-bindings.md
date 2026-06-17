@@ -61,10 +61,10 @@ pub fn gen_meta_code_v0(
 A `SumHasher` class (GitHub issue #37) exposes single-pass streaming ISCC-SUM (Data-Code +
 Instance-Code) over the shared core `streaming::SumHasher` struct, so browser consumers feed each
 chunk once instead of `update()`-ing both `DataHasher` and `InstanceHasher` separately (which copies
-every byte into WASM linear memory twice). `SumHasher.finalize(bits, wide)` returns a
-`SumCodeResult`, dropping the manual `gen_iscc_code_v0([dataCode, instanceCode])` assembly on the JS
-side. The core struct is shared with the PyO3 binding (see `python-bindings.md` → "Streaming
-SumHasher").
+every byte into WASM linear memory twice). `SumHasher.finalize(bits?, wide?, add_units?)` returns a
+`WasmSumCodeResult` (same shape as `gen_sum_code_v0`: `iscc`, `datahash`, `filesize`, optional
+`units`), dropping the manual `gen_iscc_code_v0([dataCode, instanceCode])` assembly on the JS side.
+The core struct is shared with the PyO3 binding (see `python-bindings.md` → "Streaming SumHasher").
 
 ### Key Differences from Node.js Binding
 
@@ -121,7 +121,7 @@ wasm:
 - [ ] All 32 Tier 1 symbols accessible from JavaScript/TypeScript
 - [ ] Package builds with `wasm-pack build`
 - [ ] `DataHasher` and `InstanceHasher` streaming types work in WASM
-- [ ] `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher
+- [x] `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher
     pattern)
 - [ ] TypeScript declarations provide accurate type information
 - [ ] Package installs cleanly via `npm install @iscc/wasm`

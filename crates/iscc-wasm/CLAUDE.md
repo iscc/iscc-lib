@@ -100,9 +100,10 @@ wasm-pack test --node crates/iscc-wasm --features conformance
 # Run without the conformance feature (skips conformance_selftest unit test)
 wasm-pack test --node crates/iscc-wasm
 
-# Run specific test file
-wasm-pack test --node crates/iscc-wasm --features conformance -- --test conformance
-wasm-pack test --node crates/iscc-wasm -- --test unit
+# Run specific test file (--test goes to cargo, BEFORE the `--`; after `--` the
+# wasm-bindgen-test-runner rejects it and only accepts a positional name filter)
+wasm-pack test --node crates/iscc-wasm --features conformance --test conformance
+wasm-pack test --node crates/iscc-wasm --test unit
 ```
 
 - Tests use `#[wasm_bindgen_test]` attribute, not `#[test]`.

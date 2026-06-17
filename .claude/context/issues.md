@@ -55,27 +55,6 @@ bundling all five costs little and removes the whole `optionalDependencies` frag
 **Spec:** `.claude/context/specs/nodejs-bindings.md` → "Native Binary Distribution" (rewritten to
 the bundled-package model with a revisit trigger if the bundle grows past ~30 MB)
 
-## Add streaming `SumHasher` to WASM bindings `normal` [human]
-
-GitHub: https://github.com/iscc/iscc-lib/issues/37 (Titusz +1'd extending it to WASM in the thread)
-
-Streaming consumers that need an ISCC-SUM code must currently run two hashers (`DataHasher` +
-`InstanceHasher`), feed every chunk to both, and combine with `gen_iscc_code_v0` — crossing the
-language→Rust boundary twice per chunk (in WASM, copying each chunk into linear memory twice).
-
-**Progress:** Core `streaming::SumHasher` landed in iteration 88
-(`crates/iscc-lib/src/streaming.rs`; `gen_sum_code_v0` now drives it). The PyO3 `SumHasher` wrapper
-landed in iteration 89 (`crates/iscc-py`, exported in `__all__`, 11 tests). **Remaining work is the
-WASM half only.**
-
-- **wasm-bindgen wrapper** (`crates/iscc-wasm`): expose a `SumHasher` class over the shared core
-    `iscc_lib::streaming::SumHasher`, mirroring the existing WASM `DataHasher`/`InstanceHasher`
-    finalize-once pattern.
-- Verify WASM output matches the two-hasher pattern and the path-based `gen_sum_code_v0` for
-    identical data, with finalize-once semantics (`wasm-pack test --node`).
-
-**Spec:** `.claude/context/specs/wasm-bindings.md` → "Streaming Hashers"
-
 ## Release the GIL during Python hashing (`allow_threads`) `normal` [human]
 
 GitHub: https://github.com/iscc/iscc-lib/issues/39
