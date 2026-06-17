@@ -75,6 +75,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `crates/iscc-lib/src/streaming.rs` — `DataHasher`, `InstanceHasher`, `SumHasher` (core struct
     added iter 88, line ~157); `gen_sum_code_v0` drives SumHasher (lib.rs:997). Only DataHasher +
     InstanceHasher re-exported at crate root (lib.rs:24); SumHasher reachable via `streaming::`.
+    SumHasher streaming wrapper now in all 3 consumers: Python (iscc-py lib.rs:615), WASM (iscc-wasm
+    lib.rs:533). #37 fully closed iter 90.
 - `crates/iscc-lib/benches/benchmarks.rs` — 12 benches in criterion_group!
 - `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
 - **CLAUDE.md files**: 12 total (all crates + all packages)
@@ -96,34 +98,37 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: 2a0e78d)
+## Current State (assessed-at: 2204e7d)
 
 - **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **CI**: green 16/16 (run 27654149923, sha `d333c56` = origin/develop HEAD). This run **includes**
-    the Python SumHasher binding (advance `742759b`). HEAD `2a0e78d` is only 1 commit ahead (just
-    `cid(log): iteration 89`, iterations.jsonl only). All code pushed and verified.
-- **9 issues: 0 critical, 7 normal, 2 low** (count by grepping header lines anchored with a leading
+- **CI**: green 16/16 (run 27657020637, sha `984edba` = origin/develop HEAD). This run **includes**
+    the WASM SumHasher binding (advance `3f3bf65`, review `984edba`). HEAD `2204e7d` is only 1
+    commit ahead (just `cid(log): iteration 90`, iterations.jsonl only). All code pushed and
+    verified.
+- **8 issues: 0 critical, 6 normal, 2 low** (count by grepping header lines anchored with a leading
     `##` before the priority label — that excludes the legend line, so no -1 adjustment needed).
+    Note: line-68 `SumHasher` ref in issues.md is inside the GIL issue body, NOT issue #37.
+- **#37 FULLY CLOSED (iteration 90, `3f3bf65`/`984edba`)** — streaming SumHasher now in core +
+    Python + WASM. WASM: `pub struct SumHasher` at `crates/iscc-wasm/src/lib.rs:533`, `impl` at 545,
+    reuses `WasmSumCodeResult`, finalize-once via `inner.take()`; 8 `test_sum_hasher_*` tests (78
+    total wasm-pack); documented in `docs/howto/wasm.md`. #37 deleted from issues.md.
 - **Python SumHasher DONE (iteration 89, `742759b`)**: `#[pyclass(name="SumHasher")]` =
     `PySumHasher` at `crates/iscc-py/src/lib.rs:615` over `iscc_lib::streaming::SumHasher`; Pythonic
-    wrapper class at `__init__.py:349`, exported in `__all__` (line 402); `.pyi` stub + 11 new tests
-    (`tests/test_streaming.py`, 19 SumHasher refs). Closes Python half of #37.
+    wrapper class at `__init__.py:349`, exported in `__all__` (line 402); `.pyi` stub + 11 tests.
 - **Core SumHasher (iteration 88, `3fc44d2`)**: `pub struct SumHasher` in `streaming.rs:157`
     (new/update/finalize(bits,wide,add_units)/Default). `gen_sum_code_v0` (lib.rs:997) drives it.
     Reachable as `iscc_lib::streaming::SumHasher` but NOT a crate-root re-export (only
-    `DataHasher`/`InstanceHasher` are, lib.rs:24).
-- **#37 now WASM-ONLY** — only the wasm-bindgen `SumHasher` class remains
-    (`grep SumHasher crates/iscc-wasm/src` = empty). Core + Python both done.
+    `DataHasher`/`InstanceHasher` are, lib.rs:24). SumHasher NOT promoted to Tier 1 — counts stay
+    32\.
 - **Module visibility (iteration 86, `3f6a61d`)**:
     `cdc/conformance/dct/minhash/simhash/utils/wtahash` = `pub(crate) mod`; only
     `codec/streaming/types` = `pub mod`. Issue swept.
 - **Open normal gaps**: npm optionalDeps bug (#38, release.yml:378), PyO3 0.23→0.29 (RustSec, still
-    `Cargo.toml:35`), WASM SumHasher (#37), GIL allow_threads (#39, none in iscc-py/src), CRAP
-    coverage gate, cargo-semver-checks gate, iai-callgrind perf gate.
+    `Cargo.toml`), GIL allow_threads (#39, none in iscc-py/src), CRAP coverage gate,
+    cargo-semver-checks gate, iai-callgrind perf gate.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
-- **Partially-met sections**: Rust Core (semver+perf gates only), Python (PyO3, SumHasher, GIL),
-    Node.js (npm optionalDeps), WASM (SumHasher), CI/CD. All 12 bindings functionally met for
-    v0.4.0.
+- **Partially-met sections**: Rust Core (semver+perf gates only), Python (PyO3, GIL), Node.js (npm
+    optionalDeps), CI/CD. **WASM now MET.** All 12 bindings functionally met for v0.4.0.
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists. Re-read on incremental review.
 
