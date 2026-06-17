@@ -189,3 +189,9 @@ iterations.
     Scanning is free. Phase 2 stays non-failing: NO `--fail-above`/`--fail-regression`, so
     `cargo crap` exits 0 in report mode. Local SARIF verification → write to `/tmp/crap.sarif` to
     keep the working tree clean (the `mise run crap` task itself uses human format, no file output).
+- **iter 96: RE-AFFIRMED CRAP Phase 2 — same scope, no re-scope.** The loop ran update-state TWICE
+    after iter 95 (`6f90953`, `c8b7281`) with NO `cid(advance)` between, so the Phase 2 work package
+    is still unimplemented. Re-verified all refs still accurate (ci.yml coverage job 293-312,
+    mise.toml coverage task 110-112, ci-cd.md checkboxes 411/415/416/417 to flip, 413/414 Phase 3
+    stay; `.cargo-crap.toml` still absent, 0 crap refs). Lesson: when next.md carries over unbuilt
+    and nothing changed, re-affirm the existing scope rather than inventing a new step.
