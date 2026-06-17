@@ -1,92 +1,91 @@
 # Next Work Package
 
-## Step: Add streaming `SumHasher` to the WASM bindings
+## Step: Release the GIL during Python hashing (`py.allow_threads`)
 
 ## Goal
 
-Expose a `SumHasher` streaming class in `@iscc/wasm` over the shared core
-`iscc_lib::streaming::SumHasher`, so WASM consumers can produce an ISCC-SUM code from a chunked
-stream in a single pass instead of running two hashers and crossing the JS→WASM boundary twice per
-chunk. This closes the **only remaining half of issue #37** ("Add streaming `SumHasher` to WASM
-bindings"); the core struct (iteration 88) and the Python wrapper (iteration 89) already exist.
+Release the Python GIL around the pure-Rust CPU-bound hashing work so threaded consumers (e.g.
+`iscc-sdk`'s `ThreadPoolExecutor`) can overlap hashing instead of serializing on the GIL. Resolves
+issue #39 ("Release the GIL during Python hashing"). Output bytes are identical, so conformance is
+unaffected — this is purely a concurrency improvement.
 
 ## Scope
 
-- **Modify**: `crates/iscc-wasm/src/lib.rs` — add a `#[wasm_bindgen]` `SumHasher` struct in the
-    "Streaming hashers" section, mirroring the existing `DataHasher`/`InstanceHasher`
-    `Option<inner>` finalize-once pattern. `finalize` returns the existing `WasmSumCodeResult`. (1
-    code file.)
-- **Modify** (tests, excluded from file limit): `crates/iscc-wasm/tests/unit.rs` — add
-    `#[wasm_bindgen_test]` tests for the new class.
-- **Modify** (docs, excluded from file limit): `docs/howto/wasm.md` — add a `### SumHasher`
-    subsection to the existing `## Streaming` section. `crates/iscc-wasm/CLAUDE.md` — bump the "2
-    streaming types" enumeration to "3 streaming types" (`DataHasher`, `InstanceHasher`,
-    `SumHasher`).
-- **Reference**: `crates/iscc-lib/src/streaming.rs` (core `SumHasher` API, lines 150–210),
-    `crates/iscc-wasm/src/lib.rs` (existing `gen_sum_code_v0` + `WasmSumCodeResult` at 163–224 and
-    `DataHasher`/`InstanceHasher` at 421–523), `crates/iscc-wasm/tests/unit.rs` (existing
-    `gen_sum_code_v0` and `DataHasher`/`InstanceHasher` test patterns), `crates/iscc-py/src/lib.rs`
-    (`PySumHasher`, the analogous wrapper from iteration 89).
+- **Modify**: `crates/iscc-py/src/lib.rs` — wrap the pure-Rust compute in `py.allow_threads(...)` at
+    exactly these 7 call sites:
+    - one-shot functions (already take `py: Python<'_>`): `gen_data_code_v0` (~:292),
+        `gen_instance_code_v0` (~:305), `gen_image_code_v0` (~:150), `gen_sum_code_v0` (~:335)
+    - streaming `update()` methods (must ADD a `py: Python<'_>` parameter — see notes):
+        `PyDataHasher::update` (~:541), `PyInstanceHasher::update` (~:585), `PySumHasher::update`
+        (~:631)
+- **Create**: `tests/test_gil.py` — deterministic concurrency-correctness test (multiple threads
+    producing byte-identical output to the single-threaded path). Tests are excluded from the file
+    limit.
+- **Reference**: `.claude/context/specs/python-bindings.md` → "GIL Release During Hashing"
+    (acceptance criteria); `crates/iscc-py/CLAUDE.md` (binding rules); `crates/iscc-py/src/lib.rs`
+    (existing finalize methods already take `py: Python<'_>` and show the pattern).
 
 ## Not In Scope
 
-- **Do NOT promote `SumHasher` to a crate-root Tier 1 re-export** or bump the documented "32 Tier 1
-    symbols" / "2 streaming types → 3" counts in `README.md`, `.claude/context/specs/rust-core.md`,
-    `target.md`, or the core crate's tier docs. `SumHasher` is a Python/WASM streaming convenience
-    reachable via `iscc_lib::streaming::SumHasher` (the `streaming` module is already `pub mod`); it
-    is intentionally not bound in all languages. Only the WASM crate's own `CLAUDE.md` enumeration
-    is updated.
-- Do NOT touch the core `iscc-lib` crate, the Python bindings, or any other binding crate.
-- Do NOT introduce a new result struct — reuse the existing `WasmSumCodeResult`.
-- Do NOT take on the other backlog items (npm `optionalDependencies` #38, PyO3 0.23→0.29, GIL
-    release #39, semver-checks / iai-callgrind / coverage gates) — those are separate steps.
+- **Do NOT touch `release.yml` / npm `optionalDependencies` (#38)** — that is a separate
+    release-workflow step requiring a real publish to verify.
+- **Do NOT bump PyO3** (still `0.23` in root `Cargo.toml`). `allow_threads` is the correct API name
+    in 0.23 (do not rename to `detach`).
+- **Do NOT wrap `finalize()` methods** — issue #39 scopes only `update()` + the 4 one-shot
+    functions. The bulk compute (CDC/xxh32 for Data, BLAKE3 for Instance) happens in `update`.
+- **Do NOT change any Python-facing signature.** Adding `py: Python<'_>` to `update()` is invisible
+    to Python; `_lowlevel.pyi` stubs must stay unchanged.
+- **Do NOT add a 2-thread multi-GB perf microbenchmark to CI** — non-deterministic on shared
+    runners. The ~2× throughput target is an aspiration, not a CI gate.
+- **No size-threshold optimization is required** (premature; the Python wrapper already feeds 64 KiB
+    chunks to `update()`). Prefer the simplest unconditional release.
 
 ## Implementation Notes
 
-- Add the `SumHasher` struct after `InstanceHasher` (after line 523 in
-    `crates/iscc-wasm/src/lib.rs`). Hold `inner: Option<iscc_lib::streaming::SumHasher>` — use the
-    **full path** `iscc_lib::streaming::SumHasher` (there is no crate-root re-export, unlike
-    `iscc_lib::DataHasher`).
-- Provide `#[wasm_bindgen(constructor)] new()`, a `Default` impl that delegates to `new()` (matches
-    the existing two hashers and avoids the clippy `new_without_default` lint), and
-    `update(&mut self, data: &[u8]) -> Result<(), JsError>` that errors with
-    `"SumHasher already finalized"` when `inner` is `None`.
-- `finalize(&mut self, bits: Option<u32>, wide: Option<bool>, add_units: Option<bool>) ->   Result<WasmSumCodeResult, JsError>`:
-    `self.inner.take()` (erroring if `None`), then call the core
-    `hasher.finalize(bits.unwrap_or(64), wide.unwrap_or(false), add_units.unwrap_or(false))`. Map
-    the core `SumCodeResult` into `WasmSumCodeResult`, converting `filesize: u64` to `f64` (cast
-    `as f64`, exactly as the existing `gen_sum_code_v0` does at lib.rs:221). `units` maps
-    `Option<Vec<String>>` directly.
-- Map all errors with `.map_err(|e| JsError::new(&e.to_string()))`. Never panic across the WASM
-    boundary (per the crate's CLAUDE.md).
-- This is a translation layer only — no algorithm logic. The single-pass composition already lives
-    in the core `SumHasher`.
-- Tests: mirror the existing `gen_sum_code_v0` and `DataHasher` tests. Add at least 8
-    `#[wasm_bindgen_test]` functions covering: (1) streamed `SumHasher` output equals
-    `iscc_wasm::gen_sum_code_v0(data, ...)` for the same bytes; (2) multi-`update()` split equals a
-    single `update()`; (3) empty input; (4) result shape (non-empty `iscc`, non-empty `datahash`,
-    correct `filesize`); (5) `add_units=Some(true)` yields two unit strings; (6) `add_units`
-    default/`None` yields `units == None`; (7) wide mode at 128-bit differs from narrow; (8)
-    finalize-once: a second `finalize()` errors and `update()` after `finalize()` errors. Use real
-    byte data, not mocks.
-- Docs: in `docs/howto/wasm.md`, add a `### SumHasher` subsection after `### InstanceHasher` (around
-    line 302) showing `import { SumHasher } from "@iscc/wasm"`, chunked `update()`, and
-    `const result = hasher.finalize();` reading `result.iscc` / `result.units`. Keep the same
-    `javascript` fenced-block style as the neighbouring examples.
+- Pattern for one-shot functions (compute inside the closure, build the dict AFTER):
+    ```rust
+    let r = py
+        .allow_threads(|| iscc_lib::gen_data_code_v0(data, bits))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    ```
+    `&[u8]` and `&str` are `Ungil + Send`, and the result structs are plain data (`Ungil`), so the
+    closure type-checks. Keep `PyDict` construction (which needs the GIL) outside the closure.
+- Pattern for `update()` methods — add the injected `py` parameter, take the `&mut inner` borrow
+    BEFORE releasing, then release around the pure call:
+    ```rust
+    fn update(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<()> {
+        let inner = self.inner.as_mut()
+            .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?;
+        py.allow_threads(|| inner.update(data));
+        Ok(())
+    }
+    ```
+    `&mut iscc_lib::DataHasher` is `Ungil` (the core hashers hold no Python types). The
+    finalized-error check stays GIL-held (it touches `self`).
+- **Soundness of the `&[u8]` borrow**: the public Python wrapper in `__init__.py` already coerces
+    inputs to immutable `bytes` before calling `_lowlevel`, so the borrowed buffer cannot be mutated
+    by another thread during the release. Prefer the borrowed `&[u8]` if it compiles; only copy to an
+    owned `Vec<u8>` before the closure if the borrow checker objects.
+- `tests/test_gil.py`: spin up N threads (e.g., via `concurrent.futures.ThreadPoolExecutor` or
+    `threading.Thread`), each hashing the same and/or distinct byte payloads through `gen_data_code_v0`,
+    `gen_instance_code_v0`, a streaming `DataHasher`/`InstanceHasher`/`SumHasher`, and assert outputs
+    equal the single-threaded results. This verifies correctness-under-concurrency deterministically
+    (it does not assert a speedup). Use `from iscc_lib import ...` (public API), per the crate's test
+    convention.
 
 ## Verification
 
-- `wasm-pack test --node crates/iscc-wasm` passes (all existing unit + conformance tests plus ≥8 new
-    `SumHasher` tests).
-- `cargo clippy -p iscc-wasm -- -D warnings` clean.
-- `cargo fmt -p iscc-wasm --check` clean.
-- `grep -q "pub struct SumHasher" crates/iscc-wasm/src/lib.rs` exits 0 (class is defined).
-- `grep -q "SumHasher" docs/howto/wasm.md` exits 0 (howto documents the new class).
-- The documented "32 Tier 1 symbols" count is unchanged in `README.md`,
-    `.claude/context/specs/rust-core.md`, and `target.md` (SumHasher is not promoted to Tier 1).
+- `cargo build -p iscc-py` compiles (proves the `Ungil`/`Send` bounds are satisfied at every call
+    site).
+- `cargo clippy -p iscc-py -- -D warnings` clean.
+- `cargo fmt -p iscc-py --check` clean.
+- `grep -c "allow_threads" crates/iscc-py/src/lib.rs` returns at least 7.
+- `maturin develop -m crates/iscc-py/Cargo.toml` succeeds, then `pytest tests/` passes (existing
+    conformance + smoke + streaming suites unchanged, plus the new `tests/test_gil.py`).
+- `ruff check tests/test_gil.py` and `ruff format --check tests/test_gil.py` clean.
 
 ## Done When
 
-`wasm-pack test --node crates/iscc-wasm` is green with the new `SumHasher` tests, clippy and fmt are
-clean, and the WASM howto documents the `SumHasher` class — fully closing issue #37 across all
-bindings.
+The 3 streaming `update()` methods and the 4 one-shot byte-data functions release the GIL around
+their pure-Rust compute, no Python-facing signature changes, `tests/test_gil.py` confirms identical
+output under multithreaded use, and all verification commands pass.
