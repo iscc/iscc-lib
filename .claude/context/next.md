@@ -1,101 +1,104 @@
 # Next Work Package
 
-## Step: Remove dangling npm `optionalDependencies` injection from `@iscc/lib` (#38)
+## Step: Add informational `cargo-semver-checks` API backward-compat CI gate
 
 ## Goal
 
-Stop the release workflow from injecting five unpublished per-platform `optionalDependencies`
-(`@iscc/lib-<triple>`) into the published `@iscc/lib` package, which 404 on install and break
-`npm ci` (`EUSAGE` / missing-from-lockfile) for every downstream consumer. Resolves issue #38. The
-bundled `files: ["*.node"]` model already ships all binaries and the generated `index.js` loader
-already prefers them, so dropping the injection produces a clean, self-contained package.
+Stand up the `cargo-semver-checks` public-API backward-compatibility gate for the `iscc-lib` core
+crate (issue: *Add `cargo-semver-checks` API backward-compat CI gate*). This is the smallest,
+most self-contained of the four v1.0.0 hardening gates and locks the now-narrowed Tier 1 / Tier 2
+surface under enforcement before the v1.0.0 stability commitment. It runs **informational** during
+the 0.4.0 → 1.0.0 transition and becomes enforcing once v1.0.0 ships.
 
 ## Scope
 
-- **Modify**: `.github/workflows/release.yml` — delete the "Prepare npm packages" step
-    (`run: npx napi prepublish -t npm`, ~line 378) from the `publish-npm-lib` job. This is the only
-    code/config change.
-- **Modify (docs, excluded from file limit)**:
-    - `crates/iscc-napi/CLAUDE.md` — "Publishing Constraints" (~line 114) currently says
-        `optionalDependencies` and the `npm/` subdirectory are "generated at publish time by
-        `npx napi prepublish -t npm`". Rewrite to the bundled single-package model (all `.node`
-        bundled via `files`, no `optionalDependencies`, no prepublish).
-    - `notes/06-build-cicd-publishing.md` (~lines 288–291) — replace the per-platform-package /
-        `optionalDependencies` description with the bundled single-package model.
-    - `notes/02-language-bindings.md` (~lines 82–88) — same: replace "platform selection via
-        `optionalDependencies`" with the bundled `index.js`-loads-local-`.node` model.
-- **Reference**:
-    - `.claude/context/specs/nodejs-bindings.md` → "Native Binary Distribution" (lines 107–132) — the
-        authoritative target wording for the bundled model; reuse its phrasing in the doc edits.
-    - `crates/iscc-napi/package.json` — already correct (`files: ["*.node"]`, no
-        `optionalDependencies`); confirm, do not change.
-    - `crates/iscc-napi/index.js` (generated loader) — each platform branch does
-        `require('./iscc-lib.<triple>.node')` FIRST, only falling back to
-        `require('@iscc/lib-<triple>')` on failure.
-    - `issues.md` → issue #38 (fix decision + acceptance).
+- **Modify**: `.github/workflows/ci.yml` — add a new `semver` job (non-blocking).
+- **Modify**: `mise.toml` — add a `semver` task mirroring the CI invocation for local runs.
+- **Modify (doc, excluded from 3-file limit)**: `.claude/context/specs/ci-cd.md` — flip the Semver
+    verification checkbox (currently line ~417) to `[x]`, noting it is informational pre-1.0.
+- **Reference**: `.claude/context/specs/ci-cd.md` → "API Stability and Performance Gates" and the
+    "CRAP" job style; `.claude/context/specs/rust-core.md` → "API Stability & Performance
+    Invariants"; existing `c-ffi` / `wasm` jobs in `ci.yml` for the toolchain + caching action
+    pattern (`dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`); `crates/iscc-lib/Cargo.toml`
+    (crate name `iscc-lib`, `default = ["meta-code"]`).
 
 ## Not In Scope
 
-- **Do NOT publish to npm** or touch any other registry's publish job. Verification is entirely
-    local (build + pack inspection + loader smoke test) — no real publish needed.
-- **Do NOT modify `crates/iscc-napi/package.json`** — it already bundles all binaries and declares
-    no `optionalDependencies`. Verify only.
-- **Do NOT remove the `npm install` step** in `publish-npm-lib`. It is now technically unused (it
-    only installed `@napi-rs/cli` for prepublish) but is harmless; leaving it keeps the diff minimal
-    and avoids surprising reviewers.
-- **Do NOT add per-platform sibling package publishing** or recreate the `npm/<triple>/` directory
-    model. The bundled model is the deliberate, spec-mandated choice.
-- **Do NOT bump napi-rs**, edit `crates/iscc-napi/src/lib.rs`, or touch the `build-napi` /
-    `test-napi` jobs.
-- **Do NOT start the PyO3 0.23 → 0.29 migration** or any other backlog item — one step only.
+- **Do NOT make the gate enforcing / fail the build on breaking changes.** It MUST stay
+    informational until v1.0.0 — see Implementation Notes for why CI would otherwise go red.
+- Do NOT implement the `iai-callgrind` perf gate or the `cargo llvm-cov` + CRAP coverage gate —
+    those are separate issues / future steps.
+- Do NOT start the PyO3 0.23 → 0.29 migration.
+- Do NOT bump the workspace version or cut v1.0.0.
+- Do NOT add `cargo-semver-checks` to the `prek` pre-push hooks — like the coverage gate, it is a
+    CI / on-demand tool, not a local push gate.
+- Do NOT re-widen any `pub(crate) mod` back to `pub mod` to "satisfy" the check — the narrowing is
+    intentional pre-1.0 API cleanup.
 
 ## Implementation Notes
 
-- The exact step to delete from the `publish-npm-lib` job:
+- **Baseline = last published release.** `iscc-lib 0.4.0` is published on crates.io;
+    `cargo-semver-checks` auto-detects the most recent crates.io release as the baseline. No
+    committed baseline file is needed (unlike iai-callgrind/CRAP).
+- **Recommended CI implementation** — use the maintainer-blessed action, which installs via
+    `binstall` internally (spec-aligned) and handles baseline + rustdoc + caching:
     ```yaml
-      - name: Prepare npm packages
-        run: npx napi prepublish -t npm
-        working-directory: crates/iscc-napi
+      semver:
+        name: Semver (cargo-semver-checks)
+        runs-on: ubuntu-latest
+        # Informational during the 0.4.0 -> 1.0.0 transition; enforcing from v1.0.0.
+        continue-on-error: true
+        steps:
+          - uses: actions/checkout@v4
+          - uses: dtolnay/rust-toolchain@stable
+          - uses: Swatinem/rust-cache@v2
+          - name: Check semver
+            uses: obi1kenobi/cargo-semver-checks-action@v2
+            with:
+              package: iscc-lib
     ```
-    After removal the job flow is: checkout → setup-node → `npm install` → download merged `napi-*`
-    artifacts → get version → check version on registry →
-    `npm publish --provenance --access public`.
-- **Why this is safe (the crux of #38):** `napi prepublish` is the *only* thing that injects
-    `optionalDependencies` into `package.json`. The generated `index.js` loader resolves the native
-    addon by trying the bundled local file (`require('./iscc-lib.<triple>.node')`) first and only
-    falls back to the per-platform package on failure. Because `files: ["*.node"]` ships all five
-    `.node` binaries in the tarball, the local require always succeeds and the (now-undeclared)
-    sibling packages are never needed at install or runtime.
-- The `publish-npm-lib` job already merges all five `napi-*` artifacts into `crates/iscc-napi/`
-    (plus `index.js`/`index.d.ts`), and `checkout` provides `README.md`, so `npm publish` ships
-    exactly `files: [index.js, index.d.ts, *.node, README.md]` — a complete bundled package with no
-    `optionalDependencies`.
-- For the doc edits, mirror the wording already in `nodejs-bindings.md` → "Native Binary
-    Distribution" so the binding CLAUDE.md and the architecture notes agree with the spec. Keep
-    edits tight — just replace the stale per-platform/`optionalDependencies` sentences.
+    A manual fallback (`cargo install cargo-semver-checks --locked` then
+    `cargo semver-checks check-release -p iscc-lib`) is equivalent if the action is undesirable.
+- **`continue-on-error: true` is load-bearing.** After 0.4.0 shipped, the working tree narrowed
+    `cdc / conformance / dct / minhash / simhash / utils / wtahash` from `pub mod` to
+    `pub(crate) mod` (removed public module *paths*). `cargo-semver-checks` WILL report these as
+    breaking changes at the same `0.4.0` version number. That is the intended pre-1.0 freedom — the
+    job must report without failing the workflow so CI stays green. This matches the spec: "During
+    the 0.4.0 → 1.0.0 transition the check is informational."
+- **Features**: default invocation is correct. `iscc-lib` has `default = ["meta-code"]` (implies
+    `text-processing`), so the default-feature scan covers the feature-gated Tier 1 symbols. No
+    custom feature flags needed.
+- **mise task** mirrors the CI command for local use:
+    ```toml
+    [tasks.semver]
+    description = "Check iscc-lib public API for SemVer violations vs the last published release"
+    run = "cargo semver-checks check-release -p iscc-lib"
+    ```
+    Place it under a new "--- API stability ---" comment section near the version tasks.
+- Run `mise run format` before committing so the YAML/TOML/markdown auto-fix hooks don't reflow the
+    edits during commit.
 
 ## Verification
 
-- `grep -c "napi prepublish" .github/workflows/release.yml` returns `0`.
-- `python -c "import json; d=json.load(open('crates/iscc-napi/package.json')); assert 'optionalDependencies' not in d; assert '*.node' in d['files']; print('ok')"`
-    exits 0.
-- `cd crates/iscc-napi && npm install && npm run build` succeeds (regenerates `index.js` + local
-    `.node`).
-- **Bundled-loader proof** (no `@iscc/lib-<triple>` optional-dep packages are installed in this
-    environment):
-    `cd crates/iscc-napi && node -e "const m=require('./index.js'); if(!m.conformance_selftest()) throw new Error('selftest failed'); console.log('loader ok')"`
-    prints `loader ok` — proving the bundled `.node` loads with zero optional-dep packages present
-    (the exact failure mode #38 reports).
-- `cd crates/iscc-napi && npm pack --dry-run 2>&1 | grep -E "index\.js|\.node|README"` shows
-    `index.js`, the local `*.node`, and `README.md` are included in the tarball.
-- `grep -rn "prepublish" crates/iscc-napi/CLAUDE.md notes/06-build-cicd-publishing.md notes/02-language-bindings.md`
-    returns no matches (stale per-platform wording removed from all three docs).
-- If `actionlint` is available: `actionlint .github/workflows/release.yml` is clean (workflow YAML
-    still valid after the step deletion).
+- `mise run check` passes — the pre-commit hooks validate `ci.yml` (YAML) and `mise.toml` (TOML)
+    syntax; both edited files parse cleanly.
+- `grep -q "cargo-semver-checks" .github/workflows/ci.yml` and the new `semver` job block contains
+    `continue-on-error: true` (informational).
+- `mise tasks 2>/dev/null | grep -q '^semver'` (or `grep -q '\[tasks.semver\]' mise.toml`) — the
+    local task exists.
+- The Semver checkbox in `.claude/context/specs/ci-cd.md` is flipped to `[x]`.
+- **Best-effort local run** (cargo registry network is available in this environment —
+    `cargo search` works): `cargo install cargo-semver-checks --locked` succeeds and
+    `mise run semver` runs to completion emitting a SemVer report. A **non-zero exit** caused by the
+    expected post-0.4.0 `pub(crate)` module narrowing is acceptable and confirms the gate is wired
+    correctly — do not try to make it pass by changing the API. If the install proves impractical,
+    defer this single criterion to the CI run.
+- On the next push to `develop`: a new `Semver (cargo-semver-checks)` job appears and completes, and
+    the existing 16 CI jobs remain green (the new job is non-blocking via `continue-on-error`).
 
 ## Done When
 
-The `publish-npm-lib` job no longer runs `napi prepublish`, the bundled `index.js` loads the local
-`.node` with no optional-dep packages present, `npm pack` ships all binaries with no
-`optionalDependencies`, the three doc files describe the bundled single-package model, and all
-verification commands pass.
+`ci.yml` has an informational (`continue-on-error: true`) `Semver` job running `cargo-semver-checks`
+for `iscc-lib` against the last published crates.io release, a mirrored `mise run semver` task
+exists, the `ci-cd.md` Semver checkbox is checked, and CI stays green with the new non-blocking job
+present.

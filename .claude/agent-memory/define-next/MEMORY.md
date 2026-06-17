@@ -75,7 +75,7 @@ iterations.
 
 ## CI/Release Patterns
 
-- v0.3.1 released to all registries
+- v0.4.0 released to all registries; next target is v1.0.0 (stability-committed, strict SemVer)
 - Release workflow has `workflow_dispatch` with 9 per-registry checkboxes
 - `iscc-rb` requires `libclang-dev` — cannot remove `--exclude iscc-rb` from Rust CI job
 - XCFramework cache key at release.yml:1269 — must hash ALL build inputs
@@ -121,72 +121,34 @@ iterations.
     gates (semver-checks, iai-callgrind, module-visibility) → coverage/CRAP → streaming SumHasher
     (core first, then PyO3 + WASM wrappers) + Python GIL release. `pub use` from a `pub(crate) mod`
     is valid Rust — re-exported Tier 1 symbols stay public after narrowing.
-- **iter 88: scoped SumHasher CORE struct first** (issue #37). Chose this over the CI-infra gates
-    (semver-checks/iai-callgrind need valgrind/baseline/network — hard to verify in this Linux
-    devcontainer) and over PyO3 0.23→0.29 (six-minor migration, too big for one step). The SumHasher
-    core is pure Rust, fully `cargo test`-verifiable, builds on existing
-    `DataHasher`/`InstanceHasher`. Design: `SumHasher` *composes* the two existing hashers (holds
-    both as fields, `update` feeds the same slice to both); `finalize(bits, wide, add_units)`
-    returns `SumCodeResult` by porting `gen_sum_code_v0`'s composition (calls
-    `crate::gen_iscc_code_v0`). Then `gen_sum_code_v0` is refactored to read file → drive
-    `SumHasher` (de-dups the inline loop).
-- **SumHasher stays at `iscc_lib::streaming::SumHasher` — NOT promoted to crate-root Tier 1.**
-    `streaming` is already `pub mod`, so bindings reach it without any core change. Tier 1 is
-    explicitly "bound in all languages" (32 symbols), but issue #37 only adds SumHasher to Python +
-    WASM — bumping "32→33 / 2→3 streaming types" would falsely imply all 12 bindings expose it and
-    create cross-binding inconsistency. So treat SumHasher as a Python/WASM-specific streaming
-    convenience; keep README/rust-core.md/target.md counts untouched. This **revises** the earlier
-    "promote crate-root + count bump together with bindings" plan — the handoff (iter 88 review)
-    recommended promotion, but the all-languages Tier 1 invariant overrides it.
-- **iter 89: scoped Python SumHasher WRAPPER only** (Python half of #37). Chose Python over WASM
-    (different test harness, would exceed 3-code-file limit) and over npm #38 (risky napi v3
-    bundled-loader verification — see Gotcha note) / PyO3 0.29 (six-minor migration). Touch points:
-    `crates/iscc-py/src/lib.rs` (PySumHasher mirrors PyDataHasher Option<inner> + gen_sum_code_v0
-    dict construction with optional `units`), `__init__.py` (SumHasher wrapper class + `_SumHasher`
-    import + `__all__`), `_lowlevel.pyi` (stub) = exactly 3 code files. `.pyi` counted as code.
-    SumCodeResult Python class already exists (reuse). \_lowlevel hasher.update takes `&[u8]` only —
-    stream handling lives in the Python wrapper (CLAUDE.md pitfall). Sets up #39 (GIL release
-    references "the new SumHasher"). WASM SumHasher is the clean mirror follow-up.
-- **gen_sum_code_v0 has a full existing test suite** in lib.rs (~:2168): equivalence, empty file,
-    file-not-found, wide mode, bits 64/128, large data, units on/off. Any refactor must keep these
-    green. streaming.rs has 15 existing `#[test]`s. Python streaming tests live in
-    `tests/test_streaming.py` (project root, not in-crate) — follow `test_data_hasher_*` patterns.
-- **iter 90: scoped WASM SumHasher WRAPPER — closes #37 across all bindings.** Single-code-file
-    change (`crates/iscc-wasm/src/lib.rs`). The WASM crate already has `WasmSumCodeResult` and a
-    one-shot `gen_sum_code_v0` (lib.rs:163–224) plus the `DataHasher`/`InstanceHasher`
-    `Option<inner>` finalize-once pattern (lib.rs:421–523) to mirror exactly. New `SumHasher` holds
-    `Option<iscc_lib::streaming::SumHasher>` (**full path** — no crate-root re-export);
-    `finalize(bits, wide, add_units)` maps core `SumCodeResult` → `WasmSumCodeResult` (cast
-    `filesize: u64 as f64`, like the existing fn at lib.rs:221). Tests go in `tests/unit.rs`
-    (`#[wasm_bindgen_test]`), verified via `wasm-pack test --node crates/iscc-wasm`. Docs:
-    `docs/howto/wasm.md` `## Streaming` section + WASM `CLAUDE.md` "2 streaming types → 3". Kept
-    Tier 1 count (32 symbols) UNCHANGED — same NOT-promoted reasoning as iters 88/89.
-- **iter 91: scoped Python GIL release (#39).** #37 fully closed (iters 88–90); chose #39 over the
-    handoff's #38 recommendation (npm `optionalDependencies` fix is in `release.yml`, only runs via
-    `workflow_dispatch`, and verifying it needs a real `npm publish`/`npm ci` + napi v3 loader
-    investigation — see Gotcha note), over CI gates (semver-checks/iai-callgrind/coverage need
-    network/valgrind — unverifiable locally), and over PyO3 0.23→0.29 (six-minor migration). #39 is
-    code-only (1 file: `crates/iscc-py/src/lib.rs`), now-ready (SumHasher landed), and
-    compile-verifiable. Implementation: wrap pure-Rust compute in `py.allow_threads(...)` at 7 sites
-    — 4 one-shot fns (`gen_data/instance/image/sum_code_v0`, all already take `py: Python<'_>`) + 3
-    `update()` methods (ADD `py: Python<'_>` param — invisible to Python, `.pyi` unchanged).
-    `&[u8]`, `&str`, `&mut iscc_lib::DataHasher`, and the result structs are all `Ungil + Send`, so
-    closures type-check; keep `PyDict` construction OUTSIDE the closure (needs GIL). Public
-    `__init__.py` wrapper already coerces inputs to immutable `bytes`, so the borrowed buffer is
-    sound across the release. NOT in scope: `finalize()` (issue scopes only update + one-shot),
-    size-threshold (YAGNI; wrapper feeds 64 KiB chunks), perf microbench (non-deterministic).
-    Verify: `cargo build -p   iscc-py` + `grep -c allow_threads >=7` + `maturin develop` then
-    `pytest`. `allow_threads` is the correct API name in PyO3 0.23 (NOT `detach`, which is 0.25+).
-- **iter 92: scoped npm #38 — remove `napi prepublish` injection.** #39 closed (iter 91); finally
-    picked the handoff's #1 (#38) after de-risking it via local investigation (see the corrected
-    Scope-Calibration bullet above — the bundled loader proof flips it from "too risky" to
-    "trivially verifiable, no publish needed"). Highest user-impact open item (breaks downstream
-    `npm ci`), fix decision pre-recorded, and `nodejs-bindings.md` spec already mandates the bundled
-    model. ONE code/config file: `.github/workflows/release.yml` (delete the "Prepare npm packages"
-    step). Three DOC files (excluded from limit) carry stale per-platform `optionalDependencies`
-    wording and must be re-aligned to the bundled model: `crates/iscc-napi/CLAUDE.md` (Publishing
-    Constraints), `notes/06-build-cicd-publishing.md` (~288–291), `notes/02-language-bindings.md`
-    (~82–88). `package.json` already correct (`files: ["*.node"]`, no optionalDependencies) — verify
-    only, don't touch. `version_sync.py` only syncs the main `package.json` (no per-platform `npm/*`
-    dirs), so no sync change. Chose this over PyO3 0.29 (six-minor migration) and the CI gates
-    (semver-checks/iai-callgrind/coverage need network/valgrind — still unverifiable locally).
+- **#37 SumHasher (iters 88–90) and #39 Python GIL release (iter 91) are CLOSED** — detailed
+    scoping notes archived to `MEMORY-archive.md`. SumHasher lives at `iscc_lib::streaming::SumHasher`
+    (NOT crate-root Tier 1; Tier 1 count stays 32). Python/WASM wrappers ship it; core counts
+    untouched.
+- **iter 92: scoped npm #38 (CLOSED)** — removed the `napi prepublish` step from `release.yml`
+    (the only injector of dangling `@iscc/lib-<triple>` optionalDependencies). Doc realignment to the
+    bundled model in iscc-napi CLAUDE.md + notes 02/06. See the corrected Scope-Calibration bullet.
+- **iter 93: scoped the `cargo-semver-checks` API backward-compat CI gate.** All code-only issues
+    (#37/#38/#39) are closed; the 4 remaining `normal` issues are ALL CI-infra
+    (semver-checks, iai-callgrind, CRAP/coverage, PyO3 0.23→0.29). Can no longer defer the gates —
+    deferring would force a false IDLE while real backlog remains. Picked semver-checks: smallest,
+    most self-contained, direct v1.0.0 enabler, recommended #1 by both handoff and state.md. Scope =
+    2 files (`ci.yml` new `semver` job + `mise.toml` `semver` task) + ci-cd.md checkbox (doc).
+    **CRITICAL**: the job MUST be informational (`continue-on-error: true`) — the post-0.4.0
+    `pub mod`→`pub(crate) mod` narrowing (cdc/conformance/dct/minhash/simhash/utils/wtahash) is a
+    breaking change vs published 0.4.0, so semver-checks WILL flag it; enforcing mode would turn CI
+    red. Baseline auto-detected from crates.io 0.4.0 (published). Recommend
+    `obi1kenobi/cargo-semver-checks-action@v2` (installs via binstall internally, handles baseline).
+    Default features cover feature-gated Tier 1 symbols (`default = ["meta-code"]`).
+- **CORRECTION (iter 93): cargo registry network IS available in this environment.** `cargo search
+    cargo-semver-checks` returned live results; the earlier `curl https://crates.io` 403 was just
+    Cloudflare blocking curl's user-agent, NOT a network block. This **revises** the repeated
+    "CI gates need network — unverifiable locally" assumption from iters 88/91/92: the advance agent
+    CAN `cargo install cargo-semver-checks` and run it locally, CAN fetch new crate versions for the
+    PyO3 bump, CAN install cargo-llvm-cov. The genuine local blockers are only: no valgrind
+    (apt, iai-callgrind), no preinstalled CI dev tools. So semver-checks and PyO3 are now fully
+    locally verifiable; iai-callgrind remains the hardest (valgrind).
+- **CI-infra step verification pattern**: pre-commit hooks (`mise run check`) validate YAML/TOML
+    syntax of edited workflow/manifest files locally — a solid automated check even without
+    actionlint. Pair with grep assertions + the next CI run (review agent confirms the new job
+    appears and existing jobs stay green).
