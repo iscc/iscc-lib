@@ -29,20 +29,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **XCFramework verify**:
     `test -x scripts/build_xcframework.sh && bash -n scripts/build_xcframework.sh`
 - **Swift release workflow check**: `grep -i 'swift\|xcframework' .github/workflows/release.yml`
-- **Kotlin native targets**: `grep -A 20 "build-kotlin-native:" .github/workflows/release.yml`
-- **Android target check**: `grep "android" .github/workflows/release.yml`
+- **Kotlin/Android targets**:
+    `grep -A 20 "build-kotlin-native:\|android" .github/workflows/release.yml`
 - **Provenance guard check**: `grep -c 'Verify main matches tag' .github/workflows/release.yml`
 - **Benchmarks doc check**: `grep -i "speedup" docs/benchmarks.md | head -5`
-- **PyO3 version**: `grep -n "pyo3" Cargo.toml` (workspace.dependencies — one place). Now at `0.24`
-    (iter 98 bump, CI green). Migrating one minor per CID step toward `0.29` (where 2 RustSec
-    advisories clear). Recipe: bump pin → `cargo update -p pyo3` → build/clippy(-D warnings)/fmt →
-    `uv run maturin develop` → `uv run pytest`. Real source work expected to start at 0.25
-    (`IntoPyObject`/lifetime tightening). Core has NO PyO3 dep — scope edits to `crates/iscc-py/`.
-- **v1.0.0 gates check** (all should appear when done):
-    `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml` + `ls .cargo-crap.toml`
-    - `grep -iE "coverage|crap|semver|callgrind" mise.toml`
-- **Coverage + CRAP gate ALL 3 PHASES present + CI-VERIFIED GREEN (iter 99)**: ONE job named
-    `Coverage + CRAP (cargo llvm-cov + cargo crap)` at ci.yml:294, no `needs:`, NO
+- **PyO3 version**: `grep -n "pyo3" Cargo.toml` (workspace.dependencies — one place). Now at `0.25`
+    (iter 100 bump, `Cargo.lock` 0.25.1). Migrating one minor per CID step toward `0.29` (where 2
+    RustSec advisories clear). Recipe: bump pin → `cargo update -p pyo3` → build/clippy(-D
+    warnings)/ fmt → `uv run maturin develop` → `uv run pytest`. Predicted `IntoPyObject`/lifetime
+    breaks have NOT materialized at 0.24 OR 0.25 (zero source changes both bumps) — treat
+    skeptically for 0.26. Core has NO PyO3 dep — scope edits to `crates/iscc-py/`. Next: 0.25 →
+    0.26.
+- **v1.0.0 gates check**: `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml`
+    - `ls .cargo-crap.toml` + `grep -iE "coverage|crap|semver|callgrind" mise.toml`
+- **Coverage + CRAP gate ALL 3 PHASES present; CI FLAKY (green iter 99, RED iter 100)**: ONE job
+    named `Coverage + CRAP (cargo llvm-cov + cargo crap)` at ci.yml:294, no `needs:`, NO
     `continue-on-error`, job-level `security-events: write`. Pipeline: rust-toolchain@stable +
     `llvm-tools-preview` → install cargo-llvm-cov → install cargo-binstall →
     `cargo binstall -y cargo-crap@0.2.2` → `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info`
@@ -51,10 +52,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `--format sarif --output crap.sarif` (326) + `codeql-action/upload-sarif@v3` (327) → **Phase 3
     (enforcing, iter 97 `3912039`)**: `CRAP regression gate` step
     `cargo crap --lcov lcov.info --baseline .crap-baseline.json   --fail-regression`
-    (ci.yml:335-336), NOT continue-on-error, runs LAST. **Phase 3 PUSHED in iter-98 9-commit batch &
-    ran GREEN for the FIRST time on run 27680364506 (sha `cb8b7e9`) — no cross-env flap.**
-    Report-only steps exit 0 (highest CRAP `gen_meta_code_v0`=22.3 < threshold 30).
-    `.crap-baseline.json` (repo root, NOT gitignored — only `lcov.info`+`crap.sarif` are): envelope
+    (ci.yml:335-336), NOT continue-on-error, runs LAST. **Phase 3 ran GREEN once on run 27680364506
+    (sha `cb8b7e9`, iter 98) — but FLAPPED RED on the very next run 27683405546 (sha `e5ff328`, iter
+    100): the job is the ONLY non-continue-on-error gate, so its failure flips the whole run.** ⚠️
+    **cargo-crap install flake (iter 100)**: `Install cargo-crap` (ci.yml:313-314,
+    `cargo binstall -y cargo-crap@0.2.2`, **no `--force`**) logged
+    `cargo-crap v0.2.2 is already   installed, use --force to override` and SKIPPED installing — but
+    `Swatinem/rust-cache@v2` (ci.yml:304) restored cargo's `.crates` metadata WITHOUT the
+    `~/.cargo/bin/cargo-crap` binary, so the next step `cargo crap --lcov ... --format github` (step
+    10, report-only) died with `error: no such command: crap` (exit 101).
+    SARIF/upload/enforcing-gate steps 11-13 all SKIPPED — Phase 3 enforcement never even ran. The
+    FIRST green run populated the poisoned cache, so this RECURS every run until fixed. Fix: add
+    `--force` to the binstall, or stop trusting the cached install record. Coverage build + lcov
+    upload succeed; failure is infra, NOT a code regression. Report-only steps exit 0 when crap IS
+    present (highest CRAP `gen_meta_code_v0`=22.3 < threshold 30). `.crap-baseline.json` (repo root,
+    NOT gitignored — only `lcov.info`+`crap.sarif` are): envelope
     `{$schema, version:"0.2.2",   entries:[...]}`, 97 entries / 10 `crates/iscc-lib/src/` files.
     Regen via `mise run crap:baseline` (mise.toml:119, `depends=["coverage"]`,
     `--format json --output .crap-baseline.json`) — reviewed commit, NOT CI auto-commit.
@@ -62,12 +74,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`. `mise run coverage` (110)
     \+ `mise run crap` (114, depends=coverage). Phase 1 iter 94 (`0697195`); Phase 2 iter 96
     (`6ed51c5`/`cbc0d14`); Phase 3 iter 97 (`3912039`, pushed+CI-green iter 99). ci-cd.md Phases
-    1+2+3 boxes all `[x]`. CRAP base issue STILL listed open in issues.md (awaiting review-agent
-    deletion). **NEW [review] hardening issue (iter 97)**: Phase 3 is regression-ONLY — a
-    new/renamed fn has no baseline entry → reports `★ N new` & exits 0 (Codex verified new CC=21 fn
-    @ CRAP 462 bypassed). Fix: add `--fail-above 30` (baseline max ~22.3 < 30, safe). HUMAN REVIEW
-    REQUESTED before spec change. If a future CI run flaps, regen baseline from CI's lcov artifact —
-    do NOT widen `--epsilon`.
+    1+2+3 boxes all `[x]`. CRAP base issue DELETED from issues.md by review sweep iter 100.
+    **[review] hardening issue (iter 97, still open)**: Phase 3 is regression-ONLY — a new/renamed
+    fn has no baseline entry → reports `★ N new` & exits 0 (Codex verified new CC=21 fn @ CRAP 462
+    bypassed). Fix: add `--fail-above 30` (baseline max ~22.3 < 30, safe). HUMAN REVIEW REQUESTED
+    before spec change. If a future CI run flaps, regen baseline from CI's lcov artifact — do NOT
+    widen `--epsilon`.
 - **Semver gate present iter 93** (`9d42077`): `Semver (cargo-semver-checks)` job at ci.yml:280,
     `obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, **`continue-on-error: true`**
     (informational until v1.0.0). Mirrored `mise run semver` at mise.toml:104. CAUTION: the job
@@ -75,9 +87,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `pub(crate)` narrowing) but the **run-level conclusion stays `success`** — NOT a CI failure.
     rust-core.md "verified when" stays `[ ]` (requires enforcing + >= 1.0.0); ci-cd.md:417 is `[x]`
     (worded for informational state).
-- **GIL release check**: `grep -rn "allow_threads" crates/iscc-py/src/`
-- **SumHasher check**:
-    `grep -rn "SumHasher" crates/iscc-lib/src/ crates/iscc-py/src/ crates/iscc-wasm/src/`
+- **GIL/SumHasher checks** (both features done & stable):
+    `grep -rn "allow_threads\|SumHasher" crates/iscc-{lib,py,wasm}/src/`
 - **npm optionalDeps bug (#38 FIXED iter 92)**:
     `grep -c "napi prepublish" .github/workflows/release.yml` now `0` — the `Prepare npm packages`
     step was removed. Source `crates/iscc-napi/package.json` uses bundled `files: ["*.node"]`, no
@@ -124,60 +135,52 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     lib.rs:533). #37 fully closed iter 90.
 - `crates/iscc-lib/benches/benchmarks.rs` — 12 benches in criterion_group!
 - `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
-- **CLAUDE.md files**: 12 total (all crates + all packages)
-- **Per-crate READMEs**: 12 total (all crates + all packages)
+- **CLAUDE.md files & per-crate READMEs**: 12 each (all crates + all packages)
 
 ## Recurring Patterns
 
 - **Incremental review**: compare assessed-at hash vs HEAD --stat first, then re-verify only
-    affected sections. Carry forward unchanged sections.
-- **CI has matrix jobs**: python-test = 3.10 + 3.14; gate job checks both. Count definitions not run
-    records.
-- **Verify claims independently**: always grep rather than trusting handoff; verify CI
-    independently; re-read target.md diff on incremental review (target/specs can change).
+    affected sections. Carry forward unchanged sections. (python-test matrix = 3.10 + 3.14; count
+    job definitions, not run records.)
+- **Verify claims independently**: always grep rather than trusting handoff; verify CI independently
+    (a review PASS = LOCAL checks only, CI can still flake — see iter-100 CRAP break); re-read
+    target.md diff on incremental review; verify "partially met" claims rather than parroting.
 - **Issues diff**: check issues.md for NEW entries each cycle (human AND `[review]`-sourced). Watch
     `[review]` + `HUMAN REVIEW REQUESTED` flags and any critical ones that reshuffle priorities.
-- **Prior state may have errors**: verify "partially met" claims rather than parroting.
 
-## Current State (assessed-at: eead1d6)
+## Current State (assessed-at: 9cf84be)
 
-- **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **Iter 99 incremental** (diff `3912039..HEAD`). Only code-bearing change: `Cargo.toml` +
-    `Cargo.lock` (PyO3 0.23→0.24). Everything else is `.claude/` context/memory. Two milestones
-    landed since last assess: (1) CRAP Phase 3 PUSHED + CI-GREEN, (2) PyO3 0.24 bump.
-- **PUSH/VERIFY GAP RESOLVED**: origin/develop now at `cb8b7e9` (iter-98 batch push of 9 commits
-    incl. `3912039`). HEAD `eead1d6` is 1 commit ahead — ONLY `iterations.jsonl` (log), no code.
-    Latest CI run 27680364506 (sha `cb8b7e9`) = SUCCESS; `merge-base --is-ancestor 3912039 cb8b7e9`
-    = YES, so CRAP Phase 3 enforcing gate is now CI-verified. No FAILING CI.
-- **CI green state at cb8b7e9**: 18 jobs: 16 functional (all green), `Coverage + CRAP` (green incl.
-    enforcing step), non-blocking `Semver` (reports job-level `failure` but `continue-on-error`
-    keeps run green — NOT a CI failure).
-- **6 issues: 0 critical, 4 normal, 2 low** (grep `^## .+\`(critical|normal|low)\`\` for headers,
-    excludes legend line — no -1 adjustment). NEW [review] issue this cycle: "CRAP gate does not
-    fail on new high-CRAP functions" (regression-only bypass; fix = add `--fail-above 30`; HUMAN
-    REVIEW REQUESTED).
-- **Open normal gaps (4)**: PyO3 migration (now at 0.24, continue to 0.29 for RustSec), CRAP base
-    gate (all 3 phases CI-green but still listed open — awaiting review-agent deletion), CRAP
-    `--fail-above` hardening [review], iai-callgrind perf gate (only v1.0.0 CI gate w/ ZERO impl).
-    cargo-semver-checks gate present — informational.
+- **IN_PROGRESS — CI RED.** v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
+- **Iter 100 incremental** (diff `eead1d6..HEAD`). Only code-bearing change: `Cargo.toml:35` +
+    `Cargo.lock` (PyO3 0.24→0.25, lock 0.25.1). Everything else is `.claude/` context/memory.
+- **⚠️ CI FAILING on latest pushed commit.** Latest run 27683405546 (sha `e5ff328`) = **FAILURE**.
+    HEAD `9cf84be` adds only `iterations.jsonl` on top, so the failing run covers HEAD's code. No
+    newer/green re-run. 16/18 jobs green; 2 red: (1) `Coverage + CRAP` = REAL failure (cargo-crap
+    install/cache flake, see CRAP gate entry above) — flips the run; (2) `Semver` = job-level
+    failure but continue-on-error, does NOT flip. The PyO3 0.25 bump itself is fine (Rust job green,
+    review PASS); the CRAP break is infra, unrelated to the bump.
+- **5 issues: 0 critical, 3 normal, 2 low** (grep `^## .+\`(critical|normal|low)\`\` for headers,
+    excludes legend line — no -1 adjustment). Review sweep iter 100 DELETED the resolved "Add Rust
+    coverage + CRAP-metric quality gate" issue.
+- **Open normal gaps (3)**: PyO3 migration (now at 0.25, continue to 0.29 for RustSec), CRAP
+    `--fail-above` hardening [review, HUMAN REVIEW REQUESTED], iai-callgrind perf gate (only v1.0.0
+    CI gate w/ ZERO impl). cargo-semver-checks gate present — informational.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
 - **Partially-met sections**: Rust Core (semver gate informational; perf gate missing;
-    enforcing-semver needs v1.0.0), Python (**PyO3 migration in progress — GIL MET**), CI/CD (CRAP
-    Phase 3 now CI-green; `--fail-above` hardening + iai-callgrind remain). Node.js MET. WASM MET.
-    All 12 bindings functionally met.
-- **Recently closed/landed (don't re-flag)**: CRAP Phase 3 CI-green (iter 99), PyO3 0.24 (iter 98),
-    semver gate (iter 93, informational), npm #38 (iter 92), GIL #39 (iter 91), streaming SumHasher
-    #37 (iters 88-90). Duplicate-CID-loop concurrency hazard (iter 97) cleared by iter 98.
+    enforcing-semver needs v1.0.0), Python (**PyO3 migration in progress — GIL MET**), CI/CD (**RED
+    — fix cargo-crap install first**; `--fail-above` hardening + iai-callgrind remain). Node.js MET.
+    WASM MET. All 12 bindings functionally met.
+- **Recently closed/landed (don't re-flag)**: PyO3 0.25 (iter 100), CRAP base issue swept (iter
+    100), CRAP Phase 3 first green (iter 99 cb8b7e9), PyO3 0.24 (iter 98), semver gate (iter 93,
+    informational), npm #38 (iter 92), GIL #39 (iter 91), streaming SumHasher #37 (iters 88-90).
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists; ci-cd.md Phases 1+2+3 boxes all `[x]`; rust-core perf criterion
     - enforcing-semver still `[ ]`. Re-read on incremental review.
 
 ## Pattern: idle→active reactivation
 
-- When state.md shows near-complete/idle but `git diff <hash>..HEAD --stat` shows large
-    issues.md/target.md/specs growth, the human likely re-scoped. Treat as a near-full re-review of
-    affected sections, not a parrot of the diff. Commit that triggered this: 7463ef8 "docs(cid):
-    triage GitHub issues into context".
+- state.md idle but `git diff <hash>..HEAD --stat` shows large issues.md/target.md/specs growth →
+    human re-scoped. Do a near-full re-review of affected sections, not a parrot of the diff.
 
 ## Gotchas
 
