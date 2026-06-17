@@ -151,3 +151,24 @@ iterations.
     syntax of edited workflow/manifest files locally — a solid automated check even without
     actionlint. Pair with grep assertions + the next CI run (review agent confirms the new job
     appears and existing jobs stay green).
+- **iter 94: scoped Phase 1 of the coverage/CRAP gate (`cargo llvm-cov` LCOV artifact +
+    `mise run   coverage`).** Chose this OVER the handoff's #1 (iai-callgrind): env check confirmed
+    NO valgrind in the devcontainer, and instruction-count baselines must be generated on CI runners
+    anyway, so iai-callgrind is NOT locally verifiable for a single CID step — defer it.
+    cargo-llvm-cov IS installable (`llvm-tools` rustup component present, network available) → Phase
+    1 fully locally verifiable. Scope = 3 files (ci.yml `coverage` job, mise.toml
+    `[tasks.coverage]`, .gitignore `lcov.info`) + ci-cd.md Phase 1 checkbox (line 409, doc). Phases
+    2/3 (cargo-crap report-only, `--fail-regression` baseline) and
+    `.cargo-crap.toml`/`mise run crap` explicitly deferred. Use `taiki-e/install-action@v2`
+    (`tool: cargo-llvm-cov`) + `components: llvm-tools-preview` in CI.
+- **Env fact (verified iter 94)**: devcontainer has NO valgrind and NO cargo-llvm-cov/cargo-binstall
+    preinstalled, but the `llvm-tools-x86_64-unknown-linux-gnu` rustup component IS present, so
+    `cargo install cargo-llvm-cov` + `cargo llvm-cov -p iscc-lib` works locally.
+- **iscc-py is ONE file (`crates/iscc-py/src/lib.rs`) already on the modern PyO3 Bound API**
+    (`Bound<'py, PyAny>`, `Python<'_>`, `PyDict::new(py)`, `PyBytes::new(py, ...)`,
+    `.allow_threads`). Per-minor code churn for the 0.23→0.29 bump is likely small, BUT a single
+    0.23→0.24 step yields NO security benefit (advisories clear only at 0.29) — lower value-per-step
+    than self-contained gates, so deprioritized at iter 94.
+- **Remaining v1.0.0 normal backlog after iter 94 (3 issues)**: PyO3 0.23→0.29 bump, iai-callgrind
+    perf gate (valgrind-blocked locally → scope as CI-only, defer verification to the run),
+    coverage/CRAP Phases 2+3.
