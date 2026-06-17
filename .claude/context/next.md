@@ -1,74 +1,74 @@
 # Next Work Package
 
-## Step: PyO3 incremental bump 0.24 → 0.25
+## Step: Fix the CI `Coverage + CRAP` cargo-crap install flake (make CI green)
 
 ## Goal
 
-Advance the PyO3 security migration (issue: "Update PyO3 to latest release") by one minor version,
-from the current `0.24` pin to `0.25`, keeping the Python bindings building and all tests green.
-This is the next hop on the path to `0.29.0`, where the two shipped RustSec advisories finally
-clear.
+The `Coverage + CRAP` CI job is failing on every run with `error: no such command: crap`, flipping
+the whole CI run to RED. Make the `cargo-crap` install deterministic so the binary is always present
+and the CRAP report/gate steps run. A green CI is the prerequisite for all further v1.0.0 work.
 
 ## Scope
 
-- **Modify**: `Cargo.toml` (bump the `pyo3` pin in `[workspace.dependencies]`, line ~35),
-    `crates/iscc-py/src/lib.rs` (only if PyO3 0.25 API changes force source edits — see notes)
-- **Modify (generated, excluded from file limit)**: `Cargo.lock` (refresh via
-    `cargo update -p pyo3`)
-- **Reference**: `.claude/context/handoff.md` (PASS verdict + recipe),
-    `.claude/context/learnings.md` ("PyO3 minor bumps" under Tooling), the PyO3 0.25 migration guide
-    (https://pyo3.rs/main/migration), `crates/iscc-py/src/lib.rs`, `crates/iscc-py/pyproject.toml`,
-    `crates/iscc-py/CLAUDE.md` (abi3 constraint, type-mapping rules)
+- **Modify**: `.github/workflows/ci.yml` — the `Install cargo-crap` step (line 314) in the
+    `coverage` (`Coverage + CRAP`) job.
+- **Reference**:
+    - `.claude/context/state.md` → "Next Milestone" item 1 (root-cause analysis of the flake)
+    - `.claude/context/learnings.md` → "CI/CD" → CRAP gate entries
+    - `.claude/context/specs/ci-cd.md` → "Rust Coverage and CRAP Quality Gate" (install described
+        generically as "via `cargo binstall`" — stays accurate, do NOT edit)
 
 ## Not In Scope
 
-- **Do NOT jump past 0.25.** This is one reviewed minor hop. Do not bump straight to 0.26–0.29 — the
-    issue mandates incremental migration, one minor per step.
-- Do not add `cargo-audit` / `cargo-deny` config or claim the advisories are cleared — they only
-    clear at 0.29, so advisory state is not a criterion for this step.
-- Do not touch the CRAP gate (`--fail-above 30` hardening) or the `iai-callgrind` perf gate, or any
-    file under `.github/workflows/` — those are separate open issues.
-- Do not change the `abi3-py310` target or the `>=3.10` `requires-python` floor.
-- Do not refactor the existing raw-FFI `unsafe` blocks or change binding semantics (result-dict
-    keys/value types stay identical) beyond what 0.25 strictly requires to compile.
+- **Do NOT advance the PyO3 migration (0.25 → 0.26)** — that is the prior handoff "Next", but a red
+    CI blocks all feature work. Resume it only after CI is green again.
+- Do NOT add `--fail-above 30` to the CRAP gate (separate [review] issue, needs HUMAN REVIEW).
+- Do NOT touch the `iai-callgrind` perf gate, the semver job, or flip any `continue-on-error`.
+- Do NOT rewrite the install to a different action (e.g. `taiki-e/install-action` for cargo-crap) or
+    restructure the `coverage` job — keep the change to a single flag on the existing step.
+- Do NOT edit `ci-cd.md` prose: it documents the install generically ("installed via
+    `cargo binstall`"), which remains true after the fix.
 
 ## Implementation Notes
 
-- Edit root `Cargo.toml` line ~35: `pyo3 = { version = "0.25", features = ["abi3-py310"] }`. The
-    `iscc-py` crate consumes it via `pyo3 = { workspace = true, features = ["extension-module"] }`,
-    and `pyproject.toml` keeps the `pyo3/extension-module` maturin feature with no version — leave
-    both as-is. `pyo3` is used by no other crate, so the blast radius is just `crates/iscc-py/`.
-- Run `cargo update -p pyo3` to refresh `Cargo.lock` to a `0.25.x` release, then
-    `cargo build -p iscc-py` and fix whatever the compiler flags.
-- PyO3 0.25 tightens `IntoPyObject` / lifetime rules that 0.24 did not require, so unlike the
-    0.23→0.24 hop, source edits may be needed. The most likely touchpoints in `lib.rs` are the ~14
-    `Ok(dict.into())` returns (converting `Bound<'py, PyDict>` → `PyObject`) and the
-    `into_pyobject(py)?.into()` chain near line 452. Follow the migration guide; prefer the minimal
-    change that compiles clean under `-D warnings` (watch for new deprecation warnings, which clippy
-    treats as errors).
-- The pre-existing raw `pyo3::ffi::*` calls (`Bound::from_owned_ptr`, `downcast_into_unchecked`,
-    etc.) map to the stable CPython C API and historically survive minor bumps — only patch them if
-    0.25 actually breaks the signatures.
-- Build/test via uv: `uv run maturin develop -m crates/iscc-py/Cargo.toml` then `uv run pytest`
-    (maturin/pytest are not on PATH directly). `uv` may warn that `VIRTUAL_ENV` differs from the
-    project venv — harmless.
-- Run `mise run format` before committing so the pre-push mdformat/fmt hooks do not reject the push.
+Root cause (from state.md): `Swatinem/rust-cache@v2` restores cargo's installed-crate metadata
+(`.crates.toml` / `.crates2.json`) WITHOUT the actual `~/.cargo/bin/cargo-crap` binary. So
+`cargo binstall -y cargo-crap@0.2.2` sees the metadata, logs
+`cargo-crap v0.2.2 is already installed, use --force to override`, and **skips** the install — but
+the binary is not on PATH, so the next `cargo crap` step dies with `error: no such command: crap`.
+
+Minimal robust fix: add `--force` to the binstall invocation so it installs the binary every run
+regardless of the cached metadata record. Change line 314 from:
+
+```yaml
+run: cargo binstall -y cargo-crap@0.2.2
+```
+
+to:
+
+```yaml
+run: cargo binstall -y --force cargo-crap@0.2.2
+```
+
+`--force` is preferred over disabling `cache-bin` on the rust-cache step because it is explicit,
+self-documenting, and independent of rust-cache's internal caching behavior. cargo-crap is a small
+binary, so the re-download cost each run is negligible. Leave every other step in the `coverage` job
+(toolchain, rust-cache, cargo-llvm-cov install, lcov generation, the two report-only CRAP steps,
+SARIF upload, and the `--fail-regression` enforcing gate) exactly as-is.
 
 ## Verification
 
-- `grep 'pyo3 = { version = "0.25"' Cargo.toml` matches, and `cargo tree -p iscc-py -i pyo3` shows
-    `pyo3 v0.25.x`
-- `cargo build -p iscc-py` — clean
-- `cargo clippy -p iscc-py -- -D warnings` — clean, no new deprecation warnings
-- `cargo fmt --check` — clean
-- `uv run maturin develop -m crates/iscc-py/Cargo.toml` — builds the abi3 wheel
-    (`iscc_lib-0.4.0-cp310-abi3-*.whl`)
-- `uv run pytest` — 286 tests pass (no count regression vs the 0.24 baseline)
-- `abi3-py310` still present in `Cargo.toml`; `crates/iscc-py/pyproject.toml` still
-    `requires-python = ">=3.10"`
-- `mise run check` — all pre-commit hooks pass
+- `grep -n 'cargo binstall -y --force cargo-crap@0.2.2' .github/workflows/ci.yml` matches exactly
+    one line.
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` exits 0 (workflow
+    YAML still parses).
+- `git diff --stat` shows `.github/workflows/ci.yml` as the only changed file, with a 1-line change
+    (the `Install cargo-crap` step), and no other `coverage`-job step altered.
+- Next CI run's `Coverage + CRAP` job reaches the CRAP report/gate steps and the overall run returns
+    to GREEN (review agent confirms on the next push — cannot be run locally).
 
 ## Done When
 
-PyO3 is pinned at `0.25` with `Cargo.lock` refreshed, `abi3-py310` preserved, and build, clippy,
-fmt, the maturin wheel, and all 286 pytest tests pass green.
+The `Install cargo-crap` step in `ci.yml` uses `cargo binstall -y --force cargo-crap@0.2.2`, the
+workflow YAML still parses, and the change is isolated to that single line so the next CI run's
+`Coverage + CRAP` job installs the binary and goes green.

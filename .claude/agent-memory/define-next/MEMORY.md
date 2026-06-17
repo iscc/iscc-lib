@@ -159,15 +159,11 @@ iterations.
     incompatible with `--format sarif`. Config `.cargo-crap.toml` keys:
     threshold/missing/exclude/default-excludes/ allow/fail-above/epsilon/jobs/sort/show_unchanged
     (unknown keys rejected; NO `baseline`/ `fail-regression` keys — those are CLI-only).
-- **iter 97: scoped CRAP Phase 3 (regression gate).** Most incremental remaining v1.0.0 gate
-    (recommended #1 by handoff + state.md; builds on Phase 2). Verified the FULL flow locally
-    (coverage→baseline→`--fail-regression`): exits 0 vs unchanged baseline, exit 1 when a function's
-    CRAP rises. Scope = 3 files: create COMMITTED `.crap-baseline.json` (97 iscc-lib fns, via
-    `cargo crap --lcov lcov.info --format json --output .crap-baseline.json`) + add enforcing
-    `--fail-regression --baseline` step (LAST in coverage job, after SARIF, so diagnostics still
-    run)
-    - `mise.toml [tasks."crap:baseline"]` (depends coverage) + ci-cd.md checkbox 413 (doc).
-        `.crap-baseline.json` is NOT gitignored (only lcov.info/crap.sarif are).
+- **CRAP Phase 3 (regression gate) LANDED iter 97.** COMMITTED `.crap-baseline.json` (97 iscc-lib
+    fns; NOT gitignored — only lcov.info/crap.sarif are) + enforcing
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` step (LAST in
+    coverage job, after SARIF) + `mise.toml [tasks."crap:baseline"]`. Refresh = deliberate
+    `mise run crap:baseline` reviewed commit.
 - **Phase 3 design call (iter 97): NO auto-commit-baseline-from-CI on develop pushes.** A CI-side
     `git push` races the CID loop's own develop pushes (non-fast-forward) + risks a push→CI→push
     loop → unsafe in this repo. So "refresh on merges to develop" = deliberate
@@ -178,29 +174,25 @@ iterations.
 - **Remaining v1.0.0 normal backlog after iter 97 (2 issues)**: iai-callgrind perf gate
     (valgrind-blocked locally → CI-only, defer verification to the run), PyO3 0.23→0.29 (no security
     benefit until full 0.29).
-- **iter 98: scoped PyO3 0.23 → 0.24 (first increment of the migration).** Chose this OVER
-    iai-callgrind (#2 by state) because: (a) `sudo apt-get install valgrind` → "no installation
-    candidate" in this devcontainer, so iai-callgrind benches CANNOT run locally (baseline must come
-    from CI) — NOT single-step locally verifiable; (b) iai-callgrind needs a new ci.yml job, which
-    would compound with the CRAP Phase 3 gate that was coded iter 97 but is STILL unpushed/not
-    CI-verified (HEAD was 5 commits ahead of origin/develop `cbc0d14`; Phase 3 gate has never run in
-    CI). PyO3 0.23→0.24 is single-crate, touches ZERO CI infra, and is boolean-verifiable
-    (`cargo build -p iscc-py` + `maturin develop` + `pytest`). State.md explicitly recommends "start
-    0.23 → 0.24"; human issue mandates INCREMENTAL migration (one minor per reviewed step) — so do
-    NOT jump to 0.29 in one step. Advisories only clear at 0.29, so "advisories cleared" is NOT a
-    verification criterion for the 0.24 step (criterion = builds+tests stay green). No
-    `deny.toml`/cargo-audit/cargo-deny config exists in repo (not a CI gate today).
-- **Env fact (verified iter 98): `sudo` IS passwordless in the devcontainer, but `valgrind` has NO
-    apt install candidate** → iai-callgrind remains genuinely NOT locally verifiable. This
-    re-confirms the iter-94 finding against the iter-93 "network available, so installable"
-    optimism: network helps cargo/crates.io installs, but apt packages absent from the sources
-    (valgrind) still can't be had. iai-callgrind is a ship-to-CI feature; split it (bench harness
-    first, then CI job + baseline) if/when picked up.
-- **iter 99: scoped PyO3 0.24 → 0.25 (next migration hop).** 0.23→0.24 PASSED (handoff `27680364506`
-    CI green, pin now `0.24`/lock `0.24.2`). Chose this OVER CRAP `--fail-above 30` (HUMAN REVIEW
-    REQUESTED + CI-infra, verify needs CI) and iai-callgrind (valgrind-blocked). Same single-crate
-    recipe; unlike 0.24, **expect REAL source edits at 0.25** — likely touchpoints are the ~14
-    `Ok(dict.into())` returns + `into_pyobject(py)?.into()` near lib.rs:452 (0.25 tightens
-    `IntoPyObject`/lifetimes). `maturin develop -m crates/iscc-py/Cargo.toml` via `uv run`; baseline
-    is 286 pytest. Advisories DON'T clear until 0.29 — not a 0.25 criterion. Remaining `normal`
-    backlog after this: 0.25→…→0.29, CRAP `--fail-above 30`, iai-callgrind.
+- **PyO3 migration progress: 0.23→0.24 (iter 98) and 0.24→0.25 (iter 99) both PASSED, each ZERO
+    source changes** (`Ok(dict.into())`, raw `pyo3::ffi::*` stable through 0.25). Pin now
+    `0.25`/lock `0.25.1`. The predicted `IntoPyObject`/lifetime breaks have NOT materialized — treat
+    skeptically for 0.26+ too. One reviewed minor per step; advisories clear ONLY at 0.29 (not a
+    per-hop criterion). Recipe: bump pin in root `Cargo.toml` → `cargo update -p pyo3` →
+    build/clippy(`-D warnings`)/fmt → `uv run maturin develop -m crates/iscc-py/Cargo.toml` →
+    `uv run pytest` (286 tests).
+- **iai-callgrind stays CI-only**: `valgrind` has NO apt install candidate in the devcontainer
+    (re-confirmed iter 98; `sudo` IS passwordless but the package is absent from sources), so
+    benches CANNOT run locally — baseline must come from CI. Split it (bench harness first, then CI
+    job + committed baseline) if/when picked up.
+- **iter 100: CI went RED — scoped the cargo-crap install-flake fix, NOT the PyO3 0.25→0.26
+    handoff.** Rule reaffirmed: **CI red always preempts feature work, even a clean handoff
+    "Next".** Root cause (per state.md): `Swatinem/rust-cache@v2` restores cargo's
+    `.crates.toml`/`.crates2.json` metadata WITHOUT the `~/.cargo/bin/cargo-crap` binary, so
+    `cargo binstall -y cargo-crap@0.2.2` (ci.yml:314, no `--force`) logs "already installed" + skips
+    → next `cargo crap` step dies `no such command:   crap` (recurs every run; first green run
+    poisoned the cache). Fix = add `--force` to that one binstall line. Single-file
+    (`.github/workflows/ci.yml`), boolean-verifiable locally via grep +
+    `python3 -c "import yaml; yaml.safe_load(...)"`; real proof is next CI run (review confirms).
+    Spec `ci-cd.md:57,419` describes install generically ("via `cargo binstall`") → stays accurate,
+    NO doc edit. After green: resume PyO3 0.25→0.26.
