@@ -1,4 +1,4 @@
-<!-- assessed-at: 2204e7db3db6ddd75436402c2c5fc443b91005f0 -->
+<!-- assessed-at: 894c80ded0cb63b7752e6b9876fcc302ea26a007 -->
 
 # Project State
 
@@ -6,20 +6,20 @@
 
 ## Phase: Post-v0.4.0 hardening toward v1.0.0 stability commitment
 
-v0.4.0 is released across all registries; all 12 language bindings are now functionally met.
-Incremental review since `2a0e78d`: iterations 89-90 completed the streaming `SumHasher` rollout —
-the Python wrapper (`742759b`) and then the WASM `#[wasm_bindgen]` class (`3f3bf65`, reviewed
-`984edba`) — fully closing issue #37 across core, Python, and WASM. The review PASSED and #37 was
-deleted. CI is green 16/16 on the latest pushed code (`984edba`), so this work is verified. The
-remaining v1.0.0 hardening backlog (npm fix, PyO3 bump, GIL release, SemVer + perf + coverage gates)
-is still open — none are functional binding gaps.
+v0.4.0 is released across all registries; all 12 language bindings are functionally met. Incremental
+review since `2204e7d`: iteration 91 released the GIL during Python hashing (`534b531`, reviewed
+`d2d7e7e`), fully closing issue #39 — `py.allow_threads(...)` now wraps the pure-Rust compute at all
+7 Python call sites (4 one-shot byte functions + 3 streaming `update()` methods, including the new
+`SumHasher`). CI is green 16/16 on the latest pushed code (`d2d7e7e`), so this work is verified. The
+remaining v1.0.0 hardening backlog (npm fix, PyO3 bump, SemVer + perf + coverage gates) is still
+open — none are functional binding gaps.
 
 ## Rust Core Crate
 
 **Status**: partially met
 
 - Core API met: all 10 `gen_*_v0` functions (incl. `gen_sum_code_v0`), 32 Tier 1 symbols,
-    conformance vs `iscc-core/data.json` passing on the latest green CI run (`984edba`).
+    conformance vs `iscc-core/data.json` passing on the latest green CI run (`d2d7e7e`).
 - Reusable `pub struct SumHasher` in `streaming.rs` (`new()` / `update(&[u8])` /
     `finalize(bits, wide, add_units) -> SumCodeResult` / `Default`) runs the Data-Code and
     Instance-Code algorithms in a single pass; `gen_sum_code_v0` (lib.rs:997) drives it. Reachable
@@ -40,17 +40,18 @@ is still open — none are functional binding gaps.
 
 **Status**: partially met
 
-- Existing criteria met: all symbols exported, Python 3.10 + 3.14 CI jobs green, ruff clean.
-- Streaming `SumHasher` wrapper present (`742759b`): `#[pyclass(name = "SumHasher")]`
-    (`PySumHasher`, lib.rs:615) over core `iscc_lib::streaming::SumHasher`, plus a Pythonic
-    `SumHasher` wrapper class (`__init__.py:349`) mirroring `DataHasher`/`InstanceHasher`, exported
-    in `__all__` (line 402), with a `.pyi` stub and 11 tests (`tests/test_streaming.py`). Closed the
-    Python half of #37 (now fully resolved).
+- Existing criteria met: all symbols exported, Python 3.10 + 3.14 CI jobs green, ruff clean,
+    streaming `SumHasher` wrapper present (`__init__.py:349`, exported in `__all__` at line 402).
+- **GIL release DONE (`534b531`, reviewed `d2d7e7e`, closes #39)**: `py.allow_threads(...)` wraps
+    the pure-Rust CPU-bound compute at all 7 call sites in `crates/iscc-py/src/lib.rs` — 4 one-shot
+    byte functions (image/data/instance/+1) plus the 3 streaming `update()` methods
+    (`DataHasher`:551, `InstanceHasher`:600, `SumHasher`:651). `tests/test_gil.py` adds 7
+    deterministic concurrency-correctness tests; output is byte-identical, no Python-facing
+    signature changed (`.pyi` stubs still show `update(self, data: bytes)`). Threaded consumers no
+    longer serialize on CPU-bound hashing.
 - **Gap (normal)**: PyO3 still pinned to `0.23` in root `Cargo.toml` (`workspace.dependencies`);
-    issue requires migration to `0.29.0` to clear two RustSec advisories shipped inside the wheel.
-- **Gap (normal, #39)**: GIL held for the entire hash duration —
-    `grep allow_threads crates/iscc-py/src/` returns nothing. Threaded consumers serialize on
-    CPU-bound work. When this lands it should also wrap `PySumHasher.update()`.
+    issue requires incremental migration to `0.29.0` to clear two RustSec advisories shipped inside
+    the wheel.
 
 ## Node.js Bindings
 
@@ -69,12 +70,10 @@ is still open — none are functional binding gaps.
 **Status**: met
 
 - All 32 Tier 1 symbols via `#[wasm_bindgen]`, WASM CI job green.
-- **New (`3f3bf65`, reviewed `984edba`)**: streaming `SumHasher` class added (`pub struct SumHasher`
-    at lib.rs:533, `impl` at 545, finalize-once via `inner.take()`, reusing `WasmSumCodeResult`). 8
-    `test_sum_hasher_*` tests pass under `wasm-pack test --node` (78 total); `docs/howto/wasm.md`
-    documents it. This **fully closes issue #37** across all bindings. Mirrors the WASM
-    `DataHasher`/`InstanceHasher` pattern; not promoted to Tier 1 (no crate-root re-export, counts
-    unchanged).
+- Streaming `SumHasher` class present (`3f3bf65`): `pub struct SumHasher` at lib.rs:533, `impl` at
+    545, finalize-once via `inner.take()`, reusing `WasmSumCodeResult`. 8 `test_sum_hasher_*` tests
+    pass under `wasm-pack test --node` (78 total); `docs/howto/wasm.md` documents it. Mirrors the
+    WASM `DataHasher`/`InstanceHasher` pattern; not promoted to Tier 1 (no crate-root re-export).
 
 ## C FFI
 
@@ -153,7 +152,7 @@ is still open — none are functional binding gaps.
 
 - Docs site, 11 language howto guides, tabbed multi-language examples, llms-full.txt generation,
     benchmarks page with speedup factors all present. `docs/howto/python.md` and
-    `docs/howto/wasm.md` both now document the streaming `SumHasher`.
+    `docs/howto/wasm.md` both document the streaming `SumHasher`.
 - **Gap (low, CID skips)**: language logos in `docs/index.md` and howto headers — cosmetic only.
 
 ## Benchmarks
@@ -169,11 +168,11 @@ is still open — none are functional binding gaps.
 
 **Status**: partially met
 
-- **LATEST CI RUN** — run 27657020637 (sha `984edba` on develop): **16/16 jobs SUCCESS** (all
-    green). URL: https://github.com/iscc/iscc-lib/actions/runs/27657020637 — this run **includes**
-    the WASM SumHasher binding (advance `3f3bf65`, review `984edba`), so it is CI-verified.
-- **Push state**: HEAD (`2204e7d`) is only 1 commit ahead of `origin/develop` (`984edba`); that
-    commit is `cid(log): iteration 90` (touches only `iterations.jsonl`). All code is pushed and
+- **LATEST CI RUN** — run 27659562371 (sha `d2d7e7e` on develop): **16/16 jobs SUCCESS** (all
+    green). URL: https://github.com/iscc/iscc-lib/actions/runs/27659562371 — this run **includes**
+    the Python GIL release (advance `534b531`, review `d2d7e7e`), so it is CI-verified.
+- **Push state**: HEAD (`894c80d`) is only 1 commit ahead of `origin/develop` (`d2d7e7e`); that
+    commit is `cid(log): iteration 91` (touches only `iterations.jsonl`). All code is pushed and
     verified.
 - v0.4.0 published; 9-registry release workflow + version sync (16 targets) in place.
 - **Gap (normal)**: no Rust coverage / CRAP gate — `.cargo-crap.toml` absent, no `cargo llvm-cov` /
@@ -182,17 +181,15 @@ is still open — none are functional binding gaps.
 - **Gap (normal)**: no `iai-callgrind` perf-regression CI job with committed baseline.
 - **Gap (normal)**: npm `optionalDependencies` injection bug in release.yml:378 (see Node.js above).
 
-## Open Issues (8 total — 0 critical, 6 normal, 2 low)
+## Open Issues (7 total — 0 critical, 5 normal, 2 low)
 
 Normal (CID-actionable):
 
 1. **Remove dangling npm `optionalDependencies`** (#38) — breaks downstream `npm ci`.
 2. **Update PyO3 0.23 → 0.29** — security advisories in shipped wheel; incremental migration.
-3. **Release the GIL during Python hashing** (#39) — `py.allow_threads(...)`; also cover
-    `PySumHasher.update()`.
-4. **Add Rust coverage + CRAP-metric quality gate** — phased CI job.
-5. **Add `cargo-semver-checks` API backward-compat CI gate**.
-6. **Add `iai-callgrind` performance-regression CI gate**.
+3. **Add Rust coverage + CRAP-metric quality gate** — phased CI job.
+4. **Add `cargo-semver-checks` API backward-compat CI gate**.
+5. **Add `iai-callgrind` performance-regression CI gate**.
 
 Low (human-directed, CID skips):
 
@@ -201,9 +198,8 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-CI is green and the latest code is verified. Issue #37 (streaming `SumHasher`) is now fully closed
-across all bindings, so the loop can proceed on the remaining `normal` backlog toward v1.0.0.
-Suggested order by impact:
+CI is green and the latest code is verified. Issue #39 (Python GIL release) is now closed, so the
+loop can proceed on the remaining `normal` backlog toward v1.0.0. Suggested order by impact:
 
 1. **Remove dangling npm `optionalDependencies`** (#38) — actively breaks downstream `npm ci` in
     production; highest user impact, contained fix in release.yml +
@@ -214,8 +210,6 @@ Suggested order by impact:
 3. **v1.0.0 stability gates** — `cargo-semver-checks` job and `iai-callgrind` perf gate + baseline.
     These must land before v1.0.0 so the (now-narrowed) API is locked under enforcement.
 4. **Rust coverage + CRAP gate** — phased report-only → regression CI job.
-5. **Python GIL release** (#39) — DX/perf improvement for threaded consumers (now also covers
-    `PySumHasher.update()`).
 
 The two `low` issues (v1.0.0 release cut, docs logos) are human-directed and remain out of CID
 scope.

@@ -98,23 +98,26 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: 2204e7d)
+## Current State (assessed-at: 894c80d)
 
 - **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **CI**: green 16/16 (run 27657020637, sha `984edba` = origin/develop HEAD). This run **includes**
-    the WASM SumHasher binding (advance `3f3bf65`, review `984edba`). HEAD `2204e7d` is only 1
-    commit ahead (just `cid(log): iteration 90`, iterations.jsonl only). All code pushed and
-    verified.
-- **8 issues: 0 critical, 6 normal, 2 low** (count by grepping header lines anchored with a leading
+- **CI**: green 16/16 (run 27659562371, sha `d2d7e7e` = origin/develop HEAD). This run **includes**
+    the Python GIL release (advance `534b531`, review `d2d7e7e`). HEAD `894c80d` is only 1 commit
+    ahead (just `cid(log): iteration 91`, iterations.jsonl only). All code pushed and verified.
+- **7 issues: 0 critical, 5 normal, 2 low** (count by grepping header lines anchored with a leading
     `##` before the priority label — that excludes the legend line, so no -1 adjustment needed).
-    Note: line-68 `SumHasher` ref in issues.md is inside the GIL issue body, NOT issue #37.
-- **#37 FULLY CLOSED (iteration 90, `3f3bf65`/`984edba`)** — streaming SumHasher now in core +
-    Python + WASM. WASM: `pub struct SumHasher` at `crates/iscc-wasm/src/lib.rs:533`, `impl` at 545,
-    reuses `WasmSumCodeResult`, finalize-once via `inner.take()`; 8 `test_sum_hasher_*` tests (78
-    total wasm-pack); documented in `docs/howto/wasm.md`. #37 deleted from issues.md.
-- **Python SumHasher DONE (iteration 89, `742759b`)**: `#[pyclass(name="SumHasher")]` =
-    `PySumHasher` at `crates/iscc-py/src/lib.rs:615` over `iscc_lib::streaming::SumHasher`; Pythonic
-    wrapper class at `__init__.py:349`, exported in `__all__` (line 402); `.pyi` stub + 11 tests.
+- **GIL release DONE / #39 CLOSED (iteration 91, `534b531`/`d2d7e7e`)** — `py.allow_threads(...)`
+    wraps pure-Rust compute at all **7** sites in `crates/iscc-py/src/lib.rs`: 4 one-shot byte fns
+    (image:152, data:295, instance:309, +346) + 3 streaming `update()` (DataHasher:551,
+    InstanceHasher:600, SumHasher:651). `tests/test_gil.py` = 7 concurrency tests. Output
+    byte-identical; `.pyi` stubs unchanged (injected `py` invisible to Python). #39 deleted.
+- **#37 FULLY CLOSED (iteration 90, `3f3bf65`/`984edba`)** — streaming SumHasher in core + Python +
+    WASM. WASM: `pub struct SumHasher` at `crates/iscc-wasm/src/lib.rs:533`, `impl` at 545, reuses
+    `WasmSumCodeResult`, finalize-once via `inner.take()`; 8 `test_sum_hasher_*` tests (78 total
+    wasm-pack); documented in `docs/howto/wasm.md`.
+- **Python SumHasher (iteration 89, `742759b`)**: `#[pyclass(name="SumHasher")]` = `PySumHasher` at
+    `crates/iscc-py/src/lib.rs:631` over `iscc_lib::streaming::SumHasher`; Pythonic wrapper class at
+    `__init__.py:349`, exported in `__all__` (line 402); `.pyi` stub + 11 tests.
 - **Core SumHasher (iteration 88, `3fc44d2`)**: `pub struct SumHasher` in `streaming.rs:157`
     (new/update/finalize(bits,wide,add_units)/Default). `gen_sum_code_v0` (lib.rs:997) drives it.
     Reachable as `iscc_lib::streaming::SumHasher` but NOT a crate-root re-export (only
@@ -124,13 +127,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `cdc/conformance/dct/minhash/simhash/utils/wtahash` = `pub(crate) mod`; only
     `codec/streaming/types` = `pub mod`. Issue swept.
 - **Open normal gaps**: npm optionalDeps bug (#38, release.yml:378), PyO3 0.23→0.29 (RustSec, still
-    `Cargo.toml`), GIL allow_threads (#39, none in iscc-py/src), CRAP coverage gate,
-    cargo-semver-checks gate, iai-callgrind perf gate.
+    pinned at `Cargo.toml:35`), CRAP coverage gate, cargo-semver-checks gate, iai-callgrind perf
+    gate.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
-- **Partially-met sections**: Rust Core (semver+perf gates only), Python (PyO3, GIL), Node.js (npm
-    optionalDeps), CI/CD. **WASM now MET.** All 12 bindings functionally met for v0.4.0.
+- **Partially-met sections**: Rust Core (semver+perf gates only), Python (**PyO3 only — GIL now
+    MET**), Node.js (npm optionalDeps), CI/CD. WASM MET. All 12 bindings functionally met for
+    v0.4.0.
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
-    with "verified when" checklists. Re-read on incremental review.
+    with "verified when" checklists; python-bindings.md "GIL Release During Hashing" now all `[x]`.
+    Re-read on incremental review.
 
 ## Pattern: idle→active reactivation
 
