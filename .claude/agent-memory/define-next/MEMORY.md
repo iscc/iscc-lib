@@ -32,10 +32,16 @@ iterations.
 - **Prefer boolean-verifiable prerequisites over high-impact-but-risky infra fixes** when both are
     available and there's no in-progress feature. A single-file `pub`→`pub(crate)` change with grep
     \+ `cargo test` checks beats an infra fix whose real verification needs publishing/CI.
-- **The npm `optionalDependencies` fix (#38) is high user-impact but risky to autonomously verify**:
-    dropping `napi prepublish -t npm` may leave the napi-generated `index.js` loader referencing
-    unpublished optional-dep packages. Needs investigation of napi v3's bundled-loader behavior — do
-    not scope as a trivial one-line release.yml edit. Better as a dedicated/interactive step.
+- **The npm `optionalDependencies` fix (#38) IS locally verifiable — earlier "too risky" caution was
+    wrong (resolved iter 92).** Inspected `crates/iscc-napi/index.js`: each platform branch does
+    `require('./iscc-lib.<triple>.node')` FIRST, only falling back to
+    `require('@iscc/lib-<triple>')` on failure. With `files: ["*.node"]` bundling all 5 binaries the
+    local require always succeeds, so the undeclared sibling packages are never needed.
+    `napi prepublish` is the ONLY injector of `optionalDependencies`; deleting that one release.yml
+    step (`publish-npm-lib` job, ~line 378) is the whole code fix. Verify locally with NO publish:
+    build the addon, then `node -e "require('./index.js').conformance_selftest()"` — succeeds with
+    zero optional-dep packages installed in the devcontainer, proving the bundled loader (the exact
+    #38 failure mode).
 
 ## Architecture Decisions
 
@@ -171,3 +177,16 @@ iterations.
     size-threshold (YAGNI; wrapper feeds 64 KiB chunks), perf microbench (non-deterministic).
     Verify: `cargo build -p   iscc-py` + `grep -c allow_threads >=7` + `maturin develop` then
     `pytest`. `allow_threads` is the correct API name in PyO3 0.23 (NOT `detach`, which is 0.25+).
+- **iter 92: scoped npm #38 — remove `napi prepublish` injection.** #39 closed (iter 91); finally
+    picked the handoff's #1 (#38) after de-risking it via local investigation (see the corrected
+    Scope-Calibration bullet above — the bundled loader proof flips it from "too risky" to
+    "trivially verifiable, no publish needed"). Highest user-impact open item (breaks downstream
+    `npm ci`), fix decision pre-recorded, and `nodejs-bindings.md` spec already mandates the bundled
+    model. ONE code/config file: `.github/workflows/release.yml` (delete the "Prepare npm packages"
+    step). Three DOC files (excluded from limit) carry stale per-platform `optionalDependencies`
+    wording and must be re-aligned to the bundled model: `crates/iscc-napi/CLAUDE.md` (Publishing
+    Constraints), `notes/06-build-cicd-publishing.md` (~288–291), `notes/02-language-bindings.md`
+    (~82–88). `package.json` already correct (`files: ["*.node"]`, no optionalDependencies) — verify
+    only, don't touch. `version_sync.py` only syncs the main `package.json` (no per-platform `npm/*`
+    dirs), so no sync change. Chose this over PyO3 0.29 (six-minor migration) and the CI gates
+    (semver-checks/iai-callgrind/coverage need network/valgrind — still unverifiable locally).

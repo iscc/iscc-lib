@@ -1,91 +1,101 @@
 # Next Work Package
 
-## Step: Release the GIL during Python hashing (`py.allow_threads`)
+## Step: Remove dangling npm `optionalDependencies` injection from `@iscc/lib` (#38)
 
 ## Goal
 
-Release the Python GIL around the pure-Rust CPU-bound hashing work so threaded consumers (e.g.
-`iscc-sdk`'s `ThreadPoolExecutor`) can overlap hashing instead of serializing on the GIL. Resolves
-issue #39 ("Release the GIL during Python hashing"). Output bytes are identical, so conformance is
-unaffected — this is purely a concurrency improvement.
+Stop the release workflow from injecting five unpublished per-platform `optionalDependencies`
+(`@iscc/lib-<triple>`) into the published `@iscc/lib` package, which 404 on install and break
+`npm ci` (`EUSAGE` / missing-from-lockfile) for every downstream consumer. Resolves issue #38. The
+bundled `files: ["*.node"]` model already ships all binaries and the generated `index.js` loader
+already prefers them, so dropping the injection produces a clean, self-contained package.
 
 ## Scope
 
-- **Modify**: `crates/iscc-py/src/lib.rs` — wrap the pure-Rust compute in `py.allow_threads(...)` at
-    exactly these 7 call sites:
-    - one-shot functions (already take `py: Python<'_>`): `gen_data_code_v0` (~:292),
-        `gen_instance_code_v0` (~:305), `gen_image_code_v0` (~:150), `gen_sum_code_v0` (~:335)
-    - streaming `update()` methods (must ADD a `py: Python<'_>` parameter — see notes):
-        `PyDataHasher::update` (~:541), `PyInstanceHasher::update` (~:585), `PySumHasher::update`
-        (~:631)
-- **Create**: `tests/test_gil.py` — deterministic concurrency-correctness test (multiple threads
-    producing byte-identical output to the single-threaded path). Tests are excluded from the file
-    limit.
-- **Reference**: `.claude/context/specs/python-bindings.md` → "GIL Release During Hashing"
-    (acceptance criteria); `crates/iscc-py/CLAUDE.md` (binding rules); `crates/iscc-py/src/lib.rs`
-    (existing finalize methods already take `py: Python<'_>` and show the pattern).
+- **Modify**: `.github/workflows/release.yml` — delete the "Prepare npm packages" step
+    (`run: npx napi prepublish -t npm`, ~line 378) from the `publish-npm-lib` job. This is the only
+    code/config change.
+- **Modify (docs, excluded from file limit)**:
+    - `crates/iscc-napi/CLAUDE.md` — "Publishing Constraints" (~line 114) currently says
+        `optionalDependencies` and the `npm/` subdirectory are "generated at publish time by
+        `npx napi prepublish -t npm`". Rewrite to the bundled single-package model (all `.node`
+        bundled via `files`, no `optionalDependencies`, no prepublish).
+    - `notes/06-build-cicd-publishing.md` (~lines 288–291) — replace the per-platform-package /
+        `optionalDependencies` description with the bundled single-package model.
+    - `notes/02-language-bindings.md` (~lines 82–88) — same: replace "platform selection via
+        `optionalDependencies`" with the bundled `index.js`-loads-local-`.node` model.
+- **Reference**:
+    - `.claude/context/specs/nodejs-bindings.md` → "Native Binary Distribution" (lines 107–132) — the
+        authoritative target wording for the bundled model; reuse its phrasing in the doc edits.
+    - `crates/iscc-napi/package.json` — already correct (`files: ["*.node"]`, no
+        `optionalDependencies`); confirm, do not change.
+    - `crates/iscc-napi/index.js` (generated loader) — each platform branch does
+        `require('./iscc-lib.<triple>.node')` FIRST, only falling back to
+        `require('@iscc/lib-<triple>')` on failure.
+    - `issues.md` → issue #38 (fix decision + acceptance).
 
 ## Not In Scope
 
-- **Do NOT touch `release.yml` / npm `optionalDependencies` (#38)** — that is a separate
-    release-workflow step requiring a real publish to verify.
-- **Do NOT bump PyO3** (still `0.23` in root `Cargo.toml`). `allow_threads` is the correct API name
-    in 0.23 (do not rename to `detach`).
-- **Do NOT wrap `finalize()` methods** — issue #39 scopes only `update()` + the 4 one-shot
-    functions. The bulk compute (CDC/xxh32 for Data, BLAKE3 for Instance) happens in `update`.
-- **Do NOT change any Python-facing signature.** Adding `py: Python<'_>` to `update()` is invisible
-    to Python; `_lowlevel.pyi` stubs must stay unchanged.
-- **Do NOT add a 2-thread multi-GB perf microbenchmark to CI** — non-deterministic on shared
-    runners. The ~2× throughput target is an aspiration, not a CI gate.
-- **No size-threshold optimization is required** (premature; the Python wrapper already feeds 64 KiB
-    chunks to `update()`). Prefer the simplest unconditional release.
+- **Do NOT publish to npm** or touch any other registry's publish job. Verification is entirely
+    local (build + pack inspection + loader smoke test) — no real publish needed.
+- **Do NOT modify `crates/iscc-napi/package.json`** — it already bundles all binaries and declares
+    no `optionalDependencies`. Verify only.
+- **Do NOT remove the `npm install` step** in `publish-npm-lib`. It is now technically unused (it
+    only installed `@napi-rs/cli` for prepublish) but is harmless; leaving it keeps the diff minimal
+    and avoids surprising reviewers.
+- **Do NOT add per-platform sibling package publishing** or recreate the `npm/<triple>/` directory
+    model. The bundled model is the deliberate, spec-mandated choice.
+- **Do NOT bump napi-rs**, edit `crates/iscc-napi/src/lib.rs`, or touch the `build-napi` /
+    `test-napi` jobs.
+- **Do NOT start the PyO3 0.23 → 0.29 migration** or any other backlog item — one step only.
 
 ## Implementation Notes
 
-- Pattern for one-shot functions (compute inside the closure, build the dict AFTER):
-    ```rust
-    let r = py
-        .allow_threads(|| iscc_lib::gen_data_code_v0(data, bits))
-        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+- The exact step to delete from the `publish-npm-lib` job:
+    ```yaml
+      - name: Prepare npm packages
+        run: npx napi prepublish -t npm
+        working-directory: crates/iscc-napi
     ```
-    `&[u8]` and `&str` are `Ungil + Send`, and the result structs are plain data (`Ungil`), so the
-    closure type-checks. Keep `PyDict` construction (which needs the GIL) outside the closure.
-- Pattern for `update()` methods — add the injected `py` parameter, take the `&mut inner` borrow
-    BEFORE releasing, then release around the pure call:
-    ```rust
-    fn update(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<()> {
-        let inner = self.inner.as_mut()
-            .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?;
-        py.allow_threads(|| inner.update(data));
-        Ok(())
-    }
-    ```
-    `&mut iscc_lib::DataHasher` is `Ungil` (the core hashers hold no Python types). The
-    finalized-error check stays GIL-held (it touches `self`).
-- **Soundness of the `&[u8]` borrow**: the public Python wrapper in `__init__.py` already coerces
-    inputs to immutable `bytes` before calling `_lowlevel`, so the borrowed buffer cannot be mutated
-    by another thread during the release. Prefer the borrowed `&[u8]` if it compiles; only copy to
-    an owned `Vec<u8>` before the closure if the borrow checker objects.
-- `tests/test_gil.py`: spin up N threads (e.g., via `concurrent.futures.ThreadPoolExecutor` or
-    `threading.Thread`), each hashing the same and/or distinct byte payloads through
-    `gen_data_code_v0`, `gen_instance_code_v0`, a streaming
-    `DataHasher`/`InstanceHasher`/`SumHasher`, and assert outputs equal the single-threaded results.
-    This verifies correctness-under-concurrency deterministically (it does not assert a speedup).
-    Use `from iscc_lib import ...` (public API), per the crate's test convention.
+    After removal the job flow is: checkout → setup-node → `npm install` → download merged `napi-*`
+    artifacts → get version → check version on registry →
+    `npm publish --provenance --access public`.
+- **Why this is safe (the crux of #38):** `napi prepublish` is the *only* thing that injects
+    `optionalDependencies` into `package.json`. The generated `index.js` loader resolves the native
+    addon by trying the bundled local file (`require('./iscc-lib.<triple>.node')`) first and only
+    falls back to the per-platform package on failure. Because `files: ["*.node"]` ships all five
+    `.node` binaries in the tarball, the local require always succeeds and the (now-undeclared)
+    sibling packages are never needed at install or runtime.
+- The `publish-npm-lib` job already merges all five `napi-*` artifacts into `crates/iscc-napi/`
+    (plus `index.js`/`index.d.ts`), and `checkout` provides `README.md`, so `npm publish` ships
+    exactly `files: [index.js, index.d.ts, *.node, README.md]` — a complete bundled package with no
+    `optionalDependencies`.
+- For the doc edits, mirror the wording already in `nodejs-bindings.md` → "Native Binary
+    Distribution" so the binding CLAUDE.md and the architecture notes agree with the spec. Keep
+    edits tight — just replace the stale per-platform/`optionalDependencies` sentences.
 
 ## Verification
 
-- `cargo build -p iscc-py` compiles (proves the `Ungil`/`Send` bounds are satisfied at every call
-    site).
-- `cargo clippy -p iscc-py -- -D warnings` clean.
-- `cargo fmt -p iscc-py --check` clean.
-- `grep -c "allow_threads" crates/iscc-py/src/lib.rs` returns at least 7.
-- `maturin develop -m crates/iscc-py/Cargo.toml` succeeds, then `pytest tests/` passes (existing
-    conformance + smoke + streaming suites unchanged, plus the new `tests/test_gil.py`).
-- `ruff check tests/test_gil.py` and `ruff format --check tests/test_gil.py` clean.
+- `grep -c "napi prepublish" .github/workflows/release.yml` returns `0`.
+- `python -c "import json; d=json.load(open('crates/iscc-napi/package.json')); assert 'optionalDependencies' not in d; assert '*.node' in d['files']; print('ok')"`
+    exits 0.
+- `cd crates/iscc-napi && npm install && npm run build` succeeds (regenerates `index.js` + local
+    `.node`).
+- **Bundled-loader proof** (no `@iscc/lib-<triple>` optional-dep packages are installed in this
+    environment):
+    `cd crates/iscc-napi && node -e "const m=require('./index.js'); if(!m.conformance_selftest()) throw new Error('selftest failed'); console.log('loader ok')"`
+    prints `loader ok` — proving the bundled `.node` loads with zero optional-dep packages present
+    (the exact failure mode #38 reports).
+- `cd crates/iscc-napi && npm pack --dry-run 2>&1 | grep -E "index\.js|\.node|README"` shows
+    `index.js`, the local `*.node`, and `README.md` are included in the tarball.
+- `grep -rn "prepublish" crates/iscc-napi/CLAUDE.md notes/06-build-cicd-publishing.md notes/02-language-bindings.md`
+    returns no matches (stale per-platform wording removed from all three docs).
+- If `actionlint` is available: `actionlint .github/workflows/release.yml` is clean (workflow YAML
+    still valid after the step deletion).
 
 ## Done When
 
-The 3 streaming `update()` methods and the 4 one-shot byte-data functions release the GIL around
-their pure-Rust compute, no Python-facing signature changes, `tests/test_gil.py` confirms identical
-output under multithreaded use, and all verification commands pass.
+The `publish-npm-lib` job no longer runs `napi prepublish`, the bundled `index.js` loads the local
+`.node` with no optional-dep packages present, `npm pack` ships all binaries with no
+`optionalDependencies`, the three doc files describe the bundled single-package model, and all
+verification commands pass.
