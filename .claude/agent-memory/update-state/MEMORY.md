@@ -37,6 +37,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **v1.0.0 gates check** (all should appear when done):
     `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml` + `ls .cargo-crap.toml`
     - `grep -iE "coverage|crap|semver|callgrind" mise.toml`
+- **Semver gate present iter 93** (`9d42077`): `Semver (cargo-semver-checks)` job at ci.yml:280,
+    `obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, **`continue-on-error: true`**
+    (informational until v1.0.0). Mirrored `mise run semver` at mise.toml:104. CAUTION: the job
+    reports individual `conclusion: failure` (2 expected breaking changes from post-0.4.0
+    `pub(crate)` narrowing) but the **run-level conclusion stays `success`** — NOT a CI failure.
+    rust-core.md "verified when" stays `[ ]` (requires enforcing + >= 1.0.0); ci-cd.md:417 is `[x]`
+    (worded for informational state).
 - **GIL release check**: `grep -rn "allow_threads" crates/iscc-py/src/`
 - **SumHasher check**:
     `grep -rn "SumHasher" crates/iscc-lib/src/ crates/iscc-py/src/ crates/iscc-wasm/src/`
@@ -64,7 +71,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `scripts/build_xcframework.sh` — builds XCF for 5 Apple targets, lipo fat binaries, ditto zip
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
-- `.github/workflows/ci.yml` — **16 CI jobs** (includes root Package.swift dump-package smoke test)
+- `.github/workflows/ci.yml` — **17 CI jobs** (16 functional incl. root Package.swift dump-package
+    smoke test + the non-blocking `Semver` job added iter 93)
 - `.github/workflows/release.yml` — **8 registry input toggles** (`type: boolean`): crates-io, pypi,
     npm, maven, ffi, rubygems, nuget, maven-kotlin. Swift XCFramework is NOT a toggle — it builds in
     `prepare-release` (line ~55). **provenance guard** on build-xcframework. After #38 fix (iter 92)
@@ -101,15 +109,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Prior state may have errors**: Always verify "partially met" claims — e.g., benchmarks doc
     existed but was marked missing in iteration 6 state.
 
-## Current State (assessed-at: a8f1ffc)
+## Current State (assessed-at: 96558ca)
 
 - **IN_PROGRESS** — v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **CI**: green 16/16 (run 27661715835, sha `fa59c0b` = origin/develop HEAD). This run **includes**
-    the npm optionalDeps removal (advance `5d8ecb7`, review `fa59c0b`). HEAD `a8f1ffc` is only 1
-    commit ahead (just `cid(log): iteration 92`, iterations.jsonl only). All code pushed and
+- **CI**: overall green (run 27664286163, sha `758fc31`). 16 functional jobs green + non-blocking
+    `Semver` job (reports `failure` but `continue-on-error` keeps run green). This run **includes**
+    the semver-gate addition (advance `9d42077`, review `758fc31`). HEAD `96558ca` == origin/develop
+    is `cid(log): iteration 93` (iterations.jsonl/memory/context only). All code pushed and
     verified.
-- **6 issues: 0 critical, 4 normal, 2 low** (count by grepping header lines anchored with a leading
+- **5 issues: 0 critical, 3 normal, 2 low** (count by grepping header lines anchored with a leading
     `##` before the priority label — that excludes the legend line, so no -1 adjustment needed).
+- **Informational semver gate ADDED (iteration 93, `9d42077`/`758fc31`)** — closes the
+    cargo-semver-checks issue (deleted). One of four normal backlog items done. CI/config/doc only —
+    no source/API/conformance/perf surface touched.
 - **npm optionalDeps #38 CLOSED (iteration 92, `5d8ecb7`/`fa59c0b`)** — `napi prepublish` step
     deleted from `release.yml`; npm ships single bundled package. Node.js now MET. Docs updated
     (iscc-napi CLAUDE.md, notes 02/06). No code/API/conformance surface touched.
@@ -133,11 +145,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Module visibility (iteration 86, `3f6a61d`)**:
     `cdc/conformance/dct/minhash/simhash/utils/wtahash` = `pub(crate) mod`; only
     `codec/streaming/types` = `pub mod`. Issue swept.
-- **Open normal gaps (4)**: PyO3 0.23→0.29 (RustSec, still pinned at `Cargo.toml`), CRAP coverage
-    gate, cargo-semver-checks gate, iai-callgrind perf gate.
+- **Open normal gaps (3)**: PyO3 0.23→0.29 (RustSec, still pinned at `Cargo.toml`), CRAP coverage
+    gate, iai-callgrind perf gate. (cargo-semver-checks gate now present — informational.)
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
-- **Partially-met sections**: Rust Core (semver+perf gates only), Python (**PyO3 only — GIL MET**),
-    CI/CD (3 v1.0.0 tooling gates). Node.js now MET. WASM MET. All 12 bindings functionally met.
+- **Partially-met sections**: Rust Core (semver gate now informational; perf gate still missing;
+    enforcing-semver needs v1.0.0), Python (**PyO3 only — GIL MET**), CI/CD (2 v1.0.0 tooling gates:
+    CRAP + iai-callgrind). Node.js MET. WASM MET. All 12 bindings functionally met.
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists; python-bindings.md "GIL Release During Hashing" now all `[x]`.
     Re-read on incremental review.
