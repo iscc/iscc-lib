@@ -291,8 +291,11 @@ jobs:
         with:
           package: iscc-lib
   coverage:
-    name: Coverage (cargo llvm-cov)
+    name: Coverage + CRAP (cargo llvm-cov + cargo crap)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -303,6 +306,12 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: cargo-llvm-cov
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-binstall
+      - name: Install cargo-crap
+        run: cargo binstall -y cargo-crap@0.2.2
       - name: Generate LCOV coverage report
         run: cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info
       - name: Upload coverage report
@@ -310,3 +319,12 @@ jobs:
         with:
           name: lcov
           path: lcov.info
+      # Phase 2: report-only CRAP scoring. No score gate, so these steps exit 0.
+      - name: CRAP report (GitHub annotations)
+        run: cargo crap --lcov lcov.info --format github
+      - name: CRAP report (SARIF)
+        run: cargo crap --lcov lcov.info --format sarif --output crap.sarif
+      - name: Upload CRAP SARIF to Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: crap.sarif

@@ -30,16 +30,25 @@ iterations.
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
-- CI workflow at `.github/workflows/ci.yml` has 17 jobs: version-check, rust, python-test, python,
-    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, semver, coverage.
-    `bench` runs `cargo bench --no-run` (compile-only). `swift` runs on `macos-14` (Apple Silicon).
-    `kotlin` runs on `ubuntu-latest` with JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
-- `coverage` CI job (iter 94, ci-cd.md Phase 1): standalone, no `needs:`, NO `continue-on-error`.
-    `dtolnay/rust-toolchain@stable` w/ `components: llvm-tools-preview` →
-    `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) →
-    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → `actions/upload-artifact@v4`
-    (`name: lcov`). Local: `mise run coverage` (same command). `lcov.info` is gitignored. Phase 2
-    (`cargo crap` report-only) + Phase 3 (`--fail-regression` gate) NOT yet done
+- CI workflow `.github/workflows/ci.yml` has 17 job entries: version-check, rust, python-test,
+    python, nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, semver,
+    coverage. `bench` = `cargo bench --no-run`. `swift` on `macos-14`. `kotlin` on `ubuntu-latest`
+    JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
+- `coverage` CI job (iter 94 Phase 1, iter 96 Phase 2; named `Coverage + CRAP`): standalone, no
+    `needs:`, NO `continue-on-error`. toolchain+`llvm-tools-preview` → install `cargo-llvm-cov` +
+    `cargo-binstall` (`taiki-e/install-action@v2`) → `cargo binstall -y cargo-crap@0.2.2` →
+    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`) →
+    `cargo crap --lcov lcov.info --format github` → `--format sarif --output crap.sarif` →
+    `github/codeql-action/upload-sarif@v3`. Job-level
+    `permissions: {contents: read,   security-events: write}` (the SARIF upload needs
+    `security-events: write`). Both `cargo crap` runs report-only (no `--fail-above`) → exit 0.
+    Local: `mise run coverage` + `mise run crap` (`depends=["coverage"]`). `lcov.info`+`crap.sarif`
+    gitignored. Phase 3 (`--fail-regression --baseline`) NOT done
+- `.cargo-crap.toml` (repo root, iter 96): keys `threshold=30.0`, `missing="pessimistic"`, `exclude`
+    globs — excludes 7 binding crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`.
+    GOTCHA: built-in default excludes skip nested `tests/**` but NOT nested `benches/**` (matches
+    repo-root only) → bench harness leaks at CRAP ~42 unless excluded. Not preinstalled:
+    `cargo install cargo-crap@0.2.2 --locked` (~1.5min). `--format github` silent below threshold
 - `semver` CI job (iter 93): `obi1kenobi/cargo-semver-checks-action@v2` with `package: iscc-lib`,
     baseline = last crates.io release (auto-detected). `continue-on-error: true` — INFORMATIONAL
     pre-1.0 (post-0.4.0 `pub(crate)` narrowing of cdc/conformance/minhash/simhash/utils reports as
@@ -59,20 +68,11 @@ iterations.
 - Release workflow (`release.yml`): 9 inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift). Pattern: boolean input → build job → **smoke test job** → publish job
     (version-exists skip). NuGet uses `NUGET_API_KEY` secret (not OIDC). Ruby uses OIDC
-- npm `@iscc/lib` (issue #38, iter 92): BUNDLED single-package model — `package.json` ships all 5
-    `.node` via `files: ["*.node"]`, NO `optionalDependencies`, NO per-platform sibling packages, NO
-    `npm/` subdir. `publish-npm-lib` job must NOT run `napi prepublish -t npm` (it injects the
-    dangling optional-deps that 404/break `npm ci`). Generated `index.js` loader requires local
-    `./iscc-lib.<triple>.node` FIRST, sibling `@iscc/lib-<triple>` only as fallback. Job flow:
-    checkout → setup-node → npm install → download merged `napi-*` → version → check → npm publish.
-    Spec: `nodejs-bindings.md` "Native Binary Distribution" (revisit per-platform model if >~30 MB)
-- `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Provenance guard (tag-only)
-    fails if main HEAD != tag SHA. Builds XCFramework → checksum → `sed` updates Package.swift →
-    auto-commit → force-update tag → upload to GH Release. Uses macOS BSD `sed -E -i ''` (not GNU).
-    Dual cache: `Swatinem/rust-cache` + `actions/cache` (key from crate sources/Cargo manifests)
-- Kotlin Maven Central: `build-kotlin-native` (9-platform matrix) → `assemble-kotlin` +
-    `test-kotlin-release` (validates JAR has all 9 JNA paths) → `publish-maven-kotlin` (Gradle
-    `maven-publish` + curl bundle upload to Sonatype Central Portal REST API)
+- npm `@iscc/lib` (issue #38, iter 92): BUNDLED single-package — ships all 5 `.node` via
+    `files: ["*.node"]`, NO `optionalDependencies`/sibling packages. `publish-npm-lib` must NOT run
+    `napi prepublish -t npm` (injects dangling optional-deps that break `npm ci`). `index.js` loader
+    requires local `./iscc-lib.<triple>.node` first (also in learnings.md)
+- Release-job CI internals (`build-xcframework`, Kotlin Maven Central) → MEMORY-archive.md
 - wasm-pack `--features` goes AFTER the path, NOT after `--`. Test-target filter (`-- --test unit`)
     fails — runner only accepts a positional FILTER; run full suite
 
@@ -118,13 +118,11 @@ iterations.
 - API reference: `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`
 - Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`,
     `packages/swift/README.md`, `packages/kotlin/README.md`
-- Per-package CLAUDE.md: `packages/dotnet/CLAUDE.md`, `packages/swift/CLAUDE.md`,
-    `packages/kotlin/CLAUDE.md`
+- Per-package CLAUDE.md: `packages/{dotnet,swift,kotlin}/CLAUDE.md`
 - zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++,
     Swift, Kotlin
-- `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` files. Uses
-    `ORDERED_PAGES` list + auto-discovery (`discover_pages()`). Excludes `docs/includes/`. Run after
-    `zensical build` in docs CI pipeline
+- `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` (via `ORDERED_PAGES` +
+    `discover_pages()`, excludes `docs/includes/`). Run after `zensical build` in docs CI
 
 ## Feature Flags
 
@@ -179,8 +177,7 @@ iterations.
     `packages/swift/Package.swift` (CI/local dev). Root uses Ferrostar toggle `useLocalFramework`
     - `releaseTag`/`releaseChecksum`, `binaryTarget` for distribution; omits testTarget
 - `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` → `xcodebuild -create-xcframework` →
-    `ditto` zip → `compute-checksum`. Output `target/ios/IsccLib.xcframework.zip`
-    (`--release`/`--debug`)
+    `ditto` zip → checksum. Output `target/ios/IsccLib.xcframework.zip` (`--release`/`--debug`)
 - Version constant: `packages/swift/Sources/IsccLib/Constants.swift` (`isccLibVersion`)
 - CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
     `-Xlinker -L`/`-rpath` → `target/debug`
@@ -199,8 +196,4 @@ iterations.
     Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
 - Conformance tests: `ConformanceTest.kt` — 9 methods, 50 vectors. JUnit 5.11.4 + Gson 2.11.0
     (`com.google.code.gson` groupId, NOT `com.google.gson`)
-- Maven Central publishing: `build.gradle.kts` `maven-publish` + `signing`, POM
-    `io.iscc:iscc-lib-kotlin`, staging `build/staging-deploy/`, Central Portal curl bundle upload
-- JNA resource paths (9, bundled native libs): `linux-x86-64`, `linux-aarch64`, `darwin-aarch64`,
-    `darwin-x86-64`, `win32-x86-64`, `android-{aarch64,arm,x86-64,x86}`. JNA 5.16.0 canonicalizes
-    ARM32 to `arm` (see learnings.md); discovers libs from classpath
+- Maven Central publishing + JNA resource paths (9 platforms) → MEMORY-archive.md

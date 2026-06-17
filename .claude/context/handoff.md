@@ -1,60 +1,71 @@
-## 2026-06-17 — Review of: Add Phase 1 Rust coverage CI job (`cargo llvm-cov` LCOV artifact) + `mise run coverage` task
+## 2026-06-17 — CRAP gate Phase 2: report-only `cargo crap` (GitHub annotations + SARIF) + `.cargo-crap.toml` + `mise run crap`
 
-**Verdict:** PASS
+**Done:** Extended the existing `coverage` CI job to run report-only `cargo crap` (pinned `0.2.2`,
+installed via `cargo binstall`) against the already-generated `lcov.info` — emitting
+`--format github` inline annotations and uploading a `--format sarif` report to GitHub Code
+Scanning. Added a repo-root `.cargo-crap.toml` (threshold 30, pessimistic missing-coverage,
+binding-crate excludes), a `mise run crap` task, and flipped the Phase 2 checkboxes in `ci-cd.md`.
+No build-failing CRAP behavior introduced.
 
-**Summary:** The advance agent added a standalone `coverage` CI job that builds an LCOV report for
-`iscc-lib` via `cargo llvm-cov`, mirrored the exact command as `mise run coverage`, gitignored
-`lcov.info`, and flipped the Phase 1 checkbox in `ci-cd.md`. The diff is CI-config-only — no source,
-API, conformance, or perf surface touched — matches next.md exactly, and all local verification
-passes. Clean, low-risk Phase 1 of the coverage/CRAP gate issue.
+**Files changed:**
 
-**Verification:**
+- `.cargo-crap.toml` (new): `threshold = 30.0`, `missing = "pessimistic"`, `exclude` globs for all 7
+    binding crates + `packages/**` + `scripts/**`. **Also excludes `crates/iscc-lib/benches/**`** —
+    see Notes.
+- `.github/workflows/ci.yml`: `coverage` job renamed to
+    `Coverage + CRAP (cargo llvm-cov + cargo   crap)`; added job-level
+    `permissions: { contents: read, security-events: write }`, a cargo-binstall install step, a
+    `cargo binstall -y cargo-crap@0.2.2` step, two report-only `cargo   crap` steps
+    (`--format github`, `--format sarif --output crap.sarif`), and a
+    `github/codeql-action/upload-sarif@v3` upload.
+- `mise.toml`: added `[tasks.crap]` (`depends = ["coverage"]`, runs `cargo crap --lcov lcov.info`).
+- `.gitignore`: added `crap.sarif`.
+- `.claude/context/specs/ci-cd.md`: flipped Phase 2 checkboxes (CRAP report-only job, cargo-crap
+    pinned+binstall, `.cargo-crap.toml` config, `mise run coverage`/`crap` local repro). Phase 3
+    checkbox left `[ ]`.
 
-- [x] `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` exits 0, non-empty report —
-    cargo-llvm-cov 0.8.7 installed; report produced (5156 lines / 137KB)
-- [x] `mise run coverage` exits 0 and produces `lcov.info` — re-ran; 22 lib tests pass under
-    instrumentation, 5156-line report
-- [x] `mise tasks | grep '^coverage'` shows the task — present with description
-- [x] `git status --porcelain` does NOT list `lcov.info` — gitignored (`lcov.info` added under "Unit
-    test / coverage reports")
-- [x] `mise run check` passes on edited files — all 15 hooks Passed; no out-of-scope context-file
-    reflow this run
-- [x] `grep cargo-llvm-cov/llvm-cov ci.yml` shows the `coverage` job wiring — job + toolchain +
-    install-action + run + upload all present
-- [x] CI job count — 17 YAML job entries (was 16); python-test matrix `['3.10','3.14']` → 18 actual
-    GitHub Actions jobs. (Advance handoff says "17 jobs"; that counts YAML entries, not matrix
-    expansion. Not a defect — noted for accuracy.)
-- [~] Deferred: new `Coverage` job appears green and the other jobs stay green — confirmed on the
-    next CI run after push (cannot verify pre-push)
+**Verification:** All next.md criteria pass.
 
-**Issues found:**
+- `cargo crap --lcov lcov.info` exits 0 (report-only; 97 functions analyzed, none exceed threshold
+    30 — highest is `gen_meta_code_v0` at CRAP 22.3).
+- `mise run crap` exits 0, regenerates `lcov.info` via the `coverage` dep, prints the CRAP table;
+    `mise tasks | grep '^crap'` shows the task.
+- `cargo crap --lcov lcov.info --format sarif --output /tmp/crap.sarif` → valid SARIF
+    (`jq -e '.runs[0].tool.driver.name'` → `"cargo-crap"`). `--format github` exits 0 (no
+    annotations emitted because nothing exceeds threshold 30).
+- Report contains only `crates/iscc-lib/src/*.rs` functions — no binding crates, no `packages/`, no
+    benches.
+- `grep -E 'cargo-crap|cargo crap|upload-sarif|security-events' ci.yml` shows install + both runs +
+    SARIF upload + permission. `grep -E 'fail-above|fail-regression|baseline' ci.yml` returns
+    nothing.
+- `git status --porcelain` lists neither `lcov.info` nor `crap.sarif` (both gitignored).
+- `mise run check` exits 0 — all 15 pre-commit hooks pass (incl. taplo reformat of
+    `.cargo-crap.toml`, already applied). No out-of-scope context-file reflow this run.
 
-- (none) — scope-disciplined, no gate weakening (this *adds* a gate), no API-break, no hot-path
-    change. The "Add Rust coverage + CRAP-metric quality gate" issue stays open: only Phase 1 (LCOV
-    artifact) is delivered; Phase 2 (`cargo crap` report-only + SARIF) and Phase 3
-    (`--fail-regression` baseline) remain.
-
-**Codex review:** Confirmed the coverage CI job, mise task, and gitignore update are consistent with
-Phase 1 scope and that the coverage command succeeds locally. No discrete regressions identified.
-
-**Next:** Two unstarted `normal` backlog gates remain and pair naturally as self-contained CI steps:
-
-1. **Phase 2 report-only `cargo crap`** — install pinned `cargo-crap` via `cargo binstall`, run vs
-    `lcov.info` with `--format github` annotations + SARIF upload to Code Scanning, add
-    `.cargo-crap.toml` and the `mise run crap` task (non-failing). Builds directly on the Phase 1
-    `lcov.info` just landed.
-2. **`iai-callgrind` perf gate** — instruction-count benches for the hot `gen_*_v0`/hashing/CDC/
-    MinHash paths + committed baseline, fail on >10% regression. The PyO3 0.23→0.29 bump (`normal`)
-    is the remaining non-CI option but is a multi-step migration. Phase 2 CRAP is the most
-    incremental follow-on.
+**Next:** Two unstarted `normal` backlog gates remain: (1) **Phase 3 CRAP regression gate** —
+capture a baseline JSON via `cargo crap --format json --output`, run with
+`--fail-regression --baseline`, refresh the baseline on merges to `develop` (this is the enforcing
+step Phase 2 deliberately defers); (2) **`iai-callgrind` perf gate** — instruction-count benches for
+hot `gen_*_v0`/hashing/CDC/MinHash paths with a committed baseline failing on >10% regression. Phase
+3 builds directly on this Phase 2 work and is the most incremental follow-on.
 
 **Notes:**
 
-- CI does NOT use `mise` — it calls `cargo` directly. The `mise run coverage` task is local
-    reproducibility only; the command string is identical to the CI step, so they cannot drift
-    silently. If `cargo-llvm-cov` ever proves flaky on the shared runner, the documented fallback is
-    `continue-on-error: true` — but Phase 1 intentionally omits it so test failures under
-    instrumentation stay visible.
-- `lcov.info` is 137KB — well under the `check-added-large-files` 256KB threshold even if a future
-    step needs to commit a sample, but it remains gitignored for now.
-- No version-sync impact (no manifest versions changed); no new release inputs.
+- **Deviation from next.md (justified):** next.md asserted "the built-in default excludes already
+    skip `tests/**` / `benches/**`". That holds for `tests/**` (cargo-crap's nested-tests default
+    excluded `crates/iscc-lib/tests/*.rs`) but **NOT** for benches — the built-in `benches/**`
+    pattern only matches the repo-root path, so `crates/iscc-lib/benches/benchmarks.rs` leaked in
+    and scored as the #1 "crappiest" function (CRAP 42.0, no coverage — pure harness noise). I added
+    `crates/iscc-lib/benches/**` to the `.cargo-crap.toml` exclude list to fulfill next.md's stated
+    intent ("report contains only iscc-lib functions" = library code). This is a one-line config
+    addition, fully within the "Create `.cargo-crap.toml`" scope.
+- CI does NOT use `mise`; `mise run crap`/`coverage` mirror the CI commands for local repro only —
+    they cannot drift silently (identical command strings).
+- Job-level `permissions` on the `coverage` job does not affect other jobs (they inherit the repo
+    default token perms). `security-events: write` is required for the Code Scanning SARIF upload;
+    iscc-lib is a public repo so Code Scanning is available.
+- The SARIF upload + GitHub annotations cannot be verified pre-push (require the live runner);
+    everything else verified locally with `cargo-crap 0.2.2` installed via
+    `cargo install   cargo-crap@0.2.2 --locked` in the devcontainer (binstall is not preinstalled
+    here).
+- `lcov.info` remains in the working tree (gitignored) as a side effect of local verification.

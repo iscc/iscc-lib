@@ -408,13 +408,13 @@ workflow triggers on push to `main`.
 - [x] CI does not use `mise` — calls tools directly
 - [x] Coverage job generates and uploads an LCOV report for `iscc-lib` via `cargo llvm-cov` (Phase
     1\)
-- [ ] CRAP job runs `cargo crap` in report-only mode with `--format github` annotations and uploads
+- [x] CRAP job runs `cargo crap` in report-only mode with `--format github` annotations and uploads
     SARIF to GitHub Code Scanning (Phase 2)
 - [ ] CRAP job fails on CRAP-score regression vs a baseline (`--fail-regression --baseline`), with
     the baseline refreshed on merges to `develop` (Phase 3)
-- [ ] `cargo-crap` is pinned to a specific version and installed via `cargo binstall`
-- [ ] `.cargo-crap.toml` configures threshold, excluded binding crates, and missing-coverage policy
-- [ ] `mise run coverage` and `mise run crap` reproduce the gate locally
+- [x] `cargo-crap` is pinned to a specific version and installed via `cargo binstall`
+- [x] `.cargo-crap.toml` configures threshold, excluded binding crates, and missing-coverage policy
+- [x] `mise run coverage` and `mise run crap` reproduce the gate locally
 - [x] Semver job runs `cargo semver-checks` for `iscc-lib` against the last published release
     (informational pre-1.0 via `continue-on-error`; enforcing from v1.0.0)
 - [ ] Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the

@@ -1,0 +1,29 @@
+# cargo-crap configuration — CRAP-metric quality gate for the iscc-lib core crate.
+#
+# The CRAP (Change Risk Anti-Patterns) score combines cyclomatic complexity with
+# test coverage to surface functions that are both complex and undertested.
+# Phase 2 runs report-only: no `fail-above` is set, so the gate never fails the
+# build — it only emits GitHub annotations and a SARIF report.
+
+# Functions scoring above this are highlighted in the report (report-only — no build failure).
+threshold = 30.0
+
+# Treat functions absent from the LCOV report as 0% covered (conservative).
+missing = "pessimistic"
+
+# Coverage (lcov.info) only covers `iscc-lib`. Exclude the thin binding crates and
+# non-library code so they do not flood the report with 0%-coverage noise.
+# The built-in `benches/**` default only matches the repo-root path, so the nested
+# `crates/iscc-lib/benches/**` (bench harness, no coverage) is excluded explicitly.
+exclude = [
+  "crates/iscc-py/**",
+  "crates/iscc-napi/**",
+  "crates/iscc-wasm/**",
+  "crates/iscc-ffi/**",
+  "crates/iscc-jni/**",
+  "crates/iscc-rb/**",
+  "crates/iscc-uniffi/**",
+  "crates/iscc-lib/benches/**",
+  "packages/**",
+  "scripts/**",
+]

@@ -110,3 +110,8 @@ run = "cargo semver-checks check-release -p iscc-lib"
 [tasks.coverage]
 description = "Generate an LCOV coverage report for iscc-lib (cargo llvm-cov)"
 run = "cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info"
+
+[tasks.crap]
+description = "Report per-function CRAP scores for iscc-lib (cargo crap, report-only)"
+depends = ["coverage"]
+run = "cargo crap --lcov lcov.info"

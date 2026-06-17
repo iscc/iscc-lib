@@ -81,3 +81,18 @@ See MEMORY.md for current active entries.
     (`gen_image/data/instance/sum_code_v0`) wrap compute in `py.allow_threads(|| ...)`. `update`
     gains injected `py: Python<'_>` (no `.pyi` change); borrow `&mut inner` BEFORE release. Borrowed
     slice and core hashers are `Ungil+Send` (no copy); `finalize` stays GIL-held.
+
+## Release-Job CI Details (archived iter 96 — niche publishing internals)
+
+- `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Provenance guard (tag-only)
+    fails if main HEAD != tag SHA. Builds XCFramework → checksum → `sed` updates Package.swift →
+    auto-commit → force-update tag → upload to GH Release. Uses macOS BSD `sed -E -i ''` (not GNU).
+    Dual cache: `Swatinem/rust-cache` + `actions/cache` (key from crate sources/Cargo manifests)
+- Kotlin Maven Central: `build-kotlin-native` (9-platform matrix) → `assemble-kotlin` +
+    `test-kotlin-release` (validates JAR has all 9 JNA paths) → `publish-maven-kotlin` (Gradle
+    `maven-publish` + curl bundle upload to Sonatype Central Portal REST API)
+- Kotlin Maven Central publishing: `build.gradle.kts` `maven-publish` + `signing`, POM
+    `io.iscc:iscc-lib-kotlin`, staging `build/staging-deploy/`, Central Portal curl bundle upload
+- Kotlin JNA resource paths (9, bundled native libs): `linux-x86-64`, `linux-aarch64`,
+    `darwin-aarch64`, `darwin-x86-64`, `win32-x86-64`, `android-{aarch64,arm,x86-64,x86}`. JNA
+    5.16.0 canonicalizes ARM32 to `arm` (see learnings.md); discovers libs from classpath
