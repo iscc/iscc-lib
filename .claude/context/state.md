@@ -1,4 +1,4 @@
-<!-- assessed-at: f7f3689222ee9c27de9a727266a51d1d4c794ce3 -->
+<!-- assessed-at: fe1618f7fd4a741114782f67ce658ccebe9dce48 -->
 
 # Project State
 
@@ -6,12 +6,11 @@
 
 ## Phase: Post-v0.4.0 hardening toward v1.0.0 — CI GREEN
 
-v0.4.0 is released across all registries; all 12 language bindings are functionally met. **CI is now
-fully GREEN** — last cycle's `Coverage + CRAP` cargo-crap install flake was fixed by adding
-`--force` to the `cargo binstall` step (ci.yml:314), and the job (including the enforcing Phase 3
-`CRAP regression gate`) now runs and passes. Remaining work is v1.0.0 hardening: continue the PyO3
-minor migration (now at 0.25, advancing toward 0.29 to clear two RustSec advisories), add the
-`iai-callgrind` perf-regression gate, and harden the CRAP gate. No critical issues open.
+v0.4.0 is released across all registries; all 12 language bindings are functionally met. **CI is
+fully GREEN** — the latest run (sha `03aacbd`) passes, including the `Coverage + CRAP` job and its
+enforcing Phase 3 gate. Remaining work is v1.0.0 hardening: continue the PyO3 minor migration (now
+at **0.26**, advancing toward 0.29 to clear two RustSec advisories), add the `iai-callgrind`
+perf-regression gate, and harden the CRAP gate. No critical issues open.
 
 ## Rust Core Crate
 
@@ -42,14 +41,16 @@ minor migration (now at 0.25, advancing toward 0.29 to clear two RustSec advisor
 
 - Existing criteria met: all symbols exported, both Python 3.10 and 3.14 CI jobs GREEN, ruff clean,
     streaming `SumHasher` wrapper present and exported.
-- GIL release done (closed #39): `py.allow_threads(...)` wraps the pure-Rust CPU-bound compute at
-    all 7 call sites in `crates/iscc-py/src/lib.rs`; `tests/test_gil.py` adds 7 concurrency tests.
-- **PyO3 migration in progress (normal, #1)**: the workspace `pyo3` pin is at `0.25`
-    (`Cargo.toml:35` `version = "0.25"`, `Cargo.lock` `pyo3 0.25.1`). `abi3-py310` preserved on the
-    workspace dep; `crates/iscc-py/Cargo.toml` still layers `extension-module`. The 0.24→0.25 bump
-    (last cycle) needed zero source changes. Four more minor steps remain to reach `0.29.0`, where
-    the two RustSec advisories shipped inside the wheel clear. The predicted `IntoPyObject`/lifetime
-    breaks have NOT materialized at 0.24 or 0.25 — treat the prediction skeptically for 0.26.
+- GIL release done (closed #39): GIL-release wraps the pure-Rust CPU-bound compute at all 7 call
+    sites in `crates/iscc-py/src/lib.rs` (the 0.26 `Python::detach` rename of `allow_threads`);
+    `tests/test_gil.py` adds 7 concurrency tests.
+- **PyO3 migration in progress (normal, #1)**: the workspace `pyo3` pin is now at **0.26**
+    (`Cargo.toml:35` `version = "0.26"`, `Cargo.lock` `pyo3 0.26.0`). `abi3-py310` preserved on the
+    workspace dep; `crates/iscc-py/Cargo.toml` still layers `extension-module`. The 0.25→0.26 bump
+    was the FIRST hop requiring source edits: 7 `allow_threads` → `detach` (pure rename) and 17
+    `PyObject` → `Py<PyAny>` return types; 0 `allow_threads` remain. Three more minor steps remain
+    to reach `0.29.0`, where the two RustSec advisories shipped inside the wheel clear. Next
+    increment 0.26 → 0.27.
 
 ## Node.js Bindings
 
@@ -161,20 +162,17 @@ minor migration (now at 0.25, advancing toward 0.29 to clear two RustSec advisor
 
 **Status**: partially met — **CI GREEN**
 
-- **LATEST CI RUN — SUCCESS.** Run 27685108728 (sha `b3c064b`): **conclusion `success`**. URL:
-    https://github.com/iscc/iscc-lib/actions/runs/27685108728 — all 16 functional jobs + the
-    Coverage
-    - CRAP job green; the only `failure` is `Semver (cargo-semver-checks)`, which is
-        `continue-on-error: true` (informational, does not flip the run). HEAD `f7f3689` adds only
-        `iterations.jsonl` on top of `b3c064b`, so this green run fully covers HEAD's code state.
-- **Coverage + CRAP flake FIXED.** Last cycle's `error: no such command: crap` failure was a
-    `cargo-binstall` / `Swatinem/rust-cache` cache-poisoning flake. The fix (commit `628c5d9`, the
-    only code change this cycle) added `--force` to the install step (ci.yml:314 now
-    `cargo binstall -y --force cargo-crap@0.2.2`). Verified on the green run: the
+- **LATEST CI RUN — SUCCESS.** Run 27687282645 (sha `03aacbd`): **conclusion `success`**. URL:
+    https://github.com/iscc/iscc-lib/actions/runs/27687282645 — all 17 functional jobs + the
+    `Coverage + CRAP` job green; the only job-level `failure` is `Semver (cargo-semver-checks)`,
+    which is `continue-on-error: true` (informational, does not flip the run). HEAD `fe1618f` adds
+    only `iterations.jsonl` on top of `03aacbd`, so this green run fully covers HEAD's code state.
+- **Coverage + CRAP GREEN.** The `cargo-binstall` / `Swatinem/rust-cache` cache-poisoning flake was
+    fixed last cycle by adding `--force` to the install step (ci.yml:314
+    `cargo binstall -y --force cargo-crap@0.2.2`). Verified on the latest run: the
     `Install cargo-crap` step succeeds and ALL CRAP steps ran (not skipped) — CRAP annotations
     report, SARIF report, SARIF upload to Code Scanning, AND the enforcing Phase 3
-    `CRAP regression gate` step all conclude `success`. Phase 3 enforcement is back online on every
-    commit.
+    `CRAP regression gate` step all conclude `success`. Phase 3 enforcement runs on every commit.
 - **CRAP gate hardening gap (open, normal, [review])**: even when it runs, Phase 3 is
     regression-only — a brand-new/renamed function has no baseline entry, reports `★ N new`, and the
     step exits 0 (Codex verified a new uncovered CC=21 fn at CRAP 462 bypassed it). Fix: add
@@ -192,7 +190,7 @@ minor migration (now at 0.25, advancing toward 0.29 to clear two RustSec advisor
 Normal (CID-actionable):
 
 1. **Update PyO3 0.23 → 0.29** — security advisories in shipped wheel; incremental migration **in
-    progress** (now at **0.25**; advisories clear only at 0.29). Next increment 0.25 → 0.26.
+    progress** (now at **0.26**; advisories clear only at 0.29). Next increment 0.26 → 0.27.
 2. **CRAP gate does not fail on new high-CRAP functions** [review] — regression-only gate lets new
     uncovered high-complexity functions through; add `--fail-above 30`. HUMAN REVIEW REQUESTED.
 3. **Add `iai-callgrind` performance-regression CI gate** — committed baseline, > 10% fails CI. Not
@@ -206,13 +204,13 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-**CI is GREEN.** With the cargo-crap flake fixed, resume v1.0.0 hardening:
+**CI is GREEN.** Resume v1.0.0 hardening:
 
-1. **Continue the PyO3 migration: 0.25 → 0.26.** Self-contained recipe (bump the pin in root
+1. **Continue the PyO3 migration: 0.26 → 0.27.** Self-contained recipe (bump the pin in root
     `Cargo.toml` → `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt →
-    `uv run maturin  develop` → `uv run pytest`). Watch `-D warnings` for `IntoPyObject`/lifetime
-    deprecations. RustSec advisories clear only at 0.29 — keep going one minor per step, scoped to
-    `crates/iscc-py/` (core has no PyO3 dep).
+    `uv run maturin develop` → `uv run pytest`). 0.26 confirmed source changes can be required, so
+    watch `-D warnings` for new deprecations. RustSec advisories clear only at 0.29 — keep going
+    one minor per step, scoped to `crates/iscc-py/` (core has no PyO3 dep).
 2. **Harden the CRAP gate with `--fail-above 30`** (review-sourced) so new uncovered high-complexity
     functions also fail CI. Confirm `cargo-crap 0.2.2` accepts `--fail-above` and
     `--fail-regression` together; HUMAN REVIEW REQUESTED before amending the spec.
