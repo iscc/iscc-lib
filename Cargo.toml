@@ -32,7 +32,7 @@ thiserror = "2"
 unicode-normalization = "0.1"
 unicode-general-category = "1"
 xxhash-rust = { version = "0.8", features = ["xxh32"] }
-pyo3 = { version = "0.26", features = ["abi3-py310"] }
+pyo3 = { version = "0.27", features = ["abi3-py310"] }
 napi = { version = "3", default-features = false, features = ["napi6"] }
 napi-derive = "3"
 napi-build = "2"

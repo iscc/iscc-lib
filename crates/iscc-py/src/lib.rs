@@ -13,7 +13,7 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 
 /// Convert a Python sequence to a PyList, passing lists through unchanged.
 fn to_pylist<'py>(py: Python<'py>, obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyList>> {
-    if let Ok(list) = obj.downcast::<PyList>() {
+    if let Ok(list) = obj.cast::<PyList>() {
         return Ok(list.clone());
     }
     unsafe {
@@ -21,7 +21,7 @@ fn to_pylist<'py>(py: Python<'py>, obj: &Bound<'py, PyAny>) -> PyResult<Bound<'p
         if ptr.is_null() {
             return Err(pyo3::PyErr::fetch(py));
         }
-        Ok(Bound::from_owned_ptr(py, ptr).downcast_into_unchecked())
+        Ok(Bound::from_owned_ptr(py, ptr).cast_into_unchecked())
     }
 }
 

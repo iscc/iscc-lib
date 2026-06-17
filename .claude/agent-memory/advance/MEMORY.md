@@ -75,16 +75,18 @@ iterations.
 - PyO3 pin = single source: root `Cargo.toml` `[workspace.dependencies]` line 35
     `pyo3 = { version, features = ["abi3-py310"] }`. ONLY `crates/iscc-py` consumes it
     (`features = ["extension-module"]`); blast radius = `crates/iscc-py/src/lib.rs` only. Migration
-    in progress 0.23→0.29 (RustSec advisories clear at 0.29), incremental one-minor-per-step.
-    0.23→0.24 (iter 98) + 0.24→0.25 (iter 99) needed ZERO src changes; 0.26 (iter 101) DID — two
-    deprecations under `-D warnings`: (1) `Python::allow_threads` → `Python::detach` (rename, same
-    GIL-release semantics; 7 sites), (2) `pyo3::PyObject` type alias → `Py<PyAny>` (17
-    `PyResult<PyObject>` return sites; `Py`+`PyAny` already in `prelude::*`; `Ok(dict.into())`
-    bodies unchanged). Raw `pyo3::ffi::*`+`Bound::from_owned_ptr`+`.into_pyobject(py)?.into()` still
-    clean through 0.26. After bump: `cargo update -p pyo3` (regens 5 pyo3 crates in Cargo.lock) →
-    build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests, 1
-    pre-existing unrelated iscc_core Pydantic-V1/py3.14 warning). NEXT HOP: 0.26→0.27 (expect
-    possible further deprecations now that the zero-change streak ended)
+    in progress 0.23→0.29 (RustSec advisories clear ONLY at 0.29), incremental one-minor-per-step.
+    Hops 0.23→0.25 needed ZERO src changes; then deprecation-rename edits under `-D warnings`: 0.26
+    (iter 101) `Python::allow_threads`→`Python::detach` (7 sites) + `pyo3::PyObject`
+    alias→`Py<PyAny>` (17 `PyResult<PyObject>` sites; `Ok(dict.into())` bodies unchanged); 0.27
+    (iter 102, →0.27.2) in `to_pylist`: `Bound::downcast`→`Bound::cast` +
+    `downcast_into_unchecked`→`cast_into_unchecked` (same sigs; err `DowncastError`→`CastError` but
+    discarded by `if let Ok`). Raw
+    `pyo3::ffi::*`+`Bound::from_owned_ptr`+`.into_pyobject(py)?.into()`+`#[pyo3(signature=...)]`
+    still clean through 0.27. Recipe per hop: bump pin → `cargo update -p pyo3` (regens 5 pyo3
+    crates) → build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286
+    tests, 1 pre-existing unrelated iscc_core Pydantic-V1/py3.14 warning). NEXT HOP: 0.27→0.28
+    (treat `-D warnings` as the gate)
 - Release workflow (`release.yml`): 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems,
     nuget, maven-kotlin, swift). Pattern: input → build → **smoke test** → publish. NuGet uses
     `NUGET_API_KEY` (not OIDC); Ruby uses OIDC. npm `@iscc/lib` bundled single-package + release-job
@@ -120,18 +122,15 @@ iterations.
 - 5 constants exported across bindings: META_TRIM_NAME/DESCRIPTION/META, IO_READ_SIZE,
     TEXT_NGRAM_SIZE (per-binding export patterns → MEMORY-archive.md)
 
-## Documentation
-
-- Tabbed syntax: `=== "Language"` 4-space indent, blank line before code block. Landing page tab
-    order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
-
 ## Documentation Files
 
+- Tabbed syntax: `=== "Language"` 4-space indent, blank line before code block. Landing-page tab
+    order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
 - Howto guides `docs/howto/{lang}.md`, API refs
     `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`, per-package READMEs + CLAUDE.md under
     `packages/{dotnet,cpp,swift,kotlin}/`. zensical.toml nav howto order: Rust, Python, Ruby,
-    Node.js, WASM, Go, Java, C#/.NET, C/C++, Swift, Kotlin (NOTE: landing-page tab order differs —
-    starts Python, Rust per the Documentation section above)
+    Node.js, WASM, Go, Java, C#/.NET, C/C++, Swift, Kotlin (differs from landing-page tab order
+    above, which starts Python, Rust)
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` (via `ORDERED_PAGES` +
     `discover_pages()`, excludes `docs/includes/`). Run after `zensical build` in docs CI
 
