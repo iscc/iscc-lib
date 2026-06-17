@@ -406,7 +406,8 @@ workflow triggers on push to `main`.
 - [x] Version job runs scripts/version_sync.py --check for manifest consistency
 - [x] Bench job runs cargo bench --no-run for compile-only benchmark verification
 - [x] CI does not use `mise` — calls tools directly
-- [ ] CRAP job generates an LCOV report for `iscc-lib` via `cargo llvm-cov` (Phase 1)
+- [x] Coverage job generates and uploads an LCOV report for `iscc-lib` via `cargo llvm-cov` (Phase
+    1\)
 - [ ] CRAP job runs `cargo crap` in report-only mode with `--format github` annotations and uploads
     SARIF to GitHub Code Scanning (Phase 2)
 - [ ] CRAP job fails on CRAP-score regression vs a baseline (`--fail-regression --baseline`), with

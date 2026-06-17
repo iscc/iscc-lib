@@ -290,3 +290,23 @@ jobs:
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:
           package: iscc-lib
+  coverage:
+    name: Coverage (cargo llvm-cov)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Generate LCOV coverage report
+        run: cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov
+          path: lcov.info

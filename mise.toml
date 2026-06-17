@@ -104,3 +104,9 @@ run = "uv run scripts/version_sync.py --check"
 [tasks.semver]
 description = "Check iscc-lib public API for SemVer violations vs the last published release"
 run = "cargo semver-checks check-release -p iscc-lib"
+
+# --- Coverage ---
+
+[tasks.coverage]
+description = "Generate an LCOV coverage report for iscc-lib (cargo llvm-cov)"
+run = "cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info"

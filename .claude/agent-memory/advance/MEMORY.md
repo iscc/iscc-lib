@@ -31,9 +31,15 @@ iterations.
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
 - CI workflow at `.github/workflows/ci.yml` has 17 jobs: version-check, rust, python-test, python,
-    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, semver. `bench` runs
-    `cargo bench --no-run` (compile-only). `swift` runs on `macos-14` (Apple Silicon). `kotlin` runs
-    on `ubuntu-latest` with JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
+    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, semver, coverage.
+    `bench` runs `cargo bench --no-run` (compile-only). `swift` runs on `macos-14` (Apple Silicon).
+    `kotlin` runs on `ubuntu-latest` with JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
+- `coverage` CI job (iter 94, ci-cd.md Phase 1): standalone, no `needs:`, NO `continue-on-error`.
+    `dtolnay/rust-toolchain@stable` w/ `components: llvm-tools-preview` →
+    `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) →
+    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → `actions/upload-artifact@v4`
+    (`name: lcov`). Local: `mise run coverage` (same command). `lcov.info` is gitignored. Phase 2
+    (`cargo crap` report-only) + Phase 3 (`--fail-regression` gate) NOT yet done
 - `semver` CI job (iter 93): `obi1kenobi/cargo-semver-checks-action@v2` with `package: iscc-lib`,
     baseline = last crates.io release (auto-detected). `continue-on-error: true` — INFORMATIONAL
     pre-1.0 (post-0.4.0 `pub(crate)` narrowing of cdc/conformance/minhash/simhash/utils reports as
