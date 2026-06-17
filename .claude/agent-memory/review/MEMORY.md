@@ -185,8 +185,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     is root `Cargo.toml` `[workspace.dependencies]`, used by `iscc-py` alone. Python-only review +
     `cargo tree -p iscc-py -i pyo3` for resolved version. 0.23→0.24 AND 0.24→0.25 zero-source;
     0.25→0.26 FIRST hop needing edits: `allow_threads`→`detach` (7 sites) + `PyObject` alias →
-    `Py<PyAny>` returns (17 sites), both mechanical. `uv run maturin develop` then `uv run pytest`
-    (286). Watch `-D warnings` each hop
+    `Py<PyAny>` returns (17 sites); 0.26→0.27 SECOND hop: `to_pylist` cast rename
+    `downcast`/`downcast_into_unchecked` → `cast`/`cast_into_unchecked` (mechanical, error type
+    discarded). Verify deprecated APIs gone: grep `allow_threads`/`downcast`/`PyResult<PyObject>` =
+    0\. `uv run maturin develop` then `uv run pytest` (286). Watch `-D warnings` each hop
 
 ## Ruby Binding Review
 

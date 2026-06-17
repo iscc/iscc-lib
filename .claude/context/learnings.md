@@ -31,14 +31,16 @@ fully-met target sections to `learnings-archive.md`.
 - **PyO3 minor bumps** (incremental migration 0.23→0.29, one minor per CID step): `pyo3` lives only
     in root `Cargo.toml` `[workspace.dependencies]` (used by `iscc-py` alone). 0.23→0.24 AND
     0.24→0.25 needed ZERO source changes; **0.25→0.26 was the FIRST hop requiring source edits** —
-    two deprecations: `Python::allow_threads` → `Python::detach` (pure rename, same GIL-release
-    semantics; 7 call sites) and the `pyo3::PyObject` type alias → `Py<PyAny>` return type (17
-    sites; `Ok(dict.into())` bodies infer `Py<PyAny>` unchanged). raw `pyo3::ffi::*` +
-    `Bound::from_owned_ptr` STILL stable through 0.26. Per hop: bump pin → `cargo update -p pyo3` →
+    `Python::allow_threads` → `Python::detach` (pure rename, same GIL-release semantics; 7 sites) +
+    `pyo3::PyObject` alias → `Py<PyAny>` return type (17 sites). **0.26→0.27 was the SECOND hop with
+    edits** — the cast-family rename in `to_pylist`: `Bound::downcast` → `Bound::cast` and
+    `downcast_into_unchecked` → `cast_into_unchecked` (identical signatures/semantics; error type
+    `DowncastError` → `CastError` but discarded by `if let Ok`). raw `pyo3::ffi::*` +
+    `Bound::from_owned_ptr` STILL stable through 0.27. Per hop: bump pin → `cargo update -p pyo3` →
     build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests). The
-    predicted `IntoPyObject`/lifetime breaks have NOT materialized through 0.26 — but the 0.26
-    deprecation churn means later hops may also touch source; treat `-D warnings` as the gate.
-    RustSec advisories only clear at 0.29
+    predicted `IntoPyObject`/lifetime breaks have NOT materialized through 0.27 — two consecutive
+    hops were small deprecation renames; treat `-D warnings` as the gate. RustSec advisories only
+    clear at 0.29 (now 2 hops away)
 
 ## ISCC Algorithm Knowledge
 
