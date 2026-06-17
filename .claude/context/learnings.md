@@ -164,13 +164,13 @@ fully-met target sections to `learnings-archive.md`.
     constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
 - When adding FFI constants, update the algorithm constant count in the module docstring
     (`crates/iscc-ffi/src/lib.rs` line 5)
-- **PyO3 GIL release (`py.allow_threads`)**: inject `py: Python<'_>` into a `#[pymethods]`
-    `update()` — PyO3 auto-supplies it, so it's invisible to Python and `_lowlevel.pyi` stays
-    unchanged (`ty   check` confirms). Take the `&mut inner` borrow + finalized check BEFORE
-    releasing; release only around the pure compute (keep `PyDict` build outside).
-    `&[u8]`/`&mut *Hasher` are `Ungil + Send`, no copy needed. Sound because `__init__.py` coerces
-    inputs to immutable `bytes` and `_lowlevel` is private (no public path hands a mutable buffer to
-    the released borrow)
+- **napi bundled single-package model (no `optionalDependencies`)**: `napi prepublish -t npm` is the
+    *only* thing that injects per-platform `optionalDependencies` (`@iscc/lib-<triple>`) into
+    `package.json` at publish time — never published, so they 404 on install and break `npm ci`. The
+    bundled model ships all 5 `.node` in one tarball via `files: ["*.node"]`; the generated
+    `index.js` loader `require`s the local `./iscc-lib.<triple>.node` first. Do NOT run prepublish.
+    Revisit per-platform model only if tarball > ~30 MB (spec: `nodejs-bindings.md`). PyO3
+    GIL-release detail archived (#39 closed)
 
 ## Swift Package
 
@@ -187,13 +187,6 @@ fully-met target sections to `learnings-archive.md`.
     should scan all issues.md entries against state.md "met" sections after reviewing advance work
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
-
-## Kotlin JAR Artifact Selection
-
-- Gradle `withSourcesJar()` + `withJavadocJar()` produces 3 JARs in `build/libs/`. When uploading
-    `*.jar` globs and then selecting with `ls | head -1`, alphabetical ordering picks `-javadoc.jar`
-    before the runtime JAR. Always filter out classifier JARs (`-sources`, `-javadoc`) when
-    selecting the runtime artifact
 
 ## Devcontainer Scripts (exec bit / Windows bind mount)
 

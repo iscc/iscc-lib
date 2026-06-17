@@ -416,3 +416,19 @@ reference-only for humans.
     `.devcontainer/foo.sh` — `bash <file>` needs only read permission, so it is immune to the
     dropped exec bit. Make convenience steps (e.g. codex auth seeding) non-fatal
     (`{ bash ... || echo skipped; }`) so they can never abort the critical setup chain.
+
+## PyO3 GIL release (`py.allow_threads`) — archived from learnings.md (#39 closed iter 91)
+
+- Inject `py: Python<'_>` into a `#[pymethods]` `update()` — PyO3 auto-supplies it, so it's
+    invisible to Python and `_lowlevel.pyi` stays unchanged (`ty check` confirms). Take the
+    `&mut inner` borrow + finalized check BEFORE releasing; release only around the pure compute
+    (keep `PyDict` build outside). `&[u8]`/`&mut *Hasher` are `Ungil + Send`, no copy needed. Sound
+    because `__init__.py` coerces inputs to immutable `bytes` and `_lowlevel` is private (no public
+    path hands a mutable buffer to the released borrow).
+
+## Kotlin JAR Artifact Selection — archived from learnings.md (Kotlin bindings fully met)
+
+- Gradle `withSourcesJar()` + `withJavadocJar()` produces 3 JARs in `build/libs/`. When uploading
+    `*.jar` globs and then selecting with `ls | head -1`, alphabetical ordering picks `-javadoc.jar`
+    before the runtime JAR. Always filter out classifier JARs (`-sources`, `-javadoc`) when
+    selecting the runtime artifact.

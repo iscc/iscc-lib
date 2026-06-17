@@ -29,32 +29,6 @@ Constraints / verification:
 - Update `Cargo.lock`; re-run the supply-chain check (`cargo deny check` / `cargo audit`, per
     `notes/07-security-versioning.md`) to confirm the advisories clear.
 
-## Remove dangling npm `optionalDependencies` from `@iscc/lib` `normal` [human]
-
-GitHub: https://github.com/iscc/iscc-lib/issues/38 (reported by an external consumer)
-
-Published `@iscc/lib@0.4.0` declares five per-platform `optionalDependencies` (`@iscc/lib-<triple>`)
-that were **never published to npm** — they 404 on install, leave `{ "optional": true }`
-placeholders in consumer lockfiles, and (on recent npm) cause `npm ci` failures (`EUSAGE` /
-`Missing: @iscc/lib-darwin-arm64 from lock file`) for any downstream project. Root cause: the source
-`crates/iscc-napi/package.json` bundles all binaries via `files: ["*.node"]`, but the release
-workflow runs `npx napi prepublish -t npm` (`.github/workflows/release.yml:378`), which **injects**
-those `optionalDependencies` while the workflow only ever publishes the main package — never the
-sibling packages. The published artifact is thus a broken hybrid of two distribution models.
-
-Fix (decision recorded: keep the single bundled-package model — each stripped addon is ~1.1 MB, so
-bundling all five costs little and removes the whole `optionalDependencies` fragility class):
-
-- Stop injecting `optionalDependencies`: drop the `napi prepublish -t npm` step (or strip the
-    injected block from `package.json` before `npm publish`). Keep `files: ["*.node"]` and the
-    runtime `index.js` platform loader.
-- Publish only the single `@iscc/lib` package; do not publish per-platform siblings.
-- Verify `npm ci` succeeds in a consumer project and the published tarball ships all five `.node`
-    binaries with no `optionalDependencies` in its `package.json`.
-
-**Spec:** `.claude/context/specs/nodejs-bindings.md` → "Native Binary Distribution" (rewritten to
-the bundled-package model with a revisit trigger if the bundle grows past ~30 MB)
-
 ## Add Rust coverage + CRAP-metric quality gate `normal` [human]
 
 Stand up Rust test-coverage measurement (`cargo llvm-cov` → LCOV) for the core `iscc-lib` crate and
