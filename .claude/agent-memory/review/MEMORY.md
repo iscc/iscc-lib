@@ -41,12 +41,15 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `git checkout -- .claude/context/next.md   .claude/agent-memory/define-next/MEMORY.md` (and
     never stage `iterations.jsonl` — runner-owned). Real `git commit` only runs hooks on staged
     files, so the actual review commit is unaffected
-- **Concurrent CID loops (iter 97)**: spurious `mise run check` "files were modified by this hook"
-    on a file the advance never touched (e.g. `standardrb-fix` flagging when NO `.rb` is dirty) + a
-    working-tree `state.md`/context change appearing mid-review = a SECOND CID loop racing the
-    branch. Confirm with `ps aux | grep -E 'cid:run|claude -p CID iteration'` (two
-    `mise run cid:run` trees / two different `iteration N` agents). Two loops clobber context + race
-    pushes. Flag HUMAN REVIEW REQUESTED, do NOT push, do NOT kill processes yourself
+- **Concurrent CID loops (iter 97, resolved iter 98)**: spurious `mise run check` "files were
+    modified by this hook" on a file the advance never touched (e.g. `standardrb-fix` flagging when
+    NO `.rb` is dirty) + a working-tree `state.md`/context change appearing mid-review = a SECOND
+    CID loop racing the branch. Confirm with `ps aux | grep -E 'cid:run|claude -p CID iteration'`
+    (two `mise run cid:run` trees / two different `iteration N` agents). Flag HUMAN REVIEW
+    REQUESTED, do NOT push, do NOT kill processes yourself. RESOLUTION: a later review re-checks
+    `ps aux` — once a SINGLE `mise run cid:run` remains, the duplicate is gone and the unpushed
+    backlog pushes as a fast-forward (`git rev-list --left-right --count origin/<b>...HEAD` =
+    `0 N`); scan ALL `@{upstream}..HEAD` commits for gate circumvention before that batch push
 
 ## Review Shortcuts
 
@@ -61,7 +64,6 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - **Kotlin-only**: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
     workspace + `mise run check`
 - **Config-only**: `mise run check` + `cargo check -p <crate>`
-- **Script-only (Python)**: `mise run check` + `uv run scripts/<script>.py --check` (if applicable)
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **CI-only YAML**: `mise run check`
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
@@ -113,8 +115,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     for NEW high-CRAP funcs — filed [review] issue to add `--fail-above 30`
 - **iscc-rb workspace exclusion**: `--exclude iscc-rb` in CI `rust` job is permanent — Rust job
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
-- .NET + Swift bindings fully complete (32/32 Tier 1, CI, version sync, docs, release). JNA Android
-    ARM32 resource-path fix (`android-arm/` not `android-armv7/`) archived to `MEMORY-archive.md`
+- .NET + Swift bindings fully complete (32/32 Tier 1, CI, version sync, docs, release)
 
 ## Binding Propagation Shortcuts
 
@@ -132,13 +133,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## UniFFI Review
 
-- `crates/iscc-uniffi/` — shared scaffolding for Swift+Kotlin. `uniffi = "0.31"` (workspace dep)
-- Proc macros only — no UDL, no build.rs, no uniffi.toml (until binding gen customization needed)
-- 32 `#[uniffi::export]` annotations: 30 free functions + 2 impl blocks (DataHasher, InstanceHasher)
+- `crates/iscc-uniffi/` — shared scaffolding for Swift+Kotlin. `uniffi = "0.31"`, proc macros only
+    (no UDL/build.rs/uniffi.toml). 32 `#[uniffi::export]` (30 free fns + 2 impl blocks).
+    `publish =   false`. `bindgen` feature: `uniffi/cli` → `uniffi-bindgen` binary
 - Review shortcut: `cargo test -p iscc-uniffi` + `cargo clippy -p iscc-uniffi -- -D warnings` +
     `cargo clippy --workspace --all-targets -- -D warnings` + `mise run check`
-- `publish = false` — not published to crates.io
-- `bindgen` feature: `uniffi/cli` → `uniffi-bindgen` binary
 
 ## Swift Package Review
 
@@ -159,13 +158,8 @@ active:
     uniffi-bindgen. `@file:Suppress("NAME_SHADOWING")` is UniFFI boilerplate, not gate circumvention
 - Review shortcut: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
     workspace + `mise run check`
-- Gradle wrapper (gradle-wrapper.jar ~44KB) committed per convention — under 256KB threshold
-- `build/` covered by root `.gitignore`; `.gradle/` in local `.gitignore`
 - JNA native lib loading: `java.library.path` alone NOT sufficient for JNA `Native.register()`. Must
     also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
-- data.json is 5th vendored copy (Rust, Go, .NET, Swift, Kotlin) — established pattern
-- Conformance tests: 9 methods, 50 vectors, JUnit 5 + Gson. `HexFormat` requires Java 17+
-- `mavenLocal()` in build.gradle.kts — devcontainer workaround. CI resolves from `mavenCentral()`
 - Codex confused by large generated Kotlin diffs (same as Swift) — findings advisory
 - Kotlin bindings fully complete: CI job, gradlew perms, version sync, docs/README, release workflow
 - Kotlin Maven Central: `useInMemoryPgpKeys` (not `useGpgCmd`), staging to `build/staging-deploy/`,
@@ -178,8 +172,8 @@ active:
 - Review shortcut: `cargo build -p iscc-ffi` + CMake configure/build/test + ASAN rebuild + clippy +
     `mise run check`
 - CI `cpp` job: cmake + ASAN + test on ubuntu-latest
-- `iscc.hpp` bundled in FFI release tarballs — flat layout alongside `iscc.h`
-- C++ package managers: vcpkg.json + portfile.cmake + conanfile.py in `packages/cpp/`
+- `iscc.hpp` bundled in FFI release tarballs (flat, alongside `iscc.h`); pkg mgrs vcpkg/conan in
+    `packages/cpp/`
 - **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`
 
 ## Environment
@@ -190,6 +184,10 @@ active:
     pushing (same maturin command above), else push fails
 - PyO3 GIL-release review pattern (#39 closed, iter 91): full technique archived in
     `learnings-archive.md`. Verify via `allow_threads` grep count + `ty check` (`.pyi` unchanged)
+- **PyO3 minor migration** (0.23→0.29, one minor per CID step; advisories clear only at 0.29): pin
+    is root `Cargo.toml` `[workspace.dependencies]`, used by `iscc-py` alone. Python-only review +
+    `cargo tree -p iscc-py -i pyo3` for resolved version. 0.23→0.24 was zero-source; expect real
+    source work at 0.25+. Build `uv run maturin develop` then `uv run pytest` (286 tests)
 
 ## Ruby Binding Review
 
@@ -198,5 +196,4 @@ active:
 - `rb-sys` needs Ruby headers + `libclang-dev` — why `--exclude iscc-rb` in CI
 - Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate
 - Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot
-    finalize
-- Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`. Config: `.standard.yml`
+    finalize. Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`, config `.standard.yml`

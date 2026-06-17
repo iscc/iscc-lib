@@ -466,3 +466,17 @@ reference-only for humans.
 - NAPI `index.js` and `index.d.ts` are gitignored (`crates/iscc-napi/.gitignore`) and auto-generated
     by `napi build`. CI runs `napi build` before `npm test`. Do NOT manually edit or commit these
     files — they regenerate with new constants automatically
+
+## Documentation Maintenance (archived iter 98 — completed doc one-offs)
+
+- After major architecture changes (e.g., WASM→pure Go), CI workflows, READMEs, and howto guides go
+    stale simultaneously — group the cleanup into a single step targeting all affected files
+- Java requires JDK 17+ (pom.xml `maven.compiler.source/target` = 17), not 11+. Always cross-check
+    version claims in docs against actual build config files
+- WASM tab snippets need `await init()` before any WASM call in standalone examples (omit only in
+    sequential examples where init was already shown)
+- **cbindgen `iscc_` prefix on types**: `cbindgen.toml` has `[export] prefix = "iscc_"` but
+    `[fn] prefix = ""`. All type names in C code examples must use `iscc_`-prefixed forms
+    (`iscc_FfiDataHasher`, `iscc_IsccSumCodeResult`, etc.) while function names are un-prefixed
+    (`iscc_data_hasher_new`). The `c-ffi-api.md` reference page uses short names for exposition but
+    howto code examples must be compilable

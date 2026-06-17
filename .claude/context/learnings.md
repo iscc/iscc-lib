@@ -28,6 +28,12 @@ fully-met target sections to `learnings-archive.md`.
 - Never use `mise` in CI — call tools directly
 - `cargo clippy -- -D warnings` runs in pre-push stage (not pre-commit)
 - Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
+- **PyO3 minor bumps** (incremental migration 0.23→0.29, one minor per CID step): `pyo3` lives only
+    in root `Cargo.toml` `[workspace.dependencies]` (used by `iscc-py` alone). 0.23→0.24 needed ZERO
+    source changes — `dict.into()`, raw `pyo3::ffi::*` + `Bound::from_owned_ptr` stable on 0.24. Per
+    hop: bump pin → `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt →
+    `uv run maturin develop` → `uv run pytest` (286 tests). Expect real source work at 0.25+
+    (tighter `IntoPyObject`/lifetimes); RustSec advisories only clear at 0.29
 
 ## ISCC Algorithm Knowledge
 
@@ -150,27 +156,15 @@ fully-met target sections to `learnings-archive.md`.
     against data.json should say "9"; general library descriptions should say "10". Avoid blanket
     "9→10" find-and-replace — it corrupts conformance-scoped files. iscc-core-ts also implements
     only 9 (no gen_sum_code_v0) — verify external projects' function tables before claiming "all 10"
-- After major architecture changes (e.g., WASM→pure Go), CI workflows, READMEs, and howto guides go
-    stale simultaneously — group the cleanup into a single step targeting all affected files
-- Java requires JDK 17+ (pom.xml `maven.compiler.source/target` = 17), not 11+. Always cross-check
-    version claims in docs against actual build config files
-- WASM tab snippets need `await init()` before any WASM call in standalone examples (omit only in
-    sequential examples where init was already shown)
-- **cbindgen `iscc_` prefix on types**: `cbindgen.toml` has `[export] prefix = "iscc_"` but
-    `[fn] prefix = ""`. All type names in C code examples must use `iscc_`-prefixed forms
-    (`iscc_FfiDataHasher`, `iscc_IsccSumCodeResult`, etc.) while function names are un-prefixed
-    (`iscc_data_hasher_new`). The `c-ffi-api.md` reference page uses short names for exposition but
-    howto code examples must be compilable
+- Completed doc one-offs (WASM→pure Go cleanup, JDK 17+ in pom.xml, WASM `await init()`, cbindgen
+    `iscc_` type prefix) archived to `learnings-archive.md` (iter 98)
 
 ## State Verification
 
-- **Never trust state.md claims about external state.** Registry publications, CI status, and
-    infrastructure setup are frequently stale in state.md. Always verify against the actual source
-    (registry APIs, CI dashboards) before reporting to the human
-- **Verify every claim independently.** Don't batch-assume. Check each registry individually:
-    `cargo search`, `npm view`, Maven Central search API, `pip index versions`, Go module proxy. A
-    claim that "X is not published" may be outdated; a claim that "everything works" may miss one
-    that genuinely doesn't
+- **Never trust state.md claims about external state** (registry publications, CI status, infra) —
+    frequently stale. Verify each independently against the source (`cargo search`, `npm view`,
+    Maven Central API, `pip index versions`, Go module proxy); don't batch-assume "all works"/"not
+    published"
 
 ## Binding Propagation
 
@@ -179,9 +173,6 @@ fully-met target sections to `learnings-archive.md`.
 
 ## CID Process
 
-- **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current
-    iteration's advance step — it does NOT sweep the full issues.md backlog. Fix: review agent
-    should scan all issues.md entries against state.md "met" sections after reviewing advance work
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
 - **Detect concurrent CID loops** (iter 97): if `state.md`/context files change in the working tree
