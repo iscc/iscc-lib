@@ -30,10 +30,16 @@ iterations.
 
 - `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
 - Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
-- CI workflow at `.github/workflows/ci.yml` has 16 jobs: version-check, rust, python-test, python,
-    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench. `bench` runs
+- CI workflow at `.github/workflows/ci.yml` has 17 jobs: version-check, rust, python-test, python,
+    nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, semver. `bench` runs
     `cargo bench --no-run` (compile-only). `swift` runs on `macos-14` (Apple Silicon). `kotlin` runs
     on `ubuntu-latest` with JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
+- `semver` CI job (iter 93): `obi1kenobi/cargo-semver-checks-action@v2` with `package: iscc-lib`,
+    baseline = last crates.io release (auto-detected). `continue-on-error: true` — INFORMATIONAL
+    pre-1.0 (post-0.4.0 `pub(crate)` narrowing of cdc/conformance/minhash/simhash/utils reports as
+    breaking; expected). Drop `continue-on-error` at v1.0.0 to enforce. Local: `mise run semver`
+    (`cargo semver-checks check-release -p iscc-lib`). mdformat reformats out-of-scope context files
+    (next.md, define-next memory) → `mise run check` red on those, NOT on edited files
 - Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
     param (not step-level), bundler-cache auto-installs gems
 - `rust` CI job includes feature matrix testing: clippy + test for `--no-default-features`,
@@ -61,31 +67,24 @@ iterations.
 - Kotlin Maven Central: `build-kotlin-native` (9-platform matrix) → `assemble-kotlin` +
     `test-kotlin-release` (validates JAR has all 9 JNA paths) → `publish-maven-kotlin` (Gradle
     `maven-publish` + curl bundle upload to Sonatype Central Portal REST API)
-- wasm-pack `--features` must go AFTER the path, NOT after `--`. Test-target filter
-    (`-- --test unit`) does NOT work — runner rejects `--test`, only a positional FILTER. Run full
-    suite
+- wasm-pack `--features` goes AFTER the path, NOT after `--`. Test-target filter (`-- --test unit`)
+    fails — runner only accepts a positional FILTER; run full suite
 
-## gen_sum_code_v0
+## gen_sum_code_v0 — see MEMORY-archive.md for full details
 
-- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` in `lib.rs`. Now a thin
-    file-I/O wrapper: reads `IO_READ_SIZE` chunks into one `streaming::SumHasher`, then
-    `hasher.finalize(bits, wide, add_units)`. Composition logic lives solely in `SumHasher`
-- `iscc_decode` returns tuple `(u8,u8,u8,u8,Vec<u8>)` — destructure; `MainType` is `pub(crate)`
-- All 32 Tier 1 symbols implemented. All 7 bindings implement `gen_sum_code_v0`
+- All 32 Tier 1 symbols implemented; all 7 bindings implement `gen_sum_code_v0`. `gen_sum_code_v0`
+    is a thin file-I/O wrapper over `streaming::SumHasher`. `iscc_decode` returns
+    `(u8,u8,u8,u8,Vec<u8>)`; `MainType` is `pub(crate)`
 
 ## Streaming
 
 - `DataHasher`: persistent `buf: Vec<u8>` reused across `update()`. CDC → BLAKE3 chunk hash →
     MinHash. Tail: `copy_within` + `truncate`. ~1.1 GiB/s at 64 KiB. `InstanceHasher`: wraps BLAKE3
     → ISCC multihash (64-byte digest truncated)
-- `SumHasher` (issue #37): inner `DataHasher` + `InstanceHasher`, `update` feeds same slice to both;
-    `finalize(bits, wide, add_units)` composes via `gen_iscc_code_v0`. Reach via full path
-    `iscc_lib::streaming::SumHasher` (NOT crate-root Tier 1). Bindings: Python `PySumHasher`, WASM
-    `SumHasher` (reuses `WasmSumCodeResult`, `filesize u64→f64`), both `Option<inner>` finalize-once
-- Python GIL release (issue #39, iter 91): 3 streaming `update()` + 4 one-shot byte funcs
-    (`gen_image/data/instance/sum_code_v0`) wrap compute in `py.allow_threads(|| ...)`. `update`
-    gains injected `py: Python<'_>` (no `.pyi` change); borrow `&mut inner` BEFORE release. Borrowed
-    slice and core hashers are `Ungil+Send` (no copy); `finalize` stays GIL-held
+- `SumHasher` (issue #37): inner `DataHasher` + `InstanceHasher`, `update` feeds both;
+    `finalize(bits, wide, add_units)` composes via `gen_iscc_code_v0`. Full path
+    `iscc_lib::streaming::SumHasher` (NOT crate-root). Bindings: Python `PySumHasher`, WASM
+    `SumHasher` (`Option<inner>` finalize-once). Python GIL release (#39, archived)
 
 ## API Design
 
@@ -99,14 +98,13 @@ iterations.
 
 ## Documentation
 
-- Tabbed syntax: `=== "Language"` with 4-space indent, blank line before code block
-- Landing page tab order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
+- Tabbed syntax: `=== "Language"` 4-space indent, blank line before code block. Landing page tab
+    order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
 - `docs/architecture.md` and `docs/development.md` share identical trees — keep in sync
 
 ## Binding Constant Export Patterns — see MEMORY-archive.md for per-binding details
 
-- 5 constants exported: META_TRIM_NAME, META_TRIM_DESCRIPTION, META_TRIM_META, IO_READ_SIZE,
-    TEXT_NGRAM_SIZE
+- 5 constants exported: META_TRIM_NAME/DESCRIPTION/META, IO_READ_SIZE, TEXT_NGRAM_SIZE
 
 ## Documentation Files
 
@@ -158,8 +156,7 @@ iterations.
     `#[derive(uniffi::Object)]`, `#[uniffi::constructor]`. No UDL files, no build.rs
 - `crate-type = ["cdylib", "staticlib", "lib"]` — cdylib for dynamic, staticlib for XCFramework
 - Error: `#[derive(uniffi::Error)] enum IsccUniError` with `From<iscc_lib::IsccError>` impl
-- Streaming: `Mutex<Option<Inner>>` pattern (same as Ruby's `RefCell<Option<Inner>>` but
-    thread-safe)
+- Streaming: `Mutex<Option<Inner>>` (like Ruby's `RefCell<Option<Inner>>` but thread-safe)
 - UniFFI doesn't support: `const` exports (use getter fns), `usize` (use u64), borrowed refs (owned)
 - Result records need `Debug` derive for test `unwrap_err()`. Hashers need `Default` impl (clippy)
 - 21 unit tests in-crate. Conformance testing happens in Swift/Kotlin test suites
@@ -167,8 +164,8 @@ iterations.
     `[[bin]] required-features = ["bindgen"]`
 - Generate Swift:
     `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate   --library target/debug/libiscc_uniffi.so --language swift --out-dir <dir>`
-- Generated files: `iscc_uniffi.swift` (~72KB), `iscc_uniffiFFI.h` (~38KB),
-    `iscc_uniffiFFI.modulemap` (rename to `module.modulemap` for SPM)
+- Generated: `iscc_uniffi.swift`, `iscc_uniffiFFI.h`, `iscc_uniffiFFI.modulemap` →
+    `module.modulemap` (SPM)
 
 ## Swift Package
 
@@ -178,8 +175,7 @@ iterations.
 - `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` → `xcodebuild -create-xcframework` →
     `ditto` zip → `compute-checksum`. Output `target/ios/IsccLib.xcframework.zip`
     (`--release`/`--debug`)
-- Version constant: `packages/swift/Sources/IsccLib/Constants.swift` (`isccLibVersion`,
-    version_sync.py)
+- Version constant: `packages/swift/Sources/IsccLib/Constants.swift` (`isccLibVersion`)
 - CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
     `-Xlinker -L`/`-rpath` → `target/debug`
 
@@ -197,10 +193,8 @@ iterations.
     Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
 - Conformance tests: `ConformanceTest.kt` — 9 methods, 50 vectors. JUnit 5.11.4 + Gson 2.11.0
     (`com.google.code.gson` groupId, NOT `com.google.gson`)
-- Maven Central publishing: `build.gradle.kts` has `maven-publish` + `signing` plugins, POM
-    `io.iscc:iscc-lib-kotlin`, staging repo `build/staging-deploy/`, Central Portal bundle upload
-    via curl (`.../api/v1/publisher/upload?publishingType=AUTOMATIC`)
-- JNA resource paths for bundled native libs: `linux-x86-64`, `linux-aarch64`, `darwin-aarch64`,
-    `darwin-x86-64`, `win32-x86-64`, `android-aarch64`, `android-arm`, `android-x86-64`,
-    `android-x86`. JNA 5.16.0 canonicalizes ARM32 to `arm` (not `armv7`). JNA discovers libs from
-    classpath even when `jna.library.path` points to missing dir
+- Maven Central publishing: `build.gradle.kts` `maven-publish` + `signing`, POM
+    `io.iscc:iscc-lib-kotlin`, staging `build/staging-deploy/`, Central Portal curl bundle upload
+- JNA resource paths (9, bundled native libs): `linux-x86-64`, `linux-aarch64`, `darwin-aarch64`,
+    `darwin-x86-64`, `win32-x86-64`, `android-{aarch64,arm,x86-64,x86}`. JNA 5.16.0 canonicalizes
+    ARM32 to `arm` (see learnings.md); discovers libs from classpath

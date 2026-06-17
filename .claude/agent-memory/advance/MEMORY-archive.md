@@ -69,3 +69,15 @@ See MEMORY.md for current active entries.
 - Binary data: `RString` param + `unsafe { data.as_slice() }` — copy bytes before Ruby API calls
 - Returning arrays: `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays
 - Test files: `test/test_smoke.rb`, `test/test_iscc_lib.rb`, `test/test_conformance.rb`
+
+## gen_sum_code_v0 + Streaming GIL detail — Detailed (archived iteration 93)
+
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` in `lib.rs`: thin file-I/O
+    wrapper — reads `IO_READ_SIZE` chunks into one `streaming::SumHasher`, then
+    `hasher.finalize(bits, wide, add_units)`. Composition logic lives solely in `SumHasher`.
+- `iscc_decode` returns tuple `(u8,u8,u8,u8,Vec<u8>)` — destructure; `MainType` is `pub(crate)`.
+- All 32 Tier 1 symbols implemented; all 7 bindings implement `gen_sum_code_v0`.
+- Python GIL release (issue #39, iter 91, closed): 3 streaming `update()` + 4 one-shot byte funcs
+    (`gen_image/data/instance/sum_code_v0`) wrap compute in `py.allow_threads(|| ...)`. `update`
+    gains injected `py: Python<'_>` (no `.pyi` change); borrow `&mut inner` BEFORE release. Borrowed
+    slice and core hashers are `Ungil+Send` (no copy); `finalize` stays GIL-held.

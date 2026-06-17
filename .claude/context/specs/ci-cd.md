@@ -414,8 +414,8 @@ workflow triggers on push to `main`.
 - [ ] `cargo-crap` is pinned to a specific version and installed via `cargo binstall`
 - [ ] `.cargo-crap.toml` configures threshold, excluded binding crates, and missing-coverage policy
 - [ ] `mise run coverage` and `mise run crap` reproduce the gate locally
-- [ ] Semver job runs `cargo semver-checks` for `iscc-lib` against the last published release and
-    fails on an unsanctioned breaking API change (enforcing from v1.0.0)
+- [x] Semver job runs `cargo semver-checks` for `iscc-lib` against the last published release
+    (informational pre-1.0 via `continue-on-error`; enforcing from v1.0.0)
 - [ ] Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
     committed baseline; baseline refreshes are reviewed commits
 

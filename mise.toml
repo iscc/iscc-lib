@@ -98,3 +98,9 @@ run = "uv run scripts/version_sync.py"
 [tasks."version:check"]
 description = "Check that all manifest versions match workspace version"
 run = "uv run scripts/version_sync.py --check"
+
+# --- API stability ---
+
+[tasks.semver]
+description = "Check iscc-lib public API for SemVer violations vs the last published release"
+run = "cargo semver-checks check-release -p iscc-lib"

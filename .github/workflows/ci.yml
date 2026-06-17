@@ -277,3 +277,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Compile benchmarks
         run: cargo bench --no-run
+  semver:
+    name: Semver (cargo-semver-checks)
+    runs-on: ubuntu-latest
+    # Informational during the 0.4.0 -> 1.0.0 transition; enforcing from v1.0.0.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: iscc-lib
