@@ -103,3 +103,17 @@ See MEMORY.md for current active entries.
     `files: ["*.node"]`, NO `optionalDependencies`/sibling packages. `publish-npm-lib` must NOT run
     `napi prepublish -t npm` (injects dangling optional-deps that break `npm ci`). `index.js` loader
     requires local `./iscc-lib.<triple>.node` first
+
+## Kotlin Bindings detail (archived iter 100 — stable/complete binding)
+
+- Generated file `src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (~3217 lines,
+    `package uniffi.iscc_uniffi`). Do NOT manually edit — regenerate via uniffi-bindgen
+- Generate Kotlin:
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate --language kotlin --no-format --out-dir packages/kotlin/src/main/kotlin/ target/debug/libiscc_uniffi.so`
+- Gradle wrapper must be bootstrapped AFTER settings.gradle.kts exists (fails without it)
+- Gradle 8.12.1 via mise, Kotlin 2.1.10, JNA 5.16.0
+- `build/` covered by root `.gitignore`; `.gradle/` needs local `.gitignore`
+- JNA native lib loading: `java.library.path` alone is NOT sufficient for JNA `Native.register()`.
+    Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
+- Conformance tests: `ConformanceTest.kt` — 9 methods, 50 vectors. JUnit 5.11.4 + Gson 2.11.0
+    (`com.google.code.gson` groupId, NOT `com.google.gson`)

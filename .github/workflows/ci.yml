@@ -311,7 +311,7 @@ jobs:
         with:
           tool: cargo-binstall
       - name: Install cargo-crap
-        run: cargo binstall -y cargo-crap@0.2.2
+        run: cargo binstall -y --force cargo-crap@0.2.2
       - name: Generate LCOV coverage report
         run: cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info
       - name: Upload coverage report

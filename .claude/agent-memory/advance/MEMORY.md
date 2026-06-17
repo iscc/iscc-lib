@@ -34,7 +34,9 @@ iterations.
     \+ `cargo build -p iscc-uniffi` + `./gradlew test`
 - `coverage` CI job (named `Coverage + CRAP`): standalone, no `needs:`, NO `continue-on-error`.
     toolchain+`llvm-tools-preview` → install `cargo-llvm-cov` + `cargo-binstall`
-    (`taiki-e/install-action@v2`) → `cargo binstall -y cargo-crap@0.2.2` →
+    (`taiki-e/install-action@v2`) → `cargo binstall -y --force cargo-crap@0.2.2` (`--force`
+    LOAD-BEARING, iter 100: rust-cache restores `.crates.toml` metadata WITHOUT the cargo-crap
+    binary → plain binstall skips → `cargo crap` dies "no such command" → CI RED) →
     `cargo llvm-cov -p   iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`) →
     report-only `cargo crap --format github` + `--format sarif --output crap.sarif` →
     `upload-sarif@v3`. Job-level `permissions: {contents: read, security-events: write}` (SARIF
@@ -81,10 +83,9 @@ iterations.
     After bump: `cargo update -p   pyo3` → build/clippy(`-D warnings`)/fmt →
     `uv run maturin develop` → `uv run pytest` (286 tests). NEXT HOP: 0.25→0.26
 - Release workflow (`release.yml`): 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems,
-    nuget, maven-kotlin, swift). Pattern: input → build → **smoke test** → publish (version-exists
-    skip). NuGet uses `NUGET_API_KEY` secret (not OIDC); Ruby uses OIDC
-- npm `@iscc/lib` bundled single-package model, release-job CI internals (`build-xcframework`,
-    Kotlin Maven Central) → MEMORY-archive.md
+    nuget, maven-kotlin, swift). Pattern: input → build → **smoke test** → publish. NuGet uses
+    `NUGET_API_KEY` (not OIDC); Ruby uses OIDC. npm `@iscc/lib` bundled single-package + release-job
+    CI internals (`build-xcframework`, Kotlin Maven Central) → MEMORY-archive.md
 - wasm-pack `--features` goes AFTER the path, NOT after `--`. Test-target filter (`-- --test unit`)
     fails — runner only accepts a positional FILTER; run full suite
 
@@ -113,26 +114,21 @@ iterations.
 - `iscc_decode` strips "ISCC:" prefix and dashes, returns exact digest bytes (not full tail)
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
     depends on `@context` key
+- 5 constants exported across bindings: META_TRIM_NAME/DESCRIPTION/META, IO_READ_SIZE,
+    TEXT_NGRAM_SIZE (per-binding export patterns → MEMORY-archive.md)
 
 ## Documentation
 
 - Tabbed syntax: `=== "Language"` 4-space indent, blank line before code block. Landing page tab
     order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
-- `docs/architecture.md` and `docs/development.md` share identical trees — keep in sync
-
-## Binding Constant Export Patterns — see MEMORY-archive.md for per-binding details
-
-- 5 constants exported: META_TRIM_NAME/DESCRIPTION/META, IO_READ_SIZE, TEXT_NGRAM_SIZE
 
 ## Documentation Files
 
-- Howto guides: `docs/howto/{rust,python,ruby,nodejs,wasm,go,java,dotnet,c-cpp,swift,kotlin}.md`
-- API reference: `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`
-- Per-package READMEs: `packages/dotnet/README.md`, `packages/cpp/README.md`,
-    `packages/swift/README.md`, `packages/kotlin/README.md`
-- Per-package CLAUDE.md: `packages/{dotnet,swift,kotlin}/CLAUDE.md`
-- zensical.toml nav: howto order is Rust, Python, Ruby, Node.js, WASM, Go, Java, C#/.NET, C/C++,
-    Swift, Kotlin
+- Howto guides `docs/howto/{lang}.md`, API refs
+    `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`, per-package READMEs + CLAUDE.md under
+    `packages/{dotnet,cpp,swift,kotlin}/`. zensical.toml nav howto order: Rust, Python, Ruby,
+    Node.js, WASM, Go, Java, C#/.NET, C/C++, Swift, Kotlin (NOTE: landing-page tab order differs —
+    starts Python, Rust per the Documentation section above)
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` (via `ORDERED_PAGES` +
     `discover_pages()`, excludes `docs/includes/`). Run after `zensical build` in docs CI
 
@@ -177,11 +173,10 @@ iterations.
 - Result records need `Debug` derive for test `unwrap_err()`. Hashers need `Default` impl (clippy)
 - 21 unit tests in-crate. Conformance testing happens in Swift/Kotlin test suites
 - Binding generation: `uniffi-bindgen.rs` (3-line main), `[features] bindgen = ["uniffi/cli"]`,
-    `[[bin]] required-features = ["bindgen"]`
-- Generate Swift:
-    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate   --library target/debug/libiscc_uniffi.so --language swift --out-dir <dir>`
-- Generated: `iscc_uniffi.swift`, `iscc_uniffiFFI.h`, `iscc_uniffiFFI.modulemap` →
-    `module.modulemap` (SPM)
+    `[[bin]] required-features = ["bindgen"]`. Generate Swift via
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate --library   target/debug/libiscc_uniffi.so --language swift --out-dir <dir>`
+    → emits `iscc_uniffi.swift`, `iscc_uniffiFFI.h`, `iscc_uniffiFFI.modulemap` (rename to
+    `module.modulemap` for SPM)
 
 ## Swift Package
 
@@ -190,22 +185,14 @@ iterations.
     - `releaseTag`/`releaseChecksum`, `binaryTarget` for distribution; omits testTarget
 - `scripts/build_xcframework.sh`: 5 Rust targets → `lipo` → `xcodebuild -create-xcframework` →
     `ditto` zip → checksum. Output `target/ios/IsccLib.xcframework.zip` (`--release`/`--debug`)
-- Version constant: `packages/swift/Sources/IsccLib/Constants.swift` (`isccLibVersion`)
-- CI job (`swift:`) on `macos-14`: `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
+- Version constant: `packages/swift/Sources/IsccLib/Constants.swift` (`isccLibVersion`). CI job
+    (`swift:`, `macos-14`): `cargo build -p iscc-uniffi` → `swift build` → `swift test` with
     `-Xlinker -L`/`-rpath` → `target/debug`
 
 ## Kotlin Bindings (UniFFI/JVM)
 
-- `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA
-- Generated file: `src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (~3217 lines,
-    `package uniffi.iscc_uniffi`). Do NOT manually edit — regenerate via uniffi-bindgen
-- Generate Kotlin:
-    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate   --language kotlin --no-format --out-dir packages/kotlin/src/main/kotlin/   target/debug/libiscc_uniffi.so`
-- Gradle wrapper must be bootstrapped AFTER settings.gradle.kts exists (fails without it)
-- Gradle 8.12.1 via mise, Kotlin 2.1.10, JNA 5.16.0
-- `build/` covered by root `.gitignore`; `.gradle/` needs local `.gitignore`
-- JNA native lib loading: `java.library.path` alone is NOT sufficient for JNA `Native.register()`.
-    Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
-- Conformance tests: `ConformanceTest.kt` — 9 methods, 50 vectors. JUnit 5.11.4 + Gson 2.11.0
-    (`com.google.code.gson` groupId, NOT `com.google.gson`)
-- Maven Central publishing + JNA resource paths (9 platforms) → MEMORY-archive.md
+- `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA (mature/complete). Key
+    facts: generated `src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (do NOT hand-edit —
+    regenerate via uniffi-bindgen), JNA native loading needs `jna.library.path` + `LD_LIBRARY_PATH`,
+    `ConformanceTest.kt` = 9 methods/50 vectors. Full generate command, Gradle/JNA versions,
+    gitignore quirks, Maven Central publishing → MEMORY-archive.md
