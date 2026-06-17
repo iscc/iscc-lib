@@ -72,16 +72,19 @@ iterations.
 - Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds. `maturin` is not on
     PATH — always invoke via `uv run maturin`. Builds a single `cp310-abi3` wheel (abi3-py310)
-- PyO3 pin = single source: root `Cargo.toml` `[workspace.dependencies]`
-    `pyo3 = { version, features   = ["abi3-py310"] }`. ONLY `crates/iscc-py` consumes it
+- PyO3 pin = single source: root `Cargo.toml` `[workspace.dependencies]` line 35
+    `pyo3 = { version, features = ["abi3-py310"] }`. ONLY `crates/iscc-py` consumes it
     (`features = ["extension-module"]`); blast radius = `crates/iscc-py/src/lib.rs` only. Migration
     in progress 0.23→0.29 (RustSec advisories clear at 0.29), incremental one-minor-per-step.
-    0.23→0.24 (iter 98) AND 0.24→0.25 (iter 99) both needed ZERO src changes — the
-    `dict.into()`/`PyBytes::new(py,_).into()`/`.into_pyobject(py)?.into()`/raw `pyo3::ffi::*`
-    +`Bound::from_owned_ptr` idioms in lib.rs all compile clean through 0.25 (predicted
-    `IntoPyObject`/lifetime breaks did NOT materialize at 0.24 or 0.25 — may still hit at 0.26+).
-    After bump: `cargo update -p   pyo3` → build/clippy(`-D warnings`)/fmt →
-    `uv run maturin develop` → `uv run pytest` (286 tests). NEXT HOP: 0.25→0.26
+    0.23→0.24 (iter 98) + 0.24→0.25 (iter 99) needed ZERO src changes; 0.26 (iter 101) DID — two
+    deprecations under `-D warnings`: (1) `Python::allow_threads` → `Python::detach` (rename, same
+    GIL-release semantics; 7 sites), (2) `pyo3::PyObject` type alias → `Py<PyAny>` (17
+    `PyResult<PyObject>` return sites; `Py`+`PyAny` already in `prelude::*`; `Ok(dict.into())`
+    bodies unchanged). Raw `pyo3::ffi::*`+`Bound::from_owned_ptr`+`.into_pyobject(py)?.into()` still
+    clean through 0.26. After bump: `cargo update -p pyo3` (regens 5 pyo3 crates in Cargo.lock) →
+    build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests, 1
+    pre-existing unrelated iscc_core Pydantic-V1/py3.14 warning). NEXT HOP: 0.26→0.27 (expect
+    possible further deprecations now that the zero-change streak ended)
 - Release workflow (`release.yml`): 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems,
     nuget, maven-kotlin, swift). Pattern: input → build → **smoke test** → publish. NuGet uses
     `NUGET_API_KEY` (not OIDC); Ruby uses OIDC. npm `@iscc/lib` bundled single-package + release-job

@@ -1,55 +1,70 @@
-## 2026-06-17 — Review of: Fix the CI `Coverage + CRAP` cargo-crap install flake
+## 2026-06-17 — Migrate PyO3 0.25 → 0.26 (issue #1, incremental toward 0.29)
 
-**Verdict:** PASS
+**Done:** Bumped the `pyo3` workspace dependency pin from `0.25` → `0.26` (preserving
+`features = ["abi3-py310"]`), regenerated `Cargo.lock`, and cleared the two new 0.26 deprecations in
+`crates/iscc-py/src/lib.rs` so the build is warning-free under `-D warnings`. Unlike the 0.23→0.24
+and 0.24→0.25 hops (which needed zero source changes), 0.26 deprecated two APIs that the bindings
+use, so minimal idiomatic fixes were required.
 
-**Summary:** The advance agent added `--force` to the `Install cargo-crap` step
-(`cargo binstall -y --force cargo-crap@0.2.2`, ci.yml:314) so the binary is reinstalled on every run
-regardless of the `.crates.toml` metadata that `Swatinem/rust-cache@v2` restores without the actual
-binary. Clean, minimal, single-line change that exactly matches next.md — and it *strengthens* the
-CRAP quality gate's reliability rather than weakening it. All local verification is green.
+**Files changed:**
 
-**Verification:**
+- `Cargo.toml`: pyo3 pin `0.25` → `0.26` (line 35), `abi3-py310` intact.
+- `Cargo.lock`: regenerated via `cargo update -p pyo3` (pyo3 + pyo3-build-config + pyo3-ffi +
+    pyo3-macros + pyo3-macros-backend all `0.25.1` → `0.26.0`). Generated file, does not count
+    toward the 3-file limit.
+- `crates/iscc-py/src/lib.rs`: two deprecation fixes —
+    1. `Python::allow_threads` → `Python::detach` (7 call sites; same semantics, just renamed in
+        0.26). Affected: `gen_image_code_v0`, `gen_data_code_v0`, `gen_instance_code_v0`,
+        `gen_sum_code_v0`, and the three streaming `update()` methods.
+    2. `PyResult<PyObject>` → `PyResult<Py<PyAny>>` (17 return-type sites). The `pyo3::PyObject` type
+        alias is deprecated in 0.26 in favor of `Py<PyAny>`; `Py` and `PyAny` are already in scope
+        via `pyo3::prelude::*`. The `Ok(dict.into())` / `.into_pyobject(py)?.into()` bodies still
+        compile unchanged — `Bound<PyDict>::into()` infers `Py<PyAny>` exactly as it did for the
+        alias.
+    - rustfmt collapsed the now-single-expression `gen_sum_code_v0` `.detach(...)` closure to one line
+        (no semantic change).
 
-- [x] `grep -n 'cargo binstall -y --force cargo-crap@0.2.2' .github/workflows/ci.yml` — matches
-    exactly one line (314)
-- [x] Workflow YAML still parses — `yaml.safe_load(...)` → `YAML OK`
-- [x] `git diff --stat` isolates the change — `ci.yml` is the only non-context file, 1-line change
-    (`+`/`-` on the install step only); no other `coverage`-job step altered
-- [x] `mise run check` — all 15 pre-commit hooks pass (incl. `check yaml`, `YAML formatting`)
-- [ ] Next CI run's `Coverage + CRAP` reaches the report/gate steps and the run goes GREEN — cannot
-    run locally; **must be confirmed on the next push's CI run** (see Notes)
+**Verification:** All next.md criteria green.
 
-**Issues found:**
+- `grep 'pyo3 = { version = "0.26"' Cargo.toml` → 1 match (line 35); `abi3-py310` still present.
+- `grep -A1 'name = "pyo3"' Cargo.lock` → `version = "0.26.0"`.
+- `cargo build -p iscc-py` → exit 0, no warnings.
+- `cargo clippy -p iscc-py -- -D warnings` → exit 0, clean.
+- `cargo fmt --all --check` → exit 0.
+- `uv run maturin develop -m crates/iscc-py/Cargo.toml` → built `cp310-abi3` wheel, installed.
+- `uv run pytest` → **286 passed**, 1 warning (pre-existing, unrelated — `iscc_core`'s Pydantic V1 /
+    Python 3.14 `UserWarning`, surfaced only by the benchmark comparison against the reference
+    impl).
 
-- (none) — no source code touched, no API break, no perf-path change. Scanned all 4 unpushed commits
-    (`git diff @{upstream}..HEAD`) for gate circumvention: none — the only CI/config change is
-    adding `--force`, which makes the enforcing CRAP gate actually run (the opposite of
-    circumvention). Concurrency clear: `ps aux` shows a single `mise run cid:run` tree (pid 78441),
-    no duplicate loop.
+No public API change to `iscc-lib` (core has no PyO3 dep — untouched). No hot-path perf change (only
+the GIL-release call was renamed, not its behavior). No API-BREAK.
 
-**Codex review:** No blocking findings. Codex confirmed the change is "a narrow update to force
-cargo-crap installation and should address the cached-metadata/missing-binary failure without
-breaking subsequent steps. The other changes are internal documentation/context updates."
-
-**Next:** With the CI fix in place, the prerequisite (green CI) is met *pending the push's CI run*.
-Resume the deferred PyO3 incremental migration **0.25 → 0.26** (issue #1). Same self-contained
-recipe: bump the pin in root `Cargo.toml` → `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt
-→ `uv run maturin develop` → `uv run pytest` (286 tests), scoped to `crates/iscc-py/` (core has no
-PyO3 dep). The predicted `IntoPyObject`/lifetime breaks did NOT materialize at 0.24 or 0.25 — treat
-skeptically for 0.26 but watch `-D warnings`. RustSec advisories clear only at 0.29, so keep going
-one minor per step. Also still open: CRAP `--fail-above 30` hardening ([review] issue, HUMAN REVIEW
-REQUESTED before amending the spec) and the `iai-callgrind` perf-regression CI gate.
+**Next:** Continue the incremental PyO3 migration **0.26 → 0.27** (issue #1). The pattern now has a
+proven recipe even when source changes are needed: bump pin → `cargo update -p pyo3` →
+build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests). Watch for
+further 0.27 deprecations — the raw `pyo3::ffi::*` C-API call sites (`PySequence_List`,
+`PyList_GetItem`, `PyLong_AsLong`, `Bound::from_owned_ptr`, `downcast_into_unchecked`) and the
+`#[pyo3(signature = ...)]` macros have survived every hop so far, but the deprecation churn at 0.26
+suggests later hops may also touch source. RustSec advisories still only clear at 0.29 (3 hops away;
+expected, not a failure). Also still open: CRAP `--fail-above 30` hardening ([review] issue, HUMAN
+REVIEW REQUESTED) and the `iai-callgrind` perf-regression CI gate.
 
 **Notes:**
 
-- **CI confirmation pending**: this fix's effectiveness can only be proven by the next CI run. After
-    this push, the next update-state agent MUST check the `Coverage + CRAP` job conclusion on the
-    new run before declaring CI green. If it still fails, the alternative is excluding the binstall
-    record from the restored rust-cache (`cache-bin: false` or scoping the cache key) rather than
-    `--force`.
-- This push sends a clean 4-commit fast-forward (`@{upstream}...HEAD` = `0 4`): the iter-99 log,
-    update-state, define-next, and advance. No backlog.
-- `--force` re-downloads cargo-crap each run; the binary is small so the cost is negligible and was
-    a deliberate, documented trade-off over disabling rust-cache's `cache-bin`.
-- No Rust/Python source changed, so pre-push gates (clippy/cargo test/pytest) are not implicated;
-    `mise run check` (pre-commit stage) is the relevant gate for a workflow-YAML edit and is clean.
+- **Out-of-scope working-tree noise (not mine):** running `mise run check` (which runs prek
+    `--all-files`) reformatted `.claude/context/next.md` and
+    `.claude/agent-memory/define-next/MEMORY.md` via the mdformat hook — both were committed
+    non-conforming by the prior `cid(define-next)` commit (dcf57f1). Per scope I do NOT own those
+    files, so I reverted the mdformat changes (`git checkout   --`) to keep my commit clean.
+    **Heads-up for review/push:** the pre-push mdformat hook runs on all files in the push range, so
+    the non-conforming `next.md`/`define-next/MEMORY.md` may block the push (see learnings "Pre-push
+    mdformat blocks on non-conforming context files"). If the push is rejected, reformat those two
+    context files with `uv run mdformat --wrap 100 --number` and amend the define-next commit
+    (mechanical, no semantic change) — this is the recurring define-next formatting gap, not a fault
+    of this advance step.
+- `mise run check` otherwise passes: all code-relevant hooks (Rust formatting, TOML formatting,
+    Ruff, YAML, etc.) are green. The only "Failed" hook was mdformat on the two non-owned context
+    files above.
+- `Python::detach` is the 0.26 rename of `allow_threads` (identical GIL-release semantics on
+    standard abi3 builds); docstrings say "Releases the GIL" which remains accurate, so they were
+    left as-is.
