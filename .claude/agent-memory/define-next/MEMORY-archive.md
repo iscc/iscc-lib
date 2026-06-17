@@ -55,3 +55,21 @@ See MEMORY.md for current active entries.
     breaking — expected; enforcing mode would turn CI red. Flip `continue-on-error` off only at the
     v1.0.0 cut. `mise run semver` mirrors it. Default features cover feature-gated Tier 1 symbols
     (`default = ["meta-code"]`).
+
+## CRAP gate Phase 1/2 scoping (iters 94–96, landed)
+
+- **iter 94 Phase 1 (LCOV)**: `coverage` job — `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`)
+    - `components: llvm-tools-preview`, `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info`,
+        upload-artifact. `mise run coverage`. `lcov.info` gitignored.
+- **iter 95/96 Phase 2 (report-only `cargo crap`)**: chose over iai-callgrind (valgrind-blocked) +
+    PyO3. Scope = `.cargo-crap.toml` (create), `ci.yml` crap steps, `mise.toml [tasks.crap]`,
+    ci-cd.md checkboxes 411/415/416/417. Install via `cargo binstall -y cargo-crap@0.2.2`. Two
+    report-only steps `--format github` + `--format sarif --output crap.sarif` → `upload-sarif@v3`;
+    job needs `security-events: write`. iter 96 RE-AFFIRMED same scope (loop ran update-state twice
+    with no advance between). Landed `6ed51c5`, reviewed PASS `cbc0d14`.
+- **Phase 2 exclude rationale**: LCOV is `-p iscc-lib` only → `cargo crap --path .` marks binding
+    crates 0% (pessimistic) = noise. `.cargo-crap.toml` excludes all 7 binding crates +
+    `packages/**`
+    - `scripts/**` + `crates/iscc-lib/benches/**` (nested benches not covered by default exclude;
+        leaked `bench_cdc_chunks` at CRAP 42.0). Use exclude globs NOT `--path crates/iscc-lib` to
+        satisfy the "configures excluded binding crates" checkbox.

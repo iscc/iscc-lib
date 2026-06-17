@@ -157,41 +157,38 @@ iterations.
     `.allow_threads`). Per-minor code churn for the 0.23→0.29 bump is likely small, BUT a single
     0.23→0.24 step yields NO security benefit (advisories clear only at 0.29) — lower value-per-step
     than self-contained gates, so deprioritized at iter 94.
-- **Remaining v1.0.0 normal backlog after iter 94 (3 issues)**: PyO3 0.23→0.29 bump, iai-callgrind
-    perf gate (valgrind-blocked locally → scope as CI-only, defer verification to the run),
-    coverage/CRAP Phases 2+3.
-- **iter 95: scoped CRAP gate Phase 2 (report-only `cargo crap`).** Chose this over iai-callgrind
-    (valgrind-blocked) and PyO3 (no security benefit until full 0.29) — recommended #1 by handoff +
-    state.md, builds directly on the Phase 1 `lcov.info`, fully locally verifiable. Scope = 3 files
-    (`.cargo-crap.toml` create, `ci.yml` crap steps added to the existing `coverage` job,
-    `mise.toml` `[tasks.crap]`) + ci-cd.md Phase 2 checkboxes (411/415/416/417, doc). Phase 3
-    (`--fail-above` / `--fail-regression` / committed baseline) explicitly deferred.
-- **cargo-crap facts (verified iter 95 via `gh api repos/minikin/cargo-crap`)**: latest PUBLISHED
-    release is **v0.2.2** (pin this — README on `main` shows a v0.3.0 badge but no v0.3.0 release/
-    crate exists yet; `cargo search` confirms 0.2.2). v0.2.2 supports `--lcov <FILE>`,
-    `--format {human,json,github,markdown,pr-comment,sarif}` (`github` = `::warning` annotations;
-    `sarif` = SARIF 2.1.0 for Code Scanning, rejects `--baseline`), `--threshold` (default 30),
-    `--missing {pessimistic,optimistic,skip}` (default pessimistic), `--exclude <GLOB>` (repeatable,
-    appends to default excludes `tests/**`/`benches/**`/`examples/**`), `--allow`, `--output`,
-    `--path` (default `.`, walks repo respecting .gitignore), `--fail-above`, `--baseline`,
-    `--fail-regression`, `--epsilon`. **Config file `.cargo-crap.toml` at repo root IS supported**
-    (keys: `threshold`, `missing`, `exclude`, `default-excludes`, `allow`, `fail-above`, `epsilon`,
-    `jobs`, `sort`, `show_unchanged` — note mixed kebab/snake case; unknown keys rejected). CLI
-    flags override the file. Spec install path = `cargo binstall cargo-crap` (pre-built bins).
-    MIT/Apache.
-- **CRAP Phase 2 exclude rationale**: LCOV is generated `-p iscc-lib` only, so `cargo crap` from
-    `--path .` would mark all binding-crate functions 0% (pessimistic) = noise. Exclude
-    `crates/iscc-{py,napi,wasm,ffi,jni,rb,uniffi}/**`, `packages/**`, `scripts/**` in
-    `.cargo-crap.toml`. Use exclude globs (NOT `--path crates/iscc-lib`) to satisfy ci-cd.md's
-    "`.cargo-crap.toml` configures excluded binding crates" checkbox (416).
-- **SARIF upload needs `permissions: security-events: write`** on the job (ci.yml `coverage` job
-    currently has none); use `github/codeql-action/upload-sarif@v3`. iscc-lib is public → Code
-    Scanning is free. Phase 2 stays non-failing: NO `--fail-above`/`--fail-regression`, so
-    `cargo crap` exits 0 in report mode. Local SARIF verification → write to `/tmp/crap.sarif` to
-    keep the working tree clean (the `mise run crap` task itself uses human format, no file output).
-- **iter 96: RE-AFFIRMED CRAP Phase 2 — same scope, no re-scope.** The loop ran update-state TWICE
-    after iter 95 (`6f90953`, `c8b7281`) with NO `cid(advance)` between, so the Phase 2 work package
-    is still unimplemented. Re-verified all refs still accurate (ci.yml coverage job 293-312,
-    mise.toml coverage task 110-112, ci-cd.md checkboxes 411/415/416/417 to flip, 413/414 Phase 3
-    stay; `.cargo-crap.toml` still absent, 0 crap refs). Lesson: when next.md carries over unbuilt
-    and nothing changed, re-affirm the existing scope rather than inventing a new step.
+- **CRAP gate Phases 1+2 LANDED** (iters 94–96; Phase 2 `6ed51c5`, reviewed PASS `cbc0d14`). The
+    `coverage` job (`ci.yml:293-331`, renamed "Coverage + CRAP") installs cargo-llvm-cov +
+    cargo-binstall + `cargo-crap@0.2.2`, generates+uploads `lcov.info`, then runs report-only
+    `cargo crap --format github` + `--format sarif` (→ Code Scanning; job has
+    `security-events:   write`). `.cargo-crap.toml`: threshold 30, missing pessimistic, excludes 7
+    binding crates + `packages/` + `scripts/` + `crates/iscc-lib/benches/**`. `mise run crap`
+    (depends coverage). Detailed Phase 1/2 scoping archived to MEMORY-archive.md.
+- **cargo-crap 0.2.2 facts (re-verified locally iter 97 — both cargo-crap 0.2.2 + cargo-llvm-cov
+    0.8.7 are now INSTALLED in the devcontainer)**: flags `--lcov`,
+    `--format {human,json,github,markdown,pr-comment,sarif}`, `--threshold`, `--missing`,
+    `--exclude`, `--allow`, `--output`, `--fail-above`, `--baseline <FILE>`, `--fail-regression`,
+    `--epsilon` (default 0.01). **NO `--sort`** (that's only on `main`, not 0.2.2). Baseline JSON
+    envelope = `{$schema, version:"0.2.2", entries[]}`; `--baseline` reads only that shape and is
+    incompatible with `--format sarif`. Config `.cargo-crap.toml` keys:
+    threshold/missing/exclude/default-excludes/ allow/fail-above/epsilon/jobs/sort/show_unchanged
+    (unknown keys rejected; NO `baseline`/ `fail-regression` keys — those are CLI-only).
+- **iter 97: scoped CRAP Phase 3 (regression gate).** Most incremental remaining v1.0.0 gate
+    (recommended #1 by handoff + state.md; builds on Phase 2). Verified the FULL flow locally
+    (coverage→baseline→`--fail-regression`): exits 0 vs unchanged baseline, exit 1 when a function's
+    CRAP rises. Scope = 3 files: create COMMITTED `.crap-baseline.json` (97 iscc-lib fns, via
+    `cargo crap --lcov lcov.info --format json --output .crap-baseline.json`) + add enforcing
+    `--fail-regression --baseline` step (LAST in coverage job, after SARIF, so diagnostics still
+    run)
+    - `mise.toml [tasks."crap:baseline"]` (depends coverage) + ci-cd.md checkbox 413 (doc).
+        `.crap-baseline.json` is NOT gitignored (only lcov.info/crap.sarif are).
+- **Phase 3 design call (iter 97): NO auto-commit-baseline-from-CI on develop pushes.** A CI-side
+    `git push` races the CID loop's own develop pushes (non-fast-forward) + risks a push→CI→push
+    loop → unsafe in this repo. So "refresh on merges to develop" = deliberate
+    `mise run crap:baseline` reviewed commit (iai-callgrind pattern); advance agent updates the spec
+    prose to match. Flapping risk: committed baseline coverage (devcontainer rustc 1.96.0) vs CI
+    `@stable` — deterministic test coverage is stable + `--epsilon 0.01` absorbs noise; if CI flaps,
+    regenerate from CI's lcov artifact, do NOT widen epsilon.
+- **Remaining v1.0.0 normal backlog after iter 97 (2 issues)**: iai-callgrind perf gate
+    (valgrind-blocked locally → CI-only, defer verification to the run), PyO3 0.23→0.29 (no security
+    benefit until full 0.29).
