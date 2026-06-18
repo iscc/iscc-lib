@@ -104,16 +104,17 @@ fully-met target sections to `learnings-archive.md`.
     with `error: no such command: <tool>` → CI RED on every run. Fix: add `--force` so binstall
     always reinstalls regardless of the cached record (small binary = negligible re-download). This
     is gate *strengthening*, not circumvention
-- **CRAP gate (iter 96/97, ci-cd.md)** — full mechanics in `learnings-archive.md`. Key facts:
-    `Coverage + CRAP` job runs report-only `--format github`/`sarif`, then ENFORCING
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression`.
-    `.crap-baseline.json` is COMMITTED (97 funcs/10 files); `mise run crap:baseline` regenerates it
-    byte-identical. `.cargo-crap.toml` MUST list `crates/iscc-lib/benches/**` (built-in default
+- **CRAP gate (iter 96/97/113, ci-cd.md)** — full mechanics in `learnings-archive.md`. Key facts:
+    `Coverage + CRAP` job runs report-only `--format github`/`sarif`, then the ENFORCING Phase 3
+    gate `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`.
+    `.crap-baseline.json` is COMMITTED (97 funcs/10 files); `mise run crap:baseline` regenerates
+    it byte-identical. `.cargo-crap.toml` MUST list `crates/iscc-lib/benches/**` (built-in default
     matches repo-root only, else `bench_cdc_chunks` leaks at CRAP 42)
-- **`--fail-regression` does NOT catch NEW high-CRAP functions** (Codex, iter 97): a brand-new
-    uncovered function has no baseline entry, so it reports `★ N new` and exits 0 — the gate only
-    blocks WORSENING of existing entries. To also block new risky code, pair with `--fail-above 30`
-    (current max CRAP ~22.3, safely below 30). Filed as a [review] issue
+- **CRAP new-function blind spot CLOSED (iter 113)**: `--fail-regression` alone exits 0 for a
+    brand-new uncovered fn (`★ N new`, no baseline entry) — it only blocks WORSENING of existing
+    entries. Now paired with `--fail-above` (boolean keyed off `.cargo-crap.toml threshold = 30.0`,
+    NO numeric arg in 0.2.2) so ANY fn over 30 fails too. Current max CRAP ~22.3 < 30, so the
+    absolute gate passes on current code; the two flags combine cleanly with `--baseline`
 - **`Perf (iai-callgrind)` gate — COMPLETE (iter 107-109, #3, full saga in
     `learnings-archive.md`)**: standalone `perf` job (no `needs:`, NO `continue-on-error`): valgrind
     → binstall `iai-callgrind-runner@0.16.1 --force` → `cargo bench -p iscc-lib --bench iai_benches`

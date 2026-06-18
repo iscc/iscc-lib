@@ -103,8 +103,6 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go codec Codex findings: dismiss — Go mirrors Rust reference faithfully
 - Codex `.NET version` findings: `dotnet-version: '8.0'` is valid for `actions/setup-dotnet@v4` —
     resolves to latest 8.0.x SDK. Dismiss "use `8.0.x`" suggestions
-- Codex Conan recipe findings: MinGW ABI and MSVC cxxflags concerns are valid but non-blocking when
-    recipe went from completely broken to functional. Assess severity relative to baseline
 
 ## Feature Flag Review
 
@@ -126,16 +124,16 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - CI: 18 YAML job entries + python-test matrix (`['3.10','3.14']`) → **19 actual jobs** (`semver`
     iter 93, `coverage` iter 94, `perf` iter 107). Advance handoffs count YAML entries, not matrix
     expansion. Version sync: 16 targets (incl. Package.swift releaseTag). Release: 9 registry inputs
-- **`Coverage + CRAP` CI job** (iter 94/96/97, ci-cd.md): standalone, no
-    `needs:`/`continue-on-error`. Verify from repo root: `mise run crap` (exit 0, "97 functions;
-    none exceed 30") + enforcing gate
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression`
-    (pass=`0 regressed/97 unchanged`; do NOT pipe to tail — masks `$?`) + `mise run crap:baseline`
-    regenerates `.crap-baseline.json` byte-identical (COMMITTED). CI install MUST be
-    `cargo binstall -y --force cargo-crap@0.2.2` (`--force` load-bearing, rust-cache poisoning).
-    GOTCHA: `.cargo-crap.toml` MUST exclude `crates/iscc-lib/benches/**` else `bench_cdc_chunks`
-    leaks at CRAP 42. CAVEAT: `--fail-regression` exits 0 for NEW high-CRAP funcs — [review] issue
-    open
+- **`Coverage + CRAP` CI job** (iter 94/96/97/113, ci-cd.md): standalone, no
+    `needs:`/`continue-on-error`. Phase 3 enforcing gate (iter 113, new-fn blind spot CLOSED) =
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    (`--fail-above` is boolean keyed off `.cargo-crap.toml threshold = 30.0`, NO numeric arg).
+    Verify with existing `lcov.info`: that command exits 0 (`0 regressed/0 new/97 unchanged`; do NOT
+    pipe to tail — masks `$?`); `mise run crap:baseline` regen `.crap-baseline.json` byte-identical
+    (COMMITTED). CI install MUST be `cargo binstall -y --force cargo-crap@0.2.2` (`--force`
+    load-bearing, rust-cache poisoning). GOTCHA: `.cargo-crap.toml` MUST exclude
+    `crates/iscc-lib/benches/**` else `bench_cdc_chunks` leaks at CRAP 42. CI YAML folds the long
+    `run:` scalar across 2 lines (folded newline = space) — confirm with `yaml.safe_load`
 - **iscc-rb workspace exclusion**: `--exclude iscc-rb` in CI `rust` job is permanent — Rust job
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
 - .NET + Swift bindings fully complete (32/32 Tier 1, CI, version sync, docs, release)
@@ -198,4 +196,4 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - `function!` macro does NOT accept `&Ruby` — use `Ruby::get().expect("called from Ruby")`
 - Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate
 - Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot
-    finalize. Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`, config `.standard.yml`
+    finalize (linting recipe in Ruby-only review shortcut above)
