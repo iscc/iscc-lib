@@ -1,18 +1,17 @@
-<!-- assessed-at: c7e54666957fff27c03e973f9178a32347c624a8 -->
+<!-- assessed-at: ea284c0323113a46803001b3955ea0e6e4b00a9a -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-v0.4.0 hardening toward (held) v1.0.0 — CI GREEN; human authorized two hardening gates (CRAP `--fail-above` + `cargo-deny` audit), neither yet implemented
+## Phase: Post-v0.4.0 hardening toward (held) v1.0.0 — CI GREEN; CRAP `--fail-above` gate landed; one authorized gate left (`cargo-deny` supply-chain audit)
 
 v0.4.0 is released across all registries; all 12 language bindings are functionally met and CI is
-GREEN on the pushed tip (`204bedd`, completed run `27755956905`, overall `success`). This iteration
-the human (Titusz, commit `9770332`) **authorized** the two `normal` `[review]` issues that were
-previously HUMAN-REVIEW-gated and amended `ci-cd.md` accordingly — so the loop is **no longer at a
-human-handoff point**: there are now two autonomous CID work packages (CRAP `--fail-above` gate,
-then the `cargo-deny`/`cargo audit` supply-chain gate). **Neither is implemented yet** — the spec
-was amended but `ci.yml`, `.cargo-crap.toml`, and `deny.toml` are untouched. v1.0.0 stays on hold
+GREEN on the pushed tip (`cee130a`, runs `27759986239`/`27759984667`, overall `success`). Since the
+last assessment the first of the two human-authorized hardening gates landed: the CRAP
+`--fail-above` absolute gate is wired into the enforcing Phase 3 CRAP CI step, verified green, and
+its `ci-cd.md` "verified when" box is `[x]`. One autonomous CID work package remains — the
+`cargo-deny` supply-chain audit gate (authorized, spec'd, **not yet built**). v1.0.0 stays on hold
 (stay on 0.4.x).
 
 ## Rust Core Crate
@@ -33,19 +32,18 @@ was amended but `ci.yml`, `.cargo-crap.toml`, and `deny.toml` are untouched. v1.
     `crates/iscc-lib/benches/iai_benches.rs` is an `iai-callgrind` 0.16 instruction-count harness
     (11 `bench_*` fns → 16 parametrized cases). `[profile.bench] strip = false, debug = true`
     (Cargo.toml:61) preserves `__iai_callgrind_wrapper` toggle symbols. The `Perf (iai-callgrind)`
-    job (ci.yml:281, no `continue-on-error`) installs valgrind + `iai-callgrind-runner@0.16.1`, runs
-    benches (env `IAI_CALLGRIND_ALLOW_ASLR=true`), asserts non-zero collection, then runs the
-    enforcing `Check perf regression` step (ci.yml:324, `python3 scripts/iai_regression.py --check`)
-    which fails CI on >10% Ir regression, zero-count benches, or a disappeared baselined bench vs
-    the committed `.iai-baseline.json` (16 Ir entries, 10% tolerance, repo root). `--allow-missing`
-    is a deliberate escape hatch; covered by 11 synthetic-fixture tests
-    (`tests/test_iai_regression.py`). `rust-core.md` perf "verified when" boxes are `[x]`.
+    job (no `continue-on-error`) installs valgrind + `iai-callgrind-runner@0.16.1`, runs benches
+    (env `IAI_CALLGRIND_ALLOW_ASLR=true`), asserts non-zero collection, then runs the enforcing
+    `Check perf regression` step (`python3 scripts/iai_regression.py --check`) which fails CI on
+    \>10% Ir regression, zero-count benches, or a disappeared baselined bench vs the committed
+    `.iai-baseline.json` (16 Ir entries, 10% tolerance, repo root). `--allow-missing` is a
+    deliberate escape hatch; covered by 11 synthetic-fixture tests (`tests/test_iai_regression.py`).
+    `rust-core.md` perf "verified when" boxes are `[x]`.
 - **Semver gate present (informational, still unmet for v1.0.0)**: the
-    `Semver (cargo-semver-checks)` job (`continue-on-error: true`, ci.yml:338) reports job-level
-    `failure` (2 expected breaking changes from the post-0.4.0 `pub(crate)` narrowing) but does NOT
-    flip the run conclusion. The target's **enforcing** criterion stays unmet (`rust-core.md` semver
-    "verified when" still `[ ]`) — flip `continue-on-error` off only at the v1.0.0 cut, which is
-    held.
+    `Semver (cargo-semver-checks)` job (`continue-on-error: true`) reports job-level `failure` (2
+    expected breaking changes from the post-0.4.0 `pub(crate)` narrowing) but does NOT flip the run
+    conclusion. The target's **enforcing** criterion stays unmet (`rust-core.md` semver "verified
+    when" still `[ ]`) — flip `continue-on-error` off only at the v1.0.0 cut, which is held.
 - Workspace version is `0.4.0`. The semver/v1.0.0 enforcement is the only remaining Rust Core gap;
     everything else met.
 
@@ -62,8 +60,8 @@ was amended but `ci.yml`, `.cargo-crap.toml`, and `deny.toml` are untouched. v1.
     `Cargo.lock` resolves a single `pyo3 0.29.0`, no older entries. Explicit
     `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) preserved (PyO3 0.28 silently
     flipped that default `true`->`false`).
-- Note: PyO3 advisory clearance was confirmed only by the mechanical lockfile proxy — this is
-    exactly what the now-AUTHORIZED `cargo deny`/`cargo audit` gate will replace.
+- Note: PyO3 advisory clearance was confirmed only by the mechanical lockfile proxy — exactly what
+    the still-pending `cargo deny`/`cargo audit` gate will replace.
 
 ## Node.js Bindings
 
@@ -175,75 +173,69 @@ was amended but `ci.yml`, `.cargo-crap.toml`, and `deny.toml` are untouched. v1.
 
 ## CI/CD and Publishing
 
-**Status**: partially met — **CI GREEN on pushed tip; two authorized hardening gates not yet built**
+**Status**: partially met — **CI GREEN on pushed tip; CRAP `--fail-above` landed; one authorized
+gate (cargo-deny) not yet built**
 
-- **LATEST PUSHED CI RUN — SUCCESS.** origin/develop tip `204bedd`; completed run `27755956905`
-    (overall `success`); all 19 functional jobs green (confirmed via check-runs API on the actual
-    tip SHA), incl. `Perf (iai-callgrind)`, `Coverage + CRAP`, and the enforcing Phase 3 CRAP
-    regression gate. Only `Semver (cargo-semver-checks)` reports `failure` and it is
-    `continue-on-error: true` (informational, does not flip the run). A re-run (`27757605391`) was
-    in progress at assessment; the completed run is authoritative. URL:
-    https://github.com/iscc/iscc-lib/actions/runs/27755956905
-- **HEAD is 4 commits ahead of origin/develop, all code-clean.** HEAD (`c7e5466`) plus `bc6a5c2`
-    (meta), `9770332` (human authorize), `827adf2` (iter-111 log) are unpushed; the diff touches
-    only `.claude/` context/memory files and the `ci-cd.md` *spec* — **no buildable code, no CI
-    config**. The green CI result therefore reflects the current code.
-- **NEW — human authorized two hardening gates (commit `9770332`), spec amended, NOT yet built:**
-    - **CRAP `--fail-above` (authorized, unimplemented):** `ci-cd.md` Phase 3 now mandates
-        `cargo crap --baseline .crap-baseline.json --fail-regression --fail-above` (boolean keyed off
-        the existing `.cargo-crap.toml` threshold = 30). Today ci.yml:390 still runs
-        `--fail-regression` only and `.cargo-crap.toml` still has the Phase-2 "report-only / no
-        fail-above" comment. The new `ci-cd.md` "verified when" box is `[ ]`. This closes the
-        regression-only blind spot (a new/renamed CC-heavy fn currently reports `★ N new` and exits 0;
-        Codex verified a CC=21 fn @ CRAP 462 bypassed the gate). Baseline max ~22.3 < 30, so safe.
-    - **`cargo-deny`/`cargo audit` supply-chain gate (authorized, unimplemented):** `ci-cd.md` now
-        mandates an Audit job running `cargo deny check` (advisories + bans + licenses) over the
-        workspace via a root `deny.toml`, plus a `mise run audit` task (and optional `cargo audit` /
-        `npm audit`). None exists today — no `deny.toml`, no Audit CI job, no `mise` task, neither
-        tool installed. The new `ci-cd.md` "verified when" box is `[ ]`.
-- **Perf gate ENFORCING + HARDENED** (ci.yml:281, no `continue-on-error`) — unchanged; green.
-- **Coverage + CRAP GREEN** — Phase 3 regression gate (ci.yml:390) runs every commit, concludes
-    `success`. (Will gain `--fail-above` once the authorized gate above is built.)
+- **LATEST PUSHED CI RUN — SUCCESS.** origin/develop tip `cee130a`; completed runs `27759986239` /
+    `27759984667` (overall `success`); all functional jobs green (confirmed via check-runs API on
+    the actual tip SHA), incl. `Perf (iai-callgrind)`, `Coverage + CRAP`, the `cargo-crap` action,
+    and the enforcing Phase 3 CRAP gate (now with `--fail-above`). Only
+    `Semver (cargo-semver-checks)` reports `failure` and it is `continue-on-error: true`
+    (informational, does not flip the run). URL:
+    https://github.com/iscc/iscc-lib/actions/runs/27759986239
+- **HEAD is 1 commit ahead of origin/develop, log-only.** HEAD (`ea284c0`,
+    `cid(log): iteration   113`) touches only `.claude/context/iterations.jsonl`. The green CI
+    result reflects the current code.
+- **CRAP `--fail-above` gate — DONE & GREEN (authorized issue #1 closed this cycle).** The enforcing
+    Phase 3 CRAP step (ci.yml:392-393) now runs
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`.
+    `--fail-above` is a boolean keyed off `.cargo-crap.toml threshold = 30.0` (no numeric arg); it
+    closes the regression-only blind spot where a brand-new/renamed CC-heavy function reported
+    `★ N new` and exited 0. Current max CRAP ~22.3 < 30, so the absolute gate passes on the current
+    code — `Coverage + CRAP` is green. `.cargo-crap.toml` comment updated to describe the enforcing
+    `--fail-above`; `ci-cd.md` "verified when" box (line 445) is `[x]`. Reviewed PASS (`cee130a`,
+    Codex confirmed the YAML parses to the intended command).
+- **`cargo-deny`/`cargo audit` supply-chain gate (authorized, UNIMPLEMENTED — last work package):**
+    `ci-cd.md` (Audit row at line 33, "Supply chain — `cargo-deny`" section at line 139) mandates an
+    Audit job running `cargo deny check` (advisories + bans + licenses) over the workspace via a
+    root `deny.toml`, plus a `mise run audit` task (optionally `cargo audit` / `npm audit`).
+    **Verified absent today:** no `deny.toml`, no Audit/deny job in `ci.yml`, no `audit`/`deny` task
+    in `mise.toml`, neither tool installed. The `ci-cd.md` "verified when" box (line 448) is `[ ]`.
+- **Perf gate ENFORCING + HARDENED** (no `continue-on-error`) — unchanged; green.
 - v0.4.0 published; release workflow with 8 registry input toggles (crates.io, PyPI, npm, Maven,
     FFI, RubyGems, NuGet, Maven-Kotlin; Swift XCFramework built in `prepare-release`) + version sync
     (16 targets) in place.
 
-## Open Issues (issues.md lists 4 — 0 critical, 2 normal, 2 low)
+## Open Issues (issues.md lists 3 — 0 critical, 1 normal, 2 low)
 
-Both `normal` `[review]` issues were flipped from HUMAN REVIEW REQUESTED to **AUTHORIZED** by Titusz
-in commit `9770332`, so CID may now implement them autonomously:
-
-1. **CRAP gate does not fail on new high-CRAP functions** `normal` `[review]` — **AUTHORIZED**. Wire
-    `--fail-above` (boolean, threshold 30 from `.cargo-crap.toml`) alongside `--fail-regression` in
-    ci.yml; update the `.cargo-crap.toml` Phase-2 "report-only" comment. `cargo-crap 0.2.2`
-    confirmed to accept both flags together (the flag takes no numeric arg).
-2. **Wire up `cargo deny`/`cargo audit` supply-chain gate** `normal` `[review]` — **AUTHORIZED**.
-    Add root `deny.toml`, a `Security audit` CI job (`cargo deny check` advisories + bans +
-    licenses), a `mise run audit` task; install via `taiki-e/install-action` or
-    `cargo binstall -y --force` (mind the rust-cache poisoning gotcha in learnings). Optionally add
-    `npm audit` for the napi package.
+1. **Wire up `cargo deny`/`cargo audit` supply-chain gate** `normal` `[review]` — **AUTHORIZED** by
+    Titusz (`9770332`), CID may implement autonomously. Add root `deny.toml`, a `Security audit` CI
+    job (`cargo deny check` advisories + bans + licenses), a `mise run audit` task; install via
+    `taiki-e/install-action` or `cargo binstall -y --force` (mind the `Swatinem/rust-cache`
+    poisoning gotcha — `--force` is load-bearing). Optionally add `npm audit` for the napi package.
 
 Low (human-directed, CID skips):
 
-- **Release core as v1.0.0** — **held** by Titusz (2026-06-18): stay on 0.4.x, land both hardening
-    gates first, then flip the `cargo-semver-checks` gate to enforcing as part of the eventual cut.
-    Human-driven via `/release`; CID must not cut it autonomously.
+- **Release core as v1.0.0** — **held** by Titusz (2026-06-18): stay on 0.4.x, land the cargo-deny
+    hardening gate first, then flip the `cargo-semver-checks` gate to enforcing as part of the
+    eventual cut. Human-driven via `/release`; CID must not cut it autonomously.
 - **Add programming language logos to docs site** — cosmetic.
 
 ## Next Milestone
 
-**The loop has returned to active autonomous work.** CI is GREEN and the two previously human-gated
-`normal` `[review]` issues are now AUTHORIZED — both are spec'd in `ci-cd.md` but unimplemented.
-define-next should pick them up in this order:
+CI is GREEN and the CRAP `--fail-above` gate has landed. **The single remaining autonomous work
+package is the authorized `cargo-deny`/`cargo audit` supply-chain gate.** define-next should pick it
+up:
 
-1. **CRAP `--fail-above` gate** (smaller, self-contained): add `--fail-above` to the enforcing CRAP
-    step in `ci.yml` (boolean keyed off `.cargo-crap.toml` threshold = 30), update the
-    `.cargo-crap.toml` "report-only / no fail-above" comment, and flip the `ci-cd.md` "verified
-    when" box once CI confirms it. Safe: baseline max ~22.3 < 30.
-2. **`cargo-deny`/`cargo audit` supply-chain gate**: add a workspace-root `deny.toml`, a
-    `Security audit` CI job running `cargo deny check`, and a `mise run audit` task; install the
-    tool in CI carefully (rust-cache poisoning gotcha). Optionally complement with `cargo audit` /
-    `npm  audit`. Flip the `ci-cd.md` "verified when" box once CI confirms it.
+- Add a workspace-root `deny.toml` (advisories + bans + licenses policy classes).
+- Add a `Security audit` CI job running `cargo deny check`; install the tool carefully in CI
+    (`taiki-e/install-action` or `cargo binstall -y --force` — the `--force` is load-bearing against
+    the `Swatinem/rust-cache` poisoning gotcha; see learnings).
+- Add a `mise run audit` task that reproduces `cargo deny check` locally. Optionally complement with
+    `cargo audit` / `npm audit` (napi).
+- Flip the `ci-cd.md` "verified when" box (line 448) only once the new CI job is confirmed green —
+    `cargo-deny`/`cargo-audit` are NOT installed in the devcontainer, so the green CI job is the
+    real confirmation (local verification limited to `deny.toml` parse + task wiring).
 
-Do NOT cut v1.0.0 or flip the `Semver` gate to enforcing — both are deliberately held until after
-the two hardening gates land. The semver enforcement and v1.0.0 cut remain human-directed.
+Do NOT cut v1.0.0 or flip the `Semver` gate to enforcing — both are deliberately held by Titusz
+until after the cargo-deny gate lands.
