@@ -160,41 +160,41 @@ iterations.
     catalog archived to MEMORY-archive.md. Residual fact: **cargo-audit AND cargo-deny are absent
     locally AND not wired into CI/mise** (verified iter 105) — advisory clearance was confirmable
     only by the lockfile proxy, which spawned the [review] supply-chain-audit-gate issue.
-- **Remaining v1.0.0 normal backlog after iter 106 (3 issues, ALL constrained)**: (a) iai-callgrind
-    perf gate `[human]` — ALREADY in spec (target.md L71, rust-core.md, ci-cd.md), NO human-review
-    hold; (b) CRAP `--fail-above 30` `[review]` — HUMAN REVIEW REQUESTED to amend spec; (c)
-    supply-chain `cargo deny/audit` gate `[review]` — HUMAN REVIEW REQUESTED to amend spec. **Key
-    calibration:** prefer the already-specced gap (a) — adding a NEW gate that amends the spec/notes
-    is a policy call the review agent flagged for human sign-off; respect that, do NOT auto-scope
-    (b)/(c). The HUMAN-REVIEW-override-on-overwhelming-evidence rule is for BUG fixes, not new
-    policy gates.
+- **Calibration kept from iter 106**: the HUMAN-REVIEW-override-on-overwhelming-evidence rule is for
+    BUG fixes, not NEW policy gates — a gate that amends the spec/notes needs human sign-off first.
 - **iai-callgrind perf gate (issue #3) COMPLETE + hardened + CI-verified GREEN (iters 107–110)** →
     see [iai-callgrind-gate](iai-callgrind-gate.md). Harness + Perf CI job + committed
-    `.iai-baseline.json` + enforcing `scripts/iai_regression.py --check`; valgrind + runner
-    installed locally → locally verifiable. Iter 110 hardening (fail on zero-Ir/missing bench,
-    `--allow-missing` opt-out) was a pure script change, NO spec amendment. The two remaining normal
-    issues (CRAP `--fail-above 30`, cargo-deny/audit) ARE human-review-requested spec amendments →
-    do NOT auto-scope.
-- **iter 100→101 cargo-crap install-flake fix — RESOLVED (detail archived).** Rule kept: **CI red
-    always preempts feature work, even a clean handoff "Next".**
-- **iter 111: GENUINE HUMAN-HANDOFF — define-next wrote a NO-OP next.md.** CI GREEN; only 3 gaps,
-    all human-blocked (v1.0.0 cut + the 2 `normal` [review] gates). No-op was right; human resolved
-    it (next entry).
-- **iter 112→113: HUMAN AUTHORIZED both `normal` `[review]` gates (commit `9770332`, "Authorize CRAP
-    --fail-above and cargo-deny gates; hold v1.0.0").** `ci-cd.md` was amended (Phase 3 mandates
-    `--fail-above`; new §"Supply chain — `cargo-deny`"). The prior "do NOT auto-scope the
-    spec-amendment gates" constraint is **LIFTED** — CID may now implement both autonomously. Order
-    (per state.md Next Milestone): (1) CRAP `--fail-above` FIRST (smaller, self-contained), (2)
-    `cargo-deny`/`cargo audit` supply-chain gate SECOND. Still HELD by Titusz: v1.0.0 cut (`low`
-    [human]) + flipping the Semver gate to enforcing — do NOT touch either.
-- **iter 113 SCOPED: CRAP `--fail-above` gate.** 3 files: `ci.yml` (append `--fail-above` to the
-    "CRAP regression gate" step, line ~390:
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above` —
-    `--fail-above` is a BOOLEAN, no numeric arg, keys off `.cargo-crap.toml` `threshold = 30.0`);
-    `.cargo-crap.toml` (update the "report-only / no `fail-above` is set" header comment, lines
-    1-9); `ci-cd.md` (flip verified-when box ~L445 `[ ]`→`[x]`). SAFE: `.crap-baseline.json` max
-    CRAP = 22.27 < 30 (verified locally iter 113), so the absolute gate passes on current code.
-    Local verify = `mise run coverage` then the full CRAP cmd exits 0.
-    `--fail-above`/`--fail-regression` are independent booleans that combine with `--baseline`
-    (incompatible only with `--format sarif`, which is a separate step). Keep `mise run crap`
-    report-only (diagnostic); enforcement is CI-only.
+    `.iai-baseline.json` + enforcing `scripts/iai_regression.py --check`; valgrind + runner local →
+    locally verifiable. Iter 110 hardening was a pure script change, NO spec amendment.
+- **iter 111: GENUINE HUMAN-HANDOFF — define-next wrote a NO-OP next.md** (all gaps human-blocked).
+    Human resolved it by authorizing the 2 gates (next entry). Don't manufacture churn to avoid
+    pauses.
+- **iter 112: HUMAN AUTHORIZED both `normal` `[review]` gates (commit `9770332`).** `ci-cd.md`
+    amended (Phase 3 mandates `--fail-above`; new §"Supply chain — `cargo-deny`"); the "do NOT
+    auto-scope spec-amendment gates" constraint LIFTED — CID implements both autonomously, CRAP
+    first (done iter 113), cargo-deny second (scoped iter 114).
+- **CRAP `--fail-above` gate (iter 113) LANDED + review PASS + CI green** — first of the two
+    authorized `[review]` hardening gates done; ci-cd.md L445 box `[x]`. Flag mechanics in
+    learnings.md.
+- **iter 114 SCOPED: `cargo-deny` supply-chain gate (2nd authorized `[review]` gate, last autonomous
+    v1.0.0-hardening package; issue AUTHORIZED in `9770332`).** 1 create + 2 modify: `deny.toml`
+    (workspace root); `ci.yml` (append enforcing `audit` job AFTER `coverage`, which ends at L393 —
+    `runs-on: ubuntu-latest`, NO `continue-on-error`, install via
+    `taiki-e/install-action@v2 tool: cargo-deny@0.19.9`, run `cargo deny check`); `mise.toml`
+    (`[tasks.audit]` → `cargo deny check`). ci-cd.md L448 box flips `[x]` only after CI green
+    (locally verifiable IF advance installs cargo-deny — `cargo install cargo-deny@0.19.9 --locked`;
+    binstall is NOT preinstalled but crates.io reachable, latest 0.19.9).
+- **cargo-deny deny.toml license-graph TRAPS (inspected iter 114 via `cargo metadata`)**: the
+    `notes/07` sketch uses the DEAD pre-0.14 schema (`vulnerability`/`unmaintained = "deny"`,
+    `unlicensed`) — 0.18+ rejects it; write the modern v2 schema (`cargo deny init` scaffolds it).
+    STANDALONE licenses that MUST be in `[licenses] allow` (each not behind an OR): Apache-2.0,
+    `Apache-2.0 WITH LLVM-exception`, MIT, MIT-0, BSD-2-Clause, BSD-3-Clause, ISC, **Unicode-3.0**
+    (AND in `unicode-ident`), **Zlib** (`foldhash`), **BSL-1.0** (`xxhash-rust`, core CDC dep),
+    **MPL-2.0** (8 `uniffi*` crates). Our 4 binding crates (iscc-napi/py/rb/wasm) have NO `license`
+    field → set `[licenses] private = { ignore = true }` (don't add 4 manifest edits). Use
+    `[graph] all-features = true` so binding-crate deps are scanned;
+    `[bans] multiple-versions =   "warn"` (duplicates ubiquitous → denying needs a brittle
+    skip-list, CI-red); `[sources]   unknown-registry/unknown-git = "deny"`. If a live RustSec
+    advisory turns it red, `ignore =   ["RUSTSEC-..."]` with a comment, don't loosen the class.
+- **Still HELD by Titusz after iter 114**: v1.0.0 cut (`low` [human]) + flipping Semver to
+    enforcing. Once cargo-deny lands, only `low` issues remain → likely IDLE/human-handoff.
