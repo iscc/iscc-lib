@@ -26,3 +26,40 @@ autonomously.
 
 README language logos added (iteration 3). Consider adding matching logos to `docs/index.md` and
 howto guide headers on the documentation site for visual consistency. Purely cosmetic follow-up.
+
+## Migrate npm publishing to OIDC Trusted Publishing `normal` [human]
+
+The v0.5.0 release failed both npm publishes (`@iscc/lib`, `@iscc/wasm`) because the `NPM_TOKEN`
+secret had expired (npm caps write-token expiry at 90 days). npm now supports **OIDC Trusted
+Publishing** — the same keyless mechanism already used for crates.io, PyPI, and RubyGems — which
+removes `NPM_TOKEN` entirely and eliminates this expiry class of failure. npm's own token UI
+recommends it for CI/CD.
+
+**Scope:** update the two npm publish jobs in `.github/workflows/release.yml` (`Publish @iscc/lib`,
+`Publish @iscc/wasm`) to publish via OIDC (drop `NODE_AUTH_TOKEN`/`NPM_TOKEN`, rely on the existing
+`id-token: write` permission + `npm publish --provenance`). **Human-gated:** requires configuring a
+Trusted Publisher for each package on npmjs.com (link repo `iscc/iscc-lib` + the release workflow)
+before the token can be removed — CID can prepare the YAML diff but must not delete `NPM_TOKEN`
+until the npm-side trusted publisher is live and a publish has succeeded.
+
+Interim mitigation already in place: release skill Step 1.6 checks npm token expiry pre-flight, and
+the token was rotated (`iscc-lib-ci-2026`, granular `@iscc` scope, expires 2026-09-16).
+
+## Fix broken single-registry re-trigger in release.yml `normal` [human]
+
+`gh workflow run release.yml --ref main -f <registry>=true` is documented as the way to re-publish a
+single failed registry, but it **silently publishes nothing** for npm/pypi/maven. Root cause: with
+no `version` input, `prepare-release` (`if: inputs.version != ''`) is skipped, and GitHub propagates
+that skip down the `needs` chain to any job whose `if:` lacks a `!cancelled() && !failure()` guard.
+Only the `build-*` jobs and `publish-crates-io` currently have that guard; the `test-*` and
+`publish-*` jobs for npm (`test-napi`, `publish-npm-lib`, `test-wasm`, `publish-npm-wasm`), pypi
+(`test-wheels`, the PyPI publish), and maven (`test-jni`, `assemble-jar`, the Maven publishes) do
+not, so they skip. Verified empirically on 2026-06-18 (a `-f npm=true` run built artifacts then
+skipped every test/publish job).
+
+**Fix:** add `${{ !cancelled() && !failure() && (<existing condition>) }}` guards to all `test-*`
+and `publish-*` job `if:` conditions, matching `publish-crates-io` (line ~128). Then
+`-f <registry>=true` re-triggers will publish as documented. Until then, recover failed publishes
+with `gh run rerun <run-id> --failed` (works because failed jobs reran cleanly for v0.5.0). Update
+the release skill's "Re-triggering a Failed Registry" section and the `release-workflow.md` memory
+once fixed.

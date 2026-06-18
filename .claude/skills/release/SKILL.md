@@ -69,6 +69,47 @@ gh run list --workflow ci.yml --branch develop --limit 1 --json status,conclusio
 
 If CI is not green, warn the user and ask whether to proceed anyway.
 
+### Step 1.6 — Publish credential check (npm token expiry)
+
+Most registries publish via OIDC (crates.io, PyPI, RubyGems) and never expire. **npm is the
+exception** — it authenticates with the `NPM_TOKEN` secret, a granular token whose write access
+**expires within 90 days** (npm's hard maximum). An expired token is invisible until publish time,
+where it fails with `npm error code E404 ... PUT https://registry.npmjs.org/@iscc%2f...` (npm
+returns 404, not 401/403, on bad auth). This silently broke the v0.5.0 npm publish.
+
+Before triggering the release, verify the npm token is current:
+
+- Ask the user to open `https://www.npmjs.com/settings/<npm-user>/tokens` (they must be logged in).
+- Confirm the release token (named `iscc-lib-ci-*`) is **not** marked `Expired` and is not within a
+    few days of its expiry date.
+
+If it is expired or near expiry, rotate it before proceeding:
+
+1. On npm, **Generate New Token** → Granular Access Token. Name `iscc-lib-ci-<year>`; check **Bypass
+    2FA**; **Packages and scopes** → Read and write → "Only select packages and scopes" → select
+    the `@iscc` scope; **Expiration** → 90 days (the maximum for write tokens).
+2. Copy the token, then update the GitHub secret at
+    `https://github.com/iscc/iscc-lib/settings/secrets/actions/NPM_TOKEN` (paste value → Update
+    secret; GitHub will require a sudo-mode re-auth that **the user** must complete).
+3. **Entering the token value is the user's action** — never type credentials yourself. Use the
+    clipboard (copy on npm → paste into the GitHub field) so the value stays out of the transcript.
+
+If only the npm publish later fails on a stale token, fix the `NPM_TOKEN` secret, then **re-run the
+failed jobs of that release run** with `gh run rerun <run-id> --failed`. This re-runs only the
+failed npm publish jobs, reuses the existing build artifacts, picks up the new secret, and touches
+no tags/release. Verified working for the v0.5.0 npm recovery (2026-06-18).
+
+> **Do NOT use `gh workflow run release.yml --ref main -f npm=true` to recover.** That path is
+> broken: with no `version` input, `prepare-release` is skipped, and GitHub propagates that skip
+> through the `needs` chain to every `test-*`/`publish-*` job that lacks a
+> `!cancelled() && !failure()` guard (npm/pypi/maven jobs lack it; only `build-*` and
+> `publish-crates-io` have it). So `-f npm=true` rebuilds artifacts but **skips all publishing**.
+> See the re-trigger section at the end of this file.
+
+> **Root-cause fix:** npm supports OIDC Trusted Publishing, which would remove `NPM_TOKEN` and this
+> whole expiry class of failure (npm's own UI recommends it for CI/CD). Migrating the npm + wasm
+> publish jobs to OIDC is tracked as a future improvement.
+
 ## Phase 2: Version Bump
 
 ### Step 2.1 — Update canonical version
@@ -379,24 +420,37 @@ When any step fails:
 6. **Never skip a failing step silently** — every failure must be reported
 7. **Never force-push or use destructive git operations** — ask the user first
 
-## Re-triggering Individual Registries
+## Re-triggering a Failed Registry
 
-If the release workflow fails for specific registries (while others succeed), individual registries
-can be re-triggered via `workflow_dispatch` without the `version` input (which would re-run the full
-release including XCFramework build and tagging):
+If specific registries fail while others succeed, **prefer re-running the failed jobs of the same
+release run** — this reuses build artifacts, picks up any rotated secrets, and touches no
+tags/release:
 
 ```
-gh workflow run release.yml --ref main -f <registry>=true
+gh run rerun <run-id> --failed
 ```
 
-Available registry flags: `crates-io`, `pypi`, `npm`, `maven`, `ffi`, `rubygems`, `nuget`,
-`maven-kotlin`.
+This is the verified recovery path (used for the v0.5.0 npm token failure). It only re-runs jobs
+that reached a `failure` conclusion, so it works when a publish job ran and errored (bad token,
+transient registry error). It does NOT help if a job was `skipped`.
 
-**Critical:** Always use `--ref main`. Do NOT pass `-f version=<version>` for re-triggers — that
-would attempt to recreate tags and the GitHub Release, which already exist.
+### Known bug: `-f <registry>=true` re-triggers skip publishing
 
-When re-triggering, the publish steps have version-existence checks that skip already-published
-registries (idempotent). Only the failed registry will actually publish.
+The `workflow_dispatch` registry flags exist:
+
+```
+gh workflow run release.yml --ref main -f <registry>=true   # crates-io|pypi|npm|maven|ffi|rubygems|nuget|maven-kotlin
+```
+
+…but most of them **do not publish**. Without a `version` input, `prepare-release` is skipped, and
+GitHub propagates that skip through the `needs` chain to every job whose `if:` lacks a
+`!cancelled() && !failure()` guard. Today only `build-*` jobs and `publish-crates-io` carry that
+guard, so `-f crates-io=true` works but `-f npm=true` / `-f pypi=true` / `-f maven=true` rebuild
+artifacts and then **skip the test/publish jobs**. Verified 2026-06-18. Until the guards are added
+to all `test-*`/`publish-*` jobs (tracked in `issues.md`), use `gh run rerun --failed` instead.
+
+**Never pass `-f version=<version>` to recover** — that re-runs `prepare-release`, which
+force-pushes the release tags and updates the GitHub Release.
 
 ## Important Constraints
 
