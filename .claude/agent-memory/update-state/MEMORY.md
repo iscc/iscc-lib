@@ -58,14 +58,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `--format sarif --output crap.sarif` + `codeql-action/upload-sarif@v3` → **Phase 3 (enforcing,
     iter 97)**: `CRAP regression gate`
     `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` (ci.yml:335-336),
-    NOT continue-on-error, runs LAST. **⚠️ cargo-crap install flake (iter 100, FIXED iter 101
-    `628c5d9`)**: install step lacked `--force`; `Swatinem/rust-cache@v2` (ci.yml:304) restored
-    cargo's `.crates` metadata WITHOUT the binary, so binstall SKIPPED ("already installed") and
-    `crap` died (exit 101), recurring every run after the first green one. Fix = `--force` on the
-    binstall. General lesson: if a binstalled tool flakes "already installed" under rust-cache, add
-    `--force`. `.crap-baseline.json` (repo root, NOT gitignored — only `lcov.info`+`crap.sarif`
-    are): envelope `{$schema, version:"0.2.2", entries:[...]}`, 97 entries / 10
-    `crates/iscc-lib/src/` files. Regen via `mise run crap:baseline` (mise.toml:119,
+    NOT continue-on-error, runs LAST. **cargo-crap install flake FIXED iter 101 `628c5d9`** via
+    `--force` on the binstall (rust-cache restored cargo metadata without the binary → binstall
+    skipped; full mechanism archived). General lesson: a binstalled tool that flakes "already
+    installed" under rust-cache needs `--force`. `.crap-baseline.json` (repo root, NOT gitignored —
+    only `lcov.info`+`crap.sarif` are): envelope `{$schema, version:"0.2.2", entries:[...]}`, 97
+    entries / 10 `crates/iscc-lib/src/` files. Regen via `mise run crap:baseline` (mise.toml:119,
     `depends=["coverage"]`, `--format json --output .crap-baseline.json`) — reviewed commit, NOT CI
     auto-commit. `.cargo-crap.toml` (repo root): threshold 30, `missing="pessimistic"`, excludes all
     7 binding crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`.

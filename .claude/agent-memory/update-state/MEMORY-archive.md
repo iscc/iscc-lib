@@ -25,3 +25,7 @@ archived entries.
     `8df611f`) = ZERO source edits, gil_used default did NOT flip again. Recipe: bump pin →
     `cargo update -p pyo3` → build/clippy(-D warnings)/fmt → `uv run maturin develop` →
     `uv run pytest` (286). 0.29 ships both RustSec advisory fixes; issue #1 closed.
+- **cargo-crap install flake mechanism (iter 100, FIXED iter 101 `628c5d9`)**: the install step
+    lacked `--force`; `Swatinem/rust-cache@v2` (ci.yml:304) restored cargo's `.crates` metadata
+    WITHOUT the binary, so binstall SKIPPED ("already installed") and `crap` died (exit 101),
+    recurring every run after the first green one. Fix = `--force` on the binstall.
