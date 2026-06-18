@@ -78,20 +78,25 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
 - **Semver gate review** (iter 93): informational pre-1.0 — full verify recipe in
     `MEMORY-archive.md`
-- **Perf gate review — COMPLETE (slice 2a iter 107/108, slice 2b iter 109; #3 pending CI close)**:
-    valgrind 3.19 + `iai-callgrind-runner` 0.16.1 ARE in the devcontainer (iter-107 "absent" claim
-    WRONG). `mise run bench:iai` RUNS locally (bakes in `IAI_CALLGRIND_ALLOW_ASLR=true`; kernel
-    blocks the `personality` syscall iai's `setarch -R` needs). 2b VERIFY: `mise run bench:iai` → 16
-    `.out`, then `python3 scripts/iai_regression.py --check` → 16 within 10% exit 0 (committed
+- **Perf gate review — COMPLETE & HARDENED (slice 2a iter 107/108, 2b iter 109, hardening iter 110;
+    #3 closed + CI GREEN on a5ce73c)**: valgrind 3.19 + `iai-callgrind-runner` 0.16.1 ARE in the
+    devcontainer (iter-107 "absent" claim WRONG). `mise run bench:iai` RUNS locally (bakes in
+    `IAI_CALLGRIND_ALLOW_ASLR=true`; kernel blocks the `personality` syscall iai's `setarch -R`
+    needs). 2b VERIFY: `mise run bench:iai` → 16 `.out`, then
+    `python3 scripts/iai_regression.py --check` → 16 within 10% exit 0 (committed
     `.iai-baseline.json` is CI-sourced; local 1.96.0 agrees ≤1.66%). Script logic test in /tmp:
     `--update` from synthetic `summary:` dirs, self-check exit 0, tamper one baseline −50% → exit 1,
     missing baseline → exit 1, `.out.old` excluded. RACE: `--check` immediately after `cargo bench`
     exits can match 9/16 mid-flush — re-run; CI runs it as a separate step so unaffected. STRIP
     GOTCHA: `[profile.bench] strip = false, debug = true` load-bearing (else 0
-    `__iai_callgrind_wrapper` symbols → all `summary: 0` false green). KNOWN false-green edges
-    ([review] issue iter 109): single-bench `summary: 0` reads as improvement & passes (guard only
-    catches ALL-zero); disappeared baseline bench only warns. NO `continue-on-error` (enforcing);
-    post-push Perf-step-green is CI-only confirm
+    `__iai_callgrind_wrapper` symbols → all `summary: 0` false green). FALSE-GREEN EDGES HARDENED
+    (iter 110, [review] issue closed): `check_regressions(run, baseline, allow_missing=False)` now
+    FAILS on any shared bench with current Ir 0 (zero-count guard, independent of `--allow-missing`)
+    AND on a disappeared baselined bench (unless `--allow-missing` downgrades to warning);
+    `only_run` new-bench still warns only. Script-only review shortcut:
+    `uv run pytest   tests/test_iai_regression.py -q` (11 synthetic-fixture tests, loads script by
+    path via `spec_from_file_location` like test_cid.py) + ruff check/format + `ty check`. NO
+    `continue-on-error` (enforcing); post-push Perf-step-green is CI-only confirm
 
 ## Codex Review Integration
 

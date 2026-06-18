@@ -122,9 +122,13 @@ fully-met target sections to `learnings-archive.md`.
     runner ARE in the devcontainer; `mise run bench:iai` works (`IAI_CALLGRIND_ALLOW_ASLR=true`
     skips the kernel-blocked `personality` syscall; ASLR = cache noise, NOT `Ir`).
     `[profile.bench] strip =   false, debug = true` is load-bearing (else stripped binary → all
-    benches `summary: 0` false- green). KNOWN false-green edges ([review] issue): single-bench
-    `summary: 0` reads as improvement & passes; a baselined bench that stops emitting `.out` only
-    warns, never fails
+    benches `summary: 0` false- green).
+- **iai gate false-green edges HARDENED (iter 110)**: `check_regressions` now FAILS when any shared
+    bench's current Ir is 0 (zero-count guard, independent of `--allow-missing`) and when a
+    baselined bench disappears from the run (unless `--allow-missing` downgrades it to a warning for
+    a deliberate shrink). `only_run` (new-bench-not-in-baseline) still warns only. Covered by
+    `tests/test_iai_regression.py` (11 synthetic-fixture tests, loads script by path). The committed
+    `.iai-baseline.json` only shrinks via a reviewed `--update` refresh
 
 ## Branching
 

@@ -43,39 +43,6 @@ per the same note.
 mandate a supply-chain audit gate (review-sourced; the requirement currently lives only in the
 design notes, not the CID specs).
 
-## Add `iai-callgrind` performance-regression CI gate `normal` [human]
-
-Add a Linux CI job with [`iai-callgrind`](https://github.com/iai-callgrind/iai-callgrind)
-instruction-count benches for the hot `gen_*_v0` / hashing / CDC / MinHash paths. Instruction counts
-(valgrind) are deterministic, so the gate is stable on shared runners — unlike wall-clock criterion.
-Commit a baseline to the repo and fail CI on a > 10% regression; baseline refreshes are deliberate
-reviewed commits. Keep the existing `criterion` benches for local profiling. Add `mise` tasks to run
-and to refresh the baseline.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants";
-`.claude/context/specs/ci-cd.md` → "API Stability and Performance Gates"
-
-## Harden iai-callgrind regression gate against false-green edge cases `normal` [review]
-
-`scripts/iai_regression.py` (iter 109, slice 2b of the perf gate) has two narrow false-green gaps
-Codex flagged:
-
-1. **Zero current count slips through.** A single benchmark reporting `summary: 0` (e.g. a partial
-    strip or a harness regression) is read as a large *improvement*, so `cur > base * limit` is
-    false and `--check` passes. The CI `Assert non-zero instruction collection` guard only catches
-    the *all-zero* case (`grep -rEq '^summary: [1-9]'` matches as long as ANY bench is non-zero).
-    Fix: in `check_regressions`, fail when any shared bench's current Ir is 0.
-2. **Disappeared baseline bench only warns.** If a benchmark in `.iai-baseline.json` stops emitting
-    a `.out` (renamed/removed harness case), it is reported via `only_baseline` as a warning and
-    the script can still exit 0 — even when `shared` is empty. Fix: fail (or require an explicit
-    `--allow-missing`) when a baselined bench is absent from the run, so the committed baseline
-    only shrinks via a deliberate `--update` refresh.
-
-Both are defense-in-depth hardening of an already-working enforcing gate (the normal case and the
-all-zero case are correctly handled), not a slice-2b defect. No spec change needed — `ci-cd.md`
-already says the gate "fails on a > 10% regression"; this just closes the zero/missing escape
-hatches. Confirm `cargo test -p iscc-lib` is unaffected (script-only change).
-
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
 Human-driven release: cut **v1.0.0** as the first stability-committed release of the lockstep
