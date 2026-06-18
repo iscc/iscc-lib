@@ -16,3 +16,12 @@ archived entries.
 - **Module visibility (iteration 86, `3f6a61d`)**:
     `cdc/conformance/dct/minhash/simhash/utils/wtahash` = `pub(crate) mod`; only
     `codec/streaming/types` = `pub mod`. Issue swept.
+- **PyO3 0.23→0.29 migration hop history (issue #1, iters 98-105)**: incremental one-minor-per-step,
+    completed iter 105. Edits per hop: 0.23→0.24, 0.24→0.25 = ZERO source edits; 0.25→0.26 =
+    `allow_threads`→`detach` (7 sites) + `PyObject`→`Py<PyAny>` (17 sites); 0.26→0.27 (`acf9277`) =
+    `downcast`→`cast` / `downcast_into_unchecked`→`cast_into_unchecked` (2 sites in `to_pylist`);
+    0.27→0.28 (iter 104) = compiled CLEAN but SILENT `#[pymodule] gil_used` default flip
+    `true`→`false`, restored with explicit `gil_used = true` (lib.rs:697); 0.28→0.29 (iter 105
+    `8df611f`) = ZERO source edits, gil_used default did NOT flip again. Recipe: bump pin →
+    `cargo update -p pyo3` → build/clippy(-D warnings)/fmt → `uv run maturin develop` →
+    `uv run pytest` (286). 0.29 ships both RustSec advisory fixes; issue #1 closed.

@@ -33,22 +33,21 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `grep -A 20 "build-kotlin-native:\|android" .github/workflows/release.yml`
 - **Provenance guard check**: `grep -c 'Verify main matches tag' .github/workflows/release.yml`
 - **Benchmarks doc check**: `grep -i "speedup" docs/benchmarks.md | head -5`
-- **PyO3 version**: `grep -n "pyo3" Cargo.toml` (workspace.dependencies — one place). Now at `0.28`
-    (iter 104, `Cargo.lock` 0.28.3). Migrating one minor per CID step toward `0.29` (where 2 RustSec
-    advisories clear — that's the FINAL hop & issue #1 endpoint). Recipe: bump pin →
-    `cargo update -p pyo3` → build/clippy(-D warnings)/fmt → `uv run maturin develop` →
-    `uv run pytest` (286). Hop history: 0.23→0.24, 0.24→0.25 = ZERO source edits; 0.25→0.26 =
-    `allow_threads`→`detach` (7 sites) + `PyObject`→`Py<PyAny>` (17 sites); 0.26→0.27 (`acf9277`) =
-    `downcast`→`cast` / `downcast_into_unchecked`→`cast_into_unchecked` (2 sites in `to_pylist`).
-    **0.27→0.28 (iter 104) = compiled CLEAN but a SILENT runtime-default flip**: PyO3 0.28 changed
-    the unspecified `#[pymodule]` `gil_used` default `true`→`false`; review restored it with
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697, documented) to keep the raw-FFI
-    `extract_frame_sigs` path free-threading-safe. **LESSON: "compiles clean" ≠ behavior-neutral —
-    diff pyo3 macros-backend defaults + read the migration guide each hop.** `IntoPyObject`/lifetime
-    breaks predicted but NOT materialized through 0.28. Core has NO PyO3 dep — scope edits to
-    `crates/iscc-py/`. Next & last: 0.28 → 0.29 (then `cargo audit` to confirm advisories clear).
-- **v1.0.0 gates check**: `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml`
-    - `ls .cargo-crap.toml` + `grep -iE "coverage|crap|semver|callgrind" mise.toml`
+- **PyO3 version — MIGRATION COMPLETE (issue #1 CLOSED iter 105 `8df611f`/`103fe3d`)**:
+    `grep -n "pyo3" Cargo.toml` (workspace.dependencies — one place). Now at `0.29` (`Cargo.lock`
+    0.29.0, single entry, no older) — the version where the 2 RustSec advisories clear. Core has NO
+    PyO3 dep; scope is `crates/iscc-py/`. **Load-bearing current-code detail**:
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697, documented) — explicit because
+    PyO3 0.28 silently flipped the unspecified default `true`→`false` (free-threading-safety of the
+    raw-FFI `extract_frame_sigs` path). **LESSON for future bumps: "compiles clean" ≠
+    behavior-neutral — diff pyo3 macros-backend defaults + read the migration guide each hop.**
+    Advisory clearance confirmed only by lockfile proxy (`cargo deny`/`cargo audit` absent) → now
+    its own `[review]` supply-chain issue (below). Full hop-by-hop history (0.23→0.29) archived.
+- **Supply-chain audit gate ABSENT (NEW [review] issue iter 105)**: `notes/07` mandates a
+    `cargo deny` CI gate + root `deny.toml` + `cargo audit`. NONE exist (no `deny.toml`/CI job/mise
+    task/tools). HUMAN REVIEW REQ (req in notes/07, not CID specs).
+- **v1.0.0 gates check**: `grep -iE "crap|semver|llvm-cov|iai-callgrind" .github/workflows/ci.yml`;
+    also `ls .cargo-crap.toml` + `grep -iE "coverage|crap|semver|callgrind" mise.toml`
 - **Coverage + CRAP gate ALL 3 PHASES present; install flake FIXED iter 101**: ONE job named
     `Coverage + CRAP (cargo llvm-cov + cargo crap)` at ci.yml:294, no `needs:`, NO
     `continue-on-error`, job-level `security-events: write`. Pipeline: rust-toolchain@stable +
@@ -83,12 +82,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `conclusion: failure` (2 expected breaking changes from post-0.4.0 `pub(crate)` narrowing) but
     **run-level conclusion stays `success`** — NOT a CI failure. rust-core.md "verified when" stays
     `[ ]` (needs enforcing + >= 1.0.0); ci-cd.md:417 is `[x]` (informational wording).
-- **GIL/SumHasher checks** (both done & stable): GIL-release in iscc-py is `Python::detach` (7
-    sites). `grep -rn "detach\|allow_threads\|SumHasher" crates/iscc-{lib,py,wasm}/src/`
+- **GIL/SumHasher checks** (done & stable): iscc-py GIL-release = `Python::detach` (7 sites); verify
+    `grep -rn "detach\|SumHasher" crates/iscc-{lib,py,wasm}/src/`
 - **npm optionalDeps bug (#38 FIXED iter 92)**: `grep -c "napi prepublish" release.yml` = `0`;
-    `crates/iscc-napi/package.json` uses bundled `files: ["*.node"]`, no `optionalDependencies`.
-    Node.js MET.
-- **Module visibility check**: `grep -n "pub mod\|pub(crate) mod" crates/iscc-lib/src/lib.rs`
+    bundled `files: ["*.node"]`, no `optionalDependencies`. Node.js MET.
 - **Issue count (correct)**: grep `issues.md` for `^##` headers ending in a priority label
     (critical/normal/low) — anchoring to `^##` excludes the legend line, so NO -1 adjustment. A bare
     label grep over-counts by 1.
@@ -142,31 +139,37 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Issues diff**: check issues.md for NEW entries each cycle (human AND `[review]`-sourced). Watch
     `[review]` + `HUMAN REVIEW REQUESTED` flags and any critical ones that reshuffle priorities.
 
-## Current State (assessed-at: f7f9276)
+## Current State (assessed-at: 40fa239)
 
 - **IN_PROGRESS — CI GREEN.** v0.4.0 released; hardening toward v1.0.0. Workspace version = `0.4.0`.
-- **Iter 105 incremental** (diff `e9865b4..HEAD`). Only code-bearing change: PyO3 `0.27 → 0.28`
-    (Cargo.toml:35 `0.28`, Cargo.lock `0.28.3`, crates/iscc-py/src/lib.rs `gil_used = true` added at
-    pymodule line 697). Everything else is `.claude/` context/memory.
-- **✅ CI PASSING.** Latest run 27725693364 (sha `12eb49f`) = **SUCCESS**. HEAD `f7f9276` adds only
-    one `iterations.jsonl` log commit on top of `12eb49f`, so the green run covers HEAD's code. All
-    17 functional jobs + Coverage+CRAP green; only `Semver` shows job-level failure but
-    continue-on-error (does NOT flip). Coverage+CRAP enforcing Phase 3 gate ran & passed.
+- **Iter 106 incremental** (diff `f7f9276..HEAD`). Only code-bearing change: PyO3 `0.28 → 0.29`
+    (Cargo.toml:35 `0.29`, Cargo.lock `0.29.0` single entry no older, ZERO source edits —
+    `gil_used = true` preserved at lib.rs:697). Everything else is `.claude/` context/memory. **PyO3
+    migration arc COMPLETE — issue #1 CLOSED.**
+- **✅ CI PASSING.** Latest run 27728337913 (sha `103fe3d`, the review commit) = **SUCCESS**. HEAD
+    `40fa239` adds only one `iterations.jsonl` log commit on top of `103fe3d`, so the green run
+    covers HEAD's code. All 17 functional jobs + Coverage+CRAP green; only `Semver` shows job-level
+    failure but continue-on-error (does NOT flip). Coverage+CRAP enforcing Phase 3 gate ran &
+    passed.
 - **5 issues: 0 critical, 3 normal, 2 low** (grep `^## .+\`(critical|normal|low)\`\` for headers,
-    excludes legend line — no -1 adjustment).
-- **Open normal gaps (3)**: PyO3 migration (now at 0.28, ONE hop from 0.29 endpoint for RustSec),
-    CRAP `--fail-above` hardening [review, HUMAN REVIEW REQUESTED], iai-callgrind perf gate (only
-    v1.0.0 CI gate w/ ZERO impl). cargo-semver-checks gate present — informational.
+    excludes legend line — no -1 adjustment). Composition CHANGED: PyO3 #1 closed, NEW supply-chain
+    audit gate [review] issue added — still 3 normal / 2 low.
+- **Open normal gaps (3) — ALL CONSTRAINED (natural pause point)**: CRAP `--fail-above` hardening
+    [review, HUMAN REVIEW REQ], supply-chain `cargo deny`/`cargo audit` gate \[review, HUMAN REVIEW
+    REQ, NEW\], iai-callgrind perf gate (ZERO impl; blocked — valgrind absent in devcontainer).
+    cargo-semver-checks gate present — informational. Most self-contained unblocked candidate =
+    supply-chain audit gate (but needs spec amendment approval).
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
 - **Partially-met sections**: Rust Core (semver gate informational; perf gate missing;
-    enforcing-semver needs v1.0.0), Python (**PyO3 migration in progress — GIL MET**), CI/CD
-    (**GREEN**; `--fail-above` hardening + iai-callgrind remain). Node.js MET. WASM MET. All 12
+    enforcing-semver needs v1.0.0), CI/CD (**GREEN**; `--fail-above` + supply-chain + iai-callgrind
+    remain). Python now **MET** (PyO3 migration COMPLETE, GIL MET). Node.js MET. WASM MET. All 12
     bindings met.
-- **Recently closed/landed (don't re-flag)**: PyO3 0.28 (iter 104, silent gil_used flip restored),
-    PyO3 0.27 (iter 102/103 `acf9277`), PyO3 0.26 (iter 102), cargo-crap `--force` flake fix (iter
-    101 `628c5d9`), PyO3 0.25 (iter 100), CRAP base issue swept (iter 100), CRAP Phase 3 first green
-    (iter 99), PyO3 0.24 (iter 98), semver gate (iter 93, informational), npm #38 (iter 92), GIL #39
-    (iter 91), streaming SumHasher #37 (iters 88-90).
+- **Recently closed/landed (don't re-flag)**: PyO3 0.29 (iter 105 `8df611f`, migration arc DONE,
+    issue #1 closed), PyO3 0.28 (iter 104, silent gil_used flip restored), PyO3 0.27 (iter 102/103
+    `acf9277`), PyO3 0.26 (iter 102), cargo-crap `--force` flake fix (iter 101 `628c5d9`), PyO3 0.25
+    (iter 100), CRAP base issue swept (iter 100), CRAP Phase 3 first green (iter 99), PyO3 0.24
+    (iter 98), semver gate (iter 93, informational), npm #38 (iter 92), GIL #39 (iter 91), streaming
+    SumHasher #37 (iters 88-90).
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists; ci-cd.md Phases 1+2+3 boxes all `[x]`; rust-core perf criterion
     - enforcing-semver still `[ ]`. Re-read on incremental review.
