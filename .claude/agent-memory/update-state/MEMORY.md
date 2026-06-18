@@ -51,9 +51,10 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     single 0.29.0, no older). Core has NO PyO3 dep; scope = `crates/iscc-py/`. Load-bearing
     `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — explicit b/c PyO3 0.28
     silently flipped that default `true`→`false`. Hop-by-hop history (0.23→0.29) + detail archived.
-- **Supply-chain audit gate ABSENT ([review] issue iter 105)**: `notes/07` mandates `cargo deny` CI
-    gate + root `deny.toml` + `cargo audit`; NONE exist. HUMAN REVIEW REQ (req in notes/07, not
-    specs).
+- **Supply-chain audit gate AUTHORIZED but NOT built (iter 113)**: `notes/07` + ci-cd.md "Supply
+    chain — cargo-deny" mandate a `cargo deny check` CI gate + root `deny.toml` + a `mise run audit`
+    task; NONE exist yet. Titusz AUTHORIZED autonomous impl (commit `9770332`, iter 112). ci-cd.md
+    "verified when" box `[ ]`. CID-actionable.
 - **Coverage + CRAP gate ALL 3 PHASES present & GREEN; install flake FIXED iter 101**: ONE job
     `Coverage + CRAP (cargo llvm-cov + cargo crap)` (ci.yml:294), no `needs:`, NO
     `continue-on-error`, job-level `security-events: write`. Pipeline: llvm-cov → cargo-binstall →
@@ -65,10 +66,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     (repo root, NOT gitignored): `{$schema, version:"0.2.2", entries:[...]}`, 97 entries / 10 src
     files. Regen via `mise run crap:baseline` — reviewed commit, NOT auto. `.cargo-crap.toml`:
     threshold 30, `missing="pessimistic"`, excludes 7 binding crates + `packages/**` + `scripts/**`
-    \+ `benches/**`. ci-cd.md Phases 1+2+3 all `[x]`. **[review] hardening issue (still open)**:
-    Phase 3 is regression-ONLY — a new/renamed fn (no baseline entry) reports `★ N new` & exits 0
-    (Codex: new CC=21 fn @ CRAP 462 bypassed). Fix: add `--fail-above 30` (baseline max ~22.3 < 30,
-    safe). HUMAN REVIEW REQ before spec change.
+    \+ `benches/**`. ci-cd.md Phases 1+2+3 all `[x]`. **`--fail-above` hardening AUTHORIZED but NOT
+    built (iter 113)**: Phase 3 is regression-ONLY — a new/renamed fn (no baseline entry) reports
+    `★ N new` & exits 0 (Codex: new CC=21 fn @ CRAP 462 bypassed). Fix: add `--fail-above` (boolean,
+    keyed off existing threshold 30; NOT `--fail-above 30`) next to `--fail-regression` at
+    ci.yml:390. Baseline max ~22.3 < 30, safe. Titusz AUTHORIZED (commit `9770332`); ci-cd.md spec
+    amended + new `[ ]` box; ci.yml/.cargo-crap.toml UNCHANGED. CID-actionable.
 - **Semver gate present iter 93**: `Semver (cargo-semver-checks)` job ci.yml:280,
     `obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, **`continue-on-error: true`**
     (informational until v1.0.0; `mise run semver` mise.toml:104). CAUTION: job reports `failure` (2
@@ -147,42 +150,36 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **idle→active reactivation**: state.md idle but `git diff <hash>..HEAD --stat` shows large
     issues.md/target.md/specs growth → human re-scoped. Do a near-full re-review, not a diff parrot.
 
-## Current State (assessed-at: 54bbddc)
+## Current State (assessed-at: c7e5466)
 
-- **IN_PROGRESS — CI GREEN on pushed tip; at a HUMAN-HANDOFF POINT.** v0.4.0 released; hardening
-    toward v1.0.0. Workspace version = `0.4.0`. No fully-autonomous CID `normal` work remains — both
-    open normal issues are HUMAN REVIEW REQUESTED spec amendments.
-- **Iter 111 incremental** (diff `bb9f02e..HEAD`). Only code change: iai-callgrind gate
-    **false-green hardening** (`1692e2b`) — `scripts/iai_regression.py` now 248 lines (zero-count +
-    missing-bench fail, `--allow-missing` flag) + NEW `tests/test_iai_regression.py` (11 tests).
-    Else `.claude/` context/memory. Issue #3 AND the false-green hardening issue BOTH verified PASS
-    & swept from issues.md by review (`6d6c594`).
-- **✅ CI GREEN on pushed tip; HEAD +1 (log only, code-clean).** origin/develop = `6d6c594` (review
-    PASS commit, carries the code), HEAD = `54bbddc` (iter-110 log, `iterations.jsonl` only). Run
-    27753395707 (sha `6d6c594`) = **SUCCESS** — confirmed via
-    `gh api .../commits/6d6c594/check-runs`: 18/19 jobs green incl. `Perf (iai-callgrind)`, only
-    `Semver` failure (continue-on-error). Sandbox `gh run list` matched the API this time, but STILL
-    prefer the check-runs API on the actual tip SHA — it has been stale before.
-- **4 issues: 0 critical, 2 normal, 2 low** (count issues.md `^##` headers ending in a priority
-    label; legend excluded → no -1). Down from 6 (iai perf gate #3 + false-green hardening both
-    deleted). BOTH remaining normal issues are HUMAN REVIEW REQUESTED — neither CID-autonomous.
-- **Open normal gaps (both HUMAN REVIEW REQ, NOT CID-actionable)**: (1) CRAP `--fail-above 30`
-    hardening [review]; (2) supply-chain `cargo deny`/`cargo audit` gate \[review, req in notes/07
-    not specs\]. cargo-semver-checks gate present — informational.
-- **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
-- **Partially-met sections**: Rust Core (semver informational, enforcing needs v1.0.0 — ONLY
-    remaining gap; perf gate MET & hardened), CI/CD (**GREEN**; `--fail-above` + supply-chain
-    remain, both HUMAN REVIEW REQ). All 12 bindings + Benchmarks MET.
-- **Recently closed/landed (don't re-flag)**: iai false-green hardening (iter 111 `1692e2b`,
-    zero-count + missing-bench fail + 11 tests), iai perf gate slice 2b (iter 109 `949f63f`,
-    committed baseline + enforcing regression check), false-green strip fix (iter 108 `6982124`),
-    Perf CI job slice 2a (iter 107), iai harness (iter 107), PyO3 migration #1 (iters 98-105),
-    cargo-crap `--force` flake fix (iter 101), CRAP Phase 3 (iter 99), semver gate (iter 93,
+- **IN_PROGRESS — CI GREEN; LOOP REACTIVATED (no longer human-handoff).** v0.4.0 released, all 12
+    bindings met. Workspace version `0.4.0`; v1.0.0 HELD (stay 0.4.x; land hardening gates first).
+- **Iter 113 incremental** (diff `54bbddc..HEAD`): **NO buildable-code changes** — only `.claude/`
+    context/memory + ci-cd.md *spec*. Key event: Titusz commit `9770332` AUTHORIZED both `normal`
+    `[review]` issues (CRAP `--fail-above`, cargo-deny audit) → flipped from HUMAN-REVIEW-gated to
+    CID-actionable, amended ci-cd.md (2 new `[ ]` verified-when boxes + Audit table row + cargo-deny
+    section), held v1.0.0.
+- **Both authorized gates UNIMPLEMENTED**: ci.yml:390 CRAP step still `--fail-regression` only (no
+    `--fail-above`); `.cargo-crap.toml` still "report-only" comment; NO `deny.toml`, NO Audit CI
+    job, NO `mise run audit` task; neither tool installed. These are the next two work packages
+    (CRAP `--fail-above` first — smaller/self-contained — then cargo-deny).
+- **✅ CI GREEN on origin/develop tip `204bedd`**, completed run `27755956905` = SUCCESS (check-runs
+    API on the tip SHA). All 19 functional jobs green incl. Perf + Coverage+CRAP; only `Semver`
+    failure (continue-on-error, informational). A re-run was in_progress at assessment — completed
+    run authoritative. HEAD `c7e5466` is **4 commits ahead** of origin (`827adf2`,`9770332`,
+    `bc6a5c2`,`c7e5466`) but ALL code-clean → CI reflects current code.
+- **4 issues: 0 critical, 2 normal (both now AUTHORIZED), 2 low** (count issues.md `^##` headers
+    ending a priority label; legend excluded → no -1).
+- **Low (CID skips)**: v1.0.0 release HELD (human-driven), docs language logos.
+- **Partially-met sections**: Rust Core (semver informational; enforcing needs v1.0.0 cut — held;
+    perf gate MET & hardened), CI/CD (**GREEN**; 2 authorized gates `--fail-above` + cargo-deny
+    pending build). All 12 bindings + Benchmarks + Docs MET.
+- **Recently closed/landed (don't re-flag)**: iai false-green hardening (iter 111 `1692e2b`), iai
+    perf gate (iters 107-109), PyO3 #1 (iters 98-105), CRAP Phase 3 (iter 99), semver gate (iter 93,
     informational), npm #38 (iter 92), GIL #39 (iter 91), SumHasher #37 (iters 88-90).
-- **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
-    with "verified when" checklists; ci-cd.md Phases 1+2+3 boxes `[x]`; rust-core perf boxes `[x]`
-    (flipped iter 109); enforcing-semver still `[ ]` (flips only at v1.0.0 cut). Re-read on
-    incremental review.
+- **target.md/specs**: rust-core.md perf boxes `[x]`; ci-cd.md CRAP Phases 1+2+3 `[x]` BUT 2 NEW
+    `[ ]` boxes (CRAP `--fail-above`, Audit/cargo-deny) added iter 112; enforcing-semver `[ ]`
+    (flips only at v1.0.0 cut). Re-read on incremental review.
 
 ## Gotchas
 
