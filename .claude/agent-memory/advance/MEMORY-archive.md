@@ -117,3 +117,32 @@ See MEMORY.md for current active entries.
     Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
 - Conformance tests: `ConformanceTest.kt` — 9 methods, 50 vectors. JUnit 5.11.4 + Gson 2.11.0
     (`com.google.code.gson` groupId, NOT `com.google.gson`)
+
+## PyO3 Migration 0.23→0.29 — Per-Hop Edit History (archived iteration 105, migration complete)
+
+Incremental one-minor-per-CID-step migration of the workspace `pyo3` pin (root `Cargo.toml` line 35,
+consumed only by `crates/iscc-py`). Endpoint 0.29.0 clears two RustSec advisories shipped in the
+published wheel → issue #1 closed. Per-hop source edits (all under `cargo clippy -- -D warnings`):
+
+- 0.23→0.24 and 0.24→0.25: ZERO source changes (lockfile-only).
+- 0.25→0.26 (iter 101): FIRST hop needing edits — `Python::allow_threads`→`Python::detach` (7 sites,
+    pure rename, same GIL-release semantics) + `pyo3::PyObject` alias→`Py<PyAny>` return type (17
+    `PyResult<PyObject>` sites; `Ok(dict.into())` bodies unchanged).
+- 0.26→0.27 (iter 102, →0.27.2): cast-family rename in `to_pylist` — `Bound::downcast`→`Bound::cast`
+    and `downcast_into_unchecked`→`cast_into_unchecked` (identical sigs; error type
+    `DowncastError`→`CastError` but discarded by `if let Ok`).
+- 0.27→0.28 (iter 104, →0.28.3): ZERO source changes BUT carried a SILENT behavior change
+    `-D warnings` does NOT catch — PyO3 0.28 flipped the unspecified `#[pymodule]` `gil_used`
+    default from `true` (macros-backend `map_or(true,…)`) to `false` (`is_some_and(…)`). Review
+    added explicit `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) to restore pre-0.28
+    GIL protection for the raw borrowed `PyList_GetItem` ptrs in `extract_frame_sigs`. Also dropped
+    transitive `indoc`/`memoffset`/`unindent` from Cargo.lock.
+- 0.28→0.29 (iter 105, →0.29.0): ZERO source changes (lockfile-only; 5 pyo3 crates bump together).
+    macros-backend `gil_used` default-handling byte-identical to 0.28 (still defaults `false`), so
+    the explicit `gil_used=true` stays load-bearing. 0.29 CHANGELOG "Remove all functionality
+    deprecated in PyO3 0.27" was a no-op (already off `downcast*`). 286 pytest pass.
+
+Throughout, the 8 raw `pyo3::ffi::*` C-API sites + `Bound::from_owned_ptr().cast_into_unchecked()` +
+`.into_pyobject(py)?.into()` + `#[pyo3(signature=...)]` macros survived every hop unchanged — do NOT
+pre-emptively rewrite them. LESSON: "compiles clean" is NOT proof of behavior-neutrality; diff the
+macros-backend default-handling on every major bump, not just compiler warnings.
