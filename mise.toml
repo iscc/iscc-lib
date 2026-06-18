@@ -120,3 +120,9 @@ run = "cargo crap --lcov lcov.info"
 description = "Regenerate the committed CRAP regression baseline (.crap-baseline.json)"
 depends = ["coverage"]
 run = "cargo crap --lcov lcov.info --format json --output .crap-baseline.json"
+
+# --- Performance ---
+
+[tasks."bench:iai"]
+description = "Run iai-callgrind instruction-count benches for iscc-lib (needs valgrind)"
+run = "cargo bench -p iscc-lib --bench iai_benches"

@@ -277,6 +277,34 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Compile benchmarks
         run: cargo bench --no-run
+  perf:
+    name: Perf (iai-callgrind)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-binstall
+      # --force is load-bearing: Swatinem/rust-cache restores cargo's install
+      # metadata WITHOUT the ~/.cargo/bin/iai-callgrind-runner binary, so a plain
+      # binstall would skip the install and the next `cargo bench` would die with
+      # "no such command". The version must match the iai-callgrind dep (0.16.1).
+      - name: Install iai-callgrind-runner
+        run: cargo binstall -y --force iai-callgrind-runner@0.16.1
+      # First run has no baseline, so iai-callgrind just measures and reports
+      # (exit 0); no regression gate yet (follow-up slice).
+      - name: Run iai-callgrind benches
+        run: cargo bench -p iscc-lib --bench iai_benches
+      - name: Upload iai-callgrind results
+        uses: actions/upload-artifact@v4
+        with:
+          name: iai-baseline
+          path: target/iai/
   semver:
     name: Semver (cargo-semver-checks)
     runs-on: ubuntu-latest

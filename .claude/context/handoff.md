@@ -1,75 +1,56 @@
-## 2026-06-18 — Add the iai-callgrind bench harness (compiles locally; CI gate is a follow-up slice)
+## 2026-06-18 — Add the `Perf` CI job that runs the iai-callgrind benches under valgrind
 
-**Done:** Landed `crates/iscc-lib/benches/iai_benches.rs`, an `iai-callgrind` 0.16 instruction-count
-benchmark harness covering all 9 conformance `gen_*_v0` hot paths plus the `alg_cdc_chunks` and
-`alg_minhash_256` primitives. Wired `iai-callgrind = "0.16"` into the root
-`[workspace.dependencies]` and added the dev-dependency + `[[bench]]` entry (`harness = false`) to
-`crates/iscc-lib/Cargo.toml`. The harness compiles and lints clean without valgrind or the runner;
-actually *running* it (the CI `Perf` job + committed baseline) is the clearly-scoped follow-up
-slice.
+**Done:** Added a `perf` job (`Perf (iai-callgrind)`) to `.github/workflows/ci.yml` that installs
+valgrind + `iai-callgrind-runner@0.16.1` and runs `cargo bench -p iscc-lib --bench iai_benches`,
+uploading the `target/iai/` output as the `iai-baseline` artifact. Added a `bench:iai` mise task for
+CI parity / local use on valgrind-equipped machines. No baseline, no regression gate, no harness
+changes — those are the explicit follow-up slice (2b).
 
 **Files changed:**
 
-- `Cargo.toml` (root): added `iai-callgrind = "0.16"` to `[workspace.dependencies]` (latest stable
-    on crates.io; next.md's `0.14` was a placeholder — confirmed `0.16.1` via `cargo search`).
-- `crates/iscc-lib/Cargo.toml`: added `iai-callgrind = { workspace = true }` dev-dependency and a
-    second `[[bench]]` (`name = "iai_benches"`, `harness = false`). The existing criterion
-    `benchmarks` bench is untouched.
-- `crates/iscc-lib/benches/iai_benches.rs` (new): 11 `#[library_benchmark]` functions in one
-    `library_benchmark_group!` (`iscc_benches`) wired into `main!`. `gen_sum_code_v0` deferred (file
-    I/O, syscall-dominated) — documented in the module docstring.
-- `Cargo.lock`: refreshed with iai-callgrind + its transitive deps (build-only).
+- `.github/workflows/ci.yml`: new `perf` job between `bench` and `semver`. Steps: checkout →
+    `dtolnay/rust-toolchain@stable` → `Swatinem/rust-cache@v2` → install valgrind via apt →
+    `taiki-e/install-action@v2` (cargo-binstall) →
+    `cargo binstall -y --force   iai-callgrind-runner@0.16.1` →
+    `cargo bench -p iscc-lib --bench iai_benches` → `actions/upload-artifact@v4` (name
+    `iai-baseline`, path `target/iai/`). Default triggers (inherits the workflow-level push
+    main/develop + PR to main). The `--force` rationale and the "first-run = measure-only, exit 0"
+    behavior are documented as inline comments.
+- `mise.toml`: new "Performance" block with `[tasks."bench:iai"]` →
+    `cargo bench -p iscc-lib --bench iai_benches`.
 
-**Verification:** (every criterion from next.md)
+**Verification:**
 
-- [x] `cargo build -p iscc-lib --bench iai_benches` → exit 0 (compiles with no valgrind/runner).
-- [x] `cargo clippy -p iscc-lib --benches -- -D warnings` → clean.
-- [x] `cargo fmt -p iscc-lib --check` → clean (exit 0).
-- [x] `cargo test -p iscc-lib` → 269 + 28 + 22 + 1 doctest, **0 failed** — no regression.
-- [x] `grep -q '^iai-callgrind' Cargo.toml` → OK;
-    `grep -q 'iai-callgrind' crates/iscc-lib/Cargo.toml` → OK; `[[bench]]` has
-    `name = "iai_benches"` + `harness = false`.
-- [x] `mise run check` → all 15 pre-commit hooks Passed.
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` → clean (pre-push defense).
+- `mise run check` → all 15 pre-commit hooks Passed (YAML + TOML validation + yamlfix/taplo
+    formatting clean on the edited files).
+- All six next.md grep/task checks pass: `Perf (iai-callgrind)`, `iai-callgrind-runner@0.16.1`,
+    `binstall -y --force`, `valgrind`, `--bench iai_benches` present in ci.yml; `bench:iai` shows in
+    `mise tasks ls`.
+- `cargo build -p iscc-lib --bench iai_benches` → exit 0 (harness still compiles; the job will run
+    it under valgrind on CI).
+- NOT run locally (valgrind absent in devcontainer): `cargo bench -p iscc-lib --bench iai_benches`.
+    This is the step the review agent must confirm on the actual CI run.
 
-Not run (out of scope, needs valgrind absent in devcontainer): `cargo bench --bench iai_benches`.
-The review agent should confirm the follow-up CI slice (valgrind runner +
-`cargo binstall --force iai-callgrind-runner` + committed baseline) lands it.
-
-**Next:** The clearly-scoped follow-up: add the `Perf` CI job (valgrind-enabled Linux runner,
-install `iai-callgrind-runner@0.16.1` via `cargo binstall -y --force` — heed the rust-cache
-`--force` poisoning gotcha), run `cargo bench -p iscc-lib --bench iai_benches`, commit the generated
-baseline (`target/iai/.../*.summary.json` or the `--save-baseline`/`--baseline` flow), and add
-`mise run bench:iai` + baseline-refresh tasks. That slice is the one that actually exercises the
-gate.
+**Next:** Slice 2b — the regression gate. Once this `Perf` run lands a known-good `target/iai/`
+output on CI, design the committed baseline: decide between iai-callgrind's `--save-baseline` /
+`--baseline` named-baseline flow vs. parsing the per-bench `*.summary.json`, commit the baseline
+file, add a `LibraryBenchmarkConfig` regression limit (or `--fail-...` CLI flag) to fail the job on
+a >X% instruction-count regression, and add a `bench:iai:baseline` refresh mise task. Inspect the
+uploaded `iai-baseline` artifact from this slice's first CI run to learn the exact on-disk layout
+and summary format before committing to an approach.
 
 **Notes:**
 
-- **Docstring exception (technical necessity, not a style shortcut):** the 11 `#[library_benchmark]`
-    functions use plain `//` comments, NOT `///` docstrings. The iai-callgrind-macros 0.6.1
-    `#[library_benchmark]` attribute iterates *every* attribute on the function and `abort!`s with
-    "Invalid attribute: 'doc'" on anything other than `bench`/`benches` — and a `///` comment lowers
-    to a `#[doc = "..."]` attribute. Verified by reading
-    `iai-callgrind-macros-0.6.1/src/lib_bench.rs:258-317`. The four helper fns
-    (`deterministic_bytes`, `synthetic_text`, `deterministic_features`) are NOT macro-annotated and
-    keep proper `///` docstrings. This is analogous to the documented FFI-boundary exception; the
-    constraint is explained in the module docstring.
-- **Measurement design:** inputs are built in `#[bench::id(expr)]` argument expressions, which
-    iai-callgrind evaluates in the unmeasured setup phase, so only the ISCC computation is counted.
-    Uses `std::hint::black_box` (not `criterion::black_box`) per next.md. Each bench returns
-    `black_box(result)` to defeat DCE; `bench_cdc_chunks` returns `.len()` because the `Vec<&[u8]>`
-    borrows from the function-local `data` and cannot escape (the chunking work is fully measured
-    before `len()`).
-- **Sizes mirror benchmarks.rs:** data/instance at 64KB + 1MB, cdc at 4KB/64KB/1MB, meta name-only +
-    name+desc, text 1000 chars, image 1024B gradient, audio 300 features, video 10×380 frames, mixed
-    2 codes, iscc 4 units. MinHash (not benched in criterion) uses a 1024-element spread feature vec
-    via a new `deterministic_features` helper.
-- **`iai-callgrind = "0.16"` (not `0.14`):** next.md flagged `0.14` as illustrative and told me to
-    confirm the current version; crates.io has `0.16.1`. The macro crate is
-    `iai-callgrind-macros   0.6.1`, runner is `iai-callgrind-runner 0.16.1`.
-- **Out-of-scope, untouched per next.md:** no `Perf` CI job, no committed baseline, no `mise` bench
-    tasks, no change to `.cargo-crap.toml` (its `crates/iscc-lib/benches/**` exclusion already
-    covers the new file — CRAP gate unaffected), criterion `benchmarks.rs` left intact, `Semver`
-    gate not flipped.
-- `Cargo.lock` and `.claude/context/iterations.jsonl` both show as modified; only `Cargo.lock` is
-    staged (iterations.jsonl is loop-runner-managed, not staged by this agent).
+- **Omitted `-- --save-summary=json`.** next.md flagged it as optional and unverifiable locally (no
+    valgrind/runner). I left it off so the job relies on iai-callgrind 0.16's default `target/iai/`
+    output; if 2b needs machine-readable summaries, the flag name can be confirmed against the
+    artifact this run produces. No risk to this slice landing green.
+- **No tests added** — this is a CI-workflow + task-runner change with no Rust/source surface. No
+    Tier 1/Tier 2 API touched, no hot path touched, no perf-sensitive code touched.
+- **Context-file churn during `mise run format`:** the quiet `mise run format` mdformat hook
+    reformatted pre-existing non-conforming `learnings.md` / `learnings-archive.md` (files I did not
+    edit). I reverted both via `git checkout` so they are untouched; only my two files plus the
+    loop-managed `iterations.jsonl` remain modified. The subsequent `mise run check` mdformat pass
+    was clean and did not re-touch them.
+- Staged for commit: `.github/workflows/ci.yml`, `mise.toml`, `.claude/context/handoff.md`,
+    `.claude/agent-memory/advance/MEMORY.md`. NOT staged: `iterations.jsonl` (loop-runner managed).

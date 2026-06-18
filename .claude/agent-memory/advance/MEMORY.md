@@ -28,8 +28,8 @@ iterations.
 
 - `cargo build -p iscc-jni` before `mvn test` (native lib prereq); POM at
     `crates/iscc-jni/java/pom.xml`, run `mvn test` from there
-- CI workflow `.github/workflows/ci.yml` has 17 job entries (version-check, rust, python-test,
-    python, nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, semver,
+- CI workflow `.github/workflows/ci.yml` has 18 job entries (version-check, rust, python-test,
+    python, nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver,
     coverage). `bench` = `cargo bench --no-run`. `swift` on `macos-14`; `kotlin` on `ubuntu` JDK 17
     \+ `cargo build -p iscc-uniffi` + `./gradlew test`
 - `coverage` CI job (`Coverage + CRAP`): standalone, NO `continue-on-error`.
@@ -43,13 +43,11 @@ iterations.
 - `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored; only `lcov.info`+`crap.sarif` are):
     envelope `{$schema, version:"0.2.2", entries}`, 97 iscc-lib fns/10 src files. Regen
     `cargo crap --lcov lcov.info --format json --output .crap-baseline.json` (NO `--sort` — 0.2.2
-    lacks it). Refresh in a reviewed commit, not CI auto-commit. GOTCHA: never pipe `cargo crap`
-    into `tail`/`head` when checking exit codes — `$?` = pager, masking exit 1; redirect to file
-    first
+    lacks it); refresh in a reviewed commit. GOTCHA: never pipe `cargo crap` into `tail`/`head` to
+    check exit codes — `$?` = pager, masks exit 1; redirect to a file first
 - `.cargo-crap.toml` (repo root): `threshold=30.0`, `missing="pessimistic"`, `exclude` globs (7
     binding crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`). GOTCHA: built-in
-    excludes skip nested `tests/**` but NOT nested `benches/**` → bench harness leaks at CRAP ~42
-    unless excluded
+    excludes skip nested `benches/**` (repo-root only) → harness leaks at CRAP ~42 unless listed
 - `semver` CI job: `obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, baseline = last
     crates.io release. `continue-on-error: true` — INFORMATIONAL pre-1.0 (post-0.4.0 `pub(crate)`
     narrowing reports as breaking; expected). Drop `continue-on-error` at v1.0.0. Local:
@@ -82,9 +80,10 @@ iterations.
 - `iai-callgrind = "0.16"` in root `[workspace.dependencies]` (latest stable = 0.16.1; macros crate
     is `iai-callgrind-macros 0.6.1`, runner `iai-callgrind-runner 0.16.1`). Dev-dep in iscc-lib
 - iai harness COMPILES without valgrind/runner; only `cargo bench --bench iai_benches` needs
-    valgrind (absent in devcontainer). Follow-up slice: `Perf` CI job on a valgrind runner +
-    `cargo binstall -y --force iai-callgrind-runner@0.16.1` (heed rust-cache `--force` poisoning) +
-    committed baseline + `mise run bench:iai`
+    valgrind (absent locally). `Perf (iai-callgrind)` CI job (ci.yml, iter 107): apt valgrind +
+    `cargo binstall -y --force iai-callgrind-runner@0.16.1` (rust-cache `--force` gotcha) →
+    `cargo   bench -p iscc-lib --bench iai_benches` → upload `target/iai/` as `iai-baseline`
+    artifact. Local: `mise run bench:iai`. NO baseline/regression gate yet (deferred to slice 2b)
 - API: `#[library_benchmark]` + `#[bench::id(expr)]` (the `expr` args are evaluated in the
     UNMEASURED setup phase) → `library_benchmark_group!(name = g; benchmarks = a, b, ...)` →
     `main!(library_benchmark_groups = g)`. Use `std::hint::black_box`, NOT `criterion::black_box`
@@ -97,9 +96,8 @@ iterations.
 
 ## gen_sum_code_v0 — see MEMORY-archive.md for full details
 
-- All 32 Tier 1 symbols implemented; all 7 bindings implement `gen_sum_code_v0`. `gen_sum_code_v0`
-    is a thin file-I/O wrapper over `streaming::SumHasher`. `iscc_decode` returns
-    `(u8,u8,u8,u8,Vec<u8>)`; `MainType` is `pub(crate)`
+- All 32 Tier 1 symbols implemented; all 7 bindings implement `gen_sum_code_v0` (thin
+    `streaming::SumHasher` wrapper). `iscc_decode` → `(u8,u8,u8,u8,Vec<u8>)`; `MainType` pub(crate)
 
 ## Streaming
 
