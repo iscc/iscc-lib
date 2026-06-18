@@ -11,8 +11,13 @@ Two modes:
 
 - ``--check`` (default): parse the current run directory, load `.iai-baseline.json`, and
   exit non-zero if any benchmark present in BOTH the run and the baseline regresses more
-  than the tolerance (default 10%) versus its committed baseline Ir. Benchmarks only in the
-  run (not the baseline) are warned about but never fail the gate.
+  than the tolerance (default 10%) versus its committed baseline Ir. The gate also fails
+  when a shared benchmark collects a zero instruction count (a partial strip or harness
+  regression that callgrind reads as a giant improvement) or when a baselined benchmark
+  disappears from the run (so the committed baseline only shrinks via a deliberate
+  `--update` refresh). Pass `--allow-missing` to downgrade the disappeared-bench failure
+  back to a warning for an intentional shrink. Benchmarks only in the run (not the
+  baseline) are warned about but never fail the gate.
 - ``--update``: rebuild `.iai-baseline.json` from a run directory. The committed baseline is
   built from the CI artifact (not a local run) so it matches the rustc the gate measures
   with; refresh it deliberately in a reviewed commit, mirroring `.crap-baseline.json`.
@@ -105,12 +110,24 @@ def load_baseline(baseline_path: Path) -> tuple[dict[str, int], float]:
     return benches, tolerance_pct
 
 
-def check_regressions(run_dir: Path, baseline_path: Path) -> bool:
+def check_regressions(
+    run_dir: Path, baseline_path: Path, allow_missing: bool = False
+) -> bool:
     """Compare a run against the baseline; return True if no benchmark regressed.
 
-    Fails (returns False) when any benchmark present in BOTH the run and the baseline
-    has an instruction count more than `tolerance_pct` above its baseline value.
-    Benchmarks only in the run warn but do not fail the gate.
+    Fails (returns False) on any of these:
+
+    - a benchmark present in BOTH the run and the baseline has an instruction count
+      more than `tolerance_pct` above its baseline value;
+    - a shared benchmark reports a current Ir of 0 — callgrind collected nothing for
+      that case (a partial strip or harness regression), which the relative comparison
+      would otherwise read as a giant improvement;
+    - a baselined benchmark is absent from the run, unless `allow_missing` is set —
+      a disappeared `.out` must not silently pass, so the committed baseline only
+      shrinks via a deliberate `--update` refresh. With `allow_missing` the absence is
+      downgraded to a warning for an intentional shrink.
+
+    Benchmarks only in the run (not the baseline) warn but never fail the gate.
     """
     baseline, tolerance_pct = load_baseline(baseline_path)
     current = collect_irs(run_dir)
@@ -123,25 +140,56 @@ def check_regressions(run_dir: Path, baseline_path: Path) -> bool:
     print(f"{'benchmark':<36} {'baseline':>14} {'current':>14} {'delta%':>9}")
     print("-" * 76)
     regressions: list[tuple[str, int, int, float]] = []
+    zero_benches: list[str] = []
     for name in shared:
         base = baseline[name]
         cur = current[name]
         delta_pct = (cur - base) / base * 100.0 if base else 0.0
-        flag = "  REGRESSION" if cur > base * limit else ""
-        if flag:
+        if cur == 0:
+            zero_benches.append(name)
+            flag = "  ZERO"
+        elif cur > base * limit:
             regressions.append((name, base, cur, delta_pct))
+            flag = "  REGRESSION"
+        else:
+            flag = ""
         print(f"{name:<36} {base:>14,} {cur:>14,} {delta_pct:>+8.2f}%{flag}")
 
     for name in only_run:
         print(f"warning: '{name}' is in the run but not the baseline (not gated).")
     for name in only_baseline:
-        print(f"warning: '{name}' is in the baseline but not the run.")
+        suffix = (
+            "" if allow_missing else " (use --allow-missing for an intended shrink)"
+        )
+        print(f"warning: '{name}' is in the baseline but not the run.{suffix}")
 
     print()
+    failed = False
     if regressions:
         print(f"FAIL: {len(regressions)} benchmark(s) regressed > {tolerance_pct:g}%:")
         for name, base, cur, delta_pct in regressions:
             print(f"  {name}: {base:,} -> {cur:,} ({delta_pct:+.2f}%)")
+        failed = True
+    if zero_benches:
+        print(
+            f"FAIL: {len(zero_benches)} benchmark(s) collected a zero {METRIC} count:"
+        )
+        for name in zero_benches:
+            print(
+                f"  {name}: current {METRIC} is 0 (partial strip or harness regression)"
+            )
+        failed = True
+    if only_baseline and not allow_missing:
+        print(
+            f"FAIL: {len(only_baseline)} baselined benchmark(s) missing from the run:"
+        )
+        for name in only_baseline:
+            print(
+                f"  {name}: no '.out' emitted (pass --allow-missing for an intended shrink)"
+            )
+        failed = True
+
+    if failed:
         return False
 
     print(
@@ -183,11 +231,16 @@ def main() -> None:
         default=DEFAULT_TOLERANCE_PCT,
         help=f"regression tolerance percent for --update (default: {DEFAULT_TOLERANCE_PCT})",
     )
+    parser.add_argument(
+        "--allow-missing",
+        action="store_true",
+        help="downgrade a disappeared baselined benchmark from a failure to a warning",
+    )
     args = parser.parse_args()
 
     if args.update:
         write_baseline(args.from_dir, args.baseline, args.tolerance_pct)
-    elif not check_regressions(args.from_dir, args.baseline):
+    elif not check_regressions(args.from_dir, args.baseline, args.allow_missing):
         sys.exit(1)
 
 

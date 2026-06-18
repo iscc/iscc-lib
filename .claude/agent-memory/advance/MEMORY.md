@@ -75,13 +75,19 @@ iterations.
     runner 0.16.1; local `mise run bench:iai`). `Perf (iai-callgrind)` CI job steps: apt valgrind →
     binstall runner (rust-cache `--force` gotcha) → run benches → zero-collection guard → enforcing
     `Check perf regression` step → upload `target/iai/` as `iai-baseline` (`if: always()`)
-- PERF REGRESSION GATE (iter 109, slice 2b DONE, issue #3): `scripts/iai_regression.py` (stdlib
-    only, no uv in CI) + committed `.iai-baseline.json` (repo root, NOT gitignored, 16 Ir entries).
-    On-disk leaf dir `<bench_fn>.<bench_id>` = JSON key; parse first int of the `summary: <Ir> ...`
-    line. Gates Ir ONLY; `--check` fails if any shared bench exceeds `baseline*1.10` (only-in-run
-    warns); `--update --from-dir DIR` rebuilds. Glob skips `.out.old`. COMMITTED baseline MUST be
-    CI-sourced (download the green Perf `iai-baseline` artifact, then `--update`) to match CI rustc.
-    Tasks `bench:iai:baseline` + `bench:iai:check`. Mirrors `.crap-baseline`
+- PERF REGRESSION GATE (iter 109 slice 2b + iter 110 hardening DONE, issue #3 + [review] issue):
+    `scripts/iai_regression.py` (stdlib only, no uv in CI) + committed `.iai-baseline.json` (repo
+    root, NOT gitignored, 16 Ir entries). On-disk leaf dir `<bench_fn>.<bench_id>` = JSON key; parse
+    first int of the `summary: <Ir> ...` line. Gates Ir ONLY.
+    `check_regressions(run, baseline,   allow_missing=False)` returns False (exit 1) if ANY of: a
+    shared bench >`baseline*1.10`; a shared bench current Ir == 0 (`zero_benches`,
+    partial-strip/harness false-green; independent of `--allow-missing`); a baselined bench missing
+    from the run (`only_baseline`) UNLESS `--allow-missing`. only-in-run STILL warns only
+    (deliberate — new benches don't fail until a `--update` refresh). `--update --from-dir DIR`
+    rebuilds. Glob skips `.out.old`. COMMITTED baseline MUST be CI-sourced (download green Perf
+    `iai-baseline` artifact, then `--update`) to match CI rustc. Tasks `bench:iai:baseline` +
+    `bench:iai:check`. Tests `tests/test_iai_regression.py` (synthetic temp `.out` dirs, never a
+    live run; load script by path like `test_cid.py`). Mirrors `.crap-baseline`
 - Two committed bench-config facts (iter 108; full write-up in learnings.md): root `Cargo.toml`
     `[profile.bench] strip = false, debug = true` (else stripped binary → `summary: 0` false green,
     caught by the CI guard); `IAI_CALLGRIND_ALLOW_ASLR=true` (mise + ci.yml) skips iai's
