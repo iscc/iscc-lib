@@ -17,17 +17,19 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
 - **Benchmark functions**:
     `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
-- **iai-callgrind perf GATE — COMPLETE & ENFORCING (issue #3 done, CI-verified iter 110)**:
-    `Perf (iai-callgrind)` CI job GREEN (`grep -n "Perf (iai-callgrind)" ci.yml`). Pipeline (ci.yml
-    ~281-333): valgrind → binstall `iai-callgrind-runner@0.16.1 --force` → run benches (env
-    `IAI_CALLGRIND_ALLOW_ASLR=true`) → `Assert non-zero instruction collection` guard
-    (`grep -rEq '^summary: [1-9]' target/iai/`) → ENFORCING `Check perf regression`
-    (`python3 scripts/iai_regression.py --check`, no continue-on-error, fails on >10% Ir regression)
+- **iai-callgrind perf GATE — COMPLETE, ENFORCING & HARDENED (issue #3 + false-green issue BOTH
+    closed iter 111)**: `Perf (iai-callgrind)` CI job GREEN (job at ci.yml:281-333, NO
+    `continue-on-error`). Pipeline: valgrind → binstall `iai-callgrind-runner@0.16.1 --force` → run
+    benches (env `IAI_CALLGRIND_ALLOW_ASLR=true`) → `Assert non-zero instruction collection` guard
+    (`grep -rEq '^summary: [1-9]' target/iai/`) → ENFORCING `Check perf regression` (ci.yml:324
+    `python3 scripts/iai_regression.py --check`, no continue-on-error, fails on >10% Ir regression)
     → upload `iai-baseline` artifact `if: always()`. Committed baseline `.iai-baseline.json` (repo
     root, NOT gitignored): `{metric:"Ir", tolerance_pct:10.0, benches:{<16 entries>}}`. Tasks:
     `bench:iai`, `bench:iai:check`, `bench:iai:baseline` (mise.toml ~126-144). Refresh = reviewed
-    commit. NEW `[review]` hardening issue open (2 false-green edges in iai_regression.py: zero-Ir
-    bench read as improvement; disappeared baseline bench only warns).
+    commit. **GOTCHA: `continue-on-error: true` at ci.yml:338 belongs to the SEPARATE `semver:` job
+    (starts ci.yml:334), NOT Perf — Perf enforces.** False-green hardening DONE iter 111
+    (`1692e2b`): gate now fails on zero-Ir shared bench + disappeared baselined bench;
+    `--allow-missing` downgrades the missing case to a warning; new benches still warn only.
 - **Authoritative CI status (sandbox `gh run list` is STALE — returns old ancestor SHAs)**:
     `gh api repos/iscc/iscc-lib/commits/<tip-sha>/check-runs --jq '.check_runs[]|{name,conclusion}'`
     against the ACTUAL origin/develop tip SHA. `gh run view <id> --json conclusion,headSha` also
@@ -94,12 +96,8 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
 - `.github/workflows/ci.yml` — **18 YAML job entries → 19 actual jobs** (`python-test` matrix
     expands 3.10 + 3.14): functional jobs + non-blocking `Semver` (iter 93) +
-    `Coverage + CRAP   (cargo llvm-cov + cargo crap)` (Phases 1-3, iters 94-97) +
-    `Perf (iai-callgrind)` (added iter 107; false-green FIXED iter 108; ENFORCING regression gate
-    added iter 109 — apt valgrind → binstall `iai-callgrind-runner@0.16.1 --force` → bench (env
-    `IAI_CALLGRIND_ALLOW_ASLR=true`) → `Assert non-zero instruction collection` GUARD →
-    `Check perf regression` (`python3 scripts/iai_regression.py --check`, fails >10% Ir) → upload
-    `target/iai/` as `iai-baseline` `if: always()`; no continue-on-error). `push:` under `on:` is
+    `Coverage + CRAP (cargo llvm-cov + cargo crap)` (Phases 1-3, iters 94-97) +
+    `Perf (iai-callgrind)` (iter 107; gate detail in the iai shortcut above). `push:` under `on:` is
     NOT a job; a bare `^  [a-z].*:$` grep over-counts — read the job names.
 - `.github/workflows/release.yml` — **8 registry input toggles** (`type: boolean`): crates-io, pypi,
     npm, maven, ffi, rubygems, nuget, maven-kotlin. Swift XCFramework is NOT a toggle — it builds in
@@ -124,11 +122,15 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `__iai_callgrind_wrapper` toggle symbols → false green; FIX (iter 108 `6982124`):
     `[profile.bench] strip=false, debug=true` (Cargo.toml:61) + `IAI_CALLGRIND_ALLOW_ASLR=true`.
     `#[library_benchmark]` fns use `//` not `///` (macro `abort!`s on `doc`).
-- `scripts/iai_regression.py` (iter 109 `949f63f`, 195 lines, **stdlib-only**) — `--check` parses
-    `target/iai/**/*.out` `summary:` lines vs committed `.iai-baseline.json`; fails on >10% Ir
-    regression. Intersection-only (new benches warn, not fail). Has 2 known false-green edges (NEW
-    `[review]` hardening issue): zero-Ir current bench read as improvement; disappeared baseline
-    bench only warns. `--update` regenerates baseline (from `target/iai/` or `--from-dir`).
+- `scripts/iai_regression.py` (iter 109 `949f63f`; HARDENED iter 111 `1692e2b`, now 248 lines,
+    **stdlib-only**) — `--check` parses `target/iai/**/*.out` `summary:` lines vs committed
+    `.iai-baseline.json`; fails on >10% Ir regression. Core fn `check_regressions` takes an
+    `allow_missing` flag: shared benches over tolerance FAIL; a shared bench reporting zero Ir FAILS
+    (independent of `--allow-missing`); a baselined bench missing from the run FAILS unless
+    `--allow-missing`; new (run-only) benches still WARN only. `--update` regenerates baseline.
+- `tests/test_iai_regression.py` (NEW iter 111) — 11 synthetic-fixture pytest tests for the gate
+    (within-tolerance, over-tolerance, zero-count fails even w/ allow-missing, missing-bench fail +
+    allow-missing pass, only-run warns, boundary, roundtrip, parse_ir).
 - `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
 - **CLAUDE.md files & per-crate READMEs**: 12 each (all crates + all packages)
 
@@ -145,43 +147,42 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **idle→active reactivation**: state.md idle but `git diff <hash>..HEAD --stat` shows large
     issues.md/target.md/specs growth → human re-scoped. Do a near-full re-review, not a diff parrot.
 
-## Current State (assessed-at: bb9f02e)
+## Current State (assessed-at: 54bbddc)
 
-- **IN_PROGRESS — CI GREEN on pushed tip.** v0.4.0 released; hardening toward v1.0.0. Workspace
-    version = `0.4.0`.
-- **Iter 110 incremental** (diff `6cb9642..HEAD`). Code change: iai-callgrind perf gate **slice 2b**
-    (`949f63f`) — committed `.iai-baseline.json` (16 Ir entries) + `scripts/iai_regression.py` +
-    enforcing `Check perf regression` CI step + `bench:iai:baseline`/`:check` mise tasks. Else
-    `.claude/` context/memory. Issue #3 NOW FUNCTIONALLY COMPLETE & CI-verified (Perf job green with
-    regression step passing) — awaiting review-agent deletion.
-- **✅ CI GREEN on pushed tip; HEAD +1 (log only, code-clean).** origin/develop = `a5ce73c`, HEAD =
-    `bb9f02e` (iter-109 log, `iterations.jsonl` only). Run 27750907410 (sha `a5ce73c`) = **SUCCESS**
-    — confirmed via `gh api .../commits/a5ce73c/check-runs`: all 19 jobs green incl.
-    `Perf (iai-callgrind)` (Check perf regression step passes vs committed baseline), only `Semver`
-    failure (continue-on-error). Sandbox `gh run list` matched the API this time, but STILL prefer
-    the check-runs API on the actual tip SHA — it has been stale before.
-- **6 issues: 0 critical, 4 normal, 2 low** (count issues.md headers — lines starting with two
-    hashes whose title ends in a priority label; the legend line is excluded, so no -1 adjustment).
-    +1 normal vs iter 109 (NEW iai_regression.py false-green hardening); #3 still listed but
-    functionally done.
-- **Open normal gaps (3 actionable; #3 done)**: (1) NEW iai_regression.py false-green hardening
-    [review, NO spec change, FULLY CID-ACTIONABLE — the obvious next slice]; (2) CRAP
-    `--fail-above   30` hardening [review, HUMAN REVIEW REQ]; (3) supply-chain
-    `cargo deny`/`cargo audit` gate [review, HUMAN REVIEW REQ]. cargo-semver-checks gate present —
-    informational.
+- **IN_PROGRESS — CI GREEN on pushed tip; at a HUMAN-HANDOFF POINT.** v0.4.0 released; hardening
+    toward v1.0.0. Workspace version = `0.4.0`. No fully-autonomous CID `normal` work remains — both
+    open normal issues are HUMAN REVIEW REQUESTED spec amendments.
+- **Iter 111 incremental** (diff `bb9f02e..HEAD`). Only code change: iai-callgrind gate
+    **false-green hardening** (`1692e2b`) — `scripts/iai_regression.py` now 248 lines (zero-count +
+    missing-bench fail, `--allow-missing` flag) + NEW `tests/test_iai_regression.py` (11 tests).
+    Else `.claude/` context/memory. Issue #3 AND the false-green hardening issue BOTH verified PASS
+    & swept from issues.md by review (`6d6c594`).
+- **✅ CI GREEN on pushed tip; HEAD +1 (log only, code-clean).** origin/develop = `6d6c594` (review
+    PASS commit, carries the code), HEAD = `54bbddc` (iter-110 log, `iterations.jsonl` only). Run
+    27753395707 (sha `6d6c594`) = **SUCCESS** — confirmed via
+    `gh api .../commits/6d6c594/check-runs`: 18/19 jobs green incl. `Perf (iai-callgrind)`, only
+    `Semver` failure (continue-on-error). Sandbox `gh run list` matched the API this time, but STILL
+    prefer the check-runs API on the actual tip SHA — it has been stale before.
+- **4 issues: 0 critical, 2 normal, 2 low** (count issues.md `^##` headers ending in a priority
+    label; legend excluded → no -1). Down from 6 (iai perf gate #3 + false-green hardening both
+    deleted). BOTH remaining normal issues are HUMAN REVIEW REQUESTED — neither CID-autonomous.
+- **Open normal gaps (both HUMAN REVIEW REQ, NOT CID-actionable)**: (1) CRAP `--fail-above 30`
+    hardening [review]; (2) supply-chain `cargo deny`/`cargo audit` gate \[review, req in notes/07
+    not specs\]. cargo-semver-checks gate present — informational.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
 - **Partially-met sections**: Rust Core (semver informational, enforcing needs v1.0.0 — ONLY
-    remaining gap; perf gate now MET), CI/CD (**GREEN**; `--fail-above` + supply-chain + iai
-    hardening remain). All 12 bindings + Benchmarks MET.
-- **Recently closed/landed (don't re-flag)**: iai perf gate slice 2b (iter 109 `949f63f`, committed
-    baseline + enforcing regression check), false-green strip fix (iter 108 `6982124`), Perf CI job
-    slice 2a (iter 107), iai harness (iter 107), PyO3 migration #1 (iters 98-105), cargo-crap
-    `--force` flake fix (iter 101), CRAP Phase 3 (iter 99), semver gate (iter 93, informational),
-    npm #38 (iter 92), GIL #39 (iter 91), SumHasher #37 (iters 88-90).
+    remaining gap; perf gate MET & hardened), CI/CD (**GREEN**; `--fail-above` + supply-chain
+    remain, both HUMAN REVIEW REQ). All 12 bindings + Benchmarks MET.
+- **Recently closed/landed (don't re-flag)**: iai false-green hardening (iter 111 `1692e2b`,
+    zero-count + missing-bench fail + 11 tests), iai perf gate slice 2b (iter 109 `949f63f`,
+    committed baseline + enforcing regression check), false-green strip fix (iter 108 `6982124`),
+    Perf CI job slice 2a (iter 107), iai harness (iter 107), PyO3 migration #1 (iters 98-105),
+    cargo-crap `--force` flake fix (iter 101), CRAP Phase 3 (iter 99), semver gate (iter 93,
+    informational), npm #38 (iter 92), GIL #39 (iter 91), SumHasher #37 (iters 88-90).
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
-    with "verified when" checklists; ci-cd.md Phases 1+2+3 boxes `[x]`; **rust-core perf boxes NOW
-    `[x]`** (both perf checkboxes + ci-cd.md perf box flipped iter 109); enforcing-semver still
-    `[ ]` (flips only at v1.0.0 cut). Re-read on incremental review.
+    with "verified when" checklists; ci-cd.md Phases 1+2+3 boxes `[x]`; rust-core perf boxes `[x]`
+    (flipped iter 109); enforcing-semver still `[ ]` (flips only at v1.0.0 cut). Re-read on
+    incremental review.
 
 ## Gotchas
 
