@@ -17,9 +17,11 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
 - **Benchmark functions**:
     `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
-- **iai-callgrind harness + perf-GATE check**: `ls crates/iscc-lib/benches/iai_benches.rs`; gate
-    present? `grep -in "iai\|callgrind\|valgrind\|perf" .github/workflows/ci.yml mise.toml` (none
-    yet).
+- **iai-callgrind harness + perf-GATE check**: `ls crates/iscc-lib/benches/iai_benches.rs`; CI
+    `Perf` job EXISTS + GREEN (`grep -n "Perf (iai-callgrind)" ci.yml`,
+    `grep -n "bench:iai"   mise.toml`). REGRESSION GATE (slice 2b) still missing: no committed
+    baseline (`git ls-files |   grep iai` shows only the harness), no >10% fail condition. Issue #3
+    open until 2b.
 - **Authoritative CI status (sandbox `gh run list` is STALE — returns old ancestor SHAs)**:
     `gh api repos/iscc/iscc-lib/commits/<tip-sha>/check-runs --jq '.check_runs[]|{name,conclusion}'`
     against the ACTUAL origin/develop tip SHA. `gh run view <id> --json conclusion,headSha` also
@@ -40,17 +42,16 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
     `grep -A 20 "build-kotlin-native:\|android" .github/workflows/release.yml`
 - **Provenance guard check**: `grep -c 'Verify main matches tag' .github/workflows/release.yml`
 - **Benchmarks doc check**: `grep -i "speedup" docs/benchmarks.md | head -5`
-- **PyO3 — MIGRATION COMPLETE (issue #1 CLOSED iter 105)**: pinned `0.29`
-    (`grep -n "pyo3"   Cargo.toml`, one place; `Cargo.lock` 0.29.0 single entry, no older — version
-    where the 2 RustSec advisories clear). Core has NO PyO3 dep; scope = `crates/iscc-py/`.
-    Load-bearing: `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — explicit because
-    PyO3 0.28 silently flipped that default `true`→`false`. LESSON for future bumps: "compiles
-    clean" ≠ behavior-neutral — diff macros-backend defaults + read the migration guide each hop.
-    Clearance confirmed only by lockfile proxy (`cargo deny`/`cargo audit` absent → own [review]
-    issue below). Full hop-by-hop history (0.23→0.29) archived.
-- **Supply-chain audit gate ABSENT (NEW [review] issue iter 105)**: `notes/07` mandates a
-    `cargo deny` CI gate + root `deny.toml` + `cargo audit`. NONE exist (no `deny.toml`/CI job/mise
-    task/tools). HUMAN REVIEW REQ (req in notes/07, not CID specs).
+- **PyO3 — MIGRATION COMPLETE (issue #1 CLOSED iter 105)**: pinned `0.29` (one place in
+    `Cargo.toml`; `Cargo.lock` single 0.29.0 entry, no older — version where the 2 RustSec
+    advisories clear). Core has NO PyO3 dep; scope = `crates/iscc-py/`. Load-bearing:
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — explicit because PyO3 0.28
+    silently flipped that default `true`→`false`. Clearance confirmed only by lockfile proxy
+    (`cargo   deny`/`cargo audit` absent → own [review] issue below). Hop-by-hop history (0.23→0.29)
+    archived.
+- **Supply-chain audit gate ABSENT ([review] issue iter 105)**: `notes/07` mandates `cargo deny` CI
+    gate + root `deny.toml` + `cargo audit`; NONE exist. HUMAN REVIEW REQ (req in notes/07, not
+    specs).
 - **Coverage + CRAP gate ALL 3 PHASES present & GREEN; install flake FIXED iter 101**: ONE job
     `Coverage + CRAP (cargo llvm-cov + cargo crap)` (ci.yml:294), no `needs:`, NO
     `continue-on-error`, job-level `security-events: write`. Pipeline: llvm-cov → cargo-binstall →
@@ -95,11 +96,13 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `scripts/build_xcframework.sh` — builds XCF for 5 Apple targets, lipo fat binaries, ditto zip
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, UniFFI-generated (3214-line iscc_uniffi.kt), JNA
     5.16.0; conformance tests (9 methods, 50 vectors); docs + release workflow complete
-- `.github/workflows/ci.yml` — **17 YAML job entries → 18 actual jobs** (`python-test` matrix
-    expands 3.10 + 3.14): 16 functional jobs (incl. root Package.swift dump-package smoke test) +
-    the non-blocking `Semver` job (iter 93) + the `Coverage + CRAP (cargo llvm-cov + cargo crap)`
-    job (Phase 1 iter 94, Phase 2 iter 96, Phase 3 enforcing step iter 97). `push:` under `on:` is
-    NOT a job; a bare `^  [a-z].*:$` grep over-counts — read the job names.
+- `.github/workflows/ci.yml` — **18 YAML job entries → 19 actual jobs** (`python-test` matrix
+    expands 3.10 + 3.14): functional jobs + non-blocking `Semver` (iter 93) +
+    `Coverage + CRAP   (cargo llvm-cov + cargo crap)` (Phases 1-3, iters 94-97) +
+    `Perf (iai-callgrind)` (added iter 107, GREEN — apt valgrind → binstall
+    `iai-callgrind-runner@0.16.1` → `cargo bench -p iscc-lib   --bench iai_benches` → upload
+    `target/iai/` as `iai-baseline`; no continue-on-error). `push:` under `on:` is NOT a job; a bare
+    `^  [a-z].*:$` grep over-counts — read the job names.
 - `.github/workflows/release.yml` — **8 registry input toggles** (`type: boolean`): crates-io, pypi,
     npm, maven, ffi, rubygems, nuget, maven-kotlin. Swift XCFramework is NOT a toggle — it builds in
     `prepare-release` (line ~55). **provenance guard** on build-xcframework. After #38 fix (iter 92)
@@ -119,9 +122,12 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - `crates/iscc-lib/benches/iai_benches.rs` — iai-callgrind 0.16 harness (landed iter 107 `072e746`),
     11 `bench_*` fns (9 `gen_*_v0` + cdc + minhash) in `library_benchmark_group!(iscc_benches)`.
     `[[bench]] name="iai_benches" harness=false`; dep `iai-callgrind = "0.16"` (root Cargo.toml:43 +
-    crates/iscc-lib/Cargo.toml:34 dev-dep). COMPILE-ONLY: NO CI `Perf` job/baseline/`mise` task yet
-    (needs valgrind, absent in devcontainer). `#[library_benchmark]` fns use `//` not `///` (macro
-    `abort!`s on `doc` attr). Issue #3 perf GATE still open (plumbing not done).
+    crates/iscc-lib/Cargo.toml:34 dev-dep). NOW RUN IN CI by the `Perf` job under valgrind (iter
+    107, GREEN); `mise run bench:iai` (mise.toml:126). Profile note: `[profile.bench]` does NOT
+    inherit `[profile.release] strip=true`, so the bench binary keeps symbols (11
+    `__iai_callgrind_wrapper`) and counters are non-zero — no `CARGO_PROFILE_BENCH_STRIP=false`
+    needed. `#[library_benchmark]` fns use `//` not `///` (macro `abort!`s on `doc` attr). Issue #3
+    REGRESSION GATE (committed baseline + >10% fail) NOT done (slice 2b) — valgrind absent locally.
 - `tests/test_benchmarks.py` — 18 pytest-benchmark functions (9 gen\_\*\_v0 x 2 implementations)
 - **CLAUDE.md files & per-crate READMEs**: 12 each (all crates + all packages)
 
@@ -136,45 +142,41 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **Issues diff**: check issues.md for NEW entries each cycle (human AND `[review]`-sourced). Watch
     `[review]` + `HUMAN REVIEW REQUESTED` flags and any critical ones that reshuffle priorities.
 
-## Current State (assessed-at: 4748669)
+## Current State (assessed-at: 77a5fb3)
 
 - **IN_PROGRESS — CI GREEN on pushed tip.** v0.4.0 released; hardening toward v1.0.0. Workspace
     version = `0.4.0`.
-- **Iter 107 incremental** (diff `40fa239..HEAD`). Only code-bearing change: iai-callgrind bench
-    HARNESS landed (`072e746`) — `crates/iscc-lib/benches/iai_benches.rs` (new), dep
-    `iai-callgrind = "0.16"`, second `[[bench]] harness=false`. COMPILE-ONLY (no Perf CI
-    job/baseline/ mise task — needs valgrind). Everything else `.claude/` context/memory. Issue #3
-    perf gate PARTIALLY progressed (harness done, gate plumbing NOT).
-- **✅ CI GREEN on pushed tip, but HEAD is 7 commits ahead (UNPUSHED).** origin/develop = `103fe3d`,
-    HEAD = `4748669`. Run 27728337913 (sha `103fe3d`) = **SUCCESS** — confirmed via
-    `gh api repos/iscc/iscc-lib/commits/103fe3d/check-runs` (all 18 jobs green except `Semver`
-    continue-on-error). The iai harness commit `072e746` is UNPUSHED → locally-verified (handoff:
-    build/clippy/fmt/test/`mise run check` all pass) but NOT CI-verified; `Bench (compile check)`
-    will exercise it on push. **GOTCHA: sandbox `gh run list` returns a STALE snapshot (old ancestor
-    SHAs like 6ff1f896 "Fix stale 0.3.1 versions", databaseIds LOWER than the real latest). Use
-    `gh api .../commits/<sha>/check-runs` against the actual tip SHA instead — it is
-    authoritative.**
-- **5 issues: 0 critical, 3 normal, 2 low** (grep `^## .+\`(critical|normal|low)\`\` for headers,
-    excludes legend line — no -1 adjustment). Unchanged from iter 106.
-- **Open normal gaps (3) — ALL CONSTRAINED (natural pause point)**: CRAP `--fail-above` hardening
-    [review, HUMAN REVIEW REQ], supply-chain `cargo deny`/`cargo audit` gate \[review, HUMAN REVIEW
-    REQ\], iai-callgrind perf GATE (harness done iter 107; gate=CI Perf job+baseline+mise still
-    missing; blocked — valgrind absent in devcontainer). cargo-semver-checks gate present —
-    informational. Obvious next slice = finish iai perf gate (harness exists), though it needs the
-    CI valgrind runner.
+- **Iter 108 incremental** (diff `4748669..HEAD`). Code-bearing change: the CI
+    `Perf (iai-callgrind)` job + `bench:iai` mise task landed (`2a57344`, ci.yml +28 / mise.toml
+    +6). Everything else `.claude/` context/memory. Issue #3 perf gate slice 2a DONE (Perf job runs
+    in CI, GREEN); slice 2b (committed baseline + >10% regression gate) PENDING → #3 stays open.
+- **✅ CI GREEN on pushed tip; HEAD +1 (log only, code-clean).** origin/develop = `55ff177`, HEAD =
+    `77a5fb3` (iter-107 log, `iterations.jsonl` only). Run 27742285656 (sha `55ff177`) = **SUCCESS**
+    — confirmed via `gh api .../commits/55ff177/check-runs`: all 19 jobs green incl.
+    `Perf   (iai-callgrind)`, only `Semver` failure (continue-on-error). This time sandbox
+    `gh run list` matched the API, but STILL prefer the check-runs/check-suites API on the actual
+    tip SHA — it has been stale before.
+- **5 issues: 0 critical, 3 normal, 2 low** (count issues.md headers — lines starting with two
+    hashes whose title ends in a priority label; the legend line is excluded, so no -1 adjustment).
+    Unchanged from iter 107.
+- **Open normal gaps (3)**: CRAP `--fail-above 30` hardening [review, HUMAN REVIEW REQ],
+    supply-chain `cargo deny`/`cargo audit` gate [review, HUMAN REVIEW REQ], iai-callgrind perf
+    REGRESSION GATE (slice 2b: inspect uploaded `iai-baseline` artifact for layout → commit baseline
+    → add >10% fail → `bench:iai:baseline` refresh task; CI-verify only, no local valgrind).
+    cargo-semver-checks gate present — informational. Obvious next slice = perf gate 2b.
 - **Low (CID skips)**: cut v1.0.0 release (human-driven), docs language logos.
-- **Partially-met sections**: Rust Core (semver gate informational; perf gate missing;
-    enforcing-semver needs v1.0.0), CI/CD (**GREEN**; `--fail-above` + supply-chain + iai-callgrind
-    remain). Python now **MET** (PyO3 migration COMPLETE, GIL MET). Node.js MET. WASM MET. All 12
-    bindings met.
-- **Recently closed/landed (don't re-flag)**: iai-callgrind HARNESS (iter 107 `072e746`,
-    compile-only slice of #3 — perf GATE still open), PyO3 migration 0.24→0.29 (iters 98-105, arc
-    DONE, #1 closed, `gil_used=true` restored iter 104), cargo-crap `--force` flake fix (iter 101
-    `628c5d9`), CRAP Phase 3 first green (iter 99), semver gate (iter 93, informational), npm #38
-    (iter 92), GIL #39 (iter 91), streaming SumHasher #37 (iters 88-90).
+- **Partially-met sections**: Rust Core (semver informational; perf regression gate pending;
+    enforcing-semver needs v1.0.0), CI/CD (**GREEN**; `--fail-above` + supply-chain + perf-2b
+    remain). Python MET, Node.js MET, WASM MET. All 12 bindings met.
+- **Recently closed/landed (don't re-flag)**: iai-callgrind Perf CI job slice 2a (iter 107
+    `2a57344`, GREEN; regression gate 2b open), iai harness (iter 107 `072e746`), PyO3 migration
+    0.24→0.29 (iters 98-105, #1 closed, `gil_used=true` restored iter 104), cargo-crap `--force`
+    flake fix (iter 101), CRAP Phase 3 first green (iter 99), semver gate (iter 93, informational),
+    npm #38 (iter 92), GIL #39 (iter 91), streaming SumHasher #37 (iters 88-90).
 - **target.md/specs**: rust-core.md + ci-cd.md carry "API Stability & Performance" + "CRAP" sections
     with "verified when" checklists; ci-cd.md Phases 1+2+3 boxes all `[x]`; rust-core perf criterion
-    - enforcing-semver still `[ ]`. Re-read on incremental review.
+    - enforcing-semver still `[ ]` (perf checkbox flips only when slice 2b lands). Re-read on
+        incremental review.
 
 ## Pattern: idle→active reactivation
 
