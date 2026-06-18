@@ -16,14 +16,19 @@ high-complexity function bypasses the enforced gate entirely. Verified by Codex 
 uncovered CC=21 function reported `★ 1 new` at CRAP 462 and the gate returned success; the
 report-only `--format github`/`--format sarif` steps are non-failing too, so nothing blocks it.
 
-This was a deliberate scope choice for Phase 3 (regression-only, no absolute `--fail-above`), so it
-is a follow-up hardening item, not a Phase 3 defect. Fix: add `--fail-above 30` alongside
-`--fail-regression` so new code above the configured threshold also fails. The current baseline max
-is ~22.3 (well below 30), so this would not break existing code. Confirm `cargo-crap 0.2.2` accepts
-both flags together before wiring it in.
+This was a deliberate scope choice for Phase 3 (regression-only, no absolute threshold), so it is a
+follow-up hardening item, not a Phase 3 defect. Fix: pass `--fail-above` alongside
+`--fail-regression` (`cargo crap --baseline .crap-baseline.json --fail-regression --fail-above`) so
+any function above the configured threshold also fails. `cargo-crap 0.2.2` confirmed (2026-06-18):
+`--fail-above` and `--fail-regression` are independent boolean flags that combine cleanly;
+`--fail-above` is a boolean keyed off `--threshold` (already `30.0` in `.cargo-crap.toml`), so no
+numeric argument is passed to the flag itself. The current baseline max is ~22.3 (well below 30), so
+this does not break existing code. Update the `.cargo-crap.toml` Phase-2 "report-only / no
+fail-above" comment when wiring it in.
 
-**Spec:** `.claude/context/specs/ci-cd.md` → "Rust Coverage and CRAP Quality Gate" — HUMAN REVIEW
-REQUESTED before amending the spec to mandate `--fail-above` (review-sourced).
+**Spec:** `.claude/context/specs/ci-cd.md` → "Rust Coverage and CRAP Quality Gate" → Phase 3 amended
+(2026-06-18) to mandate `--fail-above`. **AUTHORIZED by Titusz (2026-06-18)** — CID may implement
+autonomously (review-sourced).
 
 ## Wire up `cargo deny`/`cargo audit` supply-chain gate `normal` [review]
 
@@ -39,9 +44,10 @@ advisory scan. Fix: add `deny.toml` at the workspace root, a `Security audit` CI
 learnings "cargo binstall + Swatinem/rust-cache"). Optionally add `npm audit` for the napi package
 per the same note.
 
-**Spec:** `.claude/context/specs/ci-cd.md` — HUMAN REVIEW REQUESTED before amending the spec to
-mandate a supply-chain audit gate (review-sourced; the requirement currently lives only in the
-design notes, not the CID specs).
+**Spec:** `.claude/context/specs/ci-cd.md` → "Supply chain — `cargo-deny`" added (2026-06-18) to
+mandate the gate. **AUTHORIZED by Titusz (2026-06-18)** — CID may implement autonomously
+(review-sourced; the requirement previously lived only in design notes `notes/07`, now also in the
+CID spec).
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
@@ -50,6 +56,11 @@ workspace (per the 1.0.0 decision). This is the one release allowed to break the
 afterward 1.x is locked under strict SemVer. Drive via the `/release` skill — do NOT let the CID
 loop cut this release autonomously. Ideally land both the `cargo-semver-checks` and `iai-callgrind`
 gate issues above first so 1.0.0 ships with enforcement active.
+
+**Status (2026-06-18):** Titusz decided to **hold** the v1.0.0 cut and stay on 0.4.x for now — land
+the CRAP `--fail-above` and `cargo deny` hardening gates first, then flip the `cargo-semver-checks`
+gate to enforcing as part of the eventual cut. Remains `low` `[human]`; CID must not cut it
+autonomously.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
 

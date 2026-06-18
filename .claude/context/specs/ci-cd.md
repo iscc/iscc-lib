@@ -30,6 +30,7 @@ merge.
 | **CRAP**    | `cargo llvm-cov` (LCOV) + `cargo crap` CRAP-metric gate for `iscc-lib` (see below)    |
 | **Semver**  | `cargo semver-checks` — public-API backward-compat for `iscc-lib` vs last release     |
 | **Perf**    | `iai-callgrind` instruction-count regression gate for `iscc-lib` hot paths            |
+| **Audit**   | `cargo deny check` supply-chain gate (RustSec advisories, license + duplicate bans)   |
 
 CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
 `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, `astral-sh/setup-uv@v4`,
@@ -86,13 +87,19 @@ To avoid blocking CI on pre-existing untested code, the gate is introduced in st
 2. **Report-only CRAP** — run `cargo crap` against `lcov.info` with `--format github` (inline PR
     annotations) and upload `--format sarif` output to GitHub Code Scanning. **Non-failing** —
     establishes the score distribution without breaking builds.
-3. **Regression gate** — a baseline JSON (`.crap-baseline.json`) is committed at the repo root, and
-    the job runs `cargo crap --fail-regression --baseline .crap-baseline.json` as an enforcing
-    (non-`continue-on-error`) step. Regression mode is preferred over an absolute `--fail-above`
-    threshold: it blocks PRs that *worsen* risk while tolerating existing debt. The baseline is
-    regenerated via `mise run crap:baseline` and committed in a deliberate reviewed commit when
-    merging work into `develop` (mirroring the `iai-callgrind` reviewed-baseline pattern) — it is
-    **not** auto-committed by CI, which would race the CID loop's own pushes.
+3. **Regression + absolute gate** — a baseline JSON (`.crap-baseline.json`) is committed at the repo
+    root, and the job runs
+    `cargo crap --baseline .crap-baseline.json --fail-regression --fail-above` as an enforcing
+    (non-`continue-on-error`) step. The two flags are complementary: `--fail-regression` blocks PRs
+    that *worsen* an existing baselined function's score (tolerating pre-existing debt), while
+    `--fail-above` fails any function whose CRAP score exceeds the `.cargo-crap.toml` `threshold`
+    (30). `--fail-above` closes the regression-only blind spot: a brand-new or renamed function has
+    no baseline entry, so regression mode alone reports it as `★ N new` and still exits 0, letting
+    a new uncovered, high-complexity function bypass the gate. The current baseline max is ~22.3
+    (well below 30), so the absolute gate does not break existing code. The baseline is regenerated
+    via `mise run crap:baseline` and committed in a deliberate reviewed commit when merging work
+    into `develop` (mirroring the `iai-callgrind` reviewed-baseline pattern) — it is **not**
+    auto-committed by CI, which would race the CID loop's own pushes.
 
 ### Local task
 
@@ -128,6 +135,18 @@ instruction-count benches for the hot `gen_*_v0` / hashing / CDC / MinHash paths
 baseline. The baseline is refreshed deliberately (in a reviewed commit) when a regression is
 accepted or an improvement lands. The existing `criterion` benches remain for local profiling and
 human-facing speedup numbers.
+
+### Supply chain — `cargo-deny`
+
+A CI job runs [`cargo-deny`](https://github.com/EmbarkStudios/cargo-deny) `check` over the full
+dependency graph, configured by a workspace-root `deny.toml`. It enforces three policy classes:
+**advisories** (fail on any RustSec-flagged vulnerability or unmaintained crate), **bans** (fail on
+disallowed crates or duplicate versions), and **licenses** (fail on any dependency whose license is
+not on the allow-list). This replaces the mechanical lockfile-inspection proxy previously used to
+clear security bumps (e.g. the PyO3 0.29 advisory bump) with a real advisory scan. `cargo-deny` is a
+**dev/CI-only** tool — never a shipped dependency — installed in CI via `taiki-e/install-action` (or
+`cargo binstall`). A `mise run audit` task reproduces `cargo deny check` locally; `cargo audit` may
+complement it for RustSec-only scans and `npm audit` for the napi package.
 
 ## Release Workflow — Selective Publishing
 
@@ -423,6 +442,12 @@ workflow triggers on push to `main`.
     (informational pre-1.0 via `continue-on-error`; enforcing from v1.0.0)
 - [x] Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
     committed baseline; baseline refreshes are reviewed commits
+- [ ] CRAP job also fails via `--fail-above` on any function (including new/renamed entries absent
+    from the baseline) whose CRAP score exceeds the `.cargo-crap.toml` `threshold` (30), closing the
+    regression-only blind spot
+- [ ] Audit job runs `cargo deny check` (advisories + bans + licenses) over the workspace via a root
+    `deny.toml`, failing CI on a flagged advisory, banned/duplicate crate, or disallowed license;
+    `mise run audit` reproduces it locally
 
 ### Release
 
