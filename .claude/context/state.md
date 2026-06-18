@@ -1,17 +1,17 @@
-<!-- assessed-at: 40fa239e00e7564934a02cf48d0ca60d9b1addb1 -->
+<!-- assessed-at: 4748669368744253eb235f7191449363c489ec98 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-v0.4.0 hardening toward v1.0.0 — CI GREEN, PyO3 migration COMPLETE
+## Phase: Post-v0.4.0 hardening toward v1.0.0 — CI GREEN; iai-callgrind harness landed (gate pending)
 
 v0.4.0 is released across all registries; all 12 language bindings are functionally met. **CI is
-fully GREEN** — the latest run (sha `103fe3d`) passes, including the `Coverage + CRAP` job and its
-enforcing Phase 3 gate. The PyO3 security migration is **finished** (pin now `0.29`, both targeted
-RustSec advisories clear) and issue #1 is closed. Remaining v1.0.0 hardening: an `iai-callgrind`
-perf-regression gate, CRAP gate hardening, and a `cargo deny`/`cargo audit` supply-chain gate. No
-critical issues open.
+GREEN** on the pushed tip (`103fe3d`, run 27728337913), including the `Coverage + CRAP` job and its
+enforcing Phase 3 gate. This iteration landed the `iai-callgrind` instruction-count bench *harness*
+(compile-only) — the first slice of the perf-regression gate; the CI `Perf` job + committed baseline
+remain a follow-up. The PyO3 security migration is complete (`0.29`, issue #1 closed). No critical
+issues open.
 
 ## Rust Core Crate
 
@@ -32,8 +32,14 @@ critical issues open.
     from the post-0.4.0 `pub(crate)` narrowing) but does NOT flip the run conclusion. The target's
     **enforcing** criterion stays unmet (`rust-core.md` "verified when" still `[ ]`) — flip
     `continue-on-error` off only at the v1.0.0 cut.
-- **Gap (normal)**: no `iai-callgrind` instruction-count perf gate with committed baseline — the
-    only outstanding v1.0.0 CI quality gate with zero implementation.
+- **Perf gate (normal) — harness landed, gate still missing**:
+    `crates/iscc-lib/benches/iai_benches.rs` (new) is an `iai-callgrind` 0.16 instruction-count
+    harness covering 9 `gen_*_v0` hot paths + `alg_cdc_chunks` + `alg_minhash_256`.
+    `iai-callgrind = "0.16"` is in root `[workspace.dependencies]`; `crates/iscc-lib/Cargo.toml` has
+    the dev-dep + a second `[[bench]]` (`name = "iai_benches"`, `harness = false`). It
+    compiles/lints clean without valgrind, but there is **no** CI `Perf` job, **no** committed
+    baseline, and **no** `mise` task — actually running the gate is the next slice (blocked on a
+    valgrind-enabled runner). Issue #3 stays open.
 - Workspace version is `0.4.0`; next target is v1.0.0 (stability-committed under strict SemVer).
 
 ## Python Bindings
@@ -45,17 +51,16 @@ critical issues open.
 - GIL release done (closed #39): GIL-release wraps the pure-Rust CPU-bound compute at all 7 call
     sites in `crates/iscc-py/src/lib.rs` via the `Python::detach` API; `tests/test_gil.py` adds 7
     concurrency tests. 0 `allow_threads` remain.
-- **PyO3 migration COMPLETE (closed #1)**: the workspace `pyo3` pin is `0.29` (`Cargo.toml:35`
+- **PyO3 migration COMPLETE (closed #1)**: the workspace `pyo3` pin is `0.29` (`Cargo.toml`
     `version = "0.29"` with `abi3-py310`); `Cargo.lock` resolves a single `pyo3 0.29.0` with no
     older entries — the version where both targeted RustSec advisories shipped in the wheel clear.
     The 0.28→0.29 hop needed no source edits; `crates/iscc-py/src/lib.rs` is unchanged and the
     explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697, documented) is
     preserved (PyO3 0.28 silently flipped that default `true`→`false`; the explicit setting keeps
-    the raw-FFI `extract_frame_sigs` path free-threading-safe). 286 pytest pass.
+    the raw-FFI `extract_frame_sigs` path free-threading-safe).
 - Note: the advisory clearance was confirmed only by the mechanical lockfile proxy (single
     `pyo3 0.29.0`, no older entries) — `cargo deny`/`cargo audit` are absent from both the
-    devcontainer and CI. That tooling gap is now tracked as a separate `[review]` CI/CD issue, not a
-    Python-binding defect.
+    devcontainer and CI. That tooling gap is tracked as a separate `[review]` CI/CD issue.
 
 ## Node.js Bindings
 
@@ -160,54 +165,59 @@ critical issues open.
 
 - Criterion benches for all 10 `gen_*_v0` (+2) functions, Bench (compile check) CI job GREEN,
     pytest-benchmark 18 functions, speedup factors published (1.3x–158x) in docs/benchmarks.md.
-- The `iai-callgrind` *regression gate* (distinct from criterion local profiling) is tracked under
-    Rust Core / CI/CD and remains unimplemented.
+- **NEW this iteration**: a second bench harness `iai_benches.rs` (iai-callgrind 0.16, 11 benches)
+    sits alongside criterion `benchmarks.rs`. It is compile/lint-clean but is only *built*, not run
+    (needs valgrind). The `iai-callgrind` *regression gate* (CI `Perf` job + committed baseline +
+    `mise` tasks) is still unimplemented and remains tracked under Rust Core / CI/CD (issue #3).
 
 ## CI/CD and Publishing
 
-**Status**: partially met — **CI GREEN**
+**Status**: partially met — **CI GREEN on pushed tip**
 
-- **LATEST CI RUN — SUCCESS.** Run 27728337913 (sha `103fe3d`, the review commit): **conclusion
-    `success`**. URL: https://github.com/iscc/iscc-lib/actions/runs/27728337913 — all 17 functional
-    jobs + the `Coverage + CRAP` job green; the only job-level `failure` is
-    `Semver (cargo-semver-checks)`, which is `continue-on-error: true` (informational, does not flip
-    the run). HEAD `40fa239` adds only one `iterations.jsonl` log commit on top of `103fe3d`, so
-    this green run fully covers HEAD's code state.
-- **Coverage + CRAP GREEN.** The `cargo-binstall` / `Swatinem/rust-cache` cache-poisoning flake was
-    fixed earlier by adding `--force` to the install step (ci.yml:314
-    `cargo binstall -y --force cargo-crap@0.2.2`). Verified on the latest run: the `Coverage + CRAP`
-    job concludes `success` with the enforcing Phase 3 `CRAP regression gate` step running on every
-    commit.
-- **CRAP gate hardening gap (open, normal, [review])**: even when it runs, Phase 3 is
-    regression-only — a brand-new/renamed function has no baseline entry, reports `★ N new`, and the
-    step exits 0 (Codex verified a new uncovered CC=21 fn at CRAP 462 bypassed it). Fix: add
-    `--fail-above 30` alongside `--fail-regression` (baseline max ~22.3 < 30). HUMAN REVIEW
-    REQUESTED before mandating in the spec.
-- **Supply-chain audit gap (open, normal, [review], NEW iter 105)**:
-    `notes/07-security-versioning.md` mandates `cargo deny check` "Run in CI" (licenses + RustSec
-    advisories + duplicate versions) via a workspace-root `deny.toml`, plus `cargo audit`. None
-    exists — no `deny.toml`, no CI job, no `mise` task, neither tool installed in the devcontainer.
-    This surfaced concretely during the PyO3 0.29 bump: advisory clearance could only be confirmed
-    by a lockfile proxy, not an actual advisory scan. Fix: add `deny.toml`, a `Security audit` CI
-    job, and a `mise run audit` task. HUMAN REVIEW REQUESTED (requirement currently lives only in
-    design notes, not the CID specs).
+- **LATEST PUSHED CI RUN — SUCCESS.** Run 27728337913 on sha `103fe3d` (= `origin/develop` tip):
+    confirmed `success` via the check-runs API — all 17 functional jobs + the `Coverage + CRAP` job
+    green; the only job-level `failure` is `Semver (cargo-semver-checks)`, which is
+    `continue-on-error: true` (informational, does not flip the run). URL:
+    https://github.com/iscc/iscc-lib/actions/runs/27728337913
+- **CAVEAT — 7 unpushed local commits.** HEAD (`4748669`) is 7 commits ahead of `origin/develop`
+    (`103fe3d`). The only code-bearing one is `072e746` (iai-callgrind harness). It is
+    locally-verified (handoff: `cargo build --bench iai_benches`, `cargo clippy --benches`,
+    `cargo fmt --check`, `cargo test -p iscc-lib`, and `mise run check` all pass) but **not yet
+    CI-verified** — once pushed, the `Bench (compile check)` job will exercise it. Low risk, but
+    flagged as unverified-by-CI. (Note: the sandbox `gh run list` returns a stale snapshot of old
+    runs; the check-runs API on `103fe3d` is the authoritative source used here.)
+- **Coverage + CRAP GREEN.** The earlier `cargo-binstall` / `Swatinem/rust-cache` cache-poisoning
+    flake was fixed via `--force` on the install step (ci.yml:314
+    `cargo binstall -y --force cargo-crap@0.2.2`). The enforcing Phase 3 `CRAP regression gate` runs
+    on every commit and concludes `success`.
+- **CRAP gate hardening gap (open, normal, [review])**: Phase 3 is regression-only — a
+    brand-new/renamed function has no baseline entry, reports `★ N new`, and the step exits 0 (Codex
+    verified a new uncovered CC=21 fn at CRAP 462 bypassed it). Fix: add `--fail-above 30` alongside
+    `--fail-regression` (baseline max ~22.3 < 30). HUMAN REVIEW REQUESTED before mandating in spec.
+- **Supply-chain audit gap (open, normal, [review])**: `notes/07-security-versioning.md` mandates
+    `cargo deny check` "Run in CI" (licenses + RustSec advisories + duplicate versions) via a
+    workspace-root `deny.toml`, plus `cargo audit`. None exists — no `deny.toml`, no CI job, no
+    `mise` task, neither tool installed in the devcontainer. Surfaced concretely during the PyO3
+    0.29 bump (clearance confirmable only by a lockfile proxy). HUMAN REVIEW REQUESTED (requirement
+    lives only in design notes, not the CID specs).
+- **Perf gate gap (open, normal)**: no `iai-callgrind` CI `Perf` job with committed baseline. The
+    harness now exists (see Benchmarks); the gate plumbing does not.
 - v0.4.0 published; release workflow with 8 registry input toggles (crates.io, PyPI, npm, Maven,
     FFI, RubyGems, NuGet, Maven-Kotlin; Swift XCFramework built in `prepare-release`) + version sync
     (16 targets) in place.
-- **Gap (normal)**: no `iai-callgrind` perf-regression CI job with committed baseline.
-- Note: `cargo-semver-checks` CI gate EXISTS (informational); becomes enforcing at v1.0.0.
 
 ## Open Issues (5 total — 0 critical, 3 normal, 2 low)
 
-Normal (CID-actionable, but ALL THREE are constrained — see Next Milestone):
+Normal (CID-actionable, but all three are constrained — see Next Milestone):
 
 1. **CRAP gate does not fail on new high-CRAP functions** [review] — regression-only gate lets new
     uncovered high-complexity functions through; add `--fail-above 30`. HUMAN REVIEW REQUESTED.
 2. **Wire up `cargo deny`/`cargo audit` supply-chain gate** [review] — design notes mandate it but
-    no `deny.toml`/CI job/`mise` task exists; would have let the PyO3 bump tool-confirm advisories.
-    HUMAN REVIEW REQUESTED (spec gap — requirement only in notes/07, not CID specs).
-3. **Add `iai-callgrind` performance-regression CI gate** [human] — committed baseline, > 10% fails
-    CI. Not started; blocked by valgrind being unavailable in the devcontainer.
+    no `deny.toml`/CI job/`mise` task exists. HUMAN REVIEW REQUESTED (spec gap — requirement only
+    in notes/07, not CID specs).
+3. **Add `iai-callgrind` performance-regression CI gate** [human] — *harness landed this iteration*;
+    remaining work is the CI `Perf` job (valgrind runner), committed baseline, and `mise` tasks.
+    Blocked by valgrind being unavailable in the devcontainer.
 
 Low (human-directed, CID skips):
 
@@ -217,21 +227,23 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-**CI is GREEN and the PyO3 security migration arc (issue #1) is complete.** All three remaining
+**CI is GREEN on the pushed tip and the iai-callgrind harness is now in place.** All three remaining
 `normal` issues are constrained, so this is a natural pause point pending human direction:
 
-1. **Wire up the `cargo deny`/`cargo audit` supply-chain gate** (review-sourced) — the most
-    self-contained, mechanical work: add `deny.toml` at the workspace root, a `Security audit` CI
-    job (`cargo deny check` advisories + bans + licenses), and a `mise run audit` task; install via
-    `taiki-e/install-action` or `cargo binstall -y --force` (heed the rust-cache poisoning gotcha).
-    This would also have let the PyO3 bump tool-confirm advisory clearance. **HUMAN REVIEW
-    REQUESTED before amending the spec** — the requirement currently lives only in `notes/07`, not
-    the CID specs.
-2. **Harden the CRAP gate with `--fail-above 30`** (review-sourced) so new uncovered high-complexity
-    functions also fail CI. Confirm `cargo-crap 0.2.2` accepts `--fail-above` and
-    `--fail-regression` together; HUMAN REVIEW REQUESTED before amending the spec.
-3. **`iai-callgrind` perf-regression CI gate + committed baseline** — the last v1.0.0 stability gate
-    with zero implementation; currently blocked by valgrind being unavailable in the devcontainer.
+1. **Finish the `iai-callgrind` perf gate** — the harness slice is done, so the obvious next step is
+    the gate: a Linux CI `Perf` job on a valgrind-enabled runner, install
+    `iai-callgrind-runner@0.16.1` via `cargo binstall -y --force` (heed the rust-cache poisoning
+    gotcha), run `cargo bench -p iscc-lib --bench iai_benches`, commit the generated baseline, fail
+    on >10% regression, and add `mise run bench:iai` + a baseline-refresh task. Note: actually
+    running the benches needs valgrind, which is absent in the devcontainer — the CI runner
+    provides it, so this is verifiable only via CI.
+2. **Wire up the `cargo deny`/`cargo audit` supply-chain gate** (review-sourced) — `deny.toml` at
+    the workspace root, a `Security audit` CI job, and a `mise run audit` task. **HUMAN REVIEW
+    REQUESTED before amending the spec** — the requirement lives only in `notes/07`, not the CID
+    specs.
+3. **Harden the CRAP gate with `--fail-above 30`** (review-sourced). Confirm `cargo-crap 0.2.2`
+    accepts `--fail-above` and `--fail-regression` together; HUMAN REVIEW REQUESTED before amending
+    the spec.
 
 The two `low` issues (v1.0.0 release cut, docs logos) are human-directed and out of CID scope. The
 semver gate becoming *enforcing* is a deliberate one-line follow-up tied to the v1.0.0 cut — do not
