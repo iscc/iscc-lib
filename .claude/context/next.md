@@ -1,79 +1,105 @@
 # Next Work Package
 
-## Step: Add the iai-callgrind bench harness (compiles locally; CI gate is a follow-up slice)
+## Step: Add the `Perf` CI job that runs the iai-callgrind benches under valgrind
 
 ## Goal
 
-Land the `iai-callgrind` instruction-count benchmark harness for `iscc-lib`'s hot paths so the
-v1.0.0 performance-regression gate has benches to run. This is the unblocked first slice of the
-`iai-callgrind` perf-gate issue (#3): only *running* the benches needs valgrind (absent in the
-devcontainer), while the harness itself compiles and is fully verifiable locally. The gate is
-already mandated by `target.md`, `rust-core.md`, and `ci-cd.md`, so no spec amendment is needed.
+Stand up the Linux `Perf` CI job that installs valgrind + `iai-callgrind-runner` and actually *runs*
+the instruction-count benches (today they are only compile-checked by `Bench`). This proves the
+toolchain works on the runner and produces the real iai-callgrind output the regression-gate slice
+needs. Advances issue "Add `iai-callgrind` performance-regression CI gate" without trying to land
+the committed baseline blind (valgrind is absent locally, so a baseline can't be generated or
+verified in the devcontainer).
 
 ## Scope
 
-- **Create**: `crates/iscc-lib/benches/iai_benches.rs` — iai-callgrind library benchmarks for the
-    hot CPU paths.
-- **Modify**: `Cargo.toml` (root) — add `iai-callgrind` to `[workspace.dependencies]`.
-- **Modify**: `crates/iscc-lib/Cargo.toml` — add the `iai-callgrind` dev-dependency and a
-    `[[bench]]` entry (`name = "iai_benches"`, `harness = false`).
-- **Reference**: `crates/iscc-lib/benches/benchmarks.rs` (working input builders to mirror);
-    `.claude/context/specs/ci-cd.md` -> "Performance - `iai-callgrind`";
-    `.claude/context/specs/rust-core.md` -> "Performance parity or improvement";
-    `crates/iscc-lib/src/cdc.rs` and `crates/iscc-lib/src/minhash.rs` (primitive signatures).
+- **Modify**: `.github/workflows/ci.yml` — add a `perf` job.
+- **Modify**: `mise.toml` — add a `bench:iai` task.
+- **Reference**:
+    - `.claude/context/handoff.md` — the follow-up slice description.
+    - `crates/iscc-lib/benches/iai_benches.rs` — the harness this job runs (`--bench iai_benches`).
+    - `.claude/context/specs/ci-cd.md` → "Performance — `iai-callgrind`" (lines 122-130) and the
+        `Perf` row in the gate table (line 32).
+    - `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants" (lines 359-376).
+    - `.claude/context/learnings.md` → CI/CD section, "`cargo binstall` + `Swatinem/rust-cache`
+        poisoning" (the `--force` rule) and the "Benchmarking (iai-callgrind)" entry.
+    - Existing `coverage` job (ci.yml:293-336) for the `taiki-e/install-action` +
+        `cargo binstall   -y --force` pattern, and the `bench` job (ci.yml:271-279) for the
+        toolchain/cache setup.
 
 ## Not In Scope
 
-- Do NOT add the `Perf` CI job, commit a baseline file, or run the benches - running needs valgrind
-    (absent locally) and is the next slice; the review agent verifies it against CI.
-- Do NOT add `mise` tasks (bench run / baseline-refresh) yet - they cannot be verified locally;
-    follow-up slice.
-- Do NOT modify or delete the existing criterion `benchmarks.rs` - it stays for local wall-clock
-    profiling and human-facing speedup numbers.
-- Do NOT touch `.cargo-crap.toml` - its `crates/iscc-lib/benches/**` exclusion already covers the
-    new bench file.
-- Do NOT flip the `Semver` gate to enforcing or begin v1.0.0 release prep (both human-driven).
+- **No committed baseline and no regression gate yet.** Do NOT add `--baseline`,
+    `--fail-regression`, a `.iai-baseline.*` file, or any in-harness regression limit. The baseline
+    must be produced by *this* slice's CI run first (valgrind is unavailable locally), and the
+    committed-baseline glue needs design — that is the explicit follow-up slice (2b).
+- Do NOT edit `crates/iscc-lib/benches/iai_benches.rs` (no `LibraryBenchmarkConfig` regression
+    config this slice).
+- Do NOT add a baseline-refresh `mise` task (e.g. `bench:iai:baseline`) — that belongs with 2b.
+- Do NOT flip the `Semver` job's `continue-on-error` (tied to the v1.0.0 cut).
+- Do NOT touch the CRAP gate, `.cargo-crap.toml`, or `.crap-baseline.json`.
+- Do NOT add `cargo deny`/`cargo audit` (separate `[review]` issue, human-review hold).
+- Do NOT update docs/notes for the perf gate — defer to 2b once the gate semantics are final (this
+    slice completes no spec verification checkbox).
 
 ## Implementation Notes
 
-- Pin the latest stable `iai-callgrind` in `[workspace.dependencies]` (confirm the current version
-    on crates.io, e.g. `iai-callgrind = "0.14"`), then reference it from `iscc-lib` as a
-    dev-dependency (`iai-callgrind = { workspace = true }`), mirroring how `criterion` is wired.
-- Use the `#[library_benchmark]` macro API: each hot path is a `#[library_benchmark]` fn that
-    returns `black_box(...)` of the call result; collect them with `library_benchmark_group!` and
-    wire the group into `main!(library_benchmark_groups = ...)`. Confirm the exact macro names
-    against the pinned version's README - the API shifted across 0.x minors.
-- Use `std::hint::black_box` (NOT `criterion::black_box`) in the iai harness.
-- Cover the in-memory CPU hot paths, mirroring representative inputs from `benchmarks.rs`
-    (`deterministic_bytes`, `synthetic_text`): `gen_meta_code_v0`, `gen_text_code_v0`,
-    `gen_image_code_v0`, `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`,
-    `gen_data_code_v0`, `gen_instance_code_v0`, `gen_iscc_code_v0`, plus the primitives
-    `alg_cdc_chunks(data, false, 1024)` and `alg_minhash_256(&[u32])` (infallible, returns
-    `Vec<u8>`).
-- DEFER `gen_sum_code_v0` (file I/O - its instruction count is syscall-dominated and would need an
-    iai setup closure to create the temp file outside the measured region); note the deferral in the
-    file's module docstring.
-- The harness needs the default features (`meta-code` -> `text-processing`) for the gen functions,
-    exactly like the criterion bench. `cargo build -p iscc-lib --bench iai_benches` (default
-    features on) compiles fine; only `--no-default-features --all-targets` would fail - a known
-    pre-existing bench limitation that CI never exercises.
-- Compilation does NOT require valgrind or `iai-callgrind-runner`; those are runtime-only and the
-    follow-up CI slice installs the runner via `cargo binstall` (heed the rust-cache `--force`
-    poisoning gotcha) on a valgrind-enabled Linux runner.
+- **Job shape** — model on the `coverage` job for tool install and the `bench` job for setup. Key
+    `perf`, name `Perf (iai-callgrind)`, `runs-on: ubuntu-latest`, default triggers (push to
+    main/develop, PR to main). Steps:
+
+    1. `actions/checkout@v4`
+    2. `dtolnay/rust-toolchain@stable`
+    3. `Swatinem/rust-cache@v2`
+    4. Install valgrind: `sudo apt-get update && sudo apt-get install -y valgrind`
+    5. Install cargo-binstall via `taiki-e/install-action@v2` (tool: `cargo-binstall`), matching the
+        `coverage` job.
+    6. `cargo binstall -y --force iai-callgrind-runner@0.16.1` — the **`--force` is load-bearing**:
+        `Swatinem/rust-cache` restores cargo's install *metadata* without the
+        `~/.cargo/bin/iai-callgrind-runner` binary, so a plain binstall would skip install and the
+        next `cargo bench` would die with "no such command". (See learnings.)
+    7. `cargo bench -p iscc-lib --bench iai_benches` — scopes to the iai harness only, NOT the
+        wall-clock criterion `benchmarks` bench. On a first run with no baseline iai-callgrind just
+        measures and reports (exit 0), so the job is green without any gate.
+    8. Upload results: `actions/upload-artifact@v4` with `name: iai-baseline`, `path: target/iai/`.
+        This gives the 2b slice the exact on-disk layout / summary format to build the committed
+        baseline from. Optionally pass `-- --save-summary=json` to emit machine-readable summaries —
+        confirm the flag name against iai-callgrind 0.16 (runtime-only; can't verify locally); if
+        unsure, omit it and rely on the default `target/iai/` output.
+
+- **Version pin** — the runner version MUST match the `iai-callgrind = "0.16"` workspace dep (it
+    resolves `0.16.1`), so pin `@0.16.1`.
+
+- **mise task** — add under a new "Performance" comment block (sibling to "Coverage"):
+
+    ```
+    [tasks."bench:iai"]
+    description = "Run iai-callgrind instruction-count benches for iscc-lib (needs valgrind)"
+    run = "cargo bench -p iscc-lib --bench iai_benches"
+    ```
+
+    It will fail locally without valgrind — that is expected; the task is for CI parity and use on
+    valgrind-equipped machines.
+
+- **Before committing**, run `mise run format` (or `uv run mdformat --wrap 100 --number` for context
+    files) so yamlfix/taplo normalization of `ci.yml`/`mise.toml` does not fail the commit or the
+    pre-push hook.
 
 ## Verification
 
-- `cargo build -p iscc-lib --bench iai_benches` exits 0 (the harness compiles without valgrind or
-    the runner installed).
-- `cargo clippy -p iscc-lib --benches -- -D warnings` clean.
-- `cargo fmt -p iscc-lib --check` clean.
-- `cargo test -p iscc-lib` still passes (no regression in the existing suite).
-- `grep -q '^iai-callgrind' Cargo.toml` and `grep -q 'iai-callgrind' crates/iscc-lib/Cargo.toml`
-    both succeed; `crates/iscc-lib/Cargo.toml` contains a `[[bench]]` with `name = "iai_benches"`
-    and `harness = false`.
+- `mise run check` passes (YAML + TOML pre-commit hooks validate the edited `ci.yml` and
+    `mise.toml`; formatting clean).
+- `grep -q "Perf (iai-callgrind)" .github/workflows/ci.yml` (the job exists).
+- `grep -q "iai-callgrind-runner@0.16.1" .github/workflows/ci.yml` (runner pinned to match the lib).
+- `grep -q "binstall -y --force" .github/workflows/ci.yml` and
+    `grep -q "valgrind"   .github/workflows/ci.yml` (toolchain install present).
+- `grep -q -- "--bench iai_benches" .github/workflows/ci.yml` (runs the iai harness, not criterion).
+- `mise tasks ls | grep -q "bench:iai"` (task registered).
+- CI-verified by the review agent (valgrind absent locally): the `Perf` job concludes `success`,
+    runs the benches under valgrind, and uploads the `target/iai` artifact; no existing job
+    regresses.
 
 ## Done When
 
-`cargo build -p iscc-lib --bench iai_benches` compiles the new iai-callgrind harness clean and all
-existing `iscc-lib` quality gates (clippy, fmt, test) stay green, leaving only the valgrind-gated CI
-job plus committed baseline for the clearly-scoped follow-up slice.
+The `Perf` CI job is defined and the `bench:iai` task exists, all local syntax/grep checks pass, and
+the next CI run shows the `Perf` job green with an uploaded iai-callgrind results artifact.
