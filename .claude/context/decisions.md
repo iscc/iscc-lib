@@ -150,3 +150,54 @@ the stub in a form ruff will keep flagging); keep the `ruff<0.16` pin indefinite
 Python toolchain and defers an ever-growing diff); run `ruff@0.16 check --fix .` wholesale (would
 silently delete the security `# noqa`s and red the pre-push `S` gate). **Context:** iter 131, commit
 0544797; whole-tree 0.16 findings 104 → 26, pin deliberately retained.
+
+## 2026-07-25 — Kotlin bindings track the current compiler; supported consumer floor is Kotlin 2.3+
+
+**Decision:** `io.iscc:iscc-lib-kotlin` keeps `kotlin("jvm") 2.4.10` and declares **Kotlin 2.3 or
+newer** as its supported consumer floor. The floor is documented in `packages/kotlin/README.md`,
+`docs/howto/kotlin.md`, the root README Kotlin section and `specs/kotlin-bindings.md`; every future
+compiler bump that moves the floor must update all four in the same step. **Why:** the Kotlin
+compiler stamps a metadata version into the published classes and puts a matching `kotlin-stdlib` in
+the POM's compile scope, and Kotlin only tolerates about one minor of forward metadata — so "publish
+with a current compiler" and "support very old consumers" are mutually exclusive. Tracking the
+compiler is the JVM-ecosystem norm; the alternative buys old-consumer support at the price of a
+permanent two-part hold-back. Nothing has shipped yet (only a human-dispatched `release.yml`
+publishes the artifact), so documenting the floor costs nothing but doc lines. **Alternatives:**
+hold `kotlin("jvm")` at 2.1.x — rejected: it requires constraining the transitive `kotlin-stdlib`
+too (pinning `compilerOptions.languageVersion` alone is empirically insufficient) and freezes the
+Kotlin toolchain indefinitely; compile with 2.3.x to obtain a 2.2 floor — rejected: one extra minor
+of consumer reach does not justify a soft hold-back plus its own verification step. **Context:**
+interactive session with Titusz, 2026-07-25, resolving the `[review]` issue filed at iter 128
+(empirical matrix: 2.1.10 FAIL, 2.2.21 FAIL, 2.3.21 PASS).
+
+## 2026-07-25 — Unicode data version is declared and gated, not chased
+
+**Decision:** the project **declares an explicit Unicode data version in `specs/rust-core.md`** and
+enforces it with conformance vectors covering post-Unicode-15 code points, rather than pinning the
+Rust core to whatever Unicode version the reference implementation happens to use. The concrete
+version (15.1.0 vs 16.0.0) is decided by a follow-up measurement step that reports the cost of each
+candidate; the policy — declare + gate — is settled now. **Why:** `iscc-core` inherits CPython's
+`unicodedata` tables, so the reference itself emits different ISCCs on 3.13 (Unicode 15.1) and 3.14
+(Unicode 16) for the same input. There is no stable target to chase: matching the reference today
+means re-pinning tomorrow, and the Rust/Go alignment inverts again when Go 1.27 lands. Declaring a
+version converts an invisible, undetected divergence (5,813 disagreeing code points, no gate) into a
+stated contract that CI enforces in all 12 bindings. **Alternatives:** pin the Rust core to the
+reference's current version — rejected: needs an older `unicode-general-category` or a vendored
+category table, forces a re-pin on every reference runtime change, and still leaves the drift
+ungated; document the divergence as out-of-contract — rejected: weakens the project's central
+"output matching iscc-core" claim for real-world text (newly assigned scripts and emoji) and adds no
+gate, so the next drift is again silent. **Context:** interactive session with Titusz, 2026-07-25,
+resolving the `[review]` issue filed at iter 129.
+
+## 2026-07-25 — The unpinned Unicode version is raised upstream with iscc/iscc-core
+
+**Decision:** file a GitHub issue on `iscc/iscc-core` reporting that ISO 24138 pins no Unicode data
+version, so `iscc-core` produces different ISCCs for identical input depending on the CPython
+version it runs under, and asking whether the standard should pin one. **Why:** it is a determinism
+defect in the reference regardless of the position iscc-lib takes, every reimplementation will
+rediscover it independently, and the upstream answer directly informs which version this project
+declares. We hold the evidence already (whole-code-space differential sweep, minimal repro at
+U+A7CB). **Alternatives:** settle our own position first and file a proposal — rejected: sequences
+two slow decisions where the upstream input is most useful before ours is fixed; keep it local —
+rejected: leaves the reference non-deterministic and the spec gap unrecorded. **Context:**
+interactive session with Titusz, 2026-07-25.

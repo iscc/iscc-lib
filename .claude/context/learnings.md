@@ -21,6 +21,16 @@ fully-met target sections to `learnings-archive.md`.
     directly — do not use deepwiki MCP
 - When porting from Python reference, verify against Rust `crates/iscc-lib/src/` first — the Rust
     implementation is the authoritative source for this project
+- **`iscc-core` output is not stable across CPython versions.** `text_clean`/`text_collapse` strip
+    top-level Unicode category `C`, which includes unassigned `Cn`, so the result depends on
+    `unicodedata.unidata_version` (15.1.0 on 3.13, 16.0.0 on 3.14 — 5,185 code points differ).
+    "Matches the reference" is meaningless without naming the interpreter. Check both runtimes with
+    `uv run --python 3.13 --no-project --with iscc-core python …` (and `3.14`) — no project env
+    needed Upstream: <https://github.com/iscc/iscc-core/issues/137>
+- Any dependency carrying Unicode/locale tables must be proven output-neutral by a **differential
+    sweep**, not by a green vector suite: dump the function output for all 1,112,032 code points
+    before and after the bump and `diff`. Costs ~2 minutes and is the only thing that catches table
+    drift — every vendored conformance vector predates Unicode 16
 
 ## Tooling
 

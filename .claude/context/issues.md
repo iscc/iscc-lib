@@ -101,7 +101,7 @@ release exists (`iai-callgrind` 0.16.1 is latest), so it stays a warning until u
 — re-check when bumping `iai-callgrind` (the pin must stay in lockstep with the CI-installed
 `iai-callgrind-runner` version).
 
-## Kotlin binding silently raised the consumer Kotlin floor to 2.3 `normal` [review]
+## Document the Kotlin consumer floor as 2.3+ (DECIDED) `normal` [human]
 
 Iteration 128 bumped `kotlin("jvm")` 2.1.10 → 2.4.10 in `packages/kotlin/build.gradle.kts` (an
 in-scope dependency-refresh bump). Side effect: the published jar now carries Kotlin metadata
@@ -119,23 +119,28 @@ POM declares `kotlin-stdlib:2.4.10` in `compile` scope (was 2.1.10).
 
 So the supported-consumer floor moved from Kotlin ≥ 2.0/2.1 to ≥ 2.3, undocumented. Nothing has
 shipped — this only reaches users at the next Maven Central publish of `io.iscc:iscc-lib-kotlin`, so
-**resolve before the next release**. Two options, both small:
+**resolve before the next release**.
 
-1. **Accept and document** — state "requires Kotlin 2.3+" in `packages/kotlin/README.md`,
-    `docs/howto/kotlin.md`, the root README Kotlin section, and record the support policy in the
-    spec. Matches JVM-ecosystem norms and costs a few doc lines.
-2. **Preserve the old floor** — hold `kotlin("jvm")` at 2.1.x with a `// held:` comment (the
-    project's existing hold-back convention). Note that pinning `compilerOptions.languageVersion`
-    alone is **not** sufficient: the transitive `kotlin-stdlib:2.4.10` in the published POM
-    triggers the same error independently, so the stdlib version would have to be constrained too.
+**DECIDED by Titusz 2026-07-25 — accept and document.** Keep `kotlin("jvm") 2.4.10`; the supported
+consumer floor is **Kotlin 2.3 or newer**. Rationale and the rejected alternatives are in
+`decisions.md` (2026-07-25, "Kotlin bindings track the current compiler"). The policy is now written
+into `specs/kotlin-bindings.md` (new "Supported consumer Kotlin version" section plus a verification
+criterion). Holding the compiler at 2.1.x was rejected — it would also require constraining the
+transitive `kotlin-stdlib`, since pinning `compilerOptions.languageVersion` alone is empirically
+insufficient.
 
-**Spec:** `.claude/context/specs/kotlin-bindings.md` — it documents no consumer Kotlin version
-floor. **HUMAN REVIEW REQUESTED**: picking the supported-consumer Kotlin version is a support-policy
-decision (the same class as MSRV and `java-version: '17'`, which `next.md` deliberately keeps out of
-dependency-refresh steps). A CID agent should not set it unilaterally; the review agent recommends
-option 1.
+**Remaining work — docs-only, no build change (CID-doable now):**
 
-## Rust core diverges from `iscc-core` and the Go package on Unicode 16/17 characters `normal` [review]
+1. State "requires Kotlin 2.3+" in `packages/kotlin/README.md`, `docs/howto/kotlin.md`, and the root
+    README Kotlin section, phrased consistently with the spec section.
+2. Do **not** touch `packages/kotlin/build.gradle.kts` — 2.4.10 is the decided compiler.
+
+Already done in the interactive session (do not redo): the spec policy section, the stale
+`jna:5.16.0@aar` → `5.19.1` lines at spec lines ~150/165, and the spec verification criterion.
+
+**Spec:** `.claude/context/specs/kotlin-bindings.md` → "Supported consumer Kotlin version"
+
+## Declare and gate a Unicode data version (DECIDED) `normal` [human]
 
 The Unicode data version is unpinned and differs per implementation, so `text_clean` /
 `text_collapse` — and therefore Meta-Code, Text-Code and the returned `name`/`description` fields —
@@ -173,18 +178,48 @@ The divergence is inherently unstable in both directions — when CPython ships 
 ISO 24138 does not pin a Unicode version, which is arguably an upstream spec gap worth raising with
 `iscc/iscc-core` once this project decides its own position.
 
-**Options:** (a) pin the Rust core to the reference's Unicode version (needs an older
-`unicode-general-category` / a vendored category table, and re-pins on every reference upgrade); (b)
-declare a Unicode version in the spec and add conformance vectors covering post-15 code points so
-all implementations are checked against it; (c) document the divergence as accepted and
-out-of-contract for post-15 characters.
-
 Not introduced by the iter-129 `golang.org/x/text` refresh — that bump was verified byte-identical
 across all 1,112,032 code points. Pre-existing and previously unnoticed.
 
-**Spec:** `.claude/context/specs/rust-core.md` → conformance / `iscc-core` output-compatibility
-claim. **HUMAN REVIEW REQUESTED**: choosing a Unicode version (or accepting the divergence) is a
-conformance-policy decision with an upstream dimension; a CID agent should not pick it unilaterally.
+**DECIDED by Titusz 2026-07-25 — declare a Unicode version in the spec and gate it with post-15
+conformance vectors.** Pinning the core to whatever the reference currently uses was rejected (there
+is no stable target: `iscc-core` itself differs between CPython 3.13 and 3.14), and so was accepting
+the divergence as out-of-contract. Rationale in `decisions.md` (2026-07-25, "Unicode data version is
+declared and gated, not chased"). The contract requirement is now written into `specs/rust-core.md`
+→ "Unicode data version is part of the conformance contract", with two verification criteria.
+
+**Step 1 (CID-doable now) — measure, then report; do not pick the version unilaterally.** Produce
+evidence for the two candidates and write the findings into this issue for Titusz to confirm:
+
+- **15.1.0** (matches CPython 3.13 and Go stdlib 15.0 in practice for the disputed range) — what
+    would it take? Is there an `unicode-general-category` release carrying 15.1 tables, or does it
+    need a vendored category table? What does `unicode-normalization` (currently Unicode 17)
+    require, and does its version measurably affect `text_clean`/`text_collapse` output at all?
+- **16.0.0** (matches CPython 3.14 and the current `unicode-general-category` 1.1.0) — does anything
+    need to change beyond declaring it, i.e. is the mixed 16-categories/17-normalization state
+    output-equivalent to a uniform 16?
+
+Use the differential technique that found the bug: dump `text_clean`/`text_collapse` over all
+1,112,032 code points per candidate and `diff`. Report crate availability, diff sizes, and the
+maintenance cost of each. **Do not change any Unicode pin in this step.**
+
+**Step 2 (after Titusz confirms the version)** — pin the crates, write the version into
+`specs/rust-core.md` (replacing the "Open:" note), add the post-Unicode-15 conformance vectors, and
+wire them into the Rust suite and every binding's conformance test. Expect the vectors to *encode a
+deliberate divergence* from `iscc-core` on some runtimes — that is the point of the gate.
+
+**Upstream:** iscc/iscc-core — filed 2026-07-25 as <https://github.com/iscc/iscc-core/issues/137>
+("text_clean/text_collapse output depends on the CPython version"). Reproduced there with
+`iscc-core` 1.3.0 itself: CPython 3.13 gives `ISCC:AAARDZ4ASOMVXBRR` / `ISCC:EAA7VW5ZOQZ3XEMT`,
+CPython 3.14 gives `ISCC:AAARDZ5SS6NVXBLT` / `ISCC:EAA3RXNBOM77TGM5` for the same input — **the 3.14
+pair is exactly what our Rust core already produces**, so declaring Unicode 16.0.0 would leave the
+Rust core unchanged and align it with `iscc-core` on CPython 3.14+. A full-code-space sweep of
+`unicodedata` 15.1.0 vs 16.0.0 found 5,185 code points changing top-level category, all `C` →
+non-`C`. Watch the upstream thread before running Step 2 — if upstream pins a version or narrows the
+filter to `Cc`/`Cf`/`Co`/`Cs`, that answer supersedes our candidate list.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
+contract"
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 

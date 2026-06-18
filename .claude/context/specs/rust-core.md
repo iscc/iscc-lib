@@ -35,6 +35,37 @@ Four text processing functions are public Tier 1 API, callable from all bindings
 These functions exist internally today as `pub(crate)`. They become `pub` in `lib.rs` (not just the
 utils module).
 
+### Unicode data version is part of the conformance contract
+
+`text_clean` and `text_collapse` classify code points by Unicode general category, so their output
+depends on the Unicode data version of the underlying tables. That version is therefore part of the
+output contract, not an implementation detail: characters assigned after the declared version are
+`Unassigned` (category `Cn`), fall inside category `C`, and get stripped — so a table upgrade
+silently changes ISCCs for text containing newly assigned characters.
+
+Requirements:
+
+1. **The Unicode data version this project targets is declared explicitly in this spec**, with the
+    crates that supply it (`unicode-general-category`, `unicode-normalization`) pinned to match.
+2. **Conformance vectors cover post-Unicode-15 code points**, so the declared version is enforced by
+    CI in every binding instead of being rediscovered by inspection. The vendored
+    `iscc-core/data.json` vectors all predate Unicode 16 and cannot catch this class of drift.
+3. Any change to a Unicode-table dependency must re-run the differential check (dump `text_clean` /
+    `text_collapse` output across all 1,112,032 code points before and after, then `diff`) and
+    report the result — a green vector suite is not sufficient evidence of output neutrality.
+
+The reference implementation does not pin a Unicode version: `iscc-core` inherits CPython's
+`unicodedata` (15.1.0 on 3.13, 16.0.0 on 3.14), so its own output is not stable across Python
+runtimes. Our declared version is consequently a project position, not a copy of the reference, and
+divergence from a *particular* reference runtime is expected and documented rather than treated as a
+conformance failure.
+
+**Open:** the concrete version to declare (15.1.0, matching CPython 3.13 and Go's stdlib tables, vs
+16.0.0, matching CPython 3.14 and the current Rust tables) is pending a cost measurement of each
+candidate, and pending the upstream thread <https://github.com/iscc/iscc-core/issues/137> — see the
+corresponding entry in `issues.md`. Note that 16.0.0 requires no change to the Rust core: its
+current output already matches `iscc-core` running on CPython 3.14.
+
 **Verified when:**
 
 - [ ] `iscc_lib::text_clean("hello\tworld")` returns `"helloworld"`
@@ -45,6 +76,10 @@ utils module).
 - [ ] `iscc_lib::text_collapse("café")` returns `"cafe"`
 - [ ] All four functions are accessible from Python bindings as `iscc_lib.text_clean()` etc.
 - [ ] All four functions are accessible from Node.js, WASM, and C FFI bindings
+- [ ] This spec names the targeted Unicode data version, and the `unicode-general-category` /
+    `unicode-normalization` pins in `Cargo.toml` supply exactly that version
+- [ ] A conformance vector set covering post-Unicode-15 code points exists and is exercised by the
+    Rust test suite and by every binding's conformance test
 
 ## Algorithm Primitives
 

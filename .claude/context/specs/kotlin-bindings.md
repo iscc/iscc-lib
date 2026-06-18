@@ -139,15 +139,36 @@ The release JAR bundles native libraries for all 8-9 platforms as JNA classpath 
 consumers add the dependency to their `build.gradle.kts` and JNA handles native library extraction
 and loading automatically.
 
+### Supported consumer Kotlin version
+
+**Policy: the published artifact tracks the current Kotlin compiler; the supported consumer floor is
+Kotlin 2.3 or newer.**
+
+The Kotlin compiler stamps a metadata version into every published class and pulls a matching
+`kotlin-stdlib` into the POM's `compile` scope. Kotlin tolerates roughly one minor version of
+forward metadata, so building with `kotlin("jvm") 2.4.x` sets the consumer floor at 2.3. Measured
+against a consumer project resolving `io.iscc:iscc-lib-kotlin` (iteration 128): Kotlin 2.1.10 and
+2.2.21 fail with `binary version of its metadata is 2.4.0`, Kotlin 2.3.21 builds successfully.
+
+Consequences for maintenance:
+
+- The floor is a support-policy decision, in the same class as MSRV and `java-version`. Dependency
+    refresh steps bump the compiler freely; each bump that moves the floor must update the floor
+    statement in `packages/kotlin/README.md`, `docs/howto/kotlin.md`, the root README Kotlin
+    section, and this spec in the same step.
+- Constraining `compilerOptions.languageVersion` alone does **not** hold an older floor — the
+    transitive `kotlin-stdlib` in the published POM raises the same error independently. Lowering
+    the floor requires holding both the compiler and the stdlib version.
+
 ## Android Developer Experience
 
 Target DX for an Android developer:
 
 ```kotlin
-// build.gradle.kts (app module)
+// build.gradle.kts (app module) — requires Kotlin 2.3 or newer
 dependencies {
-    implementation("io.iscc:iscc-lib-kotlin:0.4.0")
-    implementation("net.java.dev.jna:jna:5.16.0@aar")
+    implementation("io.iscc:iscc-lib-kotlin:0.5.0")
+    implementation("net.java.dev.jna:jna:5.19.1@aar")
 }
 ```
 
@@ -162,9 +183,10 @@ textView.text = result.iscc
 No NDK installation, no `jniLibs` directory management, no `System.loadLibrary()` calls. JNA loads
 the correct `.so` for the device's ABI from the JAR resources automatically.
 
-**JNA on Android note:** JNA requires `net.java.dev.jna:jna:5.16.0@aar` (the AAR variant, not the
-plain JAR) for Android. This extracts the JNA native libraries for Android ABIs. The iscc-lib-kotlin
-native libraries are loaded from classpath resources by JNA's `Native.register()` mechanism.
+**JNA on Android note:** JNA requires the `@aar` variant of `net.java.dev.jna:jna` (not the plain
+JAR) for Android, at the same version the Gradle build declares (`5.19.1`). This extracts the JNA
+native libraries for Android ABIs. The iscc-lib-kotlin native libraries are loaded from classpath
+resources by JNA's `Native.register()` mechanism.
 
 ## CI Integration
 
@@ -254,3 +276,6 @@ Uses the existing Sonatype/Maven Central credentials from the Java/JNI publishin
 - [ ] Version synced from root `Cargo.toml` via `mise run version:sync`
 - [ ] `conformanceSelftest()` returns `true`
 - [ ] UniFFI scaffolding crate shared with Swift (no duplication)
+- [ ] The supported consumer Kotlin floor (2.3+) is stated in `packages/kotlin/README.md`,
+    `docs/howto/kotlin.md`, and the root README Kotlin section, and matches the metadata version the
+    declared `kotlin("jvm")` compiler produces
