@@ -114,26 +114,17 @@ fully-met target sections to `learnings-archive.md`.
     uncovered function has no baseline entry, so it reports `★ N new` and exits 0 — the gate only
     blocks WORSENING of existing entries. To also block new risky code, pair with `--fail-above 30`
     (current max CRAP ~22.3, safely below 30). Filed as a [review] issue
-- **`Perf (iai-callgrind)` CI job** (iter 107, ci-cd.md "Performance"): standalone `perf` job (no
-    `needs:`, NO `continue-on-error`): apt valgrind → cargo-binstall →
-    `cargo binstall -y --force iai-callgrind-runner@0.16.1` (`--force` load-bearing) →
-    `cargo bench -p iscc-lib --bench iai_benches` → guard step → upload `target/iai/` as
-    `iai-baseline`. First run has NO baseline so it only measures (exit 0); >10% gate + committed
-    baseline = slice 2b (#3 open)
-- **STRIP zero-collection bug (iter 108, FIXED — corrects the WRONG iter-107 claim)**:
-    `[profile.bench]` DOES inherit `strip = true` from root `[profile.release]` (Cargo: bench is
-    based on release). Verified iter-108: with no override the bench binary is `stripped` / **0**
-    `__iai_callgrind_wrapper` symbols → iai's `--toggle-collect=*::__iai_callgrind_wrapper_mod::*`
-    matches nothing → every bench `summary: 0` while exiting 0 (FALSE GREEN; the real CI artifact
-    from run 27742285656 had all-zero `.out`s). The iter-107 review's "bench doesn't inherit release
-    strip" claim was wrong (inspected a different binary). FIX:
-    `[profile.bench] strip = false,   debug = true` → `not stripped` / **11** symbols → real counts.
-    CI guard `grep -rEq '^summary: [1-9]' target/iai/` fails the job on zero collection (defends the
-    override)
-- **Running iai-callgrind locally**: valgrind 3.19 + `iai-callgrind-runner` 0.16.1 ARE in the
-    devcontainer (iter-107 "valgrind absent" claim also wrong). Kernel blocks the `personality`
-    syscall iai's `setarch -R` (ASLR-disable) uses → set `IAI_CALLGRIND_ALLOW_ASLR=true` to skip it
-    (wired into `mise run bench:iai` + ci.yml bench step). ASLR = cache-sim noise, NOT `Ir` — safe
+- **`Perf (iai-callgrind)` gate — COMPLETE (iter 107-109, #3, full saga in
+    `learnings-archive.md`)**: standalone `perf` job (no `needs:`, NO `continue-on-error`): valgrind
+    → binstall `iai-callgrind-runner@0.16.1 --force` → `cargo bench -p iscc-lib --bench iai_benches`
+    → zero- collection guard → `python3 scripts/iai_regression.py --check` (>10% Ir regression vs
+    committed `.iai-baseline.json`, 16 entries) → upload (`if: always()`). Locally: valgrind 3.19 +
+    runner ARE in the devcontainer; `mise run bench:iai` works (`IAI_CALLGRIND_ALLOW_ASLR=true`
+    skips the kernel-blocked `personality` syscall; ASLR = cache noise, NOT `Ir`).
+    `[profile.bench] strip =   false, debug = true` is load-bearing (else stripped binary → all
+    benches `summary: 0` false- green). KNOWN false-green edges ([review] issue): single-bench
+    `summary: 0` reads as improvement & passes; a baselined bench that stops emitting `.out` only
+    warns, never fails
 
 ## Branching
 

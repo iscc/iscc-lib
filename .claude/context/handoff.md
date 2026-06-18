@@ -1,75 +1,81 @@
-## 2026-06-18 — iai-callgrind perf gate slice 2b — committed Ir baseline + >10% regression gate
+## 2026-06-18 — Review of: iai-callgrind perf gate slice 2b — committed Ir baseline + >10% regression gate
 
-**Done:** Closed the performance-regression gate (issue #3, slice 2b): added a stdlib-only
-`scripts/iai_regression.py` (check + update modes), committed a CI-sourced `.iai-baseline.json` (16
-Ir entries), wired an enforcing `Check perf regression` step into the CI `perf` job, and added
-`bench:iai:baseline` / `bench:iai:check` mise tasks. The `perf` job now fails when any benchmarked
-path's instruction count (Ir) exceeds the committed baseline by more than 10%.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `scripts/iai_regression.py` (new): parses each bench's `summary: <Ir> ...` from `target/iai/`,
-    keyed by leaf dir name (`<bench_fn>.<bench_id>`). `--check` (default) compares the current run
-    to `.iai-baseline.json` and exits 1 if any shared bench is `> baseline * 1.10`; benches only in
-    the run warn but never fail. `--update` rebuilds the baseline from `--from-dir` (default
-    `target/iai/`). Gates only on Ir (the deterministic metric); cache/miss counts are ignored.
-- `.iai-baseline.json` (new, committed, repo root, NOT gitignored): built from the CI `iai-baseline`
-    artifact of run 27746693860 (`1463edb`, the first green Perf run after the strip fix) via
-    `--update --from-dir /tmp/ci-iai`, so it matches the rustc the CI gate measures with. Shape:
-    `{"metric":"Ir","tolerance_pct":10.0,"benches":{<id>: <Ir>, ...}}`.
-- `.github/workflows/ci.yml`: added `Check perf regression` step
-    (`python3   scripts/iai_regression.py --check`) after the zero-collection guard; added
-    `if: always()` to the upload step so the artifact survives a regression failure. The guard step
-    is retained.
-- `mise.toml`: added `bench:iai:baseline` (depends `bench:iai`, runs `--update`) and
-    `bench:iai:check` (depends `bench:iai`, runs `--check`).
-- `.claude/context/specs/rust-core.md`: flipped both perf checkboxes (committed baseline + >10%
-    regression) to `[x]`.
-- `.claude/context/specs/ci-cd.md`: flipped the Perf-job checkbox to `[x]`.
+**Summary:** The advance agent added a stdlib-only `scripts/iai_regression.py`, a committed
+CI-sourced `.iai-baseline.json` (16 Ir entries), an enforcing `Check perf regression` step in the
+`perf` CI job, and `bench:iai:baseline`/`bench:iai:check` mise tasks — exactly matching next.md's
+scope. The gate is fully verified locally: a fresh `mise run bench:iai` run matches the committed
+baseline within 1.66%, self-consistency/tamper/missing-baseline paths all behave correctly, and all
+quality gates pass. Codex flagged two narrow false-green edge cases (zero-count and
+disappeared-bench slip through), filed as a follow-up `[review]` hardening issue; the gate is
+correct for the normal and all-zero cases.
 
 **Verification:**
 
-- [x] `mise run bench:iai` populates `target/iai/` with non-zero `summary:` lines (16 benches).
-- [x] `mise run bench:iai:baseline` regenerates `.iai-baseline.json` with exactly 16 Ir entries,
-    valid JSON (verified, then restored the committed file to the CI-sourced values — `diff` clean).
-- [x] Self-consistency: `--check` against a baseline built from the same local run → 0% delta, exit
-    0\.
-- [x] Failure path: tampering one baseline Ir down 50% → `--check` exits 1 and names the regressed
-    bench (`bench_cdc_chunks.bytes_1m ... +100.00% REGRESSION`).
-- [x] Missing baseline → clear error + exit 1. Bench only in run (not baseline) → warning, exit 0.
-- [x] Local run `--check` against the committed CI baseline passes (max delta −0.46%, all within
-    10%) — CI and local rustc counts agree closely.
-- [x] `.iai-baseline.json` not gitignored (`git check-ignore` exits 1).
-- [x] `perf` job has both the `Check perf regression` step and the
-    `Assert non-zero instruction   collection` guard; YAML valid.
-- [x] `ruff check` + `ruff format --check` + `ty check` clean on the new script.
-- [x] `mise run check` — all 15 pre-commit hooks Passed.
-- [x] `cargo test -p iscc-lib` — 22 tests + 1 doctest pass (no harness change).
-- [ ] **CI-only (confirm next cycle):** the post-push `Perf` job's `Check perf regression` step
-    passes against the committed baseline (counts within 10% on the CI runner).
+- [x] `mise run bench:iai` populates `target/iai/` with 16 non-zero `summary:` `.out` files — guard
+    `grep -rEq '^summary: [1-9]'` passes
+- [x] `mise run bench:iai:baseline` regenerates a valid 16-entry JSON baseline — confirmed via
+    synthetic `--update` test
+- [x] Self-consistency: `--check` against a baseline from the same run → 0% delta, exit 0
+- [x] Failure path: tampering one baseline Ir down 50% → exit 1, names
+    `bench_a.case1 ... +100.00% REGRESSION`
+- [x] `.iai-baseline.json` committed at repo root, not gitignored (`git check-ignore` exits 1)
+- [x] `perf` job has both `Check perf regression` (invokes the script) AND
+    `Assert non-zero instruction collection` guard; YAML valid; steps correctly ordered (guard →
+    check → upload)
+- [x] `mise.toml` has `bench:iai:baseline` (+ bonus `bench:iai:check`)
+- [x] `rust-core.md` both perf checkboxes `[x]`; `ci-cd.md` perf checkbox `[x]`
+- [x] `mise run check` — all 15 pre-commit hooks pass
+- [x] `cargo test -p iscc-lib` — 22 tests + 1 doctest pass
+- [x] `ruff check` + `ruff format --check` + `ty check` clean on the new script
+- [x] Live `--check` vs committed baseline: all 16 benches within 10% (max −1.66% / +0.96%), exit 0
+    — CI-sourced baseline agrees closely with local rustc 1.96.0
+- [ ] **CI-only (confirm next cycle):** post-push `Perf` job's `Check perf regression` step passes
+    against the committed baseline (deferred — runs async after push; baseline IS the CI artifact so
+    it should match near-exactly)
 
-**Next:** Issue #3 is now fully addressed (slice 2a + 2b). update-state should confirm the post-push
-`Perf` run is green with the regression step passing, then close issue #3. Remaining `normal` issues
-deliberately left untouched (CRAP `--fail-above 30` and cargo-deny/audit gate — both flagged as
-human-review-required spec amendments). After CI confirmation, the natural next target area is
-v1.0.0 release prep (the `semver` and crate-version checkboxes in rust-core.md stay `[ ]` until the
-1.0.0 cut).
+**Issues found:**
+
+- (minor, fixed) Stale CI comment on the "Run iai-callgrind benches" step still read "no regression
+    gate yet (follow-up slice)" — corrected to describe the now-present `Check perf regression`
+    step. Comment-only, no behavior change.
+- (filed as new `[review]` issue) Two false-green edge cases in `iai_regression.py` — see Codex
+    review below.
+
+**Codex review:** Two valid `[P2]` false-green findings, both filed as the new issue "Harden
+iai-callgrind regression gate against false-green edge cases" `normal` `[review]`:
+
+1. **Zero current count slips through** — a single bench reporting `summary: 0` is read as an
+    improvement (`cur > base*limit` is false) and passes; the CI guard only catches the *all-zero*
+    case. Fix: fail when any shared bench's current Ir is 0.
+2. **Disappeared baseline bench only warns** — a baselined bench that stops emitting `.out` warns
+    but can still exit 0 (even with empty `shared`). Fix: fail (or `--allow-missing`) when a
+    baselined bench is absent. Both are defense-in-depth hardening of an already-working enforcing
+    gate, not slice-2b defects — the implementation faithfully follows next.md's "warn, do not
+    fail" spec for run/baseline mismatches. Not blocking.
+
+**Next:** Issue #3 (iai-callgrind perf gate) is functionally complete and locally verified — slice
+2a + 2b both landed. update-state should confirm the post-push `Perf` run is green with the
+`Check perf regression` step passing, then close issue #3. The natural next work package is the new
+`[review]` hardening issue above (close the two false-green escape hatches in `iai_regression.py` —
+pure script change, no spec amendment needed, normal priority, fully CID-actionable). The other two
+normal issues (CRAP `--fail-above 30`, cargo-deny/audit gate) remain HUMAN-REVIEW-REQUESTED spec
+amendments. Do NOT start v1.0.0 prep or flip the `Semver` gate autonomously.
 
 **Notes:**
 
-- **Committed baseline is CI-sourced, not local.** Local rustc (1.96.0) and CI `stable` produce Ir
-    counts that differ by < 1% here, but per next.md the committed file is built from the CI
-    artifact so the gate compares like-with-like. To refresh after an accepted
-    regression/improvement: download the latest green `iai-baseline` artifact and run
-    `python3 scripts/iai_regression.py   --update --from-dir <dir>`, or use
-    `mise run bench:iai:baseline` as a local-rustc fallback (noted in the task comment).
-- **Gate is Ir-only and intersection-only.** New benches added to the harness without a baseline
-    refresh will warn (not fail) until the baseline is regenerated — by design, matching how
-    `--fail-regression` treats new CRAP entries. A baseline refresh after adding benches is the
-    intended workflow.
-- **`bench:iai:baseline` re-benches locally**, so running it overwrites the CI-sourced committed
-    file with local-rustc values. That is acceptable for a deliberate reviewed refresh, but the
-    preferred path for the *committed* baseline is the CI artifact (documented in the script
-    docstring and the task comment). I restored the CI-sourced file after testing the task.
-- The 10% tolerance lives in the baseline JSON (`tolerance_pct`) and the spec; the script reads it
-    from the file (falls back to 10.0). No magic number duplicated in CI.
+- **Baseline is CI-sourced, not local.** Committed `.iai-baseline.json` was built from CI artifact
+    run 27746693860 (`1463edb`), so the CI gate compares like-with-like. Local rustc agrees within
+    1.66%. Refresh after an accepted regression via `gh run download ... -n iai-baseline` +
+    `--update --from-dir`, or `mise run bench:iai:baseline` (local-rustc fallback, overwrites the
+    CI-sourced file).
+- **Mid-flush race observed (not a bug):** running `--check` in the same shell command immediately
+    after `cargo bench` exited matched only 9/16 benches once; a clean re-run matched all 16. The
+    check runs as its own CI step after the bench step fully completes, so this does not affect the
+    gate.
+- **No concurrent-loop or gate-circumvention concerns:** `ps aux` shows a single `cid:run`; the
+    unpushed range adds only the enforcing perf gate (strengthening) — all
+    `continue-on-error`/`fail-*` grep hits are prose in context/memory files.
+- **Gate is Ir-only and intersection-only by design** — new benches warn (not fail) until a baseline
+    refresh; the new hardening issue tightens the *disappeared*-bench direction.

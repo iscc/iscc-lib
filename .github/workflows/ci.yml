@@ -296,10 +296,10 @@ jobs:
       # "no such command". The version must match the iai-callgrind dep (0.16.1).
       - name: Install iai-callgrind-runner
         run: cargo binstall -y --force iai-callgrind-runner@0.16.1
-      # First run has no baseline, so iai-callgrind just measures and reports
-      # (exit 0); no regression gate yet (follow-up slice). IAI_CALLGRIND_ALLOW_ASLR
-      # pins ASLR-on everywhere so CI and local runs behave identically and the
-      # eventual committed baseline is portable; ASLR does not affect Ir counts.
+      # IAI_CALLGRIND_ALLOW_ASLR pins ASLR-on everywhere so CI and local runs
+      # behave identically and the committed baseline is portable; ASLR does not
+      # affect Ir counts. The regression gate runs in the "Check perf regression"
+      # step below against the committed .iai-baseline.json.
       - name: Run iai-callgrind benches
         env:
           IAI_CALLGRIND_ALLOW_ASLR: 'true'

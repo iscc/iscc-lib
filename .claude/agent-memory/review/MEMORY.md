@@ -78,18 +78,20 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
 - **Semver gate review** (iter 93): informational pre-1.0 — full verify recipe in
     `MEMORY-archive.md`
-- **Perf gate review** (iter 107, CORRECTED iter 108): valgrind 3.19 + `iai-callgrind-runner` 0.16.1
-    ARE in the devcontainer — the iter-107 "valgrind absent locally" claim was WRONG.
-    `mise run bench:iai` RUNS locally (task bakes in `IAI_CALLGRIND_ALLOW_ASLR=true`; kernel blocks
-    the `personality` syscall iai's `setarch -R` needs). Verify: `mise run bench:iai` → 16 benches,
-    non-zero `Instructions:`, then `grep -rEq '^summary: [1-9]' target/iai/` exits 0 (rejects a
-    synthetic `summary: 0 0 0`). STRIP GOTCHA: `[profile.bench]` DOES inherit `strip = true` from
-    `[profile.release]` → stripped bench binary = 0 `__iai_callgrind_wrapper` symbols = all
-    `summary: 0` at exit 0 (false green); to confirm a strip fix empirically,
-    `CARGO_PROFILE_BENCH_STRIP=true cargo bench --bench iai_benches --no-run` then
-    `nm <bin> | grep -c __iai_callgrind_wrapper` (0 stripped vs 11 unstripped). NO
-    `continue-on-error` (enforcing); "job green + non-zero artifact" is CI-only. Slice 2a done;
-    baseline + gate = 2b (#3)
+- **Perf gate review — COMPLETE (slice 2a iter 107/108, slice 2b iter 109; #3 pending CI close)**:
+    valgrind 3.19 + `iai-callgrind-runner` 0.16.1 ARE in the devcontainer (iter-107 "absent" claim
+    WRONG). `mise run bench:iai` RUNS locally (bakes in `IAI_CALLGRIND_ALLOW_ASLR=true`; kernel
+    blocks the `personality` syscall iai's `setarch -R` needs). 2b VERIFY: `mise run bench:iai` → 16
+    `.out`, then `python3 scripts/iai_regression.py --check` → 16 within 10% exit 0 (committed
+    `.iai-baseline.json` is CI-sourced; local 1.96.0 agrees ≤1.66%). Script logic test in /tmp:
+    `--update` from synthetic `summary:` dirs, self-check exit 0, tamper one baseline −50% → exit 1,
+    missing baseline → exit 1, `.out.old` excluded. RACE: `--check` immediately after `cargo bench`
+    exits can match 9/16 mid-flush — re-run; CI runs it as a separate step so unaffected. STRIP
+    GOTCHA: `[profile.bench] strip = false, debug = true` load-bearing (else 0
+    `__iai_callgrind_wrapper` symbols → all `summary: 0` false green). KNOWN false-green edges
+    ([review] issue iter 109): single-bench `summary: 0` reads as improvement & passes (guard only
+    catches ALL-zero); disappeared baseline bench only warns. NO `continue-on-error` (enforcing);
+    post-push Perf-step-green is CI-only confirm
 
 ## Codex Review Integration
 

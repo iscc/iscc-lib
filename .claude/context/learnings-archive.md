@@ -534,3 +534,24 @@ reference-only for humans.
     `.cargo-crap.toml` `threshold=30`, `missing="pessimistic"`, MUST list
     `crates/iscc-lib/benches/**` explicitly (the built-in `benches/**` default only matches
     repo-root, else `bench_cdc_chunks` leaks at CRAP 42).
+
+## iai-callgrind perf gate — full saga (iter 107-109, #3 complete pending CI confirm)
+
+- **STRIP zero-collection bug (iter 107 mis-diagnosed, iter 108 FIXED)**: `[profile.bench]` DOES
+    inherit `strip = true` from root `[profile.release]` (Cargo: bench profile is based on release).
+    With no override the bench binary is `stripped` / **0** `__iai_callgrind_wrapper` symbols →
+    iai's `--toggle-collect=*::__iai_callgrind_wrapper_mod::*` matches nothing → every bench
+    `summary: 0` while exiting 0 (FALSE GREEN; CI run 27742285656 had all-zero `.out`s). The
+    iter-107 review's "bench doesn't inherit release strip" + "valgrind absent locally" claims were
+    both WRONG. FIX: `[profile.bench] strip = false, debug = true` → `not stripped` / **11** symbols
+    → real counts. CI guard `grep -rEq '^summary: [1-9]' target/iai/` fails the job on zero
+    collection.
+- **Perf job structure (iter 107)**: standalone `perf` job (no `needs:`, NO `continue-on-error`):
+    apt valgrind → cargo-binstall → `cargo binstall -y --force iai-callgrind-runner@0.16.1`
+    (`--force` load-bearing, rust-cache poisoning) → `cargo bench -p iscc-lib --bench iai_benches` →
+    guard step → `Check perf regression` (slice 2b) → upload `target/iai/` (`if: always()`).
+- **Slice 2b (iter 109)**: `scripts/iai_regression.py` (stdlib-only) + committed CI-sourced
+    `.iai-baseline.json` (16 Ir entries, NOT gitignored) + `bench:iai:baseline`/`bench:iai:check`
+    mise tasks. Local 1.96.0 vs CI-stable Ir agree within 1.66%. KNOWN false-green edges (filed as
+    [review] issue): single-bench `summary: 0` reads as improvement & passes (guard only catches
+    ALL-zero); a baselined bench that stops emitting `.out` only warns, never fails.
