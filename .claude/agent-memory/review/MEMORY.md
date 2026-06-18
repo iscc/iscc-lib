@@ -54,15 +54,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `**IDLE**`. Both stop the loop, but IDLE also runs meta-improve and is reserved for all-low;
     HUMAN REVIEW fits when real normal work exists but is blocked on the owner's spec/design
     decision. Verdict still PASS; push clean batch.
-- **Concurrent CID loops (iter 97, resolved iter 98)**: spurious `mise run check` "files were
-    modified by this hook" on a file the advance never touched (e.g. `standardrb-fix` flagging when
-    NO `.rb` is dirty) + a working-tree `state.md`/context change appearing mid-review = a SECOND
-    CID loop racing the branch. Confirm with `ps aux | grep -E 'cid:run|claude -p CID iteration'`
-    (two `mise run cid:run` trees / two different `iteration N` agents). Flag HUMAN REVIEW
-    REQUESTED, do NOT push, do NOT kill processes yourself. RESOLUTION: a later review re-checks
-    `ps aux` — once a SINGLE `mise run cid:run` remains, the duplicate is gone and the unpushed
-    backlog pushes as a fast-forward (`git rev-list --left-right --count origin/<b>...HEAD` =
-    `0 N`); scan ALL `@{upstream}..HEAD` commits for gate circumvention before that batch push
+- **Concurrent CID loops (iter 97, resolved iter 98 — archived to `MEMORY-archive.md`)**: spurious
+    `mise run check` "files were modified by this hook" on a file the advance never touched + a
+    working-tree change appearing mid-review = a SECOND CID loop racing the branch. Confirm with
+    `ps aux | grep -E 'cid:run|claude -p CID iteration'`; flag HUMAN REVIEW REQUESTED, do NOT push
+    or kill processes
 
 ## Review Shortcuts
 
@@ -79,22 +75,25 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - **Config-only**: `mise run check` + `cargo check -p <crate>`
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **CI-only YAML**: `mise run check` + validate structure with
-    `uv run python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` (jobs list,
-    placement, `needs:`/`continue-on-error`). Note: a gate running a tool absent locally (e.g.
-    `cargo-deny`/`cargo-audit`) has a CI-only criterion — confirm post-push. (valgrind +
-    iai-callgrind-runner ARE present — see Perf gate review below)
+    `uv run python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` (plain
+    `python3` lacks `yaml` — use `uv run`) for jobs, placement, `needs:`/`continue-on-error`.
+    valgrind, iai-callgrind-runner, and cargo-deny ARE present locally (see Perf/Audit gate reviews)
+- **Audit gate review — LANDED & ENFORCING (iter 114, ci-cd.md line 448)**: cargo-deny 0.19.9 IS in
+    the devcontainer; verify `cargo deny check` + `mise run audit` exit 0 (advisories/bans/licenses/
+    sources all ok; 6 `multiple-versions = "warn"` dups non-failing). It reads Cargo.lock + crate
+    metadata (NOT compiled artifacts) — local green is authoritative, box flip OK pre-CI. GOTCHA:
+    `yanked = "deny"` forced a Cargo.lock wasm-bindgen bump (0.2.111→0.2.125) — verify
+    `wasm-pack test --node crates/iscc-wasm --features conformance` (78/78) + clippy. Enforcing job;
+    post-push green is CI-only confirm
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
-- **Semver gate review** (iter 93): informational pre-1.0 — full verify recipe in
-    `MEMORY-archive.md`
-- **Perf gate review — COMPLETE, ENFORCING & HARDENED (iter 107-110, #3 + hardening [review] both
-    closed; full verify recipe in `MEMORY-archive.md`)**. Key facts: valgrind 3.19 +
-    `iai-callgrind-runner` 0.16.1 ARE in the devcontainer; `mise run bench:iai` RUNS locally (bakes
-    `IAI_CALLGRIND_ALLOW_ASLR=true`). STRIP GOTCHA: `[profile.bench] strip = false, debug = true`
-    load-bearing (else 0 `__iai_callgrind_wrapper` symbols → all `summary: 0` false green).
-    Script-only review shortcut: `uv run pytest tests/test_iai_regression.py -q` (11
-    synthetic-fixture tests, loads script by path) + ruff check/format + `ty check`. NO
-    `continue-on-error` (enforcing); post-push Perf-step-green is CI-only confirm
+- **Semver gate review** (iter 93): informational pre-1.0 — full recipe in `MEMORY-archive.md`
+- **Perf gate review — COMPLETE, ENFORCING & HARDENED (iter 107-110, #3; full recipe in
+    `MEMORY-archive.md`)**. Key facts: valgrind 3.19 + `iai-callgrind-runner` 0.16.1 ARE in the
+    devcontainer; `mise run bench:iai` RUNS locally (bakes `IAI_CALLGRIND_ALLOW_ASLR=true`). STRIP
+    GOTCHA: `[profile.bench] strip = false, debug = true` load-bearing (else stripped → all
+    `summary: 0` false green). Script-only review: `uv run pytest tests/test_iai_regression.py -q`
+    (11 fixture tests) + ruff + `ty check`. Enforcing; post-push Perf-step-green is CI-only confirm
 
 ## Codex Review Integration
 
@@ -121,9 +120,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     single-package (#38 closed): `files: ["*.node"]` ships all 5 binaries, NO
     `optionalDependencies`; `napi prepublish` must NOT run in `publish-npm-lib`. FFI constant count
     in module docstring must match additions (now 5)
-- CI: 18 YAML job entries + python-test matrix (`['3.10','3.14']`) → **19 actual jobs** (`semver`
-    iter 93, `coverage` iter 94, `perf` iter 107). Advance handoffs count YAML entries, not matrix
-    expansion. Version sync: 16 targets (incl. Package.swift releaseTag). Release: 9 registry inputs
+- CI: 19 YAML job entries + python-test matrix (`['3.10','3.14']`) → **20 actual jobs** (`semver`
+    iter 93, `coverage` iter 94, `perf` iter 107, `audit` iter 114). Advance handoffs count YAML
+    entries, not matrix expansion. Version sync: 16 targets (incl. Package.swift releaseTag).
+    Release: 9 registry inputs
 - **`Coverage + CRAP` CI job** (iter 94/96/97/113, ci-cd.md): standalone, no
     `needs:`/`continue-on-error`. Phase 3 enforcing gate (iter 113, new-fn blind spot CLOSED) =
     `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`

@@ -7,25 +7,6 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Wire up `cargo deny`/`cargo audit` supply-chain gate `normal` [review]
-
-`notes/07-security-versioning.md` mandates `cargo deny check` "Run in CI" (licenses + RustSec
-advisories + duplicate versions) configured via a workspace-root `deny.toml`, plus `cargo audit` as
-a complement. None of this exists: no `deny.toml`, no CI job, no `mise` task, and neither tool is
-installed in the devcontainer. This gap surfaced concretely in iteration 105 — the PyO3 0.29 bump
-(issue #1) targeted two RustSec advisories but the clearance could only be verified by the
-mechanical proxy "lockfile resolves a single `pyo3 0.29.0`, no older entries", not by an actual
-advisory scan. Fix: add `deny.toml` at the workspace root, a `Security audit` CI job running
-`cargo deny check` (advisories + bans + licenses), and a `mise run audit` task; install via
-`taiki-e/install-action` or `cargo binstall -y --force` (note the rust-cache poisoning gotcha — see
-learnings "cargo binstall + Swatinem/rust-cache"). Optionally add `npm audit` for the napi package
-per the same note.
-
-**Spec:** `.claude/context/specs/ci-cd.md` → "Supply chain — `cargo-deny`" added (2026-06-18) to
-mandate the gate. **AUTHORIZED by Titusz (2026-06-18)** — CID may implement autonomously
-(review-sourced; the requirement previously lived only in design notes `notes/07`, now also in the
-CID spec).
-
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
 Human-driven release: cut **v1.0.0** as the first stability-committed release of the lockstep

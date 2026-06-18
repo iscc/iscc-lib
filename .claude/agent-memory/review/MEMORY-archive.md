@@ -59,3 +59,15 @@ the agent automatically — reference for humans and occasional lookup only.
     FAILS on any shared bench with current Ir 0 (zero-count guard, independent of `--allow-missing`)
     AND on a disappeared baselined bench (unless `--allow-missing` downgrades to warning);
     `only_run` new-bench still warns only.
+
+## Concurrent CID loops (iter 97, resolved iter 98)
+
+Spurious `mise run check` "files were modified by this hook" on a file the advance never touched
+(e.g. `standardrb-fix` flagging when NO `.rb` is dirty) + a working-tree `state.md`/context change
+appearing mid-review = a SECOND CID loop racing the branch. Confirm with
+`ps aux | grep -E 'cid:run|claude -p CID iteration'` (two `mise run cid:run` trees / two different
+`iteration N` agents). Flag HUMAN REVIEW REQUESTED, do NOT push, do NOT kill processes yourself.
+RESOLUTION: a later review re-checks `ps aux` — once a SINGLE `mise run cid:run` remains, the
+duplicate is gone and the unpushed backlog pushes as a fast-forward
+(`git rev-list --left-right --count origin/<b>...HEAD` = `0 N`); scan ALL `@{upstream}..HEAD`
+commits for gate circumvention before that batch push.

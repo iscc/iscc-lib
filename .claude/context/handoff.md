@@ -1,76 +1,81 @@
-## 2026-06-18 — Wire up the `cargo-deny` supply-chain audit gate
+> **HUMAN REVIEW REQUESTED**: All autonomous v1.0.0-hardening work packages are now complete — the
+> `cargo-deny` supply-chain gate landed and is enforcing. The only remaining work is the human-gated
+> v1.0.0 release cut + flipping the `Semver (cargo-semver-checks)` gate to enforcing, both
+> deliberately held by Titusz. No actionable autonomous work remains, so the loop should pause for
+> your release decision rather than spin a no-op cycle. (Verdict is still PASS — this flag is a
+> milestone handoff, not a problem report.)
 
-**Done:** Added a workspace-root `deny.toml` (advisories + licenses + bans + sources policy), an
-enforcing `Audit (cargo-deny)` CI job running `cargo deny check`, and a `mise run audit` task.
-Installed cargo-deny 0.19.9 locally and iterated `cargo deny check` to exit 0 against the real
-workspace graph; this surfaced two genuine supply-chain issues that I fixed (see Notes).
+## 2026-06-18 — Review of: Wire up the `cargo-deny` supply-chain audit gate
 
-**Files changed:**
+**Verdict:** PASS_WITH_NOTES
 
-- `deny.toml` (new): `[graph] all-features = true`; `[advisories] yanked = "deny"` with two dev-only
-    unmaintained advisories in `ignore` (justified); `[licenses] allow = [...]` (13 standalone
-    licenses incl. `MPL-2.0`, `BSL-1.0`, `Unicode-3.0`, `Zlib`) + `private = { ignore = true }`;
-    `[bans] multiple-versions = "warn"`; `[sources] unknown-registry/unknown-git = "deny"`.
-- `.github/workflows/ci.yml`: appended the `audit` job after `coverage` — checkout → rust-toolchain
-    → rust-cache → `taiki-e/install-action` `cargo-deny@0.19.9` → `cargo deny check`. No
-    `continue-on-error` (enforcing).
-- `mise.toml`: added `[tasks.audit]` (`run = "cargo deny check"`) under a new "Supply-chain audit"
-    block.
-- `Cargo.lock`: bumped the wasm-bindgen family (js-sys, wasm-bindgen{,-futures,-macro,
-    -macro-support,-shared,-test,-test-macro,-test-shared}, web-sys) off the **yanked**
-    `wasm-bindgen 0.2.111` / `js-sys 0.3.88` to current versions (`cargo update -p` only — no
-    manifest changes). Required to make `yanked = "deny"` green.
-- `.claude/context/specs/ci-cd.md`: flipped the line-448 Audit "verified when" box to `[x]` (local
-    `cargo deny check` exits 0 — see Notes on the local-vs-CI flip decision).
+**Summary:** The advance agent added a workspace-root `deny.toml` (advisories + licenses + bans +
+sources policy, config v2), an enforcing `Audit (cargo-deny)` CI job running `cargo deny check`, and
+a `mise run audit` task. `cargo deny check` exits 0 locally against the real graph
+(`advisories ok, bans ok, licenses ok, sources ok`). A forced Cargo.lock bump of the wasm-bindgen
+family (off the yanked `0.2.111`/`0.3.88`) is the only out-of-the-3-files change and is verified
+safe. Clean, minimal, well-justified work.
 
 **Verification:**
 
-- `cargo deny check` exits **0**: `advisories ok, bans ok, licenses ok, sources ok`. 6 non-failing
-    `multiple-versions = "warn"` duplicate warnings (libloading, rustc-hash, thiserror,
-    thiserror-impl, windows-sys, winnow) — expected, do not fail the gate.
-- `python3 -c "import tomllib; tomllib.load(open('deny.toml','rb'))"` → ok; traps grep (`MPL-2.0` +
-    `BSL-1.0` + `private`) → ok.
-- `mise tasks | grep audit` → registered; `uv run python` yaml assertion → audit job is enforcing,
-    runs `cargo deny check`, name `Audit (cargo-deny)`.
-- `mise run check` → all 15 pre-commit hooks pass. Pre-push stage
-    (`prek run --all-files   --hook-stage pre-push`) → all pass incl. Rust clippy, Rust tests,
-    pytest, Ruby lint, ty check (confirms the wasm-bindgen bump breaks nothing).
+- [x] `deny.toml` is valid TOML (`tomllib.load` ok)
+- [x] License/private traps present — `grep` confirms `MPL-2.0`, `BSL-1.0`, `private` all in
+    deny.toml
+- [x] `audit` mise task registered; `mise run audit` runs `cargo deny check` and exits 0
+- [x] `audit` CI job exists, runs `cargo deny check`, is enforcing (no `continue-on-error`), name
+    `Audit (cargo-deny)` — verified via `uv run python3` yaml assertion (plain `python3` lacks
+    PyYAML)
+- [x] Local gate: `cargo deny check` exits 0 against the current graph (advisories, licenses, bans,
+    sources all pass; 6 `multiple-versions = "warn"` dups are non-failing, as designed)
+- [x] `mise run check` — all 15 pre-commit hooks pass (no context-file reformatting needed this
+    cycle)
+- [x] Defense-in-depth on the lockfile bump: WASM tests pass 78/78
+    (`wasm-pack test --node crates/iscc-wasm --features conformance`) and workspace clippy
+    (`-D warnings`) is clean with the bumped wasm-bindgen 0.2.125
+- [ ] **Post-push (deferred):** `Audit (cargo-deny)` job green on the develop tip — cannot be
+    confirmed in-iteration. cargo-deny reads Cargo.lock + crate metadata (not compiled artifacts),
+    so the local green is authoritative for the gate; whoever resumes should glance at the Actions
+    tab to confirm the first CI run of the new job.
 
-**Next:** This was the last autonomous v1.0.0-hardening work package. Remaining issues are
-human-gated: cut v1.0.0 + flip the `Semver (cargo-semver-checks)` gate to enforcing (held by
-Titusz), plus 2 `low` `[human]` docs-logo items. The loop should flag **HUMAN REVIEW REQUESTED**
-(per the human-handoff-vs-IDLE learning) rather than manufacture churn. A reasonable follow-up
-(separate work package) is the deferred supply-chain extras: Dependabot, `cargo audit`/`npm audit`
-steps, signed tags — all explicitly out of scope here.
+**Issues found:**
 
-**Notes:**
+- (none) — no correctness, scope, or gate-integrity problems.
 
-- **Cargo.lock is a 4th changed file beyond the 3 source files (deny.toml, ci.yml, mise.toml).** It
-    is a generated lockfile, not hand-edited source, and the update was *forced by the gate*: with
-    `yanked = "deny"`, `wasm-bindgen 0.2.111` and `js-sys 0.3.88` are yanked. The clean fix is
-    `cargo update` to non-yanked versions, not loosening `yanked` to `warn`.
-    `wasm-bindgen-test   0.3.61` pinned `wasm-bindgen =0.2.111` exactly, so the whole family had to
-    move together. Diff is confined to those 10 crates; no manifest/version requirements changed. I
-    treated this like the committed `.crap-baseline.json` / `.iai-baseline.json` artifacts —
-    necessary generated state, not a source-scope violation.
-- **Two unmaintained advisories ignored, with justification:** `RUSTSEC-2025-0141` (bincode 1.x) and
-    `RUSTSEC-2026-0173` (proc-macro-error2) both come *only* from `iai-callgrind` — a dev-only bench
-    dependency (the perf gate). No safe upgrade is available and neither ships in any published
-    artifact, so exposure is nil. This follows the next.md instruction to `ignore` specific
-    unfixable advisory IDs rather than loosen the whole advisory class (`unmaintained` defaults to
-    deny under cargo-deny config v2). If `iai-callgrind` later drops these, the `ignore` entries can
-    be removed.
-- **Schema:** used the modern cargo-deny config v2 (NOT the outdated `notes/07` sketch). Under v2,
-    vulnerabilities/unmaintained deny by default and unlisted licenses deny by default — so there is
-    no `vulnerability =`/`unlicensed =` key; only `yanked = "deny"` needed an explicit bump.
-- **Checkbox flip decision (heads-up for review):** the previous reviewer's handoff assumed
-    cargo-deny could NOT be installed in the devcontainer and said to flip the box only after CI
-    green. That turned out false — `cargo install cargo-binstall` +
-    `cargo binstall cargo-deny@0.19.9` works in the devcontainer (binstall compile ~5.5 min, then
-    prebuilt binary). next.md's Scope explicitly authorizes flipping the box "ONLY if you verify
-    `cargo deny check` green locally", which I did against the real Cargo.lock. cargo-deny reads
-    Cargo.lock + crate metadata (not compiled artifacts), so the CI rustc version is irrelevant to
-    the advisory/license/source verdict. If you prefer strict post-push confirmation, the box can be
-    reverted to `[ ]` until the green CI run, but the local result is authoritative for this gate.
-- Pure CI/config/lockfile + doc change — no Rust source, no public API, no hot path touched, so
-    benches were correctly skipped.
+**Notes on scope/decisions reviewed and accepted:**
+
+- **Cargo.lock as a 4th changed file** (beyond deny.toml, ci.yml, mise.toml): enabling
+    `yanked = "deny"` correctly surfaced the yanked `wasm-bindgen 0.2.111` / `js-sys 0.3.88`. The
+    advance agent fixed the root cause with `cargo update -p` (family bumped to 0.2.125/0.3.102, 10
+    crates, no manifest change) rather than loosening `yanked` to `warn` — the right call. I
+    verified the bump is behavior-neutral (WASM tests + clippy green). Treat like a regenerated
+    baseline artifact, not a scope violation.
+- **`ci-cd.md` line-448 box flipped to `[x]` pre-CI**: next.md Scope explicitly authorized this
+    "ONLY if you verify `cargo deny check` green locally", which the advance agent did and I
+    re-verified. Acceptable; the one residual formality is the post-push CI confirmation above.
+- **Two `iai-callgrind` advisories ignored with justification** (`RUSTSEC-2025-0141` bincode,
+    `RUSTSEC-2026-0173` proc-macro-error2): dev-only bench deps, never shipped — `ignore`d specific
+    IDs rather than loosening the `unmaintained` class. Correct discipline.
+
+**Codex review:** No actionable correctness issues found in the HEAD changes — Codex confirms the
+cargo-deny policy and audit task/job are syntactically valid and the supply-chain check passes
+locally. No findings to action.
+
+**Quality-gate integrity:** Scanned all unpushed commits (`@{upstream}..HEAD`). The new `audit` job
+*strengthens* the gates (enforcing, no `continue-on-error`). Every `continue-on-error` match in the
+diff is either documentation noting the audit job is enforcing, or the pre-existing informational
+`semver` job — no weakening, no suppressions, no test skips.
+
+**Next:** No autonomous work packages remain. The state is "all gates landed; release is human's
+call." For the project owner (Titusz): when ready, cut **v1.0.0** via the `/release` skill and flip
+the `Semver (cargo-semver-checks)` gate to enforcing as part of that cut (drop its
+`continue-on-error`, set `rust-core.md` line 372 box to `[x]`). If the loop is resumed instead of
+paused, the next define-next will find only two `low` `[human]` issues (v1.0.0 release held; docs
+logos cosmetic) and no `normal`/`critical` work — i.e. the next cycle would reach `**IDLE**` (this
+iteration could not signal IDLE because the advance agent did make code changes — strict condition
+#1).
+
+**Notes:** CI job count is now **20 actual jobs** (19 YAML entries + the python-test 3.10/3.14
+matrix); `audit` is the 4th gate added during hardening (after `semver`, `coverage`, `perf`). The
+develop tip after this push carries the completed cargo-deny gate; the green CI result from the
+prior tip (`cee130a`) plus the local `cargo deny check` green cover correctness pending the one
+post-push Audit-job confirmation.

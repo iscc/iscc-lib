@@ -94,42 +94,48 @@ fully-met target sections to `learnings-archive.md`.
     maven-kotlin, swift). When re-triggering individual registries, always use `--ref main`
 - **Version sync**: `version_sync.py` manages 16 targets (including root `Package.swift`
     releaseTag). `--check` mode exits 1 on mismatch
-- **`semver` + `coverage` CI jobs** (iter 93/94) — fully landed, details in `learnings-archive.md`.
-    Key facts: `semver` is INFORMATIONAL pre-1.0 (`continue-on-error: true`, becomes enforcing at
-    v1.0.0 by dropping it; `rust-core.md` line 372 checkbox stays `[ ]` until then); `coverage` is
-    enforcing (no `continue-on-error`). `mise run semver` / `mise run coverage` run them locally
+- **`semver` + `coverage` CI jobs** (iter 93/94; details in `learnings-archive.md`): `semver` is
+    INFORMATIONAL pre-1.0 (`continue-on-error: true`, becomes enforcing at v1.0.0 by dropping it;
+    `rust-core.md` line 372 checkbox stays `[ ]` until then); `coverage` is enforcing.
+    `mise run   semver` / `mise run coverage` run them locally
 - **`cargo binstall` + `Swatinem/rust-cache` poisoning** (iter 100): rust-cache restores cargo's
     `.crates.toml`/`.crates2.json` install *metadata* WITHOUT the `~/.cargo/bin/<tool>` binary, so a
     plain `cargo binstall -y <tool>` sees "already installed", skips, and the next invocation dies
     with `error: no such command: <tool>` → CI RED on every run. Fix: add `--force` so binstall
     always reinstalls regardless of the cached record (small binary = negligible re-download). This
     is gate *strengthening*, not circumvention
-- **CRAP gate (iter 96/97/113, ci-cd.md)** — full mechanics in `learnings-archive.md`. Key facts:
-    `Coverage + CRAP` job runs report-only `--format github`/`sarif`, then the ENFORCING Phase 3
+- **CRAP gate (iter 96/97/113, ci-cd.md; full mechanics in `learnings-archive.md`)**:
+    `Coverage +   CRAP` job runs report-only `--format github`/`sarif`, then the ENFORCING Phase 3
     gate `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`.
-    `.crap-baseline.json` is COMMITTED (97 funcs/10 files); `mise run crap:baseline` regenerates
-    it byte-identical. `.cargo-crap.toml` MUST list `crates/iscc-lib/benches/**` (built-in default
-    matches repo-root only, else `bench_cdc_chunks` leaks at CRAP 42)
-- **CRAP new-function blind spot CLOSED (iter 113)**: `--fail-regression` alone exits 0 for a
-    brand-new uncovered fn (`★ N new`, no baseline entry) — it only blocks WORSENING of existing
-    entries. Now paired with `--fail-above` (boolean keyed off `.cargo-crap.toml threshold = 30.0`,
-    NO numeric arg in 0.2.2) so ANY fn over 30 fails too. Current max CRAP ~22.3 < 30, so the
-    absolute gate passes on current code; the two flags combine cleanly with `--baseline`
-- **`Perf (iai-callgrind)` gate — COMPLETE (iter 107-109, #3, full saga in
-    `learnings-archive.md`)**: standalone `perf` job (no `needs:`, NO `continue-on-error`): valgrind
-    → binstall `iai-callgrind-runner@0.16.1 --force` → `cargo bench -p iscc-lib --bench iai_benches`
-    → zero- collection guard → `python3 scripts/iai_regression.py --check` (>10% Ir regression vs
-    committed `.iai-baseline.json`, 16 entries) → upload (`if: always()`). Locally: valgrind 3.19 +
-    runner ARE in the devcontainer; `mise run bench:iai` works (`IAI_CALLGRIND_ALLOW_ASLR=true`
-    skips the kernel-blocked `personality` syscall; ASLR = cache noise, NOT `Ir`).
-    `[profile.bench] strip =   false, debug = true` is load-bearing (else stripped binary → all
-    benches `summary: 0` false- green).
-- **iai gate false-green edges HARDENED (iter 110)**: `check_regressions` now FAILS when any shared
-    bench's current Ir is 0 (zero-count guard, independent of `--allow-missing`) and when a
-    baselined bench disappears from the run (unless `--allow-missing` downgrades it to a warning for
-    a deliberate shrink). `only_run` (new-bench-not-in-baseline) still warns only. Covered by
-    `tests/test_iai_regression.py` (11 synthetic-fixture tests, loads script by path). The committed
-    `.iai-baseline.json` only shrinks via a reviewed `--update` refresh
+    `.crap-baseline.json` COMMITTED (97 funcs/10 files); `mise run crap:baseline` regenerates
+    byte-identical. `.cargo-crap.toml` MUST list `crates/iscc-lib/benches/**` (else
+    `bench_cdc_chunks` leaks at CRAP 42). `--fail-above` (boolean keyed off
+    `.cargo-crap.toml threshold = 30.0`, NO numeric arg in 0.2.2) closes the new-function blind spot
+    (`--fail-regression` alone exits 0 for a brand-new `★ N new` fn); current max CRAP ~22.3 < 30
+- **`Perf (iai-callgrind)` gate — COMPLETE & HARDENED (iter 107-110, #3; full saga + false-green
+    edge details in `learnings-archive.md`)**: standalone enforcing `perf` job (no
+    `continue-on-error`): valgrind → binstall `iai-callgrind-runner@0.16.1 --force` →
+    `cargo bench -p iscc-lib --bench iai_benches` → zero-collection guard →
+    `python3 scripts/iai_regression.py --check` (>10% Ir regression vs committed
+    `.iai-baseline.json`, 16 entries; also fails on zero-count or a disappeared baselined bench).
+    Locally valgrind 3.19 + runner ARE in the devcontainer; `mise run bench:iai` works
+    (`IAI_CALLGRIND_ALLOW_ASLR=true`). `[profile.bench] strip = false, debug = true` is load-bearing
+    (else stripped binary → all benches `summary: 0` false-green). 11 fixture tests in
+    `tests/test_iai_regression.py`
+- **`Audit (cargo-deny)` gate — LANDED & ENFORCING (iter 114, ci-cd.md line 448)**: root `deny.toml`
+    (config v2: vulnerabilities/unmaintained deny by default, only `yanked = "deny"` explicit) +
+    enforcing `audit` CI job (`taiki-e/install-action` → `cargo-deny@0.19.9` → `cargo deny check`) +
+    `mise run audit`. cargo-deny reads Cargo.lock + crate metadata (NOT compiled artifacts), so
+    `cargo deny check` green locally is authoritative (CI rustc version irrelevant). cargo-deny IS
+    installable in the devcontainer (`cargo install cargo-binstall` then
+    `cargo binstall   cargo-deny@0.19.9`). `multiple-versions = "warn"` avoids a brittle skip-list;
+    two dev-only `iai-callgrind` advisories (`RUSTSEC-2025-0141`, `RUSTSEC-2026-0173`) `ignore`d
+    (never shipped)
+- **`yanked = "deny"` forces a Cargo.lock bump (iter 114)**: it surfaced yanked
+    `wasm-bindgen 0.2.111` / `js-sys 0.3.88`; clean fix is `cargo update -p` the wasm-bindgen family
+    to 0.2.125/0.3.102 (10 crates, no manifest change), NOT loosening to `warn`. wasm-pack
+    auto-fetches a matching CLI — verified by `wasm-pack test --node` (78/78) + workspace clippy.
+    Treat the lockfile delta like a regenerated baseline artifact
 
 ## Branching
 
