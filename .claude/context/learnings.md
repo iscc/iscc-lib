@@ -29,8 +29,8 @@ fully-met target sections to `learnings-archive.md`.
 - `cargo clippy -- -D warnings` runs in pre-push stage (not pre-commit)
 - Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
 - **PyO3 is `0.29`** (issue #1 closed; iscc-py only): keep the explicit
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Full per-hop migration recipe +
-    advisory-clearance caveat (`cargo audit`/`cargo deny` absent) in `learnings-archive.md`
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe +
+    advisory-clearance caveat (`cargo audit`/`deny` absent) in `learnings-archive.md`
 
 ## ISCC Algorithm Knowledge
 
@@ -94,34 +94,22 @@ fully-met target sections to `learnings-archive.md`.
     maven-kotlin, swift). When re-triggering individual registries, always use `--ref main`
 - **Version sync**: `version_sync.py` manages 16 targets (including root `Package.swift`
     releaseTag). `--check` mode exits 1 on mismatch
-- **`semver` CI job** (`ci.yml`, iter 93): `obi1kenobi/cargo-semver-checks-action@v2`,
-    `package: iscc-lib`, baseline = last crates.io release. INFORMATIONAL pre-1.0 via
-    `continue-on-error: true` — reports the post-0.4.0 `pub(crate)` narrowing as 2 major checks
-    failed (expected, not a regression). `mise run semver` runs it locally. Becomes enforcing at
-    v1.0.0 by dropping `continue-on-error`; `rust-core.md` line 372 checkbox stays `[ ]` until then
-- **`coverage` CI job** (`ci.yml`, iter 94, ci-cd.md Phase 1): standalone, no `needs:`, NO
-    `continue-on-error`. `dtolnay/rust-toolchain@stable` w/ `components: llvm-tools-preview` →
-    `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) →
-    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`).
-    `mise run coverage` mirrors it locally; `lcov.info` is gitignored (137KB / 5156 lines). CI job
-    entries now 18 (perf added iter 107; python-test matrix → 19 actual)
+- **`semver` + `coverage` CI jobs** (iter 93/94) — fully landed, details in `learnings-archive.md`.
+    Key facts: `semver` is INFORMATIONAL pre-1.0 (`continue-on-error: true`, becomes enforcing at
+    v1.0.0 by dropping it; `rust-core.md` line 372 checkbox stays `[ ]` until then); `coverage` is
+    enforcing (no `continue-on-error`). `mise run semver` / `mise run coverage` run them locally
 - **`cargo binstall` + `Swatinem/rust-cache` poisoning** (iter 100): rust-cache restores cargo's
     `.crates.toml`/`.crates2.json` install *metadata* WITHOUT the `~/.cargo/bin/<tool>` binary, so a
     plain `cargo binstall -y <tool>` sees "already installed", skips, and the next invocation dies
     with `error: no such command: <tool>` → CI RED on every run. Fix: add `--force` so binstall
     always reinstalls regardless of the cached record (small binary = negligible re-download). This
     is gate *strengthening*, not circumvention
-- **CRAP gate (iter 96 Phase 2 + iter 97 Phase 3, ci-cd.md)**: `Coverage + CRAP` job installs
-    `cargo binstall -y --force cargo-crap@0.2.2` (`--force` LOAD-BEARING, see entry above), runs
-    report-only `--format github` + `--format sarif` (`upload-sarif@v3`, job-level
-    `security-events: write`), then an ENFORCING final step
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` (NOT
-    continue-on-error). `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored — only
-    `lcov.info`/`crap.sarif` are): envelope `{$schema, version, entries}`, 97 iscc-lib functions /
-    10 files. `mise run crap:baseline` regenerates it byte-identical (idempotent).
-    `.cargo-crap.toml` `threshold=30`, `missing="pessimistic"`, MUST list
-    `crates/iscc-lib/benches/**` explicitly (the built-in `benches/**` default only matches
-    repo-root, else `bench_cdc_chunks` leaks at CRAP 42)
+- **CRAP gate (iter 96/97, ci-cd.md)** — full mechanics in `learnings-archive.md`. Key facts:
+    `Coverage + CRAP` job runs report-only `--format github`/`sarif`, then ENFORCING
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression`.
+    `.crap-baseline.json` is COMMITTED (97 funcs/10 files); `mise run crap:baseline` regenerates it
+    byte-identical. `.cargo-crap.toml` MUST list `crates/iscc-lib/benches/**` (built-in default
+    matches repo-root only, else `bench_cdc_chunks` leaks at CRAP 42)
 - **`--fail-regression` does NOT catch NEW high-CRAP functions** (Codex, iter 97): a brand-new
     uncovered function has no baseline entry, so it reports `★ N new` and exits 0 — the gate only
     blocks WORSENING of existing entries. To also block new risky code, pair with `--fail-above 30`
@@ -129,11 +117,23 @@ fully-met target sections to `learnings-archive.md`.
 - **`Perf (iai-callgrind)` CI job** (iter 107, ci-cd.md "Performance"): standalone `perf` job (no
     `needs:`, NO `continue-on-error`): apt valgrind → cargo-binstall →
     `cargo binstall -y --force iai-callgrind-runner@0.16.1` (`--force` load-bearing) →
-    `cargo bench -p iscc-lib --bench iai_benches` → upload `target/iai/` as `iai-baseline`. First
-    run has NO baseline so it only measures (exit 0); >10% gate + committed baseline = slice 2b (#3
-    open). NOTE: `[profile.bench]` does NOT inherit root `[profile.release] strip = true` — the
-    bench binary keeps its `__iai_callgrind_wrapper`/`bench_*` symbols (verified via `nm`), so
-    `--toggle-collect` matches and counters are real (Codex P2 "stripped→zeroed" refuted iter 107)
+    `cargo bench -p iscc-lib --bench iai_benches` → guard step → upload `target/iai/` as
+    `iai-baseline`. First run has NO baseline so it only measures (exit 0); >10% gate + committed
+    baseline = slice 2b (#3 open)
+- **STRIP zero-collection bug (iter 108, FIXED — corrects the WRONG iter-107 claim)**:
+    `[profile.bench]` DOES inherit `strip = true` from root `[profile.release]` (Cargo: bench is
+    based on release). Verified iter-108: with no override the bench binary is `stripped` / **0**
+    `__iai_callgrind_wrapper` symbols → iai's `--toggle-collect=*::__iai_callgrind_wrapper_mod::*`
+    matches nothing → every bench `summary: 0` while exiting 0 (FALSE GREEN; the real CI artifact
+    from run 27742285656 had all-zero `.out`s). The iter-107 review's "bench doesn't inherit release
+    strip" claim was wrong (inspected a different binary). FIX:
+    `[profile.bench] strip = false,   debug = true` → `not stripped` / **11** symbols → real counts.
+    CI guard `grep -rEq '^summary: [1-9]' target/iai/` fails the job on zero collection (defends the
+    override)
+- **Running iai-callgrind locally**: valgrind 3.19 + `iai-callgrind-runner` 0.16.1 ARE in the
+    devcontainer (iter-107 "valgrind absent" claim also wrong). Kernel blocks the `personality`
+    syscall iai's `setarch -R` (ASLR-disable) uses → set `IAI_CALLGRIND_ALLOW_ASLR=true` to skip it
+    (wired into `mise run bench:iai` + ci.yml bench step). ASLR = cache-sim noise, NOT `Ir` — safe
 
 ## Branching
 
@@ -151,12 +151,11 @@ fully-met target sections to `learnings-archive.md`.
 - Gate individual test functions with `#[cfg(feature = "...")]`, not the whole `mod tests` block,
     when the block contains both gated and ungated tests
 - `serde_json` stays non-optional because `conformance.rs` uses it for parsing data.json vectors
-- **`--no-default-features --all-targets` fails on the `benchmarks` bench** (pre-existing):
-    `benches` import `gen_meta_code_v0`/`gen_text_code_v0`, which need the
-    `meta-code`/`text-processing` features. The lib + tests build fine with `--no-default-features`;
-    only the bench target breaks. When verifying feature configs, scope clippy to the lib
-    (`--no-default-features -- -D warnings`, no `--all-targets`) or it reports a false regression.
-    CI never runs this combo
+- **`--no-default-features --all-targets` fails on the `benchmarks` bench** (pre-existing): benches
+    import `gen_meta_code_v0`/`gen_text_code_v0`, which need `meta-code`/`text-processing`. Lib +
+    tests build fine; only the bench target breaks. Scope clippy to the lib
+    (`--no-default-features -- -D warnings`, no `--all-targets`) to avoid a false regression. CI
+    never runs this combo
 
 ## Documentation Maintenance
 
@@ -186,12 +185,10 @@ fully-met target sections to `learnings-archive.md`.
     processes yourself, and do NOT push (the second loop will collide)
 - **Pre-push mdformat blocks on non-conforming context files**: the pre-push hook runs mdformat
     (`--wrap 100 --number`, isolated `mdformat-mkdocs[recommended]` env) on every file changed in
-    the push range — including `next.md` and per-agent `MEMORY*.md`. A non-conforming
-    `next.md`/memory (wrong wrap width, misindented fenced code) rejects the whole batch push even
-    though `git commit` (staged-only hooks) passed. define-next MUST run
-    `uv run mdformat --wrap 100 --number` (or `mise run format`) before committing. Review can
-    unblock by reformatting those files (mechanical, no semantic change) and amending — but local
-    `uv run mdformat` uses a different plugin set, so match the hook args exactly
+    the push range — incl. `next.md` and per-agent `MEMORY*.md`. A non-conforming file rejects the
+    whole batch push even though staged-only `git commit` passed. define-next MUST run
+    `mise run format` before committing; review can unblock by reformatting + amending (match the
+    hook args exactly — local plugin set differs)
 
 ## Devcontainer Scripts (exec bit / Windows bind mount)
 

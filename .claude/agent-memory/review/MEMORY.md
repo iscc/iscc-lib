@@ -71,20 +71,25 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **CI-only YAML**: `mise run check` + validate structure with
     `uv run python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` (jobs list,
-    placement, `needs:`/`continue-on-error`). Note: a new gate that runs a tool absent locally
-    (valgrind, etc.) has a CI-only verification criterion — confirm green on the post-push run
+    placement, `needs:`/`continue-on-error`). Note: a gate running a tool absent locally (e.g.
+    `cargo-deny`/`cargo-audit`) has a CI-only criterion — confirm post-push. (valgrind +
+    iai-callgrind-runner ARE present — see Perf gate review below)
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
-- **Semver gate review** (iter 93): `semver` job is informational (`continue-on-error: true`)
-    pre-1.0 — it adds a gate, doesn't weaken one. Verify locally:
-    `cargo semver-checks check-release -p iscc-lib` (~7s; expect "2 major checks failed" = the
-    post-0.4.0 `pub(crate)` narrowing, intended). Piping to `tail`/`head` masks the non-zero exit —
-    read the "Summary … N checks failed" line
-- **Perf gate review** (iter 107): `Perf (iai-callgrind)` runs benches under valgrind (ABSENT
-    locally) — verify only `cargo build -p iscc-lib --bench iai_benches` + YAML structure + greps;
-    "job success + uploads artifact" is CI-only (confirm post-push). Slice 2a adds NO baseline/gate
-    (→2b); first run is measure-only exit 0. NO `continue-on-error` (correct), so a toolchain hiccup
-    turns the run red — watch the first CI run
+- **Semver gate review** (iter 93): informational pre-1.0 — full verify recipe in
+    `MEMORY-archive.md`
+- **Perf gate review** (iter 107, CORRECTED iter 108): valgrind 3.19 + `iai-callgrind-runner` 0.16.1
+    ARE in the devcontainer — the iter-107 "valgrind absent locally" claim was WRONG.
+    `mise run bench:iai` RUNS locally (task bakes in `IAI_CALLGRIND_ALLOW_ASLR=true`; kernel blocks
+    the `personality` syscall iai's `setarch -R` needs). Verify: `mise run bench:iai` → 16 benches,
+    non-zero `Instructions:`, then `grep -rEq '^summary: [1-9]' target/iai/` exits 0 (rejects a
+    synthetic `summary: 0 0 0`). STRIP GOTCHA: `[profile.bench]` DOES inherit `strip = true` from
+    `[profile.release]` → stripped bench binary = 0 `__iai_callgrind_wrapper` symbols = all
+    `summary: 0` at exit 0 (false green); to confirm a strip fix empirically,
+    `CARGO_PROFILE_BENCH_STRIP=true cargo bench --bench iai_benches --no-run` then
+    `nm <bin> | grep -c __iai_callgrind_wrapper` (0 stripped vs 11 unstripped). NO
+    `continue-on-error` (enforcing); "job green + non-zero artifact" is CI-only. Slice 2a done;
+    baseline + gate = 2b (#3)
 
 ## Codex Review Integration
 
@@ -116,19 +121,16 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - CI: 18 YAML job entries + python-test matrix (`['3.10','3.14']`) → **19 actual jobs** (`semver`
     iter 93, `coverage` iter 94, `perf` iter 107). Advance handoffs count YAML entries, not matrix
     expansion. Version sync: 16 targets (incl. Package.swift releaseTag). Release: 9 registry inputs
-- **`Coverage + CRAP` CI job** (Phase 1 iter 94, Phase 2 iter 96, Phase 3 iter 97, ci-cd.md):
-    standalone, no `needs:`, no `continue-on-error`. `cargo-llvm-cov` 0.8.7 + `cargo-crap` 0.2.2 in
-    devcontainer. CI install MUST be `cargo binstall -y --force cargo-crap@0.2.2` (iter 100):
-    `--force` is load-bearing — rust-cache restores `.crates.toml` metadata WITHOUT the binary, so
-    plain binstall skips → `cargo crap` dies "no such command" → CI RED every run. Verify from repo
-    root: `mise run crap` (exit 0, "97 functions; none exceed 30") + enforcing gate
+- **`Coverage + CRAP` CI job** (iter 94/96/97, ci-cd.md): standalone, no
+    `needs:`/`continue-on-error`. Verify from repo root: `mise run crap` (exit 0, "97 functions;
+    none exceed 30") + enforcing gate
     `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression`
-    (pass=`0 regressed/97 unchanged` exit 0; inflate baseline coverage → `N regressed` exit 1 — do
-    NOT pipe to tail, masks `$?`) + `mise run crap:baseline` regenerates `.crap-baseline.json`
-    byte-identical (97 entries, 10 iscc-lib files, COMMITTED, not gitignored). KEY GOTCHA:
-    `.cargo-crap.toml` MUST exclude `crates/iscc-lib/benches/**` (built-in `benches/**` matches only
-    repo-root) else `bench_cdc_chunks` leaks at CRAP 42. CAVEAT (Codex): `--fail-regression` exits 0
-    for NEW high-CRAP funcs — filed [review] issue to add `--fail-above 30`
+    (pass=`0 regressed/97 unchanged`; do NOT pipe to tail — masks `$?`) + `mise run crap:baseline`
+    regenerates `.crap-baseline.json` byte-identical (COMMITTED). CI install MUST be
+    `cargo binstall -y --force cargo-crap@0.2.2` (`--force` load-bearing, rust-cache poisoning).
+    GOTCHA: `.cargo-crap.toml` MUST exclude `crates/iscc-lib/benches/**` else `bench_cdc_chunks`
+    leaks at CRAP 42. CAVEAT: `--fail-regression` exits 0 for NEW high-CRAP funcs — [review] issue
+    open
 - **iscc-rb workspace exclusion**: `--exclude iscc-rb` in CI `rust` job is permanent — Rust job
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
 - .NET + Swift bindings fully complete (32/32 Tier 1, CI, version sync, docs, release)
@@ -170,10 +172,6 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Kotlin Maven Central: `useInMemoryPgpKeys` (not `useGpgCmd`), staging to `build/staging-deploy/`,
     curl bundle upload to Central Portal REST API. JNA resource dirs differ from JNI (linux-x86-64
     vs linux-x86_64)
-
-## C++ Wrapper Review
-
-- Fully complete — detailed review shortcut moved to `MEMORY-archive.md` (iter 107)
 
 ## Environment
 

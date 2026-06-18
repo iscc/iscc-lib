@@ -507,3 +507,30 @@ reference-only for humans.
     stable through every hop. Advisory clearance could NOT be tool-confirmed —
     `cargo audit`/`cargo   deny` absent from devcontainer + CI; mechanical proxy used (lockfile
     resolves single 0.29.0).
+
+## CI/CD — semver + coverage gates (archived iteration 108, fully landed)
+
+- **`semver` CI job** (`ci.yml`, iter 93): `obi1kenobi/cargo-semver-checks-action@v2`,
+    `package: iscc-lib`, baseline = last crates.io release. INFORMATIONAL pre-1.0 via
+    `continue-on-error: true` — reports the post-0.4.0 `pub(crate)` narrowing as 2 major checks
+    failed (expected, not a regression). `mise run semver` runs it locally. Becomes enforcing at
+    v1.0.0 by dropping `continue-on-error`; `rust-core.md` line 372 checkbox stays `[ ]` until then.
+- **`coverage` CI job** (`ci.yml`, iter 94, ci-cd.md Phase 1): standalone, no `needs:`, NO
+    `continue-on-error`. `dtolnay/rust-toolchain@stable` w/ `components: llvm-tools-preview` →
+    `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) →
+    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`).
+    `mise run coverage` mirrors it locally; `lcov.info` is gitignored (137KB / 5156 lines).
+
+## CI/CD — CRAP gate full mechanics (archived iteration 108)
+
+- **CRAP gate (iter 96 Phase 2 + iter 97 Phase 3, ci-cd.md)**: `Coverage + CRAP` job installs
+    `cargo binstall -y --force cargo-crap@0.2.2` (`--force` LOAD-BEARING — rust-cache poisoning),
+    runs report-only `--format github` + `--format sarif` (`upload-sarif@v3`, job-level
+    `security-events: write`), then an ENFORCING final step
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` (NOT
+    continue-on-error). `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored — only
+    `lcov.info`/`crap.sarif` are): envelope `{$schema, version, entries}`, 97 iscc-lib functions /
+    10 files. `mise run crap:baseline` regenerates it byte-identical (idempotent).
+    `.cargo-crap.toml` `threshold=30`, `missing="pessimistic"`, MUST list
+    `crates/iscc-lib/benches/**` explicitly (the built-in `benches/**` default only matches
+    repo-root, else `bench_cdc_chunks` leaks at CRAP 42).

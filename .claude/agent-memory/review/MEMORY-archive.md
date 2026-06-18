@@ -38,3 +38,11 @@ the agent automatically — reference for humans and occasional lookup only.
 - `iscc.hpp` bundled in FFI release tarballs (flat, alongside `iscc.h`); pkg mgrs vcpkg/conan in
     `packages/cpp/`
 - **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`
+
+## Semver gate review (archived iteration 108, stable)
+
+- **Semver gate review** (iter 93): `semver` job is informational (`continue-on-error: true`)
+    pre-1.0 — it adds a gate, doesn't weaken one. Verify locally:
+    `cargo semver-checks check-release -p iscc-lib` (~7s; expect "2 major checks failed" = the
+    post-0.4.0 `pub(crate)` narrowing, intended). Piping to `tail`/`head` masks the non-zero exit —
+    read the "Summary … N checks failed" line.
