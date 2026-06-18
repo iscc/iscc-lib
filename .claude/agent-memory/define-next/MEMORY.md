@@ -176,25 +176,11 @@ iterations.
     is a policy call the review agent flagged for human sign-off; respect that, do NOT auto-scope
     (b)/(c). The HUMAN-REVIEW-override-on-overwhelming-evidence rule is for BUG fixes, not new
     policy gates.
-- **iai-callgrind gate = THREE slices (harness → run-in-CI → regression gate).** `valgrind` +
-    `iai-callgrind-runner` BOTH absent locally (no apt candidate) so benches cannot RUN locally, but
-    the harness COMPILES (runner/valgrind are runtime-only). Slices: (1) **DONE iter 106** — harness
-    `crates/iscc-lib/benches/iai_benches.rs` (11 `#[library_benchmark]`, iai-callgrind "0.16" →
-    resolves 0.16.1) + workspace dep + `[[bench]] harness=false`, verified
-    `cargo build -p iscc-lib --bench iai_benches` (local boolean). (2) **SCOPED iter 107** — `Perf`
-    CI job (key `perf`, ubuntu: apt install valgrind + cargo-binstall via taiki-e/install-action +
-    `cargo binstall -y --force iai-callgrind-runner@0.16.1`, run
-    `cargo bench -p iscc-lib --bench iai_benches`, upload `target/iai/` artifact) +
-    `mise run bench:iai`. First run w/ NO baseline just measures + exits 0 → job GREEN with no gate
-    yet. Locally verifiable via YAML/TOML hooks + grep; review confirms green Perf job vs CI. NO
-    committed baseline this slice (can't generate locally — produce it from THIS slice's CI
-    artifact). (3) **FUTURE (2b)** — committed baseline + `--baseline`/`--fail-regression` (or
-    in-harness regression limit) + `bench:iai:baseline` refresh task + docs/spec checkbox flip.
-    iai-callgrind has NO clean single-file committed-baseline workflow like cargo-crap (baselines
-    live in `target/iai/`); the glue needs design informed by slice-2's real artifact → DO NOT
-    attempt blind. `.cargo-crap.toml` already excludes `crates/iscc-lib/benches/**` (no CRAP-config
-    edit needed). Primitive sigs: `alg_cdc_chunks(&[u8], utf32 bool, avg u32) -> IsccResult`,
-    `alg_minhash_256(&[u32]) -> Vec<u8>` (infallible). Runner version MUST match lib (0.16.1).
+- **iai-callgrind perf gate** → see [iai-callgrind-gate](iai-callgrind-gate.md). Slice 1 (harness)
+    DONE; slice 2a (Perf CI job) landed BUT was a false-green (all-zero collection); slice 2a-fix
+    scoped iter 108 (`[profile.bench] strip=false` + `IAI_CALLGRIND_ALLOW_ASLR`); slice 2b
+    (committed baseline + regression gate) still pending. valgrind + runner ARE installed locally →
+    it IS locally verifiable (state.md/learnings wrongly say "valgrind absent").
 - **iter 100→101: cargo-crap install-flake fix LANDED, CI confirmed GREEN** (run 27685108728). Rule
     reaffirmed: **CI red always preempts feature work, even a clean handoff "Next".** Root cause:
     `Swatinem/rust-cache@v2` restores cargo's `.crates.toml` metadata WITHOUT the

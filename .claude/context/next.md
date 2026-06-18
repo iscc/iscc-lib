@@ -1,105 +1,121 @@
 # Next Work Package
 
-## Step: Add the `Perf` CI job that runs the iai-callgrind benches under valgrind
+## Step: Fix the iai-callgrind Perf job's all-zero instruction collection (+ add a zero-collection guard)
 
 ## Goal
 
-Stand up the Linux `Perf` CI job that installs valgrind + `iai-callgrind-runner` and actually *runs*
-the instruction-count benches (today they are only compile-checked by `Bench`). This proves the
-toolchain works on the runner and produces the real iai-callgrind output the regression-gate slice
-needs. Advances issue "Add `iai-callgrind` performance-regression CI gate" without trying to land
-the committed baseline blind (valgrind is absent locally, so a baseline can't be generated or
-verified in the devcontainer).
+The `Perf (iai-callgrind)` CI job is a **false green**: it runs, exits 0, and uploads a baseline
+artifact in which **every benchmark collected ZERO instructions**. Fix the root cause so the job
+measures real instruction counts, and add a guard step so a zero-collection result can never
+silently pass again. This is a hard prerequisite for the perf-regression gate (issue #3, slice 2b) —
+you cannot gate a >10% regression against an all-zero baseline.
 
 ## Scope
 
-- **Modify**: `.github/workflows/ci.yml` — add a `perf` job.
-- **Modify**: `mise.toml` — add a `bench:iai` task.
+- **Modify**:
+    - `Cargo.toml` (workspace root) — add a `[profile.bench]` section so the benchmark binary is not
+        stripped.
+    - `mise.toml` — make the `bench:iai` task runnable inside the devcontainer.
+    - `.github/workflows/ci.yml` — keep the Perf job measuring correctly and add a guard step that
+        fails the job when collection is zero.
 - **Reference**:
-    - `.claude/context/handoff.md` — the follow-up slice description.
-    - `crates/iscc-lib/benches/iai_benches.rs` — the harness this job runs (`--bench iai_benches`).
-    - `.claude/context/specs/ci-cd.md` → "Performance — `iai-callgrind`" (lines 122-130) and the
-        `Perf` row in the gate table (line 32).
-    - `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants" (lines 359-376).
-    - `.claude/context/learnings.md` → CI/CD section, "`cargo binstall` + `Swatinem/rust-cache`
-        poisoning" (the `--force` rule) and the "Benchmarking (iai-callgrind)" entry.
-    - Existing `coverage` job (ci.yml:293-336) for the `taiki-e/install-action` +
-        `cargo binstall   -y --force` pattern, and the `bench` job (ci.yml:271-279) for the
-        toolchain/cache setup.
+    - `crates/iscc-lib/benches/iai_benches.rs` (the harness — **do not edit**, it is correct)
+    - `.claude/context/handoff.md` (the iter-107 review that PASSed this job — it checked the wrong
+        binary and missed the zero collection)
+    - `.claude/context/learnings.md` "CI/CD" → the `Perf (iai-callgrind)` entry (now partly wrong —
+        see below)
 
 ## Not In Scope
 
-- **No committed baseline and no regression gate yet.** Do NOT add `--baseline`,
-    `--fail-regression`, a `.iai-baseline.*` file, or any in-harness regression limit. The baseline
-    must be produced by *this* slice's CI run first (valgrind is unavailable locally), and the
-    committed-baseline glue needs design — that is the explicit follow-up slice (2b).
-- Do NOT edit `crates/iscc-lib/benches/iai_benches.rs` (no `LibraryBenchmarkConfig` regression
-    config this slice).
-- Do NOT add a baseline-refresh `mise` task (e.g. `bench:iai:baseline`) — that belongs with 2b.
-- Do NOT flip the `Semver` job's `continue-on-error` (tied to the v1.0.0 cut).
-- Do NOT touch the CRAP gate, `.cargo-crap.toml`, or `.crap-baseline.json`.
-- Do NOT add `cargo deny`/`cargo audit` (separate `[review]` issue, human-review hold).
-- Do NOT update docs/notes for the perf gate — defer to 2b once the gate semantics are final (this
-    slice completes no spec verification checkbox).
+- **Slice 2b — the committed baseline + >10% regression gate.** That is the NEXT step and only
+    becomes possible once this fix lands real non-zero measurements. Do not commit a baseline file
+    or add `--fail-*`/regression config in this step.
+- **Editing the harness `iai_benches.rs`.** The harness is sound (it collects 118k–7.25M
+    instructions once the binary keeps its symbols). The bug is the build profile + run environment,
+    not the benches.
+- The two `[review]` issues (CRAP `--fail-above 30`, supply-chain `cargo deny`/`audit`) — both have
+    HUMAN REVIEW REQUESTED on a spec amendment; do not auto-scope them.
+- Flipping the `Semver` gate's `continue-on-error` — that is tied to the v1.0.0 cut.
 
 ## Implementation Notes
 
-- **Job shape** — model on the `coverage` job for tool install and the `bench` job for setup. Key
-    `perf`, name `Perf (iai-callgrind)`, `runs-on: ubuntu-latest`, default triggers (push to
-    main/develop, PR to main). Steps:
+**Root cause (diagnosed and reproduced locally this iteration — valgrind 3.19 and
+`iai-callgrind-runner` 0.16.1 ARE both installed in the devcontainer):**
 
-    1. `actions/checkout@v4`
-    2. `dtolnay/rust-toolchain@stable`
-    3. `Swatinem/rust-cache@v2`
-    4. Install valgrind: `sudo apt-get update && sudo apt-get install -y valgrind`
-    5. Install cargo-binstall via `taiki-e/install-action@v2` (tool: `cargo-binstall`), matching the
-        `coverage` job.
-    6. `cargo binstall -y --force iai-callgrind-runner@0.16.1` — the **`--force` is load-bearing**:
-        `Swatinem/rust-cache` restores cargo's install *metadata* without the
-        `~/.cargo/bin/iai-callgrind-runner` binary, so a plain binstall would skip install and the
-        next `cargo bench` would die with "no such command". (See learnings.)
-    7. `cargo bench -p iscc-lib --bench iai_benches` — scopes to the iai harness only, NOT the
-        wall-clock criterion `benchmarks` bench. On a first run with no baseline iai-callgrind just
-        measures and reports (exit 0), so the job is green without any gate.
-    8. Upload results: `actions/upload-artifact@v4` with `name: iai-baseline`, `path: target/iai/`.
-        This gives the 2b slice the exact on-disk layout / summary format to build the committed
-        baseline from. Optionally pass `-- --save-summary=json` to emit machine-readable summaries —
-        confirm the flag name against iai-callgrind 0.16 (runtime-only; can't verify locally); if
-        unsure, omit it and rely on the default `target/iai/` output.
+1. iai-callgrind launches callgrind with `--toggle-collect=*::__iai_callgrind_wrapper_mod::*` and
+    collection OFF at start; it only turns collection ON when callgrind enters a function matching
+    that symbol pattern.
+2. The binary `cargo bench` actually runs (`target/release/deps/iai_benches-<hash>`) is **stripped**
+    — the `bench` profile inherits `strip = true` from `[profile.release]` (root `Cargo.toml`).
+    `nm` on it finds **0** `__iai_callgrind_wrapper_mod` symbols, so the toggle matches nothing and
+    every bench reports `Collected : 0` / `summary: 0` / `totals: 0`. (Confirmed by downloading the
+    CI `iai-baseline` artifact from run 27742285656: all 16 `.out` files show `summary: 0`.)
+3. (The iter-107 review inspected a *different*, unstripped 3 MB binary built by a separate
+    invocation and concluded the symbols were present — they are not in the binary CI runs.)
 
-- **Version pin** — the runner version MUST match the `iai-callgrind = "0.16"` workspace dep (it
-    resolves `0.16.1`), so pin `@0.16.1`.
+**Proven fix** — verified locally end to end (`Instructions: 118514 … 7250645` for all 16 bench
+cases) via
+`CARGO_PROFILE_BENCH_STRIP=false CARGO_PROFILE_BENCH_DEBUG=true IAI_CALLGRIND_ALLOW_ASLR=true cargo bench -p iscc-lib --bench iai_benches`:
 
-- **mise task** — add under a new "Performance" comment block (sibling to "Coverage"):
-
+1. **`Cargo.toml`** — add (there is currently no `[profile.bench]`):
+    ```toml
+    [profile.bench]
+    strip = false
+    debug = true
     ```
-    [tasks."bench:iai"]
-    description = "Run iai-callgrind instruction-count benches for iscc-lib (needs valgrind)"
-    run = "cargo bench -p iscc-lib --bench iai_benches"
-    ```
+    `strip = false` keeps the `__iai_callgrind_wrapper_mod` symbols in `.symtab` so the toggle
+    matches; `debug = true` gives callgrind line info for `--dump-line=yes`. This is the fix that
+    makes CI collect real counts (GitHub runners can run iai-callgrind's `setarch -R` ASLR step
+    fine).
+2. **`mise.toml`** — the devcontainer kernel blocks the `personality` syscall that iai-callgrind's
+    `setarch -R` (ASLR-disable) needs, so a bare `cargo bench` of the iai harness dies with
+    `setarch: failed to set personality … Operation not permitted`. Setting
+    `IAI_CALLGRIND_ALLOW_ASLR=true` makes iai-callgrind skip `setarch` and run with ASLR enabled.
+    ASLR does **not** affect instruction counts (`Ir`), only cache-sim noise, so this is safe for
+    an `Ir`-based gate. Update the `bench:iai` task (mise.toml:126-128) to run with this env, e.g.
+    add `env = { IAI_CALLGRIND_ALLOW_ASLR = "true" }` to the task table. This makes
+    `mise run bench:iai` runnable locally for verification.
+3. **`ci.yml`** — in the `perf` job (ci.yml:280-307):
+    - Set `IAI_CALLGRIND_ALLOW_ASLR: "true"` on the "Run iai-callgrind benches" step (step-level
+        `env`) so CI and local behave identically and the eventual committed baseline is portable.
+        (CI's `setarch` works, but pinning ASLR-on everywhere keeps `Ir` baselines reproducible.)
+    - Add a **guard step** after the bench run, before the upload, that fails if collection is zero:
+        ```yaml
+          - name: Assert non-zero instruction collection
+            run: |
+              if grep -rEq '^summary: [1-9]' target/iai/; then
+                echo "iai-callgrind collected non-zero instructions"
+              else
+                echo "::error::iai-callgrind collected ZERO instructions for all benches"
+                exit 1
+              fi
+        ```
+        On a clean CI runner `target/iai/` contains only the fresh run, so this passes only when real
+        counts were collected. Keep the `Upload iai-callgrind results` step (the artifact is now
+        useful for slice 2b).
 
-    It will fail locally without valgrind — that is expected; the task is for CI parity and use on
-    valgrind-equipped machines.
-
-- **Before committing**, run `mise run format` (or `uv run mdformat --wrap 100 --number` for context
-    files) so yamlfix/taplo normalization of `ci.yml`/`mise.toml` does not fail the commit or the
-    pre-push hook.
+**Note for the review agent:** update the `learnings.md` `Perf (iai-callgrind)` entry — the claim
+"`[profile.bench]` does NOT inherit release `strip`" is **false** (the bench binary IS stripped),
+and "valgrind absent in the devcontainer" is **false** (valgrind 3.19 + runner 0.16.1 are present;
+only `setarch -R` is blocked).
 
 ## Verification
 
-- `mise run check` passes (YAML + TOML pre-commit hooks validate the edited `ci.yml` and
-    `mise.toml`; formatting clean).
-- `grep -q "Perf (iai-callgrind)" .github/workflows/ci.yml` (the job exists).
-- `grep -q "iai-callgrind-runner@0.16.1" .github/workflows/ci.yml` (runner pinned to match the lib).
-- `grep -q "binstall -y --force" .github/workflows/ci.yml` and
-    `grep -q "valgrind"   .github/workflows/ci.yml` (toolchain install present).
-- `grep -q -- "--bench iai_benches" .github/workflows/ci.yml` (runs the iai harness, not criterion).
-- `mise tasks ls | grep -q "bench:iai"` (task registered).
-- CI-verified by the review agent (valgrind absent locally): the `Perf` job concludes `success`,
-    runs the benches under valgrind, and uploads the `target/iai` artifact; no existing job
-    regresses.
+- `mise run bench:iai` runs locally to completion (no `setarch` crash) and prints a non-zero
+    `Instructions:` line for all 16 bench cases (ends with
+    `Iai-Callgrind result: Ok. 16 …   benchmarks finished`).
+- After that run, `grep -rEq '^summary: [1-9]' target/iai/` exits 0 (non-zero collection present);
+    the guard logic is correct.
+- `grep -q 'strip = false' Cargo.toml`, `grep -q 'IAI_CALLGRIND_ALLOW_ASLR' mise.toml`, and
+    `grep -q 'IAI_CALLGRIND_ALLOW_ASLR' .github/workflows/ci.yml` all succeed.
+- `mise run check` passes (pre-commit hooks validate the edited YAML/TOML syntax + formatting).
+- `cargo test -p iscc-lib` still passes (profile.bench changes do not affect `cargo test`).
+- **CI-only (review confirms post-push):** the `Perf (iai-callgrind)` job collects non-zero
+    instructions, the new guard step passes, and the uploaded `iai-baseline` artifact's `.out` files
+    have non-zero `summary:` lines.
 
 ## Done When
 
-The `Perf` CI job is defined and the `bench:iai` task exists, all local syntax/grep checks pass, and
-the next CI run shows the `Perf` job green with an uploaded iai-callgrind results artifact.
+`mise run bench:iai` collects non-zero instruction counts locally, the CI Perf job's guard step
+fails on zero-collection (and passes on the now-real measurements), and the uploaded `iai-baseline`
+artifact contains real instruction counts — unblocking the slice-2b regression gate.
