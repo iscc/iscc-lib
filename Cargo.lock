@@ -763,7 +763,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-ffi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "csbindgen",
  "iscc-lib",
@@ -771,7 +771,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-jni"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "iscc-lib",
  "jni",
@@ -779,7 +779,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-lib"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "blake3",
  "criterion",
@@ -798,7 +798,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-napi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "iscc-lib",
  "napi",
@@ -808,7 +808,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-py"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "iscc-lib",
  "pyo3",
@@ -816,7 +816,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-rb"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "iscc-lib",
  "magnus",
@@ -824,7 +824,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-uniffi"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "iscc-lib",
  "thiserror 2.0.18",
@@ -833,7 +833,7 @@ dependencies = [
 
 [[package]]
 name = "iscc-wasm"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "hex",
  "iscc-lib",
