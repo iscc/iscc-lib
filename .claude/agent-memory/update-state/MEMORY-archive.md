@@ -29,3 +29,10 @@ archived entries.
     lacked `--force`; `Swatinem/rust-cache@v2` (ci.yml:304) restored cargo's `.crates` metadata
     WITHOUT the binary, so binstall SKIPPED ("already installed") and `crap` died (exit 101),
     recurring every run after the first green one. Fix = `--force` on the binstall.
+- **Release-workflow gotchas (deep internals, rarely needed for state assessment)**: Kotlin release
+    uses `useInMemoryPgpKeys` (env vars), Central Portal upload via curl REST (no Gradle plugin);
+    JNA 5.16.0 `getNativeLibraryResourcePrefix()` maps `armv7`→`arm` so resource dir is
+    `android-arm/` not `android-armv7/`; two Package.swift manifests coexist (root for distribution
+    binaryTarget, packages/swift for CI dev; `releaseChecksum="PLACEHOLDER"` until first swift-input
+    release); Kotlin JAR pick `ls *.jar | head -1` grabs `-javadoc.jar` — must `grep -v`
+    classifiers.
