@@ -194,7 +194,6 @@ Codepaths, patterns, and key findings accumulated across CID iterations.
 - **JNA ARM32 canonicalization**: JNA 5.16.0 `Platform.getNativeLibraryResourcePrefix()` maps
     `armv7` → `arm`, so resource dir must be `android-arm/` not `android-armv7/`
 - **Root Package.swift**: Two manifests coexist — root for distribution (binaryTarget),
-    packages/swift for CI development. `releaseChecksum = "PLACEHOLDER"` until first release with
-    swift input
+    packages/swift for CI dev. `releaseChecksum = "PLACEHOLDER"` until first swift-input release.
 - **pytest-benchmark naming**: functions use `test_bench_*` prefix (not bare `bench_*`)
 - **Kotlin JAR selection**: `ls *.jar | head -1` picks `-javadoc.jar`; must `grep -v` classifiers
