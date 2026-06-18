@@ -20,6 +20,7 @@ from iscc_lib._lowlevel import (
     TEXT_NGRAM_SIZE as TEXT_NGRAM_SIZE,
     DataHasher as _DataHasher,
     InstanceHasher as _InstanceHasher,
+    SumHasher as _SumHasher,
     alg_cdc_chunks as alg_cdc_chunks,
     alg_minhash_256 as alg_minhash_256,
     alg_simhash as alg_simhash,
@@ -345,6 +346,38 @@ class InstanceHasher:
         return InstanceCodeResult(self._inner.finalize(bits))
 
 
+class SumHasher:
+    """Streaming composite ISCC-CODE (Sum) generator.
+
+    Runs the Data-Code and Instance-Code algorithms in a single pass over the
+    input to produce results identical to ``gen_sum_code_v0``.
+    """
+
+    def __init__(
+        self, data: bytes | bytearray | memoryview | BinaryIO | None = None
+    ) -> None:
+        """Create a new SumHasher with optional initial data."""
+        self._inner = _SumHasher()
+        if data is not None:
+            self.update(data)
+
+    def update(self, data: bytes | bytearray | memoryview | BinaryIO) -> None:
+        """Push data into the hasher."""
+        if not isinstance(data, (bytes, bytearray, memoryview)):
+            while chunk := data.read(_CHUNK_SIZE):
+                self._inner.update(chunk)
+        else:
+            if not isinstance(data, bytes):
+                data = bytes(data)
+            self._inner.update(data)
+
+    def finalize(
+        self, bits: int = 64, wide: bool = False, add_units: bool = False
+    ) -> SumCodeResult:
+        """Consume the hasher and return a composite ISCC-CODE result."""
+        return SumCodeResult(self._inner.finalize(bits, wide, add_units))
+
+
 __all__ = [
     "__version__",
     "IO_READ_SIZE",
@@ -366,6 +399,7 @@ __all__ = [
     "MetaCodeResult",
     "MixedCodeResult",
     "SumCodeResult",
+    "SumHasher",
     "TextCodeResult",
     "VideoCodeResult",
     "alg_cdc_chunks",

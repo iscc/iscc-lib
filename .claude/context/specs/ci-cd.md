@@ -27,10 +27,126 @@ merge.
 | **Ruby**    | `bundle exec rake compile`, `bundle exec rake test`                                   |
 | **Version** | `python scripts/version_sync.py --check` for manifest version consistency             |
 | **Bench**   | `cargo bench --no-run` compile-only benchmark verification                            |
+| **CRAP**    | `cargo llvm-cov` (LCOV) + `cargo crap` CRAP-metric gate for `iscc-lib` (see below)    |
+| **Semver**  | `cargo semver-checks` — public-API backward-compat for `iscc-lib` vs last release     |
+| **Perf**    | `iai-callgrind` instruction-count regression gate for `iscc-lib` hot paths            |
+| **Audit**   | `cargo deny check` supply-chain gate (RustSec advisories, license + duplicate bans)   |
 
 CI does NOT use `mise` — it calls `cargo`, `uv`, and tools directly. Standard action set:
 `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`, `astral-sh/setup-uv@v4`,
 `actions/setup-python@v5`, `actions/setup-node@v4`.
+
+## Rust Coverage and CRAP Quality Gate
+
+The Rust core is the most important and most heavily exercised code in the repository (the entire
+conformance surface). Today its **complexity** is gated (`clippy.toml`
+`cognitive-complexity-threshold = 15`) but its **test coverage** is not measured at all. This gate
+closes that gap by measuring coverage and combining it with complexity into a single risk signal.
+
+### Tooling
+
+| Tool                                                          | Role                                                                                                                                   |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| [`cargo-llvm-cov`](https://github.com/taiki-e/cargo-llvm-cov) | Generates an LCOV coverage report by running the test suite under instrumentation (requires the `llvm-tools-preview` rustup component) |
+| [`cargo-crap`](https://github.com/minikin/cargo-crap)         | Computes the CRAP (Change Risk Anti-Patterns) metric per function from the LCOV report + `syn` AST complexity, and gates CI            |
+
+**CRAP metric:** `CRAP(m) = comp(m)² × (1 − cov(m)/100)³ + comp(m)`. A fully-tested trivial function
+scores `1.0`; at 100% coverage the score equals raw cyclomatic complexity. The metric surfaces
+functions that are **both complex and undertested** — exactly where conformance bugs hide.
+
+`cargo-crap` is pinned to a specific version (it is pre-1.0; `0.2.x` at time of writing) and
+installed via `cargo binstall cargo-crap` (pre-built cross-platform binaries; falls back to
+`cargo install`). It is a **dev/CI-only** tool — never a runtime or shipped dependency, so version
+churn has a low blast radius. License is MIT (compatible).
+
+### Placement — CI job, not a pre-push hook
+
+The coverage gate runs as a **CI job**, not as a local `prek` pre-push hook. An instrumented
+`cargo llvm-cov` run re-executes the whole test suite under coverage instrumentation; adding that to
+the already-heavy pre-push stage (clippy + full workspace tests + pytest) would roughly double local
+push time. CI is the correct home; local runs are available on demand via a `mise` task.
+
+### Scope
+
+Coverage and CRAP scoring target the pure-Rust core crate `iscc-lib` (`cargo llvm-cov -p iscc-lib`).
+Binding crates (PyO3/napi/wasm/etc.) are thin FFI wrappers with their own per-language conformance
+suites and are excluded via `--exclude` globs in `.cargo-crap.toml`.
+
+### Configuration
+
+Persistent settings live in `.cargo-crap.toml` at the repository root (threshold, excluded globs,
+allow-list, missing-coverage policy). CLI flags in CI override the file where needed.
+
+### Phased rollout
+
+To avoid blocking CI on pre-existing untested code, the gate is introduced in stages:
+
+1. **Coverage in CI** — add a job step that runs `cargo llvm-cov` for `iscc-lib`, emitting LCOV to
+    `lcov.info`. This alone yields a reusable Rust coverage artifact (and enables a coverage badge,
+    independent of CRAP).
+2. **Report-only CRAP** — run `cargo crap` against `lcov.info` with `--format github` (inline PR
+    annotations) and upload `--format sarif` output to GitHub Code Scanning. **Non-failing** —
+    establishes the score distribution without breaking builds.
+3. **Regression + absolute gate** — a baseline JSON (`.crap-baseline.json`) is committed at the repo
+    root, and the job runs
+    `cargo crap --baseline .crap-baseline.json --fail-regression --fail-above` as an enforcing
+    (non-`continue-on-error`) step. The two flags are complementary: `--fail-regression` blocks PRs
+    that *worsen* an existing baselined function's score (tolerating pre-existing debt), while
+    `--fail-above` fails any function whose CRAP score exceeds the `.cargo-crap.toml` `threshold`
+    (30). `--fail-above` closes the regression-only blind spot: a brand-new or renamed function has
+    no baseline entry, so regression mode alone reports it as `★ N new` and still exits 0, letting
+    a new uncovered, high-complexity function bypass the gate. The current baseline max is ~22.3
+    (well below 30), so the absolute gate does not break existing code. The baseline is regenerated
+    via `mise run crap:baseline` and committed in a deliberate reviewed commit when merging work
+    into `develop` (mirroring the `iai-callgrind` reviewed-baseline pattern) — it is **not**
+    auto-committed by CI, which would race the CID loop's own pushes.
+
+### Local task
+
+A `mise` task makes the same check reproducible locally:
+
+```bash
+mise run coverage   # cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info
+mise run crap       # cargo crap --lcov lcov.info   (human format)
+```
+
+## API Stability and Performance Gates
+
+The `iscc-lib` core is stability-committed from v1.0.0 and depended on by downstream production
+projects. Two CI gates protect that contract; the full invariants live in
+`.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants".
+
+### Backward compatibility — `cargo-semver-checks`
+
+A CI job runs [`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks) on the
+public API of `iscc-lib`, comparing the working tree against the last published release. From v1.0.0
+it fails the build on any breaking change not matched by a major version bump — catching renamed,
+removed, or retyped public items that conformance vectors cannot see. Installed via
+`cargo binstall cargo-semver-checks`; baseline is the crates.io release (or pinned tag). During the
+0.4.0 → 1.0.0 transition the check is informational (that release may break freely); it becomes
+enforcing once 1.0.0 ships.
+
+### Performance — `iai-callgrind`
+
+A Linux CI job runs [`iai-callgrind`](https://github.com/iai-callgrind/iai-callgrind)
+instruction-count benches for the hot `gen_*_v0` / hashing / CDC / MinHash paths. Instruction counts
+(via valgrind) are deterministic, so the gate is stable on shared runners — unlike wall-clock
+`criterion`. A baseline is committed to the repo; the job fails on a > 10% regression versus that
+baseline. The baseline is refreshed deliberately (in a reviewed commit) when a regression is
+accepted or an improvement lands. The existing `criterion` benches remain for local profiling and
+human-facing speedup numbers.
+
+### Supply chain — `cargo-deny`
+
+A CI job runs [`cargo-deny`](https://github.com/EmbarkStudios/cargo-deny) `check` over the full
+dependency graph, configured by a workspace-root `deny.toml`. It enforces three policy classes:
+**advisories** (fail on any RustSec-flagged vulnerability or unmaintained crate), **bans** (fail on
+disallowed crates or duplicate versions), and **licenses** (fail on any dependency whose license is
+not on the allow-list). This replaces the mechanical lockfile-inspection proxy previously used to
+clear security bumps (e.g. the PyO3 0.29 advisory bump) with a real advisory scan. `cargo-deny` is a
+**dev/CI-only** tool — never a shipped dependency — installed in CI via `taiki-e/install-action` (or
+`cargo binstall`). A `mise run audit` task reproduces `cargo deny check` locally; `cargo audit` may
+complement it for RustSec-only scans and `npm audit` for the napi package.
 
 ## Release Workflow — Selective Publishing
 
@@ -312,6 +428,26 @@ workflow triggers on push to `main`.
 - [x] Version job runs scripts/version_sync.py --check for manifest consistency
 - [x] Bench job runs cargo bench --no-run for compile-only benchmark verification
 - [x] CI does not use `mise` — calls tools directly
+- [x] Coverage job generates and uploads an LCOV report for `iscc-lib` via `cargo llvm-cov` (Phase
+    1\)
+- [x] CRAP job runs `cargo crap` in report-only mode with `--format github` annotations and uploads
+    SARIF to GitHub Code Scanning (Phase 2)
+- [x] CRAP job fails on CRAP-score regression vs the committed `.crap-baseline.json`
+    (`--fail-regression --baseline`), refreshed via `mise run crap:baseline` in a reviewed commit
+    (Phase 3)
+- [x] `cargo-crap` is pinned to a specific version and installed via `cargo binstall`
+- [x] `.cargo-crap.toml` configures threshold, excluded binding crates, and missing-coverage policy
+- [x] `mise run coverage` and `mise run crap` reproduce the gate locally
+- [x] Semver job runs `cargo semver-checks` for `iscc-lib` against the last published release
+    (informational pre-1.0 via `continue-on-error`; enforcing from v1.0.0)
+- [x] Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
+    committed baseline; baseline refreshes are reviewed commits
+- [x] CRAP job also fails via `--fail-above` on any function (including new/renamed entries absent
+    from the baseline) whose CRAP score exceeds the `.cargo-crap.toml` `threshold` (30), closing the
+    regression-only blind spot
+- [x] Audit job runs `cargo deny check` (advisories + bans + licenses) over the workspace via a root
+    `deny.toml`, failing CI on a flagged advisory, banned/duplicate crate, or disallowed license;
+    `mise run audit` reproduces it locally
 
 ### Release
 

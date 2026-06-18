@@ -17,8 +17,11 @@ This project uses two development modes that share the same codebase and context
     were NOT invoked with `--agent`.
 - **CID loop** — autonomous Continuous Iterative Development via `mise run cid:run`. Four
     specialized agents (update-state, define-next, advance, review) cycle through
-    `.claude/agents/*.md` protocols. CID agents get their context through `@` references in their
-    agent definitions — they do not rely on this section.
+    `.claude/agents/*.md` protocols. A fifth role, **meta-improve**, runs only when the loop reaches
+    IDLE (or via `mise run cid:improve`) and improves the loop itself under strict guardrails — it
+    may auto-apply at most one whitelisted low-risk change per cycle (each independently revertible
+    and measured) and writes everything else as proposals for the human. CID agents get their
+    context through `@` references in their agent definitions — they do not rely on this section.
 
 ### Branching model
 
@@ -149,6 +152,7 @@ mise run version:check    # Validate version consistency (CI uses this)
 mise run cid:run          # Run autonomous CID loop (up to 20 iterations)
 mise run cid:step         # Run one CID iteration
 mise run cid:status       # Show current project state
+mise run cid:improve      # Run the meta-improve self-improvement role once
 ```
 
 ## Pre-commit Hooks

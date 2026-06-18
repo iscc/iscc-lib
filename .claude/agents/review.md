@@ -2,7 +2,7 @@
 name: review
 description: Review work done by advance agent and update project learnings
 model: opus
-effort: high
+effort: xhigh
 tools: Read, Grep, Glob, Bash, Edit, Write
 memory: project
 ---
@@ -40,14 +40,18 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
 
 1. **Launch independent review** — start a Codex code review of the advance agent's commit as a
     background task immediately. Run this command with `run_in_background: true` on the Bash tool
-    (it may take 10–30 minutes):
+    (it may take 10–30 minutes). The `timeout` caps a hung run so it can never stall the iteration
+    (Linux devcontainer; on macOS use `gtimeout`):
 
     ```
-    codex exec review --ephemeral --commit HEAD --dangerously-bypass-approvals-and-sandbox --json 2>/dev/null | jq -r 'select(.item.type == "agent_message") | .item.text' > /tmp/codex-review.txt
+    timeout 1800 codex exec review --ephemeral --commit HEAD --dangerously-bypass-approvals-and-sandbox --json 2>/dev/null | jq -r 'select(.item.type == "agent_message") | .item.text' > /tmp/codex-review.txt; [ -s /tmp/codex-review.txt ] || echo "(codex review unavailable — timed out, not installed, or output schema changed)" > /tmp/codex-review.txt
     ```
 
-    Continue with the remaining steps while it runs. The output will be incorporated in step 8. If
-    `codex` is not installed or the command fails immediately, skip this step.
+    Continue with the remaining steps while it runs. The output is incorporated in step 8. If
+    `codex` is not installed or the command fails immediately, skip this step. Note: the `jq`
+    filter depends on Codex's `--json` event schema (`.item.type`/`.item.text`); if a Codex
+    upgrade empties the file, the fallback line makes that visible rather than silently dropping
+    the review.
 
 2. **Read the handoff** — understand what the advance agent claims to have done.
 
@@ -128,11 +132,12 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     issues, review shortcuts, and gotchas. Remove outdated entries that no longer apply. Keep
     agent memory under 200 lines — archive stale entries to `MEMORY-archive.md`.
 
-11. **Commit** — stage learnings.md, handoff.md, issues.md, the iteration log, agent memory, and any
-    minor fixes:
+11. **Commit** — stage learnings.md, handoff.md, issues.md, agent memory, and any minor fixes. Do
+    NOT stage `iterations.jsonl` — the CID runner (`tools/cid.py`) is the sole writer and
+    committer of the iteration log:
 
     ```
-    git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/iterations.jsonl .claude/context/issues.md .claude/agent-memory/review/MEMORY.md <any fixed files>
+    git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/issues.md .claude/agent-memory/review/MEMORY.md <any fixed files>
     # If a human-sourced spec issue was resolved:
     git add .claude/context/target.md  # or affected sub-spec file
     git commit -m "cid(review): <summary of findings>"
@@ -191,8 +196,11 @@ system. The review agent is responsible for both **protecting** and **maintainin
 
 ### Protection — check every diff for gate circumvention
 
-Scan `git diff HEAD~1..HEAD` for any of these patterns. If found, verdict is **NEEDS_WORK** — the
-advance agent must fix the root cause instead:
+Scan **all unpushed commits**, not just the advance diff, so nothing reaches the remote unreviewed —
+including any `cid(meta):` self-improvement commit the runner left committed-but-unpushed. Use
+`git diff @{upstream}..HEAD` (fall back to `git diff origin/$(git branch --show-current)..HEAD`,
+then to `HEAD~1..HEAD` if no upstream is set). If any of these patterns appear, verdict is
+**NEEDS_WORK** — the responsible agent must fix the root cause instead:
 
 - **Lint suppression to silence warnings**: `#[allow(...)]`, `# noqa`, `# type: ignore`,
     `// eslint-disable`, `#[cfg_attr(..., allow(...))]` — unless the suppression is technically
@@ -206,6 +214,22 @@ advance agent must fix the root cause instead:
 
 When a suppression IS justified (e.g., `#[allow(clippy::too_many_arguments)]` on an FFI boundary),
 it must have a comment explaining why. Approve these case by case.
+
+### Backward compatibility & performance (core crate)
+
+The `iscc-lib` core is stability-committed (v1.0.0+) and used in downstream production. Treat these
+as release-blocking unless the advance handoff explicitly flagged and justified them:
+
+- **API breaks**: if the diff changes the signature, name, or type of any Tier 1 / Tier 2 `codec`
+    public symbol without an `**API-BREAK:**` flag in the handoff, verdict is **NEEDS_WORK**. When
+    in doubt, run `cargo semver-checks check-release` (if installed) against the last published
+    release and report the result.
+- **Performance regressions**: if the diff touches a benchmarked hot path, confirm the advance agent
+    reported before/after numbers. If a benchmarked path regresses > 10% without justification,
+    verdict is **NEEDS_WORK**. Note accepted regressions/improvements in the handoff so the perf
+    baseline can be refreshed deliberately.
+- **Output compatibility**: conformance vectors must still pass — this is the downstream output
+    contract and is non-negotiable.
 
 ### Maintenance — flag when gates need strengthening
 

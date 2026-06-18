@@ -58,6 +58,14 @@ pub fn gen_meta_code_v0(
 `DataHasher` and `InstanceHasher` are exposed as JavaScript classes. The WASM bridge uses the same
 `Option<inner>` pattern as napi-rs for finalize-once semantics.
 
+A `SumHasher` class (GitHub issue #37) exposes single-pass streaming ISCC-SUM (Data-Code +
+Instance-Code) over the shared core `streaming::SumHasher` struct, so browser consumers feed each
+chunk once instead of `update()`-ing both `DataHasher` and `InstanceHasher` separately (which copies
+every byte into WASM linear memory twice). `SumHasher.finalize(bits?, wide?, add_units?)` returns a
+`WasmSumCodeResult` (same shape as `gen_sum_code_v0`: `iscc`, `datahash`, `filesize`, optional
+`units`), dropping the manual `gen_iscc_code_v0([dataCode, instanceCode])` assembly on the JS side.
+The core struct is shared with the PyO3 binding (see `python-bindings.md` → "Streaming SumHasher").
+
 ### Key Differences from Node.js Binding
 
 - Uses `&[u8]` / `Vec<u8>` mapped to `Uint8Array` (not Node.js `Buffer`)
@@ -113,6 +121,8 @@ wasm:
 - [ ] All 32 Tier 1 symbols accessible from JavaScript/TypeScript
 - [ ] Package builds with `wasm-pack build`
 - [ ] `DataHasher` and `InstanceHasher` streaming types work in WASM
+- [x] `SumHasher` streaming type works in WASM (single-pass ISCC-SUM, output matches two-hasher
+    pattern)
 - [ ] TypeScript declarations provide accurate type information
 - [ ] Package installs cleanly via `npm install @iscc/wasm`
 - [ ] Works in browser environments (no Node.js-specific APIs)

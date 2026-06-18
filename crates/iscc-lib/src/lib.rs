@@ -4,15 +4,15 @@
 //! functions are the public Tier 1 API surface, designed to be compatible with
 //! the `iscc-core` Python reference implementation.
 
-pub mod cdc;
+pub(crate) mod cdc;
 pub mod codec;
-pub mod conformance;
+pub(crate) mod conformance;
 pub(crate) mod dct;
-pub mod minhash;
-pub mod simhash;
+pub(crate) mod minhash;
+pub(crate) mod simhash;
 pub mod streaming;
 pub mod types;
-pub mod utils;
+pub(crate) mod utils;
 pub(crate) mod wtahash;
 
 pub use cdc::alg_cdc_chunks;
@@ -994,8 +994,7 @@ pub fn gen_sum_code_v0(
     let mut file = std::fs::File::open(path)
         .map_err(|e| IsccError::InvalidInput(format!("Cannot open file: {e}")))?;
 
-    let mut data_hasher = streaming::DataHasher::new();
-    let mut instance_hasher = streaming::InstanceHasher::new();
+    let mut hasher = streaming::SumHasher::new();
 
     let mut buf = vec![0u8; IO_READ_SIZE];
     loop {
@@ -1005,28 +1004,10 @@ pub fn gen_sum_code_v0(
         if n == 0 {
             break;
         }
-        data_hasher.update(&buf[..n]);
-        instance_hasher.update(&buf[..n]);
+        hasher.update(&buf[..n]);
     }
 
-    let data_result = data_hasher.finalize(bits)?;
-    let instance_result = instance_hasher.finalize(bits)?;
-
-    // Borrow strings for gen_iscc_code_v0 before potentially moving them into units.
-    let iscc_result = gen_iscc_code_v0(&[&data_result.iscc, &instance_result.iscc], wide)?;
-
-    let units = if add_units {
-        Some(vec![data_result.iscc, instance_result.iscc])
-    } else {
-        None
-    };
-
-    Ok(SumCodeResult {
-        iscc: iscc_result.iscc,
-        datahash: instance_result.datahash,
-        filesize: instance_result.filesize,
-        units,
-    })
+    hasher.finalize(bits, wide, add_units)
 }
 
 #[cfg(test)]

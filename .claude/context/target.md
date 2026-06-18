@@ -28,9 +28,11 @@ patterns natural to their ecosystem.
 
 ## Rust Core Crate — `iscc-lib` on crates.io
 
-A pure Rust library (no binding dependencies) publishable to crates.io as
-[`iscc-lib`](https://crates.io/crates/iscc-lib). Initial experimental version `0.0.1` is being
-published to all registries.
+A pure Rust library (no binding dependencies) published to crates.io as
+[`iscc-lib`](https://crates.io/crates/iscc-lib). Released through `0.4.0` and in production use by
+downstream projects; the next release is **v1.0.0**, at which point the crate becomes
+stability-committed under strict SemVer (backward compatibility and performance enforced as quality
+gates — see `rust-core.md` → API Stability & Performance Invariants).
 
 Detailed spec: `.claude/context/specs/rust-core.md`
 
@@ -63,6 +65,11 @@ Detailed spec: `.claude/context/specs/rust-core.md`
 - `cargo fmt -p iscc-lib --check` clean
 - No `unsafe` without documented justification
 - Crate has zero binding dependencies (no PyO3, napi, wasm-bindgen)
+- Public-API backward compatibility enforced by `cargo-semver-checks` against the last release;
+    crate is >= 1.0.0 and follows strict SemVer (see `rust-core.md` → API Stability & Performance
+    Invariants)
+- No > 10% performance regression on benchmarked `gen_*_v0` paths, gated by `iai-callgrind` vs a
+    committed baseline
 
 ## Python Bindings — `iscc_lib` on PyPI
 
@@ -376,6 +383,11 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 
 - All quality gates run automatically on push/PR (Rust, Python, Ruby, Node.js, WASM, C FFI, C++,
     Java, Go, C#, Swift, Kotlin)
+- Rust core coverage is measured (`cargo llvm-cov` → LCOV) and gated by the CRAP metric via
+    `cargo crap`, phased in report-only → regression mode (see `ci-cd.md`)
+- Rust core public-API backward compatibility is gated by `cargo-semver-checks` and performance
+    regressions by `iai-callgrind`, both against the last release / committed baseline (see
+    `ci-cd.md`)
 - `workflow_dispatch` with per-registry checkboxes (crates.io, PyPI, npm, Maven, RubyGems, NuGet)
     works
 - Tag push `v*.*.*` triggers all publish jobs

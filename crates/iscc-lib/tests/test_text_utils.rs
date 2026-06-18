@@ -155,18 +155,3 @@ fn test_crate_root_imports_text_processing() {
     let _ = iscc_lib::text_clean("test");
     let _ = iscc_lib::text_collapse("test");
 }
-
-#[test]
-fn test_module_path_imports() {
-    // Verify ungated functions are accessible via iscc_lib::utils::<fn>
-    let _ = iscc_lib::utils::text_remove_newlines("test");
-    let _ = iscc_lib::utils::text_trim("test", 10);
-}
-
-#[cfg(feature = "text-processing")]
-#[test]
-fn test_module_path_imports_text_processing() {
-    // Verify text-processing-gated functions via iscc_lib::utils::<fn>
-    let _ = iscc_lib::utils::text_clean("test");
-    let _ = iscc_lib::utils::text_collapse("test");
-}

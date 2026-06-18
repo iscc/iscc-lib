@@ -6,7 +6,11 @@
 
 [tasks."cid:run"]
 description = "Run CID loop until done or max iterations (default: 20)"
-run = "uv run tools/cid.py --skip-permissions run --max-iterations {{arg(name='n', i=0, default='20')}} --pause {{arg(name='pause', i=1, default='1200')}}"
+usage = '''
+arg "<n>" help="Max iterations" default="20"
+arg "<pause>" help="Pause in seconds between iterations" default="1200"
+'''
+run = 'uv run tools/cid.py --skip-permissions run --max-iterations "${usage_n}" --pause "${usage_pause}"'
 
 [tasks."cid:step"]
 description = "Run one full CID iteration (update-state → define-next → advance → review)"
@@ -20,9 +24,9 @@ run = "uv run tools/cid.py status"
 description = "Show iteration log summary statistics"
 run = "uv run tools/cid.py stats"
 
-[tasks."cid:orchestrate"]
-description = "CID loop using orchestrator agent (one session per iteration)"
-run = "uv run tools/cid.py --skip-permissions orchestrate --max-iterations {{arg(name='n', i=0, default='20')}} --pause {{arg(name='pause', i=1, default='1200')}}"
+[tasks."cid:improve"]
+description = "Run the meta-improve self-improvement role once"
+run = "uv run tools/cid.py --skip-permissions improve"
 
 [tasks."cid:state"]
 description = "Run update-state agent only"
@@ -44,7 +48,11 @@ run = "uv run tools/cid.py --skip-permissions role review"
 
 [tasks."pr:main"]
 description = "Create a PR from develop to main"
-run = "gh pr create -B main -H develop --title '{{arg(name=\"title\", i=0, default=\"Merge develop into main\")}}' --body '{{arg(name=\"body\", i=1, default=\"Merge CID loop progress from develop into main.\")}}'"
+usage = '''
+arg "<title>" help="PR title" default="Merge develop into main"
+arg "<body>" help="PR body" default="Merge CID loop progress from develop into main."
+'''
+run = 'gh pr create -B main -H develop --title "${usage_title}" --body "${usage_body}"'
 
 # --- Quality ---
 
@@ -76,7 +84,10 @@ uv run pytest
 
 [tasks."test:install"]
 description = "Test published packages are installable from registries"
-run = "uv run scripts/test_install.py {{arg(name='flags', i=0, default='--version 0.4.0')}}"
+usage = '''
+arg "[flags]" var=#true help="Flags forwarded to test_install.py (default: --version 0.5.0)"
+'''
+run = 'uv run scripts/test_install.py ${usage_flags:---version 0.5.0}'
 
 # --- Version ---
 
@@ -87,3 +98,56 @@ run = "uv run scripts/version_sync.py"
 [tasks."version:check"]
 description = "Check that all manifest versions match workspace version"
 run = "uv run scripts/version_sync.py --check"
+
+# --- API stability ---
+
+[tasks.semver]
+description = "Check iscc-lib public API for SemVer violations vs the last published release"
+run = "cargo semver-checks check-release -p iscc-lib"
+
+# --- Coverage ---
+
+[tasks.coverage]
+description = "Generate an LCOV coverage report for iscc-lib (cargo llvm-cov)"
+run = "cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info"
+
+[tasks.crap]
+description = "Report per-function CRAP scores for iscc-lib (cargo crap, report-only)"
+depends = ["coverage"]
+run = "cargo crap --lcov lcov.info"
+
+[tasks."crap:baseline"]
+description = "Regenerate the committed CRAP regression baseline (.crap-baseline.json)"
+depends = ["coverage"]
+run = "cargo crap --lcov lcov.info --format json --output .crap-baseline.json"
+
+# --- Performance ---
+
+[tasks."bench:iai"]
+description = "Run iai-callgrind instruction-count benches for iscc-lib (needs valgrind)"
+# IAI_CALLGRIND_ALLOW_ASLR makes iai-callgrind skip its `setarch -R` ASLR-disable
+# step, which the devcontainer kernel blocks (the `personality` syscall is denied,
+# so `setarch` fails with "Operation not permitted"). ASLR does not affect
+# instruction counts (Ir) — only cache-sim noise — so this is safe for the gate.
+env = { IAI_CALLGRIND_ALLOW_ASLR = "true" }
+run = "cargo bench -p iscc-lib --bench iai_benches"
+
+[tasks."bench:iai:check"]
+description = "Check the local iai-callgrind run against the committed .iai-baseline.json"
+depends = ["bench:iai"]
+run = "python3 scripts/iai_regression.py --check"
+
+[tasks."bench:iai:baseline"]
+description = "Regenerate the committed iai-callgrind regression baseline (.iai-baseline.json)"
+# Prefer refreshing from a CI artifact (see scripts/iai_regression.py docstring) so the
+# baseline matches the rustc the CI gate measures with; this local refresh is a fallback.
+depends = ["bench:iai"]
+run = "python3 scripts/iai_regression.py --update"
+
+# --- Supply-chain audit ---
+
+[tasks.audit]
+description = "Run the cargo-deny supply-chain gate (advisories + licenses + bans + sources)"
+# Reproduces the enforcing `Audit (cargo-deny)` CI job locally. Requires cargo-deny
+# (install via `cargo binstall cargo-deny` or `cargo install cargo-deny --locked`).
+run = "cargo deny check"

@@ -69,3 +69,92 @@ See MEMORY.md for current active entries.
 - Binary data: `RString` param + `unsafe { data.as_slice() }` — copy bytes before Ruby API calls
 - Returning arrays: `ruby.ary_new_capa(n)` + `arr.push(val)?` for mixed-type arrays
 - Test files: `test/test_smoke.rb`, `test/test_iscc_lib.rb`, `test/test_conformance.rb`
+
+## gen_sum_code_v0 + Streaming GIL detail — Detailed (archived iteration 93)
+
+- `gen_sum_code_v0(path: &Path, bits: u32, wide: bool, add_units: bool)` in `lib.rs`: thin file-I/O
+    wrapper — reads `IO_READ_SIZE` chunks into one `streaming::SumHasher`, then
+    `hasher.finalize(bits, wide, add_units)`. Composition logic lives solely in `SumHasher`.
+- `iscc_decode` returns tuple `(u8,u8,u8,u8,Vec<u8>)` — destructure; `MainType` is `pub(crate)`.
+- All 32 Tier 1 symbols implemented; all 7 bindings implement `gen_sum_code_v0`.
+- Python GIL release (issue #39, iter 91, closed): 3 streaming `update()` + 4 one-shot byte funcs
+    (`gen_image/data/instance/sum_code_v0`) wrap compute in `py.allow_threads(|| ...)`. `update`
+    gains injected `py: Python<'_>` (no `.pyi` change); borrow `&mut inner` BEFORE release. Borrowed
+    slice and core hashers are `Ungil+Send` (no copy); `finalize` stays GIL-held.
+
+## Release-Job CI Details (archived iter 96 — niche publishing internals)
+
+- `build-xcframework` job: macOS-14, `contents: write`, no `needs` deps. Provenance guard (tag-only)
+    fails if main HEAD != tag SHA. Builds XCFramework → checksum → `sed` updates Package.swift →
+    auto-commit → force-update tag → upload to GH Release. Uses macOS BSD `sed -E -i ''` (not GNU).
+    Dual cache: `Swatinem/rust-cache` + `actions/cache` (key from crate sources/Cargo manifests)
+- Kotlin Maven Central: `build-kotlin-native` (9-platform matrix) → `assemble-kotlin` +
+    `test-kotlin-release` (validates JAR has all 9 JNA paths) → `publish-maven-kotlin` (Gradle
+    `maven-publish` + curl bundle upload to Sonatype Central Portal REST API)
+- Kotlin Maven Central publishing: `build.gradle.kts` `maven-publish` + `signing`, POM
+    `io.iscc:iscc-lib-kotlin`, staging `build/staging-deploy/`, Central Portal curl bundle upload
+- Kotlin JNA resource paths (9, bundled native libs): `linux-x86-64`, `linux-aarch64`,
+    `darwin-aarch64`, `darwin-x86-64`, `win32-x86-64`, `android-{aarch64,arm,x86-64,x86}`. JNA
+    5.16.0 canonicalizes ARM32 to `arm` (see learnings.md); discovers libs from classpath
+
+## Release / npm packaging (archived iter 97 — stable, also in learnings.md)
+
+- npm `@iscc/lib` (issue #38, iter 92): BUNDLED single-package — ships all 5 `.node` via
+    `files: ["*.node"]`, NO `optionalDependencies`/sibling packages. `publish-npm-lib` must NOT run
+    `napi prepublish -t npm` (injects dangling optional-deps that break `npm ci`). `index.js` loader
+    requires local `./iscc-lib.<triple>.node` first
+
+## Kotlin Bindings detail (archived iter 100 — stable/complete binding)
+
+- Generated file `src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt` (~3217 lines,
+    `package uniffi.iscc_uniffi`). Do NOT manually edit — regenerate via uniffi-bindgen
+- Generate Kotlin:
+    `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen -- generate --language kotlin --no-format --out-dir packages/kotlin/src/main/kotlin/ target/debug/libiscc_uniffi.so`
+- Gradle wrapper must be bootstrapped AFTER settings.gradle.kts exists (fails without it)
+- Gradle 8.12.1 via mise, Kotlin 2.1.10, JNA 5.16.0
+- `build/` covered by root `.gitignore`; `.gradle/` needs local `.gitignore`
+- JNA native lib loading: `java.library.path` alone is NOT sufficient for JNA `Native.register()`.
+    Must also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
+- Conformance tests: `ConformanceTest.kt` — 9 methods, 50 vectors. JUnit 5.11.4 + Gson 2.11.0
+    (`com.google.code.gson` groupId, NOT `com.google.gson`)
+
+## PyO3 Migration 0.23→0.29 — Per-Hop Edit History (archived iteration 105, migration complete)
+
+Incremental one-minor-per-CID-step migration of the workspace `pyo3` pin (root `Cargo.toml` line 35,
+consumed only by `crates/iscc-py`). Endpoint 0.29.0 clears two RustSec advisories shipped in the
+published wheel → issue #1 closed. Per-hop source edits (all under `cargo clippy -- -D warnings`):
+
+- 0.23→0.24 and 0.24→0.25: ZERO source changes (lockfile-only).
+- 0.25→0.26 (iter 101): FIRST hop needing edits — `Python::allow_threads`→`Python::detach` (7 sites,
+    pure rename, same GIL-release semantics) + `pyo3::PyObject` alias→`Py<PyAny>` return type (17
+    `PyResult<PyObject>` sites; `Ok(dict.into())` bodies unchanged).
+- 0.26→0.27 (iter 102, →0.27.2): cast-family rename in `to_pylist` — `Bound::downcast`→`Bound::cast`
+    and `downcast_into_unchecked`→`cast_into_unchecked` (identical sigs; error type
+    `DowncastError`→`CastError` but discarded by `if let Ok`).
+- 0.27→0.28 (iter 104, →0.28.3): ZERO source changes BUT carried a SILENT behavior change
+    `-D warnings` does NOT catch — PyO3 0.28 flipped the unspecified `#[pymodule]` `gil_used`
+    default from `true` (macros-backend `map_or(true,…)`) to `false` (`is_some_and(…)`). Review
+    added explicit `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) to restore pre-0.28
+    GIL protection for the raw borrowed `PyList_GetItem` ptrs in `extract_frame_sigs`. Also dropped
+    transitive `indoc`/`memoffset`/`unindent` from Cargo.lock.
+- 0.28→0.29 (iter 105, →0.29.0): ZERO source changes (lockfile-only; 5 pyo3 crates bump together).
+    macros-backend `gil_used` default-handling byte-identical to 0.28 (still defaults `false`), so
+    the explicit `gil_used=true` stays load-bearing. 0.29 CHANGELOG "Remove all functionality
+    deprecated in PyO3 0.27" was a no-op (already off `downcast*`). 286 pytest pass.
+
+Throughout, the 8 raw `pyo3::ffi::*` C-API sites + `Bound::from_owned_ptr().cast_into_unchecked()` +
+`.into_pyobject(py)?.into()` + `#[pyo3(signature=...)]` macros survived every hop unchanged — do NOT
+pre-emptively rewrite them. LESSON: "compiles clean" is NOT proof of behavior-neutrality; diff the
+macros-backend default-handling on every major bump, not just compiler warnings.
+
+## iai-callgrind harness authoring (archived iteration 108)
+
+- API: `#[library_benchmark]` + `#[bench::id(expr)]` (the `expr` args are evaluated in the
+    UNMEASURED setup phase) → `library_benchmark_group!(name = g; benchmarks = a, b, ...)` →
+    `main!(library_benchmark_groups = g)`. Use `std::hint::black_box`, NOT `criterion::black_box`
+- GOTCHA (verified `iai-callgrind-macros-0.6.1/src/lib_bench.rs:258-317`): `#[library_benchmark]`
+    iterates EVERY fn attribute and `abort!`s "Invalid attribute: 'doc'" on anything but
+    `bench`/`benches` — a `///` docstring lowers to `#[doc=...]` and is REJECTED. Benchmark fns must
+    use plain `//` comments; only non-annotated helper fns can keep `///` docstrings
+- For borrow-returning primitives (`alg_cdc_chunks` → `Vec<&[u8]>` borrowing the arg), the bench fn
+    returns `.len()` (the Vec can't escape the fn); chunking work is fully measured before `len()`

@@ -28,6 +28,9 @@ fully-met target sections to `learnings-archive.md`.
 - Never use `mise` in CI — call tools directly
 - `cargo clippy -- -D warnings` runs in pre-push stage (not pre-commit)
 - Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
+- **PyO3 is `0.29`** (issue #1 closed; iscc-py only): keep the explicit
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe +
+    advisory-clearance caveat (`cargo audit`/`deny` absent) in `learnings-archive.md`
 
 ## ISCC Algorithm Knowledge
 
@@ -69,21 +72,10 @@ fully-met target sections to `learnings-archive.md`.
     WTA-Hash across blocks. Video-Code: per-frame DCT → WTA-Hash per frame → SimHash across frames
 - JSON `meta` parameter: uses JCS (RFC 8785) canonicalization. `@context` key triggers
     `application/ld+json` media type, otherwise `application/json`
-- `conformance_selftest` bitwise AND masking for truncated codes — do NOT compare full strings when
-    bit_length < 256
+- `conformance_selftest` uses bitwise-AND masking for truncated codes — do NOT compare full strings
+    when bit_length < 256
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
-    ISCC-CODE, and multiples of 8 for ID
-- C FFI decode: length index for 64-bit codes is 1 (not 0) — `decode_length` uses
-    `(length_index + 1) * 32`
-
-## JNA / Kotlin Android
-
-- **JNA ARM32 resource prefix is `android-arm`, NOT `android-armv7`**: JNA 5.16.0's
-    `Platform.getNativeLibraryResourcePrefix()` canonicalizes all `arm*` architectures to `arm`.
-    Verified by decompiling `Platform.class`. Other Android prefixes are correct: `android-aarch64`,
-    `android-x86-64`, `android-x86`
-- `cargo-ndk` outputs to `target/<rust-triple>/release/` — same path convention as desktop builds,
-    so artifact upload steps work unchanged
+    ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
 
 ## CI/CD
 
@@ -95,14 +87,55 @@ fully-met target sections to `learnings-archive.md`.
     test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish. Each
     tests linux-x86_64 artifact on ubuntu-latest
 - **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
-- **Swift release job is tag-dependent**: Unlike all other release jobs (which derive version from
-    `Cargo.toml`), `build-xcframework` uses `GITHUB_REF_NAME` for version and tag operations. The
-    `--ref main` re-trigger convention does not work for Swift — needs spec fix to derive version
-    from `Cargo.toml` instead
+- **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
+    `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger
+    convention breaks for Swift — needs a spec fix to derive version from `Cargo.toml`
 - **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift). When re-triggering individual registries, always use `--ref main`
 - **Version sync**: `version_sync.py` manages 16 targets (including root `Package.swift`
     releaseTag). `--check` mode exits 1 on mismatch
+- **`semver` + `coverage` CI jobs** (iter 93/94; details in `learnings-archive.md`): `semver` is
+    INFORMATIONAL pre-1.0 (`continue-on-error: true`, becomes enforcing at v1.0.0 by dropping it;
+    `rust-core.md` line 372 checkbox stays `[ ]` until then); `coverage` is enforcing.
+    `mise run   semver` / `mise run coverage` run them locally
+- **`cargo binstall` + `Swatinem/rust-cache` poisoning** (iter 100): rust-cache restores cargo's
+    `.crates.toml`/`.crates2.json` install *metadata* WITHOUT the `~/.cargo/bin/<tool>` binary, so a
+    plain `cargo binstall -y <tool>` sees "already installed", skips, and the next invocation dies
+    with `error: no such command: <tool>` → CI RED on every run. Fix: add `--force` so binstall
+    always reinstalls regardless of the cached record (small binary = negligible re-download). This
+    is gate *strengthening*, not circumvention
+- **CRAP gate (iter 96/97/113, ci-cd.md; full mechanics in `learnings-archive.md`)**:
+    `Coverage +   CRAP` job runs report-only `--format github`/`sarif`, then the ENFORCING Phase 3
+    gate `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`.
+    `.crap-baseline.json` COMMITTED (97 funcs/10 files); `mise run crap:baseline` regenerates
+    byte-identical. `.cargo-crap.toml` MUST list `crates/iscc-lib/benches/**` (else
+    `bench_cdc_chunks` leaks at CRAP 42). `--fail-above` (boolean keyed off
+    `.cargo-crap.toml threshold = 30.0`, NO numeric arg in 0.2.2) closes the new-function blind spot
+    (`--fail-regression` alone exits 0 for a brand-new `★ N new` fn); current max CRAP ~22.3 < 30
+- **`Perf (iai-callgrind)` gate — COMPLETE & HARDENED (iter 107-110, #3; full saga + false-green
+    edge details in `learnings-archive.md`)**: standalone enforcing `perf` job (no
+    `continue-on-error`): valgrind → binstall `iai-callgrind-runner@0.16.1 --force` →
+    `cargo bench -p iscc-lib --bench iai_benches` → zero-collection guard →
+    `python3 scripts/iai_regression.py --check` (>10% Ir regression vs committed
+    `.iai-baseline.json`, 16 entries; also fails on zero-count or a disappeared baselined bench).
+    Locally valgrind 3.19 + runner ARE in the devcontainer; `mise run bench:iai` works
+    (`IAI_CALLGRIND_ALLOW_ASLR=true`). `[profile.bench] strip = false, debug = true` is load-bearing
+    (else stripped binary → all benches `summary: 0` false-green). 11 fixture tests in
+    `tests/test_iai_regression.py`
+- **`Audit (cargo-deny)` gate — LANDED & ENFORCING (iter 114, ci-cd.md line 448)**: root `deny.toml`
+    (config v2: vulnerabilities/unmaintained deny by default, only `yanked = "deny"` explicit) +
+    enforcing `audit` CI job (`taiki-e/install-action` → `cargo-deny@0.19.9` → `cargo deny check`) +
+    `mise run audit`. cargo-deny reads Cargo.lock + crate metadata (NOT compiled artifacts), so
+    `cargo deny check` green locally is authoritative (CI rustc version irrelevant). cargo-deny IS
+    installable in the devcontainer (`cargo install cargo-binstall` then
+    `cargo binstall   cargo-deny@0.19.9`). `multiple-versions = "warn"` avoids a brittle skip-list;
+    two dev-only `iai-callgrind` advisories (`RUSTSEC-2025-0141`, `RUSTSEC-2026-0173`) `ignore`d
+    (never shipped)
+- **`yanked = "deny"` forces a Cargo.lock bump (iter 114)**: it surfaced yanked
+    `wasm-bindgen 0.2.111` / `js-sys 0.3.88`; clean fix is `cargo update -p` the wasm-bindgen family
+    to 0.2.125/0.3.102 (10 crates, no manifest change), NOT loosening to `warn`. wasm-pack
+    auto-fetches a matching CLI — verified by `wasm-pack test --node` (78/78) + workspace clippy.
+    Treat the lockfile delta like a regenerated baseline artifact
 
 ## Branching
 
@@ -120,68 +153,52 @@ fully-met target sections to `learnings-archive.md`.
 - Gate individual test functions with `#[cfg(feature = "...")]`, not the whole `mod tests` block,
     when the block contains both gated and ungated tests
 - `serde_json` stays non-optional because `conformance.rs` uses it for parsing data.json vectors
+- **`--no-default-features --all-targets` fails on the `benchmarks` bench** (pre-existing): benches
+    import `gen_meta_code_v0`/`gen_text_code_v0`, which need `meta-code`/`text-processing`. Lib +
+    tests build fine; only the bench target breaks. Scope clippy to the lib
+    (`--no-default-features -- -D warnings`, no `--all-targets`) to avoid a false regression. CI
+    never runs this combo
 
 ## Documentation Maintenance
 
 - **"10 gen functions" vs "9 conformance functions"**: iscc-lib has 10 `gen_*_v0` functions, but
-    `data.json` conformance vectors only cover 9 (no gen_sum_code_v0). Files that test/benchmark
-    against data.json should say "9", while general library descriptions should say "10". The
-    advance agent's blanket find-and-replace of "9→10" introduced errors in conformance-scoped files
-- iscc-core-ts implements 9 of the 10 gen functions (no gen_sum_code_v0) — do not claim "all 10" for
-    external projects without verifying their function table
-- After major architecture changes (e.g., WASM→pure Go), CI workflows, READMEs, and howto guides go
-    stale simultaneously — group the cleanup into a single step targeting all affected files
-- Java requires JDK 17+ (pom.xml `maven.compiler.source/target` = 17), not 11+. Always cross-check
-    version claims in docs against actual build config files
-- WASM tab snippets should include `await init()` when showing standalone examples — it's required
-    before any WASM function call. Can omit for brevity in sequential examples where init was shown
-    earlier
-- **cbindgen `iscc_` prefix on types**: `cbindgen.toml` has `[export] prefix = "iscc_"` but
-    `[fn] prefix = ""`. All type names in C code examples must use `iscc_`-prefixed forms
-    (`iscc_FfiDataHasher`, `iscc_IsccSumCodeResult`, etc.) while function names are un-prefixed
-    (`iscc_data_hasher_new`). The `c-ffi-api.md` reference page uses short names for exposition but
-    howto code examples must be compilable
+    `data.json` conformance vectors cover only 9 (no gen_sum_code_v0). Files that test/benchmark
+    against data.json should say "9"; general library descriptions should say "10". Avoid blanket
+    "9→10" find-and-replace — it corrupts conformance-scoped files. iscc-core-ts also implements
+    only 9 (no gen_sum_code_v0) — verify external projects' function tables before claiming "all 10"
 
 ## State Verification
 
-- **Never trust state.md claims about external state.** Registry publications, CI status, and
-    infrastructure setup are frequently stale in state.md. Always verify against the actual source
-    (registry APIs, CI dashboards) before reporting to the human
-- **Verify every claim independently.** Don't batch-assume. Check each registry individually:
-    `cargo search`, `npm view`, Maven Central search API, `pip index versions`, Go module proxy. A
-    claim that "X is not published" may be outdated; a claim that "everything works" may miss one
-    that genuinely doesn't
-
-## Binding Propagation
-
-- NAPI `index.js` and `index.d.ts` are gitignored (`crates/iscc-napi/.gitignore`) and auto-generated
-    by `napi build`. CI runs `napi build` before `npm test`. Do NOT manually edit or commit these
-    files — they regenerate with new constants automatically
-- Java `META_TRIM_*` constants are pure Java `public static final int` (no JNI call needed). Go
-    constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
-- When adding FFI constants, update the algorithm constant count in the module docstring
-    (`crates/iscc-ffi/src/lib.rs` line 5)
-
-## Swift Package
-
-- Two `Package.swift` files coexist: root (SPM consumers) and `packages/swift/Package.swift` (CI/
-    local dev). SPM reads root for dependency resolution; `cd packages/swift && swift build` uses
-    the subdirectory one
-- Docs site URL is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/`. Advance agents must
-    use correct hostname when linking to howto guides
+- **Never trust state.md claims about external state** (registry publications, CI status, infra) —
+    frequently stale. Verify each independently against the source (`cargo search`, `npm view`,
+    Maven Central API, `pip index versions`, Go module proxy); don't batch-assume "all works"/"not
+    published"
 
 ## CID Process
 
-- **issues.md stale entry gap**: The review agent only cleans up issues resolved in the current
-    iteration's advance step — it does NOT sweep the full issues.md backlog. Fix: review agent
-    should scan all issues.md entries against state.md "met" sections after reviewing advance work
-- **Context growth**: learnings.md and agent memory files grow monotonically. No agent autonomously
-    prunes. Manual cleanup required periodically. Archive completed-phase entries to prevent token
-    bloat
+- **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
+    Archive completed-phase entries periodically to prevent token bloat
+- **Detect concurrent CID loops** (iter 97): if `state.md`/context files change in the working tree
+    mid-review, or `mise run check` reports spurious "files were modified by this hook" on a file
+    the advance never touched (e.g. `standardrb-fix` flagging when no `.rb` is dirty), suspect a
+    race. Check `ps aux | grep -E 'cid:run|claude -p CID iteration'`: TWO `mise run cid:run` or two
+    different `iteration N` agents = duplicate loops racing the same branch — they clobber context
+    files and race pushes. Flag HUMAN REVIEW REQUESTED so a human kills the duplicate; do NOT kill
+    processes yourself, and do NOT push (the second loop will collide)
+- **Human-handoff vs IDLE (iter 111)**: when the loop runs out of fully-autonomous work but
+    `normal`-priority issues remain that are all `HUMAN REVIEW REQUESTED` spec amendments, the
+    strict `**IDLE**` conditions (all issues `low`) are NOT met. Flag `**HUMAN REVIEW REQUESTED**`
+    instead — the runner treats it as "pause" (stops the loop for the owner) whereas `**IDLE**` runs
+    meta-improve and is reserved for the all-`low` case. Don't manufacture churn to avoid the pause
+- **Pre-push mdformat blocks on non-conforming context files**: the pre-push hook runs mdformat
+    (`--wrap 100 --number`, isolated `mdformat-mkdocs[recommended]` env) on every file changed in
+    the push range — incl. `next.md` and per-agent `MEMORY*.md`. A non-conforming file rejects the
+    whole batch push even though staged-only `git commit` passed. define-next MUST run
+    `mise run format` before committing; review can unblock by reformatting + amending (match the
+    hook args exactly — local plugin set differs)
 
-## Kotlin JAR Artifact Selection
+## Devcontainer Scripts (exec bit / Windows bind mount)
 
-- Gradle `withSourcesJar()` + `withJavadocJar()` produces 3 JARs in `build/libs/`. When uploading
-    `*.jar` globs and then selecting with `ls | head -1`, alphabetical ordering picks `-javadoc.jar`
-    before the runtime JAR. Always filter out classifier JARs (`-sources`, `-javadoc`) when
-    selecting the runtime artifact
+- Windows bind mount uses `core.fileMode = false`, so git ignores on-disk exec bits — invoke
+    devcontainer scripts via `bash foo.sh` and keep convenience steps non-fatal. Full write-up in
+    `learnings-archive.md`.

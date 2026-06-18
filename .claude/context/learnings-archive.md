@@ -401,3 +401,157 @@ reference-only for humans.
 - Binding generation: `uniffi-bindgen.rs` (3-line entry point) +
     `[features] bindgen = ["uniffi/cli"]`+`[[bin]] required-features = ["bindgen"]` pattern
 - Swift tests require macOS runner — cannot execute in Linux devcontainer
+
+## Devcontainer Scripts (exec bit / Windows bind mount) — full incident (archived from learnings.md)
+
+- The working tree lives on a Windows bind mount with `core.fileMode = false`, so git ignores
+    on-disk exec bits and keeps the indexed mode (e.g. `100755`). When an agent rewrites a script
+    via Edit/Write, the new on-disk file is `0644` (no exec bit) but `git status` stays clean — the
+    lost exec bit is invisible to git. Commit `e848887` did exactly this to
+    `.devcontainer/setup-codex.sh`, so `postCreateCommand` hit "Permission denied" (exit 126) when
+    invoking it as `.devcontainer/setup-codex.sh`. Because of `&&` chaining, that aborted everything
+    after it (mise trust → untrusted error, uv sync → missing venv) and left codex unseeded (login
+    prompt).
+- Rule: in `postCreateCommand`, invoke shell scripts via `bash .devcontainer/foo.sh`, never
+    `.devcontainer/foo.sh` — `bash <file>` needs only read permission, so it is immune to the
+    dropped exec bit. Make convenience steps (e.g. codex auth seeding) non-fatal
+    (`{ bash ... || echo skipped; }`) so they can never abort the critical setup chain.
+
+## PyO3 GIL release (`py.allow_threads`) — archived from learnings.md (#39 closed iter 91)
+
+- Inject `py: Python<'_>` into a `#[pymethods]` `update()` — PyO3 auto-supplies it, so it's
+    invisible to Python and `_lowlevel.pyi` stays unchanged (`ty check` confirms). Take the
+    `&mut inner` borrow + finalized check BEFORE releasing; release only around the pure compute
+    (keep `PyDict` build outside). `&[u8]`/`&mut *Hasher` are `Ungil + Send`, no copy needed. Sound
+    because `__init__.py` coerces inputs to immutable `bytes` and `_lowlevel` is private (no public
+    path hands a mutable buffer to the released borrow).
+
+## Kotlin JAR Artifact Selection — archived from learnings.md (Kotlin bindings fully met)
+
+- Gradle `withSourcesJar()` + `withJavadocJar()` produces 3 JARs in `build/libs/`. When uploading
+    `*.jar` globs and then selecting with `ls | head -1`, alphabetical ordering picks `-javadoc.jar`
+    before the runtime JAR. Always filter out classifier JARs (`-sources`, `-javadoc`) when
+    selecting the runtime artifact.
+
+## JNA / Kotlin Android — archived from learnings.md (Kotlin/Android bindings fully met)
+
+- **JNA ARM32 resource prefix is `android-arm`, NOT `android-armv7`**: JNA 5.16.0's
+    `Platform.getNativeLibraryResourcePrefix()` canonicalizes all `arm*` architectures to `arm`.
+    Verified by decompiling `Platform.class`. Other Android prefixes are correct: `android-aarch64`,
+    `android-x86-64`, `android-x86`
+- `cargo-ndk` outputs to `target/<rust-triple>/release/` — same path convention as desktop builds,
+    so artifact upload steps work unchanged
+
+## Swift Package (archived iter 94 — Swift bindings fully met)
+
+- Two `Package.swift` files coexist: root (SPM consumers) and `packages/swift/Package.swift` (CI/
+    local dev). SPM reads root for dependency resolution; `cd packages/swift && swift build` uses
+    the subdirectory one
+- Docs site URL is `https://lib.iscc.codes/`, NOT `https://iscc-lib.iscc.io/`. Advance agents must
+    use correct hostname when linking to howto guides
+
+## Binding Propagation (archived iter 96 — all bindings met)
+
+- Java `META_TRIM_*` constants are pure Java `public static final int` (no JNI call needed). Go
+    constants are `const` in `codec.go`. Both follow existing pattern of `META_TRIM_DESCRIPTION`
+- When adding FFI constants, update the algorithm constant count in the module docstring
+    (`crates/iscc-ffi/src/lib.rs` line 5)
+- **napi bundled single-package model (no `optionalDependencies`)**: `napi prepublish -t npm` is the
+    *only* thing that injects per-platform `optionalDependencies` (`@iscc/lib-<triple>`) into
+    `package.json` at publish time — never published, so they 404 on install and break `npm ci`. The
+    bundled model ships all 5 `.node` in one tarball via `files: ["*.node"]`; the generated
+    `index.js` loader `require`s the local `./iscc-lib.<triple>.node` first. Do NOT run prepublish.
+    Revisit per-platform model only if tarball > ~30 MB (spec: `nodejs-bindings.md`). PyO3
+    GIL-release detail archived (#39 closed)
+- NAPI `index.js` and `index.d.ts` are gitignored (`crates/iscc-napi/.gitignore`) and auto-generated
+    by `napi build`. CI runs `napi build` before `npm test`. Do NOT manually edit or commit these
+    files — they regenerate with new constants automatically
+
+## Documentation Maintenance (archived iter 98 — completed doc one-offs)
+
+- After major architecture changes (e.g., WASM→pure Go), CI workflows, READMEs, and howto guides go
+    stale simultaneously — group the cleanup into a single step targeting all affected files
+- Java requires JDK 17+ (pom.xml `maven.compiler.source/target` = 17), not 11+. Always cross-check
+    version claims in docs against actual build config files
+- WASM tab snippets need `await init()` before any WASM call in standalone examples (omit only in
+    sequential examples where init was already shown)
+- **cbindgen `iscc_` prefix on types**: `cbindgen.toml` has `[export] prefix = "iscc_"` but
+    `[fn] prefix = ""`. All type names in C code examples must use `iscc_`-prefixed forms
+    (`iscc_FfiDataHasher`, `iscc_IsccSumCodeResult`, etc.) while function names are un-prefixed
+    (`iscc_data_hasher_new`). The `c-ffi-api.md` reference page uses short names for exposition but
+    howto code examples must be compilable
+
+## Completed: PyO3 Migration Arc 0.23 → 0.29 (issue #1 closed, iter 105)
+
+- `pyo3` lives only in root `Cargo.toml` `[workspace.dependencies]`, used by `iscc-py` alone.
+    Migrated one minor per CID step. Per-hop recipe: bump pin → `cargo update -p pyo3` →
+    build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests) — AND
+    diff the macros-backend default-handling, not just compiler warnings.
+- 0.23→0.24 and 0.24→0.25: ZERO source edits.
+- **0.25→0.26 (FIRST edit hop)**: `Python::allow_threads` → `Python::detach` (pure rename, same
+    GIL-release semantics; 7 sites) + `pyo3::PyObject` alias → `Py<PyAny>` return type (17 sites).
+- **0.26→0.27 (SECOND edit hop)**: cast-family rename in `to_pylist` — `Bound::downcast` →
+    `Bound::cast`, `downcast_into_unchecked` → `cast_into_unchecked` (identical signatures; error
+    type `DowncastError` → `CastError` discarded by `if let Ok`).
+- **0.27→0.28 (iter 104)**: compiled clean (zero deprecation edits) BUT carried a SILENT behavior
+    change `-D warnings` does NOT catch — PyO3 0.28 flipped the unspecified `#[pymodule]` `gil_used`
+    default `true` (macros-backend 0.27 `map_or(true,…)`) → `false` (0.28 `is_some_and(…)`). On
+    free-threaded CPython source builds the module then imports WITHOUT re-enabling the GIL — unsafe
+    for the raw borrowed `PyList_GetItem` pointers in `extract_frame_sigs`. Fix: explicit
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) restores pre-0.28 semantics
+    (no-op on GIL-enabled/abi3-published wheels; only matters for from-source free-threaded builds).
+- **0.28→0.29 (FINAL, iter 105)**: ZERO source edits; lib.rs unchanged. 0.29.0 CHANGELOG ships both
+    targeted RustSec advisory fixes (missing `Sync` on `PyCFunction::new_closure` #6096; OOB read in
+    `BoundListIterator`/`BoundTupleIterator` `nth`/`nth_back` #6086). `pyo3-macros-backend` dropped
+    its `pyo3-build-config` dep (internal, harmless). raw `pyo3::ffi::*` + `Bound::from_owned_ptr`
+    stable through every hop. Advisory clearance could NOT be tool-confirmed —
+    `cargo audit`/`cargo   deny` absent from devcontainer + CI; mechanical proxy used (lockfile
+    resolves single 0.29.0).
+
+## CI/CD — semver + coverage gates (archived iteration 108, fully landed)
+
+- **`semver` CI job** (`ci.yml`, iter 93): `obi1kenobi/cargo-semver-checks-action@v2`,
+    `package: iscc-lib`, baseline = last crates.io release. INFORMATIONAL pre-1.0 via
+    `continue-on-error: true` — reports the post-0.4.0 `pub(crate)` narrowing as 2 major checks
+    failed (expected, not a regression). `mise run semver` runs it locally. Becomes enforcing at
+    v1.0.0 by dropping `continue-on-error`; `rust-core.md` line 372 checkbox stays `[ ]` until then.
+- **`coverage` CI job** (`ci.yml`, iter 94, ci-cd.md Phase 1): standalone, no `needs:`, NO
+    `continue-on-error`. `dtolnay/rust-toolchain@stable` w/ `components: llvm-tools-preview` →
+    `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) →
+    `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`).
+    `mise run coverage` mirrors it locally; `lcov.info` is gitignored (137KB / 5156 lines).
+
+## CI/CD — CRAP gate full mechanics (archived iteration 108)
+
+- **CRAP gate (iter 96 Phase 2 + iter 97 Phase 3, ci-cd.md)**: `Coverage + CRAP` job installs
+    `cargo binstall -y --force cargo-crap@0.2.2` (`--force` LOAD-BEARING — rust-cache poisoning),
+    runs report-only `--format github` + `--format sarif` (`upload-sarif@v3`, job-level
+    `security-events: write`), then an ENFORCING final step
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` (NOT
+    continue-on-error). `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored — only
+    `lcov.info`/`crap.sarif` are): envelope `{$schema, version, entries}`, 97 iscc-lib functions /
+    10 files. `mise run crap:baseline` regenerates it byte-identical (idempotent).
+    `.cargo-crap.toml` `threshold=30`, `missing="pessimistic"`, MUST list
+    `crates/iscc-lib/benches/**` explicitly (the built-in `benches/**` default only matches
+    repo-root, else `bench_cdc_chunks` leaks at CRAP 42).
+
+## iai-callgrind perf gate — full saga (iter 107-109, #3 complete pending CI confirm)
+
+- **STRIP zero-collection bug (iter 107 mis-diagnosed, iter 108 FIXED)**: `[profile.bench]` DOES
+    inherit `strip = true` from root `[profile.release]` (Cargo: bench profile is based on release).
+    With no override the bench binary is `stripped` / **0** `__iai_callgrind_wrapper` symbols →
+    iai's `--toggle-collect=*::__iai_callgrind_wrapper_mod::*` matches nothing → every bench
+    `summary: 0` while exiting 0 (FALSE GREEN; CI run 27742285656 had all-zero `.out`s). The
+    iter-107 review's "bench doesn't inherit release strip" + "valgrind absent locally" claims were
+    both WRONG. FIX: `[profile.bench] strip = false, debug = true` → `not stripped` / **11** symbols
+    → real counts. CI guard `grep -rEq '^summary: [1-9]' target/iai/` fails the job on zero
+    collection.
+- **Perf job structure (iter 107)**: standalone `perf` job (no `needs:`, NO `continue-on-error`):
+    apt valgrind → cargo-binstall → `cargo binstall -y --force iai-callgrind-runner@0.16.1`
+    (`--force` load-bearing, rust-cache poisoning) → `cargo bench -p iscc-lib --bench iai_benches` →
+    guard step → `Check perf regression` (slice 2b) → upload `target/iai/` (`if: always()`).
+- **Slice 2b (iter 109)**: `scripts/iai_regression.py` (stdlib-only) + committed CI-sourced
+    `.iai-baseline.json` (16 Ir entries, NOT gitignored) + `bench:iai:baseline`/`bench:iai:check`
+    mise tasks. Local 1.96.0 vs CI-stable Ir agree within 1.66%. KNOWN false-green edges (filed as
+    [review] issue): single-bench `summary: 0` reads as improvement & passes (guard only catches
+    ALL-zero); a baselined bench that stops emitting `.out` only warns, never fails.

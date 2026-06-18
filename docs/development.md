@@ -68,12 +68,19 @@ advances the codebase in small, verified increments. Four specialized agents cyc
 update-state → define-next → advance → review (+ push on PASS)
 ```
 
-| Agent          | Role                                           |
-| -------------- | ---------------------------------------------- |
-| `update-state` | Assess where the project stands                |
-| `define-next`  | Scope one small, verifiable work package       |
-| `advance`      | Implement the work package with tests          |
-| `review`       | Verify quality, update learnings, push on PASS |
+| Agent          | Role                                                                                 |
+| -------------- | ------------------------------------------------------------------------------------ |
+| `update-state` | Assess where the project stands                                                      |
+| `define-next`  | Scope one small, verifiable work package                                             |
+| `advance`      | Implement the work package with tests                                                |
+| `review`       | Verify quality, update learnings, push on PASS                                       |
+| `meta-improve` | Improve the loop itself (only on IDLE / on-demand, under runner-enforced guardrails) |
+
+A fifth role, `meta-improve`, runs only when the loop reaches IDLE or via `mise run cid:improve`. It
+may auto-apply at most one whitelisted low-risk change to the loop per cycle (prose/model/effort of
+the non-gate agents, or `learnings.md` hygiene); `tools/cid.py` hard-reverts anything outside that
+whitelist and rolls back changes whose metrics regress. Everything else it writes to
+`.claude/context/proposals.md` for the human.
 
 The CID orchestrator (`tools/cid.py`) streams agent progress to the terminal in real-time — you see
 tool calls, text output, turn counts, and cost per agent.
@@ -247,17 +254,17 @@ All development tasks are defined in `mise.toml` and run via `mise run <task>`.
 
 ### CID Tasks
 
-| Task                       | Description                                                            |
-| -------------------------- | ---------------------------------------------------------------------- |
-| `mise run cid:run [n]`     | Run CID loop up to n iterations (default: 20)                          |
-| `mise run cid:step`        | Run one full iteration (update-state → define-next → advance → review) |
-| `mise run cid:status`      | Show current project state from state.md                               |
-| `mise run cid:stats`       | Show iteration log summary statistics                                  |
-| `mise run cid:orchestrate` | CID loop using orchestrator agent (one session per iteration)          |
-| `mise run cid:state`       | Run update-state agent only                                            |
-| `mise run cid:next`        | Run define-next agent only                                             |
-| `mise run cid:advance`     | Run advance agent only                                                 |
-| `mise run cid:review`      | Run review agent only                                                  |
+| Task                   | Description                                                            |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `mise run cid:run [n]` | Run CID loop up to n iterations (default: 20)                          |
+| `mise run cid:step`    | Run one full iteration (update-state → define-next → advance → review) |
+| `mise run cid:status`  | Show current project state from state.md                               |
+| `mise run cid:stats`   | Show iteration log summary statistics                                  |
+| `mise run cid:improve` | Run the meta-improve self-improvement role once                        |
+| `mise run cid:state`   | Run update-state agent only                                            |
+| `mise run cid:next`    | Run define-next agent only                                             |
+| `mise run cid:advance` | Run advance agent only                                                 |
+| `mise run cid:review`  | Run review agent only                                                  |
 
 ### Version and Release Tasks
 

@@ -297,23 +297,3 @@ fn test_flat_crate_root_imports() {
     let frame = vec![0i32; 380];
     let _ = iscc_lib::soft_hash_video_v0(&[frame], 64);
 }
-
-#[test]
-fn test_module_path_imports_simhash() {
-    // Verify functions are accessible via iscc_lib::simhash::<fn>
-    let _ = iscc_lib::simhash::sliding_window("test", 2).unwrap();
-    let empty: &[Vec<u8>] = &[];
-    let _ = iscc_lib::simhash::alg_simhash(empty).unwrap();
-}
-
-#[test]
-fn test_module_path_imports_minhash() {
-    // Verify function is accessible via iscc_lib::minhash::<fn>
-    let _ = iscc_lib::minhash::alg_minhash_256(&[]);
-}
-
-#[test]
-fn test_module_path_imports_cdc() {
-    // Verify function is accessible via iscc_lib::cdc::<fn>
-    let _ = iscc_lib::cdc::alg_cdc_chunks(b"", false, 1024).unwrap();
-}

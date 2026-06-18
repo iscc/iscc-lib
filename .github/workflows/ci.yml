@@ -277,3 +277,135 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Compile benchmarks
         run: cargo bench --no-run
+  perf:
+    name: Perf (iai-callgrind)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-binstall
+      # --force is load-bearing: Swatinem/rust-cache restores cargo's install
+      # metadata WITHOUT the ~/.cargo/bin/iai-callgrind-runner binary, so a plain
+      # binstall would skip the install and the next `cargo bench` would die with
+      # "no such command". The version must match the iai-callgrind dep (0.16.1).
+      - name: Install iai-callgrind-runner
+        run: cargo binstall -y --force iai-callgrind-runner@0.16.1
+      # IAI_CALLGRIND_ALLOW_ASLR pins ASLR-on everywhere so CI and local runs
+      # behave identically and the committed baseline is portable; ASLR does not
+      # affect Ir counts. The regression gate runs in the "Check perf regression"
+      # step below against the committed .iai-baseline.json.
+      - name: Run iai-callgrind benches
+        env:
+          IAI_CALLGRIND_ALLOW_ASLR: 'true'
+        run: cargo bench -p iscc-lib --bench iai_benches
+      # Guard against a false green: the bench binary must keep its
+      # __iai_callgrind_wrapper symbols (see [profile.bench] in Cargo.toml) or
+      # callgrind collects zero instructions for every bench while still exiting 0.
+      # On a clean runner target/iai/ holds only this run, so a non-zero summary
+      # proves real counts were collected.
+      - name: Assert non-zero instruction collection
+        run: |
+          if grep -rEq '^summary: [1-9]' target/iai/; then
+            echo "iai-callgrind collected non-zero instructions"
+          else
+            echo "::error::iai-callgrind collected ZERO instructions for all benches"
+            exit 1
+          fi
+      # Enforcing regression gate: fail if any benchmark's instruction count (Ir)
+      # exceeds the committed .iai-baseline.json by more than 10%. Stdlib-only
+      # Python, so no uv/Python setup step is needed. Refresh the baseline in a
+      # reviewed commit via `mise run bench:iai:baseline`.
+      - name: Check perf regression
+        run: python3 scripts/iai_regression.py --check
+      # if: always() preserves the artifact even when the regression step fails,
+      # so a real regression can be inspected against the committed baseline.
+      - name: Upload iai-callgrind results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: iai-baseline
+          path: target/iai/
+  semver:
+    name: Semver (cargo-semver-checks)
+    runs-on: ubuntu-latest
+    # Informational during the 0.4.0 -> 1.0.0 transition; enforcing from v1.0.0.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          package: iscc-lib
+  coverage:
+    name: Coverage + CRAP (cargo llvm-cov + cargo crap)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Install cargo-binstall
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-binstall
+      - name: Install cargo-crap
+        run: cargo binstall -y --force cargo-crap@0.2.2
+      - name: Generate LCOV coverage report
+        run: cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov
+          path: lcov.info
+      # Phase 2: report-only CRAP scoring. No score gate, so these steps exit 0.
+      - name: CRAP report (GitHub annotations)
+        run: cargo crap --lcov lcov.info --format github
+      - name: CRAP report (SARIF)
+        run: cargo crap --lcov lcov.info --format sarif --output crap.sarif
+      - name: Upload CRAP SARIF to Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: crap.sarif
+      # Phase 3: enforcing regression + absolute gate. `--fail-regression` fails if
+      # any function's CRAP score worsens versus the committed .crap-baseline.json
+      # (refresh via `mise run crap:baseline`); `--fail-above` independently fails any
+      # function whose CRAP score exceeds the `.cargo-crap.toml` threshold (30),
+      # including new/renamed functions absent from the baseline. Runs last so the
+      # report-only diagnostics above still execute when the gate fails.
+      - name: CRAP regression gate
+        run: cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression
+          --fail-above
+  audit:
+    name: Audit (cargo-deny)
+    runs-on: ubuntu-latest
+    # Enforcing supply-chain gate: cargo deny check fails CI on a RustSec
+    # advisory, a yanked or banned crate, a disallowed license, or an unknown
+    # source. Policy lives in the workspace-root deny.toml. No continue-on-error.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # taiki-e/install-action fetches a prebuilt cargo-deny binary; pin the
+      # version for reproducibility (same discipline as cargo-crap / iai-runner).
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.19.9
+      - name: Run cargo-deny
+        run: cargo deny check

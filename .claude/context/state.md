@@ -1,189 +1,241 @@
-<!-- assessed-at: e19aeae -->
+<!-- assessed-at: ea284c0323113a46803001b3955ea0e6e4b00a9a -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Near-complete — 1 low-priority issue remaining
+## Phase: Post-v0.4.0 hardening toward (held) v1.0.0 — CI GREEN; CRAP `--fail-above` gate landed; one authorized gate left (`cargo-deny` supply-chain audit)
 
-v0.3.1 released across all 9 registries. All 16/16 CI jobs pass (run 23402159613). All 12 language
-bindings scaffolded, tested, and documented. All previously open normal/critical issues resolved.
-Benchmarks documentation with speedup factors is published. Only one low-priority cosmetic issue
-remains (language logos in docs), which CID is configured to skip.
+v0.4.0 is released across all registries; all 12 language bindings are functionally met and CI is
+GREEN on the pushed tip (`cee130a`, runs `27759986239`/`27759984667`, overall `success`). Since the
+last assessment the first of the two human-authorized hardening gates landed: the CRAP
+`--fail-above` absolute gate is wired into the enforcing Phase 3 CRAP CI step, verified green, and
+its `ci-cd.md` "verified when" box is `[x]`. One autonomous CID work package remains — the
+`cargo-deny` supply-chain audit gate (authorized, spec'd, **not yet built**). v1.0.0 stays on hold
+(stay on 0.4.x).
 
 ## Rust Core Crate
 
-**Status**: met
+**Status**: partially met
 
-- All 32 Tier 1 symbols present with correct feature-gating
-- data.json at iscc-core v1.3.0 (50 total vectors)
-- 316 tests pass with default features
-- Feature matrix CI (5 steps) passed in latest green run
+- Core API met: all 10 `gen_*_v0` functions (incl. `gen_sum_code_v0`), 32 Tier 1 symbols,
+    conformance vs `iscc-core/data.json` passing — the `Rust (fmt, clippy, test)` job is GREEN.
+- Reusable `pub struct SumHasher` in `streaming.rs` (`new()` / `update(&[u8])` /
+    `finalize(bits, wide, add_units) -> SumCodeResult` / `Default`) runs Data-Code and Instance-Code
+    in a single pass; `gen_sum_code_v0` (lib.rs:997) drives it. Reachable as
+    `iscc_lib::streaming::SumHasher` but intentionally **not** a crate-root Tier 1 re-export — only
+    `DataHasher` / `InstanceHasher` are (`lib.rs:24`).
+- Internal module visibility narrowed: `lib.rs` declares
+    `pub(crate) mod cdc / conformance / dct / minhash / simhash / utils / wtahash`; only `codec`,
+    `streaming`, `types` are `pub mod`. All 10 crate-root `pub use` re-exports intact.
+- **Perf gate — COMPLETE, ENFORCING, AND HARDENED** (unchanged this cycle).
+    `crates/iscc-lib/benches/iai_benches.rs` is an `iai-callgrind` 0.16 instruction-count harness
+    (11 `bench_*` fns → 16 parametrized cases). `[profile.bench] strip = false, debug = true`
+    (Cargo.toml:61) preserves `__iai_callgrind_wrapper` toggle symbols. The `Perf (iai-callgrind)`
+    job (no `continue-on-error`) installs valgrind + `iai-callgrind-runner@0.16.1`, runs benches
+    (env `IAI_CALLGRIND_ALLOW_ASLR=true`), asserts non-zero collection, then runs the enforcing
+    `Check perf regression` step (`python3 scripts/iai_regression.py --check`) which fails CI on
+    \>10% Ir regression, zero-count benches, or a disappeared baselined bench vs the committed
+    `.iai-baseline.json` (16 Ir entries, 10% tolerance, repo root). `--allow-missing` is a
+    deliberate escape hatch; covered by 11 synthetic-fixture tests (`tests/test_iai_regression.py`).
+    `rust-core.md` perf "verified when" boxes are `[x]`.
+- **Semver gate present (informational, still unmet for v1.0.0)**: the
+    `Semver (cargo-semver-checks)` job (`continue-on-error: true`) reports job-level `failure` (2
+    expected breaking changes from the post-0.4.0 `pub(crate)` narrowing) but does NOT flip the run
+    conclusion. The target's **enforcing** criterion stays unmet (`rust-core.md` semver "verified
+    when" still `[ ]`) — flip `continue-on-error` off only at the v1.0.0 cut, which is held.
+- Workspace version is `0.4.0`. The semver/v1.0.0 enforcement is the only remaining Rust Core gap;
+    everything else met.
 
 ## Python Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols accessible via __all__ (48 entries)
-- 207 Python tests pass; ty check passes; cargo clippy -p iscc-py clean
+- All symbols exported, both Python 3.10 and 3.14 CI jobs GREEN, ruff clean, streaming `SumHasher`
+    wrapper present and exported.
+- GIL release done (closed #39): `Python::detach` at all 7 call sites in
+    `crates/iscc-py/src/lib.rs`; `tests/test_gil.py` adds 7 concurrency tests. 0 `allow_threads`
+    remain.
+- **PyO3 migration COMPLETE (closed #1)**: workspace `pyo3` pin is `0.29` with `abi3-py310`;
+    `Cargo.lock` resolves a single `pyo3 0.29.0`, no older entries. Explicit
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) preserved (PyO3 0.28 silently
+    flipped that default `true`->`false`).
+- Note: PyO3 advisory clearance was confirmed only by the mechanical lockfile proxy — exactly what
+    the still-pending `cargo deny`/`cargo audit` gate will replace.
 
 ## Node.js Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols exported
-- 135 mocha tests pass; cargo clippy -p iscc-napi -- -D warnings clean
+- All 32 Tier 1 symbols exported with TypeScript declarations; Node.js CI job GREEN.
+- Issue #38 RESOLVED: `napi prepublish` step removed from `release.yml`; source `package.json` uses
+    the bundled model (`files: ["*.node"]`, no `optionalDependencies`). No open issues.
 
 ## WASM Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols exported via #[wasm_bindgen]
-- wasm-opt -O3; conformance.rs asserts tested == 20
+- All 32 Tier 1 symbols via `#[wasm_bindgen]`; WASM CI job GREEN.
+- Streaming `SumHasher` class present (lib.rs:533, finalize-once via `inner.take()`), 8
+    `test_sum_hasher_*` tests pass under `wasm-pack test --node`; documented in
+    `docs/howto/wasm.md`.
 
 ## C FFI
 
 **Status**: met
 
-- 85 Rust tests + 65 C tests pass
-- cbindgen header freshness check in CI passed
-- build.rs runs csbindgen to generate NativeMethods.g.cs
+- cbindgen header committed + freshness check in CI; C test program passes; csbindgen generates
+    `NativeMethods.g.cs`. C FFI CI job GREEN. No new issues.
 
 ## Java Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols via JNI
-- 65 Maven tests pass
+- All 32 Tier 1 symbols via JNI; Java (Maven) CI job GREEN; native libs bundled in JAR. No issues.
 
 ## Go Bindings
 
 **Status**: met
 
-- All 32 Tier 1 symbols via pure Go (no CGO)
-- 155 Go tests pass; go vet clean
+- Pure Go (no CGO), all 32 Tier 1 symbols, go vet clean, Go CI job GREEN. No issues.
 
 ## Ruby Bindings
 
 **Status**: met
 
-- 32 of 32 Tier 1 symbols exposed via Magnus bridge
-- 111 Minitest tests (295 assertions, 0 failures)
+- 32 Tier 1 symbols via Magnus; Ruby CI job GREEN; version synced. No issues.
 
 ## C# / .NET Bindings
 
 **Status**: met
 
-- 32 public symbols; 11 sealed record types
-- 91 total tests (41 smoke + 50 conformance vectors)
-- CI job SUCCESS
+- 32 public symbols via P/Invoke over C FFI; C#/.NET CI job GREEN. No issues.
 
 ## C++ Bindings
 
 **Status**: met
 
-- 681-line C++17 header-only wrapper with all 32 Tier 1 symbols
-- 54 passing tests, ASAN clean
-- vcpkg manifest + Conan 2.x recipe
+- C++17 header-only wrapper, all 32 Tier 1 symbols, ASAN clean, vcpkg + Conan; C++ CI job GREEN.
 
 ## UniFFI Scaffolding Crate
 
 **Status**: complete (internal, not published)
 
-- 32 `#[uniffi::export]` annotations, 21 `#[test]` functions pass
-- Proc macro approach — no uniffi.toml or build.rs needed
-- Dependencies: iscc-lib (with meta-code feature), uniffi 0.31, thiserror
+- 32 `#[uniffi::export]` annotations, proc-macro approach; shared by Swift + Kotlin. No issues.
 
 ## Swift Bindings
 
 **Status**: met
 
-- SPM package with 2400-line UniFFI-generated Swift bindings, all 32 Tier 1 symbols
-- 9 conformance test methods covering 50 vectors; CI job SUCCESS on macos-14
-- docs/howto/swift.md updated with SPM install instructions + collapsible "Build from source" tip
-- XCFramework build script executable, valid shell, 5 Apple targets
-- Root `Package.swift` restructured: Ferrostar-style toggle, `releaseTag = "0.3.1"`
-- Release workflow: `swift` checkbox input (9th), `build-xcframework` job integrated
-- **Provenance guard**: `build-xcframework` verifies main HEAD matches tag SHA
-- Version sync: `releaseTag` managed by `version_sync.py` (16th target, confirmed OK)
-- **Root manifest smoke test**: `swift package dump-package` step in CI validates consumer-facing
-    Package.swift parses correctly (added iteration 7)
+- SPM package with UniFFI-generated bindings, all 32 Tier 1 symbols, XCFramework build, Swift CI job
+    GREEN. Release provenance guard + root Package.swift dump-package smoke test present.
 
 ## Kotlin Bindings
 
 **Status**: met
 
-- Scaffold complete — packages/kotlin/ with build.gradle.kts, Gradle 8.12.1, JNA 5.16.0
-- 3214-line UniFFI-generated bindings, conformance tests (9 methods, 50 vectors)
-- Version sync, CI job, docs, release workflow all complete
-- Release workflow builds **9 targets**: 5 desktop/server + 4 Android ABIs
-- JAR smoke test validates runtime JAR contains all 9 native library paths
+- packages/kotlin/ with JNA-loaded UniFFI bindings, 9 desktop+Android targets in release workflow,
+    Kotlin CI job GREEN. No issues.
 
 ## README
 
 **Status**: met
 
-- Public-facing polyglot README with CI badge and 8 registry badges
-- Language logos: 18 inline img tags from cdn.simpleicons.org
-- Installation and Quick Start sections for all 12 languages
-- ISCC Architecture section, MainTypes table, Implementors Guide
+- Polyglot public README with CI + registry badges, per-language install + quick start for all 12
+    languages, architecture section, MainTypes table. No issues.
 
 ## Per-Crate READMEs
 
 **Status**: met
 
-- READMEs present for all 12 crates/packages (7 crates + 5 packages)
-- CLAUDE.md files present for all 12 crates/packages
+- READMEs present for all 12 crates/packages; registry metadata references them. No issues.
 
 ## Documentation
 
-**Status**: met
+**Status**: met (one low-priority cosmetic gap)
 
-- 22 pages in gen_llms_full.py ORDERED_PAGES; all navigation sections complete
-- 11 language howto guides: c-cpp.md, rust.md, python.md, nodejs.md, wasm.md, go.md, java.md,
-    ruby.md, dotnet.md, swift.md, kotlin.md
-- docs/index.md: 11 language tabs in Quick Start, Swift+Kotlin in Available Bindings table
-- docs/benchmarks.md: full speedup comparison table (1.3x to 158x), Criterion native results,
-    methodology, key findings, reproduction commands
-- **Gap** (low, CID skips): Language logos in docs howto headers
+- Docs site, 11 language howto guides, tabbed multi-language examples, llms-full.txt generation,
+    benchmarks page with speedup factors all present. `docs/howto/python.md` and
+    `docs/howto/wasm.md` document the streaming `SumHasher`.
+- **Gap (low, CID skips)**: language logos in `docs/index.md` and howto headers — cosmetic only.
 
 ## Benchmarks
 
 **Status**: met
 
-- Criterion benchmarks for all 10 gen\_\*\_v0 functions + 2 additional (12 total in Rust)
-- Bench (compile check) CI job SUCCESS
-- pytest-benchmark: 18 functions (9 gen\_\*\_v0 x 2 — iscc-lib vs iscc-core)
-- Speedup factors published in docs/benchmarks.md (1.3x to 158x across 10 functions)
+- Criterion benches for all 10 `gen_*_v0` (+2) functions, Bench (compile check) CI job GREEN,
+    pytest-benchmark 18 functions, speedup factors published (1.3x-158x) in docs/benchmarks.md.
+- Second harness `iai_benches.rs` (iai-callgrind 0.16, 11 `bench_*` fns) runs in CI under valgrind,
+    collects genuine non-zero Ir counts, and is gated by an **enforcing >10% regression check**
+    (`scripts/iai_regression.py`, 248 lines, stdlib-only, hardened against zero-count and
+    disappeared-bench false greens with an `--allow-missing` escape hatch; 11 fixture tests).
+    Results upload as the `iai-baseline` artifact (`if: always()`).
 
 ## CI/CD and Publishing
 
-**Status**: met
+**Status**: partially met — **CI GREEN on pushed tip; CRAP `--fail-above` landed; one authorized
+gate (cargo-deny) not yet built**
 
-- **LATEST COMPLETED RUN** — run 23402159613: **16/16 jobs SUCCESS**
-- URL: https://github.com/iscc/iscc-lib/actions/runs/23402159613
-- All 16 jobs passing: Version consistency, Rust, Python 3.10, Python 3.14, Python gate, Node.js,
-    WASM, C FFI, Java, Go, Bench, Ruby, C# / .NET, C++, Swift, Kotlin
-- v0.3.1 released across all 9 registries
-- Release workflow has 9 registry inputs: crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift
-- XCFramework cache key expanded to include build script, Swift headers, and all Cargo.toml files
-- Swift release provenance guard: verifies main HEAD == tag SHA before XCF build
-- Root Package.swift smoke test: `dump-package` validates manifest in CI
-- version_sync.py manages 16 sync targets (all OK)
+- **LATEST PUSHED CI RUN — SUCCESS.** origin/develop tip `cee130a`; completed runs `27759986239` /
+    `27759984667` (overall `success`); all functional jobs green (confirmed via check-runs API on
+    the actual tip SHA), incl. `Perf (iai-callgrind)`, `Coverage + CRAP`, the `cargo-crap` action,
+    and the enforcing Phase 3 CRAP gate (now with `--fail-above`). Only
+    `Semver (cargo-semver-checks)` reports `failure` and it is `continue-on-error: true`
+    (informational, does not flip the run). URL:
+    https://github.com/iscc/iscc-lib/actions/runs/27759986239
+- **HEAD is 1 commit ahead of origin/develop, log-only.** HEAD (`ea284c0`,
+    `cid(log): iteration   113`) touches only `.claude/context/iterations.jsonl`. The green CI
+    result reflects the current code.
+- **CRAP `--fail-above` gate — DONE & GREEN (authorized issue #1 closed this cycle).** The enforcing
+    Phase 3 CRAP step (ci.yml:392-393) now runs
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`.
+    `--fail-above` is a boolean keyed off `.cargo-crap.toml threshold = 30.0` (no numeric arg); it
+    closes the regression-only blind spot where a brand-new/renamed CC-heavy function reported
+    `★ N new` and exited 0. Current max CRAP ~22.3 < 30, so the absolute gate passes on the current
+    code — `Coverage + CRAP` is green. `.cargo-crap.toml` comment updated to describe the enforcing
+    `--fail-above`; `ci-cd.md` "verified when" box (line 445) is `[x]`. Reviewed PASS (`cee130a`,
+    Codex confirmed the YAML parses to the intended command).
+- **`cargo-deny`/`cargo audit` supply-chain gate (authorized, UNIMPLEMENTED — last work package):**
+    `ci-cd.md` (Audit row at line 33, "Supply chain — `cargo-deny`" section at line 139) mandates an
+    Audit job running `cargo deny check` (advisories + bans + licenses) over the workspace via a
+    root `deny.toml`, plus a `mise run audit` task (optionally `cargo audit` / `npm audit`).
+    **Verified absent today:** no `deny.toml`, no Audit/deny job in `ci.yml`, no `audit`/`deny` task
+    in `mise.toml`, neither tool installed. The `ci-cd.md` "verified when" box (line 448) is `[ ]`.
+- **Perf gate ENFORCING + HARDENED** (no `continue-on-error`) — unchanged; green.
+- v0.4.0 published; release workflow with 8 registry input toggles (crates.io, PyPI, npm, Maven,
+    FFI, RubyGems, NuGet, Maven-Kotlin; Swift XCFramework built in `prepare-release`) + version sync
+    (16 targets) in place.
 
-## Open Issues (1 total — 0 critical, 0 normal, 1 low)
+## Open Issues (issues.md lists 3 — 0 critical, 1 normal, 2 low)
 
-1. **Language logos in docs** `low` — CID skips, human-directed only.
+1. **Wire up `cargo deny`/`cargo audit` supply-chain gate** `normal` `[review]` — **AUTHORIZED** by
+    Titusz (`9770332`), CID may implement autonomously. Add root `deny.toml`, a `Security audit` CI
+    job (`cargo deny check` advisories + bans + licenses), a `mise run audit` task; install via
+    `taiki-e/install-action` or `cargo binstall -y --force` (mind the `Swatinem/rust-cache`
+    poisoning gotcha — `--force` is load-bearing). Optionally add `npm audit` for the napi package.
+
+Low (human-directed, CID skips):
+
+- **Release core as v1.0.0** — **held** by Titusz (2026-06-18): stay on 0.4.x, land the cargo-deny
+    hardening gate first, then flip the `cargo-semver-checks` gate to enforcing as part of the
+    eventual cut. Human-driven via `/release`; CID must not cut it autonomously.
+- **Add programming language logos to docs site** — cosmetic.
 
 ## Next Milestone
 
-All 12 bindings are complete, CI is green (16/16), benchmarks are documented, and all
-normal/critical issues are resolved. The project is functionally complete per target.md criteria.
+CI is GREEN and the CRAP `--fail-above` gate has landed. **The single remaining autonomous work
+package is the authorized `cargo-deny`/`cargo audit` supply-chain gate.** define-next should pick it
+up:
 
-The only remaining item is the low-priority cosmetic issue (language logos in docs howto headers),
-which CID is configured to skip. This requires human direction to proceed.
+- Add a workspace-root `deny.toml` (advisories + bans + licenses policy classes).
+- Add a `Security audit` CI job running `cargo deny check`; install the tool carefully in CI
+    (`taiki-e/install-action` or `cargo binstall -y --force` — the `--force` is load-bearing against
+    the `Swatinem/rust-cache` poisoning gotcha; see learnings).
+- Add a `mise run audit` task that reproduces `cargo deny check` locally. Optionally complement with
+    `cargo audit` / `npm audit` (napi).
+- Flip the `ci-cd.md` "verified when" box (line 448) only once the new CI job is confirmed green —
+    `cargo-deny`/`cargo-audit` are NOT installed in the devcontainer, so the green CI job is the
+    real confirmation (local verification limited to `deny.toml` parse + task wiring).
 
-**Note:** Status remains IN_PROGRESS because 1 open issue exists in issues.md (even though it's low
-priority and CID-skipped). The human may choose to close it as won't-fix, address it interactively,
-or leave it — at which point the project can move to DONE.
+Do NOT cut v1.0.0 or flip the `Semver` gate to enforcing — both are deliberately held by Titusz
+until after the cargo-deny gate lands.

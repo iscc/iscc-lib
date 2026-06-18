@@ -572,6 +572,160 @@ fn test_instance_hasher_default_bits() {
     assert_eq!(result_none, result_64, "None bits should equal explicit 64");
 }
 
+// ── SumHasher ──────────────────────────────────────────────────────────────
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_matches_gen_function() {
+    // Streamed SumHasher output should equal the one-shot gen_sum_code_v0 for
+    // the same bytes across iscc/datahash/filesize.
+    let data = b"Hello, ISCC World! This is some content for the sum code.";
+    let mut sh = iscc_wasm::SumHasher::new();
+    sh.update(data).unwrap();
+    let streaming = sh.finalize(None, None, None).unwrap();
+    let oneshot = iscc_wasm::gen_sum_code_v0(data, None, None, None).unwrap();
+    assert_eq!(streaming.iscc, oneshot.iscc, "iscc should match one-shot");
+    assert_eq!(
+        streaming.datahash, oneshot.datahash,
+        "datahash should match one-shot"
+    );
+    assert_eq!(
+        streaming.filesize, oneshot.filesize,
+        "filesize should match one-shot"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_multi_update_invariance() {
+    // Splitting the same bytes across multiple update() calls should match a
+    // single update() call and the one-shot composition. Use data large enough
+    // to span multiple CDC chunks.
+    let data: Vec<u8> = (0..20_000).map(|i| (i % 256) as u8).collect();
+
+    let mut single = iscc_wasm::SumHasher::new();
+    single.update(&data).unwrap();
+    let single_result = single.finalize(None, None, None).unwrap();
+
+    let mut multi = iscc_wasm::SumHasher::new();
+    multi.update(&data[..3000]).unwrap();
+    multi.update(&data[3000..12_000]).unwrap();
+    multi.update(&data[12_000..]).unwrap();
+    let multi_result = multi.finalize(None, None, None).unwrap();
+
+    assert_eq!(single_result.iscc, multi_result.iscc);
+    assert_eq!(single_result.datahash, multi_result.datahash);
+    assert_eq!(single_result.filesize, multi_result.filesize);
+
+    let oneshot = iscc_wasm::gen_sum_code_v0(&data, None, None, None).unwrap();
+    assert_eq!(multi_result.iscc, oneshot.iscc);
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_empty_input() {
+    // Empty input should succeed and match the empty one-shot composition.
+    let mut sh = iscc_wasm::SumHasher::new();
+    let streaming = sh.finalize(None, None, None).unwrap();
+    let oneshot = iscc_wasm::gen_sum_code_v0(&[], None, None, None).unwrap();
+    assert_eq!(streaming.iscc, oneshot.iscc, "empty sum should match");
+    assert_eq!(streaming.filesize, 0.0, "empty data should have filesize 0");
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_result_shape() {
+    let data = b"Test data for sum hasher result shape";
+    let mut sh = iscc_wasm::SumHasher::new();
+    sh.update(data).unwrap();
+    let streaming = sh.finalize(None, None, None).unwrap();
+    assert!(
+        streaming.iscc.starts_with("ISCC:"),
+        "iscc should have ISCC: prefix"
+    );
+    assert!(
+        streaming.datahash.starts_with("1e20"),
+        "datahash should start with BLAKE3 multihash prefix"
+    );
+    assert_eq!(
+        streaming.filesize,
+        data.len() as f64,
+        "filesize should equal input length"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_units_enabled() {
+    // add_units=Some(true) should yield exactly 2 unit ISCC strings.
+    let data = b"Hello, ISCC World!";
+    let mut sh = iscc_wasm::SumHasher::new();
+    sh.update(data).unwrap();
+    let streaming = sh.finalize(None, None, Some(true)).unwrap();
+    let units = streaming
+        .units
+        .expect("units should be Some when add_units=true");
+    assert_eq!(units.len(), 2, "units should contain exactly 2 elements");
+    let data_code = iscc_wasm::gen_data_code_v0(data, None).unwrap();
+    let instance_code = iscc_wasm::gen_instance_code_v0(data, None).unwrap();
+    assert_eq!(
+        units[0], data_code,
+        "units[0] should match gen_data_code_v0"
+    );
+    assert_eq!(
+        units[1], instance_code,
+        "units[1] should match gen_instance_code_v0"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_units_disabled() {
+    // add_units omitted (None) should yield units == None.
+    let data = b"Hello, ISCC World!";
+    let mut sh = iscc_wasm::SumHasher::new();
+    sh.update(data).unwrap();
+    let streaming = sh.finalize(None, None, None).unwrap();
+    assert!(
+        streaming.units.is_none(),
+        "units should be None when add_units is omitted"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_wide_mode() {
+    // Wide mode at 128 bits should differ from narrow but share datahash/filesize.
+    let data = b"Wide mode test data with enough bytes to make it meaningful";
+    let mut narrow = iscc_wasm::SumHasher::new();
+    narrow.update(data).unwrap();
+    let narrow_result = narrow.finalize(Some(128), Some(false), None).unwrap();
+
+    let mut wide = iscc_wasm::SumHasher::new();
+    wide.update(data).unwrap();
+    let wide_result = wide.finalize(Some(128), Some(true), None).unwrap();
+
+    assert_ne!(
+        narrow_result.iscc, wide_result.iscc,
+        "wide and narrow should differ"
+    );
+    assert_eq!(
+        narrow_result.datahash, wide_result.datahash,
+        "datahash should be the same"
+    );
+    assert_eq!(
+        narrow_result.filesize, wide_result.filesize,
+        "filesize should be the same"
+    );
+}
+
+#[wasm_bindgen_test]
+fn test_sum_hasher_finalize_once() {
+    // After finalize, both a second finalize and an update should error.
+    let mut sh = iscc_wasm::SumHasher::new();
+    sh.update(b"test data").unwrap();
+    let _result = sh.finalize(None, None, None).unwrap();
+
+    let err = sh.finalize(None, None, None);
+    assert!(err.is_err(), "second finalize should error");
+
+    let err2 = sh.update(b"more data");
+    assert!(err2.is_err(), "update after finalize should error");
+}
+
 // ── Constants ──────────────────────────────────────────────────────────────
 
 #[wasm_bindgen_test]

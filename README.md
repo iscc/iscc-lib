@@ -100,7 +100,7 @@ npm install @iscc/lib
 <dependency>
   <groupId>io.iscc</groupId>
   <artifactId>iscc-lib</artifactId>
-  <version>0.4.0</version>
+  <version>0.5.0</version>
 </dependency>
 ```
 
@@ -136,7 +136,7 @@ Add the package dependency to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/iscc/iscc-lib", from: "0.4.0"),
+    .package(url: "https://github.com/iscc/iscc-lib", from: "0.5.0"),
 ]
 ```
 
@@ -147,7 +147,7 @@ dependencies: [
 
 ```kotlin
 dependencies {
-    implementation("io.iscc:iscc-lib-kotlin:0.4.0")
+    implementation("io.iscc:iscc-lib-kotlin:0.5.0")
     implementation("net.java.dev.jna:jna:5.16.0")
 }
 ```

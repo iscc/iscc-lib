@@ -13,7 +13,7 @@ use pyo3::types::{PyBytes, PyDict, PyList};
 
 /// Convert a Python sequence to a PyList, passing lists through unchanged.
 fn to_pylist<'py>(py: Python<'py>, obj: &Bound<'py, PyAny>) -> PyResult<Bound<'py, PyList>> {
-    if let Ok(list) = obj.downcast::<PyList>() {
+    if let Ok(list) = obj.cast::<PyList>() {
         return Ok(list.clone());
     }
     unsafe {
@@ -21,7 +21,7 @@ fn to_pylist<'py>(py: Python<'py>, obj: &Bound<'py, PyAny>) -> PyResult<Bound<'p
         if ptr.is_null() {
             return Err(pyo3::PyErr::fetch(py));
         }
-        Ok(Bound::from_owned_ptr(py, ptr).downcast_into_unchecked())
+        Ok(Bound::from_owned_ptr(py, ptr).cast_into_unchecked())
     }
 }
 
@@ -112,7 +112,7 @@ fn gen_meta_code_v0(
     description: Option<&str>,
     meta: Option<&str>,
     bits: u32,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let r = iscc_lib::gen_meta_code_v0(name, description, meta, bits)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
@@ -133,7 +133,7 @@ fn gen_meta_code_v0(
 /// Returns a dict with keys: `iscc`, `characters`.
 #[pyfunction]
 #[pyo3(signature = (text, bits=64))]
-fn gen_text_code_v0(py: Python<'_>, text: &str, bits: u32) -> PyResult<PyObject> {
+fn gen_text_code_v0(py: Python<'_>, text: &str, bits: u32) -> PyResult<Py<PyAny>> {
     let r =
         iscc_lib::gen_text_code_v0(text, bits).map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
@@ -147,8 +147,9 @@ fn gen_text_code_v0(py: Python<'_>, text: &str, bits: u32) -> PyResult<PyObject>
 /// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (pixels, bits=64))]
-fn gen_image_code_v0(py: Python<'_>, pixels: &[u8], bits: u32) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_image_code_v0(pixels, bits)
+fn gen_image_code_v0(py: Python<'_>, pixels: &[u8], bits: u32) -> PyResult<Py<PyAny>> {
+    let r = py
+        .detach(|| iscc_lib::gen_image_code_v0(pixels, bits))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
@@ -160,7 +161,7 @@ fn gen_image_code_v0(py: Python<'_>, pixels: &[u8], bits: u32) -> PyResult<PyObj
 /// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (cv, bits=64))]
-fn gen_audio_code_v0(py: Python<'_>, cv: Vec<i32>, bits: u32) -> PyResult<PyObject> {
+fn gen_audio_code_v0(py: Python<'_>, cv: Vec<i32>, bits: u32) -> PyResult<Py<PyAny>> {
     let r =
         iscc_lib::gen_audio_code_v0(&cv, bits).map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
@@ -178,7 +179,7 @@ fn gen_video_code_v0(
     py: Python<'_>,
     frame_sigs: Bound<'_, PyAny>,
     bits: u32,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let (flat, frame_len) = extract_frame_sigs(py, &frame_sigs)?;
     let frame_slices: Vec<&[i32]> = flat.chunks_exact(frame_len).collect();
     let r = iscc_lib::gen_video_code_v0(&frame_slices, bits)
@@ -202,7 +203,7 @@ fn gen_video_code_v0_flat(
     num_frames: usize,
     frame_len: usize,
     bits: u32,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let frames = flat_bytes_to_frames(data, num_frames, frame_len)?;
     let frame_refs: Vec<&[i32]> = frames.iter().map(|f| f.as_slice()).collect();
     let r = iscc_lib::gen_video_code_v0(&frame_refs, bits)
@@ -223,7 +224,7 @@ fn soft_hash_video_v0_flat(
     num_frames: usize,
     frame_len: usize,
     bits: u32,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let frames = flat_bytes_to_frames(data, num_frames, frame_len)?;
     let frame_refs: Vec<&[i32]> = frames.iter().map(|f| f.as_slice()).collect();
     let result = iscc_lib::soft_hash_video_v0(&frame_refs, bits)
@@ -274,7 +275,7 @@ fn flat_bytes_to_frames(
 /// Returns a dict with keys: `iscc`, `parts`.
 #[pyfunction]
 #[pyo3(signature = (codes, bits=64))]
-fn gen_mixed_code_v0(py: Python<'_>, codes: Vec<String>, bits: u32) -> PyResult<PyObject> {
+fn gen_mixed_code_v0(py: Python<'_>, codes: Vec<String>, bits: u32) -> PyResult<Py<PyAny>> {
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
     let r = iscc_lib::gen_mixed_code_v0(&refs, bits)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -289,9 +290,10 @@ fn gen_mixed_code_v0(py: Python<'_>, codes: Vec<String>, bits: u32) -> PyResult<
 /// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (data, bits=64))]
-fn gen_data_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<PyObject> {
-    let r =
-        iscc_lib::gen_data_code_v0(data, bits).map_err(|e| PyValueError::new_err(e.to_string()))?;
+fn gen_data_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<Py<PyAny>> {
+    let r = py
+        .detach(|| iscc_lib::gen_data_code_v0(data, bits))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
     Ok(dict.into())
@@ -302,8 +304,9 @@ fn gen_data_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<PyObject
 /// Returns a dict with keys: `iscc`, `datahash`, `filesize`.
 #[pyfunction]
 #[pyo3(signature = (data, bits=64))]
-fn gen_instance_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_instance_code_v0(data, bits)
+fn gen_instance_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<Py<PyAny>> {
+    let r = py
+        .detach(|| iscc_lib::gen_instance_code_v0(data, bits))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
@@ -317,7 +320,7 @@ fn gen_instance_code_v0(py: Python<'_>, data: &[u8], bits: u32) -> PyResult<PyOb
 /// Returns a dict with key: `iscc`.
 #[pyfunction]
 #[pyo3(signature = (codes, wide=false))]
-fn gen_iscc_code_v0(py: Python<'_>, codes: Vec<String>, wide: bool) -> PyResult<PyObject> {
+fn gen_iscc_code_v0(py: Python<'_>, codes: Vec<String>, wide: bool) -> PyResult<Py<PyAny>> {
     let refs: Vec<&str> = codes.iter().map(|s| s.as_str()).collect();
     let r = iscc_lib::gen_iscc_code_v0(&refs, wide)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
@@ -338,8 +341,9 @@ fn gen_sum_code_v0(
     bits: u32,
     wide: bool,
     add_units: bool,
-) -> PyResult<PyObject> {
-    let r = iscc_lib::gen_sum_code_v0(std::path::Path::new(path), bits, wide, add_units)
+) -> PyResult<Py<PyAny>> {
+    let r = py
+        .detach(|| iscc_lib::gen_sum_code_v0(std::path::Path::new(path), bits, wide, add_units))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
@@ -439,7 +443,7 @@ fn encode_component(
 /// where digest is the raw bytes truncated to the encoded bit-length.
 #[pyfunction]
 #[pyo3(signature = (iscc))]
-fn iscc_decode(py: Python<'_>, iscc: &str) -> PyResult<PyObject> {
+fn iscc_decode(py: Python<'_>, iscc: &str) -> PyResult<Py<PyAny>> {
     let (mt, st, vs, li, digest) =
         iscc_lib::iscc_decode(iscc).map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok((mt, st, vs, li, PyBytes::new(py, &digest))
@@ -510,7 +514,7 @@ fn soft_hash_video_v0(
     py: Python<'_>,
     frame_sigs: Bound<'_, PyAny>,
     bits: u32,
-) -> PyResult<PyObject> {
+) -> PyResult<Py<PyAny>> {
     let (flat, frame_len) = extract_frame_sigs(py, &frame_sigs)?;
     let frame_slices: Vec<&[i32]> = flat.chunks_exact(frame_len).collect();
     let result = iscc_lib::soft_hash_video_v0(&frame_slices, bits)
@@ -538,17 +542,22 @@ impl PyDataHasher {
     }
 
     /// Push data into the hasher.
-    fn update(&mut self, data: &[u8]) -> PyResult<()> {
-        self.inner
+    ///
+    /// Releases the GIL around the pure-Rust CDC/MinHash compute so threaded
+    /// Python consumers can overlap hashing. The injected `py` parameter is not
+    /// part of the Python-facing signature.
+    fn update(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<()> {
+        let inner = self
+            .inner
             .as_mut()
-            .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?
-            .update(data);
+            .ok_or_else(|| PyValueError::new_err("DataHasher already finalized"))?;
+        py.detach(|| inner.update(data));
         Ok(())
     }
 
     /// Consume the hasher and produce a Data-Code result dict.
     #[pyo3(signature = (bits=64))]
-    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<PyObject> {
+    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<Py<PyAny>> {
         let hasher = self
             .inner
             .take()
@@ -582,17 +591,22 @@ impl PyInstanceHasher {
     }
 
     /// Push data into the hasher.
-    fn update(&mut self, data: &[u8]) -> PyResult<()> {
-        self.inner
+    ///
+    /// Releases the GIL around the pure-Rust BLAKE3 compute so threaded Python
+    /// consumers can overlap hashing. The injected `py` parameter is not part of
+    /// the Python-facing signature.
+    fn update(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<()> {
+        let inner = self
+            .inner
             .as_mut()
-            .ok_or_else(|| PyValueError::new_err("InstanceHasher already finalized"))?
-            .update(data);
+            .ok_or_else(|| PyValueError::new_err("InstanceHasher already finalized"))?;
+        py.detach(|| inner.update(data));
         Ok(())
     }
 
     /// Consume the hasher and produce an Instance-Code result dict.
     #[pyo3(signature = (bits=64))]
-    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<PyObject> {
+    fn finalize(&mut self, py: Python<'_>, bits: u32) -> PyResult<Py<PyAny>> {
         let hasher = self
             .inner
             .take()
@@ -608,8 +622,79 @@ impl PyInstanceHasher {
     }
 }
 
+/// Streaming composite ISCC-CODE (Sum) generator.
+///
+/// Runs the Data-Code and Instance-Code algorithms in a single pass over the
+/// input to produce results identical to `gen_sum_code_v0`.
+#[pyclass(name = "SumHasher")]
+struct PySumHasher {
+    inner: Option<iscc_lib::streaming::SumHasher>,
+}
+
+#[pymethods]
+impl PySumHasher {
+    /// Create a new `SumHasher`.
+    #[new]
+    fn new() -> Self {
+        Self {
+            inner: Some(iscc_lib::streaming::SumHasher::new()),
+        }
+    }
+
+    /// Push data into both inner hashers in a single pass.
+    ///
+    /// Releases the GIL around the pure-Rust CDC/MinHash/BLAKE3 compute so
+    /// threaded Python consumers can overlap hashing. The injected `py`
+    /// parameter is not part of the Python-facing signature.
+    fn update(&mut self, py: Python<'_>, data: &[u8]) -> PyResult<()> {
+        let inner = self
+            .inner
+            .as_mut()
+            .ok_or_else(|| PyValueError::new_err("SumHasher already finalized"))?;
+        py.detach(|| inner.update(data));
+        Ok(())
+    }
+
+    /// Consume the hasher and produce a composite ISCC-CODE result dict.
+    ///
+    /// Returns a dict with keys `iscc`, `datahash`, `filesize`, and optionally
+    /// `units` (list of Data-Code and Instance-Code strings) when `add_units`
+    /// is true.
+    #[pyo3(signature = (bits=64, wide=false, add_units=false))]
+    fn finalize(
+        &mut self,
+        py: Python<'_>,
+        bits: u32,
+        wide: bool,
+        add_units: bool,
+    ) -> PyResult<Py<PyAny>> {
+        let hasher = self
+            .inner
+            .take()
+            .ok_or_else(|| PyValueError::new_err("SumHasher already finalized"))?;
+        let r = hasher
+            .finalize(bits, wide, add_units)
+            .map_err(|e| PyValueError::new_err(e.to_string()))?;
+        let dict = PyDict::new(py);
+        dict.set_item("iscc", r.iscc)?;
+        dict.set_item("datahash", r.datahash)?;
+        dict.set_item("filesize", r.filesize)?;
+        if let Some(units) = r.units {
+            dict.set_item("units", units)?;
+        }
+        Ok(dict.into())
+    }
+}
+
 /// Python module `iscc_lib._lowlevel` backed by Rust.
-#[pymodule(name = "_lowlevel")]
+///
+/// `gil_used = true` preserves the pre-PyO3-0.28 default: PyO3 0.28 flipped the
+/// unspecified `#[pymodule]` default from `true` to `false`, so on free-threaded
+/// CPython builds the module would import without re-enabling the GIL. The raw
+/// borrowed `PyList_GetItem` pointers in `extract_frame_sigs` are not
+/// free-threading-safe, so this opts back into GIL protection. Only set `false`
+/// after auditing those FFI paths for free-threaded soundness.
+#[pymodule(name = "_lowlevel", gil_used = true)]
 fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(gen_meta_code_v0, m)?)?;
     m.add_function(wrap_pyfunction!(gen_text_code_v0, m)?)?;
@@ -645,5 +730,6 @@ fn iscc_lowlevel(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(soft_hash_video_v0_flat, m)?)?;
     m.add_class::<PyDataHasher>()?;
     m.add_class::<PyInstanceHasher>()?;
+    m.add_class::<PySumHasher>()?;
     Ok(())
 }

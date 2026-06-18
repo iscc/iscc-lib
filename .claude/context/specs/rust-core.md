@@ -337,3 +337,41 @@ remains Tier 2 Rust-only for header encode/decode internals).
 - [ ] Crate has zero binding dependencies (no PyO3, napi, wasm-bindgen)
 - [ ] All new public functions have doc comments with examples
 - [ ] All new public functions have unit tests
+
+## API Stability & Performance Invariants
+
+From v1.0.0 onward the Rust core is a **stability-committed** crate: downstream projects depend on
+it in production, so every iteration must preserve backward compatibility and performance unless a
+change is explicitly sanctioned by a human and reflected in the version number.
+
+### Backward compatibility
+
+- **Output compatibility** (already enforced): every `gen_*_v0` function must keep producing output
+    identical to the conformance vectors and to `iscc-core`. This is the primary contract for
+    downstream consumers and is covered by the existing conformance suite.
+- **API compatibility** (new gate): the public surface of `iscc-lib` (the 32 Tier 1 symbols + the
+    Tier 2 `codec` module) must not change in a backward-incompatible way without a major version
+    bump. Enforced by `cargo-semver-checks` in CI against the previously published release.
+- **SemVer contract:** the crate follows strict SemVer from v1.0.0 — breaking changes require a
+    major bump (2.0.0), additive changes are minor, fixes are patch. The 0.4.0 → 1.0.0 transition is
+    the one release allowed to break freely; after it, 1.x is locked.
+
+### Performance parity or improvement
+
+- No change may regress a benchmarked `gen_*_v0` (or hot hashing/CDC/MinHash) path beyond a small
+    tolerance (default **10%**) versus the committed baseline. Improvements are always welcome.
+- Measured deterministically with `iai-callgrind` (instruction counts under valgrind) so the gate is
+    stable on shared CI runners. A committed baseline is the comparison point, refreshed
+    deliberately when a regression is accepted or an improvement lands.
+- The existing `criterion` benches remain for local wall-clock profiling and human-facing speedup
+    numbers; `iai-callgrind` is the CI gate.
+
+**Verified when:**
+
+- [ ] Crate version is >= 1.0.0 and follows strict SemVer
+- [ ] `cargo-semver-checks` runs in CI against the last published release and fails on an
+    unsanctioned breaking change to the public API
+- [x] `iai-callgrind` instruction-count benches exist for the hot `gen_*_v0` paths with a committed
+    baseline
+- [x] CI fails when any benchmarked path regresses > 10% vs the baseline
+- [ ] Conformance vectors still pass (output backward compatibility)

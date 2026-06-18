@@ -31,8 +31,13 @@ xxhash-rust.workspace = true
 [dev-dependencies]
 serde = { workspace = true }
 criterion = { workspace = true }
+iai-callgrind = { workspace = true }
 tempfile = { workspace = true }
 
 [[bench]]
 name = "benchmarks"
+harness = false
+
+[[bench]]
+name = "iai_benches"
 harness = false

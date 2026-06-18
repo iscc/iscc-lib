@@ -35,6 +35,30 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     patterns must include target name. Generic wildcards match all extracted dirs
 - **Advance agent idle claims**: always verify remaining issue priorities independently — advance
     agents may incorrectly claim "only low-priority issues remain" when normal issues still exist
+- **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
+    consistently get this wrong — always verify in review
+- **`mise run check` mdformat Failure on context files**: recurring — define-next writes `next.md`
+    and `define-next/MEMORY.md` non-mdformat-conforming, so `prek --all-files` reformats them every
+    cycle. NOT a regression in advance work. `git commit` (staged-only) is unaffected, BUT the
+    pre-push mdformat hook runs on the whole push range and WILL reject the batch (those files were
+    committed non-conforming by define-next). Fix (iter 101): STAGE the mdformat-reformatted
+    `next.md` + `define-next/MEMORY.md` into the review commit (mechanical 100-col rewrap, zero
+    semantic change) so HEAD is conforming and push passes. Never stage `iterations.jsonl`
+    (runner-owned)
+- **No-op / human-handoff iteration (iter 111)**: when define-next + advance deliberately make NO
+    code changes, verify scope is empty
+    (`git diff HEAD~1..HEAD --stat -- crates/ packages/ scripts/   docs/ notes/ .claude/context/specs/`)
+    and still scan all `@{upstream}..HEAD` for gate circumvention. SIGNAL CHOICE: if the only
+    remaining issues are `normal` [review] HUMAN-REVIEW-REQUESTED spec amendments (strict IDLE cond
+    #2 "all low" NOT met) + `low` [human], flag **HUMAN REVIEW REQUESTED** (→ runner "pause"), NOT
+    `**IDLE**`. Both stop the loop, but IDLE also runs meta-improve and is reserved for all-low;
+    HUMAN REVIEW fits when real normal work exists but is blocked on the owner's spec/design
+    decision. Verdict still PASS; push clean batch.
+- **Concurrent CID loops (iter 97, resolved iter 98 — archived to `MEMORY-archive.md`)**: spurious
+    `mise run check` "files were modified by this hook" on a file the advance never touched + a
+    working-tree change appearing mid-review = a SECOND CID loop racing the branch. Confirm with
+    `ps aux | grep -E 'cid:run|claude -p CID iteration'`; flag HUMAN REVIEW REQUESTED, do NOT push
+    or kill processes
 
 ## Review Shortcuts
 
@@ -49,10 +73,27 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - **Kotlin-only**: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
     workspace + `mise run check`
 - **Config-only**: `mise run check` + `cargo check -p <crate>`
-- **Script-only (Python)**: `mise run check` + `uv run scripts/<script>.py --check` (if applicable)
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
-- **CI-only YAML**: `mise run check`
+- **CI-only YAML**: `mise run check` + validate structure with
+    `uv run python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` (plain
+    `python3` lacks `yaml` — use `uv run`) for jobs, placement, `needs:`/`continue-on-error`.
+    valgrind, iai-callgrind-runner, and cargo-deny ARE present locally (see Perf/Audit gate reviews)
+- **Audit gate review — LANDED & ENFORCING (iter 114, ci-cd.md line 448)**: cargo-deny 0.19.9 IS in
+    the devcontainer; verify `cargo deny check` + `mise run audit` exit 0 (advisories/bans/licenses/
+    sources all ok; 6 `multiple-versions = "warn"` dups non-failing). It reads Cargo.lock + crate
+    metadata (NOT compiled artifacts) — local green is authoritative, box flip OK pre-CI. GOTCHA:
+    `yanked = "deny"` forced a Cargo.lock wasm-bindgen bump (0.2.111→0.2.125) — verify
+    `wasm-pack test --node crates/iscc-wasm --features conformance` (78/78) + clippy. Enforcing job;
+    post-push green is CI-only confirm
+- **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
+- **Semver gate review** (iter 93): informational pre-1.0 — full recipe in `MEMORY-archive.md`
+- **Perf gate review — COMPLETE, ENFORCING & HARDENED (iter 107-110, #3; full recipe in
+    `MEMORY-archive.md`)**. Key facts: valgrind 3.19 + `iai-callgrind-runner` 0.16.1 ARE in the
+    devcontainer; `mise run bench:iai` RUNS locally (bakes `IAI_CALLGRIND_ALLOW_ASLR=true`). STRIP
+    GOTCHA: `[profile.bench] strip = false, debug = true` load-bearing (else stripped → all
+    `summary: 0` false green). Script-only review: `uv run pytest tests/test_iai_regression.py -q`
+    (11 fixture tests) + ruff + `ty check`. Enforcing; post-push Perf-step-green is CI-only confirm
 
 ## Codex Review Integration
 
@@ -61,35 +102,47 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Go codec Codex findings: dismiss — Go mirrors Rust reference faithfully
 - Codex `.NET version` findings: `dotnet-version: '8.0'` is valid for `actions/setup-dotnet@v4` —
     resolves to latest 8.0.x SDK. Dismiss "use `8.0.x`" suggestions
-- Codex Conan recipe findings: MinGW ABI and MSVC cxxflags concerns are valid but non-blocking when
-    recipe went from completely broken to functional. Assess severity relative to baseline
 
 ## Feature Flag Review
 
 - Use Rust-only shortcut. Verify 3 configs: default, no-default, text-processing only
 - `serde_json` non-optional (conformance.rs dependency)
+- **`--no-default-features --all-targets` fails on `benchmarks` bench** (pre-existing, NOT a
+    regression): benches import `gen_meta`/`gen_text` needing default features. Scope no-default
+    clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`). CI never runs it
+- `streaming::SumHasher` is core-only (full path `iscc_lib::streaming::SumHasher`), NOT a Tier 1
+    re-export; `gen_sum_code_v0` wraps `SumHasher::finalize(bits,wide,add_units)`. #37 fully closed
 
 ## Binding State
 
-- 9 binding crates exist (py, napi, wasm, ffi, jni, go, rb, uniffi). Ruby has 32/32 Tier 1 symbols
-- NAPI `index.js`/`index.d.ts` are gitignored — auto-generated by `napi build`
-- FFI constant count in module docstring must match when adding constants (now 5)
-- CI: 16 jobs (15 YAML entries + python-test matrix expansion). Version sync: 16 targets (incl.
-    Package.swift releaseTag). Release: 9 registry inputs
+- 9 binding crates (py, napi, wasm, ffi, jni, go, rb, uniffi), all 32/32 Tier 1 symbols, all met.
+    NAPI `index.js`/`.d.ts`/`*.node` gitignored (auto-gen by `napi build`). npm `@iscc/lib` bundled
+    single-package (#38 closed): `files: ["*.node"]` ships all 5 binaries, NO
+    `optionalDependencies`; `napi prepublish` must NOT run in `publish-npm-lib`. FFI constant count
+    in module docstring must match additions (now 5)
+- CI: 19 YAML job entries + python-test matrix (`['3.10','3.14']`) → **20 actual jobs** (`semver`
+    iter 93, `coverage` iter 94, `perf` iter 107, `audit` iter 114). Advance handoffs count YAML
+    entries, not matrix expansion. Version sync: 16 targets (incl. Package.swift releaseTag).
+    Release: 9 registry inputs
+- **`Coverage + CRAP` CI job** (iter 94/96/97/113, ci-cd.md): standalone, no
+    `needs:`/`continue-on-error`. Phase 3 enforcing gate (iter 113, new-fn blind spot CLOSED) =
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    (`--fail-above` is boolean keyed off `.cargo-crap.toml threshold = 30.0`, NO numeric arg).
+    Verify with existing `lcov.info`: that command exits 0 (`0 regressed/0 new/97 unchanged`; do NOT
+    pipe to tail — masks `$?`); `mise run crap:baseline` regen `.crap-baseline.json` byte-identical
+    (COMMITTED). CI install MUST be `cargo binstall -y --force cargo-crap@0.2.2` (`--force`
+    load-bearing, rust-cache poisoning). GOTCHA: `.cargo-crap.toml` MUST exclude
+    `crates/iscc-lib/benches/**` else `bench_cdc_chunks` leaks at CRAP 42. CI YAML folds the long
+    `run:` scalar across 2 lines (folded newline = space) — confirm with `yaml.safe_load`
 - **iscc-rb workspace exclusion**: `--exclude iscc-rb` in CI `rust` job is permanent — Rust job
     lacks Ruby headers/libclang-dev. Dedicated `ruby` job handles iscc-rb clippy/compile/test
-- .NET bindings fully complete (iteration 9): 32/32 Tier 1 symbols, 91 tests, NuGet publish
-    pipeline, version sync, docs. C# issue resolved and deleted from issues.md
-- Swift bindings fully complete: XCFramework, Package.swift, release workflow, version sync, docs,
-    provenance guard (iteration 5), root Package.swift CI smoke test (iteration 6)
-- **JNA Android ARM32 resource path**: JNA canonicalizes ARM32 arch to `arm` (not `armv7`). Correct
-    prefix is `android-arm/`, not `android-armv7/`. Verified via bytecode decompilation. Filed as
-    spec issue with HUMAN REVIEW REQUESTED
+- .NET + Swift bindings fully complete (32/32 Tier 1, CI, version sync, docs, release)
 
 ## Binding Propagation Shortcuts
 
 - napi-rs: `npm test` + clippy + `mise run check`
-- WASM: `wasm-pack test --node` (with and without `--features conformance`) + clippy
+- WASM: `wasm-pack test --node` (with and without `--features conformance`) + clippy. To run one
+    test file: `--test <name>` goes BEFORE the `--` (cargo arg); after `--` the runner rejects it
 - C FFI: `cargo test -p iscc-ffi` + clippy. Header tracked in git
 - Java JNI: `cargo build -p iscc-jni` + clippy + `mvn test`
 - Ruby: `pushd crates/iscc-rb && bundle exec rake compile && bundle exec rake test; popd`
@@ -101,86 +154,46 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## UniFFI Review
 
-- `crates/iscc-uniffi/` — shared scaffolding for Swift+Kotlin. `uniffi = "0.31"` (workspace dep)
-- Proc macros only — no UDL, no build.rs, no uniffi.toml (until binding gen customization needed)
-- 32 `#[uniffi::export]` annotations: 30 free functions + 2 impl blocks (DataHasher, InstanceHasher)
+- `crates/iscc-uniffi/` — shared scaffolding for Swift+Kotlin. `uniffi = "0.31"`, proc macros only
+    (no UDL/build.rs/uniffi.toml). 32 `#[uniffi::export]` (30 free fns + 2 impl blocks).
+    `publish =   false`. `bindgen` feature: `uniffi/cli` → `uniffi-bindgen` binary
 - Review shortcut: `cargo test -p iscc-uniffi` + `cargo clippy -p iscc-uniffi -- -D warnings` +
     `cargo clippy --workspace --all-targets -- -D warnings` + `mise run check`
-- `publish = false` — not published to crates.io
-- `bindgen` feature: `uniffi/cli` → `uniffi-bindgen` binary
-
-## Swift Package Review
-
-- `packages/swift/` — SPM package: iscc_uniffiFFI (C header + modulemap) + IsccLib (generated Swift)
-- Two `Package.swift` files: root (SPM consumers, binaryTarget) + `packages/swift/Package.swift`
-    (CI/local dev, linkedLibrary). Root omits testTarget. Both coexist without conflict
-- Root `Package.swift` uses Ferrostar-style variable toggle: `useLocalFramework` (bool),
-    `releaseTag`, `releaseChecksum`. Default `false` → remote binaryTarget from GitHub Releases
-- `scripts/build_xcframework.sh`: 5 Rust targets → lipo fat binaries → xcodebuild → ditto zip →
-    swift package compute-checksum. Cannot test on Linux — `bash -n` syntax check only
-- Review shortcut: `cargo build/test/clippy -p iscc-uniffi` + `mise run check` (no `swift test` on
-    Linux). Swift tests structurally validated only — execution needs macOS CI
-- **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
-- Swift CI job (`swift:`) on `macos-14`: `dump-package` (root) → `cargo build -p iscc-uniffi` →
-    `swift build` → `swift test`
-- **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
-    consistently get this wrong — always verify in review
 
 ## Kotlin Binding Review
 
 - **Gradle multi-JAR artifact**: `withSourcesJar()` + `withJavadocJar()` produce 3 JARs in
     `build/libs/`. When selecting runtime JAR from glob, filter out `-sources.jar`/`-javadoc.jar` —
     alphabetical `head -1` picks `-javadoc.jar` first
-- `packages/kotlin/` — Gradle JVM project, UniFFI-generated Kotlin via JNA
 - Generated `iscc_uniffi.kt` (~112KB, 3214 lines) — do NOT manually edit, regenerate via
     uniffi-bindgen. `@file:Suppress("NAME_SHADOWING")` is UniFFI boilerplate, not gate circumvention
-- Review shortcut: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
-    workspace + `mise run check`
-- Gradle wrapper (gradle-wrapper.jar ~44KB) committed per convention — under 256KB threshold
-- `build/` covered by root `.gitignore`; `.gradle/` in local `.gitignore`
+    (review shortcut in Binding Propagation Shortcuts above)
 - JNA native lib loading: `java.library.path` alone NOT sufficient for JNA `Native.register()`. Must
     also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
-- data.json is 5th vendored copy (Rust, Go, .NET, Swift, Kotlin) — established pattern
-- Conformance tests: 9 methods, 50 vectors, JUnit 5 + Gson. `HexFormat` requires Java 17+
-- `mavenLocal()` in build.gradle.kts — devcontainer workaround. CI resolves from `mavenCentral()`
-- Codex confused by large generated Kotlin diffs (same as Swift) — findings advisory
-- Kotlin CI job added + gradlew permissions fixed + version sync added (iteration 1). Docs/README
-    completed (iteration 3). Release workflow added (iteration 4) — Kotlin bindings fully complete
+- Kotlin bindings fully complete: CI job, gradlew perms, version sync, docs/README, release
+    workflow. Codex is confused by large generated Kotlin/Swift diffs — findings advisory
 - Kotlin Maven Central: `useInMemoryPgpKeys` (not `useGpgCmd`), staging to `build/staging-deploy/`,
     curl bundle upload to Central Portal REST API. JNA resource dirs differ from JNI (linux-x86-64
     vs linux-x86_64)
-
-## C++ Wrapper Review
-
-- C++ wrapper in `packages/cpp/` — header-only, no Rust crate. CMake + INTERFACE library
-- Review shortcut: `cargo build -p iscc-ffi` + CMake configure/build/test + ASAN rebuild + clippy +
-    `mise run check`
-- CI `cpp` job: cmake + ASAN + test on ubuntu-latest
-- `iscc.hpp` bundled in FFI release tarballs — flat layout alongside `iscc.h`
-- C++ package managers: vcpkg.json + portfile.cmake + conanfile.py in `packages/cpp/`
-- **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`
-
-## Python Benchmark Review
-
-- pytest-benchmark tests in `tests/test_benchmarks.py`: 18 benchmarks (9 fn x 2 impls)
-- Benchmarks run in default pytest collection (~11s overhead). Known optimization: add
-    `--benchmark-disable` to CI/hooks. Already documented in learnings-archive.md
-- Review shortcut: `mise run check` + ruff check/format + clippy (Python-only shortcut)
 
 ## Environment
 
 - Python `iscc_lib`: compile with `cd crates/iscc-py && uv run maturin develop --release`
 - `.pyi` stub sync: `ty check` catches mismatches, `mise run check` does not
-- **Pre-push needs iscc_lib built**: `ty check` and `pytest` hooks import `iscc_lib` — if not
-    compiled, push fails. Build before pushing:
-    `cd crates/iscc-py && uv run maturin develop --release`
+- **Pre-push needs iscc_lib built**: `ty check` and `pytest` hooks import `iscc_lib` — build before
+    pushing (same maturin command above), else push fails
+- **PyO3 is `0.29`, migration COMPLETE** (#1 closed): per-hop recipe + GIL-detach pattern + gotcha
+    catalog in `learnings-archive.md`. Verify pin: `cargo tree -p iscc-py -i pyo3` (single 0.29.0).
+    Keep explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — 0.28 silently
+    flipped that default `true`→`false`. LESSON for future bumps: "compiles clean under
+    `-D warnings`" ≠ behavior-neutral; diff pyo3-macros-backend default handling each hop. Advisory
+    clearance NOT tool-confirmable — `cargo deny`/`cargo audit` absent from devcontainer + CI
+    ([review])
 
 ## Ruby Binding Review
 
 - Magnus 0.7.1 pinned for Ruby 3.1 compat — 0.8 needs Ruby 3.2+
 - `function!` macro does NOT accept `&Ruby` — use `Ruby::get().expect("called from Ruby")`
-- `rb-sys` needs Ruby headers + `libclang-dev` — why `--exclude iscc-rb` in CI
 - Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate
 - Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot
-    finalize
-- Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`. Config: `.standard.yml`
+    finalize (linting recipe in Ruby-only review shortcut above)

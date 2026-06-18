@@ -57,33 +57,27 @@ newer CPython APIs or depend on C extensions that require per-version builds.
 napi-rs compiles to a native `.node` addon with zero overhead. This is what SWC, Biome, Lightning
 CSS, Rspack, and Oxc all use.
 
-**Key pattern**: platform-specific npm packages with a main package that selects the right binary.
+**Key pattern**: a single self-contained `@iscc/lib` package that bundles every platform's `.node`
+binary; the generated `index.js` loader selects the right one at runtime.
 
 ```
 crates/iscc-napi/
 ├── Cargo.toml              # napi + napi-derive dependencies
 ├── src/
-│   ├── lib.rs              # #[napi] exported functions
-│   ├── code.rs
-│   └── units.rs
-├── package.json            # @napi-rs/cli build config
-├── npm/                    # Per-platform packages (auto-generated)
-│   ├── darwin-arm64/
-│   │   └── package.json    # @iscc/lib-darwin-arm64
-│   ├── darwin-x64/
-│   │   └── package.json    # @iscc/lib-darwin-x64
-│   ├── linux-x64-gnu/
-│   │   └── package.json    # @iscc/lib-linux-x64-gnu
-│   ├── linux-arm64-gnu/
-│   │   └── package.json    # @iscc/lib-linux-arm64-gnu
-│   └── win32-x64-msvc/
-│       └── package.json    # @iscc/lib-win32-x64-msvc
+│   └── lib.rs              # #[napi] exported functions
+├── package.json            # @napi-rs/cli build config; files: ["*.node"] bundles all binaries
+├── index.js                # Auto-generated platform loader (gitignored)
+├── index.d.ts              # Auto-generated TS declarations (gitignored)
+├── iscc-lib.<triple>.node  # Compiled binaries, all bundled into the tarball (gitignored)
 └── __tests__/
 ```
 
-**How platform selection works**: The main `@iscc/lib` package has `optionalDependencies` pointing
-to each platform package. npm automatically installs only the matching one. The main package's JS
-entry point detects the platform and requires the correct native binary.
+**How platform selection works**: The single `@iscc/lib` package ships all five `.node` binaries via
+`files: ["*.node"]`. The generated `index.js` loader detects the host platform and `require`s the
+bundled local `iscc-lib.<triple>.node`. The package declares **no `optionalDependencies`** and
+publishes **no per-platform sibling packages** — bundling all five (~1.1 MB each) is cheap and
+avoids the `optionalDependencies` fragility class (404 sibling installs, `npm ci` lockfile
+failures).
 
 **napi-rs vs WASM for Node.js**:
 

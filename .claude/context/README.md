@@ -20,7 +20,9 @@ It exists to keep agent prompts small, stable, and unambiguous.
 | `handoff.md`       | `advance` then `review`                                            | overwrite                                         | Inter-role communication; latest review verdict is authoritative       |
 | `learnings.md`     | `review`                                                           | append-only (occasionally prune/merge for signal) | High-signal pitfalls, patterns, and verified conventions               |
 | `issues.md`        | humans + agents                                                    | append-only; review deletes resolved              | Lightweight backlog that define-next can prioritize                    |
-| `iterations.jsonl` | CID tooling/agents                                                 | append-only                                       | Execution log (turns/cost/duration/status) for iteration accounting    |
+| `iterations.jsonl` | `tools/cid.py` (sole writer + committer)                           | append-only                                       | Execution log (per-role + `iteration_summary` rows) for accounting     |
+| `proposals.md`     | `meta-improve`                                                     | overwrite                                         | Open self-improvement proposals awaiting human review                  |
+| `meta-log.jsonl`   | `meta-improve`                                                     | append-only                                       | Audit trail of auto-applied loop changes + their rollback outcomes     |
 | `specs/`           | human + review (when authorized via `issues.md`)                   | curated                                           | Deeper specs referenced by `target.md`                                 |
 
 ## Hygiene rules (recommended)

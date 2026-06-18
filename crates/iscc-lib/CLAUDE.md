@@ -12,19 +12,19 @@ Pure Rust implementation of ISO 24138:2024 (ISCC) -- the hub of the hub-and-spok
 
 ## Module Layout
 
-| Module           | Visibility   | Purpose                                                                                              |
-| ---------------- | ------------ | ---------------------------------------------------------------------------------------------------- |
-| `lib.rs`         | public       | Crate root: re-exports, `IsccError`/`IsccResult`, all 10 `gen_*_v0` functions                        |
-| `types.rs`       | `pub`        | Result structs (`MetaCodeResult`, `TextCodeResult`, etc.)                                            |
-| `codec.rs`       | `pub`        | Tier 2: `MainType`/`SubType`/`Version` enums, header encode/decode, base32, `iscc_decompose`         |
-| `streaming.rs`   | `pub`        | `DataHasher` and `InstanceHasher` streaming types                                                    |
-| `conformance.rs` | `pub`        | `conformance_selftest()` -- runtime conformance checker                                              |
-| `utils.rs`       | `pub`        | `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`, `multi_hash_blake3` (pub(crate)) |
-| `cdc.rs`         | `pub`        | Content-defined chunking (`alg_cdc_chunks`)                                                          |
-| `minhash.rs`     | `pub`        | MinHash algorithm (`alg_minhash_256`)                                                                |
-| `simhash.rs`     | `pub`        | SimHash and sliding window (`alg_simhash`, `sliding_window`)                                         |
-| `dct.rs`         | `pub(crate)` | Discrete Cosine Transform for image hashing                                                          |
-| `wtahash.rs`     | `pub(crate)` | Winner-Take-All hash for video fingerprinting                                                        |
+| Module           | Visibility   | Purpose                                                                                      |
+| ---------------- | ------------ | -------------------------------------------------------------------------------------------- |
+| `lib.rs`         | public       | Crate root: re-exports, `IsccError`/`IsccResult`, all 10 `gen_*_v0` functions                |
+| `types.rs`       | `pub`        | Result structs (`MetaCodeResult`, `TextCodeResult`, etc.)                                    |
+| `codec.rs`       | `pub`        | Tier 2: `MainType`/`SubType`/`Version` enums, header encode/decode, base32, `iscc_decompose` |
+| `streaming.rs`   | `pub`        | `DataHasher` and `InstanceHasher` streaming types                                            |
+| `conformance.rs` | `pub(crate)` | `conformance_selftest()` -- runtime conformance checker (re-exported at crate root)          |
+| `utils.rs`       | `pub(crate)` | `text_clean`, `text_remove_newlines`, `text_trim`, `text_collapse`, `multi_hash_blake3`      |
+| `cdc.rs`         | `pub(crate)` | Content-defined chunking (`alg_cdc_chunks`)                                                  |
+| `minhash.rs`     | `pub(crate)` | MinHash algorithm (`alg_minhash_256`)                                                        |
+| `simhash.rs`     | `pub(crate)` | SimHash and sliding window (`alg_simhash`, `sliding_window`)                                 |
+| `dct.rs`         | `pub(crate)` | Discrete Cosine Transform for image hashing                                                  |
+| `wtahash.rs`     | `pub(crate)` | Winner-Take-All hash for video fingerprinting                                                |
 
 ## API Tier Rules
 

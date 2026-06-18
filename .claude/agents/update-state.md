@@ -2,7 +2,7 @@
 name: update-state
 description: Assess and document the current project state accurately
 model: opus
-effort: medium
+effort: high
 tools: Read, Grep, Glob, Bash, Write
 memory: project
 ---
