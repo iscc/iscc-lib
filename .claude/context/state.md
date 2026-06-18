@@ -1,19 +1,19 @@
-<!-- assessed-at: 6cb96423837ea9a6c17b8ae784d5ce0ff6c2a8ce -->
+<!-- assessed-at: bb9f02e5f80e6345f8eeed8574b144405be5ca58 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-v0.4.0 hardening toward v1.0.0 — CI GREEN; iai-callgrind Perf job now collects real instruction counts (regression gate still pending)
+## Phase: Post-v0.4.0 hardening toward v1.0.0 — CI GREEN; iai-callgrind perf regression gate now committed and enforcing
 
 v0.4.0 is released across all registries; all 12 language bindings are functionally met. **CI is
-GREEN** on the pushed tip (`1463edb`, run 27746693860). This iteration fixed a *false green* in the
-`Perf (iai-callgrind)` job: the bench binary inherited `strip = true` from `[profile.release]`, so
-callgrind's `__iai_callgrind_wrapper` toggle symbols matched nothing and every bench reported
-`summary: 0` while still exiting 0. Adding `[profile.bench] strip = false, debug = true` plus a CI
-guard that fails on zero collection means the Perf job now records genuine non-zero instruction
-counts. The *committed* baseline + >10% regression gate (slice 2b) is still pending, so the perf
-gate is not yet enforcing. No critical issues open.
+GREEN** on the pushed tip (`a5ce73c`, run 27750907410, overall conclusion `success`). This iteration
+landed slice 2b of the `iai-callgrind` perf gate: a committed `.iai-baseline.json` (16 Ir entries,
+10% tolerance), a stdlib-only `scripts/iai_regression.py`, an enforcing `Check perf regression` step
+in the `Perf` CI job, and `bench:iai:baseline` / `bench:iai:check` mise tasks. The post-push `Perf`
+job is GREEN with the regression step passing against the committed baseline — the deferred CI-only
+verification from the handoff is now confirmed, so issue #3 is functionally complete (awaiting
+review-agent deletion). No critical issues open.
 
 ## Rust Core Crate
 
@@ -29,26 +29,26 @@ gate is not yet enforcing. No critical issues open.
 - Internal module visibility narrowed: `lib.rs` declares
     `pub(crate) mod cdc / conformance / dct / minhash / simhash / utils / wtahash`; only `codec`,
     `streaming`, `types` are `pub mod`. All 10 crate-root `pub use` re-exports intact.
-- **Semver gate present (informational)**: the `Semver (cargo-semver-checks)` job
-    (`continue-on-error: true`, ci.yml) reports job-level `failure` (2 expected breaking changes
-    from the post-0.4.0 `pub(crate)` narrowing) but does NOT flip the run conclusion. The target's
-    **enforcing** criterion stays unmet (`rust-core.md` "verified when" still `[ ]`) — flip
-    `continue-on-error` off only at the v1.0.0 cut.
-- **Perf gate (normal) — harness + CI job done & now correct, regression gate still missing**:
-    `crates/iscc-lib/benches/iai_benches.rs` is an `iai-callgrind` 0.16 instruction-count harness
-    (11 `bench_*` fns: 9 `gen_*_v0` hot paths + `bench_cdc_chunks` + `bench_minhash_256`; expands to
-    16 parametrized cases at runtime). This iteration fixed the *false green*: `[profile.bench]`
-    inherits release `strip = true`, which stripped the `__iai_callgrind_wrapper` toggle symbols and
-    zeroed every count. Adding `[profile.bench] strip = false, debug = true` (Cargo.toml) restores
-    them; an `Assert non-zero instruction collection` guard step (ci.yml,
-    `grep -rEq '^summary:   [1-9]'`) fails the job on zero collection;
-    `IAI_CALLGRIND_ALLOW_ASLR=true` (mise.toml + ci.yml) skips the kernel-blocked `setarch -R` ASLR
-    step. The `Perf (iai-callgrind)` job now installs valgrind + `iai-callgrind-runner@0.16.1`, runs
-    `cargo bench -p iscc-lib --bench iai_benches`, passes the guard with **real non-zero counts**,
-    and uploads `target/iai/` as `iai-baseline` — **GREEN on the pushed tip**. A `bench:iai` mise
-    task exists (mise.toml:126). Still missing (slice 2b): a **committed** baseline file and a
-    **>10% regression gate** that fails CI. Issue #3 stays open until slice 2b lands.
-- Workspace version is `0.4.0`; next target is v1.0.0 (stability-committed under strict SemVer).
+- **Perf gate (was normal #3) — NOW COMPLETE & ENFORCING.** `crates/iscc-lib/benches/iai_benches.rs`
+    is an `iai-callgrind` 0.16 instruction-count harness (11 `bench_*` fns → 16 parametrized runtime
+    cases). `[profile.bench] strip = false, debug = true` (Cargo.toml:61) keeps the
+    `__iai_callgrind_wrapper` toggle symbols so callgrind collects real counts (the earlier false
+    green). The `Perf (iai-callgrind)` CI job installs valgrind + `iai-callgrind-runner@0.16.1`,
+    runs the benches (env `IAI_CALLGRIND_ALLOW_ASLR=true`), passes an
+    `Assert non-zero instruction   collection` guard, then runs the enforcing
+    `Check perf regression` step (`python3 scripts/iai_regression.py --check`) which fails CI if any
+    bench's Ir exceeds the committed `.iai-baseline.json` by >10%. Baseline = 16 Ir entries, metric
+    `Ir`, tolerance 10%, committed at repo root (NOT gitignored). `bench:iai`, `bench:iai:check`,
+    `bench:iai:baseline` mise tasks present. Job is GREEN on the pushed tip with the regression step
+    passing. This satisfies target.md "No > 10% performance regression ... gated by `iai-callgrind`
+    vs a committed baseline" — `rust-core.md` perf "verified when" boxes are now `[x]`.
+- **Semver gate present (informational, still unmet for v1.0.0)**: the
+    `Semver (cargo-semver-checks)` job (`continue-on-error: true`, ci.yml) reports job-level
+    `failure` (2 expected breaking changes from the post-0.4.0 `pub(crate)` narrowing) but does NOT
+    flip the run conclusion. The target's **enforcing** criterion stays unmet (`rust-core.md` semver
+    "verified when" still `[ ]`) — flip `continue-on-error` off only at the v1.0.0 cut.
+- Workspace version is `0.4.0`; next target is v1.0.0 (stability-committed under strict SemVer). The
+    semver/v1.0.0 enforcement is the only remaining Rust Core gap; everything else met.
 
 ## Python Bindings
 
@@ -63,11 +63,10 @@ gate is not yet enforcing. No critical issues open.
     `version = "0.29"` with `abi3-py310`); `Cargo.lock` resolves a single `pyo3 0.29.0` with no
     older entries — the version where both targeted RustSec advisories shipped in the wheel clear.
     The explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697, documented) is
-    preserved (PyO3 0.28 silently flipped that default `true`->`false`; the explicit setting keeps
-    the raw-FFI `extract_frame_sigs` path free-threading-safe).
-- Note: the advisory clearance was confirmed only by the mechanical lockfile proxy (single
-    `pyo3 0.29.0`, no older entries) — `cargo deny`/`cargo audit` are absent from both the
-    devcontainer and CI. That tooling gap is tracked as a separate `[review]` CI/CD issue.
+    preserved (PyO3 0.28 silently flipped that default `true`->`false`).
+- Note: advisory clearance was confirmed only by the mechanical lockfile proxy (single
+    `pyo3 0.29.0`, no older entries) — `cargo deny`/`cargo audit` absent. Tracked as a separate
+    `[review]` CI/CD issue.
 
 ## Node.js Bindings
 
@@ -134,8 +133,7 @@ gate is not yet enforcing. No critical issues open.
 **Status**: met
 
 - SPM package with UniFFI-generated bindings, all 32 Tier 1 symbols, XCFramework build, Swift CI job
-    GREEN on macos-14. Release provenance guard + root Package.swift dump-package smoke test
-    present.
+    GREEN. Release provenance guard + root Package.swift dump-package smoke test present.
 
 ## Kotlin Bindings
 
@@ -168,43 +166,39 @@ gate is not yet enforcing. No critical issues open.
 
 ## Benchmarks
 
-**Status**: met (CI perf *regression gate* is a separate v1.0.0 item)
+**Status**: met
 
 - Criterion benches for all 10 `gen_*_v0` (+2) functions, Bench (compile check) CI job GREEN,
     pytest-benchmark 18 functions, speedup factors published (1.3x-158x) in docs/benchmarks.md.
-- A second bench harness `iai_benches.rs` (iai-callgrind 0.16, 11 `bench_*` fns) sits alongside
-    criterion `benchmarks.rs`. As of the pushed tip it is **run in CI** by the
-    `Perf (iai-callgrind)` job under valgrind, **now collecting genuine non-zero instruction
-    counts** (the `[profile.bench]` strip fix + the zero-collection guard step), and the results are
-    uploaded as the `iai-baseline` artifact (job GREEN). Still missing: a **committed** baseline and
-    the >10% **regression gate** — that slice (issue #3, slice 2b) is not yet implemented and
-    remains tracked under Rust Core / CI/CD.
+- Second harness `iai_benches.rs` (iai-callgrind 0.16, 11 `bench_*` fns) runs in CI under valgrind,
+    collects genuine non-zero Ir counts, and is now gated by an **enforcing >10% regression check**
+    against the committed `.iai-baseline.json` (issue #3, slices 2a+2b, complete). Results upload as
+    the `iai-baseline` artifact (`if: always()`).
 
 ## CI/CD and Publishing
 
 **Status**: partially met — **CI GREEN on pushed tip**
 
-- **LATEST PUSHED CI RUN — SUCCESS.** Run 27746693860 on sha `1463edb` (= `origin/develop` tip):
-    confirmed `success` via the check-runs API — all 19 functional jobs green, including the
-    `Perf (iai-callgrind)` job (its zero-collection guard now passes = real counts collected), the
-    `Coverage + CRAP` job, and the enforcing Phase 3 gate. The only job-level `failure` is
-    `Semver (cargo-semver-checks)`, which is `continue-on-error: true` (informational, does not flip
-    the run). URL: https://github.com/iscc/iscc-lib/actions/runs/27746693860
-- **`Perf (iai-callgrind)` false-green FIXED (this iteration).** The prior run reported the job
-    green but every bench collected `summary: 0` instructions because `[profile.bench]` inherited
-    `strip = true` and erased the `__iai_callgrind_wrapper` toggle symbols. Fix:
-    `[profile.bench]   strip = false, debug = true` (Cargo.toml) + an
-    `Assert non-zero instruction collection` guard step (ci.yml) that fails on zero collection +
-    `IAI_CALLGRIND_ALLOW_ASLR=true` (mise.toml + ci.yml). Slice 2a of issue #3 is now genuinely
-    complete; the regression gate (slice 2b) is the remaining work. The job has no `needs:` and no
-    `continue-on-error` — it enforces the guard.
-- **HEAD is 1 commit ahead of origin/develop, code-clean.** HEAD (`6cb9642`) is the iteration-108
-    log commit (`iterations.jsonl` only); origin/develop is `1463edb`. No code is unpushed/
-    unverified — the CI result on `1463edb` reflects the current code.
-- **Coverage + CRAP GREEN.** The earlier `cargo-binstall` / `Swatinem/rust-cache` cache-poisoning
-    flake was fixed via `--force` on the install step (ci.yml
-    `cargo binstall -y --force   cargo-crap@0.2.2`). The enforcing Phase 3 `CRAP regression gate`
-    runs on every commit and concludes `success`.
+- **LATEST PUSHED CI RUN — SUCCESS.** Run 27750907410 on sha `a5ce73c` (= `origin/develop` tip):
+    overall conclusion `success`; all 19 functional jobs green (confirmed via check-runs API),
+    including the `Perf (iai-callgrind)` job (its enforcing `Check perf regression` step passes
+    against the committed baseline), the `Coverage + CRAP` job, and the enforcing Phase 3 CRAP gate.
+    The only job-level `failure` is `Semver (cargo-semver-checks)`, which is
+    `continue-on-error:   true` (informational, does not flip the run). URL:
+    https://github.com/iscc/iscc-lib/actions/runs/27750907410
+- **`Perf (iai-callgrind)` gate now ENFORCING (this iteration, slice 2b).** Pipeline: install
+    valgrind + `iai-callgrind-runner@0.16.1` (binstall `--force`) → run benches (env
+    `IAI_CALLGRIND_ALLOW_ASLR=true`) → `Assert non-zero instruction collection` guard →
+    `Check perf regression` (`python3 scripts/iai_regression.py --check`, stdlib-only, fails on >10%
+    Ir regression vs committed `.iai-baseline.json`) → upload `iai-baseline` artifact
+    (`if: always()`). No `needs:`, no `continue-on-error` — it enforces. Baseline refresh via
+    `mise run   bench:iai:baseline` (reviewed commit).
+- **HEAD is 1 commit ahead of origin/develop, code-clean.** HEAD (`bb9f02e`) is the iteration-109
+    log commit (`iterations.jsonl` only); origin/develop is `a5ce73c`. No code is unpushed — the CI
+    result on `a5ce73c` reflects the current code.
+- **Coverage + CRAP GREEN.** The enforcing Phase 3 `CRAP regression gate`
+    (`cargo crap --baseline .crap-baseline.json --fail-regression`, ci.yml) runs on every commit and
+    concludes `success`.
 - **CRAP gate hardening gap (open, normal, [review])**: Phase 3 is regression-only — a
     brand-new/renamed function has no baseline entry, reports `★ N new`, and the step exits 0 (Codex
     verified a new uncovered CC=21 fn at CRAP 462 bypassed it). Fix: add `--fail-above 30` alongside
@@ -212,49 +206,48 @@ gate is not yet enforcing. No critical issues open.
 - **Supply-chain audit gap (open, normal, [review])**: `notes/07-security-versioning.md` mandates
     `cargo deny check` "Run in CI" (licenses + RustSec advisories + duplicate versions) via a
     workspace-root `deny.toml`, plus `cargo audit`. None exists — no `deny.toml`, no CI job, no
-    `mise` task, neither tool installed in the devcontainer. Surfaced concretely during the PyO3
-    0.29 bump (clearance confirmable only by a lockfile proxy). HUMAN REVIEW REQUESTED (requirement
-    lives only in design notes, not the CID specs).
-- **Perf regression gate gap (open, normal)**: the `Perf` job now runs the benches with real counts
-    and uploads a baseline artifact, but there is no **committed** baseline and no **>10%
-    regression** failure condition yet (issue #3, slice 2b).
+    `mise` task, neither tool installed. HUMAN REVIEW REQUESTED (requirement lives only in design
+    notes, not the CID specs).
+- **iai_regression.py false-green hardening (open, normal, [review], NEW this cycle)**: two narrow
+    escape hatches Codex flagged in the new gate script — (1) a single bench reporting `summary: 0`
+    is read as an improvement and passes (the CI guard only catches the all-zero case); (2) a
+    baselined bench that stops emitting a `.out` only warns and can still exit 0. Both are
+    defense-in-depth on an already-working enforcing gate, not slice-2b defects. No spec change
+    needed — pure script change, fully CID-actionable.
 - v0.4.0 published; release workflow with 8 registry input toggles (crates.io, PyPI, npm, Maven,
     FFI, RubyGems, NuGet, Maven-Kotlin; Swift XCFramework built in `prepare-release`) + version sync
     (16 targets) in place.
 
-## Open Issues (5 total — 0 critical, 3 normal, 2 low)
+## Open Issues (issues.md lists 6 — 0 critical, 4 normal, 2 low)
 
-Normal (CID-actionable, but all three are constrained — see Next Milestone):
+Issue #3 (iai-callgrind perf gate, [human]) is **functionally COMPLETE and CI-verified** this cycle
+(Perf job green, regression step passing) — still listed in issues.md, awaiting review-agent
+deletion. Remaining normal issues:
 
-1. **CRAP gate does not fail on new high-CRAP functions** [review] — regression-only gate lets new
+1. **Harden iai-callgrind regression gate against false-green edge cases** [review] (NEW) — zero
+    current count + disappeared-baseline-bench escape hatches in `scripts/iai_regression.py`. Pure
+    script change, no spec amendment, **fully CID-actionable** — the natural next work package.
+2. **CRAP gate does not fail on new high-CRAP functions** [review] — regression-only gate lets new
     uncovered high-complexity functions through; add `--fail-above 30`. HUMAN REVIEW REQUESTED.
-2. **Wire up `cargo deny`/`cargo audit` supply-chain gate** [review] — design notes mandate it but
+3. **Wire up `cargo deny`/`cargo audit` supply-chain gate** [review] — design notes mandate it but
     no `deny.toml`/CI job/`mise` task exists. HUMAN REVIEW REQUESTED (spec gap — requirement only
     in notes/07, not CID specs).
-3. **Add `iai-callgrind` performance-regression CI gate** [human] — *CI Perf job now collects real
-    non-zero counts and is GREEN (slice 2a complete this iteration)*; remaining work (slice 2b) is
-    the **committed baseline** + the **>10% regression gate** that fails CI, plus a
-    baseline-refresh `mise` task. Verifiable only via CI (valgrind is absent in the devcontainer).
 
 Low (human-directed, CID skips):
 
-- **Release core as v1.0.0** — human-driven via `/release` skill; land perf regression gate + flip
-    semver gate to enforcing first.
+- **Release core as v1.0.0** — human-driven via `/release` skill; flip semver gate to enforcing
+    first.
 - **Add programming language logos to docs site** — cosmetic.
 
 ## Next Milestone
 
-**CI is GREEN on the pushed tip and the iai-callgrind `Perf` job now collects genuine non-zero
-instruction counts under valgrind (the false-green is fixed).** The obvious next slice closes the
-perf gate; the other two normal issues are review-gated:
+**CI is GREEN on the pushed tip and the iai-callgrind perf gate is now committed, enforcing, and
+CI-verified.** The obvious next CID-actionable slice is the one issue with no review gate:
 
-1. **Finish the `iai-callgrind` perf gate (slice 2b)** — inspect the uploaded `iai-baseline`
-    artifact to learn the on-disk layout/summary format, commit a known-good baseline file, add the
-    > 10% instruction-count **regression failure** condition (via `LibraryBenchmarkConfig` tolerance
-    > or an iai-callgrind `--baseline`/`--fail-*` flow), and add a deliberate `bench:iai:baseline`
-    > refresh `mise` task. This is the slice that flips `rust-core.md` / `ci-cd.md` perf-gate
-    > checkboxes and lets issue #3 close. Verifiable only via CI (no valgrind in the devcontainer);
-    > the `Perf` job already has no `continue-on-error`, so it will enforce once the gate exists.
+1. **Harden `scripts/iai_regression.py` against the two false-green edge cases** (review-sourced,
+    NEW) — fail `check_regressions` when any shared bench's current Ir is 0, and fail (or require
+    `--allow-missing`) when a baselined bench is absent from the run. Pure script change, no spec
+    amendment, fully CID-actionable. Confirm `cargo test -p iscc-lib` is unaffected.
 2. **Wire up the `cargo deny`/`cargo audit` supply-chain gate** (review-sourced) — `deny.toml` at
     the workspace root, a `Security audit` CI job, and a `mise run audit` task. **HUMAN REVIEW
     REQUESTED before amending the spec** — the requirement lives only in `notes/07`, not the CID
