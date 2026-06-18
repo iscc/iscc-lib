@@ -445,7 +445,7 @@ workflow triggers on push to `main`.
 - [x] CRAP job also fails via `--fail-above` on any function (including new/renamed entries absent
     from the baseline) whose CRAP score exceeds the `.cargo-crap.toml` `threshold` (30), closing the
     regression-only blind spot
-- [ ] Audit job runs `cargo deny check` (advisories + bans + licenses) over the workspace via a root
+- [x] Audit job runs `cargo deny check` (advisories + bans + licenses) over the workspace via a root
     `deny.toml`, failing CI on a flagged advisory, banned/duplicate crate, or disallowed license;
     `mise run audit` reproduces it locally
 

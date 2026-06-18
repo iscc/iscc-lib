@@ -27,10 +27,10 @@ iterations.
 ## Build and Tooling
 
 - `cargo build -p iscc-jni` before `mvn test -f crates/iscc-jni/java/pom.xml` (native lib prereq)
-- CI workflow `.github/workflows/ci.yml` has 18 job entries (version-check, rust, python-test,
+- CI workflow `.github/workflows/ci.yml` has 19 job entries (version-check, rust, python-test,
     python, nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver,
-    coverage). `bench` = `cargo bench --no-run`. `swift` on `macos-14`; `kotlin` on `ubuntu` JDK 17
-    \+ `cargo build -p iscc-uniffi` + `./gradlew test`
+    coverage, audit). `bench` = `cargo bench --no-run`. `swift` on `macos-14`; `kotlin` on `ubuntu`
+    JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
 - `coverage` CI job (`Coverage + CRAP`): standalone, NO `continue-on-error`. toolchain +
     `llvm-tools-preview` → `cargo binstall -y --force {cargo-llvm-cov,cargo-crap@0.2.2}` (`--force`
     LOAD-BEARING, rust-cache gotcha) → `cargo llvm-cov -p iscc-lib --lcov` → upload `lcov` →
@@ -52,6 +52,17 @@ iterations.
     param (not step-level), bundler-cache auto-installs gems. `rust` job feature matrix: clippy+test
     for `--no-default-features`, `--all-features`,
     `--no-default-features --features text-processing`
+- `audit` CI job (`Audit (cargo-deny)`, iter 114, enforcing — NO `continue-on-error`):
+    `taiki-e/install-action cargo-deny@0.19.9` → `cargo deny check`. Local `mise run audit`;
+    cargo-deny INSTALLABLE in devcontainer via `cargo install cargo-binstall` (~5.5min) then
+    `cargo binstall cargo-deny@0.19.9`. `deny.toml` (repo root) is config v2: unlisted licenses +
+    vulns + unmaintained DENY by default (NO `unlicensed=`/`vulnerability=` keys);
+    `all-features=true`; `yanked="deny"`; `allow=[...13]` incl
+    `MPL-2.0`/`BSL-1.0`/`Unicode-3.0`/`Zlib` + `private={ignore=true}` (4 binding crates carry no
+    `license`); `multiple-versions="warn"` (6 dup warns, non-failing); sources unknown-registry/git
+    `deny`; `ignore`=2 dev-only `iai-callgrind` unmaintained advisories (RUSTSEC-2025-0141 bincode,
+    RUSTSEC-2026-0173 proc-macro-error2). GOTCHA: `yanked="deny"` forced a Cargo.lock bump of the
+    wasm-bindgen family off yanked 0.2.111/js-sys 0.3.88 (wasm-bindgen-test pins `=` exact)
 - `version-check` job: `scripts/version_sync.py --check` (16 targets incl. Swift Constants,
     Package.swift releaseTag, Kotlin; exits 1 on mismatch). Go CI job has zero Rust deps
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds (`maturin` not on PATH
@@ -59,7 +70,7 @@ iterations.
 - PyO3 pin = single source: root `Cargo.toml` (`pyo3` "0.29", `abi3-py310`); ONLY `crates/iscc-py`
     consumes it (0.23→0.29 done, iter 105, #1 closed). KEEP explicit
     `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) — 0.28+ defaults `gil_used`⇒`false`,
-    unsafe for raw `PyList_GetItem` ptrs. Recipe → MEMORY-archive.md. `cargo audit` NOT in CI
+    unsafe for raw `PyList_GetItem` ptrs. Recipe → MEMORY-archive.md
 - Release workflow (`release.yml`): 9 boolean inputs, pattern input → build → **smoke test** →
     publish. Full input list + per-registry auth + release-job CI internals → MEMORY-archive.md
 - wasm-pack `--features` goes AFTER the path, NOT after `--`; test runner accepts only a positional
@@ -72,29 +83,19 @@ iterations.
     (iai-callgrind `0.16`→0.16.1, instruction-counts, v1.0.0 perf gate #3). Share
     `deterministic_bytes`/`synthetic_text` builders
 - iai harness COMPILES without valgrind/runner; running needs them (devcontainer HAS valgrind 3.19 +
-    runner 0.16.1; local `mise run bench:iai`). `Perf (iai-callgrind)` CI job steps: apt valgrind →
-    binstall runner (rust-cache `--force` gotcha) → run benches → zero-collection guard → enforcing
-    `Check perf regression` step → upload `target/iai/` as `iai-baseline` (`if: always()`)
-- PERF REGRESSION GATE (iter 109 slice 2b + iter 110 hardening DONE, issue #3 + [review] issue):
-    `scripts/iai_regression.py` (stdlib only, no uv in CI) + committed `.iai-baseline.json` (repo
-    root, NOT gitignored, 16 Ir entries). On-disk leaf dir `<bench_fn>.<bench_id>` = JSON key; parse
-    first int of the `summary: <Ir> ...` line. Gates Ir ONLY.
-    `check_regressions(run, baseline,   allow_missing=False)` returns False (exit 1) if ANY of: a
-    shared bench >`baseline*1.10`; a shared bench current Ir == 0 (`zero_benches`,
-    partial-strip/harness false-green; independent of `--allow-missing`); a baselined bench missing
-    from the run (`only_baseline`) UNLESS `--allow-missing`. only-in-run STILL warns only
-    (deliberate — new benches don't fail until a `--update` refresh). `--update --from-dir DIR`
-    rebuilds. Glob skips `.out.old`. COMMITTED baseline MUST be CI-sourced (download green Perf
-    `iai-baseline` artifact, then `--update`) to match CI rustc. Tasks `bench:iai:baseline` +
-    `bench:iai:check`. Tests `tests/test_iai_regression.py` (synthetic temp `.out` dirs, never a
-    live run; load script by path like `test_cid.py`). Mirrors `.crap-baseline`
+    runner 0.16.1; local `mise run bench:iai`). `Perf (iai-callgrind)` CI job: apt valgrind →
+    binstall runner (`--force` gotcha) → run benches → zero-collection guard →
+    `Check perf regression` → upload `iai-baseline` (`if: always()`)
+- PERF REGRESSION GATE (iter 109/110 DONE, issue #3): `scripts/iai_regression.py` (stdlib only) +
+    committed `.iai-baseline.json` (repo root, 16 Ir entries). `--check` fails (exit 1) on any
+    shared bench >`baseline*1.10`, any shared bench Ir==0 (false-green guard), or a baselined bench
+    missing (unless `--allow-missing`); only-in-run warns only. Tasks
+    `bench:iai:baseline`/`bench:iai:check`; tests `tests/test_iai_regression.py`. Committed baseline
+    MUST be CI-sourced. Full mechanics → MEMORY-archive.md / learnings-archive.md
 - Two committed bench-config facts (iter 108; full write-up in learnings.md): root `Cargo.toml`
-    `[profile.bench] strip = false, debug = true` (else stripped binary → `summary: 0` false green,
-    caught by the CI guard); `IAI_CALLGRIND_ALLOW_ASLR=true` (mise + ci.yml) skips iai's
-    `setarch -R` that the devcontainer kernel blocks (ASLR = cache noise, not `Ir`)
-- Harness-authoring details (`#[library_benchmark]`/`library_benchmark_group!`/`main!` API,
-    `black_box`, proc-macro docstring-rejection, borrow-returning GOTCHAs) → MEMORY-archive.md.
-    Harness is complete + correct; do not edit it for the perf-gate work
+    `[profile.bench] strip = false, debug = true` (else stripped binary → `summary: 0` false green);
+    `IAI_CALLGRIND_ALLOW_ASLR=true` (mise + ci.yml) skips iai's kernel-blocked `setarch -R` (ASLR =
+    cache noise, not `Ir`)
 
 ## Streaming
 
@@ -104,9 +105,8 @@ iterations.
 - `SumHasher` (issue #37): inner `DataHasher` + `InstanceHasher`, `update` feeds both;
     `finalize(bits, wide, add_units)` composes via `gen_iscc_code_v0`. Full path
     `iscc_lib::streaming::SumHasher` (NOT crate-root). Bindings: Python `PySumHasher`, WASM
-    `SumHasher` (`Option<inner>` finalize-once). All 7 bindings implement `gen_sum_code_v0` (thin
-    `streaming::SumHasher` wrapper). Python GIL release (#39, archived). gen_sum details →
-    MEMORY-archive.md
+    `SumHasher` (`Option<inner>` finalize-once). All 7 bindings implement `gen_sum_code_v0`. gen_sum
+    details → MEMORY-archive.md
 
 ## API Design
 

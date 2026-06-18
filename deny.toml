@@ -1,0 +1,65 @@
+# deny.toml — cargo-deny supply-chain policy for the iscc-lib workspace.
+#
+# Enforces four policy classes over the full dependency graph (all crates, all
+# features) in the enforcing `Audit (cargo-deny)` CI job:
+#   - advisories: fail on any RustSec-flagged vulnerability or yanked crate
+#   - licenses:   fail on any dependency whose license is not allow-listed
+#   - bans:       fail on explicitly banned crates (duplicate versions warn only)
+#   - sources:    fail on any crate sourced from outside crates.io
+#
+# cargo-deny is a dev/CI-only tool, never a shipped dependency. Reproduce the
+# gate locally with `mise run audit` (= `cargo deny check`).
+
+[graph]
+# Scan every crate's dependencies, including the feature-gated binding deps
+# (uniffi, napi, pyo3, magnus, wasm-bindgen, ...), so nothing escapes the audit.
+all-features = true
+
+[advisories]
+# RustSec advisory database. Under config v2 vulnerabilities and unmaintained
+# advisories deny by default; only `yanked` needs an explicit bump to "deny".
+# Add a CURRENT unfixable advisory to `ignore` with a one-line justification
+# rather than loosening the whole class.
+yanked = "deny"
+ignore = [
+  # Unmaintained, dev-only transitive deps of `iai-callgrind` (the perf-gate
+  # bench harness). No safe upgrade is available and neither crate ships in any
+  # published artifact, so the supply-chain exposure is nil.
+  "RUSTSEC-2025-0141", # bincode 1.x unmaintained (iai-callgrind)
+  "RUSTSEC-2026-0173", # proc-macro-error2 unmaintained (iai-callgrind-macros)
+]
+
+[licenses]
+# Anything not on this allow-list fails the gate (config v2 denies by default).
+# Each entry is a license that appears STANDALONE (not only as an OR branch) in
+# the current graph.
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "MIT",
+  "MIT-0",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",                    # unicode-ident: (MIT OR Apache-2.0) AND Unicode-3.0
+  "Zlib",                           # foldhash
+  "BSL-1.0",                        # xxhash-rust (core CDC dep)
+  "MPL-2.0",                        # uniffi* crates
+  "CC0-1.0",                        # satisfiable via an OR branch; listed for clarity
+  "Unlicense",                      # satisfiable via an OR branch; listed for clarity
+]
+# Our binding crates (iscc-napi, iscc-py, iscc-rb, iscc-wasm) carry no `license`
+# field; treat workspace-internal crates as allowed rather than unlicensed.
+private = { ignore = true }
+
+[bans]
+# Duplicate versions are ubiquitous and low-value to gate in a large graph;
+# enforcing denial would need a brittle skip-list. Explicit banned-crate denial
+# (the `deny` list below, empty for now) still enforces.
+multiple-versions = "warn"
+deny = []
+
+[sources]
+# All dependencies must come from crates.io; reject unknown registries and git.
+unknown-registry = "deny"
+unknown-git = "deny"

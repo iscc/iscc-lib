@@ -143,3 +143,11 @@ description = "Regenerate the committed iai-callgrind regression baseline (.iai-
 # baseline matches the rustc the CI gate measures with; this local refresh is a fallback.
 depends = ["bench:iai"]
 run = "python3 scripts/iai_regression.py --update"
+
+# --- Supply-chain audit ---
+
+[tasks.audit]
+description = "Run the cargo-deny supply-chain gate (advisories + licenses + bans + sources)"
+# Reproduces the enforcing `Audit (cargo-deny)` CI job locally. Requires cargo-deny
+# (install via `cargo binstall cargo-deny` or `cargo install cargo-deny --locked`).
+run = "cargo deny check"

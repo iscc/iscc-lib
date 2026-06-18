@@ -391,3 +391,21 @@ jobs:
       - name: CRAP regression gate
         run: cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression
           --fail-above
+  audit:
+    name: Audit (cargo-deny)
+    runs-on: ubuntu-latest
+    # Enforcing supply-chain gate: cargo deny check fails CI on a RustSec
+    # advisory, a yanked or banned crate, a disallowed license, or an unknown
+    # source. Policy lives in the workspace-root deny.toml. No continue-on-error.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      # taiki-e/install-action fetches a prebuilt cargo-deny binary; pin the
+      # version for reproducibility (same discipline as cargo-crap / iai-runner).
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.19.9
+      - name: Run cargo-deny
+        run: cargo deny check
