@@ -297,9 +297,26 @@ jobs:
       - name: Install iai-callgrind-runner
         run: cargo binstall -y --force iai-callgrind-runner@0.16.1
       # First run has no baseline, so iai-callgrind just measures and reports
-      # (exit 0); no regression gate yet (follow-up slice).
+      # (exit 0); no regression gate yet (follow-up slice). IAI_CALLGRIND_ALLOW_ASLR
+      # pins ASLR-on everywhere so CI and local runs behave identically and the
+      # eventual committed baseline is portable; ASLR does not affect Ir counts.
       - name: Run iai-callgrind benches
+        env:
+          IAI_CALLGRIND_ALLOW_ASLR: 'true'
         run: cargo bench -p iscc-lib --bench iai_benches
+      # Guard against a false green: the bench binary must keep its
+      # __iai_callgrind_wrapper symbols (see [profile.bench] in Cargo.toml) or
+      # callgrind collects zero instructions for every bench while still exiting 0.
+      # On a clean runner target/iai/ holds only this run, so a non-zero summary
+      # proves real counts were collected.
+      - name: Assert non-zero instruction collection
+        run: |
+          if grep -rEq '^summary: [1-9]' target/iai/; then
+            echo "iai-callgrind collected non-zero instructions"
+          else
+            echo "::error::iai-callgrind collected ZERO instructions for all benches"
+            exit 1
+          fi
       - name: Upload iai-callgrind results
         uses: actions/upload-artifact@v4
         with:

@@ -26,8 +26,7 @@ iterations.
 
 ## Build and Tooling
 
-- `cargo build -p iscc-jni` before `mvn test` (native lib prereq); POM at
-    `crates/iscc-jni/java/pom.xml`, run `mvn test` from there
+- `cargo build -p iscc-jni` before `mvn test -f crates/iscc-jni/java/pom.xml` (native lib prereq)
 - CI workflow `.github/workflows/ci.yml` has 18 job entries (version-check, rust, python-test,
     python, nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver,
     coverage). `bench` = `cargo bench --no-run`. `swift` on `macos-14`; `kotlin` on `ubuntu` JDK 17
@@ -75,24 +74,26 @@ iterations.
 
 - Two benches in `crates/iscc-lib/benches/`, both `harness = false`: `benchmarks.rs` (criterion,
     wall-clock + throughput, includes `gen_sum_code_v0` via tempfile) and `iai_benches.rs`
-    (iai-callgrind 0.16, instruction-counts for the v1.0.0 perf-regression gate, issue #3). Both
-    pull inputs from the same `deterministic_bytes`/`synthetic_text` builders
-- `iai-callgrind = "0.16"` in root `[workspace.dependencies]` (latest stable = 0.16.1; macros crate
-    is `iai-callgrind-macros 0.6.1`, runner `iai-callgrind-runner 0.16.1`). Dev-dep in iscc-lib
-- iai harness COMPILES without valgrind/runner; only `cargo bench --bench iai_benches` needs
-    valgrind (absent locally). `Perf (iai-callgrind)` CI job (ci.yml, iter 107): apt valgrind +
-    `cargo binstall -y --force iai-callgrind-runner@0.16.1` (rust-cache `--force` gotcha) →
-    `cargo   bench -p iscc-lib --bench iai_benches` → upload `target/iai/` as `iai-baseline`
-    artifact. Local: `mise run bench:iai`. NO baseline/regression gate yet (deferred to slice 2b)
-- API: `#[library_benchmark]` + `#[bench::id(expr)]` (the `expr` args are evaluated in the
-    UNMEASURED setup phase) → `library_benchmark_group!(name = g; benchmarks = a, b, ...)` →
-    `main!(library_benchmark_groups = g)`. Use `std::hint::black_box`, NOT `criterion::black_box`
-- GOTCHA (verified `iai-callgrind-macros-0.6.1/src/lib_bench.rs:258-317`): `#[library_benchmark]`
-    iterates EVERY fn attribute and `abort!`s "Invalid attribute: 'doc'" on anything but
-    `bench`/`benches` — a `///` docstring lowers to `#[doc=...]` and is REJECTED. Benchmark fns must
-    use plain `//` comments; only non-annotated helper fns can keep `///` docstrings
-- For borrow-returning primitives (`alg_cdc_chunks` → `Vec<&[u8]>` borrowing the arg), the bench fn
-    returns `.len()` (the Vec can't escape the fn); chunking work is fully measured before `len()`
+    (iai-callgrind `0.16` workspace dep → resolves 0.16.1, instruction-counts for the v1.0.0 perf
+    gate, issue #3). Both share the `deterministic_bytes`/`synthetic_text` input builders
+- iai harness COMPILES without valgrind/runner; running needs them (devcontainer HAS valgrind 3.19
+    and `iai-callgrind-runner` 0.16.1 in `~/.cargo/bin`). `Perf (iai-callgrind)` CI job (ci.yml):
+    apt valgrind, `cargo binstall -y --force iai-callgrind-runner@0.16.1` (rust-cache `--force`
+    gotcha), `cargo bench -p iscc-lib --bench iai_benches`, guard step, upload `target/iai/` as
+    `iai-baseline`. Local: `mise run bench:iai`. NO regression gate yet (slice 2b)
+- ZERO-COLLECTION GOTCHA (iter 108, fixed): bench profile inherited `strip = true` from
+    `[profile.release]` → stripped binary → iai's
+    `--toggle-collect=*::__iai_callgrind_wrapper_mod::*` matched NO symbols → every bench
+    `summary: 0` while exiting 0 (false green). FIX: root `Cargo.toml`
+    `[profile.bench] strip = false, debug = true`. (iter-107 review's "bench doesn't inherit release
+    strip" claim was WRONG.) ASLR: kernel blocks the `personality` syscall iai's `setarch -R` uses →
+    set `IAI_CALLGRIND_ALLOW_ASLR=true` (`mise.toml bench:iai` env + ci.yml step) to skip `setarch`;
+    ASLR is cache-sim noise only, NOT `Ir` → safe for an Ir gate. CI guard:
+    `grep -rEq '^summary: [1-9]' target/iai/` (`.out` line starts `summary: <Ir> ...`) → fail if
+    zero
+- Harness-authoring details (`#[library_benchmark]`/`library_benchmark_group!`/`main!` API,
+    `black_box`, proc-macro docstring-rejection, borrow-returning GOTCHAs) → MEMORY-archive.md.
+    Harness is complete + correct; do not edit it for the perf-gate work
 
 ## gen_sum_code_v0 — see MEMORY-archive.md for full details
 

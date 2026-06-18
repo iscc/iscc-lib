@@ -146,3 +146,15 @@ Throughout, the 8 raw `pyo3::ffi::*` C-API sites + `Bound::from_owned_ptr().cast
 `.into_pyobject(py)?.into()` + `#[pyo3(signature=...)]` macros survived every hop unchanged — do NOT
 pre-emptively rewrite them. LESSON: "compiles clean" is NOT proof of behavior-neutrality; diff the
 macros-backend default-handling on every major bump, not just compiler warnings.
+
+## iai-callgrind harness authoring (archived iteration 108)
+
+- API: `#[library_benchmark]` + `#[bench::id(expr)]` (the `expr` args are evaluated in the
+    UNMEASURED setup phase) → `library_benchmark_group!(name = g; benchmarks = a, b, ...)` →
+    `main!(library_benchmark_groups = g)`. Use `std::hint::black_box`, NOT `criterion::black_box`
+- GOTCHA (verified `iai-callgrind-macros-0.6.1/src/lib_bench.rs:258-317`): `#[library_benchmark]`
+    iterates EVERY fn attribute and `abort!`s "Invalid attribute: 'doc'" on anything but
+    `bench`/`benches` — a `///` docstring lowers to `#[doc=...]` and is REJECTED. Benchmark fns must
+    use plain `//` comments; only non-annotated helper fns can keep `///` docstrings
+- For borrow-returning primitives (`alg_cdc_chunks` → `Vec<&[u8]>` borrowing the arg), the bench fn
+    returns `.len()` (the Vec can't escape the fn); chunking work is fully measured before `len()`
