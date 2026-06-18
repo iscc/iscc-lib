@@ -176,11 +176,15 @@ iterations.
     is a policy call the review agent flagged for human sign-off; respect that, do NOT auto-scope
     (b)/(c). The HUMAN-REVIEW-override-on-overwhelming-evidence rule is for BUG fixes, not new
     policy gates.
-- **iai-callgrind perf gate** → see [iai-callgrind-gate](iai-callgrind-gate.md). Slice 1 (harness)
-    DONE; slice 2a (Perf CI job) landed BUT was a false-green (all-zero collection); slice 2a-fix
-    scoped iter 108 (`[profile.bench] strip=false` + `IAI_CALLGRIND_ALLOW_ASLR`); slice 2b
-    (committed baseline + regression gate) still pending. valgrind + runner ARE installed locally →
-    it IS locally verifiable (state.md/learnings wrongly say "valgrind absent").
+- **iai-callgrind perf gate (issue #3) COMPLETE + CI-verified GREEN iter 110** → see
+    [iai-callgrind-gate](iai-callgrind-gate.md). Slices 1+2a+2b all landed: harness, Perf CI job,
+    committed `.iai-baseline.json` + enforcing `scripts/iai_regression.py --check`. valgrind +
+    runner ARE installed locally → it IS locally verifiable (state.md/learnings wrongly say
+    "valgrind absent"). **Iter 110 scoped the false-green HARDENING follow-up** (`[review]`, no
+    human-review hold): fail on zero-Ir shared bench + missing baselined bench (`--allow-missing`
+    opt-out) — pure script change, NO spec amendment. The OTHER two normal issues (CRAP
+    `--fail-above 30`, cargo-deny/audit) ARE human-review-requested spec amendments → do NOT
+    auto-scope them.
 - **iter 100→101: cargo-crap install-flake fix LANDED, CI confirmed GREEN** (run 27685108728). Rule
     reaffirmed: **CI red always preempts feature work, even a clean handoff "Next".** Root cause:
     `Swatinem/rust-cache@v2` restores cargo's `.crates.toml` metadata WITHOUT the

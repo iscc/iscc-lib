@@ -50,11 +50,34 @@ files carrying machine-specific paths — not portable/reviewable. Key facts con
     ubuntu-latest); follow `scripts/version_sync.py` for ruff/ty/docstring style. Add
     `bench:iai:baseline` mise task (mirror `crap:baseline`).
 
+**Slice 2b (LANDED + reviewed PASS, iter 109; CI-verified GREEN iter 110):** committed
+`.iai-baseline.json` (16 Ir entries, 10% tolerance, repo root, NOT gitignored) +
+`scripts/iai_regression.py` (stdlib-only, `--update`/`--check`/`--from-dir`/`--baseline`/
+`--tolerance-pct`) + enforcing `Check perf regression` CI step (no `needs:`/`continue-on-error`) +
+`bench:iai:check` / `bench:iai:baseline` mise tasks. Baseline built from the CI artifact (run
+27746693860), so CI compares like-with-like; local rustc 1.96.0 agrees within 1.66%. Issue #3 is now
+functionally COMPLETE.
+
+**Slice 2b HARDENING (SCOPED iter 110 — issue "Harden ... false-green edge cases" `[review]`):** two
+narrow false-green gaps in `scripts/iai_regression.py` `check_regressions`, pure script change, NO
+spec amendment (fully CID-actionable, no human-review hold): (1) a `shared` bench reporting
+`summary: 0` is read as a big *improvement* and passes — the CI `grep '^summary: [1-9]'` guard only
+catches the *all-zero* case → fail when any shared bench's current Ir is 0; (2) a baselined bench
+absent from the run only *warns* (`only_baseline`) and can still exit 0 → fail unless a new
+`--allow-missing` flag is set. Keep `only_run` (new-bench) as a warning. Test via
+`tests/test_iai_regression.py` (load script by path like `tests/test_cid.py`, synthetic `.out` dirs
+\+ temp baseline JSON — never a live bench run, to dodge the mid-flush race).
+
 **KEY local-verifiability correction:** valgrind 3.19 AND `iai-callgrind-runner` 0.16.1 ARE
 installed in the devcontainer (state.md/learnings/handoff all wrongly say "valgrind absent
 locally"). The full iai flow runs locally IF `IAI_CALLGRIND_ALLOW_ASLR=true` (else `setarch` fails:
 `failed to set personality … Operation not permitted`). So slice 2b IS locally verifiable too — do
 not defer it as "CI-only".
+
+**Mid-flush race (NOT a bug):** `--check` run in the *same shell command* right after `cargo bench`
+once matched only 9/16 benches before the flush finished. In CI the check is its own step after the
+bench step completes, so the slice-2b-hardening "missing bench fails" rule is safe there — but tests
+MUST use synthetic dirs, not live runs.
 
 **Tooling re-discovery:** `gh run download <run-id> -n <artifact> --dir <dir>` works in-devcontainer
 — always download the real CI artifact to verify "green = working" before trusting an infra job.
