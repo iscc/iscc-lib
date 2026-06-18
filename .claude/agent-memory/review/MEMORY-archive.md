@@ -28,3 +28,13 @@ the agent automatically — reference for humans and occasional lookup only.
 - **JNA Android ARM32 resource path**: JNA canonicalizes ARM32 arch to `arm` (not `armv7`). Correct
     prefix is `android-arm/`, not `android-armv7/`. Verified via bytecode decompilation. Filed as
     spec issue with HUMAN REVIEW REQUESTED.
+
+## C++ Wrapper Review (archived iter 107 — C++ wrapper fully complete)
+
+- C++ wrapper in `packages/cpp/` — header-only, no Rust crate. CMake + INTERFACE library
+- Review shortcut: `cargo build -p iscc-ffi` + CMake configure/build/test + ASAN rebuild + clippy +
+    `mise run check`
+- CI `cpp` job: cmake + ASAN + test on ubuntu-latest
+- `iscc.hpp` bundled in FFI release tarballs (flat, alongside `iscc.h`); pkg mgrs vcpkg/conan in
+    `packages/cpp/`
+- **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`

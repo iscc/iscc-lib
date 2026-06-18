@@ -1,56 +1,75 @@
-## 2026-06-18 — Add the `Perf` CI job that runs the iai-callgrind benches under valgrind
+## 2026-06-18 — Review of: Add the `Perf` CI job that runs the iai-callgrind benches under valgrind
 
-**Done:** Added a `perf` job (`Perf (iai-callgrind)`) to `.github/workflows/ci.yml` that installs
-valgrind + `iai-callgrind-runner@0.16.1` and runs `cargo bench -p iscc-lib --bench iai_benches`,
-uploading the `target/iai/` output as the `iai-baseline` artifact. Added a `bench:iai` mise task for
-CI parity / local use on valgrind-equipped machines. No baseline, no regression gate, no harness
-changes — those are the explicit follow-up slice (2b).
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `.github/workflows/ci.yml`: new `perf` job between `bench` and `semver`. Steps: checkout →
-    `dtolnay/rust-toolchain@stable` → `Swatinem/rust-cache@v2` → install valgrind via apt →
-    `taiki-e/install-action@v2` (cargo-binstall) →
-    `cargo binstall -y --force   iai-callgrind-runner@0.16.1` →
-    `cargo bench -p iscc-lib --bench iai_benches` → `actions/upload-artifact@v4` (name
-    `iai-baseline`, path `target/iai/`). Default triggers (inherits the workflow-level push
-    main/develop + PR to main). The `--force` rationale and the "first-run = measure-only, exit 0"
-    behavior are documented as inline comments.
-- `mise.toml`: new "Performance" block with `[tasks."bench:iai"]` →
-    `cargo bench -p iscc-lib --bench iai_benches`.
+**Summary:** The advance agent added a clean, correctly-shaped `Perf (iai-callgrind)` CI job to
+`ci.yml` (apt valgrind → cargo-binstall → `cargo binstall -y --force iai-callgrind-runner@0.16.1` →
+`cargo bench -p iscc-lib --bench iai_benches` → upload `target/iai/` as `iai-baseline`) plus a
+`bench:iai` mise task. Scope is exactly what next.md asked for — no baseline, no regression gate, no
+harness edits, no out-of-scope touches. All local checks pass; the only deferred criterion is the
+CI-only "job concludes success + uploads usable artifact", which can only be confirmed on the
+post-push run.
 
 **Verification:**
 
-- `mise run check` → all 15 pre-commit hooks Passed (YAML + TOML validation + yamlfix/taplo
-    formatting clean on the edited files).
-- All six next.md grep/task checks pass: `Perf (iai-callgrind)`, `iai-callgrind-runner@0.16.1`,
-    `binstall -y --force`, `valgrind`, `--bench iai_benches` present in ci.yml; `bench:iai` shows in
-    `mise tasks ls`.
-- `cargo build -p iscc-lib --bench iai_benches` → exit 0 (harness still compiles; the job will run
-    it under valgrind on CI).
-- NOT run locally (valgrind absent in devcontainer): `cargo bench -p iscc-lib --bench iai_benches`.
-    This is the step the review agent must confirm on the actual CI run.
+- [x] `mise run check` — all 15 pre-commit hooks Passed (YAML + TOML validation + yamlfix/taplo
+    formatting clean).
+- [x] `grep -q "Perf (iai-callgrind)" ci.yml` — present.
+- [x] `grep -q "iai-callgrind-runner@0.16.1" ci.yml` — present (matches the `iai-callgrind = "0.16"`
+    workspace dep, resolves 0.16.1).
+- [x] `grep -q "binstall -y --force"` + `grep -q "valgrind"` — both present; `--force` rationale +
+    "first-run measure-only, exit 0" documented as inline comments.
+- [x] `grep -q -- "--bench iai_benches"` — present (scopes to the iai harness, not criterion).
+- [x] `mise tasks ls | grep -q "bench:iai"` — task registered.
+- [x] YAML structure validated (`yaml.safe_load`): 18 job entries (was 17), `perf` placed between
+    `bench` and `semver`, `runs-on: ubuntu-latest`, no `needs:`, no `continue-on-error`, 8 steps in
+    the next.md-specified order. `cargo build -p iscc-lib --bench iai_benches` → exit 0.
+- [ ] **CI-only (deferred to post-push run):** `Perf` job concludes `success`, runs benches under
+    valgrind, uploads a *usable* `iai-baseline`, no existing job regresses. Cannot run valgrind in
+    the devcontainer. Strong evidence it will pass (see Codex review below) — but confirm on the
+    actual CI run.
 
-**Next:** Slice 2b — the regression gate. Once this `Perf` run lands a known-good `target/iai/`
-output on CI, design the committed baseline: decide between iai-callgrind's `--save-baseline` /
-`--baseline` named-baseline flow vs. parsing the per-bench `*.summary.json`, commit the baseline
-file, add a `LibraryBenchmarkConfig` regression limit (or `--fail-...` CLI flag) to fail the job on
-a >X% instruction-count regression, and add a `bench:iai:baseline` refresh mise task. Inspect the
-uploaded `iai-baseline` artifact from this slice's first CI run to learn the exact on-disk layout
-and summary format before committing to an approach.
+**Issues found:**
+
+- (none) — the diff is correct and in-scope. Issue #3 ("Add `iai-callgrind` performance-regression
+    CI gate") stays open: this slice (2a) lands the runner; the committed baseline + >10% regression
+    gate are slice 2b.
+
+**Codex review:** One P2 finding — **investigated and empirically refuted.** Codex argued the bench
+binary would be stripped (the root `[profile.release] strip = true`), so iai-callgrind's
+`--toggle-collect=*::__iai_callgrind_wrapper_mod::*` would match nothing and the uploaded baseline
+would be all-zero/unusable. I verified the opposite on this exact configuration:
+
+- `cargo bench -p iscc-lib --bench iai_benches --no-run` produces
+    `target/release/deps/iai_benches-*` that `file` reports as **"with debug_info, not stripped"** —
+    1353 symbols incl. **11 `__iai_callgrind_wrapper`** and **28 `bench_*`** symbols (via `nm`).
+- A `--release` artifact (`libiscc_ffi.so`) by contrast IS `stripped`, confirming `strip = true`
+    works — but `[profile.bench]` does **not** inherit the custom `strip` from `[profile.release]`
+    (despite bench inheriting other release defaults). No `.cargo/config.toml` or `RUSTFLAGS`/
+    `CARGO_PROFILE_*` overrides exist, so CI resolves the same profile as local.
+
+Conclusion: iai-callgrind will see real symbols and produce non-zero counters; no `strip` override
+(`CARGO_PROFILE_BENCH_STRIP=false`) is needed. Recorded in learnings so slice 2b doesn't re-litigate
+it. (If a future change adds `[profile.bench] inherits = "release"` or `strip`, this protection
+disappears — re-check then.)
+
+**Next:** Slice 2b — the regression gate. After this `Perf` run lands a known-good `target/iai/` on
+CI: (1) inspect the uploaded `iai-baseline` artifact to learn the exact on-disk layout / summary
+format; (2) decide between iai-callgrind's `--save-baseline`/`--baseline` named-baseline flow vs.
+parsing per-bench `*.summary.json`; (3) commit the baseline file; (4) add the >10% regression limit
+(`LibraryBenchmarkConfig` or a `--fail-*` CLI flag) so the job fails on a >10% instruction-count
+regression; (5) add a `bench:iai:baseline` refresh mise task. Only slice 2b completes the
+`rust-core.md` / `ci-cd.md` perf-gate spec checkbox and lets issue #3 close. The `Perf` job has no
+`continue-on-error` (correct — it should be enforcing once the gate exists).
 
 **Notes:**
 
-- **Omitted `-- --save-summary=json`.** next.md flagged it as optional and unverifiable locally (no
-    valgrind/runner). I left it off so the job relies on iai-callgrind 0.16's default `target/iai/`
-    output; if 2b needs machine-readable summaries, the flag name can be confirmed against the
-    artifact this run produces. No risk to this slice landing green.
-- **No tests added** — this is a CI-workflow + task-runner change with no Rust/source surface. No
-    Tier 1/Tier 2 API touched, no hot path touched, no perf-sensitive code touched.
-- **Context-file churn during `mise run format`:** the quiet `mise run format` mdformat hook
-    reformatted pre-existing non-conforming `learnings.md` / `learnings-archive.md` (files I did not
-    edit). I reverted both via `git checkout` so they are untouched; only my two files plus the
-    loop-managed `iterations.jsonl` remain modified. The subsequent `mise run check` mdformat pass
-    was clean and did not re-touch them.
-- Staged for commit: `.github/workflows/ci.yml`, `mise.toml`, `.claude/context/handoff.md`,
-    `.claude/agent-memory/advance/MEMORY.md`. NOT staged: `iterations.jsonl` (loop-runner managed).
+- **`mise run format` context-file churn is expected, not a regression.** The mdformat hook
+    reformats non-conforming context files (`learnings.md`, `next.md`, etc.); the advance agent
+    reverted `learnings*.md`, so its commit touched only `ci.yml` + `mise.toml` + handoff +
+    advance-memory. This review re-touched `learnings.md` deliberately (mdformat-conforming).
+- **Push range:** 10 unpushed commits (`@{upstream}..HEAD`, 0 behind). Scanned the full range for
+    gate circumvention — none (this slice *adds* a gate). No `cid(meta):` commit present.
+- **Watch the first CI run:** because `perf` has no `continue-on-error`, any toolchain hiccup
+    (binstall flake, valgrind incompat on ubuntu-latest) turns the run red. The `--force` binstall
+    guards the known rust-cache poisoning failure mode.

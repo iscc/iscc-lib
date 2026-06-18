@@ -28,14 +28,9 @@ fully-met target sections to `learnings-archive.md`.
 - Never use `mise` in CI — call tools directly
 - `cargo clippy -- -D warnings` runs in pre-push stage (not pre-commit)
 - Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
-- **PyO3 migration 0.23→0.29 COMPLETE** (issue #1 closed, iter 105): `pyo3` lives only in root
-    `Cargo.toml` `[workspace.dependencies]` (used by `iscc-py` alone). The 0.28→0.29 final hop was
-    ZERO-edit (lib.rs unchanged); 0.29.0 ships both targeted RustSec advisory fixes, so the lockfile
-    resolves a single `pyo3 0.29.0` and the wheel no longer carries vulnerable code. Keep the
-    explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Full per-hop recipe +
-    silent-gotcha catalog (0.26 detach/`Py<PyAny>`, 0.27 cast rename, 0.28 `gil_used` flip) archived
-    in `learnings-archive.md`. CAVEAT: advisories NOT tool-confirmable — `cargo audit`/`cargo deny`
-    absent from devcontainer + CI despite `notes/07` mandating it (proxy: no pyo3 \<0.29 in lock)
+- **PyO3 is `0.29`** (issue #1 closed; iscc-py only): keep the explicit
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Full per-hop migration recipe +
+    advisory-clearance caveat (`cargo audit`/`cargo deny` absent) in `learnings-archive.md`
 
 ## ISCC Algorithm Knowledge
 
@@ -80,9 +75,7 @@ fully-met target sections to `learnings-archive.md`.
 - `conformance_selftest` uses bitwise-AND masking for truncated codes — do NOT compare full strings
     when bit_length < 256
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
-    ISCC-CODE, and multiples of 8 for ID
-- C FFI decode: length index for 64-bit codes is 1 (not 0) — `decode_length` uses
-    `(length_index + 1) * 32`
+    ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
 
 ## CI/CD
 
@@ -102,17 +95,16 @@ fully-met target sections to `learnings-archive.md`.
 - **Version sync**: `version_sync.py` manages 16 targets (including root `Package.swift`
     releaseTag). `--check` mode exits 1 on mismatch
 - **`semver` CI job** (`ci.yml`, iter 93): `obi1kenobi/cargo-semver-checks-action@v2`,
-    `package: iscc-lib`, baseline = last crates.io release (auto-detected). INFORMATIONAL pre-1.0
-    via `continue-on-error: true` — it reports the post-0.4.0 `pub(crate)` narrowing of
-    cdc/conformance/minhash/simhash/utils as `module_missing`/`function_missing` (2 major checks
-    failed; expected, not a regression). `mise run semver` runs it locally. Becomes enforcing at
+    `package: iscc-lib`, baseline = last crates.io release. INFORMATIONAL pre-1.0 via
+    `continue-on-error: true` — reports the post-0.4.0 `pub(crate)` narrowing as 2 major checks
+    failed (expected, not a regression). `mise run semver` runs it locally. Becomes enforcing at
     v1.0.0 by dropping `continue-on-error`; `rust-core.md` line 372 checkbox stays `[ ]` until then
 - **`coverage` CI job** (`ci.yml`, iter 94, ci-cd.md Phase 1): standalone, no `needs:`, NO
     `continue-on-error`. `dtolnay/rust-toolchain@stable` w/ `components: llvm-tools-preview` →
     `taiki-e/install-action@v2` (`tool: cargo-llvm-cov`) →
     `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`).
     `mise run coverage` mirrors it locally; `lcov.info` is gitignored (137KB / 5156 lines). CI job
-    entries now 17 (python-test matrix → 18 actual)
+    entries now 18 (perf added iter 107; python-test matrix → 19 actual)
 - **`cargo binstall` + `Swatinem/rust-cache` poisoning** (iter 100): rust-cache restores cargo's
     `.crates.toml`/`.crates2.json` install *metadata* WITHOUT the `~/.cargo/bin/<tool>` binary, so a
     plain `cargo binstall -y <tool>` sees "already installed", skips, and the next invocation dies
@@ -134,6 +126,14 @@ fully-met target sections to `learnings-archive.md`.
     uncovered function has no baseline entry, so it reports `★ N new` and exits 0 — the gate only
     blocks WORSENING of existing entries. To also block new risky code, pair with `--fail-above 30`
     (current max CRAP ~22.3, safely below 30). Filed as a [review] issue
+- **`Perf (iai-callgrind)` CI job** (iter 107, ci-cd.md "Performance"): standalone `perf` job (no
+    `needs:`, NO `continue-on-error`): apt valgrind → cargo-binstall →
+    `cargo binstall -y --force iai-callgrind-runner@0.16.1` (`--force` load-bearing) →
+    `cargo bench -p iscc-lib --bench iai_benches` → upload `target/iai/` as `iai-baseline`. First
+    run has NO baseline so it only measures (exit 0); >10% gate + committed baseline = slice 2b (#3
+    open). NOTE: `[profile.bench]` does NOT inherit root `[profile.release] strip = true` — the
+    bench binary keeps its `__iai_callgrind_wrapper`/`bench_*` symbols (verified via `nm`), so
+    `--toggle-collect` matches and counters are real (Codex P2 "stripped→zeroed" refuted iter 107)
 
 ## Branching
 

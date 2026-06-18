@@ -69,7 +69,10 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     workspace + `mise run check`
 - **Config-only**: `mise run check` + `cargo check -p <crate>`
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
-- **CI-only YAML**: `mise run check`
+- **CI-only YAML**: `mise run check` + validate structure with
+    `uv run python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` (jobs list,
+    placement, `needs:`/`continue-on-error`). Note: a new gate that runs a tool absent locally
+    (valgrind, etc.) has a CI-only verification criterion — confirm green on the post-push run
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
 - **Semver gate review** (iter 93): `semver` job is informational (`continue-on-error: true`)
@@ -77,6 +80,11 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `cargo semver-checks check-release -p iscc-lib` (~7s; expect "2 major checks failed" = the
     post-0.4.0 `pub(crate)` narrowing, intended). Piping to `tail`/`head` masks the non-zero exit —
     read the "Summary … N checks failed" line
+- **Perf gate review** (iter 107): `Perf (iai-callgrind)` runs benches under valgrind (ABSENT
+    locally) — verify only `cargo build -p iscc-lib --bench iai_benches` + YAML structure + greps;
+    "job success + uploads artifact" is CI-only (confirm post-push). Slice 2a adds NO baseline/gate
+    (→2b); first run is measure-only exit 0. NO `continue-on-error` (correct), so a toolchain hiccup
+    turns the run red — watch the first CI run
 
 ## Codex Review Integration
 
@@ -105,9 +113,9 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     single-package (#38 closed): `files: ["*.node"]` ships all 5 binaries, NO
     `optionalDependencies`; `napi prepublish` must NOT run in `publish-npm-lib`. FFI constant count
     in module docstring must match additions (now 5)
-- CI: 17 YAML job entries + python-test matrix (`['3.10','3.14']`) → **18 actual jobs** (`semver`
-    iter 93, `coverage` iter 94). Advance handoffs count YAML entries (17), not matrix expansion.
-    Version sync: 16 targets (incl. Package.swift releaseTag). Release: 9 registry inputs
+- CI: 18 YAML job entries + python-test matrix (`['3.10','3.14']`) → **19 actual jobs** (`semver`
+    iter 93, `coverage` iter 94, `perf` iter 107). Advance handoffs count YAML entries, not matrix
+    expansion. Version sync: 16 targets (incl. Package.swift releaseTag). Release: 9 registry inputs
 - **`Coverage + CRAP` CI job** (Phase 1 iter 94, Phase 2 iter 96, Phase 3 iter 97, ci-cd.md):
     standalone, no `needs:`, no `continue-on-error`. `cargo-llvm-cov` 0.8.7 + `cargo-crap` 0.2.2 in
     devcontainer. CI install MUST be `cargo binstall -y --force cargo-crap@0.2.2` (iter 100):
@@ -165,13 +173,7 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 ## C++ Wrapper Review
 
-- C++ wrapper in `packages/cpp/` — header-only, no Rust crate. CMake + INTERFACE library
-- Review shortcut: `cargo build -p iscc-ffi` + CMake configure/build/test + ASAN rebuild + clippy +
-    `mise run check`
-- CI `cpp` job: cmake + ASAN + test on ubuntu-latest
-- `iscc.hpp` bundled in FFI release tarballs (flat, alongside `iscc.h`); pkg mgrs vcpkg/conan in
-    `packages/cpp/`
-- **C++ cmake build**: use `cmake -B build -DFFI_LIB_DIR=../../target/debug` from `packages/cpp/`
+- Fully complete — detailed review shortcut moved to `MEMORY-archive.md` (iter 107)
 
 ## Environment
 
@@ -179,16 +181,13 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - `.pyi` stub sync: `ty check` catches mismatches, `mise run check` does not
 - **Pre-push needs iscc_lib built**: `ty check` and `pytest` hooks import `iscc_lib` — build before
     pushing (same maturin command above), else push fails
-- PyO3 GIL-release pattern (#39, iter 91): technique archived in `learnings-archive.md`. Post-0.26
-    the GIL-release call is `Python::detach` (was `allow_threads`) — grep `detach` to count sites
-- **PyO3 migration 0.23→0.29 COMPLETE** (issue #1 closed, iter 105): full per-hop recipe + gotcha
-    catalog archived in `learnings-archive.md`. Final 0.28→0.29 hop was ZERO-edit; lockfile resolves
-    a single `pyo3 0.29.0` (verify `cargo tree -p iscc-py -i pyo3`). Keep explicit
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — 0.28 silently flipped that
-    default to `false`. LESSON for future bumps: "compiles clean under `-D warnings`" ≠
-    behavior-neutral; diff the pyo3-macros-backend default handling each hop. Advisory clearance NOT
-    tool-confirmable here: `cargo audit`/`cargo deny` are absent from devcontainer + CI (filed a
-    `[review]` issue to wire up the `cargo deny` gate that `notes/07` mandates)
+- **PyO3 is `0.29`, migration COMPLETE** (#1 closed): per-hop recipe + GIL-detach pattern + gotcha
+    catalog in `learnings-archive.md`. Verify pin: `cargo tree -p iscc-py -i pyo3` (single 0.29.0).
+    Keep explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — 0.28 silently
+    flipped that default `true`→`false`. LESSON for future bumps: "compiles clean under
+    `-D warnings`" ≠ behavior-neutral; diff pyo3-macros-backend default handling each hop. Advisory
+    clearance NOT tool-confirmable — `cargo deny`/`cargo audit` absent from devcontainer + CI
+    ([review])
 
 ## Ruby Binding Review
 
