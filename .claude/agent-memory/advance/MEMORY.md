@@ -26,68 +26,74 @@ iterations.
 
 ## Build and Tooling
 
-- `cargo build -p iscc-jni` must run before `mvn test` (native library prerequisite)
-- Maven POM is at `crates/iscc-jni/java/pom.xml` — run `mvn test` from `crates/iscc-jni/java/`
+- `cargo build -p iscc-jni` before `mvn test` (native lib prereq); POM at
+    `crates/iscc-jni/java/pom.xml`, run `mvn test` from there
 - CI workflow `.github/workflows/ci.yml` has 17 job entries (version-check, rust, python-test,
     python, nodejs, wasm, c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, semver,
     coverage). `bench` = `cargo bench --no-run`. `swift` on `macos-14`; `kotlin` on `ubuntu` JDK 17
     \+ `cargo build -p iscc-uniffi` + `./gradlew test`
-- `coverage` CI job (named `Coverage + CRAP`): standalone, no `needs:`, NO `continue-on-error`.
-    toolchain+`llvm-tools-preview` → install `cargo-llvm-cov` + `cargo-binstall`
-    (`taiki-e/install-action@v2`) → `cargo binstall -y --force cargo-crap@0.2.2` (`--force`
-    LOAD-BEARING, iter 100: rust-cache restores `.crates.toml` metadata WITHOUT the cargo-crap
-    binary → plain binstall skips → `cargo crap` dies "no such command" → CI RED) →
-    `cargo llvm-cov -p   iscc-lib --lcov --output-path lcov.info` → upload-artifact (`name: lcov`) →
-    report-only `cargo crap --format github` + `--format sarif --output crap.sarif` →
-    `upload-sarif@v3`. Job-level `permissions: {contents: read, security-events: write}` (SARIF
-    upload). Local mirror tasks `coverage`, `crap`, `crap:baseline` (all `depends=["coverage"]`).
-    `lcov.info`+`crap.sarif` gitignored. Phase 3 (iter 97): enforcing `CRAP regression gate` (LAST
-    step, after SARIF upload):
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json   --fail-regression` — exits 1 if
-    any function's CRAP rose beyond `--epsilon` (default 0.01)
-- `.crap-baseline.json` (repo root, iter 97): COMMITTED CRAP baseline, NOT gitignored (only
-    `lcov.info`+`crap.sarif` are). Envelope `{$schema, version:"0.2.2", entries:[...]}` — 97
-    `iscc-lib` functions, 10 src files (excludes filter binding crates+benches). 18.8KB/782 lines.
-    Generated: `cargo crap --lcov lcov.info --format json --output .crap-baseline.json`. Do NOT pass
-    `--sort` (only on cargo-crap `main`, not 0.2.2). Refreshed in a reviewed commit, NOT CI
-    auto-commit (would race CID loop pushes). GOTCHA: when checking gate exit codes, never pipe
-    `cargo crap` into `tail`/`head` — `$?` reflects the pager, masking exit 1. Redirect to file then
-    check `$?`
-- `.cargo-crap.toml` (repo root, iter 96): keys `threshold=30.0`, `missing="pessimistic"`, `exclude`
-    globs — excludes 7 binding crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`.
-    GOTCHA: built-in default excludes skip nested `tests/**` but NOT nested `benches/**` (matches
-    repo-root only) → bench harness leaks at CRAP ~42 unless excluded. `--format github` silent
-    below threshold
-- `semver` CI job (iter 93): `obi1kenobi/cargo-semver-checks-action@v2` with `package: iscc-lib`,
-    baseline = last crates.io release (auto-detected). `continue-on-error: true` — INFORMATIONAL
-    pre-1.0 (post-0.4.0 `pub(crate)` narrowing of cdc/conformance/minhash/simhash/utils reports as
-    breaking; expected). Drop `continue-on-error` at v1.0.0 to enforce. Local: `mise run semver`
-    (`cargo semver-checks check-release -p iscc-lib`)
+- `coverage` CI job (`Coverage + CRAP`): standalone, NO `continue-on-error`.
+    toolchain+`llvm-tools-preview` → `cargo binstall -y --force {cargo-llvm-cov,cargo-crap@0.2.2}`
+    (`--force` LOAD-BEARING — rust-cache restores `.crates.toml` metadata WITHOUT the binary, plain
+    binstall skips → "no such command" → CI RED) → `cargo llvm-cov -p iscc-lib --lcov` →
+    upload-artifact `lcov` → report-only `cargo crap --format github`+`--format sarif`
+    (`upload-sarif@v3`, job `permissions: security-events: write`) → enforcing LAST step
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression` (exits 1 if any
+    fn's CRAP rose > `--epsilon` 0.01). Local mirrors: `mise run coverage|crap|crap:baseline`
+- `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored; only `lcov.info`+`crap.sarif` are):
+    envelope `{$schema, version:"0.2.2", entries}`, 97 iscc-lib fns/10 src files. Regen
+    `cargo crap --lcov lcov.info --format json --output .crap-baseline.json` (NO `--sort` — 0.2.2
+    lacks it). Refresh in a reviewed commit, not CI auto-commit. GOTCHA: never pipe `cargo crap`
+    into `tail`/`head` when checking exit codes — `$?` = pager, masking exit 1; redirect to file
+    first
+- `.cargo-crap.toml` (repo root): `threshold=30.0`, `missing="pessimistic"`, `exclude` globs (7
+    binding crates + `packages/**` + `scripts/**` + `crates/iscc-lib/benches/**`). GOTCHA: built-in
+    excludes skip nested `tests/**` but NOT nested `benches/**` → bench harness leaks at CRAP ~42
+    unless excluded
+- `semver` CI job: `obi1kenobi/cargo-semver-checks-action@v2`, `package: iscc-lib`, baseline = last
+    crates.io release. `continue-on-error: true` — INFORMATIONAL pre-1.0 (post-0.4.0 `pub(crate)`
+    narrowing reports as breaking; expected). Drop `continue-on-error` at v1.0.0. Local:
+    `mise run semver`
 - Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
-    param (not step-level), bundler-cache auto-installs gems
-- `rust` CI job feature matrix: clippy + test for `--no-default-features`, `--all-features`, and
-    `--no-default-features --features text-processing` (issue #16)
-- `version-check` job (checkout + setup-python only): `scripts/version_sync.py --check` (16 targets
-    incl. Swift Constants, Package.swift releaseTag, Kotlin; exits 1 on mismatch)
-- Go CI job has zero Rust dependencies — only checkout, setup-go, test, vet (4 steps)
+    param (not step-level), bundler-cache auto-installs gems. `rust` job feature matrix: clippy+test
+    for `--no-default-features`, `--all-features`,
+    `--no-default-features --features text-processing`
+- `version-check` job: `scripts/version_sync.py --check` (16 targets incl. Swift Constants,
+    Package.swift releaseTag, Kotlin; exits 1 on mismatch). Go CI job has zero Rust deps (checkout,
+    setup-go, test, vet)
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds. `maturin` is not on
     PATH — always invoke via `uv run maturin`. Builds a single `cp310-abi3` wheel (abi3-py310)
-- PyO3 pin = single source: root `Cargo.toml` `[workspace.dependencies]` line 35
-    `pyo3 = { version = "0.29", features = ["abi3-py310"] }`. ONLY `crates/iscc-py` consumes it
-    (`features = ["extension-module"]`); blast radius = `crates/iscc-py/src/lib.rs` only. Migration
-    0.23→0.29 COMPLETE (iter 105, →0.29.0): two RustSec advisories (#6086 OOB read, #6096 missing
-    `Sync`) clear at 0.29 per its CHANGELOG → issue #1 closeable. lib.rs has explicit
-    `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) — KEEP IT: 0.28+ macros-backend
-    defaults unspecified `gil_used`⇒`false`, unsafe for the raw `PyList_GetItem` ptrs in
-    `extract_frame_sigs`. Full per-hop edit history + future-bump recipe → MEMORY-archive.md. KEY
-    LESSON: "compiles clean" ≠ behavior-neutral — diff macros-backend default-handling on bumps, not
-    just compiler warnings (0.28 silently flipped `gil_used`). `cargo audit` NOT in devcontainer/CI
-- Release workflow (`release.yml`): 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems,
-    nuget, maven-kotlin, swift). Pattern: input → build → **smoke test** → publish. NuGet uses
-    `NUGET_API_KEY` (not OIDC); Ruby uses OIDC. npm `@iscc/lib` bundled single-package + release-job
-    CI internals (`build-xcframework`, Kotlin Maven Central) → MEMORY-archive.md
-- wasm-pack `--features` goes AFTER the path, NOT after `--`. Test-target filter (`-- --test unit`)
-    fails — runner only accepts a positional FILTER; run full suite
+- PyO3 pin = single source: root `Cargo.toml` line 35 (`pyo3` "0.29", `abi3-py310`). ONLY
+    `crates/iscc-py` consumes it. Migration 0.23→0.29 COMPLETE (iter 105, issue #1 closed). KEEP the
+    explicit `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) — 0.28+ defaults
+    `gil_used`⇒`false`, unsafe for the raw `PyList_GetItem` ptrs. Per-hop recipe →
+    MEMORY-archive.md. `cargo audit` NOT in devcontainer/CI
+- Release workflow (`release.yml`): 9 boolean inputs, pattern input → build → **smoke test** →
+    publish. Full input list + per-registry auth + release-job CI internals → MEMORY-archive.md
+- wasm-pack `--features` goes AFTER the path, NOT after `--`; test runner accepts only a positional
+    FILTER (`-- --test unit` fails), so run the full suite
+
+## Benchmarks
+
+- Two benches in `crates/iscc-lib/benches/`, both `harness = false`: `benchmarks.rs` (criterion,
+    wall-clock + throughput, includes `gen_sum_code_v0` via tempfile) and `iai_benches.rs`
+    (iai-callgrind 0.16, instruction-counts for the v1.0.0 perf-regression gate, issue #3). Both
+    pull inputs from the same `deterministic_bytes`/`synthetic_text` builders
+- `iai-callgrind = "0.16"` in root `[workspace.dependencies]` (latest stable = 0.16.1; macros crate
+    is `iai-callgrind-macros 0.6.1`, runner `iai-callgrind-runner 0.16.1`). Dev-dep in iscc-lib
+- iai harness COMPILES without valgrind/runner; only `cargo bench --bench iai_benches` needs
+    valgrind (absent in devcontainer). Follow-up slice: `Perf` CI job on a valgrind runner +
+    `cargo binstall -y --force iai-callgrind-runner@0.16.1` (heed rust-cache `--force` poisoning) +
+    committed baseline + `mise run bench:iai`
+- API: `#[library_benchmark]` + `#[bench::id(expr)]` (the `expr` args are evaluated in the
+    UNMEASURED setup phase) → `library_benchmark_group!(name = g; benchmarks = a, b, ...)` →
+    `main!(library_benchmark_groups = g)`. Use `std::hint::black_box`, NOT `criterion::black_box`
+- GOTCHA (verified `iai-callgrind-macros-0.6.1/src/lib_bench.rs:258-317`): `#[library_benchmark]`
+    iterates EVERY fn attribute and `abort!`s "Invalid attribute: 'doc'" on anything but
+    `bench`/`benches` — a `///` docstring lowers to `#[doc=...]` and is REJECTED. Benchmark fns must
+    use plain `//` comments; only non-annotated helper fns can keep `///` docstrings
+- For borrow-returning primitives (`alg_cdc_chunks` → `Vec<&[u8]>` borrowing the arg), the bench fn
+    returns `.len()` (the Vec can't escape the fn); chunking work is fully measured before `len()`
 
 ## gen_sum_code_v0 — see MEMORY-archive.md for full details
 
