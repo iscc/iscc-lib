@@ -317,7 +317,16 @@ jobs:
             echo "::error::iai-callgrind collected ZERO instructions for all benches"
             exit 1
           fi
+      # Enforcing regression gate: fail if any benchmark's instruction count (Ir)
+      # exceeds the committed .iai-baseline.json by more than 10%. Stdlib-only
+      # Python, so no uv/Python setup step is needed. Refresh the baseline in a
+      # reviewed commit via `mise run bench:iai:baseline`.
+      - name: Check perf regression
+        run: python3 scripts/iai_regression.py --check
+      # if: always() preserves the artifact even when the regression step fails,
+      # so a real regression can be inspected against the committed baseline.
       - name: Upload iai-callgrind results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: iai-baseline

@@ -1,67 +1,75 @@
-## 2026-06-18 — Review of: Fix the iai-callgrind Perf job's all-zero instruction collection (+ zero-collection guard)
+## 2026-06-18 — iai-callgrind perf gate slice 2b — committed Ir baseline + >10% regression gate
 
-**Verdict:** PASS
+**Done:** Closed the performance-regression gate (issue #3, slice 2b): added a stdlib-only
+`scripts/iai_regression.py` (check + update modes), committed a CI-sourced `.iai-baseline.json` (16
+Ir entries), wired an enforcing `Check perf regression` step into the CI `perf` job, and added
+`bench:iai:baseline` / `bench:iai:check` mise tasks. The `perf` job now fails when any benchmarked
+path's instruction count (Ir) exceeds the committed baseline by more than 10%.
 
-**Summary:** The advance agent fixed the real root cause of the `Perf (iai-callgrind)` job's false
-green: the bench binary inherited `strip = true` from `[profile.release]`, so iai-callgrind's
-`--toggle-collect=*::__iai_callgrind_wrapper_mod::*` matched zero symbols and every bench reported
-`summary: 0` while exiting 0. Adding `[profile.bench] strip = false, debug = true` restores the
-toggle symbols, `IAI_CALLGRIND_ALLOW_ASLR=true` makes the run work in the devcontainer, and a CI
-guard step fails the job on zero collection. Scope is exactly what next.md asked for — no baseline,
-no regression gate, no harness edits.
+**Files changed:**
+
+- `scripts/iai_regression.py` (new): parses each bench's `summary: <Ir> ...` from `target/iai/`,
+    keyed by leaf dir name (`<bench_fn>.<bench_id>`). `--check` (default) compares the current run
+    to `.iai-baseline.json` and exits 1 if any shared bench is `> baseline * 1.10`; benches only in
+    the run warn but never fail. `--update` rebuilds the baseline from `--from-dir` (default
+    `target/iai/`). Gates only on Ir (the deterministic metric); cache/miss counts are ignored.
+- `.iai-baseline.json` (new, committed, repo root, NOT gitignored): built from the CI `iai-baseline`
+    artifact of run 27746693860 (`1463edb`, the first green Perf run after the strip fix) via
+    `--update --from-dir /tmp/ci-iai`, so it matches the rustc the CI gate measures with. Shape:
+    `{"metric":"Ir","tolerance_pct":10.0,"benches":{<id>: <Ir>, ...}}`.
+- `.github/workflows/ci.yml`: added `Check perf regression` step
+    (`python3   scripts/iai_regression.py --check`) after the zero-collection guard; added
+    `if: always()` to the upload step so the artifact survives a regression failure. The guard step
+    is retained.
+- `mise.toml`: added `bench:iai:baseline` (depends `bench:iai`, runs `--update`) and
+    `bench:iai:check` (depends `bench:iai`, runs `--check`).
+- `.claude/context/specs/rust-core.md`: flipped both perf checkboxes (committed baseline + >10%
+    regression) to `[x]`.
+- `.claude/context/specs/ci-cd.md`: flipped the Perf-job checkbox to `[x]`.
 
 **Verification:**
 
-- [x] `mise run bench:iai` runs to completion locally — 16 benches, real non-zero `Instructions:`
-    (e.g. `bench_cdc_chunks bytes_1m` = 4,606,934), `Ok. 16 without regressions ... in 10.9995s`.
-- [x] `grep -rEq '^summary: [1-9]' target/iai/` exits 0 — sample `summary: 4606934 1410659 ...`.
-    Also confirmed the guard correctly *rejects* a synthetic `summary: 0 0 0` line.
-- [x] `grep -q 'strip = false' Cargo.toml` / `grep -q 'IAI_CALLGRIND_ALLOW_ASLR' mise.toml` /
-    `grep -q 'IAI_CALLGRIND_ALLOW_ASLR' .github/workflows/ci.yml` — all pass; guard step present.
-- [x] `mise run check` — all 15 pre-commit hooks Passed (no context-file churn this cycle).
-- [x] `cargo test -p iscc-lib` — 22 + module tests + 1 doctest pass; profile.bench does not affect
-    `cargo test`. `cargo clippy --workspace --all-targets -- -D warnings` clean.
-- [x] YAML structure: 18 job entries, `perf` between `bench` and `semver`, no `needs:`, no
-    `continue-on-error`, guard step placed *after* the bench run and *before* the upload.
-- [ ] **CI-only (confirm on the post-push run):** the `Perf` job collects non-zero instructions, the
-    guard step passes, and the uploaded `iai-baseline` artifact's `.out` files have non-zero
-    `summary:` lines. Cannot be confirmed until CI runs — verify in update-state next cycle.
+- [x] `mise run bench:iai` populates `target/iai/` with non-zero `summary:` lines (16 benches).
+- [x] `mise run bench:iai:baseline` regenerates `.iai-baseline.json` with exactly 16 Ir entries,
+    valid JSON (verified, then restored the committed file to the CI-sourced values — `diff` clean).
+- [x] Self-consistency: `--check` against a baseline built from the same local run → 0% delta, exit
+    0\.
+- [x] Failure path: tampering one baseline Ir down 50% → `--check` exits 1 and names the regressed
+    bench (`bench_cdc_chunks.bytes_1m ... +100.00% REGRESSION`).
+- [x] Missing baseline → clear error + exit 1. Bench only in run (not baseline) → warning, exit 0.
+- [x] Local run `--check` against the committed CI baseline passes (max delta −0.46%, all within
+    10%) — CI and local rustc counts agree closely.
+- [x] `.iai-baseline.json` not gitignored (`git check-ignore` exits 1).
+- [x] `perf` job has both the `Check perf regression` step and the
+    `Assert non-zero instruction   collection` guard; YAML valid.
+- [x] `ruff check` + `ruff format --check` + `ty check` clean on the new script.
+- [x] `mise run check` — all 15 pre-commit hooks Passed.
+- [x] `cargo test -p iscc-lib` — 22 tests + 1 doctest pass (no harness change).
+- [ ] **CI-only (confirm next cycle):** the post-push `Perf` job's `Check perf regression` step
+    passes against the committed baseline (counts within 10% on the CI runner).
 
-**Root-cause confirmation (independent):** I empirically reproduced both sides of the bug.
-`cargo bench --bench iai_benches --no-run` with the fix → binary `not stripped`, **11**
-`__iai_callgrind_wrapper` symbols. The same build with `CARGO_PROFILE_BENCH_STRIP=true` (simulating
-the old inheritance) → `stripped`, **0** wrapper symbols. This proves `[profile.bench]` *does*
-inherit release `strip` (Cargo: bench is based on release) and that the iter-107 review's "bench
-doesn't inherit release strip" claim was empirically wrong. learnings.md has been corrected.
-
-**Issues found:**
-
-- (none) — diff is correct, in-scope, and the fix is the right one. Issue #3 stays open: this lands
-    the corrected measurement (slice 2a complete); the committed baseline + >10% regression gate are
-    slice 2b.
-
-**Codex review:** No actionable findings. Codex confirmed the changes "correctly keep iai-callgrind
-bench symbols/debug info, make local and CI runs avoid the ASLR-disable failure mode, and add a CI
-guard for all-zero collection without breaking existing workflows."
-
-**Next:** Slice 2b — the committed baseline + >10% regression gate (issue #3), the final piece that
-closes the `rust-core.md` / `ci-cd.md` perf-gate spec checkbox. Now that CI lands real non-zero
-measurements: (1) first confirm the post-push `Perf` run is green with non-zero collection (the
-guard passes) and inspect the uploaded `iai-baseline` artifact's on-disk layout; (2) commit a
-baseline (iai-callgrind `--save-baseline`/`--baseline` named-baseline flow, or parse per-bench
-summaries); (3) add the >10% instruction-count regression limit (`LibraryBenchmarkConfig` or a
-`--fail-*` flag); (4) add a `bench:iai:baseline` refresh mise task. The `perf` job correctly has no
-`continue-on-error` — it should be enforcing once the gate exists.
+**Next:** Issue #3 is now fully addressed (slice 2a + 2b). update-state should confirm the post-push
+`Perf` run is green with the regression step passing, then close issue #3. Remaining `normal` issues
+deliberately left untouched (CRAP `--fail-above 30` and cargo-deny/audit gate — both flagged as
+human-review-required spec amendments). After CI confirmation, the natural next target area is
+v1.0.0 release prep (the `semver` and crate-version checkboxes in rust-core.md stay `[ ]` until the
+1.0.0 cut).
 
 **Notes:**
 
-- **Guard scope is all-or-nothing, by design.** `grep -rEq` passes if *any* `.out` has a non-zero
-    summary — adequate because the failure mode (stripped binary) zeroes *every* bench. Slice 2b's
-    per-bench regression gate will give finer-grained protection; no need to harden the guard now.
-- **`.out.old` companions:** the local `target/iai/` accumulates `.out.old` from re-runs; a clean CI
-    runner has only fresh `.out`, so the guard is unambiguous there.
-- **Pre-push gate range:** 4 unpushed commits this cycle (define-next + advance + this review, plus
-    the prior log commit). Scanned `@{upstream}..HEAD` for gate circumvention — none; this slice
-    *strengthens* a gate (adds the zero-collection guard). No `cid(meta):` commit present.
-- **Watch the first CI run:** `perf` has no `continue-on-error`, so any toolchain hiccup (binstall
-    flake, valgrind on ubuntu-latest) turns the run red — that is the intended enforcing behavior.
+- **Committed baseline is CI-sourced, not local.** Local rustc (1.96.0) and CI `stable` produce Ir
+    counts that differ by < 1% here, but per next.md the committed file is built from the CI
+    artifact so the gate compares like-with-like. To refresh after an accepted
+    regression/improvement: download the latest green `iai-baseline` artifact and run
+    `python3 scripts/iai_regression.py   --update --from-dir <dir>`, or use
+    `mise run bench:iai:baseline` as a local-rustc fallback (noted in the task comment).
+- **Gate is Ir-only and intersection-only.** New benches added to the harness without a baseline
+    refresh will warn (not fail) until the baseline is regenerated — by design, matching how
+    `--fail-regression` treats new CRAP entries. A baseline refresh after adding benches is the
+    intended workflow.
+- **`bench:iai:baseline` re-benches locally**, so running it overwrites the CI-sourced committed
+    file with local-rustc values. That is acceptable for a deliberate reviewed refresh, but the
+    preferred path for the *committed* baseline is the CI artifact (documented in the script
+    docstring and the task comment). I restored the CI-sourced file after testing the task.
+- The 10% tolerance lives in the baseline JSON (`tolerance_pct`) and the spec; the script reads it
+    from the file (falls back to 10.0). No magic number duplicated in CI.

@@ -421,7 +421,7 @@ workflow triggers on push to `main`.
 - [x] `mise run coverage` and `mise run crap` reproduce the gate locally
 - [x] Semver job runs `cargo semver-checks` for `iscc-lib` against the last published release
     (informational pre-1.0 via `continue-on-error`; enforcing from v1.0.0)
-- [ ] Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
+- [x] Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
     committed baseline; baseline refreshes are reviewed commits
 
 ### Release

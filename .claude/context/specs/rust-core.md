@@ -371,7 +371,7 @@ change is explicitly sanctioned by a human and reflected in the version number.
 - [ ] Crate version is >= 1.0.0 and follows strict SemVer
 - [ ] `cargo-semver-checks` runs in CI against the last published release and fails on an
     unsanctioned breaking change to the public API
-- [ ] `iai-callgrind` instruction-count benches exist for the hot `gen_*_v0` paths with a committed
+- [x] `iai-callgrind` instruction-count benches exist for the hot `gen_*_v0` paths with a committed
     baseline
-- [ ] CI fails when any benchmarked path regresses > 10% vs the baseline
+- [x] CI fails when any benchmarked path regresses > 10% vs the baseline
 - [ ] Conformance vectors still pass (output backward compatibility)

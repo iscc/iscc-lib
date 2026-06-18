@@ -1,0 +1,22 @@
+{
+  "metric": "Ir",
+  "tolerance_pct": 10.0,
+  "benches": {
+    "bench_audio_code.features_300": 375562,
+    "bench_cdc_chunks.bytes_1m": 4607021,
+    "bench_cdc_chunks.bytes_4k": 17991,
+    "bench_cdc_chunks.bytes_64k": 288805,
+    "bench_data_code.bytes_1m": 7250611,
+    "bench_data_code.bytes_64k": 461943,
+    "bench_image_code.gradient_1024": 2141546,
+    "bench_instance_code.bytes_1m": 5238262,
+    "bench_instance_code.bytes_64k": 333490,
+    "bench_iscc_code.four_units": 11968,
+    "bench_meta_code.name_desc": 185952,
+    "bench_meta_code.name_only": 118382,
+    "bench_minhash_256.features_1024": 955473,
+    "bench_mixed_code.two_codes": 10460,
+    "bench_text_code.chars_1000": 1168578,
+    "bench_video_code.frames_10x380": 27933
+  }
+}

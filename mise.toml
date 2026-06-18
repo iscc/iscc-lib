@@ -131,3 +131,15 @@ description = "Run iai-callgrind instruction-count benches for iscc-lib (needs v
 # instruction counts (Ir) — only cache-sim noise — so this is safe for the gate.
 env = { IAI_CALLGRIND_ALLOW_ASLR = "true" }
 run = "cargo bench -p iscc-lib --bench iai_benches"
+
+[tasks."bench:iai:check"]
+description = "Check the local iai-callgrind run against the committed .iai-baseline.json"
+depends = ["bench:iai"]
+run = "python3 scripts/iai_regression.py --check"
+
+[tasks."bench:iai:baseline"]
+description = "Regenerate the committed iai-callgrind regression baseline (.iai-baseline.json)"
+# Prefer refreshing from a CI artifact (see scripts/iai_regression.py docstring) so the
+# baseline matches the rustc the CI gate measures with; this local refresh is a fallback.
+depends = ["bench:iai"]
+run = "python3 scripts/iai_regression.py --update"
