@@ -1,39 +1,44 @@
-# Meta-improve handoff — iteration 112
+## 2026-06-18 — Enforce CRAP absolute gate via `--fail-above`
 
-**Cycle outcome:** Routine self-improvement pass. **Nothing auto-applied** (a deliberate, valid
-outcome — the loop is healthy and no defensible low-risk change exists). No prior auto-change was
-due for rollback (the meta-log is empty — this is the first meta cycle). **2 needs-human proposals**
-recorded in `proposals.md`.
+**Done:** Wired the authorized `--fail-above` boolean onto the enforcing "CRAP regression gate" CI
+step so any function whose CRAP score exceeds the configured threshold (30) now fails CI — including
+brand-new or renamed functions absent from the baseline that regression mode alone reported as
+`★ N new` and exited 0. Updated the `.cargo-crap.toml` header/threshold comments and the ci-cd.md
+verified-when checkbox to match. Closes the first of the two authorized `[review]` hardening issues.
 
-## Evidence gathered
+**Files changed:**
 
-- **needs_work_rate = 0** across all 21 `iteration_summary` rows (iters 88→111): 16 PASS, 4
-    PASS_WITH_NOTES, 1 IDLE, zero NEEDS_WORK. The quality gate is working (PASS_WITH_NOTES still
-    fires) and work quality is high — this rate cannot be improved, and must not be "improved" by
-    weakening the path-blocked reviewer.
-- **median_turns ≈ 122** (recent window). High-turn iters 107/108/109 (190/192/208) map to the
-    genuinely multi-slice iai-callgrind perf-gate work, not prompt inefficiency; 110/111 returned to
-    122/121.
-- **Review reliability is fine**: `stats` "51 fails" is a status-marker artifact; only 2 real `FAIL`
-    rows exist in the whole log.
-- `learnings.md` is at 197 lines (under the 200 budget) and freshly curated — no hygiene needed.
-- Effort/model frontmatter (update-state high; define-next/advance xhigh) has no evidence of being
-    miscalibrated; tuning down risks the runner's known asymmetry blind spot (a turns drop that
-    hides a quality drop) — not auto-applied.
+- `.github/workflows/ci.yml`: appended `--fail-above` to the Phase 3 CRAP gate command (final form
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`) and
+    rewrote the preceding comment block to describe the combined regression + absolute gate. yamlfix
+    folded the long `run:` scalar onto two lines (semantically unchanged — folded newline = space).
+- `.cargo-crap.toml`: replaced the stale "Phase 2 runs report-only: no `fail-above` is set" /
+    "report-only — no build failure" comments with text describing `--fail-above` as the enforcing
+    Phase 3 gate keyed off `threshold = 30.0`.
+- `.claude/context/specs/ci-cd.md`: flipped the `--fail-above` verified-when box (line 445) from
+    `[ ]` to `[x]`. The §"Phased rollout" prose (lines 90-102) already described the enforcing gate,
+    so it was already consistent — no change needed there.
 
-## Open proposals (see `proposals.md`)
+**Verification:**
 
-1. Align pre-commit vs pre-push mdformat config (or add `mise run format` before define-next's
-    commit) — quality-gate / commit-instruction change → needs-human, low urgency.
-2. Emit an `iteration_summary` row even on failed/interrupted iterations (missing for 95/103/106) —
-    `cid.py` change → needs-human; improves fairness of meta-improve's own rollback metric.
+- `grep -- '--fail-above' .github/workflows/ci.yml` → present on the gate step (lines 387, 393).
+- `.cargo-crap.toml` grep for "no `fail-above` is set" / "report-only — no build failure" → no
+    matches (stale claims removed).
+- `grep -n 'fail-above' .claude/context/specs/ci-cd.md` → line 445 now `[x]`.
+- Local end-to-end: `mise run coverage` regenerated `lcov.info`, then
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    exited **0** (`0 regressed, 0 new, 97 unchanged`; max CRAP ~22.3 < 30 threshold).
+- `uv run prek run --files .github/workflows/ci.yml .cargo-crap.toml .claude/context/specs/ci-cd.md`
+    passes (YAML/TOML/markdown valid; yamlfix applied its formatting then is idempotent on re-run).
 
-## Product loop status — work is ready to resume
+**Next:** The SECOND authorized `[review]` issue — the `cargo-deny`/`cargo audit` supply-chain gate
+(add a root `deny.toml`, an Audit CI job running `cargo deny check`, and a `mise run audit` task).
+Explicitly out of scope here. v1.0.0 cut stays on hold (`low` `[human]`), and the
+`Semver (cargo-semver-checks)` job stays `continue-on-error` until that cut.
 
-Titusz authorized the two `normal` `[review]` issues in commit `9770332` ("Authorize CRAP
---fail-above and cargo-deny gates; hold v1.0.0"); `issues.md` now marks both **AUTHORIZED ... CID
-may implement autonomously**. The next productive `cid:run` should pick these up from `issues.md`
-(CRAP `--fail-above 30`, then the `cargo deny`/`cargo audit` supply-chain gate). v1.0.0 stays on
-hold (`low` `[human]`).
-
-**IDLE**
+**Notes:** Pure CI/config + doc change — no Rust source, no public API, no hot path touched, so no
+benches run. The `--fail-above` flag takes no numeric argument; it keys off the `.cargo-crap.toml`
+`threshold` (30) and combines cleanly with `--fail-regression --baseline` (verified locally on
+cargo-crap 0.2.2). `.crap-baseline.json` is unchanged (not in scope; max 22.27 well under 30). The
+local `mise run crap` task is deliberately left report-only — only CI enforces. `iterations.jsonl`
+shows modified in git status (runner-managed) and was intentionally NOT staged.

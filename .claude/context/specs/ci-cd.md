@@ -442,7 +442,7 @@ workflow triggers on push to `main`.
     (informational pre-1.0 via `continue-on-error`; enforcing from v1.0.0)
 - [x] Perf job runs `iai-callgrind` instruction-count benches and fails on a > 10% regression vs the
     committed baseline; baseline refreshes are reviewed commits
-- [ ] CRAP job also fails via `--fail-above` on any function (including new/renamed entries absent
+- [x] CRAP job also fails via `--fail-above` on any function (including new/renamed entries absent
     from the baseline) whose CRAP score exceeds the `.cargo-crap.toml` `threshold` (30), closing the
     regression-only blind spot
 - [ ] Audit job runs `cargo deny check` (advisories + bans + licenses) over the workspace via a root

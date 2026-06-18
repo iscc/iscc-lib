@@ -2,10 +2,12 @@
 #
 # The CRAP (Change Risk Anti-Patterns) score combines cyclomatic complexity with
 # test coverage to surface functions that are both complex and undertested.
-# Phase 2 runs report-only: no `fail-above` is set, so the gate never fails the
-# build — it only emits GitHub annotations and a SARIF report.
+# Phase 2 (`--format github`/`--format sarif`) runs report-only. Phase 3 is the
+# enforcing CI gate: `--fail-above` keys off the `threshold` below, so any function
+# scoring above it fails the build (alongside `--fail-regression`).
 
-# Functions scoring above this are highlighted in the report (report-only — no build failure).
+# Functions scoring above this threshold fail the enforcing CI gate (`--fail-above`)
+# and are highlighted in the report-only annotations.
 threshold = 30.0
 
 # Treat functions absent from the LCOV report as 0% covered (conservative).

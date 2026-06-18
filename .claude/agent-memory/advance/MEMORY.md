@@ -35,9 +35,9 @@ iterations.
     `llvm-tools-preview` → `cargo binstall -y --force {cargo-llvm-cov,cargo-crap@0.2.2}` (`--force`
     LOAD-BEARING, rust-cache gotcha) → `cargo llvm-cov -p iscc-lib --lcov` → upload `lcov` →
     report-only `cargo crap --format github`+`sarif` (`upload-sarif@v3`, job perms
-    `security-events: write`) → enforcing LAST step runs `cargo crap` with --baseline +
-    --fail-regression vs `.crap-baseline.json` (exit 1 if a fn's CRAP rose > `--epsilon` 0.01).
-    Local: `mise run coverage|crap|crap:baseline`
+    `security-events: write`) → enforcing LAST step (iter 113):
+    `cargo crap --baseline .crap-baseline.json --fail-regression --fail-above`. `--fail-regression`
+    blocks a baselined fn's CRAP rising; `--fail-above` blocks ANY fn over `threshold=30.0` incl new
 - `.crap-baseline.json` (repo root, COMMITTED, NOT gitignored): `{$schema, version, entries}`, 97
     fns/10 src files. Regen `cargo crap ... --format json --output .crap-baseline.json` (NO `--sort`
     in 0.2.2). GOTCHA: never pipe `cargo crap` into `tail`/`head` to check exit — `$?` = pager,
