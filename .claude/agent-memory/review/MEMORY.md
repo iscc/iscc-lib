@@ -45,6 +45,15 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     `next.md` + `define-next/MEMORY.md` into the review commit (mechanical 100-col rewrap, zero
     semantic change) so HEAD is conforming and push passes. Never stage `iterations.jsonl`
     (runner-owned)
+- **No-op / human-handoff iteration (iter 111)**: when define-next + advance deliberately make NO
+    code changes, verify scope is empty
+    (`git diff HEAD~1..HEAD --stat -- crates/ packages/ scripts/   docs/ notes/ .claude/context/specs/`)
+    and still scan all `@{upstream}..HEAD` for gate circumvention. SIGNAL CHOICE: if the only
+    remaining issues are `normal` [review] HUMAN-REVIEW-REQUESTED spec amendments (strict IDLE cond
+    #2 "all low" NOT met) + `low` [human], flag **HUMAN REVIEW REQUESTED** (→ runner "pause"), NOT
+    `**IDLE**`. Both stop the loop, but IDLE also runs meta-improve and is reserved for all-low;
+    HUMAN REVIEW fits when real normal work exists but is blocked on the owner's spec/design
+    decision. Verdict still PASS; push clean batch.
 - **Concurrent CID loops (iter 97, resolved iter 98)**: spurious `mise run check` "files were
     modified by this hook" on a file the advance never touched (e.g. `standardrb-fix` flagging when
     NO `.rb` is dirty) + a working-tree `state.md`/context change appearing mid-review = a SECOND
@@ -78,24 +87,13 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
 - **Semver gate review** (iter 93): informational pre-1.0 — full verify recipe in
     `MEMORY-archive.md`
-- **Perf gate review — COMPLETE & HARDENED (slice 2a iter 107/108, 2b iter 109, hardening iter 110;
-    #3 closed + CI GREEN on a5ce73c)**: valgrind 3.19 + `iai-callgrind-runner` 0.16.1 ARE in the
-    devcontainer (iter-107 "absent" claim WRONG). `mise run bench:iai` RUNS locally (bakes in
-    `IAI_CALLGRIND_ALLOW_ASLR=true`; kernel blocks the `personality` syscall iai's `setarch -R`
-    needs). 2b VERIFY: `mise run bench:iai` → 16 `.out`, then
-    `python3 scripts/iai_regression.py --check` → 16 within 10% exit 0 (committed
-    `.iai-baseline.json` is CI-sourced; local 1.96.0 agrees ≤1.66%). Script logic test in /tmp:
-    `--update` from synthetic `summary:` dirs, self-check exit 0, tamper one baseline −50% → exit 1,
-    missing baseline → exit 1, `.out.old` excluded. RACE: `--check` immediately after `cargo bench`
-    exits can match 9/16 mid-flush — re-run; CI runs it as a separate step so unaffected. STRIP
-    GOTCHA: `[profile.bench] strip = false, debug = true` load-bearing (else 0
-    `__iai_callgrind_wrapper` symbols → all `summary: 0` false green). FALSE-GREEN EDGES HARDENED
-    (iter 110, [review] issue closed): `check_regressions(run, baseline, allow_missing=False)` now
-    FAILS on any shared bench with current Ir 0 (zero-count guard, independent of `--allow-missing`)
-    AND on a disappeared baselined bench (unless `--allow-missing` downgrades to warning);
-    `only_run` new-bench still warns only. Script-only review shortcut:
-    `uv run pytest   tests/test_iai_regression.py -q` (11 synthetic-fixture tests, loads script by
-    path via `spec_from_file_location` like test_cid.py) + ruff check/format + `ty check`. NO
+- **Perf gate review — COMPLETE, ENFORCING & HARDENED (iter 107-110, #3 + hardening [review] both
+    closed; full verify recipe in `MEMORY-archive.md`)**. Key facts: valgrind 3.19 +
+    `iai-callgrind-runner` 0.16.1 ARE in the devcontainer; `mise run bench:iai` RUNS locally (bakes
+    `IAI_CALLGRIND_ALLOW_ASLR=true`). STRIP GOTCHA: `[profile.bench] strip = false, debug = true`
+    load-bearing (else 0 `__iai_callgrind_wrapper` symbols → all `summary: 0` false green).
+    Script-only review shortcut: `uv run pytest tests/test_iai_regression.py -q` (11
+    synthetic-fixture tests, loads script by path) + ruff check/format + `ty check`. NO
     `continue-on-error` (enforcing); post-push Perf-step-green is CI-only confirm
 
 ## Codex Review Integration
@@ -198,7 +196,6 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
 
 - Magnus 0.7.1 pinned for Ruby 3.1 compat — 0.8 needs Ruby 3.2+
 - `function!` macro does NOT accept `&Ruby` — use `Ruby::get().expect("called from Ruby")`
-- `rb-sys` needs Ruby headers + `libclang-dev` — why `--exclude iscc-rb` in CI
 - Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate
 - Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot
     finalize. Linting: Standard Ruby (`standard` gem) + `rubocop-minitest`, config `.standard.yml`

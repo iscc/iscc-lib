@@ -178,6 +178,11 @@ fully-met target sections to `learnings-archive.md`.
     different `iteration N` agents = duplicate loops racing the same branch — they clobber context
     files and race pushes. Flag HUMAN REVIEW REQUESTED so a human kills the duplicate; do NOT kill
     processes yourself, and do NOT push (the second loop will collide)
+- **Human-handoff vs IDLE (iter 111)**: when the loop runs out of fully-autonomous work but
+    `normal`-priority issues remain that are all `HUMAN REVIEW REQUESTED` spec amendments, the
+    strict `**IDLE**` conditions (all issues `low`) are NOT met. Flag `**HUMAN REVIEW REQUESTED**`
+    instead — the runner treats it as "pause" (stops the loop for the owner) whereas `**IDLE**` runs
+    meta-improve and is reserved for the all-`low` case. Don't manufacture churn to avoid the pause
 - **Pre-push mdformat blocks on non-conforming context files**: the pre-push hook runs mdformat
     (`--wrap 100 --number`, isolated `mdformat-mkdocs[recommended]` env) on every file changed in
     the push range — incl. `next.md` and per-agent `MEMORY*.md`. A non-conforming file rejects the

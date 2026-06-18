@@ -46,3 +46,16 @@ the agent automatically — reference for humans and occasional lookup only.
     `cargo semver-checks check-release -p iscc-lib` (~7s; expect "2 major checks failed" = the
     post-0.4.0 `pub(crate)` narrowing, intended). Piping to `tail`/`head` masks the non-zero exit —
     read the "Summary … N checks failed" line.
+
+## Perf gate (iai-callgrind) full verify recipe (archived iter 111 — gate complete & CI-verified)
+
+- VERIFY: `mise run bench:iai` → 16 `.out`, then `python3 scripts/iai_regression.py --check` → 16
+    within 10% exit 0 (committed `.iai-baseline.json` is CI-sourced; local 1.96.0 agrees ≤1.66%).
+    Script logic test in /tmp: `--update` from synthetic `summary:` dirs, self-check exit 0, tamper
+    one baseline −50% → exit 1, missing baseline → exit 1, `.out.old` excluded.
+- RACE: `--check` immediately after `cargo bench` exits can match 9/16 mid-flush — re-run; CI runs
+    it as a separate step so unaffected.
+- FALSE-GREEN EDGES HARDENED (iter 110): `check_regressions(run, baseline, allow_missing=False)`
+    FAILS on any shared bench with current Ir 0 (zero-count guard, independent of `--allow-missing`)
+    AND on a disappeared baselined bench (unless `--allow-missing` downgrades to warning);
+    `only_run` new-bench still warns only.
