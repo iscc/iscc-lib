@@ -1,101 +1,79 @@
 # Next Work Package
 
-## Step: Migrate PyO3 0.28 → 0.29 (FINAL hop — closes issue #1 "Update PyO3 to latest release")
+## Step: Add the iai-callgrind bench harness (compiles locally; CI gate is a follow-up slice)
 
 ## Goal
 
-Advance the workspace `pyo3` pin the final minor version (0.28 → 0.29.0) — the endpoint of issue #1,
-where the two RustSec advisories shipped inside the published Python wheel (missing `Sync` bound on
-`PyCFunction::new_closure`; OOB read in `BoundTupleIterator`/`BoundListIterator::nth_back`) finally
-clear. After this lands, the published wheel no longer ships vulnerable PyO3 code and issue #1 can
-be closed.
+Land the `iai-callgrind` instruction-count benchmark harness for `iscc-lib`'s hot paths so the
+v1.0.0 performance-regression gate has benches to run. This is the unblocked first slice of the
+`iai-callgrind` perf-gate issue (#3): only *running* the benches needs valgrind (absent in the
+devcontainer), while the harness itself compiles and is fully verifiable locally. The gate is
+already mandated by `target.md`, `rust-core.md`, and `ci-cd.md`, so no spec amendment is needed.
 
 ## Scope
 
-- **Modify**: `Cargo.toml` (line 35 `pyo3` workspace pin `0.28` → `0.29`, keep `abi3-py310`)
-- **Modify**: `Cargo.lock` (regenerated via `cargo update -p pyo3` — generated file, not counted)
-- **Modify**: `crates/iscc-py/src/lib.rs` (ONLY if new deprecations/breakages surface under
-    `-D warnings`)
-- **Reference**: `crates/iscc-py/Cargo.toml` (consumes pin via
-    `workspace = true, features = ["extension-module"]`)
-- **Reference**: `crates/iscc-py/pyproject.toml` (maturin config; carries NO pyo3 version, no edit
-    needed)
-- **Reference**: PyO3 0.28→0.29 migration guide https://pyo3.rs/v0.29.0/migration/ and the 0.29
-    CHANGELOG
-- **Reference**: `.claude/context/handoff.md` (the 0.27→0.28 review — warns "compiles clean" is NOT
-    proof of behavior-neutrality)
-
-No docs/README reference the pyo3 version (grepped `docs/`, `README.md`, `crates/iscc-py/README.md`
-— zero hits), so this is a pure internal binding change with no doc files in scope.
+- **Create**: `crates/iscc-lib/benches/iai_benches.rs` — iai-callgrind library benchmarks for the
+    hot CPU paths.
+- **Modify**: `Cargo.toml` (root) — add `iai-callgrind` to `[workspace.dependencies]`.
+- **Modify**: `crates/iscc-lib/Cargo.toml` — add the `iai-callgrind` dev-dependency and a
+    `[[bench]]` entry (`name = "iai_benches"`, `harness = false`).
+- **Reference**: `crates/iscc-lib/benches/benchmarks.rs` (working input builders to mirror);
+    `.claude/context/specs/ci-cd.md` -> "Performance - `iai-callgrind`";
+    `.claude/context/specs/rust-core.md` -> "Performance parity or improvement";
+    `crates/iscc-lib/src/cdc.rs` and `crates/iscc-lib/src/minhash.rs` (primitive signatures).
 
 ## Not In Scope
 
-- Do NOT touch the CRAP `--fail-above 30` hardening (issue #2 — HUMAN REVIEW REQUESTED on the spec).
-- Do NOT start the `iai-callgrind` perf gate (issue #3 — valgrind unavailable in the devcontainer).
-- Do NOT flip the `Semver (cargo-semver-checks)` gate from `continue-on-error: true` to enforcing —
-    that is a deliberate one-line follow-up tied to the v1.0.0 cut.
-- Do NOT cut or prepare a v1.0.0 release (low issue, human-directed).
-- Do NOT enable free-threaded mode or flip `gil_used` to `false`; keep the explicit
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Real free-threading needs a
-    deliberate audit of the raw-FFI `extract_frame_sigs` borrows first.
-- Do NOT refactor the 8 raw `pyo3::ffi::*` C-API sites or `#[pyo3(signature = ...)]` macros unless a
-    0.29 breakage forces it; keep edits to the minimum the compiler demands.
+- Do NOT add the `Perf` CI job, commit a baseline file, or run the benches - running needs valgrind
+    (absent locally) and is the next slice; the review agent verifies it against CI.
+- Do NOT add `mise` tasks (bench run / baseline-refresh) yet - they cannot be verified locally;
+    follow-up slice.
+- Do NOT modify or delete the existing criterion `benchmarks.rs` - it stays for local wall-clock
+    profiling and human-facing speedup numbers.
+- Do NOT touch `.cargo-crap.toml` - its `crates/iscc-lib/benches/**` exclusion already covers the
+    new bench file.
+- Do NOT flip the `Semver` gate to enforcing or begin v1.0.0 release prep (both human-driven).
 
 ## Implementation Notes
 
-Proven recipe (held for 0.24→0.28; 0.26 and 0.27 each needed a small mechanical source edit):
-
-1. Bump `Cargo.toml` line 35: `pyo3 = { version = "0.29", features = ["abi3-py310"] }`. Confirmed
-    0.29.0 is the latest on crates.io and still supports `abi3-py310`.
-2. `cargo update -p pyo3` to regenerate `Cargo.lock` (pyo3 + sibling crates pyo3-build-config,
-    pyo3-ffi, pyo3-macros, pyo3-macros-backend bump together).
-3. `cargo build -p iscc-py`, then `cargo clippy -p iscc-py -- -D warnings` — fix any new deprecation
-    warnings. Recent precedent: 0.26 needed `allow_threads`→`detach` + `PyObject`→`Py<PyAny>`; 0.27
-    needed `downcast`/`downcast_into_unchecked` → `cast`/`cast_into_unchecked`. Expect 0.29 may
-    also require a small mechanical rename — treat `-D warnings` as the gate, port exactly what it
-    flags.
-4. `cargo fmt --all --check`.
-5. `uv run maturin develop -m crates/iscc-py/Cargo.toml` (builds the `cp310-abi3` wheel locally).
-6. `uv run pytest` (286 tests expected to pass; one pre-existing unrelated iscc_core
-    Pydantic-V1/Py3.14 warning is fine).
-
-**Do NOT trust "compiles clean" as proof of behavior-neutrality.** The 0.28 hop compiled clean yet
-silently flipped the unspecified `#[pymodule]` `gil_used` default from `true` to `false`. Read the
-0.28→0.29 migration guide's default-handling section and diff the pyo3 macros-backend defaults for
-any further silent flip; keep the explicit `gil_used = true` (lib.rs:697).
-
-The two RustSec advisories the bump targets live in PyO3's closure/iterator internals
-(`PyCFunction::new_closure`, `nth_back` on bound tuple/list iterators) — this crate does not call
-those APIs, so the fix is purely getting patched PyO3 into the lock file; no compute path changes.
-
-Current lib.rs state for reference: 735 lines, 7 `detach`, 17 `Py<PyAny>`, 0 `allow_threads`, 8 raw
-`pyo3::ffi::*` sites (`PySequence_List`, `PyList_GetItem`, `PyList_Size`, `PyLong_AsLong`,
-`PyErr_Occurred`, `PyList_Check`) plus `Bound::from_owned_ptr().cast_into_unchecked()` (lib.rs:24).
-These have survived every hop — do not pre-emptively rewrite them.
-
-**Advisory verification caveat:** `cargo-audit` and `cargo-deny` are NOT installed in the
-devcontainer and are NOT wired into CI/mise, so the advisories cannot be confirmed cleared with a
-tool locally. The mechanical proxy is: `Cargo.lock` resolves `pyo3 0.29.x` with no pyo3 `< 0.29`
-entries remaining — the patched releases ship the advisory fixes, so removing the older versions
-from the lock removes the vulnerable code from the wheel.
+- Pin the latest stable `iai-callgrind` in `[workspace.dependencies]` (confirm the current version
+    on crates.io, e.g. `iai-callgrind = "0.14"`), then reference it from `iscc-lib` as a
+    dev-dependency (`iai-callgrind = { workspace = true }`), mirroring how `criterion` is wired.
+- Use the `#[library_benchmark]` macro API: each hot path is a `#[library_benchmark]` fn that
+    returns `black_box(...)` of the call result; collect them with `library_benchmark_group!` and
+    wire the group into `main!(library_benchmark_groups = ...)`. Confirm the exact macro names
+    against the pinned version's README - the API shifted across 0.x minors.
+- Use `std::hint::black_box` (NOT `criterion::black_box`) in the iai harness.
+- Cover the in-memory CPU hot paths, mirroring representative inputs from `benchmarks.rs`
+    (`deterministic_bytes`, `synthetic_text`): `gen_meta_code_v0`, `gen_text_code_v0`,
+    `gen_image_code_v0`, `gen_audio_code_v0`, `gen_video_code_v0`, `gen_mixed_code_v0`,
+    `gen_data_code_v0`, `gen_instance_code_v0`, `gen_iscc_code_v0`, plus the primitives
+    `alg_cdc_chunks(data, false, 1024)` and `alg_minhash_256(&[u32])` (infallible, returns
+    `Vec<u8>`).
+- DEFER `gen_sum_code_v0` (file I/O - its instruction count is syscall-dominated and would need an
+    iai setup closure to create the temp file outside the measured region); note the deferral in the
+    file's module docstring.
+- The harness needs the default features (`meta-code` -> `text-processing`) for the gen functions,
+    exactly like the criterion bench. `cargo build -p iscc-lib --bench iai_benches` (default
+    features on) compiles fine; only `--no-default-features --all-targets` would fail - a known
+    pre-existing bench limitation that CI never exercises.
+- Compilation does NOT require valgrind or `iai-callgrind-runner`; those are runtime-only and the
+    follow-up CI slice installs the runner via `cargo binstall` (heed the rust-cache `--force`
+    poisoning gotcha) on a valgrind-enabled Linux runner.
 
 ## Verification
 
-- `grep -n 'pyo3' Cargo.toml` → single match, line 35, `version = "0.29"` with `abi3-py310`
-- `grep -A1 'name = "pyo3"' Cargo.lock` → `version = "0.29.x"`, and no other pyo3 `< 0.29` entry
-    exists in `Cargo.lock`
-- `cargo build -p iscc-py` exits 0
-- `cargo clippy -p iscc-py -- -D warnings` exits 0, clean
-- `cargo fmt --all --check` exits 0
-- `uv run maturin develop -m crates/iscc-py/Cargo.toml` exits 0 (cp310-abi3 wheel installed)
-- `uv run pytest` passes (286 tests, only the known pre-existing iscc_core warning)
-- `cargo tree -p iscc-py -i pyo3` shows a single `pyo3 v0.29.x` (no duplicate versions)
-- `grep -n 'gil_used = true' crates/iscc-py/src/lib.rs` still present (default not regressed)
-- `cargo clippy --workspace --all-targets -- -D warnings` exits 0 (pre-push defense)
+- `cargo build -p iscc-lib --bench iai_benches` exits 0 (the harness compiles without valgrind or
+    the runner installed).
+- `cargo clippy -p iscc-lib --benches -- -D warnings` clean.
+- `cargo fmt -p iscc-lib --check` clean.
+- `cargo test -p iscc-lib` still passes (no regression in the existing suite).
+- `grep -q '^iai-callgrind' Cargo.toml` and `grep -q 'iai-callgrind' crates/iscc-lib/Cargo.toml`
+    both succeed; `crates/iscc-lib/Cargo.toml` contains a `[[bench]]` with `name = "iai_benches"`
+    and `harness = false`.
 
 ## Done When
 
-The workspace `pyo3` pin is `0.29`, `Cargo.lock` resolves a single `pyo3 0.29.x` with no older pyo3
-entries remaining, the explicit `gil_used = true` default is preserved, and the full build /
-clippy(`-D warnings`) / fmt / `maturin develop` / `pytest` chain passes green — clearing the issue
-#1 advisories from the shipped wheel.
+`cargo build -p iscc-lib --bench iai_benches` compiles the new iai-callgrind harness clean and all
+existing `iscc-lib` quality gates (clippy, fmt, test) stay green, leaving only the valgrind-gated CI
+job plus committed baseline for the clearly-scoped follow-up slice.

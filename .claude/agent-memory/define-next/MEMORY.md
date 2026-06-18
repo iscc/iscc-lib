@@ -28,20 +28,14 @@ iterations.
     fix — the review agent will verify. Don't block the CID loop on human confirmation for
     well-understood bugs.
 - **IDLE is valid** — when all target sections are met and only low issues remain, signal IDLE.
-    Don't invent work. The CID loop ran 7 iterations and correctly reached completion.
+    Don't invent work. But an already-specced, locally-verifiable target gap is NOT idle work.
 - **Prefer boolean-verifiable prerequisites over high-impact-but-risky infra fixes** when both are
     available and there's no in-progress feature. A single-file `pub`→`pub(crate)` change with grep
     \+ `cargo test` checks beats an infra fix whose real verification needs publishing/CI.
-- **The npm `optionalDependencies` fix (#38) IS locally verifiable — earlier "too risky" caution was
-    wrong (resolved iter 92).** Inspected `crates/iscc-napi/index.js`: each platform branch does
-    `require('./iscc-lib.<triple>.node')` FIRST, only falling back to
-    `require('@iscc/lib-<triple>')` on failure. With `files: ["*.node"]` bundling all 5 binaries the
-    local require always succeeds, so the undeclared sibling packages are never needed.
-    `napi prepublish` is the ONLY injector of `optionalDependencies`; deleting that one release.yml
-    step (`publish-npm-lib` job, ~line 378) is the whole code fix. Verify locally with NO publish:
-    build the addon, then `node -e "require('./index.js').conformance_selftest()"` — succeeds with
-    zero optional-dep packages installed in the devcontainer, proving the bundled loader (the exact
-    #38 failure mode).
+- **npm `optionalDependencies` fix (#38) RESOLVED iter 92** — lesson kept: an infra/release fix can
+    still be LOCALLY verifiable. The bundled napi loader (`files: ["*.node"]`, local `require` of
+    the sibling `.node` first) was provable in-devcontainer with NO publish; "release-only → too
+    risky" was the wrong default. Detail archived to MEMORY-archive.md.
 
 ## Architecture Decisions
 
@@ -170,26 +164,28 @@ iterations.
     prose to match. Flapping risk: committed baseline coverage (devcontainer rustc 1.96.0) vs CI
     `@stable` — deterministic test coverage is stable + `--epsilon 0.01` absorbs noise; if CI flaps,
     regenerate from CI's lcov artifact, do NOT widen epsilon.
-- **Remaining v1.0.0 normal backlog after iter 97 (2 issues)**: iai-callgrind perf gate
-    (valgrind-blocked locally → CI-only, defer verification to the run), PyO3 0.23→0.29 (no security
-    benefit until full 0.29).
-- **PyO3 #1 migration: now at 0.28 (lock 0.28.3); FINAL hop 0.28→0.29 SCOPED iter 105.** Hop-by-hop
-    history (0.23→0.28) archived to MEMORY-archive.md. Key facts that recur: source-touching hops
-    happen (0.26 = `allow_threads`→`detach` + `PyObject`→`Py<PyAny>`; 0.27 = `downcast*`→`cast*`),
-    so **watch `-D warnings` EVERY hop, port exactly what it flags**. **0.28 hop compiled clean yet
-    silently flipped the unspecified `#[pymodule]` `gil_used` default `true`→`false`** — the
-    0.27→0.28 review restored it with `#[pymodule(name = "_lowlevel", gil_used = true)]`
-    (lib.rs:697). So do NOT trust "compiles clean" as behavior-neutral — read each migration guide's
-    default-handling section. Recipe: bump root `Cargo.toml` line 35 → `cargo update -p pyo3` →
-    build / clippy(`-D warnings`) / fmt → `uv run maturin develop -m crates/iscc-py/Cargo.toml` →
-    `uv run pytest` (286). **The two RustSec advisories clear ONLY at 0.29** (endpoint of #1).
-    **cargo-audit AND cargo-deny are absent locally AND not wired into CI/mise** (verified iter 105)
-    — cannot tool-verify advisory clearance; mechanical proxy = `Cargo.lock` resolves pyo3 0.29.x
-    with no pyo3 `< 0.29` entries. NO docs/README reference the pyo3 version (re-grepped iter 105).
-- **iai-callgrind stays CI-only**: `valgrind` has NO apt install candidate in the devcontainer
-    (re-confirmed iter 98; `sudo` IS passwordless but the package is absent from sources), so
-    benches CANNOT run locally — baseline must come from CI. Split it (bench harness first, then CI
-    job + committed baseline) if/when picked up.
+- **PyO3 #1 migration COMPLETE at 0.29 (issue closed iter 105).** Per-hop recipe + silent-gotcha
+    catalog archived to MEMORY-archive.md. Residual fact: **cargo-audit AND cargo-deny are absent
+    locally AND not wired into CI/mise** (verified iter 105) — advisory clearance was confirmable
+    only by the lockfile proxy, which spawned the [review] supply-chain-audit-gate issue.
+- **Remaining v1.0.0 normal backlog after iter 106 (3 issues, ALL constrained)**: (a) iai-callgrind
+    perf gate `[human]` — ALREADY in spec (target.md L71, rust-core.md, ci-cd.md), NO human-review
+    hold; (b) CRAP `--fail-above 30` `[review]` — HUMAN REVIEW REQUESTED to amend spec; (c)
+    supply-chain `cargo deny/audit` gate `[review]` — HUMAN REVIEW REQUESTED to amend spec. **Key
+    calibration:** prefer the already-specced gap (a) — adding a NEW gate that amends the spec/notes
+    is a policy call the review agent flagged for human sign-off; respect that, do NOT auto-scope
+    (b)/(c). The HUMAN-REVIEW-override-on-overwhelming-evidence rule is for BUG fixes, not new
+    policy gates.
+- **iai-callgrind: HARNESS-FIRST slice SCOPED iter 106.** `valgrind` + `iai-callgrind-runner` are
+    BOTH absent locally (re-confirmed iter 106; no apt candidate) so benches cannot RUN — but the
+    harness COMPILES without them (runner/valgrind are runtime-only). So the split = (1) bench
+    harness `crates/iscc-lib/benches/iai_benches.rs` + `iai-callgrind` workspace dep + `[[bench]]`
+    entry, verified by `cargo build -p iscc-lib --bench iai_benches` (boolean, local); (2) follow-up
+    = `Perf` CI job + committed baseline + mise tasks, valgrind-gated → review verifies vs CI.
+    `.cargo-crap.toml` already excludes `crates/iscc-lib/benches/**`, so a new bench file does NOT
+    need a CRAP-config edit. Primitive sigs:
+    `alg_cdc_chunks(&[u8], utf32 bool, avg u32)   -> IsccResult`, `alg_minhash_256(&[u32]) -> Vec<u8>`
+    (infallible).
 - **iter 100→101: cargo-crap install-flake fix LANDED, CI confirmed GREEN** (run 27685108728). Rule
     reaffirmed: **CI red always preempts feature work, even a clean handoff "Next".** Root cause:
     `Swatinem/rust-cache@v2` restores cargo's `.crates.toml` metadata WITHOUT the
