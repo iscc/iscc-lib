@@ -105,3 +105,12 @@ See MEMORY.md for current active entries.
     bumps must be behavior-neutral.
 - Lesson carried forward to the current entry: each minor is one reviewed step; advisories clear
     ONLY at 0.29; "compiles clean" ≠ behavior-neutral.
+
+## cargo-crap install-flake fix (iter 100→101) — RESOLVED, CI GREEN
+
+`Swatinem/rust-cache@v2` restores cargo's `.crates.toml`/`.crates2.json` metadata WITHOUT the
+`~/.cargo/bin/cargo-crap` binary, so `cargo binstall cargo-crap@0.2.2` (no `--force`) saw "already
+installed", skipped, and the next `cargo crap` step died `no such command: crap` → CI RED every run.
+Fix: `--force` on that binstall line (ci.yml:314). CI confirmed GREEN run 27685108728. Rule kept in
+MEMORY.md CI-red-preempts-feature-work; generalized binstall+rust-cache gotcha lives in
+learnings.md.

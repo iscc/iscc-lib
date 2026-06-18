@@ -176,18 +176,23 @@ iterations.
     is a policy call the review agent flagged for human sign-off; respect that, do NOT auto-scope
     (b)/(c). The HUMAN-REVIEW-override-on-overwhelming-evidence rule is for BUG fixes, not new
     policy gates.
-- **iai-callgrind perf gate (issue #3) COMPLETE + CI-verified GREEN iter 110** → see
-    [iai-callgrind-gate](iai-callgrind-gate.md). Slices 1+2a+2b all landed: harness, Perf CI job,
-    committed `.iai-baseline.json` + enforcing `scripts/iai_regression.py --check`. valgrind +
-    runner ARE installed locally → it IS locally verifiable (state.md/learnings wrongly say
-    "valgrind absent"). **Iter 110 scoped the false-green HARDENING follow-up** (`[review]`, no
-    human-review hold): fail on zero-Ir shared bench + missing baselined bench (`--allow-missing`
-    opt-out) — pure script change, NO spec amendment. The OTHER two normal issues (CRAP
-    `--fail-above 30`, cargo-deny/audit) ARE human-review-requested spec amendments → do NOT
-    auto-scope them.
-- **iter 100→101: cargo-crap install-flake fix LANDED, CI confirmed GREEN** (run 27685108728). Rule
-    reaffirmed: **CI red always preempts feature work, even a clean handoff "Next".** Root cause:
-    `Swatinem/rust-cache@v2` restores cargo's `.crates.toml` metadata WITHOUT the
-    `~/.cargo/bin/cargo-crap` binary, so `cargo binstall cargo-crap@0.2.2` (no `--force`) skipped
-    install → next `cargo crap` step died `no such command: crap`. Fix = `--force` on that binstall
-    line (ci.yml:314). With CI green, iter 101 resumed PyO3 0.25→0.26 (handoff "Next").
+- **iai-callgrind perf gate (issue #3) COMPLETE + hardened + CI-verified GREEN (iters 107–110)** →
+    see [iai-callgrind-gate](iai-callgrind-gate.md). Harness + Perf CI job + committed
+    `.iai-baseline.json` + enforcing `scripts/iai_regression.py --check`; valgrind + runner
+    installed locally → locally verifiable. Iter 110 hardening (fail on zero-Ir/missing bench,
+    `--allow-missing` opt-out) was a pure script change, NO spec amendment. The two remaining normal
+    issues (CRAP `--fail-above 30`, cargo-deny/audit) ARE human-review-requested spec amendments →
+    do NOT auto-scope.
+- **iter 100→101 cargo-crap install-flake fix — RESOLVED, CI GREEN.** Detail archived to
+    MEMORY-archive.md. Rule kept: **CI red always preempts feature work, even a clean handoff
+    "Next".**
+- **iter 111: GENUINE HUMAN-HANDOFF — define-next wrote a NO-OP next.md, no autonomous work.** CI
+    GREEN on `6d6c594`; all 12 bindings + README + docs + benchmarks + the complete/hardened
+    iai-callgrind gate are met. The ONLY 3 gaps are ALL human-blocked: (1) v1.0.0 release cut (`low`
+    [human]); (2) CRAP `--fail-above 30` + (3) cargo-deny/audit — both `normal` [review] HUMAN
+    REVIEW REQUESTED spec amendments. When only HUMAN-REVIEW `normal` + `low` issues remain → write
+    a no-op handoff (advance makes zero code changes → review assesses IDLE/human-handoff); do NOT
+    auto-scope the spec-amendment gates, flip Semver, or invent churn. Tension: review.md Idle cond.
+    #2 ("every issue `low`") can't fire while the 2 `normal` issues exist, but they're
+    human-spec-blocked → still a handoff point. Resolution is a human call, not more define-next
+    work; if still here next iter, keep emitting the no-op.
