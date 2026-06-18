@@ -126,23 +126,15 @@ iterations.
     actionlint. Pair with grep assertions + the next CI run (review agent confirms the new job
     appears and existing jobs stay green). (iter 93/94 network + Phase 1 detail archived to
     MEMORY-archive.md.)
-- **iscc-py is ONE file (`crates/iscc-py/src/lib.rs`, 735 lines) — pyo3 used by NO other crate**
-    (grep `crates/*/Cargo.toml` → only iscc-py; version pin lives ONLY at root `Cargo.toml` line 35;
-    iscc-py consumes via `workspace = true, features = ["extension-module"]`;
-    `crates/iscc-py/pyproject.toml` line 38 holds the maturin config
-    `features = ["pyo3/extension-module"]`, NO version → never edited on a hop). Has raw
-    `pyo3::ffi::*` CPython-C-API calls (8 sites: `PySequence_List`, `PyList_GetItem`, `PyList_Size`,
-    `PyLong_AsLong`, `PyErr_Occurred`, `PyList_Check`) +
-    `Bound::from_owned_ptr().cast_into_unchecked()` (lib.rs:24) — map to stable CPython C API,
-    rarely break across pyo3 minors. Local verify = `maturin develop -m crates/iscc-py/Cargo.toml`
-    (maturin 1.12.4 via uv) + `uv run pytest` (286).
-- **CRAP gate Phases 1+2 LANDED** (iters 94–96; Phase 2 `6ed51c5`, reviewed PASS `cbc0d14`). The
-    `coverage` job (`ci.yml:293-331`, renamed "Coverage + CRAP") installs cargo-llvm-cov +
-    cargo-binstall + `cargo-crap@0.2.2`, generates+uploads `lcov.info`, then runs report-only
-    `cargo crap --format github` + `--format sarif` (→ Code Scanning; job has
-    `security-events:   write`). `.cargo-crap.toml`: threshold 30, missing pessimistic, excludes 7
-    binding crates + `packages/` + `scripts/` + `crates/iscc-lib/benches/**`. `mise run crap`
-    (depends coverage). Detailed Phase 1/2 scoping archived to MEMORY-archive.md.
+- **iscc-py / PyO3 internals archived (iter 113) to MEMORY-archive.md** — PyO3 migration COMPLETE
+    (#1 closed). Residual: iscc-py is ONE file, pyo3 used by no other crate; local verify =
+    `maturin develop -m crates/iscc-py/Cargo.toml` + `uv run pytest`.
+- **CRAP gate Phases 1+2 LANDED** (iters 94–96). The `coverage` job (now "Coverage + CRAP",
+    ci.yml:~347) installs cargo-llvm-cov + cargo-binstall + `cargo-crap@0.2.2`, generates+uploads
+    `lcov.info`, then report-only `cargo crap --format github` + `--format sarif` (→ Code Scanning;
+    job has `security-events: write`). `.cargo-crap.toml`: threshold 30, missing pessimistic,
+    excludes 7 binding crates + `packages/` + `scripts/` + `crates/iscc-lib/benches/**`. Detail in
+    MEMORY-archive.md.
 - **cargo-crap 0.2.2 facts (re-verified locally iter 97 — both cargo-crap 0.2.2 + cargo-llvm-cov
     0.8.7 are now INSTALLED in the devcontainer)**: flags `--lcov`,
     `--format {human,json,github,markdown,pr-comment,sarif}`, `--threshold`, `--missing`,
@@ -183,16 +175,26 @@ iterations.
     `--allow-missing` opt-out) was a pure script change, NO spec amendment. The two remaining normal
     issues (CRAP `--fail-above 30`, cargo-deny/audit) ARE human-review-requested spec amendments →
     do NOT auto-scope.
-- **iter 100→101 cargo-crap install-flake fix — RESOLVED, CI GREEN.** Detail archived to
-    MEMORY-archive.md. Rule kept: **CI red always preempts feature work, even a clean handoff
-    "Next".**
-- **iter 111: GENUINE HUMAN-HANDOFF — define-next wrote a NO-OP next.md, no autonomous work.** CI
-    GREEN on `6d6c594`; all 12 bindings + README + docs + benchmarks + the complete/hardened
-    iai-callgrind gate are met. The ONLY 3 gaps are ALL human-blocked: (1) v1.0.0 release cut (`low`
-    [human]); (2) CRAP `--fail-above 30` + (3) cargo-deny/audit — both `normal` [review] HUMAN
-    REVIEW REQUESTED spec amendments. When only HUMAN-REVIEW `normal` + `low` issues remain → write
-    a no-op handoff (advance makes zero code changes → review assesses IDLE/human-handoff); do NOT
-    auto-scope the spec-amendment gates, flip Semver, or invent churn. Tension: review.md Idle cond.
-    #2 ("every issue `low`") can't fire while the 2 `normal` issues exist, but they're
-    human-spec-blocked → still a handoff point. Resolution is a human call, not more define-next
-    work; if still here next iter, keep emitting the no-op.
+- **iter 100→101 cargo-crap install-flake fix — RESOLVED (detail archived).** Rule kept: **CI red
+    always preempts feature work, even a clean handoff "Next".**
+- **iter 111: GENUINE HUMAN-HANDOFF — define-next wrote a NO-OP next.md.** CI GREEN; only 3 gaps,
+    all human-blocked (v1.0.0 cut + the 2 `normal` [review] gates). No-op was right; human resolved
+    it (next entry).
+- **iter 112→113: HUMAN AUTHORIZED both `normal` `[review]` gates (commit `9770332`, "Authorize CRAP
+    --fail-above and cargo-deny gates; hold v1.0.0").** `ci-cd.md` was amended (Phase 3 mandates
+    `--fail-above`; new §"Supply chain — `cargo-deny`"). The prior "do NOT auto-scope the
+    spec-amendment gates" constraint is **LIFTED** — CID may now implement both autonomously. Order
+    (per state.md Next Milestone): (1) CRAP `--fail-above` FIRST (smaller, self-contained), (2)
+    `cargo-deny`/`cargo audit` supply-chain gate SECOND. Still HELD by Titusz: v1.0.0 cut (`low`
+    [human]) + flipping the Semver gate to enforcing — do NOT touch either.
+- **iter 113 SCOPED: CRAP `--fail-above` gate.** 3 files: `ci.yml` (append `--fail-above` to the
+    "CRAP regression gate" step, line ~390:
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above` —
+    `--fail-above` is a BOOLEAN, no numeric arg, keys off `.cargo-crap.toml` `threshold = 30.0`);
+    `.cargo-crap.toml` (update the "report-only / no `fail-above` is set" header comment, lines
+    1-9); `ci-cd.md` (flip verified-when box ~L445 `[ ]`→`[x]`). SAFE: `.crap-baseline.json` max
+    CRAP = 22.27 < 30 (verified locally iter 113), so the absolute gate passes on current code.
+    Local verify = `mise run coverage` then the full CRAP cmd exits 0.
+    `--fail-above`/`--fail-regression` are independent booleans that combine with `--baseline`
+    (incompatible only with `--format sarif`, which is a separate step). Keep `mise run crap`
+    report-only (diagnostic); enforcement is CI-only.

@@ -114,3 +114,17 @@ installed", skipped, and the next `cargo crap` step died `no such command: crap`
 Fix: `--force` on that binstall line (ci.yml:314). CI confirmed GREEN run 27685108728. Rule kept in
 MEMORY.md CI-red-preempts-feature-work; generalized binstall+rust-cache gotcha lives in
 learnings.md.
+
+## iscc-py / PyO3 internals (archived iter 113 — PyO3 migration COMPLETE, issue #1 closed)
+
+- iscc-py is ONE file (`crates/iscc-py/src/lib.rs`, ~735 lines); pyo3 used by NO other crate (grep
+    `crates/*/Cargo.toml` → only iscc-py). Version pin lives ONLY at root `Cargo.toml` line ~35;
+    iscc-py consumes via `workspace = true, features = ["extension-module"]`;
+    `crates/iscc-py/pyproject.toml` line ~38 holds maturin config
+    `features = ["pyo3/extension-module"]` (NO version → never edited on a hop). Has raw
+    `pyo3::ffi::*` CPython-C-API calls (8 sites: PySequence_List, PyList_GetItem, PyList_Size,
+    PyLong_AsLong, PyErr_Occurred, PyList_Check) + `Bound::from_owned_ptr().cast_into_unchecked()`
+    (lib.rs:24) — map to stable CPython C API, rarely break across pyo3 minors. Local verify =
+    `maturin develop -m crates/iscc-py/Cargo.toml` (maturin 1.12.4 via uv) + `uv run pytest` (286).
+- Explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:~697) MUST be preserved (PyO3
+    0.28 silently flipped that default true→false).
