@@ -1,74 +1,38 @@
-## 2026-06-18 — Review of: Harden iai-callgrind regression gate against zero-count and disappeared-bench false greens
+## 2026-06-18 — Confirm human-handoff state — no autonomous CID work package remains
 
-**Verdict:** PASS
+**Done:** Per next.md, this is a confirmation/no-op iteration. I made NO source, test, or doc
+changes. I re-confirmed via `state.md` and `issues.md` that every target section is met except three
+gaps that are each blocked on human input (the v1.0.0 release cut and two HUMAN-REVIEW-REQUESTED
+spec amendments). The loop sits at a natural human-handoff point.
 
-**Summary:** The advance agent closed both Codex-flagged false-green escape hatches in
-`scripts/iai_regression.py`: `check_regressions` now fails when any shared benchmark reports a zero
-Ir count (independent of `--allow-missing`) and when a baselined benchmark disappears from the run
-(downgradable to a warning with the new `--allow-missing` flag). The change is clean, stricter (not
-weaker), scope-disciplined, and covered by 11 deterministic synthetic-fixture pytest tests. All
-verification passes.
+**Files changed:**
+
+- (none under `crates/`, `packages/`, `scripts/`, `docs/`, or `.claude/context/specs/`)
+- `.claude/agent-memory/advance/MEMORY.md`: trimmed from 202→199 lines (over the 200 budget) by
+    folding the redundant `gen_sum_code_v0` section's two facts into the existing Streaming
+    (`SumHasher` wrapper / "all 7 bindings implement gen_sum_code_v0") and API Design (`iscc_decode`
+    tuple signature; `MainType` pub(crate)) entries. No information lost — purely a budget cleanup.
 
 **Verification:**
 
-- [x] `uv run pytest tests/test_iai_regression.py -q` — 11 passed (>= 6 required, covers cases a–f +
-    boundary/roundtrip/parse_ir)
-- [x] `uv run pytest -q` full suite — 297 passed, 1 warning (pre-existing benchmark legend,
-    unrelated)
-- [x] `uv run ruff check` — clean on both files
-- [x] `uv run ruff format --check` — 2 files already formatted
-- [x] `uv run ty check scripts/iai_regression.py` — clean
-- [x] `cargo test -p iscc-lib` — 22 unit + doctest pass (script-only change, core unaffected)
-- [x] `mise run check` — all 15 pre-commit hooks pass
-- [x] Manual sanity — matching synthetic run (16 baseline benches) exits 0; one `.out` tampered to
-    `summary: 0` exits 1 with `FAIL: 1 benchmark(s) collected a zero Ir count`; removing a bench dir
-    exits 1 by default and 0 with `--allow-missing`
+- `git diff --stat -- crates/ packages/ scripts/ docs/ .claude/context/specs/` → empty (no code/doc
+    changes), matching next.md's Done-When criterion.
+- `git status --short` → only `.claude/context/iterations.jsonl` dirty (loop-managed; not touched by
+    me).
+- `cargo test -p iscc-lib` → 22 unit tests + 1 doctest pass, 0 failed (optional sanity; unchanged
+    from the GREEN tip `6d6c594`).
+- `issues.md` still lists exactly 4 issues (2 `normal` [review] HUMAN-REVIEW-REQUESTED, 2 `low`
+    [human]) — none auto-started.
 
-**Issues found:**
+**Next:** Hand off to review to assess the Idle Iterations / human-handoff signal. Strict IDLE
+condition #2 ("every issue is `low`") is NOT met — the 2 `normal` [review] issues remain — but both
+are HUMAN-REVIEW-REQUESTED spec amendments (CRAP `--fail-above 30`; `cargo deny`/`cargo audit`
+supply-chain gate) with no autonomous action for CID. This is a human-handoff point, not invented
+work. Do NOT flip the `Semver` gate to enforcing or start v1.0.0 prep autonomously (both tied to the
+human-driven v1.0.0 cut).
 
-- (none) — diff touches only `scripts/iai_regression.py`, the new `tests/test_iai_regression.py`,
-    and context/memory files. No CRAP/cargo-deny/CI-YAML/baseline/semver changes (all correctly out
-    of scope). No gate circumvention across the 4 unpushed commits — the `continue-on-error` grep
-    hits are all prose in context/memory files, and the new failure paths make the gate stricter.
-
-**Codex review:** Clean — "The commit correctly tightens the iai regression gate for shared
-zero-count results and missing baselined benchmarks, adds the intended allow-missing escape hatch,
-and covers the behavior with synthetic tests." No actionable findings.
-
-**Issues swept this cycle (deleted from issues.md):**
-
-- "Add `iai-callgrind` performance-regression CI gate" `normal` [human] (issue #3) — functionally
-    complete and CI-verified GREEN on `a5ce73c` (per update-state / state.md), specs already marked
-    `[x]` (rust-core.md 374–376, ci-cd.md 424). Deleted; no further spec edit needed.
-- "Harden iai-callgrind regression gate against false-green edge cases" `normal` [review] — resolved
-    by this iteration. Deleted.
-
-**Next:** No fully-autonomous `normal` work package remains. The two open `normal` [review] issues
-are both **HUMAN REVIEW REQUESTED spec amendments** — define-next must NOT start either
-autonomously:
-
-1. **CRAP gate `--fail-above 30`** — add an absolute threshold so new uncovered high-CRAP functions
-    fail (current regression-only gate lets them through). Requires amending `ci-cd.md`; confirm
-    `cargo-crap 0.2.2` accepts `--fail-above` + `--fail-regression` together first.
-2. **Wire up `cargo deny`/`cargo audit` supply-chain gate** — requirement lives only in `notes/07`,
-    not the CID specs; needs a spec amendment plus `deny.toml` + CI job + `mise run audit` task.
-
-The remaining `low` [human] issues (v1.0.0 release cut, docs logos) are human-directed and out of
-CID scope. **The loop is at a natural human-handoff point**: if define-next finds no autonomous
-work, the next no-op advance should let review signal IDLE. Do not flip the `Semver` gate to
-enforcing or start v1.0.0 prep autonomously.
-
-**Notes:**
-
-- The hardened gate is correct by construction: `zero_benches` fails independently of
-    `--allow-missing`; `only_baseline` fails unless `--allow-missing`; `only_run` (new bench) still
-    only warns. The committed `.iai-baseline.json` (16 Ir entries) can only shrink via a deliberate
-    `--update` refresh in a reviewed commit.
-- Mid-flush race (prior handoff): running `--check` in the same shell command immediately after
-    `cargo bench` can match fewer benches before the flush completes. In CI `--check` is a separate
-    step after the bench step fully finishes, so the now-failing disappeared-bench path is safe.
-    `--allow-missing` is the deliberate escape hatch for any future transient CI flake — do not
-    weaken the default.
-- State to confirm next cycle: CI `Perf` job stays GREEN on the pushed tip after this batch (the
-    `Check perf regression` step is unchanged in behavior for the all-present, within-tolerance case
-    it sees in CI; the new failure paths only trigger on zero/missing).
+**Notes:** I found no genuinely autonomous, non-spec-amending, in-scope work that advances an unmet
+target criterion. CI is GREEN on the pushed tip (`6d6c594`, run 27753395707); all 19 functional jobs
+pass and the only job-level `failure` is the informational `continue-on-error` Semver job. The one
+non-context change in this commit is the MEMORY.md budget trim, which is agent-memory maintenance
+explicitly permitted by the advance protocol (not a code/doc change).

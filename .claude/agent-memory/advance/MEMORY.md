@@ -96,11 +96,6 @@ iterations.
     `black_box`, proc-macro docstring-rejection, borrow-returning GOTCHAs) → MEMORY-archive.md.
     Harness is complete + correct; do not edit it for the perf-gate work
 
-## gen_sum_code_v0 — see MEMORY-archive.md for full details
-
-- All 32 Tier 1 symbols implemented; all 7 bindings implement `gen_sum_code_v0` (thin
-    `streaming::SumHasher` wrapper). `iscc_decode` → `(u8,u8,u8,u8,Vec<u8>)`; `MainType` pub(crate)
-
 ## Streaming
 
 - `DataHasher`: persistent `buf: Vec<u8>` reused across `update()`. CDC → BLAKE3 chunk hash →
@@ -109,7 +104,9 @@ iterations.
 - `SumHasher` (issue #37): inner `DataHasher` + `InstanceHasher`, `update` feeds both;
     `finalize(bits, wide, add_units)` composes via `gen_iscc_code_v0`. Full path
     `iscc_lib::streaming::SumHasher` (NOT crate-root). Bindings: Python `PySumHasher`, WASM
-    `SumHasher` (`Option<inner>` finalize-once). Python GIL release (#39, archived)
+    `SumHasher` (`Option<inner>` finalize-once). All 7 bindings implement `gen_sum_code_v0` (thin
+    `streaming::SumHasher` wrapper). Python GIL release (#39, archived). gen_sum details →
+    MEMORY-archive.md
 
 ## API Design
 
@@ -117,7 +114,8 @@ iterations.
     bindings pass `&[Vec<i32>]`
 - Tier 1 `encode_component` wrapper in `lib.rs` takes `u8` for enum fields + validates with
     `TryFrom<u8>`. Delegates to `codec::encode_component`
-- `iscc_decode` strips "ISCC:" prefix and dashes, returns exact digest bytes (not full tail)
+- `iscc_decode` strips "ISCC:" prefix and dashes, returns exact digest bytes (not full tail) as
+    `(u8,u8,u8,u8,Vec<u8>)`; `MainType` is `pub(crate)`
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
     depends on `@context` key
 - 5 constants exported across bindings: META_TRIM_NAME/DESCRIPTION/META, IO_READ_SIZE,
