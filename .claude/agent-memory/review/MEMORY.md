@@ -181,23 +181,14 @@ Review patterns, quality gate knowledge, and common issues accumulated across CI
     pushing (same maturin command above), else push fails
 - PyO3 GIL-release pattern (#39, iter 91): technique archived in `learnings-archive.md`. Post-0.26
     the GIL-release call is `Python::detach` (was `allow_threads`) — grep `detach` to count sites
-- **PyO3 minor migration** (0.23→0.29, one minor per CID step; advisories clear only at 0.29): pin
-    is root `Cargo.toml` `[workspace.dependencies]`, used by `iscc-py` alone. Python-only review +
-    `cargo tree -p iscc-py -i pyo3` for resolved version. 0.23→0.24 AND 0.24→0.25 zero-source;
-    0.25→0.26 FIRST hop needing edits: `allow_threads`→`detach` (7 sites) + `PyObject` alias →
-    `Py<PyAny>` returns (17 sites); 0.26→0.27 SECOND hop: `to_pylist` cast rename
-    `downcast`/`downcast_into_unchecked` → `cast`/`cast_into_unchecked` (mechanical, error type
-    discarded). 0.27→0.28 (iter 104) compiled ZERO-edit clean BUT carried a SILENT runtime flip
-    `-D warnings` can't catch: PyO3 0.28 changed the unspecified `#[pymodule]` `gil_used` default
-    `true`→`false` (macros-backend `module.rs`: 0.27 `map_or(true,…)` → 0.28 `is_some_and(…)`). On
-    free-threaded CPython source builds the module then imports WITHOUT re-enabling the GIL — unsafe
-    for the raw borrowed `PyList_GetItem` ptrs in `extract_frame_sigs`. Review fixed by adding
-    `gil_used = true` to the `#[pymodule]` (no-op on abi3 wheels/GIL builds; restores 0.27
-    behavior). LESSON: each pyo3 hop, diff the macros-backend default handling — "compiles clean" ≠
-    behavior-neutral. Verify deprecated APIs gone: grep
-    `allow_threads`/`downcast`/`PyResult<PyObject>` = 0. `uv run maturin develop` then
-    `uv run pytest` (286). NEXT 0.28→0.29 is FINAL (advisories clear, closes issue #1; `cargo audit`
-    after). Watch `-D warnings` each hop
+- **PyO3 migration 0.23→0.29 COMPLETE** (issue #1 closed, iter 105): full per-hop recipe + gotcha
+    catalog archived in `learnings-archive.md`. Final 0.28→0.29 hop was ZERO-edit; lockfile resolves
+    a single `pyo3 0.29.0` (verify `cargo tree -p iscc-py -i pyo3`). Keep explicit
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — 0.28 silently flipped that
+    default to `false`. LESSON for future bumps: "compiles clean under `-D warnings`" ≠
+    behavior-neutral; diff the pyo3-macros-backend default handling each hop. Advisory clearance NOT
+    tool-confirmable here: `cargo audit`/`cargo deny` are absent from devcontainer + CI (filed a
+    `[review]` issue to wire up the `cargo deny` gate that `notes/07` mandates)
 
 ## Ruby Binding Review
 

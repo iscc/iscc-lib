@@ -1,72 +1,83 @@
-## 2026-06-18 — Migrate PyO3 0.28 → 0.29 (FINAL hop — closes issue #1 "Update PyO3 to latest release")
+## 2026-06-18 — Review of: Migrate PyO3 0.28 → 0.29 (FINAL hop — closes issue #1)
 
-**Done:** Bumped the workspace `pyo3` pin `0.28` → `0.29` (resolves `0.29.0`, keeping `abi3-py310`)
-and regenerated `Cargo.lock` (pyo3 + 4 sibling crates pyo3-build-config / pyo3-ffi / pyo3-macros /
-pyo3-macros-backend all bump to 0.29.0 together). Zero source edits were forced — the build, clippy
-(`-D warnings`), fmt, maturin, and pytest chain is green. This is the endpoint of the incremental
-0.23→0.29 migration: the 0.29.0 CHANGELOG explicitly lists both RustSec advisory fixes (OOB read in
-`BoundListIterator`/`BoundTupleIterator` `nth`/`nth_back` #6086; missing `Sync` bound on
-`PyCFunction::new_closure` #6096), so the patched PyO3 now ships in the wheel and issue #1 can
-close.
+**Verdict:** PASS
 
-**Files changed:**
+**Summary:** The advance agent bumped the workspace `pyo3` pin `0.28` → `0.29` and regenerated
+`Cargo.lock` (all 5 pyo3 crates → 0.29.0; `pyo3-macros-backend` dropped its internal
+`pyo3-build-config` dep). No source edits were required — `crates/iscc-py/src/lib.rs` is unchanged
+and the explicit `gil_used = true` is preserved. This closes the incremental 0.23→0.29 migration
+arc: 0.29.0 ships both targeted RustSec advisory fixes, so the published wheel no longer carries
+vulnerable PyO3 code. Clean, minimal, in-scope.
 
-- `Cargo.toml`: line 35 `pyo3` workspace pin `0.28` → `0.29` (`abi3-py310` retained)
-- `Cargo.lock`: regenerated via `cargo update -p pyo3` (5 pyo3 crates → 0.29.0; generated, not
-    counted toward file scope)
-- `crates/iscc-py/src/lib.rs`: **unchanged** (no deprecation/breakage surfaced under `-D warnings`)
-
-**Verification:** (all criteria from next.md)
+**Verification:** (every criterion from next.md)
 
 - [x] `grep -n 'pyo3' Cargo.toml` → single match, line 35, `version = "0.29"` with `abi3-py310`
-- [x] `grep -A1 'name = "pyo3"' Cargo.lock` → `version = "0.29.0"`; only ONE `name = "pyo3"` entry,
-    no pyo3 `< 0.29` remaining
-- [x] `cargo build -p iscc-py` → exit 0
+- [x] `grep -A1 'name = "pyo3"' Cargo.lock` → `version = "0.29.0"`; all pyo3 crates resolve to
+    0.29.0, no pyo3 `< 0.29` entry remains
+- [x] `cargo build -p iscc-py` → exit 0 (Finished)
 - [x] `cargo clippy -p iscc-py -- -D warnings` → exit 0, clean
 - [x] `cargo fmt --all --check` → exit 0
 - [x] `uv run maturin develop -m crates/iscc-py/Cargo.toml` → exit 0, `cp310-abi3` wheel installed
 - [x] `uv run pytest` → 286 passed, 1 warning (the known pre-existing iscc_core Pydantic-V1/Py3.14
-    UserWarning, raised inside `iscc_core/options.py` on import — not our code)
+    UserWarning — not our code)
 - [x] `cargo tree -p iscc-py -i pyo3` → single `pyo3 v0.29.0`, no duplicates
-- [x] `grep -n 'gil_used = true' crates/iscc-py/src/lib.rs` → still present (lib.rs:697; default not
+- [x] `grep -n 'gil_used = true' crates/iscc-py/src/lib.rs` → present (lib.rs:697; default not
     regressed)
 - [x] `cargo clippy --workspace --all-targets -- -D warnings` → exit 0 (pre-push defense)
 - [x] `mise run check` → all 15 pre-commit hooks Passed
-- [x] `uv run prek run --all-files --hook-stage pre-push` → all pre-push gates Passed (Rust
-    lint/tests, ty check, Ruff S/C901, Ruby lint, pytest)
+- [x] `uv run prek run --all-files --hook-stage pre-push` → all 16 pre-push gates Passed (clippy,
+    cargo test, ty check, Ruff S/C901, Ruby lint, pytest, mdformat)
 
-**Silent-behavior audit (per the 0.28 hop warning that "compiles clean" ≠ behavior-neutral):**
+**Silent-behavior audit:** Confirmed the macros-backend `gil_used` default handling did NOT flip
+again this hop (the 0.28 default stays `false`; our explicit `gil_used = true` keeps GIL
+protection). Read the 0.29.0 CHANGELOG — the one behavioral item (exception enrichment via
+`PyErr::add_note` instead of replacing `TypeError`, #5349) does not affect our tests; "Remove
+0.27-deprecated functionality" (#6068) is a no-op since we already migrated off
+`downcast`/`downcast_into_unchecked`.
 
-- Diffed the pyo3-macros-backend `module.rs` `gil_used` default handling 0.28.3 vs 0.29.0: byte
-    identical (`options.gil_used.is_some_and(...)` ⇒ unspecified defaults to `false`). Our explicit
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) keeps GIL protection — no flip
-    this hop.
-- Read the 0.29.0 CHANGELOG. One behavioral item worth flagging but NOT impacting us: "Change
-    exception enrichment on `#[pyfunction]` argument extraction error to use `PyErr::add_note`
-    instead of replacing `TypeError` instances" (#5349) — pytest's error-path assertions still pass,
-    so our tests don't depend on the old message-replacement behavior. Also "Remove all
-    functionality deprecated in PyO3 0.27" (#6068) — we already migrated off the 0.27-deprecated
-    `downcast`/`downcast_into_unchecked` to `cast`/`cast_into_unchecked` in the 0.27 hop, so the
-    removal is a no-op for us (clean build confirms). The 8 raw `pyo3::ffi::*` sites +
-    `Bound::from_owned_ptr().cast_into_unchecked()` survived unchanged again.
+**Issues found:**
 
-**Next:** Issue #1 is functionally complete — recommend the review agent verify and **close issue
-#1** (note: `cargo audit`/`cargo deny` are NOT installed in the devcontainer and not wired into
-CI/mise, so the advisories cannot be tool-confirmed locally; the mechanical proxy is satisfied —
-`Cargo.lock` resolves a single `pyo3 0.29.0` with no older entries, and 0.29.0's CHANGELOG lists
-both advisory fixes). After that, the remaining open work is issue #2 (CRAP `--fail-above 30`
-hardening — HUMAN REVIEW REQUESTED on the spec) and issue #3 (`iai-callgrind` perf gate — valgrind
-unavailable in the devcontainer). Both untouched per Not-In-Scope. The PyO3 migration arc is done; a
-sensible next target is the v1.0.0 cut prep (flip the `Semver` gate from `continue-on-error` to
-enforcing) — but that is explicitly human-directed, so define-next should not start it autonomously.
+- (none affecting correctness) — diff touches only `Cargo.toml` + `Cargo.lock`, no scope creep, no
+    quality-gate circumvention across all 4 unpushed commits.
+- Gap (filed as new `[review]` issue, not blocking): the PyO3 advisory clearance could only be
+    confirmed by the mechanical proxy "lockfile resolves a single `pyo3 0.29.0`" — `cargo deny` /
+    `cargo audit` are absent from the devcontainer **and** CI, even though `notes/07` mandates
+    `cargo deny check` "Run in CI" with a workspace-root `deny.toml`. No `deny.toml`, no CI job, no
+    `mise` task exists.
+
+**Issue management:**
+
+- Deleted issue #1 ("Update PyO3 to latest release") — resolved this iteration. `[human]`-sourced,
+    no `**Spec:**` field, so no spec update needed.
+- Added `[review]` `normal` issue "Wire up `cargo deny`/`cargo audit` supply-chain gate" with a
+    `**Spec:**` field (ci-cd.md) + HUMAN REVIEW REQUESTED — the requirement currently lives only in
+    the design notes, not the CID specs.
+- Stale sweep: remaining issues (#2 CRAP `--fail-above`, #3 iai-callgrind, v1.0.0 release, docs
+    logos) all verified still open against state.md — none stale.
+
+**Codex review:** Clean. "The commit only bumps PyO3 and refreshes associated lockfile entries, with
+no source changes required. The updated workspace builds successfully … I did not find any
+introduced correctness issues." No actionable findings.
+
+**Next:** The PyO3 migration arc is done. **Heads-up for define-next:** all three remaining `normal`
+issues are constrained — #2 (CRAP `--fail-above 30`) and the new supply-chain audit gate both carry
+HUMAN REVIEW REQUESTED on the spec, and #3 (iai-callgrind) is blocked by valgrind being unavailable
+in the devcontainer. The most self-contained unblocked candidate is the supply-chain audit gate: a
+`deny.toml` + `Security audit` CI job + `mise run audit` task is concrete, mechanical work that
+directly hardens the project and would have let this very iteration tool-confirm the advisories —
+BUT it needs the spec amendment approved first (HUMAN REVIEW REQUESTED). If the human declines to
+unblock any of these, the loop is at a natural pause point pending human direction (v1.0.0 cut is
+explicitly human-driven). define-next should not start v1.0.0 prep or flip the `Semver` gate
+autonomously.
 
 **Notes:**
 
-- No core API change, no perf-path change: iscc-py is a binding crate, pyo3 is its internal dep, and
-    no compute path was touched. pytest benches still show iscc-lib ~3–4× faster than iscc-core
-    (mixed/video) and ~1.3× (text) — unchanged.
-- The single pytest warning originates in `iscc_core` (the reference impl used only by the
-    comparison/benchmark tests), not in iscc-lib — it predates this change and is unrelated.
-- A CID loop is running; before pushing, confirm no concurrent-loop race (only my commit should be
-    newly added). I am committing `Cargo.toml`, `Cargo.lock`, handoff.md, and agent memory only —
-    NOT `.claude/context/iterations.jsonl` (runner-managed) or any other context file.
+- Single CID loop confirmed running (`ps aux`: one `mise run cid:run`) — no concurrency race; the
+    4-commit batch (log-104 + update-state + define-next + advance) pushes as a clean fast-forward
+    (`@{upstream}...HEAD` = `0 4`).
+- No core API change, no perf-path touched: iscc-py is a binding crate, pyo3 is its internal dep.
+    pytest benches unchanged (iscc-lib ~3.4–4.5× faster than iscc-core on video/mixed; ~1.3× text).
+- mdformat passed cleanly this cycle on both pre-commit and pre-push stages — define-next's
+    `next.md`/memory were already 100-col conforming, so no context-file reformatting was needed.
+- `cargo audit`/`cargo deny` verified absent (`command -v` → not found); see the new supply-chain
+    issue for the wiring follow-up.

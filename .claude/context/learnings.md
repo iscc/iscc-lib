@@ -28,26 +28,14 @@ fully-met target sections to `learnings-archive.md`.
 - Never use `mise` in CI — call tools directly
 - `cargo clippy -- -D warnings` runs in pre-push stage (not pre-commit)
 - Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
-- **PyO3 minor bumps** (incremental migration 0.23→0.29, one minor per CID step): `pyo3` lives only
-    in root `Cargo.toml` `[workspace.dependencies]` (used by `iscc-py` alone). 0.23→0.24 AND
-    0.24→0.25 needed ZERO source changes; **0.25→0.26 was the FIRST hop requiring source edits** —
-    `Python::allow_threads` → `Python::detach` (pure rename, same GIL-release semantics; 7 sites) +
-    `pyo3::PyObject` alias → `Py<PyAny>` return type (17 sites). **0.26→0.27 was the SECOND hop with
-    edits** — the cast-family rename in `to_pylist`: `Bound::downcast` → `Bound::cast` and
-    `downcast_into_unchecked` → `cast_into_unchecked` (identical signatures/semantics; error type
-    `DowncastError` → `CastError` but discarded by `if let Ok`). **0.27→0.28 (iter 104) compiled
-    clean (zero deprecation edits) BUT carried a SILENT behavior change `-D warnings` does NOT
-    catch**: PyO3 0.28 flipped the unspecified `#[pymodule]` `gil_used` default from `true`
-    (macros-backend 0.27 `map_or(true,…)`) to `false` (0.28 `is_some_and(…)`). With it `false`, on
-    free-threaded CPython source builds the module imports WITHOUT re-enabling the GIL — unsafe for
-    the raw borrowed `PyList_GetItem` pointers in `extract_frame_sigs`. Fix applied in review:
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` to restore pre-0.28 semantics (no-op on
-    GIL-enabled/abi3-published wheels; only matters for from-source free-threaded builds). raw
-    `pyo3::ffi::*` + `Bound::from_owned_ptr` STILL stable through 0.28. Per hop: bump pin →
-    `cargo update -p pyo3` → build/clippy(`-D warnings`)/fmt → `uv run maturin develop` →
-    `uv run pytest` (286 tests) — AND diff the macros-backend default-handling, not just compiler
-    warnings. NEXT HOP 0.28→0.29 is FINAL (RustSec advisories clear; closes issue #1); verify
-    `cargo audit` after
+- **PyO3 migration 0.23→0.29 COMPLETE** (issue #1 closed, iter 105): `pyo3` lives only in root
+    `Cargo.toml` `[workspace.dependencies]` (used by `iscc-py` alone). The 0.28→0.29 final hop was
+    ZERO-edit (lib.rs unchanged); 0.29.0 ships both targeted RustSec advisory fixes, so the lockfile
+    resolves a single `pyo3 0.29.0` and the wheel no longer carries vulnerable code. Keep the
+    explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Full per-hop recipe +
+    silent-gotcha catalog (0.26 detach/`Py<PyAny>`, 0.27 cast rename, 0.28 `gil_used` flip) archived
+    in `learnings-archive.md`. CAVEAT: advisories NOT tool-confirmable — `cargo audit`/`cargo deny`
+    absent from devcontainer + CI despite `notes/07` mandating it (proxy: no pyo3 \<0.29 in lock)
 
 ## ISCC Algorithm Knowledge
 

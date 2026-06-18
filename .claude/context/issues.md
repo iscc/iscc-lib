@@ -7,28 +7,6 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Update PyO3 to latest release (security fixes) `normal` [human]
-
-Bump PyO3 from the pinned `0.23` (`Cargo.toml` `workspace.dependencies`) to the latest stable
-**`0.29.0`** (released 2026-06-11). The 0.29.0 release closes two RustSec advisories — a missing
-`Sync` bound on `PyCFunction::new_closure` closures, and a possible out-of-bounds read in
-`BoundTupleIterator::nth_back` / `BoundListIterator::nth_back` — plus several minor breaking changes
-that close soundness holes. PyO3 ships inside the published Python wheel, so keep it current.
-
-Scope: this is a six-minor-version jump (0.23 → 0.24 → … → 0.29), and each PyO3 minor release
-carries breaking API changes. Migrate incrementally, following the PyO3 migration guide
-(https://pyo3.rs/main/migration), rather than jumping the version pin in one step. Touch points are
-`crates/iscc-py/` (`Cargo.toml` `pyo3/extension-module`, `pyproject.toml` `pyo3/extension-module`,
-and `src/`); the pure-Rust core carries no PyO3 dependency.
-
-Constraints / verification:
-
-- Preserve `abi3-py310` (one wheel per platform, Python 3.10+) — confirm 0.29.0 still supports it.
-- Conformance vectors and `pytest` must stay green; abi3 wheels must build on all four CI targets
-    (linux x86_64/aarch64, macos universal2, windows x64).
-- Update `Cargo.lock`; re-run the supply-chain check (`cargo deny check` / `cargo audit`, per
-    `notes/07-security-versioning.md`) to confirm the advisories clear.
-
 ## CRAP gate does not fail on new high-CRAP functions `normal` [review]
 
 The Phase 3 CRAP gate (`cargo crap --baseline .crap-baseline.json --fail-regression`, ci.yml) only
@@ -46,6 +24,24 @@ both flags together before wiring it in.
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Rust Coverage and CRAP Quality Gate" — HUMAN REVIEW
 REQUESTED before amending the spec to mandate `--fail-above` (review-sourced).
+
+## Wire up `cargo deny`/`cargo audit` supply-chain gate `normal` [review]
+
+`notes/07-security-versioning.md` mandates `cargo deny check` "Run in CI" (licenses + RustSec
+advisories + duplicate versions) configured via a workspace-root `deny.toml`, plus `cargo audit` as
+a complement. None of this exists: no `deny.toml`, no CI job, no `mise` task, and neither tool is
+installed in the devcontainer. This gap surfaced concretely in iteration 105 — the PyO3 0.29 bump
+(issue #1) targeted two RustSec advisories but the clearance could only be verified by the
+mechanical proxy "lockfile resolves a single `pyo3 0.29.0`, no older entries", not by an actual
+advisory scan. Fix: add `deny.toml` at the workspace root, a `Security audit` CI job running
+`cargo deny check` (advisories + bans + licenses), and a `mise run audit` task; install via
+`taiki-e/install-action` or `cargo binstall -y --force` (note the rust-cache poisoning gotcha — see
+learnings "cargo binstall + Swatinem/rust-cache"). Optionally add `npm audit` for the napi package
+per the same note.
+
+**Spec:** `.claude/context/specs/ci-cd.md` — HUMAN REVIEW REQUESTED before amending the spec to
+mandate a supply-chain audit gate (review-sourced; the requirement currently lives only in the
+design notes, not the CID specs).
 
 ## Add `iai-callgrind` performance-regression CI gate `normal` [human]
 

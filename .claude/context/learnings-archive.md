@@ -480,3 +480,30 @@ reference-only for humans.
     (`iscc_FfiDataHasher`, `iscc_IsccSumCodeResult`, etc.) while function names are un-prefixed
     (`iscc_data_hasher_new`). The `c-ffi-api.md` reference page uses short names for exposition but
     howto code examples must be compilable
+
+## Completed: PyO3 Migration Arc 0.23 → 0.29 (issue #1 closed, iter 105)
+
+- `pyo3` lives only in root `Cargo.toml` `[workspace.dependencies]`, used by `iscc-py` alone.
+    Migrated one minor per CID step. Per-hop recipe: bump pin → `cargo update -p pyo3` →
+    build/clippy(`-D warnings`)/fmt → `uv run maturin develop` → `uv run pytest` (286 tests) — AND
+    diff the macros-backend default-handling, not just compiler warnings.
+- 0.23→0.24 and 0.24→0.25: ZERO source edits.
+- **0.25→0.26 (FIRST edit hop)**: `Python::allow_threads` → `Python::detach` (pure rename, same
+    GIL-release semantics; 7 sites) + `pyo3::PyObject` alias → `Py<PyAny>` return type (17 sites).
+- **0.26→0.27 (SECOND edit hop)**: cast-family rename in `to_pylist` — `Bound::downcast` →
+    `Bound::cast`, `downcast_into_unchecked` → `cast_into_unchecked` (identical signatures; error
+    type `DowncastError` → `CastError` discarded by `if let Ok`).
+- **0.27→0.28 (iter 104)**: compiled clean (zero deprecation edits) BUT carried a SILENT behavior
+    change `-D warnings` does NOT catch — PyO3 0.28 flipped the unspecified `#[pymodule]` `gil_used`
+    default `true` (macros-backend 0.27 `map_or(true,…)`) → `false` (0.28 `is_some_and(…)`). On
+    free-threaded CPython source builds the module then imports WITHOUT re-enabling the GIL — unsafe
+    for the raw borrowed `PyList_GetItem` pointers in `extract_frame_sigs`. Fix: explicit
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) restores pre-0.28 semantics
+    (no-op on GIL-enabled/abi3-published wheels; only matters for from-source free-threaded builds).
+- **0.28→0.29 (FINAL, iter 105)**: ZERO source edits; lib.rs unchanged. 0.29.0 CHANGELOG ships both
+    targeted RustSec advisory fixes (missing `Sync` on `PyCFunction::new_closure` #6096; OOB read in
+    `BoundListIterator`/`BoundTupleIterator` `nth`/`nth_back` #6086). `pyo3-macros-backend` dropped
+    its `pyo3-build-config` dep (internal, harmless). raw `pyo3::ffi::*` + `Bound::from_owned_ptr`
+    stable through every hop. Advisory clearance could NOT be tool-confirmed —
+    `cargo audit`/`cargo   deny` absent from devcontainer + CI; mechanical proxy used (lockfile
+    resolves single 0.29.0).
