@@ -27,11 +27,16 @@ must pass on the refreshed set.
 **Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness"
 
 **Progress (sliced per-ecosystem):** ✅ Slice 1 — Rust `Cargo.lock` refreshed via `cargo update`
-(iter 124; ~100 crates to latest semver-compatible, all `Cargo.toml` pins held, all gates green).
-Remaining: Rust direct-pin evaluation (document hold-back reasons for uniffi 0.32 / pyo3 #41 /
-criterion / iai-callgrind / magnus / jni / napi majors), Python `uv.lock`, per-binding manifests
-(napi `package.json`, rb `Gemfile`/gemspec, jni `pom.xml`, kotlin `build.gradle.kts`, dotnet
-`.csproj`, go `go.mod`), and tooling pins (`mise.toml`, `.pre-commit-config.yaml`, GHA versions).
+(iter 124; ~100 crates to latest semver-compatible, all `Cargo.toml` pins held, all gates green). ✅
+Slice 2 — Python `uv.lock` refreshed via `uv lock --upgrade` (iter 125; 40 pkgs incl. iscc-core
+1.2.2→1.3.0, ty 0.0.18→0.0.63, maturin 1.14.1, prek 0.4.11; one documented hold-back `ruff<0.16` in
+`pyproject.toml` — 0.16 adds 104 new default-lint errors, deferred to a dedicated adoption step; all
+gates green). Remaining: Rust direct-pin evaluation (document hold-back reasons for uniffi 0.32 /
+pyo3 #41 / criterion / iai-callgrind / magnus / jni / napi majors), per-binding manifests (napi
+`package.json`, rb `Gemfile`/gemspec, jni `pom.xml`, kotlin `build.gradle.kts`, dotnet `.csproj`, go
+`go.mod`), and tooling pins (`mise.toml`, `.pre-commit-config.yaml`, GHA versions). A dedicated step
+should adopt ruff 0.16 (run `ruff check --fix` for the 60 auto-fixable, hand-fix the rest — mostly
+`_lowlevel.pyi` stub-style PIE790/PYI048/RUF022 — and drop the `ruff<0.16` pin).
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 

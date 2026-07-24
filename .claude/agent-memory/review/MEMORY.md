@@ -95,6 +95,17 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     first. GOTCHA: next.md's pin grep `'uniffi = { version = "0.31"'` (inline-table) FAILS —
     manifest uses plain-string `uniffi = "0.31"`; that's a next.md defect, not a miss (verify the
     actual pin form)
+- **Python `uv.lock` refresh (`uv lock --upgrade`) — iter 125, slice 2 of v0.6.0 dep issue**:
+    `git diff --name-only` must be `uv.lock` + (at most) `pyproject.toml` only, NO source. Rebuild
+    the extension first (`uv sync --group dev` UNINSTALLS the editable `iscc-lib`, then
+    `uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml`), then run
+    `uv lock --check`+`mise run test`/`lint`/`check`+`uv run prek run --all-files --hook-stage   pre-push`
+    (ty jump is the risk — 0.0.18→0.0.63 passed) + `zensical build`+`gen_llms_full.py`. A single
+    dev-tool hold-back pin (e.g. `ruff<0.16`) is legitimate scope discipline, NOT gate weakening: it
+    defers adoption of NEW default lint rules; the held minor still enforces the exact prior rule
+    set. VERIFY the hold-back is genuine, not a mask: `uvx ruff@0.16.0 check .` reproduced the
+    claimed 104 errors (72 in `_lowlevel.pyi`) exactly. Require an inline `# held: …` comment
+    stating the reason + a deferred-adoption follow-up
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - **release.yml-only (iter 123, #49)**: NOT exercised by CID pushes (only

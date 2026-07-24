@@ -6,7 +6,7 @@ description: Guide to using iscc-lib from C/C++ — building, linking, streaming
 # C / C++
 
 A guide to using iscc-lib from C and C++. For C++, the recommended approach is the header-only
-`iscc.hpp` wrapper — see the [C++ section](#c-wrapper-iscc-hpp) below. For C, the `iscc-ffi` crate
+`iscc.hpp` wrapper — see the [C++ section](#c-wrapper-iscchpp) below. For C, the `iscc-ffi` crate
 provides a shared library and generated C header. Target audience: systems-level teams, embedded
 firmware, and C++ services that need ISCC code generation via native interop.
 
