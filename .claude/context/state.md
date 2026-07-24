@@ -1,18 +1,17 @@
-<!-- assessed-at: 4edfb0a164e3b190c1e9960fa5c52f57d868f83a -->
+<!-- assessed-at: a3db8acd20fd9cd72b7c6e9058f8f98a73a97606 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-v0.5.0 — v0.6.0 backlog; #42 (WASM SIMD) attempted but incomplete (NEEDS_WORK)
+## Phase: Post-v0.5.0 — v0.6.0 backlog; WASM SIMD (#42) DONE, three feature packages remain
 
 v0.5.0 is released across all registries and all 12 language bindings meet their core criteria.
-Since the last assessment, iteration 117 attempted issue #42 (enable WASM SIMD) — the `simd128`
-RUSTFLAGS + `wasm-opt --enable-simd` flags landed, but review found them insufficient to activate
-BLAKE3's SIMD backend, so #42 stays open (NEEDS_WORK, unpushed). **CI is green on the last pushed
-develop tip (`2ffc8f9`); the #42 partial batch is unpushed and not yet CI-verified.** The project
-stays IN_PROGRESS: four spec'd v0.6.0 work packages (one partially advanced) and two
-release-workflow reliability issues remain open.
+Iteration 118 finished issue #42 (WASM SIMD): a direct `blake3 = { features = ["wasm32_simd"] }`
+dependency on `iscc-wasm` now activates BLAKE3's `wasm32` SIMD backend, verified via cargo-tree
+feature graph + conformance + a 1993→5370 `v128`-opcode jump. **CI is GREEN on the pushed develop
+tip (`6571c1b`)**, including the SIMD change. The project stays IN_PROGRESS: three spec'd v0.6.0
+feature packages and two release-workflow reliability issues remain open.
 
 ## Rust Core Crate
 
@@ -40,9 +39,8 @@ release-workflow reliability issues remain open.
     `SumHasher` wrapper present. PyO3 pinned `0.29` (`abi3-py310`), single lockfile resolution.
 - **GIL release COMPLETE for all heavyweight compute paths (issue #41 RESOLVED, unchanged)**:
     `py.detach` wraps the pure-Rust compute in all entry points (data/instance/image/sum +
-    text/video
-    - 3 streaming `update()`), **12 total detach sites**. Every video detach opens strictly AFTER
-        frame-signature extraction. Meta/audio/mixed stay attached by design.
+    text/video + 3 streaming `update()`), **12 total detach sites**. Every video detach opens
+    strictly AFTER frame-signature extraction. Meta/audio/mixed stay attached by design.
 - **Gap (v0.6.0, issue #49)**: `linux/aarch64` (`manylinux_2_17_aarch64`) wheels are not built — the
     `build-wheels` matrix in `release.yml` was dropped around 0.2.0; only
     x86_64/universal2/win_amd64 ship. Target requires Linux x86_64 **and aarch64** wheels.
@@ -56,23 +54,20 @@ release-workflow reliability issues remain open.
 
 ## WASM Bindings
 
-**Status**: partially met — v0.6.0 target gap open (#42, partially advanced this cycle)
+**Status**: met — issue #42 (SIMD) resolved iteration 118, CI-verified
 
-- Core met: all 32 Tier 1 symbols via `#[wasm_bindgen]`, streaming `SumHasher` class,
-    `WASM (wasm-pack test)` job GREEN (on `2ffc8f9`).
-- **Gap (v0.6.0, issue #42) — attempted iter 117, review verdict NEEDS_WORK**: the SIMD flags LANDED
-    but are insufficient. Committed (unpushed, `b5e3767`): `RUSTFLAGS: -C target-feature=+simd128`
-    on the wasm CI test step (`ci.yml`) and the release build step (`release.yml`), plus
-    `--enable-simd` in the `wasm-opt` array (`crates/iscc-wasm/Cargo.toml`). Under the locked
-    `blake3 1.8.3` these do NOT activate BLAKE3's `wasm32` SIMD backend — that backend is gated
-    behind the `blake3/wasm32_simd` **Cargo feature** (build.rs emits the `blake3_wasm32_simd` cfg
-    only from `CARGO_FEATURE_WASM32_SIMD`), so `Platform::detect()` stays `Portable`. The observed
-    `v128` opcodes are LLVM auto-vectorization of the portable path, not the SIMD backend.
-- **Remaining fix (spec'd in handoff + issues.md review note)**: add a direct
-    `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep to `crates/iscc-wasm/Cargo.toml`
-    (feature-unifies for the wasm-only build; keep the already-landed RUSTFLAGS + `--enable-simd`).
-    Verify with a before/after `SumHasher` throughput measurement on a few-MB buffer — NOT `v128`
-    opcode counting. The four `specs/wasm-bindings.md` "Verified when" boxes remain unchecked.
+- All 32 Tier 1 symbols via `#[wasm_bindgen]`, streaming `SumHasher` class, `WASM (wasm-pack test)`
+    job GREEN on the pushed tip `6571c1b`.
+- **SIMD backend now active (issue #42 DONE)**: `crates/iscc-wasm/Cargo.toml` carries a direct
+    `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep (exists solely for feature
+    unification — no `use blake3` in source, must not be pruned as "unused"). This feature-unifies
+    onto iscc-lib's blake3 for the wasm-only build, making blake3's build.rs emit the gating
+    `blake3_wasm32_simd` cfg so `Platform::detect()` returns `WASM32_SIMD`. The already-landed
+    `RUSTFLAGS=-C target-feature=+simd128` (ci.yml + release.yml) and `--enable-simd` wasm-opt flag
+    remain in place (broaden simd128 across the crate + let wasm-opt accept `v128`). Verified via
+    cargo-tree feature graph, byte-identical conformance on the SIMD build, and a 1993→5370
+    `v128`-opcode jump in the released `.wasm`. Native builds unaffected (build.rs skips the cfg
+    off-wasm). All four `specs/wasm-bindings.md` "WASM SIMD" boxes are checked.
 
 ## C FFI
 
@@ -89,13 +84,15 @@ release-workflow reliability issues remain open.
 
 ## Go Bindings
 
-**Status**: partially met — v0.6.0 target gap open
+**Status**: partially met — v0.6.0 target gap open (recommended next pick)
 
 - Core met: pure Go (no CGO), all 32 Tier 1 symbols, `Go (go test, go vet)` CI job GREEN.
 - **Gap (v0.6.0, issue #43)**: experimental ISCC-IDv1 not supported — `codec.go` hard-rejects any
     `Version > 0` (`iscc: invalid Version` at lines 269/438) and there are no `EncodeIsccID` /
     `DecodeIsccID` functions. Target requires `IsccDecode` to accept MainType ID Version 1 plus
-    dedicated encode/decode exposing realm, hub-id, timestamp.
+    dedicated encode/decode exposing realm, hub-id, timestamp. Known conformance vector:
+    `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub_id 1, timestamp 1751831876325218. Unblocks iscc-monitor's
+    ADR-0011.
 
 ## Ruby Bindings
 
@@ -165,17 +162,14 @@ release-workflow reliability issues remain open.
 
 ## CI/CD and Publishing
 
-**Status**: partially met — **CI GREEN** on last pushed tip; two v0.6.0 target gaps remain
+**Status**: partially met — **CI GREEN** on pushed tip; two v0.6.0 target gaps remain
 
-- **LATEST CI RUN — SUCCESS.** origin/develop tip == `2ffc8f9`. All check-runs (Rust, all 12
-    bindings, Coverage+CRAP, cargo-crap, Perf, **Audit (cargo-deny)**, Semver, Version consistency)
-    report `success` via the check-runs API.
-- **Unpushed #42 batch not yet CI-verified**: `origin/develop..HEAD` is 6 commits (iter 116+117,
-    NEEDS_WORK — no push). It includes the partial simd128 flags in `ci.yml`/`release.yml`/
-    `Cargo.toml`. The review agent verified `wasm-pack test --node ... --features conformance`
-    passes locally under `RUSTFLAGS=-C target-feature=+simd128` (conformance byte-identical) and
-    `wasm-pack build` succeeds, so the flag is safe; but the CI jobs have NOT run on it. It will
-    ride out with the #42 follow-up fix.
+- **LATEST CI RUN — SUCCESS.** origin/develop tip == `6571c1b` (iter-118 review commit). All
+    check-runs (Rust, all 12 bindings, Coverage+CRAP, cargo-crap, Perf, **Audit (cargo-deny)**,
+    Semver, Version consistency, WASM incl. the SIMD change) report `success` via the check-runs
+    API.
+- **HEAD (`a3db8ac`) is a +1 log-only commit, unpushed** (`origin/develop..HEAD` = 1 commit,
+    `cid(log): iteration 118`). No source changes ride on it — nothing to CI-verify.
 - **cargo-deny gate enforcing** (unchanged): root `deny.toml`, `Audit (cargo-deny)` CI job
     (`ci.yml`, `cargo-deny@0.19.9`, no `continue-on-error`), `mise run audit`. NOTE: a future
     live-advisory can flip this red on any push with no code change — normal, not a regression
@@ -189,18 +183,15 @@ release-workflow reliability issues remain open.
     Two release-workflow reliability issues remain open (npm OIDC migration, single-registry
     re-trigger bug) — both human-gated / `normal`.
 
-## Open Issues (issues.md lists 8 — 0 critical, 6 normal, 2 low; all `[human]`)
+## Open Issues (issues.md lists 7 — 0 critical, 5 normal, 2 low; all `[human]`)
 
 No open issue is CI-blocking. Any open issue keeps the project IN_PROGRESS.
 
 v0.6.0-scoped (`normal`, `[human]`, each with a spec):
 
-1. Enable WASM `simd128` in the `@iscc/wasm` release build (#42) — **partially advanced (iter
-    117)**; flags landed, blake3 SIMD backend still not active. Remaining fix =
-    `blake3/wasm32_simd` feature.
-2. Go bindings: experimental ISCC-IDv1 encode/decode (#43)
-3. Restore linux/aarch64 Python wheels (#49)
-4. Dependency review and refresh across the project
+1. Go bindings: experimental ISCC-IDv1 encode/decode (#43) — recommended next pick
+2. Restore linux/aarch64 Python wheels (#49)
+3. Dependency review and refresh across the project
 
 Release-workflow reliability (`normal`, `[human]`):
 
@@ -214,18 +205,15 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-**Finish issue #42 (WASM SIMD) — the recommended next pick, already partially advanced.** The
-`RUSTFLAGS=-C target-feature=+simd128` + `wasm-opt --enable-simd` flags are already committed; the
-precise remaining fix (from the iter-117 review + Codex, verified against the blake3 1.8.3 source)
-is to add a direct `blake3 = { workspace = true, features = ["wasm32_simd"] }` dependency to
-`crates/iscc-wasm/Cargo.toml`. Because features unify across the build graph and iscc-wasm only
-compiles to `wasm32` (no other binding depends on it), this activates `blake3_wasm32_simd` for the
-wasm build only, without touching native builds. Verify with a **before/after `SumHasher` throughput
-measurement** on a few-MB buffer — NOT `v128` opcode counting (LLVM auto-vectorizes the portable
-path too). Then the review agent can check the four `specs/wasm-bindings.md` "Verified when" boxes
-and delete issue #42. Do NOT revert the already-landed flags — they remain required.
+**Issue #43 (Go bindings ISCC-IDv1) is the recommended next pick.** It is a concrete, spec'd feature
+(`specs/go-bindings.md` → "ISCC-IDv1 Support (Experimental)") with a known conformance vector
+(`ISCC:MAIGHFECJMOPMIAB` → realm 0, hub_id 1, timestamp 1751831876325218), and it unblocks
+`iscc/iscc-monitor` deleting its interim in-repo codec port (their ADR-0011). Scope: add
+`EncodeIsccID` / `DecodeIsccID` to `packages/go`, accept `Version = 1` for MainType ID only in
+`decodeHeader` (`codec.go` lines 269/438), and mark the API experimental (ISCC-IDv1 is not part of
+ISO 24138) — at parity with iscc-core's `iscc_id.py`.
 
-After #42: #43 (Go ISCC-IDv1), #49 (aarch64 wheels), dependency refresh, plus the two
-release-workflow reliability fixes — one per iteration. Do NOT cut v1.0.0 or flip the `Semver` gate
-to enforcing — both deliberately held by Titusz. Watch for the enforcing `Audit (cargo-deny)` gate
-turning red on a fresh live advisory (prefer `cargo update -p <crate>` over a `deny.toml` ignore).
+After #43: #49 (aarch64 wheels), dependency review/refresh, plus the two release-workflow
+reliability fixes — one per iteration. Do NOT cut v1.0.0 or flip the `Semver` gate to enforcing —
+both deliberately held by Titusz. Watch for the enforcing `Audit (cargo-deny)` gate turning red on a
+fresh live advisory (prefer `cargo update -p <crate>` over a `deny.toml` ignore).

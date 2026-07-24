@@ -19,40 +19,32 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Tier 1 pub fns**:
     `grep -r "pub fn gen_\|pub const META\|pub const IO\|pub const TEXT" crates/iscc-lib/src/`
 - **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
-- **Criterion benches**:
-    `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
-- **Counts**: pytest-benchmark `grep -c "def test_bench_" tests/test_benchmarks.py` (18); UniFFI
-    `#\[uniffi::export\]` in iscc-uniffi/src/lib.rs (32); version-sync `version_sync.py --check`
-    (16); llms-full ORDERED_PAGES (22); `ls docs/howto/*.md` (11); `docs/benchmarks.md` speedup
-    1.3x-158x.
-- **release.yml checks**: boolean toggles `grep "type: boolean" release.yml | wc -l` (8);
-    XCFramework `test -x scripts/build_xcframework.sh`.
-- **Issue count**: grep `issues.md` `^##` headers ending in a priority label (legend excluded → no
-    -1); per-priority `grep -cE "^## .*\`normal\`"\` etc.
-- **Trace a dependency**: `cargo tree -i <crate>` (shows dev-dep vs shipped).
+- **Criterion benches**: `grep -n "^fn bench_" crates/iscc-lib/benches/benchmarks.rs`
+- **Counts**: pytest-benchmark (18); UniFFI `#\[uniffi::export\]` iscc-uniffi/src/lib.rs (32);
+    version-sync `version_sync.py --check` (16); llms-full ORDERED_PAGES (22); `docs/howto/*.md`
+    (11); `docs/benchmarks.md` speedup 1.3x-158x.
+- **release.yml toggles**: `grep "type: boolean" release.yml | wc -l` (8).
+- **Issue count**: grep `issues.md` `^##` headers ending in a priority label (legend excluded);
+    per-priority `grep -cE "^## .*\`normal\`"\`. **Trace a dep**: `cargo tree -i <crate>`.
 - **state.md Write workaround**: Write tool = permission error → heredoc
     `cat > .claude/context/state.md << 'STATEEOF' ... STATEEOF`.
 
 ## Quality Gates (all in ci.yml; full pipelines archived)
 
-- **Perf (iai-callgrind)** — ci.yml:281-333, ENFORCING (no continue-on-error), GREEN.
+- **Perf (iai-callgrind)** — ci.yml, ENFORCING (no continue-on-error), GREEN.
     `scripts/iai_regression.py --check` fails >10% Ir vs `.iai-baseline.json` (16 entries). GOTCHA:
     the nearby `continue-on-error` belongs to the SEPARATE semver job.
-- **Coverage + CRAP** — one job ~ci.yml:348, ENFORCING. Phase 3 (ci.yml:392-393) runs
-    `cargo crap ... --fail-regression --fail-above`; `--fail-above` boolean off
-    `.cargo-crap.toml threshold=30.0`. Baseline `.crap-baseline.json` (97 entries). Max CRAP
-    ~22.3\<30. GREEN.
-- **Audit (cargo-deny)** — ci.yml:395, ENFORCING (no continue-on-error):
-    `taiki-e/install-action`→`cargo-deny@0.19.9`→`cargo deny check`. Root `deny.toml` (65 lines;
-    advisories+licenses+bans+sources, config v2, `ignore` list at line 24). Task `mise run audit`
-    (mise.toml:149). **GOTCHA — live advisory DB flips this red with NO code change**: iter 115 CI
-    RED on `RUSTSEC-2026-0204` (crossbeam-epoch 0.9.18, dev-only via
-    criterion→rayon→crossbeam-deque). Fix: `cargo update -p <crate>` OR add justified `ignore`
-    (already has 2 dev-bench ignores: RUSTSEC-2025-0141 bincode, RUSTSEC-2026-0173
-    proc-macro-error2). `cargo-deny` NOT in devcontainer → green CI job is only real confirmation.
+- **Coverage + CRAP** — one job, ENFORCING. Phase 3 runs cargo crap `--fail-regression`
+    `--fail-above` (latter off `.cargo-crap.toml threshold=30.0`). Baseline `.crap-baseline.json`
+    (97). Max CRAP ~22.3\<30. GREEN.
+- **Audit (cargo-deny)** — ci.yml, ENFORCING (no continue-on-error): `cargo-deny@0.19.9` →
+    `cargo deny check`. Root `deny.toml` (config v2; `ignore` list has 2 dev-bench ignores).
+    `mise run audit`. **GOTCHA — live advisory DB flips this red with NO code change**: fix via
+    `cargo update -p <crate>` (preferred) OR justified `ignore`. NOT in devcontainer → green CI job
+    is only real confirmation.
 - **Semver (cargo-semver-checks)** — `continue-on-error: true` (informational until v1.0.0),
-    `obi1kenobi/cargo-semver-checks-action@v2`, package iscc-lib. Job conclusion does NOT flip the
-    run. rust-core.md semver box `[ ]` (needs enforcing + ≥1.0.0); ci-cd.md `[x]`.
+    `obi1kenobi/cargo-semver-checks-action@v2`. Conclusion does NOT flip the run. rust-core.md box
+    `[ ]` (needs enforcing + ≥1.0.0, held); ci-cd.md `[x]`.
 
 ## Codebase Landmarks
 
@@ -63,71 +55,65 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     (cargo-deny)**. `push:` under `on:` is NOT a job; read job names.
 - `.github/workflows/release.yml` — 8 registry toggles (crates-io, pypi, npm, maven, ffi, rubygems,
     nuget, maven-kotlin). Swift XCFramework builds in `prepare-release` (~line 55), NOT a toggle.
-    Provenance guard on build-xcframework. `publish-npm-lib` has NO napi prepublish step (#38).
+    `publish-npm-lib` has NO napi prepublish step (#38).
 - `packages/go/` — pure Go, no CGO/WASM/binaries. `codec.go` rejects Version>0 (lines 269/438) —
     ISCC-IDv1 NOT yet supported (#43, v0.6.0).
-- `packages/swift/` + root `Package.swift` — Ferrostar toggle (`useLocalFramework`), `.binaryTarget`
-    `releaseTag`/`releaseChecksum`. `scripts/build_xcframework.sh` = 5 Apple targets.
-- `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, JNA 5.16.0, UniFFI-generated. 9 desktop+Android
-    release targets.
-- `crates/iscc-lib/src/streaming.rs` — `DataHasher`, `InstanceHasher`, `SumHasher` (~line 157);
-    `gen_sum_code_v0` drives SumHasher (lib.rs:997). Only DataHasher+InstanceHasher re-exported at
-    crate root (lib.rs:24); SumHasher via `streaming::`. SumHasher wrapper: Python iscc-py
-    lib.rs:615, WASM iscc-wasm lib.rs:533.
-- `crates/iscc-py/src/lib.rs` — `grep -c '\.detach(' ` = **12** GIL-release sites (iter 116, #41
-    DONE): text@138, image@153, video@190, video_flat@217, soft_hash_video@241, data@306,
-    instance@320, sum@357, soft_hash_video_flat@535, + 3 streaming update()@569/618/669. All video
-    detaches open strictly AFTER frame extraction. GIL theme (#39+#41) COMPLETE.
+- `packages/swift/` + root `Package.swift` — `useLocalFramework` toggle, `.binaryTarget`
+    `releaseTag`/`releaseChecksum`; `scripts/build_xcframework.sh` = 5 Apple targets.
+- `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, JNA 5.16.0, UniFFI-generated, 9 desktop+Android.
+- `crates/iscc-lib/src/streaming.rs` — `DataHasher`, `InstanceHasher`, `SumHasher`. Only
+    DataHasher+InstanceHasher re-exported at crate root; SumHasher via `streaming::` (drives
+    `gen_sum_code_v0`). SumHasher wrappers: Python iscc-py, WASM iscc-wasm.
+- `crates/iscc-wasm/Cargo.toml` — carries `blake3 = { features = ["wasm32_simd"] }` dep (iter 118,
+    #42 DONE) SOLELY for feature-unification (no `use blake3` in lib.rs — don't prune as unused).
+    Activates blake3 wasm32 SIMD backend. `[package.metadata.wasm-pack.profile.release] wasm-opt`
+    has `--enable-simd`. simd128 RUSTFLAGS live in ci.yml (wasm test step) + release.yml (build).
+- `crates/iscc-py/src/lib.rs` — `grep -c '\.detach('` = **12** GIL-release sites (GIL theme #39+#41
+    DONE): all heavyweight compute (data/instance/image/sum/text/video + 3 streaming update()).
+    Video detaches open strictly AFTER frame extraction; meta/audio/mixed stay attached by design.
 - `crates/iscc-lib/benches/` — `benchmarks.rs` 12 criterion benches; `iai_benches.rs` iai-callgrind
-    0.16 (11 bench\_ fns, 16 cases). `scripts/iai_regression.py` (248 lines, stdlib),
-    `tests/test_iai_regression.py` (11 tests), `tests/test_benchmarks.py` (18 pytest-benchmark fns).
-- `docs/howto/` — 11 files; `docs/benchmarks.md` speedup 1.3x-158x. `scripts/version_sync.py` 16
-    targets.
-- **No Dependabot/Renovate** (`.github/dependabot.yml`, `renovate.json` absent) —
-    dependency-freshness gap (v0.6.0).
+    0.16 (11 bench\_ fns, 16 cases). `scripts/iai_regression.py` + `tests/test_iai_regression.py`
+    (11 tests). `docs/howto/` = 11 files; `scripts/version_sync.py` = 16 targets.
+- **No Dependabot/Renovate** (`dependabot.yml`, `renovate.json` absent) — freshness gap (v0.6.0).
 
 ## Recurring Patterns
 
 - **Incremental review**: assessed-at vs HEAD `--stat` first, re-verify only affected sections,
-    carry forward the rest. python-test matrix = 3.10 + 3.14 (count job defs, not run records).
-- **Verify independently**: grep don't trust handoff; verify CI via check-runs API on real tip;
-    re-read target.md diff each incremental (target GROWS — new "verified when" bullets turn
+    carry forward rest; verify CI via check-runs API on real tip (don't trust handoff). python-test
+    matrix = 3.10 + 3.14. Re-read target.md/specs diff (they GROW — new "verified when" boxes flip
     met→partially-met).
-- **Issues diff**: scan issues.md for NEW entries each cycle (`[human]` + `[review]`); watch
-    `HUMAN REVIEW REQUESTED` + critical reshuffles.
-- **Re-scope reactivation**: large issues.md/target.md/specs growth in the diff → human re-scoped;
-    do a near-full re-review, not a diff parrot.
+- **Issues diff**: scan issues.md for NEW `[human]`/`[review]` entries + removed (resolved) ones;
+    watch `HUMAN REVIEW REQUESTED`, critical reshuffles, large specs growth = human re-scoped.
 
-## Current State (assessed-at: 4edfb0a, iter 118)
+## Current State (assessed-at: a3db8ac, iter 119)
 
-- **IN_PROGRESS — CI GREEN on last pushed tip.** v0.5.0 released (workspace version `0.5.0`), all 12
-    bindings meet CORE criteria. GIL theme (#39+#41) COMPLETE. Four spec'd v0.6.0 packages (one
-    partially advanced) + two release-infra fixes still open.
-- **CI GREEN on origin/develop tip `2ffc8f9`** — all check-runs `success` incl.
-    `Audit   (cargo-deny)`. **Unpushed batch grew to 6 commits (`2ffc8f9..HEAD 4edfb0a`)** = iter
-    116 log + iter 117 (#42 attempt, NEEDS_WORK, no push). The #42 flags in
-    ci.yml/release.yml/Cargo.toml are UNPUSHED → NOT CI-verified (review verified `wasm-pack test`
-    locally; flag is safe, rides out).
-- **Iter 117 attempted #42 (WASM simd128) → review NEEDS_WORK, #42 STAYS OPEN**: advance landed
-    `RUSTFLAGS=-C target-feature=+simd128` (ci.yml wasm test step + release.yml build step) +
-    `--enable-simd` wasm-opt (`crates/iscc-wasm/Cargo.toml`), commit `b5e3767`. INSUFFICIENT — see
-    Gotchas (blake3 WASM SIMD). Remaining fix = direct
-    `blake3 = { workspace = true, features =   ["wasm32_simd"] }` dep in iscc-wasm/Cargo.toml; keep
-    landed flags; verify via before/after `SumHasher` throughput NOT v128 opcode count. WASM still
-    **partially met**, 4 spec boxes `[ ]`.
+- **IN_PROGRESS — CI GREEN on pushed tip.** v0.5.0 released (workspace version `0.5.0`), all 12
+    bindings meet CORE criteria. GIL theme (#39+#41) COMPLETE. **#42 WASM SIMD DONE (iter 118).**
+    Three spec'd v0.6.0 feature packages + two release-infra fixes still open.
+- **CI GREEN on origin/develop tip `6571c1b`** (iter-118 review commit) — all check-runs `success`
+    incl. `WASM (wasm-pack test)` with the SIMD change, `Audit (cargo-deny)`, Perf, Coverage+CRAP,
+    Semver. HEAD `a3db8ac` = +1 log-only commit (`cid(log): iteration 118`), unpushed, no source →
+    nothing to verify.
+- **#42 WASM simd128 RESOLVED (iter 118, PASS_WITH_NOTES)**: fix = direct
+    `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep in `iscc-wasm/Cargo.toml`
+    (feature-unification only, NO `use blake3` — don't prune as unused). Activates
+    `Platform::detect()==WASM32_SIMD`. Landed `RUSTFLAGS=-C target-feature=+simd128` (ci.yml +
+    release.yml) + `--enable-simd` wasm-opt stay in place. Verified by cargo-tree feature graph +
+    byte-identical conformance + 1993→5370 `v128`-opcode jump. Native builds inert. WASM now
+    **met**, all 4 "WASM SIMD" spec boxes `[x]`.
 - **cargo-deny gate LANDED & enforcing** — see Quality Gates. Live advisory can re-red it any push
     (prefer `cargo update -p` over deny.toml ignore). RUSTSEC-2026-0204 (iter 115) already resolved.
-- **v0.6.0 scope (4 `normal` `[human]`, each spec'd)**: #42 WASM simd128 (partially advanced), #43
-    Go ISCC-IDv1, #49 aarch64 wheels, dependency review/refresh → Python/WASM/Go/CI-CD **partially
-    met**. Recommended next pick: **finish #42** (flags landed, add blake3 feature).
-- **8 issues: 0 critical, 6 normal, 2 low** (all `[human]`). Also open normal: npm OIDC migration,
+- **v0.6.0 scope (3 `normal` `[human]` feature pkgs, each spec'd)**: #43 Go ISCC-IDv1 (recommended
+    NEXT — vector `ISCC:MAIGHFECJMOPMIAB`), #49 aarch64 wheels, dependency review/refresh →
+    Python/Go/CI-CD **partially met**.
+- **7 issues: 0 critical, 5 normal, 2 low** (all `[human]`). Also open normal: npm OIDC migration,
     single-registry re-trigger bug. Low (CID skips): v1.0.0 HELD by Titusz (stay 0.5.x, flip Semver
     enforcing at cut), docs logos.
-- **MET sections**: Node, C FFI, Java, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README, per-crate
-    READMEs, Docs, Benchmarks.
-- **Don't re-flag as new work**: #42 simd128 FLAGS (landed iter 117, only blake3 feature remains),
-    GIL #41 (iter 116, DONE), cargo-deny gate, CRAP `--fail-above` (iter 113), iai perf gate (107-
-    111), PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher #37.
+- **MET sections**: Node, WASM, C FFI, Java, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README,
+    per-crate READMEs, Docs, Benchmarks.
+- **Don't re-flag as new work**: #42 WASM SIMD (DONE iter 118 — blake3/wasm32_simd feature + simd128
+    flags), GIL #41 (iter 116, DONE), cargo-deny gate, CRAP `--fail-above` (iter 113), iai perf gate
+    (107-111), PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher #37.
 
 ## Gotchas
 
@@ -138,14 +124,12 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     bullets. Test `uv run mdformat /tmp/copy.md` before committing; bisect line ranges to locate.
 - **live advisory DB** — cargo-deny `advisories` can turn a previously-green gate red with no code
     change (see Audit gate).
-- **blake3 WASM SIMD (iter 117 #42 trap)** — `RUSTFLAGS=-C target-feature=+simd128` alone does NOT
-    activate BLAKE3's hand-written `wasm32` SIMD backend under blake3 1.8.x. That backend is gated
-    by the `blake3/wasm32_simd` **Cargo feature** (build.rs emits `blake3_wasm32_simd` cfg only from
-    `CARGO_FEATURE_WASM32_SIMD`; `platform.rs detect()` returns `WASM32_SIMD` only under that cfg,
-    else `Portable`). `v128` opcodes in the disassembly are a FALSE POSITIVE — LLVM auto-vectorizes
-    the portable path. Honest signal = before/after `SumHasher` throughput (blake3 doesn't expose
-    the chosen Platform). Fix = direct `blake3 = { workspace = true, features = ["wasm32_simd"] }`
-    in iscc-wasm/Cargo.toml (feature-unifies for wasm-only build, no native impact).
+- **blake3 WASM SIMD (RESOLVED iter 118 #42 — kept as reference)** — BLAKE3's `wasm32` SIMD backend
+    (blake3 1.8.x) is gated by the `blake3/wasm32_simd` **Cargo feature** (NOT by RUSTFLAGS alone;
+    `v128` opcodes are a WEAK signal — LLVM auto-vectorizes the portable path too). FIX = direct
+    `blake3 = { features = ["wasm32_simd"] }` dep in iscc-wasm/Cargo.toml (feature-unifies, native
+    inert). Proof = `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3` shows
+    `wasm32_simd`. simd128 RUSTFLAGS + `--enable-simd` wasm-opt still needed (auto-vec + wasm-opt).
 - Go = pure Go only (no WASM/wazero/binaries). **csbindgen** runs on every `cargo build`
     (`crates/iscc-ffi/build.rs`).
 - **UniFFI** = proc-macro, no uniffi.toml/build.rs. **Kotlin** uses JNA (not JNI) — needs BOTH
