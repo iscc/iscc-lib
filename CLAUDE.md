@@ -20,8 +20,13 @@ This project uses two development modes that share the same codebase and context
     `.claude/agents/*.md` protocols. A fifth role, **meta-improve**, runs only when the loop reaches
     IDLE (or via `mise run cid:improve`) and improves the loop itself under strict guardrails — it
     may auto-apply at most one whitelisted low-risk change per cycle (each independently revertible
-    and measured) and writes everything else as proposals for the human. CID agents get their
-    context through `@` references in their agent definitions — they do not rely on this section.
+    and measured) and writes everything else as proposals for the human. A sixth role, **audit**,
+    runs after every 10th completed iteration (or via `mise run cid:audit`): a whole-codebase
+    maintainability audit that reads metric trends, sweeps for debt (duplication, drift, dead code,
+    gate latency) with a parallel finder/verify workflow, and files at most 5 evidence-backed issues
+    — the runner reverts any audit commit that touches anything beyond issues.md and its own memory.
+    CID agents get their context through `@` references in their agent definitions — they do not
+    rely on this section.
 
 ### Branching model
 
@@ -50,7 +55,9 @@ selectively based on the task at hand (e.g., read `state.md` to understand proje
 | `.claude/context/handoff.md`       | Inter-agent communication and verdicts      | Read only          |
 | `.claude/context/learnings.md`     | Accumulated knowledge from prior iterations | Read and append    |
 | `.claude/context/issues.md`        | Tracked issues and feature requests         | Read and append    |
+| `.claude/context/decisions.md`     | Append-only log of approved judgment calls  | Read and append    |
 | `.claude/context/iterations.jsonl` | CID iteration log                           | Read only          |
+| `.claude/context/metrics.jsonl`    | Codebase-health snapshots (audit cadence)   | Read only          |
 | `.claude/agent-memory/<agent>/`    | Per-agent persistent memory across sessions | Read only          |
 
 **Read only** files are managed by CID agents and overwritten each cycle — interactive edits would
@@ -153,6 +160,8 @@ mise run cid:run          # Run autonomous CID loop (up to 20 iterations)
 mise run cid:step         # Run one CID iteration
 mise run cid:status       # Show current project state
 mise run cid:improve      # Run the meta-improve self-improvement role once
+mise run cid:audit        # Run the codebase audit role once (maintainability pass)
+mise run cid:metrics      # Append a codebase-health snapshot to metrics.jsonl
 ```
 
 ## Pre-commit Hooks

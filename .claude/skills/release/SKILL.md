@@ -269,9 +269,26 @@ gh pr checks <pr-number> --watch --fail-fast
 This blocks until all checks finish (exit 0 = all passed, exit 1 = failure, exit 8 = pending
 timeout). If CI fails, show which check failed and stop.
 
-### Step 5.3 — Ask to merge
+### Step 5.3 — Architecture pass
 
-**Do NOT merge automatically.** Ask the user:
+Before asking to merge, prepare an architecture-level summary of the accumulated release diff so the
+human reviews the release as a whole — the per-step CID review never sees the codebase at this
+altitude, and this is the last cheap moment to catch structural drift before it ships. Present:
+
+```
+git diff main...develop --stat | tail -20        # size and shape by area
+git diff main...develop --stat -- crates/ | head # per-crate concentration
+```
+
+Summarize in a few sentences: which crates/packages changed and why, any public API surface changes
+(note the `cargo semver-checks` result from CI if available), new dependencies, and anything that
+moved between modules. Flag concentrations that look like scope creep or duplication across binding
+crates. This is a reading aid for the human's judgment, not a gate — findings that need work become
+issues.md entries, they do not block the release by themselves.
+
+### Step 5.4 — Ask to merge
+
+**Do NOT merge automatically.** Present the architecture summary from Step 5.3, then ask the user:
 
 > PR #N is green and ready to merge: <url>. Shall I merge it?
 
