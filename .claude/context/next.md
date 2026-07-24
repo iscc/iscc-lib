@@ -1,88 +1,97 @@
 # Next Work Package
 
-## Step: Release the GIL for the Python text and video compute paths (issue #41)
+## Step: Enable WASM simd128 in the @iscc/wasm release + CI builds (issue #42)
 
 ## Goal
 
-Wrap the pure-Rust compute of `gen_text_code_v0`, `gen_video_code_v0`, and `soft_hash_video_v0`
-(including their `*_flat` variants) in `py.detach(|| ...)` so CPU-bound text/video hashing overlaps
-across Python threads instead of serializing on the GIL — completing the GIL-release pass started in
-0.5.0 (#39), which intentionally excluded these two heavyweight paths. Output bytes are unchanged,
-so conformance is unaffected. This is the first, most self-contained v0.6.0 backlog item.
+Ship `@iscc/wasm` compiled with WASM SIMD so `blake3` uses its `wasm32` `simd128` backend instead of
+the portable scalar fallback, and exercise the same SIMD configuration in CI. Pure build-flag change
+— conformance output is byte-identical; the Instance-Code / `datahash` leg of `gen_sum_code_v0` /
+`SumHasher` gains the most.
 
 ## Scope
 
-- **Modify**: `crates/iscc-py/src/lib.rs` — add a `py.detach(|| ...)` window around the pure-Rust
-    compute in these 5 functions:
-    1. `gen_text_code_v0` (currently line ~136) — detach around
-        `iscc_lib::gen_text_code_v0(text, bits)`.
-    2. `gen_video_code_v0` (line ~178) — detach around
-        `iscc_lib::gen_video_code_v0(&frame_slices, bits)`, **after** `extract_frame_sigs` returns.
-    3. `gen_video_code_v0_flat` (line ~200) — detach around the
-        `iscc_lib::gen_video_code_v0(&frame_refs, bits)` compute, after `flat_bytes_to_frames`.
-    4. `soft_hash_video_v0` (line ~513) — detach around
-        `iscc_lib::soft_hash_video_v0(&frame_slices, bits)`, after `extract_frame_sigs`.
-    5. `soft_hash_video_v0_flat` (line ~221) — detach around the compute, after
-        `flat_bytes_to_frames`.
+- **Modify**:
+    - `.github/workflows/release.yml` — the `build-wasm` job's `Build WASM package` step (line ~411):
+        add `env: RUSTFLAGS: "-C target-feature=+simd128"` so the published artifact is SIMD-built.
+    - `.github/workflows/ci.yml` — the `wasm` job's `Run tests` step (line ~108): add the same
+        `RUSTFLAGS` env so CI compiles/tests the SIMD configuration that ships.
+    - `crates/iscc-wasm/Cargo.toml` — add `--enable-simd` to the
+        `[package.metadata.wasm-pack.profile.release]` `wasm-opt` array (line 26) so `wasm-opt`
+        accepts (and does not strip) the SIMD instructions during the release build.
+    - `crates/iscc-wasm/CLAUDE.md` (doc, does not count toward the 3-file limit) — line ~90 quotes the
+        exact `wasm-opt = [...]` array; update it to include `--enable-simd` so the doc stays in sync
+        with `Cargo.toml`.
 - **Reference**:
-    - `.claude/context/specs/python-bindings.md` → "GIL Release for Text/Video Compute Paths"
-        (verified-when list).
-    - `.claude/context/issues.md` → "Release GIL for text/video binding compute paths" (#41).
-    - Existing detach pattern already applied to `gen_image_code_v0` (line ~151), `gen_data_code_v0`
-        (~294), `gen_instance_code_v0` (~308), `gen_sum_code_v0` (~345), and the three `update()`
-        methods (~554/603/654) — mirror it exactly.
-    - `tests/test_gil.py` — existing concurrency-correctness pattern to extend.
+    - `.claude/context/specs/wasm-bindings.md` → "WASM SIMD (`simd128`)" (the spec + its four
+        "Verified when" boxes — leave the boxes unchecked; the review agent checks them).
+    - `.github/workflows/release.yml` lines 399–455 (`build-wasm` + `test-wasm` jobs) for the exact
+        step shape. Note `test-wasm` smoke-tests the *downloaded* artifact and does NOT rebuild — do
+        not add RUSTFLAGS there.
 
 ## Not In Scope
 
-- Do **not** add `py.detach` to `gen_meta_code_v0`, `gen_audio_code_v0`, or `gen_mixed_code_v0` —
-    their compute is negligible (short strings / small vectors) and they stay attached by design.
-- Do **not** move any Python-object extraction inside a detach window. `extract_frame_sigs` uses raw
-    borrowed `PyList_GetItem` pointers that are **not** free-threading-safe — the detach must open
-    strictly after all frame extraction (and after `flat_bytes_to_frames`) completes, wrapping only
-    the pure-Rust `Vec<&[i32]>` / `&[u8]` compute.
-- Do **not** flip the module's `gil_used = true` flag to `false` — that requires a separate FFI
-    free-threading audit.
-- Do **not** touch the Rust core crate, `_lowlevel.pyi`, `__init__.py`, or any other binding — the
-    Python-facing signature is unchanged (the injected `py: Python<'_>` param is not exposed) and
-    the core API is untouched.
-- Do **not** attempt to benchmark or CI-gate throughput — the speedup is memory-bandwidth dependent
-    and intentionally not gated (see #39). Correctness under concurrency is what we verify.
+- **Do not touch `crates/iscc-wasm/src/lib.rs`** — no source change is needed; SIMD is selected at
+    compile time via `target_feature = "simd128"`, output is byte-identical.
+- Do not add a second scalar-fallback build artifact or any runtime SIMD feature detection — a
+    single SIMD build is intended (simd128 is baseline in all supported browsers/Node).
+- Do not add RUSTFLAGS to the `test-wasm` release job (it runs the already-built artifact, no
+    rebuild).
+- Do not check off the "Verified when" boxes in `specs/wasm-bindings.md` — the review agent owns
+    spec check-offs after verifying.
+- Do not pick up the other release-workflow issues (npm OIDC migration, single-registry re-trigger)
+    or the other v0.6.0 packages (#43 Go ISCC-IDv1, #49 aarch64 wheels, dependency refresh) — one
+    per iteration.
+- Do not bump the workspace version or touch `version_sync.py`.
 
 ## Implementation Notes
 
-- Follow the `gen_image_code_v0` shape exactly: build the pure-Rust inputs first, then
-    `let r = py.detach(|| iscc_lib::gen_...(&inputs, bits)).map_err(|e| PyValueError::new_err(e.to_string()))?;`
-    and construct the `PyDict` / `PyBytes` afterward (dict/bytes construction must stay attached).
-- For the video functions the borrowed slices (`frame_slices: Vec<&[i32]>` /
-    `frame_refs: Vec<&[i32]>`) point into owned Rust `Vec`s (`flat`, `frames`), not Python memory,
-    so they satisfy PyO3's `Ungil`/`Send` bounds across the release — the same reasoning that makes
-    the existing `&[u8]` data detach sound. For `gen_text_code_v0`, `text: &str` borrows an
-    immutable Python `str`, which is sound to hold across a detach exactly like the immutable
-    `bytes` borrow in `gen_data_code_v0`.
-- The soft-hash variants return `Vec<u8>`; keep the `PyBytes::new(py, &result)` call outside the
-    detach closure (it needs the GIL).
-- Extend `tests/test_gil.py` with threaded-correctness tests mirroring the existing ones: a
-    `gen_text_code_v0` case over a large text payload, and a `gen_video_code_v0` /
-    `soft_hash_video_v0` case over a synthetic nested frame-signature list (e.g. a few dozen frames
-    of a fixed-length `i32` row). Assert every threaded result equals the single-threaded result.
-    Synthetic inputs are fine — these tests check output-consistency under contention, not
-    conformance.
+- **RUSTFLAGS mechanism (not a cargo feature):** blake3 selects its wasm SIMD implementation via
+    `#[cfg(all(target_arch = "wasm32", target_feature = "simd128"))]`. Setting
+    `RUSTFLAGS="-C target-feature=+simd128"` is the correct and only trigger — no `Cargo.toml`
+    dependency/feature edit for blake3 is needed.
+
+- Add the env at **step level** (both jobs build only wasm, so scoping it to the step is clean):
+
+    ```yaml
+      - name: Build WASM package
+        env:
+          RUSTFLAGS: -C target-feature=+simd128
+        run: wasm-pack build --target web --release crates/iscc-wasm --features
+          conformance
+    ```
+
+    Mirror the same `env:` on the ci.yml `Run tests` step (the `wasm-pack test --node ...` line).
+
+- **`--enable-simd` placement:** insert right after `-O3`, matching the spec example →
+    `["-O3", "--enable-simd", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`.
+    `wasm-opt` refuses to parse SIMD (`v128`) instructions unless `--enable-simd` is passed, so the
+    release build would FAIL without this flag once the input contains SIMD — that failure/success
+    is itself the signal that the flag is wired correctly.
+
+- The devcontainer has `wasm-pack` and the `wasm32-unknown-unknown` target installed, but NOT
+    `wasm-tools`/`wasm-objdump`. For the disassembly evidence (spec "Verified when" #4), install
+    `wasm-tools` via `cargo binstall wasm-tools` (cargo binstall is available; used previously for
+    cargo-deny). `wasm-pack build --release` downloads its own `wasm-opt` (binaryen).
 
 ## Verification
 
-- `grep -c '\.detach(' crates/iscc-py/src/lib.rs` returns `12` (was 7; +5 new sites: text, video,
-    video_flat, soft_hash_video, soft_hash_video_flat).
-- `cargo clippy -p iscc-py -- -D warnings` is clean.
-- `cargo build -p iscc-py` succeeds.
-- `maturin develop -m crates/iscc-py/Cargo.toml` builds, then `pytest tests/` passes (all existing
-    tests + the new text/video concurrency tests; conformance in `tests/test_conformance.py` green
-    and unchanged).
-- `mise run format` leaves the tree clean (no reformatting diff on commit).
+- `grep -q 'target-feature=+simd128' .github/workflows/release.yml` (exit 0)
+- `grep -q 'target-feature=+simd128' .github/workflows/ci.yml` (exit 0)
+- `grep -q 'enable-simd' crates/iscc-wasm/Cargo.toml` (exit 0)
+- `grep -q 'enable-simd' crates/iscc-wasm/CLAUDE.md` (exit 0 — doc stays in sync)
+- `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
+    passes all conformance vectors (byte-identical output under a SIMD compile).
+- `RUSTFLAGS="-C target-feature=+simd128" wasm-pack build --target web --release crates/iscc-wasm --features conformance`
+    exits 0 (proves `wasm-opt --enable-simd` accepts the SIMD input).
+- SIMD opcode evidence: after that release build,
+    `wasm-tools print crates/iscc-wasm/pkg/iscc_wasm_bg.wasm | grep -c 'v128'` returns a count > 0
+    (install `wasm-tools` via `cargo binstall wasm-tools` if absent) — satisfies spec "Verified
+    when" #4 (disassembly showing `v128` opcodes).
+- `mise run format` leaves the tree clean (YAML/TOML/mdformat hooks pass).
 
 ## Done When
 
-`gen_text_code_v0`, `gen_video_code_v0`/`_flat`, and `soft_hash_video_v0`/`_flat` each release the
-GIL around their pure-Rust compute (detach opening only after frame extraction), the detach count is
-12, and the full Python test suite — including new text/video concurrency-correctness tests and
-unchanged conformance vectors — passes clean.
+The release and CI wasm builds compile with `-C target-feature=+simd128`, `Cargo.toml`'s wasm-opt
+flags include `--enable-simd`, conformance still passes on the SIMD build, and the produced
+`iscc_wasm_bg.wasm` disassembly contains `v128` opcodes.

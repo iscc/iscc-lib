@@ -105,5 +105,18 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
         one-shot sites write `py\n.detach` split across lines, so count `.detach(` not `py.detach`).
         Video caveat: detach must open AFTER `extract_frame_sigs`/`flat_bytes_to_frames` (borrowed
         `PyList_GetItem` ptrs not free-threading-safe; module keeps `gil_used = true`).
-- **v0.6.0 remaining after #41**: #42 WASM simd128, #43 Go ISCC-IDv1, #49 aarch64 wheels, dep
-    refresh, + 2 release-workflow fixes. One per iteration; each already spec'd.
+- **iter 117: picked #42 (WASM simd128)** — CI green, no bounce; most self-contained v0.6.0 pick. 3
+    config files + 1 doc: `RUSTFLAGS="-C target-feature=+simd128"` env on release.yml `build-wasm`
+    step + ci.yml `wasm` test step; `--enable-simd` added to `wasm-opt` array in
+    `crates/iscc-wasm/Cargo.toml` (`[package.metadata.wasm-pack.profile.release]`); sync the flag
+    string quoted in `crates/iscc-wasm/CLAUDE.md` (~line 90, doc — excluded from 3-file limit). NO
+    src/lib.rs change (conformance byte-identical; blake3 wasm SIMD is
+    `#[cfg(target_feature =   "simd128")]`-gated, RUSTFLAGS is the only trigger — not a cargo
+    feature). `test-wasm` release job smoke-tests the *downloaded* artifact (no rebuild) → do NOT
+    add RUSTFLAGS there. Devcontainer has wasm-pack + wasm32 target but NOT
+    wasm-tools/wasm-objdump/wasm-opt — install `wasm-tools` via `cargo binstall wasm-tools` for the
+    `v128`-opcode disassembly evidence. `wasm-opt` refuses SIMD input without `--enable-simd`, so a
+    successful `wasm-pack build --release` under simd128 RUSTFLAGS is itself proof the flag is
+    wired. Review agent owns the spec "Verified when" check-offs.
+- **v0.6.0 remaining after #42**: #43 Go ISCC-IDv1, #49 aarch64 wheels, dep refresh, + 2
+    release-workflow fixes (npm OIDC, single-registry re-trigger). One per iteration; each spec'd.
