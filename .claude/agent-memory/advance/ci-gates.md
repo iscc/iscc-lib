@@ -24,6 +24,13 @@ Detail moved out of MEMORY.md index. Covers the four hardening gates on `.github
     `--sort` in 0.2.2).
 - GOTCHA: never pipe `cargo crap` into `tail`/`head` to check exit — `$?` = pager, masks exit 1;
     redirect to a file first. (Same gotcha applies to `cargo deny`.)
+- GOTCHA (iter 122): cargo-llvm-cov/cargo-crap are NOT preinstalled in the CID session env. The
+    binstall'd cargo-crap 0.2.2 binary needs `GLIBC_2.39` (container glibc is older) — install it
+    from source: `cargo install cargo-crap --version 0.2.2` (~1.5 min). cargo-llvm-cov 0.8.7 via
+    `cargo binstall` works fine. Also `rustup component add llvm-tools-preview` first.
+- GUARD GAP: the CRAP regression gate runs ONLY in CI (not in `mise run check`/pre-commit). Any
+    change adding a branch/loop to a covered fn MUST refresh `.crap-baseline.json` in the SAME step
+    (`mise run crap:baseline`), else the next CI push goes red (iter 121→122 incident).
 - `.cargo-crap.toml`: `threshold=30.0`, `missing="pessimistic"`, `exclude` globs MUST list
     `crates/iscc-lib/benches/**` (built-in excludes are repo-root only → harness leaks at CRAP ~42).
 

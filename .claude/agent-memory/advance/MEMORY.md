@@ -38,8 +38,9 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     JDK 17 + `cargo build -p iscc-uniffi` + `./gradlew test`
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json` +
     `--fail-regression   --fail-above`), `audit` (cargo-deny, `deny.toml`), `perf` (iai regression
-    vs `.iai-baseline.json`). `semver` informational until v1.0.0. Full mechanics + gotchas →
-    ci-gates.md
+    vs `.iai-baseline.json`). `semver` informational until v1.0.0. CRAP gate is CI-ONLY — refresh
+    baseline (`mise run crap:baseline`) in the SAME step as any branch-adding change. Full mechanics
+    \+ gotchas → ci-gates.md
 - Key audit rule: fresh advisory with a patched release → `cargo update -p <crate>` lockfile bump,
     NEVER add to `deny.toml` `ignore` (iter 115: crossbeam-epoch 0.9.18→0.9.20)
 - GOTCHA: never pipe `cargo crap`/`cargo deny` into `tail`/`head` to check exit — `$?` = pager,
