@@ -62,7 +62,8 @@ iterations.
     - Consult `notes/` documents referenced in next.md for architectural guidance
     - Keep it simple. Prefer explicit over clever.
     - Write short, pure functions with docstrings
-    - Stay within the file scope defined in next.md (max 3 files, excluding tests and docs)
+    - Stay within the file scope defined in next.md (max 3 files, excluding tests and docs — or up to
+        8 when next.md cites an `[audit]` issue and states the raised budget in its Scope)
     - If next.md lists documentation files in Scope, update them to reflect the code changes made in
         this step. Doc updates should be minimal and accurate — match the actual implementation,
         don't embellish.
@@ -115,8 +116,9 @@ technical debt introduced>
 
 - Stay in scope. Implement what next.md defines. Do not add features, refactor unrelated code, or
     "improve" things outside the work package.
-- If the step feels too large or you discover it requires more than 3 files, stop and write a
-    handoff explaining why. Do not attempt a partial implementation.
+- If the step feels too large or you discover it requires more files than next.md's budget allows
+    (3, or 8 for an audit-cited refactor step), stop and write a handoff explaining why. Do not
+    attempt a partial implementation.
 - If you encounter a blocker (missing dependency, unclear requirement, conflicting design), document
     it in the handoff and commit what you have. Do not guess.
 - If you discover a problem that is out of scope, document it in the handoff Notes section for the

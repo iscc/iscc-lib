@@ -61,7 +61,11 @@ recurring patterns. This builds up institutional knowledge across iterations.
 5. **Choose ONE step** — pick the single highest-value step that:
 
     - Advances toward the target
-    - Can be implemented by modifying at most 3 files (excluding tests and docs)
+    - Can be implemented by modifying at most 3 files (excluding tests and docs). **Escape valve:**
+        a step that picks up an `[audit]`-tagged issue may modify up to 8 files (still excluding
+        tests and docs) when the refactor cannot be decomposed into smaller tree-consistent steps —
+        name the audit issue in `## Goal` and state the file budget explicitly in `## Scope`; the
+        review agent verifies the citation
     - Has clear, testable verification criteria (prefer boolean-testable: a command that exits 0 or
         an assertion that can be checked mechanically)
     - Builds on what already exists (don't skip ahead)

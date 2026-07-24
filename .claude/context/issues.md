@@ -2,8 +2,9 @@
 
 Tracked issues for the CID workflow. Priorities: `critical` (next iteration), `normal` (weighed
 against gaps), `low` (human-directed only — CID loop must skip these). Source tags: `[human]`,
-`[review]`. Optional fields: `**Spec:**` (spec gap link), `**Upstream:**` (external repo). The
-review agent deletes resolved issues after verification (history in git).
+`[review]`, `[audit]`. Optional fields: `**Spec:**` (spec gap link), `**Upstream:**` (external
+repo). The review agent deletes resolved issues after verification (history in git). `[audit]`
+entries carry a `**Scope estimate:**` — a step citing one may modify up to 8 non-test files.
 
 <!-- Add issues below this line -->
 

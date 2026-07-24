@@ -75,6 +75,9 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
 
     - **Scope discipline**: Does the diff touch only what next.md asked for? Check the
         `## Not In Scope` section — if the advance agent did something explicitly excluded, flag it.
+        If the diff modifies more than 3 non-test, non-doc files, next.md must cite an
+        `[audit]`-tagged issue and state the raised budget (max 8) in its Scope — otherwise the
+        verdict is NEEDS_WORK (the escape valve exists only for audit-filed refactors).
     - **Correctness**: Does it do what next.md asked? Are edge cases handled?
     - **Conformance**: If applicable, do outputs match iscc-core reference?
     - **Simplicity**: Is the code as simple as it can be? No over-engineering?
@@ -91,8 +94,8 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
         resolves it. If resolved, delete the issue entry from issues.md in the commit step. If the
         resolved issue has a `**Spec:**` field and source `[human]`, update the referenced spec
         (target.md or sub-spec) as part of the resolution — the human authorized this by creating
-        the issue. If the source is `[review]` or `[advance]`, do NOT update the spec without
-        `HUMAN REVIEW REQUESTED` approval.
+        the issue. If the source is `[review]`, `[advance]`, or `[audit]`, do NOT update the spec
+        without `HUMAN REVIEW REQUESTED` approval.
 
 6. **Update learnings** — append new findings to `.claude/context/learnings.md`. Add entries under
     the appropriate section. Only add genuinely useful learnings — things that will help future
@@ -104,6 +107,15 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     red check. **Pruning:** if learnings.md exceeds 200 lines, move entries about fully-met target
     sections to `learnings-archive.md`. The archive is never loaded by agents — it's reference for
     humans only.
+
+    **Record judgment calls** — whenever this review approves a decision that a future reader could
+    not reconstruct from the code alone, append a dated entry to `.claude/context/decisions.md`
+    (append-only; follow the file's format): a deviation from the iscc-core reference or a spec, a
+    design trade-off between real alternatives, an accepted performance regression, a justified
+    lint suppression, an API-shape choice. Record the *why* and the alternatives rejected — the
+    rationale otherwise evaporates with this session's context window. Routine passes produce no
+    entry; do not restate what learnings.md already captures (learnings = operational gotchas,
+    decisions = design rationale).
 
 7. **Manage issues** — scan issues.md for resolved entries AND manage new issues:
 
@@ -151,7 +163,7 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     committer of the iteration log:
 
     ```
-    git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/issues.md .claude/agent-memory/review/MEMORY.md <any fixed files>
+    git add .claude/context/learnings.md .claude/context/handoff.md .claude/context/issues.md .claude/context/decisions.md .claude/agent-memory/review/MEMORY.md <any fixed files>
     # If a human-sourced spec issue was resolved:
     git add .claude/context/target.md  # or affected sub-spec file
     git commit -m "cid(review): <summary of findings>"
