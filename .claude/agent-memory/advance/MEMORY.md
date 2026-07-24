@@ -80,8 +80,10 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Two benches in `crates/iscc-lib/benches/`, both `harness = false`: `benchmarks.rs` (criterion,
     wall-clock + throughput, incl `gen_sum_code_v0` via tempfile) and `iai_benches.rs`
     (iai-callgrind 0.16.1, instruction-counts). Share `deterministic_bytes`/`synthetic_text`
-    builders. iai compiles without valgrind; running needs valgrind + runner (devcontainer has both;
-    `mise run bench:iai`). Perf gate mechanics + bench-profile gotchas → ci-gates.md
+    builders. iai compiles without valgrind; running needs valgrind + runner — NOT preinstalled in
+    fresh containers (iter 124): `sudo apt-get install -y valgrind` +
+    `cargo binstall -y iai-callgrind-runner --version 0.16.1`, then `mise run bench:iai:check`. Perf
+    gate mechanics + bench-profile gotchas → ci-gates.md
 
 ## Streaming
 
