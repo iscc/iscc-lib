@@ -13,9 +13,9 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `gh api repos/iscc/iscc-lib/commits/<tip-sha>/check-runs --jq '.check_runs[]|{name,conclusion}'`
     against the real origin/develop tip.
 - **Failed-job logs**: `gh run view <id> --log-failed | grep -iE "error|RUSTSEC|regress|FAILED"`
-- **Unpushed check**: `git log --oneline origin/develop..HEAD` (origin lags; code after last CI sha
-    UNVERIFIED). Usual: HEAD = +1 log-only commit (iter 122) — but NOT guaranteed (iter 121: HEAD ==
-    origin/develop). Always check, don't assume; run check-runs API on the real origin/develop tip.
+- **Unpushed check**: `git log --oneline origin/develop..HEAD` (origin lags; code after the last CI
+    sha is UNVERIFIED). Usual: HEAD = +1 log-only commit — NOT guaranteed (iter 121 had none).
+    Always check, then run the check-runs API on the real origin/develop tip.
 - **Tier 1 pub fns**: `grep -rn "pub fn gen_\|pub const " crates/iscc-lib/src/lib.rs`
 - **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
 - **Counts**: pytest-benchmark (18); UniFFI `#\[uniffi::export\]` (32); version-sync (16); llms-full
@@ -31,19 +31,15 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `scripts/iai_regression.py --check` fails >10% Ir vs `.iai-baseline.json` (16 entries). GOTCHA:
     the nearby `continue-on-error` belongs to the SEPARATE semver job.
 - **Coverage + CRAP** — one job, ENFORCING. Phase 3 = cargo crap `--fail-regression` `--fail-above`
-    (latter off `.cargo-crap.toml threshold=30.0`). Baseline `.crap-baseline.json` (97 entries =
-    file/function/line/cyclomatic/coverage/crap). Max CRAP ~22.3\<30. **GOTCHA — `--fail-regression`
-    is CI-ONLY, NOT in `mise run check`/pre-commit**: adding a branch/loop to a covered function
-    raises its cyclomatic above baseline → `↑ N regressed` → exit 1 with GREEN local check. Bit iter
-    121 (`iscc_decode` +"too long" branch vs baseline 4.0/crap 4.11). Fix = refresh that entry
-    (regen `cargo llvm-cov`+`cargo crap`, or hand-edit) IN THE SAME STEP as the source change.
-    `--fail-above` (30) is a SEPARATE trigger — read `↑ regressed` vs max-CRAP row to tell which
-    fired.
-- **Audit (cargo-deny)** — ci.yml, ENFORCING (no continue-on-error): `cargo-deny@0.19.9` →
-    `cargo deny check`. Root `deny.toml` (config v2; `ignore` list has 2 dev-bench ignores).
-    `mise run audit`. **GOTCHA — live advisory DB flips this red with NO code change**: fix via
-    `cargo update -p <crate>` (preferred) OR justified `ignore`. NOT in devcontainer → green CI job
-    is only real confirmation.
+    (30.0 via `.cargo-crap.toml`). Baseline `.crap-baseline.json` (97 entries); max CRAP ~22.3.
+    **GOTCHA — `--fail-regression` is CI-ONLY, NOT in `mise run check`/pre-commit**: a new
+    branch/loop in a covered fn raises cyclomatic above baseline → `↑ N regressed` → exit 1 despite
+    GREEN local check (bit iter 121). Fix = refresh that entry IN THE SAME STEP as the source
+    change. Read `↑ regressed` vs max-CRAP row to tell which trigger fired.
+- **Audit (cargo-deny)** — ENFORCING: `cargo-deny@0.19.9` → `cargo deny check`; root `deny.toml`
+    (v2, 2 dev-bench ignores); `mise run audit`. **GOTCHA — live advisory DB flips this red with NO
+    code change**: fix via `cargo update -p <crate>` (preferred) or justified `ignore`. NOT in
+    devcontainer → green CI job is the only real confirmation.
 - **Semver (cargo-semver-checks)** — `continue-on-error: true` (informational until v1.0.0), `@v2`
     action. Conclusion does NOT flip the run. rust-core.md box `[ ]` (needs enforcing + ≥1.0.0,
     held); ci-cd.md `[x]`. `decisions.md` (2026-07-24): input-domain narrowing ≠ SemVer break.
@@ -52,20 +48,19 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 
 - `crates/` — **8 crates**: iscc-lib, iscc-py, iscc-napi, iscc-wasm, iscc-ffi, iscc-jni, iscc-rb,
     iscc-uniffi (all 32/32 symbols). iscc-uniffi: 32 exports, 21 tests, `publish=false`.
-- `.github/workflows/ci.yml` — **19 YAML entries → 20 jobs** (python-test = 3.10+3.14): functional +
-    Semver (non-blocking) + Coverage+CRAP + Perf + Audit (cargo-deny). `push:` under `on:` is NOT a
-    job; read job names. **21 check-runs when all green** (iter 122: 20 green + Coverage+CRAP red).
+- `.github/workflows/ci.yml` — **19 YAML job entries → 20 jobs**: `python-test` = 3.10/3.14 matrix,
+    `python` (L72) is an `if: always()` AGGREGATOR asserting `needs.python-test.result == success`
+    (so check-runs show "Python 3.10/3.14" AND "Python (ruff, pytest)"). `push:` under `on:` is NOT
+    a job. Plus Semver (non-blocking), Coverage+CRAP, Perf, Audit (cargo-deny).
 - `.github/workflows/release.yml` — 8 registry toggles (crates-io/pypi/npm/maven/ffi/rubygems/nuget/
     maven-kotlin). Swift XCFramework in `prepare-release` (~L55), NOT a toggle. `publish-npm-lib`
     has NO napi prepublish step (#38).
-- `packages/go/` — pure Go, no CGO/WASM/binaries. **ISCC-IDv1 DONE (iter 119, #43)**: `iscc_id.go` =
-    `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`; `codec.go` `VSV1` const + `decodeHeader` allows
-    Version=1 ONLY for MTId (line ~271). Vector `ISCC:MAIGHFECJMOPMIAB` → realm 0/hub 1/ts
-    1751831876325218\. body=`(ts<<12)|hub`. **Trailing-byte fix DONE (iter 120)**: `IsccDecode` now
-    has BOTH "too short" (`len(tail) < nbytes`, L594) + "too long" (`len(tail) > nbytes`, L597)
-    branches; `DecodeIsccID` inherits, `IsccDecompose` untouched. Rust-core `iscc_decode` parallel
-    fix also DONE (iter 121, both branches lib.rs L235+L241) — the two are independent (Go = native
-    reimpl, not FFI).
+- `packages/go/` — pure Go, no CGO/WASM/binaries. **ISCC-IDv1 DONE (119, #43)**: `iscc_id.go` =
+    `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`; `codec.go` `VSV1` + `decodeHeader` allows
+    Version=1 ONLY for MTId (~L271); body=`(ts<<12)|hub`. **Trailing-byte fix DONE (120)**:
+    `IsccDecode` has BOTH "too short" (L594) + "too long" (L597) branches; `DecodeIsccID` inherits,
+    `IsccDecompose` untouched. Rust-core `iscc_decode` parallel fix DONE (121, lib.rs L235+L241) —
+    independent (Go = native reimpl, not FFI).
 - `packages/swift/` + root `Package.swift` — `useLocalFramework` toggle, `.binaryTarget`
     `releaseTag`/`releaseChecksum`; `scripts/build_xcframework.sh` = 5 Apple targets.
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, JNA 5.16.0, UniFFI-generated, 9 desktop+Android.
@@ -82,6 +77,9 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     0.16 (11 bench\_ fns, 16 cases). `scripts/iai_regression.py` + `tests/test_iai_regression.py`
     (11 tests). `docs/howto/` = 11 files; `scripts/version_sync.py` = 16 targets.
 - **No Dependabot/Renovate** (`dependabot.yml`, `renovate.json` absent) — freshness gap (v0.6.0).
+- `pyproject.toml` dev group — documented hold-back `ruff<0.16` w/ inline `# held:` comment (iter
+    125): 0.16 expands DEFAULT lint rules → 104 new errors (72 in `_lowlevel.pyi`). NOT gate
+    weakening (locked 0.15.22 = same rule set as before); adoption is a tracked follow-up step.
 
 ## Recurring Patterns
 
@@ -92,41 +90,44 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Issues diff**: scan issues.md for NEW/removed `[human]`/`[review]` entries; watch
     `HUMAN REVIEW REQUESTED`, critical reshuffles, large specs growth = human re-scoped.
 
-## Current State (assessed-at: dd843c5, iter 125)
+## Current State (assessed-at: 0b05b77, iter 126)
 
 - **IN_PROGRESS — CI GREEN on develop tip.** v0.5.0 released (`0.5.0`), all 12 bindings meet CORE
-    criteria. **Dependency-refresh IN PROGRESS (sliced per-ecosystem).** Iter 124 landed **slice 1 —
-    Rust `Cargo.lock`**: `cargo update` bumped ~100 transitive crates to latest semver-compat; all
-    `Cargo.toml` direct pins HELD, NO source touched, all gates green. Verified: Cargo.lock-only
-    diff (no Cargo.toml/crate change). Iter 123 resolved #49 aarch64 wheels (release.yml, Python
-    **met**).
-- **CI GREEN on origin/develop tip `a5eb561`** (= review PASS commit; HEAD `dd843c5` = +1 UNPUSHED
-    log-only commit iter 124, touches only iterations.jsonl). ALL check-runs `success` (41 incl.
-    re-run duplicates, 0 non-success). Verified via `gh api .../commits/a5eb561/check-runs`. NO CI
-    fix needed. Lockfile refresh regressed no gate. NOTE: origin/develop lags HEAD by the log
-    commit.
+    criteria. **Dependency-refresh IN PROGRESS (sliced per-ecosystem).** ✅ slice 1 Rust `Cargo.lock`
+    (iter 124, ~100 transitive crates, pins held). ✅ slice 2 Python `uv.lock` (iter 125,
+    `uv lock --upgrade`, 40 pkgs: iscc-core 1.2.2→**1.3.0** (matches vendored `data.json`, zero
+    drift), ty 0.0.18→0.0.63, maturin 1.14.1, prek 0.4.11, zensical 0.0.51) + `ruff<0.16` hold-back.
+    Also iter 125: `docs/howto/c-cpp.md` L9 anchor fixed to `#c-wrapper-iscchpp` (pre-existing
+    defect surfaced by zensical 0.0.51's anchor checker). NO Rust/Python source touched either
+    slice.
+- **CI GREEN on origin/develop tip `61f031f`** (= review PASS commit; HEAD `0b05b77` = +1 UNPUSHED
+    log-only commit iter 125, iterations.jsonl only). 41 check-runs, **0 non-success** (dups =
+    re-runs). Verified `gh api .../commits/61f031f/check-runs`. NO CI fix needed; lock refresh
+    regressed no gate (ty 0.0.63 type-check passed).
 - **cargo-deny gate enforcing** — see Quality Gates. Live advisory can re-red any push (prefer
     `cargo update -p` over deny.toml ignore).
 - **v0.6.0 remaining (`normal` `[human]`, spec'd, CID-doable)**: dependency review/refresh (spec
-    `ci-cd.md`→Dependency Freshness), NOW SLICED. Done: slice 1 Rust Cargo.lock. Remaining slices =
-    Rust direct-pin major eval (doc hold-backs: uniffi/pyo3-#41/criterion/iai/magnus/jni/ napi),
-    Python `uv.lock`, per-binding manifests (napi package.json, rb Gemfile/gemspec, jni pom.xml,
-    kotlin build.gradle.kts, dotnet .csproj, go go.mod), tooling pins (mise.toml,
+    `ci-cd.md`→Dependency Freshness), SLICED. Remaining after slices 1-2: (a) Rust direct-pin major
+    eval (doc hold-backs: uniffi 0.32 needs Swift/Kotlin regen, pyo3 held per #41, criterion/iai/
+    magnus/jni/napi), (b) ruff 0.16 adoption (~60 auto-fixable + `_lowlevel.pyi` PIE790/PYI048/
+    RUF022, then drop pin), (c) per-binding manifests (napi package.json, rb Gemfile/gemspec, jni
+    pom.xml, kotlin build.gradle.kts, dotnet .csproj, go go.mod), (d) tooling pins (mise.toml,
     .pre-commit-config.yaml, GHA versions). No `[audit]` cite = no 8-file valve. Sole CID-doable
     next milestone (CI green).
-- **5 issues: 0 critical, 3 normal `[human]`, 2 low `[human]`.** normal: dep refresh (CID-doable,
-    slice-1 done), npm OIDC migration, single-registry re-trigger bug (both human-gated). Low (CID
-    skips): v1.0.0 HELD by Titusz (stay 0.5.x, flip Semver enforcing at cut), docs logos. NO
-    CID-actionable `[review]`/`[audit]` issue open.
-- **MET sections**: Node, WASM, C FFI, Java, Go, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README,
-    per-crate READMEs, Docs, Benchmarks, **Python** (aarch64 wired iter 123). Rust-core
-    (semver-enforcing/v1.0.0 held) + CI/CD (deps freshness in progress) = partially met.
-- **Don't re-flag as new work**: dep-refresh slice 1 Rust Cargo.lock (iter 124), #49 aarch64 wheels
-    (iter 123, release.yml), CRAP baseline refresh (iter 122), Rust-core iscc_decode trailing-byte
-    (iter 121), Go IsccDecode trailing-byte (120), #43 Go ISCC-IDv1 (119), #42 WASM SIMD (118), GIL
-    #41 (116), cargo-deny gate, CRAP `--fail-above` (113), iai perf gate (107-111), PyO3 #1 (105),
-    semver gate (93), npm #38, GIL #39, SumHasher #37. CID infra (audit role, `metrics.jsonl`,
-    `decisions.md`, scope escape valve) = meta, NOT target sections — ignore for met/not-met.
+- **5 issues: 0 critical, 3 normal `[human]`, 2 low `[human]`** (unchanged headers iter 125; only
+    the dep-refresh issue's Progress block grew). normal: dep refresh (CID-doable), npm OIDC
+    migration, single-registry re-trigger bug (both human-gated). Low (CID skips): v1.0.0 HELD by
+    Titusz (stay 0.5.x, flip Semver enforcing at cut), docs logos. NO CID-actionable
+    `[review]`/`[audit]` issue open.
+- **MET sections**: Python, Node, WASM, C FFI, Java, Go, Ruby, .NET, C++, UniFFI, Swift, Kotlin,
+    README, per-crate READMEs, Docs, Benchmarks. Rust-core (semver-enforcing/v1.0.0 held) + CI/CD
+    (deps freshness in progress) = partially met.
+- **Don't re-flag as new work**: dep-refresh slices 1-2 + c-cpp anchor fix (iters 124-125), #49
+    aarch64 wheels (123), CRAP baseline refresh (122), Rust-core iscc_decode trailing-byte (121), Go
+    IsccDecode trailing-byte (120), #43 Go ISCC-IDv1 (119), #42 WASM SIMD (118), GIL #41 (116),
+    cargo-deny gate, CRAP `--fail-above` (113), iai perf gate (107-111), PyO3 #1 (105), semver gate
+    (93), npm #38, GIL #39, SumHasher #37. CID infra (audit role, `metrics.jsonl`, `decisions.md`,
+    scope escape valve) = meta, NOT target sections — ignore for met/not-met.
 
 ## Gotchas
 
@@ -136,11 +137,10 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     HTML) — fix = restart at 1 or bullets. Test `uv run mdformat /tmp/copy.md` before committing.
 - **live advisory DB** — cargo-deny `advisories` can turn a previously-green gate red with no code
     change (see Audit gate).
-- **blake3 WASM SIMD (RESOLVED iter 118 #42)** — `wasm32` SIMD backend gated by the
-    `blake3/wasm32_simd` **Cargo feature** (NOT RUSTFLAGS alone; `v128` opcodes = WEAK signal, LLVM
-    auto-vectorizes portable too). Proof:
-    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i   blake3` shows `wasm32_simd`.
-    simd128 RUSTFLAGS + `--enable-simd` wasm-opt still needed.
+- **blake3 WASM SIMD (RESOLVED 118 #42)** — backend gated by the `blake3/wasm32_simd` **Cargo
+    feature** (NOT RUSTFLAGS alone; `v128` opcodes = WEAK signal). Proof:
+    `cargo tree -p iscc-wasm   --target wasm32-unknown-unknown -i blake3`. simd128 RUSTFLAGS +
+    `--enable-simd` still needed.
 - Go = pure Go only (no WASM/wazero/binaries). **csbindgen** runs on every `cargo build`
     (`crates/iscc-ffi/build.rs`).
 - **UniFFI** = proc-macro, no uniffi.toml/build.rs. **Kotlin** uses JNA (not JNI) — needs BOTH
