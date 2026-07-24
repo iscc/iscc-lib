@@ -40,9 +40,14 @@ IDv1 + decode guards). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     \+ gotchas → ci-gates.md
 - Key audit rule: fresh advisory with a patched release → `cargo update -p <crate>` lockfile bump,
     NEVER add to `deny.toml` `ignore` (iter 115: crossbeam-epoch 0.9.18→0.9.20)
-- Dependency refresh (iters 124-126): Cargo.lock + uv.lock refreshed; held-back majors (criterion
-    0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:` comments in root Cargo.toml; `ruff<0.16`
-    hold in pyproject.toml. Reasons + remaining slices → deps-refresh.md
+- Dependency refresh (iters 124-127): Cargo.lock + uv.lock + ci.yml/docs.yml GHA actions refreshed;
+    held-back majors (criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:` comments in
+    root Cargo.toml; `ruff<0.16` hold in pyproject.toml. Reasons + remaining slices (release.yml,
+    per-binding manifests) → deps-refresh.md
+- GOTCHA: ci.yml concurrency has `cancel-in-progress: true` per ref — pushing a second develop
+    commit cancels the in-flight CI run of the previous sha (its check-runs end "cancelled"). When a
+    step needs a green CI on a specific sha, don't push again until it concludes
+- System `python3` lacks PyYAML — use `uv run python` for YAML validation snippets
 - GOTCHA: piping `cargo crap`/`cargo deny` to `tail` makes `$?` the pager's exit — use a file
 - Ruby CI job: libclang-dev required; ruby/setup-ruby@v1 `working-directory` is an action `with:`
     param; bundler-cache auto-installs gems. `rust` job matrix: `--no-default-features`,

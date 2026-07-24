@@ -7,10 +7,18 @@ metadata:
 
 # Dependency refresh (issue: "Dependency review and refresh across the project")
 
-Slices done: 1 `Cargo.lock` (iter 124), 2 `uv.lock` (iter 125), 3 direct Rust pins (iter 126).
-Remaining: per-binding manifests (napi package.json, rb Gemfile/gemspec, jni pom.xml, kotlin
-build.gradle.kts, dotnet .csproj, go go.mod), tooling pins (mise.toml, .pre-commit-config.yaml, GHA
-actions), ruff 0.16 adoption.
+Slices done: 1 `Cargo.lock` (iter 124), 2 `uv.lock` (iter 125), 3 direct Rust pins (iter 126), 4 GHA
+actions in ci.yml + docs.yml (iter 127: checkout v7, setup-python v7, setup-uv v9, setup-node v7,
+setup-java v5, setup-go v7, setup-dotnet v6, upload-artifact v7, upload-sarif v4,
+upload-pages-artifact v5 + deploy-pages v5 — paired). Remaining: `release.yml` actions (97 `uses:`
+refs; upload/download-artifact@v4 must move together; only truly validated by a release run),
+per-binding manifests (napi package.json, rb Gemfile/gemspec, jni pom.xml, kotlin build.gradle.kts,
+dotnet .csproj, go go.mod), ruff 0.16 adoption.
+
+Verified current on 2026-07-24 (no bump needed): `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
+mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
+`taiki-e/install-action@v2`, `ruby/setup-ruby@v1`, `obi1kenobi/cargo-semver-checks-action@v2`.
+`mise.toml` has no `[tools]` section — nothing to pin there.
 
 ## Held-back workspace majors (`# held:` comments in root Cargo.toml, iter 126)
 
@@ -29,7 +37,9 @@ actions), ruff 0.16 adoption.
 - **pyo3 0.29** is current; a `# note:` reminds that bumps must re-verify `gil_used = true` and the
     12 `py.detach` sites (issue #41).
 - taplo preserves the `# held:` comments. Pre-existing `proc-macro-error2 v2.0.1` future-incompat
-    warning comes from the magnus/rb_sys subtree — candidate cleanup in the Ruby slice.
+    warning comes from `iai-callgrind-macros` → `iai-callgrind` (dev-dep of iscc-lib), NOT
+    magnus/rb_sys (iter-126 review corrected this via `cargo tree -i`). No fixed release exists
+    (iai-callgrind 0.16.1 is latest) — stays a warning, do not chase it in the Ruby slice.
 
 ## Python hold-back
 
