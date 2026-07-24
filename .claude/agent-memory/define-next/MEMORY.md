@@ -104,18 +104,20 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     bytes; 2-byte byte-aligned headers), so `tail==digest` for all vectors — verified empirically
     (`MAIGHFECJMOPMIABAA`→11 bytes vs canonical 10). Do NOT touch `IsccDecompose` (own body loop
     legitimately consumes trailing units). 1 code file (`codec.go`) + 2 test files.
-- **iter 121: Rust-core parallel of iter 120** — `[review]` issue "Rust core `iscc_decode` silently
-    accepts trailing bytes". Root: `iscc_decode` (`crates/iscc-lib/src/lib.rs:234`) guards only
-    `tail.len() < nbytes` ("too short") then `tail[..nbytes].to_vec()` drops excess. Fix = ADD a
-    `tail.len() > nbytes` "too long" branch after the "too short" one + update docstring. **Single
-    code file** (lib.rs — inline `#[cfg(test)] mod tests` lives there too). Go binding is a native
-    reimpl, NOT FFI, so the Go fix (iter 120) and this are independent — both needed. Conformance-
-    safe (same byte-alignment argument). **Composite `MainType::Iscc` also safe**: `decode_length`
-    (codec.rs:355/363) returns the FULL composite body length, so canonical composites round-trip to
-    exactly `nbytes` — the exact-length check doesn't reject them (verified test at codec.rs:848).
-    Do NOT touch `codec::iscc_decompose` (codec.rs:484 — own body loop consumes trailing units).
-    Note: line 1547 "too short" test is `soft_hash_codes_v0`, NOT iscc_decode — leave it; the
-    iscc_decode truncated test (line 1995) only asserts `is_err()`, not message. No bounce (iters
-    119–120 were Go work; this is new).
-- **v0.6.0 remaining after this**: #49 aarch64 wheels, dep refresh, + 2 release-workflow fixes (npm
-    OIDC, single-registry re-trigger). One per iteration; each spec'd.
+- **iter 121 DONE (review PASS)**: Rust-core `iscc_decode` "too long" guard landed
+    (`crates/iscc-lib/src/lib.rs`), closing the trailing-byte alias for the core + 11 delegating
+    bindings. BUT it broke CI (see iter 122) — the added branch tripped the CRAP `--fail-regression`
+    gate.
+- **iter 122: CI-RED-FIRST — refresh `.crap-baseline.json`.** The iter-121 branch pushed
+    `iscc_decode` cyclomatic above its committed baseline (`4.0/4.11`, entry near line 277), so the
+    enforcing `Coverage + CRAP` job fails `--fail-regression` (`↑ 1 regressed`). Fix = single-file
+    baseline regen via `mise run crap:baseline` (runs `cargo llvm-cov` → lcov.info, then
+    `cargo crap ... --format json --output .crap-baseline.json`). Verify:
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    exits 0. **Expect many `line:` fields to shift** (iter 121 added ~7 lines to lib.rs) — legit;
+    only `iscc_decode`'s cyclomatic/coverage/crap should change materially. Do NOT revert the source
+    fix, widen epsilon, or lower the 30.0 `--fail-above`. **Root lesson: the CRAP regression gate is
+    CI-ONLY (not in `mise run check`/pre-commit)** — any step adding a branch/loop to a covered
+    function MUST refresh the baseline in the SAME step (this is exactly how iter 121 slipped).
+- **v0.6.0 remaining after CI green**: #49 aarch64 wheels, dep refresh, + 2 release-workflow fixes
+    (npm OIDC, single-registry re-trigger). One per iteration; each spec'd.
