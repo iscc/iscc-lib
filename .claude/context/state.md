@@ -1,17 +1,18 @@
-<!-- assessed-at: a3db8acd20fd9cd72b7c6e9058f8f98a73a97606 -->
+<!-- assessed-at: bd3d622205f5e536ca291c46d97c70b8101823aa -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-v0.5.0 — v0.6.0 backlog; WASM SIMD (#42) DONE, three feature packages remain
+## Phase: Post-v0.5.0 — v0.6.0 backlog; Go ISCC-IDv1 (#43) DONE, two feature packages + reliability fixes remain
 
 v0.5.0 is released across all registries and all 12 language bindings meet their core criteria.
-Iteration 118 finished issue #42 (WASM SIMD): a direct `blake3 = { features = ["wasm32_simd"] }`
-dependency on `iscc-wasm` now activates BLAKE3's `wasm32` SIMD backend, verified via cargo-tree
-feature graph + conformance + a 1993→5370 `v128`-opcode jump. **CI is GREEN on the pushed develop
-tip (`6571c1b`)**, including the SIMD change. The project stays IN_PROGRESS: three spec'd v0.6.0
-feature packages and two release-workflow reliability issues remain open.
+Iteration 119 finished issue #43 (Go experimental ISCC-IDv1): `packages/go/iscc_id.go` adds
+`EncodeIsccID` / `DecodeIsccID` + `IsccIDv1Result`, a `VSV1` const, and a MainType-ID-only Version=1
+relaxation in `decodeHeader`, verified against the `ISCC:MAIGHFECJMOPMIAB` vector. **CI is GREEN on
+the pushed develop tip (`8bc7c17`)**, all check-runs `success`. The project stays IN_PROGRESS: two
+spec'd v0.6.0 feature packages, three release/robustness issues, and dependency freshness remain
+open.
 
 ## Rust Core Crate
 
@@ -23,12 +24,12 @@ feature packages and two release-workflow reliability issues remain open.
     reachable as `iscc_lib::streaming::SumHasher`, intentionally not a Tier 1 re-export.
 - **Perf gate — COMPLETE, ENFORCING, HARDENED** (unchanged): `iai_benches.rs` (iai-callgrind 0.16,
     11 `bench_*` → 16 cases), enforcing `Perf (iai-callgrind)` job
-    (`scripts/iai_regression.py   --check`, >10% Ir gate vs `.iai-baseline.json`), 11 fixture tests.
+    (`scripts/iai_regression.py --check`, >10% Ir gate vs `.iai-baseline.json`), 11 fixture tests.
     Job GREEN.
 - **Semver gate present (informational)**: `Semver (cargo-semver-checks)` job is
-    `continue-on-error: true`; against the 0.5.0 baseline it currently reports `success`. The
-    target's **enforcing** criterion for v1.0.0 stays unmet (`rust-core.md` semver box `[ ]`) — flip
-    to enforcing only at the human-gated v1.0.0 cut, which is held.
+    `continue-on-error: true`; against the 0.5.0 baseline it reports `success`. The target's
+    **enforcing** criterion for v1.0.0 stays unmet (`rust-core.md` semver box `[ ]`) — flip to
+    enforcing only at the human-gated v1.0.0 cut, which is held.
 - Workspace version is `0.5.0`. Only remaining Rust Core gap is the held v1.0.0 semver enforcement.
 
 ## Python Bindings
@@ -57,17 +58,14 @@ feature packages and two release-workflow reliability issues remain open.
 **Status**: met — issue #42 (SIMD) resolved iteration 118, CI-verified
 
 - All 32 Tier 1 symbols via `#[wasm_bindgen]`, streaming `SumHasher` class, `WASM (wasm-pack test)`
-    job GREEN on the pushed tip `6571c1b`.
-- **SIMD backend now active (issue #42 DONE)**: `crates/iscc-wasm/Cargo.toml` carries a direct
+    job GREEN.
+- **SIMD backend active (issue #42 DONE)**: `crates/iscc-wasm/Cargo.toml` carries a direct
     `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep (exists solely for feature
-    unification — no `use blake3` in source, must not be pruned as "unused"). This feature-unifies
-    onto iscc-lib's blake3 for the wasm-only build, making blake3's build.rs emit the gating
-    `blake3_wasm32_simd` cfg so `Platform::detect()` returns `WASM32_SIMD`. The already-landed
+    unification — no `use blake3` in source, must not be pruned as "unused"), making
+    `Platform::detect()` return `WASM32_SIMD` on the wasm-only build. The landed
     `RUSTFLAGS=-C target-feature=+simd128` (ci.yml + release.yml) and `--enable-simd` wasm-opt flag
-    remain in place (broaden simd128 across the crate + let wasm-opt accept `v128`). Verified via
-    cargo-tree feature graph, byte-identical conformance on the SIMD build, and a 1993→5370
-    `v128`-opcode jump in the released `.wasm`. Native builds unaffected (build.rs skips the cfg
-    off-wasm). All four `specs/wasm-bindings.md` "WASM SIMD" boxes are checked.
+    remain in place. Verified via cargo-tree feature graph, byte-identical conformance, and a
+    1993→5370 `v128`-opcode jump. All four `specs/wasm-bindings.md` "WASM SIMD" boxes checked.
 
 ## C FFI
 
@@ -84,15 +82,21 @@ feature packages and two release-workflow reliability issues remain open.
 
 ## Go Bindings
 
-**Status**: partially met — v0.6.0 target gap open (recommended next pick)
+**Status**: met — experimental ISCC-IDv1 (#43) landed iteration 119, CI-verified
 
-- Core met: pure Go (no CGO), all 32 Tier 1 symbols, `Go (go test, go vet)` CI job GREEN.
-- **Gap (v0.6.0, issue #43)**: experimental ISCC-IDv1 not supported — `codec.go` hard-rejects any
-    `Version > 0` (`iscc: invalid Version` at lines 269/438) and there are no `EncodeIsccID` /
-    `DecodeIsccID` functions. Target requires `IsccDecode` to accept MainType ID Version 1 plus
-    dedicated encode/decode exposing realm, hub-id, timestamp. Known conformance vector:
-    `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub_id 1, timestamp 1751831876325218. Unblocks iscc-monitor's
-    ADR-0011.
+- Core met: pure Go (no CGO), all 32 Tier 1 symbols, `Go (go test, go vet)` CI job GREEN,
+    `CGO_ENABLED=0` holds.
+- **ISCC-IDv1 support DONE (issue #43)**: `packages/go/iscc_id.go` adds `EncodeIsccID` /
+    `DecodeIsccID` + `IsccIDv1Result`, `codec.go` adds `VSV1` const and a MainType-ID-only Version=1
+    relaxation in `decodeHeader` (body = `(timestamp<<12)|hub_id`, MT=ID/ST=realm/V=1/len=0).
+    Faithful port of iscc-core's `gen_iscc_id_v1`; both functions carry "experimental" doc markers.
+    Verified: `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` → realm 0/hub 1/ts 1751831876325218 (both
+    prefix forms), round-trip + boundary tests, Version>0 still rejected for non-ID MainTypes. All 5
+    `specs/go-bindings.md` "verified when" boxes checked. Unblocks iscc-monitor's ADR-0011.
+- **Open hardening issue (`normal` `[review]`, NOT a target-gap)**: `IsccDecode` (and thus
+    `DecodeIsccID`) silently accepts trailing base32 bytes — `ISCC:MAIGHFECJMOPMIABAA` decodes
+    identically to the canonical form. Pre-existing and codec-wide (affects every MainType, not a
+    #43 regression). Recommended next fix (see Next Milestone).
 
 ## Ruby Bindings
 
@@ -164,12 +168,12 @@ feature packages and two release-workflow reliability issues remain open.
 
 **Status**: partially met — **CI GREEN** on pushed tip; two v0.6.0 target gaps remain
 
-- **LATEST CI RUN — SUCCESS.** origin/develop tip == `6571c1b` (iter-118 review commit). All
-    check-runs (Rust, all 12 bindings, Coverage+CRAP, cargo-crap, Perf, **Audit (cargo-deny)**,
-    Semver, Version consistency, WASM incl. the SIMD change) report `success` via the check-runs
-    API.
-- **HEAD (`a3db8ac`) is a +1 log-only commit, unpushed** (`origin/develop..HEAD` = 1 commit,
-    `cid(log): iteration 118`). No source changes ride on it — nothing to CI-verify.
+- **LATEST CI RUN — SUCCESS.** origin/develop tip == `8bc7c17` (iter-119 review commit). All
+    check-runs (Rust, all 12 bindings incl. Go with the ISCC-IDv1 change, Coverage+CRAP, cargo-crap,
+    Perf, **Audit (cargo-deny)**, Semver, Version consistency, WASM) report `success` via the
+    check-runs API.
+- **HEAD (`bd3d622`) is a +1 log-only commit, unpushed** (`origin/develop..HEAD` = 1 commit,
+    `cid(log): iteration 119`). No source changes ride on it — nothing to CI-verify.
 - **cargo-deny gate enforcing** (unchanged): root `deny.toml`, `Audit (cargo-deny)` CI job
     (`ci.yml`, `cargo-deny@0.19.9`, no `continue-on-error`), `mise run audit`. NOTE: a future
     live-advisory can flip this red on any push with no code change — normal, not a regression
@@ -183,19 +187,23 @@ feature packages and two release-workflow reliability issues remain open.
     Two release-workflow reliability issues remain open (npm OIDC migration, single-registry
     re-trigger bug) — both human-gated / `normal`.
 
-## Open Issues (issues.md lists 7 — 0 critical, 5 normal, 2 low; all `[human]`)
+## Open Issues (issues.md lists 7 — 0 critical, 5 normal, 2 low)
 
 No open issue is CI-blocking. Any open issue keeps the project IN_PROGRESS.
 
+CID-actionable now:
+
+- Go `IsccDecode` accepts trailing bytes (`normal`, `[review]`) — recommended next pick; concrete
+    scoped fix, no human gating required.
+
 v0.6.0-scoped (`normal`, `[human]`, each with a spec):
 
-1. Go bindings: experimental ISCC-IDv1 encode/decode (#43) — recommended next pick
-2. Restore linux/aarch64 Python wheels (#49)
-3. Dependency review and refresh across the project
+- Restore linux/aarch64 Python wheels (#49)
+- Dependency review and refresh across the project
 
-Release-workflow reliability (`normal`, `[human]`):
+Release-workflow reliability (`normal`, `[human]`, human-gated):
 
-- Migrate npm publishing to OIDC Trusted Publishing
+- Migrate npm publishing to OIDC Trusted Publishing (needs npm-side trusted-publisher config first)
 - Fix broken single-registry re-trigger in `release.yml`
 
 Low (human-directed, CID skips):
@@ -205,15 +213,19 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-**Issue #43 (Go bindings ISCC-IDv1) is the recommended next pick.** It is a concrete, spec'd feature
-(`specs/go-bindings.md` → "ISCC-IDv1 Support (Experimental)") with a known conformance vector
-(`ISCC:MAIGHFECJMOPMIAB` → realm 0, hub_id 1, timestamp 1751831876325218), and it unblocks
-`iscc/iscc-monitor` deleting its interim in-repo codec port (their ADR-0011). Scope: add
-`EncodeIsccID` / `DecodeIsccID` to `packages/go`, accept `Version = 1` for MainType ID only in
-`decodeHeader` (`codec.go` lines 269/438), and mark the API experimental (ISCC-IDv1 is not part of
-ISO 24138) — at parity with iscc-core's `iscc_id.py`.
+**The Go `IsccDecode` trailing-byte hardening issue (`normal`, `[review]`) is the recommended next
+pick.** It is concrete, well-scoped, CID-actionable (no human gating), and closes a real robustness
+gap: `IsccDecode` copies only the header-declared `nbytes` and silently ignores trailing base32
+bytes, so `ISCC:MAIGHFECJMOPMIABAA` aliases the canonical `ISCC:MAIGHFECJMOPMIAB` (and
+`DecodeIsccID` inherits it). Scope: change the `len(tail) < nbytes` guard in `packages/go/codec.go`
+to an exact-length check, re-run `go test ./...` + `ConformanceSelftest` to confirm no vendored
+vector relies on trailing padding, and verify `IsccDecompose` (its own body loop) is unaffected. If
+a codec-wide exact check risks conformance breakage, fall back to an ISCC-IDv1-scoped exact
+10-byte/16-char check inside `DecodeIsccID`.
 
-After #43: #49 (aarch64 wheels), dependency review/refresh, plus the two release-workflow
-reliability fixes — one per iteration. Do NOT cut v1.0.0 or flip the `Semver` gate to enforcing —
-both deliberately held by Titusz. Watch for the enforcing `Audit (cargo-deny)` gate turning red on a
-fresh live advisory (prefer `cargo update -p <crate>` over a `deny.toml` ignore).
+After that: #49 (aarch64 wheels) and the project-wide dependency review/refresh are the remaining
+CID-doable v0.6.0 targets (release-workflow verification is limited — release.yml only exercises on
+a real release). The two release-reliability issues (npm OIDC, single-registry re-trigger) are
+human-gated. Do NOT cut v1.0.0 or flip the `Semver` gate to enforcing — both deliberately held by
+Titusz. Watch for the enforcing `Audit (cargo-deny)` gate turning red on a fresh live advisory
+(prefer `cargo update -p <crate>` over a `deny.toml` ignore).

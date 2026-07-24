@@ -24,8 +24,9 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     version-sync `version_sync.py --check` (16); llms-full ORDERED_PAGES (22); `docs/howto/*.md`
     (11); `docs/benchmarks.md` speedup 1.3x-158x.
 - **release.yml toggles**: `grep "type: boolean" release.yml | wc -l` (8).
-- **Issue count**: grep `issues.md` `^##` headers ending in a priority label (legend excluded);
-    per-priority `grep -cE "^## .*\`normal\`"\`. **Trace a dep**: `cargo tree -i <crate>`.
+- **Issue count**: `grep -nE '^## ' issues.md | grep -vE 'Add issues below'` lists headers with
+    priority+source tag; per-priority `grep -cE "^## .*\`normal\`"\`. **Trace a dep**:
+    `cargo tree -i <crate>`.
 - **state.md Write workaround**: Write tool = permission error → heredoc
     `cat > .claude/context/state.md << 'STATEEOF' ... STATEEOF`.
 
@@ -56,8 +57,11 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - `.github/workflows/release.yml` — 8 registry toggles (crates-io, pypi, npm, maven, ffi, rubygems,
     nuget, maven-kotlin). Swift XCFramework builds in `prepare-release` (~line 55), NOT a toggle.
     `publish-npm-lib` has NO napi prepublish step (#38).
-- `packages/go/` — pure Go, no CGO/WASM/binaries. `codec.go` rejects Version>0 (lines 269/438) —
-    ISCC-IDv1 NOT yet supported (#43, v0.6.0).
+- `packages/go/` — pure Go, no CGO/WASM/binaries. **ISCC-IDv1 DONE (iter 119, #43)**: `iscc_id.go` =
+    `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`; `codec.go` `VSV1` const + `decodeHeader` allows
+    Version=1 ONLY for MTId (line ~271). Vector `ISCC:MAIGHFECJMOPMIAB` → realm 0/hub 1/ts
+    1751831876325218\. body=`(ts<<12)|hub`. OPEN `[review]`: `IsccDecode` accepts trailing bytes
+    (codec-wide, pre-existing; `len(tail) < nbytes` should be exact-length).
 - `packages/swift/` + root `Package.swift` — `useLocalFramework` toggle, `.binaryTarget`
     `releaseTag`/`releaseChecksum`; `scripts/build_xcframework.sh` = 5 Apple targets.
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, JNA 5.16.0, UniFFI-generated, 9 desktop+Android.
@@ -85,34 +89,33 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Issues diff**: scan issues.md for NEW `[human]`/`[review]` entries + removed (resolved) ones;
     watch `HUMAN REVIEW REQUESTED`, critical reshuffles, large specs growth = human re-scoped.
 
-## Current State (assessed-at: a3db8ac, iter 119)
+## Current State (assessed-at: bd3d622, iter 120)
 
 - **IN_PROGRESS — CI GREEN on pushed tip.** v0.5.0 released (workspace version `0.5.0`), all 12
-    bindings meet CORE criteria. GIL theme (#39+#41) COMPLETE. **#42 WASM SIMD DONE (iter 118).**
-    Three spec'd v0.6.0 feature packages + two release-infra fixes still open.
-- **CI GREEN on origin/develop tip `6571c1b`** (iter-118 review commit) — all check-runs `success`
-    incl. `WASM (wasm-pack test)` with the SIMD change, `Audit (cargo-deny)`, Perf, Coverage+CRAP,
-    Semver. HEAD `a3db8ac` = +1 log-only commit (`cid(log): iteration 118`), unpushed, no source →
-    nothing to verify.
-- **#42 WASM simd128 RESOLVED (iter 118, PASS_WITH_NOTES)**: fix = direct
-    `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep in `iscc-wasm/Cargo.toml`
-    (feature-unification only, NO `use blake3` — don't prune as unused). Activates
-    `Platform::detect()==WASM32_SIMD`. Landed `RUSTFLAGS=-C target-feature=+simd128` (ci.yml +
-    release.yml) + `--enable-simd` wasm-opt stay in place. Verified by cargo-tree feature graph +
-    byte-identical conformance + 1993→5370 `v128`-opcode jump. Native builds inert. WASM now
-    **met**, all 4 "WASM SIMD" spec boxes `[x]`.
+    bindings meet CORE criteria. GIL theme (#39+#41) COMPLETE, #42 WASM SIMD DONE (iter 118), **#43
+    Go ISCC-IDv1 DONE (iter 119)**. Two spec'd v0.6.0 feature packages + robustness/infra fixes
+    still open.
+- **CI GREEN on origin/develop tip `8bc7c17`** (iter-119 review commit) — all check-runs `success`
+    incl. `Go (go test, go vet)` with the ISCC-IDv1 change, `Audit (cargo-deny)`, Perf,
+    Coverage+CRAP, Semver, WASM. HEAD `bd3d622` = +1 log-only commit (`cid(log): iteration 119`),
+    unpushed, no source → nothing to verify.
+- **#43 Go ISCC-IDv1 RESOLVED (iter 119, PASS_WITH_NOTES)** → Go now **met**. See packages/go
+    landmark. Surfaced a NEW `normal` `[review]` issue: `IsccDecode` accepts trailing bytes
+    (codec-wide, pre-existing, NOT a #43 regression) — recommended NEXT pick (concrete, no human
+    gating): exact-length body check in `codec.go`.
+- **#42 WASM SIMD (DONE iter 118)**: direct `blake3 = { features = ["wasm32_simd"] }` dep in
+    iscc-wasm/Cargo.toml (feature-unify only, NO `use blake3`). All 4 spec boxes `[x]`. See Gotchas.
 - **cargo-deny gate LANDED & enforcing** — see Quality Gates. Live advisory can re-red it any push
-    (prefer `cargo update -p` over deny.toml ignore). RUSTSEC-2026-0204 (iter 115) already resolved.
-- **v0.6.0 scope (3 `normal` `[human]` feature pkgs, each spec'd)**: #43 Go ISCC-IDv1 (recommended
-    NEXT — vector `ISCC:MAIGHFECJMOPMIAB`), #49 aarch64 wheels, dependency review/refresh →
-    Python/Go/CI-CD **partially met**.
-- **7 issues: 0 critical, 5 normal, 2 low** (all `[human]`). Also open normal: npm OIDC migration,
-    single-registry re-trigger bug. Low (CID skips): v1.0.0 HELD by Titusz (stay 0.5.x, flip Semver
-    enforcing at cut), docs logos.
-- **MET sections**: Node, WASM, C FFI, Java, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README,
+    (prefer `cargo update -p` over deny.toml ignore).
+- **v0.6.0 remaining (`normal`, spec'd)**: #49 aarch64 wheels (`[human]`), dependency review/refresh
+    (`[human]`) → Python/CI-CD **partially met**.
+- **7 issues: 0 critical, 5 normal (1 `[review]` + 4 `[human]`), 2 low `[human]`.** normal
+    `[human]`: aarch64 wheels, dep refresh, npm OIDC migration, single-registry re-trigger bug. Low
+    (CID skips): v1.0.0 HELD by Titusz (stay 0.5.x, flip Semver enforcing at cut), docs logos.
+- **MET sections**: Node, WASM, C FFI, Java, **Go**, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README,
     per-crate READMEs, Docs, Benchmarks.
-- **Don't re-flag as new work**: #42 WASM SIMD (DONE iter 118 — blake3/wasm32_simd feature + simd128
-    flags), GIL #41 (iter 116, DONE), cargo-deny gate, CRAP `--fail-above` (iter 113), iai perf gate
+- **Don't re-flag as new work**: #43 Go ISCC-IDv1 (DONE iter 119), #42 WASM SIMD (DONE iter 118),
+    GIL #41 (iter 116, DONE), cargo-deny gate, CRAP `--fail-above` (iter 113), iai perf gate
     (107-111), PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher #37.
 
 ## Gotchas
