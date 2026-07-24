@@ -82,12 +82,11 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
 
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
-- v0.5.0 released to all registries; all 12 bindings meet core criteria. Human raised target.md bar
-    - filed 5 `normal` `[human]` v0.6.0 issues, each with a spec: #41 Python text/video GIL release,
-        #42 WASM simd128 build flags, #43 Go ISCC-IDv1 encode/decode, #49 restore linux/aarch64 Python
-        wheels, "Dependency review and refresh" (add Dependabot/Renovate). Plus 2 `normal` release-
-        workflow reliability issues (npm OIDC, single-registry re-trigger). v1.0.0 cut +
-        Semver-enforcing still HELD by Titusz (`low`).
+- v0.5.0 released to all registries; all 12 bindings meet core criteria. Human raised the target.md
+    bar with 5 spec'd `normal` `[human]` v0.6.0 issues (#41 GIL, #42 WASM SIMD, #43 Go ISCC-IDv1,
+    #49 aarch64 wheels, dependency refresh — first four DONE) + 2 `normal` release-workflow issues
+    (npm OIDC, single-registry re-trigger). v1.0.0 cut + Semver-enforcing still HELD by Titusz
+    (`low`).
 - **iters 115–119 DONE (detail in MEMORY-archive.md)**: 115 cargo-deny advisory bump
     (crossbeam-epoch, CI-red-first); 116 #41 Python GIL detach; 117→118 #42 WASM SIMD (reframe:
     needs the `blake3/wasm32_simd` Cargo feature, not just RUSTFLAGS); 119 #43 Go ISCC-IDv1.
@@ -101,40 +100,44 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     regression gate is CI-ONLY (not in `mise run check`/pre-commit)** — any step adding a
     branch/loop to a covered fn MUST refresh the baseline in the SAME step (this is exactly how iter
     121 slipped).
-- **iter 123 DONE (#49 aarch64 Python wheels, CI GREEN)**: 1 file `.github/workflows/release.yml` —
-    added `ubuntu-24.04-arm`/`aarch64`/`python3.10` `build-wheels` entry (native ARM, NOT QEMU) +
-    matrixified `test-wheels`. **Release-only infra → verification is STATIC** (pyyaml `safe_load`
-    via `uv run python` + grep presence + `mise run check`); CID can't dispatch a real ARM release.
-    Dev env: no actionlint/yamllint/system-pyyaml; pyyaml IS reachable via `uv run python`.
-- **iter 124: CI GREEN (30/30) → started the dep refresh, sliced per-ecosystem** (handoff mandate:
-    it spans ~12 manifests, does NOT cite `[audit]`, so no 8-file valve — must be several small
-    steps: Rust lock → Rust direct pins → Python `uv.lock` → each binding-manifest group → tooling
-    pins). **Slice 1 = pure `cargo update`** (Cargo.lock only, a generated file → 0 source files).
-    Safe because caret ranges stay put: `blake3 1.8.3→1.8.5`, `napi 3.8.3→3.11.0`,
-    `uniffi   0.31.0→0.31.2` (0.32.0 available but HELD — needs Swift/Kotlin re-verify),
-    `wasm-bindgen   0.2.125→0.2.126`, ~100 transitive. **Do NOT touch `Cargo.toml` pins this slice**
-    (uniffi/pyo3-#41/ criterion/iai/magnus-rb_sys/jni/napi all held for individual eval). Two real
-    risks: (a) cargo-deny can flip red on a new transitive license/advisory → run `mise run audit`,
-    prefer `cargo update -p X --precise <patched>` over a deny.toml ignore; (b) iai perf gate
-    (CI-only, ≤10% Ir) can drift on blake3 → `mise run bench:iai:check`, refresh
-    `.iai-baseline.json` via `mise run bench:iai:baseline` in-step if legit. CRAP untouched (no
-    source change). Dev env has cargo-deny 0.19.9 + libclang-14 + valgrind, so
-    `mise run test/lint/audit/bench:iai:check` all run locally.
-- **iter 125: CI GREEN (slice 1 landed clean) → dep-refresh slice 2 = Python `uv.lock`** (handoff's
-    "cleaner mirror" candidate over Rust direct-pin eval). Run `uv lock --upgrade` at repo ROOT
-    (regenerates `/uv.lock`, 2035 lines, generated → 0 source files). **Two separate uv projects:**
-    root `/uv.lock` (dev tools + `iscc-core` + zensical/docs — the real one) and
-    `crates/iscc-py/uv.lock` (7 lines, NO runtime deps → refresh is a no-op; don't touch). **Dev
-    deps are all UNCONSTRAINED** (`"ruff"`, `"pytest"`, `"ty"`, `"mdformat"`, `"zensical"`… — no
-    version pins), so `--upgrade` pulls absolute latest → biggest risk is a tool major changing
-    behavior (ruff rules, mdformat reformat, ty type errors, zensical/mkdocstrings docs break).
-    Handling: pin the ONE offending tool back in `pyproject.toml` `[dependency-groups] dev` with an
-    inline hold-back comment (keeps diff lockfile-only), NEVER disable a rule/skip a test/weaken a
-    gate. Verify: `uv lock --check` (working-tree consistency check, survives commit) +
-    `mise run test/lint/check` + docs (`uv run zensical build`,
-    `uv run python scripts/gen_llms_full.py`). CI Python job installs from the lock via
-    `uv sync --group dev`; `docs.yml` runs zensical. `iscc-core` conformance is vs vendored
-    `data.json` (authoritative) — comparative tests must still pass. uv 0.11.32.
-- **v0.6.0 remaining after slice 2**: rest of dep refresh (Rust direct pins, binding manifests,
-    tooling pins) + 2 release-workflow fixes (npm OIDC, single-registry re-trigger, both
-    human-gated). One slice/issue per iteration; each spec'd.
+- **iters 123–125 DONE (detail in MEMORY-archive.md)**: 123 #49 aarch64 Python wheels (release-only
+    infra → STATIC verification: pyyaml `safe_load` + grep); 124 dep-refresh slice 1 =
+    `cargo update` (Cargo.lock only); 125 slice 2 = `uv lock --upgrade` (root `/uv.lock` only, one
+    documented `ruff<0.16` hold-back).
+- **Dep refresh is sliced per-ecosystem** (spans ~12 manifests, cites no `[audit]` → no 8-file
+    valve): Rust lock → Rust direct pins → Python `uv.lock` → each binding-manifest group → tooling
+    pins. Lockfiles are generated → 0 source files; hold a tool/dep back with an inline documented
+    comment rather than disabling a rule/gate.
+- **iter 126: dep-refresh slice 3 = Rust direct-pin evaluation** (`Cargo.toml` +
+    `crates/iscc-lib/benches/benchmarks.rs`, plus generated `Cargo.lock`). **Pin survey (crates.io,
+    2026-07-24): only 4 pins are majors behind**; all others caret-covered by the iter-124 lock
+    refresh. Spec `ci-cd.md` §"Dependency Freshness" mandates a documented reason next to every
+    held-back pin → `# held:` comments are the deliverable.
+    - `criterion` 0.5→**0.7** (the one bump): 0.6 deprecated `criterion::black_box` → swap import to
+        `std::hint::black_box` (30 bare call sites unchanged); `mise run lint` =
+        `clippy --all-targets   -D warnings`, so a deprecation IS a hard error. CI bench job =
+        `cargo bench --no-run`.
+    - **criterion 0.8 HELD: MSRV 1.86 > workspace `rust-version = "1.85"`** — do NOT raise the
+        declared MSRV for a dev-dep (human policy call for the v1.0.0 cut; no MSRV CI job, local rustc
+        1.97).
+    - **magnus 0.8 HELD**: `old-api` no longer default → `magnus::exception::runtime_error()` (used in
+        `crates/iscc-rb/src/lib.rs`) becomes `#[deprecated]` → clippy failure; needs refactor to
+        `Ruby::exception_runtime_error()`, bundle with the Ruby manifest slice. (Rest of 0.8 fits:
+        iscc-rb already uses `Ruby::get()`, no `FString`; rb-sys ≥0.9.113 vs our 0.9.123.)
+    - **jni 0.22 HELD**: wholesale rework (`JNIEnv`→`EnvUnowned`/`Env`, `GlobalRef`→`Global`,
+        `AutoLocal`→`Auto`, closure attachment, `ErrorPolicy`) per upstream `docs/0.22-MIGRATION.md` —
+        rewrites `crates/iscc-jni/src/lib.rs`; own (possibly human-gated) step.
+    - **uniffi 0.32 HELD**: needs Swift+Kotlin regen/re-verify; no Swift toolchain locally. **pyo3
+        0.29** is already latest. Risk: enforcing `Audit (cargo-deny)` on criterion 0.7's new dev
+        subtree (criterion-plot, clap, plotters) → `mise run audit`.
+- **ruff 0.16 adoption is OVER the 3-file budget** (measured iter 126 via
+    `uvx ruff@0.16.0 check .`): 104 errors across `_lowlevel.pyi` (72), `tools/cid.py` (12),
+    `tools/metrics.py` (3), `scripts/test_install.py` (2), `iscc_lib/__init__.py` (2) + 6 test files
+    = **5 non-test files + `pyproject.toml`** → must be sliced (iscc-py package, then tools/scripts,
+    then drop the pin).
+- **v0.6.0 remaining after slice 3**: ruff 0.16 (sliced), magnus/jni/uniffi major migrations,
+    per-binding manifests (napi/rb/jni/kotlin/dotnet/go), tooling pins (mise, pre-commit, GHA) + 2
+    human-gated release-workflow fixes (npm OIDC, single-registry re-trigger). One slice/iteration.
+- **Handy**: crates.io latest via `cargo search <crate> --limit 1`; changelog/migration docs via
+    `curl -sL https://static.crates.io/crates/<c>/<c>-<ver>.crate | tar xz` into /tmp. Network
+    works.

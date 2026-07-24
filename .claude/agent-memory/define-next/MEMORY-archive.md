@@ -164,3 +164,31 @@ learnings.md.
     `EncodeComponent`. Vector: `EncodeIsccID(0,1,1751831876325218)` → `ISCC:MAIGHFECJMOPMIAB`. Go
     tests run from `packages/go/` (separate module); CI `working-directory: packages/go` +
     `CGO_ENABLED=0`.
+
+## Dependency-refresh slices 1–2 + aarch64 wheels (iters 123–125) — archived from MEMORY.md (iter 126)
+
+- **iter 123 (#49 aarch64 Python wheels, CI GREEN)**: 1 file `.github/workflows/release.yml` — added
+    `ubuntu-24.04-arm`/`aarch64`/`python3.10` `build-wheels` entry (native ARM, NOT QEMU) +
+    matrixified `test-wheels`. **Release-only infra → verification is STATIC** (pyyaml `safe_load`
+    via `uv run python` + grep presence + `mise run check`); CID can't dispatch a real ARM release.
+    Dev env: no actionlint/yamllint/system-pyyaml; pyyaml IS reachable via `uv run python`.
+- **iter 124 — dep-refresh slice 1 = pure `cargo update`** (Cargo.lock only, generated → 0 source
+    files). Caret ranges stayed put: `blake3 1.8.3→1.8.5`, `napi 3.8.3→3.11.0`,
+    `uniffi 0.31.0→0.31.2`, `wasm-bindgen 0.2.125→0.2.126`, ~100 transitive. Two real risks handled:
+    (a) cargo-deny can flip red on a new transitive license/advisory → `mise run audit`, prefer
+    `cargo update -p X --precise <patched>` over a deny.toml ignore; (b) iai perf gate (CI-only,
+    ≤10% Ir) can drift on blake3 → `mise run bench:iai:check`, refresh `.iai-baseline.json` via
+    `mise run bench:iai:baseline` in-step if legit. Dev env has cargo-deny 0.19.9 + libclang-14 +
+    valgrind, so `mise run test/lint/audit/bench:iai:check` all run locally.
+- **iter 125 — dep-refresh slice 2 = Python `uv.lock`**: `uv lock --upgrade` at repo ROOT
+    (regenerates `/uv.lock`, 2035 lines, generated → 0 source files). **Two separate uv projects:**
+    root `/uv.lock` (dev tools + `iscc-core` + zensical/docs — the real one) and
+    `crates/iscc-py/uv.lock` (7 lines, NO runtime deps → refresh is a no-op; don't touch). **Dev
+    deps are all UNCONSTRAINED** (`"ruff"`, `"pytest"`, `"ty"`, `"mdformat"`, `"zensical"`…), so
+    `--upgrade` pulls absolute latest → biggest risk is a tool major changing behavior. Handling:
+    pin the ONE offending tool back in `pyproject.toml` `[dependency-groups] dev` with an inline
+    hold-back comment (keeps the diff lockfile-only), NEVER disable a rule/skip a test/weaken a
+    gate. Verify: `uv lock --check` + `mise run test/lint/check` + docs (`uv run zensical build`,
+    `uv run python scripts/gen_llms_full.py`). CI Python job installs via `uv sync --group dev`;
+    `docs.yml` runs zensical. `iscc-core` conformance is vs vendored `data.json` (authoritative).
+    Landed with a documented `ruff<0.16` hold-back. uv 0.11.32.
