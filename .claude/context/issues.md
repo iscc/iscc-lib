@@ -7,19 +7,6 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Release GIL for text/video binding compute paths `normal` [human]
-
-Planned for the **v0.6.0** release. `gen_text_code_v0` and `gen_video_code_v0` /
-`soft_hash_video_v0` still hold the GIL for the full duration of their Rust compute — the 0.5.0
-GIL-release pass (PR #40) intentionally excluded them. Wrap the pure-Rust compute in
-`py.detach(|| ...)` in `crates/iscc-py/src/lib.rs`, mirroring the data/instance/image/sum pattern.
-**Caveat:** for the video functions the detach window must open strictly AFTER frame-signature
-extraction (`extract_frame_sigs` uses raw borrowed `PyList_GetItem` pointers that are not
-free-threading-safe). Output is unchanged; conformance unaffected.
-
-**Spec:** `.claude/context/specs/python-bindings.md` → "GIL Release for Text/Video Compute Paths"
-**GitHub:** https://github.com/iscc/iscc-lib/issues/41 (close on release)
-
 ## Enable WASM simd128 in the @iscc/wasm release build `normal` [human]
 
 Planned for the **v0.6.0** release. The published `@iscc/wasm` package is built without WASM SIMD,

@@ -313,10 +313,14 @@ already applied to the data/instance/image/sum functions. **Caveat:** `gen_video
 
 **Verified when:**
 
-- [ ] `gen_text_code_v0` releases the GIL (`py.detach`) around the pure-Rust text compute
-- [ ] `gen_video_code_v0` and `soft_hash_video_v0` (incl. `*_flat` variants) release the GIL around
-    the WTA-hash compute, with the detach window opening only after frame-signature extraction
-- [ ] Conformance vectors and the full test suite pass unchanged (identical output)
+- [x] `gen_text_code_v0` releases the GIL (`py.detach`) around the pure-Rust text compute
+- [x] `gen_video_code_v0` and `soft_hash_video_v0` (incl. `*_flat` variants) release the GIL around
+    the WTA-hash compute, with the detach window opening only after frame-signature extraction — 12
+    total `py.detach(...)` sites in `crates/iscc-py/src/lib.rs` (7 from #39 + 5 new: text, video,
+    video_flat, soft_hash_video, soft_hash_video_flat)
+- [x] Conformance vectors and the full test suite pass unchanged (identical output) —
+    `pytest   tests/` 300 passed, incl. 3 new `tests/test_gil.py` text/video concurrency-correctness
+    tests
 
 ### core_opts Algorithm Constants
 
