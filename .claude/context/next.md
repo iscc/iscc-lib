@@ -1,94 +1,97 @@
 # Next Work Package
 
-## Step: Activate BLAKE3's wasm32 SIMD backend in @iscc/wasm (finish issue #42)
+## Step: Go ISCC-IDv1 encode/decode (issue #43)
 
 ## Goal
 
-Add the missing piece that makes the already-landed `simd128` flags actually select BLAKE3's
-hand-written `wasm32` SIMD backend instead of the portable scalar path: a direct
-`blake3 = { workspace = true, features = ["wasm32_simd"] }` dependency on `crates/iscc-wasm`. This
-is a **reframe** of issue #42 (first NEEDS_WORK, iter 117) — the prior premise ("RUSTFLAGS `simd128`
-alone activates the backend") was proven wrong by the review agent + Codex against the blake3 1.8.3
-source; the corrected design enables the gating `blake3/wasm32_simd` Cargo feature. Completes the
-last open WASM v0.6.0 target gap.
+Add experimental ISCC-IDv1 support to the pure-Go binding: `EncodeIsccID` / `DecodeIsccID` exposing
+realm, hub-id, and timestamp, plus Version=1 acceptance in `decodeHeader` for MainType `ID` only —
+at parity with iscc-core's `iscc_id.py`. This closes the last non-CI Go target gap and unblocks
+`iscc/iscc-monitor` deleting its interim in-repo codec port (their ADR-0011).
 
 ## Scope
 
-- **Modify**: `crates/iscc-wasm/Cargo.toml` — add
-    `blake3 = { workspace = true, features = ["wasm32_simd"] }` under `[dependencies]`.
-- **Modify (docs, excluded from 3-file limit)**:
-    - `crates/iscc-wasm/CLAUDE.md` — in the build/module section, document that iscc-wasm carries a
-        direct `blake3` dependency solely to enable the `wasm32_simd` Cargo feature (feature-unifies
-        for the wasm-only build); note it must not be removed as "unused".
-    - `.claude/context/specs/wasm-bindings.md` — correct the now-inaccurate prose only: the "WASM
-        SIMD" section says the backend is "selected at compile time via `target_feature = "simd128"`"
-        and calls it a "Pure build-flag change". Amend to state the backend also requires the
-        `blake3/wasm32_simd` **Cargo feature** (a direct dep on iscc-wasm), in addition to the
-        `simd128` target-feature. Do NOT touch the `**Verified when:**` checkboxes.
-- **Reference**: `.claude/context/handoff.md` (iter-117 review + recommended fix),
-    `.claude/context/issues.md` (#42 review note), `.github/workflows/ci.yml` +
-    `.github/workflows/release.yml` (RUSTFLAGS already landed — keep), the blake3 1.8.3 source
-    (`build.rs` `is_wasm32_simd()`/`build_wasm32_simd()`; `src/platform.rs` `detect()` returning
-    `WASM32_SIMD` under `#[cfg(blake3_wasm32_simd)]`).
+- **Create**: `packages/go/iscc_id.go` (`EncodeIsccID` / `DecodeIsccID` functions + `IsccIDv1Result`
+    type), `packages/go/iscc_id_test.go` (unit + round-trip tests)
+- **Modify**: `packages/go/codec.go` (add `VSV1 Version = 1` const; relax the `decodeHeader` version
+    check to accept Version=1 when MainType==ID, still rejecting Version>0 for all other MainTypes),
+    `packages/go/README.md` (add the two experimental functions to the codec-functions API table)
+- **Reference**: `reference/iscc-core/iscc_core/iscc_id.py` (`gen_iscc_id_v1` — the authoritative
+    algorithm), `.claude/context/specs/go-bindings.md` → "ISCC-IDv1 Support (Experimental)" (the
+    five checkbox acceptance criteria), `packages/go/codec.go` (existing `encodeHeader`,
+    `encodeLength`, `IsccDecode`, `decodeLength` helpers to reuse)
 
 ## Not In Scope
 
-- **Do NOT revert** the already-landed `RUSTFLAGS="-C target-feature=+simd128"` (ci.yml/release.yml)
-    or `--enable-simd` (Cargo.toml wasm-opt array) — both remain required (wasm32_simd.rs uses
-    `core::arch::wasm32` v128 intrinsics that need the target-feature to compile; wasm-opt needs
-    `--enable-simd` to accept the output).
-- Do NOT check off the four `specs/wasm-bindings.md` "Verified when" boxes or delete issue #42 — the
-    review agent owns box-checking and issue resolution after verifying the fix.
-- Do NOT add computation/logic or `use blake3` to `iscc-wasm/src/lib.rs`; the dep is
-    feature-unification only. (No `unused_crate_dependencies` lint is enabled, so no silencer is
-    needed — confirmed no `[lints]` section and no `#![warn(...)]` in lib.rs.)
-- Do NOT touch `crates/iscc-lib/Cargo.toml` or the root workspace `blake3 = "1"` — enabling the
-    feature there would (harmlessly but needlessly) unify onto native builds; keep it scoped to the
-    wasm crate.
-- Do NOT bump blake3 or any other dependency (dependency refresh is a separate v0.6.0 issue), and do
-    not pick up the other v0.6.0 items (#43 Go ISCC-IDv1, #49 aarch64 wheels, release-infra fixes).
+- Do NOT port ISCC-IDv0 (`gen_iscc_id_v0`, `soft_hash_iscc_id_v0`, `iscc_id_incr`,
+    `alg_simhash_from_iscc_id`) — the wallet/blockchain legacy path is not requested by #43.
+- Do NOT add ISCC-IDv1 to the other 11 language bindings (Rust core, Python, WASM, etc.) — Go-only.
+    The Tier 1 count stays 32; these are Go-local experimental additions.
+- Do NOT relax the public `EncodeComponent` to accept Version>0 — build the ID header directly via
+    the internal `encodeHeader`/`encodeLength` helpers so `EncodeComponent`'s contract (reject
+    Version>0) stays intact.
+- Do NOT change `data.json` / vendored conformance vectors or the `ConformanceSelftest` vector count
+    — ISCC-IDv1 is not in the ISO conformance set; assert the single known vector inline in the
+    test.
+- Do NOT bump `go.mod`/`go.sum` — only `encoding/binary` (stdlib) is needed.
 
 ## Implementation Notes
 
-- The one-line dependency addition is the whole fix. Root workspace already declares `blake3 = "1"`
-    (locked 1.8.3, has a `wasm32_simd` feature); `iscc-lib` uses `blake3.workspace = true`. Add the
-    same workspace dep to `iscc-wasm` but with `features = ["wasm32_simd"]`.
-- Why this works: blake3 `build.rs` runs `build_wasm32_simd()` (emits
-    `cargo:rustc-cfg=blake3_wasm32_simd`) only when `is_wasm32() && is_wasm32_simd()`, where
-    `is_wasm32_simd()` = `defined("CARGO_FEATURE_WASM32_SIMD")`. iscc-wasm compiles to
-    `wasm32-unknown-unknown`, so with the feature on, the cfg is emitted and `Platform::detect()`
-    returns `WASM32_SIMD` (compile-time, no runtime check). No other binding depends on iscc-wasm.
-- Why native builds are unaffected: on non-wasm targets `is_wasm32()` is false, so build.rs never
-    emits the cfg and `wasm32_simd.rs` (which is `#[cfg(blake3_wasm32_simd)]`-gated) is never
-    compiled. Feature-unification onto a host build of blake3 is therefore inert.
-- The honest, deterministic proof that the backend is compiled in is the `cargo tree` feature-graph
-    check below (blake3 shows `wasm32_simd` for the wasm32 target). Prefer this over `v128`
-    opcode-counting, which is a false-positive (LLVM auto-vectorizes the portable path too).
-- Optional supporting evidence for the CLAUDE.md/spec note (not a gating criterion, noisy): a
-    before/after `SumHasher` throughput measurement on a few-MB buffer under
-    `wasm-pack test --node`. Only capture it if quick; the review agent owns the spec-box sign-off.
+**Algorithm (from `iscc_id.py::gen_iscc_id_v1`), verified to round-trip the spec vector:**
+
+- 64-bit body: `body = (timestamp << 12) | hubID`; `timestamp` is 52-bit µs-since-epoch (must be
+    `< 2^52`), `hubID` is the low 12 bits (0–4095). Pack big-endian into 8 bytes
+    (`binary.BigEndian.PutUint64`).
+- Header nibbles: MainType=`MTId` (6), SubType=`realm` (0=test, 1=operational), Version=`VSV1` (1),
+    length index=0 (canonical 64-bit body). Realm must be 0 or 1.
+- `EncodeIsccID(realm uint8, hubID uint16, timestamp uint64) (string, error)`: validate the three
+    ranges (return an `iscc:`-prefixed error on overflow), then
+    `encodedLen, _ := encodeLength(MTId, 64)` (→ 0),
+    `header, _ := encodeHeader(MTId, SubType(realm), VSV1, encodedLen)`, concatenate
+    `header +   digest`, base32-encode, and return **with** the `"ISCC:"` prefix (the spec vector
+    includes it).
+- `DecodeIsccID(code string) (*IsccIDv1Result, error)`: delegate to the existing `IsccDecode` (it
+    already strips the `ISCC:` prefix + dashes and, once `decodeHeader` accepts V1, returns
+    Maintype=6/Version=1/8-byte Digest). Guard `Maintype==MTId`, `Version==VSV1`, `len(Digest)==8`,
+    then `body := binary.BigEndian.Uint64(Digest)`; `Timestamp = body >> 12`,
+    `HubID = uint16(body & 0xFFF)`, `Realm = result.Subtype`.
+- `IsccIDv1Result` struct: `Realm uint8`, `HubID uint16`, `Timestamp uint64`. Give both functions
+    and the struct a doc-comment marker that they are **experimental** (ISCC-IDv1 is not part of ISO
+    24138 and may change in a minor release).
+
+**`decodeHeader` change (codec.go ~line 268):** replace the unconditional
+`if versionVal > 0 { return ...invalid Version }` with a guard that permits exactly
+`MainType(mtypeVal)==MTId && versionVal==1` and rejects every other `versionVal > 0`. This is the
+only behavioral change to existing code; the header roundtrip test (codec_test.go:161-175) only uses
+Version 0 and is unaffected. `decodeLength(MTId, 0, realm)` already returns 64 → `IsccDecode` reads
+the 8-byte body correctly.
+
+**Verified vector (do not re-derive):** `EncodeIsccID(0, 1, 1751831876325218)` →
+`"ISCC:MAIGHFECJMOPMIAB"`; component hex is `60106394824b1cf62001` (2-byte header `6010` + 8-byte
+body).
 
 ## Verification
 
-- Feature wired (deterministic before/after):
-    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -f "{p} {f}" -i blake3` output contains
-    `wasm32_simd` (i.e. piping to `grep -q wasm32_simd` exits 0). Was `default,std` before this
-    step.
-- Conformance preserved on the SIMD build:
-    `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
-    passes (9 conformance + 78 unit tests, output byte-identical).
-- Release build compiles under the feature and wasm-opt accepts it:
-    `RUSTFLAGS="-C target-feature=+simd128" wasm-pack build --target web --release crates/iscc-wasm --features conformance`
-    exits 0.
-- Native build unaffected: `cargo test -p iscc-lib` passes (host build; `blake3_wasm32_simd` cfg not
-    emitted).
-- Landed flags still present: `grep -q 'target-feature=+simd128' .github/workflows/ci.yml`,
-    `grep -q 'target-feature=+simd128' .github/workflows/release.yml`, and
-    `grep -q 'enable-simd' crates/iscc-wasm/Cargo.toml` all exit 0.
-- `mise run format` reports clean (no diffs to re-stage).
+- From `packages/go/`: `go test ./...` passes (all existing tests + the new `iscc_id_test.go`), and
+    `CGO_ENABLED=0 go test ./...` also passes (pure-Go invariant holds).
+- From `packages/go/`: `go vet ./...` is clean.
+- `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` and `DecodeIsccID("MAIGHFECJMOPMIAB")` (no prefix) both
+    return `Realm=0, HubID=1, Timestamp=1751831876325218` — asserted by a test.
+- `EncodeIsccID(0, 1, 1751831876325218)` returns `"ISCC:MAIGHFECJMOPMIAB"` — asserted by a test.
+- Round-trip holds for boundary values (hubID 0 and 4095, realm 0 and 1, timestamp `2^52 - 1`):
+    `DecodeIsccID(EncodeIsccID(...))` reproduces the inputs — asserted by a test.
+- `IsccDecode("ISCC:MAIGHFECJMOPMIAB")` returns `Maintype==6`, `Version==1`, `len(Digest)==8` (no
+    longer errors with "invalid Version: 1") — asserted by a test.
+- Version>0 is still rejected for a non-ID MainType — a test constructs a Data-Code-shaped header
+    with Version=1 (via `encodeHeader(MTData, STNone, VSV1, ...)`) and asserts `decodeHeader`
+    returns an error.
+- `EncodeIsccID` returns an `iscc:`-prefixed error for `timestamp >= 2^52`, `hubID >= 4096`, and
+    `realm` ∉ {0,1} — asserted by a test.
+- The two experimental functions carry an "experimental" doc-comment marker and appear in
+    `packages/go/README.md`'s codec-functions table.
 
 ## Done When
 
-`cargo tree` shows blake3's `wasm32_simd` feature enabled for the wasm32 build, conformance passes
-on the SIMD build, the release build compiles, native tests are unaffected, and the
-previously-landed `simd128`/`--enable-simd` flags remain in place.
+The new `EncodeIsccID`/`DecodeIsccID` round-trip the known vector and boundary values, `IsccDecode`
+accepts ISCC-IDv1 while every other MainType still rejects Version>0, and `go test`/`go vet` (incl.
+`CGO_ENABLED=0`) are green in `packages/go/`.

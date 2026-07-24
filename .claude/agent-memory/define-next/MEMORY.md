@@ -126,5 +126,20 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     — shows `default,std` before, `default,std,wasm32_simd` after. No `unused_crate_dependencies`
     lint enabled (checked), so a feature-only dep needs no `use blake3   as _;` silencer. Review
     agent owns spec-box check-offs + issue deletion.
-- **v0.6.0 remaining after #42**: #43 Go ISCC-IDv1, #49 aarch64 wheels, dep refresh, + 2
-    release-workflow fixes (npm OIDC, single-registry re-trigger). One per iteration; each spec'd.
+- **iter 119: picked #43 (Go ISCC-IDv1)** — first v0.6.0 feature after #42; clean bounce (last two
+    iters were #42, now done). Pure-Go, self-contained (`packages/go`). Scope: modify `codec.go`
+    (add `VSV1 Version = 1`; relax `decodeHeader` version check to accept V1 only when
+    `MainType==MTId`, still reject V>0 for all else) + new `iscc_id.go`
+    (`EncodeIsccID(realm uint8, hubID uint16, timestamp uint64)`, `DecodeIsccID`, `IsccIDv1Result`).
+    Algorithm from `iscc_id.py::gen_iscc_id_v1`: `body=(timestamp<<12)|hubID`, big-endian 8 bytes,
+    header MT=6/ST=realm/VS=1/len-index=0. **Build the ID header via internal
+    `encodeHeader`/`encodeLength` — do NOT relax public `EncodeComponent`** (keeps its reject-V>0
+    contract). `EncodeIsccID` returns WITH `"ISCC:"` prefix; `DecodeIsccID` delegates to
+    `IsccDecode` (strips prefix/dashes). **Verified the vector by hand in Python before scoping**:
+    `EncodeIsccID(0,1,1751831876325218)` → `ISCC:MAIGHFECJMOPMIAB` (component hex
+    `60106394824b1cf62001`). codec_test.go:161-175 roundtrip only uses V0 → unaffected by the
+    version-check relax. No go.mod/go.sum change (`encoding/binary` is stdlib). Go tests run from
+    `packages/go/` (separate module; root `go test ./...` won't reach it); CI uses
+    `working-directory: packages/go` + `CGO_ENABLED=0`.
+- **v0.6.0 remaining after #43**: #49 aarch64 wheels, dep refresh, + 2 release-workflow fixes (npm
+    OIDC, single-registry re-trigger). One per iteration; each spec'd.
