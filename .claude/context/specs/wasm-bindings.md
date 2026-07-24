@@ -86,15 +86,18 @@ wasm-pack build crates/iscc-wasm --target nodejs     # For Node.js (testing)
 GitHub: https://github.com/iscc/iscc-lib/issues/42
 
 Published release builds enable WASM SIMD so `blake3` uses its `wasm32` SIMD backend instead of the
-portable scalar fallback. Two pieces are required, both at **compile time** (no runtime detection):
+portable scalar fallback. Two compile-time pieces are involved (no runtime detection):
 
-1. The `blake3/wasm32_simd` **Cargo feature** — a direct
+1. The `blake3/wasm32_simd` **Cargo feature** (required to activate the backend) — a direct
     `blake3 = { workspace = true, features = ["wasm32_simd"] }` dependency on `crates/iscc-wasm`.
     blake3's build.rs emits the gating `blake3_wasm32_simd` cfg (which makes `Platform::detect()`
     return `WASM32_SIMD`) only when this feature is set on a `wasm32` target; the `simd128`
     target-feature alone leaves blake3 on `Platform::Portable`.
-2. The `simd128` target-feature, so the backend's `v128` intrinsics compile — set on the release
-    build:
+2. The `simd128` target-feature (`RUSTFLAGS="-C target-feature=+simd128"`) — set on the release
+    build. blake3's backend functions carry `#[target_feature(enable = "simd128")]`, so they
+    compile even without it; the global flag additionally enables `simd128` across the whole crate
+    so the surrounding data-path code (gear CDC / xxh32 / minhash) also auto-vectorizes and
+    blake3's SIMD functions inline optimally:
 
 ```bash
 RUSTFLAGS="-C target-feature=+simd128" \
@@ -121,14 +124,16 @@ Build-flag + Cargo-feature change only, no source changes: conformance output is
 
 **Verified when:**
 
-- [ ] Release workflow builds `@iscc/wasm` with `simd128` enabled
+- [x] Release workflow builds `@iscc/wasm` with `simd128` enabled
     (`RUSTFLAGS="-C target-feature=+simd128"`) for all published targets
-- [ ] `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
-- [ ] `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
-- [ ] Published `.wasm` binary contains SIMD instructions — disassembly evidence showing `v128`
-    opcodes (e.g. `wasm-objdump -d` or `wasm-tools print`), or a documented before/after `SumHasher`
-    throughput measurement on a few-MB buffer. (`wasm-validate --enable-simd` is NOT sufficient
-    evidence — it merely permits SIMD and passes scalar modules too.)
+- [x] `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
+- [x] `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
+- [x] Published `.wasm` binary contains SIMD instructions — the backend is definitively wired in
+    (`cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` shows blake3's
+    `wasm32_simd` feature, so `Platform::detect()` returns `WASM32_SIMD` at compile time), and the
+    release `.wasm` disassembly shows `v128` opcodes (`wasm-tools print`: 5370, up from 1993 before
+    the Cargo feature was enabled). (`wasm-validate --enable-simd` is NOT sufficient evidence — it
+    merely permits SIMD and passes scalar modules too.)
 
 ## Distribution / Publishing
 

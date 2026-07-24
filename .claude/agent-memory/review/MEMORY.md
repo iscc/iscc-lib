@@ -26,12 +26,17 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     always true for multi-line files — use `! grep -q 'pattern'` to verify absence
 - next.md test specs / expected values / test counts may be wrong — always run tests, verify against
     Rust implementation
-- **Build-flag change that claims to enable a backend (iter 117, #42)**: don't trust "flag set →
-    goal met". Verify the backend is ACTUALLY selected by reading the dependency's build.rs feature
-    gating. blake3 1.8.x WASM SIMD needs the `blake3/wasm32_simd` **Cargo feature**
-    (`CARGO_FEATURE_WASM32_SIMD` → `blake3_wasm32_simd` cfg → `Platform::WASM32_SIMD`), NOT just
-    `-C target-feature=+simd128`. Counting `v128` opcodes is a FALSE-POSITIVE (LLVM auto-vectorizes
-    the portable path); demand a before/after throughput bench for backend-activation claims
+- **Backend-activation claims — verify the build.rs gating (iters 117-118, #42, RESOLVED)**: don't
+    trust "flag set → goal met". blake3 WASM SIMD is activated by the `blake3/wasm32_simd` **Cargo
+    feature** (`CARGO_FEATURE_WASM32_SIMD` → `blake3_wasm32_simd` cfg → `Platform::WASM32_SIMD`),
+    NOT `-C target-feature=+simd128` alone. Honest wiring proof:
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` shows
+    `wasm32_simd`. Counting `v128` opcodes ALONE is a FALSE-POSITIVE (LLVM auto-vectorizes the
+    portable path). NUANCE (iter 118): the global RUSTFLAGS is NOT required to *compile* the backend
+    — blake3's SIMD fns carry `#[target_feature(enable = "simd128")]`, so a no-flag
+    `cargo build --target wasm32-unknown-unknown` succeeds; the flag broadens simd128 to the whole
+    crate. Don't let docs claim "flag needed so intrinsics compile" — test a no-flag wasm build to
+    check such claims
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix — cross-check doc examples
 - **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
     consistently get this wrong — always verify
@@ -87,7 +92,9 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
 - `.NET version` findings: `dotnet-version: '8.0'` is valid for `actions/setup-dotnet@v4` (resolves
     to latest 8.0.x). Dismiss "use `8.0.x`" suggestions
 - Confused by large generated Kotlin/Swift diffs — those findings are advisory
-- **Trust Codex on dependency-internals findings (iter 117)**: it correctly caught that blake3's
-    `wasm32_simd` backend needs the Cargo feature, not just the target-feature — verified against
-    blake3 source. When Codex cites a dep's build.rs/feature gating, check the dep source before
-    dismissing
+- **Trust Codex on dependency-internals findings (iters 117-118)**: it correctly caught (117) that
+    blake3's `wasm32_simd` backend needs the Cargo feature, then (118, P3) that blake3's SIMD fns
+    carry `#[target_feature(enable = "simd128")]` so the global RUSTFLAGS is NOT needed to compile
+    the backend — both verified against blake3 source + a no-flag wasm build. When Codex cites a
+    dep's build.rs / `#[target_feature]` / feature gating, check the dep source (and build it)
+    before dismissing

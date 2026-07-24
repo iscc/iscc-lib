@@ -91,17 +91,19 @@ The release profile uses
 for maximum runtime speed optimization (configured via
 `[package.metadata.wasm-pack.profile.release]` in Cargo.toml).
 
-BLAKE3's hand-written `wasm32` SIMD backend requires two pieces working together:
+BLAKE3's hand-written `wasm32` SIMD backend is wired up with two compile-time pieces:
 
-1. The `blake3/wasm32_simd` **Cargo feature** — enabled by a direct
-    `blake3 = { workspace = true, features = ["wasm32_simd"] }` dependency in this crate's
+1. The `blake3/wasm32_simd` **Cargo feature** (required to activate the backend) — enabled by a
+    direct `blake3 = { workspace = true, features = ["wasm32_simd"] }` dependency in this crate's
     Cargo.toml. The dep exists solely for feature unification (no `use blake3` in `lib.rs`); it
     feature-unifies onto `iscc-lib`'s blake3 for the wasm-only build and must not be removed as
     "unused". blake3's build.rs emits the gating `blake3_wasm32_simd` cfg only when this feature is
     set on a `wasm32` target, so native builds are unaffected.
-2. `RUSTFLAGS="-C target-feature=+simd128"` — set by release and CI build steps so the backend's
-    `core::arch::wasm32` v128 intrinsics compile; `--enable-simd` lets `wasm-opt` accept the
-    resulting `v128` instructions.
+2. `RUSTFLAGS="-C target-feature=+simd128"` — set by release and CI build steps. blake3's backend
+    functions carry `#[target_feature(enable = "simd128")]`, so they compile even without it (a
+    plain `wasm-pack build` succeeds); the global flag additionally enables `simd128` across the
+    whole crate so the surrounding data-path code auto-vectorizes and blake3's SIMD functions
+    inline optimally. `--enable-simd` lets `wasm-opt` accept the resulting `v128` instructions.
 
 ## Test Commands
 

@@ -140,17 +140,17 @@ fully-met target sections to `learnings-archive.md`.
     tests build fine; only the bench target breaks. Scope clippy to the lib
     (`--no-default-features -- -D warnings`, no `--all-targets`) to avoid a false regression. CI
     never runs this combo
-- **blake3 WASM SIMD needs the `wasm32_simd` Cargo feature, NOT just `-C target-feature=+simd128`
-    (iter 117, #42)**: blake3 1.8.x `Platform::detect()` returns `WASM32_SIMD` only when the
-    `blake3_wasm32_simd` cfg is set, which its `build.rs` emits SOLELY from
-    `CARGO_FEATURE_WASM32_SIMD` (the `blake3/wasm32_simd` feature) — independent of the
-    target-feature. With `blake3 = "1"` (default features) it stays `Platform::Portable`. RUSTFLAGS
-    `simd128` is necessary (so `wasm32_simd.rs` compiles) but NOT sufficient. Counting `v128`
-    opcodes is a FALSE-POSITIVE signal for "BLAKE3 SIMD active" — LLVM auto-vectorizes the portable
-    path into `v128` too; prove the backend with a before/after `SumHasher` throughput bench. Fix:
-    give iscc-wasm a direct `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep
-    (feature-unifies for the wasm-only build; other bindings never depend on iscc-wasm so they are
-    unaffected)
+- **blake3 WASM SIMD backend — RESOLVED (iters 117-118, #42)**: the `blake3/wasm32_simd` **Cargo
+    feature** (direct `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep on iscc-wasm,
+    feature-unification only) ACTIVATES the backend — build.rs emits `blake3_wasm32_simd` (→
+    `Platform::detect()` = `WASM32_SIMD`) from `CARGO_FEATURE_WASM32_SIMD` on wasm32 only (native
+    inert). Honest wiring proof:
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3   -f "{p} {f}"` shows
+    `wasm32_simd`. The global `-C target-feature=+simd128` RUSTFLAGS is NOT required to compile the
+    backend (blake3's SIMD fns carry `#[target_feature(enable = "simd128")]`; a no-flag
+    `wasm-pack build` compiles + emits `v128`) — it broadens simd128 to the whole crate (auto-vec of
+    CDC/xxh32/minhash) and stays in CI/release; `--enable-simd` needed for wasm-opt. `v128`-opcode
+    counting ALONE is a FALSE-POSITIVE for "backend active" (LLVM auto-vec emits it too)
 
 ## Documentation Maintenance
 

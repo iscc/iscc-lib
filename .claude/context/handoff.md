@@ -1,57 +1,70 @@
 # Handoff
 
-## 2026-07-24 — Activate BLAKE3's wasm32 SIMD backend in @iscc/wasm (finish issue #42)
+## 2026-07-24 — Review of: Activate BLAKE3's wasm32 SIMD backend in @iscc/wasm (finish issue #42)
 
-**Done:** Added the missing piece from the iter-117 NEEDS_WORK review: a direct
-`blake3 = { workspace = true, features = ["wasm32_simd"] }` dependency on `crates/iscc-wasm`, which
-feature-unifies onto iscc-lib's blake3 for the wasm-only build so blake3's build.rs emits the
-`blake3_wasm32_simd` cfg and `Platform::detect()` returns `WASM32_SIMD` instead of `Portable`.
-Corrected the now-inaccurate prose in `crates/iscc-wasm/CLAUDE.md` and
-`.claude/context/specs/wasm-bindings.md` (both previously claimed the `simd128` target-feature alone
-selects the backend).
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `crates/iscc-wasm/Cargo.toml`: added direct `blake3` workspace dep with `wasm32_simd` feature,
-    with a comment explaining it is feature-unification only and must not be removed as "unused"
-- `Cargo.lock`: mechanical — `blake3` added to the `iscc-wasm` package dependency list (no version
-    changes)
-- `crates/iscc-wasm/CLAUDE.md`: build section now documents the two required pieces (Cargo feature +
-    `simd128` target-feature) and why native builds are unaffected
-- `.claude/context/specs/wasm-bindings.md`: "WASM SIMD" prose corrected — backend requires the
-    `blake3/wasm32_simd` Cargo feature in addition to `target_feature = "simd128"`; "Pure build-flag
-    change" reworded. The four `**Verified when:**` checkboxes left UNCHECKED per next.md (review
-    agent owns box-checking)
+**Summary:** The advance agent added the missing piece from the iter-117 NEEDS_WORK: a direct
+`blake3 = { workspace = true, features = ["wasm32_simd"] }` dep on `crates/iscc-wasm`, which
+feature-unifies so blake3's build.rs emits the `blake3_wasm32_simd` cfg on the wasm32 build and
+`Platform::detect()` returns `WASM32_SIMD`. All six next.md criteria pass; scope was disciplined
+(only the four intended files + advance memory/handoff), no source changes, conformance
+byte-identical, no gate circumvention. Issue #42 is resolved and its four spec boxes are checked.
+One P3 doc imprecision (also caught by Codex) was fixed directly.
 
 **Verification:**
 
-- Feature wired (deterministic before/after): before this change,
-    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -f "{p} {f}" -i blake3` showed
-    `blake3 v1.8.3 default,std`; after, it shows `blake3 v1.8.3 default,std,wasm32_simd`
-    (`grep -q wasm32_simd` exits 0) — PASS
-- `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
-    — PASS (9 conformance + 78 unit, 0 failed)
-- `RUSTFLAGS="-C target-feature=+simd128" wasm-pack build --target web --release crates/iscc-wasm --features conformance`
-    — PASS ("Your wasm pkg is ready to publish"; wasm-opt accepted the SIMD output)
-- Native build unaffected: `cargo test -p iscc-lib` exit 0 (269 + 28 + 22 + 1 tests, 0 failed)
-- Landed flags intact: `grep -q 'target-feature=+simd128'` passes on both `.github/workflows/ci.yml`
-    and `.github/workflows/release.yml`; `grep -q 'enable-simd' crates/iscc-wasm/Cargo.toml` passes
-- `mise run format` clean (no re-stage needed); `mise run check` exit 0, all 15 hooks Passed
+- [x] Feature wired —
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -f "{p} {f}" -i blake3` shows
+    `blake3 v1.8.3 default,std,wasm32_simd` (was `default,std`) — PASS
+- [x] Conformance preserved on SIMD build —
+    `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
+    exit 0 (78 unit + conformance binary, byte-identical) — PASS
+- [x] Release build + wasm-opt —
+    `RUSTFLAGS="-C target-feature=+simd128" wasm-pack build --target web --release crates/iscc-wasm --features conformance`
+    exit 0 ("ready to publish"); released `.wasm` has 5370 `v128` opcodes (was 1993 pre-feature) —
+    PASS
+- [x] Native build unaffected — `cargo test -p iscc-lib` exit 0 (269+28+22+1, 0 failed); host build
+    is inert (build.rs skips the cfg off-wasm) — PASS
+- [x] Landed flags intact — `grep -q 'target-feature=+simd128'` passes on ci.yml + release.yml;
+    `grep -q 'enable-simd' crates/iscc-wasm/Cargo.toml` passes — PASS
+- [x] `mise run format` clean; `mise run check` exit 0, all 15 hooks Passed (mdformat clean this
+    cycle — no reformat needed) — PASS
 
-**Next:** Review agent verifies and (per next.md) can check the four `specs/wasm-bindings.md`
-"Verified when" boxes and delete issue #42. Then the remaining v0.6.0 backlog: #43 Go ISCC-IDv1, #49
-aarch64 wheels, dependency refresh, and the two release-infra items (npm OIDC, single-registry
-re-trigger).
+**Issues found:**
+
+- (fixed directly) **Doc imprecision** in the freshly-written SIMD prose: both `iscc-wasm/CLAUDE.md`
+    and `specs/wasm-bindings.md` claimed the `simd128` target-feature is required "so the backend's
+    v128 intrinsics compile". Empirically false — a no-`RUSTFLAGS`
+    `cargo build -p iscc-wasm --target   wasm32-unknown-unknown` compiles fine, because blake3's
+    SIMD functions carry `#[target_feature(enable = "simd128")]` (verified in
+    blake3-1.8.3/src/wasm32_simd.rs). Corrected both docs: the Cargo feature activates the backend;
+    the global RUSTFLAGS broadens simd128 across the whole crate (auto-vec of CDC/xxh32/minhash +
+    inlining) and remains set in CI/release, and `--enable-simd` is still required for wasm-opt.
+    Behavior-neutral; the flags themselves stay.
+
+**Codex review:** One [P3] non-blocking finding, confirmed and actioned: "enabling
+`blake3/wasm32_simd` is sufficient [to compile the backend] because BLAKE3's SIMD entry points carry
+`#[target_feature(enable = "simd128")]`; a no-flag build succeeds and emits `v128` … the global flag
+should not be documented as required to compile the backend." I verified this against the blake3
+source and by building without RUSTFLAGS, and fixed the wording in both `CLAUDE.md` and the spec.
+
+**Next:** #42 is done — WASM is complete for v0.6.0. Remaining v0.6.0 backlog (all `normal`
+`[human]`, one per iteration): **#43 Go bindings ISCC-IDv1** (recommended next — concrete feature
+with a known conformance vector `ISCC:MAIGHFECJMOPMIAB`, unblocks iscc-monitor's ADR-0011), #49
+aarch64 Python wheels, dependency review/refresh, and the two release-infra items (npm OIDC
+migration, single-registry re-trigger fix). Spec-only backlog: `low` items stay parked.
 
 **Notes:**
 
-- No source code changed — `iscc-wasm/src/lib.rs` untouched (the dep is feature-unification only, no
-    `use blake3`, as next.md required). No API surface or hot-path change on native targets:
-    blake3's build.rs skips the cfg on non-wasm targets, so the unified feature is inert there — no
-    native bench run needed.
-- The optional before/after `SumHasher` throughput measurement was NOT captured — next.md marked it
-    optional/noisy and not a gating criterion; the deterministic `cargo tree` feature-graph check is
-    the honest wired-in proof. If the review agent wants throughput evidence for the spec box #4
-    sign-off, it needs a temporary wasm-side timing harness (not present in the test suite).
-- `.claude/context/iterations.jsonl` is locally modified by the CID runner — intentionally left
-    unstaged.
+- Feature unification detail: the `wasm32_simd` feature does unify onto blake3 for the host
+    workspace build too (`cargo tree -p iscc-wasm` on the host target shows it), but it is fully
+    inert there — blake3's build.rs only emits the `blake3_wasm32_simd` cfg under `is_wasm32()`, so
+    no native code path or output changes. iscc-lib and the other bindings never depend on
+    iscc-wasm, so their standalone builds don't even enable the feature.
+- No throughput bench was captured (next.md marked it optional/noisy). The cargo-tree feature-graph
+    check is the definitive proof the backend is wired in; the 1993→5370 `v128`-opcode jump
+    corroborates. Box #4 signed off on the wiring proof + disassembly, not a throughput number.
+- Batch pushed to origin/develop: this cycle's push carries the iter-117 NEEDS_WORK batch (which was
+    correctly held) + iter-118 define-next/advance/review as one unit. Pre-push hooks ran clean.
+- `.claude/context/iterations.jsonl` left unstaged (runner-owned).

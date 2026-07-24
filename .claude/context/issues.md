@@ -7,30 +7,6 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Enable WASM simd128 in the @iscc/wasm release build `normal` [human]
-
-Planned for the **v0.6.0** release. The published `@iscc/wasm` package is built without WASM SIMD,
-so `blake3` falls back to its portable scalar implementation. Add
-`RUSTFLAGS="-C target-feature=+simd128"` to the wasm-pack release build in
-`.github/workflows/release.yml` (all published targets) and `--enable-simd` to the wasm-opt flags in
-`crates/iscc-wasm/Cargo.toml`. Pure build-flag change — conformance output is byte-identical; re-run
-`wasm-pack test --node crates/iscc-wasm --features conformance` on the SIMD build. Also add the
-RUSTFLAGS to the wasm CI test job so CI exercises the same SIMD configuration that ships.
-
-**Review note (iter 117) \[review\]:** The RUSTFLAGS `simd128` flag + `wasm-opt --enable-simd`
-landed (release.yml/ci.yml/Cargo.toml, commit `b5e3767`) but are NOT sufficient to activate BLAKE3's
-SIMD backend. Under the locked `blake3 1.8.3`, `Platform::detect()` returns `WASM32_SIMD` only when
-the `blake3_wasm32_simd` cfg is set, which build.rs emits solely from `CARGO_FEATURE_WASM32_SIMD`
-(the `blake3/wasm32_simd` Cargo feature). With `blake3 = "1"` (default features) it stays
-`Platform::Portable`, so the goal is unmet and the "Pure build-flag change" framing above is wrong.
-**Remaining fix:** add a direct `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep to
-`crates/iscc-wasm/Cargo.toml` (feature-unifies for the wasm-only build; keep the RUSTFLAGS +
-`--enable-simd` already landed). Verify with a before/after `SumHasher` throughput measurement — NOT
-`v128` opcode counting (LLVM auto-vectorization emits `v128` from the portable path too).
-
-**Spec:** `.claude/context/specs/wasm-bindings.md` → "WASM SIMD (simd128)" **GitHub:**
-https://github.com/iscc/iscc-lib/issues/42 (close on release)
-
 ## Go bindings: experimental ISCC-IDv1 encode/decode `normal` [human]
 
 Planned for the **v0.6.0** release. `packages/go` hard-rejects any Version > 0 in `decodeHeader`
