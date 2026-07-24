@@ -97,3 +97,13 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
 - **Recurring maintenance pattern**: the enforcing cargo-deny gate WILL periodically go red on fresh
     RustSec advisories against dev/bench deps. Each is a CI-red-first priority; resolve via patch
     bump (preferred) or a justified `ignore`.
+- **iter 116: picked #41 (Python text/video GIL)** — first v0.6.0 feature; CI green, no bounce.
+    Single-file `crates/iscc-py/src/lib.rs`: wrap 5 fns (`gen_text_code_v0`, `gen_video_code_v0`
+    - `_flat`, `soft_hash_video_v0` + `_flat`) in `py.detach(|| ...)`. Signature- + conformance-
+        neutral (injected `py` param not exposed) → **no doc/`.pyi`/`__init__.py` change needed**.
+        GIL-release verification is grep-based: `grep -c '\.detach(' lib.rs` (7 existing → 12; note
+        one-shot sites write `py\n.detach` split across lines, so count `.detach(` not `py.detach`).
+        Video caveat: detach must open AFTER `extract_frame_sigs`/`flat_bytes_to_frames` (borrowed
+        `PyList_GetItem` ptrs not free-threading-safe; module keeps `gil_used = true`).
+- **v0.6.0 remaining after #41**: #42 WASM simd128, #43 Go ISCC-IDv1, #49 aarch64 wheels, dep
+    refresh, + 2 release-workflow fixes. One per iteration; each already spec'd.
