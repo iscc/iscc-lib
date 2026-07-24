@@ -21,12 +21,10 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
 - **Criterion benches**:
     `grep -n "^fn bench_\|criterion_group" crates/iscc-lib/benches/benchmarks.rs`
-- **pytest-benchmark fns**: `grep -c "def test_bench_" tests/test_benchmarks.py` (18)
-- **UniFFI exports**: grep `#\[uniffi::export\]` in `crates/iscc-uniffi/src/lib.rs` (32)
-- **Version sync targets**: `uv run scripts/version_sync.py --check | grep "^OK:" | wc -l` (16)
-- **gen_llms_full.py pages**: ast.literal_eval ORDERED_PAGES (22)
-- **Howto guides**: `ls docs/howto/*.md` (11)
-- **Benchmarks doc**: `grep -i "speedup" docs/benchmarks.md`
+- **Counts**: pytest-benchmark `grep -c "def test_bench_" tests/test_benchmarks.py` (18); UniFFI
+    `#\[uniffi::export\]` in iscc-uniffi/src/lib.rs (32); version-sync `version_sync.py --check`
+    (16); llms-full ORDERED_PAGES (22); `ls docs/howto/*.md` (11); `docs/benchmarks.md` speedup
+    1.3x-158x.
 - **release.yml checks**: boolean toggles `grep "type: boolean" release.yml | wc -l` (8);
     XCFramework `test -x scripts/build_xcframework.sh`.
 - **Issue count**: grep `issues.md` `^##` headers ending in a priority label (legend excluded → no
@@ -100,32 +98,36 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Re-scope reactivation**: large issues.md/target.md/specs growth in the diff → human re-scoped;
     do a near-full re-review, not a diff parrot.
 
-## Current State (assessed-at: 7f78ef5, iter 117)
+## Current State (assessed-at: 4edfb0a, iter 118)
 
-- **IN_PROGRESS — CI GREEN.** v0.5.0 released (workspace version `0.5.0`), all 12 bindings meet CORE
-    criteria. **v0.6.0 GIL theme (#39+#41) now COMPLETE**; four spec'd work packages + two
-    release-infra fixes still open.
-- **CI GREEN on origin/develop tip `2ffc8f9`** — all 22 check-runs `success` incl.
-    `Audit (cargo-deny)`. HEAD `7f78ef5` = +1 log-only `iteration 116` commit (unpushed), no code
-    delta → verified-green state holds. Pushed code tip = `b55a1bf` (advance #41), review =
-    `2ffc8f9`.
-- **Iter 116 delivered #41 (Python text/video GIL)**: advance added 5 `py.detach` windows in iscc-py
-    lib.rs (7→12 total), review PASS + Codex clean, #41 deleted from issues.md,
-    `specs/python-bindings.md` GIL-text/video 3 boxes `[x]`. Python still **partially met** (only
-    #49 aarch64 wheels remains).
+- **IN_PROGRESS — CI GREEN on last pushed tip.** v0.5.0 released (workspace version `0.5.0`), all 12
+    bindings meet CORE criteria. GIL theme (#39+#41) COMPLETE. Four spec'd v0.6.0 packages (one
+    partially advanced) + two release-infra fixes still open.
+- **CI GREEN on origin/develop tip `2ffc8f9`** — all check-runs `success` incl.
+    `Audit   (cargo-deny)`. **Unpushed batch grew to 6 commits (`2ffc8f9..HEAD 4edfb0a`)** = iter
+    116 log + iter 117 (#42 attempt, NEEDS_WORK, no push). The #42 flags in
+    ci.yml/release.yml/Cargo.toml are UNPUSHED → NOT CI-verified (review verified `wasm-pack test`
+    locally; flag is safe, rides out).
+- **Iter 117 attempted #42 (WASM simd128) → review NEEDS_WORK, #42 STAYS OPEN**: advance landed
+    `RUSTFLAGS=-C target-feature=+simd128` (ci.yml wasm test step + release.yml build step) +
+    `--enable-simd` wasm-opt (`crates/iscc-wasm/Cargo.toml`), commit `b5e3767`. INSUFFICIENT — see
+    Gotchas (blake3 WASM SIMD). Remaining fix = direct
+    `blake3 = { workspace = true, features =   ["wasm32_simd"] }` dep in iscc-wasm/Cargo.toml; keep
+    landed flags; verify via before/after `SumHasher` throughput NOT v128 opcode count. WASM still
+    **partially met**, 4 spec boxes `[ ]`.
 - **cargo-deny gate LANDED & enforcing** — see Quality Gates. Live advisory can re-red it any push
     (prefer `cargo update -p` over deny.toml ignore). RUSTSEC-2026-0204 (iter 115) already resolved.
-- **v0.6.0 scope (4 `normal` `[human]`, each spec'd)**: #42 WASM simd128, #43 Go ISCC-IDv1, #49
-    aarch64 wheels, dependency review/refresh → Python/WASM/Go/CI-CD **partially met**. Recommended
-    first pick: **#42** (pure build-flag change, most self-contained).
+- **v0.6.0 scope (4 `normal` `[human]`, each spec'd)**: #42 WASM simd128 (partially advanced), #43
+    Go ISCC-IDv1, #49 aarch64 wheels, dependency review/refresh → Python/WASM/Go/CI-CD **partially
+    met**. Recommended next pick: **finish #42** (flags landed, add blake3 feature).
 - **8 issues: 0 critical, 6 normal, 2 low** (all `[human]`). Also open normal: npm OIDC migration,
     single-registry re-trigger bug. Low (CID skips): v1.0.0 HELD by Titusz (stay 0.5.x, flip Semver
     enforcing at cut), docs logos.
 - **MET sections**: Node, C FFI, Java, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README, per-crate
     READMEs, Docs, Benchmarks.
-- **Don't re-flag as new work**: GIL #41 (iter 116, DONE), cargo-deny gate, CRAP `--fail-above`
-    (iter 113), iai perf gate/hardening (107-111), PyO3 #1 (105), semver gate (93), npm #38, GIL
-    #39, SumHasher #37.
+- **Don't re-flag as new work**: #42 simd128 FLAGS (landed iter 117, only blake3 feature remains),
+    GIL #41 (iter 116, DONE), cargo-deny gate, CRAP `--fail-above` (iter 113), iai perf gate (107-
+    111), PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher #37.
 
 ## Gotchas
 
@@ -136,6 +138,14 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     bullets. Test `uv run mdformat /tmp/copy.md` before committing; bisect line ranges to locate.
 - **live advisory DB** — cargo-deny `advisories` can turn a previously-green gate red with no code
     change (see Audit gate).
+- **blake3 WASM SIMD (iter 117 #42 trap)** — `RUSTFLAGS=-C target-feature=+simd128` alone does NOT
+    activate BLAKE3's hand-written `wasm32` SIMD backend under blake3 1.8.x. That backend is gated
+    by the `blake3/wasm32_simd` **Cargo feature** (build.rs emits `blake3_wasm32_simd` cfg only from
+    `CARGO_FEATURE_WASM32_SIMD`; `platform.rs detect()` returns `WASM32_SIMD` only under that cfg,
+    else `Portable`). `v128` opcodes in the disassembly are a FALSE POSITIVE — LLVM auto-vectorizes
+    the portable path. Honest signal = before/after `SumHasher` throughput (blake3 doesn't expose
+    the chosen Platform). Fix = direct `blake3 = { workspace = true, features = ["wasm32_simd"] }`
+    in iscc-wasm/Cargo.toml (feature-unifies for wasm-only build, no native impact).
 - Go = pure Go only (no WASM/wazero/binaries). **csbindgen** runs on every `cargo build`
     (`crates/iscc-ffi/build.rs`).
 - **UniFFI** = proc-macro, no uniffi.toml/build.rs. **Kotlin** uses JNA (not JNI) — needs BOTH
