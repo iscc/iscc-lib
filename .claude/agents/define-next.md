@@ -84,7 +84,9 @@ recurring patterns. This builds up institutional knowledge across iterations.
     **When there is genuinely nothing to define** (no unmet criterion reachable, no
     `critical`/`normal` issue actionable, everything remaining human-blocked), do not invent
     busywork: write next.md with `## Step: NONE` and a `## Reason` section naming each blocker,
-    then commit. The advance agent no-ops on NONE and the review agent signals IDLE.
+    then commit. The advance agent no-ops on NONE. The review agent then signals IDLE only when
+    every blocker is `low` priority; a `critical`/`normal` issue blocked on human input becomes a
+    HUMAN REVIEW REQUESTED escalation instead.
 
 9. **Update agent memory** — update your agent memory with scoping decisions, architecture
     insights, feasibility findings, and patterns. Remove outdated entries that no longer apply.

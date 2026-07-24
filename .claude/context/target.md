@@ -89,9 +89,10 @@ Detailed spec: `.claude/context/specs/python-bindings.md`
 - `ruff check` and `ruff format --check` clean
 - Single wheel per platform (abi3-py310)
 - Wheels published for Linux x86_64 and aarch64 (manylinux), macOS universal2, and Windows x64
-- Every compute-bearing binding entry point releases the GIL (`py.detach`) around the pure-Rust
-    compute — including the text (`gen_text_code_v0`) and video (`gen_video_code_v0`,
-    `soft_hash_video_v0`) paths — so threaded consumers can overlap native hashing
+- Binding entry points with heavyweight compute — image, data, instance, sum, and the text
+    (`gen_text_code_v0`) and video (`gen_video_code_v0`, `soft_hash_video_v0`) paths — release the
+    GIL (`py.detach`) around the pure-Rust compute so threaded consumers can overlap native hashing;
+    lightweight paths (meta, audio, mixed) intentionally stay attached
 
 ## Node.js Bindings — `@iscc/lib` on npm
 

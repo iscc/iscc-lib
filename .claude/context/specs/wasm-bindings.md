@@ -118,9 +118,10 @@ Pure build-flag change: conformance output is byte-identical.
     (`RUSTFLAGS="-C target-feature=+simd128"`) for all published targets
 - [ ] `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
 - [ ] `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
-- [ ] Published `.wasm` binary contains SIMD instructions (e.g. `wasm-objdump` /
-    `wasm-validate --enable-simd` evidence, or a documented before/after `SumHasher` throughput
-    measurement on a few-MB buffer)
+- [ ] Published `.wasm` binary contains SIMD instructions — disassembly evidence showing `v128`
+    opcodes (e.g. `wasm-objdump -d` or `wasm-tools print`), or a documented before/after `SumHasher`
+    throughput measurement on a few-MB buffer. (`wasm-validate --enable-simd` is NOT sufficient
+    evidence — it merely permits SIMD and passes scalar modules too.)
 
 ## Distribution / Publishing
 

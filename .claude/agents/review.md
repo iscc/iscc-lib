@@ -273,6 +273,10 @@ level means "CID must skip."
 **IDLE**: All remaining issues are low priority — no actionable work for CID.
 ```
 
+A `## Step: NONE` next.md follows the same contract: signal IDLE only when every blocker named in
+its `## Reason` is `low` priority. If a `critical`/`normal` issue is blocked on human input,
+escalate with HUMAN REVIEW REQUESTED (see Flagging Concerns) instead of IDLE.
+
 The CID runner checks for `**IDLE**` and exits the loop automatically. This prevents wasting
 iterations and cost on repeated idle cycles.
 
