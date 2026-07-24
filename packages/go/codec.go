@@ -594,6 +594,9 @@ func IsccDecode(iscc string) (*DecodeResult, error) {
 	if len(tail) < nbytes {
 		return nil, fmt.Errorf("iscc: decoded body too short: expected %d digest bytes, got %d", nbytes, len(tail))
 	}
+	if len(tail) > nbytes {
+		return nil, fmt.Errorf("iscc: decoded body too long: expected %d digest bytes, got %d trailing bytes", nbytes, len(tail)-nbytes)
+	}
 	digest := make([]byte, nbytes)
 	copy(digest, tail[:nbytes])
 

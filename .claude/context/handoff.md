@@ -1,66 +1,58 @@
 # Handoff
 
-## 2026-07-24 — Review of: Go ISCC-IDv1 encode/decode (issue #43)
+## 2026-07-24 — Reject trailing bytes in Go `IsccDecode`
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Hardened the pure-Go codec so `IsccDecode` rejects an ISCC string whose base32-decoded
+body is longer than the header-declared digest length, closing the alias gap where
+`ISCC:MAIGHFECJMOPMIABAA` decoded identically to canonical `ISCC:MAIGHFECJMOPMIAB`. Implemented as a
+distinct "too long" branch alongside the existing "too short" branch, so
+`TestCodecIsccDecodeBodyTooShort` and its error message are untouched. `DecodeIsccID` inherits the
+fix through its delegation to `IsccDecode`.
 
-**Summary:** The advance agent added experimental ISCC-IDv1 support to the pure-Go binding
-(`EncodeIsccID`/`DecodeIsccID` + `IsccIDv1Result`, a `VSV1` const, and a MainType-ID-only Version=1
-relaxation in `decodeHeader`). The implementation is a faithful port of iscc-core's `gen_iscc_id_v1`
-(verified against `reference/iscc-core/iscc_core/iscc_id.py`: `body = (timestamp << 12) | hub_id`,
-header MT=ID/ST=realm/V=1/len=0, base32 + `ISCC:` prefix), the public `EncodeComponent` Version>0
-contract is untouched, scope matches next.md exactly, and all tests + quality gates are green. Codex
-surfaced one pre-existing (not regression) input-hardening gap, now filed as an issue.
+**Files changed:**
+
+- `packages/go/codec.go`: added `len(tail) > nbytes` guard in `IsccDecode` returning
+    `"iscc: decoded body too long: expected %d digest bytes, got %d trailing bytes"` (3 lines).
+- `packages/go/codec_test.go`: added `TestCodecIsccDecodeRejectsTrailingBytes` — asserts
+    `IsccDecode("ISCC:MAIGHFECJMOPMIABAA")` errors with "too long" and the canonical form still
+    yields an 8-byte digest.
+- `packages/go/iscc_id_test.go`: added `TestDecodeIsccIDRejectsTrailingBytes` — asserts
+    `DecodeIsccID(knownIsccID + "AA")` errors and the canonical form still decodes to realm 0 / hub
+    1 / ts 1751831876325218.
 
 **Verification:**
 
-- [x] `go test ./...` passes (all existing + 8 new tests) — green from `packages/go/`
-- [x] `CGO_ENABLED=0 go test ./...` passes (pure-Go invariant holds) — green
-- [x] `go vet ./...` clean — exit 0, no output
-- [x] `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` and no-prefix variant → realm 0 / hub 1 / ts
-    1751831876325218 — asserted by `TestDecodeIsccIDKnownVector` (both prefix forms)
-- [x] `EncodeIsccID(0, 1, 1751831876325218)` → `"ISCC:MAIGHFECJMOPMIAB"` —
-    `TestEncodeIsccIDKnownVector`
-- [x] Boundary round-trips (hubID 0/4095, realm 0/1, ts 2^52−1) — `TestIsccIDRoundTripBoundaries`
-    (18 combinations)
-- [x] `IsccDecode` accepts ID/Version=1 → Maintype 6, Version 1, 8-byte digest —
-    `TestIsccDecodeAcceptsIDv1`
-- [x] Version>0 still rejected for non-ID MainType — `TestDecodeHeaderRejectsVersion1ForNonID` (+
-    `TestDecodeHeaderRejectsVersion2ForID` pins the exact-match semantics)
-- [x] `EncodeIsccID` returns `iscc:`-prefixed error for ts≥2^52, hubID≥4096, realm∉{0,1} —
-    `TestEncodeIsccIDValidation`
-- [x] Both functions carry an "experimental" doc-comment marker and appear in
-    `packages/go/README.md` — verified (3 markers in `iscc_id.go`, 2 README rows)
-- [x] `mise run check` — all 15 pre-commit hooks Passed
+- `go -C packages/go build ./...` — succeeds.
+- `go -C packages/go vet ./...` — clean (exit 0, "VET_OK").
+- `go -C packages/go test -count=1 ./...` — ok (full suite).
+- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` — ok (pure-Go invariant holds; includes both
+    new tests, `ConformanceSelftest`, `TestCodecIsccDecodeConformanceVectors`, and all
+    `TestCodecDecompose*` tests — verified passing in verbose targeted run).
+- `IsccDecompose` unaffected as required: its own body loop (`len(body) < nbytes` /
+    `rawCode = body[nbytes:]`) was not touched; all decompose tests incl. conformance vectors pass.
+- gofmt: `codec.go` and `iscc_id_test.go` fully clean; `codec_test.go` has exactly the one
+    pre-existing go1.26 drift hunk (`TestCodecVarnibbleBitLengths` alignment, untouched lines) — my
+    new test lines produce no gofmt diff (verified via `gofmt -d | grep RejectsTrailing` → empty).
+    CI pins go 1.23 with no gofmt gate.
+- `mise run check` — all 15 pre-commit hooks Passed (second run; first run had mdformat auto-fix an
+    unrelated pre-existing file, see Notes).
 
-**Issues found:**
-
-- Codex \[P2\]: `DecodeIsccID`/`IsccDecode` silently accept trailing bytes (e.g.
-    `ISCC:MAIGHFECJMOPMIABAA` decodes identically to the canonical form). Verified **pre-existing
-    and codec-wide** (a Data-Code with `+"AA"` is accepted the same way) — a hardening gap, not a
-    regression from this work. Filed as a `normal` `[review]` issue with a scoped fix
-    recommendation.
-- Doc freshness (fixed directly): added the two new experimental functions to
-    `packages/go/CLAUDE.md`'s "Codec Functions (exported)" list.
-
-**Codex review:** One actionable P2 — trailing-byte acceptance in `DecodeIsccID`. Assessed as a real
-robustness gap but pre-existing in `IsccDecode` (affects every MainType), so it does not block this
-PR; filed for a follow-up iteration. No other findings.
-
-**Next:** #43 is done and its spec checkboxes are ticked. Suggested next work: pick up the new
-`normal` `[review]` issue — tighten Go `IsccDecode` to reject bodies whose length ≠ the
-header-declared `nbytes` (re-run `ConformanceSelftest` to confirm no vendored vector relies on
-padding, and check `IsccDecompose` is unaffected). Remaining v0.6.0 `normal` backlog otherwise: #49
-aarch64 Python wheels, project-wide dependency review/refresh, npm OIDC migration, and the broken
-single-registry re-trigger in `release.yml`.
+**Next:** The identical trailing-byte gap exists in the Rust Tier 1 `iscc_decode`
+(`crates/iscc-lib/src/lib.rs:234` — checks only `tail.len() < nbytes`, then silently truncates via
+`tail[..nbytes]`), and therefore in every binding that delegates to it (py, napi, wasm, ffi, jni,
+rb, uniffi). Suggest filing/scoping a follow-up issue for the Rust core (the fix is the same
+two-line exact-length guard; conformance-safe for the same byte-alignment reason). Otherwise the
+v0.6.0 `normal` backlog stands: #49 aarch64 Python wheels, dependency review/refresh, npm OIDC
+migration, broken single-registry re-trigger in `release.yml`.
 
 **Notes:**
 
-- Pre-existing gofmt drift under go1.26.1 on two untouched files (`codec_test.go`, `conformance.go`)
-    — struct-tag/comment alignment rules changed in newer gofmt. CI pins go 1.23 and runs only
-    `go test` + `go vet` (no gofmt gate), so CI is unaffected. The advance agent's three new files
-    are gofmt-clean. Not worth a tracked issue (local-toolchain artifact only).
-- The GitHub issue #43 stays open per its "close on release" note (v0.6.0 not yet cut); only the
-    local `issues.md` tracking entry was deleted since the code work is complete.
-- learnings.md trimmed to 200 lines (archived the completed blake3 WASM SIMD investigation to
-    `learnings-archive.md`; added an ISCC-IDv1 algorithm entry).
+- Out-of-scope finding (not fixed, per next.md): Rust `iscc_decode` accepts trailing bytes exactly
+    like the Go version did — evidence at lib.rs:225-247. This is a Tier 1 symbol; tightening it is
+    a behavior change (stricter input validation, same signature), analogous to this Go fix.
+- `mise run check` first run failed only because mdformat reformatted
+    `.claude/agent-memory/define-next/MEMORY.md` (left mdformat-dirty by a prior agent's commit).
+    The auto-fix is included in this commit to keep the tree clean; no content change, formatting
+    only.
+- `.claude/context/iterations.jsonl` is modified in the working tree (runner-managed); left unstaged
+    per protocol.

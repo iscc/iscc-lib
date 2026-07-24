@@ -789,6 +789,25 @@ func TestCodecIsccDecodeBodyTooShort(t *testing.T) {
 	}
 }
 
+func TestCodecIsccDecodeRejectsTrailingBytes(t *testing.T) {
+	// Extra base32 chars append bytes beyond the header-declared digest length
+	_, err := IsccDecode("ISCC:MAIGHFECJMOPMIABAA")
+	if err == nil {
+		t.Error("expected error for trailing bytes")
+	}
+	if !strings.Contains(err.Error(), "too long") {
+		t.Errorf("error should mention 'too long': %v", err)
+	}
+	// Control: the canonical form still decodes to an 8-byte digest
+	result, err := IsccDecode("ISCC:MAIGHFECJMOPMIAB")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Digest) != 8 {
+		t.Errorf("digest length: got %d, want 8", len(result.Digest))
+	}
+}
+
 // ---- IsccDecompose tests ----
 
 func TestCodecDecomposeSingleMetaUnit(t *testing.T) {

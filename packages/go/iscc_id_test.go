@@ -147,3 +147,20 @@ func TestDecodeIsccIDRejectsNonID(t *testing.T) {
 		t.Errorf("unexpected error: %v", err)
 	}
 }
+
+func TestDecodeIsccIDRejectsTrailingBytes(t *testing.T) {
+	// Trailing-byte rejection in IsccDecode propagates through the delegation.
+	_, err := DecodeIsccID(knownIsccID + "AA")
+	if err == nil {
+		t.Fatal("expected error for trailing bytes, got nil")
+	}
+	// Control: the canonical form still decodes to the known fields.
+	result, err := DecodeIsccID(knownIsccID)
+	if err != nil {
+		t.Fatalf("DecodeIsccID(%q): %v", knownIsccID, err)
+	}
+	if result.Realm != knownRealm || result.HubID != knownHubID || result.Timestamp != knownTimestamp {
+		t.Errorf("got (%d, %d, %d), want (%d, %d, %d)",
+			result.Realm, result.HubID, result.Timestamp, knownRealm, knownHubID, knownTimestamp)
+	}
+}

@@ -100,7 +100,8 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
 - **iter 116: #41 (Python text/video GIL) DONE** — single-file `crates/iscc-py/src/lib.rs`, wrap
     compute in `py.detach(|| ...)`. Injected `py` param not exposed → signature/conformance-neutral,
     no doc change. Video detach must open AFTER frame-sig extraction (borrowed `PyList_GetItem` ptrs
-    not free-threading-safe; module keeps `gil_used = true`). Verify via `grep -c '\.detach(' lib.rs`.
+    not free-threading-safe; module keeps `gil_used = true`). Verify via
+    `grep -c '\.detach(' lib.rs`.
 - **iter 117: #42 (WASM simd128) — NEEDS_WORK.** Lesson: RUSTFLAGS `simd128` alone does NOT activate
     blake3's wasm SIMD backend; `v128` opcode-counting is a FALSE-POSITIVE gate (LLVM
     auto-vectorizes the portable path too). Verify the actual reference/source before asserting a
