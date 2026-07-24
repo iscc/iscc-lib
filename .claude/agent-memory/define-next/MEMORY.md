@@ -119,5 +119,17 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     fix, widen epsilon, or lower the 30.0 `--fail-above`. **Root lesson: the CRAP regression gate is
     CI-ONLY (not in `mise run check`/pre-commit)** — any step adding a branch/loop to a covered
     function MUST refresh the baseline in the SAME step (this is exactly how iter 121 slipped).
-- **v0.6.0 remaining after CI green**: #49 aarch64 wheels, dep refresh, + 2 release-workflow fixes
-    (npm OIDC, single-registry re-trigger). One per iteration; each spec'd.
+- **iter 123: CI GREEN (30/30) after iter-122 baseline refresh → picked #49 aarch64 Python wheels**
+    (over the dep refresh, which is broad/multi-file and ill-suited to one step). Scoped to ONE file
+    `.github/workflows/release.yml`: (1) add
+    `os: ubuntu-24.04-arm / target: aarch64 /   interpreter: python3.10` to the `build-wheels`
+    matrix (native ARM runner, NOT QEMU; `manylinux:   auto` + the existing
+    `/opt/python/cp310-cp310/bin` PATH hack tag it cp310); (2) matrixify the `test-wheels` smoke job
+    (x86_64 + aarch64 via `artifact` = `wheels-<os>-<target>`) so a broken ARM wheel can't ship —
+    matrix keeps `publish-pypi`'s `needs: [...,test-wheels]` unchanged. **Release-only infra →
+    verification is STATIC** (pyyaml `yaml.safe_load` via `uv run python` + grep presence assertions
+    \+ `mise run check`); the CID loop can't dispatch a real ARM release. Plan:
+    `.claude/plans/restore-linux-aarch64-python-wheels.md`. Dev env: no actionlint/yamllint/
+    system-pyyaml; pyyaml IS reachable via `uv run python`.
+- **v0.6.0 remaining after #49**: dep refresh + 2 release-workflow fixes (npm OIDC, single-registry
+    re-trigger, both human-gated). One per iteration; each spec'd.
