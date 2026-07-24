@@ -36,3 +36,36 @@ archived entries.
     binaryTarget, packages/swift for CI dev; `releaseChecksum="PLACEHOLDER"` until first swift-input
     release); Kotlin JAR pick `ls *.jar | head -1` grabs `-javadoc.jar` — must `grep -v`
     classifiers.
+
+## Gate pipeline detail (condensed out of MEMORY.md iter 115)
+
+- **iai perf gate full pipeline** (`Perf (iai-callgrind)` ci.yml:281-333, enforcing): valgrind →
+    binstall `iai-callgrind-runner@0.16.1 --force` → run benches (`IAI_CALLGRIND_ALLOW_ASLR=true`) →
+    `Assert non-zero instruction collection` (`grep -rEq '^summary: [1-9]' target/iai/`) →
+    `Check perf regression` (`python3 scripts/iai_regression.py --check`) → upload `iai-baseline`
+    artifact `if: always()`. Baseline `.iai-baseline.json` (repo root, NOT gitignored):
+    `{metric:"Ir", tolerance_pct:10.0, benches:{16 entries}}`. Tasks bench:iai / bench:iai:check /
+    bench:iai:baseline (mise.toml ~126-144). GOTCHA: the `continue-on-error: true` near this block
+    belongs to the SEPARATE semver job, NOT Perf.
+- **CRAP gate full pipeline** (`Coverage + CRAP` ci.yml ~348, enforcing, job-level
+    `security-events: write`): llvm-cov → cargo-binstall → `Install cargo-crap`
+    (`cargo binstall -y --force cargo-crap@0.2.2`) → `cargo llvm-cov -p iscc-lib --lcov` → upload
+    lcov → Phase 2 report-only (`--format github` + `--format sarif` →
+    `codeql-action/upload-sarif@v3`) → Phase 3 enforcing (ci.yml:392-393)
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`.
+    `--fail-above` = boolean keyed off `.cargo-crap.toml threshold = 30.0` (no numeric arg).
+    Baseline `.crap-baseline.json` (repo root): 97 entries / 10 src files, regen
+    `mise run crap:baseline`. `.cargo-crap.toml` excludes 7 binding crates +
+    packages/scripts/benches. Max CRAP ~22.3 < 30. GOTCHA: yamlfix folds the long run: scalar onto 2
+    physical lines — confirm via yaml.safe_load.
+- **iai_regression.py** (248 lines, stdlib-only): `--check` parses `target/iai/**/*.out` summary
+    lines vs `.iai-baseline.json`, fails >10% Ir. `check_regressions(allow_missing)`: shared over
+    tolerance FAIL; shared zero-Ir FAILS regardless of flag; baselined-missing FAILS unless
+    allow_missing; run-only new benches WARN. 11 fixture tests in tests/test_iai_regression.py.
+- **iai_benches.rs**: 11 `bench_*` fns (9 gen + cdc + minhash) in
+    `library_benchmark_group!(iscc_benches)`, 16 parametrized cases. `[[bench]] harness=false`.
+    `[profile.bench] strip=false debug=true` (Cargo.toml:61) preserves `__iai_callgrind_wrapper`.
+    `#[library_benchmark]` fns use `//` not `///` (macro abort!s on doc).
+- **PyO3 migration** (issue #1 closed iter 105): pinned 0.29, lockfile single 0.29.0. Load-bearing
+    `#[pymodule(name="_lowlevel", gil_used=true)]` (iscc-py lib.rs:697) — explicit b/c PyO3 0.28
+    flipped default true→false.
