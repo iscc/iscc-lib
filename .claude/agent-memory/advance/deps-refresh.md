@@ -10,10 +10,14 @@ metadata:
 Slices done: 1 `Cargo.lock` (iter 124), 2 `uv.lock` (iter 125), 3 direct Rust pins (iter 126), 4 GHA
 actions in ci.yml + docs.yml (iter 127: checkout v7, setup-python v7, setup-uv v9, setup-node v7,
 setup-java v5, setup-go v7, setup-dotnet v6, upload-artifact v7, upload-sarif v4,
-upload-pages-artifact v5 + deploy-pages v5 — paired). Remaining: `release.yml` actions (97 `uses:`
-refs; upload/download-artifact@v4 must move together; only truly validated by a release run),
-per-binding manifests (napi package.json, rb Gemfile/gemspec, jni pom.xml, kotlin build.gradle.kts,
-dotnet .csproj, go go.mod), ruff 0.16 adoption.
+upload-pages-artifact v5 + deploy-pages v5 — paired). GOTCHA: `astral-sh/setup-uv` has NO floating
+major tag past v7 — v8.x/v9.0.0 are exact release tags only, so write `@v9.0.0` not `@v9` (iter-127
+CI failure: "Unable to resolve action"). `releases/latest` proves a release exists, NOT that a
+floating `@vN` tag exists — confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`.
+Remaining: `release.yml` actions (97 `uses:` refs; upload/download-artifact@v4 must move together;
+setup-uv there needs `@v9.0.0` too; only truly validated by a release run), per-binding manifests
+(napi package.json, rb Gemfile/gemspec, jni pom.xml, kotlin build.gradle.kts, dotnet .csproj, go
+go.mod), ruff 0.16 adoption.
 
 Verified current on 2026-07-24 (no bump needed): `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
 mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,

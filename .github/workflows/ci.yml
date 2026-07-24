@@ -58,7 +58,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           allow-prereleases: true
-      - uses: astral-sh/setup-uv@v9
+      # exact tag: setup-uv publishes no floating major tag past v7 (v8/v9 are
+      # exact release tags only), so @v9 does not resolve
+      - uses: astral-sh/setup-uv@v9.0.0
       - name: Install dev dependencies
         run: uv sync --group dev
       - name: Build Python bindings
