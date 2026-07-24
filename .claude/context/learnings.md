@@ -84,51 +84,40 @@ fully-met target sections to `learnings-archive.md`.
     `grep`, `sed`) MUST specify `shell: bash`. Existing publish jobs avoid this by only running
     version extraction on `ubuntu-latest`, but per-matrix version steps (like in `build-ffi`) hit
     Windows. Always check `shell:` declarations when adding `run:` steps to cross-platform matrices
-- **Release pipeline pattern**: boolean input → build job → smoke test job → publish job. 6 smoke
-    test jobs (test-wheels, test-napi, test-wasm, test-gem, test-jni, test-ffi) gate publish. Each
-    tests linux-x86_64 artifact on ubuntu-latest
+- **Release pipeline pattern**: boolean input → build → smoke test → publish. 6 smoke test jobs
+    (test-wheels/napi/wasm/gem/jni/ffi) gate publish, each testing the linux-x86_64 artifact on
+    ubuntu-latest
 - **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
-    `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger
-    convention breaks for Swift — needs a spec fix to derive version from `Cargo.toml`
-- **Release input count**: Now 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift). When re-triggering individual registries, always use `--ref main`
-- **Version sync**: `version_sync.py` manages 16 targets (including root `Package.swift`
-    releaseTag). `--check` mode exits 1 on mismatch
+    `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger breaks
+    for Swift — needs a spec fix to derive version from `Cargo.toml`
+- **Release input count**: 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift); re-trigger individual registries with `--ref main`
+- **Version sync**: `version_sync.py` manages 16 targets (incl. root `Package.swift` releaseTag);
+    `--check` exits 1 on mismatch
 - **`semver` + `coverage` CI jobs** (iter 93/94; details in `learnings-archive.md`): `semver` is
-    INFORMATIONAL pre-1.0 (`continue-on-error: true`, becomes enforcing at v1.0.0 by dropping it;
-    `rust-core.md` line 372 checkbox stays `[ ]` until then); `coverage` is enforcing.
-    `mise run   semver` / `mise run coverage` run them locally
-- **`cargo binstall` + `Swatinem/rust-cache` poisoning** (iter 100): rust-cache restores install
-    *metadata* without the `~/.cargo/bin/<tool>` binary, so plain `cargo binstall -y <tool>` skips
-    and the next call dies `no such command` → CI RED. Fix: add `--force` (gate *strengthening*, not
-    circumvention)
-- **CRAP gate (iter 96/97/113, ci-cd.md; full mechanics in `learnings-archive.md`)**:
-    `Coverage +   CRAP` job runs report-only, then the ENFORCING Phase 3 gate
-    `cargo crap --lcov lcov.info   --baseline .crap-baseline.json --fail-regression --fail-above`.
-    `.crap-baseline.json` COMMITTED (`mise run crap:baseline` regen byte-identical);
-    `.cargo-crap.toml` MUST exclude `crates/iscc-lib/benches/**` (else `bench_cdc_chunks` leaks at
-    CRAP 42); `--fail-above` (threshold 30.0, boolean) closes the new-fn blind spot. Current max
-    CRAP ~22.3 < 30
+    INFORMATIONAL pre-1.0 (`continue-on-error: true`, becomes enforcing at v1.0.0; `rust-core.md`
+    checkbox stays `[ ]` until then); `coverage` is enforcing. Run locally via `mise run semver` /
+    `mise run coverage`
+- **CRAP gate (iter 96/97/113, ci-cd.md; full mechanics in `learnings-archive.md`)**: ENFORCING
+    Phase 3 gate
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression   --fail-above`.
+    `.crap-baseline.json` COMMITTED (regen via `mise run crap:baseline`, byte-identical);
+    `.cargo-crap.toml` MUST exclude `crates/iscc-lib/benches/**`; `--fail-above` threshold 30.0,
+    current max CRAP ~22.3
 - **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING & HARDENED (iter 107-110, #3)**: standalone
     enforcing `perf` job; `[profile.bench] strip = false, debug = true` load-bearing (else stripped
-    binary → all benches `summary: 0` false-green). Full saga + review recipe in
-    `learnings-archive.md` and review `MEMORY.md`
-- **`Audit (cargo-deny)` gate — LANDED & ENFORCING (iter 114, ci-cd.md line 448)**: root `deny.toml`
-    (config v2, `yanked = "deny"`, `multiple-versions = "warn"`, two dev-only iai-callgrind
-    advisories `RUSTSEC-2025-0141`/`RUSTSEC-2026-0173` ignored) + enforcing `audit` CI job
-    (`cargo-deny@0.19.9` → `cargo deny check`) + `mise run audit`. cargo-deny reads Cargo.lock +
-    metadata (NOT artifacts) so `cargo deny check` green locally is authoritative; installable in
-    the devcontainer via `cargo binstall cargo-deny@0.19.9`
-- **`cargo-deny` surfaces yanked crate OR fresh advisory → `cargo update -p`, never loosen the class
-    (iter 114/115)**: `yanked = "deny"` surfaced yanked `wasm-bindgen 0.2.111` / `js-sys 0.3.88`
-    (fix: `cargo update -p` the wasm-bindgen family to 0.2.125/0.3.102, 10 crates, no manifest
-    change). A NEW RustSec advisory flips the enforcing `Audit` gate red on *any* push with no code
-    change — not a regression (iter 115: RUSTSEC-2026-0204 vs dev-only `crossbeam-epoch 0.9.18` →
-    `cargo update -p crossbeam-epoch` to 0.9.20, exactly 1 pkg). Prefer the root fix (drops the bad
-    version from the graph; confirm dev-only reach with `cargo tree -i <crate> -e no-dev` = empty)
-    over a `deny.toml` ignore — ignore ONLY when no patched release exists. Treat the lockfile delta
-    like a regenerated baseline artifact; `cargo deny check` green locally is authoritative
+    binary → all benches `summary: 0` false-green). Full saga in `learnings-archive.md` + review
+    `MEMORY.md`
+- **`Audit (cargo-deny)` gate — LANDED & ENFORCING (iter 114/115, ci-cd.md line 448)**: root
+    `deny.toml` (config v2, `yanked = "deny"`, two dev-only iai-callgrind advisories ignored) +
+    enforcing `audit` CI job (`cargo-deny@0.19.9` → `cargo deny check`) + `mise run audit`.
+    cargo-deny reads Cargo.lock + metadata (NOT artifacts) so `cargo deny check` green locally is
+    authoritative (install via `cargo binstall cargo-deny@0.19.9`). A yanked crate OR fresh RustSec
+    advisory flips the gate red on ANY push with no code change — not a regression. Fix with
+    `cargo update -p <crate>` (drops the bad version; confirm dev-only reach via
+    `cargo tree -i <crate> -e no-dev` = empty), NOT a `deny.toml` ignore — ignore ONLY when no
+    patched release exists
 
 ## Branching
 
@@ -151,6 +140,17 @@ fully-met target sections to `learnings-archive.md`.
     tests build fine; only the bench target breaks. Scope clippy to the lib
     (`--no-default-features -- -D warnings`, no `--all-targets`) to avoid a false regression. CI
     never runs this combo
+- **blake3 WASM SIMD needs the `wasm32_simd` Cargo feature, NOT just `-C target-feature=+simd128`
+    (iter 117, #42)**: blake3 1.8.x `Platform::detect()` returns `WASM32_SIMD` only when the
+    `blake3_wasm32_simd` cfg is set, which its `build.rs` emits SOLELY from
+    `CARGO_FEATURE_WASM32_SIMD` (the `blake3/wasm32_simd` feature) — independent of the
+    target-feature. With `blake3 = "1"` (default features) it stays `Platform::Portable`. RUSTFLAGS
+    `simd128` is necessary (so `wasm32_simd.rs` compiles) but NOT sufficient. Counting `v128`
+    opcodes is a FALSE-POSITIVE signal for "BLAKE3 SIMD active" — LLVM auto-vectorizes the portable
+    path into `v128` too; prove the backend with a before/after `SumHasher` throughput bench. Fix:
+    give iscc-wasm a direct `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep
+    (feature-unifies for the wasm-only build; other bindings never depend on iscc-wasm so they are
+    unaffected)
 
 ## Documentation Maintenance
 
@@ -194,15 +194,10 @@ fully-met target sections to `learnings-archive.md`.
     minutes, which is normal (runner timeout raised to 3600s for advance). All other roles run on
     `opus` (alias floats to the newest Opus). This is deliberate model diversity: Fable implements,
     Opus reviews, Codex gives an independent second opinion. Do not "unify" the roles onto one model
-- **Advisor tool evaluated and deferred (2026-07)**: the Claude Code advisor (`--advisor` /
-    `advisorModel`) was assessed for the CID loop and rejected for now. A Fable 5 main model accepts
-    only a Fable advisor and Fable is not currently offered as one, so `advance` — the role that
-    would benefit most — cannot use it. For the Opus roles the only pairing is Opus-advising-Opus,
-    which duplicates what the review role and the Codex second opinion already provide, at extra
-    cost (each advisor call re-reads the full transcript uncached and counts against subscription
-    limits, with model-driven, uncappable timing). Revisit when Fable 5 becomes selectable as an
-    advisor (`/advisor` picker no longer shows it as unavailable) — then Fable-main + Fable-advisor
-    on `advance` is the configuration worth testing
+- **Advisor tool evaluated and deferred (2026-07)**: the Claude Code advisor was assessed for the
+    CID loop and rejected for now (Fable-main accepts only a Fable advisor, not offered;
+    Opus-advising- Opus duplicates review + Codex at extra cost). Revisit when Fable 5 becomes
+    selectable as an advisor. Full rationale in `learnings-archive.md`
 
 ## Devcontainer Scripts (exec bit / Windows bind mount)
 

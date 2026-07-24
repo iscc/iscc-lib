@@ -26,6 +26,12 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     always true for multi-line files — use `! grep -q 'pattern'` to verify absence
 - next.md test specs / expected values / test counts may be wrong — always run tests, verify against
     Rust implementation
+- **Build-flag change that claims to enable a backend (iter 117, #42)**: don't trust "flag set →
+    goal met". Verify the backend is ACTUALLY selected by reading the dependency's build.rs feature
+    gating. blake3 1.8.x WASM SIMD needs the `blake3/wasm32_simd` **Cargo feature**
+    (`CARGO_FEATURE_WASM32_SIMD` → `blake3_wasm32_simd` cfg → `Platform::WASM32_SIMD`), NOT just
+    `-C target-feature=+simd128`. Counting `v128` opcodes is a FALSE-POSITIVE (LLVM auto-vectorizes
+    the portable path); demand a before/after throughput bench for backend-activation claims
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix — cross-check doc examples
 - **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
     consistently get this wrong — always verify
@@ -81,3 +87,7 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
 - `.NET version` findings: `dotnet-version: '8.0'` is valid for `actions/setup-dotnet@v4` (resolves
     to latest 8.0.x). Dismiss "use `8.0.x`" suggestions
 - Confused by large generated Kotlin/Swift diffs — those findings are advisory
+- **Trust Codex on dependency-internals findings (iter 117)**: it correctly caught that blake3's
+    `wasm32_simd` backend needs the Cargo feature, not just the target-feature — verified against
+    blake3 source. When Codex cites a dep's build.rs/feature gating, check the dep source before
+    dismissing

@@ -555,3 +555,22 @@ reference-only for humans.
     mise tasks. Local 1.96.0 vs CI-stable Ir agree within 1.66%. KNOWN false-green edges (filed as
     [review] issue): single-bench `summary: 0` reads as improvement & passes (guard only catches
     ALL-zero); a baselined bench that stops emitting `.out` only warns, never fails.
+
+## CID Process (archived from learnings.md)
+
+- **Advisor tool evaluated and deferred (2026-07, full rationale)**: the Claude Code advisor
+    (`--advisor` / `advisorModel`) was assessed for the CID loop and rejected for now. A Fable 5
+    main model accepts only a Fable advisor and Fable is not currently offered as one, so `advance`
+    — the role that would benefit most — cannot use it. For the Opus roles the only pairing is
+    Opus-advising-Opus, which duplicates what the review role and the Codex second opinion already
+    provide, at extra cost (each advisor call re-reads the full transcript uncached and counts
+    against subscription limits, with model-driven, uncappable timing). Revisit when Fable 5 becomes
+    selectable as an advisor (`/advisor` picker no longer shows it as unavailable) — then Fable-main
+    \+ Fable-advisor on `advance` is the configuration worth testing.
+
+## CI/CD (archived from learnings.md)
+
+- **`cargo binstall` + `Swatinem/rust-cache` poisoning (iter 100)**: rust-cache restores install
+    metadata without the `~/.cargo/bin/<tool>` binary → plain `cargo binstall -y <tool>` skips and
+    the next call dies `no such command` → CI RED. Fix: add `--force` (gate strengthening, not
+    circumvention).
