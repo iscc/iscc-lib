@@ -15,7 +15,8 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Failed-job logs**: `gh run view <id> --log-failed | grep -iE "error|RUSTSEC|advisory|FAILED"`
 - **Incremental diff**: `git diff <assessed-at-hash>..HEAD --stat`
 - **Unpushed check**: `git log --oneline origin/develop..HEAD` (origin lags; code after last CI sha
-    UNVERIFIED). Usual case: HEAD = +1 log-only commit.
+    UNVERIFIED). Usual case: HEAD = +1 log-only commit — but NOT guaranteed (iter 121: HEAD ==
+    origin/develop, tip fully pushed incl. log + infra commits). Always check, don't assume.
 - **Tier 1 pub fns**:
     `grep -r "pub fn gen_\|pub const META\|pub const IO\|pub const TEXT" crates/iscc-lib/src/`
 - **C FFI extern count**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
@@ -60,8 +61,10 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - `packages/go/` — pure Go, no CGO/WASM/binaries. **ISCC-IDv1 DONE (iter 119, #43)**: `iscc_id.go` =
     `EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`; `codec.go` `VSV1` const + `decodeHeader` allows
     Version=1 ONLY for MTId (line ~271). Vector `ISCC:MAIGHFECJMOPMIAB` → realm 0/hub 1/ts
-    1751831876325218\. body=`(ts<<12)|hub`. OPEN `[review]`: `IsccDecode` accepts trailing bytes
-    (codec-wide, pre-existing; `len(tail) < nbytes` should be exact-length).
+    1751831876325218\. body=`(ts<<12)|hub`. **Trailing-byte fix DONE (iter 120)**: `IsccDecode` now
+    has BOTH "too short" (`len(tail) < nbytes`, L594) + "too long" (`len(tail) > nbytes`, L597)
+    branches; `DecodeIsccID` inherits, `IsccDecompose` untouched. Parallel gap OPEN in Rust core
+    `iscc_decode` (lib.rs L234) — independent (Go = native reimpl, not FFI).
 - `packages/swift/` + root `Package.swift` — `useLocalFramework` toggle, `.binaryTarget`
     `releaseTag`/`releaseChecksum`; `scripts/build_xcframework.sh` = 5 Apple targets.
 - `packages/kotlin/` — Kotlin/JVM, Gradle 8.12.1, JNA 5.16.0, UniFFI-generated, 9 desktop+Android.
@@ -89,34 +92,46 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Issues diff**: scan issues.md for NEW `[human]`/`[review]` entries + removed (resolved) ones;
     watch `HUMAN REVIEW REQUESTED`, critical reshuffles, large specs growth = human re-scoped.
 
-## Current State (assessed-at: bd3d622, iter 120)
+## Current State (assessed-at: 1d28684, iter 121)
 
 - **IN_PROGRESS — CI GREEN on pushed tip.** v0.5.0 released (workspace version `0.5.0`), all 12
-    bindings meet CORE criteria. GIL theme (#39+#41) COMPLETE, #42 WASM SIMD DONE (iter 118), **#43
-    Go ISCC-IDv1 DONE (iter 119)**. Two spec'd v0.6.0 feature packages + robustness/infra fixes
-    still open.
-- **CI GREEN on origin/develop tip `8bc7c17`** (iter-119 review commit) — all check-runs `success`
-    incl. `Go (go test, go vet)` with the ISCC-IDv1 change, `Audit (cargo-deny)`, Perf,
-    Coverage+CRAP, Semver, WASM. HEAD `bd3d622` = +1 log-only commit (`cid(log): iteration 119`),
-    unpushed, no source → nothing to verify.
-- **#43 Go ISCC-IDv1 RESOLVED (iter 119, PASS_WITH_NOTES)** → Go now **met**. See packages/go
-    landmark. Surfaced a NEW `normal` `[review]` issue: `IsccDecode` accepts trailing bytes
-    (codec-wide, pre-existing, NOT a #43 regression) — recommended NEXT pick (concrete, no human
-    gating): exact-length body check in `codec.go`.
+    bindings meet CORE criteria. GIL theme (#39+#41) COMPLETE, #42 WASM SIMD DONE (iter 118), #43 Go
+    ISCC-IDv1 DONE (iter 119), **Go IsccDecode trailing-byte fix DONE (iter 120)**. One CID-doable
+    robustness fix + two spec'd v0.6.0 feature packages + release/infra fixes still open.
+- **CI GREEN on origin/develop tip `1d28684`** — all **21 check-runs** `success` (Rust, all 12
+    bindings, Coverage+CRAP, cargo-crap, Perf, Audit (cargo-deny), Semver, Version consistency,
+    WASM, Bench). This time **HEAD == origin/develop** (tip is pushed; `origin/develop..HEAD` empty
+    — NOT the usual +1 log-only commit). Last 3 commits = `feat/docs(cid)` INFRA (audit role,
+    metrics tooling, decisions.md, scope escape valve) — no target/product source. Only
+    target-relevant source since bd3d622 = Go `codec.go` trailing-byte fix (CI-verified).
+- **Go IsccDecode trailing-byte RESOLVED (iter 120, PASS)** — `codec.go` now has BOTH "too short"
+    (`len(tail) < nbytes`, ~L594) and NEW "too long" (`len(tail) > nbytes`, ~L597) branches;
+    `DecodeIsccID` inherits via delegation; `IsccDecompose` untouched. Prior `[review]` issue
+    deleted.
+- **NEW `normal` `[review]` issue — Rust core `iscc_decode` SAME trailing-byte gap** (lib.rs L234:
+    only `tail.len() < nbytes`, then `tail[..nbytes]` L245). Codec-wide, pre-existing, inherited by
+    all 11 delegating bindings. **Recommended NEXT pick** (concrete, no human gating): mirror Go's
+    two-branch fix — add `tail.len() > nbytes` rejection after L234, keep "too short" test (~L1547)
+    green, update docstring, `cargo test -p iscc-lib` + conformance, leave decompose loop (~L955).
+    NOTE: Go binding is a native codec reimpl, NOT FFI → Go fix and Rust fix are independent.
 - **#42 WASM SIMD (DONE iter 118)**: direct `blake3 = { features = ["wasm32_simd"] }` dep in
     iscc-wasm/Cargo.toml (feature-unify only, NO `use blake3`). All 4 spec boxes `[x]`. See Gotchas.
 - **cargo-deny gate LANDED & enforcing** — see Quality Gates. Live advisory can re-red it any push
     (prefer `cargo update -p` over deny.toml ignore).
 - **v0.6.0 remaining (`normal`, spec'd)**: #49 aarch64 wheels (`[human]`), dependency review/refresh
     (`[human]`) → Python/CI-CD **partially met**.
-- **7 issues: 0 critical, 5 normal (1 `[review]` + 4 `[human]`), 2 low `[human]`.** normal
+- **7 issues: 0 critical, 5 normal (1 `[review]` Rust-core + 4 `[human]`), 2 low `[human]`.** normal
     `[human]`: aarch64 wheels, dep refresh, npm OIDC migration, single-registry re-trigger bug. Low
     (CID skips): v1.0.0 HELD by Titusz (stay 0.5.x, flip Semver enforcing at cut), docs logos.
 - **MET sections**: Node, WASM, C FFI, Java, **Go**, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README,
     per-crate READMEs, Docs, Benchmarks.
-- **Don't re-flag as new work**: #43 Go ISCC-IDv1 (DONE iter 119), #42 WASM SIMD (DONE iter 118),
-    GIL #41 (iter 116, DONE), cargo-deny gate, CRAP `--fail-above` (iter 113), iai perf gate
-    (107-111), PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher #37.
+- **Don't re-flag as new work**: Go IsccDecode trailing-byte (DONE iter 120), #43 Go ISCC-IDv1 (DONE
+    iter 119), #42 WASM SIMD (DONE iter 118), GIL #41 (iter 116, DONE), cargo-deny gate, CRAP
+    `--fail-above` (iter 113), iai perf gate (107-111), PyO3 #1 (105), semver gate (93), npm #38,
+    GIL #39, SumHasher #37.
+- **CID infra landmark (iter 120)**: `audit` role (`.claude/agents/audit.md`, `mise run cid:audit`),
+    metrics (`tools/metrics.py`, `metrics.jsonl`), `decisions.md`, scope escape valve — all meta,
+    NOT target.md sections; ignore for met/not-met.
 
 ## Gotchas
 
@@ -127,12 +142,11 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     bullets. Test `uv run mdformat /tmp/copy.md` before committing; bisect line ranges to locate.
 - **live advisory DB** — cargo-deny `advisories` can turn a previously-green gate red with no code
     change (see Audit gate).
-- **blake3 WASM SIMD (RESOLVED iter 118 #42 — kept as reference)** — BLAKE3's `wasm32` SIMD backend
-    (blake3 1.8.x) is gated by the `blake3/wasm32_simd` **Cargo feature** (NOT by RUSTFLAGS alone;
-    `v128` opcodes are a WEAK signal — LLVM auto-vectorizes the portable path too). FIX = direct
-    `blake3 = { features = ["wasm32_simd"] }` dep in iscc-wasm/Cargo.toml (feature-unifies, native
-    inert). Proof = `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3` shows
-    `wasm32_simd`. simd128 RUSTFLAGS + `--enable-simd` wasm-opt still needed (auto-vec + wasm-opt).
+- **blake3 WASM SIMD (RESOLVED iter 118 #42 — reference)** — `wasm32` SIMD backend is gated by the
+    `blake3/wasm32_simd` **Cargo feature** (NOT RUSTFLAGS alone; `v128` opcodes are a WEAK signal —
+    LLVM auto-vectorizes portable path too). Proof:
+    `cargo tree -p iscc-wasm --target   wasm32-unknown-unknown -i blake3` shows `wasm32_simd`.
+    simd128 RUSTFLAGS + `--enable-simd` wasm-opt still needed.
 - Go = pure Go only (no WASM/wazero/binaries). **csbindgen** runs on every `cargo build`
     (`crates/iscc-ffi/build.rs`).
 - **UniFFI** = proc-macro, no uniffi.toml/build.rs. **Kotlin** uses JNA (not JNI) — needs BOTH

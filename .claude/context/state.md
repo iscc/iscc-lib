@@ -1,18 +1,19 @@
-<!-- assessed-at: bd3d622205f5e536ca291c46d97c70b8101823aa -->
+<!-- assessed-at: 1d28684830d665c028c15024fea237edef77c669 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-v0.5.0 — v0.6.0 backlog; Go ISCC-IDv1 (#43) DONE, two feature packages + reliability fixes remain
+## Phase: Post-v0.5.0 — v0.6.0 backlog; Go trailing-byte fix DONE, Rust-core parallel gap + two feature packages + reliability fixes remain
 
 v0.5.0 is released across all registries and all 12 language bindings meet their core criteria.
-Iteration 119 finished issue #43 (Go experimental ISCC-IDv1): `packages/go/iscc_id.go` adds
-`EncodeIsccID` / `DecodeIsccID` + `IsccIDv1Result`, a `VSV1` const, and a MainType-ID-only Version=1
-relaxation in `decodeHeader`, verified against the `ISCC:MAIGHFECJMOPMIAB` vector. **CI is GREEN on
-the pushed develop tip (`8bc7c17`)**, all check-runs `success`. The project stays IN_PROGRESS: two
-spec'd v0.6.0 feature packages, three release/robustness issues, and dependency freshness remain
-open.
+Iteration 120 landed the Go `IsccDecode` trailing-byte rejection (`packages/go/codec.go`), closing
+the alias gap where `ISCC:MAIGHFECJMOPMIABAA` decoded identically to canonical
+`ISCC:MAIGHFECJMOPMIAB`; the review agent then filed the **identical gap in the Rust core**
+`iscc_decode` as a new `normal` `[review]` issue. **CI is fully GREEN on the pushed develop tip
+(`1d28684`)** — all 21 check-runs `success`. The project stays IN_PROGRESS: one CID-actionable
+robustness fix, two spec'd v0.6.0 feature packages, two release-reliability issues, and dependency
+freshness remain open.
 
 ## Rust Core Crate
 
@@ -30,7 +31,16 @@ open.
     `continue-on-error: true`; against the 0.5.0 baseline it reports `success`. The target's
     **enforcing** criterion for v1.0.0 stays unmet (`rust-core.md` semver box `[ ]`) — flip to
     enforcing only at the human-gated v1.0.0 cut, which is held.
-- Workspace version is `0.5.0`. Only remaining Rust Core gap is the held v1.0.0 semver enforcement.
+- **NEW open robustness issue (`normal` `[review]`, NOT a target-gap)**: `iscc_decode`
+    (`crates/iscc-lib/src/lib.rs`, line 234) checks only `tail.len() < nbytes` ("too short"), then
+    copies `tail[..nbytes]` (line 245) and silently drops any trailing bytes — so
+    `iscc_decode("ISCC:MAIGHFECJMOPMIABAA")` aliases the canonical form. Codec-wide (every
+    MainType), pre-existing, inherited by all 11 delegating bindings. Verified still open (only the
+    "too short" branch present). `iscc_decode` is Tier 1 but the fix is a signature-neutral
+    stricter-input- validation change, not an API break. **Recommended next pick** (see Next
+    Milestone).
+- Workspace version is `0.5.0`. Aside from the new robustness issue, the only remaining Rust Core
+    gap is the held v1.0.0 semver enforcement.
 
 ## Python Bindings
 
@@ -44,7 +54,8 @@ open.
     strictly AFTER frame-signature extraction. Meta/audio/mixed stay attached by design.
 - **Gap (v0.6.0, issue #49)**: `linux/aarch64` (`manylinux_2_17_aarch64`) wheels are not built — the
     `build-wheels` matrix in `release.yml` was dropped around 0.2.0; only
-    x86_64/universal2/win_amd64 ship. Target requires Linux x86_64 **and aarch64** wheels.
+    x86_64/universal2/win_amd64 ship. Target requires Linux x86_64 **and aarch64** wheels. Plan at
+    `.claude/plans/restore-linux-aarch64-python-wheels.md`.
 
 ## Node.js Bindings
 
@@ -64,8 +75,7 @@ open.
     unification — no `use blake3` in source, must not be pruned as "unused"), making
     `Platform::detect()` return `WASM32_SIMD` on the wasm-only build. The landed
     `RUSTFLAGS=-C target-feature=+simd128` (ci.yml + release.yml) and `--enable-simd` wasm-opt flag
-    remain in place. Verified via cargo-tree feature graph, byte-identical conformance, and a
-    1993→5370 `v128`-opcode jump. All four `specs/wasm-bindings.md` "WASM SIMD" boxes checked.
+    remain in place. All four `specs/wasm-bindings.md` "WASM SIMD" boxes checked.
 
 ## C FFI
 
@@ -82,21 +92,22 @@ open.
 
 ## Go Bindings
 
-**Status**: met — experimental ISCC-IDv1 (#43) landed iteration 119, CI-verified
+**Status**: met — ISCC-IDv1 (#43) landed iter 119, trailing-byte hardening landed iter 120, both
+CI-verified
 
 - Core met: pure Go (no CGO), all 32 Tier 1 symbols, `Go (go test, go vet)` CI job GREEN,
     `CGO_ENABLED=0` holds.
 - **ISCC-IDv1 support DONE (issue #43)**: `packages/go/iscc_id.go` adds `EncodeIsccID` /
     `DecodeIsccID` + `IsccIDv1Result`, `codec.go` adds `VSV1` const and a MainType-ID-only Version=1
-    relaxation in `decodeHeader` (body = `(timestamp<<12)|hub_id`, MT=ID/ST=realm/V=1/len=0).
-    Faithful port of iscc-core's `gen_iscc_id_v1`; both functions carry "experimental" doc markers.
-    Verified: `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` → realm 0/hub 1/ts 1751831876325218 (both
-    prefix forms), round-trip + boundary tests, Version>0 still rejected for non-ID MainTypes. All 5
-    `specs/go-bindings.md` "verified when" boxes checked. Unblocks iscc-monitor's ADR-0011.
-- **Open hardening issue (`normal` `[review]`, NOT a target-gap)**: `IsccDecode` (and thus
-    `DecodeIsccID`) silently accepts trailing base32 bytes — `ISCC:MAIGHFECJMOPMIABAA` decodes
-    identically to the canonical form. Pre-existing and codec-wide (affects every MainType, not a
-    #43 regression). Recommended next fix (see Next Milestone).
+    relaxation in `decodeHeader`. Verified against `ISCC:MAIGHFECJMOPMIAB` (realm 0/hub 1/ts
+    1751831876325218). All 5 `specs/go-bindings.md` "verified when" boxes checked.
+- **Trailing-byte hardening DONE (iter 120, prior `[review]` issue RESOLVED)**: `IsccDecode`
+    (`codec.go`) now has both a "too short" (`len(tail) < nbytes`, line 594) and a NEW "too long"
+    (`len(tail) > nbytes`, line 597) rejection branch, so `ISCC:MAIGHFECJMOPMIABAA` now errors
+    instead of aliasing canonical. `DecodeIsccID` inherits the fix via delegation; `IsccDecompose`
+    (own body loop) untouched. Two focused tests added; review verdict PASS. The equivalent gap in
+    the Rust core `iscc_decode` was filed separately (see Rust Core section) and is independent (Go
+    reimplements the codec natively, not via FFI).
 
 ## Ruby Bindings
 
@@ -168,12 +179,15 @@ open.
 
 **Status**: partially met — **CI GREEN** on pushed tip; two v0.6.0 target gaps remain
 
-- **LATEST CI RUN — SUCCESS.** origin/develop tip == `8bc7c17` (iter-119 review commit). All
-    check-runs (Rust, all 12 bindings incl. Go with the ISCC-IDv1 change, Coverage+CRAP, cargo-crap,
-    Perf, **Audit (cargo-deny)**, Semver, Version consistency, WASM) report `success` via the
-    check-runs API.
-- **HEAD (`bd3d622`) is a +1 log-only commit, unpushed** (`origin/develop..HEAD` = 1 commit,
-    `cid(log): iteration 119`). No source changes ride on it — nothing to CI-verify.
+- **LATEST CI RUN — SUCCESS.** origin/develop tip == HEAD == `1d28684`. All 21 check-runs (Rust, all
+    12 bindings incl. Go, Coverage+CRAP, cargo-crap, Perf, **Audit (cargo-deny)**, Semver, Version
+    consistency, WASM, Bench) report `success` via the check-runs API. Run:
+    https://github.com/iscc/iscc-lib/actions/runs/30109824628
+- **HEAD is pushed** — `git log origin/develop..HEAD` is empty (no unpushed log-only commit this
+    time). The last three commits (`feat(cid)`/`docs(cid)`) are CID-loop infrastructure (audit role,
+    metrics tooling, decisions.md, scope escape valve) — no product/target source changes; the only
+    target-relevant source change since the previous assessment is the Go `codec.go` trailing-byte
+    fix, which is CI-verified GREEN.
 - **cargo-deny gate enforcing** (unchanged): root `deny.toml`, `Audit (cargo-deny)` CI job
     (`ci.yml`, `cargo-deny@0.19.9`, no `continue-on-error`), `mise run audit`. NOTE: a future
     live-advisory can flip this red on any push with no code change — normal, not a regression
@@ -193,8 +207,9 @@ No open issue is CI-blocking. Any open issue keeps the project IN_PROGRESS.
 
 CID-actionable now:
 
-- Go `IsccDecode` accepts trailing bytes (`normal`, `[review]`) — recommended next pick; concrete
-    scoped fix, no human gating required.
+- Rust core `iscc_decode` accepts trailing bytes (`normal`, `[review]`) — recommended next pick;
+    concrete scoped fix, no human gating required. Same two-branch pattern as the just-landed Go
+    fix.
 
 v0.6.0-scoped (`normal`, `[human]`, each with a spec):
 
@@ -213,15 +228,15 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-**The Go `IsccDecode` trailing-byte hardening issue (`normal`, `[review]`) is the recommended next
-pick.** It is concrete, well-scoped, CID-actionable (no human gating), and closes a real robustness
-gap: `IsccDecode` copies only the header-declared `nbytes` and silently ignores trailing base32
-bytes, so `ISCC:MAIGHFECJMOPMIABAA` aliases the canonical `ISCC:MAIGHFECJMOPMIAB` (and
-`DecodeIsccID` inherits it). Scope: change the `len(tail) < nbytes` guard in `packages/go/codec.go`
-to an exact-length check, re-run `go test ./...` + `ConformanceSelftest` to confirm no vendored
-vector relies on trailing padding, and verify `IsccDecompose` (its own body loop) is unaffected. If
-a codec-wide exact check risks conformance breakage, fall back to an ISCC-IDv1-scoped exact
-10-byte/16-char check inside `DecodeIsccID`.
+**The Rust core `iscc_decode` trailing-byte hardening issue (`normal`, `[review]`) is the
+recommended next pick.** It is concrete, well-scoped, CID-actionable (no human gating), and closes
+the same robustness gap just fixed in Go — but for the stability-committed core and all 11 bindings
+that delegate to it. Scope (mirroring the Go fix): add a `tail.len() > nbytes` rejection branch
+after the existing "too short" check at `crates/iscc-lib/src/lib.rs:234` (keep the "too short"
+message/test intact so `test_*` at ~line 1547 stays green), update the `iscc_decode` docstring
+(currently only mentions "too short"), then `cargo test -p iscc-lib` + the conformance suite to
+confirm no vendored vector relies on trailing padding, and verify the composite-decompose path (its
+own body loop at ~line 955) is untouched.
 
 After that: #49 (aarch64 wheels) and the project-wide dependency review/refresh are the remaining
 CID-doable v0.6.0 targets (release-workflow verification is limited — release.yml only exercises on
