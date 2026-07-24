@@ -94,43 +94,18 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
 - **Recurring**: the enforcing cargo-deny gate WILL periodically go red on fresh RustSec advisories
     vs dev/bench deps — CI-red-first priority; prefer `cargo update -p <crate>` (patch bump) over a
     `deny.toml` ignore when a patched release exists (check `patched` range in advisory-db first).
-- **iter 120: picked the `[review]` Go `IsccDecode` trailing-byte hardening** (filed after #43;
-    concrete, no human gating — preferred over #49/dep-refresh). Root: `IsccDecode` guard was
-    `len(tail) < nbytes` (only rejects too-short), silently copying `tail[:nbytes]` and ignoring
-    trailing base32 chars, so `ISCC:MAIGHFECJMOPMIABAA` aliases canonical `ISCC:MAIGHFECJMOPMIAB`
-    (`DecodeIsccID` inherits). Fix = ADD a `len(tail) > nbytes` "too long" branch (keep the existing
-    "too short" branch so `TestCodecIsccDecodeBodyTooShort`'s `"too short"` assertion stays green).
-    Conformance-safe: canonical ISCC base32 round-trips exactly (N bytes → `ceil(8N/5)` chars → N
-    bytes; 2-byte byte-aligned headers), so `tail==digest` for all vectors — verified empirically
-    (`MAIGHFECJMOPMIABAA`→11 bytes vs canonical 10). Do NOT touch `IsccDecompose` (own body loop
-    legitimately consumes trailing units). 1 code file (`codec.go`) + 2 test files.
-- **iter 121 DONE (review PASS)**: Rust-core `iscc_decode` "too long" guard landed
-    (`crates/iscc-lib/src/lib.rs`), closing the trailing-byte alias for the core + 11 delegating
-    bindings. BUT it broke CI (see iter 122) — the added branch tripped the CRAP `--fail-regression`
-    gate.
-- **iter 122: CI-RED-FIRST — refresh `.crap-baseline.json`.** The iter-121 branch pushed
-    `iscc_decode` cyclomatic above its committed baseline (`4.0/4.11`, entry near line 277), so the
-    enforcing `Coverage + CRAP` job fails `--fail-regression` (`↑ 1 regressed`). Fix = single-file
-    baseline regen via `mise run crap:baseline` (runs `cargo llvm-cov` → lcov.info, then
-    `cargo crap ... --format json --output .crap-baseline.json`). Verify:
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
-    exits 0. **Expect many `line:` fields to shift** (iter 121 added ~7 lines to lib.rs) — legit;
-    only `iscc_decode`'s cyclomatic/coverage/crap should change materially. Do NOT revert the source
-    fix, widen epsilon, or lower the 30.0 `--fail-above`. **Root lesson: the CRAP regression gate is
-    CI-ONLY (not in `mise run check`/pre-commit)** — any step adding a branch/loop to a covered
-    function MUST refresh the baseline in the SAME step (this is exactly how iter 121 slipped).
-- **iter 123: CI GREEN (30/30) after iter-122 baseline refresh → picked #49 aarch64 Python wheels**
-    (over the dep refresh, which is broad/multi-file and ill-suited to one step). Scoped to ONE file
-    `.github/workflows/release.yml`: (1) add
-    `os: ubuntu-24.04-arm / target: aarch64 /   interpreter: python3.10` to the `build-wheels`
-    matrix (native ARM runner, NOT QEMU; `manylinux:   auto` + the existing
-    `/opt/python/cp310-cp310/bin` PATH hack tag it cp310); (2) matrixify the `test-wheels` smoke job
-    (x86_64 + aarch64 via `artifact` = `wheels-<os>-<target>`) so a broken ARM wheel can't ship —
-    matrix keeps `publish-pypi`'s `needs: [...,test-wheels]` unchanged. **Release-only infra →
-    verification is STATIC** (pyyaml `yaml.safe_load` via `uv run python` + grep presence assertions
-    \+ `mise run check`); the CID loop can't dispatch a real ARM release. Plan:
-    `.claude/plans/restore-linux-aarch64-python-wheels.md`. Dev env: no actionlint/yamllint/
-    system-pyyaml; pyyaml IS reachable via `uv run python`.
+- **iters 120–122 DONE (trailing-byte hardening saga; detail in learnings.md + MEMORY-archive.md)**:
+    120 Go `IsccDecode` "too long" branch (`[review]`); 121 Rust-core `iscc_decode` "too long" guard
+    (11 bindings inherit) — but the added branch tripped the CI-only CRAP `--fail-regression` gate;
+    122 CI-RED-FIRST `.crap-baseline.json` refresh via `mise run crap:baseline`. **Root lesson: CRAP
+    regression gate is CI-ONLY (not in `mise run check`/pre-commit)** — any step adding a
+    branch/loop to a covered fn MUST refresh the baseline in the SAME step (this is exactly how iter
+    121 slipped).
+- **iter 123 DONE (#49 aarch64 Python wheels, CI GREEN)**: 1 file `.github/workflows/release.yml` —
+    added `ubuntu-24.04-arm`/`aarch64`/`python3.10` `build-wheels` entry (native ARM, NOT QEMU) +
+    matrixified `test-wheels`. **Release-only infra → verification is STATIC** (pyyaml `safe_load`
+    via `uv run python` + grep presence + `mise run check`); CID can't dispatch a real ARM release.
+    Dev env: no actionlint/yamllint/system-pyyaml; pyyaml IS reachable via `uv run python`.
 - **iter 124: CI GREEN (30/30) → started the dep refresh, sliced per-ecosystem** (handoff mandate:
     it spans ~12 manifests, does NOT cite `[audit]`, so no 8-file valve — must be several small
     steps: Rust lock → Rust direct pins → Python `uv.lock` → each binding-manifest group → tooling
@@ -145,6 +120,21 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     `.iai-baseline.json` via `mise run bench:iai:baseline` in-step if legit. CRAP untouched (no
     source change). Dev env has cargo-deny 0.19.9 + libclang-14 + valgrind, so
     `mise run test/lint/audit/bench:iai:check` all run locally.
-- **v0.6.0 remaining after slice 1**: rest of dep refresh (Rust direct pins, Python, binding
-    manifests, tooling pins) + 2 release-workflow fixes (npm OIDC, single-registry re-trigger, both
+- **iter 125: CI GREEN (slice 1 landed clean) → dep-refresh slice 2 = Python `uv.lock`** (handoff's
+    "cleaner mirror" candidate over Rust direct-pin eval). Run `uv lock --upgrade` at repo ROOT
+    (regenerates `/uv.lock`, 2035 lines, generated → 0 source files). **Two separate uv projects:**
+    root `/uv.lock` (dev tools + `iscc-core` + zensical/docs — the real one) and
+    `crates/iscc-py/uv.lock` (7 lines, NO runtime deps → refresh is a no-op; don't touch). **Dev
+    deps are all UNCONSTRAINED** (`"ruff"`, `"pytest"`, `"ty"`, `"mdformat"`, `"zensical"`… — no
+    version pins), so `--upgrade` pulls absolute latest → biggest risk is a tool major changing
+    behavior (ruff rules, mdformat reformat, ty type errors, zensical/mkdocstrings docs break).
+    Handling: pin the ONE offending tool back in `pyproject.toml` `[dependency-groups] dev` with an
+    inline hold-back comment (keeps diff lockfile-only), NEVER disable a rule/skip a test/weaken a
+    gate. Verify: `uv lock --check` (working-tree consistency check, survives commit) +
+    `mise run test/lint/check` + docs (`uv run zensical build`,
+    `uv run python scripts/gen_llms_full.py`). CI Python job installs from the lock via
+    `uv sync --group dev`; `docs.yml` runs zensical. `iscc-core` conformance is vs vendored
+    `data.json` (authoritative) — comparative tests must still pass. uv 0.11.32.
+- **v0.6.0 remaining after slice 2**: rest of dep refresh (Rust direct pins, binding manifests,
+    tooling pins) + 2 release-workflow fixes (npm OIDC, single-registry re-trigger, both
     human-gated). One slice/issue per iteration; each spec'd.
