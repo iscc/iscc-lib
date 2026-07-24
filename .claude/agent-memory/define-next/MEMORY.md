@@ -131,5 +131,20 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     \+ `mise run check`); the CID loop can't dispatch a real ARM release. Plan:
     `.claude/plans/restore-linux-aarch64-python-wheels.md`. Dev env: no actionlint/yamllint/
     system-pyyaml; pyyaml IS reachable via `uv run python`.
-- **v0.6.0 remaining after #49**: dep refresh + 2 release-workflow fixes (npm OIDC, single-registry
-    re-trigger, both human-gated). One per iteration; each spec'd.
+- **iter 124: CI GREEN (30/30) → started the dep refresh, sliced per-ecosystem** (handoff mandate:
+    it spans ~12 manifests, does NOT cite `[audit]`, so no 8-file valve — must be several small
+    steps: Rust lock → Rust direct pins → Python `uv.lock` → each binding-manifest group → tooling
+    pins). **Slice 1 = pure `cargo update`** (Cargo.lock only, a generated file → 0 source files).
+    Safe because caret ranges stay put: `blake3 1.8.3→1.8.5`, `napi 3.8.3→3.11.0`,
+    `uniffi   0.31.0→0.31.2` (0.32.0 available but HELD — needs Swift/Kotlin re-verify),
+    `wasm-bindgen   0.2.125→0.2.126`, ~100 transitive. **Do NOT touch `Cargo.toml` pins this slice**
+    (uniffi/pyo3-#41/ criterion/iai/magnus-rb_sys/jni/napi all held for individual eval). Two real
+    risks: (a) cargo-deny can flip red on a new transitive license/advisory → run `mise run audit`,
+    prefer `cargo update -p X --precise <patched>` over a deny.toml ignore; (b) iai perf gate
+    (CI-only, ≤10% Ir) can drift on blake3 → `mise run bench:iai:check`, refresh
+    `.iai-baseline.json` via `mise run bench:iai:baseline` in-step if legit. CRAP untouched (no
+    source change). Dev env has cargo-deny 0.19.9 + libclang-14 + valgrind, so
+    `mise run test/lint/audit/bench:iai:check` all run locally.
+- **v0.6.0 remaining after slice 1**: rest of dep refresh (Rust direct pins, Python, binding
+    manifests, tooling pins) + 2 release-workflow fixes (npm OIDC, single-registry re-trigger, both
+    human-gated). One slice/issue per iteration; each spec'd.
