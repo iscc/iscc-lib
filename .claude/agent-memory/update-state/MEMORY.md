@@ -92,33 +92,35 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Issues diff**: scan issues.md for NEW/removed `[human]`/`[review]` entries; watch
     `HUMAN REVIEW REQUESTED`, critical reshuffles, large specs growth = human re-scoped.
 
-## Current State (assessed-at: 9845cf5, iter 123)
+## Current State (assessed-at: 618bb15, iter 124)
 
 - **IN_PROGRESS — CI GREEN on develop tip.** v0.5.0 released (`0.5.0`), all 12 bindings meet CORE
-    criteria. The iter-121/122 CRAP RED is RESOLVED: iter 122 refreshed the `.crap-baseline.json`
-    `iscc_decode` entry (cyclomatic 4→5, coverage 80.95→85.19, crap 4.11→5.08, now ~L223) — source
-    robustness fix stays. Review PASS (handoff).
-- **CI GREEN on origin/develop tip `e76a22b`** (HEAD `9845cf5` = +1 log-only commit iter 122). ALL
-    **30 check-runs `success`** incl. the previously-red `Coverage + CRAP`. Verified via
-    `gh api .../commits/e76a22b/check-runs` (0 non-success). NO CI fix needed this iter.
+    criteria. Iter 123 resolved #49 (aarch64 Python wheels): `release.yml` `build-wheels` gained a
+    4th matrix entry `ubuntu-24.04-arm`/`aarch64`/`python3.10` (native ARM, not QEMU) + matrixed
+    `test-wheels` (x86_64 + aarch64). Matches `ci-cd.md` Build Matrices spec (L285-300). Python now
+    **met**. Release-time-only path (workflow_dispatch+pypi) — NOT run by ci.yml/CID pushes.
+- **CI GREEN on origin/develop tip `cbec132`** (HEAD `618bb15` = +1 log-only commit iter 123,
+    touches only iterations.jsonl). ALL **30 check-runs `success`**. Verified via
+    `gh api .../commits/cbec132/check-runs` (0 non-success). NO CI fix needed. release.yml edit
+    doesn't touch ci.yml surface.
 - **cargo-deny gate enforcing** — see Quality Gates. Live advisory can re-red any push (prefer
     `cargo update -p` over deny.toml ignore).
-- **v0.6.0 remaining (`normal` `[human]`, spec'd, CID-doable)**: #49 aarch64 wheels (plan
-    `.claude/plans/restore-linux-aarch64-python-wheels.md`), dependency review/refresh →
-    Python/CI-CD **partially met**. Next milestone = these two (CI is green, no fix needed).
-- **6 issues: 0 critical, 4 normal `[human]`, 2 low `[human]`.** normal: aarch64 wheels, dep
-    refresh, npm OIDC migration, single-registry re-trigger bug. Low (CID skips): v1.0.0 HELD by
-    Titusz (stay 0.5.x, flip Semver enforcing at cut), docs logos. NO CID-actionable `[review]`/
-    `[audit]` issue open.
+- **v0.6.0 remaining (`normal` `[human]`, spec'd, CID-doable)**: dependency review/refresh ONLY
+    (spec `ci-cd.md`→Dependency Freshness). Scope as per-ecosystem steps (no `[audit]` cite = no
+    8-file valve). This is the sole CID-doable next milestone (CI green, no fix needed).
+- **5 issues: 0 critical, 3 normal `[human]`, 2 low `[human]`.** normal: dep refresh (CID-doable),
+    npm OIDC migration, single-registry re-trigger bug (both human-gated). Low (CID skips): v1.0.0
+    HELD by Titusz (stay 0.5.x, flip Semver enforcing at cut), docs logos. NO CID-actionable
+    `[review]`/`[audit]` issue open.
 - **MET sections**: Node, WASM, C FFI, Java, Go, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README,
-    per-crate READMEs, Docs, Benchmarks. Rust-core (semver-enforcing/v1.0.0 held) + Python (aarch64)
-    - CI/CD (deps freshness, aarch64 matrix) = partially met.
-- **Don't re-flag as new work**: CRAP baseline refresh (iter 122), Rust-core iscc_decode
-    trailing-byte (iter 121), Go IsccDecode trailing-byte (120), #43 Go ISCC-IDv1 (119), #42 WASM
-    SIMD (118), GIL #41 (116), cargo-deny gate, CRAP `--fail-above` (113), iai perf gate (107-111),
-    PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher #37. CID infra (audit role,
-    `metrics.jsonl`, `decisions.md`, scope escape valve) = meta, NOT target sections — ignore for
-    met/not-met.
+    per-crate READMEs, Docs, Benchmarks, **Python** (aarch64 wired iter 123). Rust-core
+    (semver-enforcing/v1.0.0 held) + CI/CD (deps freshness) = partially met.
+- **Don't re-flag as new work**: #49 aarch64 wheels (iter 123, release.yml), CRAP baseline refresh
+    (iter 122), Rust-core iscc_decode trailing-byte (iter 121), Go IsccDecode trailing-byte (120),
+    #43 Go ISCC-IDv1 (119), #42 WASM SIMD (118), GIL #41 (116), cargo-deny gate, CRAP `--fail-above`
+    (113), iai perf gate (107-111), PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher
+    #37. CID infra (audit role, `metrics.jsonl`, `decisions.md`, scope escape valve) = meta, NOT
+    target sections — ignore for met/not-met.
 
 ## Gotchas
 
