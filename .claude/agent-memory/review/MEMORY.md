@@ -45,6 +45,10 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     patterns must include target name (generic wildcards match all extracted dirs)
 - **Advance agent idle claims**: always verify remaining issue priorities independently — they may
     claim "only low-priority remain" when `normal` issues still exist
+- **Go `IsccDecode` ignores trailing bytes (iter 119, filed [review])**: it guards only
+    `len(tail) < nbytes` (too-short) and silently drops extra bytes, so `MAIGHFECJMOPMIABAA` decodes
+    same as `MAIGHFECJMOPMIAB` — codec-wide, NOT ID-specific (a Data-Code + "AA" is accepted too).
+    When reviewing new Go decode/parse surface, probe exact-length rejection with a throwaway test
 - **prek stash conflict**: untracked files with formatting issues break prek stash/restore during
     commit. Fix: move untracked files to /tmp before committing, restore after
 - **`mise run check` mdformat on context files** (recurring): define-next writes `next.md` +
@@ -98,3 +102,7 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     the backend — both verified against blake3 source + a no-flag wasm build. When Codex cites a
     dep's build.rs / `#[target_feature]` / feature gating, check the dep source (and build it)
     before dismissing
+- **Codex is strong on input-validation edge cases (iter 119)**: on new decode/parse code it caught
+    a real trailing-byte acceptance gap in `DecodeIsccID`/`IsccDecode` the local tests missed. When
+    Codex flags "accepts malformed input / trailing data", probe it empirically before dismissing —
+    but characterize regression-vs-pre-existing (here it was a pre-existing codec-wide gap)

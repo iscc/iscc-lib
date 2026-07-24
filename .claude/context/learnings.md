@@ -77,6 +77,13 @@ fully-met target sections to `learnings-archive.md`.
     when bit_length < 256
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
+- **ISCC-IDv1** (`gen_iscc_id_v1`, experimental, NOT in ISO 24138): 64-bit body
+    `= (timestamp << 12) | hub_id`, timestamp = 52-bit µs-since-epoch (`< 2^52`), hub_id = low 12
+    bits (0–4095). Header nibbles: MainType=ID(6), SubType=realm_id (0=test/1=operational),
+    Version=1, length-index=0; body big-endian, base32, `ISCC:` prefix. Known vector:
+    `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub 1, ts 1751831876325218. Go-only port in
+    `packages/go/iscc_id.go` (built via internal `encodeHeader`/`encodeLength`, NOT public
+    `EncodeComponent`); other 11 bindings lack it
 
 ## CI/CD
 
@@ -140,17 +147,11 @@ fully-met target sections to `learnings-archive.md`.
     tests build fine; only the bench target breaks. Scope clippy to the lib
     (`--no-default-features -- -D warnings`, no `--all-targets`) to avoid a false regression. CI
     never runs this combo
-- **blake3 WASM SIMD backend — RESOLVED (iters 117-118, #42)**: the `blake3/wasm32_simd` **Cargo
-    feature** (direct `blake3 = { workspace = true, features = ["wasm32_simd"] }` dep on iscc-wasm,
-    feature-unification only) ACTIVATES the backend — build.rs emits `blake3_wasm32_simd` (→
-    `Platform::detect()` = `WASM32_SIMD`) from `CARGO_FEATURE_WASM32_SIMD` on wasm32 only (native
-    inert). Honest wiring proof:
-    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3   -f "{p} {f}"` shows
-    `wasm32_simd`. The global `-C target-feature=+simd128` RUSTFLAGS is NOT required to compile the
-    backend (blake3's SIMD fns carry `#[target_feature(enable = "simd128")]`; a no-flag
-    `wasm-pack build` compiles + emits `v128`) — it broadens simd128 to the whole crate (auto-vec of
-    CDC/xxh32/minhash) and stays in CI/release; `--enable-simd` needed for wasm-opt. `v128`-opcode
-    counting ALONE is a FALSE-POSITIVE for "backend active" (LLVM auto-vec emits it too)
+- **blake3 WASM SIMD backend — RESOLVED (iters 117-118, #42, full recipe in
+    `learnings-archive.md`)**: the `blake3/wasm32_simd` **Cargo feature** (not the
+    `-C target-feature=+simd128` RUSTFLAGS) activates the backend; verify with
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"`. `v128`-opcode
+    counting alone is a FALSE-POSITIVE (LLVM auto-vec emits it too)
 
 ## Documentation Maintenance
 
@@ -194,13 +195,6 @@ fully-met target sections to `learnings-archive.md`.
     minutes, which is normal (runner timeout raised to 3600s for advance). All other roles run on
     `opus` (alias floats to the newest Opus). This is deliberate model diversity: Fable implements,
     Opus reviews, Codex gives an independent second opinion. Do not "unify" the roles onto one model
-- **Advisor tool evaluated and deferred (2026-07)**: the Claude Code advisor was assessed for the
-    CID loop and rejected for now (Fable-main accepts only a Fable advisor, not offered;
-    Opus-advising- Opus duplicates review + Codex at extra cost). Revisit when Fable 5 becomes
-    selectable as an advisor. Full rationale in `learnings-archive.md`
-
-## Devcontainer Scripts (exec bit / Windows bind mount)
-
-- Windows bind mount uses `core.fileMode = false`, so git ignores on-disk exec bits — invoke
-    devcontainer scripts via `bash foo.sh` and keep convenience steps non-fatal. Full write-up in
-    `learnings-archive.md`.
+- **Advisor tool evaluated and deferred (2026-07)**: Claude Code advisor rejected for the CID loop
+    for now; revisit when Fable 5 becomes selectable as an advisor. Full rationale in
+    `learnings-archive.md`

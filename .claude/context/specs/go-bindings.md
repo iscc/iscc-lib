@@ -134,13 +134,13 @@ binding supports ISCC-IDv1.
 
 **Verified when:**
 
-- [ ] `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` returns realm 0, hub_id 1, timestamp 1751831876325218
+- [x] `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` returns realm 0, hub_id 1, timestamp 1751831876325218
     (with and without the `ISCC:` prefix)
-- [ ] `EncodeIsccID(0, 1, 1751831876325218)` returns `ISCC:MAIGHFECJMOPMIAB` (round-trip holds for
+- [x] `EncodeIsccID(0, 1, 1751831876325218)` returns `ISCC:MAIGHFECJMOPMIAB` (round-trip holds for
     boundary values: hub_id 0 and 4095, realm 0 and 1, max 52-bit timestamp)
-- [ ] `IsccDecode` accepts MainType `ID` with Version 1 and returns the header + 64-bit body
-- [ ] Version > 0 is still rejected for every MainType other than `ID`
-- [ ] Public ISCC-IDv1 symbols carry an "experimental" doc-comment marker
+- [x] `IsccDecode` accepts MainType `ID` with Version 1 and returns the header + 64-bit body
+- [x] Version > 0 is still rejected for every MainType other than `ID`
+- [x] Public ISCC-IDv1 symbols carry an "experimental" doc-comment marker
 
 ## Dependencies
 

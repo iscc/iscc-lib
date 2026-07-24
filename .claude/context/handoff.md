@@ -1,56 +1,66 @@
 # Handoff
 
-## 2026-07-24 — Go ISCC-IDv1 encode/decode (issue #43)
+## 2026-07-24 — Review of: Go ISCC-IDv1 encode/decode (issue #43)
 
-**Done:** Added experimental ISCC-IDv1 support to the pure-Go binding: new `EncodeIsccID` /
-`DecodeIsccID` functions with `IsccIDv1Result` struct (realm, hub ID, 52-bit µs timestamp), plus a
-`VSV1` constant and a relaxed `decodeHeader` that accepts Version=1 exactly when MainType==ID (all
-other MainTypes still reject Version>0). `EncodeComponent`'s reject-Version>0 contract is untouched
-— the ID header is built via the internal `encodeHeader`/`encodeLength` helpers as next.md
-prescribed.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
-
-- `packages/go/iscc_id.go` (new): `EncodeIsccID`, `DecodeIsccID`, `IsccIDv1Result` — all three carry
-    an "Experimental: ISCC-IDv1 is not part of ISO 24138…" doc-comment marker
-- `packages/go/iscc_id_test.go` (new): 8 tests — known vector encode + decode (with and without
-    `ISCC:` prefix), boundary round-trips (realm {0,1} × hubID {0,4095} × timestamp {0, vector,
-    2^52−1}), `IsccDecode` V1 acceptance, Version=1 rejection for MTData, Version=2 rejection for
-    MTId, input validation (`iscc:`-prefixed errors), non-ID rejection in `DecodeIsccID`
-- `packages/go/codec.go`: added `VSV1 Version = 1` const; `decodeHeader` version check now
-    `versionVal > 0 && (MainType(mtypeVal) != MTId || versionVal != uint32(VSV1))`
-- `packages/go/README.md`: two rows for `EncodeIsccID`/`DecodeIsccID` in the Codec Operations table
-    (mdformat realigned the table columns)
+**Summary:** The advance agent added experimental ISCC-IDv1 support to the pure-Go binding
+(`EncodeIsccID`/`DecodeIsccID` + `IsccIDv1Result`, a `VSV1` const, and a MainType-ID-only Version=1
+relaxation in `decodeHeader`). The implementation is a faithful port of iscc-core's `gen_iscc_id_v1`
+(verified against `reference/iscc-core/iscc_core/iscc_id.py`: `body = (timestamp << 12) | hub_id`,
+header MT=ID/ST=realm/V=1/len=0, base32 + `ISCC:` prefix), the public `EncodeComponent` Version>0
+contract is untouched, scope matches next.md exactly, and all tests + quality gates are green. Codex
+surfaced one pre-existing (not regression) input-hardening gap, now filed as an issue.
 
 **Verification:**
 
-- `go test ./...` and `CGO_ENABLED=0 go test ./...` both exit 0 from `packages/go/` (all existing +
-    new tests); `go vet ./...` clean (no output, exit 0)
-- Verbose run confirms all 8 new tests PASS, including
-    `EncodeIsccID(0, 1, 1751831876325218) == "ISCC:MAIGHFECJMOPMIAB"`, both prefix variants decoding
-    to realm 0 / hubID 1 / timestamp 1751831876325218, and `IsccDecode("ISCC:MAIGHFECJMOPMIAB")` →
-    Maintype 6, Version 1, 8-byte digest
-- `mise run format` applied (mdformat reflowed the README table), then `mise run check` exit 0 — all
-    15 hooks Passed
-- All five spec checkboxes in `specs/go-bindings.md` → "ISCC-IDv1 Support (Experimental)" are
-    covered by asserted tests
-- No `go.mod`/`go.sum` change (only stdlib `encoding/binary` added), no `data.json` /
-    `ConformanceSelftest` change — per Not-In-Scope
+- [x] `go test ./...` passes (all existing + 8 new tests) — green from `packages/go/`
+- [x] `CGO_ENABLED=0 go test ./...` passes (pure-Go invariant holds) — green
+- [x] `go vet ./...` clean — exit 0, no output
+- [x] `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` and no-prefix variant → realm 0 / hub 1 / ts
+    1751831876325218 — asserted by `TestDecodeIsccIDKnownVector` (both prefix forms)
+- [x] `EncodeIsccID(0, 1, 1751831876325218)` → `"ISCC:MAIGHFECJMOPMIAB"` —
+    `TestEncodeIsccIDKnownVector`
+- [x] Boundary round-trips (hubID 0/4095, realm 0/1, ts 2^52−1) — `TestIsccIDRoundTripBoundaries`
+    (18 combinations)
+- [x] `IsccDecode` accepts ID/Version=1 → Maintype 6, Version 1, 8-byte digest —
+    `TestIsccDecodeAcceptsIDv1`
+- [x] Version>0 still rejected for non-ID MainType — `TestDecodeHeaderRejectsVersion1ForNonID` (+
+    `TestDecodeHeaderRejectsVersion2ForID` pins the exact-match semantics)
+- [x] `EncodeIsccID` returns `iscc:`-prefixed error for ts≥2^52, hubID≥4096, realm∉{0,1} —
+    `TestEncodeIsccIDValidation`
+- [x] Both functions carry an "experimental" doc-comment marker and appear in
+    `packages/go/README.md` — verified (3 markers in `iscc_id.go`, 2 README rows)
+- [x] `mise run check` — all 15 pre-commit hooks Passed
 
-**Next:** #43 is implemented — reviewer should verify and check the five spec boxes / close the
-issue. Remaining v0.6.0 backlog per the prior review: #49 aarch64 Python wheels, dependency
-review/refresh, npm OIDC migration, single-registry re-trigger fix.
+**Issues found:**
+
+- Codex \[P2\]: `DecodeIsccID`/`IsccDecode` silently accept trailing bytes (e.g.
+    `ISCC:MAIGHFECJMOPMIABAA` decodes identically to the canonical form). Verified **pre-existing
+    and codec-wide** (a Data-Code with `+"AA"` is accepted the same way) — a hardening gap, not a
+    regression from this work. Filed as a `normal` `[review]` issue with a scoped fix
+    recommendation.
+- Doc freshness (fixed directly): added the two new experimental functions to
+    `packages/go/CLAUDE.md`'s "Codec Functions (exported)" list.
+
+**Codex review:** One actionable P2 — trailing-byte acceptance in `DecodeIsccID`. Assessed as a real
+robustness gap but pre-existing in `IsccDecode` (affects every MainType), so it does not block this
+PR; filed for a follow-up iteration. No other findings.
+
+**Next:** #43 is done and its spec checkboxes are ticked. Suggested next work: pick up the new
+`normal` `[review]` issue — tighten Go `IsccDecode` to reject bodies whose length ≠ the
+header-declared `nbytes` (re-run `ConformanceSelftest` to confirm no vendored vector relies on
+padding, and check `IsccDecompose` is unaffected). Remaining v0.6.0 `normal` backlog otherwise: #49
+aarch64 Python wheels, project-wide dependency review/refresh, npm OIDC migration, and the broken
+single-registry re-trigger in `release.yml`.
 
 **Notes:**
 
-- Pre-existing gofmt drift (not from this change): `gofmt -l` under go1.26.1 flags
-    `packages/go/codec_test.go` and `packages/go/conformance.go` (struct-tag/comment alignment rules
-    changed in newer gofmt). Both files are untouched by this step and CI's `go` job runs only
-    `go test` + `go vet` (no gofmt gate), so CI is unaffected. My three Go files are gofmt-clean.
-    Left unfixed as out of scope — flagging for a possible hygiene follow-up.
-- `packages/go/CLAUDE.md`'s "Codec Functions (exported)" list does not yet mention
-    `EncodeIsccID`/`DecodeIsccID` — CLAUDE.md was not in next.md's Scope, so I left it. Reviewer may
-    fix directly or file a follow-up.
-- `TestDecodeHeaderRejectsVersion2ForID` goes slightly beyond the verification list to pin the
-    exact-match (`versionVal == 1`) semantics of the relaxation, guarding against a future `>= 1`
-    regression.
+- Pre-existing gofmt drift under go1.26.1 on two untouched files (`codec_test.go`, `conformance.go`)
+    — struct-tag/comment alignment rules changed in newer gofmt. CI pins go 1.23 and runs only
+    `go test` + `go vet` (no gofmt gate), so CI is unaffected. The advance agent's three new files
+    are gofmt-clean. Not worth a tracked issue (local-toolchain artifact only).
+- The GitHub issue #43 stays open per its "close on release" note (v0.6.0 not yet cut); only the
+    local `issues.md` tracking entry was deleted since the code work is complete.
+- learnings.md trimmed to 200 lines (archived the completed blake3 WASM SIMD investigation to
+    `learnings-archive.md`; added an ISCC-IDv1 algorithm entry).

@@ -7,18 +7,22 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Go bindings: experimental ISCC-IDv1 encode/decode `normal` [human]
+## Go `IsccDecode` silently accepts trailing bytes `normal` [review]
 
-Planned for the **v0.6.0** release. `packages/go` hard-rejects any Version > 0 in `decodeHeader`
-(`codec.go`), so every real ISCC-IDv1 (MainType=6/ID, Version=1) fails with
-`iscc: invalid Version: 1`. Add `EncodeIsccID` / `DecodeIsccID` exposing realm, hub_id, and
-timestamp, plus Version=1 acceptance in `decodeHeader` for MainType ID only — at parity with
-iscc-core's `iscc_id.py`. Mark the API experimental (ISCC-IDv1 is not part of ISO 24138).
-Conformance vector: `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub_id 1, timestamp 1751831876325218.
-Unblocks `iscc/iscc-monitor` deleting its interim in-repo codec port (their ADR-0011).
+`packages/go/codec.go`'s `IsccDecode` validates only that the decoded body is not *too short*
+(`len(tail) < nbytes`) — it copies the header-declared `nbytes` and silently ignores any trailing
+bytes. So `IsccDecode("ISCC:MAIGHFECJMOPMIABAA")` (extra base32 chars) decodes to the same result as
+the canonical `ISCC:MAIGHFECJMOPMIAB`, and `DecodeIsccID` inherits this — permitting malformed IDs
+and multiple textual aliases for one identifier. Verified pre-existing and codec-wide (a Data-Code
+with `+"AA"` appended is accepted the same way), so this is a hardening gap, not a regression from
+the ISCC-IDv1 work (iter 119). Surfaced by the Codex review [P2].
 
-**Spec:** `.claude/context/specs/go-bindings.md` → "ISCC-IDv1 Support (Experimental)" **GitHub:**
-https://github.com/iscc/iscc-lib/issues/43 (close on release)
+**Fix:** tighten `IsccDecode` to reject a body whose length ≠ the header-declared `nbytes` (change
+the `len(tail) < nbytes` guard to an exact-length check), then re-run `go test ./...` and
+`ConformanceSelftest` to confirm no vendored vector relies on trailing padding. If a codec-wide
+exact-length check risks conformance breakage, the minimal alternative is an ISCC-IDv1-scoped exact
+10-byte / 16-base32-char check inside `DecodeIsccID`. Verify `IsccDecompose` (composite multi-unit
+path) is unaffected — it uses its own body loop, not `IsccDecode`.
 
 ## Restore linux/aarch64 Python wheels `normal` [human]
 
