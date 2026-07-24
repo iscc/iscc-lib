@@ -88,53 +88,12 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
         wheels, "Dependency review and refresh" (add Dependabot/Renovate). Plus 2 `normal` release-
         workflow reliability issues (npm OIDC, single-registry re-trigger). v1.0.0 cut +
         Semver-enforcing still HELD by Titusz (`low`).
-- **iter 115: CI RED — enforcing `cargo-deny` caught fresh advisory RUSTSEC-2026-0204** (null-ptr
-    deref in `crossbeam-epoch`, dev-only via criterion→rayon→crossbeam-deque, never shipped). SCOPED
-    minimal fix: `cargo update -p crossbeam-epoch` (0.9.18→0.9.20, patched `>= 0.9.20`, no manifest
-    change, locks 1 pkg). **Fix-the-root-cause > suppress**: when a patched release exists, bump the
-    lockfile — an `ignore` entry is only the fallback when unpatched. Verify the advisory `patched`
-    range from `rustsec/advisory-db/main/crates/<crate>/<ID>.md` before choosing bump vs ignore.
-- **Recurring maintenance pattern**: the enforcing cargo-deny gate WILL periodically go red on fresh
-    RustSec advisories against dev/bench deps. Each is a CI-red-first priority; resolve via patch
-    bump (preferred) or a justified `ignore`.
-- **iter 116: #41 (Python text/video GIL) DONE** — single-file `crates/iscc-py/src/lib.rs`, wrap
-    compute in `py.detach(|| ...)`. Injected `py` param not exposed → signature/conformance-neutral,
-    no doc change. Video detach must open AFTER frame-sig extraction (borrowed `PyList_GetItem` ptrs
-    not free-threading-safe; module keeps `gil_used = true`). Verify via
-    `grep -c '\.detach(' lib.rs`.
-- **iter 117: #42 (WASM simd128) — NEEDS_WORK.** Lesson: RUSTFLAGS `simd128` alone does NOT activate
-    blake3's wasm SIMD backend; `v128` opcode-counting is a FALSE-POSITIVE gate (LLVM
-    auto-vectorizes the portable path too). Verify the actual reference/source before asserting a
-    mechanism.
-- **iter 118: reframed #42** (first NEEDS_WORK → reframe, not repeat). Root cause (verified in
-    `~/.cargo/.../blake3-1.8.3/`): the wasm SIMD backend is gated behind the `blake3/wasm32_simd`
-    **Cargo feature** — `build.rs` emits `blake3_wasm32_simd` cfg only when
-    `is_wasm32() && CARGO_FEATURE_WASM32_SIMD`, then `platform.rs detect()` returns `WASM32_SIMD`
-    unconditionally under that cfg (compile-time, no runtime detection). Fix = add
-    `blake3 = { workspace = true, features = ["wasm32_simd"] }` to `crates/iscc-wasm/Cargo.toml`
-    `[dependencies]` (1 code file). **Both** the feature AND the landed simd128 RUSTFLAGS are
-    required (wasm32_simd.rs uses bare `core::arch::wasm32` v128 intrinsics needing the
-    target-feature). Native builds inert (build.rs guards on `is_wasm32()`). **Deterministic
-    verification** (beats throughput/opcode-count):
-    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -f "{p} {f}" -i blake3 | grep -q   wasm32_simd`
-    — shows `default,std` before, `default,std,wasm32_simd` after. No `unused_crate_dependencies`
-    lint enabled (checked), so a feature-only dep needs no `use blake3   as _;` silencer. Review
-    agent owns spec-box check-offs + issue deletion.
-- **iter 119: picked #43 (Go ISCC-IDv1)** — first v0.6.0 feature after #42; clean bounce (last two
-    iters were #42, now done). Pure-Go, self-contained (`packages/go`). Scope: modify `codec.go`
-    (add `VSV1 Version = 1`; relax `decodeHeader` version check to accept V1 only when
-    `MainType==MTId`, still reject V>0 for all else) + new `iscc_id.go`
-    (`EncodeIsccID(realm uint8, hubID uint16, timestamp uint64)`, `DecodeIsccID`, `IsccIDv1Result`).
-    Algorithm from `iscc_id.py::gen_iscc_id_v1`: `body=(timestamp<<12)|hubID`, big-endian 8 bytes,
-    header MT=6/ST=realm/VS=1/len-index=0. **Build the ID header via internal
-    `encodeHeader`/`encodeLength` — do NOT relax public `EncodeComponent`** (keeps its reject-V>0
-    contract). `EncodeIsccID` returns WITH `"ISCC:"` prefix; `DecodeIsccID` delegates to
-    `IsccDecode` (strips prefix/dashes). **Verified the vector by hand in Python before scoping**:
-    `EncodeIsccID(0,1,1751831876325218)` → `ISCC:MAIGHFECJMOPMIAB` (component hex
-    `60106394824b1cf62001`). codec_test.go:161-175 roundtrip only uses V0 → unaffected by the
-    version-check relax. No go.mod/go.sum change (`encoding/binary` is stdlib). Go tests run from
-    `packages/go/` (separate module; root `go test ./...` won't reach it); CI uses
-    `working-directory: packages/go` + `CGO_ENABLED=0`.
+- **iters 115–119 DONE (detail in MEMORY-archive.md)**: 115 cargo-deny advisory bump
+    (crossbeam-epoch, CI-red-first); 116 #41 Python GIL detach; 117→118 #42 WASM SIMD (reframe:
+    needs the `blake3/wasm32_simd` Cargo feature, not just RUSTFLAGS); 119 #43 Go ISCC-IDv1.
+- **Recurring**: the enforcing cargo-deny gate WILL periodically go red on fresh RustSec advisories
+    vs dev/bench deps — CI-red-first priority; prefer `cargo update -p <crate>` (patch bump) over a
+    `deny.toml` ignore when a patched release exists (check `patched` range in advisory-db first).
 - **iter 120: picked the `[review]` Go `IsccDecode` trailing-byte hardening** (filed after #43;
     concrete, no human gating — preferred over #49/dep-refresh). Root: `IsccDecode` guard was
     `len(tail) < nbytes` (only rejects too-short), silently copying `tail[:nbytes]` and ignoring
@@ -145,5 +104,18 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     bytes; 2-byte byte-aligned headers), so `tail==digest` for all vectors — verified empirically
     (`MAIGHFECJMOPMIABAA`→11 bytes vs canonical 10). Do NOT touch `IsccDecompose` (own body loop
     legitimately consumes trailing units). 1 code file (`codec.go`) + 2 test files.
+- **iter 121: Rust-core parallel of iter 120** — `[review]` issue "Rust core `iscc_decode` silently
+    accepts trailing bytes". Root: `iscc_decode` (`crates/iscc-lib/src/lib.rs:234`) guards only
+    `tail.len() < nbytes` ("too short") then `tail[..nbytes].to_vec()` drops excess. Fix = ADD a
+    `tail.len() > nbytes` "too long" branch after the "too short" one + update docstring. **Single
+    code file** (lib.rs — inline `#[cfg(test)] mod tests` lives there too). Go binding is a native
+    reimpl, NOT FFI, so the Go fix (iter 120) and this are independent — both needed. Conformance-
+    safe (same byte-alignment argument). **Composite `MainType::Iscc` also safe**: `decode_length`
+    (codec.rs:355/363) returns the FULL composite body length, so canonical composites round-trip to
+    exactly `nbytes` — the exact-length check doesn't reject them (verified test at codec.rs:848).
+    Do NOT touch `codec::iscc_decompose` (codec.rs:484 — own body loop consumes trailing units).
+    Note: line 1547 "too short" test is `soft_hash_codes_v0`, NOT iscc_decode — leave it; the
+    iscc_decode truncated test (line 1995) only asserts `is_err()`, not message. No bounce (iters
+    119–120 were Go work; this is new).
 - **v0.6.0 remaining after this**: #49 aarch64 wheels, dep refresh, + 2 release-workflow fixes (npm
     OIDC, single-registry re-trigger). One per iteration; each spec'd.

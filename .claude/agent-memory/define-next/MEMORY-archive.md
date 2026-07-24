@@ -128,3 +128,39 @@ learnings.md.
     `maturin develop -m crates/iscc-py/Cargo.toml` (maturin 1.12.4 via uv) + `uv run pytest` (286).
 - Explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:~697) MUST be preserved (PyO3
     0.28 silently flipped that default true→false).
+
+## v0.6.0 iters 115–119 detail (archived iteration 121 — done + CI-verified)
+
+- **iter 115: CI RED — enforcing `cargo-deny` caught RUSTSEC-2026-0204** (null-ptr deref in
+    `crossbeam-epoch`, dev-only via criterion→rayon→crossbeam-deque, never shipped). Fix:
+    `cargo update -p crossbeam-epoch` (0.9.18→0.9.20, patched `>= 0.9.20`, no manifest change).
+    **Fix-the-root-cause > suppress**: when a patched release exists, bump the lockfile — `ignore`
+    is the fallback only when unpatched. Verify the advisory `patched` range from
+    `rustsec/advisory-db/main/crates/<crate>/<ID>.md` before choosing bump vs ignore. Recurring: the
+    enforcing cargo-deny gate WILL periodically go red on fresh advisories vs dev/bench deps — each
+    is a CI-red-first priority.
+- **iter 116: #41 (Python text/video GIL) DONE** — single-file `crates/iscc-py/src/lib.rs`, wrap
+    compute in `py.detach(|| ...)`. Injected `py` param not exposed → signature/conformance-neutral,
+    no doc change. Video detach must open AFTER frame-sig extraction (borrowed `PyList_GetItem` ptrs
+    not free-threading-safe; module keeps `gil_used = true`). Verify via
+    `grep -c '\.detach(' lib.rs`.
+- **iter 117: #42 (WASM simd128) — NEEDS_WORK.** RUSTFLAGS `simd128` alone does NOT activate
+    blake3's wasm SIMD backend; `v128` opcode-counting is a FALSE-POSITIVE gate (LLVM
+    auto-vectorizes the portable path too). Verify the actual reference/source before asserting a
+    mechanism.
+- **iter 118: reframed #42 (first NEEDS_WORK → reframe, not repeat) DONE.** wasm SIMD backend gated
+    behind the `blake3/wasm32_simd` **Cargo feature** (`build.rs` emits `blake3_wasm32_simd` cfg
+    only when `is_wasm32() && CARGO_FEATURE_WASM32_SIMD`; `platform.rs detect()` returns
+    `WASM32_SIMD` unconditionally under that cfg). Fix = add
+    `blake3 = { workspace = true, features =   ["wasm32_simd"] }` to `crates/iscc-wasm/Cargo.toml`.
+    Both feature AND landed simd128 RUSTFLAGS required. Deterministic verify:
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -f   "{p} {f}" -i blake3 | grep -q wasm32_simd`.
+    No `unused_crate_dependencies` lint → no `use blake3 as _;` silencer needed.
+- **iter 119: #43 (Go ISCC-IDv1) DONE** — pure-Go, self-contained (`packages/go`). `codec.go` adds
+    `VSV1 Version = 1` + a MainType-ID-only Version=1 relaxation in `decodeHeader`; new `iscc_id.go`
+    (`EncodeIsccID`/`DecodeIsccID`/`IsccIDv1Result`). Algorithm from `iscc_id.py::gen_iscc_id_v1`:
+    `body=(timestamp<<12)|hubID`, big-endian 8 bytes, header MT=6/ST=realm/VS=1/len-index=0. Build
+    the ID header via internal `encodeHeader`/`encodeLength` — do NOT relax public
+    `EncodeComponent`. Vector: `EncodeIsccID(0,1,1751831876325218)` → `ISCC:MAIGHFECJMOPMIAB`. Go
+    tests run from `packages/go/` (separate module); CI `working-directory: packages/go` +
+    `CGO_ENABLED=0`.
