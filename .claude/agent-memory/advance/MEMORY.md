@@ -50,6 +50,10 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     consumes it (0.23→0.29 done, iter 105, #1 closed). KEEP explicit
     `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) — 0.28+ defaults `gil_used`⇒`false`,
     unsafe for raw `PyList_GetItem` ptrs. Recipe → MEMORY-archive.md
+- GIL release complete (iters 111+116, #39/#41): 12 `py.detach` sites in `crates/iscc-py/src/lib.rs`
+    (data/instance/image/sum, 3 hasher `update()`s, text, video+flat, soft_hash_video+flat). Video
+    detach MUST open after `extract_frame_sigs`/`flat_bytes_to_frames`; closures capture only
+    owned-Rust-Vec borrows. meta/audio/mixed stay attached by design. Tests: `tests/test_gil.py`
 - Release workflow (`release.yml`): 9 boolean inputs, pattern input → build → **smoke test** →
     publish. Full input list + per-registry auth + release-job CI internals → MEMORY-archive.md
 - wasm-pack `--features` goes AFTER the path, NOT after `--`; test runner accepts only a positional

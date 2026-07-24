@@ -134,8 +134,9 @@ fn gen_meta_code_v0(
 #[pyfunction]
 #[pyo3(signature = (text, bits=64))]
 fn gen_text_code_v0(py: Python<'_>, text: &str, bits: u32) -> PyResult<Py<PyAny>> {
-    let r =
-        iscc_lib::gen_text_code_v0(text, bits).map_err(|e| PyValueError::new_err(e.to_string()))?;
+    let r = py
+        .detach(|| iscc_lib::gen_text_code_v0(text, bits))
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
     dict.set_item("characters", r.characters)?;
@@ -182,7 +183,11 @@ fn gen_video_code_v0(
 ) -> PyResult<Py<PyAny>> {
     let (flat, frame_len) = extract_frame_sigs(py, &frame_sigs)?;
     let frame_slices: Vec<&[i32]> = flat.chunks_exact(frame_len).collect();
-    let r = iscc_lib::gen_video_code_v0(&frame_slices, bits)
+    // Detach only after extract_frame_sigs: its borrowed PyList_GetItem
+    // pointers are not free-threading-safe. frame_slices borrows the owned
+    // Rust `flat` Vec, not Python memory, so it is sound across the release.
+    let r = py
+        .detach(|| iscc_lib::gen_video_code_v0(&frame_slices, bits))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
@@ -206,7 +211,10 @@ fn gen_video_code_v0_flat(
 ) -> PyResult<Py<PyAny>> {
     let frames = flat_bytes_to_frames(data, num_frames, frame_len)?;
     let frame_refs: Vec<&[i32]> = frames.iter().map(|f| f.as_slice()).collect();
-    let r = iscc_lib::gen_video_code_v0(&frame_refs, bits)
+    // frame_refs borrows the owned Rust `frames` Vecs, not Python memory,
+    // so it is sound across the GIL release.
+    let r = py
+        .detach(|| iscc_lib::gen_video_code_v0(&frame_refs, bits))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     let dict = PyDict::new(py);
     dict.set_item("iscc", r.iscc)?;
@@ -227,7 +235,10 @@ fn soft_hash_video_v0_flat(
 ) -> PyResult<Py<PyAny>> {
     let frames = flat_bytes_to_frames(data, num_frames, frame_len)?;
     let frame_refs: Vec<&[i32]> = frames.iter().map(|f| f.as_slice()).collect();
-    let result = iscc_lib::soft_hash_video_v0(&frame_refs, bits)
+    // frame_refs borrows the owned Rust `frames` Vecs, not Python memory,
+    // so it is sound across the GIL release.
+    let result = py
+        .detach(|| iscc_lib::soft_hash_video_v0(&frame_refs, bits))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(PyBytes::new(py, &result).into())
 }
@@ -517,7 +528,11 @@ fn soft_hash_video_v0(
 ) -> PyResult<Py<PyAny>> {
     let (flat, frame_len) = extract_frame_sigs(py, &frame_sigs)?;
     let frame_slices: Vec<&[i32]> = flat.chunks_exact(frame_len).collect();
-    let result = iscc_lib::soft_hash_video_v0(&frame_slices, bits)
+    // Detach only after extract_frame_sigs: its borrowed PyList_GetItem
+    // pointers are not free-threading-safe. frame_slices borrows the owned
+    // Rust `flat` Vec, not Python memory, so it is sound across the release.
+    let result = py
+        .detach(|| iscc_lib::soft_hash_video_v0(&frame_slices, bits))
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(PyBytes::new(py, &result).into())
 }
