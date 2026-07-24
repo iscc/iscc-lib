@@ -409,6 +409,8 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
       - name: Build WASM package
+        env:
+          RUSTFLAGS: -C target-feature=+simd128
         run: wasm-pack build --target web --release crates/iscc-wasm --features conformance
       - name: Set npm package name and version
         run: |

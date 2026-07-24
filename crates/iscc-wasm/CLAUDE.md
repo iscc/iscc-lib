@@ -87,9 +87,12 @@ wasm-pack build crates/iscc-wasm --release --target bundler
 ```
 
 The release profile uses
-`wasm-opt = ["-O3", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]` for maximum
-runtime speed optimization (configured via `[package.metadata.wasm-pack.profile.release]` in
-Cargo.toml).
+`wasm-opt = ["-O3", "--enable-simd", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]`
+for maximum runtime speed optimization (configured via
+`[package.metadata.wasm-pack.profile.release]` in Cargo.toml). Release and CI builds set
+`RUSTFLAGS="-C target-feature=+simd128"` so `blake3` uses its wasm32 SIMD backend (selected at
+compile time via `target_feature = "simd128"`); `--enable-simd` lets `wasm-opt` accept the resulting
+`v128` instructions.
 
 ## Test Commands
 

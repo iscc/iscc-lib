@@ -1,60 +1,51 @@
 # Handoff
 
-## 2026-07-24 — Review of: Release the GIL for the Python text and video compute paths (issue #41)
+## 2026-07-24 — Enable WASM simd128 in the @iscc/wasm release + CI builds (issue #42)
 
-**Verdict:** PASS
+**Done:** Pure build-flag change wiring WASM SIMD through the pipeline: step-level
+`RUSTFLAGS: -C target-feature=+simd128` on the release `build-wasm` step and the CI `wasm` job's
+test step, plus `--enable-simd` in the `wasm-opt` array so binaryen accepts the `v128` instructions
+during the release build. No source changes (blake3 selects its wasm32 SIMD backend at compile time
+via `target_feature = "simd128"`).
 
-**Summary:** The advance agent added `py.detach(|| ...)` windows around the pure-Rust compute in the
-5 remaining heavyweight iscc-py entry points (`gen_text_code_v0`, `gen_video_code_v0`,
-`gen_video_code_v0_flat`, `soft_hash_video_v0`, `soft_hash_video_v0_flat`), mirroring the existing
-`gen_image_code_v0` pattern exactly. Detach count moved 7 → 12; for every video path the detach
-opens strictly after frame extraction, so the non-free-threading-safe borrowed `PyList_GetItem`
-pointers never cross the release. Clean, minimal, in-scope work with 3 new concurrency-correctness
-tests; conformance unchanged.
+**Files changed:**
+
+- `.github/workflows/release.yml`: `build-wasm` job's "Build WASM package" step gained
+    `env: RUSTFLAGS: -C target-feature=+simd128`. `test-wasm` untouched (it smoke-tests the
+    downloaded artifact, no rebuild).
+- `.github/workflows/ci.yml`: `wasm` job's "Run tests" step gained the same step-level `env`.
+- `crates/iscc-wasm/Cargo.toml`: `wasm-opt` array now
+    `["-O3", "--enable-simd", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]` (taplo
+    reformatted it to multi-line, matching the spec example in `specs/wasm-bindings.md` exactly).
+- `crates/iscc-wasm/CLAUDE.md` (doc): release-profile paragraph updated to quote the new wasm-opt
+    array and explain the RUSTFLAGS/simd128 mechanism.
 
 **Verification:**
 
-- [x] `grep -c '\.detach(' crates/iscc-py/src/lib.rs` returns 12 — confirmed (7 pre-existing + 5
-    new: text @138, video @190, video_flat @217, soft_hash_video @535, soft_hash_video_flat @241)
-- [x] `cargo clippy -p iscc-py -- -D warnings` clean — Finished, no warnings
-- [x] `cargo build -p iscc-py` succeeds — built via `maturin develop`
-- [x] `maturin develop` + `pytest tests/` — 300 passed (297 pre-existing + 3 new); `test_gil.py -v`
-    shows all 10 GIL tests pass
-- [x] `mise run format` / `mise run check` — all 15 pre-commit hooks pass, no reformatting
+- All four greps pass: `target-feature=+simd128` in release.yml and ci.yml, `enable-simd` in
+    Cargo.toml and CLAUDE.md.
+- `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
+    — conformance 9/9 passed, unit 78/78 passed (byte-identical output under SIMD compile).
+- `RUSTFLAGS="-C target-feature=+simd128" wasm-pack build --target web --release crates/iscc-wasm --features conformance`
+    — exit 0, `wasm-opt` ran and accepted the SIMD input ("Your wasm pkg is ready to publish").
+- `wasm-tools print crates/iscc-wasm/pkg/iscc_wasm_bg.wasm | grep -c 'v128'` → **1993** (spec
+    "Verified when" #4 disassembly evidence; `wasm-tools` installed via
+    `cargo binstall wasm-tools`).
+- `mise run format` + `mise run check` — all 15 pre-commit hooks pass; tree contains only the four
+    intended files (plus iterations.jsonl from the runner).
 
-**Issues found:**
-
-- (none) — scope held to `lib.rs` + `test_gil.py` (+ handoff/advance-memory). No core, `.pyi`, or
-    `__init__.py` changes; Python-facing signatures unchanged; `gil_used = true` untouched. No API
-    break, no gate circumvention. Detach placement is sound: closures capture only owned-Rust-`Vec`
-    borrows (`flat`/`frames`) or the immutable `&str`, never Python memory across the release.
-
-**Codex review:** No issues. "The new detach windows wrap only pure-Rust computation after
-Python-owned video inputs have been copied, while Python object construction remains attached. The
-targeted Rust and concurrency tests pass, and no behavioral regressions were identified." Confirms
-the review conclusion.
-
-**Resolved this iteration:** Issue #41 deleted from issues.md; the three "Verified when" boxes in
-`specs/python-bindings.md` → "GIL Release for Text/Video Compute Paths" marked `[x]` (human-authored
-`[human]` spec issue). The GitHub issue (#41) closes at v0.6.0 release, per the "close on release"
-note — a human/release action, not a CID one.
-
-**Next:** The GIL-release theme is complete. Remaining v0.6.0 backlog (all `normal` `[human]`, one
-per iteration): **#42 Enable WASM simd128** in the `@iscc/wasm` release build (self-contained
-build-flag change spec'd in `specs/wasm-bindings.md` — the recommended next pick), #43 Go ISCC-IDv1
-encode/decode, "Restore linux/aarch64 Python wheels", "Dependency review and refresh", plus two CI
-release-infra items ("Migrate npm publishing to OIDC", "Fix broken single-registry re-trigger in
-release.yml"). #42 is the most self-contained.
+**Next:** Remaining v0.6.0 backlog, one per iteration: #43 Go ISCC-IDv1 encode/decode, "Restore
+linux/aarch64 Python wheels", "Dependency review and refresh", and the two release-infra items
+("Migrate npm publishing to OIDC", "Fix broken single-registry re-trigger"). #43 is the largest
+remaining feature; the aarch64-wheels item is the most self-contained next pick.
 
 **Notes:**
 
-- Meta/audio/mixed paths intentionally stay attached (negligible compute) — do not "complete" them.
-- `_flat` variants have no dedicated Python-level concurrency tests: they are `_lowlevel`-only (not
-    in the public `iscc_lib` API) and share the identical detach shape + core fn with the tested
-    nested-list paths. This is acceptable, not a gap.
-- No benchmarking done (correctly out of scope): detach sites are binding-layer only and do not
-    touch the benchmarked core hot paths. The pytest-benchmark tables in the suite output are the
-    pre-existing comparison benches, not a new gate.
-- Verification requires the extension built first
-    (`uv run maturin develop -m   crates/iscc-py/Cargo.toml`) before `pytest`/`ty check` see the
-    updated `_lowlevel`.
+- Spec "Verified when" boxes in `specs/wasm-bindings.md` → "WASM SIMD (`simd128`)" left unchecked
+    per next.md — review agent owns check-offs. Evidence for all four is above.
+- The built `pkg/` directory is self-gitignored (wasm-pack writes `pkg/.gitignore` containing `*`) —
+    no stray artifacts to manage.
+- No `iscc-wasm` source changes, no new tests: next.md scoped this as a build-flag-only change and
+    the existing 87 wasm tests exercised under the SIMD compile are the verification.
+- Spec note "Applies to every published target (`web`, plus `bundler` if published)" — only `web` is
+    published today, and it is covered. No bundler build exists in the workflows.

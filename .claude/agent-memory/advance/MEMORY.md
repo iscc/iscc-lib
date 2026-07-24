@@ -58,6 +58,10 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     publish. Full input list + per-registry auth + release-job CI internals → MEMORY-archive.md
 - wasm-pack `--features` goes AFTER the path, NOT after `--`; test runner accepts only a positional
     FILTER (`-- --test unit` fails), so run the full suite
+- WASM SIMD (iter 117, #42): release `build-wasm` + CI `wasm` steps set step-level
+    `RUSTFLAGS: -C target-feature=+simd128`; iscc-wasm Cargo.toml `wasm-opt` array needs
+    `--enable-simd` or release build fails on `v128`. `wasm-tools` via `cargo binstall`; wasm-pack
+    `pkg/` is self-gitignored (`pkg/.gitignore` = `*`)
 
 ## Benchmarks
 
