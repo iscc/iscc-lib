@@ -212,7 +212,7 @@ pub fn encode_component(
 ///
 /// Inverse of [`encode_component`]. Strips an optional `"ISCC:"` prefix and
 /// dashes, base32-decodes the string, parses the variable-length header, and
-/// returns the digest truncated to exactly the encoded bit-length.
+/// returns the digest, whose length must equal exactly the encoded bit-length.
 ///
 /// Returns `(maintype, subtype, version, length_index, digest)` where the
 /// integer fields match [`codec::MainType`], [`codec::SubType`], and
@@ -221,7 +221,8 @@ pub fn encode_component(
 /// # Errors
 ///
 /// Returns `IsccError::InvalidInput` on invalid base32 input, malformed
-/// header, or if the decoded body is shorter than the expected digest length.
+/// header, or if the decoded body does not equal exactly the expected digest
+/// length — both truncated inputs and inputs with trailing bytes are rejected.
 pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
     // Strip optional "ISCC:" prefix (case-sensitive, matching iscc_decompose)
     let clean = iscc.strip_prefix("ISCC:").unwrap_or(iscc);
@@ -234,6 +235,12 @@ pub fn iscc_decode(iscc: &str) -> IsccResult<(u8, u8, u8, u8, Vec<u8>)> {
     if tail.len() < nbytes {
         return Err(IsccError::InvalidInput(format!(
             "decoded body too short: expected {nbytes} digest bytes, got {}",
+            tail.len()
+        )));
+    }
+    if tail.len() > nbytes {
+        return Err(IsccError::InvalidInput(format!(
+            "decoded body too long: expected {nbytes} digest bytes, got {}",
             tail.len()
         )));
     }
@@ -2000,6 +2007,32 @@ mod tests {
         let truncated = &encoded[..6];
         let result = iscc_decode(truncated);
         assert!(result.is_err(), "should fail on truncated input");
+    }
+
+    /// Error on input whose decoded body has trailing bytes beyond the digest.
+    #[test]
+    fn test_iscc_decode_rejects_trailing_bytes() {
+        // Canonical 64-bit Meta-Code: 16 base32 chars decode to exactly 10
+        // bytes (2 header + 8 digest). Appending "AA" yields 18 chars which
+        // decode to 11 bytes — one trailing byte beyond the digest.
+        let canonical = "ISCC:AAAZXZ6OU74YAZIM";
+        let padded = format!("{canonical}AA");
+        // Sanity: the padded form really decodes to more bytes than canonical.
+        let canonical_raw = codec::decode_base32(canonical.strip_prefix("ISCC:").unwrap()).unwrap();
+        let padded_raw = codec::decode_base32(padded.strip_prefix("ISCC:").unwrap()).unwrap();
+        assert!(
+            padded_raw.len() > canonical_raw.len(),
+            "suffix must add at least one decoded byte"
+        );
+        let result = iscc_decode(&padded);
+        assert!(
+            matches!(&result, Err(IsccError::InvalidInput(msg)) if msg.contains("too long")),
+            "expected InvalidInput with 'too long', got {result:?}"
+        );
+        // The canonical form (no suffix) still decodes to its 8-byte digest.
+        let (mt, _st, _vs, _li, digest) = iscc_decode(canonical).unwrap();
+        assert_eq!(mt, 0);
+        assert_eq!(digest.len(), 8);
     }
 
     // --- json_to_data_url tests ---

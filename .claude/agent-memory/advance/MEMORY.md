@@ -24,10 +24,10 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     dct, wtahash, xxh32, `code_*.go`, conformance.go). WASM bridge removed — pure Go only.
     Experimental ISCC-IDv1 in `iscc_id.go` (`EncodeIsccID`/`DecodeIsccID`, iter 119, #43);
     `codec.go` `decodeHeader` accepts Version=1 ONLY for MainType ID (`VSV1` const). Go `IsccDecode`
-    enforces EXACT body length (rejects trailing bytes, iter 120) — Rust Tier 1 `iscc_decode`
-    (lib.rs:234) still truncates silently, same gap. Go CI job runs only `go test`+`go vet` — no
-    gofmt gate; go1.26 gofmt flags pre-existing alignment drift in codec_test.go + conformance.go
-    (untouched, harmless)
+    (iter 120) and Rust Tier 1 `iscc_decode` (iter 121) both enforce EXACT body length — two-branch
+    "too short"/"too long" guards; Rust `codec::Version` has V0 only, so IDv1 codes (`MAIG...`) are
+    Go-only. Go CI job runs only `go test`+`go vet` — no gofmt gate; go1.26 gofmt flags pre-existing
+    alignment drift in codec_test.go + conformance.go (untouched, harmless)
 
 ## Build and Tooling
 
