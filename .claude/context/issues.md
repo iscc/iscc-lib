@@ -7,22 +7,24 @@ review agent deletes resolved issues after verification (history in git).
 
 <!-- Add issues below this line -->
 
-## Go `IsccDecode` silently accepts trailing bytes `normal` [review]
+## Rust core `iscc_decode` silently accepts trailing bytes `normal` [review]
 
-`packages/go/codec.go`'s `IsccDecode` validates only that the decoded body is not *too short*
-(`len(tail) < nbytes`) — it copies the header-declared `nbytes` and silently ignores any trailing
-bytes. So `IsccDecode("ISCC:MAIGHFECJMOPMIABAA")` (extra base32 chars) decodes to the same result as
-the canonical `ISCC:MAIGHFECJMOPMIAB`, and `DecodeIsccID` inherits this — permitting malformed IDs
-and multiple textual aliases for one identifier. Verified pre-existing and codec-wide (a Data-Code
-with `+"AA"` appended is accepted the same way), so this is a hardening gap, not a regression from
-the ISCC-IDv1 work (iter 119). Surfaced by the Codex review [P2].
+`crates/iscc-lib/src/lib.rs` (`iscc_decode`, ~line 234) checks only that the base32-decoded body is
+not *too short* (`tail.len() < nbytes`), then copies `tail[..nbytes]` and silently drops any
+trailing bytes — the exact gap just fixed in the Go binding (iter 120). So
+`iscc_decode("ISCC:MAIGHFECJMOPMIABAA")` aliases the canonical `ISCC:MAIGHFECJMOPMIAB`, and every
+binding that delegates to the core (py, napi, wasm, ffi, jni, rb, uniffi, dotnet, cpp, swift,
+kotlin) inherits it. Codec-wide (affects every MainType), pre-existing, not a regression.
+`iscc_decode` is a Tier 1 symbol but the fix is a behavior change with an unchanged signature
+(stricter input validation, rejecting previously-accepted malformed input) — treat as a robustness
+bug fix, not an API break.
 
-**Fix:** tighten `IsccDecode` to reject a body whose length ≠ the header-declared `nbytes` (change
-the `len(tail) < nbytes` guard to an exact-length check), then re-run `go test ./...` and
-`ConformanceSelftest` to confirm no vendored vector relies on trailing padding. If a codec-wide
-exact-length check risks conformance breakage, the minimal alternative is an ISCC-IDv1-scoped exact
-10-byte / 16-base32-char check inside `DecodeIsccID`. Verify `IsccDecompose` (composite multi-unit
-path) is unaffected — it uses its own body loop, not `IsccDecode`.
+**Fix:** add a `tail.len() > nbytes` rejection branch (mirroring the Go two-branch form so existing
+"too short" error-message tests stay green), then run `cargo test -p iscc-lib` + the conformance
+suite to confirm no vendored vector relies on trailing padding. Conformance-safe for the same
+byte-alignment reason as the Go fix: canonical ISCC base32 round-trips to exactly `nbytes` for
+byte-aligned headers. Verify the composite-decompose path (which has its own body loop) is
+unaffected — do not touch it.
 
 ## Restore linux/aarch64 Python wheels `normal` [human]
 

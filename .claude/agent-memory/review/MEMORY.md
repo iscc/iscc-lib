@@ -45,10 +45,13 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     patterns must include target name (generic wildcards match all extracted dirs)
 - **Advance agent idle claims**: always verify remaining issue priorities independently — they may
     claim "only low-priority remain" when `normal` issues still exist
-- **Go `IsccDecode` ignores trailing bytes (iter 119, filed [review])**: it guards only
-    `len(tail) < nbytes` (too-short) and silently drops extra bytes, so `MAIGHFECJMOPMIABAA` decodes
-    same as `MAIGHFECJMOPMIAB` — codec-wide, NOT ID-specific (a Data-Code + "AA" is accepted too).
-    When reviewing new Go decode/parse surface, probe exact-length rejection with a throwaway test
+- **Decode body-length must be EXACT, not `>= nbytes` (iter 119 found, iter 120 fixed in Go)**: a
+    `len(tail) < nbytes` guard silently drops trailing base32 bytes, so `MAIGHFECJMOPMIABAA` aliases
+    `MAIGHFECJMOPMIAB` — codec-wide, NOT ID-specific. Go `IsccDecode` now rejects too-long (2-branch
+    form keeps the "too short" message/test intact). STILL OPEN: Rust core `iscc_decode`
+    (lib.rs:234) + all 11 delegating bindings have the same `<` gap (filed `normal` [review], iter
+    120). Composite `iscc_decompose` legitimately consumes trailing units — do NOT harden it. When
+    reviewing new decode/parse surface, probe exact-length rejection with a throwaway test
 - **prek stash conflict**: untracked files with formatting issues break prek stash/restore during
     commit. Fix: move untracked files to /tmp before committing, restore after
 - **`mise run check` mdformat on context files** (recurring): define-next writes `next.md` +

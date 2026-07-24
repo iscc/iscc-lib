@@ -75,6 +75,13 @@ fully-met target sections to `learnings-archive.md`.
     `application/ld+json` media type, otherwise `application/json`
 - `conformance_selftest` uses bitwise-AND masking for truncated codes — do NOT compare full strings
     when bit_length < 256
+- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`**:
+    canonical ISCC base32 round-trips a byte-aligned N-byte body to exactly N bytes, so a `< nbytes`
+    guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`). Conformance-safe
+    because every vendored vector round-trips exactly. Fixed in Go `IsccDecode` (iter 120); Rust
+    core `iscc_decode` (lib.rs:234) + all 11 delegating bindings still have the `<` gap (issues.md
+    `[review]`). NOTE the composite `iscc_decompose` path legitimately consumes trailing units via
+    its own body loop — do NOT "harden" it with an exact check
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
 - **ISCC-IDv1** (`gen_iscc_id_v1`, experimental, NOT in ISO 24138): 64-bit body
@@ -106,16 +113,13 @@ fully-met target sections to `learnings-archive.md`.
     INFORMATIONAL pre-1.0 (`continue-on-error: true`, becomes enforcing at v1.0.0; `rust-core.md`
     checkbox stays `[ ]` until then); `coverage` is enforcing. Run locally via `mise run semver` /
     `mise run coverage`
-- **CRAP gate (iter 96/97/113, ci-cd.md; full mechanics in `learnings-archive.md`)**: ENFORCING
-    Phase 3 gate
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression   --fail-above`.
+- **CRAP gate (iter 96/97/113, ci-cd.md)**: ENFORCING Phase 3 gate
+    (`cargo crap --fail-regression   --fail-above`, threshold 30.0, current max ~22.3).
     `.crap-baseline.json` COMMITTED (regen via `mise run crap:baseline`, byte-identical);
-    `.cargo-crap.toml` MUST exclude `crates/iscc-lib/benches/**`; `--fail-above` threshold 30.0,
-    current max CRAP ~22.3
-- **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING & HARDENED (iter 107-110, #3)**: standalone
-    enforcing `perf` job; `[profile.bench] strip = false, debug = true` load-bearing (else stripped
-    binary → all benches `summary: 0` false-green). Full saga in `learnings-archive.md` + review
-    `MEMORY.md`
+    `.cargo-crap.toml` MUST exclude `benches/**`. Full mechanics in `learnings-archive.md`
+- **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING (iter 107-110, #3)**: standalone enforcing
+    `perf` job; `[profile.bench] strip = false, debug = true` load-bearing (else stripped binary →
+    all benches `summary: 0` false-green). Full saga in `learnings-archive.md`
 - **`Audit (cargo-deny)` gate — LANDED & ENFORCING (iter 114/115, ci-cd.md line 448)**: root
     `deny.toml` (config v2, `yanked = "deny"`, two dev-only iai-callgrind advisories ignored) +
     enforcing `audit` CI job (`cargo-deny@0.19.9` → `cargo deny check`) + `mise run audit`.
@@ -147,11 +151,9 @@ fully-met target sections to `learnings-archive.md`.
     tests build fine; only the bench target breaks. Scope clippy to the lib
     (`--no-default-features -- -D warnings`, no `--all-targets`) to avoid a false regression. CI
     never runs this combo
-- **blake3 WASM SIMD backend — RESOLVED (iters 117-118, #42, full recipe in
-    `learnings-archive.md`)**: the `blake3/wasm32_simd` **Cargo feature** (not the
-    `-C target-feature=+simd128` RUSTFLAGS) activates the backend; verify with
-    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"`. `v128`-opcode
-    counting alone is a FALSE-POSITIVE (LLVM auto-vec emits it too)
+- **blake3 WASM SIMD backend — RESOLVED (iters 117-118, #42)**: the `blake3/wasm32_simd` **Cargo
+    feature** (not `-C target-feature=+simd128` RUSTFLAGS) activates it; `v128`-opcode counting
+    alone is a FALSE-POSITIVE. Full recipe + verify command in `learnings-archive.md`
 
 ## Documentation Maintenance
 
