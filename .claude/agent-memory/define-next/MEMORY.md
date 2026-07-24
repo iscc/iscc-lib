@@ -105,18 +105,26 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
         one-shot sites write `py\n.detach` split across lines, so count `.detach(` not `py.detach`).
         Video caveat: detach must open AFTER `extract_frame_sigs`/`flat_bytes_to_frames` (borrowed
         `PyList_GetItem` ptrs not free-threading-safe; module keeps `gil_used = true`).
-- **iter 117: picked #42 (WASM simd128)** — CI green, no bounce; most self-contained v0.6.0 pick. 3
-    config files + 1 doc: `RUSTFLAGS="-C target-feature=+simd128"` env on release.yml `build-wasm`
-    step + ci.yml `wasm` test step; `--enable-simd` added to `wasm-opt` array in
-    `crates/iscc-wasm/Cargo.toml` (`[package.metadata.wasm-pack.profile.release]`); sync the flag
-    string quoted in `crates/iscc-wasm/CLAUDE.md` (~line 90, doc — excluded from 3-file limit). NO
-    src/lib.rs change (conformance byte-identical; blake3 wasm SIMD is
-    `#[cfg(target_feature =   "simd128")]`-gated, RUSTFLAGS is the only trigger — not a cargo
-    feature). `test-wasm` release job smoke-tests the *downloaded* artifact (no rebuild) → do NOT
-    add RUSTFLAGS there. Devcontainer has wasm-pack + wasm32 target but NOT
-    wasm-tools/wasm-objdump/wasm-opt — install `wasm-tools` via `cargo binstall wasm-tools` for the
-    `v128`-opcode disassembly evidence. `wasm-opt` refuses SIMD input without `--enable-simd`, so a
-    successful `wasm-pack build --release` under simd128 RUSTFLAGS is itself proof the flag is
-    wired. Review agent owns the spec "Verified when" check-offs.
+- **iter 117: #42 (WASM simd128) — NEEDS_WORK.** Landed `RUSTFLAGS=-C target-feature=+simd128`
+    (release.yml `build-wasm` + ci.yml `wasm` steps) + `--enable-simd` in `wasm-opt` array
+    (`crates/iscc-wasm/Cargo.toml`) + CLAUDE.md doc. All literal checks passed BUT the premise was
+    **wrong**: RUSTFLAGS `simd128` alone does NOT activate blake3's wasm SIMD backend under blake3
+    1.8.3. **`v128` opcode-counting is a FALSE-POSITIVE gate** — LLVM auto-vectorizes the portable
+    path and emits `v128` too. Lesson: verify the actual reference/source before asserting a
+    mechanism ("target_feature-gated" was an unverified guess).
+- **iter 118: reframed #42** (first NEEDS_WORK → reframe, not repeat). Root cause (verified in
+    `~/.cargo/.../blake3-1.8.3/`): the wasm SIMD backend is gated behind the `blake3/wasm32_simd`
+    **Cargo feature** — `build.rs` emits `blake3_wasm32_simd` cfg only when
+    `is_wasm32() && CARGO_FEATURE_WASM32_SIMD`, then `platform.rs detect()` returns `WASM32_SIMD`
+    unconditionally under that cfg (compile-time, no runtime detection). Fix = add
+    `blake3 = { workspace = true, features = ["wasm32_simd"] }` to `crates/iscc-wasm/Cargo.toml`
+    `[dependencies]` (1 code file). **Both** the feature AND the landed simd128 RUSTFLAGS are
+    required (wasm32_simd.rs uses bare `core::arch::wasm32` v128 intrinsics needing the
+    target-feature). Native builds inert (build.rs guards on `is_wasm32()`). **Deterministic
+    verification** (beats throughput/opcode-count):
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -f "{p} {f}" -i blake3 | grep -q   wasm32_simd`
+    — shows `default,std` before, `default,std,wasm32_simd` after. No `unused_crate_dependencies`
+    lint enabled (checked), so a feature-only dep needs no `use blake3   as _;` silencer. Review
+    agent owns spec-box check-offs + issue deletion.
 - **v0.6.0 remaining after #42**: #43 Go ISCC-IDv1, #49 aarch64 wheels, dep refresh, + 2
     release-workflow fixes (npm OIDC, single-registry re-trigger). One per iteration; each spec'd.
