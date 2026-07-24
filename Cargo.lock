@@ -835,6 +835,7 @@ dependencies = [
 name = "iscc-wasm"
 version = "0.5.0"
 dependencies = [
+ "blake3",
  "hex",
  "iscc-lib",
  "serde",

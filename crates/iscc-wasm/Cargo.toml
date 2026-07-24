@@ -10,6 +10,9 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 iscc-lib = { path = "../iscc-lib" }
+# Direct blake3 dep solely to enable the wasm32_simd Cargo feature (feature-unifies
+# onto iscc-lib's blake3 for the wasm-only build). Do not remove as "unused".
+blake3 = { workspace = true, features = ["wasm32_simd"] }
 wasm-bindgen = { workspace = true }
 serde-wasm-bindgen = { workspace = true }
 serde = { workspace = true }

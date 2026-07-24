@@ -86,8 +86,15 @@ wasm-pack build crates/iscc-wasm --target nodejs     # For Node.js (testing)
 GitHub: https://github.com/iscc/iscc-lib/issues/42
 
 Published release builds enable WASM SIMD so `blake3` uses its `wasm32` SIMD backend instead of the
-portable scalar fallback. On wasm the backend is selected at **compile time** via
-`target_feature = "simd128"` (no runtime detection), so the flag must be set on the release build:
+portable scalar fallback. Two pieces are required, both at **compile time** (no runtime detection):
+
+1. The `blake3/wasm32_simd` **Cargo feature** — a direct
+    `blake3 = { workspace = true, features = ["wasm32_simd"] }` dependency on `crates/iscc-wasm`.
+    blake3's build.rs emits the gating `blake3_wasm32_simd` cfg (which makes `Platform::detect()`
+    return `WASM32_SIMD`) only when this feature is set on a `wasm32` target; the `simd128`
+    target-feature alone leaves blake3 on `Platform::Portable`.
+2. The `simd128` target-feature, so the backend's `v128` intrinsics compile — set on the release
+    build:
 
 ```bash
 RUSTFLAGS="-C target-feature=+simd128" \
@@ -110,7 +117,7 @@ Applies to every published target (`web`, plus `bundler` if published). BLAKE3 i
 / `datahash` leg of `gen_sum_code_v0` / `SumHasher` and gains the most; the Data leg (gear CDC /
 xxh32 / minhash) benefits less. `simd128` is baseline in all current browsers (Chrome/Edge ≥91,
 Firefox ≥89, Safari ≥16.4) and Node ≥16 — a single SIMD build is fine, no scalar fallback artifact.
-Pure build-flag change: conformance output is byte-identical.
+Build-flag + Cargo-feature change only, no source changes: conformance output is byte-identical.
 
 **Verified when:**
 
