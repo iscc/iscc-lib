@@ -3,12 +3,13 @@
 //! Uses representative inline inputs (conformance-derived and synthetic) to
 //! measure latency and throughput of the core ISCC generation functions.
 
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use iscc_lib::{
     DataHasher, alg_cdc_chunks, gen_audio_code_v0, gen_data_code_v0, gen_image_code_v0,
     gen_instance_code_v0, gen_iscc_code_v0, gen_meta_code_v0, gen_mixed_code_v0, gen_sum_code_v0,
     gen_text_code_v0, gen_video_code_v0,
 };
+use std::hint::black_box;
 use std::io::Write;
 use tempfile::NamedTempFile;
 

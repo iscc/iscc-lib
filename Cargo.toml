@@ -32,6 +32,8 @@ thiserror = "2"
 unicode-normalization = "0.1"
 unicode-general-category = "1"
 xxhash-rust = { version = "0.8", features = ["xxh32"] }
+# note: pyo3 bumps must re-verify `gil_used = true` (crates/iscc-py/src/lib.rs) and the
+# `py.detach` call sites (issue #41).
 pyo3 = { version = "0.29", features = ["abi3-py310"] }
 napi = { version = "3", default-features = false, features = ["napi6"] }
 napi-derive = "3"
@@ -39,11 +41,22 @@ napi-build = "2"
 wasm-bindgen = "0.2"
 wasm-bindgen-test = "0.3"
 serde-wasm-bindgen = "0.6"
-criterion = { version = "0.5", features = ["html_reports"] }
+# held: criterion 0.8 requires rustc 1.86; the workspace declares rust-version = "1.85".
+# Revisit when the MSRV is raised (a human policy decision for the v1.0.0 cut).
+criterion = { version = "0.7", features = ["html_reports"] }
 iai-callgrind = "0.16"
 tempfile = "3"
+# held: jni 0.22 is a wholesale API rework (JNIEnv -> EnvUnowned/Env, GlobalRef -> Global,
+# AutoLocal -> Auto, closure-based thread attachment, mandatory ErrorPolicy) that rewrites
+# crates/iscc-jni/src/lib.rs per upstream docs/0.22-MIGRATION.md. Needs a dedicated step.
 jni = "0.21"
+# held: magnus 0.8 drops the default `old-api` feature, which deprecates
+# `magnus::exception::runtime_error()` used in crates/iscc-rb/src/lib.rs (a clippy -D warnings
+# failure); needs a call-site refactor to `Ruby::exception_runtime_error()`. Deferred to the
+# Ruby dependency slice (where the rb_sys gem must keep matching the cross-gem Docker tag).
 magnus = { version = "0.7", features = ["rb-sys"] }
+# held: uniffi 0.32 requires regenerating and re-verifying the Swift + Kotlin bindings; the
+# Linux devcontainer has no Swift toolchain, so the result cannot be validated locally.
 uniffi = "0.31"
 
 [profile.release]

@@ -3,7 +3,9 @@
 Codepaths, implementation patterns, library locations, and key decisions accumulated across CID
 iterations. Detail lives in topic files: [ci-gates.md](ci-gates.md) (coverage/CRAP, cargo-deny
 audit, semver, iai perf gates), [uniffi-swift-kotlin.md](uniffi-swift-kotlin.md) (UniFFI, Swift,
-Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
+Kotlin), [deps-refresh.md](deps-refresh.md) (held-back majors, ruff hold-back, refresh slices),
+[wasm-simd.md](wasm-simd.md) (BLAKE3 SIMD wiring + wasm-pack gotchas), [go-idv1.md](go-idv1.md) (Go
+IDv1 + decode guards). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 **Size budget:** Keep under 140 lines. Move detail to topic files; archive stale entries.
 
@@ -22,12 +24,7 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     detail → uniffi-swift-kotlin.md
 - Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
     dct, wtahash, xxh32, `code_*.go`, conformance.go). WASM bridge removed — pure Go only.
-    Experimental ISCC-IDv1 in `iscc_id.go` (`EncodeIsccID`/`DecodeIsccID`, iter 119, #43);
-    `codec.go` `decodeHeader` accepts Version=1 ONLY for MainType ID (`VSV1` const). Go `IsccDecode`
-    (iter 120) and Rust Tier 1 `iscc_decode` (iter 121) both enforce EXACT body length — two-branch
-    "too short"/"too long" guards; Rust `codec::Version` has V0 only, so IDv1 codes (`MAIG...`) are
-    Go-only. Go CI job runs only `go test`+`go vet` — no gofmt gate; go1.26 gofmt flags pre-existing
-    alignment drift in codec_test.go + conformance.go (untouched, harmless)
+    Experimental ISCC-IDv1, exact body-length decode guards, gofmt caveat → go-idv1.md
 
 ## Build and Tooling
 
@@ -43,52 +40,38 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     \+ gotchas → ci-gates.md
 - Key audit rule: fresh advisory with a patched release → `cargo update -p <crate>` lockfile bump,
     NEVER add to `deny.toml` `ignore` (iter 115: crossbeam-epoch 0.9.18→0.9.20)
-- GOTCHA: never pipe `cargo crap`/`cargo deny` into `tail`/`head` to check exit — `$?` = pager,
-    masks exit 1; redirect to a file first
-- Ruby CI job: libclang-dev required, ruby/setup-ruby@v1 `working-directory` is an action `with:`
-    param (not step-level), bundler-cache auto-installs gems. `rust` job feature matrix: clippy+test
-    for `--no-default-features`, `--all-features`,
-    `--no-default-features --features text-processing`
+- Dependency refresh (iters 124-126): Cargo.lock + uv.lock refreshed; held-back majors (criterion
+    0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:` comments in root Cargo.toml; `ruff<0.16`
+    hold in pyproject.toml. Reasons + remaining slices → deps-refresh.md
+- GOTCHA: piping `cargo crap`/`cargo deny` to `tail` makes `$?` the pager's exit — use a file
+- Ruby CI job: libclang-dev required; ruby/setup-ruby@v1 `working-directory` is an action `with:`
+    param; bundler-cache auto-installs gems. `rust` job matrix: `--no-default-features`,
+    `--all-features`, `--no-default-features --features text-processing`
 - `version-check` job: `scripts/version_sync.py --check` (16 targets incl. Swift Constants,
     Package.swift releaseTag, Kotlin; exits 1 on mismatch). Go CI job has zero Rust deps
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds (`maturin` not on PATH
     — always `uv run maturin`). Builds a single `cp310-abi3` wheel (abi3-py310). GOTCHA: `uv sync`
     uninstalls the editable ext — re-run maturin develop after every sync
-- Python dev deps unconstrained EXCEPT `ruff<0.16` hold-back in root `pyproject.toml` (iter 125):
-    ruff 0.16 expands default lint rules → 104 errors (72 in `_lowlevel.pyi`: PIE790/PYI048; also
-    RUF100/I001/RUF059). Adopting 0.16 = dedicated step (`--fix` clears 60). zensical ≥0.0.51 warns
-    (non-fatal) on broken anchors — real defect in `docs/howto/c-cpp.md:9` noted iter 125
 - PyO3 pin = single source: root `Cargo.toml` (`pyo3` "0.29", `abi3-py310`); ONLY `crates/iscc-py`
-    consumes it (0.23→0.29 done, iter 105, #1 closed). KEEP explicit
-    `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) — 0.28+ defaults `gil_used`⇒`false`,
-    unsafe for raw `PyList_GetItem` ptrs. Recipe → MEMORY-archive.md
-- GIL release complete (iters 111+116, #39/#41): 12 `py.detach` sites in `crates/iscc-py/src/lib.rs`
-    (data/instance/image/sum, 3 hasher `update()`s, text, video+flat, soft_hash_video+flat). Video
-    detach MUST open after `extract_frame_sigs`/`flat_bytes_to_frames`; closures capture only
-    owned-Rust-Vec borrows. meta/audio/mixed stay attached by design. Tests: `tests/test_gil.py`
-- Release workflow (`release.yml`): 9 boolean inputs, pattern input → build → **smoke test** →
-    publish. Full input list + per-registry auth + release-job CI internals → MEMORY-archive.md.
-    `build-wheels` has 4 targets incl native-ARM `ubuntu-24.04-arm`/aarch64 (iter 123, #49);
-    `test-wheels` is matrixed (x86_64+aarch64), artifact name = `wheels-<os>-<target>`
-- wasm-pack `--features` goes AFTER the path, NOT after `--`; test runner accepts only a positional
-    FILTER (`-- --test unit` fails), so run the full suite
-- WASM SIMD (iters 117-118, #42): BLAKE3's wasm32 backend needs BOTH the `blake3/wasm32_simd` Cargo
-    feature (direct dep in iscc-wasm Cargo.toml, feature-unification only, no `use blake3` —
-    RUSTFLAGS alone leaves `Platform::Portable`) AND `RUSTFLAGS: -C target-feature=+simd128` (CI
-    `wasm` + release `build-wasm` steps) + `--enable-simd` in the wasm-opt array. `v128` opcode
-    counting is a false-positive signal (LLVM auto-vectorizes the portable path); the honest wiring
-    proof is `cargo tree --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` showing
-    `wasm32_simd`. wasm-pack `pkg/` is self-gitignored (`pkg/.gitignore` = `*`)
+    consumes it. KEEP `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) — 0.28+ defaults
+    `gil_used` to `false`, unsafe for raw `PyList_GetItem` ptrs. Recipe → MEMORY-archive.md
+- GIL release complete (iters 111+116, #39/#41): 12 `py.detach` sites in
+    `crates/iscc-py/src/lib.rs`. Video detach MUST open after frame-sig extraction; meta/audio/mixed
+    stay attached by design. Tests: `tests/test_gil.py`
+- Release workflow (`release.yml`): 9 boolean inputs → build → **smoke test** → publish (inputs,
+    auth, CI internals → MEMORY-archive.md). `build-wheels` has 4 targets incl native-ARM aarch64
+    (iter 123, #49); `test-wheels` matrixed, artifact name = `wheels-<os>-<target>`
+- WASM SIMD (iters 117-118, #42): dual wiring required (`blake3/wasm32_simd` feature + RUSTFLAGS
+    simd128 + wasm-opt `--enable-simd`); verification recipe + wasm-pack CLI gotchas → wasm-simd.md
 
 ## Benchmarks
 
-- Two benches in `crates/iscc-lib/benches/`, both `harness = false`: `benchmarks.rs` (criterion,
-    wall-clock + throughput, incl `gen_sum_code_v0` via tempfile) and `iai_benches.rs`
-    (iai-callgrind 0.16.1, instruction-counts). Share `deterministic_bytes`/`synthetic_text`
-    builders. iai compiles without valgrind; running needs valgrind + runner — NOT preinstalled in
-    fresh containers (iter 124): `sudo apt-get install -y valgrind` +
-    `cargo binstall -y iai-callgrind-runner --version 0.16.1`, then `mise run bench:iai:check`. Perf
-    gate mechanics + bench-profile gotchas → ci-gates.md
+- Two benches in `crates/iscc-lib/benches/`, both `harness = false`: `benchmarks.rs` (criterion 0.7,
+    wall-clock + throughput; uses `std::hint::black_box` — `criterion::black_box` deprecated since
+    0.6, fails clippy `-D warnings`) and `iai_benches.rs` (iai-callgrind 0.16.1,
+    instruction-counts). iai runs need valgrind + runner — NOT preinstalled in fresh containers:
+    `sudo apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner --version 0.16.1`,
+    then `mise run bench:iai:check`. Perf gate mechanics + bench-profile gotchas → ci-gates.md
 
 ## Streaming
 
@@ -120,9 +103,8 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     order: Python, Rust, Ruby, Node.js, WASM, Go, Java, C#, C++, Swift, Kotlin (11)
 - Howto guides `docs/howto/{lang}.md`, API refs
     `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`, per-package READMEs + CLAUDE.md under
-    `packages/{dotnet,cpp,swift,kotlin}/`. zensical.toml nav howto order: Rust, Python, Ruby,
-    Node.js, WASM, Go, Java, C#/.NET, C/C++, Swift, Kotlin (differs from landing-page tab order
-    above, which starts Python, Rust)
+    `packages/{dotnet,cpp,swift,kotlin}/`. zensical.toml nav howto order differs from landing-page
+    tab order (nav starts Rust, Python; landing starts Python, Rust)
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` (via `ORDERED_PAGES` +
     `discover_pages()`, excludes `docs/includes/`). Run after `zensical build` in docs CI
 
@@ -135,9 +117,8 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     `run_meta_tests` in conformance, `sliding_window_bytes`
 - `conformance` module is always available (not feature-gated). `conformance_selftest()` skips
     disabled code types (meta, text) via `#[cfg]` blocks — does not fail for missing features
-- When gating `pub(crate)` functions, their tests must also be gated — dead-code lint fires in
-    library builds even if test modules use them. Integration tests in
-    `crates/iscc-lib/tests/test_text_utils.rs` also need per-function gating
+- When gating `pub(crate)` functions, gate their tests too — dead-code lint fires in library builds
+    even if test modules use them; `tests/test_text_utils.rs` also needs per-function gating
 - `serde_json` stays as a regular (non-optional) dep because `conformance.rs` uses it for parsing
     `data.json`. Gating it requires restructuring conformance (future work)
 

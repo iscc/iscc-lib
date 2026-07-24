@@ -1,82 +1,60 @@
 # Handoff
 
-## 2026-07-24 — Review of: Refresh Python `uv.lock` (dependency-refresh slice 2)
+## 2026-07-24 — Rust direct-pin evaluation — bump criterion to 0.7, document held-back majors
 
-**Verdict:** PASS
+**Done:** Completed slice 3 of the "Dependency review and refresh" issue: bumped the `criterion`
+workspace pin from 0.5 to 0.7 (dev-only bench dependency), migrated the single deprecated
+`criterion::black_box` import in `benchmarks.rs` to `std::hint::black_box`, and added inline
+`# held:` comments documenting the deliberate hold-back reason next to each of the four held
+workspace pins (`criterion` 0.8, `jni` 0.22, `magnus` 0.8, `uniffi` 0.32) plus a `# note:` on `pyo3`
+about re-verifying `gil_used`/`py.detach` (issue #41) on future bumps.
 
-**Summary:** The advance agent regenerated the root Python `uv.lock` via `uv lock --upgrade` (40
-packages bumped — notably iscc-core 1.2.2→1.3.0, ty 0.0.18→0.0.63, maturin 1.14.1, prek 0.4.11,
-pytest 9.1.1, zensical 0.0.51) with a single documented `ruff<0.16` hold-back in `pyproject.toml`.
-No Rust or Python source file was touched. All quality gates (test, lint, check, pre-push, docs) are
-green on the refreshed lockfile; the hold-back is legitimate scope discipline, not gate weakening.
+**Files changed:**
 
-**Verification:**
+- `Cargo.toml` (root): `criterion = { version = "0.7", ... }` (was `0.5`); 4 `# held:` comment
+    blocks adjacent to the criterion/jni/magnus/uniffi pins; 1 `# note:` block above pyo3. No other
+    pin text changed.
+- `crates/iscc-lib/benches/benchmarks.rs`: import line only — `black_box` removed from the
+    `use criterion::{...}` list, `use std::hint::black_box;` added (sorted before `std::io::Write`).
+    All 30 `black_box(...)` call sites byte-identical.
+- `Cargo.lock` (generated): criterion 0.5.1 → 0.7.0, criterion-plot 0.5.0 → 0.6.0; removed
+    hermit-abi 0.5.2, is-terminal 0.4.17, itertools 0.10.5 (subtree shrank by 3 crates).
 
-- [x] `uv lock --check` exits 0 — "Resolved 91 packages", committed lock consistent with
-    `pyproject.toml`.
-- [x] `uv sync --group dev` exits 0 and
-    `uv run maturin develop --manifest-path   crates/iscc-py/Cargo.toml` builds the abi3 extension
-    (maturin 1.14.1). NOTE: `uv sync` uninstalls the editable `iscc-lib` — the develop step is
-    required before pytest can import.
-- [x] `mise run test` passes — Rust workspace + **314 pytest** (incl. conformance vs `data.json` and
-    iscc-core 1.3.0 comparative benches).
-- [x] `mise run lint` clean — `ruff check` "All checks passed!", `ruff format --check` "24 files
-    already formatted", cargo fmt/clippy unchanged.
-- [x] `mise run check` — all 15 pre-commit hooks pass, no file rewrites left in the tree.
-- [x] Pre-push hooks (`uv run prek run --all-files --hook-stage pre-push`) all pass — **"Python type
-    checking" green on ty 0.0.63** (the biggest risk of the 0.0.18→0.0.63 jump), plus clippy, Rust
-    tests, Ruff S/C901, pytest.
-- [x] `uv run zensical build` exits 0 (0.0.51) and `uv run python scripts/gen_llms_full.py` exits 0
-    (22 pages, 268195 bytes).
-- [x] Change set is `uv.lock` + `pyproject.toml` (single documented hold-back) + context/memory only
-    — **no Rust or Python source file modified**. (Review added one minor doc-anchor fix — see
-    Issues found.)
+**Verification:** (all commands run this session, exit codes captured)
 
-**Gate integrity:** Clean. The `ruff<0.16` pin is NOT gate weakening — it holds back a tool version
-to defer adoption of ruff 0.16's *new* default lint rules; ruff 0.15.22 enforces the exact same rule
-set previously locked (0.15.2). No lint rule disabled, no test skipped, no threshold lowered, no
-hook removed. **Verified genuine**, not a mask: `uvx ruff@0.16.0 check .` reproduced exactly 104
-errors (72 in `_lowlevel.pyi`), matching the handoff claim precisely. The pin carries an inline
-`# held:` comment and a deferred-adoption follow-up. next.md pre-authorized this exact contingency
-for a lockfile slice.
+- `grep -A1 '^name = "criterion"' Cargo.lock` → `version = "0.7.0"`; no 0.5.x criterion remains.
+- `grep -c '# held' Cargo.toml` → 4, each adjacent to its pin (criterion, jni, magnus, uniffi).
+- `grep -c 'use std::hint::black_box' benchmarks.rs` → 1;
+    `grep -c 'criterion::{[^}]*black_box' benchmarks.rs` → 0.
+- `cargo bench --no-run` exit 0 (compiles `benchmarks.rs` + `iai_benches.rs` under criterion 0.7).
+- `mise run lint` clean — clippy `--workspace --all-targets -D warnings` passes, no deprecation
+    warnings; ruff "All checks passed!", 24 files already formatted.
+- `mise run test`: `cargo test --workspace` exit 0 (15 suites, 0 failures — 270 iscc-lib unit +
+    conformance, 85 ffi, 28+22 integration, 21 uniffi) + **314 pytest passed**.
+- `mise run audit` exit 0 — "advisories ok, bans ok, licenses ok, sources ok" against the refreshed
+    lockfile (criterion 0.7's clap 4.6/criterion-plot 0.6/itertools 0.13 subtree passed cargo-deny).
+- `mise run bench:iai:check` exit 0 against the **unmodified** `.iai-baseline.json` — 16/16 within
+    10% (max delta +1.96% on bench_mixed_code.two_codes; baseline files untouched per git status).
+- `mise run check` exit 0 — all 15 pre-commit hooks pass, no file rewrites left in tree (taplo
+    preserved all `# held:` comments).
+- `git status --porcelain crates/iscc-lib/src crates/iscc-rb/src crates/iscc-jni/src` — empty; no
+    library source touched.
 
-**Issues found:**
-
-- **Fixed during review (minor doc):** the pre-existing broken intra-page anchor at
-    `docs/howto/c-cpp.md:8` — `[C++ section](#c-wrapper-iscc-hpp)` — had an extra hyphen; zensical
-    0.0.51's new anchor checker surfaced it (non-fatal, exit 0). The actual generated slug is
-    `c-wrapper-iscchpp`. Corrected the link; `zensical build` now reports "No issues found". This
-    was a pre-existing defect (not caused by the lockfile refresh), fixed as a behavior-neutral
-    minor fix.
-
-**Codex review:** Confirms the refreshed lockfile is consistent with `pyproject.toml`, the ruff
-hold-back is correctly represented, and linting, type checking, docs generation, and the full Python
-test suite (3.10 + 3.14) pass. No actionable findings.
-
-**Next:** Continue the "Dependency review and refresh" issue with the next slice. Slices 1 (Rust
-`Cargo.lock`) and 2 (Python `uv.lock`) are done. Remaining, in rough order of value:
-
-1. **Rust direct-pin evaluation** — review workspace `Cargo.toml` majors (uniffi, pyo3, criterion,
-    iai-callgrind, magnus, jni, napi); bump the safe ones, document each deliberate hold-back next
-    to its pin (pyo3 stays pinned per #41 `gil_used`/`py.detach`; uniffi 0.32 needs Swift/Kotlin
-    regen).
-2. **Per-binding manifests** — napi `package.json`, rb `Gemfile`/gemspec (rb_sys must match the
-    `oxidize-rb/actions/cross-gem` Docker tag), jni `pom.xml`, kotlin `build.gradle.kts`, dotnet
-    `.csproj`, go `go.mod` — one small step each.
-3. **Tooling pins** — `mise.toml`, `.pre-commit-config.yaml`, GHA action versions.
-
-Separately, a small dedicated step should **adopt ruff 0.16**: `ruff check --fix` (60 auto-fixable),
-hand-fix the rest (mostly `_lowlevel.pyi` stub-style PIE790/PYI048/RUF022), then drop the
-`ruff<0.16` pin. Do NOT cut v1.0.0 or flip the `Semver` gate — both held by Titusz.
+**Next:** Continue the dependency-refresh issue with slice 4: per-binding manifests (napi
+`package.json`, rb `Gemfile`/gemspec — rb_sys must match the `oxidize-rb/actions/cross-gem` Docker
+tag, jni `pom.xml`, kotlin `build.gradle.kts`, dotnet `.csproj`, go `go.mod`) — one small step each.
+Then tooling pins (`mise.toml`, `.pre-commit-config.yaml`, GHA actions). The dedicated ruff 0.16
+adoption step also remains open.
 
 **Notes:**
 
-- **iscc-core 1.3.0 matches the vendored conformance vectors** (`data.json` v1.3.0); comparative
-    tests confirm zero output drift. ISO 24138 is frozen, so this is expected.
-- **Guard for future refresh/source slices:** the CRAP regression gate is CI-only (not in
-    `mise run check`) — any source change adding a branch/loop to a covered function must refresh
-    `.crap-baseline.json` in the same step. (Not triggered this iteration — no source touched.)
-- **Verification gotcha (recorded in review memory):** `uv sync` uninstalls the editable `iscc-lib`
-    extension; `uv run maturin develop` must run before pytest or the import fails.
-- Watch the enforcing `Audit (cargo-deny)` gate — a fresh live advisory can flip it red on any push
-    with no code change (prefer `cargo update -p <crate>` over a `deny.toml` ignore).
+- criterion resolved to 0.7.0 (latest in the 0.7 line). 0.8.2 exists but requires rustc 1.86 vs our
+    declared `rust-version = "1.85"` — held and documented; MSRV raise is a human decision for the
+    v1.0.0 cut.
+- The `cargo bench --no-run` / `cargo test` future-incompat warning about `proc-macro-error2 v2.0.1`
+    is **pre-existing** (verified: `git diff Cargo.lock` contains no proc-macro-error2 lines — it
+    comes from the magnus/rb-sys subtree, untouched this slice). Worth a look in the Ruby slice.
+- valgrind + iai-callgrind-runner + cargo-deny were already present in this container — no reinstall
+    needed this session.
+- `.claude/context/iterations.jsonl` shows as modified in the working tree (CID runner's log) — not
+    staged per protocol.
