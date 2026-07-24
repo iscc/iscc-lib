@@ -1,132 +1,111 @@
 # Next Work Package
 
-## Step: Rust direct-pin evaluation — bump criterion to 0.7, document held-back majors
+## Step: Dependency refresh slice 4 — GitHub Actions versions in ci.yml + docs.yml
 
 ## Goal
 
-Complete slice 3 of the tracked `normal` `[human]` issue **"Dependency review and refresh across the
-project"**: evaluate every `workspace.dependencies` pin in the root `Cargo.toml`, bump the one major
-that is safe to take (`criterion` 0.5 → 0.7, a dev-only bench dependency), and record an inline
-documented reason next to each pin that is deliberately held back — exactly what
-`.claude/context/specs/ci-cd.md` → "Dependency Freshness" requires.
+Bring the pinned GitHub Actions in the two non-release workflows up to their current major versions
+(most are 1–3 majors behind and still on the node20 runtime), continuing the `normal` `[human]`
+issue "Dependency review and refresh across the project" (spec: `.claude/context/specs/ci-cd.md` →
+"Dependency Freshness"). `ci.yml` changes are directly verified by the CI run on push;
+`.github/workflows/release.yml` is deliberately deferred to its own slice.
 
 ## Scope
 
-- **Modify**: `Cargo.toml` (root — `[workspace.dependencies]`: bump `criterion`, add `# held:`
-    comments), `crates/iscc-lib/benches/benchmarks.rs` (swap the deprecated `criterion::black_box`
-    import for `std::hint::black_box`)
-- **Generated (does not count toward the file budget)**: `Cargo.lock`
-- **Reference**: `.claude/context/specs/ci-cd.md` → "Dependency Freshness" (§423),
-    `.claude/context/issues.md` → "Dependency review and refresh across the project", `mise.toml`
-    (`lint`, `test`, `audit`, `bench:iai:check` tasks), `.github/workflows/ci.yml` (the `bench` job
-    runs `cargo bench --no-run`)
+- **Create**: none
+- **Modify**: `.github/workflows/ci.yml`, `.github/workflows/docs.yml` (2 non-test, non-doc files)
+- **Reference**: `.claude/context/specs/ci-cd.md` (§ "Dependency Freshness"),
+    `.claude/context/issues.md` (dependency issue + its progress log), `.claude/context/handoff.md`
+    (slice-4 risk notes), `Cargo.toml` (`# held:` comment style to mirror if any action must be held
+    back)
 
 ## Not In Scope
 
-- **Do NOT bump `magnus`, `jni`, or `uniffi`.** Each needs its own step with a source migration (see
-    Implementation Notes for the exact blockers). Documenting the hold-back is this step's
-    deliverable; performing the migration is not.
-- **Do NOT raise the workspace `rust-version = "1.85"`** in order to take criterion 0.8. Raising the
-    declared MSRV of the published crate is a human policy decision (it belongs with the v1.0.0
-    cut), not a dependency-refresh side effect.
-- Do NOT touch `pyproject.toml` or adopt ruff 0.16 — that is its own dedicated step.
-- Do NOT touch the per-binding manifests (`crates/iscc-napi/package.json`, `crates/iscc-rb/Gemfile`
-    \+ gemspec, `crates/iscc-jni/java/pom.xml`, `packages/kotlin/build.gradle.kts`,
-    `packages/dotnet/*/*.csproj`, `packages/go/go.mod`) or the tooling pins (`mise.toml`,
-    `.pre-commit-config.yaml`, GHA action versions) — later slices of the same issue.
-- Do NOT add, remove, rename or restructure benchmarks. The only edit to `benchmarks.rs` is the
-    import line; all 30 `black_box(...)` call sites stay byte-identical.
-- Do NOT modify any file under `crates/*/src/` — this slice changes no library behaviour.
-- Do NOT refresh `.crap-baseline.json` or `.iai-baseline.json`. No library source changes, so
-    neither can legitimately drift; if `bench:iai:check` fails, investigate and report rather than
-    rebaseline.
-- Do NOT edit `issues.md` (the review agent records slice progress after verification).
+- **`.github/workflows/release.yml` — do not touch.** It is the next slice on its own: 97 `uses:`
+    refs, and its `actions/upload-artifact@v4` ↔ `actions/download-artifact@v4` pairs must be bumped
+    together, with no way to verify short of a real release run.
+- **`.pre-commit-config.yaml` — do not touch.** Both pinned repos were checked against upstream on
+    2026-07-24 and are already current: `pre-commit/pre-commit-hooks` `v6.0.0` is the latest release
+    and `executablebooks/mdformat` `1.0.0` is the latest tag (= PyPI 1.0.0). There is no bump to
+    make, so there is no mdformat reformat wave in this step.
+- **`mise.toml`** — has no `[tools]` section; nothing to pin.
+- Do not pin actions to commit SHAs, add `.github/dependabot.yml` / `renovate.json`, or introduce
+    any new job, step, matrix entry, or permission.
+- Do not change runtime versions selected by the actions (`node-version: '20'`,
+    `python-version: '3.10' / '3.14' / '3.12'`, `go-version-file`, JDK/.NET versions) — those are
+    support-policy decisions, not dependency pins.
+- Do not touch `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
+    `taiki-e/install-action@v2`, `ruby/setup-ruby@v1`, `obi1kenobi/cargo-semver-checks-action@v2` —
+    all already on their latest major line (verified 2026-07-24).
 
 ## Implementation Notes
 
-**Pin survey (already done — crates.io latest as of 2026-07-24; no need to redo):**
+Mechanical version bumps only. Upstream latest majors were surveyed via
+`gh api repos/<owner>/<repo>/releases/latest` on 2026-07-24; each major's release notes were read
+and the breaking changes evaluated against actual usage in these two files.
 
-| Pin             | Current  | Latest | Action                                   |
-| --------------- | -------- | ------ | ---------------------------------------- |
-| `criterion`     | `0.5`    | 0.8.2  | **bump to `0.7`** (0.8 held — see below) |
-| `magnus`        | `0.7`    | 0.8.2  | hold + document                          |
-| `jni`           | `0.21`   | 0.22.4 | hold + document                          |
-| `uniffi`        | `0.31`   | 0.32.0 | hold + document                          |
-| `pyo3`          | `0.29`   | 0.29.0 | already current                          |
-| `iai-callgrind` | `0.16`   | 0.16.1 | caret already covers it                  |
-| `napi` family   | `3`, `2` | 3.11.0 | caret already covers it                  |
+**`.github/workflows/ci.yml`** (67 `uses:` lines total — 9 distinct refs change):
 
-Every other `workspace.dependencies` entry (`blake3`, `data-encoding`, `hex`, `serde`, `serde_json`,
-`serde_json_canonicalizer`, `thiserror`, `unicode-normalization`, `unicode-general-category`,
-`xxhash-rust`, `wasm-bindgen`, `wasm-bindgen-test`, `serde-wasm-bindgen`, `tempfile`) is already at
-the newest release its caret range admits — the iteration-124 `Cargo.lock` refresh covered them, so
-no pin text changes.
+| Action                              | From  | To    | N   | Evaluation                                                                                                                                                                                                                                                                            |
+| ----------------------------------- | ----- | ----- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `actions/checkout`                  | `@v4` | `@v7` | 18  | v5/v6 = node24 + creds persisted to a separate file; v7 blocks fork checkout for `pull_request_target`/`workflow_run` — neither trigger is used here, no job pushes                                                                                                                   |
+| `actions/setup-python`              | `@v5` | `@v7` | 2   | v6 = node24; v7 removed the `pip-install` input (unused). `allow-prereleases: true` is still supported — keep it                                                                                                                                                                      |
+| `astral-sh/setup-uv`                | `@v4` | `@v9` | 1   | v5 enables cache by default, v6 changed `activate-environment`/`working-directory` defaults, v7 dropped `server-url`, v8 dropped the old `manifest-file` format, v9 sets `prune-cache: false`. We pass **no inputs** and drive everything through `uv sync` / `uv run`, so none apply |
+| `actions/setup-node`                | `@v4` | `@v7` | 1   | v5+ auto-caching only triggers when `package.json` declares `packageManager`/`devEngines.packageManager`; `crates/iscc-napi/package.json` declares neither, so no lockfile lookup happens (its `package-lock.json` is gitignored)                                                     |
+| `actions/setup-java`                | `@v4` | `@v5` | 2   | node24 only                                                                                                                                                                                                                                                                           |
+| `actions/setup-go`                  | `@v5` | `@v7` | 1   | v6 = node24 + stricter toolchain selection; we use `go-version-file: packages/go/go.mod` (`go 1.26.1`), which stays supported                                                                                                                                                         |
+| `actions/setup-dotnet`              | `@v4` | `@v6` | 1   | node24 only                                                                                                                                                                                                                                                                           |
+| `actions/upload-artifact`           | `@v4` | `@v7` | 2   | node24 + `@actions/artifact` v4 backend. Safe because ci.yml has **zero** `download-artifact` steps — no cross-major pairing inside this workflow                                                                                                                                     |
+| `github/codeql-action/upload-sarif` | `@v3` | `@v4` | 1   | v4 is the current line (latest tag `v4.37.3`); v3 is on the deprecation path                                                                                                                                                                                                          |
 
-**1. criterion 0.5 → 0.7.** Set `criterion = { version = "0.7", features = ["html_reports"] }`. The
-`html_reports` feature still exists in 0.7. Breaking changes between 0.5 and 0.7 (per the upstream
-CHANGELOG) that touch us: exactly one — in 0.6 `criterion::black_box` became
-`#[deprecated(note = "use std::hint::black_box() instead")]` and the `real_blackbox` feature became
-a no-op. Because `mise run lint` runs `cargo clippy --workspace --all-targets -- -D warnings`, that
-deprecation is a hard error. Fix by editing only the import at
-`crates/iscc-lib/benches/benchmarks.rs:6`:
+Do **not** add `package-manager-cache: false` to the `setup-node` step preemptively — only if that
+job actually fails with "Dependencies lock file is not found".
 
-```rust
-use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
-use std::hint::black_box;
-```
+**`.github/workflows/docs.yml`** (5 `uses:` lines, all change): `actions/checkout@v4` → `@v7`,
+`actions/setup-python@v5` → `@v7`, `astral-sh/setup-uv@v4` → `@v9`,
+`actions/upload-pages-artifact@v3` → `@v5`, `actions/deploy-pages@v4` → `@v5`.
 
-Keep the rest of the imports rustfmt-stable (`cargo fmt`, or let `mise run format` do it).
-`BenchmarkId`, `Throughput`, `criterion_group!`/`criterion_main!` and the
-`[[bench]] harness = false` setup are unchanged in 0.6/0.7. `crates/iscc-lib/benches/iai_benches.rs`
-does not use criterion and must not be touched.
+- `upload-pages-artifact` v4 stopped including hidden files in the artifact. Checked: the built
+    `site/` tree contains no dotfiles (only `404.html`, `CNAME`, `index.html`, `llms.txt`,
+    `objects.inv`, `assets/`, …), and this project does not use `.nojekyll` (artifact-based Pages
+    deploys never run Jekyll), so the exclusion is a no-op here.
+- `upload-pages-artifact@v5` + `deploy-pages@v5` are the matching current pair (v5 of the uploader
+    moved to `upload-artifact` v7; `deploy-pages` v5 is node24). Bump both or neither.
+- `docs.yml` only runs on push to `main`, so this file is **not** exercised by the develop CI run —
+    verification for it is static (YAML parses, expected refs present, step count unchanged).
 
-**2. Hold-back comments.** Add a short inline `# held:` comment adjacent to each held pin in
-`[workspace.dependencies]`. Use these verified reasons (1–3 comment lines each, taplo-safe):
+**If any single bump turns out to be unsafe**, hold that one ref back at its current version and add
+a `# held: <reason>` YAML comment on the line above it, mirroring the `# held:` convention now used
+in the root `Cargo.toml`. Do not weaken or delete a step to make a bump work.
 
-- `criterion` → 0.8 requires rustc **1.86**; the workspace declares `rust-version = "1.85"`. Revisit
-    when the MSRV is raised.
-- `uniffi` → 0.32 requires regenerating **and re-verifying** the Swift + Kotlin bindings; there is
-    no Swift toolchain in the Linux devcontainer, so it cannot be validated locally.
-- `magnus` → in 0.8 the `old-api` feature is no longer default, which makes
-    `magnus::exception::runtime_error()` (used in `crates/iscc-rb/src/lib.rs`) `#[deprecated]` and
-    therefore a `clippy -D warnings` failure; it needs a call-site refactor to
-    `Ruby::exception_runtime_error()`. Deferred to the Ruby slice (which also refreshes
-    `Gemfile`/gemspec, where the `rb_sys` gem must keep matching the `oxidize-rb/actions/cross-gem`
-    Docker tag).
-- `jni` → 0.22 is a wholesale API rework (`JNIEnv` → `EnvUnowned`/`Env`, `GlobalRef` → `Global`,
-    `AutoLocal` → `Auto`, closure-based thread attachment, mandatory `ErrorPolicy`); per upstream's
-    `docs/0.22-MIGRATION.md` it rewrites `crates/iscc-jni/src/lib.rs`. Needs a dedicated step.
-- `pyo3` is already at the latest (0.29.0) — no hold-back comment required, but a one-line note that
-    bumps must re-verify `gil_used = true` and the `py.detach` call sites (issue #41) is welcome.
-
-**3. Lock refresh.** `cargo update -p criterion` (or a plain `cargo build`) re-resolves; commit the
-resulting `Cargo.lock`. criterion 0.7 pulls a slightly different dev-dependency subtree
-(criterion-plot, clap, plotters, …), so the enforcing `Audit (cargo-deny)` gate is the real risk
-here: run `mise run audit` and, if a new transitive crate trips a license or advisory rule, prefer
-`cargo update -p <crate> --precise <version>` over adding a `deny.toml` exception. cargo-deny is not
-preinstalled — `cargo binstall cargo-deny@0.19.9 --force`.
+Run `mise run format` before staging (yamlfix/mdformat normalize these files), then commit and push
+so the CI run can validate the ci.yml changes.
 
 ## Verification
 
-- `grep -A1 '^name = "criterion"' Cargo.lock` reports `version = "0.7.` (no 0.5.x criterion remains
-    in the lockfile).
-- `grep -c '# held' Cargo.toml` returns **≥ 4**, and `grep -n 'held' Cargo.toml` shows a reason
-    adjacent to each of the `criterion`, `uniffi`, `magnus`, and `jni` pins.
-- `grep -c 'use std::hint::black_box' crates/iscc-lib/benches/benchmarks.rs` returns `1` **and**
-    `grep -c 'criterion::{[^}]*black_box' crates/iscc-lib/benches/benchmarks.rs` returns `0`.
-- `cargo bench --no-run` exits 0 (exactly what the CI `Bench (compile check)` job runs).
-- `mise run lint` clean — in particular `cargo clippy --workspace --all-targets -- -D warnings`
-    passes with no deprecation warning from the benches.
-- `mise run test` passes (full Rust workspace + pytest, unchanged counts).
-- `mise run audit` exits 0 (enforcing `Audit (cargo-deny)` gate against the refreshed `Cargo.lock`).
-- `mise run bench:iai:check` passes against the **unmodified** `.iai-baseline.json`.
-- `mise run check` — all pre-commit hooks pass (taplo keeps `Cargo.toml` formatted; no file left
-    rewritten in the tree).
-- `git status --porcelain crates/iscc-lib/src crates/iscc-rb/src crates/iscc-jni/src` is empty (this
-    slice changes no library source).
+- `python3 -c "import yaml;[yaml.safe_load(open(f)) for f in ['.github/workflows/ci.yml','.github/workflows/docs.yml']]"`
+    exits 0
+- No stale refs remain in the two touched files — this command prints nothing (exit 1):
+    `grep -nE 'actions/checkout@v[1-6]|actions/setup-python@v[1-6]|astral-sh/setup-uv@v[1-8]|actions/setup-node@v[1-6]|actions/setup-java@v[1-4]|actions/setup-go@v[1-6]|actions/setup-dotnet@v[1-5]|actions/upload-artifact@v[1-6]|codeql-action/upload-sarif@v[1-3]|upload-pages-artifact@v[1-4]|deploy-pages@v[1-4]' .github/workflows/ci.yml .github/workflows/docs.yml`
+- Expected new refs present: `grep -c 'actions/checkout@v7' .github/workflows/ci.yml` → **18** and
+    `grep -c 'actions/checkout@v7' .github/workflows/docs.yml` → **1**
+- Step count unchanged: `grep -c 'uses:' .github/workflows/ci.yml` → **67**;
+    `grep -c 'uses:' .github/workflows/docs.yml` → **5**
+- `release.yml` left alone and internally consistent:
+    `grep -c 'actions/checkout@v4' .github/workflows/release.yml` → **23**,
+    `grep -c 'actions/upload-artifact@v4' .github/workflows/release.yml` → **11**,
+    `grep -c 'actions/download-artifact@v4' .github/workflows/release.yml` → **20**
+- `.pre-commit-config.yaml` untouched: `grep -c 'rev: v6.0.0' .pre-commit-config.yaml` → **1** and
+    `grep -c 'rev: 1.0.0' .pre-commit-config.yaml` → **1**
+- `mise run check` exits 0 with no file left rewritten (`git status --porcelain` shows only the
+    intended changes)
+- CI on the pushed develop commit is fully green:
+    `gh api repos/iscc/iscc-lib/commits/<sha>/check-runs --jq '[.check_runs[]|select(.conclusion!="success")]|length'`
+    → **0**, with all 20 CI jobs (including `Coverage + CRAP`, `Perf (iai-callgrind)`,
+    `Audit (cargo-deny)`, `Semver`) present
 
 ## Done When
 
-`criterion` is pinned at 0.7 with the bench import migrated to `std::hint::black_box`, every
-deliberately held-back workspace pin carries an inline documented reason, and all verification
-commands above pass on the working tree.
+`ci.yml` and `docs.yml` reference only current-major GitHub Actions, every grep assertion above
+holds on the working tree, `mise run check` exits 0, and the pushed develop commit shows 0
+non-success CI check-runs.

@@ -93,17 +93,12 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
 - **Recurring**: the enforcing cargo-deny gate WILL periodically go red on fresh RustSec advisories
     vs dev/bench deps — CI-red-first priority; prefer `cargo update -p <crate>` (patch bump) over a
     `deny.toml` ignore when a patched release exists (check `patched` range in advisory-db first).
-- **iters 120–122 DONE (trailing-byte hardening saga; detail in learnings.md + MEMORY-archive.md)**:
-    120 Go `IsccDecode` "too long" branch (`[review]`); 121 Rust-core `iscc_decode` "too long" guard
-    (11 bindings inherit) — but the added branch tripped the CI-only CRAP `--fail-regression` gate;
-    122 CI-RED-FIRST `.crap-baseline.json` refresh via `mise run crap:baseline`. **Root lesson: CRAP
-    regression gate is CI-ONLY (not in `mise run check`/pre-commit)** — any step adding a
-    branch/loop to a covered fn MUST refresh the baseline in the SAME step (this is exactly how iter
-    121 slipped).
-- **iters 123–125 DONE (detail in MEMORY-archive.md)**: 123 #49 aarch64 Python wheels (release-only
-    infra → STATIC verification: pyyaml `safe_load` + grep); 124 dep-refresh slice 1 =
-    `cargo update` (Cargo.lock only); 125 slice 2 = `uv lock --upgrade` (root `/uv.lock` only, one
-    documented `ruff<0.16` hold-back).
+- **iters 120–125 DONE (detail in learnings.md + MEMORY-archive.md)**: 120/121 trailing-byte "too
+    long" guards (Go, then Rust core); 122 CI-RED-FIRST `.crap-baseline.json` refresh; 123 #49
+    aarch64 wheels (release-only infra → STATIC verification: pyyaml `safe_load` + grep); 124/125
+    dep-refresh slices 1–2 (`cargo update`, `uv lock --upgrade`). **Root lesson: the CRAP regression
+    gate is CI-ONLY** (not in `mise run check`/pre-commit) — any step adding a branch/loop to a
+    covered fn MUST refresh the baseline in the SAME step (how iter 121 slipped).
 - **Dep refresh is sliced per-ecosystem** (spans ~12 manifests, cites no `[audit]` → no 8-file
     valve): Rust lock → Rust direct pins → Python `uv.lock` → each binding-manifest group → tooling
     pins. Lockfiles are generated → 0 source files; hold a tool/dep back with an inline documented
@@ -113,10 +108,8 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     2026-07-24): only 4 pins are majors behind**; all others caret-covered by the iter-124 lock
     refresh. Spec `ci-cd.md` §"Dependency Freshness" mandates a documented reason next to every
     held-back pin → `# held:` comments are the deliverable.
-    - `criterion` 0.5→**0.7** (the one bump): 0.6 deprecated `criterion::black_box` → swap import to
-        `std::hint::black_box` (30 bare call sites unchanged); `mise run lint` =
-        `clippy --all-targets   -D warnings`, so a deprecation IS a hard error. CI bench job =
-        `cargo bench --no-run`.
+    - `criterion` 0.5→**0.7** landed (import swapped to `std::hint::black_box`). `mise run lint` =
+        `clippy --all-targets -D warnings`, so a **deprecation IS a hard error** in any dep bump.
     - **criterion 0.8 HELD: MSRV 1.86 > workspace `rust-version = "1.85"`** — do NOT raise the
         declared MSRV for a dev-dep (human policy call for the v1.0.0 cut; no MSRV CI job, local rustc
         1.97).
@@ -130,14 +123,30 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     - **uniffi 0.32 HELD**: needs Swift+Kotlin regen/re-verify; no Swift toolchain locally. **pyo3
         0.29** is already latest. Risk: enforcing `Audit (cargo-deny)` on criterion 0.7's new dev
         subtree (criterion-plot, clap, plotters) → `mise run audit`.
-- **ruff 0.16 adoption is OVER the 3-file budget** (measured iter 126 via
-    `uvx ruff@0.16.0 check .`): 104 errors across `_lowlevel.pyi` (72), `tools/cid.py` (12),
-    `tools/metrics.py` (3), `scripts/test_install.py` (2), `iscc_lib/__init__.py` (2) + 6 test files
-    = **5 non-test files + `pyproject.toml`** → must be sliced (iscc-py package, then tools/scripts,
-    then drop the pin).
-- **v0.6.0 remaining after slice 3**: ruff 0.16 (sliced), magnus/jni/uniffi major migrations,
-    per-binding manifests (napi/rb/jni/kotlin/dotnet/go), tooling pins (mise, pre-commit, GHA) + 2
-    human-gated release-workflow fixes (npm OIDC, single-registry re-trigger). One slice/iteration.
+- **ruff 0.16 adoption is OVER the 3-file budget** (iter 126, `uvx ruff@0.16.0 check .`): 104 errors
+    over 5 non-test files (`_lowlevel.pyi` 72, `tools/cid.py` 12, `tools/metrics.py`,
+    `scripts/test_install.py`, `iscc_lib/__init__.py`) + `pyproject.toml` → slice it (iscc-py
+    package, then tools/scripts, then drop the pin).
+- **iter 127: dep-refresh slice 4 = GitHub Actions versions, split by workflow file.** Survey
+    (`gh api repos/<r>/releases/latest`, 2026-07-24): **`.pre-commit-config.yaml` needs NO bump** —
+    its only 2 pinned repos (`pre-commit-hooks` v6.0.0, `mdformat` 1.0.0) are already latest, so the
+    feared mdformat reformat wave is moot. GHA refs live in exactly 3 files: `ci.yml` (67 `uses:`),
+    `docs.yml` (5), `release.yml` (97). Scoped ci.yml+docs.yml this step (ci.yml is push-verified);
+    **`release.yml` is its own slice** because its `upload-artifact@v4` ↔ `download-artifact@v4`
+    pairs must move together and only a real release exercises it. `docs.yml` runs on push to `main`
+    only → static verification. Latest majors: checkout v7, setup-python v7, setup-node v7, setup-go
+    v7, upload-artifact v7, download-artifact v8, setup-dotnet v6, cache v6, setup-java v5, setup-uv
+    v9, upload-pages-artifact v5, deploy-pages v5, codeql-action v4, gh-release v3. Already-latest
+    majors: `rust-cache@v2`, `install-action@v2`, `setup-ruby@v1`, `cargo-semver-checks-action@v2`,
+    `dtolnay/rust-toolchain@stable`. Real breaking-change traps checked: setup-node v5+
+    auto-npm-cache fires only if `package.json` declares `packageManager`/`devEngines` (ours doesn't
+    → no "lock file not found"); upload-pages-artifact v4 drops hidden files (our `site/` has none);
+    checkout v6 moved creds to a separate file; v7 blocks fork checkout for
+    `pull_request_target`/`workflow_run` (unused).
+- **v0.6.0 remaining after slice 4**: `release.yml` GHA bump, ruff 0.16 (sliced), magnus/jni/uniffi
+    major migrations, per-binding manifests (rb/jni/kotlin/dotnet/go; napi `package.json` is a
+    one-line `@napi-rs/cli: ^3` already caret-covered) + 2 human-gated release-workflow fixes (npm
+    OIDC, single-registry re-trigger). One slice/iteration.
 - **Handy**: crates.io latest via `cargo search <crate> --limit 1`; changelog/migration docs via
     `curl -sL https://static.crates.io/crates/<c>/<c>-<ver>.crate | tar xz` into /tmp. Network
     works.
