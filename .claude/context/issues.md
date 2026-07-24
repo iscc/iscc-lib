@@ -8,25 +8,6 @@ entries carry a `**Scope estimate:**` — a step citing one may modify up to 8 n
 
 <!-- Add issues below this line -->
 
-## Rust core `iscc_decode` silently accepts trailing bytes `normal` [review]
-
-`crates/iscc-lib/src/lib.rs` (`iscc_decode`, ~line 234) checks only that the base32-decoded body is
-not *too short* (`tail.len() < nbytes`), then copies `tail[..nbytes]` and silently drops any
-trailing bytes — the exact gap just fixed in the Go binding (iter 120). So
-`iscc_decode("ISCC:MAIGHFECJMOPMIABAA")` aliases the canonical `ISCC:MAIGHFECJMOPMIAB`, and every
-binding that delegates to the core (py, napi, wasm, ffi, jni, rb, uniffi, dotnet, cpp, swift,
-kotlin) inherits it. Codec-wide (affects every MainType), pre-existing, not a regression.
-`iscc_decode` is a Tier 1 symbol but the fix is a behavior change with an unchanged signature
-(stricter input validation, rejecting previously-accepted malformed input) — treat as a robustness
-bug fix, not an API break.
-
-**Fix:** add a `tail.len() > nbytes` rejection branch (mirroring the Go two-branch form so existing
-"too short" error-message tests stay green), then run `cargo test -p iscc-lib` + the conformance
-suite to confirm no vendored vector relies on trailing padding. Conformance-safe for the same
-byte-alignment reason as the Go fix: canonical ISCC base32 round-trips to exactly `nbytes` for
-byte-aligned headers. Verify the composite-decompose path (which has its own body loop) is
-unaffected — do not touch it.
-
 ## Restore linux/aarch64 Python wheels `normal` [human]
 
 Planned for the **v0.6.0** release. The wheel build matrix rewrite around 0.2.0 dropped the

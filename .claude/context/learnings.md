@@ -78,10 +78,10 @@ fully-met target sections to `learnings-archive.md`.
 - **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`**:
     canonical ISCC base32 round-trips a byte-aligned N-byte body to exactly N bytes, so a `< nbytes`
     guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`). Conformance-safe
-    because every vendored vector round-trips exactly. Fixed in Go `IsccDecode` (iter 120); Rust
-    core `iscc_decode` (lib.rs:234) + all 11 delegating bindings still have the `<` gap (issues.md
-    `[review]`). NOTE the composite `iscc_decompose` path legitimately consumes trailing units via
-    its own body loop — do NOT "harden" it with an exact check
+    because every vendored vector round-trips exactly. Now enforced in BOTH Go `IsccDecode` (iter
+    120\) and Rust core `iscc_decode` (iter 121, two-branch "too short"/"too long" guards) — all 11
+    delegating bindings inherit the Rust fix. NOTE the composite `iscc_decompose` path legitimately
+    consumes trailing units via its own body loop — do NOT "harden" it with an exact check
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
 - **ISCC-IDv1** (`gen_iscc_id_v1`, experimental, NOT in ISO 24138): 64-bit body

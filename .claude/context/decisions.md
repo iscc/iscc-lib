@@ -55,3 +55,19 @@ sitting. **Alternatives:** No exception (structural debt stays unpickable); unca
 (loses the mechanical tripwire that kept 120 iterations reviewable); pre-decomposing every refactor
 into 3-file steps (many refactors cannot be split while keeping every intermediate tree green).
 **Context:** Interactive session with Titusz, 2026-07-24.
+
+## 2026-07-24 — Tightening decode input-validation is not a SemVer break
+
+**Decision:** Adding the `tail.len() > nbytes` "too long" rejection to the Tier 1,
+stability-committed `iscc_decode` (and, iter 120, Go `IsccDecode`) is classified as a robustness bug
+fix, not an API break — no `**API-BREAK:**` flag required, and it need not wait for the v1.0.0 cut.
+**Why:** The signature and return-tuple shape are unchanged; only the set of *accepted* inputs
+shrinks, and every input newly rejected was already malformed (trailing base32 chars that silently
+aliased a canonical code, e.g. `ISCC:...AB` == `ISCC:...ABAA`). Narrowing the accepted domain to
+reject previously- mis-decoded garbage is a correctness fix, and every conformance vector still
+round-trips. **Alternatives:** Treat as breaking and defer to v1.0.0 (would leave a codec-wide
+aliasing bug live across all 11 bindings for months, for no user benefit); keep truncating silently
+(data-integrity hazard — two distinct strings decode identically). Note for the eventual
+`cargo-semver-checks` enforcing gate: input-domain narrowing is invisible to signature-based semver
+tooling, so this call is a human judgment, not a tool result. **Context:** iter 121, commit 044d0cc
+(Rust); iter 120 (Go).
