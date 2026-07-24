@@ -106,6 +106,20 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     set. VERIFY the hold-back is genuine, not a mask: `uvx ruff@0.16.0 check .` reproduced the
     claimed 104 errors (72 in `_lowlevel.pyi`) exactly. Require an inline `# held: …` comment
     stating the reason + a deferred-adoption follow-up
+- **Rust direct-pin bump (`Cargo.toml` pin text changes) — iter 126, slice 3 of v0.6.0 dep issue**:
+    same 4-gate set as slice 1 (`test`/`lint`/`audit`/`bench:iai:check`) plus `cargo bench --no-run`
+    (what CI's `Bench (compile check)` runs) — a dev-only bump can still red clippy via a NEW
+    deprecation (criterion 0.6 deprecated `criterion::black_box`; `-D warnings` makes it fatal, fix
+    is `use std::hint::black_box`). VERIFY HOLD-BACK CLAIMS, don't take them on faith — they're
+    cheap: `cargo info <crate>@<ver>` prints `rust-version` (criterion 0.8 → 1.86 vs our declared
+    1.85 ✓), and a `grep -c` of the named API in the affected binding proves the migration is real
+    (`exception::runtime_error` ×5 in iscc-rb; `JNIEnv|GlobalRef|AutoLocal` ×41 in iscc-jni).
+    Confirm taplo (`mise run check`) preserved the `# held:` comments and left no rewrite in the
+    tree
+- **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
+    `--target all`. Used it to disprove an advance-handoff attribution: the
+    `proc-macro-error2 v2.0.1` future-incompat warning is from `iai-callgrind-macros` (dev-only),
+    NOT magnus/rb-sys. Cheap 30-second check whenever a handoff blames a subtree for a warning
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - **release.yml-only (iter 123, #49)**: NOT exercised by CID pushes (only

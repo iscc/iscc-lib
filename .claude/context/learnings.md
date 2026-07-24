@@ -126,15 +126,22 @@ fully-met target sections to `learnings-archive.md`.
     RustSec advisory reds the gate on ANY push with no code change — not a regression. Fix with
     `cargo update -p <crate>` (confirm dev-only reach via `cargo tree -i <crate> -e no-dev` =
     empty), NOT a `deny.toml` ignore — ignore ONLY when no patched release exists
-- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue). Slice 1 = Rust
-    `cargo update` (no `-p`) landed clean (iter 124): verify with the 4-gate set
-    (`test`/`lint`/`audit`/`bench:iai:check`), keep every `Cargo.toml` pin (uniffi 0.31, pyo3 0.29,
-    criterion 0.5, iai-callgrind 0.16, magnus 0.7, jni 0.21, napi 3), and confirm
-    `git diff --name-only -- Cargo.toml` is empty. `cargo-deny` is the main risk (new transitive
-    license/advisory) — it passed; perf drift was ≤+1.96% (blake3 1.8.3→1.8.5 didn't move Ir).
-    GOTCHA: next.md's pin-check grep used the inline-table form `uniffi = { version = "0.31"` but
-    the manifest uses the plain-string form `uniffi = "0.31"` — grep the actual pin syntax.
-    Remaining slices: Rust direct-pin eval, Python `uv.lock`, per-binding manifests, tooling pins
+- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue). Done: slice 1 Rust
+    `cargo update` (iter 124), slice 2 Python `uv lock --upgrade` (iter 125, documented `ruff<0.16`
+    hold-back), slice 3 Rust direct pins (iter 126, criterion 0.5→0.7). Verify each Rust slice with
+    the 4-gate set (`test`/`lint`/`audit`/`bench:iai:check`); `cargo-deny` is the main risk (new
+    transitive license/advisory). **Hold-back reasons are now inline `# held:` comments in the root
+    `Cargo.toml`** beside criterion/jni/magnus/uniffi — read them before proposing a bump.
+    `cargo info <crate>@<ver>` prints `rust-version`: the cheapest MSRV pre-check (criterion 0.8
+    needs 1.86 > our declared 1.85). GOTCHA: grep the actual pin syntax — `uniffi = "0.31"` is a
+    plain string, not an inline table. Remaining: per-binding manifests, tooling pins, ruff 0.16
+- **`criterion::black_box` is `#[deprecated]` from 0.6 on** — under `clippy -D warnings` that is a
+    hard error, so any criterion bump past 0.5 must also move the bench import to
+    `std::hint::black_box` (call sites are unchanged; `BenchmarkId`/`Throughput`/macros are stable)
+- **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
+    `--target all`. The `proc-macro-error2 v2.0.1` future-incompat warning emitted on every
+    `cargo test`/`cargo bench` traces to `iai-callgrind-macros` (dev-only), **not** magnus/rb-sys;
+    no fixed release exists (iai-callgrind 0.16.1 is latest), so it stays a warning for now
 
 ## Branching
 
@@ -160,11 +167,6 @@ fully-met target sections to `learnings-archive.md`.
     (not `-C target-feature=+simd128`); `v128`-opcode counting alone is a FALSE-POSITIVE. Full
     recipe → `learnings-archive.md`
 
-## Documentation Maintenance
-
-- **"10 gen functions" vs "9 conformance functions"** (10 `gen_*_v0`, but data.json covers 9 — no
-    gen_sum_code_v0; avoid blanket "9→10" replace) archived iter 124 → `learnings-archive.md`
-
 ## State Verification
 
 - **Never trust state.md claims about external state** (registry publications, CI status, infra) —
@@ -176,13 +178,11 @@ fully-met target sections to `learnings-archive.md`.
 
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
-- **Detect concurrent CID loops** (iter 97): if context files change in the working tree mid-review,
-    or `mise run check` reports spurious "files were modified by this hook" on a file the advance
-    never touched (e.g. `standardrb-fix` when no `.rb` is dirty), suspect a race. Check
-    `ps aux | grep -E 'cid:run|claude -p CID iteration'`: two `cid:run` or two different
-    `iteration N` agents = duplicate loops racing the branch. Flag HUMAN REVIEW REQUESTED so a human
-    kills the duplicate; do NOT kill processes yourself, and do NOT push (the second loop will
-    collide)
+- **Detect concurrent CID loops** (iter 97): context files changing in the working tree mid-review,
+    or `mise run check` reporting spurious "files were modified by this hook" on a file advance
+    never touched (e.g. `standardrb-fix` with no dirty `.rb`), means a race. Check
+    `ps aux | grep -E 'cid:run|claude -p CID iteration'` — two loops = duplicates. Flag HUMAN REVIEW
+    REQUESTED so a human kills the duplicate; do NOT kill processes yourself, and do NOT push
 - **Human-handoff vs IDLE (iter 111)**: when autonomous work runs out but `normal` issues remain
     that are all `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all issues `low`) is
     NOT met. Flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead of `**IDLE**` (which runs
@@ -196,5 +196,4 @@ fully-met target sections to `learnings-archive.md`.
     `effort: xhigh`) — long-horizon implementation, single requests can run many minutes (runner
     timeout 3600s). All other roles run on `opus`. Deliberate model diversity: Fable implements,
     Opus reviews, Codex is the independent second opinion. Do not "unify" onto one model
-- **Advisor tool evaluated and deferred (2026-07)**: rejected for now; revisit when Fable 5 becomes
-    selectable as an advisor. Full rationale → `learnings-archive.md`
+- **Advisor tool deferred (2026-07)**: revisit when Fable 5 is selectable → `learnings-archive.md`

@@ -31,12 +31,24 @@ must pass on the refreshed set.
 Slice 2 — Python `uv.lock` refreshed via `uv lock --upgrade` (iter 125; 40 pkgs incl. iscc-core
 1.2.2→1.3.0, ty 0.0.18→0.0.63, maturin 1.14.1, prek 0.4.11; one documented hold-back `ruff<0.16` in
 `pyproject.toml` — 0.16 adds 104 new default-lint errors, deferred to a dedicated adoption step; all
-gates green). Remaining: Rust direct-pin evaluation (document hold-back reasons for uniffi 0.32 /
-pyo3 #41 / criterion / iai-callgrind / magnus / jni / napi majors), per-binding manifests (napi
-`package.json`, rb `Gemfile`/gemspec, jni `pom.xml`, kotlin `build.gradle.kts`, dotnet `.csproj`, go
-`go.mod`), and tooling pins (`mise.toml`, `.pre-commit-config.yaml`, GHA versions). A dedicated step
-should adopt ruff 0.16 (run `ruff check --fix` for the 60 auto-fixable, hand-fix the rest — mostly
-`_lowlevel.pyi` stub-style PIE790/PYI048/RUF022 — and drop the `ruff<0.16` pin).
+gates green). ✅ Slice 3 — Rust direct-pin evaluation (iter 126; `criterion` 0.5→0.7 with the bench
+import migrated to `std::hint::black_box`, and inline `# held:` reasons committed next to the
+`criterion` 0.8 / `jni` 0.22 / `magnus` 0.8 / `uniffi` 0.32 hold-backs plus a `pyo3`/#41 note; all
+gates green, perf within +1.96%). Remaining: per-binding manifests (napi `package.json`, rb
+`Gemfile`/gemspec, jni `pom.xml`, kotlin `build.gradle.kts`, dotnet `.csproj`, go `go.mod`), and
+tooling pins (`mise.toml`, `.pre-commit-config.yaml`, GHA versions). A dedicated step should adopt
+ruff 0.16 (run `ruff check --fix` for the 60 auto-fixable, hand-fix the rest — mostly
+`_lowlevel.pyi` stub-style PIE790/PYI048/RUF022 — and drop the `ruff<0.16` pin). Separately, the
+`jni` 0.22 and `magnus` 0.8 migrations each need their own step (source rewrite in
+`crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively).
+
+**Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
+(`extern crate proc_macro is private and cannot be re-exported`) emitted on every `cargo test` /
+`cargo bench` comes from `iai-callgrind-macros` → `iai-callgrind` (dev-only; trace it with
+`cargo tree -i proc-macro-error2 --target all`), **not** from the magnus/rb-sys subtree. No fixed
+release exists (`iai-callgrind` 0.16.1 is latest), so it stays a warning until upstream ships a fix
+— re-check when bumping `iai-callgrind` (the pin must stay in lockstep with the CI-installed
+`iai-callgrind-runner` version).
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
