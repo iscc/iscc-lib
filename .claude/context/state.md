@@ -1,17 +1,16 @@
-<!-- assessed-at: 4ddaa0410b89eb48c5fe2af3290d29e98c64a31b -->
+<!-- assessed-at: 7f78ef551b83393da9ea3e59dd539581c4e9aacf -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-v0.5.0 release; **CI back GREEN** (RUSTSEC-2026-0204 patched) — v0.6.0 backlog now open
+## Phase: Post-v0.5.0; **CI GREEN** — v0.6.0 backlog in progress (Python GIL theme complete)
 
 v0.5.0 is released across all registries and all 12 language bindings meet their core criteria.
-Since the last assessment the enforcing `cargo-deny` gate's fresh-advisory failure was fixed: the
-advance agent bumped the dev-only `crossbeam-epoch` lockfile entry `0.9.18 → 0.9.20`, clearing
-**RUSTSEC-2026-0204**. **CI is now fully green on the pushed develop tip (`cb7bed9`).** The project
-remains IN_PROGRESS: five spec'd v0.6.0 work packages and two release-workflow reliability issues
-are still open.
+Since the last assessment, issue #41 (release the GIL for the Python text/video compute paths) was
+implemented and passed review — the last GIL gap is now closed. **CI is fully green on the pushed
+develop tip (`2ffc8f9`).** The project stays IN_PROGRESS: four spec'd v0.6.0 work packages and two
+release-workflow reliability issues remain open.
 
 ## Rust Core Crate
 
@@ -23,9 +22,8 @@ are still open.
     reachable as `iscc_lib::streaming::SumHasher`, intentionally not a Tier 1 re-export.
 - **Perf gate — COMPLETE, ENFORCING, HARDENED** (unchanged): `iai_benches.rs` (iai-callgrind 0.16,
     11 `bench_*` → 16 cases), `[profile.bench] strip=false debug=true`, enforcing
-    `Check perf regression` (`scripts/iai_regression.py --check`, >10% Ir gate vs
-    `.iai-baseline.json`), 11 fixture tests. `Perf (iai-callgrind)` job GREEN. `rust-core.md` perf
-    boxes `[x]`.
+    `Perf (iai-callgrind)` job (`scripts/iai_regression.py --check`, >10% Ir gate vs
+    `.iai-baseline.json`), 11 fixture tests. Job GREEN. `rust-core.md` perf boxes `[x]`.
 - **Semver gate present (informational)**: `Semver (cargo-semver-checks)` job is
     `continue-on-error: true`; against the 0.5.0 baseline it currently reports `success`. The
     target's **enforcing** criterion for v1.0.0 stays unmet (`rust-core.md` semver box `[ ]`) — flip
@@ -34,19 +32,22 @@ are still open.
 
 ## Python Bindings
 
-**Status**: partially met — v0.6.0 target gaps open
+**Status**: partially met — one v0.6.0 target gap open (aarch64 wheels)
 
 - Core met: all symbols exported, Python 3.10 + 3.14 CI jobs GREEN, ruff clean, streaming
     `SumHasher` wrapper present. PyO3 pinned `0.29` (`abi3-py310`), single lockfile resolution.
-- GIL release done for the heavyweight data/instance/image/sum paths (`py.detach` at the streaming
-    hasher update sites, lib.rs:554/603/654).
-- **Gap (v0.6.0, issue #41)**: GIL is NOT yet released for the text/video compute paths —
-    `gen_text_code_v0` (lib.rs:136), `gen_video_code_v0` (lib.rs:178), `soft_hash_video_v0`
-    (lib.rs:513) still hold the GIL for the full Rust compute. Target criterion requires `py.detach`
-    around text/video compute (video detach must open strictly AFTER `extract_frame_sigs`).
+- **GIL release now COMPLETE for all heavyweight compute paths (issue #41 RESOLVED)**: `py.detach`
+    windows now wrap the pure-Rust compute in all 5 remaining entry points — `gen_text_code_v0`
+    (lib.rs:138), `gen_video_code_v0` (190), `gen_video_code_v0_flat` (217), `soft_hash_video_v0`
+    (241), `soft_hash_video_v0_flat` (535) — joining the 7 pre-existing sites (data/instance/image/
+    sum + 3 streaming `update()`), for **12 total detach sites**. Every video detach opens strictly
+    AFTER frame-signature extraction (borrowed `PyList_GetItem` pointers never cross the release).
+    `specs/python-bindings.md` → "GIL Release for Text/Video Compute Paths" all three boxes `[x]`;
+    300 pytest tests pass incl. 3 new concurrency-correctness tests. Meta/audio/mixed stay attached
+    by design (negligible compute).
 - **Gap (v0.6.0, issue #49)**: `linux/aarch64` (`manylinux_2_17_aarch64`) wheels are not built — the
     `build-wheels` matrix in `release.yml` was dropped around 0.2.0; only
-    x86_64/universal2/win_amd64 ship. Target now requires Linux x86_64 **and aarch64** wheels.
+    x86_64/universal2/win_amd64 ship. Target requires Linux x86_64 **and aarch64** wheels.
 
 ## Node.js Bindings
 
@@ -62,7 +63,7 @@ are still open.
 - Core met: all 32 Tier 1 symbols via `#[wasm_bindgen]`, streaming `SumHasher` class,
     `WASM (wasm-pack test)` job GREEN.
 - **Gap (v0.6.0, issue #42)**: WASM SIMD is NOT enabled — no `simd128` / `enable-simd` anywhere in
-    `crates/iscc-wasm/Cargo.toml`, `release.yml`, or `ci.yml`. Target now requires `simd128` target
+    `crates/iscc-wasm/Cargo.toml`, `release.yml`, or `ci.yml`. Target requires `simd128` target
     feature + `wasm-opt --enable-simd` in the published build (BLAKE3 SIMD backend).
 
 ## C FFI
@@ -85,7 +86,7 @@ are still open.
 - Core met: pure Go (no CGO), all 32 Tier 1 symbols, `Go (go test, go vet)` CI job GREEN.
 - **Gap (v0.6.0, issue #43)**: experimental ISCC-IDv1 not supported — `codec.go` hard-rejects any
     `Version > 0` (`iscc: invalid Version` at lines 269/438) and there are no `EncodeIsccID` /
-    `DecodeIsccID` functions. Target now requires `IsccDecode` to accept MainType ID Version 1 plus
+    `DecodeIsccID` functions. Target requires `IsccDecode` to accept MainType ID Version 1 plus
     dedicated encode/decode exposing realm, hub-id, timestamp.
 
 ## Ruby Bindings
@@ -156,23 +157,18 @@ are still open.
 
 ## CI/CD and Publishing
 
-**Status**: partially met — **CI GREEN again**; two v0.6.0 target gaps remain
+**Status**: partially met — **CI GREEN**; two v0.6.0 target gaps remain
 
-- **LATEST CI RUN — SUCCESS.** origin/develop tip == `cb7bed9`. All 22 check-runs (Rust, all 12
+- **LATEST CI RUN — SUCCESS.** origin/develop tip == `2ffc8f9`. All 22 check-runs (Rust, all 12
     bindings, Coverage+CRAP, cargo-crap, Perf, **Audit (cargo-deny)**, Semver, Version consistency)
-    report `success` via the check-runs API. HEAD (`4ddaa04`) adds only a log-only `iteration 115`
+    report `success` via the check-runs API. HEAD (`7f78ef5`) adds only a log-only `iteration 116`
     commit (unpushed) — no code delta, so the verified-green state holds.
-- **RUSTSEC-2026-0204 RESOLVED**: the advance agent ran `cargo update -p crossbeam-epoch`, bumping
-    the dev-only lockfile entry `0.9.18 → 0.9.20` (dev-only:
-    `criterion → rayon → crossbeam-deque →   crossbeam-epoch`, never shipped). No `deny.toml`
-    suppression added; `cargo deny check` now exits 0 and the `Audit (cargo-deny)` job is green.
-    Clean root-cause fix — 1-package Cargo.lock diff.
 - **cargo-deny gate fully built and enforcing**: root `deny.toml` (65 lines; advisories + licenses +
     bans + sources, config v2, 2 justified dev-only ignores), `Audit (cargo-deny)` CI job
     (ci.yml:395, `taiki-e/install-action` → `cargo-deny@0.19.9` → `cargo deny check`, no
-    `continue-on-error`), `mise run audit` task (mise.toml:149). `ci-cd.md` Audit box `[x]`. NOTE: a
-    future live-advisory can flip this red on any push with no code change — normal, not a
-    regression.
+    `continue-on-error`), `mise run audit` task. `ci-cd.md` Audit box `[x]`. NOTE: a future
+    live-advisory can flip this red on any push with no code change — normal, not a regression
+    (prefer `cargo update -p <crate>` over a `deny.toml` ignore when a patch exists).
 - **Gap (v0.6.0, CI/CD)**: dependency freshness — no Dependabot/Renovate config
     (`.github/dependabot.yml`, `renovate.json` both absent). Target requires no manifest/Action/tool
     pin to lag a major version without a documented hold-back (issue: "Dependency review and
@@ -183,18 +179,16 @@ are still open.
     Two release-workflow reliability issues remain open (npm OIDC migration, single-registry
     re-trigger bug) — both human-gated / `normal`.
 
-## Open Issues (issues.md lists 9 — 0 critical, 7 normal, 2 low; all `[human]`)
+## Open Issues (issues.md lists 8 — 0 critical, 6 normal, 2 low; all `[human]`)
 
-The RUSTSEC-2026-0204 CI blocker is resolved and was never filed as a formal issue. No open issue is
-CI-blocking. Any open issue keeps the project IN_PROGRESS.
+No open issue is CI-blocking. Any open issue keeps the project IN_PROGRESS.
 
 v0.6.0-scoped (`normal`, `[human]`, each with a spec):
 
-1. Release GIL for text/video Python compute paths (#41)
-2. Enable WASM `simd128` in the `@iscc/wasm` release build (#42)
-3. Go bindings: experimental ISCC-IDv1 encode/decode (#43)
-4. Restore linux/aarch64 Python wheels (#49)
-5. Dependency review and refresh across the project
+1. Enable WASM `simd128` in the `@iscc/wasm` release build (#42)
+2. Go bindings: experimental ISCC-IDv1 encode/decode (#43)
+3. Restore linux/aarch64 Python wheels (#49)
+4. Dependency review and refresh across the project
 
 Release-workflow reliability (`normal`, `[human]`):
 
@@ -208,16 +202,17 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-**CI is green — start the v0.6.0 backlog.** With the supply-chain gate cleared, the actionable work
-is the five spec'd `normal` v0.6.0 packages, one per iteration:
+**CI is green — continue the v0.6.0 backlog.** The GIL-release theme (#39, #41) is now fully
+complete. Remaining actionable work is the four spec'd `normal` v0.6.0 packages plus two
+release-workflow reliability fixes, one per iteration:
 
-- **Recommended first pick: #41 (Python text/video GIL)** — most self-contained and lowest-risk: a
-    single-file change in `crates/iscc-py/src/lib.rs` mirroring the already-landed
-    data/instance/image/ sum `py.detach` pattern, conformance-neutral. Caveat: the video detach
-    window must open strictly AFTER `extract_frame_sigs` (borrowed `PyList_GetItem` pointers are not
-    free-threading-safe).
-- Then #42 (WASM simd128), #43 (Go ISCC-IDv1), #49 (aarch64 wheels), dependency refresh — plus the
-    two release-workflow reliability fixes as capacity allows.
+- **Recommended first pick: #42 (WASM `simd128`)** — the most self-contained: a pure build-flag
+    change (`RUSTFLAGS="-C target-feature=+simd128"` in `release.yml` + the wasm CI job,
+    `--enable-simd` wasm-opt flag in `crates/iscc-wasm/Cargo.toml`). Conformance output is
+    byte-identical; re-run `wasm-pack test --node crates/iscc-wasm --features conformance` on the
+    SIMD build. Spec: `specs/wasm-bindings.md` → "WASM SIMD (simd128)".
+- Then #43 (Go ISCC-IDv1), #49 (aarch64 wheels), dependency refresh — plus the two release-workflow
+    reliability fixes as capacity allows.
 
 Do NOT cut v1.0.0 or flip the `Semver` gate to enforcing — both deliberately held by Titusz. Watch
 for the enforcing `Audit (cargo-deny)` gate turning red again on a fresh live advisory (prefer

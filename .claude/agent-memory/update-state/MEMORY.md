@@ -76,9 +76,10 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `gen_sum_code_v0` drives SumHasher (lib.rs:997). Only DataHasher+InstanceHasher re-exported at
     crate root (lib.rs:24); SumHasher via `streaming::`. SumHasher wrapper: Python iscc-py
     lib.rs:615, WASM iscc-wasm lib.rs:533.
-- `crates/iscc-py/src/lib.rs` — GIL `py.detach` at streaming update sites (554/603/654).
-    `gen_text_code_v0` (136), `gen_video_code_v0` (178), `soft_hash_video_v0` (513) still hold GIL
-    (#41, v0.6.0).
+- `crates/iscc-py/src/lib.rs` — `grep -c '\.detach(' ` = **12** GIL-release sites (iter 116, #41
+    DONE): text@138, image@153, video@190, video_flat@217, soft_hash_video@241, data@306,
+    instance@320, sum@357, soft_hash_video_flat@535, + 3 streaming update()@569/618/669. All video
+    detaches open strictly AFTER frame extraction. GIL theme (#39+#41) COMPLETE.
 - `crates/iscc-lib/benches/` — `benchmarks.rs` 12 criterion benches; `iai_benches.rs` iai-callgrind
     0.16 (11 bench\_ fns, 16 cases). `scripts/iai_regression.py` (248 lines, stdlib),
     `tests/test_iai_regression.py` (11 tests), `tests/test_benchmarks.py` (18 pytest-benchmark fns).
@@ -99,27 +100,32 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Re-scope reactivation**: large issues.md/target.md/specs growth in the diff → human re-scoped;
     do a near-full re-review, not a diff parrot.
 
-## Current State (assessed-at: 4ddaa04, iter 116)
+## Current State (assessed-at: 7f78ef5, iter 117)
 
-- **IN_PROGRESS — CI GREEN again.** v0.5.0 released (workspace version `0.5.0`), all 12 bindings
-    meet CORE criteria. Target re-scoped for **v0.6.0**; five spec'd work packages still open.
-- **CI GREEN on origin/develop tip `cb7bed9`** — all 22 check-runs `success` incl.
-    `Audit   (cargo-deny)`. RUSTSEC-2026-0204 (iter 115 blocker) RESOLVED via
-    `cargo update -p crossbeam-epoch` (dev-only `0.9.18 → 0.9.20`, 1-package Cargo.lock diff, no
-    deny.toml ignore). HEAD `4ddaa04` = +1 log-only commit (unpushed), no code delta →
-    verified-green state holds.
-- **cargo-deny gate LANDED & enforcing** (pre-v0.5.0) — see Quality Gates. Last v1.0.0-hardening
-    package. Live advisory can re-red it any push (prefer `cargo update -p` over deny.toml ignore).
-- **v0.6.0 scope (5 `normal` `[human]` issues, each spec'd)**: #41 GIL text/video, #42 WASM simd128,
-    #43 Go ISCC-IDv1, #49 aarch64 wheels, dependency review/refresh. Target.md grew matching bullets
-    → Python/WASM/Go/CI-CD **partially met**. Recommended first pick: #41 (single-file iscc-py).
-- **9 issues: 0 critical, 7 normal, 2 low** (all `[human]`). Also open normal: npm OIDC migration,
+- **IN_PROGRESS — CI GREEN.** v0.5.0 released (workspace version `0.5.0`), all 12 bindings meet CORE
+    criteria. **v0.6.0 GIL theme (#39+#41) now COMPLETE**; four spec'd work packages + two
+    release-infra fixes still open.
+- **CI GREEN on origin/develop tip `2ffc8f9`** — all 22 check-runs `success` incl.
+    `Audit (cargo-deny)`. HEAD `7f78ef5` = +1 log-only `iteration 116` commit (unpushed), no code
+    delta → verified-green state holds. Pushed code tip = `b55a1bf` (advance #41), review =
+    `2ffc8f9`.
+- **Iter 116 delivered #41 (Python text/video GIL)**: advance added 5 `py.detach` windows in iscc-py
+    lib.rs (7→12 total), review PASS + Codex clean, #41 deleted from issues.md,
+    `specs/python-bindings.md` GIL-text/video 3 boxes `[x]`. Python still **partially met** (only
+    #49 aarch64 wheels remains).
+- **cargo-deny gate LANDED & enforcing** — see Quality Gates. Live advisory can re-red it any push
+    (prefer `cargo update -p` over deny.toml ignore). RUSTSEC-2026-0204 (iter 115) already resolved.
+- **v0.6.0 scope (4 `normal` `[human]`, each spec'd)**: #42 WASM simd128, #43 Go ISCC-IDv1, #49
+    aarch64 wheels, dependency review/refresh → Python/WASM/Go/CI-CD **partially met**. Recommended
+    first pick: **#42** (pure build-flag change, most self-contained).
+- **8 issues: 0 critical, 6 normal, 2 low** (all `[human]`). Also open normal: npm OIDC migration,
     single-registry re-trigger bug. Low (CID skips): v1.0.0 HELD by Titusz (stay 0.5.x, flip Semver
     enforcing at cut), docs logos.
 - **MET sections**: Node, C FFI, Java, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README, per-crate
     READMEs, Docs, Benchmarks.
-- **Don't re-flag as new work**: cargo-deny gate, CRAP `--fail-above` (iter 113), iai perf
-    gate/hardening (107-111), PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher #37.
+- **Don't re-flag as new work**: GIL #41 (iter 116, DONE), cargo-deny gate, CRAP `--fail-above`
+    (iter 113), iai perf gate/hardening (107-111), PyO3 #1 (105), semver gate (93), npm #38, GIL
+    #39, SumHasher #37.
 
 ## Gotchas
 
