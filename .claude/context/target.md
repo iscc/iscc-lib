@@ -29,10 +29,11 @@ patterns natural to their ecosystem.
 ## Rust Core Crate — `iscc-lib` on crates.io
 
 A pure Rust library (no binding dependencies) published to crates.io as
-[`iscc-lib`](https://crates.io/crates/iscc-lib). Released through `0.4.0` and in production use by
-downstream projects; the next release is **v1.0.0**, at which point the crate becomes
-stability-committed under strict SemVer (backward compatibility and performance enforced as quality
-gates — see `rust-core.md` → API Stability & Performance Invariants).
+[`iscc-lib`](https://crates.io/crates/iscc-lib). Released through `0.5.0` and in production use by
+downstream projects. **v1.0.0** will be the first stability-committed release under strict SemVer
+(backward compatibility and performance enforced as quality gates — see `rust-core.md` → API
+Stability & Performance Invariants); that cut is human-gated and stays on hold until the maintainer
+triggers it via the `/release` skill (see issues.md).
 
 Detailed spec: `.claude/context/specs/rust-core.md`
 
@@ -87,6 +88,10 @@ Detailed spec: `.claude/context/specs/python-bindings.md`
 - `pytest` passes the same conformance vectors from Python
 - `ruff check` and `ruff format --check` clean
 - Single wheel per platform (abi3-py310)
+- Wheels published for Linux x86_64 and aarch64 (manylinux), macOS universal2, and Windows x64
+- Every compute-bearing binding entry point releases the GIL (`py.detach`) around the pure-Rust
+    compute — including the text (`gen_text_code_v0`) and video (`gen_video_code_v0`,
+    `soft_hash_video_v0`) paths — so threaded consumers can overlap native hashing
 
 ## Node.js Bindings — `@iscc/lib` on npm
 
@@ -113,6 +118,8 @@ Detailed spec: `.claude/context/specs/wasm-bindings.md`
 - Conformance tests pass in a WASM runtime
 - Package builds with `wasm-pack`
 - All 32 Tier 1 symbols accessible from JavaScript/TypeScript
+- Published release builds enable WASM SIMD (`simd128` target feature + `wasm-opt --enable-simd`) so
+    BLAKE3 runs its SIMD backend; conformance vectors pass on the SIMD build
 
 ## C FFI — First-Class C/C++ Developer Experience
 
@@ -159,6 +166,9 @@ Detailed spec: `.claude/context/specs/go-bindings.md`
 - All 32 Tier 1 symbols accessible with idiomatic Go types and error handling
 - No cgo required (`CGO_ENABLED=0` works)
 - `go vet ./...` clean
+- Experimental ISCC-IDv1 support: `IsccDecode` accepts MainType `ID` with Version 1, and dedicated
+    encode/decode functions expose realm, hub-id, and timestamp at parity with iscc-core's
+    `iscc_id.py` (see `go-bindings.md` → ISCC-IDv1)
 
 ## Ruby Bindings — `iscc-lib` on RubyGems
 
@@ -397,6 +407,8 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 - Publishing an already-published version skips gracefully
 - Release workflow smoke-tests built artifacts before publishing (install the built package and run
     conformance tests on it)
+- Python wheel matrix covers Linux x86_64 and aarch64, macOS universal2, and Windows x64; every
+    wheel target is install- and import-tested before publish
 - All CI workflows green
 - All packages share coordinated version from root `Cargo.toml`
 - `mise run version:sync` propagates version to all 12 sync targets

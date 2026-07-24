@@ -77,10 +77,12 @@ ROLE_ENTRY_KEYS = frozenset(
 # turn-count flag is intentionally NOT used: the installed claude CLI has no
 # --max-turns, so it would be silently ignored. Values are generous (these catch
 # stuck runs, not normal long iterations like advance + a 30-min codex review).
+# advance runs on Fable 5, whose single requests on hard tasks can run for many
+# minutes, so it gets extra headroom over the other roles.
 ROLE_TIMEOUT_S = {
     "update-state": 1200,
     "define-next": 1200,
-    "advance": 3000,
+    "advance": 3600,
     "review": 3000,
     META_ROLE: 1800,
 }

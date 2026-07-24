@@ -1,6 +1,9 @@
 ---
 name: update-state
-description: Assess and document the current project state accurately
+description: >-
+  CID state assessor — produce an honest, verified snapshot of the current project state against
+  the target. Spawned by the CID runner (tools/cid.py) as the first role of a CID iteration; not
+  intended for ad-hoc delegation in interactive sessions.
 model: opus
 effort: high
 tools: Read, Grep, Glob, Bash, Write

@@ -81,6 +81,47 @@ wasm-pack build crates/iscc-wasm --target web        # For direct browser use
 wasm-pack build crates/iscc-wasm --target nodejs     # For Node.js (testing)
 ```
 
+### WASM SIMD (`simd128`)
+
+GitHub: https://github.com/iscc/iscc-lib/issues/42
+
+Published release builds enable WASM SIMD so `blake3` uses its `wasm32` SIMD backend instead of the
+portable scalar fallback. On wasm the backend is selected at **compile time** via
+`target_feature = "simd128"` (no runtime detection), so the flag must be set on the release build:
+
+```bash
+RUSTFLAGS="-C target-feature=+simd128" \
+    wasm-pack build --target web --release crates/iscc-wasm --features conformance
+```
+
+and `wasm-opt` must accept SIMD in `crates/iscc-wasm/Cargo.toml`:
+
+```toml
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = [
+  "-O3",
+  "--enable-simd",
+  "--enable-bulk-memory",
+  "--enable-nontrapping-float-to-int",
+]
+```
+
+Applies to every published target (`web`, plus `bundler` if published). BLAKE3 is the Instance-Code
+/ `datahash` leg of `gen_sum_code_v0` / `SumHasher` and gains the most; the Data leg (gear CDC /
+xxh32 / minhash) benefits less. `simd128` is baseline in all current browsers (Chrome/Edge ≥91,
+Firefox ≥89, Safari ≥16.4) and Node ≥16 — a single SIMD build is fine, no scalar fallback artifact.
+Pure build-flag change: conformance output is byte-identical.
+
+**Verified when:**
+
+- [ ] Release workflow builds `@iscc/wasm` with `simd128` enabled
+    (`RUSTFLAGS="-C target-feature=+simd128"`) for all published targets
+- [ ] `wasm-opt` flags in `crates/iscc-wasm/Cargo.toml` include `--enable-simd`
+- [ ] `wasm-pack test --node crates/iscc-wasm --features conformance` passes on the SIMD build
+- [ ] Published `.wasm` binary contains SIMD instructions (e.g. `wasm-objdump` /
+    `wasm-validate --enable-simd` evidence, or a documented before/after `SumHasher` throughput
+    measurement on a few-MB buffer)
+
 ## Distribution / Publishing
 
 - **Scope**: `@iscc/wasm` under the `@iscc` npm organization

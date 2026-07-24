@@ -99,6 +99,49 @@ func (h *DataHasher) Finalize(bits int) (*DataCodeResult, error)
 
 Streaming functions also accept `io.Reader` for file/network streaming.
 
+## ISCC-IDv1 Support (Experimental)
+
+GitHub: https://github.com/iscc/iscc-lib/issues/43
+
+The Go binding decodes and encodes **ISCC-IDv1** — the timestamp-based ID produced by `iscc-hub` and
+specified in iscc-core's `iscc_core/iscc_id.py` — at parity with the Python reference. ISCC-IDv1 is
+**not part of ISO 24138** and still evolving, so the API is marked experimental in doc comments (may
+change in a minor release).
+
+**Structure** (per `iscc_id.py` / iscc-hub):
+
+- 80-bit code = 16-bit header + 64-bit body; 16 base32 chars (RFC 4648 uppercase, no padding),
+    optional `ISCC:` prefix
+- Header nibbles: MainType = 6 (`ID`), SubType = realm (0 = sandbox/test, 1 = operational), Version
+    = 1, Length = 0 (canonical 64-bit body)
+- Body (big-endian `uint64`): `timestamp = body >> 12` (52-bit microseconds since epoch),
+    `hub_id = body & 0xFFF` (low 12 bits, issuing-hub slot 0–4095)
+
+**API shape:**
+
+- Dedicated `EncodeIsccID(realm, hubID, timestamp)` / `DecodeIsccID(code)` functions exposing the
+    structured fields (realm, hub ID, timestamp) — the primary surface
+- `decodeHeader` accepts Version = 1 when MainType = `ID` (with the matching `decodeLength` rule),
+    so generic `IsccDecode` returns header + 64-bit body instead of rejecting with
+    `iscc: invalid Version: 1`; all other MainTypes continue to reject Version > 0
+
+**Conformance vector:** `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub_id 1, timestamp 1751831876325218
+(from iscc-hub's `schema.py` example).
+
+**Downstream context:** `iscc/iscc-monitor` ships an interim in-repo port of this codec
+(`internal/index/iscc.go`, tracked monitor-side in ADR-0011) and wants to delete it once the Go
+binding supports ISCC-IDv1.
+
+**Verified when:**
+
+- [ ] `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` returns realm 0, hub_id 1, timestamp 1751831876325218
+    (with and without the `ISCC:` prefix)
+- [ ] `EncodeIsccID(0, 1, 1751831876325218)` returns `ISCC:MAIGHFECJMOPMIAB` (round-trip holds for
+    boundary values: hub_id 0 and 4095, realm 0 and 1, max 52-bit timestamp)
+- [ ] `IsccDecode` accepts MainType `ID` with Version 1 and returns the header + 64-bit body
+- [ ] Version > 0 is still rejected for every MainType other than `ID`
+- [ ] Public ISCC-IDv1 symbols carry an "experimental" doc-comment marker
+
 ## Dependencies
 
 All well-maintained, pure Go:

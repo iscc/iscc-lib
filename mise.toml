@@ -10,7 +10,7 @@ usage = '''
 arg "<n>" help="Max iterations" default="20"
 arg "<pause>" help="Pause in seconds between iterations" default="1200"
 '''
-run = 'uv run tools/cid.py --skip-permissions run --max-iterations "${usage_n}" --pause "${usage_pause}"'
+run = 'uv run tools/cid.py --skip-permissions --fallback-model opus run --max-iterations "${usage_n}" --pause "${usage_pause}"'
 
 [tasks."cid:step"]
 description = "Run one full CID iteration (update-state → define-next → advance → review)"

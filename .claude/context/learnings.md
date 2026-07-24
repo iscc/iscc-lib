@@ -196,6 +196,20 @@ fully-met target sections to `learnings-archive.md`.
     whole batch push even though staged-only `git commit` passed. define-next MUST run
     `mise run format` before committing; review can unblock by reformatting + amending (match the
     hook args exactly — local plugin set differs)
+- **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
+    `effort: xhigh`) — best model for long-horizon implementation; single requests can run many
+    minutes, which is normal (runner timeout raised to 3600s for advance). All other roles run on
+    `opus` (alias floats to the newest Opus). This is deliberate model diversity: Fable implements,
+    Opus reviews, Codex gives an independent second opinion. Do not "unify" the roles onto one model
+- **Advisor tool evaluated and deferred (2026-07)**: the Claude Code advisor (`--advisor` /
+    `advisorModel`) was assessed for the CID loop and rejected for now. A Fable 5 main model accepts
+    only a Fable advisor and Fable is not currently offered as one, so `advance` — the role that
+    would benefit most — cannot use it. For the Opus roles the only pairing is Opus-advising-Opus,
+    which duplicates what the review role and the Codex second opinion already provide, at extra
+    cost (each advisor call re-reads the full transcript uncached and counts against subscription
+    limits, with model-driven, uncappable timing). Revisit when Fable 5 becomes selectable as an
+    advisor (`/advisor` picker no longer shows it as unavailable) — then Fable-main + Fable-advisor
+    on `advance` is the configuration worth testing
 
 ## Devcontainer Scripts (exec bit / Windows bind mount)
 

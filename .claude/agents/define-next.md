@@ -1,6 +1,9 @@
 ---
 name: define-next
-description: Define the next small work package toward the target state
+description: >-
+  CID step scoper — define exactly one small, verifiable work package toward the target state.
+  Spawned by the CID runner (tools/cid.py) as the second role of a CID iteration; not intended for
+  ad-hoc delegation in interactive sessions.
 model: opus
 effort: xhigh
 tools: Read, Grep, Glob, Bash, Write
@@ -78,6 +81,11 @@ recurring patterns. This builds up institutional knowledge across iterations.
 8. **Write `.claude/context/next.md`** — overwrite completely. Follow the format below. If picking
     up an issue from issues.md, reference its title in the Goal section.
 
+    **When there is genuinely nothing to define** (no unmet criterion reachable, no
+    `critical`/`normal` issue actionable, everything remaining human-blocked), do not invent
+    busywork: write next.md with `## Step: NONE` and a `## Reason` section naming each blocker,
+    then commit. The advance agent no-ops on NONE and the review agent signals IDLE.
+
 9. **Update agent memory** — update your agent memory with scoping decisions, architecture
     insights, feasibility findings, and patterns. Remove outdated entries that no longer apply.
     Keep agent memory under 200 lines — archive stale entries to `MEMORY-archive.md`.
@@ -133,6 +141,14 @@ edge cases to handle, reference code to port from>
 - If the handoff suggests something that feels too large, break it down further.
 - If the handoff suggests something that conflicts with learnings, choose differently and explain
     why.
+- **Consume the bounce signal.** Check `git log --oneline -10` and the handoff: if the same step has
+    failed review twice in a row (two NEEDS_WORK verdicts or a blocker handoff on the same step), do
+    not scope the same approach a third time — **backtrack** (pick a different reachable goal) or
+    **reframe** (a different design for the same goal), and say which you did in `## Goal`.
+- Every verification criterion must be checkable against the working tree **as it is** — never a
+    before/after comparison against a clean HEAD (that tempts the advance agent into
+    `git stash`/`git reset`, which strands work). To forbid something, assert it directly on the
+    working tree.
 - Prefer steps that produce runnable, testable code over infrastructure-only steps.
 - When starting from scratch, prefer: workspace setup → core types → codec → first algorithm →
     tests.

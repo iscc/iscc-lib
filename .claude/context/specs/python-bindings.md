@@ -292,6 +292,30 @@ small-input size threshold to avoid GIL release/reacquire overhead regressing ti
 - [x] Conformance vectors and the self-test suite are unchanged (identical output) —
     `pytest   tests/` 286 passed, incl. 7 new `tests/test_gil.py` concurrency-correctness tests
 
+### GIL Release for Text/Video Compute Paths
+
+GitHub: https://github.com/iscc/iscc-lib/issues/41
+
+Follow-up to the GIL-release work above (issue #39, shipped in 0.5.0), which intentionally excluded
+two compute-bearing entry points. `gen_text_code_v0` (text cleaning/collapsing + n-gram + minhash)
+and `gen_video_code_v0` / `soft_hash_video_v0` (WTA-hash over frame signatures) still hold the GIL
+for the full duration of their Rust work, serializing them against all other Python threads and
+negating the concurrency benefit for callers who batch text/video alongside data/instance hashing.
+
+Wrap the core calls in `py.detach(|| ...)` in `crates/iscc-py/src/lib.rs`, mirroring the pattern
+already applied to the data/instance/image/sum functions. **Caveat:** `gen_video_code_v0` and
+`soft_hash_video_v0` extract frame signatures via raw borrowed `PyList_GetItem` pointers in
+`extract_frame_sigs`, which are NOT free-threading-safe (this is why the module sets
+`gil_used = true`). The detach window must be placed strictly around the pure-Rust compute,
+**after** all Python-object extraction is complete — never around the extraction itself.
+
+**Verified when:**
+
+- [ ] `gen_text_code_v0` releases the GIL (`py.detach`) around the pure-Rust text compute
+- [ ] `gen_video_code_v0` and `soft_hash_video_v0` (incl. `*_flat` variants) release the GIL around
+    the WTA-hash compute, with the detach window opening only after frame-signature extraction
+- [ ] Conformance vectors and the full test suite pass unchanged (identical output)
+
 ### core_opts Algorithm Constants
 
 GitHub: https://github.com/iscc/iscc-lib/issues/8

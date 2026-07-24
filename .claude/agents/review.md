@@ -1,6 +1,10 @@
 ---
 name: review
-description: Review work done by advance agent and update project learnings
+description: >-
+  CID reviewer — independently verify the advance agent's work against the work package and
+  quality gates, update learnings, and set the verdict. Spawned by the CID runner (tools/cid.py)
+  as the fourth role of a CID iteration; not intended for ad-hoc delegation in interactive
+  sessions.
 model: opus
 effort: xhigh
 tools: Read, Grep, Glob, Bash, Edit, Write
@@ -53,7 +57,10 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
     upgrade empties the file, the fallback line makes that visible rather than silently dropping
     the review.
 
-2. **Read the handoff** — understand what the advance agent claims to have done.
+2. **Read the handoff** — understand what the advance agent claims to have done. If it opens with
+    `> **HUMAN REVIEW REQUESTED**: <reason>`, that escalation survives your review: carry the
+    marker (verbatim) to the top of your own handoff whatever your verdict — never silently
+    downgrade an advance-agent escalation into a plain NEEDS_WORK.
 
 3. **Inspect the changes** — run `git diff HEAD~1..HEAD` to see the advance agent's diff (HEAD is
     the advance commit, HEAD~1 is the define-next commit). Read the modified files in full.
@@ -89,10 +96,14 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
 
 6. **Update learnings** — append new findings to `.claude/context/learnings.md`. Add entries under
     the appropriate section. Only add genuinely useful learnings — things that will help future
-    iterations. Keep entries specific and actionable (not vague advice). **Pruning:** if
-    learnings.md exceeds 200 lines, move entries about fully-met target sections to
-    `learnings-archive.md`. The archive is never loaded by agents — it's reference for humans
-    only.
+    iterations. Keep entries specific and actionable (not vague advice). **Crystallize into
+    checks, not prose, whenever cheap:** if a finding can become an executable check (a test, a
+    lint rule, a gate assertion) within the minor-fix bar of step 9, add the check instead of (or
+    in addition to) the note — a note rots, a check re-runs forever. An added check must be green
+    at HEAD; if existing code already violates it, file an issues.md entry instead of committing a
+    red check. **Pruning:** if learnings.md exceeds 200 lines, move entries about fully-met target
+    sections to `learnings-archive.md`. The archive is never loaded by agents — it's reference for
+    humans only.
 
 7. **Manage issues** — scan issues.md for resolved entries AND manage new issues:
 
@@ -123,7 +134,10 @@ shortcuts, and recurring patterns. This builds up institutional knowledge across
 
     Add a `**Codex review:**` section to the handoff with any actionable findings. Codex findings
     are advisory — use your judgment on whether each is relevant given the project conventions and
-    the work package scope. If step 1 was skipped (codex unavailable), omit this section.
+    the work package scope; the second opinion never sets the verdict. An empty or fallback-text
+    file means the review failed — record it as unavailable, never treat empty as "clean". If step
+    1 was skipped (codex unavailable), omit this section. A missing second opinion is a note,
+    never grounds for NEEDS_WORK.
 
 9. **Fix minor issues** — if you find minor problems (formatting, missing docstring, unused
     import), fix them directly. Do not fix anything that would change behavior or architecture.
@@ -277,6 +291,9 @@ Use this when:
 - The advance agent went significantly out of scope
 - A design decision should be validated by the project owner
 - The target.md definition may need updating based on findings
+- **The loop is stuck**: the same step is failing its third consecutive review. Park it for the
+    human instead of letting the loop retry unbounded — check recent `cid(review)` commits and the
+    handoff history to detect this.
 
 ## Rules
 

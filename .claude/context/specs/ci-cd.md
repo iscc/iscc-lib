@@ -282,14 +282,22 @@ story.
 
 ### Python wheels (maturin)
 
-| OS             | Target                  | Python     |
-| -------------- | ----------------------- | ---------- |
-| ubuntu-latest  | x86_64                  | abi3-py310 |
-| ubuntu-latest  | aarch64                 | abi3-py310 |
-| macos-14       | universal2-apple-darwin | abi3-py310 |
-| windows-latest | x64                     | abi3-py310 |
+| OS               | Target                  | Python     |
+| ---------------- | ----------------------- | ---------- |
+| ubuntu-latest    | x86_64                  | abi3-py310 |
+| ubuntu-24.04-arm | aarch64                 | abi3-py310 |
+| macos-14         | universal2-apple-darwin | abi3-py310 |
+| windows-latest   | x64                     | abi3-py310 |
 
 One wheel per platform covers Python 3.10 through 3.14+ (abi3 stable ABI).
+
+The aarch64 wheel builds on a **native ARM runner** (`ubuntu-24.04-arm`, free for public repos) —
+not QEMU cross-compilation — so the existing maturin-action step with `manylinux: auto` picks the
+manylinux aarch64 container automatically. The `before-script-linux` PATH prepend
+(`/opt/python/cp310-cp310/bin`, which makes the abi3 wheel tag `cp310` instead of `cp38`) behaves
+identically in the aarch64 manylinux container. The wheel test job installs and import-tests the
+aarch64 wheel on an ARM runner before publish, so a broken aarch64 wheel cannot ship silently.
+Detailed plan: `.claude/plans/restore-linux-aarch64-python-wheels.md`.
 
 ### Node.js native addons (napi-rs)
 
@@ -468,6 +476,9 @@ workflow triggers on push to `main`.
 - [ ] RubyGems uses OIDC trusted publishing (or `GEM_HOST_API_KEY` fallback)
 - [x] NuGet uses scoped API key (`NUGET_API_KEY` secret)
 - [x] Python wheels use abi3-py310 (one wheel per platform for Python 3.10+)
+- [ ] Python wheel matrix includes manylinux aarch64, built on a native ARM runner
+    (`ubuntu-24.04-arm`) and install-/import-tested on ARM before publish (see Build Matrices; plan:
+    `.claude/plans/restore-linux-aarch64-python-wheels.md`)
 - [x] Java JAR bundles 5-platform native libraries under `META-INF/native/`
 - [ ] Ruby precompiled gems available for 5 platforms (Linux x86_64/aarch64, macOS x86_64/arm64,
     Windows x64)
