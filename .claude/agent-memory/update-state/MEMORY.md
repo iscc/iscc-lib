@@ -99,20 +99,20 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Re-scope reactivation**: large issues.md/target.md/specs growth in the diff → human re-scoped;
     do a near-full re-review, not a diff parrot.
 
-## Current State (assessed-at: 359a68e, iter 115)
+## Current State (assessed-at: 4ddaa04, iter 116)
 
-- **IN_PROGRESS — CI RED.** v0.5.0 released (workspace version `0.5.0`), all 12 bindings meet CORE
-    criteria. Target re-scoped for **v0.6.0**.
-- **CI RED on tip `359a68e`** (runs 30085524884/30085495230): ONLY `Audit (cargo-deny)` fails —
-    `advisories FAILED` on `RUSTSEC-2026-0204` (crossbeam-epoch 0.9.18, dev-only via criterion). All
-    other 19 jobs GREEN incl. Perf, Coverage+CRAP, Semver (now `success` vs 0.5.0 baseline). **TOP
-    PRIORITY = fix CI.** Not yet in issues.md.
-- **cargo-deny gate LANDED & enforcing** (pre-v0.5.0) — see Quality Gates. This was the last
-    v1.0.0-hardening work package; handoff flagged HUMAN REVIEW REQUESTED (all autonomous hardening
-    done).
+- **IN_PROGRESS — CI GREEN again.** v0.5.0 released (workspace version `0.5.0`), all 12 bindings
+    meet CORE criteria. Target re-scoped for **v0.6.0**; five spec'd work packages still open.
+- **CI GREEN on origin/develop tip `cb7bed9`** — all 22 check-runs `success` incl.
+    `Audit   (cargo-deny)`. RUSTSEC-2026-0204 (iter 115 blocker) RESOLVED via
+    `cargo update -p crossbeam-epoch` (dev-only `0.9.18 → 0.9.20`, 1-package Cargo.lock diff, no
+    deny.toml ignore). HEAD `4ddaa04` = +1 log-only commit (unpushed), no code delta →
+    verified-green state holds.
+- **cargo-deny gate LANDED & enforcing** (pre-v0.5.0) — see Quality Gates. Last v1.0.0-hardening
+    package. Live advisory can re-red it any push (prefer `cargo update -p` over deny.toml ignore).
 - **v0.6.0 scope (5 `normal` `[human]` issues, each spec'd)**: #41 GIL text/video, #42 WASM simd128,
     #43 Go ISCC-IDv1, #49 aarch64 wheels, dependency review/refresh. Target.md grew matching bullets
-    → Python/WASM/Go/CI-CD now **partially met**.
+    → Python/WASM/Go/CI-CD **partially met**. Recommended first pick: #41 (single-file iscc-py).
 - **9 issues: 0 critical, 7 normal, 2 low** (all `[human]`). Also open normal: npm OIDC migration,
     single-registry re-trigger bug. Low (CID skips): v1.0.0 HELD by Titusz (stay 0.5.x, flip Semver
     enforcing at cut), docs logos.
