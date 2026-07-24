@@ -29,8 +29,9 @@ fully-met target sections to `learnings-archive.md`.
 - `cargo clippy -- -D warnings` runs in pre-push stage (not pre-commit)
 - Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
 - **PyO3 is `0.29`** (issue #1 closed; iscc-py only): keep the explicit
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe +
-    advisory-clearance caveat (`cargo audit`/`deny` absent) in `learnings-archive.md`
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe in
+    `learnings-archive.md`; advisory clearance now IS tool-confirmable via the enforcing
+    `cargo deny check` Audit gate (iter 114+)
 
 ## ISCC Algorithm Knowledge
 
@@ -98,44 +99,36 @@ fully-met target sections to `learnings-archive.md`.
     INFORMATIONAL pre-1.0 (`continue-on-error: true`, becomes enforcing at v1.0.0 by dropping it;
     `rust-core.md` line 372 checkbox stays `[ ]` until then); `coverage` is enforcing.
     `mise run   semver` / `mise run coverage` run them locally
-- **`cargo binstall` + `Swatinem/rust-cache` poisoning** (iter 100): rust-cache restores cargo's
-    `.crates.toml`/`.crates2.json` install *metadata* WITHOUT the `~/.cargo/bin/<tool>` binary, so a
-    plain `cargo binstall -y <tool>` sees "already installed", skips, and the next invocation dies
-    with `error: no such command: <tool>` → CI RED on every run. Fix: add `--force` so binstall
-    always reinstalls regardless of the cached record (small binary = negligible re-download). This
-    is gate *strengthening*, not circumvention
+- **`cargo binstall` + `Swatinem/rust-cache` poisoning** (iter 100): rust-cache restores install
+    *metadata* without the `~/.cargo/bin/<tool>` binary, so plain `cargo binstall -y <tool>` skips
+    and the next call dies `no such command` → CI RED. Fix: add `--force` (gate *strengthening*, not
+    circumvention)
 - **CRAP gate (iter 96/97/113, ci-cd.md; full mechanics in `learnings-archive.md`)**:
-    `Coverage +   CRAP` job runs report-only `--format github`/`sarif`, then the ENFORCING Phase 3
-    gate `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`.
-    `.crap-baseline.json` COMMITTED (97 funcs/10 files); `mise run crap:baseline` regenerates
-    byte-identical. `.cargo-crap.toml` MUST list `crates/iscc-lib/benches/**` (else
-    `bench_cdc_chunks` leaks at CRAP 42). `--fail-above` (boolean keyed off
-    `.cargo-crap.toml threshold = 30.0`, NO numeric arg in 0.2.2) closes the new-function blind spot
-    (`--fail-regression` alone exits 0 for a brand-new `★ N new` fn); current max CRAP ~22.3 < 30
-- **`Perf (iai-callgrind)` gate — COMPLETE & HARDENED (iter 107-110, #3; full saga + false-green
-    edge details in `learnings-archive.md`)**: standalone enforcing `perf` job (no
-    `continue-on-error`): valgrind → binstall `iai-callgrind-runner@0.16.1 --force` →
-    `cargo bench -p iscc-lib --bench iai_benches` → zero-collection guard →
-    `python3 scripts/iai_regression.py --check` (>10% Ir regression vs committed
-    `.iai-baseline.json`, 16 entries; also fails on zero-count or a disappeared baselined bench).
-    Locally valgrind 3.19 + runner ARE in the devcontainer; `mise run bench:iai` works
-    (`IAI_CALLGRIND_ALLOW_ASLR=true`). `[profile.bench] strip = false, debug = true` is load-bearing
-    (else stripped binary → all benches `summary: 0` false-green). 11 fixture tests in
-    `tests/test_iai_regression.py`
+    `Coverage +   CRAP` job runs report-only, then the ENFORCING Phase 3 gate
+    `cargo crap --lcov lcov.info   --baseline .crap-baseline.json --fail-regression --fail-above`.
+    `.crap-baseline.json` COMMITTED (`mise run crap:baseline` regen byte-identical);
+    `.cargo-crap.toml` MUST exclude `crates/iscc-lib/benches/**` (else `bench_cdc_chunks` leaks at
+    CRAP 42); `--fail-above` (threshold 30.0, boolean) closes the new-fn blind spot. Current max
+    CRAP ~22.3 < 30
+- **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING & HARDENED (iter 107-110, #3)**: standalone
+    enforcing `perf` job; `[profile.bench] strip = false, debug = true` load-bearing (else stripped
+    binary → all benches `summary: 0` false-green). Full saga + review recipe in
+    `learnings-archive.md` and review `MEMORY.md`
 - **`Audit (cargo-deny)` gate — LANDED & ENFORCING (iter 114, ci-cd.md line 448)**: root `deny.toml`
-    (config v2: vulnerabilities/unmaintained deny by default, only `yanked = "deny"` explicit) +
-    enforcing `audit` CI job (`taiki-e/install-action` → `cargo-deny@0.19.9` → `cargo deny check`) +
-    `mise run audit`. cargo-deny reads Cargo.lock + crate metadata (NOT compiled artifacts), so
-    `cargo deny check` green locally is authoritative (CI rustc version irrelevant). cargo-deny IS
-    installable in the devcontainer (`cargo install cargo-binstall` then
-    `cargo binstall   cargo-deny@0.19.9`). `multiple-versions = "warn"` avoids a brittle skip-list;
-    two dev-only `iai-callgrind` advisories (`RUSTSEC-2025-0141`, `RUSTSEC-2026-0173`) `ignore`d
-    (never shipped)
-- **`yanked = "deny"` forces a Cargo.lock bump (iter 114)**: it surfaced yanked
-    `wasm-bindgen 0.2.111` / `js-sys 0.3.88`; clean fix is `cargo update -p` the wasm-bindgen family
-    to 0.2.125/0.3.102 (10 crates, no manifest change), NOT loosening to `warn`. wasm-pack
-    auto-fetches a matching CLI — verified by `wasm-pack test --node` (78/78) + workspace clippy.
-    Treat the lockfile delta like a regenerated baseline artifact
+    (config v2, `yanked = "deny"`, `multiple-versions = "warn"`, two dev-only iai-callgrind
+    advisories `RUSTSEC-2025-0141`/`RUSTSEC-2026-0173` ignored) + enforcing `audit` CI job
+    (`cargo-deny@0.19.9` → `cargo deny check`) + `mise run audit`. cargo-deny reads Cargo.lock +
+    metadata (NOT artifacts) so `cargo deny check` green locally is authoritative; installable in
+    the devcontainer via `cargo binstall cargo-deny@0.19.9`
+- **`cargo-deny` surfaces yanked crate OR fresh advisory → `cargo update -p`, never loosen the class
+    (iter 114/115)**: `yanked = "deny"` surfaced yanked `wasm-bindgen 0.2.111` / `js-sys 0.3.88`
+    (fix: `cargo update -p` the wasm-bindgen family to 0.2.125/0.3.102, 10 crates, no manifest
+    change). A NEW RustSec advisory flips the enforcing `Audit` gate red on *any* push with no code
+    change — not a regression (iter 115: RUSTSEC-2026-0204 vs dev-only `crossbeam-epoch 0.9.18` →
+    `cargo update -p crossbeam-epoch` to 0.9.20, exactly 1 pkg). Prefer the root fix (drops the bad
+    version from the graph; confirm dev-only reach with `cargo tree -i <crate> -e no-dev` = empty)
+    over a `deny.toml` ignore — ignore ONLY when no patched release exists. Treat the lockfile delta
+    like a regenerated baseline artifact; `cargo deny check` green locally is authoritative
 
 ## Branching
 

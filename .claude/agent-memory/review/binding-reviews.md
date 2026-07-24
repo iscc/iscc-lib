@@ -1,0 +1,79 @@
+# Detailed Binding Review Recipes
+
+Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Binding State".
+
+## Binding State (all 9 crates met, 32/32 Tier 1)
+
+- 9 binding crates (py, napi, wasm, ffi, jni, go, rb, uniffi). NAPI `index.js`/`.d.ts`/`*.node`
+    gitignored (auto-gen by `napi build`). npm `@iscc/lib` bundled single-package (#38 closed):
+    `files: ["*.node"]` ships all 5 binaries, NO `optionalDependencies`; `napi prepublish` must NOT
+    run in `publish-npm-lib`. FFI constant count in module docstring must match additions (now 5)
+- .NET + Swift bindings fully complete (32/32 Tier 1, CI, version sync, docs, release)
+
+## Binding Propagation Shortcuts
+
+- napi-rs: `npm test` + clippy + `mise run check`
+- WASM: `wasm-pack test --node` (with and without `--features conformance`) + clippy. To run one
+    test file: `--test <name>` goes BEFORE the `--` (cargo arg); after `--` the runner rejects it
+- C FFI: `cargo test -p iscc-ffi` + clippy. Header tracked in git
+- Java JNI: `cargo build -p iscc-jni` + clippy + `mvn test`
+- Ruby: `pushd crates/iscc-rb && bundle exec rake compile && bundle exec rake test; popd`
+- .NET: `cargo build -p iscc-ffi` + `dotnet build packages/dotnet/Iscc.Lib/` +
+    `dotnet test packages/dotnet/Iscc.Lib.Tests/ -e LD_LIBRARY_PATH=/workspace/iscc-lib/target/debug`
+    - `mise run check`
+- Kotlin: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy workspace
+    - `mise run check`
+
+## UniFFI Review
+
+- `crates/iscc-uniffi/` — shared scaffolding for Swift+Kotlin. `uniffi = "0.31"`, proc macros only
+    (no UDL/build.rs/uniffi.toml). 32 `#[uniffi::export]` (30 free fns + 2 impl blocks).
+    `publish = false`. `bindgen` feature: `uniffi/cli` → `uniffi-bindgen` binary
+- Review shortcut: `cargo test -p iscc-uniffi` + `cargo clippy -p iscc-uniffi -- -D warnings` +
+    `cargo clippy --workspace --all-targets -- -D warnings` + `mise run check`
+
+## Kotlin Binding Review
+
+- **Gradle multi-JAR artifact**: `withSourcesJar()` + `withJavadocJar()` produce 3 JARs in
+    `build/libs/`. When selecting runtime JAR from glob, filter out `-sources.jar`/`-javadoc.jar` —
+    alphabetical `head -1` picks `-javadoc.jar` first
+- Generated `iscc_uniffi.kt` (~112KB, 3214 lines) — do NOT manually edit, regenerate via
+    uniffi-bindgen. `@file:Suppress("NAME_SHADOWING")` is UniFFI boilerplate, not gate circumvention
+- JNA native lib loading: `java.library.path` alone NOT sufficient for JNA `Native.register()`. Must
+    also set `jna.library.path` JVM property AND `LD_LIBRARY_PATH` env var in test task
+- Kotlin bindings fully complete: CI job, gradlew perms, version sync, docs/README, release
+    workflow. Codex is confused by large generated Kotlin/Swift diffs — findings advisory
+- Kotlin Maven Central: `useInMemoryPgpKeys` (not `useGpgCmd`), staging to `build/staging-deploy/`,
+    curl bundle upload to Central Portal REST API. JNA resource dirs differ from JNI (linux-x86-64
+    vs linux-x86_64)
+
+## Ruby Binding Review
+
+- Magnus 0.7.1 pinned for Ruby 3.1 compat — 0.8 needs Ruby 3.2+
+- `function!` macro does NOT accept `&Ruby` — use `Ruby::get().expect("called from Ruby")`
+- Ruby `JSON.generate` ignores `sort_keys: true` — use `.sort.to_h` before generate
+- Streaming classes: `#[magnus::wrap(class = "...")]` + `RefCell<Option<inner>>` for one-shot
+    finalize
+
+## Environment
+
+- Python `iscc_lib`: compile with `cd crates/iscc-py && uv run maturin develop --release`
+- `.pyi` stub sync: `ty check` catches mismatches, `mise run check` does not
+- **Pre-push needs iscc_lib built**: `ty check` and `pytest` hooks import `iscc_lib` — build before
+    pushing (same maturin command above), else push fails
+- **PyO3 is `0.29`, migration COMPLETE** (#1 closed): per-hop recipe + GIL-detach pattern + gotcha
+    catalog in `learnings-archive.md`. Verify pin: `cargo tree -p iscc-py -i pyo3` (single 0.29.0).
+    Keep explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — 0.28 silently
+    flipped that default `true`→`false`. LESSON for future bumps: "compiles clean under
+    `-D warnings`" ≠ behavior-neutral; diff pyo3-macros-backend default handling each hop. Advisory
+    clearance now IS tool-confirmable via `cargo deny check` (enforcing Audit gate, iter 114+)
+
+## Feature Flag Review
+
+- Use Rust-only shortcut. Verify 3 configs: default, no-default, text-processing only
+- `serde_json` non-optional (conformance.rs dependency)
+- **`--no-default-features --all-targets` fails on `benchmarks` bench** (pre-existing, NOT a
+    regression): benches import `gen_meta`/`gen_text` needing default features. Scope no-default
+    clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`). CI never runs it
+- `streaming::SumHasher` is core-only (full path `iscc_lib::streaming::SumHasher`), NOT a Tier 1
+    re-export; `gen_sum_code_v0` wraps `SumHasher::finalize(bits,wide,add_units)`. #37 fully closed
