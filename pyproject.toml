@@ -24,7 +24,7 @@ max-complexity = 15
 dev = [
   "maturin",
   "prek",
-  "ruff",
+  "ruff<0.16",                    # held: 0.16 expands default lint rules (104 new errors, mostly _lowlevel.pyi) — refresh with a dedicated step
   "taplo",
   "yamlfix",
   "ty",

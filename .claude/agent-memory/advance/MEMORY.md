@@ -52,7 +52,12 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
 - `version-check` job: `scripts/version_sync.py --check` (16 targets incl. Swift Constants,
     Package.swift releaseTag, Kotlin; exits 1 on mismatch). Go CI job has zero Rust deps
 - `uv run maturin develop -m crates/iscc-py/Cargo.toml` for Python dev builds (`maturin` not on PATH
-    — always `uv run maturin`). Builds a single `cp310-abi3` wheel (abi3-py310)
+    — always `uv run maturin`). Builds a single `cp310-abi3` wheel (abi3-py310). GOTCHA: `uv sync`
+    uninstalls the editable ext — re-run maturin develop after every sync
+- Python dev deps unconstrained EXCEPT `ruff<0.16` hold-back in root `pyproject.toml` (iter 125):
+    ruff 0.16 expands default lint rules → 104 errors (72 in `_lowlevel.pyi`: PIE790/PYI048; also
+    RUF100/I001/RUF059). Adopting 0.16 = dedicated step (`--fix` clears 60). zensical ≥0.0.51 warns
+    (non-fatal) on broken anchors — real defect in `docs/howto/c-cpp.md:9` noted iter 125
 - PyO3 pin = single source: root `Cargo.toml` (`pyo3` "0.29", `abi3-py310`); ONLY `crates/iscc-py`
     consumes it (0.23→0.29 done, iter 105, #1 closed). KEEP explicit
     `#[pymodule(name="_lowlevel", gil_used=true)]` (lib.rs:697) — 0.28+ defaults `gil_used`⇒`false`,
