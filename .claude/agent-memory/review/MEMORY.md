@@ -88,6 +88,12 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     deps changed — see gate-reviews.md Audit)
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
+- **release.yml-only (iter 123, #49)**: NOT exercised by CID pushes (only
+    `workflow_dispatch`+registry) → static-verify only: YAML parse + matrix-entry presence +
+    artifact-name consistency across the build→test→publish chain. Adding a wheel target =
+    build+test matrix only; `publish-pypi` collects via `pattern: wheels-*`+`merge-multiple`.
+    `test-*` jobs still lack the `!cancelled()&&!failure()` guard (tracked single-registry
+    re-trigger bug) — don't flag as new
 - **CI/Audit/Perf/Semver/CRAP gate reviews**: see `gate-reviews.md`
 - **Binding propagation (napi/wasm/ffi/jni/ruby/dotnet/kotlin/uniffi)**: see `binding-reviews.md`
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows

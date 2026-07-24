@@ -101,6 +101,13 @@ fully-met target sections to `learnings-archive.md`.
 - **Release pipeline pattern**: boolean input → build → smoke test → publish. 6 smoke test jobs
     (test-wheels/napi/wasm/gem/jni/ffi) gate publish, each testing the linux-x86_64 artifact on
     ubuntu-latest
+- **Adding a Python wheel target (iter 123, #49)**: only the `build-wheels` + `test-wheels` matrices
+    need the new entry — `publish-pypi`'s "Download all artifacts" uses `pattern: wheels-*` +
+    `merge-multiple: true`, so any `wheels-${{ matrix.os }}-${{ matrix.target }}` artifact is
+    auto-collected and published (no publish-step edit). Native-ARM wheels build on
+    `ubuntu-24.04-arm` (free GH runner, no QEMU/`container:`). release.yml-only changes can't be
+    exercised by CID pushes (only `workflow_dispatch`+pypi) → verify statically: YAML parse + matrix
+    presence + artifact-name consistency across the build→test→publish chain
 - **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger breaks

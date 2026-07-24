@@ -8,18 +8,6 @@ entries carry a `**Scope estimate:**` — a step citing one may modify up to 8 n
 
 <!-- Add issues below this line -->
 
-## Restore linux/aarch64 Python wheels `normal` [human]
-
-Planned for the **v0.6.0** release. The wheel build matrix rewrite around 0.2.0 dropped the
-`manylinux_2_17_aarch64` target; 0.2.0–0.5.0 ship only x86_64/universal2/win_amd64, blocking Linux
-ARM consumers (iscc-sdk, AWS Graviton pipelines) without a Rust toolchain. Add an `ubuntu-24.04-arm`
-(native ARM runner, not QEMU) entry to the `build-wheels` matrix in `.github/workflows/release.yml`,
-verify the `before-script-linux` cp310 PATH prepend behaves identically in the aarch64 manylinux
-container, and extend the wheel test job to install and import-test the aarch64 wheel on ARM before
-publish. Full plan: `.claude/plans/restore-linux-aarch64-python-wheels.md`.
-
-**Spec:** `.claude/context/specs/ci-cd.md` → "Build Matrices" / "Release" criteria
-
 ## Dependency review and refresh across the project `normal` [human]
 
 Planned for the **v0.6.0** release. No automated dependency updates are configured (no
