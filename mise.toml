@@ -28,6 +28,14 @@ run = "uv run tools/cid.py stats"
 description = "Run the meta-improve self-improvement role once"
 run = "uv run tools/cid.py --skip-permissions improve"
 
+[tasks."cid:audit"]
+description = "Run the codebase audit role once (metrics snapshot + maintainability audit)"
+run = "uv run tools/cid.py --skip-permissions audit"
+
+[tasks."cid:metrics"]
+description = "Append a codebase-health snapshot to .claude/context/metrics.jsonl"
+run = "uv run tools/metrics.py"
+
 [tasks."cid:state"]
 description = "Run update-state agent only"
 run = "uv run tools/cid.py --skip-permissions role update-state"

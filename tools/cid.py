@@ -6,13 +6,16 @@
 """CID — Continuous Iterative Development orchestrator.
 
 Runs Claude Code agents in a loop to iteratively advance the project toward its target state.
-Each iteration executes four roles: update-state, define-next, advance, review.
+Each iteration executes four roles: update-state, define-next, advance, review. Two roles run
+outside the iteration sequence: meta-improve (on IDLE) and audit (every AUDIT_EVERY iterations
+and on demand — whole-codebase maintainability audit that files evidence-backed issues).
 
 Usage:
     uv run tools/cid.py status
     uv run tools/cid.py step --skip-permissions
     uv run tools/cid.py run --skip-permissions --max-iterations 5
     uv run tools/cid.py role update-state --skip-permissions
+    uv run tools/cid.py audit --skip-permissions
 """
 
 import argparse
@@ -33,6 +36,12 @@ ROLES = ("update-state", "define-next", "advance", "review")
 # Self-improvement role, run only on IDLE or via the `improve` command (not part of ROLES)
 META_ROLE = "meta-improve"
 
+# Codebase audit role, run on a fixed iteration cadence and via the `audit` command
+# (not part of ROLES). Cadence rather than IDLE-coupling: debt accumulates fastest
+# during busy phases, exactly when IDLE never happens.
+AUDIT_ROLE = "audit"
+AUDIT_EVERY = 10
+
 CONTEXT_DIR = Path(".claude/context")
 STATE_FILE = CONTEXT_DIR / "state.md"
 HANDOFF_FILE = CONTEXT_DIR / "handoff.md"
@@ -41,6 +50,9 @@ META_LOG_FILE = CONTEXT_DIR / "meta-log.jsonl"
 PROPOSALS_FILE = CONTEXT_DIR / "proposals.md"
 AGENTS_DIR = Path(".claude/agents")
 META_MEMORY_DIR = Path(".claude/agent-memory/meta-improve")
+AUDIT_MEMORY_DIR = Path(".claude/agent-memory/audit")
+ISSUES_FILE = CONTEXT_DIR / "issues.md"
+METRICS_FILE = CONTEXT_DIR / "metrics.jsonl"
 DONE_MARKER = "## Status: DONE"
 
 # Hard enforcement of the meta-improve guardrails (the agent's prose rules are not
@@ -59,6 +71,10 @@ META_AUTO_OK = frozenset(
 META_BOOKKEEPING = frozenset(
     p.as_posix() for p in (META_LOG_FILE, PROPOSALS_FILE, HANDOFF_FILE)
 )
+# The audit role's only output channels — findings go to issues.md, the runner
+# snapshots metrics. Enforced by enforce_audit_safety in the trusted runner: the
+# audit agent must never change source code, prompts, or other context files.
+AUDIT_OK = frozenset(p.as_posix() for p in (ISSUES_FILE, METRICS_FILE))
 # Upper bound on the agent-supplied rollback window — the runner owns this schedule,
 # so a meta change can never defer its own evaluation indefinitely.
 META_WINDOW_CAP = 10
@@ -85,6 +101,9 @@ ROLE_TIMEOUT_S = {
     "advance": 3600,
     "review": 3000,
     META_ROLE: 1800,
+    # Whole-codebase sweep with a parallel finder/verifier workflow — long but
+    # rare (every AUDIT_EVERY iterations).
+    AUDIT_ROLE: 3600,
 }
 
 
@@ -346,6 +365,11 @@ def _is_meta_bookkeeping(path):
     return path in META_BOOKKEEPING or path.startswith(META_MEMORY_DIR.as_posix() + "/")
 
 
+def _is_audit_output(path):
+    """True if a path is a permitted audit-role output (issues/metrics/own memory)."""
+    return path in AUDIT_OK or path.startswith(AUDIT_MEMORY_DIR.as_posix() + "/")
+
+
 def _paths_dirty(cwd, paths):
     """True if any of the given tracked paths has uncommitted (staged or unstaged) changes.
 
@@ -496,12 +520,58 @@ def enforce_meta_safety(cwd, base_sha):
     return reverted
 
 
-def _abandoned_meta_paths(cwd):
-    """Tracked files with uncommitted changes that are neither the iteration log nor
-    meta bookkeeping — prompt/machinery edits a meta run left behind.
+def enforce_audit_safety(cwd, base_sha):
+    """Revert any audit commit that touches files outside AUDIT_OK. Returns count.
 
-    The iteration log is runner-owned (committed by commit_log) and bookkeeping is the
-    agent's own scratch, so both are excluded; what remains is abandoned prompt edits.
+    The audit role's charter is find-and-file only: issues.md, the metrics log, and
+    its own memory. Any commit since base_sha touching other paths (source code,
+    prompts, context files) is reverted in the trusted runner, which the agent cannot
+    override. Simpler than the meta guardrails on purpose — no change budget or
+    rollback window, because a compliant audit changes no behavior at all.
+    """
+    if not base_sha:
+        return 0  # no prior HEAD to diff against
+    if not _history_intact(cwd, base_sha):
+        flag_human_review(
+            cwd,
+            "audit-safety: git history was rewritten since the agent started "
+            "(amend/reset); refusing to auto-revert — resolve manually",
+        )
+        print("  *** audit-safety: history rewritten — refusing to auto-revert ***")
+        return 0
+    reverted = 0
+    # Newest first so each `git revert` applies cleanly on top of HEAD.
+    for sha in reversed(_commits_since(cwd, base_sha)):
+        files = _commit_files(cwd, sha)
+        offending = [f for f in files if not _is_audit_output(f)]
+        if not files or not offending:
+            continue
+        print(
+            f"  *** audit-safety: reverting {sha[:8]} — touched "
+            f"non-audit path(s): {', '.join(offending)} ***"
+        )
+        if _safe_revert(cwd, sha):
+            reverted += 1
+        else:
+            flag_human_review(
+                cwd,
+                f"audit-safety could not auto-revert {sha[:8]} (touched "
+                f"{', '.join(offending)}) — git revert conflict; the unreverted "
+                "change is live, resolve manually",
+            )
+            print(
+                f"  *** audit-safety: could not auto-revert {sha[:8]} — "
+                "HUMAN REVIEW REQUIRED (git revert conflict) ***"
+            )
+    return reverted
+
+
+def _abandoned_paths(cwd, is_role_output):
+    """Tracked files with uncommitted changes that are neither the iteration log nor
+    permitted role output — edits an interrupted role run left behind.
+
+    The iteration log is runner-owned (committed by commit_log) and role output is the
+    agent's own scratch, so both are excluded; what remains is abandoned edits.
     """
     rc, out = _git(cwd, "status", "--porcelain", "--untracked-files=no")
     if rc != 0:
@@ -513,23 +583,24 @@ def _abandoned_meta_paths(cwd):
         if not entry:
             continue
         path = entry.split(" -> ")[-1]  # defensively take a rename's target
-        if path == LOG_FILE.as_posix() or _is_meta_bookkeeping(path):
+        if path == LOG_FILE.as_posix() or is_role_output(path):
             continue
         paths.append(path)
     return paths
 
 
-def _stash_abandoned_meta_edits(cwd):
-    """Stash prompt/machinery edits a meta run left uncommitted, then flag human review.
+def _stash_abandoned_edits(cwd, role, is_role_output):
+    """Stash out-of-charter edits a role run left uncommitted, then flag human review.
 
-    The meta agent commits its own work; uncommitted edits to prompt/machinery files
-    after it exits are abandoned (e.g. an interrupted or timed-out run) and would
-    otherwise be read as a modified prompt by the next run. A successful run leaves the
-    tree clean, so this is a no-op then. Stashing returns the tree to the validated
-    committed state while keeping the edits recoverable via `git stash pop`. Returns the
-    stashed paths.
+    Guarded roles (meta-improve, audit) commit their own work; uncommitted edits to
+    other files after they exit are abandoned (e.g. an interrupted or timed-out run)
+    and would otherwise leak into the next run unreviewed — as a silently modified
+    prompt (meta) or a dirty source tree the advance agent must not reset (audit). A
+    successful run leaves the tree clean, so this is a no-op then. Stashing returns
+    the tree to the validated committed state while keeping the edits recoverable via
+    `git stash pop`. Returns the stashed paths.
     """
-    paths = _abandoned_meta_paths(cwd)
+    paths = _abandoned_paths(cwd, is_role_output)
     if not paths:
         return []
     listing = ", ".join(paths)
@@ -538,25 +609,25 @@ def _stash_abandoned_meta_edits(cwd):
         "stash",
         "push",
         "-m",
-        "cid(meta): abandoned uncommitted edits",
+        f"cid({role}): abandoned uncommitted edits",
         "--",
         *paths,
     )
     if rc != 0:
         flag_human_review(
             cwd,
-            f"meta-improve left uncommitted edits to {listing} that could not be "
-            "stashed — an unreviewed prompt change is live, resolve manually",
+            f"{role} left uncommitted edits to {listing} that could not be "
+            "stashed — an unreviewed change is live, resolve manually",
         )
-        print(f"  *** meta-safety: could not stash abandoned edits: {listing} ***")
+        print(f"  *** {role}-safety: could not stash abandoned edits: {listing} ***")
         return []
     flag_human_review(
         cwd,
-        f"meta-improve left uncommitted edits to {listing} (likely interrupted); "
-        "stashed them (see `git stash list`) and restored prompts to HEAD — review "
+        f"{role} left uncommitted edits to {listing} (likely interrupted); "
+        "stashed them (see `git stash list`) and restored the tree to HEAD — review "
         "before the next run",
     )
-    print(f"  *** meta-safety: stashed abandoned uncommitted edits: {listing} ***")
+    print(f"  *** {role}-safety: stashed abandoned uncommitted edits: {listing} ***")
     return paths
 
 
@@ -920,6 +991,65 @@ def wait_with_skip(seconds):
             sys.stdin.readline()
 
 
+# --- Audit role ---
+
+
+def audit_due(iteration, every=AUDIT_EVERY):
+    """True if the audit cadence fires after this completed iteration."""
+    return every > 0 and iteration > 0 and iteration % every == 0
+
+
+def run_metrics_snapshot(cwd, time_gates=True):
+    """Append a gate-timed codebase-health snapshot and commit the metrics log.
+
+    Runner-side so the snapshot exists deterministically before the audit agent
+    starts — the agent reads trends, it never produces the data. Failures are
+    reported but non-fatal: a missed snapshot must not block the audit.
+    """
+    script = Path(__file__).resolve().parent / "metrics.py"
+    cmd = [sys.executable, str(script)]
+    if time_gates:
+        cmd.append("--time-gates")
+    try:
+        # Fixed argv (this repo's own script), no shell — safe subprocess use.
+        proc = subprocess.run(  # noqa: S603
+            cmd,
+            cwd=cwd,
+            env=sanitize_env(),
+            timeout=3600,
+            check=False,
+        )
+        ok = proc.returncode == 0
+    except (OSError, subprocess.TimeoutExpired) as e:
+        print(f"  WARN: metrics snapshot failed: {e}")
+        ok = False
+    if ok:
+        commit_path(cwd, METRICS_FILE, "cid(audit): metrics snapshot")
+    return ok
+
+
+def run_audit(claude_cmd, iteration, cwd, skip_permissions=False, fallback_model=None):
+    """Run the codebase audit role once: metrics snapshot, agent, safety enforcement.
+
+    The audit agent reads the whole codebase plus metric trends and files at most a
+    handful of evidence-backed maintainability issues. The trusted runner reverts any
+    commit outside its output whitelist and quarantines abandoned edits, so a broken
+    or interrupted audit can never change project behavior.
+    """
+    print(f"\n{'─' * 60}")
+    print(f"  CID audit (cadence: every {AUDIT_EVERY} iterations)")
+    print(f"{'─' * 60}")
+    run_metrics_snapshot(cwd)
+    _, pre_head = _git(cwd, "rev-parse", "HEAD")
+    result = run_agent(
+        claude_cmd, AUDIT_ROLE, iteration, cwd, skip_permissions, fallback_model
+    )
+    enforce_audit_safety(cwd, pre_head.strip())
+    _stash_abandoned_edits(cwd, "audit", _is_audit_output)
+    commit_log(cwd, iteration)
+    return result
+
+
 # --- CLI commands ---
 
 
@@ -971,6 +1101,9 @@ def cmd_run(args):
             print(f"\nIteration {i} failed. Stopping.")
             sys.exit(1)
 
+        if audit_due(i) and not getattr(args, "no_audit", False):
+            run_audit(claude_cmd, i, cwd, args.skip_permissions, fallback)
+
         if i < start + max_iter and pause:
             print(
                 f"\nPausing {pause}s before next iteration (press Enter to continue)..."
@@ -1002,7 +1135,7 @@ def maybe_run_meta_improve(claude_cmd, iteration, cwd, args):
     # uncommitted prompt edits it abandoned (e.g. on timeout) so they cannot leak into
     # the next run unreviewed.
     enforce_meta_safety(cwd, pre_head.strip())
-    _stash_abandoned_meta_edits(cwd)
+    _stash_abandoned_edits(cwd, "meta", _is_meta_bookkeeping)
     commit_log(cwd, iteration)
     reason = check_human_review(cwd)
     if reason:
@@ -1053,8 +1186,24 @@ def cmd_improve(args):
         args.fallback_model,
     )
     enforce_meta_safety(cwd, pre_head.strip())
-    _stash_abandoned_meta_edits(cwd)
+    _stash_abandoned_edits(cwd, "meta", _is_meta_bookkeeping)
     commit_log(cwd, iteration)
+    if not result["ok"]:
+        sys.exit(1)
+
+
+def cmd_audit(args):
+    """Run the codebase audit role once, on demand."""
+    claude_cmd = find_claude()
+    if not claude_cmd:
+        print("ERROR: claude not found in PATH")
+        sys.exit(1)
+
+    cwd = Path(args.workdir).resolve()
+    iteration = last_iteration(cwd) + 1
+    result = run_audit(
+        claude_cmd, iteration, cwd, args.skip_permissions, args.fallback_model
+    )
     if not result["ok"]:
         sys.exit(1)
 
@@ -1234,6 +1383,12 @@ def main():
         default=False,
         help="Do not run the meta-improve role when the loop reaches IDLE",
     )
+    run_p.add_argument(
+        "--no-audit",
+        action="store_true",
+        default=False,
+        help=f"Do not run the audit role every {AUDIT_EVERY} iterations",
+    )
     run_p.set_defaults(func=cmd_run)
 
     # step
@@ -1259,6 +1414,10 @@ def main():
         "improve", help="Run the meta-improve self-improvement role once"
     )
     improve_p.set_defaults(func=cmd_improve)
+
+    # audit (codebase maintainability pass)
+    audit_p = sub.add_parser("audit", help="Run the codebase audit role once")
+    audit_p.set_defaults(func=cmd_audit)
 
     # role (for testing individual agents)
     role_p = sub.add_parser(

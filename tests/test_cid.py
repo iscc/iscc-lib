@@ -154,7 +154,7 @@ def test_build_agent_cmd_optional_flags():
 
 
 def test_every_role_has_a_timeout():
-    for role in (*cid.ROLES, cid.META_ROLE):
+    for role in (*cid.ROLES, cid.META_ROLE, cid.AUDIT_ROLE):
         assert cid.ROLE_TIMEOUT_S.get(role), f"{role} has no wall-clock timeout"
 
 
@@ -596,7 +596,7 @@ def test_stash_abandoned_meta_edits_quarantines_prompt_edit(tmp_path):
         "advance ABANDONED\n", encoding="utf-8"
     )
 
-    stashed = cid._stash_abandoned_meta_edits(repo)
+    stashed = cid._stash_abandoned_edits(repo, "meta", cid._is_meta_bookkeeping)
 
     assert stashed == [".claude/agents/advance.md"]
     assert (
@@ -613,7 +613,7 @@ def test_stash_abandoned_meta_edits_quarantines_prompt_edit(tmp_path):
 def test_stash_abandoned_meta_edits_noop_on_clean_tree(tmp_path):
     # A successful meta run leaves the tree clean — nothing to stash, nothing flagged.
     repo = _init_repo(tmp_path)
-    assert cid._stash_abandoned_meta_edits(repo) == []
+    assert cid._stash_abandoned_edits(repo, "meta", cid._is_meta_bookkeeping) == []
     handoff = repo / cid.HANDOFF_FILE
     assert not handoff.exists() or cid.HUMAN_REVIEW_MARKER not in handoff.read_text()
 
@@ -633,6 +633,126 @@ def test_abandoned_meta_paths_excludes_log_and_bookkeeping(tmp_path):
         "advance edited\n", encoding="utf-8"
     )
 
-    paths = cid._abandoned_meta_paths(repo)
+    paths = cid._abandoned_paths(repo, cid._is_meta_bookkeeping)
 
     assert paths == [".claude/agents/advance.md"]
+
+
+# --- audit role safety tests ---
+
+
+def test_audit_due_cadence():
+    assert cid.audit_due(cid.AUDIT_EVERY)
+    assert cid.audit_due(12 * cid.AUDIT_EVERY)
+    assert not cid.audit_due(cid.AUDIT_EVERY + 1)
+    assert not cid.audit_due(0)
+    assert not cid.audit_due(cid.AUDIT_EVERY, every=0)  # disabled cadence never fires
+
+
+def test_is_audit_output_classification():
+    assert cid._is_audit_output(".claude/context/issues.md")
+    assert cid._is_audit_output(".claude/context/metrics.jsonl")
+    assert cid._is_audit_output(".claude/agent-memory/audit/MEMORY.md")
+    assert not cid._is_audit_output(".claude/context/handoff.md")
+    assert not cid._is_audit_output(".claude/agents/review.md")
+    assert not cid._is_audit_output("crates/iscc-lib/src/lib.rs")
+
+
+def test_enforce_audit_safety_reverts_source_edit(tmp_path):
+    # The audit charter is find-and-file only — a source commit must be reverted.
+    repo = _init_repo(tmp_path)
+    base = _head(repo)
+    _meta_commit(repo, "src/lib.rs", "fn sneaky() {}\n", msg="cid(audit): oops")
+    reverted = cid.enforce_audit_safety(repo, base)
+    assert reverted == 1
+    assert not (repo / "src/lib.rs").exists()  # the added file is gone after revert
+
+
+def test_enforce_audit_safety_keeps_issue_filing(tmp_path):
+    repo = _init_repo(tmp_path)
+    base = _head(repo)
+    _meta_commit(
+        repo,
+        ".claude/context/issues.md",
+        "## Finding `normal` [audit]\n",
+        msg="cid(audit): 1 finding filed",
+    )
+    _meta_commit(
+        repo,
+        ".claude/agent-memory/audit/MEMORY.md",
+        "clean areas\n",
+        msg="cid(audit): memory",
+    )
+    assert cid.enforce_audit_safety(repo, base) == 0
+    assert "[audit]" in (repo / ".claude/context/issues.md").read_text()
+
+
+def test_enforce_audit_safety_mixed_commit_wholly_reverted(tmp_path):
+    # One commit touching issues.md AND a source file is reverted as a whole —
+    # the whitelist grants no partial pardon.
+    repo = _init_repo(tmp_path)
+    base = _head(repo)
+    (repo / "src").mkdir()
+    (repo / "src" / "lib.rs").write_text("fn x() {}\n", encoding="utf-8")
+    (repo / ".claude" / "context" / "issues.md").write_text(
+        "## F `normal` [audit]\n", encoding="utf-8"
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "cid(audit): mixed")
+    assert cid.enforce_audit_safety(repo, base) == 1
+    assert not (repo / "src" / "lib.rs").exists()
+
+
+def test_enforce_audit_safety_refuses_rewritten_history(tmp_path):
+    # An amended base must not cause the runner to revert productive work.
+    repo = _init_repo(tmp_path)
+    (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+    _git(repo, "add", "feature.txt")
+    _git(repo, "commit", "-qm", "feat: productive work")
+    pre_head = _head(repo)
+    (repo / "src").mkdir()
+    (repo / "src" / "lib.rs").write_text("fn x() {}\n", encoding="utf-8")
+    _git(repo, "add", "src/lib.rs")
+    _git(repo, "commit", "--amend", "--no-edit", "-q")
+
+    reverted = cid.enforce_audit_safety(repo, pre_head)
+
+    assert reverted == 0  # refused — history was rewritten
+    assert (repo / "feature.txt").read_text() == "feature\n"
+    assert cid.HUMAN_REVIEW_MARKER in (repo / cid.HANDOFF_FILE).read_text()
+
+
+def test_stash_abandoned_edits_audit_quarantines_out_of_charter_edit(tmp_path):
+    # An interrupted audit run leaving a dirty prompt file gets quarantined the same
+    # way an interrupted meta run does, under the audit stash label.
+    repo = _init_repo(tmp_path)
+    (repo / ".claude" / "agents" / "advance.md").write_text(
+        "advance DIRTY\n", encoding="utf-8"
+    )
+    stashed = cid._stash_abandoned_edits(repo, "audit", cid._is_audit_output)
+    assert stashed == [".claude/agents/advance.md"]
+    assert (repo / ".claude" / "agents" / "advance.md").read_text() == "advance base\n"
+    out = subprocess.run(
+        ["git", "stash", "list"], cwd=repo, capture_output=True, text=True, check=True
+    )
+    assert "cid(audit): abandoned" in out.stdout
+    assert cid.HUMAN_REVIEW_MARKER in (repo / cid.HANDOFF_FILE).read_text()
+
+
+def test_run_metrics_snapshot_appends_and_commits(tmp_path):
+    # Runner-side snapshot (gates skipped for speed) writes metrics.jsonl and
+    # commits it before the audit agent starts.
+    repo = _init_repo(tmp_path)
+    ok = cid.run_metrics_snapshot(repo, time_gates=False)
+    assert ok
+    lines = (repo / cid.METRICS_FILE).read_text(encoding="utf-8").strip().splitlines()
+    assert len(lines) == 1
+    assert "totals" in json.loads(lines[0])
+    out = subprocess.run(
+        ["git", "log", "--oneline", "-1"],
+        cwd=repo,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "cid(audit): metrics snapshot" in out.stdout
