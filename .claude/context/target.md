@@ -411,6 +411,10 @@ Detailed spec: `.claude/context/specs/ci-cd.md`
 - Python wheel matrix covers Linux x86_64 and aarch64, macOS universal2, and Windows x64; every
     wheel target is install- and import-tested before publish
 - All CI workflows green
+- Third-party dependencies are fresh: no dependency in any manifest, GitHub Actions pin, mise tool
+    pin, or pre-commit hook lags its latest stable release by a major version without a documented
+    hold-back reason, and all gates pass on the refreshed set (see `ci-cd.md` → "Dependency
+    Freshness")
 - All packages share coordinated version from root `Cargo.toml`
 - `mise run version:sync` propagates version to all 12 sync targets
 - `mise run version:check` validates consistency (run in CI)

@@ -420,6 +420,45 @@ commit failures from hook-applied formatting changes.
 **zensical** builds and deploys documentation to `lib.iscc.codes` via GitHub Pages. `docs.yml`
 workflow triggers on push to `main`.
 
+## Dependency Freshness
+
+Third-party dependencies are refreshed as part of each release cycle. No automated update bot
+(Dependabot/Renovate) is configured — the refresh is a deliberate, verified pass over every manifest
+so releases never ship stale or vulnerable pins.
+
+**Manifest surface:**
+
+| Ecosystem | Manifests                                                                                                                                           |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rust      | root `Cargo.toml` (`workspace.dependencies`) + `Cargo.lock`                                                                                         |
+| Python    | `pyproject.toml` + `uv.lock` (dev environment; runtime ships as abi3 wheel)                                                                         |
+| npm       | `crates/iscc-napi/package.json`                                                                                                                     |
+| Ruby      | `crates/iscc-rb/Gemfile` + `iscc-lib.gemspec` (+ `Gemfile.lock`)                                                                                    |
+| Java      | `crates/iscc-jni/java/pom.xml`                                                                                                                      |
+| Kotlin    | `packages/kotlin/build.gradle.kts`                                                                                                                  |
+| .NET      | `packages/dotnet/Iscc.Lib/Iscc.Lib.csproj` + test project                                                                                           |
+| Go        | `packages/go/go.mod`                                                                                                                                |
+| Tooling   | `mise.toml` tool pins, `.pre-commit-config.yaml` hook pins, GitHub Actions versions and pinned CI tools (e.g. `cargo-crap`) in `.github/workflows/` |
+
+**Policy:** patch/minor bumps by default; each major bump is evaluated individually (changelog and
+API impact). A dependency deliberately held back gets a documented reason next to its pin.
+
+**Known pinning constraints:**
+
+- PyO3 bumps only together with re-verifying `gil_used = true` semantics and the `py.detach` call
+    sites (see `python-bindings.md` GIL sections)
+- rb_sys in `Gemfile.lock` must match the `oxidize-rb/actions/cross-gem` Docker image tag (mismatch
+    breaks rbconfig; see `crates/iscc-rb/CLAUDE.md`)
+- Python wheels stay `abi3-py310`
+- Quality-gate CI tool pins (e.g. `cargo-crap`) bump together with their committed baselines
+
+**Verified when:**
+
+- [ ] No dependency in any manifest above lags its latest stable release by a major version without
+    a documented hold-back reason
+- [ ] Lockfiles (`Cargo.lock`, `uv.lock`, `Gemfile.lock`) are regenerated on the refreshed set
+- [ ] All CI quality gates and conformance suites pass on the refreshed set
+
 ## Verification Criteria
 
 ### CI

@@ -58,6 +58,24 @@ publish. Full plan: `.claude/plans/restore-linux-aarch64-python-wheels.md`.
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Build Matrices" / "Release" criteria
 
+## Dependency review and refresh across the project `normal` [human]
+
+Planned for the **v0.6.0** release. No automated dependency updates are configured (no
+Dependabot/Renovate), so manifests drift between releases. Review and refresh third-party
+dependencies across the full surface: root `Cargo.toml` workspace deps + `Cargo.lock`,
+`pyproject.toml` + `uv.lock`, `crates/iscc-napi/package.json`, `crates/iscc-rb/Gemfile` + gemspec,
+`crates/iscc-jni/java/pom.xml`, `packages/kotlin/build.gradle.kts`, `packages/dotnet/*/*.csproj`,
+`packages/go/go.mod`, plus tooling pins: `mise.toml`, `.pre-commit-config.yaml`, and GitHub Actions
+versions / pinned CI tools in `.github/workflows/`. Patch/minor bumps by default; evaluate majors
+individually and document any deliberately held-back version next to its pin. **Known pinning
+constraints:** PyO3 bumps only together with re-verifying `gil_used = true` semantics and the
+`py.detach` call sites (interacts with #41); rb_sys in `Gemfile.lock` must match the
+`oxidize-rb/actions/cross-gem` Docker image tag; wheels stay `abi3-py310`; quality-gate CI tool pins
+(e.g. `cargo-crap`) bump together with their baselines. All quality gates and conformance vectors
+must pass on the refreshed set.
+
+**Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness"
+
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
 Human-driven release: cut **v1.0.0** as the first stability-committed release of the lockstep
