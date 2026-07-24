@@ -97,21 +97,14 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
 - **Recurring maintenance pattern**: the enforcing cargo-deny gate WILL periodically go red on fresh
     RustSec advisories against dev/bench deps. Each is a CI-red-first priority; resolve via patch
     bump (preferred) or a justified `ignore`.
-- **iter 116: picked #41 (Python text/video GIL)** — first v0.6.0 feature; CI green, no bounce.
-    Single-file `crates/iscc-py/src/lib.rs`: wrap 5 fns (`gen_text_code_v0`, `gen_video_code_v0`
-    - `_flat`, `soft_hash_video_v0` + `_flat`) in `py.detach(|| ...)`. Signature- + conformance-
-        neutral (injected `py` param not exposed) → **no doc/`.pyi`/`__init__.py` change needed**.
-        GIL-release verification is grep-based: `grep -c '\.detach(' lib.rs` (7 existing → 12; note
-        one-shot sites write `py\n.detach` split across lines, so count `.detach(` not `py.detach`).
-        Video caveat: detach must open AFTER `extract_frame_sigs`/`flat_bytes_to_frames` (borrowed
-        `PyList_GetItem` ptrs not free-threading-safe; module keeps `gil_used = true`).
-- **iter 117: #42 (WASM simd128) — NEEDS_WORK.** Landed `RUSTFLAGS=-C target-feature=+simd128`
-    (release.yml `build-wasm` + ci.yml `wasm` steps) + `--enable-simd` in `wasm-opt` array
-    (`crates/iscc-wasm/Cargo.toml`) + CLAUDE.md doc. All literal checks passed BUT the premise was
-    **wrong**: RUSTFLAGS `simd128` alone does NOT activate blake3's wasm SIMD backend under blake3
-    1.8.3. **`v128` opcode-counting is a FALSE-POSITIVE gate** — LLVM auto-vectorizes the portable
-    path and emits `v128` too. Lesson: verify the actual reference/source before asserting a
-    mechanism ("target_feature-gated" was an unverified guess).
+- **iter 116: #41 (Python text/video GIL) DONE** — single-file `crates/iscc-py/src/lib.rs`, wrap
+    compute in `py.detach(|| ...)`. Injected `py` param not exposed → signature/conformance-neutral,
+    no doc change. Video detach must open AFTER frame-sig extraction (borrowed `PyList_GetItem` ptrs
+    not free-threading-safe; module keeps `gil_used = true`). Verify via `grep -c '\.detach(' lib.rs`.
+- **iter 117: #42 (WASM simd128) — NEEDS_WORK.** Lesson: RUSTFLAGS `simd128` alone does NOT activate
+    blake3's wasm SIMD backend; `v128` opcode-counting is a FALSE-POSITIVE gate (LLVM
+    auto-vectorizes the portable path too). Verify the actual reference/source before asserting a
+    mechanism.
 - **iter 118: reframed #42** (first NEEDS_WORK → reframe, not repeat). Root cause (verified in
     `~/.cargo/.../blake3-1.8.3/`): the wasm SIMD backend is gated behind the `blake3/wasm32_simd`
     **Cargo feature** — `build.rs` emits `blake3_wasm32_simd` cfg only when
@@ -141,5 +134,15 @@ iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residua
     version-check relax. No go.mod/go.sum change (`encoding/binary` is stdlib). Go tests run from
     `packages/go/` (separate module; root `go test ./...` won't reach it); CI uses
     `working-directory: packages/go` + `CGO_ENABLED=0`.
-- **v0.6.0 remaining after #43**: #49 aarch64 wheels, dep refresh, + 2 release-workflow fixes (npm
+- **iter 120: picked the `[review]` Go `IsccDecode` trailing-byte hardening** (filed after #43;
+    concrete, no human gating — preferred over #49/dep-refresh). Root: `IsccDecode` guard was
+    `len(tail) < nbytes` (only rejects too-short), silently copying `tail[:nbytes]` and ignoring
+    trailing base32 chars, so `ISCC:MAIGHFECJMOPMIABAA` aliases canonical `ISCC:MAIGHFECJMOPMIAB`
+    (`DecodeIsccID` inherits). Fix = ADD a `len(tail) > nbytes` "too long" branch (keep the existing
+    "too short" branch so `TestCodecIsccDecodeBodyTooShort`'s `"too short"` assertion stays green).
+    Conformance-safe: canonical ISCC base32 round-trips exactly (N bytes → `ceil(8N/5)` chars → N
+    bytes; 2-byte byte-aligned headers), so `tail==digest` for all vectors — verified empirically
+    (`MAIGHFECJMOPMIABAA`→11 bytes vs canonical 10). Do NOT touch `IsccDecompose` (own body loop
+    legitimately consumes trailing units). 1 code file (`codec.go`) + 2 test files.
+- **v0.6.0 remaining after this**: #49 aarch64 wheels, dep refresh, + 2 release-workflow fixes (npm
     OIDC, single-registry re-trigger). One per iteration; each spec'd.

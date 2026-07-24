@@ -1,97 +1,93 @@
 # Next Work Package
 
-## Step: Go ISCC-IDv1 encode/decode (issue #43)
+## Step: Reject trailing bytes in Go `IsccDecode`
 
 ## Goal
 
-Add experimental ISCC-IDv1 support to the pure-Go binding: `EncodeIsccID` / `DecodeIsccID` exposing
-realm, hub-id, and timestamp, plus Version=1 acceptance in `decodeHeader` for MainType `ID` only —
-at parity with iscc-core's `iscc_id.py`. This closes the last non-CI Go target gap and unblocks
-`iscc/iscc-monitor` deleting its interim in-repo codec port (their ADR-0011).
+Harden the pure-Go codec so `IsccDecode` rejects an ISCC string whose base32-decoded body is longer
+than the header-declared digest length, closing the alias gap where `ISCC:MAIGHFECJMOPMIABAA`
+decodes identically to the canonical `ISCC:MAIGHFECJMOPMIAB` (issue: "Go `IsccDecode` silently
+accepts trailing bytes" `normal` `[review]`). `DecodeIsccID` inherits the fix.
 
 ## Scope
 
-- **Create**: `packages/go/iscc_id.go` (`EncodeIsccID` / `DecodeIsccID` functions + `IsccIDv1Result`
-    type), `packages/go/iscc_id_test.go` (unit + round-trip tests)
-- **Modify**: `packages/go/codec.go` (add `VSV1 Version = 1` const; relax the `decodeHeader` version
-    check to accept Version=1 when MainType==ID, still rejecting Version>0 for all other MainTypes),
-    `packages/go/README.md` (add the two experimental functions to the codec-functions API table)
-- **Reference**: `reference/iscc-core/iscc_core/iscc_id.py` (`gen_iscc_id_v1` — the authoritative
-    algorithm), `.claude/context/specs/go-bindings.md` → "ISCC-IDv1 Support (Experimental)" (the
-    five checkbox acceptance criteria), `packages/go/codec.go` (existing `encodeHeader`,
-    `encodeLength`, `IsccDecode`, `decodeLength` helpers to reuse)
+- **Modify**: `packages/go/codec.go` — the length guard inside `IsccDecode`.
+- **Modify**: `packages/go/codec_test.go` — add a trailing-byte rejection test (test file).
+- **Modify**: `packages/go/iscc_id_test.go` — add a `DecodeIsccID` trailing-byte rejection test
+    (test file).
+- **Reference**: `packages/go/iscc_id.go` (`DecodeIsccID` delegates to `IsccDecode`), issues.md
+    entry, `.claude/context/handoff.md` (Codex P2 finding).
 
 ## Not In Scope
 
-- Do NOT port ISCC-IDv0 (`gen_iscc_id_v0`, `soft_hash_iscc_id_v0`, `iscc_id_incr`,
-    `alg_simhash_from_iscc_id`) — the wallet/blockchain legacy path is not requested by #43.
-- Do NOT add ISCC-IDv1 to the other 11 language bindings (Rust core, Python, WASM, etc.) — Go-only.
-    The Tier 1 count stays 32; these are Go-local experimental additions.
-- Do NOT relax the public `EncodeComponent` to accept Version>0 — build the ID header directly via
-    the internal `encodeHeader`/`encodeLength` helpers so `EncodeComponent`'s contract (reject
-    Version>0) stays intact.
-- Do NOT change `data.json` / vendored conformance vectors or the `ConformanceSelftest` vector count
-    — ISCC-IDv1 is not in the ISO conformance set; assert the single known vector inline in the
-    test.
-- Do NOT bump `go.mod`/`go.sum` — only `encoding/binary` (stdlib) is needed.
+- Do NOT touch `IsccDecompose` — it has its own body loop (`len(body) < nbytes` then
+    `rawCode = body[nbytes:]`) that legitimately consumes trailing units in a composite sequence.
+    Verify it stays unaffected; do not "harden" it.
+- Do NOT change `decodeHeader`, `decodeBase32`, or the public function signatures — the fix is a
+    single length-comparison change; behavior gets stricter but the API is unchanged.
+- Do NOT touch the other-language codecs (Rust/WASM/etc.) — this issue is scoped to the Go binding
+    only. If you suspect the same gap elsewhere, note it, don't fix it here.
+- No CLAUDE.md / README doc change is required (the lenient behavior was never documented and the
+    signature is unchanged).
 
 ## Implementation Notes
 
-**Algorithm (from `iscc_id.py::gen_iscc_id_v1`), verified to round-trip the spec vector:**
+- Current guard in `IsccDecode` (packages/go/codec.go, ~line 594):
 
-- 64-bit body: `body = (timestamp << 12) | hubID`; `timestamp` is 52-bit µs-since-epoch (must be
-    `< 2^52`), `hubID` is the low 12 bits (0–4095). Pack big-endian into 8 bytes
-    (`binary.BigEndian.PutUint64`).
-- Header nibbles: MainType=`MTId` (6), SubType=`realm` (0=test, 1=operational), Version=`VSV1` (1),
-    length index=0 (canonical 64-bit body). Realm must be 0 or 1.
-- `EncodeIsccID(realm uint8, hubID uint16, timestamp uint64) (string, error)`: validate the three
-    ranges (return an `iscc:`-prefixed error on overflow), then
-    `encodedLen, _ := encodeLength(MTId, 64)` (→ 0),
-    `header, _ := encodeHeader(MTId, SubType(realm), VSV1, encodedLen)`, concatenate
-    `header +   digest`, base32-encode, and return **with** the `"ISCC:"` prefix (the spec vector
-    includes it).
-- `DecodeIsccID(code string) (*IsccIDv1Result, error)`: delegate to the existing `IsccDecode` (it
-    already strips the `ISCC:` prefix + dashes and, once `decodeHeader` accepts V1, returns
-    Maintype=6/Version=1/8-byte Digest). Guard `Maintype==MTId`, `Version==VSV1`, `len(Digest)==8`,
-    then `body := binary.BigEndian.Uint64(Digest)`; `Timestamp = body >> 12`,
-    `HubID = uint16(body & 0xFFF)`, `Realm = result.Subtype`.
-- `IsccIDv1Result` struct: `Realm uint8`, `HubID uint16`, `Timestamp uint64`. Give both functions
-    and the struct a doc-comment marker that they are **experimental** (ISCC-IDv1 is not part of ISO
-    24138 and may change in a minor release).
+    ```go
+    if len(tail) < nbytes {
+        return nil, fmt.Errorf("iscc: decoded body too short: expected %d digest bytes, got %d", nbytes, len(tail))
+    }
+    ```
 
-**`decodeHeader` change (codec.go ~line 268):** replace the unconditional
-`if versionVal > 0 { return ...invalid Version }` with a guard that permits exactly
-`MainType(mtypeVal)==MTId && versionVal==1` and rejects every other `versionVal > 0`. This is the
-only behavioral change to existing code; the header roundtrip test (codec_test.go:161-175) only uses
-Version 0 and is unaffected. `decodeLength(MTId, 0, realm)` already returns 64 → `IsccDecode` reads
-the 8-byte body correctly.
+- Change it to reject a too-long body as well. Prefer keeping the existing "too short" branch intact
+    and adding a distinct "too long" branch, so the existing `TestCodecIsccDecodeBodyTooShort`
+    (which asserts the error contains `"too short"`) keeps passing:
 
-**Verified vector (do not re-derive):** `EncodeIsccID(0, 1, 1751831876325218)` →
-`"ISCC:MAIGHFECJMOPMIAB"`; component hex is `60106394824b1cf62001` (2-byte header `6010` + 8-byte
-body).
+    ```go
+    if len(tail) < nbytes {
+        return nil, fmt.Errorf("iscc: decoded body too short: expected %d digest bytes, got %d", nbytes, len(tail))
+    }
+    if len(tail) > nbytes {
+        return nil, fmt.Errorf("iscc: decoded body too long: expected %d digest bytes, got %d trailing bytes", nbytes, len(tail)-nbytes)
+    }
+    ```
+
+    (An equivalent single `len(tail) != nbytes` exact check is fine too, but then you MUST update
+    `TestCodecIsccDecodeBodyTooShort`'s "too short" assertion — the two-branch form avoids that.)
+
+- Why this is conformance-safe: canonical ISCC base32 round-trips exactly. A body of N whole bytes
+    encodes to `ceil(8N/5)` chars and decodes back to exactly N bytes; standard/ID headers are
+    byte-aligned 2-byte headers, so `tail == digest` for every canonical code. Extra base32 chars
+    are the only way to make `len(tail) > nbytes`. Verified empirically: `MAIGHFECJMOPMIAB` → 10
+    bytes (2 header + 8 body); `MAIGHFECJMOPMIABAA` → 11 bytes (tail 9 > 8). The full test suite
+    (incl. `ConformanceSelftest` + `TestCodecIsccDecodeConformanceVectors`) guards against any
+    vendored vector that relied on padding.
+
+- Add `TestCodecIsccDecodeRejectsTrailingBytes` in codec_test.go: assert
+    `IsccDecode("ISCC:MAIGHFECJMOPMIABAA")` returns a non-nil error, and (control) that
+    `IsccDecode("ISCC:MAIGHFECJMOPMIAB")` still succeeds with an 8-byte digest.
+
+- Add `TestDecodeIsccIDRejectsTrailingBytes` in iscc_id_test.go: assert
+    `DecodeIsccID("ISCC:MAIGHFECJMOPMIABAA")` returns a non-nil error (fix propagates through the
+    delegation), and (control) the canonical form still decodes to realm 0 / hub 1 / ts
+    1751831876325218\.
+
+- Keep new test code gofmt-clean (CI pins go 1.23; only your new lines matter — pre-existing gofmt
+    drift on untouched files under newer local toolchains is a known non-issue).
 
 ## Verification
 
-- From `packages/go/`: `go test ./...` passes (all existing tests + the new `iscc_id_test.go`), and
-    `CGO_ENABLED=0 go test ./...` also passes (pure-Go invariant holds).
-- From `packages/go/`: `go vet ./...` is clean.
-- `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` and `DecodeIsccID("MAIGHFECJMOPMIAB")` (no prefix) both
-    return `Realm=0, HubID=1, Timestamp=1751831876325218` — asserted by a test.
-- `EncodeIsccID(0, 1, 1751831876325218)` returns `"ISCC:MAIGHFECJMOPMIAB"` — asserted by a test.
-- Round-trip holds for boundary values (hubID 0 and 4095, realm 0 and 1, timestamp `2^52 - 1`):
-    `DecodeIsccID(EncodeIsccID(...))` reproduces the inputs — asserted by a test.
-- `IsccDecode("ISCC:MAIGHFECJMOPMIAB")` returns `Maintype==6`, `Version==1`, `len(Digest)==8` (no
-    longer errors with "invalid Version: 1") — asserted by a test.
-- Version>0 is still rejected for a non-ID MainType — a test constructs a Data-Code-shaped header
-    with Version=1 (via `encodeHeader(MTData, STNone, VSV1, ...)`) and asserts `decodeHeader`
-    returns an error.
-- `EncodeIsccID` returns an `iscc:`-prefixed error for `timestamp >= 2^52`, `hubID >= 4096`, and
-    `realm` ∉ {0,1} — asserted by a test.
-- The two experimental functions carry an "experimental" doc-comment marker and appear in
-    `packages/go/README.md`'s codec-functions table.
+- `go -C packages/go test -count=1 ./...` passes (all existing + the 2 new tests).
+- `CGO_ENABLED=0 go -C packages/go test -count=1 ./...` passes (pure-Go invariant holds).
+- `go -C packages/go vet ./...` is clean (exit 0).
+- New assertion: `IsccDecode("ISCC:MAIGHFECJMOPMIABAA")` returns a non-nil error, while
+    `IsccDecode("ISCC:MAIGHFECJMOPMIAB")` still returns an 8-byte digest.
+- New assertion: `DecodeIsccID("ISCC:MAIGHFECJMOPMIABAA")` returns a non-nil error, while
+    `DecodeIsccID("ISCC:MAIGHFECJMOPMIAB")` returns realm 0 / hub 1 / ts 1751831876325218.
+- `go -C packages/go build ./...` succeeds (no compile breakage).
 
 ## Done When
 
-The new `EncodeIsccID`/`DecodeIsccID` round-trip the known vector and boundary values, `IsccDecode`
-accepts ISCC-IDv1 while every other MainType still rejects Version>0, and `go test`/`go vet` (incl.
-`CGO_ENABLED=0`) are green in `packages/go/`.
+`IsccDecode` (and thus `DecodeIsccID`) rejects trailing-byte bodies, both new tests plus the full Go
+suite pass under `CGO_ENABLED=0`, and `go vet` is clean.
