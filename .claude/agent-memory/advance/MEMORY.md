@@ -21,7 +21,11 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
 - UniFFI: `crates/iscc-uniffi/` — proc-macro interface for Swift/Kotlin, `publish = false`. Full
     detail → uniffi-swift-kotlin.md
 - Go pure: `packages/go/` — one `.go` per algorithm/code-type (codec, utils, cdc, minhash, simhash,
-    dct, wtahash, xxh32, `code_*.go`, conformance.go). WASM bridge removed — pure Go only
+    dct, wtahash, xxh32, `code_*.go`, conformance.go). WASM bridge removed — pure Go only.
+    Experimental ISCC-IDv1 in `iscc_id.go` (`EncodeIsccID`/`DecodeIsccID`, iter 119, #43);
+    `codec.go` `decodeHeader` accepts Version=1 ONLY for MainType ID (`VSV1` const). Go CI job runs
+    only `go test`+`go vet` — no gofmt gate; go1.26 gofmt flags pre-existing alignment drift in
+    codec_test.go + conformance.go (untouched, harmless)
 
 ## Build and Tooling
 

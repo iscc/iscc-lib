@@ -60,6 +60,9 @@ type Version uint8
 // VSV0 is ISCC version 0.
 const VSV0 Version = 0
 
+// VSV1 is ISCC version 1. Currently only valid for MainType ID (ISCC-IDv1).
+const VSV1 Version = 1
+
 // ---- Bit Manipulation Helpers (unexported) ----
 
 // getBit reads the bit at position bitPos from data (MSB-first ordering).
@@ -265,7 +268,8 @@ func decodeHeader(data []byte) (MainType, SubType, Version, uint32, []byte, erro
 	if stypeVal > 7 {
 		return 0, 0, 0, 0, nil, fmt.Errorf("iscc: invalid SubType: %d", stypeVal)
 	}
-	if versionVal > 0 {
+	// Version 1 is only valid for ISCC-IDv1 (MainType ID); all other MainTypes require Version 0.
+	if versionVal > 0 && (MainType(mtypeVal) != MTId || versionVal != uint32(VSV1)) {
 		return 0, 0, 0, 0, nil, fmt.Errorf("iscc: invalid Version: %d", versionVal)
 	}
 

@@ -1,70 +1,56 @@
 # Handoff
 
-## 2026-07-24 — Review of: Activate BLAKE3's wasm32 SIMD backend in @iscc/wasm (finish issue #42)
+## 2026-07-24 — Go ISCC-IDv1 encode/decode (issue #43)
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Added experimental ISCC-IDv1 support to the pure-Go binding: new `EncodeIsccID` /
+`DecodeIsccID` functions with `IsccIDv1Result` struct (realm, hub ID, 52-bit µs timestamp), plus a
+`VSV1` constant and a relaxed `decodeHeader` that accepts Version=1 exactly when MainType==ID (all
+other MainTypes still reject Version>0). `EncodeComponent`'s reject-Version>0 contract is untouched
+— the ID header is built via the internal `encodeHeader`/`encodeLength` helpers as next.md
+prescribed.
 
-**Summary:** The advance agent added the missing piece from the iter-117 NEEDS_WORK: a direct
-`blake3 = { workspace = true, features = ["wasm32_simd"] }` dep on `crates/iscc-wasm`, which
-feature-unifies so blake3's build.rs emits the `blake3_wasm32_simd` cfg on the wasm32 build and
-`Platform::detect()` returns `WASM32_SIMD`. All six next.md criteria pass; scope was disciplined
-(only the four intended files + advance memory/handoff), no source changes, conformance
-byte-identical, no gate circumvention. Issue #42 is resolved and its four spec boxes are checked.
-One P3 doc imprecision (also caught by Codex) was fixed directly.
+**Files changed:**
+
+- `packages/go/iscc_id.go` (new): `EncodeIsccID`, `DecodeIsccID`, `IsccIDv1Result` — all three carry
+    an "Experimental: ISCC-IDv1 is not part of ISO 24138…" doc-comment marker
+- `packages/go/iscc_id_test.go` (new): 8 tests — known vector encode + decode (with and without
+    `ISCC:` prefix), boundary round-trips (realm {0,1} × hubID {0,4095} × timestamp {0, vector,
+    2^52−1}), `IsccDecode` V1 acceptance, Version=1 rejection for MTData, Version=2 rejection for
+    MTId, input validation (`iscc:`-prefixed errors), non-ID rejection in `DecodeIsccID`
+- `packages/go/codec.go`: added `VSV1 Version = 1` const; `decodeHeader` version check now
+    `versionVal > 0 && (MainType(mtypeVal) != MTId || versionVal != uint32(VSV1))`
+- `packages/go/README.md`: two rows for `EncodeIsccID`/`DecodeIsccID` in the Codec Operations table
+    (mdformat realigned the table columns)
 
 **Verification:**
 
-- [x] Feature wired —
-    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -f "{p} {f}" -i blake3` shows
-    `blake3 v1.8.3 default,std,wasm32_simd` (was `default,std`) — PASS
-- [x] Conformance preserved on SIMD build —
-    `RUSTFLAGS="-C target-feature=+simd128" wasm-pack test --node crates/iscc-wasm --features conformance`
-    exit 0 (78 unit + conformance binary, byte-identical) — PASS
-- [x] Release build + wasm-opt —
-    `RUSTFLAGS="-C target-feature=+simd128" wasm-pack build --target web --release crates/iscc-wasm --features conformance`
-    exit 0 ("ready to publish"); released `.wasm` has 5370 `v128` opcodes (was 1993 pre-feature) —
-    PASS
-- [x] Native build unaffected — `cargo test -p iscc-lib` exit 0 (269+28+22+1, 0 failed); host build
-    is inert (build.rs skips the cfg off-wasm) — PASS
-- [x] Landed flags intact — `grep -q 'target-feature=+simd128'` passes on ci.yml + release.yml;
-    `grep -q 'enable-simd' crates/iscc-wasm/Cargo.toml` passes — PASS
-- [x] `mise run format` clean; `mise run check` exit 0, all 15 hooks Passed (mdformat clean this
-    cycle — no reformat needed) — PASS
+- `go test ./...` and `CGO_ENABLED=0 go test ./...` both exit 0 from `packages/go/` (all existing +
+    new tests); `go vet ./...` clean (no output, exit 0)
+- Verbose run confirms all 8 new tests PASS, including
+    `EncodeIsccID(0, 1, 1751831876325218) == "ISCC:MAIGHFECJMOPMIAB"`, both prefix variants decoding
+    to realm 0 / hubID 1 / timestamp 1751831876325218, and `IsccDecode("ISCC:MAIGHFECJMOPMIAB")` →
+    Maintype 6, Version 1, 8-byte digest
+- `mise run format` applied (mdformat reflowed the README table), then `mise run check` exit 0 — all
+    15 hooks Passed
+- All five spec checkboxes in `specs/go-bindings.md` → "ISCC-IDv1 Support (Experimental)" are
+    covered by asserted tests
+- No `go.mod`/`go.sum` change (only stdlib `encoding/binary` added), no `data.json` /
+    `ConformanceSelftest` change — per Not-In-Scope
 
-**Issues found:**
-
-- (fixed directly) **Doc imprecision** in the freshly-written SIMD prose: both `iscc-wasm/CLAUDE.md`
-    and `specs/wasm-bindings.md` claimed the `simd128` target-feature is required "so the backend's
-    v128 intrinsics compile". Empirically false — a no-`RUSTFLAGS`
-    `cargo build -p iscc-wasm --target   wasm32-unknown-unknown` compiles fine, because blake3's
-    SIMD functions carry `#[target_feature(enable = "simd128")]` (verified in
-    blake3-1.8.3/src/wasm32_simd.rs). Corrected both docs: the Cargo feature activates the backend;
-    the global RUSTFLAGS broadens simd128 across the whole crate (auto-vec of CDC/xxh32/minhash +
-    inlining) and remains set in CI/release, and `--enable-simd` is still required for wasm-opt.
-    Behavior-neutral; the flags themselves stay.
-
-**Codex review:** One [P3] non-blocking finding, confirmed and actioned: "enabling
-`blake3/wasm32_simd` is sufficient [to compile the backend] because BLAKE3's SIMD entry points carry
-`#[target_feature(enable = "simd128")]`; a no-flag build succeeds and emits `v128` … the global flag
-should not be documented as required to compile the backend." I verified this against the blake3
-source and by building without RUSTFLAGS, and fixed the wording in both `CLAUDE.md` and the spec.
-
-**Next:** #42 is done — WASM is complete for v0.6.0. Remaining v0.6.0 backlog (all `normal`
-`[human]`, one per iteration): **#43 Go bindings ISCC-IDv1** (recommended next — concrete feature
-with a known conformance vector `ISCC:MAIGHFECJMOPMIAB`, unblocks iscc-monitor's ADR-0011), #49
-aarch64 Python wheels, dependency review/refresh, and the two release-infra items (npm OIDC
-migration, single-registry re-trigger fix). Spec-only backlog: `low` items stay parked.
+**Next:** #43 is implemented — reviewer should verify and check the five spec boxes / close the
+issue. Remaining v0.6.0 backlog per the prior review: #49 aarch64 Python wheels, dependency
+review/refresh, npm OIDC migration, single-registry re-trigger fix.
 
 **Notes:**
 
-- Feature unification detail: the `wasm32_simd` feature does unify onto blake3 for the host
-    workspace build too (`cargo tree -p iscc-wasm` on the host target shows it), but it is fully
-    inert there — blake3's build.rs only emits the `blake3_wasm32_simd` cfg under `is_wasm32()`, so
-    no native code path or output changes. iscc-lib and the other bindings never depend on
-    iscc-wasm, so their standalone builds don't even enable the feature.
-- No throughput bench was captured (next.md marked it optional/noisy). The cargo-tree feature-graph
-    check is the definitive proof the backend is wired in; the 1993→5370 `v128`-opcode jump
-    corroborates. Box #4 signed off on the wiring proof + disassembly, not a throughput number.
-- Batch pushed to origin/develop: this cycle's push carries the iter-117 NEEDS_WORK batch (which was
-    correctly held) + iter-118 define-next/advance/review as one unit. Pre-push hooks ran clean.
-- `.claude/context/iterations.jsonl` left unstaged (runner-owned).
+- Pre-existing gofmt drift (not from this change): `gofmt -l` under go1.26.1 flags
+    `packages/go/codec_test.go` and `packages/go/conformance.go` (struct-tag/comment alignment rules
+    changed in newer gofmt). Both files are untouched by this step and CI's `go` job runs only
+    `go test` + `go vet` (no gofmt gate), so CI is unaffected. My three Go files are gofmt-clean.
+    Left unfixed as out of scope — flagging for a possible hygiene follow-up.
+- `packages/go/CLAUDE.md`'s "Codec Functions (exported)" list does not yet mention
+    `EncodeIsccID`/`DecodeIsccID` — CLAUDE.md was not in next.md's Scope, so I left it. Reviewer may
+    fix directly or file a follow-up.
+- `TestDecodeHeaderRejectsVersion2ForID` goes slightly beyond the verification list to pin the
+    exact-match (`versionVal == 1`) semantics of the relaxation, guarding against a future `>= 1`
+    regression.

@@ -82,13 +82,15 @@ Package-level functions that return typed result structs (e.g., `*MetaCodeResult
 
 ### Codec Operations
 
-| Function          | Description                                                |
-| ----------------- | ---------------------------------------------------------- |
-| `EncodeBase64`    | Encode bytes to base64                                     |
-| `JsonToDataUrl`   | Convert JSON string to `data:` URL                         |
-| `EncodeComponent` | Construct an ISCC unit from header fields and digest       |
-| `IsccDecode`      | Decode an ISCC unit string into header components + digest |
-| `IsccDecompose`   | Decompose a composite ISCC-CODE into individual units      |
+| Function          | Description                                                      |
+| ----------------- | ---------------------------------------------------------------- |
+| `EncodeBase64`    | Encode bytes to base64                                           |
+| `JsonToDataUrl`   | Convert JSON string to `data:` URL                               |
+| `EncodeComponent` | Construct an ISCC unit from header fields and digest             |
+| `IsccDecode`      | Decode an ISCC unit string into header components + digest       |
+| `IsccDecompose`   | Decompose a composite ISCC-CODE into individual units            |
+| `EncodeIsccID`    | Encode realm, hub ID, timestamp as ISCC-IDv1 (experimental)      |
+| `DecodeIsccID`    | Decode an ISCC-IDv1 into realm, hub ID, timestamp (experimental) |
 
 ### Streaming
 
