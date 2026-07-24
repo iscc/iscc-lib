@@ -588,3 +588,32 @@ reference-only for humans.
     `wasm-pack build` compiles + emits `v128`) — it broadens simd128 to the whole crate (auto-vec of
     CDC/xxh32/minhash) and stays in CI/release; `--enable-simd` needed for wasm-opt. `v128`-opcode
     counting ALONE is a FALSE-POSITIVE for "backend active" (LLVM auto-vec emits it too)
+
+## Algorithm — ISCC-IDv1 (archived iter 124, #43 met, Go-only)
+
+- **ISCC-IDv1** (`gen_iscc_id_v1`, experimental, NOT in ISO 24138): 64-bit body
+    `= (timestamp << 12) | hub_id`, timestamp = 52-bit µs-since-epoch (`< 2^52`), hub_id = low 12
+    bits (0–4095). Header nibbles: MainType=ID(6), SubType=realm_id (0=test/1=operational),
+    Version=1, length-index=0; body big-endian, base32, `ISCC:` prefix. Known vector:
+    `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub 1, ts 1751831876325218. Go-only port in
+    `packages/go/iscc_id.go` (built via internal `encodeHeader`/`encodeLength`, NOT public
+    `EncodeComponent`); other 11 bindings lack it. Rust core rejects ISCC-IDv1 at header level
+    (`codec::Version` is V0-only)
+
+## CI/CD — aarch64 Python wheels (archived iter 124, #49 met)
+
+- **Adding a Python wheel target (iter 123, #49)**: only the `build-wheels` + `test-wheels` matrices
+    need the new entry — `publish-pypi`'s "Download all artifacts" uses `pattern: wheels-*` +
+    `merge-multiple: true`, so any `wheels-${{ matrix.os }}-${{ matrix.target }}` artifact is
+    auto-collected and published (no publish-step edit). Native-ARM wheels build on
+    `ubuntu-24.04-arm` (free GH runner, no QEMU/`container:`). release.yml-only changes can't be
+    exercised by CID pushes (only `workflow_dispatch`+pypi) → verify statically: YAML parse + matrix
+    presence + artifact-name consistency across the build→test→publish chain
+
+## Documentation — "10 gen functions vs 9 conformance" (archived iter 124)
+
+- **"10 gen functions" vs "9 conformance functions"**: iscc-lib has 10 `gen_*_v0` functions, but
+    `data.json` conformance vectors cover only 9 (no gen_sum_code_v0). Files that test/benchmark
+    against data.json should say "9"; general library descriptions should say "10". Avoid blanket
+    "9→10" find-and-replace — it corrupts conformance-scoped files. iscc-core-ts also implements
+    only 9 (no gen_sum_code_v0) — verify external projects' function tables before claiming "all 10"

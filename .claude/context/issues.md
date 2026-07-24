@@ -26,6 +26,13 @@ must pass on the refreshed set.
 
 **Spec:** `.claude/context/specs/ci-cd.md` → "Dependency Freshness"
 
+**Progress (sliced per-ecosystem):** ✅ Slice 1 — Rust `Cargo.lock` refreshed via `cargo update`
+(iter 124; ~100 crates to latest semver-compatible, all `Cargo.toml` pins held, all gates green).
+Remaining: Rust direct-pin evaluation (document hold-back reasons for uniffi 0.32 / pyo3 #41 /
+criterion / iai-callgrind / magnus / jni / napi majors), Python `uv.lock`, per-binding manifests
+(napi `package.json`, rb `Gemfile`/gemspec, jni `pom.xml`, kotlin `build.gradle.kts`, dotnet
+`.csproj`, go `go.mod`), and tooling pins (`mise.toml`, `.pre-commit-config.yaml`, GHA versions).
+
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
 Human-driven release: cut **v1.0.0** as the first stability-committed release of the lockstep

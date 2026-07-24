@@ -86,6 +86,15 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     workspace + `mise run check`
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see gate-reviews.md Audit)
+- **Rust dep-refresh (`cargo update`, no `-p`) — iter 124, slice 1 of v0.6.0 dep issue**: verify
+    `git diff --name-only -- Cargo.toml` is EMPTY (pins untouched: uniffi 0.31/pyo3 0.29/criterion
+    0.5/iai-callgrind 0.16/magnus 0.7/jni 0.21/napi 3), then run the full 4-gate set
+    `mise run test`+`lint`+`audit`+`bench:iai:check` (not the lockfile-only shortcut — a
+    `cargo   update` can shift Ir + pull new transitive licenses). `cargo-deny` is the main risk
+    (passed clean). Perf-gate tools NOT in fresh container — install per learnings.md Tooling note
+    first. GOTCHA: next.md's pin grep `'uniffi = { version = "0.31"'` (inline-table) FAILS —
+    manifest uses plain-string `uniffi = "0.31"`; that's a next.md defect, not a miss (verify the
+    actual pin form)
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - **release.yml-only (iter 123, #49)**: NOT exercised by CID pushes (only

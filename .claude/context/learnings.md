@@ -32,6 +32,12 @@ fully-met target sections to `learnings-archive.md`.
     `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe in
     `learnings-archive.md`; advisory clearance now IS tool-confirmable via the enforcing
     `cargo deny check` Audit gate (iter 114+)
+- **Perf-gate tooling is install-on-demand, NOT in the devcontainer** (iter 124): CI installs
+    valgrind + `iai-callgrind-runner@0.16.1` per-run in the `Perf` job (`ci.yml:289-300`), and the
+    devcontainer intentionally mirrors this (no bake-in). On a fresh container
+    `mise run bench:iai:check` dies with "No such file or directory" until
+    `sudo apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner --version 0.16.1`
+    (version MUST match the `iai-callgrind` pin). Not a devcontainer bug — do not file an issue
 
 ## ISCC Algorithm Knowledge
 
@@ -75,74 +81,60 @@ fully-met target sections to `learnings-archive.md`.
     `application/ld+json` media type, otherwise `application/json`
 - `conformance_selftest` uses bitwise-AND masking for truncated codes — do NOT compare full strings
     when bit_length < 256
-- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`**:
-    canonical ISCC base32 round-trips a byte-aligned N-byte body to exactly N bytes, so a `< nbytes`
-    guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`). Conformance-safe
-    because every vendored vector round-trips exactly. Now enforced in BOTH Go `IsccDecode` (iter
-    120\) and Rust core `iscc_decode` (iter 121, two-branch "too short"/"too long" guards) — all 11
-    delegating bindings inherit the Rust fix. NOTE the composite `iscc_decompose` path legitimately
-    consumes trailing units via its own body loop — do NOT "harden" it with an exact check
+- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`**: a
+    `< nbytes` guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`).
+    Conformance-safe (every vendored vector round-trips exactly). Enforced in Go `IsccDecode` (iter
+    120\) + Rust core `iscc_decode` (iter 121, two-branch "too short"/"too long"; all 11 bindings
+    inherit). NOTE composite `iscc_decompose` legitimately consumes trailing units — do NOT harden
+    it
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
-- **ISCC-IDv1** (`gen_iscc_id_v1`, experimental, NOT in ISO 24138): 64-bit body
-    `= (timestamp << 12) | hub_id`, timestamp = 52-bit µs-since-epoch (`< 2^52`), hub_id = low 12
-    bits (0–4095). Header nibbles: MainType=ID(6), SubType=realm_id (0=test/1=operational),
-    Version=1, length-index=0; body big-endian, base32, `ISCC:` prefix. Known vector:
-    `ISCC:MAIGHFECJMOPMIAB` → realm 0, hub 1, ts 1751831876325218. Go-only port in
-    `packages/go/iscc_id.go` (built via internal `encodeHeader`/`encodeLength`, NOT public
-    `EncodeComponent`); other 11 bindings lack it
+- **ISCC-IDv1** (`gen_iscc_id_v1`, Go-only, experimental) archived iter 124 → `learnings-archive.md`
 
 ## CI/CD
 
-- Windows GHA runners default to `pwsh` shell. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
-    `grep`, `sed`) MUST specify `shell: bash`. Existing publish jobs avoid this by only running
-    version extraction on `ubuntu-latest`, but per-matrix version steps (like in `build-ffi`) hit
-    Windows. Always check `shell:` declarations when adding `run:` steps to cross-platform matrices
-- **Release pipeline pattern**: boolean input → build → smoke test → publish. 6 smoke test jobs
-    (test-wheels/napi/wasm/gem/jni/ffi) gate publish, each testing the linux-x86_64 artifact on
-    ubuntu-latest
-- **Adding a Python wheel target (iter 123, #49)**: only the `build-wheels` + `test-wheels` matrices
-    need the new entry — `publish-pypi`'s "Download all artifacts" uses `pattern: wheels-*` +
-    `merge-multiple: true`, so any `wheels-${{ matrix.os }}-${{ matrix.target }}` artifact is
-    auto-collected and published (no publish-step edit). Native-ARM wheels build on
-    `ubuntu-24.04-arm` (free GH runner, no QEMU/`container:`). release.yml-only changes can't be
-    exercised by CID pushes (only `workflow_dispatch`+pypi) → verify statically: YAML parse + matrix
-    presence + artifact-name consistency across the build→test→publish chain
+- Windows GHA runners default to `pwsh`. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
+    `grep`, `sed`) MUST specify `shell: bash` — per-matrix version steps (e.g. `build-ffi`) hit
+    Windows. Always check `shell:` when adding `run:` steps to cross-platform matrices
+- **Release pipeline pattern**: boolean input → build → smoke test → publish; 6 smoke test jobs
+    (test-wheels/napi/wasm/gem/jni/ffi) gate publish, each testing the linux-x86_64 artifact
+- **Adding a Python wheel target (#49)** archived iter 124 → `learnings-archive.md`
 - **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger breaks
     for Swift — needs a spec fix to derive version from `Cargo.toml`
 - **Release input count**: 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift); re-trigger individual registries with `--ref main`
-- **Version sync**: `version_sync.py` manages 16 targets (incl. root `Package.swift` releaseTag);
-    `--check` exits 1 on mismatch
-- **`semver` + `coverage` CI jobs** (iter 93/94; details in `learnings-archive.md`): `semver` is
-    INFORMATIONAL pre-1.0 (`continue-on-error: true`, becomes enforcing at v1.0.0; `rust-core.md`
-    checkbox stays `[ ]` until then); `coverage` is enforcing. Run locally via `mise run semver` /
-    `mise run coverage`
-- **CRAP gate (iter 96/97/113, ci-cd.md)**: ENFORCING Phase 3 gate
-    (`cargo crap --fail-regression   --fail-above`, threshold 30.0, current max ~22.3).
-    `.crap-baseline.json` COMMITTED (regen via `mise run crap:baseline`, byte-identical);
-    `.cargo-crap.toml` MUST exclude `benches/**`. Full mechanics in `learnings-archive.md`.
-    **CI-ONLY guard gap (iter 121→122)**: this gate is NOT in `mise run check`/pre-commit, so any
-    source change that adds a branch/loop to a covered fn (raising its cyclomatic) lands green
-    locally but turns CI red unless `.crap-baseline.json` is refreshed in the SAME step. Fix =
-    regenerate the baseline (`mise run crap:baseline`), never revert the legit source change or
-    widen epsilon/threshold. When reviewing a refresh: only the changed fn's
-    cyclomatic/coverage/crap should move (it re-sorts by CRAP desc); all other entries must be pure
-    `line:` shifts
-- **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING (iter 107-110, #3)**: standalone enforcing
-    `perf` job; `[profile.bench] strip = false, debug = true` load-bearing (else stripped binary →
-    all benches `summary: 0` false-green). Full saga in `learnings-archive.md`
-- **`Audit (cargo-deny)` gate — LANDED & ENFORCING (iter 114/115, ci-cd.md line 448)**: root
-    `deny.toml` (config v2, `yanked = "deny"`, two dev-only iai-callgrind advisories ignored) +
-    enforcing `audit` CI job (`cargo-deny@0.19.9` → `cargo deny check`) + `mise run audit`.
-    cargo-deny reads Cargo.lock + metadata (NOT artifacts) so `cargo deny check` green locally is
-    authoritative (install via `cargo binstall cargo-deny@0.19.9`). A yanked crate OR fresh RustSec
-    advisory flips the gate red on ANY push with no code change — not a regression. Fix with
-    `cargo update -p <crate>` (drops the bad version; confirm dev-only reach via
-    `cargo tree -i <crate> -e no-dev` = empty), NOT a `deny.toml` ignore — ignore ONLY when no
-    patched release exists
+    maven-kotlin, swift); re-trigger individual registries with `--ref main`. `version_sync.py`
+    manages 16 targets (incl. root `Package.swift` releaseTag); `--check` exits 1 on mismatch
+- **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (`continue-on-error: true`,
+    enforcing at v1.0.0; `rust-core.md` box stays `[ ]`); `coverage` enforcing. Run via
+    `mise run semver` / `mise run coverage`. Details → `learnings-archive.md`
+- **CRAP gate (ci-cd.md)**: ENFORCING Phase 3 (`cargo crap --fail-regression --fail-above`, thresh
+    30.0, max ~22.3), `.crap-baseline.json` COMMITTED (regen `mise run crap:baseline`),
+    `.cargo-crap.toml` excludes `benches/**`. **CI-ONLY guard gap**: NOT in `mise run check`/
+    pre-commit — a source change adding a branch/loop to a covered fn lands green locally but reds
+    CI unless the baseline is refreshed in the SAME step (never revert the fix or widen epsilon/
+    threshold). Reviewing a refresh: only the changed fn's crap/cyclomatic/coverage moves (re-sorts
+    by CRAP desc); all others are pure `line:` shifts. Full mechanics → `learnings-archive.md`
+- **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING (#3)**:
+    `[profile.bench] strip = false,   debug = true` load-bearing (stripped binary → all benches
+    `summary: 0` false-green). Full saga → `learnings-archive.md`
+- **`Audit (cargo-deny)` gate — ENFORCING (ci-cd.md)**: root `deny.toml` (config v2,
+    `yanked = "deny"`, two dev-only iai-callgrind advisories ignored) + `audit` CI job
+    (`cargo-deny@0.19.9`) + `mise run audit`. cargo-deny reads Cargo.lock + metadata (NOT artifacts)
+    so green locally is authoritative (`cargo binstall cargo-deny@0.19.9`). A yanked crate OR fresh
+    RustSec advisory reds the gate on ANY push with no code change — not a regression. Fix with
+    `cargo update -p <crate>` (confirm dev-only reach via `cargo tree -i <crate> -e no-dev` =
+    empty), NOT a `deny.toml` ignore — ignore ONLY when no patched release exists
+- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue). Slice 1 = Rust
+    `cargo update` (no `-p`) landed clean (iter 124): verify with the 4-gate set
+    (`test`/`lint`/`audit`/`bench:iai:check`), keep every `Cargo.toml` pin (uniffi 0.31, pyo3 0.29,
+    criterion 0.5, iai-callgrind 0.16, magnus 0.7, jni 0.21, napi 3), and confirm
+    `git diff --name-only -- Cargo.toml` is empty. `cargo-deny` is the main risk (new transitive
+    license/advisory) — it passed; perf drift was ≤+1.96% (blake3 1.8.3→1.8.5 didn't move Ir).
+    GOTCHA: next.md's pin-check grep used the inline-table form `uniffi = { version = "0.31"` but
+    the manifest uses the plain-string form `uniffi = "0.31"` — grep the actual pin syntax.
+    Remaining slices: Rust direct-pin eval, Python `uv.lock`, per-binding manifests, tooling pins
 
 ## Branching
 
@@ -161,21 +153,17 @@ fully-met target sections to `learnings-archive.md`.
     when the block contains both gated and ungated tests
 - `serde_json` stays non-optional because `conformance.rs` uses it for parsing data.json vectors
 - **`--no-default-features --all-targets` fails on the `benchmarks` bench** (pre-existing): benches
-    import `gen_meta_code_v0`/`gen_text_code_v0`, which need `meta-code`/`text-processing`. Lib +
-    tests build fine; only the bench target breaks. Scope clippy to the lib
-    (`--no-default-features -- -D warnings`, no `--all-targets`) to avoid a false regression. CI
-    never runs this combo
-- **blake3 WASM SIMD backend — RESOLVED (iters 117-118, #42)**: the `blake3/wasm32_simd` **Cargo
-    feature** (not `-C target-feature=+simd128` RUSTFLAGS) activates it; `v128`-opcode counting
-    alone is a FALSE-POSITIVE. Full recipe + verify command in `learnings-archive.md`
+    import `gen_meta_code_v0`/`gen_text_code_v0` needing `meta-code`/`text-processing`. Lib + tests
+    build fine. Scope clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`)
+    to avoid a false regression. CI never runs this combo
+- **blake3 WASM SIMD backend — RESOLVED (#42)**: activated by the `blake3/wasm32_simd` Cargo feature
+    (not `-C target-feature=+simd128`); `v128`-opcode counting alone is a FALSE-POSITIVE. Full
+    recipe → `learnings-archive.md`
 
 ## Documentation Maintenance
 
-- **"10 gen functions" vs "9 conformance functions"**: iscc-lib has 10 `gen_*_v0` functions, but
-    `data.json` conformance vectors cover only 9 (no gen_sum_code_v0). Files that test/benchmark
-    against data.json should say "9"; general library descriptions should say "10". Avoid blanket
-    "9→10" find-and-replace — it corrupts conformance-scoped files. iscc-core-ts also implements
-    only 9 (no gen_sum_code_v0) — verify external projects' function tables before claiming "all 10"
+- **"10 gen functions" vs "9 conformance functions"** (10 `gen_*_v0`, but data.json covers 9 — no
+    gen_sum_code_v0; avoid blanket "9→10" replace) archived iter 124 → `learnings-archive.md`
 
 ## State Verification
 
@@ -188,29 +176,25 @@ fully-met target sections to `learnings-archive.md`.
 
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
-- **Detect concurrent CID loops** (iter 97): if `state.md`/context files change in the working tree
-    mid-review, or `mise run check` reports spurious "files were modified by this hook" on a file
-    the advance never touched (e.g. `standardrb-fix` flagging when no `.rb` is dirty), suspect a
-    race. Check `ps aux | grep -E 'cid:run|claude -p CID iteration'`: TWO `mise run cid:run` or two
-    different `iteration N` agents = duplicate loops racing the same branch — they clobber context
-    files and race pushes. Flag HUMAN REVIEW REQUESTED so a human kills the duplicate; do NOT kill
-    processes yourself, and do NOT push (the second loop will collide)
-- **Human-handoff vs IDLE (iter 111)**: when the loop runs out of fully-autonomous work but
-    `normal`-priority issues remain that are all `HUMAN REVIEW REQUESTED` spec amendments, the
-    strict `**IDLE**` conditions (all issues `low`) are NOT met. Flag `**HUMAN REVIEW REQUESTED**`
-    instead — the runner treats it as "pause" (stops the loop for the owner) whereas `**IDLE**` runs
-    meta-improve and is reserved for the all-`low` case. Don't manufacture churn to avoid the pause
+- **Detect concurrent CID loops** (iter 97): if context files change in the working tree mid-review,
+    or `mise run check` reports spurious "files were modified by this hook" on a file the advance
+    never touched (e.g. `standardrb-fix` when no `.rb` is dirty), suspect a race. Check
+    `ps aux | grep -E 'cid:run|claude -p CID iteration'`: two `cid:run` or two different
+    `iteration N` agents = duplicate loops racing the branch. Flag HUMAN REVIEW REQUESTED so a human
+    kills the duplicate; do NOT kill processes yourself, and do NOT push (the second loop will
+    collide)
+- **Human-handoff vs IDLE (iter 111)**: when autonomous work runs out but `normal` issues remain
+    that are all `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all issues `low`) is
+    NOT met. Flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead of `**IDLE**` (which runs
+    meta-improve, reserved for all-`low`). Don't manufacture churn to avoid the pause
 - **Pre-push mdformat blocks on non-conforming context files**: the pre-push hook runs mdformat
-    (`--wrap 100 --number`, isolated `mdformat-mkdocs[recommended]` env) on every file changed in
-    the push range — incl. `next.md` and per-agent `MEMORY*.md`. A non-conforming file rejects the
-    whole batch push even though staged-only `git commit` passed. define-next MUST run
-    `mise run format` before committing; review can unblock by reformatting + amending (match the
-    hook args exactly — local plugin set differs)
+    (`--wrap 100 --number`, isolated `mdformat-mkdocs[recommended]` env) on every file in the push
+    range — incl. `next.md` and per-agent `MEMORY*.md`. A non-conforming file rejects the whole
+    batch push even though staged-only `git commit` passed. define-next MUST run `mise run format`
+    before committing; review can unblock by reformatting + amending (match hook args exactly)
 - **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
-    `effort: xhigh`) — best model for long-horizon implementation; single requests can run many
-    minutes, which is normal (runner timeout raised to 3600s for advance). All other roles run on
-    `opus` (alias floats to the newest Opus). This is deliberate model diversity: Fable implements,
-    Opus reviews, Codex gives an independent second opinion. Do not "unify" the roles onto one model
-- **Advisor tool evaluated and deferred (2026-07)**: Claude Code advisor rejected for the CID loop
-    for now; revisit when Fable 5 becomes selectable as an advisor. Full rationale in
-    `learnings-archive.md`
+    `effort: xhigh`) — long-horizon implementation, single requests can run many minutes (runner
+    timeout 3600s). All other roles run on `opus`. Deliberate model diversity: Fable implements,
+    Opus reviews, Codex is the independent second opinion. Do not "unify" onto one model
+- **Advisor tool evaluated and deferred (2026-07)**: rejected for now; revisit when Fable 5 becomes
+    selectable as an advisor. Full rationale → `learnings-archive.md`
