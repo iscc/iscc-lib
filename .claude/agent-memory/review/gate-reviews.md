@@ -51,3 +51,17 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Revie
     load-bearing, rust-cache poisoning). GOTCHA: `.cargo-crap.toml` MUST exclude
     `crates/iscc-lib/benches/**` else `bench_cdc_chunks` leaks at CRAP 42. CI YAML folds the long
     `run:` scalar across 2 lines (folded newline = space) — confirm with `yaml.safe_load`
+- **CI-ONLY guard gap (iter 121→122)**: the CRAP `--fail-regression` gate runs ONLY in CI, NOT in
+    `mise run check`/pre-commit — so a branch-adding source change (e.g. iter 121 `iscc_decode`
+    trailing-byte guard: cyclomatic 4→5) lands green locally but turns CI red if the same step
+    didn't refresh `.crap-baseline.json`. That's a follow-up-fix iteration, not a gate weakening.
+- **Reviewing a `.crap-baseline.json` refresh**: regenerate + run the enforcing gate yourself, don't
+    trust the handoff. `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` then
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    (want EXIT 0 + `↑ 0 regressed`). Tools may be missing from a fresh session: cargo-llvm-cov 0.8.7
+    via `cargo binstall`, but cargo-crap 0.2.2 binstall binary needs GLIBC_2.39 (container too old)
+    → `cargo install cargo-crap --version 0.2.2` from source (~1.5 min);
+    `rustup component add   llvm-tools-preview` first. DIFF CHECK: only the changed fn's
+    `cyclomatic`/`coverage`/`crap` should move (+ it re-sorts by CRAP desc); every OTHER lib.rs
+    entry must be a pure `line:` shift equal to the net lines the source change added — any
+    substantive metric drift elsewhere = probe before approving (coverage-env noise)

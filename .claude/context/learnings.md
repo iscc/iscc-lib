@@ -116,7 +116,14 @@ fully-met target sections to `learnings-archive.md`.
 - **CRAP gate (iter 96/97/113, ci-cd.md)**: ENFORCING Phase 3 gate
     (`cargo crap --fail-regression   --fail-above`, threshold 30.0, current max ~22.3).
     `.crap-baseline.json` COMMITTED (regen via `mise run crap:baseline`, byte-identical);
-    `.cargo-crap.toml` MUST exclude `benches/**`. Full mechanics in `learnings-archive.md`
+    `.cargo-crap.toml` MUST exclude `benches/**`. Full mechanics in `learnings-archive.md`.
+    **CI-ONLY guard gap (iter 121→122)**: this gate is NOT in `mise run check`/pre-commit, so any
+    source change that adds a branch/loop to a covered fn (raising its cyclomatic) lands green
+    locally but turns CI red unless `.crap-baseline.json` is refreshed in the SAME step. Fix =
+    regenerate the baseline (`mise run crap:baseline`), never revert the legit source change or
+    widen epsilon/threshold. When reviewing a refresh: only the changed fn's
+    cyclomatic/coverage/crap should move (it re-sorts by CRAP desc); all other entries must be pure
+    `line:` shifts
 - **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING (iter 107-110, #3)**: standalone enforcing
     `perf` job; `[profile.bench] strip = false, debug = true` load-bearing (else stripped binary →
     all benches `summary: 0` false-green). Full saga in `learnings-archive.md`
