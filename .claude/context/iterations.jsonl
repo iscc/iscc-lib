@@ -1198,3 +1198,7 @@
 {"ts":"2026-06-18T14:02:47.532025+00:00","iteration":114,"role":"advance","status":"OK","turns":84,"cost_usd":5.959719,"duration_s":2104.0}
 {"ts":"2026-06-18T14:22:44.125457+00:00","iteration":114,"role":"review","status":"OK","turns":82,"cost_usd":6.18295,"duration_s":1196.6}
 {"ts":"2026-06-18T14:22:44.151838+00:00","type":"iteration_summary","iteration":114,"verdict":"IDLE","turns_total":242,"cost_total":17.510584,"duration_total":4532.1}
+{"ts":"2026-07-24T10:33:39.259258+00:00","iteration":115,"role":"define-next","status":"OK","turns":25,"cost_usd":1.946589,"duration_s":386.3}
+{"ts":"2026-07-24T10:55:03.805587+00:00","iteration":115,"role":"advance","status":"OK","turns":30,"cost_usd":3.486897,"duration_s":1284.5}
+{"ts":"2026-07-24T11:19:18.834229+00:00","iteration":115,"role":"review","status":"OK","turns":47,"cost_usd":4.218962,"duration_s":1455.0}
+{"ts":"2026-07-24T11:19:18.860675+00:00","type":"iteration_summary","iteration":115,"verdict":"PASS","turns_total":102,"cost_total":9.652448,"duration_total":3125.8}
