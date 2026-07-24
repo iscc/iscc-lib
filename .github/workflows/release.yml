@@ -180,6 +180,9 @@ jobs:
           - os: windows-latest
             target: x64
             interpreter: python
+          - os: ubuntu-24.04-arm
+            target: aarch64
+            interpreter: python3.10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -222,12 +225,21 @@ jobs:
           name: wheels-sdist
           path: dist
 
-  # Smoke test Python wheel on Linux before publishing
+  # Smoke test Python wheels on Linux (x86_64 and aarch64) before publishing
   test-wheels:
-    name: Test Python wheel
+    name: Test Python wheel (${{ matrix.arch }})
     needs: [build-wheels]
     if: inputs.version != '' || inputs.pypi
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+            artifact: wheels-ubuntu-latest-x86_64
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            artifact: wheels-ubuntu-24.04-arm-aarch64
     steps:
       - uses: actions/setup-python@v5
         with:
@@ -235,7 +247,7 @@ jobs:
       - name: Download wheel
         uses: actions/download-artifact@v4
         with:
-          name: wheels-ubuntu-latest-x86_64
+          name: ${{ matrix.artifact }}
           path: dist
       - name: Install and test
         run: |

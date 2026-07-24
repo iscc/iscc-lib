@@ -62,7 +62,9 @@ Kotlin). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     detach MUST open after `extract_frame_sigs`/`flat_bytes_to_frames`; closures capture only
     owned-Rust-Vec borrows. meta/audio/mixed stay attached by design. Tests: `tests/test_gil.py`
 - Release workflow (`release.yml`): 9 boolean inputs, pattern input → build → **smoke test** →
-    publish. Full input list + per-registry auth + release-job CI internals → MEMORY-archive.md
+    publish. Full input list + per-registry auth + release-job CI internals → MEMORY-archive.md.
+    `build-wheels` has 4 targets incl native-ARM `ubuntu-24.04-arm`/aarch64 (iter 123, #49);
+    `test-wheels` is matrixed (x86_64+aarch64), artifact name = `wheels-<os>-<target>`
 - wasm-pack `--features` goes AFTER the path, NOT after `--`; test runner accepts only a positional
     FILTER (`-- --test unit` fails), so run the full suite
 - WASM SIMD (iters 117-118, #42): BLAKE3's wasm32 backend needs BOTH the `blake3/wasm32_simd` Cargo
