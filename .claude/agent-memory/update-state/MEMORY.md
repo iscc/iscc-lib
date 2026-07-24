@@ -92,35 +92,41 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Issues diff**: scan issues.md for NEW/removed `[human]`/`[review]` entries; watch
     `HUMAN REVIEW REQUESTED`, critical reshuffles, large specs growth = human re-scoped.
 
-## Current State (assessed-at: 618bb15, iter 124)
+## Current State (assessed-at: dd843c5, iter 125)
 
 - **IN_PROGRESS — CI GREEN on develop tip.** v0.5.0 released (`0.5.0`), all 12 bindings meet CORE
-    criteria. Iter 123 resolved #49 (aarch64 Python wheels): `release.yml` `build-wheels` gained a
-    4th matrix entry `ubuntu-24.04-arm`/`aarch64`/`python3.10` (native ARM, not QEMU) + matrixed
-    `test-wheels` (x86_64 + aarch64). Matches `ci-cd.md` Build Matrices spec (L285-300). Python now
-    **met**. Release-time-only path (workflow_dispatch+pypi) — NOT run by ci.yml/CID pushes.
-- **CI GREEN on origin/develop tip `cbec132`** (HEAD `618bb15` = +1 log-only commit iter 123,
-    touches only iterations.jsonl). ALL **30 check-runs `success`**. Verified via
-    `gh api .../commits/cbec132/check-runs` (0 non-success). NO CI fix needed. release.yml edit
-    doesn't touch ci.yml surface.
+    criteria. **Dependency-refresh IN PROGRESS (sliced per-ecosystem).** Iter 124 landed **slice 1 —
+    Rust `Cargo.lock`**: `cargo update` bumped ~100 transitive crates to latest semver-compat; all
+    `Cargo.toml` direct pins HELD, NO source touched, all gates green. Verified: Cargo.lock-only
+    diff (no Cargo.toml/crate change). Iter 123 resolved #49 aarch64 wheels (release.yml, Python
+    **met**).
+- **CI GREEN on origin/develop tip `a5eb561`** (= review PASS commit; HEAD `dd843c5` = +1 UNPUSHED
+    log-only commit iter 124, touches only iterations.jsonl). ALL check-runs `success` (41 incl.
+    re-run duplicates, 0 non-success). Verified via `gh api .../commits/a5eb561/check-runs`. NO CI
+    fix needed. Lockfile refresh regressed no gate. NOTE: origin/develop lags HEAD by the log
+    commit.
 - **cargo-deny gate enforcing** — see Quality Gates. Live advisory can re-red any push (prefer
     `cargo update -p` over deny.toml ignore).
-- **v0.6.0 remaining (`normal` `[human]`, spec'd, CID-doable)**: dependency review/refresh ONLY
-    (spec `ci-cd.md`→Dependency Freshness). Scope as per-ecosystem steps (no `[audit]` cite = no
-    8-file valve). This is the sole CID-doable next milestone (CI green, no fix needed).
-- **5 issues: 0 critical, 3 normal `[human]`, 2 low `[human]`.** normal: dep refresh (CID-doable),
-    npm OIDC migration, single-registry re-trigger bug (both human-gated). Low (CID skips): v1.0.0
-    HELD by Titusz (stay 0.5.x, flip Semver enforcing at cut), docs logos. NO CID-actionable
-    `[review]`/`[audit]` issue open.
+- **v0.6.0 remaining (`normal` `[human]`, spec'd, CID-doable)**: dependency review/refresh (spec
+    `ci-cd.md`→Dependency Freshness), NOW SLICED. Done: slice 1 Rust Cargo.lock. Remaining slices =
+    Rust direct-pin major eval (doc hold-backs: uniffi/pyo3-#41/criterion/iai/magnus/jni/ napi),
+    Python `uv.lock`, per-binding manifests (napi package.json, rb Gemfile/gemspec, jni pom.xml,
+    kotlin build.gradle.kts, dotnet .csproj, go go.mod), tooling pins (mise.toml,
+    .pre-commit-config.yaml, GHA versions). No `[audit]` cite = no 8-file valve. Sole CID-doable
+    next milestone (CI green).
+- **5 issues: 0 critical, 3 normal `[human]`, 2 low `[human]`.** normal: dep refresh (CID-doable,
+    slice-1 done), npm OIDC migration, single-registry re-trigger bug (both human-gated). Low (CID
+    skips): v1.0.0 HELD by Titusz (stay 0.5.x, flip Semver enforcing at cut), docs logos. NO
+    CID-actionable `[review]`/`[audit]` issue open.
 - **MET sections**: Node, WASM, C FFI, Java, Go, Ruby, .NET, C++, UniFFI, Swift, Kotlin, README,
     per-crate READMEs, Docs, Benchmarks, **Python** (aarch64 wired iter 123). Rust-core
-    (semver-enforcing/v1.0.0 held) + CI/CD (deps freshness) = partially met.
-- **Don't re-flag as new work**: #49 aarch64 wheels (iter 123, release.yml), CRAP baseline refresh
-    (iter 122), Rust-core iscc_decode trailing-byte (iter 121), Go IsccDecode trailing-byte (120),
-    #43 Go ISCC-IDv1 (119), #42 WASM SIMD (118), GIL #41 (116), cargo-deny gate, CRAP `--fail-above`
-    (113), iai perf gate (107-111), PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher
-    #37. CID infra (audit role, `metrics.jsonl`, `decisions.md`, scope escape valve) = meta, NOT
-    target sections — ignore for met/not-met.
+    (semver-enforcing/v1.0.0 held) + CI/CD (deps freshness in progress) = partially met.
+- **Don't re-flag as new work**: dep-refresh slice 1 Rust Cargo.lock (iter 124), #49 aarch64 wheels
+    (iter 123, release.yml), CRAP baseline refresh (iter 122), Rust-core iscc_decode trailing-byte
+    (iter 121), Go IsccDecode trailing-byte (120), #43 Go ISCC-IDv1 (119), #42 WASM SIMD (118), GIL
+    #41 (116), cargo-deny gate, CRAP `--fail-above` (113), iai perf gate (107-111), PyO3 #1 (105),
+    semver gate (93), npm #38, GIL #39, SumHasher #37. CID infra (audit role, `metrics.jsonl`,
+    `decisions.md`, scope escape valve) = meta, NOT target sections — ignore for met/not-met.
 
 ## Gotchas
 

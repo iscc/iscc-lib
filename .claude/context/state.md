@@ -1,17 +1,18 @@
-<!-- assessed-at: 618bb15f62b810a506c898c5b548760888c1ba2e -->
+<!-- assessed-at: dd843c56476f162ca81e85661e6d6ff86b980f84 -->
 
 # Project State
 
 ## Status: IN_PROGRESS
 
-## Phase: Post-v0.5.0 — CI GREEN; sole remaining CID-doable v0.6.0 target is the dependency refresh
+## Phase: Post-v0.5.0 — CI GREEN; dependency refresh underway (Rust Cargo.lock slice done)
 
 v0.5.0 is released across all registries and all 12 language bindings meet their core criteria. This
-iteration (123) resolved issue #49: `release.yml` now builds and import-tests a native-ARM
-`manylinux_2_17_aarch64` Python wheel, closing the last aarch64 gap at the workflow level. **CI is
-fully green (30/30 check-runs) on the develop tip.** The only remaining CID-doable v0.6.0 target is
-the project-wide dependency review/refresh; everything else open is human-gated (v1.0.0 cut, npm
-OIDC, release re-trigger bug) or cosmetic (docs logos).
+iteration (124) landed **slice 1 of the dependency refresh**: `Cargo.lock` was regenerated via
+`cargo update` (~100 transitive crates to latest semver-compatible versions; all `Cargo.toml` pins
+held; no source changes). **CI is fully green on the develop tip.** The remaining CID-doable v0.6.0
+work is the rest of the dependency refresh (Rust direct-pin evaluation, Python `uv.lock`,
+per-binding manifests, tooling pins). Everything else open is human-gated (v1.0.0 cut, npm OIDC,
+release re-trigger bug) or cosmetic (docs logos).
 
 ## Rust Core Crate
 
@@ -19,17 +20,20 @@ OIDC, release re-trigger bug) or cosmetic (docs logos).
 
 - Core API met: all 10 `gen_*_v0` functions (incl. `gen_sum_code_v0`), 32 Tier 1 symbols,
     conformance vs `iscc-core/data.json` passing — `Rust (fmt, clippy, test)` job GREEN.
+- **Cargo.lock refreshed (iter 124, dependency-refresh slice 1)**: `cargo update` bumped ~100
+    transitive crates to latest semver-compatible versions; no `Cargo.toml` direct pins changed and
+    no source touched. All quality gates (Rust, Coverage+CRAP, Perf, Audit, Semver) stayed GREEN on
+    the refreshed lockfile.
 - **Trailing-byte hardening intact (iter 121)**: `iscc_decode` (`crates/iscc-lib/src/lib.rs`) has
     both a "too short" (`tail.len() < nbytes`, ~line 235) and a "too long" (`tail.len() > nbytes`,
     ~line 241) rejection branch, so trailing padding errors instead of aliasing. ISCC-IDv1 is
     rejected earlier at the header level in the Rust core (`codec::Version` is V0-only) — ISCC-IDv1
     support remains Go-only.
-- **CRAP regression RESOLVED (iter 122)**: the `Coverage + CRAP` job's `--fail-regression` gate is
-    green after the `.crap-baseline.json` `iscc_decode` entry was refreshed to the new, legitimate
-    complexity (crap 5.08, far below the 30.0 `--fail-above` cap). No source revert; the robustness
-    fix stays. Root cause of the earlier RED: the CRAP regression gate is CI-only (not in
-    `mise run check`/pre-commit), so a branch-adding fix slipped through green locally — recorded in
-    learnings.md and agent memories as a discipline rule (refresh the baseline in the same step).
+- **CRAP regression gate green (iter 122 baseline refresh holds)**: the `Coverage + CRAP` job's
+    `--fail-regression` gate remains green; `.crap-baseline.json` `iscc_decode` entry reflects the
+    legitimate post-hardening complexity (crap 5.08, far below the 30.0 `--fail-above` cap). NOTE:
+    the CRAP regression gate is CI-only (not in `mise run check`/pre-commit) — any source change
+    adding a branch/loop to a covered function must refresh the baseline in the same step.
 - **Perf gate — COMPLETE, ENFORCING**: `iai_benches.rs` (iai-callgrind 0.16, 11 `bench_*` → 16
     cases), `Perf (iai-callgrind)` job GREEN.
 - **Semver gate present (informational)**: `Semver (cargo-semver-checks)` is
@@ -40,7 +44,7 @@ OIDC, release re-trigger bug) or cosmetic (docs logos).
 
 ## Python Bindings
 
-**Status**: met — aarch64 wheel matrix wired this iteration (#49 resolved)
+**Status**: met — aarch64 wheel matrix wired iter 123 (#49 resolved)
 
 - Core met: all symbols exported, Python 3.10 + 3.14 CI jobs GREEN, ruff clean, streaming
     `SumHasher` wrapper present. PyO3 pinned `0.29` (`abi3-py310`), single lockfile resolution.
@@ -49,19 +53,19 @@ OIDC, release re-trigger bug) or cosmetic (docs logos).
     `update()`), **12 total detach sites**. Video detach opens strictly AFTER frame-signature
     extraction. Meta/audio/mixed stay attached by design.
 - **aarch64 wheels wired (issue #49 DONE, iter 123)**: `.github/workflows/release.yml`
-    `build-wheels` matrix now has a fourth entry (`ubuntu-24.04-arm` / `aarch64` / `python3.10`,
-    native ARM runner — not QEMU), and `test-wheels` is matrixified to install/import-test both the
-    x86_64 and aarch64 wheels before publish. Matches the `ci-cd.md` "Build Matrices" spec (lines
-    285-300). NOTE: this build/test path runs only under a `workflow_dispatch` release with `pypi`
-    selected — it is NOT exercised by CID pushes, so the first real aarch64 wheel builds/tests at
-    the next v0.6.0 release (verification bar is static per next.md).
+    `build-wheels` matrix has a fourth entry (`ubuntu-24.04-arm` / `aarch64` / `python3.10`, native
+    ARM runner — not QEMU), and `test-wheels` is matrixified to install/import-test both the x86_64
+    and aarch64 wheels before publish. Matches the `ci-cd.md` "Build Matrices" spec (lines 285-300).
+    NOTE: this build/test path runs only under a `workflow_dispatch` release with `pypi` selected —
+    NOT exercised by CID pushes, so the first real aarch64 wheel builds/tests at the next v0.6.0
+    release. Python `uv.lock` refresh is still pending (dependency-refresh remaining slice).
 
 ## Node.js Bindings
 
 **Status**: met
 
 - All 32 Tier 1 symbols with TypeScript declarations; Node.js CI job GREEN. Bundled model in
-    `package.json`.
+    `package.json`. napi `package.json` dependency refresh still pending (remaining slice).
 
 ## WASM Bindings
 
@@ -169,22 +173,30 @@ OIDC, release re-trigger bug) or cosmetic (docs logos).
 
 ## CI/CD and Publishing
 
-**Status**: partially met — **CI GREEN**; one CID-doable CI/CD gap remains (dependency freshness)
+**Status**: partially met — **CI GREEN**; one CID-doable CI/CD gap remains (dependency freshness, in
+progress)
 
-- **LATEST CI RUN — SUCCESS.** origin/develop tip `cbec132` (HEAD `618bb15` is a +1 log-only commit
-    touching only `iterations.jsonl`). All **30 check-runs report `success`** — verified via
-    `gh api repos/iscc/iscc-lib/commits/cbec132.../check-runs` (0 non-success). The iter-123
-    `release.yml` aarch64 edit does not run under ci.yml (release-time only), so it did not alter
-    the CI surface.
-- **Python wheel matrix now covers aarch64 (iter 123)**: the `ubuntu-24.04-arm`/`aarch64` build +
-    matrixed `test-wheels` are in `release.yml`, matching the target's "Linux x86_64 and aarch64"
-    wheel criterion. First real aarch64 wheel ships at the v0.6.0 release.
+- **LATEST CI RUN — SUCCESS.** origin/develop tip `a5eb561` (HEAD `dd843c5` is a +1 log-only commit
+    touching only `iterations.jsonl`, unpushed). All check-runs report `success` (41 check-runs
+    incl. re-run duplicates, 0 non-success) — verified via
+    `gh api repos/iscc/iscc-lib/commits/a5eb561.../check-runs`. The Cargo.lock refresh did not
+    regress any gate.
+- **Dependency refresh — slice 1 (Rust Cargo.lock) DONE (iter 124)**: `cargo update` regenerated the
+    lockfile; all `Cargo.toml` direct pins held; all gates green. Remaining slices (still open under
+    the "Dependency review and refresh" `normal` `[human]` issue): Rust direct-pin major evaluation
+    (document hold-backs for uniffi 0.32 / pyo3 #41 / criterion / iai-callgrind / magnus / jni /
+    napi), Python `uv.lock`, per-binding manifests (napi `package.json`, rb `Gemfile`/gemspec, jni
+    `pom.xml`, kotlin `build.gradle.kts`, dotnet `.csproj`, go `go.mod`), and tooling pins
+    (`mise.toml`, `.pre-commit-config.yaml`, GHA versions).
+- **Python wheel matrix covers aarch64 (iter 123)**: `ubuntu-24.04-arm`/`aarch64` build + matrixed
+    `test-wheels` in `release.yml`, matching the target's "Linux x86_64 and aarch64" wheel
+    criterion. First real aarch64 wheel ships at the v0.6.0 release.
 - **cargo-deny gate enforcing** (unchanged): root `deny.toml`, `Audit (cargo-deny)` CI job GREEN.
     NOTE: a future live advisory can flip this red on any push with no code change (prefer
     `cargo update -p <crate>` over a `deny.toml` ignore when a patch exists).
-- **Gap (v0.6.0, CI/CD)**: dependency freshness — no Dependabot/Renovate config
-    (`.github/dependabot.yml`, `renovate.json` both absent, deliberately; refresh is a manual
-    per-release pass). The "Dependency review and refresh" issue (`normal` `[human]`) remains open.
+- **Gap (v0.6.0, CI/CD)**: no automated dependency updates — `.github/dependabot.yml` /
+    `renovate.json` both absent (deliberately; refresh is a manual per-release pass). The
+    "Dependency review and refresh" issue (`normal` `[human]`) stays open until all slices land.
 - v0.5.0 published; release workflow with per-registry toggles + version sync (16 targets) in place.
     Two release-workflow reliability issues remain open (npm OIDC migration, single-registry
     re-trigger bug) — both human-gated / `normal`.
@@ -196,7 +208,8 @@ CI is green — no open issue is CI-blocking. There is currently **no CID-action
 
 CID-doable now (`normal`, `[human]`, spec'd):
 
-- Dependency review and refresh across the project (spec: `ci-cd.md` → "Dependency Freshness")
+- Dependency review and refresh across the project (spec: `ci-cd.md` → "Dependency Freshness").
+    **Slice 1 (Rust Cargo.lock) DONE iter 124**; remaining slices listed above.
 
 Release-workflow reliability (`normal`, `[human]`, human-gated):
 
@@ -210,18 +223,20 @@ Low (human-directed, CID skips):
 
 ## Next Milestone
 
-**CI is green — no CI fix needed.** With #49 (aarch64 wheels) resolved, the sole remaining
-CID-doable v0.6.0 target is the **project-wide dependency review/refresh** (root `Cargo.toml`/lock,
-`pyproject.toml`/`uv.lock`, binding manifests: napi `package.json`, rb `Gemfile`/gemspec, jni
-`pom.xml`, kotlin `build.gradle.kts`, dotnet `.csproj`, go `go.mod`; tooling pins: `mise.toml`,
-`.pre-commit-config.yaml`, GHA versions). Patch/minor by default; evaluate majors individually and
-document any deliberate hold-back next to its pin. Mind the documented pinning constraints: PyO3
-bumps only with re-verifying `gil_used`/`py.detach` (#41); rb_sys must match the
-`oxidize-rb/actions/cross-gem` Docker tag; wheels stay `abi3-py310`; quality-gate tool pins (e.g.
-`cargo-crap`) bump together with their committed baselines. This spans many manifests and does NOT
-cite an `[audit]` issue (no 8-file escape valve), so define-next should scope it as several smaller
-per-ecosystem steps (Rust deps; Python deps; each binding-manifest group; tooling pins) rather than
-one mega-diff.
+**CI is green — no CI fix needed.** Continue the **project-wide dependency refresh** where slice 1
+(Rust `Cargo.lock`) left off. Scope as several smaller per-ecosystem steps (this spans many
+manifests and does NOT cite an `[audit]` issue, so no 8-file escape valve applies):
+
+1. Rust direct-pin evaluation — review workspace `Cargo.toml` majors (uniffi, pyo3, criterion,
+    iai-callgrind, magnus, jni, napi); bump the safe ones, document each deliberate hold-back next
+    to its pin.
+2. Python `uv.lock` refresh (keep `abi3-py310`; PyO3 bumps only with re-verifying `gil_used`/
+    `py.detach`, #41).
+3. Per-binding manifests: napi `package.json`, rb `Gemfile`/gemspec (rb_sys must match the
+    `oxidize-rb/actions/cross-gem` Docker tag), jni `pom.xml`, kotlin `build.gradle.kts`, dotnet
+    `.csproj`, go `go.mod`.
+4. Tooling pins: `mise.toml`, `.pre-commit-config.yaml`, GHA action versions (quality-gate tool pins
+    like `cargo-crap` bump together with their committed baselines).
 
 Do NOT cut v1.0.0 or flip the `Semver` gate to enforcing — both deliberately held by Titusz. The npm
 OIDC migration and single-registry re-trigger fixes stay human-gated. Guard: any source change that
