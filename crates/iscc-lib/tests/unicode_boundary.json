@@ -1,0 +1,74 @@
+{
+  "_metadata": {
+    "description": "Unicode 16.0.0 boundary vectors for the declared-Unicode-version freeze rule (single code points; propagation source for all binding conformance tests)",
+    "unicode_data_version": "16.0.0"
+  },
+  "text_clean": {
+    "test_0000_u1fae9_assigned_so_retained": {
+      "inputs": [
+        "a\ud83e\udee9b"
+      ],
+      "outputs": {
+        "result": "a\ud83e\udee9b"
+      }
+    },
+    "test_0001_u113c5_assigned_mc_retained": {
+      "inputs": [
+        "a\ud804\udfc5b"
+      ],
+      "outputs": {
+        "result": "a\ud804\udfc5b"
+      }
+    },
+    "test_0002_u20c1_unassigned_16_stripped": {
+      "inputs": [
+        "a\u20c1b"
+      ],
+      "outputs": {
+        "result": "ab"
+      }
+    },
+    "test_0003_ua7f1_unassigned_16_stripped": {
+      "inputs": [
+        "a\ua7f1b"
+      ],
+      "outputs": {
+        "result": "ab"
+      }
+    }
+  },
+  "text_collapse": {
+    "test_0000_u1fae9_assigned_so_retained": {
+      "inputs": [
+        "a\ud83e\udee9b"
+      ],
+      "outputs": {
+        "result": "a\ud83e\udee9b"
+      }
+    },
+    "test_0001_u113c5_assigned_mc_mark_dropped": {
+      "inputs": [
+        "a\ud804\udfc5b"
+      ],
+      "outputs": {
+        "result": "ab"
+      }
+    },
+    "test_0002_u20c1_unassigned_16_stripped": {
+      "inputs": [
+        "a\u20c1b"
+      ],
+      "outputs": {
+        "result": "ab"
+      }
+    },
+    "test_0003_ua7f1_unassigned_16_stripped": {
+      "inputs": [
+        "a\ua7f1b"
+      ],
+      "outputs": {
+        "result": "ab"
+      }
+    }
+  }
+}

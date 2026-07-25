@@ -17,8 +17,11 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 - Unicode 16.0.0 freeze rule (iter 133): `text_clean`/`text_collapse` strip 16.0-unassigned code
     points BEFORE normalization via generated `crates/iscc-lib/src/utils/unicode16.rs` (731 ranges;
     regen: `uv run --script scripts/gen_unicode16_unassigned.py` — PEP 723, pins
-    `unicodedata2==16.0.0`). Keep filter first in both chains. Pending: binding boundary vectors,
-    full-code-space differential sweep
+    `unicodedata2==16.0.0`). Keep filter first in both chains. Boundary fixture (iter 141):
+    `crates/iscc-lib/tests/unicode_boundary.json` (ASCII-only, data.json-shaped, 4 code points × 2
+    sections) + `tests/test_unicode_boundary.rs` — propagation source for bindings. Pending: binding
+    propagation (blocked on parked ordering ruling + Go 15.0-tables decision), full-code-space
+    differential sweep
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
@@ -49,8 +52,8 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 - GOTCHA: ci.yml concurrency has `cancel-in-progress: true` per ref — pushing a second develop
     commit cancels the in-flight CI run of the previous sha (its check-runs end "cancelled"). When a
     step needs a green CI on a specific sha, don't push again until it concludes
-- System `python3` lacks PyYAML — use `uv run python` for YAML validation snippets
-- GOTCHA: piping `cargo crap`/`cargo deny` to `tail` makes `$?` the pager's exit — use a file
+- GOTCHAs: system `python3` lacks PyYAML (use `uv run python`); piping `cargo crap`/`cargo deny` to
+    `tail` makes `$?` the pager's exit — redirect to a file
 - Ruby CI job: libclang-dev required; ruby/setup-ruby@v1 `working-directory` is a `with:` param.
     `rust` job matrix: `--no-default-features` / `--all-features` / `--features text-processing`
 - `version-check` job: `scripts/version_sync.py --check` (16 targets incl. Swift Constants,
@@ -98,8 +101,7 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 - `iscc_decode` strips "ISCC:" prefix and dashes, returns exact digest bytes (not full tail) as
     `(u8,u8,u8,u8,Vec<u8>)`; `MainType` is `pub(crate)`
 - `json_to_data_url` combines `parse_meta_json` + `build_meta_data_url`. JCS canonical, media type
-    depends on `@context` key
-- 5 constants across bindings: `META_TRIM_*`, IO_READ_SIZE, TEXT_NGRAM_SIZE → MEMORY-archive.md
+    depends on `@context` key. 5 cross-binding constants → MEMORY-archive.md
 
 ## Documentation Files
 

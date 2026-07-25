@@ -98,6 +98,9 @@ new() -> update(&[u8]) -> ... -> update(&[u8]) -> finalize(bits) -> IsccResult<*
 ## Conformance Rules
 
 - Correctness baseline: vendored `tests/data.json` from `iscc-core`
+- Second vector file: `tests/unicode_boundary.json` gates the declared Unicode data version (16.0.0
+    freeze rule for `text_clean`/`text_collapse`) and is the propagation source for every binding's
+    boundary conformance tests
 - 9 of 10 `gen_*_v0` functions must match `iscc-core` output for every test vector
     (`gen_sum_code_v0` has no conformance vectors — it composes Data-Code + Instance-Code
     internally)
