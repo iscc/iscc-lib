@@ -13,7 +13,7 @@ so every criterion for a step touching it must be **static**.
 **Why:** a mistake here is invisible until Titusz cuts a release, and a release is exactly when a
 mistake is most expensive.
 
-**How to apply:** when scoping a `release.yml` step, build the criteria from the four checks below,
+**How to apply:** when scoping a `release.yml` step, build the criteria from the five checks below,
 and keep behavioural edits (`if:` conditions, `needs:`) in a different commit from mechanical ones
 (`uses:` ref bumps) so a broken release is bisectable.
 
@@ -29,15 +29,51 @@ and keep behavioural edits (`if:` conditions, `needs:`) in a different commit fr
     still reflects the job's own `needs`, so publishes stay blocked after a failed build/test — only
     the skip propagated from `prepare-release` is neutralised. `always()` would break that.
 
-## The four static checks
+## `uses:` refresh targets (scoped iter 140)
+
+| Ref                           | HEAD before | Target | Count |
+| ----------------------------- | ----------- | ------ | ----- |
+| `actions/checkout`            | v4          | v7     | 23    |
+| `actions/download-artifact`   | v4          | **v8** | 20    |
+| `actions/upload-artifact`     | v4          | v7     | 11    |
+| `actions/setup-java`          | v4          | v5     | 6     |
+| `actions/setup-node`          | v4          | v7     | 5     |
+| `actions/setup-dotnet`        | v4          | v6     | 3     |
+| `actions/setup-python`        | v5          | v7     | 2     |
+| `softprops/action-gh-release` | v2          | v3     | 2     |
+| `actions/cache`               | v4          | v6     | 1     |
+
+Unchanged (already current floating major): `dtolnay/rust-toolchain@stable` 7,
+`Swatinem/rust-cache@v2` 7, `ruby/setup-ruby@v1` 3, `PyO3/maturin-action@v1` 2, plus one each of
+`nttld/setup-ndk@v1`, `oxidize-rb/actions/cross-gem@v1`, `pypa/gh-action-pypi-publish@release/v1`,
+`rubygems/configure-rubygems-credentials@main`, `rust-lang/crates-io-auth-action@v1`. **There is no
+`setup-uv` step and none is needed — the file runs no `uv` command at all.**
+
+Notes that make the bump defensible without a release run:
+
+- `upload-artifact` (max major **7**) and `download-artifact` (max major **8**) have *different*
+    latest majors but share `@actions/artifact` v4 since upload v5 / download v6, so v7↔v8
+    interoperate. Move them in the same commit anyway.
+- `download-artifact@v5`'s breaking change is scoped to single downloads by `artifact-ids:` — this
+    file uses none (only `name:` / `pattern:` + `merge-multiple:`, all still in the v8
+    `action.yml`). `@v8` also flips `digest-mismatch` from warn to **error**; keep the strict
+    default.
+- Everything else in these lines is a Node 20 → 24 + ESM repackaging.
+- `setup-python@v7` dropped the `pip-install` input; `setup-node@v7` dropped a dummy
+    `NODE_AUTH_TOKEN` export — neither is used here.
+
+## The five static checks
 
 1. `uv run python` + `yaml.safe_load(...)["jobs"]` — assert job count, per-job `if:` regex shape,
     and the registry-token histogram. Parse-based, immune to line-number drift.
-2. `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 <file>` — **works in the devcontainer**
+2. Artifact wiring: collect `upload-artifact` `name:` values (11 at HEAD) and `download-artifact`
+    `name:`/`pattern:` values (20), then assert every `pattern:` matches some upload name after
+    `${{ … }}` → `*` substitution. Prints `unmatched: []` at HEAD.
+3. `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7 <file>` — **works in the devcontainer**
     (Go 1.26.1, network OK, module now cached; no `actionlint` binary is installed). Exit 0 with no
     output at HEAD on both workflows; validates GH expression syntax that YAML parsing cannot.
-3. `uv run prek run check-yaml --files <file>` → Passed.
-4. `uv run prek run yamlfix --files <file>` → Passed with no `files were modified by this hook`
+4. `uv run prek run check-yaml --files <file>` → Passed.
+5. `uv run prek run yamlfix --files <file>` → Passed with no `files were modified by this hook`
     (works because the file is tracked).
 
 ## Related

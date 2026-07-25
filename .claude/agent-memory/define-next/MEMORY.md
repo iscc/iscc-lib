@@ -88,32 +88,11 @@ iterations.
     version-lookup commands: [dep-refresh ledger](dep-refresh-ledger.md); read it before scoping any
     dep step. Headline rule: **never move a consumer floor (MSRV, `go` directive,
     `required_ruby_version`, a published binding's compiler) inside a refresh slice** (iter 128).
-- **A lint-tool major bump is not one step.** Slice by *what decision each finding needs*
-    (mechanical / gate-interacting / config-requiring), not by file. Probe settings without touching
-    the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>`, then re-probe with the
-    *pinned* tool + `--extend-select` to see if the rule is enforceable before the upgrade.
-- **A tool bump's real risk may be file *discovery*, not new rules** (iter 137: ruff 0.16's rules
-    were a no-op, but its formatter started covering `.md` fences → CI's bare `ruff format --check`
-    widened 25 → 153 files). Before scoping a pin drop, run the *bare* gate command under the new
-    version and compare the reported **file count**, not just the exit code.
-- **Probe a hook-config change with `prek run -c /tmp/probe.yaml <hook> --files <path>`** — the
-    global `-c` accepts any path while still resolving files inside the repo, so define-next never
-    touches `.pre-commit-config.yaml`. prek reports `files were modified by this hook` only for
-    tracked files; an untracked probe is silently fixed and reported Passed.
-- **Gate-parity claims from review are hypotheses — measure the surfaces yourself.** Iter 138: the
-    filed issue said no local hook covers Markdown, but `mdformat-ruff` (via
-    `mdformat-mkdocs[recommended]`) already covered the fence tag `python` — ruff also formats
-    `py`/`python3`/`pycon`, so the real gap was three fence tags. Check
-    `entry_points(group='mdformat.codeformatter')` before scoping.
-- **File-count identity for the ruff formatter surface (HEAD, iter 138):** bare
-    `ruff format --check` = **153** = 129 tracked `.md` + 24 `.py` + 1 `.pyi` − 1
-    tracked-but-gitignored `.claude/plans/*.md` (recursive discovery honours `.gitignore`;
-    explicitly-named paths bypass exclusions unless `--force-exclude`). prek's type tags split
-    these: `python` does **not** match `.pyi` (that is the `pyi` tag) — a hook covering stubs needs
-    both.
-- **A lint *config* change moves the finding set, it does not only shrink it** (iter 135: isort
-    `src` cleaned 3 test files and dirtied a previously-green benchmark file). Re-run the full-tree
-    check *with* the candidate config before counting files against the budget.
+- **Lint/formatter tool bumps and hook-config changes have their own playbook** — slicing rules,
+    `uvx ruff@<ver> --config` and `prek run -c /tmp/probe.yaml` probing recipes, and the gate-parity
+    warnings: [lint tooling lessons](lint-tooling-lessons.md). Headline: **never make an exact
+    file/finding count a pass/fail criterion** (it drifts with the CID agents' own commits — iter
+    139 predicted 153, review measured 155); make the exit code the criterion.
 - **Open Unicode backlog** (DECIDED by Titusz 2026-07-25, `specs/rust-core.md`): the full-code-space
     differential sweep and the boundary vectors (Rust suite + 12 bindings) — both parked behind the
     `[review]` ordering ruling; the vectors also need a Go decision (Go on 15.0 tables until go1.27
@@ -126,8 +105,15 @@ iterations.
     does.
 - **In a file no CI push exercises, split behavioural edits from mechanical ones** (iter 139: the
     handoff wanted `release.yml`'s 19 `if:`-guard fixes bundled with a 97-ref `uses:` bump — scoped
-    as two steps so a broken release is bisectable). Static-verification recipe + job inventory:
+    as two steps so a broken release is bisectable; iter 140 took the bump). Static-verification
+    recipe, job inventory and the full `uses:` target table:
     [release.yml static gates](release-yml-static-gates.md).
+- **The strongest evidence for an un-runnable workflow bump is that the *runnable* workflow already
+    runs it** — 6 of the 9 `release.yml` action bumps are majors `ci.yml` has been green on since
+    iter 127, with identical inputs. Check `ci.yml` first; only the remainder needs release-note
+    archaeology. Corollary: latest majors are **not** in lockstep even inside `actions/*`
+    (upload-artifact tops out at v7 while download-artifact is at v8), so verify each floating tag
+    exists via `gh api repos/<r>/git/ref/tags/<vN>` before writing it into a criterion.
 - **A multi-part spec criterion slices along its own checkboxes** — `specs/rust-core.md`'s Unicode
     contract → 3 steps (filter / 1.1M-code-point proof / 12-binding propagation), not one.
 - **Any step touching the text hot path trips two gates at once**: the CI-only CRAP
