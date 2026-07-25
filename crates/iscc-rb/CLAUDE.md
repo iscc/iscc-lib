@@ -64,7 +64,9 @@ The fallback handles source-compiled installations where the `.so` is at the fla
 
 ### rb_sys Version Pinning
 
-`Gemfile.lock` pins `rb_sys` to a specific version (e.g., 0.9.123). This is critical because:
+`rb_sys` is pinned exactly (0.9.123) in **both** `Gemfile` (`# held:` comment) and `Gemfile.lock`,
+and must be changed together with the `tag:` input of `oxidize-rb/actions/cross-gem` in
+`release.yml`. This is critical because:
 
 1. Each rb_sys version bundles a specific `rake-compiler-dock` version
 2. `rake-compiler-dock` contains a `cross_rubies` hash mapping minor versions to patch versions

@@ -14,14 +14,17 @@ upload-pages-artifact v5 + deploy-pages v5 — paired), 5 JVM manifests (iter 12
 5.14.4 + gson 2.14.0 + 5 maven plugins; build.gradle.kts kotlin 2.4.10, jna 5.19.1, junit/gson
 lockstep), 6 Go module (iter 129: x/text 0.40.0, cpuid/v2 2.4.0 + new indirect x/sys 0.47.0;
 conformance stayed green despite x/text Unicode-table risk; kotlin README added to version_sync
-TARGETS; napi `^3` + dotnet `17.*`/`2.*` wildcards verified current, no edit). GOTCHA:
-`astral-sh/setup-uv` has NO floating major tag past v7 — v8.x/v9.0.0 are exact release tags only, so
-write `@v9.0.0` not `@v9` (iter-127 CI failure: "Unable to resolve action"). `releases/latest`
-proves a release exists, NOT that a floating `@vN` tag exists — confirm via
-`gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Remaining: `release.yml` actions (97 `uses:`
-refs; upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0` too; only truly
-validated by a release run), rb Gemfile/gemspec, ruff 0.16 adoption, Gradle wrapper major, JUnit 6.x
-migration, xunit 3.x + Test.Sdk 18.x majors.
+TARGETS; napi `^3` + dotnet `17.*`/`2.*` wildcards verified current, no edit), 7 Ruby Gemfile (iter
+130: rb_sys pinned exactly `0.9.123` with `# held:` in Gemfile — must move together with cross-gem
+`tag:` in release.yml; minitest `~> 5.0` held (6.x needs Ruby >= 3.2); bundle update moved rake
+13.4.2, standard 1.56.0, rubocop 1.88.2, rubocop-minitest 0.40.0 + transitives; zero standardrb
+fallout, 111 tests green). GOTCHA: `astral-sh/setup-uv` has NO floating major tag past v7 —
+v8.x/v9.0.0 are exact release tags only, so write `@v9.0.0` not `@v9` (iter-127 CI failure: "Unable
+to resolve action"). `releases/latest` proves a release exists, NOT that a floating `@vN` tag exists
+— confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Remaining: `release.yml` actions
+(97 `uses:` refs; upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0`
+too; only truly validated by a release run), ruff 0.16 adoption, Gradle wrapper major, JUnit 6.x
+migration, xunit 3.x + Test.Sdk 18.x majors. Slice 7 was the last fully-locally-verifiable one.
 
 ## JVM manifests (iter 128)
 
