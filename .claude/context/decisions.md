@@ -226,3 +226,30 @@ freeze rule — rejected: forces a coordinated re-pin at every future Unicode re
 IDNA2003 froze at Unicode 3.2. **Context:** interactive session with Titusz, 2026-07-25 — compromise
 proposed by Titusz after comparing pin-old/pin-new/freeze options; supersedes the open version
 question in the 2026-07-25 "declared and gated, not chased" entry.
+
+## 2026-07-25 — The freeze rule's pre-normalization ordering is kept despite sequence divergence
+
+**Decision:** accept the iter-133 implementation of the Unicode 16.0.0 freeze rule (strip
+16.0-unassigned code points *before* normalization in `text_clean`/`text_collapse`) even though the
+review measured a new class of divergence from `iscc-core` that the decision record did not
+anticipate: because removal happens before normalization, it changes character *adjacency* and
+unblocks contextual transforms the reference still blocks — canonical composition
+(`text_clean("e\u{0378}\u{0301}")` → `U+00E9` vs `U+0065 U+0301`), Hangul jamo composition, and
+Rust's `Final_Sigma` lowercasing in `text_collapse` (`…σ…` vs `…ς…`). The divergence is independent
+of Unicode table version: it persists when both sides run 16.0 data. **Why:** the alternative —
+removing unassigned code points *after* normalization, as `iscc-core` does — reintroduces exactly
+the normalization drift the freeze rule exists to eliminate (measured 16→17: U+A7F1 NFKC-maps to `S`
+before any category filter can drop it), so pre-normalization removal is the only ordering that
+delivers table-version invariance. The affected inputs require an unassigned code point wedged
+between a base and a combining mark / jamo / cased letter, which no natural text produces, and the
+divergence disappears once `iscc-core` adopts the same ordering — which is what the upstream
+proposal asks for. **Alternatives:** revert to post-normalization removal — rejected, defeats the
+purpose of the rule; strip before normalization but re-insert a blocking sentinel (e.g. U+034F
+COMBINING GRAPHEME JOINER) — rejected as a novel, unspecified behaviour that would itself have to be
+mirrored by every implementation; block the merge pending a human ruling — rejected, the
+implementation matches the approved spec exactly and the open question is spec *wording*, not code.
+**Consequence:** spec criterion 4's "output-equivalent to uniform Unicode 16.0.0 tables" is false as
+literally worded (a per-code-point sweep cannot see this class), and the accepted-divergence
+paragraph does not cover it. Both are filed as a `normal` `[review]` issue with HUMAN REVIEW
+REQUESTED, to be settled before boundary vectors are wired into the bindings. **Context:** CID
+iteration 133 review.

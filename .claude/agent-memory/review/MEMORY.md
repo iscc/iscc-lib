@@ -48,10 +48,13 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     and still scan `@{upstream}..HEAD` for gate circumvention. Only HUMAN-REVIEW spec amendments +
     `low` left (strict IDLE cond #2 NOT met) → flag **HUMAN REVIEW REQUESTED** (runner "pause"), NOT
     `**IDLE**` (all-`low` only; it runs meta-improve). Verdict still PASS; push clean batch
-- **Unicode data version — DECIDED 16.0.0 + freeze rule (2026-07-25), machinery unimplemented**:
-    Rust core keeps 5,813 post-15 code points that Go/`iscc-core` strip, so Meta/Text codes diverge
-    (repro `Ɤ` U+A7CB) and no vector catches it. Never let a step "fix" one binding to match
-    another. Freeze-rule design + deltas → `learnings.md`; implementation order → `issues.md`
+- **Unicode 16.0.0 freeze rule — Rust core landed iter 133**: `text_clean`/`text_collapse` strip
+    16.0-unassigned code points before normalization (vendored 731-range table + PEP 723 generator).
+    Remaining: boundary vectors in 11 bindings (`packages/go` is on 15.0 tables and needs a delta or
+    a documented skip) and the differential sweep. Never let a step "fix" one binding to match
+    another. **Open, human-gated:** the pre-normalization order diverges from `iscc-core` on
+    sequences (adjacency change) — probe recipe in `review-patterns.md`, ruling tracked in
+    `issues.md`, rationale in `decisions.md`
 - **Concurrent CID loops (iter 97, resolved iter 98 — in `MEMORY-archive.md`)**: spurious
     `mise run check` "files modified" on an untouched file + mid-review working-tree change = a
     SECOND loop racing. Confirm `ps aux | grep -E 'cid:run|claude -p CID iteration'`; flag HUMAN
@@ -97,6 +100,12 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
 - **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
     `--target all`. Disproved an advance-handoff attribution with it: the `proc-macro-error2 v2.0.1`
     future-incompat warning is from `iai-callgrind-macros` (dev-only), NOT magnus/rb-sys
+- **Core text/codec change + generated data (iter 133)**: Rust-only shortcut PLUS the two CI-only
+    gates — `mise run coverage` then
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above` (~2
+    min), and `mise run bench:iai:check` (~1 min). Re-run any checked-in generator and assert
+    `git status --porcelain <output>` is empty. Total ≈ 6 min; catches the CRAP/perf gates that
+    `mise run check` does not run
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
 - **release.yml-only (iter 123, #49)**: NOT exercised by CID pushes → static-verify only: YAML parse

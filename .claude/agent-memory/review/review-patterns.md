@@ -61,6 +61,22 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     the Rust fix. Non-breaking for the Tier 1 symbol — rationale in `decisions.md` 2026-07-24.
     Composite `iscc_decompose` legitimately consumes trailing units — do NOT harden it. Probe
     exact-length rejection with a throwaway test whenever new decode/parse surface lands
+- **Text-pipeline ORDER changes need a SEQUENCE differential, not per-code-point tests** (iter 133,
+    Unicode 16 freeze rule). Moving a filter earlier/later in `text_clean`/`text_collapse` changes
+    character *adjacency*, which silently alters context-sensitive Unicode operations. Probe recipe
+    (~2 min): write `crates/iscc-lib/examples/<name>.rs` calling the public fns,
+    `cargo run -q -p   iscc-lib --example <name>`, print `{:04X}` per char, and compare against a
+    Python transcription of the `iscc-core` pipeline — then **delete the example file**. Minimum
+    sequence set: base+Cn+combining-mark (canonical composition), jamo+Cn+jamo (Hangul), Σ+Cn+cased
+    (Rust `to_lowercase` applies `Final_Sigma` contextually; verify with a standalone
+    `rustc /tmp/x.rs`). Confirmed divergences vs. reference: `U+00E9` vs `U+0065 U+0301`, `U+AC00`
+    vs `U+1100 U+1161`, `…σ…` vs `…ς…`
+- **Validate a vendored Unicode table WITHOUT the generator's own dependency** (iter 133): parse the
+    generated ranges with a regex and assert every covered code point is `Cn` under the *system*
+    CPython `unicodedata` (Unicode only ever assigns, so an N.0 `Cn` table must be a subset of any
+    older table), then spot-check that code points assigned exactly in N.0 (U+1FAE9, U+113C5,
+    U+A7CB) are **absent** — that is what proves the table is 16.0 and not 15.1. Surrogates must be
+    absent (`Cs`), noncharacters present (`Cn`)
 - **Docs-site rendering check** (iter 132): `uv run zensical build` reports "No issues found" even
     when an `!!! note` body is mis-indented and degrades to a plain paragraph. Grep the RENDERED
     page — `site/howto/<lang>/index.html` for `<div class="admonition note">` — after any

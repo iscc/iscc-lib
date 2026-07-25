@@ -176,10 +176,13 @@ version 16.0.0 with a freeze rule").
     normalization-drift code points, e.g. U+113C5), and a post-16.0 character the freeze rule must
     strip (e.g. U+20C1 SAUDI RIYAL SIGN, assigned in Unicode 17).
 
-**Implementation order for CID:** (a) vendored unassigned-ranges table (with checked-in generator
-script) + freeze filter in the Rust core, proven output-equivalent to uniform Unicode 16.0 tables by
-a full-code-space differential sweep; (b) boundary vectors wired into the Rust suite and all
-bindings (Go: see caveat in point 3); the spec already names 16.0.0 and the freeze rule.
+**Implementation order for CID:** ✅ (a1) vendored unassigned-ranges table (731 ranges, checked-in
+PEP 723 generator `scripts/gen_unicode16_unassigned.py`) + freeze filter in the Rust core — done
+iter 133; `text_clean`/`text_collapse` strip before normalization, 5 boundary/invariant tests,
+regeneration is a no-op diff, CRAP + iai gates green. 🔄 (a2) the full-code-space differential sweep
+proving equivalence to uniform Unicode 16.0 tables — see the sequence caveat in the issue below,
+which must be settled first. 🔄 (b) boundary vectors wired into the Rust suite and all bindings (Go:
+see caveat in point 3); the spec already names 16.0.0 and the freeze rule.
 
 **Upstream:** iscc/iscc-core — filed 2026-07-25 as <https://github.com/iscc/iscc-core/issues/137>
 ("text_clean/text_collapse output depends on the CPython version"). Reproduced there with
@@ -193,6 +196,46 @@ vectors in `data.json`. Per ISO 24138 Annex D the reference implementation is no
 
 **Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
 contract"
+
+## Freeze-rule ordering diverges from iscc-core on sequences `normal` [review]
+
+> **HUMAN REVIEW REQUESTED**: the spec's equivalence claim for the freeze rule is provably false as
+> literally worded, and the upstream proposal must state the ordering explicitly.
+
+The freeze filter landed in iter 133 exactly as specified (strip Unicode-16.0.0-unassigned code
+points **before** normalization). Stripping before normalization changes character **adjacency**, so
+it enables contextual transforms that `iscc-core` — which removes the same code points *after* NFKC,
+via the category-`C` filter — still blocks. Verified in this review against reference semantics
+(divergences did **not** exist before iter 133, and they persist even when both sides run identical
+Unicode 16.0 data, e.g. CPython 3.14):
+
+| Input                   | iscc-lib (iter 133) | `iscc-core`     | Effect                            |
+| ----------------------- | ------------------- | --------------- | --------------------------------- |
+| `text_clean("e͸́")`      | `U+00E9`            | `U+0065 U+0301` | canonical composition unblocked   |
+| `text_clean("ᄀ͸ᅡ")`     | `U+AC00`            | `U+1100 U+1161` | Hangul jamo composition unblocked |
+| `text_collapse("ΑΣ͸Β")` | `α σ β`             | `α ς β`         | `Final_Sigma` context changed     |
+
+So Meta-Code **and** Text-Code can differ for these inputs. Consequences:
+
+1. **Spec criterion 4** ("a full-code-space differential sweep proves the freeze-rule implementation
+    output-equivalent to uniform Unicode 16.0.0 tables") is false as worded — a per-code-point
+    sweep over all 1,112,032 code points passes and gives false assurance. Either reword it to
+    "equivalent for single code points, with the sequence-adjacency delta enumerated and accepted",
+    or specify a sequence-aware sweep (base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased at minimum).
+2. **The accepted-divergence paragraph** in `specs/rust-core.md` currently covers only "runtimes
+    with non-16.0 tables" and "characters assigned between 15.1 and 16.0". This class is neither —
+    it should be named explicitly if it is accepted.
+3. **The upstream proposal** (<https://github.com/iscc/iscc-core/issues/137>) must specify
+    *pre-normalization* removal, or an `iscc-core` that adopts the freeze rule with post-
+    normalization removal will still disagree with iscc-lib on these inputs.
+
+No alternative ordering preserves table-version invariance (post-normalization removal reintroduces
+the 16→17 drift the rule exists to prevent), so this is expected to be a wording/scoping decision
+rather than a redesign. Settle it **before** step (b) wires boundary vectors into 11 bindings and 5
+`data.json` copies — expected outputs would otherwise be re-derived twice.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
+contract" (requirement 4 + the accepted-divergence paragraph)
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 

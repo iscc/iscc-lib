@@ -37,17 +37,20 @@ fully-met target sections to `learnings-archive.md`.
 
 - `mise` manages tool versions and tasks. Python env uses `uv`. Hooks via `prek`
 - Never use `mise` in CI — call tools directly
-- `cargo clippy -- -D warnings` runs in pre-push stage (not pre-commit)
-- Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
-- **PyO3 is `0.29`** (issue #1 closed; iscc-py only): keep the explicit
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe →
-    `learnings-archive.md`; advisories are tool-confirmable via the `cargo deny check` Audit gate
+- Pre-push hooks run: clippy `-D warnings`, cargo test, pytest, ty check, ruff security/complexity —
+    none of these are in the pre-commit stage
+- **PyO3 is `0.29`** (iscc-py only): keep `#[pymodule(name = "_lowlevel", gil_used = true)]`
+    explicit. Per-hop upgrade recipe → `learnings-archive.md`
 - **`_lowlevel.pyi` stub bodies are docstring-only — no trailing `...`** (iter 131). The wheel ships
-    `py.typed` + the stub, so it is consumer-facing: verified accepted by `ty`, `mypy 1.18 --strict`
-    and `pyright 1.1.407`, and `ruff format` leaves docstring-only bodies alone (no blank-line
-    churn). ruff 0.16 double-reports a docstring + `...` as `PIE790` *and* `PYI048` on the same
-    line, so N findings collapse to N/2 deletions. When changing a published `.pyi`, check it
-    against mypy/pyright too — the repo gates only run `ty`
+    `py.typed`, so the stub is consumer-facing: check changes against `mypy 1.18 --strict` +
+    `pyright 1.1.407` too, not just `ty`. ruff 0.16 double-reports docstring + `...` as `PIE790`
+    *and* `PYI048` on one line, so N findings collapse to N/2 deletions
+- **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133,
+    `scripts/gen_unicode16_unassigned.py` + `unicodedata2==16.0.0`): inline `# /// script` metadata,
+    run with `uv run --script <path>`, and add the path to `[tool.ty.src] exclude` with a comment
+    (the `packages/cpp/conanfile.py` precedent). Keeps `uv.lock` free of a dep that would need a
+    permanent hold-back in every dependency refresh. Generated Rust must be data-only + rustfmt
+    stable (one tuple per line, 4-space indent, trailing commas) so regeneration is a no-op diff
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer** (iter 124):
     `mise run bench:iai:check` dies with "No such file or directory" until
     `sudo apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner --version 0.16.1`
@@ -56,16 +59,24 @@ fully-met target sections to `learnings-archive.md`.
 ## ISCC Algorithm Knowledge
 
 - **Unicode data version — declared 16.0.0 with a freeze rule** (divergence found iter 129, decided
-    2026-07-25, machinery still unimplemented): Go stdlib/`x/text` = 15.0.0, Python 3.13 = 15.1.0,
-    Rust `unicode-general-category` = 16.0.0 / `unicode-normalization` = 17.0.0, and Go's
+    2026-07-25, **Rust core implemented iter 133**): Go stdlib/`x/text` = 15.0.0, Python 3.13 =
+    15.1.0, Rust `unicode-general-category` = 16.0.0 / `unicode-normalization` = 17.0.0, and Go's
     `unicode.C` includes unassigned `Cn` — so 5,813 post-15 code points are stripped by
-    Go/`iscc-core` but kept by the Rust core (repro `Ɤ` U+A7CB) → divergent
-    `text_clean`/`text_collapse`, Meta/Text codes and `name`; no vector catches it. Freeze rule:
-    remove code points unassigned in Unicode 16.0.0 *before* any normalization or category lookup —
-    output becomes invariant to future table upgrades, and only runtimes with tables *older* than
-    16.0 need real data. Deltas: 15.1→16 = 5,185 category + 56 normalization; 16→17 = 4,803 + 1 —
-    all new assignments, zero changes to assigned characters. Never "fix" one binding to match
-    another; evidence + implementation order → `issues.md`
+    Go/`iscc-core` but kept by the Rust core (repro `Ɤ` U+A7CB); no vector catches it. Freeze rule:
+    `text_clean`/`text_collapse` remove code points unassigned in Unicode 16.0.0 *before* any
+    normalization or category lookup (vendored 731-range table, regen
+    `uv run --script scripts/gen_unicode16_unassigned.py`). Deltas: 15.1→16 = 5,185 category + 56
+    normalization; 16→17 = 4,803 + 1 — all new assignments, zero changes to assigned characters.
+    Never "fix" one binding to match another; remaining steps → `issues.md`
+- **The freeze rule changes ADJACENCY, so it diverges from `iscc-core` on sequences even with
+    identical Unicode data** (measured iter 133 review). Removing a `Cn` code point *before*
+    normalization unblocks contextual transforms that `iscc-core` (remove *after*) still blocks:
+    `text_clean("e\u{0378}\u{0301}")` → `U+00E9` vs reference `U+0065 U+0301`;
+    `text_clean("\u{1100}\u{0378}\u{1161}")` → `U+AC00` vs `U+1100 U+1161`;
+    `text_collapse("\u{391}\u{3A3}\u{378}\u{392}")` → `…σ…` vs `…ς…` (Rust `to_lowercase` applies
+    Final_Sigma using the *stripped* context). A per-code-point sweep cannot see this class — any
+    differential sweep must include multi-code-point sequences (base+Cn+mark, jamo+Cn+jamo,
+    Σ+Cn+cased)
 - `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty
@@ -74,27 +85,23 @@ fully-met target sections to `learnings-archive.md`.
     mixed grouping, `encode_units`, Nayuki DCT) plus settled API-parameter facts (`META_TRIM_META`
     pre/post-decode checks, `gen_image_code_v0` flat `&[u8]` pixels, MainType Ord, JCS `meta`,
     `alg_simhash` length, `gen_instance_code_v0`'s ignored `bits`, `gen_iscc_code_v0`'s `wide`,
-    ST_ISCC SubType derivation) archived iters 128/131 → `learnings-archive.md`
-- `conformance_selftest` uses bitwise-AND masking for truncated codes — do NOT compare full strings
-    when bit_length < 256
+    ST_ISCC SubType derivation) and **ISCC-IDv1** (`gen_iscc_id_v1`, Go-only, experimental) are
+    archived (iters 124/128/131) → `learnings-archive.md`
+- `conformance_selftest` masks truncated codes bitwise — never compare full strings below 256 bits
 - **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`**: a
     `< nbytes` guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`).
     Enforced in Go `IsccDecode` (iter 120) + Rust core `iscc_decode` (iter 121, two-branch). NOTE
     composite `iscc_decompose` legitimately consumes trailing units — do NOT harden it
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
-- **ISCC-IDv1** (`gen_iscc_id_v1`, Go-only, experimental) archived iter 124 → `learnings-archive.md`
 
 ## CI/CD
 
 - Windows GHA runners default to `pwsh`. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
     `grep`, `sed`) MUST specify `shell: bash` — per-matrix version steps (e.g. `build-ffi`) hit
     Windows. Always check `shell:` when adding `run:` steps to cross-platform matrices
-- **Release pipeline pattern**: 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift) → build → smoke test → publish; 6 smoke-test jobs
-    (test-wheels/napi/wasm/gem/jni/ffi) gate publish on the linux-x86_64 artifact; re-trigger a
-    single registry with `--ref main`. `version_sync.py` manages **21** targets (`--check` exits 1
-    on mismatch). Adding a Python wheel target (#49) → `learnings-archive.md`
+- **Release pipeline pattern** (9 registry inputs → build → smoke test → publish; `version_sync.py`
+    manages **21** targets) archived iter 133 → `learnings-archive.md`
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger breaks
     for Swift — needs a spec fix to derive version from `Cargo.toml`
@@ -107,9 +114,8 @@ fully-met target sections to `learnings-archive.md`.
     pre-commit — a source change adding a branch/loop to a covered fn lands green locally but reds
     CI unless the baseline is refreshed in the SAME step (never revert the fix or widen epsilon/
     threshold). Full mechanics + how to review a refresh → `learnings-archive.md`
-- **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING (#3)**:
-    `[profile.bench] strip = false,   debug = true` is load-bearing (stripped binary → all benches
-    `summary: 0` false-green). Full saga → `learnings-archive.md`
+- **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
+    load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`
 - **`Audit (cargo-deny)` gate — ENFORCING (ci-cd.md)**: root `deny.toml` (config v2,
     `yanked = "deny"`, two dev-only iai-callgrind advisories ignored) + `audit` CI job
     (`cargo-deny@0.19.9`) + `mise run audit`. cargo-deny reads Cargo.lock + metadata (NOT artifacts)
@@ -164,15 +170,10 @@ fully-met target sections to `learnings-archive.md`.
     again. Each develop commit also triggers TWO runs (push + `pull_request` from the open
     develop→main PR), so check-run totals are ~2× the job count
 
-## Branching
-
-- `main` is protected — requires PRs with passing CI. `develop` is the CID working branch
-- `mise run pr:main` creates PR from develop → main
-- Never force-push to develop during a CID loop — agents commit incrementally
-- Tag releases on `main` after merging from `develop`: `git tag vX.Y.Z && git push origin vX.Y.Z`
-
 ## CID Process
 
+- Never force-push to `develop` during a CID loop — agents commit incrementally (branching model
+    itself is in CLAUDE.md)
 - **Feature flags: fully met — archived iter 127 → `learnings-archive.md`.** Read it before touching
     `[features]` in `crates/iscc-lib/Cargo.toml`
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
@@ -194,7 +195,5 @@ fully-met target sections to `learnings-archive.md`.
     batch push even though staged-only `git commit` passed. define-next MUST run `mise run format`
     before committing; review can unblock by reformatting + amending (match hook args exactly)
 - **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
-    `effort: xhigh`) — long-horizon implementation, single requests can run many minutes (runner
-    timeout 3600s). All other roles run on `opus`. Deliberate model diversity: Fable implements,
-    Opus reviews, Codex is the independent second opinion. Do not "unify" onto one model. (Advisor
-    tool deferred 2026-07 — revisit when Fable 5 is selectable; detail → `learnings-archive.md`)
+    `effort: xhigh`, runner timeout 3600s); all other roles on `opus`. Deliberate diversity — Fable
+    implements, Opus reviews, Codex is the second opinion. Do not "unify" onto one model

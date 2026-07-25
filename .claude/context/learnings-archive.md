@@ -717,3 +717,15 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
     `replace golang.org/x/text => golang.org/x/text v<old>` and `diff`. 0.34.0 → 0.40.0 was
     byte-identical (same `unicode/norm` tables; only invalid-rune bookkeeping changed). A new
     indirect (`golang.org/x/sys` via cpuid 2.4.0) is legitimate when `go mod tidy -diff` exits 0
+
+## Release Pipeline (archived iter 133 — target section met)
+
+- **Release pipeline pattern**: 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift) → build → smoke test → publish; 6 smoke-test jobs
+    (test-wheels/napi/wasm/gem/jni/ffi) gate publish on the linux-x86_64 artifact; re-trigger a
+    single registry with `--ref main`. `version_sync.py` manages 21 targets (`--check` exits 1 on
+    mismatch). Adding a Python wheel target touches the build + test matrices only — `publish-pypi`
+    collects wheels via `pattern: wheels-*`.
+- **PyO3 0.29 upgrade note** (iter 133 prune): the explicit
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` attribute is load-bearing — dropping it
+    changes the module name PyO3 registers and breaks `iscc_lib._lowlevel` imports.
