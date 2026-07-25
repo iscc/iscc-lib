@@ -25,7 +25,12 @@ iterations.
     that amends the spec/notes needs human sign-off first (iter 106/112).
 - **next.md is a sensitive file** — if the Write tool is blocked, use `cat > file << 'EOF'` via
     Bash.
-- Run `mise run format` before committing next.md + memory (pre-push mdformat rejects the batch).
+- Format before committing next.md + memory, but **`uv run mdformat <files>` is NOT the hook** — the
+    prek `mdformat` hook passes `--number` (consecutive `1. 2. 3.`) while a bare call renumbers
+    every ordered item to `1.`, so calling it directly *causes* the hook failure it was meant to
+    avoid. Use `uv run prek run mdformat --files <paths>` (seconds); `mise run format` runs the
+    whole suite and can exceed a 2-minute Bash timeout. mdformat also *warns* on a python-fenced
+    block that does not parse — give partial snippets a text fence instead.
 
 ## Architecture & Conformance Facts
 
