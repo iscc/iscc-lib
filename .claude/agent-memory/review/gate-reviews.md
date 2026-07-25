@@ -43,7 +43,7 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Revie
 
 - Standalone job, no `needs:`/`continue-on-error`. Phase 3 enforcing gate (iter 113, new-fn blind
     spot CLOSED) =
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression   --fail-above`
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
     (`--fail-above` is boolean keyed off `.cargo-crap.toml threshold = 30.0`, NO numeric arg).
     Verify with existing `lcov.info`: that command exits 0 (`0 regressed/0 new/97 unchanged`; do NOT
     pipe to tail — masks `$?`); `mise run crap:baseline` regen `.crap-baseline.json` byte-identical
@@ -61,7 +61,7 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Revie
     (want EXIT 0 + `↑ 0 regressed`). Tools may be missing from a fresh session: cargo-llvm-cov 0.8.7
     via `cargo binstall`, but cargo-crap 0.2.2 binstall binary needs GLIBC_2.39 (container too old)
     → `cargo install cargo-crap --version 0.2.2` from source (~1.5 min);
-    `rustup component add   llvm-tools-preview` first. DIFF CHECK: only the changed fn's
+    `rustup component add llvm-tools-preview` first. DIFF CHECK: only the changed fn's
     `cyclomatic`/`coverage`/`crap` should move (+ it re-sorts by CRAP desc); every OTHER lib.rs
     entry must be a pure `line:` shift equal to the net lines the source change added — any
     substantive metric drift elsewhere = probe before approving (coverage-env noise)

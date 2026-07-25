@@ -201,7 +201,7 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
     exists). A step that instead deletes the noqas or adds `per-file-ignores`/`ignore` for them →
     NEEDS_WORK. Keep the `tests/**` per-file-ignores (S101/S603/S607). 26 → 12 findings
 - **THE probe for any `# noqa` deletion** (~5s, settles it):
-    `uv run ruff check --select <rule>   --ignore-noqa --output-format concise` lists the real
+    `uv run ruff check --select <rule> --ignore-noqa --output-format concise` lists the real
     violations with suppressions off — if the deleted directive's line is absent, it was dead
     weight; if present, deletion opens a hole. `uv run ruff check --select S,RUF100` and
     `--extend-select RUF100` show unused directives under the *pinned* ruff. Iter 134 finding:
@@ -209,7 +209,7 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
     `["git", "add", rel]` / `["git", *args]`), so the handoff's "0.16 refined S603" attribution was
     wrong — the real change is that 0.16 default-selects `RUF100`
 - **Sub-slice C (iter 135, PASS) was also a strengthening**:
-    `[tool.ruff] src = [".",   "crates/iscc-py/python"]` +
+    `[tool.ruff] src = [".", "crates/iscc-py/python"]` +
     `[tool.ruff.lint.isort] combine-as-imports = true` +
     `extend-select = [… "I", "RUF022", "RUF100"]`, 7 mechanical fixes via
     `uv run ruff check --fix --select I,RUF022 .`. 12 → 3. **The C-specific probe** (~10s, nothing
@@ -229,7 +229,7 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
     **mode-only** commit: `git diff HEAD~1 --summary` → `mode change 100644 => 100755`, blob hash
     identical. `git status` cannot show it (`core.fileMode=false` on the 9p mount) — verify with
     `git ls-files -s <path>`, and check nothing invokes the script directly
-    (`grep -n cid.py   mise.toml` → all 10 tasks use `uv run tools/cid.py`, so the bit is additive)
+    (`grep -n cid.py mise.toml` → all 10 tasks use `uv run tools/cid.py`, so the bit is additive)
 - **Sub-slice E (iter 137, PASS_WITH_NOTES)** — the pin drop; ruff is 0.16.0 project-wide, slice 8
     CLOSED. Zero findings and zero reformats at the flip. Recipes worth reusing on ANY
     single-package relock: (1) prove nothing else moved with

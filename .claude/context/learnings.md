@@ -43,14 +43,13 @@ fully-met target sections to `learnings-archive.md`.
     `PYI048` on one line, so N findings collapse to N/2 deletions)
 - **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133,
     `scripts/gen_unicode16_unassigned.py` + `unicodedata2==16.0.0`): inline `# /// script` metadata,
-    run with `uv run --script <path>`, and add the path to `[tool.ty.src] exclude` with a comment
-    (the `packages/cpp/conanfile.py` precedent). Keeps `uv.lock` free of a dep that would need a
-    permanent hold-back in every dependency refresh. Generated Rust must be data-only + rustfmt
-    stable (one tuple per line, 4-space indent, trailing commas) so regeneration is a no-op diff
+    `uv run --script <path>`, and add the path to `[tool.ty.src] exclude` with a comment (the
+    `packages/cpp/conanfile.py` precedent) — keeps `uv.lock` free of a permanent hold-back.
+    Generated Rust must be data-only + rustfmt-stable so regeneration is a no-op diff
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer** (iter 124):
     `mise run bench:iai:check` dies with "No such file or directory" until
     `sudo apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner --version 0.16.1`
-    (MUST match the `iai-callgrind` pin) — CI mirrors this; not a bug, do not file an issue
+    (MUST match the `iai-callgrind` pin) — CI mirrors this; not a bug
 
 ## ISCC Algorithm Knowledge
 
@@ -62,8 +61,8 @@ fully-met target sections to `learnings-archive.md`.
     `text_clean`/`text_collapse` remove code points unassigned in Unicode 16.0.0 *before* any
     normalization or category lookup (vendored 731-range table, regen
     `uv run --script scripts/gen_unicode16_unassigned.py`). Deltas: 15.1→16 = 5,185 category + 56
-    normalization; 16→17 = 4,803 + 1 — all new assignments, zero changes to assigned characters.
-    Never "fix" one binding to match another; remaining steps → `issues.md`
+    normalization; 16→17 = 4,803 + 1 — all new assignments. Never "fix" one binding to match
+    another; remaining steps → `issues.md`
 - **The freeze rule changes ADJACENCY, so it diverges from `iscc-core` on sequences even with
     identical Unicode data** (measured iter 133 review). Removing a `Cn` code point *before*
     normalization unblocks contextual transforms that `iscc-core` (remove *after*) still blocks:
@@ -81,10 +80,10 @@ fully-met target sections to `learnings-archive.md`.
     `encode_units`, DCT), settled API-parameter facts (trim/decode checks, pixel layout, MainType
     Ord, JCS, `bits`/`wide`) and **ISCC-IDv1** are archived → `learnings-archive.md`
 - `conformance_selftest` masks truncated codes bitwise — never compare full strings below 256 bits
-- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`** — a
-    `< nbytes` guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`);
-    enforced in Go `IsccDecode` + Rust `iscc_decode`. NOTE composite `iscc_decompose` legitimately
-    consumes trailing units — do NOT harden it
+- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`** — a loose
+    guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`); enforced in Go
+    `IsccDecode` + Rust `iscc_decode`. NOTE composite `iscc_decompose` legitimately consumes
+    trailing units — do NOT harden it
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
 
@@ -96,79 +95,80 @@ fully-met target sections to `learnings-archive.md`.
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like every other release job), so the `--ref main` re-trigger breaks for Swift
-- **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0;
-    `rust-core.md` box stays `[ ]`), `coverage` enforcing. `mise run semver` / `mise run coverage`
+- **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
+    `coverage` enforcing. `mise run semver` / `mise run coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING Phase 3 (`cargo crap --fail-regression --fail-above`, thresh
-    30.0, max ~22.3), `.crap-baseline.json` COMMITTED (regen `mise run crap:baseline`),
-    `.cargo-crap.toml` excludes `benches/**`. **CI-ONLY guard gap**: NOT in `mise run check`/
-    pre-commit — a source change adding a branch/loop to a covered fn lands green locally but reds
-    CI unless the baseline is refreshed in the SAME step (never widen epsilon/threshold). Mechanics
-    → `learnings-archive.md`
+    30.0, max ~22.3), `.crap-baseline.json` COMMITTED (regen `mise run crap:baseline`). **CI-ONLY
+    guard gap**: NOT in `mise run check`/pre-commit — a source change adding a branch to a covered
+    fn lands green locally but reds CI unless the baseline is refreshed in the SAME step (never
+    widen epsilon/threshold). Mechanics → `learnings-archive.md`
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`
 - **`Audit (cargo-deny)` gate — ENFORCING (ci-cd.md)**: root `deny.toml` (config v2,
     `yanked = "deny"`, two dev-only iai-callgrind advisories ignored) + `audit` CI job
-    (`cargo-deny@0.19.9`) + `mise run audit`. cargo-deny reads Cargo.lock + metadata (NOT artifacts)
-    so green locally is authoritative (`cargo binstall cargo-deny@0.19.9`). A yanked crate OR fresh
-    RustSec advisory reds the gate on ANY push with no code change — not a regression. Fix with
-    `cargo update -p <crate>` (confirm dev-only reach via `cargo tree -i <crate> -e no-dev` =
-    empty), NOT a `deny.toml` ignore — ignore ONLY when no patched release exists
-- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue; per-slice status lives in
-    `issues.md` — all 8 locally-verifiable slices closed as of iter 137; only `release.yml` refs and
-    the human/major-gated bumps remain). Verify each Rust slice with the 4-gate set
-    (`test`/`lint`/`audit`/`bench:iai:check`); `cargo-deny` is the main risk (new transitive
-    license/advisory). **Hold-back reasons are inline `# held:` comments** beside the pin — confirm
-    the stated reason from registry metadata, not prose: `cargo info <crate>@<ver>`
+    (`cargo-deny@0.19.9`) + `mise run audit`; reads Cargo.lock + metadata, so green locally is
+    authoritative. A yanked crate or fresh RustSec advisory reds it on ANY push with no code change
+    — fix with `cargo update -p <crate>` (confirm dev-only reach: `cargo tree -i <crate> -e no-dev`
+    = empty), NOT a `deny.toml` ignore (ignore ONLY when no patched release exists)
+- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue; per-slice status in
+    `issues.md` — all 8 locally-verifiable slices closed, only `release.yml` refs and human/
+    major-gated bumps remain). Verify each Rust slice with `test`/`lint`/`audit`/`bench:iai:check`;
+    `cargo-deny` is the main risk. **Hold-back reasons are inline `# held:` comments** beside the
+    pin — confirm the stated reason from registry metadata, not prose: `cargo info <crate>@<ver>`
     (`rust-version`), `gem specification <gem> -v <ver> --remote` (transitive pins),
-    `https://rubygems.org/api/v1/versions/<gem>.json` (`ruby_version`; the v2 endpoint returns
-    `null`). GOTCHA: `criterion` > 0.5 deprecates `criterion::black_box`, fatal under `-D warnings`
-    → use `std::hint::black_box`
+    `https://rubygems.org/api/v1/versions/<gem>.json` (`ruby_version`; v2 returns `null`)
 - **ruff is 0.16.0 since iter 137** (sliced adoption history → `learnings-archive.md`): preview any
     future major with `uvx ruff@X.Y.Z check .` — it never touches `uv.lock`, so a hold-back pin can
     stay in `pyproject.toml` until the tree is clean. **0.16 formats Python code blocks inside
-    Markdown**, so bare `ruff format --check` (CI + `mise run lint`) covers 153 files, not 25 — but
-    the prek hooks are `types: [python]` and pre-push never runs `ruff format`, so a mis-formatted
-    fenced snippet passes `mise run check` and reds CI (gap tracked in issues.md); run the bare
-    command yourself after editing Markdown that contains Python. Rules go in
-    `[tool.ruff.lint] extend-select` — **never `select`**, which drops ruff's `E4`/`E7`/`E9`/`F`
-    defaults; the pre-push `--select S`/`--select C901` hooks stay as deliberate redundancy naming
-    the failing gate (every `[tool.ruff*]` setting carries its rationale as an inline comment in
-    `pyproject.toml` — read them before editing). **Never `ruff check --fix .`** without `--select`
-    — a blanket fix deletes the 13 load-bearing `# noqa: S603/S607` in `tools/`+`scripts/` and reds
-    the pre-push security gate
+    Markdown**, so bare `ruff format --check` (CI + `mise run lint`) covers 153 files, not 25; the
+    prek `ruff-format` hook is `types_or: [python, markdown]` since iter 138 so local matches (the
+    `ruff-check` hook stays Python-only — ruff formats Markdown but does not *lint* it: `.md` paths
+    print "No Python files found" and exit 0). Rules go in `[tool.ruff.lint] extend-select` —
+    **never `select`**, which drops ruff's `E4`/`E7`/`E9`/`F` defaults; the pre-push
+    `--select S`/`--select C901` hooks stay as deliberate redundancy naming the failing gate (every
+    `[tool.ruff*]` setting carries its rationale as an inline comment in `pyproject.toml` — read
+    them before editing). **Never `ruff check --fix .`** without `--select` — a blanket fix deletes
+    the 13 load-bearing `# noqa: S603/S607` in `tools/`+`scripts/` and reds the pre-push security
+    gate
 - **A file-mode change needs `git update-index --chmod=+x`, not just `chmod`** (iter 136): with
     `core.fileMode=false` here a plain `chmod +x` is invisible to git — run both, prove it with
     `git ls-files -s <path>` → `100755`
+- **A prek `types:` tag is not a file-extension guess — probe it** (iter 138): prek classifies
+    `.pyi` as `pyi`, **not** `python`, so both ruff hooks silently skip the published
+    `_lowlevel.pyi` that CI's bare `ruff check`/`ruff format` do cover (gap in issues.md). Prove a
+    hook's real surface by staging a deliberately dirty probe file and running
+    `uv run prek run <hook> --files <probe>` — `(no files to check) Skipped` means the tag misses.
+    GOTCHA: prek reports `files were modified by this hook` only for *tracked* files; an untracked
+    probe is fixed but reported `Passed`, so `git add` it first
+- **Widening a formatter hook to Markdown cannot break commits on pseudo-code fences** (iter 138):
+    `ruff format` silently leaves a syntactically-invalid Python fence unchanged and exits 0 (probed
+    with `def f(:`) rather than erroring the run — only *valid but unformatted* Python is rewritten
 - **Two ruff invocation gotchas**: (1) an unused `# noqa` is invisible unless `RUF100` is selected —
     prove a directive dead with `uv run ruff check --select <rule> --ignore-noqa` before deleting it
     (`S603` never fires on a fully static list-literal argv, only on dynamic argv). (2) the
     pre-commit `ruff-check` hook passes *filenames* and no `--force-exclude`, so hook-mode can
     disagree with `ruff check .` — re-probe per-file when `src`/`exclude`/isort settings change
-- **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128 Kotlin, documented
-    iter 132): KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar and
-    `kotlin-stdlib:2.4.10` into the POM; a `mavenLocal` consumer proved 2.1.10/2.2.21 fail, 2.3.21
-    passes. Treat compiler/toolchain bumps in a *published* binding as support-policy changes
-    reserved for Titusz, not pins. The floor ("Kotlin 2.3 or newer") now lives in the root README,
-    `packages/kotlin/README.md`, `docs/howto/kotlin.md` and `specs/kotlin-bindings.md` — any future
-    bump that moves it must update all four in the same step
-- **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) archived iter 129 →
-    `learnings-archive.md`. Read it before touching `pom.xml` / `build.gradle.kts` or before calling
-    a Gradle error a test failure
+- **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128 Kotlin): KGP
+    2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar; a `mavenLocal` consumer proved 2.1.10/
+    2.2.21 fail, 2.3.21 passes. Treat compiler/toolchain bumps in a *published* binding as
+    support-policy changes reserved for Titusz, not pins. The floor ("Kotlin 2.3 or newer") lives in
+    the root README, `packages/kotlin/README.md`, `docs/howto/kotlin.md` and
+    `specs/kotlin-bindings.md` — a bump moving it must update all four in the same step
+- **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`. Read
+    it before touching `pom.xml` / `build.gradle.kts`, or before calling a Gradle error a failure
 - **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
     `--target all`. The `proc-macro-error2 v2.0.1` future-incompat warning emitted on every
     `cargo test`/`cargo bench` traces to `iai-callgrind-macros` (dev-only), **not** magnus/rb-sys;
     no fixed release exists (iai-callgrind 0.16.1 is latest), so it stays a warning for now
-- **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** —
-    `gh api repos/<o>/<r>/releases/latest` proves a release exists, not that `@vN` resolves. Always
-    confirm with `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN`.
-    `astral-sh/setup-uv` stopped publishing floating majors after `v7` → pin `@v9.0.0` with a
-    `# exact tag:` comment; it recurs in `release.yml`. Current majors (2026-07-24) →
-    `.claude/agent-memory/advance/deps-refresh.md` (`upload-pages-artifact` + `deploy-pages` pair)
+- **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
+    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (the `releases/latest`
+    endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` stopped
+    publishing floating majors after `v7` → pin `@v9.0.0` with a `# exact tag:` comment; it recurs
+    in `release.yml`. Current majors → `.claude/agent-memory/advance/deps-refresh.md`
 - **ci.yml sets `cancel-in-progress: true` per ref** — pushing a follow-up develop commit cancels
-    the in-flight run of the previous sha (its check-runs conclude `cancelled`, not `failure`). When
-    a step's Done-When needs a green CI on a specific sha, let that run conclude before pushing
-    again. Each develop commit also triggers TWO runs (push + `pull_request` from the open
-    develop→main PR), so check-run totals are ~2× the job count
+    the in-flight run of the previous sha (check-runs conclude `cancelled`, not `failure`); when a
+    Done-When needs green CI on a specific sha, let it conclude first. Each develop commit triggers
+    TWO runs (push + `pull_request` from the open develop→main PR), so totals are ~2× the job count
 
 ## CID Process
 

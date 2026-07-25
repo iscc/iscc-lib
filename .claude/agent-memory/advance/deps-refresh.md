@@ -118,9 +118,13 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
     found", exit 0), so widening the lint hook adds only warning noise.
 - mdformat hook is declared before `ruff-format`, so the project-pinned ruff has the last word; the
     two formatters converge on this tree (no ping-pong — `mise run check` twice stays clean).
-- Surface arithmetic: hook at `--all-files` = 154 tracked md+py+pyi files, a strict superset of CI's
-    recursive discovery (153 — one tracked-but-gitignored file under `.claude/plans/` is skipped).
-    Superset is the safe direction; do NOT add `--force-exclude`.
+- Surface arithmetic (corrected in the iter-138 review — it is **not** a superset): 154 tracked
+    candidates = 129 `.md` + 24 `.py` + 1 `.pyi`. CI's recursive discovery sees 153 (skips the
+    tracked-but-gitignored `.claude/plans/*.md`); the hook at `--all-files` also sees 153, but a
+    *different* 153 — prek classifies `.pyi` as the `pyi` type, not `python`, so the hook misses
+    `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` and picks up the plans file. Adding `pyi` to both
+    ruff hooks would make local a true superset (tracked as a `[review]` issue). Do NOT add
+    `--force-exclude`.
 - mdformat's `mdformat-ruff` (via `mdformat-mkdocs[recommended]`) only formats fences tagged
     `python`; ruff 0.16 additionally reaches `py`/`python3`/`pycon` — that residual gap is what the
     widened hook closes.

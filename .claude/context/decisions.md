@@ -295,3 +295,26 @@ Filed as a `normal` `[review]` issue with two candidate fixes (widen the hook ty
 bare command as a pre-push hook); until it is closed, run `uv run ruff format --check` by hand after
 editing Markdown that contains Python. **Context:** CID iteration 137 (`5ad1e17`), ruff 0.16
 adoption sub-slice E — the final piece of slice 8 of the v0.6.0 dependency-refresh issue.
+
+## 2026-07-25 — Gate parity via widened prek hook types, not a duplicate pre-push check
+
+**Decision:** the local/CI ruff gate-parity gap opened by ruff 0.16 was closed with option (a) from
+the 2026-07-25 "Markdown formatting reach" entry — the `.pre-commit-config.yaml` `ruff-format` hook
+declares `types_or: [python, markdown]`. Option (b), a bare `ruff format --check` pre-push hook with
+`pass_filenames: false` mirroring the CI command, was rejected. The `ruff-check` hook stays
+`types: [python]`. **Why:** (a) makes the gate *auto-fixing* at the moment the file is edited, which
+is what every other formatter hook in this repo does, whereas (b) only detects — and detects one
+push later, after the author has moved on. (b) would also re-scan all 153 files on every push for a
+class of change that is already covered pre-commit. `ruff-check` stays Python-only because ruff 0.16
+formats Markdown fences but does not *lint* them (`.md` paths print "No Python files found" and exit
+0), so widening it buys zero enforcement and adds per-commit warning noise. **Alternatives:** do
+both (a) and (b) for defence in depth — rejected, a second copy of an auto-fixing gate is pure
+latency; add `[tool.ruff.format] exclude` to shrink CI back to 25 files — already rejected in the
+earlier entry as scope exclusion. **Consequence / correction:** the claim that the hook surface is a
+"strict superset" of CI's is **false**. Both see 153 files, but different ones — prek classifies
+`.pyi` as the `pyi` type, not `python`, so the hook misses the published
+`crates/iscc-py/python/iscc_lib/_lowlevel.pyi` while picking up a tracked-but-gitignored
+`.claude/plans/*.md` that CI's recursive discovery skips. Adding `pyi` to both ruff hooks makes
+local a genuine superset; filed as a `normal` `[review]` issue rather than fixed in review, because
+it changes what two gates reject and belongs in a scoped work package. **Context:** CID iteration
+138 (`b599816`) review, closing the iter-137 gate-parity issue.

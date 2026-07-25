@@ -65,7 +65,7 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     Unicode 16 freeze rule). Moving a filter earlier/later in `text_clean`/`text_collapse` changes
     character *adjacency*, which silently alters context-sensitive Unicode operations. Probe recipe
     (~2 min): write `crates/iscc-lib/examples/<name>.rs` calling the public fns,
-    `cargo run -q -p   iscc-lib --example <name>`, print `{:04X}` per char, and compare against a
+    `cargo run -q -p iscc-lib --example <name>`, print `{:04X}` per char, and compare against a
     Python transcription of the `iscc-core` pipeline — then **delete the example file**. Minimum
     sequence set: base+Cn+combining-mark (canonical composition), jamo+Cn+jamo (Hangul), Σ+Cn+cased
     (Rust `to_lowercase` applies `Final_Sigma` contextually; verify with a standalone
@@ -92,3 +92,57 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     `git diff HEAD~1..HEAD` for the advance diff (define-next → advance)
 - When HEAD is a previous review commit, the advance is at HEAD~1 and the advance diff is
     `git diff HEAD~2..HEAD~1`. Always verify with `git log --oneline -5` first
+
+## Prek hook-scope probing (iter 138)
+
+Reviewing any `types:` / `types_or:` change to `.pre-commit-config.yaml`:
+
+- **Never accept `git ls-files` arithmetic as the hook's surface.** A tag is prek's own
+    classification, not an extension guess. `.pyi` is tagged `pyi`, **not** `python` — so
+    `types: [python]` silently skips the published `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`
+    that CI's bare `ruff check`/`ruff format` do cover. Found this way in iter 138 while a handoff
+    claimed a "strict superset"; filed `[review]`, fix = add `pyi` to both ruff hooks (probed green
+    against an alternate config).
+
+- **Probe recipe** — write a deliberately dirty file, stage it, run the single hook:
+
+    ````bash
+    printf '# probe\n\n```py\nx=1\n```\n' > probe_gate.md && git add probe_gate.md
+    uv run prek run <hook-id> --files probe_gate.md   # expect Failed / files were modified
+    git rm --cached -f probe_gate.md && rm probe_gate.md
+    ````
+
+    `(no files to check) Skipped` means the tag does not match the file. Use an alternate config
+    (`uv run prek run -c /tmp/probe.yaml <id> --files …`) to test a tag before recommending it.
+
+- **Two gotchas**: prek reports `files were modified by this hook` only for **tracked** files — an
+    untracked probe gets fixed but reported `Passed`. Cleanup needs `git rm --cached -f`; plain
+    `--cached` errors once the hook has rewritten the worktree copy.
+
+- **Probe the failure mode too when widening a formatter**: `ruff format` leaves a
+    syntactically-invalid Markdown fence untouched and exits 0 (probed `def f(:`), so illustrative
+    pseudo-code in docs cannot start failing commits.
+
+- **Ping-pong check** when two formatters share a surface (mdformat + ruff on `.md`): run
+    `mise run check` **twice** and assert `git status --porcelain` is clean after each. Hook order
+    decides who wins — the mdformat repo hook is declared before the local `ruff-format`, so the
+    project-pinned ruff has the last word over mdformat-ruff's unpinned copy.
+
+- Go `go get` adds deps as `// indirect` — run `go mod tidy` after
+
+- **CI `find` cross-arch bug**: when multiple targets extract to the same CWD with the same lib
+    name, `find` patterns must include the target name (generic wildcards match all extracted dirs)
+
+- **prek stash conflict**: untracked files with formatting issues break prek's stash/restore during
+    commit. Fix: move untracked files to `/tmp` before committing, restore after
+
+- **A mode-only commit is invisible to `git status` here** (iter 136): `core.fileMode=false` on the
+    9p bind mount, so review a `chmod`-style change with `git diff HEAD~1 --summary`
+    (`mode change 100644 => 100755`) and `git ls-files -s <path>`, never a content diff or
+    porcelain. Confirm the blob hash is unchanged to prove it really is mode-only
+
+- **mdformat re-wraps long inline code spans and leaves literal double spaces inside them**
+    (cosmetic only — shells and TOML tolerate them, but a command looks wrong when copied). After
+    `mise run format`, scan the edited Markdown for a code span containing two or more consecutive
+    spaces, and prefer short spans or a topic-file pointer over an 80-char command inline in a
+    bullet. Never nest backticks inside a bullet to write that grep — mdformat escapes them.
