@@ -117,13 +117,19 @@ iterations.
 - **A multi-part spec criterion slices along its own checkboxes** — `specs/rust-core.md`'s Unicode
     contract → 3 steps (filter / 1.1M-code-point proof / 12-binding propagation), not one.
 - **Any step touching the text hot path trips two gates at once**: the CI-only CRAP
-    `--fail-regression` baseline and the `.iai-baseline.json` 10% Ir gate. Measured constants and
-    boundary behaviour: [unicode-freeze-facts](unicode-freeze-facts.md).
+    `--fail-regression` baseline and the `.iai-baseline.json` 10% Ir gate. Measured constants,
+    expected boundary values and the independent Unicode-16 derivation recipe:
+    [unicode-freeze-facts](unicode-freeze-facts.md). A `tests/`-only step trips **neither** gate
+    (coverage can only improve) — say so in next.md so advance doesn't refresh a baseline.
+- **When a propagation step is parked, its source artifact can usually still land** (iter 141: the
+    12-binding Unicode vector rollout is blocked on a human ruling + a Go decision, but the
+    Rust-core fixture + loader is ruling-independent as long as the vectors avoid the disputed
+    construct). Scope the artifact, name the parked half in `Not In Scope`, don't tick the spec box.
 - Generator scripts needing an external pin: PEP 723 + `uv run --script`, never a dev-dep —
     [ty gate trap](define-next-ty-generator-scripts.md).
 - `uv run zensical build` (exits 0, "No issues found", ~8s) verifies any docs-only step.
 - **Recurring**: the cargo-deny gate WILL periodically go red on fresh RustSec advisories vs
     dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore.
-- **The installed Python binding is a cheap probe for core behaviour** while scoping:
-    `uv run python -c "import iscc_lib; …"` answers "what does the Rust core do today?" in seconds
-    without writing Rust — turns vague spec prose into exact before/after assertions for next.md.
+- **The installed Python binding is a cheap probe — but the venv wheel LAGS the source** (iter 141:
+    it still showed pre-iter-133 `text_clean` behaviour). Cross-check anything the last few
+    iterations could have touched with `cargo test -p iscc-lib --lib <mod>::` (~seconds when built).
