@@ -130,9 +130,18 @@ budget → sliced by *decision content*, not by file count:
     along. Pinned 0.15.22 + `--extend-select I,RUF022,RUF100` reproduces the identical 7 findings,
     so the selection is enforceable before the pin drops, and `ruff format --check` stays clean
     after the fix (probed on a scratch copy).
-- **D — the three one-liners** (`RUF007` generator, `PLW1510` `scripts/test_install.py`, `EXE001`
-    `tools/cid.py`) = 3 non-test files, its own step. **E — drop `ruff<0.16` + `uv lock`**, only
-    once `uvx ruff@0.16.0 check .` exits 0.
+- **D (scoped iter 136) — the three one-liners** = exactly 3 non-test files, so the `# held:`
+    comment in `pyproject.toml` (a 4th file) could NOT ride along and stays stale for one more
+    iteration. Probed live: `zip(ranges, ranges[1:])` → `pairwise` is exactly equivalent and the
+    generator re-runs in \<1 s producing a byte-identical `unicode16.rs`; `run()` in
+    `test_install.py` has 20 callers testing `.returncode`, so `check=False` (not `True`) is the
+    behaviour-preserving fix; `tools/cid.py` is invoked only as `uv run tools/cid.py …` from 10
+    `mise.toml` tasks, so the exec bit is purely additive and no hook
+    (`check-executables-have-shebangs` is absent) reacts.
+- **E — drop `ruff<0.16` + `uv lock --upgrade-package ruff`**, only once `uvx ruff@0.16.0 check .`
+    exits 0. Retire the `# held:` comment in the same step. Its own decision content: does the repo
+    survive 0.16 as the *project formatter* and default rule set (`ruff format` output can shift
+    across minor versions)?
 
 Reproduce baselines with `uvx ruff@0.16.0 …` — it needs no lockfile change and the cache is warm.
 

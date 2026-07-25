@@ -98,7 +98,8 @@ All autonomous v1.0.0-hardening gates landed and are enforcing/green (module vis
     binding's compiler) inside a refresh slice** — iter 128 did it by accident and raised the
     published Kotlin consumer floor to 2.3 (escalated, then decided by Titusz — see below). All 7
     per-ecosystem slices are closed; **slice 8 = ruff 0.16, split into sub-slices A/B/C/D/E by
-    decision content** (see the ledger — A/B done, C scoped iter 135; B carried a live gate trap).
+    decision content** (see the ledger — A/B/C done, D scoped iter 136; B carried a live gate trap).
+    Only E (drop the pin + `uv lock`) remains after D.
 - **A lint-tool major bump is not one step.** Slice by *what decision each finding needs*
     (mechanical / gate-interacting / config-requiring), not by file. Probe candidate settings
     without touching the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>` — and
@@ -108,6 +109,14 @@ All autonomous v1.0.0-hardening gates landed and are enforcing/green (module vis
     isort `src` cleaned 3 test files and dirtied a benchmark file that was previously green. Always
     re-run the full-tree check *with* the candidate config before counting files against the budget
     — the pre-config finding list is not the work list.
+- **A stale in-repo comment is not worth blowing the file budget for.** Iter 136: the `# held:` note
+    on the `ruff<0.16` pin has gone stale twice, but fixing it would make `pyproject.toml` a 4th
+    non-test file. Correct call: leave it, and let the step that removes the pin retire the comment
+    with it. Say so explicitly in `## Not In Scope` so review reads it as deliberate, not missed.
+- **`core.fileMode=false` (9p Windows bind mount) means `chmod +x` alone never lands in a commit** —
+    `git update-index --chmod=+x <path>` is required, run *after* `git add`, verified with
+    `git diff --cached --summary`. The round-trip (`--chmod=+x` then `--chmod=-x`) is safe to probe
+    while scoping and leaves no trace. Exec bits DO stick on the 9p fs itself (probed iter 136).
 - **Both formerly-parked `[review]` policy calls were DECIDED by Titusz 2026-07-25** (commits
     `8d267ff`, `8358eba`) and written into `specs/kotlin-bindings.md` + `specs/rust-core.md` as four
     new verification criteria. Backlog: (1) Kotlin floor docs — **DONE iter 132**; (2) Unicode
