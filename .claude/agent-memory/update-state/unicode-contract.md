@@ -19,7 +19,8 @@ Go (stdlib/x/text U15.0) and `iscc-core` (CPython 3.13 `unicodedata` U15.1) STRI
 `iscc-core` on non-16.0 runtimes is now **spec-blessed, not a conformance failure**.
 
 **How to apply:** treat these as three separate, verifiable criteria — none was implemented as of
-iteration 132.
+iteration 133 (re-verified: `utils.rs` still bare live-table lookups, `ls scripts/` still has no
+generator, repo-wide grep for the three boundary code points still returns 0 hits).
 
 1. **Freeze rule (unmet).** Code points unassigned in Unicode 16.0.0 must be removed **before any
     normalization or category lookup**, via a vendored range table (731 ranges / 819,533 code

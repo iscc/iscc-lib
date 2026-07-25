@@ -13,7 +13,7 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `git diff --stat origin/develop..HEAD -- . ':!.claude'` (empty = nothing outside CI coverage).
 - **Tier 1 pub fns**: `grep -rn "pub fn gen_\|pub const " crates/iscc-lib/src/lib.rs`; **C FFI
     externs**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
-- **Counts** (re-verified 132): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
+- **Counts** (re-verified 133): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
     llms-full ORDERED_PAGES 22; `docs/howto/*.md` 11; speedup 1.3x-158x; release.yml toggles 8; ffi
     extern 47; iscc-lib `#[test]` = **320** (`grep -rc --include="*.rs" crates/iscc-lib/`; src/\*.rs
     alone = 270); ci.yml job entries 19 = `grep -cE '^  [a-z_-]+:$'` minus 2.
@@ -89,28 +89,26 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     at 0/N checked though MET; only `ci-cd.md` (44/52) + the `rust-core.md` semver box are
     maintained. Verify in code, never read boxes as done/not-done.
 
-## Current State (assessed-at: 8358eba, iter 132)
+## Current State (assessed-at: f18c5d5, iter 133)
 
-- **IN_PROGRESS — CI GREEN.** v0.5.0 released. **Iter 132 changed the TARGET, not the code**: 2
-    `human(decide)` commits resolved BOTH `[review]` calls and added **4 new criteria** → 0
-    HUMAN-REVIEW blocks, a real backlog instead. Partially met: Rust-core (3 Unicode criteria +
-    semver/v1.0.0 HELD), **Kotlin (docs-only floor criterion UNMET)**, CI/CD (ruff slices B/C/D);
-    bindings else met but the boundary-vector criterion is cross-cutting over all 12.
-- **CI GREEN on origin/develop tip `feb5ea4`** (iter-131 review PASS; HEAD `8358eba` = +3 UNPUSHED
-    context/spec-only commits — `origin/develop..HEAD` minus `.claude/` = EMPTY stat). **41**
-    check-runs, 21 names, 0 non-success. ~2x jobs because PR **#44 (develop→main) is OPEN** → every
-    develop commit fires a `push` AND a `pull_request` run.
-- **Kotlin floor 2.3+ = DECIDED, docs-only, release-blocking, CHEAPEST open work**: state it in
-    `packages/kotlin/README.md`, `docs/howto/kotlin.md`, root README Kotlin section — grepped all 3,
-    NONE mentions a Kotlin version (only the `jna:5.19.1` line). Do NOT touch `build.gradle.kts`
-    (2.4.10 is decided); spec edits already done by the human.
+- **IN_PROGRESS — CI GREEN.** v0.5.0 released. Iter 132 closed the Kotlin floor (docs-only) →
+    **Kotlin now MET**, its issue deleted. Still partially met: Rust-core (3 Unicode criteria +
+    semver/v1.0.0 HELD) and CI/CD (ruff slices B/C/D); other bindings met but the boundary-vector
+    criterion is cross-cutting over all 12. **Unicode freeze rule = the headline open work.**
+- **CI GREEN on origin/develop tip `bb618a1`**; HEAD `f18c5d5` = +1 UNPUSHED log commit,
+    `origin/develop..HEAD` minus `.claude/` = EMPTY stat. **41** check-runs, 21 names, 0
+    non-success. ~2x jobs because PR **#44 (develop→main) is OPEN** → every develop commit fires a
+    `push` AND a `pull_request` run.
+- **Kotlin floor 2.3+ = DONE (132), don't re-flag**: verified `README.md:155`,
+    `docs/howto/kotlin.md:29` (admonition), `packages/kotlin/README.md:23`. Its spec box
+    (`kotlin-bindings.md:279`) is STILL `[ ]` — that file is 0/14, unmaintained, ignore it.
 - **Dep-refresh: ALL 7 slices DONE** (124-130) → `dep-refresh-survey.md`. **ruff 0.16**: slice A
     done 131 (104→**26** live: RUF100 15, I001 8, EXE001/PLW1510/RUF022 1 each). Slice C insight
     (verified): `[tool.ruff.lint]` has **NO `select` key** (only `mccabe` + `per-file-ignores`) →
     `S`/`C901` run ONLY in the 2 pre-push hooks; adding them to `select` clears all 15 RUF100 AND
     strengthens the local loop. Then magnus 0.8 / jni 0.22 (source rewrites).
-- **7 issues: 0 critical, 5 normal, 2 low — ZERO `[review]`/HUMAN REVIEW REQUESTED.** CID-doable:
-    Kotlin floor docs, Unicode freeze rule (a→b), ruff. Human-gated: npm OIDC, single-registry
+- **6 issues: 0 critical, 4 normal, 2 low — ZERO `[review]`/HUMAN REVIEW REQUESTED.** CID-doable:
+    Unicode freeze rule (slice 1 of 3), ruff B/C/D. Human-gated: npm OIDC, single-registry
     re-trigger; low (CID skips) = v1.0.0 (HELD), docs logos.
 - **Don't re-flag as new work** (all DONE): dep slices 1-7 + c-cpp anchor (124-130), aarch64 wheels
     #49 (123), CRAP baseline (122), trailing-byte fixes (120-121), Go IDv1 #43 (119), WASM SIMD #42
