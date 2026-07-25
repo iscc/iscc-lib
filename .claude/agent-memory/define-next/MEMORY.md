@@ -20,12 +20,12 @@ iterations.
     be locally verifiable; don't default to "release-only → too risky".
 - **HUMAN REVIEW override on overwhelming evidence is for BUG fixes, not NEW policy gates** — a gate
     that amends the spec/notes needs human sign-off first (iter 106/112).
-- **next.md is a sensitive file** — if the Write tool is blocked, use `cat > file << 'EOF'` via
-    Bash.
-- Format next.md + memory with **`uv run prek run mdformat --files <paths>`** (seconds). A bare
-    `uv run mdformat` is NOT the hook (the hook passes `--number`) and *causes* the failure it was
-    meant to avoid; `mise run format` can exceed a 2-min Bash timeout. mdformat warns on a
-    python-fenced block that does not parse — give partial snippets a `text` fence.
+- **next.md is a sensitive file** — Write needs a prior Read of it; if Write is blocked, use
+    `cat > file << 'EOF'` via Bash.
+- Format next.md + memory with **`uv run prek run mdformat --files <paths>`** (seconds; re-run until
+    Passed). A bare `uv run mdformat` is NOT the hook (the hook passes `--number`) and *causes* the
+    failure it was meant to avoid; `mise run format` can exceed a 2-min Bash timeout. Give partial/
+    pseudo-code snippets a `text` or `bash` fence (a `python` fence is reformatted by ruff).
 
 ## Architecture & Conformance Facts
 
@@ -81,55 +81,53 @@ iterations.
     release-workflow issues (npm OIDC, single-registry re-trigger) remain. v1.0.0 cut +
     Semver-enforcing HELD by Titusz (`low`).
 - **iters 115–123 DONE (detail in MEMORY-archive.md + learnings.md)**: GIL detach, WASM SIMD, Go
-    ISCC-IDv1, trailing-byte guards, aarch64 wheels (release-only infra → STATIC verification:
-    pyyaml `safe_load` + grep). **Root lesson: the CRAP regression gate is CI-ONLY** (not in
-    `mise run check`/pre-commit) — any step adding a branch/loop to a covered fn MUST refresh the
-    baseline in the SAME step.
-- **iters 124–137 = the dependency-refresh slices, all 8 now CLOSED** → ledger, gotchas, hold-back
-    reasons and version-lookup commands: [dep-refresh ledger](dep-refresh-ledger.md). Read it before
-    scoping any dep step. Headline rule: **never move a consumer floor (MSRV, `go` directive,
-    `required_ruby_version`, a published binding's compiler) inside a refresh slice** — iter 128 did
-    it by accident and raised the published Kotlin floor to 2.3.
+    ISCC-IDv1, trailing-byte guards, aarch64 wheels. **Root lesson: the CRAP regression gate is
+    CI-ONLY** (not in `mise run check`/pre-commit) — any step adding a branch/loop to a covered fn
+    MUST refresh the baseline in the SAME step.
+- **iters 124–137 = the dependency-refresh slices, all 8 now CLOSED** → ledger, gotchas, hold-backs,
+    version-lookup commands: [dep-refresh ledger](dep-refresh-ledger.md); read it before scoping any
+    dep step. Headline rule: **never move a consumer floor (MSRV, `go` directive,
+    `required_ruby_version`, a published binding's compiler) inside a refresh slice** (iter 128).
 - **A lint-tool major bump is not one step.** Slice by *what decision each finding needs*
-    (mechanical / gate-interacting / config-requiring), not by file. Probe candidate settings
-    without touching the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>` — and
-    also re-probe with the *pinned* tool + `--extend-select`, which tells you whether the new rule
-    can be enforced immediately instead of arriving silently with the upgrade.
-- **A tool bump's real risk may be file *discovery*, not new rules.** Iter 137: ruff 0.16's rule set
-    was a no-op on this tree, but its formatter started covering Python blocks inside `.md`, so the
-    bare `ruff format --check` in CI silently widened 25 → 153 files. Before scoping a pin drop, run
-    the *bare* gate command under the new version and compare the reported **file count**, not just
-    the exit code.
-- **Probe a hook-config change with `prek run -c /tmp/probe.yaml <hook> --files <probe>` instead of
-    editing the real config** — define-next may not touch `.pre-commit-config.yaml`, and prek's
-    global `-c` accepts any path while still resolving files inside the repo. Stage the probe file
-    (`git add`) if you need prek to report `files were modified by this hook`; on an untracked file
-    it silently reports Passed. Clean up with `git restore --staged` + `rm`.
+    (mechanical / gate-interacting / config-requiring), not by file. Probe settings without touching
+    the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>`, then re-probe with the
+    *pinned* tool + `--extend-select` to see if the rule is enforceable before the upgrade.
+- **A tool bump's real risk may be file *discovery*, not new rules** (iter 137: ruff 0.16's rules
+    were a no-op, but its formatter started covering `.md` fences → CI's bare `ruff format --check`
+    widened 25 → 153 files). Before scoping a pin drop, run the *bare* gate command under the new
+    version and compare the reported **file count**, not just the exit code.
+- **Probe a hook-config change with `prek run -c /tmp/probe.yaml <hook> --files <path>`** — the
+    global `-c` accepts any path while still resolving files inside the repo, so define-next never
+    touches `.pre-commit-config.yaml`. prek reports `files were modified by this hook` only for
+    tracked files; an untracked probe is silently fixed and reported Passed.
 - **Gate-parity claims from review are hypotheses — measure the surfaces yourself.** Iter 138: the
-    filed issue said no local hook covers Markdown, but `mdformat-mkdocs[recommended]` pulls in
-    `mdformat-ruff`, whose codeformatter entry point covers the fence tag `python` **only**; ruff
-    also formats `py`/`python3`/`pycon`. The real gap was three fence tags, not all Markdown. Check
+    filed issue said no local hook covers Markdown, but `mdformat-ruff` (via
+    `mdformat-mkdocs[recommended]`) already covered the fence tag `python` — ruff also formats
+    `py`/`python3`/`pycon`, so the real gap was three fence tags. Check
     `entry_points(group='mdformat.codeformatter')` before scoping.
 - **File-count identity for the ruff formatter surface (HEAD, iter 138):** bare
     `ruff format --check` = **153** = 129 tracked `.md` + 24 `.py` + 1 `.pyi` − 1
     tracked-but-gitignored `.claude/plans/*.md` (recursive discovery honours `.gitignore`;
-    explicitly-named paths bypass exclusions unless `--force-exclude`). Bisect a discovery mismatch
-    by running the tool per top-level dir and comparing to `git ls-files`.
+    explicitly-named paths bypass exclusions unless `--force-exclude`). prek's type tags split
+    these: `python` does **not** match `.pyi` (that is the `pyi` tag) — a hook covering stubs needs
+    both.
 - **A lint *config* change moves the finding set, it does not only shrink it** (iter 135: isort
     `src` cleaned 3 test files and dirtied a previously-green benchmark file). Re-run the full-tree
     check *with* the candidate config before counting files against the budget.
-- **Open Unicode backlog** (both DECIDED by Titusz 2026-07-25, `specs/rust-core.md`): the
-    full-code-space differential sweep (own step, own harness) and the boundary vectors in the Rust
-    suite + all 12 bindings — both parked behind the `[review]` ordering ruling; the vectors also
-    need an explicit Go decision (Go is on 15.0 tables until go1.27 ≈ Aug 2026: vendor the 15.0→16.0
-    delta or skip-with-note). Kotlin floor docs (132) and the freeze filter (133) are done.
-- **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it** (iters 134–137: the
-    Unicode ruling parked 2 criteria, so the steps went to the unblocked ruff slices). If a blocked
-    slice's *only* consumer is the parked propagation, its marginal value is low — take the
-    unblocked backlog item and let the ruling land.
+- **Open Unicode backlog** (DECIDED by Titusz 2026-07-25, `specs/rust-core.md`): the full-code-space
+    differential sweep and the boundary vectors (Rust suite + 12 bindings) — both parked behind the
+    `[review]` ordering ruling; the vectors also need a Go decision (Go on 15.0 tables until go1.27
+    ≈ Aug 2026: vendor the 15.0→16.0 delta or skip-with-note). Freeze filter (133) is done.
+- **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it** (iters 134–139: the
+    Unicode ruling parked 2 criteria, so steps went to ruff slices, then hook parity, then
+    release.yml). If a blocked slice's only consumer is the parked propagation, take other backlog.
 - **Look for gates that exist but run in only one place** (`S`/`C901` were pre-push-hook-only, CI
     never saw them). Broadening an *existing* gate to CI needs no human sign-off; inventing one
     does.
+- **In a file no CI push exercises, split behavioural edits from mechanical ones** (iter 139: the
+    handoff wanted `release.yml`'s 19 `if:`-guard fixes bundled with a 97-ref `uses:` bump — scoped
+    as two steps so a broken release is bisectable). Static-verification recipe + job inventory:
+    [release.yml static gates](release-yml-static-gates.md).
 - **A multi-part spec criterion slices along its own checkboxes** — `specs/rust-core.md`'s Unicode
     contract → 3 steps (filter / 1.1M-code-point proof / 12-binding propagation), not one.
 - **Any step touching the text hot path trips two gates at once**: the CI-only CRAP
