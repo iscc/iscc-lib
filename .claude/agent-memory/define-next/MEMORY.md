@@ -83,59 +83,20 @@ All autonomous v1.0.0-hardening gates landed and are enforcing/green (module vis
     bar with 5 spec'd `normal` `[human]` v0.6.0 issues (#41 GIL, #42 WASM SIMD, #43 Go ISCC-IDv1,
     #49 aarch64 wheels — all DONE — plus dependency refresh) + 2 `normal` release-workflow issues
     (npm OIDC, single-registry re-trigger). v1.0.0 cut + Semver-enforcing HELD by Titusz (`low`).
-- **iters 115–125 DONE (detail in MEMORY-archive.md + learnings.md)**: 115 cargo-deny advisory bump;
+- **iters 115–123 DONE (detail in MEMORY-archive.md + learnings.md)**: 115 cargo-deny advisory bump;
     116 #41 Python GIL detach; 117→118 #42 WASM SIMD (reframe: needs the `blake3/wasm32_simd` Cargo
     feature, not just RUSTFLAGS); 119 #43 Go ISCC-IDv1; 120/121 trailing-byte "too long" guards (Go,
     then Rust core); 122 CI-RED-FIRST `.crap-baseline.json` refresh; 123 #49 aarch64 wheels
-    (release-only infra → STATIC verification: pyyaml `safe_load` + grep); 124/125 dep-refresh
-    slices 1–2. **Root lesson: the CRAP regression gate is CI-ONLY** (not in
-    `mise run check`/pre-commit) — any step adding a branch/loop to a covered fn MUST refresh the
-    baseline in the SAME step.
+    (release-only infra → STATIC verification: pyyaml `safe_load` + grep). **Root lesson: the CRAP
+    regression gate is CI-ONLY** (not in `mise run check`/pre-commit) — any step adding a
+    branch/loop to a covered fn MUST refresh the baseline in the SAME step.
+- **iters 124–129 = the dependency-refresh slices** → full ledger, gotchas, hold-back reasons,
+    remaining slices and version-lookup commands live in
+    [dep-refresh ledger](dep-refresh-ledger.md). Read it before scoping any dep step. Headline rule:
+    **never move a consumer floor (MSRV, `go` directive, `required_ruby_version`, a published
+    binding's compiler) inside a refresh slice** — iter 128 did it by accident and raised the
+    published Kotlin consumer floor to 2.3 (open `[review]` issue, HUMAN REVIEW REQUESTED, CID must
+    not decide it).
 - **Recurring**: the enforcing cargo-deny gate WILL periodically go red on fresh RustSec advisories
     vs dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore
     when a patched release exists.
-- **Dep refresh is sliced per-ecosystem** (~12 manifests, cites no `[audit]` → no 8-file valve):
-    Rust lock → Rust pins → `uv.lock` → each binding-manifest group → tooling pins. Lockfiles are
-    generated → 0 source files; hold a dep back with an inline documented comment, never by
-    disabling a rule/gate.
-- **iter 126: dep-refresh slice 3 = Rust direct pins — DONE** (criterion 0.5→0.7; bench import moved
-    to `std::hint::black_box` because `criterion::black_box` is `#[deprecated]` and `mise run lint`
-    = `clippy --all-targets -D warnings` → **a deprecation IS a hard error in any dep bump**). The 4
-    surviving `# held:` comments in `Cargo.toml` are the authoritative record: criterion 0.8 (MSRV
-    1.86 > declared 1.85 — never raise MSRV for a dev-dep; human policy call at the v1.0.0 cut),
-    magnus 0.8 (`old-api` off by default → `exception::runtime_error()` deprecated at 5 sites in
-    `crates/iscc-rb/src/lib.rs`; rest of 0.8 fits), jni 0.22 (wholesale `JNIEnv`→`Env`/`EnvUnowned`
-    rework per upstream `docs/0.22-MIGRATION.md`, rewrites `crates/iscc-jni/src/lib.rs`), uniffi
-    0.32 (needs Swift+Kotlin regen; no Swift toolchain locally). pyo3 0.29 is already latest.
-- **ruff 0.16 adoption is OVER the 3-file budget** (iter 126, `uvx ruff@0.16.0 check .`): 104 errors
-    over 5 non-test files (`_lowlevel.pyi` 72, `tools/cid.py` 12, `tools/metrics.py`,
-    `scripts/test_install.py`, `iscc_lib/__init__.py`) + `pyproject.toml` → slice it.
-- **iter 127: dep-refresh slice 4 = GitHub Actions in `ci.yml` + `docs.yml` — DONE.** Residue:
-    `.pre-commit-config.yaml` needs NO bump (both pinned repos already latest → the feared mdformat
-    reformat wave is moot); `release.yml` (97 `uses:`) is its own human-timed slice
-    (`upload-artifact@v4` ↔ `download-artifact@v4` must move as a pair, nothing in it is exercised
-    by a CID push). **A floating `@vN` action tag is a convention, NOT a guarantee** — confirm with
-    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`; `releases/latest` is not proof (setup-uv
-    publishes no floating major past v7 → exact tag `@v9.0.0`). That mistake reddened CI mid-127.
-- **iter 128: dep-refresh slice 5 = JVM manifests** (`crates/iscc-jni/java/pom.xml` +
-    `packages/kotlin/build.gradle.kts`). CI-exercised on every develop push AND locally verifiable —
-    the devcontainer HAS **JDK 17 + Maven 3.8.7** (no `gradle` binary, but `./gradlew` works and
-    `~/.gradle` is warm at ~516 MB; `~/.m2` is empty → first `mvn` run downloads). Survey (repo1
-    `maven-metadata.xml`, 2026-07-25): junit-jupiter 5.11.4→5.14.4, gson 2.14.0, maven-compiler
-    3.15.0, surefire 3.5.6, source 3.4.0, javadoc 3.12.0, gpg 3.2.8 (all `prerequisites` maven 3.6.3
-    → local 3.8.7 fine), KGP 2.4.10 (supports Gradle 7.6.3–9.5.0, so the 8.12.1 wrapper stays), JNA
-    5.19.1. **JUnit 6.1.2 deferred** (major: platform artifacts renumbered 1.x→6.x, needs Kotlin
-    ≥2.2 and likely an explicit `testRuntimeOnly junit-platform-launcher` under Gradle 8.12.1).
-    **HELD: `central-publishing-maven-plugin` 0.7.0** — its `deploy` goal runs only in a real Maven
-    Central publish, so nothing local or in CI can verify a bump.
-    - **JNA version is duplicated in 3 doc files** (`README.md`, `packages/kotlin/README.md`,
-        `docs/howto/kotlin.md`) + junit/gson in `crates/iscc-jni/CLAUDE.md` → sync in the same step;
-        `.claude/context/specs/kotlin-bindings.md` names `jna:5.16.0@aar` but is human-owned → leave.
-- **v0.6.0 remaining after slice 5**: `release.yml` GHA bump (human-timed), ruff 0.16 (sliced),
-    magnus 0.8 / jni 0.22 / uniffi 0.32 migrations, remaining manifests (rb `Gemfile`+gemspec, go
-    `go.mod`, napi `package.json` one-liner, dotnet `.csproj` already wildcard-floating) + 2
-    human-gated release-workflow fixes (npm OIDC, single-registry re-trigger). One slice/iteration.
-- **Handy**: crates.io latest via `cargo search <crate> --limit 1`; Maven latest **stable** via
-    `repo1.maven.org/maven2/<path>/maven-metadata.xml` filtered by `^[0-9]+(\.[0-9]+)*$` (its
-    `<latest>` field includes betas/milestones); crate changelogs via
-    `curl -sL https://static.crates.io/crates/<c>/<c>-<ver>.crate | tar xz`. Network works.

@@ -1,0 +1,106 @@
+---
+name: dep-refresh-ledger
+description: Per-slice ledger and hard-won gotchas for the v0.6.0 "Dependency review and refresh" issue — what each slice covered, what is held back and why, and what remains
+metadata:
+  type: project
+---
+
+# Dependency-refresh slice ledger (v0.6.0)
+
+Fact: the `normal` `[human]` issue "Dependency review and refresh across the project" is worked
+**one ecosystem per CID iteration** (~12 manifests). It cites no `[audit]` tag → no 8-file escape
+valve; lockfiles are generated and cost 0 source-file budget.
+
+**Why:** manifests drift between releases because there is no Dependabot/Renovate (deliberate). A
+whole-repo refresh in one step would blow the 3-file cap and make a conformance regression
+un-bisectable.
+
+**How to apply:** pick the next unstarted slice below; hold a dep back with an inline documented
+comment (`# held:` / `// held:` / XML `held:`) beside the pin, never by disabling a rule or gate.
+
+## Golden rules learned the hard way
+
+- **Never move a consumer floor inside a refresh slice.** MSRV, the `go` directive,
+    `required_ruby_version`, `java-version`, `net8.0`, and a *published* binding's compiler version
+    are support-policy decisions reserved for Titusz. Iter 128 broke this accidentally: KGP
+    2.1.10→2.4.10 stamped `mv=[2,4,0]` into the published Kotlin jar and raised the consumer floor
+    to Kotlin 2.3 (open `[review]` issue, HUMAN REVIEW REQUESTED). Cheap detectors:
+    `javap -v -p <class> | grep mv=` on a built jar, plus a throwaway consumer project.
+- **A deprecation IS a hard error in any dep bump** — `mise run lint` is
+    `clippy --all-targets -D warnings` (iter 126, `criterion::black_box`).
+- **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee.** Confirm with
+    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`; `releases/latest` is not proof. `setup-uv`
+    publishes no floating major past v7 → exact tag `@v9.0.0`. Getting this wrong reddened CI
+    mid-127.
+- Every Rust slice is verified with the 4-gate set: `test` / `lint` / `audit` / `bench:iai:check`.
+
+## Slices done
+
+1. **124 — Rust `Cargo.lock`** (`cargo update`, ~100 transitive crates, all pins held).
+2. **125 — Python `uv.lock`** (`uv lock --upgrade`, 40 pkgs incl. iscc-core 1.3.0, ty 0.0.63).
+    Hold-back: `ruff<0.16` in `pyproject.toml`.
+3. **126 — Rust direct pins.** criterion 0.5→0.7 (bench import moved to `std::hint::black_box`). The
+    4 surviving `# held:` comments in root `Cargo.toml` are the authoritative record: criterion 0.8
+    (needs rustc 1.86 > declared 1.85 — never raise MSRV for a dev-dep), magnus 0.8 (`old-api` off
+    by default → `exception::runtime_error()` deprecated at 5 sites in
+    `crates/iscc-rb/src/ lib.rs`), jni 0.22 (wholesale `JNIEnv`→`Env`/`EnvUnowned` rework per
+    upstream `docs/0.22-MIGRATION.md`), uniffi 0.32 (needs Swift+Kotlin regen; no Swift toolchain
+    locally). pyo3 0.29 is already latest.
+4. **127 — GitHub Actions in `ci.yml` + `docs.yml`.** Residue: `.pre-commit-config.yaml` needs NO
+    bump (both pinned repos already latest → the feared mdformat reformat wave is moot).
+5. **128 — JVM manifests** (`crates/iscc-jni/java/pom.xml`, `packages/kotlin/build.gradle.kts`).
+    Devcontainer HAS JDK 17 + Maven 3.8.7 (no `gradle` binary, but `./gradlew` works, `~/.gradle`
+    warm ~516 MB; `~/.m2` empty → first `mvn` run downloads). Landed junit-jupiter 5.14.4, gson
+    2.14.0, compiler 3.15.0, surefire 3.5.6, source 3.4.0, javadoc 3.12.0, gpg 3.2.8, KGP 2.4.10,
+    JNA 5.19.1. HELD: `central-publishing-maven-plugin` 0.7.0 (its `deploy` goal runs only in a
+    real Central publish — unverifiable locally and in CI). JUnit 6.1.2 deferred (platform
+    artifacts renumbered 1.x→6.x). **JNA version is duplicated in 3 doc files** (`README.md`,
+    `packages/kotlin/README.md`, `docs/howto/kotlin.md`) + junit/gson in
+    `crates/iscc-jni/CLAUDE.md` → sync in the same step; `.claude/context/specs/kotlin-bindings.md`
+    is human-owned → leave.
+6. **129 — Go module + `version_sync.py` TARGETS fix** (scoped this iteration).
+
+## Slice 6 facts (Go)
+
+- **Go 1.26.1 IS in the devcontainer.** Run from repo root with `-C` — never `cd`:
+    `CGO_ENABLED=0 go test -C packages/go -count=1 ./...`, `go vet -C packages/go ./...`,
+    `go mod tidy -C packages/go -diff` (exits 0/1 — a clean tidiness criterion).
+- **`go list -m -u all` OVER-reports**: it lists test-only deps of deps (x/tools, x/mod,
+    zeebo/assert) that never enter the build list, so "no updates available" is NOT a reachable
+    verification criterion — grep explicit versions instead.
+- Actual gaps at scoping: `golang.org/x/text` 0.34.0→0.40.0 (its own `go 1.25.0` < our 1.26.1, so no
+    `toolchain` line should appear), `klauspost/cpuid/v2` 2.0.12→2.4.0 (indirect).
+    `zeebo/blake3 v0.2.4` is already latest.
+- **Conformance risk worth naming in next.md**: x/text ships Unicode tables and
+    `packages/go/utils.go` uses `unicode/norm` NFKC inside `TextClean`, which feeds every
+    `Gen*CodeV0`. The vendored `packages/go/testdata/data.json` vectors are the guard.
+
+## Empty / near-empty slices (verified iter 129 — do not churn)
+
+- `crates/iscc-napi/package.json`: `@napi-rs/cli: ^3` already covers latest 3.7.4.
+- `packages/dotnet/*/*.csproj`: test refs float on `17.*` / `2.*` wildcards. Only majors remain
+    (xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x).
+
+## Remaining after slice 6
+
+rb `Gemfile`/gemspec (+`Gemfile.lock`; all `~>` floats — rb_sys must match the
+`oxidize-rb/actions/cross-gem` Docker image tag), `release.yml` GHA refs (97 `uses:`;
+`upload-artifact@v4` ↔ `download-artifact@v4` move as a pair; nothing in it is exercised by a CID
+push → human-timed), ruff 0.16 adoption (**over the 3-file budget**: 104 errors over 5 non-test
+files — `_lowlevel.pyi` 72, `tools/cid.py` 12, `tools/metrics.py`, `scripts/test_install.py`,
+`iscc_lib/__init__.py` — plus `pyproject.toml` → slice it), the magnus 0.8 / jni 0.22 / uniffi 0.32
+migrations (each its own step with a source rewrite), and the Gradle wrapper 8.12.1 + JUnit 6.x
+majors.
+
+## Handy version-lookup commands
+
+- crates.io: `cargo search <crate> --limit 1`; changelog via
+    `curl -sL https://static.crates.io/crates/<c>/<c>-<ver>.crate | tar xz`
+- Maven **stable**: `repo1.maven.org/maven2/<path>/maven-metadata.xml` filtered by
+    `^[0-9]+(\.[0-9]+)*$` (the `<latest>` field includes betas/milestones)
+- npm: `curl -s https://registry.npmjs.org/<pkg>` → `.dist-tags.latest`
+- Go: `curl -s https://proxy.golang.org/<module>/@v/list | sort -V | tail`, and
+    `https://proxy.golang.org/<module>/@v/<ver>.mod` for its `go` directive
+- GitHub Actions: `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`
+
+Network access works from the devcontainer.
