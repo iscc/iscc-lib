@@ -77,6 +77,19 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     older table), then spot-check that code points assigned exactly in N.0 (U+1FAE9, U+113C5,
     U+A7CB) are **absent** — that is what proves the table is 16.0 and not 15.1. Surrogates must be
     absent (`Cs`), noncharacters present (`Cn`)
+- **A data-driven fixture is self-referential — probe whether the suite guards its CONTENT** (iter
+    141): vector tests assert `impl(input) == fixture.output`, so a fixture whose cases were swapped
+    for ASCII no-ops stays green forever. Ask "what does this file *have* to contain?" and check
+    there is an **ungated** assertion on that (code-point set / vector count / declared version) — a
+    heredoc in next.md is not a gate. Add the assertion as a minor fix, then MUTATION-PROBE it: edit
+    the JSON, run the single test target, `git checkout -- <fixture>`. Live example:
+    `crates/iscc-lib/tests/test_unicode_boundary.rs` `BOUNDARY_CODE_POINTS`
+- **Prove a Unicode vector is a LIVE guard, not a hypothetical one** (iter 141, ~20s): the Rust core
+    links `unicode-normalization` 0.1.25 = **Unicode 17.0** tables, so a "unassigned in 16.0" vector
+    only bites if the newer tables would actually change the output. Check with
+    `uv run --no-project --with 'unicodedata2==17.0.0' python -c "…ud.category(c), ud.decomposition(c),   ud.normalize('NFKC', c)"`
+    — U+A7F1 → `Lm` `<super> 0053` → NFKC `S` (leaks as `aSb` if the freeze filter ever moves
+    after normalization), U+20C1 → `Sc`. U+1FAE9/U+113C5 are assigned in both
 - **Docs-site rendering check** (iter 132): `uv run zensical build` reports "No issues found" even
     when an `!!! note` body is mis-indented and degrades to a plain paragraph. Grep the RENDERED
     page — `site/howto/<lang>/index.html` for `<div class="admonition note">` — after any
@@ -92,6 +105,11 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     `git diff HEAD~1..HEAD` for the advance diff (define-next → advance)
 - When HEAD is a previous review commit, the advance is at HEAD~1 and the advance diff is
     `git diff HEAD~2..HEAD~1`. Always verify with `git log --oneline -5` first
+- **`cargo clippy -p iscc-lib --no-default-features --all-targets` has ALWAYS failed** (E0432:
+    `benches/*.rs` import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally; benches need
+    default features). Don't add `--all-targets` to a `--no-default-features` criterion and don't
+    report it as a regression — the workspace `--all-targets` run (default features) is the real
+    gate
 
 ## Prek hook-scope probing (iter 138)
 

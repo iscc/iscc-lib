@@ -62,6 +62,11 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
 
 - **Rust-only**: `cargo test -p iscc-lib` + clippy workspace + `mise run check`
 - **Clippy workspace**: fast (~2s) after build — always run
+- **Test-fixture / vector-file only (iter 141, ~4 min)**: Rust-only shortcut PLUS the full feature
+    matrix (`--no-default-features`, `+text-processing`, `--all-features`) because `#[cfg]` gating
+    decides which tests actually run — assert the per-target `N passed` line, not just exit 0. Then
+    two probes from `review-patterns.md`: the fixture-CONTENT guard (mutation-probe it) and
+    live-vs-hypothetical vector proof. Test assets + docs don't consume the 3-file scope budget
 - **Docs-only**: `mise run check` + clippy + `mise run version:check` (21 `OK:` lines) +
     `uv run zensical build` ("No issues found", ~13s) + rendered-HTML grep for admonition/tab edits
     (recipe → `review-patterns.md`)
@@ -135,4 +140,6 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
 - **It catches downstream-consumer breakage local gates cannot** (128, KGP consumer floor) **and
     input-validation edge cases** (119, trailing-byte decode). Convergence with my own suspicion is
     the cue to VERIFY EMPIRICALLY. **But it does not probe tool-internal classification** — it
-    passed the iter-138 hook-types diff clean while missing the `.pyi` tag hole
+    passed the iter-138 hook-types diff clean while missing the `.pyi` tag hole, and (141) it read a
+    new fixture as "accurate" without asking what happens if the fixture itself is weakened. It
+    reviews what the code *does*, not what the gates *cannot catch* — that gap is mine to cover

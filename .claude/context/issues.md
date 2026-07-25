@@ -282,7 +282,14 @@ iter 133; `text_clean`/`text_collapse` strip before normalization, 5 boundary/in
 regeneration is a no-op diff, CRAP + iai gates green. 🔄 (a2) the full-code-space differential sweep
 proving equivalence to uniform Unicode 16.0 tables — see the sequence caveat in the issue below,
 which must be settled first. 🔄 (b) boundary vectors wired into the Rust suite and all bindings (Go:
-see caveat in point 3); the spec already names 16.0.0 and the freeze rule.
+see caveat in point 3); the spec already names 16.0.0 and the freeze rule. **(b) Rust half done iter
+141**: `crates/iscc-lib/tests/unicode_boundary.json` (ASCII-escaped, `data.json`-shaped, 4 single
+code points × `text_clean`/`text_collapse`) + loader `tests/test_unicode_boundary.rs` (1 ungated
+shape/content guard + 2 `text-processing`-gated vector tests). Sequence vectors deliberately
+excluded pending the ordering ruling; rationale → `decisions.md` 2026-07-25. **Remaining for (b):**
+copy the fixture into the 11 bindings' conformance tests and the four sibling `data.json` locations
+— still blocked on the parked ordering ruling below **and** the Go Unicode-15.0-tables decision
+(point 3).
 
 **Upstream:** iscc/iscc-core — filed 2026-07-25 as <https://github.com/iscc/iscc-core/issues/137>
 ("text_clean/text_collapse output depends on the CPython version"). Reproduced there with

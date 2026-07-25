@@ -43,6 +43,10 @@ fully-met target sections to `learnings-archive.md`.
     `uv run --script <path>`, and add the path to `[tool.ty.src] exclude` with a comment (the
     `packages/cpp/conanfile.py` precedent) — keeps `uv.lock` free of a permanent hold-back.
     Generated Rust must be data-only + rustfmt-stable so regeneration is a no-op diff
+- **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** — `benches/`
+    import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally (E0432); benches require default
+    features. The real feature-matrix gate is `--no-default-features` *without* `--all-targets`
+    (tests compile there because they are `#[cfg]`-gated). Don't mistake it for a fresh regression
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
     dies with "No such file or directory" until `sudo apt-get install -y valgrind` +
     `cargo binstall -y iai-callgrind-runner --version 0.16.1` (MUST match the pin) — CI mirrors this
@@ -65,6 +69,18 @@ fully-met target sections to `learnings-archive.md`.
     Removing a `Cn` code point *before* normalization unblocks contextual transforms `iscc-core`
     (remove *after*) still blocks. A per-code-point sweep cannot see this class — any differential
     sweep must include multi-code-point sequences (base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased)
+- **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141; ASCII
+    `\uXXXX`, `data.json`-shaped, 4 code points × `text_clean`/`text_collapse`) + loader
+    `tests/test_unicode_boundary.rs` — propagation source for every binding, deliberately NOT merged
+    into `data.json` (vendored upstream + hardcoded count asserts; rationale → `decisions.md`). Two
+    vectors are **live** guards: `unicode-normalization` 0.1.25 ships **Unicode 17.0** tables where
+    U+A7F1 is `Lm` `<super> 0053` (NFKC → `S`) and U+20C1 is `Sc`, so both leak the moment the
+    freeze filter stops running first (probe: `uv run --no-project --with 'unicodedata2==17.0.0'`)
+- **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
+    the vector tests compare the implementation against the fixture, so cases swapped for ASCII
+    no-ops keep everything green. The ungated metadata guard therefore asserts the exact non-ASCII
+    code-point set per section (runs under `--no-default-features` too). Mutation-probe any such
+    guard — edit the JSON, watch it fail, `git checkout --` the file
 - `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty
@@ -87,15 +103,11 @@ fully-met target sections to `learnings-archive.md`.
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like every other release job), so the `--ref main` re-trigger breaks for Swift
-- **All 28 non-`prepare-release` `release.yml` jobs carry
-    `if: ${{ !cancelled() && !failure() && (<registry cond>) }}`** (iter 139): a plain `if:` implies
-    `success()` on `needs`, and GitHub propagates `prepare-release`'s *skip* transitively — that is
-    why `-f <registry>=true` published nothing. `!failure()` still reads the job's own `needs`, so a
-    failed build still blocks its publish; never substitute `always()`. **Invariant a new job must
-    preserve:** its `needs` chain must be gated by the same registry flag or a superset (`build-ffi`
-    is `ffi || nuget`) — else relaxing `success()` lets it run against artifacts never built.
-    Rationale → `decisions.md`; no CID push runs this file, so verify statically (`yaml.safe_load` +
-    regex over every `if:`, `actionlint@v1.7.7`)
+- **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.**
+    Verify every edit statically (`yaml.safe_load` + regex over all 29 `if:` values,
+    `actionlint@v1.7.7`). Its registry-guard shape (`!cancelled() && !failure() && (<flag>)` on all
+    28 non-`prepare-release` jobs) and the `needs`-gating invariant a new job must preserve →
+    `learnings-archive.md`
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING Phase 3 (`cargo crap --fail-regression --fail-above`, thresh
@@ -111,33 +123,29 @@ fully-met target sections to `learnings-archive.md`.
     authoritative. A yanked crate or fresh RustSec advisory reds it on ANY push with no code change
     — fix with `cargo update -p <crate>` (confirm dev-only reach: `cargo tree -i <crate> -e no-dev`
     = empty), NOT a `deny.toml` ignore (ignore ONLY when no patched release exists)
-- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue; per-slice status in
-    `issues.md` — every locally-verifiable slice is closed as of iter 140; only human/major-gated
-    bumps remain). Verify each Rust slice with `test`/`lint`/`audit`/`bench:iai:check`. **Hold-back
-    reasons are inline `# held:` comments** beside the pin — confirm the stated reason from registry
-    metadata, not prose: `cargo info <crate>@<ver>`, `gem specification <gem> -v <ver> --remote`,
+- **Dependency refresh (v0.6.0 `[human]` issue) — all nine locally-verifiable slices closed as of
+    iter 140**; only human/major-gated bumps remain (status in `issues.md`). **Hold-back reasons are
+    inline `# held:` comments** beside the pin — confirm the stated reason from registry metadata,
+    not prose: `cargo info <crate>@<ver>`, `gem specification <gem> -v <ver> --remote`,
     `https://rubygems.org/api/v1/versions/<gem>.json`
-- **ruff is 0.16.0 since iter 137** (adoption history + invocation gotchas →
-    `learnings-archive.md`): preview any future major with `uvx ruff@X.Y.Z check .` — it never
-    touches `uv.lock`, so a hold-back pin can stay in `pyproject.toml` until the tree is clean.
-    **0.16 formats Python code blocks inside Markdown**, so bare `ruff format --check` (CI +
-    `mise run lint`) covers every tracked `.md` too, not just the 25 `.py`; prek hooks are
-    `types_or: [python, pyi, markdown]` (`ruff-format`) / `[python, pyi]` (`ruff-check`) since iters
-    138–139 — local is a strict superset of CI. Rules go in `[tool.ruff.lint] extend-select` —
-    **never `select`**, which drops ruff's `E4`/`E7`/`E9`/`F` defaults; every `[tool.ruff*]` setting
-    carries its rationale as an inline comment in `pyproject.toml`. **Never `ruff check --fix .`**
-    without `--select` — a blanket fix deletes the 13 load-bearing `# noqa: S603/S607` in `tools/`+
-    `scripts/` and reds the pre-push security gate
+- **ruff is 0.16.0 since iter 137** (adoption history, Markdown-fence widening and hook-surface
+    caveats → the two `learnings-archive.md` sections): preview a future major with
+    `uvx ruff@X.Y.Z check .` — it never touches `uv.lock`. prek hooks are
+    `types_or: [python, pyi, markdown]` (`ruff-format`) / `[python, pyi]` (`ruff-check`), a strict
+    superset of CI. Rules go in `[tool.ruff.lint] extend-select` — **never `select`**, which drops
+    ruff's `E4`/`E7`/`E9`/`F` defaults; every `[tool.ruff*]` setting carries its rationale as an
+    inline comment in `pyproject.toml`. **Never `ruff check --fix .`** without `--select` — a
+    blanket fix deletes the 13 load-bearing `# noqa: S603/S607` in `tools/`+`scripts/` and reds the
+    pre-push security gate
 - **A file-mode change needs `git update-index --chmod=+x`, not just `chmod`** (iter 136): with
     `core.fileMode=false` here a plain `chmod +x` is invisible to git — run both, prove it with
     `git ls-files -s <path>` → `100755`
-- **A prek `types:` tag is not a file-extension guess — probe it** (gap found 138, closed 139): prek
-    classifies `.pyi` as `pyi`, **not** `python`, so a bare `types: [python]` silently skipped the
-    published `_lowlevel.pyi` that CI's bare `ruff check`/`ruff format` do cover; both hooks now
-    carry `pyi`. Prove a hook's real surface with a **staged, deliberately dirty** probe file:
-    `uv run prek run <hook> --files <probe>` — `(no files to check) Skipped` means the tag misses,
-    `files were modified by this hook` proves it bites (that line appears only for *tracked* files,
-    so `git add` first). Formatter/pseudo-code-fence caveats → `learnings-archive.md`
+- **A prek `types:` tag is not a file-extension guess — probe it** (`.pyi` is tagged `pyi`, not
+    `python`; that hole silently skipped the published `_lowlevel.pyi`, closed iter 139). Prove a
+    hook's real surface with a **staged, deliberately dirty** probe file:
+    `uv run prek run <hook> --files <probe>` — `Skipped` means the tag misses,
+    `files were modified   by this hook` proves it bites (tracked files only, so `git add` first).
+    Formatter caveats → `learnings-archive.md`
 - **A binding-toolchain bump can silently raise the *consumer* floor** — treat compiler/toolchain
     bumps in a *published* binding as support-policy changes reserved for Titusz, not pins. Current
     floor "Kotlin 2.3 or newer"; the `mavenLocal` proof recipe and the four docs that must move
@@ -153,18 +161,11 @@ fully-met target sections to `learnings-archive.md`.
     publishing floating majors after `v7` → pin `@v9.0.0` with a `# exact tag:` comment;
     `rubygems/configure-rubygems-credentials` publishes only exact tags (no `v2`). Current majors →
     `.claude/agent-memory/advance/deps-refresh.md`
-- **An action-major bump is statically verifiable far past "the tag exists"** (iter 140, 9 refs / 73
-    lines in the unexercised `release.yml`): fetch each new major's `action.yml` at the tag ref
-    (`raw.githubusercontent.com/<o>/<r>/<vN>/action.yml`) and assert every `with:` key still appears
-    under `inputs`, every `steps.<id>.outputs.<x>` the workflow reads still appears under `outputs`
-    (`cache@v6` keeps `cache-hit`), and `runs.using` is runner-supported — collect the real key sets
-    with `yaml.safe_load`, not greps. Then read every intervening major's release notes for
-    *default* changes: an input surviving is not its default surviving. Two that bite silently —
-    `setup-node@v5+` auto-enables package-manager caching when `package.json` has a `packageManager`
-    field and then *fails* with no lockfile (safe here: neither exists — re-check before adding
-    either); `checkout@v6+` persists the auth token to `$RUNNER_TEMP` instead of `.git/config`, so
-    plain `git push`/`fetch` still work (`prepare-release` is fine) but authenticated git inside a
-    *Docker container action* needs runner ≥ 2.329.0
+- **An action-major bump is statically verifiable far past "the tag exists"** — fetch each new
+    major's `action.yml` at the tag ref and diff its declared `inputs`/`outputs` against what the
+    workflow passes and reads, then read every intervening major's notes for *default* changes (an
+    input surviving is not its default surviving). Full recipe + the two silent biters
+    (`setup-node@v5+` caching, `checkout@v6+` token location) → `learnings-archive.md`
 - **ci.yml sets `cancel-in-progress: true` per ref** — pushing a follow-up develop commit cancels
     the in-flight run of the previous sha (check-runs conclude `cancelled`, not `failure`); when a
     Done-When needs green CI on a specific sha, let it conclude first. Each develop commit triggers

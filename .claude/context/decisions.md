@@ -373,3 +373,32 @@ on a digest mismatch, the fix is to investigate the artifact, not to relax the i
 checks that stand in for a run are currently re-typed by hand each iteration; landing them as a
 `scripts/` gate is filed as a `[review]` issue. **Context:** CID iteration 140 (`ed2a06a`) review,
 closing the `release.yml` remainder of the v0.6.0 dependency-refresh issue.
+
+## 2026-07-25 — Unicode 16.0 boundary vectors ship as a second fixture file, duplicating the inline assertions
+
+**Decision:** the declared-Unicode-version boundary vectors live in a new
+`crates/iscc-lib/tests/unicode_boundary.json` + `tests/test_unicode_boundary.rs`, not in the
+vendored `crates/iscc-lib/tests/data.json`; the four equivalent inline assertions in
+`crates/iscc-lib/src/utils.rs` are deliberately **kept**, so the same expectations are asserted
+twice; the fixture covers **single code points only**, no sequences; and `conformance_selftest()`
+was **not** extended to run it. **Why:** `data.json` is a re-vendored upstream artifact whose vector
+counts are hardcoded in Rust core and WASM tests, so merging project-authored vectors into it would
+break the next re-vendor and force count-assert churn in two crates. The inline `utils.rs` tests
+cover the private `is_unassigned_in_unicode16` helper (which the public-API fixture cannot reach)
+and deleting them would move coverage and force a `.crap-baseline.json` refresh in a step that
+otherwise touches no source file. Sequences are excluded because the open `[review]` issue
+"Freeze-rule ordering diverges from iscc-core on sequences" is unresolved — any `base + Cn + mark`,
+`jamo + Cn + jamo` or `Σ + Cn + cased` expectation would have to be re-derived after the ruling,
+twice over once the fixture is copied into 11 bindings. `conformance_selftest()` is a Tier 1 symbol
+exposed in all 12 bindings; changing what it runs is an API-semantics decision, not a test-fixture
+decision. **Alternatives:** append the vectors to `data.json` — rejected (re-vendor + count
+asserts); replace the inline assertions with the fixture — rejected (private-helper coverage, CRAP
+baseline churn); include sequence vectors now — rejected (blocked on the parked ruling); extend
+`conformance_selftest()` — rejected, deferred to its own scoped package. **Consequence:** the
+duplication is the specified end state, not debt; a future reader finding the same four code points
+in two places should not "clean up" either copy. Because the vector tests compare the implementation
+against the fixture, the fixture's own content is guarded by an ungated assertion on the exact
+non-ASCII code-point set per section (added in review) — without it a weakened fixture would still
+pass every test. **Context:** CID iteration 141 (`918f8f4`), Rust half of `specs/rust-core.md`
+criterion 3; binding propagation (step b) stays blocked on the ordering ruling and the Go
+Unicode-15.0-tables decision.

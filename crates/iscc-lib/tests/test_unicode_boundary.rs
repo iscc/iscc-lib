@@ -8,13 +8,21 @@
 
 const BOUNDARY_DATA: &str = include_str!("unicode_boundary.json");
 
+/// The four boundary code points every section must exercise: two assigned in
+/// Unicode 16.0 (`So`, `Mc`) that must survive, and two unassigned in 16.0
+/// (assigned in 17.0) that the freeze filter must strip before normalization.
+const BOUNDARY_CODE_POINTS: [char; 4] = ['\u{1FAE9}', '\u{113C5}', '\u{20C1}', '\u{A7F1}'];
+
 /// Parse the vendored boundary fixture into a JSON value.
 fn boundary_data() -> serde_json::Value {
     serde_json::from_str(BOUNDARY_DATA).expect("unicode_boundary.json must be valid JSON")
 }
 
 /// Anti-silent-skip guard: the fixture declares Unicode 16.0.0 and both
-/// sections parse with exactly 4 cases, even when `text-processing` is off.
+/// sections parse with exactly 4 cases covering exactly the four boundary code
+/// points, even when `text-processing` is off. Without the code-point check a
+/// weakened fixture (cases replaced by ASCII no-ops) would still pass every
+/// vector test, because those compare the implementation against this file.
 #[test]
 fn test_boundary_fixture_metadata() {
     let data = boundary_data();
@@ -23,6 +31,8 @@ fn test_boundary_fixture_metadata() {
         Some("16.0.0"),
         "fixture must declare Unicode data version 16.0.0"
     );
+    let mut want = BOUNDARY_CODE_POINTS;
+    want.sort_unstable();
     for section in ["text_clean", "text_collapse"] {
         let cases = data[section]
             .as_object()
@@ -31,6 +41,23 @@ fn test_boundary_fixture_metadata() {
             cases.len(),
             4,
             "section {section} must have exactly 4 cases"
+        );
+        let mut covered: Vec<char> = cases
+            .values()
+            .flat_map(|tc| {
+                tc["inputs"][0]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("section {section} case must have a string input"))
+                    .chars()
+            })
+            .filter(|c| !c.is_ascii())
+            .collect();
+        covered.sort_unstable();
+        covered.dedup();
+        assert_eq!(
+            covered,
+            want.to_vec(),
+            "section {section} must cover exactly the four boundary code points"
         );
     }
 }

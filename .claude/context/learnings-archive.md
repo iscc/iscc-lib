@@ -785,3 +785,32 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
 - The `.pyi` hole (prek types `.pyi` as `pyi`, not `python`) was found iter 138 and closed iter 139
     by adding `pyi` to both ruff hooks' `types_or`; CI's bare `ruff check`/`ruff format` always
     covered the published `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`.
+
+## CI/CD — GitHub Action major-bump static verification (archived iter 141, dep-refresh slices 4+9 done)
+
+- Statically verifiable far past "the tag exists" (iter 140, 9 refs / 73 lines in the unexercised
+    `release.yml`): fetch each new major's `action.yml` at the tag ref
+    (`raw.githubusercontent.com/<o>/<r>/<vN>/action.yml`) and assert with `yaml.safe_load` (never
+    greps) that every `with:` key still appears under `inputs`, every `steps.<id>.outputs.<x>` the
+    workflow reads still appears under `outputs` (`cache@v6` keeps `cache-hit`), and `runs.using` is
+    runner-supported.
+- Then read every intervening major's release notes for *default* changes: an input surviving is not
+    its default surviving. Two that bite silently — `setup-node@v5+` auto-enables package-manager
+    caching when `package.json` has a `packageManager` field and then *fails* with no lockfile (safe
+    here: neither exists — re-check before adding either); `checkout@v6+` persists the auth token to
+    `$RUNNER_TEMP` instead of `.git/config`, so plain `git push`/`fetch` still work
+    (`prepare-release` is fine) but authenticated git inside a *Docker container action* needs
+    runner ≥ 2.329.0.
+- `download-artifact@v8` defaults to `digest-mismatch: error`; it is deliberately left strict for a
+    publish pipeline (rationale → `decisions.md` 2026-07-25).
+
+## CI/CD — release.yml registry-guard shape (archived iter 141, iter-139 fix landed)
+
+- All 28 non-`prepare-release` jobs carry
+    `if: ${{ !cancelled() && !failure() && (<registry cond>) }}`. A plain `if:` implies `success()`
+    on `needs`, and GitHub propagates `prepare-release`'s *skip* transitively — that is why
+    `-f <registry>=true` published nothing. `!failure()` still reads the job's own `needs`, so a
+    failed build still blocks its publish; never substitute `always()`.
+- **Invariant a new job must preserve:** its `needs` chain must be gated by the same registry flag
+    or a superset (`build-ffi` is `ffi || nuget`) — else relaxing `success()` lets it run against
+    artifacts never built. Full rationale → `decisions.md` 2026-07-25.
