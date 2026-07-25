@@ -85,12 +85,11 @@ iterations.
     pyyaml `safe_load` + grep). **Root lesson: the CRAP regression gate is CI-ONLY** (not in
     `mise run check`/pre-commit) — any step adding a branch/loop to a covered fn MUST refresh the
     baseline in the SAME step.
-- **iters 124–137 = the dependency-refresh slices** → ledger, gotchas, hold-back reasons, remaining
-    slices and version-lookup commands: [dep-refresh ledger](dep-refresh-ledger.md). Read it before
+- **iters 124–137 = the dependency-refresh slices, all 8 now CLOSED** → ledger, gotchas, hold-back
+    reasons and version-lookup commands: [dep-refresh ledger](dep-refresh-ledger.md). Read it before
     scoping any dep step. Headline rule: **never move a consumer floor (MSRV, `go` directive,
     `required_ruby_version`, a published binding's compiler) inside a refresh slice** — iter 128 did
-    it by accident and raised the published Kotlin floor to 2.3. All 7 per-ecosystem slices closed;
-    slice 8 = ruff 0.16 sub-sliced A–E, E scoped iter 137 closes it.
+    it by accident and raised the published Kotlin floor to 2.3.
 - **A lint-tool major bump is not one step.** Slice by *what decision each finding needs*
     (mechanical / gate-interacting / config-requiring), not by file. Probe candidate settings
     without touching the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>` — and
@@ -101,22 +100,29 @@ iterations.
     bare `ruff format --check` in CI silently widened 25 → 153 files. Before scoping a pin drop, run
     the *bare* gate command under the new version and compare the reported **file count**, not just
     the exit code.
+- **Probe a hook-config change with `prek run -c /tmp/probe.yaml <hook> --files <probe>` instead of
+    editing the real config** — define-next may not touch `.pre-commit-config.yaml`, and prek's
+    global `-c` accepts any path while still resolving files inside the repo. Stage the probe file
+    (`git add`) if you need prek to report `files were modified by this hook`; on an untracked file
+    it silently reports Passed. Clean up with `git restore --staged` + `rm`.
+- **Gate-parity claims from review are hypotheses — measure the surfaces yourself.** Iter 138: the
+    filed issue said no local hook covers Markdown, but `mdformat-mkdocs[recommended]` pulls in
+    `mdformat-ruff`, whose codeformatter entry point covers the fence tag `python` **only**; ruff
+    also formats `py`/`python3`/`pycon`. The real gap was three fence tags, not all Markdown. Check
+    `entry_points(group='mdformat.codeformatter')` before scoping.
+- **File-count identity for the ruff formatter surface (HEAD, iter 138):** bare
+    `ruff format --check` = **153** = 129 tracked `.md` + 24 `.py` + 1 `.pyi` − 1
+    tracked-but-gitignored `.claude/plans/*.md` (recursive discovery honours `.gitignore`;
+    explicitly-named paths bypass exclusions unless `--force-exclude`). Bisect a discovery mismatch
+    by running the tool per top-level dir and comparing to `git ls-files`.
 - **A lint *config* change moves the finding set, it does not only shrink it** (iter 135: isort
     `src` cleaned 3 test files and dirtied a previously-green benchmark file). Re-run the full-tree
     check *with* the candidate config before counting files against the budget.
-- **A stale in-repo comment is not worth blowing the file budget for** (iter 136, the `# held:` note
-    on the `ruff<0.16` pin): leave it for the step that retires the thing it annotates, and say so
-    in `## Not In Scope` so review reads it as deliberate, not missed.
-- **`core.fileMode=false` (9p Windows bind mount) means `chmod +x` alone never lands in a commit** —
-    `git update-index --chmod=+x <path>` is also required, run *after* `git add`, verified with
-    `git diff --cached --summary`. The `+x`/`-x` round-trip is safe to probe while scoping.
-- **Both formerly-parked `[review]` policy calls were DECIDED by Titusz 2026-07-25** (commits
-    `8d267ff`, `8358eba`) → four criteria in `specs/kotlin-bindings.md` + `specs/rust-core.md`.
-    Done: Kotlin floor docs (132), Unicode freeze filter (133), ruff B/C/D (134–136). **Open
-    backlog:** the full-code-space differential sweep (own step, own harness) and the boundary
-    vectors in the Rust suite + all 12 bindings — both parked behind the `[review]` ordering ruling;
-    the vectors also need an explicit Go decision (Go is on 15.0 tables until go1.27 ≈ Aug 2026:
-    vendor the 15.0→16.0 delta or skip-with-note).
+- **Open Unicode backlog** (both DECIDED by Titusz 2026-07-25, `specs/rust-core.md`): the
+    full-code-space differential sweep (own step, own harness) and the boundary vectors in the Rust
+    suite + all 12 bindings — both parked behind the `[review]` ordering ruling; the vectors also
+    need an explicit Go decision (Go is on 15.0 tables until go1.27 ≈ Aug 2026: vendor the 15.0→16.0
+    delta or skip-with-note). Kotlin floor docs (132) and the freeze filter (133) are done.
 - **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it** (iters 134–137: the
     Unicode ruling parked 2 criteria, so the steps went to the unblocked ruff slices). If a blocked
     slice's *only* consumer is the parked propagation, its marginal value is low — take the

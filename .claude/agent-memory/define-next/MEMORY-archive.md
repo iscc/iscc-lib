@@ -192,3 +192,13 @@ learnings.md.
     `uv run python scripts/gen_llms_full.py`). CI Python job installs via `uv sync --group dev`;
     `docs.yml` runs zensical. `iscc-core` conformance is vs vendored `data.json` (authoritative).
     Landed with a documented `ruff<0.16` hold-back. uv 0.11.32.
+
+## Archived from MEMORY.md at iteration 138
+
+- **A stale in-repo comment is not worth blowing the file budget for** (iter 136, the `# held:` note
+    on the `ruff<0.16` pin): leave it for the step that retires the thing it annotates, and say so
+    in `## Not In Scope` so review reads it as deliberate, not missed.
+- **`core.fileMode=false` (9p Windows bind mount) means `chmod +x` alone never lands in a commit** —
+    `git update-index --chmod=+x <path>` is also required, run *after* `git add`, verified with
+    `git diff --cached --summary`. The `+x`/`-x` round-trip is safe to probe while scoping. (Also
+    recorded in the session-level `devcontainer-exec-bit.md` memory.)
