@@ -8,13 +8,14 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 
 - **Per-crate READMEs / CLAUDE.md** (12 each): `ls crates/*/{README.md,CLAUDE.md} packages/*/…`
 - **Authoritative CI status** (sandbox `gh run list` is STALE — old ancestor SHAs):
-    `gh api repos/iscc/iscc-lib/commits/<tip-sha>/check-runs --jq '.check_runs[]|{name,conclusion}'`
-    on the real origin/develop tip. **Failed logs**: `gh run view <id> --log-failed`.
+    `gh api "repos/iscc/iscc-lib/commits/<tip-sha>/check-runs?per_page=100"` on the real
+    origin/develop tip — **QUOTE the path**, zsh treats `?` as a glob and errors "no matches found".
+    **Failed logs**: `gh run view <id> --log-failed`.
 - **Unpushed check**: `git log --oneline origin/develop..HEAD` (code after the last CI sha is
     UNVERIFIED). Usual: HEAD = +1 log-only commit — NOT guaranteed (iter 121 had none).
 - **Tier 1 pub fns**: `grep -rn "pub fn gen_\|pub const " crates/iscc-lib/src/lib.rs`; **C FFI
     externs**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
-- **Counts** (re-verified 130): pytest-benchmark 18; UniFFI exports 32; llms-full ORDERED_PAGES 22;
+- **Counts** (re-verified 131): pytest-benchmark 18; UniFFI exports 32; llms-full ORDERED_PAGES 22;
     `docs/howto/*.md` 11; speedup 1.3x-158x; release.yml toggles 8; ffi extern 47; iscc-lib
     `#[test]` = **320** (`grep -rc --include="*.rs" crates/iscc-lib/`; src/\*.rs alone = 270);
     ci.yml job entries 19 = `grep -cE '^  [a-z_-]+:$' ci.yml` minus 2 (`push`/`pull_request`).
@@ -29,17 +30,16 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Perf (iai-callgrind)** — ENFORCING, GREEN. `scripts/iai_regression.py --check` fails >10% Ir vs
     `.iai-baseline.json` (16 entries). GOTCHA: the nearby `continue-on-error` is the SEMVER job's.
 - **Coverage + CRAP** — one job, ENFORCING: cargo crap `--fail-regression` + `--fail-above` (30.0
-    via `.cargo-crap.toml`); baseline `.crap-baseline.json` (97 entries), max CRAP ~22.3. **GOTCHA —
-    `--fail-regression` is CI-ONLY, not in `mise run check`/pre-commit**: a new branch/loop in a
-    covered fn → `↑ N regressed` → exit 1 despite a GREEN local check (bit iter 121). Fix = refresh
-    that entry in the SAME step as the source change.
+    via `.cargo-crap.toml`); baseline `.crap-baseline.json` (97 entries), max ~22.3. **GOTCHA —
+    `--fail-regression` is CI-ONLY, not in `mise run check`**: a new branch/loop in a covered fn →
+    exit 1 despite a GREEN local check (bit 121). Fix = refresh that entry in the SAME step.
 - **Audit (cargo-deny)** — ENFORCING: `cargo-deny@0.19.9` → `cargo deny check`; root `deny.toml`
     (v2, 2 dev-bench ignores); `mise run audit`. **GOTCHA — live advisory DB flips this red with NO
     code change**: fix via `cargo update -p <crate>` (preferred) or justified `ignore`. NOT in
     devcontainer → green CI job is the only real confirmation.
-- **Semver (cargo-semver-checks)** — `continue-on-error: true` (informational until v1.0.0); its
-    conclusion does NOT flip the run. rust-core.md box `[ ]` = the one genuinely-unmet core
-    criterion (needs enforcing + ≥1.0.0, HELD by Titusz); ci-cd.md `[x]`.
+- **Semver (cargo-semver-checks)** — `continue-on-error: true` (informational until v1.0.0), its
+    conclusion does NOT flip the run. rust-core.md box `[ ]` = unmet (needs enforcing + ≥1.0.0, HELD
+    by Titusz); ci-cd.md `[x]`.
 
 ## Codebase Landmarks
 
@@ -55,21 +55,17 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - `packages/swift/` + root `Package.swift` — `useLocalFramework` toggle, `.binaryTarget`
     `releaseTag`/`releaseChecksum`; `scripts/build_xcframework.sh` = 5 Apple targets.
     `packages/kotlin/` — Kotlin/JVM + JNA, Gradle wrapper major deferred; JVM pins + the
-    **consumer-floor trap** → `dep-refresh-survey.md`.
-- **`packages/kotlin/README.md` FIXED iter 129** — `0.5.0`, now in version_sync TARGETS; no `0.3.1`
-    left in repo. `specs/kotlin-bindings.md` L150+L165 still say `jna:5.16.0@aar` (human-owned).
-- **Unicode version = UNPINNED cross-impl variable** (iter 129 `[review]` issue, HUMAN REVIEW):
+    **consumer-floor trap** → `dep-refresh-survey.md`. README fixed to `0.5.0` + version_sync'd
+    (129); `specs/kotlin-bindings.md` L150+L165 still say `jna:5.16.0@aar` (human-owned).
+- **Unicode version = UNPINNED cross-impl variable** (iter 129 `[review]`, HUMAN REVIEW):
     `utils.rs:28-32` strips `GeneralCategory::Unassigned` via `unicode-general-category` 1.1.0 =
-    **U16** (+`unicode-normalization` 0.1.25 = U17), but Go stdlib = 15.0.0, CPython 3.13 = 15.1.0 →
-    U16/U17 chars (`Ɤ` U+A7CB) KEPT by Rust, STRIPPED by Go/`iscc-core`; 5,813 `text_clean` + 5,750
-    `text_collapse` diffs → divergent Meta/Text codes. All vectors predate U16, NO gate catches it;
-    Rust core is the outlier, 10 non-Go bindings inherit. Confirm:
-    `python3 -c "import unicodedata as u; print(u.unidata_version, u.category('Ɤ'))"`.
+    **U16** (+`unicode-normalization` 0.1.25 = U17) vs Go 15.0.0 / CPython 3.13 15.1.0 → U16/U17
+    chars (`Ɤ` U+A7CB) KEPT by Rust, STRIPPED by Go+`iscc-core`; 5,813 `text_clean` diffs →
+    divergent Meta/Text codes. Rust core = the outlier; no gate catches it (vectors predate U16).
 - `crates/iscc-lib/src/streaming.rs` — `DataHasher`+`InstanceHasher` re-exported at crate root;
     `SumHasher` only via `streaming::` (drives `gen_sum_code_v0`; wrappers in iscc-py, iscc-wasm).
-- `crates/iscc-wasm/Cargo.toml` — the `blake3 = { features = ["wasm32_simd"] }` dep (iter 118, #42)
-    is feature-unification only; there is no `use blake3` — **don't prune it** →
-    `MEMORY-archive.md`.
+- `crates/iscc-wasm/Cargo.toml` — the `blake3 = { features = ["wasm32_simd"] }` dep (118, #42) is
+    feature-unification only, no `use blake3` — **don't prune it** → `MEMORY-archive.md`.
 - `crates/iscc-py/src/lib.rs` — `grep -c '\.detach('` = **12** GIL-release sites (GIL #39+#41 DONE);
     video detach opens strictly AFTER frame extraction; meta/audio/mixed stay attached by design.
 - `crates/iscc-lib/benches/` — `benchmarks.rs` 12 criterion benches (criterion 0.7, `black_box` from
@@ -78,6 +74,10 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Inline `# held:` comments = authoritative pin rationale**: root `Cargo.toml` (`grep -c '# held'`
     → **4**: criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32 + a pyo3 `# note:` → #41) and
     `pyproject.toml` (`ruff<0.16`); MSRV recipe: `cargo info <crate>@<ver>`.
+- **`rb_sys` pinned in THREE places that must move together** (iter 130): `crates/iscc-rb/Gemfile`
+    (exact `0.9.123`), `Gemfile.lock`, `tag:` at `release.yml:853` — it bundles
+    `rake-compiler-dock (= 1.10.0)`, must match the cross-gem Docker image. 2nd `held:` =
+    `minitest ~> 5.0` (6.x needs Ruby ≥3.2 > gemspec floor 3.1). Gemspec has NO dev deps.
 - **Full dependency-pin inventory + slice history** → `dep-refresh-survey.md` (re-verified 129).
     Headlines: ci.yml/docs.yml GHA refs CURRENT (setup-uv = EXACT tag `@v9.0.0`); release.yml lags
     and has **no setup-uv step** (issues.md claims otherwise — wrong); `mise.toml` has no `[tools]`.
@@ -94,31 +94,29 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     at 0/N checked though MET; only `ci-cd.md` (44/52) + the `rust-core.md` semver box are
     maintained. Verify in code, never read boxes as done/not-done.
 
-## Current State (assessed-at: b83b1ee, iter 130)
+## Current State (assessed-at: 2dee913, iter 131)
 
 - **IN_PROGRESS — CI GREEN.** v0.5.0 released, all 12 bindings meet CORE criteria. Partially met:
-    Rust-core (semver-enforcing/v1.0.0 HELD **plus** the new Unicode conformance divergence), CI/CD
-    (dep freshness in progress). Per-Crate READMEs now MET (kotlin README fixed 129). Kotlin = met
-    on criteria but has a release-blocking `[review]` issue. Every other section MET.
-- **CI GREEN on origin/develop tip `9273743`** (= iter-129 review PASS commit; HEAD `b83b1ee` = +1
-    UNPUSHED log-only commit, iterations.jsonl only). **41** check-runs, 21 distinct names, 0
-    non-success, 0 running. Count is ~2x the job count because PR **#44 "Release 0.6.0"
-    (develop→main) is OPEN** → every develop commit fires both a `push` and a `pull_request` run.
-- **Dependency-refresh SLICED, in progress** (`normal` `[human]`, spec `ci-cd.md`→Dependency
-    Freshness; no `[audit]` cite = no 8-file valve). Slices 1-6 DONE (Cargo.lock 124, uv.lock 125,
-    Rust pins 126, GHA refs 127, JVM manifests 128, go.mod 129); napi+dotnet closed as
-    verified-current (no edit). **Only CID-doable slice left = rb manifests**; then ruff 0.16 /
-    magnus 0.8 / jni 0.22 migrations. Rationale + inventory → `dep-refresh-survey.md`.
-- **7 issues: 0 critical, 5 normal, 2 low.** TWO carry HUMAN REVIEW REQUESTED (`[review]`, both
-    policy calls Titusz owns; CID may only execute the docs-only option once picked): Kotlin
-    consumer floor 2.3 (iter 128) and the Unicode 16/17 divergence (NEW iter 129). Other normal =
-    dep refresh (CID-doable) + npm OIDC + single-registry re-trigger (both human-gated). low (CID
-    skips) = v1.0.0 (HELD), docs logos.
-- **Don't re-flag as new work** (all DONE): dep slices 1-6 + c-cpp anchor (124-129), aarch64 wheels
+    Rust-core (semver-enforcing/v1.0.0 HELD **plus** the Unicode conformance divergence), CI/CD (dep
+    freshness: only ruff 0.16 left autonomously). Kotlin = met on criteria but has a
+    release-blocking `[review]` issue. Every other section MET.
+- **CI GREEN on origin/develop tip `03a92f5`** (= iter-130 review PASS commit; HEAD `2dee913` = +3
+    UNPUSHED context-only commits — `iterations.jsonl` + `metrics.jsonl`). **41** check-runs, 21
+    distinct names, 0 non-success, 0 running. Count is ~2x the job count because PR **#44 "Release
+    0.6.0" (develop→main) is OPEN** → every develop commit fires a `push` AND a `pull_request` run.
+- **Dependency-refresh: ALL 7 per-ecosystem slices DONE** (`normal` `[human]`, spec
+    `ci-cd.md`→Dependency Freshness; no `[audit]` cite = no 8-file valve): Cargo.lock 124, uv.lock
+    125, Rust pins 126, GHA refs 127, JVM 128, go.mod 129, Ruby 130; napi+dotnet+pre-commit closed
+    verified-current. **Last CID-doable item = ruff 0.16**, then magnus 0.8 / jni 0.22 (source
+    rewrites) → after ruff the loop likely goes IDLE pending the 2 `[review]` calls.
+- **7 issues: 0 critical, 5 normal, 2 low.** TWO carry HUMAN REVIEW REQUESTED (`[review]`, policy
+    calls Titusz owns; CID may only execute the docs-only option once picked): Kotlin consumer floor
+    2.3 (128) + Unicode 16/17 divergence (129). Other normal = dep refresh (CID-doable), npm OIDC,
+    single-registry re-trigger (human-gated). low (CID skips) = v1.0.0 (HELD), docs logos.
+- **Don't re-flag as new work** (all DONE): dep slices 1-7 + c-cpp anchor (124-130), aarch64 wheels
     #49 (123), CRAP baseline (122), trailing-byte fixes (120-121), Go IDv1 #43 (119), WASM SIMD #42
-    (118), GIL #39+#41, cargo-deny + CRAP `--fail-above` (113), iai perf gate (107-111), PyO3 #1,
-    semver gate (93), npm #38, SumHasher #37. CID infra (audit role, metrics.jsonl, decisions.md,
-    escape valve) = meta, NOT target sections — ignore for met/not-met.
+    (118), GIL #39+#41, cargo-deny (113), iai perf gate (107-111), semver gate (93). CID infra
+    (audit role, metrics.jsonl, decisions.md, escape valve) = meta, NOT target — ignore.
 - **Known non-regression**: the `proc-macro-error2 v2.0.1` future-incompat warning on cargo
     test/bench comes from `iai-callgrind-macros` (dev-only), NOT magnus/rb-sys; no upstream fix yet.
 
@@ -131,6 +129,9 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     nested/escaped backticks in a code span or a wrapped line starting `+`/`-`/`>` — reword those.
 - **live advisory DB** — cargo-deny `advisories` can turn a previously-green gate red with no code
     change (see Audit gate).
+- **metrics.jsonl counts include gitignored build artifacts** — post-`rake compile`,
+    `crates/iscc-rb` jumped 8→12 files / 9→18 `unsafe` purely from `tmp/*/stage/` copies (`vendor/`
+    IS excluded). Never read a metrics delta as real code change without `git diff --stat`.
 - **Gradle flakes on this bind mount** (incremental-state `Unable to delete file …/build/kotlin/…`)
     — always `./gradlew clean` before believing a Kotlin build failure; check the test XML first.
 - Go = pure Go only (no WASM/wazero/binaries). **csbindgen** runs on every `cargo build`
