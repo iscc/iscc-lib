@@ -1,8 +1,8 @@
 """Tests for algorithm primitive functions exposed via Python bindings."""
 
 import iscc_core
-from iscc_lib import alg_cdc_chunks, alg_minhash_256, alg_simhash
 
+from iscc_lib import alg_cdc_chunks, alg_minhash_256, alg_simhash
 
 # ── alg_simhash ────────────────────────────────────────────────────────────
 

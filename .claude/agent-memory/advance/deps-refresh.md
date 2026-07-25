@@ -82,14 +82,22 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
     valid) and `_`-prefixed 6 RUF059 unused unpackings in `tests/test_new_symbols.py`.
 - Slice B (iter 134): `[tool.ruff.lint] extend-select = ["S", "C901"]` in pyproject.toml (NEVER
     `select` — it replaces the pyflakes defaults). All 15 `RUF100` cleared: 14 `# noqa: S603/S607`
-    became recognised, one genuinely-unused `S603` deleted in `tools/metrics.py` `git_sha()` (0.16
-    refined S603 to skip static list-literal argv; dynamic-argv directives MUST stay), plus a stale
-    `PLC0415` in `tools/cid.py:980`. Pre-push `--select S` / `--select C901` hooks kept
-    intentionally (redundant but name the failing gate).
-- **12 findings remain**, each needing a decision: `I001` 8 + `RUF022` 1 (isort src-root config
-    decision — slice C; `__init__.py` + tests + bench), `RUF007` 1
-    (`scripts/gen_unicode16_unassigned.py`), `PLW1510` 1 (`scripts/test_install.py`), `EXE001` 1
-    (`tools/cid.py` shebang without exec bit). Pin drops only when tree is fully clean under 0.16.
+    became recognised, one genuinely-unused `S603` deleted in `tools/metrics.py` `git_sha()` (review
+    correction: the directive was unused under BOTH versions — what changed in 0.16 is that `RUF100`
+    joined the default select; dynamic-argv directives MUST stay), plus a stale `PLC0415` in
+    `tools/cid.py:980`. Pre-push `--select S` / `--select C901` hooks kept intentionally (redundant
+    but name the failing gate; recorded in decisions.md 2026-07-25).
+- Slice C (iter 135): isort cluster cleared. `[tool.ruff] src = [".", "crates/iscc-py/python"]`
+    (makes `iscc_lib` first-party) + `[tool.ruff.lint.isort] combine-as-imports = true` (keeps the
+    ~35-member `_lowlevel` re-export block as ONE statement — without it isort shatters it into a
+    110-line diff). `extend-select` now `["S", "C901", "I", "RUF022", "RUF100"]`. Fixes applied with
+    pinned ruff, scoped: `uv run ruff check --fix --select I,RUF022 .` (7 fixed). NEVER blanket
+    `--fix` under unpinned/0.16 ruff — it deletes load-bearing `# noqa: S603/S607`.
+- **3 findings remain** (one-liners, own step): `RUF007` (`scripts/gen_unicode16_unassigned.py` →
+    `itertools.pairwise`; re-run generator, assert generated Rust unchanged), `PLW1510`
+    (`scripts/test_install.py` → explicit `check=False`), `EXE001` (`tools/cid.py` shebang without
+    exec bit; Windows-bind-mount exec-bit caveat before `chmod +x`). Then slice D:
+    `uv lock --upgrade-package ruff`, drop pin once `uvx ruff@0.16.0 check .` exits 0.
 - `uvx ruff@0.16.0 check .` runs 0.16 without touching the lock (cache warm since iter 130).
 - zensical ≥0.0.51 warns (non-fatal) on broken anchors; the `docs/howto/c-cpp.md` anchor was fixed
     during iter-125 review.

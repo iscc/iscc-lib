@@ -14,11 +14,23 @@ timeout = 120
 # dependency (run via `uv run --script`), not a project dependency.
 exclude = ["packages/cpp/conanfile.py", "scripts/gen_unicode16_unassigned.py"]
 
+[tool.ruff]
+# `iscc_lib` ships from `crates/iscc-py/python`, not the repo root. Listing it here makes isort
+# resolve it as first-party instead of lumping it in with third-party imports.
+src = [".", "crates/iscc-py/python"]
+
 [tool.ruff.lint]
 # `S` (security) and `C901` (complexity) are project gates. Selecting them here — instead of
 # only in the two pre-push hooks — makes `uv run ruff check` (pre-commit, `mise run lint`, CI)
 # enforce them too, and keeps the load-bearing `# noqa: S603/S607` directives recognised.
-extend-select = ["S", "C901"]
+# `I` (import sorting), `RUF022` (sorted `__all__`) and `RUF100` (unused `# noqa`) are enforced
+# here under the pinned ruff so the 0.16 defaults arrive without surprise findings.
+extend-select = ["S", "C901", "I", "RUF022", "RUF100"]
+
+[tool.ruff.lint.isort]
+# Keep the single `from iscc_lib._lowlevel import (X as X, ...)` re-export block intact —
+# without this, isort explodes it into ~60 one-member import statements.
+combine-as-imports = true
 
 [tool.ruff.lint.mccabe]
 max-complexity = 15
@@ -32,7 +44,7 @@ max-complexity = 15
 dev = [
   "maturin",
   "prek",
-  "ruff<0.16",                    # held: 12 findings left under 0.16 (I001 x8, RUF022, RUF007, PLW1510, EXE001) — drop the pin once they are cleared
+  "ruff<0.16",                    # held: 3 findings left under 0.16 (RUF007 in scripts/gen_unicode16_unassigned.py, PLW1510 in scripts/test_install.py, EXE001 on tools/cid.py) — drop the pin once they are cleared
   "taplo",
   "yamlfix",
   "ty",

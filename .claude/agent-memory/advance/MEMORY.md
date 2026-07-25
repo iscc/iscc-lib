@@ -9,6 +9,9 @@ IDv1 + decode guards). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 **Size budget:** Keep under 140 lines. Move detail to topic files; archive stale entries.
 
+- [issues.md ledger rule](feedback-issues-ledger.md) — advance never edits issues.md even when
+    next.md says to; put the ledger paragraph in the handoff Notes for the review agent
+
 ## Code Locations
 
 - Rust core: `crates/iscc-lib/src/` — lib.rs (crate root, Tier 1 re-exports), codec.rs, cdc.rs,
@@ -45,13 +48,14 @@ IDv1 + decode guards). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     \+ gotchas → ci-gates.md
 - Key audit rule: fresh advisory with a patched release → `cargo update -p <crate>` lockfile bump,
     NEVER add to `deny.toml` `ignore` (iter 115: crossbeam-epoch 0.9.18→0.9.20)
-- Dependency refresh (iters 124-134): Cargo.lock, uv.lock, ci.yml/docs.yml GHA actions, JVM
+- Dependency refresh (iters 124-135): Cargo.lock, uv.lock, ci.yml/docs.yml GHA actions, JVM
     manifests, Go module, Ruby Gemfile all refreshed; napi/dotnet verified current (wildcard
     floats). Held-back majors (criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:`
-    comments in root Cargo.toml; `ruff<0.16` hold in pyproject.toml (slices A+B done: `S`+`C901` now
-    in `extend-select`, all RUF100 cleared; 12 findings left — isort/I001 is slice C); rb_sys pinned
-    `0.9.123` + minitest 5.x held in Gemfile. Reasons, junit-platform-launcher/Gradle gotcha +
-    remaining slices (release.yml, ruff 0.16 C, majors) → deps-refresh.md
+    comments in root Cargo.toml; `ruff<0.16` hold in pyproject.toml (slices A+B+C done:
+    `extend-select = ["S","C901","I","RUF022","RUF100"]` + isort src/combine-as-imports config; 3
+    one-liner findings left, then slice D drops the pin); rb_sys pinned `0.9.123` + minitest 5.x
+    held in Gemfile. Reasons, junit-platform-launcher/Gradle gotcha + remaining slices (release.yml,
+    ruff one-liners + slice D, majors) → deps-refresh.md
 - GOTCHA: ci.yml concurrency has `cancel-in-progress: true` per ref — pushing a second develop
     commit cancels the in-flight CI run of the previous sha (its check-runs end "cancelled"). When a
     step needs a green CI on a specific sha, don't push again until it concludes

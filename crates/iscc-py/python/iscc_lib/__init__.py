@@ -48,7 +48,6 @@ from iscc_lib._lowlevel import (
     text_trim as text_trim,
 )
 
-
 # ── Type Enums ──────────────────────────────────────────────────────────────
 
 
@@ -379,7 +378,6 @@ class SumHasher:
 
 
 __all__ = [
-    "__version__",
     "IO_READ_SIZE",
     "META_TRIM_DESCRIPTION",
     "META_TRIM_META",
@@ -388,7 +386,6 @@ __all__ = [
     "ST",
     "TEXT_NGRAM_SIZE",
     "VS",
-    "IsccResult",
     "AudioCodeResult",
     "DataCodeResult",
     "DataHasher",
@@ -396,12 +393,14 @@ __all__ = [
     "InstanceCodeResult",
     "InstanceHasher",
     "IsccCodeResult",
+    "IsccResult",
     "MetaCodeResult",
     "MixedCodeResult",
     "SumCodeResult",
     "SumHasher",
     "TextCodeResult",
     "VideoCodeResult",
+    "__version__",
     "alg_cdc_chunks",
     "alg_minhash_256",
     "alg_simhash",

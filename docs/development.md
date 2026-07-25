@@ -134,8 +134,9 @@ can review and re-stage.
 
 - File hygiene (line endings, trailing whitespace, YAML/JSON/TOML validation)
 - `cargo fmt` — Rust formatting
-- `ruff check --fix` + `ruff format` — Python linting and formatting (includes the security `S` and
-    complexity `C901` rules via `extend-select` in `pyproject.toml`)
+- `ruff check --fix` + `ruff format` — Python linting and formatting (includes the security `S`,
+    complexity `C901`, import-sorting `I`, sorted-`__all__` `RUF022` and unused-`# noqa` `RUF100`
+    rules via `extend-select` in `pyproject.toml` — imports are auto-sorted at commit time)
 - `taplo fmt` — TOML formatting
 - `yamlfix` — YAML formatting
 - `mdformat` — Markdown formatting

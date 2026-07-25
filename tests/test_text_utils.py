@@ -13,7 +13,6 @@ from iscc_lib import (
     text_trim,
 )
 
-
 # ── conformance_selftest ────────────────────────────────────────────────────
 
 
