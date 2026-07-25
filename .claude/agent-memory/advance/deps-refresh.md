@@ -12,13 +12,16 @@ actions in ci.yml + docs.yml (iter 127: checkout v7, setup-python v7, setup-uv v
 setup-java v5, setup-go v7, setup-dotnet v6, upload-artifact v7, upload-sarif v4,
 upload-pages-artifact v5 + deploy-pages v5 — paired), 5 JVM manifests (iter 128: pom.xml junit
 5.14.4 + gson 2.14.0 + 5 maven plugins; build.gradle.kts kotlin 2.4.10, jna 5.19.1, junit/gson
-lockstep). GOTCHA: `astral-sh/setup-uv` has NO floating major tag past v7 — v8.x/v9.0.0 are exact
-release tags only, so write `@v9.0.0` not `@v9` (iter-127 CI failure: "Unable to resolve action").
-`releases/latest` proves a release exists, NOT that a floating `@vN` tag exists — confirm via
+lockstep), 6 Go module (iter 129: x/text 0.40.0, cpuid/v2 2.4.0 + new indirect x/sys 0.47.0;
+conformance stayed green despite x/text Unicode-table risk; kotlin README added to version_sync
+TARGETS; napi `^3` + dotnet `17.*`/`2.*` wildcards verified current, no edit). GOTCHA:
+`astral-sh/setup-uv` has NO floating major tag past v7 — v8.x/v9.0.0 are exact release tags only, so
+write `@v9.0.0` not `@v9` (iter-127 CI failure: "Unable to resolve action"). `releases/latest`
+proves a release exists, NOT that a floating `@vN` tag exists — confirm via
 `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Remaining: `release.yml` actions (97 `uses:`
 refs; upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0` too; only truly
-validated by a release run), per-binding manifests (napi package.json, rb Gemfile/gemspec, dotnet
-.csproj, go go.mod), ruff 0.16 adoption, Gradle wrapper 8.12.1 major, JUnit 6.x migration.
+validated by a release run), rb Gemfile/gemspec, ruff 0.16 adoption, Gradle wrapper major, JUnit 6.x
+migration, xunit 3.x + Test.Sdk 18.x majors.
 
 ## JVM manifests (iter 128)
 

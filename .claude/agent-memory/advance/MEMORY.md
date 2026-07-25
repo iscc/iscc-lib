@@ -40,11 +40,11 @@ IDv1 + decode guards). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     \+ gotchas → ci-gates.md
 - Key audit rule: fresh advisory with a patched release → `cargo update -p <crate>` lockfile bump,
     NEVER add to `deny.toml` `ignore` (iter 115: crossbeam-epoch 0.9.18→0.9.20)
-- Dependency refresh (iters 124-128): Cargo.lock + uv.lock + ci.yml/docs.yml GHA actions + JVM
-    manifests (pom.xml, build.gradle.kts) refreshed; held-back majors (criterion 0.8, jni 0.22,
-    magnus 0.8, uniffi 0.32) carry `# held:` comments in root Cargo.toml; `ruff<0.16` hold in
-    pyproject.toml. Reasons, junit-platform-launcher/Gradle gotcha + remaining slices (release.yml,
-    rb/go/napi/dotnet manifests) → deps-refresh.md
+- Dependency refresh (iters 124-129): Cargo.lock, uv.lock, ci.yml/docs.yml GHA actions, JVM
+    manifests, Go module all refreshed; napi/dotnet verified current (wildcard floats). Held-back
+    majors (criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:` comments in root
+    Cargo.toml; `ruff<0.16` hold in pyproject.toml. Reasons, junit-platform-launcher/Gradle gotcha +
+    remaining slices (release.yml, rb Gemfile, ruff 0.16, majors) → deps-refresh.md
 - GOTCHA: ci.yml concurrency has `cancel-in-progress: true` per ref — pushing a second develop
     commit cancels the in-flight CI run of the previous sha (its check-runs end "cancelled"). When a
     step needs a green CI on a specific sha, don't push again until it concludes
