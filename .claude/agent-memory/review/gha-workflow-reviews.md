@@ -105,3 +105,29 @@ git diff HEAD~1..HEAD -- <file> | grep -E '^[+-]' | grep -v '^[+-][+-]' \
     `$GITHUB_OUTPUT`, `grep`, `sed`) inside a matrix that includes Windows MUST declare
     `shell: bash` — check this whenever a step is added to a cross-platform matrix (`build-ffi` is
     the usual offender).
+
+## release.yml checks 1–2 are a committed gate since iter 142
+
+`scripts/check_release_workflow.py` now enforces, on every edit of `.github/workflows/release.yml`
+(prek hook `check-release-workflow`, scoped by `files:` regex) and in CI
+(`tests/test_check_release_workflow.py`):
+
+1. **Registry-guard shape** — `prepare-release` keeps the bare `if: inputs.version != ''`; every
+    other job matches `${{ !cancelled() && !failure() && (…) }}` with `inputs.version != ''` as an
+    alternative; declared `workflow_dispatch` inputs and job-`if` references agree in both
+    directions (catches a typo'd flag *and* a silently dropped one). Nothing is hardcoded except
+    the `prepare-release` job id — no frozen job counts or flag histograms.
+2. **Artifact wiring** — every `download-artifact` `name:`/`pattern:` resolves to some
+    `upload-artifact` `name:` after expanding `${{ matrix.<k> }}` against
+    `strategy.matrix.include`. At HEAD: 34 expanded uploads, 21 expanded download refs.
+3. (bonus) **`needs:` graph** — every `needs:` entry names a declared job id.
+
+Run `uv run scripts/check_release_workflow.py` instead of retyping heredocs. **Known limitation
+(accepted, `decisions.md` 2026-07-25):** the matcher is a strict approximation of glob intersection,
+so a pairing that wildcards on both sides in different positions (`gem-*` upload vs a hypothetical
+`*-linux` download) would be reported as an error even though it overlaps. It errs strict, never
+lax; if that pairing ever appears, replace it with a real intersection, never a looser match.
+
+**Still manual — check 3:** for every `uses: <o>/<r>@<vN>`, each `with:` key must be a declared
+`inputs` key of that ref's published `action.yml`, and each `steps.<id>.outputs.<x>` read must be a
+declared output. Needs network → filed as a `[review]` issue for a CI-only step.

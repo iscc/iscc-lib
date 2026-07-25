@@ -164,3 +164,25 @@ Reviewing any `types:` / `types_or:` change to `.pre-commit-config.yaml`:
     `mise run format`, scan the edited Markdown for a code span containing two or more consecutive
     spaces, and prefer short spans or a topic-file pointer over an 80-char command inline in a
     bullet. Never nest backticks inside a bullet to write that grep — mdformat escapes them.
+
+## Reviewing a NEW gate script (iter 142 — `scripts/check_release_workflow.py`)
+
+A gate that cannot fail is worse than none, because it manufactures false confidence. Never accept
+"it exits 0 at HEAD" as evidence.
+
+1. **Run it clean**: `uv run scripts/<gate>.py` → exit 0 on the tracked target.
+2. **Write your own mutations**, beyond the ones the committed test suite already covers — the
+    advance agent chose those, so they prove only what it thought of. For the release-workflow gate
+    the uncovered directions were: rename a *download* `name:` (the committed test renames an
+    *upload*), and append a whole new job with no `if` plus a bogus `needs:` entry. Both fired.
+    Recipe: `python3` heredoc writing mutated copies under `/tmp`, then run the gate on each.
+3. **Dump the gate's internals** rather than reading the code and guessing — load it by path with
+    `importlib.util.spec_from_file_location` in a `uv run python - <<'EOF'` heredoc and print the
+    intermediate structures (for the artifact check: expanded upload names, expanded download refs,
+    and any upload that collapses to a bare `*`, which would match everything).
+4. **Ask what the gate structurally cannot see** and get it written down (docstring + handoff) —
+    that gap is the part no test will ever surface.
+5. **Gates to run**: `uv run ruff check`, both pre-push ruff gates (`--select S`,
+    `--select C901 --force-exclude`), `ty check`, full `uv run pytest --timeout=120`,
+    `mise run check`, plus the hook-scope probe (`uv run prek run <hook> --files <in-scope>` →
+    `Passed`; `--files <out-of-scope>` → `Skipped`). ≈ 6 min total.

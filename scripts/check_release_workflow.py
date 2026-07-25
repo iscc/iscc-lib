@@ -198,9 +198,14 @@ def references_match(download: str, upload: str) -> bool:
     Both sides may carry `*` wildcards — download references natively (`pattern:
     jni-*`), upload names from unexpandable `${{ … }}` spans. A reference resolves
     when either glob, with the other side's wildcards collapsed, fully matches the
-    other: this accepts every pairing whose literal parts line up (e.g. `wheels-*`
-    vs `wheels-ubuntu-latest-x86_64`, `gem-x86_64-linux` vs `gem-*`) and rejects a
-    pairing only when no overlap is possible.
+    other (e.g. `wheels-*` vs `wheels-ubuntu-latest-x86_64`, `gem-x86_64-linux` vs
+    `gem-*`).
+
+    This is a deliberate approximation of glob intersection, not the real thing: it
+    errs strict, so a pairing where *both* sides wildcard in different positions
+    (`gem-*` vs `*-linux`) is reported as an error even though it overlaps. No such
+    pairing exists at HEAD; if one is ever added, replace this with a proper
+    intersection rather than loosening the check.
     """
     return bool(
         glob_to_re(upload).fullmatch(download.replace("*", ""))

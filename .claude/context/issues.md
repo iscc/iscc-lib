@@ -151,29 +151,28 @@ release exists (`iai-callgrind` 0.16.1 is latest), so it stays a warning until u
 — re-check when bumping `iai-callgrind` (the pin must stay in lockstep with the CI-installed
 `iai-callgrind-runner` version).
 
-## Land the `release.yml` static checks as an executable gate `normal` [review]
+## Gate `release.yml` action-input compatibility in CI `normal` [review]
 
 `.github/workflows/release.yml` is `workflow_dispatch`-only, so no CI run and no CID push ever
-exercises it. Three static invariants have now been hand-retyped from `next.md` into a heredoc in
-two consecutive iterations (139 and 140), which means they are correctness-critical but not
-enforced:
+exercises it. Its three static invariants were hand-retyped from `next.md` into throwaway heredocs
+in iterations 139–141; **checks 1 and 2 are now an executable gate** (iter 142):
+`scripts/check_release_workflow.py` covers the registry-guard shape (incl. the
+declared-vs-referenced input cross-check), artifact wiring with matrix-`include` expansion, and the
+`needs:` graph — wired into prek (`check-release-workflow`, scoped to `release.yml`) and into CI via
+`tests/test_check_release_workflow.py` (anchor test on the real file + 7 mutation tests + 3 unit
+tests). Matching-rule rationale and its accepted strictness → `decisions.md` 2026-07-25.
 
-1. **Registry-guard shape** — 29 jobs; `prepare-release` carries the bare `inputs.version != ''`,
-    all 28 others match `${{ !cancelled() && !failure() && (inputs.version != '' || <flags>) }}`
-    exactly, with the per-flag token counts fixed (see `decisions.md` 2026-07-25 for why relaxing
-    the implicit `success()` is only safe under this shape).
-2. **Artifact wiring** — every `download-artifact` `name:`/`pattern:` resolves to some
-    `upload-artifact` `name:` (11 uploads, 20 downloads).
-3. **Action-input compatibility** — for every `uses: <o>/<r>@<vN>`, each `with:` key is a declared
-    `inputs` key of that ref's `action.yml`, and each `steps.<id>.outputs.<x>` the workflow reads
-    is a declared `outputs` key. (3) needs network, so it belongs in CI only, gated to skip
-    offline; (1) and (2) are pure-local and belong in `mise run check` / prek as well.
+**Remaining — check 3, action-input compatibility.** For every `uses: <o>/<r>@<vN>`, each `with:`
+key must be a declared `inputs` key of that ref's published `action.yml`, and each
+`steps.<id>.outputs.<x>` the workflow reads must be a declared `outputs` key. This is the one check
+review currently performs by hand on every action bump (iters 127, 140) and the one that catches a
+silently-dropped input across a major. It needs network, so it belongs in a CI-only step (gated to
+skip offline), not in prek or `mise run check`.
 
-**Scope:** one `scripts/check_release_workflow.py` (PEP 723 if it needs `pyyaml` beyond the dev
-group), a prek hook restricted to `files: ^\.github/workflows/release\.yml$` for checks 1–2, and a
-CI step for check 3. Deliberately excluded from iterations 139–140 by their own `Not In Scope`
-sections because adding a gate belongs in its own scoped package. Without it, the next edit to this
-file is one forgotten heredoc away from silently reintroducing the iter-139 publish bug.
+**Scope:** extend `scripts/check_release_workflow.py` with an opt-in `--check-action-inputs` mode
+(fetch each ref's `action.yml` via `gh api` or raw GitHub, skip cleanly with a warning when offline
+or unauthenticated) plus a `ci.yml` step that runs it. Keep it out of the pytest suite — the
+existing tests must stay network-free.
 
 ## Pin `rubygems/configure-rubygems-credentials` off the `@main` branch `normal` [review]
 

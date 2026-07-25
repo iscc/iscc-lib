@@ -402,3 +402,29 @@ non-ASCII code-point set per section (added in review) — without it a weakened
 pass every test. **Context:** CID iteration 141 (`918f8f4`), Rust half of `specs/rust-core.md`
 criterion 3; binding propagation (step b) stays blocked on the ordering ruling and the Go
 Unicode-15.0-tables decision.
+
+## 2026-07-25 — release.yml artifact matching is a deliberately strict approximation of glob intersection
+
+**Decision:** `references_match` in `scripts/check_release_workflow.py` resolves a
+`download-artifact` reference against an `upload-artifact` name by trying **both** directions —
+either glob, with the other side's `*` characters collapsed, must `fullmatch` the other — rather
+than the single direction prescribed in next.md ("regex from the upload name; download with its `*`
+removed must fullmatch"). **Why:** the prescribed one-directional rule cannot resolve the real
+workflow. `wheels-*` (a download `pattern:`) against the matrix-expanded literal
+`wheels-ubuntu-latest-x86_64` needs the download→upload direction; `gem-x86_64-linux` (a literal
+download) against the `gem-*` upload — `build-gem` uses a plain `matrix.platform` list with no
+`include`, so its upload name keeps a wildcard after expansion — needs the upload→download
+direction. Neither direction alone resolves all 21 expanded download references at HEAD, so
+next.md's own "resolves all 20 downloads" claim was untested; review re-proved the failure before
+crediting the deviation. **Alternatives:** implement true glob intersection (product-automaton or
+`*`-normalised DP) — rejected as over-engineering for a 34-upload / 21-download file whose only
+wildcards come from matrix spans; add `include:` blocks to `build-gem` so every upload expands to a
+literal — rejected, `Not In Scope` forbids editing `release.yml` and a gate must not dictate the
+shape of the artifact it gates; drop check 2 — rejected, it is half the point of the gate.
+**Consequence:** the matcher errs **strict**, never lax. A future pairing that wildcards on both
+sides in different positions (`gem-*` upload vs a hypothetical `*-linux` download) overlaps in
+reality but is reported as an error — independently flagged by the Codex review this iteration and
+now stated in the function's docstring. If that day comes the fix is a real intersection, never a
+looser skeleton match: a false negative here means a release publishes an artifact that was never
+built. **Context:** CID iteration 142 (`bcb3128`), closing checks 1–2 of the `[review]` issue "Land
+the `release.yml` static checks as an executable gate".

@@ -814,3 +814,23 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
 - **Invariant a new job must preserve:** its `needs` chain must be gated by the same registry flag
     or a superset (`build-ffi` is `ffi || nuget`) — else relaxing `success()` lets it run against
     artifacts never built. Full rationale → `decisions.md` 2026-07-25.
+
+## Tooling — v0.6.0 dependency refresh + ruff 0.16 adoption (archived iter 142, both threads CLOSED)
+
+- **Dependency refresh** ran as nine per-ecosystem slices, iters 124–140: Rust `Cargo.lock`, Python
+    `uv.lock`, Rust direct pins, GHA refs in `ci.yml`/`docs.yml`, JVM manifests, Go module, Ruby
+    manifests, ruff 0.16 adoption, GHA refs in `release.yml`. Per-slice detail lives in the
+    `issues.md` entry; only human/major-gated bumps remain (xunit 3.x, Test.Sdk 18.x, Gradle
+    wrapper, JUnit 6.x, `jni` 0.22, `magnus` 0.8).
+- **Hold-back verification recipe** — a `# held:` comment's stated reason must be confirmed from
+    registry metadata, never from the handoff prose: `cargo info <crate>@<ver>`,
+    `gem specification <gem> -v <ver> --remote`, `https://rubygems.org/api/v1/versions/<gem>.json`.
+    A wrong stated reason survives as folklore.
+- **A tool bump can widen a gate's file discovery, not just its rules**: ruff 0.16 formats Python
+    fences inside Markdown, so the bare `ruff format --check` used by `mise run lint` and CI went
+    from 25 to 153 files. Diff the file count before/after a bump, then ask which *local* gate
+    covers the newly discovered surface — the resulting local/CI parity gap was closed in iter 138
+    by widening the prek `ruff-format` hook to `types_or: [python, pyi, markdown]`.
+- **Single-package relock proof**: `uv lock --upgrade-package <pkg>` then
+    `git diff -- uv.lock | grep -E '^[+-]name = '` must be empty (only the target moved).
+- Every `[tool.ruff*]` setting in `pyproject.toml` carries its rationale as an inline comment.

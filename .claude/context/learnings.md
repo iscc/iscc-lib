@@ -38,31 +38,27 @@ fully-met target sections to `learnings-archive.md`.
     explicit. Per-hop upgrade recipe → `learnings-archive.md`
 - **`_lowlevel.pyi` is consumer-facing** (wheel ships `py.typed`): stub bodies are docstring-only,
     and edits need `mypy 1.18 --strict` + `pyright 1.1.407`, not just `ty` → `learnings-archive.md`
-- **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133,
-    `scripts/gen_unicode16_unassigned.py` + `unicodedata2==16.0.0`): inline `# /// script` metadata,
-    `uv run --script <path>`, and add the path to `[tool.ty.src] exclude` with a comment (the
-    `packages/cpp/conanfile.py` precedent) — keeps `uv.lock` free of a permanent hold-back.
+- **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133):
+    inline `# /// script` metadata, `uv run --script <path>`, path added to `[tool.ty.src] exclude`
+    with a comment — keeps `uv.lock` free of a permanent hold-back. A dep a *pytest* test imports
+    in-process cannot be PEP 723 and must be declared in the dev group (iter 142, `pyyaml`).
     Generated Rust must be data-only + rustfmt-stable so regeneration is a no-op diff
 - **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** — `benches/`
     import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally (E0432); benches require default
     features. The real feature-matrix gate is `--no-default-features` *without* `--all-targets`
     (tests compile there because they are `#[cfg]`-gated). Don't mistake it for a fresh regression
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
-    dies with "No such file or directory" until `sudo apt-get install -y valgrind` +
-    `cargo binstall -y iai-callgrind-runner --version 0.16.1` (MUST match the pin) — CI mirrors this
+    dies until `sudo apt-get install -y valgrind` +
+    `cargo binstall -y iai-callgrind-runner --version 0.16.1` (MUST match the pin); CI mirrors this
 
 ## ISCC Algorithm Knowledge
 
-- **Unicode data version — declared 16.0.0 with a freeze rule** (divergence found iter 129, decided
-    2026-07-25, **Rust core implemented iter 133**): Go stdlib/`x/text` = 15.0.0, Python 3.13 =
-    15.1.0, Rust `unicode-general-category` = 16.0.0 / `unicode-normalization` = 17.0.0, and Go's
-    `unicode.C` includes unassigned `Cn` — so 5,813 post-15 code points are stripped by
-    Go/`iscc-core` but kept by the Rust core (repro `Ɤ` U+A7CB); no vector catches it. Freeze rule:
-    `text_clean`/`text_collapse` remove code points unassigned in Unicode 16.0.0 *before* any
-    normalization or category lookup (vendored 731-range table, regen
-    `uv run --script scripts/gen_unicode16_unassigned.py`). Deltas: 15.1→16 = 5,185 category + 56
-    normalization; 16→17 = 4,803 + 1 — all new assignments. Never "fix" one binding to match
-    another; remaining steps → `issues.md`
+- **Unicode data version — declared 16.0.0 with a freeze rule** (found iter 129, decided 2026-07-25,
+    **Rust core implemented iter 133**; per-runtime table, deltas, repro `Ɤ` U+A7CB and remaining
+    steps → the `issues.md` entry): `text_clean`/`text_collapse` remove code points unassigned in
+    Unicode 16.0.0 *before* any normalization or category lookup (vendored 731-range table, regen
+    `uv run --script scripts/gen_unicode16_unassigned.py`). Runtimes still ship different tables (Go
+    15.0, Python 3.13 15.1, Rust crates 16.0/17.0) — never "fix" one binding to match another
 - **The freeze rule changes ADJACENCY, so it diverges from `iscc-core` on sequences even with
     identical Unicode data** (measured iter 133 review; three worked repros + the spec consequences
     in the open `issues.md` entry "Freeze-rule ordering diverges from iscc-core on sequences").
@@ -103,49 +99,43 @@ fully-met target sections to `learnings-archive.md`.
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like every other release job), so the `--ref main` re-trigger breaks for Swift
-- **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.**
-    Verify every edit statically (`yaml.safe_load` + regex over all 29 `if:` values,
-    `actionlint@v1.7.7`). Its registry-guard shape (`!cancelled() && !failure() && (<flag>)` on all
-    28 non-`prepare-release` jobs) and the `needs`-gating invariant a new job must preserve →
-    `learnings-archive.md`
+- **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Since
+    iter 142 its pure-local invariants are an executable gate: `scripts/check_release_workflow.py`
+    (guard shape, artifact wiring, `needs:` graph) via the `check-release-workflow` prek hook +
+    `tests/test_check_release_workflow.py` in CI — never hand-retype them into a heredoc again, and
+    every edit must keep it green. Still unenforced (needs network): `with:`/`outputs` vs each ref's
+    `action.yml`. Guard-shape rationale → `learnings-archive.md`
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
-- **CRAP gate (ci-cd.md)**: ENFORCING Phase 3 (`cargo crap --fail-regression --fail-above`, thresh
-    30.0, max ~22.3), `.crap-baseline.json` COMMITTED (regen `mise run crap:baseline`). **CI-ONLY
-    guard gap**: NOT in `mise run check`/pre-commit — a source change adding a branch to a covered
-    fn lands green locally but reds CI unless the baseline is refreshed in the SAME step (never
-    widen epsilon/threshold). Mechanics → `learnings-archive.md`
+- **CRAP gate (ci-cd.md)**: ENFORCING (`cargo crap --fail-regression --fail-above` 30.0, max ~22.3),
+    `.crap-baseline.json` COMMITTED (regen `mise run crap:baseline`). **CI-ONLY gap** — not in
+    `mise run check`: a source change adding a branch to a covered fn lands green locally but reds
+    CI unless the baseline is refreshed in the SAME step (never widen epsilon/threshold)
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`
-- **`Audit (cargo-deny)` gate — ENFORCING (ci-cd.md)**: root `deny.toml` (config v2,
-    `yanked = "deny"`, two dev-only iai-callgrind advisories ignored) + `audit` CI job
-    (`cargo-deny@0.19.9`) + `mise run audit`; reads Cargo.lock + metadata, so green locally is
-    authoritative. A yanked crate or fresh RustSec advisory reds it on ANY push with no code change
-    — fix with `cargo update -p <crate>` (confirm dev-only reach: `cargo tree -i <crate> -e no-dev`
-    = empty), NOT a `deny.toml` ignore (ignore ONLY when no patched release exists)
-- **Dependency refresh (v0.6.0 `[human]` issue) — all nine locally-verifiable slices closed as of
-    iter 140**; only human/major-gated bumps remain (status in `issues.md`). **Hold-back reasons are
-    inline `# held:` comments** beside the pin — confirm the stated reason from registry metadata,
-    not prose: `cargo info <crate>@<ver>`, `gem specification <gem> -v <ver> --remote`,
-    `https://rubygems.org/api/v1/versions/<gem>.json`
-- **ruff is 0.16.0 since iter 137** (adoption history, Markdown-fence widening and hook-surface
-    caveats → the two `learnings-archive.md` sections): preview a future major with
-    `uvx ruff@X.Y.Z check .` — it never touches `uv.lock`. prek hooks are
+- **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, two dev-only
+    iai-callgrind advisories ignored) + `audit` CI job (`cargo-deny@0.19.9`) + `mise run audit`;
+    reads Cargo.lock, so green locally is authoritative. A yanked crate or fresh RustSec advisory
+    reds it on ANY push with no code change — fix with `cargo update -p <crate>` (confirm dev-only
+    reach: `cargo tree -i <crate> -e no-dev` = empty), NOT a `deny.toml` ignore
+- **v0.6.0 dependency refresh + ruff 0.16 adoption are CLOSED** (iters 124–140; slice history,
+    hold-back-verification recipe, file-discovery-widening and relock-proof caveats →
+    `learnings-archive.md`). Live rules: ruff is **0.16.0**, preview a future major with
+    `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); prek hooks are
     `types_or: [python, pyi, markdown]` (`ruff-format`) / `[python, pyi]` (`ruff-check`), a strict
-    superset of CI. Rules go in `[tool.ruff.lint] extend-select` — **never `select`**, which drops
-    ruff's `E4`/`E7`/`E9`/`F` defaults; every `[tool.ruff*]` setting carries its rationale as an
-    inline comment in `pyproject.toml`. **Never `ruff check --fix .`** without `--select` — a
-    blanket fix deletes the 13 load-bearing `# noqa: S603/S607` in `tools/`+`scripts/` and reds the
-    pre-push security gate
+    superset of CI; rules go in `[tool.ruff.lint] extend-select` — **never `select`**, which drops
+    ruff's `E4`/`E7`/`E9`/`F` defaults; **never `ruff check --fix .`** without `--select` — it
+    deletes the 13 load-bearing `# noqa: S603/S607` in `tools/`+`scripts/` and reds the pre-push
+    security gate
 - **A file-mode change needs `git update-index --chmod=+x`, not just `chmod`** (iter 136): with
     `core.fileMode=false` here a plain `chmod +x` is invisible to git — run both, prove it with
     `git ls-files -s <path>` → `100755`
 - **A prek `types:` tag is not a file-extension guess — probe it** (`.pyi` is tagged `pyi`, not
     `python`; that hole silently skipped the published `_lowlevel.pyi`, closed iter 139). Prove a
     hook's real surface with a **staged, deliberately dirty** probe file:
-    `uv run prek run <hook> --files <probe>` — `Skipped` means the tag misses,
-    `files were modified   by this hook` proves it bites (tracked files only, so `git add` first).
-    Formatter caveats → `learnings-archive.md`
+    `uv run prek run <hook> --files <probe>` — `Skipped` means the tag misses, while a "files were
+    modified by this hook" failure proves it bites (tracked files only: `git add` first). Formatter
+    caveats → `learnings-archive.md`
 - **A binding-toolchain bump can silently raise the *consumer* floor** — treat compiler/toolchain
     bumps in a *published* binding as support-policy changes reserved for Titusz, not pins. Current
     floor "Kotlin 2.3 or newer"; the `mavenLocal` proof recipe and the four docs that must move
@@ -175,8 +165,7 @@ fully-met target sections to `learnings-archive.md`.
 
 - Never force-push to `develop` during a CID loop — agents commit incrementally (branching model
     itself is in CLAUDE.md)
-- **Feature flags**: fully met, archived → `learnings-archive.md` (read before touching
-    `[features]`)
+- **Feature flags**: fully met → `learnings-archive.md` (read before touching `[features]`)
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central API,
     `pip index versions`, Go module proxy, `gh api`)
@@ -198,6 +187,10 @@ fully-met target sections to `learnings-archive.md`.
     `.md`/`.py`/`.pyi` lands, CID's own memory files included; `grep -c 'exclude'` returned 2, not
     0, matching pre-existing `--force-exclude` flags). Assert the *gate* (exit code) and anchor
     greps; advance should report the mismatch and prove the intent, not chase the number
+- **An algorithm prescribed in next.md's Implementation Notes is a hypothesis, not a spec** (iter
+    142: the literal artifact-matching rule could not resolve `wheels-*` at HEAD, contradicting
+    next.md's own "resolves all 20 downloads" claim). advance implements the *intent*, deviates
+    minimally, documents it in the handoff + a docstring; review re-proves the prescribed rule fails
 - **next.md must never task advance with editing `issues.md`** (iter 135): advance's protocol
     forbids writing it and review owns issue progress/resolution. A slice-progress ledger paragraph
     belongs in the handoff Notes for review to append — advance correctly refused and quoted it
