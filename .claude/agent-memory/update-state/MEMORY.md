@@ -12,9 +12,9 @@ pipelines, release internals), `dep-refresh-survey.md` (pin inventory), `unicode
 - **Unpushed check**: `git log --oneline origin/develop..HEAD`, then prove it is code-free with
     `git diff --stat origin/develop..HEAD -- . ':!.claude'` (empty = nothing outside CI coverage).
 - **Tier 1 pub fns**: `grep -rn "pub fn gen_\|pub const " crates/iscc-lib/src/lib.rs`.
-- **Counts** (re-verified 141): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
+- **Counts** (re-verified 142): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
     llms-full ORDERED_PAGES 22; `docs/howto/*.md` 11; speedup 1.3x-158x; release.yml toggles 8; ffi
-    extern 47; iscc-lib `#[test]` = **325** (`grep -rc --include="*.rs" crates/iscc-lib/`, sum);
+    extern 47; iscc-lib `#[test]` = **328** (`grep -rc --include="*.rs" crates/iscc-lib/`, sum);
     ci.yml job entries 19 = `grep -cE '^  [a-z_-]+:$'` (raw 21) minus 2.
 - **version_sync TARGETS** = **21**
     (`uv run python scripts/version_sync.py --check | grep -c '^OK'`) = the authoritative set of
@@ -56,9 +56,11 @@ pipelines, release internals), `dep-refresh-survey.md` (pin inventory), `unicode
 - **Unicode = DECLARED 16.0.0 + freeze rule** (human decision 132) → **`unicode-contract.md`**:
     freeze filter **MET iter 133** (`src/utils/unicode16.rs` 731-range table + PEP 723 generator
     `scripts/gen_unicode16_unassigned.py` + pre-`nfkc`/`nfd` filter at `utils.rs` L103/L181); unmet
-    = boundary vectors + full-code-space sweep (Go exposed until go1.27; an open HUMAN ruling on
-    sequence-adjacency blocks the sweep wording). Vector check
-    `grep -rl "1FAE9\|113C5\|20C1" crates/ packages/ tests/ scripts/` → at 141 still only those two.
+    = full-code-space sweep + the BINDING half of the boundary vectors (Go exposed until go1.27; an
+    open HUMAN ruling on sequence-adjacency blocks the sweep wording). Rust half landed 141:
+    `tests/unicode_boundary.json` + `tests/test_unicode_boundary.rs` — the fixture is
+    ASCII-**escaped**, so `grep "1FAE9"` MISSES it; grep the filename. Zero hits outside
+    `crates/iscc-lib` at 142.
 - `crates/iscc-lib/src/streaming.rs` — `DataHasher`+`InstanceHasher` re-exported at crate root;
     `SumHasher` only via `streaming::` (drives `gen_sum_code_v0`; wrappers in iscc-py, iscc-wasm).
     `crates/iscc-wasm/Cargo.toml`'s `blake3 wasm32_simd` dep (118, #42) is feature-unification only,
@@ -90,37 +92,37 @@ pipelines, release internals), `dep-refresh-survey.md` (pin inventory), `unicode
 - **Spec checkboxes are NOT a progress signal** — cpp/docs/dotnet/java/kotlin/nodejs/ruby/swift sit
     at 0/N checked though MET; only `ci-cd.md` (44/52) + the `rust-core.md` semver box are kept up.
 
-## Current State (assessed-at: 2cd0d6d, iter 141)
+## Current State (assessed-at: 2ae5604, iter 142)
 
 - **IN_PROGRESS — CI GREEN.** Version still **0.5.0** (PR #44 is titled "Release 0.6.0" but is just
-    the open develop→main PR — do NOT read it as a shipped release). Iter 140 = release.yml GHA
-    `uses:` refresh (slice 9): the ONLY code file in the diff was `.github/workflows/release.yml`
-    (73+/73−, every line a `uses:`); no Rust, no `specs/`, no `target.md` → all binding/bench/docs
-    sections carried forward. Still partially met: Rust-core (boundary vectors + sweep +
-    semver/v1.0.0 HELD) and CI/CD (now only human-gated items + the 2 new `[review]` issues).
-- **CI GREEN on origin/develop tip `b8aa174`**; HEAD `2cd0d6d` = +3 UNPUSHED commits (2 `cid(log)` +
-    1 `cid(audit)` metrics snapshot), `origin/develop..HEAD` minus `.claude/` = EMPTY stat. **41**
-    check-runs, 21 names, 0 non-success. ~2x jobs because PR **#44 (develop→main) is OPEN** → every
-    develop commit fires a `push` AND a `pull_request` run.
-- **Cadence warning, now acute**: iters 134-140 (SEVEN in a row) were ALL tooling/CI config; library
-    code has not moved since 133 and the tooling thread is EXHAUSTED. Flag any further tooling
-    package as drift unless explicitly justified. **Tension partially resolved at 140**: review now
-    ENDORSES a Rust-core-only *single-code-point* boundary fixture (no binding wiring, no `specs/`
-    edit) as safe before the human ruling — that ruling concerns *sequence* adjacency only.
+    the open develop→main PR — do NOT read it as a shipped release). Iter 141 = the Unicode boundary
+    fixture: diff `2cd0d6d..HEAD` had exactly 3 non-`.claude` files (2 new test files + 1
+    `crates/iscc-lib/CLAUDE.md` bullet); no `src/`, no `specs/`, no `target.md`, no baselines → all
+    binding/bench/docs/CI sections carried forward. Still partially met: Rust-core (binding half of
+    the vectors + sweep + semver/v1.0.0 HELD) and CI/CD (human-gated + the 2 `[review]` issues).
+- **CI GREEN on origin/develop tip `b40b1bb`**; HEAD `2ae5604` = +1 UNPUSHED `cid(log)` commit,
+    `origin/develop..HEAD` minus `.claude/` = EMPTY stat. **41** check-runs, 21 names, 0
+    non-success. ~2x jobs because PR **#44 (develop→main) is OPEN** → every develop commit fires a
+    `push` AND a `pull_request` run.
+- **Cadence**: iters 134-140 were SEVEN straight tooling/CI configs; 141 finally moved library
+    (test) code. The Unicode thread is now HUMAN-BLOCKED again, so the one unblocked CID item is the
+    `release.yml` static-check script — justified once, but a second consecutive tooling package
+    after it = drift; escalate the parked rulings instead.
 - **Dep-refresh: ALL 9 slices DONE** → `dep-refresh-survey.md`. Remainder is human/major-gated ONLY:
     magnus 0.8, jni 0.22 (source rewrites), xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x.
 - **8 issues: 0 critical, 6 normal, 2 low — ONE `[review]` with HUMAN REVIEW REQUESTED** (133:
-    freeze-rule pre-normalization ordering diverges from iscc-core on *sequences*; a spec-wording
-    ruling, not a redesign → `unicode-contract.md`; still open at 141). Rose 6→8 at 140: two new
-    `[review]` entries — (a) land the release.yml static checks as an executable gate (CID-doable,
-    the hand-retyped heredoc problem), (b) pin `rubygems/configure-rubygems-credentials` off `@main`
-    (HUMAN-gated: tag-vs-SHA reopens a convention; CID must NOT pick the SHA unilaterally).
-    Contested: Unicode step (b). Human-gated: npm OIDC, the rubygems pin; low = v1.0.0, docs logos.
-- **Don't re-flag as new work** (all DONE): release.yml GHA refs (140), re-trigger guards + `.pyi`
-    hooks (139), Markdown hook parity (138), ruff A-E (131-137), Unicode freeze filter (133), Kotlin
-    2.3+ floor docs (132), dep slices 1-7 (124-130), aarch64 wheels #49 (123), CRAP baseline (122),
-    trailing-byte (120-121), Go IDv1 #43 (119), WASM SIMD #42 (118), GIL #39+#41, cargo-deny (113),
-    iai perf gate (107-111), semver gate (93). CID infra = meta, NOT target — ignore.
+    freeze-rule ordering diverges from iscc-core on *sequences*; spec-wording ruling, not a redesign
+    → `unicode-contract.md`; open at 142, upstream iscc/iscc-core#137). Iter 141 opened/closed
+    nothing — the Unicode entry was only annotated. The two 140-filed `[review]` entries stand: (a)
+    land the release.yml static checks as an executable gate (CID-doable; heredocs retyped in
+    139/140/141), (b) pin `rubygems/configure-rubygems-credentials` off `@main` (HUMAN-gated:
+    tag-vs-SHA reopens a convention). Human-gated: npm OIDC; low = v1.0.0, docs logos.
+- **Don't re-flag as new work** (all DONE): Unicode boundary fixture, Rust half (141); release.yml
+    GHA refs (140), re-trigger guards + `.pyi` hooks (139), Markdown hook parity (138), ruff A-E
+    (131-137), Unicode freeze filter (133), Kotlin 2.3+ floor docs (132), dep slices 1-7 (124-130),
+    aarch64 wheels #49 (123), CRAP baseline (122), trailing-byte (120-121), Go IDv1 #43 (119), WASM
+    SIMD #42 (118), GIL #39+#41, cargo-deny (113), iai perf gate (107-111), semver gate (93). CID
+    infra = meta, NOT target — ignore.
 - **Known non-regression**: the `proc-macro-error2 v2.0.1` future-incompat warning on cargo
     test/bench comes from `iai-callgrind-macros` (dev-only), NOT magnus/rb-sys; no upstream fix yet.
 

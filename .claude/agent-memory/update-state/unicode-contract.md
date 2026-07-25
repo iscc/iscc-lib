@@ -31,13 +31,20 @@ Go (stdlib/x/text U15.0) and `iscc-core` (CPython 3.13 `unicodedata` U15.1) STRI
     Not-In-Scope note, not debt). Requirement 2 (deps supply ≥16.0.0) is met with no dependency
     change. `pyproject.toml` `[tool.ty.src] exclude` gained the generator — sanctioned pattern for
     generator-only Python deps; never add `unicodedata2` to `[dependency-groups]`.
-2. **Boundary vectors — UNMET.** `U+1FAE9` retained, `U+113C5` retained by `text_clean` / dropped by
-    `text_collapse`, Unicode-17 `U+20C1` stripped — required as a *conformance vector set* in the
-    Rust suite **and every binding's conformance test** (cross-cutting over 12 bindings). Verify
-    with a repo-wide grep for the three code points: as of iter 134 the only hits are inline
-    `#[test]`s in `crates/iscc-lib/src/utils.rs` (L262-294) — zero in any binding, no fixture file.
-    Review recommends a project-owned `unicode16_vectors.json` + loader, NOT appending to the five
-    vendored `data.json` copies (upstream refreshes would become merge exercises).
+2. **Boundary vectors — HALF MET (Rust done iter 141, bindings not).** Landed:
+    `crates/iscc-lib/tests/unicode_boundary.json` — project-owned, `data.json`-*shaped* but a
+    separate file (NOT appended to the five vendored `data.json` copies), fully **ASCII-escaped**
+    (so a repo grep for `1FAE9` misses it — grep the filename),
+    `_metadata.unicode_data_version =  "16.0.0"`, sections `text_clean` + `text_collapse`, 4 cases
+    each: U+1FAE9 (`So`, retained), U+113C5 (`Mc`, retained by clean / dropped by collapse), U+20C1
+    and U+A7F1 (unassigned in 16.0 → stripped; both are live regression guards because
+    `unicode-normalization` 0.1.25 ships U17 tables where they are assigned). Loader
+    `tests/test_unicode_boundary.rs`: one **ungated** `test_boundary_fixture_metadata` that pins the
+    exact non-ASCII code-point set against `BOUNDARY_CODE_POINTS` (anti-hollow-fixture guard, added
+    in review) + 2 `text-processing`-gated vector tests. Inline `utils.rs` assertions deliberately
+    kept as a duplicate — don't "clean up" either copy (`decisions.md` 2026-07-25). **Remaining:**
+    propagate into 11 binding conformance suites; iter 142 re-check found ZERO hits outside
+    `crates/iscc-lib`.
 3. **Differential sweep — UNMET, and its acceptance sentence is itself under human review.** Spec
     criterion 4 wants a full-code-space sweep (1,112,032 code points) proving equivalence to
     uniform Unicode 16.0.0 tables, and makes the sweep mandatory on every future table bump.
@@ -49,9 +56,9 @@ filters category C *after* NFKC) still blocks — `text_clean("e\u{0378}\u{0301}
 version independent. This makes criterion 4 false as literally worded (a per-code-point sweep passes
 and gives false assurance). Needed: spec wording + the upstream proposal must state
 pre-normalization removal. `decisions.md` 2026-07-25 records why it was merged anyway (no
-alternative ordering keeps table-version invariance). NOTE the tension for define-next: the handoff
-says step (b) may proceed (all three boundary cases are single code points), the issue says settle
-first — reconcile by limiting the next slice to the Rust core + fixture format.
+alternative ordering keeps table-version invariance). The 141 tension is RESOLVED the way predicted:
+the Rust-core-only, single-code-point slice landed (sequence vectors deliberately excluded); the
+binding half stays parked until the ruling AND the Go decision below.
 
 **Go is the exposed binding.** Its tables are U15.0 until go1.27 (~Aug 2026, `tables17.0.0.go` is
 `//go:build go1.27`), so it cannot satisfy the boundary vectors unaided. The issue prescribes the
