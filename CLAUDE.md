@@ -176,7 +176,8 @@ uv run prek run --all-files                                      # Run all hooks
 ```
 
 **Pre-commit stage** (fast, auto-fix on every commit): file hygiene (line endings, trailing
-whitespace, YAML/JSON/TOML validation), `cargo fmt`, `ruff check --fix`, `ruff format`, `taplo fmt`,
+whitespace, YAML/JSON/TOML validation), `cargo fmt`, `ruff check --fix`, `ruff format` (also covers
+Python code blocks inside Markdown, matching CI's `ruff format --check` step), `taplo fmt`,
 `yamlfix`, `mdformat`.
 
 **Pre-push stage** (thorough quality gates): `cargo clippy`, `cargo test`, `ty check`, Ruff security

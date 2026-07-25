@@ -109,3 +109,21 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
     future majors).
 - zensical ≥0.0.51 warns (non-fatal) on broken anchors; the `docs/howto/c-cpp.md` anchor was fixed
     during iter-125 review.
+
+## ruff-format hook gate parity (iter 138)
+
+- `.pre-commit-config.yaml` `ruff-format` hook uses `types_or: [python, markdown]` so the local prek
+    surface matches CI's bare `uv run ruff format --check`. `ruff-check` stays `types: [python]` —
+    ruff 0.16 formats Markdown fences but does not *lint* them (`.md` paths → "No Python files
+    found", exit 0), so widening the lint hook adds only warning noise.
+- mdformat hook is declared before `ruff-format`, so the project-pinned ruff has the last word; the
+    two formatters converge on this tree (no ping-pong — `mise run check` twice stays clean).
+- Surface arithmetic: hook at `--all-files` = 154 tracked md+py+pyi files, a strict superset of CI's
+    recursive discovery (153 — one tracked-but-gitignored file under `.claude/plans/` is skipped).
+    Superset is the safe direction; do NOT add `--force-exclude`.
+- mdformat's `mdformat-ruff` (via `mdformat-mkdocs[recommended]`) only formats fences tagged
+    `python`; ruff 0.16 additionally reaches `py`/`python3`/`pycon` — that residual gap is what the
+    widened hook closes.
+- GOTCHA: prek reports "files were modified by this hook" only for *tracked* files — an untracked
+    probe file gets fixed but the hook reports Passed. `git add` probe files before
+    `uv run prek run <hook> --files <probe>` when a verification expects Failed.

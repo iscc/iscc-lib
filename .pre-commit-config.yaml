@@ -41,11 +41,13 @@ repos:
         language: system
         types: [python]
         stages: [pre-commit]
+      # ruff formats Python code blocks inside Markdown, so this hook covers
+      # the same surface as the CI `ruff format --check` step
       - id: ruff-format
         name: Ruff formatting
         entry: uv run ruff format
         language: system
-        types: [python]
+        types_or: [python, markdown]
         stages: [pre-commit]
       - id: taplo
         name: TOML formatting

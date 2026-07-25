@@ -136,7 +136,9 @@ can review and re-stage.
 - `cargo fmt` — Rust formatting
 - `ruff check --fix` + `ruff format` — Python linting and formatting (includes the security `S`,
     complexity `C901`, import-sorting `I`, sorted-`__all__` `RUF022` and unused-`# noqa` `RUF100`
-    rules via `extend-select` in `pyproject.toml` — imports are auto-sorted at commit time)
+    rules via `extend-select` in `pyproject.toml` — imports are auto-sorted at commit time);
+    `ruff format` also covers Python code blocks inside Markdown, matching the `ruff format --check`
+    step in CI
 - `taplo fmt` — TOML formatting
 - `yamlfix` — YAML formatting
 - `mdformat` — Markdown formatting
