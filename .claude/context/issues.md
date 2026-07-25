@@ -119,15 +119,29 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
 `mise.toml` has no `[tools]` section; `crates/iscc-napi/package.json` (`@napi-rs/cli: ^3` floats
 over the 3.x line, covers 3.7.4) and `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`
 (`Microsoft.NET.Test.Sdk 17.*`, `xunit 2.*`, `xunit.runner.visualstudio 2.*` wildcards) — both
-re-checked iter 129, editing them would be churn. Remaining: `.github/workflows/release.yml` GHA
-refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs
-the exact `@v9.0.0`, only truly exercised by a release run, so verification is static — the
-`if:`-guard fix that used to be a bundling candidate landed separately in iter 139, leaving this a
-purely mechanical bump), plus the deferred majors: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle
-wrapper 8.12.1 and JUnit 6.x (each its own step). All eight ecosystem/tooling slices are now closed;
-never run `ruff@0.16 check --fix .`, it deletes load-bearing `# noqa` directives. Separately, the
-`jni` 0.22 and `magnus` 0.8 migrations each need their own step (source rewrite in
-`crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively).
+re-checked iter 129, editing them would be churn.
+
+✅ Slice 9 — `.github/workflows/release.yml` GHA refs (iter 140): the last nine stale refs bumped to
+their current floating majors as a pure find/replace of full `uses:` values — `checkout` v4→v7,
+`download-artifact` v4→v8 **paired in the same commit with** `upload-artifact` v4→v7, `setup-java`
+v4→v5, `setup-node` v4→v7, `setup-dotnet` v4→v6, `setup-python` v5→v7, `softprops/action-gh-release`
+v2→v3, `cache` v4→v6 (73 of 97 `uses:` lines; nothing else in the file touched, guard invariant and
+artifact wiring byte-identical). The issue text's claim that this file needs `setup-uv@v9.0.0` was
+**wrong** — `release.yml` invokes no `uv`/`uvx` command and has no `setup-uv` step. Verification is
+static (the file is `workflow_dispatch`-only): review independently re-confirmed all nine tags
+resolve, every `with:` key is still a declared `inputs` key in each new major's `action.yml`,
+`cache@v6` still declares the `cache-hit` output the workflow reads, all nine are `node24`, and read
+every intervening major's release notes — no default change bites here (`setup-node@v5+`
+auto-caching needs a `packageManager` field or lockfile, neither of which this repo has;
+`checkout@v6+`'s `$RUNNER_TEMP` credential file keeps plain `git push` working;
+`download-artifact@v8`'s strict `digest-mismatch: error` is intentionally kept). Rationale +
+accepted risk → `decisions.md` 2026-07-25.
+
+**All nine ecosystem/tooling slices are closed.** Remaining under this issue are only the
+human/major-gated bumps, each its own step: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle wrapper
+8.12.1, JUnit 6.x, plus the `jni` 0.22 and `magnus` 0.8 migrations (source rewrites in
+`crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively). Never run
+`ruff@0.16 check --fix .` — it deletes load-bearing `# noqa` directives.
 
 **Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
 (`extern crate proc_macro is private and cannot be re-exported`) emitted on every `cargo test` /
@@ -136,6 +150,58 @@ never run `ruff@0.16 check --fix .`, it deletes load-bearing `# noqa` directives
 release exists (`iai-callgrind` 0.16.1 is latest), so it stays a warning until upstream ships a fix
 — re-check when bumping `iai-callgrind` (the pin must stay in lockstep with the CI-installed
 `iai-callgrind-runner` version).
+
+## Land the `release.yml` static checks as an executable gate `normal` [review]
+
+`.github/workflows/release.yml` is `workflow_dispatch`-only, so no CI run and no CID push ever
+exercises it. Three static invariants have now been hand-retyped from `next.md` into a heredoc in
+two consecutive iterations (139 and 140), which means they are correctness-critical but not
+enforced:
+
+1. **Registry-guard shape** — 29 jobs; `prepare-release` carries the bare `inputs.version != ''`,
+    all 28 others match `${{ !cancelled() && !failure() && (inputs.version != '' || <flags>) }}`
+    exactly, with the per-flag token counts fixed (see `decisions.md` 2026-07-25 for why relaxing
+    the implicit `success()` is only safe under this shape).
+2. **Artifact wiring** — every `download-artifact` `name:`/`pattern:` resolves to some
+    `upload-artifact` `name:` (11 uploads, 20 downloads).
+3. **Action-input compatibility** — for every `uses: <o>/<r>@<vN>`, each `with:` key is a declared
+    `inputs` key of that ref's `action.yml`, and each `steps.<id>.outputs.<x>` the workflow reads
+    is a declared `outputs` key. (3) needs network, so it belongs in CI only, gated to skip
+    offline; (1) and (2) are pure-local and belong in `mise run check` / prek as well.
+
+**Scope:** one `scripts/check_release_workflow.py` (PEP 723 if it needs `pyyaml` beyond the dev
+group), a prek hook restricted to `files: ^\.github/workflows/release\.yml$` for checks 1–2, and a
+CI step for check 3. Deliberately excluded from iterations 139–140 by their own `Not In Scope`
+sections because adding a gate belongs in its own scoped package. Without it, the next edit to this
+file is one forgotten heredoc away from silently reintroducing the iter-139 publish bug.
+
+## Pin `rubygems/configure-rubygems-credentials` off the `@main` branch `normal` [review]
+
+`.github/workflows/release.yml` line 895 uses `rubygems/configure-rubygems-credentials@main` — a
+**floating branch**, the only unpinned `uses:` in the repo. That step runs in the RubyGems publish
+job with `id-token: write` and mints the OIDC credential that pushes the gem, so whatever `main`
+resolves to on release day executes with publish authority.
+
+Facts checked at review (iter 140):
+
+- `@main` is what upstream's README shows in **every** example, so the current form is vendor-
+    documented, not an oversight. The same README, however, carries a NOTE recommending consumers
+    "replace the version ranges in the Actions with specific SHA hashes … [so the workflow] does not
+    pick up a new version if any of these Actions were compromised."
+- Upstream publishes only exact tags — `v1.0.0`, `v2.0.0`, `v2.1.0`; there is **no floating `v2`**
+    (`git/ref/tags/v2` → 404).
+- `main` is *ahead of* `v2.1.0` (`6861877…` vs `dc5a8d8…`), so moving to the tag is a small rollback
+    to the newest release, not a major bump.
+- The step passes **no `with:` keys** here (pure OIDC, no `role-to-assume`/`api-token`), so any of
+    `@v2.1.0` / a SHA / `@main` is input-compatible — this is purely a trust-anchor choice.
+
+**Needs Titusz's call before CID acts**, because the two candidate fixes conflict with each other
+and with existing convention: (a) `@v2.1.0` + an inline `# exact tag:` comment, mirroring the
+`astral-sh/setup-uv@v9.0.0` precedent and keeping the repo's "tags, never SHAs" convention intact,
+or (b) a SHA pin as upstream recommends, which would make this the first SHA-pinned action in the
+repo and reopens the convention decided in `decisions.md` 2026-07-25. CID should not pick (b)
+unilaterally. Verification either way is static (`workflow_dispatch`-only) plus the first real gem
+publish. Left untouched in iteration 140 by that step's `Not In Scope`.
 
 ## Declare and gate a Unicode data version (DECIDED) `normal` [human]
 

@@ -346,3 +346,30 @@ artifacts that were never built instead of skipping — any new job or registry 
 `.claude/skills/release/SKILL.md` says so explicitly rather than claiming the path is proven.
 **Context:** CID iteration 139 (`8c525cf`), closing the `[human]` issue "Fix broken single-registry
 re-trigger in release.yml".
+
+## 2026-07-25 — `release.yml` action majors refreshed on static evidence only, `digest-mismatch` left strict
+
+**Decision:** the nine stale `uses:` refs in `.github/workflows/release.yml` were bumped to their
+current floating majors (`checkout@v7`, `download-artifact@v8`, `upload-artifact@v7`,
+`setup-java@v5`, `setup-node@v7`, `setup-dotnet@v6`, `setup-python@v7`,
+`softprops/action-gh-release@v3`, `cache@v6`) and shipped **without any runtime confirmation**, and
+`actions/download-artifact@v8`'s new `digest-mismatch: error` default was deliberately *not*
+overridden back to `warn`. **Why:** `release.yml` is `workflow_dispatch`-only, so no CI or CID push
+can ever exercise it — waiting for empirical proof would mean never bumping it, and the alternative
+(a throwaway release) costs a real tag. The evidence substituted for a run is (a) six of the nine
+majors already green in `ci.yml` with byte-identical `with:` blocks since iter 127, (b) every
+`with:` key the workflow passes still declared under `inputs` in each new major's `action.yml`
+fetched at the tag ref, (c) the one step output the workflow reads (`cache@v6` → `cache-hit`) still
+declared, and (d) every intervening major's release notes read for *default* changes, not just input
+removals. Strict digest checking is the right default for a publish pipeline: a corrupted artifact
+should fail the run, not emit a warning that publishes anyway. **Alternatives:** pin to commit SHAs
+for auditability — rejected, the repo convention is floating majors (only `setup-uv@v9.0.0` is
+exact, and only because upstream stopped publishing majors); bump `upload-artifact` and
+`download-artifact` in separate commits for bisectability — rejected, the two must interoperate, so
+splitting them guarantees one broken intermediate commit; set `digest-mismatch: warn` to preserve
+iter-139 behaviour exactly — rejected, that trades a real integrity check for a cosmetic no-change
+diff. **Consequence:** first real-world confirmation is the next release run. If a publish job fails
+on a digest mismatch, the fix is to investigate the artifact, not to relax the input. The static
+checks that stand in for a run are currently re-typed by hand each iteration; landing them as a
+`scripts/` gate is filed as a `[review]` issue. **Context:** CID iteration 140 (`ed2a06a`) review,
+closing the `release.yml` remainder of the v0.6.0 dependency-refresh issue.

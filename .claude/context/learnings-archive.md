@@ -774,3 +774,14 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
     139 — Python bindings section met and both ruff hooks now gate the file locally). The wheel
     ships `py.typed`, so the stub is consumer-facing: check changes against `mypy 1.18 --strict` +
     `pyright 1.1.407` too, not just `ty`.
+
+## prek hook-surface probing — formatter caveats (archived iter 140, gate parity closed iter 139)
+
+- `ruff-check` deliberately skips Markdown: ruff 0.16 *formats* Python fences but does not *lint*
+    them, so an `.md` path prints "No Python files found" and exits 0 — widening the lint hook to
+    `markdown` buys zero enforcement and adds per-commit noise.
+- Widening a *formatter* hook onto Markdown is safe even with pseudo-code fences: `ruff format`
+    leaves a syntactically-invalid Python fence unchanged and exits 0 rather than erroring the run.
+- The `.pyi` hole (prek types `.pyi` as `pyi`, not `python`) was found iter 138 and closed iter 139
+    by adding `pyi` to both ruff hooks' `types_or`; CI's bare `ruff check`/`ruff format` always
+    covered the published `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`.
