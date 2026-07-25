@@ -11,7 +11,7 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
 - `mise run check` runs 15 pre-commit hooks (file hygiene, formatting, linting incl. Ruby)
 - Pre-push hooks (clippy, cargo test, pytest, etc.) NOT in `mise run check` — verify clippy with
     `cargo clippy --workspace --all-targets -- -D warnings`
-- Java tests: `mvn test`. Go tests: `cd packages/go && mise exec -- go test ./...`
+- Java tests: `mvn test`. Go tests: `mise exec -- go test -C packages/go ./...` (`-C`, never `cd`)
 - `check-added-large-files` threshold is `--maxkb=256`
 - **`ty check` external Python files**: files importing packages not in the venv (e.g.
     `conanfile.py` → `conan`) fail `ty check`. Fix: `[tool.ty.src] exclude` in `pyproject.toml` —
@@ -68,6 +68,12 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     HUMAN-REVIEW spec amendments + `low` [human] remaining (strict IDLE cond #2 NOT met) → flag
     **HUMAN REVIEW REQUESTED** (runner "pause"), NOT `**IDLE**` (reserved for all-`low`, runs
     meta-improve). Verdict still PASS; push clean batch
+- **Unicode version is unpinned per implementation (iter 129, issue OPEN)**: Go stdlib `unicode` =
+    15.0.0 (its `unicode.C` INCLUDES unassigned Cn) and Python 3.13 `unicodedata` = 15.1.0, but Rust
+    `unicode-general-category` = 16.0.0 / `unicode-normalization` = 17.0.0 → 5,813 code points where
+    Go+`iscc-core` strip a character the Rust core keeps, so Meta/Text codes differ (repro: `Ɤ`
+    U+A7CB). **The Rust core is the outlier**, and no gate catches it. Do not let a future step
+    "fix" a binding to match the core — the version choice is HUMAN-REVIEW spec policy
 - **Concurrent CID loops (iter 97, resolved iter 98 — in `MEMORY-archive.md`)**: spurious
     `mise run check` "files modified" on an untouched file + mid-review working-tree change = a
     SECOND loop racing. Confirm `ps aux | grep -E 'cid:run|claude -p CID iteration'`; flag HUMAN
@@ -79,7 +85,8 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
 - **Clippy workspace**: fast (~2s) after build — always run
 - **Docs-only**: `mise run check` + clippy
 - **Python-only**: `mise run check` + `pytest`
-- **Go-only**: `mise run check` + `cd packages/go && mise exec -- go test ./...`
+- **Go-only**: `mise run check` + `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`
+    - `go vet -C packages/go ./...`
 - **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` +
     `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (needs
     `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`)
@@ -92,9 +99,14 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     deps changed — see gate-reviews.md Audit)
 - **Dependency refresh slices (v0.6.0 issue)**: per-slice gate sets + hold-back-verification recipes
     for Cargo.lock (iter 124), uv.lock (125), Rust direct pins (126), GitHub Actions (127), JVM
-    manifests (128) → `dep-refresh-reviews.md`. Never use the lockfile-only shortcut on these. **A
-    toolchain/compiler bump inside a PUBLISHED binding is a support-policy change, not a pin** —
-    check whether the consumer floor moved (iter 128 recipe) before passing it
+    manifests (128), Go module (129) → `dep-refresh-reviews.md`. Never use the lockfile-only
+    shortcut on these. **A toolchain/compiler bump inside a PUBLISHED binding is a support-policy
+    change, not a pin** — check whether the consumer floor moved (iter 128 recipe) before passing it
+- **A dep that ships DATA TABLES (Unicode, locale, tz) needs an exhaustive differential, not green
+    vectors** (iter 129, `golang.org/x/text`): the 50 vendored ISCC vectors are all Unicode ≤ 15, so
+    they cannot detect a table change. Recipe: throwaway module with a `replace` to the local
+    package, dump outputs for the whole input space, re-run under `replace <dep> => <dep> v<OLD>`,
+    `diff`. Full commands in `dep-refresh-reviews.md` slice 6
 - **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
     `--target all`. Used it to disprove an advance-handoff attribution: the
     `proc-macro-error2 v2.0.1` future-incompat warning is from `iai-callgrind-macros` (dev-only),

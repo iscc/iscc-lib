@@ -9,11 +9,11 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Architecture
 
-- Hub-and-spoke: `iscc-lib` (pure Rust core) → 7 binding crates (py, napi, wasm, ffi, jni, go, rb).
-    Each binding depends only on `iscc-lib`, never on another binding
+- Hub-and-spoke: `iscc-lib` (pure Rust core) → binding crates (py, napi, wasm, ffi, jni, rb,
+    uniffi). Each depends only on `iscc-lib`, never on another binding. `packages/go` is NOT a
+    binding — it is an independent pure-Go reimplementation (see the Unicode entry below)
 - Tier 1 API (32 symbols) exposed via `pub use` at crate root. Tier 2 is `pub(crate)` — internal
-    only, never crosses FFI boundary
-- Sync core, async boundaries: Rust core is synchronous. Each binding adapts idiomatically
+    only, never crosses FFI. Core is sync; each binding adapts async idiomatically
 
 ## Reference Implementation
 
@@ -32,12 +32,11 @@ fully-met target sections to `learnings-archive.md`.
     `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe in
     `learnings-archive.md`; advisory clearance now IS tool-confirmable via the enforcing
     `cargo deny check` Audit gate (iter 114+)
-- **Perf-gate tooling is install-on-demand, NOT in the devcontainer** (iter 124): CI installs
-    valgrind + `iai-callgrind-runner@0.16.1` per-run in the `Perf` job (`ci.yml:289-300`), and the
-    devcontainer intentionally mirrors this (no bake-in). On a fresh container
+- **Perf-gate tooling is install-on-demand, NOT in the devcontainer** (iter 124):
     `mise run bench:iai:check` dies with "No such file or directory" until
     `sudo apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner --version 0.16.1`
-    (version MUST match the `iai-callgrind` pin). Not a devcontainer bug — do not file an issue
+    (MUST match the `iai-callgrind` pin). CI does the same per-run (`ci.yml:289-300`) and the
+    devcontainer deliberately mirrors it — not a bug, do not file an issue
 
 ## ISCC Algorithm Knowledge
 
@@ -70,13 +69,20 @@ fully-met target sections to `learnings-archive.md`.
     when bit_length < 256
 - **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`**: a
     `< nbytes` guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`).
-    Conformance-safe (every vendored vector round-trips exactly). Enforced in Go `IsccDecode` (iter
-    120\) + Rust core `iscc_decode` (iter 121, two-branch "too short"/"too long"; all 11 bindings
-    inherit). NOTE composite `iscc_decompose` legitimately consumes trailing units — do NOT harden
-    it
+    Enforced in Go `IsccDecode` (iter 120) + Rust core `iscc_decode` (iter 121, two-branch). NOTE
+    composite `iscc_decompose` legitimately consumes trailing units — do NOT harden it
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
 - **ISCC-IDv1** (`gen_iscc_id_v1`, Go-only, experimental) archived iter 124 → `learnings-archive.md`
+- **The Unicode data version is an unpinned cross-implementation variable** (iter 129, issue filed):
+    Go stdlib `unicode` = 15.0.0 and `x/text/unicode/norm` = 15.0.0 (its `tables17.0.0.go` is
+    `//go:build go1.27`), Python 3.13 `unicodedata` = 15.1.0, but Rust `unicode-general-category`
+    1.1.0 = 16.0.0 and `unicode-normalization` 0.1.25 = 17.0.0. Go's `unicode.C` **includes
+    unassigned (Cn)**, so the 5,813 code points assigned in Unicode 16/17 are stripped by
+    Go/`iscc-core` but kept by the Rust core → divergent `text_clean`/`text_collapse` → divergent
+    Meta-Code, Text-Code and `name` fields (e.g. `Ɤ` U+A7CB). The conformance vectors are all
+    Unicode ≤ 15, so no gate catches it. Do not "fix" a binding to match the core here without
+    reading the issue — the version choice is a spec-level decision
 
 ## CI/CD
 
@@ -86,13 +92,13 @@ fully-met target sections to `learnings-archive.md`.
 - **Release pipeline pattern**: boolean input → build → smoke test → publish; 6 smoke test jobs
     (test-wheels/napi/wasm/gem/jni/ffi) gate publish, each testing the linux-x86_64 artifact
 - **Adding a Python wheel target (#49)** archived iter 124 → `learnings-archive.md`
-- **Tag-triggered vs dispatch-triggered releases**: `workflow_dispatch` with `--ref v<tag>` checks
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger breaks
     for Swift — needs a spec fix to derive version from `Cargo.toml`
 - **Release input count**: 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift); re-trigger individual registries with `--ref main`. `version_sync.py`
-    manages 16 targets (incl. root `Package.swift` releaseTag); `--check` exits 1 on mismatch
+    manages 22 targets as of iter 129 (incl. root `Package.swift` releaseTag and
+    `packages/kotlin/README.md`); `--check` exits 1 on mismatch
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (`continue-on-error: true`,
     enforcing at v1.0.0; `rust-core.md` box stays `[ ]`); `coverage` enforcing. Run via
     `mise run semver` / `mise run coverage`. Details → `learnings-archive.md`
@@ -104,7 +110,7 @@ fully-met target sections to `learnings-archive.md`.
     threshold). Reviewing a refresh: only the changed fn's crap/cyclomatic/coverage moves (re-sorts
     by CRAP desc); all others are pure `line:` shifts. Full mechanics → `learnings-archive.md`
 - **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING (#3)**:
-    `[profile.bench] strip = false,   debug = true` load-bearing (stripped binary → all benches
+    `[profile.bench] strip = false,   debug = true` is load-bearing (stripped binary → all benches
     `summary: 0` false-green). Full saga → `learnings-archive.md`
 - **`Audit (cargo-deny)` gate — ENFORCING (ci-cd.md)**: root `deny.toml` (config v2,
     `yanked = "deny"`, two dev-only iai-callgrind advisories ignored) + `audit` CI job
@@ -114,14 +120,13 @@ fully-met target sections to `learnings-archive.md`.
     `cargo update -p <crate>` (confirm dev-only reach via `cargo tree -i <crate> -e no-dev` =
     empty), NOT a `deny.toml` ignore — ignore ONLY when no patched release exists
 - **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue; per-slice progress lives
-    in `issues.md`). Slices 1-5 done (Cargo.lock, uv.lock, Rust pins, GHA refs, JVM manifests).
-    Verify each Rust slice with the 4-gate set (`test`/`lint`/`audit`/`bench:iai:check`);
+    in `issues.md`). Slices 1-6 done (Cargo.lock, uv.lock, Rust pins, GHA refs, JVM manifests, Go
+    module). Verify each Rust slice with the 4-gate set (`test`/`lint`/`audit`/`bench:iai:check`);
     `cargo-deny` is the main risk (new transitive license/advisory). **Hold-back reasons are inline
-    `# held:` comments** beside the pin (root `Cargo.toml`, `pom.xml`, `build.gradle.kts`) — read
-    them before proposing a bump. `cargo info <crate>@<ver>` prints `rust-version`: cheapest MSRV
-    pre-check. GOTCHAs: grep the actual pin syntax (`uniffi = "0.31"` is a plain string, not an
-    inline table); `criterion` > 0.5 deprecates `criterion::black_box`, fatal under `-D warnings` →
-    switch the bench import to `std::hint::black_box`
+    `# held:` comments** beside the pin — read them before proposing a bump.
+    `cargo info   <crate>@<ver>` prints `rust-version`: cheapest MSRV pre-check. GOTCHAs: grep the
+    actual pin syntax (`uniffi = "0.31"` is a plain string, not an inline table); `criterion` > 0.5
+    deprecates `criterion::black_box`, fatal under `-D warnings` → use `std::hint::black_box`
 - **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128, Kotlin): KGP
     2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar (`javap -v -p <class> | grep mv=`) and
     puts `kotlin-stdlib:2.4.10` in the published POM. Verified with a throwaway consumer resolving
@@ -129,18 +134,16 @@ fully-met target sections to `learnings-archive.md`.
     2.4.0"), 2.3.21 passes — Kotlin tolerates ~one minor ahead. The transitive stdlib triggers the
     same error independently, so pinning `languageVersion` alone does not restore the old floor.
     Treat compiler/toolchain bumps in a *published* binding as support-policy changes, not pins
-- **JVM test/publish gotchas** (iter 128): junit-jupiter ≥ 5.12 under Gradle 8.12.1 needs an
-    explicit `testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.x.y")` (Gradle injects a
-    launcher predating platform 1.12 → "OutputDirectoryCreator not available"); Maven/surefire
-    resolves the aligned launcher itself. `mvn -Prelease package -DskipTests` does **not** resolve
-    `maven-gpg-plugin` (verify-phase; absent from `~/.m2`) — prove a plugin version exists with a
-    `repo1.maven.org` `.pom` HTTP 200, not from build success.
-    `./gradlew   generatePomFileForMavenPublication` → `build/publications/maven/pom-default.xml`
-    proves test-scope deps do not leak into the published artifact
-- **Gradle flakes on the workspace bind mount**: `Unable to delete file …/build/kotlin/…` or
-    `NoSuchFileException …/build/reports/tests/test/packages` are incremental-state races, not test
-    failures (`build/test-results/test/*.xml` still showed `tests="9" failures="0"`). Re-run after
-    `./gradlew clean` before concluding anything about a build
+- **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) archived iter 129 →
+    `learnings-archive.md`. Read it before touching `pom.xml` / `build.gradle.kts` or before calling
+    a Gradle error a test failure
+- **Go module slice — prove a `x/text` bump is output-neutral, don't infer it from green vectors**
+    (iter 129): build a throwaway module in `/tmp` with
+    `replace github.com/iscc/iscc-lib/packages/go => <repo>/packages/go`, dump
+    `TextClean`/`TextCollapse` for all 1,112,032 code points, then re-run under
+    `replace golang.org/x/text => golang.org/x/text v<old>` and `diff`. 0.34.0 → 0.40.0 was
+    byte-identical (same `unicode/norm` tables; only invalid-rune bookkeeping changed). A new
+    indirect (`golang.org/x/sys` via cpuid 2.4.0) is legitimate when `go mod tidy -diff` exits 0
 - **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
     `--target all`. The `proc-macro-error2 v2.0.1` future-incompat warning emitted on every
     `cargo test`/`cargo bench` traces to `iai-callgrind-macros` (dev-only), **not** magnus/rb-sys;
@@ -167,10 +170,8 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Feature Flags
 
-- **Section fully met — archived iter 127 → `learnings-archive.md`** (`default = ["meta-code"]`
-    layering, per-test `#[cfg(feature)]` gating vs whole `mod tests`, the
-    `--no-default-features --all-targets` bench false-regression, blake3 WASM SIMD #42). Read it
-    before touching `[features]` in `crates/iscc-lib/Cargo.toml`
+- **Fully met — archived iter 127 → `learnings-archive.md`.** Read it before touching `[features]`
+    in `crates/iscc-lib/Cargo.toml`
 
 ## CID Process
 
@@ -179,11 +180,10 @@ fully-met target sections to `learnings-archive.md`.
     `npm view`, Maven Central API, `pip index versions`, Go module proxy, `gh api`)
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
-- **Detect concurrent CID loops** (iter 97): context files changing in the working tree mid-review,
-    or `mise run check` reporting spurious "files were modified by this hook" on a file advance
-    never touched (e.g. `standardrb-fix` with no dirty `.rb`), means a race. Check
-    `ps aux | grep -E 'cid:run|claude -p CID iteration'` — two loops = duplicates. Flag HUMAN REVIEW
-    REQUESTED so a human kills the duplicate; do NOT kill processes yourself, and do NOT push
+- **Detect concurrent CID loops** (iter 97): context files changing mid-review, or `mise run check`
+    reporting spurious "files were modified by this hook" on a file advance never touched, means a
+    race. Confirm with `ps aux | grep -E 'cid:run|claude -p CID iteration'`, then flag HUMAN REVIEW
+    REQUESTED — do NOT kill processes yourself, and do NOT push
 - **Human-handoff vs IDLE (iter 111)**: when autonomous work runs out but `normal` issues remain
     that are all `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all issues `low`) is
     NOT met. Flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead of `**IDLE**` (which runs

@@ -109,10 +109,46 @@ into the published artifact via `./gradlew generatePomFileForMavenPublication`
 this bind mount (`Unable to delete file …/build/kotlin/…`, `NoSuchFileException …/build/reports/…`)
 — check `build/test-results/test/*.xml` and re-run after `./gradlew clean` before calling a failure.
 
+## Slice 6 — Go module (`packages/go/go.mod`/`go.sum`) — iter 129
+
+Gate set: `CGO_ENABLED=0 go test -C packages/go -count=1 ./...`, `go vet -C packages/go ./...`,
+`go mod tidy -C packages/go -diff` (exit 0 = tidy), + `mise run check`. No Rust/clippy needed (pure
+Go, no cgo).
+
+**Green vectors are NOT enough for a `golang.org/x/text` bump** — it ships the Unicode tables that
+feed `norm.NFKC`/`norm.NFD` in `packages/go/utils.go`, and all 50 vendored vectors are Unicode ≤ 15.
+Prove output-neutrality exhaustively instead (~2 min):
+
+```
+# /tmp/godiff/go.mod: replace github.com/iscc/iscc-lib/packages/go => /workspace/iscc-lib/packages/go
+# main.go: for cp 0x20..0x10FFFF (skip D800-DFFF) print hex(TextClean) + hex(TextCollapse)
+go run -C /tmp/godiff . > /tmp/new.tsv
+printf '\nreplace golang.org/x/text => golang.org/x/text v<OLD>\n' >> /tmp/godiff/go.mod
+go mod tidy -C /tmp/godiff && go run -C /tmp/godiff . > /tmp/old.tsv && diff /tmp/new.tsv /tmp/old.tsv
+```
+
+0.34.0 → 0.40.0 was byte-identical on all 1,112,032 code points AND on invalid-UTF-8 byte sequences
+(where 0.40.0's `isInvalid()` refactor actually landed). Root cause of the non-event:
+`unicode/norm/tables15.0.0.go` + `tables17.0.0.go` are unchanged between releases and `tables17` is
+`//go:build go1.27`, so Unicode 15.0.0 tables are used either way.
+
+Other slice-6 checks: confirm every module is really latest via
+`curl -s https://proxy.golang.org/<module>/@v/list | sort -V | tail -3`; read each dep's `go`
+directive from `$(go env GOMODCACHE)/<mod>@<ver>/go.mod` to prove no pressure on the `go 1.26.1`
+consumer floor; a NEW indirect is legitimate if the bumped dep's own go.mod requires it (cpuid 2.4.0
+→ `golang.org/x/sys`).
+
+**Byproduct finding (iter 129, filed as its own `normal` `[review]` issue):** Go stdlib `unicode`
+15.0.0 + `unicode.C` including unassigned (Cn) vs Rust `unicode-general-category` 16.0.0 /
+`unicode-normalization` 17.0.0 → 5,813 code points where Go and Rust `text_clean` disagree. Go
+matches `iscc-core` (Python 3.13 = Unicode 15.1); **the Rust core is the outlier**. Repro: `Ɤ`
+U+A7CB. Do not attribute this to a dep bump without running the differential above.
+
 ## Remaining slices
 
-Per-binding manifests (napi `package.json`, rb `Gemfile`/gemspec, dotnet `.csproj`, go `go.mod`) —
-these ARE CI-validated on develop pushes, so demand green CI, and watch for the slice-5 lesson: a
-runtime/toolchain floor moving in a *published* package. Then `release.yml` GHA refs (not
-CI-exercised), Gradle wrapper 8.12.1 + JUnit 6.x majors, and the deferred ruff 0.16 / magnus 0.8 /
-jni 0.22 migrations, each its own step.
+`crates/iscc-rb/Gemfile`/gemspec is the last locally-verifiable one (rb_sys in `Gemfile.lock` must
+match the `oxidize-rb/actions/cross-gem` Docker image tag). napi `package.json` (`@napi-rs/cli: ^3`)
+and dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked current iter 129 — no edit needed.
+Then `release.yml` GHA refs (not CI-exercised), Gradle wrapper + JUnit 6.x / xunit 3 / Test.Sdk 18
+majors, and the deferred ruff 0.16 / magnus 0.8 / jni 0.22 migrations, each its own step. Watch for
+the slice-5 lesson in any published binding: a runtime/toolchain floor moving silently.

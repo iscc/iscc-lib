@@ -652,3 +652,18 @@ reference-only for humans.
     in an ISCC-CODE. Used by `gen_iscc_code_v0` to record which units were combined
 - DCT uses Nayuki's algorithm (not FFTW/scipy). Image-Code: 8×8 pixel blocks → per-block DCT →
     WTA-Hash across blocks. Video-Code: per-frame DCT → WTA-Hash per frame → SimHash across frames
+
+## CI/CD — JVM test/publish + Gradle bind-mount flakes (archived iter 129, dep-refresh slice 5 done)
+
+- **JVM test/publish gotchas** (iter 128): junit-jupiter ≥ 5.12 under Gradle 8.12.1 needs an
+    explicit `testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.x.y")` (Gradle injects a
+    launcher predating platform 1.12 → "OutputDirectoryCreator not available"); Maven/surefire
+    resolves the aligned launcher itself. `mvn -Prelease package -DskipTests` does **not** resolve
+    `maven-gpg-plugin` (verify-phase; absent from `~/.m2`) — prove a plugin version exists with a
+    `repo1.maven.org` `.pom` HTTP 200, not from build success.
+    `./gradlew generatePomFileForMavenPublication` → `build/publications/maven/pom-default.xml`
+    proves test-scope deps do not leak into the published artifact
+- **Gradle flakes on the workspace bind mount**: `Unable to delete file …/build/kotlin/…` or
+    `NoSuchFileException …/build/reports/tests/test/packages` are incremental-state races, not test
+    failures (`build/test-results/test/*.xml` still showed `tests="9" failures="0"`). Re-run after
+    `./gradlew clean` before concluding anything about a build

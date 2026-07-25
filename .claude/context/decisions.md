@@ -106,3 +106,26 @@ REVIEW REQUESTED on the handoff to pause the runner (disproportionate — the lo
 actionable refresh slices, and the issue carries the escalation). **Context:** iter 128, commit
 be0a497; found independently by this review and by the Codex second opinion, then confirmed
 empirically against consumer projects on Kotlin 2.1.10 / 2.2.21 / 2.3.21.
+
+## 2026-07-25 — Go `x/text` refresh accepted on exhaustive differential evidence; Unicode divergence split out
+
+**Decision:** The iter-129 Go module refresh (`golang.org/x/text` 0.34.0 → 0.40.0) was approved on
+the strength of an exhaustive differential — `TextClean`/`TextCollapse` are byte-identical for all
+1,112,032 code points under both versions — rather than on the green conformance vectors alone. The
+Unicode-version divergence uncovered while establishing that baseline (Rust core keeps the 5,813
+code points assigned in Unicode 16/17; Go and `iscc-core` strip them, so Meta/Text codes differ) was
+filed as its own `normal` `[review]` issue with HUMAN REVIEW REQUESTED instead of downgrading this
+verdict. **Why:** `x/text` ships Unicode tables and feeds NFKC in every `Gen*CodeV0`, so a
+vector-green result proves only that the 50 vendored vectors are unaffected — all of them predate
+Unicode 16, which is exactly the region where implementations disagree. The differential converts
+"no vector regressed" into "no input can regress", which is the claim the refresh actually needs.
+The divergence itself is pre-existing, is not reachable from this diff, and picking a Unicode
+version is a conformance-policy call with an upstream (ISO 24138 / `iscc-core`) dimension that will
+flip direction again when CPython ships Unicode 16 — not something a dependency-refresh slice may
+settle. **Alternatives:** accept on vectors alone (cheap, but would have left the divergence
+undetected and the bump unjustified in the one dimension that matters); NEEDS_WORK on the slice
+until the Unicode question is resolved (punishes a clean, output-neutral refresh for a defect it did
+not introduce, and stalls the remaining slices); pin the Rust core to Unicode 15 immediately
+(unilaterally sets conformance policy, and re-breaks when the reference moves). **Context:** iter
+129, commit 4404fba; divergence reproduced against Go, the Rust core via the Python binding, and
+`iscc-core` 1.3.0 side by side.

@@ -45,18 +45,31 @@ gson 2.14.0, compiler 3.15.0, surefire 3.5.6, source 3.4.0, javadoc 3.12.0, gpg 
 runs in a real Central publish; `build.gradle.kts`: kotlin("jvm") 2.4.10, jna 5.19.1, junit/gson in
 lockstep, plus a required `testRuntimeOnly junit-platform-launcher:1.14.4`; mvn 69/69 and gradle 9/9
 green). **The Kotlin plugin bump raised the consumer Kotlin floor — see the follow-up issue below.**
+✅ Slice 6 — Go module (iter 129; `golang.org/x/text` 0.34.0 → 0.40.0 direct,
+`github.com/klauspost/cpuid/v2` 2.0.12 → 2.4.0 indirect, new indirect `golang.org/x/sys` v0.47.0
+pulled in by cpuid; `go 1.26.1` consumer floor and `zeebo/blake3` v0.2.4 untouched — all three are
+the latest published versions; no hold-back needed). The `x/text` bump was proven
+**output-neutral**, not just vector-green: `TextClean`/`TextCollapse` are byte-identical across all
+1,112,032 code points under 0.34.0 and 0.40.0 (the `unicode/norm` tables files are unchanged between
+the two releases; only invalid-rune bookkeeping was refactored). Also wired
+`packages/kotlin/README.md` into `scripts/version_sync.py` `TARGETS` (22 targets now), closing the
+last unmanaged stale version string (`0.3.1` → `0.5.0`).
+
 Verified already-current and needing no bump: `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
 mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
 `taiki-e/install-action@v2`, `ruby/setup-ruby@v1`, `obi1kenobi/cargo-semver-checks-action@v2`;
-`mise.toml` has no `[tools]` section. Remaining: `.github/workflows/release.yml` GHA refs (97
-`uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs
-`@v9.0.0`, only truly exercised by a release run — consider bundling with the existing release.yml
-`if:`-guard fix issue) and the remaining per-binding manifests (napi `package.json`, rb
-`Gemfile`/gemspec, dotnet `.csproj`, go `go.mod`), plus the Gradle wrapper 8.12.1 and JUnit 6.x
-majors (each its own step). A dedicated step should adopt ruff 0.16 (run `ruff check --fix` for the
-60 auto-fixable, hand-fix the rest — mostly `_lowlevel.pyi` stub-style PIE790/PYI048/RUF022 — and
-drop the `ruff<0.16` pin). Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need their
-own step (source rewrite in `crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs`
+`mise.toml` has no `[tools]` section; `crates/iscc-napi/package.json` (`@napi-rs/cli: ^3` floats
+over the 3.x line, covers 3.7.4) and `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`
+(`Microsoft.NET.Test.Sdk 17.*`, `xunit 2.*`, `xunit.runner.visualstudio 2.*` wildcards) — both
+re-checked iter 129, editing them would be churn. Remaining: `crates/iscc-rb/Gemfile` + gemspec
+(with the `magnus` 0.8 question), `.github/workflows/release.yml` GHA refs (97 `uses:`;
+`upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs `@v9.0.0`, only
+truly exercised by a release run — consider bundling with the existing release.yml `if:`-guard fix
+issue), plus the deferred majors: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle wrapper 8.12.1
+and JUnit 6.x (each its own step). A dedicated step should adopt ruff 0.16 (run `ruff check --fix`
+for the 60 auto-fixable, hand-fix the rest — mostly `_lowlevel.pyi` stub-style PIE790/PYI048/RUF022
+— and drop the `ruff<0.16` pin). Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need
+their own step (source rewrite in `crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs`
 respectively).
 
 **Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
@@ -100,6 +113,57 @@ floor. **HUMAN REVIEW REQUESTED**: picking the supported-consumer Kotlin version
 decision (the same class as MSRV and `java-version: '17'`, which `next.md` deliberately keeps out of
 dependency-refresh steps). A CID agent should not set it unilaterally; the review agent recommends
 option 1.
+
+## Rust core diverges from `iscc-core` and the Go package on Unicode 16/17 characters `normal` [review]
+
+The Unicode data version is unpinned and differs per implementation, so `text_clean` /
+`text_collapse` — and therefore Meta-Code, Text-Code and the returned `name`/`description` fields —
+disagree across implementations for any text containing a character assigned after Unicode 15.
+
+| Implementation                            | Unicode version                                       |
+| ----------------------------------------- | ----------------------------------------------------- |
+| Go stdlib `unicode` (Go 1.26.1)           | 15.0.0                                                |
+| Go `x/text/unicode/norm`                  | 15.0.0 (its `tables17.0.0.go` is `//go:build go1.27`) |
+| Python 3.13 `unicodedata` (→ `iscc-core`) | 15.1.0                                                |
+| Rust `unicode-general-category` 1.1.0     | **16.0.0**                                            |
+| Rust `unicode-normalization` 0.1.25       | **17.0.0**                                            |
+
+Go's `unicode.C` range table **includes unassigned code points (Cn)**, and
+`TextClean`/`TextCollapse` strip category C — so every code point assigned in Unicode 16/17 is
+dropped by Go and by the Python reference, but kept by the Rust core. A full sweep of the code space
+(iter 129 review) found **5,813 code points** where Go and Rust `text_clean` disagree and **5,750**
+where `text_collapse` disagrees.
+
+**Reproduction** (`Ɤ` = U+A7CB LATIN CAPITAL LETTER RAMS HORN, added in Unicode 16):
+
+```text
+s = "The quick brown fox Ɤ jumps over the lazy dog and keeps running far away"
+
+go       meta=ISCC:AAARDZ4ASOMVXBRR  text=ISCC:EAA7VW5ZOQZ3XEMT  name="The quick brown fox jumps …"
+iscc-core meta=ISCC:AAARDZ4ASOMVXBRR text=ISCC:EAA7VW5ZOQZ3XEMT  name='The quick brown fox jumps …'
+rust     meta=ISCC:AAARDZ5SS6NVXBLT  text=ISCC:EAA3RXNBOM77TGM5  name='The quick brown fox Ɤ jumps …'
+```
+
+Go matches the reference; **the Rust core is the outlier**, and all 10 non-Go bindings inherit its
+output. No gate catches this: every vendored conformance vector predates Unicode 16.
+
+The divergence is inherently unstable in both directions — when CPython ships Unicode 16 (3.14),
+`iscc-core` will move to the Rust side and away from Go. So this is not simply "bump/pin one crate";
+ISO 24138 does not pin a Unicode version, which is arguably an upstream spec gap worth raising with
+`iscc/iscc-core` once this project decides its own position.
+
+**Options:** (a) pin the Rust core to the reference's Unicode version (needs an older
+`unicode-general-category` / a vendored category table, and re-pins on every reference upgrade); (b)
+declare a Unicode version in the spec and add conformance vectors covering post-15 code points so
+all implementations are checked against it; (c) document the divergence as accepted and
+out-of-contract for post-15 characters.
+
+Not introduced by the iter-129 `golang.org/x/text` refresh — that bump was verified byte-identical
+across all 1,112,032 code points. Pre-existing and previously unnoticed.
+
+**Spec:** `.claude/context/specs/rust-core.md` → conformance / `iscc-core` output-compatibility
+claim. **HUMAN REVIEW REQUESTED**: choosing a Unicode version (or accepting the divergence) is a
+conformance-policy decision with an upstream dimension; a CID agent should not pick it unilaterally.
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
