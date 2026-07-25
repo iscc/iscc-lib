@@ -14,6 +14,11 @@ IDv1 + decode guards). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Rust core: `crates/iscc-lib/src/` — lib.rs (crate root, Tier 1 re-exports), codec.rs, cdc.rs,
     minhash.rs, simhash.rs, dct.rs, wtahash.rs, utils.rs, streaming.rs, conformance.rs
 - Conformance vectors: `crates/iscc-lib/tests/data.json` (50 total: 20+5+3+5+3+2+4+3+5, v1.3.0)
+- Unicode 16.0.0 freeze rule (iter 133): `text_clean`/`text_collapse` strip 16.0-unassigned code
+    points BEFORE normalization via generated `crates/iscc-lib/src/utils/unicode16.rs` (731 ranges;
+    regen with `uv run --script scripts/gen_unicode16_unassigned.py` — PEP 723, pins
+    `unicodedata2==16.0.0`, ty-excluded in pyproject.toml). Keep filter first in both chains.
+    Pending: binding boundary vectors (step b), full-code-space differential sweep (step c)
 - Python wrapper: `crates/iscc-py/python/iscc_lib/__init__.py`. Node.js:
     `crates/iscc-napi/src/lib.rs`. WASM: `crates/iscc-wasm/src/lib.rs`. C FFI:
     `crates/iscc-ffi/src/lib.rs`. JNI: `crates/iscc-jni/src/lib.rs` +

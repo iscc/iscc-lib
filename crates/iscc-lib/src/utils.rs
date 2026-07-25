@@ -4,6 +4,9 @@
 //! ported from `iscc-core` `code_meta.py` and `utils.py`.
 
 #[cfg(feature = "text-processing")]
+mod unicode16;
+
+#[cfg(feature = "text-processing")]
 use unicode_general_category::{GeneralCategory, get_general_category};
 #[cfg(feature = "text-processing")]
 use unicode_normalization::UnicodeNormalization;
@@ -19,6 +22,31 @@ const NEWLINES: &[char] = &[
     '\u{2028}', // LINE SEPARATOR
     '\u{2029}', // PARAGRAPH SEPARATOR
 ];
+
+/// Check whether a character is unassigned (general category `Cn`) in Unicode 16.0.0.
+///
+/// Backed by the vendored range table in [`unicode16`], generated from
+/// `unicodedata2==16.0.0` by `scripts/gen_unicode16_unassigned.py`. Used to strip
+/// such code points from input before any normalization or category lookup, making
+/// text output invariant under the Unicode table versions dependencies ship.
+#[cfg(feature = "text-processing")]
+fn is_unassigned_in_unicode16(c: char) -> bool {
+    let cp = c as u32;
+    if cp < unicode16::UNASSIGNED_RANGES[0].0 {
+        return false; // fast path: everything below the first gap is assigned
+    }
+    unicode16::UNASSIGNED_RANGES
+        .binary_search_by(|&(lo, hi)| {
+            if cp < lo {
+                std::cmp::Ordering::Greater
+            } else if cp > hi {
+                std::cmp::Ordering::Less
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+}
 
 /// Check if a character belongs to a Unicode "C" (control/format/etc) category.
 #[cfg(feature = "text-processing")]
@@ -61,13 +89,20 @@ fn is_cmp_category(c: char) -> bool {
 
 /// Clean and normalize text for display.
 ///
-/// Applies NFKC normalization, removes control characters (except newlines),
-/// normalizes `\r\n` to `\n`, collapses consecutive empty lines to at most
-/// one, and strips leading/trailing whitespace.
+/// Removes code points unassigned in Unicode 16.0.0 (the declared Unicode data
+/// version — stripping them before normalization keeps output invariant under
+/// future Unicode table upgrades), applies NFKC normalization, removes control
+/// characters (except newlines), normalizes `\r\n` to `\n`, collapses
+/// consecutive empty lines to at most one, and strips leading/trailing
+/// whitespace.
 #[cfg(feature = "text-processing")]
 pub fn text_clean(text: &str) -> String {
-    // 1. NFKC normalize
-    let text: String = text.nfkc().collect();
+    // 1. Strip Unicode-16.0.0-unassigned code points, then NFKC normalize
+    let text: String = text
+        .chars()
+        .filter(|&c| !is_unassigned_in_unicode16(c))
+        .nfkc()
+        .collect();
 
     // 2. Remove control chars except newlines, normalizing all newlines to \n
     let mut cleaned = String::with_capacity(text.len());
@@ -133,13 +168,20 @@ pub fn text_trim(text: &str, nbytes: usize) -> String {
 
 /// Normalize and simplify text for similarity hashing.
 ///
-/// Applies NFD normalization, lowercasing, removes whitespace and characters
-/// in Unicode categories C (control), M (mark), and P (punctuation), then
-/// recombines with NFKC normalization.
+/// Removes code points unassigned in Unicode 16.0.0 (the declared Unicode data
+/// version — stripping them before normalization keeps output invariant under
+/// future Unicode table upgrades), applies NFD normalization, lowercasing,
+/// removes whitespace and characters in Unicode categories C (control), M
+/// (mark), and P (punctuation), then recombines with NFKC normalization.
 #[cfg(feature = "text-processing")]
 pub fn text_collapse(text: &str) -> String {
-    // 1. NFD normalize and lowercase
-    let nfd_lower: String = text.nfd().collect::<String>().to_lowercase();
+    // 1. Strip Unicode-16.0.0-unassigned code points, then NFD normalize and lowercase
+    let nfd_lower: String = text
+        .chars()
+        .filter(|&c| !is_unassigned_in_unicode16(c))
+        .nfd()
+        .collect::<String>()
+        .to_lowercase();
 
     // 2. Filter: keep chars that are NOT whitespace AND NOT in C/M/P categories
     let filtered: String = nfd_lower
@@ -211,6 +253,79 @@ mod tests {
     #[test]
     fn test_text_clean_empty() {
         assert_eq!(text_clean(""), "");
+    }
+
+    // ---- Unicode 16.0.0 freeze rule tests ----
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_text_clean_unicode16_boundary() {
+        // U+A7F1: Cn in Unicode 16, Lm in 17 — must be stripped before NFKC
+        // (17.0 tables would otherwise map it to "S" first).
+        assert_eq!(text_clean("a\u{A7F1}b"), "ab");
+        // U+20C1: Cn in Unicode 16, assigned in 17 — stripped by the freeze rule.
+        assert_eq!(text_clean("a\u{20C1}b"), "ab");
+        // U+1FAE9 (So) and U+113C5 (Mc): assigned in Unicode 16 — retained.
+        assert_eq!(text_clean("a\u{1FAE9}b"), "a\u{1FAE9}b");
+        assert_eq!(text_clean("a\u{113C5}b"), "a\u{113C5}b");
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_text_collapse_unicode16_boundary() {
+        // U+113C5 (Mc, assigned in 16) survives the freeze rule but is dropped
+        // by the C/M/P category filter.
+        assert_eq!(text_collapse("a\u{113C5}b"), "ab");
+        // U+1FAE9 (So, assigned in 16) is retained end-to-end.
+        assert_eq!(text_collapse("a\u{1FAE9}b"), "a\u{1FAE9}b");
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_is_unassigned_in_unicode16() {
+        // Unassigned in Unicode 16.0.0
+        assert!(is_unassigned_in_unicode16('\u{0378}'));
+        assert!(is_unassigned_in_unicode16('\u{A7F1}'));
+        assert!(is_unassigned_in_unicode16('\u{20C1}'));
+        // Assigned in Unicode 16.0.0
+        assert!(!is_unassigned_in_unicode16('a'));
+        assert!(!is_unassigned_in_unicode16('\u{A7CB}'));
+        assert!(!is_unassigned_in_unicode16('\u{1FAE9}'));
+        assert!(!is_unassigned_in_unicode16('\u{113C5}'));
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_unicode16_table_invariants() {
+        use super::unicode16::UNASSIGNED_RANGES;
+        assert_eq!(UNASSIGNED_RANGES.len(), 731);
+        let mut covered: u32 = 0;
+        for (i, &(lo, hi)) in UNASSIGNED_RANGES.iter().enumerate() {
+            assert!(lo <= hi, "inverted range at index {i}");
+            if i > 0 {
+                let prev_hi = UNASSIGNED_RANGES[i - 1].1;
+                assert!(
+                    prev_hi + 1 < lo,
+                    "ranges not strictly ascending/non-adjacent at index {i}"
+                );
+            }
+            covered += hi - lo + 1;
+        }
+        assert_eq!(covered, 819_533);
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_freeze_rule_ascii_unchanged() {
+        // Regression guard: the pre-normalization filter must not affect ASCII.
+        assert_eq!(
+            text_clean("The quick brown fox\njumps over the lazy dog."),
+            "The quick brown fox\njumps over the lazy dog."
+        );
+        assert_eq!(
+            text_collapse("The quick brown fox jumps over the lazy dog."),
+            "thequickbrownfoxjumpsoverthelazydog"
+        );
     }
 
     // ---- text_remove_newlines tests ----
