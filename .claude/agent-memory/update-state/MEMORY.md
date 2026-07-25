@@ -13,7 +13,7 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `git diff --stat origin/develop..HEAD -- . ':!.claude'` (empty = nothing outside CI coverage).
 - **Tier 1 pub fns**: `grep -rn "pub fn gen_\|pub const " crates/iscc-lib/src/lib.rs`; **C FFI
     externs**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
-- **Counts** (re-verified 137): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
+- **Counts** (re-verified 138): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
     llms-full ORDERED_PAGES 22; `docs/howto/*.md` 11; speedup 1.3x-158x; release.yml toggles 8; ffi
     extern 47; iscc-lib `#[test]` = **325** (`grep -rc --include="*.rs" crates/iscc-lib/`, sum);
     ci.yml job entries 19 = `grep -cE '^  [a-z_-]+:$'` (raw 21) minus 2.
@@ -51,13 +51,12 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `scripts/build_xcframework.sh` = 5 Apple targets. `packages/kotlin/` — Kotlin/JVM + JNA,
     `kotlin("jvm") 2.4.10`; JVM pins + the **consumer-floor trap** → `dep-refresh-survey.md`.
 - **Unicode = DECLARED 16.0.0 + freeze rule** (human decision 132) → **`unicode-contract.md`**:
-    freeze filter **MET iter 133** (`src/utils/unicode16.rs` 731-range table +
-    `scripts/gen_unicode16_unassigned.py` PEP 723 generator + pre-`nfkc`/`nfd` filter at `utils.rs`
-    L103/L181); still unmet = boundary vectors `U+1FAE9`/`U+113C5`/`U+20C1` as a conformance fixture
-    in Rust + all 12 bindings, and the full-code-space sweep. Go exposed until go1.27; an open HUMAN
-    ruling on sequence-adjacency divergence blocks the sweep wording. Vector check:
-    `grep -rl "1FAE9\|113C5\|20C1" crates/ packages/ tests/ scripts/` → at 137 still only `utils.rs`
-    and `utils/unicode16.rs`, zero bindings, no fixture file.
+    freeze filter **MET iter 133** (`src/utils/unicode16.rs` 731-range table + PEP 723 generator
+    `scripts/gen_unicode16_unassigned.py` + pre-`nfkc`/`nfd` filter at `utils.rs` L103/L181); unmet
+    = boundary vectors + full-code-space sweep (Go exposed until go1.27; an open HUMAN ruling on
+    sequence-adjacency blocks the sweep wording). Vector check:
+    `grep -rl "1FAE9\|113C5\|20C1" crates/ packages/ tests/ scripts/` → at 138 still only the two
+    core files (`utils.rs`, `utils/unicode16.rs`), zero bindings, no fixture file.
 - `crates/iscc-lib/src/streaming.rs` — `DataHasher`+`InstanceHasher` re-exported at crate root;
     `SumHasher` only via `streaming::` (drives `gen_sum_code_v0`; wrappers in iscc-py, iscc-wasm).
 - `crates/iscc-wasm/Cargo.toml` — the `blake3 wasm32_simd` dep (118, #42) is feature-unification
@@ -66,16 +65,24 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `crates/iscc-lib/benches/` — `benchmarks.rs` 12 criterion benches (criterion 0.7, `black_box`
     from `std::hint`); `iai_benches.rs` iai-callgrind 0.16 (11 fns, 16 cases).
 - **Inline `# held:` comments = authoritative pin rationale**: root `Cargo.toml` (`grep -c '# held'`
-    → **4**: criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32 + a pyo3 `# note:` → #41) and
-    `pyproject.toml` (`ruff<0.16`); MSRV recipe: `cargo info <crate>@<ver>`.
+    → **4**: criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32 + a pyo3 `# note:` → #41).
+    `pyproject.toml` now has **zero** `held:` pins (the `ruff<0.16` one died at 137). MSRV recipe:
+    `cargo info <crate>@<ver>`.
 - **ruff config since 135** (verify via tomllib, not grep — long inline code spans get mangled by
     mdformat rewrapping): `[tool.ruff]` sets `src` to repo root + `crates/iscc-py/python`, and
     `[tool.ruff.lint.isort]` sets `combine-as-imports`. BOTH load-bearing: no `src` → `iscc_lib`
     sorts third-party; no `combine-as-imports` → the `_lowlevel` re-export block shatters into ~60
     statements. `extend-select` = S, C901, I, RUF022, RUF100 with still **NO `select` key** — that
     absence is load-bearing (a bare `select` drops ruff's `E4`/`E7`/`E9`/`F` defaults). Since 135
-    `ruff check --fix` auto-sorts imports at commit time. Live 0.16 count:
-    `uvx ruff@0.16.0 check . --output-format concise` → **exit 0 since 136**.
+    `ruff check --fix` auto-sorts imports at commit time. **Project ruff = 0.16.0 since 137** (pin
+    dropped, `uv run ruff --version` is ground truth); `uv run ruff check` → exit 0.
+- **ruff 0.16 Markdown asymmetry (open `[review]` issue, 137)**: bare `uv run ruff format --check`
+    (ci.yml L71 + `mise run lint`) formats Python fences inside `.md` → **153** files vs 25
+    pre-0.16; the prek `ruff-check`/`ruff-format` hooks are `types: [python]`
+    (`.pre-commit-config.yaml` L42/ L48) and pre-push never runs `ruff format`. So local green + CI
+    red is possible on docs edits. 129 tracked `.md` files are clean today. `decisions.md` (137)
+    rejected a `[tool.ruff.format]` exclude as scope exclusion — the fix must widen the local
+    surface, not shrink the CI one.
 - **`rb_sys` pinned in THREE places that must move together** (130): `crates/iscc-rb/Gemfile` (exact
     `0.9.123`), `Gemfile.lock`, `tag:` at `release.yml:853` (cross-gem image must match).
 - **Full dependency-pin inventory + slice history** → `dep-refresh-survey.md` (re-verified 129).
@@ -96,31 +103,29 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     at 0/N checked though MET; only `ci-cd.md` (44/52) + the `rust-core.md` semver box are
     maintained. Verify in code, never read boxes as done/not-done.
 
-## Current State (assessed-at: cc9a330, iter 137)
+## Current State (assessed-at: 8629752, iter 138)
 
-- **IN_PROGRESS — CI GREEN.** v0.5.0 released. Iter 136 = ruff sub-slice D only (3 script/tool
-    files, one a pure mode change — no Rust/`specs/`/`docs/`, so every binding/bench section carried
+- **IN_PROGRESS — CI GREEN.** v0.5.0 released. Iter 137 = ruff sub-slice E only (`pyproject.toml` +
+    `uv.lock`, 2 files — no Rust/`specs/`/`docs/`, so every binding/bench/docs section carried
     forward verbatim). Still partially met: Rust-core (boundary vectors + sweep + semver/v1.0.0
-    HELD) and CI/CD (only the `ruff<0.16` pin left). **Next = sub-slice E, the pin drop.**
-- **CI GREEN on origin/develop tip `690b1a8`**; HEAD `cc9a330` = +1 UNPUSHED log commit,
+    HELD) and CI/CD (release.yml refs + the new Markdown gate-parity gap).
+- **CI GREEN on origin/develop tip `3063fc6`**; HEAD `8629752` = +1 UNPUSHED log commit,
     `origin/develop..HEAD` minus `.claude/` = EMPTY stat. **41** check-runs, 21 names, 0
     non-success. ~2x jobs because PR **#44 (develop→main) is OPEN** → every develop commit fires a
     `push` AND a `pull_request` run.
-- **Open tension (unsettled at 137)**: 133 wanted a Rust-only boundary fixture; the 134-136 reviews
-    all say wire NO vectors until the human ruling lands. 137 = sub-slice E first.
-- **Dep-refresh: ALL 7 slices DONE** (124-130) → `dep-refresh-survey.md`. **ruff 0.16 sub-slices A-D
-    DONE** (131/134/135/136: 104→26→12→3→**0** findings). **Only E left**:
-    `uv lock --upgrade-package ruff` + delete the `ruff<0.16` line at `pyproject.toml:47` (its
-    `# held:` comment names 3 findings that no longer exist — stale twice over); watch 0.16
-    **`ruff format` drift** (0.15.22 says "25 files already formatted"). Then magnus 0.8 / jni 0.22
-    (source rewrites). **Never `ruff@0.16 check --fix .`** — deletes load-bearing `# noqa`; all
-    landed slices used an explicit `--select`.
-- **7 issues: 0 critical, 5 normal, 2 low — ONE `[review]` with HUMAN REVIEW REQUESTED** (new 133:
+- **Open tension (unsettled at 138)**: 133 wanted a Rust-only boundary fixture; the 134-137 reviews
+    all say wire NO vectors until the human ruling lands. 138 = close the Markdown gate-parity gap.
+- **Dep-refresh: ALL 8 slices DONE** (124-130 ecosystems, 131-137 ruff sub-slices A-E: 104→26→12→3→0
+    findings, then the pin drop). Remaining in that issue is human/major-gated only: magnus 0.8, jni
+    0.22 (source rewrites), xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x, plus the
+    release.yml GHA refs (bundle with the `if:`-guard fix). **Never `ruff@0.16 check --fix .`** —
+    deletes load-bearing `# noqa`; all landed slices used `--select`.
+- **8 issues: 0 critical, 6 normal, 2 low — ONE `[review]` with HUMAN REVIEW REQUESTED** (133:
     freeze-rule pre-normalization ordering diverges from iscc-core on *sequences*; a spec-wording
-    ruling, not a redesign → `unicode-contract.md`; still open at 137, none opened/closed since).
-    CID-doable: ruff sub-slice E (unblocked), Unicode step (b) (contested). Human-gated: npm OIDC,
-    single-registry re-trigger; low (CID skips) = v1.0.0 (HELD), docs logos.
-- **Don't re-flag as new work** (all DONE): ruff sub-slices A-D (131-136), Unicode freeze filter +
+    ruling, not a redesign → `unicode-contract.md`; still open at 138). NEW at 137: the ruff
+    Markdown gate-parity `[review]` issue (CID-doable, one config file). Contested: Unicode step
+    (b). Human-gated: npm OIDC, single-registry re-trigger; low (CID skips) = v1.0.0, docs logos.
+- **Don't re-flag as new work** (all DONE): ruff sub-slices A-E (131-137), Unicode freeze filter +
     generator (133), Kotlin 2.3+ floor docs (132), dep slices 1-7 (124-130), aarch64 wheels #49
     (123), CRAP baseline (122), trailing-byte fixes (120-121), Go IDv1 #43 (119), WASM SIMD #42
     (118), GIL #39+#41, cargo-deny (113), iai perf gate (107-111), semver gate (93). CID infra
