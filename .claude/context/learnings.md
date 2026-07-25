@@ -50,7 +50,7 @@ fully-met target sections to `learnings-archive.md`.
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer** (iter 124):
     `mise run bench:iai:check` dies with "No such file or directory" until
     `sudo apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner --version 0.16.1`
-    (MUST match the `iai-callgrind` pin) — CI mirrors this per-run; not a bug, do not file an issue
+    (MUST match the `iai-callgrind` pin) — CI mirrors this; not a bug, do not file an issue
 
 ## ISCC Algorithm Knowledge
 
@@ -81,10 +81,10 @@ fully-met target sections to `learnings-archive.md`.
     `encode_units`, DCT), settled API-parameter facts (trim/decode checks, pixel layout, MainType
     Ord, JCS, `bits`/`wide`) and **ISCC-IDv1** are archived → `learnings-archive.md`
 - `conformance_selftest` masks truncated codes bitwise — never compare full strings below 256 bits
-- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`**: a
-    `< nbytes` guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`).
-    Enforced in Go `IsccDecode` (iter 120) + Rust core `iscc_decode` (iter 121, two-branch). NOTE
-    composite `iscc_decompose` legitimately consumes trailing units — do NOT harden it
+- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`** — a
+    `< nbytes` guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`);
+    enforced in Go `IsccDecode` + Rust `iscc_decode`. NOTE composite `iscc_decompose` legitimately
+    consumes trailing units — do NOT harden it
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
 
@@ -93,8 +93,7 @@ fully-met target sections to `learnings-archive.md`.
 - Windows GHA runners default to `pwsh`. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
     `grep`, `sed`) MUST specify `shell: bash` — per-matrix version steps (e.g. `build-ffi`) hit
     Windows. Always check `shell:` when adding `run:` steps to cross-platform matrices
-- **Release pipeline pattern** (9 registry inputs → build → smoke test → publish; `version_sync.py`
-    manages **21** targets) archived iter 133 → `learnings-archive.md`
+- **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like every other release job), so the `--ref main` re-trigger breaks for Swift
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0;
@@ -115,33 +114,36 @@ fully-met target sections to `learnings-archive.md`.
     `cargo update -p <crate>` (confirm dev-only reach via `cargo tree -i <crate> -e no-dev` =
     empty), NOT a `deny.toml` ignore — ignore ONLY when no patched release exists
 - **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue; per-slice status lives in
-    `issues.md` — all 7 ecosystem slices done; ruff 0.16, `release.yml` refs and deferred majors
-    remain). Verify each Rust slice with the 4-gate set (`test`/`lint`/`audit`/`bench:iai:check`);
-    `cargo-deny` is the main risk (new transitive license/advisory). **Hold-back reasons are inline
-    `# held:` comments** beside the pin — confirm the stated reason from registry metadata, not
-    prose: `cargo info <crate>@<ver>` (`rust-version`), `gem specification <gem> -v <ver> --remote`
-    (transitive pins), `https://rubygems.org/api/v1/versions/<gem>.json` (`ruby_version`; the v2
-    endpoint returns `null`). GOTCHA: `criterion` > 0.5 deprecates `criterion::black_box`, fatal
-    under `-D warnings` → use `std::hint::black_box`
-- **ruff 0.16 adoption is sliced by decision type, not by file** (iters 125/131/134/135/136): run
-    the unpinned version with `uvx ruff@0.16.0 check .` — it never touches `uv.lock`, so `ruff<0.16`
-    stays in `pyproject.toml` until the tree is clean. 104 → **0** across sub-slices A–D; only the
-    pin drop (E) is left. Rules go in `[tool.ruff.lint] extend-select` — **never `select`**, which
-    drops ruff's `E4`/`E7`/`E9`/`F` defaults; the pre-push `--select S`/`--select C901` hooks stay
-    as deliberate redundancy naming the failing gate. isort needs BOTH
-    `[tool.ruff] src = [".", "crates/iscc-py/python"]` (makes `iscc_lib` first-party) and
-    `[tool.ruff.lint.isort] combine-as-imports = true` (else the `_lowlevel` re-export block
-    shatters into ~60 statements). **Never `ruff@0.16 check --fix .`** — it deletes the load-bearing
-    `# noqa: S603/S607` in `tools/`+`scripts/`; use the pinned ruff + `--select`
-- **A file-mode change needs `git update-index --chmod=+x`, not just `chmod`** (iter 136, ruff
-    `EXE001` on `tools/cid.py`): `core.fileMode=false` here, so a plain `chmod +x` satisfies local
-    tools but is invisible to git. Run both; prove it with `git ls-files -s <path>` → `100755`
-- **Two ruff invocation gotchas**: (1) an unused `# noqa` is invisible unless `RUF100` is selected
-    (in `extend-select` since iter 135) — before deleting any directive prove it dead with
-    `uv run ruff check --select <rule> --ignore-noqa`; `S603` never fires on a fully static
-    list-literal argv, only on dynamic argv (`["git", "add", rel]`). (2) the pre-commit `ruff-check`
-    hook passes *filenames* and no `--force-exclude`, so hook-mode can disagree with `ruff check .`
-    — re-probe per-file whenever a path-sensitive setting (`src`, `exclude`, isort) changes
+    `issues.md` — all 8 locally-verifiable slices closed as of iter 137; only `release.yml` refs and
+    the human/major-gated bumps remain). Verify each Rust slice with the 4-gate set
+    (`test`/`lint`/`audit`/`bench:iai:check`); `cargo-deny` is the main risk (new transitive
+    license/advisory). **Hold-back reasons are inline `# held:` comments** beside the pin — confirm
+    the stated reason from registry metadata, not prose: `cargo info <crate>@<ver>`
+    (`rust-version`), `gem specification <gem> -v <ver> --remote` (transitive pins),
+    `https://rubygems.org/api/v1/versions/<gem>.json` (`ruby_version`; the v2 endpoint returns
+    `null`). GOTCHA: `criterion` > 0.5 deprecates `criterion::black_box`, fatal under `-D warnings`
+    → use `std::hint::black_box`
+- **ruff is 0.16.0 since iter 137** (sliced adoption history → `learnings-archive.md`): preview any
+    future major with `uvx ruff@X.Y.Z check .` — it never touches `uv.lock`, so a hold-back pin can
+    stay in `pyproject.toml` until the tree is clean. **0.16 formats Python code blocks inside
+    Markdown**, so bare `ruff format --check` (CI + `mise run lint`) covers 153 files, not 25 — but
+    the prek hooks are `types: [python]` and pre-push never runs `ruff format`, so a mis-formatted
+    fenced snippet passes `mise run check` and reds CI (gap tracked in issues.md); run the bare
+    command yourself after editing Markdown that contains Python. Rules go in
+    `[tool.ruff.lint] extend-select` — **never `select`**, which drops ruff's `E4`/`E7`/`E9`/`F`
+    defaults; the pre-push `--select S`/`--select C901` hooks stay as deliberate redundancy naming
+    the failing gate (every `[tool.ruff*]` setting carries its rationale as an inline comment in
+    `pyproject.toml` — read them before editing). **Never `ruff check --fix .`** without `--select`
+    — a blanket fix deletes the 13 load-bearing `# noqa: S603/S607` in `tools/`+`scripts/` and reds
+    the pre-push security gate
+- **A file-mode change needs `git update-index --chmod=+x`, not just `chmod`** (iter 136): with
+    `core.fileMode=false` here a plain `chmod +x` is invisible to git — run both, prove it with
+    `git ls-files -s <path>` → `100755`
+- **Two ruff invocation gotchas**: (1) an unused `# noqa` is invisible unless `RUF100` is selected —
+    prove a directive dead with `uv run ruff check --select <rule> --ignore-noqa` before deleting it
+    (`S603` never fires on a fully static list-literal argv, only on dynamic argv). (2) the
+    pre-commit `ruff-check` hook passes *filenames* and no `--force-exclude`, so hook-mode can
+    disagree with `ruff check .` — re-probe per-file when `src`/`exclude`/isort settings change
 - **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128 Kotlin, documented
     iter 132): KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar and
     `kotlin-stdlib:2.4.10` into the POM; a `mavenLocal` consumer proved 2.1.10/2.2.21 fail, 2.3.21
@@ -177,8 +179,6 @@ fully-met target sections to `learnings-archive.md`.
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — frequently stale. Verify independently against the source (`cargo search`,
     `npm view`, Maven Central API, `pip index versions`, Go module proxy, `gh api`)
-- **Context growth**: learnings.md and agent memory grow monotonically — archive completed-phase
-    entries periodically to prevent token bloat
 - **Detect concurrent CID loops** (iter 97): context files changing mid-review, or `mise run check`
     reporting spurious "files were modified by this hook" on a file advance never touched, means a
     race. Confirm with `ps aux | grep -E 'cid:run|claude -p CID iteration'`, then flag HUMAN REVIEW

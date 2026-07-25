@@ -102,11 +102,14 @@ byte-identical), `PLW1510` via an explicit `check=False` in `scripts/test_instal
 `result.returncode`), and `EXE001` via the exec bit on `tools/cid.py` (mode `100755` committed with
 `git update-index --chmod=+x`; all 10 `mise.toml` tasks invoke it as `uv run tools/cid.py`, so the
 bit is additive only, and it is now the only shebang'd tracked `.py` file).
-`uvx ruff@0.16.0 check .` exits **0** for the first time. 🔄 **Sub-slice E — the last one:**
-`uv lock --upgrade-package ruff`, drop the `ruff<0.16` pin and its now-fully-stale `# held:` comment
-from `pyproject.toml`, then re-run the full pre-push set with 0.16 as the project formatter and
-default linter. Watch for 0.16 `ruff format` drift and never blanket `--fix` — the
-`# noqa: S603/S607` directives are load-bearing.
+`uvx ruff@0.16.0 check .` exits **0** for the first time. ✅ **Sub-slice E done** (iter 137): the
+`ruff<0.16` pin and its `# held:` comment are gone from `pyproject.toml`;
+`uv lock --upgrade-package ruff` moved 0.15.22 → 0.16.0 and nothing else moved in the lock. Zero
+lint findings and zero reformats at the flip — sub-slices A–D had pre-cleared everything. Known
+behaviour change: `ruff format` now also checks Python code blocks in Markdown, so the bare
+invocation used by `mise run lint` and CI widened from 25 to 153 files (all 129 tracked `.md` files
+already clean); the prek `ruff-format` hook is `types: [python]` and therefore does **not** cover
+them — see the gate-parity issue below. **Slice 8 CLOSED — ruff 0.16 adoption fully landed.**
 
 Verified already-current and needing no bump: `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
 mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
@@ -118,10 +121,9 @@ re-checked iter 129, editing them would be churn. Remaining: `.github/workflows/
 refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs
 `@v9.0.0`, only truly exercised by a release run — consider bundling with the existing release.yml
 `if:`-guard fix issue), plus the deferred majors: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle
-wrapper 8.12.1 and JUnit 6.x (each its own step). The ruff 0.16 adoption is in progress as slice 8
-above (sub-slices A–D done, tree clean under 0.16; only sub-slice E — dropping the `ruff<0.16` pin —
-remains, and never run `ruff@0.16 check --fix .`, it deletes load-bearing `# noqa` directives).
-Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need their own step (source rewrite in
+wrapper 8.12.1 and JUnit 6.x (each its own step). All eight ecosystem/tooling slices are now closed;
+never run `ruff@0.16 check --fix .`, it deletes load-bearing `# noqa` directives. Separately, the
+`jni` 0.22 and `magnus` 0.8 migrations each need their own step (source rewrite in
 `crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively).
 
 **Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
@@ -131,6 +133,33 @@ Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need their own step 
 release exists (`iai-callgrind` 0.16.1 is latest), so it stays a warning until upstream ships a fix
 — re-check when bumping `iai-callgrind` (the pin must stay in lockstep with the CI-installed
 `iai-callgrind-runner` version).
+
+## `ruff format` covers Markdown in CI but no local hook does `normal` [review]
+
+Since ruff 0.16 landed (iter 137), the bare `uv run ruff format --check` in
+`.github/workflows/ci.yml` (and `mise run lint`) also formats Python code blocks inside Markdown —
+its surface widened from 25 to 153 files. No **local** gate covers that surface, so CI can reject a
+docs change that every local command calls clean:
+
+- `.pre-commit-config.yaml` `ruff-format` (and `ruff-check`) declare `types: [python]`, so prek
+    never passes `.md` files to ruff. Verified by probe: a repo-local `probe.md` containing `x=1` in
+    a `python` fence → `uv run prek run ruff-format --files probe.md` reports
+    `(no files to check) Skipped` and leaves the file unchanged, while
+    `uv run ruff format --check probe.md` exits 1 with `1 file would be reformatted`.
+- The pre-push hooks run only `--select S` / `--select C901`, never `ruff format`, so the push
+    succeeds too.
+- `mdformat` owns Markdown but does not reformat code-fence *contents*.
+
+Net effect: `mise run format`, `mise run check` and `git push` are all green, then CI's
+`Run ruff format check` step goes red — the worst place to discover it, and a plausible trap for any
+future docs iteration. Nothing is red today (all 129 tracked `.md` files are 0.16-clean).
+
+**Fix options** (pick one, both small): (a) widen the two prek hooks to
+`types_or: [python, markdown]` so `mise run format` auto-fixes fenced Python and `mise run check`
+catches it — verify mdformat and ruff do not fight over the same fences, and that `ruff check`'s "No
+Python files found" behaviour on `.md` does not red the `ruff-check` hook; or (b) add a
+`ruff format --check` (bare, `pass_filenames: false`) pre-push hook mirroring the CI command, which
+detects but does not auto-fix. Either way the local and CI surfaces must be stated to match.
 
 ## Declare and gate a Unicode data version (DECIDED) `normal` [human]
 

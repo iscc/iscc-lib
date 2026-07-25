@@ -274,3 +274,24 @@ rejected, it disables the S gate at those call sites; add `per-file-ignores` for
 — rejected as gate-weakening by scope exclusion; drop the now-redundant pre-push hooks — rejected
 per the two reasons above. **Context:** CID iteration 134 (`82b8e37`), ruff 0.16 adoption sub-slice
 B of the v0.6.0 dependency-refresh issue.
+
+## 2026-07-25 — ruff 0.16's Markdown formatting reach is accepted, not excluded
+
+**Decision:** dropping the `ruff<0.16` pin widened the bare `uv run ruff format --check` (the exact
+command in `mise run lint` and `ci.yml`) from 25 files to 153, because ruff 0.16 formats Python code
+blocks embedded in Markdown. No `[tool.ruff.format] exclude` / `extend-exclude` was added to keep
+ruff Python-only — the widening is accepted as free coverage for documentation examples. **Why:**
+all 129 tracked `.md` files are already 0.16-clean (measured before and after the bump), so the
+widening cost zero churn, and the project's documentation is full of executable Python examples that
+nothing else formats — `mdformat` owns Markdown structure but never touches code-fence contents.
+Adding an exclude to preserve the old surface would have been speculative config written to avoid a
+problem that does not exist. **Alternatives:** add `exclude`/`extend-exclude` to pin the surface at
+25 files — rejected as speculative and as scope exclusion that would dodge a check rather than fix
+anything; leave the `ruff<0.16` pin in place — rejected, the hold-back reason (3 outstanding
+findings) was fully cleared in sub-slices A–D. **Consequence:** local and CI surfaces now disagree —
+the prek `ruff-check`/`ruff-format` hooks declare `types: [python]` and pre-push never runs
+`ruff format`, so a mis-formatted Python snippet in a `.md` passes `mise run check` and reds CI.
+Filed as a `normal` `[review]` issue with two candidate fixes (widen the hook types, or mirror the
+bare command as a pre-push hook); until it is closed, run `uv run ruff format --check` by hand after
+editing Markdown that contains Python. **Context:** CID iteration 137 (`5ad1e17`), ruff 0.16
+adoption sub-slice E — the final piece of slice 8 of the v0.6.0 dependency-refresh issue.

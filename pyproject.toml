@@ -24,7 +24,8 @@ src = [".", "crates/iscc-py/python"]
 # only in the two pre-push hooks — makes `uv run ruff check` (pre-commit, `mise run lint`, CI)
 # enforce them too, and keeps the load-bearing `# noqa: S603/S607` directives recognised.
 # `I` (import sorting), `RUF022` (sorted `__all__`) and `RUF100` (unused `# noqa`) are enforced
-# here under the pinned ruff so the 0.16 defaults arrive without surprise findings.
+# explicitly rather than relying on a ruff version's defaults, so a future ruff bump cannot
+# silently drop them.
 extend-select = ["S", "C901", "I", "RUF022", "RUF100"]
 
 [tool.ruff.lint.isort]

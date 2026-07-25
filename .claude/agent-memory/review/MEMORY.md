@@ -77,13 +77,13 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     `uv run zensical build` ("No issues found", ~13s) + rendered-HTML grep for admonition/tab edits
     (recipe → `review-patterns.md`)
 - **Python-only**: `mise run check` + `pytest`
-- **Lint-config-only (`[tool.ruff]*`, iters 134/135/136)**: `mise run check` + `uv run ruff check` +
-    `format --check` + both pre-push gates (`--select S` / `--select C901 --force-exclude`) +
-    `uv run ty check`, `uvx ruff@0.16.0 check . --output-format concise` (count must match next.md)
-    and `pytest`. A `# noqa` deletion is only safe if `--select <rule> --ignore-noqa` does NOT list
-    its line; a path-sensitive setting (`src`, isort, `exclude`) needs the hook-mode probe — the
-    pre-commit hook passes FILENAMES and has no `--force-exclude`. Both recipes →
-    `dep-refresh-reviews.md` slice 8. Docs edit → `uv run zensical build`
+- **Lint-config-only (`[tool.ruff]*`, iters 134/135/136/137)**: `mise run check` +
+    `uv run ruff check` + `format --check` (note the count: 153 files, of which 129 `.md`) + both
+    pre-push gates (`--select S` / `--select C901 --force-exclude`) + `uv run ty check` + `pytest`.
+    A `# noqa` deletion is only safe if `--select <rule> --ignore-noqa` does NOT list its line; a
+    path-sensitive setting (`src`, isort, `exclude`) needs the hook-mode probe — the pre-commit hook
+    passes FILENAMES and has no `--force-exclude`. Both recipes → `dep-refresh-reviews.md` slice 8.
+    Docs edit → `uv run zensical build`
 - **Go-only**: `mise run check` + `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`
     - `go vet -C packages/go ./...`
 - **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` +
@@ -99,10 +99,16 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     deps changed — see gate-reviews.md Audit)
 - **Dependency refresh slices (v0.6.0 issue)**: per-slice gate sets + hold-back-verification recipes
     for Cargo.lock (124), uv.lock (125), Rust pins (126), GH Actions (127), JVM (128), Go (129),
-    Ruby (130), ruff 0.16 A–D (131/134/135/136, tree now clean under 0.16) + E (the pin drop, watch
-    for 0.16 `ruff format` drift) → `dep-refresh-reviews.md`. Never use the lockfile-only shortcut
-    on these. **A toolchain/compiler bump inside a PUBLISHED binding is a support-policy change, not
-    a pin** — check whether the consumer floor moved (iter 128 recipe) before passing it
+    Ruby (130), ruff 0.16 A–E (131/134/135/136/137 — slice 8 CLOSED, ruff is 0.16.0 project-wide) →
+    `dep-refresh-reviews.md`. Never use the lockfile-only shortcut on these. **A toolchain/compiler
+    bump inside a PUBLISHED binding is a support-policy change, not a pin** — check whether the
+    consumer floor moved (iter 128 recipe) before passing it
+- **A tool bump can widen a gate's FILE DISCOVERY, not just its rules** (iter 137): ruff 0.16
+    formats Python fences inside Markdown, so bare `ruff format --check` went 25 → 153 files. Always
+    diff the file count before/after, then ask **which local gate covers the new surface** — here
+    none does (prek hooks are `types: [python]`, pre-push never runs `ruff format`), so only CI
+    enforces it. Single-package relock proof:
+    `git diff HEAD~1..HEAD -- uv.lock | grep -E '^[+-]name = '` → empty
 - **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131): the package ships
     `py.typed` beside `_lowlevel.pyi`, so it is consumer-facing. `uvx mypy@1.18.2 --strict` +
     `uvx pyright@1.1.407` ≈ 30s. Prefer an `ast.parse` body assertion over greps for bulk stub edits

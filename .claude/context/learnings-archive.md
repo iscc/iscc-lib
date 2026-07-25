@@ -734,3 +734,22 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
 - **PyO3 0.29 upgrade note** (iter 133 prune): the explicit
     `#[pymodule(name = "_lowlevel", gil_used = true)]` attribute is load-bearing — dropping it
     changes the module name PyO3 registers and breaks `iscc_lib._lowlevel` imports.
+
+## ruff 0.16 adoption (archived iter 137 — slice 8 of the v0.6.0 dependency refresh, CLOSED)
+
+- **Sliced by decision type, not by file** (iters 125 → 137). `uv lock --upgrade` (iter 125) could
+    not take ruff 0.16: it added 104 new default-lint findings, so `ruff<0.16` went into
+    `pyproject.toml` with an inline `# held:` reason. `uvx ruff@0.16.0 check .` previews an unpinned
+    ruff without touching `uv.lock` — that is what let the hold-back survive four clean-up steps.
+- **A** (iter 131) — 78 config-free findings: 36 lone `...` stub bodies deleted from `_lowlevel.pyi`
+    (`PIE790` + `PYI048` double-report one line) and 6 `RUF059` unused unpackings `_`-prefixed. Stub
+    change verified against `ty`, `mypy 1.18 --strict`, `pyright 1.1.407` because the wheel ships
+    `py.typed`. **B** (iter 134) — `extend-select = ["S", "C901"]`; the 14 `# noqa: S603/S607`
+    became *recognised* instead of `RUF100`-flagged; 2 genuinely dead directives deleted. **C**
+    (iter 135) — the isort cluster: `[tool.ruff] src` + `combine-as-imports`, plus `I`, `RUF022`,
+    `RUF100` added to `extend-select`. **D** (iter 136) — the last three: `itertools.pairwise`
+    (RUF007), explicit `check=False` (PLW1510), exec bit on `tools/cid.py` (EXE001). **E** (iter
+    137\) — pin dropped, `uv lock --upgrade-package ruff` → 0.16.0, zero findings and zero reformats
+    at the flip.
+- Live rules that outlived the slice stay in `learnings.md`: never blanket `--fix`, never `select`
+    (use `extend-select`), and 0.16's `ruff format` reaches Python code blocks inside Markdown.

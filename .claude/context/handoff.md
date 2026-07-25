@@ -1,68 +1,110 @@
 # Handoff
 
-## 2026-07-25 — ruff 0.16 sub-slice E — drop the `ruff<0.16` pin
+## 2026-07-25 — Review of: ruff 0.16 sub-slice E — drop the `ruff<0.16` pin
 
-**Done:** Removed the `ruff<0.16` hold-back pin and its stale `# held:` comment from
-`pyproject.toml` (now a plain `"ruff",` entry in the dev group) and relocked with
-`uv lock --upgrade-package ruff`, which resolved to exactly 0.16.0. ruff 0.16.0 is now the project's
-default linter and formatter. This closes sub-slice E, the last piece of slice 8 of the
-dependency-refresh issue.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
+**Summary:** A two-line change executed exactly as scoped: the `ruff<0.16` pin and its `# held:`
+comment are gone from `pyproject.toml`, and `uv lock --upgrade-package ruff` moved only ruff
+(0.15.22 → 0.16.0) in the lock — verified by diffing every non-hash line, no other package block
+moved. Every criterion in next.md reproduced green in this session, including the full 15-hook
+`mise run check`, `pytest` (314), `ty check`, both pre-push ruff gates and a byte-identical Unicode
+freeze-table regeneration. Slice 8 of the dependency-refresh issue is closed. The note: the
+documented Markdown-formatting widening leaves a *local vs CI gate asymmetry* that I verified
+empirically and filed as a new issue — nothing is red today, but a future docs change can pass every
+local command and red CI.
 
-- `pyproject.toml`: line 47 — `"ruff<0.16",  # held: …` → `"ruff",` (1 insertion, 1 deletion)
-- `uv.lock`: regenerated — the `{ name = "ruff", specifier = "<0.16" }` requirement entry lost its
-    specifier and the `ruff` package block moved 0.15.22 → 0.16.0 with new sdist/wheel hashes.
-    Verified nothing else moved: the non-hash diff lines are exactly those two blocks (44 changed
-    lines total, all ruff)
+**Verification:**
 
-**Verification:** Every criterion in next.md reproduced green in this session:
-
-- `grep -c 'ruff<0.16' pyproject.toml` → 0; `grep -c 'held:' pyproject.toml` → 0;
+- [x] `grep -c 'ruff<0.16' pyproject.toml` → 0; `grep -c 'held:' pyproject.toml` → 0;
     `grep -q '^  "ruff",$' pyproject.toml` exit 0
-- `grep -c 'specifier = "<0.16"' uv.lock` → 0; `grep -A1 '^name = "ruff"$' uv.lock` →
+- [x] `grep -c 'specifier = "<0.16"' uv.lock` → 0; `grep -A1 '^name = "ruff"$' uv.lock` →
     `version = "0.16.0"`
-- `uv run ruff --version` → `ruff 0.16.0`
-- `uv run ruff check` → `All checks passed!` (exact CI command)
-- `uv run ruff format --check` → exit 0, **`153 files already formatted`** — this is the one real
-    behaviour change and it is expected, not accidental scope: ruff 0.16 formats Python code blocks
-    inside Markdown, widening the bare-invocation surface from 25 to 153 files. All were already
-    clean, so zero reformats landed. next.md pre-measured exactly this number.
-- `uv run ruff format --check $(git ls-files '*.md')` → `129 files already formatted`
-- `uv run ruff check --select S --force-exclude` and `--select C901 --force-exclude` both →
+- [x] `uv run ruff --version` → `ruff 0.16.0`
+- [x] `git diff --stat uv.lock` shows only ruff hunks — stronger check run: the diff contains
+    **zero** `[+-]name = ` lines and exactly 2 hunks (the requirement entry + the ruff package
+    block), so no other package moved
+- [x] `uv run ruff check` → `All checks passed!`, exit 0 (the exact CI command)
+- [x] `uv run ruff format --check` → exit 0, `153 files already formatted` (expected widening; see
+    Notes)
+- [x] `uv run ruff format --check $(git ls-files '*.md')` → `129 files already formatted`
+- [x] `uv run ruff check --select S --force-exclude` and `--select C901 --force-exclude` → both
     `All checks passed!` (the two pre-push gates)
-- `git grep -o 'noqa: S60[0-9]' -- '*.py' | wc -l` → 13 (no blanket `--fix` was run; all
-    load-bearing directives survive)
-- `uv run ty check` → `All checks passed!`
-- `uv run pytest -q` → **314 passed** in 25.6s
-- `uv run --script scripts/gen_unicode16_unassigned.py` → `wrote … (731 ranges)`, exit 0;
-    `git status --porcelain crates/` → 0 lines (freeze table byte-identical)
-- `mise run check` — all 15 hooks Passed; `git status --porcelain` afterwards shows only
-    `pyproject.toml`, `uv.lock`, and the runner-owned `iterations.jsonl`
-- `git status --porcelain -- crates/ packages/ .github/ mise.toml .pre-commit-config.yaml` → 0 lines
-    (only the two in-scope files touched)
+- [x] `git grep -o 'noqa: S60[0-9]' -- '*.py' | wc -l` → 13 (no blanket `--fix` was run)
+- [x] `uv run ty check` → `All checks passed!`
+- [x] `uv run pytest -q` → 314 passed in 25.1s
+- [x] `uv run --script scripts/gen_unicode16_unassigned.py` → `wrote … (731 ranges)`, exit 0;
+    `git status --porcelain crates/` empty (freeze table byte-identical)
+- [x] `mise run check` → all 15 hooks Passed; afterwards `git status --porcelain` shows only the
+    runner-owned `.claude/context/iterations.jsonl`
+- [x] `git status --porcelain -- crates/ packages/ .github/ mise.toml .pre-commit-config.yaml` →
+    empty (only `pyproject.toml` + `uv.lock` touched)
+- [x] Extra: `cargo clippy --workspace --all-targets -- -D warnings` clean (only the known dev-only
+    `proc-macro-error2` future-incompat note); ruff 0.16.0 declares `requires-python >=3.7`, so the
+    CI `python-test` 3.10 matrix leg installs it fine
+- [x] Gate integrity: `git diff @{upstream}..HEAD` over all unpushed commits contains no
+    suppression, skip, threshold-reduction, hook-weakening or scope-exclusion pattern. Source budget
+    1 non-generated file (`pyproject.toml`); `uv.lock` is generated
+- [x] Nothing from `## Not In Scope` was touched — no unqualified `uv lock --upgrade`, no blanket
+    `--fix`, no Markdown exclude, no `extend-select`/isort/pre-push-hook edits, no mdformat rev bump
 
-**Next:** Slice 8 is closed and every locally-verifiable slice of the dependency-refresh issue is
-done. The remainders are human/major-gated, each its own step: `release.yml` GHA refs (best bundled
-with the existing `if:`-guard issue), and the held majors — `jni` 0.22, `magnus` 0.8, xunit 3.x,
-`Microsoft.NET.Test.Sdk` 18.x, Gradle 8.12.1, JUnit 6.x. The parked Unicode boundary-vector criteria
-still wait on the open `[review]` freeze-rule-ordering issue (HUMAN REVIEW REQUESTED).
+**Issues found:**
+
+- **New `normal` `[review]` issue — `ruff format` covers Markdown in CI but no local hook does.**
+    Since 0.16, bare `uv run ruff format --check` (CI + `mise run lint`) reaches Python code blocks
+    inside `.md`, but the prek `ruff-check`/`ruff-format` hooks declare `types: [python]` and the
+    pre-push stage never runs `ruff format`. Verified by probe: a repo-local `probe.md` with `x=1`
+    in a `python` fence → `uv run prek run ruff-format --files probe.md` reports
+    `(no files to check) Skipped` and leaves it unchanged, while
+    `uv run ruff format --check   probe.md` exits 1 with `1 file would be reformatted`. So
+    `mise run format`, `mise run check` and `git push` all pass and CI's `Run ruff format check` step
+    goes red. Not a defect in this step — next.md analysed the widening and deliberately declined to
+    add an exclude (rationale now in `decisions.md`) — but the gate parity needs closing. Two
+    candidate fixes are in the issue.
+- **Minor fix applied by review:** `pyproject.toml` line 27's comment still said the `I`/`RUF022`/
+    `RUF100` rules are enforced "under the pinned ruff", which the pin removal made stale. Reworded
+    to state the evergreen reason (explicit selection so a future ruff bump cannot silently drop
+    them). Comment-only, no behaviour change.
+
+**Codex review:** Ran clean — "The Ruff constraint and lockfile are updated consistently to 0.16.0.
+Lockfile validation, Ruff linting, and formatting checks all pass." No actionable findings; it did
+not surface the local/CI Markdown asymmetry.
+
+**Next:** Two candidates, roughly equal size, both fully locally verifiable:
+
+1. **Close the ruff/Markdown gate-parity gap** (the new `[review]` issue above) — one
+    `.pre-commit-config.yaml` edit plus a probe that the two hooks and the CI command now agree.
+    Prefer this: it is the direct follow-on from this step and it protects every future docs
+    iteration from a surprise CI red. Verify by re-running the `probe.md` experiment and asserting
+    the hook now *fixes* the fence.
+2. **Bundle the `release.yml` GHA refs with the `if:`-guard fix** — the two remaining release.yml
+    issues touch the same file and neither is exercised by a CID push, so static verification (YAML
+    parse + matrix/artifact-name consistency + guard presence on every `test-*`/`publish-*` job) is
+    the whole gate. Doing them together avoids re-reading 97 `uses:` refs twice.
+
+Everything else left in the dependency-refresh issue is human/major-gated (jni 0.22, magnus 0.8,
+xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle wrapper, JUnit 6.x) and each needs its own step
+with a source migration, not a pin bump. The parked Unicode boundary-vector work still waits on the
+open `[review]` freeze-rule-ordering issue (HUMAN REVIEW REQUESTED) — do not wire boundary vectors
+into 11 bindings before that ruling.
 
 **Notes:**
 
-- **Ledger paragraph for issues.md (review agent, please append under slice 8):** Sub-slice E
-    complete (iter 137): `ruff<0.16` pin and `# held:` comment dropped from `pyproject.toml`;
-    `uv lock --upgrade-package ruff` moved 0.15.22 → 0.16.0 (only ruff moved in the lock). Zero lint
-    findings and zero reformats at the flip — sub-slices A–D had pre-cleared everything. Known
-    behaviour change: `ruff format` now also checks Python code blocks in Markdown (bare-invocation
-    surface 25 → 153 files, all clean; mdformat prek hook still owns Markdown auto-fixing). Slice 8
-    CLOSED — the ruff 0.16 adoption is fully landed.
-- Zero formatter churn: the risk flagged in the previous handoff ("0.16 formatter may reflow some of
-    the 25 files") did not materialize — `uv run ruff format --check` exits 0 with no reflows, so no
-    reformat commits ride along with this bump.
-- No Rust, Go, JVM, .NET, Ruby, or WASM surface touched; no hot path involved. CRAP, iai-callgrind,
-    semver, and cargo-deny baselines correctly untouched.
-- The first `uv run` after the relock swapped ruff in the project venv (uninstall 0.15.22 / install
-    0.16.0) — a single-package sync, and the editable `iscc_lib` extension survived (pytest 314
-    green confirms), so no `maturin develop` rebuild was needed.
-- `.claude/context/iterations.jsonl` remains modified in the working tree — runner-owned, unstaged.
+- **The Markdown widening is real and now documented in three places** so it cannot be mistaken for
+    accidental scope: the slice-8 ledger in `issues.md`, a `decisions.md` entry (why no exclude was
+    added and what the consequence is), and the ruff bullet in `learnings.md`. Until the parity gap
+    closes, anyone editing Markdown that contains Python fences should run
+    `uv run ruff format --check` by hand.
+- Advance correctly refused to write the slice-8 ledger paragraph into `issues.md` (its protocol
+    forbids it) and put the text in its handoff Notes instead — I appended it, marked slice 8
+    CLOSED, and rewrote the trailing "remaining" paragraph that still described ruff adoption as in
+    progress.
+- `learnings.md` was at its 200-line budget; the ruff-adoption *history* (sub-slices A–E) moved to
+    `learnings-archive.md` and only the live rules stayed. It is back at exactly 200 lines.
+- No Rust, Go, JVM, .NET, Ruby or WASM surface was touched, so the CRAP baseline, iai-callgrind perf
+    gate, `cargo-deny` and `cargo-semver-checks` are all correctly untouched — no baseline refresh
+    is owed.
+- Watch the CI run for this push: it is the first time `uv run ruff format --check` runs against the
+    153-file surface in CI rather than locally. The local run is authoritative (same command, same
+    lockfile), so a red here would mean a file that is gitignored locally but present in CI — not
+    expected.

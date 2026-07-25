@@ -230,18 +230,32 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
     identical. `git status` cannot show it (`core.fileMode=false` on the 9p mount) — verify with
     `git ls-files -s <path>`, and check nothing invokes the script directly
     (`grep -n cid.py   mise.toml` → all 10 tasks use `uv run tools/cid.py`, so the bit is additive)
-- **Sub-slice E** is the only one allowed to touch the `ruff<0.16` pin + `uv.lock`; it requires
-    `uvx ruff@0.16.0 check .` exit 0 (true since iter 136). The real risk is **0.16 `ruff format`
-    drift** on the 25 files the pinned 0.15.22 calls formatted — reformat churn belongs in that step
-    but must be called out. The pin's `# held:` reason has gone stale three times ("104 new errors"
-    while 12 remained, "12 findings" while 3 remained, "3 findings" while 0 remain); fixing the
-    comment is a review minor fix, but confirm the named findings/files against the live 0.16 run
+- **Sub-slice E (iter 137, PASS_WITH_NOTES)** — the pin drop; ruff is 0.16.0 project-wide, slice 8
+    CLOSED. Zero findings and zero reformats at the flip. Recipes worth reusing on ANY
+    single-package relock: (1) prove nothing else moved with
+    `git diff HEAD~1..HEAD -- uv.lock | grep -E '^[+-]name = '` → **empty** (the `name =` line of
+    the bumped package is context, not a change) plus `git diff -U0 … | grep -c '^@@'` → 2; (2) a
+    linter/formatter bump can change **file discovery**, not just rules — diff the file COUNT of the
+    bare command before/after (`ruff format --check`: 25 → 153, ruff 0.16 formats Python fences
+    inside Markdown); (3) check the new version's `requires-python` against the CI matrix floor
+    (`pypi.org/pypi/<pkg>/<ver>/json`) — ruff 0.16.0 is `>=3.7`, so the 3.10 leg is safe
+- **GATE-PARITY TRAP found in that review (now a `normal` `[review]` issue):** the widened
+    `ruff format` surface is enforced ONLY by CI — the prek `ruff-check`/`ruff-format` hooks declare
+    `types: [python]` and pre-push never runs `ruff format`. Probe (~10s, keeps the file untracked
+    and deletes it after): write a repo-local `probe.md` with `x=1` in a `python` fence →
+    `uv run prek run ruff-format --files probe.md` says `(no files to check) Skipped` while
+    `uv run ruff format --check probe.md` exits 1. Whenever a tool bump widens a bare-command
+    surface, always ask which LOCAL gate covers the new surface
+- The pin's `# held:` reason went stale three times ("104 new errors" while 12 remained, "12" while
+    3 remained, "3" while 0 remained), and iter 137 left a fourth stale comment elsewhere in
+    `pyproject.toml` ("under the pinned ruff" in the `extend-select` block). After ANY pin removal,
+    `grep -n 'pin\|held\|<0\.' pyproject.toml` for prose that outlived it — comment-only review fix
 
 ## Remaining slices
 
-All locally-verifiable ecosystems are done (1-7); slice 8 (ruff 0.16) is in progress. napi
-`package.json` (`@napi-rs/cli: ^3`) and dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked
-current iter 129 — no edit needed. What is left after slice 8: `release.yml` GHA refs (not
-CI-exercised), Gradle wrapper + JUnit 6.x / xunit 3 / Test.Sdk 18 majors, and the deferred magnus
-0.8 / jni 0.22 migrations, each its own step. Watch for the slice-5 lesson in any published binding:
-a runtime/toolchain floor moving silently.
+All locally-verifiable slices are done (1-8; slice 8 closed iter 137). napi `package.json`
+(`@napi-rs/cli: ^3`) and dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked current iter 129
+— no edit needed. What is left, all human/major-gated: `release.yml` GHA refs (not CI-exercised),
+Gradle wrapper + JUnit 6.x / xunit 3 / Test.Sdk 18 majors, and the deferred magnus 0.8 / jni 0.22
+migrations, each its own step. Watch for the slice-5 lesson in any published binding: a
+runtime/toolchain floor moving silently.
