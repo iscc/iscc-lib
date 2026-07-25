@@ -45,8 +45,8 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     NEVER add to `deny.toml` `ignore` (iter 115: crossbeam-epoch 0.9.18→0.9.20)
 - Dependency refresh (iters 124-138): all lockfiles/manifests refreshed; held-back majors (criterion
     0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:` in root Cargo.toml; ruff 0.16.0 adopted
-    iter 137 — `ruff format` also covers Python fences in Markdown (bare `format --check` = 153
-    files); prek `ruff-format` hook `types_or: [python, markdown]` (iter 138, CI gate parity); NEVER
+    iter 137 — `ruff format` also covers Python fences in Markdown; prek ruff hooks carry `pyi` in
+    `types_or` (iters 138-139, CI gate parity — prek types `.pyi` as `pyi`, NOT `python`); NEVER
     blanket `--fix` (deletes 13 load-bearing `# noqa: S603/S607`); rb_sys pinned `0.9.123`. Detail +
     prek staged-probe gotcha → deps-refresh.md
 - GOTCHA: ci.yml concurrency has `cancel-in-progress: true` per ref — pushing a second develop
@@ -68,7 +68,10 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     detach MUST open after frame-sig extraction; meta/audio/mixed stay attached. `tests/test_gil.py`
 - Release workflow (`release.yml`): 9 boolean inputs → build → **smoke test** → publish (inputs,
     auth, CI internals → MEMORY-archive.md). `build-wheels` has 4 targets incl native-ARM aarch64
-    (iter 123, #49); `test-wheels` matrixed, artifact name = `wheels-<os>-<target>`
+    (iter 123, #49); `test-wheels` matrixed, artifact name = `wheels-<os>-<target>`. All 28
+    non-`prepare-release` jobs carry `!cancelled() && !failure()` `if:` guards (iter 139) so
+    `-f <registry>=true` re-triggers publish; lint edits via
+    `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7` (cached, offline-safe)
 - WASM SIMD (#42): dual wiring (`blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt
     `--enable-simd`); recipe + wasm-pack gotchas → wasm-simd.md
 

@@ -110,20 +110,19 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
 - zensical ≥0.0.51 warns (non-fatal) on broken anchors; the `docs/howto/c-cpp.md` anchor was fixed
     during iter-125 review.
 
-## ruff-format hook gate parity (iter 138)
+## ruff hook gate parity (iters 138–139)
 
-- `.pre-commit-config.yaml` `ruff-format` hook uses `types_or: [python, markdown]` so the local prek
-    surface matches CI's bare `uv run ruff format --check`. `ruff-check` stays `types: [python]` —
-    ruff 0.16 formats Markdown fences but does not *lint* them (`.md` paths → "No Python files
-    found", exit 0), so widening the lint hook adds only warning noise.
+- `.pre-commit-config.yaml`: `ruff-format` uses `types_or: [python, pyi, markdown]` and `ruff-check`
+    uses `types_or: [python, pyi]` so the local prek surface matches CI's bare `uv run ruff check` /
+    `ruff format --check`. prek classifies `.pyi` as the `pyi` type, NOT `python` — a bare
+    `types: [python]` silently skips `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (closed iter
+    139). Markdown stays format-only — ruff 0.16 formats Markdown fences but does not *lint* them.
 - mdformat hook is declared before `ruff-format`, so the project-pinned ruff has the last word; the
     two formatters converge on this tree (no ping-pong — `mise run check` twice stays clean).
-- Surface arithmetic (corrected in the iter-138 review — it is **not** a superset): 154 tracked
-    candidates = 129 `.md` + 24 `.py` + 1 `.pyi`. CI's recursive discovery sees 153 (skips the
-    tracked-but-gitignored `.claude/plans/*.md`); the hook at `--all-files` also sees 153, but a
-    *different* 153 — prek classifies `.pyi` as the `pyi` type, not `python`, so the hook misses
-    `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` and picks up the plans file. Adding `pyi` to both
-    ruff hooks would make local a true superset (tracked as a `[review]` issue). Do NOT add
+- With `pyi` added, local `--all-files` is a strict superset of CI's recursive discovery (extra: the
+    tracked-but-gitignored `.claude/plans/*.md`). Bare `ruff format --check` file count grows
+    whenever tracked `.md`/`.py`/`.pyi` files are added (155 as of iter 139 — earlier-phase CID
+    memory files count too), so never pin an exact count in a verification. Do NOT add
     `--force-exclude`.
 - mdformat's `mdformat-ruff` (via `mdformat-mkdocs[recommended]`) only formats fences tagged
     `python`; ruff 0.16 additionally reaches `py`/`python3`/`pycon` — that residual gap is what the

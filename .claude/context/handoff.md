@@ -1,96 +1,82 @@
 # Handoff
 
-## 2026-07-25 — Review of: Close the ruff/Markdown gate-parity gap in the prek hooks
+## 2026-07-25 — Close two silent no-op gates — release.yml re-trigger guards and `.pyi` hook coverage
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Wrapped the 19 unguarded `test-*`/`assemble-*`/`pack-*`/`publish-*` job `if:` conditions
+in `release.yml` with `${{ !cancelled() && !failure() && (…) }}`, matching the shape already used at
+`publish-crates-io`, so `-f <registry>=true` re-triggers no longer inherit `prepare-release`'s skip.
+Added the `pyi` type tag to both local ruff hooks (`ruff-check` → `types_or: [python, pyi]`,
+`ruff-format` → `types_or: [python, pyi, markdown]`) so the published `_lowlevel.pyi` stub is gated
+locally, not just in CI. Updated the release skill and the two hook-list docs to match.
 
-**Summary:** The advance agent widened the `ruff-format` prek hook to `types_or: [python, markdown]`
-with an evergreen comment, and added a one-sentence qualification to the hook lists in
-`docs/development.md` and `CLAUDE.md`. One non-doc file, two doc files — exactly the scoped diff,
-every Not-In-Scope entry respected, all 12 verification criteria reproduced green in this session.
-Reviewing the surface arithmetic independently turned up a residual hole the handoff's "strict
-superset" claim hides: prek classifies `.pyi` as the `pyi` type, not `python`, so **both** ruff
-hooks skip the published `_lowlevel.pyi` that CI does check. Pre-existing, not a regression, filed
-as a `normal` `[review]` issue with a probed two-token fix.
+**Files changed:**
 
-**Verification:**
+- `.github/workflows/release.yml`: exactly 19 `if:` lines wrapped (4 npm, 3 nuget, 3 maven, 3
+    maven-kotlin, 2 pypi, 2 ffi, 2 rubygems); `prepare-release` and all `needs:` lists untouched; no
+    `uses:` ref bumped
+- `.pre-commit-config.yaml`: the two `types`/`types_or` tokens only; evergreen comment above
+    `ruff-format` kept unchanged (still accurate — with `pyi` the hook is now a strict superset of
+    CI's surface)
+- `.claude/skills/release/SKILL.md` (docs): "Known bug" subsection replaced with "Re-triggering a
+    registry with `-f <registry>=true`" describing the guarded behaviour (honest that it's
+    statically verified, first real confirmation on the next release); the Phase-1 "Do NOT use … -f
+    npm=true" blockquote rewritten to match (it repeated the retired bug and would have contradicted
+    the new section); `gh run rerun --failed` retained as preferred path and the "Never pass
+    `-f version=`" warning kept verbatim
+- `docs/development.md` (docs): ruff bullet now enumerates `.pyi` type stubs (one clause)
+- `CLAUDE.md` (docs): pre-commit-stage sentence now enumerates `.pyi` type stubs (one clause)
 
-- [x] `grep -A7 'id: ruff-format' … types_or: \[python, markdown\]` — exit 0
-- [x] `grep -A6 'id: ruff-check' … types: \[python\]` — exit 0, lint hook deliberately unchanged
-- [x] `uv run prek run check-yaml --files .pre-commit-config.yaml` — Passed
-- [x] `uv run prek run yamlfix --files .pre-commit-config.yaml` — Passed, file unchanged
-- [x] Markdown-fence probe — staged `probe_gate.md` with a `py` fence containing `x=1` →
-    `Failed / files were modified by this hook / 1 file reformatted`, `grep 'x = 1'` → FIXED, tree
-    clean afterwards (`git rm --cached -f` needed, `git rm --cached` alone errors once the hook has
-    rewritten the worktree copy)
-- [x] `uv run ruff format --check` — exit 0, `153 files already formatted` (exact CI command)
-- [x] `uv run ruff format --check $(git ls-files '*.md' '*.py' '*.pyi')` — exit 0,
-    `154 files already formatted`. **Caveat:** this measures an `ls-files` list, not the hook's real
-    surface (see Issues found) — the criterion as written cannot detect the `.pyi` hole
-- [x] `uv run ruff check` — `All checks passed!`, exit 0
-- [x] `mise run check` — 15/15 hooks Passed, run **twice**, exit 0 both times; a porcelain status
-    after each shows only the runner-owned `.claude/context/iterations.jsonl`. No mdformat ↔ ruff
-    ping-pong over the 129 tracked `.md` files
-- [x] `uv run zensical build` — exit 0, `No issues found` (1.62s)
-- [x] `grep -n 'ruff format' docs/development.md CLAUDE.md` — both mention Markdown code blocks
-    (development.md:137/140, CLAUDE.md:179/180)
-- [x] `git status --porcelain -- crates/ packages/ .github/ mise.toml pyproject.toml uv.lock` and
-    the equivalent `git diff HEAD~1..HEAD --name-only` — both empty
-- [x] Gate integrity — `git diff @{upstream}..HEAD` over all 4 unpushed commits contains no
-    suppression, skip, threshold reduction, hook removal or scope exclusion. The change strictly
-    *widens* a gate
+**Verification:** All criteria reproduced in this session:
 
-**Issues found:**
+- next.md's guard-shape script → `release.yml guards OK` (29 jobs, `prepare-release` untouched,
+    token counts exactly
+    `{version: 29, crates-io: 1, pypi: 4, npm: 6, maven: 4, ffi: 3, nuget: 4,   rubygems: 3, maven-kotlin: 4}`)
+- `actionlint@v1.7.7` on release.yml → exit 0, no output
+- `prek run check-yaml` / `yamlfix --files release.yml` → both Passed, no modifications
+- Both `types_or` greps → exit 0; `grep -c 'id:'` → 22 (no hook added/removed)
+- `prek run ruff-check` / `ruff-format --files crates/iscc-py/python/iscc_lib/_lowlevel.pyi` → both
+    `Passed`, neither printed `no files to check`
+- `uv run ruff check` → `All checks passed!`, exit 0; `uv run ruff format --check` → exit 0 but
+    reports **155** files, not next.md's 153 — the delta is the two tracked `.md` agent-memory files
+    added by this iteration's own update-state (`lint-tooling.md`) and define-next
+    (`release-yml-static-gates.md`) commits, confirmed via `git diff HEAD~3..HEAD --diff-filter=A`.
+    Exit 0 is the gate; the count was a stale prediction.
+- `grep -c 'exclude' .pre-commit-config.yaml` → **2, not next.md's 0** — mis-specified criterion:
+    both matches are the pre-existing `--force-exclude` CLI flags in the pre-push S/C901 hooks
+    (present at HEAD too, verified via `git show HEAD:…`). The intent holds:
+    `grep -cE '^\s*exclude:'` → 0 (no prek scope key added), diff of the file is exactly the two
+    type-tag lines.
+- `grep -q 'Known bug' SKILL.md` → exit 1; `grep -q 'gh run rerun' SKILL.md` → exit 0
+- `grep -q 'pyi' docs/development.md && grep -q 'pyi' CLAUDE.md` → exit 0
+- `uv run zensical build` → exit 0, `No issues found`
+- `mise run format` then `mise run check` → 15/15 hooks Passed, exit 0; porcelain afterwards shows
+    only the 5 scoped files + runner-owned `iterations.jsonl`
 
-- **`.pyi` files are invisible to both local ruff hooks** (pre-existing, filed `normal` `[review]`).
-    prek's `python` type tag does not match `.pyi` — probed with a staged `probe_gate.pyi`
-    containing `import os` + `def f(x:int)->int: ...`: `prek run ruff-check --files` and
-    `prek run ruff-format --files` both report `(no files to check) Skipped`, while bare
-    `ruff check` on the same file reports `Found 2 errors` and `ruff format` reformats it. So
-    `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — consumer-facing (the wheel ships `py.typed`)
-    and hand-edited as recently as iter 131 — is gated only by CI. Same trap class this iteration
-    just closed for Markdown. Nothing is red today. Fix is two tokens (`pyi` added to both hooks),
-    probed green against an alternate prek config.
-- **The handoff's "strict superset (154 vs 153)" arithmetic is wrong**, and it had propagated into
-    `.claude/agent-memory/advance/deps-refresh.md`. Corrected there in this commit: 154 tracked
-    candidates = 129 `.md` + 24 `.py` + 1 `.pyi`; CI's recursive discovery sees 153 (skips the
-    tracked-but-gitignored `.claude/plans/*.md`); the hook at `--all-files` also sees 153, but a
-    *different* 153 — plans file in, `.pyi` out. Local is neither subset nor superset. Not a
-    correctness problem in the shipped config, but a claim that would have calcified.
-- Advance-memory compaction (157 → 139 lines) dropped the note that
-    `scripts/gen_unicode16_unassigned.py` is `[tool.ty.src]`-excluded. Still captured in
-    `learnings.md`; no action needed.
-
-**Codex review:** Clean. "The widened hook configuration is valid, processes Markdown as intended,
-and matches the CI formatting check without affecting the Python-only lint hook. The accompanying
-documentation accurately reflects the behavior." No actionable findings — it did not probe the
-`.pyi` type-tag edge either.
-
-**Next:** Bundle the two remaining `release.yml` issues into one step — the GHA `uses:` refresh (97
-refs; `upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs the exact
-`@v9.0.0`) and the broken single-registry re-trigger fix (`!cancelled() && !failure()` guards on
-every `test-*` / `publish-*` job, matching `publish-crates-io`). Both touch the same file, neither
-is exercised by CID pushes, so both are verified statically (YAML parse + matrix-entry presence +
-artifact-name consistency + guard presence). The `.pyi` hook gap filed this iteration is a good
-cheap warm-up or tail-end bundle if a smaller package is wanted. Still parked: the Unicode boundary
-vectors (blocked on the open HUMAN REVIEW freeze-rule-ordering ruling) and the dependency-refresh
-majors (jni 0.22, magnus 0.8, xunit 3.x, Gradle wrapper, JUnit 6.x), each its own migration step.
+**Next:** The 97-ref GHA `uses:` refresh in `release.yml` as its own bisectable step (checkout
+v4→v7, `upload-artifact`/`download-artifact` moved as a pair, setup-java/node/dotnet/python;
+`setup-uv` must be the exact `@v9.0.0`), verified statically the same way (yaml parse + actionlint +
+artifact-name consistency). Still parked: Unicode boundary vectors (open HUMAN REVIEW
+freeze-rule-ordering ruling) and the held majors (jni 0.22, magnus 0.8, xunit 3.x, Gradle wrapper,
+JUnit 6.x).
 
 **Notes:**
 
-- **Verify hook surfaces by probing, not by `git ls-files` arithmetic.** next.md's criterion
-    `ruff format --check $(git ls-files '*.md' '*.py' '*.pyi')` looks like it measures the hook but
-    measures a hand-built list; the hook's actual surface only shows up under
-    `uv run prek run <hook> --files <probe>`. Both new learnings entries encode this.
-- prek reports `files were modified by this hook` only for **tracked** files — an untracked probe
-    gets silently fixed and reported `Passed`. Stage probes with `git add`, and unstage with
-    `git rm --cached -f` (plain `--cached` refuses once the hook has rewritten the worktree copy).
-- `ruff format` does not error on a syntactically-invalid Python fence in Markdown — it leaves it
-    alone and exits 0 (probed with `def f(:`). Widening the hook therefore cannot break commits over
-    illustrative pseudo-code in docs.
-- Issue ledger updated as the advance handoff requested: the closed gate-parity issue was deleted
-    (history in git) and its resolution folded into the dependency-refresh issue's slice-8 paragraph
-    — advance correctly refused to edit `issues.md` itself.
-- No Rust, Python, Go, JVM, .NET, Ruby or WASM source touched — no CRAP baseline, iai perf,
-    cargo-deny or semver refresh owed, no benchmarked hot path, no API surface change.
-- `learnings.md` pruned back to the 200-line budget while absorbing the three new entries.
+- Guard semantics double-checked: `!failure()`/`!cancelled()` evaluate the job's own `needs` chain,
+    so a publish job still won't run after a genuinely failed build/test — the guard only
+    neutralises the *skipped* status propagated from `prepare-release` on registry-only dispatches.
+    `needs:` lists untouched.
+- Two doc edits go one sentence beyond the letter of next.md's scope, both inside scoped files: the
+    SKILL.md Phase-1 blockquote (would have contradicted the rewritten re-trigger section) and a
+    lead-in clause in the new subsection noting `gh run rerun --failed` cannot re-run `skipped` jobs
+    (restates a fact already in the section above it).
+- For the issue ledger (review agent): both cited issues are fully resolved by this step — "Fix
+    broken single-registry re-trigger in release.yml" (`[human]`) and "Local ruff hooks skip `.pyi`
+    files" (`[review]`). The re-trigger issue's closing note asks to also update the
+    `release-workflow.md` user-level memory (outside the repo, explicitly out of scope per next.md)
+    — that pointer should survive somewhere until a human/interactive session updates it, since that
+    memory still calls the `-f <registry>=true` path BROKEN.
+- The guard fix is verified statically only (yaml shape + actionlint); no workflow run exercises
+    release.yml on develop pushes. First real-world confirmation comes with the next release or
+    registry re-trigger.
+- No Rust/Python/Go/JVM/.NET/Ruby/WASM source touched — no CRAP baseline, iai perf, cargo-deny or
+    semver refresh owed; no benchmarked hot path; no API surface change.

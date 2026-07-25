@@ -99,12 +99,11 @@ failed jobs of that release run** with `gh run rerun <run-id> --failed`. This re
 failed npm publish jobs, reuses the existing build artifacts, picks up the new secret, and touches
 no tags/release. Verified working for the v0.5.0 npm recovery (2026-06-18).
 
-> **Do NOT use `gh workflow run release.yml --ref main -f npm=true` to recover.** That path is
-> broken: with no `version` input, `prepare-release` is skipped, and GitHub propagates that skip
-> through the `needs` chain to every `test-*`/`publish-*` job that lacks a
-> `!cancelled() && !failure()` guard (npm/pypi/maven jobs lack it; only `build-*` and
-> `publish-crates-io` have it). So `-f npm=true` rebuilds artifacts but **skips all publishing**.
-> See the re-trigger section at the end of this file.
+> `gh workflow run release.yml --ref main -f npm=true` is the fallback when the failed run's
+> artifacts have expired: every `test-*`/`publish-*` job carries a `!cancelled() && !failure()`
+> guard, so a registry-only dispatch runs the full build → test → publish chain for that registry.
+> It rebuilds all artifacts from scratch, so prefer `gh run rerun <run-id> --failed` when the
+> original artifacts still exist. See the re-trigger section at the end of this file.
 
 > **Root-cause fix:** npm supports OIDC Trusted Publishing, which would remove `NPM_TOKEN` and this
 > whole expiry class of failure (npm's own UI recommends it for CI/CD). Migrating the npm + wasm
@@ -451,20 +450,21 @@ This is the verified recovery path (used for the v0.5.0 npm token failure). It o
 that reached a `failure` conclusion, so it works when a publish job ran and errored (bad token,
 transient registry error). It does NOT help if a job was `skipped`.
 
-### Known bug: `-f <registry>=true` re-triggers skip publishing
+### Re-triggering a registry with `-f <registry>=true`
 
-The `workflow_dispatch` registry flags exist:
+If the original run's artifacts have expired (or a job was `skipped` rather than `failure`, which
+`gh run rerun --failed` cannot re-run), dispatch the workflow with only the registry flag:
 
 ```
 gh workflow run release.yml --ref main -f <registry>=true   # crates-io|pypi|npm|maven|ffi|rubygems|nuget|maven-kotlin
 ```
 
-…but most of them **do not publish**. Without a `version` input, `prepare-release` is skipped, and
-GitHub propagates that skip through the `needs` chain to every job whose `if:` lacks a
-`!cancelled() && !failure()` guard. Today only `build-*` jobs and `publish-crates-io` carry that
-guard, so `-f crates-io=true` works but `-f npm=true` / `-f pypi=true` / `-f maven=true` rebuild
-artifacts and then **skip the test/publish jobs**. Verified 2026-06-18. Until the guards are added
-to all `test-*`/`publish-*` jobs (tracked in `issues.md`), use `gh run rerun --failed` instead.
+Every `test-*`/`assemble-*`/`pack-*`/`publish-*` job carries a `!cancelled() && !failure()` guard,
+so a registry-only dispatch (no `version` input, `prepare-release` skipped) runs the full build →
+test → publish chain for that registry instead of propagating the skip down the `needs` chain. The
+guards are verified statically (YAML shape + expression lint); their first real-world confirmation
+comes with the next release run. Prefer `gh run rerun <run-id> --failed` when possible — it reuses
+existing build artifacts instead of rebuilding everything.
 
 **Never pass `-f version=<version>` to recover** — that re-runs `prepare-release`, which
 force-pushes the release tags and updates the GitHub Release.

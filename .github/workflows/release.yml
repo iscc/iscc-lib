@@ -229,7 +229,7 @@ jobs:
   test-wheels:
     name: Test Python wheel (${{ matrix.arch }})
     needs: [build-wheels]
-    if: inputs.version != '' || inputs.pypi
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.pypi) }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -258,7 +258,7 @@ jobs:
   publish-pypi:
     name: Publish to PyPI
     needs: [build-wheels, build-sdist, test-wheels]
-    if: inputs.version != '' || inputs.pypi
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.pypi) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -347,7 +347,7 @@ jobs:
   test-napi:
     name: Test NAPI addon
     needs: [build-napi]
-    if: inputs.version != '' || inputs.npm
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-node@v4
@@ -366,7 +366,7 @@ jobs:
   publish-npm-lib:
     name: Publish @iscc/lib to npm
     needs: [build-napi, test-napi]
-    if: inputs.version != '' || inputs.npm
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -446,7 +446,7 @@ jobs:
   test-wasm:
     name: Test WASM package
     needs: [build-wasm]
-    if: inputs.version != '' || inputs.npm
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-node@v4
@@ -472,7 +472,7 @@ jobs:
   publish-npm-wasm:
     name: Publish @iscc/wasm to npm
     needs: [build-wasm, test-wasm]
-    if: inputs.version != '' || inputs.npm
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.npm) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -563,7 +563,7 @@ jobs:
   assemble-jar:
     name: Assemble JAR
     needs: [build-jni]
-    if: inputs.version != '' || inputs.maven
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -596,7 +596,7 @@ jobs:
   test-jni:
     name: Test JNI libraries
     needs: [build-jni]
-    if: inputs.version != '' || inputs.maven
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -624,7 +624,7 @@ jobs:
   publish-maven:
     name: Publish to Maven Central
     needs: [build-jni, test-jni]
-    if: inputs.version != '' || inputs.maven
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -766,7 +766,7 @@ jobs:
   test-ffi:
     name: Test FFI library
     needs: [build-ffi]
-    if: inputs.version != '' || inputs.ffi
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.ffi) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -787,7 +787,7 @@ jobs:
   publish-ffi:
     name: Publish FFI to GitHub Releases
     needs: [build-ffi, test-ffi]
-    if: inputs.version != '' || inputs.ffi
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.ffi) }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -861,7 +861,7 @@ jobs:
   test-gem:
     name: Test Ruby gem
     needs: [build-gem]
-    if: inputs.version != '' || inputs.rubygems
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.rubygems) }}
     runs-on: ubuntu-latest
     steps:
       - uses: ruby/setup-ruby@v1
@@ -881,7 +881,7 @@ jobs:
   publish-rubygems:
     name: Publish to RubyGems
     needs: [build-gem, test-gem]
-    if: inputs.version != '' || inputs.rubygems
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.rubygems) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -937,7 +937,7 @@ jobs:
   pack-nuget:
     name: Pack NuGet package
     needs: [build-ffi]
-    if: inputs.version != '' || inputs.nuget
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.nuget) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -999,7 +999,7 @@ jobs:
   test-nuget:
     name: Test NuGet (${{ matrix.os }})
     needs: [pack-nuget]
-    if: inputs.version != '' || inputs.nuget
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.nuget) }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -1047,7 +1047,7 @@ jobs:
   publish-nuget:
     name: Publish to NuGet
     needs: [pack-nuget, test-nuget]
-    if: inputs.version != '' || inputs.nuget
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.nuget) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1171,7 +1171,7 @@ jobs:
   assemble-kotlin:
     name: Assemble Kotlin JAR
     needs: [build-kotlin-native]
-    if: inputs.version != '' || inputs.maven-kotlin
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven-kotlin) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1207,7 +1207,7 @@ jobs:
   test-kotlin-release:
     name: Test Kotlin libraries
     needs: [build-kotlin-native, assemble-kotlin]
-    if: inputs.version != '' || inputs.maven-kotlin
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven-kotlin) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -1273,7 +1273,7 @@ jobs:
   publish-maven-kotlin:
     name: Publish Kotlin to Maven Central
     needs: [assemble-kotlin, test-kotlin-release]
-    if: inputs.version != '' || inputs.maven-kotlin
+    if: ${{ !cancelled() && !failure() && (inputs.version != '' || inputs.maven-kotlin) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
