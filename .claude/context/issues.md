@@ -121,8 +121,9 @@ over the 3.x line, covers 3.7.4) and `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Te
 (`Microsoft.NET.Test.Sdk 17.*`, `xunit 2.*`, `xunit.runner.visualstudio 2.*` wildcards) — both
 re-checked iter 129, editing them would be churn. Remaining: `.github/workflows/release.yml` GHA
 refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs
-`@v9.0.0`, only truly exercised by a release run — consider bundling with the existing release.yml
-`if:`-guard fix issue), plus the deferred majors: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle
+the exact `@v9.0.0`, only truly exercised by a release run, so verification is static — the
+`if:`-guard fix that used to be a bundling candidate landed separately in iter 139, leaving this a
+purely mechanical bump), plus the deferred majors: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle
 wrapper 8.12.1 and JUnit 6.x (each its own step). All eight ecosystem/tooling slices are now closed;
 never run `ruff@0.16 check --fix .`, it deletes load-bearing `# noqa` directives. Separately, the
 `jni` 0.22 and `magnus` 0.8 migrations each need their own step (source rewrite in
@@ -135,36 +136,6 @@ never run `ruff@0.16 check --fix .`, it deletes load-bearing `# noqa` directives
 release exists (`iai-callgrind` 0.16.1 is latest), so it stays a warning until upstream ships a fix
 — re-check when bumping `iai-callgrind` (the pin must stay in lockstep with the CI-installed
 `iai-callgrind-runner` version).
-
-## Local ruff hooks skip `.pyi` files — the published stub is CI-gated only `normal` [review]
-
-**prek classifies `.pyi` as the `pyi` type, not `python`**, so both local ruff hooks in
-`.pre-commit-config.yaml` (`ruff-check` `types: [python]` and `ruff-format`
-`types_or: [python, markdown]`) skip `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` entirely, while
-CI's bare `uv run ruff check` / `ruff format --check` cover it via recursive discovery. Verified by
-probe (iter 138 review): a staged `probe_gate.pyi` containing `import os` + `def f(x:int)->int: ...`
-→ `uv run prek run ruff-check --files probe_gate.pyi` and
-`uv run prek run ruff-format --files probe_gate.pyi` both report `(no files to check) Skipped`,
-while `uv run ruff check probe_gate.pyi` reports `Found 2 errors` and `ruff format` reformats it.
-
-This is the same trap class as the Markdown gap closed in iter 138 — a lint- or format-dirty stub
-edit passes `mise run format`, `mise run check` and `git push`, then reds CI — and it is not
-hypothetical: iter 131 hand-edited that exact file (36 stub bodies deleted for `PIE790`/`PYI048`).
-The file is consumer-facing (the wheel ships `py.typed` beside it). Nothing is red today.
-
-**Fix:** add the `pyi` tag to both hooks — `ruff-check` → `types_or: [python, pyi]`, `ruff-format` →
-`types_or: [python, pyi, markdown]`. Probed green: prek accepts the tag and passes the file
-(alternate-config probe reformatted a staged `probe_gate.pyi`), and the tracked stub is already
-clean under both bare commands, so the widened hooks are green at HEAD.
-
-**Surface arithmetic (corrected in this review — the iter-138 handoff's "strict superset" claim is
-wrong):** 154 tracked candidate files = 129 `.md` + 24 `.py` + 1 `.pyi`. CI's recursive discovery
-sees **153** (skips the tracked-but-gitignored `.claude/plans/*.md`). The `ruff-format` hook at
-`--all-files` also sees **153**, but a *different* 153 — it includes the gitignored plans file and
-excludes the `.pyi`. Local is therefore neither a subset nor a superset; the exact symmetric
-difference is `{.claude/plans/restore-linux-aarch64-python-wheels.md}` (local-only, harmless) and
-`{crates/iscc-py/python/iscc_lib/_lowlevel.pyi}` (CI-only, the gap). Adding `pyi` makes local a true
-strict superset.
 
 ## Declare and gate a Unicode data version (DECIDED) `normal` [human]
 
@@ -337,22 +308,3 @@ until the npm-side trusted publisher is live and a publish has succeeded.
 
 Interim mitigation already in place: release skill Step 1.6 checks npm token expiry pre-flight, and
 the token was rotated (`iscc-lib-ci-2026`, granular `@iscc` scope, expires 2026-09-16).
-
-## Fix broken single-registry re-trigger in release.yml `normal` [human]
-
-`gh workflow run release.yml --ref main -f <registry>=true` is documented as the way to re-publish a
-single failed registry, but it **silently publishes nothing** for npm/pypi/maven. Root cause: with
-no `version` input, `prepare-release` (`if: inputs.version != ''`) is skipped, and GitHub propagates
-that skip down the `needs` chain to any job whose `if:` lacks a `!cancelled() && !failure()` guard.
-Only the `build-*` jobs and `publish-crates-io` currently have that guard; the `test-*` and
-`publish-*` jobs for npm (`test-napi`, `publish-npm-lib`, `test-wasm`, `publish-npm-wasm`), pypi
-(`test-wheels`, the PyPI publish), and maven (`test-jni`, `assemble-jar`, the Maven publishes) do
-not, so they skip. Verified empirically on 2026-06-18 (a `-f npm=true` run built artifacts then
-skipped every test/publish job).
-
-**Fix:** add `${{ !cancelled() && !failure() && (<existing condition>) }}` guards to all `test-*`
-and `publish-*` job `if:` conditions, matching `publish-crates-io` (line ~128). Then
-`-f <registry>=true` re-triggers will publish as documented. Until then, recover failed publishes
-with `gh run rerun <run-id> --failed` (works because failed jobs reran cleanly for v0.5.0). Update
-the release skill's "Re-triggering a Failed Registry" section and the `release-workflow.md` memory
-once fixed.

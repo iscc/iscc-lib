@@ -21,7 +21,11 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
 ## Common Issues
 
 - Verification grep patterns may false-positive — verify match specificity. `grep -qv 'pattern'` is
-    always true for multi-line files — use `! grep -q 'pattern'` to verify absence
+    always true for multi-line files — use `! grep -q 'pattern'` to verify absence. **Substring
+    `grep -c` and exact file counts in next.md are a recurring mis-spec class** (iter 139:
+    `grep -c 'exclude'` hit the pre-existing `--force-exclude` flags; `format --check` counted 155
+    not 153). Check the criterion against `HEAD~1` before believing advance broke it — a
+    mis-specified criterion advance *corrected* is scope discipline, not a failure
 - next.md test specs / expected values / test counts may be wrong — always run tests, verify against
     Rust implementation
 - **Probe claims, don't accept them** — build-flag/backend activation (blake3 wasm SIMD) and
@@ -64,12 +68,13 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     `uv run zensical build` ("No issues found", ~13s) + rendered-HTML grep for admonition/tab edits
     (recipe → `review-patterns.md`)
 - **Python-only**: `mise run check` + `pytest`
-- **Lint-config-only (`[tool.ruff]*` / prek hook types, iters 134–138)**: `mise run check` (twice if
-    two formatters share a surface), `uv run ruff check`, `format --check` (153 files, 129 `.md`),
-    both pre-push gates (`--select S` / `--select C901 --force-exclude`), `ty check`, `pytest`. A
-    `# noqa` deletion is only safe if `--select <rule> --ignore-noqa` does NOT list its line;
-    path-sensitive settings (`src`, isort, `exclude`) and any `types:` change need the hook-mode
-    probe. Recipes → `dep-refresh-reviews.md` slice 8 + `review-patterns.md`. Docs edit →
+- **Lint-config-only (`[tool.ruff]*` / prek hook types, iters 134–139)**: `mise run check` (twice if
+    two formatters share a surface), `uv run ruff check`, `format --check` (**assert exit 0, never a
+    file count** — it grows with every tracked `.md`/`.py`/`.pyi`, incl. CID's own memory files; 155
+    at iter 139), both pre-push gates (`--select S` / `--select C901 --force-exclude`), `ty check`,
+    `pytest`. A `# noqa` deletion is only safe if `--select <rule> --ignore-noqa` does NOT list its
+    line; path-sensitive settings (`src`, isort, `exclude`) and any `types:` change need the
+    hook-mode probe. Recipes → `dep-refresh-reviews.md` slice 8 + `review-patterns.md`. Docs edit →
     `uv run zensical build`
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
     `go vet -C packages/go ./...`
@@ -91,12 +96,15 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
 - **A tool bump can widen a gate's FILE DISCOVERY, not just its rules** (iter 137): ruff 0.16
     formats Python fences inside Markdown, so bare `ruff format --check` went 25 → 153 files. Always
     diff the file count before/after, then ask **which local gate covers the new surface** (closed
-    iter 138 — the prek `ruff-format` hook is `types_or: [python, markdown]`). Single-package relock
-    proof: `git diff HEAD~1..HEAD -- uv.lock | grep -E '^[+-]name = '` → empty
-- **Prek-hook-scope review (iter 138)**: NEVER accept `git ls-files` arithmetic as a hook's surface
-    — a `types:` tag is prek's classification, and `.pyi` is tagged `pyi`, not `python` (so both
-    ruff hooks skip the published `_lowlevel.pyi` that CI covers; filed `[review]`). Staged-probe +
-    ping-pong + alternate-config recipes → `review-patterns.md` "Prek hook-scope probing"
+    iters 138–139: `ruff-format` = `types_or: [python, pyi, markdown]`, `ruff-check` =
+    `types_or: [python, pyi]`). Single-package relock proof:
+    `git diff HEAD~1..HEAD -- uv.lock | grep -E '^[+-]name = '` → empty
+- **Prek-hook-scope review (iters 138–139)**: NEVER accept `git ls-files` arithmetic as a hook's
+    surface — a `types:` tag is prek's classification, and `.pyi` is tagged `pyi`, not `python`
+    (that hole is CLOSED: both ruff hooks carry `pyi` since iter 139; local is now a strict superset
+    of CI). Probing a *widened* tag needs a **staged, deliberately dirty** file — a clean file gives
+    `Passed` whether or not the hook saw it; only `files were modified by this hook` proves it
+    bites. Staged-probe + ping-pong + alternate-config recipes → `review-patterns.md`
 - **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131): the wheel ships `py.typed`
     beside `_lowlevel.pyi`, so it is consumer-facing. `uvx mypy@1.18.2 --strict` +
     `uvx pyright@1.1.407` ≈ 30s. Prefer an `ast.parse` body assertion over greps for bulk stub edits
@@ -115,11 +123,16 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     assert `git status --porcelain <output>` is empty. Total ≈ 6 min
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
-- **release.yml-only (iter 123, #49)**: NOT exercised by CID pushes → static-verify only: YAML
-    parse, matrix-entry presence, artifact-name consistency across build→test→publish. Adding a
-    wheel target = build+test matrix only (`publish-pypi` collects via `pattern: wheels-*`). The
-    `test-*`/`publish-*` jobs still lack the `!cancelled()&&!failure()` guard that only `build-*`
-    and `publish-crates-io` carry (tracked re-trigger bug) — don't flag as new
+- **release.yml-only (iters 123/139)**: NOT exercised by CID pushes → static-verify only: YAML parse
+    (`yaml.safe_load` + regex over every job's `if:`), `actionlint@v1.7.7` (cached, offline),
+    `prek run check-yaml`/`yamlfix --files`, matrix-entry presence, artifact-name consistency across
+    build→test→publish. Adding a wheel target = build+test matrix only (`publish-pypi` collects via
+    `pattern: wheels-*`). **All 28 non-`prepare-release` jobs now carry
+    `${{ !cancelled() && !failure() && (…) }}`** (iter 139 closed the re-trigger bug). When a step
+    adds a job, check the **invariant**: its `needs` chain must be gated by the same registry flag
+    or a superset (`build-ffi` = `ffi || nuget`) — otherwise the relaxed `success()` lets it run
+    against artifacts never built. `always()` instead of `!failure()` = NEEDS_WORK. Rationale +
+    invariant in `decisions.md` 2026-07-25
 - **CI/Audit/Perf/Semver/CRAP gate reviews**: see `gate-reviews.md`
 - **Binding propagation (napi/wasm/ffi/jni/ruby/dotnet/kotlin/uniffi)**: see `binding-reviews.md`
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows

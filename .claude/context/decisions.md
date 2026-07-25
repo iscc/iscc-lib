@@ -318,3 +318,31 @@ earlier entry as scope exclusion. **Consequence / correction:** the claim that t
 local a genuine superset; filed as a `normal` `[review]` issue rather than fixed in review, because
 it changes what two gates reject and belongs in a scoped work package. **Context:** CID iteration
 138 (`b599816`) review, closing the iter-137 gate-parity issue.
+
+## 2026-07-25 — Blanket `!cancelled() && !failure()` guards on every release.yml job
+
+**Decision:** all 28 non-`prepare-release` jobs in `.github/workflows/release.yml` now carry
+`if: ${{ !cancelled() && !failure() && (<existing registry condition>) }}`, replacing the bare
+condition. `prepare-release` itself keeps the unguarded `if: inputs.version != ''`. **Why:** a bare
+`if:` still carries an implicit `success()` requirement on `needs`, and GitHub propagates
+`prepare-release`'s *skipped* status transitively down the whole `needs` chain on a registry-only
+dispatch — so the documented `gh workflow run release.yml -f <registry>=true` recovery path built
+artifacts and then silently published nothing (verified empirically 2026-06-18 on a `-f npm=true`
+run). The guard neutralises only the propagated *skip*: `!failure()` is evaluated against the job's
+own `needs`, so a publish job still refuses to run after a genuinely failed build or test.
+`prepare-release` stays unguarded on purpose — guarding it would make the tag-pushing job fire on
+registry-only dispatches. **Alternatives:** `always()` — rejected, it publishes after a failed build
+or test; restructure `needs` so publish jobs do not depend on `prepare-release` — rejected, the
+dependency is what serialises tag creation before publication on a real release; leave it broken and
+document `gh run rerun --failed` as the only recovery — rejected, `--failed` cannot re-run `skipped`
+jobs and cannot help once build artifacts have expired. **Safety invariant established in review:**
+relaxing the implicit `success()` is only safe because every job's `needs` chain is gated by the
+same registry flag or a superset (`build-ffi` is `ffi || nuget`, feeding both `test-ffi` and
+`pack-nuget`). A future job whose dependency is gated by a *different* flag would now run against
+artifacts that were never built instead of skipping — any new job or registry must preserve this.
+**Consequence:** the fix is verified statically only (`yaml.safe_load` + a shape regex over all 29
+`if:` values, `actionlint@v1.7.7`, `check-yaml`, `yamlfix`); no CID push or CI run exercises
+`release.yml`, so first real-world confirmation comes with the next release or registry re-trigger.
+`.claude/skills/release/SKILL.md` says so explicitly rather than claiming the path is proven.
+**Context:** CID iteration 139 (`8c525cf`), closing the `[human]` issue "Fix broken single-registry
+re-trigger in release.yml".

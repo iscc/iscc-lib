@@ -735,6 +735,16 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
     `#[pymodule(name = "_lowlevel", gil_used = true)]` attribute is load-bearing — dropping it
     changes the module name PyO3 registers and breaks `iscc_lib._lowlevel` imports.
 
+## Kotlin consumer floor — KGP bump evidence (archived iter 139, dep-refresh slice 5 done)
+
+- KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar; a `mavenLocal` consumer proved
+    2.1.10 / 2.2.21 fail and 2.3.21 passes, which is how the "Kotlin 2.3 or newer" floor was fixed
+    (iter 128). Reproduce with a throwaway Gradle consumer resolving `mavenLocal()` before accepting
+    any future KGP bump.
+- The floor is documented in four places that must move together: the root `README.md`,
+    `packages/kotlin/README.md`, `docs/howto/kotlin.md` and `.claude/context/specs/`
+    `kotlin-bindings.md`.
+
 ## ruff 0.16 adoption (archived iter 137 — slice 8 of the v0.6.0 dependency refresh, CLOSED)
 
 - **Sliced by decision type, not by file** (iters 125 → 137). `uv lock --upgrade` (iter 125) could
@@ -753,3 +763,14 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
     at the flip.
 - Live rules that outlived the slice stay in `learnings.md`: never blanket `--fix`, never `select`
     (use `extend-select`), and 0.16's `ruff format` reaches Python code blocks inside Markdown.
+- **Two invocation gotchas** (archived iter 139 — the `[tool.ruff*]` config is settled; re-read
+    before changing `src` / `exclude` / isort settings): (1) an unused `# noqa` is invisible unless
+    `RUF100` is selected — prove a directive dead with
+    `uv run ruff check --select <rule> --ignore-noqa` before deleting it (`S603` never fires on a
+    fully static list-literal argv, only on dynamic argv). (2) the pre-commit `ruff-check` hook
+    passes *filenames* and no `--force-exclude`, so hook-mode can disagree with `ruff check .` —
+    re-probe per-file when `src`/`exclude`/isort settings change.
+- **`_lowlevel.pyi` stub bodies are docstring-only — no trailing `...`** (iter 131; archived iter
+    139 — Python bindings section met and both ruff hooks now gate the file locally). The wheel
+    ships `py.typed`, so the stub is consumer-facing: check changes against `mypy 1.18 --strict` +
+    `pyright 1.1.407` too, not just `ty`.
