@@ -21,6 +21,7 @@ Usage:
 
 from __future__ import annotations
 
+from itertools import pairwise
 from pathlib import Path
 
 import unicodedata2
@@ -80,7 +81,7 @@ def check_invariants(ranges: list[tuple[int, int]]) -> None:
         raise SystemExit(
             f"expected first range {EXPECTED_FIRST_RANGE}, got {ranges[0]}"
         )
-    for (lo, hi), (next_lo, _) in zip(ranges, ranges[1:]):
+    for (lo, hi), (next_lo, _) in pairwise(ranges):
         if lo > hi:
             raise SystemExit(f"inverted range (0x{lo:04X}, 0x{hi:04X})")
         if hi + 1 >= next_lo:

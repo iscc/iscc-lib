@@ -93,11 +93,13 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
     110-line diff). `extend-select` now `["S", "C901", "I", "RUF022", "RUF100"]`. Fixes applied with
     pinned ruff, scoped: `uv run ruff check --fix --select I,RUF022 .` (7 fixed). NEVER blanket
     `--fix` under unpinned/0.16 ruff — it deletes load-bearing `# noqa: S603/S607`.
-- **3 findings remain** (one-liners, own step): `RUF007` (`scripts/gen_unicode16_unassigned.py` →
-    `itertools.pairwise`; re-run generator, assert generated Rust unchanged), `PLW1510`
-    (`scripts/test_install.py` → explicit `check=False`), `EXE001` (`tools/cid.py` shebang without
-    exec bit; Windows-bind-mount exec-bit caveat before `chmod +x`). Then slice D:
-    `uv lock --upgrade-package ruff`, drop pin once `uvx ruff@0.16.0 check .` exits 0.
+- Sub-slice D (iter 136): last 3 findings cleared — `RUF007` (`itertools.pairwise` in
+    `gen_unicode16_unassigned.py`; generator re-run, `unicode16.rs` byte-identical), `PLW1510`
+    (`check=False` in `test_install.py` — callers inspect `returncode` at 20 sites), `EXE001`
+    (`tools/cid.py` exec bit: `chmod +x` + `git update-index --chmod=+x` because
+    `core.fileMode=false` on the 9p bind mount). `uvx ruff@0.16.0 check .` now exits 0. Remaining
+    sub-slice E: `uv lock --upgrade-package ruff`, drop the `ruff<0.16` pin + its `# held:` comment,
+    re-run the full pre-push set with 0.16 as the project formatter/linter.
 - `uvx ruff@0.16.0 check .` runs 0.16 without touching the lock (cache warm since iter 130).
 - zensical ≥0.0.51 warns (non-fatal) on broken anchors; the `docs/howto/c-cpp.md` anchor was fixed
     during iter-125 review.

@@ -51,11 +51,11 @@ IDv1 + decode guards). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
 - Dependency refresh (iters 124-135): Cargo.lock, uv.lock, ci.yml/docs.yml GHA actions, JVM
     manifests, Go module, Ruby Gemfile all refreshed; napi/dotnet verified current (wildcard
     floats). Held-back majors (criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:`
-    comments in root Cargo.toml; `ruff<0.16` hold in pyproject.toml (slices A+B+C done:
-    `extend-select = ["S","C901","I","RUF022","RUF100"]` + isort src/combine-as-imports config; 3
-    one-liner findings left, then slice D drops the pin); rb_sys pinned `0.9.123` + minitest 5.x
-    held in Gemfile. Reasons, junit-platform-launcher/Gradle gotcha + remaining slices (release.yml,
-    ruff one-liners + slice D, majors) → deps-refresh.md
+    comments in root Cargo.toml; `ruff<0.16` hold in pyproject.toml (slices A–D done:
+    `extend-select = ["S","C901","I","RUF022","RUF100"]` + isort config; `uvx ruff@0.16.0 check .`
+    exits 0 since iter 136 — only sub-slice E left: drop the pin); rb_sys pinned `0.9.123` +
+    minitest 5.x held in Gemfile. Reasons, junit-platform-launcher/Gradle gotcha + remaining slices
+    (release.yml, ruff sub-slice E, majors) → deps-refresh.md
 - GOTCHA: ci.yml concurrency has `cancel-in-progress: true` per ref — pushing a second develop
     commit cancels the in-flight CI run of the previous sha (its check-runs end "cancelled"). When a
     step needs a green CI on a specific sha, don't push again until it concludes

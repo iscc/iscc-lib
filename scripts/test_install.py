@@ -51,7 +51,13 @@ def run(
     """Run a command and return the result."""
     run_env = {**os.environ, **(env or {})}
     return subprocess.run(  # noqa: S603
-        cmd, capture_output=True, text=True, cwd=cwd, timeout=timeout, env=run_env
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=cwd,
+        timeout=timeout,
+        env=run_env,
+        check=False,
     )
 
 
