@@ -84,3 +84,10 @@ archived entries.
 - **Trailing-byte hardening**: Go `IsccDecode` (iter 120) has BOTH "too short" (L594) and "too long"
     (L597) branches; the Rust-core `iscc_decode` parallel fix landed iter 121. `iscc_decompose`
     legitimately consumes trailing units — never harden it.
+
+## Closed work — do not re-flag as new (pre-iter-124, archived at 143)
+
+aarch64 wheels #49 (123), CRAP baseline (122), trailing-byte hardening (120-121), Go ISCC-IDv1 #43
+(119), WASM SIMD #42 (118), GIL release #39+#41, cargo-deny audit gate (113), iai-callgrind perf
+gate (107-111), cargo-semver-checks job (93). CID loop infra = meta, NOT part of target.md — ignore
+it when assessing.
