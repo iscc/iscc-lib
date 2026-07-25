@@ -21,12 +21,10 @@ fully-met target sections to `learnings-archive.md`.
     directly — do not use deepwiki MCP
 - When porting from Python reference, verify against Rust `crates/iscc-lib/src/` first — the Rust
     implementation is the authoritative source for this project
-- **`iscc-core` output is not stable across CPython versions.** `text_clean`/`text_collapse` strip
-    top-level Unicode category `C`, which includes unassigned `Cn`, so the result depends on
-    `unicodedata.unidata_version` (15.1.0 on 3.13, 16.0.0 on 3.14 — 5,185 code points differ).
-    "Matches the reference" is meaningless without naming the interpreter. Check both runtimes with
-    `uv run --python 3.13 --no-project --with iscc-core python …` (and `3.14`) — no project env
-    needed Upstream: <https://github.com/iscc/iscc-core/issues/137>
+- **`iscc-core` output is not stable across CPython versions** (5,185 code points differ 3.13 vs
+    3.14 — `text_clean`/`text_collapse` strip category `C` incl. unassigned `Cn`, so the result
+    tracks `unicodedata.unidata_version`). Always name the interpreter, and check both via
+    `uv run --python 3.13 --no-project --with iscc-core python -c …`. Upstream: iscc-core#137
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) must be proven output-neutral by a
     **differential sweep** over all 1,112,032 code points (~2 min; recipe → `learnings-archive.md`),
     never by a green vector suite — every vendored conformance vector predates Unicode 16
@@ -79,12 +77,9 @@ fully-met target sections to `learnings-archive.md`.
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty
     after prefix = empty bytes. 50 total vectors (v1.3.0): 20+5+3+5+3+2+4+3+5
-- **Per-algorithm internals** (meta nibble interleave, text/data MinHash, audio 3-stage SimHash,
-    mixed grouping, `encode_units`, Nayuki DCT) plus settled API-parameter facts (`META_TRIM_META`
-    pre/post-decode checks, `gen_image_code_v0` flat `&[u8]` pixels, MainType Ord, JCS `meta`,
-    `alg_simhash` length, `gen_instance_code_v0`'s ignored `bits`, `gen_iscc_code_v0`'s `wide`,
-    ST_ISCC SubType derivation) and **ISCC-IDv1** (`gen_iscc_id_v1`, Go-only, experimental) are
-    archived (iters 124/128/131) → `learnings-archive.md`
+- **Per-algorithm internals** (nibble interleave, MinHash, audio SimHash, mixed grouping,
+    `encode_units`, DCT), settled API-parameter facts (trim/decode checks, pixel layout, MainType
+    Ord, JCS, `bits`/`wide`) and **ISCC-IDv1** are archived → `learnings-archive.md`
 - `conformance_selftest` masks truncated codes bitwise — never compare full strings below 256 bits
 - **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`**: a
     `< nbytes` guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`).
@@ -101,17 +96,15 @@ fully-met target sections to `learnings-archive.md`.
 - **Release pipeline pattern** (9 registry inputs → build → smoke test → publish; `version_sync.py`
     manages **21** targets) archived iter 133 → `learnings-archive.md`
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
-    `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger breaks
-    for Swift — needs a spec fix to derive version from `Cargo.toml`
-- **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (`continue-on-error: true`,
-    enforcing at v1.0.0; `rust-core.md` box stays `[ ]`); `coverage` enforcing. Run via
-    `mise run semver` / `mise run coverage`. Details → `learnings-archive.md`
+    `Cargo.toml` like every other release job), so the `--ref main` re-trigger breaks for Swift
+- **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0;
+    `rust-core.md` box stays `[ ]`), `coverage` enforcing. `mise run semver` / `mise run coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING Phase 3 (`cargo crap --fail-regression --fail-above`, thresh
     30.0, max ~22.3), `.crap-baseline.json` COMMITTED (regen `mise run crap:baseline`),
     `.cargo-crap.toml` excludes `benches/**`. **CI-ONLY guard gap**: NOT in `mise run check`/
     pre-commit — a source change adding a branch/loop to a covered fn lands green locally but reds
-    CI unless the baseline is refreshed in the SAME step (never revert the fix or widen epsilon/
-    threshold). Full mechanics + how to review a refresh → `learnings-archive.md`
+    CI unless the baseline is refreshed in the SAME step (never widen epsilon/threshold). Mechanics
+    → `learnings-archive.md`
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`
 - **`Audit (cargo-deny)` gate — ENFORCING (ci-cd.md)**: root `deny.toml` (config v2,
@@ -130,20 +123,24 @@ fully-met target sections to `learnings-archive.md`.
     (transitive pins), `https://rubygems.org/api/v1/versions/<gem>.json` (`ruby_version`; the v2
     endpoint returns `null`). GOTCHA: `criterion` > 0.5 deprecates `criterion::black_box`, fatal
     under `-D warnings` → use `std::hint::black_box`
-- **ruff 0.16 adoption is sliced by decision type, not by file** (iters 125/131/134): run the
+- **ruff 0.16 adoption is sliced by decision type, not by file** (iters 125/131/134/135): run the
     unpinned version with `uvx ruff@0.16.0 check .` — it never touches `uv.lock`, so `ruff<0.16`
-    stays in `pyproject.toml` until the tree is clean. 104 → 26 (slice A) → **12** (slice B put
-    `extend-select = ["S", "C901"]` in `[tool.ruff.lint]` — **never `select`**, which replaces
-    ruff's `E4`/`E7`/`E9`/`F` defaults; the two pre-push `--select S` / `--select C901` hooks stay
-    as deliberate redundancy that names the failing gate in push output). Left: `I001` ×8 + `RUF022`
-    (isort src-root decision), `RUF007`, `PLW1510`, `EXE001`. **Never `ruff@0.16 check --fix .`** —
-    it deletes the load-bearing `# noqa: S603/S607` in `tools/`+`scripts/`
-- **An unused `# noqa` is invisible unless `RUF100` is selected** (iter 134 probe): ruff 0.16
-    default-selects `RUF100`, pinned 0.15.22 does not. Before deleting any directive, prove it is
-    dead with `uv run ruff check --select <rule> --ignore-noqa` (real violations, suppressions off)
-    — `S603` never fires on a fully static list-literal argv in *either* version, only on dynamic
-    argv (`["git", "add", rel]`, `["git", *args]`). `--extend-select RUF100` is green at HEAD, so
-    enabling it would stop stale directives accumulating unseen
+    stays in `pyproject.toml` until the tree is clean. 104 → 26 (A) → 12 (B) → **3** (C). Rules go
+    in `[tool.ruff.lint] extend-select` — **never `select`**, which drops ruff's `E4`/`E7`/`E9`/`F`
+    defaults; the pre-push `--select S`/`--select C901` hooks stay as deliberate redundancy that
+    names the failing gate. isort needs BOTH `[tool.ruff] src = [".", "crates/iscc-py/python"]`
+    (makes `iscc_lib` first-party) and `[tool.ruff.lint.isort] combine-as-imports = true` (without
+    it the `_lowlevel` re-export block shatters into ~60 statements / a 110-line diff). **Never
+    `ruff@0.16 check --fix .`** — it deletes the load-bearing `# noqa: S603/S607` in
+    `tools/`+`scripts/`; fix with the pinned ruff and an explicit `--select`
+- **An unused `# noqa` is invisible unless `RUF100` is selected** (probed iter 134; now in
+    `extend-select` since iter 135): before deleting any directive prove it dead with
+    `uv run ruff check --select <rule> --ignore-noqa` — `S603` never fires on a fully static
+    list-literal argv in *either* version, only on dynamic argv (`["git", "add", rel]`)
+- **The pre-commit `ruff-check` hook passes filenames and has no `--force-exclude`**, so hook-mode
+    and `ruff check .` can disagree in principle. Under the current config they do not: per-file
+    `uv run ruff check --fix <paths>` is a no-op on a tree that `ruff check .` calls clean (probed
+    iter 135). Re-probe this whenever a path-sensitive setting (`src`, `exclude`, isort) changes
 - **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128 Kotlin, documented
     iter 132): KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar and
     `kotlin-stdlib:2.4.10` into the POM; a `mavenLocal` consumer proved 2.1.10/2.2.21 fail, 2.3.21
@@ -161,10 +158,9 @@ fully-met target sections to `learnings-archive.md`.
 - **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** —
     `gh api repos/<o>/<r>/releases/latest` proves a release exists, not that `@vN` resolves. Always
     confirm with `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN`.
-    `astral-sh/setup-uv` stopped publishing floating majors after `v7` (v8.x/v9.0.0 are exact tags
-    only) → pin `@v9.0.0` with a `# exact tag:` comment; it recurs in `release.yml`. Current majors
-    as of 2026-07-24 are recorded in `.claude/agent-memory/advance/deps-refresh.md`
-    (`upload-pages-artifact` + `deploy-pages` must move as a pair)
+    `astral-sh/setup-uv` stopped publishing floating majors after `v7` → pin `@v9.0.0` with a
+    `# exact tag:` comment; it recurs in `release.yml`. Current majors (2026-07-24) →
+    `.claude/agent-memory/advance/deps-refresh.md` (`upload-pages-artifact` + `deploy-pages` pair)
 - **ci.yml sets `cancel-in-progress: true` per ref** — pushing a follow-up develop commit cancels
     the in-flight run of the previous sha (its check-runs conclude `cancelled`, not `failure`). When
     a step's Done-When needs a green CI on a specific sha, let that run conclude before pushing
@@ -175,13 +171,13 @@ fully-met target sections to `learnings-archive.md`.
 
 - Never force-push to `develop` during a CID loop — agents commit incrementally (branching model
     itself is in CLAUDE.md)
-- **Feature flags: fully met — archived iter 127 → `learnings-archive.md`.** Read it before touching
-    `[features]` in `crates/iscc-lib/Cargo.toml`
+- **Feature flags**: fully met, archived → `learnings-archive.md` (read before touching
+    `[features]`)
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — frequently stale. Verify independently against the source (`cargo search`,
     `npm view`, Maven Central API, `pip index versions`, Go module proxy, `gh api`)
-- **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
-    Archive completed-phase entries periodically to prevent token bloat
+- **Context growth**: learnings.md and agent memory grow monotonically — archive completed-phase
+    entries periodically to prevent token bloat
 - **Detect concurrent CID loops** (iter 97): context files changing mid-review, or `mise run check`
     reporting spurious "files were modified by this hook" on a file advance never touched, means a
     race. Confirm with `ps aux | grep -E 'cid:run|claude -p CID iteration'`, then flag HUMAN REVIEW
@@ -195,6 +191,9 @@ fully-met target sections to `learnings-archive.md`.
     range — incl. `next.md` and per-agent `MEMORY*.md`. A non-conforming file rejects the whole
     batch push even though staged-only `git commit` passed. define-next MUST run `mise run format`
     before committing; review can unblock by reformatting + amending (match hook args exactly)
+- **next.md must never task advance with editing `issues.md`** (iter 135): advance's protocol
+    forbids writing it and review owns issue progress/resolution. A slice-progress ledger paragraph
+    belongs in the handoff Notes for review to append — advance correctly refused and quoted it
 - **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
     `effort: xhigh`, runner timeout 3600s); all other roles on `opus`. Deliberate diversity — Fable
     implements, Opus reviews, Codex is the second opinion. Do not "unify" onto one model

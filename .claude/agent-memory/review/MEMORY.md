@@ -38,11 +38,16 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     claim "only low-priority remain" when `normal` issues still exist
 - **prek stash conflict**: untracked files with formatting issues break prek stash/restore during
     commit. Fix: move untracked files to /tmp before committing, restore after
-- **`mise run check` mdformat on context files** (recurring): define-next writes `next.md` +
-    `define-next/MEMORY.md` non-conforming, so `prek --all-files` reformats every cycle (NOT an
-    advance regression). Staged-only `git commit` is unaffected, but the pre-push mdformat hook runs
-    on the whole push range and WILL reject the batch — STAGE the reformatted files into the review
-    commit (mechanical rewrap). Never stage `iterations.jsonl` (runner-owned)
+- **`mise run check` mdformat on context files** (intermittent — clean in 135, dirty before):
+    define-next sometimes writes `next.md` / `define-next/MEMORY.md` non-conforming, so
+    `prek --all-files` reformats them (NOT an advance regression). Staged-only `git commit` is
+    unaffected, but the pre-push mdformat hook runs on the whole push range and WILL reject the
+    batch — always run `git status --porcelain` right after `mise run check` and STAGE any
+    reformatted file into the review commit. Never stage `iterations.jsonl` (runner-owned)
+- **next.md may task advance with an `issues.md` ledger append — advance's protocol forbids it**
+    (iter 135). Advance correctly refuses and puts the exact paragraph in its handoff **Notes**; the
+    review agent must then append it to the issue's progress log. This is scope *discipline*, never
+    an incomplete criterion — and it is worth a learnings.md note aimed at define-next
 - **No-op / human-handoff iteration (iter 111)**: verify scope is empty
     (`git diff HEAD~1..HEAD --stat -- crates/ packages/ scripts/ docs/ notes/ .claude/context/specs/`)
     and still scan `@{upstream}..HEAD` for gate circumvention. Only HUMAN-REVIEW spec amendments +
@@ -68,10 +73,12 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     `uv run zensical build` ("No issues found", ~13s) + rendered-HTML grep for admonition/tab edits
     (recipe → `review-patterns.md`)
 - **Python-only**: `mise run check` + `pytest`
-- **Lint-config-only (`[tool.ruff.lint]`, iter 134)**: `mise run check` + `uv run ruff check` +
+- **Lint-config-only (`[tool.ruff]*`, iters 134/135)**: `mise run check` + `uv run ruff check` +
     `format --check` + both pre-push gates (`--select S` / `--select C901 --force-exclude`) +
-    `uvx ruff@0.16.0 check . --output-format concise` (count must match next.md) + `pytest`. A
-    `# noqa` deletion is only safe if `--select <rule> --ignore-noqa` does NOT list its line — see
+    `uv run ty check`, `uvx ruff@0.16.0 check . --output-format concise` (count must match next.md)
+    and `pytest`. A `# noqa` deletion is only safe if `--select <rule> --ignore-noqa` does NOT list
+    its line; a path-sensitive setting (`src`, isort, `exclude`) needs the hook-mode probe — the
+    pre-commit hook passes FILENAMES and has no `--force-exclude`. Both recipes →
     `dep-refresh-reviews.md` slice 8. Docs edit → `uv run zensical build`
 - **Go-only**: `mise run check` + `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`
     - `go vet -C packages/go ./...`

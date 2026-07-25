@@ -182,11 +182,11 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
 `uv run ruff check --select S --force-exclude` + `--select C901` + `uv run ty check` +
 `uv run pytest -q` + `mise run check`.
 
-- **The `--select S`/`C901` runs are the whole point.** `[tool.ruff.lint]` declares **no `select`
-    key** — S/C901 exist only as explicit args on the two pre-push hooks (`.pre-commit-config.yaml`
-    ~93-106). So any `ruff --fix` that deletes a `# noqa: S603/S607` in `tools/`/`scripts/` reds the
-    security gate while `mise run check` stays green. Always run
-    `git diff --stat -- tools/ scripts/` (empty until slice C) and grep the noqa counts (11 / 4 / 1)
+- **The `--select S`/`C901` runs are still the whole point** even though slice B put both in
+    `extend-select`: the two pre-push hooks (`.pre-commit-config.yaml` ~93-106) are what actually
+    red a push. Any `ruff --fix` that deletes a `# noqa: S603/S607` in `tools/`/`scripts/` opens a
+    hole — always run `git diff --stat -- tools/ scripts/` and grep the counts (`tools/cid.py`: 6 ×
+    S603, 4 × S607)
 - **Sub-slice A (iter 131, PASS)**: 36 lone `...` deleted from `_lowlevel.pyi` (PIE790+PYI048
     double-report one line → N errors = N/2 deletions), 6 RUF059 `_`-prefixed. 104 → 26 findings
 - **Verify a `.pyi` edit against mypy AND pyright, not just `ty`** — the wheel ships `py.typed` next
@@ -208,10 +208,20 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
     `S603` never fires on a fully static list-literal argv in 0.15.22 *or* 0.16.0 (only on
     `["git", "add", rel]` / `["git", *args]`), so the handoff's "0.16 refined S603" attribution was
     wrong — the real change is that 0.16 default-selects `RUF100`
-- **Sub-slice C/D** are the only ones allowed to touch the `ruff<0.16` pin + `uv.lock` (D); require
-    `uvx ruff@0.16.0 check .` exit 0 first. Recommend C also add `RUF100` to `extend-select` (green
-    at HEAD since B). When the pin's `# held:` reason goes stale (it said "104 new errors" while 12
-    remained), fix the comment as a review minor fix
+- **Sub-slice C (iter 135, PASS) was also a strengthening**:
+    `[tool.ruff] src = [".",   "crates/iscc-py/python"]` +
+    `[tool.ruff.lint.isort] combine-as-imports = true` +
+    `extend-select = [… "I", "RUF022", "RUF100"]`, 7 mechanical fixes via
+    `uv run ruff check --fix --select I,RUF022 .`. 12 → 3. **The C-specific probe** (~10s, nothing
+    else catches it): the pre-commit `ruff-check` hook runs `uv run ruff check --fix` with *filenames*
+    and no `--force-exclude`, so hook-mode ≠ `ruff check .` in principle. Re-run it by hand on the
+    touched paths and assert `git diff --stat` is empty — proves `src`/isort resolve identically
+    per-file. Also diff `__all__` as a SET across `HEAD~1..HEAD` (`ast.parse`, not a grep) — RUF022
+    reorders 49 strings and a dropped symbol would be invisible in a reordering diff
+- **Sub-slice D** is the only one allowed to touch the `ruff<0.16` pin + `uv.lock`; require
+    `uvx ruff@0.16.0 check .` exit 0 first. Whenever the pin's `# held:` reason goes stale (it has
+    twice: "104 new errors" while 12 remained, "12 findings" while 3 remain), fixing the comment is
+    a review minor fix — but confirm the named findings/files against the live 0.16 run
 
 ## Remaining slices
 
