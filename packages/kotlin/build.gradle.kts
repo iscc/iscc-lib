@@ -1,5 +1,5 @@
 plugins {
-    kotlin("jvm") version "2.1.10"
+    kotlin("jvm") version "2.4.10"
     `maven-publish`
     signing
 }
@@ -18,9 +18,15 @@ java {
 }
 
 dependencies {
-    implementation("net.java.dev.jna:jna:5.16.0")
-    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
-    testImplementation("com.google.code.gson:gson:2.11.0")
+    implementation("net.java.dev.jna:jna:5.19.1")
+    // held: JUnit 6.x deferred - it renumbers the platform artifacts and removes
+    // deprecated Platform APIs; migrating off the 5.x line is its own step.
+    testImplementation("org.junit.jupiter:junit-jupiter:5.14.4")
+    // Explicit launcher keeps the platform jars aligned with junit-jupiter; the
+    // launcher Gradle 8.12.1 injects predates platform 1.12 (OutputDirectoryCreator).
+    // Keep the 1.x.y version in lockstep with junit-jupiter 5.x.y.
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.14.4")
+    testImplementation("com.google.code.gson:gson:2.14.0")
 }
 
 tasks.withType<Test> {

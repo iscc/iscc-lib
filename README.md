@@ -148,7 +148,7 @@ dependencies: [
 ```kotlin
 dependencies {
     implementation("io.iscc:iscc-lib-kotlin:0.5.0")
-    implementation("net.java.dev.jna:jna:5.16.0")
+    implementation("net.java.dev.jna:jna:5.19.1")
 }
 ```
 

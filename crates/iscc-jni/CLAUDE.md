@@ -84,7 +84,7 @@ cd crates/iscc-jni/java && mvn test
     `jsonToDataUrl`, `genSumCodeV0` equivalence, streaming hasher state validation, constants
     verification, and negative-input validation
 - Tests use JUnit 5 assertions (`assertEquals`, `assertThrows`, `assertNotNull`, etc.)
-- Test-only dependencies: `junit-jupiter` 5.11.4, `gson` 2.11.0 (for JSON vector parsing)
+- Test-only dependencies: `junit-jupiter` 5.14.4, `gson` 2.14.0 (for JSON vector parsing)
 - No mocking -- tests call real Rust functions through JNI
 - `stream:<hex>` prefixed byte data decoded via `HexFormat.of().parseHex()`
 - `meta` inputs that are JSON objects are serialized with sorted keys via `TreeMap` before passing

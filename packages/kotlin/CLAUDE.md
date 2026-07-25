@@ -9,7 +9,7 @@ code generation.
 - All functions are free functions in the `uniffi.iscc_uniffi` package
 - Does NOT implement any ISCC logic; all computation delegates through `iscc-uniffi` to `iscc-lib`
 - JVM-only (no Kotlin/Native or Kotlin Multiplatform support)
-- Native library loaded at runtime via JNA (`net.java.dev.jna:jna:5.16.0`)
+- Native library loaded at runtime via JNA (`net.java.dev.jna:jna:5.19.1`)
 
 ## File Layout
 

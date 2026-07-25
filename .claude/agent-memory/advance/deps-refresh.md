@@ -10,14 +10,30 @@ metadata:
 Slices done: 1 `Cargo.lock` (iter 124), 2 `uv.lock` (iter 125), 3 direct Rust pins (iter 126), 4 GHA
 actions in ci.yml + docs.yml (iter 127: checkout v7, setup-python v7, setup-uv v9, setup-node v7,
 setup-java v5, setup-go v7, setup-dotnet v6, upload-artifact v7, upload-sarif v4,
-upload-pages-artifact v5 + deploy-pages v5 — paired). GOTCHA: `astral-sh/setup-uv` has NO floating
-major tag past v7 — v8.x/v9.0.0 are exact release tags only, so write `@v9.0.0` not `@v9` (iter-127
-CI failure: "Unable to resolve action"). `releases/latest` proves a release exists, NOT that a
-floating `@vN` tag exists — confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`.
-Remaining: `release.yml` actions (97 `uses:` refs; upload/download-artifact@v4 must move together;
-setup-uv there needs `@v9.0.0` too; only truly validated by a release run), per-binding manifests
-(napi package.json, rb Gemfile/gemspec, jni pom.xml, kotlin build.gradle.kts, dotnet .csproj, go
-go.mod), ruff 0.16 adoption.
+upload-pages-artifact v5 + deploy-pages v5 — paired), 5 JVM manifests (iter 128: pom.xml junit
+5.14.4 + gson 2.14.0 + 5 maven plugins; build.gradle.kts kotlin 2.4.10, jna 5.19.1, junit/gson
+lockstep). GOTCHA: `astral-sh/setup-uv` has NO floating major tag past v7 — v8.x/v9.0.0 are exact
+release tags only, so write `@v9.0.0` not `@v9` (iter-127 CI failure: "Unable to resolve action").
+`releases/latest` proves a release exists, NOT that a floating `@vN` tag exists — confirm via
+`gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Remaining: `release.yml` actions (97 `uses:`
+refs; upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0` too; only truly
+validated by a release run), per-binding manifests (napi package.json, rb Gemfile/gemspec, dotnet
+.csproj, go go.mod), ruff 0.16 adoption, Gradle wrapper 8.12.1 major, JUnit 6.x migration.
+
+## JVM manifests (iter 128)
+
+- GOTCHA: junit-jupiter ≥ 5.12 under Gradle 8.12.1 needs an explicit
+    `testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.x.y")` (1.x.y lockstep with
+    5.x.y) — Gradle injects its own bundled launcher which predates platform 1.12, failing test
+    discovery with "OutputDirectoryCreator not available … unaligned platform jars". Maven is
+    unaffected (surefire resolves the aligned launcher itself).
+- Held: `central-publishing-maven-plugin` 0.7.0 (0.11.0 exists; deploy goal only runs in a real
+    Maven Central publish — bump during a human-supervised release). JUnit 6.x deferred (renumbered
+    platform artifacts, removed Platform APIs; its Kotlin ≥ 2.2 prereq is now met by 2.4.10).
+- Kotlin 2.4.10 compiles the UniFFI-generated bindings unchanged; KGP 2.4.x supports Gradle
+    7.6.3–9.5.0 so the 8.12.1 wrapper needed no change.
+- Verify pins exist before editing:
+    `curl -s -o /dev/null -w "%{http_code}"   https://repo1.maven.org/maven2/<g/a/v/a-v.pom>` → 200.
 
 Verified current on 2026-07-24 (no bump needed): `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
 mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
