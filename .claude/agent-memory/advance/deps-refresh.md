@@ -80,11 +80,16 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
     was 104 errors; slice A (iter 131) cleared 78 config-free ones: deleted the 36 lone `...` stub
     bodies in `_lowlevel.pyi` (PIE790+PYI048 double-report the same line — docstring-only body is
     valid) and `_`-prefixed 6 RUF059 unused unpackings in `tests/test_new_symbols.py`.
-- **26 findings remain**, each needing a decision: `RUF100` 15 (the `# noqa: S603/S607` in
-    `tools/cid.py`, `tools/metrics.py`, `scripts/test_install.py` — load-bearing for the pre-push
-    `ruff check --select S` gate; 0.16 calls them unused only because S isn't in default select — do
-    NOT auto-fix/delete), `I001` 8 + `RUF022` 1 (need isort src-root config decision; `__init__.py`
-    \+ tests + bench), `EXE001` 1, `PLW1510` 1. Pin drops only when tree is fully clean under 0.16.
+- Slice B (iter 134): `[tool.ruff.lint] extend-select = ["S", "C901"]` in pyproject.toml (NEVER
+    `select` — it replaces the pyflakes defaults). All 15 `RUF100` cleared: 14 `# noqa: S603/S607`
+    became recognised, one genuinely-unused `S603` deleted in `tools/metrics.py` `git_sha()` (0.16
+    refined S603 to skip static list-literal argv; dynamic-argv directives MUST stay), plus a stale
+    `PLC0415` in `tools/cid.py:980`. Pre-push `--select S` / `--select C901` hooks kept
+    intentionally (redundant but name the failing gate).
+- **12 findings remain**, each needing a decision: `I001` 8 + `RUF022` 1 (isort src-root config
+    decision — slice C; `__init__.py` + tests + bench), `RUF007` 1
+    (`scripts/gen_unicode16_unassigned.py`), `PLW1510` 1 (`scripts/test_install.py`), `EXE001` 1
+    (`tools/cid.py` shebang without exec bit). Pin drops only when tree is fully clean under 0.16.
 - `uvx ruff@0.16.0 check .` runs 0.16 without touching the lock (cache warm since iter 130).
 - zensical ≥0.0.51 warns (non-fatal) on broken anchors; the `docs/howto/c-cpp.md` anchor was fixed
     during iter-125 review.

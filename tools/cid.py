@@ -977,7 +977,7 @@ def wait_with_skip(seconds):
     Falls back to plain sleep on Windows where select() on stdin is unavailable.
     """
     if sys.platform == "win32":
-        import msvcrt  # noqa: PLC0415
+        import msvcrt
 
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:

@@ -134,7 +134,8 @@ can review and re-stage.
 
 - File hygiene (line endings, trailing whitespace, YAML/JSON/TOML validation)
 - `cargo fmt` — Rust formatting
-- `ruff check --fix` + `ruff format` — Python linting and formatting
+- `ruff check --fix` + `ruff format` — Python linting and formatting (includes the security `S` and
+    complexity `C901` rules via `extend-select` in `pyproject.toml`)
 - `taplo fmt` — TOML formatting
 - `yamlfix` — YAML formatting
 - `mdformat` — Markdown formatting
@@ -146,8 +147,8 @@ Runs on every `git push`. Blocks the push if any check fails.
 - `cargo clippy` — Rust linting with `-D warnings` (zero warnings policy)
 - `cargo test` — full Rust test suite
 - `ty check` — Python type checking
-- Ruff security scan (`S` rules)
-- Ruff complexity check (`C901`)
+- Ruff security scan (`S` rules) — focused re-run of rules already enforced by `ruff check`
+- Ruff complexity check (`C901`) — focused re-run of rules already enforced by `ruff check`
 - `pytest` with 100% coverage enforcement
 
 ### Manual Commands

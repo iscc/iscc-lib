@@ -171,7 +171,7 @@ def git_sha(repo_root):
     """Return the short HEAD sha, or None if git is unavailable."""
     try:
         # Fixed argv, no shell, trusted local git — safe subprocess use.
-        out = subprocess.run(  # noqa: S603
+        out = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],  # noqa: S607
             cwd=repo_root,
             capture_output=True,

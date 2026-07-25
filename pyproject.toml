@@ -14,6 +14,12 @@ timeout = 120
 # dependency (run via `uv run --script`), not a project dependency.
 exclude = ["packages/cpp/conanfile.py", "scripts/gen_unicode16_unassigned.py"]
 
+[tool.ruff.lint]
+# `S` (security) and `C901` (complexity) are project gates. Selecting them here — instead of
+# only in the two pre-push hooks — makes `uv run ruff check` (pre-commit, `mise run lint`, CI)
+# enforce them too, and keeps the load-bearing `# noqa: S603/S607` directives recognised.
+extend-select = ["S", "C901"]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 15
 
