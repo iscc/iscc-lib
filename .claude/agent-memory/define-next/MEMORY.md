@@ -65,88 +65,77 @@ iterations.
 
 ## v1.0.0 Hardening Phase — COMPLETE (iters 86–114); detail in MEMORY-archive.md + learnings.md
 
-All autonomous v1.0.0-hardening gates landed and are enforcing/green: module-visibility narrowing,
-SumHasher (#37), PyO3 0.29 (#1), npm bundled loader (#38), `cargo-semver-checks` (informational — do
-NOT flip to enforcing until the human-gated v1.0.0 cut), CRAP Phases 1–3 + `--fail-above`,
-iai-callgrind perf gate (#3), and `cargo-deny` supply-chain gate (#114). Residual facts:
+All autonomous v1.0.0-hardening gates landed and are enforcing/green (module visibility, SumHasher
+#37, PyO3 0.29 #1, npm bundled loader #38, CRAP `--fail-above`, iai-callgrind #3, cargo-deny #114);
+`cargo-semver-checks` stays informational until the human-gated v1.0.0 cut. Residual facts:
 
 - **Semver + Coverage/CRAP + Perf + Audit are the 4 quality gates.** CRAP + Perf + Audit enforcing;
     Semver `continue-on-error: true` until v1.0.0 cut.
-- **Baselines are committed + refreshed by deliberate `mise run` reviewed commits**
-    (`.crap-baseline   .json`, `.iai-baseline.json`) — never auto-committed from CI (push race).
-    Regenerate from CI's artifact if flapping; don't widen `--epsilon`.
-- **cargo-deny** reads Cargo.lock + metadata (NOT compiled) → local `cargo deny check` green is
-    authoritative. `deny.toml`: config v2, `[graph] all-features`, `yanked/multiple-versions`,
-    `private = { ignore = true }`, license allow-list (Unicode-3.0/Zlib/BSL-1.0/MPL-2.0). Dead
-    pre-0.14 schema traps + license-graph detail in learnings.md.
+- **Baselines (`.crap-baseline.json`, `.iai-baseline.json`) are committed and refreshed only by
+    deliberate reviewed `mise run` commits** — never auto-committed from CI; don't widen
+    `--epsilon`.
+- **cargo-deny** reads Cargo.lock + metadata (NOT compiled artifacts) → a green local
+    `cargo deny check` is authoritative. `deny.toml` schema/license-graph detail in learnings.md.
 
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
 - v0.5.0 released to all registries; all 12 bindings meet core criteria. Human raised the target.md
     bar with 5 spec'd `normal` `[human]` v0.6.0 issues (#41 GIL, #42 WASM SIMD, #43 Go ISCC-IDv1,
-    #49 aarch64 wheels, dependency refresh — first four DONE) + 2 `normal` release-workflow issues
-    (npm OIDC, single-registry re-trigger). v1.0.0 cut + Semver-enforcing still HELD by Titusz
-    (`low`).
-- **iters 115–119 DONE (detail in MEMORY-archive.md)**: 115 cargo-deny advisory bump
-    (crossbeam-epoch, CI-red-first); 116 #41 Python GIL detach; 117→118 #42 WASM SIMD (reframe:
-    needs the `blake3/wasm32_simd` Cargo feature, not just RUSTFLAGS); 119 #43 Go ISCC-IDv1.
+    #49 aarch64 wheels — all DONE — plus dependency refresh) + 2 `normal` release-workflow issues
+    (npm OIDC, single-registry re-trigger). v1.0.0 cut + Semver-enforcing HELD by Titusz (`low`).
+- **iters 115–125 DONE (detail in MEMORY-archive.md + learnings.md)**: 115 cargo-deny advisory bump;
+    116 #41 Python GIL detach; 117→118 #42 WASM SIMD (reframe: needs the `blake3/wasm32_simd` Cargo
+    feature, not just RUSTFLAGS); 119 #43 Go ISCC-IDv1; 120/121 trailing-byte "too long" guards (Go,
+    then Rust core); 122 CI-RED-FIRST `.crap-baseline.json` refresh; 123 #49 aarch64 wheels
+    (release-only infra → STATIC verification: pyyaml `safe_load` + grep); 124/125 dep-refresh
+    slices 1–2. **Root lesson: the CRAP regression gate is CI-ONLY** (not in
+    `mise run check`/pre-commit) — any step adding a branch/loop to a covered fn MUST refresh the
+    baseline in the SAME step.
 - **Recurring**: the enforcing cargo-deny gate WILL periodically go red on fresh RustSec advisories
-    vs dev/bench deps — CI-red-first priority; prefer `cargo update -p <crate>` (patch bump) over a
-    `deny.toml` ignore when a patched release exists (check `patched` range in advisory-db first).
-- **iters 120–125 DONE (detail in learnings.md + MEMORY-archive.md)**: 120/121 trailing-byte "too
-    long" guards (Go, then Rust core); 122 CI-RED-FIRST `.crap-baseline.json` refresh; 123 #49
-    aarch64 wheels (release-only infra → STATIC verification: pyyaml `safe_load` + grep); 124/125
-    dep-refresh slices 1–2 (`cargo update`, `uv lock --upgrade`). **Root lesson: the CRAP regression
-    gate is CI-ONLY** (not in `mise run check`/pre-commit) — any step adding a branch/loop to a
-    covered fn MUST refresh the baseline in the SAME step (how iter 121 slipped).
-- **Dep refresh is sliced per-ecosystem** (spans ~12 manifests, cites no `[audit]` → no 8-file
-    valve): Rust lock → Rust direct pins → Python `uv.lock` → each binding-manifest group → tooling
-    pins. Lockfiles are generated → 0 source files; hold a tool/dep back with an inline documented
-    comment rather than disabling a rule/gate.
-- **iter 126: dep-refresh slice 3 = Rust direct-pin evaluation** (`Cargo.toml` +
-    `crates/iscc-lib/benches/benchmarks.rs`, plus generated `Cargo.lock`). **Pin survey (crates.io,
-    2026-07-24): only 4 pins are majors behind**; all others caret-covered by the iter-124 lock
-    refresh. Spec `ci-cd.md` §"Dependency Freshness" mandates a documented reason next to every
-    held-back pin → `# held:` comments are the deliverable.
-    - `criterion` 0.5→**0.7** landed (import swapped to `std::hint::black_box`). `mise run lint` =
-        `clippy --all-targets -D warnings`, so a **deprecation IS a hard error** in any dep bump.
-    - **criterion 0.8 HELD: MSRV 1.86 > workspace `rust-version = "1.85"`** — do NOT raise the
-        declared MSRV for a dev-dep (human policy call for the v1.0.0 cut; no MSRV CI job, local rustc
-        1.97).
-    - **magnus 0.8 HELD**: `old-api` no longer default → `magnus::exception::runtime_error()` (used in
-        `crates/iscc-rb/src/lib.rs`) becomes `#[deprecated]` → clippy failure; needs refactor to
-        `Ruby::exception_runtime_error()`, bundle with the Ruby manifest slice. (Rest of 0.8 fits:
-        iscc-rb already uses `Ruby::get()`, no `FString`; rb-sys ≥0.9.113 vs our 0.9.123.)
-    - **jni 0.22 HELD**: wholesale rework (`JNIEnv`→`EnvUnowned`/`Env`, `GlobalRef`→`Global`,
-        `AutoLocal`→`Auto`, closure attachment, `ErrorPolicy`) per upstream `docs/0.22-MIGRATION.md` —
-        rewrites `crates/iscc-jni/src/lib.rs`; own (possibly human-gated) step.
-    - **uniffi 0.32 HELD**: needs Swift+Kotlin regen/re-verify; no Swift toolchain locally. **pyo3
-        0.29** is already latest. Risk: enforcing `Audit (cargo-deny)` on criterion 0.7's new dev
-        subtree (criterion-plot, clap, plotters) → `mise run audit`.
+    vs dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore
+    when a patched release exists.
+- **Dep refresh is sliced per-ecosystem** (~12 manifests, cites no `[audit]` → no 8-file valve):
+    Rust lock → Rust pins → `uv.lock` → each binding-manifest group → tooling pins. Lockfiles are
+    generated → 0 source files; hold a dep back with an inline documented comment, never by
+    disabling a rule/gate.
+- **iter 126: dep-refresh slice 3 = Rust direct pins — DONE** (criterion 0.5→0.7; bench import moved
+    to `std::hint::black_box` because `criterion::black_box` is `#[deprecated]` and `mise run lint`
+    = `clippy --all-targets -D warnings` → **a deprecation IS a hard error in any dep bump**). The 4
+    surviving `# held:` comments in `Cargo.toml` are the authoritative record: criterion 0.8 (MSRV
+    1.86 > declared 1.85 — never raise MSRV for a dev-dep; human policy call at the v1.0.0 cut),
+    magnus 0.8 (`old-api` off by default → `exception::runtime_error()` deprecated at 5 sites in
+    `crates/iscc-rb/src/lib.rs`; rest of 0.8 fits), jni 0.22 (wholesale `JNIEnv`→`Env`/`EnvUnowned`
+    rework per upstream `docs/0.22-MIGRATION.md`, rewrites `crates/iscc-jni/src/lib.rs`), uniffi
+    0.32 (needs Swift+Kotlin regen; no Swift toolchain locally). pyo3 0.29 is already latest.
 - **ruff 0.16 adoption is OVER the 3-file budget** (iter 126, `uvx ruff@0.16.0 check .`): 104 errors
     over 5 non-test files (`_lowlevel.pyi` 72, `tools/cid.py` 12, `tools/metrics.py`,
-    `scripts/test_install.py`, `iscc_lib/__init__.py`) + `pyproject.toml` → slice it (iscc-py
-    package, then tools/scripts, then drop the pin).
-- **iter 127: dep-refresh slice 4 = GitHub Actions versions, split by workflow file.** Survey
-    (`gh api repos/<r>/releases/latest`, 2026-07-24): **`.pre-commit-config.yaml` needs NO bump** —
-    its only 2 pinned repos (`pre-commit-hooks` v6.0.0, `mdformat` 1.0.0) are already latest, so the
-    feared mdformat reformat wave is moot. GHA refs live in exactly 3 files: `ci.yml` (67 `uses:`),
-    `docs.yml` (5), `release.yml` (97). Scoped ci.yml+docs.yml this step (ci.yml is push-verified);
-    **`release.yml` is its own slice** because its `upload-artifact@v4` ↔ `download-artifact@v4`
-    pairs must move together and only a real release exercises it. `docs.yml` runs on push to `main`
-    only → static verification. Latest majors: checkout v7, setup-python v7, setup-node v7, setup-go
-    v7, upload-artifact v7, download-artifact v8, setup-dotnet v6, cache v6, setup-java v5, setup-uv
-    v9, upload-pages-artifact v5, deploy-pages v5, codeql-action v4, gh-release v3. Already-latest
-    majors: `rust-cache@v2`, `install-action@v2`, `setup-ruby@v1`, `cargo-semver-checks-action@v2`,
-    `dtolnay/rust-toolchain@stable`. Real breaking-change traps checked: setup-node v5+
-    auto-npm-cache fires only if `package.json` declares `packageManager`/`devEngines` (ours doesn't
-    → no "lock file not found"); upload-pages-artifact v4 drops hidden files (our `site/` has none);
-    checkout v6 moved creds to a separate file; v7 blocks fork checkout for
-    `pull_request_target`/`workflow_run` (unused).
-- **v0.6.0 remaining after slice 4**: `release.yml` GHA bump, ruff 0.16 (sliced), magnus/jni/uniffi
-    major migrations, per-binding manifests (rb/jni/kotlin/dotnet/go; napi `package.json` is a
-    one-line `@napi-rs/cli: ^3` already caret-covered) + 2 human-gated release-workflow fixes (npm
-    OIDC, single-registry re-trigger). One slice/iteration.
-- **Handy**: crates.io latest via `cargo search <crate> --limit 1`; changelog/migration docs via
-    `curl -sL https://static.crates.io/crates/<c>/<c>-<ver>.crate | tar xz` into /tmp. Network
-    works.
+    `scripts/test_install.py`, `iscc_lib/__init__.py`) + `pyproject.toml` → slice it.
+- **iter 127: dep-refresh slice 4 = GitHub Actions in `ci.yml` + `docs.yml` — DONE.** Residue:
+    `.pre-commit-config.yaml` needs NO bump (both pinned repos already latest → the feared mdformat
+    reformat wave is moot); `release.yml` (97 `uses:`) is its own human-timed slice
+    (`upload-artifact@v4` ↔ `download-artifact@v4` must move as a pair, nothing in it is exercised
+    by a CID push). **A floating `@vN` action tag is a convention, NOT a guarantee** — confirm with
+    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`; `releases/latest` is not proof (setup-uv
+    publishes no floating major past v7 → exact tag `@v9.0.0`). That mistake reddened CI mid-127.
+- **iter 128: dep-refresh slice 5 = JVM manifests** (`crates/iscc-jni/java/pom.xml` +
+    `packages/kotlin/build.gradle.kts`). CI-exercised on every develop push AND locally verifiable —
+    the devcontainer HAS **JDK 17 + Maven 3.8.7** (no `gradle` binary, but `./gradlew` works and
+    `~/.gradle` is warm at ~516 MB; `~/.m2` is empty → first `mvn` run downloads). Survey (repo1
+    `maven-metadata.xml`, 2026-07-25): junit-jupiter 5.11.4→5.14.4, gson 2.14.0, maven-compiler
+    3.15.0, surefire 3.5.6, source 3.4.0, javadoc 3.12.0, gpg 3.2.8 (all `prerequisites` maven 3.6.3
+    → local 3.8.7 fine), KGP 2.4.10 (supports Gradle 7.6.3–9.5.0, so the 8.12.1 wrapper stays), JNA
+    5.19.1. **JUnit 6.1.2 deferred** (major: platform artifacts renumbered 1.x→6.x, needs Kotlin
+    ≥2.2 and likely an explicit `testRuntimeOnly junit-platform-launcher` under Gradle 8.12.1).
+    **HELD: `central-publishing-maven-plugin` 0.7.0** — its `deploy` goal runs only in a real Maven
+    Central publish, so nothing local or in CI can verify a bump.
+    - **JNA version is duplicated in 3 doc files** (`README.md`, `packages/kotlin/README.md`,
+        `docs/howto/kotlin.md`) + junit/gson in `crates/iscc-jni/CLAUDE.md` → sync in the same step;
+        `.claude/context/specs/kotlin-bindings.md` names `jna:5.16.0@aar` but is human-owned → leave.
+- **v0.6.0 remaining after slice 5**: `release.yml` GHA bump (human-timed), ruff 0.16 (sliced),
+    magnus 0.8 / jni 0.22 / uniffi 0.32 migrations, remaining manifests (rb `Gemfile`+gemspec, go
+    `go.mod`, napi `package.json` one-liner, dotnet `.csproj` already wildcard-floating) + 2
+    human-gated release-workflow fixes (npm OIDC, single-registry re-trigger). One slice/iteration.
+- **Handy**: crates.io latest via `cargo search <crate> --limit 1`; Maven latest **stable** via
+    `repo1.maven.org/maven2/<path>/maven-metadata.xml` filtered by `^[0-9]+(\.[0-9]+)*$` (its
+    `<latest>` field includes betas/milestones); crate changelogs via
+    `curl -sL https://static.crates.io/crates/<c>/<c>-<ver>.crate | tar xz`. Network works.

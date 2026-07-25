@@ -1,111 +1,161 @@
 # Next Work Package
 
-## Step: Dependency refresh slice 4 — GitHub Actions versions in ci.yml + docs.yml
+## Step: Dependency refresh slice 5 — JVM binding manifests (pom.xml + build.gradle.kts)
 
 ## Goal
 
-Bring the pinned GitHub Actions in the two non-release workflows up to their current major versions
-(most are 1–3 majors behind and still on the node20 runtime), continuing the `normal` `[human]`
-issue "Dependency review and refresh across the project" (spec: `.claude/context/specs/ci-cd.md` →
-"Dependency Freshness"). `ci.yml` changes are directly verified by the CI run on push;
-`.github/workflows/release.yml` is deliberately deferred to its own slice.
+Refresh the third-party pins in the two JVM binding manifests (`crates/iscc-jni/java/pom.xml` and
+`packages/kotlin/build.gradle.kts`) to current stable versions, keeping the shared
+junit-jupiter/gson pins in lockstep across both files. This continues the `normal` `[human]` issue
+"Dependency review and refresh across the project" (slices 1-4 done), and both files are fully
+exercised on every develop push by the `Java (JNI build, mvn test)` and
+`Kotlin (gradle build, test)` CI jobs — plus locally, since this devcontainer has JDK 17 + Maven
+3.8.7 and a warm Gradle wrapper cache.
 
 ## Scope
 
 - **Create**: none
-- **Modify**: `.github/workflows/ci.yml`, `.github/workflows/docs.yml` (2 non-test, non-doc files)
-- **Reference**: `.claude/context/specs/ci-cd.md` (§ "Dependency Freshness"),
-    `.claude/context/issues.md` (dependency issue + its progress log), `.claude/context/handoff.md`
-    (slice-4 risk notes), `Cargo.toml` (`# held:` comment style to mirror if any action must be held
-    back)
+- **Modify** (2 non-test, non-doc files — within the 3-file cap):
+    - `crates/iscc-jni/java/pom.xml`
+    - `packages/kotlin/build.gradle.kts`
+- **Modify (docs, not counted)**:
+    - `README.md` (line ~151, Kotlin install snippet pins `net.java.dev.jna:jna:5.16.0`)
+    - `packages/kotlin/README.md` (line ~14, same JNA snippet)
+    - `docs/howto/kotlin.md` (line ~22, same JNA snippet)
+    - `crates/iscc-jni/CLAUDE.md` (line ~87, "Test-only dependencies: `junit-jupiter` 5.11.4, `gson`
+        2.11.0")
+- **Reference**:
+    - `.claude/context/issues.md` → "Dependency review and refresh across the project"
+    - `.claude/context/specs/ci-cd.md` → "Dependency Freshness" (mandates a documented reason next to
+        every deliberately held-back pin)
+    - `.claude/context/learnings.md` → CI/CD section (dependency-refresh slicing, hold-back comment
+        convention)
+    - `packages/kotlin/CLAUDE.md`, `crates/iscc-jni/CLAUDE.md` (build/test commands, JNA + gson
+        gotchas)
+    - `.github/workflows/ci.yml` → `java:` and `kotlin:` jobs (exact commands CI runs)
 
 ## Not In Scope
 
-- **`.github/workflows/release.yml` — do not touch.** It is the next slice on its own: 97 `uses:`
-    refs, and its `actions/upload-artifact@v4` ↔ `actions/download-artifact@v4` pairs must be bumped
-    together, with no way to verify short of a real release run.
-- **`.pre-commit-config.yaml` — do not touch.** Both pinned repos were checked against upstream on
-    2026-07-24 and are already current: `pre-commit/pre-commit-hooks` `v6.0.0` is the latest release
-    and `executablebooks/mdformat` `1.0.0` is the latest tag (= PyPI 1.0.0). There is no bump to
-    make, so there is no mdformat reformat wave in this step.
-- **`mise.toml`** — has no `[tools]` section; nothing to pin.
-- Do not pin actions to commit SHAs, add `.github/dependabot.yml` / `renovate.json`, or introduce
-    any new job, step, matrix entry, or permission.
-- Do not change runtime versions selected by the actions (`node-version: '20'`,
-    `python-version: '3.10' / '3.14' / '3.12'`, `go-version-file`, JDK/.NET versions) — those are
-    support-policy decisions, not dependency pins.
-- Do not touch `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
-    `taiki-e/install-action@v2`, `ruby/setup-ruby@v1`, `obi1kenobi/cargo-semver-checks-action@v2` —
-    all already on their latest major line (verified 2026-07-24).
+- **JUnit 6.x migration.** JUnit 6 (latest 6.1.2) renumbers the platform artifacts to 6.x, removes
+    deprecated Platform APIs, and requires Kotlin ≥ 2.2 — Gradle 8.12.1's `useJUnitPlatform()` may
+    then need an explicit `testRuntimeOnly("org.junit.platform:junit-platform-launcher")`. That is a
+    build-structure change, not a version bump. Stay on the 5.x line this step and leave a
+    documented hold-back note.
+- **`central-publishing-maven-plugin` bump (0.7.0 → 0.11.0).** Its `deploy` goal only runs during a
+    real Maven Central publish, so nothing local or in CI can verify it; a regression would surface
+    mid-release. Hold it at 0.7.0 with a documented XML comment.
+- **Beta/milestone versions** — `maven-compiler-plugin` 4.0.0-beta-4, `maven-source-plugin`
+    4.0.0-beta-1, `kotlin-gradle-plugin` 2.4.20-Beta2, `junit-jupiter` 5.13.0-M3 are all
+    pre-releases. Use stable releases only (note: Maven Central's `<latest>` metadata field lists
+    pre-releases — filter them out).
+- **Gradle wrapper version** (`packages/kotlin/gradle/wrapper/gradle-wrapper.properties`, 8.12.1) —
+    a build-tool major, its own step.
+- **`java-version: '17'`, `maven.compiler.source/target`, `jvmToolchain(...)`** — support-policy
+    decisions, not dependency pins. Do not add a toolchain block.
+- **Editing the UniFFI-generated
+    `packages/kotlin/src/main/kotlin/uniffi/iscc_uniffi/iscc_uniffi.kt`** — if a Kotlin plugin bump
+    makes generated code fail to compile, step the Kotlin version _down_ (see ladder below); never
+    hand-patch generated output.
+- **`.claude/context/specs/kotlin-bindings.md`** — its `jna:5.16.0@aar` / `0.4.0` snippets are
+    illustrative target prose owned by the human; leave them alone.
+- Other refresh slices: `release.yml` action refs, ruff 0.16 adoption, `magnus` 0.8 / `jni` 0.22
+    migrations, rb/go/napi/dotnet manifests. One slice per iteration.
+- Adding Dependabot/Renovate.
 
 ## Implementation Notes
 
-Mechanical version bumps only. Upstream latest majors were surveyed via
-`gh api repos/<owner>/<repo>/releases/latest` on 2026-07-24; each major's release notes were read
-and the breaking changes evaluated against actual usage in these two files.
+All target versions below were verified against `repo1.maven.org` `maven-metadata.xml` on 2026-07-25
+(filter to `<version>` entries matching `^[0-9]+(\.[0-9]+)*$` — the `<latest>` field includes
+betas).
 
-**`.github/workflows/ci.yml`** (67 `uses:` lines total — 9 distinct refs change):
+### `crates/iscc-jni/java/pom.xml`
 
-| Action                              | From  | To    | N   | Evaluation                                                                                                                                                                                                                                                                            |
-| ----------------------------------- | ----- | ----- | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `actions/checkout`                  | `@v4` | `@v7` | 18  | v5/v6 = node24 + creds persisted to a separate file; v7 blocks fork checkout for `pull_request_target`/`workflow_run` — neither trigger is used here, no job pushes                                                                                                                   |
-| `actions/setup-python`              | `@v5` | `@v7` | 2   | v6 = node24; v7 removed the `pip-install` input (unused). `allow-prereleases: true` is still supported — keep it                                                                                                                                                                      |
-| `astral-sh/setup-uv`                | `@v4` | `@v9` | 1   | v5 enables cache by default, v6 changed `activate-environment`/`working-directory` defaults, v7 dropped `server-url`, v8 dropped the old `manifest-file` format, v9 sets `prune-cache: false`. We pass **no inputs** and drive everything through `uv sync` / `uv run`, so none apply |
-| `actions/setup-node`                | `@v4` | `@v7` | 1   | v5+ auto-caching only triggers when `package.json` declares `packageManager`/`devEngines.packageManager`; `crates/iscc-napi/package.json` declares neither, so no lockfile lookup happens (its `package-lock.json` is gitignored)                                                     |
-| `actions/setup-java`                | `@v4` | `@v5` | 2   | node24 only                                                                                                                                                                                                                                                                           |
-| `actions/setup-go`                  | `@v5` | `@v7` | 1   | v6 = node24 + stricter toolchain selection; we use `go-version-file: packages/go/go.mod` (`go 1.26.1`), which stays supported                                                                                                                                                         |
-| `actions/setup-dotnet`              | `@v4` | `@v6` | 1   | node24 only                                                                                                                                                                                                                                                                           |
-| `actions/upload-artifact`           | `@v4` | `@v7` | 2   | node24 + `@actions/artifact` v4 backend. Safe because ci.yml has **zero** `download-artifact` steps — no cross-major pairing inside this workflow                                                                                                                                     |
-| `github/codeql-action/upload-sarif` | `@v3` | `@v4` | 1   | v4 is the current line (latest tag `v4.37.3`); v3 is on the deprecation path                                                                                                                                                                                                          |
+| Pin                               | From   | To         |
+| --------------------------------- | ------ | ---------- |
+| `org.junit.jupiter:junit-jupiter` | 5.11.4 | **5.14.4** |
+| `com.google.code.gson:gson`       | 2.11.0 | **2.14.0** |
+| `maven-compiler-plugin`           | 3.13.0 | **3.15.0** |
+| `maven-surefire-plugin`           | 3.5.2  | **3.5.6**  |
+| `maven-source-plugin` (release)   | 3.3.1  | **3.4.0**  |
+| `maven-javadoc-plugin` (release)  | 3.11.2 | **3.12.0** |
+| `maven-gpg-plugin` (release)      | 3.2.7  | **3.2.8**  |
+| `central-publishing-maven-plugin` | 0.7.0  | **hold**   |
 
-Do **not** add `package-manager-cache: false` to the `setup-node` step preemptively — only if that
-job actually fails with "Dependencies lock file is not found".
+- Every bumped plugin declares `<prerequisites><maven>3.6.3</maven></prerequisites>` — satisfied by
+    the local Maven 3.8.7 and by CI's Maven. No Maven upgrade needed.
+- Do **not** touch `<version>0.5.0</version>` (managed by `scripts/version_sync.py`) or the
+    `maven.compiler.*` properties.
+- Add an XML comment directly above the `central-publishing-maven-plugin` `<version>` element
+    explaining the hold. It must contain the literal token `held:` and say, in substance: 0.11.0 is
+    available, but the plugin's `deploy` goal only runs during a real Maven Central publish, so no
+    local or CI check can verify a bump — do it with a human-supervised release.
 
-**`.github/workflows/docs.yml`** (5 `uses:` lines, all change): `actions/checkout@v4` → `@v7`,
-`actions/setup-python@v5` → `@v7`, `astral-sh/setup-uv@v4` → `@v9`,
-`actions/upload-pages-artifact@v3` → `@v5`, `actions/deploy-pages@v4` → `@v5`.
+### `packages/kotlin/build.gradle.kts`
 
-- `upload-pages-artifact` v4 stopped including hidden files in the artifact. Checked: the built
-    `site/` tree contains no dotfiles (only `404.html`, `CNAME`, `index.html`, `llms.txt`,
-    `objects.inv`, `assets/`, …), and this project does not use `.nojekyll` (artifact-based Pages
-    deploys never run Jekyll), so the exclusion is a no-op here.
-- `upload-pages-artifact@v5` + `deploy-pages@v5` are the matching current pair (v5 of the uploader
-    moved to `upload-artifact` v7; `deploy-pages` v5 is node24). Bump both or neither.
-- `docs.yml` only runs on push to `main`, so this file is **not** exercised by the develop CI run —
-    verification for it is static (YAML parses, expected refs present, step count unchanged).
+| Pin                               | From   | To                                 |
+| --------------------------------- | ------ | ---------------------------------- |
+| `kotlin("jvm") version`           | 2.1.10 | **2.4.10**                         |
+| `net.java.dev.jna:jna`            | 5.16.0 | **5.19.1**                         |
+| `org.junit.jupiter:junit-jupiter` | 5.11.4 | **5.14.4** (lockstep with pom.xml) |
+| `com.google.code.gson:gson`       | 2.11.0 | **2.14.0** (lockstep with pom.xml) |
 
-**If any single bump turns out to be unsafe**, hold that one ref back at its current version and add
-a `# held: <reason>` YAML comment on the line above it, mirroring the `# held:` convention now used
-in the root `Cargo.toml`. Do not weaken or delete a step to make a bump work.
+- KGP 2.4.0-2.4.10 officially supports Gradle **7.6.3–9.5.0** (kotlinlang.org compatibility table,
+    checked today), so the checked-in Gradle 8.12.1 wrapper is fine — no wrapper change required.
+- **Kotlin fallback ladder:** if `./gradlew test` fails to compile with 2.4.10, step down to
+    **2.3.21**, then **2.2.21**, then **2.1.21**, taking the highest version that builds and tests
+    green. If you land below 2.4.10, add a `// held:` comment on the `kotlin("jvm")` line naming the
+    concrete error. Do not disable warnings, add `-Xsuppress-*` flags, or edit generated code to
+    force a higher version through.
+- Add a short `// held:` comment next to the junit-jupiter line noting JUnit 6.x is deferred (needs
+    a `junit-platform-launcher` runtime dependency evaluation under Gradle 8.12.1).
 
-Run `mise run format` before staging (yamlfix/mdformat normalize these files), then commit and push
-so the CI run can validate the ci.yml changes.
+### Docs sync
+
+Replace `net.java.dev.jna:jna:5.16.0` with the new JNA version in `README.md`,
+`packages/kotlin/README.md`, and `docs/howto/kotlin.md`; update the junit/gson version numbers in
+the "Test-only dependencies" line of `crates/iscc-jni/CLAUDE.md`. These are plain version-string
+edits — no prose restructuring.
+
+### Local verification workflow
+
+```bash
+cargo build -p iscc-jni
+mvn test -f crates/iscc-jni/java/pom.xml
+mvn -Prelease package -DskipTests -f crates/iscc-jni/java/pom.xml   # exercises source+javadoc plugins
+cargo build -p iscc-uniffi
+./gradlew test    # run from packages/kotlin (as CI does)
+```
+
+`~/.m2` is empty in this container, so the first `mvn` run downloads its dependencies (network is
+available). `maven-gpg-plugin` binds to the `verify` phase, so `-Prelease package` resolves it
+without attempting to sign. No Rust source changes here, so `.crap-baseline.json` does **not** need
+a refresh.
 
 ## Verification
 
-- `python3 -c "import yaml;[yaml.safe_load(open(f)) for f in ['.github/workflows/ci.yml','.github/workflows/docs.yml']]"`
-    exits 0
-- No stale refs remain in the two touched files — this command prints nothing (exit 1):
-    `grep -nE 'actions/checkout@v[1-6]|actions/setup-python@v[1-6]|astral-sh/setup-uv@v[1-8]|actions/setup-node@v[1-6]|actions/setup-java@v[1-4]|actions/setup-go@v[1-6]|actions/setup-dotnet@v[1-5]|actions/upload-artifact@v[1-6]|codeql-action/upload-sarif@v[1-3]|upload-pages-artifact@v[1-4]|deploy-pages@v[1-4]' .github/workflows/ci.yml .github/workflows/docs.yml`
-- Expected new refs present: `grep -c 'actions/checkout@v7' .github/workflows/ci.yml` → **18** and
-    `grep -c 'actions/checkout@v7' .github/workflows/docs.yml` → **1**
-- Step count unchanged: `grep -c 'uses:' .github/workflows/ci.yml` → **67**;
-    `grep -c 'uses:' .github/workflows/docs.yml` → **5**
-- `release.yml` left alone and internally consistent:
-    `grep -c 'actions/checkout@v4' .github/workflows/release.yml` → **23**,
-    `grep -c 'actions/upload-artifact@v4' .github/workflows/release.yml` → **11**,
-    `grep -c 'actions/download-artifact@v4' .github/workflows/release.yml` → **20**
-- `.pre-commit-config.yaml` untouched: `grep -c 'rev: v6.0.0' .pre-commit-config.yaml` → **1** and
-    `grep -c 'rev: 1.0.0' .pre-commit-config.yaml` → **1**
-- `mise run check` exits 0 with no file left rewritten (`git status --porcelain` shows only the
-    intended changes)
-- CI on the pushed develop commit is fully green:
-    `gh api repos/iscc/iscc-lib/commits/<sha>/check-runs --jq '[.check_runs[]|select(.conclusion!="success")]|length'`
-    → **0**, with all 20 CI jobs (including `Coverage + CRAP`, `Perf (iai-callgrind)`,
-    `Audit (cargo-deny)`, `Semver`) present
+- `cargo build -p iscc-jni && mvn test -f crates/iscc-jni/java/pom.xml` exits 0 (all JUnit
+    conformance + unit tests pass, zero failures/errors)
+- `mvn -Prelease package -DskipTests -f crates/iscc-jni/java/pom.xml` exits 0 (release-profile
+    plugins resolve; sources + javadoc jars build)
+- `cargo build -p iscc-uniffi` then `./gradlew test` run from `packages/kotlin` exits 0
+- `grep -cE '<version>(5\.14\.4|2\.14\.0|3\.15\.0|3\.5\.6|3\.4\.0|3\.12\.0|3\.2\.8)</version>' crates/iscc-jni/java/pom.xml`
+    → **7**
+- `grep -c '<version>0.7.0</version>' crates/iscc-jni/java/pom.xml` → **1** and
+    `grep -c 'held:' crates/iscc-jni/java/pom.xml` → **≥ 1** (the documented central-publishing
+    hold-back)
+- `grep -E 'jna:5\.19\.1|junit-jupiter:5\.14\.4|gson:2\.14\.0' packages/kotlin/build.gradle.kts`
+    prints 3 lines; `grep -c 'held:' packages/kotlin/build.gradle.kts` → **≥ 1**
+- `grep -rn 'jna:5\.16\.0' README.md packages/kotlin/README.md docs/howto/kotlin.md` prints nothing
+    (exit 1); `grep -rc 'jna:5\.19\.1' README.md packages/kotlin/README.md docs/howto/kotlin.md` →
+    **1** each
+- `grep -n '5\.11\.4\|2\.11\.0' crates/iscc-jni/CLAUDE.md` prints nothing (exit 1)
+- `git status --porcelain packages/kotlin/src packages/kotlin/gradle` prints nothing (generated
+    bindings and the Gradle wrapper are untouched)
+- `mise run version:check` exits 0 (pom/gradle version strings unchanged)
+- `mise run check` exits 0 (all pre-commit hooks pass, nothing left rewritten)
 
 ## Done When
 
-`ci.yml` and `docs.yml` reference only current-major GitHub Actions, every grep assertion above
-holds on the working tree, `mise run check` exits 0, and the pushed develop commit shows 0
-non-success CI check-runs.
+`mvn test`, `mvn -Prelease package -DskipTests`, and `./gradlew test` all pass on the refreshed JVM
+manifests, the pin/hold-back/doc-sync greps above return the stated results, and `mise run check` is
+clean.
