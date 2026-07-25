@@ -120,14 +120,19 @@ budget → sliced by *decision content*, not by file count:
     NOT be selected (adds 5 `tests/` findings). **TRAP: a blanket `ruff@0.16 check --fix .` deletes
     the load-bearing `# noqa: S603/S607`** and reddens the pre-push `--select S` gate. Never plain
     `--fix`.
-- **C — isort config + pin retirement.** 8 I001 + 1 RUF022. Needs TWO fidelity settings in
-    `pyproject.toml`, both verified with `--config` overrides at iter 131:
-    `src = [".",   "crates/iscc-py/python"]` (else `iscc_lib` is treated third-party and merged with
-    `pytest`) and `lint.isort.combine-as-imports = true` (**without it the `__init__.py` fix
-    explodes the single `from iscc_lib._lowlevel import (X as X, …)` re-export block into ~60
-    one-member import statements**; with it the fix is one blank line). Then drop `ruff<0.16` from
-    `pyproject.toml`
-    - `uv lock`.
+- **C (scoped iter 135) — isort config only.** Re-probed live: the two fidelity settings hold
+    (`[tool.ruff] src = [".", "crates/iscc-py/python"]` else `iscc_lib` is third-party;
+    `lint.isort.combine-as-imports = true` else the `__init__.py` fix explodes the single
+    `from iscc_lib._lowlevel import (X as X, …)` re-export block into ~60 one-member imports — a
+    110-line diff instead of one blank line). **Setting `src` moves the finding set, it does not
+    only shrink it**: 3 test files go clean and `benchmarks/python/bench_iscc_lib.py` becomes dirty
+    → 7 fixes over 6 files (3 non-test = exactly at budget), so the three one-liners could NOT ride
+    along. Pinned 0.15.22 + `--extend-select I,RUF022,RUF100` reproduces the identical 7 findings,
+    so the selection is enforceable before the pin drops, and `ruff format --check` stays clean
+    after the fix (probed on a scratch copy).
+- **D — the three one-liners** (`RUF007` generator, `PLW1510` `scripts/test_install.py`, `EXE001`
+    `tools/cid.py`) = 3 non-test files, its own step. **E — drop `ruff<0.16` + `uv lock`**, only
+    once `uvx ruff@0.16.0 check .` exits 0.
 
 Reproduce baselines with `uvx ruff@0.16.0 …` — it needs no lockfile change and the cache is warm.
 

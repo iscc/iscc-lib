@@ -97,11 +97,17 @@ All autonomous v1.0.0-hardening gates landed and are enforcing/green (module vis
     **never move a consumer floor (MSRV, `go` directive, `required_ruby_version`, a published
     binding's compiler) inside a refresh slice** — iter 128 did it by accident and raised the
     published Kotlin consumer floor to 2.3 (escalated, then decided by Titusz — see below). All 7
-    per-ecosystem slices are closed; **slice 8 = ruff 0.16, itself split into 3 sub-slices A/B/C by
-    decision content** (see the ledger — B carries a live gate trap).
+    per-ecosystem slices are closed; **slice 8 = ruff 0.16, split into sub-slices A/B/C/D/E by
+    decision content** (see the ledger — A/B done, C scoped iter 135; B carried a live gate trap).
 - **A lint-tool major bump is not one step.** Slice by *what decision each finding needs*
     (mechanical / gate-interacting / config-requiring), not by file. Probe candidate settings
-    without touching the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>`.
+    without touching the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>` — and
+    also re-probe with the *pinned* tool + `--extend-select`, which tells you whether the new rule
+    can be enforced immediately instead of arriving silently with the upgrade.
+- **A lint *config* change moves the finding set, it does not only shrink it.** Iter 135: adding
+    isort `src` cleaned 3 test files and dirtied a benchmark file that was previously green. Always
+    re-run the full-tree check *with* the candidate config before counting files against the budget
+    — the pre-config finding list is not the work list.
 - **Both formerly-parked `[review]` policy calls were DECIDED by Titusz 2026-07-25** (commits
     `8d267ff`, `8358eba`) and written into `specs/kotlin-bindings.md` + `specs/rust-core.md` as four
     new verification criteria. Backlog: (1) Kotlin floor docs — **DONE iter 132**; (2) Unicode
