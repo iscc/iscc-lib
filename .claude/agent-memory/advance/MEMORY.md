@@ -1,14 +1,13 @@
 # Advance Agent Memory
 
-Detail lives in topic files: [ci-gates.md](ci-gates.md) (CRAP/audit/semver/iai gates),
-[uniffi-swift-kotlin.md](uniffi-swift-kotlin.md), [deps-refresh.md](deps-refresh.md) (held majors,
-ruff 0.16, hook gate parity), [wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md). Archived
-phases: [MEMORY-archive.md](MEMORY-archive.md).
+Detail lives in topic files: [ci-gates.md](ci-gates.md),
+[uniffi-swift-kotlin.md](uniffi-swift-kotlin.md), [deps-refresh.md](deps-refresh.md),
+[wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md). Archived phases:
+[MEMORY-archive.md](MEMORY-archive.md).
 
 **Size budget:** Keep under 140 lines. Move detail to topic files; archive stale entries.
 
-- [issues.md ledger rule](feedback-issues-ledger.md) — advance never edits issues.md even when
-    next.md says to; put the ledger paragraph in the handoff Notes for the review agent
+- [issues.md ledger rule](feedback-issues-ledger.md) — never edit issues.md; ledger → handoff Notes
 
 ## Code Locations
 
@@ -41,14 +40,12 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
     `deny.toml`), `perf` (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP
     gate is CI-ONLY — refresh baseline (`mise run crap:baseline`) in the SAME step as any
     branch-adding change. Full mechanics + gotchas → ci-gates.md
-- Key audit rule: fresh advisory with a patched release → `cargo update -p <crate>` lockfile bump,
-    NEVER add to `deny.toml` `ignore` (iter 115: crossbeam-epoch 0.9.18→0.9.20)
-- Dependency refresh (iters 124-138): all lockfiles/manifests refreshed; held-back majors (criterion
-    0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:` in root Cargo.toml; ruff 0.16.0 adopted
-    iter 137 — `ruff format` also covers Python fences in Markdown; prek ruff hooks carry `pyi` in
-    `types_or` (iters 138-139, CI gate parity — prek types `.pyi` as `pyi`, NOT `python`); NEVER
-    blanket `--fix` (deletes 13 load-bearing `# noqa: S603/S607`); rb_sys pinned `0.9.123`. Detail +
-    prek staged-probe gotcha → deps-refresh.md
+- Audit rule: advisory with patched release → `cargo update -p <crate>`, never `deny.toml` `ignore`
+- Dependency refresh (iters 124-140): lockfiles/manifests current; held majors (criterion 0.8, jni
+    0.22, magnus 0.8, uniffi 0.32) carry `# held:` in root Cargo.toml; ruff 0.16 (`ruff format`
+    covers Markdown fences); prek ruff hooks carry `pyi` in `types_or` (CI parity — prek types
+    `.pyi` as `pyi`, NOT `python`); NEVER blanket `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys
+    pinned `0.9.123`. Detail + prek staged-probe gotcha → deps-refresh.md
 - GOTCHA: ci.yml concurrency has `cancel-in-progress: true` per ref — pushing a second develop
     commit cancels the in-flight CI run of the previous sha (its check-runs end "cancelled"). When a
     step needs a green CI on a specific sha, don't push again until it concludes
@@ -67,10 +64,11 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 - GIL release (iters 111+116, #39/#41): 12 `py.detach` sites in `crates/iscc-py/src/lib.rs`. Video
     detach MUST open after frame-sig extraction; meta/audio/mixed stay attached. `tests/test_gil.py`
 - Release workflow (`release.yml`): 9 boolean inputs → build → **smoke test** → publish (inputs,
-    auth, CI internals → MEMORY-archive.md). `build-wheels` has 4 targets incl native-ARM aarch64
-    (iter 123, #49); `test-wheels` matrixed, artifact name = `wheels-<os>-<target>`. All 28
-    non-`prepare-release` jobs carry `!cancelled() && !failure()` `if:` guards (iter 139) so
-    `-f <registry>=true` re-triggers publish; lint edits via
+    auth, CI internals → MEMORY-archive.md). `build-wheels` 4 targets incl native-ARM aarch64;
+    `test-wheels` matrixed, artifact name = `wheels-<os>-<target>`. All 28 non-`prepare-release`
+    jobs carry `!cancelled() && !failure()` `if:` guards (iter 139); 97 `uses:` refs at current
+    majors (iter 140: checkout@v7, upload/download-artifact v7/v8 pair, gh-release@v3 — statically
+    verified only, `workflow_dispatch`). Lint edits via
     `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7` (cached, offline-safe)
 - WASM SIMD (#42): dual wiring (`blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt
     `--enable-simd`); recipe + wasm-pack gotchas → wasm-simd.md
@@ -128,10 +126,9 @@ phases: [MEMORY-archive.md](MEMORY-archive.md).
 ## Ruby Bindings (Magnus) — full details → MEMORY-archive.md
 
 - Magnus 0.7.1 (not 0.8, Ruby 3.1 compat); `function!` has no `&Ruby` param — use `Ruby::get()`.
-    rb_sys `ExtensionTask.new("iscc-rb")` (task name = Cargo package name); `extconf.rb` at crate
-    root. 32/32 Tier 1 symbols, 111 tests. Streaming: `RefCell<Option<inner>>` one-shot finalize;
-    `_` prefix for methods NOT class names. Standard Ruby + rubocop-minitest; pre-commit hook needs
-    portable PATH for `bundle`
+    `ExtensionTask.new("iscc-rb")` = Cargo package name; `extconf.rb` at crate root. Streaming:
+    `RefCell<Option<inner>>` one-shot finalize; `_` prefix for methods NOT class names. Standard
+    Ruby + rubocop-minitest; pre-commit hook needs portable PATH for `bundle`
 
 ## Other Bindings — pointers
 
