@@ -152,7 +152,9 @@ dependencies {
 }
 ```
 
-The native library must be available on `java.library.path` and `jna.library.path` at runtime.
+Requires **Kotlin 2.3 or newer** (the artifact is compiled with Kotlin 2.4.10; older compilers
+reject its metadata). The native library must be available on `java.library.path` and
+`jna.library.path` at runtime.
 
 ### <img src="https://cdn.simpleicons.org/webassembly/654FF0" width="20" height="20" alt="WASM"> WASM
 

@@ -38,6 +38,13 @@ migration, xunit 3.x + Test.Sdk 18.x majors. Slice 7 was the last fully-locally-
     platform artifacts, removed Platform APIs; its Kotlin ≥ 2.2 prereq is now met by 2.4.10).
 - Kotlin 2.4.10 compiles the UniFFI-generated bindings unchanged; KGP 2.4.x supports Gradle
     7.6.3–9.5.0 so the 8.12.1 wrapper needed no change.
+- Kotlin compiler bumps move the CONSUMER floor (metadata forward-compat ≈ one minor): 2.4.10 ⇒
+    floor "Kotlin 2.3 or newer" (verbatim, grep-checkable), documented iter 132 in root README
+    Kotlin install section, `packages/kotlin/README.md` `## Requirements`, `docs/howto/kotlin.md`
+    admonition. Spec rule (kotlin-bindings.md "Supported consumer Kotlin version"): any bump that
+    moves the floor must update all three + the spec in the same step. Holding an older floor via
+    `languageVersion` alone does NOT work — transitive `kotlin-stdlib` in the POM raises the same
+    error.
 - Verify pins exist before editing:
     `curl -s -o /dev/null -w "%{http_code}"   https://repo1.maven.org/maven2/<g/a/v/a-v.pom>` → 200.
 

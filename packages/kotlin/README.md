@@ -18,6 +18,12 @@ dependencies {
 The native `libiscc_uniffi` shared library must be available on `java.library.path` and
 `jna.library.path` at runtime.
 
+## Requirements
+
+- **Kotlin 2.3 or newer.** The published artifact is compiled with `kotlin("jvm") 2.4.10`, and
+    Kotlin accepts roughly one minor version of forward metadata; older compilers fail with
+    `Module was compiled with an incompatible version of Kotlin`.
+
 ## Usage
 
 ```kotlin

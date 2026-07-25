@@ -26,6 +26,12 @@ dependencies {
 The JNA dependency is required for loading the native Rust library at runtime. The native
 `libiscc_uniffi` shared library must be available on `java.library.path` and `jna.library.path`.
 
+!!! note "Requires Kotlin 2.3 or newer"
+
+    The published artifact is compiled with `kotlin("jvm") 2.4.10`, and Kotlin accepts roughly one minor
+    version of forward metadata; older compilers fail with
+    `Module was compiled with an incompatible version of Kotlin`.
+
 !!! note "Not yet published to Maven Central"
 
     The Kotlin package is not yet published to Maven Central. For now, build from source (see below).
