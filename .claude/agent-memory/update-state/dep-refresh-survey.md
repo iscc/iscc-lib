@@ -5,7 +5,7 @@ metadata:
   type: project
 ---
 
-# Dependency-refresh survey (verified iteration 129)
+# Dependency-refresh survey (verified iteration 130)
 
 Backing detail for the sliced `normal` `[human]` issue "Dependency review and refresh across the
 project" (spec: `.claude/context/specs/ci-cd.md` → Dependency Freshness). MEMORY.md keeps only a
@@ -54,10 +54,19 @@ just landed instead of re-surveying everything; refresh this file when a slice l
 4. GHA refs in ci.yml + docs.yml (iter 127; 9 refs, setup-uv exact tag).
 5. JVM manifests (iter 128; 11 pins — see below; raised the Kotlin consumer floor → `[review]`
     issue).
+6. Go module (iter 129; `x/text` 0.34.0→0.40.0, `cpuid/v2` 2.0.12→2.4.0, new indirect `x/sys`
+    0.47.0; `go 1.26.1` floor + `zeebo/blake3` untouched). Also wired `packages/kotlin/README.md`
+    into version_sync TARGETS. **Technique worth reusing**: proved output-neutrality by dumping
+    `TextClean`/`TextCollapse` for all 1,112,032 code points under both versions via a throwaway
+    module with `replace` — turns "no vector regressed" into "no input can regress" (~2 min). It is
+    what surfaced the pre-existing Unicode 16/17 divergence (see MEMORY.md).
 
-Remaining: napi `package.json` + dotnet `.csproj` (near-empty confirmation), rb manifests, `go.mod`,
-ruff 0.16, magnus 0.8, jni 0.22 — each its own step. Deferred/human-timed: release.yml GHA refs,
-Gradle wrapper 8.12.1 major, JUnit 6.x.
+Closed as **verified current, no edit needed** (iter 129): napi `package.json` (`@napi-rs/cli: ^3`
+covers 3.7.4) and dotnet `.csproj` (`17.*`/`2.*` wildcards) — editing them is churn.
+
+Remaining CID-doable: **rb manifests only** (`Gemfile` + gemspec + `Gemfile.lock`), then ruff 0.16,
+magnus 0.8, jni 0.22 — each its own step. Deferred/human-timed: release.yml GHA refs, Gradle wrapper
+major, JUnit 6.x, xunit 3.x / Test.Sdk 18.x.
 
 ## Per-binding manifests
 
@@ -79,8 +88,10 @@ Gradle wrapper 8.12.1 major, JUnit 6.x.
     rake-compiler `~> 1.2`, rb_sys `~> 0.9`, standard `~> 1.0`, rubocop-minitest `~> 0.36`); gemspec
     declares `required_ruby_version >= 3.1.0`. rb_sys must match the `oxidize-rb/actions/cross-gem`
     Docker image tag.
-- `packages/go/go.mod` — `go 1.26.1`, `github.com/zeebo/blake3 v0.2.4`, `golang.org/x/text v0.34.0`,
-    indirect `github.com/klauspost/cpuid/v2 v2.0.12`.
+- `packages/go/go.mod` — **refreshed iter 129**: `go 1.26.1` (consumer floor, untouched),
+    `github.com/zeebo/blake3 v0.2.4`, `golang.org/x/text v0.40.0`, indirect
+    `github.com/klauspost/cpuid/v2 v2.4.0` + `golang.org/x/sys v0.47.0`. All at latest published; no
+    hold-back. Dep `go` directives (x/text 1.25.0, x/sys 1.25.0, cpuid 1.24.0) all sit below 1.26.1.
 - `packages/dotnet/*/*.csproj` — `net8.0`; test project refs already float
     (`Microsoft.NET.Test.Sdk 17.*`, `xunit 2.*`, `xunit.runner.visualstudio 2.*`) → near-empty
     slice.

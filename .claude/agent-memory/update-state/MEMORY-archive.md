@@ -69,3 +69,18 @@ archived entries.
 - **PyO3 migration** (issue #1 closed iter 105): pinned 0.29, lockfile single 0.29.0. Load-bearing
     `#[pymodule(name="_lowlevel", gil_used=true)]` (iscc-py lib.rs:697) — explicit b/c PyO3 0.28
     flipped default true→false.
+
+## Archived iter 130 (stable, done work — pointers kept in MEMORY.md)
+
+- **WASM SIMD (#42, iter 118)**: `crates/iscc-wasm/Cargo.toml` carries
+    `blake3 = { features = ["wasm32_simd"] }` SOLELY for feature-unification — there is no
+    `use blake3` in lib.rs, so do NOT prune it as unused. That **Cargo feature**, not RUSTFLAGS, is
+    what activates the SIMD backend; `v128` opcodes in the .wasm are a WEAK signal — prove with
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3`. Plus
+    `wasm-opt --enable-simd` and simd128 RUSTFLAGS in ci.yml (wasm test) + release.yml (build).
+- **Go ISCC-IDv1 (#43, iter 119)**: `packages/go/iscc_id.go` = `EncodeIsccID` / `DecodeIsccID` /
+    `IsccIDv1Result`; `codec.go` adds `VSV1` and lets `decodeHeader` (~L271) accept Version=1 ONLY
+    for MTId. Rust core rejects IDv1 at the header level (`codec::Version` is V0-only) by design.
+- **Trailing-byte hardening**: Go `IsccDecode` (iter 120) has BOTH "too short" (L594) and "too long"
+    (L597) branches; the Rust-core `iscc_decode` parallel fix landed iter 121. `iscc_decompose`
+    legitimately consumes trailing units — never harden it.
