@@ -68,20 +68,14 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `std::hint` since iter 126); `iai_benches.rs` iai-callgrind 0.16 (11 fns, 16 cases) +
     `scripts/iai_regression.py`.
 - **No Dependabot/Renovate** (`dependabot.yml`, `renovate.json` absent) — freshness gap (v0.6.0).
-- `pyproject.toml` dev group — hold-back `ruff<0.16` w/ inline `# held:` comment (iter 125): 0.16
-    expands DEFAULT lint rules → 104 new errors (72 in `_lowlevel.pyi`). NOT gate weakening (locked
-    0.15.22 = same rule set); adoption is a tracked follow-up step.
-- **Root `Cargo.toml` `# held:` comments = authoritative pin rationale** (iter 126,
-    `grep -c '# held'` → **4**): criterion 0.8 needs rustc 1.86 vs `rust-version = "1.85"`; jni 0.22
-    = wholesale iscc-jni API rework; magnus 0.8 drops `old-api` (deprecates
-    `exception::runtime_error()`, 5 sites in iscc-rb → clippy fail); uniffi 0.32 needs Swift/Kotlin
-    regen. Plus a `# note:` on pyo3 → #41. Update when a hold-back lifts. MSRV recipe:
-    `cargo info <crate>@<ver>`.
-- **Tooling-pin landscape** (surveyed iter 126/127): `.pre-commit-config.yaml` has only 2 pinned
-    repos (`pre-commit/pre-commit-hooks` v6.0.0, `executablebooks/mdformat` 1.0.0), rest
-    `repo: local`. `mise.toml` has **no `[tools]` section**. 25 distinct GHA `uses:` refs
-    (`setup-uv@v4`, `checkout@v4` behind). Only 2 package.json: `crates/iscc-napi/` (hand-written,
-    one `@napi-rs/cli: ^3` dep) + `crates/iscc-wasm/pkg/` (generated).
+- **Inline `# held:` comments = authoritative pin rationale**: root `Cargo.toml` (`grep -c '# held'`
+    → **4**: criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32 + a pyo3 `# note:` → #41) and
+    `pyproject.toml` (`ruff<0.16`). Update when a hold-back lifts; MSRV recipe:
+    `cargo info <crate>@<ver>`. Reasons → `dep-refresh-survey.md`.
+- **Full dependency-pin inventory** (GHA refs per workflow, tooling pins, per-binding manifests;
+    re-verified iter 128) → `dep-refresh-survey.md`. Headlines: ci.yml + docs.yml GHA refs are
+    CURRENT (setup-uv = EXACT tag `@v9.0.0`); release.yml still lags and has **no setup-uv step**
+    (issues.md claims otherwise — wrong); `mise.toml` has no `[tools]` section.
 
 ## Recurring Patterns
 
@@ -92,28 +86,30 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Issues diff**: scan issues.md for NEW/removed `[human]`/`[review]` entries; watch
     `HUMAN REVIEW REQUESTED`, critical reshuffles, large specs growth = human re-scoped.
 
-## Current State (assessed-at: f5f821c, iter 127)
+## Current State (assessed-at: 571ed7c, iter 128)
 
 - **IN_PROGRESS — CI GREEN.** v0.5.0 released, all 12 bindings meet CORE criteria. Only Rust-core
     (semver-enforcing/v1.0.0 HELD by Titusz) + CI/CD (dep freshness in progress) are partially met;
     every other section MET.
-- **CI GREEN on origin/develop tip `4bf6ff3`** (= review PASS commit; HEAD `f5f821c` = +1 UNPUSHED
-    log-only commit, iterations.jsonl only). 30 check-runs, **0 non-success, 0 running**. No gate
-    regressed by the criterion bump.
+- **CI GREEN on origin/develop tip `b071517`** (= review PASS commit; HEAD `571ed7c` = +1 UNPUSHED
+    log-only commit, iterations.jsonl only). **41** check-runs, 0 non-success, 0 running. Count is
+    ~2x the job count because PR **#44 "Release 0.6.0" (develop→main) is OPEN** → every develop
+    commit fires both a `push` and a `pull_request` run.
 - **Dependency-refresh SLICED, in progress** (`normal` `[human]`, spec `ci-cd.md`→Dependency
     Freshness; no `[audit]` cite = no 8-file valve). ✅ s1 Rust `Cargo.lock` (124) ✅ s2 Python
     `uv.lock` (125, iscc-core 1.3.0 = zero vector drift, `ruff<0.16` hold-back) ✅ s3 Rust direct
-    pins (126: criterion 0.5→0.7 + `criterion::black_box`→`std::hint::black_box` in benchmarks.rs, 4
-    `# held:` comments). Remaining: (a) tooling pins (pre-commit revs + GHA majors — **risk: an
-    mdformat rev bump reformats every .md; hold it back or budget the churn explicitly**), (b)
-    per-binding manifests (rb, jni pom, kotlin gradle, dotnet csproj, go.mod), (c) ruff 0.16
-    adoption, (d) magnus 0.8 + (e) jni 0.22 — each its own source-rewrite step.
+    pins (126: criterion 0.5→0.7, 4 `# held:` comments) ✅ s4 GHA refs in ci.yml + docs.yml (127; 9
+    refs, setup-uv exact-tag). Remaining: (a) JVM manifests (jni pom + kotlin gradle — both
+    CI-exercised, best next slice), (b) small manifests (rb Gemfile/gemspec+lock, go.mod, napi
+    package.json; dotnet csproj already wildcards), (c) ruff 0.16 adoption, (d) magnus 0.8 + (e) jni
+    0.22 — each its own source-rewrite step. **Deferred/human-timed**: release.yml GHA refs (nothing
+    there is exercised by a CID push).
 - **5 issues: 0 critical, 3 normal `[human]`, 2 low `[human]`** — headers unchanged since iter 124;
     only the dep-refresh issue's Progress block grows. normal = dep refresh (CID-doable) + npm OIDC
     migration + single-registry re-trigger bug (both human-gated). low (CID skips) = v1.0.0 (HELD:
     stay 0.5.x, flip Semver enforcing at the cut), docs logos. NO CID-actionable
     `[review]`/`[audit]`.
-- **Don't re-flag as new work**: dep slices 1-3 + c-cpp anchor fix (124-126), #49 aarch64 wheels
+- **Don't re-flag as new work**: dep slices 1-4 + c-cpp anchor fix (124-127), #49 aarch64 wheels
     (123), CRAP baseline refresh (122), Rust iscc_decode trailing-byte (121), Go IsccDecode (120),
     #43 Go ISCC-IDv1 (119), #42 WASM SIMD (118), GIL #41 (116), cargo-deny gate, CRAP `--fail-above`
     (113), iai perf gate (107-111), PyO3 #1 (105), semver gate (93), npm #38, GIL #39, SumHasher
