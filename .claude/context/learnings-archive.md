@@ -637,19 +637,55 @@ reference-only for humans.
 
 ## ISCC Algorithm Internals (archived iter 128 — all 10 gen\_\*\_v0 functions conformance-complete)
 
+Second batch archived iter 131 — settled API-parameter facts, all re-derivable from
+`crates/iscc-lib/src/`:
+
+- `META_TRIM_META` validation: pre-decode check (`META_TRIM_META * 4/3 + 256`) applies to ALL meta
+    strings (both Data-URL and JSON) as a fast-path optimization. Post-decode check on
+    `payload.len()` guarantees correctness. JSON boundary test overhead: `{"x":""}` = 8 bytes
+
+- `gen_image_code_v0` pixels parameter is a flat `&[u8]`, NOT `&[i32]`. Chromaprint provides `i32`
+    audio fingerprints (for `gen_audio_code_v0`), not image pixels
+
+- MainType Ord: MainType enum values are ordered for consistent processing. META=0, SEMANTIC=1,
+    CONTENT=2, DATA=3, INSTANCE=4, ISCC=5, ID=6, FLAKE=7
+
+- JSON `meta` parameter: uses JCS (RFC 8785) canonicalization. `@context` key triggers
+    `application/ld+json` media type, otherwise `application/json`
+
+- `alg_simhash` output length equals input digest length (e.g., 4 bytes for 4-byte digests). Returns
+    32 zero bytes only for empty input. NOT always 256 bits
+
+- `gen_instance_code_v0` accepts `bits` but ignores it — always produces 256-bit output (the hash of
+    the full content). The `bits` parameter exists for API consistency only
+
+- `gen_iscc_code_v0`: `wide` parameter determines 128-bit (default) or 256-bit combination. Data and
+    Instance components are always included; content code is optional. Test vectors in data.json
+    have no `wide` field — always pass `false`
+
+- ST_ISCC SubType: for `gen_iscc_code_v0`, the SubType in the ISCC header is determined by the
+    content code's SubType (TEXT/IMAGE/AUDIO/VIDEO/MIXED). When no content code is provided, SubType
+    is NONE (0). SubType SUM (5) is used for `iscc_sum` (multi-asset aggregation, not in gen_iscc)
+
 - `soft_hash_meta_v0` interleaves name and description features at the nibble level. Trim lengths
     are in bytes, not characters. The returned bytes are the raw SimHash digest
+
 - `gen_text_code_v0` uses MinHash (not SimHash) for the content hash portion. `alg_minhash_256`
     produces 256 bits (32 bytes) from a set of n-gram features. Text n-gram size = 13 (characters)
+
 - `gen_data_code_v0` uses MinHash on CDC chunk hashes. CDC splits binary data into content-defined
     chunks, each chunk is xxh32-hashed (not BLAKE3), the set of chunk hashes is MinHash'd
+
 - `soft_hash_audio_v0` is a 3-stage hash: Chromaprint i32 array → 4-byte big-endian digests →
     SimHash (overall 4B + quarters 16B + sorted thirds 12B) = 32 bytes total
+
 - `gen_mixed_code_v0` processes multiple content codes: sorts by MainType, groups by SubType,
     soft-hashes each group, then SimHash across groups. The input is a list of ISCC strings (units),
     not raw data
+
 - `encode_units` produces a single bitfield encoding an ordered list of content components included
     in an ISCC-CODE. Used by `gen_iscc_code_v0` to record which units were combined
+
 - DCT uses Nayuki's algorithm (not FFTW/scipy). Image-Code: 8×8 pixel blocks → per-block DCT →
     WTA-Hash across blocks. Video-Code: per-frame DCT → WTA-Hash per frame → SimHash across frames
 

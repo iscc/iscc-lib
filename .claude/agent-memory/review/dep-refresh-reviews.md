@@ -173,11 +173,39 @@ Two Ruby-specific traps worth re-checking on any future Gemfile change:
 `crates/iscc-rb/iscc-lib.gemspec` declares **no** dev dependencies — only `required_ruby_version` (a
 human-owned consumer floor), so the gemspec side of this slice is a no-op by construction.
 
+## Slice 8 — ruff 0.16 adoption (sub-sliced A/B/C/D) — iter 131+
+
+Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, so `ruff<0.16` in
+`pyproject.toml` must still be there at the end of any sub-slice before D. Gate set per sub-slice:
+`uvx ruff@0.16.0 check . --statistics` (count must match next.md exactly) + `uv run ruff check .` /
+`ruff format --check .` (pinned 0.15 must stay green) +
+`uv run ruff check --select S --force-exclude` + `--select C901` + `uv run ty check` +
+`uv run pytest -q` + `mise run check`.
+
+- **The `--select S`/`C901` runs are the whole point.** `[tool.ruff.lint]` declares **no `select`
+    key** — S/C901 exist only as explicit args on the two pre-push hooks (`.pre-commit-config.yaml`
+    ~93-106). So any `ruff --fix` that deletes a `# noqa: S603/S607` in `tools/`/`scripts/` reds the
+    security gate while `mise run check` stays green. Always run
+    `git diff --stat -- tools/ scripts/` (empty until slice C) and grep the noqa counts (11 / 4 / 1)
+- **Sub-slice A (iter 131, PASS)**: 36 lone `...` deleted from `_lowlevel.pyi` (PIE790+PYI048
+    double-report one line → N errors = N/2 deletions), 6 RUF059 `_`-prefixed. 104 → 26 findings
+- **Verify a `.pyi` edit against mypy AND pyright, not just `ty`** — the wheel ships `py.typed` next
+    to `_lowlevel.pyi`, so it is a consumer-facing artifact and `ty` is the only repo gate on it. 30
+    seconds: `uvx mypy@1.18.2 --strict <copy>.pyi` and `uvx pyright@1.1.407 <path>`. Both accept
+    docstring-only stub bodies. Also AST-check bodies rather than trusting greps: `ast.parse` +
+    assert every `FunctionDef.body` is a single string-constant `Expr`
+- **Sub-slice C is a gate *strengthening***: adding `S`/`C901` to `[tool.ruff.lint] select` clears
+    all 15 RUF100 *and* promotes both scans into `mise run check`. If a step instead deletes the
+    noqas or adds `per-file-ignores`/`ignore` for them → NEEDS_WORK. Keep the existing `tests/**`
+    per-file-ignores (S101/S603/S607)
+- **Sub-slice D** is the only one allowed to touch `pyproject.toml:27` + `uv.lock`; require
+    `uvx ruff@0.16.0 check .` exit 0 first
+
 ## Remaining slices
 
-All locally-verifiable ecosystems are done (1-7). napi `package.json` (`@napi-rs/cli: ^3`) and
-dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked current iter 129 — no edit needed. What is
-left: ruff 0.16 adoption (self-contained, local, retires the `pyproject.toml` hold-back — best next
-step), `release.yml` GHA refs (not CI-exercised), Gradle wrapper + JUnit 6.x / xunit 3 / Test.Sdk 18
-majors, and the deferred magnus 0.8 / jni 0.22 migrations, each its own step. Watch for the slice-5
-lesson in any published binding: a runtime/toolchain floor moving silently.
+All locally-verifiable ecosystems are done (1-7); slice 8 (ruff 0.16) is in progress. napi
+`package.json` (`@napi-rs/cli: ^3`) and dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked
+current iter 129 — no edit needed. What is left after slice 8: `release.yml` GHA refs (not
+CI-exercised), Gradle wrapper + JUnit 6.x / xunit 3 / Test.Sdk 18 majors, and the deferred magnus
+0.8 / jni 0.22 migrations, each its own step. Watch for the slice-5 lesson in any published binding:
+a runtime/toolchain floor moving silently.

@@ -32,6 +32,12 @@ fully-met target sections to `learnings-archive.md`.
     `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe in
     `learnings-archive.md`; advisory clearance now IS tool-confirmable via the enforcing
     `cargo deny check` Audit gate (iter 114+)
+- **`_lowlevel.pyi` stub bodies are docstring-only — no trailing `...`** (iter 131). The wheel ships
+    `py.typed` + the stub, so it is consumer-facing: verified accepted by `ty`, `mypy 1.18 --strict`
+    and `pyright 1.1.407`, and `ruff format` leaves docstring-only bodies alone (no blank-line
+    churn). ruff 0.16 double-reports a docstring + `...` as `PIE790` *and* `PYI048` on the same
+    line, so N findings collapse to N/2 deletions. When changing a published `.pyi`, check it
+    against mypy/pyright too — the repo gates only run `ty`
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer** (iter 124):
     `mise run bench:iai:check` dies with "No such file or directory" until
     `sudo apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner --version 0.16.1`
@@ -42,29 +48,13 @@ fully-met target sections to `learnings-archive.md`.
 
 - `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing
-- `META_TRIM_META` validation: pre-decode check (`META_TRIM_META * 4/3 + 256`) applies to ALL meta
-    strings (both Data-URL and JSON) as a fast-path optimization. Post-decode check on
-    `payload.len()` guarantees correctness. JSON boundary test overhead: `{"x":""}` = 8 bytes
-- `gen_image_code_v0` pixels parameter is a flat `&[u8]`, NOT `&[i32]`. Chromaprint provides `i32`
-    audio fingerprints (for `gen_audio_code_v0`), not image pixels
-- `gen_instance_code_v0` accepts `bits` but ignores it — always produces 256-bit output (the hash of
-    the full content). The `bits` parameter exists for API consistency only
-- `gen_iscc_code_v0`: `wide` parameter determines 128-bit (default) or 256-bit combination. Data and
-    Instance components are always included; content code is optional. Test vectors in data.json
-    have no `wide` field — always pass `false`
-- ST_ISCC SubType: for `gen_iscc_code_v0`, the SubType in the ISCC header is determined by the
-    content code's SubType (TEXT/IMAGE/AUDIO/VIDEO/MIXED). When no content code is provided, SubType
-    is NONE (0). SubType SUM (5) is used for `iscc_sum` (multi-asset aggregation, not in gen_iscc)
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty
     after prefix = empty bytes. 50 total vectors (v1.3.0): 20+5+3+5+3+2+4+3+5
 - **Per-algorithm internals** (meta nibble interleave, text/data MinHash, audio 3-stage SimHash,
-    mixed grouping, `encode_units`, Nayuki DCT) archived iter 128 → `learnings-archive.md`
-- `alg_simhash` output length equals input digest length (e.g., 4 bytes for 4-byte digests). Returns
-    32 zero bytes only for empty input. NOT always 256 bits
-- MainType Ord: MainType enum values are ordered for consistent processing. META=0, SEMANTIC=1,
-    CONTENT=2, DATA=3, INSTANCE=4, ISCC=5, ID=6, FLAKE=7
-- JSON `meta` parameter: uses JCS (RFC 8785) canonicalization. `@context` key triggers
-    `application/ld+json` media type, otherwise `application/json`
+    mixed grouping, `encode_units`, Nayuki DCT) plus settled API-parameter facts (`META_TRIM_META`
+    pre/post-decode checks, `gen_image_code_v0` flat `&[u8]` pixels, MainType Ord, JCS `meta`,
+    `alg_simhash` length, `gen_instance_code_v0`'s ignored `bits`, `gen_iscc_code_v0`'s `wide`,
+    ST_ISCC SubType derivation) archived iters 128/131 → `learnings-archive.md`
 - `conformance_selftest` uses bitwise-AND masking for truncated codes — do NOT compare full strings
     when bit_length < 256
 - **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`**: a
@@ -88,8 +78,8 @@ fully-met target sections to `learnings-archive.md`.
     `grep`, `sed`) MUST specify `shell: bash` — per-matrix version steps (e.g. `build-ffi`) hit
     Windows. Always check `shell:` when adding `run:` steps to cross-platform matrices
 - **Release pipeline pattern**: boolean input → build → smoke test → publish; 6 smoke test jobs
-    (test-wheels/napi/wasm/gem/jni/ffi) gate publish, each testing the linux-x86_64 artifact
-- **Adding a Python wheel target (#49)** archived iter 124 → `learnings-archive.md`
+    (test-wheels/napi/wasm/gem/jni/ffi) gate publish, each testing the linux-x86_64 artifact. Adding
+    a Python wheel target (#49) → `learnings-archive.md`
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger breaks
     for Swift — needs a spec fix to derive version from `Cargo.toml`
@@ -115,19 +105,23 @@ fully-met target sections to `learnings-archive.md`.
     RustSec advisory reds the gate on ANY push with no code change — not a regression. Fix with
     `cargo update -p <crate>` (confirm dev-only reach via `cargo tree -i <crate> -e no-dev` =
     empty), NOT a `deny.toml` ignore — ignore ONLY when no patched release exists
-- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue; per-slice progress lives
-    in `issues.md`). Slices 1-7 done (Cargo.lock, uv.lock, Rust pins, GHA refs, JVM manifests, Go
-    module, Ruby Gemfile) — that is every locally-verifiable ecosystem; what remains is ruff 0.16
-    adoption, `release.yml` refs, and deferred majors. Verify each Rust slice with the 4-gate set
-    (`test`/`lint`/`audit`/`bench:iai:check`); `cargo-deny` is the main risk (new transitive
-    license/advisory). **Hold-back reasons are inline `# held:` comments** beside the pin — read
-    them before proposing a bump, and confirm the stated reason from registry metadata rather than
-    from prose: `cargo info <crate>@<ver>` prints `rust-version` (cheapest MSRV pre-check),
-    `gem specification <gem> -v <ver> --remote` prints transitive pins, and
-    `https://rubygems.org/api/v1/versions/<gem>.json` carries `ruby_version` (the v2 per-version
+- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue; per-slice status lives in
+    `issues.md` — all 7 ecosystem slices done; ruff 0.16, `release.yml` refs and deferred majors
+    remain). Verify each Rust slice with the 4-gate set (`test`/`lint`/`audit`/`bench:iai:check`);
+    `cargo-deny` is the main risk (new transitive license/advisory). **Hold-back reasons are inline
+    `# held:` comments** beside the pin — confirm the stated reason from registry metadata, not
+    prose: `cargo info <crate>@<ver>` (`rust-version`), `gem specification <gem> -v <ver> --remote`
+    (transitive pins), `https://rubygems.org/api/v1/versions/<gem>.json` (`ruby_version`; the v2
     endpoint returns `null`). GOTCHAs: grep the actual pin syntax (`uniffi = "0.31"` is a plain
     string, not an inline table); `criterion` > 0.5 deprecates `criterion::black_box`, fatal under
     `-D warnings` → use `std::hint::black_box`
+- **ruff 0.16 adoption is sliced by decision type, not by file** (iters 125/131): run the unpinned
+    version with `uvx ruff@0.16.0 check .` — it never touches `uv.lock`, so `ruff<0.16` stays in
+    `pyproject.toml` until the tree is clean. Baseline 104 → 26 after slice A. **Never
+    `ruff@0.16 check --fix .`**: 15 of the remaining findings are `RUF100` on the load-bearing
+    `# noqa: S603/S607` in `tools/`+`scripts/` — 0.16 calls them unused only because `S` is not in
+    the default select, and deleting them reds the pre-push `ruff check --select S` gate. Their
+    resolution is a lint-config decision (e.g. add `S`/`C901` to `select`), never deletion
 - **Ruby gem dev deps (iter 130)**: bundler has no `-C` — use `(cd crates/iscc-rb && bundle …)` with
     `$(ruby -e "puts Gem.user_dir")/bin` on PATH. CI's `ruby/setup-ruby` `bundler-cache: true` is a
     **frozen** install, so prove lock/Gemfile consistency with
@@ -201,6 +195,5 @@ fully-met target sections to `learnings-archive.md`.
 - **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
     `effort: xhigh`) — long-horizon implementation, single requests can run many minutes (runner
     timeout 3600s). All other roles run on `opus`. Deliberate model diversity: Fable implements,
-    Opus reviews, Codex is the independent second opinion. Do not "unify" onto one model
-
-- **Advisor tool deferred (2026-07)**: revisit when Fable 5 is selectable → `learnings-archive.md`
+    Opus reviews, Codex is the independent second opinion. Do not "unify" onto one model. (Advisor
+    tool deferred 2026-07 — revisit when Fable 5 is selectable; detail → `learnings-archive.md`)

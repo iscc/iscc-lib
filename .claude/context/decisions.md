@@ -129,3 +129,24 @@ not introduce, and stalls the remaining slices); pin the Rust core to Unicode 15
 (unilaterally sets conformance policy, and re-breaks when the reference moves). **Context:** iter
 129, commit 4404fba; divergence reproduced against Go, the Rust core via the Python binding, and
 `iscc-core` 1.3.0 side by side.
+
+## 2026-07-25 — ruff 0.16 findings are fixed at the source, never suppressed; stub bodies go docstring-only
+
+**Decision:** The ruff 0.16 adoption resolves every finding by changing the offending code or, where
+that is impossible, by an explicit lint-config decision — never by `# noqa`, `per-file-ignores` or
+`ignore` entries. Concretely for slice A: the 36 lone `...` placeholders were **deleted** from the
+published `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`, making a docstring the entire stub body,
+and that becomes the recorded convention for every future Tier 1 symbol. **Why:** `_lowlevel.pyi`
+ships in the wheel next to `py.typed`, so it is a consumer-facing artifact — the removal was
+therefore validated beyond the repo's own gate (`ty`) against the two dominant third-party checkers,
+`mypy 1.18 --strict` and `pyright 1.1.407`, both clean. Suppressing instead would have been
+indistinguishable from gate weakening under this project's rules, and would have locked `ruff<0.16`
+in place permanently. The same principle pre-decides the hardest remaining finding: the 15 `RUF100`s
+sit on the `# noqa: S603/S607` directives that the pre-push `ruff check --select S` hook depends on,
+so they must be resolved by widening `[tool.ruff.lint] select` (making `S`/`C901` first-class), not
+by deleting the directives that keep the security gate green. **Alternatives:** add
+`PIE790`/`PYI048` to `per-file-ignores` for `*.pyi` (one line, but it is a suppression and leaves
+the stub in a form ruff will keep flagging); keep the `ruff<0.16` pin indefinitely (freezes the
+Python toolchain and defers an ever-growing diff); run `ruff@0.16 check --fix .` wholesale (would
+silently delete the security `# noqa`s and red the pre-push `S` gate). **Context:** iter 131, commit
+0544797; whole-tree 0.16 findings 104 → 26, pin deliberately retained.

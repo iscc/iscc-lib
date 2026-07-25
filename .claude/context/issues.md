@@ -64,7 +64,17 @@ from `~> 0.9` to an **exact** `0.9.123` in the `Gemfile` under a `# held:` comme
 `oxidize-rb/actions/cross-gem` in `release.yml`; rubygems v1 API: minitest 6.0.x requires Ruby 3.2
 or newer, above the gem's declared floor of 3.1.0). `crates/iscc-rb/iscc-lib.gemspec` needed no
 change — it declares no dev dependencies, only the human-owned `required_ruby_version`. **This
-closes every locally-verifiable ecosystem slice.**
+closes every locally-verifiable ecosystem slice.** 🔄 Slice 8 (ruff 0.16 adoption) — **sub-slice A
+done** (iter 131): the 78 config-free findings cleared — 36 lone `...` stub bodies deleted from
+`crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (`PIE790`+`PYI048` double-report the same line) and 6
+`RUF059` unused unpackings `_`-prefixed in `tests/test_new_symbols.py`. Docstring-only stub bodies
+verified downstream-safe against `ty`, `mypy 1.18 --strict` and `pyright 1.1.407` (the wheel ships
+`py.typed` alongside the stub). Baseline 104 → **26 findings left**, each needing a decision:
+`RUF100` 15 + `EXE001` 1 + `PLW1510` 1 in `tools/`/`scripts/` (the `RUF100`s are the load-bearing
+`# noqa: S603/S607` — 0.16 calls them unused only because `S` is not in the default select, so
+deleting them would red the pre-push `ruff check --select S` gate; the fix is a lint-config decision
+such as adding `S`/`C901` to `[tool.ruff.lint] select`), plus `I001` 8 + `RUF022` 1 needing an isort
+src-root decision. The `ruff<0.16` pin stays until the tree is clean under 0.16.
 
 Verified already-current and needing no bump: `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
 mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,

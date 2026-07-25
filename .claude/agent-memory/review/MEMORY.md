@@ -99,10 +99,15 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     deps changed — see gate-reviews.md Audit)
 - **Dependency refresh slices (v0.6.0 issue)**: per-slice gate sets + hold-back-verification recipes
     for Cargo.lock (iter 124), uv.lock (125), Rust direct pins (126), GitHub Actions (127), JVM
-    manifests (128), Go module (129), Ruby Gemfile (130) → `dep-refresh-reviews.md`. Never use the
-    lockfile-only shortcut on these. **A toolchain/compiler bump inside a PUBLISHED binding is a
-    support-policy change, not a pin** — check whether the consumer floor moved (iter 128 recipe)
-    before passing it
+    manifests (128), Go module (129), Ruby Gemfile (130), ruff 0.16 A/B/C/D (131+) →
+    `dep-refresh-reviews.md`. Never use the lockfile-only shortcut on these. **A toolchain/compiler
+    bump inside a PUBLISHED binding is a support-policy change, not a pin** — check whether the
+    consumer floor moved (iter 128 recipe) before passing it
+- **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131): the Python package dir
+    ships `py.typed` beside `_lowlevel.pyi`, so the stub is consumer-facing while `ty` is the only
+    repo gate on it. `uvx mypy@1.18.2 --strict` + `uvx pyright@1.1.407` ≈ 30s and confirmed
+    docstring-only stub bodies are valid. Prefer an `ast.parse` body assertion over greps when
+    verifying a bulk stub edit
 - **Verify a `# held:` claim from registry metadata, never from the handoff** (iters 126/130): the
     check is ~30s per claim — `cargo info <crate>@<ver>` (rust-version),
     `gem specification <gem> -v   <ver> --remote` (transitive pins),
