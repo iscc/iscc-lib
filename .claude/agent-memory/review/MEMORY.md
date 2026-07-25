@@ -99,9 +99,16 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     deps changed — see gate-reviews.md Audit)
 - **Dependency refresh slices (v0.6.0 issue)**: per-slice gate sets + hold-back-verification recipes
     for Cargo.lock (iter 124), uv.lock (125), Rust direct pins (126), GitHub Actions (127), JVM
-    manifests (128), Go module (129) → `dep-refresh-reviews.md`. Never use the lockfile-only
-    shortcut on these. **A toolchain/compiler bump inside a PUBLISHED binding is a support-policy
-    change, not a pin** — check whether the consumer floor moved (iter 128 recipe) before passing it
+    manifests (128), Go module (129), Ruby Gemfile (130) → `dep-refresh-reviews.md`. Never use the
+    lockfile-only shortcut on these. **A toolchain/compiler bump inside a PUBLISHED binding is a
+    support-policy change, not a pin** — check whether the consumer floor moved (iter 128 recipe)
+    before passing it
+- **Verify a `# held:` claim from registry metadata, never from the handoff** (iters 126/130): the
+    check is ~30s per claim — `cargo info <crate>@<ver>` (rust-version),
+    `gem specification <gem> -v   <ver> --remote` (transitive pins),
+    `curl https://rubygems.org/api/v1/versions/<gem>.json | jq '.[]|{number,ruby_version}'` (the v1
+    endpoint has `ruby_version`; v2 returns null). A hold-back with a *wrong* stated reason is worse
+    than no comment — it survives as folklore
 - **A dep that ships DATA TABLES (Unicode, locale, tz) needs an exhaustive differential, not green
     vectors** (iter 129, `golang.org/x/text`): the 50 vendored ISCC vectors are all Unicode ≤ 15, so
     they cannot detect a table change. Recipe: throwaway module with a `replace` to the local

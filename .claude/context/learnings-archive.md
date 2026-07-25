@@ -667,3 +667,13 @@ reference-only for humans.
     `NoSuchFileException …/build/reports/tests/test/packages` are incremental-state races, not test
     failures (`build/test-results/test/*.xml` still showed `tests="9" failures="0"`). Re-run after
     `./gradlew clean` before concluding anything about a build
+
+## CI/CD — Go module data-table differential (archived iter 130, dep-refresh slice 6 done)
+
+- **Prove a `golang.org/x/text` bump is output-neutral, don't infer it from green vectors** (iter
+    129): build a throwaway module in `/tmp` with
+    `replace github.com/iscc/iscc-lib/packages/go => <repo>/packages/go`, dump
+    `TextClean`/`TextCollapse` for all 1,112,032 code points, then re-run under
+    `replace golang.org/x/text => golang.org/x/text v<old>` and `diff`. 0.34.0 → 0.40.0 was
+    byte-identical (same `unicode/norm` tables; only invalid-rune bookkeeping changed). A new
+    indirect (`golang.org/x/sys` via cpuid 2.4.0) is legitimate when `go mod tidy -diff` exits 0

@@ -74,15 +74,13 @@ fully-met target sections to `learnings-archive.md`.
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
 - **ISCC-IDv1** (`gen_iscc_id_v1`, Go-only, experimental) archived iter 124 → `learnings-archive.md`
-- **The Unicode data version is an unpinned cross-implementation variable** (iter 129, issue filed):
-    Go stdlib `unicode` = 15.0.0 and `x/text/unicode/norm` = 15.0.0 (its `tables17.0.0.go` is
-    `//go:build go1.27`), Python 3.13 `unicodedata` = 15.1.0, but Rust `unicode-general-category`
-    1.1.0 = 16.0.0 and `unicode-normalization` 0.1.25 = 17.0.0. Go's `unicode.C` **includes
-    unassigned (Cn)**, so the 5,813 code points assigned in Unicode 16/17 are stripped by
-    Go/`iscc-core` but kept by the Rust core → divergent `text_clean`/`text_collapse` → divergent
-    Meta-Code, Text-Code and `name` fields (e.g. `Ɤ` U+A7CB). The conformance vectors are all
-    Unicode ≤ 15, so no gate catches it. Do not "fix" a binding to match the core here without
-    reading the issue — the version choice is a spec-level decision
+- **The Unicode data version is an unpinned cross-implementation variable** (iter 129, open
+    `[review]` issue): Go stdlib + `x/text/norm` = 15.0.0, Python 3.13 = 15.1.0, but Rust
+    `unicode-general-category` = 16.0.0 / `unicode-normalization` = 17.0.0. Go's `unicode.C`
+    includes unassigned (Cn), so 5,813 post-15 code points are stripped by Go/`iscc-core` but kept
+    by the Rust core → divergent `text_clean`/`text_collapse` → divergent Meta/Text codes and `name`
+    (e.g. `Ɤ` U+A7CB). Vectors are all Unicode ≤ 15, so no gate catches it. Do not "fix" a binding
+    to match the core — the version choice is a spec-level decision. Evidence → `issues.md`
 
 ## CI/CD
 
@@ -97,8 +95,7 @@ fully-met target sections to `learnings-archive.md`.
     for Swift — needs a spec fix to derive version from `Cargo.toml`
 - **Release input count**: 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
     maven-kotlin, swift); re-trigger individual registries with `--ref main`. `version_sync.py`
-    manages 22 targets as of iter 129 (incl. root `Package.swift` releaseTag and
-    `packages/kotlin/README.md`); `--check` exits 1 on mismatch
+    manages 22 targets as of iter 129; `--check` exits 1 on mismatch
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (`continue-on-error: true`,
     enforcing at v1.0.0; `rust-core.md` box stays `[ ]`); `coverage` enforcing. Run via
     `mise run semver` / `mise run coverage`. Details → `learnings-archive.md`
@@ -107,8 +104,7 @@ fully-met target sections to `learnings-archive.md`.
     `.cargo-crap.toml` excludes `benches/**`. **CI-ONLY guard gap**: NOT in `mise run check`/
     pre-commit — a source change adding a branch/loop to a covered fn lands green locally but reds
     CI unless the baseline is refreshed in the SAME step (never revert the fix or widen epsilon/
-    threshold). Reviewing a refresh: only the changed fn's crap/cyclomatic/coverage moves (re-sorts
-    by CRAP desc); all others are pure `line:` shifts. Full mechanics → `learnings-archive.md`
+    threshold). Full mechanics + how to review a refresh → `learnings-archive.md`
 - **`Perf (iai-callgrind)` gate — COMPLETE, ENFORCING (#3)**:
     `[profile.bench] strip = false,   debug = true` is load-bearing (stripped binary → all benches
     `summary: 0` false-green). Full saga → `learnings-archive.md`
@@ -120,30 +116,36 @@ fully-met target sections to `learnings-archive.md`.
     `cargo update -p <crate>` (confirm dev-only reach via `cargo tree -i <crate> -e no-dev` =
     empty), NOT a `deny.toml` ignore — ignore ONLY when no patched release exists
 - **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue; per-slice progress lives
-    in `issues.md`). Slices 1-6 done (Cargo.lock, uv.lock, Rust pins, GHA refs, JVM manifests, Go
-    module). Verify each Rust slice with the 4-gate set (`test`/`lint`/`audit`/`bench:iai:check`);
-    `cargo-deny` is the main risk (new transitive license/advisory). **Hold-back reasons are inline
-    `# held:` comments** beside the pin — read them before proposing a bump.
-    `cargo info   <crate>@<ver>` prints `rust-version`: cheapest MSRV pre-check. GOTCHAs: grep the
-    actual pin syntax (`uniffi = "0.31"` is a plain string, not an inline table); `criterion` > 0.5
-    deprecates `criterion::black_box`, fatal under `-D warnings` → use `std::hint::black_box`
-- **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128, Kotlin): KGP
-    2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar (`javap -v -p <class> | grep mv=`) and
-    puts `kotlin-stdlib:2.4.10` in the published POM. Verified with a throwaway consumer resolving
-    from `mavenLocal`: Kotlin 2.1.10 and 2.2.21 fail to compile ("binary version of its metadata is
-    2.4.0"), 2.3.21 passes — Kotlin tolerates ~one minor ahead. The transitive stdlib triggers the
-    same error independently, so pinning `languageVersion` alone does not restore the old floor.
-    Treat compiler/toolchain bumps in a *published* binding as support-policy changes, not pins
+    in `issues.md`). Slices 1-7 done (Cargo.lock, uv.lock, Rust pins, GHA refs, JVM manifests, Go
+    module, Ruby Gemfile) — that is every locally-verifiable ecosystem; what remains is ruff 0.16
+    adoption, `release.yml` refs, and deferred majors. Verify each Rust slice with the 4-gate set
+    (`test`/`lint`/`audit`/`bench:iai:check`); `cargo-deny` is the main risk (new transitive
+    license/advisory). **Hold-back reasons are inline `# held:` comments** beside the pin — read
+    them before proposing a bump, and confirm the stated reason from registry metadata rather than
+    from prose: `cargo info <crate>@<ver>` prints `rust-version` (cheapest MSRV pre-check),
+    `gem specification <gem> -v <ver> --remote` prints transitive pins, and
+    `https://rubygems.org/api/v1/versions/<gem>.json` carries `ruby_version` (the v2 per-version
+    endpoint returns `null`). GOTCHAs: grep the actual pin syntax (`uniffi = "0.31"` is a plain
+    string, not an inline table); `criterion` > 0.5 deprecates `criterion::black_box`, fatal under
+    `-D warnings` → use `std::hint::black_box`
+- **Ruby gem dev deps (iter 130)**: bundler has no `-C` — use `(cd crates/iscc-rb && bundle …)` with
+    `$(ruby -e "puts Gem.user_dir")/bin` on PATH. CI's `ruby/setup-ruby` `bundler-cache: true` is a
+    **frozen** install, so prove lock/Gemfile consistency with
+    `BUNDLE_FROZEN=true bundle install --local`. `rb_sys` stays pinned EXACTLY at 0.9.123 (it pins
+    `rake-compiler-dock = 1.10.0`; 0.9.124 → 1.11.0, 0.9.128 → 1.12.0) to match `tag: 0.9.123` of
+    `oxidize-rb/actions/cross-gem` in `release.yml`
+- **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128, Kotlin — open
+    `[review]` issue): KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar and
+    `kotlin-stdlib:2.4.10` into the published POM; a throwaway `mavenLocal` consumer proved Kotlin
+    2.1.10/2.2.21 fail and 2.3.21 passes. Treat compiler/toolchain bumps in a *published* binding as
+    support-policy changes reserved for Titusz, not pins. Full evidence → `issues.md`
 - **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) archived iter 129 →
     `learnings-archive.md`. Read it before touching `pom.xml` / `build.gradle.kts` or before calling
     a Gradle error a test failure
-- **Go module slice — prove a `x/text` bump is output-neutral, don't infer it from green vectors**
-    (iter 129): build a throwaway module in `/tmp` with
-    `replace github.com/iscc/iscc-lib/packages/go => <repo>/packages/go`, dump
-    `TextClean`/`TextCollapse` for all 1,112,032 code points, then re-run under
-    `replace golang.org/x/text => golang.org/x/text v<old>` and `diff`. 0.34.0 → 0.40.0 was
-    byte-identical (same `unicode/norm` tables; only invalid-rune bookkeeping changed). A new
-    indirect (`golang.org/x/sys` via cpuid 2.4.0) is legitimate when `go mod tidy -diff` exits 0
+- **A dep that ships DATA TABLES (Unicode, locale, tz) needs an exhaustive differential, not green
+    vectors** (iter 129, `golang.org/x/text` 0.34.0 → 0.40.0): the 50 vendored vectors are all
+    Unicode ≤ 15 and cannot detect a table change. Recipe (throwaway `/tmp` module + `replace` to
+    the old dep version, dump the whole input space, `diff`) → `learnings-archive.md`
 - **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
     `--target all`. The `proc-macro-error2 v2.0.1` future-incompat warning emitted on every
     `cargo test`/`cargo bench` traces to `iai-callgrind-macros` (dev-only), **not** magnus/rb-sys;
@@ -168,33 +170,37 @@ fully-met target sections to `learnings-archive.md`.
 - Never force-push to develop during a CID loop — agents commit incrementally
 - Tag releases on `main` after merging from `develop`: `git tag vX.Y.Z && git push origin vX.Y.Z`
 
-## Feature Flags
-
-- **Fully met — archived iter 127 → `learnings-archive.md`.** Read it before touching `[features]`
-    in `crates/iscc-lib/Cargo.toml`
-
 ## CID Process
+
+- **Feature flags: fully met — archived iter 127 → `learnings-archive.md`.** Read it before touching
+    `[features]` in `crates/iscc-lib/Cargo.toml`
 
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — frequently stale. Verify independently against the source (`cargo search`,
     `npm view`, Maven Central API, `pip index versions`, Go module proxy, `gh api`)
+
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
+
 - **Detect concurrent CID loops** (iter 97): context files changing mid-review, or `mise run check`
     reporting spurious "files were modified by this hook" on a file advance never touched, means a
     race. Confirm with `ps aux | grep -E 'cid:run|claude -p CID iteration'`, then flag HUMAN REVIEW
     REQUESTED — do NOT kill processes yourself, and do NOT push
+
 - **Human-handoff vs IDLE (iter 111)**: when autonomous work runs out but `normal` issues remain
     that are all `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all issues `low`) is
     NOT met. Flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead of `**IDLE**` (which runs
     meta-improve, reserved for all-`low`). Don't manufacture churn to avoid the pause
+
 - **Pre-push mdformat blocks on non-conforming context files**: the pre-push hook runs mdformat
     (`--wrap 100 --number`, isolated `mdformat-mkdocs[recommended]` env) on every file in the push
     range — incl. `next.md` and per-agent `MEMORY*.md`. A non-conforming file rejects the whole
     batch push even though staged-only `git commit` passed. define-next MUST run `mise run format`
     before committing; review can unblock by reformatting + amending (match hook args exactly)
+
 - **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
     `effort: xhigh`) — long-horizon implementation, single requests can run many minutes (runner
     timeout 3600s). All other roles run on `opus`. Deliberate model diversity: Fable implements,
     Opus reviews, Codex is the independent second opinion. Do not "unify" onto one model
+
 - **Advisor tool deferred (2026-07)**: revisit when Fable 5 is selectable → `learnings-archive.md`

@@ -144,11 +144,40 @@ consumer floor; a NEW indirect is legitimate if the bumped dep's own go.mod requ
 matches `iscc-core` (Python 3.13 = Unicode 15.1); **the Rust core is the outlier**. Repro: `Ɤ`
 U+A7CB. Do not attribute this to a dep bump without running the differential above.
 
+## Slice 7 — Ruby manifests (`crates/iscc-rb/Gemfile` + `Gemfile.lock`) — iter 130
+
+Gate set is byte-identical to CI's `ruby:` job (`ci.yml` ~187-212) — run all four from a subshell
+(`bundler has no -C`): `(cd crates/iscc-rb && bundle exec standardrb / rake compile / rake test)`
+(111 runs, 299 assertions) + `bundle outdated --strict` (exit 0 = nothing left within constraints).
+Needs `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`. `rake compile` may print
+`gmake: Clock skew detected` on this bind mount — cosmetic.
+
+**Verify the two hold-backs from upstream metadata, not the handoff.** Version + Ruby floor:
+`curl -s https://rubygems.org/api/v1/versions/<gem>.json | jq '.[] | {number, ruby_version}'` (the
+**v1** endpoint carries `ruby_version`; the v2 per-version endpoint returns `null`) → minitest 6.0.x
+really is `>= 3.2` vs the gem's `required_ruby_version >= 3.1.0`. Transitive pin:
+`gem specification rb_sys -v <ver> --remote | grep -A8 'name: rake-compiler-dock'` → 0.9.123 →
+`= 1.10.0`, 0.9.124 → 1.11.0, 0.9.128 → 1.12.0, so the exact pin is genuinely load-bearing against
+`tag: 0.9.123` in `release.yml`.
+
+Two Ruby-specific traps worth re-checking on any future Gemfile change:
+
+- Tightening `~> 0.9` → `= 0.9.123` rewrites the lock's `DEPENDENCIES` line to `rb_sys (= 0.9.123)`.
+    cross-gem's configure step is
+    `grep rb_sys Gemfile.lock | head -n 1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'` — safe here (the
+    `GEM specs` line sorts first, and the fallback regex extracts 0.9.123 either way), but check the
+    action source before assuming any lock-format change is inert.
+- CI uses `ruby/setup-ruby` `bundler-cache: true` (frozen install). Prove the lock is consistent
+    with `BUNDLE_FROZEN=true bundle install --local` before passing, not just `bundle exec`.
+
+`crates/iscc-rb/iscc-lib.gemspec` declares **no** dev dependencies — only `required_ruby_version` (a
+human-owned consumer floor), so the gemspec side of this slice is a no-op by construction.
+
 ## Remaining slices
 
-`crates/iscc-rb/Gemfile`/gemspec is the last locally-verifiable one (rb_sys in `Gemfile.lock` must
-match the `oxidize-rb/actions/cross-gem` Docker image tag). napi `package.json` (`@napi-rs/cli: ^3`)
-and dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked current iter 129 — no edit needed.
-Then `release.yml` GHA refs (not CI-exercised), Gradle wrapper + JUnit 6.x / xunit 3 / Test.Sdk 18
-majors, and the deferred ruff 0.16 / magnus 0.8 / jni 0.22 migrations, each its own step. Watch for
-the slice-5 lesson in any published binding: a runtime/toolchain floor moving silently.
+All locally-verifiable ecosystems are done (1-7). napi `package.json` (`@napi-rs/cli: ^3`) and
+dotnet `.csproj` (`17.*`/`2.*` wildcards) were re-checked current iter 129 — no edit needed. What is
+left: ruff 0.16 adoption (self-contained, local, retires the `pyproject.toml` hold-back — best next
+step), `release.yml` GHA refs (not CI-exercised), Gradle wrapper + JUnit 6.x / xunit 3 / Test.Sdk 18
+majors, and the deferred magnus 0.8 / jni 0.22 migrations, each its own step. Watch for the slice-5
+lesson in any published binding: a runtime/toolchain floor moving silently.

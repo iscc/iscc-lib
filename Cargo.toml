@@ -52,8 +52,8 @@ tempfile = "3"
 jni = "0.21"
 # held: magnus 0.8 drops the default `old-api` feature, which deprecates
 # `magnus::exception::runtime_error()` used in crates/iscc-rb/src/lib.rs (a clippy -D warnings
-# failure); needs a call-site refactor to `Ruby::exception_runtime_error()`. Deferred to the
-# Ruby dependency slice (where the rb_sys gem must keep matching the cross-gem Docker tag).
+# failure); needs a call-site refactor to `Ruby::exception_runtime_error()` in its own dedicated
+# step (the Ruby Gemfile refresh deliberately left this alone).
 magnus = { version = "0.7", features = ["rb-sys"] }
 # held: uniffi 0.32 requires regenerating and re-verifying the Swift + Kotlin bindings; the
 # Linux devcontainer has no Swift toolchain, so the result cannot be validated locally.

@@ -53,7 +53,18 @@ the latest published versions; no hold-back needed). The `x/text` bump was prove
 1,112,032 code points under 0.34.0 and 0.40.0 (the `unicode/norm` tables files are unchanged between
 the two releases; only invalid-rune bookkeeping was refactored). Also wired
 `packages/kotlin/README.md` into `scripts/version_sync.py` `TARGETS` (22 targets now), closing the
-last unmanaged stale version string (`0.3.1` → `0.5.0`).
+last unmanaged stale version string (`0.3.1` → `0.5.0`). ✅ Slice 7 — Ruby manifests (iter 130;
+`crates/iscc-rb/Gemfile.lock` refreshed by `bundle update`: rake 13.4.2, standard 1.56.0, rubocop
+1.88.2, rubocop-minitest 0.40.0 + transitives — each verified to be the newest published version;
+zero `standardrb` fallout, 111 tests green, `bundle outdated --strict` clean). `rb_sys` tightened
+from `~> 0.9` to an **exact** `0.9.123` in the `Gemfile` under a `# held:` comment, plus a second
+`# held:` for `minitest ~> 5.0` — both hold-backs verified from registry metadata this review
+(`gem specification rb_sys -v <v> --remote`: 0.9.123 → `rake-compiler-dock = 1.10.0`, 0.9.124 →
+1.11.0, 0.9.128 → 1.12.0, so the pin genuinely guards `tag: 0.9.123` of
+`oxidize-rb/actions/cross-gem` in `release.yml`; rubygems v1 API: minitest 6.0.x requires Ruby 3.2
+or newer, above the gem's declared floor of 3.1.0). `crates/iscc-rb/iscc-lib.gemspec` needed no
+change — it declares no dev dependencies, only the human-owned `required_ruby_version`. **This
+closes every locally-verifiable ecosystem slice.**
 
 Verified already-current and needing no bump: `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
 mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
@@ -61,16 +72,16 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
 `mise.toml` has no `[tools]` section; `crates/iscc-napi/package.json` (`@napi-rs/cli: ^3` floats
 over the 3.x line, covers 3.7.4) and `packages/dotnet/Iscc.Lib.Tests/Iscc.Lib.Tests.csproj`
 (`Microsoft.NET.Test.Sdk 17.*`, `xunit 2.*`, `xunit.runner.visualstudio 2.*` wildcards) — both
-re-checked iter 129, editing them would be churn. Remaining: `crates/iscc-rb/Gemfile` + gemspec
-(with the `magnus` 0.8 question), `.github/workflows/release.yml` GHA refs (97 `uses:`;
-`upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs `@v9.0.0`, only
-truly exercised by a release run — consider bundling with the existing release.yml `if:`-guard fix
-issue), plus the deferred majors: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle wrapper 8.12.1
-and JUnit 6.x (each its own step). A dedicated step should adopt ruff 0.16 (run `ruff check --fix`
-for the 60 auto-fixable, hand-fix the rest — mostly `_lowlevel.pyi` stub-style PIE790/PYI048/RUF022
-— and drop the `ruff<0.16` pin). Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need
-their own step (source rewrite in `crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs`
-respectively).
+re-checked iter 129, editing them would be churn. Remaining: `.github/workflows/release.yml` GHA
+refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs
+`@v9.0.0`, only truly exercised by a release run — consider bundling with the existing release.yml
+`if:`-guard fix issue), plus the deferred majors: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle
+wrapper 8.12.1 and JUnit 6.x (each its own step). A dedicated step should adopt ruff 0.16 (run
+`ruff check --fix` for the 60 auto-fixable, hand-fix the rest — mostly `_lowlevel.pyi` stub-style
+PIE790/PYI048/RUF022 — and drop the `ruff<0.16` pin); this is the best-scoped next slice since it is
+self-contained and fully locally verifiable. Separately, the `jni` 0.22 and `magnus` 0.8 migrations
+each need their own step (source rewrite in `crates/iscc-jni/src/lib.rs` and
+`crates/iscc-rb/src/lib.rs` respectively).
 
 **Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
 (`extern crate proc_macro is private and cannot be re-exported`) emitted on every `cargo test` /
