@@ -3,7 +3,7 @@
 Codepaths, implementation patterns, library locations, and key decisions accumulated across CID
 iterations. Detail lives in topic files: [ci-gates.md](ci-gates.md) (coverage/CRAP, cargo-deny
 audit, semver, iai perf gates), [uniffi-swift-kotlin.md](uniffi-swift-kotlin.md) (UniFFI, Swift,
-Kotlin), [deps-refresh.md](deps-refresh.md) (held-back majors, ruff hold-back, refresh slices),
+Kotlin), [deps-refresh.md](deps-refresh.md) (held-back majors, ruff 0.16 adoption, refresh slices),
 [wasm-simd.md](wasm-simd.md) (BLAKE3 SIMD wiring + wasm-pack gotchas), [go-idv1.md](go-idv1.md) (Go
 IDv1 + decode guards). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
 
@@ -48,14 +48,14 @@ IDv1 + decode guards). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
     \+ gotchas → ci-gates.md
 - Key audit rule: fresh advisory with a patched release → `cargo update -p <crate>` lockfile bump,
     NEVER add to `deny.toml` `ignore` (iter 115: crossbeam-epoch 0.9.18→0.9.20)
-- Dependency refresh (iters 124-135): Cargo.lock, uv.lock, ci.yml/docs.yml GHA actions, JVM
+- Dependency refresh (iters 124-137): Cargo.lock, uv.lock, ci.yml/docs.yml GHA actions, JVM
     manifests, Go module, Ruby Gemfile all refreshed; napi/dotnet verified current (wildcard
     floats). Held-back majors (criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32) carry `# held:`
-    comments in root Cargo.toml; `ruff<0.16` hold in pyproject.toml (slices A–D done:
-    `extend-select = ["S","C901","I","RUF022","RUF100"]` + isort config; `uvx ruff@0.16.0 check .`
-    exits 0 since iter 136 — only sub-slice E left: drop the pin); rb_sys pinned `0.9.123` +
-    minitest 5.x held in Gemfile. Reasons, junit-platform-launcher/Gradle gotcha + remaining slices
-    (release.yml, ruff sub-slice E, majors) → deps-refresh.md
+    comments in root Cargo.toml; ruff 0.16.0 adopted iter 137 (pin dropped; `ruff format` now also
+    checks Python code blocks in Markdown — bare `format --check` = 153 files, was 25; NEVER blanket
+    `--fix`, it deletes 13 load-bearing `# noqa: S603/S607`); rb_sys pinned `0.9.123` + minitest 5.x
+    held in Gemfile. Reasons, junit-platform-launcher/Gradle gotcha + remaining human/major-gated
+    slices (release.yml, majors) → deps-refresh.md
 - GOTCHA: ci.yml concurrency has `cancel-in-progress: true` per ref — pushing a second develop
     commit cancels the in-flight CI run of the previous sha (its check-runs end "cancelled"). When a
     step needs a green CI on a specific sha, don't push again until it concludes

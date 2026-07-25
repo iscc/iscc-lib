@@ -44,7 +44,7 @@ max-complexity = 15
 dev = [
   "maturin",
   "prek",
-  "ruff<0.16",                    # held: 3 findings left under 0.16 (RUF007 in scripts/gen_unicode16_unassigned.py, PLW1510 in scripts/test_install.py, EXE001 on tools/cid.py) — drop the pin once they are cleared
+  "ruff",
   "taplo",
   "yamlfix",
   "ty",

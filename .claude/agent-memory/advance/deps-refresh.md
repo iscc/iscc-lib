@@ -1,6 +1,6 @@
 ---
 name: deps-refresh
-description: Dependency-refresh issue — held-back Rust majors with reasons, ruff hold-back, slice history
+description: Dependency-refresh issue — held-back Rust majors with reasons, ruff 0.16 adoption history, slice history
 metadata:
   type: project
 ---
@@ -21,10 +21,11 @@ TARGETS; napi `^3` + dotnet `17.*`/`2.*` wildcards verified current, no edit), 7
 fallout, 111 tests green). GOTCHA: `astral-sh/setup-uv` has NO floating major tag past v7 —
 v8.x/v9.0.0 are exact release tags only, so write `@v9.0.0` not `@v9` (iter-127 CI failure: "Unable
 to resolve action"). `releases/latest` proves a release exists, NOT that a floating `@vN` tag exists
-— confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Remaining: `release.yml` actions
-(97 `uses:` refs; upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0`
-too; only truly validated by a release run), ruff 0.16 adoption, Gradle wrapper major, JUnit 6.x
-migration, xunit 3.x + Test.Sdk 18.x majors. Slice 7 was the last fully-locally-verifiable one.
+— confirm via `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>`. Slice 8 (ruff 0.16, sub-slices
+A–E) CLOSED iter 137. Remaining (all human/major-gated): `release.yml` actions (97 `uses:` refs;
+upload/download-artifact@v4 must move together; setup-uv there needs `@v9.0.0` too; only truly
+validated by a release run), Gradle wrapper major, JUnit 6.x migration, xunit 3.x + Test.Sdk 18.x
+majors, jni 0.22, magnus 0.8.
 
 ## JVM manifests (iter 128)
 
@@ -74,12 +75,13 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
     magnus/rb_sys (iter-126 review corrected this via `cargo tree -i`). No fixed release exists
     (iai-callgrind 0.16.1 is latest) — stays a warning, do not chase it in the Ruby slice.
 
-## Python hold-back (ruff 0.16 adoption in slices)
+## ruff 0.16 adoption (slice 8, sub-slices A–E — DONE iter 137)
 
-- `ruff<0.16` in root `pyproject.toml` (iter 125): ruff 0.16 expands default lint rules. Baseline
-    was 104 errors; slice A (iter 131) cleared 78 config-free ones: deleted the 36 lone `...` stub
-    bodies in `_lowlevel.pyi` (PIE790+PYI048 double-report the same line — docstring-only body is
-    valid) and `_`-prefixed 6 RUF059 unused unpackings in `tests/test_new_symbols.py`.
+- Hold-back was `ruff<0.16` in root `pyproject.toml` (iter 125): ruff 0.16 expands default lint
+    rules. Baseline was 104 errors; slice A (iter 131) cleared 78 config-free ones: deleted the 36
+    lone `...` stub bodies in `_lowlevel.pyi` (PIE790+PYI048 double-report the same line —
+    docstring-only body is valid) and `_`-prefixed 6 RUF059 unused unpackings in
+    `tests/test_new_symbols.py`.
 - Slice B (iter 134): `[tool.ruff.lint] extend-select = ["S", "C901"]` in pyproject.toml (NEVER
     `select` — it replaces the pyflakes defaults). All 15 `RUF100` cleared: 14 `# noqa: S603/S607`
     became recognised, one genuinely-unused `S603` deleted in `tools/metrics.py` `git_sha()` (review
@@ -97,9 +99,13 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
     `gen_unicode16_unassigned.py`; generator re-run, `unicode16.rs` byte-identical), `PLW1510`
     (`check=False` in `test_install.py` — callers inspect `returncode` at 20 sites), `EXE001`
     (`tools/cid.py` exec bit: `chmod +x` + `git update-index --chmod=+x` because
-    `core.fileMode=false` on the 9p bind mount). `uvx ruff@0.16.0 check .` now exits 0. Remaining
-    sub-slice E: `uv lock --upgrade-package ruff`, drop the `ruff<0.16` pin + its `# held:` comment,
-    re-run the full pre-push set with 0.16 as the project formatter/linter.
-- `uvx ruff@0.16.0 check .` runs 0.16 without touching the lock (cache warm since iter 130).
+    `core.fileMode=false` on the 9p bind mount). `uvx ruff@0.16.0 check .` now exits 0.
+- Sub-slice E (iter 137): pin + `# held:` comment dropped, `uv lock --upgrade-package ruff` →
+    0.16.0. Zero findings, zero reformats at the flip. Known behaviour change: `ruff format` now
+    also checks Python code blocks in Markdown — bare `ruff format --check` reports 153 files (was
+    25); mdformat prek hook still owns Markdown auto-fixing. NEVER blanket `--fix` — it deletes the
+    13 load-bearing `# noqa: S603/S607` directives.
+- `uvx ruff@X.Y.Z check .` runs any ruff version without touching the lock (useful for previewing
+    future majors).
 - zensical ≥0.0.51 warns (non-fatal) on broken anchors; the `docs/howto/c-cpp.md` anchor was fixed
     during iter-125 review.
