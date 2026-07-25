@@ -58,7 +58,9 @@ comment (`# held:` / `// held:` / XML `held:`) beside the pin, never by disablin
     `packages/kotlin/README.md`, `docs/howto/kotlin.md`) + junit/gson in
     `crates/iscc-jni/CLAUDE.md` → sync in the same step; `.claude/context/specs/kotlin-bindings.md`
     is human-owned → leave.
-6. **129 — Go module + `version_sync.py` TARGETS fix** (scoped this iteration).
+6. **129 — Go module + `version_sync.py` TARGETS fix.** Proven output-neutral across all 1.1M code
+    points; surfaced the pre-existing Rust-core Unicode divergence (`[review]`, human-gated).
+7. **130 — Ruby manifests** (`crates/iscc-rb/Gemfile` + `Gemfile.lock`; scoped this iteration).
 
 ## Slice 6 facts (Go)
 
@@ -75,22 +77,37 @@ comment (`# held:` / `// held:` / XML `held:`) beside the pin, never by disablin
     `packages/go/utils.go` uses `unicode/norm` NFKC inside `TextClean`, which feeds every
     `Gen*CodeV0`. The vendored `packages/go/testdata/data.json` vectors are the guard.
 
+## Slice 7 facts (Ruby)
+
+- **The devcontainer runs the Ruby gates end to end** (verified iter 130): ruby 3.1.2 (= CI's
+    `ruby-version: '3.1'`), bundler 2.6.9, `libclang-14`, warm `crates/iscc-rb/vendor/bundle` (51
+    MB, gitignored via `BUNDLE_PATH` in `crates/iscc-rb/.bundle/config`), prebuilt `iscc_rb.so`.
+    `standardrb` exits 0 and `rake test` gives 111 runs / 299 assertions in \<1 s. No `-C` flag
+    exists → use a subshell `(cd crates/iscc-rb && bundle …)`.
+- The gemspec is **`iscc-lib.gemspec`** (hyphen), not `iscc_lib.gemspec` as older notes said.
+- `bundle outdated --strict` is the good boolean freshness criterion (only versions the Gemfile
+    constraints actually allow); plain `bundle outdated` over-reports held majors.
+- **`rb_sys` must be pinned EXACTLY, not `~> 0.9`**: 0.9.123 bundles `rake-compiler-dock = 1.10.0`
+    whose `cross_rubies` map matches the `oxidize-rb/actions/cross-gem` `tag: 0.9.123` in
+    `release.yml`; 0.9.124+ ships a Ruby 4.0 build tool that breaks `RbSys::ExtensionTask` (see
+    commit `1e4a30e`). Change the Gemfile pin and the workflow `tag:` together or not at all.
+- **`minitest` 6.x requires Ruby >= 3.2** — blocked by the gem's `required_ruby_version >= 3.1.0` (a
+    consumer floor, human-only). Document as held; never "solve" it by raising the floor.
+
 ## Empty / near-empty slices (verified iter 129 — do not churn)
 
 - `crates/iscc-napi/package.json`: `@napi-rs/cli: ^3` already covers latest 3.7.4.
 - `packages/dotnet/*/*.csproj`: test refs float on `17.*` / `2.*` wildcards. Only majors remain
     (xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x).
 
-## Remaining after slice 6
+## Remaining after slice 7
 
-rb `Gemfile`/gemspec (+`Gemfile.lock`; all `~>` floats — rb_sys must match the
-`oxidize-rb/actions/cross-gem` Docker image tag), `release.yml` GHA refs (97 `uses:`;
-`upload-artifact@v4` ↔ `download-artifact@v4` move as a pair; nothing in it is exercised by a CID
-push → human-timed), ruff 0.16 adoption (**over the 3-file budget**: 104 errors over 5 non-test
-files — `_lowlevel.pyi` 72, `tools/cid.py` 12, `tools/metrics.py`, `scripts/test_install.py`,
-`iscc_lib/__init__.py` — plus `pyproject.toml` → slice it), the magnus 0.8 / jni 0.22 / uniffi 0.32
-migrations (each its own step with a source rewrite), and the Gradle wrapper 8.12.1 + JUnit 6.x
-majors.
+`release.yml` GHA refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` move as a pair;
+nothing in it is exercised by a CID push → human-timed), ruff 0.16 adoption (**over the 3-file
+budget**: 104 errors over 5 non-test files — `_lowlevel.pyi` 72, `tools/cid.py` 12,
+`tools/metrics.py`, `scripts/test_install.py`, `iscc_lib/__init__.py` — plus `pyproject.toml` →
+slice it), the magnus 0.8 / jni 0.22 / uniffi 0.32 migrations (each its own step with a source
+rewrite), and the Gradle wrapper 8.12.1 + JUnit 6.x majors.
 
 ## Handy version-lookup commands
 

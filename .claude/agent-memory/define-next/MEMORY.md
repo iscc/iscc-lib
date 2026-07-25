@@ -90,13 +90,17 @@ All autonomous v1.0.0-hardening gates landed and are enforcing/green (module vis
     (release-only infra → STATIC verification: pyyaml `safe_load` + grep). **Root lesson: the CRAP
     regression gate is CI-ONLY** (not in `mise run check`/pre-commit) — any step adding a
     branch/loop to a covered fn MUST refresh the baseline in the SAME step.
-- **iters 124–129 = the dependency-refresh slices** → full ledger, gotchas, hold-back reasons,
+- **iters 124–130 = the dependency-refresh slices** → full ledger, gotchas, hold-back reasons,
     remaining slices and version-lookup commands live in
     [dep-refresh ledger](dep-refresh-ledger.md). Read it before scoping any dep step. Headline rule:
     **never move a consumer floor (MSRV, `go` directive, `required_ruby_version`, a published
     binding's compiler) inside a refresh slice** — iter 128 did it by accident and raised the
     published Kotlin consumer floor to 2.3 (open `[review]` issue, HUMAN REVIEW REQUESTED, CID must
     not decide it).
+- **Two `normal` `[review]` issues are human-gated (do NOT decide)**: the Kotlin consumer floor
+    (iter 128) and the Rust-core Unicode-16/17 divergence from `iscc-core`/Go (iter 129 — the core
+    is the outlier; no vendored vector catches it). Both are policy calls; the loop is still not
+    idle because refresh slices + ruff 0.16 remain.
 - **Recurring**: the enforcing cargo-deny gate WILL periodically go red on fresh RustSec advisories
     vs dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore
     when a patched release exists.
