@@ -158,4 +158,6 @@ mise run format
 - Do NOT use `serde_json` for dict construction -- use `PyDict::new()` and `set_item()`
 - When adding a Tier 1 function: add to `lib.rs` (#[pyfunction] + register in module),
     `_lowlevel.pyi` (stub), `__init__.py` (wrapper + re-export + `__all__`), and tests
+- `_lowlevel.pyi` stub bodies are a docstring only — no trailing `...` placeholder (ruff
+    `PIE790`/`PYI048` flag a docstring plus `...` as two statements)
 - The `sliding_window` width < 2 check is in the Rust core; the PyO3 layer passes through the error

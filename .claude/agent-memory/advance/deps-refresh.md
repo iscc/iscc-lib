@@ -67,10 +67,17 @@ mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
     magnus/rb_sys (iter-126 review corrected this via `cargo tree -i`). No fixed release exists
     (iai-callgrind 0.16.1 is latest) — stays a warning, do not chase it in the Ruby slice.
 
-## Python hold-back
+## Python hold-back (ruff 0.16 adoption in slices)
 
-- `ruff<0.16` in root `pyproject.toml` (iter 125): ruff 0.16 expands default lint rules → 104 errors
-    (72 in `_lowlevel.pyi`: PIE790/PYI048; also RUF100/I001/RUF059); `--fix` clears 60. Adoption is
-    a dedicated step, then drop the pin.
+- `ruff<0.16` in root `pyproject.toml` (iter 125): ruff 0.16 expands default lint rules. Baseline
+    was 104 errors; slice A (iter 131) cleared 78 config-free ones: deleted the 36 lone `...` stub
+    bodies in `_lowlevel.pyi` (PIE790+PYI048 double-report the same line — docstring-only body is
+    valid) and `_`-prefixed 6 RUF059 unused unpackings in `tests/test_new_symbols.py`.
+- **26 findings remain**, each needing a decision: `RUF100` 15 (the `# noqa: S603/S607` in
+    `tools/cid.py`, `tools/metrics.py`, `scripts/test_install.py` — load-bearing for the pre-push
+    `ruff check --select S` gate; 0.16 calls them unused only because S isn't in default select — do
+    NOT auto-fix/delete), `I001` 8 + `RUF022` 1 (need isort src-root config decision; `__init__.py`
+    \+ tests + bench), `EXE001` 1, `PLW1510` 1. Pin drops only when tree is fully clean under 0.16.
+- `uvx ruff@0.16.0 check .` runs 0.16 without touching the lock (cache warm since iter 130).
 - zensical ≥0.0.51 warns (non-fatal) on broken anchors; the `docs/howto/c-cpp.md` anchor was fixed
     during iter-125 review.
