@@ -26,28 +26,24 @@ copies of the config, so grep patterns rot.
 - **Never run `ruff@0.16 check --fix .`** — it deletes the 14 load-bearing `# noqa: S603/S607`
     directives in `tools/` and `scripts/`. Every landed slice used an explicit `--select`.
 
-## The prek type-tag / gate-parity trap
+## The prek type-tag / gate-parity trap (both halves now CLOSED)
 
-prek's file-type tags do **not** match ruff's own recursive discovery. This has now bitten twice.
+prek's file-type tags do **not** match ruff's own recursive discovery. This bit twice; both holes
+are now closed, but the *trap* persists for any future hook.
 
-| Surface              | Command                              | Files seen              |
-| -------------------- | ------------------------------------ | ----------------------- |
-| CI (`ci.yml` L71)    | `uv run ruff format --check`         | 153                     |
-| prek hook, all files | `prek run ruff-format --all-files`   | 153 (a *different* 153) |
-| Tracked candidates   | `git ls-files '*.md' '*.py' '*.pyi'` | 154                     |
-
-154 = 129 `.md` + 24 `.py` + 1 `.pyi`. CI skips the tracked-but-gitignored `.claude/plans/*.md`; the
-hook includes it but excludes the `.pyi`. So local is **neither a subset nor a superset** of CI —
-the symmetric difference is exactly those two files.
-
-- **Markdown half CLOSED (iter 138):** `.pre-commit-config.yaml` L50 — `ruff-format` is
-    `types_or: [python, markdown]`. `ruff-check` L42 deliberately stays `types: [python]`: ruff 0.16
-    formats Python fences inside `.md` but never lints them.
-- **`.pyi` half STILL OPEN:** prek types `.pyi` as `pyi`, not `python`, so both hooks skip
-    `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (the workspace's only tracked `.pyi`, and
-    consumer-facing — the wheel ships `py.typed`). CI catches it; local hooks do not. Fix is two
-    tokens: `types_or: [python, pyi]` and `types_or: [python, pyi, markdown]`.
-- **Measure a hook's real surface by probing it**, never by `git ls-files` arithmetic:
+- **Markdown half CLOSED (iter 138), `.pyi` half CLOSED (iter 139).** At HEAD
+    `.pre-commit-config.yaml` has `ruff-check: types_or: [python, pyi]` and
+    `ruff-format: types_or: [python, pyi, markdown]`. prek types `.pyi` as `pyi`, **not** `python` —
+    that is why the stub `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (consumer-facing; the wheel
+    ships `py.typed`) was invisible to both hooks for months.
+- `ruff-check` deliberately does **not** list `markdown`: ruff 0.16 formats Python fences inside
+    `.md` but never lints them.
+- Local prek is now a strict **superset** of CI: it additionally sees the tracked-but-gitignored
+    `.claude/plans/*.md` that CI's recursive discovery skips. The inline comment above `ruff-format`
+    still says "covers the same surface as the CI step" — stale wording, harmless, fold into a
+    future edit of that file.
+- **Measure a hook's real surface by probing it**, never by `git ls-files` arithmetic (the iter-138
+    "strict superset (154 vs 153)" claim came from arithmetic and was wrong):
     `git add probe.ext && uv run prek run <hook> --files probe.ext`. The iter-138 handoff's "strict
     superset (154 vs 153)" claim came from the arithmetic route and was wrong.
 - prek reports `files were modified by this hook` only for **tracked** files. An untracked probe is
