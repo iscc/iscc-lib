@@ -1,208 +1,119 @@
 # Next Work Package
 
-## Step: Unicode 16.0.0 freeze rule — vendored unassigned-range table, generator script, and the pre-normalization filter
+## Step: ruff 0.16 slice B — enforce `S` + `C901` project-wide via `extend-select`, clear all RUF100
 
 ## Goal
 
-Implement the first of the three unmet Unicode criteria in `specs/rust-core.md`: strip code points
-unassigned in Unicode 16.0.0 from the input **before** any normalization or category lookup in
-`text_clean` / `text_collapse`, using a vendored range table produced by a checked-in generator
-script. This makes Rust-core text output invariant under future Unicode table upgrades and fixes one
-real, observable divergence today (`text_clean("a\u{A7F1}b")` currently returns `"aSb"` because
-`unicode-normalization` ships Unicode 17.0 tables; it must return `"ab"`).
+Move the Ruff security (`S`) and complexity (`C901`) rules from two pre-push-only hook invocations
+into the project's default lint selection, so CI (`uv run ruff check`) enforces them for the first
+time and the 15 load-bearing `# noqa: S603/S607` directives stop being reported as unused by ruff
+0.16. This is the "`# noqa` / security-gate cluster" sub-slice of the `normal` `[human]` issue
+"Dependency review and refresh across the project" (ledger slice **B**; state.md calls it "slice C"
+— same work, naming drift).
+
+Deliberately **not** the Unicode boundary-vector slice: an open `normal` `[review]` issue
+("Freeze-rule ordering diverges from iscc-core on sequences", HUMAN REVIEW REQUESTED) asks for the
+spec-wording ruling before boundary vectors are wired out, and the Rust core already has inline
+`#[test]`s for all three boundary code points — so the marginal value of a Rust-only fixture is low
+while the propagation it exists to feed is parked.
 
 ## Scope
 
-**File budget: 3 source files** (`scripts/gen_unicode16_unassigned.py`,
-`crates/iscc-lib/src/utils.rs`, and — only if needed, see Implementation Notes — `pyproject.toml`).
-`crates/iscc-lib/src/utils/unicode16.rs` is tool output from the checked-in generator and the two
-`*-baseline.json` files are gate baselines, so neither counts against the budget (same rule as
-`Cargo.lock`); tests and docs are excluded by protocol.
-
-- **Create**:
-    - `scripts/gen_unicode16_unassigned.py` — checked-in generator; emits the vendored table from
-        `unicodedata2==16.0.0`.
-    - `crates/iscc-lib/src/utils/unicode16.rs` — **generated** data module (`UNASSIGNED_RANGES`).
-- **Modify**:
-    - `crates/iscc-lib/src/utils.rs` — declare the submodule, add the lookup helper, apply the filter
-        in `text_clean` and `text_collapse`, update both doc comments, add tests.
-    - `.crap-baseline.json` — refresh (the CRAP `--fail-regression` gate is CI-only; a new
-        branch/function in covered code reddens CI otherwise).
-    - `.iai-baseline.json` — **only if** `mise run bench:iai:check` fails; see Implementation Notes.
-    - `crates/iscc-lib/CLAUDE.md` (docs, unbudgeted) — the "Text normalization order matters" pitfall
-        now starts with the freeze filter.
-    - `pyproject.toml` — **only if** `uv run ty check` reports `unresolved-import` for the generator
-        (see Implementation Notes).
-- **Reference**:
-    - `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
-        contract" (the four numbered requirements and the `Verified when` checkboxes).
-    - `.claude/context/issues.md` → "Declare and gate a Unicode data version (DECIDED)" — points 1–4
-        of the resolution.
-    - `crates/iscc-lib/src/utils.rs` (current `is_c_category` / `is_cmp_category` / `text_clean` /
-        `text_collapse`).
-    - `mise.toml` tasks `coverage`, `crap:baseline`, `bench:iai:check`, `bench:iai:baseline`.
-    - `.github/workflows/ci.yml` lines ~30–46 (the `--no-default-features` clippy/test jobs) and
-        ~389–397 (the exact CRAP gate command).
+- **Modify**: `pyproject.toml`, `tools/cid.py`, `tools/metrics.py` (3 non-test, non-doc files)
+- **Modify (docs, outside the file budget)**: `docs/development.md`
+- **Reference**: `.pre-commit-config.yaml` (the `security` / `complexity` pre-push hooks),
+    `.github/workflows/ci.yml` lines 48–71 (the Python job runs bare `uv run ruff check`),
+    `mise.toml` `[tasks.lint]`, `.claude/context/issues.md` (the dependency-refresh issue),
+    `.claude/context/specs/ci-cd.md` → "Local Development" / "Pre-commit Hooks (prek)"
 
 ## Not In Scope
 
-- **Boundary conformance vectors in the bindings** (spec criterion 3 / issue step (b)) — Python,
-    Node, WASM, FFI, JNI, Ruby, Go, C#, C++, Swift, Kotlin conformance suites and the five
-    `data.json` copies stay untouched this step.
-- **The full-code-space differential sweep** (spec criterion 4) — proving output-equivalence to
-    uniform Unicode 16.0.0 tables across all 1,112,032 code points is its own step with its own
-    harness. Do not build a sweep harness here; the targeted boundary tests below are the guard for
-    this step.
-- **The Go package's Unicode-15.0 tables** — the vendor-the-delta-vs-skip decision named in the
-    issue belongs to the binding step.
-- **Removing the `GeneralCategory::Unassigned` arms** from `is_c_category` / `is_cmp_category` —
-    they stay as a defence for table versions other than 16.0.
-- **Touching `unicode-normalization` / `unicode-general-category` pins** — the spec explicitly says
-    exact pins are not required once the freeze rule exists.
-- **Adding `unicodedata2` to the project's dependency groups** — it would need a permanent hold-back
-    in every future dependency refresh.
-- **Docs-site prose about the Unicode contract** (`docs/*.md`) — the existing examples are all ASCII
-    and stay valid; a docs pass can follow the binding step.
+- **Do not drop the `ruff<0.16` pin** from `[dependency-groups]` and do not run `uv lock` /
+    `uv lock --upgrade-package ruff`. 12 findings survive this slice; the pin and its `# held:`
+    comment stay until the tree is clean under 0.16.
+- **Do not fix the remaining 12 ruff-0.16 findings** — `I001` ×8 + `RUF022` (the isort `src`-root
+    decision, ledger slice C), `RUF007` in `scripts/gen_unicode16_unassigned.py`, `PLW1510` in
+    `scripts/test_install.py`, `EXE001` on `tools/cid.py`. Each needs its own decision and its own
+    step.
+- **Do not run `uvx ruff@0.16 check --fix .`** anywhere. It deletes the load-bearing
+    `# noqa: S603/S607` directives in `tools/` and `scripts/` and reds the pre-push security gate.
+- **Do not remove or relax the `security` / `complexity` pre-push hooks** in
+    `.pre-commit-config.yaml`. They now overlap with `ruff check`, and that redundancy is
+    intentional: they pass `--select` explicitly, so they keep working regardless of project config,
+    and they name the failing gate in the push output.
+- **Do not add `PLC0415`, `I`, or any other rule family** to the selection — those are separate
+    decisions with their own fallout (`PLC0415` alone adds 5 new findings in `tests/`).
+- **Do not touch any Unicode / freeze-rule work** (boundary vectors, differential sweep, Go tables)
+    — parked on a human ruling.
+- **Do not edit `.claude/context/issues.md`** — the review agent annotates slice progress there.
 
 ## Implementation Notes
 
-**Verified facts from scoping (do not re-derive):**
+**1. `pyproject.toml` — add the selection.** Insert a `[tool.ruff.lint]` table *above* the existing
+`[tool.ruff.lint.mccabe]` table (TOML permits a super-table after a sub-table, but taplo-friendly
+ordering avoids churn):
 
-- `unicodedata2==16.0.0` yields exactly **731** maximal `Cn` ranges covering **819,533** code
-    points; the first range is `U+0378..=U+0379`. These match the spec's numbers.
+```toml
+[tool.ruff.lint]
+# `S` (security) and `C901` (complexity) are project gates. Selecting them here — instead of
+# only in the two pre-push hooks — makes `uv run ruff check` (pre-commit, `mise run lint`, CI)
+# enforce them too, and keeps the load-bearing `# noqa: S603/S607` directives recognised.
+extend-select = ["S", "C901"]
+```
 
-- Current behaviour of the four boundary code points (measured against the installed binding):
+Use `extend-select`, **never** `select`: `select` *replaces* ruff's default (`E4`, `E7`, `E9`, `F`)
+and would silently drop pyflakes coverage. `[tool.ruff.lint.mccabe] max-complexity = 15` and the
+existing `[tool.ruff.lint.per-file-ignores]` for `tests/**` (`S101`, `S603`, `S607`) stay exactly as
+they are — they are what keeps the test suite green under the new selection.
 
-    | Code point                     | `text_clean("a?b")` today | expected after this step |
-    | ------------------------------ | ------------------------- | ------------------------ |
-    | `U+A7F1` (Cn in 16, Lm in 17)  | `"aSb"` ← the bug         | `"ab"`                   |
-    | `U+1FAE9` (So, new in 16)      | retained                  | retained (unchanged)     |
-    | `U+113C5` (Mc, new in 16)      | retained                  | retained (unchanged)     |
-    | `U+20C1` (Cn in 16, new in 17) | `"ab"`                    | `"ab"` (unchanged)       |
+**2. `tools/metrics.py` — delete one now-genuinely-unused directive.** In `git_sha()` (~line 174),
+change `out = subprocess.run(  # noqa: S603` to `out = subprocess.run(`. Keep the explanatory
+comment line above it and keep the `# noqa: S607` on the argv line below. Rationale: ruff 0.16
+refined `S603` so it no longer fires when the command is a static list literal
+(`["git", "rev-parse", …]`) — this was verified with `--select S` under **both** 0.15.22 and 0.16.0
+with the directive removed, both "All checks passed". Every other `# noqa: S603` in `tools/` and
+`scripts/` sits on a *dynamic* argv (`list(argv)`, a `cmd` parameter) and **must be kept**.
 
-    `U+A7F1` is the single 16→17 normalization-drift code point and is the only observable behaviour
-    change in this step — NFKC under 17.0 tables maps it to `S` before the category filter can drop
-    it. Filtering before normalization is what fixes it.
+**3. `tools/cid.py` — delete the stale `PLC0415` directive.** In the Windows branch (~line 980),
+change `import msvcrt  # noqa: PLC0415` to `import msvcrt`. `PLC0415` is not in ruff's default
+select and this step does not add it, so the directive is dead weight that ruff 0.16 reports as
+`RUF100`. Leave the surrounding docstring/comment explaining the platform-conditional import
+untouched.
 
-- `rustfmt` keeps a long array literal one element per line, so a generated
-    `[(0x0378, 0x0379),\n    ...]` block with 4-space indent and trailing commas is format-stable
-    (checked with `rustfmt --edition 2024`).
+**4. `docs/development.md` — keep the gate description accurate.** In "Pre-commit (fast, auto-fix on
+every commit)" (~line 137) note that `ruff check --fix` now covers the security (`S`) and complexity
+(`C901`) rules via `extend-select` in `pyproject.toml`, and in the "Pre-push" list note that the two
+Ruff entries are a focused re-run of the same rules. Two short edits — do not restructure the
+section.
 
-**Generator script** (`scripts/gen_unicode16_unassigned.py`):
+**Expected end state, measured while scoping** (with the three edits applied):
 
-- Use PEP 723 inline script metadata pinning `unicodedata2==16.0.0`, run it as
-    `uv run --script scripts/gen_unicode16_unassigned.py`. This keeps `pyproject.toml` / `uv.lock`
-    free of a generator-only dependency. (Network is available; the uv cache for this package is
-    already warm.)
-- Iterate `range(0x110000)`, treat `unicodedata2.category(chr(cp)) == "Cn"` as unassigned, merge
-    into maximal inclusive ranges, and write `crates/iscc-lib/src/utils/unicode16.rs`.
-- Have the script assert its own invariants before writing (731 ranges / 819,533 code points /
-    sorted / non-adjacent) so a future `unicodedata2` mistake fails loudly.
-- The emitted file must be **data only** — a module doc comment saying it is generated and must not
-    be hand-edited, the declared Unicode version, and
-    `pub(crate) const UNASSIGNED_RANGES: [(u32, u32); 731] = [...];`. Keep the lookup logic in
-    `utils.rs` so regeneration can never clobber hand-written code.
-- If `uv run ty check` then reports `unresolved-import` for `unicodedata2`, append the script path
-    to the existing `[tool.ty.src] exclude` list in `pyproject.toml` with a comment mirroring the
-    `packages/cpp/conanfile.py` precedent ("generator-only dependency, not a project dependency").
-    Do **not** silence it with an inline ignore and do **not** add the package to
-    `[dependency-groups]`.
-
-**Core change** (`crates/iscc-lib/src/utils.rs`):
-
-- `#[cfg(feature = "text-processing")] mod unicode16;` (the file lives at `src/utils/unicode16.rs`;
-    a `utils.rs` + `utils/` pair is valid in edition 2018+). CI runs
-    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` and
-    `cargo test -p iscc-lib --no-default-features`, so the module, the helper, and its tests must
-    all be feature-gated or the build breaks on dead code.
-
-- Helper, also feature-gated:
-
-    ```rust
-    fn is_unassigned_in_unicode16(c: char) -> bool {
-        let cp = c as u32;
-        if cp < unicode16::UNASSIGNED_RANGES[0].0 {
-            return false; // fast path: everything below the first gap is assigned
-        }
-        unicode16::UNASSIGNED_RANGES
-            .binary_search_by(|&(lo, hi)| { /* Greater if cp < lo, Less if cp > hi, else Equal */ })
-            .is_ok()
-    }
-    ```
-
-- Fuse the filter into the existing iterator chains — do **not** allocate an extra intermediate
-    `String`:
-
-    - `text_clean`:
-        `let text: String = text.chars().filter(|&c| !is_unassigned_in_unicode16(c)).nfkc().collect();`
-    - `text_collapse`:
-        `text.chars().filter(|&c| !is_unassigned_in_unicode16(c)).nfd().collect::<String>().to_lowercase()`
-    - `UnicodeNormalization` is implemented for any `Iterator<Item = char>`, so this compiles as-is.
-    - Leave every later step (newline handling, empty-line collapsing, C/M/P filtering, final NFKC)
-        exactly as it is.
-
-- Update both public doc comments to state that code points unassigned in Unicode **16.0.0** are
-    removed before normalization, and why (declared data version / output invariance).
-
-**Tests to add** (in the existing `mod tests` in `utils.rs`, all
-`#[cfg(feature = "text-processing")]`):
-
-1. The four boundary assertions from the table above for `text_clean`, plus
-    `text_collapse("a\u{113C5}b") == "ab"` (Mc mark dropped by the C/M/P filter) and
-    `text_collapse("a\u{1FAE9}b") == "a\u{1FAE9}b"`.
-2. Helper unit test: `is_unassigned_in_unicode16` is `true` for `U+0378`, `U+A7F1`, `U+20C1` and
-    `false` for `'a'`, `U+A7CB`, `U+1FAE9`, `U+113C5` (check any additional code point against the
-    generated table rather than assuming).
-3. Table invariant test: length is 731, ranges are strictly ascending, non-overlapping and
-    non-adjacent (`prev.1 + 1 < next.0`), each `lo <= hi`, and the covered total is 819,533.
-4. A regression test that existing behaviour is untouched for ASCII (`text_clean` and
-    `text_collapse` on a plain sentence) — cheap insurance that the filter did not reorder
-    anything.
-
-**Gate handling (do this in the same commit, not after CI tells you):**
-
-- CRAP: `mise run coverage`, then
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`. If
-    it fails, refresh with `mise run crap:baseline` and sanity-check the JSON diff — only
-    `text_clean` / `text_collapse` / the new helper should move materially. A brand-new function
-    above 30.0 means the helper is too complex; simplify instead of raising the threshold.
-- Perf: run `mise run bench:iai:check` (needs valgrind; already installed). The filter is one
-    integer compare per ASCII char, so `bench_meta_code.*` / `bench_text_code.chars_1000` should
-    stay well inside the 10% Ir budget. Only if the check fails: refresh with
-    `mise run bench:iai:baseline` and state the measured per-bench delta and why it is justified in
-    the commit message. Never widen `tolerance_pct`.
+- `uvx ruff@0.15.22 check .` → `All checks passed!` (this is the pinned version in the venv)
+- `uvx ruff@0.16.0 check .` → **exactly 12 errors**, down from 27, with **zero** `RUF100`
+- `--select S` and `--select C901` (the pre-push gates) both exit 0
+- `ruff format --check` unchanged: `25 files already formatted`
 
 ## Verification
 
-- `cargo test -p iscc-lib` passes — 320 existing tests plus at least 4 new ones, 0 failures.
-- `cargo test -p iscc-lib --no-default-features` passes and
-    `cargo test -p iscc-lib --no-default-features --features text-processing` passes (mirrors the CI
-    feature matrix).
-- `cargo test --workspace` passes (all binding crates still green — the vendored `data.json` vectors
-    must be unaffected).
-- `cargo clippy --workspace --all-targets -- -D warnings` is clean, and
-    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` is clean.
-- `cargo fmt --check` is clean (in particular for the generated `utils/unicode16.rs`).
-- Behaviour assertions, as `#[test]`s in `crates/iscc-lib/src/utils.rs`:
-    - `text_clean("a\u{A7F1}b") == "ab"`
-    - `text_clean("a\u{20C1}b") == "ab"`
-    - `text_clean("a\u{1FAE9}b") == "a\u{1FAE9}b"`
-    - `text_clean("a\u{113C5}b") == "a\u{113C5}b"`
-    - `text_collapse("a\u{113C5}b") == "ab"`
-- Table assertions, as `#[test]`s: `UNASSIGNED_RANGES.len() == 731`; ranges sorted, non-overlapping
-    and non-adjacent; covered code points sum to `819_533`.
-- Regeneration is deterministic: `uv run --script scripts/gen_unicode16_unassigned.py` followed by
-    `git status --porcelain crates/iscc-lib/src/utils/unicode16.rs` prints nothing.
-- `grep -c 'pub(crate) const UNASSIGNED_RANGES' crates/iscc-lib/src/utils/unicode16.rs` → 1, and the
-    file contains a "generated by `scripts/gen_unicode16_unassigned.py`" header line.
-- `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above` exits
-    0 after `mise run coverage` (reproduces the enforcing CI gate against the working tree).
-- `mise run bench:iai:check` exits 0.
-- `mise run check` — all hooks pass with nothing rewritten (covers `ty check`, ruff, `cargo fmt`,
-    clippy, tests).
+- `uv run ruff check` exits 0 (now includes `S` + `C901`)
+- `uv run ruff format --check` exits 0
+- `uv run ruff check --select S --force-exclude` exits 0 (pre-push security gate unchanged)
+- `uv run ruff check --select C901 --force-exclude` exits 0 (pre-push complexity gate unchanged)
+- `uvx ruff@0.16.0 check . --output-format concise` prints `Found 12 errors.`
+- `uvx ruff@0.16.0 check . --output-format concise | grep -c RUF100` prints `0`
+- `uv run python -c "import tomllib,pathlib; c=tomllib.loads(pathlib.Path('pyproject.toml').read_text())['tool']['ruff']['lint']; assert {'S','C901'} <= set(c['extend-select']); assert 'select' not in c"`
+    exits 0
+- `grep -q 'ruff<0.16' pyproject.toml` exits 0 (the hold-back pin is retained by this step)
+- `grep -c 'noqa: S603' tools/cid.py` prints `6` and `grep -c 'noqa: S607' tools/cid.py` prints `4`
+    (the load-bearing directives survive)
+- `uv run python -m compileall -q tools/cid.py tools/metrics.py` exits 0
+- `mise run cid:status` exits 0 (`tools/cid.py` still runs after the edit)
+- `uv run pytest -q` passes
+- `mise run check` — all hooks pass with nothing rewritten
+- `grep -q 'C901' docs/development.md` exits 0 and the pre-commit bullet mentions `S` / `C901`
 
 ## Done When
 
-`text_clean` and `text_collapse` strip Unicode-16.0.0-unassigned code points before any
-normalization or category lookup using the vendored, regenerable range table, and every verification
-command above passes on the working tree with both quality-gate baselines consistent.
+`S` and `C901` are enforced by the project's default ruff selection (and therefore by CI), all
+`RUF100` findings under ruff 0.16 are gone with every load-bearing `# noqa` intact, and all
+verification commands above pass on the working tree.

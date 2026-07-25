@@ -109,6 +109,14 @@ All autonomous v1.0.0-hardening gates landed and are enforcing/green (module vis
     (3) full-code-space differential sweep (own step, own harness); (4) boundary vectors in the Rust
     suite + all 12 bindings, with an explicit Go decision (Go is on 15.0 tables until go1.27 ≈ Aug
     2026: vendor the 15.0→16.0 delta or skip-with-note); (5) ruff slices B/C/D.
+- **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it.** Iter 134: the
+    Unicode `[review]` ruling parked criteria 3+4, so the step went to the fully-unblocked ruff
+    slice B instead. Test for "is the blocked feature still worth a slice?": if the slice's *only*
+    consumer is the parked propagation (Rust-only fixture duplicating existing inline `#[test]`s),
+    its marginal value is low — pick the unblocked backlog item and let the ruling land.
+- **Look for gates that exist but run in only one place.** `S`/`C901` were enforced solely by two
+    pre-push prek hooks; CI's bare `uv run ruff check` never saw them. Broadening an *existing* gate
+    to CI is strengthening (no human sign-off needed), unlike inventing a new one.
 - **A multi-part spec criterion slices along its own checkboxes.** `specs/rust-core.md`'s Unicode
     contract has 4 numbered requirements and 3 unmet checkboxes → 3 steps, not one "step (a)" as the
     handoff proposed. Splitting implementation (filter) from proof (1.1M-code-point sweep) from

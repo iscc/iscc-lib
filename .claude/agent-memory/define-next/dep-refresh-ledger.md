@@ -110,12 +110,15 @@ budget → sliced by *decision content*, not by file count:
     docstring + a lone `...`; delete the 36 `...` lines → both rules clear, `ruff format` stays a
     no-op, `ty` passes — prototyped) + `tests/test_new_symbols.py` 6 RUF059 (`_`-prefix 4 unpacked
     tuples; fix is "unsafe" only because it renames).
-- **B — the `# noqa` / security-gate cluster** (15 RUF100 + EXE001 + PLW1510 in `tools/cid.py`,
-    `tools/metrics.py`, `scripts/test_install.py`). **TRAP: a blanket `ruff@0.16 check --fix .`
-    deletes the `# noqa: S603/S607` directives** — 0.16 calls them RUF100 "unused (non-enabled: S)"
-    because `S` isn't in the default select, but the **pre-push `ruff check --select S` hook needs
-    them**. Removing them reddens the security gate. Real options: add `S` to `lint.select`
-    (strengthening, no new failures — the S scan is already green) or `lint.external`. Never plain
+- **B (scoped iter 134) — the `# noqa` / security-gate cluster.** Resolution measured with
+    `--config` overrides: `[tool.ruff.lint] extend-select = ["S", "C901"]` (**`extend-select`, not
+    `select` — `select` replaces the E4/E7/E9/F default**) + delete exactly two dead directives
+    (`tools/metrics.py` `# noqa: S603` on the static-list `git rev-parse` call — 0.16 refined S603
+    to skip literal argv, verified unused at 0.15.22 *and* 0.16.0; `tools/cid.py`
+    `# noqa: PLC0415`). 27 → 12 findings, 0 RUF100, 0.15.22 stays "All checks passed". **Real value:
+    `S`/`C901` were pre-push-hook-only — CI's `uv run ruff check` never ran them.** `PLC0415` must
+    NOT be selected (adds 5 `tests/` findings). **TRAP: a blanket `ruff@0.16 check --fix .` deletes
+    the load-bearing `# noqa: S603/S607`** and reddens the pre-push `--select S` gate. Never plain
     `--fix`.
 - **C — isort config + pin retirement.** 8 I001 + 1 RUF022. Needs TWO fidelity settings in
     `pyproject.toml`, both verified with `--config` overrides at iter 131:
