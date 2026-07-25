@@ -76,6 +76,32 @@ Notes that make the bump defensible without a release run:
 5. `uv run prek run yamlfix --files <file>` → Passed with no `files were modified by this hook`
     (works because the file is tracked).
 
+## Making the checks executable (scoped iter 142)
+
+Checks 1–2 were scoped into `scripts/check_release_workflow.py` + a scoped prek hook
+(`files: ^\.github/workflows/release\.yml$`, `pass_filenames: false`) + a pytest test that runs the
+checker against the real workflow. Check 3 (action-input compatibility) stays out — it needs network
+and belongs in a CI-only follow-up.
+
+Facts that shaped the design:
+
+- **CI does not run prek** (`ci.yml` calls `ruff`/`pytest`/`cargo` directly), so a prek-only hook is
+    single-place enforcement. The cheap CI carrier is a **pytest test that runs the checker on the
+    tracked file** — no `ci.yml` edit needed.
+- **PyYAML parses the top-level `on:` key as boolean `True`** (YAML 1.1). Read the trigger block as
+    `wf.get("on", wf.get(True))` or the registry-flag list comes back empty and every check passes
+    vacuously.
+- Registry flags are derivable: `on.workflow_dispatch.inputs` keys minus `version`. Derive
+    structurally — do **not** freeze the token histogram into the script (it drifts with any
+    legitimate job addition).
+- `pyyaml` 6.0.3 is only a *transitive* dev dep (yamlfix/zensical). An in-process pytest import
+    needs it declared in `[dependency-groups] dev`; PEP 723 does not help here (would need network
+    in CI).
+- Artifact matching that resolves all 20 downloads at HEAD: expand `${{ matrix.<k> }}` from the
+    job's `strategy.matrix.include` when present (only `test-wheels` needs it), else `${{ … }}` →
+    `*`; then upload name → regex (`*` → `.*`) and `re.fullmatch` the download ref with its own `*`
+    stripped.
+
 ## Related
 
 - GHA `uses:` refresh facts and the "floating `@vN` is a convention, not a guarantee" rule live in

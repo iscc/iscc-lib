@@ -100,6 +100,9 @@ iterations.
 - **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it** (iters 134–139: the
     Unicode ruling parked 2 criteria, so steps went to ruff slices, then hook parity, then
     release.yml). If a blocked slice's only consumer is the parked propagation, take other backlog.
+- **CI runs no prek** — it calls `ruff`/`pytest`/`cargo` directly. A new local hook is therefore
+    single-place enforcement unless a pytest test carries it into CI (iter 142 pattern: the checker
+    script is exercised both by a scoped prek hook and by a test that runs it on the tracked file).
 - **Look for gates that exist but run in only one place** (`S`/`C901` were pre-push-hook-only, CI
     never saw them). Broadening an *existing* gate to CI needs no human sign-off; inventing one
     does.
