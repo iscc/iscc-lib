@@ -128,9 +128,10 @@ fully-met target sections to `learnings-archive.md`.
     empty), NOT a `deny.toml` ignore — ignore ONLY when no patched release exists
 - **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue). Done: slice 1 Rust
     `cargo update` (iter 124), slice 2 Python `uv lock --upgrade` (iter 125, documented `ruff<0.16`
-    hold-back), slice 3 Rust direct pins (iter 126, criterion 0.5→0.7). Verify each Rust slice with
-    the 4-gate set (`test`/`lint`/`audit`/`bench:iai:check`); `cargo-deny` is the main risk (new
-    transitive license/advisory). **Hold-back reasons are now inline `# held:` comments in the root
+    hold-back), slice 3 Rust direct pins (iter 126, criterion 0.5→0.7), slice 4 GitHub Actions in
+    `ci.yml` + `docs.yml` (iter 127). Verify each Rust slice with the 4-gate set
+    (`test`/`lint`/`audit`/`bench:iai:check`); `cargo-deny` is the main risk (new transitive
+    license/advisory). **Hold-back reasons are now inline `# held:` comments in the root
     `Cargo.toml`** beside criterion/jni/magnus/uniffi — read them before proposing a bump.
     `cargo info <crate>@<ver>` prints `rust-version`: the cheapest MSRV pre-check (criterion 0.8
     needs 1.86 > our declared 1.85). GOTCHA: grep the actual pin syntax — `uniffi = "0.31"` is a
@@ -142,6 +143,18 @@ fully-met target sections to `learnings-archive.md`.
     `--target all`. The `proc-macro-error2 v2.0.1` future-incompat warning emitted on every
     `cargo test`/`cargo bench` traces to `iai-callgrind-macros` (dev-only), **not** magnus/rb-sys;
     no fixed release exists (iai-callgrind 0.16.1 is latest), so it stays a warning for now
+- **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** —
+    `gh api repos/<o>/<r>/releases/latest` proves a release exists, not that `@vN` resolves. Always
+    confirm with `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN`.
+    `astral-sh/setup-uv` stopped publishing floating majors after `v7` (v8.x/v9.0.0 are exact tags
+    only) → pin `@v9.0.0` with a `# exact tag:` comment; it recurs in `release.yml`. Current majors
+    as of 2026-07-24 are recorded in `.claude/agent-memory/advance/deps-refresh.md`
+    (`upload-pages-artifact` + `deploy-pages` must move as a pair)
+- **ci.yml sets `cancel-in-progress: true` per ref** — pushing a follow-up develop commit cancels
+    the in-flight run of the previous sha (its check-runs conclude `cancelled`, not `failure`). When
+    a step's Done-When needs a green CI on a specific sha, let that run conclude before pushing
+    again. Each develop commit also triggers TWO runs (push + `pull_request` from the open
+    develop→main PR), so check-run totals are ~2× the job count
 
 ## Branching
 
@@ -152,30 +165,16 @@ fully-met target sections to `learnings-archive.md`.
 
 ## Feature Flags
 
-- `iscc-lib` features: `default = ["meta-code"]`, `text-processing` (unicode deps), `meta-code`
-    (implies text-processing + JCS canonicalizer). Three deps are optional
-- When gating `pub(crate)` functions behind features, their tests must also be gated — clippy
-    `-D warnings` catches dead code in library builds even if test modules reference them
-- Gate individual test functions with `#[cfg(feature = "...")]`, not the whole `mod tests` block,
-    when the block contains both gated and ungated tests
-- `serde_json` stays non-optional because `conformance.rs` uses it for parsing data.json vectors
-- **`--no-default-features --all-targets` fails on the `benchmarks` bench** (pre-existing): benches
-    import `gen_meta_code_v0`/`gen_text_code_v0` needing `meta-code`/`text-processing`. Lib + tests
-    build fine. Scope clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`)
-    to avoid a false regression. CI never runs this combo
-- **blake3 WASM SIMD backend — RESOLVED (#42)**: activated by the `blake3/wasm32_simd` Cargo feature
-    (not `-C target-feature=+simd128`); `v128`-opcode counting alone is a FALSE-POSITIVE. Full
-    recipe → `learnings-archive.md`
-
-## State Verification
-
-- **Never trust state.md claims about external state** (registry publications, CI status, infra) —
-    frequently stale. Verify each independently against the source (`cargo search`, `npm view`,
-    Maven Central API, `pip index versions`, Go module proxy); don't batch-assume "all works"/"not
-    published"
+- **Section fully met — archived iter 127 → `learnings-archive.md`** (`default = ["meta-code"]`
+    layering, per-test `#[cfg(feature)]` gating vs whole `mod tests`, the
+    `--no-default-features --all-targets` bench false-regression, blake3 WASM SIMD #42). Read it
+    before touching `[features]` in `crates/iscc-lib/Cargo.toml`
 
 ## CID Process
 
+- **Never trust state.md/handoff claims about external state** (registry publications, CI status,
+    upstream tags) — frequently stale. Verify independently against the source (`cargo search`,
+    `npm view`, Maven Central API, `pip index versions`, Go module proxy, `gh api`)
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
 - **Detect concurrent CID loops** (iter 97): context files changing in the working tree mid-review,

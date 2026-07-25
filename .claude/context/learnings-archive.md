@@ -617,3 +617,20 @@ reference-only for humans.
     against data.json should say "9"; general library descriptions should say "10". Avoid blanket
     "9→10" find-and-replace — it corrupts conformance-scoped files. iscc-core-ts also implements
     only 9 (no gen_sum_code_v0) — verify external projects' function tables before claiming "all 10"
+
+## Feature Flags (archived iter 127 — section fully met, features stable since #42)
+
+- `iscc-lib` features: `default = ["meta-code"]`, `text-processing` (unicode deps), `meta-code`
+    (implies text-processing + JCS canonicalizer). Three deps are optional
+- When gating `pub(crate)` functions behind features, their tests must also be gated — clippy
+    `-D warnings` catches dead code in library builds even if test modules reference them
+- Gate individual test functions with `#[cfg(feature = "...")]`, not the whole `mod tests` block,
+    when the block contains both gated and ungated tests
+- `serde_json` stays non-optional because `conformance.rs` uses it for parsing data.json vectors
+- **`--no-default-features --all-targets` fails on the `benchmarks` bench** (pre-existing): benches
+    import `gen_meta_code_v0`/`gen_text_code_v0` needing `meta-code`/`text-processing`. Lib + tests
+    build fine. Scope clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`)
+    to avoid a false regression. CI never runs this combo
+- **blake3 WASM SIMD backend — RESOLVED (#42)**: activated by the `blake3/wasm32_simd` Cargo feature
+    (not `-C target-feature=+simd128`); `v128`-opcode counting alone is a FALSE-POSITIVE. Full
+    recipe under "Feature Flags — blake3 WASM SIMD backend" above

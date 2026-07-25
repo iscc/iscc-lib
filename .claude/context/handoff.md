@@ -1,75 +1,101 @@
 # Handoff
 
-## 2026-07-24 — Dependency refresh slice 4 — GitHub Actions versions in ci.yml + docs.yml
+## 2026-07-25 — Review of: Dependency refresh slice 4 — GitHub Actions versions in ci.yml + docs.yml
 
-**Done:** Bumped all 9 stale GitHub Actions refs in `.github/workflows/ci.yml` (29 `uses:` lines
-changed) and all 5 in `.github/workflows/docs.yml` to their current majors per the next.md table,
-with one deviation forced by upstream: `astral-sh/setup-uv` is pinned to the exact tag `@v9.0.0`
-because the floating major tag `@v9` **does not exist** — upstream stopped publishing floating major
-tags after `v7` (verified: `git/matching-refs/tags/v` lists only v1–v7; v8.x/v9.0.0 are exact
-release tags; setup-uv's own README pins exact refs). The first pushed attempt (`ebac57f`, with
-`@v9`) failed CI on exactly this: `Unable to resolve action astral-sh/setup-uv@v9`. A follow-up
-commit switched both files to `@v9.0.0` with an explanatory YAML comment. No steps, jobs, inputs, or
-runtime versions were added, removed, or changed.
+**Verdict:** PASS
 
-**Files changed:**
-
-- `.github/workflows/ci.yml`: `actions/checkout@v4→v7` (18), `actions/setup-python@v5→v7` (2),
-    `astral-sh/setup-uv@v4→v9.0.0` (1, + 2-line comment why exact tag), `actions/setup-node@v4→v7`
-    (1), `actions/setup-java@v4→v5` (2), `actions/setup-go@v5→v7` (1), `actions/setup-dotnet@v4→v6`
-    (1), `actions/upload-artifact@v4→v7` (2), `github/codeql-action/upload-sarif@v3→v4` (1)
-- `.github/workflows/docs.yml`: `actions/checkout@v4→v7`, `actions/setup-python@v5→v7`,
-    `astral-sh/setup-uv@v4→v9.0.0` (+ same comment), `actions/upload-pages-artifact@v3→v5`,
-    `actions/deploy-pages@v4→v5` (paired bump per next.md)
+**Summary:** Slice 4 landed exactly as scoped: 9 distinct action refs bumped to their current majors
+across `ci.yml` (29 `uses:` lines) and `docs.yml` (5), with zero changes to jobs, steps, inputs,
+permissions, or runtime versions — the diff contains **only** `uses:` lines plus two 2-line
+explanatory comments. The one deviation from next.md (`astral-sh/setup-uv@v9` → `@v9.0.0`) is forced
+by upstream and I verified it independently; CI is 41/41 green on the fix commit.
 
 **Verification:**
 
-- [x] YAML parses: `uv run python -c "import yaml; ..."` → exit 0 for both files (system `python3`
-    lacks PyYAML; the venv one works)
-- [x] Stale-ref grep from next.md → no output, exit 1 (`@v9.0.0` is not matched by
-    `setup-uv@v[1-8]`, so the assertion holds as written)
+- [x] YAML parses — `uv run python -c "import yaml; ..."` exit 0 for both files (system `python3`
+    genuinely lacks PyYAML; the venv one works — the next.md command as written would fail)
+- [x] No stale refs — the next.md grep prints nothing, exit 1
 - [x] `grep -c 'actions/checkout@v7'` → ci.yml **18**, docs.yml **1**
-- [x] `grep -c 'uses:'` → ci.yml **67**, docs.yml **5** (step counts unchanged; the setup-uv comment
-    adds no `uses:` line)
-- [x] `release.yml` untouched and internally consistent: checkout@v4 **23**, upload-artifact@v4
+- [x] Step count unchanged — `grep -c 'uses:'` → ci.yml **67**, docs.yml **5**
+- [x] `release.yml` untouched and internally consistent — checkout@v4 **23**, upload-artifact@v4
     **11**, download-artifact@v4 **20**
-- [x] `.pre-commit-config.yaml` untouched: `rev: v6.0.0` **1**, `rev: 1.0.0` **1**
-- [x] `mise run format` + `mise run check` exit 0 — all 15 pre-commit hooks pass, no file left
-    rewritten
-- [x] **CI evidence from first push (`ebac57f`):** 41 check-runs across two runs (push +
-    `pull_request` from the open develop→main PR). The ONLY failures were the 6 Python entries, all
-    rooted in `Unable to resolve action astral-sh/setup-uv@v9` at job setup (matrix sibling +
-    aggregate gate cascades). Every other bumped action — checkout@v7, setup-python@v7,
-    setup-node@v7, setup-java@v5, setup-go@v7, setup-dotnet@v6, upload-artifact@v7, upload-sarif@v4
-    — resolved and its job passed, including the enforcing perf/coverage/audit gates.
-- [x] **CI fully green on the fix commit `8f76d48`:**
-    `gh api "repos/iscc/iscc-lib/commits/8f76d48.../check-runs?per_page=100" --jq '[.check_runs[]|select(.conclusion!="success")]|length'`
-    → **0**, with 41/41 check-runs completed across both the push run and the PR run, and all 20
-    CI jobs present (Version consistency, Rust, Python 3.10/3.14 + aggregate, Node.js, WASM, C FFI,
-    C#/.NET, Java, Go, Ruby, C++, Swift, Kotlin, Bench, **Perf (iai-callgrind)**, **Coverage +
-    CRAP**, **Audit (cargo-deny)**, Semver) plus the `cargo-crap` code-scanning check-run.
+- [x] `.pre-commit-config.yaml` untouched — `rev: v6.0.0` **1**, `rev: 1.0.0` **1**
+- [x] `mise run check` exit 0 — all 15 hooks pass, no file left rewritten (`git status --porcelain`
+    shows only runner-owned `iterations.jsonl`)
+- [x] CI green on the pushed develop sha —
+    `gh api "repos/iscc/iscc-lib/commits/8f76d48/check-runs?per_page=100"` → **41 check-runs, 0
+    non-success**, including the enforcing `Perf (iai-callgrind)`, `Coverage + CRAP`, and
+    `Audit (cargo-deny)` gates
 
-**Next:** Dependency refresh slice 5 = `release.yml` (97 `uses:` refs; `upload-artifact@v4` ↔
-`download-artifact@v4` must move together and can only be truly validated by a release run —
-consider whether that slice should wait for the next human-triggered release). Note for that slice:
-`astral-sh/setup-uv` appears in release.yml too and must use `@v9.0.0` (exact tag), not `@v9`. After
-that: per-ecosystem manifests (jni `pom.xml` + kotlin `build.gradle.kts`; dotnet `.csproj`; go
-`go.mod`; rb `Gemfile`/gemspec) and the three flagged migrations (ruff 0.16, magnus 0.8, jni 0.22).
+**Independent checks I ran beyond next.md:**
+
+- **`setup-uv` floating-tag claim confirmed** — `git/matching-refs/tags/v` returns v1–v7 floating
+    majors, then only exact `v8.0.0…v8.3.2, v9.0.0`. `@v9` genuinely does not exist; `@v9.0.0` is
+    the current latest release. The advance agent's deviation is correct, not a workaround.
+- **Every bumped ref is the true current major** — checkout v7.0.1, setup-python v7.0.0, setup-node
+    v7.0.0, setup-java v5.6.0, setup-go v7.0.0, setup-dotnet v6.0.0, upload-artifact v7.0.1,
+    upload-pages-artifact v5.0.0, deploy-pages v5.0.0, codeql-action `v4` (floating tag exists).
+- **Nothing was left behind** — the full `uses:` inventory of both files (16 distinct refs) is now
+    on its latest major line, including the five deliberately-untouched ones
+    (`rust-toolchain@stable`, `rust-cache@v2`, `install-action@v2`, `setup-ruby@v1`,
+    `cargo-semver-checks-action@v2`, all re-confirmed current today).
+- **Gate integrity** — scanned the whole advance range `c8e18a0..HEAD` for suppressions, skips,
+    threshold reductions, hook weakening, and scope exclusions: none. `continue-on-error: true` on
+    the `semver` job is pre-existing and untouched.
+- **Scope** — 2 non-test, non-doc files, inside the 3-file cap. Every `## Not In Scope` item
+    (release.yml, `.pre-commit-config.yaml`, SHA pinning, dependabot/renovate, new jobs/steps/
+    permissions, runtime versions) verified untouched.
+
+**Issues found:**
+
+- (none blocking) — one process note: the advance agent pushed `ebac57f` with the unresolvable
+    `@v9`, reddening CI on develop (and on the open develop→main PR) before `8f76d48` fixed it. The
+    root cause was next.md's recommendation, which trusted `releases/latest` as proof that a
+    floating `@vN` tag exists. Captured in learnings.md so define-next verifies with
+    `git/matching-refs/tags/v<N>` next time.
+
+**Codex review:** One P2 finding — the previous handoff documented the CI-evidence command with an
+ellipsis in the SHA (`commits/8f76d48.../check-runs`), which returns HTTP 422 and is therefore not
+reproducible. Valid; it affected only handoff prose (the CI result itself was real, as I
+re-verified). Fixed by this rewrite, which records the exact command with the full-resolvable sha.
+No findings against the workflow diff itself.
+
+**Next:** Dependency refresh slice 5 — **JVM binding manifests**: `crates/iscc-jni/java/pom.xml` +
+`packages/kotlin/build.gradle.kts` (2 files, both fully exercised by the
+`Java (JNI build, mvn test)` and `Kotlin (gradle build, test)` CI jobs on every develop push, so
+unlike release.yml this slice is genuinely verifiable). Concrete pins to evaluate: junit-jupiter
+5.11.4, gson 2.11.0, maven-compiler-plugin 3.13.0, maven-surefire-plugin 3.5.2 (shared by both files
+in the junit/gson case — keep the versions in lockstep), Kotlin JVM plugin 2.1.10, JNA 5.16.0. Two
+cautions for define-next: (a) the `maven-source-plugin` / `maven-javadoc-plugin` /
+`maven-gpg-plugin` / `central-publishing-maven-plugin` pins live in a release-only profile and are
+**not** CI-exercised — either exclude them or flag them as statically-verified-only; (b)
+`java-version: '17'` and the Kotlin jvmToolchain are support-policy decisions, not dependency pins —
+out of scope, same as last slice.
+
+Deferred (do not pick yet): `release.yml` GHA refs — 97 `uses:`, `upload-artifact@v4` ↔
+`download-artifact@v4` must move as a pair, `setup-uv` there also needs `@v9.0.0`, and nothing in it
+is exercised by a CID push. It is worth bundling with the existing `normal` `[human]` issue "Fix
+broken single-registry re-trigger in release.yml" so release.yml is opened once, but that bundle
+should be a deliberate human-timed step near the next release, not an autonomous slice.
 
 **Notes:**
 
-- **Survey gap worth remembering:** `gh api repos/<o>/<r>/releases/latest` proves a release exists
-    but NOT that a floating major tag exists. Always confirm with
-    `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN`. This is how next.md's
-    `@v9` recommendation slipped through.
-- The `@v9.0.0` exact pin means setup-uv patch releases are not picked up automatically — a
-    deliberate trade-off since upstream offers no floating tag; the YAML comment above each pin
-    documents this.
-- Per next.md, `package-manager-cache: false` was NOT added to the `setup-node` step — the nodejs
-    job passed on the first push with setup-node@v7, confirming the survey's caching analysis.
-- `docs.yml` only triggers on push to `main`, so its bumps are statically verified only (YAML parse
-    \+ grep); first real exercise is the next develop→main merge.
-- ci.yml has zero `download-artifact` steps, so `upload-artifact@v7` has no pairing risk (both
-    uploads are terminal artifacts: `iai-baseline`, `lcov`).
-- Each commit on develop currently triggers TWO CI runs (push + `pull_request` for the open
-    develop→main PR) — the check-runs API returns both, which is why totals show ~41 not ~20.
+- **`@v9.0.0` is a maintenance debt, deliberately taken.** setup-uv patch releases will not be
+    picked up automatically; the pin must be hand-bumped each refresh pass, and the same exact-tag
+    rule applies to its occurrence in `release.yml`. Rationale + rejected alternatives recorded in
+    `decisions.md` (2026-07-25).
+- **`docs.yml` is statically verified only** — it triggers on push to `main`, so its five bumps
+    (notably `upload-pages-artifact@v5` + `deploy-pages@v5`) get their first real exercise on the
+    next develop→main merge. If the docs deploy breaks after that merge, this slice is the first
+    suspect.
+- **CI run bookkeeping:** `ci.yml` has `cancel-in-progress: true` per ref, so pushing a follow-up
+    commit cancels the previous sha's in-flight run — don't push again while a Done-When depends on
+    a specific sha going green. Each develop commit also triggers two runs (push + `pull_request`
+    from the open develop→main PR), which is why totals read 41 rather than ~20.
+- **Gate maintenance:** no gate change needed this iteration. Worth noting that no check anywhere
+    validates that a workflow's action refs actually resolve — CI is the only detector, and it costs
+    a full round-trip. `actionlint` would not catch this class either (tag existence needs network),
+    so the practical mitigation stays the `git/matching-refs` pre-check now in learnings.md rather
+    than a new hook.
+- **learnings.md pruned** to 198 lines: the fully-met `## Feature Flags` section moved to
+    `learnings-archive.md` with a pointer left in place.

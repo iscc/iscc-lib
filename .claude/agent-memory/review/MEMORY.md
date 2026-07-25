@@ -2,7 +2,8 @@
 
 Concise index. Detail in topic files: `review-patterns.md` (docs/verification/issues/gotchas),
 `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP gate recipes), `binding-reviews.md`
-(per-binding shortcuts + UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags). Stale detail in
+(per-binding shortcuts + UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags),
+`dep-refresh-reviews.md` (v0.6.0 dependency-refresh slice recipes). Stale detail in
 `MEMORY-archive.md`.
 
 ## Quality Gate Details
@@ -86,36 +87,9 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     workspace + `mise run check`
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see gate-reviews.md Audit)
-- **Rust dep-refresh (`cargo update`, no `-p`) — iter 124, slice 1 of v0.6.0 dep issue**: verify
-    `git diff --name-only -- Cargo.toml` is EMPTY (pins untouched: uniffi 0.31/pyo3 0.29/criterion
-    0.5/iai-callgrind 0.16/magnus 0.7/jni 0.21/napi 3), then run the full 4-gate set
-    `mise run test`+`lint`+`audit`+`bench:iai:check` (not the lockfile-only shortcut — a
-    `cargo   update` can shift Ir + pull new transitive licenses). `cargo-deny` is the main risk
-    (passed clean). Perf-gate tools NOT in fresh container — install per learnings.md Tooling note
-    first. GOTCHA: next.md's pin grep `'uniffi = { version = "0.31"'` (inline-table) FAILS —
-    manifest uses plain-string `uniffi = "0.31"`; that's a next.md defect, not a miss (verify the
-    actual pin form)
-- **Python `uv.lock` refresh (`uv lock --upgrade`) — iter 125, slice 2 of v0.6.0 dep issue**:
-    `git diff --name-only` must be `uv.lock` + (at most) `pyproject.toml` only, NO source. Rebuild
-    the extension first (`uv sync --group dev` UNINSTALLS the editable `iscc-lib`, then
-    `uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml`), then run
-    `uv lock --check`+`mise run test`/`lint`/`check`+`uv run prek run --all-files --hook-stage   pre-push`
-    (ty jump is the risk — 0.0.18→0.0.63 passed) + `zensical build`+`gen_llms_full.py`. A single
-    dev-tool hold-back pin (e.g. `ruff<0.16`) is legitimate scope discipline, NOT gate weakening: it
-    defers adoption of NEW default lint rules; the held minor still enforces the exact prior rule
-    set. VERIFY the hold-back is genuine, not a mask: `uvx ruff@0.16.0 check .` reproduced the
-    claimed 104 errors (72 in `_lowlevel.pyi`) exactly. Require an inline `# held: …` comment
-    stating the reason + a deferred-adoption follow-up
-- **Rust direct-pin bump (`Cargo.toml` pin text changes) — iter 126, slice 3 of v0.6.0 dep issue**:
-    same 4-gate set as slice 1 (`test`/`lint`/`audit`/`bench:iai:check`) plus `cargo bench --no-run`
-    (what CI's `Bench (compile check)` runs) — a dev-only bump can still red clippy via a NEW
-    deprecation (criterion 0.6 deprecated `criterion::black_box`; `-D warnings` makes it fatal, fix
-    is `use std::hint::black_box`). VERIFY HOLD-BACK CLAIMS, don't take them on faith — they're
-    cheap: `cargo info <crate>@<ver>` prints `rust-version` (criterion 0.8 → 1.86 vs our declared
-    1.85 ✓), and a `grep -c` of the named API in the affected binding proves the migration is real
-    (`exception::runtime_error` ×5 in iscc-rb; `JNIEnv|GlobalRef|AutoLocal` ×41 in iscc-jni).
-    Confirm taplo (`mise run check`) preserved the `# held:` comments and left no rewrite in the
-    tree
+- **Dependency refresh slices (v0.6.0 issue)**: per-slice gate sets + hold-back-verification recipes
+    for Cargo.lock (iter 124), uv.lock (125), Rust direct pins (126), GitHub Actions (127) →
+    `dep-refresh-reviews.md`. Never use the lockfile-only shortcut on these
 - **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
     `--target all`. Used it to disprove an advance-handoff attribution: the
     `proc-macro-error2 v2.0.1` future-incompat warning is from `iai-callgrind-macros` (dev-only),

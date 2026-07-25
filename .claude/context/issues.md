@@ -34,13 +34,23 @@ Slice 2 — Python `uv.lock` refreshed via `uv lock --upgrade` (iter 125; 40 pkg
 gates green). ✅ Slice 3 — Rust direct-pin evaluation (iter 126; `criterion` 0.5→0.7 with the bench
 import migrated to `std::hint::black_box`, and inline `# held:` reasons committed next to the
 `criterion` 0.8 / `jni` 0.22 / `magnus` 0.8 / `uniffi` 0.32 hold-backs plus a `pyo3`/#41 note; all
-gates green, perf within +1.96%). Remaining: per-binding manifests (napi `package.json`, rb
-`Gemfile`/gemspec, jni `pom.xml`, kotlin `build.gradle.kts`, dotnet `.csproj`, go `go.mod`), and
-tooling pins (`mise.toml`, `.pre-commit-config.yaml`, GHA versions). A dedicated step should adopt
-ruff 0.16 (run `ruff check --fix` for the 60 auto-fixable, hand-fix the rest — mostly
-`_lowlevel.pyi` stub-style PIE790/PYI048/RUF022 — and drop the `ruff<0.16` pin). Separately, the
-`jni` 0.22 and `magnus` 0.8 migrations each need their own step (source rewrite in
-`crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively).
+gates green, perf within +1.96%). ✅ Slice 4 — GitHub Actions in `.github/workflows/ci.yml` +
+`docs.yml` (iter 127; 9 distinct refs bumped to current majors — checkout v7, setup-python v7,
+setup-node v7, setup-java v5, setup-go v7, setup-dotnet v6, upload-artifact v7, upload-sarif v4,
+upload-pages-artifact v5 + deploy-pages v5 paired; `astral-sh/setup-uv` pinned to the **exact** tag
+`@v9.0.0` because upstream publishes no floating major past v7 — see `decisions.md` 2026-07-25; CI
+41/41 green on `8f76d48`). Verified already-current and needing no bump: `.pre-commit-config.yaml`
+(pre-commit-hooks v6.0.0, mdformat 1.0.0), `dtolnay/rust-toolchain@stable`,
+`Swatinem/rust-cache@v2`, `taiki-e/install-action@v2`, `ruby/setup-ruby@v1`,
+`obi1kenobi/cargo-semver-checks-action@v2`; `mise.toml` has no `[tools]` section. Remaining:
+`.github/workflows/release.yml` GHA refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4`
+must move together, `setup-uv` needs `@v9.0.0`, only truly exercised by a release run — consider
+bundling with the existing release.yml `if:`-guard fix issue) and per-binding manifests (napi
+`package.json`, rb `Gemfile`/gemspec, jni `pom.xml`, kotlin `build.gradle.kts`, dotnet `.csproj`, go
+`go.mod`). A dedicated step should adopt ruff 0.16 (run `ruff check --fix` for the 60 auto-fixable,
+hand-fix the rest — mostly `_lowlevel.pyi` stub-style PIE790/PYI048/RUF022 — and drop the
+`ruff<0.16` pin). Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need their own step
+(source rewrite in `crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively).
 
 **Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
 (`extern crate proc_macro is private and cannot be re-exported`) emitted on every `cargo test` /

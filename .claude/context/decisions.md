@@ -71,3 +71,18 @@ aliasing bug live across all 11 bindings for months, for no user benefit); keep 
 `cargo-semver-checks` enforcing gate: input-domain narrowing is invisible to signature-based semver
 tooling, so this call is a human judgment, not a tool result. **Context:** iter 121, commit 044d0cc
 (Rust); iter 120 (Go).
+
+## 2026-07-25 — `astral-sh/setup-uv` pinned to the exact tag `@v9.0.0`
+
+**Decision:** Every other GitHub Action in `ci.yml` / `docs.yml` is pinned to a floating major
+(`@v7`, `@v5`, …), but `astral-sh/setup-uv` is pinned to the exact release tag `@v9.0.0`, with a
+two-line YAML comment above each of the two occurrences explaining why. **Why:** upstream stopped
+publishing floating major tags after `v7` — `git/matching-refs/tags/v` lists v1–v7 plus exact
+v8.x/v9.0.0 tags only, and setup-uv's own README pins exact refs. `@v9` does not resolve; CI proved
+it (`Unable to resolve action astral-sh/setup-uv@v9` on commit ebac57f). The accepted cost is that
+setup-uv patch releases are no longer picked up automatically, so this pin must be bumped by hand in
+each dependency-refresh pass (it recurs in `release.yml`). **Alternatives:** stay on `@v4` (leaves
+the action 5 majors and a node runtime behind, defeating the refresh); pin to `@v7` to keep a
+floating tag (freezes on an EOL major purely for convention); pin to a commit SHA (inconsistent with
+the other 15 refs in these files, and next.md explicitly excluded SHA pinning). **Context:** iter
+127, commits ebac57f → 8f76d48; deviation from next.md's `@v9` recommendation.
