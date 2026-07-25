@@ -90,13 +90,17 @@ All autonomous v1.0.0-hardening gates landed and are enforcing/green (module vis
     (release-only infra → STATIC verification: pyyaml `safe_load` + grep). **Root lesson: the CRAP
     regression gate is CI-ONLY** (not in `mise run check`/pre-commit) — any step adding a
     branch/loop to a covered fn MUST refresh the baseline in the SAME step.
-- **iters 124–130 = the dependency-refresh slices** → full ledger, gotchas, hold-back reasons,
+- **iters 124–131 = the dependency-refresh slices** → full ledger, gotchas, hold-back reasons,
     remaining slices and version-lookup commands live in
     [dep-refresh ledger](dep-refresh-ledger.md). Read it before scoping any dep step. Headline rule:
     **never move a consumer floor (MSRV, `go` directive, `required_ruby_version`, a published
     binding's compiler) inside a refresh slice** — iter 128 did it by accident and raised the
     published Kotlin consumer floor to 2.3 (open `[review]` issue, HUMAN REVIEW REQUESTED, CID must
-    not decide it).
+    not decide it). All 7 per-ecosystem slices are closed; **slice 8 = ruff 0.16, itself split into
+    3 sub-slices A/B/C by decision content** (see the ledger — B carries a live gate trap).
+- **A lint-tool major bump is not one step.** Slice by *what decision each finding needs*
+    (mechanical / gate-interacting / config-requiring), not by file. Probe candidate settings
+    without touching the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>`.
 - **Two `normal` `[review]` issues are human-gated (do NOT decide)**: the Kotlin consumer floor
     (iter 128) and the Rust-core Unicode-16/17 divergence from `iscc-core`/Go (iter 129 — the core
     is the outlier; no vendored vector catches it). Both are policy calls; the loop is still not

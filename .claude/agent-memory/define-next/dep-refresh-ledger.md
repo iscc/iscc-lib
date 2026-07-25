@@ -60,7 +60,7 @@ comment (`# held:` / `// held:` / XML `held:`) beside the pin, never by disablin
     is human-owned → leave.
 6. **129 — Go module + `version_sync.py` TARGETS fix.** Proven output-neutral across all 1.1M code
     points; surfaced the pre-existing Rust-core Unicode divergence (`[review]`, human-gated).
-7. **130 — Ruby manifests** (`crates/iscc-rb/Gemfile` + `Gemfile.lock`; scoped this iteration).
+7. **130 — Ruby manifests** (`crates/iscc-rb/Gemfile` + `Gemfile.lock`; `rb_sys` pinned exactly).
 
 ## Slice 6 facts (Go)
 
@@ -100,14 +100,40 @@ comment (`# held:` / `// held:` / XML `held:`) beside the pin, never by disablin
 - `packages/dotnet/*/*.csproj`: test refs float on `17.*` / `2.*` wildcards. Only majors remain
     (xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x).
 
-## Remaining after slice 7
+## Slice 8 — ruff 0.16 adoption, split into 3 sub-slices (scoped iter 131)
+
+`uvx ruff@0.16.0 check .` = **104 errors over 5 non-test files** (0.16 widened the *default* rule
+set — the repo has no `lint.select`, so PIE/PYI/RUF/I/EXE/PLW arrived for free). Over the 3-file
+budget → sliced by *decision content*, not by file count:
+
+- **A (iter 131) — config-free, mechanical.** `_lowlevel.pyi` 72 (PIE790+PYI048: every stub body is
+    docstring + a lone `...`; delete the 36 `...` lines → both rules clear, `ruff format` stays a
+    no-op, `ty` passes — prototyped) + `tests/test_new_symbols.py` 6 RUF059 (`_`-prefix 4 unpacked
+    tuples; fix is "unsafe" only because it renames).
+- **B — the `# noqa` / security-gate cluster** (15 RUF100 + EXE001 + PLW1510 in `tools/cid.py`,
+    `tools/metrics.py`, `scripts/test_install.py`). **TRAP: a blanket `ruff@0.16 check --fix .`
+    deletes the `# noqa: S603/S607` directives** — 0.16 calls them RUF100 "unused (non-enabled: S)"
+    because `S` isn't in the default select, but the **pre-push `ruff check --select S` hook needs
+    them**. Removing them reddens the security gate. Real options: add `S` to `lint.select`
+    (strengthening, no new failures — the S scan is already green) or `lint.external`. Never plain
+    `--fix`.
+- **C — isort config + pin retirement.** 8 I001 + 1 RUF022. Needs TWO fidelity settings in
+    `pyproject.toml`, both verified with `--config` overrides at iter 131:
+    `src = [".",   "crates/iscc-py/python"]` (else `iscc_lib` is treated third-party and merged with
+    `pytest`) and `lint.isort.combine-as-imports = true` (**without it the `__init__.py` fix
+    explodes the single `from iscc_lib._lowlevel import (X as X, …)` re-export block into ~60
+    one-member import statements**; with it the fix is one blank line). Then drop `ruff<0.16` from
+    `pyproject.toml`
+    - `uv lock`.
+
+Reproduce baselines with `uvx ruff@0.16.0 …` — it needs no lockfile change and the cache is warm.
+
+## Remaining after slice 8
 
 `release.yml` GHA refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` move as a pair;
-nothing in it is exercised by a CID push → human-timed), ruff 0.16 adoption (**over the 3-file
-budget**: 104 errors over 5 non-test files — `_lowlevel.pyi` 72, `tools/cid.py` 12,
-`tools/metrics.py`, `scripts/test_install.py`, `iscc_lib/__init__.py` — plus `pyproject.toml` →
-slice it), the magnus 0.8 / jni 0.22 / uniffi 0.32 migrations (each its own step with a source
-rewrite), and the Gradle wrapper 8.12.1 + JUnit 6.x majors.
+nothing in it is exercised by a CID push → human-timed), the magnus 0.8 / jni 0.22 / uniffi 0.32
+migrations (each its own step with a source rewrite), and the Gradle wrapper 8.12.1 + JUnit 6.x
+majors.
 
 ## Handy version-lookup commands
 
