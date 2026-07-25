@@ -104,22 +104,28 @@ All autonomous v1.0.0-hardening gates landed and are enforcing/green (module vis
     without touching the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>`.
 - **Both formerly-parked `[review]` policy calls were DECIDED by Titusz 2026-07-25** (commits
     `8d267ff`, `8358eba`) and written into `specs/kotlin-bindings.md` + `specs/rust-core.md` as four
-    new verification criteria — the loop now has a real backlog again, zero HUMAN REVIEW blocks.
-    Backlog order (state.md's, and mine): (1) **Kotlin floor docs** — scoped iter 132, docs-only in
-    `packages/kotlin/README.md` + `docs/howto/kotlin.md` + root README, floor is "Kotlin 2.3 or
-    newer", do NOT touch `build.gradle.kts` (2.4.10 is the decided compiler); (2) **Unicode 16.0.0
-    freeze rule step (a)** — vendored unassigned-ranges table (731 ranges) + checked-in generator
-    script (`unicodedata2==16.0.0`) + pre-normalization filter in `utils.rs`, proven by a
-    full-code-space differential sweep; (3) **step (b)** boundary vectors (U+1FAE9 / U+113C5 /
-    U+20C1) in the Rust suite + all 12 bindings, with an explicit Go decision (Go is on 15.0 tables
-    until go1.27 ≈ Aug 2026: vendor the 15.0→16.0 delta or skip-with-note); (4) ruff slices B/C/D.
-- **The Unicode step (a) will trip two gates in the SAME step**: the CI-only CRAP
+    new verification criteria. Backlog: (1) Kotlin floor docs — **DONE iter 132**; (2) Unicode
+    freeze rule **core filter — scoped iter 133** (table + generator + pre-normalization filter);
+    (3) full-code-space differential sweep (own step, own harness); (4) boundary vectors in the Rust
+    suite + all 12 bindings, with an explicit Go decision (Go is on 15.0 tables until go1.27 ≈ Aug
+    2026: vendor the 15.0→16.0 delta or skip-with-note); (5) ruff slices B/C/D.
+- **A multi-part spec criterion slices along its own checkboxes.** `specs/rust-core.md`'s Unicode
+    contract has 4 numbered requirements and 3 unmet checkboxes → 3 steps, not one "step (a)" as the
+    handoff proposed. Splitting implementation (filter) from proof (1.1M-code-point sweep) from
+    propagation (12 bindings) keeps every step inside the file budget and independently verifiable.
+- **The Unicode core-filter step trips two gates in the SAME step**: the CI-only CRAP
     `--fail-regression` baseline (new branches in fully-covered `utils.rs` fns) and the
     `.iai-baseline.json` 10% Ir gate (a per-char lookup before normalization in
-    `text_clean`/`text_collapse`). Scope binary-search over sorted ranges / ASCII short-circuit, and
-    require both baseline refreshes in-step.
+    `text_clean`/`text_collapse`). Binary search over sorted ranges + a `cp < RANGES[0].0` fast
+    path; require the CRAP refresh in-step and the iai refresh only if `bench:iai:check` fails.
+    Measured constants and boundary behaviour: [unicode-freeze-facts](unicode-freeze-facts.md).
+- Generator scripts needing an external pin: PEP 723 + `uv run --script`, never a dev-dep — see
+    [ty gate trap](define-next-ty-generator-scripts.md).
 - `uv run zensical build` (exits 0, "No issues found", ~8s, `site/` is gitignored) is a valid
     automated verification for any docs-only step.
 - **Recurring**: the enforcing cargo-deny gate WILL periodically go red on fresh RustSec advisories
     vs dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore
     when a patched release exists.
+- **The installed Python binding is a cheap probe for core behaviour** while scoping:
+    `uv run python -c "import iscc_lib; …"` answers "what does the Rust core do today?" in seconds
+    without writing Rust — turns vague spec prose into exact before/after assertions for next.md.

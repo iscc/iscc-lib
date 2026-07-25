@@ -1,101 +1,208 @@
 # Next Work Package
 
-## Step: Document the Kotlin consumer floor (2.3+) in README, package README, and howto guide
+## Step: Unicode 16.0.0 freeze rule — vendored unassigned-range table, generator script, and the pre-normalization filter
 
 ## Goal
 
-Document the decided Kotlin consumer floor (**Kotlin 2.3 or newer**) in the three consumer-facing
-places the spec names, closing the `normal` `[human]` issue "Document the Kotlin consumer floor as
-2.3+ (DECIDED)". Iteration 128 raised the published artifact's metadata version to `mv=[2,4,0]`, so
-consumers on Kotlin 2.1/2.2 now fail to compile against `io.iscc:iscc-lib-kotlin` with no warning
-anywhere in the docs — this is release-blocking for the next Maven Central publish.
+Implement the first of the three unmet Unicode criteria in `specs/rust-core.md`: strip code points
+unassigned in Unicode 16.0.0 from the input **before** any normalization or category lookup in
+`text_clean` / `text_collapse`, using a vendored range table produced by a checked-in generator
+script. This makes Rust-core text output invariant under future Unicode table upgrades and fixes one
+real, observable divergence today (`text_clean("a\u{A7F1}b")` currently returns `"aSb"` because
+`unicode-normalization` ships Unicode 17.0 tables; it must return `"ab"`).
 
 ## Scope
 
-- **Create**: (none)
+**File budget: 3 source files** (`scripts/gen_unicode16_unassigned.py`,
+`crates/iscc-lib/src/utils.rs`, and — only if needed, see Implementation Notes — `pyproject.toml`).
+`crates/iscc-lib/src/utils/unicode16.rs` is tool output from the checked-in generator and the two
+`*-baseline.json` files are gate baselines, so neither counts against the budget (same rule as
+`Cargo.lock`); tests and docs are excluded by protocol.
+
+- **Create**:
+    - `scripts/gen_unicode16_unassigned.py` — checked-in generator; emits the vendored table from
+        `unicodedata2==16.0.0`.
+    - `crates/iscc-lib/src/utils/unicode16.rs` — **generated** data module (`UNASSIGNED_RANGES`).
 - **Modify**:
-    - `packages/kotlin/README.md` — add a `## Requirements` section (mirror the existing
-        `packages/swift/README.md` "Requirements" pattern, lines 47-51)
-    - `docs/howto/kotlin.md` — add the floor statement to the `## Installation` section, next to the
-        existing JNA runtime note
-    - `README.md` — add a one-line floor note to the Kotlin **Installation** section (the one at ~line
-        146 with the `implementation("io.iscc:iscc-lib-kotlin:0.5.0")` block), not the Quick Start
-        section at ~line 262
+    - `crates/iscc-lib/src/utils.rs` — declare the submodule, add the lookup helper, apply the filter
+        in `text_clean` and `text_collapse`, update both doc comments, add tests.
+    - `.crap-baseline.json` — refresh (the CRAP `--fail-regression` gate is CI-only; a new
+        branch/function in covered code reddens CI otherwise).
+    - `.iai-baseline.json` — **only if** `mise run bench:iai:check` fails; see Implementation Notes.
+    - `crates/iscc-lib/CLAUDE.md` (docs, unbudgeted) — the "Text normalization order matters" pitfall
+        now starts with the freeze filter.
+    - `pyproject.toml` — **only if** `uv run ty check` reports `unresolved-import` for the generator
+        (see Implementation Notes).
 - **Reference**:
-    - `.claude/context/specs/kotlin-bindings.md` → "Supported consumer Kotlin version" (lines 142-161)
-        — the authoritative wording and rationale; and the verification criterion at lines 279-281
-    - `.claude/context/issues.md` → "Document the Kotlin consumer floor as 2.3+ (DECIDED)" — the
-        empirical measurements (2.1.10 fails, 2.2.21 fails, 2.3.21 succeeds)
-    - `packages/kotlin/build.gradle.kts` (read only) — confirms the declared compiler is
-        `kotlin("jvm") version "2.4.10"`
-    - `packages/swift/README.md` (read only) — the house style for a `## Requirements` section
+    - `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
+        contract" (the four numbered requirements and the `Verified when` checkboxes).
+    - `.claude/context/issues.md` → "Declare and gate a Unicode data version (DECIDED)" — points 1–4
+        of the resolution.
+    - `crates/iscc-lib/src/utils.rs` (current `is_c_category` / `is_cmp_category` / `text_clean` /
+        `text_collapse`).
+    - `mise.toml` tasks `coverage`, `crap:baseline`, `bench:iai:check`, `bench:iai:baseline`.
+    - `.github/workflows/ci.yml` lines ~30–46 (the `--no-default-features` clippy/test jobs) and
+        ~389–397 (the exact CRAP gate command).
 
 ## Not In Scope
 
-- **Do not touch `packages/kotlin/build.gradle.kts`.** 2.4.10 is the decided compiler; holding an
-    older floor was explicitly rejected (it would also require pinning the transitive
-    `kotlin-stdlib`).
-- Do not edit `.claude/context/specs/kotlin-bindings.md` — the policy section, the refreshed
-    `jna:5.19.1` lines and the verification criterion were already written in the interactive
-    session. Do not tick spec checkboxes either (this spec tracks none as `[x]`).
-- Do not delete or rewrite the issue in `.claude/context/issues.md` — the review agent resolves
-    issues after verifying the fix.
-- Do not invent a JDK, Gradle, or Android API-level floor. `build.gradle.kts` declares no
-    `jvmToolchain`/`jvmTarget`, so only the Kotlin 2.3 floor is evidence-backed and decided.
-- Do not start the Unicode 16.0.0 freeze-rule work (issue "Declare and gate a Unicode data version")
-    or the ruff 0.16 slices B/C/D — each is its own future step.
-- Do not bump versions or run `mise run version:sync`; `0.5.0` strings in these files are managed by
-    `scripts/version_sync.py` and must stay exactly as they are.
+- **Boundary conformance vectors in the bindings** (spec criterion 3 / issue step (b)) — Python,
+    Node, WASM, FFI, JNI, Ruby, Go, C#, C++, Swift, Kotlin conformance suites and the five
+    `data.json` copies stay untouched this step.
+- **The full-code-space differential sweep** (spec criterion 4) — proving output-equivalence to
+    uniform Unicode 16.0.0 tables across all 1,112,032 code points is its own step with its own
+    harness. Do not build a sweep harness here; the targeted boundary tests below are the guard for
+    this step.
+- **The Go package's Unicode-15.0 tables** — the vendor-the-delta-vs-skip decision named in the
+    issue belongs to the binding step.
+- **Removing the `GeneralCategory::Unassigned` arms** from `is_c_category` / `is_cmp_category` —
+    they stay as a defence for table versions other than 16.0.
+- **Touching `unicode-normalization` / `unicode-general-category` pins** — the spec explicitly says
+    exact pins are not required once the freeze rule exists.
+- **Adding `unicodedata2` to the project's dependency groups** — it would need a permanent hold-back
+    in every future dependency refresh.
+- **Docs-site prose about the Unicode contract** (`docs/*.md`) — the existing examples are all ASCII
+    and stay valid; a docs pass can follow the binding step.
 
 ## Implementation Notes
 
-- **Use the phrase `Kotlin 2.3 or newer` verbatim in all three files** so the statement is
-    grep-checkable and consistent with the spec. Add a short causal explanation in each place, e.g.:
+**Verified facts from scoping (do not re-derive):**
 
-    > Requires **Kotlin 2.3 or newer**. The published artifact is compiled with
-    > `kotlin("jvm") 2.4.10`, and Kotlin accepts roughly one minor version of forward metadata; older
-    > compilers fail with `Module was compiled with an incompatible version of Kotlin`.
+- `unicodedata2==16.0.0` yields exactly **731** maximal `Cn` ranges covering **819,533** code
+    points; the first range is `U+0378..=U+0379`. These match the spec's numbers.
 
-    Keep the root `README.md` version to one or two lines (it is an install cheat sheet), and give the
-    fuller explanation in `packages/kotlin/README.md` and `docs/howto/kotlin.md`.
+- Current behaviour of the four boundary code points (measured against the installed binding):
 
-- `packages/kotlin/README.md`: follow `packages/swift/README.md`'s `## Requirements` bullet-list
-    shape. Place the section right after `## Installation` (after the existing
-    `java.library.path`/`jna.library.path` sentence) so a reader hits it before `## Usage`.
+    | Code point                     | `text_clean("a?b")` today | expected after this step |
+    | ------------------------------ | ------------------------- | ------------------------ |
+    | `U+A7F1` (Cn in 16, Lm in 17)  | `"aSb"` ← the bug         | `"ab"`                   |
+    | `U+1FAE9` (So, new in 16)      | retained                  | retained (unchanged)     |
+    | `U+113C5` (Mc, new in 16)      | retained                  | retained (unchanged)     |
+    | `U+20C1` (Cn in 16, new in 17) | `"ab"`                    | `"ab"` (unchanged)       |
 
-- `docs/howto/kotlin.md`: put the statement in `## Installation`, directly after the
-    `build.gradle.kts` dependency block / JNA sentence and before the existing
-    `!!! note "Not yet published to Maven Central"` admonition. An mkdocs admonition
-    (`!!! note "Requires Kotlin 2.3 or newer"`) or plain bold prose are both fine — match the
-    surrounding style and keep mdformat happy.
+    `U+A7F1` is the single 16→17 normalization-drift code point and is the only observable behaviour
+    change in this step — NFKC under 17.0 tables maps it to `S` before the category filter can drop
+    it. Filtering before normalization is what fixes it.
 
-- Both `docs/howto/kotlin.md` and `packages/kotlin/README.md` are `scripts/version_sync.py` targets
-    (they are matched by the `io\.iscc:iscc-lib(?:-kotlin)?:\d+\.\d+\.\d+` and JNA-dependency
-    regexes). Do not alter those dependency lines; new prose lines are invisible to the regexes.
+- `rustfmt` keeps a long array literal one element per line, so a generated
+    `[(0x0378, 0x0379),\n    ...]` block with 4-space indent and trailing commas is format-stable
+    (checked with `rustfmt --edition 2024`).
 
-- Run `mise run format` before committing — the pre-push mdformat hook (`--wrap 100 --number`)
-    rejects the whole push batch on non-conforming markdown.
+**Generator script** (`scripts/gen_unicode16_unassigned.py`):
+
+- Use PEP 723 inline script metadata pinning `unicodedata2==16.0.0`, run it as
+    `uv run --script scripts/gen_unicode16_unassigned.py`. This keeps `pyproject.toml` / `uv.lock`
+    free of a generator-only dependency. (Network is available; the uv cache for this package is
+    already warm.)
+- Iterate `range(0x110000)`, treat `unicodedata2.category(chr(cp)) == "Cn"` as unassigned, merge
+    into maximal inclusive ranges, and write `crates/iscc-lib/src/utils/unicode16.rs`.
+- Have the script assert its own invariants before writing (731 ranges / 819,533 code points /
+    sorted / non-adjacent) so a future `unicodedata2` mistake fails loudly.
+- The emitted file must be **data only** — a module doc comment saying it is generated and must not
+    be hand-edited, the declared Unicode version, and
+    `pub(crate) const UNASSIGNED_RANGES: [(u32, u32); 731] = [...];`. Keep the lookup logic in
+    `utils.rs` so regeneration can never clobber hand-written code.
+- If `uv run ty check` then reports `unresolved-import` for `unicodedata2`, append the script path
+    to the existing `[tool.ty.src] exclude` list in `pyproject.toml` with a comment mirroring the
+    `packages/cpp/conanfile.py` precedent ("generator-only dependency, not a project dependency").
+    Do **not** silence it with an inline ignore and do **not** add the package to
+    `[dependency-groups]`.
+
+**Core change** (`crates/iscc-lib/src/utils.rs`):
+
+- `#[cfg(feature = "text-processing")] mod unicode16;` (the file lives at `src/utils/unicode16.rs`;
+    a `utils.rs` + `utils/` pair is valid in edition 2018+). CI runs
+    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` and
+    `cargo test -p iscc-lib --no-default-features`, so the module, the helper, and its tests must
+    all be feature-gated or the build breaks on dead code.
+
+- Helper, also feature-gated:
+
+    ```rust
+    fn is_unassigned_in_unicode16(c: char) -> bool {
+        let cp = c as u32;
+        if cp < unicode16::UNASSIGNED_RANGES[0].0 {
+            return false; // fast path: everything below the first gap is assigned
+        }
+        unicode16::UNASSIGNED_RANGES
+            .binary_search_by(|&(lo, hi)| { /* Greater if cp < lo, Less if cp > hi, else Equal */ })
+            .is_ok()
+    }
+    ```
+
+- Fuse the filter into the existing iterator chains — do **not** allocate an extra intermediate
+    `String`:
+
+    - `text_clean`:
+        `let text: String = text.chars().filter(|&c| !is_unassigned_in_unicode16(c)).nfkc().collect();`
+    - `text_collapse`:
+        `text.chars().filter(|&c| !is_unassigned_in_unicode16(c)).nfd().collect::<String>().to_lowercase()`
+    - `UnicodeNormalization` is implemented for any `Iterator<Item = char>`, so this compiles as-is.
+    - Leave every later step (newline handling, empty-line collapsing, C/M/P filtering, final NFKC)
+        exactly as it is.
+
+- Update both public doc comments to state that code points unassigned in Unicode **16.0.0** are
+    removed before normalization, and why (declared data version / output invariance).
+
+**Tests to add** (in the existing `mod tests` in `utils.rs`, all
+`#[cfg(feature = "text-processing")]`):
+
+1. The four boundary assertions from the table above for `text_clean`, plus
+    `text_collapse("a\u{113C5}b") == "ab"` (Mc mark dropped by the C/M/P filter) and
+    `text_collapse("a\u{1FAE9}b") == "a\u{1FAE9}b"`.
+2. Helper unit test: `is_unassigned_in_unicode16` is `true` for `U+0378`, `U+A7F1`, `U+20C1` and
+    `false` for `'a'`, `U+A7CB`, `U+1FAE9`, `U+113C5` (check any additional code point against the
+    generated table rather than assuming).
+3. Table invariant test: length is 731, ranges are strictly ascending, non-overlapping and
+    non-adjacent (`prev.1 + 1 < next.0`), each `lo <= hi`, and the covered total is 819,533.
+4. A regression test that existing behaviour is untouched for ASCII (`text_clean` and
+    `text_collapse` on a plain sentence) — cheap insurance that the filter did not reorder
+    anything.
+
+**Gate handling (do this in the same commit, not after CI tells you):**
+
+- CRAP: `mise run coverage`, then
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`. If
+    it fails, refresh with `mise run crap:baseline` and sanity-check the JSON diff — only
+    `text_clean` / `text_collapse` / the new helper should move materially. A brand-new function
+    above 30.0 means the helper is too complex; simplify instead of raising the threshold.
+- Perf: run `mise run bench:iai:check` (needs valgrind; already installed). The filter is one
+    integer compare per ASCII char, so `bench_meta_code.*` / `bench_text_code.chars_1000` should
+    stay well inside the 10% Ir budget. Only if the check fails: refresh with
+    `mise run bench:iai:baseline` and state the measured per-bench delta and why it is justified in
+    the commit message. Never widen `tolerance_pct`.
 
 ## Verification
 
-- `grep -c 'Kotlin 2.3 or newer' README.md packages/kotlin/README.md docs/howto/kotlin.md` reports
-    at least `1` for each of the three files
-- `grep -c '## Requirements' packages/kotlin/README.md` → `1`
-- `grep -c 'kotlin("jvm") version "2.4.10"' packages/kotlin/build.gradle.kts` → `1` (the decided
-    compiler is still declared; the build file was not edited)
-- `grep -c 'io.iscc:iscc-lib-kotlin:0.5.0'` → `1` for each of `README.md`,
-    `packages/kotlin/README.md`, `docs/howto/kotlin.md`, and `grep -c 'net.java.dev.jna:jna:5.19.1'`
-    → `1` for each of `packages/kotlin/README.md`, `docs/howto/kotlin.md` (version-sync anchors
-    intact)
-- `mise run version:check` exits 0 (21 `OK:` lines)
-- `uv run zensical build` exits 0 with "No issues found"
-- `mise run check` — all hooks pass and nothing is rewritten (working tree afterwards holds only the
-    three doc files plus runner-owned context files)
-- `git diff --stat` shows changes confined to `README.md`, `packages/kotlin/README.md`,
-    `docs/howto/kotlin.md` (plus `.claude/context/` files) — no source, build, or manifest file
-    touched
+- `cargo test -p iscc-lib` passes — 320 existing tests plus at least 4 new ones, 0 failures.
+- `cargo test -p iscc-lib --no-default-features` passes and
+    `cargo test -p iscc-lib --no-default-features --features text-processing` passes (mirrors the CI
+    feature matrix).
+- `cargo test --workspace` passes (all binding crates still green — the vendored `data.json` vectors
+    must be unaffected).
+- `cargo clippy --workspace --all-targets -- -D warnings` is clean, and
+    `cargo clippy -p iscc-lib --no-default-features -- -D warnings` is clean.
+- `cargo fmt --check` is clean (in particular for the generated `utils/unicode16.rs`).
+- Behaviour assertions, as `#[test]`s in `crates/iscc-lib/src/utils.rs`:
+    - `text_clean("a\u{A7F1}b") == "ab"`
+    - `text_clean("a\u{20C1}b") == "ab"`
+    - `text_clean("a\u{1FAE9}b") == "a\u{1FAE9}b"`
+    - `text_clean("a\u{113C5}b") == "a\u{113C5}b"`
+    - `text_collapse("a\u{113C5}b") == "ab"`
+- Table assertions, as `#[test]`s: `UNASSIGNED_RANGES.len() == 731`; ranges sorted, non-overlapping
+    and non-adjacent; covered code points sum to `819_533`.
+- Regeneration is deterministic: `uv run --script scripts/gen_unicode16_unassigned.py` followed by
+    `git status --porcelain crates/iscc-lib/src/utils/unicode16.rs` prints nothing.
+- `grep -c 'pub(crate) const UNASSIGNED_RANGES' crates/iscc-lib/src/utils/unicode16.rs` → 1, and the
+    file contains a "generated by `scripts/gen_unicode16_unassigned.py`" header line.
+- `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above` exits
+    0 after `mise run coverage` (reproduces the enforcing CI gate against the working tree).
+- `mise run bench:iai:check` exits 0.
+- `mise run check` — all hooks pass with nothing rewritten (covers `ty check`, ruff, `cargo fmt`,
+    clippy, tests).
 
 ## Done When
 
-All three consumer-facing documents state the Kotlin 2.3+ floor in the spec's wording, the docs site
-and version-sync checks pass, and no build or manifest file was modified.
+`text_clean` and `text_collapse` strip Unicode-16.0.0-unassigned code points before any
+normalization or category lookup using the vendored, regenerable range table, and every verification
+command above passes on the working tree with both quality-gate baselines consistent.
