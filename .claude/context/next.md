@@ -1,114 +1,101 @@
 # Next Work Package
 
-## Step: ruff 0.16 adoption — slice A: clear the config-free findings (stub `...` + unused unpacked vars)
+## Step: Document the Kotlin consumer floor (2.3+) in README, package README, and howto guide
 
 ## Goal
 
-Start the final dependency-refresh item ("Dependency review and refresh across the project",
-`normal` `[human]`) by clearing the 78 ruff-0.16 findings that need **no configuration decision and
-no gate interaction**: 72 stub-style errors in `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`
-(PIE790 + PYI048) and 6 `RUF059` unused-unpacked-variable findings in `tests/test_new_symbols.py`.
-This is a deliberate slice of the ruff 0.16 adoption — the remaining 26 findings each carry a real
-decision (isort source-root config, and the `# noqa: S603/S607` directives that the pre-push
-security hook depends on) and get their own steps. The `ruff<0.16` pin stays in place until the tree
-is fully clean.
+Document the decided Kotlin consumer floor (**Kotlin 2.3 or newer**) in the three consumer-facing
+places the spec names, closing the `normal` `[human]` issue "Document the Kotlin consumer floor as
+2.3+ (DECIDED)". Iteration 128 raised the published artifact's metadata version to `mv=[2,4,0]`, so
+consumers on Kotlin 2.1/2.2 now fail to compile against `io.iscc:iscc-lib-kotlin` with no warning
+anywhere in the docs — this is release-blocking for the next Maven Central publish.
 
 ## Scope
 
+- **Create**: (none)
 - **Modify**:
-    - `crates/iscc-py/python/iscc_lib/_lowlevel.pyi` — the only non-test source file in this step
-        (file budget: 1 of 3)
-    - `tests/test_new_symbols.py` (test file, budget-free)
-    - `crates/iscc-py/CLAUDE.md` (doc, budget-free) — add one bullet recording the stub-body
-        convention so the `...` lines are not reintroduced with the next Tier 1 symbol
-- **Reference**: `.claude/context/issues.md` (the dependency-refresh issue, "Progress" section),
-    `pyproject.toml` (the `ruff<0.16` hold-back comment on line 27), `.pre-commit-config.yaml` (the
-    pre-push `ruff check --select S` and `--select C901` hooks)
+    - `packages/kotlin/README.md` — add a `## Requirements` section (mirror the existing
+        `packages/swift/README.md` "Requirements" pattern, lines 47-51)
+    - `docs/howto/kotlin.md` — add the floor statement to the `## Installation` section, next to the
+        existing JNA runtime note
+    - `README.md` — add a one-line floor note to the Kotlin **Installation** section (the one at ~line
+        146 with the `implementation("io.iscc:iscc-lib-kotlin:0.5.0")` block), not the Quick Start
+        section at ~line 262
+- **Reference**:
+    - `.claude/context/specs/kotlin-bindings.md` → "Supported consumer Kotlin version" (lines 142-161)
+        — the authoritative wording and rationale; and the verification criterion at lines 279-281
+    - `.claude/context/issues.md` → "Document the Kotlin consumer floor as 2.3+ (DECIDED)" — the
+        empirical measurements (2.1.10 fails, 2.2.21 fails, 2.3.21 succeeds)
+    - `packages/kotlin/build.gradle.kts` (read only) — confirms the declared compiler is
+        `kotlin("jvm") version "2.4.10"`
+    - `packages/swift/README.md` (read only) — the house style for a `## Requirements` section
 
 ## Not In Scope
 
-- **Do NOT drop or loosen the `ruff<0.16` pin** in `pyproject.toml` and do NOT touch `uv.lock`. With
-    26 findings still open the pin must stay; retiring it is the last slice.
-- **Do NOT run a blanket `uvx ruff@0.16.0 check --fix .`.** It would delete the `# noqa: S603` /
-    `# noqa: S607` directives in `tools/cid.py`, `tools/metrics.py` and `scripts/test_install.py`
-    (ruff 0.16 reports them as `RUF100` only because `S` is not in the default select). Those
-    directives are load-bearing for the pre-push `ruff check --select S` hook — removing them turns
-    the security gate red. Leave `tools/` and `scripts/` completely untouched this step.
-- **Do NOT touch `crates/iscc-py/python/iscc_lib/__init__.py`** (its `I001` + `RUF022` findings need
-    the isort config decision) and do NOT fix the `I001` findings in `tests/` or
-    `benchmarks/python/bench_iscc_lib.py`.
-- **Do NOT add any lint suppression or config widening** — no `# noqa`, no new `per-file-ignores`,
-    no `[tool.ruff.lint]` `ignore` entries, no `select` changes. Nothing in `pyproject.toml` changes
-    at all this step.
-- No Rust source, no PyO3 `lib.rs` change, no API change — this is a type-stub and test cleanup
-    only.
+- **Do not touch `packages/kotlin/build.gradle.kts`.** 2.4.10 is the decided compiler; holding an
+    older floor was explicitly rejected (it would also require pinning the transitive
+    `kotlin-stdlib`).
+- Do not edit `.claude/context/specs/kotlin-bindings.md` — the policy section, the refreshed
+    `jna:5.19.1` lines and the verification criterion were already written in the interactive
+    session. Do not tick spec checkboxes either (this spec tracks none as `[x]`).
+- Do not delete or rewrite the issue in `.claude/context/issues.md` — the review agent resolves
+    issues after verifying the fix.
+- Do not invent a JDK, Gradle, or Android API-level floor. `build.gradle.kts` declares no
+    `jvmToolchain`/`jvmTarget`, so only the Kotlin 2.3 floor is evidence-backed and decided.
+- Do not start the Unicode 16.0.0 freeze-rule work (issue "Declare and gate a Unicode data version")
+    or the ruff 0.16 slices B/C/D — each is its own future step.
+- Do not bump versions or run `mise run version:sync`; `0.5.0` strings in these files are managed by
+    `scripts/version_sync.py` and must stay exactly as they are.
 
 ## Implementation Notes
 
-**1. `_lowlevel.pyi` (72 errors → 0).** Every stub function/method body is a docstring followed by a
-lone `...` placeholder line. In a `.pyi` file that is two statements, so ruff 0.16 (whose default
-rule set now includes `PIE` and `PYI`) reports `PIE790 Unnecessary '...' literal` **and**
-`PYI048 Function body must contain exactly one statement` for the same line. The fix is to delete
-every line whose stripped content is exactly `...` — 36 lines total (27 at 4-space indent for the
-module-level functions, 9 at 8-space indent for the methods of the 3 hasher classes). Nothing else
-in the file changes: keep all 27 `def`, all 3 `class`, all 9 methods, every docstring and every
-signature byte-identical.
+- **Use the phrase `Kotlin 2.3 or newer` verbatim in all three files** so the statement is
+    grep-checkable and consistent with the spec. Add a short causal explanation in each place, e.g.:
 
-This was prototyped during scoping: removing exactly those 36 lines makes
-`uvx ruff@0.16.0 check --isolated` on the file exit 0, keeps `ruff format` a no-op (the file stays
-"already formatted" — no stray double blank lines appear), and `ty check` still passes. A
-docstring-only body is a valid stub body.
+    > Requires **Kotlin 2.3 or newer**. The published artifact is compiled with
+    > `kotlin("jvm") 2.4.10`, and Kotlin accepts roughly one minor version of forward metadata; older
+    > compilers fail with `Module was compiled with an incompatible version of Kotlin`.
 
-**2. `tests/test_new_symbols.py` (6 `RUF059` → 0).** Four `iscc_decode(...)` tuple unpackings bind
-names that are never asserted on. Prefix each unused binding with `_`. The exact edit (verified with
-`uvx ruff@0.16.0 check --diff --select RUF059 --unsafe-fixes tests/test_new_symbols.py`):
+    Keep the root `README.md` version to one or two lines (it is an install cheat sheet), and give the
+    fuller explanation in `packages/kotlin/README.md` and `docs/howto/kotlin.md`.
 
-- line ~57 → `mt, st, vs, _li, decoded_digest = iscc_decode(f"ISCC:{encoded}")`
-- line ~68 → `mt, _st, _vs, _li, decoded_digest = iscc_decode(encoded)`
-- line ~340 → `mt, st, vs, _length, decoded_digest = iscc_decode(encoded)`
-- line ~350 → `mt, st, vs, _length, digest = iscc_decode("GAA2XTPPAERUKZ4J")`
+- `packages/kotlin/README.md`: follow `packages/swift/README.md`'s `## Requirements` bullet-list
+    shape. Place the section right after `## Installation` (after the existing
+    `java.library.path`/`jna.library.path` sentence) so a reader hits it before `## Usage`.
 
-You may apply these with
-`uvx ruff@0.16.0 check --select RUF059 --fix --unsafe-fixes tests/test_new_symbols.py` (the fix is
-classified "unsafe" only because it renames bindings) or by hand — the result must match the four
-lines above. Do not delete the assertions or restructure the tests.
+- `docs/howto/kotlin.md`: put the statement in `## Installation`, directly after the
+    `build.gradle.kts` dependency block / JNA sentence and before the existing
+    `!!! note "Not yet published to Maven Central"` admonition. An mkdocs admonition
+    (`!!! note "Requires Kotlin 2.3 or newer"`) or plain bold prose are both fine — match the
+    surrounding style and keep mdformat happy.
 
-**3. `crates/iscc-py/CLAUDE.md`.** Extend the "When adding a Tier 1 function" area with one bullet
-stating the convention, e.g. "`_lowlevel.pyi` stub bodies are a docstring only — no trailing `...`
-placeholder (ruff `PIE790`/`PYI048`)". Keep it to one bullet; no restructuring of the file.
+- Both `docs/howto/kotlin.md` and `packages/kotlin/README.md` are `scripts/version_sync.py` targets
+    (they are matched by the `io\.iscc:iscc-lib(?:-kotlin)?:\d+\.\d+\.\d+` and JNA-dependency
+    regexes). Do not alter those dependency lines; new prose lines are invisible to the regexes.
 
-**Working with two ruff versions.** The repo's pinned ruff is 0.15.22 (`uv run ruff`); 0.16.0 is
-reachable without touching the lock via `uvx ruff@0.16.0`. Both must stay green: 0.15 is what
-`mise run lint` and the pre-commit hooks execute today, 0.16 is the target. `uvx` needs network on
-first use; it was exercised during scoping so the cache is warm.
+- Run `mise run format` before committing — the pre-push mdformat hook (`--wrap 100 --number`)
+    rejects the whole push batch on non-conforming markdown.
 
 ## Verification
 
-- `uvx ruff@0.16.0 check crates/iscc-py/python/iscc_lib/_lowlevel.pyi` exits 0 ("All checks
-    passed!")
-- `uvx ruff@0.16.0 check --select PIE790,PYI048,RUF059 .` exits 0 (whole tree clean for these three
-    rules)
-- `uvx ruff@0.16.0 check . --statistics` reports **exactly 26** findings — `RUF100` 15, `I001` 8,
-    `EXE001` 1, `PLW1510` 1, `RUF022` 1 — down from 104, with no `PIE790`, `PYI048` or `RUF059` left
-- `grep -c '^[[:space:]]*\.\.\.[[:space:]]*$' crates/iscc-py/python/iscc_lib/_lowlevel.pyi` prints
-    `0`
-- On `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`: `grep -c '^def '` prints `27`,
-    `grep -c '^class '` prints `3`, and `grep -c '^    def '` prints `9` (no signature lost)
-- `uv run ruff check .` (pinned 0.15.22) exits 0 and `uv run ruff format --check .` exits 0
-- `uv run ruff check --select S --force-exclude` exits 0 (pre-push security gate intact)
-- `uv run ruff check --select C901 --force-exclude` exits 0 (pre-push complexity gate intact)
-- `grep -c noqa tools/cid.py` prints `11`, `grep -c noqa tools/metrics.py` prints `4`,
-    `grep -c noqa scripts/test_install.py` prints `1` (the security `noqa` directives are untouched)
-- `uv run ty check` exits 0
-- `uv run pytest -q` passes with 314 tests collected, 0 failures
-- `grep -c 'ruff<0.16' pyproject.toml` prints `1` and `grep -c 'held: 0.16 expands' pyproject.toml`
-    prints `1` (the hold-back and its comment are still in the working tree, not retired here)
-- `mise run check` exits 0 with nothing rewritten
-- `cargo test -p iscc-lib` still passes (no Rust touched — sanity only)
+- `grep -c 'Kotlin 2.3 or newer' README.md packages/kotlin/README.md docs/howto/kotlin.md` reports
+    at least `1` for each of the three files
+- `grep -c '## Requirements' packages/kotlin/README.md` → `1`
+- `grep -c 'kotlin("jvm") version "2.4.10"' packages/kotlin/build.gradle.kts` → `1` (the decided
+    compiler is still declared; the build file was not edited)
+- `grep -c 'io.iscc:iscc-lib-kotlin:0.5.0'` → `1` for each of `README.md`,
+    `packages/kotlin/README.md`, `docs/howto/kotlin.md`, and `grep -c 'net.java.dev.jna:jna:5.19.1'`
+    → `1` for each of `packages/kotlin/README.md`, `docs/howto/kotlin.md` (version-sync anchors
+    intact)
+- `mise run version:check` exits 0 (21 `OK:` lines)
+- `uv run zensical build` exits 0 with "No issues found"
+- `mise run check` — all hooks pass and nothing is rewritten (working tree afterwards holds only the
+    three doc files plus runner-owned context files)
+- `git diff --stat` shows changes confined to `README.md`, `packages/kotlin/README.md`,
+    `docs/howto/kotlin.md` (plus `.claude/context/` files) — no source, build, or manifest file
+    touched
 
 ## Done When
 
-`_lowlevel.pyi` and `tests/test_new_symbols.py` are clean under ruff 0.16, the whole-tree 0.16
-finding count is down to the 26 that still need a config or gate decision, and every existing gate
-(`mise run check`, the pinned-ruff lint, the `S`/`C901` pre-push scans, `ty`, pytest) is still green
-with the `ruff<0.16` pin still in place.
+All three consumer-facing documents state the Kotlin 2.3+ floor in the spec's wording, the docs site
+and version-sync checks pass, and no build or manifest file was modified.

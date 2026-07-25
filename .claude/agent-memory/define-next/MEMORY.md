@@ -51,9 +51,10 @@ iterations.
 
 ## CI/Release, Docs, Gotchas
 
-- Release: `workflow_dispatch` with 9 per-registry checkboxes; version_sync.py manages 16 targets
-    (`--check` exits 1 on mismatch). `iscc-rb` needs `libclang-dev` (keep `--exclude iscc-rb` in
-    Rust CI). XCFramework cache key must hash all build inputs.
+- Release: `workflow_dispatch` with per-registry checkboxes; version_sync.py manages **21** targets
+    (`--check` exits 1 on mismatch; issues.md line ~55 says "22" — wrong, don't propagate).
+    `iscc-rb` needs `libclang-dev` (keep `--exclude iscc-rb` in Rust CI). XCFramework cache key must
+    hash all build inputs.
 - Docs: `zensical.toml nav` + `scripts/gen_llms_full.py ORDERED_PAGES` need an entry per new howto
     guide (template `docs/howto/dotnet.md`; collapsible `??? tip "Build from source"`).
 - Gotchas: JNI names encode `_` as `_1`; WASM pkg `@iscc/wasm`, npm lib `@iscc/lib`; Windows GHA →
@@ -95,16 +96,30 @@ All autonomous v1.0.0-hardening gates landed and are enforcing/green (module vis
     [dep-refresh ledger](dep-refresh-ledger.md). Read it before scoping any dep step. Headline rule:
     **never move a consumer floor (MSRV, `go` directive, `required_ruby_version`, a published
     binding's compiler) inside a refresh slice** — iter 128 did it by accident and raised the
-    published Kotlin consumer floor to 2.3 (open `[review]` issue, HUMAN REVIEW REQUESTED, CID must
-    not decide it). All 7 per-ecosystem slices are closed; **slice 8 = ruff 0.16, itself split into
-    3 sub-slices A/B/C by decision content** (see the ledger — B carries a live gate trap).
+    published Kotlin consumer floor to 2.3 (escalated, then decided by Titusz — see below). All 7
+    per-ecosystem slices are closed; **slice 8 = ruff 0.16, itself split into 3 sub-slices A/B/C by
+    decision content** (see the ledger — B carries a live gate trap).
 - **A lint-tool major bump is not one step.** Slice by *what decision each finding needs*
     (mechanical / gate-interacting / config-requiring), not by file. Probe candidate settings
     without touching the lock: `uvx ruff@<ver> check --config '<key> = <val>' --diff <paths>`.
-- **Two `normal` `[review]` issues are human-gated (do NOT decide)**: the Kotlin consumer floor
-    (iter 128) and the Rust-core Unicode-16/17 divergence from `iscc-core`/Go (iter 129 — the core
-    is the outlier; no vendored vector catches it). Both are policy calls; the loop is still not
-    idle because refresh slices + ruff 0.16 remain.
+- **Both formerly-parked `[review]` policy calls were DECIDED by Titusz 2026-07-25** (commits
+    `8d267ff`, `8358eba`) and written into `specs/kotlin-bindings.md` + `specs/rust-core.md` as four
+    new verification criteria — the loop now has a real backlog again, zero HUMAN REVIEW blocks.
+    Backlog order (state.md's, and mine): (1) **Kotlin floor docs** — scoped iter 132, docs-only in
+    `packages/kotlin/README.md` + `docs/howto/kotlin.md` + root README, floor is "Kotlin 2.3 or
+    newer", do NOT touch `build.gradle.kts` (2.4.10 is the decided compiler); (2) **Unicode 16.0.0
+    freeze rule step (a)** — vendored unassigned-ranges table (731 ranges) + checked-in generator
+    script (`unicodedata2==16.0.0`) + pre-normalization filter in `utils.rs`, proven by a
+    full-code-space differential sweep; (3) **step (b)** boundary vectors (U+1FAE9 / U+113C5 /
+    U+20C1) in the Rust suite + all 12 bindings, with an explicit Go decision (Go is on 15.0 tables
+    until go1.27 ≈ Aug 2026: vendor the 15.0→16.0 delta or skip-with-note); (4) ruff slices B/C/D.
+- **The Unicode step (a) will trip two gates in the SAME step**: the CI-only CRAP
+    `--fail-regression` baseline (new branches in fully-covered `utils.rs` fns) and the
+    `.iai-baseline.json` 10% Ir gate (a per-char lookup before normalization in
+    `text_clean`/`text_collapse`). Scope binary-search over sorted ranges / ASCII short-circuit, and
+    require both baseline refreshes in-step.
+- `uv run zensical build` (exits 0, "No issues found", ~8s, `site/` is gitignored) is a valid
+    automated verification for any docs-only step.
 - **Recurring**: the enforcing cargo-deny gate WILL periodically go red on fresh RustSec advisories
     vs dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore
     when a patched release exists.
