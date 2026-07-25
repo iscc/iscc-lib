@@ -44,37 +44,39 @@ gson 2.14.0, compiler 3.15.0, surefire 3.5.6, source 3.4.0, javadoc 3.12.0, gpg 
 `central-publishing-maven-plugin` held at 0.7.0 under a `held:` comment — its `deploy` goal only
 runs in a real Central publish; `build.gradle.kts`: kotlin("jvm") 2.4.10, jna 5.19.1, junit/gson in
 lockstep, plus a required `testRuntimeOnly junit-platform-launcher:1.14.4`; mvn 69/69 and gradle 9/9
-green). **The Kotlin plugin bump raised the consumer Kotlin floor — see the follow-up issue below.**
-✅ Slice 6 — Go module (iter 129; `golang.org/x/text` 0.34.0 → 0.40.0 direct,
-`github.com/klauspost/cpuid/v2` 2.0.12 → 2.4.0 indirect, new indirect `golang.org/x/sys` v0.47.0
-pulled in by cpuid; `go 1.26.1` consumer floor and `zeebo/blake3` v0.2.4 untouched — all three are
-the latest published versions; no hold-back needed). The `x/text` bump was proven
-**output-neutral**, not just vector-green: `TextClean`/`TextCollapse` are byte-identical across all
-1,112,032 code points under 0.34.0 and 0.40.0 (the `unicode/norm` tables files are unchanged between
-the two releases; only invalid-rune bookkeeping was refactored). Also wired
-`packages/kotlin/README.md` into `scripts/version_sync.py` `TARGETS` (22 targets now), closing the
-last unmanaged stale version string (`0.3.1` → `0.5.0`). ✅ Slice 7 — Ruby manifests (iter 130;
-`crates/iscc-rb/Gemfile.lock` refreshed by `bundle update`: rake 13.4.2, standard 1.56.0, rubocop
-1.88.2, rubocop-minitest 0.40.0 + transitives — each verified to be the newest published version;
-zero `standardrb` fallout, 111 tests green, `bundle outdated --strict` clean). `rb_sys` tightened
-from `~> 0.9` to an **exact** `0.9.123` in the `Gemfile` under a `# held:` comment, plus a second
-`# held:` for `minitest ~> 5.0` — both hold-backs verified from registry metadata this review
-(`gem specification rb_sys -v <v> --remote`: 0.9.123 → `rake-compiler-dock = 1.10.0`, 0.9.124 →
-1.11.0, 0.9.128 → 1.12.0, so the pin genuinely guards `tag: 0.9.123` of
-`oxidize-rb/actions/cross-gem` in `release.yml`; rubygems v1 API: minitest 6.0.x requires Ruby 3.2
-or newer, above the gem's declared floor of 3.1.0). `crates/iscc-rb/iscc-lib.gemspec` needed no
-change — it declares no dev dependencies, only the human-owned `required_ruby_version`. **This
-closes every locally-verifiable ecosystem slice.** 🔄 Slice 8 (ruff 0.16 adoption) — **sub-slice A
-done** (iter 131): the 78 config-free findings cleared — 36 lone `...` stub bodies deleted from
-`crates/iscc-py/python/iscc_lib/_lowlevel.pyi` (`PIE790`+`PYI048` double-report the same line) and 6
-`RUF059` unused unpackings `_`-prefixed in `tests/test_new_symbols.py`. Docstring-only stub bodies
-verified downstream-safe against `ty`, `mypy 1.18 --strict` and `pyright 1.1.407` (the wheel ships
-`py.typed` alongside the stub). Baseline 104 → **26 findings left**, each needing a decision:
-`RUF100` 15 + `EXE001` 1 + `PLW1510` 1 in `tools/`/`scripts/` (the `RUF100`s are the load-bearing
-`# noqa: S603/S607` — 0.16 calls them unused only because `S` is not in the default select, so
-deleting them would red the pre-push `ruff check --select S` gate; the fix is a lint-config decision
-such as adding `S`/`C901` to `[tool.ruff.lint] select`), plus `I001` 8 + `RUF022` 1 needing an isort
-src-root decision. The `ruff<0.16` pin stays until the tree is clean under 0.16.
+green). The Kotlin plugin bump raised the consumer Kotlin floor to **Kotlin 2.3 or newer**; that
+follow-up is closed — the floor is documented in the root README, `packages/kotlin/README.md` and
+`docs/howto/kotlin.md` (iter 132) and specified in `specs/kotlin-bindings.md`. ✅ Slice 6 — Go module
+(iter 129; `golang.org/x/text` 0.34.0 → 0.40.0 direct, `github.com/klauspost/cpuid/v2` 2.0.12 →
+2.4.0 indirect, new indirect `golang.org/x/sys` v0.47.0 pulled in by cpuid; `go 1.26.1` consumer
+floor and `zeebo/blake3` v0.2.4 untouched — all three are the latest published versions; no
+hold-back needed). The `x/text` bump was proven **output-neutral**, not just vector-green:
+`TextClean`/`TextCollapse` are byte-identical across all 1,112,032 code points under 0.34.0 and
+0.40.0 (the `unicode/norm` tables files are unchanged between the two releases; only invalid-rune
+bookkeeping was refactored). Also wired `packages/kotlin/README.md` into `scripts/version_sync.py`
+`TARGETS` (21 targets now), closing the last unmanaged stale version string (`0.3.1` → `0.5.0`). ✅
+Slice 7 — Ruby manifests (iter 130; `crates/iscc-rb/Gemfile.lock` refreshed by `bundle update`: rake
+13.4.2, standard 1.56.0, rubocop 1.88.2, rubocop-minitest 0.40.0 + transitives — each verified to be
+the newest published version; zero `standardrb` fallout, 111 tests green, `bundle outdated --strict`
+clean). `rb_sys` tightened from `~> 0.9` to an **exact** `0.9.123` in the `Gemfile` under a
+`# held:` comment, plus a second `# held:` for `minitest ~> 5.0` — both hold-backs verified from
+registry metadata this review (`gem specification rb_sys -v <v> --remote`: 0.9.123 →
+`rake-compiler-dock = 1.10.0`, 0.9.124 → 1.11.0, 0.9.128 → 1.12.0, so the pin genuinely guards
+`tag: 0.9.123` of `oxidize-rb/actions/cross-gem` in `release.yml`; rubygems v1 API: minitest 6.0.x
+requires Ruby 3.2 or newer, above the gem's declared floor of 3.1.0).
+`crates/iscc-rb/iscc-lib.gemspec` needed no change — it declares no dev dependencies, only the
+human-owned `required_ruby_version`. **This closes every locally-verifiable ecosystem slice.** 🔄
+Slice 8 (ruff 0.16 adoption) — **sub-slice A done** (iter 131): the 78 config-free findings cleared
+— 36 lone `...` stub bodies deleted from `crates/iscc-py/python/iscc_lib/_lowlevel.pyi`
+(`PIE790`+`PYI048` double-report the same line) and 6 `RUF059` unused unpackings `_`-prefixed in
+`tests/test_new_symbols.py`. Docstring-only stub bodies verified downstream-safe against `ty`,
+`mypy 1.18 --strict` and `pyright 1.1.407` (the wheel ships `py.typed` alongside the stub). Baseline
+104 → **26 findings left**, each needing a decision: `RUF100` 15 + `EXE001` 1 + `PLW1510` 1 in
+`tools/`/`scripts/` (the `RUF100`s are the load-bearing `# noqa: S603/S607` — 0.16 calls them unused
+only because `S` is not in the default select, so deleting them would red the pre-push
+`ruff check --select S` gate; the fix is a lint-config decision such as adding `S`/`C901` to
+`[tool.ruff.lint] select`), plus `I001` 8 + `RUF022` 1 needing an isort src-root decision. The
+`ruff<0.16` pin stays until the tree is clean under 0.16.
 
 Verified already-current and needing no bump: `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
 mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
@@ -100,45 +102,6 @@ each need their own step (source rewrite in `crates/iscc-jni/src/lib.rs` and
 release exists (`iai-callgrind` 0.16.1 is latest), so it stays a warning until upstream ships a fix
 — re-check when bumping `iai-callgrind` (the pin must stay in lockstep with the CI-installed
 `iai-callgrind-runner` version).
-
-## Document the Kotlin consumer floor as 2.3+ (DECIDED) `normal` [human]
-
-Iteration 128 bumped `kotlin("jvm")` 2.1.10 → 2.4.10 in `packages/kotlin/build.gradle.kts` (an
-in-scope dependency-refresh bump). Side effect: the published jar now carries Kotlin metadata
-version `mv=[2,4,0]` (`javap -v -p build/libs/…/AudioCodeResult.class | grep mv=`) and the published
-POM declares `kotlin-stdlib:2.4.10` in `compile` scope (was 2.1.10).
-
-**Verified empirically** (iter 128 review) with a throwaway consumer project resolving
-`io.iscc:iscc-lib-kotlin:0.5.0` from `mavenLocal`:
-
-- Kotlin **2.1.10** consumer → `compileKotlin` FAILS:
-    `Module was compiled with an incompatible   version of Kotlin. The binary version of its metadata is 2.4.0, expected version is 2.1.0`
-    — raised for both `iscc-lib-kotlin-0.5.0.jar` and the transitive `kotlin-stdlib-2.4.10.jar`
-- Kotlin **2.2.21** consumer → FAILS identically
-- Kotlin **2.3.21** consumer → BUILD SUCCESSFUL (Kotlin tolerates ~one minor ahead)
-
-So the supported-consumer floor moved from Kotlin ≥ 2.0/2.1 to ≥ 2.3, undocumented. Nothing has
-shipped — this only reaches users at the next Maven Central publish of `io.iscc:iscc-lib-kotlin`, so
-**resolve before the next release**.
-
-**DECIDED by Titusz 2026-07-25 — accept and document.** Keep `kotlin("jvm") 2.4.10`; the supported
-consumer floor is **Kotlin 2.3 or newer**. Rationale and the rejected alternatives are in
-`decisions.md` (2026-07-25, "Kotlin bindings track the current compiler"). The policy is now written
-into `specs/kotlin-bindings.md` (new "Supported consumer Kotlin version" section plus a verification
-criterion). Holding the compiler at 2.1.x was rejected — it would also require constraining the
-transitive `kotlin-stdlib`, since pinning `compilerOptions.languageVersion` alone is empirically
-insufficient.
-
-**Remaining work — docs-only, no build change (CID-doable now):**
-
-1. State "requires Kotlin 2.3+" in `packages/kotlin/README.md`, `docs/howto/kotlin.md`, and the root
-    README Kotlin section, phrased consistently with the spec section.
-2. Do **not** touch `packages/kotlin/build.gradle.kts` — 2.4.10 is the decided compiler.
-
-Already done in the interactive session (do not redo): the spec policy section, the stale
-`jna:5.16.0@aar` → `5.19.1` lines at spec lines ~150/165, and the spec verification criterion.
-
-**Spec:** `.claude/context/specs/kotlin-bindings.md` → "Supported consumer Kotlin version"
 
 ## Declare and gate a Unicode data version (DECIDED) `normal` [human]
 

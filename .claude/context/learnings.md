@@ -27,9 +27,10 @@ fully-met target sections to `learnings-archive.md`.
     "Matches the reference" is meaningless without naming the interpreter. Check both runtimes with
     `uv run --python 3.13 --no-project --with iscc-core python …` (and `3.14`) — no project env
     needed Upstream: <https://github.com/iscc/iscc-core/issues/137>
-- Any dependency carrying Unicode/locale tables must be proven output-neutral by a **differential
-    sweep**, not by a green vector suite: dump the function output for all 1,112,032 code points
-    before and after the bump and `diff`. Costs ~2 minutes and is the only thing that catches table
+- Any dependency shipping DATA TABLES (Unicode, locale, tz) must be proven output-neutral by a
+    **differential sweep**, not by a green vector suite: dump the function output for all 1,112,032
+    code points before and after the bump and `diff` (recipe: throwaway module + `replace`/pin to
+    the old version → `learnings-archive.md`). ~2 minutes, and the only thing that catches table
     drift — every vendored conformance vector predates Unicode 16
 
 ## Tooling
@@ -39,9 +40,8 @@ fully-met target sections to `learnings-archive.md`.
 - `cargo clippy -- -D warnings` runs in pre-push stage (not pre-commit)
 - Pre-push hooks run: clippy, cargo test, pytest, ty check, ruff security/complexity
 - **PyO3 is `0.29`** (issue #1 closed; iscc-py only): keep the explicit
-    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe in
-    `learnings-archive.md`; advisory clearance now IS tool-confirmable via the enforcing
-    `cargo deny check` Audit gate (iter 114+)
+    `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697). Per-hop recipe →
+    `learnings-archive.md`; advisories are tool-confirmable via the `cargo deny check` Audit gate
 - **`_lowlevel.pyi` stub bodies are docstring-only — no trailing `...`** (iter 131). The wheel ships
     `py.typed` + the stub, so it is consumer-facing: verified accepted by `ty`, `mypy 1.18 --strict`
     and `pyright 1.1.407`, and `ruff format` leaves docstring-only bodies alone (no blank-line
@@ -51,18 +51,21 @@ fully-met target sections to `learnings-archive.md`.
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer** (iter 124):
     `mise run bench:iai:check` dies with "No such file or directory" until
     `sudo apt-get install -y valgrind` + `cargo binstall -y iai-callgrind-runner --version 0.16.1`
-    (MUST match the `iai-callgrind` pin). CI does the same per-run (`ci.yml:289-300`) and the
-    devcontainer deliberately mirrors it — not a bug, do not file an issue
+    (MUST match the `iai-callgrind` pin) — CI mirrors this per-run; not a bug, do not file an issue
 
 ## ISCC Algorithm Knowledge
 
-- **Unicode freeze rule (declared version 16.0.0):** removing code points unassigned in Unicode
-    16.0.0 *before* any normalization or category lookup makes `text_clean`/`text_collapse` output
-    invariant to future Unicode table upgrades — newly assigned characters are stripped no matter
-    what the runtime ships, and normalization drift is impossible because removal precedes
-    normalization. Only runtimes with tables *older* than 16.0 need real table data. Measured
-    deltas: 15.1→16 = 5,185 category + 56 normalization changes; 16→17 = 4,803 + 1; in both cases
-    every change is a new assignment — zero changes to already-assigned characters.
+- **Unicode data version — declared 16.0.0 with a freeze rule** (divergence found iter 129, decided
+    2026-07-25, machinery still unimplemented): Go stdlib/`x/text` = 15.0.0, Python 3.13 = 15.1.0,
+    Rust `unicode-general-category` = 16.0.0 / `unicode-normalization` = 17.0.0, and Go's
+    `unicode.C` includes unassigned `Cn` — so 5,813 post-15 code points are stripped by
+    Go/`iscc-core` but kept by the Rust core (repro `Ɤ` U+A7CB) → divergent
+    `text_clean`/`text_collapse`, Meta/Text codes and `name`; no vector catches it. Freeze rule:
+    remove code points unassigned in Unicode 16.0.0 *before* any normalization or category lookup —
+    output becomes invariant to future table upgrades, and only runtimes with tables *older* than
+    16.0 need real data. Deltas: 15.1→16 = 5,185 category + 56 normalization; 16→17 = 4,803 + 1 —
+    all new assignments, zero changes to assigned characters. Never "fix" one binding to match
+    another; evidence + implementation order → `issues.md`
 - `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty
@@ -81,28 +84,20 @@ fully-met target sections to `learnings-archive.md`.
 - `decode_length` returns multiples of 32 bits for standard MainTypes, multiples of 64 for
     ISCC-CODE, and multiples of 8 for ID (C FFI: length index for 64-bit codes is 1, not 0)
 - **ISCC-IDv1** (`gen_iscc_id_v1`, Go-only, experimental) archived iter 124 → `learnings-archive.md`
-- **The Unicode data version is an unpinned cross-implementation variable** (iter 129, open
-    `[review]` issue): Go stdlib + `x/text/norm` = 15.0.0, Python 3.13 = 15.1.0, but Rust
-    `unicode-general-category` = 16.0.0 / `unicode-normalization` = 17.0.0. Go's `unicode.C`
-    includes unassigned (Cn), so 5,813 post-15 code points are stripped by Go/`iscc-core` but kept
-    by the Rust core → divergent `text_clean`/`text_collapse` → divergent Meta/Text codes and `name`
-    (e.g. `Ɤ` U+A7CB). Vectors are all Unicode ≤ 15, so no gate catches it. Do not "fix" a binding
-    to match the core — the version choice is a spec-level decision. Evidence → `issues.md`
 
 ## CI/CD
 
 - Windows GHA runners default to `pwsh`. Steps using bash syntax (`$(...)`, `$GITHUB_OUTPUT`,
     `grep`, `sed`) MUST specify `shell: bash` — per-matrix version steps (e.g. `build-ffi`) hit
     Windows. Always check `shell:` when adding `run:` steps to cross-platform matrices
-- **Release pipeline pattern**: boolean input → build → smoke test → publish; 6 smoke test jobs
-    (test-wheels/napi/wasm/gem/jni/ffi) gate publish, each testing the linux-x86_64 artifact. Adding
-    a Python wheel target (#49) → `learnings-archive.md`
+- **Release pipeline pattern**: 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
+    maven-kotlin, swift) → build → smoke test → publish; 6 smoke-test jobs
+    (test-wheels/napi/wasm/gem/jni/ffi) gate publish on the linux-x86_64 artifact; re-trigger a
+    single registry with `--ref main`. `version_sync.py` manages **21** targets (`--check` exits 1
+    on mismatch). Adding a Python wheel target (#49) → `learnings-archive.md`
 - **Swift release job is tag-dependent**: `build-xcframework` uses `GITHUB_REF_NAME` (not
     `Cargo.toml` like all other release jobs) for version/tag, so the `--ref main` re-trigger breaks
     for Swift — needs a spec fix to derive version from `Cargo.toml`
-- **Release input count**: 9 boolean inputs (crates-io, pypi, npm, maven, ffi, rubygems, nuget,
-    maven-kotlin, swift); re-trigger individual registries with `--ref main`. `version_sync.py`
-    manages 22 targets as of iter 129; `--check` exits 1 on mismatch
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (`continue-on-error: true`,
     enforcing at v1.0.0; `rust-core.md` box stays `[ ]`); `coverage` enforcing. Run via
     `mise run semver` / `mise run coverage`. Details → `learnings-archive.md`
@@ -139,24 +134,19 @@ fully-met target sections to `learnings-archive.md`.
     `# noqa: S603/S607` in `tools/`+`scripts/` — 0.16 calls them unused only because `S` is not in
     the default select, and deleting them reds the pre-push `ruff check --select S` gate. Their
     resolution is a lint-config decision (e.g. add `S`/`C901` to `select`), never deletion
-- **Ruby gem dev deps (iter 130)**: bundler has no `-C` — use `(cd crates/iscc-rb && bundle …)` with
-    `$(ruby -e "puts Gem.user_dir")/bin` on PATH. CI's `ruby/setup-ruby` `bundler-cache: true` is a
-    **frozen** install, so prove lock/Gemfile consistency with
-    `BUNDLE_FROZEN=true bundle install --local`. `rb_sys` stays pinned EXACTLY at 0.9.123 (it pins
-    `rake-compiler-dock = 1.10.0`; 0.9.124 → 1.11.0, 0.9.128 → 1.12.0) to match `tag: 0.9.123` of
-    `oxidize-rb/actions/cross-gem` in `release.yml`
-- **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128, Kotlin — open
-    `[review]` issue): KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar and
-    `kotlin-stdlib:2.4.10` into the published POM; a throwaway `mavenLocal` consumer proved Kotlin
-    2.1.10/2.2.21 fail and 2.3.21 passes. Treat compiler/toolchain bumps in a *published* binding as
-    support-policy changes reserved for Titusz, not pins. Full evidence → `issues.md`
+- **Ruby gem dev deps (iter 130)**: `rb_sys` stays pinned EXACTLY at 0.9.123 to match `tag: 0.9.123`
+    of `oxidize-rb/actions/cross-gem` in `release.yml` (it pins `rake-compiler-dock = 1.10.0`).
+    Bundler/frozen-install commands → `learnings-archive.md`
+- **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128 Kotlin, documented
+    iter 132): KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar and
+    `kotlin-stdlib:2.4.10` into the POM; a `mavenLocal` consumer proved 2.1.10/2.2.21 fail, 2.3.21
+    passes. Treat compiler/toolchain bumps in a *published* binding as support-policy changes
+    reserved for Titusz, not pins. The floor ("Kotlin 2.3 or newer") now lives in the root README,
+    `packages/kotlin/README.md`, `docs/howto/kotlin.md` and `specs/kotlin-bindings.md` — any future
+    bump that moves it must update all four in the same step
 - **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) archived iter 129 →
     `learnings-archive.md`. Read it before touching `pom.xml` / `build.gradle.kts` or before calling
     a Gradle error a test failure
-- **A dep that ships DATA TABLES (Unicode, locale, tz) needs an exhaustive differential, not green
-    vectors** (iter 129, `golang.org/x/text` 0.34.0 → 0.40.0): the 50 vendored vectors are all
-    Unicode ≤ 15 and cannot detect a table change. Recipe (throwaway `/tmp` module + `replace` to
-    the old dep version, dump the whole input space, `diff`) → `learnings-archive.md`
 - **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
     `--target all`. The `proc-macro-error2 v2.0.1` future-incompat warning emitted on every
     `cargo test`/`cargo bench` traces to `iai-callgrind-macros` (dev-only), **not** magnus/rb-sys;
@@ -185,30 +175,24 @@ fully-met target sections to `learnings-archive.md`.
 
 - **Feature flags: fully met — archived iter 127 → `learnings-archive.md`.** Read it before touching
     `[features]` in `crates/iscc-lib/Cargo.toml`
-
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — frequently stale. Verify independently against the source (`cargo search`,
     `npm view`, Maven Central API, `pip index versions`, Go module proxy, `gh api`)
-
 - **Context growth**: learnings.md and agent memory grow monotonically; no agent auto-prunes.
     Archive completed-phase entries periodically to prevent token bloat
-
 - **Detect concurrent CID loops** (iter 97): context files changing mid-review, or `mise run check`
     reporting spurious "files were modified by this hook" on a file advance never touched, means a
     race. Confirm with `ps aux | grep -E 'cid:run|claude -p CID iteration'`, then flag HUMAN REVIEW
     REQUESTED — do NOT kill processes yourself, and do NOT push
-
 - **Human-handoff vs IDLE (iter 111)**: when autonomous work runs out but `normal` issues remain
     that are all `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all issues `low`) is
     NOT met. Flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead of `**IDLE**` (which runs
     meta-improve, reserved for all-`low`). Don't manufacture churn to avoid the pause
-
 - **Pre-push mdformat blocks on non-conforming context files**: the pre-push hook runs mdformat
     (`--wrap 100 --number`, isolated `mdformat-mkdocs[recommended]` env) on every file in the push
     range — incl. `next.md` and per-agent `MEMORY*.md`. A non-conforming file rejects the whole
     batch push even though staged-only `git commit` passed. define-next MUST run `mise run format`
     before committing; review can unblock by reformatting + amending (match hook args exactly)
-
 - **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
     `effort: xhigh`) — long-horizon implementation, single requests can run many minutes (runner
     timeout 3600s). All other roles run on `opus`. Deliberate model diversity: Fable implements,

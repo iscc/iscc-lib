@@ -1,8 +1,8 @@
 # Review Agent Memory
 
-Concise index. Detail in topic files: `review-patterns.md` (docs/verification/issues/gotchas),
-`gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP gate recipes), `binding-reviews.md`
-(per-binding shortcuts + UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags),
+Concise index. Detail in topic files: `review-patterns.md` (docs/verification/issues/gotchas +
+claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP gate recipes),
+`binding-reviews.md` (per-binding shortcuts + UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags),
 `dep-refresh-reviews.md` (v0.6.0 dependency-refresh slice recipes). Stale detail in
 `MEMORY-archive.md`.
 
@@ -16,9 +16,8 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
 - **`ty check` external Python files**: files importing packages not in the venv (e.g.
     `conanfile.py` → `conan`) fail `ty check`. Fix: `[tool.ty.src] exclude` in `pyproject.toml` —
     proper scope exclusion, not circumvention
-- **Pre-push needs `iscc_lib` built** for `ty check`/`pytest` hooks:
-    `cd crates/iscc-py && uv run   maturin develop --release` first (see `binding-reviews.md`
-    Environment)
+- **Pre-push needs `iscc_lib` built** for `ty check`/`pytest`:
+    `cd crates/iscc-py && uv run maturin develop --release` (see `binding-reviews.md` Environment)
 
 ## Common Issues
 
@@ -27,17 +26,8 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     always true for multi-line files — use `! grep -q 'pattern'` to verify absence
 - next.md test specs / expected values / test counts may be wrong — always run tests, verify against
     Rust implementation
-- **Backend-activation claims — verify the build.rs gating (iters 117-118, #42, RESOLVED)**: don't
-    trust "flag set → goal met". blake3 WASM SIMD is activated by the `blake3/wasm32_simd` **Cargo
-    feature** (`CARGO_FEATURE_WASM32_SIMD` → `blake3_wasm32_simd` cfg → `Platform::WASM32_SIMD`),
-    NOT `-C target-feature=+simd128` alone. Honest wiring proof:
-    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` shows
-    `wasm32_simd`. Counting `v128` opcodes ALONE is a FALSE-POSITIVE (LLVM auto-vectorizes the
-    portable path). NUANCE (iter 118): the global RUSTFLAGS is NOT required to *compile* the backend
-    — blake3's SIMD fns carry `#[target_feature(enable = "simd128")]`, so a no-flag
-    `cargo build --target wasm32-unknown-unknown` succeeds; the flag broadens simd128 to the whole
-    crate. Don't let docs claim "flag needed so intrinsics compile" — test a no-flag wasm build to
-    check such claims
+- **Probe claims, don't accept them** — build-flag/backend activation (blake3 wasm SIMD) and
+    exact-length decode rejection recipes → `review-patterns.md` "Claim-Probing Recipes"
 - `iscc_decompose` returns units WITHOUT "ISCC:" prefix — cross-check doc examples
 - **Docs site URL**: `https://lib.iscc.codes/` NOT `https://iscc-lib.iscc.io/`. Advance agents
     consistently get this wrong — always verify
@@ -46,34 +36,22 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     patterns must include target name (generic wildcards match all extracted dirs)
 - **Advance agent idle claims**: always verify remaining issue priorities independently — they may
     claim "only low-priority remain" when `normal` issues still exist
-- **Decode body-length must be EXACT, not `>= nbytes` (iter 119 found; Go iter 120, Rust core iter
-    121 — RESOLVED)**: a `len(tail) < nbytes` guard silently drops trailing base32 bytes, so `...AB`
-    aliases `...ABAA` — codec-wide, NOT ID-specific. BOTH Go `IsccDecode` and Rust core
-    `iscc_decode` now reject too-long via a 2-branch "too short"/"too long" form (keeps the "too
-    short" message/test intact); all 11 bindings inherit the Rust fix. Classified non-breaking for
-    the Tier 1 symbol — rationale in `decisions.md` 2026-07-24. Composite `iscc_decompose`
-    legitimately consumes trailing units — do NOT harden it. When reviewing new decode/parse
-    surface, probe exact-length rejection with a throwaway test
 - **prek stash conflict**: untracked files with formatting issues break prek stash/restore during
     commit. Fix: move untracked files to /tmp before committing, restore after
 - **`mise run check` mdformat on context files** (recurring): define-next writes `next.md` +
     `define-next/MEMORY.md` non-conforming, so `prek --all-files` reformats every cycle (NOT an
     advance regression). Staged-only `git commit` is unaffected, but the pre-push mdformat hook runs
-    on the whole push range and WILL reject the batch. Fix: STAGE the reformatted `next.md` +
-    `define-next/MEMORY.md` into the review commit (mechanical rewrap, zero semantic change). Never
-    stage `iterations.jsonl` (runner-owned)
+    on the whole push range and WILL reject the batch — STAGE the reformatted files into the review
+    commit (mechanical rewrap). Never stage `iterations.jsonl` (runner-owned)
 - **No-op / human-handoff iteration (iter 111)**: verify scope is empty
     (`git diff HEAD~1..HEAD --stat -- crates/ packages/ scripts/ docs/ notes/ .claude/context/specs/`)
-    and still scan `@{upstream}..HEAD` for gate circumvention. SIGNAL: only `normal` [review]
-    HUMAN-REVIEW spec amendments + `low` [human] remaining (strict IDLE cond #2 NOT met) → flag
-    **HUMAN REVIEW REQUESTED** (runner "pause"), NOT `**IDLE**` (reserved for all-`low`, runs
-    meta-improve). Verdict still PASS; push clean batch
-- **Unicode version is unpinned per implementation (iter 129, issue OPEN)**: Go stdlib `unicode` =
-    15.0.0 (its `unicode.C` INCLUDES unassigned Cn) and Python 3.13 `unicodedata` = 15.1.0, but Rust
-    `unicode-general-category` = 16.0.0 / `unicode-normalization` = 17.0.0 → 5,813 code points where
-    Go+`iscc-core` strip a character the Rust core keeps, so Meta/Text codes differ (repro: `Ɤ`
-    U+A7CB). **The Rust core is the outlier**, and no gate catches it. Do not let a future step
-    "fix" a binding to match the core — the version choice is HUMAN-REVIEW spec policy
+    and still scan `@{upstream}..HEAD` for gate circumvention. Only HUMAN-REVIEW spec amendments +
+    `low` left (strict IDLE cond #2 NOT met) → flag **HUMAN REVIEW REQUESTED** (runner "pause"), NOT
+    `**IDLE**` (all-`low` only; it runs meta-improve). Verdict still PASS; push clean batch
+- **Unicode data version — DECIDED 16.0.0 + freeze rule (2026-07-25), machinery unimplemented**:
+    Rust core keeps 5,813 post-15 code points that Go/`iscc-core` strip, so Meta/Text codes diverge
+    (repro `Ɤ` U+A7CB) and no vector catches it. Never let a step "fix" one binding to match
+    another. Freeze-rule design + deltas → `learnings.md`; implementation order → `issues.md`
 - **Concurrent CID loops (iter 97, resolved iter 98 — in `MEMORY-archive.md`)**: spurious
     `mise run check` "files modified" on an untouched file + mid-review working-tree change = a
     SECOND loop racing. Confirm `ps aux | grep -E 'cid:run|claude -p CID iteration'`; flag HUMAN
@@ -83,7 +61,9 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
 
 - **Rust-only**: `cargo test -p iscc-lib` + clippy workspace + `mise run check`
 - **Clippy workspace**: fast (~2s) after build — always run
-- **Docs-only**: `mise run check` + clippy
+- **Docs-only**: `mise run check` + clippy + `mise run version:check` (21 `OK:` lines) +
+    `uv run zensical build` ("No issues found", ~13s) + rendered-HTML grep for admonition/tab edits
+    (recipe → `review-patterns.md`)
 - **Python-only**: `mise run check` + `pytest`
 - **Go-only**: `mise run check` + `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`
     - `go vet -C packages/go ./...`
@@ -91,46 +71,39 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (needs
     `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`)
 - **Kotlin-only**: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
-    workspace + `mise run check`. Gradle flakes on this bind mount
-    (`Unable to delete file   …/build/kotlin/…`, `NoSuchFileException …/build/reports/…`) — read
+    workspace + `mise run check`. Gradle flakes on this bind mount — read
     `build/test-results/test/*.xml` and re-run after `./gradlew clean` before calling it a failure.
-    If the diff touches the KGP version, run the consumer-floor test in `dep-refresh-reviews.md`
+    If the diff touches the KGP version, run the consumer-floor test in `dep-refresh-reviews.md`.
+    Published floor is **Kotlin 2.3 or newer** (documented iter 132 in root README, package README,
+    howto + `specs/kotlin-bindings.md` — a bump moving it must update all four in one step)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see gate-reviews.md Audit)
 - **Dependency refresh slices (v0.6.0 issue)**: per-slice gate sets + hold-back-verification recipes
-    for Cargo.lock (iter 124), uv.lock (125), Rust direct pins (126), GitHub Actions (127), JVM
-    manifests (128), Go module (129), Ruby Gemfile (130), ruff 0.16 A/B/C/D (131+) →
-    `dep-refresh-reviews.md`. Never use the lockfile-only shortcut on these. **A toolchain/compiler
-    bump inside a PUBLISHED binding is a support-policy change, not a pin** — check whether the
-    consumer floor moved (iter 128 recipe) before passing it
-- **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131): the Python package dir
-    ships `py.typed` beside `_lowlevel.pyi`, so the stub is consumer-facing while `ty` is the only
-    repo gate on it. `uvx mypy@1.18.2 --strict` + `uvx pyright@1.1.407` ≈ 30s and confirmed
-    docstring-only stub bodies are valid. Prefer an `ast.parse` body assertion over greps when
-    verifying a bulk stub edit
-- **Verify a `# held:` claim from registry metadata, never from the handoff** (iters 126/130): the
-    check is ~30s per claim — `cargo info <crate>@<ver>` (rust-version),
-    `gem specification <gem> -v   <ver> --remote` (transitive pins),
-    `curl https://rubygems.org/api/v1/versions/<gem>.json | jq '.[]|{number,ruby_version}'` (the v1
-    endpoint has `ruby_version`; v2 returns null). A hold-back with a *wrong* stated reason is worse
-    than no comment — it survives as folklore
-- **A dep that ships DATA TABLES (Unicode, locale, tz) needs an exhaustive differential, not green
-    vectors** (iter 129, `golang.org/x/text`): the 50 vendored ISCC vectors are all Unicode ≤ 15, so
-    they cannot detect a table change. Recipe: throwaway module with a `replace` to the local
-    package, dump outputs for the whole input space, re-run under `replace <dep> => <dep> v<OLD>`,
-    `diff`. Full commands in `dep-refresh-reviews.md` slice 6
+    for Cargo.lock (124), uv.lock (125), Rust pins (126), GH Actions (127), JVM (128), Go (129),
+    Ruby (130), ruff 0.16 A/B/C/D (131+) → `dep-refresh-reviews.md`. Never use the lockfile-only
+    shortcut on these. **A toolchain/compiler bump inside a PUBLISHED binding is a support-policy
+    change, not a pin** — check whether the consumer floor moved (iter 128 recipe) before passing it
+- **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131): the package ships
+    `py.typed` beside `_lowlevel.pyi`, so it is consumer-facing. `uvx mypy@1.18.2 --strict` +
+    `uvx pyright@1.1.407` ≈ 30s. Prefer an `ast.parse` body assertion over greps for bulk stub edits
+- **Verify a `# held:` claim from registry metadata, never from the handoff** (iters 126/130, ~30s):
+    `cargo info <crate>@<ver>` (rust-version), `gem specification <gem> -v <ver> --remote`
+    (transitive pins), `https://rubygems.org/api/v1/versions/<gem>.json` (`ruby_version`; v2 returns
+    null). A hold-back with a *wrong* stated reason survives as folklore — worse than no comment
+- **A dep shipping DATA TABLES (Unicode, locale, tz) needs an exhaustive differential, not green
+    vectors** (iter 129, `golang.org/x/text`): the 50 vendored vectors are all Unicode ≤ 15. Recipe
+    (throwaway module + `replace` to the old version, dump whole input space, `diff`) →
+    `dep-refresh-reviews.md` slice 6
 - **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
-    `--target all`. Used it to disprove an advance-handoff attribution: the
-    `proc-macro-error2 v2.0.1` future-incompat warning is from `iai-callgrind-macros` (dev-only),
-    NOT magnus/rb-sys. Cheap 30-second check whenever a handoff blames a subtree for a warning
+    `--target all`. Disproved an advance-handoff attribution with it: the `proc-macro-error2 v2.0.1`
+    future-incompat warning is from `iai-callgrind-macros` (dev-only), NOT magnus/rb-sys
 - **Version sync addition**: `mise run check` + `uv run scripts/version_sync.py --check` + clippy
 - **Script-only (shell)**: `bash -n <script>` + `mise run check` + clippy (when no Rust changes)
-- **release.yml-only (iter 123, #49)**: NOT exercised by CID pushes (only
-    `workflow_dispatch`+registry) → static-verify only: YAML parse + matrix-entry presence +
-    artifact-name consistency across the build→test→publish chain. Adding a wheel target =
-    build+test matrix only; `publish-pypi` collects via `pattern: wheels-*`+`merge-multiple`.
-    `test-*` jobs still lack the `!cancelled()&&!failure()` guard (tracked single-registry
-    re-trigger bug) — don't flag as new
+- **release.yml-only (iter 123, #49)**: NOT exercised by CID pushes → static-verify only: YAML parse
+    - matrix-entry presence + artifact-name consistency across build→test→publish. Adding a wheel
+        target = build+test matrix only (`publish-pypi` collects via `pattern: wheels-*`). `test-*`/
+        `publish-*` jobs still lack the `!cancelled()&&!failure()` guard that only `build-*` and
+        `publish-crates-io` carry (tracked re-trigger bug, re-verified iter 132) — don't flag as new
 - **CI/Audit/Perf/Semver/CRAP gate reviews**: see `gate-reviews.md`
 - **Binding propagation (napi/wasm/ffi/jni/ruby/dotnet/kotlin/uniffi)**: see `binding-reviews.md`
 - Cross-platform CI: bash syntax needs `shell: bash` if matrix includes Windows
@@ -138,22 +111,14 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
 ## Codex Review Integration
 
 - Codex findings are advisory — cross-reference with your own analysis. Use `--commit HEAD` (verify
-    with `git log` first)
-- Go codec findings: dismiss — Go mirrors Rust reference faithfully
-- `.NET version` findings: `dotnet-version: '8.0'` is valid for `actions/setup-dotnet@v4` (resolves
-    to latest 8.0.x). Dismiss "use `8.0.x`" suggestions
-- Confused by large generated Kotlin/Swift diffs — those findings are advisory
-- **Trust Codex on dependency-internals findings (iters 117-118)**: it correctly caught (117) that
-    blake3's `wasm32_simd` backend needs the Cargo feature, then (118, P3) that blake3's SIMD fns
-    carry `#[target_feature(enable = "simd128")]` so the global RUSTFLAGS is NOT needed to compile
-    the backend — both verified against blake3 source + a no-flag wasm build. When Codex cites a
-    dep's build.rs / `#[target_feature]` / feature gating, check the dep source (and build it)
-    before dismissing
-- **Codex catches downstream-consumer breakage that local gates cannot (iter 128)**: it flagged the
-    KGP 2.4.10 → metadata 2.4.0 consumer-floor raise from the same commit I was probing. Convergence
-    is the cue to VERIFY EMPIRICALLY — the throwaway-consumer test turned "2.1.x breaks" into the
-    exact boundary (< 2.3 fails). Codex reports the risk; only the experiment gives the number
-- **Codex is strong on input-validation edge cases (iter 119)**: on new decode/parse code it caught
-    a real trailing-byte acceptance gap in `DecodeIsccID`/`IsccDecode` the local tests missed. When
-    Codex flags "accepts malformed input / trailing data", probe it empirically before dismissing —
-    but characterize regression-vs-pre-existing (here it was a pre-existing codec-wide gap)
+    with `git log` first). A clean/empty verdict is a note, never grounds for NEEDS_WORK
+- Go codec findings: dismiss — Go mirrors Rust reference faithfully. `dotnet-version: '8.0'` is
+    valid for `setup-dotnet@v4` — dismiss "use `8.0.x`". Large generated Kotlin/Swift diffs confuse
+    it — advisory only
+- **Trust Codex on dependency-internals findings** (117-118): it correctly read blake3's feature
+    gating and `#[target_feature]` attributes. When it cites a dep's build.rs / feature wiring,
+    check the dep source (and build it) before dismissing
+- **It catches downstream-consumer breakage local gates cannot** (128, the KGP consumer-floor raise)
+    **and input-validation edge cases** (119, trailing-byte decode acceptance). Convergence with my
+    own suspicion is the cue to VERIFY EMPIRICALLY — Codex reports the risk, only the experiment
+    gives the number; then characterize regression-vs-pre-existing

@@ -297,6 +297,10 @@ reference-only for humans.
     portable `ruby -e "puts Gem.user_dir"` for PATH resolution since `bundle` isn't on system PATH
 - Ruby `JSON.generate` silently ignores `sort_keys: true` — use `meta_val.sort.to_h` before
     `JSON.generate` for sorted-key output. Python `json.dumps(sort_keys=True)` works as expected
+- Gem dev-dependency work (iter 130): bundler has no `-C` flag — use
+    `(cd crates/iscc-rb && bundle …)` with `$(ruby -e "puts Gem.user_dir")/bin` on PATH. CI's
+    `ruby/setup-ruby` `bundler-cache: true` performs a **frozen** install, so prove Gemfile/lock
+    consistency locally with `BUNDLE_FROZEN=true bundle install --local`
 
 ## Go/wazero Bridge (OBSOLETE)
 

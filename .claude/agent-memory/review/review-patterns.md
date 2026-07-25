@@ -42,6 +42,31 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     verifying the advance work, also scan issues.md for any other entries that are now resolved
     (check state.md "met" sections against issue descriptions)
 
+## Claim-Probing Recipes (resolved cases, still-live technique)
+
+- **Backend-activation claims — verify the build.rs gating** (iters 117-118, #42 RESOLVED): don't
+    trust "flag set → goal met". blake3 WASM SIMD is activated by the `blake3/wasm32_simd` **Cargo
+    feature** (`CARGO_FEATURE_WASM32_SIMD` → `blake3_wasm32_simd` cfg → `Platform::WASM32_SIMD`),
+    NOT `-C target-feature=+simd128` alone. Honest wiring proof:
+    `cargo tree -p iscc-wasm --target wasm32-unknown-unknown -i blake3 -f "{p} {f}"` must show
+    `wasm32_simd`. Counting `v128` opcodes ALONE is a FALSE POSITIVE (LLVM auto-vectorizes the
+    portable path). NUANCE (118): blake3's SIMD fns carry `#[target_feature(enable = "simd128")]`,
+    so a no-flag `cargo build --target wasm32-unknown-unknown` still compiles the backend — the
+    global RUSTFLAGS only broadens simd128 to the whole crate. Test a no-flag wasm build before
+    accepting any "the flag is needed so intrinsics compile" doc claim
+- **Decode body-length must be EXACT, not `>= nbytes`** (found iter 119; Go 120, Rust core 121 —
+    RESOLVED): a `len(tail) < nbytes` guard silently drops trailing base32 bytes, so `...AB` aliases
+    `...ABAA` — codec-wide, NOT ID-specific. Both `IsccDecode` and `iscc_decode` now use a 2-branch
+    "too short"/"too long" form (keeps the "too short" message/test intact); all 11 bindings inherit
+    the Rust fix. Non-breaking for the Tier 1 symbol — rationale in `decisions.md` 2026-07-24.
+    Composite `iscc_decompose` legitimately consumes trailing units — do NOT harden it. Probe
+    exact-length rejection with a throwaway test whenever new decode/parse surface lands
+- **Docs-site rendering check** (iter 132): `uv run zensical build` reports "No issues found" even
+    when an `!!! note` body is mis-indented and degrades to a plain paragraph. Grep the RENDERED
+    page — `site/howto/<lang>/index.html` for `<div class="admonition note">` — after any
+    admonition/tab edit. `mise run version:check`'s file list IS `scripts/version_sync.py` `TARGETS`
+    (21 entries), so doc edits near a dependency line can break it
+
 ## Gotchas
 
 - Git log shows iteration numbering resets when a new CID run starts (iteration 12 → iteration 1) —
