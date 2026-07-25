@@ -182,41 +182,51 @@ Not introduced by the iter-129 `golang.org/x/text` refresh — that bump was ver
 across all 1,112,032 code points. Pre-existing and previously unnoticed.
 
 **DECIDED by Titusz 2026-07-25 — declare a Unicode version in the spec and gate it with post-15
-conformance vectors.** Pinning the core to whatever the reference currently uses was rejected (there
-is no stable target: `iscc-core` itself differs between CPython 3.13 and 3.14), and so was accepting
-the divergence as out-of-contract. Rationale in `decisions.md` (2026-07-25, "Unicode data version is
-declared and gated, not chased"). The contract requirement is now written into `specs/rust-core.md`
-→ "Unicode data version is part of the conformance contract", with two verification criteria.
+conformance vectors.** Rationale in `decisions.md` (2026-07-25, "Unicode data version is declared
+and gated, not chased").
 
-**Step 1 (CID-doable now) — measure, then report; do not pick the version unilaterally.** Produce
-evidence for the two candidates and write the findings into this issue for Titusz to confirm:
+**RESOLVED 2026-07-25 (interactive session) — the version is 16.0.0, with a freeze rule going
+forward.** The measurement step ran interactively (pin-15.1 / pin-16 / pin-17 / freeze-at-15.1 all
+compared); Titusz chose the compromise below. Rationale in `decisions.md` (2026-07-25, "Unicode data
+version 16.0.0 with a freeze rule").
 
-- **15.1.0** (matches CPython 3.13 and Go stdlib 15.0 in practice for the disputed range) — what
-    would it take? Is there an `unicode-general-category` release carrying 15.1 tables, or does it
-    need a vendored category table? What does `unicode-normalization` (currently Unicode 17)
-    require, and does its version measurably affect `text_clean`/`text_collapse` output at all?
-- **16.0.0** (matches CPython 3.14 and the current `unicode-general-category` 1.1.0) — does anything
-    need to change beyond declaring it, i.e. is the mixed 16-categories/17-normalization state
-    output-equivalent to a uniform 16?
+1. **Declared Unicode data version: 16.0.0** (= CPython 3.14's `unicodedata`). The backward-compat
+    glitch is accepted: inputs containing any of the 5,185 code points assigned between 15.1 and
+    16.0 (realistically: the 7 emoji added in Unicode 16) hash differently than `iscc-core` on
+    CPython ≤ 3.13 produced historically.
+2. **Freeze rule:** code points unassigned in Unicode 16.0.0 are removed from the input **before any
+    normalization or category lookup** in `text_clean` / `text_collapse`, via a vendored table (731
+    ranges covering 819,533 code points, generated from `unicodedata2==16.0.0`). Output becomes
+    invariant under all future Unicode table versions in every language — Unicode 17+ characters
+    are stripped no matter what the runtime ships, and the 16→17 normalization drift (measured:
+    exactly 1 code point) is moot because removal precedes normalization. Table dependencies become
+    freely upgradable; the differential sweep remains the gate on every bump.
+3. **Runtimes with tables older than 16.0 need real 16.0 tables** (the freeze rule cannot add
+    knowledge the runtime lacks). Rust core: current deps already suffice — categories are 16.0,
+    and the 17.0 normalization tables are output-equivalent to 16.0 once the freeze rule runs first
+    — so **no dependency change, only the freeze filter**. Go package: blocked on go1.27 (~Aug
+    2026, Unicode 17 in stdlib and x/text); until then Go is on 15.0 tables and will fail the new
+    boundary vectors — either vendor the 15.0→16.0 assigned-delta (5,813 code points with their
+    16.0 categories) or skip the boundary vectors for Go with a tracking note.
+4. **Boundary conformance vectors** (Rust suite + every binding): a 15.1→16 emoji that must be
+    retained (e.g. U+1FAE9), a Unicode-16 character with a canonical decomposition (one of the 56
+    normalization-drift code points, e.g. U+113C5), and a post-16.0 character the freeze rule must
+    strip (e.g. U+20C1 SAUDI RIYAL SIGN, assigned in Unicode 17).
 
-Use the differential technique that found the bug: dump `text_clean`/`text_collapse` over all
-1,112,032 code points per candidate and `diff`. Report crate availability, diff sizes, and the
-maintenance cost of each. **Do not change any Unicode pin in this step.**
-
-**Step 2 (after Titusz confirms the version)** — pin the crates, write the version into
-`specs/rust-core.md` (replacing the "Open:" note), add the post-Unicode-15 conformance vectors, and
-wire them into the Rust suite and every binding's conformance test. Expect the vectors to *encode a
-deliberate divergence* from `iscc-core` on some runtimes — that is the point of the gate.
+**Implementation order for CID:** (a) vendored unassigned-ranges table (with checked-in generator
+script) + freeze filter in the Rust core, proven output-equivalent to uniform Unicode 16.0 tables by
+a full-code-space differential sweep; (b) boundary vectors wired into the Rust suite and all
+bindings (Go: see caveat in point 3); the spec already names 16.0.0 and the freeze rule.
 
 **Upstream:** iscc/iscc-core — filed 2026-07-25 as <https://github.com/iscc/iscc-core/issues/137>
 ("text_clean/text_collapse output depends on the CPython version"). Reproduced there with
 `iscc-core` 1.3.0 itself: CPython 3.13 gives `ISCC:AAARDZ4ASOMVXBRR` / `ISCC:EAA7VW5ZOQZ3XEMT`,
-CPython 3.14 gives `ISCC:AAARDZ5SS6NVXBLT` / `ISCC:EAA3RXNBOM77TGM5` for the same input — **the 3.14
-pair is exactly what our Rust core already produces**, so declaring Unicode 16.0.0 would leave the
-Rust core unchanged and align it with `iscc-core` on CPython 3.14+. A full-code-space sweep of
-`unicodedata` 15.1.0 vs 16.0.0 found 5,185 code points changing top-level category, all `C` →
-non-`C`. Watch the upstream thread before running Step 2 — if upstream pins a version or narrows the
-filter to `Cc`/`Cf`/`Co`/`Cs`, that answer supersedes our candidate list.
+CPython 3.14 gives `ISCC:AAARDZ5SS6NVXBLT` / `ISCC:EAA3RXNBOM77TGM5` for the same input — the 3.14
+pair is what the Rust core produces. The fix to propose upstream is the same architecture:
+`unicodedata2==16.0.0; python_version < '3.14'` + import shim (wheels cover cp39–cp313, the whole
+supported range), the freeze-at-16 pre-filter (pure Python, same 731 vendored ranges), and boundary
+vectors in `data.json`. Per ISO 24138 Annex D the reference implementation is normative, so the
+`iscc-core` release adopting this settles the standard's answer.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
 contract"

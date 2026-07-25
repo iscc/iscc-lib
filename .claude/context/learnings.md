@@ -56,6 +56,13 @@ fully-met target sections to `learnings-archive.md`.
 
 ## ISCC Algorithm Knowledge
 
+- **Unicode freeze rule (declared version 16.0.0):** removing code points unassigned in Unicode
+    16.0.0 *before* any normalization or category lookup makes `text_clean`/`text_collapse` output
+    invariant to future Unicode table upgrades — newly assigned characters are stripped no matter
+    what the runtime ships, and normalization drift is impossible because removal precedes
+    normalization. Only runtimes with tables *older* than 16.0 need real table data. Measured
+    deltas: 15.1→16 = 5,185 category + 56 normalization changes; 16→17 = 4,803 + 1; in both cases
+    every change is a new assignment — zero changes to already-assigned characters.
 - `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty

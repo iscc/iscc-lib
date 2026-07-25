@@ -43,28 +43,39 @@ output contract, not an implementation detail: characters assigned after the dec
 `Unassigned` (category `Cn`), fall inside category `C`, and get stripped — so a table upgrade
 silently changes ISCCs for text containing newly assigned characters.
 
-Requirements:
+**Declared Unicode data version: 16.0.0** (decided by Titusz 2026-07-25; matches CPython 3.14's
+`unicodedata`). Requirements:
 
-1. **The Unicode data version this project targets is declared explicitly in this spec**, with the
-    crates that supply it (`unicode-general-category`, `unicode-normalization`) pinned to match.
-2. **Conformance vectors cover post-Unicode-15 code points**, so the declared version is enforced by
-    CI in every binding instead of being rediscovered by inspection. The vendored
-    `iscc-core/data.json` vectors all predate Unicode 16 and cannot catch this class of drift.
-3. Any change to a Unicode-table dependency must re-run the differential check (dump `text_clean` /
+1. **Freeze rule:** code points unassigned in Unicode 16.0.0 are removed from the input **before any
+    normalization or category lookup**, in both `text_clean` and `text_collapse`, using a vendored
+    table of unassigned ranges (731 ranges covering 819,533 code points, generated from
+    `unicodedata2==16.0.0` by a checked-in generator script). This makes output invariant under all
+    future Unicode table versions: characters assigned after 16.0.0 are stripped regardless of what
+    tables a dependency ships, and normalization drift cannot occur because removal precedes
+    normalization. Characters assigned in ≤ 16.0.0 are stable across table versions (normalization
+    by Unicode stability policy; general categories verified empirically — zero reclassifications
+    across 15.1 → 16 → 17).
+2. **Table dependencies must supply Unicode 16.0.0 or newer data.** Exact pins are not required —
+    the freeze rule guarantees the output — so the current `unicode-general-category` 1.1.0
+    (16.0.0) and `unicode-normalization` 0.1.25 (17.0.0) both qualify and may be upgraded freely.
+3. **Conformance vectors cover the 16.0.0 boundary** in every binding, so the declared version is
+    enforced by CI instead of being rediscovered by inspection: a character assigned in 16.0 that
+    must be retained (e.g. U+1FAE9), a 16.0 character with a canonical decomposition (e.g.
+    U+113C5), and a post-16.0 character the freeze rule must strip (e.g. U+20C1, assigned in
+    Unicode 17). The vendored `iscc-core/data.json` vectors all predate Unicode 16 and cannot catch
+    this class of drift.
+4. Any change to a Unicode-table dependency must re-run the differential check (dump `text_clean` /
     `text_collapse` output across all 1,112,032 code points before and after, then `diff`) and
     report the result — a green vector suite is not sufficient evidence of output neutrality.
 
-The reference implementation does not pin a Unicode version: `iscc-core` inherits CPython's
-`unicodedata` (15.1.0 on 3.13, 16.0.0 on 3.14), so its own output is not stable across Python
-runtimes. Our declared version is consequently a project position, not a copy of the reference, and
-divergence from a *particular* reference runtime is expected and documented rather than treated as a
-conformance failure.
-
-**Open:** the concrete version to declare (15.1.0, matching CPython 3.13 and Go's stdlib tables, vs
-16.0.0, matching CPython 3.14 and the current Rust tables) is pending a cost measurement of each
-candidate, and pending the upstream thread <https://github.com/iscc/iscc-core/issues/137> — see the
-corresponding entry in `issues.md`. Note that 16.0.0 requires no change to the Rust core: its
-current output already matches `iscc-core` running on CPython 3.14.
+The reference implementation does not pin a Unicode version yet: `iscc-core` inherits CPython's
+`unicodedata` (15.1.0 on 3.13, 16.0.0 on 3.14). The same architecture — a conditional
+`unicodedata2==16.0.0` dependency for Python < 3.14 plus the freeze rule — is proposed upstream in
+<https://github.com/iscc/iscc-core/issues/137>; per ISO 24138 Annex D the reference implementation
+is normative, so the `iscc-core` release adopting it settles the standard's answer. Until then,
+divergence from `iscc-core` on runtimes with non-16.0 tables is expected and documented, not a
+conformance failure. Accepted backward-compat glitch: inputs containing characters assigned between
+15.1 and 16.0 hash differently than `iscc-core` on CPython ≤ 3.13 produced historically.
 
 **Verified when:**
 
@@ -76,10 +87,13 @@ current output already matches `iscc-core` running on CPython 3.14.
 - [ ] `iscc_lib::text_collapse("café")` returns `"cafe"`
 - [ ] All four functions are accessible from Python bindings as `iscc_lib.text_clean()` etc.
 - [ ] All four functions are accessible from Node.js, WASM, and C FFI bindings
-- [ ] This spec names the targeted Unicode data version, and the `unicode-general-category` /
-    `unicode-normalization` pins in `Cargo.toml` supply exactly that version
-- [ ] A conformance vector set covering post-Unicode-15 code points exists and is exercised by the
-    Rust test suite and by every binding's conformance test
+- [ ] Code points unassigned in Unicode 16.0.0 are removed before normalization and category lookup
+    in `text_clean` / `text_collapse`, via a vendored range table with a checked-in generator script
+- [ ] A conformance vector set covering the Unicode 16.0 boundary (retained 16.0 character,
+    decomposing 16.0 character, stripped post-16.0 character) is exercised by the Rust test suite
+    and by every binding's conformance test
+- [ ] A full-code-space differential sweep proves the freeze-rule implementation output-equivalent
+    to uniform Unicode 16.0.0 tables
 
 ## Algorithm Primitives
 

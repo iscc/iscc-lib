@@ -201,3 +201,28 @@ U+A7CB). **Alternatives:** settle our own position first and file a proposal —
 two slow decisions where the upstream input is most useful before ours is fixed; keep it local —
 rejected: leaves the reference non-deterministic and the spec gap unrecorded. **Context:**
 interactive session with Titusz, 2026-07-25.
+
+## 2026-07-25 — Unicode data version 16.0.0 with a freeze rule
+
+**Decision:** the declared Unicode data version is **16.0.0** (CPython 3.14's tables), combined with
+a **freeze rule**: code points unassigned in Unicode 16.0.0 are removed before any normalization or
+category lookup in `text_clean`/`text_collapse`, via a vendored table of 731 unassigned ranges.
+Runtimes with older tables get real 16.0 data (`iscc-core` adds
+`unicodedata2==16.0.0; python_version < '3.14'`, wheels cover cp39–cp313); runtimes with newer
+tables need nothing, ever — the freeze rule strips post-16 characters regardless of what the runtime
+ships, and normalization drift is impossible because removal precedes normalization. **Why:**
+measurements showed all table drift between 15.1, 16 and 17 comes from newly assigned code points
+(5,185 + 4,803 category changes, 56 + 1 normalization changes, zero changes to existing characters),
+so stripping the frozen unassigned set makes output permanently version-independent with zero
+ongoing maintenance — while pinning 16.0 as the baseline keeps modern coverage (Unicode 16 emoji,
+CJK Ext I) and matches current CPython natively. The backward-compat glitch (inputs with 15.1→16
+characters hash differently than on CPython ≤ 3.13 historically) is accepted; codes stay
+hamming-close. **Alternatives:** pin 15.1 everywhere — rejected: `unicodedata2==15.1.0` has no
+wheels past cp312 (old releases never gain new wheels), no Rust crate carries 15.1 category tables,
+and Go stdlib tables cannot be pinned at all; freeze at 15.1 without the 16 baseline — rejected:
+gives up Unicode 15.1/16 additions already in real-world use for no extra safety; pin 16 without the
+freeze rule — rejected: forces a coordinated re-pin at every future Unicode release (next: CPython
+3.15 / go1.27 ship Unicode 17 in 2026) with a permanent `unicodedata2` treadmill. Precedent:
+IDNA2003 froze at Unicode 3.2. **Context:** interactive session with Titusz, 2026-07-25 — compromise
+proposed by Titusz after comparing pin-old/pin-new/freeze options; supersedes the open version
+question in the 2026-07-25 "declared and gated, not chased" entry.
