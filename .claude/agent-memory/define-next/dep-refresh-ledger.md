@@ -138,10 +138,14 @@ budget → sliced by *decision content*, not by file count:
     behaviour-preserving fix; `tools/cid.py` is invoked only as `uv run tools/cid.py …` from 10
     `mise.toml` tasks, so the exec bit is purely additive and no hook
     (`check-executables-have-shebangs` is absent) reacts.
-- **E — drop `ruff<0.16` + `uv lock --upgrade-package ruff`**, only once `uvx ruff@0.16.0 check .`
-    exits 0. Retire the `# held:` comment in the same step. Its own decision content: does the repo
-    survive 0.16 as the *project formatter* and default rule set (`ruff format` output can shift
-    across minor versions)?
+- **E (scoped iter 137) — drop `ruff<0.16` + `uv lock --upgrade-package ruff`** + retire the
+    `# held:` comment. Probed live: linter side is a pure no-op (0.16 `check .`, hook-mode per-file,
+    `--select S`, `--select C901` all exit 0; 13 `# noqa: S60x` intact). **The only real change is
+    the formatter's file discovery: ruff 0.16 formats Python code blocks inside `.md`**, so the bare
+    `uv run ruff format --check` used by `mise run lint` + `ci.yml` widens 25 → ~153 files. All 129
+    tracked `.md` are already 0.16-clean → free coverage, no exclude config needed. `ruff check`
+    does NOT lint Markdown. Gitignored `reference/` (32 dirty) and `cauldron/` (1 dirty) stay
+    excluded from a bare `.` run — never pass them explicitly.
 
 Reproduce baselines with `uvx ruff@0.16.0 …` — it needs no lockfile change and the cache is warm.
 
