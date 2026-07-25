@@ -194,12 +194,24 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
     seconds: `uvx mypy@1.18.2 --strict <copy>.pyi` and `uvx pyright@1.1.407 <path>`. Both accept
     docstring-only stub bodies. Also AST-check bodies rather than trusting greps: `ast.parse` +
     assert every `FunctionDef.body` is a single string-constant `Expr`
-- **Sub-slice C is a gate *strengthening***: adding `S`/`C901` to `[tool.ruff.lint] select` clears
-    all 15 RUF100 *and* promotes both scans into `mise run check`. If a step instead deletes the
-    noqas or adds `per-file-ignores`/`ignore` for them → NEEDS_WORK. Keep the existing `tests/**`
-    per-file-ignores (S101/S603/S607)
-- **Sub-slice D** is the only one allowed to touch `pyproject.toml:27` + `uv.lock`; require
-    `uvx ruff@0.16.0 check .` exit 0 first
+- **Sub-slice B (iter 134, PASS) was a gate *strengthening***:
+    `[tool.ruff.lint] extend-select = ["S", "C901"]` cleared all 15 RUF100 *and* promoted both scans
+    into `ruff check` (pre-commit, `mise run lint`, CI). It must be `extend-select`, NEVER `select`
+    (which replaces ruff's `E4`/`E7`/`E9`/`F` defaults — assert with tomllib that no `select` key
+    exists). A step that instead deletes the noqas or adds `per-file-ignores`/`ignore` for them →
+    NEEDS_WORK. Keep the `tests/**` per-file-ignores (S101/S603/S607). 26 → 12 findings
+- **THE probe for any `# noqa` deletion** (~5s, settles it):
+    `uv run ruff check --select <rule>   --ignore-noqa --output-format concise` lists the real
+    violations with suppressions off — if the deleted directive's line is absent, it was dead
+    weight; if present, deletion opens a hole. `uv run ruff check --select S,RUF100` and
+    `--extend-select RUF100` show unused directives under the *pinned* ruff. Iter 134 finding:
+    `S603` never fires on a fully static list-literal argv in 0.15.22 *or* 0.16.0 (only on
+    `["git", "add", rel]` / `["git", *args]`), so the handoff's "0.16 refined S603" attribution was
+    wrong — the real change is that 0.16 default-selects `RUF100`
+- **Sub-slice C/D** are the only ones allowed to touch the `ruff<0.16` pin + `uv.lock` (D); require
+    `uvx ruff@0.16.0 check .` exit 0 first. Recommend C also add `RUF100` to `extend-select` (green
+    at HEAD since B). When the pin's `# held:` reason goes stale (it said "104 new errors" while 12
+    remained), fix the comment as a review minor fix
 
 ## Remaining slices
 

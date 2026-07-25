@@ -68,6 +68,11 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     `uv run zensical build` ("No issues found", ~13s) + rendered-HTML grep for admonition/tab edits
     (recipe → `review-patterns.md`)
 - **Python-only**: `mise run check` + `pytest`
+- **Lint-config-only (`[tool.ruff.lint]`, iter 134)**: `mise run check` + `uv run ruff check` +
+    `format --check` + both pre-push gates (`--select S` / `--select C901 --force-exclude`) +
+    `uvx ruff@0.16.0 check . --output-format concise` (count must match next.md) + `pytest`. A
+    `# noqa` deletion is only safe if `--select <rule> --ignore-noqa` does NOT list its line — see
+    `dep-refresh-reviews.md` slice 8. Docs edit → `uv run zensical build`
 - **Go-only**: `mise run check` + `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`
     - `go vet -C packages/go ./...`
 - **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` +
@@ -83,9 +88,10 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     deps changed — see gate-reviews.md Audit)
 - **Dependency refresh slices (v0.6.0 issue)**: per-slice gate sets + hold-back-verification recipes
     for Cargo.lock (124), uv.lock (125), Rust pins (126), GH Actions (127), JVM (128), Go (129),
-    Ruby (130), ruff 0.16 A/B/C/D (131+) → `dep-refresh-reviews.md`. Never use the lockfile-only
-    shortcut on these. **A toolchain/compiler bump inside a PUBLISHED binding is a support-policy
-    change, not a pin** — check whether the consumer floor moved (iter 128 recipe) before passing it
+    Ruby (130), ruff 0.16 A/B (131/134) + C/D → `dep-refresh-reviews.md`. Never use the
+    lockfile-only shortcut on these. **A toolchain/compiler bump inside a PUBLISHED binding is a
+    support-policy change, not a pin** — check whether the consumer floor moved (iter 128 recipe)
+    before passing it
 - **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131): the package ships
     `py.typed` beside `_lowlevel.pyi`, so it is consumer-facing. `uvx mypy@1.18.2 --strict` +
     `uvx pyright@1.1.407` ≈ 30s. Prefer an `ast.parse` body assertion over greps for bulk stub edits

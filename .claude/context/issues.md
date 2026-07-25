@@ -71,12 +71,20 @@ Slice 8 (ruff 0.16 adoption) — **sub-slice A done** (iter 131): the 78 config-
 (`PIE790`+`PYI048` double-report the same line) and 6 `RUF059` unused unpackings `_`-prefixed in
 `tests/test_new_symbols.py`. Docstring-only stub bodies verified downstream-safe against `ty`,
 `mypy 1.18 --strict` and `pyright 1.1.407` (the wheel ships `py.typed` alongside the stub). Baseline
-104 → **26 findings left**, each needing a decision: `RUF100` 15 + `EXE001` 1 + `PLW1510` 1 in
-`tools/`/`scripts/` (the `RUF100`s are the load-bearing `# noqa: S603/S607` — 0.16 calls them unused
-only because `S` is not in the default select, so deleting them would red the pre-push
-`ruff check --select S` gate; the fix is a lint-config decision such as adding `S`/`C901` to
-`[tool.ruff.lint] select`), plus `I001` 8 + `RUF022` 1 needing an isort src-root decision. The
-`ruff<0.16` pin stays until the tree is clean under 0.16.
+104 → 26. ✅ **Sub-slice B done** (iter 134): `[tool.ruff.lint] extend-select = ["S", "C901"]` added
+to `pyproject.toml`, so `uv run ruff check` (pre-commit, `mise run lint`, CI) enforces the security
+and complexity gates for the first time and the 14 load-bearing `# noqa: S603/S607` in
+`tools/`/`scripts/` are *recognised* instead of reported unused. Two genuinely dead directives were
+deleted: the `S603` on the static-argv `subprocess.run` in `tools/metrics.py` `git_sha()` (verified
+dead under **both** 0.15.22 and 0.16.0 via `--select S --ignore-noqa` — so the "0.16 refined S603"
+framing in the advance handoff is inaccurate; the directive was simply invisible while `RUF100` was
+unselected) and a stale `PLC0415` in `tools/cid.py`. The two pre-push `--select S` / `--select C901`
+hooks were deliberately kept as redundancy. All 15 `RUF100` cleared; **12 findings left**: `I001` 8
+\+ `RUF022` 1 (isort src-root decision — sub-slice C), `RUF007` 1
+(`scripts/gen_unicode16_unassigned.py`), `PLW1510` 1 (`scripts/test_install.py`), `EXE001` 1
+(`tools/cid.py` shebang without exec bit). Worth bundling into sub-slice C: add `RUF100` to
+`extend-select` as well (green at HEAD today) so stale directives can never accumulate unseen again.
+The `ruff<0.16` pin stays until the tree is clean under 0.16.
 
 Verified already-current and needing no bump: `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
 mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
@@ -88,12 +96,10 @@ re-checked iter 129, editing them would be churn. Remaining: `.github/workflows/
 refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs
 `@v9.0.0`, only truly exercised by a release run — consider bundling with the existing release.yml
 `if:`-guard fix issue), plus the deferred majors: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle
-wrapper 8.12.1 and JUnit 6.x (each its own step). A dedicated step should adopt ruff 0.16 (run
-`ruff check --fix` for the 60 auto-fixable, hand-fix the rest — mostly `_lowlevel.pyi` stub-style
-PIE790/PYI048/RUF022 — and drop the `ruff<0.16` pin); this is the best-scoped next slice since it is
-self-contained and fully locally verifiable. Separately, the `jni` 0.22 and `magnus` 0.8 migrations
-each need their own step (source rewrite in `crates/iscc-jni/src/lib.rs` and
-`crates/iscc-rb/src/lib.rs` respectively).
+wrapper 8.12.1 and JUnit 6.x (each its own step). The ruff 0.16 adoption is in progress as slice 8
+above (sub-slices A + B done, C next — never run `ruff@0.16 check --fix .`, it deletes load-bearing
+`# noqa` directives). Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need their own
+step (source rewrite in `crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively).
 
 **Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
 (`extern crate proc_macro is private and cannot be re-exported`) emitted on every `cargo test` /

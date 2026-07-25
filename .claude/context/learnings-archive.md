@@ -322,6 +322,11 @@ reference-only for humans.
 - **Ruby cross-gem action quirk**: `oxidize-rb/actions/cross-gem@v1` configure step greps
     `Gemfile.lock` in repo root (ignores `working-directory`). For subdirectory gems, symlink the
     lockfile: `ln -sf crates/iscc-rb/Gemfile.lock Gemfile.lock`
+- **Ruby gem dev deps** (iter 130, archived iter 134 — dep-refresh slice 7 done): `rb_sys` stays
+    pinned EXACTLY at 0.9.123 to match `tag: 0.9.123` of `oxidize-rb/actions/cross-gem` in
+    `release.yml` (that rb_sys pins `rake-compiler-dock = 1.10.0`); `minitest ~> 5.0` is held
+    because 6.0.x requires Ruby ≥ 3.2 vs the gem's declared 3.1.0 floor. Both reasons live in inline
+    `# held:` comments in `crates/iscc-rb/Gemfile`
 
 ## .NET Bindings (P/Invoke) — Completed Phase (Iteration 9)
 

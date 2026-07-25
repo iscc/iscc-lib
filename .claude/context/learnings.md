@@ -28,23 +28,21 @@ fully-met target sections to `learnings-archive.md`.
     `uv run --python 3.13 --no-project --with iscc-core python …` (and `3.14`) — no project env
     needed Upstream: <https://github.com/iscc/iscc-core/issues/137>
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) must be proven output-neutral by a
-    **differential sweep**, not by a green vector suite: dump the function output for all 1,112,032
-    code points before and after the bump and `diff` (recipe: throwaway module + `replace`/pin to
-    the old version → `learnings-archive.md`). ~2 minutes, and the only thing that catches table
-    drift — every vendored conformance vector predates Unicode 16
+    **differential sweep** over all 1,112,032 code points (~2 min; recipe → `learnings-archive.md`),
+    never by a green vector suite — every vendored conformance vector predates Unicode 16
 
 ## Tooling
 
 - `mise` manages tool versions and tasks. Python env uses `uv`. Hooks via `prek`
 - Never use `mise` in CI — call tools directly
-- Pre-push hooks run: clippy `-D warnings`, cargo test, pytest, ty check, ruff security/complexity —
-    none of these are in the pre-commit stage
+- Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest, `ty check`. The ruff `S`/`C901`
+    scans also run pre-commit since iter 134 (they are in the default select now)
 - **PyO3 is `0.29`** (iscc-py only): keep `#[pymodule(name = "_lowlevel", gil_used = true)]`
     explicit. Per-hop upgrade recipe → `learnings-archive.md`
 - **`_lowlevel.pyi` stub bodies are docstring-only — no trailing `...`** (iter 131). The wheel ships
     `py.typed`, so the stub is consumer-facing: check changes against `mypy 1.18 --strict` +
-    `pyright 1.1.407` too, not just `ty`. ruff 0.16 double-reports docstring + `...` as `PIE790`
-    *and* `PYI048` on one line, so N findings collapse to N/2 deletions
+    `pyright 1.1.407` too, not just `ty` (0.16 double-reports docstring + `...` as `PIE790` *and*
+    `PYI048` on one line, so N findings collapse to N/2 deletions)
 - **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133,
     `scripts/gen_unicode16_unassigned.py` + `unicodedata2==16.0.0`): inline `# /// script` metadata,
     run with `uv run --script <path>`, and add the path to `[tool.ty.src] exclude` with a comment
@@ -130,19 +128,22 @@ fully-met target sections to `learnings-archive.md`.
     `# held:` comments** beside the pin — confirm the stated reason from registry metadata, not
     prose: `cargo info <crate>@<ver>` (`rust-version`), `gem specification <gem> -v <ver> --remote`
     (transitive pins), `https://rubygems.org/api/v1/versions/<gem>.json` (`ruby_version`; the v2
-    endpoint returns `null`). GOTCHAs: grep the actual pin syntax (`uniffi = "0.31"` is a plain
-    string, not an inline table); `criterion` > 0.5 deprecates `criterion::black_box`, fatal under
-    `-D warnings` → use `std::hint::black_box`
-- **ruff 0.16 adoption is sliced by decision type, not by file** (iters 125/131): run the unpinned
-    version with `uvx ruff@0.16.0 check .` — it never touches `uv.lock`, so `ruff<0.16` stays in
-    `pyproject.toml` until the tree is clean. Baseline 104 → 26 after slice A. **Never
-    `ruff@0.16 check --fix .`**: 15 of the remaining findings are `RUF100` on the load-bearing
-    `# noqa: S603/S607` in `tools/`+`scripts/` — 0.16 calls them unused only because `S` is not in
-    the default select, and deleting them reds the pre-push `ruff check --select S` gate. Their
-    resolution is a lint-config decision (e.g. add `S`/`C901` to `select`), never deletion
-- **Ruby gem dev deps (iter 130)**: `rb_sys` stays pinned EXACTLY at 0.9.123 to match `tag: 0.9.123`
-    of `oxidize-rb/actions/cross-gem` in `release.yml` (it pins `rake-compiler-dock = 1.10.0`).
-    Bundler/frozen-install commands → `learnings-archive.md`
+    endpoint returns `null`). GOTCHA: `criterion` > 0.5 deprecates `criterion::black_box`, fatal
+    under `-D warnings` → use `std::hint::black_box`
+- **ruff 0.16 adoption is sliced by decision type, not by file** (iters 125/131/134): run the
+    unpinned version with `uvx ruff@0.16.0 check .` — it never touches `uv.lock`, so `ruff<0.16`
+    stays in `pyproject.toml` until the tree is clean. 104 → 26 (slice A) → **12** (slice B put
+    `extend-select = ["S", "C901"]` in `[tool.ruff.lint]` — **never `select`**, which replaces
+    ruff's `E4`/`E7`/`E9`/`F` defaults; the two pre-push `--select S` / `--select C901` hooks stay
+    as deliberate redundancy that names the failing gate in push output). Left: `I001` ×8 + `RUF022`
+    (isort src-root decision), `RUF007`, `PLW1510`, `EXE001`. **Never `ruff@0.16 check --fix .`** —
+    it deletes the load-bearing `# noqa: S603/S607` in `tools/`+`scripts/`
+- **An unused `# noqa` is invisible unless `RUF100` is selected** (iter 134 probe): ruff 0.16
+    default-selects `RUF100`, pinned 0.15.22 does not. Before deleting any directive, prove it is
+    dead with `uv run ruff check --select <rule> --ignore-noqa` (real violations, suppressions off)
+    — `S603` never fires on a fully static list-literal argv in *either* version, only on dynamic
+    argv (`["git", "add", rel]`, `["git", *args]`). `--extend-select RUF100` is green at HEAD, so
+    enabling it would stop stale directives accumulating unseen
 - **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128 Kotlin, documented
     iter 132): KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar and
     `kotlin-stdlib:2.4.10` into the POM; a `mavenLocal` consumer proved 2.1.10/2.2.21 fail, 2.3.21

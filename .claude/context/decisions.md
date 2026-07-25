@@ -253,3 +253,24 @@ literally worded (a per-code-point sweep cannot see this class), and the accepte
 paragraph does not cover it. Both are filed as a `normal` `[review]` issue with HUMAN REVIEW
 REQUESTED, to be settled before boundary vectors are wired into the bindings. **Context:** CID
 iteration 133 review.
+
+## 2026-07-25 — Ruff `S`/`C901` enter the default select; the two pre-push hooks stay as redundancy
+
+**Decision:** the security (`S`) and complexity (`C901`) rule sets moved into
+`[tool.ruff.lint] extend-select` in `pyproject.toml`, so plain `ruff check` (pre-commit,
+`mise run lint`, CI) enforces them — and the `security` / `complexity` pre-push hooks in
+`.pre-commit-config.yaml`, which pass `--select S` / `--select C901` explicitly, were deliberately
+**kept** even though they are now redundant with the project config. **Why:** two independent
+reasons to keep the duplication. (1) The hooks pass `--select` on the command line, so they keep
+enforcing both gates regardless of what a future `pyproject.toml` edit does to the selection — a
+config regression cannot silently disable the security scan. (2) They name the failing gate in the
+push output ("Security scan (Ruff S rules)"), which a generic `ruff check` failure does not.
+`extend-select` rather than `select` because `select` *replaces* ruff's `E4`/`E7`/`E9`/`F` defaults
+and would silently drop pyflakes coverage. Side effect that motivated the change: the 14
+load-bearing `# noqa: S603/S607` directives in `tools/`/`scripts/` are only *recognised* when `S` is
+selected — otherwise ruff 0.16 reports them all as unused (`RUF100`) and `--fix` deletes them,
+reddening the pre-push gate. **Alternatives:** delete the `# noqa` directives to satisfy `RUF100` —
+rejected, it disables the S gate at those call sites; add `per-file-ignores` for `tools/`/`scripts/`
+— rejected as gate-weakening by scope exclusion; drop the now-redundant pre-push hooks — rejected
+per the two reasons above. **Context:** CID iteration 134 (`82b8e37`), ruff 0.16 adoption sub-slice
+B of the v0.6.0 dependency-refresh issue.

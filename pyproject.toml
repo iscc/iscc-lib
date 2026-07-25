@@ -32,7 +32,7 @@ max-complexity = 15
 dev = [
   "maturin",
   "prek",
-  "ruff<0.16",                    # held: 0.16 expands default lint rules (104 new errors, mostly _lowlevel.pyi) — refresh with a dedicated step
+  "ruff<0.16",                    # held: 12 findings left under 0.16 (I001 x8, RUF022, RUF007, PLW1510, EXE001) — drop the pin once they are cleared
   "taplo",
   "yamlfix",
   "ty",
