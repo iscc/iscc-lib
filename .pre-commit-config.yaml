@@ -61,6 +61,15 @@ repos:
         language: system
         types: [yaml]
         stages: [pre-commit]
+      # release.yml is workflow_dispatch-only (never exercised by CI runs), so its
+      # structural invariants are gated statically on every edit of the file
+      - id: check-release-workflow
+        name: Release workflow static checks
+        entry: uv run scripts/check_release_workflow.py
+        language: system
+        files: ^\.github/workflows/release\.yml$
+        stages: [pre-commit]
+        pass_filenames: false
       - id: standardrb-fix
         name: Ruby linting (fix)
         entry: bash -c 'export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH" &&

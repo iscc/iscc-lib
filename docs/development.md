@@ -142,6 +142,10 @@ can review and re-stage.
 - `taplo fmt` — TOML formatting
 - `yamlfix` — YAML formatting
 - `mdformat` — Markdown formatting
+- `scripts/check_release_workflow.py` — static checks for `.github/workflows/release.yml` (guard
+    shape, artifact wiring, `needs:` graph); the release workflow is `workflow_dispatch`-only, so
+    these invariants are never exercised by CI runs. Also enforced in CI via
+    `tests/test_check_release_workflow.py`
 
 ### Pre-push (thorough, run before code leaves the machine)
 

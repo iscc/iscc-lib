@@ -55,6 +55,7 @@ dev = [
   "pytest-timeout",
   "mdformat",
   "mdformat-mkdocs[recommended]",
+  "pyyaml",                       # scripts/check_release_workflow.py and its pytest suite parse release.yml in-process
   "iscc-core",
   "zensical",
   "mkdocstrings[python]",

@@ -66,6 +66,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     `gil_used` to `false`, unsafe for raw `PyList_GetItem` ptrs. Recipe → MEMORY-archive.md
 - GIL release (iters 111+116, #39/#41): 12 `py.detach` sites in `crates/iscc-py/src/lib.rs`. Video
     detach MUST open after frame-sig extraction; meta/audio/mixed stay attached. `tests/test_gil.py`
+- release.yml static gate (iter 142): `scripts/check_release_workflow.py` (guard shape, artifact
+    wiring via matrix-include expansion + symmetric glob match, `needs:` graph) — prek hook
+    `check-release-workflow` + `tests/test_check_release_workflow.py` in CI. Any release.yml edit
+    must keep it green. `pyyaml` is an explicit dev dep
 - Release workflow (`release.yml`): 9 boolean inputs → build → **smoke test** → publish (inputs,
     auth, CI internals → MEMORY-archive.md). `build-wheels` 4 targets incl native-ARM aarch64;
     `test-wheels` matrixed, artifact name = `wheels-<os>-<target>`. All 28 non-`prepare-release`
