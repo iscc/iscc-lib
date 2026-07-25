@@ -58,25 +58,12 @@ fully-met target sections to `learnings-archive.md`.
     is NONE (0). SubType SUM (5) is used for `iscc_sum` (multi-asset aggregation, not in gen_iscc)
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty
     after prefix = empty bytes. 50 total vectors (v1.3.0): 20+5+3+5+3+2+4+3+5
-- `soft_hash_meta_v0` interleaves name and description features at the nibble level. Trim lengths
-    are in bytes, not characters. The returned bytes are the raw SimHash digest
-- `gen_text_code_v0` uses MinHash (not SimHash) for the content hash portion. `alg_minhash_256`
-    produces 256 bits (32 bytes) from a set of n-gram features. Text n-gram size = 13 (characters)
-- `gen_data_code_v0` uses MinHash on CDC chunk hashes. CDC splits binary data into content-defined
-    chunks, each chunk is xxh32-hashed (not BLAKE3), the set of chunk hashes is MinHash'd
-- `soft_hash_audio_v0` is a 3-stage hash: Chromaprint i32 array → 4-byte big-endian digests →
-    SimHash (overall 4B + quarters 16B + sorted thirds 12B) = 32 bytes total
+- **Per-algorithm internals** (meta nibble interleave, text/data MinHash, audio 3-stage SimHash,
+    mixed grouping, `encode_units`, Nayuki DCT) archived iter 128 → `learnings-archive.md`
 - `alg_simhash` output length equals input digest length (e.g., 4 bytes for 4-byte digests). Returns
     32 zero bytes only for empty input. NOT always 256 bits
-- `gen_mixed_code_v0` processes multiple content codes: sorts by MainType, groups by SubType,
-    soft-hashes each group, then SimHash across groups. The input is a list of ISCC strings (units),
-    not raw data
 - MainType Ord: MainType enum values are ordered for consistent processing. META=0, SEMANTIC=1,
     CONTENT=2, DATA=3, INSTANCE=4, ISCC=5, ID=6, FLAKE=7
-- `encode_units` produces a single bitfield encoding an ordered list of content components included
-    in an ISCC-CODE. Used by `gen_iscc_code_v0` to record which units were combined
-- DCT uses Nayuki's algorithm (not FFTW/scipy). Image-Code: 8×8 pixel blocks → per-block DCT →
-    WTA-Hash across blocks. Video-Code: per-frame DCT → WTA-Hash per frame → SimHash across frames
 - JSON `meta` parameter: uses JCS (RFC 8785) canonicalization. `@context` key triggers
     `application/ld+json` media type, otherwise `application/json`
 - `conformance_selftest` uses bitwise-AND masking for truncated codes — do NOT compare full strings
@@ -126,19 +113,34 @@ fully-met target sections to `learnings-archive.md`.
     RustSec advisory reds the gate on ANY push with no code change — not a regression. Fix with
     `cargo update -p <crate>` (confirm dev-only reach via `cargo tree -i <crate> -e no-dev` =
     empty), NOT a `deny.toml` ignore — ignore ONLY when no patched release exists
-- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue). Done: slice 1 Rust
-    `cargo update` (iter 124), slice 2 Python `uv lock --upgrade` (iter 125, documented `ruff<0.16`
-    hold-back), slice 3 Rust direct pins (iter 126, criterion 0.5→0.7), slice 4 GitHub Actions in
-    `ci.yml` + `docs.yml` (iter 127). Verify each Rust slice with the 4-gate set
-    (`test`/`lint`/`audit`/`bench:iai:check`); `cargo-deny` is the main risk (new transitive
-    license/advisory). **Hold-back reasons are now inline `# held:` comments in the root
-    `Cargo.toml`** beside criterion/jni/magnus/uniffi — read them before proposing a bump.
-    `cargo info <crate>@<ver>` prints `rust-version`: the cheapest MSRV pre-check (criterion 0.8
-    needs 1.86 > our declared 1.85). GOTCHA: grep the actual pin syntax — `uniffi = "0.31"` is a
-    plain string, not an inline table. Remaining: per-binding manifests, tooling pins, ruff 0.16
-- **`criterion::black_box` is `#[deprecated]` from 0.6 on** — under `clippy -D warnings` that is a
-    hard error, so any criterion bump past 0.5 must also move the bench import to
-    `std::hint::black_box` (call sites are unchanged; `BenchmarkId`/`Throughput`/macros are stable)
+- **Dependency refresh is sliced per-ecosystem** (v0.6.0 `[human]` issue; per-slice progress lives
+    in `issues.md`). Slices 1-5 done (Cargo.lock, uv.lock, Rust pins, GHA refs, JVM manifests).
+    Verify each Rust slice with the 4-gate set (`test`/`lint`/`audit`/`bench:iai:check`);
+    `cargo-deny` is the main risk (new transitive license/advisory). **Hold-back reasons are inline
+    `# held:` comments** beside the pin (root `Cargo.toml`, `pom.xml`, `build.gradle.kts`) — read
+    them before proposing a bump. `cargo info <crate>@<ver>` prints `rust-version`: cheapest MSRV
+    pre-check. GOTCHAs: grep the actual pin syntax (`uniffi = "0.31"` is a plain string, not an
+    inline table); `criterion` > 0.5 deprecates `criterion::black_box`, fatal under `-D warnings` →
+    switch the bench import to `std::hint::black_box`
+- **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128, Kotlin): KGP
+    2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar (`javap -v -p <class> | grep mv=`) and
+    puts `kotlin-stdlib:2.4.10` in the published POM. Verified with a throwaway consumer resolving
+    from `mavenLocal`: Kotlin 2.1.10 and 2.2.21 fail to compile ("binary version of its metadata is
+    2.4.0"), 2.3.21 passes — Kotlin tolerates ~one minor ahead. The transitive stdlib triggers the
+    same error independently, so pinning `languageVersion` alone does not restore the old floor.
+    Treat compiler/toolchain bumps in a *published* binding as support-policy changes, not pins
+- **JVM test/publish gotchas** (iter 128): junit-jupiter ≥ 5.12 under Gradle 8.12.1 needs an
+    explicit `testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.x.y")` (Gradle injects a
+    launcher predating platform 1.12 → "OutputDirectoryCreator not available"); Maven/surefire
+    resolves the aligned launcher itself. `mvn -Prelease package -DskipTests` does **not** resolve
+    `maven-gpg-plugin` (verify-phase; absent from `~/.m2`) — prove a plugin version exists with a
+    `repo1.maven.org` `.pom` HTTP 200, not from build success.
+    `./gradlew   generatePomFileForMavenPublication` → `build/publications/maven/pom-default.xml`
+    proves test-scope deps do not leak into the published artifact
+- **Gradle flakes on the workspace bind mount**: `Unable to delete file …/build/kotlin/…` or
+    `NoSuchFileException …/build/reports/tests/test/packages` are incremental-state races, not test
+    failures (`build/test-results/test/*.xml` still showed `tests="9" failures="0"`). Re-run after
+    `./gradlew clean` before concluding anything about a build
 - **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
     `--target all`. The `proc-macro-error2 v2.0.1` future-incompat warning emitted on every
     `cargo test`/`cargo bench` traces to `iai-callgrind-macros` (dev-only), **not** magnus/rb-sys;

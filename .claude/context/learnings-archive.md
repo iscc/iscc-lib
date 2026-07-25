@@ -634,3 +634,21 @@ reference-only for humans.
 - **blake3 WASM SIMD backend — RESOLVED (#42)**: activated by the `blake3/wasm32_simd` Cargo feature
     (not `-C target-feature=+simd128`); `v128`-opcode counting alone is a FALSE-POSITIVE. Full
     recipe under "Feature Flags — blake3 WASM SIMD backend" above
+
+## ISCC Algorithm Internals (archived iter 128 — all 10 gen\_\*\_v0 functions conformance-complete)
+
+- `soft_hash_meta_v0` interleaves name and description features at the nibble level. Trim lengths
+    are in bytes, not characters. The returned bytes are the raw SimHash digest
+- `gen_text_code_v0` uses MinHash (not SimHash) for the content hash portion. `alg_minhash_256`
+    produces 256 bits (32 bytes) from a set of n-gram features. Text n-gram size = 13 (characters)
+- `gen_data_code_v0` uses MinHash on CDC chunk hashes. CDC splits binary data into content-defined
+    chunks, each chunk is xxh32-hashed (not BLAKE3), the set of chunk hashes is MinHash'd
+- `soft_hash_audio_v0` is a 3-stage hash: Chromaprint i32 array → 4-byte big-endian digests →
+    SimHash (overall 4B + quarters 16B + sorted thirds 12B) = 32 bytes total
+- `gen_mixed_code_v0` processes multiple content codes: sorts by MainType, groups by SubType,
+    soft-hashes each group, then SimHash across groups. The input is a list of ISCC strings (units),
+    not raw data
+- `encode_units` produces a single bitfield encoding an ordered list of content components included
+    in an ISCC-CODE. Used by `gen_iscc_code_v0` to record which units were combined
+- DCT uses Nayuki's algorithm (not FFTW/scipy). Image-Code: 8×8 pixel blocks → per-block DCT →
+    WTA-Hash across blocks. Video-Code: per-frame DCT → WTA-Hash per frame → SimHash across frames

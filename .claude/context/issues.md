@@ -39,18 +39,25 @@ gates green, perf within +1.96%). ✅ Slice 4 — GitHub Actions in `.github/wor
 setup-node v7, setup-java v5, setup-go v7, setup-dotnet v6, upload-artifact v7, upload-sarif v4,
 upload-pages-artifact v5 + deploy-pages v5 paired; `astral-sh/setup-uv` pinned to the **exact** tag
 `@v9.0.0` because upstream publishes no floating major past v7 — see `decisions.md` 2026-07-25; CI
-41/41 green on `8f76d48`). Verified already-current and needing no bump: `.pre-commit-config.yaml`
-(pre-commit-hooks v6.0.0, mdformat 1.0.0), `dtolnay/rust-toolchain@stable`,
-`Swatinem/rust-cache@v2`, `taiki-e/install-action@v2`, `ruby/setup-ruby@v1`,
-`obi1kenobi/cargo-semver-checks-action@v2`; `mise.toml` has no `[tools]` section. Remaining:
-`.github/workflows/release.yml` GHA refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4`
-must move together, `setup-uv` needs `@v9.0.0`, only truly exercised by a release run — consider
-bundling with the existing release.yml `if:`-guard fix issue) and per-binding manifests (napi
-`package.json`, rb `Gemfile`/gemspec, jni `pom.xml`, kotlin `build.gradle.kts`, dotnet `.csproj`, go
-`go.mod`). A dedicated step should adopt ruff 0.16 (run `ruff check --fix` for the 60 auto-fixable,
-hand-fix the rest — mostly `_lowlevel.pyi` stub-style PIE790/PYI048/RUF022 — and drop the
-`ruff<0.16` pin). Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need their own step
-(source rewrite in `crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively).
+41/41 green on `8f76d48`). ✅ Slice 5 — JVM manifests (iter 128; `pom.xml`: junit-jupiter 5.14.4,
+gson 2.14.0, compiler 3.15.0, surefire 3.5.6, source 3.4.0, javadoc 3.12.0, gpg 3.2.8, with
+`central-publishing-maven-plugin` held at 0.7.0 under a `held:` comment — its `deploy` goal only
+runs in a real Central publish; `build.gradle.kts`: kotlin("jvm") 2.4.10, jna 5.19.1, junit/gson in
+lockstep, plus a required `testRuntimeOnly junit-platform-launcher:1.14.4`; mvn 69/69 and gradle 9/9
+green). **The Kotlin plugin bump raised the consumer Kotlin floor — see the follow-up issue below.**
+Verified already-current and needing no bump: `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
+mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
+`taiki-e/install-action@v2`, `ruby/setup-ruby@v1`, `obi1kenobi/cargo-semver-checks-action@v2`;
+`mise.toml` has no `[tools]` section. Remaining: `.github/workflows/release.yml` GHA refs (97
+`uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` must move together, `setup-uv` needs
+`@v9.0.0`, only truly exercised by a release run — consider bundling with the existing release.yml
+`if:`-guard fix issue) and the remaining per-binding manifests (napi `package.json`, rb
+`Gemfile`/gemspec, dotnet `.csproj`, go `go.mod`), plus the Gradle wrapper 8.12.1 and JUnit 6.x
+majors (each its own step). A dedicated step should adopt ruff 0.16 (run `ruff check --fix` for the
+60 auto-fixable, hand-fix the rest — mostly `_lowlevel.pyi` stub-style PIE790/PYI048/RUF022 — and
+drop the `ruff<0.16` pin). Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need their
+own step (source rewrite in `crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs`
+respectively).
 
 **Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
 (`extern crate proc_macro is private and cannot be re-exported`) emitted on every `cargo test` /
@@ -59,6 +66,40 @@ hand-fix the rest — mostly `_lowlevel.pyi` stub-style PIE790/PYI048/RUF022 —
 release exists (`iai-callgrind` 0.16.1 is latest), so it stays a warning until upstream ships a fix
 — re-check when bumping `iai-callgrind` (the pin must stay in lockstep with the CI-installed
 `iai-callgrind-runner` version).
+
+## Kotlin binding silently raised the consumer Kotlin floor to 2.3 `normal` [review]
+
+Iteration 128 bumped `kotlin("jvm")` 2.1.10 → 2.4.10 in `packages/kotlin/build.gradle.kts` (an
+in-scope dependency-refresh bump). Side effect: the published jar now carries Kotlin metadata
+version `mv=[2,4,0]` (`javap -v -p build/libs/…/AudioCodeResult.class | grep mv=`) and the published
+POM declares `kotlin-stdlib:2.4.10` in `compile` scope (was 2.1.10).
+
+**Verified empirically** (iter 128 review) with a throwaway consumer project resolving
+`io.iscc:iscc-lib-kotlin:0.5.0` from `mavenLocal`:
+
+- Kotlin **2.1.10** consumer → `compileKotlin` FAILS:
+    `Module was compiled with an incompatible   version of Kotlin. The binary version of its metadata is 2.4.0, expected version is 2.1.0`
+    — raised for both `iscc-lib-kotlin-0.5.0.jar` and the transitive `kotlin-stdlib-2.4.10.jar`
+- Kotlin **2.2.21** consumer → FAILS identically
+- Kotlin **2.3.21** consumer → BUILD SUCCESSFUL (Kotlin tolerates ~one minor ahead)
+
+So the supported-consumer floor moved from Kotlin ≥ 2.0/2.1 to ≥ 2.3, undocumented. Nothing has
+shipped — this only reaches users at the next Maven Central publish of `io.iscc:iscc-lib-kotlin`, so
+**resolve before the next release**. Two options, both small:
+
+1. **Accept and document** — state "requires Kotlin 2.3+" in `packages/kotlin/README.md`,
+    `docs/howto/kotlin.md`, the root README Kotlin section, and record the support policy in the
+    spec. Matches JVM-ecosystem norms and costs a few doc lines.
+2. **Preserve the old floor** — hold `kotlin("jvm")` at 2.1.x with a `// held:` comment (the
+    project's existing hold-back convention). Note that pinning `compilerOptions.languageVersion`
+    alone is **not** sufficient: the transitive `kotlin-stdlib:2.4.10` in the published POM
+    triggers the same error independently, so the stdlib version would have to be constrained too.
+
+**Spec:** `.claude/context/specs/kotlin-bindings.md` — it documents no consumer Kotlin version
+floor. **HUMAN REVIEW REQUESTED**: picking the supported-consumer Kotlin version is a support-policy
+decision (the same class as MSRV and `java-version: '17'`, which `next.md` deliberately keeps out of
+dependency-refresh steps). A CID agent should not set it unilaterally; the review agent recommends
+option 1.
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 

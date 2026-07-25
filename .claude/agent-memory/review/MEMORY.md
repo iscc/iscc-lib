@@ -84,12 +84,17 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (needs
     `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`)
 - **Kotlin-only**: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
-    workspace + `mise run check`
+    workspace + `mise run check`. Gradle flakes on this bind mount
+    (`Unable to delete file   …/build/kotlin/…`, `NoSuchFileException …/build/reports/…`) — read
+    `build/test-results/test/*.xml` and re-run after `./gradlew clean` before calling it a failure.
+    If the diff touches the KGP version, run the consumer-floor test in `dep-refresh-reviews.md`
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see gate-reviews.md Audit)
 - **Dependency refresh slices (v0.6.0 issue)**: per-slice gate sets + hold-back-verification recipes
-    for Cargo.lock (iter 124), uv.lock (125), Rust direct pins (126), GitHub Actions (127) →
-    `dep-refresh-reviews.md`. Never use the lockfile-only shortcut on these
+    for Cargo.lock (iter 124), uv.lock (125), Rust direct pins (126), GitHub Actions (127), JVM
+    manifests (128) → `dep-refresh-reviews.md`. Never use the lockfile-only shortcut on these. **A
+    toolchain/compiler bump inside a PUBLISHED binding is a support-policy change, not a pin** —
+    check whether the consumer floor moved (iter 128 recipe) before passing it
 - **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
     `--target all`. Used it to disprove an advance-handoff attribution: the
     `proc-macro-error2 v2.0.1` future-incompat warning is from `iai-callgrind-macros` (dev-only),
@@ -120,6 +125,10 @@ Concise index. Detail in topic files: `review-patterns.md` (docs/verification/is
     the backend — both verified against blake3 source + a no-flag wasm build. When Codex cites a
     dep's build.rs / `#[target_feature]` / feature gating, check the dep source (and build it)
     before dismissing
+- **Codex catches downstream-consumer breakage that local gates cannot (iter 128)**: it flagged the
+    KGP 2.4.10 → metadata 2.4.0 consumer-floor raise from the same commit I was probing. Convergence
+    is the cue to VERIFY EMPIRICALLY — the throwaway-consumer test turned "2.1.x breaks" into the
+    exact boundary (< 2.3 fails). Codex reports the risk; only the experiment gives the number
 - **Codex is strong on input-validation edge cases (iter 119)**: on new decode/parse code it caught
     a real trailing-byte acceptance gap in `DecodeIsccID`/`IsccDecode` the local tests missed. When
     Codex flags "accepts malformed input / trailing data", probe it empirically before dismissing —

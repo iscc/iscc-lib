@@ -86,3 +86,23 @@ the action 5 majors and a node runtime behind, defeating the refresh); pin to `@
 floating tag (freezes on an EOL major purely for convention); pin to a commit SHA (inconsistent with
 the other 15 refs in these files, and next.md explicitly excluded SHA pinning). **Context:** iter
 127, commits ebac57f → 8f76d48; deviation from next.md's `@v9` recommendation.
+
+## 2026-07-25 — JVM manifest refresh accepted despite the raised Kotlin consumer floor
+
+**Decision:** The iter-128 JVM dependency refresh (11 pins across `pom.xml` and `build.gradle.kts`)
+was approved and pushed to `develop` even though the `kotlin("jvm")` 2.1.10 → 2.4.10 bump verifiably
+breaks consumers compiling with Kotlin < 2.3 (published metadata `mv=[2,4,0]`; 2.1.10 and 2.2.21
+fail, 2.3.21 passes). The support-floor question was split out as a `normal` `[review]` issue with
+HUMAN REVIEW REQUESTED instead of blocking the slice. **Why:** the break cannot reach a user from
+`develop` — `io.iscc:iscc-lib-kotlin` only ships via the human-dispatched `release.yml`, so there is
+a natural gate before harm, and pushing lets the 41-job CI validate the other 10 pins (the real gate
+for this slice). Choosing the floor is a support-policy decision of the same class as MSRV and
+`java-version: '17'`, which the step's own scope explicitly reserved for the owner; a
+reviewer-forced revert would have made that choice by default. **Alternatives:** NEEDS_WORK + revert
+the Kotlin line to 2.1.x (silently picks "preserve the old floor" without the owner, and denies the
+other pins their CI validation); pin `compilerOptions.languageVersion` to 2.1 (insufficient — the
+transitive `kotlin-stdlib:2.4.10` in the published POM raises the same error on its own); HUMAN
+REVIEW REQUESTED on the handoff to pause the runner (disproportionate — the loop still has
+actionable refresh slices, and the issue carries the escalation). **Context:** iter 128, commit
+be0a497; found independently by this review and by the Codex second opinion, then confirmed
+empirically against consumer projects on Kotlin 2.1.10 / 2.2.21 / 2.3.21.

@@ -80,9 +80,39 @@ Bookkeeping: `ci.yml` sets `cancel-in-progress: true` per ref, and every develop
 runs (push + `pull_request` from the open develop→main PR) — so check-run totals read ~2× the job
 count, and a follow-up push cancels the prior sha's run.
 
+## Slice 5 — JVM manifests (`pom.xml` + `build.gradle.kts`) — iter 128
+
+Local commands are byte-identical to CI's `java:` / `kotlin:` jobs, so run them:
+`cargo build -p iscc-jni && mvn test -f crates/iscc-jni/java/pom.xml` (69 tests) and
+`cargo build -p iscc-uniffi && ./gradlew test` from `packages/kotlin` (9 tests).
+
+**THE finding to look for in any published-binding toolchain bump:** a KGP bump raises the
+*consumer* compiler floor. `kotlin("jvm")` 2.4.10 stamps `mv=[2,4,0]` into the jar — check with
+`unzip` + `javap -v -p <class> | grep -E 'major version|mv='` — and puts `kotlin-stdlib:2.4.10` in
+the published POM. Empirical floor test (~2 min, do it — Codex and I both flagged this, and only the
+test gave the precise boundary): `./gradlew publishToMavenLocal`, then a throwaway `/tmp/kconsumer`
+with `kotlin("jvm") version "<X>"` + `mavenLocal()` + an `import`, built via
+`/workspace/iscc-lib/packages/kotlin/gradlew -p /tmp/kconsumer compileKotlin`. Result: 2.1.10 and
+2.2.21 FAIL, 2.3.21 PASSES (~one minor of tolerance). The transitive stdlib errors on its own, so
+`languageVersion` pinning alone is NOT a fix. Clean up `~/.m2/repository/io/iscc` afterwards.
+Verdict called PASS_WITH_NOTES + `normal` `[review]` issue, not NEEDS_WORK — nothing ships from
+develop (release.yml is `workflow_dispatch`), and the floor is a support-policy call for the owner
+(`decisions.md` 2026-07-25).
+
+Other slice-5 gotchas: `mvn -Prelease package -DskipTests` does NOT resolve `maven-gpg-plugin` or
+`central-publishing-maven-plugin` (verify-phase / deploy-goal) — check `~/.m2` before believing a
+"release plugins resolved" claim; prove versions exist with `repo1.maven.org` `.pom` HTTP 200.
+junit-jupiter ≥ 5.12 under Gradle 8.12.1 legitimately needs
+`testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.x.y")` — confirm it does not leak
+into the published artifact via `./gradlew generatePomFileForMavenPublication`
+(`build/publications/maven/pom-default.xml` should list only kotlin-stdlib + jna). Gradle flakes on
+this bind mount (`Unable to delete file …/build/kotlin/…`, `NoSuchFileException …/build/reports/…`)
+— check `build/test-results/test/*.xml` and re-run after `./gradlew clean` before calling a failure.
+
 ## Remaining slices
 
-Per-binding manifests (napi `package.json`, rb `Gemfile`/gemspec, jni `pom.xml`, kotlin
-`build.gradle.kts`, dotnet `.csproj`, go `go.mod`) — these ARE CI-validated on develop pushes, so
-demand green CI. Then `release.yml` GHA refs (not CI-exercised) and the deferred ruff 0.16 / magnus
-0.8 / jni 0.22 migrations, each its own step.
+Per-binding manifests (napi `package.json`, rb `Gemfile`/gemspec, dotnet `.csproj`, go `go.mod`) —
+these ARE CI-validated on develop pushes, so demand green CI, and watch for the slice-5 lesson: a
+runtime/toolchain floor moving in a *published* package. Then `release.yml` GHA refs (not
+CI-exercised), Gradle wrapper 8.12.1 + JUnit 6.x majors, and the deferred ruff 0.16 / magnus 0.8 /
+jni 0.22 migrations, each its own step.
