@@ -94,13 +94,19 @@ auto-sorts imports at commit time. The 7 mechanical fixes were applied with the 
 explicit `--select I,RUF022` (never a blanket `--fix`); all 14 load-bearing `# noqa: S603/S607`
 survive. `uvx ruff@0.16.0 check .` is down to **exactly 3 findings**. Verified in review that
 per-file invocation — how the pre-commit hook actually calls ruff, with filenames and no
-`--force-exclude` — is a no-op on this tree, so hook-mode and `ruff check .` agree. **3 findings
-left**, all one-liners in their own step: `RUF007` (`scripts/gen_unicode16_unassigned.py` →
-`itertools.pairwise`; re-run the generator and assert the generated Rust is unchanged), `PLW1510`
-(`scripts/test_install.py` → explicit `check=False`), `EXE001` (`tools/cid.py` shebang without the
-exec bit — mind the Windows bind-mount exec-bit caveat before reaching for `chmod +x`). Then
-sub-slice D: `uv lock --upgrade-package ruff` and drop the pin once `uvx ruff@0.16.0 check .` exits
-0\. The `ruff<0.16` pin stays until the tree is clean under 0.16.
+`--force-exclude` — is a no-op on this tree, so hook-mode and `ruff check .` agree. ✅ **Sub-slice D
+done** (iter 136): the last three findings cleared — `RUF007` via `itertools.pairwise` in
+`scripts/gen_unicode16_unassigned.py` (generator re-run, `crates/iscc-lib/src/utils/unicode16.rs`
+byte-identical), `PLW1510` via an explicit `check=False` in `scripts/test_install.py`
+(behaviour-preserving — `check=False` is the `subprocess.run` default and 20 call sites inspect
+`result.returncode`), and `EXE001` via the exec bit on `tools/cid.py` (mode `100755` committed with
+`git update-index --chmod=+x`; all 10 `mise.toml` tasks invoke it as `uv run tools/cid.py`, so the
+bit is additive only, and it is now the only shebang'd tracked `.py` file).
+`uvx ruff@0.16.0 check .` exits **0** for the first time. 🔄 **Sub-slice E — the last one:**
+`uv lock --upgrade-package ruff`, drop the `ruff<0.16` pin and its now-fully-stale `# held:` comment
+from `pyproject.toml`, then re-run the full pre-push set with 0.16 as the project formatter and
+default linter. Watch for 0.16 `ruff format` drift and never blanket `--fix` — the
+`# noqa: S603/S607` directives are load-bearing.
 
 Verified already-current and needing no bump: `.pre-commit-config.yaml` (pre-commit-hooks v6.0.0,
 mdformat 1.0.0), `dtolnay/rust-toolchain@stable`, `Swatinem/rust-cache@v2`,
@@ -113,10 +119,10 @@ refs (97 `uses:`; `upload-artifact@v4` ↔ `download-artifact@v4` must move toge
 `@v9.0.0`, only truly exercised by a release run — consider bundling with the existing release.yml
 `if:`-guard fix issue), plus the deferred majors: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle
 wrapper 8.12.1 and JUnit 6.x (each its own step). The ruff 0.16 adoption is in progress as slice 8
-above (sub-slices A + B + C done; next are the 3 one-liners, then D drops the pin — never run
-`ruff@0.16 check --fix .`, it deletes load-bearing `# noqa` directives). Separately, the `jni` 0.22
-and `magnus` 0.8 migrations each need their own step (source rewrite in `crates/iscc-jni/src/lib.rs`
-and `crates/iscc-rb/src/lib.rs` respectively).
+above (sub-slices A–D done, tree clean under 0.16; only sub-slice E — dropping the `ruff<0.16` pin —
+remains, and never run `ruff@0.16 check --fix .`, it deletes load-bearing `# noqa` directives).
+Separately, the `jni` 0.22 and `magnus` 0.8 migrations each need their own step (source rewrite in
+`crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively).
 
 **Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
 (`extern crate proc_macro is private and cannot be re-exported`) emitted on every `cargo test` /

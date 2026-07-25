@@ -123,24 +123,25 @@ fully-met target sections to `learnings-archive.md`.
     (transitive pins), `https://rubygems.org/api/v1/versions/<gem>.json` (`ruby_version`; the v2
     endpoint returns `null`). GOTCHA: `criterion` > 0.5 deprecates `criterion::black_box`, fatal
     under `-D warnings` → use `std::hint::black_box`
-- **ruff 0.16 adoption is sliced by decision type, not by file** (iters 125/131/134/135): run the
-    unpinned version with `uvx ruff@0.16.0 check .` — it never touches `uv.lock`, so `ruff<0.16`
-    stays in `pyproject.toml` until the tree is clean. 104 → 26 (A) → 12 (B) → **3** (C). Rules go
-    in `[tool.ruff.lint] extend-select` — **never `select`**, which drops ruff's `E4`/`E7`/`E9`/`F`
-    defaults; the pre-push `--select S`/`--select C901` hooks stay as deliberate redundancy that
-    names the failing gate. isort needs BOTH `[tool.ruff] src = [".", "crates/iscc-py/python"]`
-    (makes `iscc_lib` first-party) and `[tool.ruff.lint.isort] combine-as-imports = true` (without
-    it the `_lowlevel` re-export block shatters into ~60 statements / a 110-line diff). **Never
-    `ruff@0.16 check --fix .`** — it deletes the load-bearing `# noqa: S603/S607` in
-    `tools/`+`scripts/`; fix with the pinned ruff and an explicit `--select`
-- **An unused `# noqa` is invisible unless `RUF100` is selected** (probed iter 134; now in
-    `extend-select` since iter 135): before deleting any directive prove it dead with
-    `uv run ruff check --select <rule> --ignore-noqa` — `S603` never fires on a fully static
-    list-literal argv in *either* version, only on dynamic argv (`["git", "add", rel]`)
-- **The pre-commit `ruff-check` hook passes filenames and has no `--force-exclude`**, so hook-mode
-    and `ruff check .` can disagree in principle. Under the current config they do not: per-file
-    `uv run ruff check --fix <paths>` is a no-op on a tree that `ruff check .` calls clean (probed
-    iter 135). Re-probe this whenever a path-sensitive setting (`src`, `exclude`, isort) changes
+- **ruff 0.16 adoption is sliced by decision type, not by file** (iters 125/131/134/135/136): run
+    the unpinned version with `uvx ruff@0.16.0 check .` — it never touches `uv.lock`, so `ruff<0.16`
+    stays in `pyproject.toml` until the tree is clean. 104 → **0** across sub-slices A–D; only the
+    pin drop (E) is left. Rules go in `[tool.ruff.lint] extend-select` — **never `select`**, which
+    drops ruff's `E4`/`E7`/`E9`/`F` defaults; the pre-push `--select S`/`--select C901` hooks stay
+    as deliberate redundancy naming the failing gate. isort needs BOTH
+    `[tool.ruff] src = [".", "crates/iscc-py/python"]` (makes `iscc_lib` first-party) and
+    `[tool.ruff.lint.isort] combine-as-imports = true` (else the `_lowlevel` re-export block
+    shatters into ~60 statements). **Never `ruff@0.16 check --fix .`** — it deletes the load-bearing
+    `# noqa: S603/S607` in `tools/`+`scripts/`; use the pinned ruff + `--select`
+- **A file-mode change needs `git update-index --chmod=+x`, not just `chmod`** (iter 136, ruff
+    `EXE001` on `tools/cid.py`): `core.fileMode=false` here, so a plain `chmod +x` satisfies local
+    tools but is invisible to git. Run both; prove it with `git ls-files -s <path>` → `100755`
+- **Two ruff invocation gotchas**: (1) an unused `# noqa` is invisible unless `RUF100` is selected
+    (in `extend-select` since iter 135) — before deleting any directive prove it dead with
+    `uv run ruff check --select <rule> --ignore-noqa`; `S603` never fires on a fully static
+    list-literal argv, only on dynamic argv (`["git", "add", rel]`). (2) the pre-commit `ruff-check`
+    hook passes *filenames* and no `--force-exclude`, so hook-mode can disagree with `ruff check .`
+    — re-probe per-file whenever a path-sensitive setting (`src`, `exclude`, isort) changes
 - **A binding-toolchain bump can silently raise the *consumer* floor** (iter 128 Kotlin, documented
     iter 132): KGP 2.1.10→2.4.10 stamps `mv=[2,4,0]` into the published jar and
     `kotlin-stdlib:2.4.10` into the POM; a `mavenLocal` consumer proved 2.1.10/2.2.21 fail, 2.3.21

@@ -36,6 +36,10 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     patterns must include target name (generic wildcards match all extracted dirs)
 - **Advance agent idle claims**: always verify remaining issue priorities independently — they may
     claim "only low-priority remain" when `normal` issues still exist
+- **A mode-only commit is invisible to `git status` here** (iter 136): `core.fileMode=false` on the
+    9p bind mount, so review a `chmod`-style change with `git diff HEAD~1 --summary`
+    (`mode change 100644 => 100755`) and `git ls-files -s <path>`, never a content diff or
+    porcelain. Confirm the blob hash is unchanged to prove it really is mode-only
 - **prek stash conflict**: untracked files with formatting issues break prek stash/restore during
     commit. Fix: move untracked files to /tmp before committing, restore after
 - **`mise run check` mdformat on context files** (intermittent — clean in 135, dirty before):
@@ -73,7 +77,7 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     `uv run zensical build` ("No issues found", ~13s) + rendered-HTML grep for admonition/tab edits
     (recipe → `review-patterns.md`)
 - **Python-only**: `mise run check` + `pytest`
-- **Lint-config-only (`[tool.ruff]*`, iters 134/135)**: `mise run check` + `uv run ruff check` +
+- **Lint-config-only (`[tool.ruff]*`, iters 134/135/136)**: `mise run check` + `uv run ruff check` +
     `format --check` + both pre-push gates (`--select S` / `--select C901 --force-exclude`) +
     `uv run ty check`, `uvx ruff@0.16.0 check . --output-format concise` (count must match next.md)
     and `pytest`. A `# noqa` deletion is only safe if `--select <rule> --ignore-noqa` does NOT list
@@ -95,10 +99,10 @@ claim-probing recipes), `gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP
     deps changed — see gate-reviews.md Audit)
 - **Dependency refresh slices (v0.6.0 issue)**: per-slice gate sets + hold-back-verification recipes
     for Cargo.lock (124), uv.lock (125), Rust pins (126), GH Actions (127), JVM (128), Go (129),
-    Ruby (130), ruff 0.16 A/B (131/134) + C/D → `dep-refresh-reviews.md`. Never use the
-    lockfile-only shortcut on these. **A toolchain/compiler bump inside a PUBLISHED binding is a
-    support-policy change, not a pin** — check whether the consumer floor moved (iter 128 recipe)
-    before passing it
+    Ruby (130), ruff 0.16 A–D (131/134/135/136, tree now clean under 0.16) + E (the pin drop, watch
+    for 0.16 `ruff format` drift) → `dep-refresh-reviews.md`. Never use the lockfile-only shortcut
+    on these. **A toolchain/compiler bump inside a PUBLISHED binding is a support-policy change, not
+    a pin** — check whether the consumer floor moved (iter 128 recipe) before passing it
 - **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131): the package ships
     `py.typed` beside `_lowlevel.pyi`, so it is consumer-facing. `uvx mypy@1.18.2 --strict` +
     `uvx pyright@1.1.407` ≈ 30s. Prefer an `ast.parse` body assertion over greps for bulk stub edits

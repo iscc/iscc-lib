@@ -173,7 +173,7 @@ Two Ruby-specific traps worth re-checking on any future Gemfile change:
 `crates/iscc-rb/iscc-lib.gemspec` declares **no** dev dependencies — only `required_ruby_version` (a
 human-owned consumer floor), so the gemspec side of this slice is a no-op by construction.
 
-## Slice 8 — ruff 0.16 adoption (sub-sliced A/B/C/D) — iter 131+
+## Slice 8 — ruff 0.16 adoption (sub-sliced A–E) — iter 131+
 
 Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, so `ruff<0.16` in
 `pyproject.toml` must still be there at the end of any sub-slice before D. Gate set per sub-slice:
@@ -218,10 +218,24 @@ Run the unpinned linter with `uvx ruff@0.16.0 …`; it never touches `uv.lock`, 
     touched paths and assert `git diff --stat` is empty — proves `src`/isort resolve identically
     per-file. Also diff `__all__` as a SET across `HEAD~1..HEAD` (`ast.parse`, not a grep) — RUF022
     reorders 49 strings and a dropped symbol would be invisible in a reordering diff
-- **Sub-slice D** is the only one allowed to touch the `ruff<0.16` pin + `uv.lock`; require
-    `uvx ruff@0.16.0 check .` exit 0 first. Whenever the pin's `# held:` reason goes stale (it has
-    twice: "104 new errors" while 12 remained, "12 findings" while 3 remain), fixing the comment is
-    a review minor fix — but confirm the named findings/files against the live 0.16 run
+- **Sub-slice D (iter 136, PASS)** — the 3 one-liners; 3 → **0**, `uvx ruff@0.16.0 check .` exits 0.
+    Three review-specific probes, all cheap: (1) `RUF007` was in the **checked-in generator**
+    `scripts/gen_unicode16_unassigned.py`, so re-run it (`uv run --script …`, ~40s) and assert
+    `git status --porcelain crates/` is empty — `pairwise(xs)` ≡ `zip(xs, xs[1:])` for every length
+    incl. 0/1, so it is provably behaviour-preserving. (2) `PLW1510` → `check=False` is the
+    `subprocess.run` default, so also behaviour-preserving; the retained `# noqa: S603` must be
+    proven still-LIVE with `--select S603 --ignore-noqa` (the inverse of the deletion probe — a
+    retained-but-dead directive would red `RUF100`). (3) `EXE001` on `tools/cid.py` was fixed as a
+    **mode-only** commit: `git diff HEAD~1 --summary` → `mode change 100644 => 100755`, blob hash
+    identical. `git status` cannot show it (`core.fileMode=false` on the 9p mount) — verify with
+    `git ls-files -s <path>`, and check nothing invokes the script directly
+    (`grep -n cid.py   mise.toml` → all 10 tasks use `uv run tools/cid.py`, so the bit is additive)
+- **Sub-slice E** is the only one allowed to touch the `ruff<0.16` pin + `uv.lock`; it requires
+    `uvx ruff@0.16.0 check .` exit 0 (true since iter 136). The real risk is **0.16 `ruff format`
+    drift** on the 25 files the pinned 0.15.22 calls formatted — reformat churn belongs in that step
+    but must be called out. The pin's `# held:` reason has gone stale three times ("104 new errors"
+    while 12 remained, "12 findings" while 3 remained, "3 findings" while 0 remain); fixing the
+    comment is a review minor fix, but confirm the named findings/files against the live 0.16 run
 
 ## Remaining slices
 
