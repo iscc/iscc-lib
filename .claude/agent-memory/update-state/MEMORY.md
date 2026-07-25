@@ -13,10 +13,10 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `git diff --stat origin/develop..HEAD -- . ':!.claude'` (empty = nothing outside CI coverage).
 - **Tier 1 pub fns**: `grep -rn "pub fn gen_\|pub const " crates/iscc-lib/src/lib.rs`; **C FFI
     externs**: `grep -c "#\[unsafe(no_mangle)\]" crates/iscc-ffi/src/lib.rs`
-- **Counts** (re-verified 133): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
+- **Counts** (re-verified 134): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
     llms-full ORDERED_PAGES 22; `docs/howto/*.md` 11; speedup 1.3x-158x; release.yml toggles 8; ffi
-    extern 47; iscc-lib `#[test]` = **320** (`grep -rc --include="*.rs" crates/iscc-lib/`; src/\*.rs
-    alone = 270); ci.yml job entries 19 = `grep -cE '^  [a-z_-]+:$'` minus 2.
+    extern 47; iscc-lib `#[test]` = **325** (`grep -rc --include="*.rs" crates/iscc-lib/`, sum);
+    ci.yml job entries 19 = `grep -cE '^  [a-z_-]+:$'` (raw 21) minus 2.
 - **version_sync TARGETS** = **21** (since 129); ground truth
     `uv run python scripts/version_sync.py --check | grep -c '^OK'` — issues.md L55 says "22",
     WRONG. Its list (~L259-289) = the authoritative set of version-synced files; absentees rot.
@@ -28,7 +28,7 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
 - **Perf (iai-callgrind)** — ENFORCING, GREEN. `scripts/iai_regression.py --check` fails >10% Ir vs
     `.iai-baseline.json` (16 entries). GOTCHA: the nearby `continue-on-error` is the SEMVER job's.
 - **Coverage + CRAP** — one job, ENFORCING: cargo crap `--fail-regression` + `--fail-above` (30.0
-    via `.cargo-crap.toml`); baseline `.crap-baseline.json` (97 entries), max ~22.3. **GOTCHA —
+    via `.cargo-crap.toml`); baseline `.crap-baseline.json` (**98** entries), max ~22.3. **GOTCHA —
     `--fail-regression` is CI-ONLY, not in `mise run check`**: a new branch/loop in a covered fn →
     exit 1 despite a GREEN local check (bit 121). Fix = refresh that entry in the SAME step.
 - **Audit (cargo-deny)** — ENFORCING: `cargo-deny@0.19.9`, root `deny.toml` (v2, 2 dev-bench
@@ -53,10 +53,12 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     `scripts/build_xcframework.sh` = 5 Apple targets. `packages/kotlin/` — Kotlin/JVM + JNA,
     `kotlin("jvm") 2.4.10`, Gradle wrapper major deferred; JVM pins + the **consumer-floor trap** →
     `dep-refresh-survey.md`.
-- **Unicode = DECLARED 16.0.0 + freeze rule** (human decision 132; supersedes the 129 `[review]`) →
-    **`unicode-contract.md`**: 3 unmet criteria (vendored 731-range table + generator + pre-norm
-    filter in `utils.rs`; boundary vectors `U+1FAE9`/`U+113C5`/`U+20C1` in Rust + all 12 bindings;
-    full-code-space sweep), Go exposed until go1.27, no dep change, trips the iai + CRAP gates.
+- **Unicode = DECLARED 16.0.0 + freeze rule** (human decision 132) → **`unicode-contract.md`**:
+    freeze filter **MET iter 133** (`src/utils/unicode16.rs` 731-range table +
+    `scripts/gen_unicode16_unassigned.py` PEP 723 generator + pre-`nfkc`/`nfd` filter at `utils.rs`
+    L103/L181); still unmet = boundary vectors `U+1FAE9`/`U+113C5`/`U+20C1` as a conformance fixture
+    in Rust + all 12 bindings, and the full-code-space sweep. Go exposed until go1.27; an open HUMAN
+    ruling on sequence-adjacency divergence blocks the sweep wording.
 - `crates/iscc-lib/src/streaming.rs` — `DataHasher`+`InstanceHasher` re-exported at crate root;
     `SumHasher` only via `streaming::` (drives `gen_sum_code_v0`; wrappers in iscc-py, iscc-wasm).
 - `crates/iscc-wasm/Cargo.toml` — the `blake3 = { features = ["wasm32_simd"] }` dep (118, #42) is
@@ -89,13 +91,13 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     at 0/N checked though MET; only `ci-cd.md` (44/52) + the `rust-core.md` semver box are
     maintained. Verify in code, never read boxes as done/not-done.
 
-## Current State (assessed-at: f18c5d5, iter 133)
+## Current State (assessed-at: 25ce6f5, iter 134)
 
-- **IN_PROGRESS — CI GREEN.** v0.5.0 released. Iter 132 closed the Kotlin floor (docs-only) →
-    **Kotlin now MET**, its issue deleted. Still partially met: Rust-core (3 Unicode criteria +
-    semver/v1.0.0 HELD) and CI/CD (ruff slices B/C/D); other bindings met but the boundary-vector
-    criterion is cross-cutting over all 12. **Unicode freeze rule = the headline open work.**
-- **CI GREEN on origin/develop tip `bb618a1`**; HEAD `f18c5d5` = +1 UNPUSHED log commit,
+- **IN_PROGRESS — CI GREEN.** v0.5.0 released. Iter 133 landed the Unicode freeze filter → Rust-core
+    criterion 1 of 4 MET. Still partially met: Rust-core (boundary vectors + sweep + semver/v1.0.0
+    HELD) and CI/CD (ruff slices B/C/D); all bindings met except the cross-cutting boundary-vector
+    criterion. **Headline open work = boundary-vector fixture (step b), Rust core first.**
+- **CI GREEN on origin/develop tip `d28a94b`**; HEAD `25ce6f5` = +1 UNPUSHED log commit,
     `origin/develop..HEAD` minus `.claude/` = EMPTY stat. **41** check-runs, 21 names, 0
     non-success. ~2x jobs because PR **#44 (develop→main) is OPEN** → every develop commit fires a
     `push` AND a `pull_request` run.
@@ -107,13 +109,16 @@ Codepaths, patterns, key findings across CID iterations. Full gate pipelines →
     (verified): `[tool.ruff.lint]` has **NO `select` key** (only `mccabe` + `per-file-ignores`) →
     `S`/`C901` run ONLY in the 2 pre-push hooks; adding them to `select` clears all 15 RUF100 AND
     strengthens the local loop. Then magnus 0.8 / jni 0.22 (source rewrites).
-- **6 issues: 0 critical, 4 normal, 2 low — ZERO `[review]`/HUMAN REVIEW REQUESTED.** CID-doable:
-    Unicode freeze rule (slice 1 of 3), ruff B/C/D. Human-gated: npm OIDC, single-registry
-    re-trigger; low (CID skips) = v1.0.0 (HELD), docs logos.
-- **Don't re-flag as new work** (all DONE): dep slices 1-7 + c-cpp anchor (124-130), aarch64 wheels
-    #49 (123), CRAP baseline (122), trailing-byte fixes (120-121), Go IDv1 #43 (119), WASM SIMD #42
-    (118), GIL #39+#41, cargo-deny (113), iai perf gate (107-111), semver gate (93). CID infra
-    (audit role, metrics.jsonl, decisions.md, escape valve) = meta, NOT target — ignore. **Known
+- **7 issues: 0 critical, 5 normal, 2 low — ONE `[review]` with HUMAN REVIEW REQUESTED** (new 133:
+    freeze-rule pre-normalization ordering diverges from iscc-core on *sequences*; a spec-wording
+    ruling, not a redesign → `unicode-contract.md`). CID-doable: Unicode step (b) boundary vectors,
+    ruff B/C/D. Human-gated: npm OIDC, single-registry re-trigger; low (CID skips) = v1.0.0 (HELD),
+    docs logos.
+- **Don't re-flag as new work** (all DONE): Unicode freeze filter + generator (133), Kotlin floor
+    docs (132), dep slices 1-7 + c-cpp anchor (124-130), aarch64 wheels #49 (123), CRAP baseline
+    (122), trailing-byte fixes (120-121), Go IDv1 #43 (119), WASM SIMD #42 (118), GIL #39+#41,
+    cargo-deny (113), iai perf gate (107-111), semver gate (93). CID infra (audit role,
+    metrics.jsonl, decisions.md, escape valve) = meta, NOT target — ignore. **Known
     non-regression**: the `proc-macro-error2 v2.0.1` future-incompat warning on cargo test/bench
     comes from `iai-callgrind-macros` (dev-only), NOT magnus/rb-sys; no upstream fix yet.
 
