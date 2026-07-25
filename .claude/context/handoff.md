@@ -42,9 +42,12 @@ runtime versions were added, removed, or changed.
     aggregate gate cascades). Every other bumped action — checkout@v7, setup-python@v7,
     setup-node@v7, setup-java@v5, setup-go@v7, setup-dotnet@v6, upload-artifact@v7, upload-sarif@v4
     — resolved and its job passed, including the enforcing perf/coverage/audit gates.
-- [ ] CI on the follow-up fix commit — pushed; result pending at handoff-commit time. Reviewer:
-    `gh api repos/iscc/iscc-lib/commits/<sha>/check-runs --jq '[.check_runs[]|select(.conclusion!="success")]|length'`
-    (note: counts check-runs from BOTH the push run and the PR run on this sha).
+- [x] **CI fully green on the fix commit `8f76d48`:**
+    `gh api "repos/iscc/iscc-lib/commits/8f76d48.../check-runs?per_page=100" --jq '[.check_runs[]|select(.conclusion!="success")]|length'`
+    → **0**, with 41/41 check-runs completed across both the push run and the PR run, and all 20
+    CI jobs present (Version consistency, Rust, Python 3.10/3.14 + aggregate, Node.js, WASM, C FFI,
+    C#/.NET, Java, Go, Ruby, C++, Swift, Kotlin, Bench, **Perf (iai-callgrind)**, **Coverage +
+    CRAP**, **Audit (cargo-deny)**, Semver) plus the `cargo-crap` code-scanning check-run.
 
 **Next:** Dependency refresh slice 5 = `release.yml` (97 `uses:` refs; `upload-artifact@v4` ↔
 `download-artifact@v4` must move together and can only be truly validated by a release run —
