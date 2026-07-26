@@ -290,3 +290,44 @@ review time on truth, not on `zensical build`.
     the "would mislead users" bar. But if the fix is a few sentences and the correct figures are
     already measured, fixing it in review + PASS_WITH_NOTES beats NEEDS_WORK (two iterations for
     two sentences); record the correction in `decisions.md` so the wording is not "improved" back.
+
+## Fixture / oracle review (iter 149 — `unicode_boundary.json` sequence vectors)
+
+A "must NOT be" oracle in a test const or a docs table is a **claim about a design that no longer
+exists in the tree**. Nothing compiles it, no gate re-derives it, and it is the highest-value place
+for a wrong number to hide.
+
+1. **Name the design, then re-derive the value for THAT design.** Iter 149 shipped
+    `("text_clean", "e\u{A7F1}\u{0301}", "e\u{0301}", "e\u{015A}")` with the 4th field called
+    `delete_filter_output`, and published `e U+015A` under a **"Delete filter would produce"** docs
+    column. Wrong: a *delete filter* strips the code point pre-normalization → `NFKC("e"+U+0301)` =
+    `U+00E9`. `e U+015A` is the *category-override* failure (`U+A7F1` = `<super> 0053` under
+    Unicode 17, so NFKC composes `S`+acute). `utils.rs` said "category-override" correctly; next.md
+    relabelled the column and forbade re-deriving. **Two superseded designs existed — always ask
+    which one a rejected value belongs to.**
+2. **Recover a superseded design from git, don't reason about it.**
+    `git log -S '<symbol>' --oneline -- <file>` then `git show <sha>:<file>` shows whether the old
+    code filtered, mapped or reordered — 20 seconds, and it settles the attribution.
+3. **Cross-check a Unicode value against real tables, not glyphs**:
+    `uv run --with unicodedata2==17.0.0 python -c "import unicodedata2 as u; c=chr(0xA7F1);  print(u.name(c), u.category(c), u.decomposition(c), u.normalize('NFKC','e'+c+'́'))"`.
+4. **Mutate the fixture, four ways, under the FEATURE-OFF build** (only the ungated guards fire —
+    that is the configuration the guard exists for). Wrong output / dropped case / swapped code
+    point / duplicated case. Do it on a `cp` backup and restore with `cp` +
+    `git status --porcelain  <file>`, never `git checkout --` mid-review. All four must red; if
+    only some do, the guard is shape-checking, not content-checking.
+5. **Ask whether the count and code-point-set assertions are derived from the CONST or from the
+    FIXTURE.** Fixture-derived = self-referential = vacuous. Iter 149 derives both from
+    `SEQUENCE_VECTORS` + `BOUNDARY_CODE_POINTS`, which is correct. Note that widening a
+    set-equality `want` (here: adding the sequence inputs' code points) legitimately *loosens* it —
+    a spurious extra case reusing an already-listed code point is no longer caught by that
+    assertion alone.
+6. **Verdict calculus**: a one-cell oracle error with no functional effect (both wrong values still
+    fail the `assert_eq`) is PASS_WITH_NOTES + fix-in-review, *provided* the fix is re-verified
+    through the full gate set. Also correct the upstream source of the claim (`issues.md` table) or
+    the next propagation step copies it into 11 bindings.
+
+**Escape-decoding trap (bit advance AND review in one iteration):** writing `\uXXXX` text through
+the Edit/Write tools decodes it into literal UTF-8. For any ASCII-escaped file
+(`unicode_boundary .json`, every sibling `data.json`, `issues.md`'s escape tables) edit through
+Python with `"\\u"` in a non-raw string or `json.dumps(..., ensure_ascii=True, indent=2)` + trailing
+newline, then assert `raw.isascii()` and check numeric `ord()` — never trust rendered glyphs.

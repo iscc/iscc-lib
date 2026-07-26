@@ -60,7 +60,12 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
 - Python `iscc_lib`: compile with `cd crates/iscc-py && uv run maturin develop --release`
 - `.pyi` stub sync: `ty check` catches mismatches, `mise run check` does not
 - **Pre-push needs iscc_lib built**: `ty check` and `pytest` hooks import `iscc_lib` — build before
-    pushing (same maturin command above), else push fails
+    pushing (same maturin command above, ~30s), else push fails. **Build BEFORE `git push`, not
+    after the hook fires** (iter 148): a fresh container rejects the push with 8
+    `ModuleNotFoundError: No module named 'iscc_lib'` collection errors, which reads like a
+    NEEDS_WORK gate rejection but is a missing local artifact. Build, re-run `uv run pytest -q` +
+    `uv run ty check` yourself, then push — that makes the gate *evaluate* the code instead of
+    bypassing it. Bonus: pytest then exercises the change through the PyO3 binding too (353 tests)
 - **PyO3 is `0.29`, migration COMPLETE** (#1 closed): per-hop recipe + GIL-detach pattern + gotcha
     catalog in `learnings-archive.md`. Verify pin: `cargo tree -p iscc-py -i pyo3` (single 0.29.0).
     Keep explicit `#[pymodule(name = "_lowlevel", gil_used = true)]` (lib.rs:697) — 0.28 silently
@@ -77,3 +82,15 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     clippy to the lib (`--no-default-features -- -D warnings`, no `--all-targets`). CI never runs it
 - `streaming::SumHasher` is core-only (full path `iscc_lib::streaming::SumHasher`), NOT a Tier 1
     re-export; `gen_sum_code_v0` wraps `SumHasher::finalize(bits,wide,add_units)`. #37 fully closed
+
+## Per-binding review commands (moved from MEMORY.md index, iter 149)
+
+- **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` +
+    `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (the last needs
+    `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`).
+- **Kotlin-only**: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
+    workspace + `mise run check`. Gradle flakes on this bind mount — read
+    `build/test-results/test/*.xml` and re-run after `./gradlew clean` before calling it a failure.
+    Published consumer floor is **Kotlin 2.3 or newer**, documented in 4 places that move together.
+- **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131; the wheel ships `py.typed`):
+    `uvx mypy@1.18.2 --strict` + `uvx pyright@1.1.407` ≈ 30s; prefer `ast.parse` over greps.

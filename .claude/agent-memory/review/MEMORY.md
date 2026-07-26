@@ -1,11 +1,11 @@
 # Review Agent Memory
 
 Concise index — **one line per entry, detail belongs in a topic file.** `review-patterns.md`
-(docs/verification/issues/gotchas + claim-probing + new-gate-script recipes), `gate-reviews.md` (CI
-structure + Audit/Perf/Semver/CRAP gates), `binding-reviews.md` (per-binding shortcuts +
-UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0.6.0 slice recipes),
-`gha-workflow-reviews.md` (release.yml gates + action-major bumps + pinning), `codex-integration.md`
-(second-opinion strengths/blind spots). Stale detail in `MEMORY-archive.md`.
+(docs/verification/issues/gotchas + claim-probing + new-gate-script + fixture/oracle recipes),
+`gate-reviews.md` (CI structure + Audit/Perf/Semver/CRAP gates), `binding-reviews.md` (per-binding
+shortcuts + UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0.6.0
+slice recipes), `gha-workflow-reviews.md` (release.yml gates + action-major bumps + pinning),
+`codex-integration.md` (second-opinion strengths/blind spots). Stale detail in `MEMORY-archive.md`.
 
 ## Quality Gate Details
 
@@ -17,14 +17,9 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
 - `check-added-large-files` threshold is `--maxkb=256`
 - **`ty check` external Python files**: files importing packages not in the venv (e.g.
     `conanfile.py` → `conan`) fail. Fix: `[tool.ty.src] exclude` — proper scoping, not circumvention
-- **Pre-push needs `iscc_lib` built** for `ty check`/`pytest`:
-    `cd crates/iscc-py && uv run maturin develop --release` (~30s; see `binding-reviews.md`
-    Environment). **Run it BEFORE `git push`, not after the hook fails** (iter 148): a fresh
-    container rejects the push with 8 `ModuleNotFoundError: No module named 'iscc_lib'` collection
-    errors, which looks like a NEEDS_WORK gate rejection but is a missing local build artifact.
-    Build, re-run `uv run pytest -q` + `uv run ty check` yourself, then push — that makes the gate
-    *evaluate* the code instead of bypassing it. Bonus: pytest then exercises the change through the
-    PyO3 binding too (353 tests)
+- **Pre-push needs `iscc_lib` built** (`ty check`/`pytest` import it):
+    `cd crates/iscc-py && uv run maturin develop --release` — run it BEFORE `git push`, not after
+    the hook fires → `binding-reviews.md` Environment
 
 ## Common Issues
 
@@ -32,9 +27,11 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     on multi-line files; use `! grep -q 'pat'`. **Substring `grep -c` and exact file counts in
     next.md are a recurring mis-spec class** (iter 139) — test the criterion against `HEAD~1` before
     believing advance broke it; a mis-specified criterion advance *corrected* is scope discipline
-- **next.md's Implementation Notes can prescribe an algorithm that fails on the real data** (iter
-    142): re-prove the prescribed rule really breaks before crediting a documented deviation, and
-    classify the replacement by direction — errs-strict (note it) vs errs-lax (NEEDS_WORK)
+- **next.md's Implementation Notes are a HYPOTHESIS — algorithms and prose alike.** It can prescribe
+    an algorithm that fails on the real data (iter 142: re-prove the rule really breaks, then
+    classify the replacement errs-strict/errs-lax), dictate false docs claims (iter 143), or
+    mislabel a rejected-value oracle (iter 149) — and it may forbid re-deriving, which makes advance
+    blameless and review the only check. Re-derive every number from its source
 - next.md test specs / expected values / test counts may be wrong — always run tests and verify
     against the Rust implementation; check relative paths with `realpath`
 - **Probe claims, don't accept them** — build-flag/backend activation (blake3 wasm SIMD) and
@@ -45,6 +42,10 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     claim "only low-priority remain" when `normal` issues still exist
 - Go `// indirect`, CI `find` cross-arch, prek stash conflict, and mode-only commits under
     `core.fileMode=false` → `review-patterns.md` "Gotchas"
+- **Writing `\uXXXX` through the Edit/Write tools decodes it to literal UTF-8** (iter 149, bit both
+    advance and review). ASCII-escaped files (`unicode_boundary.json`, sibling `data.json`,
+    `issues.md` escape tables) must be edited via Python with `"\\u"` or
+    `json.dumps(..., ensure_ascii=True)`; verify `raw.isascii()` + numeric `ord()`, never glyphs
 - **`mise run check` mdformat on context files** (intermittent): define-next may write `next.md` /
     `MEMORY.md` non-conforming, so `prek --all-files` reformats them (NOT an advance regression) and
     pre-push mdformat WILL reject the batch — `git status --porcelain` right after `mise run check`
@@ -58,12 +59,11 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     `@{upstream}..HEAD` for circumvention. Only HUMAN-REVIEW spec amendments + `low` left (strict
     IDLE cond #2 NOT met) → flag **HUMAN REVIEW REQUESTED** (runner "pause"), NOT `**IDLE**`
     (all-`low` only; it runs meta-improve). Verdict still PASS; push clean batch
-- **Unicode 16.0.0 freeze rule = a `U+FFFF` SENTINEL MAP since iter 148** (was a delete-filter iters
-    133–147; the sequence-adjacency divergence is RULED and CLOSED). Remaining: sequence vectors in
-    `unicode_boundary.json` → the 11 bindings (Go on 15.0 tables, skips all but `Final_Sigma`) → the
-    criterion-4 sweep as a runnable check. Never let a step "fix" one binding to match another. The
-    4 existing single-code-point vectors are **deletion-vs-sentinel agnostic** (ASCII context), so
-    they cannot gate this distinction — only sequence vectors can
+- **Unicode 16.0.0 freeze rule = a `U+FFFF` SENTINEL MAP since iter 148** (delete-filter iters
+    133–147; adjacency divergence RULED/CLOSED). Rust fixture COMPLETE since iter 149 (4 single code
+    points + 4 sequence vectors, guarded in `test_unicode_boundary.rs`). Remaining: propagate to 11
+    bindings + 4 sibling `data.json` (Go on 15.0 tables takes only `Final_Sigma`) → criterion-4
+    sweep. Never "fix" one binding to match another; single-cp vectors are deletion-agnostic
 - **Concurrent CID loops (iter 97, detail in `MEMORY-archive.md`)**: spurious `mise run check`
     "files modified" on an untouched file + mid-review working-tree change = a SECOND loop racing.
     Confirm with `ps aux`; flag HUMAN REVIEW REQUESTED, do NOT push or kill processes
@@ -72,93 +72,68 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
 
 - **Rust-only**: `cargo test -p iscc-lib` + clippy workspace + `mise run check`
 - **Clippy workspace**: fast (~2s) after build — always run
-- **Test-fixture / vector-file only (iter 141, ~4 min)**: Rust-only PLUS the full feature matrix
-    (`--no-default-features`, `+text-processing`, `--all-features`) because `#[cfg]` gating decides
-    which tests run — assert the per-target `N passed` line. Then the fixture-CONTENT guard and
-    live-vs-hypothetical vector probes → `review-patterns.md`. Test assets + docs are budget-free
+- **Test-fixture / vector-file only (iters 141/149, ~5 min)**: Rust-only PLUS the full feature
+    matrix (`--no-default-features`, `+text-processing`, `--all-features`) because `#[cfg]` gating
+    decides which tests run — assert the per-target `N passed` line. Then mutate the fixture four
+    ways under the feature-OFF build and check the oracle attribution → `review-patterns.md`
+    "Fixture / oracle review". Test assets + docs are budget-free
 - **Docs-only**: `mise run check` + clippy + `mise run version:check` (21 `OK:` lines) +
     `uv run zensical build` ("No issues found") + rendered-HTML grep for admonition/tab edits.
-    **Green gates say NOTHING about truth** (iter 143) — re-derive every number from its source and
-    treat "never/always/only" sentences as claims to disprove; next.md prose is a HYPOTHESIS and
-    dictated two false claims advance shipped verbatim → `review-patterns.md` "Docs Claim-Checking"
-- **New docs PAGE (gated since iter 145)**: `uv run scripts/check_docs_nav.py` proves disk /
-    `zensical.toml` nav / `ORDERED_PAGES` / `docs/llms.txt` agree (23 pages; `llms.txt` links are
-    absolute `https://lib.iscc.codes/<path>.md`). Two known holes it does NOT cover — a
-    **commented-out** nav entry still counts as present (regex, not `tomllib`: CI matrix pins 3.10),
-    and the prek hook is skipped on a page **deletion** (only pytest catches that). Verifying site
-    output? `zensical build` **wipes `site/`** — run `gen_llms_full.py` AFTER it or every per-page
-    `site/**/*.md` reads as missing
+    **Green gates say NOTHING about truth** (iter 143) — re-derive every number and treat
+    "never/always/only" as claims to disprove → `review-patterns.md` "Docs Claim-Checking"
+- **New docs PAGE (gated since iter 145)**: `uv run scripts/check_docs_nav.py` proves disk / nav /
+    `ORDERED_PAGES` / `docs/llms.txt` agree (23 pages, absolute links). Two holes: a
+    **commented-out** nav entry counts as present, and the hook skips a page **deletion**.
+    `zensical build` **wipes `site/`** → run `gen_llms_full.py` after it → `review-patterns.md`
 - **Python-only**: `mise run check` + `pytest`
 - **New gate script or gate HARDENING (iters 142/144/145/146, ~8 min)**: never accept "it exits 0 at
-    HEAD" — write your OWN mutations, prefer a **real** regression to a synthetic typo (iter 145:
-    restore `HEAD~1`'s file into a `git archive HEAD | tar -x` temp copy), dump internals via
-    `importlib`, and answer the blind-spot questions (one-directional? fail-open really fail-open?
-    fully-skipped run distinguishable from a pass? **set-equality gate vacuous on equal empty
-    sets?** **does the parser see commented-out entries?**). For a *hardening* step add: **is the
-    new check non-vacuous?** — enumerate which real inputs trigger it *before* trusting green (iter
-    146: 4 of 18 refs declare `required`-without-default inputs) — and **is the fix symmetric?**
-    (skipping non-string `with:` keys does not normalize the metadata side). A `files:`-scoped prek
-    hook needs its own **staged** fire/skip probe and never sees deletions → `review-patterns.md`
+    HEAD" — write your OWN mutations, prefer a **real** regression to a synthetic typo, dump
+    internals via `importlib`, and work the blind-spot question list (one-directional? fail-open?
+    skipped-run distinguishable? vacuous on empty sets? parser sees comments? new check non-vacuous?
+    fix symmetric?) → `review-patterns.md`. A `files:`-scoped prek hook needs a **staged** fire/skip
+    probe and never sees deletions
 - **Lint-config-only (`[tool.ruff]*` / prek hook types, iters 134–139)**: run `mise run check`, ruff
     check, ruff `format --check` (**assert exit 0, never a file count**), both pre-push ruff gates,
     ty check, pytest. A `# noqa` deletion is safe only if `--select <rule> --ignore-noqa` omits its
-    line; path-sensitive settings and any `types:` change need the hook-mode probe. Recipes →
-    `review-patterns.md` + `dep-refresh-reviews.md` slice 8
+    line; path-sensitive settings and any `types:` change need the hook-mode probe →
+    `dep-refresh-   reviews.md` slice 8
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
     `go vet -C packages/go ./...`
-- **Ruby-only**: `mise run check` + `cargo clippy -p iscc-rb -- -D warnings` +
-    `pushd crates/iscc-rb && bundle exec rake test; popd` + `bundle exec standardrb` (needs
-    `PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH"`)
-- **Kotlin-only**: `cargo build -p iscc-uniffi` + `cd packages/kotlin && ./gradlew test` + clippy
-    workspace + `mise run check`. Gradle flakes on this bind mount — read
-    `build/test-results/test/*.xml` and re-run after `./gradlew clean` before calling it a failure.
-    Published consumer floor is **Kotlin 2.3 or newer**, documented in 4 places that move together
+- **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
+    review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see gate-reviews.md Audit)
 - **Dependency refresh (v0.6.0)**: per-slice gates + hold-back recipes → `dep-refresh-reviews.md`.
     **ALL nine slices CLOSED** (124–140); only human/major-gated bumps left. **A toolchain bump in a
     PUBLISHED binding is a support-policy change, not a pin** — check the consumer floor first
-- **A tool bump can widen a gate's FILE DISCOVERY, not just its rules** (iter 137: ruff 0.16 →
-    `ruff format --check` went 25 → 153 files). Diff the count, then ask **which local gate covers
-    the new surface**. Relock proof: `git diff HEAD~1..HEAD -- uv.lock | grep -E '^[+-]name = '`
+- **Tool/dep-bump reflexes** — a bump can widen a gate's FILE DISCOVERY, `# held:` reasons come from
+    registry metadata not the handoff, `cargo tree -i` needs `--target all`, and a DATA-TABLE dep
+    needs an exhaustive differential (the 50 vendored vectors are all Unicode ≤ 15) →
+    `dep-refresh-reviews.md`
 - **Prek-hook-scope review (iters 138–139)**: NEVER accept `git ls-files` arithmetic as a hook's
     surface — `.pyi` is tagged `pyi`, not `python`. Probing a *widened* tag needs a **staged,
     deliberately dirty** file → `review-patterns.md`
-- **A published `.pyi` needs mypy + pyright, not just `ty`** (iter 131; the wheel ships `py.typed`):
-    `uvx mypy@1.18.2 --strict` + `uvx pyright@1.1.407` ≈ 30s; prefer `ast.parse` over greps
-- **Verify a `# held:` claim from registry metadata, never from the handoff** (iters 126/130, ~30s):
-    `cargo info <crate>@<ver>`, `gem specification <gem> -v <ver> --remote`,
-    `https://rubygems.org/api/v1/versions/<gem>.json`. A wrong stated reason survives as folklore
-- **A dep shipping DATA TABLES (Unicode, locale, tz) needs an exhaustive differential, not green
-    vectors** (iter 129): the 50 vendored vectors are all Unicode ≤ 15 → `dep-refresh-reviews.md`
-- **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
-    `--target all` (this disproved an advance-handoff attribution: `proc-macro-error2` comes from
-    dev-only `iai-callgrind-macros`, NOT magnus/rb-sys)
 - **Core text/codec change + generated data (iters 133/148, ≈12 min)**: Rust-only PLUS the **full
-    feature matrix** (`#[cfg]`-gated consts/tests) PLUS the two CI-only gates — `mise run coverage`
-    then the **CI-exact**
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json   --fail-regression --fail-above`
-    (bare flag; `--fail-above 30.0` is a syntax error and CI uses BOTH flags, not just
-    `--fail-regression`) and `mise run bench:iai:check`; re-run any generator and assert
-    `git status --porcelain <output>` is empty. For a `text_clean`/`text_collapse` edit, add the
-    sequence differential in `review-patterns.md` — the vector suite cannot see that class
+    feature matrix** PLUS the two CI-only gates — `mise run coverage` then the CI-exact
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
+    (`--fail-above` is a BARE flag and CI uses BOTH) and `mise run bench:iai:check`; re-run any
+    generator and assert `git status --porcelain <output>` is empty. `text_clean`/`text_collapse`
+    edits also need the sequence differential in `review-patterns.md`
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`
-- **release.yml / any GHA action bump**: NEVER exercised by CID pushes → static-verify only. **All
-    four checks are committed gates (iters 142 + 144)** — run
-    `uv run scripts/check_release_workflow.py` and `… --check-action-inputs`, never a retyped
-    heredoc. **Zero `warning: skipped` lines is part of the pass** (a rate-limited run is
-    green-but-useless). Still manual: actionlint, `runs.using`, and every intervening major's
-    *default* changes. Recipes, blind spots, cleared-defaults table and pinning conventions →
-    **`gha-workflow-reviews.md`**. `always()` = NEEDS_WORK
+- **release.yml / any GHA action bump**: NEVER exercised by CID pushes → static-verify only. Run the
+    committed gates `uv run scripts/check_release_workflow.py` and `… --check-action-inputs`, never
+    a retyped heredoc; **zero `warning: skipped` lines is part of the pass**. Manual: actionlint,
+    `runs.using`, intervening majors' *default* changes → **`gha-workflow-reviews.md`**. `always()`
+    = NEEDS_WORK
 - **CI/Audit/Perf/Semver/CRAP gates** → `gate-reviews.md`. **Binding propagation** (napi/wasm/ffi/
     jni/ruby/dotnet/kotlin/uniffi) → `binding-reviews.md`
 
 ## Codex Review Integration
 
-- Advisory only, never sets the verdict; `--commit HEAD`; empty/unavailable ≠ clean. What it
-    reliably catches, what it reliably misses, and the standing dismiss-list →
-    **`codex-integration.md`**. Expect a real finding whenever a diff adds a matching/parsing rule,
-    an exception-handling contract, or a user-facing factual claim
+- Advisory only, never sets the verdict; `--commit HEAD`; empty/unavailable ≠ clean. Strengths,
+    blind spots and the standing dismiss-list → **`codex-integration.md`**. Expect a real finding
+    whenever a diff adds a matching/parsing rule, an exception-handling contract, or a user-facing
+    factual claim — iter 149 it independently found the same oracle mis-attribution I derived
 - **A no-findings Codex verdict sometimes asserts its own evidence** (iter 148: "match a Unicode
-    16.0 reference across all Unicode scalar values") — that is an unverifiable claim in a
-    one-paragraph report, not a substitute for your own probe. Run the differential anyway
+    16.0 reference across all Unicode scalar values") — an unverifiable claim in a one-paragraph
+    report is not a substitute for your own probe. Run the differential anyway

@@ -308,22 +308,32 @@ suite and all bindings (Go: see caveat in point 3); the spec already names 16.0.
 rule. **(b) Rust half done iter 141**: `crates/iscc-lib/tests/unicode_boundary.json` (ASCII-escaped,
 `data.json`-shaped, 4 single code points × `text_clean`/`text_collapse`) + loader
 `tests/test_unicode_boundary.rs` (1 ungated shape/content guard + 2 `text-processing`-gated vector
-tests). **Remaining for (b):** add the four **sequence** vectors. Their expected outputs are the six
-`utils.rs` regression tests landed in iter 148 — written as escapes below because the fixture is
-ASCII-escaped and the composed/decomposed forms render identically:
+tests). ✅ **Sequence vectors done iter 149**: the four multi-code-point cases below are in the
+fixture (`text_clean` 7 cases, `text_collapse` 5) and pinned in the test source by a
+`SEQUENCE_VECTORS` const plus a second **ungated** guard (`test_boundary_fixture_sequence_vectors`)
+asserting exactly-one-match, expected-equality and delete-filter-inequality per row; review
+mutation-probed all four failure modes (wrong output, dropped case, swapped code point, duplicated
+case) and each one reds the suite with `text-processing` off. Documented in `docs/unicode.md`.
 
-| section         | input                      | expected             | must NOT be          |
+| section         | input                      | expected             | delete filter gives  |
 | --------------- | -------------------------- | -------------------- | -------------------- |
 | `text_clean`    | `e\u0378\u0301`            | `e\u0301`            | `\u00E9`             |
 | `text_clean`    | `\u1100\u0378\u1161`       | `\u1100\u1161`       | `\uAC00`             |
-| `text_clean`    | `e\uA7F1\u0301`            | `e\u0301`            | `e\u015A`            |
+| `text_clean`    | `e\uA7F1\u0301`            | `e\u0301`            | `\u00E9`             |
 | `text_collapse` | `\u0391\u03A3\u0378\u0392` | `\u03B1\u03C2\u03B2` | `\u03B1\u03C3\u03B2` |
 
-Then copy the fixture into the 11 bindings' conformance tests and the four sibling `data.json`
-locations. All blockers are cleared: the sentinel conversion has landed (it determined the expected
-outputs above), the Go ruling is below, and the Go `Final_Sigma` bug that blocked the `Final_Sigma`
-vector was fixed in iter 147 (`packages/go/utils.go` now uses `cases.Lower(language.Und)`; the
-per-call `cases.Caser` is deliberate — do not hoist it).
+**Do not relabel row 3 as `e\u015A`** — that value (this table's earlier "must NOT be" wording,
+which iteration 149 propagated verbatim into code and docs before review caught it) is what the
+superseded *category-override* design yields, because `U+A7F1` is `<super> 0053` under Unicode 17
+tables. A *delete filter* removes the code point before normalization, so row 3 collapses to the
+same `\u00E9` as row 1. Both wrong values differ from the expected output, so the guard holds either
+way.
+
+**Remaining for (b):** copy the fixture into the 11 bindings' conformance tests and the four sibling
+`data.json` locations. All blockers are cleared: the sentinel conversion has landed (it determined
+the expected outputs above), the Go ruling is below, and the Go `Final_Sigma` bug that blocked the
+`Final_Sigma` vector was fixed in iter 147 (`packages/go/utils.go` now uses
+`cases.Lower(language.Und)`; the per-call `cases.Caser` is deliberate — do not hoist it).
 
 **Go — RULED by Titusz 2026-07-26: skip, do not vendor the delta.** `packages/go` skips the Unicode
 16.0 boundary vectors with an explicit tracking note (and an issue filed here) rather than vendoring

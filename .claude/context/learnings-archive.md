@@ -870,3 +870,10 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
 - prek `types_or` at the close of the ruff-0.16 adoption: `[python, pyi, markdown]` for the format
     hook, `[python, pyi]` for the check hook — a strict superset of what CI runs (ruff 0.16 formats
     Python code blocks in Markdown but does not lint them).
+
+## Python Binding Tooling Pins (archived iter 149 — Python bindings fully met)
+
+- **PyO3 is `0.29`** (iscc-py only): keep `#[pymodule(name = "_lowlevel", gil_used = true)]`
+    explicit. Per-hop upgrade recipe is in the PyO3 sections above.
+- **`_lowlevel.pyi` is consumer-facing** (the wheel ships `py.typed`): stub bodies are
+    docstring-only, and edits need `mypy 1.18 --strict` + `pyright 1.1.407`, not just `ty`.

@@ -34,27 +34,20 @@ fully-met target sections to `learnings-archive.md`.
     in CI — call tools directly
 - Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest, `ty check`. The ruff `S`/`C901`
     scans also run pre-commit since iter 134 (they are in the default select now)
-- **PyO3 is `0.29`** (iscc-py only): keep `#[pymodule(name = "_lowlevel", gil_used = true)]`
-    explicit. Per-hop upgrade recipe → `learnings-archive.md`
-- **`_lowlevel.pyi` is consumer-facing** (wheel ships `py.typed`): stub bodies are docstring-only,
-    and edits need `mypy 1.18 --strict` + `pyright 1.1.407`, not just `ty` → `learnings-archive.md`
 - **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133):
     inline `# /// script` metadata, `uv run --script <path>`, path in `[tool.ty.src] exclude` —
     keeps `uv.lock` hold-back-free. A dep a *pytest* test imports in-process cannot be PEP 723 and
     must be a dev-group dep (iter 142, `pyyaml`). Generated Rust must be data-only + rustfmt-stable
-- **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** — `benches/`
-    import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally (E0432). The real feature-matrix
-    gate is `--no-default-features` *without* `--all-targets`; not a fresh regression
+- **`cargo clippy -p iscc-lib --no-default-features --all-targets` has always failed** (`benches/`
+    import `gen_meta_code_v0`/`gen_text_code_v0` unconditionally, E0432) — drop `--all-targets`
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
     dies until `sudo apt-get install -y valgrind` +
     `cargo binstall -y iai-callgrind-runner --version 0.16.1` (MUST match the pin); CI mirrors this
-- **A docs page lives in FOUR places, all gated by `scripts/check_docs_nav.py`** (iter 145): disk
-    (`docs/**/*.md` minus `includes/`), `zensical.toml` `nav`, `ORDERED_PAGES`, and the absolute
-    `docs/llms.txt` links — 23 pages. The nav stays regex-parsed but is comment-aware since iter
-    146: strip `#`-to-EOL only *outside* double quotes (a naive `#.*$` truncates the real
-    `{ "C# / .NET" = "howto/dotnet.md" }` line) — probe any comment stripper on the REAL config
-- **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it** (`docs.yml` order).
-    Reversed, every per-page `site/**/*.md` check reads as missing — an artifact, not a defect
+- **A docs page lives in FOUR places — disk (`docs/**/*.md` minus `includes/`), `zensical.toml`
+    `nav`, `ORDERED_PAGES`, `docs/llms.txt` (23 pages) — all gated by `scripts/check_docs_nav.py`**
+    (iter 145), whose regex nav parser is comment-aware since iter 146: strip `#`-to-EOL only
+    *outside* double quotes. **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after
+    it** — reversed, every per-page `site/**/*.md` reads as missing
 
 ## ISCC Algorithm Knowledge
 
@@ -73,13 +66,16 @@ fully-met target sections to `learnings-archive.md`.
     sequences**: a per-code-point sweep scores the broken design 0 failures, while the iter-148
     sequence probe (127 unassigned code points × 10 contexts) scored it 504/1270 and the sentinel
     0/1270. Recipe → `.claude/agent-memory/review/review-patterns.md`
-- **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141; ASCII
-    `\uXXXX`, `data.json`-shaped, 4 code points × `text_clean`/`text_collapse`) + loader
+- **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141, +4
+    **sequence** vectors iter 149; ASCII `\uXXXX`, `data.json`-shaped) + loader
     `tests/test_unicode_boundary.rs` — propagation source for every binding, deliberately NOT merged
-    into `data.json` (rationale → `decisions.md`). Two are **live** guards: `unicode-normalization`
-    0.1.25 ships **Unicode 17.0** tables where U+A7F1 is `Lm` `<super> 0053` (NFKC → `S`) and U+20C1
-    is `Sc`. But all 4 wrap their code point in ASCII, so they are **deletion-vs-sentinel agnostic**
-    — only sequence vectors can gate that distinction
+    into `data.json` (rationale → `decisions.md`). Two single-code-point cases are **live** guards:
+    `unicode-normalization` 0.1.25 ships **Unicode 17.0** tables where U+A7F1 is `Lm` `<super> 0053`
+    (NFKC → `S`) and U+20C1 is `Sc`. All 4 wrap their code point in ASCII, so they are
+    **deletion-vs-sentinel agnostic** — only the sequence vectors gate that distinction
+- **A "must NOT be" oracle must name the design it came from** (iter 149): a *delete filter* turns
+    `e U+A7F1 U+0301` into `U+00E9`; `e U+015A` is the *category-override* failure. next.md labelled
+    the whole column "delete filter" and the mismatched value shipped into published docs
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
     vector tests compare implementation against fixture, so cases swapped for ASCII no-ops stay
     green forever. Hence the **ungated** metadata guard asserting the exact non-ASCII code-point set

@@ -259,3 +259,15 @@ All locally-verifiable slices are done (1-8; slice 8 closed iter 137). napi `pac
 Gradle wrapper + JUnit 6.x / xunit 3 / Test.Sdk 18 majors, and the deferred magnus 0.8 / jni 0.22
 migrations, each its own step. Watch for the slice-5 lesson in any published binding: a
 runtime/toolchain floor moving silently.
+
+## Dependency/tool-bump review reflexes (moved from MEMORY.md index, iter 149)
+
+- **A tool bump can widen a gate's FILE DISCOVERY, not just its rules** (iter 137: ruff 0.16 made
+    `ruff format --check` go 25 → 153 files). Diff the count, then ask **which local gate covers the
+    new surface**. Relock proof: `git diff HEAD~1..HEAD -- uv.lock | grep -E '^[+-]name = '`.
+- **Verify a `# held:` claim from registry metadata, never from the handoff** (iters 126/130, ~30s):
+    `cargo info <crate>@<ver>`, `gem specification <gem> -v <ver> --remote`,
+    `https://rubygems.org/api/v1/versions/<gem>.json`. A wrong stated reason survives as folklore.
+- **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
+    `--target all`. This disproved an advance-handoff attribution: `proc-macro-error2` comes from
+    dev-only `iai-callgrind-macros`, NOT the magnus/rb-sys subtree.

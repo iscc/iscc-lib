@@ -21,6 +21,13 @@ const BOUNDARY_CODE_POINTS: [char; 4] = ['\u{1FAE9}', '\u{113C5}', '\u{20C1}', '
 /// Unlike the single-code-point vectors these distinguish the `U+FFFF` sentinel
 /// map from the superseded delete-filter design, so their exact strings are
 /// pinned here — a fixture case silently degraded to ASCII must fail this guard.
+///
+/// `delete_filter_output` is what deleting the unassigned code point *before*
+/// normalization yields. The `U+A7F1` row guards a second hazard on top of
+/// that: `U+A7F1` gained a compatibility decomposition to `S` in Unicode 17, so
+/// leaving it visible to the normalizer instead of mapping it to the sentinel
+/// composes the following acute accent onto it and yields `e\u{015A}` — the
+/// failure mode of the superseded category-override design.
 const SEQUENCE_VECTORS: [(&str, &str, &str, &str); 4] = [
     ("text_clean", "e\u{0378}\u{0301}", "e\u{0301}", "\u{00E9}"),
     (
@@ -29,7 +36,7 @@ const SEQUENCE_VECTORS: [(&str, &str, &str, &str); 4] = [
         "\u{1100}\u{1161}",
         "\u{AC00}",
     ),
-    ("text_clean", "e\u{A7F1}\u{0301}", "e\u{0301}", "e\u{015A}"),
+    ("text_clean", "e\u{A7F1}\u{0301}", "e\u{0301}", "\u{00E9}"),
     (
         "text_collapse",
         "\u{0391}\u{03A3}\u{0378}\u{0392}",
