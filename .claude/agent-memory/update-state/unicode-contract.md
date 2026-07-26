@@ -57,20 +57,26 @@ is stripped, which is what the reference does).
     `[dependency-groups]` — it is generator-only, excluded via `pyproject.toml`
     `[tool.ty.src] exclude`.
 2. **Table deps ≥ 16.0.0 — MET**, no dependency change; now explicitly freely-upgradable.
-3. **Boundary vectors — HALF MET (Rust iter 141, bindings not).**
-    `crates/iscc-lib/tests/unicode_boundary.json` — project-owned, `data.json`-*shaped* but a
-    separate file (NOT appended to the five vendored `data.json` copies), fully **ASCII-escaped**
+3. **Boundary vectors — HALF MET: the Rust fixture is COMPLETE (iters 141+149), bindings are at
+    ZERO.** `crates/iscc-lib/tests/unicode_boundary.json` — project-owned, `data.json`-*shaped* but
+    a separate file (NOT appended to the five vendored `data.json` copies), fully **ASCII-escaped**
     (a repo grep for `1FAE9` MISSES it — grep the filename),
-    `_metadata.unicode_data_version =  "16.0.0"`, 4 cases each for `text_clean` / `text_collapse`:
-    U+1FAE9, U+113C5, U+20C1, U+A7F1. Loader `tests/test_unicode_boundary.rs` = 1 **ungated**
-    metadata/anti-hollow-fixture guard + 2 `text-processing`-gated vector tests. Inline `utils.rs`
+    `_metadata.unicode_data_version = "16.0.0"`, **7 `text_clean` + 5 `text_collapse`** cases = 4
+    single code points each (U+1FAE9, U+113C5, U+20C1, U+A7F1) + the **4 sequence vectors** (iter
+    149). Loader `tests/test_unicode_boundary.rs` = **2 ungated** guards
+    (`test_boundary_fixture_metadata`: version + derived counts + exact non-ASCII code-point set;
+    `test_boundary_fixture_sequence_vectors`: exactly-one-match, expected-equality,
+    delete-filter-INequality) + 2 `text-processing`-gated vector tests. Both guards read the
+    `SEQUENCE_VECTORS` / `BOUNDARY_CODE_POINTS` consts, not the fixture, so they are non-vacuous;
+    review mutation-probed 4 degradation modes at 149 and each reds the suite. The
+    deletion-vs-sentinel blind spot flagged at 149 is therefore **CLOSED**. Inline `utils.rs`
     assertions are a deliberate duplicate — don't "clean up" either copy. **Remaining:** 11 binding
-    suites + 4 sibling `data.json` locations; iters 142/146 both found ZERO hits outside
-    `crates/iscc-lib`; iter 149 re-confirmed zero. **All blockers cleared.** Also missing: the **4
-    sequence vectors** — and note the 4 existing single-code-point vectors wrap each code point in
-    ASCII, so they are structurally **deletion-vs-sentinel agnostic** and CANNOT gate the iter-148
-    fix. Expected outputs are already pinned by the six `utils.rs` tests and tabulated as escapes
-    in the issues.md umbrella entry — do not re-derive.
+    suites + 4 sibling `data.json` locations (`packages/go/testdata/`,
+    `packages/dotnet/Iscc.Lib.Tests/testdata/`, `packages/swift/Tests/IsccLibTests/`,
+    `packages/kotlin/src/test/resources/` — `find packages -name data.json` also returns 2 build
+    artifacts, ignore those). Iters 142/146/149/150 all found ZERO hits outside `crates/iscc-lib`
+    (`tests/test_text_utils.py` matches `unicode_boundary` only via a function NAME — not
+    propagation). All blockers cleared.
 4. **Differential sweep — UNMET, no harness in `scripts/`.** Review's 1,270-case probe at iter 148
     (0 mismatches for the sentinel vs 504 for the pre-filter) was **ad hoc and not checked in** —
     it is initial proof, not the criterion. Demands **ZERO** divergence (not "enumerate a residual"
@@ -118,6 +124,28 @@ propose the sentinel and withdraw both earlier framings. Key argument: `iscc-cor
 deterministic across its declared `>=3.9,<4.0` range (U13.0/14.0/15.0/15.1/16.0 by interpreter), so
 this is a determinism fix, not a 3.14 regression. Per ISO 24138 Annex D the reference implementation
 is normative, so the adopting `iscc-core` release settles the standard's answer.
+
+## The four sequence vectors, with their CORRECTED oracles (iter 149)
+
+Pinned in `SEQUENCE_VECTORS` (`test_unicode_boundary.rs:31`), in the issues.md umbrella table and in
+`docs/unicode.md`. **Do not re-derive; copy them during propagation.**
+
+| section         | input                      | expected             | a DELETE filter gives |
+| --------------- | -------------------------- | -------------------- | --------------------- |
+| `text_clean`    | `e\u0378\u0301`            | `e\u0301`            | `\u00E9`              |
+| `text_clean`    | `\u1100\u0378\u1161`       | `\u1100\u1161`       | `\uAC00`              |
+| `text_clean`    | `e\uA7F1\u0301`            | `e\u0301`            | `\u00E9`              |
+| `text_collapse` | `\u0391\u03A3\u0378\u0392` | `\u03B1\u03C2\u03B2` | `\u03B1\u03C3\u03B2`  |
+
+**Row 3's oracle is `\u00E9`, NOT `e\u015A`** — `e\u015A` is what the *category-override* design
+yields (`U+A7F1` is `<super> 0053` under U17 tables); a delete filter removes the code point before
+normalization so row 3 collapses to the same value as row 1. next.md mislabelled it, advance was
+told not to re-derive, and the wrong value reached published docs with every gate green — review
+caught it. **A "must NOT be" oracle is only meaningful if the design it came from is named.**
+
+**Tool gotcha for any propagation step:** writing `\uXXXX` through the Edit tool decodes it into
+literal UTF-8. Edit ASCII-escaped fixtures through Python (`json.dumps(..., ensure_ascii=True)`) and
+verify with `raw.isascii()` + numeric `ord()`, never by looking at glyphs.
 
 **Gates this work trips** (both bite in CI, not locally — see [[MEMORY]] Quality Gates). Measured
 outcomes: iai needed **no** baseline refresh either time (pre-filter max +1.96%; sentinel
