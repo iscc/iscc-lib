@@ -769,3 +769,29 @@ removal in one commit. Risk of a surprise is low: `.github/workflows/ci.yml` pin
 `go-version-file: packages/go/go.mod`, so nothing moves without editing the `go 1.26.1` directive. A
 checklist is recorded under the Unicode issue in `issues.md`. **Context:** iteration 150 review,
 commit `d12ceb1`; `x/text` build tags read from the local module cache (`v0.40.0`).
+
+## 2026-07-26 — Binding boundary suites link the canonical fixture instead of vendoring a copy
+
+**Decision:** The C# and Kotlin boundary suites read `crates/iscc-lib/tests/unicode_boundary.json`
+through a build-config indirection — an MSBuild
+`<Content Include="..\..\..\crates\iscc-lib\tests\unicode_boundary.json" Link="testdata\unicode_boundary.json">`
+item for `.NET` and an `iscc.fixtureDir` system property for Gradle — even though both packages
+already vendor a tracked *copy* of the sibling `data.json` in the same test tree. The Kotlin `Test`
+task additionally declares the fixture with
+`inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`. **Why:** every tracked copy is a
+byte-identity liability that `tests/test_vendored_fixtures.py` must police, and eight surfaces × one
+more copy is eight more chances to drift; linking removes the failure mode instead of gating it.
+Nothing published depends on the copy — test sources ship in neither the NuGet package nor the Maven
+artifact, so self-containment buys nothing here. The path sensitivity is `NONE` because the absolute
+fixture path differs between checkouts and must not by itself invalidate the task. **Alternatives:**
+vendor a copy in each package and register it in `VENDORED_COPIES`, matching the existing
+`data.json` precedent — rejected on drift-surface grounds, and the precedent is itself historical
+(`data.json` predates the drift gate); leave the Gradle input undeclared and rely on
+`cleanTest test` by convention — rejected, a convention that must be remembered is not a gate, and
+review measured the failure: after one green run, mutating the fixture left `./gradlew test`
+`UP-TO-DATE` and silently skipped all 13 boundary tests. **Consequence:** `data.json` and
+`unicode_boundary.json` are handled asymmetrically inside `packages/dotnet` and `packages/kotlin`;
+that is deliberate, not an oversight. Swift remains the one surface expected to need a real vendored
+copy (SwiftPM resource bundling), and it must be registered in `VENDORED_COPIES`. **Context:**
+iteration 154 (`84ce2f1`) plus the review fix; hazard independently reported by the Codex review and
+confirmed by a three-run Gradle probe.

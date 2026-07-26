@@ -366,15 +366,27 @@ directory is the maven basedir, so the same relative shape `IsccLibTest` already
 **zero skips**; both ride the existing CI jobs unchanged (`npm test` globs `__tests__/*.test.mjs`
 after `npx napi build --platform`; surefire auto-discovers `*Test.java` after
 `cargo build -p iscc-jni`), so CI always tests a freshly built native and the local stale-artifact
-hazard cannot reach it. Review mutation-probed both the same two ways as slice 2. **5 surfaces
-left:** C FFI (`tests/test_iscc.c` has no JSON reader and no text-function coverage at all — needs a
-generated vector table or a hand-rolled reader), C++ (not buildable in this container — no `cmake`),
-C#, Kotlin, Swift (the `packages/{dotnet,kotlin,swift}` slice is the one that adds tracked vendored
-copies), plus the four sibling `data.json` copies. (The running tally counts the 11 native bindings
-named in `docs/unicode.md`; `packages/go` is the separate pure-Go port and UniFFI is the shared
-mechanism behind Kotlin and Swift, not an independent surface. Note that
-`git ls-files | grep unicode_boundary` now under-counts the tally by one — the Java test file is
-named `UnicodeBoundaryTest.java`.)
+hazard cannot reach it. Review mutation-probed both the same two ways as slice 2. ✅ **Propagation
+slice 4 done (iter 154): C# + Kotlin.** Both read the **canonical** fixture with no vendored copy —
+`packages/dotnet/Iscc.Lib.Tests/UnicodeBoundaryTests.cs` via a csproj
+`<Content Include="..\..\..\crates\iscc-lib\tests\unicode_boundary.json" Link="testdata\unicode_boundary.json">`
+item (`Lazy<JsonElement>` + `[Fact]` metadata guard + two `[Theory]`/`[MemberData]` methods; xunit
+puts the case name in the failed-test display name) and
+`packages/kotlin/src/test/kotlin/uniffi/iscc_uniffi/UnicodeBoundaryTest.kt` via an `iscc.fixtureDir`
+system property set in `build.gradle.kts` (gson + `@TestFactory`/`DynamicTest` so each vector is its
+own `testcase` in the Gradle XML). 13 tests each, all 12 vectors, **zero skips**; both ride the
+existing CI jobs unchanged. Review mutation-probed both the same two ways as slices 2/3. Review also
+added `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)` to the Kotlin `Test` task — without
+it a post-run fixture edit left `./gradlew test` `UP-TO-DATE` and silently skipped all 13 boundary
+tests (CI was never affected: fresh checkout, no build-dir cache). **3 surfaces left:** C FFI
+(`tests/test_iscc.c` has no JSON reader and no text-function coverage at all — needs a generated
+vector table or a hand-rolled reader), C++ (not buildable in this container — no `cmake`), Swift (no
+toolchain in this container; it is the one that would add a tracked vendored copy, which **must** be
+registered in `VENDORED_COPIES`), plus the four sibling `data.json` copies. (The running tally
+counts the 11 native bindings named in `docs/unicode.md`; `packages/go` is the separate pure-Go port
+and UniFFI is the shared mechanism behind Kotlin and Swift, not an independent surface. Note that
+`git ls-files | grep unicode_boundary` under-counts the tally — the Java/C#/Kotlin suites are named
+`UnicodeBoundaryTest.java`, `UnicodeBoundaryTests.cs` and `UnicodeBoundaryTest.kt`.)
 
 **Go — RULED by Titusz 2026-07-26: skip, do not vendor the delta.** `packages/go` skips the Unicode
 16.0 boundary vectors with an explicit tracking note (and an issue filed here) rather than vendoring

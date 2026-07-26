@@ -327,6 +327,9 @@ reference-only for humans.
     `release.yml` (that rb_sys pins `rake-compiler-dock = 1.10.0`); `minitest ~> 5.0` is held
     because 6.0.x requires Ruby ≥ 3.2 vs the gem's declared 3.1.0 floor. Both reasons live in inline
     `# held:` comments in `crates/iscc-rb/Gemfile`
+- **Windows GHA runners default to `pwsh`** (archived iter 154 — the cross-platform matrix is
+    settled): any `run:` step using bash syntax (`$(...)`, `$GITHUB_OUTPUT`, `grep`, `sed`) in a
+    cross-platform matrix MUST set `shell: bash`
 
 ## .NET Bindings (P/Invoke) — Completed Phase (Iteration 9)
 

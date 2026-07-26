@@ -144,3 +144,33 @@ collection error, not a silent skip. Verify no `delete_filter_output` oracle was
 iter 152 every new tracked copy must also be registered in `VENDORED_COPIES` of
 `tests/test_vendored_fixtures.py`, and must keep the basename `data.json` / `unicode_boundary.json`
 — that gate discovers copies by basename only.
+
+### C# + Kotlin slice (iter 154, ~10 min)
+
+- Both read the **canonical** fixture in place (no vendored copy — csproj `<Content Link=…>` for
+    .NET, `iscc.fixtureDir` system property for Gradle), so ONE fixture mutation probes both. Same
+    two mutations as slices 2/3; both suites named the failing case. Verified iter 154.
+- .NET: `cargo build -p iscc-ffi` then
+    `LD_LIBRARY_PATH=$PWD/target/debug dotnet test packages/dotnet/Iscc.Lib.Tests/` (104 total, ~160
+    ms) and `--filter FullyQualifiedName~UnicodeBoundary` (13). `--list-tests` shows theories at
+    **method** level only (3 names) — that is pre-discovery, not a missing test; the runtime failure
+    line does carry the case name (`TextCleanBoundary(_: "test_0006_…", tc: {`).
+- Kotlin: `cargo build -p iscc-uniffi`, then
+    `packages/kotlin/gradlew -p packages/kotlin cleanTest test --offline` (`-p` avoids `cd`;
+    `rootProject.rootDir` stays `packages/kotlin`). Read
+    `build/test-results/test/TEST-uniffi.iscc_uniffi.UnicodeBoundaryTest.xml` — assert the
+    `<testsuite … tests="13" skipped="0" failures="0" errors="0">` attributes AND the timestamp.
+- **GRADLE UP-TO-DATE TRAP (found by Codex, confirmed, fixed iter 154):** a `Test` task only tracks
+    its own project tree. A fixture outside it (here `crates/iscc-lib/tests/…`) is NOT an input, so
+    after one green run an edit leaves `./gradlew test` `UP-TO-DATE` and the suite silently does not
+    run — a stale green that survives a mutation probe if you forget `cleanTest`. Fix committed:
+    `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)` in the `tasks.withType<Test>` block.
+    **3-run probe:** cleanTest+test (green) → test (must be UP-TO-DATE, no spurious re-run) → mutate
+    fixture → test (must re-execute and red). CI is immune either way (fresh checkout, no gradle
+    build-dir cache — the `kotlin` job is just checkout + `cargo build` + `./gradlew test`).
+- Apply the same "is the fixture a declared build input?" question to the remaining surfaces:
+    SwiftPM resources, CMake, and any C-FFI generated table.
+- `packages/dotnet/{bin,obj}` and `packages/kotlin/build/` are gitignored, so build outputs of these
+    slices never reach `git ls-files` or the drift gate.
+- Kotlin emits a pre-existing "Deprecated Gradle Version" warning (wrapper 8.12.1 vs Kotlin plugin
+    2.4.10) — the wrapper bump is a separate authorized major, not this slice's regression.

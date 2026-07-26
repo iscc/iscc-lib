@@ -72,8 +72,9 @@ fully-met target sections to `learnings-archive.md`.
     table guards (U+A7F1 `Lm <super> 0053`, U+20C1 `Sc`), but all 4 wrap their code point in ASCII
     and are **deletion-vs-sentinel agnostic** — only the sequence vectors gate that distinction, and
     their expected values already differ from the delete-filter ones, so a binding suite needs **no
-    oracle column**. Gated: Rust, Python, Go (3 ruled skips), WASM, Ruby, napi, Java = 6 of 11
-    surfaces (`grep unicode_boundary` under-counts — Java's file is `UnicodeBoundaryTest.java`)
+    oracle column**. Gated: Rust, Python, Go (3 ruled skips), WASM, Ruby, napi, Java, C#, Kotlin =
+    **8 of 11** surfaces (`grep unicode_boundary` under-counts — Java's file is
+    `UnicodeBoundaryTest.java`, C#'s `UnicodeBoundaryTests.cs`, Kotlin's `UnicodeBoundaryTest.kt`)
 - **A binding can pass a boundary vector for the WRONG reason** (iter 150): `packages/go` has no
     freeze rule; its Unicode 15.0 tables make U+20C1/U+A7F1 `Cn`, so the category-`C` filter drops
     them and coincidentally matches the sentinel output. Under go1.27 both become assigned and 5
@@ -96,8 +97,6 @@ fully-met target sections to `learnings-archive.md`.
 
 ## CI/CD
 
-- Windows GHA runners default to `pwsh` — any `run:` step using bash syntax (`$(...)`,
-    `$GITHUB_OUTPUT`, `grep`, `sed`) in a cross-platform matrix MUST set `shell: bash`
 - **A binding suite's runner is not `cargo test`** (iter 151): `cargo test -p iscc-wasm` reports
     `0 passed` — only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`, so clippy
     `--all-targets` proves compilation, never coverage. **Every gitignored native artifact goes
@@ -105,20 +104,23 @@ fully-met target sections to `learnings-archive.md`.
     `.so` (`cargo build -p iscc-jni`); rebuild, then probe `text_clean("a"+U+A7F1+"b") == "ab"`
     (stale → `aSb`). CI rebuilds all three first, so this is local-only; `mvn -o -B test -f <pom>`
     works offline and surefire's cwd is the pom's basedir
+- **A suite reading a fixture OUTSIDE its own build tree must declare it as a build input** (iter
+    154): Gradle's `Test` task tracks only its project tree, so after one green run an edit to
+    `crates/iscc-lib/tests/unicode_boundary.json` left `./gradlew test` `UP-TO-DATE` — a silent
+    stale green (fixed with `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)`; NONE hashes
+    contents only, so the varying absolute path never forces a re-run). MSBuild `<Content Link=…>`
+    is safe by construction. Re-probe this for the Swift/C++/C-FFI slices; CI is immune either way
+    (fresh checkout, no build-dir cache)
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
     invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
     (guard shape, artifact wiring, `needs:` graph; prek hook +
-    `tests/test_check_release_workflow.py`) plus the CI-only, bidirectional `--check-action-inputs`
-    (every `with:` key and `steps.<id>.outputs.<x>` read against each ref's published `action.yml`).
-    Never hand-retype either into a heredoc. **By design:** job-level `uses:` is unscanned and an
-    all-skipped run stays green — read the `action-inputs: resolved R of T` line, not the job status
-    → archive
-- **A fail-open gate must publish a resolved/total counter** (iters 144→146) — without it "all
-    checked" and "nothing checked" are the same green; "transport failure degrades to a warning" is
-    NOT met by `except OSError` (`IncompleteRead` is an `HTTPException`, captive-portal HTML raises
-    `yaml.YAMLError`), and a "must be present" check needs its triggering inputs listed to be
-    trusted
+    `tests/test_check_release_workflow.py`) plus the CI-only, bidirectional `--check-action-inputs`.
+    Never hand-retype either into a heredoc; job-level `uses:` is unscanned by design → archive
+- **A fail-open gate must publish a resolved/total counter** — without it "all checked" and "nothing
+    checked" are the same green (read `action-inputs: resolved R of T`, not the job status), and
+    "transport failure degrades to a warning" is NOT met by `except OSError` (`IncompleteRead` is an
+    `HTTPException`, captive-portal HTML raises `yaml.YAMLError`)
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with both `--fail-regression` and a
