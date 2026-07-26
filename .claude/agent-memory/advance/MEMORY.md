@@ -114,7 +114,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     nav howto order differs (nav starts Rust, Python; landing starts Python, Rust)
 - Howto guides `docs/howto/{lang}.md`; API refs
     `docs/{rust-api,api,c-ffi-api,java-api,ruby-api}.md`; per-package READMEs + CLAUDE.md under
-    `packages/{dotnet,cpp,swift,kotlin}/`
+    `packages/{dotnet,cpp,swift,kotlin}/`; `docs/unicode.md` (iter 143) = user-facing Unicode 16.0.0
+    freeze-rule page (nav Explanation + `ORDERED_PAGES` + llms.txt; keep in sync with
+    `unicode_boundary.json` if vectors ever change)
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` (excludes
     `docs/includes/`). Run after `zensical build` in docs CI
 

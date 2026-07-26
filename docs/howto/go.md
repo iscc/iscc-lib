@@ -289,6 +289,13 @@ Text normalization functions used internally by the code generation pipeline are
 preprocessing your own text inputs. These are pure functions that return a value directly (no
 error).
 
+!!! note "Unicode tables"
+
+    The pure-Go package filters characters using Go's built-in Unicode tables (Unicode 15.0 in Go 1.26)
+    and does not implement the [declared Unicode 16.0.0 freeze rule](../unicode.md), so `TextClean` and
+    `TextCollapse` may drop characters assigned after Unicode 15.0 that the native bindings retain.
+    ASCII and Latin text is unaffected.
+
 ```go
 // Normalize text for display (NFKC, control char removal, line ending normalization)
 cleaned := iscc.TextClean("  Hello\r\n\r\n\r\nWorld  ")

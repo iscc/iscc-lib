@@ -29,6 +29,7 @@ nav = [
   ] },
   { "Explanation" = [
     { "Architecture" = "architecture.md" },
+    { "Text and Unicode" = "unicode.md" },
   ] },
   { "Ecosystem" = "ecosystem.md" },
   { "Reference" = [
