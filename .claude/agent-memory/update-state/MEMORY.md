@@ -58,10 +58,10 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
     `on:` is NOT a job. `release.yml` — 8 registry toggles; the Swift XCFramework step lives in
     `prepare-release` and is NOT a toggle.
 - **Unicode = 16.0.0 + SENTINEL freeze rule → read `unicode-contract.md` before ANY Unicode call.**
-    Criteria 1+2 MET (148); crit 3's **Rust fixture is COMPLETE since 149** (12 cases incl. the 4
-    sequence vectors, 2 ungated guards, mutation-probed). Still open: **binding propagation** (11
-    suites + 4 sibling `data.json`, still literally zero) and the differential sweep (crit 4, no
-    harness in `scripts/`). `decisions.md` keeps 2 SUPERSEDED designs that must NOT be implemented.
+    Criteria 1+2 MET (148); crit 3's Rust fixture COMPLETE since 149; propagation at **4 of 11
+    native surfaces** (Rust, Python, WASM, Ruby) + the pure-Go port. Still open: **7 surfaces + 4
+    sibling `data.json`** and the differential sweep (crit 4, no harness in `scripts/`).
+    `decisions.md` keeps 2 SUPERSEDED designs that must NOT be implemented.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`), now
     gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` only via
     `streaming::`. iscc-wasm's `blake3 wasm32_simd` dep is feature-unification — **don't prune**.
@@ -94,44 +94,45 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **Spec checkboxes are NOT a progress signal** — cpp/docs/dotnet/java/kotlin/nodejs/ruby/swift sit
     at 0/N checked though MET; only `ci-cd.md` (44/52) + `rust-core.md`'s semver box are kept up.
     Spec *prose* also rots: at 149 `rust-core.md` still described a defect fixed 2 iterations back.
-- **A "must NOT be" oracle is only meaningful if the DESIGN it came from is named** (149): next.md
-    relabelled an agnostic column as a specific design, forbade re-deriving, and a wrong value
-    reached published docs with every gate green. When an expected/rejected pair is handed down, ask
-    *which* implementation produces the rejected value — green gates say nothing about truth.
-- **A fixture can be structurally incapable of gating what it claims to gate** (149, CLOSED). Ask
-    what a test would have to *distinguish*, not just whether it passes.
+- **Two 149 lessons, both about oracles:** a "must NOT be" value is meaningful only if the DESIGN
+    producing it is named (a mislabelled column reached published docs with every gate green), and a
+    fixture can be structurally incapable of gating what it claims to. Ask what a test must
+    *distinguish*, not whether it passes — green gates say nothing about truth.
 
-## Current State (assessed-at: 19eecc8, iter 151)
+## Current State (assessed-at: c548399, iter 152)
 
-- **IN_PROGRESS — CI GREEN AND COVERING ALL CODE.** `origin/develop` == `a09f1d0`: 43 check-runs, 22
-    names, 0 non-success, 0 in progress. HEAD `19eecc8` is THREE commits ahead (`cid(log)` ×2 +
-    `cid(audit): metrics snapshot`) but `git diff --stat origin/develop..HEAD -- . ':!.claude'` is
-    EMPTY, so the green run covers every line of code. ~2x runs because PR **#44 (develop→main) is
-    OPEN** ("Release 0.6.0" — NOT shipped; version **0.5.0**).
-- Iteration 150 ran clean (3 `OK` roles, `PASS_WITH_NOTES`) **plus the every-10th `audit` role**,
-    which filed **zero** issues (commit `e52116a` = metrics snapshot only). Diff since = 5
-    non-`.claude` files, all test/docs; specs + `.github/` byte-unchanged.
-- **Statuses:** Rust-core partially met (crit 1+2 MET; crit 3 at **2 of 11 bindings** — Python + Go
-    gated at 150; crit 4 not started); Documentation met; all binding sections + benchmarks met;
-    CI/CD partially met. **Next = propagation slice 2** (prefer WASM+Ruby or C FFI+JNI — cheap
-    in-container; napi costliest) **plus the new byte-identity drift gate**, which is green at HEAD
-    and compounds over every remaining slice. Ledger + reusable pattern → `unicode-contract.md`.
-- Both new suites ride existing CI jobs — pytest via `testpaths = ["tests"]` in the `python-test`
-    matrix, Go via the `Go` job's `go test ./...`. No new job was needed and none should be added.
+- **IN_PROGRESS — CI GREEN AND COVERING ALL CODE.** `origin/develop` == `b4e4f1f`: 43 check-runs, 22
+    names, 0 non-success, 0 in progress. HEAD `c548399` is ONE commit ahead (a `cid(log)` commit)
+    but `git diff --stat origin/develop..HEAD -- . ':!.claude'` is EMPTY, so the green run covers
+    every line of code. ~2x runs because PR **#44 (develop→main) is OPEN** ("Release 0.6.0" — NOT
+    shipped; version **0.5.0**).
+- Iteration 151 ran clean: 4 roles all `OK`, verdict `PASS`. Diff since = 5 non-`.claude` files (2
+    new tests + 2 CLAUDE.md + `docs/unicode.md`); specs + `.github/` byte-unchanged; no
+    `crates/*/src/` file and neither baseline moved.
+- **Statuses:** Rust-core partially met (crit 1+2 MET; crit 3 at **4 of 11 native surfaces** + the
+    pure-Go port; crit 4 not started); everything else met except CI/CD (partial). **Next = the
+    byte-identity drift gate FIRST** (sequenced before the `packages/{dotnet,kotlin,swift}` slice,
+    which adds 3 more copies), then propagation slice 3 — **C# + C++ is the cheapest pair needing no
+    addon rebuild**. Ledger + slice-cost survey → `unicode-contract.md`.
+- All four gated suites ride EXISTING CI jobs (`python-test`, `Go`, `WASM`, `ruby`) — no new job was
+    needed and none should be added.
 - **`specs/rust-core.md` is STALE on Go `Final_Sigma`** (present tense at L149-157, box unchecked)
     though fixed at 147; crit-1/crit-3 boxes also unchecked though met — human-owned, CID doesn't
     edit specs.
-- **Issues: 9** (5 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`). New at 150:
-    `[review]` **"Gate byte-identity of the vendored test-vector copies"** — 6 vendored copies (5 ×
-    `data.json` + 1 × `unicode_boundary.json`) match by convention only; all agree at HEAD.
+- **Issues: 9** (5 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`) — none opened or
+    closed at 151. Still open from 150: `[review]` **"Gate byte-identity of the vendored test-vector
+    copies"** — 6 vendored copies (5 × `data.json`, one md5 `4f17639ab1dd…` + 1 ×
+    `unicode_boundary.json`, SHA `3ccc4418…`) match by convention only; all agree at HEAD and
+    `tests/` holds no such anchor yet.
 - **Human backlog CLEARED.** AUTHORIZED for CID: rubygems `@v2.1.0` pin (still `@main` at
     `release.yml:895`); major dep bumps **one per step** (magnus 0.8, jni 0.22 as source rewrites;
     xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive `specs/ci-cd.md` job table.
     DEFERRED: npm OIDC (not v0.6.0; don't even prepare the diff). The 3 gate-script remainders are
     `low` + trigger-contingent.
-- **Don't re-flag as DONE**: Python+Go fixture propagation 150; sequence vectors + fixture guard
-    149; sentinel conversion + the `docs/unicode.md` rewrite 148; Go `Final_Sigma` 147; gate
-    blind-spots 146; docs-list gate 145 (pre-145 → `MEMORY-archive.md` / the issues.md slice log).
+- **Don't re-flag as DONE**: WASM+Ruby fixture propagation 151; Python+Go 150; sequence vectors +
+    fixture guard 149; sentinel conversion + the `docs/unicode.md` rewrite 148; Go `Final_Sigma`
+    147; gate blind-spots 146; docs-list gate 145 (pre-145 → `MEMORY-archive.md` / issues.md slice
+    log).
 
 ## Gotchas
 
@@ -141,6 +142,10 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **Exec-bit changes are INVISIBLE here** (`core.fileMode=false` bind mount): a mode-only commit
     shows nothing in `git status`/`diff` (`--stat` = a 0-line file). Use `git ls-files -s <path>`.
 - **`go run` rejects a file named `*_test.go`** — name throwaway probes `main.go`.
+- **Grep binding APIs CASE-INSENSITIVELY** (near-miss 152): napi exports are **snake_case**
+    (`text_clean`), so a `textClean` grep wrongly reported napi as having no text tests;
+    Java/Kotlin/ Swift would be camelCase, C# PascalCase. Also `crates/iscc-napi/__tests__` (two
+    underscores).
 - **Env gotchas → `MEMORY-archive.md`**: metrics.jsonl counts gitignored artifacts; Gradle
     bind-mount flakes; `proc-macro-error2` future-incompat warning (dev-only, not a regression).
 - **csbindgen** runs on every `cargo build` (`crates/iscc-ffi/build.rs`). **UniFFI** = proc-macro,

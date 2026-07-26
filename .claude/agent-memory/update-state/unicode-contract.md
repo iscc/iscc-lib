@@ -57,10 +57,11 @@ is stripped, which is what the reference does).
     `[dependency-groups]` — it is generator-only, excluded via `pyproject.toml`
     `[tool.ty.src] exclude`.
 2. **Table deps ≥ 16.0.0 — MET**, no dependency change; now explicitly freely-upgradable.
-3. **Boundary vectors — PARTIAL: Rust fixture COMPLETE (iters 141+149), bindings at 2 of 11 (iter
-    150: Python + pure-Go).** `crates/iscc-lib/tests/unicode_boundary.json` — project-owned,
-    `data.json`-*shaped* but a separate file (NOT appended to the five vendored `data.json`
-    copies), fully **ASCII-escaped** (a repo grep for `1FAE9` MISSES it — grep the filename),
+3. **Boundary vectors — PARTIAL: Rust fixture COMPLETE (iters 141+149), surfaces at 4 of 11 (150:
+    Python; 151: WASM + Ruby) plus the pure-Go port.**
+    `crates/iscc-lib/tests/unicode_boundary.json` — project-owned, `data.json`-*shaped* but a
+    separate file (NOT appended to the five vendored `data.json` copies), fully **ASCII-escaped**
+    (a repo grep for `1FAE9` MISSES it — grep the filename),
     `_metadata.unicode_data_version = "16.0.0"`, **7 `text_clean` + 5 `text_collapse`** cases = 4
     single code points each (U+1FAE9, U+113C5, U+20C1, U+A7F1) + the **4 sequence vectors** (iter
     149). Loader `tests/test_unicode_boundary.rs` = **2 ungated** guards
@@ -70,25 +71,33 @@ is stripped, which is what the reference does).
     `SEQUENCE_VECTORS` / `BOUNDARY_CODE_POINTS` consts, not the fixture, so they are non-vacuous;
     review mutation-probed 4 degradation modes at 149 and each reds the suite. The
     deletion-vs-sentinel blind spot flagged at 149 is therefore **CLOSED**. Inline `utils.rs`
-    assertions are a deliberate duplicate — don't "clean up" either copy. **Propagation ledger —
-    `git ls-files | grep unicode_boundary` is the fast check (5 paths at 151).** DONE:
-    `tests/test_unicode_boundary.py` (reads the canonical file by relative path, 12 vectors +
-    metadata guard, collected via `testpaths = ["tests"]`) and
-    `packages/go/unicode_boundary_test.go` + `packages/go/testdata/unicode_boundary.json` (`cp` +
-    `//go:embed`, SHA-identical to canonical, 9 of 12 live, 3 ruled skips, stale-skip-key guard).
-    **REMAINING: 9 surfaces** (napi, WASM, Ruby, C FFI, JNI/Java, UniFFI, Kotlin, Swift, C#, C++ —
-    napi is costliest, its gitignored local `.node` must be rebuilt first) **+ 3 sibling
-    `data.json` locations** (`packages/dotnet/Iscc.Lib.Tests/testdata/`,
-    `packages/swift/Tests/IsccLibTests/`, `packages/kotlin/src/test/resources/`;
-    `find packages -name data.json` also returns 2 build artifacts, ignore those). **Scoping
-    fact:** `crates/iscc-wasm/tests/unit.rs` already exercises `text_clean`/`text_collapse`, but
-    the **C FFI, JNI-Java, Kotlin and Swift suites have NO text-function tests at all** — those
-    slices are new plumbing, not a copied loop. **Reusable propagation pattern (proven 150):** read
-    the canonical fixture by relative path where the language can, else `cp` + verify with `cmp`;
-    assert `unicode_data_version` + per-section counts (7/5); **never copy the
-    `delete_filter_output` oracle** — the sequence vectors' expected values already differ from the
-    delete-filter results, so plain equality reds a regression; give any skip list a stale-key
-    guard.
+    assertions are a deliberate duplicate — don't "clean up" either copy. **DENOMINATOR (settled
+    151, anchored at `docs/unicode.md:105`): the 11 native surfaces are Python, Node.js, WASM, C
+    FFI, Java, Ruby, C#, C++, Swift, Kotlin AND the Rust crate itself.** `packages/go` is a
+    separate pure-Go reimplementation (gated, not one of the 11) and UniFFI is the mechanism behind
+    Kotlin/Swift, not an independent surface. **Propagation ledger —
+    `git ls-files | grep -i unicode_boundary` is the fast check (7 paths at 151).** DONE: Rust,
+    `tests/test_unicode_boundary.py`, `crates/iscc-wasm/tests/unicode_boundary.rs` (`include_str!`,
+    3 `#[wasm_bindgen_test]`, ungated by the `conformance` feature, runs ONLY under
+    `wasm-pack test --node`), `crates/iscc-rb/test/test_unicode_boundary.rb` (`File.expand_path` +
+    `define_method` per case, 12 vectors, 0 skips) — **all four read the canonical file in place,
+    no copy** — plus `packages/go/unicode_boundary_test.go` +
+    `packages/go/testdata/unicode_boundary.json` (`cp` + `//go:embed`, SHA-identical, 9 of 12 live,
+    3 ruled skips, stale-skip-key guard). **REMAINING: 7 surfaces + 4 sibling `data.json`
+    locations** (`packages/dotnet/Iscc.Lib.Tests/testdata/`, `packages/swift/Tests/IsccLibTests/`,
+    `packages/kotlin/src/test/resources/`, `packages/go/testdata/`; `find packages -name data.json`
+    also returns 2 build artifacts, ignore those). **Slice-cost survey (re-verified 151 — grep
+    case-insensitively, napi exports are snake_case and Java/Kotlin/Swift would be camelCase):**
+    already have text-fn tests, so a copied loop → **napi** (`__tests__/functions.test.mjs`, but
+    its gitignored local `.node` must be rebuilt first), **C#** (`SmokeTests.cs`), **C++**
+    (`tests/test_iscc.cpp`); **ZERO** text-fn tests, so new plumbing → **C FFI**
+    (`tests/test_iscc.c`), **JNI/Java**, **Kotlin**, **Swift**. **Reusable propagation pattern
+    (proven 150–151):** read the canonical fixture in place wherever the language can (only Go
+    needed a copy; else `cp` + verify with `cmp`); assert `unicode_data_version` + per-section
+    counts (7/5) as a metadata guard so truncation cannot degrade to a zero-iteration loop; **never
+    copy the `delete_filter_output` oracle** — the sequence vectors' expected values already differ
+    from the delete-filter results, so plain equality reds a regression; give any skip list a
+    stale-key guard.
 4. **Differential sweep — UNMET, no harness in `scripts/`.** Review's 1,270-case probe at iter 148
     (0 mismatches for the sentinel vs 504 for the pre-filter) was **ad hoc and not checked in** —
     it is initial proof, not the criterion. Demands **ZERO** divergence (not "enumerate a residual"
