@@ -129,3 +129,14 @@ it when assessing.
     every page is missing.
 - **Iteration cadence log**: 140 tooling / 141 tests / 142 tooling / 143 docs / 144 tooling / 145
     docs+tooling.
+
+## Archived from MEMORY.md at iteration 153 (compaction)
+
+**`iterations.jsonl` crash fingerprints** (the ONLY place a crashed role surfaces; a non-OK status
+does NOT mean no work — corroborate with `git log` for the `cid(<role>):` commit):
+
+- Infra crash = `"status":"FAIL","turns":1,"cost_usd":~0.0006` **and no commit** (seen at 147).
+- Benign overrun = `"status":"TIMEOUT"` **with** the commit present (148); the runner now logs these
+    as `recovered`.
+- A genuine *review* crash leaves three marks together: no verdict in handoff.md, a handoff
+    containing only the advance section, and issues the review had resolved still in issues.md.

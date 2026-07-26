@@ -71,3 +71,10 @@ It **aborts the commit** on:
 - a re-wrapped line that starts with `+`, `-` or `>`,
 - a bare `<number>.` landing at the start of a re-wrapped line (escaped to `26\.`) — reword, e.g.
     "26 findings" instead of a leading "26.".
+
+**Silent mangle, worse than an abort (hit at 153):** if you hand-break a long **inline code span**
+across two source lines, mdformat re-wraps it and leaves the *indentation whitespace inside the
+span* — `` `Files.readString(Path.of("../../iscc-` `` + ` lib/…` became
+`` `Files.readString(Path.of("../../iscc-   lib/tests/data.json"))` ``. Exit code 0, no warning.
+Never split an inline code span across source lines: shorten the span (quote just the path) or
+restructure the sentence. Always eyeball the `diff` for `   ` runs inside backticks before adopting.
