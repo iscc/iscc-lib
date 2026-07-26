@@ -134,6 +134,13 @@ iterations.
     workflow packages, prefer a user-facing item even if the handoff's "Next" is a tracked `normal`
     tooling issue (iter 143: took the user-facing Unicode docs page over `release.yml` check 3, and
     said so in `## Goal` as an explicit backtrack). The tooling issue stays open and unblocked.
+    Deferring is a **one-iteration** move, not a veto — count the window explicitly in `## Goal`
+    (iter 144: 140/141/142/143 = 2 of 4, below threshold → took check 3, the only unblocked issue).
+- **Probe the network check before scoping a network gate.** `raw.githubusercontent.com` is
+    reachable unauthenticated from the devcontainer, so an "it needs network → CI-only" item is
+    still locally verifiable; and running the probe first proves the gate lands green rather than as
+    a fix. A blocked-proxy run (`https_proxy=http://127.0.0.1:9 …`) is the boolean offline-skip
+    criterion.
 - **A parked behaviour ruling does not block *documenting* the behaviour that already shipped** —
     but the docs step must forbid the disputed claims by name in `Not In Scope` (iter 143: no
     output-equivalence claim, no multi-code-point/sequence statements).

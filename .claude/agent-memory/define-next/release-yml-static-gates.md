@@ -102,6 +102,28 @@ Facts that shaped the design:
     `*`; then upload name → regex (`*` → `.*`) and `re.fullmatch` the download ref with its own `*`
     stripped.
 
+## Check 3 — action-input compatibility (scoped iter 144)
+
+Probed live before scoping; all figures verified at HEAD:
+
+- All 18 distinct refs are compatible **today** — every `with:` key is a declared `inputs` key. The
+    step must land green, not as a fix.
+- Raw fetch needs **no auth**:
+    `https://raw.githubusercontent.com/<owner>/<repo>/<ref>/<sub>/action.yml` (split the ref on the
+    first `@`; fall back to `action.yaml`). Network works in the devcontainer.
+- Four ref shapes to parse: plain, **sub-path** (`oxidize-rb/actions/cross-gem@v1` →
+    `<repo>/<ref>/cross-gem/action.yml`), **slash in the ref**
+    (`pypa/gh-action-pypi-publish@release/v1`), and branch refs (`@stable`, `@main`).
+- Only 3 of the 5 `steps.<id>.outputs.<x>` references are action-sourced (`crates-auth`→`token`,
+    `setup-ndk`→`ndk-path`, `xcf-cache`→`cache-hit`); `check`/`version` are local `run:` steps and
+    must be ignored — resolve ids **per job**.
+- Error vs skip is the design crux: a 404 on both filenames is a real defect (error); any transport
+    failure (URLError/timeout/403/429/5xx) is a warning-only skip. Boolean offline check:
+    `https_proxy=http://127.0.0.1:9 … --check-action-inputs` must still exit 0.
+- CI carrier is a **dedicated job** (`uv run --no-project --with pyyaml python scripts/…` —
+    verified, ~4s), not the `python-test` matrix (would fetch 3×). Expect the CI job/check-name
+    count to rise by one; flag it so update-state does not read it as drift.
+
 ## Related
 
 - GHA `uses:` refresh facts and the "floating `@vN` is a convention, not a guarantee" rule live in

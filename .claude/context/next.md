@@ -1,129 +1,179 @@
 # Next Work Package
 
-## Step: Document the declared Unicode 16.0.0 data version for library consumers
+## Step: Gate `release.yml` action-input compatibility in CI (`--check-action-inputs`)
 
 ## Goal
 
-Give users a discoverable, user-facing explanation of the declared Unicode data version (16.0.0) and
-the freeze rule that makes `text_clean` / `text_collapse` — and therefore Meta-Code, Text-Code and
-the returned `name` / `description` fields — stable across runtimes, plus the two known divergences
-(older CPython in `iscc-core`, and the pure-Go package's Unicode 15.0 tables). Today this contract
-exists only in `specs/`, `issues.md` and a developer-facing test fixture, so adopters hit it as a
-surprise.
+Close check 3 of the tracked `normal` issue "Gate `release.yml` action-input compatibility in CI"
+(issues.md, `[review]`): extend `scripts/check_release_workflow.py` with an opt-in, network-fetching
+`--check-action-inputs` mode that validates every `with:` key and every `steps.<id>.outputs.<x>`
+reference in `.github/workflows/release.yml` against each action's published `action.yml`, and wire
+it into `ci.yml`. This is the last release-workflow invariant still performed by hand on every
+action bump (iters 127, 140) and the one that catches an input silently dropped across a major.
 
-**Deliberate deviation from the handoff "Next".** The review agent proposed check 3
-(`--check-action-inputs` on `release.yml`); `state.md` flags that taking it makes three of the last
-four iterations pure workflow tooling on a file no CI run executes. This is a **backtrack** to a
-different reachable goal: user-facing documentation of an already-landed behaviour contract. Check 3
-stays open and unblocked for a later iteration.
+**Cadence note:** this is workflow tooling, which state.md flags as over-weighted. Weighed and taken
+anyway — the last four iterations were 140 tooling / 141 library tests / 142 tooling / 143 docs (2
+of 4, below the "3 of the last 4" threshold in the scoping memory), and this is the only fully
+unblocked tracked issue: the Unicode binding propagation is double-blocked on two human rulings, and
+the `rubygems/configure-rubygems-credentials` pin needs a tag-vs-SHA ruling.
 
 ## Scope
 
-- **Create**: `docs/unicode.md` — new Explanation page, title `# Text Processing and Unicode`
-- **Modify** (non-doc, 2 files): `zensical.toml` (add `{ "Text and Unicode" = "unicode.md" }` to the
-    `Explanation` nav list, after `Architecture`), `scripts/gen_llms_full.py` (add `"unicode.md"` to
-    `ORDERED_PAGES`, directly after `"architecture.md"`)
-- **Modify** (docs, excluded from the file budget): `docs/llms.txt` (one bullet in the
-    `## Reference` list, positioned next to Architecture), `docs/howto/go.md` (a short note near the
-    text-utility section that the pure-Go package uses Go's Unicode 15.0 tables and does not
-    implement the freeze rule, with a link to the new page)
-- **Reference**: `.claude/context/specs/rust-core.md` → "Unicode data version is part of the
-    conformance contract" (the authoritative wording), `crates/iscc-lib/tests/unicode_boundary.json`
-    (the four boundary code points and their expected outputs), `crates/iscc-lib/src/utils.rs`
-    (lines ~95–190, the filter call sites), `crates/iscc-lib/src/utils/unicode16.rs` (the 731-range
-    vendored table), `docs/architecture.md` (page style: `##` sections, tables, admonitions),
-    `packages/go/utils.go` (lines 20–35 — proof the Go package filters on Go's `unicode.C`)
+- **Modify**:
+    - `scripts/check_release_workflow.py` — add the `--check-action-inputs` mode (stdlib `urllib`
+        only, no new dependency)
+    - `.github/workflows/ci.yml` — one new job that runs the mode
+    - `docs/development.md` (docs, outside the file budget) — extend the
+        `scripts/check_release_workflow.py` bullet (~line 145) with the CI-only network check
+    - `tests/test_check_release_workflow.py` (tests, outside the file budget) — network-free tests for
+        the new pure functions via an injected fake fetcher
+- **Reference**:
+    - `scripts/check_release_workflow.py` (current structure: `run_checks`, `main`, per-check
+        functions returning `list[str]` error strings)
+    - `tests/test_check_release_workflow.py` (existing anchor + mutation test style)
+    - `.github/workflows/release.yml` (the file under test)
+    - `.github/workflows/ci.yml` lines 12–81 (`version-check` and `python-test` job patterns,
+        including the `# exact tag:` comment on `astral-sh/setup-uv@v9.0.0`)
+    - `.claude/context/issues.md` → "Gate `release.yml` action-input compatibility in CI" (the issue
+        this step cites)
 
 ## Not In Scope
 
-- **Any change under `crates/` or `packages/`.** The binding propagation of the boundary vectors is
-    double-parked (freeze-rule ordering ruling + the Go 15.0-tables decision). This step documents
-    behaviour that already shipped; it changes none.
-- **Do not claim output-equivalence to uniform Unicode 16.0.0 tables.** Spec criterion 4 is unproven
-    *and* its wording is under human review. Do not write "equivalent to", "proven", or "identical
-    to Unicode 16.0.0 tables" anywhere on the page.
-- **Do not describe or assert behaviour for multi-code-point sequences** (composition, Hangul jamo,
-    `Final_Sigma`). That class is the parked HUMAN REVIEW item; the page must stay on single code
-    points, exactly like the fixture does.
-- No new pytest/prek gate (e.g. a nav ↔ `ORDERED_PAGES` parity test). Inventing a gate needs human
-    sign-off; this step only wires an existing generator.
-- Do not tick any checkbox in `.claude/context/specs/rust-core.md`, do not edit `issues.md`, and do
-    not fix the Go divergence (vendoring the 15.0→16.0 delta is the parked decision).
-- No `README.md` rewrite — the root README stays an install/quick-start document; the deep-dive
-    lives on the docs site.
+- **Do not change `.github/workflows/release.yml`.** All 18 distinct action refs are compatible at
+    HEAD (verified during scoping, see Implementation Notes) — the mode must land green, not as a
+    fix. If it reports a real error, report it in the handoff instead of editing `release.yml`.
+- Do not touch the `rubygems/configure-rubygems-credentials@main` floating ref — that is a separate
+    human-gated issue (tag-vs-SHA convention).
+- Do not add the network check to prek / `mise run check` / the pytest suite. prek and pytest must
+    stay network-free; this mode is CI-only and offline-skipping.
+- Do not add a new Python dependency (no `requests`, no `httpx`, no `gh` CLI shell-out) — stdlib
+    `urllib.request` plus the already-declared `pyyaml` is sufficient.
+- Do not edit `.claude/context/issues.md` or `.claude/context/specs/ci-cd.md` — issue progress and
+    the spec's CI job table are the review agent's to update.
+- Do not build the separate `zensical.toml` nav ↔ `ORDERED_PAGES` ↔ `docs/llms.txt` parity gate
+    flagged in the handoff. **Request for review:** please file that as an issue so it stops being
+    carried in prose only.
 
 ## Implementation Notes
 
-**Verified facts — use these, do not re-derive.** All four rows below are the post-freeze-filter
-behaviour of the Rust core at HEAD, cross-confirmed against an independent Unicode 16.0 simulation,
-and are exactly what `crates/iscc-lib/tests/unicode_boundary.json` encodes:
+### Facts verified during scoping (probe scripts, real network)
 
-| Code point                         | Unicode 16.0 status | `text_clean("a?b")` | `text_collapse("a?b")` |
-| ---------------------------------- | ------------------- | ------------------- | ---------------------- |
-| `U+1FAE9` (assigned in 16.0, `So`) | assigned            | retained            | retained               |
-| `U+113C5` (assigned in 16.0, `Mc`) | assigned            | retained            | `"ab"` (mark stripped) |
-| `U+20C1` (assigned in Unicode 17)  | unassigned          | `"ab"`              | `"ab"`                 |
-| `U+A7F1` (assigned in Unicode 17)  | unassigned          | `"ab"`              | `"ab"`                 |
+- `release.yml` has **18 distinct** `uses:` refs. Every `with:` key on all 18 is a declared `inputs`
+    key of the published `action.yml`, and every action-sourced step output resolves — so the mode
+    must exit 0 at HEAD.
+- Ref shapes that must all parse:
+    - plain: `actions/checkout@v7`
+    - **sub-path action**: `oxidize-rb/actions/cross-gem@v1` →
+        `.../oxidize-rb/actions/v1/cross-gem/action.yml` (owner/repo = first two segments, the rest is
+        the in-repo directory)
+    - **ref containing a slash**: `pypa/gh-action-pypi-publish@release/v1`
+    - **branch refs**: `dtolnay/rust-toolchain@stable`, `rubygems/configure-rubygems-credentials@main`
+- Raw fetch works unauthenticated:
+    `https://raw.githubusercontent.com/<owner>/<repo>/<ref>/<subpath>/action.yml` (split the ref on
+    the **first** `@`; do not URL-encode the slashes in the ref). Fall back to `action.yaml`.
+- The five `steps.<id>.outputs.<x>` references in `release.yml`: `steps.check.outputs.skip` and
+    `steps.version.outputs.version` come from local `run:` steps (**must be ignored** — no `uses:`,
+    nothing to validate); `steps.crates-auth.outputs.token`, `steps.setup-ndk.outputs.ndk-path` and
+    `steps.xcf-cache.outputs.cache-hit` come from actions and are all declared.
 
-Other settled facts worth stating on the page:
+### Design
 
-- The vendored table holds **731** ranges covering **819,533** code points, generated by the
-    checked-in `scripts/gen_unicode16_unassigned.py` from `unicodedata2==16.0.0`.
-- Removal happens **before** normalization and before any category lookup, so the result does not
-    depend on which Unicode tables the underlying crates ship — `unicode-general-category` (16.0
-    tables) and `unicode-normalization` (17.0 tables) may be upgraded freely.
-- All 11 native bindings (Python, Node.js, WASM, C FFI, Java, Ruby, C#, C++, Swift, Kotlin, and the
-    Rust crate itself) wrap the same core, so they agree by construction.
-- **Divergence 1 — `iscc-core` on CPython ≤ 3.13** ships Unicode 15.1 tables, so text containing a
-    character assigned in 16.0 hashes differently there; CPython 3.14 agrees with iscc-lib. Link
-    <https://github.com/iscc/iscc-core/issues/137>.
-- **Divergence 2 — the pure-Go package** (`packages/go`) is an independent implementation that
-    filters on Go's `unicode.C` range table (Unicode 15.0 in Go 1.26; `x/text`'s 17.0 tables are
-    gated behind `//go:build go1.27`) and does not yet implement the freeze rule, so it drops
-    characters assigned after 15.0 that the native bindings retain. State this as a current, tracked
-    limitation — do not promise a fix date beyond "expected once Go ships newer tables".
+Keep the existing shape: pure functions returning `list[str]` error strings, composed in `main()`.
 
-**Page shape** (mirror `docs/architecture.md`): a one-paragraph intro, then
-`## Why the Unicode version matters`, `## Declared version and freeze rule`, `## Boundary behaviour`
-(the table above, rendered with the real characters *and* their `U+XXXX` labels),
-`## Cross-implementation consistency` (the two divergences, ideally as `!!! warning` / `!!! note`
-admonitions), and a closing `## Practical guidance` (which inputs are affected in practice —
-realistically the seven emoji added in Unicode 16 — and that ASCII/Latin text is never affected).
+```text
+FETCH_TIMEOUT = 20  # seconds
 
-**Gotchas:**
+action_yml_urls(ref) -> list[str]      # ["…/action.yml", "…/action.yaml"], pure & testable
+fetch_action(ref) -> dict | None       # None == skipped (network unavailable); raises/returns
+                                       #   an error marker on a real 404
+check_action_compat(wf, fetch) -> list[str]   # pure: takes the fetcher as a parameter
+```
 
-- `ruff format` now also formats Python code blocks inside Markdown. Prefer `text` fences for
-    illustrative snippets; if a `python` fence is used it must be ruff-format-clean.
-- Keep the character examples ASCII-safe where possible: write `U+1FAE9` rather than pasting an
-    astral emoji into a table cell if it makes the table alignment fragile — `mdformat` reflows
-    tables and full-width glyphs can churn the diff.
-- The new page adds no Rust/Python code, so **neither** the CI-only CRAP `--fail-regression` gate
-    nor the `.iai-baseline.json` 10% Ir gate is affected. Do not refresh any baseline.
+- `check_action_compat` takes the fetcher **as an argument** so the pytest suite injects a fake
+    dict-returning fetcher and never touches the network.
+- Cache fetches per distinct ref (a plain `dict`) — 18 requests per run, not 90.
+- Skip refs that are not repo actions (`docker://…`, `./local-action`); none exist today, but the
+    parser must not crash if one is added.
+- **Error vs skip is the crux of the design:**
+    - *error* (collected, exit 1): a `with:` key absent from the action's `inputs`; a
+        `steps.<id>.outputs.<x>` where `<id>` is a step **with** a `uses:` in the same job and the
+        action declares no such `outputs` key; **404 on both `action.yml` and `action.yaml`** (the ref
+        or the sub-path is wrong — a real defect).
+    - *skip* (warning on stderr, does not fail): any transport failure — `urllib.error.URLError`,
+        socket timeout, HTTP 403/429/5xx. Print one `warning: skipped <ref>: <reason>` line so a
+        silently-degraded CI run is visible in the log.
+- Resolve `steps.<id>.outputs.<x>` **per job**: walk the job's nested structure collecting every
+    string, regex out the references, and match `<id>` against that job's step ids. A reference to
+    an id that is not a step in the same job is ignored (do not guess).
+- `--check-action-inputs` is additive: it runs the existing local checks **and** the network check,
+    so the CI step is a single command.
+- Update the module docstring to describe check 4 and its offline-skip semantics.
+- Ruff `C901` and `S` are enforced — keep the new functions small (extract a helper rather than
+    nesting), and if a `# noqa` is unavoidable, justify it inline.
+
+### CI wiring
+
+Add one job to `.github/workflows/ci.yml` (mirroring the `version-check` job's brevity):
+
+```text
+  release-workflow:
+    name: Release workflow (action inputs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # exact tag: setup-uv publishes no floating major tag past v7 (v8/v9 are
+      # exact release tags only), so @v9 does not resolve
+      - uses: astral-sh/setup-uv@v9.0.0
+      - name: Check release workflow action inputs
+        run: <one line> uv run --no-project --with pyyaml python
+             scripts/check_release_workflow.py --check-action-inputs
+```
+
+(The `run:` value is a **single line** — the wrap above is only for this document. `yamlfix` will
+normalise indentation, so run `uv run prek run --files .github/workflows/ci.yml` after editing.)
+
+`uv run --no-project --with pyyaml python scripts/check_release_workflow.py` was verified working in
+this environment (exit 0, ~4s). This adds one job and one check name to CI — expected, and worth
+calling out in the handoff so update-state does not read the changed job count as drift.
+
+### Tests (network-free)
+
+Extend `tests/test_check_release_workflow.py` in the existing style:
+
+- `action_yml_urls` unit tests for the four ref shapes above (plain, sub-path, slash-containing ref,
+    branch ref).
+- `check_action_compat` with an in-memory workflow dict + fake fetcher: clean case → no errors;
+    undeclared `with:` key → one error naming the key and the ref; undeclared step output → one
+    error; fetcher returning `None` (skip) → no errors.
+- A test that a local `run:` step's `steps.<id>.outputs.<x>` reference produces no error.
+- Do **not** add an anchor test that fetches the real actions — the suite stays offline.
 
 ## Verification
 
-- `uv run zensical build` exits 0 and reports "No issues found"
-- `uv run python scripts/gen_llms_full.py` exits 0 and its output contains **no** `Auto-discovered`
-    line and **no** `Warning:` line (proves `unicode.md` is in `ORDERED_PAGES` and every ordered
-    page exists on disk)
-- `grep -q "16.0.0" site/llms-full.txt` succeeds after that run (the new page reached the aggregate
-    output)
-- `grep -E -c 'U\+(1FAE9|113C5|20C1|A7F1)' docs/unicode.md` reports at least 4 (all four boundary
-    code points are named on the page)
-- `grep -q "iscc-core/issues/137" docs/unicode.md` succeeds
-- `grep -q "unicode.md" docs/llms.txt` and `grep -q "Unicode 15.0" docs/howto/go.md` both succeed
-- The four rows of the page's boundary table agree with
-    `crates/iscc-lib/tests/unicode_boundary.json` (compare by dumping the fixture, e.g.
-    `uv run python -c "import json;print(json.load(open('crates/iscc-lib/tests/unicode_boundary.json')))"`)
-- `git status --porcelain crates/ packages/go/*.go` prints nothing (no source or fixture change;
-    `docs/howto/go.md` is not under those paths)
-- `uv run prek run --files` over the five touched files (`docs/unicode.md`, `docs/llms.txt`,
-    `docs/howto/go.md`, `zensical.toml`, `scripts/gen_llms_full.py`) — every hook `Passed`
-    (mdformat, ruff, taplo)
-- `uv run ruff check` → "All checks passed!"
+- `uv run scripts/check_release_workflow.py` exits 0 (default mode unchanged, no network use)
+- `uv run scripts/check_release_workflow.py --check-action-inputs` exits 0, and its output contains
+    no `warning: skipped` line when the network is available
+- Offline behaviour:
+    `https_proxy=http://127.0.0.1:9 http_proxy=http://127.0.0.1:9 uv run   scripts/check_release_workflow.py --check-action-inputs`
+    exits **0** and prints at least one `warning: skipped` line (transport failure degrades to a
+    skip, never to a red gate)
+- `uv run pytest tests/test_check_release_workflow.py` passes (existing tests plus the new ones)
+- The suite is network-free:
+    `https_proxy=http://127.0.0.1:9 http_proxy=http://127.0.0.1:9 uv run   pytest tests/test_check_release_workflow.py`
+    passes identically
+- `grep -q -- "--check-action-inputs" .github/workflows/ci.yml` and
+    `grep -q -- "--check-action-inputs" docs/development.md`
+- `uv run python -c "import yaml,pathlib;yaml.safe_load(pathlib.Path('.github/workflows/ci.yml').read_text())"`
+    exits 0 (the new job parses)
+- `uv run ruff check` → "All checks passed!" and `uv run ruff format --check` exits 0
+- `mise run check` → all hooks `Passed` (the `check-release-workflow` prek hook still runs the
+    default, network-free mode)
+- `git status --porcelain .github/workflows/release.yml` is empty (the gate lands green; the
+    workflow under test is not edited)
 
 ## Done When
 
-`docs/unicode.md` is published in the site nav and in `llms-full.txt`, states the declared Unicode
-16.0.0 version, the freeze rule and the two known divergences without any equivalence or
-sequence-behaviour claim, and every verification command above passes.
+`--check-action-inputs` validates every `release.yml` action ref against its published `action.yml`,
+exits 0 at HEAD, degrades to a warning-only skip when the network is unavailable, is covered by
+network-free pytest tests, and runs as a dedicated CI job — with all verification commands above
+passing.
