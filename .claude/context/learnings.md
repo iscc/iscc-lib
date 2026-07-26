@@ -50,7 +50,9 @@ fully-met target sections to `learnings-archive.md`.
     `cargo binstall -y iai-callgrind-runner --version 0.16.1` (MUST match the pin); CI mirrors this
 - **A docs page lives in FOUR places, all gated by `scripts/check_docs_nav.py`** (iter 145): disk
     (`docs/**/*.md` minus `includes/`), `zensical.toml` `nav`, `ORDERED_PAGES`, and the absolute
-    `docs/llms.txt` links — 23 pages. Hole: the nav is regex-parsed, so a commented-out entry counts
+    `docs/llms.txt` links — 23 pages. The nav stays regex-parsed but is comment-aware since iter
+    146: strip `#`-to-EOL only *outside* double quotes (a naive `#.*$` truncates the real
+    `{ "C# / .NET" = "howto/dotnet.md" }` line) — probe any comment stripper on the REAL config
 - **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it** (`docs.yml` order).
     Reversed, every per-page `site/**/*.md` check reads as missing — an artifact, not a defect
 
@@ -79,10 +81,9 @@ fully-met target sections to `learnings-archive.md`.
     no-ops keep everything green. The ungated metadata guard therefore asserts the exact non-ASCII
     code-point set per section (runs under `--no-default-features` too). Mutation-probe any such
     guard — edit the JSON, watch it fail, `git checkout --` the file
-- **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (measured iter 143):
-    3,995 Egyptian Hieroglyphs, 7 new scripts, **32 LATIN-named** incl. U+A7CB (our own repro).
-    Never write "Latin text is unaffected"; measure by diffing assigned-set dumps from two
-    `uvx --with unicodedata2==<ver> python` runs
+- **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (iter 143): 3,995
+    Egyptian Hieroglyphs, 7 new scripts, **32 LATIN-named** incl. U+A7CB (our own repro). Never
+    write "Latin text is unaffected"; diff assigned-set dumps from two `unicodedata2==<ver>` runs
 - **Per-algorithm internals**, `gen_meta_code_v0` normalization order, `data.json` vector shape and
     counts, settled API-parameter facts and **ISCC-IDv1** → `learnings-archive.md`
 - `conformance_selftest` masks truncated codes bitwise — never compare full strings below 256 bits
@@ -102,16 +103,18 @@ fully-met target sections to `learnings-archive.md`.
 - **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** All
     its invariants are executable gates since iters 142/144: `scripts/check_release_workflow.py`
     checks guard shape, artifact wiring and the `needs:` graph offline (prek hook +
-    `tests/test_check_release_workflow.py`), and `--check-action-inputs` validates every `with:` key
-    and `steps.<id>.outputs.<x>` read against each ref's published `action.yml` over the network in
-    the CI-only `release-workflow` job. Never hand-retype these into a heredoc again. **Known
-    holes:** a *required* input the workflow omits is not caught, and a rate-limited run degrades to
-    all-skip warnings while staying green — read the job log, not just its status. Guard-shape
+    `tests/test_check_release_workflow.py`), and the CI-only `--check-action-inputs` validates every
+    `with:` key and `steps.<id>.outputs.<x>` read against each ref's published `action.yml`. Never
+    hand-retype these into a heredoc. **Bidirectional** since iter 146 (undeclared `with:` key *and*
+    omitted `required`-without-default input — 4 of the 18 refs declare such inputs, so it is not
+    vacuous) and it prints `action-inputs: resolved R of T`. **By design:** job-level `uses:` is
+    unscanned and an all-skipped run stays green — read that line, not the job status. Guard-shape
     rationale → `learnings-archive.md`
-- **"Any transport failure degrades to a warning" is a contract `except OSError` does not fulfil**
-    (iter 144, Codex): `http.client.IncompleteRead` is an `HTTPException`/`ValueError`, and a
-    captive-portal HTML body raises `yaml.YAMLError` — both escape and turn the gate red. When a
-    gate promises never to red on network trouble, enumerate the non-`OSError` stdlib failure modes
+- **A fail-open gate must publish a resolved/total counter** (iters 144→146) — without it "all
+    checked" and "nothing checked" are the same green. Its promise "any transport failure degrades
+    to a warning" is NOT met by `except OSError`: `http.client.IncompleteRead` is an `HTTPException`
+    and captive-portal HTML raises `yaml.YAMLError`. Prove a reverse/"must be present" check is
+    non-vacuous by listing which real inputs trigger it before trusting green-at-HEAD
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
 - **CRAP gate (ci-cd.md)**: ENFORCING (`cargo crap --fail-regression --fail-above` 30.0, max ~22.3),
@@ -147,18 +150,17 @@ fully-met target sections to `learnings-archive.md`.
     `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (the `releases/latest`
     endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` stopped
     publishing floating majors after `v7` → pin `@v9.0.0` with a `# exact tag:` comment;
-    `rubygems/configure-rubygems-credentials` publishes only exact tags (no `v2`). Current majors →
+    `rubygems/configure-rubygems-credentials` publishes only exact tags. Majors →
     `.claude/agent-memory/advance/deps-refresh.md`
 - **An action-major bump is statically verifiable far past "the tag exists"** — the `inputs`/
     `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
-    major's *default* changes (an input surviving is not its default surviving). Recipe + the two
-    silent biters (`setup-node@v5+` caching, `checkout@v6+` token location) → `learnings-archive.md`
+    major's *default* changes. Recipe + the two silent biters (`setup-node@v5+` caching,
+    `checkout@v6+` token location) → `learnings-archive.md`
 - **Prove a new gate with a REAL regression, not a synthetic typo** (iter 144): downgrading
-    `actions/download-artifact@v8` → `@v3` in a temp copy of `release.yml` fired 14 errors
-    (`pattern` and `merge-multiple` genuinely dropped across those majors) and `@v999` fired the 404
-    path — that is the failure class the gate exists for. A hand-typo'd key only proves string
-    comparison works. A **set-equality** gate also passes vacuously on equal *empty* sets — give its
-    anchor test a count floor (iter 145)
+    `actions/download-artifact@v8` → `@v3` in a temp copy of `release.yml` fired 14 errors and
+    `@v999` fired the 404 path — the failure class the gate exists for; a hand-typo'd key only
+    proves string comparison works. A **set-equality** gate also passes vacuously on equal *empty*
+    sets — give its anchor test a count floor (iter 145)
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
     in-flight run of the previous sha (check-runs conclude `cancelled`, not `failure`); let it
     conclude when a Done-When needs green CI on a specific sha. Each develop commit triggers TWO
@@ -183,9 +185,8 @@ fully-met target sections to `learnings-archive.md`.
     `mise run format` before committing; review can unblock by reformatting + amending
 - **Never write an exact count or a substring `grep -c` into a verification criterion** (iter 139:
     `ruff format --check` saw 155 files, not 153 — the count drifts whenever a tracked
-    `.md`/`.py`/`.pyi` lands, CID's own memory files included; `grep -c 'exclude'` returned 2, not
-    0, matching pre-existing `--force-exclude` flags). Assert the *gate* (exit code) and anchor
-    greps; advance reports the mismatch and proves the intent instead of chasing the number
+    `.md`/`.py`/`.pyi` lands; `grep -c 'exclude'` returned 2, not 0, matching pre-existing
+    `--force-exclude` flags). Assert the *gate* (exit code) and anchor greps instead
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
     (iter 142: the prescribed artifact-matching rule could not resolve `wheels-*` at HEAD; iter 143:
     two false Unicode safety claims shipped verbatim into published docs). advance implements the
@@ -196,5 +197,4 @@ fully-met target sections to `learnings-archive.md`.
     forbids writing it and review owns issue progress/resolution. A slice-progress ledger paragraph
     belongs in the handoff Notes for review to append — advance correctly refused and quoted it
 - **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
-    `effort: xhigh`, runner timeout 3600s); all other roles on `opus`. Deliberate diversity — do not
-    "unify" onto one model
+    `effort: xhigh`, timeout 3600s), all other roles on `opus` — deliberate; do not "unify"

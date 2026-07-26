@@ -82,13 +82,16 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     output? `zensical build` **wipes `site/`** — run `gen_llms_full.py` AFTER it or every per-page
     `site/**/*.md` reads as missing
 - **Python-only**: `mise run check` + `pytest`
-- **New gate script (iters 142/144/145, ~6 min)**: never accept "it exits 0 at HEAD" — write your
-    OWN mutations, prefer a **real** regression to a synthetic typo (iter 145: restore `HEAD~1`'s
-    file into a `git archive HEAD | tar -x` temp copy), dump internals via `importlib`, and answer
-    the blind-spot questions (one-directional? fail-open really fail-open? fully-skipped run
-    distinguishable from a pass? **set-equality gate vacuous on equal empty sets?** **does the
-    parser see commented-out entries?**). A `files:`-scoped prek hook needs its own **staged**
-    fire/skip probe and never sees deletions → `review-patterns.md`
+- **New gate script or gate HARDENING (iters 142/144/145/146, ~8 min)**: never accept "it exits 0 at
+    HEAD" — write your OWN mutations, prefer a **real** regression to a synthetic typo (iter 145:
+    restore `HEAD~1`'s file into a `git archive HEAD | tar -x` temp copy), dump internals via
+    `importlib`, and answer the blind-spot questions (one-directional? fail-open really fail-open?
+    fully-skipped run distinguishable from a pass? **set-equality gate vacuous on equal empty
+    sets?** **does the parser see commented-out entries?**). For a *hardening* step add: **is the
+    new check non-vacuous?** — enumerate which real inputs trigger it *before* trusting green (iter
+    146: 4 of 18 refs declare `required`-without-default inputs) — and **is the fix symmetric?**
+    (skipping non-string `with:` keys does not normalize the metadata side). A `files:`-scoped prek
+    hook needs its own **staged** fire/skip probe and never sees deletions → `review-patterns.md`
 - **Lint-config-only (`[tool.ruff]*` / prek hook types, iters 134–139)**: run `mise run check`, ruff
     check, ruff `format --check` (**assert exit 0, never a file count**), both pre-push ruff gates,
     ty check, pytest. A `# noqa` deletion is safe only if `--select <rule> --ignore-noqa` omits its

@@ -150,7 +150,7 @@ can review and re-stage.
     additionally accept the GitHub-native `args`/`entrypoint` overrides), required inputs without a
     default, and `steps.<id>.outputs.<x>` reads; it runs only in the dedicated `release-workflow` CI
     job (prek and pytest stay network-free). Transport and parse failures degrade to a stderr
-    warning instead of a failure, and the run ends with an
+    warning instead of a failure, and the check prints an
     `action-inputs: resolved <R> of <T> action refs` summary line so an all-skipped run is visible
     in the job log
 - `scripts/check_docs_nav.py` — network-free parity check asserting that the `docs/**/*.md` pages on

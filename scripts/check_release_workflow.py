@@ -30,7 +30,7 @@ or the pytest suite, which stay network-free):
    and `action.yaml` is an error (the ref or sub-path is wrong); any transport or
    parse failure (offline, timeout, rate limit, truncated read, captive-portal
    HTML) degrades to a `warning: skipped …` line on stderr, never a red gate. The
-   run ends with an `action-inputs: resolved <R> of <T> action refs` summary line
+   check prints an `action-inputs: resolved <R> of <T> action refs` summary line
    so an all-skipped run is visible in the job log rather than passing silently.
 
 Requires PyYAML (declared in the `dev` dependency group).

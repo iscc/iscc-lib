@@ -223,6 +223,34 @@ A gate that cannot fail is worse than none, because it manufactures false confid
 - **Docs-output check ordering**: `zensical build` wipes `site/`, so run `gen_llms_full.py` after it
     (the `docs.yml` order) before asserting per-page `site/**/*.md` files exist.
 
+### Additions from iter 146 (reviewing a gate *hardening*, not a new gate)
+
+A hardening step closes blind spots you yourself filed, so the trap is confirmation bias: the new
+branches are all green at HEAD *by construction*. Two extra questions, both cheap:
+
+- **Is the new check non-vacuous?** Enumerate which real inputs would trigger it before believing
+    "lands green". Recipe: `importlib`-load the gate, call it with the production fetcher into a
+    caller-supplied cache, then print the triggering property per entry — iter 146: 4 of the 18
+    `release.yml` refs declare a `required`-without-default input (`cache@v6` path/key,
+    `upload-artifact@v7` path, `cross-gem@v1` platform, `setup-ndk@v1` ndk-version). Then
+    `copy.deepcopy` the parsed workflow, drop each one, and confirm the exact error fires. A check
+    that nothing at HEAD can trigger is a check nobody has tested.
+- **Is the fix symmetric?** A one-sided normalization leaves the mirror-image false positive alive:
+    skipping non-`str` `with:` keys handles a *workflow* key parsed as YAML 1.1 `True`, but not an
+    *action metadata* input named `on`/`off`/`yes`/`no` compared against a quoted workflow key. Name
+    the surviving half in the handoff or an issue.
+- **Probe a comment stripper against the REAL config, not a fixture.** A naive `#.*$` strip breaks
+    on `#` inside a quoted value (`{ "C# / .NET" = "howto/dotnet.md" }`). Mutations that must all be
+    right: comment out an ordinary entry (fires), comment out the `#`-in-title entry (fires), append
+    a trailing `# "ghost.md"` comment (clean), add a comment line with an *unbalanced* quote (clean
+    — proves the in-string toggle is per-line).
+- **A fail-open gate needs a resolved/total counter**, and the counter is itself claim-checkable:
+    online → `resolved 18 of 18 … (0 skipped)` with empty stderr; behind
+    `https_proxy=http://127.0.0.1:9` → `resolved 0 of 18 … (18 skipped)`, exit 0, no traceback.
+- **Claim-check the wording of the summary line itself**: "the run *ends with* …" was false — the
+    line is followed by the error lines and/or the final `OK:` line. Reword in review, don't
+    NEEDS_WORK.
+
 ## Docs Claim-Checking (iter 143)
 
 A docs step has no failing test to catch it — every gate is green on a page full of lies. Budget the
