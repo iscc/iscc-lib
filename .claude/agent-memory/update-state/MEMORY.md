@@ -13,11 +13,13 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **Unpushed check**: `git log --oneline origin/develop..HEAD`, then
     `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
     **NON-empty = it does NOT** — report the gap instead of calling CI green-for-HEAD (bit at 148).
-- **ALWAYS `tail -3 .claude/context/iterations.jsonl`** — the ONLY place a crashed role shows up;
-    infra-crash signature = `"status":"FAIL","turns":1,"cost_usd":~0.0006`, corroborated by a
-    missing `cid(<role>)` commit. When *review* crashes: no verdict, handoff has only the advance
-    section, and resolved issues stay in issues.md (deleting them is review's job) so counts
-    over-report.
+- **ALWAYS `tail -4 .claude/context/iterations.jsonl`** — the ONLY place a crashed role shows up.
+    **A non-OK status does NOT mean no work: always corroborate with `git log` for the
+    `cid(<role>):` commit.** Infra crash = `"status":"FAIL","turns":1,"cost_usd":~0.0006` AND no
+    commit, as at iteration 147. Benign overrun = `"status":"TIMEOUT","turns":0` WITH the commit
+    present, as at iteration 148 — since `4739a4b` the runner detects this and logs `recovered`.
+    When review genuinely crashes: no verdict, handoff has only the advance section, and resolved
+    issues stay in issues.md (deleting them is review's job) so counts over-report.
 - **Verify a Go-package claim in ~60s**: `/tmp` module with
     `require github.com/iscc/iscc-lib/packages/go v0.0.0` +
     `replace … => /workspace/iscc-lib/packages/go`, then
@@ -26,7 +28,7 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **Counts** (re-verified 148): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
     tracked docs `.md` **24** (23 pages + 1 `includes/` partial), ORDERED_PAGES + llms.txt links
     **23**; `docs/howto/*.md` 11; speedups 1.3x-158x; release.yml toggles 8; ffi extern 47; iscc-lib
-    `#[test]` **328** (`grep -rc --include="*.rs" crates/iscc-lib/`, sum); `packages/go`
+    `#[test]` **334** (`grep -rc --include="*.rs" crates/iscc-lib/`, sum); `packages/go`
     `^func Test` **174**; ci.yml jobs **20** (`grep -cE '^  [a-z_-]+:$'` raw **22**, minus 2).
 - **GOTCHA — `git ls-files 'docs/**/*.md'` returns 13, NOT 24**: it misses top-level `docs/*.md`.
     Use both globs, or run `uv run scripts/check_docs_nav.py` (prints the authoritative page count).
@@ -49,9 +51,11 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
     nav ⇄ `ORDERED_PAGES` ⇄ `docs/llms.txt` are one set. Enforced by prek hook `check-docs-nav` +
     pytest in CI's `python-test` — **no dedicated CI job**. Takes 4 `Path` args (temp checkouts).
 - **Coverage + CRAP** — ENFORCING: `--fail-regression` + `--fail-above` 30.0 (`.cargo-crap.toml`);
-    baseline `.crap-baseline.json` (**98** entries, max ~22.3). **GOTCHA — `--fail-regression` is
-    CI-ONLY, not in `mise run check`**: a new branch in a covered fn → exit 1 despite a GREEN local
-    check (bit 121). Fix = refresh that entry in the SAME step.
+    baseline `.crap-baseline.json` (**100** entries; count with
+    `python3 -c "import json;print(len(json.load(open('.crap-baseline.json'))['entries']))"` — the
+    file is a dict with `$schema`/`version`/`entries`). **GOTCHA — `--fail-regression` is CI-ONLY,
+    not in `mise run check`**: a new branch in a covered fn → exit 1 despite a GREEN local check
+    (bit 121). Fix = refresh that entry in the SAME step.
 - **Audit (cargo-deny)** — ENFORCING: `cargo-deny@0.19.9`, root `deny.toml` (v2, 2 dev-bench
     ignores). **GOTCHA — the live advisory DB flips this red with NO code change**; not in the
     devcontainer, so green CI is the only confirmation.
@@ -70,9 +74,10 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - `packages/` layout detail (go pure-Go no-CGO, swift XCFramework 5 targets, kotlin JNA) →
     `MEMORY-archive.md`. `packages/go` is the ONLY binding not inheriting the freeze rule.
 - **Unicode = 16.0.0 + SENTINEL freeze rule → read `unicode-contract.md` before ANY Unicode call.**
-    Ruling 2026-07-26 REVERSED the design (map unassigned → `U+FFFF`, don't delete); `utils.rs`
-    L103/L181 still `.filter(` so criterion 1 is UNMET; `decisions.md` keeps 2 SUPERSEDED designs
-    that must not be implemented; `docs/unicode.md` is STALE.
+    Criterion 1 **MET since 148** (`UNASSIGNED_SENTINEL` + `.map(` at both `utils.rs` call sites);
+    `docs/unicode.md` rewritten in the SAME commit. Still open: sequence vectors + binding
+    propagation (crit 3), differential sweep (crit 4, no harness in `scripts/`). `decisions.md`
+    keeps 2 SUPERSEDED designs that must NOT be implemented.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`), now
     gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` only via
     `streaming::`. iscc-wasm's `blake3 wasm32_simd` dep is feature-unification — **don't prune**.
@@ -104,31 +109,40 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
     legitimate: read the in-source comment before calling one a defect.
 - **Spec checkboxes are NOT a progress signal** — cpp/docs/dotnet/java/kotlin/nodejs/ruby/swift sit
     at 0/N checked though MET; only `ci-cd.md` (44/52) + `rust-core.md`'s semver box are kept up.
+    Spec *prose* also rots: at 149 `rust-core.md` still described a defect fixed 2 iterations back.
+- **A fixture can be structurally incapable of gating what it claims to gate** (149:
+    single-code-point vectors wrapped in ASCII score the conformant and the non-conformant design
+    identically). Ask what a test would have to *distinguish*, not just whether it passes.
 
-## Current State (assessed-at: c2aabf5, iter 148)
+## Current State (assessed-at: c597496, iter 149)
 
-- **IN_PROGRESS — CI GREEN BUT STALE.** origin/develop tip still `dd65825` (43 check-runs, 22 names,
-    0 non-success). HEAD = **6 UNPUSHED** commits and `origin/develop..HEAD` minus `.claude/` is
-    **NOT empty** (6 files under `packages/go/`) — **the Go fix never ran through CI**. ~2x runs
-    because PR **#44 (develop→main) is OPEN** ("Release 0.6.0" — NOT shipped; version **0.5.0**).
-- **Iter 147's review role CRASHED** (FAIL, 1 turn, $0.0006; no `cid(review)` commit) → the Go fix's
-    only verification is my own reproduction, and the resolved `critical` issue is still listed.
-- **Go `Final_Sigma` FIXED (verified 148, details → `unicode-contract.md`)**: `ΛΟΓΟΣ`→`λογος`;
-    `gofmt`/`go vet` clean, go.mod untouched; per-call `Caser` INTENTIONAL — don't flag it.
-- **Statuses:** Rust-core partially met (criterion 1 unmet — `.filter(` at `utils.rs` 103/181, zero
-    `FFFF` matches); Other Bindings back to **met**; Documentation partially met (`docs/unicode.md`
-    29–40 still says "removed … before any normalization"); py/napi/wasm/ffi + benchmarks met; CI/CD
-    partially met. **Next = the sentinel conversion**, one commit incl. both `docs/unicode.md`
-    rewrites + a CRAP baseline refresh; expect iai Ir FLAT.
+- **IN_PROGRESS — CI GREEN AND COVERING HEAD.** HEAD **==** `origin/develop` == `c597496`; 43
+    check-runs, 22 names, 0 non-success, none in progress. Nothing unpushed. ~2x runs because PR
+    **#44 (develop→main) is OPEN** ("Release 0.6.0" — NOT shipped; version **0.5.0**).
+- **Iter 148's review logged TIMEOUT (turns 0, 3000s) but HAD committed** (`b9a600c` + `82ec3ac`) —
+    a false failure. **A human fixed the loop**: `4739a4b` adds `_role_commit_landed()` (role that
+    commits then overruns no longer fails the iteration, + 94 lines in `tests/test_cid.py`) and
+    `c597496` raises the review timeout 3000→3600s. **Do not re-raise this as a loop defect.** New
+    log field to expect: `"recovered": true`.
+- **Statuses:** Rust-core partially met (crit 1 + 2 MET; crit 3 partial — no sequence vectors, zero
+    binding propagation; crit 4 not started); Documentation now **met**; all binding sections +
+    benchmarks met; CI/CD partially met. **Next = the 4 sequence vectors** in
+    `unicode_boundary.json` + extend the ungated content guard (assert by code-point set, not
+    shape); expected outputs are already tabulated in issues.md — don't re-derive.
+- **`specs/rust-core.md` is STALE on Go `Final_Sigma`** (present tense, box unchecked) though fixed
+    at 147 and verified at 148/149 — human-owned, CID doesn't edit specs.
+- **Issues: 8** (4 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`). Review deleted both
+    resolved entries at 148 and folded their residuals into the Unicode umbrella issue.
 - **Human backlog CLEARED** (0 `HUMAN REVIEW REQUESTED`). AUTHORIZED for CID: rubygems `@v2.1.0`
     pin; major dep bumps **one per step** (magnus 0.8, jni 0.22 as source rewrites, one crate per
     step; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive `specs/ci-cd.md` job
     table. DEFERRED: npm OIDC (not v0.6.0; don't even prepare the diff). **Cadence escalation is
     discharged — do not repeat it.** The 3 gate-script remainders are `low` + trigger-contingent:
     don't act.
-- **Don't re-flag as DONE**: Go `Final_Sigma` 147; gate blind-spots 146; docs-list gate 145;
-    action-input gate 144; Unicode docs page 143; release.yml static checks 142; boundary-vector
-    Rust half 141; GHA refs 140 (pre-140 done-work → `MEMORY-archive.md` / issues.md slice log).
+- **Don't re-flag as DONE**: sentinel conversion + `docs/unicode.md` rewrite 148; Go `Final_Sigma`
+    147; gate blind-spots 146; docs-list gate 145; action-input gate 144; Unicode docs page 143;
+    release.yml static checks 142; boundary-vector Rust half 141; GHA refs 140 (pre-140 done-work →
+    `MEMORY-archive.md` / issues.md slice log).
 
 ## Gotchas
 
