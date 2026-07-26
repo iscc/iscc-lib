@@ -13,20 +13,22 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **Unpushed check**: `git log --oneline origin/develop..HEAD`, then
     `git diff --stat origin/develop..HEAD -- . ':!.claude'`. Empty = green CI covers HEAD.
     **NON-empty = it does NOT** — report the gap instead of calling CI green-for-HEAD (bit at 148).
-- **ALWAYS `tail -4 .claude/context/iterations.jsonl`** — the ONLY place a crashed role shows up.
-    **A non-OK status does NOT mean no work: corroborate with `git log` for the `cid(<role>):`
-    commit.** Infra crash = `"status":"FAIL","turns":1,"cost_usd":~0.0006` AND no commit (147);
-    benign overrun = `TIMEOUT` WITH the commit (148), which `4739a4b` now logs as `recovered`. A
-    genuine review crash leaves no verdict, a handoff with only the advance section, and resolved
-    issues still in issues.md (so counts over-report).
+- **ALWAYS `tail -4 .claude/context/iterations.jsonl`** — the ONLY place a crashed role shows up
+    (also the `audit` role, which runs every 10th iteration). **A non-OK status does NOT mean no
+    work: corroborate with `git log` for the `cid(<role>):` commit.** Infra crash =
+    `"status":"FAIL","turns":1,"cost_usd":~0.0006` AND no commit (147); benign overrun = `TIMEOUT`
+    WITH the commit (148), now logged as `recovered`. A genuine review crash leaves no verdict, a
+    handoff with only the advance section, and resolved issues still in issues.md.
 - **Verify a Go-package claim in ~60s**: `/tmp` module requiring
     `github.com/iscc/iscc-lib/packages/go v0.0.0` + a `replace` to the repo, then
     `GOFLAGS=-mod=mod CGO_ENABLED=0 go mod tidy && CGO_ENABLED=0 go run main.go`.
 - **Tier 1 pub fns**: `grep -rn "pub fn gen_\|pub const " crates/iscc-lib/src/lib.rs`.
-- **Counts** (re-verified 150): READMEs/CLAUDE.md 12 each; pytest-benchmark 18; UniFFI exports 32;
-    tracked docs `.md` **24** (23 pages + 1 `includes/` partial), ORDERED_PAGES + llms.txt **23**;
-    `docs/howto/*.md` 11; speedups 1.3x-158x; ffi extern 47; iscc-lib `#[test]` **335**
-    (`grep -rc --include="*.rs" crates/iscc-lib/`, sum); `packages/go` `^func Test` **174**.
+- **Counts** (re-verified 151): crate/pkg READMEs & CLAUDE.md 12 each (**scope the glob to
+    `crates/*/ packages/*/`** — bare `grep README.md` gives 14); pytest-benchmark 18; UniFFI 32;
+    tracked docs `.md` **24** (23 pages + 1 `includes/`), ORDERED_PAGES + llms.txt **23**;
+    `docs/howto/*.md` 11; speedups 1.3x-158x; ffi extern **47** (`'#\[unsafe(no_mangle)\]'`; bare
+    `no_mangle` gives 48); iscc-lib `#[test]` **335** (`grep -rc --include="*.rs"`, sum);
+    `packages/go` `^func Test` **177**.
 - **GOTCHA — `git ls-files 'docs/**/*.md'` returns 13, NOT 24**: it misses top-level `docs/*.md`.
     Use both globs, or run `uv run scripts/check_docs_nav.py` (prints the authoritative page count).
 - **version_sync TARGETS** = **21** (`scripts/version_sync.py --check | grep -c '^OK'`) = the
@@ -85,8 +87,10 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **When a ruling lands, re-verify the CODE against the NEW spec**; grep `decisions.md` for
     `supersede` (losing designs are logged chronologically). At 147 a 14-iteration "met" went unmet.
 - **Reproduce/refute binding claims yourself** — cheap probes beat inherited text (confirmed a
-    `critical` bug at 147, its fix at 148). Deliberate deviations from a fix sketch are legitimate:
-    read the in-source comment first.
+    `critical` bug at 147, its fix at 148; at 151 refuted "the stale napi `.node` is *checked in*" —
+    `git check-ignore -v` shows `crates/iscc-napi/.gitignore:4:*.node`, it is a local artifact CI
+    rebuilds). Deliberate deviations from a fix sketch are legitimate: read the in-source comment
+    first.
 - **Spec checkboxes are NOT a progress signal** — cpp/docs/dotnet/java/kotlin/nodejs/ruby/swift sit
     at 0/N checked though MET; only `ci-cd.md` (44/52) + `rust-core.md`'s semver box are kept up.
     Spec *prose* also rots: at 149 `rust-core.md` still described a defect fixed 2 iterations back.
@@ -94,39 +98,40 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
     relabelled an agnostic column as a specific design, forbade re-deriving, and a wrong value
     reached published docs with every gate green. When an expected/rejected pair is handed down, ask
     *which* implementation produces the rejected value — green gates say nothing about truth.
-- **A fixture can be structurally incapable of gating what it claims to gate** (149, now CLOSED:
-    single-code-point vectors wrapped in ASCII score the conformant and the non-conformant design
-    identically). Ask what a test would have to *distinguish*, not just whether it passes.
+- **A fixture can be structurally incapable of gating what it claims to gate** (149, CLOSED). Ask
+    what a test would have to *distinguish*, not just whether it passes.
 
-## Current State (assessed-at: 8183ffb, iter 150)
+## Current State (assessed-at: 19eecc8, iter 151)
 
-- **IN_PROGRESS — CI GREEN AND COVERING ALL CODE.** `origin/develop` == `f2aeeac`: 43 check-runs, 22
-    names, 0 non-success, 0 in progress. HEAD `8183ffb` is one commit ahead but it is
-    `cid(log): iteration 149` — `git diff --stat origin/develop..HEAD -- . ':!.claude'` is EMPTY, so
-    the green run covers every line of code. ~2x runs because PR **#44 (develop→main) is OPEN**
-    ("Release 0.6.0" — NOT shipped; version **0.5.0**).
-- Iteration 149 ran clean (3 `OK` roles, `PASS_WITH_NOTES`); the 148 loop defect stays fixed — do
-    not re-raise it. Diff since = 3 non-`.claude` files, all test/docs; specs + `.github/`
-    byte-unchanged.
-- **Statuses:** Rust-core partially met (crit 1+2 MET; crit 3 **Rust half now DONE** — propagation
-    still zero; crit 4 not started); Documentation met; all binding sections + benchmarks met; CI/CD
-    partially met. **Next = propagate the fixture** to 11 bindings + the 4 sibling `data.json`
-    copies, sliced (data.json copies first, then language groups). Each loader needs individual
-    inspection — the fixture is a SECOND vector file, so a binding hard-coding `data.json` needs new
-    plumbing, not a copy.
-- **`specs/rust-core.md` is STALE on Go `Final_Sigma`** (present tense, box unchecked) though fixed
-    at 147; crit-1's box is also unchecked though MET — human-owned, CID doesn't edit specs.
-- **Issues: 8** (4 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`) — unchanged at 149:
-    the umbrella Unicode issue was UPDATED, not closed (half of remainder (b) is done).
+- **IN_PROGRESS — CI GREEN AND COVERING ALL CODE.** `origin/develop` == `a09f1d0`: 43 check-runs, 22
+    names, 0 non-success, 0 in progress. HEAD `19eecc8` is THREE commits ahead (`cid(log)` ×2 +
+    `cid(audit): metrics snapshot`) but `git diff --stat origin/develop..HEAD -- . ':!.claude'` is
+    EMPTY, so the green run covers every line of code. ~2x runs because PR **#44 (develop→main) is
+    OPEN** ("Release 0.6.0" — NOT shipped; version **0.5.0**).
+- Iteration 150 ran clean (3 `OK` roles, `PASS_WITH_NOTES`) **plus the every-10th `audit` role**,
+    which filed **zero** issues (commit `e52116a` = metrics snapshot only). Diff since = 5
+    non-`.claude` files, all test/docs; specs + `.github/` byte-unchanged.
+- **Statuses:** Rust-core partially met (crit 1+2 MET; crit 3 at **2 of 11 bindings** — Python + Go
+    gated at 150; crit 4 not started); Documentation met; all binding sections + benchmarks met;
+    CI/CD partially met. **Next = propagation slice 2** (prefer WASM+Ruby or C FFI+JNI — cheap
+    in-container; napi costliest) **plus the new byte-identity drift gate**, which is green at HEAD
+    and compounds over every remaining slice. Ledger + reusable pattern → `unicode-contract.md`.
+- Both new suites ride existing CI jobs — pytest via `testpaths = ["tests"]` in the `python-test`
+    matrix, Go via the `Go` job's `go test ./...`. No new job was needed and none should be added.
+- **`specs/rust-core.md` is STALE on Go `Final_Sigma`** (present tense at L149-157, box unchecked)
+    though fixed at 147; crit-1/crit-3 boxes also unchecked though met — human-owned, CID doesn't
+    edit specs.
+- **Issues: 9** (5 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`). New at 150:
+    `[review]` **"Gate byte-identity of the vendored test-vector copies"** — 6 vendored copies (5 ×
+    `data.json` + 1 × `unicode_boundary.json`) match by convention only; all agree at HEAD.
 - **Human backlog CLEARED.** AUTHORIZED for CID: rubygems `@v2.1.0` pin (still `@main` at
-    `release.yml:895`); major dep bumps **one per step** (magnus 0.8, jni 0.22 as source rewrites,
-    one crate per step; xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive
-    `specs/ci-cd.md` job table. DEFERRED: npm OIDC (not v0.6.0; don't even prepare the diff).
-    **Cadence escalation is discharged.** The 3 gate-script remainders are `low` +
-    trigger-contingent.
-- **Don't re-flag as DONE**: sequence vectors + fixture guard 149; sentinel conversion + the
-    `docs/unicode.md` rewrite 148; Go `Final_Sigma` 147; gate blind-spots 146; docs-list gate 145
-    (pre-145 → `MEMORY-archive.md` / the issues.md slice log).
+    `release.yml:895`); major dep bumps **one per step** (magnus 0.8, jni 0.22 as source rewrites;
+    xunit 3.x, Test.Sdk 18.x, Gradle wrapper, JUnit 6.x); exhaustive `specs/ci-cd.md` job table.
+    DEFERRED: npm OIDC (not v0.6.0; don't even prepare the diff). The 3 gate-script remainders are
+    `low` + trigger-contingent.
+- **Don't re-flag as DONE**: Python+Go fixture propagation 150; sequence vectors + fixture guard
+    149; sentinel conversion + the `docs/unicode.md` rewrite 148; Go `Final_Sigma` 147; gate
+    blind-spots 146; docs-list gate 145 (pre-145 → `MEMORY-archive.md` / the issues.md slice log).
 
 ## Gotchas
 
