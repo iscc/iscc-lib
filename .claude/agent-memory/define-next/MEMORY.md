@@ -34,10 +34,11 @@ iterations.
     that amends the spec/notes needs human sign-off first (iter 106/112).
 - **next.md is a sensitive file** — Write needs a prior Read of it; if Write is blocked, use
     `cat > file << 'EOF'` via Bash.
-- Format next.md + memory with **`uv run prek run mdformat --files <paths>`** (seconds; re-run until
-    Passed). A bare `uv run mdformat` is NOT the hook (the hook passes `--number`) and *causes* the
-    failure it was meant to avoid; `mise run format` can exceed a 2-min Bash timeout. Give partial/
-    pseudo-code snippets a `text` or `bash` fence (a `python` fence is reformatted by ruff).
+- **Escape sequences in a tool payload get decoded before they hit the file** (iter 149): typing
+    `\u0378` into a Write/Edit/Bash payload lands the *character*, silently corrupting a fixture
+    snippet next.md must hand advance verbatim. Double the backslash, or re-escape afterwards with a
+    `python3` `re.sub(r"[^\x00-\x7f]", ...)` pass over the fences; `\u{0378}` (Rust form) survives.
+    Check `grep -c 'u0378' <file>`, and fence such snippets as `text`.
 
 ## Architecture & Conformance Facts
 
@@ -93,8 +94,7 @@ iterations.
     `rubygems/configure-rubygems-credentials@v2.1.0` pin, and an exhaustive `specs/ci-cd.md` job
     table. HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm OIDC (token good to 2026-09-16).
 - **iters 115–123 DONE (detail in MEMORY-archive.md)**. **Root lesson: the CRAP regression gate is
-    CI-ONLY** (not in `mise run check`/pre-commit) — any step adding a branch/loop to a covered fn
-    MUST refresh the baseline in the SAME step.
+    CI-ONLY** — a step adding a branch to a covered fn MUST refresh the baseline in it.
 - **iters 124–137 = the dependency-refresh slices, all 8 now CLOSED** → ledger, gotchas, hold-backs,
     version-lookup commands: [dep-refresh ledger](dep-refresh-ledger.md); read it before scoping any
     dep step. Headline rule: **never move a consumer floor (MSRV, `go` directive,
@@ -104,14 +104,14 @@ iterations.
     warnings: [lint tooling lessons](lint-tooling-lessons.md). Headline: **never make an exact
     file/finding count a pass/fail criterion** (it drifts with the CID agents' own commits — iter
     139 predicted 153, review measured 155); make the exit code the criterion.
-- **Open Unicode backlog — all blockers cleared 2026-07-26** (`human(decide)` `9aa25ad`;
-    `specs/rust-core.md` is the authority). Ordered: (1) Go `Final_Sigma` fix [iter 147], (2) the
-    **sentinel conversion** — `filter(!unassigned)` → `map(→ U+FFFF)` in `iscc-lib`'s `utils.rs`
-    lines ~103/~181, landing both `docs/unicode.md` rewrites in the same commit [scoped iter 148],
-    (3) the 1,112,064-scalar + sequence-class differential sweep, (4) boundary vectors into 11
-    bindings + 4 sibling `data.json` copies (Go **skips** the two table-dependent ones until go1.27
-    — ruled). Superseded, never implement: the **category override** (`U+A7F1` injects a spurious
-    `S`) and lowering the declared version to 15.1.0. Denominator is 1,112,064, not 1,114,112.
+- **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
+    Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) the four **sequence** vectors + fixture
+    guard [scoped 149], (4) fixture propagation into 11 bindings + 4 sibling `data.json` copies (Go
+    **skips** the two table-dependent ones until go1.27 — ruled — but MUST take `Final_Sigma`), (5)
+    the 1,112,064-scalar **and sequence-class** differential sweep as a runnable check. Never
+    implement the superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0
+    declared version. Escapes, fixture facts, CRAP-in-tests →
+    [unicode-freeze-facts](unicode-freeze-facts.md).
 - **Gate/checker steps in `scripts/` have their own playbook** — prek-vs-CI placement, the Python
     3.10 floor (no `tomllib`), injected-`Path` shape, network/offline probing, docs-list wiring, and
     when a gate change needs Titusz: [gate scripts playbook](gate-scripts-playbook.md). Read it
@@ -124,20 +124,23 @@ iterations.
 - **Any step touching the text hot path trips two gates at once**: the CI-only CRAP
     `--fail-regression` baseline and the `.iai-baseline.json` 10% Ir gate. Measured constants,
     expected boundary values and the independent Unicode-16 derivation recipe:
-    [unicode-freeze-facts](unicode-freeze-facts.md). A `tests/`-only step trips **neither** gate
-    (coverage can only improve) — say so in next.md so advance doesn't refresh a baseline.
+    [unicode-freeze-facts](unicode-freeze-facts.md). A `tests/`-only step usually trips **neither**
+    (coverage can only improve) — say so in next.md so advance doesn't refresh a baseline. One
+    exception: `cargo crap` DOES score **non-`#[test]` helpers** in `tests/*.rs` (their coverage is
+    `null` → `missing = "pessimistic"` → `crap = c² + c`), so a new free helper with cyclomatic ≥ 6
+    trips `--fail-above` (threshold 30). Tell advance to keep new fixture logic inside `#[test]`
+    fns.
 - Generator scripts needing an external pin: PEP 723 + `uv run --script`, never a dev-dep —
     [ty gate trap](define-next-ty-generator-scripts.md).
 - `uv run zensical build` (exits 0, "No issues found", ~8s) verifies any docs-only step.
 - **Recurring**: the cargo-deny gate WILL periodically go red on fresh RustSec advisories vs
     dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore.
-- **Watch the tooling-cadence flag in state.md.** When 3 of the last 4 iterations were CI/lint/
-    workflow packages, prefer a user-facing item over a tracked `normal` tooling issue (iter 143) —
-    but deferring is a **one-iteration** move, not a veto: count the window explicitly in `## Goal`
-    (144/145 were at 2 of 4). **At the threshold with zero unblocked user-facing candidates (iter
-    146\) the rule does not fire** — but enumerate each blocked candidate + its blocker in `## Goal`.
-- Parked-work scoping lessons (parked-issue prioritisation, artifact-vs-propagation splits,
-    documenting under a parked ruling) → `MEMORY-archive.md`; nothing is parked on Titusz today.
+- **Watch the tooling-cadence flag in state.md.** With 3 of the last 4 iterations CI/lint/ workflow,
+    prefer a user-facing item over a tracked `normal` tooling issue (iter 143) — but deferring is a
+    **one-iteration** move, not a veto: count the window in `## Goal`. At the threshold with zero
+    unblocked user-facing candidates the rule does not fire (iter 146) — then enumerate each blocked
+    candidate + its blocker.
+- Parked-work scoping lessons → `MEMORY-archive.md`; nothing is parked on Titusz today.
 - **The installed Python binding is a cheap probe — but the venv wheel LAGS the source** (iter 141:
     it still showed pre-iter-133 `text_clean` behaviour). Cross-check anything the last few
     iterations could have touched with `cargo test -p iscc-lib --lib <mod>::` (~seconds when built).

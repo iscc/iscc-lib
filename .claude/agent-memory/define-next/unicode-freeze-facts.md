@@ -111,3 +111,26 @@ stripping enables composition).
 
 See [[define-next-ty-generator-scripts]] for the `ty check` trap that generator scripts with
 external pins hit.
+
+## Sequence boundary vectors — the fixture's discriminating half (scoped iter 149)
+
+The 4 original vectors wrap one code point in ASCII `a`/`b`, so deletion and sentinel-then-strip
+agree: they are **deletion-vs-sentinel agnostic** and cannot gate the ruled design. Only these four
+sequences can. ASCII-escaped exactly as `json.dumps(..., ensure_ascii=True)` emits them (the file is
+pure ASCII by design — composed/decomposed forms render identically and U+0378 is tofu):
+
+| section         | input                      | expected             | delete-filter would give |
+| --------------- | -------------------------- | -------------------- | ------------------------ |
+| `text_clean`    | `e\u0378\u0301`            | `e\u0301`            | `\u00e9`                 |
+| `text_clean`    | `\u1100\u0378\u1161`       | `\u1100\u1161`       | `\uac00`                 |
+| `text_clean`    | `e\ua7f1\u0301`            | `e\u0301`            | `e\u015a`                |
+| `text_collapse` | `\u0391\u03a3\u0378\u0392` | `\u03b1\u03c2\u03b2` | `\u03b1\u03c3\u03b2`     |
+
+Pinned by six `utils.rs` tests (lines ~350-407) that passed CI at HEAD — never re-derive them. Do
+**not** mirror them into the other section: the jamo sequence under `text_collapse` legitimately
+recomposes to `\uac00` (the reference does the same), which reads as a contradiction in a fixture.
+
+`cargo crap` scores non-`#[test]` helpers in `tests/*.rs` with `coverage: null` →
+`missing = "pessimistic"` → `crap = c^2 + c`; threshold 30 means cyclomatic \<= 5. Keep new fixture
+logic inside `#[test]` fns so the CRAP report gains no entry (only `boundary_data` and
+`run_boundary_section` are in `.crap-baseline.json` today).

@@ -1,164 +1,204 @@
 # Next Work Package
 
-## Step: Convert the Unicode freeze rule from a pre-filter to a `U+FFFF` sentinel map
+## Step: Add the four Unicode sequence boundary vectors and pin them in the fixture guard
 
 ## Goal
 
-Make `text_clean` / `text_collapse` conformant with the reference on sequences containing
-Unicode-16.0.0-unassigned code points by replacing such code points with the noncharacter sentinel
-`U+FFFF` instead of deleting them (issues.md: "Convert the freeze rule from a pre-filter to a
-sentinel map (RULED)", `specs/rust-core.md` requirement 1). This closes the largest open correctness
-item — the iteration-133 pre-filter fails 42 of 140 sequence cases — and lands the two
-`docs/unicode.md` rewrites in the same commit so the public page never documents a rejected
-mechanism.
+Add the four multi-code-point **sequence** vectors to `crates/iscc-lib/tests/unicode_boundary.json`
+and extend the ungated guard so their exact inputs and outputs are pinned in the test source
+(issues.md: "Declare and gate a Unicode data version (DECIDED)", remainder **(b)**;
+`specs/rust-core.md` requirement 3). This matters because the four existing vectors wrap a single
+code point in plain ASCII and are therefore **deletion-vs-sentinel agnostic** — the fixture that is
+the propagation source for all 11 bindings currently cannot gate the distinction iteration 148 just
+fixed, so the sentinel behaviour is guarded by unit tests in one crate only.
 
 ## Scope
 
 - **Modify**:
-    - `crates/iscc-lib/src/utils.rs` — sentinel `const`, both call sites (lines ~103 and ~181), three
-        doc comments (`is_unassigned_in_unicode16` ~line 26, `text_clean` ~92, `text_collapse` ~171),
-        the two inline step-1 comments, plus the new regression tests in the existing `mod tests`
-    - `scripts/gen_unicode16_unassigned.py` — docstring wording only (lines ~6–8 say the core "strips"
-        the code points "before any normalization"); **the generated output must not change**
-    - `crates/iscc-lib/tests/test_unicode_boundary.rs` — stale "stripped before normalization" wording
-        in the module/const docs (test file; no assertion changes needed)
-    - `docs/unicode.md` — work-package items 5 and 6 (see Implementation Notes)
-    - `crates/iscc-lib/CLAUDE.md` — the "Text normalization order matters" bullet (~lines 158–163)
-    - `.crap-baseline.json` — regenerate with `mise run crap:baseline` (generated artifact)
-- **Reference**: `.claude/context/specs/rust-core.md` (requirement 1 + the **Verified when** list,
-    lines ~55–195 — the authority); `.claude/context/issues.md` ("Convert the freeze rule …" work
-    package, 6 points); `.claude/context/decisions.md` 2026-07-26 entries;
-    `crates/iscc-lib/src/utils/unicode16.rs` (data only — do not edit);
-    `crates/iscc-lib/tests/unicode_boundary.json`
+    - `crates/iscc-lib/tests/unicode_boundary.json` — add 3 cases to `text_clean`, 1 to
+        `text_collapse`, and widen `_metadata.description` (test fixture)
+    - `crates/iscc-lib/tests/test_unicode_boundary.rs` — a `SEQUENCE_VECTORS` const, an added ungated
+        content guard, updated per-section case counts (test file)
+    - `docs/unicode.md` — extend the "Boundary behaviour" section with the sequence vectors (doc)
+    - `.crap-baseline.json` — **only if** the CI-exact CRAP gate fails on the edited tree (generated
+        artifact; see Implementation Notes)
+- **Reference**:
+    - `.claude/context/issues.md` — the umbrella Unicode issue's sequence-vector table (~line 316)
+        holds the authoritative escapes
+    - `.claude/context/specs/rust-core.md` — requirement 3 and the freeze-rule **Verified when** list
+        (~lines 96–195)
+    - `crates/iscc-lib/src/utils.rs` lines ~350–407 — the six sentinel regression tests that pin the
+        expected outputs (read only; do not edit)
+    - `.claude/context/decisions.md` 2026-07-26 entries (sentinel design; Go skips the table-dependent
+        vectors)
 
-**File budget:** 2 non-test, non-doc source files (`utils.rs`, the generator docstring) plus one
-regenerated baseline artifact — inside the 3-file limit.
+**File budget:** **zero** non-test, non-doc source files. Two test files, one doc page, and at most
+one regenerated baseline artifact.
 
 ## Not In Scope
 
-- **The superseded designs.** Do not implement the category override (`U+A7F1` decomposes to `S`
-    under Unicode 17 and injects a spurious letter — 1 single-code-point and 10 sequence failures)
-    and do not lower the declared version to 15.1.0 (rejected: collapses documents in the 6 living
-    scripts added in 16.0 to `""`).
-- **No change to the category filters or the vendored table.** `is_c_category` / `is_cmp_category`
-    stay exactly as the reference defines them (`U+FFFF` is `Cn`, so they already remove it), and
-    `crates/iscc-lib/src/utils/unicode16.rs` plus the generator's *output* stay byte-identical.
-- **No sequence vectors in `crates/iscc-lib/tests/unicode_boundary.json`** and no propagation of the
-    boundary fixture to the 11 bindings or the 4 sibling `data.json` copies — that is the next step.
+- **Propagation.** Do not copy the fixture into any of the 11 bindings, and do not touch the 4
+    sibling `data.json` copies (`packages/go/testdata/`, `packages/dotnet/Iscc.Lib.Tests/testdata/`,
+    `packages/swift/Tests/IsccLibTests/`, `packages/kotlin/src/test/resources/`). That is the next
+    step, and it carries the Go skip ruling with it.
 - **The criterion-4 differential sweep** (1,112,064 scalar values + sequence classes as a runnable
-    check) is a separate step. A throwaway probe to satisfy yourself is fine; do not wire a new
-    gate.
-- **Do not touch `packages/go`** (the `Final_Sigma` fix landed in iteration 147; the per-call
-    `cases.Caser` must not be hoisted) and do not touch any binding crate — they inherit the core.
-- **Do not refresh `.iai-baseline.json`.** Ir is expected flat; a real move means the implementation
-    is not the specified one.
-- Do not tick checkboxes in `.claude/context/specs/`.
+    check) — a separate step. Do not wire a new gate or script.
+- **No source changes.** `crates/iscc-lib/src/utils.rs`, `src/utils/unicode16.rs` and every binding
+    crate stay byte-identical; this step only observes behaviour that already exists and is already
+    green.
+- **Do not invent extra vectors.** Exactly the four tabulated sequences. In particular do not add
+    mirrored cross-section cases (the jamo sequence under `text_collapse` legitimately recomposes to
+    `U+AC00` and would read as a contradiction), and do not add a literal-`U+FFFF` case.
+- **Do not re-derive the expected outputs** with a Python/`unicodedata2` probe — they are pinned by
+    the six `utils.rs` tests that passed CI at HEAD and are reproduced verbatim below.
+- Do not tick checkboxes in `.claude/context/specs/`, and do not edit `issues.md` (review closes
+    items).
+- **Do not refresh `.iai-baseline.json`** — no hot-path code changes, so Ir cannot move.
 
 ## Implementation Notes
 
-**The code change (issues.md item 1).** Name the sentinel once, e.g.
-
-```rust
-/// Replacement for code points unassigned in Unicode 16.0.0.
-///
-/// `U+FFFF` is a *noncharacter*: under Unicode's Noncharacter stability policy it is
-/// permanently category `Cn`, `ccc = 0` and has no decomposition, so it can never gain
-/// an assignment or a decomposition in a future table version.
-const UNASSIGNED_SENTINEL: char = '\u{FFFF}';
-```
-
-then, at both call sites, inside the same fused iterator chain:
+**1. Fixture (`tests/unicode_boundary.json`).** The file is pure ASCII by design (composed and
+decomposed forms render identically, and `U+0378` renders as tofu), so every string stays
+`\uXXXX`-escaped. Add these four cases verbatim — the escapes were generated with
+`json.dumps(..., ensure_ascii=True)` and match the issues.md table exactly:
 
 ```text
-// from:
-.filter(|&c| !is_unassigned_in_unicode16(c))
-// to:
-.map(|c| if is_unassigned_in_unicode16(c) { UNASSIGNED_SENTINEL } else { c })
+"text_clean": {
+  "test_0004_seq_u0378_blocks_canonical_composition": {
+    "inputs": ["e\u0378\u0301"],
+    "outputs": { "result": "e\u0301" }
+  },
+  "test_0005_seq_u0378_blocks_hangul_composition": {
+    "inputs": ["\u1100\u0378\u1161"],
+    "outputs": { "result": "\u1100\u1161" }
+  },
+  "test_0006_seq_ua7f1_no_decomposition_leak": {
+    "inputs": ["e\ua7f1\u0301"],
+    "outputs": { "result": "e\u0301" }
+  }
+},
+"text_collapse": {
+  "test_0004_seq_u0378_preserves_final_sigma": {
+    "inputs": ["\u0391\u03a3\u0378\u0392"],
+    "outputs": { "result": "\u03b1\u03c2\u03b2" }
+  }
+}
 ```
 
-**Docstrings (item 2).** All three current doc comments give *pre-normalization removal* as the
-reason for invariance — wrong on both counts. New wording: unassigned code points are **replaced
-by** the noncharacter `U+FFFF` before normalization; the function's own category-`C` filter
-(unchanged from the reference) then removes the sentinel, so *removal happens exactly where the
-reference does it* — which is what preserves composition-blocking and `Final_Sigma` context — while
-*mapping into a permanent noncharacter* is what severs dependence on the tables a dependency ships.
-Apply the same correction to `crates/iscc-lib/CLAUDE.md` and the two test-file doc lines.
+Keep the existing `test_0000`–`test_0003` cases untouched and keep the existing nesting shape
+(`inputs` array of one string, `outputs.result`). The outputs the superseded delete-filter design
+would wrongly produce are `\u00e9`, `\uac00`, `e\u015a` and `\u03b1\u03c3\u03b2` respectively; they
+belong in the Rust guard (below), not in the JSON. Widen `_metadata.description` so it no longer
+describes the fixture as single code points only.
 
-**Verified facts — do not re-derive.** Expected values come from `specs/rust-core.md` **Verified
-when** and are mechanically consistent with the implementation: `U+FFFF` has `ccc = 0`, so it blocks
-canonical composition and Hangul jamo composition of its neighbours; it is neither `Cased` nor
-`Case_Ignorable`, so a preceding `Σ` still lowercases to final `ς`. The existing 25 `utils.rs` tests
-and the 4 single-code-point vectors in `tests/unicode_boundary.json` are **unaffected** (they wrap
-the code point in plain ASCII `a`/`b`, where deletion and sentinel-then-strip agree).
+**2. Guard (`tests/test_unicode_boundary.rs`).** Add a const table so the sequence expectations live
+in the test source, not only in the fixture:
 
-**Tests (item 3)** — add to `utils.rs`'s `mod tests`, feature-gated like the neighbouring
-freeze-rule tests:
+```rust
+/// Sequence boundary vectors: `(section, input, expected, delete_filter_output)`.
+/// Unlike the single-code-point vectors these distinguish the `U+FFFF` sentinel map
+/// from the superseded delete-filter design, so their exact strings are pinned
+/// here - a fixture case silently degraded to ASCII must fail this guard.
+const SEQUENCE_VECTORS: [(&str, &str, &str, &str); 4] = [ /* ... */ ];
+```
 
-- `text_clean("e\u{0378}\u{0301}") == "e\u{0301}"` (no `U+00E9`)
-- `text_clean("\u{1100}\u{0378}\u{1161}") == "\u{1100}\u{1161}"` (no `U+AC00`)
-- `text_collapse("\u{0391}\u{03A3}\u{0378}\u{0392}") == "\u{03B1}\u{03C2}\u{03B2}"` (final sigma)
-- `text_clean("e\u{A7F1}\u{0301}") == "e\u{0301}"` (**not** `"e\u{015A}"` — the case the superseded
-    category override gets wrong)
-- normalizer pass-through: `"\u{FFFF}".nfkc().collect::<String>() == "\u{FFFF}"` and the same for
-    `.nfd()` — the one assumption the design rests on
-- no-ambiguity: a literal `U+FFFF` in the input is itself unassigned in 16.0, so
-    `text_clean("a\u{FFFF}b") == "ab"` and `text_collapse("a\u{FFFF}b") == "ab"`
+Then, still **ungated** (no `#[cfg(feature = "text-processing")]`, so a feature-off build still
+guards the fixture):
 
-**Gates (item 4).** The `map` adds a branch to two covered functions, so the **CI-only** CRAP
-`--fail-regression` check reds unless `.crap-baseline.json` is refreshed in this same commit
-(baseline today: `text_clean` cyclomatic/crap 9.0, `text_collapse` 1.0, both 100% covered — expect
-each to rise by ~1 with coverage still 100%). Refresh with `mise run crap:baseline` (depends on
-`mise run coverage`, several minutes). For perf, run `mise run bench:iai:check` **before** editing
-as a baseline sanity probe (valgrind and `iai-callgrind-runner` are both installed in this
-container), then again after; Ir must be flat.
+- For every row: find the case in that section whose `inputs[0]` equals `input`, assert exactly one
+    match, assert its `outputs.result` equals `expected`, and assert it is **not** equal to
+    `delete_filter_output`.
+- Per-section case count: derive it as `4 + rows for that section` (7 for `text_clean`, 5 for
+    `text_collapse`) rather than hard-coding two magic numbers in two places.
+- Keep the existing exact non-ASCII code-point-set assertion working by deriving the expected set as
+    `BOUNDARY_CODE_POINTS` plus the non-ASCII chars of that section's sequence inputs — do not
+    weaken it to a subset check.
+- Update the two `#[cfg(feature = "text-processing")]` vector tests' `executed` assertions the same
+    way (7 and 5), so a silently dropped case still fails.
 
-**Docs (items 5 and 6) — `docs/unicode.md`:**
+**CRAP trap — keep new logic inside `#[test]` functions.** `cargo crap` scores only non-`#[test]`
+functions in integration-test files (`.crap-baseline.json` contains exactly two entries for this
+file: `boundary_data` cyclomatic 1 / crap 2, `run_boundary_section` cyclomatic 2 / crap 6), and
+coverage for those is `null` → `missing = "pessimistic"` → `crap = c² + c`. A new free helper with
+cyclomatic ≥ 6 therefore scores 42 and trips `--fail-above` (threshold 30) even though it is test
+code. Put the new assertions in a second `#[test] fn` (e.g.
+`test_boundary_fixture_sequence_vectors`) instead of a new helper, and do not add branches to
+`boundary_data` / `run_boundary_section`.
 
-1. Rewrite the "Declared version and freeze rule" section (lines ~29–40): the mechanism is a
-    *sentinel map*, not pre-normalization removal. Keep the 731-range / 819,533-code-point table
-    and generator sentence. Replace "Because removal happens first…" with the two load-bearing
-    properties: removal stays where the reference performs it (conformance, including sequences),
-    and mapping into a permanent noncharacter makes output invariant under table upgrades.
-2. Widen the CPython-3.14 sentence (line ~74) back to unqualified agreement — drop "on the
-    single-code-point behaviour described on this page".
-3. State accepted divergence class (b): characters assigned between 15.1 and 16.0 hash differently
-    than `iscc-core` on CPython ≤ 3.13 produced historically — accepted by decision — and why
-    lowering to 15.1.0 was rejected (the 6 living scripts added in 16.0 would collapse to `""`).
-4. Add a short **"How much does this matter?"** section near the top: Data-Code and Instance-Code
-    unaffected (raw bytes); Meta-Code and Text-Code are similarity-preserving so affected codes
-    stay Hamming-close and similarity matching keeps working; newly assigned code points are rare
-    in real text; residual exposure is exact-match lookups on short inputs and the exact `name` /
-    `description` fields.
+**Baseline handling.** Adding lines shifts those two functions' line numbers, which `cargo crap`
+tracks as *moved*, not *regressed*. Run the CI-exact gate on the edited tree:
 
-Do **not** add a new docs page (the 23-page nav/`ORDERED_PAGES`/`llms.txt` triple stays as is) and
-do not restate the parked-vs-settled history — the page describes current behaviour only.
+```bash
+cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info
+cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above
+```
+
+If it exits 0, **leave `.crap-baseline.json` untouched** (baselines are refreshed only when a gate
+demands it). If it exits non-zero, refresh with `mise run crap:baseline` in this same commit and say
+so in the handoff. Note `--fail-above` is a bare flag — the 30.0 threshold comes from
+`.cargo-crap.toml`.
+
+**3. Docs (`docs/unicode.md`).** The "Boundary behaviour" section (~lines 64–83) documents only the
+four single-code-point vectors. Add a short second table for the sequence vectors immediately after
+it, and adjust the closing sentence so it covers both families. Write the code points as `U+XXXX`
+notation rather than literal glyphs (`U+0378` is unassigned and renders as tofu; `e` + `U+0301` and
+`U+00E9` are visually identical). One row per vector: input sequence, function, expected output, and
+the output a delete filter would wrongly produce. Two sentences of context are enough: the sentinel
+keeps its neighbours apart during normalization and lowercasing, which is why these sequences — and
+not the ASCII-wrapped single code points — are what pins the design. Do **not** add a new page (the
+nav / `ORDERED_PAGES` / `llms.txt` triple stays at 23 pages).
+
+**Verified facts — do not re-derive.** `crates/iscc-lib/src/utils.rs` asserts, at HEAD, in tests
+that passed CI: `text_clean("e\u{0378}\u{0301}") == "e\u{0301}"`,
+`text_clean("\u{1100}\u{0378}\u{1161}") == "\u{1100}\u{1161}"`,
+`text_clean("e\u{A7F1}\u{0301}") == "e\u{0301}"`, and
+`text_collapse("\u{0391}\u{03A3}\u{0378}\u{0392}") == "\u{03B1}\u{03C2}\u{03B2}"`. The fixture must
+record exactly these.
 
 ## Verification
 
-- `grep -n 'filter(|&c| !is_unassigned_in_unicode16' crates/iscc-lib/src/utils.rs` finds **no
-    match** (exit 1), and `grep -c 'UNASSIGNED_SENTINEL' crates/iscc-lib/src/utils.rs` is ≥ 3 (const
-    \+ two call sites)
-- `git diff --stat crates/iscc-lib/src/utils/unicode16.rs` is empty (vendored table untouched)
-- `cargo test -p iscc-lib` passes — ≥ 332 tests (328 today + the new ones), zero failures, all
-    `gen_*_v0` conformance vectors green
-- `cargo test -p iscc-lib --lib utils::` passes and includes the six new assertions listed above
+- Fixture shape and content, mechanically:
+
+```bash
+python3 - <<'PY'
+import json, pathlib
+p = pathlib.Path("crates/iscc-lib/tests/unicode_boundary.json")
+raw = p.read_bytes()
+assert raw.isascii(), "fixture must stay ASCII-escaped"
+d = json.loads(raw)
+assert len(d["text_clean"]) == 7 and len(d["text_collapse"]) == 5
+want = {
+    ("text_clean", "e\u0378\u0301"): "e\u0301",
+    ("text_clean", "\u1100\u0378\u1161"): "\u1100\u1161",
+    ("text_clean", "e\ua7f1\u0301"): "e\u0301",
+    ("text_collapse", "\u0391\u03a3\u0378\u0392"): "\u03b1\u03c2\u03b2",
+}
+got = {(s, c["inputs"][0]): c["outputs"]["result"]
+       for s in ("text_clean", "text_collapse") for c in d[s].values()}
+for k, v in want.items():
+    assert got.get(k) == v, (k, got.get(k), v)
+print("fixture OK")
+PY
+```
+
+- `cargo test -p iscc-lib` passes with **0 failures** and at least 335 tests
+- `cargo test -p iscc-lib --test test_unicode_boundary` passes (guards + both vector tests)
+- `cargo test -p iscc-lib --no-default-features --test test_unicode_boundary` passes — the fixture
+    guards run with `text-processing` off
 - `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean
-- `mise run crap:baseline` is run and then
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above 30.0`
+- `grep -c 'u{03C2}' crates/iscc-lib/tests/test_unicode_boundary.rs` is ≥ 1 and
+    `grep -c 'u{A7F1}' crates/iscc-lib/tests/test_unicode_boundary.rs` is ≥ 2 — the sequence
+    expectations are pinned in the test source, not only in the fixture
+- `git diff --stat crates/iscc-lib/src/` is **empty** — no source file changed
+- `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` then
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
     exits 0 on the working tree
-- `mise run bench:iai:check` exits 0 and `git diff --stat .iai-baseline.json` is empty. (If the
-    check already fails on the unedited tree for a local-vs-CI toolchain offset, the handoff must
-    instead record the `text_clean` / `text_collapse` Ir from the pre-edit and post-edit runs
-    showing a change under 10%, with the baseline still untouched.)
-- `grep -c 'U+FFFF' docs/unicode.md` ≥ 2, while
-    `grep -n 'Because removal happens first\|removed from the input\|single-code-point behaviour described on this page' docs/unicode.md`
-    finds **no match**, and `grep -n 'How much does this matter' docs/unicode.md` matches
+- `grep -c 'U+0378' docs/unicode.md` is ≥ 2 and `grep -c 'U+03C2' docs/unicode.md` is ≥ 1
 - `uv run zensical build` exits 0 and reports "No issues found"; `uv run scripts/check_docs_nav.py`
     exits 0 (still 23 pages)
-- `mise run check` — all hooks Passed
+- `mise run check` — every hook Passed and the working tree is clean afterwards
 
 ## Done When
 
-The sentinel map, the corrected docstrings, the six regression assertions, the refreshed CRAP
-baseline and both `docs/unicode.md` rewrites are in one commit and every verification check above
-passes.
+The four sequence vectors are in the fixture, pinned by an ungated guard that fails on a degraded
+case, documented in `docs/unicode.md`, and every verification check above passes.
