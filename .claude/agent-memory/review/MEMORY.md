@@ -61,9 +61,15 @@ slice recipes), `gha-workflow-reviews.md` (release.yml gates + action-major bump
     (all-`low` only; it runs meta-improve). Verdict still PASS; push clean batch
 - **Unicode 16.0.0 freeze rule = a `U+FFFF` SENTINEL MAP since iter 148** (delete-filter iters
     133–147; adjacency divergence RULED/CLOSED). Rust fixture COMPLETE since iter 149 (4 single code
-    points + 4 sequence vectors, guarded in `test_unicode_boundary.rs`). Remaining: propagate to 11
-    bindings + 4 sibling `data.json` (Go on 15.0 tables takes only `Final_Sigma`) → criterion-4
-    sweep. Never "fix" one binding to match another; single-cp vectors are deletion-agnostic
+    points + 4 sequence vectors, guarded in `test_unicode_boundary.rs`); **Python + pure-Go
+    propagated iter 150** (Go runs 9/12, 3 ruled skips). Remaining: 9 binding surfaces + 4 sibling
+    `data.json` → criterion-4 sweep. Never "fix" one binding to match another; single-cp vectors are
+    deletion-agnostic, only the 4 sequence vectors discriminate sentinel-vs-delete
+- **A binding can pass a boundary vector for the WRONG reason — check the MECHANISM** (iter 150): Go
+    has no freeze rule but its 15.0 tables call U+20C1/U+A7F1 `Cn`, so the category-`C` filter
+    coincidentally matches. Under go1.27 (`x/text` `tables17.0.0.go` = `//go:build go1.27`) 5 green
+    cases flip red — that red is the *designed signal*, so REJECT any proposal to version-gate the
+    skip list (Codex raised exactly this as P1). `ci.yml` pins Go via `go-version-file: …/go.mod`
 - **Concurrent CID loops (iter 97, detail in `MEMORY-archive.md`)**: spurious `mise run check`
     "files modified" on an untouched file + mid-review working-tree change = a SECOND loop racing.
     Confirm with `ps aux`; flag HUMAN REVIEW REQUESTED, do NOT push or kill processes
@@ -98,7 +104,14 @@ slice recipes), `gha-workflow-reviews.md` (release.yml gates + action-major bump
     line; path-sensitive settings and any `types:` change need the hook-mode probe →
     `dep-refresh-   reviews.md` slice 8
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
-    `go vet -C packages/go ./...`
+    `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
+- **Binding fixture PROPAGATION slice (iter 150, ~10 min)**: per-language shortcut + `cmp` the
+    vendored copy + `isascii()`. Then probe in a `cp -r` of the package under `/tmp` (never the work
+    tree): corrupt a **non-skipped** expected output, **rename** a skipped case (must fire BOTH the
+    stale-skip guard and an unskipped failure), drop a case + wrong version. Python probes need the
+    test nested two dirs deep so `Path(__file__).parent.parent` resolves — a missing fixture is a
+    hard collection error, not a silent skip. Verify no `delete_filter_output` oracle was copied
+    (`git grep -l delete_filter`) and that the sequence vectors still discriminate the design
 - **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
     review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
@@ -137,3 +150,7 @@ slice recipes), `gha-workflow-reviews.md` (release.yml gates + action-major bump
 - **A no-findings Codex verdict sometimes asserts its own evidence** (iter 148: "match a Unicode
     16.0 reference across all Unicode scalar values") — an unverifiable claim in a one-paragraph
     report is not a substitute for your own probe. Run the differential anyway
+- **Codex reasons about FUTURE toolchains** (iter 150: ran the Go suite under `go1.27rc1`). Verify
+    the mechanism yourself, then judge the *remedy* separately — its fix was "version-gate the
+    skips", i.e. pre-emptive test skipping. A correct diagnosis can carry a gate-weakening cure;
+    record the rejection in `decisions.md` so the next agent does not re-adopt it

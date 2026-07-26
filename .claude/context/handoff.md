@@ -1,72 +1,100 @@
 # Handoff
 
-## 2026-07-26 — Propagate the Unicode boundary fixture to the Python and Go test suites (propagation slice 1)
+## 2026-07-26 — Review of: Propagate the Unicode boundary fixture to the Python and Go test suites (propagation slice 1)
 
-**Done:** Wired the canonical Unicode 16.0.0 boundary fixture into the first two binding surfaces
-outside the Rust crate. Python reads `crates/iscc-lib/tests/unicode_boundary.json` directly and runs
-all 12 vectors green; the pure-Go package embeds a byte-identical vendored copy and runs 9 vectors
-(including all four sequence vectors), skipping exactly the 3 table-dependent cases ruled on
-2026-07-26. Docs updated to name both suites and the three Go skips.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
+**Summary:** The first two binding surfaces are now gated by the canonical Unicode 16.0.0 boundary
+fixture. Python runs all 12 vectors plus a metadata guard (13 passed); the pure-Go package embeds a
+byte-identical vendored copy and runs 9 of 12, skipping exactly the 3 ruled table-dependent cases —
+verified independently, including all four sequence vectors passing in Go. Scope discipline is
+exemplary: zero non-test, non-doc source files touched, no oracle duplication, canonical fixture and
+both baselines untouched.
 
-- `tests/test_unicode_boundary.py` (new): 12 parametrized vector tests (`text_clean` ×7,
-    `text_collapse` ×5) against the canonical fixture, plus a `test_boundary_fixture_metadata` guard
-    asserting `unicode_data_version == "16.0.0"` and per-section counts (7/5) so a truncated or
-    renamed fixture cannot silently collect zero cases
-- `packages/go/testdata/unicode_boundary.json` (new): byte-identical `cp` of the canonical fixture
-    (verified with `cmp`, never written through a tool payload — pure ASCII preserved)
-- `packages/go/unicode_boundary_test.go` (new): `//go:embed`s the vendored copy, reuses
-    `parseConformanceData`, runs each section via `t.Run` subtests with a package-level skip map
-    keyed `"<section>/<case>"` (3 entries, each with the go1.27 ruling as reason);
-    `TestPureGoUnicodeBoundaryFixtureMetadata` asserts version, section counts, and that every skip
-    key names an existing fixture case (stale-skip guard)
-- `docs/unicode.md`: the "Both vector families" sentence now names the Rust, Python, and Go suites +
-    the vendored copy path; the pure-Go admonition states 9-of-12 run / 3 skipped (`U+1FAE9` both
-    functions, `U+113C5` in `text_clean`) until go1.27, keeping the existing freeze-rule caveat
-- `packages/go/CLAUDE.md`: `testdata/unicode_boundary.json` row added to the file table; Test
-    Patterns bullet describing `unicode_boundary_test.go` and its three ruled skips
+**Verification:**
 
-**Verification:** (all run this session)
+- [x] `uv run pytest tests/test_unicode_boundary.py -q` — **13 passed** (≥ 13 collected, 0 failures)
+- [x] `uv run pytest -q` — **371 passed**, no regressions
+- [x] `CGO_ENABLED=0 go test -count=1 ./...` in `packages/go` — `ok`, exit 0
+- [x] `go vet ./...` in `packages/go` — exit 0
+- [x] `… go test -v -run UnicodeBoundary … | grep -c -- '--- SKIP'` — exactly **3**; the three lines
+    are precisely the ruled cases (`text_clean` U+1FAE9 + U+113C5, `text_collapse` U+1FAE9), and 9
+    subtests PASS incl. all four sequence vectors
+- [x] `cmp` canonical vs vendored fixture — exit 0; both 2344 bytes, both `isascii()` true
+- [x] `gofmt -l .` in `packages/go` — empty
+- [x] `cargo test -p iscc-lib` — **336 passed, 0 failed** (281+28+22+4+1, unchanged)
+- [x] `git status --porcelain crates/iscc-lib/ .crap-baseline.json .iai-baseline.json` — empty
+- [x] `mise run check` — every prek hook Passed, exit 0, zero reformats of the advance diff
+- [x] `uv run zensical build` — "No issues found"; `check_docs_nav.py` — OK, 23 pages
+- [x] `grep -F -c 'unicode_boundary.json' docs/unicode.md` = **2**;
+    `grep -F -c 'testdata/unicode_boundary.json' packages/go/CLAUDE.md` = **2**
+- [x] *(review-added)* `cargo clippy --workspace --all-targets -- -D warnings`, `ty check`,
+    `ruff check --select S`, `ruff check --select C901` — all clean (pre-push gates)
 
-- `uv run pytest tests/test_unicode_boundary.py -q` — **13 passed** (12 vectors + metadata guard;
-    criterion: ≥ 13 collected, 0 failures)
-- `uv run pytest -q` — **371 passed**, no regressions
-- `CGO_ENABLED=0 go test -count=1 ./...` in `packages/go` — **ok** (exit 0, CI-exact command)
-- `go vet ./...` — exit 0
-- `CGO_ENABLED=0 go test -count=1 -v -run UnicodeBoundary ./... | grep -c -- '--- SKIP'` — exactly
-    **3** (verbose log confirms the 3 skips are precisely the ruled cases; all 4 sequence vectors
-    and the `text_collapse` U+113C5 case PASS, per next.md's "per case, not per code point" note)
-- `cmp crates/iscc-lib/tests/unicode_boundary.json packages/go/testdata/unicode_boundary.json` —
-    exit 0, re-checked after all hooks ran; `isascii()` still true
-- `gofmt -l .` in `packages/go` — empty
-- `cargo test -p iscc-lib` — **336 passed, 0 failed** (281+28+22+4+1, unchanged)
-- `git status --porcelain crates/iscc-lib/ .crap-baseline.json .iai-baseline.json` — empty (no Rust
-    source, no fixture edit, no baseline movement)
-- `mise run check` — every prek hook Passed, no reformats after the initial `mise run format` pass
-- `uv run zensical build` — "No issues found", exit 0; `uv run scripts/check_docs_nav.py` — OK, 23
-    pages (no new page)
-- `grep -F -c 'unicode_boundary.json' docs/unicode.md` — **2** (≥ 2);
-    `grep -F -c 'testdata/unicode_boundary.json' packages/go/CLAUDE.md` — **2** (≥ 1)
+**Mutation probes (review-added — the guards are not vacuous):**
 
-**Next:** Continue propagation with the next binding slice. Note the checked-out napi artifact
-(`crates/iscc-napi/iscc-lib.linux-x64-gnu.node`) is stale (still returns `aSb` for
-`text_clean("a" U+A7F1 "b")` per next.md) — a napi slice must rebuild it first. The four sibling
-`data.json` copies (dotnet, swift, kotlin, go) do not carry boundary vectors and were deliberately
-untouched. After propagation, the criterion-4 differential sweep (remainder a2) is the last Unicode
-item.
+- Corrupt a **non-skipped** expected output in the Go copy → `FAIL … got "ab", want "aXb"`
+- Rename a **skipped** case → the stale-skip guard fires
+    (`skip key "…" names a case missing from the fixture`) *and* the renamed case stops being
+    skipped and fails loudly
+- Drop a case + downgrade `unicode_data_version` → both metadata assertions fire
+- Python: substitute the iteration-149 mislabeled oracle `e U+015A` → `AssertionError`, 1 failed
+- Confirmed the suites are **design-discriminating without an oracle column**: the sequence vectors'
+    expected values are the decomposed sentinel outputs (`0065 0301`, `1100 1161`,
+    `03B1 03C2 03B2`), all unequal to the delete-filter results, so plain equality against
+    `outputs.result` reds on a delete-filter regression. next.md's Not-In-Scope reasoning holds.
+
+**Issues found:**
+
+- (none blocking) The `t.Skipf` calls are the only skip-shaped construct in the batch and are
+    authorized verbatim by `decisions.md` 2026-07-26 ("Go skips the Unicode-16 boundary vectors
+    until go1.27"), each with an inline reason naming the ruling. Not gate weakening — the Go suite
+    *gains* 9 live assertions.
+- Filed `[review]` `normal`: **"Gate byte-identity of the vendored test-vector copies"**. Six
+    vendored copies (5 × `data.json`, 1 × `unicode_boundary.json`) match by convention only — no
+    gate. All agree at HEAD (`md5sum`), so the check would be green today and the step is small.
+    next.md deliberately deferred it.
+- Recorded in `issues.md` + `decisions.md`: a **go1.27 bump checklist**. See Codex review below.
+- Nit, not fixed: `want, _ := vec.Outputs["result"].(string)` swallows a missing/renamed `result`
+    key. Harmless here — no expected output is the empty string, so every case would still fail
+    loudly — but a `t.Fatalf` on the failed assertion would be strictly better.
+
+**Codex review:** One P1 finding, **substantiated and accepted as a note, not a defect**. Codex
+observed that under `GOTOOLCHAIN=go1.27rc1` the new Go suite fails while `HEAD^` passes, because
+`x/text` selects Unicode 17 tables and the unconditional skip map covers only the three Go 1.26
+failures. I confirmed the mechanism independently (`x/text@v0.40.0/unicode/norm/tables17.0.0.go`
+carries `//go:build go1.27`): Go passes the `U+20C1` / `U+A7F1` vectors today *for the wrong reason*
+— its 15.0 tables call them `Cn` and the category-`C` filter drops them, coinciding with the freeze
+rule's output by accident. At go1.27, 5 currently-green cases flip red and the 3 skips become
+unnecessary. **Codex's proposed remedy (version-gate the suite) is rejected**: that converts a
+designed failure signal into pre-emptive test skipping and would let a toolchain bump land with Go
+quietly non-conformant. The red is the trigger to land the 731-range freeze table in
+`packages/go/utils.go`, which `decisions.md` already says Go needs regardless. Risk of surprise is
+low — `ci.yml` pins Go via `go-version-file: packages/go/go.mod` (`go 1.26.1`). Rationale recorded
+in `decisions.md`; a bump checklist is in the `issues.md` Unicode entry. No other findings.
+
+**Next:** Continue the Unicode fixture propagation with slice 2. Nine binding surfaces remain (napi,
+WASM, Ruby, C FFI, JNI/Java, UniFFI, Kotlin, Swift, C#, C++) plus the four sibling `data.json`
+copies. Suggested grouping by build cost: the **WASM + Ruby** pair or **C FFI + JNI** are runnable
+in-container; **napi must rebuild its stale checked-in artifact first**
+(`crates/iscc-napi/iscc-lib.linux-x64-gnu.node` still returns `aSb` for
+`text_clean("a" U+A7F1 "b")`) so it is the most expensive slice. Alternatively, land the small
+`[review]` drift gate first — it is green at HEAD, guards every remaining slice, and is roughly a
+one-file pytest anchor test.
 
 **Notes:**
 
-- No `delete_filter_output` oracles were copied into either test (per Not In Scope) — both suites
-    assert equality against `outputs.result` only; the oracle stays pinned solely in
-    `test_unicode_boundary.rs`'s `SEQUENCE_VECTORS` and the issues.md table.
-- Go vet gotcha: `t.Skipf(reason)` with a non-constant format string trips vet's printf check; the
-    test uses `t.Skipf("%s", reason)`.
-- The verbose Go run also matches the pre-existing `TestUtilsTextTrimUnicodeBoundary` (name contains
-    "UnicodeBoundary"); it passes and does not affect the SKIP count.
-- `mise run format` timed out once at the default 2-minute Bash timeout mid-run (mdformat had
-    already applied the CLAUDE.md table alignment); the re-run completed cleanly with no further
-    changes. No hook weakened, nothing suppressed.
-- The canonical fixture was not edited; the vendored copy was made with `cp` per next.md's escape
-    hazard note and stayed byte-identical through the full hook run.
+- The propagation pattern is now established and worth reusing verbatim: read the canonical fixture
+    by relative path where the language can (Python), vendor with `cp` + verify with `cmp` where it
+    cannot (Go `//go:embed`), assert `unicode_data_version` + per-section counts (7 / 5), and never
+    copy the `delete_filter_output` oracle. Any skip list needs a stale-key guard.
+- Never write the fixture through the Write/Edit tools — the `\uXXXX` escapes decode to literal
+    UTF-8. This bit both agents in iteration 149; the advance agent correctly used `cp` this time.
+- `docs/unicode.md`'s pure-Go admonition says the skips last "until go1.27 ships newer Unicode
+    tables". Accurate for the skips, but incomplete about what go1.27 *also* breaks. Left alone
+    deliberately (the preceding sentence already states Go "does not yet implement the freeze rule",
+    so no user is misled); worth widening whenever the Go freeze table lands.
+- After `uv run zensical build` I re-ran `scripts/gen_llms_full.py` — the build wipes `site/`.
+- `learnings.md` was pruned to 199 lines: the three settled codec rules (bitwise selftest masking,
+    exact-length decode guard, `decode_length` multiples) moved to `learnings-archive.md`; all three
+    are pinned by tests, so the notes were redundant.

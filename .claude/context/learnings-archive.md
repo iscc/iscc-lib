@@ -877,3 +877,13 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
     explicit. Per-hop upgrade recipe is in the PyO3 sections above.
 - **`_lowlevel.pyi` is consumer-facing** (the wheel ships `py.typed`): stub bodies are
     docstring-only, and edits need `mypy 1.18 --strict` + `pyright 1.1.407`, not just `ty`.
+
+## Codec rules (archived from learnings.md at iteration 150 — all pinned by tests)
+
+- `conformance_selftest` masks truncated codes bitwise — never compare full strings below 256 bits
+- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`** — a loose
+    guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`); enforced in Go
+    `IsccDecode` + Rust `iscc_decode`. Composite `iscc_decompose` legitimately consumes trailing
+    units — do NOT harden it
+- `decode_length`: multiples of 32 bits for standard MainTypes, 64 for ISCC-CODE, 8 for ID (C FFI:
+    length index for 64-bit codes is 1, not 0)

@@ -26,14 +26,14 @@ fully-met target sections to `learnings-archive.md`.
     `uv run --python 3.13 --no-project --with iscc-core python -c …`. Upstream: iscc-core#137
 - Any dependency shipping DATA TABLES (Unicode, locale, tz) must be proven output-neutral by a
     **differential sweep** over all 1,112,032 code points (~2 min; recipe → `learnings-archive.md`),
-    never by a green vector suite — every vendored conformance vector predates Unicode 16
+    never by a green vector suite — every `data.json` vector predates Unicode 16 (only the separate
+    `unicode_boundary.json` fixture probes the 16.0 boundary, and only in Rust/Python/Go so far)
 
 ## Tooling
 
 - `mise` manages tool versions and tasks; Python env uses `uv`; hooks via `prek`. Never use `mise`
-    in CI — call tools directly
-- Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest, `ty check`. The ruff `S`/`C901`
-    scans also run pre-commit since iter 134 (they are in the default select now)
+    in CI — call tools directly. Pre-push-**only** gates: clippy `-D warnings`, cargo test, pytest,
+    `ty check` (the ruff `S`/`C901` scans also run pre-commit since iter 134)
 - **Generator-only Python deps go in a PEP 723 script, never in `[dependency-groups]`** (iter 133):
     inline `# /// script` metadata, `uv run --script <path>`, path in `[tool.ty.src] exclude` —
     keeps `uv.lock` hold-back-free. A dep a *pytest* test imports in-process cannot be PEP 723 and
@@ -72,26 +72,28 @@ fully-met target sections to `learnings-archive.md`.
     into `data.json` (rationale → `decisions.md`). Two single-code-point cases are **live** guards:
     `unicode-normalization` 0.1.25 ships **Unicode 17.0** tables where U+A7F1 is `Lm` `<super> 0053`
     (NFKC → `S`) and U+20C1 is `Sc`. All 4 wrap their code point in ASCII, so they are
-    **deletion-vs-sentinel agnostic** — only the sequence vectors gate that distinction
+    **deletion-vs-sentinel agnostic** — only the sequence vectors gate that distinction. Propagated
+    to Python + pure-Go iter 150; a binding suite needs **no oracle column** — the sequence vectors'
+    expected values already differ from the delete-filter ones, so equality vs `outputs.result` reds
+- **A binding can pass a boundary vector for the WRONG reason** (iter 150): `packages/go` has no
+    freeze rule; its Unicode 15.0 tables make U+20C1/U+A7F1 `Cn`, so the category-`C` filter drops
+    them and coincidentally matches the sentinel output. Under go1.27 both become assigned and 5
+    green cases flip red — never version-gate a skip list to hide that
+- **Vendored vector copies have no drift gate** (iter 150): the 5 `data.json` + 1
+    `unicode_boundary.json` copies under `packages/*` match by convention only — `cp` then `cmp`
 - **A "must NOT be" oracle must name the design it came from** (iter 149): a *delete filter* turns
     `e U+A7F1 U+0301` into `U+00E9`; `e U+015A` is the *category-override* failure. next.md labelled
     the whole column "delete filter" and the mismatched value shipped into published docs
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
-    vector tests compare implementation against fixture, so cases swapped for ASCII no-ops stay
-    green forever. Hence the **ungated** metadata guard asserting the exact non-ASCII code-point set
-    per section. Mutation-probe any such guard: edit the JSON, watch it fail, `git checkout --` it
+    cases swapped for ASCII no-ops stay green forever, hence the **ungated** guards on version, case
+    counts and code points; mutation-probe each one, and give any skip list a *stale-key* guard
 - **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (iter 143): 3,995
     Egyptian Hieroglyphs, 7 new scripts, **32 LATIN-named** incl. U+A7CB (our own repro). Never
     write "Latin text is unaffected"; diff assigned-set dumps from two `unicodedata2==<ver>` runs
 - **Per-algorithm internals**, `gen_meta_code_v0` normalization order, `data.json` vector shape and
-    counts, settled API-parameter facts and **ISCC-IDv1** → `learnings-archive.md`
-- `conformance_selftest` masks truncated codes bitwise — never compare full strings below 256 bits
-- **ISCC decode body-length check must be EXACT (`len(tail) == nbytes`), not `>= nbytes`** — a loose
-    guard silently aliases trailing base32 chars (`ISCC:...AB` == `ISCC:...ABAA`); enforced in Go
-    `IsccDecode` + Rust `iscc_decode`. Composite `iscc_decompose` legitimately consumes trailing
-    units — do NOT harden it
-- `decode_length`: multiples of 32 bits for standard MainTypes, 64 for ISCC-CODE, 8 for ID (C FFI:
-    length index for 64-bit codes is 1, not 0)
+    counts, settled API-parameter facts, **ISCC-IDv1**, and the settled codec rules
+    (`conformance_selftest` bitwise masking, the exact-length `iscc_decode` guard, `decode_length`
+    multiples) → `learnings-archive.md`; all three codec rules are pinned by tests
 
 ## CI/CD
 
@@ -129,9 +131,8 @@ fully-met target sections to `learnings-archive.md`.
     reads Cargo.lock, so green locally is authoritative. A yanked crate or fresh RustSec advisory
     reds it on ANY push with no code change — fix with `cargo update -p <crate>` (confirm dev-only
     reach: `cargo tree -i <crate> -e no-dev` = empty), NOT a `deny.toml` ignore
-- **v0.6.0 dependency refresh + ruff 0.16 adoption are CLOSED** (iters 124–140 →
-    `learnings-   archive.md`). Live rules: ruff **0.16.0**, preview a major with
-    `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); rules go in
+- **v0.6.0 dep refresh + ruff 0.16 adoption are CLOSED** (iters 124–140 → archive). Live rules: ruff
+    **0.16.0**; preview a major with `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); rules go in
     `[tool.ruff.lint] extend-select`, **never `select`**; **never `ruff check --fix .`** without
     `--select` — it deletes load-bearing `# noqa: S603/S607`
 - **A prek `types:` tag is not a file-extension guess — probe it** (`.pyi` is tagged `pyi`, not
@@ -141,9 +142,9 @@ fully-met target sections to `learnings-archive.md`.
     only). Formatter caveats → `learnings-archive.md`. **A `files:`-scoped hook never sees
     deletions** (added/copied/modified only, verified iter 145) — pair any consistency hook with a
     pytest anchor test against the real tree, which covers the delete case at pre-push and in CI
-- **A binding-toolchain bump can silently raise the *consumer* floor** — treat compiler/toolchain
-    bumps in a *published* binding as support-policy changes reserved for Titusz. Current floor
-    "Kotlin 2.3 or newer"; `mavenLocal` proof recipe + the four docs → `learnings-archive.md`
+- **A binding-toolchain bump can silently raise the *consumer* floor** — treat toolchain bumps in a
+    *published* binding as support-policy changes reserved for Titusz (floor: Kotlin 2.3 or newer;
+    `mavenLocal` proof recipe + the four docs → `learnings-archive.md`)
 - **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`. Read
     it before touching `pom.xml` / `build.gradle.kts`, or before calling a Gradle error a failure
 - **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
@@ -167,16 +168,14 @@ fully-met target sections to `learnings-archive.md`.
 
 ## CID Process
 
-- Never force-push to `develop` during a CID loop — agents commit incrementally (branching model
-    itself is in CLAUDE.md)
-- **Feature flags**: fully met → `learnings-archive.md` (read before touching `[features]`)
+- Never force-push to `develop` during a CID loop — agents commit incrementally; **feature flags**
+    are fully met → `learnings-archive.md` (read before touching `[features]`)
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central API,
     `pip index versions`, Go module proxy, `gh api`)
 - **Human-handoff vs IDLE (iter 111)**: when autonomous work runs out but the remaining `normal`
     issues are all `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all issues `low`) is
-    NOT met — flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead, and don't manufacture
-    churn to avoid it
+    NOT met — flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead, without churn
 - **Pre-push mdformat blocks on non-conforming context files**: the hook runs mdformat with
     `--wrap 100` + `--number` in an isolated `mdformat-mkdocs[recommended]` env, over every file in
     the push range — incl. `next.md` and per-agent `MEMORY*.md` — so one non-conforming file rejects

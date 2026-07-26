@@ -747,3 +747,25 @@ and the sweep's remaining value is *regression* protection, not initial proof. *
 criterion-4 runnable check must still cover **both** single code points and sequence classes; if it
 ever contradicts this entry, this entry loses. **Context:** iteration 148 review, commit `7acf0fa`;
 probe harness not committed (throwaway `tests/tmp_probe.rs`, removed after the run).
+
+## 2026-07-26 — The Go boundary suite is left to red at the go1.27 bump, not version-gated
+
+**Decision:** `packages/go/unicode_boundary_test.go` keeps an **unconditional** three-entry skip map
+(the cases Go's Unicode 15.0 tables cannot pass) and is deliberately *not* build-tag-gated for
+go1.27, even though bumping the toolchain will turn 5 currently-green cases red. **Why:**
+`packages/go` implements no freeze rule, so it passes the two post-16.0 vectors (`U+20C1`, `U+A7F1`)
+only by accident — its 15.0 tables classify them `Cn` and the category-`C` filter drops them. Under
+go1.27 (`x/text`'s `tables17.0.0.go` is `//go:build go1.27`; the stdlib tables move too) both become
+assigned and the vectors fail, as does the sequence case
+`text_clean/test_0006_seq_ua7f1_no_decomposition_leak`. That red is precisely the signal that the
+731-range freeze table must land in `packages/go/utils.go`, which `decisions.md` 2026-07-26 ("Go
+skips the Unicode-16 boundary vectors until go1.27") already says Go needs regardless of the
+toolchain. **Alternatives:** version-gate the skip map with a `go1.27` build tag (raised as a P1 by
+the Codex review of iteration 150) — rejected: it converts a designed failure signal into silent
+pre-emptive test skipping, and would let a toolchain bump land with Go quietly non-conformant;
+vendor the 15.0→16.0 delta now — already rejected by the 2026-07-26 ruling on throwaway-cost
+grounds. **Consequence:** the go1.27 bump is a *bundled* step — toolchain + freeze table + skip-map
+removal in one commit. Risk of a surprise is low: `.github/workflows/ci.yml` pins Go via
+`go-version-file: packages/go/go.mod`, so nothing moves without editing the `go 1.26.1` directive. A
+checklist is recorded under the Unicode issue in `issues.md`. **Context:** iteration 150 review,
+commit `d12ceb1`; `x/text` build tags read from the local module cache (`v0.40.0`).

@@ -333,7 +333,20 @@ way.
 `data.json` locations. All blockers are cleared: the sentinel conversion has landed (it determined
 the expected outputs above), the Go ruling is below, and the Go `Final_Sigma` bug that blocked the
 `Final_Sigma` vector was fixed in iter 147 (`packages/go/utils.go` now uses
-`cases.Lower(language.Und)`; the per-call `cases.Caser` is deliberate — do not hoist it).
+`cases.Lower(language.Und)`; the per-call `cases.Caser` is deliberate — do not hoist it). ✅
+**Propagation slice 1 done (iter 150): Python + pure-Go.** `tests/test_unicode_boundary.py` reads
+the canonical fixture by relative path (12 vectors + a metadata guard, all green);
+`packages/go/unicode_boundary_test.go` `//go:embed`s a byte-identical vendored copy at
+`packages/go/testdata/unicode_boundary.json` and runs 9 of 12, skipping exactly the 3 ruled
+table-dependent cases via a `"<section>/<case>"` skip map whose keys are guarded against fixture
+renames. Neither suite carries a `delete_filter_output` oracle and neither needs one — the four
+sequence vectors' expected outputs are the decomposed sentinel-design values (`0065 0301`,
+`1100 1161`, `03B1 03C2 03B2`), already unequal to the delete-filter results, so plain equality
+against `outputs.result` reds on a delete-filter regression (mutation-verified in review). **9
+surfaces left:** napi (its checked-in `crates/iscc-napi/iscc-lib.linux-x64-gnu.node` artifact is
+**stale** — still returns `aSb` for `text_clean("a" U+A7F1 "b")` — so that slice must rebuild it
+first), WASM, Ruby, C FFI, JNI/Java, UniFFI, Kotlin, Swift, C#, C++, plus the four sibling
+`data.json` copies.
 
 **Go — RULED by Titusz 2026-07-26: skip, do not vendor the delta.** `packages/go` skips the Unicode
 16.0 boundary vectors with an explicit tracking note (and an issue filed here) rather than vendoring
@@ -341,11 +354,24 @@ the 5,813-code-point 15.0→16.0 assigned delta, because go1.27 lands ~Aug 2026 
 table throwaway code. When go1.27 ships, Go needs **both** the newer stdlib/`x/text` tables *and*
 the 731-range freeze table — go1.27 fixes Go's missing 16.0 knowledge, not its need to remove
 post-16.0 characters. Rationale in `decisions.md` (2026-07-26, "Go skips the Unicode-16 boundary
-vectors until go1.27"). This unblocks criterion 3 for the other 10 bindings. ✅ (c) user-facing
-documentation — `docs/unicode.md` "Text Processing and Unicode" (iter 143; site nav +
-`ORDERED_PAGES` + `llms.txt`, plus a Unicode-tables note in `docs/howto/go.md`) states the declared
-version, the freeze rule, the four boundary vectors and both divergences. Keep it in sync when the
-Go decision or the ordering ruling lands.
+vectors until go1.27"). This unblocks criterion 3 for the other 10 bindings.
+
+**go1.27 bump checklist (raised by the iter-150 Codex review, confirmed in review):** bumping
+`packages/go/go.mod` past `go 1.26.1` **reds the Go boundary suite** and must land the freeze table
+in `packages/go/utils.go` in the *same* step. Go passes the two post-16.0 vectors today for the
+wrong reason: its Unicode 15.0 tables classify `U+20C1` and `U+A7F1` as `Cn`, so the category-`C`
+filter drops them — coinciding with the freeze rule's output by accident. Under go1.27 both become
+assigned (`x/text`'s `tables17.0.0.go` is `//go:build go1.27`, verified in the module cache; the
+stdlib `unicode` tables move too), so 5 currently-green cases flip red (`text_clean` +
+`text_collapse` for `U+20C1` and `U+A7F1`, plus `text_clean/…_seq_ua7f1_no_decomposition_leak`,
+which yields `e U+015A`) while the 3 skips become unnecessary. Do **not** version-gate the skip map
+to hide this — the red is the intended signal, and `go-version-file: packages/go/go.mod` pins CI to
+the go.mod directive so nothing flips without a deliberate bump.
+
+✅ (c) user-facing documentation — `docs/unicode.md` "Text Processing and Unicode" (iter 143; site
+nav + `ORDERED_PAGES` + `llms.txt`, plus a Unicode-tables note in `docs/howto/go.md`) states the
+declared version, the freeze rule, the four boundary vectors and both divergences. Keep it in sync
+when the Go decision or the ordering ruling lands.
 
 **Upstream:** iscc/iscc-core — filed 2026-07-25 as <https://github.com/iscc/iscc-core/issues/137>
 ("text_clean/text_collapse output depends on the CPython version"). Reproduced there with
@@ -396,6 +422,26 @@ and, if the drift is likely to recur, consider whether `scripts/check_docs_nav.p
 warranted — but that is a judgment call for the step, not a requirement.
 
 **Spec:** `.claude/context/specs/ci-cd.md` → CI job table
+
+## Gate byte-identity of the vendored test-vector copies `normal` [review]
+
+Six copies of two canonical fixtures are vendored into per-language test trees with **no gate**
+enforcing that they match the canonical source. Drift would silently leave a binding testing stale
+vectors — exactly the failure class the conformance suite exists to prevent.
+
+Today all copies agree (verified iter 150 with `md5sum`; all five `data.json` share
+`4f17639ab1dd…`):
+
+- `crates/iscc-lib/tests/data.json` → `packages/dotnet/Iscc.Lib.Tests/testdata/data.json`,
+    `packages/go/testdata/data.json`, `packages/kotlin/src/test/resources/data.json`,
+    `packages/swift/Tests/IsccLibTests/data.json`
+- `crates/iscc-lib/tests/unicode_boundary.json` → `packages/go/testdata/unicode_boundary.json`
+
+So the check is **green at HEAD** and the step is small: a pytest anchor test (and optionally a prek
+hook) asserting each copy is byte-identical to its canonical source. A pytest test is the safer
+primary — a `files:`-scoped prek hook never sees deletions. The copy count grows with every
+remaining Unicode propagation slice (4 more sibling `data.json` locations are planned), so the value
+compounds; iteration 150's `next.md` deliberately deferred this as a separate step.
 
 ## Add programming language logos to docs site `low` [human]
 
