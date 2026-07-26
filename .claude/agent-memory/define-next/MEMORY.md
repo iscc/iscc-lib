@@ -10,7 +10,14 @@ iterations.
 - **CI red always first** — green CI is a prerequisite for all other work; formatting/lint/advisory
     fixes preempt the handoff "Next". Then `critical` issues, regardless of feature trajectory.
 - **Verify claimed gaps by reading the actual files** — state.md and handoff "IDLE" both go stale;
-    always read issues.md directly (review agent can miscount).
+    always read issues.md directly (review agent can miscount). **A `human(...)` commit after the
+    last review invalidates the handoff wholesale** (iter 147: handoff said "write `## Step: NONE`",
+    but the intervening ruling had filed a `critical` bug and cleared the backlog). Check
+    `git log --oneline` for `human(` commits newer than the review commit before trusting "Next".
+- **A human issue's suggested fix is a hypothesis, not a spec — probe it** (iter 147: the issue said
+    hoist a package-level `cases.Caser`; x/text documents `Caser` as *not* goroutine-safe and the
+    hoist measured no faster). Cheap throwaway probes (a `zz_probe_test.go` you delete, a `/tmp`
+    module) settle these in a minute and turn `## Implementation Notes` into measured facts.
 - **Generated/tool-output files (Cargo.lock, bindings) don't count toward the 3-file limit**; doc
     files are also excluded — can batch all howto guides in one step.
 - Batch related small changes (version sync + docs; several fixes in the same crate/2 files).
@@ -76,10 +83,10 @@ iterations.
 
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
-- v0.5.0 released; all 12 bindings meet core criteria. The 4 spec'd v0.6.0 feature issues (#41 GIL,
-    #42 WASM SIMD, #43 Go ISCC-IDv1, #49 aarch64 wheels) are DONE; dependency refresh + 2 `normal`
-    release-workflow issues (npm OIDC, single-registry re-trigger) remain. v1.0.0 cut +
-    Semver-enforcing HELD by Titusz (`low`).
+- v0.5.0 released; all 12 bindings meet core criteria; the 4 spec'd v0.6.0 feature issues are DONE.
+    Still open: the Unicode chain (below), the authorized major bumps (one per step), the
+    `rubygems/configure-rubygems-credentials@v2.1.0` pin, and an exhaustive `specs/ci-cd.md` job
+    table. HELD `low` by Titusz: v1.0.0 + Semver-enforcing, npm OIDC (token good to 2026-09-16).
 - **iters 115–123 DONE (detail in MEMORY-archive.md)**. **Root lesson: the CRAP regression gate is
     CI-ONLY** (not in `mise run check`/pre-commit) — any step adding a branch/loop to a covered fn
     MUST refresh the baseline in the SAME step.
@@ -92,10 +99,14 @@ iterations.
     warnings: [lint tooling lessons](lint-tooling-lessons.md). Headline: **never make an exact
     file/finding count a pass/fail criterion** (it drifts with the CID agents' own commits — iter
     139 predicted 153, review measured 155); make the exit code the criterion.
-- **Open Unicode backlog** (DECIDED by Titusz 2026-07-25, `specs/rust-core.md`): the full-code-space
-    differential sweep and the boundary vectors (Rust suite + 12 bindings) — both parked behind the
-    `[review]` ordering ruling; the vectors also need a Go decision (Go on 15.0 tables until go1.27
-    ≈ Aug 2026: vendor the 15.0→16.0 delta or skip-with-note). Freeze filter (133) is done.
+- **Open Unicode backlog — all blockers cleared 2026-07-26** (`human(decide)` `9aa25ad`;
+    `specs/rust-core.md` is the authority). Ordered: (1) Go `Final_Sigma` fix [iter 147], (2) the
+    **sentinel conversion** — `filter(!unassigned)` → `map(→ U+FFFF)` in `iscc-lib`'s `utils.rs`
+    lines ~103/~181, landing both `docs/unicode.md` rewrites in the same commit, (3) the
+    1,112,064-scalar + sequence-class differential sweep, (4) boundary vectors into 11 bindings + 4
+    sibling `data.json` copies (Go **skips** the two table-dependent ones until go1.27 — ruled).
+    Superseded, never implement: the **category override** (`U+A7F1` injects a spurious `S`) and
+    lowering the declared version to 15.1.0. Denominator is 1,112,064, not 1,114,112.
 - **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it** (iters 134–139: the
     Unicode ruling parked 2 criteria, so steps went to ruff slices, then hook parity, then
     release.yml). If a blocked slice's only consumer is the parked propagation, take other backlog.
