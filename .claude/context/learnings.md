@@ -77,8 +77,9 @@ fully-met target sections to `learnings-archive.md`.
     freeze rule; its Unicode 15.0 tables make U+20C1/U+A7F1 `Cn`, so the category-`C` filter drops
     them and coincidentally matches the sentinel output. Under go1.27 both become assigned and 5
     green cases flip red — never version-gate a skip list to hide that
-- **Vendored vector copies have no drift gate** (iter 150): the 5 `data.json` + 1
-    `unicode_boundary.json` copies under `packages/*` match by convention only — `cp` then `cmp`
+- **Vendored vector copies are byte-identity gated** by `tests/test_vendored_fixtures.py` (iter
+    152): a `(canonical, copy)` table + a `git ls-files` set check reds on an unregistered *or
+    deleted* tracked copy; discovery is by basename, so keep the canonical filenames
 - **A "must NOT be" oracle must name the design it came from** (iter 149): a *delete filter* turns
     `e U+A7F1 U+0301` into `U+00E9`; `e U+015A` is the *category-override* failure. next.md labelled
     the whole column "delete filter" and the mismatched value shipped into published docs
@@ -158,10 +159,9 @@ fully-met target sections to `learnings-archive.md`.
     `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
     major's *default* changes. Recipe + the two silent biters (`setup-node@v5+` caching,
     `checkout@v6+` token location) → `learnings-archive.md`
-- **Prove a new gate with a REAL regression, not a synthetic typo** (iter 144): downgrading
-    `actions/download-artifact@v8` → `@v3` in a temp copy of `release.yml` fired 14 errors, `@v999`
-    fired the 404 path — the failure class the gate exists for. A **set-equality** gate also passes
-    vacuously on equal *empty* sets — give its anchor test a count floor (iter 145)
+- **Prove a new gate with a REAL regression in a THROWAWAY repo, not a synthetic typo** (iters
+    144/152): `git archive HEAD | tar -x -C /tmp/x && git init` gives a probe tree where `git add`/
+    `git rm` are free. A **set-equality** gate passes vacuously on equal *empty* sets — count floor
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
     in-flight run of the previous sha (check-runs conclude `cancelled`, not `failure`); let it
     conclude when a Done-When needs green CI on a specific sha. Each develop commit triggers TWO

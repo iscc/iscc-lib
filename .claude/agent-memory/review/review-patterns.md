@@ -331,3 +331,43 @@ the Edit/Write tools decodes it into literal UTF-8. For any ASCII-escaped file
 (`unicode_boundary .json`, every sibling `data.json`, `issues.md`'s escape tables) edit through
 Python with `"\\u"` in a non-raw string or `json.dumps(..., ensure_ascii=True, indent=2)` + trailing
 newline, then assert `raw.isascii()` and check numeric `ord()` — never trust rendered glyphs.
+
+## Reviewing a repo-state gate that reads the git index (iter 152 — `test_vendored_fixtures.py`)
+
+A gate whose input is `git ls-files` / `git status` cannot be probed by editing files: the
+interesting mutations are `git add`, `git rm`, rename. **Do not mutate the real index during a CID
+iteration** (the runner commits alongside you). Build a throwaway repo instead —
+`git clone /workspace/iscc-lib` FAILS in this container (`safe.directory` ownership), so use:
+
+```
+rm -rf /tmp/probe && mkdir -p /tmp/probe && git -C /workspace/iscc-lib archive HEAD | tar -x -C /tmp/probe
+cd /tmp/probe && git init -q . && git add -A && git -c user.email=r@r -c user.name=r commit -qm probe
+/home/dev/.venvs/iscc-lib/bin/python -m pytest tests/<file>.py -q -p no:cacheprovider -o addopts=""
+```
+
+`-o addopts=""` drops repo pytest plugins/coverage; the probe file must not `import iscc_lib`. Reset
+between probes with `git reset -q --hard HEAD && git clean -qfd` (verify
+`git status --porcelain | wc -l` = 0 — a half-reset probe silently poisons the next one).
+
+**The six mutations that matter for a vendored-copy / registry gate.** Each must red, and the
+*message* must name the right file:
+
+1. one-byte drift in a copy → identity case named by `id=<copy path>`, message = the `cp` fix
+2. **staged** (not committed) extra copy → unregistered-side failure. Proves the gate reads the
+    INDEX, i.e. fires at the moment of `git add`, before the copy can be pushed
+3. `git rm <registered copy>` → **both** the identity case (FileNotFoundError) and the `gone=[…]`
+    side. This is the case a `files:`-scoped prek hook structurally cannot see — it is the evidence
+    that justifies a pytest anchor over a hook, so run it explicitly rather than citing the rule
+4. re-encode an ASCII-escaped fixture with `ensure_ascii=False` → the ASCII guard *and* the copy's
+    identity case. Confirms the guard needs to cover only the canonical, not every copy
+5. empty the registry table → the count floor reds; note the identity test degrades to pytest's
+    `got empty parameter set` **SKIP**, which is exactly the vacuous pass the floor exists to catch
+6. `mv .git .git-off` → must raise `CalledProcessError` (fail closed). `check=True` + no
+    `pytest.skip` is the property; a gate that skips when its data source is missing is fail-open
+
+**Blind-spot questions specific to this class:** what is the *discovery key*? (here: two hard-coded
+basenames — a copy renamed to anything else is invisible; record it, do not demand tree-wide content
+detection if next.md scoped that out). Does the runner see the gate on an unrelated push? (check the
+prek hook is `always_run: true` + `pass_filenames: false`, else a deletion-only push skips it.) Does
+checkout normalization break byte-identity cross-platform? (`.gitattributes` `*.json eol=lf` here;
+also check whether the CI job is Linux-only.)

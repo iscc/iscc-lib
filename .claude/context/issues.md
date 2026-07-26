@@ -330,9 +330,12 @@ same `\u00E9` as row 1. Both wrong values differ from the expected output, so th
 way.
 
 **Remaining for (b):** copy the fixture into the 11 bindings' conformance tests and the four sibling
-`data.json` locations. All blockers are cleared: the sentinel conversion has landed (it determined
-the expected outputs above), the Go ruling is below, and the Go `Final_Sigma` bug that blocked the
-`Final_Sigma` vector was fixed in iter 147 (`packages/go/utils.go` now uses
+`data.json` locations. **Every new tracked copy must be registered in the `VENDORED_COPIES` table of
+`tests/test_vendored_fixtures.py`** (byte-identity gate landed iter 152) and must keep the canonical
+basename `data.json` / `unicode_boundary.json` — the gate discovers copies by basename, so a copy
+renamed to anything else is invisible to it. All blockers are cleared: the sentinel conversion has
+landed (it determined the expected outputs above), the Go ruling is below, and the Go `Final_Sigma`
+bug that blocked the `Final_Sigma` vector was fixed in iter 147 (`packages/go/utils.go` now uses
 `cases.Lower(language.Und)`; the per-call `cases.Caser` is deliberate — do not hoist it). ✅
 **Propagation slice 1 done (iter 150): Python + pure-Go.** `tests/test_unicode_boundary.py` reads
 the canonical fixture by relative path (12 vectors + a metadata guard, all green);
@@ -433,26 +436,6 @@ and, if the drift is likely to recur, consider whether `scripts/check_docs_nav.p
 warranted — but that is a judgment call for the step, not a requirement.
 
 **Spec:** `.claude/context/specs/ci-cd.md` → CI job table
-
-## Gate byte-identity of the vendored test-vector copies `normal` [review]
-
-Six copies of two canonical fixtures are vendored into per-language test trees with **no gate**
-enforcing that they match the canonical source. Drift would silently leave a binding testing stale
-vectors — exactly the failure class the conformance suite exists to prevent.
-
-Today all copies agree (verified iter 150 with `md5sum`; all five `data.json` share
-`4f17639ab1dd…`):
-
-- `crates/iscc-lib/tests/data.json` → `packages/dotnet/Iscc.Lib.Tests/testdata/data.json`,
-    `packages/go/testdata/data.json`, `packages/kotlin/src/test/resources/data.json`,
-    `packages/swift/Tests/IsccLibTests/data.json`
-- `crates/iscc-lib/tests/unicode_boundary.json` → `packages/go/testdata/unicode_boundary.json`
-
-So the check is **green at HEAD** and the step is small: a pytest anchor test (and optionally a prek
-hook) asserting each copy is byte-identical to its canonical source. A pytest test is the safer
-primary — a `files:`-scoped prek hook never sees deletions. The copy count grows with every
-remaining Unicode propagation slice (4 more sibling `data.json` locations are planned), so the value
-compounds; iteration 150's `next.md` deliberately deferred this as a separate step.
 
 ## Add programming language logos to docs site `low` [human]
 

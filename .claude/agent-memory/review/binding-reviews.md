@@ -112,3 +112,16 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     then `git checkout` and `cmp` against a saved copy. Two mutations worth doing: (1) set a U+A7F1
     expected value to the pre-freeze `aSb` → each suite must red and NAME the vector; (2) delete one
     case → the metadata guard (counts 7/5) must red. Verified iter 151 on both.
+
+### Vendored-copy propagation slice (iter 150 — Python + pure-Go; moved from MEMORY.md index)
+
+Per-language shortcut, then `cmp` the vendored copy against the canonical and assert
+`read_bytes().isascii()`. Probe in a `cp -r` of the package under `/tmp`, **never the work tree**:
+corrupt a **non-skipped** expected output; **rename** a skipped case (must fire BOTH the stale-skip
+guard and an unskipped failure); drop a case; set a wrong fixture version. Python probes need the
+test nested two dirs deep so `Path(__file__).parent.parent` resolves — a missing fixture is a hard
+collection error, not a silent skip. Verify no `delete_filter_output` oracle was copied
+(`git grep -l delete_filter`) and that the sequence vectors still discriminate the design. Since
+iter 152 every new tracked copy must also be registered in `VENDORED_COPIES` of
+`tests/test_vendored_fixtures.py`, and must keep the basename `data.json` / `unicode_boundary.json`
+— that gate discovers copies by basename only.
