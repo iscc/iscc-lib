@@ -60,10 +60,12 @@ detail in `MEMORY-archive.md`.
     IDLE cond #2 NOT met) → flag **HUMAN REVIEW REQUESTED** (runner "pause"), NOT `**IDLE**`
     (all-`low` only; it runs meta-improve). Verdict still PASS; push clean batch
 - **Unicode 16.0.0 freeze rule = a `U+FFFF` SENTINEL MAP since iter 148** (delete-filter design
-    RULED out, iters 133–147). Gated so far: Rust (iters 141/149), Python + pure-Go (150, Go 9/12
-    with 3 ruled skips), WASM + Ruby (151, 12/12). Live tally + remaining surfaces → `issues.md`.
-    Never "fix" one binding to match another; single-cp vectors are deletion-agnostic, only the 4
-    sequence vectors discriminate sentinel-vs-delete
+    RULED out, iters 133–147). Gated: Rust (141/149), Python + pure-Go (150, Go 9/12 with 3 ruled
+    skips), WASM + Ruby (151), napi + Java (153) = **6 of 11** surfaces, 12/12 except Go.
+    `git ls-files | grep unicode_boundary` under-counts (Java's file is `UnicodeBoundaryTest.java`).
+    Live tally + remaining surfaces → `issues.md`. Never "fix" one binding to match another;
+    single-cp vectors are deletion-agnostic, only the 4 sequence vectors discriminate
+    sentinel-vs-delete
 - **A binding can pass a boundary vector for the WRONG reason — check the MECHANISM** (iter 150): Go
     has no freeze rule but its 15.0 tables call U+20C1/U+A7F1 `Cn`, so its category-`C` filter
     coincidentally matches; under go1.27 five green cases flip red. That red is the *designed
@@ -108,8 +110,9 @@ detail in `MEMORY-archive.md`.
     `dep-refresh-reviews.md` slice 8
 - **Go-only**: `mise run check`, `CGO_ENABLED=0 mise exec -- go test -C packages/go -count=1 ./...`,
     `go vet -C packages/go ./...`, `mise exec -- gofmt -l packages/go` (empty)
-- **Binding boundary-fixture slices** — WASM+Ruby (151) and the vendored-copy propagation probe
-    (150), incl. the `cargo test -p iscc-wasm` = 0-tests trap → `binding-reviews.md`
+- **Binding boundary-fixture slices** — napi+Java (153), WASM+Ruby (151) and the vendored-copy
+    propagation probe (150), incl. the `cargo test -p iscc-wasm` = 0-tests trap and the
+    "no-recompile `cargo build` IS the freshness proof" JNI shortcut → `binding-reviews.md`
 - **Ruby-only / Kotlin-only / published-`.pyi`** command sets → `binding-reviews.md` "Per-binding
     review commands" (Gradle flakes on this bind mount; Kotlin consumer floor is **2.3 or newer**)
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if

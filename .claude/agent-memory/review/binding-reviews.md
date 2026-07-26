@@ -113,6 +113,25 @@ Moved from MEMORY.md to keep the index concise. Referenced from MEMORY.md "Bindi
     expected value to the pre-freeze `aSb` → each suite must red and NAME the vector; (2) delete one
     case → the metadata guard (counts 7/5) must red. Verified iter 151 on both.
 
+### napi + JNI/Java slice (iter 153, ~8 min)
+
+- Both read the **canonical** fixture in place, so ONE fixture mutation probes both (same two
+    mutations as WASM/Ruby: a delete-filter-shaped expected value must red and NAME the case; a
+    deleted case must red the 7/5 metadata guard). Verified iter 153.
+- napi: `node --test crates/iscc-napi/__tests__/unicode_boundary.test.mjs` (13 tests) then
+    `npm --prefix crates/iscc-napi test` (152). No `cd` needed — the test's imports are relative to
+    the file, and `npm --prefix` sets the script cwd.
+- JNI: `cargo build -p iscc-jni` — **"Finished … 1.11s" with no recompilation is the freshness
+    proof** (cargo considers the `.so` current w.r.t. HEAD sources) — then
+    `timeout 600 mvn -o -B test -f crates/iscc-jni/java/pom.xml` (~4 s offline, 82 tests).
+    Surefire's working directory is the pom basedir, so the test's `../../iscc-lib/tests/...` path
+    resolves even when mvn is invoked from the repo root — same as CI.
+- Java is discovered by surefire's `*Test.java` glob and napi by the
+    `node --test __tests__/*.test.mjs` npm script, so neither slice needs a `ci.yml` edit — but
+    *verify* that in ci.yml, don't assume it.
+- `pom.xml` sets no `project.build.sourceEncoding`; non-ASCII in comments is pre-existing and
+    harmless, non-ASCII in *string literals* would be platform-dependent.
+
 ### Vendored-copy propagation slice (iter 150 — Python + pure-Go; moved from MEMORY.md index)
 
 Per-language shortcut, then `cmp` the vendored copy against the canonical and assert

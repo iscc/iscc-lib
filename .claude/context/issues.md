@@ -354,13 +354,27 @@ feature; on the host target it compiles to 0 tests, `wasm-pack test --node` is t
 (fresh `BOUNDARY_JSON`/`BOUNDARY_DATA` constants — `rake test` loads all test files into one
 process). All 12 vectors green on both with **zero skips**; CI runs both jobs and compiles the Ruby
 extension first, so the local stale-`.so` hazard cannot reach CI. Review mutation-probed both: a
-delete-filter-shaped expected value reds the named vector, a deleted case reds the metadata guard.
-**7 surfaces left:** napi (its checked-in `crates/iscc-napi/iscc-lib.linux-x64-gnu.node` artifact is
-**stale** — still returns `aSb` for `text_clean("a" U+A7F1 "b")` — so that slice must rebuild it
-first), C FFI, JNI/Java, Kotlin, Swift, C#, C++, plus the four sibling `data.json` copies. (The
-running tally counts the 11 native bindings named in `docs/unicode.md`; `packages/go` is the
-separate pure-Go port and UniFFI is the shared mechanism behind Kotlin and Swift, not an independent
-surface.)
+delete-filter-shaped expected value reds the named vector, a deleted case reds the metadata guard. ✅
+**Propagation slice 3 done (iter 153): napi + JNI/Java.** Both read the **canonical** fixture with
+no vendored copy — `crates/iscc-napi/__tests__/unicode_boundary.test.mjs` via `readFileSync` on
+`join(__dirname, '..', '..', 'iscc-lib', 'tests', 'unicode_boundary.json')` (metadata guard + one
+`it` per case per section) and
+`crates/iscc-jni/java/src/test/java/io/iscc/iscc_lib/UnicodeBoundaryTest.java` via a gson
+`@BeforeAll` on `Path.of("../../iscc-lib/tests/unicode_boundary.json")` (surefire's working
+directory is the maven basedir, so the same relative shape `IsccLibTest` already uses for
+`data.json` resolves even from a repo-root `mvn -f …/pom.xml`). 13 tests each, all 12 vectors,
+**zero skips**; both ride the existing CI jobs unchanged (`npm test` globs `__tests__/*.test.mjs`
+after `npx napi build --platform`; surefire auto-discovers `*Test.java` after
+`cargo build -p iscc-jni`), so CI always tests a freshly built native and the local stale-artifact
+hazard cannot reach it. Review mutation-probed both the same two ways as slice 2. **5 surfaces
+left:** C FFI (`tests/test_iscc.c` has no JSON reader and no text-function coverage at all — needs a
+generated vector table or a hand-rolled reader), C++ (not buildable in this container — no `cmake`),
+C#, Kotlin, Swift (the `packages/{dotnet,kotlin,swift}` slice is the one that adds tracked vendored
+copies), plus the four sibling `data.json` copies. (The running tally counts the 11 native bindings
+named in `docs/unicode.md`; `packages/go` is the separate pure-Go port and UniFFI is the shared
+mechanism behind Kotlin and Swift, not an independent surface. Note that
+`git ls-files | grep unicode_boundary` now under-counts the tally by one — the Java test file is
+named `UnicodeBoundaryTest.java`.)
 
 **Go — RULED by Titusz 2026-07-26: skip, do not vendor the delta.** `packages/go` skips the Unicode
 16.0 boundary vectors with an explicit tracking note (and an issue filed here) rather than vendoring

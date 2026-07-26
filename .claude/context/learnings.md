@@ -72,7 +72,8 @@ fully-met target sections to `learnings-archive.md`.
     table guards (U+A7F1 `Lm <super> 0053`, U+20C1 `Sc`), but all 4 wrap their code point in ASCII
     and are **deletion-vs-sentinel agnostic** — only the sequence vectors gate that distinction, and
     their expected values already differ from the delete-filter ones, so a binding suite needs **no
-    oracle column**. Gated so far: Rust, Python, Go (3 ruled skips), WASM, Ruby
+    oracle column**. Gated: Rust, Python, Go (3 ruled skips), WASM, Ruby, napi, Java = 6 of 11
+    surfaces (`grep unicode_boundary` under-counts — Java's file is `UnicodeBoundaryTest.java`)
 - **A binding can pass a boundary vector for the WRONG reason** (iter 150): `packages/go` has no
     freeze rule; its Unicode 15.0 tables make U+20C1/U+A7F1 `Cn`, so the category-`C` filter drops
     them and coincidentally matches the sentinel output. Under go1.27 both become assigned and 5
@@ -89,10 +90,9 @@ fully-met target sections to `learnings-archive.md`.
 - **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (iter 143): 3,995
     Egyptian Hieroglyphs, 7 new scripts, **32 LATIN-named** incl. U+A7CB (our own repro). Never
     write "Latin text is unaffected"; diff assigned-set dumps from two `unicodedata2==<ver>` runs
-- **Per-algorithm internals**, `gen_meta_code_v0` normalization order, `data.json` vector shape and
-    counts, settled API-parameter facts, **ISCC-IDv1**, and the settled codec rules
-    (`conformance_selftest` bitwise masking, the exact-length `iscc_decode` guard, `decode_length`
-    multiples) → `learnings-archive.md`; all three codec rules are pinned by tests
+- **Per-algorithm internals**, `gen_meta_code_v0` normalization order, `data.json` vector shape/
+    counts, settled API-parameter facts, **ISCC-IDv1** and the three settled codec rules (all
+    test-pinned) → `learnings-archive.md`
 
 ## CI/CD
 
@@ -100,31 +100,32 @@ fully-met target sections to `learnings-archive.md`.
     `$GITHUB_OUTPUT`, `grep`, `sed`) in a cross-platform matrix MUST set `shell: bash`
 - **A binding suite's runner is not `cargo test`** (iter 151): `cargo test -p iscc-wasm` reports
     `0 passed` — only `wasm-pack test --node …` runs `#[wasm_bindgen_test]`, so clippy
-    `--all-targets` proves compilation, never coverage. Ruby's gitignored `.so` needs `rake compile`
-    first, else the suite tests a stale core (pre-sentinel → `aSb` for `a`+U+A7F1+`b`)
+    `--all-targets` proves compilation, never coverage. **Every gitignored native artifact goes
+    stale silently** — Ruby `.so` (`rake compile`), napi `.node` (`napi build --platform`), JNI
+    `.so` (`cargo build -p iscc-jni`); rebuild, then probe `text_clean("a"+U+A7F1+"b") == "ab"`
+    (stale → `aSb`). CI rebuilds all three first, so this is local-only; `mvn -o -B test -f <pom>`
+    works offline and surefire's cwd is the pom's basedir
 - **Release pipeline pattern** + `version_sync.py`'s 21 targets → `learnings-archive.md`
-- **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** All
-    its invariants are executable gates since iters 142/144: `scripts/check_release_workflow.py`
-    checks guard shape, artifact wiring and the `needs:` graph offline (prek hook +
-    `tests/test_check_release_workflow.py`), and the CI-only `--check-action-inputs` validates every
-    `with:` key and `steps.<id>.outputs.<x>` read against each ref's published `action.yml`. Never
-    hand-retype these into a heredoc. **Bidirectional** since iter 146 (undeclared `with:` key *and*
-    omitted `required`-without-default input — 4 of 18 refs declare such inputs, so not vacuous) and
-    it prints `action-inputs: resolved R of T`. **By design:** job-level `uses:` is unscanned and an
-    all-skipped run stays green — read that line, not the job status → `learnings-archive.md`
+- **`release.yml` is `workflow_dispatch`-only — no CI run and no CID push ever exercises it.** Its
+    invariants are executable gates since iters 142/144/146: `scripts/check_release_workflow.py`
+    (guard shape, artifact wiring, `needs:` graph; prek hook +
+    `tests/test_check_release_workflow.py`) plus the CI-only, bidirectional `--check-action-inputs`
+    (every `with:` key and `steps.<id>.outputs.<x>` read against each ref's published `action.yml`).
+    Never hand-retype either into a heredoc. **By design:** job-level `uses:` is unscanned and an
+    all-skipped run stays green — read the `action-inputs: resolved R of T` line, not the job status
+    → archive
 - **A fail-open gate must publish a resolved/total counter** (iters 144→146) — without it "all
-    checked" and "nothing checked" are the same green. "Any transport failure degrades to a warning"
-    is NOT met by `except OSError`: `IncompleteRead` is an `HTTPException`, captive-portal HTML
-    raises `yaml.YAMLError`. Prove a "must be present" check non-vacuous by listing which real
-    inputs trigger it before trusting green-at-HEAD
+    checked" and "nothing checked" are the same green; "transport failure degrades to a warning" is
+    NOT met by `except OSError` (`IncompleteRead` is an `HTTPException`, captive-portal HTML raises
+    `yaml.YAMLError`), and a "must be present" check needs its triggering inputs listed to be
+    trusted
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
-- **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with both `--fail-regression` and
-    `--fail-above`, the latter a **bare flag** (30.0 comes from `.cargo-crap.toml`, so
-    `--fail-above 30.0` is a syntax error). Baseline is COMMITTED (regen `mise run crap:baseline`,
-    needs `mise run coverage` first). **CI-ONLY gap** — not in `mise run check`: a source change
-    adding a branch to a covered fn, or merely **moving lines below the edit point**, lands green
-    locally but reds CI unless the baseline is refreshed in the SAME step (never widen
+- **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with both `--fail-regression` and a
+    **bare** `--fail-above` (30.0 lives in `.cargo-crap.toml`, so `--fail-above 30.0` is a syntax
+    error); the baseline is COMMITTED (`mise run crap:baseline` after `mise run coverage`).
+    **CI-ONLY gap:** a new branch in a covered fn — or merely **moving lines below the edit point**
+    — is green locally and red in CI unless the baseline moves in the SAME step (never widen
     epsilon/threshold)
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`
@@ -144,9 +145,9 @@ fully-met target sections to `learnings-archive.md`.
     only). Formatter caveats → `learnings-archive.md`. **A `files:`-scoped hook never sees
     deletions** (added/copied/modified only, verified iter 145) — pair any consistency hook with a
     pytest anchor test against the real tree, which covers the delete case at pre-push and in CI
-- **A binding-toolchain bump can silently raise the *consumer* floor** — treat toolchain bumps in a
-    *published* binding as support-policy changes reserved for Titusz (floor: Kotlin 2.3 or newer;
-    `mavenLocal` proof recipe + the four docs → `learnings-archive.md`)
+- **A binding-toolchain bump can silently raise the *consumer* floor** — in a *published* binding
+    that is a support-policy change reserved for Titusz (floor: Kotlin 2.3 or newer; `mavenLocal`
+    proof recipe + the four docs → `learnings-archive.md`)
 - **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`. Read
     it before touching `pom.xml` / `build.gradle.kts`, or before calling a Gradle error a failure
 - **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
