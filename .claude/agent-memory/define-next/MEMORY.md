@@ -98,19 +98,17 @@ iterations.
     file/finding count a pass/fail criterion** (it drifts with the CID agents' own commits — iter
     139 predicted 153, review measured 155); make the exit code the criterion.
 - **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
-    Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) the four **sequence** vectors + fixture
-    guard ✅149, (4) fixture propagation into the 11 bindings — slice 1 (Python + Go) ✅150, slice 2
-    (WASM + Ruby) ✅151, vendored-copy drift gate ✅152, **slice 3 (napi + JNI/Java) scoped 153** —
-    both canonical-path readers, no new copy — (5) the 1,112,064-scalar **and sequence-class**
-    sweep. Never implement the superseded category override (`U+A7F1` injects a spurious `S`) or a
-    15.1.0 declared version. Escapes, fixture facts, CRAP-in-tests →
-    [unicode-freeze-facts](unicode-freeze-facts.md).
+    Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) sequence vectors + fixture guard ✅149,
+    (4) fixture propagation into the 11 bindings — ✅150 Python+Go, ✅151 WASM+Ruby, ✅152 drift gate,
+    ✅153 napi+Java, **154 scoped C#+Kotlin** (→ 8 of 11; Swift/C FFI/C++ left) — (5) the
+    1,112,064-scalar **and sequence-class** sweep. Never implement the superseded category override
+    (`U+A7F1` injects a spurious `S`) or a 15.1.0 declared version. Escapes, fixture facts,
+    CRAP-in-tests → [unicode-freeze-facts](unicode-freeze-facts.md).
 - **Before scoping any propagation slice** read the
-    [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy (which bindings read the
-    canonical path vs. need a vendored `cp`), the **two-axis** cost rule (plumbing × text coverage —
-    a one-axis ranking put C FFI first three times and it is the *most* expensive), which binding
-    artifacts are stale, Go's measured 9/12 with its **per-case** (not per-code-point) skip list,
-    and the planned slice order.
+    [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy, the **two-axis** cost
+    rule (plumbing × text coverage — a one-axis ranking put C FFI first three times and it is the
+    *most* expensive), binding-artifact staleness, Go's measured 9/12 with its **per-case** skip
+    list, and the slice order.
 - **Gate/checker steps in `scripts/` have their own playbook** — prek-vs-CI placement, the Python
     3.10 floor (no `tomllib`), injected-`Path` shape, network/offline probing, docs-list wiring, and
     when a gate change needs Titusz: [gate scripts playbook](gate-scripts-playbook.md). Read it
@@ -130,14 +128,19 @@ iterations.
 - `uv run zensical build` (exits 0, "No issues found", ~8s) verifies any docs-only step.
 - **Recurring**: the cargo-deny gate WILL periodically go red on fresh RustSec advisories vs
     dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore.
-- **Watch the tooling-cadence flag in state.md.** With 3 of the last 4 iterations CI/lint/ workflow,
-    prefer a user-facing item over a tracked `normal` tooling issue (iter 143) — but deferring is a
+- **Watch the tooling-cadence flag in state.md.** With 3 of the last 4 iterations CI/lint/workflow,
+    prefer a user-facing item over a tracked `normal` tooling issue (iter 143) — deferring is a
     **one-iteration** move, not a veto: count the window in `## Goal`. At the threshold with zero
-    unblocked user-facing candidates the rule does not fire (iter 146) — then enumerate each blocked
-    candidate + its blocker.
+    unblocked user-facing candidates the rule does not fire (iter 146) — enumerate each blocker.
 - Parked-work scoping lessons → `MEMORY-archive.md`; nothing is parked on Titusz today.
 - **Binding artifacts are cheap probes, but each has its own age** (Python current, napi + Ruby were
     both stale) — always probe a *discriminating* input first, and prefer probes that leave no tree
-    diff: a `/tmp` module with a path/`replace` dep (Go, iter 150), or a build whose output is
-    gitignored (`rake compile`, iter 151). Freshness table + runner timings →
+    diff: a `/tmp` module with a path/`replace` dep (Go, iter 150), a `/tmp` MSBuild project at
+    equal directory depth (C#, iter 154), or a build whose output is gitignored (`rake compile`,
+    iter 151). Freshness table + runner timings →
     [propagation ledger](unicode-fixture-propagation.md).
+- **"Not buildable in this container" claims decay — re-probe before they veto a slice** (iter 154:
+    state.md ruled Kotlin out, but `~/.gradle` had held an unpacked gradle dist + caches since iter
+    128 and `./gradlew cleanTest test --offline` ran the suite in 6 s). Cost: two minutes. Payoff: a
+    2-surface slice instead of 1. Corollary trap: a runner can report success **without executing**
+    (gradle `test` UP-TO-DATE) — always force a rerun and check the result-file mtime.

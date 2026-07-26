@@ -22,8 +22,9 @@ measured facts below instead of re-probing.
     `crates/iscc-wasm/tests/conformance.rs` (`include_str!("../../iscc-lib/tests/data.json")`), Ruby
     `crates/iscc-rb/test/test_conformance.rb`.
 - **Vendored-copy surfaces** (need a byte-identical `cp` next to their `data.json`):
-    `packages/go/testdata/`, `packages/dotnet/Iscc.Lib.Tests/testdata/`,
-    `packages/swift/Tests/IsccLibTests/`, `packages/kotlin/src/test/resources/`.
+    `packages/go/testdata/`, `packages/swift/Tests/IsccLibTests/`. **dotnet and kotlin are NOT** —
+    each can be turned into a canonical-path reader by a one-line build-config indirection (see
+    slice 5 below), so a tracked copy + `VENDORED_COPIES` registration is avoidable there.
 - **JNI/Java is a canonical-path reader** (verified iter 153): `IsccLibTest.java` does
     `Files.readString(Path.of("../../iscc-lib/tests/data.json"))` — maven's basedir is
     `crates/iscc-jni/java`, so the same relative shape reaches the boundary fixture. No copy needed.
@@ -31,8 +32,8 @@ measured facts below instead of re-probing.
 **Cost has two axes, not one** (the single "already calls text functions" axis misled iters
 151-152): fixture-reading plumbing *and* text-function coverage. C FFI (`tests/test_iscc.c`) and C++
 have **neither a JSON parser nor a vector file** — most expensive, and C++ cannot be built here
-(`cmake` missing). Kotlin/Swift/C# have plumbing but add a *tracked copy* (→ `VENDORED_COPIES`
-registration).
+(`cmake` missing). Swift has plumbing but adds a *tracked copy* (→ `VENDORED_COPIES` registration);
+C# and Kotlin looked the same until iter 154 found the build-config indirection that avoids it.
 
 - Go is a hybrid: its **per-function `*_test.go` conformance tests read
     `../../crates/iscc-lib/tests/data.json` by relative path**, while `testdata/data.json` exists
@@ -52,6 +53,11 @@ registration).
 - **JNI `target/debug/libiscc_jni.so`: STALE (measured iter 153)** — dated Jul 25, older than the
     sentinel commit `7acf0fa` (2026-07-26). Rebuild with `cargo build -p iscc-jni`; surefire's
     `argLine` already points `-Djava.library.path` at `target/debug`.
+- **C FFI `target/debug/libiscc_ffi.so` and UniFFI `libiscc_uniffi.so`: both rebuilt iter 154**
+    (`cargo build -p iscc-ffi` / `-p iscc-uniffi`, ~15 s each, **no tree diff** — the build.rs
+    regeneration of `NativeMethods.g.cs` and the checked-in `iscc_uniffi.kt` are both byte-stable).
+    Post-rebuild FFI probe via `ctypes` on `iscc_text_clean` returned the exact sentinel values for
+    all three sequence vectors.
 - **WASM has no artifact age** — `wasm-pack test --node` recompiles the core every run.
 - Probe rule: U+0378 rows do **not** discriminate a stale artifact (U+0378 is `Cn` in every Unicode
     version, so even a no-freeze-rule build gets them right). Only **U+A7F1** rows do.
@@ -104,11 +110,24 @@ registration).
     `readString` already exist in `IsccLibTest`. `mvn` resolves **fully offline**
     (`mvn -o -B test-compile` = BUILD SUCCESS in 2.4 s against a 54 MB `~/.m2`);
     `crates/iscc-jni/java/target/` is gitignored.
-5. dotnet + Kotlin + Swift (**no Swift toolchain and no gradle here** — CI-only checks, so scope
-    with static verification plus a CI-green criterion). This slice adds 3 tracked copies, each of
-    which MUST be registered in `VENDORED_COPIES` and keep the canonical basename.
-6. C FFI + C++ last: each needs a JSON reader or a generated C table, and C++ has no local
-    toolchain.
+5. **iter 154 scoped** — C# + Kotlin, **both locally runnable** and both avoiding a tracked copy:
+    - C#:
+        `<Content Include="..\..\..\crates\iscc-lib\tests\unicode_boundary.json" Link="testdata\unicode_boundary.json">`
+        - `PreserveNewest` — probed in a throwaway `/tmp` project at equal depth; lands in
+            `bin/Debug/net8.0/testdata/`, which is gitignored. `dotnet` 8.0.423 present, NuGet restore
+            works (network reachable, ~4 s); baseline suite **91 passed in ~190 ms** with
+            `LD_LIBRARY_PATH=$PWD/target/debug`.
+    - Kotlin: one
+        `systemProperty("iscc.fixtureDir", "${rootProject.rootDir}/../../crates/iscc-lib/tests")` in
+        the existing `tasks.withType<Test>` block (`rootProject.rootDir` = `packages/kotlin` locally
+        *and* in CI, which sets `working-directory: packages/kotlin`).
+    - **state.md's "Kotlin/Swift cannot be built here" is only half true.** `~/.gradle` has the
+        unpacked `gradle-8.12.1-bin` dist + populated caches since iter 128, so
+        `./gradlew cleanTest test --offline` really runs (**9 tests, 0 fail, 6 s**). **`swift` is
+        genuinely absent.** Trap: bare `./gradlew test` prints `BUILD SUCCESSFUL` while the task is
+        UP-TO-DATE and executes nothing — always `cleanTest test` and check the `TEST-*.xml` mtime.
+6. Swift, then C FFI + C++ last: C FFI/C++ each need a JSON reader or a generated C table, and C++
+    has no local `cmake`.
 
 ## Standing hazards
 
