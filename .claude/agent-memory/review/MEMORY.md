@@ -18,7 +18,13 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
 - **`ty check` external Python files**: files importing packages not in the venv (e.g.
     `conanfile.py` → `conan`) fail. Fix: `[tool.ty.src] exclude` — proper scoping, not circumvention
 - **Pre-push needs `iscc_lib` built** for `ty check`/`pytest`:
-    `cd crates/iscc-py && uv run maturin develop --release` (see `binding-reviews.md` Environment)
+    `cd crates/iscc-py && uv run maturin develop --release` (~30s; see `binding-reviews.md`
+    Environment). **Run it BEFORE `git push`, not after the hook fails** (iter 148): a fresh
+    container rejects the push with 8 `ModuleNotFoundError: No module named 'iscc_lib'` collection
+    errors, which looks like a NEEDS_WORK gate rejection but is a missing local build artifact.
+    Build, re-run `uv run pytest -q` + `uv run ty check` yourself, then push — that makes the gate
+    *evaluate* the code instead of bypassing it. Bonus: pytest then exercises the change through the
+    PyO3 binding too (353 tests)
 
 ## Common Issues
 
