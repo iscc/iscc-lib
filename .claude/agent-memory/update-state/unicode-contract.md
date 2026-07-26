@@ -57,8 +57,9 @@ is stripped, which is what the reference does).
     `[dependency-groups]` — it is generator-only, excluded via `pyproject.toml`
     `[tool.ty.src] exclude`.
 2. **Table deps ≥ 16.0.0 — MET**, no dependency change; now explicitly freely-upgradable.
-3. **Boundary vectors — PARTIAL: Rust fixture COMPLETE (iters 141+149), surfaces at 4 of 11 (150:
-    Python; 151: WASM + Ruby) plus the pure-Go port.**
+3. **Boundary vectors — PARTIAL: Rust fixture COMPLETE (iters 141+149), surfaces at 8 of 11 (150:
+    Python; 151: WASM + Ruby; 153: napi + Java; 154: C# + Kotlin) plus the pure-Go port. REMAINING:
+    C FFI, C++, Swift + the 4 sibling `data.json` locations.**
     `crates/iscc-lib/tests/unicode_boundary.json` — project-owned, `data.json`-*shaped* but a
     separate file (NOT appended to the five vendored `data.json` copies), fully **ASCII-escaped**
     (a repo grep for `1FAE9` MISSES it — grep the filename),
@@ -76,28 +77,24 @@ is stripped, which is what the reference does).
     FFI, Java, Ruby, C#, C++, Swift, Kotlin AND the Rust crate itself.** `packages/go` is a
     separate pure-Go reimplementation (gated, not one of the 11) and UniFFI is the mechanism behind
     Kotlin/Swift, not an independent surface. **Propagation ledger —
-    `git ls-files | grep -i unicode_boundary` is the fast check (7 paths at 151).** DONE: Rust,
-    `tests/test_unicode_boundary.py`, `crates/iscc-wasm/tests/unicode_boundary.rs` (`include_str!`,
-    3 `#[wasm_bindgen_test]`, ungated by the `conformance` feature, runs ONLY under
-    `wasm-pack test --node`), `crates/iscc-rb/test/test_unicode_boundary.rb` (`File.expand_path` +
-    `define_method` per case, 12 vectors, 0 skips) — **all four read the canonical file in place,
-    no copy** — plus `packages/go/unicode_boundary_test.go` +
-    `packages/go/testdata/unicode_boundary.json` (`cp` + `//go:embed`, SHA-identical, 9 of 12 live,
-    3 ruled skips, stale-skip-key guard). **REMAINING: 7 surfaces + 4 sibling `data.json`
-    locations** (`packages/dotnet/Iscc.Lib.Tests/testdata/`, `packages/swift/Tests/IsccLibTests/`,
-    `packages/kotlin/src/test/resources/`, `packages/go/testdata/`; `find packages -name data.json`
-    also returns 2 build artifacts, ignore those). **Slice-cost survey (re-verified 151 — grep
-    case-insensitively, napi exports are snake_case and Java/Kotlin/Swift would be camelCase):**
-    already have text-fn tests, so a copied loop → **napi** (`__tests__/functions.test.mjs`, but
-    its gitignored local `.node` must be rebuilt first), **C#** (`SmokeTests.cs`), **C++**
-    (`tests/test_iscc.cpp`); **ZERO** text-fn tests, so new plumbing → **C FFI**
-    (`tests/test_iscc.c`), **JNI/Java**, **Kotlin**, **Swift**. **Reusable propagation pattern
-    (proven 150–151):** read the canonical fixture in place wherever the language can (only Go
-    needed a copy; else `cp` + verify with `cmp`); assert `unicode_data_version` + per-section
-    counts (7/5) as a metadata guard so truncation cannot degrade to a zero-iteration loop; **never
-    copy the `delete_filter_output` oracle** — the sequence vectors' expected values already differ
-    from the delete-filter results, so plain equality reds a regression; give any skip list a
-    stale-key guard.
+    `git ls-files | grep -i unicode_boundary` is the fast check (11 paths at 154: 9 test files + 2
+    JSON), but it UNDER-counts by name: Java/C#/Kotlin files are
+    `UnicodeBoundaryTest{,s}.{java,cs,kt}`.** Only Go has a vendored copy; every other surface
+    reads the canonical file in place or compiles it in. **REMAINING: C FFI, C++, Swift + 4 sibling
+    `data.json` locations** (`packages/dotnet/Iscc.Lib.Tests/testdata/`,
+    `packages/swift/Tests/IsccLibTests/`, `packages/kotlin/src/test/resources/`,
+    `packages/go/testdata/`; `find packages -name data.json` also returns 2 build artifacts, ignore
+    those). **Reusable propagation pattern (proven 150–154):** read the canonical fixture in place
+    wherever the language can (only Go needed a copy; else `cp` and verify with `cmp`); assert
+    `unicode_data_version` + per-section counts (7/5) as a metadata guard so truncation cannot
+    degrade to a zero-iteration loop; **never copy the `delete_filter_output` oracle** — the
+    sequence vectors' expected values already differ from the delete-filter results, so plain
+    equality reds a regression; give any skip list a stale-key guard; prefer
+    `@TestFactory`/`[Theory]`-style per-vector cases so failures name the vector. **Ask whether the
+    fixture is a DECLARED INPUT of that surface's build system** — at 154 Gradle reported
+    `:test UP-TO-DATE` and silently skipped all 13 Kotlin boundary tests after a fixture edit until
+    `inputs.file(…).withPathSensitivity(PathSensitivity.NONE)` was added; a green run does not
+    prove the suite ran.
 4. **Differential sweep — UNMET, no harness in `scripts/`.** Review's 1,270-case probe at iter 148
     (0 mismatches for the sentinel vs 504 for the pre-filter) was **ad hoc and not checked in** —
     it is initial proof, not the criterion. Demands **ZERO** divergence (not "enumerate a residual"
@@ -185,20 +182,24 @@ checkbox unchecked.
 
 Re-verified at iteration 154. This is axis 1 of the three-axis slice-cost ranking in [[MEMORY]].
 
-| Loading mechanism         | Surfaces                                                                                                                               |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Canonical path, no copy   | Python, napi (`__dirname` join), **Java**, Ruby (`File.expand_path`)                                                                   |
-| Compiled in               | Rust, WASM (both `include_str!`)                                                                                                       |
-| Vendored copy required    | Go (`testdata/`), C# (`AppContext.BaseDirectory` + csproj `<Content Include>`), Kotlin (classloader resource), Swift (`Bundle.module`) |
-| **No JSON parser at all** | C FFI (`tests/test_iscc.c`), C++ (`packages/cpp/tests/test_iscc.cpp`)                                                                  |
+| Loading mechanism         | Surfaces                                                                                                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Canonical path, no copy   | Python, napi (`__dirname` join), **Java**, Ruby (`File.expand_path`)                                                                                                    |
+| Canonical file, LINKED    | **C#** (csproj `<Content Include=..\..\..\… Link="testdata\…">` + `AppContext.BaseDirectory`), **Kotlin** (`iscc.fixtureDir` system property set in `build.gradle.kts`) |
+| Compiled in               | Rust, WASM (both `include_str!`)                                                                                                                                        |
+| Vendored copy required    | Go (`testdata/` + `//go:embed`), Swift (`Bundle.module`, `Package.swift` `resources: [.copy(…)]`)                                                                       |
+| **No JSON parser at all** | C FFI (`tests/test_iscc.c`, single bare `gcc` compile in CI), C++ (`packages/cpp/tests/test_iscc.cpp`)                                                                  |
 
 - **Java's relative path works because surefire's default working directory is the pom basedir**,
     not the `mvn -f <pom>` invocation directory. `crates/iscc-jni/java` + `../../iscc-lib/tests/…`
     therefore resolves; the pre-existing `IsccLibTest.java` relies on the same fact for `data.json`.
-- **C# can avoid a vendored copy** with a csproj `<Content Include>` pointing at the canonical
-    fixture by relative path plus `Link="testdata\unicode_boundary.json"`. If a real copy is created
-    instead, it MUST be registered in `VENDORED_COPIES` of `tests/test_vendored_fixtures.py` in the
-    same commit, and MUST keep the canonical basename (the drift gate discovers by basename).
+- **RULED 2026-07-26 (decisions.md, iter 154): boundary suites LINK the canonical fixture rather
+    than vendoring a copy**, even where the sibling `data.json` is a tracked copy — that asymmetry
+    inside `packages/{dotnet,kotlin}` is deliberate, not cleanup debt. Every tracked copy is a
+    byte-identity liability the drift gate must police. If a real copy is ever created (Swift is the
+    one surface expected to need it), it MUST be registered in `VENDORED_COPIES` of
+    `tests/test_vendored_fixtures.py` in the same commit and MUST keep the canonical basename (the
+    gate discovers by basename).
 - **CI reachability is free for every surface so far** — each binding job rebuilds its native
     artifact and its test command auto-discovers new files (`node --test __tests__/*.test.mjs`
     globs; surefire matches `*Test.java`; pytest `testpaths`; `go test ./...`).
