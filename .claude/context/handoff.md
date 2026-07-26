@@ -1,108 +1,73 @@
 # Handoff
 
-## 2026-07-26 — Review of: Fix the `docs/llms.txt` drift and gate the three hand-wired docs page lists
+## 2026-07-26 — Close the known blind spots in the two gate scripts (`check_docs_nav.py`, `--check-action-inputs`)
 
-**Verdict:** PASS_WITH_NOTES
+**Done:** Both `[review]` gate-blind-spot issues closed in one bundled step. `check_docs_nav.py` now
+strips TOML comments (string-aware, so `"C# / .NET"` keeps its `#`) before matching nav entries, so
+a commented-out nav entry counts as missing. `check_release_workflow.py --check-action-inputs`
+gained all four hardenings: transport/parse failures (`http.client.HTTPException`, `yaml.YAMLError`)
+now degrade to a warning instead of a traceback; a `required: true`-without- default input the step
+omits now fires an error (quoted `"true"` counts); docker actions accept the GitHub-native
+`args`/`entrypoint` overrides; non-string `with:` keys (YAML 1.1 booleans) are skipped; and `main()`
+prints an `action-inputs: resolved <R> of <T> action refs (<S> skipped)` summary via an optional
+`cache` parameter on `check_action_compat` — exit code unchanged per decisions.md 2026-07-26. The
+prek deletion-gap comment was added above `check-docs-nav`.
 
-**Summary:** The six missing pages are in `docs/llms.txt` (23 links, matching the 23 real pages),
-and `scripts/check_docs_nav.py` genuinely gates the four lists — every mutation I wrote fires,
-including the *real* pre-fix regression, and all three malformed-input paths fail closed. Scope was
-tight (2 non-test/non-doc files, budget 2) and no quality gate was weakened. One latent blind spot
-found independently by Codex and confirmed here (a commented-out `zensical.toml` nav entry still
-counts as present) — filed as a follow-up issue, not a blocker: `zensical.toml` has zero comment
-lines at HEAD.
+**Files changed:**
 
-**Verification:**
+- `scripts/check_docs_nav.py`: added `strip_toml_comments` helper, applied in `nav_pages`; comment
+    above `NAV_MD_RE` updated
+- `scripts/check_release_workflow.py`: widened `fetch_action` fallback except clause (HTTPError
+    clause kept first — it is an OSError subclass); new `DOCKER_NATIVE_KEYS`, `declared_input_keys`,
+    `missing_required_inputs` helpers; `check_with_keys` reworked (undeclared + omitted-required,
+    string keys only); `check_action_compat(wf, fetch, cache=None)`; summary print in `main()`;
+    module docstring check-4 description updated
+- `.pre-commit-config.yaml`: comment above `check-docs-nav` now records that prek `files:` matching
+    misses `git rm docs/<page>.md` and that the pytest anchor test covers deletions
+- `tests/test_check_docs_nav.py`: +4 tests (strip unit test, commented-out entry fires, `#` in
+    quoted title + trailing comment clean, real nav keeps `howto/dotnet.md`)
+- `tests/test_check_release_workflow.py`: +8 tests (omitted required fires / provided clean, docker
+    overrides allowed / rejected on node action, non-str `with:` keys skipped, cache resolution
+    counts, `IncompleteRead` → None + warning, unparseable YAML body → None + warning); two new
+    `FAKE_ACTIONS` entries
+- `docs/development.md`: both gate bullets updated to the new behaviour (mdformat rewrapped)
 
-- [x] `uv run scripts/check_docs_nav.py` exits 0 — prints
-    `OK: 23 documentation pages consistent across nav, ORDERED_PAGES and llms.txt.`, no
-    missing/unexpected lines
-- [x] `grep -c 'https://lib\.iscc\.codes/[^ ]*\.md' docs/llms.txt` → **23**
-- [x] All six previously-missing pages present — the loop over `howto/ruby.md`, `howto/dotnet.md`,
-    `howto/c-cpp.md`, `howto/swift.md`, `howto/kotlin.md`, `ruby-api.md` exits 0
-- [x] `uv run pytest tests/test_check_docs_nav.py` → **8 passed** (≥5 required), incl.
-    `test_main_exits_nonzero_on_missing_page` asserting `main() == 1`
-- [x] `uv run pytest` (full) → **341 passed** (was 333, ≥338 required)
-- [x] `uv run prek run check-docs-nav --all-files` → Passed
-- [x] `uv run python scripts/gen_llms_full.py` → exit 0, `23 pages`, **no** `Auto-discovered` line
-- [x] `uv run zensical build` → exit 0, "No issues found"
-- [x] `mise run check` → 17/17 hooks Passed; `uv run ruff check` "All checks passed!";
-    `uv run ruff format --check` exit 0
-- [x] `git status --porcelain .claude/context/specs/ docs/unicode.md` empty — parked items untouched
+**Verification:** All next.md criteria verified in this session:
 
-Independent probes beyond next.md (a green gate is not a working gate):
+- `uv run pytest tests/test_check_docs_nav.py tests/test_check_release_workflow.py` → **39 passed**
+    (12 + 27; ≥ 33 required), including every named case
+- `uv run pytest` → **353 passed** (≥ 347 required)
+- `uv run scripts/check_docs_nav.py` → exit 0,
+    `OK: 23 documentation pages consistent across nav,   ORDERED_PAGES and llms.txt.`
+- Online:
+    `uv run --no-project --with pyyaml python scripts/check_release_workflow.py   --check-action-inputs`
+    → exit 0, `action-inputs: resolved 18 of 18 action refs (0 skipped)`, empty stderr, no
+    `action:` lines
+- Offline (dead proxy): exit **0**, `action-inputs: resolved 0 of 18 action refs (18 skipped)` —
+    fails open as required
+- No-flag run: exit 0 (network-free path untouched)
+- `uv run prek run check-docs-nav --all-files` and `check-release-workflow --all-files` → both
+    Passed; `grep -c 'git rm' .pre-commit-config.yaml` → 1
+- `mise run check` → all hooks Passed (first run had one mdformat auto-rewrap of my development.md
+    edit; clean on re-run); `uv run ruff check`, `ruff format --check`, `ty check` all clean
+- `git status --porcelain .github/workflows/ .claude/context/specs/ docs/unicode.md crates/   packages/`
+    → empty
 
-- [x] **Real regression fires**: restoring `HEAD~1`'s `docs/llms.txt` into a temp checkout →
-    `llms.txt: missing 6 page(s): [...]` — exactly the drift the issue measured
-- [x] **Each list mutated separately** on a copy of the real tree: nav minus `unicode.md`,
-    `ORDERED_PAGES` minus `howto/kotlin.md`, a brand-new page on disk → each reported against the
-    right list only, and the new page reported against all three
-- [x] **Bidirectional**: a list entry with no file on disk reports `unexpected` (fixture + ghost
-    tests)
-- [x] **Fail-closed, not fail-open**: missing `nav = [ ... ]` block → exit 1 with a message;
-    unimportable `gen_llms_full.py` → traceback, non-zero; missing `llms.txt` → `FileNotFoundError`,
-    non-zero
-- [x] **Hook really fires and is really scoped**: staging a broken `docs/llms.txt` → `Failed` with
-    the mismatch; staging only `README.md` → `(no files to check)Skipped`
-- [x] **Site output resolves**: after the correct `zensical build` → `gen_llms_full.py` order, all
-    six new URLs have non-empty `site/**/*.md` targets (23 files)
-- [x] `cargo clippy --workspace --all-targets -- -D warnings` clean; `mise run version:check` 21
-    `OK:` lines
-- [x] Gate integrity across all unpushed commits (`@{upstream}..HEAD`): the only gate-config change
-    is the **addition** of `check-docs-nav`; zero suppressions, skips or threshold changes added
-
-**Issues found:**
-
-- **Commented-out nav entries defeat the gate** (confirmed, latent). `NAV_MD_RE` matches inside TOML
-    comments, so commenting out `{ "Kotlin" = "howto/kotlin.md" },` leaves `run_checks(...) == []`
-    while Zensical genuinely drops the page. No comment lines exist in `zensical.toml` today. Filed
-    as a `normal` `[review]` issue with the fix options and the reason `tomllib` is unavailable (CI
-    matrix pins Python 3.10).
-- **The prek hook does not fire on a page *deletion*** (confirmed). `files:` matching only sees
-    added/copied/modified paths, so `git rm docs/foo.md` alone → `(no files to check)Skipped`. Not a
-    real hole — the pytest anchor test catches it at pre-push and in CI — but worth a comment in
-    `.pre-commit-config.yaml`. Filed with the item above.
-- **Minor (fixed in this review):** `test_real_repo_passes` asserted only that the four sets agree,
-    which equal *empty* sets also satisfy. Added `assert len(cdn.disk_pages(cdn.DOCS_DIR)) >= 20` so
-    a future `DOCS_DIR` refactor cannot make the gate vacuous. Still 8 tests, still green.
-- **Nit, not filed:** `EXCLUDE_DIRS = {"includes"}` is duplicated in `check_docs_nav.py` even though
-    the module already `exec_module`s `gen_llms_full.py` and could read its constant. A divergence
-    would fail closed (noisy, visible), so it is DRY-only.
-
-**Codex review:** One P2 finding — "Exclude TOML comments from nav pages"
-(`scripts/check_docs_nav.py:63`). Independently reproduced and accepted; see the first issue above.
-Correct call: it is the one input of the four whose parsing is not comment-aware, and it goes to the
-gate's stated purpose. Codex raised nothing else and flagged no false positives.
-
-**Next:** Two candidates, both `normal`:
-
-1. **Harden the two gate scripts' blind spots in one step** —
-    `scripts/check_release_workflow.py --check-action-inputs` (four filed gaps: `IncompleteRead`/
-    `YAMLError` escaping the fails-open contract, the one-directional required-input check, the
-    Docker-action `args`/`entrypoint` false positive, job-level `uses:` unscanned) plus the two new
-    `check_docs_nav.py` items above. Both issues live in `scripts/`, share a test pattern, and the
-    docs-nav half is a handful of lines.
-2. **Something user-facing instead.** Cadence check: 141 tests / 142 tooling / 143 docs / 144
-    tooling / 145 docs+tooling. Option 1 would make it 4 tooling-ish steps in a 5-window, which is
-    heavy for a library whose remaining unblocked user-facing work exists. define-next should weigh
-    this deliberately rather than defaulting to the cheapest issue.
-
-Still parked on Titusz and NOT available to CID: the Unicode sequence-adjacency ruling (blocks
-boundary-vector propagation into the 11 bindings, the full sweep, and the `docs/unicode.md`
-placeholder sentence), the `rubygems/configure-rubygems-credentials@main` pin (tag vs SHA
-convention), and npm OIDC (needs npmjs.com-side trusted publishers).
+**Next:** Both `[review]` gate issues are now fully addressed — the review agent can strike them
+from issues.md. Remaining unblocked work is thin: the Unicode boundary-vector propagation stays
+double-blocked, the `rubygems/configure-rubygems-credentials` pin and npm OIDC need Titusz. The
+"fail if zero refs resolved" policy flip remains deliberately not done (see Notes).
 
 **Notes:**
 
-- The advance handoff's claims all checked out on re-measurement — 23 links, 23 pages, 341 tests, 17
-    hooks, 2 non-test/non-doc files. No inflated or unverifiable claims this iteration.
-- `run_checks` taking four `Path` arguments is what made independent verification cheap: I could
-    point it at `git archive HEAD | tar -x` copies and mutate them freely. Keep that shape for
-    future gate scripts.
-- **Ordering gotcha for anyone verifying docs output:** `zensical build` wipes `site/`. Running
-    `gen_llms_full.py` *before* it makes every per-page `site/**/*.md` look missing. `docs.yml` has
-    the right order (build, then generate); my first check did not.
-- `.claude/context/iterations.jsonl` is modified in the working tree and deliberately left unstaged
-    (runner-owned).
-- `zensical.toml` currently contains zero comment lines, which is why the Codex finding is latent
-    rather than active — but it also means nothing would warn a future editor who reaches for `#`.
+- Issue item 3 was implemented as scoped by next.md's Not In Scope: the all-skipped condition is now
+    **visible** (summary line) but not fatal — flipping the exit code needs Titusz per decisions.md
+    2026-07-26. Job-level `uses:` (reusable workflows) remains unscanned, also per Not In Scope.
+- The issue text's claim "no nav title or page path contains `#`" was false (next.md flagged it) —
+    the string-aware scan handles `"C# / .NET"`; a naive `#.*$` strip would have broken the real
+    repo, covered by `test_real_nav_keeps_dotnet_page`.
+- Undeclared-input errors are now emitted in sorted key order (previously dict order) — no test
+    relied on the old order.
+- `missing_required_inputs` also skips non-string input *names* (an action declaring an input
+    literally named `on` parses to a boolean on the metadata side too) — same YAML 1.1 rationale as
+    the `with:` side, one extra `isinstance` guard beyond the issue text.

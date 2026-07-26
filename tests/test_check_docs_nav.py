@@ -118,3 +118,43 @@ def test_includes_partial_is_not_a_page(tmp_path):
     assert errors == [
         "zensical.toml nav: unexpected 1 page(s): ['includes/abbreviations.md']"
     ]
+
+
+def test_strip_toml_comments():
+    # Comments are stripped to end of line; `#` inside quoted strings is kept.
+    assert cdn.strip_toml_comments("# whole-line comment") == ""
+    assert cdn.strip_toml_comments('  "index.md",  # trailing') == '  "index.md",  '
+    assert (
+        cdn.strip_toml_comments('{ "C# / .NET" = "howto/dotnet.md" },')
+        == '{ "C# / .NET" = "howto/dotnet.md" },'
+    )
+
+
+def test_commented_out_nav_entry_fires(tmp_path):
+    # Commenting out a nav entry drops the page from the site nav, so the gate
+    # must report it as missing, not count the commented line as present.
+    docs, toml_path, script_path, llms_path = _write_fixtures(tmp_path)
+    toml_path.write_text(
+        'nav = [\n  "index.md",\n  # { "Rust" = "howto/rust.md" },\n]\n',
+        encoding="utf-8",
+    )
+    errors = cdn.run_checks(docs, toml_path, script_path, llms_path)
+    assert errors == ["zensical.toml nav: missing 1 page(s): ['howto/rust.md']"]
+
+
+def test_hash_in_quoted_nav_title_is_not_a_comment(tmp_path):
+    # A `#` inside a quoted nav title (the real `"C# / .NET"` case) must not
+    # truncate the line; a genuine trailing comment on the same line must go.
+    docs, toml_path, script_path, llms_path = _write_fixtures(tmp_path)
+    toml_path.write_text(
+        'nav = [\n  "index.md",\n'
+        '  { "C# / rust" = "howto/rust.md" },  # "ghost.md" in a comment\n]\n',
+        encoding="utf-8",
+    )
+    assert cdn.run_checks(docs, toml_path, script_path, llms_path) == []
+
+
+def test_real_nav_keeps_dotnet_page():
+    # The tracked zensical.toml has `{ "C# / .NET" = "howto/dotnet.md" },` —
+    # comment stripping must not eat the line at the `#` in the title.
+    assert "howto/dotnet.md" in cdn.nav_pages(cdn.ZENSICAL_TOML)

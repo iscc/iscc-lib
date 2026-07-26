@@ -72,7 +72,10 @@ repos:
         pass_filenames: false
       # The three docs page lists (zensical.toml nav, ORDERED_PAGES in
       # gen_llms_full.py, docs/llms.txt) are hand-wired and nothing else
-      # checks they agree with the pages on disk
+      # checks they agree with the pages on disk. Note: prek `files:` matching
+      # only sees added/modified paths, so a bare `git rm docs/<page>.md` does
+      # not trigger this hook — the tests/test_check_docs_nav.py anchor test
+      # catches deletions at pre-push and in CI.
       - id: check-docs-nav
         name: Docs page list parity
         entry: uv run scripts/check_docs_nav.py

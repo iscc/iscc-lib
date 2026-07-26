@@ -37,6 +37,8 @@ EXCLUDE_DIRS = {"includes"}  # snippet partials, not pages
 
 # Quoted nav values ending in .md (nav keys like "C# / .NET" never end in .md).
 # Regex parsing instead of tomllib: CI's python-test matrix includes 3.10.
+# Applied after strip_toml_comments so a commented-out nav entry — which Zensical
+# genuinely drops from the site nav — counts as missing, not present.
 NAV_MD_RE = re.compile(r'"([^"]+\.md)"')
 
 # Absolute page links in docs/llms.txt; llms-full.txt is excluded by the .md suffix
@@ -54,13 +56,33 @@ def disk_pages(docs_dir: Path) -> set[str]:
     return pages
 
 
+def strip_toml_comments(text: str) -> str:
+    """Strip `#`-to-end-of-line TOML comments, keeping `#` inside quoted strings.
+
+    A per-line character scan toggling on `"` is sufficient here: the nav block
+    uses only TOML basic strings without escaped quotes, and titles like
+    `"C# / .NET"` must keep their `#`.
+    """
+    stripped = []
+    for line in text.splitlines():
+        in_string = False
+        for index, char in enumerate(line):
+            if char == '"':
+                in_string = not in_string
+            elif char == "#" and not in_string:
+                line = line[:index]
+                break
+        stripped.append(line)
+    return "\n".join(stripped)
+
+
 def nav_pages(toml_path: Path) -> set[str]:
     """Extract the .md page paths from the `nav = [ ... ]` block of zensical.toml."""
     text = toml_path.read_text(encoding="utf-8")
     match = re.search(r"^nav = \[(.*?)^\]", text, re.DOTALL | re.MULTILINE)
     if match is None:
         sys.exit(f"error: no `nav = [ ... ]` block found in {toml_path}")
-    return set(NAV_MD_RE.findall(match.group(1)))
+    return set(NAV_MD_RE.findall(strip_toml_comments(match.group(1))))
 
 
 def ordered_pages(script_path: Path) -> set[str]:

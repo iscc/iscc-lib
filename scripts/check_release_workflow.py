@@ -23,10 +23,15 @@ or the pytest suite, which stay network-free):
 
 4. **Action-input compatibility** (`--check-action-inputs`) — every `with:` key on a
    repository action must be a declared `inputs` key of that ref's published
-   `action.yml`, and every `steps.<id>.outputs.<x>` read from an action step must be a
-   declared `outputs` key. A 404 on both `action.yml` and `action.yaml` is an error
-   (the ref or sub-path is wrong); any transport failure (offline, timeout, rate
-   limit) degrades to a `warning: skipped …` line on stderr, never a red gate.
+   `action.yml` (docker actions additionally accept the GitHub-native `args` and
+   `entrypoint` overrides), every declared input with `required: true` and no
+   `default:` must be passed by the step, and every `steps.<id>.outputs.<x>` read
+   from an action step must be a declared `outputs` key. A 404 on both `action.yml`
+   and `action.yaml` is an error (the ref or sub-path is wrong); any transport or
+   parse failure (offline, timeout, rate limit, truncated read, captive-portal
+   HTML) degrades to a `warning: skipped …` line on stderr, never a red gate. The
+   run ends with an `action-inputs: resolved <R> of <T> action refs` summary line
+   so an all-skipped run is visible in the job log rather than passing silently.
 
 Requires PyYAML (declared in the `dev` dependency group).
 
@@ -38,6 +43,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import http.client
 import re
 import sys
 import urllib.error
@@ -290,10 +296,10 @@ def fetch_action(ref: str) -> dict | None:
     """Fetch and parse the published action metadata for a repo action ref.
 
     Returns the parsed `action.yml` mapping, or `None` (after printing a
-    `warning: skipped …` line to stderr) on any transport failure — a degraded
-    network must never turn the gate red. Raises `ActionNotFoundError` when
-    both candidate URLs return 404: the ref or sub-path is wrong, which is a
-    real workflow defect.
+    `warning: skipped …` line to stderr) on any transport or parse failure — a
+    degraded network must never turn the gate red. Raises `ActionNotFoundError`
+    when both candidate URLs return 404: the ref or sub-path is wrong, which is
+    a real workflow defect.
     """
     for url in action_yml_urls(ref):
         try:
@@ -304,11 +310,14 @@ def fetch_action(ref: str) -> dict | None:
                 data = yaml.safe_load(resp.read().decode("utf-8"))
                 return data if isinstance(data, dict) else {}
         except urllib.error.HTTPError as exc:
+            # Must stay first: HTTPError is an OSError subclass.
             if exc.code == 404:
                 continue
             print(f"warning: skipped {ref}: HTTP {exc.code} on {url}", file=sys.stderr)
             return None
-        except OSError as exc:  # URLError, socket timeout, connection refused
+        except (OSError, http.client.HTTPException, yaml.YAMLError) as exc:
+            # URLError/timeouts, truncated reads (IncompleteRead), and bodies
+            # that are not valid YAML (captive portal or proxy HTML).
             print(f"warning: skipped {ref}: {exc}", file=sys.stderr)
             return None
     raise ActionNotFoundError(f"no action.yml or action.yaml found for '{ref}'")
@@ -337,8 +346,50 @@ def iter_strings(node):
             yield from iter_strings(item)
 
 
+# GitHub-native `with:` overrides accepted by docker actions without declaration.
+DOCKER_NATIVE_KEYS = {"args", "entrypoint"}
+
+
+def declared_input_keys(meta: dict) -> set[str]:
+    """Return an action's declared input names, plus docker-native overrides.
+
+    Docker actions (`runs.using: docker`) accept the GitHub-native `args` and
+    `entrypoint` `with:` overrides, which are never declared as `inputs`.
+    """
+    declared = set(meta.get("inputs") or {})
+    if (meta.get("runs") or {}).get("using") == "docker":
+        declared |= DOCKER_NATIVE_KEYS
+    return declared
+
+
+def missing_required_inputs(meta: dict, with_keys: set) -> list[str]:
+    """Return declared required inputs without a default that `with_keys` omits.
+
+    A `required` value of the string "true" counts as required — action
+    authors quote it. Non-string input names (YAML 1.1 booleans) are skipped.
+    """
+    missing = []
+    for name, spec in (meta.get("inputs") or {}).items():
+        spec = spec if isinstance(spec, dict) else {}
+        if (
+            isinstance(name, str)
+            and spec.get("required") in (True, "true")
+            and "default" not in spec
+            and name not in with_keys
+        ):
+            missing.append(name)
+    return sorted(missing)
+
+
 def check_with_keys(job_id: str, job: dict, get_meta) -> list[str]:
-    """Check 4a: every `with:` key on a repo action step is a declared input."""
+    """Check 4a: `with:` keys and required inputs of each repo action step agree.
+
+    Every string `with:` key must be a declared input (or a docker-native
+    override), and every declared `required: true` input without a `default:`
+    must be passed. Non-string `with:` keys are skipped: PyYAML's YAML 1.1
+    booleans turn a key literally named `on`/`off`/`yes`/`no` into
+    `True`/`False`, so the two sides cannot be compared reliably.
+    """
     errors: list[str] = []
     for step in job.get("steps") or []:
         uses = str(step.get("uses") or "")
@@ -347,11 +398,14 @@ def check_with_keys(job_id: str, job: dict, get_meta) -> list[str]:
         meta = get_meta(uses)
         if meta is None:  # skipped fetch or already-reported 404
             continue
-        declared = set(meta.get("inputs") or {})
+        with_keys = {key for key in step.get("with") or {} if isinstance(key, str)}
         errors.extend(
             f"action: job '{job_id}' passes undeclared input '{key}' to '{uses}'"
-            for key in step.get("with") or {}
-            if key not in declared
+            for key in sorted(with_keys - declared_input_keys(meta))
+        )
+        errors.extend(
+            f"action: job '{job_id}' omits required input '{name}' of '{uses}'"
+            for name in missing_required_inputs(meta, with_keys)
         )
     return errors
 
@@ -383,17 +437,21 @@ def check_step_outputs(job_id: str, job: dict, get_meta) -> list[str]:
     return errors
 
 
-def check_action_compat(wf: dict, fetch) -> list[str]:
+def check_action_compat(wf: dict, fetch, cache: dict | None = None) -> list[str]:
     """Check 4: `with:` keys and step-output reads match published action metadata.
 
     `fetch` maps an action ref to its parsed `action.yml` mapping, returns
     `None` for a skipped (network-unavailable) fetch, or raises
     `ActionNotFoundError` on a real 404. It is injected so tests supply an
     in-memory fake; production passes `fetch_action`. Fetches are cached per
-    distinct ref, so a run costs one request per unique action.
+    distinct ref, so a run costs one request per unique action. Pass `cache`
+    to inspect resolution counts after the run — `main()` uses this for its
+    summary line, so an all-skipped run is visible rather than silently green.
     """
     errors: list[str] = []
-    get_meta = functools.partial(cached_fetch, fetch=fetch, cache={}, errors=errors)
+    get_meta = functools.partial(
+        cached_fetch, fetch=fetch, cache={} if cache is None else cache, errors=errors
+    )
     for job_id, job in (wf.get("jobs") or {}).items():
         errors.extend(check_with_keys(job_id, job, get_meta))
         errors.extend(check_step_outputs(job_id, job, get_meta))
@@ -433,7 +491,13 @@ def main() -> None:
     wf = load_workflow(args.workflow)
     errors = run_checks(wf)
     if args.check_action_inputs:
-        errors.extend(check_action_compat(wf, fetch_action))
+        cache: dict = {}
+        errors.extend(check_action_compat(wf, fetch_action, cache))
+        resolved = sum(1 for meta in cache.values() if meta is not None)
+        print(
+            f"action-inputs: resolved {resolved} of {len(cache)} action refs "
+            f"({len(cache) - resolved} skipped)"
+        )
     for error in errors:
         print(error)
     if errors:

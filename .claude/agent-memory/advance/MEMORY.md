@@ -70,10 +70,13 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 - release.yml static gate (iters 142+144): `scripts/check_release_workflow.py` (guard shape,
     artifact wiring via matrix-include expansion + symmetric glob match, `needs:` graph) — prek hook
     `check-release-workflow` + `tests/test_check_release_workflow.py` in CI. Any release.yml edit
-    must keep it green. `pyyaml` is an explicit dev dep. Opt-in `--check-action-inputs` (iter 144):
-    fetches each ref's published action.yml from raw GitHub, validates `with:` keys + action step
-    outputs; 404 = error, transport failure = stderr warning + exit 0; runs only in the
-    `release-workflow` CI job (prek/pytest stay network-free; tests inject a fake fetcher)
+    must keep it green. `pyyaml` is an explicit dev dep. Opt-in `--check-action-inputs` (iters
+    144+146): fetches each ref's published action.yml from raw GitHub, validates `with:` keys
+    (docker `runs.using` gets native `args`/`entrypoint`; non-str keys skipped — YAML 1.1 bools),
+    required-without-default inputs (quoted `"true"` counts), action step outputs; 404 = error,
+    transport/parse failure (incl. `HTTPException`, `YAMLError`) = stderr warning + exit 0; prints
+    `action-inputs: resolved R of T` summary (all-skipped visible, NOT fatal — policy needs Titusz);
+    runs only in the `release-workflow` CI job (tests inject a fake fetcher)
 - Release workflow (`release.yml`): 9 boolean inputs → build → **smoke test** → publish (inputs,
     auth, CI internals → MEMORY-archive.md). `build-wheels` 4 targets incl native-ARM aarch64;
     `test-wheels` matrixed, artifact name = `wheels-<os>-<target>`. All 28 non-`prepare-release`
@@ -124,8 +127,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` (excludes
     `docs/includes/`). Run after `zensical build` in docs CI
 - Adding a docs page = update `zensical.toml` nav + `ORDERED_PAGES` + `docs/llms.txt` together —
-    enforced by `scripts/check_docs_nav.py` (iter 145: prek hook `check-docs-nav` +
-    `tests/test_check_docs_nav.py`; disk set is the reference, `includes/` allowlisted)
+    enforced by `scripts/check_docs_nav.py` (iters 145+146: prek hook `check-docs-nav` +
+    `tests/test_check_docs_nav.py`; disk set is the reference, `includes/` allowlisted; nav parsing
+    is comment-aware via string-scanning `strip_toml_comments` — naive `#.*$` breaks on the real
+    `"C# / .NET"` title; prek `files:` misses `git rm` of a page, pytest anchor covers it)
 
 ## Feature Flags
 

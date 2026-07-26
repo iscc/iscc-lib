@@ -12,7 +12,9 @@ injected in-memory fake fetcher — this suite never touches the network; the re
 runs only in the dedicated ``release-workflow`` CI job.
 """
 
+import http.client
 import importlib.util
+import io
 from pathlib import Path
 
 # Load scripts/check_release_workflow.py by path — it is a repo gate script, not a package.
@@ -199,6 +201,20 @@ FAKE_ACTIONS = {
         "inputs": {"version": {}, "cache": {}},
         "outputs": {"path": {}},
     },
+    # Required-input shapes: bool `required`, quoted "true", required-with-default.
+    "acme/publish@v2": {
+        "inputs": {
+            "token": {"required": True},
+            "tag": {"required": "true"},
+            "level": {"required": True, "default": "info"},
+            "verbose": {},
+        },
+    },
+    # Docker action: accepts the GitHub-native `args`/`entrypoint` overrides.
+    "acme/docker-act@v1": {
+        "inputs": {"level": {}},
+        "runs": {"using": "docker", "image": "Dockerfile"},
+    },
 }
 
 
@@ -287,6 +303,85 @@ def test_action_compat_ignores_local_run_step_outputs():
         ]
     )
     assert crw.check_action_compat(wf, _fake_fetch) == []
+
+
+def test_action_compat_omitted_required_input_fires():
+    # A declared `required: true` input without a default that the step omits
+    # is one error; quoted "true" counts, required-with-default does not.
+    wf = _job_wf([{"uses": "acme/publish@v2", "with": {"token": "x"}}])
+    errors = crw.check_action_compat(wf, _fake_fetch)
+    assert errors == [
+        "action: job 'build' omits required input 'tag' of 'acme/publish@v2'"
+    ]
+
+
+def test_action_compat_required_inputs_provided_clean():
+    # Passing every required-without-default input yields no errors; optional
+    # and defaulted inputs may be omitted freely.
+    wf = _job_wf([{"uses": "acme/publish@v2", "with": {"token": "x", "tag": "v1"}}])
+    assert crw.check_action_compat(wf, _fake_fetch) == []
+
+
+def test_action_compat_docker_native_overrides_allowed():
+    # `args`/`entrypoint` on a docker action are GitHub-native, never declared
+    # as inputs, and must not be reported.
+    wf = _job_wf(
+        [
+            {
+                "uses": "acme/docker-act@v1",
+                "with": {"args": "run", "entrypoint": "/bin/sh", "level": "3"},
+            }
+        ]
+    )
+    assert crw.check_action_compat(wf, _fake_fetch) == []
+
+
+def test_action_compat_docker_overrides_rejected_for_node_action():
+    # The same keys on a non-docker action are still undeclared inputs.
+    wf = _job_wf([{"uses": "acme/setup@v1", "with": {"args": "x"}}])
+    errors = crw.check_action_compat(wf, _fake_fetch)
+    assert errors == [
+        "action: job 'build' passes undeclared input 'args' to 'acme/setup@v1'"
+    ]
+
+
+def test_action_compat_skips_non_string_with_keys():
+    # PyYAML's YAML 1.1 booleans turn a `with:` key literally named `on` into
+    # True; boolean keys are skipped rather than reported as undeclared.
+    wf = _job_wf([{"uses": "acme/setup@v1", "with": {True: "x", "version": "3"}}])
+    assert crw.check_action_compat(wf, _fake_fetch) == []
+
+
+def test_action_compat_cache_records_resolution():
+    # A caller-supplied cache exposes resolution counts after the run: one
+    # resolved ref, one 404 recorded as None (main() prints these as summary).
+    wf = _job_wf([{"uses": "acme/setup@v1"}, {"uses": "acme/gone@v9"}])
+    cache = {}
+    errors = crw.check_action_compat(wf, _fake_fetch, cache)
+    assert errors == ["action: no action.yml or action.yaml found for 'acme/gone@v9'"]
+    assert len(cache) == 2
+    assert sum(1 for meta in cache.values() if meta is not None) == 1
+
+
+def test_fetch_action_incomplete_read_is_skipped(monkeypatch, capsys):
+    # A truncated response (http.client.IncompleteRead is an HTTPException,
+    # not an OSError) degrades to a warning plus None, never an exception.
+    def _raise_incomplete(url, timeout):
+        raise http.client.IncompleteRead(b"")
+
+    monkeypatch.setattr(crw.urllib.request, "urlopen", _raise_incomplete)
+    assert crw.fetch_action("acme/setup@v1") is None
+    assert "warning: skipped acme/setup@v1" in capsys.readouterr().err
+
+
+def test_fetch_action_unparseable_body_is_skipped(monkeypatch, capsys):
+    # A body that is not valid YAML (captive portal / proxy page) raises
+    # yaml.YAMLError inside the fetch and degrades to a warning plus None.
+    monkeypatch.setattr(
+        crw.urllib.request, "urlopen", lambda url, timeout: io.BytesIO(b"a: b\n- c\n")
+    )
+    assert crw.fetch_action("acme/setup@v1") is None
+    assert "warning: skipped acme/setup@v1" in capsys.readouterr().err
 
 
 def test_declared_inputs_handles_yaml_bool_on_key():
