@@ -29,9 +29,18 @@ metadata:
     sigma, decomposition leak, normalizer pass-through, literal U+FFFF).
 - User-facing page: `docs/unicode.md` (sentinel mechanism + "How much does this matter?" + both
     boundary-vector tables).
-- Pending: binding propagation (11 bindings + 4 sibling data.json copies; Go skips table-dependent
-    vectors per ruling but takes `Final_Sigma`), full-code-space + sequence-class differential sweep
-    (spec requirement 4).
+- Propagation slice 1 (iter 150): Python `tests/test_unicode_boundary.py` reads the canonical
+    fixture by relative path (12 vectors + metadata guard, all green); Go
+    `packages/go/unicode_boundary_test.go` embeds the vendored byte-identical copy
+    `packages/go/testdata/unicode_boundary.json` (`cp` + `cmp`, never Write) and skips exactly 3
+    table-dependent cases via a `"<section>/<case>"`-keyed skip map (U+1FAE9 both fns, U+113C5
+    `text_clean` only — the `text_collapse` U+113C5 case PASSES because Go removes the mark as `C`
+    where 16.0 removes it as `M`, same output `ab`). All 4 sequence vectors pass in Go (iter-147
+    `Final_Sigma` fix). Guard test asserts every skip key names an existing fixture case. GOTCHA:
+    `t.Skipf(reason)` with a variable trips go vet's printf check — use `t.Skipf("%s", reason)`.
+- Pending: remaining 9 binding surfaces (napi artifact is STALE — returns `aSb` for
+    `text_clean("a"+U+A7F1+"b")`, must rebuild before a napi slice) + 4 sibling data.json copies;
+    full-code-space + sequence-class differential sweep (spec requirement 4).
 - GOTCHA (iter 149): writing `\uXXXX` escape text into the ASCII-escaped fixture via the Edit tool
     decodes it into literal UTF-8 chars. Write fixture JSON with Python
     (`json.dumps(..., ensure_ascii=True, indent=2)` + trailing newline round-trips the file

@@ -96,7 +96,9 @@ decomposition to `S` in Unicode 17, so leaving it visible to the normalizer inst
 the sentinel composes the following acute accent onto it and yields `e U+015A`.
 
 Both vector families are checked into the repository as
-`crates/iscc-lib/tests/unicode_boundary.json` and exercised by the Rust test suite.
+`crates/iscc-lib/tests/unicode_boundary.json` and exercised by the Rust test suite, by the Python
+test suite (which reads the canonical fixture directly), and by the pure-Go package via the vendored
+copy at `packages/go/testdata/unicode_boundary.json`.
 
 ## Cross-implementation consistency
 
@@ -125,7 +127,10 @@ known today:
     core. It filters on Go's `unicode.C` range table — Unicode 15.0 in Go 1.26 (`x/text`'s Unicode 17
     tables are gated behind `//go:build go1.27`) — and does not yet implement the freeze rule. It
     therefore drops characters assigned after Unicode 15.0 that the native bindings retain. This is a
-    current, tracked limitation, expected to narrow once Go ships newer Unicode tables.
+    current, tracked limitation, expected to narrow once Go ships newer Unicode tables. The Go test
+    suite runs 9 of the 12 boundary vectors — including all four sequence vectors — and skips exactly
+    three (`U+1FAE9` in both functions and `U+113C5` in `text_clean`) until go1.27 ships newer Unicode
+    tables in the stdlib and `x/text`.
 
 ## Practical guidance
 
