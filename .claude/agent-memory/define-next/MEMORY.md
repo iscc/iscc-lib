@@ -80,8 +80,7 @@ iterations.
     #42 WASM SIMD, #43 Go ISCC-IDv1, #49 aarch64 wheels) are DONE; dependency refresh + 2 `normal`
     release-workflow issues (npm OIDC, single-registry re-trigger) remain. v1.0.0 cut +
     Semver-enforcing HELD by Titusz (`low`).
-- **iters 115–123 DONE (detail in MEMORY-archive.md + learnings.md)**: GIL detach, WASM SIMD, Go
-    ISCC-IDv1, trailing-byte guards, aarch64 wheels. **Root lesson: the CRAP regression gate is
+- **iters 115–123 DONE (detail in MEMORY-archive.md)**. **Root lesson: the CRAP regression gate is
     CI-ONLY** (not in `mise run check`/pre-commit) — any step adding a branch/loop to a covered fn
     MUST refresh the baseline in the SAME step.
 - **iters 124–137 = the dependency-refresh slices, all 8 now CLOSED** → ledger, gotchas, hold-backs,
@@ -108,12 +107,9 @@ iterations.
     does.
 - **In a file no CI push exercises, split behavioural edits from mechanical ones** (iters 139/140:
     `release.yml`'s guard fixes vs the 97-ref `uses:` bump, so a broken release is bisectable).
-    Static-verification recipe + job inventory:
+    Recipe, job inventory, evidence rules for un-runnable workflow bumps (check `ci.yml` first;
+    verify each floating tag via `gh api repos/<r>/git/ref/tags/<vN>`):
     [release.yml static gates](release-yml-static-gates.md).
-- **The strongest evidence for an un-runnable workflow bump is that the *runnable* workflow already
-    runs it** — check `ci.yml` first; only the remainder needs release-note archaeology. Majors are
-    **not** in lockstep even inside `actions/*`, so verify each floating tag exists via
-    `gh api repos/<r>/git/ref/tags/<vN>` before writing it into a criterion.
 - **A multi-part spec criterion slices along its own checkboxes** — `specs/rust-core.md`'s Unicode
     contract → 3 steps (filter / 1.1M-code-point proof / 12-binding propagation), not one.
 - **Any step touching the text hot path trips two gates at once**: the CI-only CRAP
@@ -131,11 +127,9 @@ iterations.
 - **Recurring**: the cargo-deny gate WILL periodically go red on fresh RustSec advisories vs
     dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore.
 - **Watch the tooling-cadence flag in state.md.** When 3 of the last 4 iterations were CI/lint/
-    workflow packages, prefer a user-facing item even if the handoff's "Next" is a tracked `normal`
-    tooling issue (iter 143: took the user-facing Unicode docs page over `release.yml` check 3, and
-    said so in `## Goal` as an explicit backtrack). The tooling issue stays open and unblocked.
-    Deferring is a **one-iteration** move, not a veto — count the window explicitly in `## Goal`
-    (iter 144: 140/141/142/143 = 2 of 4, below threshold → took check 3, the only unblocked issue).
+    workflow packages, prefer a user-facing item over a tracked `normal` tooling issue (iter 143) —
+    but deferring is a **one-iteration** move, not a veto: count the window explicitly in `## Goal`
+    (iters 144/145 were both at 2 of 4, below threshold). The deferred issue stays open, unblocked.
 - **Probe the network check before scoping a network gate.** `raw.githubusercontent.com` is
     reachable unauthenticated from the devcontainer, so an "it needs network → CI-only" item is
     still locally verifiable; and running the probe first proves the gate lands green rather than as
@@ -145,9 +139,16 @@ iterations.
     but the docs step must forbid the disputed claims by name in `Not In Scope` (iter 143: no
     output-equivalence claim, no multi-code-point/sequence statements).
 - New docs page checklist: `zensical.toml` nav + `scripts/gen_llms_full.py ORDERED_PAGES` +
-    `docs/llms.txt` (hand-maintained `## Reference` bullet list, currently incomplete — extra
-    entries are optional). `gen_llms_full.py` prints `Auto-discovered …` for any page missing from
-    `ORDERED_PAGES` → "output contains no `Auto-discovered` line" is the boolean wiring check.
+    `docs/llms.txt` (hand-maintained `## Reference` bullets, absolute
+    `https://lib.iscc.codes/<p>.md` URLs; 23 real pages = 24 tracked `docs/**/*.md` minus the
+    `includes/` snippet partial). As of iter 145 a `scripts/check_docs_nav.py` prek hook + pytest
+    test gates all three lists against disk. `gen_llms_full.py` prints `Auto-discovered …` for any
+    page missing from `ORDERED_PAGES` → "output contains no `Auto-discovered` line" is the boolean
+    wiring check.
+- **No `tomllib` in any script the pytest suite imports** — CI's `python-test` matrix runs Python
+    **3.10** (and `version-check` too), where `tomllib` is absent. Repo convention for TOML in
+    `scripts/` is stdlib regex (`version_sync.py`). Gate scripts are loaded in tests via
+    `importlib.util.spec_from_file_location` (`tests/test_check_release_workflow.py` is the model).
 - **The installed Python binding is a cheap probe — but the venv wheel LAGS the source** (iter 141:
     it still showed pre-iter-133 `text_clean` behaviour). Cross-check anything the last few
     iterations could have touched with `cargo test -p iscc-lib --lib <mod>::` (~seconds when built).
