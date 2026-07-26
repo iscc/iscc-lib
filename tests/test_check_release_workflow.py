@@ -6,6 +6,10 @@ mutation tests each write a modified copy of that file into ``tmp_path`` (the tr
 workflow is never touched) and assert that the specific check fires: guard wrapper
 stripped, ``prepare-release`` wrapped, a registry flag typo'd, an upload renamed away from
 its downloads, and a broken ``needs:`` entry.
+
+The action-input compatibility check (``--check-action-inputs``) is exercised through an
+injected in-memory fake fetcher — this suite never touches the network; the real fetch
+runs only in the dedicated ``release-workflow`` CI job.
 """
 
 import importlib.util
@@ -156,6 +160,133 @@ def test_references_match_is_symmetric_over_wildcards():
     assert crw.references_match("gem-x86_64-linux", "gem-*")
     assert crw.references_match("nuget-package", "nuget-package")
     assert not crw.references_match("wasm-pkg", "wasm-package")
+
+
+def test_action_yml_urls_ref_shapes():
+    # The four ref shapes present in release.yml: plain tag, sub-path action,
+    # slash-containing ref, and branch ref.
+    raw = "https://raw.githubusercontent.com"
+    assert crw.action_yml_urls("actions/checkout@v7") == [
+        f"{raw}/actions/checkout/v7/action.yml",
+        f"{raw}/actions/checkout/v7/action.yaml",
+    ]
+    assert crw.action_yml_urls("oxidize-rb/actions/cross-gem@v1") == [
+        f"{raw}/oxidize-rb/actions/v1/cross-gem/action.yml",
+        f"{raw}/oxidize-rb/actions/v1/cross-gem/action.yaml",
+    ]
+    assert crw.action_yml_urls("pypa/gh-action-pypi-publish@release/v1") == [
+        f"{raw}/pypa/gh-action-pypi-publish/release/v1/action.yml",
+        f"{raw}/pypa/gh-action-pypi-publish/release/v1/action.yaml",
+    ]
+    assert crw.action_yml_urls("dtolnay/rust-toolchain@stable") == [
+        f"{raw}/dtolnay/rust-toolchain/stable/action.yml",
+        f"{raw}/dtolnay/rust-toolchain/stable/action.yaml",
+    ]
+
+
+def test_is_repo_action_skips_non_repo_refs():
+    # Docker refs, local actions, and refs without an @<gitref> are not fetchable.
+    assert crw.is_repo_action("actions/checkout@v7")
+    assert not crw.is_repo_action("docker://alpine:3.20")
+    assert not crw.is_repo_action("./local-action")
+    assert not crw.is_repo_action("actions/checkout")
+
+
+# In-memory action metadata for check_action_compat tests — the fake fetcher
+# resolves refs from this table so the suite never touches the network.
+FAKE_ACTIONS = {
+    "acme/setup@v1": {
+        "inputs": {"version": {}, "cache": {}},
+        "outputs": {"path": {}},
+    },
+}
+
+
+def _fake_fetch(ref):
+    """Resolve an action ref from FAKE_ACTIONS; unknown refs raise a 404 error."""
+    meta = FAKE_ACTIONS.get(ref)
+    if meta is None:
+        raise crw.ActionNotFoundError(f"no action.yml or action.yaml found for '{ref}'")
+    return meta
+
+
+def _job_wf(steps):
+    """Wrap a step list into a minimal single-job workflow mapping."""
+    return {"jobs": {"build": {"steps": steps}}}
+
+
+def test_action_compat_clean():
+    # Declared `with:` keys and a declared action output produce no errors.
+    wf = _job_wf(
+        [
+            {"id": "setup", "uses": "acme/setup@v1", "with": {"version": "3"}},
+            {"run": "echo ${{ steps.setup.outputs.path }}"},
+        ]
+    )
+    assert crw.check_action_compat(wf, _fake_fetch) == []
+
+
+def test_action_compat_undeclared_with_key_fires():
+    # A `with:` key absent from the action's declared inputs is one error
+    # naming both the key and the ref.
+    wf = _job_wf([{"uses": "acme/setup@v1", "with": {"version": "3", "cachez": "x"}}])
+    errors = crw.check_action_compat(wf, _fake_fetch)
+    assert errors == [
+        "action: job 'build' passes undeclared input 'cachez' to 'acme/setup@v1'"
+    ]
+
+
+def test_action_compat_undeclared_step_output_fires():
+    # Reading an output the action does not declare is one error.
+    wf = _job_wf(
+        [
+            {"id": "setup", "uses": "acme/setup@v1"},
+            {"run": "echo ${{ steps.setup.outputs.pathz }}"},
+        ]
+    )
+    errors = crw.check_action_compat(wf, _fake_fetch)
+    expected = (
+        "action: job 'build' reads undeclared output "
+        "'steps.setup.outputs.pathz' from 'acme/setup@v1'"
+    )
+    assert errors == [expected]
+
+
+def test_action_compat_missing_action_yml_fires():
+    # A ref whose action.yml/action.yaml both 404 is a real defect: one error,
+    # reported once despite two steps using the same ref (fetches are cached).
+    wf = _job_wf(
+        [
+            {"uses": "acme/gone@v9", "with": {"anything": "x"}},
+            {"uses": "acme/gone@v9"},
+        ]
+    )
+    errors = crw.check_action_compat(wf, _fake_fetch)
+    assert errors == ["action: no action.yml or action.yaml found for 'acme/gone@v9'"]
+
+
+def test_action_compat_skipped_fetch_is_not_an_error():
+    # A fetcher returning None (network unavailable) degrades to a skip.
+    wf = _job_wf(
+        [
+            {"id": "setup", "uses": "acme/setup@v1", "with": {"bogus": "x"}},
+            {"run": "echo ${{ steps.setup.outputs.bogus }}"},
+        ]
+    )
+    assert crw.check_action_compat(wf, lambda ref: None) == []
+
+
+def test_action_compat_ignores_local_run_step_outputs():
+    # `steps.<id>.outputs.<x>` from a local `run:` step (no `uses:`) has no
+    # published metadata and must not error; same for ids not in the job.
+    wf = _job_wf(
+        [
+            {"id": "check", "run": "echo skip=true >> $GITHUB_OUTPUT"},
+            {"run": "echo ${{ steps.check.outputs.skip }}"},
+            {"run": "echo ${{ steps.elsewhere.outputs.thing }}"},
+        ]
+    )
+    assert crw.check_action_compat(wf, _fake_fetch) == []
 
 
 def test_declared_inputs_handles_yaml_bool_on_key():

@@ -413,3 +413,18 @@ jobs:
           tool: cargo-deny@0.19.9
       - name: Run cargo-deny
         run: cargo deny check
+  release-workflow:
+    name: Release workflow (action inputs)
+    runs-on: ubuntu-latest
+    # Validates release.yml `with:` keys and step-output reads against each
+    # action's published action.yml (needs network, so CI-only — prek and the
+    # pytest suite run the network-free checks). Transport failures degrade to
+    # a stderr warning, never a red gate.
+    steps:
+      - uses: actions/checkout@v7
+      # exact tag: setup-uv publishes no floating major tag past v7 (v8/v9 are
+      # exact release tags only), so @v9 does not resolve
+      - uses: astral-sh/setup-uv@v9.0.0
+      - name: Check release workflow action inputs
+        run: uv run --no-project --with pyyaml python scripts/check_release_workflow.py
+          --check-action-inputs

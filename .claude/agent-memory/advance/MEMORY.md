@@ -36,9 +36,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 ## Build and Tooling
 
 - `cargo build -p iscc-jni` before `mvn test -f crates/iscc-jni/java/pom.xml` (native lib prereq)
-- CI `.github/workflows/ci.yml`: 19 jobs (version-check, rust, python-test, python, nodejs, wasm,
-    c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver, coverage, audit).
-    `bench` = `cargo bench --no-run`; `swift` on macos-14; `kotlin` ubuntu JDK 17 + gradlew test
+- CI `.github/workflows/ci.yml`: 20 jobs (version-check, rust, python-test, python, nodejs, wasm,
+    c-ffi, dotnet, java, go, ruby, cpp, swift, kotlin, bench, perf, semver, coverage, audit,
+    release-workflow). `bench` = `cargo bench --no-run`; `swift` on macos-14; `kotlin` ubuntu JDK 17
+    \+ gradlew test
 - Enforcing gates: `coverage` (CRAP baseline `.crap-baseline.json`), `audit` (cargo-deny,
     `deny.toml`), `perf` (iai vs `.iai-baseline.json`); `semver` informational until v1.0.0. CRAP
     gate is CI-ONLY — refresh baseline (`mise run crap:baseline`) in the SAME step as any
@@ -66,10 +67,13 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     `gil_used` to `false`, unsafe for raw `PyList_GetItem` ptrs. Recipe → MEMORY-archive.md
 - GIL release (iters 111+116, #39/#41): 12 `py.detach` sites in `crates/iscc-py/src/lib.rs`. Video
     detach MUST open after frame-sig extraction; meta/audio/mixed stay attached. `tests/test_gil.py`
-- release.yml static gate (iter 142): `scripts/check_release_workflow.py` (guard shape, artifact
-    wiring via matrix-include expansion + symmetric glob match, `needs:` graph) — prek hook
+- release.yml static gate (iters 142+144): `scripts/check_release_workflow.py` (guard shape,
+    artifact wiring via matrix-include expansion + symmetric glob match, `needs:` graph) — prek hook
     `check-release-workflow` + `tests/test_check_release_workflow.py` in CI. Any release.yml edit
-    must keep it green. `pyyaml` is an explicit dev dep
+    must keep it green. `pyyaml` is an explicit dev dep. Opt-in `--check-action-inputs` (iter 144):
+    fetches each ref's published action.yml from raw GitHub, validates `with:` keys + action step
+    outputs; 404 = error, transport failure = stderr warning + exit 0; runs only in the
+    `release-workflow` CI job (prek/pytest stay network-free; tests inject a fake fetcher)
 - Release workflow (`release.yml`): 9 boolean inputs → build → **smoke test** → publish (inputs,
     auth, CI internals → MEMORY-archive.md). `build-wheels` 4 targets incl native-ARM aarch64;
     `test-wheels` matrixed, artifact name = `wheels-<os>-<target>`. All 28 non-`prepare-release`

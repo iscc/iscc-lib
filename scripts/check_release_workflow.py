@@ -18,17 +18,30 @@ scoped to `release.yml`) and in CI (via `tests/test_check_release_workflow.py`):
    error.
 3. **Job graph** — every `needs:` entry must be a declared job id.
 
+A fourth, opt-in check needs the network and therefore runs only in CI (never in prek
+or the pytest suite, which stay network-free):
+
+4. **Action-input compatibility** (`--check-action-inputs`) — every `with:` key on a
+   repository action must be a declared `inputs` key of that ref's published
+   `action.yml`, and every `steps.<id>.outputs.<x>` read from an action step must be a
+   declared `outputs` key. A 404 on both `action.yml` and `action.yaml` is an error
+   (the ref or sub-path is wrong); any transport failure (offline, timeout, rate
+   limit) degrades to a `warning: skipped …` line on stderr, never a red gate.
+
 Requires PyYAML (declared in the `dev` dependency group).
 
 Usage:
-    uv run scripts/check_release_workflow.py [path/to/release.yml]
+    uv run scripts/check_release_workflow.py [--check-action-inputs] [path/to/release.yml]
 """
 
 from __future__ import annotations
 
 import argparse
+import functools
 import re
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import yaml
@@ -239,6 +252,154 @@ def check_needs(wf: dict) -> list[str]:
     return errors
 
 
+RAW_HOST = "https://raw.githubusercontent.com"
+FETCH_TIMEOUT = 20  # seconds
+STEP_OUTPUT_RE = re.compile(r"steps\.([A-Za-z0-9_-]+)\.outputs\.([A-Za-z0-9_-]+)")
+
+
+class ActionNotFoundError(Exception):
+    """Raised when both `action.yml` and `action.yaml` return HTTP 404 for a ref."""
+
+
+def is_repo_action(uses: str) -> bool:
+    """Return True when a step `uses:` ref points to a fetchable repository action.
+
+    Docker refs (`docker://…`) and local actions (`./…`) have no published
+    `action.yml` on raw GitHub and are skipped without error.
+    """
+    if uses.startswith(("docker://", "./")):
+        return False
+    return "@" in uses and uses.partition("@")[0].count("/") >= 1
+
+
+def action_yml_urls(ref: str) -> list[str]:
+    """Return the candidate raw-GitHub URLs for a repo action ref's metadata file.
+
+    `owner/repo[/subpath]@gitref` maps to
+    `https://raw.githubusercontent.com/owner/repo/gitref[/subpath]/action.yml`
+    (then `action.yaml`). The ref is split on the first `@`; slashes inside the
+    git ref (e.g. `@release/v1`) are kept verbatim, never URL-encoded.
+    """
+    path, _, git_ref = ref.partition("@")
+    segments = path.split("/")
+    directory = "/".join([RAW_HOST, segments[0], segments[1], git_ref, *segments[2:]])
+    return [f"{directory}/action.yml", f"{directory}/action.yaml"]
+
+
+def fetch_action(ref: str) -> dict | None:
+    """Fetch and parse the published action metadata for a repo action ref.
+
+    Returns the parsed `action.yml` mapping, or `None` (after printing a
+    `warning: skipped …` line to stderr) on any transport failure — a degraded
+    network must never turn the gate red. Raises `ActionNotFoundError` when
+    both candidate URLs return 404: the ref or sub-path is wrong, which is a
+    real workflow defect.
+    """
+    for url in action_yml_urls(ref):
+        try:
+            # S310 audits urlopen for non-literal URLs; this one is built by
+            # action_yml_urls from the RAW_HOST https literal, so the scheme
+            # cannot be attacker-controlled.
+            with urllib.request.urlopen(url, timeout=FETCH_TIMEOUT) as resp:  # noqa: S310
+                data = yaml.safe_load(resp.read().decode("utf-8"))
+                return data if isinstance(data, dict) else {}
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                continue
+            print(f"warning: skipped {ref}: HTTP {exc.code} on {url}", file=sys.stderr)
+            return None
+        except OSError as exc:  # URLError, socket timeout, connection refused
+            print(f"warning: skipped {ref}: {exc}", file=sys.stderr)
+            return None
+    raise ActionNotFoundError(f"no action.yml or action.yaml found for '{ref}'")
+
+
+def cached_fetch(ref: str, fetch, cache: dict, errors: list[str]) -> dict | None:
+    """Fetch action metadata once per distinct ref, recording a 404 as an error."""
+    if ref not in cache:
+        try:
+            cache[ref] = fetch(ref)
+        except ActionNotFoundError as exc:
+            cache[ref] = None
+            errors.append(f"action: {exc}")
+    return cache[ref]
+
+
+def iter_strings(node):
+    """Yield every string value found in a nested YAML structure."""
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, dict):
+        for value in node.values():
+            yield from iter_strings(value)
+    elif isinstance(node, list):
+        for item in node:
+            yield from iter_strings(item)
+
+
+def check_with_keys(job_id: str, job: dict, get_meta) -> list[str]:
+    """Check 4a: every `with:` key on a repo action step is a declared input."""
+    errors: list[str] = []
+    for step in job.get("steps") or []:
+        uses = str(step.get("uses") or "")
+        if not is_repo_action(uses):
+            continue
+        meta = get_meta(uses)
+        if meta is None:  # skipped fetch or already-reported 404
+            continue
+        declared = set(meta.get("inputs") or {})
+        errors.extend(
+            f"action: job '{job_id}' passes undeclared input '{key}' to '{uses}'"
+            for key in step.get("with") or {}
+            if key not in declared
+        )
+    return errors
+
+
+def check_step_outputs(job_id: str, job: dict, get_meta) -> list[str]:
+    """Check 4b: every `steps.<id>.outputs.<x>` read from an action step resolves.
+
+    References to local `run:` steps (no `uses:`) and to ids that are not steps
+    of the same job are ignored — there is no published metadata to check.
+    """
+    errors: list[str] = []
+    steps = {s.get("id"): s for s in job.get("steps") or [] if s.get("id")}
+    refs = {m for text in iter_strings(job) for m in STEP_OUTPUT_RE.findall(text)}
+    for step_id, output in sorted(refs):
+        step = steps.get(step_id)
+        if step is None:
+            continue
+        uses = str(step.get("uses") or "")
+        if not is_repo_action(uses):
+            continue
+        meta = get_meta(uses)
+        if meta is None:
+            continue
+        if output not in set(meta.get("outputs") or {}):
+            errors.append(
+                f"action: job '{job_id}' reads undeclared output "
+                f"'steps.{step_id}.outputs.{output}' from '{uses}'"
+            )
+    return errors
+
+
+def check_action_compat(wf: dict, fetch) -> list[str]:
+    """Check 4: `with:` keys and step-output reads match published action metadata.
+
+    `fetch` maps an action ref to its parsed `action.yml` mapping, returns
+    `None` for a skipped (network-unavailable) fetch, or raises
+    `ActionNotFoundError` on a real 404. It is injected so tests supply an
+    in-memory fake; production passes `fetch_action`. Fetches are cached per
+    distinct ref, so a run costs one request per unique action.
+    """
+    errors: list[str] = []
+    get_meta = functools.partial(cached_fetch, fetch=fetch, cache={}, errors=errors)
+    for job_id, job in (wf.get("jobs") or {}).items():
+        errors.extend(check_with_keys(job_id, job, get_meta))
+        errors.extend(check_step_outputs(job_id, job, get_meta))
+    return errors
+
+
 def run_checks(wf: dict) -> list[str]:
     """Run all static checks against a parsed workflow; return all error strings."""
     return (
@@ -261,8 +422,18 @@ def main() -> None:
         default=DEFAULT_WORKFLOW,
         help=f"workflow file to check (default: {DEFAULT_WORKFLOW})",
     )
+    parser.add_argument(
+        "--check-action-inputs",
+        action="store_true",
+        help="also validate `with:` keys and step-output reads against each "
+        "action's published action.yml (needs network; transport failures "
+        "degrade to a stderr warning, not an error)",
+    )
     args = parser.parse_args()
-    errors = run_checks(load_workflow(args.workflow))
+    wf = load_workflow(args.workflow)
+    errors = run_checks(wf)
+    if args.check_action_inputs:
+        errors.extend(check_action_compat(wf, fetch_action))
     for error in errors:
         print(error)
     if errors:
