@@ -72,16 +72,17 @@ is stripped, which is what the reference does).
     provably insufficient** — the pre-filter scored 0 there while failing 42 sequence cases.
     Mandatory on every future table bump.
 
-## Cross-implementation prerequisite: the Go `Final_Sigma` bug
+## Cross-implementation prerequisite: the Go `Final_Sigma` bug — FIXED (iter 147, verified 148)
 
-**Separate defect, `critical`, not a Unicode-version issue.** `packages/go/utils.go:117` uses
-`strings.ToLower` (unconditional simple case mapping), so `ΛΟΓΟΣ` → `λογοσ` instead of `λογος`.
-Reference (`str.lower()`) and Rust (`str::to_lowercase()`) both apply the conditional `Final_Sigma`
-mapping. Reproduce in seconds — `cases.Lower(language.Und).String(s)` vs `strings.ToLower(s)` on
-`ΛΟΓΟΣ` / `ΑΣ` / `ΑΣΒ` (the third agrees; Σ is followed by a cased letter). Fix uses the
-**existing** `golang.org/x/text` dep; use a package-level `cases.Caser` — `cases.Lower` allocates a
-transformer per call. Affects ordinary Greek text, shipped in v0.5.0, invisible to CI because the
-vendored vectors contain no Greek.
+Was a separate `critical` defect, not a Unicode-version issue: `packages/go/utils.go` used
+`strings.ToLower` (unconditional simple case mapping), so `ΛΟΓΟΣ` → `λογοσ` instead of `λογος`, on
+ordinary Greek text shipped in v0.5.0 and invisible to CI (the vendored vectors contain no Greek).
+`TextCollapse` now calls `cases.Lower(language.Und).String(norm.NFD.String(text))` from the already
+required `golang.org/x/text`, matching `str.lower()` / `str::to_lowercase()`. The `Caser` is
+constructed **per call on purpose** (x/text documents it as possibly stateful and not
+goroutine-safe); the issue's "package-level Caser" sketch was deliberately not followed — do not
+"optimize" it. The `Final_Sigma` boundary vector for Go is therefore unblocked. Verified at HEAD:
+`ΛΟΓΟΣ`→`λογος`, `ΑΣ`→`ας`, `ΣΣ`→`σς`, with no over-correction on `ΑΣΒ`/`İstanbul`.
 
 ## Two accepted divergence classes — and only two
 
