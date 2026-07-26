@@ -77,6 +77,10 @@ fully-met target sections to `learnings-archive.md`.
     no-ops keep everything green. The ungated metadata guard therefore asserts the exact non-ASCII
     code-point set per section (runs under `--no-default-features` too). Mutation-probe any such
     guard — edit the JSON, watch it fail, `git checkout --` the file
+- **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (measured iter 143):
+    3,995 Egyptian Hieroglyphs, 7 new scripts, **32 LATIN-named** incl. U+A7CB (our own repro).
+    Never write "Latin text is unaffected"; measure by diffing assigned-set dumps from two
+    `uvx --with unicodedata2==<ver> python` runs
 - `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing
 - Conformance vectors: `"stream:<hex>"` prefix in data.json denotes hex-encoded byte data. Empty
@@ -127,9 +131,6 @@ fully-met target sections to `learnings-archive.md`.
     ruff's `E4`/`E7`/`E9`/`F` defaults; **never `ruff check --fix .`** without `--select` — it
     deletes the 13 load-bearing `# noqa: S603/S607` in `tools/`+`scripts/` and reds the pre-push
     security gate
-- **A file-mode change needs `git update-index --chmod=+x`, not just `chmod`** (iter 136): with
-    `core.fileMode=false` here a plain `chmod +x` is invisible to git — run both, prove it with
-    `git ls-files -s <path>` → `100755`
 - **A prek `types:` tag is not a file-extension guess — probe it** (`.pyi` is tagged `pyi`, not
     `python`; that hole silently skipped the published `_lowlevel.pyi`, closed iter 139). Prove a
     hook's real surface with a **staged, deliberately dirty** probe file:
@@ -142,9 +143,6 @@ fully-met target sections to `learnings-archive.md`.
     together → `learnings-archive.md`
 - **JVM test/publish + Gradle bind-mount flake gotchas** (iter 128) → `learnings-archive.md`. Read
     it before touching `pom.xml` / `build.gradle.kts`, or before calling a Gradle error a failure
-- **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
-    `--target all`. (The recurring `proc-macro-error2` future-incompat warning is dev-only and
-    expected; full attribution → `issues.md` "Known constraint (verified iter 126)")
 - **A floating `@vN` GitHub Action tag is a publisher convention, NOT a guarantee** — confirm with
     `gh api repos/<o>/<r>/git/matching-refs/tags/v<N>` before writing `@vN` (the `releases/latest`
     endpoint proves a release exists, not that `@vN` resolves). `astral-sh/setup-uv` stopped
@@ -194,6 +192,10 @@ fully-met target sections to `learnings-archive.md`.
 - **next.md must never task advance with editing `issues.md`** (iter 135): advance's protocol
     forbids writing it and review owns issue progress/resolution. A slice-progress ledger paragraph
     belongs in the handoff Notes for review to append — advance correctly refused and quoted it
+- **Hold a user-facing doc claim to the evidence bar of a test** (iter 143): next.md prose
+    prescribed two false safety claims and advance shipped them verbatim. Re-derive every
+    quantitative or "never/always" claim, and scope "implementation X agrees with us" to the class
+    proven ("CPython 3.14 agrees" is false for the open sequence class)
 - **Role model assignment (2026-07)**: `advance` runs on Claude Fable 5 (`model: fable`,
     `effort: xhigh`, runner timeout 3600s); all other roles on `opus`. Deliberate diversity — do not
     "unify" onto one model

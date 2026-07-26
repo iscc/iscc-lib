@@ -54,7 +54,9 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
 - **Unicode 16.0.0 freeze rule — Rust core landed iter 133, Rust boundary fixture iter 141**:
     remaining are the 11 bindings (Go on 15.0 tables → delta or documented skip) + the differential
     sweep; never let a step "fix" one binding to match another. **Open, human-gated:** the
-    sequence-adjacency divergence — probe → `review-patterns.md`, ruling → `issues.md`
+    sequence-adjacency divergence — probe → `review-patterns.md`, ruling → `issues.md`. **Public
+    page `docs/unicode.md` (iter 143)** carries a deliberate placeholder ("CPython 3.14 agrees … on
+    the single-code-point behaviour") that the ordering ruling must revisit
 - **Concurrent CID loops (iter 97, detail in `MEMORY-archive.md`)**: spurious `mise run check`
     "files modified" on an untouched file + mid-review working-tree change = a SECOND loop racing.
     Confirm with `ps aux`; flag HUMAN REVIEW REQUESTED, do NOT push or kill processes
@@ -68,7 +70,14 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     which tests run — assert the per-target `N passed` line. Then the fixture-CONTENT guard and
     live-vs-hypothetical vector probes → `review-patterns.md`. Test assets + docs are budget-free
 - **Docs-only**: `mise run check` + clippy + `mise run version:check` (21 `OK:` lines) + a
-    `uv run zensical build` ("No issues found") + rendered-HTML grep for admonition/tab edits
+    `uv run zensical build` ("No issues found") + rendered-HTML grep for admonition/tab edits.
+    **Green gates say NOTHING about truth** (iter 143) — a docs step's real work is fact-checking:
+    re-derive every number from the source artifact, and treat "never / always / only / in practice"
+    sentences as claims to disprove. next.md's Implementation Notes prose is a HYPOTHESIS, not a
+    fact sheet: it dictated two false claims that advance shipped verbatim. Recipe (incl. the
+    `unicodedata2` version-diff) → `review-patterns.md` "Docs Claim-Checking"
+- **New docs PAGE**: also verify the 3 hand-wired lists agree — `zensical.toml` nav, `ORDERED_PAGES`
+    in `scripts/gen_llms_full.py`, `docs/llms.txt`. Nothing gates their parity
 - **Python-only**: `mise run check` + `pytest`
 - **New gate script (iter 142, ~6 min)**: never accept "it exits 0 at HEAD" — write your OWN
     mutations beyond the committed tests, dump the gate's internals via `importlib`, and get its
@@ -134,8 +143,10 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     build it) before dismissing
 - **It catches what local gates cannot**: downstream-consumer breakage (128, KGP floor),
     input-validation edges (119, trailing-byte decode), **algorithm-vs-its-own-docstring gaps**
-    (142, counter-example `gem-*` vs `*-linux`). Expect a real finding whenever a diff adds a
-    matching/parsing rule; convergence with my own suspicion = VERIFY EMPIRICALLY
+    (142, counter-example `gem-*` vs `*-linux`), **prose-vs-reality gaps in docs** (143, both false
+    Unicode claims incl. the U+A7CB counter-example). Expect a real finding whenever a diff adds a
+    matching/parsing rule OR a user-facing factual claim; convergence with my own suspicion = VERIFY
+    EMPIRICALLY. Do run it on docs-only diffs — that is where it has been most valuable lately
 - **But it does not probe tool-internal classification or gate self-weakening** — it passed the
     iter-138 hook-types diff while missing the `.pyi` tag hole, and (141) called a new fixture
     "accurate" without asking what happens if the fixture itself is weakened. It reviews what the

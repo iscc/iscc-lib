@@ -71,8 +71,9 @@ known today:
     The Python reference implementation [iscc-core](https://github.com/iscc/iscc-core) inherits the
     Unicode tables of the running CPython interpreter. CPython ≤ 3.13 ships Unicode 15.1 tables, so text
     containing a character assigned in Unicode 16.0 hashes differently there. CPython 3.14 ships Unicode
-    16.0.0 tables and agrees with iscc-lib. Adopting the same freeze-rule architecture upstream is
-    proposed in [iscc-core/issues/137](https://github.com/iscc/iscc-core/issues/137).
+    16.0.0 tables and agrees with iscc-lib on the single-code-point behaviour described on this page.
+    Adopting the same freeze-rule architecture upstream is proposed in
+    [iscc-core/issues/137](https://github.com/iscc/iscc-core/issues/137).
 
 !!! note "The pure-Go package"
 
@@ -84,13 +85,16 @@ known today:
 
 ## Practical guidance
 
-- **ASCII and Latin text is never affected.** The freeze rule only touches code points that are
-    unassigned in Unicode 16.0.0; every character in common Western, CJK, Arabic, Cyrillic, and
-    other established scripts has been assigned for many Unicode versions.
-- **Inputs that differ across implementations in practice** are those containing characters newly
-    assigned in Unicode 16.0 — realistically the seven emoji added in that version (such as
-    `U+1FAE9` 🫩) — when compared against `iscc-core` on CPython ≤ 3.13 or against the pure-Go
-    package.
+- **ASCII is never affected**, and neither is the long-established repertoire of common scripts —
+    Western European, CJK, Arabic, Cyrillic and the like were assigned many Unicode versions ago and
+    behave identically on every implementation.
+- **Inputs that differ across implementations in practice** are those containing one of the 5,185
+    code points assigned in Unicode 16.0, when compared against `iscc-core` on CPython ≤ 3.13 or
+    against the pure-Go package. That set is dominated by Egyptian Hieroglyph extensions and the
+    seven newly encoded scripts (Garay, Gurung Khema, Kirat Rai, Ol Onal, Sunuwar, Todhri,
+    Tulu-Tigalari), but it also includes the seven new emoji (such as `U+1FAE9` 🫩) and 32
+    Latin-script additions such as `U+A7CB` LATIN CAPITAL LETTER RAMS HORN — so Latin-script text is
+    not automatically safe.
 - **Inputs containing unassigned code points** (for example characters from Unicode 17 or later) are
     normalized identically by all native bindings on every runtime: the freeze rule strips them
     before hashing.

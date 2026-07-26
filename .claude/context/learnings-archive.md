@@ -834,3 +834,12 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
 - **Single-package relock proof**: `uv lock --upgrade-package <pkg>` then
     `git diff -- uv.lock | grep -E '^[+-]name = '` must be empty (only the target moved).
 - Every `[tool.ruff*]` setting in `pyproject.toml` carries its rationale as an inline comment.
+
+## Tooling — git gotchas from the closed ruff/dep-refresh threads (archived iter 143)
+
+- **A file-mode change needs `git update-index --chmod=+x`, not just `chmod`** (iter 136): with
+    `core.fileMode=false` here a plain `chmod +x` is invisible to git — run both, prove it with
+    `git ls-files -s <path>` → `100755`.
+- **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
+    `--target all`. (The recurring `proc-macro-error2` future-incompat warning is dev-only and
+    expected; full attribution → `issues.md` "Known constraint (verified iter 126)".)

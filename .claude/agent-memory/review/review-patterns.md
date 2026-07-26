@@ -186,3 +186,35 @@ A gate that cannot fail is worse than none, because it manufactures false confid
     `--select C901 --force-exclude`), `ty check`, full `uv run pytest --timeout=120`,
     `mise run check`, plus the hook-scope probe (`uv run prek run <hook> --files <in-scope>` →
     `Passed`; `--files <out-of-scope>` → `Skipped`). ≈ 6 min total.
+
+## Docs Claim-Checking (iter 143)
+
+A docs step has no failing test to catch it — every gate is green on a page full of lies. Budget the
+review time on truth, not on `zensical build`.
+
+1. **Every number gets re-derived from the artifact, not from next.md.**
+    `731 ranges / 819,533 code  points` → parse `crates/iscc-lib/src/utils/unicode16.rs` with a
+    regex and sum the ranges. Table rows → dump the JSON fixture. Version/behaviour claims about a
+    dependency → query the dependency (`mise exec -- go doc unicode Version`, `cargo info`).
+2. **Hunt absolutes.** Grep the diff for `never|always|only|in practice|unaffected|agrees`. Each one
+    is a universally-quantified claim; find one counter-example and it is dead. The counter-example
+    is very often already written down in `issues.md` — read the issue the page documents *before*
+    reading the page. (143: the page said "Latin text is never affected"; the issue's own repro
+    character is `Ɤ` U+A7CB, a Unicode-16 **Latin** addition.)
+3. **Unicode "what changed in version X" recipe** (~40 s, definitive):
+    ```
+    for v in 15.1.0 16.0.0; do uvx --with unicodedata2==$v python -c "
+    import unicodedata2 as u
+    open('/tmp/a_$v.txt','w').write('\n'.join(hex(c) for c in range(0x110000) if u.category(chr(c))!='Cn'))"; done
+    ```
+    then diff the sets in a `uvx --with unicodedata2==16.0.0` shell and bucket by
+    `u.name(chr(cp)).split()[0]`. 15.1→16.0 = **5,185** cps: 3,995 EGYPTIAN, 7 new scripts, 19 in
+    the emoji planes (7 real emoji), **32 LATIN**. Never use the system `unicodedata` as the "old"
+    side — the uvx interpreter is already 3.14/Unicode 16.
+4. **Scope-check agreement claims against open human-gated issues.** "X agrees with us" must be
+    narrowed to the class actually proven whenever a divergence class is parked. Narrowing is a
+    legal review fixup; *describing* the parked class is not (it pre-empts the human's ruling).
+5. **Verdict calculus**: a false consumer-facing safety claim is not a "stale docs" nit — it meets
+    the "would mislead users" bar. But if the fix is a few sentences and the correct figures are
+    already measured, fixing it in review + PASS_WITH_NOTES beats NEEDS_WORK (two iterations for
+    two sentences); record the correction in `decisions.md` so the wording is not "improved" back.

@@ -288,7 +288,10 @@ shape/content guard + 2 `text-processing`-gated vector tests). Sequence vectors 
 excluded pending the ordering ruling; rationale → `decisions.md` 2026-07-25. **Remaining for (b):**
 copy the fixture into the 11 bindings' conformance tests and the four sibling `data.json` locations
 — still blocked on the parked ordering ruling below **and** the Go Unicode-15.0-tables decision
-(point 3).
+(point 3). ✅ (c) user-facing documentation — `docs/unicode.md` "Text Processing and Unicode" (iter
+143; site nav + `ORDERED_PAGES` + `llms.txt`, plus a Unicode-tables note in `docs/howto/go.md`)
+states the declared version, the freeze rule, the four boundary vectors and both divergences. Keep
+it in sync when the Go decision or the ordering ruling lands.
 
 **Upstream:** iscc/iscc-core — filed 2026-07-25 as <https://github.com/iscc/iscc-core/issues/137>
 ("text_clean/text_collapse output depends on the CPython version"). Reproduced there with
@@ -334,6 +337,11 @@ So Meta-Code **and** Text-Code can differ for these inputs. Consequences:
 3. **The upstream proposal** (<https://github.com/iscc/iscc-core/issues/137>) must specify
     *pre-normalization* removal, or an `iscc-core` that adopts the freeze rule with post-
     normalization removal will still disagree with iscc-lib on these inputs.
+4. **The public docs page carries a placeholder qualifier** (added iter 143): `docs/unicode.md` says
+    CPython 3.14 "agrees with iscc-lib on the single-code-point behaviour described on this page"
+    and is deliberately silent about sequences. The draft claimed unqualified agreement — false for
+    this class — so the ruling must revisit that sentence (widen it back, or state the accepted
+    sequence delta). Rationale → `decisions.md` 2026-07-26.
 
 No alternative ordering preserves table-version invariance (post-normalization removal reintroduces
 the 16→17 drift the rule exists to prevent), so this is expected to be a wording/scoping decision

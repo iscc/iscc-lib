@@ -428,3 +428,44 @@ now stated in the function's docstring. If that day comes the fix is a real inte
 looser skeleton match: a false negative here means a release publishes an artifact that was never
 built. **Context:** CID iteration 142 (`bcb3128`), closing checks 1–2 of the `[review]` issue "Land
 the `release.yml` static checks as an executable gate".
+
+## 2026-07-26 — The public Unicode page scopes its `iscc-core` agreement claim to single code points
+
+**Decision:** `docs/unicode.md` states that CPython 3.14 "agrees with iscc-lib **on the
+single-code-point behaviour described on this page**" and says nothing at all about multi-code-point
+sequences, even though a divergence class there is known and measured. **Why:** the freeze rule
+strips Unicode-16-unassigned code points *before* normalization while `iscc-core` strips them
+*after*, which changes character adjacency and therefore unblocks contextual transforms (canonical
+composition, Hangul jamo composition, `Final_Sigma`) — so an unqualified "3.14 agrees" is provably
+false, and it was published in the first draft of this page (caught in review by both the reviewer
+and the Codex second opinion). The corrective wording had to remove the false claim without
+*asserting* the sequence behaviour, because whether that behaviour is a bug or an accepted deviation
+is an open `HUMAN REVIEW REQUESTED` item (issues.md, "Freeze-rule ordering diverges from iscc-core
+on sequences") whose ruling also decides the upstream proposal's wording. **Alternatives:** document
+the sequence divergence now — rejected, it would publish a user-facing commitment to behaviour
+Titusz has not ruled on, and next.md explicitly excluded it; drop the CPython 3.14 sentence entirely
+— rejected, "3.14 ships 16.0 tables" is the single most useful fact for a Python adopter; leave the
+blanket claim and file an issue — rejected, the page's whole purpose is divergence accuracy.
+**Consequence:** the qualifier is a placeholder. When the ordering ruling lands, this sentence must
+be revisited in the same step — either widened back to an unqualified "agrees" (if the ordering
+changes) or expanded with the accepted sequence delta. **Context:** CID iteration 143 (`5b8b8f8` +
+the review fixup).
+
+## 2026-07-26 — "Practical guidance" quantifies the Unicode 16 delta instead of calling Latin text safe
+
+**Decision:** the page's guidance names the full **5,185** code points assigned in Unicode 16.0 —
+Egyptian Hieroglyph extensions, seven new scripts, 7 emoji and 32 Latin-script additions including
+`U+A7CB` — and limits the "unaffected" promise to ASCII plus the long-established repertoire of
+common scripts. **Why:** the draft (following next.md's Implementation Notes verbatim) claimed
+"ASCII and Latin text is never affected" and characterised the affected set as "realistically the
+seven emoji". Both are false: `U+A7CB` LATIN CAPITAL LETTER RAMS HORN is a Unicode 16 Latin addition
+and is the *exact* character in this project's own recorded Go-vs-Rust divergence reproduction, so
+the page — and the `docs/howto/go.md` note repeating it — told Go users their Latin corpus was safe
+against the one interop failure the project has actually demonstrated. Re-measured in review by
+diffing assigned-set dumps of `unicodedata2` 15.1.0 vs 16.0.0. **Alternatives:** NEEDS_WORK and a
+full define-next/advance cycle — rejected, the defect is two sentences of prose with the correct
+figures already measured, and holding the batch would have kept an otherwise accurate page
+unpublished for two iterations; leave the claim and file an issue — rejected, a false safety claim
+must not reach the published site. **Consequence:** guidance about "which inputs are affected" on
+this page is now numeric and source-checkable; any future edit must re-measure rather than restate.
+**Context:** CID iteration 143, review fixup on top of `5b8b8f8`.
