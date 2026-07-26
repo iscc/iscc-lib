@@ -8,6 +8,48 @@ entries carry a `**Scope estimate:**` — a step citing one may modify up to 8 n
 
 <!-- Add issues below this line -->
 
+## `packages/go` lowercases without `Final_Sigma` context — Greek text non-conformant `critical` [human]
+
+**Titusz 2026-07-26: fix this next, ahead of the freeze-rule work below.** It is a wrong-output bug
+on ordinary text in a package already published as v0.5.0, the fix is small and needs no new
+dependency, and landing it unblocks the `Final_Sigma` boundary vector for Go. Ships in v0.6.0; no
+separate patch release.
+
+`packages/go/utils.go:117` collapses text with `strings.ToLower`, which applies unconditional simple
+case mapping. The reference lowercases with Python `str.lower()` and the Rust core with
+`str::to_lowercase()`; both apply the conditional `Final_Sigma` special case (`Σ` → `ς` when
+preceded by a cased character and not followed by one). Go therefore emits `σ` where the reference
+emits `ς`.
+
+Verified 2026-07-26 by running `TextCollapse` against `iscc_lib.text_collapse` (Rust core, which
+agrees with `iscc-core` here):
+
+| input   | reference / Rust | `packages/go` | note                           |
+| ------- | ---------------- | ------------- | ------------------------------ |
+| `ΑΣΒ`   | `ασβ`            | `ασβ`         | Σ followed by cased Β — agrees |
+| `ΑΣ`    | **`ας`**         | **`ασ`**      | word-final Σ — diverges        |
+| `ΛΟΓΟΣ` | **`λογος`**      | **`λογοσ`**   | ordinary Greek word            |
+
+Unlike the Unicode-16 table issue this is **not** bounded by version drift or rare code points:
+Greek word-final sigma is pervasive (`-ος`, `-ης`, `-ας` endings), so any uppercase or mixed-case
+Greek text yields a different Text-Code and Meta-Code from Go than from every other implementation.
+The vendored conformance vectors contain no Greek, which is why CI never caught it.
+
+**Fix:** `golang.org/x/text` is already a dependency, and `cases.Lower(language.Und)` implements the
+conditional mapping. Verified equivalent to the reference on all five probe inputs above plus
+`ΑΣ\u{0378}Β` → `ας\u{0378}β`. Replace `strings.ToLower(norm.NFD.String(text))` in `TextCollapse`
+with a package-level `cases.Caser` (construct once — `cases.Lower` allocates a transformer per
+call), and add Greek regression cases to `utils_test.go`. Audit `TextClean` and the codec helpers
+for other `strings.ToLower` uses at the same time; `codec_test.go:390` is test-only and fine.
+
+**Blocks:** the `Final_Sigma` boundary vector in the freeze-rule work package below cannot be
+enabled for Go until this lands. It is *not* covered by the go1.27 exception — `U+0378` is
+unassigned in Go's Unicode 15.0 tables too, so that vector is table-independent and this bug is its
+only blocker.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
+contract" → "Case mapping must be context-sensitive in every implementation"
+
 ## Dependency review and refresh across the project `normal` [human]
 
 Planned for the **v0.6.0** release. No automated dependency updates are configured (no
@@ -137,11 +179,14 @@ auto-caching needs a `packageManager` field or lockfile, neither of which this r
 `download-artifact@v8`'s strict `digest-mismatch: error` is intentionally kept). Rationale +
 accepted risk → `decisions.md` 2026-07-25.
 
-**All nine ecosystem/tooling slices are closed.** Remaining under this issue are only the
-human/major-gated bumps, each its own step: xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle wrapper
-8.12.1, JUnit 6.x, plus the `jni` 0.22 and `magnus` 0.8 migrations (source rewrites in
-`crates/iscc-jni/src/lib.rs` and `crates/iscc-rb/src/lib.rs` respectively). Never run
-`ruff@0.16 check --fix .` — it deletes load-bearing `# noqa` directives.
+**All nine ecosystem/tooling slices are closed.** Remaining under this issue are the major bumps,
+**all of which Titusz authorized for CID on 2026-07-26** — one per step, gates green, no bundling:
+xunit 3.x, `Microsoft.NET.Test.Sdk` 18.x, Gradle wrapper 8.12.1, JUnit 6.x, plus the `jni` 0.22 and
+`magnus` 0.8 migrations (source rewrites in `crates/iscc-jni/src/lib.rs` and
+`crates/iscc-rb/src/lib.rs` respectively — take these one crate per step, they are real API
+migrations and the riskiest items here; if either turns out to need an upstream-behaviour ruling,
+park it and say so rather than guessing). Never run `ruff@0.16 check --fix .` — it deletes
+load-bearing `# noqa` directives.
 
 **Known constraint (verified iter 126):** the `proc-macro-error2 v2.0.1` future-incompat warning
 (`extern crate proc_macro is private and cannot be re-exported`) emitted on every `cargo test` /
@@ -175,7 +220,13 @@ not act on them unprompted:
     reported undeclared. No such action exists among the 18 refs. **Trigger:** the false positive
     is actually observed.
 
-## Pin `rubygems/configure-rubygems-credentials` off the `@main` branch `normal` [review]
+## Pin `rubygems/configure-rubygems-credentials` off the `@main` branch (RULED) `normal` [human]
+
+**RULED by Titusz 2026-07-26 — take option (a): `@v2.1.0` with an inline `# exact tag:` comment.**
+The repo's tags-never-SHAs convention stands; this does not become the first SHA-pinned action.
+Rationale in `decisions.md` (2026-07-26). **CID is authorized to make this change** — it is a
+one-line edit to `.github/workflows/release.yml` line 895 plus the comment. Verification is static
+(the workflow is `workflow_dispatch`-only) plus the first real gem publish. Background below.
 
 `.github/workflows/release.yml` line 895 uses `rubygems/configure-rubygems-credentials@main` — a
 **floating branch**, the only unpinned `uses:` in the repo. That step runs in the RubyGems publish
@@ -195,13 +246,15 @@ Facts checked at review (iter 140):
 - The step passes **no `with:` keys** here (pure OIDC, no `role-to-assume`/`api-token`), so any of
     `@v2.1.0` / a SHA / `@main` is input-compatible — this is purely a trust-anchor choice.
 
-**Needs Titusz's call before CID acts**, because the two candidate fixes conflict with each other
-and with existing convention: (a) `@v2.1.0` + an inline `# exact tag:` comment, mirroring the
-`astral-sh/setup-uv@v9.0.0` precedent and keeping the repo's "tags, never SHAs" convention intact,
-or (b) a SHA pin as upstream recommends, which would make this the first SHA-pinned action in the
-repo and reopens the convention decided in `decisions.md` 2026-07-25. CID should not pick (b)
-unilaterally. Verification either way is static (`workflow_dispatch`-only) plus the first real gem
-publish. Left untouched in iteration 140 by that step's `Not In Scope`.
+The two candidate fixes conflicted with each other and with existing convention: (a) `@v2.1.0` + an
+inline `# exact tag:` comment, mirroring the `astral-sh/setup-uv@v9.0.0` precedent and keeping the
+repo's "tags, never SHAs" convention intact, or (b) a SHA pin as upstream recommends, which would
+make this the first SHA-pinned action in the repo and reopens the convention decided in
+`decisions.md` 2026-07-25. Left untouched in iteration 140 by that step's `Not In Scope`. **(a) was
+chosen** — the deciding argument being that 97 other `uses:` refs are already mutable floating
+majors, including the `checkout` and `upload-artifact` steps that build and carry the very artifact
+being published, so SHA-pinning this one step buys little while splitting the convention. If SHA
+pinning is ever adopted it should be adopted repo-wide.
 
 ## Declare and gate a Unicode data version (DECIDED) `normal` [human]
 
@@ -287,12 +340,23 @@ see caveat in point 3); the spec already names 16.0.0 and the freeze rule. **(b)
 code points × `text_clean`/`text_collapse`) + loader `tests/test_unicode_boundary.rs` (1 ungated
 shape/content guard + 2 `text-processing`-gated vector tests). Sequence vectors deliberately
 excluded pending the ordering ruling; rationale → `decisions.md` 2026-07-25. **Remaining for (b):**
-copy the fixture into the 11 bindings' conformance tests and the four sibling `data.json` locations
-— still blocked on the parked ordering ruling below **and** the Go Unicode-15.0-tables decision
-(point 3). ✅ (c) user-facing documentation — `docs/unicode.md` "Text Processing and Unicode" (iter
-143; site nav + `ORDERED_PAGES` + `llms.txt`, plus a Unicode-tables note in `docs/howto/go.md`)
-states the declared version, the freeze rule, the four boundary vectors and both divergences. Keep
-it in sync when the Go decision or the ordering ruling lands.
+copy the fixture into the 11 bindings' conformance tests and the four sibling `data.json` locations.
+**Both blockers are now cleared** (2026-07-26): the ordering ruling is recorded above, and the Go
+decision below. Sequence vectors can now be added — the sentinel map makes iscc-lib match the
+reference on them. Do the sentinel conversion **first**, since it changes the expected output of any
+sequence vector.
+
+**Go — RULED by Titusz 2026-07-26: skip, do not vendor the delta.** `packages/go` skips the Unicode
+16.0 boundary vectors with an explicit tracking note (and an issue filed here) rather than vendoring
+the 5,813-code-point 15.0→16.0 assigned delta, because go1.27 lands ~Aug 2026 and would make that
+table throwaway code. When go1.27 ships, Go needs **both** the newer stdlib/`x/text` tables *and*
+the 731-range freeze table — go1.27 fixes Go's missing 16.0 knowledge, not its need to remove
+post-16.0 characters. Rationale in `decisions.md` (2026-07-26, "Go skips the Unicode-16 boundary
+vectors until go1.27"). This unblocks criterion 3 for the other 10 bindings. ✅ (c) user-facing
+documentation — `docs/unicode.md` "Text Processing and Unicode" (iter 143; site nav +
+`ORDERED_PAGES` + `llms.txt`, plus a Unicode-tables note in `docs/howto/go.md`) states the declared
+version, the freeze rule, the four boundary vectors and both divergences. Keep it in sync when the
+Go decision or the ordering ruling lands.
 
 **Upstream:** iscc/iscc-core — filed 2026-07-25 as <https://github.com/iscc/iscc-core/issues/137>
 ("text_clean/text_collapse output depends on the CPython version"). Reproduced there with
@@ -307,10 +371,110 @@ vectors in `data.json`. Per ISO 24138 Annex D the reference implementation is no
 **Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
 contract"
 
-## Freeze-rule ordering diverges from iscc-core on sequences `normal` [review]
+## Convert the freeze rule from a pre-filter to a sentinel map (RULED) `normal` [human]
 
-> **HUMAN REVIEW REQUESTED**: the spec's equivalence claim for the freeze rule is provably false as
-> literally worded, and the upstream proposal must state the ordering explicitly.
+**RULED by Titusz 2026-07-26 — the freeze rule maps unassigned code points to the noncharacter
+`U+FFFF` before normalization; ISO conformance is a hard constraint; the declared version stays
+16.0.0.** Rationale in `decisions.md` (2026-07-26, "The freeze rule maps unassigned code points to a
+noncharacter sentinel" + "Declared Unicode version stays 16.0.0"). `specs/rust-core.md` requirements
+1 and 4, its accepted-divergence section and its **Verified when** list are already updated — the
+spec is the authority; this entry is the work package.
+
+Two intermediate proposals from the same session were superseded and must not be implemented: a
+category override (fails 10 of 140 sequence cases — see the table below) and lowering the declared
+version to 15.1.0 (rejected: it strips the 6 living scripts added in Unicode 16.0, collapsing any
+document written wholly in one of them to `""` so all such documents collide on one degenerate
+Text-Code).
+
+The check Titusz asked for: IEP-0003 (Normative, ISO 24138:2024,
+<https://github.com/iscc/iscc-ieps/blob/main/ieps/iep-0003.md>) defines conformance as
+output-equivalence with the reference implementation, *not* prose-matching its 5-step Processing
+clause. So the iter-133 pre-filter was **not** a wording defect — it was real non-conformance, and
+unlike the accepted 15.1→16.0 single-code-point glitch it diverges from **every** reference version
+including CPython 3.14. "Accept + enumerate the delta" was therefore rejected.
+
+### Work package
+
+1. In `crates/iscc-lib/src/utils.rs`, change the pre-normalization pass in `text_clean` (~line 100)
+    and `text_collapse` (~line 176) from a `filter` to a `map` onto the sentinel — one token,
+    inside the same fused iterator:
+
+    ```rust
+    // from:
+    .filter(|&c| !is_unassigned_in_unicode16(c))
+    // to:
+    .map(|c| if is_unassigned_in_unicode16(c) { '\u{FFFF}' } else { c })
+    ```
+
+    The category filters (`is_c_category`, `is_cmp_category`) are **left alone** — `U+FFFF` is `Cn`,
+    so they already strip it. The vendored table and `scripts/gen_unicode16_unassigned.py` do not
+    change. Name the sentinel as a `const` with a comment on why a *noncharacter* specifically.
+
+2. Update both function docstrings — they currently give the pre-normalization ordering as the
+    reason for invariance, which is wrong on both counts.
+
+3. Add regression tests for all four **Verified when** cases, including
+    `text_clean("e\u{A7F1}\u{0301}") == "e\u{0301}"` (the case a category override gets wrong) and
+    an assertion that the normalizer passes `U+FFFF` through unchanged.
+
+4. Both hot-path gates apply (iai-callgrind 10% Ir budget, CI-only CRAP `--fail-regression`). Expect
+    Ir to be **flat**: a `map` replaces a `filter` in the same iterator chain — same passes, same
+    allocations, no filter-predicate change. A significant move in either direction means the
+    implementation is not the one specified.
+
+5. Widen the deliberately-scoped CPython-3.14 sentence in `docs/unicode.md` back to unqualified
+    agreement, replace its freeze-rule description with the sentinel mechanism, and state the
+    accepted divergence class (b) plus why 15.1.0 was rejected. The placeholder recorded in
+    `decisions.md` 2026-07-26 is discharged.
+
+6. Add a short **"How much does this matter?"** section to `docs/unicode.md` giving readers the
+    proportionality up front, so the page does not read more alarming than the issue is: Data-Code
+    and Instance-Code are unaffected; Meta-Code and Text-Code are similarity-preserving so affected
+    codes stay Hamming-close and similarity matching still works; newly assigned code points are
+    rare in real text; the residual exposure is exact-match lookups on short inputs and the exact
+    `name` / `description` fields. Source: `decisions.md` 2026-07-26, "Unicode determinism is a
+    bounded-severity issue".
+
+**Cross-binding prerequisite:** when the boundary vectors are later wired into the bindings, the
+`Final_Sigma` case is blocked for `packages/go` by the `strings.ToLower` bug filed at the top of
+this file — a separate defect from the go1.27 table exception, and one that affects ordinary Greek
+text. Land that fix first or enable that one vector for Go last.
+
+**Measured before the ruling** — three designs swept against a uniform-Unicode-16.0 reference
+(`unicodedata2==16.0.0`), evaluated on Unicode 17.0 tables (what `unicode-normalization` 0.1.25
+ships):
+
+| design                         | single code points | sequence cases |
+| ------------------------------ | ------------------ | -------------- |
+| pre-filter (iteration 133)     | 0 of 1,114,112     | **42 of 140**  |
+| category override (superseded) | **1** (`U+A7F1`)   | **10 of 140**  |
+| sentinel map (decided)         | **0**              | **0**          |
+
+The `1,114,112` denominator is what that Python harness could reach, since a Python `str` can hold
+surrogates. Do **not** carry it into the Rust sweep: `&str` cannot, so the criterion-4 denominator
+is the **1,112,064 Unicode scalar values** (see `specs/rust-core.md` requirement 4).
+
+The pre-filter scoring 0 on single code points while failing 42 sequence cases is exactly the
+false-assurance failure criterion 4 now forbids. The override's failure is worse than its count:
+`U+A7F1` is unassigned in 16.0 but decomposes to `S` under 17.0, so `e U+A7F1 U+0301` produced `eŚ`
+— a Unicode-17 character injecting a spurious letter into the output.
+
+**Follow-up, separate step:** wire the criterion-4 sweep into the repo as a runnable check asserting
+**zero** divergence over single code points *and* sequence classes.
+
+**Still to do by a human — not CID:** upstream <https://github.com/iscc/iscc-core/issues/137> must
+be updated to propose the sentinel mechanism (map unassigned-in-16.0 to `U+FFFF` before normalizing,
+keep the existing category-`C` filter) together with
+`unicodedata2==16.0.0; python_version < '3.14'`. Both the earlier sequence-delta framing and the
+pre-normalization-removal framing should be withdrawn. Worth stating explicitly upstream:
+`iscc-core` output has never been deterministic across its declared `>=3.9,<4.0` range (Unicode
+13.0/14.0/15.0/15.1/16.0 by Python version), so this is a determinism fix, and the behavioural break
+it implies is accepted deliberately.
+
+**Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
+contract" (requirements 1 and 4)
+
+<details><summary>Original finding (iteration 133 review) — kept for context</summary>
 
 The freeze filter landed in iter 133 exactly as specified (strip Unicode-16.0.0-unassigned code
 points **before** normalization). Stripping before normalization changes character **adjacency**, so
@@ -349,8 +513,14 @@ the 16→17 drift the rule exists to prevent), so this is expected to be a wordi
 rather than a redesign. Settle it **before** step (b) wires boundary vectors into 11 bindings and 5
 `data.json` copies — expected outputs would otherwise be re-derived twice.
 
-**Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
-contract" (requirement 4 + the accepted-divergence paragraph)
+</details>
+
+*(The closing premise above was **wrong**, and so was the conclusion drawn from it. The choice is
+not between orderings, so nothing is traded: mapping to the `U+FFFF` sentinel keeps removal exactly
+where the reference does it, preserving table-version invariance **and** exact conformance at the
+same time. The acceptance criterion is therefore **zero** divergence — there is no residual to
+measure or accept — and this was a redesign, not the wording/scoping decision the premise
+predicted.)*
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 
@@ -367,12 +537,31 @@ autonomously.
 
 **Spec:** `.claude/context/specs/rust-core.md` → "API Stability & Performance Invariants"
 
+## Make the CI job table in `specs/ci-cd.md` exhaustive `normal` [human]
+
+The CI job table in `.claude/context/specs/ci-cd.md` has **14 rows against 21 real jobs** in
+`.github/workflows/ci.yml` (22 check names, verified against the check-runs API at iteration 145).
+The review agent carried this as a note for three iterations because the review protocol forbids
+spec edits without a `[human]`-sourced issue — this entry is that authorization.
+
+**Titusz 2026-07-26: make it exhaustive.** The table should list every job, so a reader can use it
+to verify CI coverage instead of guessing whether an omission is deliberate. Add the missing rows
+and, if the drift is likely to recur, consider whether `scripts/check_docs_nav.py`-style gating is
+warranted — but that is a judgment call for the step, not a requirement.
+
+**Spec:** `.claude/context/specs/ci-cd.md` → CI job table
+
 ## Add programming language logos to docs site `low` [human]
 
 README language logos added (iteration 3). Consider adding matching logos to `docs/index.md` and
 howto guide headers on the documentation site for visual consistency. Purely cosmetic follow-up.
 
-## Migrate npm publishing to OIDC Trusted Publishing `normal` [human]
+## Migrate npm publishing to OIDC Trusted Publishing `low` [human]
+
+**DEFERRED by Titusz 2026-07-26 — not for v0.6.0.** The v0.6.0 release stays on `NPM_TOKEN`, which
+was rotated and is valid until 2026-09-16. Downgraded to `low` so CID skips it; revisit before the
+release after v0.6.0, or sooner if the token expiry becomes a problem again. CID must **not**
+prepare the YAML diff — an unused OIDC-shaped diff sitting in the tree would be its own hazard.
 
 The v0.5.0 release failed both npm publishes (`@iscc/lib`, `@iscc/wasm`) because the `NPM_TOKEN`
 secret had expired (npm caps write-token expiry at 90 days). npm now supports **OIDC Trusted
