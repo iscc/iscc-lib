@@ -151,28 +151,56 @@ release exists (`iai-callgrind` 0.16.1 is latest), so it stays a warning until u
 — re-check when bumping `iai-callgrind` (the pin must stay in lockstep with the CI-installed
 `iai-callgrind-runner` version).
 
-## Gate `release.yml` action-input compatibility in CI `normal` [review]
+## Harden the `--check-action-inputs` gate against its known blind spots `normal` [review]
 
-`.github/workflows/release.yml` is `workflow_dispatch`-only, so no CI run and no CID push ever
-exercises it. Its three static invariants were hand-retyped from `next.md` into throwaway heredocs
-in iterations 139–141; **checks 1 and 2 are now an executable gate** (iter 142):
-`scripts/check_release_workflow.py` covers the registry-guard shape (incl. the
-declared-vs-referenced input cross-check), artifact wiring with matrix-`include` expansion, and the
-`needs:` graph — wired into prek (`check-release-workflow`, scoped to `release.yml`) and into CI via
-`tests/test_check_release_workflow.py` (anchor test on the real file + 7 mutation tests + 3 unit
-tests). Matching-rule rationale and its accepted strictness → `decisions.md` 2026-07-25.
+The action-input gate landed in iter 144 (`scripts/check_release_workflow.py --check-action-inputs`,
+CI job `release-workflow`) and provably catches the class it was built for — a real
+`download-artifact@v8` → `@v3` downgrade fires 14 errors, a bogus `@v999` ref fires the 404 error.
+Four gaps found while probing it in review; none bite at HEAD, all are cheap to close in one step:
 
-**Remaining — check 3, action-input compatibility.** For every `uses: <o>/<r>@<vN>`, each `with:`
-key must be a declared `inputs` key of that ref's published `action.yml`, and each
-`steps.<id>.outputs.<x>` the workflow reads must be a declared `outputs` key. This is the one check
-review currently performs by hand on every action bump (iters 127, 140) and the one that catches a
-silently-dropped input across a major. It needs network, so it belongs in a CI-only step (gated to
-skip offline), not in prek or `mise run check`.
+1. **A transport failure can still red the gate**, contradicting its documented contract. The
+    handler is `except OSError`, but `http.client.IncompleteRead` is an
+    `HTTPException`/`ValueError` (truncated response) and a captive-portal/proxy HTML body raises
+    `yaml.YAMLError` — both escape and exit non-zero with a traceback. Catch
+    `http.client.HTTPException` and `yaml.YAMLError` alongside `OSError`. (Codex review, iter 144.)
+2. **A *required* input the workflow omits is not caught.** The check is one-directional (every
+    passed key is declared); an action major that makes a new input required stays green and breaks
+    on release day. Add the reverse check: every `inputs.<k>.required: true` with no `default:`
+    must appear in the step's `with:`.
+3. **An all-skipped run is indistinguishable from a pass** by job status (accepted by design —
+    `decisions.md` 2026-07-26 — but the natural hardening is to fail if *zero* refs resolved, i.e.
+    the gate never actually ran).
+4. **Two latent false positives**, neither present at HEAD: a Docker-type action
+    (`runs.using:  docker`) accepts the GitHub-native `with: args` / `with: entrypoint` overrides,
+    which are not declared `inputs`; and PyYAML's YAML 1.1 booleans turn an action input literally
+    named `on` / `off` / `yes` / `no` into `True`/`False`, so a quoted workflow key would be
+    reported undeclared (Codex review, iter 144). Also: **job-level `uses:`** (reusable-workflow
+    calls) is not scanned at all — only `job.steps[*].uses` — so a future reusable workflow's
+    `with:` block would be silently unchecked, and its `owner/repo/.github/workflows/x.yml@ref`
+    form would 404 as a false error if it ever were scanned.
 
-**Scope:** extend `scripts/check_release_workflow.py` with an opt-in `--check-action-inputs` mode
-(fetch each ref's `action.yml` via `gh api` or raw GitHub, skip cleanly with a warning when offline
-or unauthenticated) plus a `ci.yml` step that runs it. Keep it out of the pytest suite — the
-existing tests must stay network-free.
+## Gate parity of the three hand-wired docs page lists `normal` [review]
+
+Adding a page under `docs/` requires editing three unrelated lists by hand, and **nothing checks
+they agree**: the `nav` table in `zensical.toml`, `ORDERED_PAGES` in `scripts/gen_llms_full.py`, and
+`docs/llms.txt`. A page missing from `ORDERED_PAGES` silently drops out of the generated
+`llms-full.txt`; one missing from `docs/llms.txt` is invisible to LLM consumers; one missing from
+the nav is unreachable on the site. The gap has been carried in review prose since iter 143 and was
+relayed again by iteration 144's `next.md`.
+
+**Measured drift at HEAD (iter 144 review)** — the gate will *not* land green without a data fix, so
+scope both together: 24 tracked `docs/**/*.md` files; `zensical.toml` nav has 24 entries and
+`ORDERED_PAGES` 23 (both miss only `includes/abbreviations.md`, a snippet partial — legitimately
+excluded, so it belongs in the allowlist), but **`docs/llms.txt` lists only 17** and is missing six
+real pages: `howto/c-cpp.md`, `howto/dotnet.md`, `howto/kotlin.md`, `howto/ruby.md`,
+`howto/swift.md`, `ruby-api.md`. Five of the eleven supported languages are therefore invisible to
+LLM consumers of `llms.txt`. Note `docs/llms.txt` links are absolute
+(`https://lib.iscc.codes/<path>.md`), not relative.
+
+**Scope:** add the six missing entries to `docs/llms.txt`, then a small pure-local checker (natural
+home: `scripts/check_docs_nav.py` + a prek hook scoped to the four inputs) asserting that tracked
+`docs/**/*.md`, the `zensical.toml` nav, `ORDERED_PAGES` and the `docs/llms.txt` links are the same
+set, with an explicit commented allowlist for `includes/`. No network.
 
 ## Pin `rubygems/configure-rubygems-credentials` off the `@main` branch `normal` [review]
 

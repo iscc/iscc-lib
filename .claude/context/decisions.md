@@ -469,3 +469,24 @@ unpublished for two iterations; leave the claim and file an issue — rejected, 
 must not reach the published site. **Consequence:** guidance about "which inputs are affected" on
 this page is now numeric and source-checkable; any future edit must re-measure rather than restate.
 **Context:** CID iteration 143, review fixup on top of `5b8b8f8`.
+
+## 2026-07-26 — The release-workflow action-input gate fails open on transport trouble
+
+**Decision:** `--check-action-inputs` treats a 404 on **both** `action.yml` and `action.yaml` as a
+hard error (exit 1) but degrades every other network failure — timeout, connection refused, HTTP
+403/429/5xx — to a `warning: skipped <ref>: <reason>` line on stderr and exit 0, so a fully
+rate-limited CI run is green and indistinguishable from a real pass by job status alone. **Why:**
+the gate runs on every push to `develop`, i.e. on every CID iteration; a gate that goes red because
+`raw.githubusercontent.com` hiccupped would train the loop to ignore it, and the failure it guards
+against (an action major silently dropping an input) is a release-day risk, not a per-push one. The
+404 case is carved out because it is not transport noise — it means the ref or sub-path in
+`release.yml` is wrong, which is exactly a real defect. **Alternatives:** fail on any non-200 —
+rejected, turns third-party availability into a merge blocker; require at least *N* refs to resolve
+before reporting success — rejected as unspecified scope for this step, but it is the natural
+hardening if skips are ever observed in practice, and it is filed as a follow-up; authenticate with
+`GITHUB_TOKEN` to raise the rate limit — rejected, it couples an offline-capable script to CI
+secrets and `gh` availability. **Consequence:** the CI job's *log* is the signal, not its status
+badge; a reviewer checking this gate must confirm zero `warning: skipped` lines. Verified in review
+that the intended failure class is really caught: reverting `actions/download-artifact@v8` to `@v3`
+in a temp copy produced 14 errors, and `@v999` produced the 404 error. **Context:** CID iteration
+144 (`5bd9b74`).

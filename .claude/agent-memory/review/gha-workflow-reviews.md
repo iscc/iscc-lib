@@ -38,13 +38,13 @@ Run all of these on any `release.yml` diff:
 5. **Matrix coverage** — adding a wheel target touches the build + test matrices only;
     `publish-pypi` collects via `pattern: wheels-*`.
 
-These five are hand-retyped from `next.md` heredocs each time (139, 140). Landing them as
-`scripts/check_release_workflow.py` + a narrowly-`files:`-scoped prek hook is a filed `[review]`
-issue — push for it.
+Checks 2–5 are now automated (see the two committed-gate sections below); check 1 (actionlint /
+expression syntax) is still manual. Never retype these into a heredoc again.
 
 ## Verifying an action-major bump (iter 140 recipe, ~2 min)
 
-Tag existence is the *weakest* useful check. Do all four:
+Steps (a)–(b) are now done for you by `--check-action-inputs`; (c) runtime and (d) defaults remain
+manual and are where the real surprises live. Tag existence is the *weakest* useful check.
 
 ```bash
 # (a) every @vN resolves
@@ -128,6 +128,41 @@ so a pairing that wildcards on both sides in different positions (`gem-*` upload
 `*-linux` download) would be reported as an error even though it overlaps. It errs strict, never
 lax; if that pairing ever appears, replace it with a real intersection, never a looser match.
 
-**Still manual — check 3:** for every `uses: <o>/<r>@<vN>`, each `with:` key must be a declared
-`inputs` key of that ref's published `action.yml`, and each `steps.<id>.outputs.<x>` read must be a
-declared output. Needs network → filed as a `[review]` issue for a CI-only step.
+## Check 4 (action-input compatibility) is a committed gate since iter 144
+
+`uv run scripts/check_release_workflow.py --check-action-inputs` fetches each distinct `uses:` ref's
+published `action.yml`/`action.yaml` from `raw.githubusercontent.com` (stdlib `urllib`, 20s timeout,
+one cached fetch per ref) and validates every `with:` key against declared `inputs` and every
+`steps.<id>.outputs.<x>` read against declared `outputs`. Runs in the CI-only `release-workflow` job
+— never in prek or pytest, which stay network-free. **Nothing is hand-verified any more; run the
+command.**
+
+Review recipe on any `release.yml` action bump (~90 s):
+
+```bash
+uv run scripts/check_release_workflow.py --check-action-inputs   # exit 0 AND zero "warning: skipped"
+https_proxy=http://127.0.0.1:9 http_proxy=http://127.0.0.1:9 \
+    uv run scripts/check_release_workflow.py --check-action-inputs # exit 0, 18 skip warnings
+```
+
+**Zero `warning: skipped` lines is part of the pass** — a fully rate-limited run is green and
+indistinguishable from a real pass by exit code alone (accepted trade-off, `decisions.md`
+2026-07-26). Read the log, not the status.
+
+**Proving the gate on any change to it** — synthetic typos only prove string comparison. Use a real
+cross-major regression in a temp copy:
+
+```bash
+cp .github/workflows/release.yml /tmp/p.yml
+sed -i 's|actions/download-artifact@v8|actions/download-artifact@v3|' /tmp/p.yml
+uv run scripts/check_release_workflow.py --check-action-inputs /tmp/p.yml  # 14 errors, exit 1
+```
+
+(`@v999` on any ref exercises the 404 → `ActionNotFoundError` path.)
+
+**Blind spots probed in iter 144, all filed as a `normal` `[review]` issue, none biting at HEAD:**
+required-input omission is not caught (the check is one-directional); `except OSError` misses
+`http.client.IncompleteRead` and `yaml.YAMLError`, so a truncated/HTML response *does* red the job
+despite the documented fail-open contract; Docker-type actions' native `with: args`/`entrypoint`
+would false-positive; PyYAML YAML 1.1 booleans mangle an input named `on`/`off`/`yes`/`no`; and
+job-level `uses:` (reusable workflows) is not scanned at all — only `job.steps[*].uses`.

@@ -843,3 +843,16 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
 - **`cargo tree -i <crate>` prints "nothing to print" for proc-macro / target-specific deps** — add
     `--target all`. (The recurring `proc-macro-error2` future-incompat warning is dev-only and
     expected; full attribution → `issues.md` "Known constraint (verified iter 126)".)
+
+## CI/CD — Swift release job tag dependency (archived iter 144)
+
+- **Swift release job is tag-dependent**: `build-xcframework` derives the version from
+    `GITHUB_REF_NAME` (not `Cargo.toml` like every other release job), so the `--ref main`
+    re-trigger path breaks for Swift only. Release-day fact; `release.yml` is human-driven.
+
+## ISCC Algorithm — settled vector/meta facts (archived iter 144)
+
+- `gen_meta_code_v0`: `name` required (non-empty after cleaning), `description` and `meta` optional.
+    Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing.
+- Conformance vectors: `"stream:<hex>"` prefix in `data.json` denotes hex-encoded byte data; empty
+    after the prefix = empty bytes. 50 vectors at iscc-core v1.3.0 (20+5+3+5+3+2+4+3+5).

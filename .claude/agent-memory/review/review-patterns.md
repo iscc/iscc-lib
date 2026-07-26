@@ -181,8 +181,19 @@ A gate that cannot fail is worse than none, because it manufactures false confid
     intermediate structures (for the artifact check: expanded upload names, expanded download refs,
     and any upload that collapses to a bare `*`, which would match everything).
 4. **Ask what the gate structurally cannot see** and get it written down (docstring + handoff) —
-    that gap is the part no test will ever surface.
-5. **Gates to run**: `uv run ruff check`, both pre-push ruff gates (`--select S`,
+    that gap is the part no test will ever surface. Three questions that have each paid off:
+    - Is the check **one-directional**? (iter 144: every `with:` key passed is verified declared, but
+        a newly-*required* input the workflow omits sails through.)
+    - Does its **fail-open** path really catch every stdlib failure? (`except OSError` misses
+        `http.client.IncompleteRead` — an `HTTPException`/`ValueError` — and `yaml.YAMLError` on an
+        HTML captive-portal body, so a gate documented as "degrades to a warning" still reds CI.)
+    - Is a **fully-skipped run distinguishable from a pass**? If not, say so in the handoff: the log
+        is the signal, not the status badge.
+5. **Prefer a REAL regression to a synthetic typo** (iter 144). Downgrading
+    `actions/download-artifact@v8` → `@v3` in a temp copy of `release.yml` fired 14 errors, because
+    `pattern`/`merge-multiple` genuinely did not exist in v3 — that is the failure class the gate
+    exists for. A hand-typo'd key only proves the string comparison works.
+6. **Gates to run**: `uv run ruff check`, both pre-push ruff gates (`--select S`,
     `--select C901 --force-exclude`), `ty check`, full `uv run pytest --timeout=120`,
     `mise run check`, plus the hook-scope probe (`uv run prek run <hook> --files <in-scope>` →
     `Passed`; `--files <out-of-scope>` → `Skipped`). ≈ 6 min total.

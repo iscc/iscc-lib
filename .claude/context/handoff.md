@@ -1,82 +1,102 @@
 # Handoff
 
-## 2026-07-26 — Gate `release.yml` action-input compatibility in CI (`--check-action-inputs`)
+## 2026-07-26 — Review of: Gate `release.yml` action-input compatibility in CI (`--check-action-inputs`)
 
-**Done:** Extended `scripts/check_release_workflow.py` with an opt-in `--check-action-inputs` mode
-(check 4): for every repo-action `uses:` ref in `release.yml` it fetches the published
-`action.yml`/`action.yaml` from raw GitHub (stdlib `urllib`, 20s timeout, one cached fetch per
-distinct ref) and validates all `with:` keys against declared `inputs` and all
-`steps.<id>.outputs.<x>` reads from action steps against declared `outputs`. A 404 on both metadata
-URLs is an error; any transport failure degrades to a `warning: skipped <ref>: <reason>` stderr line
-and exit 0. Wired a new `release-workflow` CI job that runs the mode, extended the docs bullet, and
-added 8 network-free tests via an injected fake fetcher.
+**Verdict:** PASS_WITH_NOTES
 
-**Files changed:**
+**Summary:** The last unautomated `release.yml` invariant is now an executable gate.
+`scripts/check_release_workflow.py --check-action-inputs` fetches each of the 18 distinct action
+refs' published `action.yml` and validates every `with:` key against declared `inputs` and every
+`steps.<id>.outputs.<x>` read against declared `outputs`, wired into a dedicated `release-workflow`
+CI job with 8 network-free tests behind an injected fetcher. The design is clean (small pure
+functions, fetcher injection, per-ref caching, one justified `# noqa: S310`), and I independently
+proved it catches the failure class it exists for. Notes below cover four probed blind spots, all
+filed as an issue; none bite at HEAD.
 
-- `scripts/check_release_workflow.py`: new `ActionNotFoundError`, `is_repo_action`,
-    `action_yml_urls`, `fetch_action`, `cached_fetch`, `iter_strings`, `check_with_keys`,
-    `check_step_outputs`, `check_action_compat`; `--check-action-inputs` flag in `main()`; module
-    docstring documents check 4. The fetcher is injected into `check_action_compat` (via
-    `functools.partial`-based caching), so tests never touch the network. One `# noqa: S310` on
-    `urlopen` with an inline justification (URL built from the `https://raw.githubusercontent.com`
-    literal — scheme not attacker-controllable).
-- `.github/workflows/ci.yml`: new `release-workflow` job ("Release workflow (action inputs)") —
-    checkout + `astral-sh/setup-uv@v9.0.0` (with the mandated `# exact tag:` comment) +
-    `uv run --no-project --with pyyaml python scripts/check_release_workflow.py   --check-action-inputs`.
-    **CI job count goes 19 → 20 — expected, not drift.**
-- `tests/test_check_release_workflow.py`: 8 new tests — `action_yml_urls` covering all four ref
-    shapes (plain, sub-path `oxidize-rb/actions/cross-gem@v1`, slash ref `@release/v1`, branch ref
-    `@stable`), `is_repo_action` (docker/local/no-`@` skipped), and `check_action_compat` with an
-    in-memory fake fetcher: clean, undeclared `with:` key, undeclared step output, 404 → single
-    error despite two uses (cache), `None`-returning fetcher → skip, local `run:`-step / unknown-id
-    output references ignored.
-- `docs/development.md`: extended the `check_release_workflow.py` bullet with the CI-only
-    `--check-action-inputs` mode and its offline-skip semantics.
+**Verification:**
 
-**Verification:** (all observed in this session)
+- [x] `uv run scripts/check_release_workflow.py` exits 0 — default mode unchanged, no network use
+- [x] `--check-action-inputs` exits 0 with live network and **zero** `warning: skipped` lines — all
+    18 refs resolved and compatible
+- [x] Offline (`https_proxy=http_proxy=http://127.0.0.1:9`) exits **0** with **18**
+    `warning: skipped … Connection refused` lines — transport failure degrades, never reds
+- [x] `uv run pytest tests/test_check_release_workflow.py` → 19 passed (11 existing + 8 new)
+- [x] Suite is network-free — identical 19 passed under the dead-proxy env
+- [x] `grep -q -- "--check-action-inputs"` matches in both `.github/workflows/ci.yml` and
+    `docs/development.md`
+- [x] `ci.yml` parses via `yaml.safe_load`; yamlfix folded the `run:` value onto a continuation
+    line, but it is still one plain scalar and resolves to the exact single command (checked by
+    printing `repr(job["steps"][-1]["run"])`)
+- [x] `uv run ruff check` → "All checks passed!"; `uv run ruff format --check` exit 0
+- [x] `mise run check` → all 16 hooks Passed; full `uv run pytest` → 333 passed
+- [x] `git status --porcelain .github/workflows/release.yml` empty — the workflow under test is
+    untouched
+- [x] **Independent negative probes (mine, beyond advance's):** reverting
+    `actions/download-artifact@v8` → `@v3` in a temp copy fires **14** real errors (`pattern` and
+    `merge-multiple` were genuinely dropped across those majors — exactly the release-day failure
+    this gate exists to catch); `actions/checkout@v999` fires
+    `action: no action.yml or action.yaml found for 'actions/checkout@v999'`, exit 1
+- [x] Scope discipline: 2 non-test/non-doc files (`scripts/check_release_workflow.py`, `ci.yml`) —
+    within the default budget of 3. Nothing from `## Not In Scope` was touched
+- [x] Quality-gate integrity: `git diff @{upstream}..HEAD` adds exactly one suppression, the
+    `# noqa: S310` on `urlopen`, with an inline justification (URL built from the `RAW_HOST` https
+    literal). No skips, no threshold changes, no hook weakening. `RUF100` keeps it honest
 
-- `uv run scripts/check_release_workflow.py` → exit 0 (default mode unchanged, no network)
-- `uv run scripts/check_release_workflow.py --check-action-inputs` → exit 0, **zero**
-    `warning: skipped` lines with live network (all 18 distinct refs compatible at HEAD, matching
-    next.md's scoping probe)
-- Offline (`https_proxy=http_proxy=http://127.0.0.1:9`): exit 0 with **18**
-    `warning: skipped …   Connection refused` lines — transport failure degrades to skip, never a
-    red gate
-- End-to-end negative check: mutating `fetch-depth` → `fetch-depthz` in a temp copy of `release.yml`
-    → exit 1 with
-    `action: job 'prepare-release' passes undeclared input   'fetch-depthz' to 'actions/checkout@v7'`
-    (real fetcher, real 18-ref run)
-- `uv run pytest tests/test_check_release_workflow.py` under the dead-proxy env → 19 passed (11
-    existing + 8 new), proving the suite stays network-free
-- `grep -q -- "--check-action-inputs"` on both `ci.yml` and `docs/development.md` → OK; `ci.yml`
-    parses via `yaml.safe_load`; `actionlint@v1.7.7` → clean
-- `uv run ruff check` → "All checks passed!"; `uv run ruff format --check` → 160 files already
-    formatted; `uv run ty check` → all passed
-- `mise run check` → all 16 hooks Passed; full `uv run pytest` → 333 passed
-- `git status --porcelain .github/workflows/release.yml` → empty (workflow under test untouched)
+**Issues found:**
 
-**Next:** The issue's remaining checklist item is closed by this step (review updates issues.md and
-the ci-cd spec job table — 19 → 20 jobs). Remaining unblocked candidates are thin: the
-`zensical.toml` nav ↔ `ORDERED_PAGES` ↔ `docs/llms.txt` parity gate still needs to be filed as an
-issue (next.md asked review to do this — see below), and everything Unicode/rubygems-pin remains
-human-gated.
+- **Fails-open contract has a hole (Codex, confirmed):** `fetch_action` catches `OSError`, but
+    `http.client.IncompleteRead` is an `HTTPException`/`ValueError` and a proxy/captive-portal HTML
+    body raises `yaml.YAMLError` — both escape and red the CI job with a traceback, contradicting
+    the documented "any transport failure degrades to a warning". Real but rare; filed.
+- **The check is one-directional:** a *required* input the workflow omits is not caught, so an
+    action major that adds a required input stays green and breaks on release day. Filed.
+- **Two latent false positives:** a Docker-type action's GitHub-native `args` / `entrypoint`
+    overrides (accepted by GitHub, not declared `inputs`) would error, and PyYAML's YAML 1.1
+    booleans mangle an input literally named `on`/`off`/`yes`/`no`. Neither exists at HEAD. Filed.
+- **Job-level `uses:` is not scanned** — only `job.steps[*].uses`. A future reusable-workflow call's
+    `with:` block would be silently unchecked. Filed.
+- **Not filed / not fixed by me:** the accepted "a fully rate-limited run is green" trade-off is now
+    recorded in `decisions.md` (2026-07-26) rather than left in handoff prose — the CI job's *log*
+    is the signal, not its status.
+- I did **not** apply the `except` widening myself: it changes runtime behaviour, which step 9 of
+    the review protocol excludes.
+
+**Codex review:** three findings, all genuine edge cases, none affecting HEAD; all folded into the
+new hardening issue. (1) P2 `IncompleteRead` escaping the `OSError` handler — confirmed correct and
+the most valuable of the three, since it defeats the gate's own advertised degradation contract. (2)
+P2 YAML 1.1 boolean-like action input identifiers (`on`/`off`/`yes`/`no`) being reported undeclared
+— real, extremely rare, and note both sides parse with the same loader so it only bites when one
+side quotes. (3) P3 percent-encoding of `#`/`%` in refs and sub-paths — accepted as theoretical; git
+ref names allowing `#` is legal but no such ref exists in this ecosystem. Codex again earned its
+keep on a parsing/matching diff, consistent with the pattern that it finds real defects whenever a
+step adds a new matching rule.
+
+**Next:** Two tracked, fully-unblocked `normal` issues are now on the board, both filed this review:
+**(a) Gate parity of the three hand-wired docs page lists** — this one comes with measured drift, so
+it is data-fix + gate in one step: `docs/llms.txt` lists only 17 of the 24 tracked `docs/**/*.md`
+pages and is missing `howto/c-cpp.md`, `howto/dotnet.md`, `howto/kotlin.md`, `howto/ruby.md`,
+`howto/swift.md` and `ruby-api.md`, i.e. five of eleven supported languages are invisible to
+`llms.txt` consumers today. **(b) Harden the `--check-action-inputs` gate** — the four blind spots
+above, all small. Prefer **(a)**: it fixes a live user-facing gap rather than hardening tooling
+against hypotheticals, and it breaks the tooling-heavy run (140 tooling / 141 tests / 142 tooling /
+143 docs / 144 tooling) that state.md already flags as over-weighted. Everything Unicode-propagation
+and the `rubygems/configure-rubygems-credentials` pin remain human-gated.
 
 **Notes:**
 
-- **Request relayed from next.md's Not-In-Scope:** review should file the docs-parity gate
-    (`zensical.toml` nav ↔ `gen_llms_full.py` `ORDERED_PAGES` ↔ `docs/llms.txt`) as an issues.md
-    entry so it stops being carried in prose only.
-- The `# noqa: S310` is the only suppression added; RUF100 keeps it honest (it would flag if
-    unused). Ruff `C901` needed no suppressions — the check is split across 6 small functions.
-- Error-vs-skip semantics follow next.md exactly: 404 on both URLs = error (wrong ref/sub-path);
-    HTTP 403/429/5xx and all `OSError`/`URLError`/timeout = warning + skip. `HTTPError` is caught
-    before the general `OSError` (it is a subclass).
-- Step-output resolution is per job: references to ids that are local `run:` steps or absent from
-    the job are ignored (verified against the five real references in `release.yml`: two local, two
-    action-declared, one action-declared cache-hit).
-- yamlfix folded the CI job's `run:` line onto a continuation line — still a single plain scalar,
-    executes as one command; `check yaml` + actionlint both pass.
-- The new CI job runs on every push. If GitHub raw ever rate-limits CI runners (HTTP 429), the job
-    prints warnings and stays green by design — a fully-skipped run is visible in the log but not
-    distinguishable from a pass by status alone. Accepted trade-off per the issue's "gated to skip
-    offline" requirement.
+- **CI job count is 19 → 20** (`release-workflow`). Expected, not drift — update-state should record
+    it as such.
+- **`specs/ci-cd.md`'s CI job table was NOT updated**, contrary to next.md's instruction to review.
+    The review protocol forbids the review agent from editing `target.md` or any sub-spec except
+    when resolving a `[human]`-sourced issue carrying a `**Spec:**` field; this issue is
+    `[review]`-sourced. Note the table is *already* descriptive rather than exhaustive — it has 14
+    rows against 20 jobs (no `dotnet`, `cpp`, `swift`, `kotlin`, `coverage`, `release-workflow`
+    rows), so this is pre-existing drift for Titusz to reconcile, not a regression from this step.
+    define-next should stop assigning spec edits to review.
+- **The resolved issue is deleted from `issues.md`** ("Gate `release.yml` action-input compatibility
+    in CI") — history is in git; `learnings.md` now records the gate's existence, its two remaining
+    holes and the "prove a gate with a REAL regression, not a synthetic typo" rule.
+- **`learnings.md` was over budget (201 lines)** — pruned to 199 by compressing seven entries and
+    archiving the Swift release-job tag dependency plus the settled `gen_meta_code_v0` / `data.json`
+    vector facts to `learnings-archive.md`.
+- `.claude/context/iterations.jsonl` is modified in the working tree; left unstaged (runner-owned).

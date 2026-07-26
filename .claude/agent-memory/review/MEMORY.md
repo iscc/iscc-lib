@@ -4,8 +4,8 @@ Concise index — **one line per entry, detail belongs in a topic file.** `revie
 (docs/verification/issues/gotchas + claim-probing + new-gate-script recipes), `gate-reviews.md` (CI
 structure + Audit/Perf/Semver/CRAP gates), `binding-reviews.md` (per-binding shortcuts +
 UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0.6.0 slice recipes),
-`gha-workflow-reviews.md` (release.yml static gate + action-major bumps + pinning). Stale detail in
-`MEMORY-archive.md`.
+`gha-workflow-reviews.md` (release.yml gates + action-major bumps + pinning), `codex-integration.md`
+(second-opinion strengths/blind spots). Stale detail in `MEMORY-archive.md`.
 
 ## Quality Gate Details
 
@@ -39,24 +39,24 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     claim "only low-priority remain" when `normal` issues still exist
 - Go `// indirect`, CI `find` cross-arch, prek stash conflict, and mode-only commits under
     `core.fileMode=false` → `review-patterns.md` "Gotchas"
-- **`mise run check` mdformat on context files** (intermittent): define-next sometimes writes
-    `next.md` / `define-next/MEMORY.md` non-conforming, so `prek --all-files` reformats them (NOT an
-    advance regression) and the pre-push mdformat hook WILL reject the batch — run
-    `git status --porcelain` right after `mise run check` and STAGE any reformatted file. Never
-    stage `iterations.jsonl` (runner-owned). Keep inline code spans on ONE line when writing these
-    files: mdformat wraps inside backticks and silently corrupts the command
+- **`mise run check` mdformat on context files** (intermittent): define-next may write `next.md` /
+    `MEMORY.md` non-conforming, so `prek --all-files` reformats them (NOT an advance regression) and
+    pre-push mdformat WILL reject the batch — `git status --porcelain` right after `mise run check`
+    and STAGE any reformat. Never stage `iterations.jsonl`. Keep inline code spans on ONE line
 - **next.md may task advance with an `issues.md` ledger append — advance's protocol forbids it**
     (iter 135). Advance refuses and puts the paragraph in its handoff **Notes**; review appends it
+- **next.md may also task REVIEW with a spec edit (iter 144, `specs/ci-cd.md` job table) — my own
+    protocol forbids it** unless resolving a `[human]` issue carrying `**Spec:**`. Decline, and say
+    so in the handoff Notes so define-next stops assigning it
 - **No-op / human-handoff iteration (iter 111)**: verify scope is empty, still scan
     `@{upstream}..HEAD` for circumvention. Only HUMAN-REVIEW spec amendments + `low` left (strict
     IDLE cond #2 NOT met) → flag **HUMAN REVIEW REQUESTED** (runner "pause"), NOT `**IDLE**`
     (all-`low` only; it runs meta-improve). Verdict still PASS; push clean batch
-- **Unicode 16.0.0 freeze rule — Rust core landed iter 133, Rust boundary fixture iter 141**:
-    remaining are the 11 bindings (Go on 15.0 tables → delta or documented skip) + the differential
-    sweep; never let a step "fix" one binding to match another. **Open, human-gated:** the
-    sequence-adjacency divergence — probe → `review-patterns.md`, ruling → `issues.md`. **Public
-    page `docs/unicode.md` (iter 143)** carries a deliberate placeholder ("CPython 3.14 agrees … on
-    the single-code-point behaviour") that the ordering ruling must revisit
+- **Unicode 16.0.0 freeze rule — Rust core iter 133, boundary fixture iter 141**: remaining are the
+    11 bindings (Go on 15.0 tables) + the differential sweep; never let a step "fix" one binding to
+    match another. **Human-gated:** the sequence-adjacency divergence (probe → `review-patterns.md`,
+    ruling → `issues.md`), whose outcome must also revisit the deliberate "single-code-point"
+    placeholder in `docs/unicode.md`
 - **Concurrent CID loops (iter 97, detail in `MEMORY-archive.md`)**: spurious `mise run check`
     "files modified" on an untouched file + mid-review working-tree change = a SECOND loop racing.
     Confirm with `ps aux`; flag HUMAN REVIEW REQUESTED, do NOT push or kill processes
@@ -69,19 +69,21 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     (`--no-default-features`, `+text-processing`, `--all-features`) because `#[cfg]` gating decides
     which tests run — assert the per-target `N passed` line. Then the fixture-CONTENT guard and
     live-vs-hypothetical vector probes → `review-patterns.md`. Test assets + docs are budget-free
-- **Docs-only**: `mise run check` + clippy + `mise run version:check` (21 `OK:` lines) + a
+- **Docs-only**: `mise run check` + clippy + `mise run version:check` (21 `OK:` lines) +
     `uv run zensical build` ("No issues found") + rendered-HTML grep for admonition/tab edits.
-    **Green gates say NOTHING about truth** (iter 143) — a docs step's real work is fact-checking:
-    re-derive every number from the source artifact, and treat "never / always / only / in practice"
-    sentences as claims to disprove. next.md's Implementation Notes prose is a HYPOTHESIS, not a
-    fact sheet: it dictated two false claims that advance shipped verbatim. Recipe (incl. the
-    `unicodedata2` version-diff) → `review-patterns.md` "Docs Claim-Checking"
+    **Green gates say NOTHING about truth** (iter 143) — re-derive every number from its source and
+    treat "never/always/only" sentences as claims to disprove; next.md prose is a HYPOTHESIS and
+    dictated two false claims advance shipped verbatim → `review-patterns.md` "Docs Claim-Checking"
 - **New docs PAGE**: also verify the 3 hand-wired lists agree — `zensical.toml` nav, `ORDERED_PAGES`
-    in `scripts/gen_llms_full.py`, `docs/llms.txt`. Nothing gates their parity
+    in `scripts/gen_llms_full.py`, `docs/llms.txt`. Nothing gates their parity, and they are
+    **already drifted** (measured iter 144: 24 tracked pages, nav 24, `ORDERED_PAGES` 23, `llms.txt`
+    **17** — c-cpp/dotnet/kotlin/ruby/swift how-tos + `ruby-api.md` missing). Filed as a `normal`
+    issue; note `llms.txt` links are absolute `https://lib.iscc.codes/<path>.md`, not relative
 - **Python-only**: `mise run check` + `pytest`
-- **New gate script (iter 142, ~6 min)**: never accept "it exits 0 at HEAD" — write your OWN
-    mutations beyond the committed tests, dump the gate's internals via `importlib`, and get its
-    structural blind spot written down. Full recipe → `review-patterns.md`
+- **New gate script (iters 142/144, ~6 min)**: never accept "it exits 0 at HEAD" — write your OWN
+    mutations, prefer a **real** regression to a synthetic typo, dump internals via `importlib`, and
+    answer the three blind-spot questions (one-directional? fail-open really fail-open?
+    fully-skipped run distinguishable from a pass?) → `review-patterns.md`
 - **Lint-config-only (`[tool.ruff]*` / prek hook types, iters 134–139)**: run `mise run check`, ruff
     check, ruff `format --check` (**assert exit 0, never a file count**), both pre-push ruff gates,
     ty check, pytest. A `# noqa` deletion is safe only if `--select <rule> --ignore-noqa` omits its
@@ -98,14 +100,12 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     Published consumer floor is **Kotlin 2.3 or newer**, documented in 4 places that move together
 - **Config/lockfile-only**: `mise run check` + `cargo check -p <crate>` (+ `cargo deny check` if
     deps changed — see gate-reviews.md Audit)
-- **Dependency refresh (v0.6.0)**: per-slice gate sets + hold-back recipes live in
-    `dep-refresh-reviews.md`. **ALL nine slices CLOSED** (iters 124–140); only human/major-gated
-    bumps left, and the lockfile-only shortcut never applies. **A toolchain/compiler bump inside a
+- **Dependency refresh (v0.6.0)**: per-slice gates + hold-back recipes → `dep-refresh-reviews.md`.
+    **ALL nine slices CLOSED** (124–140); only human/major-gated bumps left. **A toolchain bump in a
     PUBLISHED binding is a support-policy change, not a pin** — check the consumer floor first
-- **A tool bump can widen a gate's FILE DISCOVERY, not just its rules** (iter 137): ruff 0.16
-    formats Python fences in Markdown → bare `ruff format --check` went 25 → 153 files. Diff the
-    file count before/after, then ask **which local gate covers the new surface**. Single-package
-    relock proof: `git diff HEAD~1..HEAD -- uv.lock | grep -E '^[+-]name = '` → empty
+- **A tool bump can widen a gate's FILE DISCOVERY, not just its rules** (iter 137: ruff 0.16 →
+    `ruff format --check` went 25 → 153 files). Diff the count, then ask **which local gate covers
+    the new surface**. Relock proof: `git diff HEAD~1..HEAD -- uv.lock | grep -E '^[+-]name = '`
 - **Prek-hook-scope review (iters 138–139)**: NEVER accept `git ls-files` arithmetic as a hook's
     surface — `.pyi` is tagged `pyi`, not `python`. Probing a *widened* tag needs a **staged,
     deliberately dirty** file → `review-patterns.md`
@@ -123,31 +123,19 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     gates — `mise run coverage` + `cargo crap` baseline and `mise run bench:iai:check` (commands →
     `gate-reviews.md`); re-run any generator, assert `git status --porcelain <output>` is empty
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`
-- **release.yml / any GHA action bump**: NEVER exercised by CID pushes → static-verify only.
-    **Checks 1–2 are a committed gate since iter 142** — run
-    `uv run scripts/check_release_workflow.py`, never a retyped heredoc; check 3 (`with:`/`outputs`
-    vs each ref's `action.yml`) is still manual. That file plus the action-major recipe, cleared-
-    defaults table and pinning conventions → **`gha-workflow-reviews.md`**. `always()` = NEEDS_WORK
+- **release.yml / any GHA action bump**: NEVER exercised by CID pushes → static-verify only. **All
+    four checks are committed gates (iters 142 + 144)** — run
+    `uv run scripts/check_release_workflow.py` and `… --check-action-inputs`, never a retyped
+    heredoc. **Zero `warning: skipped` lines is part of the pass** (a rate-limited run is
+    green-but-useless). Still manual: actionlint, `runs.using`, and every intervening major's
+    *default* changes. Recipes, blind spots, cleared-defaults table and pinning conventions →
+    **`gha-workflow-reviews.md`**. `always()` = NEEDS_WORK
 - **CI/Audit/Perf/Semver/CRAP gates** → `gate-reviews.md`. **Binding propagation** (napi/wasm/ffi/
     jni/ruby/dotnet/kotlin/uniffi) → `binding-reviews.md`
 
 ## Codex Review Integration
 
-- Codex findings are advisory — cross-reference with your own analysis. Use `--commit HEAD` (verify
-    with `git log` first). A clean/empty verdict is a note, never grounds for NEEDS_WORK
-- Dismiss: Go codec findings (Go mirrors the Rust reference faithfully); "use `8.0.x`" for
-    `dotnet-version: '8.0'` (valid for `setup-dotnet@v4`). Large generated Kotlin/Swift diffs
-    confuse it — advisory only
-- **Trust it on dependency-internals findings** (117-118: blake3 feature gating,
-    `#[target_feature]`). When it cites a dep's build.rs / feature wiring, check the dep source (and
-    build it) before dismissing
-- **It catches what local gates cannot**: downstream-consumer breakage (128, KGP floor),
-    input-validation edges (119, trailing-byte decode), **algorithm-vs-its-own-docstring gaps**
-    (142, counter-example `gem-*` vs `*-linux`), **prose-vs-reality gaps in docs** (143, both false
-    Unicode claims incl. the U+A7CB counter-example). Expect a real finding whenever a diff adds a
-    matching/parsing rule OR a user-facing factual claim; convergence with my own suspicion = VERIFY
-    EMPIRICALLY. Do run it on docs-only diffs — that is where it has been most valuable lately
-- **But it does not probe tool-internal classification or gate self-weakening** — it passed the
-    iter-138 hook-types diff while missing the `.pyi` tag hole, and (141) called a new fixture
-    "accurate" without asking what happens if the fixture itself is weakened. It reviews what the
-    code *does*, not what the gates *cannot catch* — that gap is mine to cover
+- Advisory only, never sets the verdict; `--commit HEAD`; empty/unavailable ≠ clean. What it
+    reliably catches, what it reliably misses, and the standing dismiss-list →
+    **`codex-integration.md`**. Expect a real finding whenever a diff adds a matching/parsing rule,
+    an exception-handling contract, or a user-facing factual claim
