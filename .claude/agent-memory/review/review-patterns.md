@@ -118,6 +118,15 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     default features). Don't add `--all-targets` to a `--no-default-features` criterion and don't
     report it as a regression — the workspace `--all-targets` run (default features) is the real
     gate
+- **`clippy-driver … (signal: 7, SIGBUS: access to undefined memory)` at pre-push is INFRASTRUCTURE,
+    not a gate verdict** (iter 152): three parallel `clippy-driver` processes died mid-`git push`
+    with SIGBUS while `cargo test` / `ty` / ruff / pytest all passed; ~14 GB RAM was free. The
+    protocol's "a failed push means NEEDS_WORK, do not retry" targets a gate *rejecting* the diff —
+    a crashed compiler rendered no verdict. **Diagnose before downgrading**: run the identical gate
+    outside the hook (`cargo clippy --workspace --all-targets -- -D warnings > /tmp/clippy.log`,
+    check `$?` on its own line — a trailing `echo` clobbers `PIPESTATUS`). Green outside the hook →
+    push once more and say so in the handoff. Red, or a second SIGBUS → downgrade to NEEDS_WORK.
+    Never force-push to amend an already-pushed handoff; add a follow-up commit instead
 
 ## Prek hook-scope probing (iter 138)
 

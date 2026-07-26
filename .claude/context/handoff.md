@@ -102,3 +102,11 @@ add copies: registering each in `VENDORED_COPIES` is a required part of that ste
     real index during a CID iteration risks colliding with the runner.
 - No API, hot path, baseline or crate source was touched, so the CRAP, iai and semver gates cannot
     react to this iteration.
+- **Environment flake, not a defect:** the first `git push` aborted when three parallel
+    `clippy-driver` processes died with `signal: 7, SIGBUS: access to undefined memory`
+    (`cargo test`, `ty`, both ruff gates and pytest passed in the same run; ~14 GB RAM free).
+    Re-running the identical gate outside the hook —
+    `cargo clippy --workspace --all-targets -- -D warnings` — exits **0** with zero errors, so no gate
+    rejected this diff; the second push went through with `Rust   linting ... Passed`. If it recurs,
+    treat it as a container/toolchain issue rather than scoping a work package against it. Recipe
+    for distinguishing a crashed compiler from a real rejection is in the review agent memory.
