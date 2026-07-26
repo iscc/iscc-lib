@@ -93,6 +93,8 @@ ROLE_ENTRY_KEYS = frozenset(
 # turn-count flag is intentionally NOT used: the installed claude CLI has no
 # --max-turns, so it would be silently ignored. Values are generous (these catch
 # stuck runs, not normal long iterations like advance + a 30-min codex review).
+# A role that already committed its deliverable when the guard fires does not fail
+# the iteration — see _role_commit_landed.
 # advance runs on Fable 5, whose single requests on hard tasks can run for many
 # minutes, so it gets extra headroom over the other roles.
 ROLE_TIMEOUT_S = {
@@ -348,6 +350,23 @@ def _commits_since(cwd, base_sha):
     if rc != 0:
         return []
     return [line.strip() for line in out.splitlines() if line.strip()]
+
+
+def _role_commit_landed(cwd, role, base_sha):
+    """True if the role's own `cid(<role>):` commit landed during its run.
+
+    Every role protocol ends by committing its deliverable, so such a commit in
+    base_sha..HEAD means the work is complete even if the subprocess was cut short
+    afterwards (wall-clock timeout, API error) during optional follow-up such as
+    memory housekeeping. Lets the loop tell a genuinely stuck role apart from one
+    that finished and then overran.
+    """
+    if not base_sha:
+        return False
+    rc, out = _git(cwd, "log", "--format=%s", f"{base_sha}..HEAD")
+    if rc != 0:
+        return False
+    return any(line.startswith(f"cid({role}):") for line in out.splitlines())
 
 
 def _commit_files(cwd, sha):
@@ -767,11 +786,20 @@ def build_agent_cmd(claude_cmd, role, prompt, skip_permissions, fallback_model=N
 
 
 def run_agent(
-    claude_cmd, role, iteration, cwd, skip_permissions=False, fallback_model=None
+    claude_cmd,
+    role,
+    iteration,
+    cwd,
+    skip_permissions=False,
+    fallback_model=None,
+    base_sha=None,
 ):
     """Invoke a CID agent role via claude CLI.
 
     Returns a dict with keys: ok, role, iteration, turns, cost_usd, duration_s, status.
+    Pass base_sha (HEAD before the run) to recognise a run that committed its
+    deliverable and only then overran or errored: the logged status stays honest but
+    `ok` is True, so the loop continues instead of discarding completed work.
     """
     prompt = f"CID iteration {iteration}. Execute your protocol."
 
@@ -856,9 +884,16 @@ def run_agent(
         "cost_usd": round(cost, 6),
         "duration_s": round(elapsed, 1),
     }
+    recovered = status != "OK" and _role_commit_landed(cwd, role, base_sha)
+    if recovered:
+        entry["recovered"] = True
+        print(f"  {role} committed its deliverable before the {status} — continuing")
+        leftovers = _abandoned_paths(cwd, lambda _p: False)
+        if leftovers:
+            print(f"  NOTE: {role} left uncommitted edits: {', '.join(leftovers)}")
     log_entry(cwd, entry)
 
-    return {**entry, "ok": status == "OK"}
+    return {**entry, "ok": status == "OK" or recovered}
 
 
 # --- State inspection ---
@@ -947,8 +982,15 @@ def run_iteration(
         print(f"  CID Iteration {iteration} — {role}")
         print(f"{'─' * 60}")
 
+        _, pre_head = _git(cwd, "rev-parse", "HEAD")
         outcome = run_agent(
-            claude_cmd, role, iteration, cwd, skip_permissions, fallback_model
+            claude_cmd,
+            role,
+            iteration,
+            cwd,
+            skip_permissions,
+            fallback_model,
+            base_sha=pre_head.strip(),
         )
 
         if not outcome["ok"]:

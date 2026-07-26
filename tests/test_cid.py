@@ -739,6 +739,100 @@ def test_stash_abandoned_edits_audit_quarantines_out_of_charter_edit(tmp_path):
     assert cid.HUMAN_REVIEW_MARKER in (repo / cid.HANDOFF_FILE).read_text()
 
 
+def test_role_commit_landed_detects_own_commit(tmp_path):
+    repo = _init_repo(tmp_path)
+    base = _head(repo)
+    assert not cid._role_commit_landed(repo, "review", base)  # nothing committed yet
+    _meta_commit(repo, "note.md", "verdict\n", msg="cid(review): PASS")
+    assert cid._role_commit_landed(repo, "review", base)
+    # another role's commit must not count as this role's deliverable
+    assert not cid._role_commit_landed(repo, "advance", base)
+    # a missing base sha is not evidence of a landed commit
+    assert not cid._role_commit_landed(repo, "review", "")
+
+
+def test_role_commit_landed_ignores_commits_before_the_run(tmp_path):
+    repo = _init_repo(tmp_path)
+    _meta_commit(repo, "note.md", "old\n", msg="cid(review): earlier iteration")
+    base = _head(repo)
+    assert not cid._role_commit_landed(repo, "review", base)
+
+
+class _FakeProcess:
+    """Minimal Popen stand-in for run_agent: empty stream, chosen return code."""
+
+    def __init__(self, stdout, returncode):
+        self.stdout = stdout
+        self.returncode = returncode
+
+    def wait(self):
+        return self.returncode
+
+    def kill(self):  # pragma: no cover - only reached if a timer fires
+        pass
+
+
+def _run_agent_with_fake_cli(monkeypatch, repo, returncode, on_start=None):
+    """Invoke run_agent against a faked claude CLI, returning its outcome dict."""
+    stream = repo / "stream.jsonl"
+    stream.write_text(
+        '{"type":"result","total_cost_usd":0.5,"num_turns":3,"is_error":false}\n',
+        encoding="utf-8",
+    )
+
+    real_popen = cid.subprocess.Popen
+
+    def fake_popen(args, **kwargs):
+        # Only stand in for the claude CLI; git calls (ours and the runner's) are real.
+        if args[0] != "claude":
+            return real_popen(args, **kwargs)
+        if on_start:
+            on_start()
+        return _FakeProcess(stream.open(encoding="utf-8"), returncode)
+
+    monkeypatch.setattr(cid.subprocess, "Popen", fake_popen)
+    base = _head(repo)
+    return cid.run_agent("claude", "review", 7, repo, base_sha=base)
+
+
+def test_run_agent_recovers_when_deliverable_committed(tmp_path, monkeypatch):
+    # A role killed after committing its verdict must not fail the iteration.
+    repo = _init_repo(tmp_path)
+    outcome = _run_agent_with_fake_cli(
+        monkeypatch,
+        repo,
+        returncode=1,
+        on_start=lambda: _meta_commit(repo, "note.md", "v\n", msg="cid(review): PASS"),
+    )
+    assert outcome["ok"]
+    assert outcome["status"] == "FAIL"  # logged status stays honest
+    assert outcome["recovered"] is True
+    row = json.loads((repo / cid.LOG_FILE).read_text(encoding="utf-8").strip())
+    assert row["recovered"] is True
+    assert cid.is_role_entry(row)  # the extra key must not break accounting
+
+
+def test_run_agent_fails_when_nothing_committed(tmp_path, monkeypatch):
+    repo = _init_repo(tmp_path)
+    outcome = _run_agent_with_fake_cli(monkeypatch, repo, returncode=1)
+    assert not outcome["ok"]
+    assert outcome["status"] == "FAIL"
+    assert "recovered" not in outcome
+
+
+def test_run_agent_clean_run_is_not_marked_recovered(tmp_path, monkeypatch):
+    repo = _init_repo(tmp_path)
+    outcome = _run_agent_with_fake_cli(
+        monkeypatch,
+        repo,
+        returncode=0,
+        on_start=lambda: _meta_commit(repo, "note.md", "v\n", msg="cid(review): PASS"),
+    )
+    assert outcome["ok"]
+    assert outcome["status"] == "OK"
+    assert "recovered" not in outcome
+
+
 def test_run_metrics_snapshot_appends_and_commits(tmp_path):
     # Runner-side snapshot (gates skipped for speed) writes metrics.jsonl and
     # commits it before the audit agent starts.
