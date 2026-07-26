@@ -183,3 +183,70 @@ func TestUtilsTextCollapseHelloWorld(t *testing.T) {
 		t.Errorf("TextCollapse hello world: got %q, want %q", result, expected)
 	}
 }
+
+// Final_Sigma regression tests: context-sensitive lowercasing must map a
+// word-final capital sigma to "ς" (U+03C2), not "σ" (U+03C3). Expected
+// values produced by the Rust core (iscc_lib.text_collapse), which matches
+// the iscc-core reference implementation.
+
+func TestUtilsTextCollapseFinalSigmaLogos(t *testing.T) {
+	result := TextCollapse("ΛΟΓΟΣ")
+	expected := "λογος"
+	if result != expected {
+		t.Errorf("TextCollapse final sigma: got %q, want %q", result, expected)
+	}
+}
+
+func TestUtilsTextCollapseFinalSigmaShortWord(t *testing.T) {
+	result := TextCollapse("ΑΣ")
+	expected := "ας"
+	if result != expected {
+		t.Errorf("TextCollapse final sigma short: got %q, want %q", result, expected)
+	}
+}
+
+func TestUtilsTextCollapseFinalSigmaDouble(t *testing.T) {
+	// Only the second (word-final) sigma becomes "ς"
+	result := TextCollapse("ΣΣ")
+	expected := "σς"
+	if result != expected {
+		t.Errorf("TextCollapse double sigma: got %q, want %q", result, expected)
+	}
+}
+
+func TestUtilsTextCollapseFinalSigmaOdysseus(t *testing.T) {
+	result := TextCollapse("ὈΔΥΣΣΕΎΣ")
+	expected := "οδυσσευς"
+	if result != expected {
+		t.Errorf("TextCollapse Odysseus: got %q, want %q", result, expected)
+	}
+}
+
+func TestUtilsTextCollapseNonFinalSigma(t *testing.T) {
+	// Guard against over-correction: a "Σ" followed by a cased letter must
+	// stay "σ"
+	result := TextCollapse("ΑΣΒ")
+	expected := "ασβ"
+	if result != expected {
+		t.Errorf("TextCollapse non-final sigma: got %q, want %q", result, expected)
+	}
+}
+
+func TestUtilsTextCollapseGreekPhrase(t *testing.T) {
+	// Word-internal sigmas stay "σ" even with surrounding whitespace removed
+	result := TextCollapse("ΓΕΙΑ ΣΟΥ ΚΟΣΜΕ")
+	expected := "γειασουκοσμε"
+	if result != expected {
+		t.Errorf("TextCollapse Greek phrase: got %q, want %q", result, expected)
+	}
+}
+
+func TestUtilsTextCollapseTurkishCapitalI(t *testing.T) {
+	// Und locale: "İ" (U+0130) lowercases to "i" + combining dot, and the
+	// combining mark is filtered — no Turkish-specific mapping leaks in
+	result := TextCollapse("İstanbul")
+	expected := "istanbul"
+	if result != expected {
+		t.Errorf("TextCollapse Turkish I: got %q, want %q", result, expected)
+	}
+}

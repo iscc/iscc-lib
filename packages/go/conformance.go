@@ -18,7 +18,7 @@ var conformanceData string
 
 // vectorEntry holds a single conformance test case from data.json.
 type vectorEntry struct {
-	Inputs  []json.RawMessage     `json:"inputs"`
+	Inputs  []json.RawMessage      `json:"inputs"`
 	Outputs map[string]interface{} `json:"outputs"`
 }
 

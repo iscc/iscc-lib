@@ -34,12 +34,12 @@ func TestCodecVarnibbleRoundtrip(t *testing.T) {
 
 func TestCodecVarnibbleBitLengths(t *testing.T) {
 	tests := []struct {
-		value   uint32
-		bitLen  int
+		value  uint32
+		bitLen int
 	}{
-		{0, 4}, {7, 4},       // 1 nibble
-		{8, 8}, {71, 8},      // 2 nibbles
-		{72, 12}, {583, 12},  // 3 nibbles
+		{0, 4}, {7, 4}, // 1 nibble
+		{8, 8}, {71, 8}, // 2 nibbles
+		{72, 12}, {583, 12}, // 3 nibbles
 		{584, 16}, {4679, 16}, // 4 nibbles
 	}
 	for _, tc := range tests {

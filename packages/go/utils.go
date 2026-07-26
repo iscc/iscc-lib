@@ -8,6 +8,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"golang.org/x/text/unicode/norm"
 )
 
@@ -109,12 +111,18 @@ func TextTrim(text string, nbytes int) string {
 
 // TextCollapse normalizes and simplifies text for similarity hashing.
 //
-// Applies NFD normalization, lowercasing, removes whitespace and characters
-// in Unicode categories C (control), M (mark), and P (punctuation), then
-// recombines with NFKC normalization.
+// Applies NFD normalization, then context-sensitive full Unicode lowercasing
+// (e.g. Final_Sigma: word-final "Σ" maps to "ς", matching the reference
+// implementation), removes whitespace and characters in Unicode categories
+// C (control), M (mark), and P (punctuation), then recombines with NFKC
+// normalization.
 func TextCollapse(text string) string {
-	// 1. NFD normalize and lowercase
-	nfdLower := strings.ToLower(norm.NFD.String(text))
+	// 1. NFD normalize and lowercase with context-sensitive case mapping.
+	// The Caser is constructed per call on purpose: cases.Caser may be
+	// stateful and must not be shared between goroutines, and construction
+	// costs ~140ns (hoisting it measured no faster). Do not "optimize"
+	// this into a package-level var.
+	nfdLower := cases.Lower(language.Und).String(norm.NFD.String(text))
 
 	// 2. Filter: keep chars that are NOT whitespace AND NOT in C/M/P categories
 	var filtered strings.Builder
