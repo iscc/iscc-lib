@@ -101,7 +101,11 @@ ROLE_TIMEOUT_S = {
     "update-state": 1200,
     "define-next": 1200,
     "advance": 3600,
-    "review": 3000,
+    # review runs the widest gate set (full feature matrix, coverage regen from
+    # scratch, iai benches, docs build) plus an independent codex pass, so it needs
+    # the same headroom as advance: p90 is ~1800s and iteration 148 legitimately
+    # exceeded 3000s.
+    "review": 3600,
     META_ROLE: 1800,
     # Whole-codebase sweep with a parallel finder/verifier workflow — long but
     # rare (every AUDIT_EVERY iterations).
