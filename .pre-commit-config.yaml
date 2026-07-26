@@ -70,6 +70,16 @@ repos:
         files: ^\.github/workflows/release\.yml$
         stages: [pre-commit]
         pass_filenames: false
+      # The three docs page lists (zensical.toml nav, ORDERED_PAGES in
+      # gen_llms_full.py, docs/llms.txt) are hand-wired and nothing else
+      # checks they agree with the pages on disk
+      - id: check-docs-nav
+        name: Docs page list parity
+        entry: uv run scripts/check_docs_nav.py
+        language: system
+        files: ^(docs/.*\.md|docs/llms\.txt|zensical\.toml|scripts/gen_llms_full\.py)$
+        stages: [pre-commit]
+        pass_filenames: false
       - id: standardrb-fix
         name: Ruby linting (fix)
         entry: bash -c 'export PATH="$(ruby -e "puts Gem.user_dir")/bin:$PATH" &&

@@ -123,6 +123,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     `unicode_boundary.json` if vectors ever change)
 - `scripts/gen_llms_full.py`: generates `site/llms-full.txt` + per-page `.md` (excludes
     `docs/includes/`). Run after `zensical build` in docs CI
+- Adding a docs page = update `zensical.toml` nav + `ORDERED_PAGES` + `docs/llms.txt` together —
+    enforced by `scripts/check_docs_nav.py` (iter 145: prek hook `check-docs-nav` +
+    `tests/test_check_docs_nav.py`; disk set is the reference, `includes/` allowlisted)
 
 ## Feature Flags
 

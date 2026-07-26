@@ -150,6 +150,11 @@ can review and re-stage.
     `steps.<id>.outputs.<x>` reads; it runs only in the dedicated `release-workflow` CI job (prek
     and pytest stay network-free), and transport failures degrade to a stderr warning instead of a
     failure
+- `scripts/check_docs_nav.py` — network-free parity check asserting that the `docs/**/*.md` pages on
+    disk (minus `includes/` partials), the `nav` in `zensical.toml`, `ORDERED_PAGES` in
+    `scripts/gen_llms_full.py`, and the links in `docs/llms.txt` are the same set. Adding a docs
+    page means updating all three lists together. Also enforced in CI via
+    `tests/test_check_docs_nav.py`
 
 ### Pre-push (thorough, run before code leaves the machine)
 
