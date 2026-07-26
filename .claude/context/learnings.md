@@ -58,29 +58,32 @@ fully-met target sections to `learnings-archive.md`.
 
 ## ISCC Algorithm Knowledge
 
-- **Unicode data version — declared 16.0.0 with a freeze rule** (found iter 129, decided 2026-07-25,
-    **Rust core implemented iter 133**; per-runtime table, deltas, repro `Ɤ` U+A7CB and remaining
-    steps → the `issues.md` entry): `text_clean`/`text_collapse` remove code points unassigned in
-    Unicode 16.0.0 *before* any normalization or category lookup (vendored 731-range table, regen
-    `uv run --script scripts/gen_unicode16_unassigned.py`). Runtimes still ship different tables (Go
-    15.0, Python 3.13 15.1, Rust crates 16.0/17.0) — never "fix" one binding to match another
-- **The freeze rule changes ADJACENCY, so it diverges from `iscc-core` on sequences even with
-    identical Unicode data** (measured iter 133 review; three worked repros + the spec consequences
-    in the open `issues.md` entry "Freeze-rule ordering diverges from iscc-core on sequences").
-    Removing a `Cn` code point *before* normalization unblocks contextual transforms `iscc-core`
-    (remove *after*) still blocks. A per-code-point sweep cannot see this class — any differential
-    sweep must include multi-code-point sequences (base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased)
+- **Unicode data version — declared 16.0.0, enforced by a `U+FFFF` SENTINEL MAP** (found iter 129,
+    ruled + implemented 2026-07-26 iter 148; per-runtime table, deltas, repro `Ɤ` U+A7CB → the
+    `issues.md` entry): `text_clean`/`text_collapse` **replace** code points unassigned in Unicode
+    16.0.0 with `UNASSIGNED_SENTINEL` before normalization (vendored 731-range table, regen
+    `uv run --script scripts/gen_unicode16_unassigned.py`); the *unchanged* category-`C` filter then
+    removes the sentinel exactly where the reference removes them (conformance), and `U+FFFF` is
+    permanently `Cn`/`ccc = 0`/undecomposable (table invariance). Runtimes still ship different
+    tables (Go 15.0, Python 3.13 15.1, Rust crates 16.0/17.0) — never "fix" one binding to match
+    another
+- **Deleting a `Cn` code point before normalization changes ADJACENCY; mapping it does not** — why
+    the iter-133 pre-filter was real non-conformance (deletion unblocks canonical composition, jamo
+    composition, `Final_Sigma`, diaeresis). **Any Unicode differential MUST include multi-code-point
+    sequences**: a per-code-point sweep scores the broken design 0 failures, while the iter-148
+    sequence probe (127 unassigned code points × 10 contexts) scored it 504/1270 and the sentinel
+    0/1270. Recipe → `.claude/agent-memory/review/review-patterns.md`
 - **Boundary vectors live in `crates/iscc-lib/tests/unicode_boundary.json`** (iter 141; ASCII
     `\uXXXX`, `data.json`-shaped, 4 code points × `text_clean`/`text_collapse`) + loader
     `tests/test_unicode_boundary.rs` — propagation source for every binding, deliberately NOT merged
     into `data.json` (rationale → `decisions.md`). Two are **live** guards: `unicode-normalization`
     0.1.25 ships **Unicode 17.0** tables where U+A7F1 is `Lm` `<super> 0053` (NFKC → `S`) and U+20C1
-    is `Sc`, so both leak the moment the freeze filter stops running first
+    is `Sc`. But all 4 wrap their code point in ASCII, so they are **deletion-vs-sentinel agnostic**
+    — only sequence vectors can gate that distinction
 - **A data-driven fixture is self-referential — assert its CONTENT, not just its shape** (iter 141):
-    the vector tests compare the implementation against the fixture, so cases swapped for ASCII
-    no-ops keep everything green. The ungated metadata guard therefore asserts the exact non-ASCII
-    code-point set per section (runs under `--no-default-features` too). Mutation-probe any such
-    guard — edit the JSON, watch it fail, `git checkout --` the file
+    vector tests compare implementation against fixture, so cases swapped for ASCII no-ops stay
+    green forever. Hence the **ungated** metadata guard asserting the exact non-ASCII code-point set
+    per section. Mutation-probe any such guard: edit the JSON, watch it fail, `git checkout --` it
 - **Unicode 16.0 assigned 5,185 code points — not "just the 7 new emoji"** (iter 143): 3,995
     Egyptian Hieroglyphs, 7 new scripts, **32 LATIN-named** incl. U+A7CB (our own repro). Never
     write "Latin text is unaffected"; diff assigned-set dumps from two `unicodedata2==<ver>` runs
@@ -106,21 +109,23 @@ fully-met target sections to `learnings-archive.md`.
     `tests/test_check_release_workflow.py`), and the CI-only `--check-action-inputs` validates every
     `with:` key and `steps.<id>.outputs.<x>` read against each ref's published `action.yml`. Never
     hand-retype these into a heredoc. **Bidirectional** since iter 146 (undeclared `with:` key *and*
-    omitted `required`-without-default input — 4 of the 18 refs declare such inputs, so it is not
-    vacuous) and it prints `action-inputs: resolved R of T`. **By design:** job-level `uses:` is
-    unscanned and an all-skipped run stays green — read that line, not the job status. Guard-shape
-    rationale → `learnings-archive.md`
+    omitted `required`-without-default input — 4 of 18 refs declare such inputs, so not vacuous) and
+    it prints `action-inputs: resolved R of T`. **By design:** job-level `uses:` is unscanned and an
+    all-skipped run stays green — read that line, not the job status → `learnings-archive.md`
 - **A fail-open gate must publish a resolved/total counter** (iters 144→146) — without it "all
-    checked" and "nothing checked" are the same green. Its promise "any transport failure degrades
-    to a warning" is NOT met by `except OSError`: `http.client.IncompleteRead` is an `HTTPException`
-    and captive-portal HTML raises `yaml.YAMLError`. Prove a reverse/"must be present" check is
-    non-vacuous by listing which real inputs trigger it before trusting green-at-HEAD
+    checked" and "nothing checked" are the same green. "Any transport failure degrades to a warning"
+    is NOT met by `except OSError`: `IncompleteRead` is an `HTTPException`, captive-portal HTML
+    raises `yaml.YAMLError`. Prove a "must be present" check non-vacuous by listing which real
+    inputs trigger it before trusting green-at-HEAD
 - **`semver` + `coverage` CI jobs**: `semver` INFORMATIONAL pre-1.0 (enforcing at v1.0.0),
     `coverage` enforcing. `mise run semver` / `mise run coverage`
-- **CRAP gate (ci-cd.md)**: ENFORCING (`cargo crap --fail-regression --fail-above` 30.0, max ~22.3),
-    `.crap-baseline.json` COMMITTED (regen `mise run crap:baseline`). **CI-ONLY gap** — not in
-    `mise run check`: a source change adding a branch to a covered fn lands green locally but reds
-    CI unless the baseline is refreshed in the SAME step (never widen epsilon/threshold)
+- **CRAP gate (ci-cd.md)**: ENFORCING — CI runs `cargo crap` with both `--fail-regression` and
+    `--fail-above`, the latter a **bare flag** (30.0 comes from `.cargo-crap.toml`, so
+    `--fail-above 30.0` is a syntax error). Baseline is COMMITTED (regen `mise run crap:baseline`,
+    needs `mise run coverage` first). **CI-ONLY gap** — not in `mise run check`: a source change
+    adding a branch to a covered fn, or merely **moving lines below the edit point**, lands green
+    locally but reds CI unless the baseline is refreshed in the SAME step (never widen
+    epsilon/threshold)
 - **`Perf (iai-callgrind)` gate — ENFORCING (#3)**: `[profile.bench] strip = false, debug = true` is
     load-bearing (stripped binary → all benches `summary: 0` false-green) → `learnings-archive.md`
 - **`Audit (cargo-deny)` gate — ENFORCING**: root `deny.toml` (v2, `yanked = "deny"`, two dev-only
@@ -128,12 +133,11 @@ fully-met target sections to `learnings-archive.md`.
     reads Cargo.lock, so green locally is authoritative. A yanked crate or fresh RustSec advisory
     reds it on ANY push with no code change — fix with `cargo update -p <crate>` (confirm dev-only
     reach: `cargo tree -i <crate> -e no-dev` = empty), NOT a `deny.toml` ignore
-- **v0.6.0 dependency refresh + ruff 0.16 adoption are CLOSED** (iters 124–140; slice history,
-    hold-back verification and relock-proof caveats → `learnings-archive.md`). Live rules: ruff is
-    **0.16.0**, preview a major with `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); prek
-    `types_or` = `[python, pyi, markdown]` (format) / `[python, pyi]` (check), a strict superset of
-    CI; rules go in `[tool.ruff.lint] extend-select`, **never `select`** (drops `E4`/`E7`/`E9`/`F`);
-    **never `ruff check --fix .`** without `--select` — it deletes load-bearing `# noqa: S603/S607`
+- **v0.6.0 dependency refresh + ruff 0.16 adoption are CLOSED** (iters 124–140 →
+    `learnings-   archive.md`). Live rules: ruff **0.16.0**, preview a major with
+    `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); rules go in
+    `[tool.ruff.lint] extend-select`, **never `select`**; **never `ruff check --fix .`** without
+    `--select` — it deletes load-bearing `# noqa: S603/S607`
 - **A prek `types:` tag is not a file-extension guess — probe it** (`.pyi` is tagged `pyi`, not
     `python`; that hole silently skipped the published `_lowlevel.pyi`, closed iter 139). Prove a
     hook's surface with a **staged, deliberately dirty** probe: `uv run prek run <hook> --files <p>`
@@ -157,10 +161,9 @@ fully-met target sections to `learnings-archive.md`.
     major's *default* changes. Recipe + the two silent biters (`setup-node@v5+` caching,
     `checkout@v6+` token location) → `learnings-archive.md`
 - **Prove a new gate with a REAL regression, not a synthetic typo** (iter 144): downgrading
-    `actions/download-artifact@v8` → `@v3` in a temp copy of `release.yml` fired 14 errors and
-    `@v999` fired the 404 path — the failure class the gate exists for; a hand-typo'd key only
-    proves string comparison works. A **set-equality** gate also passes vacuously on equal *empty*
-    sets — give its anchor test a count floor (iter 145)
+    `actions/download-artifact@v8` → `@v3` in a temp copy of `release.yml` fired 14 errors, `@v999`
+    fired the 404 path — the failure class the gate exists for. A **set-equality** gate also passes
+    vacuously on equal *empty* sets — give its anchor test a count floor (iter 145)
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
     in-flight run of the previous sha (check-runs conclude `cancelled`, not `failure`); let it
     conclude when a Done-When needs green CI on a specific sha. Each develop commit triggers TWO
@@ -183,13 +186,14 @@ fully-met target sections to `learnings-archive.md`.
     the push range — incl. `next.md` and per-agent `MEMORY*.md` — so one non-conforming file rejects
     the whole batch even though staged-only `git commit` passed. define-next MUST run
     `mise run format` before committing; review can unblock by reformatting + amending
-- **Never write an exact count or a substring `grep -c` into a verification criterion** (iter 139:
-    `ruff format --check` saw 155 files, not 153 — the count drifts whenever a tracked
-    `.md`/`.py`/`.pyi` lands; `grep -c 'exclude'` returned 2, not 0, matching pre-existing
-    `--force-exclude` flags). Assert the *gate* (exit code) and anchor greps instead
+- **Never write an exact count, a substring `grep -c`, or an unverified CLI flag into a verification
+    criterion** (iter 139: `ruff format --check` saw 155 files, not 153; `grep -c 'exclude'`
+    returned 2, not 0. Iter 148: `--fail-above 30.0` is a `cargo crap` syntax error). Assert the
+    *gate* (exit code) and anchor greps instead, and copy gate invocations from `ci.yml`, never from
+    memory
 - **next.md's Implementation Notes are a hypothesis, not a spec — algorithms *and* prose alike**
-    (iter 142: the prescribed artifact-matching rule could not resolve `wheels-*` at HEAD; iter 143:
-    two false Unicode safety claims shipped verbatim into published docs). advance implements the
+    (iter 142: the prescribed artifact-matching rule could not resolve `wheels-*`; iter 143: two
+    false Unicode safety claims shipped verbatim into published docs). advance implements the
     *intent* and documents any deviation; review re-proves the prescribed rule fails, re-derives
     every quantitative or "never/always" claim, and scopes "implementation X agrees with us" to the
     class actually proven

@@ -61,16 +61,24 @@ Moved from MEMORY.md to keep it under 200 lines. Referenced from MEMORY.md.
     the Rust fix. Non-breaking for the Tier 1 symbol — rationale in `decisions.md` 2026-07-24.
     Composite `iscc_decompose` legitimately consumes trailing units — do NOT harden it. Probe
     exact-length rejection with a throwaway test whenever new decode/parse surface lands
-- **Text-pipeline ORDER changes need a SEQUENCE differential, not per-code-point tests** (iter 133,
-    Unicode 16 freeze rule). Moving a filter earlier/later in `text_clean`/`text_collapse` changes
-    character *adjacency*, which silently alters context-sensitive Unicode operations. Probe recipe
-    (~2 min): write `crates/iscc-lib/examples/<name>.rs` calling the public fns,
-    `cargo run -q -p iscc-lib --example <name>`, print `{:04X}` per char, and compare against a
-    Python transcription of the `iscc-core` pipeline — then **delete the example file**. Minimum
-    sequence set: base+Cn+combining-mark (canonical composition), jamo+Cn+jamo (Hangul), Σ+Cn+cased
-    (Rust `to_lowercase` applies `Final_Sigma` contextually; verify with a standalone
-    `rustc /tmp/x.rs`). Confirmed divergences vs. reference: `U+00E9` vs `U+0065 U+0301`, `U+AC00`
-    vs `U+1100 U+1161`, `…σ…` vs `…ς…`
+- **Text-pipeline changes need a SEQUENCE differential, not per-code-point tests** (found iter 133,
+    fixed by the sentinel map iter 148 — technique stays live for every `utils.rs` text edit). Any
+    edit that changes character *adjacency* silently alters context-sensitive Unicode operations,
+    and a per-code-point sweep scores such a bug **0 failures**. Bulk recipe (~3 min, replaces the
+    older one-off `examples/` recipe):
+    1. Python (`uv run --with unicodedata2==16.0.0`) samples ~120 code points with
+        `ud2.category(chr(cp)) == "Cn"` (skip surrogates), crosses them with ≥ 8 context templates —
+        base+Cn+mark, jamo+Cn+jamo, `Σ`+Cn+cased, Cn+diaeresis, ASCII, alone, compat-decomp,
+        fullwidth — and dumps `/tmp/cases.json`
+    2. throwaway `crates/iscc-lib/tests/tmp_probe.rs` (a `#[test]` reading `/tmp/cases.json` via
+        `std::fs` + the crate's own `serde_json`, calling `iscc_lib::text_clean`/`text_collapse`,
+        writing `/tmp/rust_out.json`) — `cargo test -p iscc-lib --test tmp_probe`, then **`rm` it**
+    3. compare against Python transcriptions of `code_meta.py::text_clean` /
+        `code_content_text.py::text_collapse` using `ud2.normalize`/`ud2.category`. Also simulate the
+        *old* implementation in the same pass to prove the change was load-bearing (iter 148:
+        sentinel 0/1270 vs delete-filter 504/1270, failing exactly the four adjacency-sensitive
+        contexts) Caveat: `.lower()` still uses CPython's own case tables (3.13 = 15.1) even under
+        `ud2` — fine for Cn code points (uncased in every version), not for cased-in-16.0 ones
 - **Validate a vendored Unicode table WITHOUT the generator's own dependency** (iter 133): parse the
     generated ranges with a regex and assert every covered code point is `Cn` under the *system*
     CPython `unicodedata` (Unicode only ever assigns, so an N.0 `Cn` table must be a subset of any

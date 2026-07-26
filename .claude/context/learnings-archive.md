@@ -864,3 +864,9 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
     race. Confirm with `ps aux | grep -E 'cid:run|claude -p CID'`, then flag HUMAN REVIEW REQUESTED
     — do NOT kill processes yourself, and do NOT push. (Also carried in the review agent's
     `MEMORY.md`.)
+
+## Ruff / prek hook scope (archived from learnings.md, iter 148)
+
+- prek `types_or` at the close of the ruff-0.16 adoption: `[python, pyi, markdown]` for the format
+    hook, `[python, pyi]` for the check hook — a strict superset of what CI runs (ruff 0.16 formats
+    Python code blocks in Markdown but does not lint them).

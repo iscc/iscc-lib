@@ -8,48 +8,6 @@ entries carry a `**Scope estimate:**` — a step citing one may modify up to 8 n
 
 <!-- Add issues below this line -->
 
-## `packages/go` lowercases without `Final_Sigma` context — Greek text non-conformant `critical` [human]
-
-**Titusz 2026-07-26: fix this next, ahead of the freeze-rule work below.** It is a wrong-output bug
-on ordinary text in a package already published as v0.5.0, the fix is small and needs no new
-dependency, and landing it unblocks the `Final_Sigma` boundary vector for Go. Ships in v0.6.0; no
-separate patch release.
-
-`packages/go/utils.go:117` collapses text with `strings.ToLower`, which applies unconditional simple
-case mapping. The reference lowercases with Python `str.lower()` and the Rust core with
-`str::to_lowercase()`; both apply the conditional `Final_Sigma` special case (`Σ` → `ς` when
-preceded by a cased character and not followed by one). Go therefore emits `σ` where the reference
-emits `ς`.
-
-Verified 2026-07-26 by running `TextCollapse` against `iscc_lib.text_collapse` (Rust core, which
-agrees with `iscc-core` here):
-
-| input   | reference / Rust | `packages/go` | note                           |
-| ------- | ---------------- | ------------- | ------------------------------ |
-| `ΑΣΒ`   | `ασβ`            | `ασβ`         | Σ followed by cased Β — agrees |
-| `ΑΣ`    | **`ας`**         | **`ασ`**      | word-final Σ — diverges        |
-| `ΛΟΓΟΣ` | **`λογος`**      | **`λογοσ`**   | ordinary Greek word            |
-
-Unlike the Unicode-16 table issue this is **not** bounded by version drift or rare code points:
-Greek word-final sigma is pervasive (`-ος`, `-ης`, `-ας` endings), so any uppercase or mixed-case
-Greek text yields a different Text-Code and Meta-Code from Go than from every other implementation.
-The vendored conformance vectors contain no Greek, which is why CI never caught it.
-
-**Fix:** `golang.org/x/text` is already a dependency, and `cases.Lower(language.Und)` implements the
-conditional mapping. Verified equivalent to the reference on all five probe inputs above plus
-`ΑΣ\u{0378}Β` → `ας\u{0378}β`. Replace `strings.ToLower(norm.NFD.String(text))` in `TextCollapse`
-with a package-level `cases.Caser` (construct once — `cases.Lower` allocates a transformer per
-call), and add Greek regression cases to `utils_test.go`. Audit `TextClean` and the codec helpers
-for other `strings.ToLower` uses at the same time; `codec_test.go:390` is test-only and fine.
-
-**Blocks:** the `Final_Sigma` boundary vector in the freeze-rule work package below cannot be
-enabled for Go until this lands. It is *not* covered by the go1.27 exception — `U+0378` is
-unassigned in Go's Unicode 15.0 tables too, so that vector is table-independent and this bug is its
-only blocker.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
-contract" → "Case mapping must be context-sensitive in every implementation"
-
 ## Dependency review and refresh across the project `normal` [human]
 
 Planned for the **v0.6.0** release. No automated dependency updates are configured (no
@@ -310,13 +268,17 @@ version 16.0.0 with a freeze rule").
     glitch is accepted: inputs containing any of the 5,185 code points assigned between 15.1 and
     16.0 (realistically: the 7 emoji added in Unicode 16) hash differently than `iscc-core` on
     CPython ≤ 3.13 produced historically.
-2. **Freeze rule:** code points unassigned in Unicode 16.0.0 are removed from the input **before any
-    normalization or category lookup** in `text_clean` / `text_collapse`, via a vendored table (731
-    ranges covering 819,533 code points, generated from `unicodedata2==16.0.0`). Output becomes
-    invariant under all future Unicode table versions in every language — Unicode 17+ characters
-    are stripped no matter what the runtime ships, and the 16→17 normalization drift (measured:
-    exactly 1 code point) is moot because removal precedes normalization. Table dependencies become
-    freely upgradable; the differential sweep remains the gate on every bump.
+2. **Freeze rule (as revised 2026-07-26 and implemented iter 148):** code points unassigned in
+    Unicode 16.0.0 are **replaced by the noncharacter sentinel `U+FFFF`** before normalization in
+    `text_clean` / `text_collapse`, via a vendored table (731 ranges covering 819,533 code points,
+    generated from `unicodedata2==16.0.0`); the unchanged category-`C` filter then removes the
+    sentinel exactly where the reference removes unassigned code points. Output becomes invariant
+    under all future Unicode table versions in every language (`U+FFFF` is permanently `Cn`,
+    `ccc = 0`, undecomposable) **and** conformant on multi-code-point sequences. Table dependencies
+    become freely upgradable; the differential sweep remains the gate on every bump. *(The original
+    wording of this point — removal **before** normalization — was the iteration-133 design; it was
+    measured non-conformant on 42 of 140 sequence cases and superseded. See `decisions.md`
+    2026-07-26, "The freeze rule maps unassigned code points to a noncharacter sentinel".)*
 3. **Runtimes with tables older than 16.0 need real 16.0 tables** (the freeze rule cannot add
     knowledge the runtime lacks). Rust core: current deps already suffice — categories are 16.0,
     and the 17.0 normalization tables are output-equivalent to 16.0 once the freeze rule runs first
@@ -330,21 +292,38 @@ version 16.0.0 with a freeze rule").
     strip (e.g. U+20C1 SAUDI RIYAL SIGN, assigned in Unicode 17).
 
 **Implementation order for CID:** ✅ (a1) vendored unassigned-ranges table (731 ranges, checked-in
-PEP 723 generator `scripts/gen_unicode16_unassigned.py`) + freeze filter in the Rust core — done
-iter 133; `text_clean`/`text_collapse` strip before normalization, 5 boundary/invariant tests,
-regeneration is a no-op diff, CRAP + iai gates green. 🔄 (a2) the full-code-space differential sweep
-proving equivalence to uniform Unicode 16.0 tables — see the sequence caveat in the issue below,
-which must be settled first. 🔄 (b) boundary vectors wired into the Rust suite and all bindings (Go:
-see caveat in point 3); the spec already names 16.0.0 and the freeze rule. **(b) Rust half done iter
-141**: `crates/iscc-lib/tests/unicode_boundary.json` (ASCII-escaped, `data.json`-shaped, 4 single
-code points × `text_clean`/`text_collapse`) + loader `tests/test_unicode_boundary.rs` (1 ungated
-shape/content guard + 2 `text-processing`-gated vector tests). Sequence vectors deliberately
-excluded pending the ordering ruling; rationale → `decisions.md` 2026-07-25. **Remaining for (b):**
-copy the fixture into the 11 bindings' conformance tests and the four sibling `data.json` locations.
-**Both blockers are now cleared** (2026-07-26): the ordering ruling is recorded above, and the Go
-decision below. Sequence vectors can now be added — the sentinel map makes iscc-lib match the
-reference on them. Do the sentinel conversion **first**, since it changes the expected output of any
-sequence vector.
+PEP 723 generator `scripts/gen_unicode16_unassigned.py`) + the freeze rule in the Rust core — table
+and filter done iter 133, **converted to the ruled `U+FFFF` sentinel map iter 148**
+(`UNASSIGNED_SENTINEL` const + `map` at both call sites, all docstrings/comments corrected, 6
+regression tests, `.crap-baseline.json` refreshed, iai flat at −3.9% Ir; the vendored table and the
+generator's output are byte-identical throughout). 🔄 **(a2) the criterion-4 differential sweep,
+wired into the repo as a runnable check** asserting **zero** divergence against uniform Unicode
+16.0.0 tables over **both** the 1,112,064 Unicode scalar values *and* sequence classes — the
+sequence half is mandatory: a per-code-point sweep scored the superseded pre-filter 0 failures while
+it failed 42 of 140 sequence cases. Review verified the sentinel design ad hoc at iteration 148 (127
+unassigned code points × 10 contexts = 1,270 cases, 0 mismatches, vs 504 for the pre-filter), so
+this step is regression protection, not initial proof; harness sketch → `decisions.md` 2026-07-26,
+"Sentinel conformance accepted on sequence evidence". 🔄 (b) boundary vectors wired into the Rust
+suite and all bindings (Go: see caveat in point 3); the spec already names 16.0.0 and the freeze
+rule. **(b) Rust half done iter 141**: `crates/iscc-lib/tests/unicode_boundary.json` (ASCII-escaped,
+`data.json`-shaped, 4 single code points × `text_clean`/`text_collapse`) + loader
+`tests/test_unicode_boundary.rs` (1 ungated shape/content guard + 2 `text-processing`-gated vector
+tests). **Remaining for (b):** add the four **sequence** vectors. Their expected outputs are the six
+`utils.rs` regression tests landed in iter 148 — written as escapes below because the fixture is
+ASCII-escaped and the composed/decomposed forms render identically:
+
+| section         | input                      | expected             | must NOT be          |
+| --------------- | -------------------------- | -------------------- | -------------------- |
+| `text_clean`    | `e\u0378\u0301`            | `e\u0301`            | `\u00E9`             |
+| `text_clean`    | `\u1100\u0378\u1161`       | `\u1100\u1161`       | `\uAC00`             |
+| `text_clean`    | `e\uA7F1\u0301`            | `e\u0301`            | `e\u015A`            |
+| `text_collapse` | `\u0391\u03A3\u0378\u0392` | `\u03B1\u03C2\u03B2` | `\u03B1\u03C3\u03B2` |
+
+Then copy the fixture into the 11 bindings' conformance tests and the four sibling `data.json`
+locations. All blockers are cleared: the sentinel conversion has landed (it determined the expected
+outputs above), the Go ruling is below, and the Go `Final_Sigma` bug that blocked the `Final_Sigma`
+vector was fixed in iter 147 (`packages/go/utils.go` now uses `cases.Lower(language.Und)`; the
+per-call `cases.Caser` is deliberate — do not hoist it).
 
 **Go — RULED by Titusz 2026-07-26: skip, do not vendor the delta.** `packages/go` skips the Unicode
 16.0 boundary vectors with an explicit tracking note (and an issue filed here) rather than vendoring
@@ -364,163 +343,20 @@ Go decision or the ordering ruling lands.
 CPython 3.14 gives `ISCC:AAARDZ5SS6NVXBLT` / `ISCC:EAA3RXNBOM77TGM5` for the same input — the 3.14
 pair is what the Rust core produces. The fix to propose upstream is the same architecture:
 `unicodedata2==16.0.0; python_version < '3.14'` + import shim (wheels cover cp39–cp313, the whole
-supported range), the freeze-at-16 pre-filter (pure Python, same 731 vendored ranges), and boundary
+supported range), the freeze-at-16 **sentinel map** (pure Python, same 731 vendored ranges — map to
+`"￿"` before `unicodedata.normalize`, leave the existing category-`C` filter alone), and boundary
 vectors in `data.json`. Per ISO 24138 Annex D the reference implementation is normative, so the
 `iscc-core` release adopting this settles the standard's answer.
 
+**Still to do by a human — not CID:** the upstream issue thread must be updated to propose the
+**sentinel** mechanism; both the earlier sequence-delta framing and the pre-normalization-removal
+framing should be withdrawn. Worth stating explicitly upstream: `iscc-core` output has never been
+deterministic across its declared `>=3.9,<4.0` range (Unicode 13.0/14.0/15.0/15.1/16.0 by Python
+version), so this is a determinism fix, and the behavioural break it implies is accepted
+deliberately.
+
 **Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
 contract"
-
-## Convert the freeze rule from a pre-filter to a sentinel map (RULED) `normal` [human]
-
-**RULED by Titusz 2026-07-26 — the freeze rule maps unassigned code points to the noncharacter
-`U+FFFF` before normalization; ISO conformance is a hard constraint; the declared version stays
-16.0.0.** Rationale in `decisions.md` (2026-07-26, "The freeze rule maps unassigned code points to a
-noncharacter sentinel" + "Declared Unicode version stays 16.0.0"). `specs/rust-core.md` requirements
-1 and 4, its accepted-divergence section and its **Verified when** list are already updated — the
-spec is the authority; this entry is the work package.
-
-Two intermediate proposals from the same session were superseded and must not be implemented: a
-category override (fails 10 of 140 sequence cases — see the table below) and lowering the declared
-version to 15.1.0 (rejected: it strips the 6 living scripts added in Unicode 16.0, collapsing any
-document written wholly in one of them to `""` so all such documents collide on one degenerate
-Text-Code).
-
-The check Titusz asked for: IEP-0003 (Normative, ISO 24138:2024,
-<https://github.com/iscc/iscc-ieps/blob/main/ieps/iep-0003.md>) defines conformance as
-output-equivalence with the reference implementation, *not* prose-matching its 5-step Processing
-clause. So the iter-133 pre-filter was **not** a wording defect — it was real non-conformance, and
-unlike the accepted 15.1→16.0 single-code-point glitch it diverges from **every** reference version
-including CPython 3.14. "Accept + enumerate the delta" was therefore rejected.
-
-### Work package
-
-1. In `crates/iscc-lib/src/utils.rs`, change the pre-normalization pass in `text_clean` (~line 100)
-    and `text_collapse` (~line 176) from a `filter` to a `map` onto the sentinel — one token,
-    inside the same fused iterator:
-
-    ```rust
-    // from:
-    .filter(|&c| !is_unassigned_in_unicode16(c))
-    // to:
-    .map(|c| if is_unassigned_in_unicode16(c) { '\u{FFFF}' } else { c })
-    ```
-
-    The category filters (`is_c_category`, `is_cmp_category`) are **left alone** — `U+FFFF` is `Cn`,
-    so they already strip it. The vendored table and `scripts/gen_unicode16_unassigned.py` do not
-    change. Name the sentinel as a `const` with a comment on why a *noncharacter* specifically.
-
-2. Update both function docstrings — they currently give the pre-normalization ordering as the
-    reason for invariance, which is wrong on both counts.
-
-3. Add regression tests for all four **Verified when** cases, including
-    `text_clean("e\u{A7F1}\u{0301}") == "e\u{0301}"` (the case a category override gets wrong) and
-    an assertion that the normalizer passes `U+FFFF` through unchanged.
-
-4. Both hot-path gates apply (iai-callgrind 10% Ir budget, CI-only CRAP `--fail-regression`). Expect
-    Ir to be **flat**: a `map` replaces a `filter` in the same iterator chain — same passes, same
-    allocations, no filter-predicate change. A significant move in either direction means the
-    implementation is not the one specified.
-
-5. Widen the deliberately-scoped CPython-3.14 sentence in `docs/unicode.md` back to unqualified
-    agreement, replace its freeze-rule description with the sentinel mechanism, and state the
-    accepted divergence class (b) plus why 15.1.0 was rejected. The placeholder recorded in
-    `decisions.md` 2026-07-26 is discharged.
-
-6. Add a short **"How much does this matter?"** section to `docs/unicode.md` giving readers the
-    proportionality up front, so the page does not read more alarming than the issue is: Data-Code
-    and Instance-Code are unaffected; Meta-Code and Text-Code are similarity-preserving so affected
-    codes stay Hamming-close and similarity matching still works; newly assigned code points are
-    rare in real text; the residual exposure is exact-match lookups on short inputs and the exact
-    `name` / `description` fields. Source: `decisions.md` 2026-07-26, "Unicode determinism is a
-    bounded-severity issue".
-
-**Cross-binding prerequisite:** when the boundary vectors are later wired into the bindings, the
-`Final_Sigma` case is blocked for `packages/go` by the `strings.ToLower` bug filed at the top of
-this file — a separate defect from the go1.27 table exception, and one that affects ordinary Greek
-text. Land that fix first or enable that one vector for Go last.
-
-**Measured before the ruling** — three designs swept against a uniform-Unicode-16.0 reference
-(`unicodedata2==16.0.0`), evaluated on Unicode 17.0 tables (what `unicode-normalization` 0.1.25
-ships):
-
-| design                         | single code points | sequence cases |
-| ------------------------------ | ------------------ | -------------- |
-| pre-filter (iteration 133)     | 0 of 1,114,112     | **42 of 140**  |
-| category override (superseded) | **1** (`U+A7F1`)   | **10 of 140**  |
-| sentinel map (decided)         | **0**              | **0**          |
-
-The `1,114,112` denominator is what that Python harness could reach, since a Python `str` can hold
-surrogates. Do **not** carry it into the Rust sweep: `&str` cannot, so the criterion-4 denominator
-is the **1,112,064 Unicode scalar values** (see `specs/rust-core.md` requirement 4).
-
-The pre-filter scoring 0 on single code points while failing 42 sequence cases is exactly the
-false-assurance failure criterion 4 now forbids. The override's failure is worse than its count:
-`U+A7F1` is unassigned in 16.0 but decomposes to `S` under 17.0, so `e U+A7F1 U+0301` produced `eŚ`
-— a Unicode-17 character injecting a spurious letter into the output.
-
-**Follow-up, separate step:** wire the criterion-4 sweep into the repo as a runnable check asserting
-**zero** divergence over single code points *and* sequence classes.
-
-**Still to do by a human — not CID:** upstream <https://github.com/iscc/iscc-core/issues/137> must
-be updated to propose the sentinel mechanism (map unassigned-in-16.0 to `U+FFFF` before normalizing,
-keep the existing category-`C` filter) together with
-`unicodedata2==16.0.0; python_version < '3.14'`. Both the earlier sequence-delta framing and the
-pre-normalization-removal framing should be withdrawn. Worth stating explicitly upstream:
-`iscc-core` output has never been deterministic across its declared `>=3.9,<4.0` range (Unicode
-13.0/14.0/15.0/15.1/16.0 by Python version), so this is a determinism fix, and the behavioural break
-it implies is accepted deliberately.
-
-**Spec:** `.claude/context/specs/rust-core.md` → "Unicode data version is part of the conformance
-contract" (requirements 1 and 4)
-
-<details><summary>Original finding (iteration 133 review) — kept for context</summary>
-
-The freeze filter landed in iter 133 exactly as specified (strip Unicode-16.0.0-unassigned code
-points **before** normalization). Stripping before normalization changes character **adjacency**, so
-it enables contextual transforms that `iscc-core` — which removes the same code points *after* NFKC,
-via the category-`C` filter — still blocks. Verified in this review against reference semantics
-(divergences did **not** exist before iter 133, and they persist even when both sides run identical
-Unicode 16.0 data, e.g. CPython 3.14):
-
-| Input                   | iscc-lib (iter 133) | `iscc-core`     | Effect                            |
-| ----------------------- | ------------------- | --------------- | --------------------------------- |
-| `text_clean("e͸́")`      | `U+00E9`            | `U+0065 U+0301` | canonical composition unblocked   |
-| `text_clean("ᄀ͸ᅡ")`     | `U+AC00`            | `U+1100 U+1161` | Hangul jamo composition unblocked |
-| `text_collapse("ΑΣ͸Β")` | `α σ β`             | `α ς β`         | `Final_Sigma` context changed     |
-
-So Meta-Code **and** Text-Code can differ for these inputs. Consequences:
-
-1. **Spec criterion 4** ("a full-code-space differential sweep proves the freeze-rule implementation
-    output-equivalent to uniform Unicode 16.0.0 tables") is false as worded — a per-code-point
-    sweep over all 1,112,032 code points passes and gives false assurance. Either reword it to
-    "equivalent for single code points, with the sequence-adjacency delta enumerated and accepted",
-    or specify a sequence-aware sweep (base+Cn+mark, jamo+Cn+jamo, Σ+Cn+cased at minimum).
-2. **The accepted-divergence paragraph** in `specs/rust-core.md` currently covers only "runtimes
-    with non-16.0 tables" and "characters assigned between 15.1 and 16.0". This class is neither —
-    it should be named explicitly if it is accepted.
-3. **The upstream proposal** (<https://github.com/iscc/iscc-core/issues/137>) must specify
-    *pre-normalization* removal, or an `iscc-core` that adopts the freeze rule with post-
-    normalization removal will still disagree with iscc-lib on these inputs.
-4. **The public docs page carries a placeholder qualifier** (added iter 143): `docs/unicode.md` says
-    CPython 3.14 "agrees with iscc-lib on the single-code-point behaviour described on this page"
-    and is deliberately silent about sequences. The draft claimed unqualified agreement — false for
-    this class — so the ruling must revisit that sentence (widen it back, or state the accepted
-    sequence delta). Rationale → `decisions.md` 2026-07-26.
-
-No alternative ordering preserves table-version invariance (post-normalization removal reintroduces
-the 16→17 drift the rule exists to prevent), so this is expected to be a wording/scoping decision
-rather than a redesign. Settle it **before** step (b) wires boundary vectors into 11 bindings and 5
-`data.json` copies — expected outputs would otherwise be re-derived twice.
-
-</details>
-
-*(The closing premise above was **wrong**, and so was the conclusion drawn from it. The choice is
-not between orderings, so nothing is traded: mapping to the `U+FFFF` sentinel keeps removal exactly
-where the reference does it, preserving table-version invariance **and** exact conformance at the
-same time. The acceptance criterion is therefore **zero** divergence — there is no residual to
-measure or accept — and this was a redesign, not the wording/scoping decision the premise
-predicted.)*
 
 ## Release core as v1.0.0 (stability commitment) `low` [human]
 

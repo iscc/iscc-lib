@@ -52,11 +52,12 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     `@{upstream}..HEAD` for circumvention. Only HUMAN-REVIEW spec amendments + `low` left (strict
     IDLE cond #2 NOT met) → flag **HUMAN REVIEW REQUESTED** (runner "pause"), NOT `**IDLE**`
     (all-`low` only; it runs meta-improve). Verdict still PASS; push clean batch
-- **Unicode 16.0.0 freeze rule — Rust core iter 133, boundary fixture iter 141**: remaining are the
-    11 bindings (Go on 15.0 tables) + the differential sweep; never let a step "fix" one binding to
-    match another. **Human-gated:** the sequence-adjacency divergence (probe → `review-patterns.md`,
-    ruling → `issues.md`), whose outcome must also revisit the deliberate "single-code-point"
-    placeholder in `docs/unicode.md`
+- **Unicode 16.0.0 freeze rule = a `U+FFFF` SENTINEL MAP since iter 148** (was a delete-filter iters
+    133–147; the sequence-adjacency divergence is RULED and CLOSED). Remaining: sequence vectors in
+    `unicode_boundary.json` → the 11 bindings (Go on 15.0 tables, skips all but `Final_Sigma`) → the
+    criterion-4 sweep as a runnable check. Never let a step "fix" one binding to match another. The
+    4 existing single-code-point vectors are **deletion-vs-sentinel agnostic** (ASCII context), so
+    they cannot gate this distinction — only sequence vectors can
 - **Concurrent CID loops (iter 97, detail in `MEMORY-archive.md`)**: spurious `mise run check`
     "files modified" on an untouched file + mid-review working-tree change = a SECOND loop racing.
     Confirm with `ps aux`; flag HUMAN REVIEW REQUESTED, do NOT push or kill processes
@@ -127,9 +128,14 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
 - **`cargo tree -i <crate>` prints "nothing to print"** for proc-macro / target-specific deps — add
     `--target all` (this disproved an advance-handoff attribution: `proc-macro-error2` comes from
     dev-only `iai-callgrind-macros`, NOT magnus/rb-sys)
-- **Core text/codec change + generated data (iter 133, ≈6 min)**: Rust-only PLUS the two CI-only
-    gates — `mise run coverage` + `cargo crap` baseline and `mise run bench:iai:check` (commands →
-    `gate-reviews.md`); re-run any generator, assert `git status --porcelain <output>` is empty
+- **Core text/codec change + generated data (iters 133/148, ≈12 min)**: Rust-only PLUS the **full
+    feature matrix** (`#[cfg]`-gated consts/tests) PLUS the two CI-only gates — `mise run coverage`
+    then the **CI-exact**
+    `cargo crap --lcov lcov.info --baseline .crap-baseline.json   --fail-regression --fail-above`
+    (bare flag; `--fail-above 30.0` is a syntax error and CI uses BOTH flags, not just
+    `--fail-regression`) and `mise run bench:iai:check`; re-run any generator and assert
+    `git status --porcelain <output>` is empty. For a `text_clean`/`text_collapse` edit, add the
+    sequence differential in `review-patterns.md` — the vector suite cannot see that class
 - **Version sync**: + `version_sync.py --check`. **Shell script**: + `bash -n <script>`
 - **release.yml / any GHA action bump**: NEVER exercised by CID pushes → static-verify only. **All
     four checks are committed gates (iters 142 + 144)** — run
@@ -147,3 +153,6 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     reliably catches, what it reliably misses, and the standing dismiss-list →
     **`codex-integration.md`**. Expect a real finding whenever a diff adds a matching/parsing rule,
     an exception-handling contract, or a user-facing factual claim
+- **A no-findings Codex verdict sometimes asserts its own evidence** (iter 148: "match a Unicode
+    16.0 reference across all Unicode scalar values") — that is an unverifiable claim in a
+    one-paragraph report, not a substitute for your own probe. Run the differential anyway
