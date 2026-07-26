@@ -1,129 +1,154 @@
 # Next Work Package
 
-## Step: Fix the `docs/llms.txt` drift and gate the three hand-wired docs page lists
+## Step: Close the known blind spots in the two gate scripts (`check_docs_nav.py`, `--check-action-inputs`)
 
 ## Goal
 
-Close the tracked `normal` issue "Gate parity of the three hand-wired docs page lists" (issues.md,
-`[review]`): add the six missing page links to `docs/llms.txt` — today five of eleven supported
-languages (Ruby, C#/.NET, C/C++, Swift, Kotlin) are invisible to `llms.txt` consumers, so
-`specs/documentation.md` line 32 ("links to **all** documentation pages") is literally false — and
-land a pure-local checker that keeps the four lists in sync from now on.
+Close both open `normal` `[review]` issues — "Harden the `--check-action-inputs` gate against its
+known blind spots" and "`check_docs_nav.py` counts commented-out `zensical.toml` nav entries as
+present" — so neither gate can report green while the invariant it names is broken. Both are
+`scripts/`-local, share one test pattern, and both issue texts recommend bundling them.
 
-**Cadence note:** the tooling window is 141 tests / 142 tooling / 143 docs / 144 tooling = 2 of 4,
-below the threshold, and this step is a user-facing data fix anyway.
+**Cadence note (checked deliberately, not skipped):** the window is 142 tooling / 143 user-facing
+docs / 144 tooling / 145 docs-fix + gate = at most 3 of 4 tooling-ish, at the threshold. I
+re-checked every user-facing candidate before defaulting here and all are blocked: the Unicode
+boundary-vector propagation is double-blocked (parked ordering ruling **and** the Go 15.0-tables
+decision), the dependency remainder is human/major-gated, npm OIDC and the
+`rubygems/configure-rubygems-credentials` pin need Titusz, the docs logos are `low` `[human]`, and
+every other target section verifies at HEAD. There is no unblocked user-facing work to prefer, so
+the deferral rule does not apply this iteration.
 
 ## Scope
 
-- **Create**: `scripts/check_docs_nav.py`, `tests/test_check_docs_nav.py`
-- **Modify**: `.pre-commit-config.yaml`, `docs/llms.txt` (doc), `docs/development.md` (doc — add the
-    new checker next to the existing `check_release_workflow.py` description)
-- **Reference**: `scripts/check_release_workflow.py` and `tests/test_check_release_workflow.py` (the
-    established gate-script + `importlib.util.spec_from_file_location` test pattern),
-    `scripts/gen_llms_full.py` (`ORDERED_PAGES`, `EXCLUDE_DIRS`, `discover_pages`), `zensical.toml`
-    (`nav`), `scripts/version_sync.py` (stdlib-only regex parsing style),
-    `.claude/context/issues.md` lines 182–204 (the issue text with the measured drift)
-
-Non-test/non-doc file budget: **2** (`scripts/check_docs_nav.py`, `.pre-commit-config.yaml`).
+- **Modify** (3 non-test/non-doc files — within the standard budget):
+    - `scripts/check_release_workflow.py`
+    - `scripts/check_docs_nav.py`
+    - `.pre-commit-config.yaml` (comment only)
+- **Modify** (tests + docs, excluded from the budget):
+    - `tests/test_check_release_workflow.py`
+    - `tests/test_check_docs_nav.py`
+    - `docs/development.md` (the two bullets at lines 145–157 describe these gates)
+- **Reference**:
+    - `.claude/context/issues.md` — the two `[review]` issues (the numbered sub-items are the
+        checklist for this step)
+    - `.claude/context/decisions.md` — 2026-07-26 "The release-workflow action-input gate fails open
+        on transport trouble" and 2026-07-26 "The docs page-list gate parses `zensical.toml` nav with
+        a regex, not `tomllib`"
+    - `.github/workflows/ci.yml` lines 416–430 (the `release-workflow` job)
+    - `zensical.toml` lines 12–44 (the real nav block)
 
 ## Not In Scope
 
-- Hardening `--check-action-inputs` against its four blind spots — separate tracked issue, next up.
-- Anything Unicode: the boundary-vector propagation into the 12 bindings and the full-code-space
-    sweep are both parked on human rulings. Do not touch `docs/unicode.md`.
-- Reconciling `specs/ci-cd.md`'s 14-row CI job table, or any other edit under
-    `.claude/context/specs/` or `target.md`.
-- Making the checker **auto-fix** `docs/llms.txt`. It reports and exits non-zero; humans/agents edit
-    the list. Auto-generating `llms.txt` is a different (larger) design decision.
-- Adding, splitting or renaming any documentation page, or writing new prose beyond the six link
-    lines and the `development.md` sentence.
-- Wiring the checker into `.github/workflows/docs.yml` or a new CI job — the pytest test carries it
-    into CI (see notes).
+- **Do not make a zero-resolved run fatal.** "Fail if no ref resolved" is a *policy* change against
+    `decisions.md` 2026-07-26, which accepted all-skipped-as-green by design and filed the stricter
+    rule as a follow-up "if skips are ever observed in practice". None have been observed. This step
+    makes the condition **visible** (a resolved/total summary line) and leaves the exit code alone;
+    flipping it to fatal needs Titusz.
+- **Do not scan job-level `uses:`** (reusable-workflow calls). `release.yml` has none at HEAD, and
+    the `owner/repo/.github/workflows/x.yml@ref` form needs a different URL shape than
+    `action_yml_urls` builds — a separate step if a reusable workflow is ever added.
+- **Do not migrate `check_docs_nav.py` to `tomllib`/`tomli`** — CI's `python-test` matrix pins
+    `['3.10', '3.14']`; the regex approach is the recorded decision. Fix the comment blindness
+    inside the existing regex path.
+- **Do not edit `.github/workflows/release.yml` or `ci.yml`.** The gate must land green against the
+    file exactly as it is (verified below: 18/18 refs resolve, zero missing required inputs).
+- No Unicode boundary-vector work, no dependency bumps, no new CI job.
 
 ## Implementation Notes
 
-**1. Data fix — `docs/llms.txt`.** Add the six missing pages under `## Reference`, keeping the
-existing nav-derived order and the existing one-line `- [Title](URL): description` style with
-absolute `https://lib.iscc.codes/<path>.md` URLs:
+### A. `check_docs_nav.py` — comment-aware nav parsing
 
-- `howto/ruby.md` after the Python how-to
-- `howto/dotnet.md`, `howto/c-cpp.md`, `howto/swift.md`, `howto/kotlin.md` after the Java how-to
-- `ruby-api.md` after the Java API entry
+**Trap, measured while scoping: the issue text's claim that "no nav title or page path in this repo
+contains `#`" is FALSE.** `zensical.toml` line 25 is `{ "C# / .NET" = "howto/dotnet.md" },`. A naive
+`re.sub(r"#.*$", "", line, flags=re.M)` truncates that line and makes the gate report
+`zensical.toml nav: missing 1 page(s): ['howto/dotnet.md']` — a false positive on the real tree.
 
-Descriptions should mirror the phrasing already used ("Guide to using iscc-lib from X", "X API
-reference"). After the fix the `## Reference` block has **23** page links. The intro paragraph
-mentions only some bindings — leaving it as is, is fine (not in scope).
-
-**2. Checker — `scripts/check_docs_nav.py`.** A stdlib-only script (module docstring, short pure
-functions, `main()` returning an exit code, `if __name__ == "__main__": sys.exit(main())`) that
-builds four sets of page paths relative to `docs/` and asserts they are equal:
-
-- **disk**: `docs/**/*.md` via `rglob`, skipping the `EXCLUDE_DIRS` allowlist — keep a commented
-    `EXCLUDE_DIRS = {"includes"}  # snippet partials, not pages` that mirrors `gen_llms_full.py`
-- **nav**: from `zensical.toml` — slice the `nav = [ ... ]` block and `re.findall` quoted values
-    ending in `.md`. **Do not use `tomllib`**: CI's `python-test` matrix includes Python 3.10 where
-    `tomllib` does not exist, and the pytest test below imports this module. Regex parsing matches
-    `scripts/version_sync.py`'s existing style.
-- **ordered**: `ORDERED_PAGES` — load `scripts/gen_llms_full.py` by path with
-    `importlib.util.spec_from_file_location` (it is side-effect free on import; `main()` is guarded)
-    or regex the list block. Either is acceptable; prefer the import (single source of truth).
-- **llms**: from `docs/llms.txt` — `re.findall(r"https://lib\.iscc\.codes/(\S+?\.md)")`; the
-    `llms-full.txt` link is naturally excluded because it does not end in `.md`.
-
-Report every mismatch with the list name and the sorted symmetric difference (e.g.
-`llms.txt: missing 6 page(s): [...]` / `unexpected 1 page(s): [...]`), print all failures before
-exiting `1`, and print a single
-`OK: <n> documentation pages consistent across nav, ORDERED_PAGES and llms.txt.` line on success.
-Make the paths injectable (module-level `ROOT`/path constants plus functions taking a `Path`) so the
-tests can point at fixtures instead of the real repo. No network, no writes.
-
-**3. prek hook.** Add a local `pre-commit`-stage hook after `check-release-workflow` in
-`.pre-commit-config.yaml`, with a short comment saying the three lists are hand-wired and nothing
-else checks they agree:
+So strip `#`-to-end-of-line only when the `#` is **outside** a double-quoted string. A small
+character scan per line is enough (TOML basic strings here contain no escaped quotes):
 
 ```text
-- id: check-docs-nav
-  name: Docs page list parity
-  entry: uv run scripts/check_docs_nav.py
-  language: system
-  files: <regex matching docs/*.md, docs/llms.txt, zensical.toml, scripts/gen_llms_full.py>
-  stages: [pre-commit]
-  pass_filenames: false
+for each line: walk chars, toggle in_string on '"', truncate at the first '#' seen while not in_string
 ```
 
-**4. Test — `tests/test_check_docs_nav.py`.** Follow `tests/test_check_release_workflow.py`: load
-the script by path, then cover (a) the real repo tree passes — this is what carries the gate into
-CI, since CI runs pytest but never prek; (b) each of the three lists individually failing when a
-page is dropped from it, using `tmp_path` fixtures; (c) a page present in a list but absent from
-disk; (d) `includes/abbreviations.md` on disk does not count as a page. Simple `def test_*`
-functions, no classes, no mocks beyond fixture files.
+Apply it to the sliced `nav = [ ... ]` block before `NAV_MD_RE.findall`. Keep the helper
+module-level and named (e.g. `strip_toml_comments`) so tests can hit it directly, and update the
+comment above `NAV_MD_RE`.
 
-**5. `docs/development.md`.** One short entry alongside the existing release-workflow checker
-description: what `scripts/check_docs_nav.py` asserts, that it is network-free, and that adding a
-docs page means updating `zensical.toml` nav, `ORDERED_PAGES` and `docs/llms.txt` together.
+### B. `.pre-commit-config.yaml` — record the deletion gap
 
-Run `mise run format` before staging.
+Extend the comment above `check-docs-nav` (lines 73–75) to state that prek `files:` matching only
+sees added/modified paths, so a bare `git rm docs/<page>.md` does not trigger this hook — the
+`tests/test_check_docs_nav.py` anchor test catches it at pre-push and in CI. Comment only; do not
+change the hook's `files:` pattern or stage.
+
+### C. `check_release_workflow.py --check-action-inputs`
+
+1. **Transport failures must never red the gate** (issue item 1). Add `import http.client` and widen
+    the fallback handler in `fetch_action` to
+    `except (OSError, http.client.HTTPException, yaml.YAMLError) as exc:`. Order matters — the
+    existing `except urllib.error.HTTPError` clause must stay **first** (it is an `OSError`
+    subclass). Test both new classes by monkeypatching `urllib.request.urlopen`: one raising
+    `http.client.IncompleteRead(b"")`, one returning a body that provably breaks `yaml.safe_load`
+    (e.g. `b"a: b\n- c\n"` → a mapping followed by a sequence). Both must yield `None` plus a
+    `warning: skipped` line, not an exception.
+2. **Reverse required-input check** (issue item 2). In `check_with_keys`, after the existing
+    undeclared-key loop, report every `inputs.<k>` in the fetched metadata with `required: true`
+    and **no** `default:` key that the step's `with:` omits, e.g.
+    `action: job '<id>' omits required input '<k>' of '<uses>'`. Treat a `required` value of the
+    string `"true"` as true as well (action authors quote it). Verified while scoping: **zero**
+    such omissions exist at HEAD, so this lands green.
+3. **Make an all-skipped run visible, not fatal** (issue item 3, narrowed — see Not In Scope). Give
+    `check_action_compat` an optional `cache: dict | None = None` parameter that it passes to
+    `functools.partial(cached_fetch, …)` instead of the inline `cache={}`; existing call sites and
+    tests keep working. `main()` passes its own dict and, after the check, prints one stdout line:
+    `action-inputs: resolved <R> of <T> action refs (<S> skipped)` where `T = len(cache)` and
+    `R = number of non-None values`. Exit code unchanged.
+4. **Latent false positives** (issue item 4). In `check_with_keys`: (a) when the fetched metadata
+    has `runs.using == "docker"`, accept the GitHub-native `args` and `entrypoint` overrides in
+    addition to the declared inputs; (b) skip non-`str` `with:` keys — PyYAML's YAML 1.1 booleans
+    turn an input literally named `on`/`off`/`yes`/`no` into `True`/`False`, and the two sides
+    cannot be compared reliably. Neither case exists at HEAD (verified: zero docker-type actions
+    among the 18 refs), so both need synthetic fixtures in the existing in-memory `_fake_fetch`
+    style.
+
+Keep every function short and pure in the existing style; the only new I/O is the one summary
+`print` in `main()`. Update the module docstring (check 4's description) and the two
+`docs/development.md` bullets to match the new behaviour.
+
+### Measured facts from scoping (do not re-litigate)
+
+- `release.yml` has **18 distinct repo-action refs**; all 18 resolve today, none is a docker action,
+    and none omits a required-without-default input.
+- `raw.githubusercontent.com` is reachable unauthenticated from the devcontainer, so the network
+    path is locally verifiable. Force the offline path with
+    `https_proxy=http://127.0.0.1:9 http_proxy=http://127.0.0.1:9`.
 
 ## Verification
 
-- `uv run scripts/check_docs_nav.py` exits **0** and prints no missing/unexpected page lines
-- `grep -c 'https://lib\.iscc\.codes/[^ ]*\.md' docs/llms.txt` reports **23**
-- Each of the six previously-missing pages is present:
-    `for p in howto/ruby.md howto/dotnet.md howto/c-cpp.md howto/swift.md howto/kotlin.md ruby-api.md; do grep -q "lib.iscc.codes/$p" docs/llms.txt || exit 1; done`
-    exits 0
-- `uv run pytest tests/test_check_docs_nav.py` passes with at least 5 tests, including at least one
-    that asserts a **non-zero** exit for a list that is missing a page
-- `uv run pytest` (full suite) passes — currently 333 tests, so ≥338 after this step
-- `uv run prek run check-docs-nav --all-files` reports **Passed**
-- `uv run python scripts/gen_llms_full.py` exits 0 and its output contains **no** `Auto-discovered`
-    line
-- `uv run zensical build` exits 0 and reports "No issues found"
-- `mise run check` — all hooks Passed (17 with the new one); `uv run ruff check` and
-    `uv run ruff format --check` clean
-- `git status --porcelain .claude/context/specs/ docs/unicode.md` is empty (parked items untouched)
+- `uv run pytest tests/test_check_docs_nav.py tests/test_check_release_workflow.py` passes with **≥
+    33** tests (27 today: 8 + 19), including at least: a commented-out nav entry fires,
+    `"C# / .NET"` still yields `howto/dotnet.md`, an omitted required input fires, a docker action's
+    `args`/`entrypoint` does **not** fire, `IncompleteRead` → `None` + warning, malformed-YAML body
+    → `None` + warning
+- `uv run pytest` passes with **≥ 347** tests (341 today) and no failures
+- `uv run scripts/check_docs_nav.py` exits 0 and prints a line containing
+    `documentation pages consistent across nav, ORDERED_PAGES and llms.txt.`
+- `uv run --no-project --with pyyaml python scripts/check_release_workflow.py --check-action-inputs`
+    exits 0, prints a line matching `action-inputs: resolved [0-9]+ of [0-9]+ action refs`, and
+    emits **no** `warning: skipped` line and no line starting with `action:`
+- Fails open offline:
+    `https_proxy=http://127.0.0.1:9 http_proxy=http://127.0.0.1:9 uv run --no-project --with pyyaml python scripts/check_release_workflow.py --check-action-inputs`
+    exits **0** and prints `resolved 0 of` (transport failure is still not a red gate)
+- `uv run scripts/check_release_workflow.py` (no flag, network-free) exits 0
+- `uv run prek run check-docs-nav --all-files` and
+    `uv run prek run check-release-workflow --all-files` both Pass
+- `grep -c 'git rm' .pre-commit-config.yaml` ≥ 1 (the deletion-coverage comment is present)
+- `mise run check` — all hooks Passed; `uv run ruff check` and `uv run ruff format --check` clean
+- `git status --porcelain .github/workflows/ .claude/context/specs/ docs/unicode.md crates/ packages/`
+    is empty (no workflow, spec, parked-docs or source changes in this step)
 
 ## Done When
 
-`docs/llms.txt` links all 23 real documentation pages, `scripts/check_docs_nav.py` proves the four
-lists agree, that check runs both as a scoped prek hook and inside the CI-executed pytest suite, and
-every verification command above passes.
+All verification criteria pass: both gate scripts reject their previously-blind failure modes, both
+still pass on the unmodified repository, the action-input gate still fails open offline, and the
+docs/config prose matches the new behaviour.

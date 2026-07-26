@@ -99,12 +99,10 @@ iterations.
 - **A parked HUMAN REVIEW issue does not stall the loop — it re-prioritises it** (iters 134–139: the
     Unicode ruling parked 2 criteria, so steps went to ruff slices, then hook parity, then
     release.yml). If a blocked slice's only consumer is the parked propagation, take other backlog.
-- **CI runs no prek** — it calls `ruff`/`pytest`/`cargo` directly. A new local hook is therefore
-    single-place enforcement unless a pytest test carries it into CI (iter 142 pattern: the checker
-    script is exercised both by a scoped prek hook and by a test that runs it on the tracked file).
-- **Look for gates that exist but run in only one place** (`S`/`C901` were pre-push-hook-only, CI
-    never saw them). Broadening an *existing* gate to CI needs no human sign-off; inventing one
-    does.
+- **Gate/checker steps in `scripts/` have their own playbook** — prek-vs-CI placement, the Python
+    3.10 floor (no `tomllib`), injected-`Path` shape, network/offline probing, docs-list wiring, and
+    when a gate change needs Titusz: [gate scripts playbook](gate-scripts-playbook.md). Read it
+    before scoping anything under `scripts/` or `.pre-commit-config.yaml`.
 - **In a file no CI push exercises, split behavioural edits from mechanical ones** (iters 139/140:
     `release.yml`'s guard fixes vs the 97-ref `uses:` bump, so a broken release is bisectable).
     Recipe, job inventory, evidence rules for un-runnable workflow bumps (check `ci.yml` first;
@@ -129,26 +127,11 @@ iterations.
 - **Watch the tooling-cadence flag in state.md.** When 3 of the last 4 iterations were CI/lint/
     workflow packages, prefer a user-facing item over a tracked `normal` tooling issue (iter 143) —
     but deferring is a **one-iteration** move, not a veto: count the window explicitly in `## Goal`
-    (iters 144/145 were both at 2 of 4, below threshold). The deferred issue stays open, unblocked.
-- **Probe the network check before scoping a network gate.** `raw.githubusercontent.com` is
-    reachable unauthenticated from the devcontainer, so an "it needs network → CI-only" item is
-    still locally verifiable; and running the probe first proves the gate lands green rather than as
-    a fix. A blocked-proxy run (`https_proxy=http://127.0.0.1:9 …`) is the boolean offline-skip
-    criterion.
+    (144/145 were at 2 of 4). **At the threshold with zero unblocked user-facing candidates (iter
+    146\) the rule does not fire** — but enumerate each blocked candidate + its blocker in `## Goal`.
 - **A parked behaviour ruling does not block *documenting* the behaviour that already shipped** —
     but the docs step must forbid the disputed claims by name in `Not In Scope` (iter 143: no
     output-equivalence claim, no multi-code-point/sequence statements).
-- New docs page checklist: `zensical.toml` nav + `scripts/gen_llms_full.py ORDERED_PAGES` +
-    `docs/llms.txt` (hand-maintained `## Reference` bullets, absolute
-    `https://lib.iscc.codes/<p>.md` URLs; 23 real pages = 24 tracked `docs/**/*.md` minus the
-    `includes/` snippet partial). As of iter 145 a `scripts/check_docs_nav.py` prek hook + pytest
-    test gates all three lists against disk. `gen_llms_full.py` prints `Auto-discovered …` for any
-    page missing from `ORDERED_PAGES` → "output contains no `Auto-discovered` line" is the boolean
-    wiring check.
-- **No `tomllib` in any script the pytest suite imports** — CI's `python-test` matrix runs Python
-    **3.10** (and `version-check` too), where `tomllib` is absent. Repo convention for TOML in
-    `scripts/` is stdlib regex (`version_sync.py`). Gate scripts are loaded in tests via
-    `importlib.util.spec_from_file_location` (`tests/test_check_release_workflow.py` is the model).
 - **The installed Python binding is a cheap probe — but the venv wheel LAGS the source** (iter 141:
     it still showed pre-iter-133 `text_clean` behaviour). Cross-check anything the last few
     iterations could have touched with `cargo test -p iscc-lib --lib <mod>::` (~seconds when built).
