@@ -46,10 +46,20 @@ metadata:
     green on both, no skips. The Ruby `.so` needs `bundle exec rake compile` first — a stale
     extension fails the U+A7F1 rows only (U+0378 is `Cn` in every Unicode version and never
     discriminates staleness).
-- Pending: remaining 7 binding surfaces (napi artifact is STALE — returns `aSb` for
-    `text_clean("a"+U+A7F1+"b")`, must rebuild before a napi slice; land the vendored-copy
-    byte-identity drift gate BEFORE the packages/{dotnet,kotlin,swift} slice) + 4 sibling data.json
-    copies; full-code-space + sequence-class differential sweep (spec requirement 4).
+- Propagation slice 3 (iter 153): napi `crates/iscc-napi/__tests__/unicode_boundary.test.mjs`
+    (canonical-path `readFileSync`, metadata guard + two `describe` loops, snake_case exports) and
+    JNI `crates/iscc-jni/java/.../UnicodeBoundaryTest.java` (gson `@BeforeAll` load of
+    `../../iscc-lib/tests/unicode_boundary.json`, 1 `@Test` guard + 2 `@TestFactory` sections,
+    camelCase `IsccLib.textClean`/`textCollapse`). All 12 vectors + guard green, no skips. Local
+    native artifacts go stale silently — rebuild first (`npx napi build --platform` from
+    crates/iscc-napi; `cargo build -p iscc-jni`) and probe freshness with
+    `text_clean("a"+U+A7F1+"b") == "ab"` (a stale build returns `aSb`; U+0378 never discriminates).
+    `mvn -o -B test` works fully offline against cached `~/.m2`.
+- Pending: 5 binding surfaces (C FFI — needs a JSON reader or generated table, `tests/test_iscc.c`
+    has no text coverage; C++ — no `cmake` in container; dotnet/kotlin/swift — the slice that adds
+    tracked vendored copies, MUST register each in `VENDORED_COPIES` of
+    `tests/test_vendored_fixtures.py` or the drift gate reds); full-code-space + sequence-class
+    differential sweep (spec requirement 4).
 - GOTCHA (iter 149): writing `\uXXXX` escape text into the ASCII-escaped fixture via the Edit tool
     decodes it into literal UTF-8 chars. Write fixture JSON with Python
     (`json.dumps(..., ensure_ascii=True, indent=2)` + trailing newline round-trips the file
