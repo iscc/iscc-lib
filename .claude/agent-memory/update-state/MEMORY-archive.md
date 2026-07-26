@@ -100,3 +100,12 @@ it when assessing.
     code change without `git diff --stat`.
 - **Gradle flakes on this bind mount** (`Unable to delete file …/build/…`) — `./gradlew clean`
     before believing a Kotlin failure; check the test XML.
+
+## Archived from MEMORY.md (iter 145) — package layout detail
+
+- `packages/go/` — pure Go, no CGO/WASM (`golang.org/x/text` 0.40.0, `zeebo/blake3` v0.2.4, go
+    1.26.1 consumer floor). The only binding that does NOT inherit the Rust freeze rule.
+- `packages/swift/` + root `Package.swift` — `useLocalFramework` toggle, `.binaryTarget`,
+    `build_xcframework.sh` builds 5 Apple targets.
+- `packages/kotlin/` — Kotlin/JVM + JNA 2.4.10 (JNA, not JNI); consumer floor Kotlin 2.3+ since the
+    iter-128 plugin bump; pin detail → `dep-refresh-survey.md`.
