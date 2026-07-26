@@ -3,14 +3,17 @@
 //! Loads `tests/unicode_boundary.json` — the propagation source for every
 //! binding's boundary conformance tests — and asserts that `text_clean` and
 //! `text_collapse` enforce the declared Unicode data version (16.0.0): code
-//! points unassigned in 16.0 are stripped before normalization, while code
-//! points assigned in 16.0 flow through the regular normalization pipeline.
+//! points unassigned in 16.0 are mapped to the noncharacter sentinel `U+FFFF`
+//! before normalization (and removed by the unchanged category-`C` filter),
+//! while code points assigned in 16.0 flow through the regular normalization
+//! pipeline.
 
 const BOUNDARY_DATA: &str = include_str!("unicode_boundary.json");
 
 /// The four boundary code points every section must exercise: two assigned in
 /// Unicode 16.0 (`So`, `Mc`) that must survive, and two unassigned in 16.0
-/// (assigned in 17.0) that the freeze filter must strip before normalization.
+/// (assigned in 17.0) that the freeze rule must map to the sentinel before
+/// normalization so the category filter removes them.
 const BOUNDARY_CODE_POINTS: [char; 4] = ['\u{1FAE9}', '\u{113C5}', '\u{20C1}', '\u{A7F1}'];
 
 /// Parse the vendored boundary fixture into a JSON value.

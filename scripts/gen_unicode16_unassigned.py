@@ -4,10 +4,12 @@
 # ///
 """Generate the vendored Unicode 16.0.0 unassigned-range table for iscc-lib.
 
-The Rust core strips code points that are unassigned in Unicode 16.0.0 (the declared
-Unicode data version, see `.claude/context/specs/rust-core.md`) from text input before
-any normalization or category lookup. This script produces the data module backing that
-freeze rule: it classifies every code point with `unicodedata2` pinned to Unicode
+The Rust core maps code points that are unassigned in Unicode 16.0.0 (the declared
+Unicode data version, see `.claude/context/specs/rust-core.md`) to the noncharacter
+sentinel ``U+FFFF`` before normalization; the unchanged category-``C`` filter then
+removes the sentinel exactly where the reference removes unassigned code points. This
+script produces the data module backing that freeze rule: it classifies every code
+point with `unicodedata2` pinned to Unicode
 16.0.0 data, merges unassigned (general category ``Cn``) code points into maximal
 inclusive ranges, verifies the known invariants of the 16.0.0 table, and writes the
 data-only Rust module ``crates/iscc-lib/src/utils/unicode16.rs``.

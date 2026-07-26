@@ -23,12 +23,24 @@ const NEWLINES: &[char] = &[
     '\u{2029}', // PARAGRAPH SEPARATOR
 ];
 
+/// Replacement for code points unassigned in Unicode 16.0.0.
+///
+/// `U+FFFF` is a *noncharacter*: under Unicode's Noncharacter stability policy it is
+/// permanently category `Cn`, `ccc = 0` and has no decomposition, so it can never gain
+/// an assignment or a decomposition in a future table version. Mapping unassigned code
+/// points onto it (instead of deleting them) keeps them in place through normalization
+/// — matching the reference, which removes them only at the category-`C` filter —
+/// while severing all dependence on the Unicode tables that dependencies ship.
+#[cfg(feature = "text-processing")]
+const UNASSIGNED_SENTINEL: char = '\u{FFFF}';
+
 /// Check whether a character is unassigned (general category `Cn`) in Unicode 16.0.0.
 ///
 /// Backed by the vendored range table in [`unicode16`], generated from
-/// `unicodedata2==16.0.0` by `scripts/gen_unicode16_unassigned.py`. Used to strip
-/// such code points from input before any normalization or category lookup, making
-/// text output invariant under the Unicode table versions dependencies ship.
+/// `unicodedata2==16.0.0` by `scripts/gen_unicode16_unassigned.py`. Used to replace
+/// such code points with [`UNASSIGNED_SENTINEL`] before normalization; each caller's
+/// own category-`C` filter (unchanged from the reference) then removes the sentinel
+/// exactly where the reference removes unassigned code points.
 #[cfg(feature = "text-processing")]
 fn is_unassigned_in_unicode16(c: char) -> bool {
     let cp = c as u32;
@@ -89,18 +101,29 @@ fn is_cmp_category(c: char) -> bool {
 
 /// Clean and normalize text for display.
 ///
-/// Removes code points unassigned in Unicode 16.0.0 (the declared Unicode data
-/// version — stripping them before normalization keeps output invariant under
-/// future Unicode table upgrades), applies NFKC normalization, removes control
-/// characters (except newlines), normalizes `\r\n` to `\n`, collapses
-/// consecutive empty lines to at most one, and strips leading/trailing
-/// whitespace.
+/// Replaces code points unassigned in Unicode 16.0.0 (the declared Unicode data
+/// version) with the noncharacter sentinel `U+FFFF` before normalization, applies
+/// NFKC normalization, removes control characters (except newlines), normalizes
+/// `\r\n` to `\n`, collapses consecutive empty lines to at most one, and strips
+/// leading/trailing whitespace.
+///
+/// The category-`C` removal step is unchanged from the reference and drops the
+/// sentinel (`U+FFFF` is permanently `Cn`), so unassigned code points are removed
+/// exactly where the reference removes them — preserving composition-blocking
+/// context — while mapping into a permanent noncharacter keeps output invariant
+/// under future Unicode table upgrades.
 #[cfg(feature = "text-processing")]
 pub fn text_clean(text: &str) -> String {
-    // 1. Strip Unicode-16.0.0-unassigned code points, then NFKC normalize
+    // 1. Map Unicode-16.0.0-unassigned code points to the sentinel, then NFKC normalize
     let text: String = text
         .chars()
-        .filter(|&c| !is_unassigned_in_unicode16(c))
+        .map(|c| {
+            if is_unassigned_in_unicode16(c) {
+                UNASSIGNED_SENTINEL
+            } else {
+                c
+            }
+        })
         .nfkc()
         .collect();
 
@@ -168,17 +191,30 @@ pub fn text_trim(text: &str, nbytes: usize) -> String {
 
 /// Normalize and simplify text for similarity hashing.
 ///
-/// Removes code points unassigned in Unicode 16.0.0 (the declared Unicode data
-/// version — stripping them before normalization keeps output invariant under
-/// future Unicode table upgrades), applies NFD normalization, lowercasing,
-/// removes whitespace and characters in Unicode categories C (control), M
-/// (mark), and P (punctuation), then recombines with NFKC normalization.
+/// Replaces code points unassigned in Unicode 16.0.0 (the declared Unicode data
+/// version) with the noncharacter sentinel `U+FFFF` before normalization, applies
+/// NFD normalization, lowercasing, removes whitespace and characters in Unicode
+/// categories C (control), M (mark), and P (punctuation), then recombines with
+/// NFKC normalization.
+///
+/// The category-`C` filter is unchanged from the reference and drops the sentinel
+/// (`U+FFFF` is permanently `Cn`), so unassigned code points are removed exactly
+/// where the reference removes them — preserving `Final_Sigma` lowercasing
+/// context — while mapping into a permanent noncharacter keeps output invariant
+/// under future Unicode table upgrades.
 #[cfg(feature = "text-processing")]
 pub fn text_collapse(text: &str) -> String {
-    // 1. Strip Unicode-16.0.0-unassigned code points, then NFD normalize and lowercase
+    // 1. Map Unicode-16.0.0-unassigned code points to the sentinel, then NFD normalize
+    //    and lowercase
     let nfd_lower: String = text
         .chars()
-        .filter(|&c| !is_unassigned_in_unicode16(c))
+        .map(|c| {
+            if is_unassigned_in_unicode16(c) {
+                UNASSIGNED_SENTINEL
+            } else {
+                c
+            }
+        })
         .nfd()
         .collect::<String>()
         .to_lowercase();
@@ -260,10 +296,10 @@ mod tests {
     #[cfg(feature = "text-processing")]
     #[test]
     fn test_text_clean_unicode16_boundary() {
-        // U+A7F1: Cn in Unicode 16, Lm in 17 — must be stripped before NFKC
-        // (17.0 tables would otherwise map it to "S" first).
+        // U+A7F1: Cn in Unicode 16, Lm in 17 — must be mapped to the sentinel
+        // before NFKC (17.0 tables would otherwise decompose it to "S" first).
         assert_eq!(text_clean("a\u{A7F1}b"), "ab");
-        // U+20C1: Cn in Unicode 16, assigned in 17 — stripped by the freeze rule.
+        // U+20C1: Cn in Unicode 16, assigned in 17 — removed by the freeze rule.
         assert_eq!(text_clean("a\u{20C1}b"), "ab");
         // U+1FAE9 (So) and U+113C5 (Mc): assigned in Unicode 16 — retained.
         assert_eq!(text_clean("a\u{1FAE9}b"), "a\u{1FAE9}b");
@@ -316,8 +352,64 @@ mod tests {
 
     #[cfg(feature = "text-processing")]
     #[test]
+    fn test_sentinel_blocks_canonical_composition() {
+        // U+0378 (Cn in 16.0) maps to U+FFFF, which occupies its position
+        // through NFKC (ccc = 0 blocks composition), so `e` and U+0301 must
+        // not compose to U+00E9 — matching the reference exactly.
+        assert_eq!(text_clean("e\u{0378}\u{0301}"), "e\u{0301}");
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_sentinel_blocks_hangul_jamo_composition() {
+        // The sentinel between the jamo blocks composition to U+AC00.
+        assert_eq!(text_clean("\u{1100}\u{0378}\u{1161}"), "\u{1100}\u{1161}");
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_sentinel_preserves_final_sigma_context() {
+        // U+FFFF is neither Cased nor Case_Ignorable, so a preceding Σ still
+        // lowercases to final ς (U+03C2), not medial σ (U+03C3).
+        assert_eq!(
+            text_collapse("\u{0391}\u{03A3}\u{0378}\u{0392}"),
+            "\u{03B1}\u{03C2}\u{03B2}"
+        );
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_sentinel_prevents_decomposition_leak() {
+        // U+A7F1 is Cn in 16.0 but gains a compatibility decomposition to "S"
+        // under Unicode 17 tables. The sentinel map must keep the 17.0-shipping
+        // normalizer from ever seeing it — the superseded category-override
+        // design gets this wrong and yields "e\u{015A}".
+        assert_eq!(text_clean("e\u{A7F1}\u{0301}"), "e\u{0301}");
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_normalizer_passes_sentinel_through() {
+        // The one assumption the sentinel design rests on: the normalization
+        // library passes U+FFFF through unchanged under NFKC and NFD.
+        assert_eq!("\u{FFFF}".nfkc().collect::<String>(), "\u{FFFF}");
+        assert_eq!("\u{FFFF}".nfd().collect::<String>(), "\u{FFFF}");
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
+    fn test_literal_sentinel_input_removed() {
+        // No ambiguity: a literal U+FFFF in the input is itself unassigned in
+        // 16.0, so it maps to the sentinel and the category-C filter removes
+        // it — which is what the reference does with it.
+        assert_eq!(text_clean("a\u{FFFF}b"), "ab");
+        assert_eq!(text_collapse("a\u{FFFF}b"), "ab");
+    }
+
+    #[cfg(feature = "text-processing")]
+    #[test]
     fn test_freeze_rule_ascii_unchanged() {
-        // Regression guard: the pre-normalization filter must not affect ASCII.
+        // Regression guard: the sentinel map must not affect ASCII.
         assert_eq!(
             text_clean("The quick brown fox\njumps over the lazy dog."),
             "The quick brown fox\njumps over the lazy dog."

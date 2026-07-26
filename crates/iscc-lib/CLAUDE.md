@@ -155,12 +155,15 @@ cargo bench -p iscc-lib                     # Criterion benchmarks
     `finalize()` or the next `update()`. This matches the Python `push()` / `prev_chunk` pattern.
 - **Conformance vector format** -- `data.json` inputs use `"stream:<hex>"` for byte data, JSON
     arrays for integer vectors, and plain strings for text. Read the test code for parsing patterns.
-- **Text normalization order matters** -- both `text_clean` and `text_collapse` first strip code
-    points unassigned in Unicode 16.0.0 (the declared Unicode data version), via the vendored range
-    table in `utils/unicode16.rs` (regenerate with
-    `uv run --script scripts/gen_unicode16_unassigned.py`, never hand-edit). The strip must precede
-    all normalization so output stays invariant under dependency Unicode-table upgrades. After that,
-    `text_clean` applies NFKC, then control-char removal, then line collapsing. `text_collapse`
-    applies NFD, lowercase, filter C/M/P categories, then NFKC. Do not reorder these steps.
+- **Text normalization order matters** -- both `text_clean` and `text_collapse` first map code
+    points unassigned in Unicode 16.0.0 (the declared Unicode data version) to the noncharacter
+    sentinel `U+FFFF`, via the vendored range table in `utils/unicode16.rs` (regenerate with
+    `uv run --script scripts/gen_unicode16_unassigned.py`, never hand-edit). The unchanged
+    category-`C` filter then removes the sentinel exactly where the reference removes unassigned
+    code points -- preserving composition-blocking and `Final_Sigma` context -- while mapping into a
+    permanent noncharacter keeps output invariant under dependency Unicode-table upgrades. After the
+    sentinel map, `text_clean` applies NFKC, then control-char removal, then line collapsing.
+    `text_collapse` applies NFD, lowercase, filter C/M/P categories, then NFKC. Do not reorder these
+    steps.
 - **JSON canonicalization** -- the crate uses `serde_json_canonicalizer` for RFC 8785 (JCS)
     compliant serialization of JSON metadata, matching iscc-core's `jcs.canonicalize()` behavior.

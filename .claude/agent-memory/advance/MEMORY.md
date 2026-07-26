@@ -2,8 +2,8 @@
 
 Detail lives in topic files: [ci-gates.md](ci-gates.md),
 [uniffi-swift-kotlin.md](uniffi-swift-kotlin.md), [deps-refresh.md](deps-refresh.md),
-[wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md). Archived phases:
-[MEMORY-archive.md](MEMORY-archive.md).
+[wasm-simd.md](wasm-simd.md), [go-idv1.md](go-idv1.md), [release-gate.md](release-gate.md),
+[unicode-freeze.md](unicode-freeze.md). Archived phases: [MEMORY-archive.md](MEMORY-archive.md).
 
 **Size budget:** Keep under 140 lines. Move detail to topic files; archive stale entries.
 
@@ -14,14 +14,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
 - Rust core: `crates/iscc-lib/src/` — lib.rs (crate root, Tier 1 re-exports), codec.rs, cdc.rs,
     minhash.rs, simhash.rs, dct.rs, wtahash.rs, utils.rs, streaming.rs, conformance.rs
 - Conformance vectors: `crates/iscc-lib/tests/data.json` (50 total: 20+5+3+5+3+2+4+3+5, v1.3.0)
-- Unicode 16.0.0 freeze rule (iter 133): `text_clean`/`text_collapse` strip 16.0-unassigned code
-    points BEFORE normalization via generated `crates/iscc-lib/src/utils/unicode16.rs` (731 ranges;
-    regen: `uv run --script scripts/gen_unicode16_unassigned.py` — PEP 723, pins
-    `unicodedata2==16.0.0`). Keep filter first in both chains. Boundary fixture (iter 141):
-    `crates/iscc-lib/tests/unicode_boundary.json` (ASCII-only, data.json-shaped, 4 code points × 2
-    sections) + `tests/test_unicode_boundary.rs` — propagation source for bindings. Pending: binding
-    propagation (blocked on parked ordering ruling + Go 15.0-tables decision), full-code-space
-    differential sweep
+- Unicode 16.0.0 freeze rule (iter 148, RULED): `text_clean`/`text_collapse` MAP 16.0-unassigned
+    code points to `UNASSIGNED_SENTINEL` (`U+FFFF`) before normalization; unchanged category-`C`
+    filter removes it where the reference does. NOT a delete-filter, NOT a category override.
+    Design, table regen, boundary fixture, pending work → unicode-freeze.md
 - Bindings: Python `crates/iscc-py/python/iscc_lib/__init__.py`; Node `crates/iscc-napi/src/lib.rs`;
     WASM `crates/iscc-wasm/src/lib.rs`; C FFI `crates/iscc-ffi/src/lib.rs`; JNI
     `crates/iscc-jni/src/lib.rs` + `crates/iscc-jni/java/src/main/java/io/iscc/iscc_lib/`
@@ -50,11 +46,10 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     covers Markdown fences); prek ruff hooks carry `pyi` in `types_or` (CI parity — prek types
     `.pyi` as `pyi`, NOT `python`); NEVER blanket `--fix` (deletes 13 `# noqa: S603/S607`); rb_sys
     pinned `0.9.123`. Detail + prek staged-probe gotcha → deps-refresh.md
-- GOTCHA: ci.yml concurrency has `cancel-in-progress: true` per ref — pushing a second develop
-    commit cancels the in-flight CI run of the previous sha (its check-runs end "cancelled"). When a
-    step needs a green CI on a specific sha, don't push again until it concludes
-- GOTCHAs: system `python3` lacks PyYAML (use `uv run python`); piping `cargo crap`/`cargo deny` to
-    `tail` makes `$?` the pager's exit — redirect to a file
+- GOTCHAs: ci.yml `cancel-in-progress: true` per ref — a second develop push cancels the previous
+    sha's in-flight CI run (don't push again while waiting on a green CI for a sha); system
+    `python3` lacks PyYAML (use `uv run python`); piping `cargo crap`/`cargo deny` to `tail` makes
+    `$?` the pager's exit — redirect to a file
 - Ruby CI job: libclang-dev required; ruby/setup-ruby@v1 `working-directory` is a `with:` param.
     `rust` job matrix: `--no-default-features` / `--all-features` / `--features text-processing`
 - `version-check` job: `scripts/version_sync.py --check` (16 targets incl. Swift Constants,
@@ -67,23 +62,9 @@ Detail lives in topic files: [ci-gates.md](ci-gates.md),
     `gil_used` to `false`, unsafe for raw `PyList_GetItem` ptrs. Recipe → MEMORY-archive.md
 - GIL release (iters 111+116, #39/#41): 12 `py.detach` sites in `crates/iscc-py/src/lib.rs`. Video
     detach MUST open after frame-sig extraction; meta/audio/mixed stay attached. `tests/test_gil.py`
-- release.yml static gate (iters 142+144): `scripts/check_release_workflow.py` (guard shape,
-    artifact wiring via matrix-include expansion + symmetric glob match, `needs:` graph) — prek hook
-    `check-release-workflow` + `tests/test_check_release_workflow.py` in CI. Any release.yml edit
-    must keep it green. `pyyaml` is an explicit dev dep. Opt-in `--check-action-inputs` (iters
-    144+146): fetches each ref's published action.yml from raw GitHub, validates `with:` keys
-    (docker `runs.using` gets native `args`/`entrypoint`; non-str keys skipped — YAML 1.1 bools),
-    required-without-default inputs (quoted `"true"` counts), action step outputs; 404 = error,
-    transport/parse failure (incl. `HTTPException`, `YAMLError`) = stderr warning + exit 0; prints
-    `action-inputs: resolved R of T` summary (all-skipped visible, NOT fatal — policy needs Titusz);
-    runs only in the `release-workflow` CI job (tests inject a fake fetcher)
-- Release workflow (`release.yml`): 9 boolean inputs → build → **smoke test** → publish (inputs,
-    auth, CI internals → MEMORY-archive.md). `build-wheels` 4 targets incl native-ARM aarch64;
-    `test-wheels` matrixed, artifact name = `wheels-<os>-<target>`. All 28 non-`prepare-release`
-    jobs carry `!cancelled() && !failure()` `if:` guards (iter 139); 97 `uses:` refs at current
-    majors (iter 140: checkout@v7, upload/download-artifact v7/v8 pair, gh-release@v3 — statically
-    verified only, `workflow_dispatch`). Lint edits via
-    `go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7` (cached, offline-safe)
+- release.yml: static gate (`scripts/check_release_workflow.py`, prek hook, opt-in
+    `--check-action-inputs`) + workflow shape (9 inputs, guards, 97 `uses:` refs, actionlint) — any
+    release.yml edit must keep the gate green. Full mechanics → release-gate.md
 - WASM SIMD (#42): dual wiring (`blake3/wasm32_simd` + RUSTFLAGS simd128 + wasm-opt
     `--enable-simd`); recipe + wasm-pack gotchas → wasm-simd.md
 
