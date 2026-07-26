@@ -198,6 +198,31 @@ A gate that cannot fail is worse than none, because it manufactures false confid
     `mise run check`, plus the hook-scope probe (`uv run prek run <hook> --files <in-scope>` →
     `Passed`; `--files <out-of-scope>` → `Skipped`). ≈ 6 min total.
 
+### Additions from iter 145 (`scripts/check_docs_nav.py`)
+
+- **Mutate a copy of the REAL tree, not a fixture**:
+    `T=$(mktemp -d); git archive HEAD | tar -x -C   "$T"`, then edit files under `$T` and call the
+    gate's path-injectable entry point (`run_checks(docs, toml, script, llms)`) against them.
+    Restoring `git show HEAD~1:<file>` into that copy replays the actual regression the step fixed —
+    the strongest possible proof, and free. Push for path-injectable signatures in new gate scripts;
+    they make review cheap.
+- **Two more blind-spot questions** for the step-4 list:
+    - **Set-equality gates pass vacuously on equal empty sets.** `run_checks` on an empty docs tree
+        with three empty lists returned `[]` and printed `OK: 0 …`. Fix is one line in the anchor test
+        (`assert len(disk_pages(DOCS_DIR)) >= 20`) — within the minor-fix bar, so just add it.
+    - **Does the parser see commented-out entries?** A regex over a TOML/YAML block counts
+        `# { "Kotlin" = "howto/kotlin.md" },` as live. Test every hand-rolled parser with a
+        commented-out entry. (Codex found this one independently — see `codex-integration.md`.)
+- **Fail-closed probes worth 60 seconds**: delete the block the regex anchors on, make the imported
+    module `raise` at import, and delete an input file. All three must exit non-zero.
+- **A `files:`-scoped prek hook needs a *staged* probe, and never fires on deletions.** Break an
+    in-scope file → `git add` → `uv run prek run <hook>` → `Failed`; stage only an out-of-scope file
+    → `(no files to check)Skipped`; `git rm --cached <page>` + move the file away → also `Skipped`
+    (prek matches added/copied/modified only). Restore with `git restore --staged --worktree <file>`
+    and confirm `git status --porcelain` is back to just the runner-owned `iterations.jsonl`.
+- **Docs-output check ordering**: `zensical build` wipes `site/`, so run `gen_llms_full.py` after it
+    (the `docs.yml` order) before asserting per-page `site/**/*.md` files exist.
+
 ## Docs Claim-Checking (iter 143)
 
 A docs step has no failing test to catch it — every gate is green on a page full of lies. Budget the

@@ -74,16 +74,21 @@ UniFFI/Kotlin/Ruby/Environment/PyO3/feature-flags), `dep-refresh-reviews.md` (v0
     **Green gates say NOTHING about truth** (iter 143) — re-derive every number from its source and
     treat "never/always/only" sentences as claims to disprove; next.md prose is a HYPOTHESIS and
     dictated two false claims advance shipped verbatim → `review-patterns.md` "Docs Claim-Checking"
-- **New docs PAGE**: also verify the 3 hand-wired lists agree — `zensical.toml` nav, `ORDERED_PAGES`
-    in `scripts/gen_llms_full.py`, `docs/llms.txt`. Nothing gates their parity, and they are
-    **already drifted** (measured iter 144: 24 tracked pages, nav 24, `ORDERED_PAGES` 23, `llms.txt`
-    **17** — c-cpp/dotnet/kotlin/ruby/swift how-tos + `ruby-api.md` missing). Filed as a `normal`
-    issue; note `llms.txt` links are absolute `https://lib.iscc.codes/<path>.md`, not relative
+- **New docs PAGE (gated since iter 145)**: `uv run scripts/check_docs_nav.py` proves disk /
+    `zensical.toml` nav / `ORDERED_PAGES` / `docs/llms.txt` agree (23 pages; `llms.txt` links are
+    absolute `https://lib.iscc.codes/<path>.md`). Two known holes it does NOT cover — a
+    **commented-out** nav entry still counts as present (regex, not `tomllib`: CI matrix pins 3.10),
+    and the prek hook is skipped on a page **deletion** (only pytest catches that). Verifying site
+    output? `zensical build` **wipes `site/`** — run `gen_llms_full.py` AFTER it or every per-page
+    `site/**/*.md` reads as missing
 - **Python-only**: `mise run check` + `pytest`
-- **New gate script (iters 142/144, ~6 min)**: never accept "it exits 0 at HEAD" — write your OWN
-    mutations, prefer a **real** regression to a synthetic typo, dump internals via `importlib`, and
-    answer the three blind-spot questions (one-directional? fail-open really fail-open?
-    fully-skipped run distinguishable from a pass?) → `review-patterns.md`
+- **New gate script (iters 142/144/145, ~6 min)**: never accept "it exits 0 at HEAD" — write your
+    OWN mutations, prefer a **real** regression to a synthetic typo (iter 145: restore `HEAD~1`'s
+    file into a `git archive HEAD | tar -x` temp copy), dump internals via `importlib`, and answer
+    the blind-spot questions (one-directional? fail-open really fail-open? fully-skipped run
+    distinguishable from a pass? **set-equality gate vacuous on equal empty sets?** **does the
+    parser see commented-out entries?**). A `files:`-scoped prek hook needs its own **staged**
+    fire/skip probe and never sees deletions → `review-patterns.md`
 - **Lint-config-only (`[tool.ruff]*` / prek hook types, iters 134–139)**: run `mise run check`, ruff
     check, ruff `format --check` (**assert exit 0, never a file count**), both pre-push ruff gates,
     ty check, pytest. A `# noqa` deletion is safe only if `--select <rule> --ignore-noqa` omits its

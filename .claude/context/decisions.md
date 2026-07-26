@@ -490,3 +490,23 @@ badge; a reviewer checking this gate must confirm zero `warning: skipped` lines.
 that the intended failure class is really caught: reverting `actions/download-artifact@v8` to `@v3`
 in a temp copy produced 14 errors, and `@v999` produced the 404 error. **Context:** CID iteration
 144 (`5bd9b74`).
+
+## 2026-07-26 — The docs page-list gate parses `zensical.toml` nav with a regex, not `tomllib`
+
+**Decision:** `scripts/check_docs_nav.py` extracts nav pages by slicing the `nav = [ ... ]` block
+and `re.findall`-ing quoted `.md` values, accepting that a *commented-out* nav entry is still
+counted as present. **Why:** the gate's anchor test is a pytest test, and CI's `python-test` matrix
+pins `['3.10', '3.14']` — `tomllib` is 3.11+, so a `tomllib` parse would make the gate unimportable
+on half the matrix and silently drop it from CI on the older leg. Vendoring `tomli` for one
+regex-sized job adds a dependency to a script whose whole point is being stdlib-only and
+network-free, and the repo already parses manifests by regex in `scripts/version_sync.py`.
+**Alternatives:** `tomllib` guarded by a `sys.version_info` fallback to `tomli` — rejected, two code
+paths for one list and a new dependency; drop the 3.10 matrix leg — rejected, `abi3-py310` wheels
+make 3.10 a supported runtime and the leg is the only thing testing it; strip comments before
+matching — *not* rejected on merit, simply out of scope for this step and now filed as the follow-up
+issue. **Consequence:** the gate is one-directional against comment-outs specifically: deleting a
+nav entry fires, commenting one out does not. Verified in review that every non-comment mutation
+fires — the real pre-fix six-page `llms.txt` drift, a dropped nav entry, a dropped `ORDERED_PAGES`
+entry, a new page on disk, and a ghost page in a list — and that all three malformed-input paths (no
+`nav` block, an unimportable `gen_llms_full.py`, a missing `llms.txt`) fail closed with a non-zero
+exit. **Context:** CID iteration 145 (`22c873c`).

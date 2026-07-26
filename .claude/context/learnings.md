@@ -48,6 +48,11 @@ fully-met target sections to `learnings-archive.md`.
 - **Perf-gate tooling is install-on-demand, NOT in the devcontainer**: `mise run bench:iai:check`
     dies until `sudo apt-get install -y valgrind` +
     `cargo binstall -y iai-callgrind-runner --version 0.16.1` (MUST match the pin); CI mirrors this
+- **A docs page lives in FOUR places, all gated by `scripts/check_docs_nav.py`** (iter 145): disk
+    (`docs/**/*.md` minus `includes/`), `zensical.toml` `nav`, `ORDERED_PAGES`, and the absolute
+    `docs/llms.txt` links — 23 pages. Hole: the nav is regex-parsed, so a commented-out entry counts
+- **`zensical build` wipes `site/`, so `gen_llms_full.py` MUST run after it** (`docs.yml` order).
+    Reversed, every per-page `site/**/*.md` check reads as missing — an artifact, not a defect
 
 ## ISCC Algorithm Knowledge
 
@@ -121,18 +126,18 @@ fully-met target sections to `learnings-archive.md`.
     reds it on ANY push with no code change — fix with `cargo update -p <crate>` (confirm dev-only
     reach: `cargo tree -i <crate> -e no-dev` = empty), NOT a `deny.toml` ignore
 - **v0.6.0 dependency refresh + ruff 0.16 adoption are CLOSED** (iters 124–140; slice history,
-    hold-back verification, file-discovery-widening and relock-proof caveats →
-    `learnings-archive.md`). Live rules: ruff is **0.16.0**, preview a major with
-    `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); prek `types_or` is `[python, pyi, markdown]`
-    (format) / `[python, pyi]` (check), a strict superset of CI; rules go in
-    `[tool.ruff.lint] extend-select`, **never `select`** (drops `E4`/`E7`/`E9`/`F` defaults);
-    **never `ruff check --fix .`** without `--select` — it deletes the load-bearing
-    `# noqa: S603/S607`
+    hold-back verification and relock-proof caveats → `learnings-archive.md`). Live rules: ruff is
+    **0.16.0**, preview a major with `uvx ruff@X.Y.Z check .` (never touches `uv.lock`); prek
+    `types_or` = `[python, pyi, markdown]` (format) / `[python, pyi]` (check), a strict superset of
+    CI; rules go in `[tool.ruff.lint] extend-select`, **never `select`** (drops `E4`/`E7`/`E9`/`F`);
+    **never `ruff check --fix .`** without `--select` — it deletes load-bearing `# noqa: S603/S607`
 - **A prek `types:` tag is not a file-extension guess — probe it** (`.pyi` is tagged `pyi`, not
     `python`; that hole silently skipped the published `_lowlevel.pyi`, closed iter 139). Prove a
     hook's surface with a **staged, deliberately dirty** probe: `uv run prek run <hook> --files <p>`
     — `Skipped` = the tag misses; "files were modified by this hook" = it bites (tracked files
-    only). Formatter caveats → `learnings-archive.md`
+    only). Formatter caveats → `learnings-archive.md`. **A `files:`-scoped hook never sees
+    deletions** (added/copied/modified only, verified iter 145) — pair any consistency hook with a
+    pytest anchor test against the real tree, which covers the delete case at pre-push and in CI
 - **A binding-toolchain bump can silently raise the *consumer* floor** — treat compiler/toolchain
     bumps in a *published* binding as support-policy changes reserved for Titusz. Current floor
     "Kotlin 2.3 or newer"; `mavenLocal` proof recipe + the four docs → `learnings-archive.md`
@@ -144,16 +149,16 @@ fully-met target sections to `learnings-archive.md`.
     publishing floating majors after `v7` → pin `@v9.0.0` with a `# exact tag:` comment;
     `rubygems/configure-rubygems-credentials` publishes only exact tags (no `v2`). Current majors →
     `.claude/agent-memory/advance/deps-refresh.md`
-- **An action-major bump is statically verifiable far past "the tag exists"** — the
-    `inputs`/`outputs` diff is now automated (`--check-action-inputs`); what stays manual is reading
-    every intervening major's notes for *default* changes (an input surviving is not its default
-    surviving). Recipe + the two silent biters (`setup-node@v5+` caching, `checkout@v6+` token
-    location) → `learnings-archive.md`
+- **An action-major bump is statically verifiable far past "the tag exists"** — the `inputs`/
+    `outputs` diff is automated (`--check-action-inputs`); what stays manual is every intervening
+    major's *default* changes (an input surviving is not its default surviving). Recipe + the two
+    silent biters (`setup-node@v5+` caching, `checkout@v6+` token location) → `learnings-archive.md`
 - **Prove a new gate with a REAL regression, not a synthetic typo** (iter 144): downgrading
     `actions/download-artifact@v8` → `@v3` in a temp copy of `release.yml` fired 14 errors
     (`pattern` and `merge-multiple` genuinely dropped across those majors) and `@v999` fired the 404
     path — that is the failure class the gate exists for. A hand-typo'd key only proves string
-    comparison works
+    comparison works. A **set-equality** gate also passes vacuously on equal *empty* sets — give its
+    anchor test a count floor (iter 145)
 - **ci.yml sets `cancel-in-progress: true` per ref** — a follow-up develop commit cancels the
     in-flight run of the previous sha (check-runs conclude `cancelled`, not `failure`); let it
     conclude when a Done-When needs green CI on a specific sha. Each develop commit triggers TWO
@@ -167,10 +172,6 @@ fully-met target sections to `learnings-archive.md`.
 - **Never trust state.md/handoff claims about external state** (registry publications, CI status,
     upstream tags) — verify at the source (`cargo search`, `npm view`, Maven Central API,
     `pip index versions`, Go module proxy, `gh api`)
-- **Detect concurrent CID loops** (iter 97): context files changing mid-review, or `mise run check`
-    reporting spurious "files were modified by this hook" on a file advance never touched, means a
-    race. Confirm with `ps aux | grep -E 'cid:run|claude -p CID'`, then flag HUMAN REVIEW REQUESTED
-    — do NOT kill processes yourself, and do NOT push
 - **Human-handoff vs IDLE (iter 111)**: when autonomous work runs out but the remaining `normal`
     issues are all `HUMAN REVIEW REQUESTED` spec amendments, strict `**IDLE**` (all issues `low`) is
     NOT met — flag `**HUMAN REVIEW REQUESTED**` (runner "pause") instead, and don't manufacture

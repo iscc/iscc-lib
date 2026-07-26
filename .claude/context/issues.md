@@ -179,28 +179,31 @@ Four gaps found while probing it in review; none bite at HEAD, all are cheap to 
     `with:` block would be silently unchecked, and its `owner/repo/.github/workflows/x.yml@ref`
     form would 404 as a false error if it ever were scanned.
 
-## Gate parity of the three hand-wired docs page lists `normal` [review]
+## `check_docs_nav.py` counts commented-out `zensical.toml` nav entries as present `normal` [review]
 
-Adding a page under `docs/` requires editing three unrelated lists by hand, and **nothing checks
-they agree**: the `nav` table in `zensical.toml`, `ORDERED_PAGES` in `scripts/gen_llms_full.py`, and
-`docs/llms.txt`. A page missing from `ORDERED_PAGES` silently drops out of the generated
-`llms-full.txt`; one missing from `docs/llms.txt` is invisible to LLM consumers; one missing from
-the nav is unreachable on the site. The gap has been carried in review prose since iter 143 and was
-relayed again by iteration 144's `next.md`.
+The docs page-list parity gate landed in iter 145 and provably catches the class it was built for
+(the real six-page `llms.txt` drift fires as `llms.txt: missing 6 page(s)`; dropping a page from the
+nav, from `ORDERED_PAGES`, or adding a page on disk each fire correctly and bidirectionally). Two
+blind spots found while probing it in review; neither bites at HEAD (`zensical.toml` has **zero**
+comment lines today), both are cheap to close in one step:
 
-**Measured drift at HEAD (iter 144 review)** — the gate will *not* land green without a data fix, so
-scope both together: 24 tracked `docs/**/*.md` files; `zensical.toml` nav has 24 entries and
-`ORDERED_PAGES` 23 (both miss only `includes/abbreviations.md`, a snippet partial — legitimately
-excluded, so it belongs in the allowlist), but **`docs/llms.txt` lists only 17** and is missing six
-real pages: `howto/c-cpp.md`, `howto/dotnet.md`, `howto/kotlin.md`, `howto/ruby.md`,
-`howto/swift.md`, `ruby-api.md`. Five of the eleven supported languages are therefore invisible to
-LLM consumers of `llms.txt`. Note `docs/llms.txt` links are absolute
-(`https://lib.iscc.codes/<path>.md`), not relative.
+1. **`NAV_MD_RE` matches inside TOML comments.** `nav_pages()` slices the `nav = [ ... ]` block and
+    regexes every `"…​.md"` in it, so commenting out a nav entry — the natural "temporarily hide
+    this page" edit — leaves the gate green while Zensical genuinely drops the page from the site
+    nav. Verified in review: commenting out `{ "Kotlin" = "howto/kotlin.md" },` in a temp copy
+    yields `run_checks(...) == []`. Fix: strip `#`-to-end-of-line before matching (no nav title or
+    page path in this repo contains `#`), or parse with a Python 3.10-compatible TOML parser —
+    `tomllib` is unavailable because CI's `python-test` matrix pins `['3.10', '3.14']`.
+    `ORDERED_PAGES` is immune (loaded by `exec_module`, so comments are real comments); `llms.txt`
+    has no comment syntax. (Codex review, iter 145.)
+2. **The prek hook does not fire on a page *deletion*.** `files:` matching only sees
+    added/copied/modified paths, so `git rm docs/foo.md` alone reports `(no files to check)Skipped`
+    — verified in review. Not a hole in practice: the CI/pre-push `pytest` anchor test
+    (`test_real_repo_passes`) still catches it as `unexpected 1 page(s)` before anything is pushed.
+    Worth a comment in `.pre-commit-config.yaml` so the split is deliberate rather than accidental.
 
-**Scope:** add the six missing entries to `docs/llms.txt`, then a small pure-local checker (natural
-home: `scripts/check_docs_nav.py` + a prek hook scoped to the four inputs) asserting that tracked
-`docs/**/*.md`, the `zensical.toml` nav, `ORDERED_PAGES` and the `docs/llms.txt` links are the same
-set, with an explicit commented allowlist for `includes/`. No network.
+Small enough to bundle with the `--check-action-inputs` hardening issue above — both are
+gate-blind-spot fixes in `scripts/`.
 
 ## Pin `rubygems/configure-rubygems-credentials` off the `@main` branch `normal` [review]
 

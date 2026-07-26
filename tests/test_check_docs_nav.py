@@ -57,7 +57,9 @@ def _write_fixtures(tmp_path, nav=PAGES, ordered=PAGES, llms=PAGES):
 
 def test_real_repo_passes():
     # The gate must pass on the repository exactly as committed, and main() (the
-    # prek hook entry point) must exit 0.
+    # prek hook entry point) must exit 0. The floor keeps an empty page set from
+    # reading as a pass: equal empty sets are "consistent" but prove nothing.
+    assert len(cdn.disk_pages(cdn.DOCS_DIR)) >= 20
     assert (
         cdn.run_checks(cdn.DOCS_DIR, cdn.ZENSICAL_TOML, cdn.GEN_LLMS_FULL, cdn.LLMS_TXT)
         == []

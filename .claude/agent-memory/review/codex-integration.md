@@ -24,6 +24,10 @@ is a note, never grounds for NEEDS_WORK.
     valuable.
 - **Contract-vs-handler mismatches in new tooling** — `http.client.IncompleteRead` escaping an
     `except OSError` that a docstring promised would fail open (iter 144).
+- **Regex-parses-a-structured-format holes** — `NAV_MD_RE` matching inside TOML comments, so a
+    commented-out `zensical.toml` nav entry still counted as present (iter 145). Its single P2 was
+    the only real finding on that diff and it reproduced in one temp-copy mutation. Three iterations
+    running (143/144/145) the gate/docs-script diffs have each yielded exactly one true positive.
 
 **Rule of thumb:** expect a real finding whenever a diff adds a matching/parsing rule, an
 exception-handling contract, or a user-facing factual claim. Convergence with my own suspicion is a

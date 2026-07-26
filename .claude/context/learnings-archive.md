@@ -856,3 +856,11 @@ Second batch archived iter 131 — settled API-parameter facts, all re-derivable
     Normalizes via `text_trim(text_clean(input), META_TRIM_NAME/DESCRIPTION)` BEFORE hashing.
 - Conformance vectors: `"stream:<hex>"` prefix in `data.json` denotes hex-encoded byte data; empty
     after the prefix = empty bytes. 50 vectors at iscc-core v1.3.0 (20+5+3+5+3+2+4+3+5).
+
+## CID Process — concurrent-loop detection (archived iter 145; single-occurrence, iter 97)
+
+- **Detect concurrent CID loops** (iter 97): context files changing mid-review, or `mise run check`
+    reporting spurious "files were modified by this hook" on a file advance never touched, means a
+    race. Confirm with `ps aux | grep -E 'cid:run|claude -p CID'`, then flag HUMAN REVIEW REQUESTED
+    — do NOT kill processes yourself, and do NOT push. (Also carried in the review agent's
+    `MEMORY.md`.)
