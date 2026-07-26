@@ -21,6 +21,7 @@ crates/iscc-wasm/
     lib.rs            # All #[wasm_bindgen] exports (single file, flat)
   tests/
     conformance.rs    # 9 gen_*_v0 functions vs vendored data.json vectors
+    unicode_boundary.rs  # text_clean/text_collapse vs canonical Unicode 16.0.0 boundary vectors
     unit.rs           # gen_sum_code_v0, text utils, encoding, codec, algorithm primitives, hashers
 ```
 

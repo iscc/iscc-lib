@@ -38,9 +38,18 @@ metadata:
     where 16.0 removes it as `M`, same output `ab`). All 4 sequence vectors pass in Go (iter-147
     `Final_Sigma` fix). Guard test asserts every skip key names an existing fixture case. GOTCHA:
     `t.Skipf(reason)` with a variable trips go vet's printf check — use `t.Skipf("%s", reason)`.
-- Pending: remaining 9 binding surfaces (napi artifact is STALE — returns `aSb` for
-    `text_clean("a"+U+A7F1+"b")`, must rebuild before a napi slice) + 4 sibling data.json copies;
-    full-code-space + sequence-class differential sweep (spec requirement 4).
+- Propagation slice 2 (iter 151): WASM `crates/iscc-wasm/tests/unicode_boundary.rs` (`include_str!`
+    of the canonical fixture, 3 `#[wasm_bindgen_test]` fns — metadata guard + two section loops,
+    ungated by the `conformance` feature) and Ruby `crates/iscc-rb/test/test_unicode_boundary.rb`
+    (`define_method` per case, fresh `BOUNDARY_JSON` / `BOUNDARY_DATA` constants — `rake test` loads
+    all files in one process, reusing `test_conformance.rb` names warns). All 12 vectors + guard
+    green on both, no skips. The Ruby `.so` needs `bundle exec rake compile` first — a stale
+    extension fails the U+A7F1 rows only (U+0378 is `Cn` in every Unicode version and never
+    discriminates staleness).
+- Pending: remaining 7 binding surfaces (napi artifact is STALE — returns `aSb` for
+    `text_clean("a"+U+A7F1+"b")`, must rebuild before a napi slice; land the vendored-copy
+    byte-identity drift gate BEFORE the packages/{dotnet,kotlin,swift} slice) + 4 sibling data.json
+    copies; full-code-space + sequence-class differential sweep (spec requirement 4).
 - GOTCHA (iter 149): writing `\uXXXX` escape text into the ASCII-escaped fixture via the Edit tool
     decodes it into literal UTF-8 chars. Write fixture JSON with Python
     (`json.dumps(..., ensure_ascii=True, indent=2)` + trailing newline round-trips the file
