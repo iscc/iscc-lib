@@ -99,8 +99,8 @@ iterations.
     139 predicted 153, review measured 155); make the exit code the criterion.
 - **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
     Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) the four **sequence** vectors + fixture
-    guard ✅149, (4) fixture propagation into the 11 bindings — **slice 1 (Python + Go) scoped 150**,
-    (5) the 1,112,064-scalar **and sequence-class** differential sweep as a runnable check. Never
+    guard ✅149, (4) fixture propagation into the 11 bindings — slice 1 (Python + Go) ✅150, **slice 2
+    (WASM + Ruby) scoped 151**, (5) the 1,112,064-scalar **and sequence-class** sweep. Never
     implement the superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0
     declared version. Escapes, fixture facts, CRAP-in-tests →
     [unicode-freeze-facts](unicode-freeze-facts.md).
@@ -133,11 +133,8 @@ iterations.
     unblocked user-facing candidates the rule does not fire (iter 146) — then enumerate each blocked
     candidate + its blocker.
 - Parked-work scoping lessons → `MEMORY-archive.md`; nothing is parked on Titusz today.
-- **Binding artifacts are cheap probes, but each has its own age** — the Python editable install was
-    CURRENT at iter 150 while the checked-in napi `.node` was months stale. Probe a *discriminating*
-    input before trusting one (details + freshness table →
-    [propagation ledger](unicode-fixture-propagation.md)); cross-check with
-    `cargo test -p iscc-lib --lib <mod>::` (~seconds when built).
-- **Probing a foreign binding without touching the repo**: a throwaway module in `/tmp` with a
-    `replace` / path dependency back to the package (used at iter 150 to measure Go's 9/12 on the
-    boundary fixture) turns `## Implementation Notes` into measured facts and leaves no tree diff.
+- **Binding artifacts are cheap probes, but each has its own age** (Python current, napi + Ruby were
+    both stale) — always probe a *discriminating* input first, and prefer probes that leave no tree
+    diff: a `/tmp` module with a path/`replace` dep (Go, iter 150), or a build whose output is
+    gitignored (`rake compile`, iter 151). Freshness table + runner timings →
+    [propagation ledger](unicode-fixture-propagation.md).

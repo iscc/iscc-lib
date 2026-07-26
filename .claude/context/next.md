@@ -1,188 +1,175 @@
 # Next Work Package
 
-## Step: Propagate the Unicode boundary fixture to the Python and Go test suites (propagation slice 1)
+## Step: Propagate the Unicode boundary fixture to the WASM and Ruby test suites (propagation slice 2)
 
 ## Goal
 
-Wire the completed `crates/iscc-lib/tests/unicode_boundary.json` fixture into the first two of the
-11 binding surfaces — Python (reads the canonical fixture by relative path) and the pure-Go package
-(vendored `//go:embed` copy plus the ruled skip list) — so the Unicode 16.0.0 sentinel freeze rule
-is gated outside the Rust crate for the first time. This is the handoff's "Next" (issues.md:
-"Declare and gate a Unicode data version (DECIDED)", remainder **(b)**), sliced to the two surfaces
-that are fully runnable in this container with no build-artifact rebuild.
+Gate the Unicode 16.0.0 sentinel freeze rule on two more binding surfaces — `iscc-wasm` and
+`iscc-rb` — by running the canonical `crates/iscc-lib/tests/unicode_boundary.json` fixture through
+their `text_clean` / `text_collapse` exports. This is the handoff's "Next" (issues.md: "Declare and
+gate a Unicode data version (DECIDED)", remainder **(b)**), sliced to the pair the handoff named as
+cheapest in-container; it takes criterion 3 from 2 of 11 surfaces to 4 of 11.
 
 ## Scope
 
 - **Create**:
-    - `tests/test_unicode_boundary.py` — Python binding boundary-vector tests
-    - `packages/go/testdata/unicode_boundary.json` — byte-identical `cp` of the canonical fixture
-    - `packages/go/unicode_boundary_test.go` — Go boundary-vector tests with the ruled skip list
-- **Modify**:
-    - `docs/unicode.md` — say which suites exercise the fixture; name the three vectors Go skips
-    - `packages/go/CLAUDE.md` — add the vendored fixture to the file table and a Test Patterns bullet
+    - `crates/iscc-wasm/tests/unicode_boundary.rs` — boundary vectors for the WASM exports
+    - `crates/iscc-rb/test/test_unicode_boundary.rb` — boundary vectors for the Ruby exports
+- **Modify** (docs only — this step changes **zero** non-test, non-doc source files):
+    - `docs/unicode.md` — widen the "exercised by" sentence to name the WASM and Ruby suites
+    - `crates/iscc-wasm/CLAUDE.md` — add `unicode_boundary.rs` to the `tests/` layout block
+    - `crates/iscc-rb/CLAUDE.md` — add a `test/test_unicode_boundary.rb` row to the file table
 - **Reference**:
-    - `crates/iscc-lib/tests/unicode_boundary.json` (the fixture; do not edit)
-    - `crates/iscc-lib/tests/test_unicode_boundary.rs` (the guard pattern to mirror, loosely)
-    - `tests/test_conformance.py` (Python vector-loader idiom: `Path(__file__).parent.parent / ...`,
-        `pytest.param(tc, id=name)`)
-    - `packages/go/code_content_text_test.go` and `packages/go/conformance.go` (`vectorEntry`,
-        `parseConformanceData`, `//go:embed testdata/...`)
-    - `.claude/context/decisions.md` 2026-07-26 "Go skips the Unicode-16 boundary vectors until
-        go1.27" (the ruling the skip list implements)
+    - `crates/iscc-lib/tests/unicode_boundary.json` — the fixture (do **not** edit)
+    - `tests/test_unicode_boundary.py` and `packages/go/unicode_boundary_test.go` — the two loader
+        patterns landed in slice 1; mirror them idiomatically
+    - `crates/iscc-wasm/tests/conformance.rs` — the fixture-loading idiom to copy
+        (`include_str!("../../iscc-lib/tests/data.json")` parsed with `serde_json`)
+    - `crates/iscc-rb/test/test_conformance.rb` — the `define_method` per-vector idiom and the
+        `File.expand_path("../../iscc-lib/tests/…", __dir__)` path shape
+    - `crates/iscc-wasm/tests/unit.rs` lines ~142–215 — the existing `text_clean` / `text_collapse`
+        WASM tests this file extends
 
 ## Not In Scope
 
-- **The other nine binding surfaces** (napi, WASM, Ruby, C FFI, JNI/Java, UniFFI, Kotlin, Swift, C#,
-    C++). They are later slices. Note the checked-out napi artifact
-    (`crates/iscc-napi/iscc-lib.linux-x64-gnu.node`) is **stale** — it still returns `aSb` for
-    `text_clean("a" U+A7F1 "b")` — so a napi slice must rebuild it first; that cost is exactly why
-    napi is not in this step.
-- **Criterion 4 / remainder (a2)** — the 1,112,064-scalar + sequence-class differential sweep. Not
-    this step.
-- **Copying `delete_filter_output` oracles into the binding tests.** The corrected oracles live in
-    exactly two places (the `SEQUENCE_VECTORS` const in `test_unicode_boundary.rs` and the issues.md
-    table). Equality against `outputs.result` already catches a delete-filter regression;
-    replicating the oracle 11 times would re-open the mislabeling hazard that hit iteration 149.
-- **Editing the canonical fixture** — no new vectors, no renames, no reformatting. It is a finished
-    propagation source.
-- **Extending the public Go `ConformanceSelftest()`** or any other public API. The boundary vectors
-    are test-only; `ConformanceSelftest` stays scoped to the `gen_*_v0` vectors from
-    `testdata/data.json`.
-- **Touching `packages/go/utils.go`** — no freeze table, no 15.0→16.0 delta, no `cases.Caser` hoist
-    (the per-call `Caser` is deliberate).
-- **A drift gate for vendored vector copies.** There is none today for the five `data.json` copies
-    either; adding one is a separate, arguably human-gated step. This step verifies byte-identity
-    once, with `cmp`.
-- **Any baseline refresh.** No Rust source and no Rust test changes, so neither
-    `.crap-baseline.json` nor `.iai-baseline.json` may move.
+- **The vendored-copy byte-identity drift gate** (issues.md `normal` `[review]`, "Gate byte-identity
+    of the vendored test-vector copies"). Deliberately deferred once more: both surfaces in this
+    slice read the canonical fixture **in place**, so this step creates no new vendored copy and the
+    gate protects nothing new yet. Land it immediately *before* the `packages/{dotnet,kotlin,swift}`
+    slice, which is the one that adds three more copies.
+- **The seven other ungated surfaces**: napi, C FFI, JNI/Java, UniFFI, Kotlin, Swift, C#, C++. In
+    particular do **not** rebuild `crates/iscc-napi/iscc-lib.linux-x64-gnu.node` here (it is stale
+    and untracked — `crates/iscc-napi/.gitignore:4` ignores `*.node`); napi is its own slice.
+- **Criterion 4 / remainder (a2)** — the 1,112,064-scalar + sequence-class differential sweep.
+- **Any skip list, `#[ignore]`, or `Minitest#skip`.** Both surfaces execute the same Rust core, so
+    all 12 vectors must pass. Skips are Go-only, authorized for Go alone by `decisions.md`
+    2026-07-26. A failing vector here means the local build artifact is stale — rebuild it, never
+    skip it. Do not touch `packages/go/`.
+- **Copying `delete_filter_output` oracles into these tests.** Equality against `outputs.result`
+    already reds a delete-filter regression (mutation-verified in the iteration-150 review); the
+    oracles stay in `SEQUENCE_VECTORS` (Rust) and the issues.md table only.
+- **Editing the canonical fixture** — no new vectors, no renames, no reformatting.
+- **Any baseline refresh.** `mise run coverage` / `cargo crap` are `-p iscc-lib` only and
+    `.crap-baseline.json` contains zero `iscc-wasm` entries; no hot-path code moves. Neither
+    `.crap-baseline.json` nor `.iai-baseline.json` may change.
+- **Touching `crates/iscc-rb/Gemfile`, `Gemfile.lock`, the gemspec, or `Rakefile`**, and no
+    dependency bumps of any kind.
 
 ## Implementation Notes
 
 ### Verified facts measured this iteration — do not re-derive
 
-**Fixture shape** (`crates/iscc-lib/tests/unicode_boundary.json`, pure ASCII, 2344 bytes):
-
-```text
-{"_metadata": {"description": ..., "unicode_data_version": "16.0.0"},
- "text_clean":    { <7 cases> },
- "text_collapse": { <5 cases> }}
-```
-
-Every case is `{"inputs": ["<one string>"], "outputs": {"result": "<string>"}}`. Case keys are
+**Fixture shape** (pure ASCII, 2344 bytes): top-level keys `_metadata`, `text_clean` (7 cases),
+`text_collapse` (5 cases). `_metadata.unicode_data_version == "16.0.0"`. Every case is
+`{"inputs": ["<one string>"], "outputs": {"result": "<string>"}}`. Case keys are
 `test_0000_u1fae9_assigned_so_retained`, `test_0001_u113c5_assigned_mc_retained` (`text_clean`) /
 `test_0001_u113c5_assigned_mc_mark_dropped` (`text_collapse`),
-`test_0002_u20c1_unassigned_16_stripped`, `test_0003_ua7f1_unassigned_16_stripped`, then the
+`test_0002_u20c1_unassigned_16_stripped`, `test_0003_ua7f1_unassigned_16_stripped`, plus the
 sequence cases `test_0004_seq_u0378_blocks_canonical_composition`,
 `test_0005_seq_u0378_blocks_hangul_composition`, `test_0006_seq_ua7f1_no_decomposition_leak`
 (`text_clean`) and `test_0004_seq_u0378_preserves_final_sigma` (`text_collapse`).
 
-**Python passes all 12 vectors today.** Probed this iteration against the installed editable
-extension (`crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so`, built today): 12 of 12 exact matches,
-0 failures. The "stale wheel" warning from earlier iterations no longer applies. If a vector
-unexpectedly fails, rebuild with `uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml`
-before suspecting the fixture.
+**Both toolchains work offline in this container, measured now:**
 
-**Go passes 9 of 12; exactly three fail.** Probed this iteration by running `TextClean` /
-`TextCollapse` from a throwaway module against the canonical fixture:
+- `wasm-pack test --node crates/iscc-wasm --features conformance` → **exit 0 in ~2 min** (wasm-pack
+    0.13.1; its `wasm-bindgen` and `wasm-opt` are already in `~/.cache/.wasm-pack`, no download).
+    `unit.rs` currently reports **78 passed, 0 failed**.
+- `crates/iscc-rb`: `bundle exec rake compile` → exit 0 in ~1.5 min; `bundle exec rake test` → **111
+    runs, 299 assertions, 0 failures, 0 errors, 0 skips**; `bundle exec standardrb` → clean.
 
-| section         | case                                    | Go result                                   |
-| --------------- | --------------------------------------- | ------------------------------------------- |
-| `text_clean`    | `test_0000_u1fae9_assigned_so_retained` | **FAIL** — Go drops U+1FAE9 (Cn under 15.0) |
-| `text_clean`    | `test_0001_u113c5_assigned_mc_retained` | **FAIL** — Go drops U+113C5 (Cn under 15.0) |
-| `text_collapse` | `test_0000_u1fae9_assigned_so_retained` | **FAIL** — same cause                       |
-| all nine others | —                                       | PASS                                        |
+**The Ruby extension on disk was stale and has just been rebuilt.** Before `rake compile`,
+`IsccLib.text_clean("a" + U+A7F1 + "b")` returned `"aSb"` (pre-freeze-rule); after it, `"ab"` — i.e.
+Ruby now passes the discriminating vector. `crates/iscc-rb/lib/iscc_lib/iscc_rb.so` is gitignored
+(`crates/iscc-rb/.gitignore:3`), so recompiling leaves **no** tree diff. Run
+`bundle exec rake compile` before `rake test` anyway (CI does the same), and re-probe that one
+discriminating value if anything looks odd. Note: the U+0378 rows do **not** discriminate a stale
+build (U+0378 is `Cn` in every Unicode version), only the U+A7F1 rows do.
 
-Two consequences to honour:
+**WASM needs no artifact management** — `wasm-pack test` compiles the current core every run.
 
-1. **All four sequence vectors PASS in Go** (including
-    `text_collapse/test_0004_seq_u0378_preserves_final_sigma` — the iteration-147 `Final_Sigma` fix
-    is live). They must be run, not skipped.
-2. **`text_collapse/test_0001_u113c5_assigned_mc_mark_dropped` PASSES** — Go removes the mark as
-    category `C`, the expected output removes it as category `M`, and both land on `ab`. So the
-    skip list is **per case, not per code point**: skip exactly the three rows above.
+### WASM test (`crates/iscc-wasm/tests/unicode_boundary.rs`)
 
-### Copying the fixture (escape hazard)
+- Load the canonical fixture at compile time, no copy:
+    `const BOUNDARY_JSON: &str = include_str!("../../iscc-lib/tests/unicode_boundary.json");` (same
+    relative shape `conformance.rs` uses for `data.json`).
+- Parse with `serde_json` (already a dev-dependency) into a `serde_json::Value`; iterate
+    `value["text_clean"].as_object().unwrap()`.
+- Do **not** add `#[cfg(feature = "conformance")]`. That feature only gates the
+    `conformance_selftest` test in `unit.rs`; these vectors need no core feature. Mirror
+    `conformance.rs`, which is ungated.
+- Three `#[wasm_bindgen_test]` functions: one per section looping all cases, plus a metadata guard
+    asserting `unicode_data_version == "16.0.0"` and per-section counts 7 and 5 (without that guard
+    a truncated fixture silently degrades to a zero-iteration loop that still reports success).
+    `wasm-bindgen-test` has no parametrization — loop inside one test and pass the case name into
+    the `assert_eq!` message so a failure identifies its vector.
+- The file must also compile for the **host** target: CI runs
+    `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` and
+    `cargo test --workspace --exclude iscc-rb`. On host these tests compile but run as **0 tests**
+    (measured: `cargo test -p iscc-wasm` reports 0 for every target today) — that is expected, not a
+    problem to fix. `wasm-pack test --node` is the only runner that executes them.
 
-Copy with the shell, never with Write/Edit:
+### Ruby test (`crates/iscc-rb/test/test_unicode_boundary.rb`)
 
-```bash
-cp crates/iscc-lib/tests/unicode_boundary.json packages/go/testdata/unicode_boundary.json
-```
-
-Writing the file through a tool payload decodes its `\uXXXX` escapes into literal UTF-8 and silently
-corrupts an ASCII-escaped fixture (this bit both advance and review in iteration 149). Verify the
-copy with `cmp`, not by eye.
-
-### Python test (`tests/test_unicode_boundary.py`)
-
-Mirror `tests/test_conformance.py`: module docstring, a `FIXTURE` path constant built from
-`Path(__file__).parent.parent`, a small `load_cases(section)` helper returning
-`[pytest.param(tc, id=name) for name, tc in section.items()]`, then two parametrized tests
-(`text_clean`, `text_collapse`) asserting `fn(*tc["inputs"]) == tc["outputs"]["result"]`. Import
-`text_clean` / `text_collapse` from `iscc_lib`.
-
-Add one non-parametrized guard, `test_boundary_fixture_metadata`, asserting
-`unicode_data_version == "16.0.0"` and the per-section case counts (7 and 5). Without it a truncated
-or renamed fixture would silently degrade to zero parametrized cases and still report success.
-
-### Go test (`packages/go/unicode_boundary_test.go`, package `iscc`)
-
-- Embed the vendored copy: `import _ "embed"` plus `//go:embed testdata/unicode_boundary.json` on a
-    `var unicodeBoundaryData string`. Embedding from a `_test.go` file works and `testdata/` is
-    embeddable (`conformance.go` already embeds `testdata/data.json`).
-- Reuse the existing `parseConformanceData` helper: it skips `_`-prefixed keys and its `vectorEntry`
-    (`Inputs []json.RawMessage`, `Outputs map[string]interface{}`) fits these cases —
-    `json.Unmarshal(vec.Inputs[0], &in)` and `vec.Outputs["result"].(string)`. Parse `_metadata`
-    with a separate tiny unmarshal in the guard test.
-- One test per section (`TestPureGoUnicodeBoundaryTextClean`,
-    `TestPureGoUnicodeBoundaryTextCollapse`) with `t.Run(name, ...)` subtests, so each skip shows up
-    as its own `--- SKIP` line.
-- Skip list as a package-level map keyed `"<section>/<case>"` with a reason string per entry, e.g.
-    `"go1.27 (~Aug 2026) brings Unicode 16/17 tables to the stdlib and x/text; Go 1.26 classifies   U+1FAE9 as unassigned. Ruled 2026-07-26 (decisions.md): skip, do not vendor the 15.0-to-16.0   delta."`
-    Call `t.Skipf` with it.
-- Guard test `TestPureGoUnicodeBoundaryFixtureMetadata`: assert `unicode_data_version == "16.0.0"`,
-    section counts 7 and 5, **and that every skip-map key names a case that exists in the fixture**
-    (`t.Errorf` otherwise) — that keeps a stale skip from silently masking a renamed vector.
-- Keep `gofmt` clean (tabs, standard import grouping); CI runs `go vet ./...` too.
+- `# frozen_string_literal: true` header, module docstring comment, then `require "test_helper"` +
+    `require "json"`, mirroring `test_conformance.rb`.
+- Path constant:
+    `BOUNDARY_JSON = File.expand_path("../../iscc-lib/tests/unicode_boundary.json", __dir__)`. **Use
+    fresh constant names** (e.g. `BOUNDARY_JSON` / `BOUNDARY_DATA`): `rake test` loads every test
+    file into one process and `test_conformance.rb` already defines top-level `DATA_JSON` and
+    `CONFORMANCE_DATA`, so reusing those names triggers "already initialized constant" warnings.
+- `class TestUnicodeBoundary < Minitest::Test` with a `define_method` per fixture case (matching
+    `test_conformance.rb`), so each vector is its own named test:
+    `assert_equal tc["outputs"]["result"], IsccLib.text_clean(*tc["inputs"])`. Same for
+    `text_collapse`. Add the metadata guard test (version + counts 7/5) as a normal `def test_…`.
+- Only read strings from the fixture — never type a non-ASCII or `\u`-escaped literal into the test
+    file. `JSON.parse(File.read(...))` yields UTF-8 strings; `assert_equal` compares them directly.
+- `standardrb` is CI-enforced but is **not** a prek hook, so run `bundle exec standardrb` explicitly
+    (`--fix` is available for mechanical style).
 
 ### Docs
 
-- `docs/unicode.md`, the sentence that currently reads "checked into the repository as
-    `crates/iscc-lib/tests/unicode_boundary.json` and exercised by the Rust test suite" — widen it:
-    the Rust suite, the Python test suite, and the pure-Go package via the vendored copy at
-    `packages/go/testdata/unicode_boundary.json`.
-- `docs/unicode.md`, the `!!! note "The pure-Go package"` admonition — state that Go runs 9 of the
-    12 boundary vectors, including all four sequence vectors, and skips exactly three (U+1FAE9 in
-    both functions and U+113C5 in `text_clean`) until go1.27 ships newer Unicode tables. Keep the
-    existing freeze-rule caveat.
-- `packages/go/CLAUDE.md` — add a `testdata/unicode_boundary.json` row to the file table (near the
-    existing `testdata/data.json` row) and a Test Patterns bullet describing
-    `unicode_boundary_test.go` and its three ruled skips.
-- Do not add a new docs page — `scripts/check_docs_nav.py` must stay at 23 pages.
+- `docs/unicode.md:99-101` — the sentence "exercised by the Rust test suite, by the Python test
+    suite … and by the pure-Go package via the vendored copy" should also name the **WASM** and
+    **Ruby** binding suites, both of which read the canonical fixture directly. Keep the pure-Go
+    admonition and its three-skip wording as-is.
+- `crates/iscc-wasm/CLAUDE.md` — the `tests/` block near line 22 lists `conformance.rs` and
+    `unit.rs`; add a one-line `unicode_boundary.rs` entry.
+- `crates/iscc-rb/CLAUDE.md` — add a `test/test_unicode_boundary.rb` row to the file table next to
+    `test/test_conformance.rb`.
+- Do not add a docs page — `scripts/check_docs_nav.py` must stay at 23 pages.
 
 ## Verification
 
-- `uv run pytest tests/test_unicode_boundary.py -q` — 0 failures, at least 13 tests collected (12
-    vector cases + the metadata guard)
-- `uv run pytest -q` — whole Python suite passes (no regressions)
-- `CGO_ENABLED=0 go test -count=1 ./...` in `packages/go` — exit 0 (CI-exact command)
-- `go vet ./...` in `packages/go` — exit 0
-- `CGO_ENABLED=0 go test -count=1 -v -run UnicodeBoundary ./... | grep -c -- '--- SKIP'` in
-    `packages/go` — output is exactly `3`
-- `cmp crates/iscc-lib/tests/unicode_boundary.json packages/go/testdata/unicode_boundary.json` —
-    exit 0 (byte-identical, still pure ASCII)
-- `gofmt -l .` in `packages/go` — empty output
-- `cargo test -p iscc-lib` — 336 passed, 0 failed (unchanged)
-- `git status --porcelain crates/iscc-lib/ .crap-baseline.json .iai-baseline.json` — empty (the
-    canonical fixture, the Rust core and both baselines are untouched)
-- `mise run check` — every prek hook passes with no reformats
+- `wasm-pack test --node crates/iscc-wasm --features conformance` — exit 0, `0 failed` in every
+    target (baseline for comparison: `unit.rs` 78 passed before this step). Per-target narrowing, if
+    it works, is `… --features conformance -- --test unicode_boundary`; the full run is the
+    authoritative criterion.
+- The `unicode_boundary` WASM target's `test result:` line shows `ok` with **at least 3 passed, 0
+    failed**.
+- `cargo clippy --workspace --exclude iscc-rb --all-targets -- -D warnings` — exit 0 (new wasm test
+    target compiles on host) and `cargo clippy -p iscc-rb -- -D warnings` — exit 0.
+- `cargo fmt --all --check` — exit 0.
+- In `crates/iscc-rb`: `bundle exec rake compile` — exit 0; then `bundle exec rake test` — exit 0
+    reporting **at least 123 runs** (111 baseline + 12 vectors) and `0 failures, 0 errors, 0 skips`.
+- In `crates/iscc-rb`: `bundle exec standardrb` — exit 0, no output.
+- No skip construct in either new file:
+    `grep -n '#\[ignore\]' crates/iscc-wasm/tests/unicode_boundary.rs` finds nothing, and
+    `grep -nE '(^|[^_a-z])skip[ (]' crates/iscc-rb/test/test_unicode_boundary.rb` finds nothing
+    (both exit 1).
+- `find . -name unicode_boundary.json -not -path './target/*' -not -path './.git/*'` — exactly
+    **two** paths (`crates/iscc-lib/tests/…` and `packages/go/testdata/…`); this slice vendors no
+    new copy.
+- `git status --porcelain crates/iscc-lib/ packages/go/ .crap-baseline.json .iai-baseline.json` —
+    empty (canonical fixture, Go package and both baselines untouched).
+- `cargo test -p iscc-lib` — 336 passed, 0 failed (unchanged).
+- `mise run check` — every prek hook passes, exit 0, no reformats of the new files.
 - `uv run zensical build` — exit 0, "No issues found"; `uv run scripts/check_docs_nav.py` — exit 0,
-    23 pages
-- `grep -F -c 'unicode_boundary.json' docs/unicode.md` — at least `2` (canonical path + vendored Go
-    copy); `grep -F -c 'testdata/unicode_boundary.json' packages/go/CLAUDE.md` — at least `1`
+    23 pages.
+- `grep -F -c 'unicode_boundary.rs' crates/iscc-wasm/CLAUDE.md` ≥ 1;
+    `grep -F -c 'test_unicode_boundary.rb' crates/iscc-rb/CLAUDE.md` ≥ 1; `docs/unicode.md` names
+    both the WASM and the Ruby suite in its boundary-vector paragraph.
 
 ## Done When
 
-Python runs all 12 boundary vectors green, the pure-Go package runs 9 and skips exactly the 3 ruled
-table-dependent ones from a byte-identical vendored copy, the docs name both suites and the three
-skips, and every verification command above passes.
+The WASM and Ruby suites each run all 12 Unicode boundary vectors green with no skips against the
+canonical fixture, the three docs files name them, and every verification command above passes.

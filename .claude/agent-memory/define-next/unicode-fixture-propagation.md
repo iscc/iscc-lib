@@ -31,14 +31,35 @@ measured facts below instead of re-probing.
     only so the *public* `ConformanceSelftest()` can `//go:embed` it. Either shape is defensible;
     iter 150 chose the embedded copy (no skip-on-missing branch, works from a downloaded module).
 
-## Binding artifact freshness (measured iter 150)
+## Binding artifact freshness (measured iters 150-151)
 
 - **Python editable install: CURRENT** — passes all 12 vectors, no rebuild needed.
 - **napi `crates/iscc-napi/iscc-lib.linux-x64-gnu.node`: STALE (pre-iter-133)** — returns `aSb` for
-    `text_clean("a" + U+A7F1 + "b")` and `eŚ` for the U+A7F1 sequence. A napi slice must rebuild the
-    addon first; budget for it in the step.
+    `text_clean("a" + U+A7F1 + "b")` and `eŚ` for the U+A7F1 sequence. It is **untracked**
+    (`crates/iscc-napi/.gitignore:4`), so a napi slice must rebuild it; budget for it in the step.
+- **Ruby `crates/iscc-rb/lib/iscc_lib/iscc_rb.so`: was STALE, rebuilt at iter 151.**
+    `bundle exec rake compile` (~1.5 min, cached cargo) flipped `text_clean("a"+U+A7F1+"b")` from
+    `"aSb"` to `"ab"`. The `.so` is gitignored (`crates/iscc-rb/.gitignore:3`) → rebuilding leaves
+    no tree diff. Baseline suite: **111 runs / 299 assertions / 0 failures**, `standardrb` clean.
+- **WASM has no artifact age** — `wasm-pack test --node` recompiles the core every run.
 - Probe rule: U+0378 rows do **not** discriminate a stale artifact (U+0378 is `Cn` in every Unicode
     version, so even a no-freeze-rule build gets them right). Only **U+A7F1** rows do.
+
+## Runner facts (measured iter 151, offline)
+
+- `wasm-pack test --node crates/iscc-wasm --features conformance` → **exit 0 in ~2 min**; wasm-pack
+    0.13.1 with `wasm-bindgen`/`wasm-opt` already in `~/.cache/.wasm-pack` (no download).
+    `--features conformance` only gates the `conformance_selftest` test in `unit.rs`;
+    `conformance.rs` is ungated, so new boundary tests need no `cfg`.
+- **`#[wasm_bindgen_test]` files compile on the host but run as 0 tests there** —
+    `cargo test -p iscc-wasm` reports `0 passed` for every target. So host `cargo test` verifies
+    only compilation; `wasm-pack test --node` is the only executing runner. Say this in next.md or
+    advance will chase a phantom failure.
+- CRAP/coverage are `-p iscc-lib` only (`mise.toml [tasks.coverage]`) and `.crap-baseline.json` has
+    **zero** `iscc-wasm` entries → binding-test slices never move a baseline.
+- Ruby: `rake test` loads every `test/*.rb` into ONE process, and `test_conformance.rb` defines
+    top-level `DATA_JSON` / `CONFORMANCE_DATA` — a new file must use fresh constant names or Ruby
+    warns "already initialized constant". `standardrb` is CI-only, **not** a prek hook.
 
 ## Go — measured results on all 12 vectors (iter 150, Go 1.26.1)
 
@@ -59,13 +80,20 @@ measured facts below instead of re-probing.
 
 ## Slice order used / planned
 
-1. **iter 150** — Python (canonical path) + Go (vendored copy + 3 skips). Establishes both plumbing
-    patterns in one step; both are runnable in this container with no artifact rebuild.
-2. napi + WASM (both need a build: `napi build`, `wasm-pack test --node`).
-3. Ruby (needs `libclang`; check it is installed before scoping) + JNI/Java (maven present, no
-    gradle in this container).
-4. dotnet + Kotlin + Swift (**no Swift toolchain and no gradle here** — those are CI-only checks, so
-    scope them with static verification plus a CI-green criterion, and keep them last).
+1. **iter 150 ✅** — Python (canonical path) + Go (vendored copy + 3 skips). Establishes both
+    plumbing patterns in one step; both runnable in-container with no artifact rebuild.
+2. **iter 151 scoped** — WASM + Ruby, both canonical-path readers, both measured runnable
+    in-container (~2 min each). No skips: both execute the Rust core, so all 12 vectors must pass.
+3. napi (rebuild the addon first) + C FFI and/or JNI/Java — note **C FFI, JNI-Java, Kotlin and Swift
+    have no text-function tests at all**, so those are new plumbing, not a copied loop; the C FFI
+    fixture needs a JSON reader or a generated C table (scope deliberately). Maven is present,
+    gradle is not.
+4. dotnet + Kotlin + Swift (**no Swift toolchain and no gradle here** — CI-only checks, so scope
+    with static verification plus a CI-green criterion, and keep them last). **Land the
+    vendored-copy byte-identity drift gate immediately before this slice** — it is the only
+    remaining slice that adds vendored copies (3 of them), so that is where the gate first protects
+    something new. Slices 1-3 are canonical-path readers except Go, which was `cmp`-verified
+    in-step.
 
 ## Standing hazards
 
