@@ -106,17 +106,14 @@ iterations.
 - **Look for gates that exist but run in only one place** (`S`/`C901` were pre-push-hook-only, CI
     never saw them). Broadening an *existing* gate to CI needs no human sign-off; inventing one
     does.
-- **In a file no CI push exercises, split behavioural edits from mechanical ones** (iter 139: the
-    handoff wanted `release.yml`'s 19 `if:`-guard fixes bundled with a 97-ref `uses:` bump — scoped
-    as two steps so a broken release is bisectable; iter 140 took the bump). Static-verification
-    recipe, job inventory and the full `uses:` target table:
+- **In a file no CI push exercises, split behavioural edits from mechanical ones** (iters 139/140:
+    `release.yml`'s guard fixes vs the 97-ref `uses:` bump, so a broken release is bisectable).
+    Static-verification recipe + job inventory:
     [release.yml static gates](release-yml-static-gates.md).
 - **The strongest evidence for an un-runnable workflow bump is that the *runnable* workflow already
-    runs it** — 6 of the 9 `release.yml` action bumps are majors `ci.yml` has been green on since
-    iter 127, with identical inputs. Check `ci.yml` first; only the remainder needs release-note
-    archaeology. Corollary: latest majors are **not** in lockstep even inside `actions/*`
-    (upload-artifact tops out at v7 while download-artifact is at v8), so verify each floating tag
-    exists via `gh api repos/<r>/git/ref/tags/<vN>` before writing it into a criterion.
+    runs it** — check `ci.yml` first; only the remainder needs release-note archaeology. Majors are
+    **not** in lockstep even inside `actions/*`, so verify each floating tag exists via
+    `gh api repos/<r>/git/ref/tags/<vN>` before writing it into a criterion.
 - **A multi-part spec criterion slices along its own checkboxes** — `specs/rust-core.md`'s Unicode
     contract → 3 steps (filter / 1.1M-code-point proof / 12-binding propagation), not one.
 - **Any step touching the text hot path trips two gates at once**: the CI-only CRAP
@@ -133,6 +130,17 @@ iterations.
 - `uv run zensical build` (exits 0, "No issues found", ~8s) verifies any docs-only step.
 - **Recurring**: the cargo-deny gate WILL periodically go red on fresh RustSec advisories vs
     dev/bench deps — CI-red-first; prefer `cargo update -p <crate>` over a `deny.toml` ignore.
+- **Watch the tooling-cadence flag in state.md.** When 3 of the last 4 iterations were CI/lint/
+    workflow packages, prefer a user-facing item even if the handoff's "Next" is a tracked `normal`
+    tooling issue (iter 143: took the user-facing Unicode docs page over `release.yml` check 3, and
+    said so in `## Goal` as an explicit backtrack). The tooling issue stays open and unblocked.
+- **A parked behaviour ruling does not block *documenting* the behaviour that already shipped** —
+    but the docs step must forbid the disputed claims by name in `Not In Scope` (iter 143: no
+    output-equivalence claim, no multi-code-point/sequence statements).
+- New docs page checklist: `zensical.toml` nav + `scripts/gen_llms_full.py ORDERED_PAGES` +
+    `docs/llms.txt` (hand-maintained `## Reference` bullet list, currently incomplete — extra
+    entries are optional). `gen_llms_full.py` prints `Auto-discovered …` for any page missing from
+    `ORDERED_PAGES` → "output contains no `Auto-discovered` line" is the boolean wiring check.
 - **The installed Python binding is a cheap probe — but the venv wheel LAGS the source** (iter 141:
     it still showed pre-iter-133 `text_clean` behaviour). Cross-check anything the last few
     iterations could have touched with `cargo test -p iscc-lib --lib <mod>::` (~seconds when built).

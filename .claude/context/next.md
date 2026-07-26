@@ -1,142 +1,129 @@
 # Next Work Package
 
-## Step: Land the `release.yml` static checks 1–2 as an executable gate
+## Step: Document the declared Unicode 16.0.0 data version for library consumers
 
 ## Goal
 
-Turn the two pure-local `release.yml` invariants that have been hand-retyped into throwaway heredocs
-in three consecutive iterations (139, 140, 141) — the registry-guard shape and the artifact wiring —
-into a committed checker script wired into both prek (local, on every edit of that file) and pytest
-(so CI enforces it too). This picks up the `normal` `[review]` issue **"Land the `release.yml`
-static checks as an executable gate"**, the only fully-unblocked CID-doable item; the Unicode
-propagation half stays parked on Titusz.
+Give users a discoverable, user-facing explanation of the declared Unicode data version (16.0.0) and
+the freeze rule that makes `text_clean` / `text_collapse` — and therefore Meta-Code, Text-Code and
+the returned `name` / `description` fields — stable across runtimes, plus the two known divergences
+(older CPython in `iscc-core`, and the pure-Go package's Unicode 15.0 tables). Today this contract
+exists only in `specs/`, `issues.md` and a developer-facing test fixture, so adopters hit it as a
+surprise.
+
+**Deliberate deviation from the handoff "Next".** The review agent proposed check 3
+(`--check-action-inputs` on `release.yml`); `state.md` flags that taking it makes three of the last
+four iterations pure workflow tooling on a file no CI run executes. This is a **backtrack** to a
+different reachable goal: user-facing documentation of an already-landed behaviour contract. Check 3
+stays open and unblocked for a later iteration.
 
 ## Scope
 
-- **Create**: `scripts/check_release_workflow.py`, `tests/test_check_release_workflow.py`
-- **Modify**: `.pre-commit-config.yaml`, `pyproject.toml` (declare `pyyaml` in the dev group),
-    `uv.lock` (regenerated), `CLAUDE.md` (pre-commit hook list, ~line 181), `docs/development.md`
-    (pre-commit hook list, ~line 143)
-- **Reference**: `.github/workflows/release.yml` (the file being gated), `scripts/iai_regression.py`
-    \+ `tests/test_iai_regression.py` (the house pattern for a checker script and its by-path
-    `importlib` test harness), `.claude/context/issues.md` → "Land the `release.yml` static checks
-    as an executable gate", `.claude/context/decisions.md` 2026-07-25 (why the
-    `!cancelled() && !failure()` guard shape is only safe in exactly this form)
-
-Non-test, non-doc file budget used: 3 (`scripts/check_release_workflow.py`,
-`.pre-commit-config.yaml`, `pyproject.toml`). `uv.lock` is generated.
+- **Create**: `docs/unicode.md` — new Explanation page, title `# Text Processing and Unicode`
+- **Modify** (non-doc, 2 files): `zensical.toml` (add `{ "Text and Unicode" = "unicode.md" }` to the
+    `Explanation` nav list, after `Architecture`), `scripts/gen_llms_full.py` (add `"unicode.md"` to
+    `ORDERED_PAGES`, directly after `"architecture.md"`)
+- **Modify** (docs, excluded from the file budget): `docs/llms.txt` (one bullet in the
+    `## Reference` list, positioned next to Architecture), `docs/howto/go.md` (a short note near the
+    text-utility section that the pure-Go package uses Go's Unicode 15.0 tables and does not
+    implement the freeze rule, with a link to the new page)
+- **Reference**: `.claude/context/specs/rust-core.md` → "Unicode data version is part of the
+    conformance contract" (the authoritative wording), `crates/iscc-lib/tests/unicode_boundary.json`
+    (the four boundary code points and their expected outputs), `crates/iscc-lib/src/utils.rs`
+    (lines ~95–190, the filter call sites), `crates/iscc-lib/src/utils/unicode16.rs` (the 731-range
+    vendored table), `docs/architecture.md` (page style: `##` sections, tables, admonitions),
+    `packages/go/utils.go` (lines 20–35 — proof the Go package filters on Go's `unicode.C`)
 
 ## Not In Scope
 
-- **Check 3 (action-input compatibility)** — validating every `with:` key against each action ref's
-    published `action.yml` needs network, so it belongs in a CI-only follow-up step. Do not add it,
-    not even behind an offline skip.
-- **Editing `.github/workflows/release.yml`.** The gate must pass on the file exactly as it stands;
-    if a check fires, the check is wrong, not the workflow. (If you find a genuine workflow bug,
-    report it in the handoff instead of fixing it here.)
-- Adding an `actionlint` invocation, a `ci.yml` step, or a new `mise` task — CI enforcement comes
-    free via the pytest test, and prek covers the local edit path.
-- The `rubygems/configure-rubygems-credentials@main` pin (human-gated tag-vs-SHA ruling) and any
-    other `uses:` change.
-- Unicode step (b): propagating `crates/iscc-lib/tests/unicode_boundary.json` into the bindings —
-    double-blocked on the parked ordering ruling and the Go 15.0-tables decision.
-- Refactoring `scripts/iai_regression.py` or extracting shared script helpers.
+- **Any change under `crates/` or `packages/`.** The binding propagation of the boundary vectors is
+    double-parked (freeze-rule ordering ruling + the Go 15.0-tables decision). This step documents
+    behaviour that already shipped; it changes none.
+- **Do not claim output-equivalence to uniform Unicode 16.0.0 tables.** Spec criterion 4 is unproven
+    *and* its wording is under human review. Do not write "equivalent to", "proven", or "identical
+    to Unicode 16.0.0 tables" anywhere on the page.
+- **Do not describe or assert behaviour for multi-code-point sequences** (composition, Hangul jamo,
+    `Final_Sigma`). That class is the parked HUMAN REVIEW item; the page must stay on single code
+    points, exactly like the fixture does.
+- No new pytest/prek gate (e.g. a nav ↔ `ORDERED_PAGES` parity test). Inventing a gate needs human
+    sign-off; this step only wires an existing generator.
+- Do not tick any checkbox in `.claude/context/specs/rust-core.md`, do not edit `issues.md`, and do
+    not fix the Go divergence (vendoring the 15.0→16.0 delta is the parked decision).
+- No `README.md` rewrite — the root README stays an install/quick-start document; the deep-dive
+    lives on the docs site.
 
 ## Implementation Notes
 
-**Script shape.** `scripts/check_release_workflow.py`: module docstring explaining why the file
-needs a static gate (`workflow_dispatch`-only → no CI run and no CID push ever executes it), a
-positional **optional** path argument defaulting to `.github/workflows/release.yml` (tests and
-probes run it against mutated temp copies), short pure functions returning `list[str]` of error
-strings, and a `main()` that prints one error per line and exits 1 if any. Keep functions small —
-`C901` and the `S` rules are enforced by `uv run ruff check`.
+**Verified facts — use these, do not re-derive.** All four rows below are the post-freeze-filter
+behaviour of the Rust core at HEAD, cross-confirmed against an independent Unicode 16.0 simulation,
+and are exactly what `crates/iscc-lib/tests/unicode_boundary.json` encodes:
 
-**PyYAML gotcha:** YAML 1.1 parses the top-level `on:` key as the boolean `True`, so read the
-trigger block as `wf.get("on", wf.get(True))`. Use `yaml.safe_load`, never `yaml.load`.
+| Code point                         | Unicode 16.0 status | `text_clean("a?b")` | `text_collapse("a?b")` |
+| ---------------------------------- | ------------------- | ------------------- | ---------------------- |
+| `U+1FAE9` (assigned in 16.0, `So`) | assigned            | retained            | retained               |
+| `U+113C5` (assigned in 16.0, `Mc`) | assigned            | retained            | `"ab"` (mark stripped) |
+| `U+20C1` (assigned in Unicode 17)  | unassigned          | `"ab"`              | `"ab"`                 |
+| `U+A7F1` (assigned in Unicode 17)  | unassigned          | `"ab"`              | `"ab"`                 |
 
-**Check 1 — registry-guard shape** (verified structurally at HEAD: 29 jobs):
+Other settled facts worth stating on the page:
 
-- `prepare-release` is the one deliberately unguarded job; its `if` must be exactly
-    `inputs.version != ''`. Pin its name in a module constant with a comment saying why wrapping it
-    would make the tag-pushing job run on registry-only dispatches.
-- Every other job's `if` must match
-    `^\$\{\{ !cancelled\(\) && !failure\(\) && \((?P<inner>.+)\) \}\}$`, and its `inner` must
-    contain `inputs.version != ''` as an alternative.
-- Every `inputs.<name>` referenced in any job `if` must be a declared `on.workflow_dispatch.inputs`
-    key, and every declared registry input (all inputs except `version`) must be referenced by at
-    least one job — that pair catches both a typo'd flag and a silently dropped one.
-- **Do not hardcode the registry-token histogram** (`version:29, npm:6, …`). Frozen counts drift
-    with any legitimate job addition and would turn the gate into a maintenance tax; derive
-    everything structurally from the parsed document.
+- The vendored table holds **731** ranges covering **819,533** code points, generated by the
+    checked-in `scripts/gen_unicode16_unassigned.py` from `unicodedata2==16.0.0`.
+- Removal happens **before** normalization and before any category lookup, so the result does not
+    depend on which Unicode tables the underlying crates ship — `unicode-general-category` (16.0
+    tables) and `unicode-normalization` (17.0 tables) may be upgraded freely.
+- All 11 native bindings (Python, Node.js, WASM, C FFI, Java, Ruby, C#, C++, Swift, Kotlin, and the
+    Rust crate itself) wrap the same core, so they agree by construction.
+- **Divergence 1 — `iscc-core` on CPython ≤ 3.13** ships Unicode 15.1 tables, so text containing a
+    character assigned in 16.0 hashes differently there; CPython 3.14 agrees with iscc-lib. Link
+    <https://github.com/iscc/iscc-core/issues/137>.
+- **Divergence 2 — the pure-Go package** (`packages/go`) is an independent implementation that
+    filters on Go's `unicode.C` range table (Unicode 15.0 in Go 1.26; `x/text`'s 17.0 tables are
+    gated behind `//go:build go1.27`) and does not yet implement the freeze rule, so it drops
+    characters assigned after 15.0 that the native bindings retain. State this as a current, tracked
+    limitation — do not promise a fix date beyond "expected once Go ships newer tables".
 
-**Check 2 — artifact wiring.** Collect `with.name` from every step whose `uses:` starts with
-`actions/upload-artifact` (11 at HEAD) and `with.name` / `with.pattern` from every
-`actions/download-artifact` step (20 at HEAD). Expand `${{ matrix.<k> }}` against the job's
-`strategy.matrix.include` entries when the key is present there (`test-wheels` downloads
-`${{ matrix.artifact }}`, whose include block supplies two literal values); otherwise replace each
-`${{ … }}` span with `*`. Matching rule: build a regex from an upload name by escaping it and
-turning `*` into `.*`, then require every download reference — with its own `*` characters removed —
-to `re.fullmatch` at least one upload regex. That resolves all 20 downloads at HEAD (`wheels-*`,
-`jni-*`, `ffi-*`, `gem-*`, `kotlin-native-*`, `nuget-package`, `wasm-pkg`, `kotlin-jar`, …). An
-upload nobody downloads is not an error.
+**Page shape** (mirror `docs/architecture.md`): a one-paragraph intro, then
+`## Why the Unicode version matters`, `## Declared version and freeze rule`, `## Boundary behaviour`
+(the table above, rendered with the real characters *and* their `U+XXXX` labels),
+`## Cross-implementation consistency` (the two divergences, ideally as `!!! warning` / `!!! note`
+admonitions), and a closing `## Practical guidance` (which inputs are affected in practice —
+realistically the seven emoji added in Unicode 16 — and that ASCII/Latin text is never affected).
 
-**Check 3 of the issue is out of scope, but add a cheap third structural check:** every entry in a
-job's `needs:` must be a declared job id. It costs five lines and catches a rename typo that would
-otherwise surface only on release day.
+**Gotchas:**
 
-**Wiring.** Add a local prek hook in the pre-commit block:
-
-```yaml
-  - id: check-release-workflow
-    name: Release workflow static checks
-    entry: uv run scripts/check_release_workflow.py
-    language: system
-    files: ^\.github/workflows/release\.yml$
-    stages: [pre-commit]
-    pass_filenames: false
-```
-
-CI does not run prek, so CI coverage comes from `tests/test_check_release_workflow.py`: load the
-script by path with `importlib.util.spec_from_file_location` (copy the header of
-`tests/test_iai_regression.py`), then include one test that runs **all** checks against the real
-`.github/workflows/release.yml` and asserts zero errors, plus mutation tests that write a modified
-copy into `tmp_path` and assert the specific check fires — at minimum: guard wrapper stripped from
-one job, a registry flag renamed to an undeclared input, an upload `name:` renamed so a download no
-longer resolves, and a broken `needs:` entry. Never mutate the tracked workflow file.
-
-**Dependency.** `pyyaml` 6.0.3 is currently only a transitive dev dep (via yamlfix/zensical).
-Declare it explicitly in `[dependency-groups] dev` in `pyproject.toml` with a short inline comment
-and run `uv lock` — the pytest test imports it in-process, so a PEP 723 script would not help here
-and would need network in CI. This does not create a hold-back: no version pin is added.
-
-**No Rust source changes**, so neither `.crap-baseline.json` nor `.iai-baseline.json` needs
-refreshing — do not touch either. Do not run a blanket `ruff check --fix .` (it deletes load-bearing
-`# noqa: S603/S607` directives).
-
-**Docs.** Add the new hook to the pre-commit bullet list in `CLAUDE.md` (~line 181) and
-`docs/development.md` (~line 143), phrased like the neighbouring entries.
+- `ruff format` now also formats Python code blocks inside Markdown. Prefer `text` fences for
+    illustrative snippets; if a `python` fence is used it must be ruff-format-clean.
+- Keep the character examples ASCII-safe where possible: write `U+1FAE9` rather than pasting an
+    astral emoji into a table cell if it makes the table alignment fragile — `mdformat` reflows
+    tables and full-width glyphs can churn the diff.
+- The new page adds no Rust/Python code, so **neither** the CI-only CRAP `--fail-regression` gate
+    nor the `.iai-baseline.json` 10% Ir gate is affected. Do not refresh any baseline.
 
 ## Verification
 
-- `uv run scripts/check_release_workflow.py` exits 0 (no arguments → gates the tracked
-    `.github/workflows/release.yml`).
-- `git status --porcelain .github/workflows/release.yml` prints nothing — the gate passes on the
-    workflow as it stands, unmodified.
-- Mutation probe, working-tree safe (writes only under `/tmp`):
-    `mkdir -p /tmp/relprobe && sed 's/!cancelled() && !failure() && //' .github/workflows/release.yml > /tmp/relprobe/release.yml && uv run scripts/check_release_workflow.py /tmp/relprobe/release.yml`
-    exits **non-zero** and names the guard check.
-- `uv run pytest tests/test_check_release_workflow.py` passes, and its output includes a test that
-    runs the checker against the real `.github/workflows/release.yml`.
-- `uv run prek run check-release-workflow --files .github/workflows/release.yml` → `Passed`.
-- `uv run prek run check-release-workflow --files pyproject.toml` → `Skipped` (hook is scoped to
-    `release.yml` only).
-- `uv run ruff check` exits 0 and `uv run ty check` exits 0 (the script is not excluded from `ty`).
-- `uv lock --check` exits 0 and `uv run python -c "import yaml"` exits 0.
-- `mise run check` exits 0 with no hook reporting `Failed` (do not assert a hook count — it drifts).
-- `uv run pytest --timeout=120` exits 0 (full Python suite, no regression in the existing tests).
+- `uv run zensical build` exits 0 and reports "No issues found"
+- `uv run python scripts/gen_llms_full.py` exits 0 and its output contains **no** `Auto-discovered`
+    line and **no** `Warning:` line (proves `unicode.md` is in `ORDERED_PAGES` and every ordered
+    page exists on disk)
+- `grep -q "16.0.0" site/llms-full.txt` succeeds after that run (the new page reached the aggregate
+    output)
+- `grep -E -c 'U\+(1FAE9|113C5|20C1|A7F1)' docs/unicode.md` reports at least 4 (all four boundary
+    code points are named on the page)
+- `grep -q "iscc-core/issues/137" docs/unicode.md` succeeds
+- `grep -q "unicode.md" docs/llms.txt` and `grep -q "Unicode 15.0" docs/howto/go.md` both succeed
+- The four rows of the page's boundary table agree with
+    `crates/iscc-lib/tests/unicode_boundary.json` (compare by dumping the fixture, e.g.
+    `uv run python -c "import json;print(json.load(open('crates/iscc-lib/tests/unicode_boundary.json')))"`)
+- `git status --porcelain crates/ packages/go/*.go` prints nothing (no source or fixture change;
+    `docs/howto/go.md` is not under those paths)
+- `uv run prek run --files` over the five touched files (`docs/unicode.md`, `docs/llms.txt`,
+    `docs/howto/go.md`, `zensical.toml`, `scripts/gen_llms_full.py`) — every hook `Passed`
+    (mdformat, ruff, taplo)
+- `uv run ruff check` → "All checks passed!"
 
 ## Done When
 
-`scripts/check_release_workflow.py` passes on the unmodified `.github/workflows/release.yml`, fails
-on each mutated temp copy exercised by `tests/test_check_release_workflow.py`, runs automatically
-both via the scoped prek hook and via pytest in CI, and every verification command above exits 0.
+`docs/unicode.md` is published in the site nav and in `llms-full.txt`, states the declared Unicode
+16.0.0 version, the freeze rule and the two known divergences without any equivalence or
+sequence-behaviour claim, and every verification command above passes.
