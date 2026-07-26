@@ -37,13 +37,13 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 
 ## Quality Gates — details in `quality-gates.md`, read it before reporting CI status
 
-- **ENFORCING:** iai-callgrind perf (>10% Ir vs `.iai-baseline.json`, 16 entries); coverage + CRAP
-    (`.crap-baseline.json`, **100** entries — `--fail-regression` is **CI-ONLY**, so a green
-    `mise run check` proves nothing); cargo-deny; docs page-list parity (prek hook + a pytest in
-    `python-test`, **no dedicated CI job**).
+- **ENFORCING:** iai perf (>10% Ir, `.iai-baseline.json` 16 entries); coverage + CRAP
+    (`.crap-baseline.json` **100** entries — `--fail-regression` is **CI-ONLY**, so a green
+    `mise run check` proves nothing); cargo-deny; docs page-list parity (no dedicated CI job — prek
+    hook + a pytest in `python-test`).
 - **Can go red with NO code change:** cargo-deny (live advisory DB). **Fails open:** the release.yml
-    static gate — check the JOB LOG for zero `warning: skipped`, not the badge.
-- **Informational:** cargo-semver-checks (`continue-on-error` until v1.0.0, HELD).
+    static gate — check the JOB LOG for zero `warning: skipped`. **Informational:**
+    cargo-semver-checks (`continue-on-error` until v1.0.0, HELD).
 
 ## Codebase Landmarks
 
@@ -55,22 +55,25 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
     `on:` is NOT a job. `release.yml` — 8 registry toggles; the Swift XCFramework step lives in
     `prepare-release` and is NOT a toggle.
 - **Unicode = 16.0.0 + SENTINEL freeze rule → read `unicode-contract.md` before ANY Unicode call.**
-    Crit 1+2 MET (148); crit 3 at **4 of 11 native surfaces** (Rust, Python, WASM, Ruby) + the
-    pure-Go port, leaving **7 surfaces + 4 sibling `data.json`**; crit 4 (differential sweep) has no
-    harness. `decisions.md` keeps 2 SUPERSEDED designs that must NOT be implemented.
+    Crit 1+2 MET (148); crit 3 at **6 of 11 native surfaces** (Rust, Python, WASM, Ruby, napi, Java)
+    plus the pure-Go port, leaving **5 surfaces + 4 sibling `data.json`**; crit 4 (differential
+    sweep) has no harness. `decisions.md` keeps 2 SUPERSEDED designs that must NOT be implemented.
+- **Per-surface fixture-loading plumbing table → `unicode-contract.md`** (canonical-path vs
+    vendored-copy vs no-JSON-parser; read it before costing any propagation slice). One landmark
+    worth inlining: **surefire's default CWD is the pom basedir**, NOT the `mvn -f` invocation dir —
+    that is why the Java suites' `../../iscc-lib/tests/…` paths resolve.
 - **Adding a docs page = 3 hand edits** (`zensical.toml` nav, `ORDERED_PAGES`, `docs/llms.txt`), now
     gated. `streaming.rs`: `DataHasher`/`InstanceHasher` at crate root, `SumHasher` only via
     `streaming::`. iscc-wasm's `blake3 wasm32_simd` dep is feature-unification — **don't prune**.
-    `iscc-py` has **12** `.detach(` sites. `benches/`: 12 criterion (0.7) + iai-callgrind 0.16 (11
-    fns, 16 cases). **Inline `# held:` = authoritative pin rationale** — root `Cargo.toml` has **4**
-    (criterion 0.8, jni 0.22, magnus 0.8, uniffi 0.32) + a pyo3 `# note:`; `pyproject.toml` zero.
+    `iscc-py` has **12** `.detach(` sites. `benches/`: 12 criterion (0.7) + iai 0.16 (11 fns, 16
+    cases). **Inline `# held:` = authoritative pin rationale** — root `Cargo.toml` has **4**;
+    `pyproject.toml` zero.
 - **Ruff/prek/mdformat → `lint-tooling.md`.** ruff **0.16.0** since 137; prek/CI parity holes CLOSED
     (138, 139) — local prek is a strict SUPERSET. Probe hooks with `prek run <hook> --files <f>`.
 - **Dependency-pin inventory, GHA histograms + slice history** → `dep-refresh-survey.md`. All GHA
-    refs CURRENT (slice 9, 140); release.yml keeps **97 `uses:`** (18 distinct), **no setup-uv**,
-    and `rubygems/configure-rubygems-credentials@main` (L895) as the ONLY unpinned ref. No
-    Dependabot/Renovate; **`rb_sys` pinned in THREE places that move together** (Gemfile `0.9.123`,
-    `Gemfile.lock`, `release.yml:853`).
+    refs CURRENT (slice 9, 140); release.yml keeps **97 `uses:`**, with
+    `rubygems/configure-rubygems-credentials@main` (L895) the ONLY unpinned ref. No
+    Dependabot/Renovate; **`rb_sys` pinned in THREE places that move together**.
 
 ## Recurring Patterns
 
@@ -81,46 +84,45 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **When a ruling lands, re-verify the CODE against the NEW spec**; grep `decisions.md` for
     `supersede` (losing designs are logged chronologically). At 147 a 14-iteration "met" went unmet.
 - **Reproduce/refute binding claims yourself** — cheap probes beat inherited text (confirmed a
-    `critical` bug at 147, its fix at 148; refuted the "checked-in stale napi `.node`" claim at
-    151/152/153 — it is gitignored, yet handoffs keep repeating it). Deliberate deviations from a
-    fix sketch are legitimate: read the in-source comment first.
+    `critical` bug at 147, its fix at 148; refuted a "checked-in stale napi `.node`" claim across
+    151-153 — it is gitignored). Deliberate deviations from a fix sketch are legitimate: read the
+    in-source comment first.
 - **Spec checkboxes are NOT a progress signal** — cpp/docs/dotnet/java/kotlin/nodejs/ruby/swift sit
     at 0/N checked though MET; only `ci-cd.md` (44/52) + `rust-core.md`'s semver box are kept up.
     Spec *prose* also rots: at 149 `rust-core.md` still described a defect fixed 2 iterations back.
-- **Cost-rank a propagation slice on TWO axes, never one** (153): a suite needs BOTH fixture-reading
-    plumbing (does it parse JSON / how does it locate the file — canonical relative path vs a
-    vendored copy?) AND target-API coverage. Ranking on API coverage alone put C++ (6 text hits,
-    zero JSON parsing, no cmake) at "cheap" for two iterations. One grep per axis settles it.
-- **Oracles (149):** a "must NOT be" value means nothing unless the DESIGN producing it is named (a
-    mislabelled column reached published docs with every gate green), and a fixture can be
-    structurally incapable of gating what it claims to. Ask what a test must *distinguish*.
+- **Cost-rank a propagation slice on THREE axes** (153, extended 154): fixture-reading plumbing
+    (parses JSON? canonical relative path vs vendored copy?) × target-API coverage × **local
+    buildability** (`command -v`). Ranking on API coverage alone put C++ at "cheap" for two
+    iterations; the third axis is what demotes Kotlin/Swift (no toolchain here → CI-only proof).
+- **Oracles (149):** a "must NOT be" value means nothing unless the DESIGN producing it is named,
+    and a fixture can be structurally incapable of gating what it claims to. Ask what a test must
+    *distinguish*.
 
-## Current State (assessed-at: 672d109, iter 153)
+## Current State (assessed-at: 2c175f2, iter 154)
 
-- **IN_PROGRESS — CI GREEN AND COVERING ALL CODE.** `origin/develop` == `cec0dc4`: 43 check-runs, 22
-    names, 0 non-success. HEAD `672d109` is ONE `cid(log)` commit ahead but the non-`.claude` diff
+- **IN_PROGRESS — CI GREEN AND COVERING ALL CODE.** `origin/develop` == `32fbfc4`: 43 check-runs, 22
+    names, 0 non-success. HEAD `2c175f2` is ONE `cid(log)` commit ahead but the non-`.claude` diff
     vs origin is EMPTY. ~2x runs because PR **#44 (develop→main) is OPEN** ("Release 0.6.0" — NOT
-    shipped; version **0.5.0**). Iteration 152 ran clean (4 roles `OK`, verdict `PASS`); its only
-    non-`.claude` files were the new drift gate and one CLAUDE.md line.
-- **Drift gate LANDED (152)** — `tests/test_vendored_fixtures.py`: `(canonical, copy)` table + a
-    `git ls-files` set check (catches unregistered AND deleted copies) + a `>= 5` floor + an ASCII
-    guard; rides `python-test`. **Every new vendored copy must be registered there** and must keep
-    the basename `data.json` / `unicode_boundary.json` (discovery is by basename).
-- **Statuses:** Rust-core partially met (crit 1+2 MET; crit 3 at **4 of 11 native surfaces** + the
-    pure-Go port; crit 4 not started); all else met except CI/CD (partial). All 5 gated suites ride
-    EXISTING CI jobs — no new job needed. Ledger → `unicode-contract.md`.
-- **Next = propagation slice 3, recommended pair napi + JNI/Java** (both read the canonical
-    `data.json` by relative path → no new vendored copy; napi's only cost is a local `napi build`).
-    Avoid C FFI + C++: neither parses JSON, no `cmake` here. My 152 "C# + C++ cheapest" was WRONG.
-- **`specs/rust-core.md` is STALE on Go `Final_Sigma`** (present tense at L149-157) though fixed at
+    shipped; version **0.5.0**). Iteration 153 ran clean (4 roles `OK`, verdict `PASS`).
+- **Statuses:** Rust-core partially met (crit 3 at **6 of 11** surfaces + the pure-Go port; crit 4
+    not started); all else met except CI/CD (partial). All 6 gated suites ride EXISTING CI jobs.
+    Per-section evidence lives in state.md — don't duplicate it here.
+- **Invariant to re-check every propagation slice:**
+    `git ls-files -- '*data.json' '*unicode_boundary.json'` = **7** paths, matching
+    `VENDORED_COPIES` in `tests/test_vendored_fixtures.py` (the 152 drift gate: table +
+    `git ls-files` set check + `>= 5` floor + ASCII guard, rides `python-test`). Register every new
+    copy; keep canonical basenames.
+- **Next = slice 4, recommended C#** (alone or + C FFI): only remaining surface green on all three
+    axes. Prefer a csproj `<Content Include>` at the canonical fixture + `Link="testdata\…"` to
+    avoid a tracked copy. **Defer Kotlin/Swift** (0 text tests AND unbuildable here); C++ last.
+- **`specs/rust-core.md` is STALE on Go `Final_Sigma`** (present tense, L149-157) though fixed at
     147; crit-1/crit-3 boxes unchecked though met — human-owned, CID doesn't edit specs.
-- **Issues: 8** (4 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`) — drift-gate issue
-    closed at 152. **Human backlog CLEARED.** AUTHORIZED for CID: the rubygems `@v2.1.0` pin; major
-    dep bumps **one per step** (magnus 0.8, jni 0.22 = source rewrites; xunit 3.x, Test.Sdk 18.x,
-    Gradle wrapper, JUnit 6.x); exhaustive `specs/ci-cd.md` job table. DEFERRED: npm OIDC.
-- **Don't re-flag as DONE**: drift gate 152; WASM+Ruby propagation 151; Python+Go 150; sequence
-    vectors + fixture guard 149; sentinel conversion + `docs/unicode.md` 148; Go `Final_Sigma` 147
-    (pre-147 → `MEMORY-archive.md` / issues.md slice log).
+- **Issues: 8** (4 `normal`, 4 `low`, 0 critical, 0 `HUMAN REVIEW REQUESTED`), unchanged at 153.
+    **Human backlog CLEARED.** AUTHORIZED for CID: the rubygems `@v2.1.0` pin; major dep bumps **one
+    per step** (magnus 0.8 / jni 0.22 = source rewrites; xunit 3.x, Test.Sdk 18.x, Gradle wrapper,
+    JUnit 6.x); exhaustive `specs/ci-cd.md` job table. DEFERRED: npm OIDC.
+- **Don't re-flag as DONE**: napi+Java 153; drift gate 152; WASM+Ruby 151; Python+Go 150; sequence
+    vectors 149; sentinel conversion 148; Go `Final_Sigma` 147 (earlier → `MEMORY-archive.md`).
 
 ## Gotchas
 
@@ -133,10 +135,12 @@ archive detail eagerly; the hard cap from the agent prompt is 200.
 - **Grep binding APIs CASE-INSENSITIVELY** (near-miss 152): napi exports are **snake_case**, so a
     `textClean` grep wrongly cleared napi; Java/Kotlin/Swift are camelCase, C# PascalCase. Also
     `crates/iscc-napi/__tests__` (two underscores).
-- **Container toolchains (153):** `dotnet`, `mvn`, `gcc`, `java`, `go`, `ruby`, `node`, `wasm-pack`
-    present; **`cmake` is ABSENT** → `packages/cpp` is CI-verified only. Probe with `command -v`.
-- **Env gotchas → `MEMORY-archive.md`**: metrics.jsonl counts gitignored artifacts; Gradle
-    bind-mount flakes; `proc-macro-error2` future-incompat warning (dev-only, not a regression).
+- **Container toolchains (re-probed 154):** `dotnet`, `mvn`, `gcc`, `java`, `go`, `ruby`, `node`,
+    `wasm-pack` present; **`cmake`, `swift` and `gradle` are ABSENT** → `packages/{cpp,swift}` are
+    CI-verified only, and Kotlin has only the Gradle *wrapper* (network download + bind-mount
+    flakes). Probe with `command -v` — never assume from a package dir existing. Other env gotchas →
+    `MEMORY-archive.md` (metrics.jsonl counts gitignored artifacts; `proc-macro-error2`
+    future-incompat warning is dev-only, not a regression).
 - **csbindgen** runs on every `cargo build` (`crates/iscc-ffi/build.rs`). **UniFFI** = proc-macro,
     no uniffi.toml/build.rs. **Kotlin** uses JNA (not JNI) — needs BOTH `java.library.path` AND
     `jna.library.path`. **Release-workflow deep internals** → `MEMORY-archive.md`.

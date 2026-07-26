@@ -180,3 +180,25 @@ cosmetic refresh both times (97 → 98 → **100** entries). Docs half of the co
 this matter?" section, widened CPython-3.14 sentence). **Stale spec text (human-owned):**
 `specs/rust-core.md` still describes the Go `Final_Sigma` defect in the present tense and leaves its
 checkbox unchecked.
+
+## Fixture-loading plumbing per surface (settles propagation cost)
+
+Re-verified at iteration 154. This is axis 1 of the three-axis slice-cost ranking in [[MEMORY]].
+
+| Loading mechanism         | Surfaces                                                                                                                               |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Canonical path, no copy   | Python, napi (`__dirname` join), **Java**, Ruby (`File.expand_path`)                                                                   |
+| Compiled in               | Rust, WASM (both `include_str!`)                                                                                                       |
+| Vendored copy required    | Go (`testdata/`), C# (`AppContext.BaseDirectory` + csproj `<Content Include>`), Kotlin (classloader resource), Swift (`Bundle.module`) |
+| **No JSON parser at all** | C FFI (`tests/test_iscc.c`), C++ (`packages/cpp/tests/test_iscc.cpp`)                                                                  |
+
+- **Java's relative path works because surefire's default working directory is the pom basedir**,
+    not the `mvn -f <pom>` invocation directory. `crates/iscc-jni/java` + `../../iscc-lib/tests/…`
+    therefore resolves; the pre-existing `IsccLibTest.java` relies on the same fact for `data.json`.
+- **C# can avoid a vendored copy** with a csproj `<Content Include>` pointing at the canonical
+    fixture by relative path plus `Link="testdata\unicode_boundary.json"`. If a real copy is created
+    instead, it MUST be registered in `VENDORED_COPIES` of `tests/test_vendored_fixtures.py` in the
+    same commit, and MUST keep the canonical basename (the drift gate discovers by basename).
+- **CI reachability is free for every surface so far** — each binding job rebuilds its native
+    artifact and its test command auto-discovers new files (`node --test __tests__/*.test.mjs`
+    globs; surefire matches `*Test.java`; pytest `testpaths`; `go test ./...`).
