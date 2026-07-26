@@ -79,8 +79,20 @@ also added in 16.0; `text_clean` keeps it, while `text_collapse` drops it becaus
 filtered. `U+20C1` and `U+A7F1` are assigned only in Unicode 17, so the freeze rule strips them in
 both functions — even though the normalization dependency already ships Unicode 17 tables.
 
-These vectors are checked into the repository as `crates/iscc-lib/tests/unicode_boundary.json` and
-exercised by the Rust test suite.
+Four multi-code-point **sequence** vectors additionally pin the sentinel design itself. The sentinel
+keeps its neighbours apart during normalization and lowercasing, which is why these sequences — and
+not the ASCII-wrapped single code points above — distinguish the `U+FFFF` map from a filter that
+deletes unassigned code points outright:
+
+| Input sequence                | Function        | Expected output        | Delete filter would produce |
+| ----------------------------- | --------------- | ---------------------- | --------------------------- |
+| `e U+0378 U+0301`             | `text_clean`    | `e U+0301`             | `U+00E9`                    |
+| `U+1100 U+0378 U+1161`        | `text_clean`    | `U+1100 U+1161`        | `U+AC00`                    |
+| `e U+A7F1 U+0301`             | `text_clean`    | `e U+0301`             | `e U+015A`                  |
+| `U+0391 U+03A3 U+0378 U+0392` | `text_collapse` | `U+03B1 U+03C2 U+03B2` | `U+03B1 U+03C3 U+03B2`      |
+
+Both vector families are checked into the repository as
+`crates/iscc-lib/tests/unicode_boundary.json` and exercised by the Rust test suite.
 
 ## Cross-implementation consistency
 

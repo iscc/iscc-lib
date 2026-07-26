@@ -20,10 +20,23 @@ metadata:
 - Table: `crates/iscc-lib/src/utils/unicode16.rs` (731 ranges, 819,533 cps; regen:
     `uv run --script scripts/gen_unicode16_unassigned.py` — PEP 723, pins `unicodedata2==16.0.0`;
     data output is docstring-independent).
-- Boundary fixture (iter 141): `crates/iscc-lib/tests/unicode_boundary.json` (4 code points × 2
-    sections) + `tests/test_unicode_boundary.rs` — propagation source for bindings.
+- Boundary fixture (iter 141, sequences iter 149): `crates/iscc-lib/tests/unicode_boundary.json` (7
+    `text_clean` + 5 `text_collapse` cases: 4 single code points per section + 4 sequence vectors) +
+    `tests/test_unicode_boundary.rs` (`SEQUENCE_VECTORS` const pins
+    input/expected/delete-filter-output in source; 2 ungated guards + 2 gated vector tests with
+    counts derived `4 + rows`) — propagation source for bindings.
 - Six sentinel regression tests live in `utils.rs` `mod tests` (composition-block, jamo, final
     sigma, decomposition leak, normalizer pass-through, literal U+FFFF).
-- User-facing page: `docs/unicode.md` (sentinel mechanism + "How much does this matter?").
-- Pending: sequence vectors in the fixture, binding propagation, full-code-space + sequence-class
-    differential sweep (spec requirement 4).
+- User-facing page: `docs/unicode.md` (sentinel mechanism + "How much does this matter?" + both
+    boundary-vector tables).
+- Pending: binding propagation (11 bindings + 4 sibling data.json copies; Go skips table-dependent
+    vectors per ruling but takes `Final_Sigma`), full-code-space + sequence-class differential sweep
+    (spec requirement 4).
+- GOTCHA (iter 149): writing `\uXXXX` escape text into the ASCII-escaped fixture via the Edit tool
+    decodes it into literal UTF-8 chars. Write fixture JSON with Python
+    (`json.dumps(..., ensure_ascii=True, indent=2)` + trailing newline round-trips the file
+    byte-identically); verify with `raw.isascii()` + numeric `ord()` checks. Rust `\u{XXXX}` escapes
+    via Write tool land fine.
+- CRAP trap for `tests/test_unicode_boundary.rs`: baseline has exactly 2 non-`#[test]` fns
+    (`boundary_data`, `run_boundary_section`); any new free helper gets pessimistic-0 coverage — put
+    new assertions inside `#[test]` fns only.

@@ -1,6 +1,6 @@
 {
   "_metadata": {
-    "description": "Unicode 16.0.0 boundary vectors for the declared-Unicode-version freeze rule (single code points; propagation source for all binding conformance tests)",
+    "description": "Unicode 16.0.0 boundary vectors for the declared-Unicode-version freeze rule (single code points plus multi-code-point sequences that distinguish the U+FFFF sentinel map from a delete filter; propagation source for all binding conformance tests)",
     "unicode_data_version": "16.0.0"
   },
   "text_clean": {
@@ -35,6 +35,30 @@
       "outputs": {
         "result": "ab"
       }
+    },
+    "test_0004_seq_u0378_blocks_canonical_composition": {
+      "inputs": [
+        "e\u0378\u0301"
+      ],
+      "outputs": {
+        "result": "e\u0301"
+      }
+    },
+    "test_0005_seq_u0378_blocks_hangul_composition": {
+      "inputs": [
+        "\u1100\u0378\u1161"
+      ],
+      "outputs": {
+        "result": "\u1100\u1161"
+      }
+    },
+    "test_0006_seq_ua7f1_no_decomposition_leak": {
+      "inputs": [
+        "e\ua7f1\u0301"
+      ],
+      "outputs": {
+        "result": "e\u0301"
+      }
     }
   },
   "text_collapse": {
@@ -68,6 +92,14 @@
       ],
       "outputs": {
         "result": "ab"
+      }
+    },
+    "test_0004_seq_u0378_preserves_final_sigma": {
+      "inputs": [
+        "\u0391\u03a3\u0378\u0392"
+      ],
+      "outputs": {
+        "result": "\u03b1\u03c2\u03b2"
       }
     }
   }
