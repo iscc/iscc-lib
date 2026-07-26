@@ -1,204 +1,188 @@
 # Next Work Package
 
-## Step: Add the four Unicode sequence boundary vectors and pin them in the fixture guard
+## Step: Propagate the Unicode boundary fixture to the Python and Go test suites (propagation slice 1)
 
 ## Goal
 
-Add the four multi-code-point **sequence** vectors to `crates/iscc-lib/tests/unicode_boundary.json`
-and extend the ungated guard so their exact inputs and outputs are pinned in the test source
-(issues.md: "Declare and gate a Unicode data version (DECIDED)", remainder **(b)**;
-`specs/rust-core.md` requirement 3). This matters because the four existing vectors wrap a single
-code point in plain ASCII and are therefore **deletion-vs-sentinel agnostic** — the fixture that is
-the propagation source for all 11 bindings currently cannot gate the distinction iteration 148 just
-fixed, so the sentinel behaviour is guarded by unit tests in one crate only.
+Wire the completed `crates/iscc-lib/tests/unicode_boundary.json` fixture into the first two of the
+11 binding surfaces — Python (reads the canonical fixture by relative path) and the pure-Go package
+(vendored `//go:embed` copy plus the ruled skip list) — so the Unicode 16.0.0 sentinel freeze rule
+is gated outside the Rust crate for the first time. This is the handoff's "Next" (issues.md:
+"Declare and gate a Unicode data version (DECIDED)", remainder **(b)**), sliced to the two surfaces
+that are fully runnable in this container with no build-artifact rebuild.
 
 ## Scope
 
+- **Create**:
+    - `tests/test_unicode_boundary.py` — Python binding boundary-vector tests
+    - `packages/go/testdata/unicode_boundary.json` — byte-identical `cp` of the canonical fixture
+    - `packages/go/unicode_boundary_test.go` — Go boundary-vector tests with the ruled skip list
 - **Modify**:
-    - `crates/iscc-lib/tests/unicode_boundary.json` — add 3 cases to `text_clean`, 1 to
-        `text_collapse`, and widen `_metadata.description` (test fixture)
-    - `crates/iscc-lib/tests/test_unicode_boundary.rs` — a `SEQUENCE_VECTORS` const, an added ungated
-        content guard, updated per-section case counts (test file)
-    - `docs/unicode.md` — extend the "Boundary behaviour" section with the sequence vectors (doc)
-    - `.crap-baseline.json` — **only if** the CI-exact CRAP gate fails on the edited tree (generated
-        artifact; see Implementation Notes)
+    - `docs/unicode.md` — say which suites exercise the fixture; name the three vectors Go skips
+    - `packages/go/CLAUDE.md` — add the vendored fixture to the file table and a Test Patterns bullet
 - **Reference**:
-    - `.claude/context/issues.md` — the umbrella Unicode issue's sequence-vector table (~line 316)
-        holds the authoritative escapes
-    - `.claude/context/specs/rust-core.md` — requirement 3 and the freeze-rule **Verified when** list
-        (~lines 96–195)
-    - `crates/iscc-lib/src/utils.rs` lines ~350–407 — the six sentinel regression tests that pin the
-        expected outputs (read only; do not edit)
-    - `.claude/context/decisions.md` 2026-07-26 entries (sentinel design; Go skips the table-dependent
-        vectors)
-
-**File budget:** **zero** non-test, non-doc source files. Two test files, one doc page, and at most
-one regenerated baseline artifact.
+    - `crates/iscc-lib/tests/unicode_boundary.json` (the fixture; do not edit)
+    - `crates/iscc-lib/tests/test_unicode_boundary.rs` (the guard pattern to mirror, loosely)
+    - `tests/test_conformance.py` (Python vector-loader idiom: `Path(__file__).parent.parent / ...`,
+        `pytest.param(tc, id=name)`)
+    - `packages/go/code_content_text_test.go` and `packages/go/conformance.go` (`vectorEntry`,
+        `parseConformanceData`, `//go:embed testdata/...`)
+    - `.claude/context/decisions.md` 2026-07-26 "Go skips the Unicode-16 boundary vectors until
+        go1.27" (the ruling the skip list implements)
 
 ## Not In Scope
 
-- **Propagation.** Do not copy the fixture into any of the 11 bindings, and do not touch the 4
-    sibling `data.json` copies (`packages/go/testdata/`, `packages/dotnet/Iscc.Lib.Tests/testdata/`,
-    `packages/swift/Tests/IsccLibTests/`, `packages/kotlin/src/test/resources/`). That is the next
-    step, and it carries the Go skip ruling with it.
-- **The criterion-4 differential sweep** (1,112,064 scalar values + sequence classes as a runnable
-    check) — a separate step. Do not wire a new gate or script.
-- **No source changes.** `crates/iscc-lib/src/utils.rs`, `src/utils/unicode16.rs` and every binding
-    crate stay byte-identical; this step only observes behaviour that already exists and is already
-    green.
-- **Do not invent extra vectors.** Exactly the four tabulated sequences. In particular do not add
-    mirrored cross-section cases (the jamo sequence under `text_collapse` legitimately recomposes to
-    `U+AC00` and would read as a contradiction), and do not add a literal-`U+FFFF` case.
-- **Do not re-derive the expected outputs** with a Python/`unicodedata2` probe — they are pinned by
-    the six `utils.rs` tests that passed CI at HEAD and are reproduced verbatim below.
-- Do not tick checkboxes in `.claude/context/specs/`, and do not edit `issues.md` (review closes
-    items).
-- **Do not refresh `.iai-baseline.json`** — no hot-path code changes, so Ir cannot move.
+- **The other nine binding surfaces** (napi, WASM, Ruby, C FFI, JNI/Java, UniFFI, Kotlin, Swift, C#,
+    C++). They are later slices. Note the checked-out napi artifact
+    (`crates/iscc-napi/iscc-lib.linux-x64-gnu.node`) is **stale** — it still returns `aSb` for
+    `text_clean("a" U+A7F1 "b")` — so a napi slice must rebuild it first; that cost is exactly why
+    napi is not in this step.
+- **Criterion 4 / remainder (a2)** — the 1,112,064-scalar + sequence-class differential sweep. Not
+    this step.
+- **Copying `delete_filter_output` oracles into the binding tests.** The corrected oracles live in
+    exactly two places (the `SEQUENCE_VECTORS` const in `test_unicode_boundary.rs` and the issues.md
+    table). Equality against `outputs.result` already catches a delete-filter regression;
+    replicating the oracle 11 times would re-open the mislabeling hazard that hit iteration 149.
+- **Editing the canonical fixture** — no new vectors, no renames, no reformatting. It is a finished
+    propagation source.
+- **Extending the public Go `ConformanceSelftest()`** or any other public API. The boundary vectors
+    are test-only; `ConformanceSelftest` stays scoped to the `gen_*_v0` vectors from
+    `testdata/data.json`.
+- **Touching `packages/go/utils.go`** — no freeze table, no 15.0→16.0 delta, no `cases.Caser` hoist
+    (the per-call `Caser` is deliberate).
+- **A drift gate for vendored vector copies.** There is none today for the five `data.json` copies
+    either; adding one is a separate, arguably human-gated step. This step verifies byte-identity
+    once, with `cmp`.
+- **Any baseline refresh.** No Rust source and no Rust test changes, so neither
+    `.crap-baseline.json` nor `.iai-baseline.json` may move.
 
 ## Implementation Notes
 
-**1. Fixture (`tests/unicode_boundary.json`).** The file is pure ASCII by design (composed and
-decomposed forms render identically, and `U+0378` renders as tofu), so every string stays
-`\uXXXX`-escaped. Add these four cases verbatim — the escapes were generated with
-`json.dumps(..., ensure_ascii=True)` and match the issues.md table exactly:
+### Verified facts measured this iteration — do not re-derive
+
+**Fixture shape** (`crates/iscc-lib/tests/unicode_boundary.json`, pure ASCII, 2344 bytes):
 
 ```text
-"text_clean": {
-  "test_0004_seq_u0378_blocks_canonical_composition": {
-    "inputs": ["e\u0378\u0301"],
-    "outputs": { "result": "e\u0301" }
-  },
-  "test_0005_seq_u0378_blocks_hangul_composition": {
-    "inputs": ["\u1100\u0378\u1161"],
-    "outputs": { "result": "\u1100\u1161" }
-  },
-  "test_0006_seq_ua7f1_no_decomposition_leak": {
-    "inputs": ["e\ua7f1\u0301"],
-    "outputs": { "result": "e\u0301" }
-  }
-},
-"text_collapse": {
-  "test_0004_seq_u0378_preserves_final_sigma": {
-    "inputs": ["\u0391\u03a3\u0378\u0392"],
-    "outputs": { "result": "\u03b1\u03c2\u03b2" }
-  }
-}
+{"_metadata": {"description": ..., "unicode_data_version": "16.0.0"},
+ "text_clean":    { <7 cases> },
+ "text_collapse": { <5 cases> }}
 ```
 
-Keep the existing `test_0000`–`test_0003` cases untouched and keep the existing nesting shape
-(`inputs` array of one string, `outputs.result`). The outputs the superseded delete-filter design
-would wrongly produce are `\u00e9`, `\uac00`, `e\u015a` and `\u03b1\u03c3\u03b2` respectively; they
-belong in the Rust guard (below), not in the JSON. Widen `_metadata.description` so it no longer
-describes the fixture as single code points only.
+Every case is `{"inputs": ["<one string>"], "outputs": {"result": "<string>"}}`. Case keys are
+`test_0000_u1fae9_assigned_so_retained`, `test_0001_u113c5_assigned_mc_retained` (`text_clean`) /
+`test_0001_u113c5_assigned_mc_mark_dropped` (`text_collapse`),
+`test_0002_u20c1_unassigned_16_stripped`, `test_0003_ua7f1_unassigned_16_stripped`, then the
+sequence cases `test_0004_seq_u0378_blocks_canonical_composition`,
+`test_0005_seq_u0378_blocks_hangul_composition`, `test_0006_seq_ua7f1_no_decomposition_leak`
+(`text_clean`) and `test_0004_seq_u0378_preserves_final_sigma` (`text_collapse`).
 
-**2. Guard (`tests/test_unicode_boundary.rs`).** Add a const table so the sequence expectations live
-in the test source, not only in the fixture:
+**Python passes all 12 vectors today.** Probed this iteration against the installed editable
+extension (`crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so`, built today): 12 of 12 exact matches,
+0 failures. The "stale wheel" warning from earlier iterations no longer applies. If a vector
+unexpectedly fails, rebuild with `uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml`
+before suspecting the fixture.
 
-```rust
-/// Sequence boundary vectors: `(section, input, expected, delete_filter_output)`.
-/// Unlike the single-code-point vectors these distinguish the `U+FFFF` sentinel map
-/// from the superseded delete-filter design, so their exact strings are pinned
-/// here - a fixture case silently degraded to ASCII must fail this guard.
-const SEQUENCE_VECTORS: [(&str, &str, &str, &str); 4] = [ /* ... */ ];
-```
+**Go passes 9 of 12; exactly three fail.** Probed this iteration by running `TextClean` /
+`TextCollapse` from a throwaway module against the canonical fixture:
 
-Then, still **ungated** (no `#[cfg(feature = "text-processing")]`, so a feature-off build still
-guards the fixture):
+| section         | case                                    | Go result                                   |
+| --------------- | --------------------------------------- | ------------------------------------------- |
+| `text_clean`    | `test_0000_u1fae9_assigned_so_retained` | **FAIL** — Go drops U+1FAE9 (Cn under 15.0) |
+| `text_clean`    | `test_0001_u113c5_assigned_mc_retained` | **FAIL** — Go drops U+113C5 (Cn under 15.0) |
+| `text_collapse` | `test_0000_u1fae9_assigned_so_retained` | **FAIL** — same cause                       |
+| all nine others | —                                       | PASS                                        |
 
-- For every row: find the case in that section whose `inputs[0]` equals `input`, assert exactly one
-    match, assert its `outputs.result` equals `expected`, and assert it is **not** equal to
-    `delete_filter_output`.
-- Per-section case count: derive it as `4 + rows for that section` (7 for `text_clean`, 5 for
-    `text_collapse`) rather than hard-coding two magic numbers in two places.
-- Keep the existing exact non-ASCII code-point-set assertion working by deriving the expected set as
-    `BOUNDARY_CODE_POINTS` plus the non-ASCII chars of that section's sequence inputs — do not
-    weaken it to a subset check.
-- Update the two `#[cfg(feature = "text-processing")]` vector tests' `executed` assertions the same
-    way (7 and 5), so a silently dropped case still fails.
+Two consequences to honour:
 
-**CRAP trap — keep new logic inside `#[test]` functions.** `cargo crap` scores only non-`#[test]`
-functions in integration-test files (`.crap-baseline.json` contains exactly two entries for this
-file: `boundary_data` cyclomatic 1 / crap 2, `run_boundary_section` cyclomatic 2 / crap 6), and
-coverage for those is `null` → `missing = "pessimistic"` → `crap = c² + c`. A new free helper with
-cyclomatic ≥ 6 therefore scores 42 and trips `--fail-above` (threshold 30) even though it is test
-code. Put the new assertions in a second `#[test] fn` (e.g.
-`test_boundary_fixture_sequence_vectors`) instead of a new helper, and do not add branches to
-`boundary_data` / `run_boundary_section`.
+1. **All four sequence vectors PASS in Go** (including
+    `text_collapse/test_0004_seq_u0378_preserves_final_sigma` — the iteration-147 `Final_Sigma` fix
+    is live). They must be run, not skipped.
+2. **`text_collapse/test_0001_u113c5_assigned_mc_mark_dropped` PASSES** — Go removes the mark as
+    category `C`, the expected output removes it as category `M`, and both land on `ab`. So the
+    skip list is **per case, not per code point**: skip exactly the three rows above.
 
-**Baseline handling.** Adding lines shifts those two functions' line numbers, which `cargo crap`
-tracks as *moved*, not *regressed*. Run the CI-exact gate on the edited tree:
+### Copying the fixture (escape hazard)
+
+Copy with the shell, never with Write/Edit:
 
 ```bash
-cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info
-cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above
+cp crates/iscc-lib/tests/unicode_boundary.json packages/go/testdata/unicode_boundary.json
 ```
 
-If it exits 0, **leave `.crap-baseline.json` untouched** (baselines are refreshed only when a gate
-demands it). If it exits non-zero, refresh with `mise run crap:baseline` in this same commit and say
-so in the handoff. Note `--fail-above` is a bare flag — the 30.0 threshold comes from
-`.cargo-crap.toml`.
+Writing the file through a tool payload decodes its `\uXXXX` escapes into literal UTF-8 and silently
+corrupts an ASCII-escaped fixture (this bit both advance and review in iteration 149). Verify the
+copy with `cmp`, not by eye.
 
-**3. Docs (`docs/unicode.md`).** The "Boundary behaviour" section (~lines 64–83) documents only the
-four single-code-point vectors. Add a short second table for the sequence vectors immediately after
-it, and adjust the closing sentence so it covers both families. Write the code points as `U+XXXX`
-notation rather than literal glyphs (`U+0378` is unassigned and renders as tofu; `e` + `U+0301` and
-`U+00E9` are visually identical). One row per vector: input sequence, function, expected output, and
-the output a delete filter would wrongly produce. Two sentences of context are enough: the sentinel
-keeps its neighbours apart during normalization and lowercasing, which is why these sequences — and
-not the ASCII-wrapped single code points — are what pins the design. Do **not** add a new page (the
-nav / `ORDERED_PAGES` / `llms.txt` triple stays at 23 pages).
+### Python test (`tests/test_unicode_boundary.py`)
 
-**Verified facts — do not re-derive.** `crates/iscc-lib/src/utils.rs` asserts, at HEAD, in tests
-that passed CI: `text_clean("e\u{0378}\u{0301}") == "e\u{0301}"`,
-`text_clean("\u{1100}\u{0378}\u{1161}") == "\u{1100}\u{1161}"`,
-`text_clean("e\u{A7F1}\u{0301}") == "e\u{0301}"`, and
-`text_collapse("\u{0391}\u{03A3}\u{0378}\u{0392}") == "\u{03B1}\u{03C2}\u{03B2}"`. The fixture must
-record exactly these.
+Mirror `tests/test_conformance.py`: module docstring, a `FIXTURE` path constant built from
+`Path(__file__).parent.parent`, a small `load_cases(section)` helper returning
+`[pytest.param(tc, id=name) for name, tc in section.items()]`, then two parametrized tests
+(`text_clean`, `text_collapse`) asserting `fn(*tc["inputs"]) == tc["outputs"]["result"]`. Import
+`text_clean` / `text_collapse` from `iscc_lib`.
+
+Add one non-parametrized guard, `test_boundary_fixture_metadata`, asserting
+`unicode_data_version == "16.0.0"` and the per-section case counts (7 and 5). Without it a truncated
+or renamed fixture would silently degrade to zero parametrized cases and still report success.
+
+### Go test (`packages/go/unicode_boundary_test.go`, package `iscc`)
+
+- Embed the vendored copy: `import _ "embed"` plus `//go:embed testdata/unicode_boundary.json` on a
+    `var unicodeBoundaryData string`. Embedding from a `_test.go` file works and `testdata/` is
+    embeddable (`conformance.go` already embeds `testdata/data.json`).
+- Reuse the existing `parseConformanceData` helper: it skips `_`-prefixed keys and its `vectorEntry`
+    (`Inputs []json.RawMessage`, `Outputs map[string]interface{}`) fits these cases —
+    `json.Unmarshal(vec.Inputs[0], &in)` and `vec.Outputs["result"].(string)`. Parse `_metadata`
+    with a separate tiny unmarshal in the guard test.
+- One test per section (`TestPureGoUnicodeBoundaryTextClean`,
+    `TestPureGoUnicodeBoundaryTextCollapse`) with `t.Run(name, ...)` subtests, so each skip shows up
+    as its own `--- SKIP` line.
+- Skip list as a package-level map keyed `"<section>/<case>"` with a reason string per entry, e.g.
+    `"go1.27 (~Aug 2026) brings Unicode 16/17 tables to the stdlib and x/text; Go 1.26 classifies   U+1FAE9 as unassigned. Ruled 2026-07-26 (decisions.md): skip, do not vendor the 15.0-to-16.0   delta."`
+    Call `t.Skipf` with it.
+- Guard test `TestPureGoUnicodeBoundaryFixtureMetadata`: assert `unicode_data_version == "16.0.0"`,
+    section counts 7 and 5, **and that every skip-map key names a case that exists in the fixture**
+    (`t.Errorf` otherwise) — that keeps a stale skip from silently masking a renamed vector.
+- Keep `gofmt` clean (tabs, standard import grouping); CI runs `go vet ./...` too.
+
+### Docs
+
+- `docs/unicode.md`, the sentence that currently reads "checked into the repository as
+    `crates/iscc-lib/tests/unicode_boundary.json` and exercised by the Rust test suite" — widen it:
+    the Rust suite, the Python test suite, and the pure-Go package via the vendored copy at
+    `packages/go/testdata/unicode_boundary.json`.
+- `docs/unicode.md`, the `!!! note "The pure-Go package"` admonition — state that Go runs 9 of the
+    12 boundary vectors, including all four sequence vectors, and skips exactly three (U+1FAE9 in
+    both functions and U+113C5 in `text_clean`) until go1.27 ships newer Unicode tables. Keep the
+    existing freeze-rule caveat.
+- `packages/go/CLAUDE.md` — add a `testdata/unicode_boundary.json` row to the file table (near the
+    existing `testdata/data.json` row) and a Test Patterns bullet describing
+    `unicode_boundary_test.go` and its three ruled skips.
+- Do not add a new docs page — `scripts/check_docs_nav.py` must stay at 23 pages.
 
 ## Verification
 
-- Fixture shape and content, mechanically:
-
-```bash
-python3 - <<'PY'
-import json, pathlib
-p = pathlib.Path("crates/iscc-lib/tests/unicode_boundary.json")
-raw = p.read_bytes()
-assert raw.isascii(), "fixture must stay ASCII-escaped"
-d = json.loads(raw)
-assert len(d["text_clean"]) == 7 and len(d["text_collapse"]) == 5
-want = {
-    ("text_clean", "e\u0378\u0301"): "e\u0301",
-    ("text_clean", "\u1100\u0378\u1161"): "\u1100\u1161",
-    ("text_clean", "e\ua7f1\u0301"): "e\u0301",
-    ("text_collapse", "\u0391\u03a3\u0378\u0392"): "\u03b1\u03c2\u03b2",
-}
-got = {(s, c["inputs"][0]): c["outputs"]["result"]
-       for s in ("text_clean", "text_collapse") for c in d[s].values()}
-for k, v in want.items():
-    assert got.get(k) == v, (k, got.get(k), v)
-print("fixture OK")
-PY
-```
-
-- `cargo test -p iscc-lib` passes with **0 failures** and at least 335 tests
-- `cargo test -p iscc-lib --test test_unicode_boundary` passes (guards + both vector tests)
-- `cargo test -p iscc-lib --no-default-features --test test_unicode_boundary` passes — the fixture
-    guards run with `text-processing` off
-- `cargo clippy -p iscc-lib --all-targets -- -D warnings` is clean
-- `grep -c 'u{03C2}' crates/iscc-lib/tests/test_unicode_boundary.rs` is ≥ 1 and
-    `grep -c 'u{A7F1}' crates/iscc-lib/tests/test_unicode_boundary.rs` is ≥ 2 — the sequence
-    expectations are pinned in the test source, not only in the fixture
-- `git diff --stat crates/iscc-lib/src/` is **empty** — no source file changed
-- `cargo llvm-cov -p iscc-lib --lcov --output-path lcov.info` then
-    `cargo crap --lcov lcov.info --baseline .crap-baseline.json --fail-regression --fail-above`
-    exits 0 on the working tree
-- `grep -c 'U+0378' docs/unicode.md` is ≥ 2 and `grep -c 'U+03C2' docs/unicode.md` is ≥ 1
-- `uv run zensical build` exits 0 and reports "No issues found"; `uv run scripts/check_docs_nav.py`
-    exits 0 (still 23 pages)
-- `mise run check` — every hook Passed and the working tree is clean afterwards
+- `uv run pytest tests/test_unicode_boundary.py -q` — 0 failures, at least 13 tests collected (12
+    vector cases + the metadata guard)
+- `uv run pytest -q` — whole Python suite passes (no regressions)
+- `CGO_ENABLED=0 go test -count=1 ./...` in `packages/go` — exit 0 (CI-exact command)
+- `go vet ./...` in `packages/go` — exit 0
+- `CGO_ENABLED=0 go test -count=1 -v -run UnicodeBoundary ./... | grep -c -- '--- SKIP'` in
+    `packages/go` — output is exactly `3`
+- `cmp crates/iscc-lib/tests/unicode_boundary.json packages/go/testdata/unicode_boundary.json` —
+    exit 0 (byte-identical, still pure ASCII)
+- `gofmt -l .` in `packages/go` — empty output
+- `cargo test -p iscc-lib` — 336 passed, 0 failed (unchanged)
+- `git status --porcelain crates/iscc-lib/ .crap-baseline.json .iai-baseline.json` — empty (the
+    canonical fixture, the Rust core and both baselines are untouched)
+- `mise run check` — every prek hook passes with no reformats
+- `uv run zensical build` — exit 0, "No issues found"; `uv run scripts/check_docs_nav.py` — exit 0,
+    23 pages
+- `grep -F -c 'unicode_boundary.json' docs/unicode.md` — at least `2` (canonical path + vendored Go
+    copy); `grep -F -c 'testdata/unicode_boundary.json' packages/go/CLAUDE.md` — at least `1`
 
 ## Done When
 
-The four sequence vectors are in the fixture, pinned by an ungated guard that fails on a degraded
-case, documented in `docs/unicode.md`, and every verification check above passes.
+Python runs all 12 boundary vectors green, the pure-Go package runs 9 and skips exactly the 3 ruled
+table-dependent ones from a byte-identical vendored copy, the docs name both suites and the three
+skips, and every verification command above passes.

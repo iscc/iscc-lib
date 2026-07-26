@@ -18,27 +18,23 @@ iterations.
     hoist a package-level `cases.Caser`; x/text documents `Caser` as *not* goroutine-safe and the
     hoist measured no faster). Cheap throwaway probes (a `zz_probe_test.go` you delete, a `/tmp`
     module) settle these in a minute and turn `## Implementation Notes` into measured facts.
-- **A crashed review role means the previous step has NO verdict** — `iterations.jsonl` showing
-    `"role":"review","status":"FAIL","turns":1` with no `cid(review)` commit (iter 147) means
-    handoff.md holds only the advance section and resolved issues were never deleted from issues.md.
-    Re-verify the prior step's claims from the tree (update-state usually did) before building on
-    it.
+- **A crashed review role means the previous step has NO verdict** (`iterations.jsonl` FAIL/turns:1
+    with no `cid(review)` commit) — handoff.md then holds only the advance section and resolved
+    issues were never deleted. Re-verify the prior step's claims from the tree.
 - **Generated/tool-output files (Cargo.lock, bindings) don't count toward the 3-file limit**; doc
     files are also excluded — can batch all howto guides in one step.
-- Batch related small changes (version sync + docs; several fixes in the same crate/2 files).
-- **IDLE is valid** when all target sections met and only `low` issues remain — don't invent work.
-    But an already-specced, locally-verifiable target gap is NOT idle work.
-- **Prefer boolean-verifiable prerequisites over risky infra fixes** — but infra/release fixes CAN
-    be locally verifiable; don't default to "release-only → too risky".
+- Batch related small changes (version sync + docs; several fixes in the same crate/2 files). **IDLE
+    is valid** when all target sections are met and only `low` issues remain — but an
+    already-specced, locally-verifiable target gap is NOT idle work, and infra/release fixes CAN be
+    locally verifiable; don't default to "release-only → too risky".
 - **HUMAN REVIEW override on overwhelming evidence is for BUG fixes, not NEW policy gates** — a gate
     that amends the spec/notes needs human sign-off first (iter 106/112).
 - **next.md is a sensitive file** — Write needs a prior Read of it; if Write is blocked, use
     `cat > file << 'EOF'` via Bash.
-- **Escape sequences in a tool payload get decoded before they hit the file** (iter 149): typing
-    `\u0378` into a Write/Edit/Bash payload lands the *character*, silently corrupting a fixture
-    snippet next.md must hand advance verbatim. Double the backslash, or re-escape afterwards with a
-    `python3` `re.sub(r"[^\x00-\x7f]", ...)` pass over the fences; `\u{0378}` (Rust form) survives.
-    Check `grep -c 'u0378' <file>`, and fence such snippets as `text`.
+- **Escape sequences in a tool payload may get decoded before they hit the file** (observed iter
+    149, NOT reproduced iter 150 \\u2014 transport-dependent): `\u0378` can land as the *character*,
+    corrupting a snippet next.md must hand advance verbatim. Safest is `U+0378` prose notation;
+    otherwise verify with `python3 ... .isascii()` / `grep -c 'u0378' <file>` after every write.
 
 ## Architecture & Conformance Facts
 
@@ -56,9 +52,8 @@ iterations.
 
 - **No Swift toolchain / no shellcheck** in the Linux devcontainer — `swift test` + shell lint are
     CI/macOS only.
-- `uniffi-bindgen`: `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen`.
-- UniFFI 0.31.0; SPM module name MUST be `iscc_uniffiFFI`; UniFFI can't export `const` (getters) or
-    `usize`/borrowed/generic exports.
+- `uniffi-bindgen`: `cargo run -p iscc-uniffi --features bindgen --bin uniffi-bindgen`. UniFFI
+    0.31.0; SPM module name MUST be `iscc_uniffiFFI`; no `const`/`usize`/borrowed/generic exports.
 - cargo-crap 0.2.2, cargo-llvm-cov 0.8.7, valgrind 3.19 + iai-callgrind-runner ARE installed.
     cargo-deny is NOT preinstalled but installs via `cargo binstall cargo-deny@0.19.9 --force`.
 
@@ -79,13 +74,11 @@ iterations.
 
 ## v1.0.0 Hardening Phase — COMPLETE (iters 86–114); detail in MEMORY-archive.md + learnings.md
 
-- **Semver + Coverage/CRAP + Perf + Audit are the 4 quality gates.** CRAP + Perf + Audit enforcing;
-    Semver `continue-on-error: true` until the human-gated v1.0.0 cut.
-- **Baselines (`.crap-baseline.json`, `.iai-baseline.json`) are committed and refreshed only by
-    deliberate reviewed `mise run` commits** — never auto-committed from CI; don't widen
-    `--epsilon`.
+- **Semver + Coverage/CRAP + Perf + Audit are the 4 quality gates** (CRAP/Perf/Audit enforcing,
+    Semver informational until the human-gated v1.0.0). **Baselines are committed and refreshed only
+    by deliberate reviewed `mise run` commits** — never from CI; don't widen `--epsilon`.
 - **cargo-deny** reads Cargo.lock + metadata (NOT compiled artifacts) → a green local
-    `cargo deny check` is authoritative. `deny.toml` schema/license-graph detail in learnings.md.
+    `cargo deny check` is authoritative. `deny.toml` detail in learnings.md.
 
 ## v0.6.0 Phase (post-v0.5.0, started ~iter 115)
 
@@ -106,12 +99,15 @@ iterations.
     139 predicted 153, review measured 155); make the exit code the criterion.
 - **Open Unicode backlog** (`human(decide)` `9aa25ad`; `specs/rust-core.md` is the authority): (1)
     Go `Final_Sigma` ✅147, (2) sentinel conversion ✅148, (3) the four **sequence** vectors + fixture
-    guard [scoped 149], (4) fixture propagation into 11 bindings + 4 sibling `data.json` copies (Go
-    **skips** the two table-dependent ones until go1.27 — ruled — but MUST take `Final_Sigma`), (5)
-    the 1,112,064-scalar **and sequence-class** differential sweep as a runnable check. Never
+    guard ✅149, (4) fixture propagation into the 11 bindings — **slice 1 (Python + Go) scoped 150**,
+    (5) the 1,112,064-scalar **and sequence-class** differential sweep as a runnable check. Never
     implement the superseded category override (`U+A7F1` injects a spurious `S`) or a 15.1.0
     declared version. Escapes, fixture facts, CRAP-in-tests →
     [unicode-freeze-facts](unicode-freeze-facts.md).
+- **Before scoping any propagation slice** read the
+    [propagation ledger](unicode-fixture-propagation.md) — loader taxonomy (which bindings read the
+    canonical path vs. need a vendored `cp`), which binding artifacts are stale, Go's measured 9/12
+    with its **per-case** (not per-code-point) skip list, and the planned slice order.
 - **Gate/checker steps in `scripts/` have their own playbook** — prek-vs-CI placement, the Python
     3.10 floor (no `tomllib`), injected-`Path` shape, network/offline probing, docs-list wiring, and
     when a gate change needs Titusz: [gate scripts playbook](gate-scripts-playbook.md). Read it
@@ -122,14 +118,10 @@ iterations.
     verify each floating tag via `gh api repos/<r>/git/ref/tags/<vN>`):
     [release.yml static gates](release-yml-static-gates.md).
 - **Any step touching the text hot path trips two gates at once**: the CI-only CRAP
-    `--fail-regression` baseline and the `.iai-baseline.json` 10% Ir gate. Measured constants,
-    expected boundary values and the independent Unicode-16 derivation recipe:
-    [unicode-freeze-facts](unicode-freeze-facts.md). A `tests/`-only step usually trips **neither**
-    (coverage can only improve) — say so in next.md so advance doesn't refresh a baseline. One
-    exception: `cargo crap` DOES score **non-`#[test]` helpers** in `tests/*.rs` (their coverage is
-    `null` → `missing = "pessimistic"` → `crap = c² + c`), so a new free helper with cyclomatic ≥ 6
-    trips `--fail-above` (threshold 30). Tell advance to keep new fixture logic inside `#[test]`
-    fns.
+    `--fail-regression` baseline and the `.iai-baseline.json` 10% Ir gate. A `tests/`-only step
+    usually trips **neither** — say so in next.md so advance doesn't refresh a baseline. Exception +
+    measured constants + the Unicode-16 derivation recipe:
+    [unicode-freeze-facts](unicode-freeze-facts.md).
 - Generator scripts needing an external pin: PEP 723 + `uv run --script`, never a dev-dep —
     [ty gate trap](define-next-ty-generator-scripts.md).
 - `uv run zensical build` (exits 0, "No issues found", ~8s) verifies any docs-only step.
@@ -141,6 +133,11 @@ iterations.
     unblocked user-facing candidates the rule does not fire (iter 146) — then enumerate each blocked
     candidate + its blocker.
 - Parked-work scoping lessons → `MEMORY-archive.md`; nothing is parked on Titusz today.
-- **The installed Python binding is a cheap probe — but the venv wheel LAGS the source** (iter 141:
-    it still showed pre-iter-133 `text_clean` behaviour). Cross-check anything the last few
-    iterations could have touched with `cargo test -p iscc-lib --lib <mod>::` (~seconds when built).
+- **Binding artifacts are cheap probes, but each has its own age** — the Python editable install was
+    CURRENT at iter 150 while the checked-in napi `.node` was months stale. Probe a *discriminating*
+    input before trusting one (details + freshness table →
+    [propagation ledger](unicode-fixture-propagation.md)); cross-check with
+    `cargo test -p iscc-lib --lib <mod>::` (~seconds when built).
+- **Probing a foreign binding without touching the repo**: a throwaway module in `/tmp` with a
+    `replace` / path dependency back to the package (used at iter 150 to measure Go's 9/12 on the
+    boundary fixture) turns `## Implementation Notes` into measured facts and leaves no tree diff.

@@ -27,10 +27,12 @@ agent writes assertions instead of exploring.
 
 ## Boundary behaviour of the Rust core *before* the freeze filter
 
-⚠️ **The dev venv's installed `iscc_lib` wheel is stale** — re-measured at iteration 141 it still
-returns the pre-133 `"aSb"` for `U+A7F1`, i.e. it predates the freeze filter. Use it only for
-questions the wheel's age cannot affect; for current core behaviour run
-`cargo test -p iscc-lib --lib utils::` (25 tests, ~0.03 s once built) or add a scratch assertion.
+**Editable-install freshness (re-measured iter 150): the Python extension is CURRENT.**
+`crates/iscc-py/python/iscc_lib/_lowlevel.abi3.so` was rebuilt during the sentinel work and passes
+all 12 boundary vectors, so `uv run python -c "import iscc_lib; …"` is a valid probe again (the
+iter-141 "stale wheel" warning is retired). Always re-probe one *discriminating* value
+(`text_clean("a" + U+A7F1 + "b")` must be `"ab"`, not `"aSb"`) before trusting it; rebuild with
+`uv run maturin develop --manifest-path crates/iscc-py/Cargo.toml`.
 
 Measured via `uv run python -c "import iscc_lib; …"`:
 
@@ -123,8 +125,14 @@ pure ASCII by design — composed/decomposed forms render identically and U+0378
 | --------------- | -------------------------- | -------------------- | ------------------------ |
 | `text_clean`    | `e\u0378\u0301`            | `e\u0301`            | `\u00e9`                 |
 | `text_clean`    | `\u1100\u0378\u1161`       | `\u1100\u1161`       | `\uac00`                 |
-| `text_clean`    | `e\ua7f1\u0301`            | `e\u0301`            | `e\u015a`                |
+| `text_clean`    | `e\ua7f1\u0301`            | `e\u0301`            | `\u00e9`                 |
 | `text_collapse` | `\u0391\u03a3\u0378\u0392` | `\u03b1\u03c2\u03b2` | `\u03b1\u03c3\u03b2`     |
+
+**Row 3's delete-filter oracle is `\u00e9`, NOT `e\u015a`** \\u2014 this table said `e\u015a` when
+iter 149 was scoped, the wrong value reached `docs/unicode.md` and review had to correct it.
+`e\u015a` is what the *superseded category-override* design yields (U+A7F1 is `<super> 0053` in
+Unicode 17); a delete filter removes the code point before normalization, so row 3 collapses to row
+1's value. **A "must NOT be" oracle is only meaningful once the design it comes from is named.**
 
 Pinned by six `utils.rs` tests (lines ~350-407) that passed CI at HEAD — never re-derive them. Do
 **not** mirror them into the other section: the jamo sequence under `text_collapse` legitimately
