@@ -109,3 +109,23 @@ it when assessing.
     `build_xcframework.sh` builds 5 Apple targets.
 - `packages/kotlin/` — Kotlin/JVM + JNA 2.4.10 (JNA, not JNI); consumer floor Kotlin 2.3+ since the
     iter-128 plugin bump; pin detail → `dep-refresh-survey.md`.
+
+## Archived from MEMORY.md at iteration 146 (compaction)
+
+- **release.yml static gate internals**: `scripts/check_release_workflow.py` = 23 fns; checks 1-2
+    (guard shape 29 jobs/28 guarded, only `prepare-release` bare; input wiring; artifact wiring with
+    `matrix.include` expansion; `needs:` graph) landed iter 142, all offline.
+    `--check-action-inputs` (opt-in, NETWORK) landed iter 144: validates `with:` keys +
+    `steps.<id>.outputs.<x>` against 18 distinct published `action.yml`. Prek hook
+    `check-release-workflow` is release.yml-scoped and offline;
+    `tests/test_check_release_workflow.py` = 19 tests, fetcher-injected so network-free; `pyyaml` is
+    a dev dep.
+- **Historical docs-list drift (measured iter 144, FIXED iter 145)**: `docs/llms.txt` carried only
+    17 of 23 page links, missing `howto/{c-cpp,dotnet,kotlin,ruby,swift}.md` + `ruby-api.md` — 5 of
+    11 languages invisible to LLM consumers. Downgraded Documentation to partially met for one
+    iteration. Fixed plus gated by `scripts/check_docs_nav.py` at 145.
+- **`docs.yml` ordering**: `zensical build` wipes `site/`, so `gen_llms_full.py` must run AFTER it
+    (docs.yml has the right order). Verifying per-page `site/**/*.md` in the wrong order looks like
+    every page is missing.
+- **Iteration cadence log**: 140 tooling / 141 tests / 142 tooling / 143 docs / 144 tooling / 145
+    docs+tooling.
