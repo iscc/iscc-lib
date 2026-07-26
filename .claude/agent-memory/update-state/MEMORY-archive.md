@@ -91,3 +91,12 @@ aarch64 wheels #49 (123), CRAP baseline (122), trailing-byte hardening (120-121)
 (119), WASM SIMD #42 (118), GIL release #39+#41, cargo-deny audit gate (113), iai-callgrind perf
 gate (107-111), cargo-semver-checks job (93). CID loop infra = meta, NOT part of target.md — ignore
 it when assessing.
+
+## Environment gotchas (archived at 144)
+
+- **Known non-regression**: the `proc-macro-error2 v2.0.1` future-incompat warning on cargo
+    test/bench comes from `iai-callgrind-macros` (dev-only), NOT magnus/rb-sys; no upstream fix yet.
+- **metrics.jsonl counts include gitignored build artifacts** — never read a metrics delta as real
+    code change without `git diff --stat`.
+- **Gradle flakes on this bind mount** (`Unable to delete file …/build/…`) — `./gradlew clean`
+    before believing a Kotlin failure; check the test XML.
